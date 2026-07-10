@@ -24,12 +24,13 @@ import {
 import { usePermission } from '@/src/auth/usePermission';
 import { useIsOperator } from '@/src/auth/useIsOperator';
 import { useUsers, useUserMutations } from '@/src/hooks/useUsers';
-import { useUsage } from '@/src/hooks/useUsage';
+import { useUsage, useAgentRunStats } from '@/src/hooks/useUsage';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { roleVariant } from '@/src/lib/status/statusVariants';
 import type { UserRow, UserRole } from '@/src/lib/db/adminUsers';
 import { useAuth } from '@/src/auth/useAuth';
 import { AdministrationUsage } from './AdministrationUsage';
+import { AgentCostMetrics } from '@/src/components/admin/AgentCostMetrics';
 import { AdministrationCredits } from './AdministrationCredits';
 import { AdministrationFeatures } from './AdministrationFeatures';
 
@@ -109,6 +110,9 @@ const AdminUsers: React.FC = () => {
   // S6 adds the Operator org-switcher; until then every Usage read targets the caller's own org
   // (org-Admin path) or ALL orgs (Operator path, no filter — operatorOrgId omitted).
   const usageQuery = useUsage();
+  // Agent cost dashboard (agent-cost-dashboard) — per-run cost/latency percentiles from the same
+  // aggregates-only surface (NFR-PRIV-001); pairs with usageQuery's now-cache/reasoning-bearing rows.
+  const runStatsQuery = useAgentRunStats();
   const { currentUser } = useAuth();
   const ownOrgId = currentUser?.org_id ?? '';
 
@@ -424,6 +428,20 @@ const AdminUsers: React.FC = () => {
       {/* Usage section (ops-admin-surface S5) — aggregates-only, sourced from the usage RPCs. */}
       <div className="mt-6">
         <SectionHeader title="Usage" />
+        {/* Agent cost dashboard (agent-cost-dashboard): cache hit-rate, reasoning share, cost/run
+            percentiles, p95 latency — derived in-panel from the same aggregates-only rows. */}
+        <div className="mb-4">
+          <AgentCostMetrics
+            summaryRows={usageQuery.data ?? []}
+            runStatsRows={runStatsQuery.data ?? []}
+            isPending={usageQuery.isPending || runStatsQuery.isPending}
+            isError={usageQuery.isError || runStatsQuery.isError}
+            onRetry={() => {
+              void usageQuery.refetch();
+              void runStatsQuery.refetch();
+            }}
+          />
+        </div>
         <AdministrationUsage
           rows={usageQuery.data ?? []}
           isPending={usageQuery.isPending}

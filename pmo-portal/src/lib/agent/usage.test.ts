@@ -102,6 +102,77 @@ describe('recordUsage', () => {
     );
   });
 
+  it('carries cached_tokens + reasoning_tokens into the insert payload, clamped', async () => {
+    const { supabase, insertSpy } = mockUsageSupabase();
+    const cachedResp: ModelResponse = {
+      ...resp,
+      usage: {
+        prompt_tokens: 1000,
+        completion_tokens: 200,
+        total_tokens: 1200,
+        total_cost: 0.01,
+        cached_tokens: 768,
+        reasoning_tokens: 64,
+      },
+    };
+    await recordUsage({ supabase, runId: 'run-cache' }, cachedResp);
+    expect(insertSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ cached_tokens: 768, reasoning_tokens: 64 }),
+    );
+  });
+
+  it('defaults cached_tokens + reasoning_tokens to 0 when the provider omits them', async () => {
+    const { supabase, insertSpy } = mockUsageSupabase();
+    const plainResp: ModelResponse = {
+      ...resp,
+      usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15, total_cost: 0.001 },
+    };
+    await recordUsage({ supabase, runId: 'run-plain' }, plainResp);
+    expect(insertSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ cached_tokens: 0, reasoning_tokens: 0 }),
+    );
+  });
+
+  // AC-ACD-002: recordUsage forwards a durationMs arg into the row as duration_ms, clamped at
+  // the single insert choke point (mirrors cached_tokens/reasoning_tokens).
+  it('AC-ACD-002 recordUsage forwards durationMs into the insert payload', async () => {
+    const { supabase, insertSpy } = mockUsageSupabase();
+    await recordUsage({ supabase, runId: 'run-dur' }, resp, 'chat', 1234);
+    expect(insertSpy).toHaveBeenCalledWith(expect.objectContaining({ duration_ms: 1234 }));
+  });
+
+  it('AC-ACD-002 recordUsage defaults duration_ms to 0 when durationMs is omitted', async () => {
+    const { supabase, insertSpy } = mockUsageSupabase();
+    await recordUsage({ supabase, runId: 'run-dur2' }, resp, 'chat');
+    expect(insertSpy).toHaveBeenCalledWith(expect.objectContaining({ duration_ms: 0 }));
+  });
+
+  it('AC-ACD-002 recordUsage clamps a non-finite/negative durationMs to 0', async () => {
+    const { supabase, insertSpy } = mockUsageSupabase();
+    await recordUsage({ supabase, runId: 'run-dur3' }, resp, 'chat', -5);
+    expect(insertSpy).toHaveBeenCalledWith(expect.objectContaining({ duration_ms: 0 }));
+    await recordUsage({ supabase, runId: 'run-dur4' }, resp, 'chat', NaN);
+    expect(insertSpy).toHaveBeenLastCalledWith(expect.objectContaining({ duration_ms: 0 }));
+  });
+
+  it('AC-ACD-001 insertUsageRow clamps + inserts an explicit duration_ms', async () => {
+    const { supabase, insertSpy } = mockUsageSupabase();
+    await insertUsageRow(
+      { supabase, runId: null },
+      { model: 'm', prompt_tokens: 1, completion_tokens: 1, cost: 0, duration_ms: 987 },
+    );
+    expect(insertSpy).toHaveBeenCalledWith(expect.objectContaining({ duration_ms: 987 }));
+  });
+
+  it('AC-ACD-001 insertUsageRow defaults duration_ms to 0 when omitted (compose-view shape)', async () => {
+    const { supabase, insertSpy } = mockUsageSupabase();
+    await insertUsageRow(
+      { supabase, runId: null },
+      { model: 'm', prompt_tokens: 0, completion_tokens: 42, cost: 0 },
+    );
+    expect(insertSpy).toHaveBeenCalledWith(expect.objectContaining({ duration_ms: 0 }));
+  });
+
   it('recordUsage swallows an insert error without throwing', async () => {
     const supabase = {
       from: vi.fn().mockReturnValue({

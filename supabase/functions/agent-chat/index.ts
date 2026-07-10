@@ -27,7 +27,8 @@ import { agentChatHandler } from './handler.ts';
 import { loadJournaledWrites, loadMaxSeq } from './persistence.ts';
 import { createAttachmentResolver } from './attachments.ts';
 import { createCreditRateGuard } from '../_shared/creditRateGuard.ts';
-import { OpenRouterModelClient } from '../_shared/openRouterModelClient.ts';
+import { OpenRouterModelClient, providerPolicyFromEnv } from '../_shared/openRouterModelClient.ts';
+import { compactionOptionsFromEnv } from '../_shared/transcriptCompaction.ts';
 import { resolveDefaultModel } from '../_shared/modelResolution.ts';
 import { DEPLOY_VERSION } from '../_shared/version.ts';
 import { logStructuredError } from '../_shared/errorLog.ts';
@@ -103,7 +104,17 @@ Deno.serve(async (req: Request): Promise<Response> => {
     );
   }
 
-  const modelClient = new OpenRouterModelClient({ apiKey });
+  const modelClient = new OpenRouterModelClient({
+    apiKey,
+    provider: providerPolicyFromEnv({
+      AGENT_PROVIDER_ORDER: Deno.env.get('AGENT_PROVIDER_ORDER') ?? undefined,
+      AGENT_PROVIDER_ONLY: Deno.env.get('AGENT_PROVIDER_ONLY') ?? undefined,
+      AGENT_PROVIDER_IGNORE: Deno.env.get('AGENT_PROVIDER_IGNORE') ?? undefined,
+      AGENT_PROVIDER_SORT: Deno.env.get('AGENT_PROVIDER_SORT') ?? undefined,
+      AGENT_PROVIDER_ALLOW_FALLBACKS: Deno.env.get('AGENT_PROVIDER_ALLOW_FALLBACKS') ?? undefined,
+      AGENT_PROVIDER_DATA_COLLECTION: Deno.env.get('AGENT_PROVIDER_DATA_COLLECTION') ?? undefined,
+    }),
+  });
   const model = resolveDefaultModel({ AGENT_MODEL_DEFAULT: Deno.env.get('AGENT_MODEL_DEFAULT') ?? undefined });
 
   // ── 5. Parse request body ─────────────────────────────────────────────────
@@ -229,6 +240,13 @@ Deno.serve(async (req: Request): Promise<Response> => {
         // FR-AUC-004/018: usage recording is UNCONDITIONAL (no flag) — independent of both
         // AGENT_PERSISTENCE and AGENT_CREDITS_ENFORCED.
         usage: { supabase: callerClient as never },
+        // Token-budget transcript compaction (deploy-tunable via AGENT_COMPACTION_* secrets; unset →
+        // DEFAULT_COMPACTION). Input-only shrink of the replayed transcript — never persisted.
+        compaction: compactionOptionsFromEnv({
+          AGENT_COMPACTION_TRIGGER_CHARS: Deno.env.get('AGENT_COMPACTION_TRIGGER_CHARS') ?? undefined,
+          AGENT_COMPACTION_RECENT_MESSAGES: Deno.env.get('AGENT_COMPACTION_RECENT_MESSAGES') ?? undefined,
+          AGENT_COMPACTION_MAX_TOOL_CHARS: Deno.env.get('AGENT_COMPACTION_MAX_TOOL_CHARS') ?? undefined,
+        }),
         attachmentResolver: createAttachmentResolver(),
         persistence: persistenceEnabled
           ? {

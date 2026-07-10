@@ -40,6 +40,22 @@ export interface UsageFields {
   provider_cost_usd?: number;
   /** Which call-site produced this row. Defaults to 'chat' when omitted. */
   action?: UsageAction;
+  /**
+   * Prompt tokens served from the provider prefix cache (subset of prompt_tokens; telemetry for the
+   * prompt-cache cost lever). Defaults to 0 when the provider does not report it.
+   */
+  cached_tokens?: number;
+  /**
+   * Reasoning/thinking tokens in the output (subset of completion_tokens). Defaults to 0 when the
+   * model emits none or the provider does not report it.
+   */
+  reasoning_tokens?: number;
+  /**
+   * Wall-clock ms of the model call that produced this row (the edge-fn `model_ms` probe). Telemetry
+   * for the cost-per-run/latency dashboard (agent-cost-dashboard). Defaults to 0 when unmeasured
+   * (e.g. compose-view, which has no per-round timer).
+   */
+  duration_ms?: number;
 }
 
 // AUDIT-H5 (2026-07-04 audit, Reliability H-3): a PERSISTENTLY failing usage insert must not
@@ -89,6 +105,11 @@ export async function insertUsageRow(deps: UsageDeps, fields: UsageFields): Prom
         // omitted -> defaults to the already-clamped cost (today-equal, FR-USE-001 note above).
         provider_cost_usd: fields.provider_cost_usd === undefined ? cost : clampUsageValue(fields.provider_cost_usd),
         action: fields.action ?? 'chat',
+        // Telemetry-only measures; clamped here (the single insert choke point) so a caller that
+        // forgets to clamp upstream still cannot persist a negative/non-finite value. Omitted ⇒ 0.
+        cached_tokens: clampUsageValue(fields.cached_tokens),
+        reasoning_tokens: clampUsageValue(fields.reasoning_tokens),
+        duration_ms: clampUsageValue(fields.duration_ms),
       })
       .select()
       .single();
@@ -126,12 +147,20 @@ export async function insertUsageRow(deps: UsageDeps, fields: UsageFields): Prom
  * fields into the flat shape. `action` defaults to 'chat' (agent-chat's own call-site);
  * agent-dispatch's fired-run call-site passes 'automation' explicitly.
  */
-export async function recordUsage(deps: UsageDeps, resp: ModelResponse, action?: UsageAction): Promise<void> {
+export async function recordUsage(
+  deps: UsageDeps,
+  resp: ModelResponse,
+  action?: UsageAction,
+  durationMs?: number,
+): Promise<void> {
   return insertUsageRow(deps, {
     model: resp.model,
     prompt_tokens: clampUsageValue(resp.usage?.prompt_tokens),
     completion_tokens: clampUsageValue(resp.usage?.completion_tokens),
     cost: clampUsageValue(resp.usage?.total_cost),
+    cached_tokens: clampUsageValue(resp.usage?.cached_tokens),
+    reasoning_tokens: clampUsageValue(resp.usage?.reasoning_tokens),
+    duration_ms: durationMs,
     action,
   });
 }

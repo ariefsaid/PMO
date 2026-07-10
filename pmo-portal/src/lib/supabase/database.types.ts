@@ -382,41 +382,50 @@ export type Database = {
       agent_usage: {
         Row: {
           action: string
+          cached_tokens: number
           completion_tokens: number
           cost: number
           created_at: string
+          duration_ms: number
           id: string
           model: string
           org_id: string
           owner_id: string
           prompt_tokens: number
           provider_cost_usd: number
+          reasoning_tokens: number
           run_id: string | null
         }
         Insert: {
           action?: string
+          cached_tokens?: number
           completion_tokens?: number
           cost?: number
           created_at?: string
+          duration_ms?: number
           id?: string
           model: string
           org_id?: string
           owner_id?: string
           prompt_tokens?: number
           provider_cost_usd?: number
+          reasoning_tokens?: number
           run_id?: string | null
         }
         Update: {
           action?: string
+          cached_tokens?: number
           completion_tokens?: number
           cost?: number
           created_at?: string
+          duration_ms?: number
           id?: string
           model?: string
           org_id?: string
           owner_id?: string
           prompt_tokens?: number
           provider_cost_usd?: number
+          reasoning_tokens?: number
           run_id?: string | null
         }
         Relationships: [
@@ -3028,10 +3037,27 @@ export type Database = {
         Args: { p_enabled: boolean; p_key: string; p_org_id: string }
         Returns: undefined
       }
+      operator_agent_run_stats: {
+        Args: { p_org_id?: string }
+        Returns: {
+          action: string
+          avg_rounds: number
+          cache_hit_pct: number
+          max_cost: number
+          month: string
+          org_id: string
+          p50_cost: number
+          p50_ms: number
+          p95_cost: number
+          p95_ms: number
+          runs: number
+        }[]
+      }
       operator_usage_summary: {
         Args: { p_org_id?: string }
         Returns: {
           action: string
+          cached_tokens: number
           completion_tokens: number
           cost: number
           margin_usd: number
@@ -3040,7 +3066,23 @@ export type Database = {
           owner_id: string
           prompt_tokens: number
           provider_cost_usd: number
+          reasoning_tokens: number
           run_count: number
+        }[]
+      }
+      org_agent_run_stats: {
+        Args: never
+        Returns: {
+          action: string
+          avg_rounds: number
+          cache_hit_pct: number
+          max_cost: number
+          month: string
+          p50_cost: number
+          p50_ms: number
+          p95_cost: number
+          p95_ms: number
+          runs: number
         }[]
       }
       org_credit_balance: { Args: { p_org_id: string }; Returns: number }
@@ -3056,12 +3098,14 @@ export type Database = {
         Args: never
         Returns: {
           action: string
+          cached_tokens: number
           completion_tokens: number
           cost: number
           margin_usd: number
           month: string
           owner_id: string
           prompt_tokens: number
+          reasoning_tokens: number
           run_count: number
         }[]
       }

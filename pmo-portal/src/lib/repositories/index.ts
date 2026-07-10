@@ -53,7 +53,13 @@ import { createAgentThread } from '@/src/lib/db/agentThreads';
 import { listProjectManagers, listOrgProfiles } from '@/src/lib/db/profiles';
 import { listUsers, updateUserRole, assignUserManager, inviteUser, setUserStatus } from '@/src/lib/db/adminUsers';
 import { isOperator } from '@/src/lib/db/operators';
-import { getOrgUsageSummary, getOperatorUsageSummary, listOperatorOrgs } from '@/src/lib/db/usage';
+import {
+  getOrgUsageSummary,
+  getOperatorUsageSummary,
+  listOperatorOrgs,
+  getOrgAgentRunStats,
+  getOperatorAgentRunStats,
+} from '@/src/lib/db/usage';
 import {
   listTasks,
   getTask,
@@ -257,6 +263,8 @@ const usage: UsageRepository = {
   getOrgUsageSummary: () => wrap(() => getOrgUsageSummary()),
   getOperatorUsageSummary: (orgId) => wrap(() => getOperatorUsageSummary(orgId)),
   listOperatorOrgs: () => wrap(() => listOperatorOrgs()),
+  getOrgAgentRunStats: () => wrap(() => getOrgAgentRunStats()),
+  getOperatorAgentRunStats: (orgId) => wrap(() => getOperatorAgentRunStats(orgId)),
 };
 
 const task: TaskRepository = {

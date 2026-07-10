@@ -19,8 +19,130 @@ const REQUEST_TIMEOUT_MS = 30_000;
 const MAX_ATTEMPTS = 3;
 const RETRY_BASE_DELAY_MS = 400;
 
+/**
+ * OpenRouter `provider` routing preferences (subset we use). Controls WHICH backend serves the
+ * pinned model slug — decisive for both prompt-cache economics (a stable backend keeps the shared
+ * static prefix warm) and data privacy (`only` hard-restricts routing to a vetted allow-list, so the
+ * agent never falls through to a host that trains on request data).
+ * See docs/plans/2026-07-09-agent-model-cost-optimization.md.
+ */
+export interface OpenRouterProviderPolicy {
+  /** Deterministic backend preference order (provider slugs). Preferred first → cache locality. */
+  order?: string[];
+  /** Hard allow-list — routing is RESTRICTED to these slugs (the privacy guarantee). */
+  only?: string[];
+  /** Deny-list — never route to these slugs. */
+  ignore?: string[];
+  /** Rank the remaining/eligible providers. `order` still wins for listed slugs. */
+  sort?: 'throughput' | 'price' | 'latency';
+  /** Allow OpenRouter to fall back to the next eligible provider on a blip (default true). */
+  allow_fallbacks?: boolean;
+  /** `'deny'` further restricts to providers that do NOT retain request data at all. */
+  data_collection?: 'allow' | 'deny';
+}
+
+/**
+ * No-train fallback order (owner decision 2026-07-10). The two green (no-RETAIN) hosts first —
+ * DeepInfra, DigitalOcean — then retain-but-NOT-train hosts by jurisdiction then speed: US GMICloud,
+ * then the fastest Chinese-jurisdiction hosts (Baidu, StreamLake, Alibaba), then DeepSeek-direct as
+ * the last resort. `only` (below) hard-restricts routing to exactly this set so a fallback can never
+ * land on a host that TRAINS on request data.
+ *
+ * ⚠ PROVIDER SLUGS — verify each against openrouter.ai/<model>/providers BEFORE a prod deploy:
+ * a wrong slug in `only` silently drops that host from eligibility (worst case, if all are wrong,
+ * routing fails). `deepinfra` / `deepseek` are the well-known canonical slugs; the others
+ * (digitalocean, gmicloud, baidu, streamlake, alibaba) MUST be confirmed. All are overridable via
+ * AGENT_PROVIDER_ORDER / AGENT_PROVIDER_ONLY secrets — fix a slug without a code deploy.
+ */
+export const NO_TRAIN_FALLBACK_ORDER: readonly string[] = [
+  'deepinfra',
+  'digitalocean',
+  'gmicloud',
+  'baidu',
+  'streamlake',
+  'alibaba',
+  'deepseek',
+];
+
+/**
+ * Default: prefer the green hosts, cascade down the vetted no-train fallback order, and `only`-
+ * restrict routing to that set (never a training host). `allow_fallbacks` lets it walk the order.
+ * Overridable per deploy via providerPolicyFromEnv (secrets, no code change).
+ */
+export const DEFAULT_PROVIDER_POLICY: OpenRouterProviderPolicy = {
+  order: [...NO_TRAIN_FALLBACK_ORDER],
+  only: [...NO_TRAIN_FALLBACK_ORDER],
+  allow_fallbacks: true,
+};
+
+/** Parse a comma-separated slug list; undefined stays undefined, '' → [] (explicit clear). */
+function parseSlugList(v: string | undefined): string[] | undefined {
+  if (v === undefined) return undefined;
+  return v.split(',').map((s) => s.trim()).filter(Boolean);
+}
+
+/**
+ * Build a provider policy from edge-function env (pure — no Deno globals, so it is unit-testable).
+ * Defaults are the no-train fallback tier (see DEFAULT_PROVIDER_POLICY); every knob is an escape
+ * hatch so the owner can trade privacy↔latency↔cache without a code deploy:
+ *   AGENT_PROVIDER_ORDER           comma slugs; '' drops the preference order.
+ *   AGENT_PROVIDER_ONLY            comma slugs (hard allow-list); '' DISABLES the restriction.
+ *   AGENT_PROVIDER_IGNORE          comma slugs to never route to.
+ *   AGENT_PROVIDER_SORT            throughput|price|latency (rank within the allow-list).
+ *   AGENT_PROVIDER_ALLOW_FALLBACKS 'false' disables fallbacks (default: enabled).
+ *   AGENT_PROVIDER_DATA_COLLECTION 'deny' (green-only, no retention) | 'allow' (opt-in; default: unset).
+ * The `only` safety allow-list stays ON by default (even in sort mode) unless AGENT_PROVIDER_ONLY=''.
+ */
+export function providerPolicyFromEnv(env: {
+  AGENT_PROVIDER_ORDER?: string;
+  AGENT_PROVIDER_ONLY?: string;
+  AGENT_PROVIDER_IGNORE?: string;
+  AGENT_PROVIDER_SORT?: string;
+  AGENT_PROVIDER_ALLOW_FALLBACKS?: string;
+  AGENT_PROVIDER_DATA_COLLECTION?: string;
+}): OpenRouterProviderPolicy {
+  const policy: OpenRouterProviderPolicy = {
+    allow_fallbacks: env.AGENT_PROVIDER_ALLOW_FALLBACKS !== 'false',
+  };
+  const sort = env.AGENT_PROVIDER_SORT;
+  if (sort === 'throughput' || sort === 'price' || sort === 'latency') policy.sort = sort;
+  if (env.AGENT_PROVIDER_DATA_COLLECTION === 'deny' || env.AGENT_PROVIDER_DATA_COLLECTION === 'allow') {
+    policy.data_collection = env.AGENT_PROVIDER_DATA_COLLECTION;
+  }
+
+  const order = parseSlugList(env.AGENT_PROVIDER_ORDER);
+  if (order !== undefined) {
+    if (order.length > 0) policy.order = order; // '' → intentionally no preference order
+  } else if (policy.sort === undefined) {
+    policy.order = [...NO_TRAIN_FALLBACK_ORDER]; // default preference (dropped only when sorting)
+  }
+
+  // The `only` no-train allow-list is the SINGLE control keeping the user's business-data transcript
+  // off training/retention backends, so it fails SAFE: unset OR empty ('') → the default allow-list
+  // stays ON. Disabling it requires the DELIBERATE sentinel '*' (audit finding 1: an empty secret
+  // must never silently drop the privacy wall), and even then we warn loudly.
+  const onlyRaw = env.AGENT_PROVIDER_ONLY;
+  if (onlyRaw !== undefined && onlyRaw.trim() === '*') {
+    console.warn(
+      '[agent] AGENT_PROVIDER_ONLY=* — the no-train provider allow-list is DISABLED; request data may reach training/retention backends.',
+    );
+    // policy.only intentionally left unset (unrestricted routing).
+  } else {
+    const only = parseSlugList(onlyRaw);
+    // Explicit non-empty list → use it; anything else (unset/empty/whitespace) → safe default.
+    policy.only = only && only.length > 0 ? only : [...NO_TRAIN_FALLBACK_ORDER];
+  }
+
+  const ignore = parseSlugList(env.AGENT_PROVIDER_IGNORE);
+  if (ignore && ignore.length > 0) policy.ignore = ignore;
+
+  return policy;
+}
+
 export interface OpenRouterModelClientOptions {
   apiKey: string;
+  /** Backend routing policy (default: privacy-first no-train pin). See providerPolicyFromEnv. */
+  provider?: OpenRouterProviderPolicy;
   /** Test seam — override the retry backoff base (default 400ms). */
   retryBaseDelayMs?: number;
 }
@@ -42,6 +164,11 @@ interface OpenRouterResponseBody {
     completion_tokens?: number;
     total_tokens?: number;
     cost?: number;
+    // OpenAI-compatible detail objects OpenRouter returns on every response (Usage Accounting):
+    // cached_tokens = prompt tokens served from the provider prefix cache; reasoning_tokens =
+    // thinking tokens in the output. Both are subsets of their parent count; absent ⇒ unreported.
+    prompt_tokens_details?: { cached_tokens?: number };
+    completion_tokens_details?: { reasoning_tokens?: number };
   };
 }
 
@@ -61,10 +188,12 @@ function isValidChoice(choice: unknown): choice is OpenRouterChoice {
 
 export class OpenRouterModelClient implements ModelClient {
   private readonly apiKey: string;
+  private readonly provider: OpenRouterProviderPolicy;
   private readonly retryBaseDelayMs: number;
 
   constructor(options: OpenRouterModelClientOptions) {
     this.apiKey = options.apiKey;
+    this.provider = options.provider ?? DEFAULT_PROVIDER_POLICY;
     this.retryBaseDelayMs = options.retryBaseDelayMs ?? RETRY_BASE_DELAY_MS;
   }
 
@@ -92,11 +221,13 @@ export class OpenRouterModelClient implements ModelClient {
           ...(params.tools ? { tools: params.tools } : {}),
           ...(params.tool_choice ? { tool_choice: params.tool_choice } : {}),
           ...(params.temperature !== undefined ? { temperature: params.temperature } : {}),
-          // Route to the highest-throughput provider (was pinned to DeepInfra, which added
-          // ~15-30s/round latency → multi-round follow-ups blew past the ~150s edge wall-clock).
-          // `sort: 'throughput'` picks the fastest provider serving the SAME pinned model;
-          // allow_fallbacks keeps a single provider blip from killing the turn.
-          provider: { sort: 'throughput', allow_fallbacks: true },
+          // Backend routing policy (default: no-train pin — DEFAULT_PROVIDER_POLICY). A stable,
+          // pinned backend keeps the shared static prefix warm (prompt-cache economics); the privacy
+          // guarantee is held by the `only` no-train allow-list (NOT data_collection, which the
+          // default leaves unset). The owner re-trades privacy↔latency↔cache via AGENT_PROVIDER_*.
+          provider: this.provider,
+          // Retained for older OpenRouter behavior; usage accounting is now returned unconditionally
+          // (this flag is a no-op on current OpenRouter, harmless to keep).
           usage: { include: true },
         }),
         signal: controller.signal,
@@ -160,6 +291,12 @@ export class OpenRouterModelClient implements ModelClient {
             completion_tokens: body.usage.completion_tokens ?? 0,
             total_tokens: body.usage.total_tokens ?? 0,
             ...(body.usage.cost !== undefined ? { total_cost: body.usage.cost } : {}),
+            ...(body.usage.prompt_tokens_details?.cached_tokens !== undefined
+              ? { cached_tokens: body.usage.prompt_tokens_details.cached_tokens }
+              : {}),
+            ...(body.usage.completion_tokens_details?.reasoning_tokens !== undefined
+              ? { reasoning_tokens: body.usage.completion_tokens_details.reasoning_tokens }
+              : {}),
           }
         : undefined,
       model: body.model,

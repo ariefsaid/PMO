@@ -14,6 +14,7 @@ import { it, expect, vi } from 'vitest';
 import {
   agentChatHandler,
   MAX_TOOL_ROUNDS,
+  MAX_PARALLEL_READS,
 } from '../../../../supabase/functions/agent-chat/handler';
 import type { HandlerDeps } from '../../../../supabase/functions/agent-chat/handler';
 import type { AgentEvent } from './runtime/port';
@@ -224,6 +225,122 @@ it('AC-MC-009 MAX_TOOL_ROUNDS unchanged after the provider swap', async () => {
     payload: { status: 'completed' },
     text: expect.stringMatching(/step limit/i),
   });
+});
+
+// ── #5: parallel reads / serial writes ───────────────────────────────────────
+
+it('parallelizes multiple read tool calls in one round (both execute, both results returned)', async () => {
+  const create = vi.fn()
+    .mockResolvedValueOnce({
+      finish_reason: 'tool_calls',
+      message: {
+        role: 'assistant',
+        content: null,
+        tool_calls: [
+          { id: 'r1', type: 'function', function: { name: 'query_entity', arguments: JSON.stringify({ entity: 'projects' }) } },
+          { id: 'r2', type: 'function', function: { name: 'query_entity', arguments: JSON.stringify({ entity: 'tasks' }) } },
+        ],
+      },
+      usage: {},
+      model: 'deepseek/deepseek-v4-flash',
+    })
+    .mockResolvedValueOnce({
+      finish_reason: 'stop',
+      message: { role: 'assistant', content: 'Projects and tasks summarized.' },
+      usage: {},
+      model: 'deepseek/deepseek-v4-flash',
+    });
+  const supabase = mockOrgAnd(() => ({ data: [{ id: '1' }], error: null }));
+
+  const events = await collect(agentChatHandler(REQ, baseDeps({ supabase, modelClient: { create } })));
+
+  // Both reads ran in the SAME round → two tool events, then one more model round to answer.
+  const toolEvents = events.filter((e) => e.type === 'tool');
+  expect(toolEvents).toHaveLength(2);
+  expect(create).toHaveBeenCalledTimes(2);
+  expect(events.at(-1)).toMatchObject({ type: 'status', payload: { status: 'completed' } });
+
+  // Round 2's transcript answers BOTH tool_call_ids (the API pairing invariant).
+  const round2Messages = create.mock.calls[1][0].messages;
+  const toolResultIds = round2Messages.filter((m: { role: string }) => m.role === 'tool').map((m: { tool_call_id: string }) => m.tool_call_id);
+  expect(toolResultIds).toEqual(expect.arrayContaining(['r1', 'r2']));
+});
+
+it('never parallelizes a write: a read+write round runs only the read and DEFERS the write', async () => {
+  const create = vi.fn()
+    .mockResolvedValueOnce({
+      finish_reason: 'tool_calls',
+      message: {
+        role: 'assistant',
+        content: null,
+        tool_calls: [
+          { id: 'read1', type: 'function', function: { name: 'query_entity', arguments: JSON.stringify({ entity: 'projects' }) } },
+          { id: 'write1', type: 'function', function: { name: 'create_activity', arguments: JSON.stringify({ type: 'note', body: 'x', company_id: 'c1' }) } },
+        ],
+      },
+      usage: {},
+      model: 'deepseek/deepseek-v4-flash',
+    })
+    .mockResolvedValueOnce({
+      finish_reason: 'stop',
+      message: { role: 'assistant', content: 'Done.' },
+      usage: {},
+      model: 'deepseek/deepseek-v4-flash',
+    });
+  const supabase = mockOrgAnd(() => ({ data: [{ id: '1' }], error: null }));
+
+  const events = await collect(agentChatHandler(REQ, baseDeps({ supabase, modelClient: { create } })));
+
+  // The write was NOT parallelized or executed this round: no needs-approval, exactly one tool event
+  // (the read). The write is deferred — the loop continues to a second model round.
+  expect(events.some((e) => e.type === 'status' && (e as { payload?: { status?: string } }).payload?.status === 'needs-approval')).toBe(false);
+  expect(events.filter((e) => e.type === 'tool')).toHaveLength(1);
+  expect(create).toHaveBeenCalledTimes(2);
+
+  // Round 2's transcript answers BOTH ids: the real read result + a deferred marker for the write,
+  // so the assistant(tool_calls)→tool(result) pairing stays valid.
+  const round2Messages = create.mock.calls[1][0].messages;
+  const writeResult = round2Messages.find((m: { role: string; tool_call_id?: string }) => m.role === 'tool' && m.tool_call_id === 'write1');
+  expect(writeResult).toBeDefined();
+  expect(JSON.parse(writeResult.content)._deferred).toBe(true);
+  const readResult = round2Messages.find((m: { role: string; tool_call_id?: string }) => m.role === 'tool' && m.tool_call_id === 'read1');
+  expect(readResult).toBeDefined();
+  expect(JSON.parse(readResult.content)._deferred).toBeUndefined();
+});
+
+it('caps read fan-out: a round with more than MAX_PARALLEL_READS reads falls back to serial+defer', async () => {
+  // One round emitting (MAX_PARALLEL_READS + 1) reads must NOT spawn unbounded concurrency — it
+  // falls to the serial path: process the first, defer the rest (audit finding 3).
+  const overCap = MAX_PARALLEL_READS + 1;
+  const tool_calls = Array.from({ length: overCap }, (_v, i) => ({
+    id: `r${i}`,
+    type: 'function' as const,
+    function: { name: 'query_entity', arguments: JSON.stringify({ entity: 'projects' }) },
+  }));
+  const create = vi.fn()
+    .mockResolvedValueOnce({
+      finish_reason: 'tool_calls',
+      message: { role: 'assistant', content: null, tool_calls },
+      usage: {},
+      model: 'deepseek/deepseek-v4-flash',
+    })
+    .mockResolvedValueOnce({
+      finish_reason: 'stop',
+      message: { role: 'assistant', content: 'done' },
+      usage: {},
+      model: 'deepseek/deepseek-v4-flash',
+    });
+  const supabase = mockOrgAnd(() => ({ data: [{ id: '1' }], error: null }));
+
+  const events = await collect(agentChatHandler(REQ, baseDeps({ supabase, modelClient: { create } })));
+
+  // Serial fallback → exactly ONE read executed this round; the other `overCap - 1` are deferred.
+  expect(events.filter((e) => e.type === 'tool')).toHaveLength(1);
+  const round2Messages = create.mock.calls[1][0].messages;
+  const deferred = round2Messages.filter(
+    (m: { role: string; content?: string }) => m.role === 'tool' && typeof m.content === 'string' && m.content.includes('_deferred'),
+  );
+  expect(deferred).toHaveLength(overCap - 1);
 });
 
 // ── Blocker 3: loop termination uses finish_reason !== 'tool_calls'; length handled ──

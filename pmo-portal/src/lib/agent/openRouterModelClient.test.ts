@@ -12,7 +12,11 @@
  * though cross-boundary *imports* from a pmo-portal/-resident test file work fine.
  */
 import { it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { OpenRouterModelClient } from '../../../../supabase/functions/_shared/openRouterModelClient';
+import {
+  OpenRouterModelClient,
+  providerPolicyFromEnv,
+  DEFAULT_PROVIDER_POLICY,
+} from '../../../../supabase/functions/_shared/openRouterModelClient';
 
 function mockFetchOnce(body: unknown, status = 200): ReturnType<typeof vi.fn> {
   const fn = vi.fn().mockResolvedValue({
@@ -57,8 +61,94 @@ it('AC-MC-001 sends POST to the OpenRouter chat-completions endpoint with the ri
   expect(body.model).toBe('deepseek/deepseek-v4-flash');
   expect(body.max_tokens).toBe(512);
   expect(body.messages).toEqual([{ role: 'user', content: 'hello' }]);
-  expect(body.provider).toEqual({ sort: 'throughput', allow_fallbacks: true });
+  // Default routing policy: privacy-first no-train pin (DeepInfra → DigitalOcean).
+  expect(body.provider).toEqual(DEFAULT_PROVIDER_POLICY);
   expect(body.usage).toEqual({ include: true });
+});
+
+it('emits a caller-supplied provider policy verbatim in the request body', async () => {
+  const fetchMock = mockFetchOnce({
+    model: 'm',
+    choices: [{ finish_reason: 'stop', message: { role: 'assistant', content: 'hi' } }],
+  });
+  const provider = { order: ['deepinfra'], data_collection: 'deny' as const, allow_fallbacks: false };
+  await new OpenRouterModelClient({ apiKey: 'k', provider }).create({
+    model: 'm', max_tokens: 10, messages: [{ role: 'user', content: 'hi' }],
+  });
+  const body = JSON.parse(fetchMock.mock.calls[0][1].body as string);
+  expect(body.provider).toEqual(provider);
+});
+
+const TIER = ['deepinfra', 'digitalocean', 'gmicloud', 'baidu', 'streamlake', 'alibaba', 'deepseek'];
+
+it('providerPolicyFromEnv defaults to the no-train fallback tier, only-restricted', () => {
+  expect(providerPolicyFromEnv({})).toEqual({
+    allow_fallbacks: true,
+    order: TIER,
+    only: TIER,
+  });
+});
+
+it('providerPolicyFromEnv honors explicit order/only/ignore/sort/fallbacks/data_collection', () => {
+  // Explicit order pin (single provider), fallbacks off — the safety allow-list still defaults ON.
+  expect(
+    providerPolicyFromEnv({ AGENT_PROVIDER_ORDER: 'deepinfra', AGENT_PROVIDER_ALLOW_FALLBACKS: 'false' }),
+  ).toEqual({ allow_fallbacks: false, order: ['deepinfra'], only: TIER });
+
+  // Sort mode drops the default order pin, but the safety allow-list stays ON.
+  expect(providerPolicyFromEnv({ AGENT_PROVIDER_SORT: 'throughput' })).toEqual({
+    allow_fallbacks: true,
+    only: TIER,
+    sort: 'throughput',
+  });
+
+  // Explicit only + ignore.
+  expect(
+    providerPolicyFromEnv({ AGENT_PROVIDER_ONLY: 'deepinfra,gmicloud', AGENT_PROVIDER_IGNORE: 'deepseek' }),
+  ).toEqual({ allow_fallbacks: true, order: TIER, only: ['deepinfra', 'gmicloud'], ignore: ['deepseek'] });
+
+  // Audit finding 1: empty AGENT_PROVIDER_ONLY fails SAFE — the no-train allow-list stays ON
+  // (an empty/declared-but-unset secret must never silently drop the privacy wall).
+  expect(providerPolicyFromEnv({ AGENT_PROVIDER_ONLY: '' })).toEqual({
+    allow_fallbacks: true,
+    order: TIER,
+    only: TIER,
+  });
+  expect(providerPolicyFromEnv({ AGENT_PROVIDER_ONLY: '   ' })).toEqual({
+    allow_fallbacks: true,
+    order: TIER,
+    only: TIER,
+  });
+
+  // Opt into the stricter green-only (no-retention) filter.
+  expect(providerPolicyFromEnv({ AGENT_PROVIDER_DATA_COLLECTION: 'deny' })).toEqual({
+    allow_fallbacks: true,
+    data_collection: 'deny',
+    order: TIER,
+    only: TIER,
+  });
+
+  // Empty AGENT_PROVIDER_ORDER drops the preference order (allow-list still applies).
+  expect(providerPolicyFromEnv({ AGENT_PROVIDER_ORDER: '' })).toEqual({
+    allow_fallbacks: true,
+    only: TIER,
+  });
+
+  // An unrecognized sort value is ignored (falls back to the default order).
+  expect(providerPolicyFromEnv({ AGENT_PROVIDER_SORT: 'bogus' })).toEqual({
+    allow_fallbacks: true,
+    order: TIER,
+    only: TIER,
+  });
+});
+
+it('AGENT_PROVIDER_ONLY="*" is the ONLY way to disable the allow-list, and it warns (audit finding 1)', () => {
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  const policy = providerPolicyFromEnv({ AGENT_PROVIDER_ONLY: '*' });
+  expect(policy.only).toBeUndefined(); // allow-list disabled (unrestricted routing)
+  expect(policy).toEqual({ allow_fallbacks: true, order: TIER });
+  expect(warn).toHaveBeenCalledWith(expect.stringContaining('allow-list is DISABLED'));
+  warn.mockRestore();
 });
 
 it('AC-MC-002 maps a text-only completion to ModelResponse', async () => {
@@ -139,6 +229,40 @@ it('AC-MC-004 surfaces total_cost when the provider reports it, omits it when ab
     model: 'x', max_tokens: 10, messages: [{ role: 'user', content: 'hi' }],
   });
   expect(withoutCost.usage?.total_cost).toBeUndefined();
+});
+
+it('captures cached_tokens + reasoning_tokens from usage detail objects, omits them when absent', async () => {
+  // Telemetry hardening: OpenRouter returns prompt_tokens_details.cached_tokens (prefix-cache
+  // hits) + completion_tokens_details.reasoning_tokens; both must flow into ModelUsage.
+  mockFetchOnce({
+    model: 'deepseek/deepseek-v4-flash',
+    choices: [{ finish_reason: 'stop', message: { role: 'assistant', content: 'a' } }],
+    usage: {
+      prompt_tokens: 1000,
+      completion_tokens: 200,
+      total_tokens: 1200,
+      cost: 0.01,
+      prompt_tokens_details: { cached_tokens: 768 },
+      completion_tokens_details: { reasoning_tokens: 64 },
+    },
+  });
+  const withDetails = await new OpenRouterModelClient({ apiKey: 'k' }).create({
+    model: 'x', max_tokens: 10, messages: [{ role: 'user', content: 'hi' }],
+  });
+  expect(withDetails.usage?.cached_tokens).toBe(768);
+  expect(withDetails.usage?.reasoning_tokens).toBe(64);
+
+  // Absent detail objects ⇒ fields omitted (not 0) so downstream defaulting owns the 0.
+  mockFetchOnce({
+    model: 'deepseek/deepseek-v4-flash',
+    choices: [{ finish_reason: 'stop', message: { role: 'assistant', content: 'a' } }],
+    usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+  });
+  const withoutDetails = await new OpenRouterModelClient({ apiKey: 'k' }).create({
+    model: 'x', max_tokens: 10, messages: [{ role: 'user', content: 'hi' }],
+  });
+  expect(withoutDetails.usage?.cached_tokens).toBeUndefined();
+  expect(withoutDetails.usage?.reasoning_tokens).toBeUndefined();
 });
 
 it('AC-MC-005 throws a scrubbed Error on non-2xx and never logs the raw body', async () => {

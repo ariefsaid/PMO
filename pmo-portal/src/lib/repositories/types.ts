@@ -82,7 +82,7 @@ import type { ContactRow, ContactInput } from '@/src/lib/db/contacts';
 import type { CrmActivityRow, CrmActivityInput, CrmActivityPatch } from '@/src/lib/db/crmActivities';
 import type { UserViewRow, UserViewInput } from '@/src/lib/db/userViews';
 import type { PageParams } from '@/src/lib/pagination';
-import type { UsageSummaryRow, OperatorUsageSummaryRow, OperatorOrgRow } from '@/src/lib/db/usage';
+import type { UsageSummaryRow, OperatorUsageSummaryRow, OperatorOrgRow, RunStatsRow, OperatorRunStatsRow } from '@/src/lib/db/usage';
 import type { OrgFeatureKey } from '@/src/lib/features';
 
 export interface ProjectRepository {
@@ -148,6 +148,10 @@ export interface UsageRepository {
   getOperatorUsageSummary(orgId?: string | null): Promise<OperatorUsageSummaryRow[]>;
   /** Directory columns ONLY (FR-OPR-004) — the Operator org-switcher source. */
   listOperatorOrgs(): Promise<OperatorOrgRow[]>;
+  /** The caller's own-org per-run cost/latency stats (org-Admin path). Aggregates ONLY — NFR-PRIV-001. */
+  getOrgAgentRunStats(): Promise<RunStatsRow[]>;
+  /** The Operator's per-run cost/latency stats — all orgs when orgId is omitted, one org when supplied. */
+  getOperatorAgentRunStats(orgId?: string | null): Promise<OperatorRunStatsRow[]>;
 }
 
 export interface TaskRepository {

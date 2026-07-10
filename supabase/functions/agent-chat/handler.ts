@@ -48,6 +48,8 @@ import {
 import type { PersistenceDeps, JournaledWrite, ToolJournal } from './persistence.ts';
 import { recordUsage } from '../_shared/usage.ts';
 import { recordErrorEvent } from '../_shared/errorEvent.ts';
+import { compactTranscript, DEFAULT_COMPACTION } from '../_shared/transcriptCompaction.ts';
+import type { CompactionOptions } from '../_shared/transcriptCompaction.ts';
 import type { ModelClient, ModelMessage, ModelTool } from '../_shared/modelClient.ts';
 import type { AgentEvent, AgentRunStatus, AgentAction, DeputyContext } from '../../../pmo-portal/src/lib/agent/runtime/port.ts';
 import type { AgentChatRequest, ConversationMessage } from '../../../pmo-portal/src/lib/agent/runtime/transport.ts';
@@ -57,6 +59,13 @@ import { WIDGET_PAYLOAD_SCHEMA } from '../../../pmo-portal/src/lib/agent/widgets
 
 /** Hard cap on tool-use rounds per run. D7. */
 export const MAX_TOOL_ROUNDS = 8;
+
+/**
+ * #5 hardening (audit finding 3): max read tool calls dispatched concurrently in one round. A round
+ * with more parallelizable reads than this falls back to serial+defer (batched across rounds), so
+ * untrusted model output can't spawn unbounded concurrent DB reads.
+ */
+export const MAX_PARALLEL_READS = 8;
 
 // ── Live step trail (ephemeral UI hint) ───────────────────────────────────────
 
@@ -234,6 +243,12 @@ export interface HandlerDeps {
    * distinguishable from an interactive turn in org_usage_summary()/operator_usage_summary().
    */
   usageAction?: 'chat' | 'compose' | 'automation';
+  /**
+   * Token-budget transcript compaction applied to the messages sent to the model each round
+   * (shrinks the replayed input; old tool-result bodies past the recency window become a marker).
+   * Omitted → DEFAULT_COMPACTION. Never mutates the persisted transcript — model-call input only.
+   */
+  compaction?: CompactionOptions;
   /**
    * ADR-0043: optional persistence dep (thread/run/event journal, heartbeat, de-dupe).
    * Optional so flag-off / existing tests pass unchanged (FR-AGP-026 gating) — every
@@ -631,6 +646,31 @@ async function* runToolLoop(opts: RunToolLoopOptions): AsyncGenerator<AgentEvent
   const tools = buildTools(allowCompose ? deps.composeEnabled : false);
   const actionByName = new Map<string, AgentAction>(BASE_ACTIONS.map((a) => [a.name, a]));
 
+  /** Safe JSON parse for tool args — undefined signals a parse failure (JSON.parse never yields undefined). */
+  const parseArgs = (raw: string): unknown => {
+    try {
+      return JSON.parse(raw);
+    } catch {
+      return undefined;
+    }
+  };
+  /**
+   * POSITIVE allow-list of pure-read actions safe to run concurrently (audit finding 2). Deliberately
+   * NOT `!action.confirm` — `notify` is also confirm:false but WRITES (own inbox), so a `!confirm`
+   * gate would let it (and any future confirm:false side-effecting action) inherit parallelizability.
+   * An action must be on THIS list to parallelize; everything else stays serial.
+   */
+  const PARALLELIZABLE_READ_ACTIONS = new Set<string>(['query_entity']);
+  /**
+   * #5: a tool call safe to execute CONCURRENTLY with the other reads in the same round — a
+   * whitelisted pure-READ action with parseable args. Writes are NEVER parallelized: they go through
+   * the approval chip + SoD re-auth and stay serial.
+   */
+  const isParallelizableRead = (tc: { function: { name: string; arguments: string } }): boolean =>
+    PARALLELIZABLE_READ_ACTIONS.has(tc.function.name) &&
+    actionByName.has(tc.function.name) &&
+    parseArgs(tc.function.arguments) !== undefined;
+
   // Item 2 (MALFORMED_TOOL_CALL): tracks whether the LAST round's tool call was malformed
   // JSON, so a step-cap fallthrough after a malformed final attempt reports the distinct
   // MALFORMED_TOOL_CALL error code rather than the generic "reached step limit" completion.
@@ -644,18 +684,26 @@ async function* runToolLoop(opts: RunToolLoopOptions): AsyncGenerator<AgentEvent
       if (persist) await heartbeat(persist.deps, runId, `round-${round}`);
 
       const _t0 = Date.now();
+      // Token-budget compaction of the REPLAYED transcript (input-only; `messages` — the persisted/
+      // in-loop array — is never mutated, so tool_call pairing + durable resume are untouched).
+      // Old tool-result bodies past the recency window shrink to a marker; the system prefix (cache)
+      // and all reasoning text are preserved. Under budget this returns `messages` unchanged.
+      const modelMessages = compactTranscript(messages, deps.compaction ?? DEFAULT_COMPACTION);
       const resp = await deps.modelClient.create({
         model: deps.model,
         max_tokens: 2048,
         // 0.8 (was provider-default ~1.0) — steadier tool routing, fewer thrash rounds on
         // multi-intent follow-ups. Latency lever tracked alongside the throughput provider sort.
         temperature: 0.8,
-        messages,
+        messages: modelMessages,
         tools,
       });
       // Round-latency probe (diagnosing the follow-up-hang: rounds × per-round latency vs the
-      // ~150s isolate wall-clock). Structured, no user data — safe to keep.
-      console.log(`[agent-chat] round=${round} model_ms=${Date.now() - _t0} finish=${resp.finish_reason} out_tokens=${resp.usage?.completion_tokens ?? '?'}`);
+      // ~150s isolate wall-clock). Structured, no user data — safe to keep. `modelMs` is also
+      // persisted onto the agent_usage row below (duration_ms) so the cost/latency dashboard can
+      // compute per-run latency percentiles from the sanctioned aggregate source (NFR-PRIV-001).
+      const modelMs = Date.now() - _t0;
+      console.log(`[agent-chat] round=${round} model_ms=${modelMs} finish=${resp.finish_reason} out_tokens=${resp.usage?.completion_tokens ?? '?'}`);
 
       // FR-AUC-002/004/018: one agent_usage row per modelClient.create() resolution — the
       // single per-round choke point (unified by the runToolLoop refactor, so both the main
@@ -663,7 +711,7 @@ async function* runToolLoop(opts: RunToolLoopOptions): AsyncGenerator<AgentEvent
       // of `persist` (persistence flag) — usage recording is unconditional; `run_id` is set
       // only when a run row exists (persist truthy), else null (FR-AUC-004).
       if (deps.usage) {
-        await recordUsage({ supabase: deps.usage.supabase, runId: persist ? runId : null }, resp, deps.usageAction ?? 'chat');
+        await recordUsage({ supabase: deps.usage.supabase, runId: persist ? runId : null }, resp, deps.usageAction ?? 'chat', modelMs);
       }
 
       // Emit any text content as an assistant event.
@@ -712,6 +760,60 @@ async function* runToolLoop(opts: RunToolLoopOptions): AsyncGenerator<AgentEvent
       // Push the assistant's tool-call turn (FR-MC-006 — the assistant message
       // with tool_calls IS the turn; no separate echo needed).
       messages.push({ role: 'assistant', content: resp.message.content, tool_calls: resp.message.tool_calls });
+
+      // ── #5: parallel reads / serial writes ─────────────────────────────────────
+      // The model may request MULTIPLE tool calls in one round. READS (query_entity, confirm:false)
+      // are independent → run them CONCURRENTLY (a real latency win on multi-intent asks). Anything
+      // else (writes/compose/ask_user/unknown/malformed) is NEVER parallelized — those go through the
+      // approval chip + SoD re-auth and MUST stay serialized one at a time (the write-safety rule).
+      const toolCalls = resp.message.tool_calls ?? [];
+      // Cap fan-out (audit finding 3): the model output is untrusted, so a round with a huge
+      // tool_calls array must not spawn unbounded concurrent DB reads. Above the cap, fall through to
+      // the serial+defer path (process the first, defer the rest → the model re-requests them next
+      // round), which naturally batches an oversized set across rounds.
+      if (toolCalls.length > 1 && toolCalls.length <= MAX_PARALLEL_READS && toolCalls.every(isParallelizableRead)) {
+        lastRoundMalformed = false;
+        // Announce every read up-front (present-tense step trail), then dispatch all concurrently.
+        for (const tc of toolCalls) {
+          yield emit('status', { payload: { kind: 'step', label: stepLabel(tc.function.name, parseArgs(tc.function.arguments)) } });
+        }
+        const settled = await Promise.all(
+          toolCalls.map(async (tc) => {
+            const input = parseArgs(tc.function.arguments);
+            const action = actionByName.get(tc.function.name)!; // guaranteed non-null by isParallelizableRead
+            const result = await dispatchAction(action, input, deputyCtx);
+            return { tc, input, result };
+          }),
+        );
+        // Emit widget/tool events + append every tool result IN ORDER (deterministic transcript;
+        // each tool_call_id in the assistant message gets exactly one matching result).
+        for (const { tc, input, result } of settled) {
+          if (tc.function.name === 'query_entity') {
+            const widget = buildDataTableWidgetFromQueryResult(input, result);
+            if (widget) yield emit('artifact', { payload: { kind: 'widget', widget } });
+          }
+          yield emit('tool', { payload: { name: tc.function.name, input, result } });
+          messages.push({ role: 'tool', tool_call_id: tc.id, name: tc.function.name, content: JSON.stringify(result) });
+        }
+        continue;
+      }
+
+      // Non-parallelizable multi-call set: only the FIRST call is processed below (writes serialized).
+      // Every EXTRA call gets a deferred marker so the assistant(tool_calls)→tool(result) pairing the
+      // API requires stays valid — otherwise an unanswered tool_call_id errors the next model call
+      // (the latent bug when the model emitted >1 call and only [0] was handled). The model re-requests
+      // a deferred call next round if it still needs it. Pushed BEFORE the first call is processed so a
+      // stream-ending write (needs-approval/ask_user) leaves only its OWN id pending for the resume.
+      if (toolCalls.length > 1) {
+        for (const extra of toolCalls.slice(1)) {
+          messages.push({
+            role: 'tool',
+            tool_call_id: extra.id,
+            name: extra.function.name,
+            content: JSON.stringify({ _deferred: true, note: 'Not executed this round; call again if still needed.' }),
+          });
+        }
+      }
 
       // Item 2 (MALFORMED_TOOL_CALL): a SyntaxError here must NOT fail the run as
       // UPSTREAM_ERROR — append a role:'tool' error result and let the model retry.
