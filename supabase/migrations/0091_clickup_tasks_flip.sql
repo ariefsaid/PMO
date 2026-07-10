@@ -81,3 +81,11 @@ create policy tasks_delete on tasks for delete
   using (org_id = auth_org_id() and auth_role() in ('Admin','Executive','Project Manager','Finance')
     and exists (select 1 from projects p where p.id = tasks.project_id and p.org_id = auth_org_id())
     and not public.domain_externally_owned(auth_org_id(), 'tasks'));
+
+-- The assignee status-only path (0016) is fully denied while flipped (status is ClickUp-owned).
+drop policy tasks_update_own_status on tasks;
+create policy tasks_update_own_status on tasks for update
+  using (org_id = auth_org_id() and assignee_id = (select auth.uid())
+    and not public.domain_externally_owned(auth_org_id(), 'tasks'))
+  with check (org_id = auth_org_id() and assignee_id = (select auth.uid())
+    and not public.domain_externally_owned(auth_org_id(), 'tasks'));
