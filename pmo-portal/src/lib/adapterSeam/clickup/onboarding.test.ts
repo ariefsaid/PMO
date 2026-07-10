@@ -238,18 +238,15 @@ describe('AC-CUA-050/051/052 pushSeed — PMO tasks → ClickUp, idempotent + re
       { id: 'pmo-2', name: 'Task B', status: 'To Do', assignee_id: null, start_date: null, end_date: null },
     ];
 
-    // Partial run: task 1 succeeds + is recorded; task 2's create fails mid-batch → pushSeed throws.
-    const { fetchImpl: failingFetch } = mockFetch([
-      { method: 'POST', urlIncludes: '/list/list-1/task', status: 500, json: { err: 'boom' } },
-    ]);
-    // Override fetch to succeed once then fail, so task 1 is committed before the failure.
+    // Partial run: task 1 succeeds + is recorded; task 2's create is rejected mid-batch (a 400
+    // commit-rejected — non-transient, so withBackoff does not retry on real timers) → pushSeed
+    // throws, leaving task 1's mapping committed as the resumption ledger.
     let attempt = 0;
     const mixedFetch = vi.fn(async (_url: string, _init?: RequestInit) => {
       attempt += 1;
       if (attempt === 1) return new Response(JSON.stringify(clickUpTask({ id: 'cu-1' })), { status: 200 });
-      return new Response(JSON.stringify({ err: 'boom' }), { status: 500 });
+      return new Response(JSON.stringify({ err: 'invalid task' }), { status: 400 });
     }) as unknown as typeof fetch;
-    void failingFetch;
     const recordExternalRef = vi.fn(async () => undefined);
     const partialDeps = basePushDeps({
       fetchImpl: mixedFetch,
