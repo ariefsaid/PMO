@@ -1,6 +1,8 @@
 # Spec: External-system adapter seam (Issue P0 — ADR-0055 P0 phase)
 
-> **Status:** Draft.
+> **Status:** **Signed off** (owner, 2026-07-10) — review battery green (gpt-5.4 spec review →
+> 5 fixes → confirm); OD-1..OD-4 decided (§10): Operator-only write · read-only Integrations
+> view IN P0 · client-side routing branch (RLS = authority) · synthetic reference domain.
 >
 > P0 (the seam) of **ADR-0055** (`docs/adr/0055-external-system-adapters-sot-enhancement.md`,
 > §8 phasing table). Conforms to house conventions (EARS + `FR-EAS-`/`NFR-EAS-`/`AC-EAS-` ids;
@@ -107,9 +109,14 @@ merge the system is, and must remain, byte-for-byte the pre-adapter system.
   shall enforce org isolation: a member shall see only their own org's rows, and a cross-org read
   shall return nothing.
 - **FR-EAS-006** (event-driven) When the `external_domain_ownership` is written, the system shall
-  restrict writes to the platform **Operator** (write authority for org-Admin is an owner-decision,
-  see OD-1), shall stamp `org_id` server-side (column default + RLS `WITH CHECK`), and shall reject
-  a write whose `org_id` is set to another org; the client shall never send `org_id`.
+  restrict writes to the platform **Operator** (decided OD-1, owner 2026-07-10), shall stamp
+  `org_id` server-side (column default + RLS `WITH CHECK`), and shall reject a write whose
+  `org_id` is set to another org; the client shall never send `org_id`.
+- **FR-EAS-007** (ubiquitous) The system shall provide a **read-only Integrations view** (decided
+  OD-2, owner 2026-07-10) showing the caller's org's employed external tiers and the consequently
+  externally-owned domains; where the org's `external_domain_ownership` is empty, the view shall
+  show an explicit "no external systems employed" empty state. The view shall offer **no write
+  affordances** (writes are Operator-provisioned per FR-EAS-006).
 
 ### 3.2 The critical invariant (empty map ⇒ byte-for-byte)
 
@@ -254,15 +261,17 @@ merge the system is, and must remain, byte-for-byte the pre-adapter system.
 - **NFR-EAS-TEST-001** (pyramid) Unit tests shall use a **mocked** DAL and the reference
   (test-double) adapter; no Vitest test shall require a live database or a real external system.
   RLS / org-isolation / machine-only-write / default-empty / Operator-authority contracts are proven
-  by **pgTAP** (`supabase test db`) per ADR-0010. No e2e in P0 (no routed UI surface — the
-  pending-push behavior is a shared state machine, not a page).
+  by **pgTAP** (`supabase test db`) per ADR-0010. No e2e in P0 — the read-only Integrations
+  view's states are unit-owned (RTL render tests, AC-EAS-015) and no cross-stack journey exists
+  until a real adapter lands (P1); the pending-push behavior is a shared state machine, not a page.
 
 ## 5. Acceptance criteria (Given/When/Then)
 
 > The invariant (AC-EAS-001..003) is the heart of P0. AC-EAS-010..013 (domain ownership) and
 > AC-EAS-040..051 (storage) are **pgTAP** (RLS/tenancy/authority contracts). All routing, contract,
-> state-machine, and ordering ACs are **Vitest** (mocked DAL + reference adapter). No e2e this issue
-> (no UI route). Each AC is owned by exactly one test at its lowest sufficient layer (ADR-0010).
+> state-machine, view-render, and ordering ACs are **Vitest** (mocked DAL + reference adapter).
+> No e2e this issue (no cross-stack journey until P1). Each AC is owned by exactly one test at its
+> lowest sufficient layer (ADR-0010).
 
 ### The critical invariant
 
@@ -320,6 +329,14 @@ merge the system is, and must remain, byte-for-byte the pre-adapter system.
   and with org B's rows present,
   **Then** domain `D` is routed to dispatch, an unassigned domain is routed to the direct DAL, and
   org B's `external_domain_ownership` rows never affect org A's branch. (FR-EAS-003, FR-EAS-033)
+
+- **AC-EAS-015** — The read-only Integrations view renders both states with no write affordances.
+  **Given** (a) an org whose `external_domain_ownership` is empty and (b) an org with a tier
+  employed owning domains `{D1, D2}`,
+  **When** the Integrations view is rendered for each,
+  **Then** (a) shows the "no external systems employed" empty state and (b) lists the employed
+  tier and its owned domains — and in both, no write affordance (create/edit/delete/toggle) is
+  rendered. (FR-EAS-007)
 
 ### The adapter contract
 
@@ -468,6 +485,7 @@ merge the system is, and must remain, byte-for-byte the pre-adapter system.
 | AC-EAS-012 | FR-EAS-006, NFR-EAS-SEC-002 | pgTAP | `supabase/tests/external_domain_ownership_rls.test.sql` |
 | AC-EAS-013 | FR-EAS-004 | Vitest (unit) | `pmo-portal/src/lib/adapterSeam/capabilityMap.test.ts` |
 | AC-EAS-014 | FR-EAS-003, FR-EAS-033 | Vitest (unit) | `pmo-portal/src/lib/adapterSeam/router.test.ts` |
+| AC-EAS-015 | FR-EAS-007 | Vitest (unit, RTL) | `pmo-portal/src/components/integrations/IntegrationsView.test.tsx` |
 | AC-EAS-020 | FR-EAS-020, FR-EAS-021, FR-EAS-025 | Vitest (unit) | `pmo-portal/src/lib/adapterSeam/referenceAdapter.test.ts` |
 | AC-EAS-021 | FR-EAS-022 | Vitest (unit) | `pmo-portal/src/lib/adapterSeam/referenceAdapter.test.ts` |
 | AC-EAS-022 | FR-EAS-023 | Vitest (unit) | `pmo-portal/src/lib/adapterSeam/referenceAdapter.test.ts` |
@@ -549,6 +567,8 @@ merge the system is, and must remain, byte-for-byte the pre-adapter system.
       sent) + repository entries (AC-EAS-042, 051).
 - [ ] Shared pending-push behavior (state machine: `idle`/`pushing`/`pushed`/`push-failed` + error
       mapping to `{headline, detail}`) (AC-EAS-060..062).
+- [ ] Read-only Integrations view (empty state + employed-tiers/owned-domains list, no write
+      affordances; DESIGN.md tokens; RTL render tests) (AC-EAS-015).
 
 ### Verification (final gate — run from `pmo-portal/` + repo root)
 - [ ] `npm run verify` (typecheck + lint:ci + test + build) green — includes the regression net
@@ -573,43 +593,38 @@ merge the system is, and must remain, byte-for-byte the pre-adapter system.
 - **Enhancement storage schema** beyond the id/cursor bookkeeping here — enhancements are additive
   PMO-side data per externally-owned record; their storage lands with the domain that needs them
   (P1+). P0 names the concept (glossary) but specifies no enhancement table.
-- **A dedicated admin UI page** for the domain-ownership map — P0 ships the storage + write contract
-  (RPC); a rich admin surface is deferred (OD-2).
+- **A write-capable admin surface** for the domain-ownership map — P0 ships the storage + write
+  contract (RPC) and the **read-only** Integrations view (FR-EAS-007, decided OD-2); an admin
+  surface with write affordances is deferred (Operator provisions via RPC).
 - **Optimistic-UI reconciliation** — the per-surface reconcile of an optimistic state against the
   external answer (e.g. a board drag) lands with the first real routed UI surface (P1+); it composes
   the shared pending-push behavior (FR-EAS-060..063) shipped in P0. Not built here.
 
 ## 10. Open questions / owner-decision flags
 
-- **[OWNER-DECISION] OD-1 — Domain-ownership write authority.** FR-EAS-006 / AC-EAS-012 default the
-  `external_domain_ownership` write to the **platform Operator** (employing an external tier is an
-  integration-provisioning action: it flips domains and involves per-client secrets). Alternative:
-  also allow the org **Admin** to employ/disable a tier for their own org. **Defaulting to:
-  Operator-only write; org members read.** Owner to confirm, or to grant org-Admin write (a one-line
-  RLS change). *(Does not affect the invariant — either way the map ships empty.)*
-- **[OWNER-DECISION] OD-2 — Admin surface in P0?** P0 ships the domain-ownership **storage + write
-  contract** (RPC) and the **pending-push shared behavior**; it does not ship a routed admin page.
-  **Defaulting to: RPC-only in P0, no UI page** (consistent with "the seam"). Owner to confirm
-  whether a minimal read-only "integrations" view is wanted in P0 or deferred to P1 with the first
-  real adapter.
-- **[OWNER-DECISION] OD-3 — Routing-decision location.** FR-EAS-033 places the branch in the
-  repository implementation, consulting a **cached** own-org domain-ownership map (no write-path
-  round-trip; empty-map short-circuit ⇒ byte-for-byte). This branch is **UX/DX-only routing** — it
-  selects which code path the repository takes; it is **never** the write authority. RLS remains the
-  enforcement authority: for an externally-owned domain, RLS denies user-JWT writes to that domain's
-  read-model and permits writes only to the dispatch/sync service role (FR-EAS-037). The alternative —
-  *always* dispatch to a server edge function that branches server-side — is **rejected**: it changes
-  the path for every domain (even PMO-owned) and breaks the byte-for-byte invariant. **Defaulting to:
-  client-side branch on the cached map.** Owner to confirm this is acceptable (the map is the caller's
-  own-org, RLS-permitted data, not a threaded `org_id`).
-- **[OWNER-DECISION] OD-4 — Reference adapter's domain.** The reference adapter proves the seam
-  against either (a) a **synthetic test-only domain** (machinery proven in isolation, zero contact
-  with real-domain behavior) or (b) a **real PMO domain** used only in tests (proves routing against
-  an existing table). **Defaulting to: synthetic/isolated** to keep P0 from touching any real-domain
-  behavior; the synthetic reference domain ships a **minimal read-model table**
-  (`external_reference_items`, org-scoped, machine-written) whose write-policy flip — deny user-JWT,
-  permit only the dispatch/sync service role — is the pgTAP proof of the FR-EAS-037 / AC-EAS-035
-  mechanism. Owner to confirm.
+- **[DECIDED — owner, 2026-07-10] OD-1 — Domain-ownership write authority: Operator-only.**
+  `external_domain_ownership` writes are restricted to the platform **Operator** (employing an
+  external tier is an integration-provisioning action: it flips domains and involves per-client
+  secrets); org members read their own org's rows. Granting org-Admin write later is a one-line
+  RLS change. (FR-EAS-006 / AC-EAS-012.)
+- **[DECIDED — owner, 2026-07-10] OD-2 — Admin surface in P0: minimal READ-ONLY Integrations
+  view.** P0 ships the domain-ownership storage + write contract (RPC) **plus** a read-only
+  Integrations view (employed tiers + owned domains, explicit empty state, no write affordances)
+  — FR-EAS-007 / AC-EAS-015. A write-capable admin surface stays deferred (§9).
+- **[DECIDED — owner, 2026-07-10] OD-3 — Routing-decision location: client-side branch on the
+  cached map.** FR-EAS-033 places the branch in the repository implementation, consulting a
+  **cached** own-org domain-ownership map (no write-path round-trip; empty-map short-circuit ⇒
+  byte-for-byte). This branch is **UX/DX-only routing** — never the write authority. RLS remains
+  the enforcement authority: for an externally-owned domain, RLS denies user-JWT writes to that
+  domain's read-model and permits writes only to the dispatch/sync service role (FR-EAS-037).
+  The alternative — *always* dispatch to a server edge function that branches server-side — is
+  **rejected**: it changes the path for every domain (even PMO-owned) and breaks the
+  byte-for-byte invariant.
+- **[DECIDED — owner, 2026-07-10] OD-4 — Reference adapter's domain: synthetic/isolated.** The
+  reference adapter proves the seam against a **synthetic test-only domain** (zero contact with
+  real-domain behavior), shipping a **minimal read-model table** (`external_reference_items`,
+  org-scoped, machine-written) whose write-policy flip — deny user-JWT, permit only the
+  dispatch/sync service role — is the pgTAP proof of the FR-EAS-037 / AC-EAS-035 mechanism.
 - **OQ-1 — Watermark cursor type.** Whether the cursor is a timestamp, an opaque token, or an
   integer offset is a plan detail (it depends on the P1 sweep + each external system's
   modified-since semantics). P0 only requires that storage exists and is upsertable per
