@@ -28,9 +28,12 @@ YAGNI at single-tenant scale). Two real gaps, prioritized:
   into `agent-chat/index.ts` (post-JWT, keyed `agent-chat:<userId>`, 20/min default via
   `AGENT_RATE_LIMIT_PER_MIN`, 429 + Retry-After). Tests: pgTAP `0140` (9 assert, AC-RL-002..006) +
   `requestRateGuard.test.ts` (6, AC-RL-001). Verified: pgTAP 9/9, vitest 6/6, full `npm run verify` green,
-  `deno check` clean. **Supersedes the older scattered "agent-chat rate-limit" Med.** Fast-follows (same
-  pattern, not yet done): wire `compose-view` (model spend) + `admin-invite-user` (email/user abuse).
-  `health` left unthrottled deliberately (cheap, no spend).
+  `deno check` clean. **Supersedes the older scattered "agent-chat rate-limit" Med.** Fast-follows
+  **✅ DONE** (PR #304): `compose-view` (model spend, `COMPOSE_RATE_LIMIT_PER_MIN` def 20) +
+  `admin-invite-user` (email/user abuse, `INVITE_RATE_LIMIT_PER_MIN` def 10, throttle placed AFTER
+  authorization so FR-INV-004 holds — service_role never exercised for an unauthorized caller).
+  `health` left unthrottled deliberately (cheap, no spend). Cron fns (`agent-dispatch`,
+  `telegram-notify`) are secret-gated, not public — out of scope.
 - **P2 — error-monitoring depth (owner-gated).** telegram-notify hourly + `error_events` sink cover
   "something broke"; there's no Sentry-class tracker (stack/breadcrumbs/FE capture). **Autonomous part**
   = the already-tracked Med "`error_events` completeness (2 fns + FE) + retention" (wire the remaining
