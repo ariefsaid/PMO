@@ -81,7 +81,7 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId }) => {
   const currentUserId = currentUser?.id ?? null;
   const { toast } = useToast();
   const { data, isPending, isError, refetch } = useTasks(projectId);
-  const { create, update, updateStatus, remove, addDependency, removeDependency, pendingPushByTask } =
+  const { create, update, updateStatus, remove, addDependency, removeDependency, pendingPushByTask = {} } =
     useTaskMutations(projectId);
   const { data: milestones } = useMilestones(projectId);
   const location = useLocation();
