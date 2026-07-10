@@ -769,8 +769,8 @@ employs ClickUp — this survives the repository wiring only if the routing shor
 | AC-CUA-051 | FR-CUA-051, FR-CUA-092 | Vitest (unit) | `pmo-portal/src/lib/adapterSeam/clickup/onboarding.test.ts` |
 | AC-CUA-052 | FR-CUA-052, FR-CUA-024 | Vitest (unit) | `pmo-portal/src/lib/adapterSeam/clickup/onboarding.test.ts` |
 | AC-CUA-053 | FR-CUA-060, FR-CUA-061 | Vitest (unit) | `pmo-portal/src/lib/adapterSeam/clickup/onboarding.test.ts` |
-| AC-CUA-060 | FR-CUA-070, FR-CUA-072, FR-CUA-073 | Vitest (unit, RTL) | `pmo-portal/src/components/tasks/TaskBoard.pendingPush.test.tsx` |
-| AC-CUA-061 | FR-CUA-071, FR-CUA-030 | Vitest (unit, RTL) | `pmo-portal/src/components/tasks/TaskSurfaces.pendingPush.test.tsx` |
+| AC-CUA-060 | FR-CUA-070, FR-CUA-072, FR-CUA-073 | Vitest (unit, RTL) | `pmo-portal/pages/project-detail/__tests__/TasksTab.pendingPush.test.tsx` |
+| AC-CUA-061 | FR-CUA-071, FR-CUA-030 | Vitest (unit, RTL) | `pmo-portal/pages/project-detail/__tests__/TasksTab.pendingPush.visibility.test.tsx` |
 | AC-CUA-062 | FR-CUA-072, FR-CUA-093 | Vitest (unit) | `pmo-portal/src/lib/adapterSeam/pendingPush.clickup.test.ts` |
 | AC-CUA-070 | FR-CUA-080, FR-CUA-081 | Vitest (unit) | `pmo-portal/src/lib/adapterSeam/clickup/deletion.test.ts` |
 | AC-CUA-071 | FR-CUA-081 | Vitest (unit) | `pmo-portal/src/lib/adapterSeam/clickup/webhookApply.test.ts` |
@@ -784,6 +784,22 @@ employs ClickUp — this survives the repository wiring only if the routing shor
 > plan/gate. NFR-CUA-LOCALITY-001 is a doc-review NFR (no runtime test). NFR-CUA-PERF-001 (and PERF-003's
 > interactive-priority-under-bulk behavior) is exercised by AC-CUA-080. AC-CUA-002 is a regression-gate
 > meta-AC by nature.
+>
+> **Deviation note — FR-CUA-007 `nextCursor` "null when the page is exhausted" (clarification, review fix
+> #9).** The literal phrase is operationalized as **"null when the page yields NO changes"** (the
+> `allTasks.length === 0` branch in `reads.ts`/`pageListTasks`), which is exactly what AC-CUA-035 pins
+> ("no changes since the cursor → empty changes and a null nextCursor (exhaustion)"). It is deliberately
+> NOT "null when ClickUp signals `last_page: true"": a final page that still RETURNS tasks carries the max
+> `date_updated` as the nextCursor so the org watermark advances past them; returning null there would
+> rewind the watermark to the start on the next sweep (re-applying the whole List, idempotent but
+> wasteful, and on a large first sync it would never make progress). The max-`date_updated` nextCursor
+> never rewinds the stored watermark (FR-CUA-007's binding half), so this is a clarification of "exhausted",
+> not a behavior deviation.
+>
+> **Supplemental test added by the review fix-round (non-owning; reinforces FR-CUA-070 breadth):**
+> `pmo-portal/pages/project-detail/__tests__/TasksTab.pendingPush.listBreadth.test.tsx` — pins that the
+> per-task push badge surfaces on the List row (not just the Board) when a write-origin control is
+> present.
 
 ## 7. Error handling
 
