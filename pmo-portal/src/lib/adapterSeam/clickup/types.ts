@@ -73,6 +73,9 @@ export interface ClickUpWebhookPayload {
   task_id: string;
   /** ClickUp `date_updated` (unix-ms string) — the source-modification + watermark cursor field. */
   date_updated: string;
+  /** The ClickUp List id the task belongs to — used by the ingress to resolve the org + project
+   *  binding for an UNMAPPED (adopt) task. Absent on some verbs (e.g. a minimal `taskDeleted`). */
+  list_id?: string;
   /** The full task body for created/updated/status-updated events; absent on `taskDeleted`. */
   task?: ClickUpTask;
 }
