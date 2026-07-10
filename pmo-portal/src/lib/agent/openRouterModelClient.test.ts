@@ -107,10 +107,17 @@ it('providerPolicyFromEnv honors explicit order/only/ignore/sort/fallbacks/data_
     providerPolicyFromEnv({ AGENT_PROVIDER_ONLY: 'deepinfra,gmicloud', AGENT_PROVIDER_IGNORE: 'deepseek' }),
   ).toEqual({ allow_fallbacks: true, order: TIER, only: ['deepinfra', 'gmicloud'], ignore: ['deepseek'] });
 
-  // Empty AGENT_PROVIDER_ONLY explicitly DISABLES the allow-list restriction.
+  // Audit finding 1: empty AGENT_PROVIDER_ONLY fails SAFE — the no-train allow-list stays ON
+  // (an empty/declared-but-unset secret must never silently drop the privacy wall).
   expect(providerPolicyFromEnv({ AGENT_PROVIDER_ONLY: '' })).toEqual({
     allow_fallbacks: true,
     order: TIER,
+    only: TIER,
+  });
+  expect(providerPolicyFromEnv({ AGENT_PROVIDER_ONLY: '   ' })).toEqual({
+    allow_fallbacks: true,
+    order: TIER,
+    only: TIER,
   });
 
   // Opt into the stricter green-only (no-retention) filter.
@@ -133,6 +140,15 @@ it('providerPolicyFromEnv honors explicit order/only/ignore/sort/fallbacks/data_
     order: TIER,
     only: TIER,
   });
+});
+
+it('AGENT_PROVIDER_ONLY="*" is the ONLY way to disable the allow-list, and it warns (audit finding 1)', () => {
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  const policy = providerPolicyFromEnv({ AGENT_PROVIDER_ONLY: '*' });
+  expect(policy.only).toBeUndefined(); // allow-list disabled (unrestricted routing)
+  expect(policy).toEqual({ allow_fallbacks: true, order: TIER });
+  expect(warn).toHaveBeenCalledWith(expect.stringContaining('allow-list is DISABLED'));
+  warn.mockRestore();
 });
 
 it('AC-MC-002 maps a text-only completion to ModelResponse', async () => {
