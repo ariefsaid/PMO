@@ -37,6 +37,12 @@ YAGNI at single-tenant scale). Two real gaps, prioritized:
   edge fns + a FE error boundary → `error_events`). **Owner-gated part** = a Sentry (free tier) DSN +
   new dep decision — external account + $, so it waits for an owner GO. Lower priority than P1: partial
   coverage already exists and the actionable slice is incremental.
+- **Plus — PostHog dashboards BUILT (separate deferred item, done this session).** ✅ 3 dashboards /
+  19 insights live in project `465502` (Agent adoption+reliability · Auth login health · Product
+  usage+friction), provisioned **as code** from the typed event catalog. PR #303
+  (`feat/posthog-dashboards`), script `scripts/posthog/provision-dashboards.mjs` (idempotent,
+  upsert-by-name), docs `docs/posthog-dashboards.md`. Write-scoped key = 1Password `posthog-personal-api`
+  (`phx_`). Partly addresses the GTM observability-floor "PostHog dashboards" line below.
 
 ### ⚑ CURRENT STATUS (2026-07-07 late) — read first; trust git over memory
 
