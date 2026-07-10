@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts';
-import { parseISO } from 'date-fns';
+import { monthToUtcEpoch } from './agentCostMetrics.utils';
 import { ListState, StatTiles, type StatTile } from '@/src/components/ui';
 import { ChartFrame, type ChartState } from '@/src/components/dashboard/ChartFrame';
 import { usePrefersReducedMotion } from '@/src/components/dashboard/usePrefersReducedMotion';
@@ -137,7 +137,7 @@ function deriveMonthlyCacheHit(summaryRows: AgentCostSummaryRow[]): MonthlyCache
   }
   return Array.from(byMonth.entries())
     .map(([month, { cached, prompt }]) => ({
-      ts: parseISO(month).getTime(),
+      ts: monthToUtcEpoch(month),
       month,
       pct: prompt === 0 ? 0 : (100 * cached) / prompt,
     }))
@@ -208,7 +208,11 @@ export const AgentCostMetrics: React.FC<AgentCostMetricsProps> = ({
   return (
     <div className="flex flex-col gap-5">
       <div>
-        <h2 className="mb-3 text-[14px] font-bold tracking-[-0.01em]">Agent cost overview</h2>
+        <h2 className="mb-1 text-[14px] font-bold tracking-[-0.01em]">Agent cost overview</h2>
+        {/* Honesty caption (code-quality review): the tiles blend all actions/months (and, on the
+            unscoped Operator path, all orgs) — so the numbers read as a portfolio overview, not a
+            single-cohort statistic. */}
+        <p className="mb-3 text-[12px] text-muted-foreground">Across all actions and months.</p>
         <StatTiles tiles={tiles} columns={5} />
       </div>
 

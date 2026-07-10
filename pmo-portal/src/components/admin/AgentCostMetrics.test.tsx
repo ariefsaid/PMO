@@ -12,6 +12,7 @@ import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { axeViolations } from '../__tests__/axe';
 import { AgentCostMetrics, type AgentCostSummaryRow, type AgentCostRunStatsRow } from './AgentCostMetrics';
+import { monthToUtcEpoch } from './agentCostMetrics.utils';
 
 // recharts' ResponsiveContainer needs a non-zero parent size under jsdom; force it
 // (mirrors ProjectSCurve.test.tsx's established pattern for testing recharts under jsdom).
@@ -23,6 +24,15 @@ vi.mock('recharts', async () => {
       <div style={{ width: 600, height: 200 }}>{children}</div>
     ),
   };
+});
+
+describe('monthToUtcEpoch (TZ-stable month parsing)', () => {
+  it('parses a date-only month as UTC midnight regardless of the runner timezone', () => {
+    // Must equal UTC epoch (the axis formatter uses timeZone:UTC). A local parse would shift this
+    // by the runner's offset and mislabel the month for users east of UTC (code-quality finding).
+    expect(monthToUtcEpoch('2026-06-01')).toBe(Date.UTC(2026, 5, 1));
+    expect(monthToUtcEpoch('2026-06')).toBe(Date.UTC(2026, 5, 1)); // tolerate YYYY-MM
+  });
 });
 
 const summaryRows: AgentCostSummaryRow[] = [
