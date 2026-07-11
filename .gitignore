@@ -27,6 +27,7 @@ dist-ssr
 coverage
 playwright-report
 test-results
+pmo-portal/e2e/.auth/
 
 # Vendored third-party Claude Code skills — re-create with scripts/vendor-skills.sh
 .claude/skills/

@@ -1,6 +1,19 @@
 import { expect, request as pwRequest, type Locator, type Page } from '@playwright/test';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 export const SEED_PASSWORD = 'Passw0rd!dev';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+/** Directory the `setup` Playwright project (e2e/auth.setup.ts) writes captured sessions to. */
+const AUTH_DIR = path.join(__dirname, '.auth');
+
+interface CapturedStorageState {
+  origins: { origin: string; localStorage?: { name: string; value: string }[] }[];
+}
 
 /**
  * Require SUPABASE_SERVICE_ROLE_KEY for specs that need service-role admin access.
@@ -19,52 +32,55 @@ export function requireServiceRoleKey(): string | undefined {
 }
 
 /**
- * Sign in via the /login form and wait for the dashboard.
+ * Sign in as `email` by injecting a pre-captured session rather than driving the /login form.
  *
- * Hardened against a TRANSIENT CI GoTrue flake: on the shared CI runner, GoTrue
- * intermittently returns "Invalid login credentials" for objectively-valid seed
- * creds (proven: 132 specs authenticate fine in the same run; a direct token-endpoint
- * curl for the same creds returns a valid access_token — it is NOT rate-limit, NOT
- * concurrency, NOT a bad hash). Within a single spec, Playwright's immediate retries
- * fire seconds apart inside the same degraded window, so they all fail together.
+ * #306: the `setup` Playwright project (e2e/auth.setup.ts) runs once per test run and, for
+ * each seed role, does ONE real form sign-in and saves the resulting `storageState` (the
+ * localStorage the Supabase browser client persists its session in — `persistSession: true`,
+ * src/lib/supabase/client.ts) to `e2e/.auth/<email>.json`. This function reads that fixture and
+ * replays it directly, so specs land authenticated without paying a real bcrypt verification per
+ * call. That per-spec bcrypt cost was the root cause of the old retry/backoff loop (a shared
+ * CI GoTrue instance intermittently rejecting valid creds under concurrent-login load) — with
+ * no real per-call sign-in, that flake's precondition is gone, so the retry loop is removed.
  *
- * The retry loop below re-drives the whole sign-in (re-navigate → fill → submit) up to
- * `MAX_ATTEMPTS` times, racing success (dashboard URL) against the invalid-credentials
- * alert, with exponential backoff between attempts to let the transient window pass. The
- * goal-oracle is UNCHANGED and never softened: the FINAL assertion is still a hard
- * `toHaveURL(/\/$/)`, so a genuinely-stuck sign-in still fails loudly.
+ * Any prior session is cleared before injecting, so calling this multiple times within one spec
+ * (to switch users mid-test) fully replaces the active session each time.
+ *
+ * The goal-oracle is UNCHANGED: the final assertion is still a hard `toHaveURL(/\/$/)`.
+ *
+ * @param password unused for injection (the captured session already encodes a successful
+ *   sign-in) — kept so the call signature is unchanged for the 70+ existing call sites.
  */
-const SIGN_IN_MAX_ATTEMPTS = 4;
-const SIGN_IN_BACKOFF_MS = [750, 1500, 3000];
-
 export async function signIn(page: Page, email: string, password = SEED_PASSWORD) {
-  for (let attempt = 0; attempt < SIGN_IN_MAX_ATTEMPTS; attempt++) {
-    await page.goto('/login');
-    await page.getByLabel(/email/i).fill(email);
-    await page.getByLabel(/password/i).fill(password);
-    await page.getByRole('button', { name: /sign in/i }).click();
+  void password;
 
-    // Race the two terminal outcomes of a submit: landed on the dashboard (success) or the
-    // "Invalid login credentials" alert (the transient flake). Whichever resolves first wins;
-    // a 5s timeout with neither also drops through to the backoff-and-retry path below.
-    const signedIn = await Promise.race([
-      expect(page)
-        .toHaveURL(/\/$/, { timeout: 5_000 })
-        .then(() => true)
-        .catch(() => false),
-      page
-        .getByText(/invalid login credentials/i)
-        .waitFor({ state: 'visible', timeout: 5_000 })
-        .then(() => false)
-        .catch(() => false),
-    ]);
-    if (signedIn) return;
-
-    const backoff = SIGN_IN_BACKOFF_MS[Math.min(attempt, SIGN_IN_BACKOFF_MS.length - 1)];
-    if (attempt < SIGN_IN_MAX_ATTEMPTS - 1) await page.waitForTimeout(backoff);
+  const statePath = path.join(AUTH_DIR, `${email}.json`);
+  let state: CapturedStorageState;
+  try {
+    state = JSON.parse(readFileSync(statePath, 'utf-8')) as CapturedStorageState;
+  } catch {
+    throw new Error(
+      `signIn: no captured session fixture for "${email}" at ${statePath}. ` +
+        `Run the Playwright "setup" project first (e2e/auth.setup.ts), or — if "${email}" is a ` +
+        'new seed user — add it to the SEED_EMAILS list in e2e/auth.setup.ts.'
+    );
   }
 
-  // Final, unguarded goal-oracle: if every attempt hit the transient window, fail loudly here.
+  // Iterate ALL origins' localStorage rather than matching a single expected origin: the app
+  // is captured and replayed against the same baseURL in practice, but this stays robust to
+  // any origin variance between the setup run and the spec run.
+  const entries = state.origins.flatMap((origin) => origin.localStorage ?? []);
+  if (entries.length === 0) {
+    throw new Error(`signIn: captured session fixture for "${email}" at ${statePath} has no localStorage entries.`);
+  }
+
+  await page.goto('/');
+  await page.evaluate((items: { name: string; value: string }[]) => {
+    localStorage.clear();
+    for (const { name, value } of items) localStorage.setItem(name, value);
+  }, entries);
+  await page.reload();
+
   await expect(page).toHaveURL(/\/$/);
 }
 
