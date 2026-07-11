@@ -35,6 +35,7 @@ import { resolveClickUpDispatchAdapter } from '../../../pmo-portal/src/lib/adapt
 import { ClickUpRateLimiter } from '../../../pmo-portal/src/lib/adapterSeam/clickup/rateLimit.ts';
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
 import type { Adapter, AdapterCommand, PmoRecord } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
+import { getReadModelWriter } from './readModelWriters.ts';
 
 /** The adapter-select context: the caller's org, the parsed command, and the service-role client for
  * per-request config lookups (project binding, external_refs resolution). Never used for adapter.commit(). */
@@ -189,39 +190,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const result = await dispatchExternallyOwnedWrite({
       adapter,
       command,
+      // Multi-domain read-model writer registry (task 1.6) — replaces the inline if-chain. An
+      // unknown domain throws (no silent skip); ClickUp's `tasks` writer is byte-for-byte moved.
       writeReadModel: async (canonical: PmoRecord) => {
-        if (command.domain === CLICKUP_TASKS_DOMAIN) {
-          // P1: the tasks read-model row lives in `tasks` itself, not `external_reference_items`.
-          const patch = {
-            name: canonical.name,
-            status: canonical.status,
-            assignee_id: canonical.assignee_id ?? null,
-            start_date: canonical.start_date ?? null,
-            end_date: canonical.end_date ?? null,
-            completed_at: (canonical.completed_at as string | null | undefined) ?? null,
-            source_updated_at: new Date().toISOString(),
-          };
-          if (command.operation === 'create') {
-            const projectId = (command.record as { project_id?: string }).project_id;
-            if (!projectId) throw new AppError('project_id is required to mirror a created task', 'BAD_REQUEST');
-            const { error } = await serviceClient
-              .from('tasks')
-              .insert({ id: canonical.id, org_id: orgId, project_id: projectId, ...patch });
-            if (error) throw new AppError(error.message, error.code);
-            return;
-          }
-          const { error } = await serviceClient.from('tasks').update(patch).eq('org_id', orgId).eq('id', canonical.id);
-          if (error) throw new AppError(error.message, error.code);
-          return;
-        }
-        // P0: reference read-model only.
-        const { error } = await serviceClient
-          .from('external_reference_items')
-          .upsert(
-            { org_id: orgId, pmo_record_id: canonical.id, payload: canonical },
-            { onConflict: 'org_id,pmo_record_id' },
-          );
-        if (error) throw new AppError(error.message, error.code);
+        const writer = getReadModelWriter(command.domain);
+        await writer.upsert({ serviceClient: serviceClient as never, orgId }, canonical, command);
       },
       // Cast: the real supabase-js client's .from().upsert() returns a thenable
       // PostgrestFilterBuilder, not a plain Promise — structurally satisfies
@@ -232,20 +205,14 @@ Deno.serve(async (req: Request): Promise<Response> => {
       // Delete-aware dispatch (Slice C, AC-CUA-038, FR-CUA-026): a ClickUp-native delete
       // tombstones the mirrored `tasks` row (OD-CUA-2) — dependency/milestone rows are
       // preserved (no cascade), and the external_refs mapping is kept as-is (dispatch.ts
-      // never calls recordExternalRef on a delete). Only the `tasks` domain has a mirror
-      // to tombstone; other P1 domains don't wire this dep (an omitted callback = no-op
-      // handled by dispatch.ts's optional chaining, though only `tasks` reaches delete today).
-      tombstoneReadModel:
-        command.domain === CLICKUP_TASKS_DOMAIN
-          ? async (pmoRecordId: string) => {
-              const { error } = await serviceClient
-                .from('tasks')
-                .update({ tombstoned_at: new Date().toISOString() })
-                .eq('org_id', orgId)
-                .eq('id', pmoRecordId);
-              if (error) throw new AppError(error.message, error.code);
-            }
-          : undefined,
+      // never calls recordExternalRef on a delete). Routed through the same registry (task
+      // 1.6) — only domains whose writer defines `tombstone` support the delete branch;
+      // others don't wire this dep (an omitted callback = no-op via dispatch.ts's optional
+      // chaining, though only `tasks` reaches delete today).
+      tombstoneReadModel: getReadModelWriter(command.domain).tombstone
+        ? (pmoRecordId: string) =>
+            getReadModelWriter(command.domain).tombstone!({ serviceClient: serviceClient as never, orgId }, pmoRecordId)
+        : undefined,
     });
     return new Response(JSON.stringify(result), { status: 200, headers });
   } catch (err) {
