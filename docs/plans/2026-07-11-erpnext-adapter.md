@@ -95,7 +95,13 @@ secret ref). Reads are **always** the Supabase read-model (FR-ENA-172) — no re
    `(org,domain,pmo_record_id,idempotency_key)` makes a concurrent duplicate fail atomically (`23505`). The
    adapter stamps the key into the doctype's `remarks` so a recovery probe (`GET …?filters=[["remarks","like","%<key>%"]]`)
    can find an orphaned commit. A retry reconciles by outbox `state` (confirmed→return / committed→finalize
-   only / pending→probe-then-maybe-reissue / failed→reissue) — **never a blind second create** (FR-ENA-043).
+   only / pending|failed→probe-then-maybe-reissue) — **never a blind second create** (FR-ENA-043). **A stale
+   `committing` row is NEVER reclaimed+re-POSTed** (its ERP write may be in flight, unseen by the probe →
+   duplicate); it is **quarantined** (`quarantine_committing`, fenced) with a `reconcile_after` visibility
+   window and resolved only by the reconciliation path once the window elapses (probe → adopt the in-flight
+   POST, or with no ERP hit reissue under the same key). The finalization is **generation-guarded** (re-verify
+   the fencing token immediately before the mirror/ref writes) and mirrors the adapter's **real returned
+   `canonical`** (persisted on the outbox row at commit), not a `{id}` stub.
 3. **`transition` is first-class (R2).** submit (`PUT {docstatus:1}`) / cancel (`{docstatus:2}`) / amend
    (native cancel + create-with-`amended_from`). The adapter **always** uses the R9 **two-step**
    insert-then-submit (separates the idempotency windows) and **re-fetches** derived `status`/`outstanding`
@@ -405,11 +411,17 @@ outbox/adapter deps (including a mocked `claimOutboxForCommit`). Asserts the ful
   claimant's result is **discarded** (no state change, no finalize, no duplicate mirror), while the
   reclaimer's `gen=2` write-back applies. (The stale claimant's ERP POST may have fired — the reclaimer's
   `remarks`-key probe adopts that one doc, per ADR-0057 §4.)
-- `confirmed` retry → return stored result, **no ERP call, no claim**.
-- `committed` retry → finalize (mirror+ref) only, **no second commit, no claim**.
-- `pending`/`failed`/stale-`committing` retry → **claim first** → probe finds doc → adopt → finalize;
-  probe empty → POST (claim winner only).
-- `commit-rejected` → mark `failed`, throw; `external-unreachable` → back to `pending`, throw.
+- **F1 in-flight-POST overlap (the Critical fix):** a stale `committing` row is **quarantined**, never
+  reclaimed+re-POSTed. Model the overlap: claimant A wins the claim and its POST is in flight (not yet
+  probe-visible); its lease expires; a reclaimer reconciles → **quarantines** (no POST, surfaces retryable);
+  A's POST lands (probe now returns it); after the `reconcile_after` window the reconciliation path claims
+  the quarantined row, **probes the remarks key → adopts A's doc → NO second POST, exactly one money doc**.
+- `confirmed` retry → return stored result (the persisted `canonical`), **no ERP call, no claim**.
+- `committed` retry → finalize (mirror+ref) only — **generation-guarded**, mirroring the persisted
+  `canonical` — **no second commit, no claim**.
+- `pending`/`failed` retry → **claim first** → probe finds doc → adopt → finalize; probe empty → POST (claim
+  winner only). `quarantined` retry → claim only after the window (probe → adopt-or-reissue-same-key).
+- `commit-rejected` → mark `failed`, throw; `external-unreachable` → stays `committing` (reclaimable/quarantinable), throw.
 **Verify (RED):** `cd pmo-portal && npx vitest run src/lib/adapterSeam/dispatch.money.test.ts` → fails.
 
 ### 1.5 — GREEN: `dispatchMoneyWrite(deps)` in `dispatch.ts` (server key guard + claim + reconcile)
@@ -425,13 +437,17 @@ where each `markOutbox*` takes the caller's **fencing token** (`claimGeneration`
 row count (its guarded UPDATE is `… where id = $1 and claim_generation = $token`). `claimOutboxForCommit`
 returns the claimed row **including its bumped `claim_generation`**, which `dispatchMoneyWrite` captures as
 the token for the rest of the flow. `dispatchExternallyOwnedWrite` chooses: `erpnext`-tier non-read-only
-with key → `dispatchMoneyWrite`; else the existing path (byte-for-byte for P0/P1). The reconcile algorithm
-is `reconcileOutbox(existing)` per ADR-0057 §4: `confirmed`→return; `committed`→finalize-only;
-`committing`-fresh→backoff-re-read; `pending`/`failed`/stale-`committing`→**`claimOutboxForCommit(id)`
-first; only the winner (non-null return) probes→adopt-or-POST→mark, threading its `claim_generation` token
-into every `markOutbox*`/ref write-back; the loser (null) re-reads and reconciles, never POSTs**. Any
-write-back that reports **0 rows affected** (a stale fencing token — a reclaimer superseded this claimant
-mid-flight) is treated as "superseded → discard, do NOT finalize" (F4 lease-expiry overlap). Re-run 1.4 → GREEN.
+with key → `dispatchMoneyWrite`; else the existing path (byte-for-byte for P0/P1). The deps also include
+`quarantineCommitting` (F1) and `verifyClaimGeneration` (the generation-guard, F3); `markOutboxCommitted`
+additionally persists the adapter's `canonical` (F2). The reconcile algorithm is `reconcileOutbox(existing)`
+per ADR-0057 §4: `confirmed`→return persisted canonical; `committed`→generation-guarded finalize-only;
+`committing`-fresh→backoff-re-read; `committing`-stale→**`quarantineCommitting(id)` (NEVER reclaim+re-POST)**
+then surface retryable; `quarantined`→claim only after the window then probe→adopt-or-reissue;
+`pending`/`failed`→**`claimOutboxForCommit(id)` first; only the winner (non-null return)
+probes→adopt-or-POST→mark, threading its `claim_generation` token into every `markOutbox*`/ref write-back;
+the loser (null) re-reads and reconciles, never POSTs**. Any write-back that reports **0 rows affected** (a
+stale fencing token — a reclaimer/quarantine superseded this claimant mid-flight) is treated as "superseded
+→ discard, do NOT finalize" (F4). Re-run 1.4 → GREEN.
 **Verify:** `cd pmo-portal && npx vitest run src/lib/adapterSeam/dispatch.money.test.ts` → passes.
 
 ### 1.6 — Multi-domain read-model writer registry + resolver (replaces the dispatch if-chain)

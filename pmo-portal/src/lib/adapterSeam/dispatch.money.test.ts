@@ -16,12 +16,14 @@ import { AdapterError, type AdapterCommand, type CommandResult } from './contrac
 import { AppError } from '../appError.ts';
 
 const LEASE_MS = 60_000;
+const WINDOW_MS = 5 * 60_000;
 
-/** An in-memory fake reproducing `claim_outbox_for_commit`'s guarantees (0095): a conditional
- *  transition into `committing` that only one caller can win per id, plus the `claim_generation`
+/** An in-memory fake reproducing `claim_outbox_for_commit`/`quarantine_committing`'s guarantees
+ *  (0095): a conditional transition into `committing` that only one caller can win per id, the
+ *  quarantine of a stale `committing` row (F1 — never a blind re-POST), plus the `claim_generation`
  *  fencing token guarding every subsequent write-back. */
 function createFakeOutbox() {
-  const rows = new Map<string, OutboxRow & { updatedAt: number }>();
+  const rows = new Map<string, OutboxRow & { updatedAt: number; claimedAt: number | null; reconcileAfter: number | null }>();
   const byTuple = new Map<string, string>();
   const probes = new Map<string, { externalRecordId: string }>();
   let seq = 0;
@@ -32,7 +34,7 @@ function createFakeOutbox() {
     async readOutbox(domain, pmoRecordId, idempotencyKey) {
       const id = byTuple.get(tupleKey(domain, pmoRecordId, idempotencyKey));
       if (!id) return null;
-      const { updatedAt: _updatedAt, ...row } = rows.get(id)!;
+      const { updatedAt: _u, claimedAt: _c, reconcileAfter: _r, ...row } = rows.get(id)!;
       return { ...row };
     },
     async insertOutboxPending(domain, pmoRecordId, idempotencyKey) {
@@ -43,25 +45,40 @@ function createFakeOutbox() {
         throw err;
       }
       const id = `outbox-${++seq}`;
-      const row: OutboxRow & { updatedAt: number } = {
+      const row: OutboxRow & { updatedAt: number; claimedAt: number | null; reconcileAfter: number | null } = {
         id, domain, pmoRecordId, idempotencyKey,
         state: 'pending', externalRecordId: null, claimGeneration: 0,
-        updatedAt: Date.now(),
+        updatedAt: Date.now(), claimedAt: null, reconcileAfter: null,
       };
       rows.set(id, row);
       byTuple.set(k, id);
-      const { updatedAt: _updatedAt, ...result } = row;
+      const { updatedAt: _u, claimedAt: _c, reconcileAfter: _r, ...result } = row;
       return { ...result };
     },
     async claimOutboxForCommit(id) {
       const row = rows.get(id);
       if (!row) return null;
-      const reclaimableCommitting = row.state === 'committing' && Date.now() - row.updatedAt > LEASE_MS;
-      if (row.state !== 'pending' && row.state !== 'failed' && !reclaimableCommitting) return null;
+      // F1: `committing` is NEVER reclaimed here (that is `quarantineCommitting`'s job). Claimable =
+      // pending/failed, or a quarantined row whose visibility window (reconcile_after) has elapsed.
+      const quarantineReady = row.state === 'quarantined' && row.reconcileAfter !== null && Date.now() >= row.reconcileAfter;
+      if (row.state !== 'pending' && row.state !== 'failed' && !quarantineReady) return null;
       row.state = 'committing';
       row.claimGeneration += 1;
+      row.claimedAt = Date.now();
       row.updatedAt = Date.now();
-      const { updatedAt: _updatedAt, ...result } = row;
+      const { updatedAt: _u, claimedAt: _c, reconcileAfter: _r, ...result } = row;
+      return { ...result };
+    },
+    async quarantineCommitting(id) {
+      const row = rows.get(id);
+      if (!row) return null;
+      // Only a STALE (past-lease) committing row is quarantinable; a fresh one has a live owner.
+      if (!(row.state === 'committing' && Date.now() - row.updatedAt > LEASE_MS)) return null;
+      row.state = 'quarantined';
+      row.claimGeneration += 1;   // fence the stale claimant's late write-back (F4)
+      row.reconcileAfter = (row.claimedAt ?? Date.now()) + WINDOW_MS;
+      row.updatedAt = Date.now();
+      const { updatedAt: _u, claimedAt: _c, reconcileAfter: _r, ...result } = row;
       return { ...result };
     },
     async markOutboxCommitted(id, externalRecordId, claimGeneration) {
@@ -103,6 +120,11 @@ function createFakeOutbox() {
     backdate: (id: string, ms: number) => {
       const row = rows.get(id)!;
       row.updatedAt = Date.now() - ms;
+    },
+    /** Fast-forward past a quarantined row's visibility window so the reconciliation path may claim it. */
+    elapseWindow: (id: string) => {
+      const row = rows.get(id)!;
+      row.reconcileAfter = Date.now() - 1;
     },
   };
 }
@@ -250,11 +272,15 @@ describe('AC-ENA-012 the fencing token closes the lease-expiry overlap (F4)', ()
     expect(staleClaim!.claimGeneration).toBe(1);
     fake.backdate(id, LEASE_MS + 1);
 
-    // A reclaimer re-claims — gen bumps to 2 (monotonic) — and finishes the whole flow.
+    // A reclaimer supersedes the stale committing row by QUARANTINING it (F1 — a committing row is
+    // never reclaimed+re-POSTed) — gen bumps to 2 — then, past the window, claims (gen=3) and finishes.
+    const quarantined = await fake.deps.quarantineCommitting(id);
+    expect(quarantined!.claimGeneration).toBe(2);
+    fake.elapseWindow(id);
     const reclaimed = await fake.deps.claimOutboxForCommit(id);
-    expect(reclaimed!.claimGeneration).toBe(2);
-    await fake.deps.markOutboxCommitted(id, 'PI-0001', 2);
-    await fake.deps.markOutboxConfirmed(id, 2);
+    expect(reclaimed!.claimGeneration).toBe(3);
+    await fake.deps.markOutboxCommitted(id, 'PI-0001', 3);
+    await fake.deps.markOutboxConfirmed(id, 3);
 
     // The stale claimant's late write-back, still holding gen=1, must affect 0 rows.
     const staleCommittedCount = await fake.deps.markOutboxCommitted(id, 'PI-DUPLICATE', 1);
@@ -378,7 +404,7 @@ describe('AC-ENA-012 pending/failed/stale-committing retry: claim first, then ad
     expect(result.externalRecordId).toBe('PI-0002');
   });
 
-  it('stale committing (past lease) is reclaimed, probed, and POSTed', async () => {
+  it('stale committing → quarantined (never reclaimed+re-POSTed); after the window with NO ERP hit, reissues under the same key', async () => {
     const fake = createFakeOutbox();
     await fake.deps.insertOutboxPending('procurement', 'pmo-1', 'key-1');
     const id = [...fake.rows.keys()][0];
@@ -386,6 +412,23 @@ describe('AC-ENA-012 pending/failed/stale-committing retry: claim first, then ad
     fake.backdate(id, LEASE_MS + 1);
 
     const commit = vi.fn(async () => ({ externalRecordId: 'PI-0003', canonical: { id: 'pmo-1' } }));
+    // First retry: the stale committing row is QUARANTINED (no POST — its ERP write could be in
+    // flight) and the caller gets a retryable "reconciling" (the window has not yet elapsed).
+    await expect(
+      dispatchMoneyWrite({
+        adapter: erpnextAdapter(commit),
+        command: baseCommand,
+        writeReadModel: vi.fn(), recordExternalRef: vi.fn(),
+        money: fake.deps,
+      }),
+    ).rejects.toMatchObject({ code: 'external-unreachable' });
+    expect(commit).not.toHaveBeenCalled();
+    expect([...fake.rows.values()][0].state).toBe('quarantined');
+    expect([...fake.rows.values()][0].claimGeneration).toBe(2); // quarantine fenced the stale claimant
+
+    // The visibility window elapses and NO ERP doc was ever created (probe empty) → the reconciliation
+    // path reissues under the SAME idempotency key.
+    fake.elapseWindow(id);
     const result = await dispatchMoneyWrite({
       adapter: erpnextAdapter(commit),
       command: baseCommand,
@@ -394,7 +437,49 @@ describe('AC-ENA-012 pending/failed/stale-committing retry: claim first, then ad
     });
     expect(commit).toHaveBeenCalledTimes(1);
     expect(result.externalRecordId).toBe('PI-0003');
-    expect([...fake.rows.values()][0].claimGeneration).toBe(2);
+    expect([...fake.rows.values()][0].state).toBe('confirmed');
+  });
+
+  it('F1 in-flight-POST overlap: a slow claimant POST lands after reclaim → reconciliation ADOPTS it via the remarks key → NO second POST, exactly one money doc', async () => {
+    const fake = createFakeOutbox();
+    await fake.deps.insertOutboxPending('procurement', 'pmo-1', 'key-1');
+    const id = [...fake.rows.keys()][0];
+    // Claimant A wins the claim (gen=1) and its ERP POST is IN FLIGHT — not yet probe-visible.
+    const aClaim = await fake.deps.claimOutboxForCommit(id);
+    expect(aClaim!.claimGeneration).toBe(1);
+    // A's lease expires while its POST is still travelling to ERP.
+    fake.backdate(id, LEASE_MS + 1);
+
+    // The reclaimer (sync retry / sweep) reconciles the stale committing row. It MUST NOT re-POST —
+    // it quarantines the row and surfaces a retryable (window not yet elapsed).
+    const reclaimerCommit = vi.fn();
+    await expect(
+      dispatchMoneyWrite({
+        adapter: erpnextAdapter(reclaimerCommit),
+        command: baseCommand,
+        writeReadModel: vi.fn(), recordExternalRef: vi.fn(),
+        money: fake.deps,
+      }),
+    ).rejects.toMatchObject({ code: 'external-unreachable' });
+    expect(reclaimerCommit).not.toHaveBeenCalled();
+    expect([...fake.rows.values()][0].state).toBe('quarantined');
+
+    // Now A's slow POST lands — the money doc becomes visible via its stamped remarks key.
+    fake.setProbe('procurement', 'key-1', { externalRecordId: 'PI-INFLIGHT' });
+    // The visibility window elapses; the reconciliation path resolves the quarantined row.
+    fake.elapseWindow(id);
+    const writeReadModel = vi.fn();
+    const recordExternalRef = vi.fn();
+    const result = await dispatchMoneyWrite({
+      adapter: erpnextAdapter(reclaimerCommit),
+      command: baseCommand,
+      writeReadModel, recordExternalRef,
+      money: fake.deps,
+    });
+    // The reclaimer ADOPTS A's doc via the probe — it never POSTs a second doc.
+    expect(reclaimerCommit).not.toHaveBeenCalled();
+    expect(result.externalRecordId).toBe('PI-INFLIGHT');
+    expect([...fake.rows.values()][0].state).toBe('confirmed');
   });
 
   it('a committing-fresh row (another live owner) never POSTs — backs off and re-reads', async () => {

@@ -11,6 +11,7 @@
 --
 -- Reversibility (ADR-0006): supabase db reset. Manual rollback (functions before tables, reverse order):
 --   drop function if exists public.outbox_reconcile_candidates(uuid);
+--   drop function if exists public.quarantine_committing(uuid, interval, interval);
 --   drop function if exists public.claim_outbox_for_commit(uuid, interval);
 --   drop trigger if exists external_ref_lineage_stamp_org_id on public.external_ref_lineage;
 --   drop trigger if exists external_command_outbox_stamp_org_id on public.external_command_outbox;
@@ -49,11 +50,13 @@ create table public.external_command_outbox (
   idempotency_key     text not null,
   external_tier       text not null,
   operation           text not null check (operation in ('create','update','transition')),
-  state               text not null check (state in ('pending','committing','committed','confirmed','failed')),
+  state               text not null check (state in ('pending','committing','committed','confirmed','failed','quarantined')),
   external_record_id  text,
   payload_digest      text,
   attempt_count       int not null default 0,
   claim_generation    int not null default 0,   -- fencing token: bumped on every claim; write-backs guard on it
+  claimed_at          timestamptz,              -- when the current claimant entered the ERP-POST critical section
+  reconcile_after     timestamptz,              -- F1 quarantine visibility window: a quarantined row is resolvable only after this
   last_error          text,
   created_at          timestamptz not null default now(),
   updated_at          timestamptz not null default now(),
@@ -107,17 +110,16 @@ create trigger external_command_outbox_stamp_org_id before insert on public.exte
 create trigger external_ref_lineage_stamp_org_id before insert on public.external_ref_lineage
   for each row execute function public.stamp_org_id();
 
--- ── The atomic commit claim (ADR-0057 §2): the ONLY gate from (pending|failed|stale-committing) →
--- committing. A conditional UPDATE under Postgres' row lock: two concurrent claims serialize, only the
--- winner transitions and RETURNs the row; the loser's UPDATE matches 0 rows (state 'committing',
--- updated_at fresh) → NULL. A 'committing' row past p_lease is re-claimable (recovers a process that
--- died holding the claim). Each win BUMPS claim_generation — the returned value is the caller's FENCING
--- TOKEN: every post-claim write-back (mark committed/confirmed/failed, external_record_id record) is
--- guarded `WHERE claim_generation = <token>`, so a lease-expired-but-still-running claimant that a
--- reclaimer already superseded matches 0 rows on its late write-back and its result is discarded (F4 —
--- closes the lease-expiry double-write). Its ERP POST may still have fired; that orphan is exactly what
--- the remarks-idempotency-key recovery reconciles (§4).
--- SECURITY DEFINER so the policy-less outbox is touched only here + by service_role.
+-- ── The atomic commit claim (ADR-0057 §2): the ONLY gate into the ERP-POST critical section. A
+-- conditional UPDATE under Postgres' row lock: two concurrent claims serialize, only the winner
+-- transitions and RETURNs the row; the loser's UPDATE re-evaluates the WHERE against the winner's
+-- committed row, matches 0 rows (state 'committing') → NULL. Claimable = pending|failed, OR a
+-- 'quarantined' row whose reconcile_after visibility window has ELAPSED (F1 — a stale 'committing' row
+-- is NOT claimable here; it must first be quarantined, see quarantine_committing). Each win BUMPS
+-- claim_generation — the returned value is the caller's FENCING TOKEN: every post-claim write-back (mark
+-- committed/confirmed/failed) is guarded `WHERE claim_generation = <token>`, so a superseded claimant
+-- matches 0 rows on its late write-back and its result is discarded (F4). SECURITY DEFINER so the
+-- policy-less outbox is touched only here + by service_role.
 create or replace function public.claim_outbox_for_commit(
   p_id uuid, p_lease interval default interval '60 seconds'
 ) returns public.external_command_outbox
@@ -128,25 +130,53 @@ create or replace function public.claim_outbox_for_commit(
        set state='committing',
            attempt_count = attempt_count + 1,
            claim_generation = claim_generation + 1,   -- fencing token (F4): monotonic per claim
+           claimed_at = now(),
            updated_at = now()
      where id = p_id
        and ( state in ('pending','failed')
-             or (state='committing' and updated_at < now() - p_lease) )
+             or (state='quarantined' and reconcile_after is not null and reconcile_after < now()) )
     returning * into v;
-    return v;   -- v.claim_generation is the caller's fencing token; null ⇒ another caller owns it
+    return v;   -- v.claim_generation is the caller's fencing token; null ⇒ not claimable now
+  end; $$;
+
+-- ── quarantine_committing (F1 — the in-flight-POST-overlap fix). A stale (past-lease) 'committing' row
+-- is NEVER auto-reissued: its ERP POST may still be in flight and not yet visible to the remarks-key
+-- probe, so a blind re-POST would mint a DUPLICATE money document. Instead this fenced conditional
+-- UPDATE transitions it to 'quarantined', BUMPS claim_generation (invalidating the stale claimant's late
+-- write-back, F4), and sets a visibility window `reconcile_after = coalesce(claimed_at, now()) + p_window`.
+-- A quarantined row is resolved ONLY by the reconciliation path (claim after the window → probe the
+-- remarks key → adopt the original POST, or with no ERP hit reissue under the SAME idempotency key). A
+-- fresh 'committing' row (a live owner within lease) is left untouched → NULL. SECURITY DEFINER.
+create or replace function public.quarantine_committing(
+  p_id uuid, p_lease interval default interval '60 seconds', p_window interval default interval '5 minutes'
+) returns public.external_command_outbox
+  language plpgsql security definer set search_path = public as $$
+  declare v public.external_command_outbox;
+  begin
+    update public.external_command_outbox
+       set state='quarantined',
+           claim_generation = claim_generation + 1,   -- fence the stale claimant (F4)
+           reconcile_after = coalesce(claimed_at, now()) + p_window,
+           updated_at = now()
+     where id = p_id
+       and state='committing' and updated_at < now() - p_lease
+    returning * into v;
+    return v;   -- null ⇒ the row is fresh-committing (live owner) or not committing
   end; $$;
 
 -- ── Reconciler select helper (sweep + retry): the rows a given caller may need to reconcile for an
 -- org. NOTE (F11): the state predicate is parenthesized as a whole so `org_id = p_org_id` constrains
--- EVERY branch (incl. the stale-'committing' branch) — without the parens, AND/OR precedence would leak
--- other orgs' stuck 'committing' rows into a caller's reconcile set. ───────────────────────────────────
+-- EVERY branch — without the parens, AND/OR precedence would leak other orgs' stuck rows into a caller's
+-- reconcile set. A stale 'committing' row is a candidate so the sweep can QUARANTINE it (F1); a
+-- 'quarantined' row past its window is a candidate so the sweep can resolve it (probe → adopt-or-reissue).
 create or replace function public.outbox_reconcile_candidates(p_org_id uuid)
   returns setof public.external_command_outbox
   language sql security definer set search_path = public as $$
   select * from public.external_command_outbox
    where org_id = p_org_id
      and ( state in ('pending','failed','committed')
-           or (state='committing' and updated_at < now() - interval '60 seconds') );
+           or (state='committing' and updated_at < now() - interval '60 seconds')
+           or (state='quarantined' and reconcile_after is not null and reconcile_after < now()) );
   $$;
 
 -- ── ACL discipline (mirrors 0005/0006/ADR-0009): revoke all from public, grant execute only to the
@@ -156,5 +186,7 @@ create or replace function public.outbox_reconcile_candidates(p_org_id uuid)
 -- check org membership beyond p_org_id/p_id being passed in). ─────────────────────────────────────────
 revoke all on function public.claim_outbox_for_commit(uuid, interval) from public;
 grant execute on function public.claim_outbox_for_commit(uuid, interval) to service_role;
+revoke all on function public.quarantine_committing(uuid, interval, interval) from public;
+grant execute on function public.quarantine_committing(uuid, interval, interval) to service_role;
 revoke all on function public.outbox_reconcile_candidates(uuid) from public;
 grant execute on function public.outbox_reconcile_candidates(uuid) to service_role;

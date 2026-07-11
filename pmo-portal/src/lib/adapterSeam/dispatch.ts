@@ -41,7 +41,7 @@ export interface OutboxRow {
   domain: string;
   pmoRecordId: string;
   idempotencyKey: string;
-  state: 'pending' | 'committing' | 'committed' | 'confirmed' | 'failed';
+  state: 'pending' | 'committing' | 'committed' | 'confirmed' | 'failed' | 'quarantined';
   externalRecordId: string | null;
   /** The fencing token (F4): bumped on every `claimOutboxForCommit` win; every post-claim
    *  write-back is guarded `WHERE claim_generation = <token>` so a lease-expired claimant's late
@@ -61,10 +61,20 @@ export interface DispatchMoneyOutboxDeps {
   /** INSERT a new `pending` row. A concurrent duplicate insert throws a Postgres `23505`
    *  (the unique 4-tuple, 0095) — the caller re-reads the winner's row and reconciles to it. */
   insertOutboxPending: (domain: string, pmoRecordId: string, idempotencyKey: string) => Promise<OutboxRow>;
-  /** `public.claim_outbox_for_commit` — the ONLY gate into the ERP-POST critical section. Returns
-   *  the claimed row (with its bumped `claim_generation`, the caller's fencing token) or `null`
-   *  when another caller already owns it (a fresh `committing` row). */
+  /** `public.claim_outbox_for_commit` — the ONLY gate into the ERP-POST critical section. Claims a
+   *  `pending`/`failed` row, or a `quarantined` row whose reconcile-after visibility window has
+   *  elapsed (F1). Returns the claimed row (with its bumped `claim_generation`, the caller's fencing
+   *  token) or `null` when the row is not claimable now (a live owner, or a quarantine window that
+   *  has not yet elapsed). A `committing` row is NEVER reclaimed here — see `quarantineCommitting`. */
   claimOutboxForCommit: (id: string) => Promise<OutboxRow | null>;
+  /** `public.quarantine_committing` (F1 — the in-flight-POST-overlap fix). A stale (past-lease)
+   *  `committing` row is NEVER auto-reissued (its ERP POST may be in flight and not yet probe-visible
+   *  → a blind re-POST mints a duplicate money document). Instead this fenced write transitions it to
+   *  `quarantined` (bumping `claim_generation` to invalidate the stale claimant), sets a visibility
+   *  window (`reconcile_after`), and RETURNs the row. Returns `null` for a fresh `committing` row (a
+   *  live owner within lease) or a non-`committing` row. Quarantined rows are resolved ONLY by the
+   *  reconciliation path (claim after the window → probe by remarks key → adopt-or-reissue). */
+  quarantineCommitting: (id: string) => Promise<OutboxRow | null>;
   /** Guarded write-back `committing`→`committed` (records the ERP-assigned id). */
   markOutboxCommitted: (id: string, externalRecordId: string, claimGeneration: number) => Promise<number>;
   /** Guarded write-back `committed`→`confirmed` (after the read-model/external_refs finalize). */
@@ -159,12 +169,26 @@ async function reconcileOutbox(row: OutboxRow, deps: DispatchMoneyWriteDeps): Pr
       await finalizeOutboxRow(row, row.claimGeneration, deps);
       return { externalRecordId: row.externalRecordId!, canonical: { id: command.record.id } };
     case 'committing': {
-      const claimed = await money.claimOutboxForCommit(row.id);
-      if (claimed) return claimAndCommit(claimed, deps);
-      // a FRESH committing row (another live owner) — never POST; back off and re-read.
+      // F1 (the in-flight-POST-overlap fix): a `committing` row is NEVER reclaimed and re-POSTed —
+      // its ERP write may be in flight and not yet probe-visible, so a blind re-POST mints a duplicate
+      // money document. A STALE (past-lease) committing row is QUARANTINED (fenced) and resolved only
+      // by the reconciliation path after a visibility window; a FRESH one has a live owner — back off
+      // and re-read.
+      const quarantined = await money.quarantineCommitting(row.id);
+      if (quarantined) return reconcileOutbox(quarantined, deps);
       await money.backoff();
       const fresh = await money.readOutbox(command.domain, command.record.id, command.idempotencyKey!);
       return reconcileOutbox(fresh!, deps);
+    }
+    case 'quarantined': {
+      // Resolved ONLY via a fenced claim gated (in the RPC) on the reconcile-after visibility window.
+      // Window elapsed → the claim wins → probe the remarks key → adopt the original (in-flight) POST,
+      // or, with no ERP hit, reissue under the SAME idempotency key. Window NOT elapsed (or another
+      // caller owns the reconcile) → surface a retryable "reconciling"; the sweep finalizes it once the
+      // window passes. We deliberately do NOT spin here — a 5-minute window must never block a request.
+      const claimed = await money.claimOutboxForCommit(row.id);
+      if (claimed) return claimAndCommit(claimed, deps);
+      throw toDispatchError(new AdapterError('external-unreachable', 'command-quarantined-reconciling'));
     }
     case 'pending':
     case 'failed': {

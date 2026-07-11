@@ -98,18 +98,31 @@ The claim is the **single** transition into the ERP-POST critical section. Becau
 won" and "mark committed" at any instant — a concurrent duplicate ERP create is therefore impossible,
 not merely unlikely (the guarantee the R1/R3 review required).
 
-**Fencing token (the lease-expiry hole).** The 60 s lease makes a `committing` row re-claimable so a
-crashed claimant cannot wedge the row forever — but a claimant that is merely *slow* (GC pause, a stalled
-ERP socket) can have its lease expire while it is still running, letting a reclaimer overlap it. The lease
-alone therefore does not stop the original-claimant's **late write-back** from landing after the reclaimer
-has moved the row on. The fix is a monotonically-incremented **`claim_generation`** column: every claim
-win bumps it and returns it as the caller's token, and **every post-claim write-back** — the
-`committing`→`committed`/`confirmed`/`failed` transition and the `external_record_id` record — is guarded
-`WHERE claim_generation = <my token>`. A superseded claimant's write-back matches **0 rows** and its result
-is **discarded**. Its ERP `POST` may still have fired (a real orphan money doc); that orphan is precisely
-what the `remarks`-idempotency-key recovery (§3 + §4) reconciles — the reclaimer's probe finds the stamped
-key, adopts the existing doc, and finalizes exactly one mirror row. So the lease bounds *liveness* (no
-permanent wedge) and the fencing token bounds *safety* (no stale write-back and no duplicate finalize).
+**Fencing token + quarantine (the lease-expiry / in-flight-POST hole).** The 60 s lease makes a
+`committing` row recoverable so a crashed claimant cannot wedge the row forever — but a claimant that is
+merely *slow* (GC pause, a stalled ERP socket) can have its lease expire **while its `POST` is still in
+flight and not yet visible to the `remarks`-key probe**. A reclaimer that probed, found nothing, and
+re-`POST`ed would therefore mint a **duplicate money document** — the lease alone protects only write-backs,
+not the in-flight `POST` itself. The fix is two-fold:
+
+1. **A stale `committing` row is NEVER auto-reissued (quarantine).** `claim_outbox_for_commit` only claims
+   `pending`/`failed` rows (and quarantined rows past their window, below) — it will **not** reclaim a
+   `committing` row. Instead a reclaimer transitions a stale (past-lease) `committing` row to a new
+   **`quarantined`** state via `quarantine_committing` (a fenced conditional `UPDATE`), which sets a
+   **visibility window** `reconcile_after = coalesce(claimed_at, now()) + 5 minutes`. A quarantined command
+   is resolved **only** by the reconciliation path once its window elapses: probe the `remarks` key → if the
+   original (slow) `POST` has by then landed, **adopt** it (finalize exactly one mirror row, no second
+   `POST`); if after the window there is still no ERP hit, it is safe to **reissue under the SAME idempotency
+   key**. The window is long enough that any in-flight `POST` becomes visible before a reissue is considered.
+2. **A monotonically-incremented `claim_generation`** column: every claim win **and every quarantine** bumps
+   it and returns it as the caller's token, and **every post-claim write-back** — the
+   `committing`→`committed`/`confirmed`/`failed` transition and the `external_record_id` record — is guarded
+   `WHERE claim_generation = <my token>`. A superseded claimant's write-back matches **0 rows** and its
+   result is **discarded**.
+
+So the lease bounds *liveness* (no permanent wedge), the quarantine bounds *POST safety* (a slow in-flight
+`POST` is adopted, never duplicated), and the fencing token bounds *write-back safety* (no stale write-back
+and no duplicate finalize).
 
 ### 3. The adapter stamps the key into a stable stock field (the recovery probe anchor)
 
@@ -132,16 +145,19 @@ never re-issues a second create blindly (FR-ENA-042/043) — and **never `POST`s
 | Outbox `state` | Meaning | Recovery action |
 |---|---|---|
 | `confirmed` | ERP committed + PMO mirror/ref finalized | Return the stored `external_record_id` + canonical record. **No ERP call, no claim.** |
-| `committed` | ERP committed, PMO mirror/ref finalization failed | **Re-run only the finalization** (idempotent read-model upsert + `external_refs` record), promote to `confirmed`. No second create, no claim. |
+| `committed` | ERP committed, PMO mirror/ref finalization failed | **Re-run only the finalization** (idempotent read-model upsert + `external_refs` record) — **re-verifying the fencing token immediately before the mirror/ref writes** so a superseded claimant writes nothing — then promote to `confirmed`. No second create, no claim. |
 | `committing` (fresh) | Another caller currently owns the ERP-POST critical section | **Do not POST.** Re-read on a short backoff until the owner reaches `committed`/`confirmed`/`failed`, then reconcile to that state. |
-| `pending` / `failed` / `committing` (stale, past lease) | The dangerous window — prior create may or may not have committed, or no caller owns it now | **`claim_outbox_for_commit(id)` first.** Only the claim winner proceeds, holding its returned `claim_generation` as a fencing token: probe ERP by the stamped key; if a doc exists → adopt (set `external_record_id`, `committed`, then finalize → `confirmed`); if none → `POST` the create under the **same** outbox row, then on success → `committed` → finalize → `confirmed`, on classified failure → `failed` (or `pending` for retryable transport). **Every one of those write-backs is guarded `WHERE claim_generation = <token>`**, so a superseded (lease-expired) prior claimant's late write-back matches 0 rows and is discarded. The claim loser RETURNs null → re-reads → reconciles (never POSTs). |
+| `committing` (stale, past lease) | A claimant's ERP `POST` may be **in flight** and not yet probe-visible | **Never reclaim + re-POST** (that would duplicate an in-flight money doc). `quarantine_committing(id)` transitions it to `quarantined` (fenced, bumps `claim_generation`) and sets `reconcile_after`. The synchronous caller surfaces a retryable "reconciling"; the row is resolved by the reconciliation path once the window elapses. |
+| `quarantined` | A stale `committing` row awaiting its visibility window | Resolvable **only after `reconcile_after`**, via `claim_outbox_for_commit(id)` (which is gated on the window). The claim winner probes the `remarks` key: doc found → **adopt** (finalize → `confirmed`, no `POST`); no ERP hit after the window → reissue under the **same** idempotency key. Within the window the claim RETURNs null and no `POST` happens. |
+| `pending` / `failed` | No caller owns it; a prior create may or may not have committed | **`claim_outbox_for_commit(id)` first.** Only the claim winner proceeds, holding its returned `claim_generation` as a fencing token: probe ERP by the stamped key; if a doc exists → adopt (set `external_record_id`, `committed`, then finalize → `confirmed`); if none → `POST` the create under the **same** outbox row, then on success → `committed` → finalize → `confirmed`, on classified failure → `failed` (or leave `committing` for retryable transport). **Every write-back is guarded `WHERE claim_generation = <token>`.** The claim loser RETURNs null → re-reads → reconciles (never POSTs). |
 
 Two concurrent retries therefore **cannot** both `POST`: only the claim winner holds the critical
 section; the loser observes `committing` (fresh) or the winner's terminal state and never re-issues. And a
-lease-expired claimant that overlaps a reclaimer **cannot** corrupt the row: its write-backs fail the
-`claim_generation` fence and are dropped, while the reclaimer (higher generation) owns the reconcile — any
-ERP doc the stale claimant already POSTed is recovered by the reclaimer's `remarks`-key probe, never
-finalized twice.
+lease-expired claimant that overlaps a reclaimer **cannot** corrupt the row **nor duplicate its money doc**:
+its write-backs fail the `claim_generation` fence and are dropped, while the reclaimer **quarantines** the
+row rather than blindly re-POSTing — so any ERP doc the stale claimant already POSTed (even one still in
+flight when the reclaimer arrived) is recovered by the post-window `remarks`-key probe and finalized
+**exactly once**, never re-created.
 
 The ERPNext client **never blindly retries a non-idempotent POST** on a retryable transport failure or on
 the distinct `500`-`TypeError` (empty-`items`) bucket — a retry is permitted **only** through this guarded
