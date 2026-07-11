@@ -33,8 +33,11 @@ import { createReferenceAdapter, REFERENCE_DOMAIN } from '../../../pmo-portal/sr
 import { CLICKUP_TASKS_DOMAIN } from '../../../pmo-portal/src/lib/adapterSeam/clickup/adapter.ts';
 import { resolveClickUpDispatchAdapter } from '../../../pmo-portal/src/lib/adapterSeam/clickup/dispatchFactory.ts';
 import { ClickUpRateLimiter } from '../../../pmo-portal/src/lib/adapterSeam/clickup/rateLimit.ts';
-import { ERPNEXT_COMPANIES_DOMAIN, ERPNEXT_PROCUREMENT_DOMAIN } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/adapter.ts';
+import { ERPNEXT_COMPANIES_DOMAIN, ERPNEXT_PROCUREMENT_DOMAIN, type DoctypeBodyFns } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/adapter.ts';
 import { resolveErpDispatchAdapter } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/dispatchFactory.ts';
+import type { ErpDocKind } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/doctypeRegistry.ts';
+import { supplierToBody, supplierFromDoc } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/bodies/supplier.ts';
+import { customerToBody, customerFromDoc } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/bodies/customer.ts';
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
 import type { Adapter, AdapterCommand, PmoRecord } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
 import { getReadModelWriter } from './readModelWriters.ts';
@@ -91,6 +94,15 @@ function resolveClickUpAdapter(ctx: AdapterSelectContext): Promise<Adapter> {
 // is ever flipped to `erpnext`.
 const erpRateLimiter = { acquire: async () => {} };
 
+// DOCTYPE_BODIES (task 3.3): the (kind)->{toBody,fromDoc} side table injected into the erpnext
+// adapter engine (doctypeRegistry.ts's header comment names this exact wiring point). Slice 3 wires
+// the party kinds (supplier/customer); slices 4-6 append the money-doc kinds here — additive only,
+// this const never shrinks.
+const ERP_DOCTYPE_BODIES: Partial<Record<ErpDocKind, DoctypeBodyFns>> = {
+  supplier: { toBody: supplierToBody, fromDoc: supplierFromDoc },
+  customer: { toBody: customerToBody, fromDoc: customerFromDoc },
+};
+
 function resolveErpAdapter(ctx: AdapterSelectContext): Promise<Adapter> {
   return resolveErpDispatchAdapter({
     serviceClient: ctx.serviceClient as never,
@@ -100,6 +112,7 @@ function resolveErpAdapter(ctx: AdapterSelectContext): Promise<Adapter> {
     apiKey: Deno.env.get('ERPNEXT_API_KEY') ?? '',
     apiSecret: Deno.env.get('ERPNEXT_API_SECRET') ?? '',
     rateLimiter: erpRateLimiter,
+    doctypeBodies: ERP_DOCTYPE_BODIES,
     // The 'after-submit-before-mirror' fault seam (FR-ENA-003): fires inside the adapter's two-step
     // submit, between the submit PUT and the post-submit re-fetch — the ONLY tier with a two-step
     // commit (P0/P1 have none, so they never wire this hook).
