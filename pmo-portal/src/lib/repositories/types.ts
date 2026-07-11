@@ -84,6 +84,7 @@ import type { UserViewRow, UserViewInput } from '@/src/lib/db/userViews';
 import type { PageParams } from '@/src/lib/pagination';
 import type { UsageSummaryRow, OperatorUsageSummaryRow, OperatorOrgRow, RunStatsRow, OperatorRunStatsRow } from '@/src/lib/db/usage';
 import type { OrgFeatureKey } from '@/src/lib/features';
+import type { ExternalDomainOwnershipRow } from '@/src/lib/db/externalDomainOwnership';
 
 export interface ProjectRepository {
   list(
@@ -446,6 +447,7 @@ export interface Repositories {
   usage: UsageRepository;
   orgFeature: OrgFeatureRepository;
   credits: CreditsRepository;
+  externalDomainOwnership: ExternalDomainOwnershipRepository;
 }
 
 /**
@@ -469,4 +471,14 @@ export interface CreditsRepository {
   getOrgBalance(orgId: string): Promise<number>;
   /** Operator-only credit grant into the org pool. */
   grant(args: { orgId: string; amount: number; note: string }): Promise<void>;
+}
+
+/**
+ * external_domain_ownership repository (ADR-0055 P0, FR-EAS-007, AC-EAS-015). READ ONLY by
+ * design — the caller's own-org employed external tiers + externally-owned domains (the
+ * read-only Integrations view source). No write method exists here: writes are Operator-only
+ * via the `operator_set_domain_ownership` RPC, never a client-side repository writer.
+ */
+export interface ExternalDomainOwnershipRepository {
+  listOwn(): Promise<ExternalDomainOwnershipRow[]>;
 }

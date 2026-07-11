@@ -465,6 +465,38 @@ verify_jwt = false
 [functions.health]
 verify_jwt = false
 
+# ── Edge Function: adapter-dispatch ─────────────────────────────────────────────
+# verify_jwt = true: invoked by the browser-client `supabase.functions.invoke(...)` path, so
+# Supabase must enforce the caller JWT before the handler binds org context from that JWT
+# (FR-EAS-024/033). Unlike cron/service endpoints, this function should not self-bypass auth.
+[functions.adapter-dispatch]
+verify_jwt = true
+
+# ── Edge Function: clickup-onboard ─────────────────────────────────────────────
+# verify_jwt = false: an operator onboarding action, not a browser-JWT path. The handler verifies
+# the bearer itself (it MUST equal SUPABASE_SERVICE_ROLE_KEY, constant-time) — the sole trust
+# boundary (same stance as agent-dispatch/telegram-notify). Provisions a project↔List binding,
+# push-seeds PMO tasks, or pull-adopts ClickUp tasks (FR-CUA-063, AC-CUA-050..053).
+[functions.clickup-onboard]
+verify_jwt = false
+
+# ── Edge Function: clickup-webhook ─────────────────────────────────────────────
+# verify_jwt = false: a PUBLIC, unauthenticated surface — ClickUp (not a browser) POSTs task
+# webhooks here. The X-Signature HMAC-SHA256 of the raw body (keyed by CLICKUP_WEBHOOK_SECRET) is
+# the SOLE trust boundary (FR-CUA-041, NFR-CUA-SEC-002): an absent/invalid signature ⇒ 401 with no
+# side effect (STRIDE spoofing/tampering). The handler verifies the signature itself before any apply.
+[functions.clickup-webhook]
+verify_jwt = false
+
+# ── Edge Function: clickup-sweep ───────────────────────────────────────────────
+# verify_jwt = false: invoked by the pg_cron job (migration 0092) via net.http_post — the caller is
+# Postgres, not a browser/end-user JWT. The handler verifies the bearer itself (it MUST equal
+# SUPABASE_SERVICE_ROLE_KEY, constant-time) — same stance as agent-dispatch/telegram-notify. The
+# reconciliation sweep: the safety net that catches webhook gaps (FR-CUA-045, AC-CUA-043/044).
+# Registered-but-idle per the 0048 precedent until the operator sets the dispatch GUCs.
+[functions.clickup-sweep]
+verify_jwt = false
+
 [analytics]
 enabled = true
 port = 54327

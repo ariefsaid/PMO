@@ -26,7 +26,11 @@ import { useAuth } from '@/src/auth/useAuth';
 import { useTasks, useTaskMutations, useAssignableProfiles } from '@/src/hooks/useTasks';
 import { useMilestones } from '@/src/hooks/useMilestones';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { classifyExternalError } from '@/src/lib/adapterSeam/pendingPush';
 import { formatDate } from '@/src/lib/format';
+import { routeTaskWrite } from '@/src/lib/adapterSeam/ownershipCache';
+import { IDLE_PENDING_PUSH } from '@/src/lib/adapterSeam/pendingPush';
+import { TaskPushBadge } from '@/src/components/tasks/TaskPushBadge';
 import type { TaskWithRefs, TaskStatus, TaskInput, TaskPatch } from '@/src/lib/db/tasks';
 import type { MilestoneWithProgress } from '@/src/lib/db/milestones';
 import { MilestonePhaseHeader } from '@/src/components/milestones/MilestonePhaseHeader';
@@ -77,7 +81,7 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId }) => {
   const currentUserId = currentUser?.id ?? null;
   const { toast } = useToast();
   const { data, isPending, isError, refetch } = useTasks(projectId);
-  const { create, update, updateStatus, remove, addDependency, removeDependency } =
+  const { create, update, updateStatus, remove, addDependency, removeDependency, pendingPushByTask = {} } =
     useTaskMutations(projectId);
   const { data: milestones } = useMilestones(projectId);
   const location = useLocation();
@@ -122,6 +126,16 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId }) => {
   const canDelete = may('delete', 'task');
   const canRowWrite = canEdit || canDelete;
 
+  // ADR-0056: the per-task pending-push badge wires in ONLY when task writes route externally
+  // (ClickUp-owned). PMO-owned orgs stay byte-for-byte — no badge chrome at all (AC-CUA-061).
+  const externallyOwned = routeTaskWrite() === 'external';
+
+  // Review fix #5 — one headline for one event: an externally-routed write fails through the SAME
+  // vocabulary the badge renders (classifyExternalError), so the toast and the badge never disagree.
+  // PMO-owned writes keep the Postgres-code classifier (classifyMutationError).
+  const classifyWriteError = (err: unknown) =>
+    externallyOwned ? classifyExternalError(err) : classifyMutationError(err);
+
   const all = useMemo(() => data ?? [], [data]);
   const milestoneList = useMemo(() => milestones ?? [], [milestones]);
 
@@ -146,7 +160,7 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId }) => {
       await updateStatus.mutateAsync({ id: t.id, status });
       toast('Status updated', `${t.name} is now ${status}`, 'success');
     } catch (err) {
-      const { headline, detail } = classifyMutationError(err);
+      const { headline, detail } = classifyWriteError(err);
       toast(headline, detail, 'warning');
     }
   };
@@ -159,16 +173,16 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId }) => {
       toast('Task deleted', target.name, 'success');
       setDeleteTarget(null);
     } catch (err) {
-      const { headline, detail } = classifyMutationError(err);
+      const { headline, detail } = classifyWriteError(err);
       toast(headline, detail, 'warning');
       setDeleteTarget(null);
     }
   };
 
   // ── Status control: editable <select> for those who may set it, static pill otherwise. ──
-  const StatusCell: React.FC<{ task: TaskWithRefs }> = ({ task }) => {
-    if (canSetStatus(task)) {
-      return (
+  const StatusCell: React.FC<{ task: TaskWithRefs }> = ({ task }) => (
+    <div className="flex items-center gap-1.5">
+      {canSetStatus(task) ? (
         <SelectField
           hideLabel
           label={`Status for ${task.name}`}
@@ -178,10 +192,15 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId }) => {
           options={STATUS_OPTIONS}
           className="w-auto min-w-[120px]"
         />
-      );
-    }
-    return <StatusPill variant={workflowVariant(task.status)}>{task.status}</StatusPill>;
-  };
+      ) : (
+        <StatusPill variant={workflowVariant(task.status)}>{task.status}</StatusPill>
+      )}
+      {/* FR-CUA-070 breadth (review fix #4): the List status cell ORIGINATES a status write, so the
+          per-task pending-push badge surfaces here too (not just the Board). Idle renders nothing, so
+          PMO-owned + non-pushing rows stay byte-for-byte (AC-CUA-061). */}
+      <TaskPushBadge state={pendingPushByTask[task.id] ?? IDLE_PENDING_PUSH} />
+    </div>
+  );
 
   const columns: Column<TaskWithRefs>[] = [
     {
@@ -330,6 +349,8 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId }) => {
           canSetStatus={canSetStatus}
           onStatusChange={onStatusChange}
           statusBusy={updateStatus.isPending}
+          externallyOwned={externallyOwned}
+          pendingPushByTask={pendingPushByTask}
         />
       )}
 
@@ -355,6 +376,11 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId }) => {
           allTasks={all}
           defaultMilestoneId={formTarget.defaultMilestoneId ?? null}
           milestones={milestoneList}
+          pendingPushState={
+            formTarget.task && externallyOwned
+              ? (pendingPushByTask[formTarget.task.id] ?? IDLE_PENDING_PUSH)
+              : IDLE_PENDING_PUSH
+          }
           onClose={() => setFormTarget(null)}
           onCreate={async (input) => {
             await create.mutateAsync(input);
@@ -371,7 +397,7 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId }) => {
             setFormTarget(null);
           }}
           onError={(err) => {
-            const { headline, detail } = classifyMutationError(err);
+            const { headline, detail } = classifyWriteError(err);
             toast(headline, detail, 'warning');
           }}
         />
@@ -399,6 +425,8 @@ interface TaskBoardProps {
   canSetStatus: (t: TaskWithRefs) => boolean;
   onStatusChange: (t: TaskWithRefs, status: TaskStatus) => void;
   statusBusy: boolean;
+  externallyOwned: boolean;
+  pendingPushByTask: Record<string, import('@/src/lib/adapterSeam/pendingPush').PendingPushState>;
 }
 
 /**
@@ -406,7 +434,14 @@ interface TaskBoardProps {
  * gesture-alternative): each card carries a status `<select>` for those who may
  * move it (managers: any; Engineer: own task only), or a static pill otherwise.
  */
-const TaskBoard: React.FC<TaskBoardProps> = ({ tasks, canSetStatus, onStatusChange, statusBusy }) => {
+const TaskBoard: React.FC<TaskBoardProps> = ({
+  tasks,
+  canSetStatus,
+  onStatusChange,
+  statusBusy,
+  externallyOwned,
+  pendingPushByTask,
+}) => {
   const byStatus = (s: TaskStatus) => tasks.filter((t) => t.status === s);
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -433,8 +468,13 @@ const TaskBoard: React.FC<TaskBoardProps> = ({ tasks, canSetStatus, onStatusChan
                     key={t.id}
                     className="rounded-md border border-border bg-card px-3 py-2.5"
                   >
-                    <div className="truncate text-[13px] font-semibold" title={t.name}>
-                      {t.name}
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="truncate text-[13px] font-semibold" title={t.name}>
+                        {t.name}
+                      </span>
+                      {externallyOwned && (
+                        <TaskPushBadge state={pendingPushByTask[t.id] ?? IDLE_PENDING_PUSH} />
+                      )}
                     </div>
                     <div className="mt-1 truncate text-[11.5px] text-muted-foreground">
                       {t.assignee ? t.assignee.full_name : 'Unassigned'}
@@ -480,6 +520,10 @@ interface TaskFormModalProps {
   defaultMilestoneId?: string | null;
   /** Available milestones for the milestone select field. */
   milestones?: MilestoneWithProgress[];
+  /** FR-CUA-070 breadth (review fix #4): the edit-modal save is an external write origin — its
+   *  pending-push state surfaces in the modal (pushing while saving / push-failed when the save is
+   *  rejected and the modal stays open). Idle for create + PMO-owned. */
+  pendingPushState?: import('@/src/lib/adapterSeam/pendingPush').PendingPushState;
   onClose: () => void;
   onCreate: (input: TaskInput) => Promise<void>;
   onUpdate: (id: string, patch: TaskPatch, deps: DepDelta) => Promise<void>;
@@ -492,6 +536,7 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
   allTasks,
   defaultMilestoneId = null,
   milestones = [],
+  pendingPushState = IDLE_PENDING_PUSH,
   onClose,
   onCreate,
   onUpdate,
@@ -601,6 +646,10 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
       submitDisabled={!form.isComplete}
       errorSummary={errorSummary}
     >
+      {/* FR-CUA-070 breadth (review fix #4): the edit-modal save routes externally — surface its
+          pending-push state here (pushing while saving, push-failed when the save is rejected and the
+          modal stays open). Idle renders nothing (create + PMO-owned). */}
+      {isEdit && <TaskPushBadge state={pendingPushState} />}
       <FormSection legend="Details">
         <FormGrid>
           <TextField

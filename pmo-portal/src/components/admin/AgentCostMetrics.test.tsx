@@ -14,8 +14,31 @@ import { axeViolations } from '../__tests__/axe';
 import { AgentCostMetrics, type AgentCostSummaryRow, type AgentCostRunStatsRow } from './AgentCostMetrics';
 import { monthToUtcEpoch } from './agentCostMetrics.utils';
 
+/** Extract a display name from any React element type (function, memo object, or string). */
+function getTypeName(type: unknown): string | undefined {
+  if (typeof type === 'string') return type;
+  if (type && typeof type === 'object') {
+    return (type as { displayName?: string }).displayName;
+  }
+  if (typeof type === 'function') {
+    return (type as { displayName?: string; name?: string }).displayName ??
+      (type as { name?: string }).name;
+  }
+  return undefined;
+}
+
+// Tooltip's labelFormatter/formatter, captured to verify the recharts-signature
+// coercion (Number(label)/Number(value)) still produces the correct display string.
+let capturedTooltipLabelFormatter: ((label: unknown) => React.ReactNode) | undefined;
+let capturedTooltipFormatter: ((value: unknown) => React.ReactNode) | undefined;
+// XAxis's tickFormatter — the SAME underlying formatMonthTick used (unwrapped) by
+// labelFormatter, so it's the ground truth to compare labelFormatter's output against.
+let capturedXAxisTickFormatter: ((v: number) => string) | undefined;
+
 // recharts' ResponsiveContainer needs a non-zero parent size under jsdom; force it
 // (mirrors ProjectSCurve.test.tsx's established pattern for testing recharts under jsdom).
+// Also intercept LineChart to capture the Tooltip's formatter props (mirrors
+// ProjectSCurve.test.tsx's LineChart-children-scan pattern).
 vi.mock('recharts', async () => {
   const actual = await vi.importActual<typeof import('recharts')>('recharts');
   return {
@@ -23,6 +46,26 @@ vi.mock('recharts', async () => {
     ResponsiveContainer: ({ children }: { children: React.ReactNode }) => (
       <div style={{ width: 600, height: 200 }}>{children}</div>
     ),
+    LineChart: ({ children, ...rest }: React.ComponentProps<typeof actual.LineChart>) => {
+      React.Children.forEach(children as React.ReactNode, (child) => {
+        if (!React.isValidElement(child)) return;
+        const name = getTypeName(child.type);
+        if (name === 'Tooltip') {
+          const p = child.props as {
+            labelFormatter?: (label: unknown) => React.ReactNode;
+            formatter?: (value: unknown) => React.ReactNode;
+          };
+          capturedTooltipLabelFormatter = p.labelFormatter;
+          capturedTooltipFormatter = p.formatter;
+        }
+        if (name === 'XAxis') {
+          capturedXAxisTickFormatter = (child.props as { tickFormatter?: (v: number) => string })
+            .tickFormatter;
+        }
+      });
+      const ActualLineChart = actual.LineChart;
+      return <ActualLineChart {...rest}>{children}</ActualLineChart>;
+    },
   };
 });
 
@@ -201,6 +244,22 @@ describe('AgentCostMetrics', () => {
   it('renders the trend chart when summaryRows span 2+ months', () => {
     const { container } = render(<AgentCostMetrics {...defaultProps} />);
     expect(container.querySelector('.recharts-wrapper')).toBeInTheDocument();
+  });
+
+  it('Tooltip labelFormatter/formatter still produce the correct display string for numeric axis values (recharts wide-signature coercion)', () => {
+    render(<AgentCostMetrics {...defaultProps} />);
+
+    expect(capturedTooltipLabelFormatter).toBeDefined();
+    expect(capturedTooltipFormatter).toBeDefined();
+    expect(capturedXAxisTickFormatter).toBeDefined();
+
+    // recharts hands these numeric-axis formatters ReactNode-typed values that are
+    // actually numbers at runtime; Number(...) recovers the number for formatting.
+    // labelFormatter must agree with the axis's own tick formatter (same underlying
+    // formatMonthTick, just wrapped for the Tooltip's wider signature).
+    const epochMs = monthToUtcEpoch('2026-06-01');
+    expect(capturedTooltipLabelFormatter!(epochMs)).toBe(capturedXAxisTickFormatter!(epochMs));
+    expect(capturedTooltipFormatter!(40)).toEqual(['40.0%', 'Cache hit-rate']);
   });
 
   // ── a11y ───────────────────────────────────────────────────────────────────

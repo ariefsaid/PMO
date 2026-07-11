@@ -49,6 +49,8 @@ import { AgentRuntimeProvider } from '@/src/lib/agent/runtime/AgentRuntimeProvid
 import { useAgentRuntimeContext } from '@/src/lib/agent/runtime/AgentRuntimeContext';
 import { AssistantPanel } from '@/src/components/panel/AssistantPanel';
 import { useAssistantHotkey } from '@/src/hooks/useAssistantHotkey';
+// ADR-0056: seeds the fail-closed task-write ownership cache load-on-auth (mounted once in Shell).
+import { useOwnershipCacheSync } from '@/src/hooks/useOwnershipCacheSync';
 // ADR-0045 §3: live context (route/entity/selection) source for agent runs.
 import { AgentContextProvider } from '@/src/lib/agent/context/AgentContextProvider';
 
@@ -380,6 +382,9 @@ const ShellChrome: React.FC = () => {
 // ── Shell (eager — renders after auth is confirmed) ────────────────────────
 const Shell: React.FC = () => {
   const { role } = useAuth();
+  // ADR-0056: mount exactly once in the authenticated shell — seeds/clears the module-level
+  // ownership cache so routeTaskWrite() routes task writes correctly (fail-closed 'pmo').
+  useOwnershipCacheSync();
   return (
     <ImpersonationProvider realRole={role}>
       <ToastProvider>

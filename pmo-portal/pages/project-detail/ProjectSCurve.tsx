@@ -109,8 +109,8 @@ const ProjectSCurve: React.FC<ProjectSCurveProps> = ({ projectId }) => {
               <Tooltip
                 contentStyle={tooltipContentStyle}
                 labelStyle={tooltipLabelStyle}
-                labelFormatter={(label: number) => formatSCurveAxisDate(label)}
-                formatter={(value: number) => `${value}%`}
+                labelFormatter={(label) => formatSCurveAxisDate(Number(label))}
+                formatter={(value) => `${Number(value)}%`}
               />
               {/* Planned = dashed One-Blue (the "target"). */}
               <Line

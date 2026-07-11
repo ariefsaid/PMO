@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+// Uses sessionStorage (DOM global absent in the `node` test project — perf/test-speed split).
 import { describe, expect, it, beforeEach, vi } from 'vitest';
 import { getAnalyticsConfig, parseDemoContext, persistDemoContext } from './config';
 

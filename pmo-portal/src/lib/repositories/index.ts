@@ -169,6 +169,7 @@ import {
   getOrgCreditBalance,
   grantOrgCredits,
 } from '@/src/lib/db/orgFeatures';
+import { listOwnExternalDomainOwnership } from '@/src/lib/db/externalDomainOwnership';
 import type {
   Repositories,
   ProjectRepository,
@@ -189,6 +190,7 @@ import type {
   UsageRepository,
   OrgFeatureRepository,
   CreditsRepository,
+  ExternalDomainOwnershipRepository,
 } from './types';
 
 /** Runs a DAL call and rethrows any failure as a normalized `AppError` (code preserved). */
@@ -398,6 +400,10 @@ const credits: CreditsRepository = {
   grant: (args) => wrap(() => grantOrgCredits(args)),
 };
 
+const externalDomainOwnership: ExternalDomainOwnershipRepository = {
+  listOwn: () => wrap(() => listOwnExternalDomainOwnership()),
+};
+
 /** The Supabase-backed repositories the FE/CRUD layer consumes (ADR-0017). */
 export const repositories: Repositories = {
   project,
@@ -418,6 +424,7 @@ export const repositories: Repositories = {
   usage,
   orgFeature,
   credits,
+  externalDomainOwnership,
 };
 
 export type {
@@ -440,4 +447,5 @@ export type {
   UsageRepository,
   OrgFeatureRepository,
   CreditsRepository,
+  ExternalDomainOwnershipRepository,
 } from './types';

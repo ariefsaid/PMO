@@ -27,6 +27,7 @@ import { createClient } from '@supabase/supabase-js';
 import { authorizeInvite, InviteError } from '../../../pmo-portal/src/lib/invite/inviteHandler.ts';
 import type { InviteSupabaseLike } from '../../../pmo-portal/src/lib/invite/inviteHandler.ts';
 import { logStructuredError } from '../_shared/errorLog.ts';
+import { checkRequestRate } from '../_shared/requestRateGuard.ts';
 
 function json(body: unknown, status: number, corsHeaders: Record<string, string>): Response {
   return new Response(JSON.stringify(body), {
@@ -99,6 +100,35 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
   // ── 4. Service-role issuance — ONLY reached for an authorized caller. ──
   const serviceClient = createClient(supabaseUrl, serviceRoleKey);
+
+  // ── 4a. Request-rate throttle (IG-audit 2026-07-10, migration 0091) ──────
+  // Placed AFTER authorization (FR-INV-004: service_role is never exercised for an unauthorized
+  // caller — an unauthorized caller is already rejected above, before this service client exists).
+  // Bounds how many invites one authorized admin may issue per minute — the email-bomb / auth-user
+  // pollution defense (each invite sends an email + creates an auth user). Keyed by the admin's uid;
+  // service-role RPC (non-bypassable). Fail-open (availability defense — see requestRateGuard.ts).
+  // Invites are infrequent, so the default is tighter than the model fns. INVITE_RATE_LIMIT_PER_MIN
+  // overrides it.
+  const inviteRateLimitPerMin = Number(Deno.env.get('INVITE_RATE_LIMIT_PER_MIN')) || 10;
+  const inviteRate = await checkRequestRate(serviceClient as never, {
+    key: `admin-invite-user:${uid}`,
+    limit: inviteRateLimitPerMin,
+    windowSecs: 60,
+  });
+  if (inviteRate.exceeded) {
+    return new Response(
+      JSON.stringify({ error: 'RATE_LIMITED' }),
+      {
+        status: 429,
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'application/json',
+          'Retry-After': String(inviteRate.retryAfterSeconds),
+        },
+      },
+    );
+  }
+
   const email = (body.email ?? '').trim();
   // M2 (security review): resolve the redirect origin from a SERVER-CONTROLLED source only — the
   // request `Origin` header is attacker-controllable, and redirectTo is a privilege-bearing URL

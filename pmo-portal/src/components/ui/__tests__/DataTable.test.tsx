@@ -47,6 +47,14 @@ describe('DataTable', () => {
     expect(onSort).toHaveBeenCalledWith('name');
   });
 
+  it('sortable header with no `sort` prop renders without a sort icon and without throwing (null-safety guard)', () => {
+    // No `sort` prop at all — a sortable column must not deref `sort.dir` on an undefined `sort`.
+    render(<DataTable rows={rows} columns={columns} rowKey={(r) => r.id} onSort={vi.fn()} />);
+    const nameTh = screen.getByRole('columnheader', { name: /Name/ });
+    expect(nameTh).toHaveAttribute('aria-sort', 'none');
+    expect(nameTh.querySelector('svg')).not.toBeInTheDocument();
+  });
+
   it('a11y: activatable body rows keep their implicit role="row" (NOT role="link"), so getByRole("row") finds them', () => {
     render(
       <DataTable
@@ -165,6 +173,19 @@ describe('DataTable', () => {
     );
     expect(screen.getByPlaceholderText('Find…')).toBeInTheDocument();
     expect(screen.getByText('Total: 2,180')).toBeInTheDocument();
+  });
+
+  it('per-row rowMenu returning undefined ("no menu for this row") skips that row\'s trigger, other rows unaffected', () => {
+    render(
+      <DataTable
+        rows={rows}
+        columns={columns}
+        rowKey={(r) => r.id}
+        rowMenu={(r) => (r.id === 'PRJ-1' ? [{ label: 'Delete', onClick: vi.fn() }] : undefined)}
+      />
+    );
+    // Alpha (PRJ-1) gets a trigger; Beta (PRJ-2) — undefined menu — gets none.
+    expect(screen.getAllByRole('button', { name: /row actions/i })).toHaveLength(1);
   });
 
   it('row menu opens on its trigger and Esc closes it', async () => {

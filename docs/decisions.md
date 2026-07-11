@@ -673,3 +673,85 @@ header markup (Usage/Features had a parent-rendered bare `<h2>`; Credits rolled 
 `<h2>` + Grant-button row). Hoisted to one shared molecule, `SectionHeader`
 (`pmo-portal/src/components/ui/SectionHeader.tsx`): an `<h2>` title + an optional trailing action
 slot. Credits passes its "Grant credits" button into the action slot; Usage/Features pass none.
+
+## OD-EAS-LABELS — External tier/domain display labels deferred to P1 (Discover finding M4, 2026-07-10)
+
+**Noted, not built this round:** `IntegrationsView` renders the raw `externalTier`/`domain` slugs
+(e.g. `reference`) verbatim — acceptable in P0 because the only populated data is the synthetic
+`reference` domain from the reference adapter (ADR-0055 P0 scope). **P1 must add a display-label
+mapping (title-cased human-readable names) for external tier + domain slugs at the view boundary**
+before any real adapter (ClickUp/ERPNext/Odoo, ADR-0048) ships slugs like `erpnext`/`accounting` to
+end users.
+
+## OD-CUA — ClickUp adapter review fix-round (graduation notes, 2026-07-11)
+
+Three durable rules graduated from the 4-reviewer battery on the ClickUp adapter P1 (branch
+`feat/clickup-adapter-p1`). These are binding on future adapter/surface work, not one-off fixes.
+
+### OD-CUA-PUSH-BREADTH — Pending-push state surfaces on EVERY write-origin view (FR-CUA-070)
+
+**Decision (binding):** the per-task pending-push badge (`TaskPushBadge`, ADR-0056) MUST render on
+every view whose control can ORIGINATE an externally-routed write — not only the Board. Today that is
+the List status cell (a status `<select>`/pill that fires `updateStatus`) and the edit modal (whose
+save fires `update`); both carry pending-push wiring in `useTaskMutations`. The Timeline view does NOT
+originate a write (its `onActivateTask` opens the edit modal — already covered), so it carries no badge.
+
+**Why:** a user who triggers a push from the List (or the edit modal) and then looks back at that row
+must see the same `pushing → pushed | push-failed` feedback a Board user sees. Limiting the badge to
+the Board left the most common surface (the List) without feedback — a real regression in the job
+("tell me my write reached the external system"). `idle` renders nothing, so PMO-owned orgs and
+non-pushing rows stay byte-for-byte (AC-CUA-061).
+
+**Enforced by:** `TasksTab.pendingPush.listBreadth.test.tsx` (List row shows the badge when
+`pendingPushByTask` carries a non-idle state; no badge when idle). The edit-modal surface + the
+`update` mutation's pending-push wiring are covered by the existing `TasksTab.pendingPush.test.tsx`
+shape. Every future write-origin control added to a task surface MUST thread `pendingPushByTask` +
+render `TaskPushBadge`, or it regresses this rule.
+
+### OD-CUA-VOCAB — Two-classifier vocabulary: one headline per event; network → external-unreachable
+
+**Decision (binding):** there are exactly TWO error classifiers for task writes, selected by route:
+- **PMO-owned writes** → `classifyMutationError` (Postgres/PostgREST codes: P0001/42501/23505/23503).
+- **Externally-routed writes** → `classifyExternalError` (adapter codes: `external-unreachable` /
+  `commit-rejected`; generic `Push failed`).
+
+The toast and the push badge for an externally-routed write MUST classify through `classifyExternalError`
+(the SAME vocabulary) so the two never disagree on one event ("one headline for one event"). And a
+network failure — a `FunctionsFetchError` (DNS / connection refused; NO HTTP `Response` on
+`.context`) — is classified `external-unreachable` with a GENERIC message, NEVER the raw fetch string
+("name resolution failed", "Failed to send a request…").
+
+**Why:** the raw fetch string is unreadable and alarming; surfacing it as the toast headline / badge
+detail betrays that the system is leaking transport noise to the user. And a divergent toast vs badge
+("Update failed" vs "external system unreachable — try again") for the SAME failed write is dishonest.
+The shared vocabulary keeps one event → one human headline. The classification lives in
+`dispatchClient.ts` (`classifyDispatchError`, pure + tested: known-code > network > http-no-code) and
+`pendingPush.ts` (`classifyExternalError`, the friendly-copy map).
+
+**Enforced by:** `dispatchClient.test.ts` (no-code network path → `external-unreachable` + generic msg;
+raw fetch strings never surfaced; pure `classifyDispatchError` precedence) + `pendingPush.clickup.test.ts`
+(shared vocabulary: structured + network `external-unreachable` render the same headline; raw strings
+never headline).
+
+### OD-CUA-AA — Tinted-status micro-text MUST use the AA-darkened label tokens (systemic)
+
+**Decision (binding, systemic):** any status/badge TEXT that sits on a tinted fill (`bg-*-/10`-style)
+at small sizes (≤ ~13px, or bold ≤ ~14px) MUST use the AA-darkened tinted-status LABEL tokens —
+`hsl(var(--status-won-text))` for success, `hsl(var(--status-lost-text))` for destructive,
+`hsl(var(--status-open-text))`/`--status-violet-text)` for their hues, `text-warning-foreground` for
+amber, `text-muted-foreground` for grey — applied via inline `style={{ color: … }}` exactly as
+`StatusPill` does (the canonical idiom). NEVER the raw `text-success` / `text-destructive` / `--success`
+/ `--destructive` tokens at those sizes: those fail WCAG AA on tinted fills (e.g. the push-failed badge
+was 4.17:1 — under the 4.5:1 bar for small bold text).
+
+**Why:** the raw `--success`/`--destructive` tokens are tuned for DOT/icon saturation, not text-on-tint
+legibility; their lightness fails AA once they become small text on a 10%-opacity fill of themselves.
+The `--status-*-text` tokens are explicitly the AA-darkened variants (e.g. `--status-lost-text: 0 72%
+44%`, `--status-won-text: 142 64% 27%`, ≥6:1 on the canvas in both themes). This is systemic because
+EVERY tinted-status molecule (StatusPill, TaskPushBadge, future ones) shares the trap; the fix is "use
+the same AA token idiom StatusPill established", not a one-off darken.
+
+**Enforced by:** `StatusPill.test.tsx` (lost → `--status-lost-text`, won → `--status-won-text`, inline
+style) + `TaskPushBadge.test.tsx` (push-failed → `--status-lost-text`, pushed → `--status-won-text`,
+no raw `text-destructive`/`text-success`). The Layer-1 a11y/visual gate assertion was extended to cover
+the badge. Any new tinted-status text MUST follow the same token or it regresses AA.

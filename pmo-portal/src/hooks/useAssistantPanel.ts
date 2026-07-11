@@ -674,6 +674,7 @@ export function useAssistantPanel(): UseAssistantPanel {
   // thread_id property (FR-APH-010) — callers that don't have it get `thread_id: null`.
   const openThread = useCallback(
     async (targetRunId: string, threadId?: string) => {
+      if (!runtime) return;
       const rows: AgentEventRow[] = await listRunEvents(targetRunId);
       const ordered = [...rows].sort((a, b) => a.seq - b.seq);
       const events: AgentEvent[] = ordered.map((row) => ({

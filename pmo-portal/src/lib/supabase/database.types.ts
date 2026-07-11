@@ -104,6 +104,32 @@ export type Database = {
           },
         ]
       }
+      agent_automation_fires: {
+        Row: {
+          automation_id: string
+          event_id: string
+          fired_at: string
+        }
+        Insert: {
+          automation_id: string
+          event_id: string
+          fired_at?: string
+        }
+        Update: {
+          automation_id?: string
+          event_id?: string
+          fired_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_automation_fires_automation_id_fkey"
+            columns: ["automation_id"]
+            isOneToOne: false
+            referencedRelation: "agent_automations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       agent_automations: {
         Row: {
           archived_at: string | null
@@ -452,6 +478,39 @@ export type Database = {
           },
         ]
       }
+      audit_events: {
+        Row: {
+          action: string
+          actor_id: string | null
+          created_at: string
+          detail: Json
+          entity_id: string | null
+          entity_type: string | null
+          id: string
+          org_id: string
+        }
+        Insert: {
+          action: string
+          actor_id?: string | null
+          created_at?: string
+          detail?: Json
+          entity_id?: string | null
+          entity_type?: string | null
+          id?: string
+          org_id: string
+        }
+        Update: {
+          action?: string
+          actor_id?: string | null
+          created_at?: string
+          detail?: Json
+          entity_id?: string | null
+          entity_type?: string | null
+          id?: string
+          org_id?: string
+        }
+        Relationships: []
+      }
       budget_line_items: {
         Row: {
           actual_amount: number
@@ -631,6 +690,33 @@ export type Database = {
           },
         ]
       }
+      credit_reservations: {
+        Row: {
+          amount: number
+          created_at: string
+          id: string
+          org_id: string
+          released_at: string | null
+          run_id: string | null
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          id?: string
+          org_id: string
+          released_at?: string | null
+          run_id?: string | null
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          id?: string
+          org_id?: string
+          released_at?: string | null
+          run_id?: string | null
+        }
+        Relationships: []
+      }
       credits: {
         Row: {
           amount: number
@@ -757,6 +843,228 @@ export type Database = {
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      error_events: {
+        Row: {
+          context_id: string | null
+          created_at: string
+          error_code: string
+          fn: string
+          id: string
+          notified_at: string | null
+          org_id: string | null
+        }
+        Insert: {
+          context_id?: string | null
+          created_at?: string
+          error_code: string
+          fn: string
+          id?: string
+          notified_at?: string | null
+          org_id?: string | null
+        }
+        Update: {
+          context_id?: string | null
+          created_at?: string
+          error_code?: string
+          fn?: string
+          id?: string
+          notified_at?: string | null
+          org_id?: string | null
+        }
+        Relationships: []
+      }
+      external_domain_ownership: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          domain: string
+          external_tier: string
+          id: string
+          org_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          domain: string
+          external_tier: string
+          id?: string
+          org_id?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          domain?: string
+          external_tier?: string
+          id?: string
+          org_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "external_domain_ownership_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "external_domain_ownership_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      external_project_bindings: {
+        Row: {
+          config: Json
+          created_at: string
+          external_container_id: string
+          external_tier: string
+          id: string
+          org_id: string
+          project_id: string
+        }
+        Insert: {
+          config?: Json
+          created_at?: string
+          external_container_id: string
+          external_tier: string
+          id?: string
+          org_id?: string
+          project_id: string
+        }
+        Update: {
+          config?: Json
+          created_at?: string
+          external_container_id?: string
+          external_tier?: string
+          id?: string
+          org_id?: string
+          project_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "external_project_bindings_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "external_project_bindings_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      external_reference_items: {
+        Row: {
+          created_at: string
+          id: string
+          org_id: string
+          payload: Json
+          pmo_record_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          org_id?: string
+          payload?: Json
+          pmo_record_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          org_id?: string
+          payload?: Json
+          pmo_record_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "external_reference_items_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      external_refs: {
+        Row: {
+          created_at: string
+          domain: string
+          external_record_id: string
+          external_tier: string
+          id: string
+          org_id: string
+          pmo_record_id: string
+        }
+        Insert: {
+          created_at?: string
+          domain: string
+          external_record_id: string
+          external_tier: string
+          id?: string
+          org_id?: string
+          pmo_record_id: string
+        }
+        Update: {
+          created_at?: string
+          domain?: string
+          external_record_id?: string
+          external_tier?: string
+          id?: string
+          org_id?: string
+          pmo_record_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "external_refs_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      external_sync_watermarks: {
+        Row: {
+          domain: string
+          external_tier: string
+          id: string
+          org_id: string
+          updated_at: string
+          watermark_cursor: string
+        }
+        Insert: {
+          domain: string
+          external_tier: string
+          id?: string
+          org_id?: string
+          updated_at?: string
+          watermark_cursor?: string
+        }
+        Update: {
+          domain?: string
+          external_tier?: string
+          id?: string
+          org_id?: string
+          updated_at?: string
+          watermark_cursor?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "external_sync_watermarks_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -2004,6 +2312,9 @@ export type Database = {
           decided_at: string | null
           end_date: string | null
           id: string
+          import_batch_id: string | null
+          import_key: string | null
+          imported_at: string | null
           last_update: string
           name: string
           org_id: string
@@ -2024,6 +2335,9 @@ export type Database = {
           decided_at?: string | null
           end_date?: string | null
           id?: string
+          import_batch_id?: string | null
+          import_key?: string | null
+          imported_at?: string | null
           last_update?: string
           name: string
           org_id?: string
@@ -2044,6 +2358,9 @@ export type Database = {
           decided_at?: string | null
           end_date?: string | null
           id?: string
+          import_batch_id?: string | null
+          import_key?: string | null
+          imported_at?: string | null
           last_update?: string
           name?: string
           org_id?: string
@@ -2472,8 +2789,10 @@ export type Database = {
           name: string
           org_id: string
           project_id: string
+          source_updated_at: string | null
           start_date: string | null
           status: Database["public"]["Enums"]["task_status"]
+          tombstoned_at: string | null
         }
         Insert: {
           assignee_id?: string | null
@@ -2485,8 +2804,10 @@ export type Database = {
           name: string
           org_id?: string
           project_id: string
+          source_updated_at?: string | null
           start_date?: string | null
           status?: Database["public"]["Enums"]["task_status"]
+          tombstoned_at?: string | null
         }
         Update: {
           assignee_id?: string | null
@@ -2498,8 +2819,10 @@ export type Database = {
           name?: string
           org_id?: string
           project_id?: string
+          source_updated_at?: string | null
           start_date?: string | null
           status?: Database["public"]["Enums"]["task_status"]
+          tombstoned_at?: string | null
         }
         Relationships: [
           {
@@ -2710,18 +3033,25 @@ export type Database = {
         }
         Returns: undefined
       }
+      agent_dispatch_tick: { Args: never; Returns: undefined }
+      audit_agent_denial: {
+        Args: { p_detail?: Json; p_reason: string }
+        Returns: undefined
+      }
       auth_org_id: { Args: never; Returns: string }
       auth_role: {
         Args: never
         Returns: Database["public"]["Enums"]["user_role"]
       }
+      // Supabase codegen omits `| null` on nullable scalar RPC params; widened to match the SQL
+      // (these params accept null).
       capture_vendor_invoice: {
         Args: {
-          p_amount?: number
+          p_amount?: number | null
           p_invoice_date: string
-          p_notes?: string
+          p_notes?: string | null
           p_procurement_id: string
-          p_reference_number?: string
+          p_reference_number?: string | null
           p_status: Database["public"]["Enums"]["procurement_invoice_status"]
         }
         Returns: {
@@ -2750,15 +3080,15 @@ export type Database = {
       committed_procurement_statuses: { Args: never; Returns: string[] }
       create_payment: {
         Args: {
-          p_amount: number
-          p_date: string
-          p_import_batch_id?: string
-          p_import_key?: string
-          p_imported_at?: string
-          p_invoice_id: string
+          p_amount: number | null
+          p_date: string | null
+          p_import_batch_id?: string | null
+          p_import_key?: string | null
+          p_imported_at?: string | null
+          p_invoice_id: string | null
           p_procurement_id: string
-          p_reference_number: string
-          p_status: string
+          p_reference_number: string | null
+          p_status: string | null
         }
         Returns: {
           amount: number | null
@@ -2784,13 +3114,13 @@ export type Database = {
       }
       create_procurement_invoice: {
         Args: {
-          p_amount?: number
-          p_import_batch_id?: string
-          p_import_key?: string
-          p_imported_at?: string
+          p_amount?: number | null
+          p_import_batch_id?: string | null
+          p_import_key?: string | null
+          p_imported_at?: string | null
           p_invoice_date: string
           p_procurement_id: string
-          p_reference_number?: string
+          p_reference_number?: string | null
           p_status: Database["public"]["Enums"]["procurement_invoice_status"]
         }
         Returns: {
@@ -2817,9 +3147,9 @@ export type Database = {
       }
       create_procurement_quotation: {
         Args: {
-          p_import_batch_id?: string
-          p_import_key?: string
-          p_imported_at?: string
+          p_import_batch_id?: string | null
+          p_import_key?: string | null
+          p_imported_at?: string | null
           p_procurement_id: string
           p_received_date: string
           p_total_amount: number
@@ -2851,12 +3181,12 @@ export type Database = {
       }
       create_procurement_receipt: {
         Args: {
-          p_import_batch_id?: string
-          p_import_key?: string
-          p_imported_at?: string
+          p_import_batch_id?: string | null
+          p_import_key?: string | null
+          p_imported_at?: string | null
           p_procurement_id: string
           p_receipt_date: string
-          p_reference_number?: string
+          p_reference_number?: string | null
           p_status: Database["public"]["Enums"]["procurement_receipt_status"]
         }
         Returns: {
@@ -2882,14 +3212,14 @@ export type Database = {
       }
       create_purchase_order: {
         Args: {
-          p_amount: number
-          p_date: string
-          p_import_batch_id?: string
-          p_import_key?: string
-          p_imported_at?: string
+          p_amount: number | null
+          p_date: string | null
+          p_import_batch_id?: string | null
+          p_import_key?: string | null
+          p_imported_at?: string | null
           p_procurement_id: string
-          p_reference_number: string
-          p_status: string
+          p_reference_number: string | null
+          p_status: string | null
         }
         Returns: {
           amount: number | null
@@ -2914,14 +3244,14 @@ export type Database = {
       }
       create_purchase_request: {
         Args: {
-          p_amount: number
-          p_date: string
-          p_import_batch_id?: string
-          p_import_key?: string
-          p_imported_at?: string
+          p_amount: number | null
+          p_date: string | null
+          p_import_batch_id?: string | null
+          p_import_key?: string | null
+          p_imported_at?: string | null
           p_procurement_id: string
-          p_reference_number: string
-          p_status: string
+          p_reference_number: string | null
+          p_status: string | null
         }
         Returns: {
           amount: number | null
@@ -2946,14 +3276,14 @@ export type Database = {
       }
       create_rfq: {
         Args: {
-          p_amount: number
-          p_date: string
-          p_import_batch_id?: string
-          p_import_key?: string
-          p_imported_at?: string
+          p_amount: number | null
+          p_date: string | null
+          p_import_batch_id?: string | null
+          p_import_key?: string | null
+          p_imported_at?: string | null
           p_procurement_id: string
-          p_reference_number: string
-          p_status: string
+          p_reference_number: string | null
+          p_status: string | null
         }
         Returns: {
           amount: number | null
@@ -2975,6 +3305,10 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      domain_externally_owned: {
+        Args: { p_domain: string; p_org_id: string }
+        Returns: boolean
       }
       get_executive_dashboard: { Args: never; Returns: Json }
       get_finance_budget_review: { Args: never; Returns: Json }
@@ -3013,30 +3347,27 @@ export type Database = {
         }[]
       }
       get_sales_pipeline: { Args: never; Returns: Json }
-      get_win_rate: { Args: { p_from?: string; p_to?: string }; Returns: Json }
+      get_win_rate: {
+        Args: { p_from?: string | null; p_to?: string | null }
+        Returns: Json
+      }
       is_active_member: { Args: never; Returns: boolean }
       is_operator: { Args: never; Returns: boolean }
+      log_audit: {
+        Args: {
+          p_action: string
+          p_actor_id: string
+          p_detail: Json
+          p_entity_id: string
+          p_org_id: string
+        }
+        Returns: undefined
+      }
       next_procurement_doc_number: {
         Args: { p_org: string; p_prefix: string }
         Returns: string
       }
       on_hand_project_statuses: { Args: never; Returns: string[] }
-      operator_grant_credits: {
-        Args: { p_amount: number; p_note: string; p_org_id: string }
-        Returns: undefined
-      }
-      operator_list_orgs: {
-        Args: never
-        Returns: {
-          id: string
-          name: string
-        }[]
-      }
-      operator_org_exists: { Args: { p_org_id: string }; Returns: boolean }
-      operator_toggle_feature: {
-        Args: { p_enabled: boolean; p_key: string; p_org_id: string }
-        Returns: undefined
-      }
       operator_agent_run_stats: {
         Args: { p_org_id?: string }
         Returns: {
@@ -3053,6 +3384,31 @@ export type Database = {
           runs: number
         }[]
       }
+      operator_grant_credits: {
+        Args: { p_amount: number; p_note: string; p_org_id: string }
+        Returns: undefined
+      }
+      operator_list_orgs: {
+        Args: never
+        Returns: {
+          id: string
+          name: string
+        }[]
+      }
+      operator_org_exists: { Args: { p_org_id: string }; Returns: boolean }
+      operator_set_domain_ownership: {
+        Args: {
+          p_action: string
+          p_domain: string
+          p_org_id: string
+          p_tier: string
+        }
+        Returns: undefined
+      }
+      operator_toggle_feature: {
+        Args: { p_enabled: boolean; p_key: string; p_org_id: string }
+        Returns: undefined
+      }
       operator_usage_summary: {
         Args: { p_org_id?: string }
         Returns: {
@@ -3060,7 +3416,10 @@ export type Database = {
           cached_tokens: number
           completion_tokens: number
           cost: number
-          margin_usd: number
+          // NOTE: typegen under-narrowed this — the RPC (0069/0086_usage_summary_rpcs)
+          // returns NULL when app.credits_per_usd is unset server-side ("pricing not
+          // configured" is a real domain state, not a data-quality gap; AC-USE-003).
+          margin_usd: number | null
           month: string
           org_id: string
           owner_id: string
@@ -3086,6 +3445,10 @@ export type Database = {
         }[]
       }
       org_credit_balance: { Args: { p_org_id: string }; Returns: number }
+      org_feature_enabled: {
+        Args: { p_key: string; p_org_id: string }
+        Returns: boolean
+      }
       org_has_feature: {
         Args: { p_key: string; p_org_id: string }
         Returns: boolean
@@ -3101,7 +3464,10 @@ export type Database = {
           cached_tokens: number
           completion_tokens: number
           cost: number
-          margin_usd: number
+          // NOTE: typegen under-narrowed this — the RPC (0069/0086_usage_summary_rpcs)
+          // returns NULL when app.credits_per_usd is unset server-side ("pricing not
+          // configured" is a real domain state, not a data-quality gap; AC-USE-003).
+          margin_usd: number | null
           month: string
           owner_id: string
           prompt_tokens: number
@@ -3110,10 +3476,15 @@ export type Database = {
         }[]
       }
       pipeline_project_statuses: { Args: never; Returns: string[] }
+      release_credits: { Args: { p_run_id: string }; Returns: undefined }
+      reserve_credits: {
+        Args: { p_amount: number; p_org_id: string; p_run_id: string }
+        Returns: string
+      }
       save_timesheet_week: {
         Args: {
           p_delete_ids?: string[]
-          p_timesheet_id: string
+          p_timesheet_id: string | null
           p_upserts?: Json
           p_week_start_date: string
         }
@@ -3141,17 +3512,11 @@ export type Database = {
         Args: { p_id: string; p_value: number }
         Returns: undefined
       }
-      // 0077: atomic check-and-hold credit reservation (closes the TOCTOU overspend race). The FE
-      // never touches credit_reservations directly (service-role-only, no policy) — only these RPCs.
-      release_credits: { Args: { p_run_id: string }; Returns: undefined }
-      reserve_credits: {
-        Args: { p_amount: number; p_org_id: string; p_run_id: string }
-        Returns: string
-      }
       task_completion_proxy: {
         Args: { created_at: string; end_date: string }
         Returns: string
       }
+      telegram_notify_tick: { Args: never; Returns: undefined }
       transition_document_status: {
         Args: {
           p_doc_id: string
@@ -3162,15 +3527,15 @@ export type Database = {
       transition_procurement: {
         Args: {
           p_id: string
-          p_notes?: string
+          p_notes?: string | null
           p_to: Database["public"]["Enums"]["procurement_status"]
         }
         Returns: undefined
       }
       transition_project: {
         Args: {
-          p_contract_date?: string
-          p_customer_contract_ref?: string
+          p_contract_date?: string | null
+          p_customer_contract_ref?: string | null
           p_id: string
           p_to: Database["public"]["Enums"]["project_status"]
         }
@@ -3178,7 +3543,7 @@ export type Database = {
       }
       transition_timesheet: {
         Args: {
-          p_notes?: string
+          p_notes?: string | null
           p_timesheet_id: string
           p_to: Database["public"]["Enums"]["timesheet_status"]
         }

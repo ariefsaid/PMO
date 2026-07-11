@@ -23,6 +23,50 @@ const gitSha =
   })();
 const buildTime = new Date().toISOString();
 
+// ── Shared Vitest config (perf: test-speed two-environment split) ────────────
+// Base excludes: e2e (Playwright), build output, and the eval harness.
+// ADR-0052 / FR-AT2-EV-006: `*.eval.ts` case files are a SEPARATE Vitest project
+// (vitest.eval.config.ts → `npm run test:evals`) — never the default suite (a
+// leaked eval case needs a live provider key + deployed target and would flake
+// the fast lane). `evals/harness/runEval.ts` is excluded too (imported only by
+// `*.eval.ts`, pulls in supabase-js auth+fetch). The scorer unit tests
+// (`evals/harness/scorers.test.ts`) ARE `.test.ts` and DO run.
+const BASE_TEST_EXCLUDE = [
+  'e2e/**',
+  'node_modules/**',
+  'dist/**',
+  'evals/cases/**',
+  'evals/harness/runEval.ts',
+];
+
+// Pure-logic suites under src/lib — assigned to the fast `node` environment
+// project. The handful that DO touch real DOM APIs (canvas, sessionStorage,
+// XHR/ProgressEvent) carry a `// @vitest-environment jsdom` docblock, which
+// overrides the project environment per-file, so they run correctly here
+// without a per-file exclude list to maintain.
+const NODE_LOGIC_INCLUDE = ['src/lib/**/*.{test,spec}.ts'];
+
+const sharedTestOptions = {
+  globals: true,
+  setupFiles: ['./test/setup.ts'],
+  css: false,
+  // AUDIT-M17 (2026-07-04 audit): clear mock call history between tests globally — no more
+  // relying on per-file afterEach discipline for call-count assertions. (Implementations set
+  // via mockReturnValue/mockImplementation are preserved; this clears calls/results only.)
+  clearMocks: true,
+  // Dummy Supabase env so client.ts can instantiate in unit tests without a
+  // real .env.local (tests that exercise supabase still mock all calls).
+  env: {
+    VITE_SUPABASE_URL: 'http://localhost:54321',
+    VITE_SUPABASE_ANON_KEY: 'test-anon-key',
+    VITE_POSTHOG_KEY: '',
+    VITE_POSTHOG_HOST: 'https://us.i.posthog.com',
+    VITE_ANALYTICS_ENABLED: 'false',
+    VITE_DEMO_MODE: 'false',
+    VITE_APP_ENV: 'test',
+  },
+};
+
 export default defineConfig({
   define: {
     __APP_VERSION__: JSON.stringify(pkgVersion),
@@ -68,34 +112,45 @@ export default defineConfig({
     },
   },
   test: {
-    environment: 'jsdom',
-    globals: true,
-    setupFiles: ['./test/setup.ts'],
-    include: ['**/*.{test,spec}.{ts,tsx}'],
-    // ADR-0052 / FR-AT2-EV-006: `*.eval.ts` case files are a SEPARATE Vitest project
-    // (vitest.eval.config.ts → `npm run test:evals`). They must NEVER run in the
-    // default suite / `verify` — a leaked eval case would need a live provider key +
-    // deployed target and would flake the deterministic fast lane. The runner module
-    // (`evals/harness/runEval.ts`) is excluded too: it is only imported by `*.eval.ts`
-    // files and pulls in `@supabase/supabase-js` auth + fetch — not unit-test territory.
-    // The scorer unit tests (`evals/harness/scorers.test.ts`) are `.test.ts` and DO run.
-    exclude: ['e2e/**', 'node_modules/**', 'dist/**', 'evals/cases/**', 'evals/harness/runEval.ts'],
-    css: false,
-    // AUDIT-M17 (2026-07-04 audit): clear mock call history between tests globally — no more
-    // relying on per-file afterEach discipline for call-count assertions. (Implementations set
-    // via mockReturnValue/mockImplementation are preserved; this clears calls/results only.)
-    clearMocks: true,
-    // Dummy Supabase env so client.ts can instantiate in unit tests without a
-    // real .env.local (tests that exercise supabase still mock all calls).
-    env: {
-      VITE_SUPABASE_URL: 'http://localhost:54321',
-      VITE_SUPABASE_ANON_KEY: 'test-anon-key',
-      VITE_POSTHOG_KEY: '',
-      VITE_POSTHOG_HOST: 'https://us.i.posthog.com',
-      VITE_ANALYTICS_ENABLED: 'false',
-      VITE_DEMO_MODE: 'false',
-      VITE_APP_ENV: 'test',
-    },
+    // ── Two-environment split (perf: test-speed) ──────────────────────────────
+    // The jsdom `environment` setup dominated wall-clock (~508s summed across 603
+    // files) even though ~165 pure-logic suites under `src/lib/**` never touch the
+    // DOM. Vitest 4 dropped `environmentMatchGlobs`, so we split into two
+    // `projects`: a fast `node`-environment project for the DOM-free logic tests
+    // and a `jsdom` project for everything that renders. Both inherit the root
+    // Vite config (plugins/resolve/define) via `extends: true` and the shared
+    // `env`/`setupFiles`/`clearMocks` below. `setup.ts` is node-safe — every DOM
+    // op in it is guarded by `typeof window !== 'undefined'`.
+    //
+    // The 3 `src/lib` .ts tests that DO touch real DOM APIs (canvas/createElement,
+    // sessionStorage, XHR/ProgressEvent) carry a `// @vitest-environment jsdom`
+    // docblock, which overrides the project environment per-file so they run on
+    // jsdom even under the node project.
+    projects: [
+      {
+        extends: true,
+        test: {
+          name: 'node',
+          environment: 'node',
+          ...sharedTestOptions,
+          include: NODE_LOGIC_INCLUDE,
+          exclude: BASE_TEST_EXCLUDE,
+        },
+      },
+      {
+        extends: true,
+        test: {
+          name: 'jsdom',
+          environment: 'jsdom',
+          ...sharedTestOptions,
+          include: ['**/*.{test,spec}.{ts,tsx}'],
+          // Everything the node project owns is excluded here so each file runs
+          // exactly once (the 3 DOM-dependent src/lib suites carry a per-file
+          // `@vitest-environment jsdom` docblock and run under the node project).
+          exclude: [...BASE_TEST_EXCLUDE, ...NODE_LOGIC_INCLUDE],
+        },
+      },
+    ],
     coverage: {
       provider: 'v8',
       // 'json' writes coverage/coverage-final.json (istanbul shape) for the

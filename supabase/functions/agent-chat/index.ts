@@ -27,6 +27,7 @@ import { agentChatHandler } from './handler.ts';
 import { loadJournaledWrites, loadMaxSeq } from './persistence.ts';
 import { createAttachmentResolver } from './attachments.ts';
 import { createCreditRateGuard } from '../_shared/creditRateGuard.ts';
+import { checkRequestRate } from '../_shared/requestRateGuard.ts';
 import { OpenRouterModelClient, providerPolicyFromEnv } from '../_shared/openRouterModelClient.ts';
 import { compactionOptionsFromEnv } from '../_shared/transcriptCompaction.ts';
 import { resolveDefaultModel } from '../_shared/modelResolution.ts';
@@ -82,6 +83,33 @@ Deno.serve(async (req: Request): Promise<Response> => {
     );
   }
   const userId = user.id;
+
+  // ── 2b. Request-rate throttle (IG-audit 2026-07-10, migration 0091) ───────
+  // Bounds how OFTEN one verified user may invoke the model, independent of credits (credits bound
+  // SPEND; this bounds FREQUENCY — burning invocations + upstream OpenRouter latency). Keyed by the
+  // verified user id; checked via the service-role verifier client (non-bypassable RPC). Fail-open
+  // (availability defense — see requestRateGuard.ts). AGENT_RATE_LIMIT_PER_MIN overrides the default.
+  // ponytail: keyed post-auth, so it does NOT throttle pre-auth floods (those hit only auth.getUser,
+  // no model spend) — the expensive surface is what's guarded.
+  const rateLimitPerMin = Number(Deno.env.get('AGENT_RATE_LIMIT_PER_MIN')) || 20;
+  const rate = await checkRequestRate(verifierClient as never, {
+    key: `agent-chat:${userId}`,
+    limit: rateLimitPerMin,
+    windowSecs: 60,
+  });
+  if (rate.exceeded) {
+    return new Response(
+      JSON.stringify({ status: 429, error: 'RATE_LIMITED', detail: 'too many requests' }),
+      {
+        status: 429,
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'application/json',
+          'Retry-After': String(rate.retryAfterSeconds),
+        },
+      },
+    );
+  }
 
   // ── 3. Build caller-JWT Supabase client (deputy auth — FR-AR-014) ─────────
   const anonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? '';

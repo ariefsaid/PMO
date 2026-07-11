@@ -42,7 +42,7 @@ function makeRow(overrides: Partial<AgentEventRow>): AgentEventRow {
   } as AgentEventRow;
 }
 
-function makeWrapper(runtime: AgentRuntime) {
+function makeWrapper(runtime: AgentRuntime | null) {
   const Wrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const [open, setOpen] = React.useState(false);
     return React.createElement(
@@ -140,6 +140,25 @@ describe('useAssistantPanel openThread (FR-AGP-021)', () => {
 
     expect(result.current.transcript).toEqual([]);
     expect(result.current.runId).toBe('run-1');
+  });
+
+  it('openThread with no runtime yet (context not ready) resolves without throwing (real null-safety guard)', async () => {
+    h.listRunEvents.mockResolvedValue([
+      makeRow({ seq: 1, type: 'user', text: 'how many active projects?' }),
+    ]);
+    const wrapper = makeWrapper(null);
+    const { result } = renderHook(() => useAssistantPanel(), { wrapper });
+
+    await expect(
+      act(async () => {
+        await result.current.openThread('run-1');
+      }),
+    ).resolves.not.toThrow();
+
+    // Guarded before doing any work — no partial load, no state churn.
+    expect(h.listRunEvents).not.toHaveBeenCalled();
+    expect(result.current.transcript).toEqual([]);
+    expect(result.current.runId).toBeNull();
   });
 });
 

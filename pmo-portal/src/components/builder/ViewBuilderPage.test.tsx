@@ -11,6 +11,7 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import React from 'react';
 import { axe } from 'jest-axe';
+import type { UserViewRow } from '@/src/lib/db/userViews';
 
 // ── Hoisted mocks ─────────────────────────────────────────────────────────────
 // IMPORTANT: mockUseAuth must return a STABLE currentUser object reference.
@@ -40,7 +41,7 @@ const {
     mockCreate: vi.fn(),
     mockUpdate: vi.fn(),
     mockUseUserView: vi.fn(),
-    mockUseUserViews: vi.fn(() => ({ data: [], isPending: false, isError: false })),
+    mockUseUserViews: vi.fn(() => ({ data: [] as UserViewRow[], isPending: false, isError: false })),
     mockCompile: vi.fn(),
     mockUseAuth: vi.fn(() => ({
       currentUser: stableCurrentUser,

@@ -4,6 +4,27 @@
 [`docs/history.md`](history.md) (don't read it for status). Locked owner-decisions are in
 `docs/decisions.md` (OD-* lookup by id). Roadmap framing in `docs/roadmap-spines.md`.
 
+### ⚑⚑ ADAPTER PROGRAM (2026-07-10) — P0 seam SHIPPED to dev; P1 ClickUp in flight
+- **✅ P0 external-adapter seam MERGED to `dev`** (PR #299, `2cbacd5`; ADR-0055): migrations
+  `0087–0090` (ownership switch + refs + watermarks + reference read-model w/ RLS write-flip),
+  `adapterSeam` pure core, `adapter-dispatch` edge fn, read-only Integrations section on
+  Administration. Full battery (spec APPROVE · quality/design APPROVE-WITH-FIXES→applied ·
+  security SHIP); gates Director-run. Deferred: error-passthrough + payload-bound (security
+  L2/L3), display-label map (`OD-EAS-LABELS`), `executeWrite` wiring into real repos (P1).
+- **✅ P1 ClickUp adapter (tasks domain) — BUILT, battery-green, PR pending** (branch
+  `feat/clickup-adapter-p1`; spec signed off + ADR-0056): 6 slices (schema flip 0093 + Vault-cron
+  0094 · adapter module · repo wiring + byte-for-byte net · change-feed webhook/sweep · onboarding
+  both directions · view/labels), 35/35 ACs proven, 2 e2e (AC-CUA-090/091, page.route pattern,
+  serial-only — shared seed org). Battery: spec/quality/Discover APPROVE-W-F → all applied;
+  security SHIP-W-F → HIGH-1 (sweep-cron Vault regression) FIXED + cross-family CONFIRMED-SHIP.
+  Gates Director-run: verify 4906 · pgTAP 157/1291 · 4× deno · e2e 2/2. **Mocked-only: live
+  ClickUp smoke deferred until a token exists (plan Appendix A; needs CLICKUP_API_BASE_URL seam).**
+  Activation checklist (owner-gated): 2 Vault secrets (clickup_sweep_url/secret) + fn envs
+  (CLICKUP_API_TOKEN/WEBHOOK_SECRET/SWEEP_SECRET, 1P vault-AS items clickup-api-token/-webhook-secret).
+  B2B note: per-org webhook secret before >1 employing org shares a deployment (security LOW-1).
+  **P2 prereq (Director): served-edge-fn e2e infra — money commands get the real boundary, not
+  page.route.** Next: P2 ERPNext money core, P3 width, P4 Odoo (ADR-0055 §8).
+
 ### ⚑⚑ RESUME HERE (2026-07-09) — agent experience SHIPPED to prod; automations HELD for prod
 Full detail in memory `agent-multiround-handoff-20260708.md` (loaded each session). Snapshot:
 - **⚑ BINDING: agent model = `deepseek/deepseek-v4-flash` — NEVER change without a DIRECT per-instance owner instruction. Browser tests via a Playwright CLI script / `agent-browser`, NEVER the Playwright MCP (it leaks node servers).**
@@ -12,6 +33,46 @@ Full detail in memory `agent-multiround-handoff-20260708.md` (loaded each sessio
 - **HELD prod-enablement checklist (owner-gated, on GO):** (1) apply mig `0082` to prod DB (`db-push-prod.sh`; prod at `0081`, `0082` is the only pending, additive); (2) create 2 Vault secrets (`agent_dispatch_url`=fn URL, `agent_dispatch_secret`=fresh `openssl rand`); (3) set `AGENT_DISPATCH_SECRET` fn env = SAME value; (4) redeploy `agent-dispatch`+`agent-chat`; (5) prod fire-test (due automation → notification + confirm NO owner email). **No owner secret input needed** (service_role auto-injected; dispatch secret self-generated).
 - **Agent write set** = 4 RLS-scoped, approval-gated actions: `create_activity` (CRM), `update_task_status`, `create_automation`, `notify`. Base agent is read-only; no general "edit project" action yet (would be a new can()+RLS+SoD+approval action). **Audit trails:** `audit_events` (0076, immutable, who/what/from→to for money/transitions/deletes/credits), `procurement_status_events` (0038), `agent_events` (0046, every agent tool call), `0079` agent-denial audit; business tables carry created_at/updated_at.
 - **Specs (dev):** ARH/ARM/ATO/ALR/AMT (agent gap-analysis do-now/do-next) — planning docs, NOT built. Token streaming still queued.
+
+### 2026-07-10 — IG backend-checklist audit (@web_pros "Vibecoding a Backend?") → 2 findings
+Audited the PMO backend against the post's 15-item shipping checklist + security/scale/production slides.
+Result: **12/15 solid, exceeds on authz/secrets/testing**; 3 deliberate skips (Redis cache, ORM, Docker —
+YAGNI at single-tenant scale). Two real gaps, prioritized:
+
+- **P1 — request-rate limiting on public/expensive edge fns. ✅ PR'd to `dev` (feat/edge-request-rate-limit).**
+  `creditRateGuard` bounds SPEND but there was **no request-FREQUENCY limit** on the public edge fns beyond
+  Supabase platform defaults — a burst can't drain credits (reserve_credits closes that) but CAN burn
+  invocations + upstream OpenRouter latency; admin-invite abuse can email-bomb. Fixed-window limiter —
+  mig `0091_request_rate_limit.sql` (`request_rate_counters` unlogged + RLS force/no-policy;
+  `rate_limit_hit(key,limit,window)` SECURITY DEFINER, service-role grant) + shared
+  `_shared/requestRateGuard.ts` (fail-OPEN — availability defense, opposite of the credit guard) + wired
+  into `agent-chat/index.ts` (post-JWT, keyed `agent-chat:<userId>`, 20/min default via
+  `AGENT_RATE_LIMIT_PER_MIN`, 429 + Retry-After). Tests: pgTAP `0140` (9 assert, AC-RL-002..006) +
+  `requestRateGuard.test.ts` (6, AC-RL-001). Verified: pgTAP 9/9, vitest 6/6, full `npm run verify` green,
+  `deno check` clean. **Supersedes the older scattered "agent-chat rate-limit" Med.** Fast-follows
+  **✅ DONE** (PR #304): `compose-view` (model spend, `COMPOSE_RATE_LIMIT_PER_MIN` def 20) +
+  `admin-invite-user` (email/user abuse, `INVITE_RATE_LIMIT_PER_MIN` def 10, throttle placed AFTER
+  authorization so FR-INV-004 holds — service_role never exercised for an unauthorized caller).
+  `health` left unthrottled deliberately (cheap, no spend). Cron fns (`agent-dispatch`,
+  `telegram-notify`) are secret-gated, not public — out of scope.
+- **P2 — error monitoring: PostHog Error Tracking (NOT Sentry — correction 2026-07-10).** The earlier
+  "needs a Sentry-class tracker" framing was WRONG: PostHog *is* the error tracker, already integrated,
+  and the **frontend already runs it** — `window.onerror`/`unhandledrejection` (`AnalyticsProvider`) +
+  React `ErrorBoundary` → `posthog.captureException`, privacy-redacted (`before_send`), `safeTrack`-wrapped.
+  So no Sentry, no new dep, no external account. **✅ Server-side half wired (PR #305):** the universal
+  edge-fn logger `logStructuredError` now fire-and-forget fans every error into PostHog Error Tracking via
+  `_shared/posthogError.ts` (guarded no-op outside Deno / without `POSTHOG_PROJECT_KEY`; sends only the
+  error CODE + fn + non-secret contextId/orgId). Client + server errors now share one issues view.
+  **Deploy step (owner, on GO):** set `POSTHOG_PROJECT_KEY` (the phc_ ingestion key, 1Password
+  `pmo-posthog-token`) as an edge-function secret in the Cloud project — until then the forward is a
+  silent no-op (error_events + Telegram unaffected). `error_events` retention/completeness remains a
+  minor separate Med.
+- **Plus — PostHog dashboards BUILT (separate deferred item, done this session).** ✅ 3 dashboards /
+  19 insights live in project `465502` (Agent adoption+reliability · Auth login health · Product
+  usage+friction), provisioned **as code** from the typed event catalog. PR #303
+  (`feat/posthog-dashboards`), script `scripts/posthog/provision-dashboards.mjs` (idempotent,
+  upsert-by-name), docs `docs/posthog-dashboards.md`. Write-scoped key = 1Password `posthog-personal-api`
+  (`phx_`). Partly addresses the GTM observability-floor "PostHog dashboards" line below.
 
 ### ⚑ CURRENT STATUS (2026-07-07 late) — read first; trust git over memory
 

@@ -5,14 +5,19 @@
  * must log a STRUCTURED line carrying an error CODE + an optional context id, and
  * NEVER a secret value or prompt/PII text.
  *
- * Pure: takes a plain object, no Deno globals — importable in Vitest (mirrors
- * modelResolution.ts / usage.ts's ADR-0039 decision-7 pattern).
+ * Test-safe: takes a plain object; its own logic uses no Deno globals — importable in
+ * Vitest (mirrors modelResolution.ts / usage.ts's ADR-0039 decision-7 pattern). It ALSO
+ * fire-and-forget fans the same {fn, errorCode, contextId} into PostHog Error Tracking via
+ * capturePosthogException (posthogError.ts), so server-side errors join the FE's captureException
+ * issues view (IG-audit P2 — error monitoring via PostHog, not Sentry). That forward is a guarded
+ * NO-OP outside Deno / without POSTHOG_PROJECT_KEY, so this stays offline + pure in Vitest.
  *
  * Deliberately narrow-typed context (fn/errorCode/contextId ONLY) — there is no
  * slot for an arbitrary payload, so a caller cannot accidentally thread a secret,
  * an API key, or prompt text through this function (a compile-time scrub, not
- * just a runtime discipline).
+ * just a runtime discipline). The PostHog forward carries the SAME narrow fields only.
  */
+import { capturePosthogException } from './posthogError.ts';
 
 export type EdgeFunctionName =
   | 'agent-chat'
@@ -41,4 +46,7 @@ export function logStructuredError(ctx: StructuredErrorContext): void {
     context.contextId = ctx.contextId;
   }
   console.error(`[${ctx.fn}] ${ctx.errorCode}`, context);
+  // Fan out to PostHog Error Tracking (guarded no-op outside Deno / without POSTHOG_PROJECT_KEY —
+  // so this call adds nothing in Vitest). Floating on purpose: fire-and-forget, self-swallowing.
+  void capturePosthogException(ctx);
 }

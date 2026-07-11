@@ -65,8 +65,13 @@ export interface DataTableProps<Row> {
   errorTitle?: string;
   errorSub?: string;
   onRetry?: () => void;
-  /** Per-row overflow menu items (hidden until row hover). */
-  rowMenu?: (row: Row) => RowMenuItem[];
+  /**
+   * Per-row overflow menu items (hidden until row hover). Return `undefined`
+   * (or `[]`) for "no menu for this row" — a real per-row state (e.g. an
+   * archived record with nothing left to do) — the trigger is simply omitted
+   * for that row.
+   */
+  rowMenu?: (row: Row) => RowMenuItem[] | undefined;
   className?: string;
 }
 
@@ -194,7 +199,7 @@ export function DataTable<Row>({
                         className="inline-flex items-center gap-1 uppercase tracking-[0.03em] hover:text-foreground [&_svg]:size-3"
                       >
                         {col.header}
-                        {sort?.key === col.sortKey && (
+                        {sort && sort.key === col.sortKey && (
                           <Icon name={sort.dir === 'asc' ? 'up' : 'down'} />
                         )}
                       </button>
@@ -292,7 +297,10 @@ export function DataTable<Row>({
                     })}
                     {rowMenu && (
                       <td className="px-2 align-middle">
-                        <RowMenu items={rowMenu(row)} />
+                        {(() => {
+                          const items = rowMenu(row) ?? [];
+                          return items.length > 0 ? <RowMenu items={items} /> : null;
+                        })()}
                       </td>
                     )}
                   </tr>
@@ -332,7 +340,7 @@ export function DataTable<Row>({
             const selected = key === selectedKey;
             const [titleCol, ...restCols] = columns;
             const hasMenu = !!rowMenu;
-            const menuItems = hasMenu ? rowMenu!(row) : [];
+            const menuItems = hasMenu ? (rowMenu!(row) ?? []) : [];
 
             return (
               <li

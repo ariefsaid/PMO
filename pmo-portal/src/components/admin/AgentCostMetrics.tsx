@@ -251,8 +251,8 @@ export const AgentCostMetrics: React.FC<AgentCostMetricsProps> = ({
                 <Tooltip
                   contentStyle={tooltipContentStyle}
                   labelStyle={tooltipLabelStyle}
-                  labelFormatter={(label: number) => formatMonthTick(label)}
-                  formatter={(value: number) => [`${value.toFixed(1)}%`, 'Cache hit-rate']}
+                  labelFormatter={(label) => formatMonthTick(Number(label))}
+                  formatter={(value) => [`${Number(value).toFixed(1)}%`, 'Cache hit-rate']}
                 />
                 <Line
                   type="monotone"

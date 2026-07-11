@@ -44,7 +44,9 @@ export type IconName =
   | 'eye'
   | 'message'
   | 'sun'
-  | 'moon';
+  | 'moon'
+  | 'plug'
+  | 'info';
 
 /** Raw <path>/<rect>/<circle> children per icon, stroke-2 throughout. */
 export const ICON_PATHS: Record<IconName, React.ReactNode> = {
@@ -235,4 +237,21 @@ export const ICON_PATHS: Record<IconName, React.ReactNode> = {
   ),
   // Moon — F2 dark-mode toggle (dark state: click to go light). Lucide crescent.
   moon: <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" />,
+  // Plug — the Integrations view's empty-state + tier-card icon (AC-EAS-015): an external
+  // system "plugged in" as source of truth. Lucide-style monoline, stroke-2 / 24×24.
+  plug: (
+    <>
+      <path d="M12 22v-5" />
+      <path d="M9 8V2" />
+      <path d="M15 8V2" />
+      <path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z" />
+    </>
+  ),
+  info: (
+    <>
+      <circle cx="12" cy="12" r="10" />
+      <path d="M12 16v-4" />
+      <path d="M12 8h.01" />
+    </>
+  ),
 };

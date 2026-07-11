@@ -335,7 +335,10 @@ async function commitCase(
       if (isUniqueViolation(err)) {
         // A concurrent run created this record between our skip-check and this insert (A4).
         const table = TYPE_TO_TABLE[row.type as CycleType];
-        const raced = table && recordImportKey
+        // The race path only runs in import mode: recordImportKey is only ever set when
+        // importBatchId is set (line ~299), so this can't skip a genuinely-reachable case —
+        // including importBatchId in the guard just makes that provable to the type checker.
+        const raced = table && recordImportKey && importBatchId
           ? await skipLookup?.findExistingRecord(table, procurementId, recordImportKey, importBatchId)
           : null;
         if (raced && row.type === 'VI') groupInvoiceId = raced.id;
