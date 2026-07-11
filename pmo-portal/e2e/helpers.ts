@@ -9,7 +9,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 /** Directory the `setup` Playwright project (e2e/auth.setup.ts) writes captured sessions to. */
-const AUTH_DIR = path.join(__dirname, '.auth');
+export const AUTH_DIR = path.join(__dirname, '.auth');
 
 interface CapturedStorageState {
   origins: { origin: string; localStorage?: { name: string; value: string }[] }[];
@@ -74,12 +74,18 @@ export async function signIn(page: Page, email: string, password = SEED_PASSWORD
     throw new Error(`signIn: captured session fixture for "${email}" at ${statePath} has no localStorage entries.`);
   }
 
+  // First nav may land on /login (localStorage still empty on the first signIn of a fresh
+  // context) — that's fine, it just gives us the app origin to write localStorage against.
   await page.goto('/');
   await page.evaluate((items: { name: string; value: string }[]) => {
     localStorage.clear();
     for (const { name, value } of items) localStorage.setItem(name, value);
   }, entries);
-  await page.reload();
+  // Re-navigate to '/' rather than reload(): reload() reloads the CURRENT url, which — if the
+  // app's async unauth-redirect already bounced us to /login — would reload /login (no
+  // already-authed guard there) and hang the assertion. An explicit goto('/') boots the app
+  // authenticated (session now in localStorage) and lands deterministically on '/'.
+  await page.goto('/');
 
   await expect(page).toHaveURL(/\/$/);
 }

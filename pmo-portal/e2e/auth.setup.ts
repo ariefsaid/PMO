@@ -1,7 +1,6 @@
 import { test as setup, expect } from '@playwright/test';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { SEED_PASSWORD } from './helpers';
+import { SEED_PASSWORD, AUTH_DIR } from './helpers';
 
 /**
  * #306 — auth setup project.
@@ -19,11 +18,6 @@ import { SEED_PASSWORD } from './helpers';
  * (see helpers.ts history / git blame) — but the final assertion is always the hard
  * goal-oracle `toHaveURL(/\/$/)`, never softened.
  */
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-export const AUTH_DIR = path.join(__dirname, '.auth');
 
 const SEED_EMAILS = [
   'exec@acme.test',

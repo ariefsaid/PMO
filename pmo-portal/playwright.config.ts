@@ -34,7 +34,11 @@ export default defineConfig({
   projects: [
     // #306: real form-login happens once here (per seed role), before the chromium project.
     // Captures each role's storageState to e2e/.auth/<email>.json for e2e/helpers.ts signIn().
-    { name: 'setup', testMatch: /auth\.setup\.ts/ },
+    // fullyParallel:false pins the 9 role logins (all in auth.setup.ts) to serial: they do REAL
+    // bcrypt sign-ins, and running them ~4-concurrent under the global workers:4 would reintroduce
+    // the GoTrue-saturation flake this issue removes — with an outsized blast radius, since
+    // `dependencies: ['setup']` means one failed login would block every spec.
+    { name: 'setup', testMatch: /auth\.setup\.ts/, fullyParallel: false },
     {
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
