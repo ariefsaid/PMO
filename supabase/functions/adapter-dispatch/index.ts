@@ -36,6 +36,7 @@ import { ClickUpRateLimiter } from '../../../pmo-portal/src/lib/adapterSeam/clic
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
 import type { Adapter, AdapterCommand, PmoRecord } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
 import { getReadModelWriter } from './readModelWriters.ts';
+import { maybeFault, type FaultGate } from './faultSeams.ts';
 
 /** The adapter-select context: the caller's org, the parsed command, and the service-role client for
  * per-request config lookups (project binding, external_refs resolution). Never used for adapter.commit(). */
@@ -75,6 +76,13 @@ const ADAPTER_REGISTRY: Record<string, AdapterFactory> = {
   [REFERENCE_DOMAIN]: async () => createReferenceAdapter('commit-success'),
   [CLICKUP_TASKS_DOMAIN]: resolveClickUpAdapter,
 };
+
+// NOTE (faultSeams.ts 'after-submit-before-mirror', FR-ENA-003): neither P0 (reference) nor P1
+// (ClickUp) has a two-step insert-then-submit commit — `Adapter.commit()` is one call. This seam has
+// no call site until the ERPNext money doctypes land their two-step submit (plan §2 decision 3,
+// slice 2/6), at which point that adapter's own submit step calls `maybeFault('after-submit-before-
+// mirror', faultGate)` directly (it is "surfaced via a dep the adapter calls", not wired here). The
+// gate logic itself is already proven at the unit level (faultSeams.test.ts, task 0.6).
 
 // Same origin-narrowing seam as agent-chat/compose-view (AUDIT quick-win 2026-07-07): set
 // AGENT_ALLOWED_ORIGIN in prod; falls back to SITE_URL, then '' (fail-closed — never '*').
@@ -164,6 +172,18 @@ Deno.serve(async (req: Request): Promise<Response> => {
   // Never used for adapter.commit() — org_id never crosses into the adapter (AC-EAS-023).
   const serviceClient = createClient(supabaseUrl, serviceRoleKey);
 
+  // ── Named server-side fault seams (Slice 0 task 0.7, FR-ENA-003, plan §2 decision 5; host
+  // allowlist added fix-round finding 5): read the gate ONCE per request and thread it through.
+  // `maybeFault` re-checks ALL THREE conditions per named seam, so this is a pure no-op in every
+  // deployed/non-test context (ERPNEXT_TEST_FAULTS unset, or ERPNEXT_TEST_FAULTS_ALLOW_HOST unset/
+  // non-matching ⇒ byte-for-byte, zero behavior change for slice 0 — no org employs ERPNext yet).
+  const faultGate: FaultGate = {
+    envFaults: Deno.env.get('ERPNEXT_TEST_FAULTS'),
+    header: req.headers.get('x-erpnext-test-fault'),
+    requestHost: req.headers.get('x-forwarded-host') ?? req.headers.get('host'),
+    allowedHosts: Deno.env.get('ERPNEXT_TEST_FAULTS_ALLOW_HOST'),
+  };
+
   // ── 3. Adapter select (AC-EAS-033 step 2). ──
   const adapterFactory = ADAPTER_REGISTRY[command.domain];
   if (!adapterFactory) {
@@ -184,15 +204,35 @@ Deno.serve(async (req: Request): Promise<Response> => {
     });
   }
 
+  // Fault-seam-injected wrapper (short-circuit before/at commit, FR-ENA-003): 'unreachable' /
+  // 'reject-validation' / 'timeout' fire here, before the real adapter.commit() ever runs — each a
+  // no-op unless its header matches. Wrapping the adapter (not editing dispatch.ts) means the seam's
+  // thrown AdapterError still passes through dispatchExternallyOwnedWrite's own AdapterError→AppError
+  // classification unmodified, so that pure/unit-tested module (dispatch.test.ts) needs no changes.
+  const dispatchAdapter: Adapter = {
+    ...adapter,
+    commit: async (cmd: AdapterCommand) => {
+      await maybeFault('unreachable', faultGate);
+      await maybeFault('reject-validation', faultGate);
+      await maybeFault('timeout', faultGate);
+      return adapter.commit(cmd);
+    },
+  };
+
   try {
     // ── 4/5/6. command invoke → read-model update → external_refs record → return
     // (AC-EAS-033 steps 3/4/5, in that exact order — enforced inside dispatchExternallyOwnedWrite). ──
     const result = await dispatchExternallyOwnedWrite({
-      adapter,
+      adapter: dispatchAdapter,
       command,
       // Multi-domain read-model writer registry (task 1.6) — replaces the inline if-chain. An
       // unknown domain throws (no silent skip); ClickUp's `tasks` writer is byte-for-byte moved.
       writeReadModel: async (canonical: PmoRecord) => {
+        // Fault seam: between commit and mirror (FR-ENA-003) — a no-op unless armed. Runs before
+        // the per-domain mirror write; commit has already returned (dispatch.ts's fixed order).
+        await maybeFault('after-commit-before-mirror', faultGate);
+        // Multi-domain read-model writer registry (task 1.6) — supersedes slice 0's inline
+        // if-chain (its ClickUp/reference branches moved byte-for-byte into readModelWriters.ts).
         const writer = getReadModelWriter(command.domain);
         await writer.upsert({ serviceClient: serviceClient as never, orgId }, canonical, command);
       },

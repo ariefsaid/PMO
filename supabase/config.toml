@@ -408,8 +408,9 @@ authorization_url_path = "/oauth/consent"
 allow_dynamic_registration = false
 
 [edge_runtime]
-# Disabled for the backend-foundation issue: no Edge Functions in scope; the local Deno image cannot
-# reach deno.land in this environment and its failed health check tears down the whole stack.
+# `supabase functions serve` self-manages its runtime container on demand (image is local/ECR — zero
+# deno.land reach, spike-verified 2026-07-11). Kept disabled so `supabase start` stays lean; the served-fn
+# e2e lane (`scripts/serve-functions.sh`) brings it up per-run. Do NOT re-enable globally.
 enabled = false
 # Supported request policies: `oneshot`, `per_worker`.
 # `per_worker` (default) — enables hot reload during local development.
