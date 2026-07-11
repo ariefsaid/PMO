@@ -27,7 +27,7 @@ Replaces playbook §3's opus/sonnet/haiku mapping when running the trial:
 | `zai` / `glm-5.2` | **The opus-grade default (owner, 2026-07-04: currently better than 5.1 across the board).** Planning, specs, complex or security-sensitive slices (schema, RLS, RPC), manager-grade judgment, AND implementation slices (trialed-good as builder 2026-06-16 — first-pass-correct, no §6 tendencies) | opus |
 | `zai` / `glm-5.1` | Secondary/alternate to 5.2 (rate-limit relief, or as the different-model reviewer in GLM-only degraded mode) | opus fallback |
 | `zai` / `glm-4.7` | Routine implementation, mechanical edits, QA runs, mockup builds | sonnet/haiku |
-| `openai-codex` / `gpt-5.4` | ALL reviews and audits — spec-review, code-quality, plan review, security. Deliberately **cross-family** vs the GLM builders | opus reviewers |
+|  `openai-codex` / `gpt-5.6-luna` (owner-directed 2026-07-11; supersedes `gpt-5.4`) | ALL reviews and audits — spec-review, code-quality, plan review, security. Deliberately **cross-family** vs the GLM builders | opus reviewers |
 
 > **⚑ GLM-only degraded mode (gpt-5.4/openai-codex UNAVAILABLE, observed 2026-06-16).** When the
 > cross-family reviewer is down, route reviews to a **different GLM model than the builder** (e.g. build
@@ -37,7 +37,7 @@ Replaces playbook §3's opus/sonnet/haiku mapping when running the trial:
 > same-family-only sign-off.
 | `openrouter` / `nvidia/nemotron-3-ultra-550b-a55b:free` · `nex-agi/nex-n2-pro:free` | **Tertiary fallback only** — when BOTH z.ai and codex are rate-limited. Free, so no quota cost; keeps the loop moving instead of stalling for the reset | spare tire |
 
-**Fallback (owner rule):** z.ai API limit → use `gpt-5.4`; OpenAI limit → use GLM. **When BOTH are
+**Fallback (owner rule):** z.ai API limit → use `gpt-5.6-luna`; OpenAI limit → use GLM. **When BOTH are
 rate-limited at once** (the 5-hour windows can overlap — observed 2026-06-12), drop to the
 **OpenRouter free models** (`openrouter` provider, both smoke-tested OK): Nemotron 3 Ultra for the
 heavier slice, NEX N2 Pro as its alternate. They're free — no quota — but unproven on this codebase,
