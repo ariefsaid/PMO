@@ -9,6 +9,14 @@
 # `scripts/with-db-lock.sh` (this script does not take the lock itself — callers hold it only as
 # long as the served-fn window needs, per the shared-stack hygiene rule).
 set -euo pipefail
+# Job control ON: without it, `cmd &` in a non-interactive script shares the SCRIPT's own process
+# group (verified empirically — `ps -o pgid` on the background job matches the parent, not its own
+# PID), so a process-group kill can't target it in isolation. `set -m` gives the background job its
+# OWN process group (PGID == its PID), which `kill -- -"$CLI_PID"` below then targets directly —
+# reaching the CLI wrapper's forked `supabase-go` child AND any of ITS children too (not just a
+# single direct child), fixing the trap's "only walks one level of pkill -P" gap (Slice-0 fix-round
+# finding 6).
+set -m
 
 # 1. serve bg (self-manages its runtime container; [edge_runtime] enabled=false stays — the CLI
 # brings up its own local/ECR runtime image regardless of that config flag, spike-verified).
@@ -26,16 +34,32 @@ supabase functions serve --no-verify-jwt "${ENV_FILE_ARGS[@]+"${ENV_FILE_ARGS[@]
 CLI_PID=$!
 # The `supabase` CLI wrapper forks a `supabase-go` child that does the real serving; a plain
 # `kill $CLI_PID` only signals the wrapper — the child survives, reparents to init, and keeps
-# holding :54321 (verified empirically: repeatable across runs, not a one-off race). Kill the
-# child (scoped to OUR CLI_PID's own process tree, never a broad name-based pkill — this host
-# runs other agents' own `supabase functions serve` in other worktrees) BEFORE the parent, then
-# the parent itself.
+# holding :54321 (verified empirically: repeatable across runs, not a one-off race). Belt-and-braces
+# teardown (Slice-0 fix-round finding 6 — a bare `trap cleanup EXIT` misses SIGTERM/SIGINT/SIGHUP,
+# leaking an orphaned `supabase-go`/deno tree + the runtime container when this script itself is
+# killed, e.g. a CI job timeout or a developer Ctrl-C):
+#   1. kill the WHOLE process group (`set -m` above put CLI_PID in its own group) — reaches the
+#      wrapper, its `supabase-go` child, AND any grandchildren the child itself forks, not just one
+#      pkill -P level deep.
+#   2. pkill -P + a direct kill as a fallback in case a child raced past the group-kill's signal
+#      delivery window (scoped to OUR CLI_PID's own tree, never a broad name-based pkill — this host
+#      runs other agents' own `supabase functions serve` in other worktrees).
+#   3. force-remove the runtime container regardless (a plain SIGTERM alone leaks it — spike fact).
 cleanup() {
+  kill -- -"$CLI_PID" 2>/dev/null || true
   pkill -P "$CLI_PID" 2>/dev/null || true
   kill "$CLI_PID" 2>/dev/null || true
   docker rm -f supabase_edge_runtime_pmo-portal >/dev/null 2>&1 || true
 }
+# EXIT covers normal/`set -e` termination; INT/TERM/HUP must ALSO exit explicitly afterward — a
+# bash trap handler for a non-EXIT signal does NOT itself terminate the script (verified empirically:
+# without the trailing `exit`, execution resumes at the line AFTER the interrupted command instead
+# of tearing down), which would otherwise leave this script running past a killed serve process.
+# 128+signum is the POSIX convention for a signal-caused exit code (INT=2, HUP=1, TERM=15).
 trap cleanup EXIT
+trap 'cleanup; exit 130' INT
+trap 'cleanup; exit 143' TERM
+trap 'cleanup; exit 129' HUP
 
 # 2. health gate (60x2s)
 for i in $(seq 1 60); do
