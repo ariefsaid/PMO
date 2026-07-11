@@ -377,6 +377,48 @@ mechanically. Unit tests for its pure classification logic:
 Telegram webhook alert this paragraph used to flag as not-yet-built now exists (observability floor,
 `docs/specs/observability-floor.spec.md` + `docs/plans/2026-07-04-observability-floor.md`).
 
+## ERPNext v15 dev bed (P2)
+
+The ERPNext adapter (ADR-0055 P2 phase, `docs/plans/2026-07-11-erpnext-adapter.md`) needs a real
+ERPNext instance to build/test against — a **second Docker stack**, entirely separate from the
+`supabase_*` local stack. It is the P2 **dev bed only** — never CI (the money e2e it backs is
+local-only, `.github/workflows/ci.yml`'s `integration` job runs the bench-free served-fn smoke
+instead; see task 0.3 of the plan above).
+
+**Stand up** from `~/Coding/frappe-docker-pmo` (a sibling checkout of the upstream
+[`frappe_docker`](https://github.com/frappe/frappe_docker) repo, NOT part of this repo):
+
+```bash
+cd ~/Coding/frappe-docker-pmo
+docker compose -p pmo-erpnext -f pwd.yml up -d
+```
+
+- **Site:** `frontend` at `http://localhost:8080`.
+- **Image:** `frappe/erpnext:v15.94.3` (frappe `15.96.0` / erpnext `15.94.3`) — pinned to keep the
+  P2 contract notes (`docs/spikes/2026-07-11-p2-intake-research.md`) ground-truth-valid; a minor
+  bump needs a re-run of the version-handshake proof (task 2.x, `GET
+  /api/method/frappe.utils.change_log.get_versions`).
+- **Setup-wizard-completed:** company `PMO Smoke Co`, currency IDR, Standard COA — so the full
+  account tree + cost center + warehouse defaults exist (R9 §0 prerequisite for the Payment Entry /
+  Purchase Invoice create flows in slice 6).
+- **Footprint:** ~724 MiB RAM, 9 containers, port 8080 — zero overlap with any `supabase_*` stack
+  (which uses 543xx).
+- **Credentials:** the site admin password + any minted `api_key`/`api_secret` pairs live **ONLY**
+  in `~/Coding/frappe-docker-pmo/PMO-BENCH-NOTES.md` — **never in this repo** (NFR-ENA-SEC-002, the
+  same "no secret value ever enters the DB or the browser" rule that governs `external_org_bindings`
+  in the shipped seam). Do not commit that notes file into any repo; it is a local-machine-only
+  runbook.
+
+**Shared-resource hygiene:** this is the **second** shared Docker resource on this host (the local
+Supabase stack is the first, locked by `scripts/with-db-lock.sh`). Money e2e against this bench must
+hold BOTH locks — `scripts/with-erpnext-lock.sh` (task 0.5) is the dedicated mutex for this stack,
+composed with `with-db-lock.sh` + `scripts/serve-functions.sh`:
+
+```bash
+scripts/with-db-lock.sh scripts/with-erpnext-lock.sh scripts/serve-functions.sh -- \
+  npx playwright test e2e/AC-ENA-053-*
+```
+
 ## Observability & alerting (GTM item 3 — the floor)
 
 Four pieces, each config-per-deployed-project (ADR-0047): a Telegram alert webhook, PostHog FE error
