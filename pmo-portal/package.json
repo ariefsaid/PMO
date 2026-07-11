@@ -16,7 +16,8 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:evals": "vitest run --config vitest.eval.config.ts",
-    "verify": "npm run typecheck && npm run lint:ci && npm run test && npm run build",
+    "check:migrations": "bash ../scripts/check-migration-collisions.sh",
+    "verify": "npm run check:migrations && npm run typecheck && npm run lint:ci && npm run test && npm run build",
     "e2e": "playwright test"
   },
   "dependencies": {
