@@ -69,6 +69,11 @@ jobs:
           # Full history so the changed-lines coverage gate can diff against the
           # PR base ref.
           fetch-depth: 0
+      # Fail fast on duplicate migration prefixes (parallel-agent renumber races) —
+      # a clear one-liner here instead of a confusing db-reset/pgTAP error later.
+      - name: Migration prefix collision check
+        working-directory: .
+        run: bash scripts/check-migration-collisions.sh
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: 22
@@ -154,6 +159,11 @@ jobs:
     steps:
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
 
+      # Fail fast on duplicate migration prefixes — the clear one-liner version of
+      # the confusing `supabase db reset`/pgTAP failure a collision causes below.
+      - name: Migration prefix collision check
+        run: bash scripts/check-migration-collisions.sh
+
       - uses: supabase/setup-cli@3c2f5e2ae34c34e428e8e206e2c4d21fa2d20fbf # v2.1.1
         with:
           version: 2.105.0
@@ -191,6 +201,11 @@ jobs:
         working-directory: .
     steps:
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+
+      # Fail fast on duplicate migration prefixes — the clear one-liner version of
+      # the confusing `supabase db reset`/pgTAP failure a collision causes below.
+      - name: Migration prefix collision check
+        run: bash scripts/check-migration-collisions.sh
 
       - uses: supabase/setup-cli@3c2f5e2ae34c34e428e8e206e2c4d21fa2d20fbf # v2.1.1
         with:
