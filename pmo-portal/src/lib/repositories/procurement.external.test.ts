@@ -39,7 +39,7 @@ vi.mock('@/src/lib/db/companies', () => ({
 }));
 
 import * as dispatchClient from '@/src/lib/adapterSeam/dispatchClient';
-import { clearOwnershipCache } from '@/src/lib/adapterSeam/ownershipCache';
+import { clearOwnershipCache, setDomainOwnership } from '@/src/lib/adapterSeam/ownershipCache';
 import { repositories } from '@/src/lib/repositories';
 import {
   createPurchaseRequest,
@@ -169,6 +169,60 @@ describe('AC-ENA-001 cold ownership map — company writes stay on the direct DA
     vi.mocked(createCompany).mockRejectedValue(new AppError('denied', '42501'));
     await expect(repositories.company.create({ name: 'Acme', type: 'Vendor' })).rejects.toBeInstanceOf(AppError);
     await expect(repositories.company.create({ name: 'Acme', type: 'Vendor' })).rejects.toMatchObject({ code: '42501' });
+    expect(dispatchSpy).not.toHaveBeenCalled();
+  });
+});
+
+describe('task 3.8 (finding-3 path fix) — a flipped org routes company writes to dispatchDomainCommand with the type-derived erp_doc_kind', () => {
+  beforeEach(() => {
+    setDomainOwnership([{ domain: 'companies', externalTier: 'erpnext' }]);
+  });
+
+  it('a Vendor create dispatches with erp_doc_kind="supplier" and never calls the direct DAL', async () => {
+    const canonical = { id: 'co-1', name: 'Acme', type: 'Vendor' };
+    dispatchSpy.mockResolvedValue({ externalRecordId: 'Supplier:Acme', canonical });
+    const result = await repositories.company.create({ name: 'Acme', type: 'Vendor' });
+    expect(dispatchSpy).toHaveBeenCalledWith(
+      'companies',
+      'create',
+      expect.objectContaining({ name: 'Acme', type: 'Vendor', erp_doc_kind: 'supplier' }),
+      expect.objectContaining({ idempotencyKey: expect.any(String) }),
+    );
+    expect(createCompany).not.toHaveBeenCalled();
+    expect(result).toEqual(canonical);
+  });
+
+  it('a Client create dispatches with erp_doc_kind="customer"', async () => {
+    const canonical = { id: 'co-2', name: 'Acme Buyer', type: 'Client' };
+    dispatchSpy.mockResolvedValue({ externalRecordId: 'Customer:Acme Buyer', canonical });
+    await repositories.company.create({ name: 'Acme Buyer', type: 'Client' });
+    expect(dispatchSpy).toHaveBeenCalledWith(
+      'companies',
+      'create',
+      expect.objectContaining({ erp_doc_kind: 'customer' }),
+      expect.anything(),
+    );
+    expect(createCompany).not.toHaveBeenCalled();
+  });
+
+  it('a Vendor update dispatches with erp_doc_kind="supplier"', async () => {
+    dispatchSpy.mockResolvedValue({ externalRecordId: 'Supplier:Acme', canonical: { id: 'co-1', name: 'Acme Renamed', type: 'Vendor' } });
+    await repositories.company.update('co-1', { name: 'Acme Renamed', type: 'Vendor' });
+    expect(dispatchSpy).toHaveBeenCalledWith(
+      'companies',
+      'update',
+      expect.objectContaining({ id: 'co-1', erp_doc_kind: 'supplier' }),
+      expect.anything(),
+    );
+    expect(updateCompany).not.toHaveBeenCalled();
+  });
+
+  it('an Internal-type company is NEVER dispatched (FR-ENA-090/091 — Internal is never ERP-flipped), even on a flipped org', async () => {
+    const row = { id: 'co-3', name: 'PMO Internal', type: 'Internal' };
+    vi.mocked(createCompany).mockResolvedValue(row as never);
+    const result = await repositories.company.create({ name: 'PMO Internal', type: 'Internal' });
+    expect(createCompany).toHaveBeenCalledWith({ name: 'PMO Internal', type: 'Internal' });
+    expect(result).toBe(row);
     expect(dispatchSpy).not.toHaveBeenCalled();
   });
 });
