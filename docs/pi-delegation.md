@@ -25,6 +25,10 @@ Replaces playbook §3's opus/sonnet/haiku mapping when running the trial:
 | Substrate | Use for | Analog |
 |---|---|---|
 | `nvidia` / `glm-5.2` | **The GLM-5.2 route of record (owner, 2026-07-11): NVIDIA NIM serves the same model WITHOUT z.ai's 5-hour caps — dispatch GLM work via `--provider nvidia` FIRST; `zai` is the fallback when NIM is down.** Smoke-tested OK 2026-07-11. | opus |
+| `nvidia` / `deepseek-ai/deepseek-v4-pro` | **Cross-family reviewer/alternate builder on NIM** (owner roster 2026-07-11) — use as the different-family review lens vs GLM builds, replacing most codex usage. Smoke-tested OK (note the namespaced id). | opus reviewer |
+| `nvidia` / `nemotron-3-ultra` | Second NIM review/audit lens; alternate builder for routine slices. Smoke-tested OK 2026-07-11. | opus/sonnet |
+| `nvidia` / `minimax-m3` | ⚠️ **Registered but UNUSABLE via pi as of 2026-07-11 — returns empty text on every probe** (both `minimax-m3` and `minimaxai/` ids). Do not dispatch to it until the pi-side parsing/config is fixed. | — |
+> **⚑ NIM constraints (owner, 2026-07-11):** free tier ≈ **40 requests/min TOTAL across all NIM models** — keep concurrent NIM agents to **≤2–3** and stagger heavy fan-outs; a pi agent bursts many API calls. **Reduce `openai-codex` (gpt-5.6-luna) usage:** reserve it for the highest-stakes adversarial reviews (money/security) where its depth has proven out; everything else routes to the NIM roster, with cross-family achieved NIM-internally (GLM builds ↔ DeepSeek/Nemotron reviews).
 | `zai` / `glm-5.2` | **The opus-grade default (owner, 2026-07-04: currently better than 5.1 across the board).** Planning, specs, complex or security-sensitive slices (schema, RLS, RPC), manager-grade judgment, AND implementation slices (trialed-good as builder 2026-06-16 — first-pass-correct, no §6 tendencies). **Fallback route since 2026-07-11 — prefer `nvidia`/`glm-5.2` above.** | opus |
 | `zai` / `glm-5.1` | Secondary/alternate to 5.2 (rate-limit relief, or as the different-model reviewer in GLM-only degraded mode) | opus fallback |
 | `zai` / `glm-4.7` | Routine implementation, mechanical edits, QA runs, mockup builds | sonnet/haiku |
