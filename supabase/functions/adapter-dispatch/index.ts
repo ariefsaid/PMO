@@ -171,13 +171,16 @@ Deno.serve(async (req: Request): Promise<Response> => {
   // Never used for adapter.commit() — org_id never crosses into the adapter (AC-EAS-023).
   const serviceClient = createClient(supabaseUrl, serviceRoleKey);
 
-  // ── Named server-side fault seams (Slice 0 task 0.7, FR-ENA-003, plan §2 decision 5): read the gate
-  // ONCE per request and thread it through. `maybeFault` re-checks BOTH conditions per named seam, so
-  // this is a pure no-op in every deployed/non-test context (ERPNEXT_TEST_FAULTS unset ⇒ byte-for-byte,
-  // zero behavior change for slice 0 — no org employs ERPNext yet).
+  // ── Named server-side fault seams (Slice 0 task 0.7, FR-ENA-003, plan §2 decision 5; host
+  // allowlist added fix-round finding 5): read the gate ONCE per request and thread it through.
+  // `maybeFault` re-checks ALL THREE conditions per named seam, so this is a pure no-op in every
+  // deployed/non-test context (ERPNEXT_TEST_FAULTS unset, or ERPNEXT_TEST_FAULTS_ALLOW_HOST unset/
+  // non-matching ⇒ byte-for-byte, zero behavior change for slice 0 — no org employs ERPNext yet).
   const faultGate: FaultGate = {
     envFaults: Deno.env.get('ERPNEXT_TEST_FAULTS'),
     header: req.headers.get('x-erpnext-test-fault'),
+    requestHost: req.headers.get('x-forwarded-host') ?? req.headers.get('host'),
+    allowedHosts: Deno.env.get('ERPNEXT_TEST_FAULTS_ALLOW_HOST'),
   };
 
   // ── 3. Adapter select (AC-EAS-033 step 2). ──
