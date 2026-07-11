@@ -116,21 +116,61 @@ Deno.test({
 });
 
 Deno.test({
-  name: "the ERPNext domains ('companies'/'procurement') are registered but not-yet-wired — loud throw, not a silent no-op",
+  name: "the 'procurement' domain is registered but not-yet-wired (slices 4-6) — loud throw, not a silent no-op",
   fn: async () => {
-    for (const domain of ['companies', 'procurement']) {
-      const writer = READ_MODEL_WRITERS[domain];
-      assert(writer !== undefined, `expected a registered (not-yet-wired) writer for '${domain}'`);
-      let threw = false;
-      try {
-        await writer.upsert({ serviceClient: makeFakeClient().client as never, orgId: 'org-1' }, { id: 'pmo-1' }, {
-          domain, operation: 'create', record: { id: 'pmo-1' },
-        });
-      } catch {
-        threw = true;
-      }
-      assert(threw, `expected the not-yet-wired '${domain}' writer to throw rather than silently no-op`);
+    const writer = READ_MODEL_WRITERS['procurement'];
+    assert(writer !== undefined, "expected a registered (not-yet-wired) writer for 'procurement'");
+    let threw = false;
+    try {
+      await writer.upsert({ serviceClient: makeFakeClient().client as never, orgId: 'org-1' }, { id: 'pmo-1' }, {
+        domain: 'procurement', operation: 'create', record: { id: 'pmo-1' },
+      });
+    } catch {
+      threw = true;
     }
+    assert(threw, "expected the not-yet-wired 'procurement' writer to throw rather than silently no-op");
+  },
+});
+
+// task 3.6 — the 'companies' domain is now REALLY wired (parties flip, FR-ENA-090).
+Deno.test({
+  name: "READ_MODEL_WRITERS['companies'].upsert inserts the mirror row (name/type/erp_* cols) on create",
+  fn: async () => {
+    const { client, calls } = makeFakeClient();
+    const writer = getReadModelWriter('companies');
+    await writer.upsert(
+      { serviceClient: client as never, orgId: 'org-1' },
+      { id: 'pmo-co-1', name: 'Acme Co', type: 'Vendor', erp_party_type: 'Vendor', erp_supplier_name: 'Acme Co', erp_tax_id: 'TAX-1' },
+      { domain: 'companies', operation: 'create', record: { id: 'pmo-co-1', erp_doc_kind: 'supplier' } },
+    );
+    const insertCall = calls.find((c) => c.method === 'insert');
+    assert(insertCall !== undefined, 'expected an insert call for a companies create');
+    const row = insertCall!.args[0] as Record<string, unknown>;
+    assertEquals(row.org_id, 'org-1');
+    assertEquals(row.id, 'pmo-co-1');
+    assertEquals(row.name, 'Acme Co');
+    assertEquals(row.type, 'Vendor');
+    assertEquals(row.erp_supplier_name, 'Acme Co');
+    assertEquals(row.erp_tax_id, 'TAX-1');
+  },
+});
+
+Deno.test({
+  name: "READ_MODEL_WRITERS['companies'].upsert updates the mirror row on a non-create operation, NEVER touching archived_at (enhancement)",
+  fn: async () => {
+    const { client, calls } = makeFakeClient();
+    const writer = getReadModelWriter('companies');
+    await writer.upsert(
+      { serviceClient: client as never, orgId: 'org-1' },
+      { id: 'pmo-co-1', name: 'Acme Co Renamed', type: 'Vendor', erp_party_type: 'Vendor', erp_supplier_name: 'Acme Co Renamed', erp_tax_id: null },
+      { domain: 'companies', operation: 'update', record: { id: 'pmo-co-1', erp_doc_kind: 'supplier' } },
+    );
+    const updateCall = calls.find((c) => c.method === 'update');
+    assert(updateCall !== undefined, 'expected an update call for a companies update');
+    const patch = updateCall!.args[0] as Record<string, unknown>;
+    assert(!('archived_at' in patch), 'the companies mirror writer must never set archived_at (PMO-owned enhancement)');
+    const eqCalls = calls.filter((c) => c.method === 'update.eq');
+    assertEquals(eqCalls.length, 2, 'expected two scoping .eq() calls (org_id, id)');
   },
 });
 
