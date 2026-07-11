@@ -35,7 +35,7 @@ const SEED_EMAILS = [
   'ts-approve-mgr@acme.test',
   'ts-colocated-eng@acme.test',
   // Seeded Platform Operator (supabase/seed.sql §U, ADR-0049) — used by AC-ENT-005 / AC-CRE-004.
-  'arief.said@gmail.com',
+  'operator@pmo.test',
 ] as const;
 
 const SIGN_IN_ATTEMPTS = 3;

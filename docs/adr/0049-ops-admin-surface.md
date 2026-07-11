@@ -34,7 +34,7 @@ surface with five sections (Users / Credits / Usage / Features / an Operator mec
    every row and the function would always return `false`). Operator powers are exercised **only**
    through security-definer RPCs that assert `is_operator()` and take an explicit `p_org_id`; org
    tables stay owner/org-scoped (the RPCs are the sole boundary-crosser). Seeded Operator =
-   `arief.said@gmail.com` (staging/demo seed + per-client provisioning runbook). **Operator-axis
+   `operator@pmo.test` (staging/demo seed + per-client provisioning runbook). **Operator-axis
    carve-out from FR-INV-003 (M3):** the Operator axis is governed **solely** by `platform_operators`
    row presence — revocation is row removal (service-role/SQL), and an Operator's org-membership
    `status` does **not** gate their platform powers — so the Operator RPCs
