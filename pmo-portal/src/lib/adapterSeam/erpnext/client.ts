@@ -27,6 +27,13 @@ export class ErpError extends AdapterError {
   }
 }
 
+/** A modest per-org token bucket (FR-ENA-014 — "Frappe rate-limiting is off by default"; this is a
+ *  courtesy budget sized for worker-pool concurrency, not a hard quota). Optional — omitted in tests
+ *  and any caller that doesn't need it (a true no-op, byte-for-byte). */
+export interface ErpRateLimiter {
+  acquire(): Promise<void>;
+}
+
 export interface ErpClientDeps {
   /** The injected fetch implementation (mocked in every test — NFR-ENA-CONTRACT-001). */
   fetchImpl: typeof fetch;
@@ -40,6 +47,9 @@ export interface ErpClientDeps {
    *  a non-idempotent POST always gets exactly one attempt regardless of this budget. */
   maxRetries?: number;
   sleep?: (ms: number) => Promise<void>;
+  /** Awaited once before every attempt (create + each retry) when present — the per-org factory
+   *  (2.13) shares ONE instance across a request so the budget is real, not per-call. */
+  rateLimiter?: ErpRateLimiter;
 }
 
 export interface ErpRequestOptions {
@@ -110,6 +120,7 @@ export async function erpnextRequest(deps: ErpClientDeps, opts: ErpRequestOption
 
   let attempt = 0;
   for (;;) {
+    if (deps.rateLimiter) await deps.rateLimiter.acquire();
     let res: Response;
     try {
       res = await deps.fetchImpl(`${deps.baseUrl}${opts.path}`, {

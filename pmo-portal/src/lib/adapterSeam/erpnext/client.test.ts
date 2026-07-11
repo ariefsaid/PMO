@@ -134,4 +134,11 @@ describe('erpnext/client', () => {
     expect(fetchMock.mock.calls[0][0]).toBe('https://erp.example.com/api/method/frappe.utils.change_log.get_versions');
     expect(result).toEqual({ erpnext: { version: '15.94.3' } });
   });
+
+  it('FR-ENA-014 awaits an injected rate limiter once per attempt (worker-pool-sized token bucket, off by default)', async () => {
+    const deps = fetchDeps(async () => jsonResponse(200, { name: 'X' }));
+    const acquire = vi.fn(async () => {});
+    await createDoc({ ...deps, rateLimiter: { acquire } }, 'Purchase Invoice', { supplier: 'Acme' });
+    expect(acquire).toHaveBeenCalledTimes(1);
+  });
 });
