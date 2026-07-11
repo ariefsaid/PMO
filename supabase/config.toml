@@ -481,6 +481,14 @@ verify_jwt = true
 [functions.clickup-onboard]
 verify_jwt = false
 
+# ── Edge Function: erpnext-onboard ─────────────────────────────────────────────
+# verify_jwt = false: an operator onboarding action, not a browser-JWT path (mirrors
+# clickup-onboard). The handler verifies the bearer itself (it MUST equal
+# SUPABASE_SERVICE_ROLE_KEY, constant-time) — the sole trust boundary. Pull-adopts pre-existing
+# ERPNext Supplier/Customer parties into the companies read-model (task 3.9, AC-ENA-041).
+[functions.erpnext-onboard]
+verify_jwt = false
+
 # ── Edge Function: clickup-webhook ─────────────────────────────────────────────
 # verify_jwt = false: a PUBLIC, unauthenticated surface — ClickUp (not a browser) POSTs task
 # webhooks here. The X-Signature HMAC-SHA256 of the raw body (keyed by CLICKUP_WEBHOOK_SECRET) is
