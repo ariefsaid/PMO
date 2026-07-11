@@ -22,12 +22,17 @@ export interface OwnershipRow {
 
 let cache: OwnershipMap | null = null;
 
-/** Build the caller's own-org ownership map from its `external_domain_ownership` rows and cache it. */
+/** Build the caller's own-org ownership map (domain→tier) from its `external_domain_ownership`
+ *  rows and cache it. Same body for every domain — the map is already domain-keyed. */
 export function setTaskOwnership(rows: readonly OwnershipRow[]): void {
   const map: Record<string, string> = {};
   for (const row of rows) map[row.domain] = row.externalTier;
   cache = map;
 }
+
+/** Alias naming the generalized intent (P2, FR-ENA-005) — P1 callers keep `setTaskOwnership`;
+ *  identical body (the cache is domain-keyed, so one seed already covers every domain). */
+export const setDomainOwnership = setTaskOwnership;
 
 /** Reset to the fail-closed cold-start state (sign-out) — `routeTaskWrite()` returns `'pmo'` until re-seeded. */
 export function clearOwnershipCache(): void {
@@ -35,9 +40,15 @@ export function clearOwnershipCache(): void {
 }
 
 /**
- * The task-write routing decision (ADR-0056). Fail-closed: a `null`/never-loaded cache always
- * routes `'pmo'`. Once loaded, delegates to the shared `routeWrite('tasks', cache)`.
+ * The generalized per-domain write route (ADR-0056 generalized, FR-ENA-005). Fail-closed: a
+ * `null`/never-loaded cache always routes `'pmo'` for ANY domain. Once loaded, delegates to the
+ * shared `routeWrite(domain, cache)`.
  */
+export function routeDomainWrite(domain: string): WriteRoute {
+  return cache ? routeWrite(domain, cache) : 'pmo';
+}
+
+/** Back-compat (P1) — delegates to the generalized per-domain route for `'tasks'`. */
 export function routeTaskWrite(): WriteRoute {
-  return cache ? routeWrite('tasks', cache) : 'pmo';
+  return routeDomainWrite('tasks');
 }
