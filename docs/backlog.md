@@ -12,8 +12,8 @@
   security SHIP); gates Director-run. Deferred: error-passthrough + payload-bound (security
   L2/L3), display-label map (`OD-EAS-LABELS`), `executeWrite` wiring into real repos (P1).
 - **✅ P1 ClickUp adapter (tasks domain) — BUILT, battery-green, PR pending** (branch
-  `feat/clickup-adapter-p1`; spec signed off + ADR-0056): 6 slices (schema flip 0091 + Vault-cron
-  0092 · adapter module · repo wiring + byte-for-byte net · change-feed webhook/sweep · onboarding
+  `feat/clickup-adapter-p1`; spec signed off + ADR-0056): 6 slices (schema flip 0093 + Vault-cron
+  0094 · adapter module · repo wiring + byte-for-byte net · change-feed webhook/sweep · onboarding
   both directions · view/labels), 35/35 ACs proven, 2 e2e (AC-CUA-090/091, page.route pattern,
   serial-only — shared seed org). Battery: spec/quality/Discover APPROVE-W-F → all applied;
   security SHIP-W-F → HIGH-1 (sweep-cron Vault regression) FIXED + cross-family CONFIRMED-SHIP.

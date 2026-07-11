@@ -1,4 +1,4 @@
--- 0092_clickup_sweep_cron.sql — pg_cron registration for the ClickUp reconciliation sweep
+-- 0094_clickup_sweep_cron.sql — pg_cron registration for the ClickUp reconciliation sweep
 -- (Slice D, FR-CUA-045/048, AC-CUA-043/044). ADR-0055 §3: webhooks for latency, sweep for truth.
 --
 -- LEAST-PRIVILEGE via Supabase Vault + a DEDICATED sweep secret (NOT the master service_role key),
@@ -10,7 +10,7 @@
 -- writes (deputy invariant, NFR-AAN-SEC-001). A leaked sweep secret can at worst trigger a tick (which
 -- only reconciles ClickUp changes into the read-model, RLS-org-scoped on read), never grant DB access.
 --
--- This supersedes the original 0092 shape that put `app.settings.service_role_key` (the MASTER
+-- This supersedes the original (pre-renumber) 0092 shape that put `app.settings.service_role_key` (the MASTER
 -- service_role key) in a DB GUC — a Vault-pattern regression (security-audit HIGH). NO master key in
 -- the DB, ever.
 --

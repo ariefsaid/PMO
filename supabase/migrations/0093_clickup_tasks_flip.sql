@@ -1,4 +1,4 @@
--- 0091_clickup_tasks_flip.sql
+-- 0093_clickup_tasks_flip.sql
 -- Purpose: Generalize the external-ownership flip onto tasks with per-command RLS, add the tasks
 -- tombstone/source-mod columns, add adopt-mode dedupe on external_refs, add external_project_bindings,
 -- and extend the task triggers so service-role mirror writes bypass the shipped user-only pin only while
