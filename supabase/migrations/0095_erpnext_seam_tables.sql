@@ -52,6 +52,7 @@ create table public.external_command_outbox (
   operation           text not null check (operation in ('create','update','transition')),
   state               text not null check (state in ('pending','committing','committed','confirmed','failed','quarantined')),
   external_record_id  text,
+  canonical           jsonb,                    -- F2: the adapter's REAL returned record, persisted at commit so recovery/finalize mirrors ERP-derived fields (not a {id} stub)
   payload_digest      text,
   attempt_count       int not null default 0,
   claim_generation    int not null default 0,   -- fencing token: bumped on every claim; write-backs guard on it

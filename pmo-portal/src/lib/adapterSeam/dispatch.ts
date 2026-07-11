@@ -43,6 +43,10 @@ export interface OutboxRow {
   idempotencyKey: string;
   state: 'pending' | 'committing' | 'committed' | 'confirmed' | 'failed' | 'quarantined';
   externalRecordId: string | null;
+  /** The adapter's REAL returned canonical record (F2), persisted at `markOutboxCommitted` so
+   *  recovery/finalization mirrors the ERP-derived fields (totals, status, …) rather than a bare
+   *  `{ id }` stub. `null` before commit or when the row was adopted without a full record. */
+  canonical: PmoRecord | null;
   /** The fencing token (F4): bumped on every `claimOutboxForCommit` win; every post-claim
    *  write-back is guarded `WHERE claim_generation = <token>` so a lease-expired claimant's late
    *  write-back is discarded (affects 0 rows) once a reclaimer has superseded it. */
@@ -75,8 +79,9 @@ export interface DispatchMoneyOutboxDeps {
    *  live owner within lease) or a non-`committing` row. Quarantined rows are resolved ONLY by the
    *  reconciliation path (claim after the window → probe by remarks key → adopt-or-reissue). */
   quarantineCommitting: (id: string) => Promise<OutboxRow | null>;
-  /** Guarded write-back `committing`→`committed` (records the ERP-assigned id). */
-  markOutboxCommitted: (id: string, externalRecordId: string, claimGeneration: number) => Promise<number>;
+  /** Guarded write-back `committing`→`committed` (records the ERP-assigned id AND the adapter's real
+   *  returned `canonical`, F2 — so a later finalize mirrors the ERP-derived record, not a stub). */
+  markOutboxCommitted: (id: string, externalRecordId: string, canonical: PmoRecord, claimGeneration: number) => Promise<number>;
   /** Guarded write-back `committed`→`confirmed` (after the read-model/external_refs finalize). */
   markOutboxConfirmed: (id: string, claimGeneration: number) => Promise<number>;
   /** Guarded write-back →`failed` (a non-retryable `commit-rejected` classification). A retryable
@@ -86,7 +91,7 @@ export interface DispatchMoneyOutboxDeps {
   /** Recovery probe: does ERP already hold a doc stamped with this idempotency key (the `remarks`
    *  anchor, ADR-0057 §3)? Used by the claim winner to adopt an orphaned prior commit instead of
    *  blindly re-POSTing. */
-  probeByRemarksKey: (domain: string, idempotencyKey: string) => Promise<{ externalRecordId: string } | null>;
+  probeByRemarksKey: (domain: string, idempotencyKey: string) => Promise<{ externalRecordId: string; canonical?: PmoRecord } | null>;
   /** A short backoff before re-reading a fresh (non-reclaimable) `committing` row owned by another
    *  live caller. Injected so tests run instantly; production wires a small real delay. */
   backoff: () => Promise<void>;
@@ -109,7 +114,10 @@ async function finalizeOutboxRow(
   claimGeneration: number,
   deps: DispatchMoneyWriteDeps,
 ): Promise<number> {
-  const canonical: PmoRecord = { id: deps.command.record.id };
+  // F2 — mirror the adapter's REAL returned record (persisted at commit), not a reconstructed stub, so
+  // the read-model carries the ERP-derived fields (totals, status, outstanding, …). Fall back to the id
+  // stub only for a row adopted without a full record (a later read-back/sweep reconciles its fields).
+  const canonical: PmoRecord = row.canonical ?? { id: deps.command.record.id };
   await deps.writeReadModel(canonical);
   await deps.recordExternalRef({
     pmoRecordId: deps.command.record.id,
@@ -129,8 +137,12 @@ async function claimAndCommit(claimed: OutboxRow, deps: DispatchMoneyWriteDeps):
 
   const probed = await money.probeByRemarksKey(command.domain, command.idempotencyKey!);
   let externalRecordId: string;
+  let canonical: PmoRecord;
   if (probed) {
     externalRecordId = probed.externalRecordId;
+    // Adopting an orphaned/in-flight doc found only by its remarks key: the probe carries the ERP
+    // record when it can, else we fall back to the id stub (a later sweep/read-back reconciles fields).
+    canonical = probed.canonical ?? { id: command.record.id };
   } else {
     let result: CommandResult;
     try {
@@ -145,9 +157,10 @@ async function claimAndCommit(claimed: OutboxRow, deps: DispatchMoneyWriteDeps):
       throw toDispatchError(error);
     }
     externalRecordId = result.externalRecordId;
+    canonical = result.canonical;
   }
 
-  const committedCount = await money.markOutboxCommitted(claimed.id, externalRecordId, token);
+  const committedCount = await money.markOutboxCommitted(claimed.id, externalRecordId, canonical, token);
   if (committedCount === 0) {
     // F4 — superseded before we could finalize: discard (no finalize, no duplicate mirror) and
     // reconcile off whatever state the reclaimer left behind.
@@ -155,8 +168,13 @@ async function claimAndCommit(claimed: OutboxRow, deps: DispatchMoneyWriteDeps):
     return reconcileOutbox(fresh!, deps);
   }
 
-  await finalizeOutboxRow({ ...claimed, state: 'committed', externalRecordId }, token, deps);
-  return { externalRecordId, canonical: { id: command.record.id } };
+  const finalized = await finalizeOutboxRow({ ...claimed, state: 'committed', externalRecordId, canonical }, token, deps);
+  if (finalized === 0) {
+    // F3 — superseded between `committed` and the mirror/ref writes: discard and reconcile off current state.
+    const fresh = await money.readOutbox(command.domain, command.record.id, command.idempotencyKey!);
+    return reconcileOutbox(fresh!, deps);
+  }
+  return { externalRecordId, canonical };
 }
 
 /** The reconcile-by-state algorithm (ADR-0057 §4 table) — never a blind second create. */
@@ -164,10 +182,16 @@ async function reconcileOutbox(row: OutboxRow, deps: DispatchMoneyWriteDeps): Pr
   const { command, money } = deps;
   switch (row.state) {
     case 'confirmed':
-      return { externalRecordId: row.externalRecordId!, canonical: { id: command.record.id } };
-    case 'committed':
-      await finalizeOutboxRow(row, row.claimGeneration, deps);
-      return { externalRecordId: row.externalRecordId!, canonical: { id: command.record.id } };
+      return { externalRecordId: row.externalRecordId!, canonical: row.canonical ?? { id: command.record.id } };
+    case 'committed': {
+      const finalized = await finalizeOutboxRow(row, row.claimGeneration, deps);
+      if (finalized === 0) {
+        // F3 — superseded before the finalize writes landed; reconcile off the current state.
+        const fresh = await money.readOutbox(command.domain, command.record.id, command.idempotencyKey!);
+        return reconcileOutbox(fresh!, deps);
+      }
+      return { externalRecordId: row.externalRecordId!, canonical: row.canonical ?? { id: command.record.id } };
+    }
     case 'committing': {
       // F1 (the in-flight-POST-overlap fix): a `committing` row is NEVER reclaimed and re-POSTed —
       // its ERP write may be in flight and not yet probe-visible, so a blind re-POST mints a duplicate
