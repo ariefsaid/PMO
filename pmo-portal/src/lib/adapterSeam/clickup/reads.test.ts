@@ -37,6 +37,9 @@ describe('AC-CUA-035 listChangesSinceWatermark pages through changes and advance
     const fetchImpl = vi.fn(async (url: string) => {
       call += 1;
       expect(url).toContain('date_updated_gt=999'); // inclusive boundary: cursor(1000) - 1ms
+      // Live-smoke finding (2026-07-11): without include_closed ClickUp omits closed-status
+      // tasks and completions never reach the change-feed. Pin the param on every page read.
+      expect(url).toContain('include_closed=true');
       if (call === 1) {
         expect(url).toContain('page=0');
         return new Response(

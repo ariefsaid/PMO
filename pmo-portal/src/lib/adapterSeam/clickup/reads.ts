@@ -23,7 +23,10 @@ const MAX_PAGES = 1000;
 
 /** Build the `date_updated_gt` + `page` query string for a given cursor (inclusive `>=` boundary). */
 function buildListQuery(cursor: string | null, page: number): URLSearchParams {
-  const query = new URLSearchParams({ order_by: 'updated', page: String(page) });
+  // include_closed: without it ClickUp omits closed-status tasks, so a completion made in ClickUp
+  // would never reach the change-feed (found by the live smoke, 2026-07-11 — not reproducible
+  // against mocks; the sweep MUST see closed tasks to mirror them).
+  const query = new URLSearchParams({ order_by: 'updated', page: String(page), include_closed: 'true' });
   if (cursor !== null) query.set('date_updated_gt', String(Math.max(0, Number(cursor) - 1)));
   return query;
 }
