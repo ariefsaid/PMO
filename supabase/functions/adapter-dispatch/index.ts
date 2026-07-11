@@ -63,6 +63,7 @@ function resolveClickUpAdapter(ctx: AdapterSelectContext): Promise<Adapter> {
     command: ctx.command,
     fetchImpl: fetch,
     token: Deno.env.get('CLICKUP_API_TOKEN') ?? '',
+    baseUrl: Deno.env.get('CLICKUP_API_BASE_URL') ?? undefined,
     rateLimiter: clickUpRateLimiter,
   });
 }

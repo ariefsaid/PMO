@@ -36,6 +36,7 @@ export interface ClickUpDispatchFactoryDeps {
   command: AdapterCommand;
   fetchImpl: typeof fetch;
   token: string;
+  baseUrl?: string;
   rateLimiter: ClickUpRateLimiter;
 }
 
@@ -67,6 +68,7 @@ export async function resolveClickUpDispatchAdapter(deps: ClickUpDispatchFactory
   return createClickUpAdapter({
     fetchImpl: deps.fetchImpl,
     token: deps.token,
+    baseUrl: deps.baseUrl,
     listId: (binding as { external_container_id: string }).external_container_id,
     statusMap,
     memberMap,
