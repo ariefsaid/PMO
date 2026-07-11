@@ -313,10 +313,11 @@ const freshIdempotencyKey = () => ({ idempotencyKey: crypto.randomUUID() });
 const procurement: ProcurementRepository = {
   list: (params) => wrap(() => listProcurements(params)),
   get: (id) => wrap(() => getProcurementDetail(id)),
-  transition: (id, to, notes) =>
-    routeDomainWrite('procurement') === 'external'
-      ? dispatchDomainCommand('procurement', 'transition', { id, to, notes }, freshIdempotencyKey()).then(() => undefined)
-      : wrap(() => transitionProcurement(id, to, notes)),
+  // Task 4.9 (finding-3 path fix): the case-AGGREGATE status transition is PMO-derived, never an ERP
+  // command (`to` is a PMO `ProcurementStatus` like 'Approved' — the erpnext adapter has no concept of
+  // it, FR-ENA-101/073). This ALWAYS stays on the direct DAL path, even when `procurement` is
+  // externally-owned — unlike every other method below, it carries no routeDomainWrite guard at all.
+  transition: (id, to, notes) => wrap(() => transitionProcurement(id, to, notes)),
   createQuotation: (procurementId, vendorId, totalAmount, receivedDate) =>
     routeDomainWrite('procurement') === 'external'
       ? dispatchDomainCommand(

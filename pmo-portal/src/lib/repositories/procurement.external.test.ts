@@ -39,7 +39,7 @@ vi.mock('@/src/lib/db/companies', () => ({
 }));
 
 import * as dispatchClient from '@/src/lib/adapterSeam/dispatchClient';
-import { clearOwnershipCache } from '@/src/lib/adapterSeam/ownershipCache';
+import { clearOwnershipCache, setDomainOwnership } from '@/src/lib/adapterSeam/ownershipCache';
 import { repositories } from '@/src/lib/repositories';
 import {
   createPurchaseRequest,
@@ -169,6 +169,108 @@ describe('AC-ENA-001 cold ownership map — company writes stay on the direct DA
     vi.mocked(createCompany).mockRejectedValue(new AppError('denied', '42501'));
     await expect(repositories.company.create({ name: 'Acme', type: 'Vendor' })).rejects.toBeInstanceOf(AppError);
     await expect(repositories.company.create({ name: 'Acme', type: 'Vendor' })).rejects.toMatchObject({ code: '42501' });
+    expect(dispatchSpy).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * Task 4.8 — a FLIPPED ownership map ('procurement'/'companies' -> 'erpnext') routes the record
+ * creates to `dispatchDomainCommand`, each carrying its `erp_doc_kind` + a minted `idempotencyKey`
+ * (never a bare DAL call). Non-flipped stays byte-for-byte (proven above) — this is the OTHER half of
+ * the routing guard task 1.10 already shipped.
+ */
+describe('task 4.8 — flipped ownership map — procurement/company record creates route to dispatchDomainCommand', () => {
+  beforeEach(() => {
+    setDomainOwnership([
+      { domain: 'procurement', externalTier: 'erpnext' },
+      { domain: 'companies', externalTier: 'erpnext' },
+    ]);
+  });
+
+  it('createPurchaseRequest dispatches externally with erp_doc_kind + a minted idempotencyKey', async () => {
+    dispatchSpy.mockResolvedValue({ externalRecordId: 'MAT-REQ-2026-00001', canonical: { id: 'pmo-1', pr_number: 'MAT-REQ-2026-00001' } });
+    await repositories.procurement.createPurchaseRequest('proc-1', 'PR-0001', 'Draft', '2026-07-11', 100);
+    expect(createPurchaseRequest).not.toHaveBeenCalled();
+    expect(dispatchSpy).toHaveBeenCalledWith(
+      'procurement',
+      'create',
+      expect.objectContaining({ procurementId: 'proc-1', erp_doc_kind: 'purchase-request' }),
+      expect.objectContaining({ idempotencyKey: expect.any(String) }),
+    );
+  });
+
+  it('createRfq dispatches externally with erp_doc_kind rfq', async () => {
+    dispatchSpy.mockResolvedValue({ externalRecordId: 'PUR-RFQ-2026-00001', canonical: { id: 'pmo-1' } });
+    await repositories.procurement.createRfq('proc-1', 'RFQ-0001', 'Draft', '2026-07-11', 100);
+    expect(createRfq).not.toHaveBeenCalled();
+    expect(dispatchSpy).toHaveBeenCalledWith('procurement', 'create', expect.objectContaining({ erp_doc_kind: 'rfq' }), expect.any(Object));
+  });
+
+  it('createPurchaseOrder dispatches externally with erp_doc_kind purchase-order', async () => {
+    dispatchSpy.mockResolvedValue({ externalRecordId: 'PUR-ORD-2026-00001', canonical: { id: 'pmo-1' } });
+    await repositories.procurement.createPurchaseOrder('proc-1', 'PO-0001', 'Draft', '2026-07-11', 100);
+    expect(createPurchaseOrder).not.toHaveBeenCalled();
+    expect(dispatchSpy).toHaveBeenCalledWith('procurement', 'create', expect.objectContaining({ erp_doc_kind: 'purchase-order' }), expect.any(Object));
+  });
+
+  it('createPayment dispatches externally with erp_doc_kind payment', async () => {
+    dispatchSpy.mockResolvedValue({ externalRecordId: 'ACC-PAY-2026-00001', canonical: { id: 'pmo-1' } });
+    await repositories.procurement.createPayment('proc-1', 'inv-1', 'PAY-0001', 'Draft', '2026-07-11', 100);
+    expect(createPayment).not.toHaveBeenCalled();
+    expect(dispatchSpy).toHaveBeenCalledWith('procurement', 'create', expect.objectContaining({ erp_doc_kind: 'payment' }), expect.any(Object));
+  });
+
+  it('createQuotation dispatches externally with erp_doc_kind quotation', async () => {
+    dispatchSpy.mockResolvedValue({ externalRecordId: 'PUR-SQTN-2026-00001', canonical: { id: 'pmo-1' } });
+    await repositories.procurement.createQuotation('proc-1', 'vendor-1', 100, '2026-07-11');
+    expect(createQuotation).not.toHaveBeenCalled();
+    expect(dispatchSpy).toHaveBeenCalledWith('procurement', 'create', expect.objectContaining({ erp_doc_kind: 'quotation' }), expect.any(Object));
+  });
+
+  it('createReceipt dispatches externally with erp_doc_kind goods-receipt', async () => {
+    dispatchSpy.mockResolvedValue({ externalRecordId: 'MAT-PRE-2026-00001', canonical: { id: 'pmo-1' } });
+    await repositories.procurement.createReceipt('proc-1', 'Complete', '2026-07-11');
+    expect(createReceipt).not.toHaveBeenCalled();
+    expect(dispatchSpy).toHaveBeenCalledWith('procurement', 'create', expect.objectContaining({ erp_doc_kind: 'goods-receipt' }), expect.any(Object));
+  });
+
+  it('createInvoice dispatches externally with erp_doc_kind purchase-invoice', async () => {
+    dispatchSpy.mockResolvedValue({ externalRecordId: 'ACC-PINV-2026-00002', canonical: { id: 'pmo-1' } });
+    await repositories.procurement.createInvoice('proc-1', 'Received', '2026-07-11');
+    expect(createInvoice).not.toHaveBeenCalled();
+    expect(dispatchSpy).toHaveBeenCalledWith('procurement', 'create', expect.objectContaining({ erp_doc_kind: 'purchase-invoice' }), expect.any(Object));
+  });
+
+  it('company.create dispatches externally with erp_doc_kind supplier', async () => {
+    dispatchSpy.mockResolvedValue({ externalRecordId: 'Supplier:Acme', canonical: { id: 'pmo-1', name: 'Acme', type: 'Vendor' } });
+    await repositories.company.create({ name: 'Acme', type: 'Vendor' });
+    expect(createCompany).not.toHaveBeenCalled();
+    expect(dispatchSpy).toHaveBeenCalledWith('companies', 'create', expect.objectContaining({ erp_doc_kind: 'supplier' }), expect.any(Object));
+  });
+
+  it('company.update dispatches externally with erp_doc_kind supplier', async () => {
+    dispatchSpy.mockResolvedValue({ externalRecordId: 'Supplier:Acme', canonical: { id: 'co-1' } });
+    await repositories.company.update('co-1', { name: 'Acme Renamed', type: 'Vendor' });
+    expect(updateCompany).not.toHaveBeenCalled();
+    expect(dispatchSpy).toHaveBeenCalledWith('companies', 'update', expect.objectContaining({ erp_doc_kind: 'supplier' }), expect.any(Object));
+  });
+});
+
+/**
+ * Task 4.9 (the "finding-3 path fix") — `procurement.transition` (the PMO CASE-AGGREGATE status
+ * transition, `transitionProcurement`'s `(id, to, notes)` DAL signature) is NOT a per-doctype ERP
+ * command — `to` is a PMO `ProcurementStatus` (e.g. 'Approved'), which the erpnext adapter has no
+ * concept of. Per FR-ENA-101/073, the case aggregate's status is ALWAYS PMO-derived, so this write
+ * MUST stay on the direct DAL path even when `procurement` is externally-owned — never routed through
+ * `dispatchDomainCommand`. (This was mis-routed by an earlier task's `routeDomainWrite('procurement')`
+ * guard on `transition`; task 4.9 asserts the fix.)
+ */
+describe('task 4.9 — transition_procurement stays on the PMO DAL path even when procurement is flipped', () => {
+  it('procurement.transition calls the existing RPC and never dispatches, even under a flipped ownership map', async () => {
+    setDomainOwnership([{ domain: 'procurement', externalTier: 'erpnext' }]);
+    vi.mocked(transitionProcurement).mockResolvedValue(undefined);
+    await repositories.procurement.transition('proc-1', 'Approved', 'looks good');
+    expect(transitionProcurement).toHaveBeenCalledWith('proc-1', 'Approved', 'looks good');
     expect(dispatchSpy).not.toHaveBeenCalled();
   });
 });
