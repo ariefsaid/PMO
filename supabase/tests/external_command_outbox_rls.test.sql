@@ -6,7 +6,7 @@
 -- its reconcile_after window, the claim_generation fencing-token proof that a stale claimant's write-back
 -- is discarded (F4), and the function-privilege proof that the outbox RPCs are service_role-only.
 begin;
-select plan(21);
+select plan(23);
 
 insert into organizations (id, name) values
   ('00950000-0000-0000-0000-000000000001','AC-ENA Outbox A'),
@@ -155,6 +155,14 @@ select throws_ok(
   $$ select public.claim_outbox_for_commit('00950000-0000-0000-0000-0000000000c1') $$,
   '42501', null,
   'AC-ENA-012 an authenticated user-JWT call to claim_outbox_for_commit is denied (42501)');
+select throws_ok(
+  $$ select public.quarantine_committing('00950000-0000-0000-0000-0000000000c1') $$,
+  '42501', null,
+  'AC-ENA-012 an authenticated user-JWT call to quarantine_committing is denied (42501)');
+select throws_ok(
+  $$ select * from public.outbox_reconcile_candidates('00950000-0000-0000-0000-000000000001') $$,
+  '42501', null,
+  'AC-ENA-012 an authenticated user-JWT call to outbox_reconcile_candidates is denied (42501)');
 reset role;
 
 select finish();
