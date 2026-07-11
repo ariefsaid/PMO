@@ -186,7 +186,7 @@ goal directive (full SDD/TDD + 3-lens + rendered battery per issue, PR per issue
 onboarding tooling → support floor. **Executor policy: pi+GLM first, parallel where possible;
 Claude subagents + dynamic workflows when pi quota exhausts.** Locked inputs: **domain/brand
 decision DEFERRED until after issues 1–2** — build against env-var seams (`RESEND_API_KEY`,
-sender/site URL as config; wire 1Password + DNS later) · Operator = arief.said@gmail.com ·
+sender/site URL as config; wire 1Password + DNS later) · Operator = operator@pmo.test ·
 alerts → **Telegram bot** · uptime/status = **BetterStack** (professional client-facing status
 page > reliability > ease, per owner priority order) · Supabase stays FREE tier as staging/demo;
 Pro billing at first client signing · MSA brief drafted by Director (`docs/legal/`), owner takes

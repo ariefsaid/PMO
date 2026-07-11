@@ -41,7 +41,7 @@ test(
   'AC-ENT-005: the Operator disables incidents — an org member loses the rail item + /incidents redirects to /, then re-enabling restores both (goal oracle: disable = hide, never destroy)',
   async ({ page }) => {
     // ── Given: the Operator on /administration › Features ──
-    await signIn(page, 'arief.said@gmail.com');
+    await signIn(page, 'operator@pmo.test');
     await page.goto('/administration');
     await expect(page.getByRole('heading', { name: /^Features$/ })).toBeVisible({ timeout: 20_000 });
 
@@ -77,7 +77,7 @@ test(
     // ── Re-enable: the Operator turns incidents back on ──
     await page.getByRole('button', { name: /^sign out$/i }).click();
     await expect(page).toHaveURL(/\/login/, { timeout: 15_000 });
-    await signIn(page, 'arief.said@gmail.com');
+    await signIn(page, 'operator@pmo.test');
     await page.goto('/administration');
     await expect(page.getByRole('heading', { name: /^Features$/ })).toBeVisible({ timeout: 20_000 });
     const sw2 = incidentsSwitch(page);

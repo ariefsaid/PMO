@@ -8,13 +8,10 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  // CI runs serially (one worker): every spec does a REAL password sign-in, and the
-  // local single-instance GoTrue/Postgres saturates under many concurrent bcrypt
-  // verifications on a CI runner — surfacing as intermittent "Invalid login
-  // credentials" (a valid password mis-rejected under load, NOT a rate-limit 429).
-  // Serial e2e is the repo's standing lesson; ~68 specs fit well inside the 30-min
-  // job. Locally, workers stays unset (parallel) for speed.
-  workers: process.env.CI ? 1 : undefined,
+  // #306: session-injection removes the per-spec bcrypt that forced workers:1. If CI surfaces
+  // shared-DB DATA-race flakes (not auth), revert to `process.env.CI ? 1` — the auth-reuse win
+  // stands regardless; DB data isolation is a separate follow-up.
+  workers: process.env.CI ? 4 : undefined,
   reporter: 'html',
   // Write ephemeral artifacts (traces, screenshots, error-context) OUTSIDE the worktree. Two reasons:
   //   1. They are gitignored throwaway output — `/tmp` is the honest home for them.
@@ -34,7 +31,21 @@ export default defineConfig({
     // AC-TSE-021). CI is UTC end-to-end so this is a no-op there.
     timezoneId: 'UTC',
   },
-  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
+  projects: [
+    // #306: real form-login happens once here (per seed role), before the chromium project.
+    // Captures each role's storageState to e2e/.auth/<email>.json for e2e/helpers.ts signIn().
+    // fullyParallel:false pins the 9 role logins (all in auth.setup.ts) to serial: they do REAL
+    // bcrypt sign-ins, and running them ~4-concurrent under the global workers:4 would reintroduce
+    // the GoTrue-saturation flake this issue removes — with an outsized blast radius, since
+    // `dependencies: ['setup']` means one failed login would block every spec.
+    { name: 'setup', testMatch: /auth\.setup\.ts/, fullyParallel: false },
+    {
+      name: 'chromium',
+      use: { ...devices['Desktop Chrome'] },
+      dependencies: ['setup'],
+      testIgnore: /auth\.setup\.ts/,
+    },
+  ],
   webServer: {
     command: 'npm run dev',
     url: 'http://localhost:3000',

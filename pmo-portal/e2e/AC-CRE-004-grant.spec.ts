@@ -52,7 +52,7 @@ test(
     const GRANT = 500;
 
     // ── Given: the Operator on /administration ──
-    await signIn(page, 'arief.said@gmail.com');
+    await signIn(page, 'operator@pmo.test');
     await page.goto('/administration');
     // Wait for the Users directory + sections to settle (the Credits section is composed on the page).
     await expect(page.getByRole('heading', { name: /^Credits$/ })).toBeVisible({ timeout: 20_000 });
