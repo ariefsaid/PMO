@@ -45,17 +45,54 @@ Four parts:
 `AdapterCommand` gains an optional `idempotencyKey?: string` (`contract.ts`). It is **client-generated**
 per non-read-only ERPNext money command (a `crypto.randomUUID()` in the FE repository, threaded through
 `dispatchClient`). P0 (reference) and P1 (ClickUp tasks) never set it ⇒ their behavior is byte-for-byte
-unchanged (FR-ENA-004 invariant preserved). The dispatch treats the key's presence as the signal to take
-the money path.
+unchanged (FR-ENA-004 invariant preserved). The served dispatch **enforces** the key for every
+non-read-only `erpnext` command (rejects a missing key as `commit-rejected` / `missing-idempotency-key`
+before touching the outbox) and treats its presence as the signal to take the money path — so a key-less
+money command can never reach ERP, while P0/P1 (which never route to the `erpnext` tier) are unaffected.
 
-### 2. A durable `external_command_outbox` provisional-ref table (reversible migration, RLS)
+### 2. A durable `external_command_outbox` provisional-ref table + atomic commit claim (reversible migration, RLS)
 
 A new `external_command_outbox` table (spec §4.2) keyed by `unique (org_id, domain, pmo_record_id,
-idempotency_key)` with a `state` machine (`pending → committed → confirmed | failed`). **Before** issuing a
-non-idempotent ERPNext create, the dispatch `INSERT`s a `pending` row; the unique constraint makes a
-concurrent/duplicate attempt fail atomically (`23505`) — so two requests can **never both** proceed to
-create a money doc (FR-ENA-041, AC-ENA-012). The table is machine-written (service-role) + org-member
-`SELECT` (for a "pushing/failed" UX read). Reversible (drop table); `org_id` seam + `stamp_org_id()`.
+idempotency_key)` with a five-state machine `pending → committing → committed → confirmed | failed`.
+**Before** issuing a non-idempotent ERPNext create, the dispatch `INSERT`s a `pending` row; the unique
+constraint makes a concurrent/duplicate **insert** fail atomically (`23505`) — so two requests can **never
+both** open a money command (FR-ENA-041, AC-ENA-012). The table is machine-written (service-role) +
+org-member `SELECT` (for a "pushing/failed" UX read). Reversible (drop table + the two RPCs);
+`org_id` seam + `stamp_org_id()`.
+
+The unique constraint alone closes the **insert** race but **not** the **reissue** race (the original
+draft's hole): two retries of the *same* key both `SELECT` the existing `pending` row, both probe ERP,
+both find nothing, both `POST` → two money docs. The fix is an **atomic commit claim** that makes a
+concurrent duplicate reissue **impossible by construction** (mirrors the 0078 durable-claim discipline —
+"at-most-once in the DB, not JS timing" — plus 0077's txn-scoped serialization intent):
+
+```sql
+-- claim_outbox_for_commit: the ONLY gate from (pending|failed|stale-committing) → committing.
+-- A conditional UPDATE under Postgres' row lock: two concurrent claims for the same id serialize;
+-- the winner transitions and RETURNs the row, the loser's UPDATE matches 0 rows (state already
+-- 'committing', updated_at fresh) and RETURNs null → the loser re-reads and reconciles (never POSTs).
+-- A 'committing' row whose updated_at is older than the lease is re-claimable (recovers a process
+-- that died holding the claim). SECURITY DEFINER so the policy-less outbox is touched only here.
+create or replace function public.claim_outbox_for_commit(
+  p_id uuid, p_lease interval default interval '60 seconds'
+) returns public.external_command_outbox
+  language plpgsql security definer set search_path = public as $$
+  declare v public.external_command_outbox;
+  begin
+    update public.external_command_outbox
+       set state='committing', attempt_count = attempt_count + 1, updated_at = now()
+     where id = p_id
+       and ( state in ('pending','failed')
+             or (state='committing' and updated_at < now() - p_lease) )
+    returning * into v;
+    return v;  -- null ⇒ another caller owns it (or it is committed/confirmed) — do NOT POST
+  end; $$;
+```
+
+The claim is the **single** transition into the ERP-POST critical section. Because it is a conditional
+`UPDATE` guarded by Postgres' row lock, **at most one** caller per outbox id can ever be between "claim
+won" and "mark committed" at any instant — a concurrent duplicate ERP create is therefore impossible,
+not merely unlikely (the guarantee the R1/R3 review required).
 
 ### 3. The adapter stamps the key into a stable stock field (the recovery probe anchor)
 
@@ -66,15 +103,24 @@ The ERPNext `toBody` appends the `idempotencyKey` into the doctype's stock `rema
 
 ### 4. The atomic recovery algorithm (R1/R3 — reconcile by outbox state, never a blind re-create)
 
+First the server-side guard (FR-ENA-040 enforcement): the served dispatch **rejects** any non-read-only
+`erpnext` command whose `idempotencyKey` is absent (`commit-rejected`, code `missing-idempotency-key`)
+**before** it touches the outbox — so a key-less money command can never reach ERP. P0/P1 (reference /
+ClickUp) never route here, so their optional-key behavior is byte-for-byte preserved.
+
 A retry of a command whose `idempotency_key` is already present in the outbox **reconciles by state** —
-never re-issues a second create blindly (FR-ENA-042/043):
+never re-issues a second create blindly (FR-ENA-042/043) — and **never `POST`s unless
+`claim_outbox_for_commit` returned a row it owns**:
 
 | Outbox `state` | Meaning | Recovery action |
 |---|---|---|
-| `confirmed` | ERP committed + PMO mirror/ref finalized | Return the stored `external_record_id` + canonical record. **No ERP call.** |
-| `committed` | ERP committed, PMO mirror/ref finalization failed | **Re-run only the finalization** (idempotent read-model upsert + `external_refs` record), promote to `confirmed`. No second create. |
-| `pending` | The dangerous window — prior create may or may not have committed | **Probe ERP by the stamped key.** If a doc exists → adopt it (set `external_record_id`, `state='committed'`, then finalize → `confirmed`). If none → the create did not commit, so safely (re-)issue it under the **same** outbox row. |
-| `failed` | Prior attempt was rejected pre-commit | A retry may re-issue the create. |
+| `confirmed` | ERP committed + PMO mirror/ref finalized | Return the stored `external_record_id` + canonical record. **No ERP call, no claim.** |
+| `committed` | ERP committed, PMO mirror/ref finalization failed | **Re-run only the finalization** (idempotent read-model upsert + `external_refs` record), promote to `confirmed`. No second create, no claim. |
+| `committing` (fresh) | Another caller currently owns the ERP-POST critical section | **Do not POST.** Re-read on a short backoff until the owner reaches `committed`/`confirmed`/`failed`, then reconcile to that state. |
+| `pending` / `failed` / `committing` (stale, past lease) | The dangerous window — prior create may or may not have committed, or no caller owns it now | **`claim_outbox_for_commit(id)` first.** Only the claim winner proceeds: probe ERP by the stamped key; if a doc exists → adopt (set `external_record_id`, `committed`, then finalize → `confirmed`); if none → `POST` the create under the **same** outbox row, then on success → `committed` → finalize → `confirmed`, on classified failure → `failed` (or `pending` for retryable transport). The claim loser RETURNs null → re-reads → reconciles (never POSTs). |
+
+Two concurrent retries therefore **cannot** both `POST`: only the claim winner holds the critical
+section; the loser observes `committing` (fresh) or the winner's terminal state and never re-issues.
 
 The ERPNext client **never blindly retries a non-idempotent POST** on a retryable transport failure or on
 the distinct `500`-`TypeError` (empty-`items`) bucket — a retry is permitted **only** through this guarded
@@ -93,9 +139,11 @@ exact command is retried and the test asserts ERPNext holds **one** doc, the out
 ## Consequences
 
 - **Positive — the money-safety guarantee:** duplicate Purchase Invoice or Payment Entry creation becomes
-  **impossible** under retry-after-timeout / 429 / mirror-finalization-failure (NFR-ENA-IDEM-001). The
-  guarantee is DB-enforced (the unique 4-tuple) + algorithm-enforced (reconcile-by-state) + test-proven at
-  the real boundary (the fault seam).
+  **impossible** under retry-after-timeout / 429 / mirror-finalization-failure / concurrent-retry
+  (NFR-ENA-IDEM-001). The guarantee is DB-enforced three ways: the unique 4-tuple (no duplicate *open*),
+  the atomic `claim_outbox_for_commit` (no duplicate *POST* — impossible by construction), and the
+  reconcile-by-state algorithm (no duplicate *finalize*); plus test-proven at the real boundary (the
+  fault seam).
 - **Positive — no ERPNext-side requirement:** no custom app, no Frappe webhook, no ERPNext idempotency
   feature needed. The `remarks`-stamp + filter-probe uses only stock REST (NFR-ENA-SEC-001).
 - **Positive — P0/P1 untouched:** the contract change is a single optional field; ClickUp/reference paths
@@ -107,9 +155,13 @@ exact command is retried and the test asserts ERPNext holds **one** doc, the out
   users). Acceptable: it's a stock text field, the key is an opaque UUID, and it's the only stock anchor
   for a recovery probe. If a future doctype lacks `remarks`, that doctype's `toBody` chooses another stable
   stock text field (documented in the doctype registry).
-- **Operational — the sweep adopts orphaned commits:** the modified-poll sweep (slice 8) also runs the
-  `committed`→`confirmed` finalize + the `remarks`-key probe, so an orphaned commit is reconciled even if
-  the retry never comes (FR-ENA-045).
+- **Operational — the sweep runs full outbox recovery (orphan + stuck-claim + committed-finalize):**
+  the modified-poll sweep (slice 8) runs an explicit `reconcileOutbox` pass — it selects every
+  `pending` / `failed` / `committing`-past-lease / `committed` row for employing orgs and applies the
+  algorithm above (claim → probe → adopt-or-reissue; committed → finalize). So an orphaned commit, a
+  stuck `committing` claim, or a `committed`-but-unfinalized row is reconciled even if the original
+  retry never came back (FR-ENA-045). This is the exact algorithm the plan's sweep task (8.6) implements
+  and the sweep-outbox-recovery test proves — ADR and plan describe one recovery path.
 - **Reversibility:** dropping ERPNext for an org (Operator release) leaves the outbox rows as audit; the
   table itself drops in a reverse migration with no downstream dependency.
 

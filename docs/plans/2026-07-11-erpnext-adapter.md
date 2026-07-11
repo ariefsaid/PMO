@@ -21,8 +21,9 @@
 > **⚑ Migration numbering (binding — two collisions already this program):** tail at write time is
 > `0094_clickup_sweep_cron.sql`; this plan reserves **0095–0101** as below. **The builder MUST re-verify at
 > write time** with `ls supabase/migrations | tail -3` and bump every number in this plan if any is taken.
-> Renumber consistently. Slice 0 also lands a `scripts/next-migration-number.sh` collision guard so future
-> writers stop guessing (none exists today — `ls scripts/` = `with-db-lock.sh` only).
+> Renumber consistently. (A separate `scripts/next-migration-number.sh` collision guard is owned by a
+> different session per the Director ruling — builders here just re-verify numbers manually; this plan
+> does **not** add that script.)
 >
 > **Confinement invariant (FR-ENA-013/NFR-ENA-CONTRACT-001, mirrors FR-CUA-012):** ERPNext/Frappe
 > vocabulary (doctype names, `/api/resource`, `docstatus`, `amended_from`, `grand_total`,
@@ -140,7 +141,7 @@ Operator, which no test-or-prod org is).
 
 | Slice | Scope (1 line) | ACs owned | Migrations | Tasks |
 |---|---|---|---|---|
-| **0** | Served-fn e2e infra: serve wrapper + CI lane + health gate + config.toml:410 comment fix + Docker-v15 bench docs + named fault seams in `adapter-dispatch` + next-migration collision guard | (enables 010/013/040/050/051/052/053/061) | — | 0.1–0.9 |
+| **0** | Served-fn e2e infra: serve wrapper + CI lane + health gate + config.toml:410 comment fix + Docker-v15 bench docs + named fault seams in `adapter-dispatch` | (enables 010/013/040/050/051/052/053/061) | — | 0.1–0.8 |
 | **1** | Seam generalization: `idempotencyKey` on `AdapterCommand`; `external_org_bindings` + `external_command_outbox` + `external_ref_lineage`; money-dispatch + atomic recovery; multi-domain read-model-writer registry + resolver; `routeDomainWrite`; **byte-for-byte regression net EARLY** | 001,002,012,054 | `0095_erpnext_seam_tables.sql` | 1.1–1.14 |
 | **2** | ERPNext tier core: `erpnext/client.ts` (token auth, `exc_type`/`_server_messages` classifier incl. the 500-`TypeError` non-retryable bucket, 429/`Retry-After` backoff w/ no-blind-retry guard); doctype registry; version-handshake binding; decimal-string money shape; transition policy; lineage module | 011,020,021,022,023,030,031,073 | — | 2.1–2.16 |
 | **3** | Parties flip: Supplier + Customer(read-only) create/update + pull-adopt + ambiguous-match + collision-two-rows + `contacts` mirror + companies/contacts flip migration + pgTAP; supplier write-through served-fn e2e | 003(companies),040,041,042,072(companies) | `0096_companies_contacts_erpnext_flip.sql` | 3.1–3.12 |
@@ -214,13 +215,36 @@ shift $((OPTIND-1)); [ "${1:-}" = "--" ] && shift
 
 **Verify:** `grep -A3 "\[edge_runtime\]" supabase/config.toml | head -5` shows the new comment; `supabase start` still boots clean.
 
-### 0.3 — CI integration-lane: served-fn step after `db reset`
+### 0.3 — CI integration-lane: served-fn step after `db reset` (ERPNext money e2e scoped local-only)
 
-**File:** `.github/workflows/integration.yml` (the PR→`main` integration lane). After the existing
-`supabase db reset` step, add a served-fn step: `supabase functions serve --no-verify-jwt --env-file
-<(printf '%s\n' "$SUPABASE_SECRETS")` bg → same 60×2s health gate → dump `/tmp/functions-serve.log` on
-failure. No teardown (ephemeral runner). Secret `SUPABASE_SECRETS` is a GH secret (vault `AS`-sourced).
-**Verify:** the lane runs on the next PR→`main`; health gate passes (visible in the run log).
+**File:** `.github/workflows/ci.yml` — the **`integration`** job (the PR→`main` gate; there is no
+`integration.yml`). After the existing `Reset DB (migrations + seed)` step and before `E2E tests`, insert:
+
+```yaml
+      # ERPNext P2: prove the served adapter-dispatch lane in CI (the money e2e itself is local-only —
+      # it needs the Docker v15 bench + 1Password creds, which are a dev-bed concern, not CI's). The CI
+      # gate is the non-ERPNext served-fn smoke (AC-ENA-001 boundary) through real Kong, proving the
+      # serve/health-gate recipe holds on an ephemeral runner. Money semantics run locally + via unit tests.
+      - name: Serve adapter-dispatch (served-fn lane smoke)
+        run: |
+          printf '%s\n' "$SUPABASE_SECRETS" > /tmp/fn-secrets.env
+          supabase functions serve adapter-dispatch --no-verify-jwt --env-file /tmp/fn-secrets.env >/tmp/functions-serve.log 2>&1 &
+          CLI_PID=$!
+          for i in $(seq 1 60); do curl -sf http://localhost:54321/functions/v1/health >/dev/null && break || sleep 2; done
+          curl -sf http://localhost:54321/functions/v1/health >/dev/null || { echo "functions did not become healthy"; cat /tmp/functions-serve.log; kill $CLI_PID; exit 1; }
+          # run the non-ERPNext served-fn smoke (no bench dependency)
+          cd pmo-portal && SUPABASE_FUNCTIONS_URL=http://localhost:54321 npx playwright test served-fn-smoke --project=chromium
+          kill $CLI_PID 2>/dev/null || true
+          docker rm -f supabase_edge_runtime_pmo-portal >/dev/null 2>&1 || true
+```
+
+`SUPABASE_SECRETS` is a GH secret (vault `AS`-sourced; the same `ERPNEXT_TEST_FAULTS` stays unset in CI so
+faults are inert). The full **ERPNext money e2e** (slices 3–7, `AC-ENA-040/050/051/052/053/061`) is
+**local-only** against the Docker v15 bench (`scripts/with-erpnext-lock.sh` + `scripts/serve-functions.sh`,
+creds in `~/Coding/frappe-docker-pmo/PMO-BENCH-NOTES.md`); its money-idempotency logic is additionally
+covered by the Vitest unit tests (1.4/2.x) that DO run in CI. So the CI lane is reproducible and
+bench-free, while every money AC still has an owning proof (unit in CI + served-fn locally).
+**Verify:** the `integration` job runs on the next PR→`main`; the served-fn smoke step is green in the run log.
 
 ### 0.4 — Docker v15 bench docs (the P2 dev bed)
 
@@ -270,16 +294,15 @@ context** (env off ⇒ no-op, byte-for-byte). Re-run 0.6 → GREEN.
 
 **File:** `pmo-portal/e2e/served-fn-smoke.spec.ts` (new). Proves the lane: serve bg → `POST
 /functions/v1/adapter-dispatch` (reference domain, no ERPNext) returns the typed 200/401 through Kong.
+This is the CI-gated proof (0.3 runs it) and the local dev proof (`scripts/serve-functions.sh`).
 **Verify:** `scripts/with-db-lock.sh scripts/serve-functions.sh -- npx playwright test served-fn-smoke` → green.
-
-### 0.9 — `scripts/next-migration-number.sh` collision guard
-
-**File:** `scripts/next-migration-number.sh` (new, executable). Prints the next free `NNNN`:
-`ls supabase/migrations | sort | tail -1 | cut -c1-4` + 1, zero-padded. Every migration task in slices 1–8
-calls it first. **Verify:** `scripts/next-migration-number.sh` → `0095`.
 
 **Slice 0 final gate:** `cd pmo-portal && npm run verify` (full) green; `scripts/with-db-lock.sh supabase
 test db` green; `scripts/with-db-lock.sh scripts/serve-functions.sh -- npx playwright test served-fn-smoke` green. No DB migration this slice ⇒ no pgTAP band beyond the existing suite.
+
+> *(Task 0.9 — the `scripts/next-migration-number.sh` collision guard — is **removed** per the Director
+> ruling: that guard is built in a separate session. Builders re-verify migration numbers manually with
+> `ls supabase/migrations | tail -3`, as the header note states. Slice 0 is now 0.1–0.8.)*
 
 ---
 
@@ -298,79 +321,135 @@ empty/cold ownership map, `createPurchaseRequest`/`createRfq`/`createPurchaseOrd
 call args). Also `companies` create/update. This is the single owning test for AC-ENA-001.
 **Verify (RED):** `cd pmo-portal && npx vitest run src/lib/repositories/procurement.external.test.ts` → fails (routing not yet generalized).
 
-### 1.2 — `idempotencyKey` on `AdapterCommand` (FR-ENA-040) — additive, P0/P1 ignore it
+### 1.2 — `idempotencyKey` on `AdapterCommand` (FR-ENA-040) — additive TYPE; server ENFORCES it for erpnext money
 
-**File:** `pmo-portal/src/lib/adapterSeam/contract.ts`. Add an optional field (P0/P1 never set it ⇒ their
-behavior is byte-for-byte unchanged):
+**File:** `pmo-portal/src/lib/adapterSeam/contract.ts`. Add an optional field — optional **in the type** so
+P0/P1 never set it ⇒ their behavior is byte-for-byte unchanged. (Enforcement is server-side at the
+dispatch boundary — task 1.5/6.4 — NOT in the shared type, so the P0/P1 reference/ClickUp paths that share
+this contract are untouched.)
 
 ```ts
 export interface AdapterCommand {
   domain: PmoDomain;
   operation: AdapterOperation;
   record: PmoRecord;
-  /** Client-generated per non-read-only ERPNext money command (FR-ENA-040). P0/P1 ignore it. */
+  /** Client-generated per non-read-only ERPNext money command (FR-ENA-040). P0/P1 ignore it.
+   *  REQUIRED for non-read-only `erpnext`-tier commands — enforced server-side in adapter-dispatch
+   *  (rejects a missing key as commit-rejected/missing-idempotency-key before the outbox is touched). */
   idempotencyKey?: string;
 }
 ```
 **Verify:** `cd pmo-portal && npm run typecheck` → 0 errors.
 
-### 1.3 — `routeDomainWrite(domain)` + `setDomainOwnership` (generalize ADR-0056 cache, FR-ENA-005)
+### 1.3 — RED+GREEN: `routeDomainWrite(domain)` (generalize ADR-0056 cache, FR-ENA-005)
 
-**File:** `pmo-portal/src/lib/adapterSeam/ownershipCache.ts`. Generalize the cache from tasks-only to any
-domain; keep `routeTaskWrite()` as `routeDomainWrite('tasks')` (P1 callers unchanged, byte-for-byte):
+**RED file:** `pmo-portal/src/lib/adapterSeam/ownershipCache.test.ts` (extend the existing P1 test).
+Add: `routeDomainWrite('procurement')` / `routeDomainWrite('companies')` return `'external'` when the
+map positively asserts that domain→some tier, and `'pmo'` on a cold/absent map (fail-closed,
+FR-ENA-005); the existing `routeTaskWrite()` assertions still pass (back-compat).
+**Verify (RED):** `cd pmo-portal && npx vitest run src/lib/adapterSeam/ownershipCache.test.ts` → fails
+(`routeDomainWrite` absent).
+
+**GREEN file:** `pmo-portal/src/lib/adapterSeam/ownershipCache.ts`. The shipped cache (`OwnershipMap =
+Record<domain, externalTier>`) is **already domain-keyed** — `setTaskOwnership` builds `{[domain]:
+externalTier}`, so generalization is the `routeDomainWrite(domain)` addition only (the setter is reused
+unchanged):
 
 ```ts
+import { routeWrite, type OwnershipMap, type WriteRoute } from './router.ts';
+
+export interface OwnershipRow { domain: string; externalTier: string; }
 let cache: OwnershipMap | null = null;
-export function setDomainOwnership(rows: readonly OwnershipRow[]): void { /* same as setTaskOwnership, keyed by domain */ }
+
+/** Build the caller's own-org ownership map (domain→tier) and cache it. Same body for every domain. */
+export function setTaskOwnership(rows: readonly OwnershipRow[]): void {
+  const map: Record<string, string> = {};
+  for (const row of rows) map[row.domain] = row.externalTier;
+  cache = map;
+}
+/** Alias naming the generalized intent (P1 callers keep `setTaskOwnership`); identical body. */
+export const setDomainOwnership = setTaskOwnership;
 export function clearOwnershipCache(): void { cache = null; }
-export function routeDomainWrite(domain: PmoDomain): WriteRoute { return cache ? routeWrite(domain, cache) : 'pmo'; }
-export const setTaskOwnership = setDomainOwnership;          // back-compat alias (P1)
-export function routeTaskWrite(): WriteRoute { return routeDomainWrite('tasks'); }  // back-compat (P1)
+
+/** Per-domain write route (ADR-0056 generalized). Fail-closed: null/absent map ⇒ 'pmo'. */
+export function routeDomainWrite(domain: string): WriteRoute {
+  return cache ? routeWrite(domain, cache) : 'pmo';
+}
+/** Back-compat (P1) — delegates to the generalized per-domain route. */
+export function routeTaskWrite(): WriteRoute { return routeDomainWrite('tasks'); }
 ```
-Add `setDomainOwnership` to the `useOwnershipCacheSync()` seed (C6) — it already loads own-org
-`external_domain_ownership`; feed all rows (not just `tasks`) into `setDomainOwnership`.
+Then in `useOwnershipCacheSync()` (C6): it already loads own-org `external_domain_ownership` rows and
+feeds them to `setTaskOwnership`; that seed now also covers `procurement`/`companies` because the map is
+domain-keyed (no extra call needed — confirm by assertion in the RED test). Re-run RED → GREEN.
 **Verify:** `cd pmo-portal && npx vitest run src/lib/adapterSeam/ownershipCache.test.ts` green (existing P1 tests unchanged).
 
-### 1.4 — RED: `dispatch.money.test.ts` — the outbox + atomic recovery (AC-ENA-012, FR-ENA-041/043)
+### 1.4 — RED: `dispatch.money.test.ts` — the outbox + atomic claim + recovery (AC-ENA-012, FR-ENA-041/043)
 
 **File:** `pmo-portal/src/lib/adapterSeam/dispatch.money.test.ts` (new). Pure unit tests with mocked
-outbox/adapter deps. Asserts the full state machine (ADR-0057):
-- fresh key → INSERT pending → commit → committed → mirror+ref → confirmed (happy path).
-- concurrent duplicate key → INSERT pending throws `23505` → re-read → reconcile to winner (no second commit).
-- `confirmed` retry → return stored result, **no ERP call**.
-- `committed` retry → finalize (mirror+ref) only, **no second commit**.
-- `pending` retry + probe finds doc → adopt (set external_id) → finalize; `pending` + probe empty → reissue.
-- `failed` retry → reissue create.
-- `commit-rejected` → mark `failed`, throw; `external-unreachable` → leave `pending`, throw.
+outbox/adapter deps (including a mocked `claimOutboxForCommit`). Asserts the full state machine
+(ADR-0057 §4) **and the impossible-by-construction claim guarantee**:
+- **server-side key enforcement** — a non-read-only `erpnext` command with no `idempotencyKey` is rejected
+  `commit-rejected`/`missing-idempotency-key` **before** any outbox/ERP call; a P0/P1-tier command with no
+  key still takes the non-money path (byte-for-byte).
+- fresh key → INSERT pending → **claim (pending→committing)** → POST → committed → mirror+ref → confirmed.
+- concurrent duplicate **insert** → INSERT pending throws `23505` → re-read → reconcile to winner.
+- **the reissue race is closed (the review's critical case):** two concurrent retries of the SAME key both
+  read `pending`, both probe (empty) — only the one whose `claimOutboxForCommit` mock returns the row
+  POSTs; the other's claim returns null → it does **not** POST (assert adapter.commit call count == 1),
+  re-reads, and finalizes to the winner's result. A `committing`-fresh row → no POST, re-read on backoff.
+- `confirmed` retry → return stored result, **no ERP call, no claim**.
+- `committed` retry → finalize (mirror+ref) only, **no second commit, no claim**.
+- `pending`/`failed`/stale-`committing` retry → **claim first** → probe finds doc → adopt → finalize;
+  probe empty → POST (claim winner only).
+- `commit-rejected` → mark `failed`, throw; `external-unreachable` → back to `pending`, throw.
 **Verify (RED):** `cd pmo-portal && npx vitest run src/lib/adapterSeam/dispatch.money.test.ts` → fails.
 
-### 1.5 — GREEN: `dispatchMoneyWrite(deps)` in `dispatch.ts` (the outbox guard + reconcile)
+### 1.5 — GREEN: `dispatchMoneyWrite(deps)` in `dispatch.ts` (server key guard + claim + reconcile)
 
-**File:** `pmo-portal/src/lib/adapterSeam/dispatch.ts`. Add `dispatchMoneyWrite(deps)` (pure, Deno-importable)
-alongside `dispatchExternallyOwnedWrite`. `DispatchMoneyDeps` extends the existing deps with
-`{ readOutbox, insertOutboxPending, markOutboxCommitted, markOutboxConfirmed, markOutboxFailed,
-probeByRemarksKey }`. `dispatchExternallyOwnedWrite` chooses: if `command.idempotencyKey` set →
-`dispatchMoneyWrite`; else the existing path (byte-for-byte for P0/P1). The reconcile algorithm is
-`reconcileOutbox(existing)` per ADR-0057 §Decision. Re-run 1.4 → GREEN.
+**File:** `pmo-portal/src/lib/adapterSeam/dispatch.ts`. Add `dispatchMoneyWrite(deps)` (pure,
+Deno-importable) alongside `dispatchExternallyOwnedWrite`. **Step 0 — server-side key enforcement**
+(FR-ENA-040): at the top of the served-dispatch path (the `adapter-dispatch` edge fn, task 6.4 wires it),
+`if (tier==='erpnext' && op!=='read' && !command.idempotencyKey) throw AdapterError('commit-rejected',
+'missing-idempotency-key')` — a key-less erpnext money command never reaches the outbox. P0/P1 (other
+tiers) are unaffected. `DispatchMoneyDeps` extends the existing deps with `{ readOutbox, insertOutboxPending,
+claimOutboxForCommit, markOutboxCommitted, markOutboxConfirmed, markOutboxFailed, probeByRemarksKey }`.
+`dispatchExternallyOwnedWrite` chooses: `erpnext`-tier non-read-only with key → `dispatchMoneyWrite`; else
+the existing path (byte-for-byte for P0/P1). The reconcile algorithm is `reconcileOutbox(existing)` per
+ADR-0057 §4: `confirmed`→return; `committed`→finalize-only; `committing`-fresh→backoff-re-read;
+`pending`/`failed`/stale-`committing`→**`claimOutboxForCommit(id)` first; only the winner (non-null return)
+probes→adopt-or-POST→mark; the loser (null) re-reads and reconciles, never POSTs**. Re-run 1.4 → GREEN.
 **Verify:** `cd pmo-portal && npx vitest run src/lib/adapterSeam/dispatch.money.test.ts` → passes.
 
 ### 1.6 — Multi-domain read-model writer registry + resolver (replaces the dispatch if-chain)
 
-**Files:** `supabase/functions/adapter-dispatch/readModelWriters.ts` (new) + edit `index.ts`. Replace the
-`writeReadModel` inline `if (domain===CLICKUP_TASKS_DOMAIN)` with `READ_MODEL_WRITERS[domain].upsert(...)`
-(a `Record<domain, {upsert, tombstone?}>`). ClickUp's `tasks` writer moves in verbatim; ERPNext's
-`companies`/`procurement` writers register in their slices. Add `resolveExternalRef(serviceClient, orgId,
-domain, pmoRecordId)→externalId|null` + reverse `findPmoRecordId(…)` (multi-domain; the P1 single-domain
-`resolveExternalId` in `clickup/dispatchFactory.ts` delegates to it). `external_refs` already has
-`unique(org_id,domain,external_record_id)` (0093) — AC-ENA-054's guard is already live; this task only adds the read path.
-**Verify:** `cd pmo-portal && npm run typecheck && cd supabase/functions/adapter-dispatch && deno check index.ts` clean; existing ClickUp dispatch tests green.
+**RED file:** `supabase/functions/adapter-dispatch/readModelWriters.test.ts` (new, Deno test). Asserts:
+`READ_MODEL_WRITERS['tasks'].upsert(…)` writes a task row (the moved ClickUp writer, byte-for-byte); an
+unknown domain → throws (no silent skip); `resolveExternalRef(svc, org, 'tasks', pmoId)` returns the
+`external_refs` external id and `null` when absent; `findPmoRecordId(…)` is the exact reverse.
+**Verify (RED):** `cd supabase/functions/adapter-dispatch && deno test readModelWriters.test.ts` → fails.
+
+**GREEN files:** `supabase/functions/adapter-dispatch/readModelWriters.ts` (new) + edit `index.ts`. Replace
+the `writeReadModel` inline `if (domain===CLICKUP_TASKS_DOMAIN)` with `READ_MODEL_WRITERS[domain].upsert(...)`
+(`Record<domain, {upsert, tombstone?}>`; unknown-domain throws). ClickUp's `tasks` writer moves in
+verbatim; ERPNext's `companies`/`procurement` writers register in their slices (stub
+`{upsert:()=>{}}` here is fine — no flip ⇒ never called, and the unknown-domain throw still fires for
+truly-unmapped domains). Add `resolveExternalRef(serviceClient, orgId, domain, pmoRecordId)→externalId|null`
++ reverse `findPmoRecordId(…)` (multi-domain; the P1 single-domain `resolveExternalId` in
+`clickup/dispatchFactory.ts` delegates to it). `external_refs` already has
+`unique(org_id,domain,external_record_id)` (0093) — AC-ENA-054's guard is already live; this task only adds
+the read path. Re-run RED → GREEN.
+**Verify:** `cd pmo-portal && npm run typecheck && cd supabase/functions/adapter-dispatch && deno check index.ts && deno test readModelWriters.test.ts` clean/green; existing ClickUp dispatch tests green.
 
 ### 1.7 — RED: `external_command_outbox` + `external_ref_lineage` pgTAP (AC-ENA-012)
 
 **File:** `supabase/tests/external_command_outbox_rls.test.sql` (new). Mirror the
 `external_refs_rls.test.sql` idiom. Asserts: the `unique (org_id, domain, pmo_record_id,
 idempotency_key)` rejects a concurrent duplicate (`throws_ok … '23505'`); org-isolated SELECT;
-service-role-only write; the `state` CHECK (`pending|committed|confirmed|failed`).
+service-role-only write; the `state` CHECK now includes the **`committing`** claim state
+(`pending|committing|committed|confirmed|failed`); and **the atomic claim is at-most-once** — seed a
+`pending` row, call `public.claim_outbox_for_commit(id)` twice in succession: the first returns the row
+(now `committing`), the second returns `NULL` (state is `committing`, `updated_at` fresh) — proving two
+concurrent reconcilers cannot both win the POST critical section (the review's critical case).
 **Verify (RED):** `scripts/with-db-lock.sh supabase test db -- -f external_command_outbox_rls` → fails (table absent).
 
 ### 1.8 — GREEN: migration `0095_erpnext_seam_tables.sql` (re-verify number first)
@@ -406,7 +485,7 @@ create table public.external_command_outbox (
   idempotency_key     text not null,
   external_tier       text not null,
   operation           text not null check (operation in ('create','update','transition')),
-  state               text not null check (state in ('pending','committed','confirmed','failed')),
+  state               text not null check (state in ('pending','committing','committed','confirmed','failed')),
   external_record_id  text,
   payload_digest      text,
   attempt_count       int not null default 0,
@@ -429,11 +508,44 @@ create table public.external_ref_lineage (
   at                              timestamptz not null default now()
 );
 create index external_ref_lineage_lookup_idx on public.external_ref_lineage (org_id, domain, superseded_external_record_id);
+
+-- The atomic commit claim (ADR-0057 §2): the ONLY gate from (pending|failed|stale-committing) → committing.
+-- Mirrors the 0078 durable-claim discipline (at-most-once in the DB) + 0077 txn-serialization intent. A
+-- conditional UPDATE under Postgres' row lock: two concurrent claims serialize, only the winner transitions
+-- and RETURNs the row; the loser's UPDATE matches 0 rows (state 'committing', updated_at fresh) → NULL. A
+-- 'committing' row past p_lease is re-claimable (recovers a process that died holding the claim). SECURITY
+-- DEFINER so the policy-less outbox is touched only here + by service_role.
+create or replace function public.claim_outbox_for_commit(
+  p_id uuid, p_lease interval default interval '60 seconds'
+) returns public.external_command_outbox
+  language plpgsql security definer set search_path = public as $$
+  declare v public.external_command_outbox;
+  begin
+    update public.external_command_outbox
+       set state='committing', attempt_count = attempt_count + 1, updated_at = now()
+     where id = p_id
+       and ( state in ('pending','failed')
+             or (state='committing' and updated_at < now() - p_lease) )
+    returning * into v;
+    return v;
+  end; $$;
+-- Reconciler select helper (sweep + retry): the rows a given caller may need to reconcile for an org.
+create or replace function public.outbox_reconcile_candidates(p_org_id uuid)
+  returns setof public.external_command_outbox
+  language sql security definer set search_path = public as $$
+  select * from public.external_command_outbox
+   where org_id = p_org_id
+     and state in ('pending','failed','committed')
+      or (state='committing' and updated_at < now() - interval '60 seconds');
+  $$;
 ```
 Each table: `enable row level security; force row level security;` + `create policy … for select using
 (org_id = public.auth_org_id() and public.is_active_member());` (service-role writes bypass RLS by
 construction) + `grant select to authenticated, anon;`. Add `stamp_org_id()` trigger per table (0074
-pattern). Re-run 1.7 → GREEN.
+pattern). The two outbox RPCs (`claim_outbox_for_commit`, `outbox_reconcile_candidates`) are SECURITY
+DEFINER owned by `postgres` — they are the only non-service-role path to the outbox, and both are
+claim/reconcile-only (never a free write). **Reversal block must `drop function … claim_outbox_for_commit;
+drop function … outbox_reconcile_candidates;` before `drop table`** (reverse order). Re-run 1.7 → GREEN.
 **Verify:** `scripts/with-db-lock.sh supabase test db -- -f external_command_outbox_rls` → passes; `scripts/with-db-lock.sh supabase db reset` clean.
 
 ### 1.9 — RED: `external_refs_adopt_unique.test.sql` (AC-ENA-054 — proves the reused 0093 constraint for the new domains)
@@ -444,28 +556,61 @@ pattern). Re-run 1.7 → GREEN.
 **Verify (RED → GREEN immediately):** the `unique(org_id,domain,external_record_id)` from 0093 already
 enforces it — this is the proof, so it goes green once written.
 
-### 1.10 — `repositories/procurement.ts` routing (wires the invariant path; external stays unflipped)
+### 1.10 — Repository-seam routing (wires the invariant path; external stays unflipped)
 
-**File:** `pmo-portal/src/lib/repositories/procurement.ts` (extend the existing repository). Each create*
-/transition method: `if (routeDomainWrite('procurement') === 'external') return dispatchDomainCommand(…);
-else <existing RPC call>`. Because no org is flipped, every call takes the `else` (byte-for-byte). Same for
-`repositories/company.ts` (`routeDomainWrite('companies')`). `dispatchDomainCommand` POSTs
-`functions/v1/adapter-dispatch` (the `dispatchClient.ts` already exists from P0). Re-run 1.1 → GREEN (AC-ENA-001).
+**File:** `pmo-portal/src/lib/repositories/index.ts` (the single repository assembler — there is **no**
+`repositories/procurement.ts` or `repositories/company.ts`; the seam assembles `repositories.procurement.*`
+and `repositories.company.*` as thin `wrap(() => <DAL>(…))` wrappers). Add the routing guard inside each
+write method of the `procurement` and `company` consts, **before** the existing `wrap(() => …)` call, so a
+non-flipped org takes the unchanged DAL path byte-for-byte:
+
+```ts
+// procurement const — each create/transition method (the underlying DAL fns live in db/*):
+//   createPurchaseRequest/createRfq/createPurchaseOrder/createPayment → db/procurementRecords.ts
+//   createQuotation/createReceipt/createInvoice/transitionProcurement → db/procurementLifecycle.ts
+createPurchaseRequest: (procurementId, referenceNumber, status, date, amount) =>
+  routeDomainWrite('procurement') === 'external'
+    ? dispatchDomainCommand('procurement', 'create', { procurementId, referenceNumber, status, date, amount, erp_doc_kind: 'purchase-request' })
+    : wrap(() => createPurchaseRequest(procurementId, referenceNumber, status, date, amount)),
+// …same guard shape for createRfq/createPurchaseOrder/createPayment (procurementRecords.ts),
+//   createQuotation/createReceipt/createInvoice/transition (procurementLifecycle.ts) —
+//   each passes the PMO-side erp_doc_kind discriminator ONLY on the external branch.
+// company const — create/update (DAL fns in db/companies.ts):
+create: (input) =>
+  routeDomainWrite('companies') === 'external'
+    ? dispatchDomainCommand('companies', 'create', { ...input, erp_doc_kind: 'supplier' })
+    : wrap(() => createCompany(input)),
+```
+
+Because no org is flipped, every call takes the `else` (byte-for-byte). `dispatchDomainCommand` POSTs
+`functions/v1/adapter-dispatch` via the existing `dispatchClient.ts` (P0). The 1.1 test targets
+`repositories.procurement.*`/`repositories.company.*` from this file. Re-run 1.1 → GREEN (AC-ENA-001).
 **Verify:** `cd pmo-portal && npx vitest run src/lib/repositories/procurement.external.test.ts` → passes.
 
-### 1.11 — `dispatchDomainCommand` + `dispatchClient` typed for `idempotencyKey`
+### 1.11 — `dispatchDomainCommand` + `dispatchClient` typed for `idempotencyKey`; repositories mint keys
 
 **File:** `pmo-portal/src/lib/adapterSeam/dispatchClient.ts`. Extend the POST body type to include the
-optional `idempotencyKey`; the procurement/company repositories mint one per non-read-only money command
-(`crypto.randomUUID()`). **Verify:** `cd pmo-portal && npm run typecheck` → 0 errors.
+optional `idempotencyKey`. Then in `pmo-portal/src/lib/repositories/index.ts` (1.10), the **external**
+branch of each non-read-only procurement/company method mints one — `dispatchDomainCommand(domain, op,
+{ …record, erp_doc_kind }, { idempotencyKey: crypto.randomUUID() })` — because the served dispatch
+**enforces** a key for erpnext money commands (1.5/6.4: a missing key is rejected
+`commit-rejected`/`missing-idempotency-key` before the outbox is touched). P0/P1 paths never mint a key
+(byte-for-byte). **Verify:** `cd pmo-portal && npm run typecheck` → 0 errors.
 
 ### 1.12 — Hoist `applyInboundChange` + `runSweep` to `adapterSeam/` (reuse for ERPNext, slice 8)
 
-**Files:** `pmo-portal/src/lib/adapterSeam/applyEngine.ts` (new) — move `applyInboundChange`,
+**RED file:** `pmo-portal/src/lib/adapterSeam/applyEngine.test.ts` (new). Parameterize the existing P1
+assertions by `(tier, domain)`: `applyInboundChange({tier:'clickup',domain:'tasks'}, evt)` behaves
+byte-for-byte as the P1 `clickup/webhookApply.ts` path; `advanceWatermarkMonotonic` never rewinds;
+`runSweep({tier,domain,tableWriter})` applies each change through the writer. ERPNext is exercised in slice 8.
+**Verify (RED):** `cd pmo-portal && npx vitest run src/lib/adapterSeam/applyEngine.test.ts` → fails.
+
+**GREEN files:** `pmo-portal/src/lib/adapterSeam/applyEngine.ts` (new) — move `applyInboundChange`,
 `advanceWatermarkMonotonic`, `runSweep` from `clickup/{webhookApply,sweep}.ts` parameterized by
-`(tier, domain, maps?)`; `clickup/**` re-exports them (thin wrappers passing `'clickup'`/`'tasks'`/maps) so
-P1 tests stay byte-for-byte. ERPNext imports them in slice 8. **Verify:** `cd pmo-portal && npx vitest run
-src/lib/adapterSeam/clickup/` → all P1 tests still green.
+`(tier, domain, tableWriter, maps?)`; `clickup/**` re-exports them as thin wrappers passing
+`{tier:'clickup',domain:'tasks',…}` so P1 tests stay byte-for-byte. ERPNext imports them in slice 8. Re-run
+RED → GREEN; then `cd pmo-portal && npx vitest run src/lib/adapterSeam/clickup/` → all P1 tests still green.
+**Verify:** both green.
 
 ### 1.13 — ADR-0057 (the money-idempotency outbox + atomic recovery)
 
@@ -532,12 +677,34 @@ boundary, never here — this module receives the resolved `{apiKey, apiSecret, 
 ### 2.5 — `erpnext/doctypeRegistry.ts` (the internal `(domain,kind,op)→doctype` map, FR-ENA-014)
 
 **File:** `pmo-portal/src/lib/adapterSeam/erpnext/doctypeRegistry.ts` (new). The one place Frappe doctype
-names live (confinement). Entries (the R9-frozen bodies fold into the `toBody` fns in 2.6–2.10):
+names live (confinement). This task ships the **complete static table** (doctype name + flags) —
+`toBody`/`fromDoc` are added by the named tasks below (2.6–2.7 + slice 3), so no placeholder appears:
 
 ```ts
-export type ErpDocKind = 'purchase-request'|'rfq'|'quotation'|'purchase-order'|'goods-receipt'|'purchase-invoice'|'payment'|'supplier'|'customer';
-export interface DoctypeEntry { doctype: string; toBody: (rec: PmoRecord, ctx: ErpCtx) => unknown; fromDoc: (doc: unknown) => PmoRecord; submittable: boolean; readOnly?: boolean; }
-export const DOCTYPE_REGISTRY: Record<ErpDocKind, DoctypeEntry> = { /* filled 2.6–2.10 + slice 3 */ };
+import type { PmoRecord } from '../../contract.ts';
+export type ErpDocKind =
+  | 'purchase-request' | 'rfq' | 'quotation' | 'purchase-order'
+  | 'goods-receipt' | 'purchase-invoice' | 'payment' | 'supplier' | 'customer';
+export interface ErpCtx { refs: Record<string, string|null>; config: Record<string, unknown>; }
+export interface DoctypeEntry {
+  doctype: string; submittable: boolean; readOnly?: boolean;
+  toBody: (rec: PmoRecord, ctx: ErpCtx) => unknown;   // assigned per entry by 2.7 (money) + slice 3 (parties)
+  fromDoc: (doc: unknown) => PmoRecord;               // assigned per entry by 2.7 + slice 3
+}
+// The static registry — Frappe doctype names confined HERE. `submittable` drives the two-step create→submit.
+export const DOCTYPE_REGISTRY: Record<ErpDocKind, Pick<DoctypeEntry,'doctype'|'submittable'|'readOnly'>> = {
+  'purchase-request': { doctype: 'Material Request',     submittable: true  },
+  'rfq':              { doctype: 'Request for Quotation', submittable: true  },
+  'quotation':        { doctype: 'Supplier Quotation',   submittable: true  },
+  'purchase-order':   { doctype: 'Purchase Order',       submittable: true  },
+  'goods-receipt':    { doctype: 'Purchase Receipt',     submittable: true  },
+  'purchase-invoice': { doctype: 'Purchase Invoice',     submittable: true  },
+  'payment':          { doctype: 'Payment Entry',        submittable: true  },
+  'supplier':         { doctype: 'Supplier',             submittable: false },
+  'customer':         { doctype: 'Customer',             submittable: false }, // write scope settled in slice 3 (OQ-4)
+};
+// 2.7 + slice 3 attach each entry's toBody/fromDoc via a side table DOCTYPE_BODIES: Record<ErpDocKind, {toBody,fromDoc}>
+// merged into the adapter at commit time — keeping this file the single source of Frappe names.
 ```
 **Verify:** `cd pmo-portal && npm run typecheck` clean.
 
@@ -679,26 +846,46 @@ Customer: **no write beyond party create/update** (OQ-4). Contacts: read-only mi
 (`first_name/last_name→full_name`, `email_id→email`, `phone→phone`, link `company_id`) — FR-ENA-095, no
 write command. **Verify:** typecheck + unit tests.
 
-### 3.4 — RED: companies/contacts flip pgTAP (AC-ENA-003/072 companies)
+### 3.4 — RED: companies/contacts flip pgTAP — **§7 per-table proof** (references AC-ENA-072; does NOT own it)
 
-**File:** `supabase/tests/erpnext_companies_flip_rls.test.sql` (new). Seed org A
-(`companies`→`erpnext`) + org B (not flipped). Asserts: org-A user-JWT `INSERT`/`UPDATE` of a native
-mirror col (`name`,`type`,`erp_supplier_name`) → `42501`; org-A service-role write → `lives_ok`; org-A user
-`UPDATE` of `archived_at` (enhancement) → `lives_ok`; org-B user native write → `lives_ok` (byte-for-byte).
+**File:** `supabase/tests/erpnext_companies_flip_rls.test.sql` (new — the spec §7-mandated per-table proof for
+`companies` + `contacts`). Seed org A (`companies`→`erpnext`) + org B (not flipped). Asserts the §7 row
+for these two tables: org-A user-JWT `INSERT`/`UPDATE` of a native mirror col (`name`,`type`,
+`erp_supplier_name`,`erp_customer_name`,`erp_tax_id`,`erp_payment_terms_days`) → `42501`; org-A
+service-role write → `lives_ok`; org-A user `UPDATE` of `archived_at` (enhancement) → `lives_ok`;
+`Internal`-type row never flipped (user write still `lives_ok`); org-B user native write → `lives_ok`
+(byte-for-byte); contacts native (`full_name`/`email`/`phone`) user write → `42501`, enhancement
+(`title`/`notes`/`archived_at`) user write → `lives_ok`. **AC ownership note:** this file is the §7
+per-table proof — the single OWNER of AC-ENA-003 is `erpnext_procurement_flip_rls.test.sql` (slice 4) and
+the single OWNER of AC-ENA-072 is `erpnext_money_flip_rls.test.sql` (slice 6); this file's leading
+comment REFERENCES both (so `grep AC-ENA-072` finds it) but the slice-3 gate does not re-own them.
 **Verify (RED):** fails.
 
-### 3.5 — GREEN: migration `0096_companies_contacts_erpnext_flip.sql`
+### 3.5 — GREEN: migration `0096_companies_contacts_erpnext_flip.sql` (per-§7 enumeration)
 
-**File:** `supabase/migrations/0096_companies_contacts_erpnext_flip.sql` (re-verify number). Add the
-`companies` mirror cols (`erp_party_type`, `erp_supplier_name`, `erp_customer_name`, `erp_tax_id`,
-`erp_payment_terms_days`, `erp_cancelled_at`) + `contacts` mirror behavior (no new cols beyond reusing
-`full_name`/`email`/`phone`; `archived_at`/`title`/`notes` stay enhancement). Per-command RLS split
-following the **0093 template** (INSERT/UPDATE/DELETE gated on `not
-domain_externally_owned(auth_org_id(),'companies')` for native cols; enhancement cols stay permissive;
-service-role bypass on the trigger gated `service_role` claim + `domain_externally_owned`). Add the reversal
-block. `stamp_org_id()`/`companies_stamp_org_id` (0074) override null/seed only — **state this per table**
-(FR-ENA-171); no new trigger needed for `contacts` (0030 + 0074's blanket hardening both override null/seed
-only — confirmed). Re-run 3.4 → GREEN.
+**File:** `supabase/migrations/0096_companies_contacts_erpnext_flip.sql` (re-verify number). Mirrors the
+**0093 per-command-RLS template**; each table below is enumerated per spec §7 (native / enhancement /
+trigger / grant / pgTAP).
+
+**`companies`** — add mirror cols `erp_party_type text`, `erp_supplier_name text`, `erp_customer_name
+text`, `erp_tax_id text`, `erp_payment_terms_days int`, `erp_cancelled_at timestamptz`. Native mirrored
+(§7): `name`, `type` (Vendor/Client only), + the six new `erp_*` cols. PMO-owned enhancement (§7):
+`archived_at`; `Internal`-type rows never flipped. RLS: split the shipped `companies_write` (0002) into
+INSERT/UPDATE/DELETE gated `... and not domain_externally_owned(auth_org_id(),'companies')` **for native
+cols** (a trigger `companies_native_mirror_guard` raises `42501` if a user JWT sets a native col while
+flipped — the 0093 `enforce_assignee_status_only` pattern, column-pinned to the `erp_*`+`name`+`type`
+set); `archived_at` UPDATE stays permissive. Trigger (FR-ENA-171): `companies_stamp_org_id` (0074)
+overrides null/seed org only — safe; the dispatch sets `org_id` explicitly; **state this in a comment**.
+Grant: `authenticated`/`anon` keep SELECT+enhancement-write; service_role bypasses RLS. Reversal block.
+
+**`contacts`** — no new mirror cols (§7: reuse `full_name`/`email`/`phone` from ERP `Contact`, link
+`company_id`). PMO-owned enhancement: `archived_at`, `title`, `notes` (no ERP `Contact` equivalent mirrored
+in P2 — FR-ENA-095). RLS: split `contacts_write` (0030) the same way — native (`full_name`/`email`/`phone`/
+`company_id`) user-write gated `... and not domain_externally_owned(auth_org_id(),'companies')` via a
+`contacts_native_mirror_guard` trigger; enhancement cols stay permissive. Trigger (FR-ENA-171): `contacts`
+shipped (0030) with **no dedicated stamp trigger**; `contacts_stamp_org_id` (0074's 42-table blanket
+hardening) overrides null/seed org only — safe; **the flip adds NO new trigger** (state this). Grant: as
+shipped. Reversal block. Re-run 3.4 → GREEN.
 **Verify:** `scripts/with-db-lock.sh supabase test db -- -f erpnext_companies_flip_rls` passes; `db reset` clean.
 
 ### 3.6 — Register `companies` read-model writer + resolver
@@ -717,15 +904,24 @@ PMO → POST `adapter-dispatch` → ERPNext `Supplier` created (body `{supplier_
 Assert ERP-side `GET /api/resource/Supplier/<name>` exists. **Verify:** `scripts/with-db-lock.sh
 scripts/with-erpnext-lock.sh scripts/serve-functions.sh -- npx playwright test AC-ENA-040` → green.
 
-### 3.8–3.12 — FE wiring + pull-adopt onboarding + contacts read + gates
+### 3.8–3.12 — FE wiring + pull-adopt onboarding + contacts read + gates (atomic)
 
-**3.8** `repositories/company.ts`: route create/update on `routeDomainWrite('companies')` (slice 1.10
-already stubbed; fill the dispatch payload). **3.9** `erpnext-onboard`-style pull-adopt edge fn
-(`supabase/functions/erpnext-onboard/index.ts`) — enumerate ERP Supplier/Customer → `adoptParty` (idempotent).
-**3.10** Contacts read mirror in the sweep (slice 8 wires the full feed; here the read path is proven).
-**3.11** Confirm `Internal`-type companies are never flipped (policy guard in the adapter). **3.12** Full
-slice gate.
-**Verify each:** unit/e2e green.
+**3.8 (RED+GREEN, finding-3 path fix)** `pmo-portal/src/lib/repositories/index.ts` — fill the **external**
+branch of the `company.create`/`company.update` methods (1.10 left the shape; here the dispatch payload is
+complete with `erp_doc_kind:'supplier'`/`'customer'` + a minted `idempotencyKey`). RED:
+`src/lib/repositories/procurement.external.test.ts` extended to assert a flipped org routes
+`company.create`→`dispatchDomainCommand` (mocked) and a non-flipped org still calls `createCompany`
+(`db/companies.ts`). GREEN: the branch. **Verify:** `npx vitest run src/lib/repositories/procurement.external.test.ts`.
+**3.9 (RED+GREEN)** `supabase/functions/erpnext-onboard/index.ts` (new) — RED `index.test.ts` (Deno):
+enumerating ERP Supplier/Customer → `adoptParty` is idempotent (two runs ⇒ one mirror + one
+`external_refs`). GREEN: the fn calls `adoptParty` per party. **Verify:** `deno test erpnext-onboard/index.test.ts`.
+**3.10 (RED+GREEN)** Contacts read mirror — RED `contactsMirror.test.ts`: a `Contact` webhook/sweep event
+upserts `{full_name,email,phone,company_id}` (native) and never overwrites `title`/`notes`/`archived_at`.
+GREEN: the contacts writer registered in `readModelWriters` (slice 1.6). **Verify:** `npx vitest run … contactsMirror`.
+**3.11 (RED+GREEN)** `Internal`-type never flipped — RED `partyAdopt.test.ts` extended: `adoptParty` for an
+`Internal`-shaped source throws `config-rejected`. GREEN: the guard in `partyAdopt.ts`. **Verify:** unit green.
+**3.12 (gate)** Full slice gate.
+**Verify:** `npm run verify` (full) + `with-db-lock supabase test db` + the AC-ENA-040 served-fn e2e.
 
 **Slice 3 final gate:** `npm run verify` (full) + `with-db-lock supabase test db` + the AC-ENA-040 served-fn e2e.
 
@@ -736,24 +932,47 @@ slice gate.
 **Goal:** the first procurement sub-doctypes with the transition op; prove the one-selected invariant
 survives the flip; procurement_items + 3 record tables flip. AC-ENA-003(procurement)/050/051.
 
-### 4.1 — RED: procurement_items + purchase_requests/rfqs/quotations flip pgTAP (AC-ENA-003/072 procurement)
+### 4.1 — RED: procurement flip pgTAP — **OWNS AC-ENA-003** (org-scoped procurement flip) + §7 per-table proof
 
-**File:** `supabase/tests/erpnext_procurement_flip_rls.test.sql` (new). Mirrors 3.4 for the procurement
-record tables + items. Critical item: `procurement_items.amount` (GENERATED) is **never** service-role
-written — assert a service-role write that sets `erp_line_amount` (NOT `amount`) → `lives_ok`, and the
-generated `amount` is unaffected; a user native write → `42501`. Assert `procurement_quotations.is_selected`
-stays user-writable + the `procurement_quotations_one_selected_idx` intact under flip.
+**File:** `supabase/tests/erpnext_procurement_flip_rls.test.sql` (new — the spec §9-named OWNER of
+**AC-ENA-003** + the §7 per-table proof for `procurement_items`/`purchase_requests`/`rfqs`/
+`procurement_quotations`). **AC-ENA-003 (the owner):** Given org A `procurement`→`erpnext` and org B not
+flipped, a delivery-role member of org B performing a native procurement write (`createPurchaseRequest`
+path) succeeds via the direct DAL (org B byte-for-byte pre-P2); the same write in org A is RLS-denied on
+native cols. **§7 per-table proofs:**
+- `procurement_items`: service-role write setting `erp_line_amount` (NOT `amount`) → `lives_ok` and the
+  GENERATED `amount` is unaffected (FR-ENA-071); a user native write to `quantity`/`rate`/`erp_line_amount`
+  → `42501`.
+- `purchase_requests`/`rfqs`: user native write (`pr_number`/`amount`/`erp_*`) → `42501`; service-role
+  → `lives_ok`; `status` CHECK preserved; org-isolated.
+- `procurement_quotations`: native (`total_amount`/`vq_number`/`erp_*`) user write → `42501`; **enhancement
+  `is_selected` stays user-writable**; `procurement_quotations_one_selected_idx` intact under flip.
+- `procurements` (case aggregate): **stays user-writable even when `procurement` is externally-owned**
+  (the case folder is PMO's — FR-ENA-073/101).
+This file REFERENCES AC-ENA-072 in its leading comment but does NOT own it (owner = slice 6
+`erpnext_money_flip_rls.test.sql`).
 **Verify (RED):** fails.
 
-### 4.2 — GREEN: migration `0097_procurement_items_pr_rfq_sq_flip.sql`
+### 4.2 — GREEN: migration `0097_procurement_items_pr_rfq_sq_flip.sql` (per-§7 enumeration)
 
-**File:** `supabase/migrations/0097_…` (re-verify number). Add to `procurement_items`: `erp_line_amount
-numeric(14,2)`, `erp_docstatus smallint`, `erp_modified text`, `erp_amended_from text`, `erp_cancelled_at
-timestamptz`. Add the `erp_*` mirror cols to `purchase_requests`, `rfqs`, `procurement_quotations`. Per
-0093-template RLS: native mirror cols machine-only under `domain_externally_owned(…,'procurement')`;
-`procurement_quotations.is_selected` + `procurements` (case aggregate) stay user-writable
-(FR-ENA-101/130/170). **`procurement_items.amount` is GENERATED — never add it to any service-role
-write** (FR-ENA-071). Reversal block. Re-run 4.1 → GREEN.
+**File:** `supabase/migrations/0097_procurement_items_pr_rfq_sq_flip.sql` (re-verify number). 0093-template
+per-command RLS; per spec §7:
+- **`procurement_items`** — add `erp_line_amount numeric(14,2)` (the ERP line oracle — FR-ENA-071),
+  `erp_docstatus smallint`, `erp_modified text`, `erp_amended_from text`, `erp_cancelled_at timestamptz`.
+  Native mirrored: `quantity`,`rate`,`erp_line_amount`,`erp_docstatus`,`erp_modified` (+ the new cols).
+  PMO-owned: `name`. Trigger (FR-ENA-171): `procurement_items_stamp_org` (parent-inherit 0015) +
+  `_stamp_org_id` (0074) override null/seed only — safe; **`amount` GENERATED — never in any service-role
+  write** (state this). A `procurement_items_native_mirror_guard` trigger raises `42501` on user native
+  writes while flipped.
+- **`purchase_requests`** / **`rfqs`** — add `erp_docstatus`,`erp_modified`,`erp_amended_from`,
+  `erp_cancelled_at`. Native: `pr_number`/`rfq_number`,`reference_number`,`amount`,`date`,`erp_*`. Trigger:
+  `purchase_requests_stamp_org`/`rfqs_stamp_org` (0035) + `_stamp_org_id` (0074) safe (state this). Native
+  user-write gated; `status` CHECK preserved.
+- **`procurement_quotations`** — add the same `erp_*` cols. Native: `total_amount`,`valid_until`,`rfq_id`,
+  `vq_number`,`reference`,`received_date`,`erp_*`. **PMO-owned enhancement `is_selected` (+ the
+  one-selected unique index) stays user-writable** (FR-ENA-130). Trigger: `procurement_quotations_stamp_org_id` safe.
+Grant: `authenticated`/`anon` keep SELECT+enhancement-write; service_role bypasses. Reversal block.
+Re-run 4.1 → GREEN.
 **Verify:** pgTAP passes; `db reset` clean.
 
 ### 4.3 — `materialRequest`/`rfq`/`supplierQuotation` registry wiring (R9 bodies from 2.7)
@@ -785,12 +1004,19 @@ Real boundary: one RFQ + two Supplier Quotations pushed; select one in PMO → E
 `procurement_quotations.total_amount` mirrors ERP `grand_total`, **exactly one** `is_selected=true` per
 `procurement_id` (`procurement_quotations_one_selected_idx` intact). **Verify:** green.
 
-### 4.8–4.11 — FE routing for procurement record creates + the invariant gate
+### 4.8–4.11 — FE routing for procurement record creates + the invariant gate (atomic; finding-3 path fix)
 
-**4.8** `repositories/procurement.ts` create* methods route on `routeDomainWrite('procurement')` (slice
-1.10 stub; fill dispatch payloads with `erp_doc_kind`). **4.9** Confirm `transition_procurement` RPC stays
-the PMO path (case aggregate status is PMO-derived, FR-ENA-101). **4.10** Adapter derives record-table
-`status` CHECK from `erp_docstatus` (Draft/Submitted/…). **4.11** Full slice gate.
+**4.8 (RED+GREEN)** `pmo-portal/src/lib/repositories/index.ts` — fill the **external** branch of the
+`procurement.createPurchaseRequest`/`createRfq`/`createPurchaseOrder`/`createPayment` methods (DAL fns in
+`db/procurementRecords.ts`) + `createQuotation`/`createReceipt`/`createInvoice` (`db/procurementLifecycle.ts`):
+each external branch carries the `erp_doc_kind` + a minted `idempotencyKey`. RED: the 1.1 test extended to
+assert a flipped org routes these to `dispatchDomainCommand`; non-flipped still calls the DAL byte-for-byte.
+GREEN: the branches. **Verify:** `npx vitest run src/lib/repositories/procurement.external.test.ts`.
+**4.9 (assert)** `transition_procurement` RPC stays the PMO path — case aggregate status is PMO-derived
+(FR-ENA-101); a pgTAP assertion confirms `procurements` stays user-writable under flip (part of 4.1).
+**4.10 (RED+GREEN)** Adapter derives each record-table `status` CHECK value from `erp_docstatus`
+(Draft/Submitted/Cancelled). RED `doctypeRegistry.status.test.ts`; GREEN the mapper. **Verify:** unit green.
+**4.11 (gate)** Full slice gate.
 **Verify:** `npm run verify` + pgTAP + the two served-fn e2e.
 
 ---
@@ -799,11 +1025,21 @@ the PMO path (case aggregate status is PMO-derived, FR-ENA-101). **4.10** Adapte
 
 **Goal:** PO + GR with cross-doctype ref resolution incl. the **PO item child-row `name`**. AC-ENA-052.
 
-### 5.1 — RED+GREEN: pgTAP `erpnext_po_receipts_flip_rls.test.sql` + migration `0098_purchase_orders_receipts_flip.sql`
+### 5.1 — RED+GREEN: pgTAP `erpnext_po_receipts_flip_rls.test.sql` + migration `0098_purchase_orders_receipts_flip.sql` (per-§7)
 
-Mirror 4.1/4.2 for `purchase_orders` + `procurement_receipts`. Native mirror cols (`po_number`, `amount`,
-`gr_number`, `receipt_date`, `reference_number`, `po_id`, `erp_*`) machine-only; `po_id` FK preserved
-(FR-ENA-130c). Reversal block. **Verify:** pgTAP green; `db reset` clean.
+**RED file** `supabase/tests/erpnext_po_receipts_flip_rls.test.sql` (new — §7 per-table proof, REFERENCES
+AC-ENA-072; does not own it). Per spec §7:
+- **`purchase_orders`** — native mirrored: `po_number`,`reference_number`,`amount`,`date`,`erp_*`
+  (`erp_docstatus`,`erp_modified`,`erp_amended_from`,`erp_cancelled_at`). User native write → `42501`;
+  service-role → `lives_ok`; `status` CHECK preserved; org-isolated. Trigger: `purchase_orders_stamp_org`
+  (0035) + `_stamp_org_id` (0074) override null/seed only — safe (state this).
+- **`procurement_receipts`** — native mirrored: `gr_number`,`receipt_date`,`reference_number`,`po_id`,
+  `erp_*`. User native write → `42501`; service-role → `lives_ok`; **`po_id` FK preserved (FR-ENA-130c)**;
+  `procurement_receipt_status` enum derived. Trigger: `procurement_receipts_stamp_org_id` safe.
+**GREEN migration** `0098_purchase_orders_receipts_flip.sql` (re-verify number): add the `erp_*` cols to
+both tables; 0093-template native-write gate via a `*_native_mirror_guard` trigger; grants as shipped;
+reversal block. Re-run RED → GREEN.
+**Verify:** pgTAP green; `db reset` clean.
 
 ### 5.2 — `purchaseOrder`/`goodsReceipt` registry wiring (R9 §3/§4 bodies from 2.7)
 
@@ -828,12 +1064,17 @@ Real boundary: create+submit PO (item-row `schedule_date` supplied) → ERP `To 
 mirrors `purchase_orders` + `procurement_receipts.po_id`. Adapter resolves ERP ids via `external_refs`.
 **Verify:** green.
 
-### 5.6–5.9 — FE routing + status derivation + gate
+### 5.6–5.9 — FE routing + status derivation + gate (atomic; finding-3 path fix)
 
-**5.6** `repositories` PO/GR creates route on `routeDomainWrite('procurement')`. **5.7** PO status CHECK
-derived; GR `procurement_receipt_status` derived. **5.8** `payments.invoice_id` / `procurement_receipts.po_id`
-FK integrity under service-role write (the same-case invariant holds — adapter resolves within the case).
-**5.9** Full slice gate.
+**5.6 (RED+GREEN)** `pmo-portal/src/lib/repositories/index.ts` — fill the **external** branch of
+`procurement.createPurchaseOrder` (DAL `createPurchaseOrder` in `db/procurementRecords.ts`) and the
+GR create path, each with `erp_doc_kind` (`'purchase-order'`/`'goods-receipt'`) + a minted `idempotencyKey`.
+RED: 1.1 test extended to assert flipped-org routing for PO/GR; non-flipped still calls the DAL. GREEN: branches.
+**Verify:** `npx vitest run src/lib/repositories/procurement.external.test.ts`.
+**5.7 (RED+GREEN)** PO `status` CHECK derived; GR `procurement_receipt_status` derived — RED unit, GREEN mapper.
+**5.8 (pgTAP)** `payments.invoice_id` / `procurement_receipts.po_id` FK integrity under service-role write
+(the same-case invariant holds — adapter resolves within the case) — add the assertion to the money-flip pgTAP (6.1).
+**5.9 (gate)** Full slice gate.
 **Verify:** `npm run verify` + pgTAP + the served-fn e2e.
 
 ---
@@ -844,14 +1085,28 @@ FK integrity under service-role write (the same-case invariant holds — adapter
 PI; create+submit + cancel on PE) + the **outbox-backed money e2e at the real served boundary** with the
 `after-commit-before-mirror` fault seam. AC-ENA-053 + the money-flip pgTAP (AC-ENA-072 money).
 
-### 6.1 — RED+GREEN: pgTAP `erpnext_money_flip_rls.test.sql` + migration `0099_invoices_payments_flip.sql`
+### 6.1 — RED+GREEN: pgTAP `erpnext_money_flip_rls.test.sql` (**OWNS AC-ENA-072**) + migration `0099_invoices_payments_flip.sql` (per-§7)
 
-`procurement_invoices` mirror cols: add `erp_outstanding_amount numeric(14,2)`, `erp_docstatus`,
-`erp_modified`, `erp_amended_from`, `erp_cancelled_at` (it already has `amount`, `reference_number`,
-`vi_number`, `po_id` from 0040/0035). `payments` mirror cols: `erp_*`. Native mirror machine-only;
-`payments.invoice_id` FK + same-case invariant preserved (FR-ENA-130d); `*_amount_nonneg` CHECKs preserved
-(FR-ENA-072 nulls→NULL). This migration also finalizes `procurement_items.erp_line_amount` usage. Reversal
-block. **Verify:** pgTAP green; `db reset` clean.
+**RED file** `supabase/tests/erpnext_money_flip_rls.test.sql` (new — the spec §9-named OWNER of
+**AC-ENA-072**; it consolidates the cross-table contract first asserted incrementally by the §7 per-table
+proofs in slices 3/4/5). Per spec §7:
+- **`procurement_invoices`** — add `erp_outstanding_amount numeric(14,2)`, `erp_docstatus`,`erp_modified`,
+  `erp_amended_from`,`erp_cancelled_at` (it already has `amount`,`reference_number`,`vi_number`,`po_id` from
+  0040/0035). Native mirrored: `vi_number`,`invoice_date`,`reference_number`,`amount`,`po_id`,
+  `erp_outstanding_amount`,`erp_*`. User native write → `42501`; service-role → `lives_ok`; `amount`/`po_id`
+  preserved. Trigger: `procurement_invoices_stamp_org_id` safe (state this).
+- **`payments`** — add `erp_*`. Native mirrored: `pay_number`,`reference_number`,`amount`,`date`,`invoice_id`,
+  `erp_*`. User native write → `42501`; service-role → `lives_ok`; **`invoice_id` FK + same-case invariant
+  preserved (FR-ENA-130d)**; `payments_amount_nonneg` CHECK preserved (nulls→NULL, FR-ENA-072).
+**AC-ENA-072 (the owner) — cross-table assertions:** for an org with `procurement`+`companies` flipped, a
+user-JWT write to a native mirror col on `procurement_invoices.amount`, `purchase_orders.po_number`, AND
+`companies.name` → `42501`; service-role writes succeed; a user write to an enhancement
+(`procurement_quotations.is_selected`, `companies.archived_at`) AND the `procurements` case aggregate still
+succeeds. (This single file owns the AC; the slice-3/4/5 §7 files reference it.)
+**GREEN migration** `0099_invoices_payments_flip.sql` (re-verify number): add the cols; 0093-template
+native-write gate via a `*_native_mirror_guard` trigger per table; grants as shipped; reversal block.
+Re-run RED → GREEN.
+**Verify:** pgTAP green; `db reset` clean.
 
 ### 6.2 — `purchaseInvoice`/`paymentEntry` registry wiring (R9 §1/§2 frozen bodies from 2.7)
 
@@ -868,12 +1123,25 @@ PI: `create` + `update` (draft) + `transition{submit|cancel|amend}`. PE: `create
 After a referenced-PE submit → re-fetch the PI → mirror `erp_outstanding_amount` (R9 paid-detection: PI
 flips `Paid`/`outstanding 0` server-side). **Verify:** unit tests per transition.
 
-### 6.4 — Outbox integration into the dispatch for money commands (wire ADR-0057)
+### 6.4 — Outbox + server-side key enforcement + atomic claim wired into the dispatch (ADR-0057)
 
-`adapter-dispatch/index.ts`: when `command.idempotencyKey` set, route through `dispatchMoneyWrite` (slice
-1.5). The outbox `readOutbox`/`insertOutboxPending`/`markOutbox*` callbacks operate on
-`external_command_outbox` via the service client. The adapter stamps the key into the doctype `remarks`
-(`toBody` appends `idempotencyKey`). **Verify:** unit (mocked service client) — the full reconcile state machine.
+`supabase/functions/adapter-dispatch/index.ts`:
+1. **Server-side key enforcement (FR-ENA-040, finding 5):** at the top of the served path, `if
+   (command.tier==='erpnext' && command.operation!=='read' && !command.idempotencyKey) respond
+   commit-rejected / missing-idempotency-key` — a key-less erpnext money command never reaches the outbox.
+   P0/P1 (other tiers) are unaffected (byte-for-byte).
+2. **Money dispatch:** route through `dispatchMoneyWrite` (slice 1.5). The outbox callbacks operate on
+   `external_command_outbox` via the service client: `insertOutboxPending` (INSERT `pending`, unique guard
+   → `23505` on dup), `claimOutboxForCommit` (RPC `claim_outbox_for_commit` — the atomic claim, finding 4),
+   `markOutboxCommitted/Confirmed/Failed`, `readOutbox`, `probeByRemarksKey` (`GET …?filters=[["remark(s)",
+   "like","%<key>%"]]`).
+3. **Reconcile under the claim:** `confirmed`→return; `committed`→finalize-only; `committing`-fresh→
+   backoff-re-read; `pending`/`failed`/stale-`committing`→**claim first; winner probes→adopt-or-POST→mark;
+   loser (null return) re-reads, never POSTs**.
+4. The adapter stamps the key into the doctype `remarks` (`toBody` appends `idempotencyKey`).
+**Verify:** `cd supabase/functions/adapter-dispatch && deno test` (mocked service client) — the full
+reconcile state machine incl. the **two-concurrent-retry claim case** (only one POST) and the
+**key-less-reject case**.
 
 ### 6.5 — Register invoice/payment read-model writers
 
@@ -902,21 +1170,30 @@ Real boundary + `after-commit-before-mirror`: a PI whose ERP create committed bu
 `pending`/`committed`; the sweep/retry runs → adopts the existing ERP doc (via `committed` finalize or the
 `remarks`-key probe) and finishes **one** `procurement_invoices` mirror row — never a second. **Verify:** green.
 
-### 6.9–6.14 — FE routing + cancel/amend e2e + status derivation + same-case invariant + gates
+### 6.9–6.14 — FE routing + cancel/amend e2e + status derivation + same-case invariant + gates (atomic; finding-3 path fix)
 
-**6.9** `repositories` invoice/payment creates route on `routeDomainWrite('procurement')`. **6.10** PI
-cancel/amend served-fn flow (lineage repoint + tombstone). **6.11** PE cancel served-fn flow. **6.12** PI
-status derived (`erp_outstanding_amount==0`⇒Paid). **6.13** `create_payment` same-case invariant under
-service-role write (FR-ENA-130d). **6.14** Full slice gate.
+**6.9 (RED+GREEN)** `pmo-portal/src/lib/repositories/index.ts` — fill the **external** branch of
+`procurement.createInvoice` (`createInvoice` in `db/procurementLifecycle.ts`) and `createPayment`
+(`createPayment` in `db/procurementRecords.ts`): each carries `erp_doc_kind` (`'purchase-invoice'`/
+`'payment'`) + a minted `idempotencyKey` (server-enforced, 6.4). RED: 1.1 test extended to assert
+flipped-org routing for invoice/payment; non-flipped still calls the DAL. GREEN: branches.
+**Verify:** `npx vitest run src/lib/repositories/procurement.external.test.ts`.
+**6.10 (RED+GREEN served-fn e2e)** PI cancel/amend — `e2e/AC-ENA-023-pi-cancel-amend.spec.ts` (real
+boundary): cancel→soft-tombstone+lineage; amend→`external_refs` repoint + `erp_amended_from`. GREEN adapter path.
+**6.11 (RED+GREEN served-fn e2e)** PE cancel — `e2e/AC-ENA-023b-pe-cancel.spec.ts`: PE cancel→tombstone; references the PI.
+**6.12 (RED+GREEN unit)** PI status derived (`erp_outstanding_amount==0`⇒Paid) — RED `piStatus.test.ts`, GREEN mapper.
+**6.13 (pgTAP)** `create_payment` same-case invariant under service-role write (FR-ENA-130d) — asserted in 6.1.
+**6.14 (gate)** Full slice gate.
 **Verify:** `npm run verify` (full) + `with-db-lock supabase test db` + the 3 served-fn money e2e.
 
 ---
 
 ## Slice 7 — Actuals + AP/AR aging read-only snapshots (ADR-0048 ledger-sourced)
 
-**Goal:** read-only accounting read-backs — actuals from `GL Entry` summation; AP/AR aging from the
-report RPC primary (pinned filters) with the mirrored-ledger fallback; **never invoice-only local math**
-(FR-ENA-162 prohibition). AC-ENA-060/061.
+**Goal:** read-only accounting read-backs — actuals from **fetched** `GL Entry` summation; AP/AR aging from
+the report RPC primary (pinned filters) with the **fetched-ledger** fallback (`GL Entry`/`Payment Ledger
+Entry`, no persistent mirror table — finding 6); **never invoice-only local math** (FR-ENA-162 prohibition).
+AC-ENA-060/061.
 
 ### 7.1 — RED+GREEN: migration `0100_erp_accounting_snapshots.sql` + pgTAP
 
@@ -926,31 +1203,55 @@ Three snapshot tables per spec §4.4 (`erp_actuals_snapshot`, `erp_ap_aging_snap
 (`as_of`, `source_report`, `report_version`). pgTAP: org isolation + machine-only write +
 single-snapshot-per-scope after refresh. Reversal block. **Verify:** pgTAP green; `db reset` clean.
 
-### 7.2 — RED: `erpnext/actualsSnapshot.test.ts` (AC-ENA-060)
+> **Ledger sourcing (finding 6 — no phantom mirror table).** Signed §4.4 defines **only** the three
+> snapshot tables — there is **no** persistent `GL Entry`/`Payment Ledger Entry` mirror table, no doctype
+> registry entry, and no flip for them (they are read-only accounting truth, never PMO-written). So the
+> refresh **fetches ERP ledger rows on demand** at sweep time through a confined
+> `erpnext/ledgerFetch.ts`, sums/buckets them **in memory**, and persists **only** the §4.4 snapshot rows
+> (ADR-0048 ledger-sourced-display; the summed result is ERP truth, never a PMO-authored figure). "Sum
+> mirrored ledger rows" in spec §5.12 is satisfied by "sum the fetched ERP ledger rows before the snapshot
+> write" — the ledger is the transient source, the snapshot is the only persisted artifact.
 
-**File:** `pmo-portal/src/lib/adapterSeam/erpnext/actualsSnapshot.test.ts` (new). Asserts: from mirrored
-`GL Entry` rows (`is_cancelled=0`, exclude `docstatus=2`), `refreshActuals` produces
-`erp_actuals_snapshot` sums only (no PMO-authored figure), **replaces** the prior scope snapshot (single
-`as_of`), stamps `source_report`/`as_of`. **Verify (RED):** fails.
+### 7.2 — RED+GREEN: `erpnext/ledgerFetch.ts` (the on-demand ERP ledger source — confined)
 
-### 7.3 — GREEN: `erpnext/actualsSnapshot.ts`
+**File:** `pmo-portal/src/lib/adapterSeam/erpnext/ledgerFetch.ts` (new) + `ledgerFetch.test.ts` (RED).
+Two confined fetchers over the `erpnext/client.ts` list endpoint (all Frappe vocabulary stays in
+`erpnext/**`): `fetchGlEntries(client, {company, filters})` → `GET /api/resource/GL Entry?filters=[["is_cancelled","=",0],["docstatus","!=",2],…]&fields=[…]&limit_page_length=0` (paged), returning decimal-string
+`{account, cost_center, fiscal_year, project?, debit, credit}` rows; `fetchPaymentLedgerEntries(client,
+{company, filters})` → the same over `Payment Ledger Entry` (the aging fallback source). RED asserts:
+paging accumulates all rows, `is_cancelled=0`/`docstatus≠2` filters are sent, money fields are
+decimal-strings, and **nothing is persisted** (pure fetch). GREEN: the two fetchers. **Verify (RED→GREEN):**
+`cd pmo-portal && npx vitest run src/lib/adapterSeam/erpnext/ledgerFetch.test.ts`.
 
-`refreshActuals(serviceClient, orgId, scope)`: sum mirrored GL rows → new `snapshot_id` → delete prior
-scope rows in-tx → insert. **Verify:** passes.
+### 7.3 — RED+GREEN: `erpnext/actualsSnapshot.ts` (AC-ENA-060 — fetch → sum → snapshot)
 
-### 7.4 — RED+GREEN: `erpnext/agingSnapshot.ts` (report-RPC primary, FR-ENA-160/161/162)
+**File:** `pmo-portal/src/lib/adapterSeam/erpnext/actualsSnapshot.test.ts` (RED) then `actualsSnapshot.ts`
+(GREEN). `refreshActuals(serviceClient, client, orgId, scope)`: **(1)** `fetchGlEntries` (7.2) for the
+scope's `company` + project/cost-center/fiscal-year filters → transient rows; **(2)** sum
+debit/credit/net **per (cost_center, account, fiscal_year)** in memory (no PMO-authored figure); **(3)** new
+`snapshot_id` → delete prior-scope `erp_actuals_snapshot` rows **in the same service-role tx** → insert the
+summed rows stamping `source_report='GL Entry'`/`as_of`. RED asserts (AC-ENA-060): given a fixed fetched
+`GL Entry` set, the snapshot holds the exact sums, replaces the prior scope snapshot (single `as_of`), and
+never reads/writes `procurement_invoices`. **Verify (RED→GREEN):** `npx vitest run …/actualsSnapshot.test.ts`.
 
-`refreshAging`: `POST /api/method/frappe.desk.query_report.run` (`report_name:'Accounts
-Payable'|'Accounts Receivable'`, filters from binding `config.report_filter_shape` — version-pinned via
-`get_script` introspection, R10). Mirror returned buckets + `range_labels` verbatim. **Fallback (only if
-the report-shape probe fails for a minor):** bucket **mirrored `GL Entry`/`Payment Ledger Entry`** rows
-(also ERP truth) — **NEVER** `procurement_invoices` `due_date−today` math (the FR-ENA-162 prohibition).
-`report_version` stamped. Snapshot-replace per scope. **Verify:** unit (mocked report RPC + the fallback).
+### 7.4 — RED+GREEN: `erpnext/agingSnapshot.ts` (report-RPC primary + fetched-ledger fallback, FR-ENA-160/161/162)
 
-### 7.5 — Sweep fan-out: actuals + aging refresh per employing org
+`refreshAging(serviceClient, client, orgId, scope)`: **primary** — `POST
+/api/method/frappe.desk.query_report.run` (`report_name:'Accounts Payable'|'Accounts Receivable'`, filters
+from binding `config.report_filter_shape` — **already pinned by the R10 pre-slice-7 spike**, §6 constraint
+1; this task only **consumes** the pinned shape, no inline `get_script`). Mirror returned buckets +
+`range_labels` verbatim; stamp `report_version`. **Fallback (only when the pinned shape rejects on a
+minor):** `fetchPaymentLedgerEntries` + `fetchGlEntries` (7.2) → bucket the **fetched ERP ledger rows** in
+memory (ERP truth, version-pinned) — **NEVER** `procurement_invoices` `due_date−today` math (the FR-ENA-162
+prohibition; assert no `procurement_invoices` read on either path). Snapshot-replace per scope.
+**Verify:** unit (mocked report RPC primary + the fetched-ledger fallback).
 
-`erpnext-sweep` (slice 8) calls `refreshActuals` + `refreshAging` per org after the doctype sweep. Binding
-config carries `aging_report_names` + `report_filter_shape`. **Verify:** unit.
+### 7.5 — Sweep fan-out: actuals + aging refresh per employing org (fetch-driven)
+
+`erpnext-sweep` (slice 8.6) calls `refreshActuals` + `refreshAging` per employing org **after** the doctype
+sweep, passing the per-org `client` so each refresh fetches its own ERP ledger rows (7.2) — no cross-org
+state, no persisted ledger. Binding `config` carries `aging_report_names` + the R10-pinned
+`report_filter_shape`. **Verify:** unit (fan-out calls both refreshers per org with the org's client).
 
 ### 7.6 — RED+GREEN: served-fn e2e `AC-ENA-061-aging-readback.spec.ts`
 
@@ -960,11 +1261,26 @@ snapshot-replaced, and **no** bucket computed by invoice-only local math (assert
 `erp_ap_aging_snapshot` row count == report row count; assert no `procurement_invoices`-derived bucket
 column exists). **Verify:** green.
 
-### 7.7–7.9 — Read path + provenance UI + gate
+### 7.7 — RED+GREEN: snapshot read repository (`src/lib/repositories/index.ts` + `db/erpSnapshots.ts`)
 
-**7.7** Repository read for the snapshot tables (org-scoped SELECT). **7.8** UI shows `as_of`/source
-provenance (read-only). **7.9** Full slice gate.
-**Verify:** `npm run verify` + pgTAP + the served-fn e2e.
+**Files:** `pmo-portal/src/lib/db/erpSnapshots.ts` (new DAL) + wire into `src/lib/repositories/index.ts`.
+Read-only, org-scoped `SELECT` over `erp_actuals_snapshot`/`erp_ap_aging_snapshot`/`erp_ar_aging_snapshot`
+(RLS org-member SELECT; no write path — snapshots are machine-written). RED
+`db/erpSnapshots.test.ts`: returns the current-scope rows (single `as_of`) and empty for a
+non-employing org. GREEN: the three read fns + `repositories.erpSnapshots.{actuals,apAging,arAging}`
+wrappers. **Verify:** `cd pmo-portal && npx vitest run src/lib/db/erpSnapshots.test.ts`.
+
+### 7.8 — RED+GREEN: provenance display (read-only `as_of`/source on the actuals/aging read surface)
+
+**File:** the actuals/aging read component (RTL unit only — no new route). RED
+`<component>.test.tsx`: renders `as_of` + `source_report`/`report_version` provenance from a seeded
+snapshot row and shows an empty-state when no snapshot exists. GREEN: the read-only provenance line
+(strictly `DESIGN.md` tokens). **Verify:** `npx vitest run <component>.test.tsx`.
+
+### 7.9 — Full slice-7 gate
+
+**Verify:** `cd pmo-portal && npm run verify` (full) + `scripts/with-db-lock.sh supabase test db` +
+`scripts/with-db-lock.sh scripts/with-erpnext-lock.sh scripts/serve-functions.sh -- npx playwright test AC-ENA-061`.
 
 ---
 
@@ -1006,10 +1322,29 @@ The apply path: a `docstatus:2` event → `applyCancel` (tombstone + lineage); a
 `applyAmend` (repoint + lineage); a stale old-name event → `isSupersededName` check → no-op. All full-row
 upserts (FR-ENA-073). **Verify:** unit (cancel/amend/out-of-order through the full apply path).
 
-### 8.6 — `supabase/functions/erpnext-sweep/index.ts` (the cron entry)
+### 8.6 — RED+GREEN: `erpnext-sweep` outbox recovery + cron entry (`supabase/functions/erpnext-sweep/index.ts`)
 
-Iterate employing orgs × doctypes → `runSweep` → then `refreshActuals`/`refreshAging` (slice 7). Interactive
-priority over bulk (NFR-ENA-PERF-001). **Verify:** deno check + unit.
+This is the sweep-side of ADR-0057 §Consequences — the **same** recovery path as the retry flow (one
+algorithm, described identically in ADR and plan, closing the ADR/plan drift).
+
+**RED file:** `supabase/functions/erpnext-sweep/outboxRecovery.test.ts` (new, Deno; mocked service client +
+adapter). Asserts the sweep runs an explicit **`reconcileOutbox` pass BEFORE the doctype sweep**: for each
+employing org it selects every `pending`/`failed`/`committing`-past-lease/`committed` row via
+`outbox_reconcile_candidates(org)` (RPC from mig 0095) and applies the ADR-0057 §4 algorithm **exactly** —
+- `committed` → finalize-only (idempotent read-model upsert + `external_refs`) → `confirmed`; **no ERP create**.
+- `pending`/`failed`/stale-`committing` → `claim_outbox_for_commit(id)` **first**; only the claim winner
+  probes ERP by the stamped `remarks` key → adopt (`committed`→finalize→`confirmed`) or `POST` under the
+  same row; the loser (null return) is skipped (**no POST**).
+Proves an orphaned commit left `committed`/`pending` because the original retry never returned is
+reconciled to **exactly one** mirror row with **no duplicate ERP doc**, and a stuck `committing` past lease
+is re-claimed. **Verify (RED):** `cd supabase/functions/erpnext-sweep && deno test outboxRecovery.test.ts` → fails.
+
+**GREEN file:** `supabase/functions/erpnext-sweep/index.ts` (new, the cron entry). Per employing org:
+**(1)** the `reconcileOutbox` pass above — reusing the **exact** `dispatchMoneyWrite` reconcile deps from
+slice 1.5/6.4 (`claimOutboxForCommit`/`markOutbox*`/`probeByRemarksKey`/finalize), so the retry path and
+the sweep path share one implementation; **(2)** `runSweep` per doctype (the modified-poll convergence);
+**(3)** `refreshActuals`/`refreshAging` (slice 7, fetch-driven). Interactive priority over bulk
+(NFR-ENA-PERF-001). Re-run RED → GREEN. **Verify:** `deno test outboxRecovery.test.ts` green + `deno check index.ts` clean.
 
 ### 8.7 — migration `0101_erpnext_sweep_cron.sql` (mirror 0094)
 
@@ -1035,7 +1370,7 @@ test` (all served-fn e2e). This is the AC-ENA-002 program-final regression gate.
 |---|---|---|---|
 | AC-ENA-001 | 1 | 1.1,1.10 | `pmo-portal/src/lib/repositories/procurement.external.test.ts` [Vitest unit] |
 | AC-ENA-002 | every | final gate | full `npm run verify` + pgTAP + e2e suite (meta-AC) [cross-layer regression gate] |
-| AC-ENA-003 | 3,4 | 3.4,4.1 | `supabase/tests/erpnext_procurement_flip_rls.test.sql` (+ companies) [pgTAP] |
+| AC-ENA-003 | 4 | 4.1 | `supabase/tests/erpnext_procurement_flip_rls.test.sql` [pgTAP] |
 | AC-ENA-010 | 6 | 6.7 | `pmo-portal/e2e/AC-ENA-010-payment-idempotency.spec.ts` [served-fn e2e] |
 | AC-ENA-011 | 2 | 2.1,2.2 | `pmo-portal/src/lib/adapterSeam/erpnext/client.test.ts` [Vitest unit] |
 | AC-ENA-012 | 1 | 1.7,1.8 | `supabase/tests/external_command_outbox_rls.test.sql` [pgTAP] |
@@ -1058,7 +1393,7 @@ test` (all served-fn e2e). This is the AC-ENA-002 program-final regression gate.
 | AC-ENA-061 | 7 | 7.6 | `pmo-portal/e2e/AC-ENA-061-aging-readback.spec.ts` [served-fn e2e] |
 | AC-ENA-070 | 8 | 8.1,8.2 | `supabase/functions/erpnext-webhook/index.test.ts` [Vitest unit] |
 | AC-ENA-071 | 8 | 8.3,8.4 | `pmo-portal/src/lib/adapterSeam/erpnext/sweepCursor.test.ts` [Vitest unit] |
-| AC-ENA-072 | 3,4,6 | 3.4,4.1,6.1 | `supabase/tests/erpnext_money_flip_rls.test.sql` (+ per-table §7 files) [pgTAP] |
+| AC-ENA-072 | 6 | 6.1 | `supabase/tests/erpnext_money_flip_rls.test.sql` (+ per-table §7 files) [pgTAP] |
 | AC-ENA-073 | 2 | 2.3,2.4 | `pmo-portal/src/lib/adapterSeam/erpnext/binding.test.ts` [Vitest unit] |
 
 **Coverage check:** all 27 `AC-ENA-` are mapped (001–003, 010–013, 020–023, 030–031, 040–042, 050–054,
@@ -1083,19 +1418,21 @@ without a direct owner instruction.
 
 ---
 
-## 6. Open questions for the Director (none blocking slice 0–2)
+## 6. Recorded constraints (Director rulings — settled, not open questions)
 
-1. **Report-filter introspection timing (R10):** the `get_script` probe to pin `config.report_filter_shape`
-   runs against the bench at slice 7. If the report shape differs from the R9-bench v15.94.3, the fallback
-   (mirrored-ledger bucketing) is already designed (FR-ENA-162) — flag if the owner wants the probe
-   promoted to a pre-slice-7 spike.
-2. **PE amend (OQ-7 residual):** spec keeps PE amend desk-only in P2. If finance wants PE amend as a PMO
-   command later, it's an additive slice (cancel+create-with-`amended_from`, same lineage path) — no schema change.
-3. **`erp_doc_kind` as the contract discriminator:** this plan uses a PMO-side `erp_doc_kind` field on
-   `PmoRecord` (PMO verbs) rather than adding a `subType` to `AdapterCommand` (which would widen the P0
-   contract). Confirm acceptable — it keeps the contract change to `idempotencyKey` only (FR-ENA-040).
-4. **Collision-guard script:** `scripts/next-migration-number.sh` (slice 0.9) is new tooling; if the owner
-   prefers it lands separately on `dev` first, slice 0 drops 0.9 with no dependency loss.
+These were raised at intake and are **decided**; recorded here so no slice re-litigates them.
+
+1. **Report-filter introspection (R10) = a pre-slice-7 spike (RULED).** The `get_script` probe that pins
+   `config.report_filter_shape` runs as a **dedicated spike BEFORE slice 7 starts** — not inline in 7.4.
+   Task 7.4 only **consumes** the pinned shape; the fetched-ledger fallback (FR-ENA-162, §7.2/7.4) remains
+   the designed safety net if the report shape drifts on a v15 minor.
+2. **PE amend = desk-only in P2 (RULED).** Payment Entry amend is **not** a PMO command in this issue
+   (OQ-7 residual). A future PMO PE-amend is an additive slice (cancel + create-with-`amended_from`, the
+   same lineage path from 2.11, no schema change) — out of scope here.
+3. **`erp_doc_kind` accepted as the PMO-side discriminator (RULED).** The plan carries a PMO-verb
+   `erp_doc_kind` field on `PmoRecord` rather than widening `AdapterCommand` with a `subType`; the **only**
+   P2 contract change is `idempotencyKey` (FR-ENA-040). The confinement invariant holds — the
+   `(kind)→doctype` map lives inside `erpnext/**`, never a Frappe doctype name above the contract.
 
 ---
 
