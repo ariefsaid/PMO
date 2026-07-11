@@ -33,7 +33,21 @@ export interface AgentEntityEntry {
   allowedColumns: ReadonlySet<string>;
   /** When set, a filter on this column (eq or in) is mandatory (e.g. tasks.project_id). */
   requiredFilter?: string;
+  /**
+   * An internal hard filter ALWAYS applied by `runQueryEntity` before any user/model-supplied
+   * filter — never surfaced as a whitelisted column, never overridable (AC-CUA-002, C5d). Today
+   * only `tasks` carries one: a ClickUp-native delete tombstones the mirror (C3) rather than
+   * removing it, so the agent's own `tasks` read must exclude tombstoned rows the same way
+   * `listTasks`/`getTask`/`listMyTasks` do (C5/C5b/C5c).
+   */
+  internalFilter?: { column: string; value: null };
 }
+
+/** Entities that carry an internal hard filter (C5d) — keyed independent of ENTITY_WHITELIST so
+ *  this agent-only concern never leaks into compose-view's shared catalogue. */
+const INTERNAL_FILTERS: Readonly<Record<string, { column: string; value: null }>> = Object.freeze({
+  tasks: { column: 'tombstoned_at', value: null },
+});
 
 /**
  * Resolve an agent entity key to its normalized entry, or `undefined` when the key is not in the
@@ -44,11 +58,14 @@ export interface AgentEntityEntry {
  * same-named ENTITY_WHITELIST key.
  */
 export function resolveAgentEntity(entityKey: string): AgentEntityEntry | undefined {
+  const internalFilter = INTERNAL_FILTERS[entityKey];
+
   const curated = AGENT_ENTITY_TABLES[entityKey];
   if (curated) {
     return {
       table: curated.table,
       allowedColumns: new Set(curated.allowedColumns),
+      ...(internalFilter ? { internalFilter } : {}),
     };
   }
 
@@ -58,6 +75,7 @@ export function resolveAgentEntity(entityKey: string): AgentEntityEntry | undefi
       table: whitelisted.table,
       allowedColumns: whitelisted.allowedColumns,
       ...(whitelisted.requiredFilter ? { requiredFilter: whitelisted.requiredFilter } : {}),
+      ...(internalFilter ? { internalFilter } : {}),
     };
   }
 

@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/src/lib/supabase/client';
 import { useAuth } from '@/src/auth/useAuth';
-import type { TaskStatus } from '@/src/lib/db/tasks';
+import { updateTaskStatus, type TaskStatus } from '@/src/lib/db/tasks';
 import { toAppError } from '@/src/lib/appError';
 
 /**
@@ -29,13 +29,16 @@ export interface MyTask {
  * Fetch all tasks assigned to the signed-in user across projects.
  * org_id is NEVER sent — RLS (tasks_select) scopes to the org. The assignee_id
  * filter is applied client-side after the RLS-scoped result set (no new policy needed).
- * The project name is joined via `projects(name)` in the select.
+ * The project name is joined via `projects(name)` in the select. Excludes tombstoned rows
+ * (`.is('tombstoned_at', null)`, AC-CUA-002/C5c) — a ClickUp-native delete (C3) must not
+ * remain in the cross-project My Tasks list either.
  */
 async function listMyTasks(userId: string): Promise<MyTask[]> {
   const { data, error } = await supabase
     .from('tasks')
     .select('id, name, status, assignee_id, project_id, start_date, end_date, project:projects!tasks_project_id_fkey(name)')
     .eq('assignee_id', userId)
+    .is('tombstoned_at', null)
     .order('created_at', { ascending: true });
   if (error) throw toAppError(error);
   // Map the joined `project` shape onto `project_name`.
@@ -77,8 +80,12 @@ export function useMyTasks() {
 }
 
 /**
- * Status mutation for an Engineer's own task — reuses the existing
- * updateTaskStatus DAL path (assignee-only column-pinned RLS).
+ * Status mutation for an Engineer's own task — routed through the `updateTaskStatus` DAL helper
+ * (`db/tasks.ts`), not a raw `supabase.from('tasks').update(...)` call, so this quick-status write
+ * inherits the ADR-0056 `routeTaskWrite()` seam + pending-push behavior instead of bypassing
+ * `dispatchTaskCommand` when the org's `tasks` domain is externally-owned (AC-CUA-001/060/061).
+ * PMO-owned orgs (the fail-closed default) keep the exact pre-P1 direct-DAL path (assignee-only
+ * column-pinned RLS, migration 0016).
  */
 export function useMyTaskMutations() {
   const qc = useQueryClient();
@@ -89,8 +96,11 @@ export function useMyTaskMutations() {
 
   const updateStatus = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: TaskStatus }) => {
-      const { error } = await supabase.from('tasks').update({ status }).eq('id', id);
-      if (error) throw toAppError(error);
+      try {
+        await updateTaskStatus(id, status);
+      } catch (err) {
+        throw toAppError(err);
+      }
     },
     onSuccess: invalidate,
   });

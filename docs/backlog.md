@@ -4,6 +4,27 @@
 [`docs/history.md`](history.md) (don't read it for status). Locked owner-decisions are in
 `docs/decisions.md` (OD-* lookup by id). Roadmap framing in `docs/roadmap-spines.md`.
 
+### ⚑⚑ ADAPTER PROGRAM (2026-07-10) — P0 seam SHIPPED to dev; P1 ClickUp in flight
+- **✅ P0 external-adapter seam MERGED to `dev`** (PR #299, `2cbacd5`; ADR-0055): migrations
+  `0087–0090` (ownership switch + refs + watermarks + reference read-model w/ RLS write-flip),
+  `adapterSeam` pure core, `adapter-dispatch` edge fn, read-only Integrations section on
+  Administration. Full battery (spec APPROVE · quality/design APPROVE-WITH-FIXES→applied ·
+  security SHIP); gates Director-run. Deferred: error-passthrough + payload-bound (security
+  L2/L3), display-label map (`OD-EAS-LABELS`), `executeWrite` wiring into real repos (P1).
+- **✅ P1 ClickUp adapter (tasks domain) — BUILT, battery-green, PR pending** (branch
+  `feat/clickup-adapter-p1`; spec signed off + ADR-0056): 6 slices (schema flip 0093 + Vault-cron
+  0094 · adapter module · repo wiring + byte-for-byte net · change-feed webhook/sweep · onboarding
+  both directions · view/labels), 35/35 ACs proven, 2 e2e (AC-CUA-090/091, page.route pattern,
+  serial-only — shared seed org). Battery: spec/quality/Discover APPROVE-W-F → all applied;
+  security SHIP-W-F → HIGH-1 (sweep-cron Vault regression) FIXED + cross-family CONFIRMED-SHIP.
+  Gates Director-run: verify 4906 · pgTAP 157/1291 · 4× deno · e2e 2/2. **Mocked-only: live
+  ClickUp smoke deferred until a token exists (plan Appendix A; needs CLICKUP_API_BASE_URL seam).**
+  Activation checklist (owner-gated): 2 Vault secrets (clickup_sweep_url/secret) + fn envs
+  (CLICKUP_API_TOKEN/WEBHOOK_SECRET/SWEEP_SECRET, 1P vault-AS items clickup-api-token/-webhook-secret).
+  B2B note: per-org webhook secret before >1 employing org shares a deployment (security LOW-1).
+  **P2 prereq (Director): served-edge-fn e2e infra — money commands get the real boundary, not
+  page.route.** Next: P2 ERPNext money core, P3 width, P4 Odoo (ADR-0055 §8).
+
 ### ⚑⚑ RESUME HERE (2026-07-09) — agent experience SHIPPED to prod; automations HELD for prod
 Full detail in memory `agent-multiround-handoff-20260708.md` (loaded each session). Snapshot:
 - **⚑ BINDING: agent model = `deepseek/deepseek-v4-flash` — NEVER change without a DIRECT per-instance owner instruction. Browser tests via a Playwright CLI script / `agent-browser`, NEVER the Playwright MCP (it leaks node servers).**
@@ -34,12 +55,18 @@ YAGNI at single-tenant scale). Two real gaps, prioritized:
   authorization so FR-INV-004 holds — service_role never exercised for an unauthorized caller).
   `health` left unthrottled deliberately (cheap, no spend). Cron fns (`agent-dispatch`,
   `telegram-notify`) are secret-gated, not public — out of scope.
-- **P2 — error-monitoring depth (owner-gated).** telegram-notify hourly + `error_events` sink cover
-  "something broke"; there's no Sentry-class tracker (stack/breadcrumbs/FE capture). **Autonomous part**
-  = the already-tracked Med "`error_events` completeness (2 fns + FE) + retention" (wire the remaining
-  edge fns + a FE error boundary → `error_events`). **Owner-gated part** = a Sentry (free tier) DSN +
-  new dep decision — external account + $, so it waits for an owner GO. Lower priority than P1: partial
-  coverage already exists and the actionable slice is incremental.
+- **P2 — error monitoring: PostHog Error Tracking (NOT Sentry — correction 2026-07-10).** The earlier
+  "needs a Sentry-class tracker" framing was WRONG: PostHog *is* the error tracker, already integrated,
+  and the **frontend already runs it** — `window.onerror`/`unhandledrejection` (`AnalyticsProvider`) +
+  React `ErrorBoundary` → `posthog.captureException`, privacy-redacted (`before_send`), `safeTrack`-wrapped.
+  So no Sentry, no new dep, no external account. **✅ Server-side half wired (PR #305):** the universal
+  edge-fn logger `logStructuredError` now fire-and-forget fans every error into PostHog Error Tracking via
+  `_shared/posthogError.ts` (guarded no-op outside Deno / without `POSTHOG_PROJECT_KEY`; sends only the
+  error CODE + fn + non-secret contextId/orgId). Client + server errors now share one issues view.
+  **Deploy step (owner, on GO):** set `POSTHOG_PROJECT_KEY` (the phc_ ingestion key, 1Password
+  `pmo-posthog-token`) as an edge-function secret in the Cloud project — until then the forward is a
+  silent no-op (error_events + Telegram unaffected). `error_events` retention/completeness remains a
+  minor separate Med.
 - **Plus — PostHog dashboards BUILT (separate deferred item, done this session).** ✅ 3 dashboards /
   19 insights live in project `465502` (Agent adoption+reliability · Auth login health · Product
   usage+friction), provisioned **as code** from the typed event catalog. PR #303

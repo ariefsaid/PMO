@@ -145,6 +145,8 @@ function makeTask(overrides: {
     end_date: overrides.end_date ?? null,
     completed_at: overrides.completed_at ?? null,
     created_at: '2026-01-01T00:00:00Z',
+    tombstoned_at: null,
+    source_updated_at: null,
     assignee: null,
     dependencies: [],
   };

@@ -17,6 +17,12 @@ export interface DispatchExternallyOwnedWriteDeps {
   command: AdapterCommand;
   writeReadModel: (canonical: PmoRecord) => Promise<void>;
   recordExternalRef: (mapping: ExternalRefMapping) => Promise<void>;
+  /**
+   * Delete-aware dispatch (AC-CUA-038, FR-CUA-026, OD-CUA-2): tombstones the mirrored read-model
+   * row instead of upserting a canonical record. Optional — omitted callers (P0) never take the
+   * delete branch. Wired for `tasks` in the adapter-dispatch edge fn (`tombstoned_at = now()`).
+   */
+  tombstoneReadModel?: (pmoRecordId: string) => Promise<void>;
 }
 
 function toDispatchError(error: unknown): AppError {
@@ -36,6 +42,12 @@ export async function dispatchExternallyOwnedWrite(
 ): Promise<CommandResult> {
   try {
     const result = await deps.adapter.commit(deps.command);
+    if (deps.command.operation === 'delete') {
+      // Delete-aware (AC-CUA-038): tombstone the mirror, skip the upsert; the external_refs
+      // mapping is kept as-is (not deleted) — never re-recorded on a delete.
+      await deps.tombstoneReadModel?.(deps.command.record.id);
+      return result;
+    }
     await deps.writeReadModel(result.canonical);
     await deps.recordExternalRef({
       pmoRecordId: deps.command.record.id,

@@ -9,6 +9,7 @@ const h = vi.hoisted(() => {
     select: [] as unknown[],
     eq: [] as unknown[],
     in: [] as unknown[],
+    is: [] as unknown[],
     order: [] as unknown[],
     insert: [] as unknown[],
     update: [] as unknown[],
@@ -29,6 +30,7 @@ const h = vi.hoisted(() => {
   builder.select = chain('select');
   builder.eq = chain('eq');
   builder.in = chain('in');
+  builder.is = chain('is');
   builder.order = chain('order');
   builder.insert = chain('insert');
   builder.update = chain('update');
