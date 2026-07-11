@@ -24,7 +24,17 @@ fi
 # fixed only in bash 4.4+. The `+` parameter-expansion guard is the portable workaround.
 supabase functions serve --no-verify-jwt "${ENV_FILE_ARGS[@]+"${ENV_FILE_ARGS[@]}"}" >/tmp/functions-serve.log 2>&1 &
 CLI_PID=$!
-cleanup() { kill "$CLI_PID" 2>/dev/null || true; docker rm -f supabase_edge_runtime_pmo-portal >/dev/null 2>&1 || true; }
+# The `supabase` CLI wrapper forks a `supabase-go` child that does the real serving; a plain
+# `kill $CLI_PID` only signals the wrapper — the child survives, reparents to init, and keeps
+# holding :54321 (verified empirically: repeatable across runs, not a one-off race). Kill the
+# child (scoped to OUR CLI_PID's own process tree, never a broad name-based pkill — this host
+# runs other agents' own `supabase functions serve` in other worktrees) BEFORE the parent, then
+# the parent itself.
+cleanup() {
+  pkill -P "$CLI_PID" 2>/dev/null || true
+  kill "$CLI_PID" 2>/dev/null || true
+  docker rm -f supabase_edge_runtime_pmo-portal >/dev/null 2>&1 || true
+}
 trap cleanup EXIT
 
 # 2. health gate (60x2s)
