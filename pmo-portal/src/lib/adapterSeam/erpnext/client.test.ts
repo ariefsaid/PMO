@@ -4,7 +4,7 @@
  * non-idempotent POSTs. Every call injects `fetchImpl` — no real ERPNext bench is ever required.
  */
 import { describe, expect, it, vi } from 'vitest';
-import { createDoc, callMethod, erpnextRequest, ErpError, getDoc, submitDoc, cancelDoc, type ErpClientDeps } from './client.ts';
+import { createDoc, callMethod, erpnextRequest, ErpError, getDoc, submitDoc, cancelDoc, updateDoc, type ErpClientDeps } from './client.ts';
 
 function jsonResponse(status: number, body: unknown, headers: Record<string, string> = {}): Response {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json', ...headers } });
@@ -140,5 +140,17 @@ describe('erpnext/client', () => {
     const acquire = vi.fn(async () => {});
     await createDoc({ ...deps, rateLimiter: { acquire } }, 'Purchase Invoice', { supplier: 'Acme' });
     expect(acquire).toHaveBeenCalledTimes(1);
+  });
+
+  // task 3.3: a non-submittable doctype (a party — Supplier/Customer has no docstatus lifecycle)
+  // update is a plain field PUT, carrying no `docstatus` (unlike submitDoc/cancelDoc).
+  it('updateDoc PUTs /api/resource/<DocType>/<name> with the given field patch, no docstatus', async () => {
+    const deps = fetchDeps(async () => jsonResponse(200, { name: 'Spike Supplier', supplier_name: 'Spike Supplier Renamed' }));
+    const fetchMock = deps.fetchImpl as unknown as ReturnType<typeof vi.fn>;
+    await updateDoc(deps, 'Supplier', 'Spike Supplier', { supplier_name: 'Spike Supplier Renamed' });
+    expect(fetchMock.mock.calls[0][0]).toBe('https://erp.example.com/api/resource/Supplier/Spike%20Supplier');
+    const init = fetchMock.mock.calls[0][1] as RequestInit;
+    expect(init.method).toBe('PUT');
+    expect(JSON.parse(init.body as string)).toEqual({ supplier_name: 'Spike Supplier Renamed' });
   });
 });
