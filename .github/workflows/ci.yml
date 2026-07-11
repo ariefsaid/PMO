@@ -277,6 +277,27 @@ jobs:
             npx playwright install --with-deps chromium
           fi
 
+      # ERPNext P2: prove the served adapter-dispatch lane in CI (the money e2e itself is local-only —
+      # it needs the Docker v15 bench + 1Password creds, which are a dev-bed concern, not CI's). The CI
+      # gate is the non-ERPNext served-fn smoke (AC-ENA-001 boundary) through real Kong, proving the
+      # serve/health-gate recipe holds on an ephemeral runner. Money semantics run locally + via unit tests.
+      - name: Serve adapter-dispatch (served-fn lane smoke)
+        env:
+          SUPABASE_SECRETS: ${{ secrets.SUPABASE_SECRETS }}
+        run: |
+          printf '%s\n' "$SUPABASE_SECRETS" > /tmp/fn-secrets.env
+          supabase functions serve adapter-dispatch --no-verify-jwt --env-file /tmp/fn-secrets.env >/tmp/functions-serve.log 2>&1 &
+          CLI_PID=$!
+          for i in $(seq 1 60); do curl -sf http://localhost:54321/functions/v1/health >/dev/null && break || sleep 2; done
+          curl -sf http://localhost:54321/functions/v1/health >/dev/null || { echo "functions did not become healthy"; cat /tmp/functions-serve.log; kill $CLI_PID; exit 1; }
+          # run the non-ERPNext served-fn smoke (no bench dependency)
+          cd pmo-portal && SUPABASE_FUNCTIONS_URL=http://localhost:54321 npx playwright test served-fn-smoke --project=chromium
+          # kill the CLI wrapper's child too (it forks `supabase-go` to do the real serving; a
+          # single-PID kill leaks it — same fix as scripts/serve-functions.sh's cleanup).
+          pkill -P "$CLI_PID" 2>/dev/null || true
+          kill $CLI_PID 2>/dev/null || true
+          docker rm -f supabase_edge_runtime_pmo-portal >/dev/null 2>&1 || true
+
       # The webServer in playwright.config.ts runs `npm run dev` (Vite dev server on :3000).
       # reuseExistingServer=false in CI so Playwright owns the lifecycle.
       - name: E2E tests (Playwright / Chromium)
