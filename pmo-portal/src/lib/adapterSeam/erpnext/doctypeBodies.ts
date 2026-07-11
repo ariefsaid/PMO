@@ -1,0 +1,23 @@
+/**
+ * `DOCTYPE_BODIES` — the (kind)->{toBody,fromDoc} side table `erpnext/adapter.ts` (task 2.12) and
+ * `erpnext/dispatchFactory.ts` (task 2.13) consume as `ErpAdapterDeps.doctypeBodies`/
+ * `ErpDispatchFactoryDeps.doctypeBodies`. Starts empty in slice 2 by design (no doctype wired yet, so
+ * every kind fails loud — `commit-rejected`, never a silent no-op); each slice ADDS its own kinds here,
+ * additively, never touching another slice's entries (merge-coordination discipline, plan header).
+ *
+ * Slice 4 wires the first three: the submittable, non-money procurement sub-doctypes (Material
+ * Request/Request for Quotation/Supplier Quotation — R9-frozen bodies from task 2.7's `bodies/*.ts`).
+ * Slices 5/6 append `purchase-order`/`goods-receipt`/`purchase-invoice`/`payment`; slice 3 appends
+ * `supplier`/`customer`.
+ */
+import type { DoctypeBodyFns } from './adapter.ts';
+import type { ErpDocKind } from './doctypeRegistry.ts';
+import { mrToBody, mrFromDoc } from './bodies/materialRequest.ts';
+import { rfqToBody, rfqFromDoc } from './bodies/rfq.ts';
+import { supplierQuotationToBody, supplierQuotationFromDoc } from './bodies/supplierQuotation.ts';
+
+export const DOCTYPE_BODIES: Partial<Record<ErpDocKind, DoctypeBodyFns>> = {
+  'purchase-request': { toBody: mrToBody, fromDoc: mrFromDoc },
+  rfq: { toBody: rfqToBody, fromDoc: rfqFromDoc },
+  quotation: { toBody: supplierQuotationToBody, fromDoc: supplierQuotationFromDoc },
+};

@@ -35,6 +35,7 @@ import { resolveClickUpDispatchAdapter } from '../../../pmo-portal/src/lib/adapt
 import { ClickUpRateLimiter } from '../../../pmo-portal/src/lib/adapterSeam/clickup/rateLimit.ts';
 import { ERPNEXT_COMPANIES_DOMAIN, ERPNEXT_PROCUREMENT_DOMAIN } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/adapter.ts';
 import { resolveErpDispatchAdapter } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/dispatchFactory.ts';
+import { DOCTYPE_BODIES } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/doctypeBodies.ts';
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
 import type { Adapter, AdapterCommand, PmoRecord } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
 import { getReadModelWriter } from './readModelWriters.ts';
@@ -100,6 +101,9 @@ function resolveErpAdapter(ctx: AdapterSelectContext): Promise<Adapter> {
     apiKey: Deno.env.get('ERPNEXT_API_KEY') ?? '',
     apiSecret: Deno.env.get('ERPNEXT_API_SECRET') ?? '',
     rateLimiter: erpRateLimiter,
+    // The (kind)->{toBody,fromDoc} side table (task 4.3): additive across slices 3-6, never a
+    // per-slice edit to another kind's entry (confinement, FR-ENA-014).
+    doctypeBodies: DOCTYPE_BODIES,
     // The 'after-submit-before-mirror' fault seam (FR-ENA-003): fires inside the adapter's two-step
     // submit, between the submit PUT and the post-submit re-fetch — the ONLY tier with a two-step
     // commit (P0/P1 have none, so they never wire this hook).
