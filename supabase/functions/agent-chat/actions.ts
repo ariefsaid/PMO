@@ -141,7 +141,13 @@ export async function runQueryEntity(
   // ── Step 5: build the query (AC-AR-007, AC-AR-008) ───────────────────────
   const effLimit = Math.min(inp.limit ?? AGENT_READ_ROW_CAP, AGENT_READ_ROW_CAP);
   const colsStr = requestedCols.join(',');
-  const builder = ctx.supabase.from(entry.table).select(colsStr);
+  const rawBuilder = ctx.supabase.from(entry.table).select(colsStr);
+  // The internal hard filter (C5d, AC-CUA-002) is applied BEFORE any user/model-supplied filter —
+  // never surfaced as a whitelisted column, never overridable. Only `tasks` carries one today
+  // (tombstoned_at is null).
+  const builder = entry.internalFilter
+    ? rawBuilder.is(entry.internalFilter.column, entry.internalFilter.value)
+    : rawBuilder;
 
   let query: PromiseLike<{ data: unknown[] | null; error: unknown }>;
 

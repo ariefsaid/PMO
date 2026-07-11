@@ -1,6 +1,8 @@
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError } from '@/src/lib/appError';
 import type { Tables, TablesUpdate, Enums } from '@/src/lib/supabase/database.types';
+import { routeTaskWrite } from '@/src/lib/adapterSeam/ownershipCache';
+import { dispatchTaskCommand } from '@/src/lib/adapterSeam/dispatchClient';
 
 export type TaskRow = Tables<'tasks'>;
 export type TaskStatus = Enums<'task_status'>;
@@ -63,13 +65,18 @@ type RawTask = TaskRow & {
 /**
  * List the tasks for one project (AC-TASK-001) with their assignee profile + dependency edges.
  * org_id is NEVER sent — RLS (tasks_select: org_id = auth_org_id()) scopes rows. Ordered by
- * created_at for a stable list/board. Throws an `AppError` (code preserved) on failure.
+ * created_at for a stable list/board. Excludes tombstoned rows (`.is('tombstoned_at', null)`,
+ * AC-CUA-002/C5) — a ClickUp-native delete tombstones the mirror (C3) rather than removing it, so
+ * this filter keeps a deleted-upstream task out of the active list/board/Gantt/S-curve (all consume
+ * this same query — no separate filter needed elsewhere). Throws an `AppError` (code preserved) on
+ * failure.
  */
 export async function listTasks(projectId: string): Promise<TaskWithRefs[]> {
   const { data, error } = await supabase
     .from('tasks')
     .select(SELECT)
     .eq('project_id', projectId)
+    .is('tombstoned_at', null)
     .order('created_at', { ascending: true });
   if (error) throwWrite(error);
   const rows = (data ?? []) as unknown as RawTask[];
@@ -81,11 +88,18 @@ export async function listTasks(projectId: string): Promise<TaskWithRefs[]> {
 }
 
 /**
- * Fetch a single task by id (AC-TASK-002), or null when not found / not readable.
- * org_id is NEVER sent — RLS scopes the row. Throws an `AppError` (code preserved) on a query error.
+ * Fetch a single task by id (AC-TASK-002), or null when not found / not readable / tombstoned
+ * (`.is('tombstoned_at', null)`, AC-CUA-002/C5b — a ClickUp-native delete must not remain openable
+ * by id). org_id is NEVER sent — RLS scopes the row. Throws an `AppError` (code preserved) on a
+ * query error.
  */
 export async function getTask(id: string): Promise<TaskWithRefs | null> {
-  const { data, error } = await supabase.from('tasks').select(SELECT).eq('id', id).maybeSingle();
+  const { data, error } = await supabase
+    .from('tasks')
+    .select(SELECT)
+    .eq('id', id)
+    .is('tombstoned_at', null)
+    .maybeSingle();
   if (error) throwWrite(error);
   if (!data) return null;
   const t = data as unknown as RawTask;
@@ -97,8 +111,24 @@ export async function getTask(id: string): Promise<TaskWithRefs | null> {
  * `tasks_write` WITH CHECK (org_id = auth_org_id() AND the delivery write-roles + parent-project
  * org guard) are the authority. Empty assignee/dates normalise to null. Returns the new row.
  * Throws an `AppError` (code preserved, e.g. `42501` when a non-write-role is denied) on failure.
+ *
+ * ADR-0056 / AC-CUA-001/030: when the org's `tasks` domain is externally-owned (routeTaskWrite()),
+ * the write routes through `dispatchTaskCommand` instead of the direct insert — fail-closed to the
+ * direct DAL (this branch) whenever the ownership cache is empty/never-loaded (FR-CUA-030/031).
  */
 export async function createTask(input: TaskInput): Promise<TaskRow> {
+  if (routeTaskWrite() === 'external') {
+    const res = await dispatchTaskCommand('create', {
+      id: crypto.randomUUID(),
+      project_id: input.project_id,
+      name: input.name,
+      status: input.status,
+      assignee_id: input.assignee_id || null,
+      start_date: input.start_date || null,
+      end_date: input.end_date || null,
+    });
+    return res.canonical as unknown as TaskRow;
+  }
   const { data, error } = await supabase
     .from('tasks')
     .insert({
@@ -120,8 +150,15 @@ export async function createTask(input: TaskInput): Promise<TaskRow> {
  * Update a task's STRUCTURE fields by id (AC-TASK-004) — name, assignee, dates, and (for managers)
  * status. project_id/org_id are NEVER patched — a task does not move project, and RLS stamps org.
  * Only the keys present in `patch` are sent. Throws an `AppError` (code preserved) on failure.
+ *
+ * ADR-0056 / AC-CUA-001/030: routes through `dispatchTaskCommand('update', ...)` when the org's
+ * `tasks` domain is externally-owned; fail-closed to the direct DAL below otherwise.
  */
 export async function updateTask(id: string, patch: TaskPatch): Promise<void> {
+  if (routeTaskWrite() === 'external') {
+    await dispatchTaskCommand('update', { id, ...patch });
+    return;
+  }
   const next: TablesUpdate<'tasks'> = {};
   if (patch.name !== undefined) next.name = patch.name;
   if (patch.status !== undefined) next.status = patch.status;
@@ -139,8 +176,15 @@ export async function updateTask(id: string, patch: TaskPatch): Promise<void> {
  * mirrors the timesheets MED-TS-2 pattern). Managers (PM/Exec/Admin) also use this single-column
  * write. NOTHING but `status` is sent, so the column-pinned policy is satisfied. Throws an
  * `AppError` (code preserved — `42501` when an Engineer is not the assignee) on failure.
+ *
+ * ADR-0056 / AC-CUA-001/030: routes through `dispatchTaskCommand('transition', ...)` when the
+ * org's `tasks` domain is externally-owned; fail-closed to the direct DAL below otherwise.
  */
 export async function updateTaskStatus(id: string, status: TaskStatus): Promise<void> {
+  if (routeTaskWrite() === 'external') {
+    await dispatchTaskCommand('transition', { id, status });
+    return;
+  }
   const { error } = await supabase.from('tasks').update({ status }).eq('id', id);
   if (error) throwWrite(error);
 }
@@ -149,8 +193,16 @@ export async function updateTaskStatus(id: string, status: TaskStatus): Promise<
  * Hard-delete a task by id (AC-TASK-006) — Admin/Exec/PM only (RLS). Cascades to its
  * task_dependencies rows (FK on delete cascade). org_id is NEVER sent. Throws an `AppError`
  * (code preserved) on failure.
+ *
+ * ADR-0056 / AC-CUA-001/038: routes through `dispatchTaskCommand('delete', ...)` when the org's
+ * `tasks` domain is externally-owned (the dispatch tombstones the mirror, C3); fail-closed to the
+ * direct hard-delete below otherwise.
  */
 export async function deleteTask(id: string): Promise<void> {
+  if (routeTaskWrite() === 'external') {
+    await dispatchTaskCommand('delete', { id });
+    return;
+  }
   const { error } = await supabase.from('tasks').delete().eq('id', id);
   if (error) throwWrite(error);
 }

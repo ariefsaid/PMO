@@ -1,6 +1,7 @@
 import React from 'react';
 import { ListState, Card, Icon } from '@/src/components/ui';
 import { useExternalDomainOwnership } from '@/src/hooks/useExternalDomainOwnership';
+import { tierLabel, domainLabel } from './integrationLabels';
 
 /**
  * Read-only Integrations view (FR-EAS-007, AC-EAS-015). Shows the caller's org's employed external
@@ -50,18 +51,24 @@ export const IntegrationsView: React.FC = () => {
             <Card key={tier} className="p-4">
               <div className="flex items-center gap-2">
                 <Icon name="plug" />
-                <h3 className="text-[15px] text-foreground font-semibold">{tier}</h3>
+                <h3 className="text-[15px] text-foreground font-semibold">{tierLabel(tier)}</h3>
               </div>
               <ul className="mt-2.5 flex flex-wrap gap-1.5">
                 {byTier[tier].map((d) => (
                   <li key={d} className="rounded-md border border-border bg-background px-2 py-1 text-sm text-muted-foreground">
-                    {d}
+                    {domainLabel(d)}
                   </li>
                 ))}
               </ul>
               <p className="mt-2 text-sm text-muted-foreground">
                 Owns {byTier[tier].length} {byTier[tier].length === 1 ? 'domain' : 'domains'} as source of truth.
               </p>
+              {tier === 'clickup' && (
+                <p className="mt-2 flex items-center gap-1 text-sm text-muted-foreground">
+                  <Icon name="info" className="size-3.5 shrink-0" aria-hidden="true" />
+                  <span>ClickUp is US-hosted SaaS — task-domain data resides with ClickUp</span>
+                </p>
+              )}
             </Card>
           ))}
         </div>

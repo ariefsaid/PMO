@@ -50,9 +50,50 @@ describe('AC-EAS-015 the read-only Integrations view renders both states with no
     // The domain chips are <li> (role listitem); the 'reference' tier owns a domain ALSO named
     // 'reference' plus a 'tasks' domain — assert on the rendered chip text set directly (avoids
     // the getByText ambiguity between the tier heading and the same-named domain chip).
+    // Note: 'tasks' domain now renders as 'Tasks' via domainLabel map (OD-EAS-LABELS).
     const chipTexts = within(list).getAllByRole('listitem').map((li) => li.textContent?.trim());
-    expect(chipTexts).toEqual(expect.arrayContaining(['reference', 'tasks']));
+    expect(chipTexts).toEqual(expect.arrayContaining(['reference', 'Tasks']));
     // No write affordance.
     expect(screen.queryByRole('button')).toBeNull();
+  });
+
+  describe('NFR-CUA-LOCALITY-001 ClickUp tier renders with human label and data-locality note', () => {
+    it('ClickUp tier heading renders as "ClickUp" not raw slug', () => {
+      const rows: ExternalDomainOwnershipRow[] = [
+        { id: '1', orgId: 'org-1', externalTier: 'clickup', domain: 'tasks' },
+      ];
+      vi.mocked(useExternalDomainOwnership).mockReturnValue({ data: rows, isPending: false, isError: false } as never);
+      wrap(<IntegrationsView />);
+      // Assert the human label "ClickUp" is in the heading, not the raw slug.
+      const heading = screen.getByRole('heading', { name: 'ClickUp' });
+      expect(heading).toBeInTheDocument();
+      // The raw slug 'clickup' should NOT appear as a standalone text element.
+      // Note: The heading now contains "ClickUp" (the label), and the locality note also
+      // contains "ClickUp", so we query for the exact raw slug word only.
+      const rawSlugFound = Array.from(document.querySelectorAll('*')).some(
+        (el) => el.textContent === 'clickup' && el.tagName !== 'STYLE' && el.tagName !== 'SCRIPT',
+      );
+      expect(rawSlugFound).toBe(false);
+    });
+
+    it('ClickUp tier renders the US-hosted data-locality note', () => {
+      const rows: ExternalDomainOwnershipRow[] = [
+        { id: '1', orgId: 'org-1', externalTier: 'clickup', domain: 'tasks' },
+      ];
+      vi.mocked(useExternalDomainOwnership).mockReturnValue({ data: rows, isPending: false, isError: false } as never);
+      wrap(<IntegrationsView />);
+      // Assert the locality note is present.
+      expect(screen.getByText(/ClickUp is US-hosted SaaS — task-domain data resides with ClickUp/)).toBeInTheDocument();
+    });
+
+    it('Non-ClickUp tiers do NOT render the data-locality note', () => {
+      const rows: ExternalDomainOwnershipRow[] = [
+        { id: '1', orgId: 'org-1', externalTier: 'reference', domain: 'tasks' },
+      ];
+      vi.mocked(useExternalDomainOwnership).mockReturnValue({ data: rows, isPending: false, isError: false } as never);
+      wrap(<IntegrationsView />);
+      // The locality note should NOT be present for non-ClickUp tiers.
+      expect(screen.queryByText(/US-hosted SaaS/)).toBeNull();
+    });
   });
 });

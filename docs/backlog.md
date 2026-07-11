@@ -4,6 +4,27 @@
 [`docs/history.md`](history.md) (don't read it for status). Locked owner-decisions are in
 `docs/decisions.md` (OD-* lookup by id). Roadmap framing in `docs/roadmap-spines.md`.
 
+### ⚑⚑ ADAPTER PROGRAM (2026-07-10) — P0 seam SHIPPED to dev; P1 ClickUp in flight
+- **✅ P0 external-adapter seam MERGED to `dev`** (PR #299, `2cbacd5`; ADR-0055): migrations
+  `0087–0090` (ownership switch + refs + watermarks + reference read-model w/ RLS write-flip),
+  `adapterSeam` pure core, `adapter-dispatch` edge fn, read-only Integrations section on
+  Administration. Full battery (spec APPROVE · quality/design APPROVE-WITH-FIXES→applied ·
+  security SHIP); gates Director-run. Deferred: error-passthrough + payload-bound (security
+  L2/L3), display-label map (`OD-EAS-LABELS`), `executeWrite` wiring into real repos (P1).
+- **✅ P1 ClickUp adapter (tasks domain) — BUILT, battery-green, PR pending** (branch
+  `feat/clickup-adapter-p1`; spec signed off + ADR-0056): 6 slices (schema flip 0093 + Vault-cron
+  0094 · adapter module · repo wiring + byte-for-byte net · change-feed webhook/sweep · onboarding
+  both directions · view/labels), 35/35 ACs proven, 2 e2e (AC-CUA-090/091, page.route pattern,
+  serial-only — shared seed org). Battery: spec/quality/Discover APPROVE-W-F → all applied;
+  security SHIP-W-F → HIGH-1 (sweep-cron Vault regression) FIXED + cross-family CONFIRMED-SHIP.
+  Gates Director-run: verify 4906 · pgTAP 157/1291 · 4× deno · e2e 2/2. **Mocked-only: live
+  ClickUp smoke deferred until a token exists (plan Appendix A; needs CLICKUP_API_BASE_URL seam).**
+  Activation checklist (owner-gated): 2 Vault secrets (clickup_sweep_url/secret) + fn envs
+  (CLICKUP_API_TOKEN/WEBHOOK_SECRET/SWEEP_SECRET, 1P vault-AS items clickup-api-token/-webhook-secret).
+  B2B note: per-org webhook secret before >1 employing org shares a deployment (security LOW-1).
+  **P2 prereq (Director): served-edge-fn e2e infra — money commands get the real boundary, not
+  page.route.** Next: P2 ERPNext money core, P3 width, P4 Odoo (ADR-0055 §8).
+
 ### ⚑⚑ RESUME HERE (2026-07-09) — agent experience SHIPPED to prod; automations HELD for prod
 Full detail in memory `agent-multiround-handoff-20260708.md` (loaded each session). Snapshot:
 - **⚑ BINDING: agent model = `deepseek/deepseek-v4-flash` — NEVER change without a DIRECT per-instance owner instruction. Browser tests via a Playwright CLI script / `agent-browser`, NEVER the Playwright MCP (it leaks node servers).**

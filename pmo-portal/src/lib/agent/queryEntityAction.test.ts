@@ -381,11 +381,13 @@ it('Defect-2 curated entities keep a conservative column allowlist — procureme
 it('Defect-2 tasks (reused from ENTITY_WHITELIST) now exposed and requires its project_id filter', async () => {
   // tasks is in the broadened set; its requiredFilter (project_id) still enforces — a bare tasks
   // query is refused (no cross-project task dump), and supplying project_id is accepted.
-  const fromSpy = vi.fn().mockReturnValue({
-    select: vi.fn().mockReturnValue({
-      eq: vi.fn().mockReturnValue({ limit: vi.fn().mockResolvedValue({ data: [{ id: 't1' }], error: null }) }),
-    }),
-  });
+  // tasks also carries the C5d internal tombstone filter (.is('tombstoned_at', null)) — applied
+  // before the user's .eq() — so the select-builder mock must support .is() too.
+  const selectResult = {
+    is: vi.fn().mockReturnThis(),
+    eq: vi.fn().mockReturnValue({ limit: vi.fn().mockResolvedValue({ data: [{ id: 't1' }], error: null }) }),
+  };
+  const fromSpy = vi.fn().mockReturnValue({ select: vi.fn().mockReturnValue(selectResult) });
   const ctx = { jwt: 'j', userId: 'u', orgId: 'o', supabase: { from: fromSpy } } as unknown as DeputyContext;
 
   const refused = await runQueryEntity({ entity: 'tasks' }, ctx) as { error?: string };
@@ -395,6 +397,7 @@ it('Defect-2 tasks (reused from ENTITY_WHITELIST) now exposed and requires its p
   expect(ok.error).toBeUndefined();
   expect(ok.rowCount).toBe(1);
   expect(fromSpy).toHaveBeenCalledWith('tasks');
+  expect(selectResult.is).toHaveBeenCalledWith('tombstoned_at', null);
 });
 
 it('Defect-2 an entity still NOT in the catalogue is refused (no privilege widening beyond the allowlist)', async () => {
