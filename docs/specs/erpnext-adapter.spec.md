@@ -1,7 +1,10 @@
 # Spec: ERPNext adapter — money core (Issue P2 — ADR-0055 P2 phase)
 
-> **Status:** Draft for owner sign-off (major expansion round 2026-07-11 — resolves the adversarial-review
-> REJECT: 6 Critical / 7 Important). Spec-complete for a full-chain money adapter.
+> **Status:** **Signed off** (owner, 2026-07-11). Review battery: Luna adversarial REJECT (6 Crit / 7 Imp)
+> → major expansion round → confirm 12/13 + §7 schema-facts fix (finding-5's trigger premise refuted
+> against the live DB). OQ-1/3/4/7 DECIDED (owner, 2026-07-11) — all at the specced recommended defaults:
+> Material Request mapping · report-RPC aging primary · Supplier+Customer(read-only) parties · full AP
+> command surface. OQ-2/5/6/8 resolved in-spec (OQ-8 empirically, R9 spike).
 >
 > **Authority / grounds:** ADR-0055 §§1–8 (binding architecture; SoT-by-domain + additive-enhancement +
 > synchronous write-through + capability map), ADR-0048 (standing: ERPNext as accounting engine, no
@@ -120,7 +123,7 @@ state, and tenant/RLS model; ERP-side edits remain legitimate and reconcile back
 Four questions stay **[OWNER-DECISION]** flags (recommended defaults below); the rest are **resolved**
 here (some empirically settled by the R9 spike).
 
-### [OWNER-DECISION] OQ-1 — PMO Purchase Request ↔ ERPNext stock doctype
+### [DECIDED — owner, 2026-07-11] OQ-1 — PMO Purchase Request ↔ ERPNext stock doctype
 **Recommended default for sign-off:** PMO `purchase_requests` maps to **ERPNext `Material Request` with
 `material_request_type = 'Purchase'`**. The R9 fit is clean: MR takes `{items:[{item_code, qty, rate,
 schedule_date}]}` and server-defaults company/warehouse/UOM/cost-center. MR lacks a supplier / grand_total
@@ -135,7 +138,7 @@ Ownership flips as **one PMO domain, `procurement`**, with internal sub-doctype 
 doctype registry. Per-doctype domains would let a PR be ERP-owned while its PO is PMO-owned — an incoherent
 partial-ownership state (R5). One domain, atomic flip. `companies` is a second, independent domain.
 
-### [OWNER-DECISION] OQ-3 — Aging source (ADR-0048-constrained framing)
+### [DECIDED — owner, 2026-07-11] OQ-3 — Aging source (ADR-0048-constrained framing)
 **Recommended default for sign-off:** aging read-back uses the **authoritative ERPNext report RPC**
 (`POST /api/method/frappe.desk.query_report.run`, `report_name: "Accounts Payable" | "Accounts
 Receivable"`, filters `{company, report_date, ageing_based_on: "Due Date", range1..4}`) and mirrors the
@@ -148,7 +151,7 @@ PMO-authored accounting truth, which ADR-0048 forbids. **Residual owner call:** 
 default, authoritative but filter-drift-prone R10) vs mirrored-ledger-bucketing-primary (drift-stable, one
 more sweep). Both are ERP-sourced; the prohibition on invoice-only math holds either way.
 
-### [OWNER-DECISION] OQ-4 — Customer scope in P2
+### [DECIDED — owner, 2026-07-11] OQ-4 — Customer scope in P2
 **Recommended default for sign-off:** P2 flips **both `Supplier` and `Customer`** under the `companies`
 surface. Supplier write paths are required for procurement; Customer mirroring is required because **AR
 aging is in scope** (read-only) and needs the customer party + its `payment_terms` for due-date display.
@@ -171,7 +174,7 @@ Credentials (api_key/api_secret, webhook secret) live in **1Password vault `AS` 
 secrets**, referenced by a **`secret_ref`** on the binding row — never stored in the DB, never in the
 browser bundle (FR-ENA-011, NFR-ENA-SEC-002; env-file-privacy rule). Full schema in §4.
 
-### [OWNER-DECISION] OQ-7 — AP command surface
+### [DECIDED — owner, 2026-07-11] OQ-7 — AP command surface
 **Recommended default for sign-off:** P2 includes, as PMO commands: create + update-draft + `transition`
 (**submit / cancel / amend**) on **Purchase Invoice**; **create+submit** and **cancel** on **Payment
 Entry** (amend on PE is desk-only in P2 — PE amend is rare and the R9 cancel-first path covers correction).
