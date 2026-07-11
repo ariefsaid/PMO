@@ -90,6 +90,10 @@ function createFakeOutbox() {
       row.updatedAt = Date.now();
       return 1;
     },
+    async verifyClaimGeneration(id, claimGeneration) {
+      const row = rows.get(id);
+      return !!row && row.claimGeneration === claimGeneration;
+    },
     async markOutboxConfirmed(id, claimGeneration) {
       const row = rows.get(id);
       if (!row || row.claimGeneration !== claimGeneration) return 0;
@@ -315,6 +319,40 @@ describe('AC-ENA-012 the fencing token closes the lease-expiry overlap (F4)', ()
     // A superseded write-back must never call the finalize side-effects.
     expect(writeReadModel).not.toHaveBeenCalled();
     expect(recordExternalRef).not.toHaveBeenCalled();
+  });
+
+  it('F3: finalization is generation-guarded — a claimant superseded between committed and confirmed writes NO mirror/ref', async () => {
+    const fake = createFakeOutbox();
+    await fake.deps.insertOutboxPending('procurement', 'pmo-1', 'key-1');
+    const id = [...fake.rows.keys()][0];
+    const claimed = await fake.deps.claimOutboxForCommit(id);
+    // ERP committed under this claimant's token; the row is `committed`, finalize not yet run.
+    await fake.deps.markOutboxCommitted(id, 'PI-0001', { id: 'pmo-1', erp_total: '5.00' }, claimed!.claimGeneration);
+
+    // Simulate a reclaimer superseding this claimant in the gap BEFORE the (non-transactional) mirror +
+    // ref writes: the fenced re-check returns false and the reclaimer confirms the row itself.
+    vi.spyOn(fake.deps, 'verifyClaimGeneration').mockImplementationOnce(async () => {
+      const r = fake.rows.get(id)!;
+      r.state = 'confirmed';
+      r.claimGeneration += 1;
+      r.externalRecordId = 'PI-RECLAIMED';
+      r.canonical = { id: 'pmo-1', erp_total: '5.00', erp_status: 'Submitted' };
+      return false;
+    });
+
+    const writeReadModel = vi.fn();
+    const recordExternalRef = vi.fn();
+    const result = await dispatchMoneyWrite({
+      adapter: erpnextAdapter(vi.fn()),
+      command: baseCommand,
+      writeReadModel, recordExternalRef,
+      money: fake.deps,
+    });
+    // The superseded claimant's finalize wrote NOTHING; the recovery reconciled off the reclaimer's state.
+    expect(writeReadModel).not.toHaveBeenCalled();
+    expect(recordExternalRef).not.toHaveBeenCalled();
+    expect(result.externalRecordId).toBe('PI-RECLAIMED');
+    expect([...fake.rows.values()][0].state).toBe('confirmed');
   });
 });
 

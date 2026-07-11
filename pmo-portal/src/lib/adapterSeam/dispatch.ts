@@ -82,6 +82,12 @@ export interface DispatchMoneyOutboxDeps {
   /** Guarded write-back `committing`→`committed` (records the ERP-assigned id AND the adapter's real
    *  returned `canonical`, F2 — so a later finalize mirrors the ERP-derived record, not a stub). */
   markOutboxCommitted: (id: string, externalRecordId: string, canonical: PmoRecord, claimGeneration: number) => Promise<number>;
+  /** F3 — a fenced ownership re-check run IMMEDIATELY before the (non-transactional) read-model +
+   *  `external_refs` writes. Returns `true` iff this caller still holds the claim (its
+   *  `claim_generation` matches the row's current value). A claimant superseded between `committed`
+   *  and `confirmed` gets `false` and MUST write nothing — otherwise it would stamp a stale mirror/ref
+   *  over the reclaimer's correct one. The DB impl is a guarded `SELECT`/`UPDATE` on `claim_generation`. */
+  verifyClaimGeneration: (id: string, claimGeneration: number) => Promise<boolean>;
   /** Guarded write-back `committed`→`confirmed` (after the read-model/external_refs finalize). */
   markOutboxConfirmed: (id: string, claimGeneration: number) => Promise<number>;
   /** Guarded write-back →`failed` (a non-retryable `commit-rejected` classification). A retryable
@@ -114,6 +120,13 @@ async function finalizeOutboxRow(
   claimGeneration: number,
   deps: DispatchMoneyWriteDeps,
 ): Promise<number> {
+  // F3 — generation-guard the WHOLE finalization: re-verify claim ownership IMMEDIATELY before the
+  // (non-transactional) mirror + `external_refs` writes, so a claimant superseded between `committed`
+  // and `confirmed` writes NOTHING (it must not stamp a stale mirror/ref over the reclaimer's correct
+  // one). A `false` here means superseded → return 0 so the caller discards and reconciles off the
+  // reclaimer's current state.
+  const stillOwned = await deps.money.verifyClaimGeneration(row.id, claimGeneration);
+  if (!stillOwned) return 0;
   // F2 — mirror the adapter's REAL returned record (persisted at commit), not a reconstructed stub, so
   // the read-model carries the ERP-derived fields (totals, status, outstanding, …). Fall back to the id
   // stub only for a row adopted without a full record (a later read-back/sweep reconciles its fields).
