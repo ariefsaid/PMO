@@ -1,5 +1,6 @@
+// @e2e-isolation: serial — mutates org-global state (see design 2026-07-11-e2e-parallel-isolation).
 import { test, expect, type Page } from '@playwright/test';
-import { signIn } from './helpers';
+import { signIn } from '../helpers';
 
 /**
  * AC-ENT-005  Administration › Features › Operator toggle — real cross-stack journey

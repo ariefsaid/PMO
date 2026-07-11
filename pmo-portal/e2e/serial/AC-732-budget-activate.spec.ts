@@ -1,5 +1,6 @@
+// @e2e-isolation: serial — mutates org-global state (see design 2026-07-11-e2e-parallel-isolation).
 import { test, expect } from '@playwright/test';
-import { login } from './helpers';
+import { login } from '../helpers';
 
 // AC-732 — curated journey: PM creates a Draft, adds line-items {600000,400000}, activates,
 // project shows formatCurrency(1000000).
