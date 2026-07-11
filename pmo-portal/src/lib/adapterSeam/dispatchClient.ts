@@ -62,6 +62,39 @@ export function classifyDispatchError(
   return { code: undefined, message: body?.message ?? 'The dispatch request failed' };
 }
 
+/** Options for a multi-domain dispatch (task 1.11, ADR-0057). `idempotencyKey` is minted by the
+ *  caller (repository seam, task 1.10) for a non-read-only `erpnext`-tier money command — the served
+ *  dispatch enforces its presence for that tier/operation combination (rejects a missing key as
+ *  `commit-rejected`/`missing-idempotency-key`). P0 (reference) and P1 (ClickUp tasks) never pass it. */
+export interface DispatchDomainCommandOptions {
+  idempotencyKey?: string;
+}
+
+/** Shared transport: POST `functions/v1/adapter-dispatch` with `{ domain, operation, record[, idempotencyKey] }`.
+ *  `idempotencyKey` is included in the body ONLY when supplied — an omitted options arg produces the
+ *  exact pre-1.11 body shape (byte-for-byte for every existing caller). */
+async function invokeDispatch(
+  domain: string,
+  operation: AdapterOperation,
+  record: PmoRecord,
+  options?: DispatchDomainCommandOptions,
+): Promise<CommandResult> {
+  const body: { domain: string; operation: AdapterOperation; record: PmoRecord; idempotencyKey?: string } = {
+    domain,
+    operation,
+    record,
+  };
+  if (options?.idempotencyKey) body.idempotencyKey = options.idempotencyKey;
+  const { data, error } = await supabase.functions.invoke<CommandResult>('adapter-dispatch', { body });
+  if (error) {
+    const errorBody = await readErrorBody(error);
+    const { code, message } = classifyDispatchError(error, errorBody);
+    throw new AppError(message, code);
+  }
+  if (!data) throw new AppError('The dispatch request returned no result');
+  return data;
+}
+
 /**
  * Dispatch a task command through `adapter-dispatch` (POST `functions/v1/adapter-dispatch`,
  * `{ domain: 'tasks', operation, record }`). Resolves with the edge function's `CommandResult`
@@ -73,14 +106,19 @@ export async function dispatchTaskCommand(
   operation: AdapterOperation,
   record: PmoRecord,
 ): Promise<CommandResult> {
-  const { data, error } = await supabase.functions.invoke<CommandResult>('adapter-dispatch', {
-    body: { domain: 'tasks', operation, record },
-  });
-  if (error) {
-    const body = await readErrorBody(error);
-    const { code, message } = classifyDispatchError(error, body);
-    throw new AppError(message, code);
-  }
-  if (!data) throw new AppError('The dispatch request returned no result');
-  return data;
+  return invokeDispatch('tasks', operation, record);
+}
+
+/**
+ * Dispatch a command for ANY externally-owned domain (task 1.11, generalizes `dispatchTaskCommand`
+ * for P2's `procurement`/`companies` — ADR-0055/ADR-0057). Same transport + error classification;
+ * threads an optional `idempotencyKey` for the erpnext money path.
+ */
+export async function dispatchDomainCommand(
+  domain: string,
+  operation: AdapterOperation,
+  record: PmoRecord,
+  options?: DispatchDomainCommandOptions,
+): Promise<CommandResult> {
+  return invokeDispatch(domain, operation, record, options);
 }
