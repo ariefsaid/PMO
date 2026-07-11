@@ -111,4 +111,77 @@ describe('erpnext/dispatchFactory', () => {
     expect(putCalled).toBe(true);
     expect(afterSubmitHook).toHaveBeenCalledTimes(1);
   });
+
+  it('task 4.6/4.7 — resolves record.vendorId through the companies external_refs mapping into ctx.refs.supplier (RFQ/SQ need a real ERP supplier)', async () => {
+    // A multi-table-aware fake: external_org_bindings -> ACTIVATED_ROW; external_refs -> the Supplier mapping.
+    const serviceClient: DispatchServiceClient = {
+      from: (table: string) => ({
+        select: () => {
+          let filters: Record<string, string> = {};
+          const chain = {
+            eq: (col: string, val: string) => {
+              filters = { ...filters, [col]: val };
+              return chain;
+            },
+            maybeSingle: async () => {
+              if (table === 'external_org_bindings') return { data: ACTIVATED_ROW, error: null };
+              if (table === 'external_refs' && filters.domain === 'companies' && filters.pmo_record_id === 'company-1') {
+                return { data: { external_record_id: 'Supplier:Spike Supplier' }, error: null };
+              }
+              return { data: null, error: null };
+            },
+          };
+          return chain;
+        },
+      }),
+    } as unknown as DispatchServiceClient;
+
+    let capturedToBodyCtx: unknown;
+    const adapter = await resolveErpDispatchAdapter({
+      serviceClient,
+      orgId: 'org-1',
+      command: { domain: 'procurement', operation: 'create', record: { id: 'pmo-1', erp_doc_kind: 'quotation', vendorId: 'company-1', items: [{ item_code: 'X', qty: 1, rate: 1 }] } },
+      fetchImpl: (async (_url: string, init?: RequestInit) => {
+        if (init?.method === 'POST') return new Response(JSON.stringify({ name: 'PUR-SQTN-2026-00001' }), { status: 200 });
+        if (init?.method === 'PUT') return new Response(JSON.stringify({ name: 'PUR-SQTN-2026-00001', docstatus: 1 }), { status: 200 });
+        return new Response(JSON.stringify({ name: 'PUR-SQTN-2026-00001', docstatus: 1 }), { status: 200 });
+      }) as unknown as typeof fetch,
+      apiKey: 'k',
+      apiSecret: 's',
+      doctypeBodies: {
+        quotation: {
+          toBody: (rec, ctx) => {
+            capturedToBodyCtx = ctx;
+            return { supplier: ctx.refs.supplier, items: rec.items };
+          },
+          fromDoc: () => ({ id: 'placeholder' }),
+        },
+      },
+    });
+    await adapter.commit({ domain: 'procurement', operation: 'create', record: { id: 'pmo-1', erp_doc_kind: 'quotation', vendorId: 'company-1', items: [{ item_code: 'X', qty: 1, rate: 1 }] } });
+    expect((capturedToBodyCtx as { refs: { supplier: string | null } }).refs.supplier).toBe('Spike Supplier');
+  });
+
+  it('leaves ctx.refs.supplier null when the command carries no vendorId (e.g. a Material Request)', async () => {
+    let capturedToBodyCtx: unknown;
+    const adapter = await resolveErpDispatchAdapter({
+      serviceClient: serviceClientReturning(ACTIVATED_ROW),
+      orgId: 'org-1',
+      command: { domain: 'procurement', operation: 'create', record: { id: 'pmo-1', erp_doc_kind: 'purchase-request', items: [{ item_code: 'X', qty: 1 }] } },
+      fetchImpl: vi.fn(async () => new Response(JSON.stringify({ name: 'MAT-REQ-2026-00001' }), { status: 200 })) as unknown as typeof fetch,
+      apiKey: 'k',
+      apiSecret: 's',
+      doctypeBodies: {
+        'purchase-request': {
+          toBody: (rec, ctx) => {
+            capturedToBodyCtx = ctx;
+            return { items: rec.items };
+          },
+          fromDoc: () => ({ id: 'placeholder' }),
+        },
+      },
+    });
+    await adapter.commit({ domain: 'procurement', operation: 'create', record: { id: 'pmo-1', erp_doc_kind: 'purchase-request', items: [{ item_code: 'X', qty: 1 }] } }).catch(() => {});
+    expect((capturedToBodyCtx as { refs: { supplier: string | null } } | undefined)?.refs.supplier ?? null).toBeNull();
+  });
 });
