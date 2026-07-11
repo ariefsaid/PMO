@@ -16,10 +16,13 @@
  * Requires (process env): SUPABASE_FUNCTIONS_URL (set by `scripts/serve-functions.sh` locally, or
  * inline by the CI step) + SUPABASE_URL/VITE_SUPABASE_URL + VITE_SUPABASE_ANON_KEY/SUPABASE_ANON_KEY
  * (the local-stack ephemeral demo key, never a production secret — same convention as
- * AC-AAN-036/AC-AGP-023). SUPABASE_SERVICE_ROLE_KEY is optional (used only to clean up the one row
- * the 200 test commits — shared-stack hygiene). Fails loudly in CI when the lane vars are missing
- * (never a silent skip there); skips gracefully in local development when the served-fn lane hasn't
- * been started via `scripts/serve-functions.sh`.
+ * AC-AAN-036/AC-AGP-023) + SUPABASE_SERVICE_ROLE_KEY (REQUIRED whenever the served lane is
+ * available — Slice-0 fix-round finding 7: the 200 test commits a row via the real adapter; without
+ * the service-role key its `finally` cleanup can't run, and a committed `external_reference_items`/
+ * `external_refs` row would be silently stranded in the shared local DB on every run). Fails loudly
+ * — never a silent skip or a silent no-cleanup — both in CI when the lane vars are missing AND
+ * locally whenever serving is possible but the cleanup credential is absent; skips gracefully ONLY
+ * when the served-fn lane itself hasn't been started (`scripts/serve-functions.sh` not running).
  */
 import { test, expect } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
@@ -37,6 +40,17 @@ const READY = Boolean(FUNCTIONS_URL && AUTH_URL && ANON_KEY);
 if (!READY && process.env.CI) {
   throw new Error(
     'served-fn-smoke: SUPABASE_FUNCTIONS_URL + SUPABASE_URL + VITE_SUPABASE_ANON_KEY are required in CI — this spec cannot silently skip',
+  );
+}
+// Slice-0 fix-round finding 7: whenever serving is POSSIBLE (READY), the cleanup credential is no
+// longer optional — the 200 test's `finally` block deletes the row it committed, and without
+// SUPABASE_SERVICE_ROLE_KEY that delete can't run, stranding a row in the shared local DB on every
+// run. Fail loud with a clear, actionable message rather than silently degrading to "no cleanup".
+if (READY && !SERVICE_KEY) {
+  throw new Error(
+    'served-fn-smoke: SUPABASE_SERVICE_ROLE_KEY is required whenever the served lane is available — ' +
+      "without it the 200 test's committed external_reference_items/external_refs row can never be " +
+      'cleaned up. Export it (e.g. from `supabase status -o env`) alongside SUPABASE_FUNCTIONS_URL.',
   );
 }
 test.skip(
@@ -96,16 +110,17 @@ test.describe('served-fn-smoke: adapter-dispatch through the real served lane (r
     } finally {
       // Shared-stack hygiene: delete the rows this commit wrote (external_reference_items +
       // external_refs) so a repeated local run against the same shared DB stays byte-for-byte.
-      if (SERVICE_KEY) {
-        const admin = createClient(AUTH_URL, SERVICE_KEY);
-        await admin.from('external_reference_items').delete().eq('org_id', ORG_ID).eq('pmo_record_id', pmoRecordId);
-        await admin
-          .from('external_refs')
-          .delete()
-          .eq('org_id', ORG_ID)
-          .eq('domain', 'reference')
-          .eq('pmo_record_id', pmoRecordId);
-      }
+      // Unconditional (finding 7): SERVICE_KEY is guaranteed non-empty here — the module-load guard
+      // above already threw if serving was possible but the cleanup credential was absent, so this
+      // commit test could never even start without it.
+      const admin = createClient(AUTH_URL, SERVICE_KEY);
+      await admin.from('external_reference_items').delete().eq('org_id', ORG_ID).eq('pmo_record_id', pmoRecordId);
+      await admin
+        .from('external_refs')
+        .delete()
+        .eq('org_id', ORG_ID)
+        .eq('domain', 'reference')
+        .eq('pmo_record_id', pmoRecordId);
     }
   });
 });
