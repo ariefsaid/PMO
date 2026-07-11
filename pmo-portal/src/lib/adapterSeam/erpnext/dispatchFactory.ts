@@ -42,6 +42,10 @@ export interface ErpDispatchFactoryDeps {
   rateLimiter?: ErpRateLimiter;
   /** The (kind)->{toBody,fromDoc} side table — empty until slices 3-6 wire real doctype bodies. */
   doctypeBodies?: Partial<Record<ErpDocKind, DoctypeBodyFns>>;
+  /** Threaded straight into `ErpAdapterDeps.afterSubmitHook` (FR-ENA-003 — the `after-submit-before-
+   *  mirror` fault seam, wired by the edge fn at task 2.14). Optional — a production caller that
+   *  never arms the fault gate can omit it (a true no-op). */
+  afterSubmitHook?: () => Promise<void>;
 }
 
 /**
@@ -77,6 +81,7 @@ export async function resolveErpDispatchAdapter(deps: ErpDispatchFactoryDeps): P
     // Ref resolution (supplier/PO/PO-item) is wired by slices 3/5's dispatch-factory extensions;
     // this slice ships the engine with an empty refs bag (inert — no org is flipped).
     ctx: { refs: {}, config: binding.config },
+    afterSubmitHook: deps.afterSubmitHook,
   };
   return createErpAdapter(adapterDeps);
 }

@@ -84,4 +84,31 @@ describe('erpnext/dispatchFactory', () => {
     // resolving succeeds using ONLY the passed-in creds — no attempt to read/interpret secret_ref here.
     expect(adapter.tier).toBe(ERPNEXT_TIER);
   });
+
+  it('threads afterSubmitHook into the adapter (FR-ENA-003 after-submit-before-mirror seam, task 2.14)', async () => {
+    const afterSubmitHook = vi.fn(async () => {});
+    let putCalled = false;
+    const fetchImpl = vi.fn(async (_url: string, init?: RequestInit) => {
+      if (init?.method === 'POST') return new Response(JSON.stringify({ name: 'PUR-ORD-2026-00001' }), { status: 200 });
+      if (init?.method === 'PUT') {
+        putCalled = true;
+        return new Response(JSON.stringify({ name: 'PUR-ORD-2026-00001', docstatus: 1 }), { status: 200 });
+      }
+      return new Response(JSON.stringify({ name: 'PUR-ORD-2026-00001', docstatus: 1 }), { status: 200 });
+    }) as unknown as typeof fetch;
+
+    const adapter = await resolveErpDispatchAdapter({
+      serviceClient: serviceClientReturning(ACTIVATED_ROW),
+      orgId: 'org-1',
+      command: { domain: 'procurement', operation: 'create', record: { id: 'pmo-1', erp_doc_kind: 'purchase-order', items: [{ item_code: 'X', qty: 1 }] } },
+      fetchImpl,
+      apiKey: 'k',
+      apiSecret: 's',
+      afterSubmitHook,
+      doctypeBodies: { 'purchase-order': { toBody: (rec) => ({ items: rec.items }), fromDoc: () => ({ id: 'placeholder' }) } },
+    });
+    await adapter.commit({ domain: 'procurement', operation: 'create', record: { id: 'pmo-1', erp_doc_kind: 'purchase-order', items: [{ item_code: 'X', qty: 1 }] } });
+    expect(putCalled).toBe(true);
+    expect(afterSubmitHook).toHaveBeenCalledTimes(1);
+  });
 });

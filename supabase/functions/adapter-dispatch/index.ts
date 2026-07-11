@@ -33,6 +33,8 @@ import { createReferenceAdapter, REFERENCE_DOMAIN } from '../../../pmo-portal/sr
 import { CLICKUP_TASKS_DOMAIN } from '../../../pmo-portal/src/lib/adapterSeam/clickup/adapter.ts';
 import { resolveClickUpDispatchAdapter } from '../../../pmo-portal/src/lib/adapterSeam/clickup/dispatchFactory.ts';
 import { ClickUpRateLimiter } from '../../../pmo-portal/src/lib/adapterSeam/clickup/rateLimit.ts';
+import { ERPNEXT_COMPANIES_DOMAIN, ERPNEXT_PROCUREMENT_DOMAIN } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/adapter.ts';
+import { resolveErpDispatchAdapter } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/dispatchFactory.ts';
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
 import type { Adapter, AdapterCommand, PmoRecord } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
 import { getReadModelWriter } from './readModelWriters.ts';
@@ -44,6 +46,9 @@ interface AdapterSelectContext {
   orgId: string;
   command: AdapterCommand;
   serviceClient: SupabaseClient;
+  /** Read-only pass-through so a tier's factory can wire an in-flow fault seam (e.g. ERPNext's
+   *  two-step submit, task 2.14) — factories that don't need it (P0/P1) simply ignore this field. */
+  faultGate: FaultGate;
 }
 
 type AdapterFactory = (ctx: AdapterSelectContext) => Promise<Adapter>;
@@ -70,19 +75,47 @@ function resolveClickUpAdapter(ctx: AdapterSelectContext): Promise<Adapter> {
   });
 }
 
+// ERPNext adapter factory (task 2.14): one tier ('erpnext'), two PMO domains ('companies' and
+// 'procurement') — the routeDomainWrite generalization (FR-ENA-010). No org is flipped this slice
+// (`external_domain_ownership` ships empty), so this factory is registered but never invoked; a
+// mis-flip would still resolve correctly (never a silent no-op), matching the `notWired`
+// read-model-writer discipline (task 1.6) one layer up.
+//
+// Credentials (FIXME follow-up, flagged for the Director — NOT resolved this slice): per OQ-6 the
+// real design is ONE binding's `secret_ref` naming a per-org vault/function-secret pair (never a
+// single global credential — NFR-ENA-SEC-002). No task in this plan (2.1-8.9) builds that
+// secret_ref -> {apiKey,apiSecret} resolution; a single global `ERPNEXT_API_KEY`/`ERPNEXT_API_SECRET`
+// env-var pair is used here as an inert placeholder (mirrors ClickUp's single global
+// `CLICKUP_API_TOKEN`) — safe ONLY because this factory is never exercised while every org's
+// ownership map stays empty. MUST be replaced with real per-org secret_ref resolution before any org
+// is ever flipped to `erpnext`.
+const erpRateLimiter = { acquire: async () => {} };
+
+function resolveErpAdapter(ctx: AdapterSelectContext): Promise<Adapter> {
+  return resolveErpDispatchAdapter({
+    serviceClient: ctx.serviceClient as never,
+    orgId: ctx.orgId,
+    command: ctx.command,
+    fetchImpl: fetch,
+    apiKey: Deno.env.get('ERPNEXT_API_KEY') ?? '',
+    apiSecret: Deno.env.get('ERPNEXT_API_SECRET') ?? '',
+    rateLimiter: erpRateLimiter,
+    // The 'after-submit-before-mirror' fault seam (FR-ENA-003): fires inside the adapter's two-step
+    // submit, between the submit PUT and the post-submit re-fetch — the ONLY tier with a two-step
+    // commit (P0/P1 have none, so they never wire this hook).
+    afterSubmitHook: () => maybeFault('after-submit-before-mirror', ctx.faultGate),
+  });
+}
+
 // Adapter registry, keyed by the PMO domain the tier natively owns. 'reference' is the P0 synthetic
-// domain (ADR-0055 §"out of scope"); 'tasks' is ClickUp's P1 domain (ADR-0055 P1, FR-CUA-001).
+// domain (ADR-0055 §"out of scope"); 'tasks' is ClickUp's P1 domain (ADR-0055 P1, FR-CUA-001);
+// 'companies'/'procurement' are ERPNext's P2 domains (FR-ENA-010, task 2.14).
 const ADAPTER_REGISTRY: Record<string, AdapterFactory> = {
   [REFERENCE_DOMAIN]: async () => createReferenceAdapter('commit-success'),
   [CLICKUP_TASKS_DOMAIN]: resolveClickUpAdapter,
+  [ERPNEXT_COMPANIES_DOMAIN]: resolveErpAdapter,
+  [ERPNEXT_PROCUREMENT_DOMAIN]: resolveErpAdapter,
 };
-
-// NOTE (faultSeams.ts 'after-submit-before-mirror', FR-ENA-003): neither P0 (reference) nor P1
-// (ClickUp) has a two-step insert-then-submit commit — `Adapter.commit()` is one call. This seam has
-// no call site until the ERPNext money doctypes land their two-step submit (plan §2 decision 3,
-// slice 2/6), at which point that adapter's own submit step calls `maybeFault('after-submit-before-
-// mirror', faultGate)` directly (it is "surfaced via a dep the adapter calls", not wired here). The
-// gate logic itself is already proven at the unit level (faultSeams.test.ts, task 0.6).
 
 // Same origin-narrowing seam as agent-chat/compose-view (AUDIT quick-win 2026-07-07): set
 // AGENT_ALLOWED_ORIGIN in prod; falls back to SITE_URL, then '' (fail-closed — never '*').
@@ -195,7 +228,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
   let adapter: Adapter;
   try {
-    adapter = await adapterFactory({ orgId, command, serviceClient });
+    adapter = await adapterFactory({ orgId, command, serviceClient, faultGate });
   } catch (err) {
     const appError = err instanceof AppError ? err : new AppError(err instanceof Error ? err.message : 'adapter select failed');
     return new Response(JSON.stringify({ error: appError.code ?? 'ADAPTER_SELECT_FAILED', message: appError.message }), {
