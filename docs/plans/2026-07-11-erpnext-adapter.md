@@ -148,7 +148,7 @@ Operator, which no test-or-prod org is).
 | **4** | MR + RFQ + Supplier Quotation: first submittable doctypes; procurement_items + purchase_requests + rfqs + procurement_quotations flip migration + pgTAP; one-selected invariant preserved; PR→MR + RFQ/SQ served-fn e2e | 003(procurement),050,051 | `0097_procurement_items_pr_rfq_sq_flip.sql` | 4.1–4.11 |
 | **5** | PO + GR: cross-doctype ref resolution incl. the PO item child-row `name`; purchase_orders + procurement_receipts flip migration + pgTAP; PO+GR served-fn e2e | 052 | `0098_purchase_orders_receipts_flip.sql` | 5.1–5.9 |
 | **6** | PI + Payment Entry + full AP command surface (R9 frozen): create/update-draft + submit/cancel/amend on PI; create+submit + cancel on PE; procurement_invoices + payments flip migration + pgTAP; **outbox-backed money e2e at the real boundary** (after-commit-before-mirror PE idempotency; PI recovery-adopt) | 053,072(money) | `0099_invoices_payments_flip.sql` | 6.1–6.14 |
-| **7** | Actuals + AP/AR aging read-only snapshots: report-RPC primary (pinned filters) + mirrored-ledger fallback (never invoice-only math); 3 snapshot tables + snapshot-replace + provenance; aging served-fn e2e | 060,061 | `0100_erp_accounting_snapshots.sql` | 7.1–7.9 |
+| **7** | Actuals + AP/AR aging read-only snapshots: report-RPC primary (pinned filters) + **mirrored-ledger** fallback over the `erp_gl_entry_mirror`/`erp_payment_ledger_mirror` read-model (never invoice-only math); 2 ledger-mirror tables + 3 snapshot tables + snapshot-replace + provenance; aging served-fn e2e | 060,061 | `0100_erp_accounting_snapshots.sql` | 7.1–7.9 |
 | **8** | Webhooks-as-hints + modified-poll sweep + cancel/amend lineage feed: `erpnext-webhook` (HMAC) ingress; `erpnext-sweep` (modified cursor, inclusive + dedupe); sweep cron; lineage wired into the apply path | 070,071 | `0101_erpnext_sweep_cron.sql` | 8.1–8.9 |
 
 **AC-ENA-002** (zero-regression meta-AC) is the `npm run verify` + full pgTAP gate at the end of **every**
@@ -397,6 +397,14 @@ outbox/adapter deps (including a mocked `claimOutboxForCommit`). Asserts the ful
   read `pending`, both probe (empty) — only the one whose `claimOutboxForCommit` mock returns the row
   POSTs; the other's claim returns null → it does **not** POST (assert adapter.commit call count == 1),
   re-reads, and finalizes to the winner's result. A `committing`-fresh row → no POST, re-read on backoff.
+- **the fencing token closes the lease-expiry overlap (F4):** `claimOutboxForCommit` returns the row's
+  `claim_generation`; `dispatchMoneyWrite` threads that token into **every** post-claim write-back
+  (`markOutboxCommitted`/`markOutboxConfirmed`/`markOutboxFailed` + the `external_refs` record). Assert a
+  lease-expired claimant holding token `gen=1` whose write-back runs AFTER a reclaimer bumped the row to
+  `gen=2`: its `markOutboxCommitted(id, …, 1)` affects **0 rows** (the mock reports 0 rowCount) → the stale
+  claimant's result is **discarded** (no state change, no finalize, no duplicate mirror), while the
+  reclaimer's `gen=2` write-back applies. (The stale claimant's ERP POST may have fired — the reclaimer's
+  `remarks`-key probe adopts that one doc, per ADR-0057 §4.)
 - `confirmed` retry → return stored result, **no ERP call, no claim**.
 - `committed` retry → finalize (mirror+ref) only, **no second commit, no claim**.
 - `pending`/`failed`/stale-`committing` retry → **claim first** → probe finds doc → adopt → finalize;
@@ -412,12 +420,18 @@ Deno-importable) alongside `dispatchExternallyOwnedWrite`. **Step 0 — server-s
 `if (tier==='erpnext' && op!=='read' && !command.idempotencyKey) throw AdapterError('commit-rejected',
 'missing-idempotency-key')` — a key-less erpnext money command never reaches the outbox. P0/P1 (other
 tiers) are unaffected. `DispatchMoneyDeps` extends the existing deps with `{ readOutbox, insertOutboxPending,
-claimOutboxForCommit, markOutboxCommitted, markOutboxConfirmed, markOutboxFailed, probeByRemarksKey }`.
-`dispatchExternallyOwnedWrite` chooses: `erpnext`-tier non-read-only with key → `dispatchMoneyWrite`; else
-the existing path (byte-for-byte for P0/P1). The reconcile algorithm is `reconcileOutbox(existing)` per
-ADR-0057 §4: `confirmed`→return; `committed`→finalize-only; `committing`-fresh→backoff-re-read;
-`pending`/`failed`/stale-`committing`→**`claimOutboxForCommit(id)` first; only the winner (non-null return)
-probes→adopt-or-POST→mark; the loser (null) re-reads and reconciles, never POSTs**. Re-run 1.4 → GREEN.
+claimOutboxForCommit, markOutboxCommitted, markOutboxConfirmed, markOutboxFailed, probeByRemarksKey }` —
+where each `markOutbox*` takes the caller's **fencing token** (`claimGeneration`) and returns the affected
+row count (its guarded UPDATE is `… where id = $1 and claim_generation = $token`). `claimOutboxForCommit`
+returns the claimed row **including its bumped `claim_generation`**, which `dispatchMoneyWrite` captures as
+the token for the rest of the flow. `dispatchExternallyOwnedWrite` chooses: `erpnext`-tier non-read-only
+with key → `dispatchMoneyWrite`; else the existing path (byte-for-byte for P0/P1). The reconcile algorithm
+is `reconcileOutbox(existing)` per ADR-0057 §4: `confirmed`→return; `committed`→finalize-only;
+`committing`-fresh→backoff-re-read; `pending`/`failed`/stale-`committing`→**`claimOutboxForCommit(id)`
+first; only the winner (non-null return) probes→adopt-or-POST→mark, threading its `claim_generation` token
+into every `markOutbox*`/ref write-back; the loser (null) re-reads and reconciles, never POSTs**. Any
+write-back that reports **0 rows affected** (a stale fencing token — a reclaimer superseded this claimant
+mid-flight) is treated as "superseded → discard, do NOT finalize" (F4 lease-expiry overlap). Re-run 1.4 → GREEN.
 **Verify:** `cd pmo-portal && npx vitest run src/lib/adapterSeam/dispatch.money.test.ts` → passes.
 
 ### 1.6 — Multi-domain read-model writer registry + resolver (replaces the dispatch if-chain)
@@ -431,9 +445,20 @@ unknown domain → throws (no silent skip); `resolveExternalRef(svc, org, 'tasks
 **GREEN files:** `supabase/functions/adapter-dispatch/readModelWriters.ts` (new) + edit `index.ts`. Replace
 the `writeReadModel` inline `if (domain===CLICKUP_TASKS_DOMAIN)` with `READ_MODEL_WRITERS[domain].upsert(...)`
 (`Record<domain, {upsert, tombstone?}>`; unknown-domain throws). ClickUp's `tasks` writer moves in
-verbatim; ERPNext's `companies`/`procurement` writers register in their slices (stub
-`{upsert:()=>{}}` here is fine — no flip ⇒ never called, and the unknown-domain throw still fires for
-truly-unmapped domains). Add `resolveExternalRef(serviceClient, orgId, domain, pmoRecordId)→externalId|null`
+verbatim; ERPNext's `companies`/`procurement` writers are wired to their real bodies in slices 3–6. Until
+then register an explicit **not-yet-wired** writer that fails loud rather than a silent `()=>{}` no-op — a
+silent no-op would swallow a real write if a flip ever landed early:
+
+```ts
+const notWired = (domain: string) => ({
+  upsert(): never { throw new Error(`erpnext read-model writer for '${domain}' is wired in slices 3–6`); },
+});
+READ_MODEL_WRITERS['companies'] = notWired('companies');
+READ_MODEL_WRITERS['procurement'] = notWired('procurement');
+```
+
+No org is flipped ⇒ these are never called; if one ever is (a mis-flip), the throw is as loud as the
+unknown-domain throw. Add `resolveExternalRef(serviceClient, orgId, domain, pmoRecordId)→externalId|null`
 + reverse `findPmoRecordId(…)` (multi-domain; the P1 single-domain `resolveExternalId` in
 `clickup/dispatchFactory.ts` delegates to it). `external_refs` already has
 `unique(org_id,domain,external_record_id)` (0093) — AC-ENA-054's guard is already live; this task only adds
@@ -448,8 +473,15 @@ idempotency_key)` rejects a concurrent duplicate (`throws_ok … '23505'`); org-
 service-role-only write; the `state` CHECK now includes the **`committing`** claim state
 (`pending|committing|committed|confirmed|failed`); and **the atomic claim is at-most-once** — seed a
 `pending` row, call `public.claim_outbox_for_commit(id)` twice in succession: the first returns the row
-(now `committing`), the second returns `NULL` (state is `committing`, `updated_at` fresh) — proving two
-concurrent reconcilers cannot both win the POST critical section (the review's critical case).
+(now `committing`, `claim_generation=1`), the second returns `NULL` (state is `committing`, `updated_at`
+fresh) — proving two concurrent reconcilers cannot both win the POST critical section (the review's
+critical case). **Plus the fencing-token proof (F4 — stale-generation write-back is discarded):** claim the
+seeded row (`claim_generation`→1), backdate its `updated_at` past the 60 s lease, then re-claim it
+(`claim_generation`→2, proving the token is monotonic); now assert a **guarded write-back with the STALE
+token** — `update external_command_outbox set state='committed' where id = <id> and claim_generation = 1
+returning 1` — affects **0 rows** (`is (count) 0`), while the same write-back with the **current** token
+(`claim_generation = 2`) affects **1 row**. This is the pgTAP proof that a lease-expired claimant's late
+write-back cannot corrupt a row a reclaimer already owns.
 **Verify (RED):** `scripts/with-db-lock.sh supabase test db -- -f external_command_outbox_rls` → fails (table absent).
 
 ### 1.8 — GREEN: migration `0095_erpnext_seam_tables.sql` (re-verify number first)
@@ -475,7 +507,8 @@ create table public.external_org_bindings (
   updated_at          timestamptz not null default now(),
   unique (org_id, external_tier)
 );
--- external_command_outbox (R1/R3): the durable provisional ref. unique 4-tuple = the idempotency guard.
+-- external_command_outbox (R1/R3): the durable provisional ref. unique 4-tuple = the idempotency guard;
+-- claim_generation = the FENCING TOKEN (monotonic per claim) that invalidates a stale claimant's write-back.
 create table public.external_command_outbox (
   id                  uuid primary key default gen_random_uuid(),
   org_id              uuid not null default coalesce(public.auth_org_id(),'00000000-0000-0000-0000-000000000001')
@@ -489,6 +522,7 @@ create table public.external_command_outbox (
   external_record_id  text,
   payload_digest      text,
   attempt_count       int not null default 0,
+  claim_generation    int not null default 0,   -- fencing token: bumped on every claim; write-backs guard on it
   last_error          text,
   created_at          timestamptz not null default now(),
   updated_at          timestamptz not null default now(),
@@ -513,8 +547,13 @@ create index external_ref_lineage_lookup_idx on public.external_ref_lineage (org
 -- Mirrors the 0078 durable-claim discipline (at-most-once in the DB) + 0077 txn-serialization intent. A
 -- conditional UPDATE under Postgres' row lock: two concurrent claims serialize, only the winner transitions
 -- and RETURNs the row; the loser's UPDATE matches 0 rows (state 'committing', updated_at fresh) → NULL. A
--- 'committing' row past p_lease is re-claimable (recovers a process that died holding the claim). SECURITY
--- DEFINER so the policy-less outbox is touched only here + by service_role.
+-- 'committing' row past p_lease is re-claimable (recovers a process that died holding the claim). Each win
+-- BUMPS claim_generation — the returned value is the caller's FENCING TOKEN: every post-claim write-back
+-- (mark committed/confirmed/failed, external_record_id record) is guarded `WHERE claim_generation = <token>`,
+-- so a lease-expired-but-still-running claimant that a reclaimer already superseded matches 0 rows on its
+-- late write-back and its result is discarded (F4 — closes the lease-expiry double-write). Its ERP POST may
+-- still have fired; that orphan is exactly what the remarks-idempotency-key recovery reconciles (§4).
+-- SECURITY DEFINER so the policy-less outbox is touched only here + by service_role.
 create or replace function public.claim_outbox_for_commit(
   p_id uuid, p_lease interval default interval '60 seconds'
 ) returns public.external_command_outbox
@@ -522,21 +561,27 @@ create or replace function public.claim_outbox_for_commit(
   declare v public.external_command_outbox;
   begin
     update public.external_command_outbox
-       set state='committing', attempt_count = attempt_count + 1, updated_at = now()
+       set state='committing',
+           attempt_count = attempt_count + 1,
+           claim_generation = claim_generation + 1,   -- fencing token (F4): monotonic per claim
+           updated_at = now()
      where id = p_id
        and ( state in ('pending','failed')
              or (state='committing' and updated_at < now() - p_lease) )
     returning * into v;
-    return v;
+    return v;   -- v.claim_generation is the caller's fencing token; null ⇒ another caller owns it
   end; $$;
 -- Reconciler select helper (sweep + retry): the rows a given caller may need to reconcile for an org.
+-- NOTE (F11): the state predicate is parenthesized as a whole so `org_id = p_org_id` constrains EVERY branch
+-- (incl. the stale-'committing' branch) — without the parens, AND/OR precedence would leak other orgs' stuck
+-- 'committing' rows into a caller's reconcile set.
 create or replace function public.outbox_reconcile_candidates(p_org_id uuid)
   returns setof public.external_command_outbox
   language sql security definer set search_path = public as $$
   select * from public.external_command_outbox
    where org_id = p_org_id
-     and state in ('pending','failed','committed')
-      or (state='committing' and updated_at < now() - interval '60 seconds');
+     and ( state in ('pending','failed','committed')
+           or (state='committing' and updated_at < now() - interval '60 seconds') );
   $$;
 ```
 Each table: `enable row level security; force row level security;` + `create policy … for select using
@@ -795,8 +840,10 @@ serviceClient, orgId, command, fetchImpl, apiKey, apiSecret, rateLimiter })`: `l
 
 **File:** `supabase/functions/adapter-dispatch/index.ts`. Add to `ADAPTER_REGISTRY`:
 `['companies'] = resolveErpDispatchAdapter` and `['procurement'] = resolveErpDispatchAdapter` (one tier, two
-domains — `routeDomainWrite` generalization). Register the ERPNext `companies`/`procurement`
-`READ_MODEL_WRITERS` (filled per slice 3–6; stub `{upsert:()=>{}}` here is fine — no flip ⇒ never called).
+domains — `routeDomainWrite` generalization). The ERPNext `companies`/`procurement` `READ_MODEL_WRITERS`
+entries are the **not-yet-wired throwing writers** already registered in task 1.6 (`notWired('companies')`
+/`notWired('procurement')`) — real bodies land per slice 3–6; no flip ⇒ never called, and a mis-flip throws
+loud rather than silently no-op'ing.
 Wire the fault-seam call between commit and mirror (`after-commit-before-mirror`) and inside submit
 (`after-submit-before-mirror`) via the adapter's deps. **Verify:** `deno check index.ts` clean; `npm run verify` green.
 
@@ -1190,68 +1237,119 @@ boundary): cancel→soft-tombstone+lineage; amend→`external_refs` repoint + `e
 
 ## Slice 7 — Actuals + AP/AR aging read-only snapshots (ADR-0048 ledger-sourced)
 
-**Goal:** read-only accounting read-backs — actuals from **fetched** `GL Entry` summation; AP/AR aging from
-the report RPC primary (pinned filters) with the **fetched-ledger** fallback (`GL Entry`/`Payment Ledger
-Entry`, no persistent mirror table — finding 6); **never invoice-only local math** (FR-ENA-162 prohibition).
-AC-ENA-060/061.
+**Goal:** read-only accounting read-backs — actuals from summing **mirrored** `GL Entry` rows; AP/AR aging
+from the report RPC primary (pinned filters, OQ-3) with the **mirrored-ledger** fallback (bucketing
+`erp_gl_entry_mirror`/`erp_payment_ledger_mirror` rows); **never invoice-only local math** (FR-ENA-162
+prohibition). The ledger mirrors are a machine-written read-model fed by the sweep (slice 8), matching the
+signed spec's "sum **mirrored** ledger rows" (FR-ENA-150) and "bucket **mirrored** `GL Entry`/`Payment
+Ledger Entry` rows" (FR-ENA-162). AC-ENA-060/061.
 
 ### 7.1 — RED+GREEN: migration `0100_erp_accounting_snapshots.sql` + pgTAP
 
-Three snapshot tables per spec §4.4 (`erp_actuals_snapshot`, `erp_ap_aging_snapshot`,
-`erp_ar_aging_snapshot`) — org-scoped, machine-written, org-member SELECT, snapshot-replacement per scope
-(`snapshot_id` + delete-prior-scope-in-tx). `numeric(14,2)` buckets; `range_labels jsonb`; provenance cols
-(`as_of`, `source_report`, `report_version`). pgTAP: org isolation + machine-only write +
-single-snapshot-per-scope after refresh. Reversal block. **Verify:** pgTAP green; `db reset` clean.
+**Two ledger-mirror read-model tables + three snapshot tables** — all org-scoped, machine-written (service-
+role write + org-member SELECT), `org_id` default + `stamp_org_id()` trigger, reversal block.
 
-> **Ledger sourcing (finding 6 — no phantom mirror table).** Signed §4.4 defines **only** the three
-> snapshot tables — there is **no** persistent `GL Entry`/`Payment Ledger Entry` mirror table, no doctype
-> registry entry, and no flip for them (they are read-only accounting truth, never PMO-written). So the
-> refresh **fetches ERP ledger rows on demand** at sweep time through a confined
-> `erpnext/ledgerFetch.ts`, sums/buckets them **in memory**, and persists **only** the §4.4 snapshot rows
-> (ADR-0048 ledger-sourced-display; the summed result is ERP truth, never a PMO-authored figure). "Sum
-> mirrored ledger rows" in spec §5.12 is satisfied by "sum the fetched ERP ledger rows before the snapshot
-> write" — the ledger is the transient source, the snapshot is the only persisted artifact.
+**Ledger mirror read-model (the mirrored-rows basis FR-ENA-150/162 require):**
+```sql
+-- erp_gl_entry_mirror: mirrored GL Entry truth (ADR-0048); the actuals-sum + aging-fallback basis.
+create table public.erp_gl_entry_mirror (
+  id            uuid primary key default gen_random_uuid(),
+  org_id        uuid not null default coalesce(public.auth_org_id(),'00000000-0000-0000-0000-000000000001') references public.organizations(id) on delete cascade,
+  erp_name      text not null,                    -- GL Entry `name`
+  account       text not null,
+  cost_center   text,
+  fiscal_year   text,
+  project       text,
+  party_type    text,
+  party         text,
+  voucher_type  text,
+  voucher_no    text,
+  posting_date  date,
+  debit         numeric(14,2),
+  credit        numeric(14,2),
+  is_cancelled  boolean not null default false,
+  erp_docstatus smallint,
+  erp_modified  text not null,                    -- per-row source-mod cursor (FR-CUA-049 pattern; feed guard)
+  as_of         timestamptz not null default now(),
+  unique (org_id, erp_name)
+);
+-- erp_payment_ledger_mirror: mirrored Payment Ledger Entry truth (the aging fallback's second source).
+create table public.erp_payment_ledger_mirror (
+  id                    uuid primary key default gen_random_uuid(),
+  org_id                uuid not null default coalesce(public.auth_org_id(),'00000000-0000-0000-0000-000000000001') references public.organizations(id) on delete cascade,
+  erp_name              text not null,            -- Payment Ledger Entry `name`
+  account               text not null,
+  party_type            text,
+  party                 text,
+  against_voucher_type  text,
+  against_voucher_no    text,
+  amount                numeric(14,2),
+  posting_date          date,
+  due_date              date,
+  erp_docstatus         smallint,
+  erp_modified          text not null,
+  as_of                 timestamptz not null default now(),
+  unique (org_id, erp_name)
+);
+```
+The `unique (org_id, erp_name)` makes the feed an idempotent upsert; the `erp_modified` column is the
+per-row source-mod guard so a re-fed older row is a no-op (the slice-8 feed applies `erp_modified >=`).
+These are **read-only accounting truth, never PMO-written** — no doctype-registry entry, no user write path,
+no flip migration (they are not a flippable domain, they are a downstream ledger mirror).
 
-### 7.2 — RED+GREEN: `erpnext/ledgerFetch.ts` (the on-demand ERP ledger source — confined)
+**Three snapshot tables** per spec §4.4 (`erp_actuals_snapshot`, `erp_ap_aging_snapshot`,
+`erp_ar_aging_snapshot`) — snapshot-replacement per scope (`snapshot_id` + delete-prior-scope-in-tx),
+`numeric(14,2)` buckets, `range_labels jsonb`, provenance cols (`as_of`, `source_report`, `report_version`).
+
+pgTAP: org isolation + machine-only write on all five tables; the ledger mirrors' `unique (org_id,
+erp_name)` upsert-idempotency; single-snapshot-per-scope after refresh. **Verify:** pgTAP green; `db reset` clean.
+
+### 7.2 — RED+GREEN: `erpnext/ledgerFetch.ts` (the confined ERP ledger fetch — feeds the mirror)
 
 **File:** `pmo-portal/src/lib/adapterSeam/erpnext/ledgerFetch.ts` (new) + `ledgerFetch.test.ts` (RED).
 Two confined fetchers over the `erpnext/client.ts` list endpoint (all Frappe vocabulary stays in
-`erpnext/**`): `fetchGlEntries(client, {company, filters})` → `GET /api/resource/GL Entry?filters=[["is_cancelled","=",0],["docstatus","!=",2],…]&fields=[…]&limit_page_length=0` (paged), returning decimal-string
-`{account, cost_center, fiscal_year, project?, debit, credit}` rows; `fetchPaymentLedgerEntries(client,
-{company, filters})` → the same over `Payment Ledger Entry` (the aging fallback source). RED asserts:
-paging accumulates all rows, `is_cancelled=0`/`docstatus≠2` filters are sent, money fields are
-decimal-strings, and **nothing is persisted** (pure fetch). GREEN: the two fetchers. **Verify (RED→GREEN):**
-`cd pmo-portal && npx vitest run src/lib/adapterSeam/erpnext/ledgerFetch.test.ts`.
+`erpnext/**`) — the source the **slice-8 sweep feed** (8.x) reads to populate the two ledger-mirror tables:
+`fetchGlEntries(client, {company, since})` → `GET /api/resource/GL Entry?filters=[["is_cancelled","=",0],["docstatus","!=",2],["modified",">=","<since>"],…]&fields=[…]&limit_page_length=0` (paged), returning
+decimal-string `{name, account, cost_center, fiscal_year, project?, party_type?, party?, voucher_type,
+voucher_no, posting_date, debit, credit, modified}` rows; `fetchPaymentLedgerEntries(client, {company,
+since})` → the same over `Payment Ledger Entry`. RED asserts: paging accumulates all rows,
+`is_cancelled=0`/`docstatus≠2`/`modified≥since` filters are sent, money fields are decimal-strings, and
+**nothing is persisted here** (pure fetch — persistence is the feed's job, 8.x). GREEN: the two fetchers.
+**Verify (RED→GREEN):** `cd pmo-portal && npx vitest run src/lib/adapterSeam/erpnext/ledgerFetch.test.ts`.
 
-### 7.3 — RED+GREEN: `erpnext/actualsSnapshot.ts` (AC-ENA-060 — fetch → sum → snapshot)
+### 7.3 — RED+GREEN: `erpnext/actualsSnapshot.ts` (AC-ENA-060 — sum MIRRORED GL rows → snapshot)
 
 **File:** `pmo-portal/src/lib/adapterSeam/erpnext/actualsSnapshot.test.ts` (RED) then `actualsSnapshot.ts`
-(GREEN). `refreshActuals(serviceClient, client, orgId, scope)`: **(1)** `fetchGlEntries` (7.2) for the
-scope's `company` + project/cost-center/fiscal-year filters → transient rows; **(2)** sum
-debit/credit/net **per (cost_center, account, fiscal_year)** in memory (no PMO-authored figure); **(3)** new
-`snapshot_id` → delete prior-scope `erp_actuals_snapshot` rows **in the same service-role tx** → insert the
-summed rows stamping `source_report='GL Entry'`/`as_of`. RED asserts (AC-ENA-060): given a fixed fetched
-`GL Entry` set, the snapshot holds the exact sums, replaces the prior scope snapshot (single `as_of`), and
-never reads/writes `procurement_invoices`. **Verify (RED→GREEN):** `npx vitest run …/actualsSnapshot.test.ts`.
+(GREEN). `refreshActuals(serviceClient, orgId, scope)`: **(1)** `SELECT` the scope's **mirrored**
+`erp_gl_entry_mirror` rows (`org_id` + `company`→via account/cost-center + project/fiscal-year filters,
+`is_cancelled=false`) — the read-model, **not** a live ERP fetch; **(2)** sum debit/credit/net **per
+(cost_center, account, fiscal_year)** (summing mirrored ERP rows = ERP truth, ADR-0048 — no PMO-authored
+figure); **(3)** new `snapshot_id` → delete prior-scope `erp_actuals_snapshot` rows **in the same
+service-role tx** → insert the summed rows stamping `source_report='GL Entry'`/`as_of`. RED asserts
+(AC-ENA-060): given a fixed `erp_gl_entry_mirror` seed, the snapshot holds the exact sums, replaces the
+prior scope snapshot (single `as_of`), and **never reads/writes `procurement_invoices`**. **Verify
+(RED→GREEN):** `npx vitest run …/actualsSnapshot.test.ts`.
 
-### 7.4 — RED+GREEN: `erpnext/agingSnapshot.ts` (report-RPC primary + fetched-ledger fallback, FR-ENA-160/161/162)
+### 7.4 — RED+GREEN: `erpnext/agingSnapshot.ts` (report-RPC primary + MIRRORED-ledger fallback, FR-ENA-160/161/162)
 
-`refreshAging(serviceClient, client, orgId, scope)`: **primary** — `POST
+`refreshAging(serviceClient, client, orgId, scope)`: **primary (OQ-3)** — `POST
 /api/method/frappe.desk.query_report.run` (`report_name:'Accounts Payable'|'Accounts Receivable'`, filters
 from binding `config.report_filter_shape` — **already pinned by the R10 pre-slice-7 spike**, §6 constraint
 1; this task only **consumes** the pinned shape, no inline `get_script`). Mirror returned buckets +
 `range_labels` verbatim; stamp `report_version`. **Fallback (only when the pinned shape rejects on a
-minor):** `fetchPaymentLedgerEntries` + `fetchGlEntries` (7.2) → bucket the **fetched ERP ledger rows** in
-memory (ERP truth, version-pinned) — **NEVER** `procurement_invoices` `due_date−today` math (the FR-ENA-162
-prohibition; assert no `procurement_invoices` read on either path). Snapshot-replace per scope.
-**Verify:** unit (mocked report RPC primary + the fetched-ledger fallback).
+minor):** bucket the **mirrored** `erp_payment_ledger_mirror` + `erp_gl_entry_mirror` rows (`SELECT` from
+the read-model, ERP truth, version-pinned) by their `posting_date`/`due_date` into the same `range1..4`
+boundaries — **NEVER** `procurement_invoices` `due_date−today` math (the FR-ENA-162 prohibition; assert no
+`procurement_invoices` read on either path). Snapshot-replace per scope.
+**Verify:** unit (mocked report RPC primary + the mirrored-ledger fallback over seeded mirror rows).
 
-### 7.5 — Sweep fan-out: actuals + aging refresh per employing org (fetch-driven)
+### 7.5 — Sweep fan-out: mirror-fed actuals + aging refresh per employing org
 
-`erpnext-sweep` (slice 8.6) calls `refreshActuals` + `refreshAging` per employing org **after** the doctype
-sweep, passing the per-org `client` so each refresh fetches its own ERP ledger rows (7.2) — no cross-org
-state, no persisted ledger. Binding `config` carries `aging_report_names` + the R10-pinned
-`report_filter_shape`. **Verify:** unit (fan-out calls both refreshers per org with the org's client).
+`erpnext-sweep` (slice 8.6) runs, per employing org and **after** the ledger-mirror feed (8.x) has refreshed
+`erp_gl_entry_mirror`/`erp_payment_ledger_mirror`: `refreshActuals` (reads the freshly-fed GL mirror) +
+`refreshAging` (report primary, mirror fallback). No cross-org state; each org reads only its own mirror
+rows (RLS `org_id`). Binding `config` carries `aging_report_names` + the R10-pinned `report_filter_shape`.
+**Verify:** unit (fan-out calls both refreshers per org after the feed step).
 
 ### 7.6 — RED+GREEN: served-fn e2e `AC-ENA-061-aging-readback.spec.ts`
 
@@ -1287,7 +1385,9 @@ snapshot row and shows an empty-state when no snapshot exists. GREEN: the read-o
 ## Slice 8 — Webhooks-as-hints + modified-poll sweep + cancel/amend lineage feed
 
 **Goal:** the change-feed — ERPNext webhook ingress (HMAC) + the modified-poll reconciliation sweep
-(convergence authority) — wiring the lineage module (slice 2.11) into the apply path. AC-ENA-070/071.
+(convergence authority) — wiring the lineage module (slice 2.11) into the apply path, plus the
+**ledger-mirror feed** that populates `erp_gl_entry_mirror`/`erp_payment_ledger_mirror` for slice 7's
+mirror-sourced actuals/aging. AC-ENA-070/071.
 
 ### 8.1 — RED: `erpnext-webhook/index.test.ts` (AC-ENA-070 — HMAC is the trust boundary)
 
@@ -1343,8 +1443,25 @@ is re-claimed. **Verify (RED):** `cd supabase/functions/erpnext-sweep && deno te
 **(1)** the `reconcileOutbox` pass above — reusing the **exact** `dispatchMoneyWrite` reconcile deps from
 slice 1.5/6.4 (`claimOutboxForCommit`/`markOutbox*`/`probeByRemarksKey`/finalize), so the retry path and
 the sweep path share one implementation; **(2)** `runSweep` per doctype (the modified-poll convergence);
-**(3)** `refreshActuals`/`refreshAging` (slice 7, fetch-driven). Interactive priority over bulk
-(NFR-ENA-PERF-001). Re-run RED → GREEN. **Verify:** `deno test outboxRecovery.test.ts` green + `deno check index.ts` clean.
+**(3)** the **ledger-mirror feed** (task 8.6b) — `feedLedgerMirrors(serviceClient, client, orgId)` fetches
+`GL Entry` + `Payment Ledger Entry` rows via `ledgerFetch.ts` (7.2) since the per-org ledger watermark and
+upserts them into `erp_gl_entry_mirror`/`erp_payment_ledger_mirror` (idempotent on `unique(org_id,
+erp_name)`, `erp_modified >=` source-mod guard), advancing the watermark; **(4)** `refreshActuals`/
+`refreshAging` (slice 7) reading the freshly-fed mirror. Interactive priority over bulk (NFR-ENA-PERF-001).
+Re-run RED → GREEN. **Verify:** `deno test outboxRecovery.test.ts` green + `deno check index.ts` clean.
+
+### 8.6b — RED+GREEN: `erpnext/ledgerMirrorFeed.ts` (fetch → upsert the ledger read-model)
+
+**File:** `pmo-portal/src/lib/adapterSeam/erpnext/ledgerMirrorFeed.ts` (new) + `ledgerMirrorFeed.test.ts`
+(RED). `feedLedgerMirrors(serviceClient, client, orgId)`: read the per-org ledger watermark
+(`external_sync_watermarks`, one row per mirror source); `fetchGlEntries`/`fetchPaymentLedgerEntries` (7.2)
+`since` that watermark; **upsert** each row into `erp_gl_entry_mirror`/`erp_payment_ledger_mirror` on
+`unique(org_id, erp_name)` applying the `erp_modified >=` guard (an older re-fed row is a no-op — reuses the
+P1 source-mod-guard idiom); advance the watermark to max `modified`. RED asserts: a fixed fetched GL/PLE set
+lands as mirror rows (decimal-strings intact), a re-feed of an older `modified` is a no-op, the watermark
+advances monotonically, and a cancelled row (`is_cancelled=1`/`docstatus=2`) is filtered out at fetch (7.2).
+This is the **feed** that makes "mirrored ledger rows" (FR-ENA-150/162) real; actuals/aging read the mirror,
+never live ERP. **Verify (RED→GREEN):** `cd pmo-portal && npx vitest run src/lib/adapterSeam/erpnext/ledgerMirrorFeed.test.ts`.
 
 ### 8.7 — migration `0101_erpnext_sweep_cron.sql` (mirror 0094)
 
@@ -1424,8 +1541,9 @@ These were raised at intake and are **decided**; recorded here so no slice re-li
 
 1. **Report-filter introspection (R10) = a pre-slice-7 spike (RULED).** The `get_script` probe that pins
    `config.report_filter_shape` runs as a **dedicated spike BEFORE slice 7 starts** — not inline in 7.4.
-   Task 7.4 only **consumes** the pinned shape; the fetched-ledger fallback (FR-ENA-162, §7.2/7.4) remains
-   the designed safety net if the report shape drifts on a v15 minor.
+   Task 7.4 only **consumes** the pinned shape; the mirrored-ledger fallback (FR-ENA-162, §7.3/7.4 over
+   `erp_gl_entry_mirror`/`erp_payment_ledger_mirror`) remains the designed safety net if the report shape
+   drifts on a v15 minor.
 2. **PE amend = desk-only in P2 (RULED).** Payment Entry amend is **not** a PMO command in this issue
    (OQ-7 residual). A future PMO PE-amend is an additive slice (cancel + create-with-`amended_from`, the
    same lineage path from 2.11, no schema change) — out of scope here.

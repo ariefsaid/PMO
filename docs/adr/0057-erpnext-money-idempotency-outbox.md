@@ -72,7 +72,8 @@ concurrent duplicate reissue **impossible by construction** (mirrors the 0078 du
 -- the winner transitions and RETURNs the row, the loser's UPDATE matches 0 rows (state already
 -- 'committing', updated_at fresh) and RETURNs null → the loser re-reads and reconciles (never POSTs).
 -- A 'committing' row whose updated_at is older than the lease is re-claimable (recovers a process
--- that died holding the claim). SECURITY DEFINER so the policy-less outbox is touched only here.
+-- that died holding the claim). Each win BUMPS claim_generation — the returned value is the caller's
+-- FENCING TOKEN (see below). SECURITY DEFINER so the policy-less outbox is touched only here.
 create or replace function public.claim_outbox_for_commit(
   p_id uuid, p_lease interval default interval '60 seconds'
 ) returns public.external_command_outbox
@@ -80,12 +81,15 @@ create or replace function public.claim_outbox_for_commit(
   declare v public.external_command_outbox;
   begin
     update public.external_command_outbox
-       set state='committing', attempt_count = attempt_count + 1, updated_at = now()
+       set state='committing',
+           attempt_count = attempt_count + 1,
+           claim_generation = claim_generation + 1,   -- fencing token: monotonic per claim
+           updated_at = now()
      where id = p_id
        and ( state in ('pending','failed')
              or (state='committing' and updated_at < now() - p_lease) )
     returning * into v;
-    return v;  -- null ⇒ another caller owns it (or it is committed/confirmed) — do NOT POST
+    return v;  -- v.claim_generation = the caller's fencing token; null ⇒ another caller owns it — do NOT POST
   end; $$;
 ```
 
@@ -93,6 +97,19 @@ The claim is the **single** transition into the ERP-POST critical section. Becau
 `UPDATE` guarded by Postgres' row lock, **at most one** caller per outbox id can ever be between "claim
 won" and "mark committed" at any instant — a concurrent duplicate ERP create is therefore impossible,
 not merely unlikely (the guarantee the R1/R3 review required).
+
+**Fencing token (the lease-expiry hole).** The 60 s lease makes a `committing` row re-claimable so a
+crashed claimant cannot wedge the row forever — but a claimant that is merely *slow* (GC pause, a stalled
+ERP socket) can have its lease expire while it is still running, letting a reclaimer overlap it. The lease
+alone therefore does not stop the original-claimant's **late write-back** from landing after the reclaimer
+has moved the row on. The fix is a monotonically-incremented **`claim_generation`** column: every claim
+win bumps it and returns it as the caller's token, and **every post-claim write-back** — the
+`committing`→`committed`/`confirmed`/`failed` transition and the `external_record_id` record — is guarded
+`WHERE claim_generation = <my token>`. A superseded claimant's write-back matches **0 rows** and its result
+is **discarded**. Its ERP `POST` may still have fired (a real orphan money doc); that orphan is precisely
+what the `remarks`-idempotency-key recovery (§3 + §4) reconciles — the reclaimer's probe finds the stamped
+key, adopts the existing doc, and finalizes exactly one mirror row. So the lease bounds *liveness* (no
+permanent wedge) and the fencing token bounds *safety* (no stale write-back and no duplicate finalize).
 
 ### 3. The adapter stamps the key into a stable stock field (the recovery probe anchor)
 
@@ -117,10 +134,14 @@ never re-issues a second create blindly (FR-ENA-042/043) — and **never `POST`s
 | `confirmed` | ERP committed + PMO mirror/ref finalized | Return the stored `external_record_id` + canonical record. **No ERP call, no claim.** |
 | `committed` | ERP committed, PMO mirror/ref finalization failed | **Re-run only the finalization** (idempotent read-model upsert + `external_refs` record), promote to `confirmed`. No second create, no claim. |
 | `committing` (fresh) | Another caller currently owns the ERP-POST critical section | **Do not POST.** Re-read on a short backoff until the owner reaches `committed`/`confirmed`/`failed`, then reconcile to that state. |
-| `pending` / `failed` / `committing` (stale, past lease) | The dangerous window — prior create may or may not have committed, or no caller owns it now | **`claim_outbox_for_commit(id)` first.** Only the claim winner proceeds: probe ERP by the stamped key; if a doc exists → adopt (set `external_record_id`, `committed`, then finalize → `confirmed`); if none → `POST` the create under the **same** outbox row, then on success → `committed` → finalize → `confirmed`, on classified failure → `failed` (or `pending` for retryable transport). The claim loser RETURNs null → re-reads → reconciles (never POSTs). |
+| `pending` / `failed` / `committing` (stale, past lease) | The dangerous window — prior create may or may not have committed, or no caller owns it now | **`claim_outbox_for_commit(id)` first.** Only the claim winner proceeds, holding its returned `claim_generation` as a fencing token: probe ERP by the stamped key; if a doc exists → adopt (set `external_record_id`, `committed`, then finalize → `confirmed`); if none → `POST` the create under the **same** outbox row, then on success → `committed` → finalize → `confirmed`, on classified failure → `failed` (or `pending` for retryable transport). **Every one of those write-backs is guarded `WHERE claim_generation = <token>`**, so a superseded (lease-expired) prior claimant's late write-back matches 0 rows and is discarded. The claim loser RETURNs null → re-reads → reconciles (never POSTs). |
 
 Two concurrent retries therefore **cannot** both `POST`: only the claim winner holds the critical
-section; the loser observes `committing` (fresh) or the winner's terminal state and never re-issues.
+section; the loser observes `committing` (fresh) or the winner's terminal state and never re-issues. And a
+lease-expired claimant that overlaps a reclaimer **cannot** corrupt the row: its write-backs fail the
+`claim_generation` fence and are dropped, while the reclaimer (higher generation) owns the reconcile — any
+ERP doc the stale claimant already POSTed is recovered by the reclaimer's `remarks`-key probe, never
+finalized twice.
 
 The ERPNext client **never blindly retries a non-idempotent POST** on a retryable transport failure or on
 the distinct `500`-`TypeError` (empty-`items`) bucket — a retry is permitted **only** through this guarded
@@ -139,11 +160,12 @@ exact command is retried and the test asserts ERPNext holds **one** doc, the out
 ## Consequences
 
 - **Positive — the money-safety guarantee:** duplicate Purchase Invoice or Payment Entry creation becomes
-  **impossible** under retry-after-timeout / 429 / mirror-finalization-failure / concurrent-retry
-  (NFR-ENA-IDEM-001). The guarantee is DB-enforced three ways: the unique 4-tuple (no duplicate *open*),
-  the atomic `claim_outbox_for_commit` (no duplicate *POST* — impossible by construction), and the
-  reconcile-by-state algorithm (no duplicate *finalize*); plus test-proven at the real boundary (the
-  fault seam).
+  **impossible** under retry-after-timeout / 429 / mirror-finalization-failure / concurrent-retry /
+  lease-expiry-overlap (NFR-ENA-IDEM-001). The guarantee is DB-enforced four ways: the unique 4-tuple (no
+  duplicate *open*), the atomic `claim_outbox_for_commit` (no duplicate *POST* — impossible by
+  construction), the `claim_generation` fencing token (no stale-claimant *write-back* after a lease-expiry
+  overlap), and the reconcile-by-state algorithm (no duplicate *finalize*); plus test-proven at the real
+  boundary (the fault seam).
 - **Positive — no ERPNext-side requirement:** no custom app, no Frappe webhook, no ERPNext idempotency
   feature needed. The `remarks`-stamp + filter-probe uses only stock REST (NFR-ENA-SEC-001).
 - **Positive — P0/P1 untouched:** the contract change is a single optional field; ClickUp/reference paths
