@@ -134,15 +134,21 @@ function makeFakeClient(seed: FakeRow[] = []) {
         row.claim_generation += 1;
         return { data: { ...row }, error: null };
       }
-      // H-1: finalize_outbox — fenced external_refs upsert + committed→confirmed (int row count).
-      if (fn === 'finalize_outbox') {
+      // H-1: record_outbox_ref — fenced external_refs upsert (state stays committed) (int row count).
+      if (fn === 'record_outbox_ref') {
         const gen = args.p_generation as number;
         if (!row || row.claim_generation !== gen || row.state !== 'committed') return { data: 0, error: null };
-        row.state = 'confirmed';
         externalRefs.push({
           domain: args.p_domain, pmo_record_id: args.p_pmo_record_id,
           external_tier: args.p_external_tier, external_record_id: args.p_external_record_id,
         });
+        return { data: 1, error: null };
+      }
+      // H-1: confirm_outbox — fenced committed→confirmed (int row count).
+      if (fn === 'confirm_outbox') {
+        const gen = args.p_generation as number;
+        if (!row || row.claim_generation !== gen || row.state !== 'committed') return { data: 0, error: null };
+        row.state = 'confirmed';
         return { data: 1, error: null };
       }
       // C-1: mark_outbox_held — fenced committing→held (int row count).
@@ -247,7 +253,7 @@ Deno.test('markOutboxCommitted/Failed: guarded write-backs affect 1 row when the
   assertEquals(failedStaleCount, 1, 'the current token marks failed');
 });
 
-Deno.test('H-1 finalizeOutbox: the fenced RPC upserts external_refs + confirms only for the current token (0 when superseded)', async () => {
+Deno.test('H-1 recordOutboxRef + confirmOutbox: fenced ref upsert then confirm, only for the current token (0 when superseded)', async () => {
   const { client, rows, externalRefs } = makeFakeClient([
     {
       id: 'outbox-1', org_id: 'org-1', domain: 'procurement', pmo_record_id: 'pmo-1', idempotency_key: 'key-1',
@@ -256,19 +262,21 @@ Deno.test('H-1 finalizeOutbox: the fenced RPC upserts external_refs + confirms o
     },
   ]);
   const deps = createDbMoneyOutboxDeps({ serviceClient: client, orgId: 'org-1', externalTier: 'erpnext', operation: 'create', probeByRemarksKey: async () => null });
-  // A superseded (stale) token: the ENTIRE finalization is a 0-row no-op — no ref, no confirm.
-  const superseded = await deps.finalizeOutbox('outbox-1', 1, { pmoRecordId: 'pmo-1', externalTier: 'erpnext', externalRecordId: 'PI-1', domain: 'procurement' });
-  assertEquals(superseded, 0, 'a superseded finalize must affect 0 rows');
-  assertEquals(externalRefs.length, 0, 'a superseded finalize writes NO external_refs');
+  const mapping = { pmoRecordId: 'pmo-1', externalTier: 'erpnext', externalRecordId: 'PI-1', domain: 'procurement' };
+  // A superseded (stale) token: the ref RPC is a 0-row no-op — no ref, row stays committed.
+  assertEquals(await deps.recordOutboxRef('outbox-1', 1, mapping), 0, 'a superseded ref write must affect 0 rows');
+  assertEquals(externalRefs.length, 0, 'a superseded ref write persists NO external_refs');
+  assertEquals(await deps.confirmOutbox('outbox-1', 1), 0, 'a superseded confirm must affect 0 rows');
   assertEquals(rows.get('outbox-1')?.state, 'committed');
-  // The current token finalizes: ref written, row confirmed.
-  const owned = await deps.finalizeOutbox('outbox-1', 2, { pmoRecordId: 'pmo-1', externalTier: 'erpnext', externalRecordId: 'PI-1', domain: 'procurement' });
-  assertEquals(owned, 1);
-  assertEquals(rows.get('outbox-1')?.state, 'confirmed');
+  // The current token: ref written (state stays committed), then confirm promotes committed→confirmed.
+  assertEquals(await deps.recordOutboxRef('outbox-1', 2, mapping), 1);
+  assertEquals(rows.get('outbox-1')?.state, 'committed', 'ref write leaves the row committed (confirm is separate)');
   assertEquals(externalRefs[0]?.external_record_id, 'PI-1');
+  assertEquals(await deps.confirmOutbox('outbox-1', 2), 1);
+  assertEquals(rows.get('outbox-1')?.state, 'confirmed');
 });
 
-Deno.test('H-1 finalizeOutbox applies the injected encodeExternalRecordId (companies "<Doctype>:<name>" prefix)', async () => {
+Deno.test('H-1 recordOutboxRef applies the injected encodeExternalRecordId (companies "<Doctype>:<name>" prefix)', async () => {
   const { client, externalRefs } = makeFakeClient([
     {
       id: 'outbox-1', org_id: 'org-1', domain: 'companies', pmo_record_id: 'pmo-sup', idempotency_key: 'key-1',
@@ -280,7 +288,7 @@ Deno.test('H-1 finalizeOutbox applies the injected encodeExternalRecordId (compa
     serviceClient: client, orgId: 'org-1', externalTier: 'erpnext', operation: 'create', probeByRemarksKey: async () => null,
     encodeExternalRecordId: (m) => `Supplier:${m.externalRecordId}`,
   });
-  await deps.finalizeOutbox('outbox-1', 1, { pmoRecordId: 'pmo-sup', externalTier: 'erpnext', externalRecordId: 'ACME', domain: 'companies' });
+  await deps.recordOutboxRef('outbox-1', 1, { pmoRecordId: 'pmo-sup', externalTier: 'erpnext', externalRecordId: 'ACME', domain: 'companies' });
   assertEquals(externalRefs[0]?.external_record_id, 'Supplier:ACME', 'the encoder is applied inside the fenced write');
 });
 

@@ -87,16 +87,18 @@ export interface DispatchMoneyOutboxDeps {
   /** Guarded write-back `committing`→`committed` (records the ERP-assigned id AND the adapter's real
    *  returned `canonical`, F2 — so a later finalize mirrors the ERP-derived record, not a stub). */
   markOutboxCommitted: (id: string, externalRecordId: string, canonical: PmoRecord, claimGeneration: number) => Promise<number>;
-  /** H-1 (finalization TOCTOU fix) — the DB-side FENCED finalization: ONE transaction (the
-   *  `finalize_outbox` RPC, 0095) that, under a `SELECT … FOR UPDATE` row lock, re-checks
-   *  `claim_generation` + `state='committed'` and — only if this caller still owns the claim — upserts
-   *  `external_refs` AND promotes `committed`→`confirmed` atomically. This is the ONLY committed→confirmed
-   *  path (the old separate `verifyClaimGeneration`+`markOutboxConfirmed`+caller-side `recordExternalRef`
-   *  had a TOCTOU gap: a reclaimer could supersede between the verify and the writes and get its correct
-   *  mapping overwritten by a stale one). Returns 1 when THIS caller finalized, 0 when superseded (its
-   *  ENTIRE finalization — ref + confirm — is a no-op). The per-domain read-model mirror stays a
-   *  caller write, issued only on a `1` (owner-gated) + backstopped by the doctype sweep. */
-  finalizeOutbox: (id: string, claimGeneration: number, mapping: ExternalRefMapping) => Promise<number>;
+  /** H-1 (finalization TOCTOU fix) — the DB-side FENCED external_refs upsert (`record_outbox_ref` RPC,
+   *  0095), under a `SELECT … FOR UPDATE` row lock re-checking `claim_generation` + `state='committed'`.
+   *  Only the current owner writes the mapping (0 = superseded → nothing written), closing the old
+   *  verify-then-write TOCTOU where a reclaimer could overwrite the ref with a stale one. The state stays
+   *  `committed` — the confirm is a SEPARATE fenced RPC so the per-domain mirror write sits BETWEEN them:
+   *  a crash before the mirror leaves the row `committed` (not confirmed), so the retry re-runs the mirror
+   *  (finalize-only, AC-ENA-010). Returns 1 when THIS owner wrote the ref, else 0. */
+  recordOutboxRef: (id: string, claimGeneration: number, mapping: ExternalRefMapping) => Promise<number>;
+  /** H-1 — the fenced `committed`→`confirmed` promotion (`confirm_outbox` RPC, 0095), guarded on
+   *  `claim_generation` + `state='committed'`. The ONLY committed→confirmed path (markOutboxConfirmed
+   *  retired). Run LAST (after the mirror) so a crash before it is recoverable. Returns 1 / 0 (superseded). */
+  confirmOutbox: (id: string, claimGeneration: number) => Promise<number>;
   /** C-1 (PE mutable anchor → no conclusive absence) — the fenced `committing`→`held` transition
    *  (`mark_outbox_held` RPC, 0095). Called ONLY on a post-window recovery reissue for a doctype whose
    *  anchor is mutable (`reissueOnInconclusiveAbsence === false`, i.e. Payment Entry) when the probe
@@ -147,32 +149,34 @@ export function redactErrorForOutbox(error: unknown): string {
   return scrubbed.length > 240 ? `${scrubbed.slice(0, 240)}…` : scrubbed;
 }
 
-/** The DB-side FENCED finalization (H-1): the `external_refs` upsert + the `committed`→`confirmed`
- *  promotion happen ATOMICALLY under a row lock in one RPC (`finalize_outbox`), re-checking the
- *  fencing token so a superseded claimant's ENTIRE finalization (ref + confirm) is a 0-row no-op — it
- *  can no longer stamp a stale mapping over the reclaimer's correct one (the old verify-then-write
- *  TOCTOU). The per-domain read-model MIRROR stays a caller write, issued ONLY when the fenced RPC
- *  returned `1` (owner-gated); a rare crash between confirm and mirror is re-mirrored from ERP truth by
- *  the doctype modified-poll sweep's convergence authority. Returns the RPC's row count (1 = this caller
+/** The DB-side FENCED finalization (H-1), ordered `record_outbox_ref` → mirror → `confirm_outbox`:
+ *  1. Fenced `external_refs` upsert — a superseded claimant writes NOTHING (returns 0) and the whole
+ *     finalization is a no-op (no mirror, no confirm); this closes the old verify-then-write TOCTOU.
+ *  2. The per-domain read-model MIRROR — issued ONLY when step 1 returned `1` (so the mirror is
+ *     generation-conditional too, per the ruling: a superseded claimant never mirrors).
+ *  3. Fenced `committed`→`confirmed` promotion, run LAST.
+ *  Keeping confirm last means a crash between the ERP commit and the mirror leaves the row `committed`
+ *  (not confirmed), so the retry re-runs the mirror (finalize-only, AC-ENA-010) — a confirm-first design
+ *  would strand the row confirmed-but-unmirrored. Returns the confirm row count (1 = this owner
  *  finalized; 0 = superseded → caller discards and reconciles off the reclaimer's current state). */
 async function finalizeOutboxRow(
   row: OutboxRow,
   claimGeneration: number,
   deps: DispatchMoneyWriteDeps,
 ): Promise<number> {
-  const finalized = await deps.money.finalizeOutbox(row.id, claimGeneration, {
+  const refWritten = await deps.money.recordOutboxRef(row.id, claimGeneration, {
     pmoRecordId: deps.command.record.id,
     externalTier: deps.adapter.tier,
     externalRecordId: row.externalRecordId!,
     domain: deps.command.domain,
   });
-  if (finalized === 0) return 0;
+  if (refWritten === 0) return 0;
   // F2 — mirror the adapter's REAL returned record (persisted at commit), not a reconstructed stub, so
   // the read-model carries the ERP-derived fields (totals, status, outstanding, …). Fall back to the id
   // stub only for a row adopted without a full record (a later read-back/sweep reconciles its fields).
   const canonical: PmoRecord = row.canonical ?? { id: deps.command.record.id };
   await deps.writeReadModel(canonical);
-  return finalized;
+  return deps.money.confirmOutbox(row.id, claimGeneration);
 }
 
 /** The claim winner's critical section: probe-adopt-or-POST, then the guarded committed/finalize

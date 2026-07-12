@@ -77,8 +77,9 @@ function mockedDeps(candidate: OutboxRow, moneyOverrides: Partial<DispatchMoneyO
     claimOutboxForCommit: claimTracker,
     quarantineCommitting: moneyOverrides.quarantineCommitting ?? (async () => null),
     markOutboxCommitted: async () => { calls.markCommitted += 1; return 1; },
-    // H-1: the fenced finalize RPC (external_refs upsert + confirm) — tracks the ref for the assertions.
-    finalizeOutbox: moneyOverrides.finalizeOutbox ?? (async (_id, _gen, m) => { calls.finalized += 1; refs.push({ pmoRecordId: m.pmoRecordId, externalRecordId: m.externalRecordId }); return 1; }),
+    // H-1: the fenced ref RPC (external_refs upsert) then the fenced confirm — tracks the ref for the assertions.
+    recordOutboxRef: moneyOverrides.recordOutboxRef ?? (async (_id, _gen, m) => { calls.finalized += 1; refs.push({ pmoRecordId: m.pmoRecordId, externalRecordId: m.externalRecordId }); return 1; }),
+    confirmOutbox: moneyOverrides.confirmOutbox ?? (async () => 1),
     markOutboxHeld: moneyOverrides.markOutboxHeld ?? (async () => { calls.held += 1; return 1; }),
     reissueOnInconclusiveAbsence: moneyOverrides.reissueOnInconclusiveAbsence ?? true,
     markOutboxFailed: async () => { calls.markFailed += 1; return 1; },

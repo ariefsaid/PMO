@@ -92,12 +92,18 @@ function createFakeOutbox(opts: { reissueOnInconclusiveAbsence?: boolean } = {})
       row.updatedAt = Date.now();
       return 1;
     },
-    // H-1: the fenced finalization RPC — external_refs upsert + committed→confirmed, atomic + fenced.
-    // Mirrors mark_outbox_held/finalize_outbox's DB semantics: 0 rows when superseded or not committed.
-    async finalizeOutbox(id, claimGeneration, mapping) {
+    // H-1: the fenced external_refs upsert (state stays committed). 0 rows when superseded/not committed.
+    async recordOutboxRef(id, claimGeneration, mapping) {
       const row = rows.get(id);
       if (!row || row.claimGeneration !== claimGeneration || row.state !== 'committed') return 0;
       refs.push({ ...mapping });
+      row.updatedAt = Date.now();
+      return 1;
+    },
+    // H-1: the fenced committed→confirmed promotion (run LAST, after the mirror).
+    async confirmOutbox(id, claimGeneration) {
+      const row = rows.get(id);
+      if (!row || row.claimGeneration !== claimGeneration || row.state !== 'committed') return 0;
       row.state = 'confirmed';
       row.updatedAt = Date.now();
       return 1;
@@ -203,7 +209,7 @@ describe('AC-ENA-012 fresh key: INSERT pending → claim → POST → committed 
     });
     expect(commit).toHaveBeenCalledTimes(1);
     expect(writeReadModel).toHaveBeenCalledTimes(1);
-    // H-1: external_refs is now written INSIDE the fenced finalizeOutbox RPC (not the caller's
+    // H-1: external_refs is now written INSIDE the fenced record_outbox_ref RPC (not the caller's
     // recordExternalRef dep) — the money path no longer calls recordExternalRef directly.
     expect(recordExternalRef).not.toHaveBeenCalled();
     expect(fake.refs[0]).toEqual({
@@ -223,7 +229,8 @@ describe('AC-ENA-012 concurrent duplicate insert: the unique 4-tuple rejects ato
     await fake.deps.insertOutboxPending('procurement', 'pmo-1', 'key-1');
     const claimed = await fake.deps.claimOutboxForCommit([...fake.rows.keys()][0]);
     await fake.deps.markOutboxCommitted(claimed!.id, 'PI-0001', { id: 'pmo-1' }, claimed!.claimGeneration);
-    await fake.deps.finalizeOutbox(claimed!.id, claimed!.claimGeneration, { pmoRecordId: 'pmo-1', externalTier: 'erpnext', externalRecordId: 'PI-0001', domain: 'procurement' });
+    await fake.deps.recordOutboxRef(claimed!.id, claimed!.claimGeneration, { pmoRecordId: 'pmo-1', externalTier: 'erpnext', externalRecordId: 'PI-0001', domain: 'procurement' });
+    await fake.deps.confirmOutbox(claimed!.id, claimed!.claimGeneration);
 
     const commit = vi.fn();
     const result = await dispatchMoneyWrite({
@@ -300,7 +307,8 @@ describe('AC-ENA-012 the fencing token closes the lease-expiry overlap (F4)', ()
     const reclaimed = await fake.deps.claimOutboxForCommit(id);
     expect(reclaimed!.claimGeneration).toBe(3);
     await fake.deps.markOutboxCommitted(id, 'PI-0001', { id: 'pmo-1' }, 3);
-    await fake.deps.finalizeOutbox(id, 3, { pmoRecordId: 'pmo-1', externalTier: 'erpnext', externalRecordId: 'PI-0001', domain: 'procurement' });
+    await fake.deps.recordOutboxRef(id, 3, { pmoRecordId: 'pmo-1', externalTier: 'erpnext', externalRecordId: 'PI-0001', domain: 'procurement' });
+    await fake.deps.confirmOutbox(id, 3);
 
     // The stale claimant's late write-back, still holding gen=1, must affect 0 rows.
     const staleCommittedCount = await fake.deps.markOutboxCommitted(id, 'PI-DUPLICATE', { id: 'pmo-1' }, 1);
@@ -344,10 +352,10 @@ describe('AC-ENA-012 the fencing token closes the lease-expiry overlap (F4)', ()
     // ERP committed under this claimant's token; the row is `committed`, finalize not yet run.
     await fake.deps.markOutboxCommitted(id, 'PI-0001', { id: 'pmo-1', erp_total: '5.00' }, claimed!.claimGeneration);
 
-    // Simulate a reclaimer superseding this claimant at the fenced finalize RPC: it returns 0 (0-row
-    // no-op — the reclaimer has confirmed the row itself under a bumped generation). The superseded
-    // claimant must then write NO read-model mirror and reconcile off the reclaimer's current state.
-    vi.spyOn(fake.deps, 'finalizeOutbox').mockImplementationOnce(async () => {
+    // Simulate a reclaimer superseding this claimant at the fenced ref RPC: it returns 0 (0-row no-op
+    // — the reclaimer has confirmed the row itself under a bumped generation). The superseded claimant
+    // must then write NO read-model mirror (mirror is gated on this) and reconcile off the reclaimer.
+    vi.spyOn(fake.deps, 'recordOutboxRef').mockImplementationOnce(async () => {
       const r = fake.rows.get(id)!;
       r.state = 'confirmed';
       r.claimGeneration += 1;
@@ -379,7 +387,8 @@ describe('AC-ENA-012 confirmed retry — return the stored result, no ERP call, 
     const id = [...fake.rows.keys()][0];
     const claimed = await fake.deps.claimOutboxForCommit(id);
     await fake.deps.markOutboxCommitted(id, 'PI-0001', { id: 'pmo-1' }, claimed!.claimGeneration);
-    await fake.deps.finalizeOutbox(id, claimed!.claimGeneration, { pmoRecordId: 'pmo-1', externalTier: 'erpnext', externalRecordId: 'PI-0001', domain: 'procurement' });
+    await fake.deps.recordOutboxRef(id, claimed!.claimGeneration, { pmoRecordId: 'pmo-1', externalTier: 'erpnext', externalRecordId: 'PI-0001', domain: 'procurement' });
+    await fake.deps.confirmOutbox(id, claimed!.claimGeneration);
 
     const commit = vi.fn();
     const claimSpy = vi.spyOn(fake.deps, 'claimOutboxForCommit');
@@ -474,7 +483,8 @@ describe('AC-ENA-012 F2 finalization mirrors the adapter\'s REAL canonical, not 
     const claimed = await fake.deps.claimOutboxForCommit(id);
     const erpCanonical = { id: 'pmo-1', erp_total: '9.99', erp_status: 'Paid' };
     await fake.deps.markOutboxCommitted(id, 'PI-0001', erpCanonical, claimed!.claimGeneration);
-    await fake.deps.finalizeOutbox(id, claimed!.claimGeneration, { pmoRecordId: 'pmo-1', externalTier: 'erpnext', externalRecordId: 'PI-0001', domain: 'procurement' });
+    await fake.deps.recordOutboxRef(id, claimed!.claimGeneration, { pmoRecordId: 'pmo-1', externalTier: 'erpnext', externalRecordId: 'PI-0001', domain: 'procurement' });
+    await fake.deps.confirmOutbox(id, claimed!.claimGeneration);
 
     const commit = vi.fn();
     const result = await dispatchMoneyWrite({
@@ -612,7 +622,8 @@ describe('AC-ENA-012 pending/failed/stale-committing retry: claim first, then ad
     // eventually observes a terminal state instead of spinning forever.
     setTimeout(async () => {
       await fake.deps.markOutboxCommitted(id, 'PI-0004', { id: 'pmo-1' }, 1);
-      await fake.deps.finalizeOutbox(id, 1, { pmoRecordId: 'pmo-1', externalTier: 'erpnext', externalRecordId: 'PI-0004', domain: 'procurement' });
+      await fake.deps.recordOutboxRef(id, 1, { pmoRecordId: 'pmo-1', externalTier: 'erpnext', externalRecordId: 'PI-0004', domain: 'procurement' });
+    await fake.deps.confirmOutbox(id, 1);
     }, 5);
 
     const commit = vi.fn();

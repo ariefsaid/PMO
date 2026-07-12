@@ -11,7 +11,8 @@
 --
 -- Reversibility (ADR-0006): supabase db reset. Manual rollback (functions before tables, reverse order):
 --   drop function if exists public.mark_outbox_held(uuid, int, text);
---   drop function if exists public.finalize_outbox(uuid, int, text, text, text, text);
+--   drop function if exists public.confirm_outbox(uuid, int);
+--   drop function if exists public.record_outbox_ref(uuid, int, text, text, text, text);
 --   drop function if exists public.outbox_reconcile_candidates(uuid);
 --   drop function if exists public.quarantine_committing(uuid, interval, interval);
 --   drop function if exists public.claim_outbox_for_commit(uuid, interval);
@@ -192,42 +193,54 @@ create or replace function public.outbox_reconcile_candidates(p_org_id uuid)
            or (state='quarantined' and reconcile_after is not null and reconcile_after < now()) );
   $$;
 
--- ── finalize_outbox (H-1 DIRECTOR RULING — the DB-side FENCED finalization). The audit found a
--- finalization TOCTOU: the old verify-then-write sequenced `verifyClaimGeneration()` → `writeReadModel`
--- → `recordExternalRef` → `markOutboxConfirmed` as SEPARATE steps, so a reclaimer could supersede the
--- claim in the gap AFTER the verify and BEFORE the external_refs/confirm writes — stamping a STALE
--- external_record_id over the reclaimer's correct one. This RPC collapses the external_refs upsert AND
--- the committed→confirmed promotion into ONE transaction under a `SELECT … FOR UPDATE` row lock, fenced
--- on `claim_generation` + `state='committed'`. A superseded claimant matches the guard on NEITHER, so
--- its ENTIRE finalization (ref + confirm) is a 0-row no-op — it cannot write anything. This is now the
--- ONLY committed→confirmed path (markOutboxConfirmed is retired). The per-domain read-model mirror stays
--- a caller-side write BUT is issued only when this RPC returns 1 (owner-gated), and is independently
--- backstopped by the doctype modified-poll sweep's convergence authority (a rare crash between confirm
--- and mirror re-mirrors from ERP truth on the next cycle). SECURITY DEFINER over the policy-less outbox
--- (+ external_refs, also machine-written). Returns 1 when THIS caller owned+finalized, else 0.
-create or replace function public.finalize_outbox(
+-- ── record_outbox_ref + confirm_outbox (H-1 DIRECTOR RULING — DB-side FENCED finalization). The audit
+-- found a finalization TOCTOU: the old verify-then-write sequenced `verifyClaimGeneration()` →
+-- `writeReadModel` → `recordExternalRef` → `markOutboxConfirmed` as SEPARATE steps, so a reclaimer could
+-- supersede the claim AFTER the verify and BEFORE the external_refs/confirm writes — stamping a STALE
+-- mapping over the reclaimer's correct one. Both the external_refs write AND the confirm are now FENCED
+-- RPCs (row lock + `claim_generation` + `state='committed'` guard) so a superseded claimant writes
+-- NOTHING (each returns 0). The finalization ORDER is: `record_outbox_ref` (fenced ref upsert, state
+-- stays `committed`) → the caller writes the per-domain read-model MIRROR (issued ONLY when the ref RPC
+-- returned 1 → the mirror is generation-conditional too, per the ruling) → `confirm_outbox` (fenced
+-- committed→confirmed). Keeping the confirm LAST means a crash between the ERP commit and the mirror
+-- leaves the row `committed` (NOT confirmed), so the retry re-runs the mirror (finalize-only, AC-ENA-010)
+-- — a confirm-first design would strand the row confirmed-but-unmirrored. `confirm_outbox` is the ONLY
+-- committed→confirmed path (markOutboxConfirmed is retired). SECURITY DEFINER over the policy-less outbox
+-- (+ external_refs). Each returns 1 when THIS caller owned+applied, else 0.
+create or replace function public.record_outbox_ref(
   p_id uuid, p_generation int,
   p_domain text, p_pmo_record_id text, p_external_tier text, p_external_record_id text
 ) returns int
   language plpgsql security definer set search_path = public as $$
   declare v public.external_command_outbox;
   begin
-    -- Row-lock the outbox row so no concurrent claim/quarantine can interleave with the fence+writes.
     select * into v from public.external_command_outbox where id = p_id for update;
-    -- Fence: only the CURRENT claim generation, and only a still-`committed` row, may finalize. A
-    -- superseded generation OR an already-confirmed/other-state row → 0 rows, nothing written (the
-    -- ENTIRE finalization is a no-op — mirror is caller-gated on this return, ref+confirm are here).
+    -- Fence: only the CURRENT generation on a still-`committed` row may write the ref (0 = superseded →
+    -- nothing written; the caller then skips the mirror too, so the ENTIRE finalization is a no-op).
     if v.id is null or v.claim_generation is distinct from p_generation or v.state <> 'committed' then
       return 0;
     end if;
-    -- external_refs upsert (moved in from refs.ts's recordExternalRef so it is fenced+atomic with the
-    -- confirm — a stale claimant can no longer overwrite the mapping). Same 3-tuple conflict key.
+    -- external_refs upsert (moved in from refs.ts's recordExternalRef so it is FENCED — a stale claimant
+    -- can no longer overwrite the mapping). State stays `committed`; confirm is a separate fenced RPC so
+    -- the mirror write sits BETWEEN them (crash-before-mirror leaves `committed` → retry re-mirrors).
     insert into public.external_refs (org_id, domain, pmo_record_id, external_tier, external_record_id)
       values (v.org_id, p_domain, p_pmo_record_id, p_external_tier, p_external_record_id)
       on conflict (org_id, domain, pmo_record_id)
         do update set external_record_id = excluded.external_record_id, external_tier = excluded.external_tier;
-    update public.external_command_outbox set state = 'confirmed', updated_at = now() where id = p_id;
     return 1;
+  end; $$;
+
+create or replace function public.confirm_outbox(
+  p_id uuid, p_generation int
+) returns int
+  language plpgsql security definer set search_path = public as $$
+  declare v_n int;
+  begin
+    update public.external_command_outbox
+       set state = 'confirmed', updated_at = now()
+     where id = p_id and claim_generation = p_generation and state = 'committed'
+    returning 1 into v_n;
+    return coalesce(v_n, 0);
   end; $$;
 
 -- ── mark_outbox_held (C-1 DIRECTOR RULING): the fenced committed-recovery-inconclusive → 'held'
@@ -258,7 +271,9 @@ revoke all on function public.quarantine_committing(uuid, interval, interval) fr
 grant execute on function public.quarantine_committing(uuid, interval, interval) to service_role;
 revoke all on function public.outbox_reconcile_candidates(uuid) from public;
 grant execute on function public.outbox_reconcile_candidates(uuid) to service_role;
-revoke all on function public.finalize_outbox(uuid, int, text, text, text, text) from public;
-grant execute on function public.finalize_outbox(uuid, int, text, text, text, text) to service_role;
+revoke all on function public.record_outbox_ref(uuid, int, text, text, text, text) from public;
+grant execute on function public.record_outbox_ref(uuid, int, text, text, text, text) to service_role;
+revoke all on function public.confirm_outbox(uuid, int) from public;
+grant execute on function public.confirm_outbox(uuid, int) to service_role;
 revoke all on function public.mark_outbox_held(uuid, int, text) from public;
 grant execute on function public.mark_outbox_held(uuid, int, text) to service_role;

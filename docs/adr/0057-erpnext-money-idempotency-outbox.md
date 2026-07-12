@@ -127,13 +127,22 @@ and no duplicate finalize).
 **Fenced finalization (H-1 DIRECTOR RULING, 2026-07-13 — amends this ADR).** The original finalization
 sequenced a fencing-token *verify* and then SEPARATE `external_refs` + `confirmed` writes — a TOCTOU gap: a
 reclaimer could supersede the claim between the verify and the writes and have its correct mapping
-overwritten by a stale one. Finalization is now the DB-side **`finalize_outbox(id, generation, …)` RPC**:
-under a `SELECT … FOR UPDATE` row lock it re-checks `claim_generation` + `state='committed'` and — only if
-still owned — upserts `external_refs` **and** promotes `committed`→`confirmed` in ONE transaction. It is the
-**only** committed→confirmed path; a superseded claimant matches neither guard, so its ENTIRE finalization
-(ref + confirm) is a 0-row no-op. The per-domain read-model mirror stays a caller write issued only on a `1`
-return (owner-gated) and is independently backstopped by the doctype modified-poll sweep's convergence
-authority (a rare crash between confirm and mirror re-mirrors from ERP truth on the next cycle).
+overwritten by a stale one. Finalization is now two DB-side **FENCED** RPCs, ordered
+`record_outbox_ref` → read-model mirror → `confirm_outbox`:
+
+1. **`record_outbox_ref(id, generation, …)`** — under a `SELECT … FOR UPDATE` row lock, re-checks
+   `claim_generation` + `state='committed'` and, only if still owned, upserts `external_refs` (state stays
+   `committed`). A superseded claimant returns 0 and writes nothing.
+2. The per-domain **read-model mirror** — a caller write issued ONLY when step 1 returned 1, so the mirror
+   is generation-conditional too (a superseded claimant never mirrors).
+3. **`confirm_outbox(id, generation)`** — the fenced `committed`→`confirmed` promotion, the ONLY
+   committed→confirmed path (`markOutboxConfirmed` retired).
+
+Both the ref write and the confirm are fenced, so a superseded claimant's ENTIRE finalization (ref + mirror
++ confirm) is a 0-row no-op. **The confirm is kept LAST (separate from the ref write) so a crash between the
+ERP commit and the mirror leaves the row `committed` — the retry re-runs the mirror (finalize-only, AC-ENA-010).
+A confirm-first design would strand the row confirmed-but-unmirrored.** A rare crash between the mirror and
+the confirm is additionally backstopped by the doctype modified-poll sweep's convergence authority.
 
 ### 3. The adapter stamps the key into a per-doctype stable stock ANCHOR field (the recovery probe anchor)
 
@@ -176,7 +185,7 @@ never re-issues a second create blindly (FR-ENA-042/043) — and **never `POST`s
 | Outbox `state` | Meaning | Recovery action |
 |---|---|---|
 | `confirmed` | ERP committed + PMO mirror/ref finalized | Return the stored `external_record_id` + canonical record. **No ERP call, no claim.** |
-| `committed` | ERP committed, PMO mirror/ref finalization failed | **Re-run only the finalization** via the DB-side **fenced** `finalize_outbox` RPC (H-1, below) — a single transaction that re-checks the fencing token under a row lock and, only if still owned, upserts `external_refs` **and** promotes `committed`→`confirmed` **atomically**; the per-domain read-model mirror is written only on a `1` return. A superseded claimant's entire finalization is a **0-row no-op**. No second create, no claim. |
+| `committed` | ERP committed, PMO mirror/ref finalization failed | **Re-run only the finalization** via the DB-side **fenced** `record_outbox_ref` → mirror → `confirm_outbox` sequence (H-1, below) — each RPC re-checks the fencing token under a row lock; the mirror is written only when the fenced ref write returned `1`. A superseded claimant's entire finalization is a **0-row no-op**. No second create, no claim. |
 | `committing` (fresh) | Another caller currently owns the ERP-POST critical section | **Do not POST.** Re-read on a short backoff until the owner reaches `committed`/`confirmed`/`failed`, then reconcile to that state. |
 | `committing` (stale, past lease) | A claimant's ERP `POST` may be **in flight** and not yet probe-visible | **Never reclaim + re-POST** (that would duplicate an in-flight money doc). `quarantine_committing(id)` transitions it to `quarantined` (fenced, bumps `claim_generation`) and sets `reconcile_after`. The synchronous caller surfaces a retryable "reconciling"; the row is resolved by the reconciliation path once the window elapses. |
 | `quarantined` | A stale `committing` row awaiting its visibility window | Resolvable **only after `reconcile_after`**, via `claim_outbox_for_commit(id)` (which is gated on the window). The claim winner probes the anchor key: doc found → **adopt** (finalize → `confirmed`, no `POST`); no ERP hit after the window → **per the per-kind reissue policy below**: reissue under the **same** idempotency key for a reissue-capable kind, or transition to **`held`** for a mutable-anchor kind (Payment Entry). Within the window the claim RETURNs null and no `POST` happens. |

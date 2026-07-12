@@ -202,11 +202,11 @@ export function createDbMoneyOutboxDeps(opts: DbMoneyOutboxDepsOpts): DispatchMo
       return data?.length ?? 0;
     },
 
-    // H-1 (finalization TOCTOU fix): the fenced external_refs-upsert + committed→confirmed in ONE RPC
-    // under a row lock. The domain-specific external_record_id encoding (companies prefix) is applied
-    // here, BEFORE the RPC, so the moved-in-RPC ref matches the pre-H-1 caller-side encoding.
-    finalizeOutbox: (id, claimGeneration, mapping) =>
-      callCountRpc(serviceClient, 'finalize_outbox', {
+    // H-1 (finalization TOCTOU fix): the fenced external_refs upsert (state stays committed). The
+    // domain-specific external_record_id encoding (companies prefix) is applied here, BEFORE the RPC,
+    // so the moved-in-RPC ref matches the pre-H-1 caller-side encoding.
+    recordOutboxRef: (id, claimGeneration, mapping) =>
+      callCountRpc(serviceClient, 'record_outbox_ref', {
         p_id: id,
         p_generation: claimGeneration,
         p_domain: mapping.domain,
@@ -214,6 +214,10 @@ export function createDbMoneyOutboxDeps(opts: DbMoneyOutboxDepsOpts): DispatchMo
         p_external_tier: mapping.externalTier,
         p_external_record_id: encodeExternalRecordId(mapping),
       }),
+
+    // H-1: the fenced committed→confirmed promotion (run LAST, after the mirror).
+    confirmOutbox: (id, claimGeneration) =>
+      callCountRpc(serviceClient, 'confirm_outbox', { p_id: id, p_generation: claimGeneration }),
 
     // C-1 (PE mutable anchor): the fenced committing→held transition for a recovery-inconclusive PE.
     markOutboxHeld: (id, reason, claimGeneration) =>
