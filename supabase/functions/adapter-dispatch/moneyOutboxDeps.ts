@@ -52,6 +52,7 @@ interface OutboxDbRow {
   external_record_id: string | null;
   canonical: PmoRecord | null;
   claim_generation: number;
+  payload_digest: string | null;
 }
 
 function mapRow(row: OutboxDbRow): OutboxRow {
@@ -64,7 +65,29 @@ function mapRow(row: OutboxDbRow): OutboxRow {
     externalRecordId: row.external_record_id,
     canonical: row.canonical,
     claimGeneration: row.claim_generation,
+    payloadDigest: row.payload_digest ?? null,
   };
+}
+
+/** M-3 (audit): a stable canonical digest of the command's material payload — used to bind the
+ *  idempotency key to its payload so key-reuse with a different amount/party/refs is rejected, not
+ *  silently reconciled to the original. Sorted-key canonical JSON of the record (idempotencyKey itself
+ *  excluded — it is the key, not the payload) + operation + domain, SHA-256 hex. */
+export async function canonicalCommandDigest(command: { domain: string; operation: string; record: Record<string, unknown> }): Promise<string> {
+  const canonical = (v: unknown): unknown => {
+    if (Array.isArray(v)) return v.map(canonical);
+    if (v && typeof v === 'object') {
+      return Object.keys(v as Record<string, unknown>).sort().reduce<Record<string, unknown>>((acc, k) => {
+        acc[k] = canonical((v as Record<string, unknown>)[k]);
+        return acc;
+      }, {});
+    }
+    return v;
+  };
+  const material = JSON.stringify({ domain: command.domain, operation: command.operation, record: canonical(command.record) });
+  const bytes = new TextEncoder().encode(material);
+  const hash = await crypto.subtle.digest('SHA-256', bytes);
+  return Array.from(new Uint8Array(hash)).map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
 /** RPC helper: `claim_outbox_for_commit`/`quarantine_committing` both return a single composite row or
@@ -106,6 +129,9 @@ export interface DbMoneyOutboxDepsOpts {
    *  the claim-window basis) so the SWEEP recovery path can run the same deterministic probe as the
    *  sync retry path. `undefined` (every non-PE / pre-C-1 caller) ⇒ no payload column written. */
   payload?: Record<string, unknown>;
+  /** M-3 (audit): the canonical digest of THIS command's payload (`canonicalCommandDigest`) — persisted
+   *  at insert + exposed on the deps so dispatch can reject key-reuse with a different payload. */
+  payloadDigest?: string;
   /** Domain-specific `external_refs.external_record_id` encoder (e.g. the companies "<Doctype>:<name>"
    *  prefix, index.ts) applied INSIDE the fenced `finalize_outbox` write so the moved-in-RPC ref
    *  matches the pre-H-1 caller encoding. Default identity (the bare ERP name). */
@@ -147,6 +173,8 @@ export function createDbMoneyOutboxDeps(opts: DbMoneyOutboxDepsOpts): DispatchMo
           state: 'pending',
           // C-1: persist the composite-probe inputs so the sweep recovery path can probe deterministically.
           ...(opts.payload ? { payload: opts.payload } : {}),
+          // M-3: persist the payload digest so a later key-reuse with a different payload is rejected.
+          ...(opts.payloadDigest ? { payload_digest: opts.payloadDigest } : {}),
         })
         .select('*')
         .single();
@@ -206,5 +234,6 @@ export function createDbMoneyOutboxDeps(opts: DbMoneyOutboxDepsOpts): DispatchMo
 
     probeByRemarksKey: opts.probeByRemarksKey,
     backoff: opts.backoff ?? defaultBackoff,
+    payloadDigest: opts.payloadDigest,
   };
 }

@@ -9,6 +9,7 @@ import { describe, it, expect, vi } from 'vitest';
 import {
   dispatchExternallyOwnedWrite,
   dispatchMoneyWrite,
+  redactErrorForOutbox,
   type DispatchMoneyOutboxDeps,
   type OutboxRow,
 } from './dispatch.ts';
@@ -48,7 +49,7 @@ function createFakeOutbox(opts: { reissueOnInconclusiveAbsence?: boolean } = {})
       const id = `outbox-${++seq}`;
       const row: OutboxRow & { updatedAt: number; claimedAt: number | null; reconcileAfter: number | null } = {
         id, domain, pmoRecordId, idempotencyKey,
-        state: 'pending', externalRecordId: null, canonical: null, claimGeneration: 0,
+        state: 'pending', externalRecordId: null, canonical: null, claimGeneration: 0, payloadDigest: null,
         updatedAt: Date.now(), claimedAt: null, reconcileAfter: null,
       };
       rows.set(id, row);
@@ -623,6 +624,72 @@ describe('AC-ENA-012 pending/failed/stale-committing retry: claim first, then ad
     });
     expect(commit).not.toHaveBeenCalled();
     expect(result.externalRecordId).toBe('PI-0004');
+  });
+});
+
+describe('M-4: an ERP error is redacted + bounded before it is persisted to the outbox last_error', () => {
+  it('scrubs long token-shaped runs (secret_ref/keys) and caps the length', () => {
+    const secretish = 'ERPNEXT_SITE_A_API_SECRET_abcdef0123456789abcdef0123456789';
+    const out = redactErrorForOutbox(new AdapterError('commit-rejected', `auth failed for ${secretish}`));
+    expect(out).not.toContain(secretish);
+    expect(out).toContain('[redacted]');
+    expect(out.startsWith('commit-rejected:')).toBe(true);
+  });
+
+  it('truncates a verbose traceback to a bounded length', () => {
+    const out = redactErrorForOutbox(new Error('x'.repeat(1000)));
+    expect(out.length).toBeLessThanOrEqual(241);
+  });
+
+  it('the failed-mark path persists the REDACTED message (not the raw ERP body)', async () => {
+    const fake = createFakeOutbox();
+    await fake.deps.insertOutboxPending('procurement', 'pmo-1', 'key-1');
+    const failedSpy = vi.spyOn(fake.deps, 'markOutboxFailed');
+    const commit = vi.fn(async () => { throw new AdapterError('commit-rejected', 'ValidationError token=abcdef0123456789abcdef0123456789'); });
+    await expect(
+      dispatchMoneyWrite({ adapter: erpnextAdapter(commit), command: baseCommand, writeReadModel: vi.fn(), recordExternalRef: vi.fn(), money: fake.deps }),
+    ).rejects.toBeInstanceOf(AppError);
+    const persisted = failedSpy.mock.calls[0][1];
+    expect(persisted).not.toContain('abcdef0123456789abcdef0123456789');
+    expect(persisted).toContain('[redacted]');
+  });
+});
+
+describe('M-3: the idempotency key is bound to the payload — reuse with a different payload is rejected', () => {
+  it('a retry reusing the key with a DIFFERENT payload digest is rejected (never reconciled to the original)', async () => {
+    const fake = createFakeOutbox();
+    await fake.deps.insertOutboxPending('procurement', 'pmo-1', 'key-1');
+    const id = [...fake.rows.keys()][0];
+    fake.rows.get(id)!.payloadDigest = 'digest-of-the-ORIGINAL-amount';
+
+    const commit = vi.fn();
+    await expect(
+      dispatchMoneyWrite({
+        adapter: erpnextAdapter(commit),
+        command: baseCommand,
+        writeReadModel: vi.fn(), recordExternalRef: vi.fn(),
+        // The incoming command carries a DIFFERENT digest (e.g. a tampered/changed amount).
+        money: { ...fake.deps, payloadDigest: 'digest-of-a-DIFFERENT-amount' },
+      }),
+    ).rejects.toMatchObject({ code: 'commit-rejected', message: 'idempotency-key-payload-mismatch' });
+    expect(commit).not.toHaveBeenCalled();
+  });
+
+  it('a retry with the SAME payload digest proceeds normally (no false positive)', async () => {
+    const fake = createFakeOutbox();
+    await fake.deps.insertOutboxPending('procurement', 'pmo-1', 'key-1');
+    const id = [...fake.rows.keys()][0];
+    fake.rows.get(id)!.payloadDigest = 'same-digest';
+    fake.setProbe('procurement', 'key-1', { externalRecordId: 'PI-ADOPT' });
+
+    const commit = vi.fn();
+    const result = await dispatchMoneyWrite({
+      adapter: erpnextAdapter(commit),
+      command: baseCommand,
+      writeReadModel: vi.fn(), recordExternalRef: vi.fn(),
+      money: { ...fake.deps, payloadDigest: 'same-digest' },
+    });
+    expect(result.externalRecordId).toBe('PI-ADOPT');
   });
 });
 

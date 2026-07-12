@@ -49,7 +49,7 @@ import type { Adapter, AdapterCommand, PmoRecord } from '../../../pmo-portal/src
 import type { DispatchMoneyOutboxDeps, ExternalRefMapping } from '../../../pmo-portal/src/lib/adapterSeam/dispatch.ts';
 import { getReadModelWriter } from './readModelWriters.ts';
 import { maybeFault, type FaultGate } from './faultSeams.ts';
-import { createDbMoneyOutboxDeps } from './moneyOutboxDeps.ts';
+import { canonicalCommandDigest, createDbMoneyOutboxDeps } from './moneyOutboxDeps.ts';
 
 /** The adapter-select context: the caller's org, the parsed command, and the service-role client for
  * per-request config lookups (project binding, external_refs resolution). Never used for adapter.commit(). */
@@ -196,6 +196,13 @@ async function resolveErpMoneyOutboxDeps(ctx: AdapterSelectContext): Promise<Dis
     ...(entry.anchorMutable ? await buildPaymentCompositePayload(ctx) : {}),
   };
 
+  // M-3: bind the idempotency key to the payload (reject key-reuse with a different amount/party/refs).
+  const payloadDigest = await canonicalCommandDigest({
+    domain: ctx.command.domain,
+    operation: ctx.command.operation as string,
+    record: ctx.command.record as Record<string, unknown>,
+  });
+
   return createDbMoneyOutboxDeps({
     serviceClient: ctx.serviceClient as never,
     orgId: ctx.orgId,
@@ -204,6 +211,7 @@ async function resolveErpMoneyOutboxDeps(ctx: AdapterSelectContext): Promise<Dis
     // C-1 per-kind reissue policy: a mutable-anchor (PE) inconclusive recovery is HELD, never reissued.
     reissueOnInconclusiveAbsence: !entry.anchorMutable,
     payload,
+    payloadDigest,
     encodeExternalRecordId,
     probeByRemarksKey: !anchorField
       ? async () => null

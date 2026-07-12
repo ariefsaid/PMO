@@ -45,7 +45,7 @@ import type { AdapterCommand, PmoRecord } from '../../../pmo-portal/src/lib/adap
 import { resolveErpCredentials } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/credentials.ts';
 import type { ErpClientDeps } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/client.ts';
 import { resolveErpDispatchAdapter } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/dispatchFactory.ts';
-import { createDbMoneyOutboxDeps } from '../adapter-dispatch/moneyOutboxDeps.ts';
+import { canonicalCommandDigest, createDbMoneyOutboxDeps } from '../adapter-dispatch/moneyOutboxDeps.ts';
 import { getReadModelWriter } from '../adapter-dispatch/readModelWriters.ts';
 import { recordExternalRef as recordExternalRefWrite } from '../../../pmo-portal/src/lib/adapterSeam/refs.ts';
 import { probeErpByAnchorKey, probeErpByPaymentComposite } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/recoveryProbe.ts';
@@ -226,6 +226,7 @@ function listCandidatesLive(serviceClient: SupabaseClient): ListOutboxCandidates
       externalRecordId: (r.external_record_id as string | null) ?? null,
       canonical: (r.canonical as OutboxRow['canonical']) ?? null,
       claimGeneration: (r.claim_generation as number | undefined) ?? 0,
+      payloadDigest: (r.payload_digest as string | null | undefined) ?? null,
     }));
   };
 }
@@ -391,12 +392,14 @@ async function buildReconcileDepsLive(serviceClient: SupabaseClient, org: OrgBin
   const encodeExternalRecordId = (mapping: ExternalRefMapping): string =>
     mapping.domain === ERPNEXT_COMPANIES_DOMAIN ? `${entry.doctype}:${mapping.externalRecordId}` : mapping.externalRecordId;
 
+  const payloadDigest = await canonicalCommandDigest({ domain: command.domain, operation: command.operation, record: command.record as Record<string, unknown> });
   const money = createDbMoneyOutboxDeps({
     serviceClient: serviceClient as never,
     orgId: org.orgId,
     externalTier: ERPNEXT_TIER,
     operation: rowExtra.operation,
     reissueOnInconclusiveAbsence: !entry.anchorMutable,
+    payloadDigest,
     encodeExternalRecordId,
     probeByRemarksKey: !anchorField
       ? async () => null

@@ -26,6 +26,7 @@ interface FakeRow {
   canonical: unknown;
   claim_generation: number;
   last_error: string | null;
+  payload_digest?: string | null;
 }
 
 function makeFakeClient(seed: FakeRow[] = []) {
@@ -87,6 +88,7 @@ function makeFakeClient(seed: FakeRow[] = []) {
                     canonical: null,
                     claim_generation: 0,
                     last_error: null,
+                    payload_digest: (r.payload_digest as string | null | undefined) ?? null,
                   };
                   rows.set(id, full);
                   return { data: full, error: null };

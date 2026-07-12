@@ -36,6 +36,7 @@ function row(state: OutboxRow['state'], overrides: Partial<OutboxRow> = {}): Out
     externalRecordId: overrides.externalRecordId ?? (state === 'confirmed' || state === 'committed' ? 'ACC-PINV-2026-00001' : null),
     canonical: overrides.canonical ?? { id: 'pmo-1' },
     claimGeneration: overrides.claimGeneration ?? 1,
+    payloadDigest: overrides.payloadDigest ?? null,
     ...overrides,
   };
 }

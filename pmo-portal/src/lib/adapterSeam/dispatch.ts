@@ -51,6 +51,11 @@ export interface OutboxRow {
    *  write-back is guarded `WHERE claim_generation = <token>` so a lease-expired claimant's late
    *  write-back is discarded (affects 0 rows) once a reclaimer has superseded it. */
   claimGeneration: number;
+  /** M-3 (audit): the canonical digest of the command payload that OPENED this outbox row. A retry
+   *  reusing the same idempotency key with a MATERIALLY DIFFERENT payload (different amount/party/refs)
+   *  is rejected rather than silently reconciled to the original command. `null` for rows opened before
+   *  the digest was introduced (the check is skipped when either side is absent). */
+  payloadDigest: string | null;
 }
 
 /**
@@ -115,6 +120,10 @@ export interface DispatchMoneyOutboxDeps {
   /** A short backoff before re-reading a fresh (non-reclaimable) `committing` row owned by another
    *  live caller. Injected so tests run instantly; production wires a small real delay. */
   backoff: () => Promise<void>;
+  /** M-3 (audit): the canonical digest of THIS command's payload (computed by the caller), persisted at
+   *  insert and compared against a re-read row's stored digest to reject idempotency-key reuse with a
+   *  different payload. Absent ⇒ the binding check is skipped (P0/P1 and pre-M-3 callers). */
+  payloadDigest?: string;
 }
 
 export type DispatchMoneyWriteDeps = DispatchExternallyOwnedWriteDeps & { money: DispatchMoneyOutboxDeps };
@@ -123,6 +132,19 @@ export type DispatchMoneyWriteDeps = DispatchExternallyOwnedWriteDeps & { money:
  *  reclaimable) from a non-retryable rejection (marked `failed` immediately). */
 function isRetryableTransport(error: unknown): boolean {
   return error instanceof AdapterError && error.code === 'external-unreachable';
+}
+
+/** M-4 (audit): bound + scrub an error before it is PERSISTED to the outbox `last_error`. A raw ERP
+ *  response body can carry secret_ref/env names, tokens, or a verbose traceback — never store it
+ *  verbatim. Keeps the classified code + a short snippet with long token-shaped runs redacted. */
+export function redactErrorForOutbox(error: unknown): string {
+  const raw = error instanceof AdapterError
+    ? `${error.code}: ${error.message}`
+    : error instanceof Error
+      ? error.message
+      : String(error);
+  const scrubbed = raw.replace(/[A-Za-z0-9_+/=-]{24,}/g, '[redacted]');
+  return scrubbed.length > 240 ? `${scrubbed.slice(0, 240)}…` : scrubbed;
 }
 
 /** The DB-side FENCED finalization (H-1): the `external_refs` upsert + the `committed`→`confirmed`
@@ -199,7 +221,8 @@ async function claimAndCommit(
     } catch (error) {
       if (!isRetryableTransport(error)) {
         // a non-retryable (commit-rejected) failure — mark failed under the current fencing token.
-        await money.markOutboxFailed(claimed.id, error instanceof Error ? error.message : String(error), token);
+        // M-4: the persisted last_error is REDACTED (bounded + token-scrubbed), never the raw ERP body.
+        await money.markOutboxFailed(claimed.id, redactErrorForOutbox(error), token);
       }
       // a retryable (external-unreachable) failure intentionally marks nothing — the row stays
       // `committing` and becomes reclaimable once its lease expires (ADR-0057 §4).
@@ -304,6 +327,13 @@ export async function dispatchMoneyWrite(deps: DispatchMoneyWriteDeps): Promise<
       row = await money.readOutbox(command.domain, command.record.id, command.idempotencyKey);
       if (!row) throw toDispatchError(error);
     }
+  }
+  // M-3 (audit): bind the idempotency key to the payload. A retry that reuses the key with a materially
+  // different payload (a DIFFERENT amount/party/references digest) must be REJECTED, never silently
+  // reconciled to the original command (which could hide a wrong-amount money doc). Skipped when either
+  // digest is absent (P0/P1 / pre-M-3 rows).
+  if (row.payloadDigest && money.payloadDigest && row.payloadDigest !== money.payloadDigest) {
+    throw toDispatchError(new AdapterError('commit-rejected', 'idempotency-key-payload-mismatch'));
   }
   return reconcileOutbox(row, deps);
 }
