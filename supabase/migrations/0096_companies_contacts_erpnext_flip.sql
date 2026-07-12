@@ -120,7 +120,12 @@ drop policy contacts_write on contacts;
 create policy contacts_insert on contacts for insert
   with check (org_id = auth_org_id() and auth_role() in ('Admin','Executive','Project Manager','Finance')
     and is_active_member() and org_feature_enabled(auth_org_id(), 'crm')
-    and exists (select 1 from public.companies c where c.id = contacts.company_id and c.org_id = auth_org_id()));
+    and exists (select 1 from public.companies c where c.id = contacts.company_id and c.org_id = auth_org_id())
+    -- M-2 (audit): contacts ride the PARENT `companies` domain's ownership (FR-ENA-095). While that
+    -- domain is externally-owned, a user-JWT INSERT is DENIED (an ERP Contact mirror is machine-written
+    -- via service_role, which bypasses RLS) — closing the hole where a user could mint a contact mirror
+    -- row outside ERPNext. PMO-owned enhancement inserts are unaffected while NOT flipped (byte-for-byte).
+    and not public.domain_externally_owned(auth_org_id(), 'companies'));
 
 create policy contacts_update on contacts for update
   using (org_id = auth_org_id() and auth_role() in ('Admin','Executive','Project Manager','Finance')

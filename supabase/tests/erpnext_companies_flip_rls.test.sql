@@ -15,7 +15,7 @@
 --   user write -> lives_ok (contacts ride the companies domain flip — FR-ENA-095, no separate 'contacts'
 --   domain).
 begin;
-select plan(17);
+select plan(18);
 
 insert into organizations (id, name) values
   ('00960000-0000-0000-0000-000000000001','AC-ENA Parties Org A (flipped)'),
@@ -104,6 +104,13 @@ select lives_ok(
       where id = '00960000-0000-0000-0000-000000000111' $$,
   'contacts: user-JWT UPDATE of enhancement cols (title/notes/archived_at) lives while externally-owned');
 update contacts set archived_at = null where id = '00960000-0000-0000-0000-000000000111';
+-- M-2 (audit): a user-JWT INSERT of a contact mirror row is DENIED while the parent companies domain
+-- is externally-owned (an ERP Contact is machine-written via service_role) — closes the hole.
+select throws_ok(
+  $$ insert into contacts (org_id, company_id, full_name)
+       values ('00960000-0000-0000-0000-000000000001','00960000-0000-0000-0000-000000000101','Smuggled Contact') $$,
+  '42501', null,
+  'contacts: user-JWT INSERT denied while parent companies domain externally-owned (M-2)');
 
 -- ── service-role mirror writes bypass the native-column pin only for a flipped org ──
 reset role;
