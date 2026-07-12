@@ -86,7 +86,7 @@ describe('erpnext/binding — assertErpReadPermissions (AC-ENA-084, task 8.8, R1
   const client = { fetchImpl: undefined as unknown as typeof fetch, apiKey: 'k', apiSecret: 's', baseUrl: 'https://erp.example.com' };
 
   function permFetch(responses: Array<(url: string) => Response | undefined>) {
-    return fetchDeps((url) => {
+    return fetchDeps(async (url) => {
       for (const r of responses) {
         const res = r(url);
         if (res) return res;
@@ -131,7 +131,7 @@ describe('erpnext/binding — assertErpReadPermissions (AC-ENA-084, task 8.8, R1
   });
 
   it('AC-ENA-084 activateBinding refuses activation (activatedAt null) when the read-perm probe fails', async () => {
-    const fetchImpl = fetchDeps((url) => {
+    const fetchImpl = fetchDeps(async (url) => {
       if (url.includes('get_versions')) return jsonResponse(200, { erpnext: { version: '15.94.3' } });
       if (url.includes('/api/resource/Company/PMO%20Smoke%20Co')) return jsonResponse(200, { name: 'PMO Smoke Co', default_payable_account: 'Creditors - PSC' });
       if (url.includes('/api/resource/Purchase%20Invoice?')) return jsonResponse(403, { exc_type: 'PermissionError', message: 'Not permitted' });
@@ -147,7 +147,7 @@ describe('erpnext/binding — assertErpReadPermissions (AC-ENA-084, task 8.8, R1
   });
 
   it('AC-ENA-084 activateBinding activates when the read-perm probe passes (backward-compat: no scope ⇒ no probe)', async () => {
-    const fetchImpl = fetchDeps((url) => {
+    const fetchImpl = fetchDeps(async (url) => {
       if (url.includes('get_versions')) return jsonResponse(200, { erpnext: { version: '15.94.3' } });
       if (url.includes('/api/resource/Company/PMO%20Smoke%20Co')) return jsonResponse(200, { name: 'PMO Smoke Co', default_payable_account: 'Creditors - PSC' });
       if (url.includes('/api/resource/Purchase%20Invoice?')) return jsonResponse(200, { data: [] });
