@@ -204,3 +204,24 @@ export function updateDoc(deps: ErpClientDeps, doctype: string, name: string, bo
 export function callMethod(deps: ErpClientDeps, methodPath: string): Promise<unknown> {
   return erpnextRequest(deps, { method: 'GET', path: `/api/method/${methodPath}` });
 }
+
+/**
+ * The ADR-0057 §3 recovery-probe query: list the `name`s of `<DocType>` docs whose stock `remarks`
+ * field carries the idempotency key (`GET /api/resource/<DocType>?filters=[["remarks","like","%<key>%"]]`).
+ * Returns at most `limit` names (default 1 — an idempotency key stamps exactly one doc). A `GET` is
+ * idempotent so the standard retry/backoff applies (unlike a create POST). The remarks stamp is
+ * written by `adapter.ts`'s `stampRemarks` on every create.
+ */
+export async function listDocNamesByRemarksKey(
+  deps: ErpClientDeps,
+  doctype: string,
+  idempotencyKey: string,
+  limit = 1,
+): Promise<string[]> {
+  const filters = encodeURIComponent(JSON.stringify([['remarks', 'like', `%${idempotencyKey}%`]]));
+  const path = `${doctypePath(doctype)}?filters=${filters}&limit_page_length=${limit}`;
+  const res = await erpnextRequest(deps, { method: 'GET', path });
+  const data = (res as { data?: Array<{ name?: unknown }> } | null)?.data;
+  if (!Array.isArray(data)) return [];
+  return data.map((d) => String(d.name)).filter((n) => n !== 'undefined');
+}
