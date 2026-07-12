@@ -125,7 +125,7 @@ describe('submitTimesheet / approveTimesheet / rejectTimesheet', () => {
     expect(mockRpc).toHaveBeenCalledWith('transition_timesheet', {
       p_timesheet_id: 'ts-id',
       p_to: 'Submitted',
-      p_notes: null,
+      // Regenerated RPC arg types encode optional args as omit-not-null (types regen, P2 assembly).
     });
     expect(JSON.stringify(mockRpc.mock.calls)).not.toContain('org_id');
 
@@ -138,13 +138,13 @@ describe('submitTimesheet / approveTimesheet / rejectTimesheet', () => {
       p_notes: 'looks good',
     });
 
-    // Reject: no notes → null
+    // Reject: no notes → omit (omit-when-undefined)
     makeRpcBuilder({ data: null, error: null });
     await rejectTimesheet('ts-id');
     expect(mockRpc).toHaveBeenCalledWith('transition_timesheet', {
       p_timesheet_id: 'ts-id',
       p_to: 'Rejected',
-      p_notes: null,
+      // Regenerated RPC arg types encode optional args as omit-not-null (types regen, P2 assembly).
     });
   });
 
