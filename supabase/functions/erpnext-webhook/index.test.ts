@@ -104,6 +104,23 @@ Deno.test('AC-ENA-070: no employing org ⇒ 401 (no secret to match, no side eff
   assert(res.status === 401, `expected 401, got ${res.status}`);
 });
 
+// task FIX-5 (Quality IMPORTANT 2): a DB LOAD failure resolving employing orgs must NOT be
+// indistinguishable from "genuinely no employing org" — a 401 there tells Frappe "stop retrying, this
+// is a permanent auth failure", but a transient DB outage is retryable. `resolveEmployingOrgs` throwing
+// ⇒ 500 (so Frappe's webhook retry policy kicks in), never silently folded into the 401 no-secret-match
+// path.
+Deno.test('FIX-5: resolveEmployingOrgs THROWING (a DB load error) ⇒ 500, distinct from the 401 no-secret-match path', async () => {
+  const throwingDeps: ErpWebhookHandlerDeps = {
+    resolveEmployingOrgs: async () => { throw new Error('connection reset'); },
+    applyEvent: async () => { throw new Error('applyEvent must not be called when org resolution failed'); },
+  };
+  const validSig = await sign(PI_EVENT);
+  const res = await handleErpWebhook(req(PI_EVENT, validSig), throwingDeps);
+  assert(res.status === 500, `expected 500 on a DB load error, got ${res.status}`);
+  const body = (await res.json()) as { error?: string };
+  assert(body.error !== 'UNAUTHORIZED', 'a DB load error must not present as UNAUTHORIZED (401)');
+});
+
 Deno.test('AC-ENA-070: a webhook whose secret does NOT match any employing org ⇒ 401 (no side effect)', async () => {
   const otherSecretDeps: ErpWebhookHandlerDeps = {
     resolveEmployingOrgs: async () => [{ orgId: ORG_ID, webhookSecret: 'a-DIFFERENT-secret' }],

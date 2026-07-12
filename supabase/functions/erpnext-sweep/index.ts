@@ -122,6 +122,10 @@ interface OrgBinding {
   secretRef: string;
   company: string;
   config: Record<string, unknown>;
+  // task FIX-6 (Quality MINOR 4): the handshake-stamped ERPNext major version lives on the
+  // `external_org_bindings.version_major` COLUMN (§4.1), never inside `config` (which has no
+  // `version` key — `report_filter_shape`/`aging_report_names`/the account defaults live there).
+  versionMajor: number | null;
 }
 
 export interface ErpSweepCycleDeps {
@@ -190,19 +194,29 @@ export async function runErpSweepCycle(deps: ErpSweepCycleDeps): Promise<ErpSwee
 // The real wiring the Deno.serve wrapper uses (DB + env + createErpFeedDeps + the slice-7 fanout).
 // ────────────────────────────────────────────────────────────────────────────────────────────────
 
-/** Loads the employing orgs (activated erpnext bindings) + resolves each org's ERP client deps. */
-async function listEmployingOrgsLive(serviceClient: SupabaseClient): Promise<OrgBinding[]> {
+/** Loads the employing orgs (activated erpnext bindings) + resolves each org's ERP client deps.
+ *  Exported for unit testing (task FIX-5, Quality IMPORTANT 2 — the DB-error path must be observable,
+ *  not silently swallowed). */
+export async function listEmployingOrgsLive(serviceClient: SupabaseClient): Promise<OrgBinding[]> {
   const { data, error } = await serviceClient.from('external_org_bindings')
-    .select('org_id, site_url, secret_ref, config, activated_at')
+    .select('org_id, site_url, secret_ref, config, activated_at, version_major')
     .eq('external_tier', ERPNEXT_TIER);
-  if (error) return [];
-  const rows = (data as Array<{ org_id: string; site_url: string; secret_ref: string; config: Record<string, unknown> | null; activated_at: string | null }> | null) ?? [];
+  // task FIX-5: a real DB error must not be silently folded into "no employing orgs this cycle" — log
+  // it so an outage is observable in the function logs. The sweep cycle still returns [] (fail-safe:
+  // one bad DB round-trip skips this sweep tick rather than crashing the whole cron invocation).
+  if (error) {
+    console.error(`[erpnext-sweep] external_org_bindings load failed: code=${error.code ?? 'none'} message=${error.message}`);
+    return [];
+  }
+  const rows = (data as Array<{ org_id: string; site_url: string; secret_ref: string; config: Record<string, unknown> | null; activated_at: string | null; version_major: number | null }> | null) ?? [];
   return rows.filter((r) => r.activated_at).map((r) => ({
     orgId: r.org_id,
     siteUrl: r.site_url,
     secretRef: r.secret_ref,
     company: (r.config?.company as string | undefined) ?? '',
     config: r.config ?? {},
+    // task FIX-6 (Quality MINOR 4): version_major is a top-level column, not a `config` key.
+    versionMajor: r.version_major ?? null,
   }));
 }
 
@@ -295,16 +309,29 @@ async function feedOrgLedgersLive(serviceClient: SupabaseClient, org: OrgBinding
   }
 }
 
-/** The accounting refresh for one org (slice 7 fanout — actuals + AP/AR aging from the mirror). */
-async function refreshOrgAccountingLive(serviceClient: SupabaseClient, org: OrgBinding): Promise<{ error?: string }> {
+/**
+ * The aging-snapshot provenance version string for an org (task FIX-6, Quality MINOR 4). Sourced
+ * from `org.versionMajor` (the `external_org_bindings.version_major` COLUMN, handshake-stamped) —
+ * `org.config.version` was never a real key (§4.1's `config` shape has no `version`: it carries
+ * `report_filter_shape`/`aging_report_names`/the account defaults), so every aging snapshot's
+ * `report_version` provenance was silently the empty string. Exported for direct unit testing.
+ */
+export function reportVersionFromOrg(org: Pick<OrgBinding, 'versionMajor'>): string {
+  return org.versionMajor != null ? String(org.versionMajor) : '';
+}
+
+/** The accounting refresh for one org (slice 7 fanout — actuals + AP/AR aging from the mirror).
+ *  Exported for unit testing (task FIX-6, Quality MINOR 4). */
+export async function refreshOrgAccountingLive(serviceClient: SupabaseClient, org: OrgBinding): Promise<{ error?: string }> {
   try {
     const client = erpClientForOrg(org);
+    const reportVersion = reportVersionFromOrg(org);
     const scope: OrgAccountingScope = {
       orgId: org.orgId,
       client,
       actualsScope: {},
-      apAgingScope: { reportName: 'Accounts Payable', snapshotTable: 'erp_ap_aging_snapshot', filters: org.config.report_filter_shape as Record<string, unknown> ?? {}, reportVersion: String(org.config.version ?? '') },
-      arAgingScope: { reportName: 'Accounts Receivable', snapshotTable: 'erp_ar_aging_snapshot', filters: org.config.report_filter_shape as Record<string, unknown> ?? {}, reportVersion: String(org.config.version ?? '') },
+      apAgingScope: { reportName: 'Accounts Payable', snapshotTable: 'erp_ap_aging_snapshot', filters: org.config.report_filter_shape as Record<string, unknown> ?? {}, reportVersion },
+      arAgingScope: { reportName: 'Accounts Receivable', snapshotTable: 'erp_ar_aging_snapshot', filters: org.config.report_filter_shape as Record<string, unknown> ?? {}, reportVersion },
     };
     const results = await refreshAccountingSnapshots(serviceClient as unknown as Parameters<typeof refreshAccountingSnapshots>[0], [scope]);
     const err = results.find((r) => r.error)?.error;

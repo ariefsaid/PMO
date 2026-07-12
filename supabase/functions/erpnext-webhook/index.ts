@@ -111,7 +111,19 @@ export async function handleErpWebhook(req: Request, deps: ErpWebhookHandlerDeps
   if (rawBody === null) return json({ error: 'PAYLOAD_TOO_LARGE' }, 413);
   const signatureHeader = req.headers.get('X-Frappe-Webhook-Signature') ?? '';
 
-  const orgs = await deps.resolveEmployingOrgs();
+  // task FIX-5 (Quality IMPORTANT 2): a DB load failure resolving employing orgs is NOT the same
+  // event as "genuinely no employing org" — the former is transient/retryable (500, so Frappe's
+  // webhook retry policy kicks in), the latter is a permanent no-secret-match (401). Conflating them
+  // by letting a thrown load-error silently degrade to an empty org list would tell Frappe to STOP
+  // retrying on what may be a momentary outage.
+  let orgs: EmployingOrg[];
+  try {
+    orgs = await deps.resolveEmployingOrgs();
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : 'failed to resolve employing orgs';
+    console.error(`[erpnext-webhook] resolveEmployingOrgs failed: ${detail}`);
+    return json({ error: 'INTERNAL_ERROR', message: 'could not resolve the employing org' }, 500);
+  }
   // No employing org ⇒ the public surface rejects (no secret to match) — 401, no side effect.
   let matchedOrg: EmployingOrg | null = null;
   if (signatureHeader) {
@@ -158,7 +170,13 @@ async function resolveEmployingOrgsLive(serviceClient: SupabaseClient): Promise<
   const { data, error } = await serviceClient.from('external_org_bindings')
     .select('org_id, webhook_secret_ref, activated_at')
     .eq('external_tier', ERPNEXT_TIER);
-  if (error) return [];
+  // task FIX-5 (Quality IMPORTANT 2): a real DB error must not be swallowed into "no employing org"
+  // (that reads as a permanent 401 to Frappe) — log it and THROW so the caller (handleErpWebhook)
+  // surfaces a retryable 500 instead.
+  if (error) {
+    console.error(`[erpnext-webhook] external_org_bindings load failed: code=${error.code ?? 'none'} message=${error.message}`);
+    throw new AppError(error.message, error.code);
+  }
   const rows = (data as Array<{ org_id: string; webhook_secret_ref: string | null; activated_at: string | null }> | null) ?? [];
   // Only ACTIVATED bindings are employing (a binding is activated once the version handshake passes,
   // 2.6/8.8). A binding without a webhook_secret_ref is employing for COMMANDS but not webhooks — it
