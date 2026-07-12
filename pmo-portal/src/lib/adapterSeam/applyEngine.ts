@@ -121,7 +121,23 @@ export interface SweepListChangesDeps {
   listChanges: (cursor: string | null) => Promise<{ changes: SweepChange[]; nextCursor: string | null }>;
 }
 
-export interface SweepDeps extends ApplyChangeDeps, WatermarkDeps, SweepListChangesDeps {}
+/** An OPTIONAL override of the per-change apply strategy. Defaults to `applyInboundChange` (the
+ *  source-mod-guarded upsert/adopt core) — P0/P1 never set it, so their sweep is byte-for-byte.
+ *  A tier whose inbound events need richer routing (ERPNext: a `docstatus:2` → cancel, an
+ *  `amended_from` → amend, a stale superseded name → no-op, FR-ENA-052/053) injects its lineage-aware
+ *  apply here so `runSweep` applies each change through THAT path instead of the plain upsert. */
+export type SweepApplyChange = (
+  ctx: ApplyEngineCtx,
+  externalRecordId: string,
+  canonical: PmoRecord,
+  sourceUpdatedAtMs: number,
+  deps: ApplyChangeDeps,
+) => Promise<ApplyOutcome>;
+
+export interface SweepDeps extends ApplyChangeDeps, WatermarkDeps, SweepListChangesDeps {
+  /** Optional lineage-aware apply override (slice 8 wires ERPNext's cancel/amend feed here). */
+  applyChange?: SweepApplyChange;
+}
 
 export interface SweepResult {
   /** Changes that applied (upsert or adopt) this run. Stale (per-row-guard no-op) changes do not count. */
@@ -144,7 +160,10 @@ export async function runSweep(ctx: ApplyEngineCtx, deps: SweepDeps): Promise<Sw
 
   let applied = 0;
   for (const change of changes) {
-    const outcome = await applyInboundChange(ctx, change.record.id, change.record, change.sourceModMs, deps);
+    // Default: the source-mod-guarded upsert/adopt core. A tier with richer per-event routing
+    // (ERPNext cancel/amend) injects `deps.applyChange` — byte-for-byte for P0/P1 (absent ⇒ default).
+    const applyFn = deps.applyChange ?? applyInboundChange;
+    const outcome = await applyFn(ctx, change.record.id, change.record, change.sourceModMs, deps);
     if (outcome.kind === 'upserted') applied += 1;
   }
 
