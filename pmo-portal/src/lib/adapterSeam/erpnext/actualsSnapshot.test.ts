@@ -19,7 +19,7 @@ interface RecordingClient {
   glRows: Record<string, unknown>[];
   deletedScopes: Record<string, string | null>[];
   inserted: Record<string, unknown>[][];
-  from(table: string): unknown;
+  from?(table: string): unknown;
 }
 
 function makeClient(glRows: Record<string, unknown>[]): RecordingClient {

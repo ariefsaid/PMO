@@ -19,11 +19,12 @@ import { AppError } from '../../appError.ts';
 export interface SnapshotServiceClient {
   from(table: string): SnapshotTable;
 }
-export interface SnapshotEqChain {
-  eq(column: string, value: string | number | boolean | null): SnapshotEqChain;
+export interface SnapshotSelectBuilder extends PromiseLike<{ data: unknown[] | null; error: { message: string; code?: string } | null }> {
+  eq(column: string, value: string | number | boolean | null): SnapshotSelectBuilder;
 }
-export interface SnapshotSelectBuilder extends SnapshotEqChain, PromiseLike<{ data: unknown[] | null; error: { message: string; code?: string } | null }> {}
-export interface SnapshotDeleteBuilder extends SnapshotEqChain, PromiseLike<{ error: { message: string; code?: string } | null }> {}
+export interface SnapshotDeleteBuilder extends PromiseLike<{ error: { message: string; code?: string } | null }> {
+  eq(column: string, value: string | number | boolean | null): SnapshotDeleteBuilder;
+}
 export interface SnapshotTable {
   select(columns: string): SnapshotSelectBuilder;
   delete(): SnapshotDeleteBuilder;

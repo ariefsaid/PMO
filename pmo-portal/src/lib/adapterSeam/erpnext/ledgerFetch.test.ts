@@ -34,7 +34,7 @@ describe('erpnext/ledgerFetch — fetchGlEntries', () => {
     expect(urls[0]).toContain('/api/resource/GL%20Entry'); // doctype confined here (raw, encoded path)
     const decoded = decodeURIComponent(urls[0]);
     expect(decoded).toContain('"is_cancelled","=",0');
-    expect(decoded).toContain('"docstatus","!="', '2'); // docstatus!=2 (exclude cancelled)
+    expect(decoded).toContain('"docstatus","!=",2]'); // docstatus!=2 (exclude cancelled)
     expect(decoded).toContain('"modified",">=","2026-07-01 00:00:00"');
     expect(decoded).toContain('"company","=","PMO Smoke Co"');
     // the field list requests the money + provenance fields the mirror consumes
@@ -99,7 +99,7 @@ describe('erpnext/ledgerFetch — fetchPaymentLedgerEntries', () => {
     expect(urls).toHaveLength(1);
     expect(urls[0]).toContain('/api/resource/Payment%20Ledger%20Entry'); // doctype confined here
     const decoded = decodeURIComponent(urls[0]);
-    expect(decoded).toContain('"docstatus","!="', '2');
+    expect(decoded).toContain('"docstatus","!=",2]');
     expect(decoded).toContain('"modified",">=","2026-07-01 00:00:00"');
     expect(decoded).toContain('"company","=","PMO Smoke Co"');
     expect(rows[0].amount).toBe('-75000.0'); // decimal-string preserved (the aging fallback's signed amount)

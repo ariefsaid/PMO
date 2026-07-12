@@ -34,21 +34,33 @@ function makeServiceClient(pleRows: Record<string, unknown>[]): { client: unknow
   const tables: string[] = [];
   const inserted: Record<string, unknown>[][] = [];
   const deleted: Record<string, string | null>[] = [];
+  /** A typed chainable-thenable mock builder: `.eq()` returns self; `await` resolves to `value`. */
+  interface Chain<T> { eq(): Chain<T>; then<U>(onfulfilled: (v: T) => U | PromiseLike<U>): Promise<U>; }
+  const chain = <T>(value: T): Chain<T> => {
+    const self: Chain<T> = {
+      eq: () => self,
+      then: (onfulfilled) => Promise.resolve(value).then(onfulfilled),
+    };
+    return self;
+  };
+  /** Delete-chain: `.eq(c,v)` records the filter into `scope` and returns self; `await` records the scope. */
+  interface DelChain { eq(c: string, v: string | null): DelChain; then<U>(onfulfilled: (v: { error: null }) => U | PromiseLike<U>): Promise<U>; }
   const from = (table: string) => {
     tables.push(table);
     if (table === 'erp_payment_ledger_mirror') {
-      const b: unknown = Promise.resolve({ data: [...pleRows], error: null });
-      Object.assign(b, { eq: () => b });
-      return { select: () => b };
+      return { select: () => chain({ data: [...pleRows] as unknown[], error: null }) };
     }
     if (table === 'erp_ap_aging_snapshot' || table === 'erp_ar_aging_snapshot') {
       return {
         delete: () => {
           const scope: Record<string, string | null> = {};
-          const d: unknown = Promise.resolve({ error: null });
-          Object.assign(d, { eq: (c: string, v: string | null) => { scope[c] = v; return d; } });
-          void (d as Promise<unknown>).then(() => deleted.push(scope));
-          return d;
+          const resolve = <U>(onfulfilled: (v: { error: null }) => U | PromiseLike<U>) =>
+            Promise.resolve({ error: null } as { error: null }).then((r) => { deleted.push(scope); return onfulfilled(r); });
+          const builder: DelChain = {
+            eq: (c, v) => { scope[c] = v; return builder; },
+            then: resolve,
+          };
+          return builder;
         },
         insert: async (rows: Record<string, unknown>[]) => { inserted.push(rows); return { error: null }; },
       };
@@ -163,9 +175,14 @@ describe('erpnext/agingSnapshot — refreshAging edge', () => {
     // a service client whose PLE read rejects — the fallback read error must propagate (no silent empty)
     const from = (table: string) => {
       if (table === 'erp_payment_ledger_mirror') {
-        // a chainable thenable that rejects on await (mirrors supabase-js's eq-chain shape)
-        const rej: unknown = Promise.reject(new Error('ple read down'));
-        Object.assign(rej, { eq: () => rej });
+        // a chainable thenable that rejects on await (mirrors supabase-js's eq-chain shape).
+        // `then` forwards to a rejected promise so the await assimilation actually settles.
+        interface RejChain { eq(): RejChain; then(onf?: ((v: unknown) => unknown) | null, onr?: ((e: unknown) => unknown) | null): Promise<unknown>; }
+        const err = new Error('ple read down');
+        const rej: RejChain = {
+          eq: () => rej,
+          then: (onf, onr) => Promise.reject(err).then(onf ?? undefined, onr ?? undefined),
+        };
         return { select: () => rej };
       }
       throw new Error(`unexpected table: ${table}`);

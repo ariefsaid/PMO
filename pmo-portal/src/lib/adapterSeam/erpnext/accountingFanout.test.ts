@@ -9,13 +9,13 @@
  * — slice 8 wires the real refreshActuals/refreshAging.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { refreshAccountingSnapshots } from './accountingFanout.ts';
+import { refreshAccountingSnapshots, type OrgAccountingScope } from './accountingFanout.ts';
 
 const refreshActuals = vi.fn(async () => {});
 const refreshAging = vi.fn(async () => {});
 const deps = { refreshActuals, refreshAging };
 
-function org(orgId: string) {
+function org(orgId: string): OrgAccountingScope {
   return {
     orgId,
     client: { fetchImpl: async () => new Response('{}'), apiKey: 'k', apiSecret: 's', baseUrl: 'https://erp.example.com' },
