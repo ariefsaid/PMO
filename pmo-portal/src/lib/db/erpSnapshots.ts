@@ -74,6 +74,21 @@ interface AgingDb {
   snapshot_id: string;
 }
 
+/**
+ * task FIX-7 (Quality MINOR 5) — the latest-snapshot_id filter hardening. Snapshot-replace (delete
+ * old scope rows, then insert new) is TWO round-trips, not one transaction (`actualsSnapshot.ts`/
+ * `agingSnapshot.ts`'s comment on the pattern). A concurrent double-sweep can race the delete of one
+ * pass against the insert of another and leave rows from TWO snapshot_ids in the table at once. Rather
+ * than trust "snapshot-replace keeps exactly one snapshot_id per scope" blindly, filter the read to
+ * only the MOST RECENT snapshot_id — the first row's, since the query already orders `created_at`
+ * desc — so a stale generation never mixes into what renders.
+ */
+function latestSnapshotOnly<T extends { snapshot_id: string }>(rows: T[]): T[] {
+  if (rows.length === 0) return rows;
+  const latestId = rows[0].snapshot_id;
+  return rows.filter((r) => r.snapshot_id === latestId);
+}
+
 function toActualsRow(db: ActualsDb): ErpActualsSnapshotRow {
   return {
     projectId: db.project_id,
@@ -126,19 +141,19 @@ const loose = supabase as unknown as { from(table: string): { select(columns: st
 export async function listActualsSnapshot(): Promise<ErpActualsSnapshotRow[]> {
   const { data, error } = await loose.from('erp_actuals_snapshot').select(ACTUALS_COLS).order('created_at', { ascending: false });
   if (error) throw new AppError(error.message, error.code);
-  return ((data ?? []) as unknown as ActualsDb[]).map(toActualsRow);
+  return latestSnapshotOnly((data ?? []) as unknown as ActualsDb[]).map(toActualsRow);
 }
 
 /** Read the caller's own-org AP aging snapshot (current scope). RLS-scoped; empty when no refresh has run. */
 export async function listApAgingSnapshot(): Promise<ErpAgingSnapshotRow[]> {
   const { data, error } = await loose.from('erp_ap_aging_snapshot').select(AGING_COLS).order('created_at', { ascending: false });
   if (error) throw new AppError(error.message, error.code);
-  return ((data ?? []) as unknown as AgingDb[]).map(toAgingRow);
+  return latestSnapshotOnly((data ?? []) as unknown as AgingDb[]).map(toAgingRow);
 }
 
 /** Read the caller's own-org AR aging snapshot (current scope). RLS-scoped; empty when no refresh has run. */
 export async function listArAgingSnapshot(): Promise<ErpAgingSnapshotRow[]> {
   const { data, error } = await loose.from('erp_ar_aging_snapshot').select(AGING_COLS).order('created_at', { ascending: false });
   if (error) throw new AppError(error.message, error.code);
-  return ((data ?? []) as unknown as AgingDb[]).map(toAgingRow);
+  return latestSnapshotOnly((data ?? []) as unknown as AgingDb[]).map(toAgingRow);
 }

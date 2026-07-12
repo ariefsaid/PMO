@@ -72,6 +72,33 @@ describe('db/erpSnapshots — read-only snapshot DAL (task 7.7)', () => {
     expect(rows[0]!.party).toBe('Cust A');
   });
 
+  // task FIX-7 (Quality MINOR 5) — the latest-snapshot_id filter hardening: a concurrent double-sweep
+  // race (delete of pass 2 racing the insert of pass 1) can leave rows from TWO snapshot_ids in the
+  // table simultaneously. The read must not blindly trust "one snapshot_id per scope" — it filters to
+  // only the MOST RECENT snapshot_id (the first row's, since the query already orders `created_at`
+  // desc) so a stale generation's rows never mix into the rendered read.
+  it('listActualsSnapshot filters out a stale snapshot_id when two generations coexist (concurrent-sweep race hardening)', async () => {
+    h.setData([
+      // Newest first (query orders created_at desc) — the CURRENT generation.
+      { cost_center: 'A', account: 'X', fiscal_year: '2026', debit: 1, credit: 0, net: 1, as_of: '2026-07-13T10:00:00Z', source_report: 'GL Entry', snapshot_id: 'snap-new', project_id: null },
+      // A STALE row left behind from a prior generation that a racing delete failed to clear.
+      { cost_center: 'B', account: 'Y', fiscal_year: '2026', debit: 2, credit: 0, net: 2, as_of: '2026-07-12T10:00:00Z', source_report: 'GL Entry', snapshot_id: 'snap-old', project_id: null },
+    ]);
+    const rows = await listActualsSnapshot();
+    expect(rows).toHaveLength(1);
+    expect(rows[0].snapshotId).toBe('snap-new');
+  });
+
+  it('listApAgingSnapshot filters out a stale snapshot_id when two generations coexist', async () => {
+    h.setData([
+      { party: 'Fresh Co', party_type: 'Supplier', currency: 'USD', total_outstanding: 100, current: 100, b_0_30: 0, b_31_60: 0, b_61_90: 0, b_90_plus: 0, range_labels: null, report_date: '2026-07-13', ageing_based_on: 'Due Date', as_of: '2026-07-13T10:00:00Z', source_report: 'Accounts Payable', report_version: '15', snapshot_id: 'snap-new' },
+      { party: 'Stale Co', party_type: 'Supplier', currency: 'USD', total_outstanding: 200, current: 200, b_0_30: 0, b_31_60: 0, b_61_90: 0, b_90_plus: 0, range_labels: null, report_date: '2026-07-12', ageing_based_on: 'Due Date', as_of: '2026-07-12T10:00:00Z', source_report: 'Accounts Payable', report_version: '15', snapshot_id: 'snap-old' },
+    ]);
+    const rows = await listApAgingSnapshot();
+    expect(rows).toHaveLength(1);
+    expect(rows[0].party).toBe('Fresh Co');
+  });
+
   it('a non-employing org (no snapshot rows yet) returns [] — empty state, never throws', async () => {
     h.setData(null); // no rows
     expect(await listActualsSnapshot()).toEqual([]);
