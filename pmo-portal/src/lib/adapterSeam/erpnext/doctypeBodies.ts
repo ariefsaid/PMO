@@ -19,6 +19,8 @@ import { poToBody, poFromDoc } from './bodies/purchaseOrder.ts';
 import { grToBody, grFromDoc } from './bodies/goodsReceipt.ts';
 import { supplierToBody, supplierFromDoc } from './bodies/supplier.ts';
 import { customerToBody, customerFromDoc } from './bodies/customer.ts';
+import { piToBody, piFromDoc } from './bodies/purchaseInvoice.ts';
+import { peToBody, peFromDoc } from './bodies/paymentEntry.ts';
 
 export const DOCTYPE_BODIES: Partial<Record<ErpDocKind, DoctypeBodyFns>> = {
   supplier: { toBody: supplierToBody, fromDoc: supplierFromDoc },
@@ -28,4 +30,7 @@ export const DOCTYPE_BODIES: Partial<Record<ErpDocKind, DoctypeBodyFns>> = {
   quotation: { toBody: supplierQuotationToBody, fromDoc: supplierQuotationFromDoc },
   'purchase-order': { toBody: poToBody, fromDoc: poFromDoc },
   'goods-receipt': { toBody: grToBody, fromDoc: grFromDoc },
+  // Slice 6 (task 6.2) — the R9 §1/§2 money-doc bodies (Purchase Invoice + Payment Entry).
+  'purchase-invoice': { toBody: piToBody, fromDoc: piFromDoc },
+  payment: { toBody: peToBody, fromDoc: peFromDoc },
 };

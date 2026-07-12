@@ -19,6 +19,8 @@ import { rfqToBody, rfqFromDoc } from './bodies/rfq.ts';
 import { supplierQuotationToBody, supplierQuotationFromDoc } from './bodies/supplierQuotation.ts';
 import { supplierToBody, supplierFromDoc } from './bodies/supplier.ts';
 import { customerToBody, customerFromDoc } from './bodies/customer.ts';
+import { piToBody, piFromDoc } from './bodies/purchaseInvoice.ts';
+import { peToBody, peFromDoc } from './bodies/paymentEntry.ts';
 
 describe('erpnext/doctypeBodies — DOCTYPE_BODIES composition (task 4.3)', () => {
   it('wires purchase-request to the R9-frozen materialRequest toBody/fromDoc (byte-identical function refs)', () => {
@@ -46,9 +48,14 @@ describe('erpnext/doctypeBodies — DOCTYPE_BODIES composition (task 4.3)', () =
     expect(DOCTYPE_BODIES.customer?.fromDoc).toBe(customerFromDoc);
   });
 
-  it('does not claim slice 6 kinds (purchase-invoice/payment) — additive only', () => {
-    expect(DOCTYPE_BODIES['purchase-invoice']).toBeUndefined();
-    expect(DOCTYPE_BODIES.payment).toBeUndefined();
+  it('wires purchase-invoice to the R9 §1 purchaseInvoice.ts toBody/fromDoc (slice 6, FR-ENA-115)', () => {
+    expect(DOCTYPE_BODIES['purchase-invoice']?.toBody).toBe(piToBody);
+    expect(DOCTYPE_BODIES['purchase-invoice']?.fromDoc).toBe(piFromDoc);
+  });
+
+  it('wires payment to the R9 §2 paymentEntry.ts toBody/fromDoc (slice 6, FR-ENA-116)', () => {
+    expect(DOCTYPE_BODIES.payment?.toBody).toBe(peToBody);
+    expect(DOCTYPE_BODIES.payment?.fromDoc).toBe(peFromDoc);
   });
 
   it('end to end: an adapter built with DOCTYPE_BODIES commits a purchase-request create (no "not yet wired" throw)', async () => {
@@ -106,8 +113,8 @@ describe('erpnext/doctypeBodies — Slice 5 entries (purchase-order, goods-recei
     expect(canonical).toMatchObject({ id: 'MAT-PRE-2026-00001', gr_number: 'MAT-PRE-2026-00001' });
   });
 
-  it('does NOT declare entries slice 5/6 do not own (additive, no invented wiring)', () => {
-    expect(DOCTYPE_BODIES['purchase-invoice']).toBeUndefined();
-    expect(DOCTYPE_BODIES.payment).toBeUndefined();
+  it('purchase-invoice + payment are wired by slice 6 (the R9 §1/§2 money-doc bodies)', () => {
+    expect(DOCTYPE_BODIES['purchase-invoice']).toBeDefined();
+    expect(DOCTYPE_BODIES.payment).toBeDefined();
   });
 });
