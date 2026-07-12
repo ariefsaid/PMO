@@ -124,6 +124,27 @@ Deno.test('AC-ENA-070: an oversized body (>256 KiB Content-Length) ⇒ 413 BEFOR
   assert((d as unknown as { _applied: () => number })._applied() === 0, 'applyEvent must NOT be called on an oversized body');
 });
 
+Deno.test('M-1: an oversized body with a LYING (small) Content-Length is still capped on the STREAM ⇒ 413', async () => {
+  const d = deps();
+  const huge = 'x'.repeat(262145); // > 256 KiB
+  // Content-Length claims a tiny body (bypasses the header check) — the stream-bounded read must still 413.
+  const headers: Record<string, string> = { 'Content-Type': 'application/json', 'Content-Length': '10' };
+  const sneakyReq = new Request('https://erpnext-webhook.test', { method: 'POST', headers, body: huge });
+  const res = await handleErpWebhook(sneakyReq, d);
+  assert(res.status === 413, `expected 413 from the stream cap, got ${res.status}`);
+  assert((d as unknown as { _applied: () => number })._applied() === 0, 'applyEvent must NOT be called on a stream-capped body');
+});
+
+Deno.test('M-1: a body just UNDER the cap is read + processed normally (the stream cap is not over-eager)', async () => {
+  const d = deps();
+  const validSig = await sign(PI_EVENT);
+  const headers: Record<string, string> = { 'Content-Type': 'application/json', 'X-Frappe-Webhook-Signature': validSig };
+  // No Content-Length header at all (chunked) — the stream read must still work for an in-bounds body.
+  const chunkedReq = new Request('https://erpnext-webhook.test', { method: 'POST', headers, body: PI_EVENT });
+  const res = await handleErpWebhook(chunkedReq, d);
+  assert(res.status === 200, `expected 200 for an in-bounds chunked body, got ${res.status}`);
+});
+
 Deno.test('AC-ENA-070: an unmapped doctype (one P2 does not mirror) ⇒ 200 skipped (lossy hint)', async () => {
   const d = deps();
   const event = JSON.stringify({ doctype: 'Some Other DocType', name: 'X-0001', docstatus: 1, modified: '2026-07-12 12:00:00.000000', doc: {} });
