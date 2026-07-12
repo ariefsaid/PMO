@@ -15,6 +15,7 @@ import type { AdapterCommand, PmoRecord } from '../../../pmo-portal/src/lib/adap
 import { mapErpDocstatus } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/doctypeRegistry.ts';
 import { findPmoRecordId, type ExternalRefsLookupClient } from '../../../pmo-portal/src/lib/adapterSeam/refs.ts';
 import { derivePurchaseOrderStatus, deriveProcurementReceiptStatus } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/poGrStatus.ts';
+import { derivePiStatus } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/piStatus.ts';
 
 /** Structural service-role client seam the writers below need: `.from(t).{insert,update,upsert}`.
  *  The real supabase-js client satisfies this at runtime but is not nominally assignable (thenable
@@ -278,6 +279,83 @@ async function upsertGoodsReceiptMirror(ctx: ReadModelWriterCtx, canonical: PmoR
   if (error) throw new AppError(error.message, error.code);
 }
 
+/** `procurement_invoices` (Slice 6, task 6.5, FR-ENA-115): `vi_number`/`amount` mirror the ERP-derived
+ *  canonical (the header `grand_total` oracle, ADR-0048); `status` derives from
+ *  `erp_outstanding_amount` (piStatus.ts's R9 paid-detection — Paid once a referenced PE submit flips
+ *  outstanding to 0 server-side). `po_id` is left `null` on create (scope note: the R9-frozen PI body
+ *  carries no PO link at all — unlike GR, there is no ERP-side or command-side PO reference to resolve
+ *  from at write time; `po_id` stays whatever a later write sets, matching the column's own
+ *  nullable/settlement-predecessor design, FR-PR-004b/004d). */
+async function upsertInvoiceMirror(ctx: ReadModelWriterCtx, canonical: PmoRecord, command: AdapterCommand): Promise<void> {
+  const outstanding = (canonical.erp_outstanding_amount as string | null | undefined) ?? null;
+  const docstatus = canonical.erp_docstatus as number | null | undefined;
+  const patch: Record<string, unknown> = {
+    vi_number: canonical.vi_number ?? null,
+    invoice_date: (canonical.invoice_date as string | null | undefined) ?? null,
+    reference_number: (canonical.reference_number as string | null | undefined) ?? null,
+    amount: canonical.amount ?? null,
+    erp_outstanding_amount: outstanding,
+    status: derivePiStatus(outstanding),
+    erp_docstatus: docstatus ?? null,
+    erp_modified: (canonical.erp_modified as string | null | undefined) ?? null,
+    erp_amended_from: (canonical.erp_amended_from as string | null | undefined) ?? null,
+  };
+  if (command.operation === 'create') {
+    const record = command.record as { procurementId?: string };
+    if (!record.procurementId) throw new AppError('procurementId is required to mirror a created purchase invoice', 'BAD_REQUEST');
+    const { error } = await ctx.serviceClient.from('procurement_invoices').insert({ id: canonical.id, org_id: ctx.orgId, procurement_id: record.procurementId, ...patch });
+    if (error) throw new AppError(error.message, error.code);
+    return;
+  }
+  const { error } = await (
+    ctx.serviceClient.from('procurement_invoices').update(patch).eq('org_id', ctx.orgId).eq('id', canonical.id) as unknown as Promise<{
+      error: { message: string; code?: string } | null;
+    }>
+  );
+  if (error) throw new AppError(error.message, error.code);
+}
+
+/** `payments` (Slice 6, task 6.5, FR-ENA-116): `pay_number`/`amount` mirror the ERP-derived canonical
+ *  (the header `paid_amount` oracle — `peFromDoc`'s comment: a per-invoice allocated split, when the PE
+ *  is multi-invoice, is a future refinement; this single-PE-row table mirrors the WHOLE PE). `invoice_id`
+ *  is the command's OWN `record.invoiceId` — already a resolved PMO `procurement_invoices.id` at
+ *  dispatch time (the FE/repository layer sets it, mirroring `create_payment`'s own `p_invoice_id`
+ *  param), so unlike `purchase_orders`/`companies` refs this needs NO `external_refs` round-trip.
+ *  `status` derives from `erp_docstatus` — a submitted (docstatus 1) PE is `'Paid'`; a draft/cancelled
+ *  one stays `'Scheduled'` (the enum's pre-existing non-Paid value, FR-ENA-130e discipline). */
+async function upsertPaymentMirror(ctx: ReadModelWriterCtx, canonical: PmoRecord, command: AdapterCommand): Promise<void> {
+  const docstatus = canonical.erp_docstatus as number | null | undefined;
+  const patch: Record<string, unknown> = {
+    pay_number: canonical.pay_number ?? null,
+    reference_number: (canonical.reference_number as string | null | undefined) ?? null,
+    amount: canonical.amount ?? null,
+    status: docstatus === 1 ? 'Paid' : 'Scheduled',
+    erp_docstatus: docstatus ?? null,
+    erp_modified: (canonical.erp_modified as string | null | undefined) ?? null,
+    erp_amended_from: (canonical.erp_amended_from as string | null | undefined) ?? null,
+  };
+  if (command.operation === 'create') {
+    const record = command.record as { procurementId?: string; invoiceId?: string; date?: string };
+    if (!record.procurementId) throw new AppError('procurementId is required to mirror a created payment', 'BAD_REQUEST');
+    const { error } = await ctx.serviceClient.from('payments').insert({
+      id: canonical.id,
+      org_id: ctx.orgId,
+      procurement_id: record.procurementId,
+      invoice_id: record.invoiceId ?? null,
+      date: record.date ?? null,
+      ...patch,
+    });
+    if (error) throw new AppError(error.message, error.code);
+    return;
+  }
+  const { error } = await (
+    ctx.serviceClient.from('payments').update(patch).eq('org_id', ctx.orgId).eq('id', canonical.id) as unknown as Promise<{
+      error: { message: string; code?: string } | null;
+    }>
+  );
+  if (error) throw new AppError(error.message, error.code);
+}
+
 /** P2 ERPNext `procurement` writer (task 4.5): dispatches by the command's `erp_doc_kind` — the SAME
  *  PMO-side discriminator `erpnext/doctypeRegistry.ts` uses (confinement, FR-ENA-013). Slice 4 wired
  *  the first 3 non-money sub-doctypes; slice 5 (task 5.4) appends `purchase-order`/`goods-receipt`;
@@ -309,6 +387,10 @@ const procurementWriter: ReadModelWriter = {
         return upsertPurchaseOrderMirror(ctx, canonical, command);
       case 'goods-receipt':
         return upsertGoodsReceiptMirror(ctx, canonical, command);
+      case 'purchase-invoice':
+        return upsertInvoiceMirror(ctx, canonical, command);
+      case 'payment':
+        return upsertPaymentMirror(ctx, canonical, command);
       default:
         return kindNotWired(kind);
     }
