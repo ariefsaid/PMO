@@ -23,12 +23,9 @@ insert into profiles (id, org_id, full_name, email, role, status) values
   ('00990000-0000-0000-0000-0000000000a1','00990000-0000-0000-0000-000000000001','A Admin','money-a@example.com','Admin','active'),
   ('00990000-0000-0000-0000-0000000000b1','00990000-0000-0000-0000-000000000002','B Admin','money-b@example.com','Admin','active');
 
--- Org A flips BOTH money-bearing domains: companies (Supplier) AND procurement (the whole buy-side chain).
-insert into external_domain_ownership (org_id, external_tier, domain) values
-  ('00990000-0000-0000-0000-000000000001','erpnext','companies'),
-  ('00990000-0000-0000-0000-000000000001','erpnext','procurement');
-
--- Seed (as owner — bypasses RLS for seed convenience).
+-- Seed (as owner — bypasses RLS for seed convenience). Seeded BEFORE the flip so the quotation mirror
+-- fixture is not blocked by the H-2 procurement_quotations INSERT guard (a user/owner INSERT is denied
+-- once flipped — these rows model pre-flip state the org carries into the flip).
 insert into companies (id, org_id, name, type) values
   ('00990000-0000-0000-0000-0000000000f1','00990000-0000-0000-0000-000000000001','Money Supplier','Vendor');
 insert into procurements (id, org_id, title, status, vendor_id) values
@@ -42,6 +39,13 @@ insert into procurement_quotations (id, org_id, procurement_id, vendor_id, total
   ('00990000-0000-0000-0000-0000000000a2','00990000-0000-0000-0000-000000000001','00990000-0000-0000-0000-0000000000c1','00990000-0000-0000-0000-0000000000f1',500,'2026-07-10','VQ-M1',false);
 insert into payments (id, org_id, procurement_id, invoice_id, pay_number, status, date, amount) values
   ('00990000-0000-0000-0000-000000000091','00990000-0000-0000-0000-000000000001','00990000-0000-0000-0000-0000000000c1','00990000-0000-0000-0000-0000000000e1','PAY-M1','Scheduled','2026-07-13',500);
+
+-- Org A flips BOTH money-bearing domains: companies (Supplier) AND procurement (the whole buy-side
+-- chain). Done AFTER the seed so the fixtures above model pre-flip state (H-2: a user/owner INSERT into
+-- an ERP-sourced table is denied once flipped).
+insert into external_domain_ownership (org_id, external_tier, domain) values
+  ('00990000-0000-0000-0000-000000000001','erpnext','companies'),
+  ('00990000-0000-0000-0000-000000000001','erpnext','procurement');
 
 -- ── procurement_invoices per-table (org A, flipped) ───────────────────────────────────────────────
 set local role authenticated;
