@@ -33,8 +33,9 @@ import { createReferenceAdapter, REFERENCE_DOMAIN } from '../../../pmo-portal/sr
 import { CLICKUP_TASKS_DOMAIN } from '../../../pmo-portal/src/lib/adapterSeam/clickup/adapter.ts';
 import { resolveClickUpDispatchAdapter } from '../../../pmo-portal/src/lib/adapterSeam/clickup/dispatchFactory.ts';
 import { ClickUpRateLimiter } from '../../../pmo-portal/src/lib/adapterSeam/clickup/rateLimit.ts';
-import { ERPNEXT_COMPANIES_DOMAIN, ERPNEXT_PROCUREMENT_DOMAIN } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/adapter.ts';
+import { ERPNEXT_COMPANIES_DOMAIN, ERPNEXT_PROCUREMENT_DOMAIN, ERPNEXT_TIER } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/adapter.ts';
 import { resolveErpDispatchAdapter } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/dispatchFactory.ts';
+import { resolveErpCredentials } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/credentials.ts';
 // The runtime (kind)->{toBody,fromDoc} side table (task 5.2) — ADDITIVE across slices 3/4/5/6, each
 // wiring only the kinds it owns; an un-wired kind is `commit-rejected` at commit time, never a
 // silent no-op (adapter.ts's `requireBodyFns`). Slice 3's supplier/customer entries now live in this
@@ -81,29 +82,43 @@ function resolveClickUpAdapter(ctx: AdapterSelectContext): Promise<Adapter> {
 }
 
 // ERPNext adapter factory (task 2.14): one tier ('erpnext'), two PMO domains ('companies' and
-// 'procurement') — the routeDomainWrite generalization (FR-ENA-010). No org is flipped this slice
-// (`external_domain_ownership` ships empty), so this factory is registered but never invoked; a
+// 'procurement') — the routeDomainWrite generalization (FR-ENA-010). No test/prod org is flipped
+// (`external_domain_ownership` ships empty) except a served-fn e2e that seeds its own binding; a
 // mis-flip would still resolve correctly (never a silent no-op), matching the `notWired`
 // read-model-writer discipline (task 1.6) one layer up.
 //
-// Credentials (FIXME follow-up, flagged for the Director — NOT resolved this slice): per OQ-6 the
-// real design is ONE binding's `secret_ref` naming a per-org vault/function-secret pair (never a
-// single global credential — NFR-ENA-SEC-002). No task in this plan (2.1-8.9) builds that
-// secret_ref -> {apiKey,apiSecret} resolution; a single global `ERPNEXT_API_KEY`/`ERPNEXT_API_SECRET`
-// env-var pair is used here as an inert placeholder (mirrors ClickUp's single global
-// `CLICKUP_API_TOKEN`) — safe ONLY because this factory is never exercised while every org's
-// ownership map stays empty. MUST be replaced with real per-org secret_ref resolution before any org
-// is ever flipped to `erpnext`.
+// Credentials (Slice 6 pre-task, NFR-ENA-SEC-002 — the flagged global placeholder is now REMOVED):
+// each org's `external_org_bindings.secret_ref` NAMES a per-org function-secret pair; `resolveErpAdapter`
+// reads that ref for the caller's org and resolves `<PREFIX>_KEY`/`<PREFIX>_SECRET` from function
+// secrets (`resolveErpCredentials`), failing CLOSED (`config-rejected`) when either is unset — no
+// single global credential, no cross-org key reuse. The binding row is authoritative for the ref; the
+// factory (`resolveErpDispatchAdapter`) re-reads the SAME row for site_url/config/activation (its
+// confinement invariant: it never reads secret_ref/env itself — the resolved creds are passed in).
 const erpRateLimiter = { acquire: async () => {} };
 
-function resolveErpAdapter(ctx: AdapterSelectContext): Promise<Adapter> {
+async function resolveErpBindingSecretRef(serviceClient: SupabaseClient, orgId: string): Promise<string> {
+  const { data, error } = await serviceClient
+    .from('external_org_bindings')
+    .select('secret_ref')
+    .eq('org_id', orgId)
+    .eq('external_tier', ERPNEXT_TIER)
+    .maybeSingle();
+  if (error || !data) {
+    throw new AppError('no erpnext binding configured for this org', error?.code ?? 'BINDING_NOT_FOUND');
+  }
+  return (data as { secret_ref: string }).secret_ref;
+}
+
+async function resolveErpAdapter(ctx: AdapterSelectContext): Promise<Adapter> {
+  const secretRef = await resolveErpBindingSecretRef(ctx.serviceClient, ctx.orgId);
+  const { apiKey, apiSecret } = resolveErpCredentials(secretRef, (key) => Deno.env.get(key));
   return resolveErpDispatchAdapter({
     serviceClient: ctx.serviceClient as never,
     orgId: ctx.orgId,
     command: ctx.command,
     fetchImpl: fetch,
-    apiKey: Deno.env.get('ERPNEXT_API_KEY') ?? '',
-    apiSecret: Deno.env.get('ERPNEXT_API_SECRET') ?? '',
+    apiKey,
+    apiSecret,
     rateLimiter: erpRateLimiter,
     // The (kind)->{toBody,fromDoc} side table (task 4.3): additive across slices 3-6, never a
     // per-slice edit to another kind's entry (confinement, FR-ENA-014).
