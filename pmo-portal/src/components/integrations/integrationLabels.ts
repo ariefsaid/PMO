@@ -11,6 +11,7 @@
  */
 const TIER_LABELS: Record<string, string> = {
   clickup: 'ClickUp',
+  erpnext: 'ERPNext',
 };
 
 /**
@@ -18,6 +19,8 @@ const TIER_LABELS: Record<string, string> = {
  */
 const DOMAIN_LABELS: Record<string, string> = {
   tasks: 'Tasks',
+  procurement: 'Procurement',
+  companies: 'Companies',
 };
 
 /**
