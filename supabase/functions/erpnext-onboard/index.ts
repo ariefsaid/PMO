@@ -9,12 +9,11 @@
  * MUST equal SUPABASE_SERVICE_ROLE_KEY, constant-time) — onboarding is an operator action, not a
  * browser-JWT path (mirrors `clickup-onboard/index.ts`).
  *
- * Credentials (same documented FIXME as `adapter-dispatch/index.ts`, NOT resolved this slice): per
- * OQ-6 the real design is the org's `external_org_bindings.secret_ref` naming a per-org vault/
- * function-secret pair (NFR-ENA-SEC-002). A single global `ERPNEXT_API_KEY`/`ERPNEXT_API_SECRET`
- * env-var pair is used here as an inert placeholder (mirrors `adapter-dispatch/index.ts`) — safe
- * ONLY because no org's companies domain is ever flipped to `erpnext` this program. MUST be replaced
- * with real per-org secret_ref resolution before any org is ever flipped.
+ * Credentials (H-3 audit fix — per-org, NOT a global pair): the org's ERPNext API key/secret are
+ * resolved from THIS org's `external_org_bindings.secret_ref` (NFR-ENA-SEC-002, OQ-6) via
+ * `resolveErpCredentials`, exactly as `adapter-dispatch/index.ts` — failing CLOSED (`config-rejected`)
+ * when either is unset. The prior global `ERPNEXT_API_KEY`/`ERPNEXT_API_SECRET` placeholder is REMOVED
+ * (it could have onboarded org A against another ERP tenant's credentials if ever used multi-org).
  */
 
 // Deno-native imports (not in pmo-portal/package.json)
@@ -22,6 +21,7 @@ import { createClient } from '@supabase/supabase-js';
 import { constantTimeBearerEquals } from '../_shared/constantTimeBearerEquals.ts';
 import { onboardParties, listErpPartySources } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/onboarding.ts';
 import { ERPNEXT_TIER } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/adapter.ts';
+import { resolveErpCredentials } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/credentials.ts';
 import { findPmoRecordId, recordExternalRef as recordExternalRefWrite } from '../../../pmo-portal/src/lib/adapterSeam/refs.ts';
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
 import type { ErpClientDeps } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/client.ts';
@@ -61,24 +61,21 @@ Deno.serve(async (req: Request): Promise<Response> => {
   try {
     const { data: bindingRow, error: bindingError } = await serviceClient
       .from('external_org_bindings')
-      .select('site_url, activated_at')
+      .select('site_url, secret_ref, activated_at')
       .eq('org_id', orgId)
       .eq('external_tier', ERPNEXT_TIER)
       .maybeSingle();
     if (bindingError || !bindingRow) {
       throw new AppError('no erpnext binding configured for this org', bindingError?.code ?? 'BINDING_NOT_FOUND');
     }
-    const binding = bindingRow as { site_url: string; activated_at: string | null };
+    const binding = bindingRow as { site_url: string; secret_ref: string; activated_at: string | null };
     if (!binding.activated_at) {
       throw new AppError('erpnext binding is not activated (version handshake mismatch or never activated)', 'config-rejected');
     }
 
-    const clientDeps: ErpClientDeps = {
-      fetchImpl: fetch,
-      apiKey: Deno.env.get('ERPNEXT_API_KEY') ?? '',
-      apiSecret: Deno.env.get('ERPNEXT_API_SECRET') ?? '',
-      baseUrl: binding.site_url,
-    };
+    // H-3: per-org credentials from THIS org's secret_ref (fails closed if unset) — never a global pair.
+    const { apiKey, apiSecret } = resolveErpCredentials(binding.secret_ref, (key) => Deno.env.get(key));
+    const clientDeps: ErpClientDeps = { fetchImpl: fetch, apiKey, apiSecret, baseUrl: binding.site_url };
 
     const sources = await listErpPartySources(clientDeps);
 
