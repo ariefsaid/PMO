@@ -11,14 +11,20 @@
 
 ## Status / preconditions
 
-**BLOCKED on an owner action before any function-code task can be integration-verified** (ADR-0057
-§Sequencing step 1): asymmetric signing keys must be enabled on the local stack (`config.toml`
-`signing_keys_path`, needs the Supabase CLI — absent in the web sandbox) and on the cloud project
-(dashboard, standby→active). Legacy HS256 exposes no JWKS to verify against, so Task 2's integration
-proof cannot run until this is done.
+**Update 2026-07-12: the cloud signing-key migration is ALREADY DONE.** The prod project's active
+signing key is **ECC P-256 (ES256)** with Legacy HS256 retired to "previously used" (rotated ~1 month
+ago). So the prod JWKS is live and **Level 2 is unblocked** — there is no pending owner enable-action.
 
-**Unblocked now:** Task 1 (the pure helper + unit tests) is fully offline-verifiable against an
-ephemeral keypair and does not require signing keys to be live.
+- **Unblocked now:** Task 1 (pure helper + unit tests) — offline-verifiable against an ephemeral keypair.
+- **Unblocked (prod side):** Tasks 2–3 function code — the JWKS at `/auth/v1/.well-known/jwks.json`
+  already serves the ES256 public key.
+- **Only remaining gate — OPTIONAL, for Task 2c integration test:** local-stack parity — the local
+  Supabase stack defaults to HS256, so to run the DB-backed Playwright proof against local you set
+  `signing_keys_path` in `config.toml` (needs the Supabase CLI, absent in the web sandbox → run
+  locally). Alternatively, run Task 2c's integration proof in the CI `integration` lane / against a
+  stack that mirrors prod's ES256. Not needed for Task 1.
+- **Housekeeping (owner, optional):** the retired Legacy HS256 key is safe to **revoke** now
+  (`jwt_expiry`=3600s ≫ a month → no live HS256 tokens).
 
 ## Traceability
 
@@ -73,13 +79,14 @@ export function jwksFromUrl(jwksUrl: string): JwksResolver {
 export async function verifyCallerJwt(
   token: string | null | undefined,
   jwks: JwksResolver,
-  opts: { issuer: string; audience?: string },
+  opts: { issuer: string; audience?: string; algorithms?: string[] },
 ): Promise<VerifiedCaller> {
   if (!token) throw new JwtVerifyError('MISSING_TOKEN', 401);
   try {
     const { payload } = await jwtVerify(token, jwks, {
       issuer: opts.issuer,
       audience: opts.audience ?? 'authenticated',
+      algorithms: opts.algorithms ?? ['ES256'], // prod signs ES256 (ECC P-256); pin to block alg-confusion
     });
     if (!payload.sub) throw new JwtVerifyError('INVALID_TOKEN', 401);
     return { sub: payload.sub, claims: payload };
@@ -123,7 +130,10 @@ pinned — never optional-away).
 jwksFromUrl(\`${SUPABASE_URL}/auth/v1/.well-known/jwks.json\`)` is built **once at module scope**
 (`createRemoteJWKSet` caches + rate-limits key fetches internally). Keep the **caller-JWT client** for
 the actual `compose` reads (RLS unchanged — ADR-0016). Map `JwtVerifyError.status`/`.code` to the
-existing typed-401 JSON body so the response contract is byte-for-byte unchanged.
+existing typed-401 JSON body so the response contract is byte-for-byte unchanged. **Pin the algorithm:**
+prod signs with **ES256** (ECC P-256), so pass `algorithms: ['ES256']` to `jwtVerify` (defense against
+alg-confusion — the security-auditor will require this; the shared helper takes an `algorithms` option
+so each function pins its expected set rather than accepting any JWKS alg).
 
 **2b.** Rationale for `compose-view` as the pilot (ADR-0057 §Decision-3): its data access runs under the
 caller JWT + RLS and it does **not** escalate to service_role, so the banned-user staleness window is

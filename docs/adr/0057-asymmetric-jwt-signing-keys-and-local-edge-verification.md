@@ -1,6 +1,9 @@
 # ADR-0057 — Asymmetric JWT signing keys + local JWKS verification in edge functions
 
-- **Status:** Proposed (Director, 2026-07-12) — **owner action required to enable (see §Sequencing)**
+- **Status:** Proposed (Director, 2026-07-12). **Update 2026-07-12: Level 1 (cloud) is ALREADY DONE** —
+  the prod project's active signing key is **ECC P-256 (ES256)**, with Legacy HS256 retired to
+  "previously used" (rotated ~1 month ago). No owner enable-action pending on the cloud side; Level 2
+  is unblocked (see §Sequencing).
 - **Date:** 2026-07-12
 - **Deciders:** Director (eng-planner phase); **owner sign-off required** (prod dashboard action + auth-path change)
 - **Related:** ADR-0002 (singleton browser client / anon key public by design),
@@ -88,11 +91,14 @@ remains valid until token expiry** (≤ `jwt_expiry`, currently 3600s). Therefor
 
 ## Sequencing (binding order of operations)
 
-1. **[OWNER] Enable asymmetric signing keys.** Local: generate a signing key file and set
-   `signing_keys_path` in `supabase/config.toml` (requires the Supabase CLI, **not present in the
-   web/CI sandbox** — run locally). Cloud/prod: Supabase dashboard → Auth → Signing Keys → create +
-   promote to active (standby-first). **This is a production infra action reserved to the owner
-   (CLAUDE.md branch-flow rule); the Director does not perform it.**
+1. **[DONE — cloud] Enable asymmetric signing keys.** ✅ Already complete on the prod project: active
+   key is **ECC P-256 (ES256)**, Legacy HS256 retired to "previously used" (rotated ~1 month ago; safe
+   to **revoke** at will since `jwt_expiry`=3600s ≫ a month → no live HS256 tokens remain). Dashboard
+   location for reference: **Project Settings → JWT Keys → JWT Signing Keys** tab (NOT the Auth page).
+   **[OPTIONAL — local parity]** For DB-backed integration tests (Task 2c), the local dev stack should
+   sign with an asymmetric key too, else local uses HS256 while prod uses ES256: set
+   `signing_keys_path` in `supabase/config.toml` (requires the Supabase CLI — **not present in the
+   web/CI sandbox**, run locally). Not required for Task 1's unit tests (ephemeral keypair).
 2. **[DIRECTOR/loop] Build the shared `verifyCallerJwt` helper + Vitest unit tests** (offline-verifiable
    against an ephemeral keypair). No function edits.
 3. **[DIRECTOR/loop] Pilot `compose-view`** on local verification behind the normal issue loop
@@ -101,5 +107,6 @@ remains valid until token expiry** (≤ `jwt_expiry`, currently 3600s). Therefor
 4. **[DIRECTOR/loop] Extend** function-by-function per the §Decision-3 live-check policy; never big-bang
    the four together.
 
-Until step 1 is done by the owner, Level 2 work is limited to the (fully unit-testable) helper — the
-integration proof waits on the JWKS being live.
+The cloud JWKS is already live (ES256), so Level 2 is unblocked; the only remaining gate on the
+*integration* proof (Task 2c) is optional local-stack parity (step 1, OPTIONAL) — Task 1's unit tests
+and the helper build need nothing further.
