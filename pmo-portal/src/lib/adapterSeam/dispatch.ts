@@ -103,7 +103,7 @@ export interface DispatchMoneyOutboxDeps {
   backoff: () => Promise<void>;
 }
 
-type DispatchMoneyWriteDeps = DispatchExternallyOwnedWriteDeps & { money: DispatchMoneyOutboxDeps };
+export type DispatchMoneyWriteDeps = DispatchExternallyOwnedWriteDeps & { money: DispatchMoneyOutboxDeps };
 
 /** Discriminates a retryable transport failure (never blindly re-POSTed, but the row is left
  *  reclaimable) from a non-retryable rejection (marked `failed` immediately). */
