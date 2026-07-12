@@ -59,6 +59,14 @@ export const DOCTYPE_REGISTRY: Record<ErpDocKind, Pick<DoctypeEntry, 'doctype' |
   'purchase-order': { doctype: 'Purchase Order', submittable: true, remarksQueryable: false },
   'goods-receipt': { doctype: 'Purchase Receipt', submittable: true, remarksQueryable: true },
   'purchase-invoice': { doctype: 'Purchase Invoice', submittable: true, remarksQueryable: true },
+  // CAUTION (live-bench finding, task 6.7, 2026-07-12): the `remarks` field on Payment Entry IS
+  // REST-filterable (this flag stays `true`) but the STAMPED VALUE never survives — ERPNext's own
+  // `validate` hook server-side OVERWRITES `remarks` with an auto-generated "Amount X to Y..."
+  // description on every save, silently clobbering `stampRemarks`'s idempotency key. R1 (the DB-
+  // enforced atomic claim) and the `committed`-state finalize-only reconcile path (proven at
+  // AC-ENA-010) are UNAFFECTED; R3's probe-based orphan-adopt for a `pending`/`failed`-state Payment
+  // Entry crash cannot self-heal via this anchor for this doctype — flagged for the Director, not
+  // resolved here (a different stock anchor or an accepted narrower gap needs a decision).
   payment: { doctype: 'Payment Entry', submittable: true, remarksQueryable: true },
   supplier: { doctype: 'Supplier', submittable: false, remarksQueryable: false },
   customer: { doctype: 'Customer', submittable: false, remarksQueryable: false }, // write scope settled in slice 3 (OQ-4)
