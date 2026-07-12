@@ -755,3 +755,59 @@ the same AA token idiom StatusPill established", not a one-off darken.
 style) + `TaskPushBadge.test.tsx` (push-failed → `--status-lost-text`, pushed → `--status-won-text`,
 no raw `text-destructive`/`text-success`). The Layer-1 a11y/visual gate assertion was extended to cover
 the badge. Any new tinted-status text MUST follow the same token or it regresses AA.
+
+## OD-ENA — ERPNext adapter P2 final consolidated fix round (2026-07-13)
+
+Four durable notes graduated from the final quality/spec/Discover fix round on the ERPNext adapter P2
+(branch `feat/erpnext-adapter-p2`).
+
+### OD-ENA-E2E-CLEANUP — The erpnext e2e cleanup deletes `external_domain_ownership`/`external_org_bindings`
+rows for `tier='erpnext'` (ops note)
+
+**Note (operational, not a code change):** the erpnext served-fn e2e suite's cleanup hook deletes its
+own `external_domain_ownership` + `external_org_bindings` rows scoped to `external_tier = 'erpnext'`
+after each run, on the SHARED local Docker DB (`docs/environments.md`'s parallel-agent hygiene). This
+is correct for the suite's own fixtures, but it means a MANUAL flip fixture an engineer seeds by hand
+(e.g. `setDomainOwnership`/a direct row insert for local exploratory testing) on `tier='erpnext'` gets
+silently un-flipped the next time the e2e suite runs on the same DB. **Operational implication:** don't
+rely on a hand-seeded erpnext flip surviving an e2e run on the shared stack — reseed it after, or use a
+dedicated org id the e2e suite doesn't touch.
+
+### OD-ENA-ITEMS-INSERT — `procurement_items` INSERT stays open on a flipped org BY DESIGN (Director ruling, 2026-07-13)
+
+**Decision (binding):** while `procurement` is externally-owned, user-JWT `INSERT` on
+`procurement_items` (the PR line-item table) is **NOT** RLS-denied, unlike the seven record tables'
+native/mirrored fields (FR-ENA-170). This is intentional, not a gap: line items are **drafted PMO-side
+before a PR is pushed** (the requester builds the item list authoring a Purchase Request in the PMO
+UI — `item_code`/`qty`/`rate`/`schedule_date`), and only that drafted set is read at dispatch time to
+build the ERP command body (FR-ENA-110's `{items:[...]}`). The **pushed** state is what the flip
+protects: once a PR/RFQ/PO/etc. is dispatched, the money doctypes' own native/mirrored fields (§7) are
+machine-written-only — `procurement_items` rows already used in a pushed command are not retroactively
+locked, but the record tables that carry the ERP truth are. A blanket `procurement_items` INSERT deny
+would break authoring entirely (no org could ever draft a new PR once flipped), so this is a deliberate
+scope boundary, not an oversight.
+
+**Why:** treating "flipped" as "every table under the `procurement` domain is machine-only" conflates
+the draft-authoring surface with the ERP-truth surface. The spec's own model is: PMO owns
+case-aggregate + draft state, ERP owns the seven money doctypes once submitted (FR-ENA-101).
+
+### OD-ENA-CONTACTS-DEFERRED — Contacts inbound-adopt is NOT wired; companies-domain inbound mints companies only
+
+**Noted, deferred:** the `companies` domain's inbound change-feed (webhook + sweep) mints/updates PMO
+`companies` rows from ERPNext `Supplier`/`Customer` documents, but there is **no `contact` kind in the
+feed registry** — an ERPNext `Contact` document arriving inbound is never adopted into PMO `contacts`.
+This was the reason `_shared/erpnextMirrorDeps.ts` (a contacts-table-writer fork with zero production
+consumers) existed and has now been removed (dead code, task FIX-4) rather than wired in. **Deferred
+to a future issue:** contacts inbound-adopt needs its own doctype-registry entry + ambiguous-match
+resolution (mirroring the companies pull-adopt path) — out of scope for this consolidated round.
+
+### OD-ENA-CREDS-REDACT — `credentials.ts` M-4 error-message redaction deferred (Low)
+
+**Noted, deferred (Low severity):** `supabase/functions/_shared/credentials.ts` (guard-blocked for
+agent edits per the repo's credential-file policy) can surface a raw provider error message on a
+credential-resolution failure; a hardened version would redact anything beyond the env-var **name**
+before it reaches a log/response. Because the file is guard-blocked, this fix must be applied by a
+human (or an agent with an explicit, scoped exception) rather than folded into this round's diff. Risk
+is Low: the current failure path only ever logs `code`/env-var names, never the fetched secret VALUE
+(`NEVER read .env / op.*.env contents` rule, `env-file-privacy` note) — so nothing is leaking today,
+but the message-shape hardening itself is deferred.
