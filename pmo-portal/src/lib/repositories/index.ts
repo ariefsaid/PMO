@@ -344,7 +344,11 @@ const procurement: ProcurementRepository = {
           freshIdempotencyKey(),
         ).then((res) => res.canonical as unknown as Tables<'procurement_quotations'>)
       : wrap(() => createQuotation(procurementId, vendorId, totalAmount, receivedDate)),
-  createReceipt: (procurementId, status, receiptDate) =>
+  // task FIX-1: referenceNumber is a PMO-direct-DAL-only param (see types.ts) — appended to the DAL
+  // call ONLY when the caller actually supplied one, so a bare 3-arg call keeps its exact pre-existing
+  // shape (index.test.ts's byte-for-byte assertion). Never forwarded on the external-dispatch payload
+  // (FR-ENA-114 — it is mirrored back from the ERP doc, not client-supplied at creation).
+  createReceipt: (procurementId, status, receiptDate, referenceNumber) =>
     routeDomainWrite('procurement') === 'external'
       ? dispatchDomainCommand(
           'procurement',
@@ -352,8 +356,12 @@ const procurement: ProcurementRepository = {
           { id: crypto.randomUUID(), procurementId, status, receiptDate, erp_doc_kind: 'goods-receipt' },
           freshIdempotencyKey(),
         ).then((res) => res.canonical as unknown as ProcurementReceiptRow)
-      : wrap(() => createReceipt(procurementId, status, receiptDate)),
-  createInvoice: (procurementId, status, invoiceDate) =>
+      : wrap(() =>
+          referenceNumber !== undefined
+            ? createReceipt(procurementId, status, receiptDate, referenceNumber)
+            : createReceipt(procurementId, status, receiptDate),
+        ),
+  createInvoice: (procurementId, status, invoiceDate, referenceNumber, amount) =>
     routeDomainWrite('procurement') === 'external'
       ? dispatchDomainCommand(
           'procurement',
@@ -361,7 +369,11 @@ const procurement: ProcurementRepository = {
           { id: crypto.randomUUID(), procurementId, status, invoiceDate, erp_doc_kind: 'purchase-invoice' },
           freshIdempotencyKey(),
         ).then((res) => res.canonical as unknown as ProcurementInvoiceRow)
-      : wrap(() => createInvoice(procurementId, status, invoiceDate)),
+      : wrap(() =>
+          referenceNumber !== undefined || amount !== undefined
+            ? createInvoice(procurementId, status, invoiceDate, referenceNumber, amount)
+            : createInvoice(procurementId, status, invoiceDate),
+        ),
   create: (input, requestedById) => wrap(() => createProcurement(input, requestedById)),
   updateHeader: (id, patch) => wrap(() => updateProcurementHeader(id, patch)),
   createItem: (procurementId, input) => wrap(() => createProcurementItem(procurementId, input)),
