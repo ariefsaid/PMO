@@ -13,6 +13,8 @@
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
 import type { AdapterCommand, PmoRecord } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
 import { mapErpDocstatus } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/doctypeRegistry.ts';
+import { findPmoRecordId, type ExternalRefsLookupClient } from '../../../pmo-portal/src/lib/adapterSeam/refs.ts';
+import { derivePurchaseOrderStatus, deriveProcurementReceiptStatus } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/poGrStatus.ts';
 
 /** Structural service-role client seam the writers below need: `.from(t).{insert,update,upsert}`.
  *  The real supabase-js client satisfies this at runtime but is not nominally assignable (thenable
@@ -107,9 +109,10 @@ const notWired = (domain: string): ReadModelWriter => ({
 
 /** A registered-but-not-yet-wired erp_doc_kind WITHIN the 'procurement' writer (task 4.5's own
  *  loud-throw discipline, one level down from `notWired` — 'procurement' the domain IS wired, but not
- *  every sub-doctype kind is yet). Slices 5/6 add cases to the switch below, additively. */
+ *  every sub-doctype kind is yet). Slice 5 adds the purchase-order/goods-receipt cases to the switch
+ *  below; slice 6 (purchase-invoice/payment) appends its own, additively. */
 function kindNotWired(kind: unknown): never {
-  throw new AppError(`erpnext procurement read-model writer for erp_doc_kind '${String(kind)}' is wired in slices 5/6`, 'UNSUPPORTED_DOMAIN');
+  throw new AppError(`erpnext procurement read-model writer for erp_doc_kind '${String(kind)}' is wired in slice 6`, 'UNSUPPORTED_DOMAIN');
 }
 
 /** `purchase_requests`/`rfqs` share the exact same mirror shape (§7: `<kind>_number`, `amount`,
@@ -175,10 +178,89 @@ async function upsertQuotationMirror(ctx: ReadModelWriterCtx, canonical: PmoReco
   if (error) throw new AppError(error.message, error.code);
 }
 
+/** `purchase_orders` (Slice 5, task 5.4, FR-ENA-113): `po_number`/`amount` mirror the ERP-derived
+ *  canonical; `status` derives from `erp_docstatus` (poGrStatus.ts); `reference_number`/`date` are the
+ *  ORIGINAL create-time PMO values (ERPNext's Purchase Order doctype has no equivalent field to
+ *  re-derive them from on a later mirror refresh, unlike the invoice/receipt `bill_no`/`delivery_note`
+ *  mirrors) — stamped once on create, left alone on a later update-mirror call. */
+async function upsertPurchaseOrderMirror(ctx: ReadModelWriterCtx, canonical: PmoRecord, command: AdapterCommand): Promise<void> {
+  const docstatus = canonical.erp_docstatus as number | null | undefined;
+  const patch: Record<string, unknown> = {
+    po_number: canonical.po_number ?? null,
+    amount: canonical.amount ?? null,
+    status: derivePurchaseOrderStatus(docstatus),
+    erp_docstatus: docstatus ?? null,
+    erp_modified: (canonical.erp_modified as string | null | undefined) ?? null,
+    erp_amended_from: (canonical.erp_amended_from as string | null | undefined) ?? null,
+  };
+  if (command.operation === 'create') {
+    const record = command.record as { procurementId?: string; referenceNumber?: string; date?: string };
+    if (!record.procurementId) throw new AppError('procurementId is required to mirror a created purchase order', 'BAD_REQUEST');
+    const { error } = await ctx.serviceClient.from('purchase_orders').insert({
+      id: canonical.id,
+      org_id: ctx.orgId,
+      procurement_id: record.procurementId,
+      reference_number: record.referenceNumber ?? null,
+      date: record.date ?? null,
+      ...patch,
+    });
+    if (error) throw new AppError(error.message, error.code);
+    return;
+  }
+  const { error } = await (
+    ctx.serviceClient.from('purchase_orders').update(patch).eq('org_id', ctx.orgId).eq('id', canonical.id) as unknown as Promise<{
+      error: { message: string; code?: string } | null;
+    }>
+  );
+  if (error) throw new AppError(error.message, error.code);
+}
+
+/** `procurement_receipts` (Slice 5, task 5.4, FR-ENA-114): `gr_number` mirrors ERP `name`; `po_id` is
+ *  the RESOLVED `purchase_orders.id` (never the raw ERP PO name `grFromDoc.po_id` carries — resolved
+ *  through `external_refs`, FR-ENA-103's "never a raw external name" clause) — `null` when the PO has
+ *  no mapping yet (a standalone/unlinked GR, R9 §4). `status` derives from `erp_docstatus`
+ *  (poGrStatus.ts). `receipt_date` is the ORIGINAL create-time PMO value (same reasoning as PO's
+ *  `date`/`reference_number` — no ERP source to re-derive it from later). */
+async function upsertGoodsReceiptMirror(ctx: ReadModelWriterCtx, canonical: PmoRecord, command: AdapterCommand): Promise<void> {
+  const erpPoName = canonical.po_id as string | null | undefined;
+  const resolvedPoId = erpPoName
+    ? await findPmoRecordId(ctx.serviceClient as unknown as ExternalRefsLookupClient, ctx.orgId, 'procurement', erpPoName)
+    : null;
+  const docstatus = canonical.erp_docstatus as number | null | undefined;
+  const patch: Record<string, unknown> = {
+    gr_number: canonical.gr_number ?? null,
+    reference_number: (canonical.reference_number as string | null | undefined) ?? null,
+    po_id: resolvedPoId,
+    status: deriveProcurementReceiptStatus(docstatus),
+    erp_docstatus: docstatus ?? null,
+    erp_modified: (canonical.erp_modified as string | null | undefined) ?? null,
+  };
+  if (command.operation === 'create') {
+    const record = command.record as { procurementId?: string; receiptDate?: string };
+    if (!record.procurementId) throw new AppError('procurementId is required to mirror a created goods receipt', 'BAD_REQUEST');
+    const { error } = await ctx.serviceClient.from('procurement_receipts').insert({
+      id: canonical.id,
+      org_id: ctx.orgId,
+      procurement_id: record.procurementId,
+      receipt_date: record.receiptDate ?? null,
+      ...patch,
+    });
+    if (error) throw new AppError(error.message, error.code);
+    return;
+  }
+  const { error } = await (
+    ctx.serviceClient.from('procurement_receipts').update(patch).eq('org_id', ctx.orgId).eq('id', canonical.id) as unknown as Promise<{
+      error: { message: string; code?: string } | null;
+    }>
+  );
+  if (error) throw new AppError(error.message, error.code);
+}
+
 /** P2 ERPNext `procurement` writer (task 4.5): dispatches by the command's `erp_doc_kind` — the SAME
- *  PMO-side discriminator `erpnext/doctypeRegistry.ts` uses (confinement, FR-ENA-013). Slice 4 wires
- *  the first 3 non-money sub-doctypes; slices 5/6 append cases (purchase-order/goods-receipt/
- *  purchase-invoice/payment), additively — this switch is the SHARED registration point. */
+ *  PMO-side discriminator `erpnext/doctypeRegistry.ts` uses (confinement, FR-ENA-013). Slice 4 wired
+ *  the first 3 non-money sub-doctypes; slice 5 (task 5.4) appends `purchase-order`/`goods-receipt`;
+ *  slice 6 appends `purchase-invoice`/`payment`, additively — this switch is the SHARED registration
+ *  point. */
 const procurementWriter: ReadModelWriter = {
   async upsert(ctx, canonical, command) {
     const kind = (command.record as { erp_doc_kind?: string }).erp_doc_kind;
@@ -201,6 +283,10 @@ const procurementWriter: ReadModelWriter = {
         });
       case 'quotation':
         return upsertQuotationMirror(ctx, canonical, command);
+      case 'purchase-order':
+        return upsertPurchaseOrderMirror(ctx, canonical, command);
+      case 'goods-receipt':
+        return upsertGoodsReceiptMirror(ctx, canonical, command);
       default:
         return kindNotWired(kind);
     }

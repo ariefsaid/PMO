@@ -5,12 +5,14 @@
  * submittable kinds this side table ever carries — `purchase-request`/`rfq`/`quotation` — proving
  * `commitCreate`'s "no DOCTYPE_BODIES entry" throw (adapter.test.ts, task 2.12) is now satisfied for
  * these kinds specifically, end to end through the composed table (not just the individual body-fns
- * unit-tested in `bodies/bodies.test.ts`). Slices 3/5/6 append their own kinds to this SAME table
- * (supplier/customer; purchase-order/goods-receipt; purchase-invoice/payment) — additive only, this
- * file never removes/edits another slice's entry.
+ * unit-tested in `bodies/bodies.test.ts`). Slice 5 (task 5.2) appends `purchase-order`/`goods-receipt`
+ * to this SAME table (see the `Slice 5 entries` describe block below). Slice 6 appends
+ * `purchase-invoice`/`payment`; slice 3 appends `supplier`/`customer` — additive only, this file never
+ * removes/edits another slice's entry.
  */
 import { describe, expect, it } from 'vitest';
 import { createErpAdapter } from './adapter.ts';
+import type { ErpCtx } from './doctypeRegistry.ts';
 import { DOCTYPE_BODIES } from './doctypeBodies.ts';
 import { mrToBody, mrFromDoc } from './bodies/materialRequest.ts';
 import { rfqToBody, rfqFromDoc } from './bodies/rfq.ts';
@@ -32,9 +34,8 @@ describe('erpnext/doctypeBodies — DOCTYPE_BODIES composition (task 4.3)', () =
     expect(DOCTYPE_BODIES.quotation?.fromDoc).toBe(supplierQuotationFromDoc);
   });
 
-  it('does not claim slices 3/5/6 kinds (supplier/purchase-order/purchase-invoice) — additive only', () => {
+  it('does not claim slices 3/6 kinds (supplier/purchase-invoice) — additive only', () => {
     expect(DOCTYPE_BODIES.supplier).toBeUndefined();
-    expect(DOCTYPE_BODIES['purchase-order']).toBeUndefined();
     expect(DOCTYPE_BODIES['purchase-invoice']).toBeUndefined();
   });
 
@@ -60,5 +61,41 @@ describe('erpnext/doctypeBodies — DOCTYPE_BODIES composition (task 4.3)', () =
     });
     expect(result.externalRecordId).toBe('MAT-REQ-2026-00099');
     expect(result.canonical).toMatchObject({ id: 'pmo-mr-1', pr_number: 'MAT-REQ-2026-00099', erp_docstatus: 1 });
+  });
+});
+
+const CTX: ErpCtx = { refs: { supplier: 'Spike Supplier', po: 'PUR-ORD-2026-00001' }, config: {} };
+
+describe('erpnext/doctypeBodies — Slice 5 entries (purchase-order, goods-receipt)', () => {
+  it('purchase-order is wired to the R9 §3 poToBody/poFromDoc pair', () => {
+    const entry = DOCTYPE_BODIES['purchase-order'];
+    expect(entry).toBeDefined();
+    const body = entry!.toBody({ id: 'pmo-1', items: [{ item_code: 'X', qty: 1, rate: 1, schedule_date: '2026-07-18' }] }, CTX);
+    expect(body).toEqual({
+      supplier: 'Spike Supplier',
+      items: [{ item_code: 'X', qty: 1, rate: 1, schedule_date: '2026-07-18' }],
+    });
+    const canonical = entry!.fromDoc({ name: 'PUR-ORD-2026-00001', grand_total: 100, docstatus: 1, modified: '2026-07-11 10:00:00.000000' });
+    expect(canonical).toMatchObject({ id: 'PUR-ORD-2026-00001', po_number: 'PUR-ORD-2026-00001', amount: '100.00' });
+  });
+
+  it('goods-receipt is wired to the R9 §4 grToBody/grFromDoc pair', () => {
+    const entry = DOCTYPE_BODIES['goods-receipt'];
+    expect(entry).toBeDefined();
+    const body = entry!.toBody(
+      { id: 'pmo-1', items: [{ item_code: 'X', qty: 1, rate: 1, po_item_child_name: 'i7d62dicpp' }] },
+      CTX,
+    );
+    expect(body).toEqual({
+      supplier: 'Spike Supplier',
+      items: [{ item_code: 'X', qty: 1, rate: 1, purchase_order: 'PUR-ORD-2026-00001', purchase_order_item: 'i7d62dicpp' }],
+    });
+    const canonical = entry!.fromDoc({ name: 'MAT-PRE-2026-00001', items: [{ purchase_order: 'PUR-ORD-2026-00001' }], docstatus: 1, modified: '2026-07-11 10:00:00.000000' });
+    expect(canonical).toMatchObject({ id: 'MAT-PRE-2026-00001', gr_number: 'MAT-PRE-2026-00001' });
+  });
+
+  it('does NOT declare entries slice 5 does not own (additive, no invented wiring)', () => {
+    expect(DOCTYPE_BODIES['purchase-invoice']).toBeUndefined();
+    expect(DOCTYPE_BODIES.supplier).toBeUndefined();
   });
 });

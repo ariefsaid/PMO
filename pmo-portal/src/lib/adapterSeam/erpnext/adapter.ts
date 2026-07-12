@@ -60,11 +60,23 @@ function stampRemarks(body: unknown, idempotencyKey: string | undefined): unknow
   return { ...(body as Record<string, unknown>), remarks: idempotencyKey };
 }
 
+/** Slice 5 addition (FR-ENA-103): substitute `ctx.resolvedItems` for `record.items` ONLY when the
+ *  command carried none — the server-resolved case item list (e.g. `procurement_items`) fills in for
+ *  a PO/GR command whose `record.items` the repository layer never sends. `ctx.resolvedItems`
+ *  undefined (every kind besides slice 5's, and every pre-slice-5 caller) ⇒ `record` returned as-is,
+ *  byte-for-byte. */
+function recordWithResolvedItemsFallback(record: PmoRecord, ctx: ErpCtx): PmoRecord {
+  const hasOwnItems = Array.isArray(record.items) && record.items.length > 0;
+  if (hasOwnItems || !ctx.resolvedItems) return record;
+  return { ...record, items: ctx.resolvedItems };
+}
+
 async function commitCreate(command: AdapterCommand, deps: ErpAdapterDeps): Promise<CommandResult> {
   const kind = requireKind(command.record);
   const entry = DOCTYPE_REGISTRY[kind];
   const bodyFns = requireBodyFns(deps, kind);
-  const body = stampRemarks(bodyFns.toBody(command.record, deps.ctx), command.idempotencyKey);
+  const record = recordWithResolvedItemsFallback(command.record, deps.ctx);
+  const body = stampRemarks(bodyFns.toBody(record, deps.ctx), command.idempotencyKey);
   const created = (await createDoc(deps.client, entry.doctype, body)) as { name: string };
 
   if (!entry.submittable) {

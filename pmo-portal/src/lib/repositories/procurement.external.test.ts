@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 /**
  * AC-ENA-001 — the byte-for-byte regression net (Slice 1, EARLY per the plan's binding ordering).
@@ -272,5 +272,47 @@ describe('task 4.9 — transition_procurement stays on the PMO DAL path even whe
     await repositories.procurement.transition('proc-1', 'Approved', 'looks good');
     expect(transitionProcurement).toHaveBeenCalledWith('proc-1', 'Approved', 'looks good');
     expect(dispatchSpy).not.toHaveBeenCalled();
+  });
+});
+
+// Slice 5, task 5.6 (finding-3 path fix): a FLIPPED org's PO/GR creates route to
+// dispatchDomainCommand, never the direct DAL — the mirror of task.external.test.ts's "loaded cache"
+// describe block. Appended (not editing the AC-ENA-001 blocks above) — the cold-map assertions above
+// stay byte-for-byte and untouched.
+describe('AC-ENA-052 loaded cache asserting procurement→erpnext — PO/GR creates route externally', () => {
+  beforeEach(() => {
+    setDomainOwnership([{ domain: 'procurement', externalTier: 'erpnext' }]);
+  });
+  afterEach(() => {
+    clearOwnershipCache();
+  });
+
+  it('AC-ENA-052 createPurchaseOrder routes to dispatchDomainCommand with erp_doc_kind + a minted idempotencyKey', async () => {
+    dispatchSpy.mockResolvedValueOnce({ externalRecordId: 'PUR-ORD-2026-00001', canonical: { id: 'po-1', po_number: 'PUR-ORD-2026-00001' } });
+    const result = await repositories.procurement.createPurchaseOrder('proc-1', 'PO-0001', 'Draft', '2026-07-11', 100);
+    expect(createPurchaseOrder).not.toHaveBeenCalled();
+    expect(dispatchSpy).toHaveBeenCalledTimes(1);
+    const [domain, operation, record, options] = dispatchSpy.mock.calls[0] as unknown as [string, string, Record<string, unknown>, { idempotencyKey?: string }];
+    expect(domain).toBe('procurement');
+    expect(operation).toBe('create');
+    expect(record.erp_doc_kind).toBe('purchase-order');
+    expect(record.procurementId).toBe('proc-1');
+    expect(typeof options?.idempotencyKey).toBe('string');
+    expect(options!.idempotencyKey!.length).toBeGreaterThan(0);
+    expect(result).toMatchObject({ id: 'po-1', po_number: 'PUR-ORD-2026-00001' });
+  });
+
+  it('AC-ENA-052 createReceipt routes to dispatchDomainCommand with erp_doc_kind=goods-receipt + a minted idempotencyKey', async () => {
+    dispatchSpy.mockResolvedValueOnce({ externalRecordId: 'MAT-PRE-2026-00001', canonical: { id: 'gr-1', gr_number: 'MAT-PRE-2026-00001' } });
+    const result = await repositories.procurement.createReceipt('proc-1', 'Complete', '2026-07-11');
+    expect(createReceipt).not.toHaveBeenCalled();
+    expect(dispatchSpy).toHaveBeenCalledTimes(1);
+    const [domain, operation, record, options] = dispatchSpy.mock.calls[0] as unknown as [string, string, Record<string, unknown>, { idempotencyKey?: string }];
+    expect(domain).toBe('procurement');
+    expect(operation).toBe('create');
+    expect(record.erp_doc_kind).toBe('goods-receipt');
+    expect(record.procurementId).toBe('proc-1');
+    expect(typeof options?.idempotencyKey).toBe('string');
+    expect(result).toMatchObject({ id: 'gr-1', gr_number: 'MAT-PRE-2026-00001' });
   });
 });

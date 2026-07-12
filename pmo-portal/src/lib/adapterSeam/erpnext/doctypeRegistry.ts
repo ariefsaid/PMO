@@ -27,6 +27,10 @@ export type ErpDocKind =
 export interface ErpCtx {
   refs: Record<string, string | null>;
   config: Record<string, unknown>;
+  /** Slice 5 addition (FR-ENA-103): server-resolved line items (e.g. from `procurement_items`, the
+   *  case's item list) — a fallback the adapter substitutes ONLY when the command's own `record.items`
+   *  is absent/empty. `undefined` (every pre-Slice-5 caller) ⇒ byte-for-byte, no substitution. */
+  resolvedItems?: unknown[];
 }
 
 export interface DoctypeEntry {
