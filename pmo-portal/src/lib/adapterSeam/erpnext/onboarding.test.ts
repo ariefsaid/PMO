@@ -4,7 +4,7 @@
  * covers `listErpPartySources` — the confined GET-list mapping (ERPNext vocabulary stays inside
  * erpnext/**, never in the edge-fn wrapper).
  */
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { listErpPartySources } from './onboarding.ts';
 import type { ErpClientDeps } from './client.ts';
 
