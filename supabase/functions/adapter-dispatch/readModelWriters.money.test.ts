@@ -188,3 +188,99 @@ Deno.test({
     assertEquals(eqCalls.length, 2, 'expected two scoping .eq() calls (org_id, id)');
   },
 });
+
+// ── Slice-6 task 6.10/6.11 (FR-ENA-052/053, NFR-ENA-DOC-001): the cancel/amend lineage write. The
+// invoice/payment mirror writers set erp_cancelled_at on a cancel (docstatus 2) AND write an
+// external_ref_lineage row for both cancel and amend — the audit record of the supersession (the
+// outbound counterpart to the inbound apply path's lineage.ts applyCancel/applyAmend, which slice 8
+// wires for webhook/sweep events). A regular create/update writes NO lineage row.
+
+Deno.test({
+  name: "READ_MODEL_WRITERS['procurement'].upsert (kind purchase-invoice, verb cancel) sets erp_cancelled_at and writes an external_ref_lineage row (reason='cancelled')",
+  fn: async () => {
+    const { client, calls } = makeFakeClient();
+    const writer = getReadModelWriter('procurement');
+    await writer.upsert(
+      { serviceClient: client as never, orgId: 'org-1' },
+      { id: 'pmo-pi-1', vi_number: 'ACC-PINV-2026-00001', amount: '150000.00', erp_outstanding_amount: '0.00', erp_docstatus: 2, erp_modified: '2026-07-13 09:00:00.000000', erp_amended_from: null },
+      { domain: 'procurement', operation: 'transition', record: { id: 'pmo-pi-1', erp_doc_kind: 'purchase-invoice', externalRecordId: 'ACC-PINV-2026-00001', verb: 'cancel' } },
+    );
+    const updateCall = calls.find((c) => c.method === 'update' && c.table === 'procurement_invoices');
+    assert(updateCall !== undefined, 'expected an update on procurement_invoices');
+    const patch = updateCall!.args[0] as Record<string, unknown>;
+    assert(patch.erp_cancelled_at != null, 'erp_cancelled_at must be set when erp_docstatus=2 (cancel tombstone)');
+    assertEquals(patch.erp_docstatus, 2);
+    const lineageCall = calls.find((c) => c.method === 'insert' && c.table === 'external_ref_lineage');
+    assert(lineageCall !== undefined, 'expected an insert into external_ref_lineage for a cancel');
+    const lineage = lineageCall!.args[0] as Record<string, unknown>;
+    assertEquals(lineage.org_id, 'org-1');
+    assertEquals(lineage.domain, 'procurement');
+    assertEquals(lineage.pmo_record_id, 'pmo-pi-1');
+    assertEquals(lineage.superseded_external_record_id, 'ACC-PINV-2026-00001');
+    assertEquals(lineage.successor_external_record_id, null);
+    assertEquals(lineage.reason, 'cancelled');
+    assertEquals(lineage.erp_docstatus, 2);
+  },
+});
+
+Deno.test({
+  name: "READ_MODEL_WRITERS['procurement'].upsert (kind purchase-invoice, amend) writes an external_ref_lineage row (reason=' amended', successor=new name) and does NOT set erp_cancelled_at",
+  fn: async () => {
+    const { client, calls } = makeFakeClient();
+    const writer = getReadModelWriter('procurement');
+    await writer.upsert(
+      { serviceClient: client as never, orgId: 'org-1' },
+      { id: 'pmo-pi-1', vi_number: 'ACC-PINV-2026-00002', amount: '160000.00', erp_outstanding_amount: '160000.00', erp_docstatus: 1, erp_modified: '2026-07-13 10:00:00.000000', erp_amended_from: 'ACC-PINV-2026-00001' },
+      { domain: 'procurement', operation: 'transition', record: { id: 'pmo-pi-1', erp_doc_kind: 'purchase-invoice', externalRecordId: 'ACC-PINV-2026-00001', verb: 'amend' } },
+    );
+    const updateCall = calls.find((c) => c.method === 'update' && c.table === 'procurement_invoices');
+    assert(updateCall !== undefined, 'expected an update on procurement_invoices');
+    const patch = updateCall!.args[0] as Record<string, unknown>;
+    assertEquals(patch.erp_amended_from, 'ACC-PINV-2026-00001');
+    assertEquals(patch.erp_cancelled_at, null, 'the NEW amended doc is docstatus 1 (submitted), not cancelled');
+    const lineageCall = calls.find((c) => c.method === 'insert' && c.table === 'external_ref_lineage');
+    assert(lineageCall !== undefined, 'expected an insert into external_ref_lineage for an amend');
+    const lineage = lineageCall!.args[0] as Record<string, unknown>;
+    assertEquals(lineage.superseded_external_record_id, 'ACC-PINV-2026-00001', 'the old (amended-from) name');
+    assertEquals(lineage.successor_external_record_id, 'ACC-PINV-2026-00002', 'the new amended name');
+    assertEquals(lineage.reason, 'amended');
+  },
+});
+
+Deno.test({
+  name: "READ_MODEL_WRITERS['procurement'].upsert (kind payment, verb cancel) sets erp_cancelled_at and writes an external_ref_lineage row (reason='cancelled')",
+  fn: async () => {
+    const { client, calls } = makeFakeClient();
+    const writer = getReadModelWriter('procurement');
+    await writer.upsert(
+      { serviceClient: client as never, orgId: 'org-1' },
+      { id: 'pmo-pe-1', pay_number: 'ACC-PAY-2026-00001', amount: '150000.00', erp_docstatus: 2, erp_modified: '2026-07-13 11:00:00.000000', erp_amended_from: null },
+      { domain: 'procurement', operation: 'transition', record: { id: 'pmo-pe-1', erp_doc_kind: 'payment', externalRecordId: 'ACC-PAY-2026-00001', verb: 'cancel' } },
+    );
+    const updateCall = calls.find((c) => c.method === 'update' && c.table === 'payments');
+    assert(updateCall !== undefined, 'expected an update on payments');
+    const patch = updateCall!.args[0] as Record<string, unknown>;
+    assert(patch.erp_cancelled_at != null, 'erp_cancelled_at must be set when erp_docstatus=2 (cancel tombstone)');
+    const lineageCall = calls.find((c) => c.method === 'insert' && c.table === 'external_ref_lineage');
+    assert(lineageCall !== undefined, 'expected an insert into external_ref_lineage for a PE cancel');
+    const lineage = lineageCall!.args[0] as Record<string, unknown>;
+    assertEquals(lineage.superseded_external_record_id, 'ACC-PAY-2026-00001');
+    assertEquals(lineage.successor_external_record_id, null);
+    assertEquals(lineage.reason, 'cancelled');
+  },
+});
+
+Deno.test({
+  name: "READ_MODEL_WRITERS['procurement'].upsert (kind purchase-invoice, create) writes NO external_ref_lineage row (a fresh create supersedes nothing)",
+  fn: async () => {
+    const { client, calls } = makeFakeClient();
+    const writer = getReadModelWriter('procurement');
+    await writer.upsert(
+      { serviceClient: client as never, orgId: 'org-1' },
+      { id: 'pmo-pi-1', vi_number: 'ACC-PINV-2026-00001', amount: '150000.00', erp_outstanding_amount: '150000.00', erp_docstatus: 1, erp_modified: '2026-07-12 10:00:00.000000' },
+      { domain: 'procurement', operation: 'create', record: { id: 'pmo-pi-1', procurementId: 'proc-1', erp_doc_kind: 'purchase-invoice' } },
+    );
+    const lineageCall = calls.find((c) => c.method === 'insert' && c.table === 'external_ref_lineage');
+    assert(lineageCall === undefined, 'a create must NOT write a lineage row (nothing superseded)');
+  },
+});

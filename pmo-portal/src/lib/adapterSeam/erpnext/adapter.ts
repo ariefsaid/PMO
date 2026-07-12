@@ -14,8 +14,9 @@
  */
 import type { Adapter, AdapterCommand, ChangesSinceWatermark, CommandResult, PmoDomain, PmoRecord } from '../contract.ts';
 import { AdapterError } from '../contract.ts';
-import { createDoc, ErpError, getDoc, submitDoc, updateDoc, type ErpClientDeps } from './client.ts';
+import { cancelDoc, createDoc, ErpError, getDoc, submitDoc, updateDoc, type ErpClientDeps } from './client.ts';
 import { DOCTYPE_REGISTRY, type ErpCtx, type ErpDocKind } from './doctypeRegistry.ts';
+import { routeEdit } from './transitionPolicy.ts';
 
 export const ERPNEXT_TIER = 'erpnext';
 export const ERPNEXT_COMPANIES_DOMAIN: PmoDomain = 'companies';
@@ -103,30 +104,106 @@ async function commitCreate(command: AdapterCommand, deps: ErpAdapterDeps): Prom
 }
 
 /**
- * `operation:'transition'`, `verb:'submit'` (task 4.4, FR-ENA-044/117): submits an ALREADY-CREATED
- * draft doc — distinct from `commitCreate`'s combined create+submit two-step. `PUT {docstatus:1}` on
- * the caller-resolved `record.externalRecordId`, fires `afterSubmitHook` (the same FR-ENA-003 seam
- * `commitCreate` fires), then re-fetches (R9 §5: the PUT response's `status`/`outstanding_amount` is
- * stale — the re-fetch is the only trustworthy read of post-submit derived fields). `cancel`/`amend`
- * verbs are NOT wired this slice (transitionPolicy.ts's `routeEdit`/`cancelChain` land in commit() in
- * slices 5/6, where PO/PI/GR/PE first need them) — a loud throw, never a silent no-op.
+ * `operation:'transition'` — the three docstatus verbs on an ALREADY-CREATED doc (task 4.4 submit +
+ * Slice-6 task 6.3 cancel/amend, FR-ENA-044/050/117, OQ-7). `verb:'submit'` PUTs `{docstatus:1}`;
+ * `verb:'cancel'` PUTs `{docstatus:2}` (OQ-8 cancel-only — stock REST enforces it); `verb:'amend'`
+ * delegates to `commitAmend` (cancel + create-with-`amended_from`, FR-ENA-053). Every verb re-fetches
+ * after the transition (R9 §5: the PUT response's derived fields are stale — the re-fetch is the only
+ * trustworthy read), maps the canonical via the kind's `fromDoc`, and (for submit) fires
+ * `afterSubmitHook` (the FR-ENA-003 seam, parity with `commitCreate`). An unknown verb is a loud
+ * `commit-rejected`, never a silent no-op.
  */
 async function commitTransition(command: AdapterCommand, deps: ErpAdapterDeps): Promise<CommandResult> {
   const kind = requireKind(command.record);
   const bodyFns = requireBodyFns(deps, kind);
+  const entry = DOCTYPE_REGISTRY[kind];
   const verb = command.record.verb;
-  if (verb !== 'submit') {
-    throw new AdapterError('commit-rejected', `erpnext adapter transition verb '${String(verb)}' is wired in slices 5/6 (only 'submit' this slice)`);
-  }
   const externalRecordId = command.record.externalRecordId;
   if (typeof externalRecordId !== 'string' || externalRecordId.length === 0) {
-    throw new AdapterError('commit-rejected', 'transition requires record.externalRecordId (nothing to submit)');
+    throw new AdapterError('commit-rejected', `transition requires record.externalRecordId (nothing to ${String(verb)})`);
   }
+
+  if (verb === 'submit') {
+    await submitDoc(deps.client, entry.doctype, externalRecordId);
+    await deps.afterSubmitHook?.();
+    const refetched = await getDoc(deps.client, entry.doctype, externalRecordId);
+    const canonical: PmoRecord = { ...bodyFns.fromDoc(refetched), id: command.record.id };
+    return { externalRecordId, canonical };
+  }
+
+  if (verb === 'cancel') {
+    // OQ-8 (R9 §5): cancel is `{docstatus:2}` — stock REST enforces cancel-only, never delete, on a
+    // once-submitted doc. Chain-reverse ordering (PR-then-PO, PE-then-PI) is a caller/chain concern
+    // (transitionPolicy.ts `cancelChain`); this is the single-doc cancel primitive.
+    await cancelDoc(deps.client, entry.doctype, externalRecordId);
+    const refetched = await getDoc(deps.client, entry.doctype, externalRecordId);
+    const canonical: PmoRecord = { ...bodyFns.fromDoc(refetched), id: command.record.id };
+    return { externalRecordId, canonical };
+  }
+
+  if (verb === 'amend') {
+    return commitAmend(command, deps, externalRecordId);
+  }
+
+  throw new AdapterError('commit-rejected', `erpnext adapter transition verb '${String(verb)}' is not supported (supported: submit|cancel|amend)`);
+}
+
+/**
+ * `verb:'amend'` (Slice-6 task 6.3, FR-ENA-050/053): the ERPNext amend workflow via stock REST —
+ * cancel the old doc (`PUT {docstatus:2}`), then create a NEW doc carrying `amended_from` = the old
+ * name (the lineage seam: the mirror + `external_refs` repoint to the new name; a lineage row records
+ * the supersession), stamp the idempotency key into the anchor field (so the outbox recovery probe can
+ * adopt an orphaned amend create), and run the R9 two-step submit + re-fetch on the new doc. Returns
+ * the NEW ERP `name` + the amended canonical (carrying `erp_amended_from` via `fromDoc`). Shared by
+ * `commitTransition(verb:'amend')` and `commitUpdateSubmittable`'s routeEdit(1)=amend branch.
+ */
+async function commitAmend(command: AdapterCommand, deps: ErpAdapterDeps, oldExternalRecordId: string): Promise<CommandResult> {
+  const kind = requireKind(command.record);
   const entry = DOCTYPE_REGISTRY[kind];
-  await submitDoc(deps.client, entry.doctype, externalRecordId);
+  const bodyFns = requireBodyFns(deps, kind);
+  // 1. cancel the old doc (an amend always cancels-then-recreates; the old name becomes a tombstone).
+  await cancelDoc(deps.client, entry.doctype, oldExternalRecordId);
+  // 2. create the new doc with amended_from + the anchor stamp (the recovery-probe key, ADR-0057 §3).
+  const record = recordWithResolvedItemsFallback(command.record, deps.ctx);
+  const newBody = stampAnchor(
+    { ...(bodyFns.toBody(record, deps.ctx) as Record<string, unknown>), amended_from: oldExternalRecordId },
+    command.idempotencyKey,
+    entry.anchorField,
+  );
+  const created = (await createDoc(deps.client, entry.doctype, newBody)) as { name: string };
+  // 3. R9 two-step: submit the new doc + re-fetch (the amend produces a submittable doc — the stale-
+  // status trap applies, same as commitCreate). Fires afterSubmitHook for FR-ENA-003 seam parity.
+  await submitDoc(deps.client, entry.doctype, created.name);
   await deps.afterSubmitHook?.();
-  const refetched = await getDoc(deps.client, entry.doctype, externalRecordId);
+  const refetched = await getDoc(deps.client, entry.doctype, created.name);
   const canonical: PmoRecord = { ...bodyFns.fromDoc(refetched), id: command.record.id };
+  return { externalRecordId: created.name, canonical };
+}
+
+/**
+ * `operation:'update'` on a SUBMITTABLE kind (Slice-6 task 6.3 update-draft, FR-ENA-050): composes
+ * `transitionPolicy.routeEdit` — GET the current docstatus, then route: a DRAFT (docstatus 0) takes a
+ * direct field PUT (the safe update path); a SUBMITTED doc (docstatus 1) routes to amend (cancel +
+ * create-with-`amended_from` — a direct PUT on a submitted doc raises `UpdateAfterSubmitError`, R9 §5);
+ * a CANCELLED doc (docstatus 2) is rejected by routeEdit (cannot edit a cancelled doc). The draft
+ * update's field PUT does NOT stamp the anchor (the doc was created with its key; the update preserves
+ * it — `toBody` never emits the anchor field for PI/PE).
+ */
+async function commitUpdateSubmittable(command: AdapterCommand, deps: ErpAdapterDeps): Promise<CommandResult> {
+  const kind = requireKind(command.record);
+  const entry = DOCTYPE_REGISTRY[kind];
+  const bodyFns = requireBodyFns(deps, kind);
+  const externalRecordId = command.record.externalRecordId;
+  if (typeof externalRecordId !== 'string' || externalRecordId.length === 0) {
+    throw new AdapterError('commit-rejected', 'update requires record.externalRecordId (nothing to edit)');
+  }
+  const current = await getDoc(deps.client, entry.doctype, externalRecordId);
+  const docstatus = (current as { docstatus?: number | null }).docstatus ?? 0;
+  const route = routeEdit(docstatus); // 'update' | 'amend' (routeEdit throws on docstatus 2)
+  if (route === 'amend') return commitAmend(command, deps, externalRecordId);
+  const body = bodyFns.toBody(command.record, deps.ctx);
+  const updated = (await updateDoc(deps.client, entry.doctype, externalRecordId, body)) as { name: string };
+  const canonical: PmoRecord = { ...bodyFns.fromDoc(updated), id: command.record.id };
   return { externalRecordId, canonical };
 }
 
@@ -161,10 +238,9 @@ async function commitErpCommand(command: AdapterCommand, deps: ErpAdapterDeps): 
   if (command.operation === 'update') {
     const kind = requireKind(command.record);
     if (!DOCTYPE_REGISTRY[kind].submittable) return commitUpdateNonSubmittable(command, deps);
-    // A submittable kind's update-after-submit->amend policy (transitionPolicy.ts, task 2.8/2.9) is
-    // wired into commit() in slice 6 (`commitTransition` above already covers the transition/submit
-    // path) — a loud throw here, never a silent no-op.
-    throw new AdapterError('commit-rejected', `erpnext adapter update for submittable kind '${kind}' is wired in slice 6`);
+    // Slice-6 task 6.3 (FR-ENA-050): a submittable kind's update composes routeEdit — draft -> direct
+    // field PUT; submitted -> amend (cancel + create-with-amended_from). See commitUpdateSubmittable.
+    return commitUpdateSubmittable(command, deps);
   }
   // Every other operation is exhausted above ('create'/'transition'/'delete'/'update') — unreachable
   // for the `AdapterCommand['operation']` union, but a loud throw here rather than a silent no-op.

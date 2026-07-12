@@ -279,6 +279,50 @@ async function upsertGoodsReceiptMirror(ctx: ReadModelWriterCtx, canonical: PmoR
   if (error) throw new AppError(error.message, error.code);
 }
 
+/** Slice-6 task 6.10/6.11 (FR-ENA-052/053, NFR-ENA-DOC-001): writes an `external_ref_lineage` row for
+ *  a PMO-INITIATED cancel or amend (the OUTBOUND counterpart to the inbound apply path's
+ *  `lineage.ts` applyCancel/applyAmend, which slice 8 wires for webhook/sweep events). Called from
+ *  the invoice/payment mirror writers AFTER the mirror upsert — the lineage row is the audit record of
+ *  the supersession, separate from the mirror state itself. A docstatus-2 doc with no `amended_from` is
+ *  a CANCEL (superseded name, no successor); a doc carrying `erp_amended_from` is an AMEND (the old
+ *  name superseded by the new mirror name). Any other canonical (a fresh create, a draft update) is a
+ *  no-op — a regular mirror supersedes nothing. Slice 6 has no inbound sweep, so this runs exactly once
+ *  per finalized command (the outbox guarantees at-most-once finalize). */
+async function recordOutboundLineage(
+  ctx: ReadModelWriterCtx,
+  canonical: PmoRecord,
+  erpName: string | undefined,
+): Promise<void> {
+  if (!erpName) return;
+  const docstatus = canonical.erp_docstatus as number | null | undefined;
+  const amendedFrom = (canonical.erp_amended_from as string | null | undefined) ?? null;
+  if (docstatus === 2 && !amendedFrom) {
+    const { error } = await ctx.serviceClient.from('external_ref_lineage').insert({
+      org_id: ctx.orgId,
+      domain: 'procurement',
+      pmo_record_id: canonical.id,
+      superseded_external_record_id: erpName,
+      successor_external_record_id: null,
+      reason: 'cancelled',
+      erp_docstatus: 2,
+    });
+    if (error) throw new AppError(error.message, error.code);
+    return;
+  }
+  if (amendedFrom) {
+    const { error } = await ctx.serviceClient.from('external_ref_lineage').insert({
+      org_id: ctx.orgId,
+      domain: 'procurement',
+      pmo_record_id: canonical.id,
+      superseded_external_record_id: amendedFrom,
+      successor_external_record_id: erpName,
+      reason: 'amended',
+      erp_docstatus: null,
+    });
+    if (error) throw new AppError(error.message, error.code);
+  }
+}
+
 /** `procurement_invoices` (Slice 6, task 6.5, FR-ENA-115): `vi_number`/`amount` mirror the ERP-derived
  *  canonical (the header `grand_total` oracle, ADR-0048); `status` derives from
  *  `erp_outstanding_amount` (piStatus.ts's R9 paid-detection — Paid once a referenced PE submit flips
@@ -299,6 +343,9 @@ async function upsertInvoiceMirror(ctx: ReadModelWriterCtx, canonical: PmoRecord
     erp_docstatus: docstatus ?? null,
     erp_modified: (canonical.erp_modified as string | null | undefined) ?? null,
     erp_amended_from: (canonical.erp_amended_from as string | null | undefined) ?? null,
+    // Slice-6 task 6.10: stamp erp_cancelled_at on a cancel tombstone (docstatus 2). null otherwise
+    // (a fresh create, a draft update, or an amended docstatus-1 new doc are not cancelled).
+    erp_cancelled_at: docstatus === 2 ? new Date().toISOString() : null,
   };
   if (command.operation === 'create') {
     const record = command.record as { procurementId?: string };
@@ -313,6 +360,9 @@ async function upsertInvoiceMirror(ctx: ReadModelWriterCtx, canonical: PmoRecord
     }>
   );
   if (error) throw new AppError(error.message, error.code);
+  // Slice-6 task 6.10/6.11: a cancel/amend writes an external_ref_lineage row (the audit record of the
+  // supersession). A no-op for a regular draft update (no docstatus-2, no amended_from).
+  await recordOutboundLineage(ctx, canonical, canonical.vi_number as string | undefined);
 }
 
 /** `payments` (Slice 6, task 6.5, FR-ENA-116): `pay_number`/`amount` mirror the ERP-derived canonical
@@ -333,6 +383,8 @@ async function upsertPaymentMirror(ctx: ReadModelWriterCtx, canonical: PmoRecord
     erp_docstatus: docstatus ?? null,
     erp_modified: (canonical.erp_modified as string | null | undefined) ?? null,
     erp_amended_from: (canonical.erp_amended_from as string | null | undefined) ?? null,
+    // Slice-6 task 6.11: stamp erp_cancelled_at on a cancel tombstone (docstatus 2).
+    erp_cancelled_at: docstatus === 2 ? new Date().toISOString() : null,
   };
   if (command.operation === 'create') {
     const record = command.record as { procurementId?: string; invoiceId?: string; date?: string };
@@ -354,6 +406,8 @@ async function upsertPaymentMirror(ctx: ReadModelWriterCtx, canonical: PmoRecord
     }>
   );
   if (error) throw new AppError(error.message, error.code);
+  // Slice-6 task 6.11: a PE cancel writes an external_ref_lineage row.
+  await recordOutboundLineage(ctx, canonical, canonical.pay_number as string | undefined);
 }
 
 /** P2 ERPNext `procurement` writer (task 4.5): dispatches by the command's `erp_doc_kind` — the SAME

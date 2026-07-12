@@ -185,7 +185,7 @@ describe('erpnext/adapter — un-wired kinds/operations fail loud, never a silen
     await expect(adapter.commit({ domain: 'procurement', operation: 'create', record: { id: 'pmo-1' } })).rejects.toBeInstanceOf(AdapterError);
   });
 
-  it('update on a SUBMITTABLE kind is not yet wired (transition/amend policy lands slices 4/6) — loud throw', async () => {
+  it('update on a SUBMITTABLE kind now routes via routeEdit (task 6.3) — a missing externalRecordId is rejected loud (nothing to edit)', async () => {
     const deps = baseDeps(async () => jsonResponse(200, {}), {
       doctypeBodies: { 'purchase-order': { toBody: () => ({}), fromDoc: () => ({ id: 'placeholder' }) } },
     });
