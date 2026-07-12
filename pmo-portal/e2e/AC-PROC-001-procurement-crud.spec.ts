@@ -1,3 +1,4 @@
+// @e2e-isolation: self-isolated — unique PR title + line item desc (Date.now()), raises Draft PR + adds line item; no seed coupling.
 import { test, expect, type Page } from '@playwright/test';
 import { login } from './helpers';
 

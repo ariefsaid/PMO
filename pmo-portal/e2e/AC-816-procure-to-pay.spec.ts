@@ -1,3 +1,4 @@
+// @e2e-isolation: dedicated-row — owns PROC-2026-006/007 (per plan Task 3a); currently uses shared PROC-2026-003 — needs repoint to dedicated fixture.
 import { test, expect, type Page } from '@playwright/test';
 import { login } from './helpers';
 // NOTE (IA-3 re-skin): the visible status pill now shows the human stage label

@@ -1,3 +1,4 @@
+// @e2e-isolation: read-only — pure nav/assert; login + calendar view + event click → detail nav; no DB writes.
 import { test, expect } from '@playwright/test';
 import { login } from './helpers';
 

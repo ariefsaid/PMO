@@ -1,3 +1,4 @@
+// @e2e-isolation: dedicated-row — owns P013 (40000000-...-013) dedicated expendable Ongoing Project; unique milestone/task names (Date.now()); needs beforeEach reset of P013 milestones/tasks (plan Task 4a).
 import { test, expect } from '@playwright/test';
 import { login } from './helpers';
 

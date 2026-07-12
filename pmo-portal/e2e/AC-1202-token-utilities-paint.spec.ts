@@ -1,3 +1,4 @@
+// @e2e-isolation: read-only — pure nav/assert; asserts computed CSS token paints via login + navigation; no DB writes.
 import { test, expect } from '@playwright/test';
 import { login } from './helpers';
 

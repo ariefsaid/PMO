@@ -1,3 +1,4 @@
+// @e2e-isolation: dedicated-row — owns timesheet …b4 (bulk fixture) + uses PROC-2026-002 (shared with AC-IXD-WP-002; ref lists as dedicated-row but PROC fixture is shared — see note).
 import { test, expect } from '@playwright/test';
 import { login } from './helpers';
 

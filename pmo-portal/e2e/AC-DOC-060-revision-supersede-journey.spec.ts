@@ -1,3 +1,4 @@
+// @e2e-isolation: self-isolated — unique doc title/code (Date.now()), PM creates revision chain, finance approves, parent superseded; no seed coupling.
 import { test, expect } from '@playwright/test';
 import { fileURLToPath } from 'node:url';
 import { login } from './helpers';

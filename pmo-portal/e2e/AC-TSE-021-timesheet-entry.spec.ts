@@ -1,3 +1,4 @@
+// @e2e-isolation: dedicated-row — should own dedicated engineer + week (plan Task 3c); currently uses shared engineer@acme.test stepping to empty week — needs repoint to dedicated engineer fixture.
 import { test, expect, type Page } from '@playwright/test';
 import { login } from './helpers';
 

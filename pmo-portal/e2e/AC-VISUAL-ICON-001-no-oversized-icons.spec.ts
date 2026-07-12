@@ -1,3 +1,4 @@
+// @e2e-isolation: read-only — signIn + route sweep measuring shared icon sizes; no DB writes.
 /**
  * AC-VISUAL-ICON-001 — no oversized shared icons.
  *

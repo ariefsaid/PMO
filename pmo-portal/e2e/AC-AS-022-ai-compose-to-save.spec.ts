@@ -1,3 +1,4 @@
+// @e2e-isolation: self-isolated — page.route-mocked compose-view; real user_views INSERT on save (fixed name, no cleanup — ref lists as self-isolated).
 /**
  * AC-AS-022 — AI compose → populate builder → save.
  *

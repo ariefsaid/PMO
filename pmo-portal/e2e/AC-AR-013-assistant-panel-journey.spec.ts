@@ -1,3 +1,4 @@
+// @e2e-isolation: read-only — signIn + page.route-mocked agent-chat SSE; no DB writes.
 /**
  * AC-AR-013 — AssistantPanel curated journey (ADR-0040 Option A, A2).
  *

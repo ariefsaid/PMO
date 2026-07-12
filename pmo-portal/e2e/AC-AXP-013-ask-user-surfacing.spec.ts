@@ -1,3 +1,4 @@
+// @e2e-isolation: read-only — signIn + page.route-mocked agent-chat (ask_user chips, 2 legs same RUN_ID); no DB writes.
 /**
  * AC-AXP-013 - ambiguous phrasing surfaces ask_user chips and continues in place.
  */

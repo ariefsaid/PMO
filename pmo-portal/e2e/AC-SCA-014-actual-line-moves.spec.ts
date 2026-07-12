@@ -1,3 +1,4 @@
+// @e2e-isolation: dedicated-row — owns dedicated In-Progress task on SP-2401 (per plan Task 3b); currently uses shared SP-2401 + shared task — needs repoint to dedicated fixture.
 import { test, expect } from '@playwright/test';
 import { signIn } from './helpers';
 

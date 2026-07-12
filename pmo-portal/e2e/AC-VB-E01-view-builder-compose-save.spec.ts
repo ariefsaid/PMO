@@ -1,3 +1,4 @@
+// @e2e-isolation: self-isolated — fixed "Test View" name (needs Date.now() unique + afterEach cleanup per plan Task 3d); admin@acme.test composes/saves/renders view; no seed coupling.
 /**
  * AC-VB-E01 — Compose a view, save it, verify it renders in I3, check My Views list.
  * Curated cross-stack Playwright journey (ADR-0010, one e2e per genuine cross-stack AC).

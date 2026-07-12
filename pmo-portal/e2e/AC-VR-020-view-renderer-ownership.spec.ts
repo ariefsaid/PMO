@@ -1,3 +1,4 @@
+// @e2e-isolation: self-isolated — service-role seeds private user_view for admin@acme.test in beforeAll; afterAll cleanup; test asserts RLS isolation (admin sees, engineer 404).
 /**
  * AC-VR-020 — View-renderer ownership: a private view is accessible only to its owner.
  *

@@ -1,3 +1,4 @@
+// @e2e-isolation: read-only — pure nav/assert; viewport resize + nav rail visibility; no DB writes.
 import { test, expect } from '@playwright/test';
 import { login } from './helpers';
 

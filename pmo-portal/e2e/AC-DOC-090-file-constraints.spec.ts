@@ -1,3 +1,4 @@
+// @e2e-isolation: self-isolated — unique doc title/code (Date.now()), tests oversize + disallowed type errors on Draft; no seed coupling.
 import { test, expect } from '@playwright/test';
 import { fileURLToPath } from 'node:url';
 import { login } from './helpers';

@@ -1,3 +1,4 @@
+// @e2e-isolation: self-isolated — unique company names (Date.now()), upload xlsx → preview → confirm; valid row created, invalid skipped; no seed coupling.
 import { test, expect, type Page } from '@playwright/test';
 import ExcelJS from 'exceljs';
 import { login } from './helpers';

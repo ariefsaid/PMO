@@ -1,3 +1,4 @@
+// @e2e-isolation: self-isolated — unique grant note (Date.now()), Operator grants 500 credits; Admin in separate session sees updated balance; credits table append-only, balance grows deterministically.
 import { test, expect, type Page } from '@playwright/test';
 import { signIn } from './helpers';
 

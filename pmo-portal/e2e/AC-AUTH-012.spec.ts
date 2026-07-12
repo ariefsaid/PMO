@@ -1,3 +1,4 @@
+// @e2e-isolation: read-only — session persistence + reload assertion; no DB writes.
 import { test, expect } from '@playwright/test';
 import { signIn } from './helpers';
 

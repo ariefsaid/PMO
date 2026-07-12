@@ -1,3 +1,4 @@
+// @e2e-isolation: read-only — login + page.route-mocked RPCs (org_agent_run_stats, org_usage_summary); no DB writes.
 import { test, expect } from '@playwright/test';
 import { login } from './helpers';
 

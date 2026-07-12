@@ -1,3 +1,4 @@
+// @e2e-isolation: self-isolated — resets pm@acme.test password via service-role; afterEach restores seed password.
 import { test, expect } from '@playwright/test';
 import { createClient, type User } from '@supabase/supabase-js';
 import { clearMailpit, pollMailpitForAuthLink, requireServiceRoleKey } from './helpers';
