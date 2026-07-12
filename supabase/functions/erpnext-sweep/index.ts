@@ -40,9 +40,16 @@ import { DOCTYPE_BODIES } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/
 import { KIND_DOMAIN, KIND_MIRROR_TABLE } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/feedKinds.ts';
 import { feedLedgerMirrors } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/ledgerMirrorFeed.ts';
 import { refreshAccountingSnapshots, type OrgAccountingScope } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/accountingFanout.ts';
-import { dispatchMoneyWrite, type DispatchMoneyWriteDeps, type OutboxRow } from '../../../pmo-portal/src/lib/adapterSeam/dispatch.ts';
+import { dispatchMoneyWrite, type DispatchMoneyWriteDeps, type ExternalRefMapping, type OutboxRow } from '../../../pmo-portal/src/lib/adapterSeam/dispatch.ts';
+import type { AdapterCommand, PmoRecord } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
 import { resolveErpCredentials } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/credentials.ts';
 import type { ErpClientDeps } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/client.ts';
+import { resolveErpDispatchAdapter } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/dispatchFactory.ts';
+import { createDbMoneyOutboxDeps } from '../adapter-dispatch/moneyOutboxDeps.ts';
+import { getReadModelWriter } from '../adapter-dispatch/readModelWriters.ts';
+import { recordExternalRef as recordExternalRefWrite } from '../../../pmo-portal/src/lib/adapterSeam/refs.ts';
+import { probeErpByAnchorKey, probeErpByPaymentComposite } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/recoveryProbe.ts';
+import { ERPNEXT_COMPANIES_DOMAIN } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/adapter.ts';
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
 
 function json(body: unknown, status = 200): Response {
@@ -64,8 +71,9 @@ const SWEEP_DOCTYPES: Array<{ kind: ErpDocKind; doctype: string }> = (Object.ent
 export type ListOutboxCandidates = (orgId: string) => Promise<OutboxRow[]>;
 
 /** Builds the DispatchMoneyWriteDeps for one candidate row (the sweep wires the real outbox deps +
- *  adapter + read-model writers per org; the test injects mocks). */
-export type BuildReconcileDeps = (row: OutboxRow) => DispatchMoneyWriteDeps;
+ *  adapter + read-model writers per org; the test injects mocks). Async-capable so the live wiring can
+ *  resolve the adapter/binding; a sync mock (`() => deps`) still satisfies it (await on a value is a value). */
+export type BuildReconcileDeps = (row: OutboxRow) => DispatchMoneyWriteDeps | Promise<DispatchMoneyWriteDeps>;
 
 export interface ReconcileOrgOutboxResult {
   /** Candidates the pass drove through dispatchMoneyWrite this run. */
@@ -92,7 +100,7 @@ export async function reconcileOrgOutbox(
   const errors: Array<{ id: string; error: string }> = [];
   for (const candidate of candidates) {
     try {
-      await dispatch(buildDeps(candidate));
+      await dispatch(await buildDeps(candidate));
       reconciled += 1;
     } catch (err) {
       // A retryable reconcile (e.g. a quarantined row still in its window → "reconciling") is expected
@@ -334,19 +342,84 @@ Deno.serve(async (req: Request): Promise<Response> => {
   return json({ ok: true, ...cycle });
 });
 
-/** Placeholder for the full per-candidate DispatchMoneyWriteDeps wiring (the outbox ops via
- *  createDbMoneyOutboxDeps + the adapter + read-model writers, mirroring adapter-dispatch). Built out
- *  here for compile-time completeness; the unit test (outboxRecovery.test.ts) injects mocks + uses the
- *  REAL dispatchMoneyWrite, which is what proves the wiring. */
-function buildReconcileDepsLive(_serviceClient: SupabaseClient, _org: OrgBinding, row: OutboxRow): DispatchMoneyWriteDeps {
-  // The live wiring reuses createDbMoneyOutboxDeps (adapter-dispatch) + resolveErpDispatchAdapter +
-  // the read-model writers — the same deps adapter-dispatch builds per request. For slice 8's sweep
-  // (inert until an org is flipped + a money command leaves an orphan), this throws a clear sentinel
-  // so a premature fire surfaces loudly rather than silently no-op'ing. The reconcile ALGORITHM is
-  // proven (outboxRecovery.test.ts drives the real dispatchMoneyWrite with mocked deps); the live
-  // per-org deps wiring is a follow-up that lands alongside the first flipped money org.
-  throw new AppError(
-    `erpnext-sweep live outbox reconcile for ${row.domain}/${row.pmoRecordId} is not yet wired (lands with the first flipped money org)`,
-    'not-implemented',
-  );
+/**
+ * The full per-candidate `DispatchMoneyWriteDeps` wiring (SPEC-REVIEW RULING — the `not-implemented`
+ * sentinel is retired: the C-1 'held' state makes sweep-side reconciliation the operational PE-recovery
+ * path). Reassembles the SAME building blocks adapter-dispatch uses per request — `createDbMoneyOutboxDeps`
+ * (the fenced outbox ops + the composite/anchor probe + the reissue policy), `resolveErpDispatchAdapter`
+ * (the per-org ERP adapter), and the read-model writers — reconstructing the command from the outbox row
+ * + its persisted `payload.erp_doc_kind`. Inert in practice until an org is flipped AND a money command
+ * leaves a candidate (no employing org ⇒ no candidate ⇒ this never fires — "inert-by-empty-map").
+ */
+async function buildReconcileDepsLive(serviceClient: SupabaseClient, org: OrgBinding, row: OutboxRow): Promise<DispatchMoneyWriteDeps> {
+  // Re-read the persisted operation + payload (the OutboxRow projection drops them) to reconstruct the command.
+  const { data, error } = await serviceClient.from('external_command_outbox')
+    .select('operation, payload').eq('id', row.id).maybeSingle();
+  if (error || !data) throw new AppError(`outbox row ${row.id} not readable for reconcile`, error?.code ?? 'not-found');
+  const rowExtra = data as { operation: 'create' | 'update' | 'transition'; payload: Record<string, unknown> | null };
+  const payload = rowExtra.payload ?? {};
+  const kind = payload.erp_doc_kind;
+  const entry = typeof kind === 'string' && kind in DOCTYPE_REGISTRY ? DOCTYPE_REGISTRY[kind as ErpDocKind] : undefined;
+  const bodyFns = typeof kind === 'string' ? DOCTYPE_BODIES[kind as ErpDocKind] : undefined;
+  if (!entry || !bodyFns) {
+    // Loud (never a silent no-op): a candidate whose kind we cannot resolve needs an operator, not a POST.
+    throw new AppError(`erpnext-sweep reconcile: unresolvable erp_doc_kind '${String(kind)}' for ${row.domain}/${row.pmoRecordId}`, 'commit-rejected');
+  }
+
+  const { apiKey, apiSecret } = resolveErpCredentials(org.secretRef, (key) => Deno.env.get(key));
+  const client = { fetchImpl: fetch, apiKey, apiSecret, baseUrl: org.siteUrl };
+  const command: AdapterCommand = {
+    domain: row.domain as AdapterCommand['domain'],
+    operation: rowExtra.operation,
+    record: { id: row.pmoRecordId, erp_doc_kind: kind as string },
+    idempotencyKey: row.idempotencyKey,
+  };
+
+  const adapter = await resolveErpDispatchAdapter({
+    serviceClient: serviceClient as never,
+    orgId: org.orgId,
+    command,
+    fetchImpl: fetch,
+    apiKey,
+    apiSecret,
+    rateLimiter: { acquire: async () => {} },
+    doctypeBodies: DOCTYPE_BODIES,
+  });
+
+  const anchorField = entry.anchorField;
+  const probeDeps = { client, doctype: entry.doctype, anchorField: anchorField ?? '', fromDoc: bodyFns.fromDoc, pmoRecordId: row.pmoRecordId };
+  const encodeExternalRecordId = (mapping: ExternalRefMapping): string =>
+    mapping.domain === ERPNEXT_COMPANIES_DOMAIN ? `${entry.doctype}:${mapping.externalRecordId}` : mapping.externalRecordId;
+
+  const money = createDbMoneyOutboxDeps({
+    serviceClient: serviceClient as never,
+    orgId: org.orgId,
+    externalTier: ERPNEXT_TIER,
+    operation: rowExtra.operation,
+    reissueOnInconclusiveAbsence: !entry.anchorMutable,
+    encodeExternalRecordId,
+    probeByRemarksKey: !anchorField
+      ? async () => null
+      : !entry.anchorMutable
+        ? (_domain, idempotencyKey) => probeErpByAnchorKey(probeDeps, idempotencyKey)
+        // Mutable anchor (PE): the composite probe reads its inputs from THIS row's persisted payload.
+        : async (_domain, idempotencyKey) => {
+            if (!payload.party || payload.paid_amount == null) return probeErpByAnchorKey(probeDeps, idempotencyKey);
+            return probeErpByPaymentComposite(probeDeps, idempotencyKey, {
+              partyType: String(payload.party_type ?? 'Supplier'),
+              party: String(payload.party),
+              paidAmount: payload.paid_amount as string | number,
+              piNames: Array.isArray(payload.pi_names) ? (payload.pi_names as string[]) : [],
+              createdAfter: String(payload.created_after ?? ''),
+            });
+          },
+  });
+
+  const writeReadModel = async (canonical: PmoRecord): Promise<void> => {
+    await getReadModelWriter(row.domain).upsert({ serviceClient: serviceClient as never, orgId: org.orgId }, canonical, command);
+  };
+  const recordExternalRef = (mapping: ExternalRefMapping): Promise<void> =>
+    recordExternalRefWrite(serviceClient as never, { ...mapping, externalRecordId: encodeExternalRecordId(mapping), orgId: org.orgId });
+
+  return { adapter, command, writeReadModel, recordExternalRef, money };
 }

@@ -52,7 +52,7 @@ function mockedDeps(candidate: OutboxRow, moneyOverrides: Partial<DispatchMoneyO
   };
   const writes: PmoRecord[] = [];
   const refs: Array<{ pmoRecordId: string; externalRecordId: string }> = [];
-  const calls = { commit: 0, claim: 0, probe: 0, markCommitted: 0, markConfirmed: 0, markFailed: 0 };
+  const calls = { commit: 0, claim: 0, probe: 0, markCommitted: 0, finalized: 0, held: 0, markFailed: 0 };
   const adapter: Pick<Adapter, 'tier' | 'capabilityMap' | 'commit'> = {
     tier: 'erpnext',
     capabilityMap: new Set(['procurement']),
@@ -76,8 +76,10 @@ function mockedDeps(candidate: OutboxRow, moneyOverrides: Partial<DispatchMoneyO
     claimOutboxForCommit: claimTracker,
     quarantineCommitting: moneyOverrides.quarantineCommitting ?? (async () => null),
     markOutboxCommitted: async () => { calls.markCommitted += 1; return 1; },
-    verifyClaimGeneration: moneyOverrides.verifyClaimGeneration ?? (async () => true),
-    markOutboxConfirmed: async () => { calls.markConfirmed += 1; return 1; },
+    // H-1: the fenced finalize RPC (external_refs upsert + confirm) — tracks the ref for the assertions.
+    finalizeOutbox: moneyOverrides.finalizeOutbox ?? (async (_id, _gen, m) => { calls.finalized += 1; refs.push({ pmoRecordId: m.pmoRecordId, externalRecordId: m.externalRecordId }); return 1; }),
+    markOutboxHeld: moneyOverrides.markOutboxHeld ?? (async () => { calls.held += 1; return 1; }),
+    reissueOnInconclusiveAbsence: moneyOverrides.reissueOnInconclusiveAbsence ?? true,
     markOutboxFailed: async () => { calls.markFailed += 1; return 1; },
     probeByRemarksKey: probeTracker,
     backoff: async () => {},
@@ -98,8 +100,8 @@ Deno.test('AC-ENA-045: committed candidate → finalize-only (read-model upsert 
   assert(result.reconciled === 1, `expected reconciled=1, got ${result.reconciled}`);
   // finalize-only: the adapter's REAL committed canonical was mirrored + ref-recorded + confirmed.
   assert(spies.writes.length === 1 && spies.writes[0].id === 'pmo-1', 'committed → writeReadModel with the persisted canonical exactly once');
-  assert(spies.refs.length === 1 && spies.refs[0].externalRecordId === 'ACC-PINV-2026-00001', 'committed → recordExternalRef exactly once');
-  assert(spies.calls.markConfirmed >= 1, 'committed → markOutboxConfirmed called (the finalize promote)');
+  assert(spies.refs.length === 1 && spies.refs[0].externalRecordId === 'ACC-PINV-2026-00001', 'committed → external_refs upserted (inside the fenced finalize) exactly once');
+  assert(spies.calls.finalized >= 1, 'committed → finalizeOutbox called (the fenced ref-upsert + confirm promote)');
   assert(spies.calls.commit === 0, 'committed → adapter.commit MUST NOT be called (no ERP create)');
   assert(spies.calls.claim === 0, 'committed → no claim (finalize-only, no POST critical section)');
 });
