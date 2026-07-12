@@ -124,6 +124,10 @@ describe('erpnext/adapter — commit() create, non-submittable kind: single crea
     const adapter = createErpAdapter(deps);
     const result = await adapter.commit({ domain: 'companies', operation: 'create', record: { id: 'pmo-c-1', erp_doc_kind: 'supplier', supplier_name: 'Spike Supplier' } });
     expect(calls).toEqual(['POST']);
+    // The wire-level externalRecordId is the BARE ERP name (AC-ENA-040 live-bench proof: Supplier
+    // autonames by field:supplier_name) — the "<Doctype>:<name>" collision-safe encoding
+    // (partyAdopt.ts's externalIdFor, task 3.2) is applied only at the external_refs WRITE (index.ts's
+    // recordExternalRef wrapper, task 6.4 fix-round), never on the adapter's own return value.
     expect(result.externalRecordId).toBe('Spike Supplier');
     expect(result.canonical).toMatchObject({ id: 'pmo-c-1', erp_supplier_name: 'Spike Supplier' });
   });
@@ -152,6 +156,7 @@ describe('erpnext/adapter — commit() update, non-submittable kind (task 3.3, F
       record: { id: 'pmo-co-1', erp_doc_kind: 'supplier', name: 'Spike Supplier Renamed' },
     });
     expect(calls).toEqual([{ method: 'PUT', body: { supplier_name: 'Spike Supplier Renamed' }, url: 'https://erp.example.com/api/resource/Supplier/Spike%20Supplier' }]);
+    // Bare ERP name on the wire, consistent with the create path (see that test's comment).
     expect(result.externalRecordId).toBe('Spike Supplier');
     expect(result.canonical).toMatchObject({ id: 'pmo-co-1', erp_supplier_name: 'Spike Supplier Renamed' });
   });

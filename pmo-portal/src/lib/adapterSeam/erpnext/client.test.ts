@@ -4,7 +4,7 @@
  * non-idempotent POSTs. Every call injects `fetchImpl` — no real ERPNext bench is ever required.
  */
 import { describe, expect, it, vi } from 'vitest';
-import { createDoc, callMethod, erpnextRequest, ErpError, getDoc, submitDoc, cancelDoc, updateDoc, type ErpClientDeps } from './client.ts';
+import { createDoc, callMethod, erpnextRequest, ErpError, getDoc, submitDoc, cancelDoc, updateDoc, unwrapFrappeDoc, type ErpClientDeps } from './client.ts';
 
 function jsonResponse(status: number, body: unknown, headers: Record<string, string> = {}): Response {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json', ...headers } });
@@ -152,5 +152,39 @@ describe('erpnext/client', () => {
     const init = fetchMock.mock.calls[0][1] as RequestInit;
     expect(init.method).toBe('PUT');
     expect(JSON.parse(init.body as string)).toEqual({ supplier_name: 'Spike Supplier Renamed' });
+  });
+
+  // Task 6.4 fix-round (live-bench-discovered 2026-07-12): every real Frappe `/api/resource/<DocType>`
+  // single-doc response (POST create / GET single / PUT update-submit-cancel) is WRAPPED in a `{data:
+  // {...fields}}` envelope — confirmed against the real ERPNext v15 bench, never observed by any prior
+  // unit test because no e2e reached a real HTTP round-trip before task 6.4 wired the money outbox.
+  // `unwrapFrappeDoc` is a SAFE, additive, non-breaking unwrap: it unwraps ONLY when a `.data` object
+  // key is present (the real envelope shape), and passes a body through UNCHANGED when it is already
+  // flat (every existing test's mocked `fetchImpl` response, across every slice) — so no existing test
+  // fixture needs updating.
+  describe('unwrapFrappeDoc (task 6.4 fix-round — the real Frappe {data:{...}} envelope)', () => {
+    it('unwraps a real Frappe single-doc envelope {data:{...fields}}', () => {
+      expect(unwrapFrappeDoc({ data: { name: 'PUR-ORD-2026-00001', docstatus: 1 } })).toEqual({
+        name: 'PUR-ORD-2026-00001',
+        docstatus: 1,
+      });
+    });
+
+    it('passes a body through UNCHANGED when it has no .data key (every existing mocked test fixture)', () => {
+      expect(unwrapFrappeDoc({ name: 'PUR-ORD-2026-00001', docstatus: 1 })).toEqual({
+        name: 'PUR-ORD-2026-00001',
+        docstatus: 1,
+      });
+    });
+
+    it('does NOT unwrap when .data is an array (the list-query shape, a different endpoint entirely)', () => {
+      const body = { data: [{ name: 'PUR-ORD-2026-00001' }] };
+      expect(unwrapFrappeDoc(body)).toBe(body);
+    });
+
+    it('passes null/non-object bodies through unchanged (never throws)', () => {
+      expect(unwrapFrappeDoc(null)).toBeNull();
+      expect(unwrapFrappeDoc(undefined)).toBeUndefined();
+    });
   });
 });

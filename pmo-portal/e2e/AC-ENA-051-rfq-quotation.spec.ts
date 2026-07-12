@@ -64,7 +64,11 @@ test.describe('AC-ENA-051: RFQ + Supplier Quotation — served adapter-dispatch 
       site_url: ERPNEXT_SITE_URL,
       secret_ref: 'ac-ena-051-test-only',
       version_major: 15,
-      config: { company: 'PMO Smoke Co' },
+      // default_warehouse/default_uom (task 6.4 fix-round, live-bench finding): RFQ does not
+      // server-default a warehouse OR a uom on its item row, unlike Material Request — rfq.ts's
+      // toBody reads both from the binding config (the same "adapter/binding supplies what ERPNext
+      // itself won't default" discipline as the R9-frozen PI/PE/PO/GR bodies).
+      config: { company: 'PMO Smoke Co', default_warehouse: 'Stores - PSC', default_uom: 'Nos' },
       activated_at: new Date().toISOString(),
     });
     expect(bindingError).toBeNull();
@@ -128,8 +132,13 @@ test.describe('AC-ENA-051: RFQ + Supplier Quotation — served adapter-dispatch 
         .in('id', [quoteAPmoId, quoteBPmoId]);
       const rowA = mirroredQuotes?.find((r) => r.id === quoteAPmoId);
       const rowB = mirroredQuotes?.find((r) => r.id === quoteBPmoId);
-      expect(rowA?.total_amount).toBe('210000.00'); // 5 * 42000
-      expect(rowB?.total_amount).toBe('195000.00'); // 5 * 39000
+      // `total_amount` is a `numeric(14,2)` column (0001) — PostgREST serializes Postgres `numeric` as
+      // a JSON NUMBER (task 6.4 fix-round, live-bench-discovered: the decimal-STRING shape, moneyShape.ts's
+      // `toDecimalString`, governs the ADAPTER CONTRACT crossing PMO<->ERPNext, not a later `numeric`
+      // column's own wire representation on read — comparing as a number is the correct proof of the
+      // exact-value mirror, per FR-ENA-071).
+      expect(rowA?.total_amount).toBe(210000); // 5 * 42000
+      expect(rowB?.total_amount).toBe(195000); // 5 * 39000
       expect(rowA?.is_selected).toBe(false);
       expect(rowB?.is_selected).toBe(false);
 

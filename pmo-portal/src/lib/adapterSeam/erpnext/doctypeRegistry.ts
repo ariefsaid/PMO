@@ -37,6 +37,12 @@ export interface DoctypeEntry {
   doctype: string;
   submittable: boolean;
   readOnly?: boolean;
+  /** ADR-0057 §3 recovery-probe eligibility (task 6.4, live-bench-verified 2026-07-12): `true` only
+   *  for a doctype that actually carries a filterable stock `remarks` field (Purchase Invoice/Payment
+   *  Entry/Purchase Receipt) — every other kind lacks the field entirely on this ERPNext v15 bench, so
+   *  the probe MUST be skipped for them (never issue the erroring filtered GET); see
+   *  `doctypeRegistry.test.ts`'s docstring for the full finding. */
+  remarksQueryable: boolean;
   /** Assigned per entry by 2.7 (money doc bodies) + slice 3 (party bodies) via `DOCTYPE_BODIES`. */
   toBody: (rec: PmoRecord, ctx: ErpCtx) => unknown;
   /** Assigned per entry by 2.7 + slice 3 via `DOCTYPE_BODIES`. */
@@ -44,17 +50,18 @@ export interface DoctypeEntry {
 }
 
 /** The static registry — Frappe doctype names confined HERE. `submittable` drives the adapter's
- *  two-step create->submit (FR-ENA-044); `readOnly` marks a kind PMO never writes (e.g. Customer, OQ-4). */
-export const DOCTYPE_REGISTRY: Record<ErpDocKind, Pick<DoctypeEntry, 'doctype' | 'submittable' | 'readOnly'>> = {
-  'purchase-request': { doctype: 'Material Request', submittable: true },
-  rfq: { doctype: 'Request for Quotation', submittable: true },
-  quotation: { doctype: 'Supplier Quotation', submittable: true },
-  'purchase-order': { doctype: 'Purchase Order', submittable: true },
-  'goods-receipt': { doctype: 'Purchase Receipt', submittable: true },
-  'purchase-invoice': { doctype: 'Purchase Invoice', submittable: true },
-  payment: { doctype: 'Payment Entry', submittable: true },
-  supplier: { doctype: 'Supplier', submittable: false },
-  customer: { doctype: 'Customer', submittable: false }, // write scope settled in slice 3 (OQ-4)
+ *  two-step create->submit (FR-ENA-044); `readOnly` marks a kind PMO never writes (e.g. Customer, OQ-4);
+ *  `remarksQueryable` gates the ADR-0057 §3 recovery probe (task 6.4). */
+export const DOCTYPE_REGISTRY: Record<ErpDocKind, Pick<DoctypeEntry, 'doctype' | 'submittable' | 'readOnly' | 'remarksQueryable'>> = {
+  'purchase-request': { doctype: 'Material Request', submittable: true, remarksQueryable: false },
+  rfq: { doctype: 'Request for Quotation', submittable: true, remarksQueryable: false },
+  quotation: { doctype: 'Supplier Quotation', submittable: true, remarksQueryable: false },
+  'purchase-order': { doctype: 'Purchase Order', submittable: true, remarksQueryable: false },
+  'goods-receipt': { doctype: 'Purchase Receipt', submittable: true, remarksQueryable: true },
+  'purchase-invoice': { doctype: 'Purchase Invoice', submittable: true, remarksQueryable: true },
+  payment: { doctype: 'Payment Entry', submittable: true, remarksQueryable: true },
+  supplier: { doctype: 'Supplier', submittable: false, remarksQueryable: false },
+  customer: { doctype: 'Customer', submittable: false, remarksQueryable: false }, // write scope settled in slice 3 (OQ-4)
 };
 
 /** The generic 3-value ERP docstatus label (task 4.10, FR-ENA-110/111/117). Frappe's `docstatus`

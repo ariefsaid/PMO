@@ -28,9 +28,15 @@ const FUNCTIONS_URL = process.env.SUPABASE_FUNCTIONS_URL ?? '';
 const AUTH_URL = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? FUNCTIONS_URL;
 const ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY ?? process.env.SUPABASE_ANON_KEY ?? '';
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
-// The edge-runtime container reaches the host-published ERPNext bench via the Docker host alias, not
-// `localhost` (which inside that container means the container itself) — docs/environments.md §"P2".
-const ERPNEXT_BENCH_URL = process.env.ERPNEXT_BENCH_URL ?? 'http://host.docker.internal:8080';
+// ERPNEXT_BENCH_URL is used for THIS TEST PROCESS's own optional bench verification (runs on the
+// HOST) — `http://localhost:8080` is host-reachable but NOT reachable from inside the served fn's
+// Docker container. ERPNEXT_SITE_URL (task 6.4 fix-round, live-bench-discovered — matches
+// AC-ENA-040/050/051's own split) is what gets SEEDED into external_org_bindings.site_url — what the
+// served fn itself dials — and needs the Docker-reachable `host.docker.internal` alias
+// (docs/environments.md "P2"). Two different network contexts, two INDEPENDENT env vars (neither
+// falls back to the other — that was the original bug: one var served both contexts).
+const ERPNEXT_BENCH_URL = process.env.ERPNEXT_BENCH_URL ?? 'http://localhost:8080';
+const ERPNEXT_SITE_URL = process.env.ERPNEXT_SITE_URL ?? 'http://host.docker.internal:8080';
 // Bench creds NEVER live in this repo (NFR-ENA-SEC-002) — exported by the caller from
 // ~/Coding/frappe-docker-pmo/PMO-BENCH-NOTES.md (the same pair the served fn reads as
 // ERPNEXT_API_KEY/ERPNEXT_API_SECRET function secrets, `supabase/functions/.env.local`). The
@@ -100,7 +106,7 @@ async function seed(admin: SupabaseClient, suffix: string): Promise<Seed> {
     {
       org_id: ORG_ID,
       external_tier: 'erpnext',
-      site_url: ERPNEXT_BENCH_URL,
+      site_url: ERPNEXT_SITE_URL,
       secret_ref: 'local-bench',
       version_major: 15,
       config: { company: 'PMO Smoke Co' },

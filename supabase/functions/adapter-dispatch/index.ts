@@ -41,10 +41,14 @@ import { resolveErpCredentials } from '../../../pmo-portal/src/lib/adapterSeam/e
 // silent no-op (adapter.ts's `requireBodyFns`). Slice 3's supplier/customer entries now live in this
 // same shared table (doctypeBodies.ts) rather than a parallel local const — one side table, never two.
 import { DOCTYPE_BODIES } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/doctypeBodies.ts';
+import { DOCTYPE_REGISTRY, type ErpDocKind } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/doctypeRegistry.ts';
+import { probeErpByRemarksKey } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/recoveryProbe.ts';
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
 import type { Adapter, AdapterCommand, PmoRecord } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
+import type { DispatchMoneyOutboxDeps } from '../../../pmo-portal/src/lib/adapterSeam/dispatch.ts';
 import { getReadModelWriter } from './readModelWriters.ts';
 import { maybeFault, type FaultGate } from './faultSeams.ts';
+import { createDbMoneyOutboxDeps } from './moneyOutboxDeps.ts';
 
 /** The adapter-select context: the caller's org, the parsed command, and the service-role client for
  * per-request config lookups (project binding, external_refs resolution). Never used for adapter.commit(). */
@@ -96,22 +100,27 @@ function resolveClickUpAdapter(ctx: AdapterSelectContext): Promise<Adapter> {
 // confinement invariant: it never reads secret_ref/env itself — the resolved creds are passed in).
 const erpRateLimiter = { acquire: async () => {} };
 
-async function resolveErpBindingSecretRef(serviceClient: SupabaseClient, orgId: string): Promise<string> {
+interface ErpBindingRow {
+  site_url: string;
+  secret_ref: string;
+}
+
+async function resolveErpBindingRow(serviceClient: SupabaseClient, orgId: string): Promise<ErpBindingRow> {
   const { data, error } = await serviceClient
     .from('external_org_bindings')
-    .select('secret_ref')
+    .select('site_url, secret_ref')
     .eq('org_id', orgId)
     .eq('external_tier', ERPNEXT_TIER)
     .maybeSingle();
   if (error || !data) {
     throw new AppError('no erpnext binding configured for this org', error?.code ?? 'BINDING_NOT_FOUND');
   }
-  return (data as { secret_ref: string }).secret_ref;
+  return data as ErpBindingRow;
 }
 
 async function resolveErpAdapter(ctx: AdapterSelectContext): Promise<Adapter> {
-  const secretRef = await resolveErpBindingSecretRef(ctx.serviceClient, ctx.orgId);
-  const { apiKey, apiSecret } = resolveErpCredentials(secretRef, (key) => Deno.env.get(key));
+  const binding = await resolveErpBindingRow(ctx.serviceClient, ctx.orgId);
+  const { apiKey, apiSecret } = resolveErpCredentials(binding.secret_ref, (key) => Deno.env.get(key));
   return resolveErpDispatchAdapter({
     serviceClient: ctx.serviceClient as never,
     orgId: ctx.orgId,
@@ -127,6 +136,58 @@ async function resolveErpAdapter(ctx: AdapterSelectContext): Promise<Adapter> {
     // submit, between the submit PUT and the post-submit re-fetch — the ONLY tier with a two-step
     // commit (P0/P1 have none, so they never wire this hook).
     afterSubmitHook: () => maybeFault('after-submit-before-mirror', ctx.faultGate),
+  });
+}
+
+/**
+ * Task 6.4 (ADR-0057) — the DB-backed money-idempotency outbox deps for ONE erpnext non-read-only
+ * command. Re-resolves the org's binding (a second small read alongside `resolveErpAdapter`'s own —
+ * an acceptable per-request cost for the isolation of never smuggling credentials between the two
+ * concerns) purely to build the tier-specific `probeByRemarksKey` closure (ERPNext's `remarks`-stamp
+ * anchor, ADR-0057 §3): the recovery probe needs the SAME client creds/site_url as the adapter plus
+ * the command's `erp_doc_kind`'s doctype + `fromDoc` mapper — none of which the generic
+ * `DispatchMoneyOutboxDeps` interface carries (it is tier-agnostic, `moneyOutboxDeps.ts`). Every other
+ * outbox operation (claim/mark/verify/insert/read) is the tier-agnostic DB implementation.
+ */
+async function resolveErpMoneyOutboxDeps(ctx: AdapterSelectContext): Promise<DispatchMoneyOutboxDeps> {
+  // The outbox `operation` column (0095) is CHECK-constrained to create|update|transition — 'delete'
+  // never reaches it (the erpnext adapter itself rejects delete, OQ-8, cancel-only); reject loud here
+  // too, before any DB write, rather than letting a raw CHECK-violation surface.
+  if ((ctx.command.operation as string) === 'delete') {
+    throw new AppError('erpnext adapter does not support delete — cancel-only (OQ-8)', 'commit-rejected');
+  }
+  const binding = await resolveErpBindingRow(ctx.serviceClient, ctx.orgId);
+  const { apiKey, apiSecret } = resolveErpCredentials(binding.secret_ref, (key) => Deno.env.get(key));
+
+  const kind = (ctx.command.record as { erp_doc_kind?: unknown }).erp_doc_kind;
+  const entry = typeof kind === 'string' && kind in DOCTYPE_REGISTRY ? DOCTYPE_REGISTRY[kind as ErpDocKind] : undefined;
+  const bodyFns = typeof kind === 'string' ? DOCTYPE_BODIES[kind as ErpDocKind] : undefined;
+  if (!entry || !bodyFns) {
+    throw new AppError(`erpnext doctype body for '${String(kind)}' is not yet wired`, 'commit-rejected');
+  }
+
+  return createDbMoneyOutboxDeps({
+    serviceClient: ctx.serviceClient as never,
+    orgId: ctx.orgId,
+    externalTier: ERPNEXT_TIER,
+    operation: ctx.command.operation as 'create' | 'update' | 'transition',
+    // `entry.remarksQueryable === false` (live-bench finding, doctypeRegistry.ts): this doctype has
+    // no filterable `remarks` field on the real bench — Frappe rejects the probe's filtered GET
+    // outright. Skip the query entirely (resolve null immediately) rather than issue an erroring
+    // request; the DB claim (createDbMoneyOutboxDeps' claimOutboxForCommit) remains the sole R1
+    // concurrent-duplicate guard regardless, so this degrades only R3 orphan-adoption for these kinds.
+    probeByRemarksKey: !entry.remarksQueryable
+      ? async () => null
+      : (_domain, idempotencyKey) =>
+          probeErpByRemarksKey(
+            {
+              client: { fetchImpl: fetch, apiKey, apiSecret, baseUrl: binding.site_url },
+              doctype: entry.doctype,
+              fromDoc: bodyFns.fromDoc,
+              pmoRecordId: ctx.command.record.id,
+            },
+            idempotencyKey,
+          ),
   });
 }
 
@@ -223,6 +284,22 @@ Deno.serve(async (req: Request): Promise<Response> => {
     );
   }
 
+  // ── Server-side idempotency-key enforcement (task 6.4, FR-ENA-040, ADR-0057 §4) — at the top of
+  // the served path, BEFORE any adapter-select/binding/credential resolution: a non-read-only erpnext
+  // command with no idempotencyKey is rejected fast, never reaching the outbox or ERP. `dispatch.ts`'s
+  // `dispatchMoneyWrite` re-asserts the identical guard (unit-tested, AC-ENA-012) — this is a
+  // fail-fast duplicate at the integration boundary, not the sole enforcement point. P0/P1 (every
+  // other domain) is unaffected.
+  const isErpDomain = command.domain === ERPNEXT_COMPANIES_DOMAIN || command.domain === ERPNEXT_PROCUREMENT_DOMAIN;
+  // `AdapterOperation` has no 'read' member (reads never reach this handler as a write command) —
+  // the string cast mirrors dispatch.ts's own `(command.operation as string) !== 'read'` guard.
+  if (isErpDomain && (command.operation as string) !== 'read' && !command.idempotencyKey) {
+    return new Response(JSON.stringify({ error: 'commit-rejected', message: 'missing-idempotency-key' }), {
+      status: 422,
+      headers,
+    });
+  }
+
   // service_role client — used for the machine-write helpers (read-model upsert/update + external_refs
   // record) AND, for 'tasks', to resolve the per-request ClickUp binding/mapping at adapter-select time.
   // Never used for adapter.commit() — org_id never crosses into the adapter (AC-EAS-023).
@@ -250,8 +327,16 @@ Deno.serve(async (req: Request): Promise<Response> => {
   }
 
   let adapter: Adapter;
+  let money: DispatchMoneyOutboxDeps | undefined;
   try {
     adapter = await adapterFactory({ orgId, command, serviceClient, faultGate });
+    // Task 6.4 (ADR-0057): every non-read-only erpnext command routes through the money-idempotency
+    // outbox — `dispatchExternallyOwnedWrite` requires `money` to be set for this tier (it throws
+    // "dispatched without outbox deps" otherwise, the exact failure this task closes). P0/P1 (every
+    // other tier) never resolves this — `money` stays `undefined`, their path is byte-for-byte.
+    if (adapter.tier === ERPNEXT_TIER && (command.operation as string) !== 'read') {
+      money = await resolveErpMoneyOutboxDeps({ orgId, command, serviceClient, faultGate });
+    }
   } catch (err) {
     const appError = err instanceof AppError ? err : new AppError(err instanceof Error ? err.message : 'adapter select failed');
     return new Response(JSON.stringify({ error: appError.code ?? 'ADAPTER_SELECT_FAILED', message: appError.message }), {
@@ -296,8 +381,21 @@ Deno.serve(async (req: Request): Promise<Response> => {
       // PostgrestFilterBuilder, not a plain Promise — structurally satisfies
       // ServiceRoleTableClient at runtime but is not nominally assignable (same
       // documented cast pattern as agent-dispatch/index.ts).
-      recordExternalRef: (mapping) =>
-        recordExternalRefWrite(serviceClient as never, { ...mapping, orgId }),
+      //
+      // Companies-domain STORAGE-layer encoding (task 6.4 fix-round, live-bench-discovered
+      // 2026-07-12): `external_refs.external_record_id` for a party (Supplier/Customer) is ALWAYS
+      // "<Doctype>:<name>" (task 3.2's collision rule, partyAdopt.ts's `externalIdFor` — the SAME
+      // encoding `dispatchFactory.ts`'s `stripDoctypePrefix`/`stripPartyDoctypePrefix` already strip
+      // back off on every READ path). The adapter's own return value (`mapping.externalRecordId`,
+      // also the served-fn HTTP response body) stays the BARE ERP name (AC-ENA-040: Supplier autonames
+      // by `field:supplier_name`) — only THIS write applies the prefix, never the wire contract.
+      recordExternalRef: (mapping) => {
+        const kind = (command.record as { erp_doc_kind?: unknown }).erp_doc_kind;
+        const entry = typeof kind === 'string' && kind in DOCTYPE_REGISTRY ? DOCTYPE_REGISTRY[kind as ErpDocKind] : undefined;
+        const externalRecordId =
+          mapping.domain === ERPNEXT_COMPANIES_DOMAIN && entry ? `${entry.doctype}:${mapping.externalRecordId}` : mapping.externalRecordId;
+        return recordExternalRefWrite(serviceClient as never, { ...mapping, externalRecordId, orgId });
+      },
       // Delete-aware dispatch (Slice C, AC-CUA-038, FR-CUA-026): a ClickUp-native delete
       // tombstones the mirrored `tasks` row (OD-CUA-2) — dependency/milestone rows are
       // preserved (no cascade), and the external_refs mapping is kept as-is (dispatch.ts
@@ -309,6 +407,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
         ? (pmoRecordId: string) =>
             getReadModelWriter(command.domain).tombstone!({ serviceClient: serviceClient as never, orgId }, pmoRecordId)
         : undefined,
+      // The money-idempotency outbox (task 6.4, ADR-0057) — set only for a non-read-only erpnext
+      // command (built above); every other tier's `money` stays `undefined` (byte-for-byte).
+      money,
     });
     return new Response(JSON.stringify(result), { status: 200, headers });
   } catch (err) {

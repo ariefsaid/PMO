@@ -170,34 +170,57 @@ function doctypePath(doctype: string, name?: string): string {
   return name !== undefined ? `${base}/${encodeURIComponent(name)}` : base;
 }
 
+/**
+ * Frappe's real `/api/resource/<DocType>[/<name>]` single-doc response (POST create / GET single /
+ * PUT update-submit-cancel) is wrapped in `{data: {...fields}}` (task 6.4 fix-round,
+ * live-bench-discovered 2026-07-12 — no prior unit test observed a real HTTP round-trip, since no
+ * e2e ever reached one before task 6.4 wired the money outbox). Unwraps ONLY when a non-array object
+ * `.data` key is present (the real envelope shape) — a `.data` ARRAY (the list-query shape,
+ * `listDocNamesByRemarksKey`'s own endpoint) and any other shape (every existing mocked test fixture,
+ * which returns the flat fields directly) pass through UNCHANGED, so no existing test needs updating.
+ */
+export function unwrapFrappeDoc(body: unknown): unknown {
+  if (
+    body !== null &&
+    typeof body === 'object' &&
+    'data' in body &&
+    (body as { data: unknown }).data !== null &&
+    typeof (body as { data: unknown }).data === 'object' &&
+    !Array.isArray((body as { data: unknown }).data)
+  ) {
+    return (body as { data: unknown }).data;
+  }
+  return body;
+}
+
 /** `POST /api/resource/<DocType>` — insert as draft. Never blindly retried (FR-ENA-042); a
  *  duplicate-create risk on retry is guarded by the outbox above this module, not here. */
-export function createDoc(deps: ErpClientDeps, doctype: string, body: unknown): Promise<unknown> {
-  return erpnextRequest(deps, { method: 'POST', path: doctypePath(doctype), body });
+export async function createDoc(deps: ErpClientDeps, doctype: string, body: unknown): Promise<unknown> {
+  return unwrapFrappeDoc(await erpnextRequest(deps, { method: 'POST', path: doctypePath(doctype), body }));
 }
 
 /** `GET /api/resource/<DocType>/<name>` — used for the post-submit re-fetch (R9 §5 stale-status
  *  trap) and for reference lookups (e.g. `GET Company/<name>`). */
-export function getDoc(deps: ErpClientDeps, doctype: string, name: string): Promise<unknown> {
-  return erpnextRequest(deps, { method: 'GET', path: doctypePath(doctype, name) });
+export async function getDoc(deps: ErpClientDeps, doctype: string, name: string): Promise<unknown> {
+  return unwrapFrappeDoc(await erpnextRequest(deps, { method: 'GET', path: doctypePath(doctype, name) }));
 }
 
 /** `PUT /api/resource/<DocType>/<name>` `{docstatus:1}` — submit (FR-ENA-044). */
-export function submitDoc(deps: ErpClientDeps, doctype: string, name: string): Promise<unknown> {
-  return erpnextRequest(deps, { method: 'PUT', path: doctypePath(doctype, name), body: { docstatus: 1 } });
+export async function submitDoc(deps: ErpClientDeps, doctype: string, name: string): Promise<unknown> {
+  return unwrapFrappeDoc(await erpnextRequest(deps, { method: 'PUT', path: doctypePath(doctype, name), body: { docstatus: 1 } }));
 }
 
 /** `PUT /api/resource/<DocType>/<name>` `{docstatus:2}` — cancel (OQ-8: stock REST enforces
  *  cancel-only, never delete, on a once-submitted doc). */
-export function cancelDoc(deps: ErpClientDeps, doctype: string, name: string): Promise<unknown> {
-  return erpnextRequest(deps, { method: 'PUT', path: doctypePath(doctype, name), body: { docstatus: 2 } });
+export async function cancelDoc(deps: ErpClientDeps, doctype: string, name: string): Promise<unknown> {
+  return unwrapFrappeDoc(await erpnextRequest(deps, { method: 'PUT', path: doctypePath(doctype, name), body: { docstatus: 2 } }));
 }
 
 /** `PUT /api/resource/<DocType>/<name>` with a plain field patch, no `docstatus` (task 3.3) — a
  *  non-submittable doctype (a party — Supplier/Customer) has no docstatus lifecycle, so its update
  *  is a direct field PUT (never `submitDoc`/`cancelDoc`'s docstatus transition). */
-export function updateDoc(deps: ErpClientDeps, doctype: string, name: string, body: unknown): Promise<unknown> {
-  return erpnextRequest(deps, { method: 'PUT', path: doctypePath(doctype, name), body });
+export async function updateDoc(deps: ErpClientDeps, doctype: string, name: string, body: unknown): Promise<unknown> {
+  return unwrapFrappeDoc(await erpnextRequest(deps, { method: 'PUT', path: doctypePath(doctype, name), body }));
 }
 
 /** `GET /api/method/<rpc>` — the Frappe RPC surface (e.g. the version handshake). */

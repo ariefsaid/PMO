@@ -80,6 +80,11 @@ async function commitCreate(command: AdapterCommand, deps: ErpAdapterDeps): Prom
   const created = (await createDoc(deps.client, entry.doctype, body)) as { name: string };
 
   if (!entry.submittable) {
+    // The wire-level `externalRecordId` is always the BARE ERP `name` (AC-ENA-040: `body.
+    // externalRecordId` must equal the real ERP `name`, e.g. Supplier autonames by
+    // `field:supplier_name`) — the "<Doctype>:<name>" collision-safe encoding (task 3.2's
+    // `partyAdopt.ts` externalIdFor) is a STORAGE-layer concern applied only when writing
+    // `external_refs` (index.ts's `recordExternalRef` wrapper, task 6.4 fix-round), never here.
     const canonical: PmoRecord = { ...bodyFns.fromDoc(created), id: command.record.id };
     return { externalRecordId: created.name, canonical };
   }
@@ -138,6 +143,7 @@ async function commitUpdateNonSubmittable(command: AdapterCommand, deps: ErpAdap
   const body = bodyFns.toBody(command.record, deps.ctx);
   const updated = (await updateDoc(deps.client, entry.doctype, targetName, body)) as { name: string };
   const canonical: PmoRecord = { ...bodyFns.fromDoc(updated), id: command.record.id };
+  // Bare ERP name on the wire (see commitCreate's non-submittable branch for the full rationale).
   return { externalRecordId: updated.name, canonical };
 }
 

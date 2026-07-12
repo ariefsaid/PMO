@@ -22,6 +22,8 @@ const CTX: ErpCtx = {
     default_cash_account: 'Cash - PSC',
     default_bank_account: null,
     default_payable_account: 'Creditors - PSC',
+    default_warehouse: 'Stores - PSC',
+    default_uom: 'Nos',
   },
 };
 
@@ -97,11 +99,12 @@ describe('erpnext/bodies — R9-frozen toBody', () => {
     });
   });
 
-  it('FR-ENA-111 rfq.ts: supplier + item rows', () => {
+  it('FR-ENA-111 rfq.ts: supplier + item rows, with the binding config default_warehouse/default_uom + a hardcoded conversion_factor:1 per item + a hardcoded message_for_supplier (live-bench finding, task 6.4 fix-round: RFQ, unlike MR, does not server-default a warehouse — "Warehouse is mandatory for stock Item" — nor conversion_factor — "Conversion Factor is mandatory" — nor uom — "Value missing for: UOM" — nor message_for_supplier — "Value missing for Request for Quotation: Message for Supplier" — otherwise)', () => {
     const body = rfqToBody(rec({ items: [{ item_code: 'SPIKE-ITEM-1', qty: 5, schedule_date: '2026-07-25' }] }), CTX);
     expect(body).toEqual({
       suppliers: [{ supplier: 'Spike Supplier' }],
-      items: [{ item_code: 'SPIKE-ITEM-1', qty: 5, schedule_date: '2026-07-25' }],
+      message_for_supplier: 'Please submit your quotation.',
+      items: [{ item_code: 'SPIKE-ITEM-1', qty: 5, schedule_date: '2026-07-25', conversion_factor: 1, warehouse: 'Stores - PSC', uom: 'Nos' }],
     });
   });
 

@@ -36,7 +36,16 @@ const FUNCTIONS_URL = process.env.SUPABASE_FUNCTIONS_URL ?? '';
 const AUTH_URL = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? FUNCTIONS_URL;
 const ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY ?? process.env.SUPABASE_ANON_KEY ?? '';
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
+// BENCH_URL is used for THIS TEST PROCESS's own direct bench verification (runs on the HOST) --
+// `http://localhost:8080` is host-reachable but NOT reachable from inside the served fn's Docker
+// container. SITE_URL (task 6.4 fix-round, live-bench-discovered, matching AC-ENA-050/051's own
+// ERPNEXT_SITE_URL naming) is what gets SEEDED into external_org_bindings.site_url -- what the served
+// fn itself dials -- and needs the Docker-reachable `host.docker.internal` alias
+// (docs/environments.md "P2"). Two different network contexts, two different env vars; SITE_URL falls
+// back to BENCH_URL only when a caller hasn't set it (preserving any environment where the two
+// happen to coincide).
 const BENCH_URL = process.env.ERPNEXT_BENCH_URL ?? 'http://localhost:8080';
+const SITE_URL = process.env.ERPNEXT_SITE_URL ?? BENCH_URL;
 const BENCH_API_KEY = process.env.ERPNEXT_BENCH_API_KEY ?? '';
 const BENCH_API_SECRET = process.env.ERPNEXT_BENCH_API_SECRET ?? '';
 
@@ -82,7 +91,7 @@ test.beforeEach(async () => {
   const { error: bindErr } = await admin.from('external_org_bindings').insert({
     org_id: ORG_ID,
     external_tier: 'erpnext',
-    site_url: BENCH_URL,
+    site_url: SITE_URL,
     secret_ref: 'e2e-inline', // real creds are resolved from ERPNEXT_API_KEY/SECRET at the served fn (never stored here)
     version_major: 15,
     activated_at: new Date().toISOString(),
