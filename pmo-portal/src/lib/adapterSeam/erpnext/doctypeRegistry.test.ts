@@ -4,40 +4,60 @@
  * table + `submittable` flag (drives the two-step create->submit); `toBody`/`fromDoc` are attached
  * per-kind by later tasks (2.7 + slice 3) via a separate side table, kept out of this registry.
  *
- * `remarksQueryable` (task 6.4, ADR-0057 §3/Consequences — live-bench-discovered, R9-bench-verified
- * 2026-07-12): the recovery-probe anchor `GET .../<DocType>?filters=[["remarks",...]]` requires the
- * doctype to actually carry a filterable `remarks` field — confirmed against the real ERPNext v15
- * bench that only Purchase Invoice/Payment Entry/Purchase Receipt (money + receipt docs) do; Material
- * Request/RFQ/Supplier Quotation/Purchase Order/Supplier/Customer do NOT (Frappe rejects the filter
- * with `DataError: Field not permitted in query: remarks` — the field doesn't exist on those
- * doctypes). The ADR's own Consequences section anticipates this exact case ("If a future doctype
- * lacks remarks, that doctype's toBody chooses another stable stock text field") — this flag is the
- * MINIMAL safe response within that authorization: `false` doctypes skip the probe query entirely
- * (never issue the erroring GET) and always fall through to a fresh claim+POST, which stays R1-safe
- * (the DB claim is the actual concurrent-duplicate guard, unaffected) but forgoes R3 orphan-adoption
- * for those kinds — a smaller, cross-slice body-remapping fix is flagged for the Director as a
- * follow-up, not attempted here (touching 6 already-frozen/tested body files spans slices 2-5).
+ * `anchorField` (task 6.4 + Slice-6 completion, ADR-0057 §3 — live-bench-verified 2026-07-12): the
+ * recovery-probe anchor `GET .../<DocType>?filters=[[<anchorField>,...]]` requires a stock text field
+ * that (a) exists on the doctype, (b) is REST-filterable, AND (c) SURVIVES ERPNext's own `validate`
+ * hook through save+submit+re-fetch carrying the stamped idempotency key. The per-doctype override:
+ *  - Purchase Invoice / Purchase Receipt → `'remarks'` (live-bench-confirmed: the key survives
+ *    validate+submit+refetch verbatim AND the `remarks` filter returns the doc).
+ *  - Payment Entry → `'reference_no'` (the DIRECTOR RULING, live-bench-verified 2026-07-12: PE's own
+ *    `validate` hook OVERWRITES `remarks` with an auto-generated "Amount X to Y..." description on
+ *    every save — the stamped key is silently clobbered — BUT `reference_no` is a native, queryable
+ *    field that PMO owns for PMO-originated PEs and it SURVIVES validate+submit+refetch carrying the
+ *    key verbatim; the anchor matters only during the recovery window, so ERP-side edits afterward
+ *    are acceptable. `peToBody` never sends `reference_no`, so the stamp is the sole writer.)
+ *  - every other kind → `null` (no queryable anchor: Material Request/RFQ/Supplier Quotation/Purchase
+ *    Order/Supplier/Customer lack a filterable stock text field — Frappe rejects the filtered GET with
+ *    `DataError: Field not permitted in query`. A `null` anchor skips the probe entirely and always
+ *    falls through to a fresh claim+POST, which stays R1-safe — the DB claim is the actual
+ *    concurrent-duplicate guard, unaffected — but forgoes R3 orphan-adoption for those kinds).
+ *
+ * The ADR's own Consequences section anticipates this exact per-doctype case ("If a future doctype
+ * lacks remarks, that doctype's toBody chooses another stable stock text field") — `anchorField` is
+ * that mechanism realized: the field NAME lives here (confined), and `stampAnchor`/`probeErpByAnchorKey`
+ * consume it generically.
  */
 import { describe, expect, it } from 'vitest';
 import { DOCTYPE_REGISTRY } from './doctypeRegistry.ts';
 
 describe('erpnext/doctypeRegistry', () => {
-  it('FR-ENA-014 maps every PMO erp_doc_kind to its exact Frappe doctype name + submittable + remarksQueryable flags', () => {
+  it('FR-ENA-014 maps every PMO erp_doc_kind to its exact Frappe doctype name + submittable + anchorField', () => {
     expect(DOCTYPE_REGISTRY).toEqual({
-      'purchase-request': { doctype: 'Material Request', submittable: true, remarksQueryable: false },
-      rfq: { doctype: 'Request for Quotation', submittable: true, remarksQueryable: false },
-      quotation: { doctype: 'Supplier Quotation', submittable: true, remarksQueryable: false },
-      'purchase-order': { doctype: 'Purchase Order', submittable: true, remarksQueryable: false },
-      'goods-receipt': { doctype: 'Purchase Receipt', submittable: true, remarksQueryable: true },
-      'purchase-invoice': { doctype: 'Purchase Invoice', submittable: true, remarksQueryable: true },
-      payment: { doctype: 'Payment Entry', submittable: true, remarksQueryable: true },
-      supplier: { doctype: 'Supplier', submittable: false, remarksQueryable: false },
-      customer: { doctype: 'Customer', submittable: false, remarksQueryable: false },
+      'purchase-request': { doctype: 'Material Request', submittable: true, anchorField: null },
+      rfq: { doctype: 'Request for Quotation', submittable: true, anchorField: null },
+      quotation: { doctype: 'Supplier Quotation', submittable: true, anchorField: null },
+      'purchase-order': { doctype: 'Purchase Order', submittable: true, anchorField: null },
+      'goods-receipt': { doctype: 'Purchase Receipt', submittable: true, anchorField: 'remarks' },
+      'purchase-invoice': { doctype: 'Purchase Invoice', submittable: true, anchorField: 'remarks' },
+      // DIRECTOR RULING (Slice-6 completion, 2026-07-12): PE anchors on `reference_no`, not `remarks`
+      // — live-bench-verified: `remarks` is overwritten by ERPNext's `validate` hook, `reference_no`
+      // survives. See the file docstring + ADR-0057 §3.
+      payment: { doctype: 'Payment Entry', submittable: true, anchorField: 'reference_no' },
+      supplier: { doctype: 'Supplier', submittable: false, anchorField: null },
+      customer: { doctype: 'Customer', submittable: false, anchorField: null },
     });
   });
 
   it('FR-ENA-013 no Frappe doctype name appears twice (each ERP doc kind is unambiguous)', () => {
     const doctypes = Object.values(DOCTYPE_REGISTRY).map((entry) => entry.doctype);
     expect(new Set(doctypes).size).toBe(doctypes.length);
+  });
+
+  it('every anchored kind (anchorField != null) is submittable (the money-doc recovery surface)', () => {
+    for (const [kind, entry] of Object.entries(DOCTYPE_REGISTRY)) {
+      if (entry.anchorField !== null) {
+        expect(entry.submittable, `${kind} has an anchor but is not submittable`).toBe(true);
+      }
+    }
   });
 });

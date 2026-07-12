@@ -37,12 +37,15 @@ export interface DoctypeEntry {
   doctype: string;
   submittable: boolean;
   readOnly?: boolean;
-  /** ADR-0057 §3 recovery-probe eligibility (task 6.4, live-bench-verified 2026-07-12): `true` only
-   *  for a doctype that actually carries a filterable stock `remarks` field (Purchase Invoice/Payment
-   *  Entry/Purchase Receipt) — every other kind lacks the field entirely on this ERPNext v15 bench, so
-   *  the probe MUST be skipped for them (never issue the erroring filtered GET); see
-   *  `doctypeRegistry.test.ts`'s docstring for the full finding. */
-  remarksQueryable: boolean;
+  /** ADR-0057 §3 recovery-probe anchor (task 6.4 + Slice-6 completion, live-bench-verified
+   *  2026-07-12): the stock text field the adapter stamps the idempotency key into AND the recovery
+   *  probe filters by (`GET .../<DocType>?filters=[[<anchorField>,"like","%<key>%"], ...]`). `null`
+   *  means this doctype has NO queryable anchor that survives ERPNext's `validate` — the probe is
+   *  SKIPPED entirely (never issue the erroring filtered GET) and the row always falls through to a
+   *  fresh claim+POST. R1 (the DB-enforced atomic claim) is unaffected by the anchor; the anchor only
+   *  enables R3 orphan-adoption for a `pending`/`failed`-state crash. See `doctypeRegistry.test.ts`'s
+   *  docstring for the per-doctype empirical rationale (PI/PR → `remarks`; PE → `reference_no`). */
+  anchorField: string | null;
   /** Assigned per entry by 2.7 (money doc bodies) + slice 3 (party bodies) via `DOCTYPE_BODIES`. */
   toBody: (rec: PmoRecord, ctx: ErpCtx) => unknown;
   /** Assigned per entry by 2.7 + slice 3 via `DOCTYPE_BODIES`. */
@@ -51,25 +54,25 @@ export interface DoctypeEntry {
 
 /** The static registry — Frappe doctype names confined HERE. `submittable` drives the adapter's
  *  two-step create->submit (FR-ENA-044); `readOnly` marks a kind PMO never writes (e.g. Customer, OQ-4);
- *  `remarksQueryable` gates the ADR-0057 §3 recovery probe (task 6.4). */
-export const DOCTYPE_REGISTRY: Record<ErpDocKind, Pick<DoctypeEntry, 'doctype' | 'submittable' | 'readOnly' | 'remarksQueryable'>> = {
-  'purchase-request': { doctype: 'Material Request', submittable: true, remarksQueryable: false },
-  rfq: { doctype: 'Request for Quotation', submittable: true, remarksQueryable: false },
-  quotation: { doctype: 'Supplier Quotation', submittable: true, remarksQueryable: false },
-  'purchase-order': { doctype: 'Purchase Order', submittable: true, remarksQueryable: false },
-  'goods-receipt': { doctype: 'Purchase Receipt', submittable: true, remarksQueryable: true },
-  'purchase-invoice': { doctype: 'Purchase Invoice', submittable: true, remarksQueryable: true },
-  // CAUTION (live-bench finding, task 6.7, 2026-07-12): the `remarks` field on Payment Entry IS
-  // REST-filterable (this flag stays `true`) but the STAMPED VALUE never survives — ERPNext's own
-  // `validate` hook server-side OVERWRITES `remarks` with an auto-generated "Amount X to Y..."
-  // description on every save, silently clobbering `stampRemarks`'s idempotency key. R1 (the DB-
-  // enforced atomic claim) and the `committed`-state finalize-only reconcile path (proven at
-  // AC-ENA-010) are UNAFFECTED; R3's probe-based orphan-adopt for a `pending`/`failed`-state Payment
-  // Entry crash cannot self-heal via this anchor for this doctype — flagged for the Director, not
-  // resolved here (a different stock anchor or an accepted narrower gap needs a decision).
-  payment: { doctype: 'Payment Entry', submittable: true, remarksQueryable: true },
-  supplier: { doctype: 'Supplier', submittable: false, remarksQueryable: false },
-  customer: { doctype: 'Customer', submittable: false, remarksQueryable: false }, // write scope settled in slice 3 (OQ-4)
+ *  `anchorField` names the per-doctype recovery-probe anchor (ADR-0057 §3, task 6.4 — `null` ⇒ skip the
+ *  probe; 'remarks' for PI/PR; 'reference_no' for PE per the DIRECTOR RULING, see test docstring). */
+export const DOCTYPE_REGISTRY: Record<ErpDocKind, Pick<DoctypeEntry, 'doctype' | 'submittable' | 'readOnly' | 'anchorField'>> = {
+  'purchase-request': { doctype: 'Material Request', submittable: true, anchorField: null },
+  rfq: { doctype: 'Request for Quotation', submittable: true, anchorField: null },
+  quotation: { doctype: 'Supplier Quotation', submittable: true, anchorField: null },
+  'purchase-order': { doctype: 'Purchase Order', submittable: true, anchorField: null },
+  'goods-receipt': { doctype: 'Purchase Receipt', submittable: true, anchorField: 'remarks' },
+  'purchase-invoice': { doctype: 'Purchase Invoice', submittable: true, anchorField: 'remarks' },
+  // DIRECTOR RULING (Slice-6 completion, 2026-07-12, live-bench-verified): Payment Entry's own
+  // `validate` hook OVERWRITES `remarks` with an auto-generated "Amount X to Y..." description on
+  // every save — a key stamped into `remarks` is silently clobbered, so R3's probe can never find it.
+  // `reference_no` is a native, REST-filterable field that PMO owns for PMO-originated PEs (peToBody
+  // never sends it) AND it SURVIVES validate+submit+refetch carrying the key verbatim — so PE anchors
+  // on `reference_no` instead. The anchor matters only during the recovery window; ERP-side edits to
+  // reference_no afterward are acceptable. See ADR-0057 §3 (amended) + doctypeRegistry.test.ts docstring.
+  payment: { doctype: 'Payment Entry', submittable: true, anchorField: 'reference_no' },
+  supplier: { doctype: 'Supplier', submittable: false, anchorField: null },
+  customer: { doctype: 'Customer', submittable: false, anchorField: null }, // write scope settled in slice 3 (OQ-4)
 };
 
 /** The generic 3-value ERP docstatus label (task 4.10, FR-ENA-110/111/117). Frappe's `docstatus`

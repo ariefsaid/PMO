@@ -53,11 +53,14 @@ function requireBodyFns(deps: ErpAdapterDeps, kind: ErpDocKind): DoctypeBodyFns 
   return fns;
 }
 
-/** Stamps the idempotency key into the doctype's `remarks` field (ADR-0057 §3 — the recovery-probe
- *  anchor: `GET .../<DocType>?filters=[["remarks","like","%<key>%"]]`), once, on every create. */
-function stampRemarks(body: unknown, idempotencyKey: string | undefined): unknown {
-  if (!idempotencyKey || typeof body !== 'object' || body === null) return body;
-  return { ...(body as Record<string, unknown>), remarks: idempotencyKey };
+/** Stamps the idempotency key into the doctype's per-doctype ANCHOR field (ADR-0057 §3 — the
+ *  recovery-probe anchor: `GET .../<DocType>?filters=[[<anchorField>,"like","%<key>%"]]`),
+ *  once, on every create. The anchor field is `entry.anchorField` (doctypeRegistry — 'remarks' for
+ *  PI/Purchase Receipt, 'reference_no' for Payment Entry per the DIRECTOR RULING). A `null` anchor
+ *  (non-money kinds) skips the stamp entirely — those kinds have no recovery-probe anchor. */
+function stampAnchor(body: unknown, idempotencyKey: string | undefined, anchorField: string | null): unknown {
+  if (!idempotencyKey || !anchorField || typeof body !== 'object' || body === null) return body;
+  return { ...(body as Record<string, unknown>), [anchorField]: idempotencyKey };
 }
 
 /** Slice 5 addition (FR-ENA-103): substitute `ctx.resolvedItems` for `record.items` ONLY when the
@@ -76,7 +79,7 @@ async function commitCreate(command: AdapterCommand, deps: ErpAdapterDeps): Prom
   const entry = DOCTYPE_REGISTRY[kind];
   const bodyFns = requireBodyFns(deps, kind);
   const record = recordWithResolvedItemsFallback(command.record, deps.ctx);
-  const body = stampRemarks(bodyFns.toBody(record, deps.ctx), command.idempotencyKey);
+  const body = stampAnchor(bodyFns.toBody(record, deps.ctx), command.idempotencyKey, entry.anchorField);
   const created = (await createDoc(deps.client, entry.doctype, body)) as { name: string };
 
   if (!entry.submittable) {

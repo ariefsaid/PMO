@@ -42,7 +42,7 @@ import { resolveErpCredentials } from '../../../pmo-portal/src/lib/adapterSeam/e
 // same shared table (doctypeBodies.ts) rather than a parallel local const — one side table, never two.
 import { DOCTYPE_BODIES } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/doctypeBodies.ts';
 import { DOCTYPE_REGISTRY, type ErpDocKind } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/doctypeRegistry.ts';
-import { probeErpByRemarksKey } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/recoveryProbe.ts';
+import { probeErpByAnchorKey } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/recoveryProbe.ts';
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
 import type { Adapter, AdapterCommand, PmoRecord } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
 import type { DispatchMoneyOutboxDeps } from '../../../pmo-portal/src/lib/adapterSeam/dispatch.ts';
@@ -166,23 +166,29 @@ async function resolveErpMoneyOutboxDeps(ctx: AdapterSelectContext): Promise<Dis
     throw new AppError(`erpnext doctype body for '${String(kind)}' is not yet wired`, 'commit-rejected');
   }
 
+  // `entry.anchorField === null` (live-bench finding, doctypeRegistry.ts): this doctype has no
+  // queryable anchor field that survives ERPNext's validate — Frappe rejects the probe's filtered
+  // GET outright (or, for PE's `remarks`, the stamp is silently overwritten). Skip the query
+  // entirely (resolve null immediately) rather than issue an erroring request; the DB claim
+  // (createDbMoneyOutboxDeps' claimOutboxForCommit) remains the sole R1 concurrent-duplicate guard
+  // regardless, so this degrades only R3 orphan-adoption for these kinds. PI/Purchase Receipt anchor
+  // on 'remarks'; Payment Entry anchors on 'reference_no' (the DIRECTOR RULING — PE's validate
+  // overwrites remarks; reference_no survives, ADR-0057 §3 amended). Captured in a const here so the
+  // probe closure sees the narrowed `string` type (entry.anchorField is `string | null` on the record).
+  const anchorField = entry.anchorField;
   return createDbMoneyOutboxDeps({
     serviceClient: ctx.serviceClient as never,
     orgId: ctx.orgId,
     externalTier: ERPNEXT_TIER,
     operation: ctx.command.operation as 'create' | 'update' | 'transition',
-    // `entry.remarksQueryable === false` (live-bench finding, doctypeRegistry.ts): this doctype has
-    // no filterable `remarks` field on the real bench — Frappe rejects the probe's filtered GET
-    // outright. Skip the query entirely (resolve null immediately) rather than issue an erroring
-    // request; the DB claim (createDbMoneyOutboxDeps' claimOutboxForCommit) remains the sole R1
-    // concurrent-duplicate guard regardless, so this degrades only R3 orphan-adoption for these kinds.
-    probeByRemarksKey: !entry.remarksQueryable
+    probeByRemarksKey: !anchorField
       ? async () => null
       : (_domain, idempotencyKey) =>
-          probeErpByRemarksKey(
+          probeErpByAnchorKey(
             {
               client: { fetchImpl: fetch, apiKey, apiSecret, baseUrl: binding.site_url },
               doctype: entry.doctype,
+              anchorField,
               fromDoc: bodyFns.fromDoc,
               pmoRecordId: ctx.command.record.id,
             },

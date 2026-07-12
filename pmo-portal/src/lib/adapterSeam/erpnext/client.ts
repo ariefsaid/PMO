@@ -176,7 +176,7 @@ function doctypePath(doctype: string, name?: string): string {
  * live-bench-discovered 2026-07-12 — no prior unit test observed a real HTTP round-trip, since no
  * e2e ever reached one before task 6.4 wired the money outbox). Unwraps ONLY when a non-array object
  * `.data` key is present (the real envelope shape) — a `.data` ARRAY (the list-query shape,
- * `listDocNamesByRemarksKey`'s own endpoint) and any other shape (every existing mocked test fixture,
+ * `listDocNamesByAnchor`'s own endpoint) and any other shape (every existing mocked test fixture,
  * which returns the flat fields directly) pass through UNCHANGED, so no existing test needs updating.
  */
 export function unwrapFrappeDoc(body: unknown): unknown {
@@ -229,19 +229,23 @@ export function callMethod(deps: ErpClientDeps, methodPath: string): Promise<unk
 }
 
 /**
- * The ADR-0057 §3 recovery-probe query: list the `name`s of `<DocType>` docs whose stock `remarks`
- * field carries the idempotency key (`GET /api/resource/<DocType>?filters=[["remarks","like","%<key>%"]]`).
+ * The ADR-0057 §3 recovery-probe query: list the `name`s of `<DocType>` docs whose stock anchor
+ * field (`anchorField`) carries the idempotency key
+ * (`GET /api/resource/<DocType>?filters=[[<anchorField>,"like","%<key>%"]`).
  * Returns at most `limit` names (default 1 — an idempotency key stamps exactly one doc). A `GET` is
- * idempotent so the standard retry/backoff applies (unlike a create POST). The remarks stamp is
- * written by `adapter.ts`'s `stampRemarks` on every create.
+ * idempotent so the standard retry/backoff applies (unlike a create POST). The anchor stamp is
+ * written by `adapter.ts`'s `stampAnchor` on every create; the anchor FIELD is per-doctype
+ * (doctypeRegistry's `anchorField` — 'remarks' for PI/Purchase Receipt, 'reference_no' for Payment
+ * Entry per the DIRECTOR RULING, ADR-0057 §3).
  */
-export async function listDocNamesByRemarksKey(
+export async function listDocNamesByAnchor(
   deps: ErpClientDeps,
   doctype: string,
+  anchorField: string,
   idempotencyKey: string,
   limit = 1,
 ): Promise<string[]> {
-  const filters = encodeURIComponent(JSON.stringify([['remarks', 'like', `%${idempotencyKey}%`]]));
+  const filters = encodeURIComponent(JSON.stringify([[anchorField, 'like', `%${idempotencyKey}%`]]));
   const path = `${doctypePath(doctype)}?filters=${filters}&limit_page_length=${limit}`;
   const res = await erpnextRequest(deps, { method: 'GET', path });
   const data = (res as { data?: Array<{ name?: unknown }> } | null)?.data;

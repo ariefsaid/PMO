@@ -124,12 +124,32 @@ So the lease bounds *liveness* (no permanent wedge), the quarantine bounds *POST
 `POST` is adopted, never duplicated), and the fencing token bounds *write-back safety* (no stale write-back
 and no duplicate finalize).
 
-### 3. The adapter stamps the key into a stable stock field (the recovery probe anchor)
+### 3. The adapter stamps the key into a per-doctype stable stock ANCHOR field (the recovery probe anchor)
 
-The ERPNext `toBody` appends the `idempotencyKey` into the doctype's stock `remarks`/`remark` text field
-(no custom field — NFR-ENA-SEC-001). This lets a recovery probe find an orphaned commit by
-`GET /api/resource/<DocType>?filters=[["remark(s)","like","%<key>%"]]` (FR-ENA-041/043) — a deterministic
-"did ERP already commit this key?" lookup with no ERPNext-side idempotency support required.
+The adapter (`erpnext/adapter.ts`'s `stampAnchor`) appends the `idempotencyKey` into the doctype's
+per-doctype **anchor field** — named in `doctypeRegistry.ts`'s `anchorField` entry (no custom field —
+NFR-ENA-SEC-001). This lets a recovery probe (`erpnext/recoveryProbe.ts`'s `probeErpByAnchorKey`) find
+an orphaned commit by `GET /api/resource/<DocType>?filters=[[<anchorField>,"like","%<key>%"]]`
+(FR-ENA-041/043) — a deterministic "did ERP already commit this key?" lookup with no ERPNext-side
+idempotency support required.
+
+**Per-doctype anchor override (DIRECTOR RULING, live-bench-verified 2026-07-12).** The anchor field is
+chosen PER DOCTYPE because ERPNext's own `validate` hooks clobber some stock fields on every save:
+
+| doctype | `anchorField` | rationale (live-bench-verified against frappe/erpnext:v15.94.3) |
+|---|---|---|
+| Purchase Invoice | `remarks` | Survives validate+submit+re-fetch verbatim; REST-filterable; the filter returns the doc. |
+| Purchase Receipt | `remarks` | Same — `remarks` survives and is filterable. |
+| **Payment Entry** | **`reference_no`** | PE's own `validate` hook **OVERWRITES `remarks`** with an auto-generated `"Amount IDR X to <party>\nTransaction reference no <ref> dated <d>"` description on every save — a key stamped into `remarks` is silently clobbered, so the probe can never find it. **`reference_no`** is a native, REST-filterable field that PMO owns for PMO-originated PEs (`peToBody` never sends it), and it **SURVIVES validate+submit+re-fetch** carrying the key verbatim — so PE anchors on `reference_no` instead. |
+| every other kind | `null` (no anchor) | Material Request/RFQ/Supplier Quotation/Purchase Order/Supplier/Customer lack a filterable stock text field — Frappe rejects the filtered GET with `DataError: Field not permitted in query`. A `null` anchor skips the probe entirely; R1 (the DB atomic claim) is unaffected, only R3 orphan-adoption is forgone for these (non-money or pre-money) kinds. |
+
+The anchor matters **only during the recovery window** (a `pending`/`failed`-state crash where the
+adapter's own returned `external_record_id` is unknown). The `committed`-state finalize path
+(AC-ENA-010) and the `confirmed`-state replay never call the probe — they carry the adapter's real
+returned canonical. ERP-side edits to `reference_no` after the reconcile window closes are therefore
+acceptable (the anchor has already served its purpose). For a PMO-originated Payment Entry the
+`reference_no` IS the idempotency key for the life of the doc (PMO owns the field) — the trade-off the
+ruling accepts for a real R3 probe on the money doctype where the original `remarks` design is broken.
 
 ### 4. The atomic recovery algorithm (R1/R3 — reconcile by outbox state, never a blind re-create)
 
