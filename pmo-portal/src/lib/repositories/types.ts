@@ -85,6 +85,7 @@ import type { PageParams } from '@/src/lib/pagination';
 import type { UsageSummaryRow, OperatorUsageSummaryRow, OperatorOrgRow, RunStatsRow, OperatorRunStatsRow } from '@/src/lib/db/usage';
 import type { OrgFeatureKey } from '@/src/lib/features';
 import type { ExternalDomainOwnershipRow } from '@/src/lib/db/externalDomainOwnership';
+import type { ErpActualsSnapshotRow, ErpAgingSnapshotRow } from '@/src/lib/db/erpSnapshots';
 
 export interface ProjectRepository {
   list(
@@ -448,6 +449,7 @@ export interface Repositories {
   orgFeature: OrgFeatureRepository;
   credits: CreditsRepository;
   externalDomainOwnership: ExternalDomainOwnershipRepository;
+  erpSnapshots: ErpSnapshotsRepository;
 }
 
 /**
@@ -481,4 +483,11 @@ export interface CreditsRepository {
  */
 export interface ExternalDomainOwnershipRepository {
   listOwn(): Promise<ExternalDomainOwnershipRow[]>;
+}
+
+/** Read-only accounting snapshot surface (Slice 7, ADR-0048). RLS-scoped; no write path. */
+export interface ErpSnapshotsRepository {
+  actuals(): Promise<ErpActualsSnapshotRow[]>;
+  apAging(): Promise<ErpAgingSnapshotRow[]>;
+  arAging(): Promise<ErpAgingSnapshotRow[]>;
 }
