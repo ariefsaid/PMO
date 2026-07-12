@@ -179,6 +179,7 @@ import {
   grantOrgCredits,
 } from '@/src/lib/db/orgFeatures';
 import { listOwnExternalDomainOwnership } from '@/src/lib/db/externalDomainOwnership';
+import { listActualsSnapshot, listApAgingSnapshot, listArAgingSnapshot } from '@/src/lib/db/erpSnapshots';
 import { routeDomainWrite } from '@/src/lib/adapterSeam/ownershipCache';
 import { dispatchDomainCommand } from '@/src/lib/adapterSeam/dispatchClient';
 import type {
@@ -202,6 +203,7 @@ import type {
   OrgFeatureRepository,
   CreditsRepository,
   ExternalDomainOwnershipRepository,
+  ErpSnapshotsRepository,
 } from './types';
 
 /** Runs a DAL call and rethrows any failure as a normalized `AppError` (code preserved). */
@@ -502,6 +504,12 @@ const externalDomainOwnership: ExternalDomainOwnershipRepository = {
   listOwn: () => wrap(() => listOwnExternalDomainOwnership()),
 };
 
+const erpSnapshots: ErpSnapshotsRepository = {
+  actuals: () => wrap(() => listActualsSnapshot()),
+  apAging: () => wrap(() => listApAgingSnapshot()),
+  arAging: () => wrap(() => listArAgingSnapshot()),
+};
+
 /** The Supabase-backed repositories the FE/CRUD layer consumes (ADR-0017). */
 export const repositories: Repositories = {
   project,
@@ -523,6 +531,7 @@ export const repositories: Repositories = {
   orgFeature,
   credits,
   externalDomainOwnership,
+  erpSnapshots,
 };
 
 export type {
@@ -546,4 +555,5 @@ export type {
   OrgFeatureRepository,
   CreditsRepository,
   ExternalDomainOwnershipRepository,
+  ErpSnapshotsRepository,
 } from './types';
