@@ -12,6 +12,7 @@
  */
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
 import type { AdapterCommand, PmoRecord } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
+import { mapErpDocstatus } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/doctypeRegistry.ts';
 
 /** Structural service-role client seam the writers below need: `.from(t).{insert,update,upsert}`.
  *  The real supabase-js client satisfies this at runtime but is not nominally assignable (thenable
@@ -104,11 +105,141 @@ const notWired = (domain: string): ReadModelWriter => ({
   },
 });
 
+/** A registered-but-not-yet-wired erp_doc_kind WITHIN the 'procurement' writer (task 4.5's own
+ *  loud-throw discipline, one level down from `notWired` — 'procurement' the domain IS wired, but not
+ *  every sub-doctype kind is yet). Slices 5/6 add cases to the switch below, additively. */
+function kindNotWired(kind: unknown): never {
+  throw new AppError(`erpnext procurement read-model writer for erp_doc_kind '${String(kind)}' is wired in slices 5/6`, 'UNSUPPORTED_DOMAIN');
+}
+
+/** `purchase_requests`/`rfqs` share the exact same mirror shape (§7: `<kind>_number`, `amount`,
+ *  `erp_docstatus`, `erp_modified` + a derived `status`) — the only per-table deltas are the table
+ *  name, the `<kind>_number` column name, and how a 'Submitted' docstatus maps into that table's own
+ *  `status` CHECK domain (`rfqs` has no 'Submitted' value; it uses 'Issued' instead, FR-ENA-111). */
+async function upsertHeaderMirror(
+  ctx: ReadModelWriterCtx,
+  canonical: PmoRecord,
+  command: AdapterCommand,
+  opts: { table: string; numberColumn: string; mapStatus: (label: ReturnType<typeof mapErpDocstatus>) => string },
+): Promise<void> {
+  const status = opts.mapStatus(mapErpDocstatus((canonical.erp_docstatus as number | null | undefined) ?? null));
+  const mirrorFields: Record<string, unknown> = {
+    [opts.numberColumn]: canonical[opts.numberColumn] ?? null,
+    amount: canonical.amount ?? null,
+    erp_docstatus: (canonical.erp_docstatus as number | null | undefined) ?? null,
+    erp_modified: (canonical.erp_modified as string | null | undefined) ?? null,
+    status,
+  };
+  if (command.operation === 'create') {
+    const procurementId = (command.record as { procurementId?: string }).procurementId;
+    if (!procurementId) throw new AppError(`procurementId is required to mirror a created ${opts.table} row`, 'BAD_REQUEST');
+    const { error } = await ctx.serviceClient.from(opts.table).insert({ id: canonical.id, org_id: ctx.orgId, procurement_id: procurementId, ...mirrorFields });
+    if (error) throw new AppError(error.message, error.code);
+    return;
+  }
+  const { error } = await (
+    ctx.serviceClient.from(opts.table).update(mirrorFields).eq('org_id', ctx.orgId).eq('id', canonical.id) as unknown as Promise<{
+      error: { message: string; code?: string } | null;
+    }>
+  );
+  if (error) throw new AppError(error.message, error.code);
+}
+
+/** `procurement_quotations` (§7, FR-ENA-112): native mirror is `total_amount`/`valid_until`/
+ *  `vq_number`/`erp_*` — the PMO enhancement `is_selected` is NEVER touched here (it stays whatever
+ *  the row already has; a fresh INSERT relies on the column's own `default false`, FR-ENA-130). */
+async function upsertQuotationMirror(ctx: ReadModelWriterCtx, canonical: PmoRecord, command: AdapterCommand): Promise<void> {
+  const mirrorFields: Record<string, unknown> = {
+    vq_number: canonical.vq_number ?? null,
+    total_amount: canonical.total_amount ?? null,
+    valid_until: (canonical.valid_until as string | null | undefined) ?? null,
+    erp_docstatus: (canonical.erp_docstatus as number | null | undefined) ?? null,
+    erp_modified: (canonical.erp_modified as string | null | undefined) ?? null,
+  };
+  if (command.operation === 'create') {
+    const record = command.record as { procurementId?: string; vendorId?: string };
+    if (!record.procurementId || !record.vendorId) {
+      throw new AppError('procurementId and vendorId are required to mirror a created procurement_quotations row', 'BAD_REQUEST');
+    }
+    const { error } = await ctx.serviceClient
+      .from('procurement_quotations')
+      .insert({ id: canonical.id, org_id: ctx.orgId, procurement_id: record.procurementId, vendor_id: record.vendorId, ...mirrorFields });
+    if (error) throw new AppError(error.message, error.code);
+    return;
+  }
+  const { error } = await (
+    ctx.serviceClient.from('procurement_quotations').update(mirrorFields).eq('org_id', ctx.orgId).eq('id', canonical.id) as unknown as Promise<{
+      error: { message: string; code?: string } | null;
+    }>
+  );
+  if (error) throw new AppError(error.message, error.code);
+}
+
+/** P2 ERPNext `procurement` writer (task 4.5): dispatches by the command's `erp_doc_kind` — the SAME
+ *  PMO-side discriminator `erpnext/doctypeRegistry.ts` uses (confinement, FR-ENA-013). Slice 4 wires
+ *  the first 3 non-money sub-doctypes; slices 5/6 append cases (purchase-order/goods-receipt/
+ *  purchase-invoice/payment), additively — this switch is the SHARED registration point. */
+const procurementWriter: ReadModelWriter = {
+  async upsert(ctx, canonical, command) {
+    const kind = (command.record as { erp_doc_kind?: string }).erp_doc_kind;
+    switch (kind) {
+      case 'purchase-request':
+        return upsertHeaderMirror(ctx, canonical, command, {
+          table: 'purchase_requests',
+          numberColumn: 'pr_number',
+          // purchase_requests.status has no 'Cancelled' value (Draft|Submitted|Approved|Closed) — the
+          // terminal ERP-cancelled state maps onto the existing 'Closed' value instead (FR-ENA-130e:
+          // status CHECK constraints are preserved unchanged, populated by derivation).
+          mapStatus: (s) => (s === 'Cancelled' ? 'Closed' : s),
+        });
+      case 'rfq':
+        return upsertHeaderMirror(ctx, canonical, command, {
+          table: 'rfqs',
+          numberColumn: 'rfq_number',
+          // rfqs.status has no 'Submitted'/'Cancelled' value (Draft|Issued|Closed) — FR-ENA-111.
+          mapStatus: (s) => (s === 'Submitted' ? 'Issued' : s === 'Cancelled' ? 'Closed' : s),
+        });
+      case 'quotation':
+        return upsertQuotationMirror(ctx, canonical, command);
+      default:
+        return kindNotWired(kind);
+    }
+  },
+};
+
+/**
+ * Mirrors an ERP line's `quantity`/`rate`/`erp_line_amount`/`erp_docstatus`/`erp_modified` onto an
+ * EXISTING `procurement_items` row (§7, FR-ENA-071) — NEVER `amount` (the `quantity*rate` GENERATED
+ * column, FR-ENA-171: the adapter must never attempt to write it).
+ *
+ * Scope note (task 4.5): this is the typed, tested per-row mirror PRIMITIVE. Wiring it into the live
+ * `procurementWriter.upsert` switch above needs a concrete PMO-item<->ERP-line-row correlation — MR/
+ * RFQ/SQ commands this slice carry `items` inline in the command body (no `procurement_items.id`
+ * round-trips through the ERP body/response, R9's bodies §0/§3 send only `{item_code,qty,rate,...}`)
+ * so there is no existing target row to correlate an ERP-returned line against yet. Slices 5/6 (PO/GR)
+ * resolve the PO item CHILD-ROW `name` explicitly (FR-ENA-103) and are the first callers with a real
+ * key to correlate against — this primitive is what they call. Never guessed/auto-matched here.
+ */
+export async function upsertProcurementItemMirror(
+  ctx: ReadModelWriterCtx,
+  procurementItemId: string,
+  line: { quantity: string; rate: string; erpLineAmount: string | null; erpDocstatus: number | null; erpModified: string | null },
+): Promise<void> {
+  const { error } = await (
+    ctx.serviceClient
+      .from('procurement_items')
+      .update({ quantity: line.quantity, rate: line.rate, erp_line_amount: line.erpLineAmount, erp_docstatus: line.erpDocstatus, erp_modified: line.erpModified })
+      .eq('org_id', ctx.orgId)
+      .eq('id', procurementItemId) as unknown as Promise<{ error: { message: string; code?: string } | null }>
+  );
+  if (error) throw new AppError(error.message, error.code);
+}
+
 export const READ_MODEL_WRITERS: Record<string, ReadModelWriter> = {
   reference: referenceWriter,
   tasks: tasksWriter,
   companies: notWired('companies'),
-  procurement: notWired('procurement'),
+  procurement: procurementWriter,
 };
 
 /** The single lookup point — an unknown domain throws (no silent skip). */

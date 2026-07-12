@@ -9,6 +9,7 @@
  * (2.7 wires the money-doc bodies, slice 3 wires supplier/customer) so this file stays the single,
  * append-only source of Frappe names — no per-slice edits to this table.
  */
+import { AdapterError } from '../contract.ts';
 import type { PmoRecord } from '../contract.ts';
 
 export type ErpDocKind =
@@ -51,3 +52,17 @@ export const DOCTYPE_REGISTRY: Record<ErpDocKind, Pick<DoctypeEntry, 'doctype' |
   supplier: { doctype: 'Supplier', submittable: false },
   customer: { doctype: 'Customer', submittable: false }, // write scope settled in slice 3 (OQ-4)
 };
+
+/** The generic 3-value ERP docstatus label (task 4.10, FR-ENA-110/111/117). Frappe's `docstatus`
+ *  domain is exactly `0|1|2` (R9 §5) — this stays TABLE-AGNOSTIC on purpose: a record-table mirror
+ *  writer adapts the returned label into its own `status` CHECK domain (e.g. `rfqs.status` has no
+ *  'Submitted' value; the writer maps 'Submitted'->'Issued' for that table). `null`/absent (never
+ *  observed post-create, but never silently mis-mapped either) defaults to 'Draft'. */
+export type ErpDocstatusStatus = 'Draft' | 'Submitted' | 'Cancelled';
+
+export function mapErpDocstatus(docstatus: number | null): ErpDocstatusStatus {
+  if (docstatus === null || docstatus === 0) return 'Draft';
+  if (docstatus === 1) return 'Submitted';
+  if (docstatus === 2) return 'Cancelled';
+  throw new AdapterError('commit-rejected', `unexpected erp docstatus value: ${docstatus}`);
+}

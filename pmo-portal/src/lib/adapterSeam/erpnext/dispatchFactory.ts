@@ -11,6 +11,7 @@ import type { ErpDocKind } from './doctypeRegistry.ts';
 import type { ErpRateLimiter } from './client.ts';
 import type { Adapter, AdapterCommand } from '../contract.ts';
 import { AppError } from '../../appError.ts';
+import { resolveExternalRef, type ExternalRefsLookupClient } from '../refs.ts';
 
 /** Structural service-role client seam (matches supabase-js): `.from(t).select(c).eq(...).eq(...).maybeSingle()`. */
 export interface DispatchServiceClient {
@@ -78,10 +79,28 @@ export async function resolveErpDispatchAdapter(deps: ErpDispatchFactoryDeps): P
       rateLimiter: deps.rateLimiter,
     },
     doctypeBodies: deps.doctypeBodies ?? {},
-    // Ref resolution (supplier/PO/PO-item) is wired by slices 3/5's dispatch-factory extensions;
-    // this slice ships the engine with an empty refs bag (inert — no org is flipped).
-    ctx: { refs: {}, config: binding.config },
+    // Ref resolution (task 4.6/4.7): a command carrying a PMO `vendorId` (RFQ/Supplier Quotation both
+    // need a real ERP supplier, FR-ENA-111/112) resolves it through the SAME `companies` domain
+    // external_refs mapping the parties flip (slice 3) writes — `resolveExternalRef` is the
+    // already-generalized multi-domain resolver (task 1.6). Full PO/PO-item-child-row resolution
+    // lands in slice 5's dispatch-factory extension; this is the minimal slice-4 seam MR/RFQ/SQ need.
+    ctx: { refs: { supplier: await resolveSupplierRef(deps.serviceClient, deps.orgId, deps.command) }, config: binding.config },
     afterSubmitHook: deps.afterSubmitHook,
   };
   return createErpAdapter(adapterDeps);
+}
+
+/** Strips the `"<Doctype>:<name>"` encoding (task 3.2's companies-domain adopt convention, reused
+ *  generically by `adapter.ts`'s `parseExternalId`) down to the bare ERP `name` the body-builders
+ *  expect in `ctx.refs.supplier`. Returns the value unmodified if it carries no doctype prefix. */
+function stripDoctypePrefix(externalRecordId: string): string {
+  const separatorIndex = externalRecordId.indexOf(':');
+  return separatorIndex === -1 ? externalRecordId : externalRecordId.slice(separatorIndex + 1);
+}
+
+async function resolveSupplierRef(serviceClient: DispatchServiceClient, orgId: string, command: AdapterCommand): Promise<string | null> {
+  const vendorId = (command.record as { vendorId?: unknown }).vendorId;
+  if (typeof vendorId !== 'string' || vendorId.length === 0) return null;
+  const externalRecordId = await resolveExternalRef(serviceClient as unknown as ExternalRefsLookupClient, orgId, 'companies', vendorId);
+  return externalRecordId ? stripDoctypePrefix(externalRecordId) : null;
 }

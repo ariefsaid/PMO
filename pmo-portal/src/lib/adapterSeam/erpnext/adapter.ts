@@ -82,17 +82,46 @@ async function commitCreate(command: AdapterCommand, deps: ErpAdapterDeps): Prom
   return { externalRecordId: created.name, canonical };
 }
 
+/**
+ * `operation:'transition'`, `verb:'submit'` (task 4.4, FR-ENA-044/117): submits an ALREADY-CREATED
+ * draft doc — distinct from `commitCreate`'s combined create+submit two-step. `PUT {docstatus:1}` on
+ * the caller-resolved `record.externalRecordId`, fires `afterSubmitHook` (the same FR-ENA-003 seam
+ * `commitCreate` fires), then re-fetches (R9 §5: the PUT response's `status`/`outstanding_amount` is
+ * stale — the re-fetch is the only trustworthy read of post-submit derived fields). `cancel`/`amend`
+ * verbs are NOT wired this slice (transitionPolicy.ts's `routeEdit`/`cancelChain` land in commit() in
+ * slices 5/6, where PO/PI/GR/PE first need them) — a loud throw, never a silent no-op.
+ */
+async function commitTransition(command: AdapterCommand, deps: ErpAdapterDeps): Promise<CommandResult> {
+  const kind = requireKind(command.record);
+  const bodyFns = requireBodyFns(deps, kind);
+  const verb = command.record.verb;
+  if (verb !== 'submit') {
+    throw new AdapterError('commit-rejected', `erpnext adapter transition verb '${String(verb)}' is wired in slices 5/6 (only 'submit' this slice)`);
+  }
+  const externalRecordId = command.record.externalRecordId;
+  if (typeof externalRecordId !== 'string' || externalRecordId.length === 0) {
+    throw new AdapterError('commit-rejected', 'transition requires record.externalRecordId (nothing to submit)');
+  }
+  const entry = DOCTYPE_REGISTRY[kind];
+  await submitDoc(deps.client, entry.doctype, externalRecordId);
+  await deps.afterSubmitHook?.();
+  const refetched = await getDoc(deps.client, entry.doctype, externalRecordId);
+  const canonical: PmoRecord = { ...bodyFns.fromDoc(refetched), id: command.record.id };
+  return { externalRecordId, canonical };
+}
+
 async function commitErpCommand(command: AdapterCommand, deps: ErpAdapterDeps): Promise<CommandResult> {
   if (command.operation === 'create') return commitCreate(command, deps);
+  if (command.operation === 'transition') return commitTransition(command, deps);
   if (command.operation === 'delete') {
     // OQ-8 (empirically confirmed, R9 §5): stock REST enforces cancel-only, never delete, on a
     // once-submitted doc — the adapter never even attempts it.
     throw new AdapterError('commit-rejected', 'erpnext adapter does not support delete — cancel-only (OQ-8)');
   }
-  // 'update'/'transition': the real update-after-submit-routes-to-amend + submit/cancel/amend command
-  // surface is wired in slices 4/6 (transitionPolicy.ts, task 2.8/2.9, is the pure policy; its wiring
-  // into commit() lands with the real doctypes). A loud throw here — never a silent no-op.
-  throw new AdapterError('commit-rejected', `erpnext adapter operation '${command.operation}' is wired in slices 4/6`);
+  // 'update': the real update-after-submit-routes-to-amend command surface is wired in slice 6
+  // (transitionPolicy.ts, task 2.8/2.9, is the pure policy; its wiring into commit() lands with the
+  // real doctypes that need amend). A loud throw here — never a silent no-op.
+  throw new AdapterError('commit-rejected', `erpnext adapter operation '${command.operation}' is wired in slice 6`);
 }
 
 /** Parses the `"<Doctype>:<name>"` external-id encoding established by the companies-domain adopt
