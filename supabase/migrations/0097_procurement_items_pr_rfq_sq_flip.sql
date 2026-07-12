@@ -35,6 +35,8 @@
 --   alter table public.rfqs drop column if exists erp_modified;
 --   alter table public.rfqs drop column if exists erp_amended_from;
 --   alter table public.rfqs drop column if exists erp_cancelled_at;
+--   drop trigger if exists procurement_quotations_zz_insert_guard on public.procurement_quotations;
+--   drop function if exists public.procurement_quotations_insert_guard();
 --   drop trigger if exists procurement_quotations_zz_native_mirror_guard on public.procurement_quotations;
 --   drop function if exists public.procurement_quotations_native_mirror_guard();
 --   alter table public.procurement_quotations drop column if exists erp_docstatus;
@@ -178,11 +180,31 @@ begin
   return new;
 end; $$;
 
--- UPDATE-only, same rationale as procurement_items: a new quotation row is minted by the dispatch
--- (service-role INSERT) once `procurement` is externally-owned — the FE's non-flipped `create_
--- procurement_quotation` RPC path stays reachable (FR-ENA-131 "RPCs remain unchanged... for PMO-owned
--- orgs") and is simply never called by a flipped org's routed FE (task 1.10). Only a later native-field
--- mutation is denied.
 create trigger procurement_quotations_zz_native_mirror_guard
   before update on public.procurement_quotations
   for each row execute function public.procurement_quotations_native_mirror_guard();
+
+-- H-2 (audit): a quotation is ERP/dispatch-sourced while flipped — a new quotation row is minted by the
+-- dispatch (service_role INSERT). The prior design left user INSERT unguarded and relied on FE routing
+-- ("simply never called by a flipped org's routed FE"), but an authenticated user could call the
+-- `create_procurement_quotation` RPC / direct INSERT path DIRECTLY and mint a PMO-native quotation not
+-- backed by ERPNext (an ERP-truth-boundary violation). Deny user-JWT INSERT while flipped (service_role
+-- — the mirror writer — stays exempt; a SECURITY DEFINER RPC INSERT still fires this trigger). NOT for
+-- procurement_items: those draft line items are authored PMO-side BEFORE the MR/RFQ command body is
+-- pushed (FR-ENA-103), so their INSERT stays open by design (the guard is UPDATE-only above).
+create or replace function public.procurement_quotations_insert_guard() returns trigger
+  language plpgsql security definer set search_path = public as $$
+begin
+  if coalesce(auth.jwt() ->> 'role', '') = 'service_role' then
+    return new;
+  end if;
+  if public.domain_externally_owned(new.org_id, 'procurement') then
+    raise exception 'procurement_quotations are ERP-sourced while procurement is externally-owned — cannot user-INSERT'
+      using errcode = '42501';
+  end if;
+  return new;
+end; $$;
+
+create trigger procurement_quotations_zz_insert_guard
+  before insert on public.procurement_quotations
+  for each row execute function public.procurement_quotations_insert_guard();

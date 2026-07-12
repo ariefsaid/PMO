@@ -22,7 +22,7 @@
 --   * procurements (case aggregate): stays user-writable even when `procurement` is externally-owned
 --     (the case folder is PMO's — FR-ENA-073/101).
 begin;
-select plan(25);
+select plan(26);
 
 insert into organizations (id, name) values
   ('00970000-0000-0000-0000-000000000001','AC-ENA-003 Procurement Org A (flipped)'),
@@ -157,6 +157,13 @@ select throws_ok(
 select lives_ok(
   $$ update procurement_quotations set is_selected = true where id = '00970000-0000-0000-0000-000000000150' $$,
   'procurement_quotations PMO enhancement is_selected stays user-writable while flipped');
+-- H-2 (audit): a user-JWT INSERT of a quotation is DENIED while flipped (quotations are ERP-sourced —
+-- the FE-routing-only reliance was a direct-RPC/INSERT bypass hole). service_role mirror INSERT is exempt.
+select throws_ok(
+  $$ insert into procurement_quotations (org_id, procurement_id, vendor_id, total_amount)
+       values ('00970000-0000-0000-0000-000000000001','00970000-0000-0000-0000-000000000010','00970000-0000-0000-0000-000000000140',555) $$,
+  '42501', null,
+  'procurement_quotations user-JWT INSERT denied while procurement externally-owned (H-2)');
 
 reset role;
 set local request.jwt.claims = '{"role":"service_role"}';
