@@ -92,6 +92,12 @@ vi.mock('@/src/hooks/useFkOptions', () => ({
 vi.mock('@/src/hooks/useProcurements', () => ({
   useProcurements: () => ({ data: procurements, isPending: false, isError: false, refetch: vi.fn() }),
 }));
+// task FIX-2 (Discover CRITICAL 2): FinanceDashboard now mounts AccountingSnapshotsSection.
+vi.mock('@/src/hooks/useErpSnapshots', () => ({
+  useActualsSnapshot: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+  useApAgingSnapshot: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+  useArAgingSnapshot: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+}));
 
 vi.mock('@/src/auth/impersonation', () => ({
   useEffectiveRole: () => ({ realRole: 'Finance', effectiveRole: 'Finance' }),

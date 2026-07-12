@@ -44,6 +44,13 @@ vi.mock('@/src/hooks/useDashboard', () => ({
 vi.mock('@/src/hooks/useProcurements', () => ({
   useProcurements: () => ({ data: procurements, isPending: false, isError: false, refetch: vi.fn() }),
 }));
+// task FIX-2 (Discover CRITICAL 2): empty by default (the unflipped-org state) — the dedicated
+// AccountingSnapshotsSection.test.tsx owns the populated/loading/error render assertions.
+vi.mock('@/src/hooks/useErpSnapshots', () => ({
+  useActualsSnapshot: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+  useApAgingSnapshot: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+  useArAgingSnapshot: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+}));
 // N15 approvals tile reads the real role + timesheet queue.
 vi.mock('@/src/auth/impersonation', () => ({
   useEffectiveRole: () => ({ realRole: 'Finance' }),
@@ -130,5 +137,15 @@ describe('FinanceDashboard N17 — budget review from get_finance_budget_review 
     // Honest portfolio-wide label.
     expect(screen.getByText(/budget review/i)).toBeInTheDocument();
     expect(screen.getByText(/portfolio-wide/i)).toBeInTheDocument();
+  });
+});
+
+describe('FinanceDashboard task FIX-2 (Discover CRITICAL 2) — accounting snapshots mounted', () => {
+  it('mounts the read-only actuals/AP-AR aging snapshot section, empty by default', () => {
+    renderPane();
+    expect(screen.getByRole('region', { name: 'Accounting snapshots' })).toBeInTheDocument();
+    expect(screen.getByText('No actuals snapshot yet')).toBeInTheDocument();
+    expect(screen.getByText('No AP aging snapshot yet')).toBeInTheDocument();
+    expect(screen.getByText('No AR aging snapshot yet')).toBeInTheDocument();
   });
 });
