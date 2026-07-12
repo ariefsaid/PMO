@@ -605,6 +605,12 @@ export type Database = {
         Row: {
           archived_at: string | null
           created_at: string
+          erp_cancelled_at: string | null
+          erp_customer_name: string | null
+          erp_party_type: string | null
+          erp_payment_terms_days: number | null
+          erp_supplier_name: string | null
+          erp_tax_id: string | null
           id: string
           name: string
           org_id: string
@@ -613,6 +619,12 @@ export type Database = {
         Insert: {
           archived_at?: string | null
           created_at?: string
+          erp_cancelled_at?: string | null
+          erp_customer_name?: string | null
+          erp_party_type?: string | null
+          erp_payment_terms_days?: number | null
+          erp_supplier_name?: string | null
+          erp_tax_id?: string | null
           id?: string
           name: string
           org_id?: string
@@ -621,6 +633,12 @@ export type Database = {
         Update: {
           archived_at?: string | null
           created_at?: string
+          erp_cancelled_at?: string | null
+          erp_customer_name?: string | null
+          erp_party_type?: string | null
+          erp_payment_terms_days?: number | null
+          erp_supplier_name?: string | null
+          erp_tax_id?: string | null
           id?: string
           name?: string
           org_id?: string
@@ -847,6 +865,346 @@ export type Database = {
           },
         ]
       }
+      erp_actuals_snapshot: {
+        Row: {
+          account: string | null
+          as_of: string
+          cost_center: string | null
+          created_at: string
+          credit: number | null
+          debit: number | null
+          fiscal_year: string | null
+          id: string
+          net: number | null
+          org_id: string
+          project_id: string | null
+          snapshot_id: string
+          source_report: string
+        }
+        Insert: {
+          account?: string | null
+          as_of?: string
+          cost_center?: string | null
+          created_at?: string
+          credit?: number | null
+          debit?: number | null
+          fiscal_year?: string | null
+          id?: string
+          net?: number | null
+          org_id?: string
+          project_id?: string | null
+          snapshot_id: string
+          source_report?: string
+        }
+        Update: {
+          account?: string | null
+          as_of?: string
+          cost_center?: string | null
+          created_at?: string
+          credit?: number | null
+          debit?: number | null
+          fiscal_year?: string | null
+          id?: string
+          net?: number | null
+          org_id?: string
+          project_id?: string | null
+          snapshot_id?: string
+          source_report?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "erp_actuals_snapshot_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      erp_ap_aging_snapshot: {
+        Row: {
+          ageing_based_on: string | null
+          as_of: string
+          b_0_30: number | null
+          b_31_60: number | null
+          b_61_90: number | null
+          b_90_plus: number | null
+          company_id: string | null
+          created_at: string
+          currency: string | null
+          current: number | null
+          id: string
+          org_id: string
+          party: string | null
+          party_type: string | null
+          range_labels: Json | null
+          report_date: string | null
+          report_version: string | null
+          snapshot_id: string
+          source_report: string | null
+          total_outstanding: number | null
+        }
+        Insert: {
+          ageing_based_on?: string | null
+          as_of?: string
+          b_0_30?: number | null
+          b_31_60?: number | null
+          b_61_90?: number | null
+          b_90_plus?: number | null
+          company_id?: string | null
+          created_at?: string
+          currency?: string | null
+          current?: number | null
+          id?: string
+          org_id?: string
+          party?: string | null
+          party_type?: string | null
+          range_labels?: Json | null
+          report_date?: string | null
+          report_version?: string | null
+          snapshot_id: string
+          source_report?: string | null
+          total_outstanding?: number | null
+        }
+        Update: {
+          ageing_based_on?: string | null
+          as_of?: string
+          b_0_30?: number | null
+          b_31_60?: number | null
+          b_61_90?: number | null
+          b_90_plus?: number | null
+          company_id?: string | null
+          created_at?: string
+          currency?: string | null
+          current?: number | null
+          id?: string
+          org_id?: string
+          party?: string | null
+          party_type?: string | null
+          range_labels?: Json | null
+          report_date?: string | null
+          report_version?: string | null
+          snapshot_id?: string
+          source_report?: string | null
+          total_outstanding?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "erp_ap_aging_snapshot_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      erp_ar_aging_snapshot: {
+        Row: {
+          ageing_based_on: string | null
+          as_of: string
+          b_0_30: number | null
+          b_31_60: number | null
+          b_61_90: number | null
+          b_90_plus: number | null
+          company_id: string | null
+          created_at: string
+          currency: string | null
+          current: number | null
+          id: string
+          org_id: string
+          party: string | null
+          party_type: string | null
+          range_labels: Json | null
+          report_date: string | null
+          report_version: string | null
+          snapshot_id: string
+          source_report: string | null
+          total_outstanding: number | null
+        }
+        Insert: {
+          ageing_based_on?: string | null
+          as_of?: string
+          b_0_30?: number | null
+          b_31_60?: number | null
+          b_61_90?: number | null
+          b_90_plus?: number | null
+          company_id?: string | null
+          created_at?: string
+          currency?: string | null
+          current?: number | null
+          id?: string
+          org_id?: string
+          party?: string | null
+          party_type?: string | null
+          range_labels?: Json | null
+          report_date?: string | null
+          report_version?: string | null
+          snapshot_id: string
+          source_report?: string | null
+          total_outstanding?: number | null
+        }
+        Update: {
+          ageing_based_on?: string | null
+          as_of?: string
+          b_0_30?: number | null
+          b_31_60?: number | null
+          b_61_90?: number | null
+          b_90_plus?: number | null
+          company_id?: string | null
+          created_at?: string
+          currency?: string | null
+          current?: number | null
+          id?: string
+          org_id?: string
+          party?: string | null
+          party_type?: string | null
+          range_labels?: Json | null
+          report_date?: string | null
+          report_version?: string | null
+          snapshot_id?: string
+          source_report?: string | null
+          total_outstanding?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "erp_ar_aging_snapshot_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      erp_gl_entry_mirror: {
+        Row: {
+          account: string
+          as_of: string
+          cost_center: string | null
+          credit: number | null
+          debit: number | null
+          erp_docstatus: number | null
+          erp_modified: string
+          erp_name: string
+          fiscal_year: string | null
+          id: string
+          is_cancelled: boolean
+          org_id: string
+          party: string | null
+          party_type: string | null
+          posting_date: string | null
+          project: string | null
+          voucher_no: string | null
+          voucher_type: string | null
+        }
+        Insert: {
+          account: string
+          as_of?: string
+          cost_center?: string | null
+          credit?: number | null
+          debit?: number | null
+          erp_docstatus?: number | null
+          erp_modified: string
+          erp_name: string
+          fiscal_year?: string | null
+          id?: string
+          is_cancelled?: boolean
+          org_id?: string
+          party?: string | null
+          party_type?: string | null
+          posting_date?: string | null
+          project?: string | null
+          voucher_no?: string | null
+          voucher_type?: string | null
+        }
+        Update: {
+          account?: string
+          as_of?: string
+          cost_center?: string | null
+          credit?: number | null
+          debit?: number | null
+          erp_docstatus?: number | null
+          erp_modified?: string
+          erp_name?: string
+          fiscal_year?: string | null
+          id?: string
+          is_cancelled?: boolean
+          org_id?: string
+          party?: string | null
+          party_type?: string | null
+          posting_date?: string | null
+          project?: string | null
+          voucher_no?: string | null
+          voucher_type?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "erp_gl_entry_mirror_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      erp_payment_ledger_mirror: {
+        Row: {
+          account: string
+          against_voucher_no: string | null
+          against_voucher_type: string | null
+          amount: number | null
+          as_of: string
+          due_date: string | null
+          erp_docstatus: number | null
+          erp_modified: string
+          erp_name: string
+          id: string
+          org_id: string
+          party: string | null
+          party_type: string | null
+          posting_date: string | null
+        }
+        Insert: {
+          account: string
+          against_voucher_no?: string | null
+          against_voucher_type?: string | null
+          amount?: number | null
+          as_of?: string
+          due_date?: string | null
+          erp_docstatus?: number | null
+          erp_modified: string
+          erp_name: string
+          id?: string
+          org_id?: string
+          party?: string | null
+          party_type?: string | null
+          posting_date?: string | null
+        }
+        Update: {
+          account?: string
+          against_voucher_no?: string | null
+          against_voucher_type?: string | null
+          amount?: number | null
+          as_of?: string
+          due_date?: string | null
+          erp_docstatus?: number | null
+          erp_modified?: string
+          erp_name?: string
+          id?: string
+          org_id?: string
+          party?: string | null
+          party_type?: string | null
+          posting_date?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "erp_payment_ledger_mirror_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       error_events: {
         Row: {
           context_id: string | null
@@ -876,6 +1234,77 @@ export type Database = {
           org_id?: string | null
         }
         Relationships: []
+      }
+      external_command_outbox: {
+        Row: {
+          attempt_count: number
+          canonical: Json | null
+          claim_generation: number
+          claimed_at: string | null
+          created_at: string
+          domain: string
+          external_record_id: string | null
+          external_tier: string
+          id: string
+          idempotency_key: string
+          last_error: string | null
+          operation: string
+          org_id: string
+          payload_digest: string | null
+          pmo_record_id: string
+          reconcile_after: string | null
+          state: string
+          updated_at: string
+        }
+        Insert: {
+          attempt_count?: number
+          canonical?: Json | null
+          claim_generation?: number
+          claimed_at?: string | null
+          created_at?: string
+          domain: string
+          external_record_id?: string | null
+          external_tier: string
+          id?: string
+          idempotency_key: string
+          last_error?: string | null
+          operation: string
+          org_id?: string
+          payload_digest?: string | null
+          pmo_record_id: string
+          reconcile_after?: string | null
+          state: string
+          updated_at?: string
+        }
+        Update: {
+          attempt_count?: number
+          canonical?: Json | null
+          claim_generation?: number
+          claimed_at?: string | null
+          created_at?: string
+          domain?: string
+          external_record_id?: string | null
+          external_tier?: string
+          id?: string
+          idempotency_key?: string
+          last_error?: string | null
+          operation?: string
+          org_id?: string
+          payload_digest?: string | null
+          pmo_record_id?: string
+          reconcile_after?: string | null
+          state?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "external_command_outbox_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       external_domain_ownership: {
         Row: {
@@ -912,6 +1341,56 @@ export type Database = {
           },
           {
             foreignKeyName: "external_domain_ownership_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      external_org_bindings: {
+        Row: {
+          activated_at: string | null
+          config: Json
+          created_at: string
+          external_tier: string
+          id: string
+          org_id: string
+          secret_ref: string
+          site_url: string
+          updated_at: string
+          version_major: number | null
+          webhook_secret_ref: string | null
+        }
+        Insert: {
+          activated_at?: string | null
+          config?: Json
+          created_at?: string
+          external_tier: string
+          id?: string
+          org_id?: string
+          secret_ref: string
+          site_url: string
+          updated_at?: string
+          version_major?: number | null
+          webhook_secret_ref?: string | null
+        }
+        Update: {
+          activated_at?: string | null
+          config?: Json
+          created_at?: string
+          external_tier?: string
+          id?: string
+          org_id?: string
+          secret_ref?: string
+          site_url?: string
+          updated_at?: string
+          version_major?: number | null
+          webhook_secret_ref?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "external_org_bindings_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
@@ -960,6 +1439,50 @@ export type Database = {
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      external_ref_lineage: {
+        Row: {
+          at: string
+          domain: string
+          erp_docstatus: number | null
+          id: string
+          org_id: string
+          pmo_record_id: string
+          reason: string
+          successor_external_record_id: string | null
+          superseded_external_record_id: string
+        }
+        Insert: {
+          at?: string
+          domain: string
+          erp_docstatus?: number | null
+          id?: string
+          org_id?: string
+          pmo_record_id: string
+          reason: string
+          successor_external_record_id?: string | null
+          superseded_external_record_id: string
+        }
+        Update: {
+          at?: string
+          domain?: string
+          erp_docstatus?: number | null
+          id?: string
+          org_id?: string
+          pmo_record_id?: string
+          reason?: string
+          successor_external_record_id?: string | null
+          superseded_external_record_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "external_ref_lineage_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -1301,6 +1824,10 @@ export type Database = {
           amount: number | null
           created_at: string
           date: string | null
+          erp_amended_from: string | null
+          erp_cancelled_at: string | null
+          erp_docstatus: number | null
+          erp_modified: string | null
           id: string
           import_batch_id: string | null
           import_key: string | null
@@ -1316,6 +1843,10 @@ export type Database = {
           amount?: number | null
           created_at?: string
           date?: string | null
+          erp_amended_from?: string | null
+          erp_cancelled_at?: string | null
+          erp_docstatus?: number | null
+          erp_modified?: string | null
           id?: string
           import_batch_id?: string | null
           import_key?: string | null
@@ -1331,6 +1862,10 @@ export type Database = {
           amount?: number | null
           created_at?: string
           date?: string | null
+          erp_amended_from?: string | null
+          erp_cancelled_at?: string | null
+          erp_docstatus?: number | null
+          erp_modified?: string | null
           id?: string
           import_batch_id?: string | null
           import_key?: string | null
@@ -1561,6 +2096,11 @@ export type Database = {
         Row: {
           amount: number | null
           created_at: string
+          erp_amended_from: string | null
+          erp_cancelled_at: string | null
+          erp_docstatus: number | null
+          erp_modified: string | null
+          erp_outstanding_amount: number | null
           id: string
           import_batch_id: string | null
           import_key: string | null
@@ -1576,6 +2116,11 @@ export type Database = {
         Insert: {
           amount?: number | null
           created_at?: string
+          erp_amended_from?: string | null
+          erp_cancelled_at?: string | null
+          erp_docstatus?: number | null
+          erp_modified?: string | null
+          erp_outstanding_amount?: number | null
           id?: string
           import_batch_id?: string | null
           import_key?: string | null
@@ -1591,6 +2136,11 @@ export type Database = {
         Update: {
           amount?: number | null
           created_at?: string
+          erp_amended_from?: string | null
+          erp_cancelled_at?: string | null
+          erp_docstatus?: number | null
+          erp_modified?: string | null
+          erp_outstanding_amount?: number | null
           id?: string
           import_batch_id?: string | null
           import_key?: string | null
@@ -1631,6 +2181,9 @@ export type Database = {
         Row: {
           amount: number | null
           description: string | null
+          erp_docstatus: number | null
+          erp_line_amount: number | null
+          erp_modified: string | null
           id: string
           name: string
           org_id: string
@@ -1641,6 +2194,9 @@ export type Database = {
         Insert: {
           amount?: number | null
           description?: string | null
+          erp_docstatus?: number | null
+          erp_line_amount?: number | null
+          erp_modified?: string | null
           id?: string
           name: string
           org_id?: string
@@ -1651,6 +2207,9 @@ export type Database = {
         Update: {
           amount?: number | null
           description?: string | null
+          erp_docstatus?: number | null
+          erp_line_amount?: number | null
+          erp_modified?: string | null
           id?: string
           name?: string
           org_id?: string
@@ -1732,6 +2291,10 @@ export type Database = {
       }
       procurement_quotations: {
         Row: {
+          erp_amended_from: string | null
+          erp_cancelled_at: string | null
+          erp_docstatus: number | null
+          erp_modified: string | null
           file_url: string | null
           id: string
           import_batch_id: string | null
@@ -1749,6 +2312,10 @@ export type Database = {
           vq_number: string | null
         }
         Insert: {
+          erp_amended_from?: string | null
+          erp_cancelled_at?: string | null
+          erp_docstatus?: number | null
+          erp_modified?: string | null
           file_url?: string | null
           id?: string
           import_batch_id?: string | null
@@ -1766,6 +2333,10 @@ export type Database = {
           vq_number?: string | null
         }
         Update: {
+          erp_amended_from?: string | null
+          erp_cancelled_at?: string | null
+          erp_docstatus?: number | null
+          erp_modified?: string | null
           file_url?: string | null
           id?: string
           import_batch_id?: string | null
@@ -1871,6 +2442,10 @@ export type Database = {
       procurement_receipts: {
         Row: {
           created_at: string
+          erp_amended_from: string | null
+          erp_cancelled_at: string | null
+          erp_docstatus: number | null
+          erp_modified: string | null
           gr_number: string | null
           id: string
           import_batch_id: string | null
@@ -1885,6 +2460,10 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          erp_amended_from?: string | null
+          erp_cancelled_at?: string | null
+          erp_docstatus?: number | null
+          erp_modified?: string | null
           gr_number?: string | null
           id?: string
           import_batch_id?: string | null
@@ -1899,6 +2478,10 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          erp_amended_from?: string | null
+          erp_cancelled_at?: string | null
+          erp_docstatus?: number | null
+          erp_modified?: string | null
           gr_number?: string | null
           id?: string
           import_batch_id?: string | null
@@ -2453,6 +3036,10 @@ export type Database = {
           amount: number | null
           created_at: string
           date: string | null
+          erp_amended_from: string | null
+          erp_cancelled_at: string | null
+          erp_docstatus: number | null
+          erp_modified: string | null
           id: string
           import_batch_id: string | null
           import_key: string | null
@@ -2467,6 +3054,10 @@ export type Database = {
           amount?: number | null
           created_at?: string
           date?: string | null
+          erp_amended_from?: string | null
+          erp_cancelled_at?: string | null
+          erp_docstatus?: number | null
+          erp_modified?: string | null
           id?: string
           import_batch_id?: string | null
           import_key?: string | null
@@ -2481,6 +3072,10 @@ export type Database = {
           amount?: number | null
           created_at?: string
           date?: string | null
+          erp_amended_from?: string | null
+          erp_cancelled_at?: string | null
+          erp_docstatus?: number | null
+          erp_modified?: string | null
           id?: string
           import_batch_id?: string | null
           import_key?: string | null
@@ -2568,6 +3163,10 @@ export type Database = {
           amount: number | null
           created_at: string
           date: string | null
+          erp_amended_from: string | null
+          erp_cancelled_at: string | null
+          erp_docstatus: number | null
+          erp_modified: string | null
           id: string
           import_batch_id: string | null
           import_key: string | null
@@ -2582,6 +3181,10 @@ export type Database = {
           amount?: number | null
           created_at?: string
           date?: string | null
+          erp_amended_from?: string | null
+          erp_cancelled_at?: string | null
+          erp_docstatus?: number | null
+          erp_modified?: string | null
           id?: string
           import_batch_id?: string | null
           import_key?: string | null
@@ -2596,6 +3199,10 @@ export type Database = {
           amount?: number | null
           created_at?: string
           date?: string | null
+          erp_amended_from?: string | null
+          erp_cancelled_at?: string | null
+          erp_docstatus?: number | null
+          erp_modified?: string | null
           id?: string
           import_batch_id?: string | null
           import_key?: string | null
@@ -2622,6 +3229,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      request_rate_counters: {
+        Row: {
+          bucket_key: string
+          hits: number
+          window_start: string
+        }
+        Insert: {
+          bucket_key: string
+          hits?: number
+          window_start: string
+        }
+        Update: {
+          bucket_key?: string
+          hits?: number
+          window_start?: string
+        }
+        Relationships: []
       }
       rfq_files: {
         Row: {
@@ -2683,6 +3308,10 @@ export type Database = {
           amount: number | null
           created_at: string
           date: string | null
+          erp_amended_from: string | null
+          erp_cancelled_at: string | null
+          erp_docstatus: number | null
+          erp_modified: string | null
           id: string
           import_batch_id: string | null
           import_key: string | null
@@ -2697,6 +3326,10 @@ export type Database = {
           amount?: number | null
           created_at?: string
           date?: string | null
+          erp_amended_from?: string | null
+          erp_cancelled_at?: string | null
+          erp_docstatus?: number | null
+          erp_modified?: string | null
           id?: string
           import_batch_id?: string | null
           import_key?: string | null
@@ -2711,6 +3344,10 @@ export type Database = {
           amount?: number | null
           created_at?: string
           date?: string | null
+          erp_amended_from?: string | null
+          erp_cancelled_at?: string | null
+          erp_docstatus?: number | null
+          erp_modified?: string | null
           id?: string
           import_batch_id?: string | null
           import_key?: string | null
@@ -3043,20 +3680,23 @@ export type Database = {
         Args: never
         Returns: Database["public"]["Enums"]["user_role"]
       }
-      // Supabase codegen omits `| null` on nullable scalar RPC params; widened to match the SQL
-      // (these params accept null).
       capture_vendor_invoice: {
         Args: {
-          p_amount?: number | null
+          p_amount?: number
           p_invoice_date: string
-          p_notes?: string | null
+          p_notes?: string
           p_procurement_id: string
-          p_reference_number?: string | null
+          p_reference_number?: string
           p_status: Database["public"]["Enums"]["procurement_invoice_status"]
         }
         Returns: {
           amount: number | null
           created_at: string
+          erp_amended_from: string | null
+          erp_cancelled_at: string | null
+          erp_docstatus: number | null
+          erp_modified: string | null
+          erp_outstanding_amount: number | null
           id: string
           import_batch_id: string | null
           import_key: string | null
@@ -3076,24 +3716,58 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      claim_outbox_for_commit: {
+        Args: { p_id: string; p_lease?: string }
+        Returns: {
+          attempt_count: number
+          canonical: Json | null
+          claim_generation: number
+          claimed_at: string | null
+          created_at: string
+          domain: string
+          external_record_id: string | null
+          external_tier: string
+          id: string
+          idempotency_key: string
+          last_error: string | null
+          operation: string
+          org_id: string
+          payload_digest: string | null
+          pmo_record_id: string
+          reconcile_after: string | null
+          state: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "external_command_outbox"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      clickup_sweep_tick: { Args: never; Returns: undefined }
       clone_budget_version: { Args: { version_id: string }; Returns: string }
       committed_procurement_statuses: { Args: never; Returns: string[] }
       create_payment: {
         Args: {
-          p_amount: number | null
-          p_date: string | null
-          p_import_batch_id?: string | null
-          p_import_key?: string | null
-          p_imported_at?: string | null
-          p_invoice_id: string | null
+          p_amount: number
+          p_date: string
+          p_import_batch_id?: string
+          p_import_key?: string
+          p_imported_at?: string
+          p_invoice_id: string
           p_procurement_id: string
-          p_reference_number: string | null
-          p_status: string | null
+          p_reference_number: string
+          p_status: string
         }
         Returns: {
           amount: number | null
           created_at: string
           date: string | null
+          erp_amended_from: string | null
+          erp_cancelled_at: string | null
+          erp_docstatus: number | null
+          erp_modified: string | null
           id: string
           import_batch_id: string | null
           import_key: string | null
@@ -3114,18 +3788,23 @@ export type Database = {
       }
       create_procurement_invoice: {
         Args: {
-          p_amount?: number | null
-          p_import_batch_id?: string | null
-          p_import_key?: string | null
-          p_imported_at?: string | null
+          p_amount?: number
+          p_import_batch_id?: string
+          p_import_key?: string
+          p_imported_at?: string
           p_invoice_date: string
           p_procurement_id: string
-          p_reference_number?: string | null
+          p_reference_number?: string
           p_status: Database["public"]["Enums"]["procurement_invoice_status"]
         }
         Returns: {
           amount: number | null
           created_at: string
+          erp_amended_from: string | null
+          erp_cancelled_at: string | null
+          erp_docstatus: number | null
+          erp_modified: string | null
+          erp_outstanding_amount: number | null
           id: string
           import_batch_id: string | null
           import_key: string | null
@@ -3147,15 +3826,19 @@ export type Database = {
       }
       create_procurement_quotation: {
         Args: {
-          p_import_batch_id?: string | null
-          p_import_key?: string | null
-          p_imported_at?: string | null
+          p_import_batch_id?: string
+          p_import_key?: string
+          p_imported_at?: string
           p_procurement_id: string
           p_received_date: string
           p_total_amount: number
           p_vendor_id: string
         }
         Returns: {
+          erp_amended_from: string | null
+          erp_cancelled_at: string | null
+          erp_docstatus: number | null
+          erp_modified: string | null
           file_url: string | null
           id: string
           import_batch_id: string | null
@@ -3181,16 +3864,20 @@ export type Database = {
       }
       create_procurement_receipt: {
         Args: {
-          p_import_batch_id?: string | null
-          p_import_key?: string | null
-          p_imported_at?: string | null
+          p_import_batch_id?: string
+          p_import_key?: string
+          p_imported_at?: string
           p_procurement_id: string
           p_receipt_date: string
-          p_reference_number?: string | null
+          p_reference_number?: string
           p_status: Database["public"]["Enums"]["procurement_receipt_status"]
         }
         Returns: {
           created_at: string
+          erp_amended_from: string | null
+          erp_cancelled_at: string | null
+          erp_docstatus: number | null
+          erp_modified: string | null
           gr_number: string | null
           id: string
           import_batch_id: string | null
@@ -3212,19 +3899,23 @@ export type Database = {
       }
       create_purchase_order: {
         Args: {
-          p_amount: number | null
-          p_date: string | null
-          p_import_batch_id?: string | null
-          p_import_key?: string | null
-          p_imported_at?: string | null
+          p_amount: number
+          p_date: string
+          p_import_batch_id?: string
+          p_import_key?: string
+          p_imported_at?: string
           p_procurement_id: string
-          p_reference_number: string | null
-          p_status: string | null
+          p_reference_number: string
+          p_status: string
         }
         Returns: {
           amount: number | null
           created_at: string
           date: string | null
+          erp_amended_from: string | null
+          erp_cancelled_at: string | null
+          erp_docstatus: number | null
+          erp_modified: string | null
           id: string
           import_batch_id: string | null
           import_key: string | null
@@ -3244,19 +3935,23 @@ export type Database = {
       }
       create_purchase_request: {
         Args: {
-          p_amount: number | null
-          p_date: string | null
-          p_import_batch_id?: string | null
-          p_import_key?: string | null
-          p_imported_at?: string | null
+          p_amount: number
+          p_date: string
+          p_import_batch_id?: string
+          p_import_key?: string
+          p_imported_at?: string
           p_procurement_id: string
-          p_reference_number: string | null
-          p_status: string | null
+          p_reference_number: string
+          p_status: string
         }
         Returns: {
           amount: number | null
           created_at: string
           date: string | null
+          erp_amended_from: string | null
+          erp_cancelled_at: string | null
+          erp_docstatus: number | null
+          erp_modified: string | null
           id: string
           import_batch_id: string | null
           import_key: string | null
@@ -3276,19 +3971,23 @@ export type Database = {
       }
       create_rfq: {
         Args: {
-          p_amount: number | null
-          p_date: string | null
-          p_import_batch_id?: string | null
-          p_import_key?: string | null
-          p_imported_at?: string | null
+          p_amount: number
+          p_date: string
+          p_import_batch_id?: string
+          p_import_key?: string
+          p_imported_at?: string
           p_procurement_id: string
-          p_reference_number: string | null
-          p_status: string | null
+          p_reference_number: string
+          p_status: string
         }
         Returns: {
           amount: number | null
           created_at: string
           date: string | null
+          erp_amended_from: string | null
+          erp_cancelled_at: string | null
+          erp_docstatus: number | null
+          erp_modified: string | null
           id: string
           import_batch_id: string | null
           import_key: string | null
@@ -3310,6 +4009,7 @@ export type Database = {
         Args: { p_domain: string; p_org_id: string }
         Returns: boolean
       }
+      erpnext_sweep_tick: { Args: never; Returns: undefined }
       get_executive_dashboard: { Args: never; Returns: Json }
       get_finance_budget_review: { Args: never; Returns: Json }
       get_project_budget: { Args: { p_project_id: string }; Returns: number }
@@ -3347,10 +4047,7 @@ export type Database = {
         }[]
       }
       get_sales_pipeline: { Args: never; Returns: Json }
-      get_win_rate: {
-        Args: { p_from?: string | null; p_to?: string | null }
-        Returns: Json
-      }
+      get_win_rate: { Args: { p_from?: string; p_to?: string }; Returns: Json }
       is_active_member: { Args: never; Returns: boolean }
       is_operator: { Args: never; Returns: boolean }
       log_audit: {
@@ -3416,9 +4113,6 @@ export type Database = {
           cached_tokens: number
           completion_tokens: number
           cost: number
-          // NOTE: typegen under-narrowed this — the RPC (0069/0086_usage_summary_rpcs)
-          // returns NULL when app.credits_per_usd is unset server-side ("pricing not
-          // configured" is a real domain state, not a data-quality gap; AC-USE-003).
           margin_usd: number | null
           month: string
           org_id: string
@@ -3464,9 +4158,6 @@ export type Database = {
           cached_tokens: number
           completion_tokens: number
           cost: number
-          // NOTE: typegen under-narrowed this — the RPC (0069/0086_usage_summary_rpcs)
-          // returns NULL when app.credits_per_usd is unset server-side ("pricing not
-          // configured" is a real domain state, not a data-quality gap; AC-USE-003).
           margin_usd: number | null
           month: string
           owner_id: string
@@ -3475,7 +4166,69 @@ export type Database = {
           run_count: number
         }[]
       }
+      outbox_reconcile_candidates: {
+        Args: { p_org_id: string }
+        Returns: {
+          attempt_count: number
+          canonical: Json | null
+          claim_generation: number
+          claimed_at: string | null
+          created_at: string
+          domain: string
+          external_record_id: string | null
+          external_tier: string
+          id: string
+          idempotency_key: string
+          last_error: string | null
+          operation: string
+          org_id: string
+          payload_digest: string | null
+          pmo_record_id: string
+          reconcile_after: string | null
+          state: string
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "external_command_outbox"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       pipeline_project_statuses: { Args: never; Returns: string[] }
+      quarantine_committing: {
+        Args: { p_id: string; p_lease?: string; p_window?: string }
+        Returns: {
+          attempt_count: number
+          canonical: Json | null
+          claim_generation: number
+          claimed_at: string | null
+          created_at: string
+          domain: string
+          external_record_id: string | null
+          external_tier: string
+          id: string
+          idempotency_key: string
+          last_error: string | null
+          operation: string
+          org_id: string
+          payload_digest: string | null
+          pmo_record_id: string
+          reconcile_after: string | null
+          state: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "external_command_outbox"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      rate_limit_hit: {
+        Args: { p_key: string; p_limit: number; p_window_secs: number }
+        Returns: boolean
+      }
       release_credits: { Args: { p_run_id: string }; Returns: undefined }
       reserve_credits: {
         Args: { p_amount: number; p_org_id: string; p_run_id: string }
@@ -3484,7 +4237,7 @@ export type Database = {
       save_timesheet_week: {
         Args: {
           p_delete_ids?: string[]
-          p_timesheet_id: string | null
+          p_timesheet_id: string
           p_upserts?: Json
           p_week_start_date: string
         }
@@ -3527,15 +4280,15 @@ export type Database = {
       transition_procurement: {
         Args: {
           p_id: string
-          p_notes?: string | null
+          p_notes?: string
           p_to: Database["public"]["Enums"]["procurement_status"]
         }
         Returns: undefined
       }
       transition_project: {
         Args: {
-          p_contract_date?: string | null
-          p_customer_contract_ref?: string | null
+          p_contract_date?: string
+          p_customer_contract_ref?: string
           p_id: string
           p_to: Database["public"]["Enums"]["project_status"]
         }
@@ -3543,7 +4296,7 @@ export type Database = {
       }
       transition_timesheet: {
         Args: {
-          p_notes?: string | null
+          p_notes?: string
           p_timesheet_id: string
           p_to: Database["public"]["Enums"]["timesheet_status"]
         }

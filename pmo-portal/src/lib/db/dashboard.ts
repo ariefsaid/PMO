@@ -110,8 +110,8 @@ export async function getExecutiveDashboard(): Promise<ExecutiveDashboard> {
 export async function getWinRate(from?: Date, to?: Date): Promise<WinRate> {
   // AC-W2-3-04: use LOCAL date formatter (not toISOString which converts to UTC first)
   // so the RPC boundary "2026-06-14" stays the calendar day the user sees, not UTC-shifted.
-  const p_from = from ? toIso(from) : null;
-  const p_to = to ? toIso(to) : null;
+  const p_from = from ? toIso(from) : undefined;
+  const p_to = to ? toIso(to) : undefined;
   const { data, error } = await supabase.rpc('get_win_rate', { p_from, p_to });
   if (error) throw new Error(error.message);
   return data as unknown as WinRate;
