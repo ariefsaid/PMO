@@ -74,6 +74,9 @@ jobs:
       - name: Migration prefix collision check
         working-directory: .
         run: bash scripts/check-migration-collisions.sh
+      - name: E2E isolation-tag check
+        working-directory: .
+        run: bash scripts/check-e2e-isolation.sh
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: 22
@@ -163,6 +166,9 @@ jobs:
       # the confusing `supabase db reset`/pgTAP failure a collision causes below.
       - name: Migration prefix collision check
         run: bash scripts/check-migration-collisions.sh
+      - name: E2E isolation-tag check
+        working-directory: .
+        run: bash scripts/check-e2e-isolation.sh
 
       - uses: supabase/setup-cli@3c2f5e2ae34c34e428e8e206e2c4d21fa2d20fbf # v2.1.1
         with:
@@ -206,6 +212,9 @@ jobs:
       # the confusing `supabase db reset`/pgTAP failure a collision causes below.
       - name: Migration prefix collision check
         run: bash scripts/check-migration-collisions.sh
+      - name: E2E isolation-tag check
+        working-directory: .
+        run: bash scripts/check-e2e-isolation.sh
 
       - uses: supabase/setup-cli@3c2f5e2ae34c34e428e8e206e2c4d21fa2d20fbf # v2.1.1
         with:

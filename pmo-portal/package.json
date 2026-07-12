@@ -17,7 +17,8 @@
     "test:coverage": "vitest run --coverage",
     "test:evals": "vitest run --config vitest.eval.config.ts",
     "check:migrations": "bash ../scripts/check-migration-collisions.sh",
-    "verify": "npm run check:migrations && npm run typecheck && npm run lint:ci && npm run test && npm run build",
+    "check:e2e-isolation": "bash ../scripts/check-e2e-isolation.sh",
+    "verify": "npm run check:migrations && npm run check:e2e-isolation && npm run typecheck && npm run lint:ci && npm run test && npm run build",
     "e2e": "playwright test --project=chromium && playwright test --project=serial --workers=1",
     "e2e:parallel": "playwright test --project=chromium",
     "e2e:serial": "playwright test --project=serial --workers=1"
