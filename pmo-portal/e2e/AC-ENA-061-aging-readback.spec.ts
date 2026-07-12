@@ -21,7 +21,7 @@
  * Run: scripts/with-db-lock.sh scripts/with-erpnext-lock.sh -- npx playwright test AC-ENA-061
  */
 import { test, expect } from '@playwright/test';
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { createClient } from '@supabase/supabase-js';
 import { refreshAging, type AgingScope } from '../src/lib/adapterSeam/erpnext/agingSnapshot.ts';
 
 const AUTH_URL = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? '';
