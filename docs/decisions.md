@@ -801,13 +801,6 @@ consumers) existed and has now been removed (dead code, task FIX-4) rather than 
 to a future issue:** contacts inbound-adopt needs its own doctype-registry entry + ambiguous-match
 resolution (mirroring the companies pull-adopt path) — out of scope for this consolidated round.
 
-### OD-ENA-CREDS-REDACT — `credentials.ts` M-4 error-message redaction deferred (Low)
+### OD-ENA-CREDS-REDACT — M-4 RESOLVED
 
-**Noted, deferred (Low severity):** `supabase/functions/_shared/credentials.ts` (guard-blocked for
-agent edits per the repo's credential-file policy) can surface a raw provider error message on a
-credential-resolution failure; a hardened version would redact anything beyond the env-var **name**
-before it reaches a log/response. Because the file is guard-blocked, this fix must be applied by a
-human (or an agent with an explicit, scoped exception) rather than folded into this round's diff. Risk
-is Low: the current failure path only ever logs `code`/env-var names, never the fetched secret VALUE
-(`NEVER read .env / op.*.env contents` rule, `env-file-privacy` note) — so nothing is leaking today,
-but the message-shape hardening itself is deferred.
+Credential-resolution failures now return a generic client-safe message and log only the specific configuration names server-side.

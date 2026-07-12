@@ -5,7 +5,7 @@
  * `<PREFIX>_KEY` / `<PREFIX>_SECRET` from the injected env, failing CLOSED (`config-rejected`) when
  * either is unset — replacing the flagged single global `ERPNEXT_API_KEY` placeholder in index.ts.
  */
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { AppError } from '../../appError.ts';
 import { resolveErpCredentials, secretRefEnvPrefix } from './credentials.ts';
 
@@ -35,15 +35,22 @@ describe('erpnext/credentials', () => {
     expect(resolveErpCredentials('org-b', (k) => env.get(k))).toEqual({ apiKey: 'kb', apiSecret: 'sb' });
   });
 
-  it('fails CLOSED (config-rejected) when the KEY env var is unset', () => {
+  it('fails CLOSED with a generic message and server-side diagnostic when the KEY env var is unset', () => {
     const env = new Map([['LOCAL_BENCH_SECRET', 's-456']]);
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     try {
       resolveErpCredentials('local-bench', (k) => env.get(k));
       throw new Error('expected resolveErpCredentials to throw');
     } catch (err) {
       expect(err).toBeInstanceOf(AppError);
       expect((err as AppError).code).toBe('config-rejected');
+      expect((err as AppError).message).toBe('ERPNext credentials unresolved for this org — check the binding secret_ref configuration');
+      expect((err as AppError).message).not.toContain('LOCAL_BENCH_KEY');
+      expect(errorSpy).toHaveBeenCalledWith('ERPNext credential resolution failed', {
+        secretRef: 'local-bench', keyEnv: 'LOCAL_BENCH_KEY', secretEnv: 'LOCAL_BENCH_SECRET',
+      });
     }
+    errorSpy.mockRestore();
   });
 
   it('fails CLOSED (config-rejected) when the SECRET env var is unset', () => {
