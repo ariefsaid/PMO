@@ -99,13 +99,35 @@ const tasksWriter: ReadModelWriter = {
   },
 };
 
-/** A registered-but-not-yet-wired writer (task 1.6): fails loud rather than a silent `()=>{}`
- *  no-op — a silent no-op would swallow a real write if a flip ever landed early. */
-const notWired = (domain: string): ReadModelWriter => ({
-  upsert(): never {
-    throw new Error(`erpnext read-model writer for '${domain}' is wired in slices 3–6`);
+/** ERPNext `companies` writer (task 3.6, FR-ENA-090): mirrors the adapter's canonical party shape
+ *  (`name`/`type`/`erp_party_type`/`erp_supplier_name`/`erp_customer_name`/`erp_tax_id`/
+ *  `erp_payment_terms_days`) into the `companies` read-model. `archived_at` is a PMO-owned
+ *  enhancement (ADR-0018) — this writer NEVER sets it, on either create or update, so a mirror write
+ *  can never clobber a user's soft-archive. */
+const companiesWriter: ReadModelWriter = {
+  async upsert(ctx, canonical, command) {
+    const patch = {
+      name: canonical.name,
+      type: canonical.type,
+      erp_party_type: (canonical.erp_party_type as string | null | undefined) ?? null,
+      erp_supplier_name: (canonical.erp_supplier_name as string | null | undefined) ?? null,
+      erp_customer_name: (canonical.erp_customer_name as string | null | undefined) ?? null,
+      erp_tax_id: (canonical.erp_tax_id as string | null | undefined) ?? null,
+      erp_payment_terms_days: (canonical.erp_payment_terms_days as number | null | undefined) ?? null,
+    };
+    if (command.operation === 'create') {
+      const { error } = await ctx.serviceClient.from('companies').insert({ id: canonical.id, org_id: ctx.orgId, ...patch });
+      if (error) throw new AppError(error.message, error.code);
+      return;
+    }
+    const { error } = await (
+      ctx.serviceClient.from('companies').update(patch).eq('org_id', ctx.orgId).eq('id', canonical.id) as unknown as Promise<{
+        error: { message: string; code?: string } | null;
+      }>
+    );
+    if (error) throw new AppError(error.message, error.code);
   },
-});
+};
 
 /** A registered-but-not-yet-wired erp_doc_kind WITHIN the 'procurement' writer (task 4.5's own
  *  loud-throw discipline, one level down from `notWired` — 'procurement' the domain IS wired, but not
@@ -321,10 +343,13 @@ export async function upsertProcurementItemMirror(
   if (error) throw new AppError(error.message, error.code);
 }
 
+// Both P2 ERPNext domains are wired: `companies` (task 3.6, supplier/customer parties) and
+// `procurement` (task 4.5/5.4, the per-erp_doc_kind money-doc switch above) — one registry entry per
+// domain, never a per-slice edit to another domain's entry (confinement, FR-ENA-013/090).
 export const READ_MODEL_WRITERS: Record<string, ReadModelWriter> = {
   reference: referenceWriter,
   tasks: tasksWriter,
-  companies: notWired('companies'),
+  companies: companiesWriter,
   procurement: procurementWriter,
 };
 

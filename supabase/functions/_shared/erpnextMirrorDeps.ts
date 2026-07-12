@@ -18,7 +18,7 @@
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { ERPNEXT_TIER } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/adapter.ts';
-import { recordExternalRef as recordExternalRefWrite } from '../../../pmo-portal/src/lib/adapterSeam/refs.ts';
+import { recordExternalRef as recordExternalRefWrite, findPmoRecordId } from '../../../pmo-portal/src/lib/adapterSeam/refs.ts';
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
 import type { PmoRecord } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
 
@@ -91,5 +91,52 @@ export function createErpMirrorCallbacks(ctx: ErpMirrorCallbackCtx): ErpMirrorCa
       if (error) throw new AppError(error.message, error.code);
     },
     recordExternalRef: (mapping) => recordExternalRefWrite(serviceClient as never, { ...mapping, orgId }),
+  };
+}
+
+/**
+ * ERPNext `contacts` table writer (task 3.6/3.10, FR-ENA-095) — the per-table primitives for the
+ * inbound `Contact` mirror path (`applyEngine.ts`'s sweep/webhook ingress, wired in slice 8; this
+ * writer is registered ahead of use and is inert until then — nothing calls it this slice). No
+ * `erp_modified` mirror column exists on `contacts` (spec §7 — contacts reuse the shipped
+ * `full_name`/`email`/`phone` with NO new mirror columns), so `readMirrorErpModified` always reports
+ * `null` (no stored watermark to compare against) — every inbound `Contact` event applies
+ * unconditionally, which is safe because contacts have no docstatus/cancel/amend lifecycle to guard
+ * against. `canonical.company_id` MUST already be the resolved PMO company id — the caller resolves
+ * it via `resolveExternalRef(..., 'companies', ...)` before calling `mintMirror` (this writer never
+ * resolves cross-domain refs itself, confinement). Never touches `title`/`notes`/`archived_at`
+ * (PMO-owned enhancement, FR-ENA-095).
+ */
+export function createErpContactsTableWriter(serviceClient: SupabaseClient, orgId: string): ErpMirrorTableWriter {
+  return {
+    resolvePmoRecordId: (externalRecordId) => findPmoRecordId(serviceClient as never, orgId, 'contacts', externalRecordId),
+    readMirrorErpModified: async () => null,
+    updateMirror: async (pmoRecordId, canonical) => {
+      const { error } = await (
+        serviceClient
+          .from('contacts')
+          .update({ full_name: canonical.full_name, email: canonical.email ?? null, phone: canonical.phone ?? null })
+          .eq('org_id', orgId)
+          .eq('id', pmoRecordId) as unknown as Promise<{ error: { message: string; code?: string } | null }>
+      );
+      if (error) throw new AppError(error.message, error.code);
+    },
+    mintMirror: async (canonical) => {
+      const companyId = canonical.company_id as string | undefined;
+      if (!companyId) {
+        throw new AppError('cannot mint a contacts mirror row without a resolved company_id', 'BAD_REQUEST');
+      }
+      const id = crypto.randomUUID();
+      const { error } = await serviceClient.from('contacts').insert({
+        id,
+        org_id: orgId,
+        company_id: companyId,
+        full_name: canonical.full_name,
+        email: canonical.email ?? null,
+        phone: canonical.phone ?? null,
+      });
+      if (error) throw new AppError(error.message, error.code);
+      return id;
+    },
   };
 }

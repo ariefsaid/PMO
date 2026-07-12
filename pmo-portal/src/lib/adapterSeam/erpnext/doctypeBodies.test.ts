@@ -17,6 +17,8 @@ import { DOCTYPE_BODIES } from './doctypeBodies.ts';
 import { mrToBody, mrFromDoc } from './bodies/materialRequest.ts';
 import { rfqToBody, rfqFromDoc } from './bodies/rfq.ts';
 import { supplierQuotationToBody, supplierQuotationFromDoc } from './bodies/supplierQuotation.ts';
+import { supplierToBody, supplierFromDoc } from './bodies/supplier.ts';
+import { customerToBody, customerFromDoc } from './bodies/customer.ts';
 
 describe('erpnext/doctypeBodies — DOCTYPE_BODIES composition (task 4.3)', () => {
   it('wires purchase-request to the R9-frozen materialRequest toBody/fromDoc (byte-identical function refs)', () => {
@@ -34,9 +36,19 @@ describe('erpnext/doctypeBodies — DOCTYPE_BODIES composition (task 4.3)', () =
     expect(DOCTYPE_BODIES.quotation?.fromDoc).toBe(supplierQuotationFromDoc);
   });
 
-  it('does not claim slices 3/6 kinds (supplier/purchase-invoice) — additive only', () => {
-    expect(DOCTYPE_BODIES.supplier).toBeUndefined();
+  it('wires supplier to the supplier.ts toBody/fromDoc (slice 3, FR-ENA-090/092)', () => {
+    expect(DOCTYPE_BODIES.supplier?.toBody).toBe(supplierToBody);
+    expect(DOCTYPE_BODIES.supplier?.fromDoc).toBe(supplierFromDoc);
+  });
+
+  it('wires customer to the customer.ts toBody/fromDoc (slice 3, FR-ENA-090/092)', () => {
+    expect(DOCTYPE_BODIES.customer?.toBody).toBe(customerToBody);
+    expect(DOCTYPE_BODIES.customer?.fromDoc).toBe(customerFromDoc);
+  });
+
+  it('does not claim slice 6 kinds (purchase-invoice/payment) — additive only', () => {
     expect(DOCTYPE_BODIES['purchase-invoice']).toBeUndefined();
+    expect(DOCTYPE_BODIES.payment).toBeUndefined();
   });
 
   it('end to end: an adapter built with DOCTYPE_BODIES commits a purchase-request create (no "not yet wired" throw)', async () => {
@@ -94,8 +106,8 @@ describe('erpnext/doctypeBodies — Slice 5 entries (purchase-order, goods-recei
     expect(canonical).toMatchObject({ id: 'MAT-PRE-2026-00001', gr_number: 'MAT-PRE-2026-00001' });
   });
 
-  it('does NOT declare entries slice 5 does not own (additive, no invented wiring)', () => {
+  it('does NOT declare entries slice 5/6 do not own (additive, no invented wiring)', () => {
     expect(DOCTYPE_BODIES['purchase-invoice']).toBeUndefined();
-    expect(DOCTYPE_BODIES.supplier).toBeUndefined();
+    expect(DOCTYPE_BODIES.payment).toBeUndefined();
   });
 });

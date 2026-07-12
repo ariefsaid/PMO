@@ -14,7 +14,7 @@
  */
 import type { Adapter, AdapterCommand, ChangesSinceWatermark, CommandResult, PmoDomain, PmoRecord } from '../contract.ts';
 import { AdapterError } from '../contract.ts';
-import { createDoc, ErpError, getDoc, submitDoc, type ErpClientDeps } from './client.ts';
+import { createDoc, ErpError, getDoc, submitDoc, updateDoc, type ErpClientDeps } from './client.ts';
 import { DOCTYPE_REGISTRY, type ErpCtx, type ErpDocKind } from './doctypeRegistry.ts';
 
 export const ERPNEXT_TIER = 'erpnext';
@@ -122,6 +122,25 @@ async function commitTransition(command: AdapterCommand, deps: ErpAdapterDeps): 
   return { externalRecordId, canonical };
 }
 
+/** task 3.3 (FR-ENA-092): a non-submittable kind (a party) has no docstatus lifecycle, so its update
+ *  is a direct field PUT — no submit/re-fetch step. The target ERP doc name is resolved by the
+ *  dispatch factory (2.13/3.x) into `ctx.refs.self` before the adapter is constructed (the adapter
+ *  itself never guesses at a PMO-id-to-ERP-name mapping); a missing resolution is a loud
+ *  `commit-rejected`, never a silent no-op. */
+async function commitUpdateNonSubmittable(command: AdapterCommand, deps: ErpAdapterDeps): Promise<CommandResult> {
+  const kind = requireKind(command.record);
+  const entry = DOCTYPE_REGISTRY[kind];
+  const bodyFns = requireBodyFns(deps, kind);
+  const targetName = deps.ctx.refs.self;
+  if (!targetName) {
+    throw new AdapterError('commit-rejected', `cannot update '${kind}' — no resolved ERP doc name (ctx.refs.self)`);
+  }
+  const body = bodyFns.toBody(command.record, deps.ctx);
+  const updated = (await updateDoc(deps.client, entry.doctype, targetName, body)) as { name: string };
+  const canonical: PmoRecord = { ...bodyFns.fromDoc(updated), id: command.record.id };
+  return { externalRecordId: updated.name, canonical };
+}
+
 async function commitErpCommand(command: AdapterCommand, deps: ErpAdapterDeps): Promise<CommandResult> {
   if (command.operation === 'create') return commitCreate(command, deps);
   if (command.operation === 'transition') return commitTransition(command, deps);
@@ -130,10 +149,17 @@ async function commitErpCommand(command: AdapterCommand, deps: ErpAdapterDeps): 
     // once-submitted doc — the adapter never even attempts it.
     throw new AdapterError('commit-rejected', 'erpnext adapter does not support delete — cancel-only (OQ-8)');
   }
-  // 'update': the real update-after-submit-routes-to-amend command surface is wired in slice 6
-  // (transitionPolicy.ts, task 2.8/2.9, is the pure policy; its wiring into commit() lands with the
-  // real doctypes that need amend). A loud throw here — never a silent no-op.
-  throw new AdapterError('commit-rejected', `erpnext adapter operation '${command.operation}' is wired in slice 6`);
+  if (command.operation === 'update') {
+    const kind = requireKind(command.record);
+    if (!DOCTYPE_REGISTRY[kind].submittable) return commitUpdateNonSubmittable(command, deps);
+    // A submittable kind's update-after-submit->amend policy (transitionPolicy.ts, task 2.8/2.9) is
+    // wired into commit() in slice 6 (`commitTransition` above already covers the transition/submit
+    // path) — a loud throw here, never a silent no-op.
+    throw new AdapterError('commit-rejected', `erpnext adapter update for submittable kind '${kind}' is wired in slice 6`);
+  }
+  // Every other operation is exhausted above ('create'/'transition'/'delete'/'update') — unreachable
+  // for the `AdapterCommand['operation']` union, but a loud throw here rather than a silent no-op.
+  throw new AdapterError('commit-rejected', `erpnext adapter operation '${command.operation}' is not supported`);
 }
 
 /** Parses the `"<Doctype>:<name>"` external-id encoding established by the companies-domain adopt

@@ -17,8 +17,12 @@ import { rfqToBody, rfqFromDoc } from './bodies/rfq.ts';
 import { supplierQuotationToBody, supplierQuotationFromDoc } from './bodies/supplierQuotation.ts';
 import { poToBody, poFromDoc } from './bodies/purchaseOrder.ts';
 import { grToBody, grFromDoc } from './bodies/goodsReceipt.ts';
+import { supplierToBody, supplierFromDoc } from './bodies/supplier.ts';
+import { customerToBody, customerFromDoc } from './bodies/customer.ts';
 
 export const DOCTYPE_BODIES: Partial<Record<ErpDocKind, DoctypeBodyFns>> = {
+  supplier: { toBody: supplierToBody, fromDoc: supplierFromDoc },
+  customer: { toBody: customerToBody, fromDoc: customerFromDoc },
   'purchase-request': { toBody: mrToBody, fromDoc: mrFromDoc },
   rfq: { toBody: rfqToBody, fromDoc: rfqFromDoc },
   quotation: { toBody: supplierQuotationToBody, fromDoc: supplierQuotationFromDoc },

@@ -193,6 +193,13 @@ export function cancelDoc(deps: ErpClientDeps, doctype: string, name: string): P
   return erpnextRequest(deps, { method: 'PUT', path: doctypePath(doctype, name), body: { docstatus: 2 } });
 }
 
+/** `PUT /api/resource/<DocType>/<name>` with a plain field patch, no `docstatus` (task 3.3) — a
+ *  non-submittable doctype (a party — Supplier/Customer) has no docstatus lifecycle, so its update
+ *  is a direct field PUT (never `submitDoc`/`cancelDoc`'s docstatus transition). */
+export function updateDoc(deps: ErpClientDeps, doctype: string, name: string, body: unknown): Promise<unknown> {
+  return erpnextRequest(deps, { method: 'PUT', path: doctypePath(doctype, name), body });
+}
+
 /** `GET /api/method/<rpc>` — the Frappe RPC surface (e.g. the version handshake). */
 export function callMethod(deps: ErpClientDeps, methodPath: string): Promise<unknown> {
   return erpnextRequest(deps, { method: 'GET', path: `/api/method/${methodPath}` });

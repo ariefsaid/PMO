@@ -30,6 +30,7 @@ import {
   archiveCompany,
   deleteCompany,
   type CompanyRow,
+  type CompanyType,
 } from '@/src/lib/db/companies';
 import {
   listProjectDocuments,
@@ -223,28 +224,42 @@ const project: ProjectRepository = {
   setContractValue: (id, value) => wrap(() => setProjectContractValue(id, value)),
 };
 
+// task 3.8 (finding-3 path fix, FR-ENA-090/091): the ERP party kind is DERIVED from the company's
+// own type — Vendor->'supplier', Client->'customer'. 'Internal' is never ERP-flipped (it is PMO's
+// own org marker, FR-ENA-090/091) — no `erp_doc_kind` exists for it in DOCTYPE_REGISTRY, so an
+// Internal-type write ALWAYS takes the direct DAL path regardless of the org's companies routing.
+function erpPartyDocKind(type: CompanyType): 'supplier' | 'customer' | null {
+  if (type === 'Vendor') return 'supplier';
+  if (type === 'Client') return 'customer';
+  return null;
+}
+
 const company: CompanyRepository = {
   listClients: () => wrap(() => listClientCompanies()),
   list: (params) => wrap(() => listCompanies(params)),
   get: (id) => wrap(() => getCompany(id)),
-  create: (input) =>
-    routeDomainWrite('companies') === 'external'
+  create: (input) => {
+    const kind = erpPartyDocKind(input.type);
+    return routeDomainWrite('companies') === 'external' && kind
       ? dispatchDomainCommand(
           'companies',
           'create',
-          { id: crypto.randomUUID(), ...input, erp_doc_kind: 'supplier' },
+          { id: crypto.randomUUID(), ...input, erp_doc_kind: kind },
           freshIdempotencyKey(),
         ).then((res) => res.canonical as unknown as CompanyRow)
-      : wrap(() => createCompany(input)),
-  update: (id, input) =>
-    routeDomainWrite('companies') === 'external'
+      : wrap(() => createCompany(input));
+  },
+  update: (id, input) => {
+    const kind = erpPartyDocKind(input.type);
+    return routeDomainWrite('companies') === 'external' && kind
       ? dispatchDomainCommand(
           'companies',
           'update',
-          { id, ...input, erp_doc_kind: 'supplier' },
+          { id, ...input, erp_doc_kind: kind },
           freshIdempotencyKey(),
         ).then(() => undefined)
-      : wrap(() => updateCompany(id, input)),
+      : wrap(() => updateCompany(id, input));
+  },
   archive: (id) => wrap(() => archiveCompany(id)),
   delete: (id) => wrap(() => deleteCompany(id)),
 };

@@ -129,6 +129,44 @@ describe('erpnext/adapter — commit() create, non-submittable kind: single crea
   });
 });
 
+describe('erpnext/adapter — commit() update, non-submittable kind (task 3.3, FR-ENA-092): a party has no docstatus, so update is a direct field PUT', () => {
+  it('resolves the target ERP name from ctx.refs.self, PUTs the toBody patch directly (no submit/re-fetch), maps via fromDoc', async () => {
+    const calls: Array<{ method: string; body?: unknown; url: string }> = [];
+    const fetchImpl = async (url: string, init?: RequestInit) => {
+      calls.push({ method: init?.method ?? 'GET', body: init?.body ? JSON.parse(init.body as string) : undefined, url });
+      return jsonResponse(200, { name: 'Spike Supplier', supplier_name: 'Spike Supplier Renamed' });
+    };
+    const deps = baseDeps(fetchImpl, {
+      ctx: { refs: { self: 'Spike Supplier' }, config: {} },
+      doctypeBodies: {
+        supplier: {
+          toBody: (rec) => ({ supplier_name: rec.name }),
+          fromDoc: (doc) => ({ id: 'placeholder', erp_supplier_name: (doc as { supplier_name: string }).supplier_name }),
+        },
+      },
+    });
+    const adapter = createErpAdapter(deps);
+    const result = await adapter.commit({
+      domain: 'companies',
+      operation: 'update',
+      record: { id: 'pmo-co-1', erp_doc_kind: 'supplier', name: 'Spike Supplier Renamed' },
+    });
+    expect(calls).toEqual([{ method: 'PUT', body: { supplier_name: 'Spike Supplier Renamed' }, url: 'https://erp.example.com/api/resource/Supplier/Spike%20Supplier' }]);
+    expect(result.externalRecordId).toBe('Spike Supplier');
+    expect(result.canonical).toMatchObject({ id: 'pmo-co-1', erp_supplier_name: 'Spike Supplier Renamed' });
+  });
+
+  it('rejects an update with no resolved ctx.refs.self (cannot target an unknown ERP doc)', async () => {
+    const deps = baseDeps(async () => jsonResponse(200, {}), {
+      doctypeBodies: { supplier: { toBody: () => ({}), fromDoc: () => ({ id: 'placeholder' }) } },
+    });
+    const adapter = createErpAdapter(deps);
+    await expect(
+      adapter.commit({ domain: 'companies', operation: 'update', record: { id: 'pmo-co-1', erp_doc_kind: 'supplier' } }),
+    ).rejects.toMatchObject({ code: 'commit-rejected' });
+  });
+});
+
 describe('erpnext/adapter — un-wired kinds/operations fail loud, never a silent no-op', () => {
   it('rejects a command whose erp_doc_kind has no DOCTYPE_BODIES entry yet', async () => {
     const adapter = createErpAdapter(baseDeps(async () => jsonResponse(200, {})));
@@ -142,13 +180,23 @@ describe('erpnext/adapter — un-wired kinds/operations fail loud, never a silen
     await expect(adapter.commit({ domain: 'procurement', operation: 'create', record: { id: 'pmo-1' } })).rejects.toBeInstanceOf(AdapterError);
   });
 
-  it('update/transition are not yet wired this slice — loud throw, never a silent no-op', async () => {
+  it('update on a SUBMITTABLE kind is not yet wired (transition/amend policy lands slices 4/6) — loud throw', async () => {
+    const deps = baseDeps(async () => jsonResponse(200, {}), {
+      doctypeBodies: { 'purchase-order': { toBody: () => ({}), fromDoc: () => ({ id: 'placeholder' }) } },
+    });
+    const adapter = createErpAdapter(deps);
+    await expect(
+      adapter.commit({ domain: 'procurement', operation: 'update', record: { id: 'pmo-1', erp_doc_kind: 'purchase-order' } }),
+    ).rejects.toMatchObject({ code: 'commit-rejected' });
+  });
+
+  it('transition is not yet wired this slice (any kind) — loud throw, never a silent no-op', async () => {
     const deps = baseDeps(async () => jsonResponse(200, {}), {
       doctypeBodies: { supplier: { toBody: () => ({}), fromDoc: () => ({ id: 'placeholder' }) } },
     });
     const adapter = createErpAdapter(deps);
     await expect(
-      adapter.commit({ domain: 'companies', operation: 'update', record: { id: 'pmo-1', erp_doc_kind: 'supplier' } }),
+      adapter.commit({ domain: 'companies', operation: 'transition', record: { id: 'pmo-1', erp_doc_kind: 'supplier' } }),
     ).rejects.toMatchObject({ code: 'commit-rejected' });
   });
 
