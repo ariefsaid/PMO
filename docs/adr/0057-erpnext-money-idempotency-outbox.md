@@ -124,6 +124,17 @@ So the lease bounds *liveness* (no permanent wedge), the quarantine bounds *POST
 `POST` is adopted, never duplicated), and the fencing token bounds *write-back safety* (no stale write-back
 and no duplicate finalize).
 
+**Fenced finalization (H-1 DIRECTOR RULING, 2026-07-13 — amends this ADR).** The original finalization
+sequenced a fencing-token *verify* and then SEPARATE `external_refs` + `confirmed` writes — a TOCTOU gap: a
+reclaimer could supersede the claim between the verify and the writes and have its correct mapping
+overwritten by a stale one. Finalization is now the DB-side **`finalize_outbox(id, generation, …)` RPC**:
+under a `SELECT … FOR UPDATE` row lock it re-checks `claim_generation` + `state='committed'` and — only if
+still owned — upserts `external_refs` **and** promotes `committed`→`confirmed` in ONE transaction. It is the
+**only** committed→confirmed path; a superseded claimant matches neither guard, so its ENTIRE finalization
+(ref + confirm) is a 0-row no-op. The per-domain read-model mirror stays a caller write issued only on a `1`
+return (owner-gated) and is independently backstopped by the doctype modified-poll sweep's convergence
+authority (a rare crash between confirm and mirror re-mirrors from ERP truth on the next cycle).
+
 ### 3. The adapter stamps the key into a per-doctype stable stock ANCHOR field (the recovery probe anchor)
 
 The adapter (`erpnext/adapter.ts`'s `stampAnchor`) appends the `idempotencyKey` into the doctype's
@@ -165,10 +176,28 @@ never re-issues a second create blindly (FR-ENA-042/043) — and **never `POST`s
 | Outbox `state` | Meaning | Recovery action |
 |---|---|---|
 | `confirmed` | ERP committed + PMO mirror/ref finalized | Return the stored `external_record_id` + canonical record. **No ERP call, no claim.** |
-| `committed` | ERP committed, PMO mirror/ref finalization failed | **Re-run only the finalization** (idempotent read-model upsert + `external_refs` record) — **re-verifying the fencing token immediately before the mirror/ref writes** so a superseded claimant writes nothing — then promote to `confirmed`. No second create, no claim. |
+| `committed` | ERP committed, PMO mirror/ref finalization failed | **Re-run only the finalization** via the DB-side **fenced** `finalize_outbox` RPC (H-1, below) — a single transaction that re-checks the fencing token under a row lock and, only if still owned, upserts `external_refs` **and** promotes `committed`→`confirmed` **atomically**; the per-domain read-model mirror is written only on a `1` return. A superseded claimant's entire finalization is a **0-row no-op**. No second create, no claim. |
 | `committing` (fresh) | Another caller currently owns the ERP-POST critical section | **Do not POST.** Re-read on a short backoff until the owner reaches `committed`/`confirmed`/`failed`, then reconcile to that state. |
 | `committing` (stale, past lease) | A claimant's ERP `POST` may be **in flight** and not yet probe-visible | **Never reclaim + re-POST** (that would duplicate an in-flight money doc). `quarantine_committing(id)` transitions it to `quarantined` (fenced, bumps `claim_generation`) and sets `reconcile_after`. The synchronous caller surfaces a retryable "reconciling"; the row is resolved by the reconciliation path once the window elapses. |
-| `quarantined` | A stale `committing` row awaiting its visibility window | Resolvable **only after `reconcile_after`**, via `claim_outbox_for_commit(id)` (which is gated on the window). The claim winner probes the `remarks` key: doc found → **adopt** (finalize → `confirmed`, no `POST`); no ERP hit after the window → reissue under the **same** idempotency key. Within the window the claim RETURNs null and no `POST` happens. |
+| `quarantined` | A stale `committing` row awaiting its visibility window | Resolvable **only after `reconcile_after`**, via `claim_outbox_for_commit(id)` (which is gated on the window). The claim winner probes the anchor key: doc found → **adopt** (finalize → `confirmed`, no `POST`); no ERP hit after the window → **per the per-kind reissue policy below**: reissue under the **same** idempotency key for a reissue-capable kind, or transition to **`held`** for a mutable-anchor kind (Payment Entry). Within the window the claim RETURNs null and no `POST` happens. |
+| `held` | A mutable-anchor money doc whose post-window recovery was **inconclusive** | **Terminal until an operator resolves it.** A retry surfaces the non-retryable `command-held`; the row is **excluded** from `outbox_reconcile_candidates` (never auto-reissued). Surfaced non-silently (`console.error` + org-member-`SELECT`-able state). |
+
+**Per-kind reissue policy (C-1 DIRECTOR RULING, 2026-07-13 — amends this ADR).** A post-window recovery
+that finds **no** ERP doc is only safe to reissue when *conclusive absence* is possible — i.e. the recovery
+probe's anchor is **immutable**. The policy is a per-doctype fact (`doctypeRegistry.anchorMutable`):
+
+| kind | anchor | mutable? | post-window no-hit action |
+|---|---|---|---|
+| Purchase Invoice / Purchase Receipt | `remarks` | no (survives verbatim) | **reissue-capable** — reissue under the same key |
+| every anchor-less kind | — | n/a | **reissue-capable** (non-money / pre-money; first-POST is the only attempt) |
+| **Payment Entry** | `reference_no` | **yes** (an accountant can edit it ERP-side) | **held-on-inconclusive** — NEVER auto-reissued; a blind reissue could mint a **second Payment Entry** (double-pay). The composite probe (below) is tried first; a still-inconclusive result → **`held`**. |
+
+**Composite deterministic Payment Entry recovery probe (C-1).** Because `reference_no` is mutable, the PE
+probe is `reference_no` anchor **OR** the deterministic conjunction — `party_type` + `party` + exact
+`paid_amount` + a `references` row citing the same Purchase Invoice + `creation` within the claim window —
+**every value read from our own outbox row `payload`** (persisted at insert, so the sync retry and the sweep
+resolve identically; the child-table `references` match runs after `getDoc` since it is not server-filterable).
+A **unique** match is adopted; 0 or >1 matches is inconclusive → `held`.
 | `pending` / `failed` | No caller owns it; a prior create may or may not have committed | **`claim_outbox_for_commit(id)` first.** Only the claim winner proceeds, holding its returned `claim_generation` as a fencing token: probe ERP by the stamped key; if a doc exists → adopt (set `external_record_id`, `committed`, then finalize → `confirmed`); if none → `POST` the create under the **same** outbox row, then on success → `committed` → finalize → `confirmed`, on classified failure → `failed` (or leave `committing` for retryable transport). **Every write-back is guarded `WHERE claim_generation = <token>`.** The claim loser RETURNs null → re-reads → reconciles (never POSTs). |
 
 Two concurrent retries therefore **cannot** both `POST`: only the claim winner holds the critical

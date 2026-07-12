@@ -41,7 +41,7 @@ export interface OutboxRow {
   domain: string;
   pmoRecordId: string;
   idempotencyKey: string;
-  state: 'pending' | 'committing' | 'committed' | 'confirmed' | 'failed' | 'quarantined';
+  state: 'pending' | 'committing' | 'committed' | 'confirmed' | 'failed' | 'quarantined' | 'held';
   externalRecordId: string | null;
   /** The adapter's REAL returned canonical record (F2), persisted at `markOutboxCommitted` so
    *  recovery/finalization mirrors the ERP-derived fields (totals, status, …) rather than a bare
@@ -82,14 +82,28 @@ export interface DispatchMoneyOutboxDeps {
   /** Guarded write-back `committing`→`committed` (records the ERP-assigned id AND the adapter's real
    *  returned `canonical`, F2 — so a later finalize mirrors the ERP-derived record, not a stub). */
   markOutboxCommitted: (id: string, externalRecordId: string, canonical: PmoRecord, claimGeneration: number) => Promise<number>;
-  /** F3 — a fenced ownership re-check run IMMEDIATELY before the (non-transactional) read-model +
-   *  `external_refs` writes. Returns `true` iff this caller still holds the claim (its
-   *  `claim_generation` matches the row's current value). A claimant superseded between `committed`
-   *  and `confirmed` gets `false` and MUST write nothing — otherwise it would stamp a stale mirror/ref
-   *  over the reclaimer's correct one. The DB impl is a guarded `SELECT`/`UPDATE` on `claim_generation`. */
-  verifyClaimGeneration: (id: string, claimGeneration: number) => Promise<boolean>;
-  /** Guarded write-back `committed`→`confirmed` (after the read-model/external_refs finalize). */
-  markOutboxConfirmed: (id: string, claimGeneration: number) => Promise<number>;
+  /** H-1 (finalization TOCTOU fix) — the DB-side FENCED finalization: ONE transaction (the
+   *  `finalize_outbox` RPC, 0095) that, under a `SELECT … FOR UPDATE` row lock, re-checks
+   *  `claim_generation` + `state='committed'` and — only if this caller still owns the claim — upserts
+   *  `external_refs` AND promotes `committed`→`confirmed` atomically. This is the ONLY committed→confirmed
+   *  path (the old separate `verifyClaimGeneration`+`markOutboxConfirmed`+caller-side `recordExternalRef`
+   *  had a TOCTOU gap: a reclaimer could supersede between the verify and the writes and get its correct
+   *  mapping overwritten by a stale one). Returns 1 when THIS caller finalized, 0 when superseded (its
+   *  ENTIRE finalization — ref + confirm — is a no-op). The per-domain read-model mirror stays a
+   *  caller write, issued only on a `1` (owner-gated) + backstopped by the doctype sweep. */
+  finalizeOutbox: (id: string, claimGeneration: number, mapping: ExternalRefMapping) => Promise<number>;
+  /** C-1 (PE mutable anchor → no conclusive absence) — the fenced `committing`→`held` transition
+   *  (`mark_outbox_held` RPC, 0095). Called ONLY on a post-window recovery reissue for a doctype whose
+   *  anchor is mutable (`reissueOnInconclusiveAbsence === false`, i.e. Payment Entry) when the probe
+   *  finds no doc: a blind reissue could mint a second Payment Entry, so the row is HELD for ops
+   *  resolution and NEVER auto-reissued. Guarded on `claim_generation` (F4). Returns 1 when held, else 0. */
+  markOutboxHeld: (id: string, reason: string, claimGeneration: number) => Promise<number>;
+  /** C-1 per-kind reissue policy (DIRECTOR RULING). `true` (default, reissue-capable) for an
+   *  IMMUTABLE-anchor kind (Purchase Invoice `remarks`, and every anchor-less kind): a post-window
+   *  recovery with no probe hit may safely reissue under the same idempotency key. `false` for a
+   *  MUTABLE-anchor money doc (Payment Entry `reference_no`, which an accountant can edit ERP-side):
+   *  conclusive absence cannot exist, so a post-window recovery with no hit is HELD, never reissued. */
+  reissueOnInconclusiveAbsence: boolean;
   /** Guarded write-back →`failed` (a non-retryable `commit-rejected` classification). A retryable
    *  `external-unreachable` deliberately does NOT mark anything — the row stays `committing` and
    *  becomes reclaimable once its lease expires (the same claim path handles it). */
@@ -111,40 +125,48 @@ function isRetryableTransport(error: unknown): boolean {
   return error instanceof AdapterError && error.code === 'external-unreachable';
 }
 
-/** The read-model write + `external_refs` record shared by every terminal (adopt-or-create) path,
- *  then the guarded promote to `confirmed`. Returns the `markOutboxConfirmed` row count so a
- *  caller can detect a fencing-token loss even at this late stage (defensive; not expected in
- *  practice since only the claim winner reaches here). */
+/** The DB-side FENCED finalization (H-1): the `external_refs` upsert + the `committed`→`confirmed`
+ *  promotion happen ATOMICALLY under a row lock in one RPC (`finalize_outbox`), re-checking the
+ *  fencing token so a superseded claimant's ENTIRE finalization (ref + confirm) is a 0-row no-op — it
+ *  can no longer stamp a stale mapping over the reclaimer's correct one (the old verify-then-write
+ *  TOCTOU). The per-domain read-model MIRROR stays a caller write, issued ONLY when the fenced RPC
+ *  returned `1` (owner-gated); a rare crash between confirm and mirror is re-mirrored from ERP truth by
+ *  the doctype modified-poll sweep's convergence authority. Returns the RPC's row count (1 = this caller
+ *  finalized; 0 = superseded → caller discards and reconciles off the reclaimer's current state). */
 async function finalizeOutboxRow(
   row: OutboxRow,
   claimGeneration: number,
   deps: DispatchMoneyWriteDeps,
 ): Promise<number> {
-  // F3 — generation-guard the WHOLE finalization: re-verify claim ownership IMMEDIATELY before the
-  // (non-transactional) mirror + `external_refs` writes, so a claimant superseded between `committed`
-  // and `confirmed` writes NOTHING (it must not stamp a stale mirror/ref over the reclaimer's correct
-  // one). A `false` here means superseded → return 0 so the caller discards and reconciles off the
-  // reclaimer's current state.
-  const stillOwned = await deps.money.verifyClaimGeneration(row.id, claimGeneration);
-  if (!stillOwned) return 0;
-  // F2 — mirror the adapter's REAL returned record (persisted at commit), not a reconstructed stub, so
-  // the read-model carries the ERP-derived fields (totals, status, outstanding, …). Fall back to the id
-  // stub only for a row adopted without a full record (a later read-back/sweep reconciles its fields).
-  const canonical: PmoRecord = row.canonical ?? { id: deps.command.record.id };
-  await deps.writeReadModel(canonical);
-  await deps.recordExternalRef({
+  const finalized = await deps.money.finalizeOutbox(row.id, claimGeneration, {
     pmoRecordId: deps.command.record.id,
     externalTier: deps.adapter.tier,
     externalRecordId: row.externalRecordId!,
     domain: deps.command.domain,
   });
-  return deps.money.markOutboxConfirmed(row.id, claimGeneration);
+  if (finalized === 0) return 0;
+  // F2 — mirror the adapter's REAL returned record (persisted at commit), not a reconstructed stub, so
+  // the read-model carries the ERP-derived fields (totals, status, outstanding, …). Fall back to the id
+  // stub only for a row adopted without a full record (a later read-back/sweep reconciles its fields).
+  const canonical: PmoRecord = row.canonical ?? { id: deps.command.record.id };
+  await deps.writeReadModel(canonical);
+  return finalized;
 }
 
 /** The claim winner's critical section: probe-adopt-or-POST, then the guarded committed/finalize
  *  write-backs. A fencing-token loss at ANY write-back discards this claimant's result — no
- *  finalize, no duplicate mirror — and reconciles off the row's current (post-supersede) state. */
-async function claimAndCommit(claimed: OutboxRow, deps: DispatchMoneyWriteDeps): Promise<CommandResult> {
+ *  finalize, no duplicate mirror — and reconciles off the row's current (post-supersede) state.
+ *
+ *  `isRecoveryReissue` marks a POST-WINDOW recovery claim (the `quarantined` path) — the only place a
+ *  reissue-after-inconclusive can occur. For a MUTABLE-anchor money doc (Payment Entry,
+ *  `reissueOnInconclusiveAbsence === false`) such a reissue is BANNED (C-1): a no-probe-hit cannot prove
+ *  the original POST didn't commit, so a blind reissue risks a second Payment Entry — the row is HELD
+ *  instead. A fresh first-attempt claim (pending/failed, `isRecoveryReissue` false) always POSTs. */
+async function claimAndCommit(
+  claimed: OutboxRow,
+  deps: DispatchMoneyWriteDeps,
+  isRecoveryReissue = false,
+): Promise<CommandResult> {
   const { command, money, adapter } = deps;
   const token = claimed.claimGeneration;
 
@@ -156,6 +178,20 @@ async function claimAndCommit(claimed: OutboxRow, deps: DispatchMoneyWriteDeps):
     // Adopting an orphaned/in-flight doc found only by its remarks key: the probe carries the ERP
     // record when it can, else we fall back to the id stub (a later sweep/read-back reconciles fields).
     canonical = probed.canonical ?? { id: command.record.id };
+  } else if (isRecoveryReissue && !money.reissueOnInconclusiveAbsence) {
+    // C-1 DIRECTOR RULING: a post-window recovery for a MUTABLE-anchor money doc (Payment Entry) found
+    // NO doc — but the mutable anchor means absence is NOT conclusive (the original POST may have
+    // committed and had its `reference_no` edited ERP-side). Reissuing would risk a double-pay. HOLD the
+    // row for ops resolution (fenced on the token), surface it non-silently, and NEVER auto-reissue.
+    await money.markOutboxHeld(claimed.id, 'recovery-inconclusive-absence: mutable anchor cannot prove non-commit', token);
+    // Intentional ops signal (non-silent, per the C-1 ruling): a held money command needs a human.
+    console.error(
+      `[money-outbox] HELD ${command.domain}/${command.record.id} (idempotencyKey=${command.idempotencyKey}) — ` +
+        'post-window recovery found no ERP doc but the anchor is mutable; not auto-reissued, awaiting operator resolution',
+    );
+    // A DISTINCT non-retryable code (an AppError passes through toDispatchError unchanged) — never the
+    // generic transient 'external-unreachable' (retrying will not help; an operator must resolve it).
+    throw new AppError('payment command held for operator resolution — not auto-reissued (mutable anchor)', 'command-held');
   } else {
     let result: CommandResult;
     try {
@@ -219,14 +255,19 @@ async function reconcileOutbox(row: OutboxRow, deps: DispatchMoneyWriteDeps): Pr
     }
     case 'quarantined': {
       // Resolved ONLY via a fenced claim gated (in the RPC) on the reconcile-after visibility window.
-      // Window elapsed → the claim wins → probe the remarks key → adopt the original (in-flight) POST,
-      // or, with no ERP hit, reissue under the SAME idempotency key. Window NOT elapsed (or another
-      // caller owns the reconcile) → surface a retryable "reconciling"; the sweep finalizes it once the
-      // window passes. We deliberately do NOT spin here — a 5-minute window must never block a request.
+      // Window elapsed → the claim wins → probe the anchor key → adopt the original (in-flight) POST,
+      // or, with no ERP hit, reissue under the SAME idempotency key — EXCEPT for a mutable-anchor money
+      // doc (Payment Entry), where a no-hit is HELD not reissued (C-1, enforced by the recovery-reissue
+      // flag). Window NOT elapsed (or another caller owns the reconcile) → surface a retryable
+      // "reconciling"; the sweep finalizes it once the window passes. We deliberately do NOT spin here.
       const claimed = await money.claimOutboxForCommit(row.id);
-      if (claimed) return claimAndCommit(claimed, deps);
+      if (claimed) return claimAndCommit(claimed, deps, true);
       throw toDispatchError(new AdapterError('external-unreachable', 'command-quarantined-reconciling'));
     }
+    case 'held':
+      // C-1: a mutable-anchor money doc held for operator resolution (recovery-inconclusive). A retry
+      // must NOT re-drive it — surface the non-retryable held signal until an operator clears it.
+      throw new AppError('payment command held for operator resolution — not auto-reissued (mutable anchor)', 'command-held');
     case 'pending':
     case 'failed': {
       const claimed = await money.claimOutboxForCommit(row.id);

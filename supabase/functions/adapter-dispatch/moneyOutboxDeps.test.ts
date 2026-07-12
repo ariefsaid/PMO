@@ -32,6 +32,7 @@ function makeFakeClient(seed: FakeRow[] = []) {
   const rows = new Map(seed.map((r) => [r.id, { ...r }]));
   let seq = rows.size;
   const rpcCalls: Array<{ fn: string; args: Record<string, unknown> }> = [];
+  const externalRefs: Array<Record<string, unknown>> = [];
 
   const client: OutboxServiceClient = {
     from(table: string) {
@@ -131,10 +132,29 @@ function makeFakeClient(seed: FakeRow[] = []) {
         row.claim_generation += 1;
         return { data: { ...row }, error: null };
       }
+      // H-1: finalize_outbox — fenced external_refs upsert + committed→confirmed (int row count).
+      if (fn === 'finalize_outbox') {
+        const gen = args.p_generation as number;
+        if (!row || row.claim_generation !== gen || row.state !== 'committed') return { data: 0, error: null };
+        row.state = 'confirmed';
+        externalRefs.push({
+          domain: args.p_domain, pmo_record_id: args.p_pmo_record_id,
+          external_tier: args.p_external_tier, external_record_id: args.p_external_record_id,
+        });
+        return { data: 1, error: null };
+      }
+      // C-1: mark_outbox_held — fenced committing→held (int row count).
+      if (fn === 'mark_outbox_held') {
+        const gen = args.p_generation as number;
+        if (!row || row.claim_generation !== gen || row.state !== 'committing') return { data: 0, error: null };
+        row.state = 'held';
+        row.last_error = args.p_reason as string;
+        return { data: 1, error: null };
+      }
       throw new Error(`unexpected rpc ${fn}`);
     },
   };
-  return { client, rows, rpcCalls };
+  return { client, rows, rpcCalls, externalRefs };
 }
 
 Deno.test('readOutbox: null when no row for the 4-tuple; maps a found row to camelCase OutboxRow', async () => {
@@ -201,7 +221,7 @@ Deno.test('quarantineCommitting: transitions a committing row -> quarantined, bu
   assertEquals(rows.get('outbox-1')?.state, 'quarantined');
 });
 
-Deno.test('markOutboxCommitted/Confirmed/Failed: guarded write-backs affect 1 row when the token matches, 0 when stale', async () => {
+Deno.test('markOutboxCommitted/Failed: guarded write-backs affect 1 row when the token matches, 0 when stale', async () => {
   const { client, rows } = makeFakeClient([
     {
       id: 'outbox-1', org_id: 'org-1', domain: 'procurement', pmo_record_id: 'pmo-1', idempotency_key: 'key-1',
@@ -221,16 +241,12 @@ Deno.test('markOutboxCommitted/Confirmed/Failed: guarded write-backs affect 1 ro
   const staleCount = await deps.markOutboxCommitted('outbox-1', 'PI-DUP', { id: 'pmo-1' }, 1);
   assertEquals(staleCount, 0, 'a stale fencing token must affect 0 rows');
 
-  const confirmedCount = await deps.markOutboxConfirmed('outbox-1', 2);
-  assertEquals(confirmedCount, 1);
-  assertEquals(rows.get('outbox-1')?.state, 'confirmed');
-
-  const failedStaleCount = await deps.markOutboxFailed('outbox-1', 'boom', 1);
-  assertEquals(failedStaleCount, 0);
+  const failedStaleCount = await deps.markOutboxFailed('outbox-1', 'boom', 2);
+  assertEquals(failedStaleCount, 1, 'the current token marks failed');
 });
 
-Deno.test('verifyClaimGeneration: true iff the row current claim_generation matches; false when superseded or missing', async () => {
-  const { client } = makeFakeClient([
+Deno.test('H-1 finalizeOutbox: the fenced RPC upserts external_refs + confirms only for the current token (0 when superseded)', async () => {
+  const { client, rows, externalRefs } = makeFakeClient([
     {
       id: 'outbox-1', org_id: 'org-1', domain: 'procurement', pmo_record_id: 'pmo-1', idempotency_key: 'key-1',
       external_tier: 'erpnext', operation: 'create', state: 'committed', external_record_id: 'PI-1', canonical: null,
@@ -238,9 +254,54 @@ Deno.test('verifyClaimGeneration: true iff the row current claim_generation matc
     },
   ]);
   const deps = createDbMoneyOutboxDeps({ serviceClient: client, orgId: 'org-1', externalTier: 'erpnext', operation: 'create', probeByRemarksKey: async () => null });
-  assertEquals(await deps.verifyClaimGeneration('outbox-1', 2), true);
-  assertEquals(await deps.verifyClaimGeneration('outbox-1', 1), false, 'a stale token must not verify');
-  assertEquals(await deps.verifyClaimGeneration('missing-id', 2), false);
+  // A superseded (stale) token: the ENTIRE finalization is a 0-row no-op — no ref, no confirm.
+  const superseded = await deps.finalizeOutbox('outbox-1', 1, { pmoRecordId: 'pmo-1', externalTier: 'erpnext', externalRecordId: 'PI-1', domain: 'procurement' });
+  assertEquals(superseded, 0, 'a superseded finalize must affect 0 rows');
+  assertEquals(externalRefs.length, 0, 'a superseded finalize writes NO external_refs');
+  assertEquals(rows.get('outbox-1')?.state, 'committed');
+  // The current token finalizes: ref written, row confirmed.
+  const owned = await deps.finalizeOutbox('outbox-1', 2, { pmoRecordId: 'pmo-1', externalTier: 'erpnext', externalRecordId: 'PI-1', domain: 'procurement' });
+  assertEquals(owned, 1);
+  assertEquals(rows.get('outbox-1')?.state, 'confirmed');
+  assertEquals(externalRefs[0]?.external_record_id, 'PI-1');
+});
+
+Deno.test('H-1 finalizeOutbox applies the injected encodeExternalRecordId (companies "<Doctype>:<name>" prefix)', async () => {
+  const { client, externalRefs } = makeFakeClient([
+    {
+      id: 'outbox-1', org_id: 'org-1', domain: 'companies', pmo_record_id: 'pmo-sup', idempotency_key: 'key-1',
+      external_tier: 'erpnext', operation: 'create', state: 'committed', external_record_id: 'ACME', canonical: null,
+      claim_generation: 1, last_error: null,
+    },
+  ]);
+  const deps = createDbMoneyOutboxDeps({
+    serviceClient: client, orgId: 'org-1', externalTier: 'erpnext', operation: 'create', probeByRemarksKey: async () => null,
+    encodeExternalRecordId: (m) => `Supplier:${m.externalRecordId}`,
+  });
+  await deps.finalizeOutbox('outbox-1', 1, { pmoRecordId: 'pmo-sup', externalTier: 'erpnext', externalRecordId: 'ACME', domain: 'companies' });
+  assertEquals(externalRefs[0]?.external_record_id, 'Supplier:ACME', 'the encoder is applied inside the fenced write');
+});
+
+Deno.test('C-1 markOutboxHeld: fenced committing→held for the current token (0 when superseded or non-committing); reissueOnInconclusiveAbsence defaults true, PE=false', async () => {
+  const { client, rows } = makeFakeClient([
+    {
+      id: 'outbox-1', org_id: 'org-1', domain: 'procurement', pmo_record_id: 'pmo-pe', idempotency_key: 'key-1',
+      external_tier: 'erpnext', operation: 'create', state: 'committing', external_record_id: null, canonical: null,
+      claim_generation: 3, last_error: null,
+    },
+  ]);
+  const deps = createDbMoneyOutboxDeps({ serviceClient: client, orgId: 'org-1', externalTier: 'erpnext', operation: 'create', probeByRemarksKey: async () => null });
+  assertEquals(deps.reissueOnInconclusiveAbsence, true, 'defaults reissue-capable');
+  const stale = await deps.markOutboxHeld('outbox-1', 'pe-inconclusive', 2);
+  assertEquals(stale, 0, 'a stale token cannot hold the row');
+  assertEquals(rows.get('outbox-1')?.state, 'committing');
+  const held = await deps.markOutboxHeld('outbox-1', 'pe-inconclusive', 3);
+  assertEquals(held, 1);
+  assertEquals(rows.get('outbox-1')?.state, 'held');
+  assertEquals(rows.get('outbox-1')?.last_error, 'pe-inconclusive');
+
+  const peDeps = createDbMoneyOutboxDeps({ serviceClient: client, orgId: 'org-1', externalTier: 'erpnext', operation: 'create', probeByRemarksKey: async () => null, reissueOnInconclusiveAbsence: false });
+  assertEquals(peDeps.reissueOnInconclusiveAbsence, false, 'PE is held-on-inconclusive');
 });
 
 Deno.test('probeByRemarksKey + backoff are passed through from the injected opts (tier-specific, not built here)', async () => {

@@ -10,6 +10,8 @@
 --   external_ref_lineage      — cancel/amend history (R2): repoint + supersede tracking.
 --
 -- Reversibility (ADR-0006): supabase db reset. Manual rollback (functions before tables, reverse order):
+--   drop function if exists public.mark_outbox_held(uuid, int, text);
+--   drop function if exists public.finalize_outbox(uuid, int, text, text, text, text);
 --   drop function if exists public.outbox_reconcile_candidates(uuid);
 --   drop function if exists public.quarantine_committing(uuid, interval, interval);
 --   drop function if exists public.claim_outbox_for_commit(uuid, interval);
@@ -50,9 +52,19 @@ create table public.external_command_outbox (
   idempotency_key     text not null,
   external_tier       text not null,
   operation           text not null check (operation in ('create','update','transition')),
-  state               text not null check (state in ('pending','committing','committed','confirmed','failed','quarantined')),
+  -- 'held' (C-1 DIRECTOR RULING, ADR-0057 §4): the recovery-inconclusive terminal for a MUTABLE-anchor
+  -- money doc (Payment Entry). A PE whose anchor (reference_no) can be ERP-side edited has NO conclusive
+  -- absence — so if a post-window recovery composite-probe finds no doc, it is NEVER auto-reissued
+  -- (that would risk a double-pay); it transitions to 'held' for ops resolution instead. Never a
+  -- reconcile candidate (outbox_reconcile_candidates omits it) — resolved only by an operator.
+  state               text not null check (state in ('pending','committing','committed','confirmed','failed','quarantined','held')),
   external_record_id  text,
   canonical           jsonb,                    -- F2: the adapter's REAL returned record, persisted at commit so recovery/finalize mirrors ERP-derived fields (not a {id} stub)
+  -- C-1 composite-probe payload (ADR-0057 §4): the command inputs a MUTABLE-anchor recovery probe needs
+  -- when the anchor alone is unreliable — party_type/party/paid_amount/reference names + the claim window
+  -- start. Persisted at INSERT so the SWEEP recovery path (which reconstructs the command from the outbox
+  -- row, never the live request) can run the same deterministic composite probe as the sync retry path.
+  payload             jsonb,
   payload_digest      text,
   attempt_count       int not null default 0,
   claim_generation    int not null default 0,   -- fencing token: bumped on every claim; write-backs guard on it
@@ -180,6 +192,61 @@ create or replace function public.outbox_reconcile_candidates(p_org_id uuid)
            or (state='quarantined' and reconcile_after is not null and reconcile_after < now()) );
   $$;
 
+-- ── finalize_outbox (H-1 DIRECTOR RULING — the DB-side FENCED finalization). The audit found a
+-- finalization TOCTOU: the old verify-then-write sequenced `verifyClaimGeneration()` → `writeReadModel`
+-- → `recordExternalRef` → `markOutboxConfirmed` as SEPARATE steps, so a reclaimer could supersede the
+-- claim in the gap AFTER the verify and BEFORE the external_refs/confirm writes — stamping a STALE
+-- external_record_id over the reclaimer's correct one. This RPC collapses the external_refs upsert AND
+-- the committed→confirmed promotion into ONE transaction under a `SELECT … FOR UPDATE` row lock, fenced
+-- on `claim_generation` + `state='committed'`. A superseded claimant matches the guard on NEITHER, so
+-- its ENTIRE finalization (ref + confirm) is a 0-row no-op — it cannot write anything. This is now the
+-- ONLY committed→confirmed path (markOutboxConfirmed is retired). The per-domain read-model mirror stays
+-- a caller-side write BUT is issued only when this RPC returns 1 (owner-gated), and is independently
+-- backstopped by the doctype modified-poll sweep's convergence authority (a rare crash between confirm
+-- and mirror re-mirrors from ERP truth on the next cycle). SECURITY DEFINER over the policy-less outbox
+-- (+ external_refs, also machine-written). Returns 1 when THIS caller owned+finalized, else 0.
+create or replace function public.finalize_outbox(
+  p_id uuid, p_generation int,
+  p_domain text, p_pmo_record_id text, p_external_tier text, p_external_record_id text
+) returns int
+  language plpgsql security definer set search_path = public as $$
+  declare v public.external_command_outbox;
+  begin
+    -- Row-lock the outbox row so no concurrent claim/quarantine can interleave with the fence+writes.
+    select * into v from public.external_command_outbox where id = p_id for update;
+    -- Fence: only the CURRENT claim generation, and only a still-`committed` row, may finalize. A
+    -- superseded generation OR an already-confirmed/other-state row → 0 rows, nothing written (the
+    -- ENTIRE finalization is a no-op — mirror is caller-gated on this return, ref+confirm are here).
+    if v.id is null or v.claim_generation is distinct from p_generation or v.state <> 'committed' then
+      return 0;
+    end if;
+    -- external_refs upsert (moved in from refs.ts's recordExternalRef so it is fenced+atomic with the
+    -- confirm — a stale claimant can no longer overwrite the mapping). Same 3-tuple conflict key.
+    insert into public.external_refs (org_id, domain, pmo_record_id, external_tier, external_record_id)
+      values (v.org_id, p_domain, p_pmo_record_id, p_external_tier, p_external_record_id)
+      on conflict (org_id, domain, pmo_record_id)
+        do update set external_record_id = excluded.external_record_id, external_tier = excluded.external_tier;
+    update public.external_command_outbox set state = 'confirmed', updated_at = now() where id = p_id;
+    return 1;
+  end; $$;
+
+-- ── mark_outbox_held (C-1 DIRECTOR RULING): the fenced committed-recovery-inconclusive → 'held'
+-- transition for a MUTABLE-anchor money doc (Payment Entry). Guarded on claim_generation (F4) so only
+-- the current claimant may hold it; records the reason in last_error for ops visibility. Never
+-- auto-resolved (not a reconcile candidate) — an operator clears it. Returns 1 when held, else 0.
+create or replace function public.mark_outbox_held(
+  p_id uuid, p_generation int, p_reason text
+) returns int
+  language plpgsql security definer set search_path = public as $$
+  declare v_n int;
+  begin
+    update public.external_command_outbox
+       set state = 'held', last_error = p_reason, updated_at = now()
+     where id = p_id and claim_generation = p_generation and state = 'committing'
+    returning 1 into v_n;
+    return coalesce(v_n, 0);
+  end; $$;
+
 -- ── ACL discipline (mirrors 0005/0006/ADR-0009): revoke all from public, grant execute only to the
 -- intended machine caller (service_role — the dispatch edge fn + the sweep, task 8.6). These RPCs are
 -- SECURITY DEFINER over a policy-less table; they must NOT be callable by an ordinary authenticated
@@ -191,3 +258,7 @@ revoke all on function public.quarantine_committing(uuid, interval, interval) fr
 grant execute on function public.quarantine_committing(uuid, interval, interval) to service_role;
 revoke all on function public.outbox_reconcile_candidates(uuid) from public;
 grant execute on function public.outbox_reconcile_candidates(uuid) to service_role;
+revoke all on function public.finalize_outbox(uuid, int, text, text, text, text) from public;
+grant execute on function public.finalize_outbox(uuid, int, text, text, text, text) to service_role;
+revoke all on function public.mark_outbox_held(uuid, int, text) from public;
+grant execute on function public.mark_outbox_held(uuid, int, text) to service_role;

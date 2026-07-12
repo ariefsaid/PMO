@@ -41,8 +41,9 @@ describe('erpnext/doctypeRegistry', () => {
       'purchase-invoice': { doctype: 'Purchase Invoice', submittable: true, anchorField: 'remarks' },
       // DIRECTOR RULING (Slice-6 completion, 2026-07-12): PE anchors on `reference_no`, not `remarks`
       // — live-bench-verified: `remarks` is overwritten by ERPNext's `validate` hook, `reference_no`
-      // survives. See the file docstring + ADR-0057 §3.
-      payment: { doctype: 'Payment Entry', submittable: true, anchorField: 'reference_no' },
+      // survives. See the file docstring + ADR-0057 §3. C-1: `reference_no` is ERP-side MUTABLE
+      // (anchorMutable) → a recovery probe miss is inconclusive → the PE is held, never reissued.
+      payment: { doctype: 'Payment Entry', submittable: true, anchorField: 'reference_no', anchorMutable: true },
       supplier: { doctype: 'Supplier', submittable: false, anchorField: null },
       customer: { doctype: 'Customer', submittable: false, anchorField: null },
     });

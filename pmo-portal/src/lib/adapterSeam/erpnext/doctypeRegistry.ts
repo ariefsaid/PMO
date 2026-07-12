@@ -46,6 +46,12 @@ export interface DoctypeEntry {
    *  enables R3 orphan-adoption for a `pending`/`failed`-state crash. See `doctypeRegistry.test.ts`'s
    *  docstring for the per-doctype empirical rationale (PI/PR → `remarks`; PE → `reference_no`). */
   anchorField: string | null;
+  /** C-1 DIRECTOR RULING (ADR-0057 §4): `true` when the `anchorField` is ERP-side MUTABLE, so a probe
+   *  miss is NOT conclusive absence. Payment Entry's `reference_no` can be edited by an accountant after
+   *  commit — a post-window recovery that finds no doc could still have a landed (renamed) PE, so it is
+   *  HELD not reissued (a blind reissue risks a double-pay). Omitted/`false` ⇒ immutable anchor (Purchase
+   *  Invoice `remarks`) or no anchor ⇒ reissue-capable (conclusive absence). */
+  anchorMutable?: boolean;
   /** Assigned per entry by 2.7 (money doc bodies) + slice 3 (party bodies) via `DOCTYPE_BODIES`. */
   toBody: (rec: PmoRecord, ctx: ErpCtx) => unknown;
   /** Assigned per entry by 2.7 + slice 3 via `DOCTYPE_BODIES`. */
@@ -56,7 +62,7 @@ export interface DoctypeEntry {
  *  two-step create->submit (FR-ENA-044); `readOnly` marks a kind PMO never writes (e.g. Customer, OQ-4);
  *  `anchorField` names the per-doctype recovery-probe anchor (ADR-0057 §3, task 6.4 — `null` ⇒ skip the
  *  probe; 'remarks' for PI/PR; 'reference_no' for PE per the DIRECTOR RULING, see test docstring). */
-export const DOCTYPE_REGISTRY: Record<ErpDocKind, Pick<DoctypeEntry, 'doctype' | 'submittable' | 'readOnly' | 'anchorField'>> = {
+export const DOCTYPE_REGISTRY: Record<ErpDocKind, Pick<DoctypeEntry, 'doctype' | 'submittable' | 'readOnly' | 'anchorField' | 'anchorMutable'>> = {
   'purchase-request': { doctype: 'Material Request', submittable: true, anchorField: null },
   rfq: { doctype: 'Request for Quotation', submittable: true, anchorField: null },
   quotation: { doctype: 'Supplier Quotation', submittable: true, anchorField: null },
@@ -70,7 +76,9 @@ export const DOCTYPE_REGISTRY: Record<ErpDocKind, Pick<DoctypeEntry, 'doctype' |
   // never sends it) AND it SURVIVES validate+submit+refetch carrying the key verbatim — so PE anchors
   // on `reference_no` instead. The anchor matters only during the recovery window; ERP-side edits to
   // reference_no afterward are acceptable. See ADR-0057 §3 (amended) + doctypeRegistry.test.ts docstring.
-  payment: { doctype: 'Payment Entry', submittable: true, anchorField: 'reference_no' },
+  // anchorMutable (C-1): `reference_no` is ERP-side editable, so a probe miss is NOT conclusive → a
+  // post-window recovery with no composite-probe hit is HELD, never auto-reissued (double-pay guard).
+  payment: { doctype: 'Payment Entry', submittable: true, anchorField: 'reference_no', anchorMutable: true },
   supplier: { doctype: 'Supplier', submittable: false, anchorField: null },
   customer: { doctype: 'Customer', submittable: false, anchorField: null }, // write scope settled in slice 3 (OQ-4)
 };

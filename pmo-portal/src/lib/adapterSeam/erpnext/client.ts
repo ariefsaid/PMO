@@ -252,3 +252,27 @@ export async function listDocNamesByAnchor(
   if (!Array.isArray(data)) return [];
   return data.map((d) => String(d.name)).filter((n) => n !== 'undefined');
 }
+
+/** A Frappe filter tuple `[field, operator, value]` (server-filterable columns only — child-table
+ *  fields like Payment Entry `references` are NOT filterable and must be matched after `getDoc`). */
+export type ErpFilter = [string, string, string | number];
+
+/**
+ * List `<DocType>` doc `name`s matching a conjunction of server-filterable `filters` (the C-1 composite
+ * PE recovery probe, ADR-0057 §4 — when the mutable `reference_no` anchor alone cannot find a landed
+ * Payment Entry, a deterministic party_type+party+paid_amount+creation-window conjunction narrows the
+ * candidates before a child-table `references` match). A `GET`, so the standard retry/backoff applies.
+ */
+export async function listDocNamesByFilters(
+  deps: ErpClientDeps,
+  doctype: string,
+  filters: ErpFilter[],
+  limit = 20,
+): Promise<string[]> {
+  const encoded = encodeURIComponent(JSON.stringify(filters));
+  const path = `${doctypePath(doctype)}?filters=${encoded}&limit_page_length=${limit}`;
+  const res = await erpnextRequest(deps, { method: 'GET', path });
+  const data = (res as { data?: Array<{ name?: unknown }> } | null)?.data;
+  if (!Array.isArray(data)) return [];
+  return data.map((d) => String(d.name)).filter((n) => n !== 'undefined');
+}

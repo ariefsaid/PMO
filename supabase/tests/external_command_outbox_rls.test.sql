@@ -6,7 +6,7 @@
 -- its reconcile_after window, the claim_generation fencing-token proof that a stale claimant's write-back
 -- is discarded (F4), and the function-privilege proof that the outbox RPCs are service_role-only.
 begin;
-select plan(23);
+select plan(38);
 
 insert into organizations (id, name) values
   ('00950000-0000-0000-0000-000000000001','AC-ENA Outbox A'),
@@ -164,6 +164,64 @@ select throws_ok(
   '42501', null,
   'AC-ENA-012 an authenticated user-JWT call to outbox_reconcile_candidates is denied (42501)');
 reset role;
+
+-- ── H-1 (finalization TOCTOU fix): finalize_outbox is the DB-side FENCED committed→confirmed path.
+-- A superseded claimant's ENTIRE finalization (external_refs upsert + confirm) must be a 0-row no-op;
+-- only the current claim_generation on a still-`committed` row may finalize (ref written + confirmed).
+reset role;
+insert into external_command_outbox (id, org_id, domain, pmo_record_id, idempotency_key, external_tier, operation, state, external_record_id, claim_generation)
+values ('00950000-0000-0000-0000-0000000000c2','00950000-0000-0000-0000-000000000001','procurement','pmo-fin','key-fin','erpnext','create','committed','PI-9',5);
+
+-- Superseded generation (4 ≠ current 5): finalize returns 0.
+select is((select public.finalize_outbox('00950000-0000-0000-0000-0000000000c2', 4, 'procurement','pmo-fin','erpnext','PI-9')), 0,
+  'H-1 finalize_outbox with a SUPERSEDED claim_generation returns 0 (the entire finalization no-ops)');
+-- …and wrote NO external_refs mapping.
+select is((select count(*)::int from external_refs where org_id='00950000-0000-0000-0000-000000000001' and pmo_record_id='pmo-fin'), 0,
+  'H-1 a superseded finalize wrote NO external_refs row (ref write is fenced)');
+-- …and left the row `committed` (not confirmed).
+select is((select state from external_command_outbox where id='00950000-0000-0000-0000-0000000000c2'), 'committed',
+  'H-1 a superseded finalize did NOT promote the outbox row to confirmed');
+
+-- Current generation on a committed row: finalize succeeds — ref written + row confirmed, atomically.
+select is((select public.finalize_outbox('00950000-0000-0000-0000-0000000000c2', 5, 'procurement','pmo-fin','erpnext','PI-9')), 1,
+  'H-1 finalize_outbox with the CURRENT claim_generation on a committed row returns 1');
+select is((select external_record_id from external_refs where org_id='00950000-0000-0000-0000-000000000001' and domain='procurement' and pmo_record_id='pmo-fin'), 'PI-9',
+  'H-1 finalize_outbox upserted the external_refs mapping (moved in-RPC, fenced+atomic with confirm)');
+select is((select state from external_command_outbox where id='00950000-0000-0000-0000-0000000000c2'), 'confirmed',
+  'H-1 finalize_outbox promoted the outbox row committed→confirmed');
+-- Idempotent replay: finalizing an already-confirmed row is a 0-row no-op (state check excludes confirmed).
+select is((select public.finalize_outbox('00950000-0000-0000-0000-0000000000c2', 5, 'procurement','pmo-fin','erpnext','PI-9')), 0,
+  'H-1 re-finalizing an already-confirmed row returns 0 (committed→confirmed is one-shot)');
+
+-- ── C-1 (PE mutable anchor): the 'held' recovery-inconclusive terminal + its fenced transition.
+reset role;
+insert into external_command_outbox (id, org_id, domain, pmo_record_id, idempotency_key, external_tier, operation, state, claim_generation)
+values ('00950000-0000-0000-0000-0000000000c3','00950000-0000-0000-0000-000000000001','procurement','pmo-held','key-held','erpnext','create','committing',7);
+-- The state CHECK accepts 'held' (a direct set succeeds).
+update external_command_outbox set state='held' where id='00950000-0000-0000-0000-0000000000c3';
+select is((select state from external_command_outbox where id='00950000-0000-0000-0000-0000000000c3'), 'held',
+  'C-1 the state CHECK accepts the held recovery-inconclusive terminal');
+update external_command_outbox set state='committing' where id='00950000-0000-0000-0000-0000000000c3';
+-- mark_outbox_held fences on claim_generation: a stale token no-ops.
+select is((select public.mark_outbox_held('00950000-0000-0000-0000-0000000000c3', 6, 'pe-inconclusive-absence')), 0,
+  'C-1 mark_outbox_held with a STALE claim_generation returns 0 (fenced)');
+select is((select state from external_command_outbox where id='00950000-0000-0000-0000-0000000000c3'), 'committing',
+  'C-1 a fenced-out mark_outbox_held left the row committing');
+-- The current token holds it (records the reason for ops visibility).
+select is((select public.mark_outbox_held('00950000-0000-0000-0000-0000000000c3', 7, 'pe-inconclusive-absence')), 1,
+  'C-1 mark_outbox_held with the CURRENT claim_generation on a committing row returns 1');
+select is((select state || '|' || last_error from external_command_outbox where id='00950000-0000-0000-0000-0000000000c3'), 'held|pe-inconclusive-absence',
+  'C-1 mark_outbox_held transitions committing→held and records the reason (ops-queryable)');
+-- A held row is NEVER an auto-reconcile candidate (an operator resolves it — never auto-reissued).
+select is((select count(*)::int from public.outbox_reconcile_candidates('00950000-0000-0000-0000-000000000001') where id='00950000-0000-0000-0000-0000000000c3'), 0,
+  'C-1 a held row is excluded from outbox_reconcile_candidates (never auto-reissued)');
+
+-- Function-privilege: the two new RPCs are service_role-only (SECURITY DEFINER over the policy-less outbox).
+reset role;
+select ok(not has_function_privilege('authenticated', 'public.finalize_outbox(uuid, int, text, text, text, text)', 'execute'),
+  'H-1 authenticated CANNOT execute finalize_outbox (service_role-only)');
+select ok(not has_function_privilege('authenticated', 'public.mark_outbox_held(uuid, int, text)', 'execute'),
+  'C-1 authenticated CANNOT execute mark_outbox_held (service_role-only)');
 
 select finish();
 rollback;

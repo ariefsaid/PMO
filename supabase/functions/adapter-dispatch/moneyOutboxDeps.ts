@@ -15,7 +15,7 @@
  * `deno check` + `deno test moneyOutboxDeps.test.ts` against a structural fake client.
  */
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
-import type { DispatchMoneyOutboxDeps, OutboxRow } from '../../../pmo-portal/src/lib/adapterSeam/dispatch.ts';
+import type { DispatchMoneyOutboxDeps, ExternalRefMapping, OutboxRow } from '../../../pmo-portal/src/lib/adapterSeam/dispatch.ts';
 import type { PmoRecord } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
 
 /** Structural service-role client seam this module needs: `.from(t).{select,insert,update}` +
@@ -77,6 +77,14 @@ async function callRowRpc(client: OutboxServiceClient, fn: string, id: string): 
   return mapRow(data as OutboxDbRow);
 }
 
+/** RPC helper for the int-returning fenced write-backs (`finalize_outbox`/`mark_outbox_held`): they
+ *  return the affected row count (1 = this caller owned+applied; 0 = superseded/not-applicable). */
+async function callCountRpc(client: OutboxServiceClient, fn: string, args: Record<string, unknown>): Promise<number> {
+  const { data, error } = await client.rpc(fn, args);
+  if (error) throw new AppError(error.message, error.code);
+  return typeof data === 'number' ? data : Number(data ?? 0);
+}
+
 const defaultBackoff = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 250));
 
 export interface DbMoneyOutboxDepsOpts {
@@ -87,9 +95,21 @@ export interface DbMoneyOutboxDepsOpts {
    *  (0095 NOT NULL) is fixed for the lifetime of one command's outbox row, so it is closed over here
    *  rather than threaded through every `DispatchMoneyOutboxDeps` method signature. */
   operation: 'create' | 'update' | 'transition';
-  /** Tier-specific recovery probe (ERPNext's `remarks`-key anchor, ADR-0057 §3) — injected, not built
-   *  here (this module is tier-agnostic). */
+  /** Tier-specific recovery probe (ERPNext's anchor-key / PE composite probe, ADR-0057 §3) — injected,
+   *  not built here (this module is tier-agnostic). */
   probeByRemarksKey: DispatchMoneyOutboxDeps['probeByRemarksKey'];
+  /** C-1 per-kind reissue policy (ADR-0057 §4): `false` for a MUTABLE-anchor money doc (Payment Entry)
+   *  whose post-window recovery no-hit must be HELD not reissued; `true` (default) for every
+   *  immutable-/no-anchor kind (reissue-capable). Set by the ERPNext factory from the doctype. */
+  reissueOnInconclusiveAbsence?: boolean;
+  /** C-1 composite-probe payload persisted at INSERT (party_type/party/paid_amount/reference names +
+   *  the claim-window basis) so the SWEEP recovery path can run the same deterministic probe as the
+   *  sync retry path. `undefined` (every non-PE / pre-C-1 caller) ⇒ no payload column written. */
+  payload?: Record<string, unknown>;
+  /** Domain-specific `external_refs.external_record_id` encoder (e.g. the companies "<Doctype>:<name>"
+   *  prefix, index.ts) applied INSIDE the fenced `finalize_outbox` write so the moved-in-RPC ref
+   *  matches the pre-H-1 caller encoding. Default identity (the bare ERP name). */
+  encodeExternalRecordId?: (mapping: ExternalRefMapping) => string;
   /** Production backoff delay before re-reading a fresh (live-owned) `committing` row. Defaults to a
    *  small real delay; tests inject an instant/fast one. */
   backoff?: () => Promise<void>;
@@ -98,6 +118,7 @@ export interface DbMoneyOutboxDepsOpts {
 /** Builds the DB-backed `DispatchMoneyOutboxDeps` for ONE request's org/tier/operation. */
 export function createDbMoneyOutboxDeps(opts: DbMoneyOutboxDepsOpts): DispatchMoneyOutboxDeps {
   const { serviceClient, orgId, externalTier, operation } = opts;
+  const encodeExternalRecordId = opts.encodeExternalRecordId ?? ((m: ExternalRefMapping) => m.externalRecordId);
 
   return {
     async readOutbox(domain, pmoRecordId, idempotencyKey) {
@@ -124,6 +145,8 @@ export function createDbMoneyOutboxDeps(opts: DbMoneyOutboxDepsOpts): DispatchMo
           external_tier: externalTier,
           operation,
           state: 'pending',
+          // C-1: persist the composite-probe inputs so the sweep recovery path can probe deterministically.
+          ...(opts.payload ? { payload: opts.payload } : {}),
         })
         .select('*')
         .single();
@@ -151,27 +174,24 @@ export function createDbMoneyOutboxDeps(opts: DbMoneyOutboxDepsOpts): DispatchMo
       return data?.length ?? 0;
     },
 
-    async verifyClaimGeneration(id, claimGeneration) {
-      const { data, error } = await serviceClient
-        .from('external_command_outbox')
-        .select('claim_generation')
-        .eq('id', id)
-        .maybeSingle();
-      if (error) throw new AppError(error.message, error.code);
-      if (!data) return false;
-      return (data as { claim_generation: number }).claim_generation === claimGeneration;
-    },
+    // H-1 (finalization TOCTOU fix): the fenced external_refs-upsert + committed→confirmed in ONE RPC
+    // under a row lock. The domain-specific external_record_id encoding (companies prefix) is applied
+    // here, BEFORE the RPC, so the moved-in-RPC ref matches the pre-H-1 caller-side encoding.
+    finalizeOutbox: (id, claimGeneration, mapping) =>
+      callCountRpc(serviceClient, 'finalize_outbox', {
+        p_id: id,
+        p_generation: claimGeneration,
+        p_domain: mapping.domain,
+        p_pmo_record_id: mapping.pmoRecordId,
+        p_external_tier: mapping.externalTier,
+        p_external_record_id: encodeExternalRecordId(mapping),
+      }),
 
-    async markOutboxConfirmed(id, claimGeneration) {
-      const { data, error } = await serviceClient
-        .from('external_command_outbox')
-        .update({ state: 'confirmed' })
-        .eq('id', id)
-        .eq('claim_generation', String(claimGeneration))
-        .select('id');
-      if (error) throw new AppError(error.message, error.code);
-      return data?.length ?? 0;
-    },
+    // C-1 (PE mutable anchor): the fenced committing→held transition for a recovery-inconclusive PE.
+    markOutboxHeld: (id, reason, claimGeneration) =>
+      callCountRpc(serviceClient, 'mark_outbox_held', { p_id: id, p_generation: claimGeneration, p_reason: reason }),
+
+    reissueOnInconclusiveAbsence: opts.reissueOnInconclusiveAbsence ?? true,
 
     async markOutboxFailed(id, lastError, claimGeneration) {
       const { data, error } = await serviceClient

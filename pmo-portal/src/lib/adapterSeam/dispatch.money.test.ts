@@ -22,10 +22,11 @@ const WINDOW_MS = 5 * 60_000;
  *  (0095): a conditional transition into `committing` that only one caller can win per id, the
  *  quarantine of a stale `committing` row (F1 — never a blind re-POST), plus the `claim_generation`
  *  fencing token guarding every subsequent write-back. */
-function createFakeOutbox() {
+function createFakeOutbox(opts: { reissueOnInconclusiveAbsence?: boolean } = {}) {
   const rows = new Map<string, OutboxRow & { updatedAt: number; claimedAt: number | null; reconcileAfter: number | null }>();
   const byTuple = new Map<string, string>();
   const probes = new Map<string, { externalRecordId: string }>();
+  const refs: Array<{ pmoRecordId: string; externalTier: string; externalRecordId: string; domain: string }> = [];
   let seq = 0;
   const tupleKey = (domain: string, pmoRecordId: string, idempotencyKey: string) =>
     `${domain}::${pmoRecordId}::${idempotencyKey}`;
@@ -90,17 +91,26 @@ function createFakeOutbox() {
       row.updatedAt = Date.now();
       return 1;
     },
-    async verifyClaimGeneration(id, claimGeneration) {
+    // H-1: the fenced finalization RPC — external_refs upsert + committed→confirmed, atomic + fenced.
+    // Mirrors mark_outbox_held/finalize_outbox's DB semantics: 0 rows when superseded or not committed.
+    async finalizeOutbox(id, claimGeneration, mapping) {
       const row = rows.get(id);
-      return !!row && row.claimGeneration === claimGeneration;
-    },
-    async markOutboxConfirmed(id, claimGeneration) {
-      const row = rows.get(id);
-      if (!row || row.claimGeneration !== claimGeneration) return 0;
+      if (!row || row.claimGeneration !== claimGeneration || row.state !== 'committed') return 0;
+      refs.push({ ...mapping });
       row.state = 'confirmed';
       row.updatedAt = Date.now();
       return 1;
     },
+    // C-1: the fenced committing→held transition for a recovery-inconclusive PE.
+    async markOutboxHeld(id, reason, claimGeneration) {
+      const row = rows.get(id);
+      if (!row || row.claimGeneration !== claimGeneration || row.state !== 'committing') return 0;
+      row.state = 'held';
+      row.updatedAt = Date.now();
+      void reason;
+      return 1;
+    },
+    reissueOnInconclusiveAbsence: opts.reissueOnInconclusiveAbsence ?? true,
     async markOutboxFailed(id, _lastError, claimGeneration) {
       const row = rows.get(id);
       if (!row || row.claimGeneration !== claimGeneration) return 0;
@@ -120,6 +130,7 @@ function createFakeOutbox() {
   return {
     deps,
     rows,
+    refs,
     setProbe: (domain: string, idempotencyKey: string, result: { externalRecordId: string }) =>
       probes.set(`${domain}::${idempotencyKey}`, result),
     backdate: (id: string, ms: number) => {
@@ -191,7 +202,10 @@ describe('AC-ENA-012 fresh key: INSERT pending → claim → POST → committed 
     });
     expect(commit).toHaveBeenCalledTimes(1);
     expect(writeReadModel).toHaveBeenCalledTimes(1);
-    expect(recordExternalRef).toHaveBeenCalledWith({
+    // H-1: external_refs is now written INSIDE the fenced finalizeOutbox RPC (not the caller's
+    // recordExternalRef dep) — the money path no longer calls recordExternalRef directly.
+    expect(recordExternalRef).not.toHaveBeenCalled();
+    expect(fake.refs[0]).toEqual({
       pmoRecordId: 'pmo-1', externalTier: 'erpnext', externalRecordId: 'PI-0001', domain: 'procurement',
     });
     expect(result.externalRecordId).toBe('PI-0001');
@@ -208,7 +222,7 @@ describe('AC-ENA-012 concurrent duplicate insert: the unique 4-tuple rejects ato
     await fake.deps.insertOutboxPending('procurement', 'pmo-1', 'key-1');
     const claimed = await fake.deps.claimOutboxForCommit([...fake.rows.keys()][0]);
     await fake.deps.markOutboxCommitted(claimed!.id, 'PI-0001', { id: 'pmo-1' }, claimed!.claimGeneration);
-    await fake.deps.markOutboxConfirmed(claimed!.id, claimed!.claimGeneration);
+    await fake.deps.finalizeOutbox(claimed!.id, claimed!.claimGeneration, { pmoRecordId: 'pmo-1', externalTier: 'erpnext', externalRecordId: 'PI-0001', domain: 'procurement' });
 
     const commit = vi.fn();
     const result = await dispatchMoneyWrite({
@@ -285,7 +299,7 @@ describe('AC-ENA-012 the fencing token closes the lease-expiry overlap (F4)', ()
     const reclaimed = await fake.deps.claimOutboxForCommit(id);
     expect(reclaimed!.claimGeneration).toBe(3);
     await fake.deps.markOutboxCommitted(id, 'PI-0001', { id: 'pmo-1' }, 3);
-    await fake.deps.markOutboxConfirmed(id, 3);
+    await fake.deps.finalizeOutbox(id, 3, { pmoRecordId: 'pmo-1', externalTier: 'erpnext', externalRecordId: 'PI-0001', domain: 'procurement' });
 
     // The stale claimant's late write-back, still holding gen=1, must affect 0 rows.
     const staleCommittedCount = await fake.deps.markOutboxCommitted(id, 'PI-DUPLICATE', { id: 'pmo-1' }, 1);
@@ -321,7 +335,7 @@ describe('AC-ENA-012 the fencing token closes the lease-expiry overlap (F4)', ()
     expect(recordExternalRef).not.toHaveBeenCalled();
   });
 
-  it('F3: finalization is generation-guarded — a claimant superseded between committed and confirmed writes NO mirror/ref', async () => {
+  it('H-1: finalization is DB-fenced — a claimant superseded before the fenced RPC writes NO mirror/ref', async () => {
     const fake = createFakeOutbox();
     await fake.deps.insertOutboxPending('procurement', 'pmo-1', 'key-1');
     const id = [...fake.rows.keys()][0];
@@ -329,15 +343,16 @@ describe('AC-ENA-012 the fencing token closes the lease-expiry overlap (F4)', ()
     // ERP committed under this claimant's token; the row is `committed`, finalize not yet run.
     await fake.deps.markOutboxCommitted(id, 'PI-0001', { id: 'pmo-1', erp_total: '5.00' }, claimed!.claimGeneration);
 
-    // Simulate a reclaimer superseding this claimant in the gap BEFORE the (non-transactional) mirror +
-    // ref writes: the fenced re-check returns false and the reclaimer confirms the row itself.
-    vi.spyOn(fake.deps, 'verifyClaimGeneration').mockImplementationOnce(async () => {
+    // Simulate a reclaimer superseding this claimant at the fenced finalize RPC: it returns 0 (0-row
+    // no-op — the reclaimer has confirmed the row itself under a bumped generation). The superseded
+    // claimant must then write NO read-model mirror and reconcile off the reclaimer's current state.
+    vi.spyOn(fake.deps, 'finalizeOutbox').mockImplementationOnce(async () => {
       const r = fake.rows.get(id)!;
       r.state = 'confirmed';
       r.claimGeneration += 1;
       r.externalRecordId = 'PI-RECLAIMED';
       r.canonical = { id: 'pmo-1', erp_total: '5.00', erp_status: 'Submitted' };
-      return false;
+      return 0;
     });
 
     const writeReadModel = vi.fn();
@@ -363,7 +378,7 @@ describe('AC-ENA-012 confirmed retry — return the stored result, no ERP call, 
     const id = [...fake.rows.keys()][0];
     const claimed = await fake.deps.claimOutboxForCommit(id);
     await fake.deps.markOutboxCommitted(id, 'PI-0001', { id: 'pmo-1' }, claimed!.claimGeneration);
-    await fake.deps.markOutboxConfirmed(id, claimed!.claimGeneration);
+    await fake.deps.finalizeOutbox(id, claimed!.claimGeneration, { pmoRecordId: 'pmo-1', externalTier: 'erpnext', externalRecordId: 'PI-0001', domain: 'procurement' });
 
     const commit = vi.fn();
     const claimSpy = vi.spyOn(fake.deps, 'claimOutboxForCommit');
@@ -401,7 +416,9 @@ describe('AC-ENA-012 committed retry — finalize only, no second commit, no cla
     expect(commit).not.toHaveBeenCalled();
     expect(claimSpy).not.toHaveBeenCalled();
     expect(writeReadModel).toHaveBeenCalledTimes(1);
-    expect(recordExternalRef).toHaveBeenCalledTimes(1);
+    // H-1: external_refs finalized inside the fenced RPC, not via the caller's recordExternalRef.
+    expect(recordExternalRef).not.toHaveBeenCalled();
+    expect(fake.refs).toHaveLength(1);
     expect(result.externalRecordId).toBe('PI-0001');
     expect([...fake.rows.values()][0].state).toBe('confirmed');
   });
@@ -456,7 +473,7 @@ describe('AC-ENA-012 F2 finalization mirrors the adapter\'s REAL canonical, not 
     const claimed = await fake.deps.claimOutboxForCommit(id);
     const erpCanonical = { id: 'pmo-1', erp_total: '9.99', erp_status: 'Paid' };
     await fake.deps.markOutboxCommitted(id, 'PI-0001', erpCanonical, claimed!.claimGeneration);
-    await fake.deps.markOutboxConfirmed(id, claimed!.claimGeneration);
+    await fake.deps.finalizeOutbox(id, claimed!.claimGeneration, { pmoRecordId: 'pmo-1', externalTier: 'erpnext', externalRecordId: 'PI-0001', domain: 'procurement' });
 
     const commit = vi.fn();
     const result = await dispatchMoneyWrite({
@@ -594,7 +611,7 @@ describe('AC-ENA-012 pending/failed/stale-committing retry: claim first, then ad
     // eventually observes a terminal state instead of spinning forever.
     setTimeout(async () => {
       await fake.deps.markOutboxCommitted(id, 'PI-0004', { id: 'pmo-1' }, 1);
-      await fake.deps.markOutboxConfirmed(id, 1);
+      await fake.deps.finalizeOutbox(id, 1, { pmoRecordId: 'pmo-1', externalTier: 'erpnext', externalRecordId: 'PI-0004', domain: 'procurement' });
     }, 5);
 
     const commit = vi.fn();
@@ -606,6 +623,56 @@ describe('AC-ENA-012 pending/failed/stale-committing retry: claim first, then ad
     });
     expect(commit).not.toHaveBeenCalled();
     expect(result.externalRecordId).toBe('PI-0004');
+  });
+});
+
+describe('C-1 DIRECTOR RULING: a mutable-anchor money doc (Payment Entry) is HELD on inconclusive recovery, never reissued', () => {
+  it('a truly-orphaned PE (no composite-probe hit past the window) goes to held and NEVER re-POSTs', async () => {
+    // reissueOnInconclusiveAbsence:false marks this command a Payment Entry (mutable reference_no anchor).
+    const fake = createFakeOutbox({ reissueOnInconclusiveAbsence: false });
+    await fake.deps.insertOutboxPending('procurement', 'pmo-pe-1', 'key-pe');
+    const id = [...fake.rows.keys()][0];
+    await fake.deps.claimOutboxForCommit(id); // a dead claimant that never finished (POST outcome unknown)
+    fake.backdate(id, LEASE_MS + 1);
+
+    const commit = vi.fn(async () => ({ externalRecordId: 'PE-DUP', canonical: { id: 'pmo-pe-1' } }));
+    const peCommand: AdapterCommand = { domain: 'procurement', operation: 'create', record: { id: 'pmo-pe-1' }, idempotencyKey: 'key-pe' };
+
+    // First retry: the stale committing row is QUARANTINED (window not yet elapsed) — retryable, no POST.
+    await expect(
+      dispatchMoneyWrite({ adapter: erpnextAdapter(commit), command: peCommand, writeReadModel: vi.fn(), recordExternalRef: vi.fn(), money: fake.deps }),
+    ).rejects.toMatchObject({ code: 'external-unreachable' });
+    expect([...fake.rows.values()][0].state).toBe('quarantined');
+
+    // The window elapses and the composite probe finds NO doc (mutable anchor ⇒ absence NOT conclusive):
+    // the row must be HELD — never a second Payment Entry POST.
+    fake.elapseWindow(id);
+    await expect(
+      dispatchMoneyWrite({ adapter: erpnextAdapter(commit), command: peCommand, writeReadModel: vi.fn(), recordExternalRef: vi.fn(), money: fake.deps }),
+    ).rejects.toMatchObject({ code: 'command-held' });
+    expect(commit).not.toHaveBeenCalled(); // the critical assertion: NO reissue, no double-pay
+    expect([...fake.rows.values()][0].state).toBe('held');
+  });
+
+  it('a mutable-anchor PE whose landed POST IS found by the composite probe is ADOPTED (no second POST)', async () => {
+    const fake = createFakeOutbox({ reissueOnInconclusiveAbsence: false });
+    await fake.deps.insertOutboxPending('procurement', 'pmo-pe-2', 'key-pe2');
+    const id = [...fake.rows.keys()][0];
+    await fake.deps.claimOutboxForCommit(id);
+    fake.backdate(id, LEASE_MS + 1);
+    const commit = vi.fn();
+    const peCommand: AdapterCommand = { domain: 'procurement', operation: 'create', record: { id: 'pmo-pe-2' }, idempotencyKey: 'key-pe2' };
+    await expect(
+      dispatchMoneyWrite({ adapter: erpnextAdapter(commit), command: peCommand, writeReadModel: vi.fn(), recordExternalRef: vi.fn(), money: fake.deps }),
+    ).rejects.toMatchObject({ code: 'external-unreachable' });
+
+    // The composite probe (reference_no OR party/amount/PI-ref conjunction) resolves the landed PE.
+    fake.setProbe('procurement', 'key-pe2', { externalRecordId: 'PE-LANDED' });
+    fake.elapseWindow(id);
+    const result = await dispatchMoneyWrite({ adapter: erpnextAdapter(commit), command: peCommand, writeReadModel: vi.fn(), recordExternalRef: vi.fn(), money: fake.deps });
+    expect(commit).not.toHaveBeenCalled(); // adopted, not re-POSTed
+    expect(result.externalRecordId).toBe('PE-LANDED');
+    expect([...fake.rows.values()][0].state).toBe('confirmed');
   });
 });
 

@@ -42,10 +42,11 @@ import { resolveErpCredentials } from '../../../pmo-portal/src/lib/adapterSeam/e
 // same shared table (doctypeBodies.ts) rather than a parallel local const — one side table, never two.
 import { DOCTYPE_BODIES } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/doctypeBodies.ts';
 import { DOCTYPE_REGISTRY, type ErpDocKind } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/doctypeRegistry.ts';
-import { probeErpByAnchorKey } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/recoveryProbe.ts';
+import { probeErpByAnchorKey, probeErpByPaymentComposite } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/recoveryProbe.ts';
+import { resolveExternalRef } from '../../../pmo-portal/src/lib/adapterSeam/refs.ts';
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
 import type { Adapter, AdapterCommand, PmoRecord } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
-import type { DispatchMoneyOutboxDeps } from '../../../pmo-portal/src/lib/adapterSeam/dispatch.ts';
+import type { DispatchMoneyOutboxDeps, ExternalRefMapping } from '../../../pmo-portal/src/lib/adapterSeam/dispatch.ts';
 import { getReadModelWriter } from './readModelWriters.ts';
 import { maybeFault, type FaultGate } from './faultSeams.ts';
 import { createDbMoneyOutboxDeps } from './moneyOutboxDeps.ts';
@@ -176,25 +177,104 @@ async function resolveErpMoneyOutboxDeps(ctx: AdapterSelectContext): Promise<Dis
   // overwrites remarks; reference_no survives, ADR-0057 §3 amended). Captured in a const here so the
   // probe closure sees the narrowed `string` type (entry.anchorField is `string | null` on the record).
   const anchorField = entry.anchorField;
+  const client = { fetchImpl: fetch, apiKey, apiSecret, baseUrl: binding.site_url };
+  const probeDeps = { client, doctype: entry.doctype, anchorField: anchorField ?? '', fromDoc: bodyFns.fromDoc, pmoRecordId: ctx.command.record.id };
+
+  // C-1 (companies "<Doctype>:<name>" encoding): now that external_refs is written INSIDE the fenced
+  // finalize_outbox RPC (H-1), the companies-domain doctype prefix that used to live in the
+  // recordExternalRef wrapper is applied here, threaded into the fenced write (identity elsewhere).
+  const encodeExternalRecordId = (mapping: ExternalRefMapping): string =>
+    mapping.domain === ERPNEXT_COMPANIES_DOMAIN ? `${entry.doctype}:${mapping.externalRecordId}` : mapping.externalRecordId;
+
+  // The outbox payload ALWAYS carries `erp_doc_kind` so the SWEEP recovery path can reconstruct the
+  // command (the outbox has only domain+pmo_record_id, and a domain spans several kinds). A MUTABLE-anchor
+  // money doc (Payment Entry) additionally persists its composite-probe inputs (party_type+party+
+  // paid_amount+referenced-PI names + the claim-window start) so BOTH the sync retry and the sweep
+  // resolve a landed PE deterministically from OUR OWN outbox payload — never from live state (C-1).
+  const payload = {
+    erp_doc_kind: kind,
+    ...(entry.anchorMutable ? await buildPaymentCompositePayload(ctx) : {}),
+  };
+
   return createDbMoneyOutboxDeps({
     serviceClient: ctx.serviceClient as never,
     orgId: ctx.orgId,
     externalTier: ERPNEXT_TIER,
     operation: ctx.command.operation as 'create' | 'update' | 'transition',
+    // C-1 per-kind reissue policy: a mutable-anchor (PE) inconclusive recovery is HELD, never reissued.
+    reissueOnInconclusiveAbsence: !entry.anchorMutable,
+    payload,
+    encodeExternalRecordId,
     probeByRemarksKey: !anchorField
       ? async () => null
-      : (_domain, idempotencyKey) =>
-          probeErpByAnchorKey(
-            {
-              client: { fetchImpl: fetch, apiKey, apiSecret, baseUrl: binding.site_url },
-              doctype: entry.doctype,
-              anchorField,
-              fromDoc: bodyFns.fromDoc,
-              pmoRecordId: ctx.command.record.id,
-            },
-            idempotencyKey,
-          ),
+      : !entry.anchorMutable
+        // Immutable anchor (PI/Purchase Receipt `remarks`): the anchor `like` filter is conclusive.
+        ? (_domain, idempotencyKey) => probeErpByAnchorKey(probeDeps, idempotencyKey)
+        // Mutable anchor (PE `reference_no`): the COMPOSITE probe — anchor OR the deterministic
+        // conjunction, every input read back from our persisted outbox payload (ADR-0057 §4 amended).
+        : async (domain, idempotencyKey) => {
+            const p = await readOutboxCompositePayload(ctx.serviceClient, ctx.orgId, domain, ctx.command.record.id, idempotencyKey);
+            if (!p || !p.party || p.paid_amount == null) return probeErpByAnchorKey(probeDeps, idempotencyKey);
+            return probeErpByPaymentComposite(probeDeps, idempotencyKey, {
+              partyType: String(p.party_type ?? 'Supplier'),
+              party: String(p.party),
+              paidAmount: p.paid_amount as string | number,
+              piNames: Array.isArray(p.pi_names) ? (p.pi_names as string[]) : [],
+              createdAfter: String(p.created_after ?? ''),
+            });
+          },
   });
+}
+
+/** ERP `creation` filter format (`YYYY-MM-DD HH:MM:SS`) for the composite-probe claim window. */
+function erpDatetime(ms: number): string {
+  return new Date(ms).toISOString().replace('T', ' ').slice(0, 19);
+}
+
+/** Build the Payment Entry composite-probe payload from the command (persisted at outbox INSERT). The
+ *  supplier `party` is resolved through `external_refs` (companies domain) exactly as the adapter body
+ *  resolves `ctx.refs.supplier`; the referenced Purchase Invoice names come from the command's
+ *  `references` rows. `created_after` bounds the candidate set to this attempt's window. */
+async function buildPaymentCompositePayload(ctx: AdapterSelectContext): Promise<Record<string, unknown>> {
+  const rec = ctx.command.record as Record<string, unknown>;
+  const supplierPmoId = typeof rec.supplier === 'string' ? rec.supplier : undefined;
+  let party: string | null = null;
+  if (supplierPmoId) {
+    const resolved = await resolveExternalRef(ctx.serviceClient as never, ctx.orgId, ERPNEXT_COMPANIES_DOMAIN, supplierPmoId);
+    // external_refs stores the companies "<Doctype>:<name>" encoding — strip to the bare Supplier name.
+    party = resolved ? resolved.slice(resolved.indexOf(':') + 1) : null;
+  }
+  const piNames = Array.isArray(rec.references)
+    ? (rec.references as Array<{ reference_name?: unknown }>).map((r) => String(r.reference_name)).filter((n) => n && n !== 'undefined')
+    : [];
+  return {
+    party_type: 'Supplier',
+    party,
+    paid_amount: rec.paid_amount ?? null,
+    pi_names: piNames,
+    // A 1-minute pre-dispatch buffer so a doc created just before the outbox row is still in-window.
+    created_after: erpDatetime(Date.now() - 60_000),
+  };
+}
+
+/** Read the persisted composite-probe payload for one command's outbox row (the ruling's "read from our
+ *  own outbox row payload"). Returns null when no row/payload exists yet (first attempt). */
+async function readOutboxCompositePayload(
+  serviceClient: SupabaseClient,
+  orgId: string,
+  domain: string,
+  pmoRecordId: string,
+  idempotencyKey: string,
+): Promise<Record<string, unknown> | null> {
+  const { data } = await serviceClient
+    .from('external_command_outbox')
+    .select('payload')
+    .eq('org_id', orgId)
+    .eq('domain', domain)
+    .eq('pmo_record_id', pmoRecordId)
+    .eq('idempotency_key', idempotencyKey)
+    .maybeSingle();
+  return (data as { payload?: Record<string, unknown> | null } | null)?.payload ?? null;
 }
 
 // Adapter registry, keyed by the PMO domain the tier natively owns. 'reference' is the P0 synthetic
@@ -420,7 +500,15 @@ Deno.serve(async (req: Request): Promise<Response> => {
     return new Response(JSON.stringify(result), { status: 200, headers });
   } catch (err) {
     const appError = err instanceof AppError ? err : new AppError(err instanceof Error ? err.message : 'adapter dispatch failed');
-    const status = appError.code === 'external-unreachable' ? 502 : appError.code === 'commit-rejected' ? 422 : 500;
+    // 'command-held' (C-1): a mutable-anchor money doc held for operator resolution — a 409 Conflict
+    // (retrying will NOT help; an operator must resolve), distinct from the transient 502 unreachable.
+    const status = appError.code === 'external-unreachable'
+      ? 502
+      : appError.code === 'commit-rejected'
+        ? 422
+        : appError.code === 'command-held'
+          ? 409
+          : 500;
     return new Response(JSON.stringify({ error: appError.code ?? 'DISPATCH_FAILED', message: appError.message }), {
       status,
       headers,
