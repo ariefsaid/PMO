@@ -191,16 +191,21 @@ async function resolveErpMoneyOutboxDeps(ctx: AdapterSelectContext): Promise<Dis
   // money doc (Payment Entry) additionally persists its composite-probe inputs (party_type+party+
   // paid_amount+referenced-PI names + the claim-window start) so BOTH the sync retry and the sweep
   // resolve a landed PE deterministically from OUR OWN outbox payload — never from live state (C-1).
-  const payload = {
+  const payload: Record<string, unknown> = {
+    ...(ctx.command.record as Record<string, unknown>),
     erp_doc_kind: kind,
     ...(entry.anchorMutable ? await buildPaymentCompositePayload(ctx) : {}),
   };
 
-  // M-3: bind the idempotency key to the payload (reject key-reuse with a different amount/party/refs).
+  // M-3: bind the idempotency key to the exact payload persisted in the outbox (reject key-reuse
+  // with a different amount/party/refs, including changes made to the persisted recovery payload).
+  // `created_after` is a per-attempt probe-window bound, not command material; excluding it keeps
+  // retries of the same persisted command stable while all money/party/reference fields remain bound.
+  const { created_after: _createdAfter, ...digestPayload } = payload;
   const payloadDigest = await canonicalCommandDigest({
     domain: ctx.command.domain,
     operation: ctx.command.operation as string,
-    record: ctx.command.record as Record<string, unknown>,
+    record: digestPayload,
   });
 
   return createDbMoneyOutboxDeps({

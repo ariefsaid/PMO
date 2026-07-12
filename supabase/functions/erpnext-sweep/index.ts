@@ -396,10 +396,12 @@ async function buildReconcileDepsLive(serviceClient: SupabaseClient, org: OrgBin
 
   const { apiKey, apiSecret } = resolveErpCredentials(org.secretRef, (key) => Deno.env.get(key));
   const client = { fetchImpl: fetch, apiKey, apiSecret, baseUrl: org.siteUrl };
+  // M-3: dispatch digests the exact payload persisted at INSERT. Reuse that full payload as the
+  // digest input (and command record), rather than reconstructing only id + erp_doc_kind.
   const command: AdapterCommand = {
     domain: row.domain as AdapterCommand['domain'],
     operation: rowExtra.operation,
-    record: { id: row.pmoRecordId, erp_doc_kind: kind as string },
+    record: payload as AdapterCommand['record'],
     idempotencyKey: row.idempotencyKey,
   };
 
@@ -419,7 +421,8 @@ async function buildReconcileDepsLive(serviceClient: SupabaseClient, org: OrgBin
   const encodeExternalRecordId = (mapping: ExternalRefMapping): string =>
     mapping.domain === ERPNEXT_COMPANIES_DOMAIN ? `${entry.doctype}:${mapping.externalRecordId}` : mapping.externalRecordId;
 
-  const payloadDigest = await canonicalCommandDigest({ domain: command.domain, operation: command.operation, record: command.record as Record<string, unknown> });
+  const { created_after: _createdAfter, ...digestPayload } = payload;
+  const payloadDigest = await canonicalCommandDigest({ domain: command.domain, operation: command.operation, record: digestPayload });
   const money = createDbMoneyOutboxDeps({
     serviceClient: serviceClient as never,
     orgId: org.orgId,

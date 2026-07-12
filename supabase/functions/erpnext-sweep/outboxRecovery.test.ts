@@ -20,6 +20,7 @@
 (Deno as unknown as { serve: (...a: unknown[]) => unknown }).serve = () => ({ finished: Promise.resolve() });
 const { reconcileOrgOutbox } = await import('./index.ts');
 import { dispatchMoneyWrite, type OutboxRow, type DispatchMoneyOutboxDeps } from '../../../pmo-portal/src/lib/adapterSeam/dispatch.ts';
+import { canonicalCommandDigest } from '../adapter-dispatch/moneyOutboxDeps.ts';
 import type { Adapter, AdapterCommand, CommandResult, PmoRecord } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
 
 function assert(cond: boolean, msg: string): void {
@@ -143,6 +144,24 @@ Deno.test('AC-ENA-045: pending candidate → claim LOSER (null return) → NO PO
   assert(spies.calls.claim >= 1, 'pending → claim attempted');
   assert(spies.calls.commit === 0, 'pending LOSER → adapter.commit MUST NOT be called (never POSTs)');
   assert(spies.calls.probe === 0, 'pending LOSER → probe MUST NOT be called (only the winner probes)');
+});
+
+Deno.test('M-3: dispatch-persisted full payload reconciles through the sweep, but a mutated payload is commit-rejected', async () => {
+  const persistedPayload = { id: 'pmo-1', erp_doc_kind: 'Purchase Invoice', paid_amount: '125.00', party: 'Supplier-1' };
+  const digest = await canonicalCommandDigest({ domain: 'procurement', operation: 'transition', record: persistedPayload });
+  const candidate = row('committed', { payloadDigest: digest });
+  const unchanged = mockedDeps(candidate);
+  unchanged.deps.command.record = persistedPayload as PmoRecord;
+  unchanged.deps.money.payloadDigest = digest;
+  const reconciled = await reconcileOrgOutbox(async () => [candidate], 'org-1', () => unchanged.deps, dispatchMoneyWrite);
+  assert(reconciled.reconciled === 1, 'unchanged dispatch payload must reconcile through the sweep');
+
+  const mutated = mockedDeps(candidate);
+  const mutatedPayload = { ...persistedPayload, paid_amount: '999.00' };
+  mutated.deps.command.record = mutatedPayload as PmoRecord;
+  mutated.deps.money.payloadDigest = await canonicalCommandDigest({ domain: 'procurement', operation: 'transition', record: mutatedPayload });
+  const rejected = await reconcileOrgOutbox(async () => [candidate], 'org-1', () => mutated.deps, dispatchMoneyWrite);
+  assert(rejected.reconciled === 0 && rejected.errors[0]?.error === 'idempotency-key-payload-mismatch', 'mutated payload must be commit-rejected');
 });
 
 Deno.test('AC-ENA-045: no candidates ⇒ no reconcile calls (the pass is a no-op for a clean org)', async () => {
