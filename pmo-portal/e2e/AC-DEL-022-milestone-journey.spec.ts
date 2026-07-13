@@ -1,25 +1,7 @@
 // @e2e-isolation: dedicated-row — owns P013; beforeEach resets to empty (retry-safe).
 import { test, expect } from '@playwright/test';
-import { login } from './helpers';
-import { requireServiceRoleKey } from './helpers';
 import { createClient } from '@supabase/supabase-js';
-
-const P013 = '40000000-0000-0000-0000-000000000013';
-
-test.beforeEach(async () => {
-  const svcKey = requireServiceRoleKey();
-  if (!svcKey) return; // local dev: skip (seed reset provides clean state)
-  // The node test process gets SUPABASE_URL (exported by CI / e2e-local.sh); VITE_SUPABASE_URL is
-  // only in .env.local for Vite. Prefer SUPABASE_URL, fall back to VITE_ (mirrors AC-CUA-090).
-  const admin = createClient(process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL!, svcKey);
-  // delete tasks under those milestones, then the milestones — so P013 is empty on every attempt
-  const { data: ms } = await admin.from('project_milestones').select('id').eq('project_id', P013);
-  const ids = (ms ?? []).map((m) => m.id);
-  if (ids.length) {
-    await admin.from('tasks').delete().in('milestone_id', ids);
-    await admin.from('project_milestones').delete().eq('project_id', P013);
-  }
-});
+import { login, requireServiceRoleKey } from './helpers';
 
 // AC-DEL-022 — PM creates a milestone, adds a task under it, marks it Done.
 //
@@ -42,6 +24,23 @@ test.setTimeout(120_000);
 
 const PROJECT_ID = '40000000-0000-0000-0000-000000000013';
 const PROJECT_NAME = 'Seabridge Terminal Delivery';
+const SUPABASE_URL = process.env.VITE_SUPABASE_URL ?? process.env.SUPABASE_URL ?? 'http://127.0.0.1:54321';
+
+// Retry-idempotency (root cause of this spec's promote-integration failures): CI runs `retries: 2`
+// on ONE shared DB with NO db-reset between attempts. This journey asserts P013's milestone strip is
+// EMPTY (the create-from-empty path) but its own first attempt CREATES a milestone — so a transient
+// flake on attempt 1 (e.g. a 15s timeout under 4-worker load) poisons every retry's empty-state
+// assertion (line ~51), turning a recoverable flake into a hard, deterministic failure. Delete
+// P013's milestones (service-role, RLS-bypassing; tasks.milestone_id ON DELETE SET NULL un-groups
+// them) before EACH attempt so every retry starts pristine and a transient flake self-heals.
+// No-op locally without the service key (a `supabase db reset` already gives a pristine P013, and
+// local retries=0), so the spec stays runnable without it.
+test.beforeEach(async () => {
+  const key = requireServiceRoleKey();
+  if (!key) return;
+  const admin = createClient(SUPABASE_URL, key, { auth: { persistSession: false } });
+  await admin.from('project_milestones').delete().eq('project_id', PROJECT_ID);
+});
 
 test('AC-DEL-022: a PM creates a milestone, adds a task under it, marks it Done — the phase card reads 100% effective and the Projects list chip shows 100%', async ({ page }) => {
   // Retry-isolation: the milestone + task names are unique per attempt (runId is
