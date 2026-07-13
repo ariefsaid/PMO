@@ -1,3 +1,4 @@
+// @e2e-isolation: serial — flips the shared org's external_domain_ownership + org bindings (org-global state).
 /**
  * AC-ENA-052-po-gr — Slice 5 task 5.5. Real served boundary (`scripts/serve-functions.sh` +
  * `scripts/with-erpnext-lock.sh` against the Docker v15 dev bench, docs/environments.md) — NEVER

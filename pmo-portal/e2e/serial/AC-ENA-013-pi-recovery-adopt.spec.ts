@@ -1,3 +1,4 @@
+// @e2e-isolation: serial — flips the shared org's external_domain_ownership + org bindings (org-global state).
 /**
  * AC-ENA-013-pi-recovery-adopt — Slice 6 task 6.8. ADR-0058's R3 post-commit mirror-failure recovery
  * proven at the REAL served `adapter-dispatch` boundary for a Purchase Invoice (the PI counterpart of

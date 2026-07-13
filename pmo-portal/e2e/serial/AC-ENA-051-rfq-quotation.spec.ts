@@ -1,3 +1,4 @@
+// @e2e-isolation: serial — flips the shared org's external_domain_ownership + org bindings (org-global state).
 /**
  * AC-ENA-051 — Request for Quotation + Supplier Quotation at the real served `adapter-dispatch`
  * boundary (FR-ENA-111, FR-ENA-112, FR-ENA-130; plan design decision 5 — never `page.route`). Pushes

@@ -1,3 +1,4 @@
+// @e2e-isolation: serial — flips the shared org's external_domain_ownership + org bindings (org-global state).
 /**
  * AC-ENA-040 -- Supplier create/write-through succeeds through ERP truth (the REAL served
  * `adapter-dispatch` boundary through Kong -- no `page.route`, per the plan's binding rule for every

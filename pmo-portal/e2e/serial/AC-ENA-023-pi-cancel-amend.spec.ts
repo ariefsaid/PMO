@@ -1,3 +1,4 @@
+// @e2e-isolation: serial — flips the shared org's external_domain_ownership + org bindings (org-global state).
 /**
  * AC-ENA-023-pi-cancel-amend — Slice 6 task 6.10. The PMO-initiated cancel + amend command surface
  * (FR-ENA-050/052/053, NFR-ENA-DOC-001) proven at the REAL served `adapter-dispatch` boundary — never

@@ -1,3 +1,4 @@
+// @e2e-isolation: self-isolated — commits ONE uniquely-keyed reference row and deletes it in finally; no shared-row writes.
 /**
  * served-fn-smoke — Slice 0 task 0.8 (ERPNext adapter P2 plan §"Slice 0"). Proves the served
  * `adapter-dispatch` money boundary LANE end to end through the real Kong-fronted local edge

@@ -1,3 +1,4 @@
+// @e2e-isolation: read-only — rejection-path assertions only (401s at the served trust boundaries); no DB writes.
 /**
  * erpnext-feed-served-smoke — Slice 8 task 8.9 (ERPNext adapter P2 plan §"Slice 8"). Proves the served
  * change-feed LANE end to end through the real Kong-fronted local edge functions (never `page.route`):

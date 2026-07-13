@@ -1,3 +1,4 @@
+// @e2e-isolation: serial — flips the shared org's external_domain_ownership + org bindings (org-global state).
 /**
  * AC-ENA-023b-pe-cancel — Slice 6 task 6.11. The PMO-initiated Payment Entry cancel (FR-ENA-050/052,
  * OQ-7 — PE amend is desk-only in P2; cancel is the PE correction path) proven at the REAL served

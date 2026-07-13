@@ -1,3 +1,4 @@
+// @e2e-isolation: serial — flips the shared org's external_domain_ownership + org bindings (org-global state).
 /**
  * AC-ENA-010-payment-idempotency — Slice 6 task 6.7. ADR-0058's R1/R3 money-idempotency guarantee
  * proven at the REAL served `adapter-dispatch` boundary with the `after-commit-before-mirror` named

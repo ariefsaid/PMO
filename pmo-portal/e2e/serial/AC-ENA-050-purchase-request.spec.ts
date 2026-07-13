@@ -1,3 +1,4 @@
+// @e2e-isolation: serial — flips the shared org's external_domain_ownership + org bindings (org-global state).
 /**
  * AC-ENA-050 — Material Request (Purchase Request) at the real served `adapter-dispatch` boundary
  * (FR-ENA-110, FR-ENA-044; plan design decision 5 — never `page.route`). Creates+submits a PR ->
