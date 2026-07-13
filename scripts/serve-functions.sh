@@ -24,10 +24,22 @@ set -m
 # supabase/functions/.env.local is gitignored and not committed, so `supabase functions serve`
 # is only passed --env-file when a developer has actually created one (a missing path is a hard
 # CLI error, not a silent skip — verified).
-ENV_FILE_ARGS=()
+# ADR-0057 local-lane parity: inside the served runtime SUPABASE_URL is the INTERNAL Kong URL
+# (http://kong:8000), but locally-issued tokens carry iss=http://127.0.0.1:54321/auth/v1 — so a
+# JWKS-verifying fn's derived-issuer default (`${SUPABASE_URL}/auth/v1`) can never match and every
+# caller JWT 401s (found by the first real served-lane run of such a fn, AC-ENA-053 post-merge;
+# CI's integration lane has edge_runtime off, so it never hit this). Pin the issuer via the
+# EDGE_JWT_ISSUER override the verifier honors (NOT `SUPABASE_JWT_ISSUER`: the CLI/platform
+# REJECTS env names starting with SUPABASE_ in --env-file and function secrets, silently skipping
+# them — CLI log "Env name cannot start with SUPABASE_") — merged into one env file with the
+# developer's optional .env.local, whose lines come LAST so a developer-set value wins under
+# godotenv's last-wins parsing. The merged file lives in mktemp and is never printed.
+MERGED_ENV_FILE=$(mktemp)
+echo "EDGE_JWT_ISSUER=http://127.0.0.1:54321/auth/v1" > "$MERGED_ENV_FILE"
 if [ -f supabase/functions/.env.local ]; then
-  ENV_FILE_ARGS=(--env-file supabase/functions/.env.local)
+  cat supabase/functions/.env.local >> "$MERGED_ENV_FILE"
 fi
+ENV_FILE_ARGS=(--env-file "$MERGED_ENV_FILE")
 # macOS ships bash 3.2, where "${arr[@]}" on an EMPTY array trips `set -u` ("unbound variable") —
 # fixed only in bash 4.4+. The `+` parameter-expansion guard is the portable workaround.
 supabase functions serve --no-verify-jwt "${ENV_FILE_ARGS[@]+"${ENV_FILE_ARGS[@]}"}" >/tmp/functions-serve.log 2>&1 &
@@ -50,6 +62,7 @@ cleanup() {
   pkill -P "$CLI_PID" 2>/dev/null || true
   kill "$CLI_PID" 2>/dev/null || true
   docker rm -f supabase_edge_runtime_pmo-portal >/dev/null 2>&1 || true
+  rm -f "$MERGED_ENV_FILE" 2>/dev/null || true
 }
 # EXIT covers normal/`set -e` termination; INT/TERM/HUP must ALSO exit explicitly afterward — a
 # bash trap handler for a non-EXIT signal does NOT itself terminate the script (verified empirically:

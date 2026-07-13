@@ -360,7 +360,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
   let userId: string;
   try {
     const verified = await verifyCallerJwt(jwt, getJwks(supabaseUrl), {
-      issuer: Deno.env.get('SUPABASE_JWT_ISSUER') ?? `${supabaseUrl}/auth/v1`,
+      issuer: Deno.env.get('EDGE_JWT_ISSUER') ?? `${supabaseUrl}/auth/v1`,
       audience: 'authenticated',
       algorithms: ['ES256'],
     });
@@ -544,6 +544,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
     });
     return new Response(JSON.stringify(result), { status: 200, headers });
   } catch (err) {
+    // Server-side diagnostics only — the client body stays generic/typed. Without this, an
+    // external-unreachable's underlying cause (which upstream status? fetch error? which path?)
+    // is unrecoverable from any log.
+    console.error('[adapter-dispatch] dispatch failed:', err instanceof Error ? (err.stack ?? err.message) : String(err));
     const appError = err instanceof AppError ? err : new AppError(err instanceof Error ? err.message : 'adapter dispatch failed');
     // 'command-held' (C-1): a mutable-anchor money doc held for operator resolution — a 409 Conflict
     // (retrying will NOT help; an operator must resolve), distinct from the transient 502 unreachable.
