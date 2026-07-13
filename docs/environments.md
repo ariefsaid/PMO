@@ -305,7 +305,7 @@ before that client goes live — this is the binding checklist:
 - [ ] **Redirect allowlist = prod HTTPS only** — `site_url` + `additional_redirect_urls` set to the
       client's CF Pages origin(s); **remove every `localhost`/`127.0.0.1` entry** (a stray localhost
       redirect misroutes invite links, root-caused earlier in auth-floor).
-- [ ] **Rotate/disable the seed dev credentials** — the `*@acme.test` / `arief.said@gmail.com` seed
+- [ ] **Rotate/disable the seed dev credentials** — the `*@acme.test` / `operator@pmo.test` seed
       logins (password `Passw0rd!dev`) are **local-only**; a real tenant is never seeded
       (`db-seed-prod.sh` is demo-only) so they never exist there — confirm the project was pushed
       with `db-push-prod.sh` (schema only), not seeded.
@@ -563,7 +563,7 @@ The **Operator** is a platform-level grant (the vendor operating PMO), NOT a 6th
 lives on `platform_operators(user_id)` (RLS forced; one SELECT policy, no write policy —
 append-only-by-omission). There is no in-app Operator-of-Operators affordance in v1; an Operator is
 provisioned against a real project's cloud DB via service-role `psql` (the same path the local
-`seed.sql` §U uses for the staging/demo Operator `arief.said@gmail.com`). Out-of-band, set a strong
+`seed.sql` §U uses for the staging/demo Operator `operator@pmo.test`). Out-of-band, set a strong
 password for the auth user after creating it.
 
 ```sql

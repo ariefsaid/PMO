@@ -74,7 +74,7 @@ reading (forbidden, not merely deferred).
 | Decision | Lock |
 |---|---|
 | **Operator is a platform grant, not a 6th role enum value.** | `platform_operators` table keyed by `user_id`; RLS/RPCs key on `is_operator()`. The `user_role` enum (`Executive`,`Project Manager`,`Finance`,`Engineer`,`Admin`, `0001_init_schema.sql:11`) is **unchanged**. |
-| **Seeded Operator = `arief.said@gmail.com`.** | Seed (`supabase/seed.sql` for staging/demo; per-client provisioning runbook for real projects) creates a `profiles` row + a `platform_operators` row for that user. |
+| **Seeded Operator = `operator@pmo.test`.** | Seed (`supabase/seed.sql` for staging/demo; per-client provisioning runbook for real projects) creates a `profiles` row + a `platform_operators` row for that user. |
 | **Org-Admin AND Operator may invite users.** | Issuance runs in a **service-role edge function**; the FE gates the affordance on `can('create','user')` (org-Admin) **or** `isOperator()`. |
 | **Credits are org-pool, not per-user.** | A grant is recorded against the org; balance = Σ org grants − Σ org-wide `agent_usage.cost`. Per-user `agent_usage.owner_id` is **retained** for the usage view (attribution), not for the balance. |
 | **Credits INSERT RLS flips `auth_role()='Admin'` → `is_operator()` only.** | Closes the revenue hole in `0047_agent_usage_credits.sql` `credits_insert`. Cited as the defect being fixed. |
@@ -231,7 +231,7 @@ RLS-exempt system lookups; `platform_operators` instead achieves the same effect
 policy rather than a security-definer bypass).
 
 **FR-OPR-003 — Seeded Operator.**
-The system shall seed `arief.said@gmail.com` as an Operator: a `profiles` row (role `'Admin'` for
+The system shall seed `operator@pmo.test` as an Operator: a `profiles` row (role `'Admin'` for
 shell access) plus a `platform_operators` row, in `supabase/seed.sql` (staging/demo) and in the
 per-client provisioning runbook (ADR-0047; real projects). Additional Operators are added by SQL
 only in v1 (no in-app Operator-of-Operators affordance).
@@ -689,7 +689,7 @@ next shell render hides the Incidents rail item and `/incidents` redirects; re-e
       `operator_usage_summary`/`org_usage_summary` read `agent_usage` ONLY.
 - [ ] mig: `org_features` table (PK `(org_id, feature_key)`, `CHECK` registry, core-set guard) +
       `org_has_feature(p_org_id, p_key)` fn + RLS (read own-org Admin+Exec; write Operator-only).
-- [ ] seed: `arief.said@gmail.com` → `profiles` (role `'Admin'`) + `platform_operators` row in
+- [ ] seed: `operator@pmo.test` → `profiles` (role `'Admin'`) + `platform_operators` row in
       `supabase/seed.sql`; mirror in the per-client provisioning runbook (ADR-0047).
 
 **Edge functions (`supabase/functions/`):**

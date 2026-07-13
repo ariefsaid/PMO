@@ -10,6 +10,33 @@ Each released section pins the full deploy manifest (app sha · DB migration hig
 edge-function state) so "what's in production" is unambiguous. The DB schema version (migration
 high-water mark) moves independently of the product tag.
 
+## [0.6.0](https://github.com/ariefsaid/PMO/compare/v0.5.0...v0.6.0) (2026-07-11)
+
+
+### Features
+
+* **adapter-seam:** external-system adapter seam P0 (ADR-0055) ([#299](https://github.com/ariefsaid/PMO/issues/299)) ([2cbacd5](https://github.com/ariefsaid/PMO/commit/2cbacd51ab7ccbd0ac7c6ccc0100a43a30aa387d))
+* **admin:** agent cost dashboard in the operator layer ([#297](https://github.com/ariefsaid/PMO/issues/297)) ([16d07cb](https://github.com/ariefsaid/PMO/commit/16d07cbc1cafabb22d88b3c4e65edb1bf4ad36bd))
+* **agent:** no-train fallback tier with only-restricted routing ([#292](https://github.com/ariefsaid/PMO/issues/292)) ([4111fbd](https://github.com/ariefsaid/PMO/commit/4111fbdcc532e4d72efe20644c7831d8f7a19797))
+* **agent:** parallel reads / serial writes in the tool loop ([#5](https://github.com/ariefsaid/PMO/issues/5)) ([#294](https://github.com/ariefsaid/PMO/issues/294)) ([311cc71](https://github.com/ariefsaid/PMO/commit/311cc71f9bc28b16efbb9af240a557a3f7eea7a5))
+* **agent:** privacy-first provider pinning for prompt-cache locality ([#291](https://github.com/ariefsaid/PMO/issues/291)) ([98e2974](https://github.com/ariefsaid/PMO/commit/98e2974de1eccd28ddfd560f9e005c669155e6dc))
+* **agent:** token-budget transcript compaction (shrink the replayed miss) ([#293](https://github.com/ariefsaid/PMO/issues/293)) ([d34fb7b](https://github.com/ariefsaid/PMO/commit/d34fb7bd8d5764a03eb9665b9a0f20f31a98e652))
+* **clickup-adapter:** ClickUp adapter P1 — tasks domain flip + change-feed + onboarding (ADR-0055/0056) ([#307](https://github.com/ariefsaid/PMO/issues/307)) ([a109c21](https://github.com/ariefsaid/PMO/commit/a109c21d91a7272be35936eda33ea1c0da8bd79d))
+* **edge:** forward edge-fn errors into PostHog Error Tracking (IG-audit P2) ([#305](https://github.com/ariefsaid/PMO/issues/305)) ([c36b72c](https://github.com/ariefsaid/PMO/commit/c36b72c3dd367089b71f66c3b47b0f8836d205bc))
+* **edge:** request-rate throttle on agent-chat (IG-audit P1) ([#302](https://github.com/ariefsaid/PMO/issues/302)) ([348f955](https://github.com/ariefsaid/PMO/commit/348f955f91acc3a1e9196a1cf299411d8a441cbd))
+* **telemetry:** capture cached_tokens + reasoning_tokens in agent_usage ([#290](https://github.com/ariefsaid/PMO/issues/290)) ([4f53ead](https://github.com/ariefsaid/PMO/commit/4f53eaddbb24b4f5314de37bc63945b319f4e5ad))
+* **ts:** enable strict mode (fix 94 latent errors, incl. 2 real null bugs) ([#300](https://github.com/ariefsaid/PMO/issues/300)) ([dbf902d](https://github.com/ariefsaid/PMO/commit/dbf902df713d9ffca05fc39bdf7f14ebee10356d))
+
+
+### Bug Fixes
+
+* **e2e:** AC-ACD-010 locator — scope to stat-tiles + exact match ([a43dcc7](https://github.com/ariefsaid/PMO/commit/a43dcc77c0b9001b136bd299ac060e8d4ed647ef))
+
+
+### Performance
+
+* **test:** split Vitest into node + jsdom projects ([#309](https://github.com/ariefsaid/PMO/issues/309)) ([2708b66](https://github.com/ariefsaid/PMO/commit/2708b66ba81d4845247776e8ec6fef83bb138e86))
+
 ## [0.5.0](https://github.com/ariefsaid/PMO/compare/v0.4.0...v0.5.0) (2026-07-09)
 
 

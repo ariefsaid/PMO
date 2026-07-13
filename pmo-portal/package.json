@@ -1,7 +1,7 @@
 {
   "name": "pmo-portal",
   "private": true,
-  "version": "0.5.0",
+  "version": "0.6.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -16,7 +16,8 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:evals": "vitest run --config vitest.eval.config.ts",
-    "verify": "npm run typecheck && npm run lint:ci && npm run test && npm run build",
+    "check:migrations": "bash ../scripts/check-migration-collisions.sh",
+    "verify": "npm run check:migrations && npm run typecheck && npm run lint:ci && npm run test && npm run build",
     "e2e": "playwright test"
   },
   "dependencies": {
