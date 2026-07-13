@@ -248,3 +248,21 @@ their ACs, an org_id seam violation) — while the Director's own read caught 2 
 - Grading: playbook §10 rubric applies to pi-produced work unchanged.
 - If pi/the providers are unavailable, fall back to the standard Claude role agents
   (`.claude/agents/`, playbook §3) — the loop is substrate-agnostic by design.
+
+## 8. ⚑ Shared-DB verdict rule (binding, learned 2026-07-12/13)
+
+A pgTAP verdict on the shared local stack counts ONLY when `supabase db reset && supabase test db`
+run **chained inside one `with-db-lock.sh` hold**:
+
+```bash
+scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db'
+```
+
+Separate holds let a sibling worktree's reset apply a *different* migration set in between —
+producing false-FAIL (missing tables) and, worse, false-PASS (a failure masked by someone else's
+schema). Both were observed live. Related pgTAP fixture discipline (all three defects shipped in
+one file and masked each other, 2026-07-12): **namespaced fixture UUIDs** (never bare `01…`
+prefixes — they collide with seed data), **`begin;`/`rollback;` wrappers** (a file that ever ran
+without one has COMMITTED fixtures poisoning every later run until a reset), and **pgTAP's
+`finish()`** (not `finish_testing()`). An aborted file reports "Bad plan … ran 0" and contributes
+zero tests — a green-looking summary can hide it; grep for `Parse errors` in gate output.
