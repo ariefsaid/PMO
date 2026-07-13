@@ -18,11 +18,12 @@ ago). So the prod JWKS is live and **Level 2 is unblocked** — there is no pend
 - **Unblocked now:** Task 1 (pure helper + unit tests) — offline-verifiable against an ephemeral keypair.
 - **Unblocked (prod side):** Tasks 2–3 function code — the JWKS at `/auth/v1/.well-known/jwks.json`
   already serves the ES256 public key.
-- **Only remaining gate — OPTIONAL, for Task 2c integration test:** local-stack parity — the local
-  Supabase stack defaults to HS256, so to run the DB-backed Playwright proof against local you set
-  `signing_keys_path` in `config.toml` (needs the Supabase CLI, absent in the web sandbox → run
-  locally). Alternatively, run Task 2c's integration proof in the CI `integration` lane / against a
-  stack that mirrors prod's ES256. Not needed for Task 1.
+- **Local-stack parity — ALREADY SATISFIED (verified 2026-07-13, CLI 2.105).** The stale assumption
+  above (local defaults to HS256, needs a `signing_keys_path`) no longer holds: the current Supabase
+  CLI local stack signs session tokens with **ES256** out of the box — `/auth/v1/.well-known/jwks.json`
+  serves a live P-256 key and a real seed-user sign-in yields an `alg: ES256` token whose `iss`
+  (`http://127.0.0.1:54321/auth/v1`) + `aud` (`authenticated`) match the pilot's pins. **No
+  `signing_keys.json` / `config.toml` change is required.** Task 2c runs directly against `supabase start`.
 - **Housekeeping (owner, optional):** the retired Legacy HS256 key is safe to **revoke** now
   (`jwt_expiry`=3600s ≫ a month → no live HS256 tokens).
 
@@ -139,9 +140,13 @@ so each function pins its expected set rather than accepting any JWKS alg).
 caller JWT + RLS and it does **not** escalate to service_role, so the banned-user staleness window is
 absorbed by RLS. Lowest blast radius of the four.
 
-**2c. Verify:** local stack booted with signing keys live (owner step 1 done) →
-`scripts/with-db-lock.sh npx playwright test e2e/AC-JWT-005-compose-view-auth.spec.ts` proves the
-absent/garbage-bearer 401 parity and a valid-token happy path. Full `npm run verify` before PR.
+**2c. Verify — ✅ DONE (2026-07-13, local stack).** `e2e/AC-JWT-005-compose-view-auth.spec.ts`
+(API-level: no browser, isolates the gate) proves against the running local stack + real ES256
+tokens: absent bearer → typed 401, bad-signature bearer → typed 401 `invalid JWT`, valid ES256
+caller token → past the gate (never 401). 3/3 green (`--no-deps`; the spec needs no captured
+session). Raw-curl smoke corroborated: 401 / 401 / 502(missing-OPENROUTER, i.e. auth passed). Full
+`npm run verify` gate run before PR. Run locally with the stack env exported
+(`supabase status -o env`); the spec skips gracefully when unset and throws in CI.
 
 **Reviewers:** all three, **security-auditor mandatory** (auth-path change).
 
