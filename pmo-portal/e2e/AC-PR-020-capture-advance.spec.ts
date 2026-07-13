@@ -1,3 +1,4 @@
+// @e2e-isolation: self-isolated — uses SP2401-004 (shared seed case); serial mode within file; captures RFQ → ledger shows dual IDs + timeline grows; no parallel contention.
 /**
  * AC-PR-020 — Capture a record with external ref + date + amount on one page, confirm
  *             it appears with both IDs in the Documents ledger, and confirm the

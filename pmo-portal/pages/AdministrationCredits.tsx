@@ -143,6 +143,7 @@ const GrantFormModal: React.FC<{
     validate: validateGrant,
     idPrefix: 'grant-credits-form',
     requiredFields: ['amount'],
+    module: 'administration',
   });
   const amountField = form.fieldProps('amount');
   const noteField = form.fieldProps('note');

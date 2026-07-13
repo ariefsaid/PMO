@@ -6,6 +6,9 @@ import ExecutiveDashboard from './ExecutiveDashboard';
 import { ToastProvider } from '@/src/components/ui/Toast';
 import { formatCurrency } from '@/src/lib/format';
 
+const analytics = vi.hoisted(() => ({ trackComingSoonClicked: vi.fn() }));
+vi.mock('@/src/lib/analytics', () => ({ trackComingSoonClicked: analytics.trackComingSoonClicked }));
+
 // Oracle payload — extended dual-lens fields (no avg_gross_margin)
 const populated = {
   active_projects: 2,
@@ -245,5 +248,20 @@ describe('ExecutiveDashboard token purity / no mockData', () => {
     expect(band.className).toContain('min-[1180px]:grid-cols-6');
     // Named sm: MUST NOT appear on grid-cols — it would override all arbitrary tiers at ≥640px
     expect(band.className).not.toContain('sm:grid-cols');
+  });
+});
+
+describe('coming_soon_clicked: the "Board pack" deferred export affordance (2026-07-13 wiring plan)', () => {
+  beforeEach(() => {
+    analytics.trackComingSoonClicked.mockClear();
+  });
+
+  it('AC: clicking the disabled Board pack affordance fires trackComingSoonClicked (demand signal)', () => {
+    renderPage();
+    const boardPack = screen.getByRole('button', { name: /board pack \(coming soon\)/i });
+    expect(boardPack).toBeDisabled();
+    // The wrapping span reports the click — a disabled button cannot dispatch one.
+    fireEvent.click(boardPack.parentElement!);
+    expect(analytics.trackComingSoonClicked).toHaveBeenCalledWith('board-pack-export', 'dashboard');
   });
 });

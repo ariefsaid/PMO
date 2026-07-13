@@ -13,6 +13,7 @@ import {
   type ComboboxOption,
 } from '@/src/components/ui';
 import { useVendorOptions } from '@/src/hooks/useFkOptions';
+import { trackComingSoonClicked } from '@/src/lib/analytics';
 import { formatCurrency, formatDate, parseMoneyInput } from '@/src/lib/format';
 import type { Tables } from '@/src/lib/supabase/database.types';
 import { ProcurementFilesSubsection } from './ProcurementFilesSubsection';
@@ -402,6 +403,11 @@ export const VendorQuotesTab: React.FC<VendorQuotesTabProps> = ({
             </div>
             <span
               title="File upload coming soon"
+              // coming_soon_clicked (2026-07-13 wiring plan — demand signal): the
+              // control itself stays genuinely disabled (D13 honest-affordance —
+              // never a fake-working CTA); the wrapping span's own click still
+              // reports intent, since a `disabled` element cannot dispatch one.
+              onClick={() => trackComingSoonClicked('vendor-quote-file-upload', 'procurement')}
               className="inline-flex h-8 cursor-not-allowed items-center gap-1.5 rounded-md border border-dashed border-input bg-secondary/50 px-2.5 text-[12.5px] text-muted-foreground"
             >
               <Icon name="doc" width="1em" height="1em" />

@@ -1,3 +1,4 @@
+// @e2e-isolation: self-isolated — unique deal name (Date.now()), PM creates Leads deal → appears in Pipeline (absent from Projects); opens from Pipeline → canonical /projects/:id with pipeline lens; opens on-hand P003 from Projects → delivery lens; no seed mutation.
 import { test, expect, type Page } from '@playwright/test';
 import { login, pickComboboxOption, openPipelineCard } from './helpers';
 

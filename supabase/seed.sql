@@ -34,6 +34,11 @@ values
    crypt('Passw0rd!dev', gen_salt('bf')), now(),
    '{"provider":"email","providers":["email"]}', '{}', now(), now(),
    '', '', '', '', '', ''),
+  ('00000000-0000-0000-0000-000000000000','00000000-0000-0000-0000-0000000000c1',
+   'authenticated','authenticated','tse-021-eng@acme.test',
+   crypt('Passw0rd!dev', gen_salt('bf')), now(),
+   '{"provider":"email","providers":["email"]}', '{}', now(), now(),
+   '', '', '', '', '', ''),
   ('00000000-0000-0000-0000-000000000000','00000000-0000-0000-0000-0000000000a5',
    'authenticated','authenticated','admin@acme.test',
    crypt('Passw0rd!dev', gen_salt('bf')), now(),
@@ -82,6 +87,9 @@ values
    'email', now(), now(), now()),
   ('engineer@acme.test','00000000-0000-0000-0000-0000000000a4',
    jsonb_build_object('sub','00000000-0000-0000-0000-0000000000a4','email','engineer@acme.test'),
+   'email', now(), now(), now()),
+  ('tse-021-eng@acme.test','00000000-0000-0000-0000-0000000000c1',
+   jsonb_build_object('sub','00000000-0000-0000-0000-0000000000c1','email','tse-021-eng@acme.test'),
    'email', now(), now(), now()),
   ('admin@acme.test','00000000-0000-0000-0000-0000000000a5',
    jsonb_build_object('sub','00000000-0000-0000-0000-0000000000a5','email','admin@acme.test'),
@@ -144,7 +152,10 @@ insert into profiles (id, company_id, full_name, email, role, title, location, s
    'Ivan TSColocated',  'ts-colocated-eng@acme.test','Engineer','Project Engineer',        'Site B',       '{"PE"}',           88),
   -- AC-IXD-TS-W5-3 isolation (pure seed actor — already-submitted prior-week sheet)
   ('00000000-0000-0000-0000-0000000000b4','c0000000-0000-0000-0000-000000000001',
-   'Wave5 BulkEng',     'wave5-bulkeng@acme.test','Engineer',   'Project Engineer',        'Site B',       '{"PE"}',           90)
+   'Wave5 BulkEng',     'wave5-bulkeng@acme.test','Engineer',   'Project Engineer',        'Site B',       '{"PE"}',           90),
+  -- AC-TSE-021 isolation: dedicated engineer for timesheet log/edit/delete/submit journey
+  ('00000000-0000-0000-0000-0000000000c1','c0000000-0000-0000-0000-000000000001',
+   'TSE-021 Engineer',   'tse-021-eng@acme.test','Engineer',   'Project Engineer',        'Site B',       '{"PE"}',           85)
 on conflict (id) do nothing;
 
 -- Manager chain (post-insert UPDATEs to avoid forward-FK issues)
@@ -157,6 +168,8 @@ update profiles set manager_id = '00000000-0000-0000-0000-0000000000b2'
   where id = '00000000-0000-0000-0000-0000000000b1';   -- Grace → Heidi
 update profiles set manager_id = '00000000-0000-0000-0000-0000000000a2'
   where id = '00000000-0000-0000-0000-0000000000b4';   -- Wave5 BulkEng → Diego (pm@)
+update profiles set manager_id = '00000000-0000-0000-0000-0000000000a2'
+  where id = '00000000-0000-0000-0000-0000000000c1';   -- TSE-021 Engineer → Diego (pm@)
 
 
 -- ============================================================
@@ -542,6 +555,9 @@ insert into tasks (id, project_id, name, start_date, end_date, assignee_id, stat
    'PROC — Panel & Inverter Procurement','2025-10-11','2026-01-31','00000000-0000-0000-0000-0000000000a2','In Progress'),
   ('81000000-0000-0000-0000-000000000009','41000000-0000-0000-0000-000000000001',
    'PROC — Mounting Structure Procurement','2025-10-11','2026-01-31','00000000-0000-0000-0000-0000000000a2','In Progress'),
+  -- AC-SCA-014 isolation: dedicated In-Progress task on SP-2401 (reserved for this spec)
+  ('81000000-0000-0000-0000-000000000019','41000000-0000-0000-0000-000000000001',
+   'PROC — AC-SCA-014 Dedicated Procurement Task','2025-10-11','2026-01-31','00000000-0000-0000-0000-0000000000a2','In Progress'),
 
   -- ── SP-2401 Construction (1 Done + 3 To Do = 1/4) ───────────────────────────
   ('81000000-0000-0000-0000-000000000010','41000000-0000-0000-0000-000000000001',
@@ -696,7 +712,7 @@ update tasks set milestone_id = '71000000-0000-0000-0000-000000000002'
   where id in ('81000000-0000-0000-0000-000000000003','81000000-0000-0000-0000-000000000004',
                '81000000-0000-0000-0000-000000000005','81000000-0000-0000-0000-000000000006',
                '81000000-0000-0000-0000-000000000007','81000000-0000-0000-0000-000000000008',
-               '81000000-0000-0000-0000-000000000009');
+               '81000000-0000-0000-0000-000000000009','81000000-0000-0000-0000-000000000019');
 update tasks set milestone_id = '71000000-0000-0000-0000-000000000003'
   where id in ('81000000-0000-0000-0000-000000000010','81000000-0000-0000-0000-000000000011',
                '81000000-0000-0000-0000-000000000012','81000000-0000-0000-0000-000000000013');
@@ -975,7 +991,11 @@ insert into procurements (id, code, title, project_id, requested_by_id, status, 
   -- PROC-2026-008: dedicated for AC-IXD-WP-002 (Vendor Invoiced → Paid confirm)
   ('60000000-0000-0000-0000-000000000008','PROC-2026-008','Surge Protection Devices & Fusing',
    '40000000-0000-0000-0000-000000000003','00000000-0000-0000-0000-0000000000a2',
-   'Vendor Invoiced',30000,null,'2026-02-24T00:00:00Z')
+   'Vendor Invoiced',30000,null,'2026-02-24T00:00:00Z'),
+  -- PROC-2026-009: dedicated for AC-816 (Draft procurement for full procure-to-pay journey)
+  ('60000000-0000-0000-0000-000000000009','PROC-2026-009','AC-816 Dedicated Procurement',
+   '40000000-0000-0000-0000-000000000001','00000000-0000-0000-0000-0000000000a2',
+   'Draft',50000,null,'2026-03-01T00:00:00Z')
 on conflict (id) do nothing;
 
 insert into procurement_items (procurement_id, name, description, quantity, rate) values
@@ -985,7 +1005,9 @@ insert into procurement_items (procurement_id, name, description, quantity, rate
   ('60000000-0000-0000-0000-000000000006','AC Distribution Board 630A','Main LV distribution board with metering',1,12000),
   ('60000000-0000-0000-0000-000000000003','Safety helmets','Hard hat PPE',30,250),
   ('60000000-0000-0000-0000-000000000003','Hi-vis vests','Class 3 reflective vests',60,175),
-  ('60000000-0000-0000-0000-000000000003','Safety boots','Steel-toe boots',15,300);
+  ('60000000-0000-0000-0000-000000000003','Safety boots','Steel-toe boots',15,300),
+  -- PROC-2026-009 line item (dedicated for AC-816 full procure-to-pay journey)
+  ('60000000-0000-0000-0000-000000000009','AC-816 Procurement Line','Dedicated line item for the AC-816 Draft→Paid journey',1,50000);
 
 insert into procurement_quotations (procurement_id, vendor_id, reference, total_amount, received_date, is_selected) values
   ('60000000-0000-0000-0000-000000000001','c0000000-0000-0000-0000-000000000010','RMS-Q-101',152000,'2026-02-10',false),

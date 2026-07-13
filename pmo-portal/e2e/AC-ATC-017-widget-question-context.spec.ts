@@ -1,3 +1,4 @@
+// @e2e-isolation: read-only — signIn + page.route-mocked agent-chat (2 legs, same RUN_ID); no DB writes.
 /**
  * AC-ATC-017 — "Show me over-budget projects" renders a real table inline; a
  * clarifying question chip continues the same run. [E2E] (ADR-0045 Verification,

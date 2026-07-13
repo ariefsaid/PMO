@@ -1,3 +1,4 @@
+// @e2e-isolation: read-only — pure nav/assert; login + projects list assertion; no DB writes.
 import { test, expect } from '@playwright/test';
 import { login } from './helpers';
 

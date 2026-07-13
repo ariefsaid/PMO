@@ -34,6 +34,7 @@ import { useMyTasks } from '@/src/hooks/useMyTasks';
 import { useProjectView } from '@/src/hooks/useProjectView';
 import { useProjectsDeliverySummary } from '@/src/hooks/useProjectsDelivery';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { trackProjectDetailOpened, trackFilterApplied } from '@/src/lib/analytics';
 import { formatCurrency, formatCompactCurrency } from '@/src/lib/format';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import type { ProjectStatus } from '@/src/lib/db/projectTransitions';
@@ -62,7 +63,7 @@ const ONGOING = [ProjectStatusEnum.Ongoing, ProjectStatusEnum.WonPendingKoM, Pro
 const COMPLETED = [ProjectStatusEnum.CloseOut, ProjectStatusEnum.Loss] as string[];
 
 const Projects: React.FC = () => {
-  const { effectiveRole } = useEffectiveRole();
+  const { effectiveRole, realRole } = useEffectiveRole();
   const may = usePermission();
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -215,7 +216,12 @@ const Projects: React.FC = () => {
   };
 
   // Row/card drill is a plain react-router navigate (AC-NAV-006) — no tab.
-  const onOpen = (p: ProjectWithRefs) => navigate(`/projects/${p.id}`);
+  // `source` distinguishes the table/list row path from every card-shaped surface
+  // (cards, kanban, calendar) for `project_detail_opened` (2026-07-13 wiring plan).
+  const onOpen = (p: ProjectWithRefs, source: 'list' | 'card' = 'list') => {
+    trackProjectDetailOpened('/projects/:projectId', source);
+    navigate(`/projects/${p.id}`);
+  };
 
   // ── rowMenu: Edit (→ editHeader modal) + Archive (→ confirm) ───────────────
   // Mirrors Companies.tsx:141-147 pattern. Gated by the same can() checks the
@@ -470,6 +476,9 @@ const Projects: React.FC = () => {
           icon="folder"
           title="No projects yet"
           sub="Projects you create or win will appear here."
+          stateId="projects-empty"
+          role={realRole ?? undefined}
+          module="projects"
           action={
             canCreate ? { label: 'New project', onClick: () => setCreateOpen(true) } : undefined
           }
@@ -492,7 +501,10 @@ const Projects: React.FC = () => {
           <ViewToggle<StatusFilter>
             options={FILTERS.map((f) => ({ value: f, label: f === 'at-risk' ? 'At risk' : f }))}
             value={filter}
-            onChange={setFilter}
+            onChange={(v) => {
+              setFilter(v);
+              trackFilterApplied('status', FILTERS.length, 'projects');
+            }}
             ariaLabel="Status filter"
           />
         </div>
@@ -503,6 +515,9 @@ const Projects: React.FC = () => {
           aria-label="Search projects"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
+          searchSurface="projects-list"
+          module="projects"
+          resultCount={filtered.length}
           containerClassName="max-sm:basis-full max-sm:w-full max-sm:min-w-0"
         />
       }
@@ -520,7 +535,10 @@ const Projects: React.FC = () => {
               hideLabel
               label="Filter by customer"
               value={filterClient}
-              onChange={setFilterClient}
+              onChange={(v) => {
+                setFilterClient(v);
+                trackFilterApplied('customer', customerFilterOptions.length, 'projects');
+              }}
               options={customerFilterOptions}
               className="w-auto"
             />
@@ -528,7 +546,10 @@ const Projects: React.FC = () => {
               hideLabel
               label="Filter by project manager"
               value={filterPM}
-              onChange={setFilterPM}
+              onChange={(v) => {
+                setFilterPM(v);
+                trackFilterApplied('project_manager', pmFilterOptions.length, 'projects');
+              }}
               options={pmFilterOptions}
               className="w-auto"
             />
@@ -573,12 +594,15 @@ const Projects: React.FC = () => {
     >
       {/* Body */}
       {view === 'kanban' ? (
-        <ProjectKanbanBoard projects={filtered} onOpen={onOpen} />
+        <ProjectKanbanBoard projects={filtered} onOpen={(p) => onOpen(p, 'card')} />
       ) : view === 'calendar' ? (
         <ProjectCalendarView
           projects={filtered}
           milestoneDates={milestoneDates}
-          onOpenProject={(id) => navigate(`/projects/${id}`)}
+          onOpenProject={(id) => {
+            trackProjectDetailOpened('/projects/:projectId', 'card');
+            navigate(`/projects/${id}`);
+          }}
         />
       ) : view === 'table' ? (
         <DataTable<ProjectWithRefs>
@@ -637,7 +661,7 @@ const Projects: React.FC = () => {
             <ProjectCard
               key={p.id}
               project={p}
-              onOpen={onOpen}
+              onOpen={(proj) => onOpen(proj, 'card')}
               deliverySummary={deliverySummary?.[p.id]}
               onEdit={canEdit ? (proj) => setEditTarget(proj) : undefined}
             />

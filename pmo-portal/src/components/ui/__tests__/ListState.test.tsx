@@ -1,6 +1,10 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+
+const analytics = vi.hoisted(() => ({ trackEmptyStateSeen: vi.fn() }));
+vi.mock('@/src/lib/analytics', () => ({ trackEmptyStateSeen: analytics.trackEmptyStateSeen }));
+
 import { ListState } from '../ListState';
 
 describe('ListState', () => {
@@ -57,5 +61,44 @@ describe('ListState', () => {
     expect(screen.getByText('Could not load projects')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: /retry/i }));
     expect(onRetry).toHaveBeenCalled();
+  });
+});
+
+describe('ListState: empty_state_seen analytics (2026-07-13 wiring plan)', () => {
+  beforeEach(() => {
+    analytics.trackEmptyStateSeen.mockClear();
+  });
+
+  it('fires empty_state_seen via the facade on mount when stateId+role+module are all given', () => {
+    render(
+      <ListState
+        variant="empty"
+        title="No companies yet"
+        stateId="companies-empty"
+        role="Admin"
+        module="companies"
+      />
+    );
+    expect(analytics.trackEmptyStateSeen).toHaveBeenCalledWith('companies-empty', 'Admin', 'companies');
+    expect(analytics.trackEmptyStateSeen).toHaveBeenCalledTimes(1);
+  });
+
+  it('does NOT fire empty_state_seen when stateId/role/module are omitted (opt-in tracking)', () => {
+    render(<ListState variant="empty" title="No companies yet" />);
+    expect(analytics.trackEmptyStateSeen).not.toHaveBeenCalled();
+  });
+
+  it('does NOT fire empty_state_seen for the loading or error variants', () => {
+    render(<ListState variant="loading" />);
+    render(
+      <ListState
+        variant="error"
+        title="Couldn't load"
+        stateId="companies-error"
+        role="Admin"
+        module="companies"
+      />
+    );
+    expect(analytics.trackEmptyStateSeen).not.toHaveBeenCalled();
   });
 });

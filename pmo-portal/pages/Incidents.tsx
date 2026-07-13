@@ -16,8 +16,10 @@ import {
 } from '@/src/components/ui';
 import { ExportButton } from '@/src/components/export';
 import { usePermission } from '@/src/auth/usePermission';
+import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useIncidents, useIncidentMutations } from '@/src/hooks/useIncidents';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { trackFilterApplied } from '@/src/lib/analytics';
 import type { IncidentRow, IncidentStatus } from '@/src/lib/db/incidents';
 import { severityVariant, workflowVariant } from '@/src/lib/status/statusVariants';
 import { NEXT_STATUS, TRANSITION_COPY, type AdvanceStatus } from '@/src/lib/incidents/transitions';
@@ -45,6 +47,7 @@ interface TransitionTarget {
 
 const Incidents: React.FC = () => {
   const may = usePermission();
+  const { realRole } = useEffectiveRole();
   const navigate = useNavigate();
   const { toast } = useToast();
   const { data, isPending, isError, refetch } = useIncidents();
@@ -204,7 +207,10 @@ const Incidents: React.FC = () => {
             <ViewToggle<StatusFilter>
               options={STATUS_FILTERS.map((f) => ({ value: f, label: f }))}
               value={filter}
-              onChange={setFilter}
+              onChange={(v) => {
+                setFilter(v);
+                trackFilterApplied('status', STATUS_FILTERS.length, 'incidents');
+              }}
               ariaLabel="Filter by status"
             />
           </div>
@@ -217,6 +223,9 @@ const Incidents: React.FC = () => {
             aria-label="Search incidents"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
+            searchSurface="incidents-list"
+            module="incidents"
+            resultCount={filtered.length}
             containerClassName="max-sm:basis-full max-sm:w-full max-sm:min-w-0 sm:ml-auto"
           />
         )
@@ -249,6 +258,9 @@ const Incidents: React.FC = () => {
           icon="alert"
           title="No incidents reported"
           sub="When something goes wrong on a project or site, file it here so it can be investigated and closed out."
+          stateId="incidents-empty"
+          role={realRole ?? undefined}
+          module="incidents"
           action={
             canCreate
               ? { label: 'File incident', onClick: () => setFormTarget({ incident: null }) }

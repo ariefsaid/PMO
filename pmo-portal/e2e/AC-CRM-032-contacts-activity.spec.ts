@@ -1,3 +1,4 @@
+// @e2e-isolation: self-isolated — unique contact name + subject (Date.now()), admin creates contact + logs Call activity; no seed coupling.
 import { test, expect, type Page } from '@playwright/test';
 import { login } from './helpers';
 

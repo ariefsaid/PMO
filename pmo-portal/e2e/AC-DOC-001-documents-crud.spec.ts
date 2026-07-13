@@ -1,3 +1,4 @@
+// @e2e-isolation: self-isolated — unique document title (Date.now()), admin creates/edits/issues; PM approves (SoD); no seed coupling.
 import { test, expect, type Page } from '@playwright/test';
 import { login } from './helpers';
 

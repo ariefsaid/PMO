@@ -1,3 +1,4 @@
+// @e2e-isolation: read-only — login + pipeline/projects nav assertions on seeded Loss Tender; no DB writes.
 import { test, expect, type Page } from '@playwright/test';
 import { login, openPipelineCard } from './helpers';
 

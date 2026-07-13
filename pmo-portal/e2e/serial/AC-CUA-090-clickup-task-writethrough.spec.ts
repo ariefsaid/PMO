@@ -1,3 +1,4 @@
+// @e2e-isolation: serial — mutates org-global state (see design 2026-07-11-e2e-parallel-isolation).
 /**
  * AC-CUA-090 -- Employed-ClickUp task write-through journey (the ONE genuine cross-stack flow).
  *
@@ -34,7 +35,7 @@
  */
 import { test, expect } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
-import { signIn } from './helpers';
+import { signIn } from '../helpers';
 
 test.setTimeout(120_000);
 
@@ -58,9 +59,10 @@ const DISPATCH_HOLD_MS = 500;
 // Counters shared with the route handlers (Node-side). Reset in beforeEach.
 let dispatchHits = 0;
 let directTaskMutations = 0;
-// The task row as found -- restored verbatim in afterEach (shared-stack hygiene).
-let originalTask: { status: string; completed_at: string | null; source_updated_at: string | null } | null =
-  null;
+// NOTE: this spec FORCES its precondition in beforeEach and restores to the SEED-canonical state in
+// afterEach (not a captured "as found" value). Capturing + restoring verbatim was non-idempotent: a
+// prior serial-lane spec/attempt that left the 'Fit-out' task 'Done' got captured then re-restored,
+// so the FROM_STATUS precondition (line ~275) failed deterministically. Force + canonical-restore.
 
 test.beforeEach(async () => {
   if (!SERVICE_KEY) throw new Error('SUPABASE_SERVICE_ROLE_KEY is required for AC-CUA-090 e2e');
@@ -71,16 +73,16 @@ test.beforeEach(async () => {
 
   const admin = createClient(SERVICE_URL, SERVICE_KEY);
 
-  // Capture the task's exact original state so afterEach restores it byte-for-byte.
+  // Verify the seed task exists (fail loudly if the fixture drifted), but do NOT rely on its current
+  // status for the precondition — beforeEach forces it below.
   const { data: task, error: taskErr } = await admin
     .from('tasks')
-    .select('status, completed_at, source_updated_at')
+    .select('id')
     .eq('id', TASK_ID)
     .maybeSingle();
   if (taskErr || !task) {
     throw new Error(`AC-CUA-090: seed task ${TASK_ID} not found: ${taskErr?.message}`);
   }
-  originalTask = task as { status: string; completed_at: string | null; source_updated_at: string | null };
 
   // -- Flip the org's `tasks` domain to ClickUp (delete-first for crash-recovery idempotency). --
   await admin
@@ -133,24 +135,23 @@ test.beforeEach(async () => {
   });
   if (refErr) throw new Error(`AC-CUA-090: failed to seed external_refs: ${refErr.message}`);
 
-  // -- Mark the task as a mirror (source_updated_at set). Restored in afterEach. --
-  await admin.from('tasks').update({ source_updated_at: new Date().toISOString() }).eq('id', TASK_ID);
+  // -- FORCE the known precondition (idempotent across retries + prior serial-lane drift): the task
+  // -- starts at FROM_STATUS, not-completed, and marked as a mirror (source_updated_at set). --
+  await admin
+    .from('tasks')
+    .update({ status: FROM_STATUS, completed_at: null, source_updated_at: new Date().toISOString() })
+    .eq('id', TASK_ID);
 });
 
 test.afterEach(async () => {
   if (!SERVICE_KEY) return;
   const admin = createClient(SERVICE_URL, SERVICE_KEY);
-  // Restore the task row EXACTLY as found (status, completed_at, source_updated_at).
-  if (originalTask) {
-    await admin
-      .from('tasks')
-      .update({
-        status: originalTask.status,
-        completed_at: originalTask.completed_at,
-        source_updated_at: originalTask.source_updated_at,
-      })
-      .eq('id', TASK_ID);
-  }
+  // Restore the task to its SEED-canonical state ('Fit-out' = FROM_STATUS='In Progress', not
+  // completed, not a mirror) — NOT a captured "as found" value, which could be a prior spec's drift.
+  await admin
+    .from('tasks')
+    .update({ status: FROM_STATUS, completed_at: null, source_updated_at: null })
+    .eq('id', TASK_ID);
   await admin
     .from('external_refs')
     .delete()

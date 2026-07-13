@@ -66,6 +66,7 @@ export const ProcurementHeaderEdit: React.FC<ProcurementHeaderEditProps> = ({
     initialValues: { title, projectId, vendorId },
     validate,
     idPrefix: 'pr-header-edit',
+    module: 'procurement',
   });
 
   const { reset } = form;

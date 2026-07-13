@@ -1,3 +1,4 @@
+// @e2e-isolation: read-only — pure nav/assert; reads dashboard KPIs and pipeline board; no DB writes.
 import { test, expect } from '@playwright/test';
 import { signIn } from './helpers';
 

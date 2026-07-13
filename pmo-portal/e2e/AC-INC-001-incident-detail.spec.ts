@@ -1,3 +1,4 @@
+// @e2e-isolation: self-isolated — unique incident type (Date.now()), Engineer files+opens own detail; feature-flagged skip.
 import { test, expect, type Page } from '@playwright/test';
 import { login } from './helpers';
 

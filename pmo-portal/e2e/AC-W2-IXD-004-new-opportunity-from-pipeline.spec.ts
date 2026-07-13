@@ -1,3 +1,4 @@
+// @e2e-isolation: self-isolated — unique opportunity name (Date.now()), PM creates project from Pipeline; appears in Pipeline immediately; no seed coupling.
 import { test, expect } from '@playwright/test';
 import { login, pickComboboxOption } from './helpers';
 

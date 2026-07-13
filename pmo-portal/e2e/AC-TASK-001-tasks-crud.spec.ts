@@ -1,3 +1,4 @@
+// @e2e-isolation: self-isolated — unique task name (Date.now()), PM creates/edits/restatuses/deletes own task; Engineer gate reads seeded 'Fit-out' task (read-only).
 import { test, expect, type Page } from '@playwright/test';
 import { login } from './helpers';
 

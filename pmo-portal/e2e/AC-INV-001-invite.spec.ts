@@ -1,3 +1,4 @@
+// @e2e-isolation: self-isolated — unique invite email (Date.now()), admin invites Engineer, edge fn called + profiles row created; CI skip (edge runtime disabled).
 import { test, expect, type Page } from '@playwright/test';
 import { signIn } from './helpers';
 

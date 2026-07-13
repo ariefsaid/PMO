@@ -1,3 +1,4 @@
+// @e2e-isolation: self-isolated — seeds agent_threads/runs/events via service-role for admin@acme.test; beforeAll/afterAll cleanup; mocks agent-chat SSE.
 /**
  * AC-AGP-023 — Converse, reload, transcript restored; a second user cannot see it.
  * (ADR-0043 SS Verification: "user has a conversation -> reloads -> the transcript is

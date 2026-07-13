@@ -1,3 +1,4 @@
+// @e2e-isolation: read-only — sign-in + sign-out + nav assertion; no DB writes.
 import { test, expect } from '@playwright/test';
 import { signIn } from './helpers';
 

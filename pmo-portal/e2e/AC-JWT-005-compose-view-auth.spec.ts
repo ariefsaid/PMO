@@ -1,3 +1,4 @@
+// @e2e-isolation: self-isolated — mints its own ES256 tokens + hits compose-view via request; no shared-data writes.
 /**
  * AC-JWT-005 — compose-view local JWKS auth gate (ADR-0057 Task 2 pilot).
  *

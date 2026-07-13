@@ -1,3 +1,4 @@
+// @e2e-isolation: read-only — signIn + page.route-mocked agent-chat (markdown SSE); no DB writes.
 /**
  * AC-AXP-014 - narrative answers render as safe markdown, not literal syntax.
  */

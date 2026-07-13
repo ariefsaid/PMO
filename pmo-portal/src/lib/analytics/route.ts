@@ -12,8 +12,13 @@ const KNOWN_TOP_LEVEL_SEGMENTS = new Set([
   'approvals', 'timesheets', 'companies', 'incidents', 'my-tasks', 'reports', 'administration',
 ]);
 
-/** Safe tab pattern: lowercase alphanumeric + hyphens, no PII-like content. */
-const SAFE_TAB_ID = /^[a-z][a-z0-9-]{0,62}$/;
+/**
+ * Safe tab pattern: lowercase alphanumeric + hyphens, no PII-like content.
+ * Exported so `project_tab_viewed` (the analytics facade) can normalize a tab id
+ * the same way route-derived tab ids already are, before it ever reaches
+ * `buildEventProperties`.
+ */
+export const SAFE_TAB_ID = /^[a-z][a-z0-9-]{0,62}$/;
 
 export function routeAnalyticsForPath(path: string): RouteAnalytics {
   const clean = stripQuery(path);

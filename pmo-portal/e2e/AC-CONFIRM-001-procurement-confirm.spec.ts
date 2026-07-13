@@ -1,3 +1,4 @@
+// @e2e-isolation: dedicated-row — owns PROC-2026-006 (60000000-...-006); dedicated Draft procurement fixture; no other spec targets it.
 import { test, expect } from '@playwright/test';
 import { login } from './helpers';
 

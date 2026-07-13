@@ -24,6 +24,7 @@ import { ImportButton } from '@/src/components/import';
 import { makeContactImportDescriptor } from '@/src/lib/import';
 import { useNavigate } from 'react-router-dom';
 import { usePermission } from '@/src/auth/usePermission';
+import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useContacts, useContactMutations } from '@/src/hooks/useContacts';
 import { useCompanies } from '@/src/hooks/useCompanies';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
@@ -47,6 +48,7 @@ const validate = (v: FormValues): Partial<Record<keyof FormValues, string>> => {
 
 const Contacts: React.FC = () => {
   const may = usePermission();
+  const { realRole } = useEffectiveRole();
   const navigate = useNavigate();
   const { toast } = useToast();
   const { data, isPending, isError, refetch } = useContacts();
@@ -246,6 +248,9 @@ const Contacts: React.FC = () => {
           icon="folder"
           title="No contacts yet"
           sub="Add your first contact to start logging calls, emails and meetings against the people you work with."
+          stateId="contacts-empty"
+          role={realRole ?? undefined}
+          module="contacts"
           action={
             canCreate ? { label: 'Add your first contact', onClick: () => setFormTarget({ contact: null }) } : undefined
           }
@@ -354,6 +359,7 @@ const ContactFormModal: React.FC<ContactFormModalProps> = ({
     validate,
     idPrefix: 'contact-form',
     requiredFields: ['full_name', 'company_id'],
+    module: 'contacts',
   });
 
   const nameField = form.fieldProps('full_name');
