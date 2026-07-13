@@ -1,6 +1,25 @@
-// @e2e-isolation: dedicated-row — owns P013 (40000000-...-013) dedicated expendable Ongoing Project; unique milestone/task names (Date.now()); needs beforeEach reset of P013 milestones/tasks (plan Task 4a).
+// @e2e-isolation: dedicated-row — owns P013; beforeEach resets to empty (retry-safe).
 import { test, expect } from '@playwright/test';
 import { login } from './helpers';
+import { requireServiceRoleKey } from './helpers';
+import { createClient } from '@supabase/supabase-js';
+
+const P013 = '40000000-0000-0000-0000-000000000013';
+
+test.beforeEach(async () => {
+  const svcKey = requireServiceRoleKey();
+  if (!svcKey) return; // local dev: skip (seed reset provides clean state)
+  // The node test process gets SUPABASE_URL (exported by CI / e2e-local.sh); VITE_SUPABASE_URL is
+  // only in .env.local for Vite. Prefer SUPABASE_URL, fall back to VITE_ (mirrors AC-CUA-090).
+  const admin = createClient(process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL!, svcKey);
+  // delete tasks under those milestones, then the milestones — so P013 is empty on every attempt
+  const { data: ms } = await admin.from('project_milestones').select('id').eq('project_id', P013);
+  const ids = (ms ?? []).map((m) => m.id);
+  if (ids.length) {
+    await admin.from('tasks').delete().in('milestone_id', ids);
+    await admin.from('project_milestones').delete().eq('project_id', P013);
+  }
+});
 
 // AC-DEL-022 — PM creates a milestone, adds a task under it, marks it Done.
 //
