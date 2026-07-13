@@ -1,4 +1,4 @@
-// @e2e-isolation: dedicated-row — owns PROC-2026-006/007 (per plan Task 3a); currently uses shared PROC-2026-003 — needs repoint to dedicated fixture.
+// @e2e-isolation: dedicated-row — owns PROC-2026-009 (60000000-0000-0000-0000-000000000009); full Draft→Paid journey, no other spec reads it.
 import { test, expect, type Page } from '@playwright/test';
 import { login } from './helpers';
 // NOTE (IA-3 re-skin): the visible status pill now shows the human stage label
@@ -16,7 +16,7 @@ import { login } from './helpers';
 // AC-816 — full procure-to-pay happy path: Draft→Requested→Approved→Ordered→Received→
 // Vendor Invoiced→Paid with minted PR#/PO#/GR#/VI# trail.
 //
-// Uses PROC-2026-003 (60000000-0000-0000-0000-000000000004) — seeded as Draft,
+// Uses PROC-2026-009 (60000000-0000-0000-0000-000000000009) — seeded as Draft,
 // requested_by = pm@acme.test (a2).  SoD strategy:
 //   • pm@acme.test submits (Draft→Requested)
 //   • admin@acme.test approves (Admin break-glass, exempt from SoD-a), orders, confirms receipt, creates GR
@@ -24,7 +24,7 @@ import { login } from './helpers';
 //
 // (FR-PROC-002/005/006/008/009/010/011, NFR-PROC-UI-001)
 
-const PROC_ID = '60000000-0000-0000-0000-000000000004';
+const PROC_ID = '60000000-0000-0000-0000-000000000009';
 const PROC_URL = `/procurement/${PROC_ID}`;
 
 /** Click the named button inside the open ConfirmDialog (role="dialog"). */

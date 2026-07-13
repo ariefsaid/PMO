@@ -1,4 +1,4 @@
-// @e2e-isolation: self-isolated — fixed "Test View" name (needs Date.now() unique + afterEach cleanup per plan Task 3d); admin@acme.test composes/saves/renders view; no seed coupling.
+// @e2e-isolation: self-isolated — unique view name (Date.now()) + afterEach service-role cleanup of user_views row.
 /**
  * AC-VB-E01 — Compose a view, save it, verify it renders in I3, check My Views list.
  * Curated cross-stack Playwright journey (ADR-0010, one e2e per genuine cross-stack AC).
@@ -7,9 +7,20 @@
  * Feature flag: VITE_FEATURES_USERVIEWS=true in .env.test.
  */
 import { test, expect } from '@playwright/test';
+import { createClient } from '@supabase/supabase-js';
 import { signIn } from './helpers';
+import { execSync } from 'node:child_process';
+
+function readSupabaseEnv(name: string): string {
+  const output = execSync('supabase status -o env', { encoding: 'utf8' });
+  const match = output.match(new RegExp(`^${name}="([^"]+)"$`, 'm'));
+  if (!match) throw new Error(`Missing ${name} from supabase status -o env`);
+  return match[1];
+}
 
 test.describe('AC-VB-E01: View builder — compose, save, list, render', () => {
+  let viewId: string | undefined;
+
   test.beforeEach(async ({ page }) => {
     // Authenticate per-test — this repo has no global storageState; every e2e signs in.
     await signIn(page, 'admin@acme.test');
@@ -17,9 +28,18 @@ test.describe('AC-VB-E01: View builder — compose, save, list, render', () => {
     await expect(page).toHaveURL(/\/views\/new/);
   });
 
+  test.afterEach(async () => {
+    if (!viewId) return;
+    const admin = createClient(readSupabaseEnv('API_URL'), readSupabaseEnv('SERVICE_ROLE_KEY'));
+    await admin.from('user_views').delete().eq('id', viewId);
+    viewId = undefined;
+  });
+
   test('AC-VB-E01: compose 1-panel view → save → renderer → My Views list', async ({ page }) => {
+    const uniqueName = `Test View ${Date.now()}`;
+
     // ── 1. Enter view name ──────────────────────────────────────────────────
-    await page.getByRole('textbox', { name: /view name/i }).fill('Test View');
+    await page.getByRole('textbox', { name: /view name/i }).fill(uniqueName);
 
     // ── 2. Add a panel ──────────────────────────────────────────────────────
     await page.getByRole('button', { name: /add panel/i }).click();
@@ -42,10 +62,13 @@ test.describe('AC-VB-E01: View builder — compose, save, list, render', () => {
 
     // ── 4. App navigates to /views/:newViewId — renderer shows the view ────
     await expect(page).toHaveURL(/\/views\/[^/]+$/);
+    // Capture the new view ID from the URL for cleanup
+    const urlMatch = page.url().match(/\/views\/([^/]+)$/);
+    if (urlMatch) viewId = urlMatch[1];
     // Scope to <main>: the view name also appears in the rail's "My Views" nav
     // group (links) and a save toast (status), so an unscoped getByText is ambiguous.
     await expect(
-      page.getByRole('main').getByRole('heading', { name: 'Test View' }),
+      page.getByRole('main').getByRole('heading', { name: uniqueName }),
     ).toBeVisible({ timeout: 10_000 });
     // The DataTable panel should render (companies data or empty state)
     await expect(
@@ -56,9 +79,9 @@ test.describe('AC-VB-E01: View builder — compose, save, list, render', () => {
     await page.goto('/views');
     await expect(page).toHaveURL('/views');
 
-    // ── 6. "Test View" appears in the list with an Edit affordance ──────────
+    // ── 6. Unique view name appears in the list with an Edit affordance ──────────
     // Scope to <main> so the list link is matched, not the rail's "My Views" nav links.
-    await expect(page.getByRole('main').getByRole('link', { name: 'Test View' })).toBeVisible();
+    await expect(page.getByRole('main').getByRole('link', { name: uniqueName })).toBeVisible();
     // Row action menu should have an Edit entry
     await page.getByRole('button', { name: /row actions/i }).first().click();
     await expect(page.getByRole('menuitem', { name: /edit/i })).toBeVisible();
