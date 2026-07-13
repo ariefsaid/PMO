@@ -44,7 +44,7 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'] },
       dependencies: ['setup'],
       // Exclude the setup file AND the serial lane — the serial project owns e2e/serial/**.
-      testIgnore: [/auth\.setup\.ts/, /e2e[\/]serial[\/]/],
+      testIgnore: [/auth\.setup\.ts/, /e2e\/serial\//],
     },
     {
       // @e2e-isolation: serial lane — org-global specs. Run in a SECOND invocation at --workers=1
@@ -52,7 +52,7 @@ export default defineConfig({
       name: 'serial',
       use: { ...devices['Desktop Chrome'] },
       dependencies: ['setup'],
-      testMatch: /e2e[\/]serial[\/].*\.spec\.ts/,
+      testMatch: /e2e\/serial\/.*\.spec\.ts/,
       fullyParallel: false,
     },
   ],
