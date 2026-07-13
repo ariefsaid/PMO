@@ -35,6 +35,21 @@ import { resolveClickUpDispatchAdapter } from '../../../pmo-portal/src/lib/adapt
 import { ClickUpRateLimiter } from '../../../pmo-portal/src/lib/adapterSeam/clickup/rateLimit.ts';
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
 import type { Adapter, AdapterCommand, PmoRecord } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
+import {
+  verifyCallerJwt,
+  bearerToken,
+  JwtVerifyError,
+  jwksFromUrl,
+  type JwksResolver,
+} from '../../../pmo-portal/src/lib/auth/verifyCallerJwt.ts';
+
+// ADR-0057: one cached, rate-limited JWKS resolver, memoized across warm invocations. Built lazily
+// so an empty SUPABASE_URL can't throw a URL error before the handler can return a typed 401/500.
+let _jwks: JwksResolver | null = null;
+function getJwks(supabaseUrl: string): JwksResolver {
+  if (!_jwks) _jwks = jwksFromUrl(`${supabaseUrl}/auth/v1/.well-known/jwks.json`);
+  return _jwks;
+}
 
 /** The adapter-select context: the caller's org, the parsed command, and the service-role client for
  * per-request config lookups (project binding, external_refs resolution). Never used for adapter.commit(). */
@@ -91,19 +106,17 @@ Deno.serve(async (req: Request): Promise<Response> => {
     return new Response('ok', { headers: corsHeaders() });
   }
 
-  // ── 1. org from JWT (AC-EAS-033 step 1). verify_jwt=true already validated the JWT at the
-  // gateway; extract the bearer here so the deputy-auth org lookup below runs under the
-  // CALLER's own identity (never service_role). ──
-  const authHeader = req.headers.get('Authorization');
-  if (!authHeader?.startsWith('Bearer ')) {
+  // ── 1. org from JWT (AC-EAS-033 step 1). Read the bearer (case-insensitive, shared parser). ──
+  const jwt = bearerToken(req.headers.get('Authorization'));
+  if (!jwt) {
     return new Response(JSON.stringify({ error: 'UNAUTHORIZED', message: 'missing Authorization header' }), {
       status: 401,
       headers,
     });
   }
-  const jwt = authHeader.slice(7); // strip "Bearer "
 
-  const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+  // Normalize a trailing slash so the derived issuer / JWKS URL never doubles a slash.
+  const supabaseUrl = (Deno.env.get('SUPABASE_URL') ?? '').replace(/\/$/, '');
   const anonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
   if (!supabaseUrl || !anonKey || !serviceRoleKey) {
@@ -113,20 +126,39 @@ Deno.serve(async (req: Request): Promise<Response> => {
     });
   }
 
-  // Deputy auth: identity + org resolution runs under the CALLER's own JWT (RLS-scoped) — never
-  // service_role (compose-view/handler.ts Recon #4 precedent).
+  // Verify the caller JWT LOCALLY against the project JWKS (ADR-0057 — asymmetric ES256), replacing
+  // the auth.getUser round-trip with a cached, local signature check to resolve the caller's `sub`.
+  // verify_jwt=true still pre-filters invalid tokens at the gateway (defense in depth); this extracts
+  // the verified user id without a second GoTrue call. Any signature/expiry/issuer/audience/alg
+  // failure → a single typed 401. The active-member (ban/disable) check that auth.getUser used to
+  // provide is NOT lost — it lives in the RLS gating the org lookup below (see that comment).
+  let userId: string;
+  try {
+    const verified = await verifyCallerJwt(jwt, getJwks(supabaseUrl), {
+      issuer: Deno.env.get('SUPABASE_JWT_ISSUER') ?? `${supabaseUrl}/auth/v1`,
+      audience: 'authenticated',
+      algorithms: ['ES256'],
+    });
+    userId = verified.sub;
+  } catch (err) {
+    const status = err instanceof JwtVerifyError ? err.status : 401;
+    return new Response(JSON.stringify({ error: 'UNAUTHORIZED', message: 'invalid JWT' }), { status, headers });
+  }
+
+  // Deputy auth: org resolution runs under the CALLER's own JWT (RLS-scoped) — never service_role
+  // (compose-view/handler.ts Recon #4 precedent). This RLS read is ALSO the active-member gate that
+  // keeps dropping auth.getUser safe on this service_role / destructive path: profiles_select is
+  // conjoined with is_active_member() (status='active', mig 0063 applies it to EVERY business-table
+  // policy), so a disabled/offboarded caller (admin_set_user_status sets status='disabled', mig 0065)
+  // resolves ZERO rows here → the `!profile` branch returns 400 and NO service_role write ever runs.
+  // The active-member check thus lives in the RLS gating this lookup, not in getUser — consistent with
+  // the app-wide is_active_member standard. (Verified empirically 2026-07-13: a disabled user's own
+  // profile read returns []. Task-3 audit note: a raw dashboard `banned_until`-only ban that leaves
+  // status='active' is outside the app-wide is_active_member model — an accepted app-wide posture, not
+  // a gap unique to this function.)
   const callerClient = createClient(supabaseUrl, anonKey, {
     global: { headers: { Authorization: `Bearer ${jwt}` } },
   });
-
-  const { data: userData, error: userError } = await callerClient.auth.getUser();
-  if (userError || !userData?.user) {
-    return new Response(JSON.stringify({ error: 'UNAUTHORIZED', message: 'invalid JWT' }), {
-      status: 401,
-      headers,
-    });
-  }
-  const userId = userData.user.id;
 
   const { data: profile, error: profileError } = await callerClient
     .from('profiles')

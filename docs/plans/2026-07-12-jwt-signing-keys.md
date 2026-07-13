@@ -160,7 +160,12 @@ prod-mirroring stack) and never red-flags a CI env that structurally can't host 
 
 Function-by-function, each its own small PR + security-auditor pass, honoring ADR-0057 §Decision-3:
 
-- `adapter-dispatch` — caller-JWT + RLS path → local-verify (same shape as `compose-view`).
+- `adapter-dispatch` — ✅ DONE (2026-07-13). Local-verify for `sub`; caller-JWT RLS `profiles` org
+  lookup retained. Security-audited: the audit flagged the service_role/destructive write path, but on
+  verification the disabled-user window is already closed by mig `0063` (which conjoins
+  `is_active_member()` / `status='active'` into `profiles_select`), so a disabled caller resolves zero
+  rows at the org lookup → `!profile` 400, no write. Stays in the caller-JWT+RLS bucket; no `getUser`,
+  no extra round-trip. (Empirically verified; raw `banned_until`-only bans are an accepted app-wide gap.)
 - `agent-chat` — currently uses **service_role** solely for `getUser`. Switch to local-verify + a
   targeted live check ONLY where it escalates; removing the service_role-for-auth call also tightens
   NFR-AR-SEC-002 (service_role no longer touched on the pre-auth path).
