@@ -1,17 +1,17 @@
 /**
- * AC-ENA-013-pi-recovery-adopt — Slice 6 task 6.8. ADR-0057's R3 post-commit mirror-failure recovery
+ * AC-ENA-013-pi-recovery-adopt — Slice 6 task 6.8. ADR-0058's R3 post-commit mirror-failure recovery
  * proven at the REAL served `adapter-dispatch` boundary for a Purchase Invoice (the PI counterpart of
  * AC-ENA-010's PE proof) with the `after-commit-before-mirror` named fault seam (FR-ENA-003).
  *
  * Given a PI command with a fresh `idempotencyKey`, when the served fn is armed with
  * `ERPNEXT_TEST_FAULTS=1` + header `x-erpnext-test-fault: after-commit-before-mirror`, then: the FIRST
  * dispatch commits the real ERPNext PI (create+submit two-step, R9 §1) and marks the outbox row
- * `committed` (canonical persisted, ADR-0057 §4 "F2") — then the function's response path crashes
+ * `committed` (canonical persisted, ADR-0058 §4 "F2") — then the function's response path crashes
  * server-side (simulating the process dying AFTER the ERP commit but BEFORE the PMO mirror/ref write,
  * the R3 partial-failure window) — the client sees a 500. The EXACT SAME command retried (same
  * idempotencyKey, fault header dropped) reconciles the `committed` outbox row via finalize-only
  * (mirror + `external_refs`, generation-guarded) — no second ERP POST. Proof: ERPNext holds exactly
- * ONE Purchase Invoice stamped with the idempotency key in its `remarks` (the PI anchor field, ADR-0057
+ * ONE Purchase Invoice stamped with the idempotency key in its `remarks` (the PI anchor field, ADR-0058
  * §3 — live-verified the key survives); PMO's `procurement_invoices` table holds exactly ONE mirror row.
  *
  * Requires (process env, same as AC-ENA-010/053): SUPABASE_FUNCTIONS_URL, SUPABASE_URL/VITE_SUPABASE_URL,
@@ -198,7 +198,7 @@ test.describe('AC-ENA-013: PI after-commit-before-mirror fault-seam interruption
       expect(mirrorRows?.[0]).toMatchObject({ id: seeded.piRecordId, vi_number: piName, amount: 90000 });
 
       // ── The ERP-side proof (guarded, optional per NFR-ENA-SEC-002): exactly ONE Purchase Invoice
-      // exists with the returned name AND the PI `remarks` anchor (ADR-0057 §3) carries the stamped
+      // exists with the returned name AND the PI `remarks` anchor (ADR-0058 §3) carries the stamped
       // idempotency key — the live proof that the PI remarks-anchor survives validate+submit+refetch
       // and the recovery probe's filter would find it (R3). ──
       if (ERPNEXT_ADMIN_KEY && ERPNEXT_ADMIN_SECRET) {

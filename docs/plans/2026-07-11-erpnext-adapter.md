@@ -5,8 +5,8 @@
 > Supplier+Customer(read-only) parties · full AP command surface. OQ-2/5/6/8 resolved in-spec — do NOT
 > re-litigate.)
 > **ADRs:** ADR-0055 (binding adapter architecture), **ADR-0048** (ERPNext = accounting engine; the
-> ledger-sourced-display rule — PMO never recomputes externally-read figures), **ADR-0057 (NEW — this
-> issue)** the money-idempotency outbox + atomic recovery algorithm (`docs/adr/0057-erpnext-money-idempotency-outbox.md`).
+> ledger-sourced-display rule — PMO never recomputes externally-read figures), **ADR-0058 (NEW — this
+> issue)** the money-idempotency outbox + atomic recovery algorithm (`docs/adr/0058-erpnext-money-idempotency-outbox.md`).
 > **Builds on the shipped P0 seam + P1 ClickUp adapter** — reuses their idioms EXACTLY; do not re-invent:
 > `pmo-portal/src/lib/adapterSeam/{contract,router,dispatch,referenceAdapter,refs,watermarks,pendingPush,capabilityMap,ownershipCache}.ts`;
 > the `clickup/**` adapter as the one-tier/one-domain template; `supabase/functions/{adapter-dispatch,
@@ -60,7 +60,7 @@ it is inert (FR-ENA-004 — **P2's critical regression risk**).
                              [fault seams live HERE, FR-ENA-003, gated ERPNEXT_TEST_FAULTS=1]
                              → dispatchExternallyOwnedWrite (dispatch.ts)
                                  ├─ non-money (P0/P1)   → adapter.commit() → writeReadModel → recordExternalRef
-                                 └─ money (idempotencyKey set, ADR-0057)
+                                 └─ money (idempotencyKey set, ADR-0058)
                                       → outbox pending(unique guard) → adapter.commit() [two-step create→submit]
                                       → on ok:    mark committed → mirror + ref → confirmed
                                       → on retry: reconcile(outbox.state): confirmed|committed|pending(probe)|failed
@@ -89,7 +89,7 @@ secret ref). Reads are **always** the Supabase read-model (FR-ENA-172) — no re
    `erp_doc_kind` field on `PmoRecord` (PMO verbs, never Frappe names); the `(domain, kind, operation) →
    {doctype, toBody, fromDoc, docstatusPolicy, readOnly?}` registry lives inside `erpnext/doctypeRegistry.ts`.
    Auth/client/rate-limit/site-binding are per-tier (one client per org binding), not per-doctype.
-2. **Money idempotency = a durable outbox + atomic recovery (ADR-0057; R1/R3).** `AdapterCommand` gains
+2. **Money idempotency = a durable outbox + atomic recovery (ADR-0058; R1/R3).** `AdapterCommand` gains
    `idempotencyKey?: string` (P0/P1 ignore it). A non-read-only money command writes an
    `external_command_outbox` row `state='pending'` **before** `adapter.commit()`; the unique 4-tuple
    `(org,domain,pmo_record_id,idempotency_key)` makes a concurrent duplicate fail atomically (`23505`). The
@@ -393,7 +393,7 @@ domain-keyed (no extra call needed — confirm by assertion in the RED test). Re
 
 **File:** `pmo-portal/src/lib/adapterSeam/dispatch.money.test.ts` (new). Pure unit tests with mocked
 outbox/adapter deps (including a mocked `claimOutboxForCommit`). Asserts the full state machine
-(ADR-0057 §4) **and the impossible-by-construction claim guarantee**:
+(ADR-0058 §4) **and the impossible-by-construction claim guarantee**:
 - **server-side key enforcement** — a non-read-only `erpnext` command with no `idempotencyKey` is rejected
   `commit-rejected`/`missing-idempotency-key` **before** any outbox/ERP call; a P0/P1-tier command with no
   key still takes the non-money path (byte-for-byte).
@@ -410,7 +410,7 @@ outbox/adapter deps (including a mocked `claimOutboxForCommit`). Asserts the ful
   `gen=2`: its `markOutboxCommitted(id, …, 1)` affects **0 rows** (the mock reports 0 rowCount) → the stale
   claimant's result is **discarded** (no state change, no finalize, no duplicate mirror), while the
   reclaimer's `gen=2` write-back applies. (The stale claimant's ERP POST may have fired — the reclaimer's
-  `remarks`-key probe adopts that one doc, per ADR-0057 §4.)
+  `remarks`-key probe adopts that one doc, per ADR-0058 §4.)
 - **F1 in-flight-POST overlap (the Critical fix):** a stale `committing` row is **quarantined**, never
   reclaimed+re-POSTed. Model the overlap: claimant A wins the claim and its POST is in flight (not yet
   probe-visible); its lease expires; a reclaimer reconciles → **quarantines** (no POST, surfaces retryable);
@@ -440,7 +440,7 @@ the token for the rest of the flow. `dispatchExternallyOwnedWrite` chooses: `erp
 with key → `dispatchMoneyWrite`; else the existing path (byte-for-byte for P0/P1). The deps also include
 `quarantineCommitting` (F1) and `verifyClaimGeneration` (the generation-guard, F3); `markOutboxCommitted`
 additionally persists the adapter's `canonical` (F2). The reconcile algorithm is `reconcileOutbox(existing)`
-per ADR-0057 §4: `confirmed`→return persisted canonical; `committed`→generation-guarded finalize-only;
+per ADR-0058 §4: `confirmed`→return persisted canonical; `committed`→generation-guarded finalize-only;
 `committing`-fresh→backoff-re-read; `committing`-stale→**`quarantineCommitting(id)` (NEVER reclaim+re-POST)**
 then surface retryable; `quarantined`→claim only after the window then probe→adopt-or-reissue;
 `pending`/`failed`→**`claimOutboxForCommit(id)` first; only the winner (non-null return)
@@ -559,7 +559,7 @@ create table public.external_ref_lineage (
 );
 create index external_ref_lineage_lookup_idx on public.external_ref_lineage (org_id, domain, superseded_external_record_id);
 
--- The atomic commit claim (ADR-0057 §2): the ONLY gate from (pending|failed|stale-committing) → committing.
+-- The atomic commit claim (ADR-0058 §2): the ONLY gate from (pending|failed|stale-committing) → committing.
 -- Mirrors the 0078 durable-claim discipline (at-most-once in the DB) + 0077 txn-serialization intent. A
 -- conditional UPDATE under Postgres' row lock: two concurrent claims serialize, only the winner transitions
 -- and RETURNs the row; the loser's UPDATE matches 0 rows (state 'committing', updated_at fresh) → NULL. A
@@ -673,9 +673,9 @@ byte-for-byte as the P1 `clickup/webhookApply.ts` path; `advanceWatermarkMonoton
 RED → GREEN; then `cd pmo-portal && npx vitest run src/lib/adapterSeam/clickup/` → all P1 tests still green.
 **Verify:** both green.
 
-### 1.13 — ADR-0057 (the money-idempotency outbox + atomic recovery)
+### 1.13 — ADR-0058 (the money-idempotency outbox + atomic recovery)
 
-**File:** `docs/adr/0057-erpnext-money-idempotency-outbox.md` (new — see §"ADRs" below for full text).
+**File:** `docs/adr/0058-erpnext-money-idempotency-outbox.md` (new — see §"ADRs" below for full text).
 Context/Decision/Consequences for the outbox + reconcile algorithm (R1/R3). **Verify:** file exists.
 
 ### 1.14 — Byte-for-byte regression gate (AC-ENA-002, the meta-AC)
@@ -1186,7 +1186,7 @@ PI: `create` + `update` (draft) + `transition{submit|cancel|amend}`. PE: `create
 After a referenced-PE submit → re-fetch the PI → mirror `erp_outstanding_amount` (R9 paid-detection: PI
 flips `Paid`/`outstanding 0` server-side). **Verify:** unit tests per transition.
 
-### 6.4 — Outbox + server-side key enforcement + atomic claim wired into the dispatch (ADR-0057)
+### 6.4 — Outbox + server-side key enforcement + atomic claim wired into the dispatch (ADR-0058)
 
 `supabase/functions/adapter-dispatch/index.ts`:
 1. **Server-side key enforcement (FR-ENA-040, finding 5):** at the top of the served path, `if
@@ -1440,13 +1440,13 @@ upserts (FR-ENA-073). **Verify:** unit (cancel/amend/out-of-order through the fu
 
 ### 8.6 — RED+GREEN: `erpnext-sweep` outbox recovery + cron entry (`supabase/functions/erpnext-sweep/index.ts`)
 
-This is the sweep-side of ADR-0057 §Consequences — the **same** recovery path as the retry flow (one
+This is the sweep-side of ADR-0058 §Consequences — the **same** recovery path as the retry flow (one
 algorithm, described identically in ADR and plan, closing the ADR/plan drift).
 
 **RED file:** `supabase/functions/erpnext-sweep/outboxRecovery.test.ts` (new, Deno; mocked service client +
 adapter). Asserts the sweep runs an explicit **`reconcileOutbox` pass BEFORE the doctype sweep**: for each
 employing org it selects every `pending`/`failed`/`committing`-past-lease/`committed` row via
-`outbox_reconcile_candidates(org)` (RPC from mig 0095) and applies the ADR-0057 §4 algorithm **exactly** —
+`outbox_reconcile_candidates(org)` (RPC from mig 0095) and applies the ADR-0058 §4 algorithm **exactly** —
 - `committed` → finalize-only (idempotent read-model upsert + `external_refs`) → `confirmed`; **no ERP create**.
 - `pending`/`failed`/stale-`committing` → `claim_outbox_for_commit(id)` **first**; only the claim winner
   probes ERP by the stamped `remarks` key → adopt (`committed`→finalize→`confirmed`) or `POST` under the
@@ -1572,7 +1572,7 @@ These were raised at intake and are **decided**; recorded here so no slice re-li
 
 ## 7. ADRs (this issue)
 
-- **`docs/adr/0057-erpnext-money-idempotency-outbox.md` (NEW)** — the money-idempotency contract extension
+- **`docs/adr/0058-erpnext-money-idempotency-outbox.md` (NEW)** — the money-idempotency contract extension
   (`idempotencyKey` on `AdapterCommand`) + the durable `external_command_outbox` provisional-ref + the
   atomic recovery algorithm (R1/R3). Money-safety, irreversible once shipped ⇒ ADR. (Full text written
   alongside this plan, task 1.13.)

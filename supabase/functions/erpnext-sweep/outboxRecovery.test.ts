@@ -1,7 +1,7 @@
 // AC-ENA-045 (outbox recovery) [Deno unit] — erpnext-sweep's `reconcileOrgOutbox` pass: the
-// sweep-side of ADR-0057 §Consequences — the SAME recovery path as the retry flow, run as an explicit
+// sweep-side of ADR-0058 §Consequences — the SAME recovery path as the retry flow, run as an explicit
 // pass BEFORE the doctype sweep. For each employing org it selects every pending/failed/
-// committing-past-lease/committed row via `outbox_reconcile_candidates(org)` and applies the ADR-0057
+// committing-past-lease/committed row via `outbox_reconcile_candidates(org)` and applies the ADR-0058
 // §4 algorithm EXACTLY by delegating to the real `dispatchMoneyWrite` (one algorithm, shared with the
 // retry path — ADR/plan describe ONE recovery path):
 //   • committed  → finalize-only (idempotent read-model upsert + external_refs) → confirmed; NO ERP create.

@@ -24,7 +24,7 @@ export interface DispatchExternallyOwnedWriteDeps {
    */
   tombstoneReadModel?: (pmoRecordId: string) => Promise<void>;
   /**
-   * The money-idempotency outbox deps (ADR-0057). Present only when the caller may route an
+   * The money-idempotency outbox deps (ADR-0058). Present only when the caller may route an
    * `erpnext`-tier non-read-only command through the money path (wired at the served boundary,
    * task 6.4). Absent ⇒ P0/P1 behavior (and every non-erpnext tier) is completely untouched.
    */
@@ -32,7 +32,7 @@ export interface DispatchExternallyOwnedWriteDeps {
 }
 
 // ---------------------------------------------------------------------------
-// Money idempotency (ADR-0057 §4) — the durable outbox + atomic recovery algorithm.
+// Money idempotency (ADR-0058 §4) — the durable outbox + atomic recovery algorithm.
 // ---------------------------------------------------------------------------
 
 /** A row of `external_command_outbox` (0095) as seen by the pure dispatch layer (camelCase). */
@@ -59,7 +59,7 @@ export interface OutboxRow {
 }
 
 /**
- * The outbox deps `dispatchMoneyWrite` needs (ADR-0057 §2/§4). Each `markOutbox*` is a GUARDED
+ * The outbox deps `dispatchMoneyWrite` needs (ADR-0058 §2/§4). Each `markOutbox*` is a GUARDED
  * write-back — its SQL is `… WHERE id = $1 AND claim_generation = $token` — and returns the
  * affected row count; `0` means a reclaimer superseded this caller (F4), and the caller MUST
  * discard its result rather than finalize.
@@ -116,7 +116,7 @@ export interface DispatchMoneyOutboxDeps {
    *  becomes reclaimable once its lease expires (the same claim path handles it). */
   markOutboxFailed: (id: string, lastError: string, claimGeneration: number) => Promise<number>;
   /** Recovery probe: does ERP already hold a doc stamped with this idempotency key (the `remarks`
-   *  anchor, ADR-0057 §3)? Used by the claim winner to adopt an orphaned prior commit instead of
+   *  anchor, ADR-0058 §3)? Used by the claim winner to adopt an orphaned prior commit instead of
    *  blindly re-POSTing. */
   probeByRemarksKey: (domain: string, idempotencyKey: string) => Promise<{ externalRecordId: string; canonical?: PmoRecord } | null>;
   /** A short backoff before re-reading a fresh (non-reclaimable) `committing` row owned by another
@@ -229,7 +229,7 @@ async function claimAndCommit(
         await money.markOutboxFailed(claimed.id, redactErrorForOutbox(error), token);
       }
       // a retryable (external-unreachable) failure intentionally marks nothing — the row stays
-      // `committing` and becomes reclaimable once its lease expires (ADR-0057 §4).
+      // `committing` and becomes reclaimable once its lease expires (ADR-0058 §4).
       throw toDispatchError(error);
     }
     externalRecordId = result.externalRecordId;
@@ -253,7 +253,7 @@ async function claimAndCommit(
   return { externalRecordId, canonical };
 }
 
-/** The reconcile-by-state algorithm (ADR-0057 §4 table) — never a blind second create. */
+/** The reconcile-by-state algorithm (ADR-0058 §4 table) — never a blind second create. */
 async function reconcileOutbox(row: OutboxRow, deps: DispatchMoneyWriteDeps): Promise<CommandResult> {
   const { command, money } = deps;
   switch (row.state) {
@@ -311,7 +311,7 @@ async function reconcileOutbox(row: OutboxRow, deps: DispatchMoneyWriteDeps): Pr
 }
 
 /**
- * The money-idempotency dispatch path (ADR-0057). Enforces the server-side idempotency-key
+ * The money-idempotency dispatch path (ADR-0058). Enforces the server-side idempotency-key
  * requirement (FR-ENA-040) BEFORE touching the outbox, then INSERTs-or-reads the outbox row for
  * this command's unique 4-tuple and reconciles it to a terminal `CommandResult` — never a blind
  * second create (FR-ENA-041/043). Pure, Deno-importable.
@@ -357,7 +357,7 @@ function toDispatchError(error: unknown): AppError {
 export async function dispatchExternallyOwnedWrite(
   deps: DispatchExternallyOwnedWriteDeps,
 ): Promise<CommandResult> {
-  // ADR-0057: an `erpnext`-tier non-read-only command always takes the money-idempotency path
+  // ADR-0058: an `erpnext`-tier non-read-only command always takes the money-idempotency path
   // (which itself enforces the required idempotencyKey). Every other tier — P0 `reference`, P1
   // `clickup`, and any future non-money tier — is completely unaffected (byte-for-byte).
   if (deps.adapter.tier === 'erpnext' && (deps.command.operation as string) !== 'read') {

@@ -141,11 +141,11 @@ async function resolveErpAdapter(ctx: AdapterSelectContext): Promise<Adapter> {
 }
 
 /**
- * Task 6.4 (ADR-0057) — the DB-backed money-idempotency outbox deps for ONE erpnext non-read-only
+ * Task 6.4 (ADR-0058) — the DB-backed money-idempotency outbox deps for ONE erpnext non-read-only
  * command. Re-resolves the org's binding (a second small read alongside `resolveErpAdapter`'s own —
  * an acceptable per-request cost for the isolation of never smuggling credentials between the two
  * concerns) purely to build the tier-specific `probeByRemarksKey` closure (ERPNext's `remarks`-stamp
- * anchor, ADR-0057 §3): the recovery probe needs the SAME client creds/site_url as the adapter plus
+ * anchor, ADR-0058 §3): the recovery probe needs the SAME client creds/site_url as the adapter plus
  * the command's `erp_doc_kind`'s doctype + `fromDoc` mapper — none of which the generic
  * `DispatchMoneyOutboxDeps` interface carries (it is tier-agnostic, `moneyOutboxDeps.ts`). Every other
  * outbox operation (claim/mark/verify/insert/read) is the tier-agnostic DB implementation.
@@ -174,7 +174,7 @@ async function resolveErpMoneyOutboxDeps(ctx: AdapterSelectContext): Promise<Dis
   // (createDbMoneyOutboxDeps' claimOutboxForCommit) remains the sole R1 concurrent-duplicate guard
   // regardless, so this degrades only R3 orphan-adoption for these kinds. PI/Purchase Receipt anchor
   // on 'remarks'; Payment Entry anchors on 'reference_no' (the DIRECTOR RULING — PE's validate
-  // overwrites remarks; reference_no survives, ADR-0057 §3 amended). Captured in a const here so the
+  // overwrites remarks; reference_no survives, ADR-0058 §3 amended). Captured in a const here so the
   // probe closure sees the narrowed `string` type (entry.anchorField is `string | null` on the record).
   const anchorField = entry.anchorField;
   const client = { fetchImpl: fetch, apiKey, apiSecret, baseUrl: binding.site_url };
@@ -224,7 +224,7 @@ async function resolveErpMoneyOutboxDeps(ctx: AdapterSelectContext): Promise<Dis
         // Immutable anchor (PI/Purchase Receipt `remarks`): the anchor `like` filter is conclusive.
         ? (_domain, idempotencyKey) => probeErpByAnchorKey(probeDeps, idempotencyKey)
         // Mutable anchor (PE `reference_no`): the COMPOSITE probe — anchor OR the deterministic
-        // conjunction, every input read back from our persisted outbox payload (ADR-0057 §4 amended).
+        // conjunction, every input read back from our persisted outbox payload (ADR-0058 §4 amended).
         : async (domain, idempotencyKey) => {
             const p = await readOutboxCompositePayload(ctx.serviceClient, ctx.orgId, domain, ctx.command.record.id, idempotencyKey);
             if (!p || !p.party || p.paid_amount == null) return probeErpByAnchorKey(probeDeps, idempotencyKey);
@@ -383,7 +383,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     );
   }
 
-  // ── Server-side idempotency-key enforcement (task 6.4, FR-ENA-040, ADR-0057 §4) — at the top of
+  // ── Server-side idempotency-key enforcement (task 6.4, FR-ENA-040, ADR-0058 §4) — at the top of
   // the served path, BEFORE any adapter-select/binding/credential resolution: a non-read-only erpnext
   // command with no idempotencyKey is rejected fast, never reaching the outbox or ERP. `dispatch.ts`'s
   // `dispatchMoneyWrite` re-asserts the identical guard (unit-tested, AC-ENA-012) — this is a
@@ -429,7 +429,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
   let money: DispatchMoneyOutboxDeps | undefined;
   try {
     adapter = await adapterFactory({ orgId, command, serviceClient, faultGate });
-    // Task 6.4 (ADR-0057): every non-read-only erpnext command routes through the money-idempotency
+    // Task 6.4 (ADR-0058): every non-read-only erpnext command routes through the money-idempotency
     // outbox — `dispatchExternallyOwnedWrite` requires `money` to be set for this tier (it throws
     // "dispatched without outbox deps" otherwise, the exact failure this task closes). P0/P1 (every
     // other tier) never resolves this — `money` stays `undefined`, their path is byte-for-byte.
@@ -506,7 +506,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
         ? (pmoRecordId: string) =>
             getReadModelWriter(command.domain).tombstone!({ serviceClient: serviceClient as never, orgId }, pmoRecordId)
         : undefined,
-      // The money-idempotency outbox (task 6.4, ADR-0057) — set only for a non-read-only erpnext
+      // The money-idempotency outbox (task 6.4, ADR-0058) — set only for a non-read-only erpnext
       // command (built above); every other tier's `money` stays `undefined` (byte-for-byte).
       money,
     });

@@ -1,5 +1,5 @@
 -- external_command_outbox_rls.test.sql
--- AC-ENA-012 [pgTAP]: the money-idempotency outbox (ADR-0057). Mirrors the external_refs_rls.test.sql
+-- AC-ENA-012 [pgTAP]: the money-idempotency outbox (ADR-0058). Mirrors the external_refs_rls.test.sql
 -- idiom: unique 4-tuple duplicate-insert rejection, org-isolated SELECT, service-role-only write, the
 -- 'committing'/'quarantined' states, and — the review's critical case — the atomic commit claim is
 -- at-most-once, the F1 quarantine of a stale committing row (never a blind re-POST) resolved only after

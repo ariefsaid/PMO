@@ -1,5 +1,5 @@
 /**
- * Task 6.4 (ADR-0057 §4) — the DB-backed `DispatchMoneyOutboxDeps` implementation. Tier-agnostic (no
+ * Task 6.4 (ADR-0058 §4) — the DB-backed `DispatchMoneyOutboxDeps` implementation. Tier-agnostic (no
  * ERPNext vocabulary — the outbox itself, `external_command_outbox` 0095, is a generic money-dispatch
  * concern any future money tier could reuse), so this lives alongside `readModelWriters.ts`, not under
  * `erpnext/**`. Wraps the `external_command_outbox` table + its two SECURITY DEFINER RPCs
@@ -118,10 +118,10 @@ export interface DbMoneyOutboxDepsOpts {
    *  (0095 NOT NULL) is fixed for the lifetime of one command's outbox row, so it is closed over here
    *  rather than threaded through every `DispatchMoneyOutboxDeps` method signature. */
   operation: 'create' | 'update' | 'transition';
-  /** Tier-specific recovery probe (ERPNext's anchor-key / PE composite probe, ADR-0057 §3) — injected,
+  /** Tier-specific recovery probe (ERPNext's anchor-key / PE composite probe, ADR-0058 §3) — injected,
    *  not built here (this module is tier-agnostic). */
   probeByRemarksKey: DispatchMoneyOutboxDeps['probeByRemarksKey'];
-  /** C-1 per-kind reissue policy (ADR-0057 §4): `false` for a MUTABLE-anchor money doc (Payment Entry)
+  /** C-1 per-kind reissue policy (ADR-0058 §4): `false` for a MUTABLE-anchor money doc (Payment Entry)
    *  whose post-window recovery no-hit must be HELD not reissued; `true` (default) for every
    *  immutable-/no-anchor kind (reissue-capable). Set by the ERPNext factory from the doctype. */
   reissueOnInconclusiveAbsence?: boolean;

@@ -2,7 +2,7 @@
  * erpnext/adapter.ts — the `tier:'erpnext'`, `capabilityMap:{companies,procurement}` adapter engine
  * (task 2.12). `commit()` dispatches by `record.erp_doc_kind` through the doctype registry; a
  * `submittable` kind gets the R9 two-step create->submit->re-fetch (FR-ENA-044); a non-submittable
- * kind (party) is a single create. The idempotency key is stamped into `remarks` (ADR-0057 §3). No
+ * kind (party) is a single create. The idempotency key is stamped into `remarks` (ADR-0058 §3). No
  * `erp_doc_kind` is actually wired into `DOCTYPE_BODIES` this slice (slices 3-6 wire real bodies) —
  * these tests inject their own fake body-fns to prove the ENGINE, not any specific doctype's shape.
  */
@@ -63,7 +63,7 @@ describe('erpnext/adapter — commit() create, submittable kind: two-step create
     expect(result.canonical).toMatchObject({ id: 'pmo-po-1', status: 'To Receive and Bill' });
   });
 
-  it('ADR-0057 §3 stamps the idempotencyKey into remarks on the create POST body', async () => {
+  it('ADR-0058 §3 stamps the idempotencyKey into remarks on the create POST body', async () => {
     const calls: Array<{ method: string; body?: unknown }> = [];
     const fetchImpl = async (_url: string, init?: RequestInit) => {
       calls.push({ method: init?.method ?? 'GET', body: init?.body ? JSON.parse(init.body as string) : undefined });

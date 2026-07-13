@@ -71,7 +71,7 @@ export const TIMEOUT_FAULT_BUDGET_MS = 30_000;
  *                               -> a PLAIN (unclassified) Error — simulates the process dying mid-flow,
  *                                  AFTER the ERP commit/submit succeeded but BEFORE the PMO mirror/ref
  *                                  write landed (the R3 partial-failure window the money outbox,
- *                                  ADR-0057, exists to recover from). Deliberately not an AdapterError:
+ *                                  ADR-0058, exists to recover from). Deliberately not an AdapterError:
  *                                  a real crash has no classified shape.
  */
 export async function maybeFault(seam: FaultSeam, gate: FaultGate): Promise<void> {

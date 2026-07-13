@@ -1,9 +1,9 @@
--- 0095_erpnext_seam_tables.sql — ERPNext P2 seam generalization (slice 1, ADR-0055/ADR-0057).
+-- 0095_erpnext_seam_tables.sql — ERPNext P2 seam generalization (slice 1, ADR-0055/ADR-0058).
 -- Three machine-written tables (org_id seam, stamp_org_id() trigger, RLS) + two SECURITY DEFINER RPCs
 -- that are the ONLY non-service-role path to the outbox:
 --   external_org_bindings     — per-org ERPNext binding (site URL + resolved Company defaults; secret_ref
 --                                only, NO secret value ever stored — NFR-ENA-SEC-002, OQ-6).
---   external_command_outbox   — the durable money-idempotency provisional-ref (ADR-0057 R1/R3). The
+--   external_command_outbox   — the durable money-idempotency provisional-ref (ADR-0058 R1/R3). The
 --                                unique 4-tuple closes the INSERT race; claim_outbox_for_commit() closes
 --                                the REISSUE race (at-most-once claim); claim_generation is the fencing
 --                                token that closes the lease-expiry overlap (F4).
@@ -53,7 +53,7 @@ create table public.external_command_outbox (
   idempotency_key     text not null,
   external_tier       text not null,
   operation           text not null check (operation in ('create','update','transition')),
-  -- 'held' (C-1 DIRECTOR RULING, ADR-0057 §4): the recovery-inconclusive terminal for a MUTABLE-anchor
+  -- 'held' (C-1 DIRECTOR RULING, ADR-0058 §4): the recovery-inconclusive terminal for a MUTABLE-anchor
   -- money doc (Payment Entry). A PE whose anchor (reference_no) can be ERP-side edited has NO conclusive
   -- absence — so if a post-window recovery composite-probe finds no doc, it is NEVER auto-reissued
   -- (that would risk a double-pay); it transitions to 'held' for ops resolution instead. Never a
@@ -61,7 +61,7 @@ create table public.external_command_outbox (
   state               text not null check (state in ('pending','committing','committed','confirmed','failed','quarantined','held')),
   external_record_id  text,
   canonical           jsonb,                    -- F2: the adapter's REAL returned record, persisted at commit so recovery/finalize mirrors ERP-derived fields (not a {id} stub)
-  -- C-1 composite-probe payload (ADR-0057 §4): the command inputs a MUTABLE-anchor recovery probe needs
+  -- C-1 composite-probe payload (ADR-0058 §4): the command inputs a MUTABLE-anchor recovery probe needs
   -- when the anchor alone is unreliable — party_type/party/paid_amount/reference names + the claim window
   -- start. Persisted at INSERT so the SWEEP recovery path (which reconstructs the command from the outbox
   -- row, never the live request) can run the same deterministic composite probe as the sync retry path.
@@ -124,7 +124,7 @@ create trigger external_command_outbox_stamp_org_id before insert on public.exte
 create trigger external_ref_lineage_stamp_org_id before insert on public.external_ref_lineage
   for each row execute function public.stamp_org_id();
 
--- ── The atomic commit claim (ADR-0057 §2): the ONLY gate into the ERP-POST critical section. A
+-- ── The atomic commit claim (ADR-0058 §2): the ONLY gate into the ERP-POST critical section. A
 -- conditional UPDATE under Postgres' row lock: two concurrent claims serialize, only the winner
 -- transitions and RETURNs the row; the loser's UPDATE re-evaluates the WHERE against the winner's
 -- committed row, matches 0 rows (state 'committing') → NULL. Claimable = pending|failed, OR a

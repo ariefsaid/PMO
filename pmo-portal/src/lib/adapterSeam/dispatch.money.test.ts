@@ -1,5 +1,5 @@
 /**
- * AC-ENA-012, FR-ENA-041/043 — the money-idempotency outbox + atomic recovery (ADR-0057 §4).
+ * AC-ENA-012, FR-ENA-041/043 — the money-idempotency outbox + atomic recovery (ADR-0058 §4).
  * Pure unit tests, mocked outbox/adapter deps (a lightweight in-memory fake outbox reproducing the
  * DB's guarded semantics — `claim_outbox_for_commit`'s conditional UPDATE + the `claim_generation`
  * fencing token — so the concurrency proofs are meaningful without a real DB; the equivalent proof

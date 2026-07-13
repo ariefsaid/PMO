@@ -1,4 +1,4 @@
-# ADR-0057 — ERPNext money-idempotency: `idempotencyKey` on `AdapterCommand` + a durable outbox + atomic recovery
+# ADR-0058 — ERPNext money-idempotency: `idempotencyKey` on `AdapterCommand` + a durable outbox + atomic recovery
 
 - **Status:** Accepted (proposed by eng-planner, 2026-07-11, alongside `docs/plans/2026-07-11-erpnext-adapter.md`)
 - **Date:** 2026-07-11

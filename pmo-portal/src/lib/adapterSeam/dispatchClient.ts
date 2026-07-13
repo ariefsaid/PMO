@@ -62,7 +62,7 @@ export function classifyDispatchError(
   return { code: undefined, message: body?.message ?? 'The dispatch request failed' };
 }
 
-/** Options for a multi-domain dispatch (task 1.11, ADR-0057). `idempotencyKey` is minted by the
+/** Options for a multi-domain dispatch (task 1.11, ADR-0058). `idempotencyKey` is minted by the
  *  caller (repository seam, task 1.10) for a non-read-only `erpnext`-tier money command — the served
  *  dispatch enforces its presence for that tier/operation combination (rejects a missing key as
  *  `commit-rejected`/`missing-idempotency-key`). P0 (reference) and P1 (ClickUp tasks) never pass it. */
@@ -111,7 +111,7 @@ export async function dispatchTaskCommand(
 
 /**
  * Dispatch a command for ANY externally-owned domain (task 1.11, generalizes `dispatchTaskCommand`
- * for P2's `procurement`/`companies` — ADR-0055/ADR-0057). Same transport + error classification;
+ * for P2's `procurement`/`companies` — ADR-0055/ADR-0058). Same transport + error classification;
  * threads an optional `idempotencyKey` for the erpnext money path.
  */
 export async function dispatchDomainCommand(

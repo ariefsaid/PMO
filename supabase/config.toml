@@ -521,7 +521,7 @@ verify_jwt = false
 # Postgres, not a browser/end-user JWT. The handler verifies the bearer itself (it MUST equal
 # ERPNEXT_SWEEP_SECRET, constant-time) — least-privilege (mirrors clickup-sweep): the dedicated sweep
 # secret can at worst trigger a tick, never grant DB access. The reconciliation sweep: the convergence
-# authority that catches webhook gaps + runs the ADR-0057 §Consequences outbox recovery pass
+# authority that catches webhook gaps + runs the ADR-0058 §Consequences outbox recovery pass
 # (FR-ENA-080/081, AC-ENA-071). Registered-but-idle per the 0094 precedent until the operator sets the
 # Vault secrets.
 [functions.erpnext-sweep]

@@ -229,14 +229,14 @@ export function callMethod(deps: ErpClientDeps, methodPath: string): Promise<unk
 }
 
 /**
- * The ADR-0057 §3 recovery-probe query: list the `name`s of `<DocType>` docs whose stock anchor
+ * The ADR-0058 §3 recovery-probe query: list the `name`s of `<DocType>` docs whose stock anchor
  * field (`anchorField`) carries the idempotency key
  * (`GET /api/resource/<DocType>?filters=[[<anchorField>,"like","%<key>%"]`).
  * Returns at most `limit` names (default 1 — an idempotency key stamps exactly one doc). A `GET` is
  * idempotent so the standard retry/backoff applies (unlike a create POST). The anchor stamp is
  * written by `adapter.ts`'s `stampAnchor` on every create; the anchor FIELD is per-doctype
  * (doctypeRegistry's `anchorField` — 'remarks' for PI/Purchase Receipt, 'reference_no' for Payment
- * Entry per the DIRECTOR RULING, ADR-0057 §3).
+ * Entry per the DIRECTOR RULING, ADR-0058 §3).
  */
 export async function listDocNamesByAnchor(
   deps: ErpClientDeps,
@@ -259,7 +259,7 @@ export type ErpFilter = [string, string, string | number];
 
 /**
  * List `<DocType>` doc `name`s matching a conjunction of server-filterable `filters` (the C-1 composite
- * PE recovery probe, ADR-0057 §4 — when the mutable `reference_no` anchor alone cannot find a landed
+ * PE recovery probe, ADR-0058 §4 — when the mutable `reference_no` anchor alone cannot find a landed
  * Payment Entry, a deterministic party_type+party+paid_amount+creation-window conjunction narrows the
  * candidates before a child-table `references` match). A `GET`, so the standard retry/backoff applies.
  */

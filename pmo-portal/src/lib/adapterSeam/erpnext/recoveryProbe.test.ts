@@ -1,5 +1,5 @@
 /**
- * erpnext/recoveryProbe.ts (task 6.4 + Slice-6 completion, ADR-0057 §3): the per-doctype anchor-key
+ * erpnext/recoveryProbe.ts (task 6.4 + Slice-6 completion, ADR-0058 §3): the per-doctype anchor-key
  * recovery probe. Every ERP call is an injected `fetchImpl` — no real bench required.
  */
 import { describe, expect, it, vi } from 'vitest';

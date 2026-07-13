@@ -323,7 +323,7 @@ const task: TaskRepository = {
   removeDependency: (taskId, dependsOnId) => wrap(() => removeDependency(taskId, dependsOnId)),
 };
 
-// Task 1.10/1.11 (ADR-0055/ADR-0057): a fresh-key options bag for the erpnext money path — minted
+// Task 1.10/1.11 (ADR-0055/ADR-0058): a fresh-key options bag for the erpnext money path — minted
 // ONLY on the 'external' branch. P0/P1 (and every 'pmo'-routed call) never mint one (byte-for-byte).
 const freshIdempotencyKey = () => ({ idempotencyKey: crypto.randomUUID() });
 

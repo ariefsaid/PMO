@@ -1,8 +1,8 @@
 /**
- * erpnext-sweep — Deno Edge Function entry point (task 8.6, AC-ENA-045/071, ADR-0055 §3 + ADR-0057 §Consequences).
+ * erpnext-sweep — Deno Edge Function entry point (task 8.6, AC-ENA-045/071, ADR-0055 §3 + ADR-0058 §Consequences).
  *
  * The reconciliation sweep — the convergence authority that catches webhook gaps (ADR-0055 §3:
- * webhooks for latency, sweep for truth) AND runs the outbox recovery pass (ADR-0057 §Consequences:
+ * webhooks for latency, sweep for truth) AND runs the outbox recovery pass (ADR-0058 §Consequences:
  * the SAME recovery algorithm as the retry flow, run as an explicit pass BEFORE the doctype sweep so
  * an orphaned commit / stuck committing / committed-but-unfinalized row is reconciled even if the
  * original retry never returned). Dedicated-sweep-secret-guarded (`verify_jwt = false`; the handler
@@ -13,7 +13,7 @@
  * Vault secrets, so the job fires as a no-op until then (no employing org ⇒ no-op).
  *
  * Per employing org, ONE cycle runs FOUR passes in order:
- *   (1) reconcileOrgOutbox — the ADR-0057 §4 outbox recovery pass (delegates to the REAL
+ *   (1) reconcileOrgOutbox — the ADR-0058 §4 outbox recovery pass (delegates to the REAL
  *       dispatchMoneyWrite per candidate — one algorithm, shared with the retry path);
  *   (2) the modified-poll doctype sweep (runSweep per doctype, the convergence authority — AC-ENA-071);
  *   (3) the ledger-mirror feed (feedLedgerMirrors, 8.6b — populates erp_gl_entry_mirror/
@@ -62,7 +62,7 @@ const SWEEP_DOCTYPES: Array<{ kind: ErpDocKind; doctype: string }> = (Object.ent
 >).map(([kind, entry]) => ({ kind, doctype: entry.doctype }));
 
 // ────────────────────────────────────────────────────────────────────────────────────────────────
-// (1) The outbox recovery pass — ADR-0057 §Consequences. Delegates to the REAL dispatchMoneyWrite per
+// (1) The outbox recovery pass — ADR-0058 §Consequences. Delegates to the REAL dispatchMoneyWrite per
 //     candidate so the sweep path and the retry path share ONE reconciliation algorithm.
 // ────────────────────────────────────────────────────────────────────────────────────────────────
 
@@ -84,7 +84,7 @@ export interface ReconcileOrgOutboxResult {
 }
 
 /**
- * The outbox recovery pass for ONE org (AC-ENA-045, ADR-0057 §Consequences). Lists the candidates
+ * The outbox recovery pass for ONE org (AC-ENA-045, ADR-0058 §Consequences). Lists the candidates
  * (pending/failed/committing-past-lease/committed) via `outbox_reconcile_candidates(org)` and drives
  * each through the REAL `dispatchMoneyWrite` — one algorithm, shared with the retry path. A candidate
  * whose reconcile throws is recorded + skipped (sweep resilience); the next schedule retries it.
@@ -145,7 +145,7 @@ export interface ErpSweepCycleResult {
  * Run ONE sweep cycle across every employing org. Per org, in order: (1) outbox recovery, (2) doctype
  * modified-poll sweep, (3) ledger-mirror feed, (4) accounting refresh. An org's failure is recorded
  * WITHOUT aborting the loop (sweep resilience). The reconcile pass runs FIRST so the doctype sweep
- * sees a consistent outbox (ADR-0057 §Consequences).
+ * sees a consistent outbox (ADR-0058 §Consequences).
  */
 export async function runErpSweepCycle(deps: ErpSweepCycleDeps): Promise<ErpSweepCycleResult> {
   const orgs = await deps.listEmployingOrgs();

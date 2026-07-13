@@ -1,5 +1,5 @@
 /**
- * ADR-0057 §3 recovery probe (task 6.4 + Slice-6 completion) — "did ERP already commit this
+ * ADR-0058 §3 recovery probe (task 6.4 + Slice-6 completion) — "did ERP already commit this
  * idempotency key?". Confined to erpnext/** because it speaks Frappe REST vocabulary (`remarks`,
  * `reference_no`, `/api/resource`, doctype names). The money dispatch above the contract
  * (dispatch.ts `probeByRemarksKey`) calls an INJECTED probe closure; this module is that closure's
@@ -60,7 +60,7 @@ export interface ErpPaymentCompositeInput {
 }
 
 /**
- * C-1 DIRECTOR RULING — the COMPOSITE DETERMINISTIC Payment Entry recovery probe (ADR-0057 §4 amended).
+ * C-1 DIRECTOR RULING — the COMPOSITE DETERMINISTIC Payment Entry recovery probe (ADR-0058 §4 amended).
  * A Payment Entry's anchor (`reference_no`) is MUTABLE — an accountant can edit it after commit — so the
  * anchor `like` filter alone can miss a genuinely-landed PE (and a miss would otherwise trigger a
  * double-pay reissue). This probe adopts a landed PE when EITHER the `reference_no` anchor carries the

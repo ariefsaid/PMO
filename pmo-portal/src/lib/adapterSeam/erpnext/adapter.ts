@@ -5,7 +5,7 @@
  * create->submit->re-fetch (FR-ENA-044, separating the create-commit idempotency window from the
  * submit window and always trusting the RE-FETCHED `status`, never the stale POST/PUT response body);
  * a non-submittable kind (a party) is a single create. The idempotency key is stamped into `remarks`
- * (ADR-0057 §3) on every create so the recovery probe can find an orphaned commit.
+ * (ADR-0058 §3) on every create so the recovery probe can find an orphaned commit.
  *
  * `DOCTYPE_BODIES` (the per-kind `toBody`/`fromDoc` pair) is INJECTED, not global mutable state — it
  * starts empty this slice (no flip yet) and slices 3-6 pass a populated map from their dispatch
@@ -54,7 +54,7 @@ function requireBodyFns(deps: ErpAdapterDeps, kind: ErpDocKind): DoctypeBodyFns 
   return fns;
 }
 
-/** Stamps the idempotency key into the doctype's per-doctype ANCHOR field (ADR-0057 §3 — the
+/** Stamps the idempotency key into the doctype's per-doctype ANCHOR field (ADR-0058 §3 — the
  *  recovery-probe anchor: `GET .../<DocType>?filters=[[<anchorField>,"like","%<key>%"]]`),
  *  once, on every create. The anchor field is `entry.anchorField` (doctypeRegistry — 'remarks' for
  *  PI/Purchase Receipt, 'reference_no' for Payment Entry per the DIRECTOR RULING). A `null` anchor
@@ -163,7 +163,7 @@ async function commitAmend(command: AdapterCommand, deps: ErpAdapterDeps, oldExt
   const bodyFns = requireBodyFns(deps, kind);
   // 1. cancel the old doc (an amend always cancels-then-recreates; the old name becomes a tombstone).
   await cancelDoc(deps.client, entry.doctype, oldExternalRecordId);
-  // 2. create the new doc with amended_from + the anchor stamp (the recovery-probe key, ADR-0057 §3).
+  // 2. create the new doc with amended_from + the anchor stamp (the recovery-probe key, ADR-0058 §3).
   const record = recordWithResolvedItemsFallback(command.record, deps.ctx);
   const newBody = stampAnchor(
     { ...(bodyFns.toBody(record, deps.ctx) as Record<string, unknown>), amended_from: oldExternalRecordId },

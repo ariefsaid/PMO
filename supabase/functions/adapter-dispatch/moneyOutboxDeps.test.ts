@@ -1,4 +1,4 @@
-// Task 6.4 — the DB-backed DispatchMoneyOutboxDeps (ADR-0057 §4). Deno-native test (matches
+// Task 6.4 — the DB-backed DispatchMoneyOutboxDeps (ADR-0058 §4). Deno-native test (matches
 // readModelWriters.test.ts's plain-assert idiom) against a structural fake OutboxServiceClient.
 // Verify: cd supabase/functions/adapter-dispatch && deno test moneyOutboxDeps.test.ts
 

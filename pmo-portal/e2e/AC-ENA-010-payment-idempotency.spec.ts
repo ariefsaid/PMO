@@ -1,5 +1,5 @@
 /**
- * AC-ENA-010-payment-idempotency — Slice 6 task 6.7. ADR-0057's R1/R3 money-idempotency guarantee
+ * AC-ENA-010-payment-idempotency — Slice 6 task 6.7. ADR-0058's R1/R3 money-idempotency guarantee
  * proven at the REAL served `adapter-dispatch` boundary with the `after-commit-before-mirror` named
  * fault seam (FR-ENA-003, Slice 0 task 0.7) — never `page.route`, never a mock of the outbox.
  *
@@ -7,7 +7,7 @@
  * `ERPNEXT_TEST_FAULTS=1` + header `x-erpnext-test-fault: after-commit-before-mirror` (Slice 0's
  * env-gated, host-allowlisted seam — inert unless BOTH match, faultSeams.ts), then: the FIRST dispatch
  * commits the real ERPNext Payment Entry (create+submit two-step, R9 §2) and marks the outbox row
- * `committed` (canonical persisted, ADR-0057 §4 "F2") — then the function's response path crashes
+ * `committed` (canonical persisted, ADR-0058 §4 "F2") — then the function's response path crashes
  * server-side (a plain unclassified Error, simulating the process dying AFTER the ERP commit but
  * BEFORE the PMO mirror/ref write, the R3 partial-failure window) — the client sees a 500. The EXACT
  * SAME command retried (same idempotencyKey, fault header dropped) reconciles the `committed` outbox
@@ -203,7 +203,7 @@ test.describe('AC-ENA-010: after-commit-before-mirror fault-seam interruption �
 
       // ── The ERP-side proof (guarded, optional per NFR-ENA-SEC-002): exactly ONE Payment Entry
       // exists with the returned name (a live-bench GET, never faked). NOTE (the anchor decision has
-      // LANDED — ADR-0057 §3 amended, live-bench-verified 2026-07-12/13): Payment Entry's `remarks` field
+      // LANDED — ADR-0058 §3 amended, live-bench-verified 2026-07-12/13): Payment Entry's `remarks` field
       // is SERVER-SIDE OVERWRITTEN by ERPNext's own `validate` hook on every save, so PE does NOT anchor
       // on `remarks`. Per the DIRECTOR RULING it anchors on `reference_no` (a native field PMO owns for
       // PMO-originated PEs, which SURVIVES validate+submit+refetch verbatim), and R3 orphan recovery for a
