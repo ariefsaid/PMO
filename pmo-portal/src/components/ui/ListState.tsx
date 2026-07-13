@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { cn } from './cn';
 import { Icon, type IconName } from './icons';
 import { Button } from './Button';
+import { trackEmptyStateSeen } from '@/src/lib/analytics';
 
 interface ActionSpec {
   label: string;
@@ -25,6 +26,17 @@ export interface ListStateProps {
   className?: string;
   /** Override the default `liststate-loading` testid for the loading skeleton wrapper. */
   testId?: string;
+  /**
+   * `empty_state_seen` analytics (2026-07-13 wiring plan) — a stable id for THIS empty
+   * surface (e.g. 'companies-empty', 'projects-filtered-empty'). Fired once on mount,
+   * only for `variant="empty"`, only when `stateId` + `role` + `module` are ALL given
+   * (opt-in — a caller that omits them is simply not tracked).
+   */
+  stateId?: string;
+  /** See `stateId`. The viewer's role. */
+  role?: string;
+  /** See `stateId`. The module this empty state belongs to (e.g. 'companies'). */
+  module?: string;
 }
 
 /**
@@ -42,7 +54,20 @@ export const ListState: React.FC<ListStateProps> = ({
   rows = 5,
   className,
   testId,
+  stateId,
+  role,
+  module,
 }) => {
+  // empty_state_seen (2026-07-13 wiring plan) — fired once on mount, only for the
+  // rendered "empty" variant, only when the caller opted in with all three ids. Must
+  // run unconditionally (Rules of Hooks) ahead of the loading/error early returns below.
+  useEffect(() => {
+    if (variant === 'empty' && stateId && role && module) {
+      trackEmptyStateSeen(stateId, role, module);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   if (variant === 'loading') {
     return (
       <div

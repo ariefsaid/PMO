@@ -27,6 +27,7 @@ import { useTimesheetsAwaitingApproval } from '@/src/hooks/useTimesheetApproval'
 import { useAuth } from '@/src/auth/useAuth';
 import { can } from '@/src/auth/policy';
 import { pendingProcurementApprovals } from '@/src/lib/selectors/approvals';
+import { trackComingSoonClicked } from '@/src/lib/analytics';
 
 const ExecutiveDashboard: React.FC = () => {
   const { effectiveRole, realRole } = useEffectiveRole();
@@ -193,7 +194,13 @@ const ExecutiveDashboard: React.FC = () => {
             // Reports module. Mirrors the Documents "Attach file" / Admin "Add user" deferred pattern —
             // a disabled button doesn't fire hover/focus, so the explanatory tooltip wraps a span.
             <Tooltip content="Board pack export arrives with Reports">
-              <span className="inline-flex">
+              {/* coming_soon_clicked (2026-07-13 wiring plan — demand signal): the
+                  Button itself stays genuinely disabled; the wrapping span's click
+                  still reports intent, since a `disabled` button cannot dispatch one. */}
+              <span
+                className="inline-flex"
+                onClick={() => trackComingSoonClicked('board-pack-export', 'dashboard')}
+              >
                 <Button variant="outline" disabled aria-label="Board pack (coming soon)">
                   <Icon name="export" />
                   Board pack

@@ -394,6 +394,26 @@ describe('AnalyticsProvider', () => {
     );
   });
 
+  it('2026-07-13 fix: a rejected plain-object reason (Supabase PostgrestError shape, not an Error) captures its real .message, never "[object Object]"', () => {
+    renderTree(makeAuthCtx());
+
+    const postgrestError = { message: 'duplicate key value violates unique constraint', code: '23505' };
+    const rejectionEvent = new PromiseRejectionEvent('unhandledrejection', {
+      promise: Promise.reject(postgrestError).catch(() => {}),
+      reason: postgrestError,
+    });
+
+    expect(() => window.dispatchEvent(rejectionEvent)).not.toThrow();
+    expect(analytics.captureException).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'UnhandledRejection',
+        message: expect.stringContaining('duplicate key value'),
+      }),
+    );
+    const call = analytics.captureException.mock.calls.at(-1)![0] as { message: string };
+    expect(call.message).not.toBe('[object Object]');
+  });
+
   it('FR-OF-014: disabled analytics registers no error/unhandledrejection listener (no captureException call on a synthetic error)', () => {
     const originalEnabled = mockConfig.enabled;
     mockConfig.enabled = false;

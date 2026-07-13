@@ -857,6 +857,7 @@ const AccountEditActivityModal: React.FC<AccountEditActivityModalProps> = ({
     validate: () => ({}),
     idPrefix: 'account-edit-activity',
     requiredFields: [],
+    module: 'companies',
   });
 
   const kindField = form.fieldProps('kind');
@@ -970,6 +971,7 @@ const AddContactForCompanyModal: React.FC<AddContactForCompanyModalProps> = ({
     validate: addContactValidate,
     idPrefix: 'add-contact-form',
     requiredFields: ['full_name'],
+    module: 'companies',
   });
 
   const nameField = form.fieldProps('full_name');
@@ -1114,6 +1116,7 @@ const CompanyEditModal: React.FC<CompanyEditModalProps> = ({ company, onClose, o
     validate,
     idPrefix: 'company-form',
     requiredFields: ['name'],
+    module: 'companies',
   });
 
   const nameField = form.fieldProps('name');

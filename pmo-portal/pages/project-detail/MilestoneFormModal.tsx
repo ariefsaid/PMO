@@ -71,6 +71,7 @@ const MilestoneFormModal: React.FC<MilestoneFormModalProps> = ({
     },
     validate,
     idPrefix: 'milestone-form',
+    module: 'projects',
     requiredFields: ['name'],
   });
 
