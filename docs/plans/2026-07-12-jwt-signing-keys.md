@@ -156,24 +156,32 @@ prod-mirroring stack) and never red-flags a CI env that structurally can't host 
 
 ---
 
-## Task 3 — Extend per policy (BLOCKED; sequence after Task 2 merges)
+## Task 3 — Extend per policy — ✅ COMPLETE (2026-07-13)
 
 Function-by-function, each its own small PR + security-auditor pass, honoring ADR-0057 §Decision-3:
 
-- `adapter-dispatch` — ✅ DONE (2026-07-13). Local-verify for `sub`; caller-JWT RLS `profiles` org
-  lookup retained. Security-audited: the audit flagged the service_role/destructive write path, but on
-  verification the disabled-user window is already closed by mig `0063` (which conjoins
-  `is_active_member()` / `status='active'` into `profiles_select`), so a disabled caller resolves zero
-  rows at the org lookup → `!profile` 400, no write. Stays in the caller-JWT+RLS bucket; no `getUser`,
-  no extra round-trip. (Empirically verified; raw `banned_until`-only bans are an accepted app-wide gap.)
-- `agent-chat` — currently uses **service_role** solely for `getUser`. Switch to local-verify + a
-  targeted live check ONLY where it escalates; removing the service_role-for-auth call also tightens
-  NFR-AR-SEC-002 (service_role no longer touched on the pre-auth path).
-- `admin-invite-user` — escalates to service_role for issuance. **Keep a live check** (retain `getUser`
-  for the caller, or local-verify + `profiles` ban/role lookup) so a just-banned admin cannot issue
-  within the token window. Security-auditor decides which.
+- `adapter-dispatch` — ✅ DONE ([#320](https://github.com/ariefsaid/PMO/pull/320)). Local-verify for
+  `sub`; caller-JWT RLS `profiles` org lookup retained. Security-audited (HIGH raised → withdrawn): the
+  disabled-user window is already closed by mig `0063` (conjoins `is_active_member()` into
+  `profiles_select`), so a disabled caller resolves zero rows at the org lookup → `!profile` 400, no
+  write. Stays in the caller-JWT+RLS bucket; no `getUser`, no extra round-trip.
+- `agent-chat` — ✅ DONE ([#321](https://github.com/ariefsaid/PMO/pull/321)). Local-verify for `sub`,
+  replacing the **service-role** `getUser` (tightens NFR-AR-SEC-002 — service_role now only touches the
+  rate-guard + error-event RPCs). Security-audited (cleared): every agent-write + persistence write runs
+  under `callerClient`/RLS (is_active_member-gated), so a disabled caller is denied everywhere; the old
+  service-role `getUser` never checked `status` anyway — this removes a redundant round-trip, not a control.
+- `admin-invite-user` — ✅ DONE (decision: **retain `getUser`**, no code change). Its `getUser` already
+  runs under the **caller-JWT** client (not service_role — no NFR-AR-SEC-002 issue), and its
+  `authorizeInvite` runs under caller RLS (is_active_member-gated). ADR-0057 §Decision-3 explicitly
+  sanctions "retain `getUser`" for the service_role-escalating bucket; as the highest-privilege function
+  (creates auth users) the live GoTrue check (which also catches `banned_until`) is worth keeping and its
+  round-trip is negligible for an infrequent op. Reviewed and left as-is.
+- **Capstone — mig `0095`**: `is_active_member()` now also honors `auth.users.banned_until`, closing the
+  residual raw-`banned_until`-only-ban gap for ALL is_active_member-gated paths at once (incl. the three
+  local-verify'd functions above) — the correct single-locus fix, not a per-function `getUser`. pgTAP
+  `0141` proves a raw-banned active-status caller is denied while non-banned / expired-ban callers stay active.
 
-**Never** big-bang all four. Each function's live-check choice is recorded in its PR description.
+**Never** big-banged; each function landed as its own PR + audit.
 
 ---
 

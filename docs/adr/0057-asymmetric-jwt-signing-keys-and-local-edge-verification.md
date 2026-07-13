@@ -81,8 +81,17 @@ remains valid until token expiry** (≤ `jwt_expiry`, currently 3600s). Therefor
   > → the function's `!profile` → 400 fires and no service_role write runs (verified empirically: the
   > disabled user's own `profiles` read returns `[]`). The RLS gating the org lookup **is** the
   > active-member check — no `getUser` needed. Residual, app-wide (not unique to this function): a raw
-  > dashboard `banned_until`-only ban that leaves `status='active'` is outside the `is_active_member`
-  > model everywhere.
+  > dashboard `banned_until`-only ban that leaves `status='active'` was outside the `is_active_member`
+  > model everywhere — **now closed by mig `0095`** (Task-3 capstone: `is_active_member()` also checks
+  > `auth.users.banned_until`), so this holds for `agent-chat` and every other is_active_member-gated
+  > path too.
+  >
+  > **`admin-invite-user` (Task-3 decision, 2026-07-13): retain `getUser`, no code change.** Its
+  > `getUser` already runs under the **caller-JWT** client (not service_role — no NFR-AR-SEC-002 issue)
+  > and its `authorizeInvite` runs under caller RLS (is_active_member-gated), rejecting an unauthorized/
+  > disabled caller BEFORE any service_role issuance. As the highest-privilege function (creates auth
+  > users) the live GoTrue check is worth keeping and its round-trip is negligible for an infrequent op —
+  > "retain `getUser`" is the §Decision-3-sanctioned choice for this bucket.
 
 ## Consequences
 
