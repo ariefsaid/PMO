@@ -26,8 +26,10 @@ import { ImportButton } from '@/src/components/import';
 import { companyImportDescriptor } from '@/src/lib/import';
 import { useNavigate } from 'react-router-dom';
 import { usePermission } from '@/src/auth/usePermission';
+import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useCompanies, useCompanyMutations } from '@/src/hooks/useCompanies';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { trackFilterApplied } from '@/src/lib/analytics';
 import type { CompanyRow, CompanyType, CompanyInput } from '@/src/lib/db/companies';
 import { companyTypeVariant } from '@/src/lib/status/statusVariants';
 
@@ -60,6 +62,7 @@ const validate = (v: FormValues): Partial<Record<keyof FormValues, string>> => {
 
 const Companies: React.FC = () => {
   const may = usePermission();
+  const { realRole } = useEffectiveRole();
   const navigate = useNavigate();
   const { toast } = useToast();
   const { data, isPending, isError, refetch } = useCompanies();
@@ -232,7 +235,10 @@ const Companies: React.FC = () => {
           <ViewToggle<TypeFilter>
             options={TYPE_FILTERS.map((f) => ({ value: f, label: f }))}
             value={filter}
-            onChange={setFilter}
+            onChange={(v) => {
+              setFilter(v);
+              trackFilterApplied('type', TYPE_FILTERS.length, 'companies');
+            }}
             ariaLabel="Filter by type"
           />
         )
@@ -244,6 +250,9 @@ const Companies: React.FC = () => {
             aria-label="Search companies"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
+            searchSurface="companies-list"
+            module="companies"
+            resultCount={filtered.length}
             // Below `sm` the toolbar stacks: `basis-full` forces the search onto
             // its own full-width row and `min-w-0` drops the base min-w-[190px]
             // clip, so it shrinks to the viewport and stays reachable at 375px. At
@@ -292,6 +301,9 @@ const Companies: React.FC = () => {
           icon="folder"
           title="No companies yet"
           sub="Add your first client or vendor to start linking projects and purchase requests to a directory."
+          stateId="companies-empty"
+          role={realRole ?? undefined}
+          module="companies"
           action={
             canCreate ? { label: 'New company', onClick: () => setFormTarget({ company: null }) } : undefined
           }
@@ -387,6 +399,7 @@ const CompanyFormModal: React.FC<CompanyFormModalProps> = ({
     idPrefix: 'company-form',
     // F8 (AC-IXD-FORM-F8): submit stays disabled until the required name is present.
     requiredFields: ['name'],
+    module: 'companies',
   });
 
   const nameField = form.fieldProps('name');

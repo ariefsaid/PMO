@@ -208,6 +208,10 @@ async function main() {
 
   let created = { dashboards: 0, insights: 0 };
   let skipped = { dashboards: 0, insights: 0 };
+  // Every `[PMO]` insight this run touched (created OR already-existing) — refreshed
+  // below so a freshly-provisioned dashboard never renders blank tiles (root-cause
+  // fix: an upserted insight's `result` stays null until something computes it).
+  const provisionedIds = [];
 
   for (const spec of SPEC) {
     let dash = dashByName.get(spec.dashboard);
@@ -221,8 +225,10 @@ async function main() {
     }
 
     for (const ins of spec.insights) {
-      if (insByName.has(ins.name)) {
+      const existing = insByName.get(ins.name);
+      if (existing) {
         skipped.insights++;
+        provisionedIds.push(existing.id);
         console.log(`  = insight  ${ins.name}  (exists)`);
         continue;
       }
@@ -230,6 +236,7 @@ async function main() {
       const made = await api('POST', '/insights/', body);
       insByName.set(ins.name, made);
       created.insights++;
+      provisionedIds.push(made.id);
       console.log(`  + insight  ${ins.name}  (id ${made.id})`);
     }
   }
@@ -238,6 +245,16 @@ async function main() {
     `\nDone. dashboards: +${created.dashboards}/=${skipped.dashboards}  ` +
       `insights: +${created.insights}/=${skipped.insights}`,
   );
+
+  // Force each provisioned insight to compute its `result` NOW (blocking refresh) —
+  // otherwise a brand-new insight/dashboard renders BLANK until a human happens to
+  // open it (PostHog only computes on-demand by default).
+  let refreshed = 0;
+  for (const id of provisionedIds) {
+    await api('GET', `/insights/${id}/?refresh=blocking`);
+    refreshed++;
+  }
+  console.log(`refreshed ${refreshed} insights`);
   console.log(`View: ${HOST}/project/${PID}/dashboard`);
 }
 

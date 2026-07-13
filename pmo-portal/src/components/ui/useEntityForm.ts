@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { trackFormValidationFailed, trackSaveFailed } from '@/src/lib/analytics';
 
 /**
  * `useEntityForm` — the tiny controlled-form + per-field validation helper that
@@ -33,6 +34,16 @@ export interface UseEntityFormOptions<T> {
    * true so a submit can still fire, surface the format error, and move focus.
    */
   requiredFields?: (keyof T)[];
+  /**
+   * Analytics context for `form_validation_failed` (fired from `handleSubmit`'s
+   * validation-fail branch) and `save_failed` (fired from `handleSubmit`'s catch
+   * when the caller's `onValid` rejects — 2026-07-13 wiring plan). Both are
+   * OPT-IN: omitting `module` (and, for `save_failed`, `entityType`) simply skips
+   * tracking, so existing forms that don't pass it are unaffected.
+   */
+  module?: string;
+  /** Required for `save_failed` in addition to `module`; unused otherwise. */
+  entityType?: string;
 }
 
 export interface FieldProps<V> {
@@ -61,7 +72,15 @@ export interface UseEntityForm<T> {
   setValue: <K extends keyof T>(field: K, value: T[K]) => void;
   setValues: (next: Partial<T>) => void;
   handleBlur: (field: keyof T) => void;
-  handleSubmit: (onValid: (values: T) => void | Promise<void>) => Promise<void>;
+  /**
+   * `operation` (e.g. 'create' | 'update' | 'archive' | 'delete') is optional
+   * context for `save_failed` — passed through verbatim as the event's
+   * `operation` prop when `onValid` rejects. Defaults to `'save'` when omitted.
+   */
+  handleSubmit: (
+    onValid: (values: T) => void | Promise<void>,
+    operation?: string,
+  ) => Promise<void>;
   reset: (next?: T) => void;
   fieldProps: <K extends keyof T>(field: K) => FieldProps<T[K]>;
 }
@@ -73,6 +92,8 @@ export function useEntityForm<T extends object>({
   validate,
   idPrefix,
   requiredFields,
+  module,
+  entityType,
 }: UseEntityFormOptions<T>): UseEntityForm<T> {
   const [values, setValuesState] = useState<T>(initialValues);
   // `surfacedErrors` is the *committed* error map (set on blur/submit). What the
@@ -151,20 +172,40 @@ export function useEntityForm<T extends object>({
   );
 
   const handleSubmit = useCallback(
-    async (onValid: (values: T) => void | Promise<void>) => {
+    async (onValid: (values: T) => void | Promise<void>, operation?: string) => {
       const allErrors = runValidate(values);
       setHasAttemptedSubmit(true);
       setSurfacedErrors(allErrors);
-      if (Object.keys(allErrors).length > 0) return;
+      const errorKeys = Object.keys(allErrors);
+      if (errorKeys.length > 0) {
+        if (module) {
+          trackFormValidationFailed(prefixRef.current, errorKeys.length, 'validation', module);
+        }
+        return;
+      }
 
       setSubmitting(true);
       try {
         await onValid(values);
+      } catch (err) {
+        // save_failed (2026-07-13 wiring plan): opt-in — only fires when the caller
+        // supplied `module`+`entityType`. `reason_code` mirrors classifyMutationError's
+        // own structural `.code` extraction (AppError/PostgREST-shaped errors), but
+        // this hook stays decoupled from that lib — it only needs a safe enum-ish
+        // code, not the human headline/detail.
+        if (module && entityType) {
+          const code =
+            typeof (err as { code?: unknown })?.code === 'string'
+              ? (err as { code: string }).code
+              : 'unknown';
+          trackSaveFailed(entityType, operation ?? 'save', code, module);
+        }
+        throw err;
       } finally {
         setSubmitting(false);
       }
     },
-    [runValidate, values],
+    [runValidate, values, module, entityType],
   );
 
   const reset = useCallback((next?: T) => {

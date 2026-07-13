@@ -12,6 +12,7 @@
 import React, { useId, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button, Icon, ListState, StatusPill, ProjectNameLink } from '@/src/components/ui';
+import { trackProcurementDetailOpened } from '@/src/lib/analytics';
 import { useProcurementDetail } from '@/src/hooks/useProcurementDetail';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
 import { formatCurrency } from '@/src/lib/format';
@@ -143,6 +144,7 @@ export const ProcurementListRow: React.FC<ProcurementListRowProps> = ({ row }) =
             )
           )
             return;
+          trackProcurementDetailOpened('/procurement/:procurementId', 'list');
           navigate(`/procurement/${row.id}`);
         }}
         className="flex cursor-pointer flex-wrap items-start gap-2 px-3.5 py-3 transition-colors hover:bg-accent/60">

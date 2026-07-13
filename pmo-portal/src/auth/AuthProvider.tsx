@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from '@/src/lib/supabase/client';
+import { trackAuthLogoutSucceeded } from '@/src/lib/analytics';
 import { AuthContext, type Profile } from './AuthContext';
 
 type ProfileResult =
@@ -103,6 +104,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signOut = useCallback(async () => {
     await supabase.auth.signOut();
+    // auth_logout_succeeded (2026-07-13 wiring plan) — role rides the already-registered
+    // super-property (set at `identify()`), so nothing needs to be passed explicitly, and
+    // nothing here needs to race the `onAuthStateChange` reset that clears it.
+    trackAuthLogoutSucceeded();
   }, []);
 
   const value = useMemo(

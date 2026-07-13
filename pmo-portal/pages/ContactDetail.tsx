@@ -536,6 +536,7 @@ const EditActivityModal: React.FC<EditActivityModalProps> = ({
     validate: () => ({}),
     idPrefix: 'edit-activity-form',
     requiredFields: [],
+    module: 'contacts',
   });
 
   const kindField = form.fieldProps('kind');
@@ -654,6 +655,7 @@ const ContactEditModal: React.FC<ContactEditModalProps> = ({
     validate,
     idPrefix: 'contact-form',
     requiredFields: ['full_name', 'company_id'],
+    module: 'contacts',
   });
 
   const nameField = form.fieldProps('full_name');

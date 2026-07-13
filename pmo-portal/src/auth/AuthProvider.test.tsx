@@ -1,6 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, renderHook, screen, waitFor, fireEvent } from '@testing-library/react';
 
+const trackAuthLogoutSucceeded = vi.hoisted(() => vi.fn());
+vi.mock('@/src/lib/analytics', () => ({ trackAuthLogoutSucceeded }));
+
 // Mutable session/profile the mocked client returns; reset per test.
 const state = vi.hoisted(() => ({
   session: null as unknown,
@@ -242,5 +245,32 @@ describe('AuthProvider getSession rejection', () => {
     );
 
     await waitFor(() => expect(screen.getByTestId('state')).toHaveTextContent('done|true'));
+  });
+});
+
+describe('AuthProvider signOut analytics (auth_logout_succeeded, 2026-07-13 wiring plan)', () => {
+  function SignOutProbe() {
+    const { signOut } = useAuth();
+    return (
+      <button data-testid="sign-out" onClick={() => void signOut()}>
+        Sign out
+      </button>
+    );
+  }
+
+  it('AC: a completed signOut fires trackAuthLogoutSucceeded via the facade', async () => {
+    trackAuthLogoutSucceeded.mockClear();
+    const { supabase } = await import('@/src/lib/supabase/client');
+    (supabase.auth.signOut as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ error: null });
+
+    render(
+      <AuthProvider>
+        <SignOutProbe />
+      </AuthProvider>
+    );
+    fireEvent.click(screen.getByTestId('sign-out'));
+
+    await waitFor(() => expect(trackAuthLogoutSucceeded).toHaveBeenCalledTimes(1));
+    expect(trackAuthLogoutSucceeded).toHaveBeenCalledWith();
   });
 });

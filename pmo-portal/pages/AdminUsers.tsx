@@ -586,6 +586,7 @@ const InviteFormModal: React.FC<{
     validate: validateInvite,
     idPrefix: 'invite-form',
     requiredFields: ['email'],
+    module: 'administration',
   });
   const emailField = form.fieldProps('email');
   const roleField = form.fieldProps('role');
@@ -655,6 +656,7 @@ const RoleFormModal: React.FC<{
   const form = useEntityForm<RoleFormValues>({
     initialValues: { role: user.role },
     idPrefix: 'role-form',
+    module: 'administration',
   });
   const roleField = form.fieldProps('role');
 
@@ -708,6 +710,7 @@ const ManagerFormModal: React.FC<{
   const form = useEntityForm<ManagerFormValues>({
     initialValues: { managerId: user.manager_id ?? null },
     idPrefix: 'manager-form',
+    module: 'administration',
   });
   const managerId = form.values.managerId;
 

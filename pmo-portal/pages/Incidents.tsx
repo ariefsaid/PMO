@@ -18,6 +18,7 @@ import { ExportButton } from '@/src/components/export';
 import { usePermission } from '@/src/auth/usePermission';
 import { useIncidents, useIncidentMutations } from '@/src/hooks/useIncidents';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { trackFilterApplied } from '@/src/lib/analytics';
 import type { IncidentRow, IncidentStatus } from '@/src/lib/db/incidents';
 import { severityVariant, workflowVariant } from '@/src/lib/status/statusVariants';
 import { NEXT_STATUS, TRANSITION_COPY, type AdvanceStatus } from '@/src/lib/incidents/transitions';
@@ -204,7 +205,10 @@ const Incidents: React.FC = () => {
             <ViewToggle<StatusFilter>
               options={STATUS_FILTERS.map((f) => ({ value: f, label: f }))}
               value={filter}
-              onChange={setFilter}
+              onChange={(v) => {
+                setFilter(v);
+                trackFilterApplied('status', STATUS_FILTERS.length, 'incidents');
+              }}
               ariaLabel="Filter by status"
             />
           </div>
@@ -217,6 +221,9 @@ const Incidents: React.FC = () => {
             aria-label="Search incidents"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
+            searchSurface="incidents-list"
+            module="incidents"
+            resultCount={filtered.length}
             containerClassName="max-sm:basis-full max-sm:w-full max-sm:min-w-0 sm:ml-auto"
           />
         )

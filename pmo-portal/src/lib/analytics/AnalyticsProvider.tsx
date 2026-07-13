@@ -5,6 +5,7 @@ import { getAnalyticsConfig, persistDemoContext } from './config';
 import { analyticsClient } from './client';
 import { safeTrack } from './safeTrack';
 import { routeAnalyticsForPath } from './route';
+import { rejectionMessage } from './rejectionMessage';
 
 const baseSuperProperties = (cfg: {
   appEnv: string;
@@ -71,7 +72,12 @@ export const AnalyticsProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       safeTrack(() =>
         analyticsClient.captureException({
           name: reason instanceof Error ? reason.name : 'UnhandledRejection',
-          message: reason instanceof Error ? reason.message : String(reason),
+          // 2026-07-13 fix: `String(reason)` on a rejected plain-object reason (e.g. a
+          // Supabase PostgrestError, never an Error instance) produced the literal
+          // "[object Object]" with zero diagnostic content — rejectionMessage() pulls
+          // the real .message/.error_description/.error a Postgrest/OAuth-shaped
+          // reason actually carries.
+          message: rejectionMessage(reason),
         }),
       );
     };

@@ -354,6 +354,7 @@ const ContactFormModal: React.FC<ContactFormModalProps> = ({
     validate,
     idPrefix: 'contact-form',
     requiredFields: ['full_name', 'company_id'],
+    module: 'contacts',
   });
 
   const nameField = form.fieldProps('full_name');
