@@ -16,6 +16,7 @@ import {
 } from '@/src/components/ui';
 import { ExportButton } from '@/src/components/export';
 import { usePermission } from '@/src/auth/usePermission';
+import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useIncidents, useIncidentMutations } from '@/src/hooks/useIncidents';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { trackFilterApplied } from '@/src/lib/analytics';
@@ -46,6 +47,7 @@ interface TransitionTarget {
 
 const Incidents: React.FC = () => {
   const may = usePermission();
+  const { realRole } = useEffectiveRole();
   const navigate = useNavigate();
   const { toast } = useToast();
   const { data, isPending, isError, refetch } = useIncidents();
@@ -256,6 +258,9 @@ const Incidents: React.FC = () => {
           icon="alert"
           title="No incidents reported"
           sub="When something goes wrong on a project or site, file it here so it can be investigated and closed out."
+          stateId="incidents-empty"
+          role={realRole ?? undefined}
+          module="incidents"
           action={
             canCreate
               ? { label: 'File incident', onClick: () => setFormTarget({ incident: null }) }

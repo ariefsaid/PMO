@@ -13,11 +13,13 @@ const analytics = vi.hoisted(() => ({
   trackProjectDetailOpened: vi.fn(),
   trackFilterApplied: vi.fn(),
   trackSearchUsed: vi.fn(),
+  trackEmptyStateSeen: vi.fn(),
 }));
 vi.mock('@/src/lib/analytics', () => ({
   trackProjectDetailOpened: analytics.trackProjectDetailOpened,
   trackFilterApplied: analytics.trackFilterApplied,
   trackSearchUsed: analytics.trackSearchUsed,
+  trackEmptyStateSeen: analytics.trackEmptyStateSeen,
 }));
 
 const seed = [
@@ -80,6 +82,7 @@ beforeEach(() => {
   analytics.trackProjectDetailOpened.mockClear();
   analytics.trackFilterApplied.mockClear();
   analytics.trackSearchUsed.mockClear();
+  analytics.trackEmptyStateSeen.mockClear();
   vi.useFakeTimers({ shouldAdvanceTime: true });
 });
 
@@ -113,5 +116,18 @@ describe('Projects: search_used fires (debounced) at the projects search box', (
     await user.type(screen.getByPlaceholderText(/Search projects/i), 'Innovate');
     vi.advanceTimersByTime(500);
     expect(analytics.trackSearchUsed).toHaveBeenCalledWith('projects-list', 1, 'projects');
+  });
+});
+
+describe('Projects: empty_state_seen fires when there are zero projects (FIX 1)', () => {
+  it('AC: renders the empty ListState and fires empty_state_seen with state_id/role/module', () => {
+    projectsState.data = [];
+    renderPage();
+    expect(screen.getByText('No projects yet')).toBeInTheDocument();
+    expect(analytics.trackEmptyStateSeen).toHaveBeenCalledWith(
+      'projects-empty',
+      'Project Manager',
+      'projects',
+    );
   });
 });

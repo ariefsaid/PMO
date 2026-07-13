@@ -388,6 +388,9 @@ const ProcurementPage: React.FC = () => {
           icon="cart"
           title={ownScoped ? "You haven't raised any requests yet" : 'No purchase requests yet'}
           sub="Requests you raise will appear here through their full lifecycle."
+          stateId="procurement-empty"
+          role={realRole ?? undefined}
+          module="procurement"
           action={
             canCreate ? { label: 'Raise request', onClick: () => setShowNew(true) } : undefined
           }

@@ -6,10 +6,15 @@ import type { Role } from '@/src/auth/AuthContext';
 import { ToastProvider } from '@/src/components/ui';
 
 // filter_applied / search_used — 2026-07-13 wiring plan.
-const analytics = vi.hoisted(() => ({ trackFilterApplied: vi.fn(), trackSearchUsed: vi.fn() }));
+const analytics = vi.hoisted(() => ({
+  trackFilterApplied: vi.fn(),
+  trackSearchUsed: vi.fn(),
+  trackEmptyStateSeen: vi.fn(),
+}));
 vi.mock('@/src/lib/analytics', () => ({
   trackFilterApplied: analytics.trackFilterApplied,
   trackSearchUsed: analytics.trackSearchUsed,
+  trackEmptyStateSeen: analytics.trackEmptyStateSeen,
 }));
 
 const { listState, mutations } = vi.hoisted(() => ({
@@ -60,6 +65,7 @@ beforeEach(() => {
   listState.isError = false;
   analytics.trackFilterApplied.mockClear();
   analytics.trackSearchUsed.mockClear();
+  analytics.trackEmptyStateSeen.mockClear();
   realRole = 'Admin';
   vi.useFakeTimers();
 });
@@ -83,5 +89,18 @@ describe('Incidents: search_used fires (debounced) at the search box', () => {
     fireEvent.change(input, { target: { value: 'trip' } });
     vi.advanceTimersByTime(500);
     expect(analytics.trackSearchUsed).toHaveBeenCalledWith('incidents-list', expect.any(Number), 'incidents');
+  });
+});
+
+describe('Incidents: empty_state_seen fires when there are zero incidents (FIX 1)', () => {
+  it('AC: renders the empty ListState and fires empty_state_seen with state_id/role/module', () => {
+    listState.data = [];
+    renderPage('Project Manager');
+    expect(screen.getByText('No incidents reported')).toBeInTheDocument();
+    expect(analytics.trackEmptyStateSeen).toHaveBeenCalledWith(
+      'incidents-empty',
+      'Project Manager',
+      'incidents',
+    );
   });
 });

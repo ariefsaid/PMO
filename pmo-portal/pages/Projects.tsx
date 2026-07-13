@@ -63,7 +63,7 @@ const ONGOING = [ProjectStatusEnum.Ongoing, ProjectStatusEnum.WonPendingKoM, Pro
 const COMPLETED = [ProjectStatusEnum.CloseOut, ProjectStatusEnum.Loss] as string[];
 
 const Projects: React.FC = () => {
-  const { effectiveRole } = useEffectiveRole();
+  const { effectiveRole, realRole } = useEffectiveRole();
   const may = usePermission();
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -476,6 +476,9 @@ const Projects: React.FC = () => {
           icon="folder"
           title="No projects yet"
           sub="Projects you create or win will appear here."
+          stateId="projects-empty"
+          role={realRole ?? undefined}
+          module="projects"
           action={
             canCreate ? { label: 'New project', onClick: () => setCreateOpen(true) } : undefined
           }

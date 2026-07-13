@@ -103,11 +103,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const signOut = useCallback(async () => {
-    await supabase.auth.signOut();
-    // auth_logout_succeeded (2026-07-13 wiring plan) — role rides the already-registered
-    // super-property (set at `identify()`), so nothing needs to be passed explicitly, and
-    // nothing here needs to race the `onAuthStateChange` reset that clears it.
-    trackAuthLogoutSucceeded();
+    const { error } = await supabase.auth.signOut();
+    // auth_logout_succeeded (2026-07-13 wiring plan; FIX 2 — a failed signOut is not a
+    // "succeeded" event) — role rides the already-registered super-property (set at
+    // `identify()`), so nothing needs to be passed explicitly, and nothing here needs
+    // to race the `onAuthStateChange` reset that clears it.
+    if (!error) trackAuthLogoutSucceeded();
   }, []);
 
   const value = useMemo(

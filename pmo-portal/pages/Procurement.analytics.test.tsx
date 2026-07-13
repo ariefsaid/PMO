@@ -11,11 +11,13 @@ const analytics = vi.hoisted(() => ({
   trackFilterApplied: vi.fn(),
   trackSearchUsed: vi.fn(),
   trackProcurementDetailOpened: vi.fn(),
+  trackEmptyStateSeen: vi.fn(),
 }));
 vi.mock('@/src/lib/analytics', () => ({
   trackFilterApplied: analytics.trackFilterApplied,
   trackSearchUsed: analytics.trackSearchUsed,
   trackProcurementDetailOpened: analytics.trackProcurementDetailOpened,
+  trackEmptyStateSeen: analytics.trackEmptyStateSeen,
 }));
 
 const seed = [
@@ -73,6 +75,7 @@ beforeEach(() => {
   analytics.trackFilterApplied.mockClear();
   analytics.trackSearchUsed.mockClear();
   analytics.trackProcurementDetailOpened.mockClear();
+  analytics.trackEmptyStateSeen.mockClear();
   vi.useFakeTimers();
 });
 
@@ -95,5 +98,18 @@ describe('Procurement: search_used fires (debounced) at the requests search box'
     fireEvent.change(input, { target: { value: 'Workstations' } });
     vi.advanceTimersByTime(500);
     expect(analytics.trackSearchUsed).toHaveBeenCalledWith('procurement-list', 1, 'procurement');
+  });
+});
+
+describe('Procurement: empty_state_seen fires when there are zero requests (FIX 1)', () => {
+  it('AC: renders the empty ListState and fires empty_state_seen with state_id/role/module', () => {
+    procState.data = [];
+    renderPage();
+    expect(screen.getByText('No purchase requests yet')).toBeInTheDocument();
+    expect(analytics.trackEmptyStateSeen).toHaveBeenCalledWith(
+      'procurement-empty',
+      'Project Manager',
+      'procurement',
+    );
   });
 });

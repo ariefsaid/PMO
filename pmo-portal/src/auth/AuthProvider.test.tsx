@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, renderHook, screen, waitFor, fireEvent } from '@testing-library/react';
+import { useState } from 'react';
 
 const trackAuthLogoutSucceeded = vi.hoisted(() => vi.fn());
 vi.mock('@/src/lib/analytics', () => ({ trackAuthLogoutSucceeded }));
@@ -251,10 +252,17 @@ describe('AuthProvider getSession rejection', () => {
 describe('AuthProvider signOut analytics (auth_logout_succeeded, 2026-07-13 wiring plan)', () => {
   function SignOutProbe() {
     const { signOut } = useAuth();
+    const [done, setDone] = useState(false);
     return (
-      <button data-testid="sign-out" onClick={() => void signOut()}>
-        Sign out
-      </button>
+      <>
+        <button
+          data-testid="sign-out"
+          onClick={() => void signOut().then(() => setDone(true))}
+        >
+          Sign out
+        </button>
+        {done && <span data-testid="sign-out-done" />}
+      </>
     );
   }
 
@@ -272,5 +280,25 @@ describe('AuthProvider signOut analytics (auth_logout_succeeded, 2026-07-13 wiri
 
     await waitFor(() => expect(trackAuthLogoutSucceeded).toHaveBeenCalledTimes(1));
     expect(trackAuthLogoutSucceeded).toHaveBeenCalledWith();
+  });
+
+  it('FIX 2: a signOut that returns { error } does NOT fire trackAuthLogoutSucceeded', async () => {
+    trackAuthLogoutSucceeded.mockClear();
+    const { supabase } = await import('@/src/lib/supabase/client');
+    (supabase.auth.signOut as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      error: { message: 'network error', name: 'AuthApiError', status: 500 },
+    });
+
+    render(
+      <AuthProvider>
+        <SignOutProbe />
+      </AuthProvider>
+    );
+    fireEvent.click(screen.getByTestId('sign-out'));
+
+    // Wait for the probe's own promise-chain completion signal (not just the
+    // signOut call) so the assertion isn't racing the still-in-flight handler.
+    await waitFor(() => expect(screen.getByTestId('sign-out-done')).toBeInTheDocument());
+    expect(trackAuthLogoutSucceeded).not.toHaveBeenCalled();
   });
 });

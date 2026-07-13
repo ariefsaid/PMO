@@ -71,22 +71,32 @@ already defined with one (`empty_state_seen`).
 | `search_used` | Discovery behavior | `SearchMini` (`src/components/ui/DataTable.tsx`), debounced 500ms/Enter | `search_surface`, `result_count`, `module` |
 | `coming_soon_clicked` | Demand signal | `VendorQuotesTab` (Attach file) + `ExecutiveDashboard` (Board pack) | `feature_id`, `module` |
 | `form_validation_failed` | UX friction | `useEntityForm.handleSubmit` (validation-fail branch) | `form_id`, `field_count`, `reason_code`, `module` |
-| `save_failed` | Reliability / UX friction | `useEntityForm.handleSubmit` (catch, when `onValid` rejects) | `entity_type`, `operation`, `reason_code`, `module` |
-| `empty_state_seen` | Adoption / data gaps | `ListState` (`variant="empty"`, on mount) | `state_id`, `role`, `module` |
+| `save_failed` | Reliability / UX friction | `useEntityForm.handleSubmit` (catch, when `onValid` rejects) — **wired but INERT, see note below** | `entity_type`, `operation`, `reason_code`, `module` |
+| `empty_state_seen` | Adoption / data gaps | `ListState` (`variant="empty"`, on mount) — instrumented on Companies, Projects, Procurement, Incidents, Contacts (the primary directory/list index pages; not every `ListState` empty render — see note) | `state_id`, `role`, `module` |
 
-**`save_failed` coverage note:** the hook-level boundary is real, tested, and fires whenever a form's
-`onValid` callback rejects. Most existing CRUD forms currently catch their own mutation error internally
-(`try { await onCreate(...) } catch (err) { onError(err) }`) before it would reach that catch, so today
-`save_failed` fires for any caller that lets the rejection propagate but not yet for the established
-catch-and-`onError` pattern used across most forms. Follow-up: migrate each form's `onValid` to drop its
-own `try/catch` and pass its existing `onError` through `useEntityForm`'s `operation` context instead —
-mechanical, ~10 files, tracked as a fast-follow rather than bundled into this slice.
+**`empty_state_seen` coverage note (FIX 1, 2026-07-13):** the shared boundary lives in `ListState.tsx`
+and is opt-in (`stateId`/`role`/`module` all required to fire). It is currently wired only at the 5
+primary "no records at all" empty states listed above — `companies-empty`, `projects-empty`,
+`procurement-empty`, `incidents-empty`, `contacts-empty`. It is **not** wired at every `ListState
+variant="empty"` render in the app: DataTable's own internal "no results match your filters" empty
+render, and secondary list pages (SalesPipeline, MyTasks, Timesheets/ApprovalsQueue, AdminUsers, etc.)
+are still dark. Each is the same 3-line addition (`stateId`/`role={realRole}`/`module`) as a fast-follow.
+
+**`save_failed` is currently INERT — it does not fire in production today.** Two independent gaps, both
+required to close before it's real: (1) `useEntityForm.handleSubmit`'s catch only fires when the caller
+supplied BOTH `module` AND `entityType` — every existing form was threaded with `module` (for
+`form_validation_failed`) but **no call site passes `entityType`**, so the `if (module && entityType)`
+guard is never true. (2) even with `entityType` threaded, ~10 existing CRUD forms catch their own
+mutation error internally (`try { await onCreate(...) } catch (err) { onError(err) }`) before it would
+ever reach `useEntityForm`'s catch — the rejection never propagates that far. Fast-follow (deferred,
+NOT done in this slice): thread `entityType` into each `useEntityForm` call site, AND migrate each
+form's `onValid` to drop its own `try/catch` so the error actually propagates into the hook.
 
 ### Defined (not yet wired to a UI call site)
 
 | Event | Purpose | Required safe properties |
 |---|---|---|
-| `permission_denied_seen` | Authz / product friction | `surface`, `role`, `module` |
+| `permission_denied_seen` | Authz / product friction — **deferred, no UI boundary defined yet** | `surface`, `role`, `module` |
 
 Allowed values: enums, route patterns, role names, module ids, safe slugs, bounded counts/durations,
 status/reason codes, booleans.
