@@ -185,6 +185,30 @@ Function-by-function, each its own small PR + security-auditor pass, honoring AD
 
 ---
 
+## Prod rollout runbook (OWNER-GATED — do NOT run without a direct, per-instance owner instruction)
+
+All Task-3 work is on `dev`. It has **no prod effect** until (a) it is promoted to `main` and (b) the
+prod DB migration + edge-function redeploys below are run against the Supabase Cloud project. Order:
+
+1. **Promote `dev` → `main`** (Director-gated; the autonomous ceiling): open a `dev`→`main` PR, let the
+   `integration` lane (pgTAP + e2e + visual) run, merge (merge-commit) when green. This lands the code on
+   `main` only — still no prod effect.
+2. **Prod DB — migration `0095`** (owner-instructed): `scripts/db-push-prod.sh` (typed `prod` confirm +
+   explicit `--db-url`; never raw). This redefines `is_active_member()` app-wide in prod. LOW risk (seed/
+   real users have `banned_until = null` → unchanged), but it touches ~30 policies — smoke a normal login
+   right after. Reversible = restore the 0062 body (see mig 0095 header).
+3. **Prod edge functions — redeploy the local-verify'd ones** (owner-instructed): `supabase functions
+   deploy compose-view adapter-dispatch agent-chat`. Until redeployed, prod still runs the OLD `getUser`
+   versions (merging to `main` does NOT deploy functions). `admin-invite-user` is unchanged (no redeploy
+   needed). Requires the prod JWKS live (ES256 — already active) + the function secrets already set.
+4. **Post-deploy smoke** (the real integration proof — CI can't run edge functions, `edge_runtime` off):
+   with a real prod session token, POST each redeployed fn → assert **not 401** (past the local ES256
+   gate; prod `SUPABASE_URL` is a public URL so issuer/JWKS resolve, unlike the local functions-serve
+   artifact). Also confirm a no-auth / garbage-bearer request → 401. Roll back a fn with `supabase
+   functions deploy <fn>` from the prior commit if the smoke fails.
+
+---
+
 ## Out of scope (separate future decisions)
 
 - **`@supabase/server`** (`withSupabase`) — public beta as of 2026-07-12; revisit at GA. The
