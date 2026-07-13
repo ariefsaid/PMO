@@ -146,7 +146,11 @@ tokens: absent bearer → typed 401, bad-signature bearer → typed 401 `invalid
 caller token → past the gate (never 401). 3/3 green (`--no-deps`; the spec needs no captured
 session). Raw-curl smoke corroborated: 401 / 401 / 502(missing-OPENROUTER, i.e. auth passed). Full
 `npm run verify` gate run before PR. Run locally with the stack env exported
-(`supabase status -o env`); the spec skips gracefully when unset and throws in CI.
+(`supabase status -o env`). **NOTE on CI:** the stock CI `integration` lane runs `supabase start`
+with `[edge_runtime] enabled = false` (config.toml — the local Deno image can't reach deno.land in
+CI), so compose-view is **not served there**; the spec probes the function (OPTIONS→200) and
+**skips cleanly when it isn't served**, so it runs for real wherever functions are up (local /
+prod-mirroring stack) and never red-flags a CI env that structurally can't host it.
 
 **Reviewers:** all three, **security-auditor mandatory** (auth-path change).
 
