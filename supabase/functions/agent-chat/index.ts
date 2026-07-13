@@ -14,7 +14,9 @@
  * Responsibilities:
  *   1. CORS preflight handling.
  *   2. Read Authorization header; reject 401 if absent.
- *   3. Verify JWT using service-role client (service_role ONLY for auth.getUser — NFR-AR-SEC-002).
+ *   3. Verify the caller JWT LOCALLY against the project JWKS (ADR-0057 — ES256, no auth.getUser
+ *      round-trip). service_role is now used ONLY for the rate-guard + error-event RPCs (NFR-AR-SEC-002
+ *      tightened: never on the auth path, never for business data).
  *   4. Build caller-JWT Supabase client for all business data (deputy auth — FR-AR-014).
  *   5. Read OPENROUTER_API_KEY from Deno.env (function secret — NFR-MC-SEC-001).
  *   6. Parse JSON body into AgentChatRequest.
@@ -40,6 +42,21 @@ import {
   AGENT_MASTER_DATA_ROLES,
   AGENT_DELIVERY_WITH_ENGINEER_ROLES,
 } from '../../../pmo-portal/src/auth/agentRoles.ts';
+import {
+  verifyCallerJwt,
+  bearerToken,
+  JwtVerifyError,
+  jwksFromUrl,
+  type JwksResolver,
+} from '../../../pmo-portal/src/lib/auth/verifyCallerJwt.ts';
+
+// ADR-0057: one cached, rate-limited JWKS resolver, memoized across warm invocations. Built lazily
+// so an empty SUPABASE_URL can't throw a URL error before the handler can return a typed 401/500.
+let _jwks: JwksResolver | null = null;
+function getJwks(supabaseUrl: string): JwksResolver {
+  if (!_jwks) _jwks = jwksFromUrl(`${supabaseUrl}/auth/v1/.well-known/jwks.json`);
+  return _jwks;
+}
 
 // AUDIT quick-win (2026-07-07): CORS narrows to the deployed SPA origin when
 // AGENT_ALLOWED_ORIGIN is set; falls back to SITE_URL, then to '' (fail-closed — never '*').
@@ -59,30 +76,43 @@ Deno.serve(async (req: Request): Promise<Response> => {
     return new Response('ok', { headers: corsHeaders });
   }
 
-  // ── 1. Authorization header ───────────────────────────────────────────────
-  const authHeader = req.headers.get('Authorization');
-  if (!authHeader?.startsWith('Bearer ')) {
+  // ── 1. Authorization header (case-insensitive Bearer, shared parser) ──────
+  const jwt = bearerToken(req.headers.get('Authorization'));
+  if (!jwt) {
     return new Response(
       JSON.stringify({ status: 401, error: 'UNAUTHORIZED', detail: 'missing Authorization header' }),
       { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     );
   }
-  const jwt = authHeader.slice(7);
 
-  // ── 2. Verify JWT using service-role client (NFR-AR-SEC-002) ─────────────
-  // service_role is used ONLY here for auth.getUser(jwt). Never for business data.
-  const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+  // ── 2. Verify the caller JWT LOCALLY against the project JWKS (ADR-0057 — ES256) ──
+  // Replaces the auth.getUser round-trip; resolves the caller's `sub` via a cached local signature
+  // check. service_role is now used ONLY for the non-bypassable rate-guard + error-event RPCs below
+  // — NEVER for auth (this tightens NFR-AR-SEC-002: service_role no longer touches the auth path) and
+  // never for business data. agent-chat's data + agent-write path is entirely caller-JWT + RLS
+  // (callerClient, step 3); mig 0063 conjoins is_active_member() into EVERY business-table policy, so
+  // a disabled/offboarded caller is denied at the RLS layer on every read + agent write. Local
+  // verification is therefore sufficient (ADR-0057 §Decision-3, same basis as adapter-dispatch). Any
+  // signature/expiry/issuer/audience/alg failure → a single typed 401.
+  const supabaseUrl = (Deno.env.get('SUPABASE_URL') ?? '').replace(/\/$/, '');
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
   const verifierClient = createClient(supabaseUrl, serviceRoleKey);
 
-  const { data: { user }, error: authError } = await verifierClient.auth.getUser(jwt);
-  if (authError || !user) {
+  let userId: string;
+  try {
+    const verified = await verifyCallerJwt(jwt, getJwks(supabaseUrl), {
+      issuer: Deno.env.get('SUPABASE_JWT_ISSUER') ?? `${supabaseUrl}/auth/v1`,
+      audience: 'authenticated',
+      algorithms: ['ES256'],
+    });
+    userId = verified.sub;
+  } catch (err) {
+    const status = err instanceof JwtVerifyError ? err.status : 401;
     return new Response(
-      JSON.stringify({ status: 401, error: 'UNAUTHORIZED', detail: 'invalid JWT' }),
-      { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      JSON.stringify({ status, error: 'UNAUTHORIZED', detail: 'invalid JWT' }),
+      { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     );
   }
-  const userId = user.id;
 
   // ── 2b. Request-rate throttle (IG-audit 2026-07-10, migration 0091) ───────
   // Bounds how OFTEN one verified user may invoke the model, independent of credits (credits bound
