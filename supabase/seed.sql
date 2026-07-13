@@ -1988,7 +1988,7 @@ on conflict (id) do nothing;
 
 
 
--- §U  platform operator (ADR-0049; FR-OPR-003). Seeded Operator = arief.said@gmail.com.
+-- §U  platform operator (ADR-0049; FR-OPR-003). Seeded Operator = operator@pmo.test.
 --     Mirror in docs/environments.md provisioning runbook (ADR-0047) for real projects.
 --     FK note: platform_operators.user_id → profiles(id); profiles seeded in §D above, so this
 --     end-of-file append is FK-safe.
@@ -1999,7 +1999,7 @@ insert into auth.users
    email_change_token_current, reauthentication_token)
 values
   ('00000000-0000-0000-0000-000000000000','00000000-0000-0000-0000-0000000000ff',
-   'authenticated','authenticated','arief.said@gmail.com',
+   'authenticated','authenticated','operator@pmo.test',
    crypt('Passw0rd!dev', gen_salt('bf')), now(),
    '{"provider":"email","providers":["email"]}', '{}', now(), now(),
    '', '', '', '', '', '')
@@ -2008,7 +2008,7 @@ on conflict (id) do nothing;
 insert into profiles (id, org_id, full_name, email, role, title) values
   ('00000000-0000-0000-0000-0000000000ff',
    '00000000-0000-0000-0000-000000000001',
-   'Arief Said','arief.said@gmail.com','Admin','Platform Operator')
+   'Platform Operator','operator@pmo.test','Admin','Platform Operator')
 on conflict (id) do nothing;
 
 insert into platform_operators (user_id, granted_by) values
