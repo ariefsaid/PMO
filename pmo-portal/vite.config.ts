@@ -64,6 +64,14 @@ const sharedTestOptions = {
     VITE_ANALYTICS_ENABLED: 'false',
     VITE_DEMO_MODE: 'false',
     VITE_APP_ENV: 'test',
+    // Pin the entitlement/feature flags to their defaults so the unit suite is DETERMINISTIC
+    // regardless of a developer's .env.local (which scripts/e2e-local.sh writes with these ON for
+    // the e2e dev server). Without this pin, running `npm run verify` after an e2e-local run reads
+    // the flag-on .env.local and breaks features.test.ts + the flag-gated component tests.
+    VITE_FEATURES_USERVIEWS: '',
+    VITE_FEATURES_AI_COMPOSER: '',
+    VITE_FEATURES_AGENT_ASSISTANT: '',
+    VITE_FEATURES_CRM: '',
   },
 };
 
