@@ -31,7 +31,9 @@ export interface AgingRangeLabels {
   range4: string;
 }
 
-const DEFAULT_RANGE_LABELS: AgingRangeLabels = { range1: '0-30', range2: '31-60', range3: '61-90', range4: '91-120' };
+// range4 is '91-Above': the report's range5 ('121-Above') folds into the b_90_plus bucket at parse
+// time (parseAgingReport), so the snapshot's last bucket covers everything 91+ days overdue.
+const DEFAULT_RANGE_LABELS: AgingRangeLabels = { range1: '0-30', range2: '31-60', range3: '61-90', range4: '91-Above' };
 
 export interface AgingScope {
   reportName: AgingReportName;
@@ -44,7 +46,7 @@ export interface AgingScope {
   reportDate?: string;
   /** 'Due Date' | 'Posting Date' — stamped as ageing_based_on provenance. */
   ageingBasedOn?: string;
-  /** Range labels (default the standard 0-30/31-60/61-90/91-120). */
+  /** Range labels (default 0-30/31-60/61-90/91-Above — range5 folds into the last bucket). */
   rangeLabels?: AgingRangeLabels;
   /** The "today" basis for the fallback due_date age (YYYY-MM-DD); defaults to today UTC. */
   today?: string;
@@ -99,29 +101,48 @@ function pick(row: Record<string, unknown>, ...keys: string[]): unknown {
   return undefined;
 }
 
-/** Parse the report response into party aging rows. Excludes summary/Total rows (party null/'Total'). */
+/**
+ * Parse the report response into PER-PARTY aging rows. Excludes summary/Total rows (party
+ * null/'Total').
+ *
+ * The v15 detail reports ('Accounts Payable'/'Accounts Receivable') return one row PER VOUCHER
+ * with `outstanding` + `range1..range5` — there is NO per-row `total`, NO `current`, and range5
+ * ('121-Above') exists beyond the four requested ranges (probed live 2026-07-13; pinned shape in
+ * the bench notes). So: aggregate vouchers per party, sum `outstanding` into the party total, and
+ * fold range5 into range4 (the snapshot's b_90_plus bucket is "91+ days", label '91-Above') so old
+ * debt never vanishes from the buckets. Legacy per-party summary keys (`total`/`current`) are kept
+ * as fallbacks for other report versions. Invariant (owned by AC-ENA-061 against the live bench):
+ * total reconciles with current + the four buckets.
+ */
 export function parseAgingReport(body: unknown): AgingRow[] {
   const env = unwrapMessage(body);
   const result = (env.result ?? env.data) as unknown;
   if (!Array.isArray(result)) return [];
-  const out: AgingRow[] = [];
+  const byParty = new Map<string, AgingRow>();
   for (const raw of result) {
     const row = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
     const party = toStr(pick(row, 'party', 'Party', 'supplier', 'customer'));
     if (!party || party === 'Total' || party === 'Grand Total') continue; // exclude summary rows
-    out.push({
+    const rec = byParty.get(party) ?? {
       party,
       partyType: toStr(pick(row, 'party_type', 'Party Type')),
       currency: toStr(pick(row, 'currency', 'Currency')),
-      total: toNum(pick(row, 'total', 'Total', 'outstanding_amount')),
-      current: toNum(pick(row, 'current', 'Current')),
-      range1: toNum(pick(row, 'range1', '0-30')),
-      range2: toNum(pick(row, 'range2', '31-60')),
-      range3: toNum(pick(row, 'range3', '61-90')),
-      range4: toNum(pick(row, 'range4', '91-120')),
-    });
+      total: 0,
+      current: 0,
+      range1: 0,
+      range2: 0,
+      range3: 0,
+      range4: 0,
+    };
+    rec.total += toNum(pick(row, 'outstanding', 'total', 'Total', 'outstanding_amount'));
+    rec.current += toNum(pick(row, 'current', 'Current'));
+    rec.range1 += toNum(pick(row, 'range1', '0-30'));
+    rec.range2 += toNum(pick(row, 'range2', '31-60'));
+    rec.range3 += toNum(pick(row, 'range3', '61-90'));
+    rec.range4 += toNum(pick(row, 'range4', '91-120')) + toNum(pick(row, 'range5', '121-Above'));
+    byParty.set(party, rec);
   }
-  return out;
+  return [...byParty.values()];
 }
 
 /** Days between two YYYY-MM-DD dates (today − due). Negative ⇒ not yet due. */

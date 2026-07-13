@@ -84,14 +84,28 @@ const AP_SCOPE = {
 };
 
 describe('erpnext/agingSnapshot — refreshAging PRIMARY (report RPC)', () => {
-  it('AC-ENA-060/061 mirrors the report buckets VERBATIM (current/range1..4/total) + stamps source_report/report_version/range_labels', async () => {
+  it('AC-ENA-060/061 aggregates the PER-VOUCHER v15 report rows per party (outstanding-summed total, range5 folded into b_90_plus) + stamps source_report/report_version/range_labels', async () => {
+    // The REAL pinned v15 detail-report row shape (bench notes, probed live 2026-07-13): one row PER
+    // VOUCHER with `outstanding` + `range1..range5` — NO `total`, NO `current`, NO `outstanding_amount`.
+    // The earlier fixture invented a per-party summary shape and masked a total_outstanding=0 +
+    // dropped-range5 bug that only the live bench exposed (AC-ENA-061 bucket-reconciliation failure).
+    const voucher = (over: Record<string, unknown>) => ({
+      voucher_type: 'Purchase Invoice', party: 'Spike Supplier', party_type: 'Supplier', currency: 'IDR',
+      outstanding: 0, range1: 0, range2: 0, range3: 0, range4: 0, range5: 0,
+      total_due: 0, invoice_grand_total: 0, paid: 0, credit_note: 0, age: 0,
+      ...over,
+    });
     const reportCalls: Record<string, unknown>[] = [];
     const fetchImpl = async (url: string, init?: RequestInit) => {
       reportCalls.push({ url, body: init?.body ? JSON.parse(String(init.body)) : null });
       return new Response(JSON.stringify(reportResponse([
-        { party: 'Spike Supplier', party_type: 'Supplier', currency: 'IDR', current: 0, range1: 50000, range2: 0, range3: 0, range4: 0, total: 50000 },
+        voucher({ voucher_no: 'PINV-1', outstanding: 50000, range1: 50000 }),
+        voucher({ voucher_no: 'PINV-2', outstanding: 30000, range3: 30000 }),
+        // 121-Above lands in range5 — must fold into b_90_plus, never vanish
+        voucher({ voucher_no: 'PINV-3', outstanding: 20000, range5: 20000 }),
+        voucher({ voucher_no: 'PINV-4', party: 'Other Supplier', outstanding: 7000, range2: 7000 }),
         // a summary Total row — must be EXCLUDED (party 'Total' / null)
-        { party: 'Total', party_type: null, currency: null, current: 0, range1: 50000, range2: 0, range3: 0, range4: 0, total: 50000 },
+        { party: 'Total', party_type: null, currency: null, range1: 50000, range2: 7000, range3: 30000, range4: 0, range5: 20000 },
       ])), { status: 200, headers: { 'Content-Type': 'application/json' } });
     };
     const svc = makeServiceClient([]);
@@ -101,18 +115,24 @@ describe('erpnext/agingSnapshot — refreshAging PRIMARY (report RPC)', () => {
     expect(reportCalls[0]?.url).toContain('/api/method/frappe.desk.query_report.run');
     expect(reportCalls[0]?.body).toMatchObject({ report_name: 'Accounts Payable', filters: { company: 'PMO Smoke Co', ageing_based_on: 'Due Date' } });
 
-    // snapshot mirrors the ONE party row verbatim (Total row excluded)
+    // ONE snapshot row per party (3 Spike vouchers aggregated; Total row excluded)
     expect(svc.inserted).toHaveLength(1);
-    const row = svc.inserted[0]![0]!;
-    expect(row).toMatchObject({
+    const rows = svc.inserted[0]! as Array<Record<string, unknown>>;
+    expect(rows).toHaveLength(2);
+    const spike = rows.find((r) => r.party === 'Spike Supplier')!;
+    expect(spike).toMatchObject({
       party: 'Spike Supplier', party_type: 'Supplier', currency: 'IDR',
-      total_outstanding: 50000, current: 0,
-      b_0_30: 50000, b_31_60: 0, b_61_90: 0, b_90_plus: 0,
+      total_outstanding: 100000, current: 0,
+      b_0_30: 50000, b_31_60: 0, b_61_90: 30000, b_90_plus: 20000,
       source_report: 'Accounts Payable', report_version: 'erpnext-15.94.3/frappe-15.96.0',
       ageing_based_on: 'Due Date', report_date: '2026-07-12',
     });
-    expect(row.range_labels).toEqual({ range1: '0-30', range2: '31-60', range3: '61-90', range4: '91-120' });
-    expect(typeof row.snapshot_id).toBe('string');
+    // the invariant the live bench enforces (AC-ENA-061): total reconciles with the buckets
+    const bucketSum = Number(spike.current) + Number(spike.b_0_30) + Number(spike.b_31_60) + Number(spike.b_61_90) + Number(spike.b_90_plus);
+    expect(Math.abs(Number(spike.total_outstanding) - bucketSum)).toBeLessThanOrEqual(0.01);
+    expect(rows.find((r) => r.party === 'Other Supplier')).toMatchObject({ total_outstanding: 7000, b_31_60: 7000 });
+    expect(spike.range_labels).toEqual({ range1: '0-30', range2: '31-60', range3: '61-90', range4: '91-Above' });
+    expect(typeof spike.snapshot_id).toBe('string');
   });
 
   it('on the primary path the mirrored-ledger fallback is NOT consulted (erp_payment_ledger_mirror is not read)', async () => {
