@@ -71,6 +71,18 @@ remains valid until token expiry** (≤ `jwt_expiry`, currently 3600s). Therefor
   explicit live check (either retain `getUser`, or local-verify + a targeted `profiles`/ban lookup)
   so a just-banned admin cannot drive a privileged action within the token window. The security-auditor
   signs off the choice per function.
+  > **Task-3 note (2026-07-13, `adapter-dispatch`).** The security audit initially flagged
+  > `adapter-dispatch` as needing a live ban check (it escalates to service_role for RLS-bypassing
+  > read-model writes + destructive ClickUp mutations). On verification this is already covered and it
+  > stays in the caller-JWT+RLS bucket: `adapter-dispatch` resolves the caller's org **through** the
+  > caller-JWT RLS `profiles` read, and `profiles_select` is conjoined with `is_active_member()`
+  > (`status='active'`) by mig `0063` (applied to EVERY business-table policy). So a just-disabled
+  > caller (`admin_set_user_status`, mig `0065`, sets `status='disabled'`) resolves **zero** rows there
+  > → the function's `!profile` → 400 fires and no service_role write runs (verified empirically: the
+  > disabled user's own `profiles` read returns `[]`). The RLS gating the org lookup **is** the
+  > active-member check — no `getUser` needed. Residual, app-wide (not unique to this function): a raw
+  > dashboard `banned_until`-only ban that leaves `status='active'` is outside the `is_active_member`
+  > model everywhere.
 
 ## Consequences
 
