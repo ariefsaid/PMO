@@ -6,8 +6,9 @@
  *
  * Responsibilities of this wrapper:
  *   1. Read the Authorization header; reject with 401 if absent.
- *   2. Verify the JWT using the service-role Supabase client
- *      (NFR-AS-SEC-002 — service_role ONLY for JWT verification, never business data).
+ *   2. Verify the caller JWT LOCALLY against the project JWKS (ADR-0057 — asymmetric ES256, no
+ *      auth.getUser round-trip). The service-role client is retained ONLY for the non-bypassable
+ *      rate-guard + error-event RPCs (NFR-AS-SEC-002 — service_role never touches business data).
  *   3. Build a SECOND caller-JWT Supabase client for business data (deputy auth,
  *      NFR-AS-SEC-001/006, FR-AS-010, ADR-0039 decision 2).
  *   4. Read OPENROUTER_API_KEY from Deno.env (function secret — NFR-MC-SEC-001).
@@ -29,6 +30,22 @@ import { resolveComposeModel } from '../_shared/modelResolution.ts';
 import { logStructuredError } from '../_shared/errorLog.ts';
 import { recordErrorEvent } from '../_shared/errorEvent.ts';
 import type { ComposeViewRequest } from '../../../pmo-portal/src/lib/agent/types.ts';
+import {
+  verifyCallerJwt,
+  bearerToken,
+  JwtVerifyError,
+  jwksFromUrl,
+  type JwksResolver,
+} from '../../../pmo-portal/src/lib/auth/verifyCallerJwt.ts';
+
+// ADR-0057: one cached, rate-limited JWKS resolver, memoized across warm invocations. Built lazily
+// (not at module load) so an empty SUPABASE_URL can't throw a URL error before the handler can return
+// a typed 500/401. `createRemoteJWKSet` fetches the ES256 public key on first verify and caches it.
+let _jwks: JwksResolver | null = null;
+function getJwks(supabaseUrl: string): JwksResolver {
+  if (!_jwks) _jwks = jwksFromUrl(`${supabaseUrl}/auth/v1/.well-known/jwks.json`);
+  return _jwks;
+}
 
 Deno.serve(async (req: Request): Promise<Response> => {
   // AUDIT quick-win (2026-07-07): same origin-narrowing seam as agent-chat/index.ts —
@@ -43,31 +60,44 @@ Deno.serve(async (req: Request): Promise<Response> => {
     return new Response('ok', { headers: corsHeaders });
   }
 
-  // ── 1. Read and validate the Authorization header ──────────────────────────
-  const authHeader = req.headers.get('Authorization');
-  if (!authHeader?.startsWith('Bearer ')) {
+  // ── 1. Read and validate the Authorization header (case-insensitive Bearer) ──
+  // Use the shared, unit-tested bearerToken parser (audit #2) — single source of truth for the parse.
+  const token = bearerToken(req.headers.get('Authorization'));
+  if (!token) {
     return new Response(
       JSON.stringify({ status: 401, error: 'UNAUTHORIZED', detail: 'missing Authorization header' }),
       { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     );
   }
-  const jwt = authHeader.slice(7); // strip "Bearer "
 
-  // ── 2. Verify JWT using service-role client (NFR-AS-SEC-002) ─────────────
-  // service_role is used ONLY here to call auth.getUser(jwt).
-  // NEVER used for business data queries (ADR-0039 decision 2).
-  const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+  // ── 2. Verify the caller JWT LOCALLY against the project JWKS (ADR-0057) ──
+  // Asymmetric ES256 signature check via the cached JWKS — no auth.getUser round-trip to GoTrue.
+  // compose-view's data path is caller-JWT + RLS (deputy client, step 3) and does NOT escalate to
+  // service_role, so local verification alone is sufficient here (ADR-0057 §Decision-3 — the
+  // banned-user staleness window is absorbed by RLS on every row). The service-role client is still
+  // built, but ONLY for the non-bypassable rate-guard + error-event RPCs below — never business data
+  // (NFR-AS-SEC-002 preserved). Any signature/expiry/issuer/audience/alg failure → a single typed 401.
+  // Normalize a possible trailing slash (audit #3) so the derived issuer/JWKS URL never doubles a
+  // slash — a malformed SUPABASE_URL would otherwise fail-closed the whole function.
+  const supabaseUrl = (Deno.env.get('SUPABASE_URL') ?? '').replace(/\/$/, '');
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
   const verifierClient = createClient(supabaseUrl, serviceRoleKey);
 
-  const { data: { user }, error: authError } = await verifierClient.auth.getUser(jwt);
-  if (authError || !user) {
+  let userId: string;
+  try {
+    const verified = await verifyCallerJwt(token, getJwks(supabaseUrl), {
+      issuer: Deno.env.get('SUPABASE_JWT_ISSUER') ?? `${supabaseUrl}/auth/v1`,
+      audience: 'authenticated', // pin at the call site (audit #1) — don't lean on the helper default
+      algorithms: ['ES256'],
+    });
+    userId = verified.sub;
+  } catch (err) {
+    const status = err instanceof JwtVerifyError ? err.status : 401;
     return new Response(
-      JSON.stringify({ status: 401, error: 'UNAUTHORIZED', detail: 'invalid JWT' }),
-      { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      JSON.stringify({ status, error: 'UNAUTHORIZED', detail: 'invalid JWT' }),
+      { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     );
   }
-  const userId = user.id;
 
   // ── 2b. Request-rate throttle (IG-audit 2026-07-10, migration 0091) ───────
   // Bounds how OFTEN one verified user may trigger a compose (model spend), independent of credits.
@@ -98,7 +128,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
   // RLS scopes it exactly as the human user.
   const anonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
   const callerClient = createClient(supabaseUrl, anonKey, {
-    global: { headers: { Authorization: `Bearer ${jwt}` } },
+    global: { headers: { Authorization: `Bearer ${token}` } },
   });
 
   // ── 4. Read the OpenRouter API key from function secrets (NFR-MC-SEC-001) ──
