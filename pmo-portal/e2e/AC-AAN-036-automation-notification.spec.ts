@@ -96,18 +96,25 @@ const APPROVE_SSE_FRAMES = buildSseBody([
   },
 ]);
 
-// IDs the beforeAll/journey steps fill in and afterAll cleans up.
+// IDs the journey (test body) fills in and afterEach cleans up.
 let annAutomationId: string | null = null;
 let annThreadId: string | null = null;
 let annRunId: string | null = null;
 let annNotificationId: string | null = null;
 
-test.afterAll(async () => {
+// afterEACH (not afterAll): the notification/thread/automation are inserted IN THE TEST BODY, so
+// cleanup must run per-attempt. Playwright does NOT re-run afterAll between retries — with afterAll,
+// a retry after any post-insert failure would leave the prior notification behind and the second
+// insert would make `getByText(NOTIFICATION_TITLE)` match 2 rows (strict-mode violation → the retry
+// fails deterministically too). Per-attempt cleanup + id reset keeps every attempt (and --repeat-each)
+// starting clean.
+test.afterEach(async () => {
   if (!SERVICE_KEY) return;
   const admin = createClient(SERVICE_URL, SERVICE_KEY);
   if (annNotificationId) await admin.from('notifications').delete().eq('id', annNotificationId);
   if (annThreadId) await admin.from('agent_threads').delete().eq('id', annThreadId); // cascades runs/events
   if (annAutomationId) await admin.from('agent_automations').delete().eq('id', annAutomationId);
+  annNotificationId = annThreadId = annRunId = annAutomationId = null;
 });
 
 test.describe('AC-AAN-036: create automation, simulated fire, notification, second user cannot see', () => {
@@ -143,7 +150,10 @@ test.describe('AC-AAN-036: create automation, simulated fire, notification, seco
 
     await signIn(page, ANN_EMAIL);
     await expect(page.getByRole('button', { name: 'Assistant' })).toBeVisible({ timeout: 10_000 });
-    await page.keyboard.press('Control+j');
+    // Open via CLICK (deterministic) not Ctrl+J: the hotkey's keydown listener attaches in a useEffect,
+    // so an early keypress is silently missed under CI load (the flake). The button's onClick is bound
+    // on render — no race (FR-AP-005 Assistant toggle; the hotkey has its own dedicated coverage).
+    await page.getByRole('button', { name: 'Assistant' }).click();
 
     const panel = page.getByRole('complementary', { name: /agent assistant/i });
     await expect(panel).toBeVisible({ timeout: 5_000 });
