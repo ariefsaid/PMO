@@ -1,4 +1,4 @@
--- 0095_erpnext_seam_tables.sql — ERPNext P2 seam generalization (slice 1, ADR-0055/ADR-0058).
+-- 0096_erpnext_seam_tables.sql — ERPNext P2 seam generalization (slice 1, ADR-0055/ADR-0058).
 -- Three machine-written tables (org_id seam, stamp_org_id() trigger, RLS) + two SECURITY DEFINER RPCs
 -- that are the ONLY non-service-role path to the outbox:
 --   external_org_bindings     — per-org ERPNext binding (site URL + resolved Company defaults; secret_ref

@@ -1,3 +1,4 @@
+// @e2e-isolation: read-only — signIn + page.route-mocked agent-chat (table widget SSE); no DB writes.
 /**
  * AC-AXP-011 - natural tabular phrasing surfaces a typed inline table.
  *

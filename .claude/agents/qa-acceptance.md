@@ -20,6 +20,7 @@ spec of *intended* behavior — **the app conforms to the test, never the test t
     downgrade "clicking Back navigates to the pipeline" to "a Back element exists", and never drop the
     end-state assertion (status reaches Paid; row leaves the approval queue; budget version is activated).
 - If unsure whether a failure is "intended UX change" vs "app bug", STOP and ask the Director — never guess.
+- **Every e2e spec you author declares `// @e2e-isolation: <class>` (read-only | self-isolated | dedicated-row | serial). Prefer self-isolated/dedicated-row; use `serial` (→ `e2e/serial/`) ONLY for genuinely org-global journeys. `check-e2e-isolation.sh` enforces it. Never weaken an oracle to fit a lane — dedicate data or serialize instead.**
 
 Inputs: the feature's spec (`docs/specs/<feature>.spec.md`) with its `AC-###` Given/When/Then criteria.
 

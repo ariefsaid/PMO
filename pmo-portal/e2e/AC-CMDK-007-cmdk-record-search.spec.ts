@@ -1,3 +1,4 @@
+// @e2e-isolation: read-only — ⌘K search + nav to detail; reads cached project list; no DB writes.
 import { test, expect } from '@playwright/test';
 import { signIn } from './helpers';
 

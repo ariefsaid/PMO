@@ -50,23 +50,53 @@ passed explicitly per-event.
 
 ## First-Slice Events
 
+`role` on most rows below is not a per-call argument — it rides the `role` super-property already
+registered by `AnalyticsProvider` at `identify()` (see Common Context above) and is attached to every
+event automatically. Facade helpers only take an explicit `role` where the underlying event builder was
+already defined with one (`empty_state_seen`).
+
+### Wired (calling the facade from a real UI boundary — 2026-07-13, `docs/plans/2026-07-13-wire-engagement-friction-events.md`)
+
+| Event | Purpose | Boundary | Safe properties |
+|---|---|---|---|
+| `demo_persona_selected` | Demo persona interest | `LoginPage` | `persona_role`, `demo_audience`, `demo_account` |
+| `app_route_viewed` | Navigation interest | `AnalyticsProvider` (every route change) | `route`, `module`, `role` |
+| `auth_login_succeeded` | Activation / session start | `AuthProvider` / `LoginPage` / `UpdatePasswordPage` | `method` |
+| `auth_login_failed` | Demo / auth friction | same as above | `method`, `reason_code` |
+| `auth_logout_succeeded` | Session end | `AuthProvider.signOut` | *(none — role rides the super-property)* |
+| `project_detail_opened` | Project interest | `pages/Projects.tsx` (table/cards/kanban/calendar) | `route` (pattern), `source` (`list`\|`card`) |
+| `project_tab_viewed` | Feature interest | `pages/project-detail/ProjectDetail.tsx` `setTab` | `tab_id` (SAFE_TAB_ID-normalized) |
+| `procurement_detail_opened` | Procurement interest | `pages/Procurement.tsx` (board) + `ProcurementListRow` (table) | `route` (pattern), `source` |
+| `filter_applied` | Workflow behavior | Companies / Projects (status, customer, PM) / Procurement / Incidents status filters | `filter_id`, `option_count`, `module` |
+| `search_used` | Discovery behavior | `SearchMini` (`src/components/ui/DataTable.tsx`), debounced 500ms/Enter | `search_surface`, `result_count`, `module` |
+| `coming_soon_clicked` | Demand signal | `VendorQuotesTab` (Attach file) + `ExecutiveDashboard` (Board pack) | `feature_id`, `module` |
+| `form_validation_failed` | UX friction | `useEntityForm.handleSubmit` (validation-fail branch) | `form_id`, `field_count`, `reason_code`, `module` |
+| `save_failed` | Reliability / UX friction | `useEntityForm.handleSubmit` (catch, when `onValid` rejects) — **wired but INERT, see note below** | `entity_type`, `operation`, `reason_code`, `module` |
+| `empty_state_seen` | Adoption / data gaps | `ListState` (`variant="empty"`, on mount) — instrumented on Companies, Projects, Procurement, Incidents, Contacts (the primary directory/list index pages; not every `ListState` empty render — see note) | `state_id`, `role`, `module` |
+
+**`empty_state_seen` coverage note (FIX 1, 2026-07-13):** the shared boundary lives in `ListState.tsx`
+and is opt-in (`stateId`/`role`/`module` all required to fire). It is currently wired only at the 5
+primary "no records at all" empty states listed above — `companies-empty`, `projects-empty`,
+`procurement-empty`, `incidents-empty`, `contacts-empty`. It is **not** wired at every `ListState
+variant="empty"` render in the app: DataTable's own internal "no results match your filters" empty
+render, and secondary list pages (SalesPipeline, MyTasks, Timesheets/ApprovalsQueue, AdminUsers, etc.)
+are still dark. Each is the same 3-line addition (`stateId`/`role={realRole}`/`module`) as a fast-follow.
+
+**`save_failed` is currently INERT — it does not fire in production today.** Two independent gaps, both
+required to close before it's real: (1) `useEntityForm.handleSubmit`'s catch only fires when the caller
+supplied BOTH `module` AND `entityType` — every existing form was threaded with `module` (for
+`form_validation_failed`) but **no call site passes `entityType`**, so the `if (module && entityType)`
+guard is never true. (2) even with `entityType` threaded, ~10 existing CRUD forms catch their own
+mutation error internally (`try { await onCreate(...) } catch (err) { onError(err) }`) before it would
+ever reach `useEntityForm`'s catch — the rejection never propagates that far. Fast-follow (deferred,
+NOT done in this slice): thread `entityType` into each `useEntityForm` call site, AND migrate each
+form's `onValid` to drop its own `try/catch` so the error actually propagates into the hook.
+
+### Defined (not yet wired to a UI call site)
+
 | Event | Purpose | Required safe properties |
 |---|---|---|
-| `demo_persona_selected` | Demo persona interest | `persona_role`, `demo_audience`, `demo_account` |
-| `app_route_viewed` | Navigation interest | `route`, `module`, `role` |
-| `auth_login_succeeded` | Activation / session start | `method`, `role` |
-| `auth_login_failed` | Demo / auth friction | `method`, `reason_code` |
-| `auth_logout_succeeded` | Session end | `role` |
-| `project_detail_opened` | Project interest | `route`, `role`, `source` |
-| `project_tab_viewed` | Feature interest | `tab_id`, `role` |
-| `procurement_detail_opened` | Procurement interest | `route`, `role`, `source` |
-| `filter_applied` | Workflow behavior | `filter_id`, `option_count`, `module` |
-| `search_used` | Discovery behavior | `search_surface`, `result_count`, `module` |
-| `coming_soon_clicked` | Demand signal | `feature_id`, `module` |
-| `form_validation_failed` | UX friction | `form_id`, `field_count`, `reason_code`, `module` |
-| `save_failed` | Reliability / UX friction | `entity_type`, `operation`, `reason_code`, `module` |
-| `permission_denied_seen` | Authz / product friction | `surface`, `role`, `module` |
-| `empty_state_seen` | Adoption / data gaps | `state_id`, `role`, `module` |
+| `permission_denied_seen` | Authz / product friction — **deferred, no UI boundary defined yet** | `surface`, `role`, `module` |
 
 Allowed values: enums, route patterns, role names, module ids, safe slugs, bounded counts/durations,
 status/reason codes, booleans.
@@ -127,13 +157,20 @@ npm run typecheck
 
 ## Dashboards
 
-PostHog dashboards are intentionally deferred. After the instrumentation PR emits real demo traffic,
-create a follow-up SDD issue for dashboard setup covering:
+Dashboards shipped in #303 (`scripts/posthog/provision-dashboards.mjs`) — dashboards-as-code, idempotent
+(upserted by name), grounded in the typed event catalog above. It provisions three PostHog dashboards
+(`[PMO] Agent · Adoption & Reliability`, `[PMO] Auth · Login Health`, `[PMO] Product · Usage & Friction`)
+covering the funnels/friction breakdowns this doc previously listed as deferred, and force-refreshes every
+provisioned insight (`?refresh=blocking`) after upsert so a freshly-provisioned dashboard never renders
+blank. Run it via `op-get.sh` (never hard-code the personal API key):
 
-- prospect-demo funnel: login persona selected -> route exploration -> detail/tab engagement
-- usability friction: validation failures, save failures, permission denied, empty states
-- demo account breakdown using `demo_audience` and `demo_account`
-- session replay review for prospect sessions only
+```bash
+POSTHOG_API_KEY=$(op-get.sh posthog-personal-api AS credential) \
+POSTHOG_PROJECT_ID=465502 \
+node scripts/posthog/provision-dashboards.mjs
+```
 
-Do not add dashboard provisioning, PostHog management API tokens, or paid Group Analytics to this
-instrumentation slice.
+For ad-hoc HogQL analysis outside the provisioned dashboards, use `scripts/posthog/query.mjs` (same auth:
+1Password `posthog-personal-api`, project 465502).
+
+Do not add PostHog management API tokens or paid Group Analytics beyond what's already provisioned.

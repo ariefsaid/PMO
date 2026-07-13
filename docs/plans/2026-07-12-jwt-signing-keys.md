@@ -18,11 +18,12 @@ ago). So the prod JWKS is live and **Level 2 is unblocked** — there is no pend
 - **Unblocked now:** Task 1 (pure helper + unit tests) — offline-verifiable against an ephemeral keypair.
 - **Unblocked (prod side):** Tasks 2–3 function code — the JWKS at `/auth/v1/.well-known/jwks.json`
   already serves the ES256 public key.
-- **Only remaining gate — OPTIONAL, for Task 2c integration test:** local-stack parity — the local
-  Supabase stack defaults to HS256, so to run the DB-backed Playwright proof against local you set
-  `signing_keys_path` in `config.toml` (needs the Supabase CLI, absent in the web sandbox → run
-  locally). Alternatively, run Task 2c's integration proof in the CI `integration` lane / against a
-  stack that mirrors prod's ES256. Not needed for Task 1.
+- **Local-stack parity — ALREADY SATISFIED (verified 2026-07-13, CLI 2.105).** The stale assumption
+  above (local defaults to HS256, needs a `signing_keys_path`) no longer holds: the current Supabase
+  CLI local stack signs session tokens with **ES256** out of the box — `/auth/v1/.well-known/jwks.json`
+  serves a live P-256 key and a real seed-user sign-in yields an `alg: ES256` token whose `iss`
+  (`http://127.0.0.1:54321/auth/v1`) + `aud` (`authenticated`) match the pilot's pins. **No
+  `signing_keys.json` / `config.toml` change is required.** Task 2c runs directly against `supabase start`.
 - **Housekeeping (owner, optional):** the retired Legacy HS256 key is safe to **revoke** now
   (`jwt_expiry`=3600s ≫ a month → no live HS256 tokens).
 
@@ -139,27 +140,72 @@ so each function pins its expected set rather than accepting any JWKS alg).
 caller JWT + RLS and it does **not** escalate to service_role, so the banned-user staleness window is
 absorbed by RLS. Lowest blast radius of the four.
 
-**2c. Verify:** local stack booted with signing keys live (owner step 1 done) →
-`scripts/with-db-lock.sh npx playwright test e2e/AC-JWT-005-compose-view-auth.spec.ts` proves the
-absent/garbage-bearer 401 parity and a valid-token happy path. Full `npm run verify` before PR.
+**2c. Verify — ✅ DONE (2026-07-13, local stack).** `e2e/AC-JWT-005-compose-view-auth.spec.ts`
+(API-level: no browser, isolates the gate) proves against the running local stack + real ES256
+tokens: absent bearer → typed 401, bad-signature bearer → typed 401 `invalid JWT`, valid ES256
+caller token → past the gate (never 401). 3/3 green (`--no-deps`; the spec needs no captured
+session). Raw-curl smoke corroborated: 401 / 401 / 502(missing-OPENROUTER, i.e. auth passed). Full
+`npm run verify` gate run before PR. Run locally with the stack env exported
+(`supabase status -o env`). **NOTE on CI:** the stock CI `integration` lane runs `supabase start`
+with `[edge_runtime] enabled = false` (config.toml — the local Deno image can't reach deno.land in
+CI), so compose-view is **not served there**; the spec probes the function (OPTIONS→200) and
+**skips cleanly when it isn't served**, so it runs for real wherever functions are up (local /
+prod-mirroring stack) and never red-flags a CI env that structurally can't host it.
 
 **Reviewers:** all three, **security-auditor mandatory** (auth-path change).
 
 ---
 
-## Task 3 — Extend per policy (BLOCKED; sequence after Task 2 merges)
+## Task 3 — Extend per policy — ✅ COMPLETE (2026-07-13)
 
 Function-by-function, each its own small PR + security-auditor pass, honoring ADR-0057 §Decision-3:
 
-- `adapter-dispatch` — caller-JWT + RLS path → local-verify (same shape as `compose-view`).
-- `agent-chat` — currently uses **service_role** solely for `getUser`. Switch to local-verify + a
-  targeted live check ONLY where it escalates; removing the service_role-for-auth call also tightens
-  NFR-AR-SEC-002 (service_role no longer touched on the pre-auth path).
-- `admin-invite-user` — escalates to service_role for issuance. **Keep a live check** (retain `getUser`
-  for the caller, or local-verify + `profiles` ban/role lookup) so a just-banned admin cannot issue
-  within the token window. Security-auditor decides which.
+- `adapter-dispatch` — ✅ DONE ([#320](https://github.com/ariefsaid/PMO/pull/320)). Local-verify for
+  `sub`; caller-JWT RLS `profiles` org lookup retained. Security-audited (HIGH raised → withdrawn): the
+  disabled-user window is already closed by mig `0063` (conjoins `is_active_member()` into
+  `profiles_select`), so a disabled caller resolves zero rows at the org lookup → `!profile` 400, no
+  write. Stays in the caller-JWT+RLS bucket; no `getUser`, no extra round-trip.
+- `agent-chat` — ✅ DONE ([#321](https://github.com/ariefsaid/PMO/pull/321)). Local-verify for `sub`,
+  replacing the **service-role** `getUser` (tightens NFR-AR-SEC-002 — service_role now only touches the
+  rate-guard + error-event RPCs). Security-audited (cleared): every agent-write + persistence write runs
+  under `callerClient`/RLS (is_active_member-gated), so a disabled caller is denied everywhere; the old
+  service-role `getUser` never checked `status` anyway — this removes a redundant round-trip, not a control.
+- `admin-invite-user` — ✅ DONE (decision: **retain `getUser`**, no code change). Its `getUser` already
+  runs under the **caller-JWT** client (not service_role — no NFR-AR-SEC-002 issue), and its
+  `authorizeInvite` runs under caller RLS (is_active_member-gated). ADR-0057 §Decision-3 explicitly
+  sanctions "retain `getUser`" for the service_role-escalating bucket; as the highest-privilege function
+  (creates auth users) the live GoTrue check (which also catches `banned_until`) is worth keeping and its
+  round-trip is negligible for an infrequent op. Reviewed and left as-is.
+- **Capstone — mig `0095`**: `is_active_member()` now also honors `auth.users.banned_until`, closing the
+  residual raw-`banned_until`-only-ban gap for ALL is_active_member-gated paths at once (incl. the three
+  local-verify'd functions above) — the correct single-locus fix, not a per-function `getUser`. pgTAP
+  `0141` proves a raw-banned active-status caller is denied while non-banned / expired-ban callers stay active.
 
-**Never** big-bang all four. Each function's live-check choice is recorded in its PR description.
+**Never** big-banged; each function landed as its own PR + audit.
+
+---
+
+## Prod rollout runbook (OWNER-GATED — do NOT run without a direct, per-instance owner instruction)
+
+All Task-3 work is on `dev`. It has **no prod effect** until (a) it is promoted to `main` and (b) the
+prod DB migration + edge-function redeploys below are run against the Supabase Cloud project. Order:
+
+1. **Promote `dev` → `main`** (Director-gated; the autonomous ceiling): open a `dev`→`main` PR, let the
+   `integration` lane (pgTAP + e2e + visual) run, merge (merge-commit) when green. This lands the code on
+   `main` only — still no prod effect.
+2. **Prod DB — migration `0095`** (owner-instructed): `scripts/db-push-prod.sh` (typed `prod` confirm +
+   explicit `--db-url`; never raw). This redefines `is_active_member()` app-wide in prod. LOW risk (seed/
+   real users have `banned_until = null` → unchanged), but it touches ~30 policies — smoke a normal login
+   right after. Reversible = restore the 0062 body (see mig 0095 header).
+3. **Prod edge functions — redeploy the local-verify'd ones** (owner-instructed): `supabase functions
+   deploy compose-view adapter-dispatch agent-chat`. Until redeployed, prod still runs the OLD `getUser`
+   versions (merging to `main` does NOT deploy functions). `admin-invite-user` is unchanged (no redeploy
+   needed). Requires the prod JWKS live (ES256 — already active) + the function secrets already set.
+4. **Post-deploy smoke** (the real integration proof — CI can't run edge functions, `edge_runtime` off):
+   with a real prod session token, POST each redeployed fn → assert **not 401** (past the local ES256
+   gate; prod `SUPABASE_URL` is a public URL so issuer/JWKS resolve, unlike the local functions-serve
+   artifact). Also confirm a no-auth / garbage-bearer request → 401. Roll back a fn with `supabase
+   functions deploy <fn>` from the prior commit if the smoke fails.
 
 ---
 

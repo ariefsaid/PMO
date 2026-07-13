@@ -1,3 +1,4 @@
+// @e2e-isolation: self-isolated — real Storage upload + agent_attachments INSERT per test run (unique thread); no explicit cleanup but per-run isolation via fresh thread.
 /**
  * AC-AT2-001 - User attaches a PDF and asks about it.
  *

@@ -562,6 +562,7 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
     },
     validate,
     idPrefix: 'task-form',
+    module: 'projects',
     // F8 (AC-IXD-FORM-F8): submit stays disabled until the required task name is present.
     requiredFields: ['name'],
   });

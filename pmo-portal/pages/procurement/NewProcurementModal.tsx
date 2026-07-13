@@ -64,6 +64,7 @@ export const NewProcurementModal: React.FC<NewProcurementModalProps> = ({
     idPrefix: 'new-pr',
     // F8 (AC-IXD-FORM-F8): submit stays disabled until the required title is present.
     requiredFields: ['title'],
+    module: 'procurement',
   });
 
   const title = form.fieldProps('title');

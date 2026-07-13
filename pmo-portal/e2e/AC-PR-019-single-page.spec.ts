@@ -27,6 +27,7 @@
  * AC-PR-022 partial cover: capture trigger is visible on the non-terminal case.
  * Full honest-doorway exercise (trigger → form → save) lives in AC-PR-020.
  */
+// @e2e-isolation: read-only — signIn + procurement detail page nav/assert on seeded cases; no DB writes.
 import { test, expect } from '@playwright/test';
 import { signIn } from './helpers';
 

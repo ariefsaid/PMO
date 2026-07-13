@@ -1,3 +1,4 @@
+// @e2e-isolation: self-isolated — creates unique project names (Date.now()), full CRUD journey creates/edits/archives own data; no seed coupling.
 import { test, expect, type Page } from '@playwright/test';
 import { login, pickComboboxOption, openPipelineCard } from './helpers';
 

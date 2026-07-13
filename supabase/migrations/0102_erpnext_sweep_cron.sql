@@ -1,4 +1,4 @@
--- 0101_erpnext_sweep_cron.sql — ERPNext P2, Slice 8, task 8.7 (AC-ENA-071, ADR-0055 §3).
+-- 0102_erpnext_sweep_cron.sql — ERPNext P2, Slice 8, task 8.7 (AC-ENA-071, ADR-0055 §3).
 -- pg_cron registration for the erpnext-sweep reconciliation tick (the convergence authority that
 -- catches webhook gaps + runs the ADR-0058 §Consequences outbox recovery pass). Mirrors migration
 -- 0094_clickup_sweep_cron.sql's corrected Vault pattern EXACTLY.

@@ -6,7 +6,7 @@
 
 ### ⚑⚑ ADAPTER PROGRAM (2026-07-13) — P0+P1 SHIPPED to dev; P2 ERPNext money core PR-READY
 - **✅ P2 BUILT + FULL BATTERY CLOSED** (branch `feat/erpnext-adapter-p2`, 132 commits, migs
-  `0093–0101`, 5 edge fns, live-bench-proven): 9 slices (served-fn e2e infra · fenced money outbox
+  `0093/0094 + 0096–0102`, 5 edge fns, live-bench-proven): 9 slices (served-fn e2e infra · fenced money outbox
   · tier core · parties · MR/RFQ/SQ · PO/GR · PI/PE full AP surface · aging/actuals · change-feed).
   Battery: Luna money audit **BLOCK→fixed→re-confirm→micro-fix** (double-pay C-1 → PE composite
   probe + `held` state, never auto-reissue; finalization TOCTOU → DB-side fenced RPC; sweep digest

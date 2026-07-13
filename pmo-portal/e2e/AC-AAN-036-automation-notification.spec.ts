@@ -1,3 +1,4 @@
+// @e2e-isolation: self-isolated — page.route-mocked agent-chat (create_automation propose→approve); service-role seeds automations/runs/events/notifications for admin@acme.test in beforeAll; afterAll cleanup; cross-user isolation asserted.
 /**
  * AC-AAN-036 — Create a scheduled automation via chat, a simulated fire produces a run + an
  * in-app notification; a second user never sees it (ADR-0044 Verification, the ONE curated e2e).

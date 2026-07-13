@@ -148,14 +148,14 @@ Operator, which no test-or-prod org is).
 | Slice | Scope (1 line) | ACs owned | Migrations | Tasks |
 |---|---|---|---|---|
 | **0** | Served-fn e2e infra: serve wrapper + CI lane + health gate + config.toml:410 comment fix + Docker-v15 bench docs + named fault seams in `adapter-dispatch` | (enables 010/013/040/050/051/052/053/061) | — | 0.1–0.8 |
-| **1** | Seam generalization: `idempotencyKey` on `AdapterCommand`; `external_org_bindings` + `external_command_outbox` + `external_ref_lineage`; money-dispatch + atomic recovery; multi-domain read-model-writer registry + resolver; `routeDomainWrite`; **byte-for-byte regression net EARLY** | 001,002,012,054 | `0095_erpnext_seam_tables.sql` | 1.1–1.14 |
+| **1** | Seam generalization: `idempotencyKey` on `AdapterCommand`; `external_org_bindings` + `external_command_outbox` + `external_ref_lineage`; money-dispatch + atomic recovery; multi-domain read-model-writer registry + resolver; `routeDomainWrite`; **byte-for-byte regression net EARLY** | 001,002,012,054 | `0096_erpnext_seam_tables.sql` | 1.1–1.14 |
 | **2** | ERPNext tier core: `erpnext/client.ts` (token auth, `exc_type`/`_server_messages` classifier incl. the 500-`TypeError` non-retryable bucket, 429/`Retry-After` backoff w/ no-blind-retry guard); doctype registry; version-handshake binding; decimal-string money shape; transition policy; lineage module | 011,020,021,022,023,030,031,073 | — | 2.1–2.16 |
-| **3** | Parties flip: Supplier + Customer(read-only) create/update + pull-adopt + ambiguous-match + collision-two-rows + `contacts` mirror + companies/contacts flip migration + pgTAP; supplier write-through served-fn e2e | 003(companies),040,041,042,072(companies) | `0096_companies_contacts_erpnext_flip.sql` | 3.1–3.12 |
-| **4** | MR + RFQ + Supplier Quotation: first submittable doctypes; procurement_items + purchase_requests + rfqs + procurement_quotations flip migration + pgTAP; one-selected invariant preserved; PR→MR + RFQ/SQ served-fn e2e | 003(procurement),050,051 | `0097_procurement_items_pr_rfq_sq_flip.sql` | 4.1–4.11 |
-| **5** | PO + GR: cross-doctype ref resolution incl. the PO item child-row `name`; purchase_orders + procurement_receipts flip migration + pgTAP; PO+GR served-fn e2e | 052 | `0098_purchase_orders_receipts_flip.sql` | 5.1–5.9 |
-| **6** | PI + Payment Entry + full AP command surface (R9 frozen): create/update-draft + submit/cancel/amend on PI; create+submit + cancel on PE; procurement_invoices + payments flip migration + pgTAP; **outbox-backed money e2e at the real boundary** (after-commit-before-mirror PE idempotency; PI recovery-adopt) | 053,072(money) | `0099_invoices_payments_flip.sql` | 6.1–6.14 |
-| **7** | Actuals + AP/AR aging read-only snapshots: report-RPC primary (pinned filters) + **mirrored-ledger** fallback over the `erp_gl_entry_mirror`/`erp_payment_ledger_mirror` read-model (never invoice-only math); 2 ledger-mirror tables + 3 snapshot tables + snapshot-replace + provenance; aging served-fn e2e | 060,061 | `0100_erp_accounting_snapshots.sql` | 7.1–7.9 |
-| **8** | Webhooks-as-hints + modified-poll sweep + cancel/amend lineage feed: `erpnext-webhook` (HMAC) ingress; `erpnext-sweep` (modified cursor, inclusive + dedupe); sweep cron; lineage wired into the apply path | 070,071 | `0101_erpnext_sweep_cron.sql` | 8.1–8.9 |
+| **3** | Parties flip: Supplier + Customer(read-only) create/update + pull-adopt + ambiguous-match + collision-two-rows + `contacts` mirror + companies/contacts flip migration + pgTAP; supplier write-through served-fn e2e | 003(companies),040,041,042,072(companies) | `0097_companies_contacts_erpnext_flip.sql` | 3.1–3.12 |
+| **4** | MR + RFQ + Supplier Quotation: first submittable doctypes; procurement_items + purchase_requests + rfqs + procurement_quotations flip migration + pgTAP; one-selected invariant preserved; PR→MR + RFQ/SQ served-fn e2e | 003(procurement),050,051 | `0098_procurement_items_pr_rfq_sq_flip.sql` | 4.1–4.11 |
+| **5** | PO + GR: cross-doctype ref resolution incl. the PO item child-row `name`; purchase_orders + procurement_receipts flip migration + pgTAP; PO+GR served-fn e2e | 052 | `0099_purchase_orders_receipts_flip.sql` | 5.1–5.9 |
+| **6** | PI + Payment Entry + full AP command surface (R9 frozen): create/update-draft + submit/cancel/amend on PI; create+submit + cancel on PE; procurement_invoices + payments flip migration + pgTAP; **outbox-backed money e2e at the real boundary** (after-commit-before-mirror PE idempotency; PI recovery-adopt) | 053,072(money) | `0100_invoices_payments_flip.sql` | 6.1–6.14 |
+| **7** | Actuals + AP/AR aging read-only snapshots: report-RPC primary (pinned filters) + **mirrored-ledger** fallback over the `erp_gl_entry_mirror`/`erp_payment_ledger_mirror` read-model (never invoice-only math); 2 ledger-mirror tables + 3 snapshot tables + snapshot-replace + provenance; aging served-fn e2e | 060,061 | `0101_erp_accounting_snapshots.sql` | 7.1–7.9 |
+| **8** | Webhooks-as-hints + modified-poll sweep + cancel/amend lineage feed: `erpnext-webhook` (HMAC) ingress; `erpnext-sweep` (modified cursor, inclusive + dedupe); sweep cron; lineage wired into the apply path | 070,071 | `0102_erpnext_sweep_cron.sql` | 8.1–8.9 |
 
 **AC-ENA-002** (zero-regression meta-AC) is the `npm run verify` + full pgTAP gate at the end of **every**
 slice — no single new test owns it. **Deviation note:** the spec/intake slice map split slice 8's lineage
@@ -500,9 +500,9 @@ returning 1` — affects **0 rows** (`is (count) 0`), while the same write-back 
 write-back cannot corrupt a row a reclaimer already owns.
 **Verify (RED):** `scripts/with-db-lock.sh supabase test db -- -f external_command_outbox_rls` → fails (table absent).
 
-### 1.8 — GREEN: migration `0095_erpnext_seam_tables.sql` (re-verify number first)
+### 1.8 — GREEN: migration `0096_erpnext_seam_tables.sql` (re-verify number first)
 
-**File:** `supabase/migrations/0095_erpnext_seam_tables.sql` (new). Three tables per spec §4.1/§4.2/§4.3 —
+**File:** `supabase/migrations/0096_erpnext_seam_tables.sql` (new). Three tables per spec §4.1/§4.2/§4.3 —
 all `org_id uuid not null default '…0001'` + `stamp_org_id()` BEFORE-INSERT trigger (0074 pattern), all
 machine-written (service-role write + org-member SELECT), each with a reversal block. Concretely:
 
@@ -924,9 +924,9 @@ the single OWNER of AC-ENA-072 is `erpnext_money_flip_rls.test.sql` (slice 6); t
 comment REFERENCES both (so `grep AC-ENA-072` finds it) but the slice-3 gate does not re-own them.
 **Verify (RED):** fails.
 
-### 3.5 — GREEN: migration `0096_companies_contacts_erpnext_flip.sql` (per-§7 enumeration)
+### 3.5 — GREEN: migration `0097_companies_contacts_erpnext_flip.sql` (per-§7 enumeration)
 
-**File:** `supabase/migrations/0096_companies_contacts_erpnext_flip.sql` (re-verify number). Mirrors the
+**File:** `supabase/migrations/0097_companies_contacts_erpnext_flip.sql` (re-verify number). Mirrors the
 **0093 per-command-RLS template**; each table below is enumerated per spec §7 (native / enhancement /
 trigger / grant / pgTAP).
 
@@ -1016,9 +1016,9 @@ This file REFERENCES AC-ENA-072 in its leading comment but does NOT own it (owne
 `erpnext_money_flip_rls.test.sql`).
 **Verify (RED):** fails.
 
-### 4.2 — GREEN: migration `0097_procurement_items_pr_rfq_sq_flip.sql` (per-§7 enumeration)
+### 4.2 — GREEN: migration `0098_procurement_items_pr_rfq_sq_flip.sql` (per-§7 enumeration)
 
-**File:** `supabase/migrations/0097_procurement_items_pr_rfq_sq_flip.sql` (re-verify number). 0093-template
+**File:** `supabase/migrations/0098_procurement_items_pr_rfq_sq_flip.sql` (re-verify number). 0093-template
 per-command RLS; per spec §7:
 - **`procurement_items`** — add `erp_line_amount numeric(14,2)` (the ERP line oracle — FR-ENA-071),
   `erp_docstatus smallint`, `erp_modified text`, `erp_amended_from text`, `erp_cancelled_at timestamptz`.
@@ -1088,7 +1088,7 @@ GREEN: the branches. **Verify:** `npx vitest run src/lib/repositories/procuremen
 
 **Goal:** PO + GR with cross-doctype ref resolution incl. the **PO item child-row `name`**. AC-ENA-052.
 
-### 5.1 — RED+GREEN: pgTAP `erpnext_po_receipts_flip_rls.test.sql` + migration `0098_purchase_orders_receipts_flip.sql` (per-§7)
+### 5.1 — RED+GREEN: pgTAP `erpnext_po_receipts_flip_rls.test.sql` + migration `0099_purchase_orders_receipts_flip.sql` (per-§7)
 
 **RED file** `supabase/tests/erpnext_po_receipts_flip_rls.test.sql` (new — §7 per-table proof, REFERENCES
 AC-ENA-072; does not own it). Per spec §7:
@@ -1099,7 +1099,7 @@ AC-ENA-072; does not own it). Per spec §7:
 - **`procurement_receipts`** — native mirrored: `gr_number`,`receipt_date`,`reference_number`,`po_id`,
   `erp_*`. User native write → `42501`; service-role → `lives_ok`; **`po_id` FK preserved (FR-ENA-130c)**;
   `procurement_receipt_status` enum derived. Trigger: `procurement_receipts_stamp_org_id` safe.
-**GREEN migration** `0098_purchase_orders_receipts_flip.sql` (re-verify number): add the `erp_*` cols to
+**GREEN migration** `0099_purchase_orders_receipts_flip.sql` (re-verify number): add the `erp_*` cols to
 both tables; 0093-template native-write gate via a `*_native_mirror_guard` trigger; grants as shipped;
 reversal block. Re-run RED → GREEN.
 **Verify:** pgTAP green; `db reset` clean.
@@ -1148,7 +1148,7 @@ RED: 1.1 test extended to assert flipped-org routing for PO/GR; non-flipped stil
 PI; create+submit + cancel on PE) + the **outbox-backed money e2e at the real served boundary** with the
 `after-commit-before-mirror` fault seam. AC-ENA-053 + the money-flip pgTAP (AC-ENA-072 money).
 
-### 6.1 — RED+GREEN: pgTAP `erpnext_money_flip_rls.test.sql` (**OWNS AC-ENA-072**) + migration `0099_invoices_payments_flip.sql` (per-§7)
+### 6.1 — RED+GREEN: pgTAP `erpnext_money_flip_rls.test.sql` (**OWNS AC-ENA-072**) + migration `0100_invoices_payments_flip.sql` (per-§7)
 
 **RED file** `supabase/tests/erpnext_money_flip_rls.test.sql` (new — the spec §9-named OWNER of
 **AC-ENA-072**; it consolidates the cross-table contract first asserted incrementally by the §7 per-table
@@ -1166,7 +1166,7 @@ user-JWT write to a native mirror col on `procurement_invoices.amount`, `purchas
 `companies.name` → `42501`; service-role writes succeed; a user write to an enhancement
 (`procurement_quotations.is_selected`, `companies.archived_at`) AND the `procurements` case aggregate still
 succeeds. (This single file owns the AC; the slice-3/4/5 §7 files reference it.)
-**GREEN migration** `0099_invoices_payments_flip.sql` (re-verify number): add the cols; 0093-template
+**GREEN migration** `0100_invoices_payments_flip.sql` (re-verify number): add the cols; 0093-template
 native-write gate via a `*_native_mirror_guard` trigger per table; grants as shipped; reversal block.
 Re-run RED → GREEN.
 **Verify:** pgTAP green; `db reset` clean.
@@ -1260,7 +1260,7 @@ prohibition). The ledger mirrors are a machine-written read-model fed by the swe
 signed spec's "sum **mirrored** ledger rows" (FR-ENA-150) and "bucket **mirrored** `GL Entry`/`Payment
 Ledger Entry` rows" (FR-ENA-162). AC-ENA-060/061.
 
-### 7.1 — RED+GREEN: migration `0100_erp_accounting_snapshots.sql` + pgTAP
+### 7.1 — RED+GREEN: migration `0101_erp_accounting_snapshots.sql` + pgTAP
 
 **Two ledger-mirror read-model tables + three snapshot tables** — all org-scoped, machine-written (service-
 role write + org-member SELECT), `org_id` default + `stamp_org_id()` trigger, reversal block.
@@ -1479,7 +1479,7 @@ advances monotonically, and a cancelled row (`is_cancelled=1`/`docstatus=2`) is 
 This is the **feed** that makes "mirrored ledger rows" (FR-ENA-150/162) real; actuals/aging read the mirror,
 never live ERP. **Verify (RED→GREEN):** `cd pmo-portal && npx vitest run src/lib/adapterSeam/erpnext/ledgerMirrorFeed.test.ts`.
 
-### 8.7 — migration `0101_erpnext_sweep_cron.sql` (mirror 0094)
+### 8.7 — migration `0102_erpnext_sweep_cron.sql` (mirror 0094)
 
 `pg_cron` schedule for `erpnext-sweep` (idle-until-configured — no employing org ⇒ no-op). Reversal: drop
 the schedule. **Verify:** `db reset` clean.

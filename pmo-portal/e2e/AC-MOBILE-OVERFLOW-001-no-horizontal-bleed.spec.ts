@@ -23,6 +23,7 @@
  * Each tab renders different content; ALL FOUR tabs must pass the no-bleed gate.
  * The old single `/procurement/:id` entry is replaced by four explicit tab entries.
  */
+// @e2e-isolation: read-only — viewport sweep + bleed measurement; login + nav to seeded routes; no DB writes.
 import { test, expect, type Page } from '@playwright/test';
 import { signIn } from './helpers';
 

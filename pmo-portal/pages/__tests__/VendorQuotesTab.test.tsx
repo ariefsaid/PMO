@@ -15,6 +15,9 @@ import { render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 
+const analytics = vi.hoisted(() => ({ trackComingSoonClicked: vi.fn() }));
+vi.mock('@/src/lib/analytics', () => ({ trackComingSoonClicked: analytics.trackComingSoonClicked }));
+
 // ── FK option hook stubbed (Combobox in the add form calls useVendorOptions)
 vi.mock('@/src/hooks/useFkOptions', () => ({
   useVendorOptions: () => ({
@@ -326,6 +329,23 @@ describe('AC-VQ-007: VendorQuotesTab — Add quotation affordance', () => {
       />,
     );
     expect(screen.queryByRole('button', { name: /add quotation/i })).not.toBeInTheDocument();
+  });
+});
+
+describe('coming_soon_clicked: the "Attach file (coming soon)" affordance (2026-07-13 wiring plan)', () => {
+  beforeEach(() => {
+    analytics.trackComingSoonClicked.mockClear();
+  });
+
+  it('AC: clicking the disabled affordance fires trackComingSoonClicked (demand signal)', async () => {
+    render(<VendorQuotesTab {...defaultProps} quotations={[]} canAdd />);
+    await userEvent.click(screen.getByRole('button', { name: /add quotation/i }));
+    const affordance = screen.getByTitle('File upload coming soon');
+    await userEvent.click(affordance);
+    expect(analytics.trackComingSoonClicked).toHaveBeenCalledWith(
+      'vendor-quote-file-upload',
+      'procurement',
+    );
   });
 });
 

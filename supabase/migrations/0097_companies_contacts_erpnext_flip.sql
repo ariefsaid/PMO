@@ -1,4 +1,4 @@
--- 0096_companies_contacts_erpnext_flip.sql
+-- 0097_companies_contacts_erpnext_flip.sql
 -- Purpose: the parties flip (Supplier + Customer(read-only) — OQ-4) onto `companies`/`contacts` with
 -- per-command RLS, per spec §7's exact per-table enumeration (task 3.5, AC-ENA-003(companies)/040/
 -- 041/042/072(companies) — this file itself does not OWN AC-ENA-003/072; the §7 per-table proof it

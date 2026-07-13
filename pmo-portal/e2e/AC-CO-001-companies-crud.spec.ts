@@ -1,3 +1,4 @@
+// @e2e-isolation: self-isolated — creates unique company name (Date.now()), CRUD journey creates/edits/archives own data; no seed coupling.
 import { test, expect, type Page } from '@playwright/test';
 import { login } from './helpers';
 

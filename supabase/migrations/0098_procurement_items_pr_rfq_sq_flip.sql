@@ -1,4 +1,4 @@
--- 0097_procurement_items_pr_rfq_sq_flip.sql
+-- 0098_procurement_items_pr_rfq_sq_flip.sql
 -- Purpose (AC-ENA-003(procurement)/050/051, spec §7): flip `procurement_items` + the `purchase_requests`/
 -- `rfqs`/`procurement_quotations` record tables to the externally-owned discipline while `procurement`
 -- is `erpnext`-owned for an org — mirror columns for the native ERP fields, and a per-table

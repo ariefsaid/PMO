@@ -1,6 +1,16 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import React, { StrictMode } from 'react';
+
+const analytics = vi.hoisted(() => ({
+  trackFormValidationFailed: vi.fn(),
+  trackSaveFailed: vi.fn(),
+}));
+vi.mock('@/src/lib/analytics', () => ({
+  trackFormValidationFailed: analytics.trackFormValidationFailed,
+  trackSaveFailed: analytics.trackSaveFailed,
+}));
+
 import { useEntityForm } from '../useEntityForm';
 
 // ---------------------------------------------------------------------------
@@ -274,5 +284,68 @@ describe('useEntityForm: submit gating', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe('useEntityForm: analytics (form_validation_failed / save_failed, 2026-07-13 wiring plan)', () => {
+  beforeEach(() => {
+    analytics.trackFormValidationFailed.mockClear();
+    analytics.trackSaveFailed.mockClear();
+  });
+
+  it('AC: fires form_validation_failed via the facade when submit is blocked by validation', async () => {
+    const onValid = vi.fn();
+    const { result } = renderHook(() =>
+      useEntityForm({ initialValues: init, validate, idPrefix: 'company-form', module: 'companies' }),
+    );
+    await act(async () => {
+      await result.current.handleSubmit(onValid);
+    });
+    expect(onValid).not.toHaveBeenCalled();
+    expect(analytics.trackFormValidationFailed).toHaveBeenCalledWith(
+      'company-form',
+      1,
+      'validation',
+      'companies',
+    );
+  });
+
+  it('does NOT fire form_validation_failed when no `module` option is given (opt-in tracking)', async () => {
+    const onValid = vi.fn();
+    const { result } = renderHook(() => useEntityForm({ initialValues: init, validate }));
+    await act(async () => {
+      await result.current.handleSubmit(onValid);
+    });
+    expect(analytics.trackFormValidationFailed).not.toHaveBeenCalled();
+  });
+
+  it('AC: fires save_failed via the facade + rethrows when onValid rejects, using the caller operation', async () => {
+    const err = Object.assign(new Error('duplicate'), { code: '23505' });
+    const onValid = vi.fn().mockRejectedValue(err);
+    const { result } = renderHook(() =>
+      useEntityForm({ initialValues: init, validate, module: 'companies', entityType: 'company' }),
+    );
+    act(() => result.current.setValue('name', 'Harborside'));
+    await expect(
+      act(async () => {
+        await result.current.handleSubmit(onValid, 'update');
+      }),
+    ).rejects.toThrow('duplicate');
+    expect(analytics.trackSaveFailed).toHaveBeenCalledWith('company', 'update', '23505', 'companies');
+    expect(result.current.isSubmitting).toBe(false);
+  });
+
+  it('does NOT fire save_failed when module/entityType options are omitted (still rethrows + resets isSubmitting)', async () => {
+    const err = new Error('boom');
+    const onValid = vi.fn().mockRejectedValue(err);
+    const { result } = renderHook(() => useEntityForm({ initialValues: init, validate }));
+    act(() => result.current.setValue('name', 'Harborside'));
+    await expect(
+      act(async () => {
+        await result.current.handleSubmit(onValid);
+      }),
+    ).rejects.toThrow('boom');
+    expect(analytics.trackSaveFailed).not.toHaveBeenCalled();
+    expect(result.current.isSubmitting).toBe(false);
   });
 });

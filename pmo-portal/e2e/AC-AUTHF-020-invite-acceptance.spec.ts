@@ -1,3 +1,4 @@
+// @e2e-isolation: self-isolated — creates unique invitee email (Date.now()), cleans up user+profile in finally.
 import { test, expect } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
 import { clearMailpit, pollMailpitForAuthLink, requireServiceRoleKey } from './helpers';

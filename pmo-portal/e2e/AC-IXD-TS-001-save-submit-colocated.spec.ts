@@ -1,3 +1,4 @@
+// @e2e-isolation: self-isolated — dedicated engineer ts-colocated-eng@acme.test (seed profile b3, no other spec touches), steps to empty week + fills hours + saves + submits; own timesheet space.
 import { test, expect, type Page } from '@playwright/test';
 import { login } from './helpers';
 

@@ -1,4 +1,4 @@
--- 0099_invoices_payments_flip.sql (ERPNext P2, Slice 6, task 6.1)
+-- 0100_invoices_payments_flip.sql (ERPNext P2, Slice 6, task 6.1)
 -- Generalizes the external-ownership flip (0093 per-command-RLS template, 0098 money-doc form) onto
 -- `procurement_invoices` + `payments` for the `procurement` domain (AC-ENA-072 — this slice's
 -- erpnext_money_flip_rls.test.sql owns that AC). Adds the erp_* mirror columns (PI also gets

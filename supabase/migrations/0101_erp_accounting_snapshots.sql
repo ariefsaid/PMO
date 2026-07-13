@@ -1,4 +1,4 @@
--- 0100_erp_accounting_snapshots.sql — ERPNext P2, Slice 7, task 7.1 (ADR-0048 ledger-sourced).
+-- 0101_erp_accounting_snapshots.sql — ERPNext P2, Slice 7, task 7.1 (ADR-0048 ledger-sourced).
 -- The read-only accounting read-model: two machine-written LEDGER-MIRROR tables (the mirrored-rows
 -- basis FR-ENA-150/162 require — fed by the slice-8 sweep from ERPNext `GL Entry` / `Payment Ledger
 -- Entry` truth) + three SNAPSHOT tables (actuals + AP/AR aging, spec §4.4) that the refreshers in

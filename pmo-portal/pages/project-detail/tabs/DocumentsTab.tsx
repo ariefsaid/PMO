@@ -897,6 +897,7 @@ const DocumentFormModal: React.FC<DocumentFormModalProps> = ({
     },
     validate,
     idPrefix: 'document-form',
+    module: 'projects',
     // F8 (AC-IXD-FORM-F8): submit stays disabled until the required title + category
     // are present (category defaults to a value, so the title is the live gate).
     requiredFields: ['title', 'category'],

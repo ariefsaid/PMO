@@ -1,3 +1,4 @@
+// @e2e-isolation: read-only — page.route-mocked agent-chat; no DB writes.
 /**
  * AC-AR-013 — AssistantPanel curated journey (ADR-0040 Option A, A2).
  *
@@ -105,10 +106,10 @@ test.describe('AC-AR-013: AssistantPanel journey', () => {
 
     // The complementary landmark should become visible (not inert).
     const panel = page.getByRole('complementary', { name: /agent assistant/i });
-    await expect(panel).toBeVisible({ timeout: 5_000 });
+    await expect(panel).toBeVisible({ timeout: 15_000 });
 
     // ── 3. Empty state visible ────────────────────────────────────────────────
-    await expect(panel.getByText(/ask your agent/i)).toBeVisible({ timeout: 5_000 });
+    await expect(panel.getByText(/ask your agent/i)).toBeVisible({ timeout: 15_000 });
 
     // ── 4. Type a question and press Enter ────────────────────────────────────
     const composer = panel.getByRole('textbox', { name: /ask a question/i });

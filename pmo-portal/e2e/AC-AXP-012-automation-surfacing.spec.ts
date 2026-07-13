@@ -1,3 +1,4 @@
+// @e2e-isolation: read-only — signIn + page.route-mocked agent-chat (automation approval SSE); no DB writes.
 /**
  * AC-AXP-012 - recurring phrasing surfaces the automation approval flow.
  *

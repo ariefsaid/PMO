@@ -12,6 +12,7 @@ import type { ProjectHeaderInput, ProjectWithRefs } from '@/src/lib/db/projects'
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { usePermission } from '@/src/auth/usePermission';
 import { useAgentContext } from '@/src/lib/agent/context/useAgentContext';
+import { trackProjectTabViewed } from '@/src/lib/analytics';
 import ProjectDetailHeader, { hasFinanceView } from './ProjectDetailHeader';
 import PipelineLens from './PipelineLens';
 import MilestoneStrip from './MilestoneStrip';
@@ -116,7 +117,10 @@ const ProjectDetail: React.FC = () => {
   // the Overview tab's "Financial summary" aside (header stays delivery-meta). This still keys on
   // role — but only the finance-summary PLACEMENT, never the default tab (CW-7).
   const isDeliveryForward = !hasFinanceView(realRole);
-  const setTab = (next: PTab) => navigate(`/projects/${projectId}/${next}`, { replace: true });
+  const setTab = (next: PTab) => {
+    trackProjectTabViewed(next);
+    navigate(`/projects/${projectId}/${next}`, { replace: true });
+  };
 
   // Back to the Projects index — a plain navigate, no tab (AC-NAV-007). The
   // breadcrumb resolves the record name from the cached list in App.tsx, so no

@@ -1,3 +1,4 @@
+// @e2e-isolation: read-only — signIn + page.route-mocked agent-chat (summary SSE + context assertion); no DB writes.
 /**
  * AC-AXP-016 - "summarize this" on a project detail page carries route entity context.
  */

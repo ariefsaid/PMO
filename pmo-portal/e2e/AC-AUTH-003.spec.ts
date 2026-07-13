@@ -1,3 +1,4 @@
+// @e2e-isolation: read-only — real password login + nav assertion; no DB writes.
 import { test, expect } from '@playwright/test';
 import { SEED_PASSWORD } from './helpers';
 

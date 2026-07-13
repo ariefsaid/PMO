@@ -42,6 +42,34 @@ recur and never needs re-explaining). The graduation step is the point of the wh
 **Demoted to fallback (NOT deleted — `review mode` switch above reverts in one edit):** narrative 4-lens ×2 battery; full-lens audit of the static mockup.
 **Kept (right-sized):** 3 code reviewers; intake grill; mockup = 30-sec owner sketch-glance only.
 
+### e2e parallel-isolation contract
+
+Every Playwright e2e spec declares an isolation class on line 1:
+`// @e2e-isolation: read-only | self-isolated | dedicated-row | serial`.
+
+**4 classes**
+| Class | Lane | Writes? | Typical |
+|---|---|---|---|
+| read-only | `chromium` (workers:4) | No (mocks only) | Pure nav/assert, mocked agent, visual/a11y |
+| self-isolated | `chromium` (workers:4) | Yes — unique names + cleanup | CRUD create+delete, view-builder save |
+| dedicated-row | `chromium` (workers:4) | Yes — owns a dedicated seed row | Procurement on PROC-2026-006, S-curve on P011 |
+| serial | `serial` (workers:1) | Yes — org-global state | ClickUp webhook, ENT toggle, admin users, budget activate |
+
+**Enforcement:** `scripts/check-e2e-isolation.sh` runs in `npm run verify` and in **all 3 CI jobs** (verify, pgTAP, integration) — fails on missing tag, lane mismatch, `read-only` writes, or non-serial writes to shared seed IDs.
+
+**Two-lane run** (from `pmo-portal/`):
+```bash
+npm run e2e
+# => playwright test --project=chromium && playwright test --project=serial --workers=1
+```
+Locally with CI parity (DB lock + `.env.local`): `scripts/e2e-local.sh` from repo root.
+
+**Design doc:** `docs/superpowers/specs/2026-07-11-e2e-parallel-isolation-design.md`
+**Plan:** `docs/superpowers/plans/2026-07-11-e2e-parallel-isolation.md`
+**README:** `pmo-portal/e2e/README.md` (pick-your-class table + guard + two-lane run)
+
+**Note — community-standard alternative for full parallelism:** if the serial lane ever grows, the textbook option is **per-worker `workerIndex` data isolation** (each worker seeds/owns its own org/project/user slice via `testInfo.workerIndex`). This avoids a serial lane entirely but requires seed refactoring; today the 5-spec serial lane is small and stable, so the two-lane contract is the pragmatic choice.
+
 ## Defect class → single owner (no double-coverage)
 
 | Defect class | Owner |

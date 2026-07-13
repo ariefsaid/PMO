@@ -1,4 +1,4 @@
--- 0098_purchase_orders_receipts_flip.sql (ERPNext P2, Slice 5, task 5.1)
+-- 0099_purchase_orders_receipts_flip.sql (ERPNext P2, Slice 5, task 5.1)
 -- Generalizes the external-ownership flip (0093 per-command-RLS template) onto `purchase_orders` +
 -- `procurement_receipts` for the `procurement` domain (AC-ENA-052). Adds the erp_* mirror columns,
 -- gates native writes while `procurement` is externally-owned, and — because both tables' real user

@@ -24,6 +24,7 @@ import { usePermission } from '@/src/auth/usePermission';
 import { useProcurements } from '@/src/hooks/useProcurements';
 import { useCreateProcurement } from '@/src/hooks/useProcurementCrud';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { trackProcurementDetailOpened, trackFilterApplied } from '@/src/lib/analytics';
 import { NewProcurementModal } from './procurement/NewProcurementModal';
 import { ProcurementListRow } from './procurement/ProcurementListRow';
 import { formatCurrency } from '@/src/lib/format';
@@ -182,7 +183,12 @@ const ProcurementPage: React.FC = () => {
       .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
   }, [all, search, filter]);
 
-  const onOpen = (p: ProcurementWithRefs) => openPR(navigate, p);
+  // Board view opens a PR from a card-shaped surface; the table view's row click lives
+  // in ProcurementListRow (its own boundary — 'list' source).
+  const onOpen = (p: ProcurementWithRefs) => {
+    trackProcurementDetailOpened('/procurement/:procurementId', 'card');
+    openPR(navigate, p);
+  };
 
   const columns: Column<ProcurementWithRefs>[] = [
     {
@@ -291,7 +297,10 @@ const ProcurementPage: React.FC = () => {
               <ViewToggle<StatusFilter>
                 options={FILTERS.map((f) => ({ value: f, label: f }))}
                 value={filter}
-                onChange={setFilter}
+                onChange={(v) => {
+                  setFilter(v);
+                  trackFilterApplied('status', FILTERS.length, 'procurement');
+                }}
                 ariaLabel="Status filter"
               />
             </div>
@@ -308,6 +317,9 @@ const ProcurementPage: React.FC = () => {
             aria-label="Filter requests"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
+            searchSurface="procurement-list"
+            module="procurement"
+            resultCount={filtered.length}
             containerClassName="max-sm:basis-full max-sm:w-full max-sm:min-w-0"
           />
         )
@@ -376,6 +388,9 @@ const ProcurementPage: React.FC = () => {
           icon="cart"
           title={ownScoped ? "You haven't raised any requests yet" : 'No purchase requests yet'}
           sub="Requests you raise will appear here through their full lifecycle."
+          stateId="procurement-empty"
+          role={realRole ?? undefined}
+          module="procurement"
           action={
             canCreate ? { label: 'Raise request', onClick: () => setShowNew(true) } : undefined
           }
