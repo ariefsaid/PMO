@@ -1,3 +1,4 @@
+// @e2e-isolation: dedicated-row — owns P012 (40000000-...-012); dedicated expendable Tender Submitted seed row.
 import { test, expect } from '@playwright/test';
 import { login, openPipelineCard } from './helpers';
 

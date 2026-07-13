@@ -43,13 +43,23 @@ export default defineConfig({
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
       dependencies: ['setup'],
-      testIgnore: /auth\.setup\.ts/,
+      // Exclude the setup file AND the serial lane — the serial project owns e2e/serial/**.
+      testIgnore: [/auth\.setup\.ts/, /e2e\/serial\//],
+    },
+    {
+      // @e2e-isolation: serial lane — org-global specs. Run in a SECOND invocation at --workers=1
+      // (see the `e2e` npm script) so these never overlap the parallel batch or each other.
+      name: 'serial',
+      use: { ...devices['Desktop Chrome'] },
+      dependencies: ['setup'],
+      testMatch: /e2e\/serial\/.*\.spec\.ts/,
+      fullyParallel: false,
     },
   ],
   webServer: {
     command: 'npm run dev',
     url: 'http://localhost:3000',
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: true,
     timeout: 120_000,
   },
 });

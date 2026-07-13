@@ -33,6 +33,7 @@
  *
  * Platform note: Linux CI uses Ctrl+J (Control+j) since Meta is not available.
  */
+// @e2e-isolation: read-only — page.route-mocked agent-chat + projects + user_views; no live DB writes.
 import { test, expect } from '@playwright/test';
 import type { CompositionSpec } from '../src/lib/viewspec/types';
 import { signIn } from './helpers';

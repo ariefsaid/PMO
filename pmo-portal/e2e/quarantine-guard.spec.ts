@@ -1,3 +1,4 @@
+// @e2e-isolation: read-only — validates QUARANTINE markers in e2e spec files; no DB, no UI navigation.
 import { test, expect } from '@playwright/test';
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';

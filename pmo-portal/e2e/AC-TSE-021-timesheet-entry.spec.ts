@@ -1,3 +1,4 @@
+// @e2e-isolation: self-isolated — dedicated engineer tse-021-eng@acme.test + own week; self-cleans.
 import { test, expect, type Page } from '@playwright/test';
 import { login } from './helpers';
 
@@ -17,11 +18,15 @@ import { login } from './helpers';
 // Seed-collision guard (binding): AC-911 operates on the seeded 2026-06-01 Draft sheet.
 // This journey steps FORWARD from today until it finds an empty editable grid, then
 // builds fresh on "Acme Internal Platform" (not present in the seeded 2026-06-01 week).
+//
+// ISOLATION FIX (Task 3c): uses dedicated engineer tse-021-eng@acme.test (seed profile c1)
+// with its own per-week timesheet space, so it never collides with the shared
+// engineer@acme.test or AC-IXD-TS-001's ts-colocated-eng@acme.test.
 
 // Increase the per-test timeout: the journey has 9 steps with real DB round-trips.
 test.setTimeout(120_000);
 
-const ENGINEER = 'engineer@acme.test';
+const ENGINEER = 'tse-021-eng@acme.test';
 const PROJECT_NAME = 'Acme Internal Platform';
 
 /** Navigate forward week-by-week until the grid is empty (no rows) and editable. */

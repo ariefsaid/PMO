@@ -14,6 +14,7 @@
  *
  * Uses @axe-core/playwright (installed as a dev dependency).
  */
+// @e2e-isolation: read-only — signIn + procurement tabbed page axe scan on seeded case; no DB writes.
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { signIn } from './helpers';

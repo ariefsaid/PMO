@@ -1,3 +1,4 @@
+// @e2e-isolation: dedicated-row — owns Grace (ts-approve-eng@) + Heidi (ts-approve-mgr@) dedicated seed actors + Grace's dedicated Draft timesheet; no other spec mutates them.
 import { test, expect } from '@playwright/test';
 import { login } from './helpers';
 

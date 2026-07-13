@@ -1,6 +1,8 @@
 import React from 'react';
 import { Navigate } from 'react-router-dom';
 import { useFeature } from '@/src/auth/useFeature';
+import { useOrgFeatures } from '@/src/hooks/useOrgFeatures';
+import { isCoreFeature } from '@/src/lib/features';
 import type { EntitleableKey } from '@/src/lib/features';
 
 /**
@@ -14,10 +16,24 @@ import type { EntitleableKey } from '@/src/lib/features';
  *
  * UX-only: this hides a route, it does NOT protect the module's data (its tables/RPCs remain
  * reachable by direct API until server-enforced — ADR-0049).
+ *
+ * FIX (AC-ENT-005): while the org-features query is loading for a non-core feature,
+ * render null (stay put, no redirect, no element) to avoid the flash-redirect race.
+ * Core features (projects/dashboard/approvals/administration) render immediately.
  */
 export const FeatureRoute: React.FC<{
   feature: EntitleableKey;
   element: React.ReactNode;
   redirectTo?: string;
-}> = ({ feature, element, redirectTo = '/' }) =>
-  useFeature(feature) ? <>{element}</> : <Navigate to={redirectTo} replace />;
+}> = ({ feature, element, redirectTo = '/' }) => {
+  const { isLoading } = useOrgFeatures();
+  const enabled = useFeature(feature);
+
+  // Core features are always enabled and render immediately (AC-ENT-002).
+  // For non-core features, wait for the org-features query to resolve before deciding.
+  if (!isCoreFeature(feature) && isLoading) {
+    return null;
+  }
+
+  return enabled ? <>{element}</> : <Navigate to={redirectTo} replace />;
+};

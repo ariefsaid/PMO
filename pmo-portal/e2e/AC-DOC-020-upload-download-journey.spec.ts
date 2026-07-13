@@ -1,3 +1,4 @@
+// @e2e-isolation: self-isolated — unique doc title/code (Date.now()), PM uploads/downloads/replaces/previews own file; no seed coupling.
 import { test, expect } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
 import { execSync } from 'node:child_process';

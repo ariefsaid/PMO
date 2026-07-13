@@ -1,3 +1,4 @@
+// @e2e-isolation: read-only — unauth navigation/assert; no login, no DB writes.
 import { test, expect } from '@playwright/test';
 
 // AC-AUTH-001 + AC-AUTH-002 — unauth users are guarded to /login (curated journey).

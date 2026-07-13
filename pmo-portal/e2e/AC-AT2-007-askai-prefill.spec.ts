@@ -1,3 +1,4 @@
+// @e2e-isolation: read-only — signIn + page.route-mocked agent-chat; no DB writes.
 /**
  * AC-AT2-007 - Cmd+K Ask AI opens the panel pre-filled and does not auto-send.
  *

@@ -1,3 +1,4 @@
+// @e2e-isolation: read-only — unauth footer link navigation; no login, no DB writes.
 import { test, expect } from '@playwright/test';
 
 /**

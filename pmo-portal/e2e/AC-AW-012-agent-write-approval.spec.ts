@@ -1,3 +1,4 @@
+// @e2e-isolation: read-only — page.route-mocked agent-chat SSE; no DB writes.
 /**
  * AC-AW-012 — Agent write-action: propose → ApprovalChip → Approve → write reflected.
  *             + Deny negative: chip shows "Denied"; no write result frame sent.

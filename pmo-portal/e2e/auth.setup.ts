@@ -28,6 +28,8 @@ const SEED_EMAILS = [
   'ts-approve-eng@acme.test',
   'ts-approve-mgr@acme.test',
   'ts-colocated-eng@acme.test',
+  // Dedicated engineer for AC-TSE-021's isolated timesheet journey (supabase/seed.sql §D).
+  'tse-021-eng@acme.test',
   // Seeded Platform Operator (supabase/seed.sql §U, ADR-0049) — used by AC-ENT-005 / AC-CRE-004.
   'operator@pmo.test',
 ] as const;

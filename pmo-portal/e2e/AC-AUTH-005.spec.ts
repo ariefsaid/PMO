@@ -1,3 +1,4 @@
+// @e2e-isolation: read-only — magic-link login + nav assertion; reads Mailpit (no DB writes).
 import { test, expect, request } from '@playwright/test';
 
 // AC-AUTH-005 — Magic-link login completes via local inbox (FR-AUTH-022)

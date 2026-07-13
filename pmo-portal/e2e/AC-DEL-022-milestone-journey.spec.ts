@@ -1,3 +1,4 @@
+// @e2e-isolation: dedicated-row — owns P013; beforeEach resets to empty (retry-safe).
 import { test, expect } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
 import { login, requireServiceRoleKey } from './helpers';

@@ -1,3 +1,4 @@
+// @e2e-isolation: dedicated-row — owns task 81000000-0000-0000-0000-000000000019 on SP-2401; no other spec reads it.
 import { test, expect } from '@playwright/test';
 import { signIn } from './helpers';
 
@@ -27,17 +28,8 @@ import { signIn } from './helpers';
  * 0→first-point, which is consistent with the spec's "line endpoint value
  * matches the gauge" invariant (NFR-SCA-001).
  *
- * Oracle:
- *   - Capture "Actual to date N%" from the S-curve figcaption BEFORE completing
- *     the task.
- *   - Complete one In-Progress task on the Tasks tab.
- *   - Re-navigate to the Overview tab.
- *   - Assert the new "Actual to date M%" is strictly greater than N.
- *   - Assert the figure's aria-label also reflects M% (line-endpoint = gauge,
- *     NFR-SCA-001).
- *
- * Task chosen: "PROC — Panel & Inverter Procurement" (In Progress, milestone
- * Procurement, seed ID 81000000-0000-0000-0000-000000000008).  The task is
+ * Task chosen: "PROC — AC-SCA-014 Dedicated Procurement Task" (In Progress, milestone
+ * Procurement, seed ID 81000000-0000-0000-0000-000000000019).  The task is
  * undisputedly In Progress at seed-reset time, is wired to a weighted milestone
  * with target_date, and its completion adds a new actual point.
  */
@@ -45,7 +37,7 @@ import { signIn } from './helpers';
 test.setTimeout(120_000);
 
 const PROJECT_ID = '41000000-0000-0000-0000-000000000001';
-const IN_PROGRESS_TASK_NAME = 'PROC — Panel & Inverter Procurement';
+const IN_PROGRESS_TASK_NAME = 'PROC — AC-SCA-014 Dedicated Procurement Task';
 
 /**
  * Parse "actual to date N%" from the S-curve figure aria-label or figcaption.

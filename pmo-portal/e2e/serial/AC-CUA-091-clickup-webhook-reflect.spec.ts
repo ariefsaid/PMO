@@ -1,3 +1,4 @@
+// @e2e-isolation: serial — mutates org-global state (see design 2026-07-11-e2e-parallel-isolation).
 /**
  * AC-CUA-091 — Webhook-driven read-model update reflected in the UI (the inbound half).
  *
@@ -26,7 +27,7 @@
 import { test, expect } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
 import { createHmac, timingSafeEqual } from 'node:crypto';
-import { signIn } from './helpers';
+import { signIn } from '../helpers';
 
 test.setTimeout(120_000);
 

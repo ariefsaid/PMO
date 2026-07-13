@@ -1,3 +1,4 @@
+// @e2e-isolation: self-isolated — unique case titles (Date.now()), upload cycle xlsx → preview → confirm; both cases created in-test via import RPC; no seed coupling.
 /**
  * AC-IMP-CYCLE-001 — Procurement-cycle bulk import: curated cross-stack journey (ADR-0035 M5).
  *

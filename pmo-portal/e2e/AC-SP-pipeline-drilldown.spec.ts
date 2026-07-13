@@ -1,3 +1,4 @@
+// @e2e-isolation: read-only — signIn + pipeline kanban/table + detail page nav/assert on dedicated P011; no DB writes.
 import { test, expect } from '@playwright/test';
 import { signIn, openPipelineCard } from './helpers';
 

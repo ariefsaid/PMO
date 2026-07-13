@@ -1,3 +1,4 @@
+// @e2e-isolation: self-isolated — updates seeded engineer@acme.test task 'Fit-out' (shared seed row); no cleanup but no other spec targets it per reference.
 import { test, expect } from '@playwright/test';
 import { login } from './helpers';
 

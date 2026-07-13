@@ -1,5 +1,6 @@
+// @e2e-isolation: serial — mutates org-global state (see design 2026-07-11-e2e-parallel-isolation).
 import { test, expect, type Page } from '@playwright/test';
-import { login } from './helpers';
+import { login } from '../helpers';
 
 /**
  * AC-AU-001  Administration › Users management — real user journey (binding BDD principle).
