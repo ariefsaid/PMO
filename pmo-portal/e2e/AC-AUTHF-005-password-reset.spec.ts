@@ -56,7 +56,9 @@ test('AC-AUTHF-005: request reset → Mailpit → /update-password → set passw
   await page.getByLabel(/new password/i).fill(newPassword);
   await page.getByLabel(/confirm password/i).fill(newPassword);
   await page.getByRole('button', { name: /set new password/i }).click();
-  await expect(page).toHaveURL(/\/$/);
+  // 15s (not the 5s default): under CI 4-worker load the post-submit session-establishment +
+  // SPA redirect to "/" can exceed 5s — the promote-integration timeout that failed here.
+  await expect(page).toHaveURL(/\/$/, { timeout: 15_000 });
   await expect(page.getByText('Diego Salvatierra')).toBeVisible(); // PM persona
 
   // 4. The NEW password works on a fresh context; the OLD one no longer does.
@@ -66,7 +68,7 @@ test('AC-AUTHF-005: request reset → Mailpit → /update-password → set passw
   await p2.getByLabel(/email/i).fill(email);
   await p2.getByLabel(/password/i).fill(newPassword);
   await p2.getByRole('button', { name: /sign in/i }).click();
-  await expect(p2).toHaveURL(/\/$/);
+  await expect(p2).toHaveURL(/\/$/, { timeout: 15_000 });
   await fresh.close();
 
   const fresh2 = await browser.newContext();
