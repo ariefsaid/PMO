@@ -96,7 +96,12 @@ export async function canonicalCommandDigest(command: { domain: string; operatio
 async function callRowRpc(client: OutboxServiceClient, fn: string, id: string): Promise<OutboxRow | null> {
   const { data, error } = await client.rpc(fn, { p_id: id });
   if (error) throw new AppError(error.message, error.code);
-  if (!data) return null;
+  // PostgREST serializes a NULL composite return as a row of ALL-NULL FIELDS (`{id:null,state:null,…}`),
+  // NOT as JSON null — so the not-claimable case must be detected by the never-null PK, not by falsiness.
+  // (Found live: a same-key retry against a fresh `committing` row — the F1 back-off flow — got a
+  // state:null row here and 500'd in reconcileOutbox instead of backing off. Unit deps return real
+  // nulls and pgTAP sees SQL NULL; only the served PostgREST boundary exposes this.)
+  if (!data || (data as OutboxDbRow).id == null) return null;
   return mapRow(data as OutboxDbRow);
 }
 

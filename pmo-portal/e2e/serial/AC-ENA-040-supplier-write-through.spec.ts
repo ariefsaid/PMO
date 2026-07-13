@@ -42,11 +42,12 @@ const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
 // container. SITE_URL (task 6.4 fix-round, live-bench-discovered, matching AC-ENA-050/051's own
 // ERPNEXT_SITE_URL naming) is what gets SEEDED into external_org_bindings.site_url -- what the served
 // fn itself dials -- and needs the Docker-reachable `host.docker.internal` alias
-// (docs/environments.md "P2"). Two different network contexts, two different env vars; SITE_URL falls
-// back to BENCH_URL only when a caller hasn't set it (preserving any environment where the two
-// happen to coincide).
+// (docs/environments.md "P2"). Two different network contexts, two different env vars. SITE_URL's
+// default matches AC-ENA-053's (the Docker-reachable alias) — the earlier fallback-to-BENCH_URL
+// seeded a container-unreachable localhost URL whenever ERPNEXT_SITE_URL wasn't exported, failing
+// this spec with external-unreachable while its siblings passed (found 2026-07-13).
 const BENCH_URL = process.env.ERPNEXT_BENCH_URL ?? 'http://localhost:8080';
-const SITE_URL = process.env.ERPNEXT_SITE_URL ?? BENCH_URL;
+const SITE_URL = process.env.ERPNEXT_SITE_URL ?? 'http://host.docker.internal:8080';
 const BENCH_API_KEY = process.env.ERPNEXT_BENCH_API_KEY ?? '';
 const BENCH_API_SECRET = process.env.ERPNEXT_BENCH_API_SECRET ?? '';
 
@@ -130,18 +131,33 @@ test.describe('AC-ENA-040: Supplier create write-through through the real served
     const vendorName = `AC-ENA-040 Vendor ${Date.now()}`;
 
     try {
-      const res = await fetch(`${FUNCTIONS_URL}/functions/v1/adapter-dispatch`, {
-        method: 'POST',
-        headers: { apikey: ANON_KEY, Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          domain: 'companies',
-          operation: 'create',
-          record: { id: pmoRecordId, name: vendorName, type: 'Vendor', erp_doc_kind: 'supplier' },
-          idempotencyKey: crypto.randomUUID(),
-        }),
-      });
-      expect(res.status).toBe(200);
-      const body = (await res.json()) as { externalRecordId?: string; canonical?: { id?: string; erp_supplier_name?: string } };
+      // ONE idempotencyKey across attempts: a transient 502 (external-unreachable / runtime worker
+      // recovering — the fault-seam specs 010/013/023 deliberately crash the served worker right
+      // before this spec runs in the serial battery) is retried with the SAME key, which is exactly
+      // the ADR-0058 client contract — the outbox dedupes, so a retry can never double-create. The
+      // goal-oracle is unchanged: a 200 with the real Supplier + mirror is still required.
+      const idempotencyKey = crypto.randomUUID();
+      const dispatchOnce = () =>
+        fetch(`${FUNCTIONS_URL}/functions/v1/adapter-dispatch`, {
+          method: 'POST',
+          headers: { apikey: ANON_KEY, Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            domain: 'companies',
+            operation: 'create',
+            record: { id: pmoRecordId, name: vendorName, type: 'Vendor', erp_doc_kind: 'supplier' },
+            idempotencyKey,
+          }),
+        });
+      const attempts: string[] = [];
+      let res = await dispatchOnce();
+      for (let attempt = 0; res.status === 502 && attempt < 2; attempt++) {
+        attempts.push(`#${attempt}: ${res.status} ${(await res.text()).slice(0, 300)}`);
+        await new Promise((r) => setTimeout(r, 750));
+        res = await dispatchOnce();
+      }
+      const rawBody = await res.text();
+      expect(res.status, `dispatch failed: ${rawBody.slice(0, 500)} (earlier attempts: ${attempts.join(' | ') || 'none'})`).toBe(200);
+      const body = JSON.parse(rawBody) as { externalRecordId?: string; canonical?: { id?: string; erp_supplier_name?: string } };
       expect(body.externalRecordId).toBe(vendorName); // ERPNext Supplier autonames by field:supplier_name (probed live)
       expect(body.canonical?.erp_supplier_name).toBe(vendorName);
 

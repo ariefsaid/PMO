@@ -229,6 +229,24 @@ Deno.test('quarantineCommitting: transitions a committing row -> quarantined, bu
   assertEquals(rows.get('outbox-1')?.state, 'quarantined');
 });
 
+Deno.test('callRowRpc consumers: a PostgREST NULL-composite (row of all-null fields) means not-claimable → null, never a state:null row', async () => {
+  // PostgREST serializes a plpgsql `RETURN NULL` composite as `{id:null, state:null, …}`, NOT JSON
+  // null (found live: the F1 same-key-retry back-off path 500'd with "unreachable outbox state:
+  // null"). The deps must detect not-claimable by the never-null PK.
+  const nullComposite = {
+    id: null, org_id: null, domain: null, pmo_record_id: null, idempotency_key: null,
+    external_tier: null, operation: null, state: null, external_record_id: null, canonical: null,
+    claim_generation: null, last_error: null,
+  };
+  const client = {
+    from() { throw new Error('unused'); },
+    async rpc() { return { data: nullComposite, error: null }; },
+  } as unknown as OutboxServiceClient;
+  const deps = createDbMoneyOutboxDeps({ serviceClient: client, orgId: 'org-1', externalTier: 'erpnext', operation: 'create', probeByRemarksKey: async () => null });
+  assertEquals(await deps.claimOutboxForCommit('outbox-1'), null, 'claim: all-null composite → null');
+  assertEquals(await deps.quarantineCommitting('outbox-1'), null, 'quarantine: all-null composite → null');
+});
+
 Deno.test('markOutboxCommitted/Failed: guarded write-backs affect 1 row when the token matches, 0 when stale', async () => {
   const { client, rows } = makeFakeClient([
     {

@@ -254,7 +254,12 @@ async function claimAndCommit(
 }
 
 /** The reconcile-by-state algorithm (ADR-0058 §4 table) — never a blind second create. */
-async function reconcileOutbox(row: OutboxRow, deps: DispatchMoneyWriteDeps): Promise<CommandResult> {
+/** In-request budget for waiting on a live `committing` owner before surfacing the retryable
+ * in-flight signal. A LIVE owner normally finishes well within this; a DEAD one (crashed mid-lease)
+ * can only be resolved by lease expiry + the sweep, so waiting longer just hangs the request. */
+const COMMITTING_WAIT_BUDGET_MS = 3_000;
+
+async function reconcileOutbox(row: OutboxRow, deps: DispatchMoneyWriteDeps, committingSince?: number): Promise<CommandResult> {
   const { command, money } = deps;
   switch (row.state) {
     case 'confirmed':
@@ -273,12 +278,21 @@ async function reconcileOutbox(row: OutboxRow, deps: DispatchMoneyWriteDeps): Pr
       // its ERP write may be in flight and not yet probe-visible, so a blind re-POST mints a duplicate
       // money document. A STALE (past-lease) committing row is QUARANTINED (fenced) and resolved only
       // by the reconciliation path after a visibility window; a FRESH one has a live owner — back off
-      // and re-read.
+      // and re-read ONCE. If it is STILL committing after the back-off, the owner is either alive
+      // (let it finish) or dead-within-lease (only lease expiry + the sweep can resolve it) — either
+      // way, spinning in-request helps nobody: keep re-reading only within a small wait budget,
+      // then surface the retryable in-flight signal — mirroring the quarantined branch's no-spin
+      // stance. (Found live: a same-key retry 750ms after an unknown-outcome POST failure spun here
+      // for the full 60s lease and timed out the request.)
       const quarantined = await money.quarantineCommitting(row.id);
       if (quarantined) return reconcileOutbox(quarantined, deps);
+      const since = committingSince ?? Date.now();
+      if (Date.now() - since > COMMITTING_WAIT_BUDGET_MS) {
+        throw toDispatchError(new AdapterError('external-unreachable', 'command-committing-in-flight'));
+      }
       await money.backoff();
       const fresh = await money.readOutbox(command.domain, command.record.id, command.idempotencyKey!);
-      return reconcileOutbox(fresh!, deps);
+      return reconcileOutbox(fresh!, deps, since);
     }
     case 'quarantined': {
       // Resolved ONLY via a fenced claim gated (in the RPC) on the reconcile-after visibility window.

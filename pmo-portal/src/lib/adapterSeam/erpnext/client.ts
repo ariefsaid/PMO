@@ -134,6 +134,8 @@ export async function erpnextRequest(deps: ErpClientDeps, opts: ErpRequestOption
         await sleep(500 * attempt);
         continue;
       }
+      // Server-only module (creds) — log the real cause; the client-facing error stays typed/generic.
+      console.error(`[erpnext-client] fetch failed ${opts.method} ${opts.path}:`, err instanceof Error ? err.message : String(err));
       throw new ErpError(0, 'external-unreachable', err instanceof Error ? err.message : 'ERPNext request failed', true);
     }
 
@@ -151,6 +153,7 @@ export async function erpnextRequest(deps: ErpClientDeps, opts: ErpRequestOption
         await sleep(retryAfterMs);
         continue;
       }
+      console.error(`[erpnext-client] upstream ${res.status} ${opts.method} ${opts.path}:`, (parsed.message ?? '').slice(0, 300));
       throw new ErpError(res.status, 'external-unreachable', parsed.message ?? `ERPNext request failed with status ${res.status}`, true);
     }
 
