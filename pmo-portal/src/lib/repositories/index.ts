@@ -182,6 +182,15 @@ import {
 } from '@/src/lib/db/orgFeatures';
 import { listOwnExternalDomainOwnership } from '@/src/lib/db/externalDomainOwnership';
 import { listActualsSnapshot, listApAgingSnapshot, listArAgingSnapshot } from '@/src/lib/db/erpSnapshots';
+import {
+  listSalesInvoices,
+  getSalesInvoice,
+  listIncomingPayments,
+  getIncomingPayment,
+  getRevenueByProject,
+  type SalesInvoiceRow,
+  type IncomingPaymentRow,
+} from '@/src/lib/db/revenue';
 import type {
   Repositories,
   ProjectRepository,
@@ -425,6 +434,13 @@ const procurement: ProcurementRepository = {
 };
 
 const revenue: RevenueRepository = {
+  // Read methods (ADR-0017)
+  listInvoices: (params) => wrap(() => listSalesInvoices(params)),
+  getInvoice: (id) => wrap(() => getSalesInvoice(id)),
+  listPayments: (params) => wrap(() => listIncomingPayments(params)),
+  getPayment: (id) => wrap(() => getIncomingPayment(id)),
+  getRevenueByProject: () => wrap(() => getRevenueByProject()),
+  // Write methods — route through dispatch when externally-owned
   createInvoice: (input) =>
     routeDomainWrite('revenue') === 'external'
       ? dispatchDomainCommand(

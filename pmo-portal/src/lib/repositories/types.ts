@@ -77,6 +77,10 @@ import type {
   ProjectDeliverySummary,
   MilestoneDate,
 } from '@/src/lib/db/milestones';
+import type {
+  SalesInvoiceRow,
+  IncomingPaymentRow,
+} from '@/src/lib/db/revenue';
 import type { ProcPhase, ProcurementFileRow } from '@/src/lib/db/procurementFiles';
 import type { ContactRow, ContactInput } from '@/src/lib/db/contacts';
 import type { CrmActivityRow, CrmActivityInput, CrmActivityPatch } from '@/src/lib/db/crmActivities';
@@ -333,6 +337,18 @@ export interface RevenueRepository {
   cancelInvoice(siId: string): Promise<void>;
   /** Cancel an Incoming Payment (docstatus 1→2) — mirrors ERP cancel. */
   cancelPayment(ipId: string): Promise<void>;
+  /** List sales invoices in the caller's org (RLS scopes org). */
+  listInvoices(params?: { projectId?: string } & PageParams): Promise<SalesInvoiceRow[]>;
+  /** Get a single sales invoice by id. */
+  getInvoice(id: string): Promise<SalesInvoiceRow | null>;
+  /** List incoming payments in the caller's org (RLS scopes org). */
+  listPayments(params?: { customerId?: string } & PageParams): Promise<IncomingPaymentRow[]>;
+  /** Get a single incoming payment by id. */
+  getPayment(id: string): Promise<IncomingPaymentRow | null>;
+  /** Revenue rollup per project — SUM(amount) grouped by project_id. */
+  getRevenueByProject(): Promise<
+    Array<{ project_id: string | null; project_name: string | null; total_amount: number; open_ar: number; invoice_count: number }>
+  >;
 }
 
 export interface TimesheetRepository {
