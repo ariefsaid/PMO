@@ -14,6 +14,8 @@ export interface AuthContextValue {
   profileError: string | null;
   signInWithPassword: (email: string, password: string) => Promise<{ error: string | null }>;
   signInWithMagicLink: (email: string) => Promise<{ error: string | null }>;
+  /** Microsoft Entra ID (work/school) sign-in via the Supabase `azure` OAuth provider. */
+  signInWithMicrosoft: () => Promise<{ error: string | null }>;
   requestPasswordReset: (email: string) => Promise<{ error: string | null }>;
   updatePassword: (password: string) => Promise<{ error: string | null }>;
   resendEmailConfirmation: (email: string) => Promise<{ error: string | null }>;

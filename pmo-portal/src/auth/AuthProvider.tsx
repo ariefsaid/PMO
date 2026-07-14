@@ -74,6 +74,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return { error: error?.message ?? null };
   }, []);
 
+  const signInWithMicrosoft = useCallback(async () => {
+    // Entra ID (work/school) sign-in — Supabase provider name is `azure`. Multi-tenant: the
+    // provider's tenant is configured server-side (GoTrue), never in client code. Sign-ups are
+    // still gated by the project's signup/invite policy — OAuth is an authentication method,
+    // not an enrollment bypass. Origin-rooted redirectTo (D-AUTHF-8; no open redirect).
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'azure',
+      options: {
+        scopes: 'openid profile email',
+        redirectTo: window.location.origin,
+      },
+    });
+    return { error: error?.message ?? null };
+  }, []);
+
   const requestPasswordReset = useCallback(async (email: string) => {
     // FR-AUTHF-015/050: origin-rooted redirectTo (no open redirect; D-AUTHF-8).
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
@@ -120,6 +135,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       profileError,
       signInWithPassword,
       signInWithMagicLink,
+      signInWithMicrosoft,
       requestPasswordReset,
       updatePassword,
       resendEmailConfirmation,
@@ -132,6 +148,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       profileError,
       signInWithPassword,
       signInWithMagicLink,
+      signInWithMicrosoft,
       requestPasswordReset,
       updatePassword,
       resendEmailConfirmation,
