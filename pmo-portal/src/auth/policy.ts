@@ -26,7 +26,9 @@ export type Action =
   | 'archive'
   | 'delete'
   | 'transition'
-  | 'editContractValue';
+  | 'editContractValue'
+  | 'submit_sales_invoice'
+  | 'manage_external_bindings';
 
 export type Entity =
   | 'project'
@@ -49,7 +51,9 @@ export type Entity =
   | 'milestone'
   | 'contact'
   | 'contactActivity'
-  | 'userView';
+  | 'userView'
+  | 'salesInvoice'
+  | 'externalBinding';
 
 export interface PolicyContext {
   /** The REAL JWT role (not the impersonated effectiveRole). */
@@ -74,6 +78,7 @@ const MASTER_DATA: Role[] = ['Admin', 'Executive', 'Project Manager', 'Finance']
 const ARCHIVE_ROLES: Role[] = ['Admin', 'Executive'];
 const MONEY_AUTHORITY: Role[] = ['Admin', 'Executive', 'Finance']; // contract_value-on-won SoD
 const MILESTONE_WRITE: Role[] = ['Admin', 'Project Manager']; // OD-DEL-7: PM+Admin only
+const MONEY_AUTHOR_ROLES: Role[] = ['Admin', 'Executive', 'Project Manager', 'Finance']; // can submit sales invoice (not author)
 
 const has = (set: Role[], role: Role | null): boolean => role != null && set.includes(role);
 
@@ -242,6 +247,20 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     create: allow(ALL),
     edit: allow(ALL),
     archive: allow(ALL),
+  },
+  // Revenue domain — SI submit SoD (OD-SAR-PMO-IS-THE-UI, FR-SAR-195)
+  // UX-only: author cannot submit their own draft; different approver-role user can.
+  // RLS/RPC is the enforcement authority (submit_sales_invoice RPC).
+  salesInvoice: {
+    submit_sales_invoice: (role, ctx) => {
+      if (!has(MONEY_AUTHOR_ROLES, role)) return false;
+      // Author cannot submit their own draft (SoD) — checked via record.author_id
+      return !!ctx.currentUserId && ctx.record?.author_id !== ctx.currentUserId;
+    },
+  },
+  // External bindings management — Admin only
+  externalBinding: {
+    manage_external_bindings: allow(ADMIN),
   },
 };
 
