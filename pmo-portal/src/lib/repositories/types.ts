@@ -312,6 +312,29 @@ export interface ProcurementRepository {
   ): Promise<PaymentRow>;
 }
 
+export interface RevenueRepository {
+  /** Create a Sales Invoice (Draft) — mints a PMO id, dispatches when revenue is externally-owned. */
+  createInvoice(input: {
+    customerId: string;
+    projectId?: string | null;
+    items: Array<{ item_code: string; qty: number; rate: number }>;
+  }): Promise<{ id: string; si_number: string }>;
+  /** Create an Incoming Payment — mints a PMO id, dispatches when revenue is externally-owned. */
+  createPayment(input: {
+    customerId: string;
+    salesInvoiceId?: string | null;
+    paidAmount: number;
+    receivedAmount?: number;
+    date: string;
+  }): Promise<{ id: string; ip_number: string }>;
+  /** Submit a Sales Invoice (docstatus 0→1) — SoD-gated at RPC layer (slice 3). */
+  submitInvoice(siId: string): Promise<void>;
+  /** Cancel a Sales Invoice (docstatus 1→2) — mirrors ERP cancel. */
+  cancelInvoice(siId: string): Promise<void>;
+  /** Cancel an Incoming Payment (docstatus 1→2) — mirrors ERP cancel. */
+  cancelPayment(ipId: string): Promise<void>;
+}
+
 export interface TimesheetRepository {
   list(userId: string, params?: PageParams): Promise<TimesheetWithEntries[]>;
   createDraft(weekStartDate: string, userId: string): Promise<TimesheetRow>;
@@ -437,29 +460,7 @@ export interface UserViewRepository {
   delete(id: string): Promise<void>;
 }
 
-/** The assembled set of repositories the FE/CRUD layer consumes (one per entity). */
-export interface Repositories {
-  project: ProjectRepository;
-  company: CompanyRepository;
-  document: DocumentRepository;
-  agentAttachment: AgentAttachmentRepository;
-  profile: ProfileRepository;
-  procurement: ProcurementRepository;
-  timesheet: TimesheetRepository;
-  budget: BudgetRepository;
-  task: TaskRepository;
-  incident: IncidentRepository;
-  milestone: MilestoneRepository;
-  procurementFiles: ProcurementFileRepository;
-  contact: ContactRepository;
-  userView: UserViewRepository;
-  operator: OperatorRepository;
-  usage: UsageRepository;
-  orgFeature: OrgFeatureRepository;
-  credits: CreditsRepository;
-  externalDomainOwnership: ExternalDomainOwnershipRepository;
-  erpSnapshots: ErpSnapshotsRepository;
-}
+
 
 /**
  * org_features repository (ops-admin-surface S6, FR-ENT-001..004). Read is own-org (RLS-scoped);
@@ -499,4 +500,29 @@ export interface ErpSnapshotsRepository {
   actuals(): Promise<ErpActualsSnapshotRow[]>;
   apAging(): Promise<ErpAgingSnapshotRow[]>;
   arAging(): Promise<ErpAgingSnapshotRow[]>;
+}
+
+/** The assembled set of repositories the FE/CRUD layer consumes (one per entity). */
+export interface Repositories {
+  project: ProjectRepository;
+  company: CompanyRepository;
+  document: DocumentRepository;
+  agentAttachment: AgentAttachmentRepository;
+  profile: ProfileRepository;
+  procurement: ProcurementRepository;
+  revenue: RevenueRepository;
+  timesheet: TimesheetRepository;
+  budget: BudgetRepository;
+  task: TaskRepository;
+  incident: IncidentRepository;
+  milestone: MilestoneRepository;
+  procurementFiles: ProcurementFileRepository;
+  contact: ContactRepository;
+  userView: UserViewRepository;
+  operator: OperatorRepository;
+  usage: UsageRepository;
+  orgFeature: OrgFeatureRepository;
+  credits: CreditsRepository;
+  externalDomainOwnership: ExternalDomainOwnershipRepository;
+  erpSnapshots: ErpSnapshotsRepository;
 }

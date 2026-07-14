@@ -10,7 +10,7 @@
  * A future ERP/REST backend = a new module exporting the same `Repositories` shape; the FE
  * imports `repositories` and never changes.
  */
-import { toAppError } from '@/src/lib/appError';
+import { toAppError, AppError } from '@/src/lib/appError';
 import {
   listProjects,
   createProject,
@@ -62,6 +62,8 @@ import {
   getOrgAgentRunStats,
   getOperatorAgentRunStats,
 } from '@/src/lib/db/usage';
+import { routeDomainWrite } from '@/src/lib/adapterSeam/ownershipCache';
+import { dispatchDomainCommand } from '@/src/lib/adapterSeam/dispatchClient';
 import {
   listTasks,
   getTask,
@@ -180,8 +182,6 @@ import {
 } from '@/src/lib/db/orgFeatures';
 import { listOwnExternalDomainOwnership } from '@/src/lib/db/externalDomainOwnership';
 import { listActualsSnapshot, listApAgingSnapshot, listArAgingSnapshot } from '@/src/lib/db/erpSnapshots';
-import { routeDomainWrite } from '@/src/lib/adapterSeam/ownershipCache';
-import { dispatchDomainCommand } from '@/src/lib/adapterSeam/dispatchClient';
 import type {
   Repositories,
   ProjectRepository,
@@ -190,6 +190,7 @@ import type {
   AgentAttachmentRepository,
   ProfileRepository,
   ProcurementRepository,
+  RevenueRepository,
   TimesheetRepository,
   BudgetRepository,
   TaskRepository,
@@ -423,6 +424,54 @@ const procurement: ProcurementRepository = {
       : wrap(() => createPayment(procurementId, invoiceId, referenceNumber, status, date, amount)),
 };
 
+const revenue: RevenueRepository = {
+  createInvoice: (input) =>
+    routeDomainWrite('revenue') === 'external'
+      ? dispatchDomainCommand(
+          'revenue',
+          'create',
+          { id: crypto.randomUUID(), ...input, erp_doc_kind: 'sales-invoice' },
+          freshIdempotencyKey(),
+        ).then((res) => ({ id: String(res.canonical.id), si_number: String(res.canonical.si_number ?? '') }))
+      : Promise.reject(new AppError('revenue is not enabled for this org', 'revenue-not-enabled')),
+  createPayment: (input) =>
+    routeDomainWrite('revenue') === 'external'
+      ? dispatchDomainCommand(
+          'revenue',
+          'create',
+          { id: crypto.randomUUID(), ...input, erp_doc_kind: 'incoming-payment' },
+          freshIdempotencyKey(),
+        ).then((res) => ({ id: String(res.canonical.id), ip_number: String(res.canonical.ip_number ?? '') }))
+      : Promise.reject(new AppError('revenue is not enabled for this org', 'revenue-not-enabled')),
+  submitInvoice: (siId) =>
+    routeDomainWrite('revenue') === 'external'
+      ? dispatchDomainCommand(
+          'revenue',
+          'transition',
+          { id: siId, erp_doc_kind: 'sales-invoice' },
+          freshIdempotencyKey(),
+        ).then(() => undefined)
+      : Promise.reject(new AppError('revenue is not enabled for this org', 'revenue-not-enabled')),
+  cancelInvoice: (siId) =>
+    routeDomainWrite('revenue') === 'external'
+      ? dispatchDomainCommand(
+          'revenue',
+          'transition',
+          { id: siId, erp_doc_kind: 'sales-invoice' },
+          freshIdempotencyKey(),
+        ).then(() => undefined)
+      : Promise.reject(new AppError('revenue is not enabled for this org', 'revenue-not-enabled')),
+  cancelPayment: (ipId) =>
+    routeDomainWrite('revenue') === 'external'
+      ? dispatchDomainCommand(
+          'revenue',
+          'transition',
+          { id: ipId, erp_doc_kind: 'incoming-payment' },
+          freshIdempotencyKey(),
+        ).then(() => undefined)
+      : Promise.reject(new AppError('revenue is not enabled for this org', 'revenue-not-enabled')),
+};
+
 const timesheet: TimesheetRepository = {
   list: (userId, params) => wrap(() => listTimesheets(userId, params)),
   createDraft: (weekStartDate, userId) => wrap(() => createDraftTimesheet(weekStartDate, userId)),
@@ -530,6 +579,7 @@ export const repositories: Repositories = {
   agentAttachment,
   profile,
   procurement,
+  revenue,
   timesheet,
   budget,
   task,
@@ -554,6 +604,7 @@ export type {
   AgentAttachmentRepository,
   ProfileRepository,
   ProcurementRepository,
+  RevenueRepository,
   TimesheetRepository,
   BudgetRepository,
   TaskRepository,
