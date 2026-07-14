@@ -62,6 +62,16 @@ export function kindFromDoctype(doctype: string): ErpDocKind | undefined {
   return DOCTYPE_TO_KIND[doctype];
 }
 
+/** Disambiguate an inbound Payment Entry by payment_type (FR-SAR-081): one doctype → two PMO kinds. */
+export function kindFromDoctypeAndPaymentType(doctype: string, paymentType?: string): ErpDocKind | undefined {
+  if (doctype === 'Payment Entry') {
+    if (paymentType === 'Receive') return 'incoming-payment';
+    if (paymentType === 'Pay') return 'payment';
+    return undefined; // unknown/absent payment_type → ack-and-skip (lossy hint, FR-SAR-083)
+  }
+  return kindFromDoctype(doctype); // Sales Invoice + every other doctype is unique
+}
+
 /** The externalRecordId the feed uses for an event of this kind (parties encode the doctype so the
  *  Supplier/Customer collision rule is deterministic; procurement uses the raw ERP name). */
 export function externalIdForKind(kind: ErpDocKind, erpName: string): string {
