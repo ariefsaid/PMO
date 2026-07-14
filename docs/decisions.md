@@ -867,3 +867,22 @@ and lands #315 as-is (operator-provisioned/function-secret is fine for that scop
 two coordination notes: keep the `credentials.ts` resolver seam clean (Vault swap comes later); confirm
 `external_org_bindings` is the shared per-org connection table. The Director orchestrates this layer as
 its own spec → eng-planner plan → PRs afterward (security-auditor mandatory on the token path).
+
+### OD-SAR-GATES — PMO is the flexible layer; process gates are org-config, default permissive (owner ruling 2026-07-14)
+
+**Binding product architecture:** the PMO caters to field reality; the ERP is strict. Chain/process
+gating (require-SO-before-SI, require-BAST-before-SI, require-project-on-SI, procurement chain-entry
+restrictions, …) is **org-level configuration** (`process_gates`), **default OFF/permissive**, flipped
+ON only when an org's accounting demands it — and flipped back when an edge case becomes the norm.
+Doctypes must be representable without their gate being mandatory. First shipped seam: P3a revenue
+gates (inert, default-off). Fast-follow issue: SO + BAST (Indonesian services handover — DN-doctype vs
+document+milestone-acceptance needs its own ruling). **P2 retrofit (backlog): flexible procurement
+chain entry** (direct-to-PO, payment-first) under the same philosophy.
+
+### OD-SAR-PMO-IS-THE-UI — the accountant's UI is PMO; ERPNext is the headless audit/ledger engine (owner ruling 2026-07-14)
+
+Accountants work IN PMO (authoring, corrections — hence SI cancel/amend in-app); the ERPNext bench
+exists for audit and as the ledger engine. **ERP-grade financial reporting belongs on the PMO
+backlog** (a reporting track over the mirrored ledger/read-models), not in the Desk. Sharpens
+ADR-0055 §product-frame and [[product-vision-operational-layer]]; every future money issue assumes
+no user is ever required to open the ERPNext Desk.
