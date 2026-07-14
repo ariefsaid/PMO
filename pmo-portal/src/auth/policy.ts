@@ -253,6 +253,8 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
   // UX-only: author cannot submit their own draft; different approver-role user can.
   // RLS/RPC is the enforcement authority (submit_sales_invoice RPC).
   salesInvoice: {
+    // Sales Invoices index — Finance, PM, Exec can view (rbac-visibility §D mirror).
+    view: allow(MASTER_DATA),
     submit_sales_invoice: (role, ctx) => {
       if (!has(MONEY_AUTHOR_ROLES, role)) return false;
       // Author cannot submit their own draft (SoD) — checked via record.author_id

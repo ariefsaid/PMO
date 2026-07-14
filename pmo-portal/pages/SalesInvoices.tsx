@@ -26,6 +26,7 @@ import { useSalesInvoices, useRevenueMutations } from '@/src/hooks/useRevenue';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { trackFilterApplied } from '@/src/lib/analytics';
 import type { SalesInvoiceRow, SalesInvoiceStatus } from '@/src/lib/db/revenue';
+import { deriveArDueDate } from '@/src/lib/repositories/revenueDisplay';
 import { salesInvoiceStatusVariant } from '@/src/lib/status/statusVariants';
 import { type PendingPushState } from '@/src/lib/adapterSeam/pendingPush';
 import { useAuth } from '@/src/auth/useAuth';
@@ -186,6 +187,15 @@ const SalesInvoices: React.FC = () => {
       header: 'Date',
       cell: (inv) => (inv.invoice_date ? new Date(inv.invoice_date).toLocaleDateString() : '—'),
       exportValue: (inv) => inv.invoice_date ?? '',
+    },
+    {
+      key: 'due_date',
+      header: 'Due Date',
+      cell: (inv) => {
+        const due = deriveArDueDate(inv.invoice_date, inv.erp_payment_terms_days, inv.erp_due_date);
+        return due ? new Date(due).toLocaleDateString() : '—';
+      },
+      exportValue: (inv) => deriveArDueDate(inv.invoice_date, inv.erp_payment_terms_days, inv.erp_due_date) ?? '',
     },
   ];
 

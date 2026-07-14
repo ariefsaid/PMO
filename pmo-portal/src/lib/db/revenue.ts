@@ -20,6 +20,10 @@ export interface SalesInvoiceRow {
   erp_cancelled_at: string | null;
   created_at: string;
   author_user_id: string | null;
+  /** Customer's payment terms in days (from companies.erp_payment_terms_days). */
+  erp_payment_terms_days: number | null;
+  /** ERP-computed due date from the mirrored SI (when available). */
+  erp_due_date: string | null;
 }
 
 export interface IncomingPaymentRow {
@@ -55,28 +59,47 @@ function throwWrite(error: PostgrestErrorLike): never {
  * List all sales invoices in the caller's org (RLS scopes org).
  * Optional `projectId` filters to a single project.
  * Ordered by invoice_date desc for a stable, scannable list.
+ * Includes customer's payment terms (erp_payment_terms_days) for due-date derivation.
  */
 export async function listSalesInvoices(
   params?: { projectId?: string } & PageParams,
 ): Promise<SalesInvoiceRow[]> {
-  let query = supabase.from('sales_invoices').select('*');
+  let query = supabase
+    .from('sales_invoices')
+    .select('*, companies!sales_invoices_customer_id_fkey(erp_payment_terms_days)');
   if (params?.projectId) query = query.eq('project_id', params.projectId);
   const range = resolveRange(params);
   let ordered = query.order('invoice_date', { ascending: false }).order('created_at', { ascending: false });
   if (range) ordered = ordered.range(range.from, range.to);
   const { data, error } = await ordered;
   if (error) throwWrite(error);
-  return (data ?? []) as SalesInvoiceRow[];
+  // Transform the joined company data into flat fields
+  return (data ?? []).map((row: Record<string, unknown>) => ({
+    ...row,
+    erp_payment_terms_days: (row.companies as { erp_payment_terms_days: number | null } | null)?.erp_payment_terms_days ?? null,
+    // erp_due_date will be populated when ERP mirror includes it (future enhancement)
+    erp_due_date: null,
+  })) as SalesInvoiceRow[];
 }
 
 /**
  * Fetch a single sales invoice by id, or null when not found / not readable.
  * RLS scopes the row to the caller's org.
+ * Includes customer's payment terms (erp_payment_terms_days) for due-date derivation.
  */
 export async function getSalesInvoice(id: string): Promise<SalesInvoiceRow | null> {
-  const { data, error } = await supabase.from('sales_invoices').select('*').eq('id', id).maybeSingle();
+  const { data, error } = await supabase
+    .from('sales_invoices')
+    .select('*, companies!sales_invoices_customer_id_fkey(erp_payment_terms_days)')
+    .eq('id', id)
+    .maybeSingle();
   if (error) throwWrite(error);
-  return (data ?? null) as SalesInvoiceRow | null;
+  if (!data) return null;
+  return {
+    ...data,
+    erp_payment_terms_days: (data.companies as { erp_payment_terms_days: number | null } | null)?.erp_payment_terms_days ?? null,
+    erp_due_date: null,
+  } as SalesInvoiceRow;
 }
 
 /**
