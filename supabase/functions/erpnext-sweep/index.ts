@@ -438,12 +438,16 @@ async function buildReconcileDepsLive(serviceClient: SupabaseClient, org: OrgBin
         // Mutable anchor (PE): the composite probe reads its inputs from THIS row's persisted payload.
         : async (_domain, idempotencyKey) => {
             if (!payload.party || payload.paid_amount == null) return probeErpByAnchorKey(probeDeps, idempotencyKey);
+            const paymentTypeRaw = (payload.payment_type as string | undefined) ?? 'Pay';
+            const paymentType: 'Pay' | 'Receive' = paymentTypeRaw === 'Receive' ? 'Receive' : 'Pay';
             return probeErpByPaymentComposite(probeDeps, idempotencyKey, {
               partyType: String(payload.party_type ?? 'Supplier'),
               party: String(payload.party),
               paidAmount: payload.paid_amount as string | number,
               piNames: Array.isArray(payload.pi_names) ? (payload.pi_names as string[]) : [],
+              siNames: Array.isArray(payload.si_names) ? (payload.si_names as string[]) : [],
               createdAfter: String(payload.created_after ?? ''),
+              paymentType,
             });
           },
   });

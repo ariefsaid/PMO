@@ -78,6 +78,75 @@ export function createErpFeedDeps(serviceClient: SupabaseClient, orgId: string, 
         if (error) throw new AppError(error.message, error.code);
         return id;
       }
+      // Revenue domain inbound adopt (sales-invoice / incoming-payment) — mint the FULL canonical
+      // row + erp_modified stamp (the 0103 lesson: NOT just name/status). Resolve customer_id from
+      // external_refs (companies domain). For incoming-payment, also resolve sales_invoice_id.
+      // A project-less inbound SI mints with project_id=null (the 'Unassigned' bucket + Finance
+      // notification via existing path, FR-SAR-085 — no new table).
+      if (domain === 'revenue') {
+        const id = crypto.randomUUID();
+        const erpModifiedIso = new Date(sourceModMs).toISOString();
+        const docstatus = (canonical.erp_docstatus as number | null | undefined) ?? 0;
+        const erpOutstanding = (canonical as { erp_outstanding_amount?: string | number | null }).erp_outstanding_amount;
+        // Resolve customer_id from external_refs (Customer:<erp_customer_name>)
+        // The canonical from siFromDoc/peReceiveFromDoc carries the ERP customer name in 'customer'.
+        let customerId: string | null = null;
+        const customerErpName = (canonical as { customer?: string | null }).customer;
+        if (customerErpName) {
+          const { data: ref } = await serviceClient.from('external_refs').select('pmo_record_id')
+            .eq('org_id', orgId).eq('domain', 'companies').eq('external_record_id', `Customer:${customerErpName}`).maybeSingle();
+          customerId = (ref as { pmo_record_id?: string } | null)?.pmo_record_id ?? null;
+        }
+        if (kind === 'sales-invoice') {
+          // Project-less SI → project_id = null (Unassigned bucket; Finance notification via existing path)
+          const { error } = await serviceClient.from('sales_invoices').insert({
+            id,
+            org_id: orgId,
+            project_id: null,
+            customer_id: customerId,
+            si_number: canonical.si_number ?? canonical.id,
+            reference_number: (canonical as { reference_number?: string | null }).reference_number ?? null,
+            invoice_date: (canonical as { invoice_date?: string | null }).invoice_date ?? null,
+            amount: (canonical as { amount?: string | number | null }).amount ?? null,
+            erp_outstanding_amount: erpOutstanding ?? null,
+            status: deriveSiStatus(docstatus, erpOutstanding),
+            erp_docstatus: docstatus,
+            erp_modified: erpModifiedIso,
+            erp_amended_from: (canonical.erp_amended_from as string | null | undefined) ?? null,
+            erp_cancelled_at: docstatus === 2 ? new Date().toISOString() : null,
+          });
+          if (error) throw new AppError(error.message, error.code);
+          return id;
+        }
+        if (kind === 'incoming-payment') {
+          // Resolve sales_invoice_id from PE references (first reference's reference_name)
+          let salesInvoiceId: string | null = null;
+          const references = (canonical as { references?: Array<{ reference_name?: string | null }> }).references;
+          if (Array.isArray(references) && references.length > 0 && references[0].reference_name) {
+            const siErpName = references[0].reference_name;
+            const { data: ref } = await serviceClient.from('external_refs').select('pmo_record_id')
+              .eq('org_id', orgId).eq('domain', 'revenue').eq('external_record_id', siErpName).maybeSingle();
+            salesInvoiceId = (ref as { pmo_record_id?: string } | null)?.pmo_record_id ?? null;
+          }
+          const { error } = await serviceClient.from('incoming_payments').insert({
+            id,
+            org_id: orgId,
+            customer_id: customerId,
+            sales_invoice_id: salesInvoiceId, // nullable (on-account receipt)
+            ip_number: canonical.ip_number ?? canonical.id,
+            reference_number: (canonical as { reference_number?: string | null }).reference_number ?? null,
+            date: (canonical as { date?: string | null }).date ?? null,
+            amount: (canonical as { amount?: string | number | null }).amount ?? null,
+            status: docstatus === 1 ? 'Paid' : 'Scheduled',
+            erp_docstatus: docstatus,
+            erp_modified: erpModifiedIso,
+            erp_amended_from: (canonical.erp_amended_from as string | null | undefined) ?? null,
+            erp_cancelled_at: docstatus === 2 ? new Date().toISOString() : null,
+          });
+          if (error) throw new AppError(error.message, error.code);
+          return id;
+        }
+      }
       // Procurement inbound adopt requires the PMO procurement-case link the dispatch path owns — the
       // ERP doc does not carry it. Surface a classified error; the fn logs + ack's (lossy hint).
       throw new AppError(
@@ -147,4 +216,14 @@ function mirrorStatusPatch(canonical: PmoRecord, sourceModMs: number): Record<st
     erp_amended_from: (canonical.erp_amended_from as string | null | undefined) ?? null,
     erp_cancelled_at: docstatus === 2 ? new Date().toISOString() : null,
   };
+}
+
+/** Derive the SI status from ERP docstatus + outstanding amount (mirrors siStatus.ts logic). */
+function deriveSiStatus(docstatus: number | null, erpOutstandingAmount: string | number | null | undefined): string {
+  if (docstatus === 2) return 'Cancelled';
+  if (docstatus === 1) {
+    const outstanding = erpOutstandingAmount != null ? Number(erpOutstandingAmount) : null;
+    return outstanding !== null && outstanding === 0 ? 'Paid' : 'Unpaid';
+  }
+  return 'Draft';
 }

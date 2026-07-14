@@ -2,11 +2,19 @@
  * erpnext/webhookEvent.ts (task 8.2 helper) — the confined pure decoder for the inbound ERPNext
  * webhook payload → the feed event shape. Frappe's webhook envelope (configured with `webhook_json`)
  * carries the document under `data` (and a top-level `doctype`/`name`); this module reads those fields
- * and resolves the PMO `erp_doc_kind` + `domain` via `feedKinds.kindFromDoctype`. An unmapped doctype
- * (a doctype P2 does not mirror) decodes to `kind === undefined` — the edge fn ack's-and-skips it
- * (lossy hint, FR-ENA-083). Pure + portable; Frappe vocabulary confined here + feedKinds (FR-ENA-013).
+ * and resolves the PMO `erp_doc_kind` + `domain` via `feedKinds.kindFromDoctypeAndPaymentType`
+ * (Payment Entry disambiguation by `payment_type`) or `kindFromDoctype` (unique doctypes).
+ * An unmapped doctype (a doctype P2 does not mirror) decodes to `kind === undefined` — the edge fn
+ * ack's-and-skips it (lossy hint, FR-ENA-083). Pure + portable; Frappe vocabulary confined here +
+ * feedKinds (FR-ENA-013).
  */
-import { kindFromDoctype, externalIdForKind, KIND_DOMAIN, type ErpDocKind } from './feedKinds.ts';
+import {
+  kindFromDoctype,
+  kindFromDoctypeAndPaymentType,
+  externalIdForKind,
+  KIND_DOMAIN,
+  type ErpDocKind,
+} from './feedKinds.ts';
 
 /** The decoded feed event — what applyErpFeedEvent + the edge fn consume. */
 export interface ErpFeedEvent {
@@ -66,7 +74,11 @@ export function decodeErpWebhookEvent(raw: unknown): ErpFeedEvent | null {
   const doctype = str(fieldOf(payload, 'doctype'));
   const erpName = str(fieldOf(payload, 'name'));
   if (!doctype || !erpName) return null;
-  const kind = kindFromDoctype(doctype);
+  // Payment Entry disambiguation by payment_type (FR-SAR-081): one doctype → two PMO kinds.
+  const paymentType = doctype === 'Payment Entry' ? str(fieldOf(payload, 'payment_type')) : undefined;
+  const kind = doctype === 'Payment Entry'
+    ? kindFromDoctypeAndPaymentType(doctype, paymentType ?? undefined)
+    : kindFromDoctype(doctype);
   const domain = kind ? KIND_DOMAIN[kind] : undefined;
   const externalRecordId = kind ? externalIdForKind(kind, erpName) : erpName;
   return {
