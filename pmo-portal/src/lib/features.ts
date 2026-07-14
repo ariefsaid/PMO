@@ -62,6 +62,7 @@ export const FEATURE_KEYS = [
   'import_export',
   'agent_assistant',
   'user_views',
+  'revenue',
 ] as const;
 export type OrgFeatureKey = (typeof FEATURE_KEYS)[number];
 
@@ -98,9 +99,12 @@ export const FEATURE_ENV_DEFAULT: Record<OrgFeatureKey, boolean> = {
   import_export: true,
   agent_assistant: import.meta.env.VITE_FEATURES_AGENT_ASSISTANT === 'true' || false,
   user_views: import.meta.env.VITE_FEATURES_USERVIEWS === 'true' || false,
+  revenue: false,
 };
 
-/** Human-readable labels for the Admin › Features section (AC-ENT-004). */
+/**
+ * Human-readable labels for the Admin » Features section (AC-ENT-004).
+ */
 export const FEATURE_LABELS: Record<EntitleableKey, string> = {
   incidents: 'Incidents',
   crm: 'CRM (Sales Pipeline, Companies, Contacts)',
@@ -113,6 +117,7 @@ export const FEATURE_LABELS: Record<EntitleableKey, string> = {
   dashboard: 'Dashboard',
   approvals: 'Approvals',
   administration: 'Administration',
+  revenue: 'Revenue (Sales Invoices, Incoming Payments, Revenue by Project)',
 };
 
 /** Type guard: true for the four core modules (always-on, never gated). */
