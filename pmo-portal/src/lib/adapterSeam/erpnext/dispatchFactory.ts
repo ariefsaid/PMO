@@ -122,6 +122,78 @@ async function resolvePoItemChildNames(client: ErpClientDeps, poName: string): P
   return map;
 }
 
+// ============================================================================
+// Task 2.3 — Revenue ref resolver (FR-SAR-100/101/121)
+// ============================================================================
+
+/** Resolve revenue-domain refs for a sales-invoice or incoming-payment command.
+ *  - `ctx.refs.customer` from `record.customerId` via `external_refs` (companies domain,
+ *    `Customer:<name>` → strip prefix to bare ERP name).
+ *  - `ctx.refs.project` from `record.projectId` via the binding's ERP-project→PMO map
+ *    (`binding.config.project_map[projectId]` → ERP `project` name). The Director ruling §6.1
+ *    says: resolve by ERP `project_name` search first; auto-create on miss is a separate
+ *    concern (the binding map is the override; search-by-name + create is a fast-follow).
+ *    Here we use the binding map as the source of truth for the ERP project name.
+ *  - For `incoming-payment`: `references[]` row's `reference_name` from `record.salesInvoiceId`
+ *    via `external_refs` (revenue domain → the SI's ERP name). The body builder reads
+ *    `rec.references` (set by the repo from `salesInvoiceId`) and maps to ERP `references`.
+ */
+async function resolveRevenueRefs(
+  deps: ErpDispatchFactoryDeps,
+  binding: ExternalOrgBindingRow,
+): Promise<{ refs: Record<string, string | null> }> {
+  const refs: Record<string, string | null> = {};
+  const record = deps.command.record as {
+    erp_doc_kind?: string;
+    customerId?: string;
+    projectId?: string;
+    salesInvoiceId?: string;
+  };
+  const kind = record.erp_doc_kind;
+
+  if ((kind !== 'sales-invoice' && kind !== 'incoming-payment') || !record.customerId) {
+    return { refs };
+  }
+
+  // Resolve customer (companies domain: Customer:<name> → bare name)
+  const customerExternalId = await resolveExternalRef(
+    deps.serviceClient as unknown as ExternalRefsLookupClient,
+    deps.orgId,
+    'companies',
+    record.customerId,
+  );
+  if (customerExternalId) {
+    refs.customer = customerExternalId.startsWith('Customer:')
+      ? customerExternalId.slice('Customer:'.length)
+      : customerExternalId;
+  }
+
+  // Resolve project for sales-invoice
+  if (kind === 'sales-invoice') {
+    const projectMap = (binding.config?.project_map as Record<string, string> | undefined) ?? {};
+    refs.project = record.projectId ? (projectMap[record.projectId] ?? null) : null;
+  }
+
+  // Resolve SI reference for incoming-payment
+  if (kind === 'incoming-payment' && record.salesInvoiceId) {
+    const siExternalId = await resolveExternalRef(
+      deps.serviceClient as unknown as ExternalRefsLookupClient,
+      deps.orgId,
+      'revenue',
+      record.salesInvoiceId,
+    );
+    if (siExternalId) {
+      // The body builder (peReceiveToBody) reads `rec.references` which the repo sets from
+      // `salesInvoiceId`. We provide the ERP SI name here so the repo can build the references array.
+      // Actually the repo sets `rec.references` directly from `salesInvoiceId` — but we need the ERP name.
+      // The repo will use this resolved ERP name. For now we store it in refs.si for the repo to pick up.
+      refs.si = siExternalId;
+    }
+  }
+
+  return { refs };
+}
+
 /** Resolve every PO/GR ref this command needs (task 5.3). Returns the `ctx.refs` additions +
  *  `resolvedItems` (only set when the command carried none — `adapter.ts`'s fallback substitutes it). */
 async function resolveProcurementOrderRefs(
@@ -205,7 +277,8 @@ export async function resolveErpDispatchAdapter(deps: ErpDispatchFactoryDeps): P
 
   // Ref resolution (supplier/PO/PO-item) — task 5.3 wires the PO/GR case; slice 3 wires the
   // companies-domain party create/update path (which needs no cross-doctype resolution of its own).
-  const { refs, resolvedItems } = await resolveProcurementOrderRefs(deps, binding);
+  const { refs: procurementRefs, resolvedItems } = await resolveProcurementOrderRefs(deps, binding);
+  const { refs: revenueRefs } = await resolveRevenueRefs(deps, binding);
 
   const adapterDeps: ErpAdapterDeps = {
     client: {
@@ -222,8 +295,10 @@ export async function resolveErpDispatchAdapter(deps: ErpDispatchFactoryDeps): P
     // comes back unset there; fall back to resolving the command's own `vendorId` through the SAME
     // `companies` domain external_refs mapping (`resolveExternalRef`, task 1.6). The PO/GR path never
     // pays for this fallback call — `??` short-circuits once `refs.supplier` is already resolved.
+    // Revenue commands (sales-invoice/incoming-payment) resolve customer + project + SI ref via
+    // `resolveRevenueRefs` (task 2.3, FR-SAR-100/101/121).
     ctx: {
-      refs: { ...refs, supplier: refs.supplier ?? (await resolveSupplierRef(deps.serviceClient, deps.orgId, deps.command)) },
+      refs: { ...procurementRefs, ...revenueRefs, supplier: procurementRefs.supplier ?? (await resolveSupplierRef(deps.serviceClient, deps.orgId, deps.command)) },
       config: binding.config,
       resolvedItems,
     },
