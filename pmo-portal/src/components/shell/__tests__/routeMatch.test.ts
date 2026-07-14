@@ -28,6 +28,14 @@ describe('breadcrumbForPath — unknown route (C-MIN-4)', () => {
     const crumbs = breadcrumbForPath('/');
     expect(crumbs[0].label).toBe('Dashboard');
   });
+
+  // OD-4/I4 (owner report 2026-07-14): the /views index must read "My Views", not "Not found".
+  it('/views index resolves breadcrumb label to "My Views" (not "Not found")', () => {
+    const crumbs = breadcrumbForPath('/views');
+    expect(crumbs).toHaveLength(1);
+    expect(crumbs[0].label).toBe('My Views');
+    expect(crumbs[0].label).not.toBe('Not found');
+  });
 });
 
 describe('breadcrumbForPath — IA cleanup (B-6/B-7)', () => {
