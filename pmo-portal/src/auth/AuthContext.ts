@@ -12,6 +12,15 @@ export interface AuthContextValue {
   loading: boolean;
   /** Non-null when a session exists but the profiles row could not be loaded. */
   profileError: string | null;
+  /**
+   * Discriminates why `profileError` is set:
+   *  - 'not_provisioned' — the session is valid but no `profiles` row exists yet
+   *    (e.g. SSO sign-in before the user was invited to an org). Retrying can't help.
+   *  - 'load_error' — a transient/generic failure while fetching the profile row.
+   *    Retrying may help.
+   * `null` when `profileError` is null.
+   */
+  profileErrorKind: 'not_provisioned' | 'load_error' | null;
   signInWithPassword: (email: string, password: string) => Promise<{ error: string | null }>;
   signInWithMagicLink: (email: string) => Promise<{ error: string | null }>;
   /** Microsoft Entra ID (work/school) sign-in via the Supabase `azure` OAuth provider. */

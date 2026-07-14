@@ -57,6 +57,7 @@ function makeAuthCtx(overrides: Partial<AuthContextValue> = {}): AuthContextValu
     role: null,
     loading: false,
     profileError: null,
+    profileErrorKind: null,
     signInWithPassword: vi.fn(),
     signInWithMagicLink: vi.fn(),
     signInWithMicrosoft: vi.fn(),
