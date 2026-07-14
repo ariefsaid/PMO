@@ -5,12 +5,12 @@
 import { it, expect } from 'vitest';
 import { isFeatureEnabled } from './features';
 
-it('aiComposer flag defaults to false (FR-AS-014, AS-OD-003)', () => {
-  // In the test environment VITE_FEATURES_AI_COMPOSER is not set → defaults to false
-  expect(isFeatureEnabled('aiComposer')).toBe(false);
+it('aiComposer flag defaults to ON when unset (FR-AS-014, AS-OD-003; owner 2026-07-14)', () => {
+  // ON BY DEFAULT: VITE_FEATURES_AI_COMPOSER unset (not 'false') → enabled.
+  expect(isFeatureEnabled('aiComposer')).toBe(true);
 });
 
-it('userViews flag defaults to false unless VITE_FEATURES_USERVIEWS is set', () => {
-  // In the test environment VITE_FEATURES_USERVIEWS is not set → defaults to false
-  expect(isFeatureEnabled('userViews')).toBe(false);
+it('userViews flag defaults to ON when unset (owner 2026-07-14)', () => {
+  // ON BY DEFAULT: VITE_FEATURES_USERVIEWS unset (not 'false') → My Views UI reachable.
+  expect(isFeatureEnabled('userViews')).toBe(true);
 });
