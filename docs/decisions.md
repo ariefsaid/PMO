@@ -821,3 +821,49 @@ site_url/secret_ref/webhook_secret_ref/version_major/config/activated_at) is the
 external-connection table for ALL tiers. **ClickUp will adopt it** (post-#315: add a
 `tier='clickup'` row; today P1 ClickUp uses env-based global creds + `external_project_bindings`
 for containers only). New tiers add rows, never new tables.
+
+---
+
+## OD-INT — External-system admin-connect layer (LOCKED 2026-07-14)
+
+The self-serve UI for connecting an external system (ClickUp P1, ERPNext P2/#315) to an org. The sync
+engines already exist (`adapter-dispatch`/`clickup-webhook`/`clickup-sweep`; `erpnext-onboard`/`erpnext-
+sweep`); this is the operator/admin **connection** layer on top. Full scope + phases + #315 alignment:
+`docs/plans/2026-07-13-clickup-admin-integration-flow.md`. Backlog: the "EXTERNAL-SYSTEM ADMIN-CONNECT"
+section. Depends on ADR-0055 (external adapters), ADR-0016/0019 (can()+RLS/RPC authority), ADR-0057
+(`verifyCallerJwt`). Sequenced **after #315 merges**.
+
+### OD-INT-1 — Admin self-serve
+Org **Admin** connects the integration from the app (not operator-only). Platform Operator retains the
+existing service-role CLI path (`clickup-onboard`/`erpnext-onboard`) as the fallback/bulk path.
+
+### OD-INT-2 — Personal token / API-key, v1
+Credential entry is a **paste-a-token** flow: ClickUp **personal API token** (from a Workspace
+owner/admin — user-scoped, sees the whole workspace) · ERPNext **`apiKey:apiSecret`** (Frappe token,
+from a System Manager). ClickUp **OAuth** app is a later UX upgrade, explicitly out of v1.
+
+### OD-INT-3 — Vault-backed `secret_ref` (the enabler for self-serve)
+The secret backend for BOTH tiers is **Supabase Vault**, not function secrets. Admin enters the
+credential once → a role-gated server endpoint calls `vault.create_secret(value, name)` → the DB stores
+only a `secret_ref` (the Vault name) on the binding row; the value is **write-only, never returned**.
+Rationale: function secrets (`supabase secrets set`) can only be set by an operator via CLI/dashboard —
+Vault can be written from a role-gated app endpoint, which is what makes admin self-serve possible.
+Precedent: mig `0082` (automation dispatch), `0094` (ClickUp sweep). Edge fns resolve the per-org
+credential from Vault via `secret_ref` at request time (locked-down security-definer reader).
+
+### OD-INT-4 — One tier-generic layer, not per-tier forks
+Shared across tiers: **`external_org_bindings`** (#315's table: `org_id, external_tier, site URL,
+secret_ref, webhook_secret_ref`) + Vault `secret_ref` + one Connect endpoint + one admin UI card.
+Tier-specific (thin): credential shape, the validation call, and link granularity (ClickUp → **List**
+per project · ERPNext → **Company/module** per org). **Alignment work:** (a) #315 swaps its credential
+resolution from `Deno.env` → a Vault reader (contained — already behind the `credentials.ts` seam);
+(b) ClickUp adopts `external_org_bindings` for the org connection (today it uses
+`external_domain_ownership` + `external_project_bindings` + a single global `CLICKUP_API_TOKEN`).
+
+### OD-INT-5 — Sequenced after #315 merges
+Build on the **merged** `external_org_bindings` foundation, not the unmerged/conflicting `#315` branch.
+The in-flight #315 implementer agent is NOT handed this layer — it finishes ERPNext P2 sync hardening
+and lands #315 as-is (operator-provisioned/function-secret is fine for that scope). It receives only
+two coordination notes: keep the `credentials.ts` resolver seam clean (Vault swap comes later); confirm
+`external_org_bindings` is the shared per-org connection table. The Director orchestrates this layer as
+its own spec → eng-planner plan → PRs afterward (security-auditor mandatory on the token path).

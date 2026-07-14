@@ -241,7 +241,10 @@ test.describe('AC-AW-012: Agent write-action approve/deny journey', () => {
     // Wait for the shell's Assistant button first — the ⌘J listener attaches in a useEffect, so
     // pressing before it mounts silently misses the hotkey (the race only bites in slower CI).
     await expect(page.getByRole('button', { name: 'Assistant' })).toBeVisible({ timeout: 10_000 });
-    await page.keyboard.press('Control+j');
+    // Open via CLICK (deterministic) not Ctrl+J: the hotkey's keydown listener attaches in a useEffect,
+    // so an early keypress is silently missed under CI load (the flake). The button's onClick is bound
+    // on render — no race (FR-AP-005 Assistant toggle; the hotkey has its own dedicated coverage).
+    await page.getByRole('button', { name: 'Assistant' }).click();
 
     const panel = page.getByRole('complementary', { name: /agent assistant/i });
     await expect(panel).toBeVisible({ timeout: 5_000 });
@@ -327,7 +330,10 @@ test.describe('AC-AW-012: Agent write-action approve/deny journey', () => {
     // ── 2. Open panel ─────────────────────────────────────────────────────
     // Guard the ⌘J listener mount (see the approve journey above) before pressing.
     await expect(page.getByRole('button', { name: 'Assistant' })).toBeVisible({ timeout: 10_000 });
-    await page.keyboard.press('Control+j');
+    // Open via CLICK (deterministic) not Ctrl+J: the hotkey's keydown listener attaches in a useEffect,
+    // so an early keypress is silently missed under CI load (the flake). The button's onClick is bound
+    // on render — no race (FR-AP-005 Assistant toggle; the hotkey has its own dedicated coverage).
+    await page.getByRole('button', { name: 'Assistant' }).click();
 
     const panel = page.getByRole('complementary', { name: /agent assistant/i });
     await expect(panel).toBeVisible({ timeout: 5_000 });

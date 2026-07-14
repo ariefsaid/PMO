@@ -4,19 +4,55 @@
 [`docs/history.md`](history.md) (don't read it for status). Locked owner-decisions are in
 `docs/decisions.md` (OD-* lookup by id). Roadmap framing in `docs/roadmap-spines.md`.
 
-### ⚑⚑ ADAPTER PROGRAM (2026-07-13) — P0+P1 SHIPPED to dev; P2 ERPNext money core PR-READY
-- **✅ P2 BUILT + FULL BATTERY CLOSED** (branch `feat/erpnext-adapter-p2`, 132 commits, migs
-  `0093/0094 + 0096–0102`, 5 edge fns, live-bench-proven): 9 slices (served-fn e2e infra · fenced money outbox
-  · tier core · parties · MR/RFQ/SQ · PO/GR · PI/PE full AP surface · aging/actuals · change-feed).
-  Battery: Luna money audit **BLOCK→fixed→re-confirm→micro-fix** (double-pay C-1 → PE composite
-  probe + `held` state, never auto-reissue; finalization TOCTOU → DB-side fenced RPC; sweep digest
-  compat) · quality/spec A-W-F→applied · Discover REJECT→ruled-in-scope→fixed (FE hook routing
-  through the seam + pending-push on procurement/companies; Finance-dashboard aging read surface
-  mounted). Gates Director-run: verify 5,248 · pgTAP 164/1,448 · money e2e at the real bench.
+### ⚑⚑ ADAPTER PROGRAM (2026-07-14) — P2 ERPNext money core MERGING (#315, owner go; CI green)
+- **✅ P2 BUILT + FULL BATTERY CLOSED + POST-OPEN HARDENING** (branch `feat/erpnext-adapter-p2`,
+  migs `0093/0094 + 0096–0103`, 5 edge fns, live-bench-proven): 9 slices (served-fn e2e infra ·
+  fenced money outbox · tier core · parties · MR/RFQ/SQ · PO/GR · PI/PE full AP surface ·
+  aging/actuals · change-feed). Battery: Luna money audit ×2 (build round: double-pay C-1 → PE
+  composite probe + `held`; finalization TOCTOU → fenced RPC; post-open round: 3 BLOCK + 2 SF all
+  fixed — 0097 Internal-exemption bypass, webhook shared-secret ambiguity → 401, future-due aging
+  leftover → `current` invariant, fencing-loss re-read, per-currency aging rows) · quality/spec ·
+  Discover. **Post-open (2026-07-14): EDGE_JWT_ISSUER (SUPABASE_ env prefix platform-rejected —
+  dev's override was dead) · aging parser rewritten for the real per-voucher v15 report ·
+  PostgREST NULL-composite in claim/quarantine RPCs · 3s bounded committing-wait · INBOUND FEED
+  ARMED LIVE (Frappe Webhook + HMAC → full-fidelity party adopt; sweep GL/PLE mirror; field-level
+  inbound re-sync of linked rows deliberately out of P2 scope — lifecycle+adopt only).** Gates:
+  verify 5,325 · pgTAP 166/1,458 · serial battery 21/21 + smokes 16/16 (zero skips, live bench).
   Residuals (decisions.md `OD-ENA-*`): contacts-inbound deferred · procurement_items INSERT open
-  by design · VendorQuotesTab badge slot · e2e-cleanup un-flips manual fixtures (ops note).
+  by design · VendorQuotesTab badge slot · e2e-cleanup un-flips manual fixtures (ops note) ·
+  OD-ENA-VAULT-SEAM + OD-ENA-SHARED-BINDINGS (coordination with the OD-INT admin-connect layer).
   **Activation checklist (owner-gated):** per-org `external_org_bindings` + secret_ref fn-secrets ·
-  Vault `erpnext_sweep_url/secret` · webhook secret per instance · Frappe Webhook doctype config.
+  Vault `erpnext_sweep_url/secret` · webhook secret per instance · Frappe Webhook doctype config
+  (local demo of ALL of it ran 2026-07-14 on the owner's machine — 2-way sync verified).
+
+### ⚑⚑ SHIPPED TO PROD — v0.7.0 (2026-07-14, owner-instructed full release)
+`main`→`production` promoted; release-please cut **v0.7.0** (PR #319 admin-merged). Prod state: **DB at
+mig `0095`** (`db-push-prod.sh` applied `0084–0095` — agent_usage cols, external adapter seam, rate-limit,
+ClickUp flip/sweep, is_active_member banned_until; all additive/flag-off), **all 10 edge fns deployed at
+`99df5fc`** (health reports it), **FE `production`=`99df5fc`** (pmo-bfb.pages.dev). Contents = **ADR-0057
+JWT Task 3** (compose-view/adapter-dispatch/agent-chat → local ES256 JWKS caller-JWT verify, dropping
+`auth.getUser`; is_active_member also checks `banned_until`) + analytics #324 + e2e-isolation #317/#326.
+Plan + prod runbook: [`docs/plans/2026-07-12-jwt-signing-keys.md`](plans/2026-07-12-jwt-signing-keys.md).
+- **Deploy gotchas learned (see `deployment.md` memory):** `stamp-edge-fns.sh`/`supabase functions deploy`
+  ship the WORKING-TREE code at the CURRENT `HEAD` — `git reset --hard origin/main` BEFORE deploying (a
+  stale local `main` briefly regressed prod fns this release, corrected). Docker Desktop file-sharing
+  breaks under heavy load → restart Docker if the bundler mount-fails. `db-push-prod` is all-or-nothing
+  sequential — check the `--dry-run` list before confirming.
+- **Pending (owner, none blocking):** (1) valid-token end-to-end smoke = a live-app login → Assistant
+  answers (couldn't mint a prod token safely; reject-path + JWKS(ES256) already green); (2) ClickUp sweep
+  cron `0094` idle until Vault secrets (`clickup_sweep_url`/`clickup_sweep_secret`) + fn env set;
+  (3) PostHog events need `POSTHOG_PROJECT_KEY` in prod.
+
+### ⚑⚑ NEXT (scoped, not started) — EXTERNAL-SYSTEM ADMIN-CONNECT layer (ClickUp + ERPNext)
+Admin **self-serve** connect for external systems, replacing the operator-CLI-only onboarding. **Locked
+decisions: `docs/decisions.md` OD-INT-1..5** (admin self-serve · personal-token/API-key v1 · **Vault-backed
+`secret_ref`** · one tier-generic layer · **sequenced after #315 merges**). Full scope + phases + #315
+alignment: [`docs/plans/2026-07-13-clickup-admin-integration-flow.md`](plans/2026-07-13-clickup-admin-integration-flow.md).
+Key alignment: #315 (ERPNext P2) has the right table (`external_org_bindings`) + a clean credential seam
+but resolves creds from **function secrets** (operator-only) — the self-serve layer swaps that to **Vault**
+for both tiers, and ClickUp adopts `external_org_bindings`. The in-flight #315 agent is NOT handed this —
+it lands ERPNext P2 as-is + gets two coordination notes (keep `credentials.ts` seam clean; confirm
+`external_org_bindings` shared). Then Director orchestrates this as its own spec → plan → PRs.
 
 ### ⚑ prior program block (2026-07-10) — P0 seam SHIPPED to dev; P1 ClickUp shipped (#307)
 - **✅ P0 external-adapter seam MERGED to `dev`** (PR #299, `2cbacd5`; ADR-0055): migrations

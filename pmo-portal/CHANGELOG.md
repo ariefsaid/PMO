@@ -10,6 +10,26 @@ Each released section pins the full deploy manifest (app sha · DB migration hig
 edge-function state) so "what's in production" is unambiguous. The DB schema version (migration
 high-water mark) moves independently of the product tag.
 
+## [0.7.0](https://github.com/ariefsaid/PMO/compare/v0.6.0...v0.7.0) (2026-07-13)
+
+
+### Features
+
+* **analytics:** wire 10 engagement/friction events + PostHog query helper + 3 hardening fixes ([#324](https://github.com/ariefsaid/PMO/issues/324)) ([3a22bcf](https://github.com/ariefsaid/PMO/commit/3a22bcf86927767b0ce7ec341d374c5fc4ca51ed))
+* **auth:** local JWKS caller-JWT verification — pilot on compose-view (ADR-0057 Tasks 1–2) ([#314](https://github.com/ariefsaid/PMO/issues/314)) ([dd86076](https://github.com/ariefsaid/PMO/commit/dd860769bc7559832f53cff80d79d4f2566af31b))
+
+
+### Bug Fixes
+
+* **e2e:** AC-JWT-005 skips when compose-view isn't served (CI edge_runtime off) ([#316](https://github.com/ariefsaid/PMO/issues/316)) ([b1742ae](https://github.com/ariefsaid/PMO/commit/b1742ae0ad40b5822123a72721c4ad11ebfa25ca))
+* **e2e:** green the 3 promote-integration failures (AC-CUA-090 hard + AC-AAN-036/AC-AW-012 flaky) ([#326](https://github.com/ariefsaid/PMO/issues/326)) ([2eecc37](https://github.com/ariefsaid/PMO/commit/2eecc37c638a1a734ff840d1c49268ec90e4adfe))
+* **e2e:** make AC-DEL-022 retry-idempotent + AC-AUTHF-005 redirect timeout (promote-integration greens) ([#318](https://github.com/ariefsaid/PMO/issues/318)) ([d0fad99](https://github.com/ariefsaid/PMO/commit/d0fad99f08ea94cc89a8e6ba20661738683eeff9))
+
+
+### Performance
+
+* **e2e:** reuse captured session storageState + retire per-spec bcrypt ([#306](https://github.com/ariefsaid/PMO/issues/306)) ([082f8fa](https://github.com/ariefsaid/PMO/commit/082f8faf23b9e7b3c2c942e2de36c1e24a15207e))
+
 ## [0.6.0](https://github.com/ariefsaid/PMO/compare/v0.5.0...v0.6.0) (2026-07-11)
 
 
