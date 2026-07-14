@@ -88,6 +88,7 @@ const SalesInvoices: React.FC = () => {
 
   const [formTarget, setFormTarget] = useState<{ invoice: SalesInvoiceRow | null } | null>(null);
   const [cancelTarget, setCancelTarget] = useState<SalesInvoiceRow | null>(null);
+  const [submitTarget, setSubmitTarget] = useState<SalesInvoiceRow | null>(null);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -195,6 +196,17 @@ const SalesInvoices: React.FC = () => {
     if (canEdit) items.push({ label: 'Edit', onClick: () => setFormTarget({ invoice: inv }) });
     if (canCancel && inv.status !== 'Cancelled')
       items.push({ label: 'Cancel', onClick: () => setCancelTarget(inv), danger: true });
+    // Submit action: only for DRAFT status, gated by submit_sales_invoice permission with record context (SoD)
+    if (
+      inv.status === 'Draft'
+      && inv.author_user_id !== null
+      && may('submit_sales_invoice', 'salesInvoice', {
+        currentUserId: currentUser?.id,
+        record: { author_id: inv.author_user_id },
+      })
+    ) {
+      items.push({ label: 'Submit', onClick: () => setSubmitTarget(inv) });
+    }
     return items;
   };
 
@@ -204,6 +216,18 @@ const SalesInvoices: React.FC = () => {
       await cancelInvoice.mutateAsync(cancelTarget.id);
       toast('Invoice cancelled', cancelTarget.si_number ?? cancelTarget.id, 'success');
       setCancelTarget(null);
+    } catch (err) {
+      const { headline, detail } = classifyMutationError(err);
+      toast(headline, detail, 'warning');
+    }
+  };
+
+  const onSubmitConfirm = async () => {
+    if (!submitTarget) return;
+    try {
+      await submitInvoice.mutateAsync(submitTarget.id);
+      toast('Invoice submitted', submitTarget.si_number ?? submitTarget.id, 'success');
+      setSubmitTarget(null);
     } catch (err) {
       const { headline, detail } = classifyMutationError(err);
       toast(headline, detail, 'warning');
@@ -330,6 +354,17 @@ const SalesInvoices: React.FC = () => {
         loading={cancelInvoice.isPending}
         onConfirm={onCancelConfirm}
         onCancel={() => setCancelTarget(null)}
+      />
+
+      {/* Submit confirm (default tone — primary action) */}
+      <ConfirmDialog
+        open={!!submitTarget}
+        title={submitTarget ? `Submit ${submitTarget.si_number ?? submitTarget.id}?` : 'Submit invoice?'}
+        description="Submit invoice for approval? This commits it to the ledger and cannot be undone by the submitter."
+        confirmLabel="Submit invoice"
+        loading={submitInvoice.isPending}
+        onConfirm={onSubmitConfirm}
+        onCancel={() => setSubmitTarget(null)}
       />
     </ListPage>
   );
