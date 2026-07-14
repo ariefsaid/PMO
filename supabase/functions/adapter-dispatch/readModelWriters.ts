@@ -16,6 +16,7 @@ import { mapErpDocstatus } from '../../../pmo-portal/src/lib/adapterSeam/erpnext
 import { findPmoRecordId, type ExternalRefsLookupClient } from '../../../pmo-portal/src/lib/adapterSeam/refs.ts';
 import { derivePurchaseOrderStatus, deriveProcurementReceiptStatus } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/poGrStatus.ts';
 import { derivePiStatus } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/piStatus.ts';
+import { deriveSiStatus } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/siStatus.ts';
 
 /** Structural service-role client seam the writers below need: `.from(t).{insert,update,upsert}`.
  *  The real supabase-js client satisfies this at runtime but is not nominally assignable (thenable
@@ -410,6 +411,94 @@ async function upsertPaymentMirror(ctx: ReadModelWriterCtx, canonical: PmoRecord
   await recordOutboundLineage(ctx, canonical, canonical.pay_number as string | undefined);
 }
 
+// ============================================================================
+// P3a Slice 2 — Revenue read-model writers (FR-SAR-013/103/121/161)
+// ============================================================================
+
+/** `sales_invoices` — the SI read-model + project enhancement (spec §4.1).
+ *  Mirrors ERP-derived canonical; `project_id`/`customer_id` from the command record;
+ *  `status` via `deriveSiStatus` from `erp_outstanding_amount` + `erp_docstatus`;
+ *  `erp_cancelled_at` stamped on docstatus 2. */
+async function upsertSalesInvoiceMirror(ctx: ReadModelWriterCtx, canonical: PmoRecord, command: AdapterCommand): Promise<void> {
+  const outstanding = (canonical.erp_outstanding_amount as string | null | undefined) ?? null;
+  const docstatus = canonical.erp_docstatus as number | null | undefined;
+  const patch: Record<string, unknown> = {
+    si_number: canonical.si_number ?? null,
+    customer_id: canonical.customer_id ?? null,
+    project_id: canonical.project_id ?? null,
+    reference_number: (canonical.reference_number as string | null | undefined) ?? null,
+    invoice_date: (canonical.invoice_date as string | null | undefined) ?? null,
+    amount: canonical.amount ?? null,
+    erp_outstanding_amount: outstanding,
+    status: deriveSiStatus(outstanding, docstatus),
+    erp_docstatus: docstatus ?? null,
+    erp_modified: (canonical.erp_modified as string | null | undefined) ?? null,
+    erp_amended_from: (canonical.erp_amended_from as string | null | undefined) ?? null,
+    // stamp erp_cancelled_at on a cancel tombstone (docstatus 2)
+    erp_cancelled_at: docstatus === 2 ? new Date().toISOString() : null,
+  };
+  if (command.operation === 'create') {
+    const record = command.record as { projectId?: string; customerId?: string };
+    // project_id and customer_id are machine-set from the command record
+    const { error } = await ctx.serviceClient.from('sales_invoices').insert({
+      id: canonical.id,
+      org_id: ctx.orgId,
+      project_id: record.projectId ?? null,
+      customer_id: record.customerId ?? null,
+      ...patch,
+    });
+    if (error) throw new AppError(error.message, error.code);
+    return;
+  }
+  const { error } = await (
+    ctx.serviceClient.from('sales_invoices').update(patch).eq('org_id', ctx.orgId).eq('id', canonical.id) as unknown as Promise<{
+      error: { message: string; code?: string } | null;
+    }>
+  );
+  if (error) throw new AppError(error.message, error.code);
+}
+
+/** `incoming_payments` — the PE-receive read-model (spec §4.2).
+ *  Mirrors ERP-derived canonical; `sales_invoice_id` resolved from the command's
+ *  `record.salesInvoiceId`; `status` derives from docstatus (1 = Paid, else Scheduled);
+ *  `erp_cancelled_at` on docstatus 2. */
+async function upsertIncomingPaymentMirror(ctx: ReadModelWriterCtx, canonical: PmoRecord, command: AdapterCommand): Promise<void> {
+  const docstatus = canonical.erp_docstatus as number | null | undefined;
+  const patch: Record<string, unknown> = {
+    ip_number: canonical.ip_number ?? null,
+    customer_id: canonical.customer_id ?? null,
+    sales_invoice_id: canonical.sales_invoice_id ?? null,
+    reference_number: (canonical.reference_number as string | null | undefined) ?? null,
+    date: (canonical.date as string | null | undefined) ?? null,
+    amount: canonical.amount ?? null,
+    status: docstatus === 1 ? 'Paid' : 'Scheduled',
+    erp_docstatus: docstatus ?? null,
+    erp_modified: (canonical.erp_modified as string | null | undefined) ?? null,
+    erp_amended_from: (canonical.erp_amended_from as string | null | undefined) ?? null,
+    // stamp erp_cancelled_at on a cancel tombstone (docstatus 2)
+    erp_cancelled_at: docstatus === 2 ? new Date().toISOString() : null,
+  };
+  if (command.operation === 'create') {
+    const record = command.record as { customerId?: string; salesInvoiceId?: string; date?: string };
+    const { error } = await ctx.serviceClient.from('incoming_payments').insert({
+      id: canonical.id,
+      org_id: ctx.orgId,
+      customer_id: record.customerId ?? null,
+      sales_invoice_id: record.salesInvoiceId ?? null,
+      date: record.date ?? null,
+      ...patch,
+    });
+    if (error) throw new AppError(error.message, error.code);
+    return;
+  }
+  const { error } = await (
+    ctx.serviceClient.from('incoming_payments').update(patch).eq('org_id', ctx.orgId).eq('id', canonical.id) as unknown as Promise<{
+      error: { message: string; code?: string } | null;
+    }>
+  );
+  if (error) throw new AppError(error.message, error.code);
+}
+
 /** P2 ERPNext `procurement` writer (task 4.5): dispatches by the command's `erp_doc_kind` — the SAME
  *  PMO-side discriminator `erpnext/doctypeRegistry.ts` uses (confinement, FR-ENA-013). Slice 4 wired
  *  the first 3 non-money sub-doctypes; slice 5 (task 5.4) appends `purchase-order`/`goods-receipt`;
@@ -479,14 +568,33 @@ export async function upsertProcurementItemMirror(
   if (error) throw new AppError(error.message, error.code);
 }
 
+/** P3a Slice 2 — Revenue writer (FR-SAR-013/121): dispatches by the command's `erp_doc_kind`
+ *  (`sales-invoice` / `incoming-payment`) — additive, never touching `procurement` or `companies` entries.
+ */
+const revenueWriter: ReadModelWriter = {
+  async upsert(ctx, canonical, command) {
+    const kind = (command.record as { erp_doc_kind?: string }).erp_doc_kind;
+    switch (kind) {
+      case 'sales-invoice':
+        return upsertSalesInvoiceMirror(ctx, canonical, command);
+      case 'incoming-payment':
+        return upsertIncomingPaymentMirror(ctx, canonical, command);
+      default:
+        throw new AppError(`erpnext revenue read-model writer for erp_doc_kind '${String(kind)}' is not wired`, 'UNSUPPORTED_DOMAIN');
+    }
+  },
+};
+
 // Both P2 ERPNext domains are wired: `companies` (task 3.6, supplier/customer parties) and
 // `procurement` (task 4.5/5.4, the per-erp_doc_kind money-doc switch above) — one registry entry per
 // domain, never a per-slice edit to another domain's entry (confinement, FR-ENA-013/090).
+// P3a adds `revenue` (task 2.4) additively.
 export const READ_MODEL_WRITERS: Record<string, ReadModelWriter> = {
   reference: referenceWriter,
   tasks: tasksWriter,
   companies: companiesWriter,
   procurement: procurementWriter,
+  revenue: revenueWriter,
 };
 
 /** The single lookup point — an unknown domain throws (no silent skip). */
