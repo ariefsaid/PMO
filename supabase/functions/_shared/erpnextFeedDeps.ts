@@ -25,6 +25,7 @@ import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
 import { findPmoRecordId, recordExternalRef } from '../../../pmo-portal/src/lib/adapterSeam/refs.ts';
 import { ERPNEXT_TIER } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/adapter.ts';
 import { KIND_DOMAIN, KIND_MIRROR_TABLE, type ErpDocKind } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/feedKinds.ts';
+import { deriveSiStatus } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/siStatus.ts';
 import type { ErpFeedDeps } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/applyFeed.ts';
 import type { LineageRow } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/lineage.ts';
 import type { PmoRecord } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
@@ -109,7 +110,7 @@ export function createErpFeedDeps(serviceClient: SupabaseClient, orgId: string, 
             invoice_date: (canonical as { invoice_date?: string | null }).invoice_date ?? null,
             amount: (canonical as { amount?: string | number | null }).amount ?? null,
             erp_outstanding_amount: erpOutstanding ?? null,
-            status: deriveSiStatus(docstatus, erpOutstanding),
+            status: deriveSiStatus(erpOutstanding == null ? null : String(erpOutstanding), docstatus),
             erp_docstatus: docstatus,
             erp_modified: erpModifiedIso,
             erp_amended_from: (canonical.erp_amended_from as string | null | undefined) ?? null,
@@ -219,11 +220,3 @@ function mirrorStatusPatch(canonical: PmoRecord, sourceModMs: number): Record<st
 }
 
 /** Derive the SI status from ERP docstatus + outstanding amount (mirrors siStatus.ts logic). */
-function deriveSiStatus(docstatus: number | null, erpOutstandingAmount: string | number | null | undefined): string {
-  if (docstatus === 2) return 'Cancelled';
-  if (docstatus === 1) {
-    const outstanding = erpOutstandingAmount != null ? Number(erpOutstandingAmount) : null;
-    return outstanding !== null && outstanding === 0 ? 'Paid' : 'Unpaid';
-  }
-  return 'Draft';
-}
