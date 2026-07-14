@@ -45,7 +45,9 @@ export async function probeErpByAnchorKey(
 
 /** The composite deterministic Payment Entry recovery inputs (C-1 DIRECTOR RULING). All read from our
  *  OWN outbox row payload (persisted at insert) — never from live ERP state — so the sync retry and the
- *  sweep resolve identically. */
+ *  sweep resolve identically. The `paymentType` discriminator (FR-SAR-083, AC-SAR-014) ensures a
+ *  PE-receive probe (payment_type='Receive') cannot cross-match a PE-pay (payment_type='Pay') and
+ *  vice-versa — they share the same `Payment Entry` doctype but are distinct PMO kinds. */
 export interface ErpPaymentCompositeInput {
   partyType: string;
   party: string;
@@ -54,9 +56,15 @@ export interface ErpPaymentCompositeInput {
   /** The referenced Purchase Invoice ERP name(s) PMO's PE cited (matched against the PE `references`
    *  child table, which is NOT server-filterable — so it is matched after `getDoc`). */
   piNames: string[];
+  /** The referenced Sales Invoice ERP name(s) for a PE-receive (matched against the PE `references`
+   *  child table — same as piNames but for the AR side). */
+  siNames: string[];
   /** The claim-window lower bound (ERP `creation >=`) — a doc created before our command began cannot
    *  be ours. Bounds the candidate set to this idempotency attempt's window. */
   createdAfter: string;
+  /** C-1 / FR-SAR-083 discriminator: `Pay` for a PE-pay (procurement), `Receive` for a PE-receive
+   *  (revenue). A Receive probe MUST NOT match a Pay doc and vice-versa. */
+  paymentType: 'Pay' | 'Receive';
 }
 
 /**
@@ -79,11 +87,16 @@ export async function probeErpByPaymentComposite(
   if (anchorHit) return anchorHit;
 
   // 2. The composite conjunction on server-filterable columns (references is matched after getDoc).
+  // Backwards-compat: default to 'Pay' (procurement PE) and empty siNames for old callers.
+  const paymentType = input.paymentType ?? 'Pay';
+  const piNames = input.piNames ?? [];
+  const siNames = input.siNames ?? [];
   const filters: Array<[string, string, string | number]> = [
     ['party_type', '=', input.partyType],
     ['party', '=', input.party],
     ['paid_amount', '=', input.paidAmount],
     ['creation', '>=', input.createdAfter],
+    ['payment_type', '=', paymentType], // FR-SAR-083: discriminates Pay vs Receive
     ['docstatus', '<', 2], // exclude cancelled — a cancelled PE is not a live duplicate
   ];
   const names = await listDocNamesByFilters(deps.client, deps.doctype, filters, 20);
@@ -91,7 +104,9 @@ export async function probeErpByPaymentComposite(
   for (const name of names) {
     const doc = await getDoc(deps.client, deps.doctype, name);
     const references = (doc as { references?: Array<{ reference_name?: unknown }> }).references ?? [];
-    if (references.some((r) => input.piNames.includes(String(r.reference_name)))) {
+    // Match against piNames (PE-pay) OR siNames (PE-receive) — the input carries the correct array
+    // based on paymentType, so a PE-receive probe never cross-matches a PE-pay doc.
+    if (references.some((r) => piNames.includes(String(r.reference_name)) || siNames.includes(String(r.reference_name)))) {
       matches.push({ name, doc });
     }
   }

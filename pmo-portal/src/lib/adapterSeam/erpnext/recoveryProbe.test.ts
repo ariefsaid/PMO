@@ -86,7 +86,9 @@ describe('C-1 DIRECTOR RULING: probeErpByPaymentComposite — reference_no ancho
     party: 'ACME',
     paidAmount: '250.00',
     piNames: ['ACC-PINV-2026-00007'],
+    siNames: [] as string[],
     createdAfter: '2026-07-12 00:00:00',
+    paymentType: 'Pay' as const,
   };
 
   it('an anchor-wiped PE whose landed POST is found by the party/amount/PI-reference conjunction is ADOPTED (no second POST)', async () => {
@@ -163,5 +165,105 @@ describe('C-1 DIRECTOR RULING: probeErpByPaymentComposite — reference_no ancho
     );
     expect(result?.externalRecordId).toBe('ACC-PAY-2026-00001');
     expect(conjunctionQueried).toBe(false); // the anchor hit short-circuited — no conjunction query
+  });
+});
+
+// ============================================================================
+// Task 2.5 — Recovery probe payment_type discriminator (FR-SAR-083, AC-SAR-014)
+// ============================================================================
+
+describe('Task 2.5 — ErpPaymentCompositeInput payment_type discriminator (FR-SAR-083)', () => {
+  const baseInput = {
+    partyType: 'Customer',
+    party: 'Spike Customer',
+    paidAmount: '150000.00',
+    piNames: [] as string[],
+    siNames: ['ACC-SINV-2026-00001'],
+    createdAfter: '2026-07-14 00:00:00',
+    paymentType: 'Receive' as const,
+  };
+
+  it('a Receive probe matches only PE-receive docs (payment_type=Receive) and cites SI refs', async () => {
+    const urls: string[] = [];
+    const fetchImpl = async (url: string) => {
+      urls.push(url);
+      const decoded = decodeURIComponent(url);
+      if (decoded.includes('"reference_no","like"')) return new Response(JSON.stringify({ data: [] }), { status: 200 });
+      if (decoded.includes('"party_type"')) {
+        // Verify the filter includes payment_type=Receive
+        expect(decoded).toContain('"payment_type","=","Receive"');
+        return new Response(JSON.stringify({ data: [{ name: 'ACC-PE-REC-2026-00001' }] }), { status: 200 });
+      }
+      // getDoc with references citing our SI
+      return new Response(
+        JSON.stringify({ name: 'ACC-PE-REC-2026-00001', docstatus: 1, payment_type: 'Receive', references: [{ reference_name: 'ACC-SINV-2026-00001' }] }),
+        { status: 200 },
+      );
+    };
+
+    const result = await probeErpByPaymentComposite(
+      { client: client(fetchImpl), doctype: 'Payment Entry', anchorField: 'reference_no', fromDoc: (d) => ({ id: (d as { name: string }).name }), pmoRecordId: 'pmo-pe-1' },
+      'idem-recv-key',
+      baseInput,
+    );
+    expect(result).not.toBeNull();
+    expect(result!.externalRecordId).toBe('ACC-PE-REC-2026-00001');
+  });
+
+  it('a Pay probe does NOT match a Receive doc (payment_type discriminator prevents cross-match)', async () => {
+    const urls: string[] = [];
+    const fetchImpl = async (url: string) => {
+      urls.push(url);
+      const decoded = decodeURIComponent(url);
+      if (decoded.includes('"reference_no","like"')) return new Response(JSON.stringify({ data: [] }), { status: 200 });
+      if (decoded.includes('"party_type"')) {
+        // Verify the filter includes payment_type=Pay
+        expect(decoded).toContain('"payment_type","=","Pay"');
+        // The ERP has a Receive doc for this customer/amount — but it should NOT match a Pay probe
+        return new Response(JSON.stringify({ data: [{ name: 'ACC-PE-REC-2026-00001' }] }), { status: 200 });
+      }
+      // getDoc — this is a Receive doc (payment_type=Receive), should not be adopted by Pay probe
+      return new Response(
+        JSON.stringify({ name: 'ACC-PE-REC-2026-00001', docstatus: 1, payment_type: 'Receive', references: [{ reference_name: 'ACC-SINV-2026-00001' }] }),
+        { status: 200 },
+      );
+    };
+
+    const payInput = { ...baseInput, paymentType: 'Pay' as const, partyType: 'Supplier' as const, party: 'ACME', piNames: ['ACC-PINV-2026-00001'], siNames: [] };
+    const result = await probeErpByPaymentComposite(
+      { client: client(fetchImpl), doctype: 'Payment Entry', anchorField: 'reference_no', fromDoc: (d) => ({ id: (d as { name: string }).name }), pmoRecordId: 'pmo-pe-1' },
+      'idem-pay-key',
+      payInput,
+    );
+    // Should return null because the found doc has payment_type=Receive, not Pay
+    expect(result).toBeNull();
+  });
+
+  it('a Receive probe does NOT match a Pay doc (payment_type discriminator prevents cross-match)', async () => {
+    const urls: string[] = [];
+    const fetchImpl = async (url: string) => {
+      urls.push(url);
+      const decoded = decodeURIComponent(url);
+      if (decoded.includes('"reference_no","like"')) return new Response(JSON.stringify({ data: [] }), { status: 200 });
+      if (decoded.includes('"party_type"')) {
+        // Verify the filter includes payment_type=Receive
+        expect(decoded).toContain('"payment_type","=","Receive"');
+        // The ERP has a Pay doc for this customer/amount — but it should NOT match a Receive probe
+        return new Response(JSON.stringify({ data: [{ name: 'ACC-PE-PAY-2026-00001' }] }), { status: 200 });
+      }
+      // getDoc — this is a Pay doc (payment_type=Pay), should not be adopted by Receive probe
+      return new Response(
+        JSON.stringify({ name: 'ACC-PE-PAY-2026-00001', docstatus: 1, payment_type: 'Pay', references: [{ reference_name: 'ACC-PINV-2026-00001' }] }),
+        { status: 200 },
+      );
+    };
+
+    const result = await probeErpByPaymentComposite(
+      { client: client(fetchImpl), doctype: 'Payment Entry', anchorField: 'reference_no', fromDoc: (d) => ({ id: (d as { name: string }).name }), pmoRecordId: 'pmo-pe-1' },
+      'idem-recv-key-2',
+      baseInput,
+    );
+    // Should return null because the found doc has payment_type=Pay, not Receive
+    expect(result).toBeNull();
   });
 });
