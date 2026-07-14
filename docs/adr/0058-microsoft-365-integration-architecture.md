@@ -84,6 +84,6 @@ Built once; underpins docs, Teams, calendar, and tasks.
   Teams-native org choose and stay on PMO. Not a self-serve/PLG motion (that remains deferred with the
   pooled topology, ADR-0047).
 - **Topology (ratified):** ADR-0059 → Option C default, B escape hatch.
-- **Token lifecycle (ratified):** server-side custody — ADR-0060.
-- **Open:** publisher verification sequencing (needed for C); Phase-0 encryption-mechanism + bootstrap
-  choices within ADR-0060.
+- **Token lifecycle (ratified):** server-side custody — ADR-0060; encryption = app-layer AES-256-GCM
+  (D1), bootstrap = server-side auth-code + PKCE (D2), both owner-confirmed 2026-07-14.
+- **Open:** publisher verification sequencing (needed for C); provisioning model (invite-first vs JIT).

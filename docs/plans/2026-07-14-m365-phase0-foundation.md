@@ -550,14 +550,12 @@ slice's pgTAP must be green on the owner's local stack before the PR that carrie
 Recorded by the Director during AFK autonomous execution. D1/D2 are **Phase-1 blockers, not Phase-0**,
 so they do not gate this build; the endorsements below are provisional pending owner confirmation.
 
-1. **D1 (encryption) — ENDORSED (owner-confirmable): app-layer AES-256-GCM in the edge function.**
-   The planner's reasoning holds (Vault's named-secret model doesn't fit per-connection-row token
-   columns; co-locate the crypto boundary where plaintext is unavoidable; DB compromise without the KEK
-   yields only ciphertext). Owner may override toward Supabase Vault. Not needed until the Phase-1
-   exchange edge function.
-2. **D2 (bootstrap) — ENDORSED (owner-confirmable): dedicated server-side auth-code + PKCE.** This is
-   already ADR-0060 §1's stated *target flow*, so endorsing it merely aligns with the accepted ADR.
-   Owner-confirmable at Phase 1.
+1. **D1 (encryption) — CONFIRMED by owner 2026-07-14: app-layer AES-256-GCM in the edge function.**
+   (Vault's named-secret model doesn't fit per-connection-row token columns; co-locate the crypto
+   boundary where plaintext is unavoidable; DB compromise without the KEK yields only ciphertext.)
+   Recorded in ADR-0060 §3. Consumed by the Phase-1 exchange edge function.
+2. **D2 (bootstrap) — CONFIRMED by owner 2026-07-14: dedicated server-side auth-code + PKCE.** ADR-0060
+   §1's target flow. Recorded in ADR-0060 §1. Consumed by the Phase-1 exchange edge function.
 3. **D3 (provisioning) — CONFIRMED open, later issue.** Invite-first-vs-JIT stays undecided; the shipped
    graceful not-provisioned state (AC-MSAUTH-010/011) is the Phase-0 posture. No Phase-0 work.
 4. **Security-auditor gate timing — CONFIRMED with a guard.** The inert, client-inaccessible, token-empty

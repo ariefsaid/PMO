@@ -122,12 +122,12 @@ not per-feature.
    Teams/Microsoft ecosystem — not a self-serve/PLG motion. ADR-0058.
 3. **Graph token lifecycle → server-side custody** (confidential-client refresh-token store, best-practice
    security). ADR-0060.
+4. **Encryption (D1) → app-layer AES-256-GCM** in the edge function, KEK in secrets. ADR-0060 §3.
+5. **Bootstrap (D2) → server-side auth-code + PKCE** Graph exchange, separate from SSO. ADR-0060 §1.
 
 **Still open:**
-4. **Publisher verification** — needed for Option C (and a future Teams store listing). Business task,
+6. **Publisher verification** — needed for Option C (and a future Teams store listing). Business task,
    weeks of lead time; can onboard early clients via admin-consent meanwhile. See session history +
    `docs/environments.md`.
-5. **Provisioning model** — keep invite-first, or add JIT provisioning (domain→org or Entra-group
+7. **Provisioning model** — keep invite-first, or add JIT provisioning (domain→org or Entra-group
    mapping on first SSO)? Ties to the Entra-group provisioning feature (§3.1).
-6. **Phase-0 within ADR-0060** — encryption mechanism (Supabase Vault vs app-layer AES-256-GCM) and
-   bootstrap flow (dedicated server-side auth-code+PKCE vs one-time `provider_refresh_token` capture).

@@ -1,6 +1,8 @@
 # ADR-0060 — Microsoft Graph token custody: server-side confidential-client refresh-token store
 
-- **Status:** Accepted (owner ratified 2026-07-14 — Option 2, "highest care", industry best practice)
+- **Status:** Accepted (owner ratified 2026-07-14 — Option 2, "highest care", industry best practice).
+  **Sub-decisions D1/D2 confirmed by owner 2026-07-14:** encryption = app-layer AES-256-GCM (§3);
+  bootstrap = server-side authorization-code + PKCE (§1).
 - **Date:** 2026-07-14
 - **Deciders:** Owner, Director
 - **Related:** ADR-0058 §Decision 6 (this resolves it), ADR-0059 (per-client app → per-client tokens),
@@ -26,19 +28,25 @@ Microsoft data: mishandling is a serious breach, so the controls below are bindi
 **1. Confidential-client, server-only custody.** The refresh token is held and exercised **exclusively
 server-side** in an edge function acting as an OAuth *confidential client* (holds the app secret). The
 refresh token **never** transits or persists in the browser, `localStorage`, or any client-readable
-surface. Target flow: a dedicated server-side **authorization-code + PKCE** exchange for Graph scopes
-(separate from the SSO login) so the refresh token is captured server-side and never touches the client.
+surface. **Bootstrap flow (D2, owner-confirmed 2026-07-14): a dedicated server-side
+authorization-code + PKCE exchange** for Graph scopes (separate from the SSO login) so the refresh token
+is captured server-side and never touches the client. (Rejected: one-time capture of Supabase's
+`provider_refresh_token` — it couples Graph consent to the login moment, inherits SSO scopes, and risks
+the token transiting the client.)
 
 **2. Graph calls are proxied, never client-direct.** Browser → PMO edge function → Graph. Access and
 refresh tokens stay server-side; the client receives only the *resulting data*. No Microsoft token is
 ever handed to the front-end.
 
 **3. Encrypted at rest — envelope encryption, key outside the table.** Tokens are stored **only**
-encrypted. Default mechanism: **Supabase Vault** (pgsodium/libsodium authenticated encryption; must be
-enabled — currently commented in `config.toml`). Alternative: app-layer **AES-256-GCM** in the edge
-function with the key from a managed secret store. The key-encryption key lives in Supabase secrets / a
-cloud KMS / the 1Password vault-`AS` pattern — **never in the repo**, and rotatable. No plaintext token
-column ever exists.
+encrypted. **Mechanism (D1, owner-confirmed 2026-07-14): app-layer AES-256-GCM in the edge function**,
+with the key-encryption key from a managed secret store (Supabase secrets / cloud KMS / the 1Password
+vault-`AS` pattern) — **never in the repo**, and rotatable. No plaintext token column ever exists.
+(Rejected: Supabase Vault (pgsodium) — its `create_secret`/`decrypted_secrets` model fits a few *named*
+secrets, not *per-user/per-connection row* token columns; the edge function needs plaintext to call
+Graph anyway, so co-locating the crypto boundary there minimizes plaintext transit, and a DB compromise
+without the function's KEK yields only ciphertext. Vault stays viable if a future need favors
+Postgres-native TCE.) The stored `key_id` is the KEK **reference**, never the key.
 
 **4. Dedicated, locked-down table.** A new `ms_graph_connections` table (encrypted token columns +
 metadata: scopes granted, expiry, tenant id, user/org linkage), **`org_id`-scoped** (column-default +
@@ -87,9 +95,11 @@ vault-`AS` / Supabase secrets, on a **rotation schedule**, held solely by the ed
 
 ## Phase-0 follow-ups (before OneDrive linking, vision doc Phase 1)
 
-- Choose encryption mechanism: Supabase Vault (enable it) vs app-layer AES-256-GCM.
-- Choose bootstrap: dedicated server-side auth-code+PKCE Graph flow (preferred) vs one-time capture of
-  Supabase's `provider_refresh_token` then server-side custody.
-- Author the `ms_graph_connections` migration (columns, org_id stamp, forced RLS, grants) + pgTAP.
+- ~~Choose encryption mechanism~~ **DONE (D1, 2026-07-14): app-layer AES-256-GCM (§3).**
+- ~~Choose bootstrap flow~~ **DONE (D2, 2026-07-14): server-side auth-code + PKCE (§1).**
+- ~~Author the `ms_graph_connections` migration + pgTAP~~ **AUTHORED (Phase-0 DB slice, `0096`/`0142`/`0143`);
+  DB-deferred pending the owner's local `supabase test db` pass.**
+- Implement the Phase-1 exchange edge function (PKCE bootstrap + AES-256-GCM encrypt/decrypt + Graph
+  proxy) — needs live Entra secrets + the KEK provisioned in secrets.
 - Wire audit_events hooks; define the re-consent UX for the stale-connection path.
 - `security-auditor` sign-off before exposing.
