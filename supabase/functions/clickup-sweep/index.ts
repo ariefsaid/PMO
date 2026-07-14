@@ -228,13 +228,23 @@ Deno.serve(async (req: Request): Promise<Response> => {
   const orgIds = Array.from(new Set(((ownership as Array<{ org_id: string }> | null) ?? []).map((r) => r.org_id)));
 
   const perOrg = [];
+  const failures = [];
   let totalApplied = 0;
   for (const orgId of orgIds) {
-    const token = await resolveOrgClickUpToken(serviceClient, orgId);
-    const result = await sweepOrg(serviceClient, orgId, token);
-    totalApplied += result.applied;
-    perOrg.push({ orgId, ...result });
+    // Per-org isolation: a fail-closed token error (bound org whose Vault secret is missing) or a
+    // sweep error for ONE org must not abort reconciliation for the OTHERS (no cross-org DoS). Record
+    // the failure and continue; the org's watermark simply does not advance and retries next schedule.
+    try {
+      const token = await resolveOrgClickUpToken(serviceClient, orgId);
+      const result = await sweepOrg(serviceClient, orgId, token);
+      totalApplied += result.applied;
+      perOrg.push({ orgId, ...result });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error(`[clickup-sweep] org sweep failed: org=${orgId} detail=${message}`);
+      failures.push({ orgId, error: message });
+    }
   }
 
-  return json({ ok: true, orgs: orgIds.length, applied: totalApplied, perOrg });
+  return json({ ok: true, orgs: orgIds.length, applied: totalApplied, perOrg, failures });
 });
