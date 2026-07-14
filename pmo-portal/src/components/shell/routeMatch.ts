@@ -153,6 +153,9 @@ export const PLACEHOLDER_TITLES: Record<string, string> = {
   // My Tasks page (B-1) has its own nav item but no detail route — register so the breadcrumb
   // resolves "My Tasks" on direct deep-link (not "Dashboard").
   '/my-tasks': 'My Tasks',
+  // /views index (OD-4, I4) now ships as MyViewsPage but is not a rail module, so its breadcrumb
+  // must resolve here — otherwise it falls through to the "Not found" label (owner report 2026-07-14).
+  '/views': 'My Views',
 };
 
 /**
