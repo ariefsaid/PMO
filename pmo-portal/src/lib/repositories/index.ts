@@ -188,6 +188,7 @@ import {
   listIncomingPayments,
   getIncomingPayment,
   getRevenueByProject,
+  submitSalesInvoiceSod,
   type SalesInvoiceRow,
   type IncomingPaymentRow,
 } from '@/src/lib/db/revenue';
@@ -460,14 +461,19 @@ const revenue: RevenueRepository = {
         ).then((res) => ({ id: String(res.canonical.id), ip_number: String(res.canonical.ip_number ?? '') }))
       : Promise.reject(new AppError('revenue is not enabled for this org', 'revenue-not-enabled')),
   submitInvoice: (siId) =>
-    routeDomainWrite('revenue') === 'external'
-      ? dispatchDomainCommand(
+    wrap(async () => {
+      if (routeDomainWrite('revenue') === 'external') {
+        await submitSalesInvoiceSod(siId);   // SoD: server-enforced approver≠author (42501 on self-approval) BEFORE any ERP submit
+        await dispatchDomainCommand(
           'revenue',
           'transition',
           { id: siId, erp_doc_kind: 'sales-invoice' },
           freshIdempotencyKey(),
-        ).then(() => undefined)
-      : Promise.reject(new AppError('revenue is not enabled for this org', 'revenue-not-enabled')),
+        );
+      } else {
+        throw new AppError('revenue is not enabled for this org', 'revenue-not-enabled');
+      }
+    }),
   cancelInvoice: (siId) =>
     routeDomainWrite('revenue') === 'external'
       ? dispatchDomainCommand(

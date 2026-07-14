@@ -59,7 +59,7 @@ function throwWrite(error: PostgrestErrorLike): never {
 export async function listSalesInvoices(
   params?: { projectId?: string } & PageParams,
 ): Promise<SalesInvoiceRow[]> {
-  let query = (supabase as any).from('sales_invoices').select('*');
+  let query = supabase.from('sales_invoices').select('*');
   if (params?.projectId) query = query.eq('project_id', params.projectId);
   const range = resolveRange(params);
   let ordered = query.order('invoice_date', { ascending: false }).order('created_at', { ascending: false });
@@ -74,7 +74,7 @@ export async function listSalesInvoices(
  * RLS scopes the row to the caller's org.
  */
 export async function getSalesInvoice(id: string): Promise<SalesInvoiceRow | null> {
-  const { data, error } = await (supabase as any).from('sales_invoices').select('*').eq('id', id).maybeSingle();
+  const { data, error } = await supabase.from('sales_invoices').select('*').eq('id', id).maybeSingle();
   if (error) throwWrite(error);
   return (data ?? null) as SalesInvoiceRow | null;
 }
@@ -87,7 +87,7 @@ export async function getSalesInvoice(id: string): Promise<SalesInvoiceRow | nul
 export async function listIncomingPayments(
   params?: { customerId?: string } & PageParams,
 ): Promise<IncomingPaymentRow[]> {
-  let query = (supabase as any).from('incoming_payments').select('*');
+  let query = supabase.from('incoming_payments').select('*');
   if (params?.customerId) query = query.eq('customer_id', params.customerId);
   const range = resolveRange(params);
   let ordered = query.order('date', { ascending: false }).order('created_at', { ascending: false });
@@ -102,9 +102,19 @@ export async function listIncomingPayments(
  * RLS scopes the row to the caller's org.
  */
 export async function getIncomingPayment(id: string): Promise<IncomingPaymentRow | null> {
-  const { data, error } = await (supabase as any).from('incoming_payments').select('*').eq('id', id).maybeSingle();
+  const { data, error } = await supabase.from('incoming_payments').select('*').eq('id', id).maybeSingle();
   if (error) throwWrite(error);
   return (data ?? null) as IncomingPaymentRow | null;
+}
+
+/**
+ * Submit a Sales Invoice through the SoD-gated RPC.
+ * Enforces approver ≠ author (42501 on self-approval) BEFORE any ERP dispatch.
+ * Throws AppError with code '42501' if SoD check fails.
+ */
+export async function submitSalesInvoiceSod(siId: string): Promise<void> {
+  const { error } = await supabase.rpc('submit_sales_invoice', { p_si_id: siId });
+  if (error) throw error;
 }
 
 /**
@@ -116,7 +126,7 @@ export async function getIncomingPayment(id: string): Promise<IncomingPaymentRow
 export async function getRevenueByProject(): Promise<
   Array<{ project_id: string | null; project_name: string | null; total_amount: number; open_ar: number; invoice_count: number }>
 > {
-  const { data, error } = await (supabase as any)
+  const { data, error } = await supabase
     .from('sales_invoices')
     .select('project_id, amount, erp_outstanding_amount')
     .neq('status', 'Cancelled');
@@ -136,7 +146,7 @@ export async function getRevenueByProject(): Promise<
   const projectIds = Array.from(agg.keys()).filter((k) => k !== '__unassigned__');
   let projectNames = new Map<string, string>();
   if (projectIds.length > 0) {
-    const { data: projects } = await (supabase as any)
+    const { data: projects } = await supabase
       .from('projects')
       .select('id, name')
       .in('id', projectIds);

@@ -24,8 +24,12 @@ vi.mock('@/src/lib/adapterSeam/ownershipCache', () => ({
   setDomainOwnership: vi.fn(),
   routeDomainWrite: vi.fn(),
 }));
+vi.mock('@/src/lib/db/revenue', () => ({
+  submitSalesInvoiceSod: vi.fn(),
+}));
 
 import * as dispatchClient from '@/src/lib/adapterSeam/dispatchClient';
+import * as revenueDb from '@/src/lib/db/revenue';
 import { clearOwnershipCache, setDomainOwnership, routeDomainWrite } from '@/src/lib/adapterSeam/ownershipCache';
 import { repositories } from '@/src/lib/repositories';
 import { AppError } from '@/src/lib/appError';
@@ -244,5 +248,58 @@ describe('task 2.2 — flipped ownership map — revenue record creates route to
       expect.objectContaining({ id: 'ip-1', erp_doc_kind: 'incoming-payment' }),
       expect.objectContaining({ idempotencyKey: expect.any(String) }),
     );
+  });
+});
+
+/**
+ * FIX 1 (MONEY-CRITICAL) — submitInvoice must call the SoD RPC BEFORE dispatch.
+ * The SoD RPC (submit_sales_invoice) enforces approver ≠ author at the DB layer.
+ * If it throws 42501 (self-approval), dispatch must NEVER be called.
+ */
+describe('FIX 1 — submitInvoice SoD gate (AC-SAR-195 / FR-SAR-195)', () => {
+  beforeEach(() => {
+    setDomainOwnership([{ domain: 'revenue', externalTier: 'erpnext' }]);
+    vi.mocked(routeDomainWrite).mockReturnValue('external');
+  });
+
+  afterEach(() => {
+    clearOwnershipCache();
+    vi.mocked(routeDomainWrite).mockReturnValue('pmo');
+  });
+
+  it('submitInvoice calls submitSalesInvoiceSod RPC first, THEN dispatches transition', async () => {
+    const sodSpy = vi.mocked(revenueDb.submitSalesInvoiceSod);
+    
+    dispatchSpy.mockResolvedValue({
+      externalRecordId: 'ACC-SINV-2026-00001',
+      canonical: { id: 'si-1', erp_docstatus: 1 },
+    });
+
+    await repositories.revenue.submitInvoice('si-1');
+
+    // SoD RPC must be called first
+    expect(sodSpy).toHaveBeenCalledWith('si-1');
+    // Then dispatch must be called
+    expect(dispatchSpy).toHaveBeenCalledWith(
+      'revenue',
+      'transition',
+      expect.objectContaining({ id: 'si-1', erp_doc_kind: 'sales-invoice' }),
+      expect.objectContaining({ idempotencyKey: expect.any(String) }),
+    );
+    // Verify order: SOD RPC called before dispatch
+    expect(sodSpy).toHaveBeenCalledBefore(dispatchSpy);
+  });
+
+  it('submitInvoice rejects and NEVER dispatches when SoD RPC throws 42501 (self-approval)', async () => {
+    const sodSpy = vi.mocked(revenueDb.submitSalesInvoiceSod);
+    
+    // Simulate the 42501 SoD error (self-approval attempt)
+    const sodError = Object.assign(new Error('approver must differ from author (SoD)'), { code: '42501' });
+    sodSpy.mockRejectedValueOnce(sodError);
+
+    await expect(repositories.revenue.submitInvoice('si-1')).rejects.toMatchObject({ code: '42501' });
+
+    // Dispatch must NEVER be called when SoD fails
+    expect(dispatchSpy).not.toHaveBeenCalled();
   });
 });
