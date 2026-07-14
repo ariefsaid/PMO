@@ -27,8 +27,7 @@ import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { trackFilterApplied } from '@/src/lib/analytics';
 import type { IncomingPaymentRow, IncomingPaymentStatus } from '@/src/lib/db/revenue';
 import { incomingPaymentStatusVariant } from '@/src/lib/status/statusVariants';
-import { IDLE_PENDING_PUSH, type PendingPushState } from '@/src/lib/adapterSeam/pendingPush';
-import { useAuth } from '@/src/auth/useAuth';
+import { type PendingPushState } from '@/src/lib/adapterSeam/pendingPush';
 import { useEntityForm } from '@/src/components/ui/useEntityForm';
 
 /** Status filter segments. */
@@ -57,7 +56,6 @@ const IncomingPayments: React.FC = () => {
   const may = usePermission();
   const { realRole } = useEffectiveRole();
   const navigate = useNavigate();
-  const { currentUser } = useAuth();
   const { toast } = useToast();
   const { data, isPending, isError, refetch } = useIncomingPayments();
   const { createPayment, cancelPayment, pendingPush } = useRevenueMutations();
@@ -393,7 +391,7 @@ const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> = ({
             label="Customer"
             required
             value={customerField.value}
-            onChange={(value, option) => customerField.onChange(value)}
+            onChange={(value, _option) => customerField.onChange(value)}
             error={customerField.error}
             placeholder="Select or search customer…"
             loadOptions={async () => []} // TODO: load from companies list (type=Client)
@@ -402,7 +400,7 @@ const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> = ({
           <Combobox
             label="Sales Invoice (optional)"
             value={salesInvoiceField.value ?? ''}
-            onChange={(value, option) => salesInvoiceField.onChange(value ?? '')}
+            onChange={(value, _option) => salesInvoiceField.onChange(value ?? '')}
             error={salesInvoiceField.error}
             placeholder="Link to sales invoice…"
             loadOptions={async () => []} // TODO: load from open sales invoices

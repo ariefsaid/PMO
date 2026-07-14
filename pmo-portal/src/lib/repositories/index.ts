@@ -189,8 +189,6 @@ import {
   getIncomingPayment,
   getRevenueByProject,
   submitSalesInvoiceSod,
-  type SalesInvoiceRow,
-  type IncomingPaymentRow,
 } from '@/src/lib/db/revenue';
 import type {
   Repositories,

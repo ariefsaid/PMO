@@ -12,16 +12,27 @@ import {
 } from '@/src/components/ui';
 import { useNavigate } from 'react-router-dom';
 import { usePermission } from '@/src/auth/usePermission';
-import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useRevenuePerProject } from '@/src/hooks/useRevenue';
-import type { ProjectRow } from '@/src/lib/db/projects';
 
 const RevenueByProject: React.FC = () => {
   const may = usePermission();
-  const { realRole } = useEffectiveRole();
   const navigate = useNavigate();
   const { data, isPending, isError } = useRevenuePerProject();
   const all = useMemo(() => data ?? [], [data]);
+
+  // Calculate totals (must be before any early return for hooks rules)
+  const totalRevenue = useMemo(
+    () => all.reduce((sum, row) => sum + row.total_amount, 0),
+    [all]
+  );
+  const totalOpenAR = useMemo(
+    () => all.reduce((sum, row) => sum + row.open_ar, 0),
+    [all]
+  );
+  const totalInvoices = useMemo(
+    () => all.reduce((sum, row) => sum + row.invoice_count, 0),
+    [all]
+  );
 
   const canView = may('view', 'project');
 
@@ -49,20 +60,6 @@ const RevenueByProject: React.FC = () => {
       </div>
     );
   }
-
-  // Calculate totals
-  const totalRevenue = useMemo(
-    () => all.reduce((sum, row) => sum + row.total_amount, 0),
-    [all]
-  );
-  const totalOpenAR = useMemo(
-    () => all.reduce((sum, row) => sum + row.open_ar, 0),
-    [all]
-  );
-  const totalInvoices = useMemo(
-    () => all.reduce((sum, row) => sum + row.invoice_count, 0),
-    [all]
-  );
 
   const columns: Column<
     { project_id: string | null; project_name: string | null; total_amount: number; open_ar: number; invoice_count: number }

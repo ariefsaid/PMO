@@ -13,7 +13,6 @@ import {
   Combobox,
   FormGrid,
   FormSection,
-  FieldError,
   Button,
   Icon,
   useToast,
@@ -28,8 +27,7 @@ import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { trackFilterApplied } from '@/src/lib/analytics';
 import type { SalesInvoiceRow, SalesInvoiceStatus } from '@/src/lib/db/revenue';
 import { salesInvoiceStatusVariant } from '@/src/lib/status/statusVariants';
-import { IDLE_PENDING_PUSH, type PendingPushState } from '@/src/lib/adapterSeam/pendingPush';
-import { formatCurrency } from '@/src/lib/format';
+import { type PendingPushState } from '@/src/lib/adapterSeam/pendingPush';
 import { useAuth } from '@/src/auth/useAuth';
 import { useEntityForm } from '@/src/components/ui/useEntityForm';
 
@@ -332,7 +330,7 @@ const SalesInvoices: React.FC = () => {
             toast('Invoice created', input.customerId, 'success');
             setFormTarget(null);
           }}
-          onUpdate={async (id, input) => {
+          onUpdate={async (_id, _input) => {
             // In a full implementation, we'd have an update mutation
             // For now, just close the modal
             setFormTarget(null);
@@ -457,7 +455,7 @@ const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
             label="Customer"
             required
             value={customerField.value}
-            onChange={(value, option) => customerField.onChange(value)}
+            onChange={(value, _option) => customerField.onChange(value)}
             error={customerField.error}
             placeholder="Select or search customer…"
             loadOptions={async () => []} // TODO: load from companies list (type=Client)
@@ -466,7 +464,7 @@ const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
           <Combobox
             label="Project"
             value={projectField.value ?? ''}
-            onChange={(value, option) => projectField.onChange(value ?? '')}
+            onChange={(value, _option) => projectField.onChange(value ?? '')}
             error={projectField.error}
             placeholder="Select project (optional)…"
             loadOptions={async () => []} // TODO: load from projects list
