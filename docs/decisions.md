@@ -804,3 +804,20 @@ resolution (mirroring the companies pull-adopt path) — out of scope for this c
 ### OD-ENA-CREDS-REDACT — M-4 RESOLVED
 
 Credential-resolution failures now return a generic client-safe message and log only the specific configuration names server-side.
+
+### OD-ENA-VAULT-SEAM — secret_ref resolution stays confined to credentials.ts (owner heads-up 2026-07-14)
+
+**Binding coordination note:** the `secret_ref`/`webhook_secret_ref` backend will move from
+function-secret env vars to **Vault** later (admin self-serve). All ref→secret derivation MUST stay
+confined to `erpnext/credentials.ts` (`resolveErpCredentials(secretRef, getEnv)` — the getter is
+injected at every call site) so the swap is a one-function change. Do not derive env names from a
+ref anywhere else; the webhook's `webhook_secret_ref` lookup follows the same single-injected-getter
+rule.
+
+### OD-ENA-SHARED-BINDINGS — external_org_bindings is the shared per-org connection table (owner heads-up 2026-07-14)
+
+`external_org_bindings` (migration 0096, `unique (org_id, external_tier)`, tier-generic columns:
+site_url/secret_ref/webhook_secret_ref/version_major/config/activated_at) is the ONE per-org
+external-connection table for ALL tiers. **ClickUp will adopt it** (post-#315: add a
+`tier='clickup'` row; today P1 ClickUp uses env-based global creds + `external_project_bindings`
+for containers only). New tiers add rows, never new tables.
