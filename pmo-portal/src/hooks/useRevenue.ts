@@ -146,6 +146,21 @@ export function useRevenueMutations() {
     },
   });
 
+  const createPayment = useMutation({
+    mutationFn: (input: { customerId: string; salesInvoiceId?: string | null; paidAmount: number; receivedAmount: number; date: string }) =>
+      repositories.revenue.createPayment(input),
+    onMutate: () => {
+      if (isExternal) setPendingPush(beginPush(IDLE_PENDING_PUSH));
+    },
+    onSuccess: () => {
+      invalidate();
+      if (isExternal) setPendingPush(pendingPushAfterWrite('external', { ok: true }));
+    },
+    onError: (err) => {
+      if (isExternal) setPendingPush(pendingPushAfterWrite('external', { ok: false, err }));
+    },
+  });
+
   const cancelPayment = useMutation({
     mutationFn: (ipId: string) => repositories.revenue.cancelPayment(ipId),
     onMutate: () => {
@@ -160,5 +175,5 @@ export function useRevenueMutations() {
     },
   });
 
-  return { create, submitInvoice, cancelInvoice, cancelPayment, pendingPush };
+  return { create, createPayment, submitInvoice, cancelInvoice, cancelPayment, pendingPush };
 }

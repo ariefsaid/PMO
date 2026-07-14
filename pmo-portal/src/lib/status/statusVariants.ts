@@ -180,6 +180,18 @@ export function salesInvoiceStatusVariant(status: string): StatusVariant {
   return WORKFLOW_VARIANT[status] ?? 'neutral';
 }
 
+/** Incoming Payment status → tinted StatusPill variant. */
+export function incomingPaymentStatusVariant(status: string): StatusVariant {
+  switch (status) {
+    case 'Scheduled':
+      return 'progress';
+    case 'Paid':
+      return 'won';
+    default:
+      return 'neutral';
+  }
+}
+
 // ───────────────────────────────────────────────────────────────────────────
 // Test/guard surface: every variant the registry can ever resolve to. The
 // Freed-Blue guard asserts `open` is not among them.

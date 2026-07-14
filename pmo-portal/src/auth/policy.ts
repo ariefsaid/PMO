@@ -53,6 +53,7 @@ export type Entity =
   | 'contactActivity'
   | 'userView'
   | 'salesInvoice'
+  | 'incomingPayment'
   | 'externalBinding';
 
 export interface PolicyContext {
