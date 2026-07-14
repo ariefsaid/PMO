@@ -1,6 +1,6 @@
 /**
  * The `erpnext` tier engine (FR-ENA-010, task 2.12): a `tier:'erpnext'`, `capabilityMap:{companies,
- * procurement}` implementation of the P0 `Adapter` contract. `commit()` dispatches by
+ * procurement,revenue}` implementation of the P0 `Adapter` contract. `commit()` dispatches by
  * `record.erp_doc_kind` through `DOCTYPE_REGISTRY` — a `submittable` kind gets the R9 two-step
  * create->submit->re-fetch (FR-ENA-044, separating the create-commit idempotency window from the
  * submit window and always trusting the RE-FETCHED `status`, never the stale POST/PUT response body);
@@ -21,6 +21,7 @@ import { routeEdit } from './transitionPolicy.ts';
 export const ERPNEXT_TIER = 'erpnext';
 export const ERPNEXT_COMPANIES_DOMAIN: PmoDomain = 'companies';
 export const ERPNEXT_PROCUREMENT_DOMAIN: PmoDomain = 'procurement';
+export const ERPNEXT_REVENUE_DOMAIN: PmoDomain = 'revenue';
 
 export interface DoctypeBodyFns {
   toBody: (record: PmoRecord, ctx: ErpCtx) => unknown;
@@ -266,7 +267,7 @@ function findKindByDoctype(doctype: string): ErpDocKind | undefined {
 export function createErpAdapter(deps: ErpAdapterDeps): Adapter {
   return {
     tier: ERPNEXT_TIER,
-    capabilityMap: new Set<PmoDomain>([ERPNEXT_COMPANIES_DOMAIN, ERPNEXT_PROCUREMENT_DOMAIN]),
+    capabilityMap: new Set<PmoDomain>([ERPNEXT_COMPANIES_DOMAIN, ERPNEXT_PROCUREMENT_DOMAIN, ERPNEXT_REVENUE_DOMAIN]),
     commit: (command: AdapterCommand) => commitErpCommand(command, deps),
     // The modified-poll sweep is the change-feed convergence authority (design decision #9) — its
     // real implementation lands in slice 8 (`applyEngine.ts` reuse). A loud throw here, never a

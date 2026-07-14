@@ -14,8 +14,8 @@ export interface ErpFeedEvent {
   doctype: string;
   /** The PMO `erp_doc_kind` (PMO verb) — `undefined` for a doctype P2 does not mirror (skip). */
   kind: ErpDocKind | undefined;
-  /** The PMO domain (`'companies'|'procurement'`) — `undefined` when `kind` is undefined. */
-  domain: 'companies' | 'procurement' | undefined;
+  /** The PMO domain (`'companies'|'procurement'|'revenue'`) — `undefined` when `kind` is undefined. */
+  domain: 'companies' | 'procurement' | 'revenue' | undefined;
   /** The ERP `name` (the external record id source). */
   erpName: string;
   /** The externalRecordId the feed resolves `external_refs` by (`Supplier:<name>` for parties). */

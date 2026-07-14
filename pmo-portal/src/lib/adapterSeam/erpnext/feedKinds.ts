@@ -14,8 +14,8 @@ import { DOCTYPE_REGISTRY, type ErpDocKind } from './doctypeRegistry.ts';
 
 export type { ErpDocKind } from './doctypeRegistry.ts';
 
-/** kind → the PMO domain (the two ERPNext-owned domains). */
-export const KIND_DOMAIN: Record<ErpDocKind, 'companies' | 'procurement'> = {
+/** kind → the PMO domain (the three ERPNext-owned domains). */
+export const KIND_DOMAIN: Record<ErpDocKind, 'companies' | 'procurement' | 'revenue'> = {
   'purchase-request': 'procurement',
   rfq: 'procurement',
   quotation: 'procurement',
@@ -25,10 +25,14 @@ export const KIND_DOMAIN: Record<ErpDocKind, 'companies' | 'procurement'> = {
   payment: 'procurement',
   supplier: 'companies',
   customer: 'companies',
+  // P3a Slice 1 — Revenue domain:
+  'sales-invoice': 'revenue',
+  'incoming-payment': 'revenue',
 };
 
 /** kind → the PMO mirror table the feed upserts/reads (the table carrying `erp_modified`/`erp_docstatus`).
- *  Procurement sub-doctypes each have their own mirror table (slices 4-6); parties share `companies`. */
+ *  Procurement sub-doctypes each have their own mirror table (slices 4-6); parties share `companies`;
+ *  Revenue kinds map to the new slice-0 tables. */
 export const KIND_MIRROR_TABLE: Record<ErpDocKind, string> = {
   'purchase-request': 'purchase_requests',
   rfq: 'rfqs',
@@ -39,6 +43,9 @@ export const KIND_MIRROR_TABLE: Record<ErpDocKind, string> = {
   payment: 'payments',
   supplier: 'companies',
   customer: 'companies',
+  // P3a Slice 1 — Revenue domain mirror tables (created in slice 0):
+  'sales-invoice': 'sales_invoices',
+  'incoming-payment': 'incoming_payments',
 };
 
 /** Reverse doctype→kind lookup (built from the registry — one source of doctype names). */

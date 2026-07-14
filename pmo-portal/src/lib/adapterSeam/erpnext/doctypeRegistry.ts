@@ -21,7 +21,9 @@ export type ErpDocKind =
   | 'purchase-invoice'
   | 'payment'
   | 'supplier'
-  | 'customer';
+  | 'customer'
+  | 'sales-invoice'
+  | 'incoming-payment';
 
 /** Per-command context injected into `toBody` (resolved refs + the org's binding config defaults). */
 export interface ErpCtx {
@@ -81,6 +83,14 @@ export const DOCTYPE_REGISTRY: Record<ErpDocKind, Pick<DoctypeEntry, 'doctype' |
   payment: { doctype: 'Payment Entry', submittable: true, anchorField: 'reference_no', anchorMutable: true },
   supplier: { doctype: 'Supplier', submittable: false, anchorField: null },
   customer: { doctype: 'Customer', submittable: false, anchorField: null }, // write scope settled in slice 3 (OQ-4)
+  // P3a Slice 1 — Revenue domain (FR-SAR-011, OQ-SAR-1/R9-P3a spike frozen):
+  // SI — anchor 'remarks', IMMUTABLE (OQ-SAR-4, R9-P3a spike #2: remarks survives validate+submit+refetch
+  // verbatim — the PI twin, reissue-capable). ERP server-derives debit_to + items[].income_account.
+  'sales-invoice': { doctype: 'Sales Invoice', submittable: true, anchorField: 'remarks', anchorMutable: false },
+  // PE-receive — anchor 'reference_no', MUTABLE (OQ-SAR-3, R9-P3a spike #4: remarks is clobbered by PE
+  // validate; reference_no survives. C-1 applies verbatim: composite probe + held-on-inconclusive, NEVER
+  // auto-reissued — the double-receive guard). Same doctype as 'payment', payment_type='Receive'.
+  'incoming-payment': { doctype: 'Payment Entry', submittable: true, anchorField: 'reference_no', anchorMutable: true },
 };
 
 /** The generic 3-value ERP docstatus label (task 4.10, FR-ENA-110/111/117). Frappe's `docstatus`
