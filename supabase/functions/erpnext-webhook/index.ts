@@ -31,7 +31,7 @@ import { DOCTYPE_BODIES } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/
 import type { ErpDocKind } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/doctypeRegistry.ts';
 import type { ErpFeedEvent } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/webhookEvent.ts';
 import type { ApplyOutcome } from '../../../pmo-portal/src/lib/adapterSeam/applyEngine.ts';
-import { resolveErpCredentialsFromVault } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/vaultCredentials.ts';
+import { resolvePerOrgSecret } from '../_shared/perOrgSecret.ts';
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
 
 // 256 KiB body cap: reject an oversized payload so a huge body can't exhaust the isolate (mirrors
@@ -191,20 +191,32 @@ async function resolveEmployingOrgsLive(serviceClient: SupabaseClient): Promise<
     if (!r.activated_at || !r.webhook_secret_ref) continue;
     let webhookSecret = '';
     if (connectEnabled) {
-      const readVaultSecret = async (ref: string): Promise<string | null> => {
-        const { data, error } = await serviceClient.rpc('read_vault_secret', { p_secret_ref: ref });
-        if (error) {
-          console.error('read_vault_secret failed', error);
-          return null;
-        }
-        return (data as string | null) ?? null;
-      };
-      try {
-        webhookSecret = await readVaultSecret(r.webhook_secret_ref!) ?? '';
-      } catch (e) {
-        console.warn('ERPNext webhook Vault secret resolution failed, falling back to env:', e instanceof Error ? e.message : String(e));
-        webhookSecret = Deno.env.get(r.webhook_secret_ref!) ?? '';
-      }
+      // Use shared per-org Vault secret resolution (flag gate + binding lookup + fallback)
+      const vaultSecret = await resolvePerOrgSecret({
+        connectEnabled: true,
+        orgId: r.org_id,
+        tier: 'erpnext',
+        column: 'webhook_secret_ref',
+        lookupBinding: async (orgId, tier) => {
+          const { data, error } = await serviceClient
+            .from('external_org_bindings')
+            .select('webhook_secret_ref')
+            .eq('org_id', orgId)
+            .eq('external_tier', tier)
+            .maybeSingle();
+          if (error) return null;
+          return data as { webhook_secret_ref?: string | null } | null;
+        },
+        readVaultSecret: async (ref) => {
+          const { data, error } = await serviceClient.rpc('read_vault_secret', { p_secret_ref: ref });
+          if (error) {
+            console.error('read_vault_secret failed', error);
+            return null;
+          }
+          return (data as string | null) ?? null;
+        },
+      });
+      webhookSecret = vaultSecret ?? '';
     } else {
       webhookSecret = Deno.env.get(r.webhook_secret_ref!) ?? '';
     }

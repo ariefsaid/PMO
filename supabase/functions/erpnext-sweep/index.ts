@@ -43,7 +43,7 @@ import { refreshAccountingSnapshots, type OrgAccountingScope } from '../../../pm
 import { dispatchMoneyWrite, type DispatchMoneyWriteDeps, type ExternalRefMapping, type OutboxRow } from '../../../pmo-portal/src/lib/adapterSeam/dispatch.ts';
 import type { AdapterCommand, PmoRecord } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
 import { resolveErpCredentials } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/credentials.ts';
-import { resolveErpCredentialsFromVault } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/vaultCredentials.ts';
+import { resolvePerOrgSecret } from '../_shared/perOrgSecret.ts';
 import type { ErpClientDeps } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/client.ts';
 import { resolveErpDispatchAdapter } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/dispatchFactory.ts';
 import { canonicalCommandDigest, createDbMoneyOutboxDeps } from '../adapter-dispatch/moneyOutboxDeps.ts';
@@ -227,20 +227,42 @@ async function erpClientForOrg(serviceClient: SupabaseClient, org: OrgBinding): 
   let apiSecret: string;
 
   if (connectEnabled) {
-    const readVaultSecret = async (ref: string): Promise<string | null> => {
-      const { data, error } = await serviceClient.rpc('read_vault_secret', { p_secret_ref: ref });
-      if (error) {
-        console.error('read_vault_secret failed', error);
-        return null;
-      }
-      return (data as string | null) ?? null;
-    };
+    // Use shared per-org Vault secret resolution (flag gate + binding lookup + fallback)
+    const vaultSecret = await resolvePerOrgSecret({
+      connectEnabled: true,
+      orgId: org.orgId,
+      tier: 'erpnext',
+      lookupBinding: async (orgId, tier) => {
+        const { data, error } = await serviceClient
+          .from('external_org_bindings')
+          .select('secret_ref')
+          .eq('org_id', orgId)
+          .eq('external_tier', tier)
+          .maybeSingle();
+        if (error) return null;
+        return data as { secret_ref?: string | null } | null;
+      },
+      readVaultSecret: async (ref) => {
+        const { data, error } = await serviceClient.rpc('read_vault_secret', { p_secret_ref: ref });
+        if (error) {
+          console.error('read_vault_secret failed', error);
+          return null;
+        }
+        return (data as string | null) ?? null;
+      },
+    });
 
-    try {
-      const creds = await resolveErpCredentialsFromVault(org.secretRef, readVaultSecret);
-      apiKey = creds.apiKey;
-      apiSecret = creds.apiSecret;
-    } catch (e) {
+    if (vaultSecret) {
+      // Vault stores apiKey:apiSecret format
+      const idx = vaultSecret.indexOf(':');
+      if (idx > 0 && idx < vaultSecret.length - 1) {
+        apiKey = vaultSecret.slice(0, idx);
+        apiSecret = vaultSecret.slice(idx + 1);
+      } else {
+        throw new AppError('ERPNext credential format invalid (expected apiKey:apiSecret)', 'config-rejected');
+      }
+    } else {
+      // Vault resolution failed (no binding, null ref, or vault returned null) — fall back to env resolver
       const creds = resolveErpCredentials(org.secretRef, (key) => Deno.env.get(key));
       apiKey = creds.apiKey;
       apiSecret = creds.apiSecret;

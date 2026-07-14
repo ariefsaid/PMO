@@ -30,7 +30,7 @@ import { ClickUpRateLimiter } from '../../../pmo-portal/src/lib/adapterSeam/clic
 import type { ClickUpStatusMap } from '../../../pmo-portal/src/lib/adapterSeam/clickup/statusMap.ts';
 import type { ClickUpMemberMap } from '../../../pmo-portal/src/lib/adapterSeam/clickup/memberMap.ts';
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
-import { resolveClickUpCredentialsFromVault } from '../../../pmo-portal/src/lib/adapterSeam/clickup/vaultCredentials.ts';
+import { resolvePerOrgSecret } from '../_shared/perOrgSecret.ts';
 import {
   CLICKUP_TIER,
   CLICKUP_TASKS_DOMAIN,
@@ -155,45 +155,34 @@ async function resolveOrgClickUpToken(
   serviceClient: SupabaseClient,
   orgId: string,
 ): Promise<string> {
-  const connectEnabled = Deno.env.get('EXTERNAL_CONNECT_ENABLED') === 'true';
   const globalToken = Deno.env.get('CLICKUP_API_TOKEN') ?? '';
 
-  if (!connectEnabled) {
-    return globalToken;
-  }
+  // Use shared per-org Vault secret resolution (flag gate + binding lookup + fallback)
+  const vaultToken = await resolvePerOrgSecret({
+    connectEnabled: Deno.env.get('EXTERNAL_CONNECT_ENABLED') === 'true',
+    orgId,
+    tier: 'clickup',
+    lookupBinding: async (orgId, tier) => {
+      const { data, error } = await serviceClient
+        .from('external_org_bindings')
+        .select('secret_ref')
+        .eq('org_id', orgId)
+        .eq('external_tier', tier)
+        .maybeSingle();
+      if (error) return null;
+      return data as { secret_ref?: string | null } | null;
+    },
+    readVaultSecret: async (ref) => {
+      const { data, error } = await serviceClient.rpc('read_vault_secret', { p_secret_ref: ref });
+      if (error) {
+        console.error('read_vault_secret failed', error);
+        return null;
+      }
+      return (data as string | null) ?? null;
+    },
+  });
 
-  // Look up the org's ClickUp binding in external_org_bindings
-  const { data: binding, error: bindingError } = await serviceClient
-    .from('external_org_bindings')
-    .select('secret_ref')
-    .eq('org_id', orgId)
-    .eq('external_tier', 'clickup')
-    .maybeSingle();
-
-  if (bindingError || !binding || !(binding as { secret_ref?: string }).secret_ref) {
-    return globalToken;
-  }
-
-  const secretRef = (binding as { secret_ref: string }).secret_ref;
-
-  // Build readVaultSecret using service-role RPC
-  const readVaultSecret = async (ref: string): Promise<string | null> => {
-    const { data, error } = await serviceClient.rpc('read_vault_secret', { p_secret_ref: ref });
-    if (error) {
-      console.error('read_vault_secret failed', error);
-      return null;
-    }
-    return (data as string | null) ?? null;
-  };
-
-  try {
-    const { token } = await resolveClickUpCredentialsFromVault(secretRef, readVaultSecret);
-    return token;
-  } catch (e) {
-    // Vault resolution failed (config-rejected or null) — fall back to global token
-    console.warn('ClickUp Vault credential resolution failed for org', orgId, 'falling back to global token:', e instanceof Error ? e.message : String(e));
-    return globalToken;
-  }
+  return vaultToken ?? globalToken;
 }
 
 Deno.serve(async (req: Request): Promise<Response> => {

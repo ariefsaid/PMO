@@ -33,6 +33,7 @@ import type { ClickUpWebhookPayload } from '../../../pmo-portal/src/lib/adapterS
 import type { ClickUpStatusMap } from '../../../pmo-portal/src/lib/adapterSeam/clickup/statusMap.ts';
 import type { ClickUpMemberMap } from '../../../pmo-portal/src/lib/adapterSeam/clickup/memberMap.ts';
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
+import { resolvePerOrgSecret } from '../_shared/perOrgSecret.ts';
 import {
   CLICKUP_TIER,
   CLICKUP_TASKS_DOMAIN,
@@ -143,30 +144,35 @@ async function resolveWebhookSecret(
   serviceClient: SupabaseClient,
   binding: ResolvedBinding,
 ): Promise<string> {
-  const connectEnabled = Deno.env.get('EXTERNAL_CONNECT_ENABLED') === 'true';
   const globalSecret = Deno.env.get('CLICKUP_WEBHOOK_SECRET') ?? '';
 
-  if (!connectEnabled || !binding.webhookSecretRef) {
-    return globalSecret;
-  }
+  // Use shared per-org Vault secret resolution (flag gate + binding lookup + fallback)
+  const vaultSecret = await resolvePerOrgSecret({
+    connectEnabled: Deno.env.get('EXTERNAL_CONNECT_ENABLED') === 'true',
+    orgId: binding.orgId,
+    tier: 'clickup',
+    column: 'webhook_secret_ref',
+    lookupBinding: async (orgId, tier) => {
+      const { data, error } = await serviceClient
+        .from('external_project_bindings')
+        .select('webhook_secret_ref')
+        .eq('org_id', orgId)
+        .eq('external_tier', tier)
+        .maybeSingle();
+      if (error) return null;
+      return data as { webhook_secret_ref?: string | null } | null;
+    },
+    readVaultSecret: async (ref) => {
+      const { data, error } = await serviceClient.rpc('read_vault_secret', { p_secret_ref: ref });
+      if (error) {
+        console.error('read_vault_secret failed', error);
+        return null;
+      }
+      return (data as string | null) ?? null;
+    },
+  });
 
-  // Build readVaultSecret using service-role RPC
-  const readVaultSecret = async (ref: string): Promise<string | null> => {
-    const { data, error } = await serviceClient.rpc('read_vault_secret', { p_secret_ref: ref });
-    if (error) {
-      console.error('read_vault_secret failed', error);
-      return null;
-    }
-    return (data as string | null) ?? null;
-  };
-
-  try {
-    const secret = await readVaultSecret(binding.webhookSecretRef);
-    return secret ?? globalSecret;
-  } catch (e) {
-    console.warn('ClickUp webhook Vault secret resolution failed, falling back to global secret:', e instanceof Error ? e.message : String(e));
-    return globalSecret;
-  }
+  return vaultSecret ?? globalSecret;
 }
 
 Deno.serve(async (req: Request): Promise<Response> => {

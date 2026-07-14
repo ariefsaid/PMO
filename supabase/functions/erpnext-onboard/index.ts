@@ -22,7 +22,7 @@ import { constantTimeBearerEquals } from '../_shared/constantTimeBearerEquals.ts
 import { onboardParties, listErpPartySources } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/onboarding.ts';
 import { ERPNEXT_TIER } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/adapter.ts';
 import { resolveErpCredentials } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/credentials.ts';
-import { resolveErpCredentialsFromVault } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/vaultCredentials.ts';
+import { resolvePerOrgSecret } from '../_shared/perOrgSecret.ts';
 import { findPmoRecordId, recordExternalRef as recordExternalRefWrite } from '../../../pmo-portal/src/lib/adapterSeam/refs.ts';
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
 import type { ErpClientDeps } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/client.ts';
@@ -76,30 +76,49 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
     // H-3: per-org credentials from THIS org's secret_ref (fails closed if unset) — never a global pair.
     // Phase 1b (task 1.8): Vault-first resolution behind EXTERNAL_CONNECT_ENABLED flag.
-    // When flag is ON: try Vault via resolveErpCredentialsFromVault; on failure fall back to env resolver.
+    // When flag is ON: try Vault via shared helper; on failure fall back to env resolver.
     // When flag is OFF (default): use existing env resolver (legacy behavior unchanged).
     let apiKey: string;
     let apiSecret: string;
     const connectEnabled = Deno.env.get('EXTERNAL_CONNECT_ENABLED') === 'true';
 
     if (connectEnabled) {
-      // Build readVaultSecret using service-role RPC
-      const readVaultSecret = async (ref: string): Promise<string | null> => {
-        const { data, error } = await serviceClient.rpc('read_vault_secret', { p_secret_ref: ref });
-        if (error) {
-          console.error('read_vault_secret failed', error);
-          return null;
-        }
-        return (data as string | null) ?? null;
-      };
+      // Use shared per-org Vault secret resolution (flag gate + binding lookup + fallback)
+      const vaultSecret = await resolvePerOrgSecret({
+        connectEnabled: true,
+        orgId,
+        tier: 'erpnext',
+        lookupBinding: async (orgId, tier) => {
+          const { data, error } = await serviceClient
+            .from('external_org_bindings')
+            .select('secret_ref')
+            .eq('org_id', orgId)
+            .eq('external_tier', tier)
+            .maybeSingle();
+          if (error) return null;
+          return data as { secret_ref?: string | null } | null;
+        },
+        readVaultSecret: async (ref) => {
+          const { data, error } = await serviceClient.rpc('read_vault_secret', { p_secret_ref: ref });
+          if (error) {
+            console.error('read_vault_secret failed', error);
+            return null;
+          }
+          return (data as string | null) ?? null;
+        },
+      });
 
-      try {
-        const creds = await resolveErpCredentialsFromVault(binding.secret_ref, readVaultSecret);
-        apiKey = creds.apiKey;
-        apiSecret = creds.apiSecret;
-      } catch (e) {
-        // Vault resolution failed (config-rejected or null) — fall back to env resolver
-        console.warn('ERPNext Vault credential resolution failed, falling back to env resolver:', e instanceof Error ? e.message : String(e));
+      if (vaultSecret) {
+        // Vault stores apiKey:apiSecret format
+        const idx = vaultSecret.indexOf(':');
+        if (idx > 0 && idx < vaultSecret.length - 1) {
+          apiKey = vaultSecret.slice(0, idx);
+          apiSecret = vaultSecret.slice(idx + 1);
+        } else {
+          throw new AppError('ERPNext credential format invalid (expected apiKey:apiSecret)', 'config-rejected');
+        }
+      } else {
+        // Vault resolution failed (no binding, null ref, or vault returned null) — fall back to env resolver
         const creds = resolveErpCredentials(binding.secret_ref, (key) => Deno.env.get(key));
         apiKey = creds.apiKey;
         apiSecret = creds.apiSecret;

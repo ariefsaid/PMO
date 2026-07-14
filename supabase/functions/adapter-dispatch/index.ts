@@ -37,6 +37,7 @@ import { ERPNEXT_COMPANIES_DOMAIN, ERPNEXT_PROCUREMENT_DOMAIN, ERPNEXT_TIER } fr
 import { resolveErpDispatchAdapter } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/dispatchFactory.ts';
 import { resolveErpCredentials } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/credentials.ts';
 import { resolveClickUpCredentialsFromVault } from '../../../pmo-portal/src/lib/adapterSeam/clickup/vaultCredentials.ts';
+import { resolvePerOrgSecret } from '../_shared/perOrgSecret.ts';
 // The runtime (kind)->{toBody,fromDoc} side table (task 5.2) — ADDITIVE across slices 3/4/5/6, each
 // wiring only the kinds it owns; an un-wired kind is `commit-rejected` at commit time, never a
 // silent no-op (adapter.ts's `requireBodyFns`). Slice 3's supplier/customer entries now live in this
@@ -95,33 +96,36 @@ async function resolveClickUpAdapter(ctx: AdapterSelectContext): Promise<Adapter
   let clickUpToken = Deno.env.get('CLICKUP_API_TOKEN') ?? '';
 
   if (connectEnabled) {
-    // Look up per-org ClickUp binding
-    const { data: binding, error: bindingError } = await ctx.serviceClient
-      .from('external_org_bindings')
-      .select('secret_ref')
-      .eq('org_id', ctx.orgId)
-      .eq('external_tier', 'clickup')
-      .maybeSingle();
-
-    if (!bindingError && binding && (binding as { secret_ref?: string }).secret_ref) {
-      const secretRef = (binding as { secret_ref: string }).secret_ref;
-      // Build readVaultSecret using service-role RPC
-      const readVaultSecret = async (ref: string): Promise<string | null> => {
+    // Use shared per-org Vault secret resolution (flag gate + binding lookup + fallback)
+    const vaultToken = await resolvePerOrgSecret({
+      connectEnabled: true,
+      orgId: ctx.orgId,
+      tier: 'clickup',
+      lookupBinding: async (orgId, tier) => {
+        const { data, error } = await ctx.serviceClient
+          .from('external_org_bindings')
+          .select('secret_ref')
+          .eq('org_id', orgId)
+          .eq('external_tier', tier)
+          .maybeSingle();
+        if (error) {
+          console.error('external_org_bindings lookup failed', error);
+          return null;
+        }
+        return data as { secret_ref?: string | null } | null;
+      },
+      readVaultSecret: async (ref) => {
         const { data, error } = await ctx.serviceClient.rpc('read_vault_secret', { p_secret_ref: ref });
         if (error) {
           console.error('read_vault_secret failed', error);
           return null;
         }
         return (data as string | null) ?? null;
-      };
+      },
+    });
 
-      try {
-        const { token } = await resolveClickUpCredentialsFromVault(secretRef, readVaultSecret);
-        clickUpToken = token;
-      } catch (e) {
-        // Vault resolution failed (config-rejected or null) — fall back to global token
-        console.warn('ClickUp Vault credential resolution failed, falling back to global token:', e instanceof Error ? e.message : String(e));
-      }
+    if (vaultToken) {
+      clickUpToken = vaultToken;
     }
   }
 
