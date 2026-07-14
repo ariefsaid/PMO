@@ -26,7 +26,8 @@ export type Action =
   | 'archive'
   | 'delete'
   | 'transition'
-  | 'editContractValue';
+  | 'editContractValue'
+  | 'manage';
 
 export type Entity =
   | 'project'
@@ -49,7 +50,8 @@ export type Entity =
   | 'milestone'
   | 'contact'
   | 'contactActivity'
-  | 'userView';
+  | 'userView'
+  | 'integration';
 
 export interface PolicyContext {
   /** The REAL JWT role (not the impersonated effectiveRole). */
@@ -242,6 +244,11 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     create: allow(ALL),
     edit: allow(ALL),
     archive: allow(ALL),
+  },
+  integration: {
+    // Admin self-serve connect/disconnect (UX gate). Server (edge fn + RPC) re-enforces
+    // Admin OR platform Operator. FE is stricter (Admin only).
+    manage: allow(ADMIN),
   },
 };
 

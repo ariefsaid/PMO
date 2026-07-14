@@ -459,6 +459,7 @@ export interface Repositories {
   credits: CreditsRepository;
   externalDomainOwnership: ExternalDomainOwnershipRepository;
   erpSnapshots: ErpSnapshotsRepository;
+  integrations: IntegrationsRepository;
 }
 
 /**
@@ -499,4 +500,74 @@ export interface ErpSnapshotsRepository {
   actuals(): Promise<ErpActualsSnapshotRow[]>;
   apAging(): Promise<ErpAgingSnapshotRow[]>;
   arAging(): Promise<ErpAgingSnapshotRow[]>;
+}
+
+// ============================================================================
+// INTEGRATIONS REPOSITORY (Phase 2, task 2.6)
+// ============================================================================
+
+/** Integration binding status from external_org_bindings. */
+export type IntegrationStatus = 'active' | 'disconnected';
+
+/** The tier of external system. */
+export type ExternalTier = 'clickup' | 'erpnext';
+
+/** Integration binding row (mirrors external_org_bindings). */
+export interface IntegrationBinding {
+  org_id: string;
+  external_tier: ExternalTier;
+  site_url: string;
+  secret_ref: string;
+  status: IntegrationStatus;
+  connected_by: string | null;
+  connected_at: string | null;
+  disconnected_at: string | null;
+}
+
+/** Credential payload for connect. */
+export interface ConnectCredential {
+  tier: ExternalTier;
+  credential: {
+    token?: string;           // ClickUp personal access token
+    apiKey?: string;          // ERPNext API key
+    apiSecret?: string;       // ERPNext API secret
+    siteUrl?: string;         // ERPNext site URL
+  };
+}
+
+/** Response from connect edge function. */
+export interface ConnectResponse {
+  ok: true;
+  binding: {
+    secret_ref: string;
+    status: IntegrationStatus;
+  };
+}
+
+/** Response from disconnect edge function. */
+export interface DisconnectResponse {
+  ok: true;
+}
+
+/** Integration health data (Phase 4). */
+export interface IntegrationHealth {
+  tier: ExternalTier;
+  status: IntegrationStatus;
+  connected_by: string | null;
+  connected_at: string | null;
+  last_sync: string | null;
+  error_count: number;
+}
+
+export interface IntegrationsRepository {
+  /** Get the binding status for a specific tier. */
+  getBinding(orgId: string, tier: ExternalTier): Promise<IntegrationBinding | null>;
+  /** List all bindings for the org. */
+  listBindings(orgId: string): Promise<IntegrationBinding[]>;
+  /** Connect an org to an external tier (calls external-connect edge fn). */
+  connectIntegration(orgId: string, credential: ConnectCredential): Promise<ConnectResponse>;
+  /** Disconnect an org from an external tier (calls external-disconnect edge fn). */
+  disconnectIntegration(orgId: string, tier: ExternalTier): Promise<DisconnectResponse>;
+  /** Get health data for a tier (Phase 4). */
+  getIntegrationHealth(orgId: string, tier: ExternalTier): Promise<IntegrationHealth>;
 }

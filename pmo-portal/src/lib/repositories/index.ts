@@ -11,6 +11,16 @@
  * imports `repositories` and never changes.
  */
 import { toAppError } from '@/src/lib/appError';
+import { supabase } from '@/src/lib/supabase/client';
+import {
+  type IntegrationsRepository,
+  type IntegrationBinding,
+  type ConnectCredential,
+  type ConnectResponse,
+  type DisconnectResponse,
+  type IntegrationHealth,
+  type ExternalTier,
+} from './types';
 import {
   listProjects,
   createProject,
@@ -522,6 +532,79 @@ const erpSnapshots: ErpSnapshotsRepository = {
   arAging: () => wrap(() => listArAgingSnapshot()),
 };
 
+const integrationsImpl: IntegrationsRepository = {
+  getBinding: async (orgId: string, tier: ExternalTier): Promise<IntegrationBinding | null> => {
+    return wrap(async () => {
+      const { data, error } = await supabase
+        .from('external_org_bindings')
+        .select('org_id, external_tier, site_url, secret_ref, status, connected_by, connected_at, disconnected_at')
+        .eq('org_id', orgId)
+        .eq('external_tier', tier)
+        .maybeSingle();
+      if (error) throw error;
+      return data as unknown as IntegrationBinding | null;
+    });
+  },
+  listBindings: async (orgId: string): Promise<IntegrationBinding[]> => {
+    return wrap(async () => {
+      const { data, error } = await supabase
+        .from('external_org_bindings')
+        .select('org_id, external_tier, site_url, secret_ref, status, connected_by, connected_at, disconnected_at')
+        .eq('org_id', orgId);
+      if (error) throw error;
+      return (data ?? []) as unknown as IntegrationBinding[];
+    });
+  },
+  connectIntegration: async (orgId: string, credential: ConnectCredential): Promise<ConnectResponse> => {
+    return wrap(async () => {
+      const { data, error } = await supabase.functions.invoke('external-connect', {
+        body: { tier: credential.tier, credential: credential.credential },
+      });
+      if (error) throw error;
+      return data as ConnectResponse;
+    });
+  },
+  disconnectIntegration: async (orgId: string, tier: ExternalTier): Promise<DisconnectResponse> => {
+    return wrap(async () => {
+      const { data, error } = await supabase.functions.invoke('external-disconnect', {
+        body: { tier },
+      });
+      if (error) throw error;
+      return data as DisconnectResponse;
+    });
+  },
+  getIntegrationHealth: async (orgId: string, tier: ExternalTier): Promise<IntegrationHealth> => {
+    return wrap(async () => {
+      const binding = await integrationsImpl.getBinding(orgId, tier);
+
+      const { data: watermark } = await supabase
+        .from('external_sync_watermarks')
+        .select('synced_at')
+        .eq('org_id', orgId)
+        .eq('external_tier', tier)
+        .order('synced_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      const { count: errorCount } = await supabase
+        .from('external_command_outbox')
+        .select('*', { count: 'exact', head: true })
+        .eq('org_id', orgId)
+        .eq('external_tier', tier)
+        .in('state', ['pending', 'failed', 'quarantined', 'held']);
+
+      return {
+        tier,
+        status: binding?.status ?? 'disconnected',
+        connected_by: binding?.connected_by ?? null,
+        connected_at: binding?.connected_at ?? null,
+        last_sync: (watermark as { synced_at?: string } | null)?.synced_at ?? null,
+        error_count: errorCount ?? 0,
+      };
+    });
+  },
+};
+
 /** The Supabase-backed repositories the FE/CRUD layer consumes (ADR-0017). */
 export const repositories: Repositories = {
   project,
@@ -544,6 +627,7 @@ export const repositories: Repositories = {
   credits,
   externalDomainOwnership,
   erpSnapshots,
+  integrations: integrationsImpl,
 };
 
 export type {
@@ -568,4 +652,5 @@ export type {
   CreditsRepository,
   ExternalDomainOwnershipRepository,
   ErpSnapshotsRepository,
+  IntegrationsRepository,
 } from './types';

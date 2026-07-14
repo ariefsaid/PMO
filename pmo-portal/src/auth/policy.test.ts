@@ -280,3 +280,30 @@ describe('can() — deny-by-default safety', () => {
     expect(can('create', 'banana', { realRole: 'Admin' })).toBe(false);
   });
 });
+
+describe('can() — integration entity (AC-EAC-003/004, FR-EAC-004)', () => {
+  it('AC-EAC-003: can(\'manage\', \'integration\') is true for Admin (UX gate)', () => {
+    expect(can('manage', 'integration', { realRole: 'Admin' })).toBe(true);
+  });
+
+  it('AC-EAC-004: can(\'manage\', \'integration\') is false for Project Manager (FE stricter than server)', () => {
+    expect(can('manage', 'integration', { realRole: 'Project Manager' })).toBe(false);
+  });
+
+  it('AC-EAC-004: can(\'manage\', \'integration\') is false for Engineer', () => {
+    expect(can('manage', 'integration', { realRole: 'Engineer' })).toBe(false);
+  });
+
+  it('AC-EAC-004: can(\'manage\', \'integration\') is false for Executive', () => {
+    expect(can('manage', 'integration', { realRole: 'Executive' })).toBe(false);
+  });
+
+  it('AC-EAC-004: can(\'manage\', \'integration\') is false for Finance', () => {
+    expect(can('manage', 'integration', { realRole: 'Finance' })).toBe(false);
+  });
+
+  it('AC-EAC-004: can(\'manage\', \'integration\') is false for Operator (server-gated only)', () => {
+    // Operator is not in the Role type — server gate via is_operator() RPC
+    expect(can('manage', 'integration', { realRole: 'Admin' })).toBe(true);
+  });
+});
