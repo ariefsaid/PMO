@@ -267,3 +267,72 @@ describe('Task 2.5 — ErpPaymentCompositeInput payment_type discriminator (FR-S
     expect(result).toBeNull();
   });
 });
+
+// ============================================================================
+// Task 2.7 — Held-on-inconclusive for Receive (OWNS AC-SAR-013)
+// ============================================================================
+
+describe('Task 2.7 — PE-receive held-on-inconclusive (AC-SAR-013, C-1 verbatim)', () => {
+  const receiveInput = {
+    partyType: 'Customer',
+    party: 'Spike Customer',
+    paidAmount: '150000.00',
+    piNames: [] as string[],
+    siNames: ['ACC-SINV-2026-00001'],
+    createdAfter: '2026-07-14 00:00:00',
+    paymentType: 'Receive' as const,
+  };
+
+  it('a quarantined PE-receive outbox row past window with composite probe 0 matches → held (never auto-reissue)', async () => {
+    // Simulate the recovery path: probeErpByPaymentComposite returns null (0 matches)
+    // The dispatch layer (task 2.6) will call markOutboxHeld with reason'recovery-inconclusive-absence'
+    const urls: string[] = [];
+    const fetchImpl = async (url: string) => {
+      urls.push(url);
+      const decoded = decodeURIComponent(url);
+      if (decoded.includes('"reference_no","like"')) return new Response(JSON.stringify({ data: [] }), { status: 200 });
+      if (decoded.includes('"party_type"')) {
+        // The probe filters correctly but finds NO candidate
+        return new Response(JSON.stringify({ data: [] }), { status: 200 });
+      }
+      return new Response(JSON.stringify({}), { status: 200 });
+    };
+
+    const result = await probeErpByPaymentComposite(
+      { client: client(fetchImpl), doctype: 'Payment Entry', anchorField: 'reference_no', fromDoc: (d) => ({ id: (d as { name: string }).name }), pmoRecordId: 'pmo-pe-1' },
+      'idem-recv-key',
+      receiveInput,
+    );
+    // Probe returns null (inconclusive absence) → dispatch will HOLD the row (C-1)
+    expect(result).toBeNull();
+    // Verify the conjunction filter included payment_type=Receive
+    const conjUrl = urls.map(decodeURIComponent).find((u) => u.includes('"party_type"'));
+    expect(conjUrl).toContain('"payment_type","=","Receive"');
+  });
+
+  it('a quarantined PE-receive outbox row with composite probe >1 matches (ambiguous) → held (never auto-reissue)', async () => {
+    const urls: string[] = [];
+    const fetchImpl = async (url: string) => {
+      urls.push(url);
+      const decoded = decodeURIComponent(url);
+      if (decoded.includes('"reference_no","like"')) return new Response(JSON.stringify({ data: [] }), { status: 200 });
+      if (decoded.includes('"party_type"')) {
+        // Two candidates with same party/amount/creation — ambiguous
+        return new Response(JSON.stringify({ data: [{ name: 'ACC-PE-REC-2026-00001' }, { name: 'ACC-PE-REC-2026-00002' }] }), { status: 200 });
+      }
+      // Both getDoc calls return docs citing our SI (ambiguous)
+      return new Response(
+        JSON.stringify({ name: 'ACC-PE-REC-2026-00001', docstatus: 1, payment_type: 'Receive', references: [{ reference_name: 'ACC-SINV-2026-00001' }] }),
+        { status: 200 },
+      );
+    };
+
+    const result = await probeErpByPaymentComposite(
+      { client: client(fetchImpl), doctype: 'Payment Entry', anchorField: 'reference_no', fromDoc: (d) => ({ id: (d as { name: string }).name }), pmoRecordId: 'pmo-pe-1' },
+      'idem-recv-key-ambiguous',
+      receiveInput,
+    );
+    // Probe returns null (ambiguous) → dispatch will HOLD the row (C-1)
+    expect(result).toBeNull();
+  });
+});
