@@ -3,7 +3,7 @@
 -- erpnext_money_flip_rls.test.sql exactly. Namespaced UUIDs (005a-prefix, valid hex, NOT seed-colliding).
 -- begin/rollback + finish() — NOT finish_testing().
 begin;
-select plan(24);
+select plan(11);
 
 -- Org A (flipped revenue) + Org B (not flipped) — namespaced 005a UUIDs (valid hex)
 insert into organizations (id, name) values
