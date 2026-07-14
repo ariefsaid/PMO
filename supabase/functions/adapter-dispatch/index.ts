@@ -36,6 +36,7 @@ import { ClickUpRateLimiter } from '../../../pmo-portal/src/lib/adapterSeam/clic
 import { ERPNEXT_COMPANIES_DOMAIN, ERPNEXT_PROCUREMENT_DOMAIN, ERPNEXT_TIER } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/adapter.ts';
 import { resolveErpDispatchAdapter } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/dispatchFactory.ts';
 import { resolveErpCredentials } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/credentials.ts';
+import { resolveClickUpCredentialsFromVault } from '../../../pmo-portal/src/lib/adapterSeam/clickup/vaultCredentials.ts';
 // The runtime (kind)->{toBody,fromDoc} side table (task 5.2) — ADDITIVE across slices 3/4/5/6, each
 // wiring only the kinds it owns; an un-wired kind is `commit-rejected` at commit time, never a
 // silent no-op (adapter.ts's `requireBodyFns`). Slice 3's supplier/customer entries now live in this
@@ -86,16 +87,50 @@ const clickUpRateLimiter = new ClickUpRateLimiter();
 // ClickUp adapter factory (review fix #9): all ClickUp config/member resolution lives OPAQUELY in the
 // pure `clickup/dispatchFactory.ts` — this dispatcher passes the caller's org + command + an injected
 // service-client seam + ClickUp client deps and never sees ClickUp vocabulary (confinement, FR-CUA-012).
-function resolveClickUpAdapter(ctx: AdapterSelectContext): Promise<Adapter> {
+// Phase 1b (task 1.5): ADDITIVE Vault-first credential resolution behind EXTERNAL_CONNECT_ENABLED flag.
+// When flag is ON and an external_org_bindings row exists with secret_ref, resolve via Vault;
+// otherwise fall back to global CLICKUP_API_TOKEN (legacy behavior unchanged when flag is OFF).
+async function resolveClickUpAdapter(ctx: AdapterSelectContext): Promise<Adapter> {
+  const connectEnabled = Deno.env.get('EXTERNAL_CONNECT_ENABLED') === 'true';
+  let clickUpToken = Deno.env.get('CLICKUP_API_TOKEN') ?? '';
+
+  if (connectEnabled) {
+    // Look up per-org ClickUp binding
+    const { data: binding, error: bindingError } = await ctx.serviceClient
+      .from('external_org_bindings')
+      .select('secret_ref')
+      .eq('org_id', ctx.orgId)
+      .eq('external_tier', 'clickup')
+      .maybeSingle();
+
+    if (!bindingError && binding && (binding as { secret_ref?: string }).secret_ref) {
+      const secretRef = (binding as { secret_ref: string }).secret_ref;
+      // Build readVaultSecret using service-role RPC
+      const readVaultSecret = async (ref: string): Promise<string | null> => {
+        const { data, error } = await ctx.serviceClient.rpc('read_vault_secret', { p_secret_ref: ref });
+        if (error) {
+          console.error('read_vault_secret failed', error);
+          return null;
+        }
+        return (data as string | null) ?? null;
+      };
+
+      try {
+        const { token } = await resolveClickUpCredentialsFromVault(secretRef, readVaultSecret);
+        clickUpToken = token;
+      } catch (e) {
+        // Vault resolution failed (config-rejected or null) — fall back to global token
+        console.warn('ClickUp Vault credential resolution failed, falling back to global token:', e instanceof Error ? e.message : String(e));
+      }
+    }
+  }
+
   return resolveClickUpDispatchAdapter({
-    // The real supabase-js client structurally satisfies the factory's DispatchServiceClient seam at
-    // runtime but is not nominally assignable (thenable PostgrestFilterBuilder); same cast idiom as the
-    // machine-write helpers below.
     serviceClient: ctx.serviceClient as never,
     orgId: ctx.orgId,
     command: ctx.command,
     fetchImpl: fetch,
-    token: Deno.env.get('CLICKUP_API_TOKEN') ?? '',
+    token: clickUpToken,
     baseUrl: Deno.env.get('CLICKUP_API_BASE_URL') ?? undefined,
     rateLimiter: clickUpRateLimiter,
   });

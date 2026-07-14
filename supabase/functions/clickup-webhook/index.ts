@@ -17,6 +17,10 @@
  * (mapped path) — to bind org + project + status/member maps ABOVE the pure apply (FR-EAS-024). If no
  * binding resolves, the event is ack'd (200) and skipped — the sweep is the safety net (FR-CUA-045).
  *
+ * Phase 1b (task 1.7): Per-org Vault webhook secret behind EXTERNAL_CONNECT_ENABLED flag.
+ * When flag is ON: resolve binding first, then use per-org webhook_secret_ref from Vault.
+ * When flag is OFF (default): use global CLICKUP_WEBHOOK_SECRET (legacy behavior unchanged).
+ *
  * PROVISIONAL wire shape (the exact ClickUp webhook envelope — `event`/`task_id`/`list_id`/`task` — is
  * re-verified in the deferred live-smoke appendix, same stance as mapping.ts; mocked-only in P1).
  */
@@ -53,6 +57,7 @@ interface ResolvedBinding {
   projectId: string;
   statusMap: ClickUpStatusMap;
   memberMap: ClickUpMemberMap;
+  webhookSecretRef?: string | null;
 }
 
 /** Resolve the per-project binding (org + project + maps) for an inbound task event. Returns `null`
@@ -87,11 +92,11 @@ async function resolveBinding(
   if (payload.list_id) {
     const { data: byList } = await serviceClient
       .from('external_project_bindings')
-      .select('org_id, project_id, config')
+      .select('org_id, project_id, config, webhook_secret_ref')
       .eq('external_tier', CLICKUP_TIER)
       .eq('external_container_id', payload.list_id)
       .maybeSingle();
-    const row = byList as { org_id: string; project_id: string; config: unknown } | null;
+    const row = byList as { org_id: string; project_id: string; config: unknown; webhook_secret_ref?: string | null } | null;
     if (row) return bindingFromRow(row);
   }
 
@@ -105,11 +110,11 @@ async function resolveBinding(
   if (orgIds.length === 1) {
     const { data: anyBinding } = await serviceClient
       .from('external_project_bindings')
-      .select('org_id, project_id, config')
+      .select('org_id, project_id, config, webhook_secret_ref')
       .eq('org_id', orgIds[0])
       .eq('external_tier', CLICKUP_TIER)
       .maybeSingle();
-    const row = anyBinding as { org_id: string; project_id: string; config: unknown } | null;
+    const row = anyBinding as { org_id: string; project_id: string; config: unknown; webhook_secret_ref?: string | null } | null;
     if (row) return bindingFromRow(row);
   }
 
@@ -119,18 +124,49 @@ async function resolveBinding(
 async function loadBinding(serviceClient: SupabaseClient, orgId: string, projectId: string): Promise<ResolvedBinding | null> {
   const { data } = await serviceClient
     .from('external_project_bindings')
-    .select('org_id, project_id, config')
+    .select('org_id, project_id, config, webhook_secret_ref')
     .eq('org_id', orgId)
     .eq('project_id', projectId)
     .eq('external_tier', CLICKUP_TIER)
     .maybeSingle();
-  const row = data as { org_id: string; project_id: string; config: unknown } | null;
+  const row = data as { org_id: string; project_id: string; config: unknown; webhook_secret_ref?: string | null } | null;
   return row ? bindingFromRow(row) : null;
 }
 
-function bindingFromRow(row: { org_id: string; project_id: string; config: unknown }): ResolvedBinding {
+function bindingFromRow(row: { org_id: string; project_id: string; config: unknown; webhook_secret_ref?: string | null }): ResolvedBinding {
   const { statusMap, memberMap } = mapsFromBindingConfig(row.config);
-  return { orgId: row.org_id, projectId: row.project_id, statusMap, memberMap };
+  return { orgId: row.org_id, projectId: row.project_id, statusMap, memberMap, webhookSecretRef: row.webhook_secret_ref ?? null };
+}
+
+/** Resolve the webhook secret for a binding: Vault-first when EXTERNAL_CONNECT_ENABLED=true, else global fallback. */
+async function resolveWebhookSecret(
+  serviceClient: SupabaseClient,
+  binding: ResolvedBinding,
+): Promise<string> {
+  const connectEnabled = Deno.env.get('EXTERNAL_CONNECT_ENABLED') === 'true';
+  const globalSecret = Deno.env.get('CLICKUP_WEBHOOK_SECRET') ?? '';
+
+  if (!connectEnabled || !binding.webhookSecretRef) {
+    return globalSecret;
+  }
+
+  // Build readVaultSecret using service-role RPC
+  const readVaultSecret = async (ref: string): Promise<string | null> => {
+    const { data, error } = await serviceClient.rpc('read_vault_secret', { p_secret_ref: ref });
+    if (error) {
+      console.error('read_vault_secret failed', error);
+      return null;
+    }
+    return (data as string | null) ?? null;
+  };
+
+  try {
+    const secret = await readVaultSecret(binding.webhookSecretRef);
+    return secret ?? globalSecret;
+  } catch (e) {
+    console.warn('ClickUp webhook Vault secret resolution failed, falling back to global secret:', e instanceof Error ? e.message : String(e));
+    return globalSecret;
+  }
 }
 
 Deno.serve(async (req: Request): Promise<Response> => {
@@ -141,16 +177,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
     return json({ error: 'PAYLOAD_TOO_LARGE' }, 413);
   }
 
-  // ── 1. The HMAC is the sole trust boundary: read the RAW body + the X-Signature header BEFORE any
-  //    parse/apply. An absent/invalid signature ⇒ 401 with NO side effect (FR-CUA-041, NFR-CUA-SEC-002). ──
-  const secret = Deno.env.get('CLICKUP_WEBHOOK_SECRET') ?? '';
+  // ── 1. Read the RAW body + the X-Signature header. ──
   const rawBody = await req.text();
   const signatureHeader = req.headers.get('X-Signature') ?? '';
-  if (!secret || !(await verifyClickUpSignature(rawBody, signatureHeader, secret))) {
-    return json({ error: 'UNAUTHORIZED' }, 401);
-  }
 
-  // ── 2. Parse the verified body (ClickUp webhook envelope — PROVISIONAL, re-verified live-smoke). ──
+  // ── 2. Parse the body to resolve binding + get appropriate secret. ──
   let payload: ClickUpWebhookPayload;
   try {
     payload = JSON.parse(rawBody) as ClickUpWebhookPayload;
@@ -166,24 +197,26 @@ Deno.serve(async (req: Request): Promise<Response> => {
   if (!supabaseUrl || !serviceRoleKey) {
     return json({ error: 'MISCONFIGURED', message: 'missing Supabase configuration' }, 500);
   }
-  // Cast: see adapter-dispatch/index.ts — the real supabase-js client structurally satisfies the pure
-  // modules' service-client seams at runtime but is not nominally assignable (thenable builder).
   const serviceClient = createClient(supabaseUrl, serviceRoleKey);
 
-  // ── 3. Resolve the org + project + maps for this task (P1: one employing org per deployment). ──
+  // ── 3. Resolve the org + project + maps for this task. ──
   const binding = await resolveBinding(serviceClient, payload);
   if (!binding) {
-    // No binding resolvable (no employing org / no List bound for this task) — ack and skip. The
-    // sweep (FR-CUA-045) is the safety net; nothing is applied, the read-model is untouched.
+    // No binding resolvable — ack and skip. The sweep (FR-CUA-045) is the safety net.
     return json({ ok: true, skipped: 'no-binding' });
   }
+
+  // ── 4. Resolve webhook secret (Vault-first when flag is ON). ──
+  const secret = await resolveWebhookSecret(serviceClient, binding);
+
+  // ── 5. The HMAC is the sole trust boundary: verify signature with resolved secret. ──
+  if (!secret || !(await verifyClickUpSignature(rawBody, signatureHeader, secret))) {
+    return json({ error: 'UNAUTHORIZED' }, 401);
+  }
+
   const { orgId, projectId, statusMap, memberMap } = binding;
 
-  // ── 4. Apply via the pure engine. All DB access is scoped to orgId (FR-EAS-024: org bound here,
-  //    above the adapter; never threaded into the apply from the payload). Source-mod values flow as
-  //    epoch-ms; the edge fn converts to/from the source_updated_at timestamptz column. The mirror
-  //    callback bag is the shared _shared/clickupMirrorDeps factory (review fix #3) — incl. the
-  //    recordExternalRef writer (the hand-rolled external_refs upsert is gone, matching sweep/onboard). ──
+  // ── 6. Apply via the pure engine. All DB access is scoped to orgId. ──
   const mirrorCallbacks = createClickUpMirrorCallbacks({ serviceClient, orgId, projectId });
   try {
     const outcome = await applyWebhookEvent(payload, {
@@ -199,8 +232,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
         if (error) throw new AppError(error.message, error.code);
       },
       surfaceDeletion: async (pmoRecordId, externalRecordId) => {
-        // P1 surfacing channel: a structured log (the tombstone itself is operator-visible — the row
-        // disappears from active views, AC-CUA-070). A dedicated audit/notice table is a follow-up.
         console.warn(
           `[clickup-webhook] task tombstoned: org=${orgId} pmoRecordId=${pmoRecordId} clickupTaskId=${externalRecordId}`,
         );
@@ -208,16 +239,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
     });
     return json({ ok: true, outcome });
   } catch (err) {
-    // A 23505 from a concurrent adopt (FR-CUA-064) is recoverable — the loser reconciles on re-run;
-    // surface it as a 409, not a 500, so ClickUp's at-least-once redelivery is not alert-spammed.
     const appError = err instanceof AppError ? err : new AppError(err instanceof Error ? err.message : 'webhook apply failed');
     const code = appError.code;
     if (code === '23505') {
       return json({ error: 'CONCURRENT_ADOPT', message: 'a concurrent adopt is reconciling' }, 409);
     }
-    // Review fix #7c: a 5xx response carries a GENERIC message (never the raw error detail — which
-    // could leak schema/internal detail to the public, unauthenticated surface). The detail is logged
-    // server-side for operator diagnosis.
     console.error(`[clickup-webhook] apply failed: org=${orgId} code=${code ?? 'none'} detail=${appError.message}`);
     return json({ error: 'WEBHOOK_APPLY_FAILED', message: 'the webhook could not be applied' }, 500);
   }

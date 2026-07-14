@@ -15,12 +15,9 @@
  * monotonic watermark advance, unreachable ⇒ no advance) is unit-tested under sweep.test.ts. This
  * file is INTEGRATION-ONLY — verified by `deno check` + the boot-smoke.
  *
- * Per employing org: load the org's ClickUp bindings (one List per bound project), enumerate changes
- * since the org `(tasks, clickup)` watermark across ALL the org's Lists (merged — correct for single-
- * and multi-List orgs), apply each through the pure engine, and advance the org watermark once to the
- * max `nextCursor`. An unreachable adapter surfaces a per-org failure without advancing that org's
- * watermark or touching its read-model (AC-CUA-044); the next schedule retries. Bulk lane throughout
- * (NFR-CUA-PERF-003).
+ * Phase 1b (task 1.6): Per-org Vault credential resolution behind EXTERNAL_CONNECT_ENABLED flag.
+ * When flag is ON: iterate external_org_bindings for ClickUp tier, resolve each org's token via Vault.
+ * When flag is OFF (default): legacy global CLICKUP_API_TOKEN behavior unchanged.
  */
 
 // Deno-native imports (not in pmo-portal/package.json)
@@ -33,6 +30,7 @@ import { ClickUpRateLimiter } from '../../../pmo-portal/src/lib/adapterSeam/clic
 import type { ClickUpStatusMap } from '../../../pmo-portal/src/lib/adapterSeam/clickup/statusMap.ts';
 import type { ClickUpMemberMap } from '../../../pmo-portal/src/lib/adapterSeam/clickup/memberMap.ts';
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
+import { resolveClickUpCredentialsFromVault } from '../../../pmo-portal/src/lib/adapterSeam/clickup/vaultCredentials.ts';
 import {
   CLICKUP_TIER,
   CLICKUP_TASKS_DOMAIN,
@@ -152,6 +150,52 @@ async function sweepOrg(serviceClient: SupabaseClient, orgId: string, token: str
   }
 }
 
+/** Resolve a single org's ClickUp token: Vault-first when EXTERNAL_CONNECT_ENABLED=true, else global fallback. */
+async function resolveOrgClickUpToken(
+  serviceClient: SupabaseClient,
+  orgId: string,
+): Promise<string> {
+  const connectEnabled = Deno.env.get('EXTERNAL_CONNECT_ENABLED') === 'true';
+  const globalToken = Deno.env.get('CLICKUP_API_TOKEN') ?? '';
+
+  if (!connectEnabled) {
+    return globalToken;
+  }
+
+  // Look up the org's ClickUp binding in external_org_bindings
+  const { data: binding, error: bindingError } = await serviceClient
+    .from('external_org_bindings')
+    .select('secret_ref')
+    .eq('org_id', orgId)
+    .eq('external_tier', 'clickup')
+    .maybeSingle();
+
+  if (bindingError || !binding || !(binding as { secret_ref?: string }).secret_ref) {
+    return globalToken;
+  }
+
+  const secretRef = (binding as { secret_ref: string }).secret_ref;
+
+  // Build readVaultSecret using service-role RPC
+  const readVaultSecret = async (ref: string): Promise<string | null> => {
+    const { data, error } = await serviceClient.rpc('read_vault_secret', { p_secret_ref: ref });
+    if (error) {
+      console.error('read_vault_secret failed', error);
+      return null;
+    }
+    return (data as string | null) ?? null;
+  };
+
+  try {
+    const { token } = await resolveClickUpCredentialsFromVault(secretRef, readVaultSecret);
+    return token;
+  } catch (e) {
+    // Vault resolution failed (config-rejected or null) — fall back to global token
+    console.warn('ClickUp Vault credential resolution failed for org', orgId, 'falling back to global token:', e instanceof Error ? e.message : String(e));
+    return globalToken;
+  }
+}
+
 Deno.serve(async (req: Request): Promise<Response> => {
   // ── 1. Authorization: the caller (the pg_cron job) must present the DEDICATED sweep secret (NOT the
   //    master service_role key — least-privilege, mirroring 0082's AGENT_DISPATCH_SECRET). The cron
@@ -173,23 +217,21 @@ Deno.serve(async (req: Request): Promise<Response> => {
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
   if (!supabaseUrl || !serviceRoleKey) return json({ error: 'MISCONFIGURED', message: 'missing Supabase configuration' }, 500);
 
-  const token = Deno.env.get('CLICKUP_API_TOKEN') ?? '';
-  // Cast: see adapter-dispatch/index.ts — the real supabase-js client structurally satisfies the pure
-  // modules' service-client seams at runtime but is not nominally assignable (thenable builder).
   const serviceClient = createClient(supabaseUrl, serviceRoleKey);
 
-  // ── 2. Iterate employing orgs (orgs whose `tasks` domain is owned by ClickUp) → sweep each. ──
-  const { data: ownership, error: ownershipError } = await serviceClient
-    .from('external_domain_ownership')
+  // ── 2. Iterate employing orgs via external_org_bindings (ClickUp tier) → sweep each with its token. ──
+  const { data: bindings, error: bindingsError } = await serviceClient
+    .from('external_org_bindings')
     .select('org_id')
-    .eq('external_tier', CLICKUP_TIER)
-    .eq('domain', CLICKUP_TASKS_DOMAIN);
-  if (ownershipError) return json({ error: ownershipError.code ?? 'OWNERSHIP_READ_FAILED', message: ownershipError.message }, 500);
-  const orgIds = Array.from(new Set(((ownership as Array<{ org_id: string }> | null) ?? []).map((r) => r.org_id)));
+    .eq('external_tier', 'clickup')
+    .eq('status', 'active');
+  if (bindingsError) return json({ error: bindingsError.code ?? 'BINDINGS_READ_FAILED', message: bindingsError.message }, 500);
+  const orgIds = Array.from(new Set(((bindings as Array<{ org_id: string }> | null) ?? []).map((r) => r.org_id)));
 
   const perOrg = [];
   let totalApplied = 0;
   for (const orgId of orgIds) {
+    const token = await resolveOrgClickUpToken(serviceClient, orgId);
     const result = await sweepOrg(serviceClient, orgId, token);
     totalApplied += result.applied;
     perOrg.push({ orgId, ...result });
