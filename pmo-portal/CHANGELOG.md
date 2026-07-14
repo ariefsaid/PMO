@@ -10,6 +10,13 @@ Each released section pins the full deploy manifest (app sha · DB migration hig
 edge-function state) so "what's in production" is unambiguous. The DB schema version (migration
 high-water mark) moves independently of the product tag.
 
+## [0.7.1](https://github.com/ariefsaid/PMO/compare/v0.7.0...v0.7.1) (2026-07-14)
+
+
+### Features
+
+* **views:** enable My Views + AI composer by default; stop assistant claiming a false save ([#328](https://github.com/ariefsaid/PMO/issues/328)) ([49222a8](https://github.com/ariefsaid/PMO/commit/49222a801d24d4721697d85f159565e7a95b6e80))
+
 ## [0.7.0](https://github.com/ariefsaid/PMO/compare/v0.6.0...v0.7.0) (2026-07-13)
 
 
