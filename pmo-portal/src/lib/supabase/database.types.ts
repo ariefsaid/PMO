@@ -605,8 +605,11 @@ export type Database = {
         Row: {
           archived_at: string | null
           created_at: string
+          erp_amended_from: string | null
           erp_cancelled_at: string | null
           erp_customer_name: string | null
+          erp_docstatus: number | null
+          erp_modified: string | null
           erp_party_type: string | null
           erp_payment_terms_days: number | null
           erp_supplier_name: string | null
@@ -619,8 +622,11 @@ export type Database = {
         Insert: {
           archived_at?: string | null
           created_at?: string
+          erp_amended_from?: string | null
           erp_cancelled_at?: string | null
           erp_customer_name?: string | null
+          erp_docstatus?: number | null
+          erp_modified?: string | null
           erp_party_type?: string | null
           erp_payment_terms_days?: number | null
           erp_supplier_name?: string | null
@@ -633,8 +639,11 @@ export type Database = {
         Update: {
           archived_at?: string | null
           created_at?: string
+          erp_amended_from?: string | null
           erp_cancelled_at?: string | null
           erp_customer_name?: string | null
+          erp_docstatus?: number | null
+          erp_modified?: string | null
           erp_party_type?: string | null
           erp_payment_terms_days?: number | null
           erp_supplier_name?: string | null
@@ -1250,6 +1259,7 @@ export type Database = {
           last_error: string | null
           operation: string
           org_id: string
+          payload: Json | null
           payload_digest: string | null
           pmo_record_id: string
           reconcile_after: string | null
@@ -1270,6 +1280,7 @@ export type Database = {
           last_error?: string | null
           operation: string
           org_id?: string
+          payload?: Json | null
           payload_digest?: string | null
           pmo_record_id: string
           reconcile_after?: string | null
@@ -1290,6 +1301,7 @@ export type Database = {
           last_error?: string | null
           operation?: string
           org_id?: string
+          payload?: Json | null
           payload_digest?: string | null
           pmo_record_id?: string
           reconcile_after?: string | null
@@ -3732,6 +3744,7 @@ export type Database = {
           last_error: string | null
           operation: string
           org_id: string
+          payload: Json | null
           payload_digest: string | null
           pmo_record_id: string
           reconcile_after: string | null
@@ -3748,6 +3761,10 @@ export type Database = {
       clickup_sweep_tick: { Args: never; Returns: undefined }
       clone_budget_version: { Args: { version_id: string }; Returns: string }
       committed_procurement_statuses: { Args: never; Returns: string[] }
+      confirm_outbox: {
+        Args: { p_generation: number; p_id: string }
+        Returns: number
+      }
       create_payment: {
         Args: {
           p_amount: number
@@ -4060,6 +4077,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      mark_outbox_held: {
+        Args: { p_generation: number; p_id: string; p_reason: string }
+        Returns: number
+      }
       next_procurement_doc_number: {
         Args: { p_org: string; p_prefix: string }
         Returns: string
@@ -4182,6 +4203,7 @@ export type Database = {
           last_error: string | null
           operation: string
           org_id: string
+          payload: Json | null
           payload_digest: string | null
           pmo_record_id: string
           reconcile_after: string | null
@@ -4212,6 +4234,7 @@ export type Database = {
           last_error: string | null
           operation: string
           org_id: string
+          payload: Json | null
           payload_digest: string | null
           pmo_record_id: string
           reconcile_after: string | null
@@ -4228,6 +4251,17 @@ export type Database = {
       rate_limit_hit: {
         Args: { p_key: string; p_limit: number; p_window_secs: number }
         Returns: boolean
+      }
+      record_outbox_ref: {
+        Args: {
+          p_domain: string
+          p_external_record_id: string
+          p_external_tier: string
+          p_generation: number
+          p_id: string
+          p_pmo_record_id: string
+        }
+        Returns: number
       }
       release_credits: { Args: { p_run_id: string }; Returns: undefined }
       reserve_credits: {

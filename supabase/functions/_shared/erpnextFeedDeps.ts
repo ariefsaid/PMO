@@ -56,13 +56,24 @@ export function createErpFeedDeps(serviceClient: SupabaseClient, orgId: string, 
     },
     mintMirror: async (canonical, sourceModMs) => {
       if (domain === 'companies') {
-        // Party adopt (Supplier/Customer created natively in ERP — OQ-4): mint a companies row.
+        // Party adopt (Supplier/Customer created natively in ERP — OQ-4): mint the FULL companies
+        // mirror row + the source-mod stamp. Writing only name/type here (the original slice-8 cut)
+        // silently dropped the party canonical (erp_supplier_name/tax_id/…) and left erp_modified
+        // NULL — so the adopted row was half-empty and the per-row staleness guard never engaged
+        // (found live arming the demo feed, 2026-07-14).
         const id = crypto.randomUUID();
         const { error } = await serviceClient.from('companies').insert({
           id,
           org_id: orgId,
           name: canonical.name ?? canonical.erp_supplier_name ?? null,
           type: canonical.type ?? (kind === 'supplier' ? 'Vendor' : 'Client'),
+          erp_party_type: (canonical.erp_party_type as string | null | undefined) ?? null,
+          erp_supplier_name: (canonical.erp_supplier_name as string | null | undefined) ?? null,
+          erp_customer_name: (canonical.erp_customer_name as string | null | undefined) ?? null,
+          erp_tax_id: (canonical.erp_tax_id as string | null | undefined) ?? null,
+          erp_payment_terms_days: (canonical.erp_payment_terms_days as number | null | undefined) ?? null,
+          erp_docstatus: (canonical.erp_docstatus as number | null | undefined) ?? null,
+          erp_modified: new Date(sourceModMs).toISOString(),
         });
         if (error) throw new AppError(error.message, error.code);
         return id;

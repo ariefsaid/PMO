@@ -15,7 +15,7 @@
 --   user write -> lives_ok (contacts ride the companies domain flip — FR-ENA-095, no separate 'contacts'
 --   domain).
 begin;
-select plan(18);
+select plan(20);
 
 insert into organizations (id, name) values
   ('00960000-0000-0000-0000-000000000001','AC-ENA Parties Org A (flipped)'),
@@ -74,6 +74,15 @@ select throws_ok(
   $$ update companies set erp_payment_terms_days = 999 where id = '00960000-0000-0000-0000-000000000101' $$,
   '42501', null,
   'companies: user-JWT UPDATE of native col erp_payment_terms_days denied while externally-owned');
+-- 0103 feed-ordering pair (the columns the LIVE inbound webhook writes) — machine-only like the rest
+select throws_ok(
+  $$ update companies set erp_modified = '2099-01-01 00:00:00.000000' where id = '00960000-0000-0000-0000-000000000101' $$,
+  '42501', null,
+  'companies: user-JWT UPDATE of native col erp_modified denied while externally-owned (0103)');
+select throws_ok(
+  $$ update companies set erp_docstatus = 2 where id = '00960000-0000-0000-0000-000000000101' $$,
+  '42501', null,
+  'companies: user-JWT UPDATE of native col erp_docstatus denied while externally-owned (0103)');
 
 -- enhancement column stays user-writable while flipped
 select lives_ok(
