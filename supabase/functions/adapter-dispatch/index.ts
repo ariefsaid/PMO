@@ -469,6 +469,40 @@ Deno.serve(async (req: Request): Promise<Response> => {
   // Never used for adapter.commit() — org_id never crosses into the adapter (AC-EAS-023).
   const serviceClient = createClient(supabaseUrl, serviceRoleKey);
 
+  // ── Slice 3: process_gates enforcement (FR-SAR-191, AC-SAR-070).
+  // Check require_project_on_si gate for revenue/sales-invoice create commands.
+  // This runs BEFORE any adapter/outbox work so we reject fast without creating an outbox row.
+  if (command.domain === ERPNEXT_REVENUE_DOMAIN 
+      && (command.operation as string) === 'create' 
+      && (command.record as { erp_doc_kind?: unknown }).erp_doc_kind === 'sales-invoice') {
+    const { data: gatesData, error: gatesError } = await serviceClient
+      .rpc('get_process_gates', { p_org: orgId });
+    if (gatesError) {
+      console.error('[adapter-dispatch] get_process_gates RPC failed:', gatesError);
+      return new Response(JSON.stringify({ error: 'commit-rejected', message: 'gate-check-failed' }), {
+        status: 422,
+        headers,
+      });
+    }
+    const gates = gatesData as { require_so_before_si: boolean; require_bast_before_si: boolean; require_project_on_si: boolean };
+    if (gates.require_project_on_si) {
+      const projectId = (command.record as { projectId?: string | null }).projectId ?? null;
+      if (projectId === null) {
+        return new Response(JSON.stringify({ error: 'commit-rejected', message: 'project-required' }), {
+          status: 422,
+          headers,
+        });
+      }
+    }
+    // SO/BAST gates are recognized but inert in P3a — log if enabled for visibility
+    if (gates.require_so_before_si) {
+      console.warn('[adapter-dispatch] require_so_before_si is true but not enforced in P3a (inert)');
+    }
+    if (gates.require_bast_before_si) {
+      console.warn('[adapter-dispatch] require_bast_before_si is true but not enforced in P3a (inert)');
+    }
+  }
+
   // ── Named server-side fault seams (Slice 0 task 0.7, FR-ENA-003, plan §2 decision 5; host
   // allowlist added fix-round finding 5): read the gate ONCE per request and thread it through.
   // `maybeFault` re-checks ALL THREE conditions per named seam, so this is a pure no-op in every

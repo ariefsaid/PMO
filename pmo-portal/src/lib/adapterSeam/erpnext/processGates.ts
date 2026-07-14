@@ -32,8 +32,13 @@ export function readProcessGates(config: Record<string, unknown> | undefined): P
   };
 }
 
-/** Slice 3 enforcement helper (stubbed here so dispatch compiles). Returns null (no block) or the gate violation code. */
-export function enforceGates(_gates: ProcessGates, _command: { erp_doc_kind?: string; projectId?: string | null }): string | null {
-  // Enforcement is wired in Slice 3 (adapter-dispatch + pgTAP). This is a no-op stub for compile.
+/** Slice 3 enforcement helper. Returns null (no block) or the gate violation code. */
+export function enforceGates(gates: ProcessGates, command: { erp_doc_kind?: string; projectId?: string | null }): string | null {
+  // Only enforce for sales-invoice create commands
+  if (command.erp_doc_kind !== 'sales-invoice') return null;
+  // Only enforce require_project_on_si (SO/BAST are inert in P3a)
+  if (gates.require_project_on_si && (command.projectId === undefined || command.projectId === null)) {
+    return 'project-required';
+  }
   return null;
 }
