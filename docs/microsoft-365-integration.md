@@ -96,9 +96,11 @@ Legend — **Consent:** U=per-user delegated consent · A=org-admin consent · V
 
 ## 4. Sequencing recommendation
 
-The common foundation is the **Graph token lifecycle** (Supabase returns a `provider_token` but does not
-refresh it — durable Graph access needs MSAL or an edge-function token store). Build it **once**; it
-underpins docs, Teams, calendar, tasks. Design the docs work so this layer is built here, not per-feature.
+The common foundation is the **Graph token lifecycle** — ratified as a **server-side, confidential-client
+refresh-token store** with best-practice security (envelope encryption, forced-RLS token table, proxied
+Graph calls, least-privilege consent, rotation/revocation/audit), specified in **ADR-0060**. Build it
+**once**; it underpins docs, Teams, calendar, tasks. Design the docs work so this layer is built here,
+not per-feature.
 
 1. **Phase 0 — foundation:** Graph token lifecycle + the two-switch entitlement/config surface +
    provisioning hardening (graceful "not provisioned yet" instead of the raw profile error; decide
@@ -118,13 +120,14 @@ underpins docs, Teams, calendar, tasks. Design the docs work so this layer is bu
    **B** (client-tenant app, no publisher verification) as the escape hatch. ADR-0059.
 2. **Priority frame → delight-first, positioned to drive enterprise adoption** for orgs already in the
    Teams/Microsoft ecosystem — not a self-serve/PLG motion. ADR-0058.
+3. **Graph token lifecycle → server-side custody** (confidential-client refresh-token store, best-practice
+   security). ADR-0060.
 
 **Still open:**
-3. **Publisher verification** — needed for Option C (and a future Teams store listing). Business task,
+4. **Publisher verification** — needed for Option C (and a future Teams store listing). Business task,
    weeks of lead time; can onboard early clients via admin-consent meanwhile. See session history +
    `docs/environments.md`.
-4. **Graph token lifecycle** — MSAL on the client vs an edge-function refresh-token store. Decide in
-   Phase 0. *(Plain-language explainer for the owner is in the 2026-07-14 session; the choice is where
-   the long-lived Microsoft "keep-access" token is stored and refreshed.)*
 5. **Provisioning model** — keep invite-first, or add JIT provisioning (domain→org or Entra-group
    mapping on first SSO)? Ties to the Entra-group provisioning feature (§3.1).
+6. **Phase-0 within ADR-0060** — encryption mechanism (Supabase Vault vs app-layer AES-256-GCM) and
+   bootstrap flow (dedicated server-side auth-code+PKCE vs one-time `provider_refresh_token` capture).

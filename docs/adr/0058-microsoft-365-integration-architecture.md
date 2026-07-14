@@ -54,10 +54,13 @@ invoking user's identity/permissions — a "show me all orgs" prompt still hits 
 It works identically under both; the only topology-sensitive choice is the Entra app registration, which
 is isolated to **ADR-0059**. Consequently this integration can proceed without reopening ADR-0047.
 
-**6. Shared Graph token lifecycle, built once.** Supabase returns a `provider_token` at sign-in but does
-not refresh it; durable Graph access requires a deliberate token layer (MSAL on the client OR an
-edge-function refresh-token store — chosen in Phase 0). This foundation is built once and underpins docs,
-Teams, calendar, and tasks — not re-solved per feature.
+**6. Shared Graph token lifecycle, built once — server-side custody (ADR-0060).** Supabase returns a
+`provider_token` at sign-in but does not refresh it; durable Graph access requires a deliberate token
+layer. **Ratified: Option 2 — a server-side, confidential-client refresh-token store** (rejected the
+client-side MSAL option), because the high-value features act on the user's behalf while offline. Full
+best-practice controls (server-only custody, proxied Graph calls, envelope encryption, forced-RLS token
+table, least-privilege incremental consent, rotation/revocation, audit) are binding in **ADR-0060**.
+Built once; underpins docs, Teams, calendar, and tasks.
 
 ## Consequences
 
@@ -81,5 +84,6 @@ Teams, calendar, and tasks — not re-solved per feature.
   Teams-native org choose and stay on PMO. Not a self-serve/PLG motion (that remains deferred with the
   pooled topology, ADR-0047).
 - **Topology (ratified):** ADR-0059 → Option C default, B escape hatch.
-- **Open:** token lifecycle mechanism (§Decision 6) — decided in Phase 0; publisher verification
-  sequencing (needed for C).
+- **Token lifecycle (ratified):** server-side custody — ADR-0060.
+- **Open:** publisher verification sequencing (needed for C); Phase-0 encryption-mechanism + bootstrap
+  choices within ADR-0060.
