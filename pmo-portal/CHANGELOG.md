@@ -10,7 +10,7 @@ Each released section pins the full deploy manifest (app sha · DB migration hig
 edge-function state) so "what's in production" is unambiguous. The DB schema version (migration
 high-water mark) moves independently of the product tag.
 
-## [0.8.0](https://github.com/ariefsaid/PMO/compare/v0.7.0...v0.8.0) (2026-07-14)
+## [0.7.1](https://github.com/ariefsaid/PMO/compare/v0.7.0...v0.7.1) (2026-07-14)
 
 
 ### Features
