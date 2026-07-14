@@ -4,6 +4,11 @@
  *
  * AC-EAC-009, AC-EAC-011: flag/binding/vault matrix.
  */
+export type PerOrgSecretResult =
+  | { kind: 'no-binding' }
+  | { kind: 'resolved'; secret: string }
+  | { kind: 'binding-vault-miss' };
+
 export interface PerOrgSecretDeps {
   /** EXTERNAL_CONNECT_ENABLED === 'true' */
   connectEnabled: boolean;
@@ -23,30 +28,35 @@ export interface PerOrgSecretDeps {
  * Resolves a per-org secret from Vault when the feature flag is ON and a binding exists.
  *
  * Semantics (flag/binding/vault matrix):
- * - flag OFF → null (caller uses legacy fallback)
- * - flag ON + no binding / binding[column] null → null
- * - flag ON + binding[column] + vault returns value → the value
- * - flag ON + binding[column] + vault returns null → null (caller falls back)
+ * - flag OFF → { kind: 'no-binding' } (caller uses legacy fallback)
+ * - flag ON + no binding → { kind: 'no-binding' }
+ * - flag ON + binding[column] null → { kind: 'binding-vault-miss' }
+ * - flag ON + binding[column] + vault returns value → { kind: 'resolved', secret: value }
+ * - flag ON + binding[column] + vault returns null → { kind: 'binding-vault-miss' }
  *
- * Never throws for "use fallback" cases — returns null so the caller's existing legacy path runs.
+ * Never throws — returns a discriminated result so callers can distinguish states.
  */
-export async function resolvePerOrgSecret(deps: PerOrgSecretDeps): Promise<string | null> {
+export async function resolvePerOrgSecret(deps: PerOrgSecretDeps): Promise<PerOrgSecretResult> {
   const { connectEnabled, orgId, tier, column = 'secret_ref', lookupBinding, readVaultSecret } = deps;
 
   if (!connectEnabled) {
-    return null;
+    return { kind: 'no-binding' };
   }
 
   const binding = await lookupBinding(orgId, tier);
   if (!binding) {
-    return null;
+    return { kind: 'no-binding' };
   }
 
   const secretRef = binding[column];
   if (!secretRef) {
-    return null;
+    return { kind: 'binding-vault-miss' };
   }
 
   const secret = await readVaultSecret(secretRef);
-  return secret;
+  if (secret === null) {
+    return { kind: 'binding-vault-miss' };
+  }
+
+  return { kind: 'resolved', secret };
 }

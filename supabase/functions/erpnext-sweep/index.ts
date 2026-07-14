@@ -227,8 +227,8 @@ async function erpClientForOrg(serviceClient: SupabaseClient, org: OrgBinding): 
   let apiSecret: string;
 
   if (connectEnabled) {
-    // Use shared per-org Vault secret resolution (flag gate + binding lookup + fallback)
-    const vaultSecret = await resolvePerOrgSecret({
+    // Use shared per-org Vault secret resolution (flag gate + binding lookup + tri-state)
+    const result = await resolvePerOrgSecret({
       connectEnabled: true,
       orgId: org.orgId,
       tier: 'erpnext',
@@ -252,17 +252,17 @@ async function erpClientForOrg(serviceClient: SupabaseClient, org: OrgBinding): 
       },
     });
 
-    if (vaultSecret) {
+    if (result.kind === 'resolved') {
       // Vault stores apiKey:apiSecret format
-      const idx = vaultSecret.indexOf(':');
-      if (idx > 0 && idx < vaultSecret.length - 1) {
-        apiKey = vaultSecret.slice(0, idx);
-        apiSecret = vaultSecret.slice(idx + 1);
+      const idx = result.secret.indexOf(':');
+      if (idx > 0 && idx < result.secret.length - 1) {
+        apiKey = result.secret.slice(0, idx);
+        apiSecret = result.secret.slice(idx + 1);
       } else {
         throw new AppError('ERPNext credential format invalid (expected apiKey:apiSecret)', 'config-rejected');
       }
     } else {
-      // Vault resolution failed (no binding, null ref, or vault returned null) — fall back to env resolver
+      // kind === 'no-binding' OR 'binding-vault-miss' → fall back to env resolver
       const creds = resolveErpCredentials(org.secretRef, (key) => Deno.env.get(key));
       apiKey = creds.apiKey;
       apiSecret = creds.apiSecret;

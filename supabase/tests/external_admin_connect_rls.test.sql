@@ -2,7 +2,7 @@
 -- pgTAP tests for Vault reader/writer RPCs and external_org_bindings RLS/role gates
 -- AC-EAC-003, AC-EAC-004, AC-EAC-005, AC-EAC-006, AC-EAC-014, AC-EAC-015, AC-EAC-019, AC-EAC-020
 begin;
-select plan(33);
+select plan(35);
 
 -- ============================================================================
 -- SETUP: seed orgs, users, profiles
@@ -230,7 +230,7 @@ select lives_ok(
   'AC-EAC-003 service_role with p_actor_id=Operator succeeds for any org'
 );
 
--- Test 20: Reconnect (re-call for same org+tier) updates secret_ref, old secret remains in Vault (Phase 1)
+-- Test 20: Reconnect (re-call for same org+tier) rotates Vault secret — old secret REVOKED
 reset role;
 set local request.jwt.claims = '{}';
 select lives_ok(
@@ -241,7 +241,7 @@ select lives_ok(
     'clickup_token_org_a_rotated',
     'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'
   ) $$,
-  'AC-EAC-006 reconnect updates secret_ref (Phase 1: old secret not revoked)'
+  'AC-EAC-006 reconnect rotates Vault secret (old revoked)'
 );
 
 -- Test 21: Verify binding updated (still 1 row)
@@ -258,11 +258,11 @@ select is(
   'AC-EAC-006 secret_ref updated on reconnect'
 );
 
--- Test 23: Verify old secret still exists in Vault (Phase 1: no revocation)
+-- Test 23: Verify OLD secret is GONE from Vault (revoked via delete_vault_secret)
 select is(
   public.read_vault_secret('clickup_token_org_a_1'),
-  'valid-clickup-token-123',
-  'AC-EAC-006 old secret remains in Vault (Phase 1: no revocation)'
+  null::text,
+  'AC-EAC-006 old secret revoked (deleted from vault.secrets)'
 );
 
 -- Test 24: Verify new secret readable
@@ -350,6 +350,36 @@ select is(
   (select has_function_privilege('service_role', 'public.create_vault_secret_for_org(uuid,text,text,text,uuid)', 'execute')),
   true,
   'create_vault_secret_for_org executable by service_role'
+);
+
+-- Test 34: Actor spoof prevention - authenticated caller with p_actor_id=Admin should be denied
+-- The effective actor should be auth.uid() (the caller's JWT), not the passed p_actor_id
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb","role":"authenticated"}';
+select throws_ok(
+  $$ select public.create_vault_secret_for_org(
+    '11111111-1111-1111-1111-111111111111',
+    'clickup',
+    'spoof-token',
+    'clickup_token_spoof',
+    'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'  -- p_actor_id = Admin A (trying to spoof)
+  ) $$,
+  '42501', null,
+  'AC-EAC-004 actor spoof denied: authenticated non-Admin cannot override via p_actor_id'
+);
+
+-- Test 35: Service role with p_actor_id still works (sanity check - service_role has auth.uid()=null)
+reset role;
+set local request.jwt.claims = '{}';
+select lives_ok(
+  $$ select public.create_vault_secret_for_org(
+    '22222222-2222-2222-2222-222222222222',
+    'erpnext',
+    'erpnext-spoof-check:secret',
+    'erpnext_token_spoof_check',
+    'cccccccc-cccc-cccc-cccc-cccccccccccc'  -- p_actor_id = Admin B (valid for Org B)
+  ) $$,
+  'service_role with valid p_actor_id still works'
 );
 
 select finish();

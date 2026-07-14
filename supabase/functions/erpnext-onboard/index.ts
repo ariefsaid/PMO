@@ -22,6 +22,7 @@ import { constantTimeBearerEquals } from '../_shared/constantTimeBearerEquals.ts
 import { onboardParties, listErpPartySources } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/onboarding.ts';
 import { ERPNEXT_TIER } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/adapter.ts';
 import { resolveErpCredentials } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/credentials.ts';
+import { resolveErpCredentialsFromVault } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/vaultCredentials.ts';
 import { resolvePerOrgSecret } from '../_shared/perOrgSecret.ts';
 import { findPmoRecordId, recordExternalRef as recordExternalRefWrite } from '../../../pmo-portal/src/lib/adapterSeam/refs.ts';
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
@@ -76,15 +77,14 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
     // H-3: per-org credentials from THIS org's secret_ref (fails closed if unset) — never a global pair.
     // Phase 1b (task 1.8): Vault-first resolution behind EXTERNAL_CONNECT_ENABLED flag.
-    // When flag is ON: try Vault via shared helper; on failure fall back to env resolver.
-    // When flag is OFF (default): use existing env resolver (legacy behavior unchanged).
+    // FIX-6: use resolveErpCredentialsFromVault for vault path; on no-binding/binding-vault-miss fall back to env resolver.
     let apiKey: string;
     let apiSecret: string;
     const connectEnabled = Deno.env.get('EXTERNAL_CONNECT_ENABLED') === 'true';
 
     if (connectEnabled) {
-      // Use shared per-org Vault secret resolution (flag gate + binding lookup + fallback)
-      const vaultSecret = await resolvePerOrgSecret({
+      // Use shared per-org Vault secret resolution (flag gate + binding lookup + tri-state)
+      const result = await resolvePerOrgSecret({
         connectEnabled: true,
         orgId,
         tier: 'erpnext',
@@ -108,17 +108,17 @@ Deno.serve(async (req: Request): Promise<Response> => {
         },
       });
 
-      if (vaultSecret) {
+      if (result.kind === 'resolved') {
         // Vault stores apiKey:apiSecret format
-        const idx = vaultSecret.indexOf(':');
-        if (idx > 0 && idx < vaultSecret.length - 1) {
-          apiKey = vaultSecret.slice(0, idx);
-          apiSecret = vaultSecret.slice(idx + 1);
+        const idx = result.secret.indexOf(':');
+        if (idx > 0 && idx < result.secret.length - 1) {
+          apiKey = result.secret.slice(0, idx);
+          apiSecret = result.secret.slice(idx + 1);
         } else {
           throw new AppError('ERPNext credential format invalid (expected apiKey:apiSecret)', 'config-rejected');
         }
       } else {
-        // Vault resolution failed (no binding, null ref, or vault returned null) — fall back to env resolver
+        // kind === 'no-binding' OR 'binding-vault-miss' → fall back to env resolver
         const creds = resolveErpCredentials(binding.secret_ref, (key) => Deno.env.get(key));
         apiKey = creds.apiKey;
         apiSecret = creds.apiSecret;

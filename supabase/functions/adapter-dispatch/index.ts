@@ -91,13 +91,14 @@ const clickUpRateLimiter = new ClickUpRateLimiter();
 // Phase 1b (task 1.5): ADDITIVE Vault-first credential resolution behind EXTERNAL_CONNECT_ENABLED flag.
 // When flag is ON and an external_org_bindings row exists with secret_ref, resolve via Vault;
 // otherwise fall back to global CLICKUP_API_TOKEN (legacy behavior unchanged when flag is OFF).
+// FIX-2: tri-state — no-binding → global fallback; resolved → vault token; binding-vault-miss → FAIL CLOSED.
 async function resolveClickUpAdapter(ctx: AdapterSelectContext): Promise<Adapter> {
   const connectEnabled = Deno.env.get('EXTERNAL_CONNECT_ENABLED') === 'true';
   let clickUpToken = Deno.env.get('CLICKUP_API_TOKEN') ?? '';
 
   if (connectEnabled) {
     // Use shared per-org Vault secret resolution (flag gate + binding lookup + fallback)
-    const vaultToken = await resolvePerOrgSecret({
+    const result = await resolvePerOrgSecret({
       connectEnabled: true,
       orgId: ctx.orgId,
       tier: 'clickup',
@@ -124,9 +125,13 @@ async function resolveClickUpAdapter(ctx: AdapterSelectContext): Promise<Adapter
       },
     });
 
-    if (vaultToken) {
-      clickUpToken = vaultToken;
+    if (result.kind === 'resolved') {
+      clickUpToken = result.secret;
+    } else if (result.kind === 'binding-vault-miss') {
+      // FIX-2: bound org but vault secret missing → fail closed, do NOT fall back to global token
+      throw new AppError('ClickUp credentials unresolved for this org — check the binding secret_ref configuration', 'config-rejected');
     }
+    // result.kind === 'no-binding' → fall through to global token (legacy fallback)
   }
 
   return resolveClickUpDispatchAdapter({

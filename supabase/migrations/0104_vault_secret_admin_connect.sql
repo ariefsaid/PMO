@@ -69,8 +69,8 @@ declare
   v_is_admin boolean;
   v_is_operator boolean;
 begin
-  -- Resolve effective actor: explicit p_actor_id (service_role path) OR auth.uid() (JWT path)
-  v_effective_actor := coalesce(p_actor_id, auth.uid());
+  -- Resolve effective actor: auth.uid() (JWT path) takes precedence; p_actor_id (service_role path) only when auth.uid() is null
+  v_effective_actor := coalesce(auth.uid(), p_actor_id);
 
   -- Gate: effective actor must be Admin of p_org_id OR platform Operator
   -- Check profiles.role = 'Admin' AND profiles.org_id = p_org_id
@@ -110,10 +110,10 @@ begin
     connected_at = excluded.connected_at,
     updated_at = now();
 
-  -- Note: Vault secret rotation (revoking old secret) is deferred to Phase 2
-  -- when vault.delete_secret becomes available. For now, we only update secret_ref.
-  -- The old secret remains in Vault but is no longer referenced by any binding.
-  null;
+  -- AC-EAC-006: reconnect rotates + REVOKES old secret
+  if v_old_secret_ref is not null and v_old_secret_ref <> v_secret_name then
+    perform public.delete_vault_secret(v_old_secret_ref);
+  end if;
 
   -- Emit audit event (log_audit exists per 0076_audit_events.sql)
   -- Use 'integration.reconnect' when rotating an existing binding
@@ -140,9 +140,11 @@ grant execute on function public.create_vault_secret_for_org(uuid, text, text, t
 grant execute on function public.create_vault_secret_for_org(uuid, text, text, text, uuid) to service_role;
 
 -- ============================================================================
--- 3. Vault DELETE (used by writer for rotation, Phase 2 will use for disconnect)
+-- 3. Vault DELETE (used by writer for rotation, edge fn disconnect path)
 -- public.delete_vault_secret(p_secret_name text) returns void
--- security definer, granted to service_role (edge fn path) and authenticated (reconnect path via writer)
+-- security definer, granted to service_role ONLY (edge fn path)
+-- REAL Vault API: delete from vault.secrets where name = p_secret_name
+-- (vault.delete_secret() does NOT exist)
 -- ============================================================================
 create or replace function public.delete_vault_secret(p_secret_name text)
 returns void
@@ -151,10 +153,9 @@ security definer
 set search_path = public, vault
 as $$
 begin
-  perform vault.delete_secret(p_secret_name);
+  delete from vault.secrets where name = p_secret_name;
 end;
 $$;
 
 revoke all on function public.delete_vault_secret(text) from public;
 grant execute on function public.delete_vault_secret(text) to service_role;
-grant execute on function public.delete_vault_secret(text) to authenticated;

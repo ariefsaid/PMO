@@ -175,7 +175,8 @@ export async function handleErpWebhook(req: Request, deps: ErpWebhookHandlerDeps
 // ── The real wiring the Deno.serve wrapper uses (DB + env + createErpFeedDeps). ──────────────────
 
 /** Loads the employing orgs + resolves each org's webhook secret from its `webhook_secret_ref` env.
- * Phase 1b (task 1.8): Vault-first resolution behind EXTERNAL_CONNECT_ENABLED flag. */
+ * Phase 1b (task 1.8): Vault-first resolution behind EXTERNAL_CONNECT_ENABLED flag.
+ * FIX-2: tri-state — no-binding → skip; resolved → use vault secret; binding-vault-miss → skip (fail closed for webhook). */
 async function resolveEmployingOrgsLive(serviceClient: SupabaseClient): Promise<EmployingOrg[]> {
   const connectEnabled = Deno.env.get('EXTERNAL_CONNECT_ENABLED') === 'true';
   const { data, error } = await serviceClient.from('external_org_bindings')
@@ -191,8 +192,8 @@ async function resolveEmployingOrgsLive(serviceClient: SupabaseClient): Promise<
     if (!r.activated_at || !r.webhook_secret_ref) continue;
     let webhookSecret = '';
     if (connectEnabled) {
-      // Use shared per-org Vault secret resolution (flag gate + binding lookup + fallback)
-      const vaultSecret = await resolvePerOrgSecret({
+      // Use shared per-org Vault secret resolution (flag gate + binding lookup + tri-state)
+      const result = await resolvePerOrgSecret({
         connectEnabled: true,
         orgId: r.org_id,
         tier: 'erpnext',
@@ -216,7 +217,11 @@ async function resolveEmployingOrgsLive(serviceClient: SupabaseClient): Promise<
           return (data as string | null) ?? null;
         },
       });
-      webhookSecret = vaultSecret ?? '';
+
+      if (result.kind === 'resolved') {
+        webhookSecret = result.secret;
+      }
+      // kind === 'no-binding' OR 'binding-vault-miss' → webhookSecret stays empty, org is skipped
     } else {
       webhookSecret = Deno.env.get(r.webhook_secret_ref!) ?? '';
     }

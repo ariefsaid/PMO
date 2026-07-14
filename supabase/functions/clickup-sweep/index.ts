@@ -150,15 +150,16 @@ async function sweepOrg(serviceClient: SupabaseClient, orgId: string, token: str
   }
 }
 
-/** Resolve a single org's ClickUp token: Vault-first when EXTERNAL_CONNECT_ENABLED=true, else global fallback. */
+/** Resolve a single org's ClickUp token: Vault-first when EXTERNAL_CONNECT_ENABLED=true, else global fallback.
+ * ClickUp: fail CLOSED on binding-vault-miss (bound org with missing Vault secret). */
 async function resolveOrgClickUpToken(
   serviceClient: SupabaseClient,
   orgId: string,
 ): Promise<string> {
   const globalToken = Deno.env.get('CLICKUP_API_TOKEN') ?? '';
 
-  // Use shared per-org Vault secret resolution (flag gate + binding lookup + fallback)
-  const vaultToken = await resolvePerOrgSecret({
+  // Use shared per-org Vault secret resolution (flag gate + binding lookup + tri-state result)
+  const result = await resolvePerOrgSecret({
     connectEnabled: Deno.env.get('EXTERNAL_CONNECT_ENABLED') === 'true',
     orgId,
     tier: 'clickup',
@@ -182,7 +183,15 @@ async function resolveOrgClickUpToken(
     },
   });
 
-  return vaultToken ?? globalToken;
+  if (result.kind === 'resolved') {
+    return result.secret;
+  }
+  if (result.kind === 'binding-vault-miss') {
+    // Bound org but Vault secret missing — FAIL CLOSED (no global fallback)
+    throw new AppError('ClickUp credentials unresolved for this org — check the binding secret_ref configuration', 'config-rejected');
+  }
+  // kind === 'no-binding' → use global fallback
+  return globalToken;
 }
 
 Deno.serve(async (req: Request): Promise<Response> => {
@@ -208,14 +217,15 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
   const serviceClient = createClient(supabaseUrl, serviceRoleKey);
 
-  // ── 2. Iterate employing orgs via external_org_bindings (ClickUp tier) → sweep each with its token. ──
-  const { data: bindings, error: bindingsError } = await serviceClient
-    .from('external_org_bindings')
+  // ── 2. Iterate employing orgs via external_domain_ownership (ClickUp tasks tier) → sweep each with its token.
+  // FIX-3: Restore legacy discovery (byte-for-byte the origin/dev query) so flag-off/prod works.
+  const { data: ownership, error: ownershipError } = await serviceClient
+    .from('external_domain_ownership')
     .select('org_id')
-    .eq('external_tier', 'clickup')
-    .eq('status', 'active');
-  if (bindingsError) return json({ error: bindingsError.code ?? 'BINDINGS_READ_FAILED', message: bindingsError.message }, 500);
-  const orgIds = Array.from(new Set(((bindings as Array<{ org_id: string }> | null) ?? []).map((r) => r.org_id)));
+    .eq('external_tier', CLICKUP_TIER)
+    .eq('domain', CLICKUP_TASKS_DOMAIN);
+  if (ownershipError) return json({ error: ownershipError.code ?? 'OWNERSHIP_READ_FAILED', message: ownershipError.message }, 500);
+  const orgIds = Array.from(new Set(((ownership as Array<{ org_id: string }> | null) ?? []).map((r) => r.org_id)));
 
   const perOrg = [];
   let totalApplied = 0;
