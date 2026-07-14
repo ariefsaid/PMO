@@ -33,7 +33,7 @@ import { createReferenceAdapter, REFERENCE_DOMAIN } from '../../../pmo-portal/sr
 import { CLICKUP_TASKS_DOMAIN } from '../../../pmo-portal/src/lib/adapterSeam/clickup/adapter.ts';
 import { resolveClickUpDispatchAdapter } from '../../../pmo-portal/src/lib/adapterSeam/clickup/dispatchFactory.ts';
 import { ClickUpRateLimiter } from '../../../pmo-portal/src/lib/adapterSeam/clickup/rateLimit.ts';
-import { ERPNEXT_COMPANIES_DOMAIN, ERPNEXT_PROCUREMENT_DOMAIN, ERPNEXT_TIER } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/adapter.ts';
+import { ERPNEXT_COMPANIES_DOMAIN, ERPNEXT_PROCUREMENT_DOMAIN, ERPNEXT_REVENUE_DOMAIN, ERPNEXT_TIER } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/adapter.ts';
 import { resolveErpDispatchAdapter } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/dispatchFactory.ts';
 import { resolveErpCredentials } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/credentials.ts';
 // The runtime (kind)->{toBody,fromDoc} side table (task 5.2) — ADDITIVE across slices 3/4/5/6, each
@@ -240,15 +240,19 @@ async function resolveErpMoneyOutboxDeps(ctx: AdapterSelectContext): Promise<Dis
         ? (_domain, idempotencyKey) => probeErpByAnchorKey(probeDeps, idempotencyKey)
         // Mutable anchor (PE `reference_no`): the COMPOSITE probe — anchor OR the deterministic
         // conjunction, every input read back from our persisted outbox payload (ADR-0058 §4 amended).
+        // Handles both PE-pay (payment_type=Pay, pi_names) and PE-receive (payment_type=Receive, si_names).
         : async (domain, idempotencyKey) => {
             const p = await readOutboxCompositePayload(ctx.serviceClient, ctx.orgId, domain, ctx.command.record.id, idempotencyKey);
             if (!p || !p.party || p.paid_amount == null) return probeErpByAnchorKey(probeDeps, idempotencyKey);
+            const paymentType = String(p.payment_type ?? 'Pay') as 'Pay' | 'Receive';
             return probeErpByPaymentComposite(probeDeps, idempotencyKey, {
               partyType: String(p.party_type ?? 'Supplier'),
               party: String(p.party),
               paidAmount: p.paid_amount as string | number,
               piNames: Array.isArray(p.pi_names) ? (p.pi_names as string[]) : [],
+              siNames: Array.isArray(p.si_names) ? (p.si_names as string[]) : [],
               createdAfter: String(p.created_after ?? ''),
+              paymentType,
             });
           },
   });
@@ -259,17 +263,45 @@ function erpDatetime(ms: number): string {
   return new Date(ms).toISOString().replace('T', ' ').slice(0, 19);
 }
 
-/** Build the Payment Entry composite-probe payload from the command (persisted at outbox INSERT). The
- *  supplier `party` is resolved through `external_refs` (companies domain) exactly as the adapter body
- *  resolves `ctx.refs.supplier`; the referenced Purchase Invoice names come from the command's
- *  `references` rows. `created_after` bounds the candidate set to this attempt's window. */
+/** Build the Payment Entry composite-probe payload from the command (persisted at outbox INSERT).
+ *  Handles both PE-pay (procurement) and PE-receive (revenue).
+ *  - PE-pay: supplier `party` via external_refs (companies domain), `piNames` from `references`.
+ *  - PE-receive: customer `party` via external_refs (companies domain), `siNames` from `references`.
+ *  `created_after` bounds the candidate set to this attempt's window. */
 async function buildPaymentCompositePayload(ctx: AdapterSelectContext): Promise<Record<string, unknown>> {
   const rec = ctx.command.record as Record<string, unknown>;
+  const kind = typeof rec.erp_doc_kind === 'string' ? rec.erp_doc_kind : '';
+  const isReceive = kind === 'incoming-payment';
+
+  if (isReceive) {
+    // PE-receive (revenue): customer party + SI references
+    const customerPmoId = typeof rec.customerId === 'string' ? rec.customerId : undefined;
+    let party: string | null = null;
+    if (customerPmoId) {
+      const resolved = await resolveExternalRef(ctx.serviceClient as never, ctx.orgId, ERPNEXT_COMPANIES_DOMAIN, customerPmoId);
+      // external_refs stores companies "<Doctype>:<name>" encoding — strip to bare Customer name.
+      party = resolved ? resolved.slice(resolved.indexOf(':') + 1) : null;
+    }
+    const siNames = Array.isArray(rec.references)
+      ? (rec.references as Array<{ reference_name?: unknown }>).map((r) => String(r.reference_name)).filter((n) => n && n !== 'undefined')
+      : [];
+    return {
+      party_type: 'Customer',
+      party,
+      paid_amount: rec.paid_amount ?? null,
+      pi_names: [],
+      si_names: siNames,
+      payment_type: 'Receive',
+      // A 1-minute pre-dispatch buffer so a doc created just before the outbox row is still in-window.
+      created_after: erpDatetime(Date.now() - 60_000),
+    };
+  }
+
+  // PE-pay (procurement): supplier party + PI references
   const supplierPmoId = typeof rec.supplier === 'string' ? rec.supplier : undefined;
   let party: string | null = null;
   if (supplierPmoId) {
     const resolved = await resolveExternalRef(ctx.serviceClient as never, ctx.orgId, ERPNEXT_COMPANIES_DOMAIN, supplierPmoId);
-    // external_refs stores the companies "<Doctype>:<name>" encoding — strip to the bare Supplier name.
     party = resolved ? resolved.slice(resolved.indexOf(':') + 1) : null;
   }
   const piNames = Array.isArray(rec.references)
@@ -280,7 +312,8 @@ async function buildPaymentCompositePayload(ctx: AdapterSelectContext): Promise<
     party,
     paid_amount: rec.paid_amount ?? null,
     pi_names: piNames,
-    // A 1-minute pre-dispatch buffer so a doc created just before the outbox row is still in-window.
+    si_names: [],
+    payment_type: 'Pay',
     created_after: erpDatetime(Date.now() - 60_000),
   };
 }
@@ -421,7 +454,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
   // `dispatchMoneyWrite` re-asserts the identical guard (unit-tested, AC-ENA-012) — this is a
   // fail-fast duplicate at the integration boundary, not the sole enforcement point. P0/P1 (every
   // other domain) is unaffected.
-  const isErpDomain = command.domain === ERPNEXT_COMPANIES_DOMAIN || command.domain === ERPNEXT_PROCUREMENT_DOMAIN;
+  const isErpDomain = command.domain === ERPNEXT_COMPANIES_DOMAIN || command.domain === ERPNEXT_PROCUREMENT_DOMAIN || command.domain === ERPNEXT_REVENUE_DOMAIN;
   // `AdapterOperation` has no 'read' member (reads never reach this handler as a write command) —
   // the string cast mirrors dispatch.ts's own `(command.operation as string) !== 'read'` guard.
   if (isErpDomain && (command.operation as string) !== 'read' && !command.idempotencyKey) {
