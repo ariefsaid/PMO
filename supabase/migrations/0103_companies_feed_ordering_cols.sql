@@ -29,7 +29,12 @@ begin
   if coalesce(auth.jwt() ->> 'role', '') = 'service_role' and public.domain_externally_owned(new.org_id, 'companies') then
     return new;
   end if;
-  if coalesce(old.type, new.type) = 'Internal' then
+  -- Internal exemption requires the row to BE and STAY Internal. 0097's `coalesce(old.type,
+  -- new.type)` exempted any UPDATE whose OLD type was Internal — so a user on a flipped org could
+  -- set type='Vendor' + arbitrary erp_* mirror fields in one UPDATE and mint a fake ERP-linked row
+  -- (Luna money review 2026-07-14, BLOCK 1). Internal→Vendor/Client conversion on a flipped org now
+  -- goes through the ERP-owned flow like any other native-field change.
+  if old.type = 'Internal' and new.type = 'Internal' then
     return new;
   end if;
   if public.domain_externally_owned(new.org_id, 'companies') then

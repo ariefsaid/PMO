@@ -209,7 +209,14 @@ async function claimAndCommit(
     // NO doc — but the mutable anchor means absence is NOT conclusive (the original POST may have
     // committed and had its `reference_no` edited ERP-side). Reissuing would risk a double-pay. HOLD the
     // row for ops resolution (fenced on the token), surface it non-silently, and NEVER auto-reissue.
-    await money.markOutboxHeld(claimed.id, 'recovery-inconclusive-absence: mutable anchor cannot prove non-commit', token);
+    const heldCount = await money.markOutboxHeld(claimed.id, 'recovery-inconclusive-absence: mutable anchor cannot prove non-commit', token);
+    if (heldCount === 0) {
+      // Fencing loss: another claimant superseded this token before the hold landed — the row's
+      // CURRENT state (possibly confirmed) is the truth; reporting command-held here would hand the
+      // client a stale outcome (Luna review 2026-07-14, SHOULD-FIX 4).
+      const fresh = await money.readOutbox(command.domain, command.record.id, command.idempotencyKey!);
+      return reconcileOutbox(fresh!, deps);
+    }
     // Intentional ops signal (non-silent, per the C-1 ruling): a held money command needs a human.
     console.error(
       `[money-outbox] HELD ${command.domain}/${command.record.id} (idempotencyKey=${command.idempotencyKey}) — ` +
@@ -226,7 +233,14 @@ async function claimAndCommit(
       if (!isRetryableTransport(error)) {
         // a non-retryable (commit-rejected) failure — mark failed under the current fencing token.
         // M-4: the persisted last_error is REDACTED (bounded + token-scrubbed), never the raw ERP body.
-        await money.markOutboxFailed(claimed.id, redactErrorForOutbox(error), token);
+        const failedCount = await money.markOutboxFailed(claimed.id, redactErrorForOutbox(error), token);
+        if (failedCount === 0) {
+          // Fencing loss: superseded before the failure landed — a parallel claimant owns the row's
+          // outcome now (possibly a confirmed success). Surface THAT, not this claimant's stale
+          // failure (Luna review 2026-07-14, SHOULD-FIX 4).
+          const fresh = await money.readOutbox(command.domain, command.record.id, command.idempotencyKey!);
+          return reconcileOutbox(fresh!, deps);
+        }
       }
       // a retryable (external-unreachable) failure intentionally marks nothing — the row stays
       // `committing` and becomes reclaimable once its lease expires (ADR-0058 §4).

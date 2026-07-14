@@ -125,15 +125,23 @@ export async function handleErpWebhook(req: Request, deps: ErpWebhookHandlerDeps
     return json({ error: 'INTERNAL_ERROR', message: 'could not resolve the employing org' }, 500);
   }
   // No employing org ⇒ the public surface rejects (no secret to match) — 401, no side effect.
-  let matchedOrg: EmployingOrg | null = null;
+  // Check EVERY org's secret (no first-wins break): if two bindings resolve to the same/reused
+  // secret, the signature identifies no single org, and applying by query order could route a
+  // signed payload into the WRONG org's mirror (Luna money review 2026-07-14, BLOCK 2). Ambiguity
+  // is a configuration fault — reject loudly, apply nothing.
+  const matchedOrgs: EmployingOrg[] = [];
   if (signatureHeader) {
     for (const org of orgs) {
       if (org.webhookSecret && (await verifyErpWebhookSignature(rawBody, signatureHeader, org.webhookSecret))) {
-        matchedOrg = org;
-        break;
+        matchedOrgs.push(org);
       }
     }
   }
+  if (matchedOrgs.length > 1) {
+    console.error(`[erpnext-webhook] AMBIGUOUS signature match: ${matchedOrgs.length} orgs share a webhook secret — rejecting (fix the per-org webhook_secret_ref configuration)`);
+    return json({ error: 'UNAUTHORIZED' }, 401);
+  }
+  const matchedOrg: EmployingOrg | null = matchedOrgs[0] ?? null;
   if (!matchedOrg) return json({ error: 'UNAUTHORIZED' }, 401);
 
   // ── 2. Parse the verified body + decode the feed event. ──

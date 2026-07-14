@@ -103,7 +103,12 @@ describe('erpnext/agingSnapshot — refreshAging PRIMARY (report RPC)', () => {
         voucher({ voucher_no: 'PINV-2', outstanding: 30000, range3: 30000 }),
         // 121-Above lands in range5 — must fold into b_90_plus, never vanish
         voucher({ voucher_no: 'PINV-3', outstanding: 20000, range5: 20000 }),
+        // FUTURE-due voucher (probed live: age<0, outstanding≠0, range1..5 ALL 0) — the unbucketed
+        // leftover must land in `current`, or total ≠ buckets (Luna BLOCK 3)
+        voucher({ voucher_no: 'PINV-5', outstanding: 10000, age: -35 }),
         voucher({ voucher_no: 'PINV-4', party: 'Other Supplier', outstanding: 7000, range2: 7000 }),
+        // same party, DIFFERENT currency — must stay a separate row, never summed (Luna SHOULD-FIX 5)
+        voucher({ voucher_no: 'PINV-6', party: 'Other Supplier', currency: 'USD', outstanding: 90, range1: 90 }),
         // a summary Total row — must be EXCLUDED (party 'Total' / null)
         { party: 'Total', party_type: null, currency: null, range1: 50000, range2: 7000, range3: 30000, range4: 0, range5: 20000 },
       ])), { status: 200, headers: { 'Content-Type': 'application/json' } });
@@ -115,14 +120,15 @@ describe('erpnext/agingSnapshot — refreshAging PRIMARY (report RPC)', () => {
     expect(reportCalls[0]?.url).toContain('/api/method/frappe.desk.query_report.run');
     expect(reportCalls[0]?.body).toMatchObject({ report_name: 'Accounts Payable', filters: { company: 'PMO Smoke Co', ageing_based_on: 'Due Date' } });
 
-    // ONE snapshot row per party (3 Spike vouchers aggregated; Total row excluded)
+    // ONE snapshot row per (party, currency) — 4 Spike vouchers aggregated; Other Supplier splits
+    // into IDR + USD rows; Total row excluded
     expect(svc.inserted).toHaveLength(1);
     const rows = svc.inserted[0]! as Array<Record<string, unknown>>;
-    expect(rows).toHaveLength(2);
+    expect(rows).toHaveLength(3);
     const spike = rows.find((r) => r.party === 'Spike Supplier')!;
     expect(spike).toMatchObject({
       party: 'Spike Supplier', party_type: 'Supplier', currency: 'IDR',
-      total_outstanding: 100000, current: 0,
+      total_outstanding: 110000, current: 10000,
       b_0_30: 50000, b_31_60: 0, b_61_90: 30000, b_90_plus: 20000,
       source_report: 'Accounts Payable', report_version: 'erpnext-15.94.3/frappe-15.96.0',
       ageing_based_on: 'Due Date', report_date: '2026-07-12',
@@ -130,7 +136,8 @@ describe('erpnext/agingSnapshot — refreshAging PRIMARY (report RPC)', () => {
     // the invariant the live bench enforces (AC-ENA-061): total reconciles with the buckets
     const bucketSum = Number(spike.current) + Number(spike.b_0_30) + Number(spike.b_31_60) + Number(spike.b_61_90) + Number(spike.b_90_plus);
     expect(Math.abs(Number(spike.total_outstanding) - bucketSum)).toBeLessThanOrEqual(0.01);
-    expect(rows.find((r) => r.party === 'Other Supplier')).toMatchObject({ total_outstanding: 7000, b_31_60: 7000 });
+    expect(rows.find((r) => r.party === 'Other Supplier' && r.currency === 'IDR')).toMatchObject({ total_outstanding: 7000, b_31_60: 7000, current: 0 });
+    expect(rows.find((r) => r.party === 'Other Supplier' && r.currency === 'USD')).toMatchObject({ total_outstanding: 90, b_0_30: 90, current: 0 });
     expect(spike.range_labels).toEqual({ range1: '0-30', range2: '31-60', range3: '61-90', range4: '91-Above' });
     expect(typeof spike.snapshot_id).toBe('string');
   });

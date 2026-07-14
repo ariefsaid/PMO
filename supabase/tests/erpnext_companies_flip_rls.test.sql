@@ -15,7 +15,7 @@
 --   user write -> lives_ok (contacts ride the companies domain flip — FR-ENA-095, no separate 'contacts'
 --   domain).
 begin;
-select plan(20);
+select plan(21);
 
 insert into organizations (id, name) values
   ('00960000-0000-0000-0000-000000000001','AC-ENA Parties Org A (flipped)'),
@@ -94,6 +94,14 @@ update companies set archived_at = null where id = '00960000-0000-0000-0000-0000
 select lives_ok(
   $$ update companies set name = 'Org A Internal Renamed' where id = '00960000-0000-0000-0000-000000000102' $$,
   'companies: Internal-type row user native-field UPDATE lives even while companies externally-owned');
+-- …but the exemption requires the row to STAY Internal: an Internal→Vendor flip that smuggles
+-- erp_* mirror fields in the same UPDATE is denied (0103 guard fix, Luna BLOCK 1 — the 0097
+-- coalesce exempted any row whose OLD type was Internal).
+select throws_ok(
+  $$ update companies set type = 'Vendor', erp_supplier_name = 'Smuggled Vendor'
+       where id = '00960000-0000-0000-0000-000000000102' $$,
+  '42501', null,
+  'companies: Internal->Vendor conversion (with erp_* smuggle) denied while externally-owned (0103)');
 
 -- ── contacts: ride the companies domain flip (no separate 'contacts' domain, FR-ENA-095) ──
 select throws_ok(
