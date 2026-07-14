@@ -45,6 +45,10 @@ export interface AdapterCommand {
   domain: PmoDomain;
   operation: AdapterOperation;
   record: PmoRecord;
+  /** Client-generated per non-read-only ERPNext money command (FR-ENA-040). P0/P1 ignore it.
+   *  REQUIRED for non-read-only `erpnext`-tier commands — enforced server-side in adapter-dispatch
+   *  (rejects a missing key as commit-rejected/missing-idempotency-key before the outbox is touched). */
+  idempotencyKey?: string;
 }
 
 /** A page of changes since a watermark cursor — the `list-changes-since-watermark` read result (FR-EAS-021). */

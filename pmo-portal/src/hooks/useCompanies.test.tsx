@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, waitFor, act } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
@@ -20,6 +20,7 @@ vi.mock('@/src/auth/useAuth', () => ({
 }));
 
 import { useCompanies, useCompany, useCompanyMutations } from './useCompanies';
+import { clearOwnershipCache, setDomainOwnership } from '@/src/lib/adapterSeam/ownershipCache';
 
 const wrap = (client: QueryClient) =>
   function Wrapper({ children }: { children: React.ReactNode }) {
@@ -40,6 +41,7 @@ beforeEach(() => {
   company.update.mockResolvedValue(undefined);
   company.archive.mockResolvedValue(undefined);
   company.delete.mockResolvedValue(undefined);
+  clearOwnershipCache();
 });
 
 describe('useCompanies', () => {
@@ -129,5 +131,65 @@ describe('useCompanyMutations', () => {
       await result.current.remove.mutateAsync('c1');
     });
     expect(company.delete).toHaveBeenCalledWith('c1');
+  });
+
+  it('returns an idle pendingPush by default (PMO-owned org)', () => {
+    const { result } = renderHook(() => useCompanyMutations(), { wrapper: wrap(freshClient()) });
+    expect(result.current.pendingPush).toEqual({ status: 'idle', error: null });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// task FIX-1 (Discover CRITICAL 1 follow-up) — pendingPush surfaces the routing that
+// `repositories.company.*` already performs (Slice 1's `routeDomainWrite('companies')` guard):
+// a Vendor/Client create/update on a flipped org cycles idle -> pushing -> pushed / push-failed;
+// an Internal-type write NEVER shows a push badge (FR-ENA-090/091), even flipped.
+// ---------------------------------------------------------------------------
+describe('task FIX-1 — flipped ownership map drives pendingPush on a Vendor/Client write', () => {
+  beforeEach(() => setDomainOwnership([{ domain: 'companies', externalTier: 'erpnext' }]));
+  afterEach(() => clearOwnershipCache());
+
+  it('create cycles pendingPush idle -> pushing -> pushed for a Vendor', async () => {
+    let resolveCreate!: (v: unknown) => void;
+    company.create.mockReturnValue(new Promise((res) => (resolveCreate = res)));
+
+    const { result } = renderHook(() => useCompanyMutations(), { wrapper: wrap(freshClient()) });
+    expect(result.current.pendingPush.status).toBe('idle');
+
+    let mutatePromise!: Promise<unknown>;
+    act(() => {
+      mutatePromise = result.current.create.mutateAsync({ name: 'Acme Vendor', type: 'Vendor' });
+    });
+
+    await waitFor(() => expect(result.current.pendingPush.status).toBe('pushing'));
+
+    await act(async () => {
+      resolveCreate({ id: 'co-ext-1', name: 'Acme Vendor', type: 'Vendor' });
+      await mutatePromise;
+    });
+
+    expect(result.current.pendingPush.status).toBe('pushed');
+  });
+
+  it('a rejected create sets pendingPush to push-failed', async () => {
+    company.create.mockRejectedValue(Object.assign(new Error('site unreachable'), { code: 'external-unreachable' }));
+    const { result } = renderHook(() => useCompanyMutations(), { wrapper: wrap(freshClient()) });
+
+    await act(async () => {
+      await result.current.create.mutateAsync({ name: 'Acme Vendor', type: 'Vendor' }).catch(() => undefined);
+    });
+
+    expect(result.current.pendingPush.status).toBe('push-failed');
+  });
+
+  it('an Internal-type create never touches pendingPush, even on a flipped org (FR-ENA-090/091)', async () => {
+    company.create.mockResolvedValue({ id: 'co-int-1', name: 'PMO Internal', type: 'Internal' });
+    const { result } = renderHook(() => useCompanyMutations(), { wrapper: wrap(freshClient()) });
+
+    await act(async () => {
+      await result.current.create.mutateAsync({ name: 'PMO Internal', type: 'Internal' });
+    });
+
+    expect(result.current.pendingPush).toEqual({ status: 'idle', error: null });
   });
 });

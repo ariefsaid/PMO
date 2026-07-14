@@ -127,7 +127,7 @@ jobs:
         working-directory: .
         run: |
           set -e
-          for fn in agent-chat agent-dispatch compose-view admin-invite-user adapter-dispatch clickup-onboard clickup-webhook clickup-sweep; do
+          for fn in agent-chat agent-dispatch compose-view admin-invite-user adapter-dispatch clickup-onboard clickup-webhook clickup-sweep erpnext-onboard erpnext-webhook erpnext-sweep; do
             echo "── deno check supabase/functions/$fn/index.ts ──"
             deno check --config "supabase/functions/$fn/deno.json" \
               --lock "supabase/functions/$fn/deno.lock" --frozen \
@@ -141,7 +141,7 @@ jobs:
         working-directory: .
         run: |
           set -e
-          for fn in agent-chat agent-dispatch compose-view admin-invite-user adapter-dispatch clickup-onboard clickup-webhook clickup-sweep; do
+          for fn in agent-chat agent-dispatch compose-view admin-invite-user adapter-dispatch clickup-onboard clickup-webhook clickup-sweep erpnext-onboard erpnext-webhook erpnext-sweep; do
             echo "── boot-smoke supabase/functions/$fn/index.ts ──"
             deno run --allow-all --config "supabase/functions/$fn/deno.json" \
               scripts/deno-boot-smoke.ts "supabase/functions/$fn/index.ts"
@@ -300,6 +300,26 @@ jobs:
           else
             npx playwright install --with-deps chromium
           fi
+
+      # ERPNext P2: prove the served adapter-dispatch lane in CI (the money e2e itself is local-only —
+      # it needs the Docker v15 bench + 1Password creds, which are a dev-bed concern, not CI's). The CI
+      # gate is the non-ERPNext served-fn smoke (AC-ENA-001 boundary) through real Kong, proving the
+      # serve/health-gate recipe holds on an ephemeral runner. Money semantics run locally + via unit tests.
+      # Slice-0 fix-round finding 8: reuse the SAME trapped launch/health-gate/cleanup recipe as
+      # local dev (scripts/serve-functions.sh) instead of inlining a second, untrapped copy here —
+      # a bare `run:` block has no signal trap at all, so a step timeout/cancellation used to leak
+      # the supabase-go/deno tree + the runtime container on this runner exactly like the local
+      # bug finding 6 fixed. The secrets land in the SAME gitignored path the script already reads
+      # locally (`supabase/functions/.env.local`) rather than an ad hoc /tmp file, so CI and local
+      # dev exercise one code path. SUPABASE_FUNCTIONS_URL/SUPABASE_SERVICE_ROLE_KEY are already
+      # exported (the script sets the former; "Write .env.local for Vite / Playwright" above set
+      # the latter in $GITHUB_ENV) — served-fn-smoke.spec.ts now REQUIRES the latter (finding 7).
+      - name: Serve adapter-dispatch (served-fn lane smoke)
+        env:
+          SUPABASE_SECRETS: ${{ secrets.SUPABASE_SECRETS }}
+        run: |
+          printf '%s\n' "$SUPABASE_SECRETS" > supabase/functions/.env.local
+          scripts/serve-functions.sh -- bash -c 'cd pmo-portal && npx playwright test served-fn-smoke --project=chromium'
 
       # The webServer in playwright.config.ts runs `npm run dev` (Vite dev server on :3000).
       # reuseExistingServer=false in CI so Playwright owns the lifecycle.

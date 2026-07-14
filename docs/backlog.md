@@ -4,6 +4,27 @@
 [`docs/history.md`](history.md) (don't read it for status). Locked owner-decisions are in
 `docs/decisions.md` (OD-* lookup by id). Roadmap framing in `docs/roadmap-spines.md`.
 
+### ⚑⚑ ADAPTER PROGRAM (2026-07-14) — P2 ERPNext money core MERGING (#315, owner go; CI green)
+- **✅ P2 BUILT + FULL BATTERY CLOSED + POST-OPEN HARDENING** (branch `feat/erpnext-adapter-p2`,
+  migs `0093/0094 + 0096–0103`, 5 edge fns, live-bench-proven): 9 slices (served-fn e2e infra ·
+  fenced money outbox · tier core · parties · MR/RFQ/SQ · PO/GR · PI/PE full AP surface ·
+  aging/actuals · change-feed). Battery: Luna money audit ×2 (build round: double-pay C-1 → PE
+  composite probe + `held`; finalization TOCTOU → fenced RPC; post-open round: 3 BLOCK + 2 SF all
+  fixed — 0097 Internal-exemption bypass, webhook shared-secret ambiguity → 401, future-due aging
+  leftover → `current` invariant, fencing-loss re-read, per-currency aging rows) · quality/spec ·
+  Discover. **Post-open (2026-07-14): EDGE_JWT_ISSUER (SUPABASE_ env prefix platform-rejected —
+  dev's override was dead) · aging parser rewritten for the real per-voucher v15 report ·
+  PostgREST NULL-composite in claim/quarantine RPCs · 3s bounded committing-wait · INBOUND FEED
+  ARMED LIVE (Frappe Webhook + HMAC → full-fidelity party adopt; sweep GL/PLE mirror; field-level
+  inbound re-sync of linked rows deliberately out of P2 scope — lifecycle+adopt only).** Gates:
+  verify 5,325 · pgTAP 166/1,458 · serial battery 21/21 + smokes 16/16 (zero skips, live bench).
+  Residuals (decisions.md `OD-ENA-*`): contacts-inbound deferred · procurement_items INSERT open
+  by design · VendorQuotesTab badge slot · e2e-cleanup un-flips manual fixtures (ops note) ·
+  OD-ENA-VAULT-SEAM + OD-ENA-SHARED-BINDINGS (coordination with the OD-INT admin-connect layer).
+  **Activation checklist (owner-gated):** per-org `external_org_bindings` + secret_ref fn-secrets ·
+  Vault `erpnext_sweep_url/secret` · webhook secret per instance · Frappe Webhook doctype config
+  (local demo of ALL of it ran 2026-07-14 on the owner's machine — 2-way sync verified).
+
 ### ⚑⚑ SHIPPED TO PROD — v0.7.0 (2026-07-14, owner-instructed full release)
 `main`→`production` promoted; release-please cut **v0.7.0** (PR #319 admin-merged). Prod state: **DB at
 mig `0095`** (`db-push-prod.sh` applied `0084–0095` — agent_usage cols, external adapter seam, rate-limit,
@@ -33,7 +54,7 @@ for both tiers, and ClickUp adopts `external_org_bindings`. The in-flight #315 a
 it lands ERPNext P2 as-is + gets two coordination notes (keep `credentials.ts` seam clean; confirm
 `external_org_bindings` shared). Then Director orchestrates this as its own spec → plan → PRs.
 
-### ⚑⚑ ADAPTER PROGRAM (2026-07-10) — P0 seam SHIPPED to dev; P1 ClickUp in flight
+### ⚑ prior program block (2026-07-10) — P0 seam SHIPPED to dev; P1 ClickUp shipped (#307)
 - **✅ P0 external-adapter seam MERGED to `dev`** (PR #299, `2cbacd5`; ADR-0055): migrations
   `0087–0090` (ownership switch + refs + watermarks + reference read-model w/ RLS write-flip),
   `adapterSeam` pure core, `adapter-dispatch` edge fn, read-only Integrations section on

@@ -408,8 +408,9 @@ authorization_url_path = "/oauth/consent"
 allow_dynamic_registration = false
 
 [edge_runtime]
-# Disabled for the backend-foundation issue: no Edge Functions in scope; the local Deno image cannot
-# reach deno.land in this environment and its failed health check tears down the whole stack.
+# `supabase functions serve` self-manages its runtime container on demand (image is local/ECR — zero
+# deno.land reach, spike-verified 2026-07-11). Kept disabled so `supabase start` stays lean; the served-fn
+# e2e lane (`scripts/serve-functions.sh`) brings it up per-run. Do NOT re-enable globally.
 enabled = false
 # Supported request policies: `oneshot`, `per_worker`.
 # `per_worker` (default) — enables hot reload during local development.
@@ -480,6 +481,14 @@ verify_jwt = true
 [functions.clickup-onboard]
 verify_jwt = false
 
+# ── Edge Function: erpnext-onboard ─────────────────────────────────────────────
+# verify_jwt = false: an operator onboarding action, not a browser-JWT path (mirrors
+# clickup-onboard). The handler verifies the bearer itself (it MUST equal
+# SUPABASE_SERVICE_ROLE_KEY, constant-time) — the sole trust boundary. Pull-adopts pre-existing
+# ERPNext Supplier/Customer parties into the companies read-model (task 3.9, AC-ENA-041).
+[functions.erpnext-onboard]
+verify_jwt = false
+
 # ── Edge Function: clickup-webhook ─────────────────────────────────────────────
 # verify_jwt = false: a PUBLIC, unauthenticated surface — ClickUp (not a browser) POSTs task
 # webhooks here. The X-Signature HMAC-SHA256 of the raw body (keyed by CLICKUP_WEBHOOK_SECRET) is
@@ -495,6 +504,27 @@ verify_jwt = false
 # reconciliation sweep: the safety net that catches webhook gaps (FR-CUA-045, AC-CUA-043/044).
 # Registered-but-idle per the 0048 precedent until the operator sets the dispatch GUCs.
 [functions.clickup-sweep]
+verify_jwt = false
+
+# ── Edge Function: erpnext-webhook ─────────────────────────────────────────────
+# verify_jwt = false: a PUBLIC, unauthenticated surface — ERPNext (Frappe) POSTs doc webhooks here.
+# The X-Frappe-Webhook-Signature HMAC-SHA256 of the raw body (base64, keyed by the per-org
+# webhook_secret_ref-resolved secret) is the SOLE trust boundary (FR-ENA-082, NFR-ENA-SEC-002,
+# STRIDE spoofing/tampering): an absent/invalid signature ⇒ 401 with no side effect. The handler
+# verifies the signature itself (constant-time) before any apply. Lossy hint (FR-ENA-083) — the
+# erpnext-sweep is the convergence authority.
+[functions.erpnext-webhook]
+verify_jwt = false
+
+# ── Edge Function: erpnext-sweep ───────────────────────────────────────────────
+# verify_jwt = false: invoked by the pg_cron job (migration 0101) via net.http_post — the caller is
+# Postgres, not a browser/end-user JWT. The handler verifies the bearer itself (it MUST equal
+# ERPNEXT_SWEEP_SECRET, constant-time) — least-privilege (mirrors clickup-sweep): the dedicated sweep
+# secret can at worst trigger a tick, never grant DB access. The reconciliation sweep: the convergence
+# authority that catches webhook gaps + runs the ADR-0058 §Consequences outbox recovery pass
+# (FR-ENA-080/081, AC-ENA-071). Registered-but-idle per the 0094 precedent until the operator sets the
+# Vault secrets.
+[functions.erpnext-sweep]
 verify_jwt = false
 
 [analytics]

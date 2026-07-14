@@ -9,35 +9,29 @@
  * every path is unit-testable with mocked callbacks (no live token). Bulk lane throughout
  * (NFR-CUA-PERF-003). ClickUp vocabulary is confined to clickup/** + the clickup-sweep fn (FR-CUA-012).
  */
-import type { PmoRecord } from '../contract.ts';
-import { applyInboundChange, advanceWatermarkMonotonic, type ApplyChangeDeps, type WatermarkDeps } from './webhookApply.ts';
 import type { ClickUpMaps } from './mapping.ts';
 import type { ClickUpStatusMap } from './statusMap.ts';
 import type { ClickUpMemberMap } from './memberMap.ts';
+import {
+  runSweep as runSweepGeneric,
+  type ApplyChangeDeps,
+  type WatermarkDeps,
+  type SweepChange,
+  type SweepListChangesDeps,
+  type SweepResult,
+} from '../applyEngine.ts';
 
-/** One change the sweep applies: a canonical PMO record (id = ClickUp task id) + its source-mod ms. */
-export interface SweepChange {
-  record: PmoRecord;
-  /** The change's source-modification timestamp (epoch-ms) — the per-row guard value (FR-CUA-049). */
-  sourceModMs: number;
-}
+const CLICKUP_TIER = 'clickup';
+const TASKS_DOMAIN = 'tasks';
+const CLICKUP_TASKS_CTX = { tier: CLICKUP_TIER, domain: TASKS_DOMAIN };
 
-/** The sweep's source read: enumerate changes since the cursor (the edge fn wires this to the raw
- *  ClickUp list read so each change carries its `date_updated` for the per-row guard). */
-export interface SweepListChangesDeps {
-  listChanges: (cursor: string | null) => Promise<{ changes: SweepChange[]; nextCursor: string | null }>;
-}
+// Re-exported for byte-for-byte back-compat (task 1.12 hoists the implementation to
+// `../applyEngine.ts`; `SweepChange`/`SweepResult` keep their pre-1.12 shape + import path).
+export type { SweepChange, SweepResult };
 
 export interface SweepDeps extends ApplyChangeDeps, WatermarkDeps, SweepListChangesDeps, ClickUpMaps {
   statusMap: ClickUpStatusMap;
   memberMap: ClickUpMemberMap;
-}
-
-export interface SweepResult {
-  /** Changes that applied (upsert or adopt) this run. Stale (per-row-guard no-op) changes do not count. */
-  applied: number;
-  /** The cursor the watermark was advanced to (`null` = not advanced — exhaustion or unreachable). */
-  nextCursor: string | null;
 }
 
 /**
@@ -45,23 +39,11 @@ export interface SweepResult {
  * since it, applies each through the source-mod-guarded path, and advances the watermark to
  * `nextCursor` (monotonic). If the adapter is unreachable (`listChanges` throws), the sweep throws
  * WITHOUT advancing the watermark or touching the read-model (AC-CUA-044) — the next schedule retries.
+ *
+ * Task 1.12: delegates to the hoisted, tier/domain-parameterized `applyEngine.ts` with
+ * `{tier:'clickup',domain:'tasks'}` baked in — byte-for-byte identical behavior + signature to the
+ * pre-1.12 ClickUp-only implementation (`runSweep(deps)`, single argument).
  */
 export async function runSweep(deps: SweepDeps): Promise<SweepResult> {
-  const cursor = await deps.readWatermark();
-
-  // AC-CUA-044: an unreachable adapter throws here — we let it propagate (no advance, no apply).
-  const { changes, nextCursor } = await deps.listChanges(cursor);
-
-  let applied = 0;
-  for (const change of changes) {
-    const outcome = await applyInboundChange(change.record.id, change.record, change.sourceModMs, deps);
-    if (outcome.kind === 'upserted') applied += 1;
-  }
-
-  // AC-CUA-043/046: advance to nextCursor, monotonically (never rewinds). A null nextCursor
-  // (exhaustion) with no applied change leaves the watermark untouched (no rewind of a higher one).
-  if (nextCursor !== null) {
-    await advanceWatermarkMonotonic(deps, Number(nextCursor));
-  }
-  return { applied, nextCursor };
+  return runSweepGeneric(CLICKUP_TASKS_CTX, deps);
 }

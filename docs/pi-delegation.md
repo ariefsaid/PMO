@@ -24,10 +24,15 @@ Replaces playbook §3's opus/sonnet/haiku mapping when running the trial:
 
 | Substrate | Use for | Analog |
 |---|---|---|
-| `zai` / `glm-5.2` | **The opus-grade default (owner, 2026-07-04: currently better than 5.1 across the board).** Planning, specs, complex or security-sensitive slices (schema, RLS, RPC), manager-grade judgment, AND implementation slices (trialed-good as builder 2026-06-16 — first-pass-correct, no §6 tendencies) | opus |
+| `nvidia` / `glm-5.2` | **Second in the cascade (owner, 2026-07-12): the substrate order is `zai` → `nvidia` → Anthropic subagents** — when zai is capped, TRY nvidia (it may 429-fail fast on agentic loops per the constraint note below; that costs little — per-task commits make every death resumable), and only then fall back to Anthropic. Smoke-tested OK 2026-07-11. | opus |
+| `nvidia` / `deepseek-ai/deepseek-v4-pro` | **Cross-family reviewer/alternate builder on NIM** (owner roster 2026-07-11) — use as the different-family review lens vs GLM builds, replacing most codex usage. Smoke-tested OK (note the namespaced id). | opus reviewer |
+| `nvidia` / `nemotron-3-ultra` | Second NIM review/audit lens; alternate builder for routine slices. Smoke-tested OK 2026-07-11. | opus/sonnet |
+| `nvidia` / `minimax-m3` | ⚠️ **Registered but UNUSABLE via pi as of 2026-07-11 — returns empty text on every probe** (both `minimax-m3` and `minimaxai/` ids). Do not dispatch to it until the pi-side parsing/config is fixed. | — |
+> **⚑ NIM constraints (owner, 2026-07-11; hardened same day):** free tier ≈ **40 requests/min TOTAL across all NIM models**, and pi treats a 429 as FATAL (no retry/backoff). **Empirical: even ONE pi agent's tool loop exceeds 40 RPM during fast read sequences — three consecutive runs died (2 concurrent, then 1 solo).** Until pi's NIM provider config gains retry-on-429/an RPM throttle, NIM is for **one-shot / few-call dispatches only** (single-file generations, judgments, smoke probes) — NOT agentic build loops. Build loops: Anthropic subagents or `zai`-window GLM. **Reduce `openai-codex` (gpt-5.6-luna) usage:** reserve it for the highest-stakes adversarial reviews (money/security); other one-shot review lenses can use NIM DeepSeek/Nemotron.
+| `zai` / `glm-5.2` | **The opus-grade default (owner, 2026-07-04: currently better than 5.1 across the board).** Planning, specs, complex or security-sensitive slices (schema, RLS, RPC), manager-grade judgment, AND implementation slices (trialed-good as builder 2026-06-16 — first-pass-correct, no §6 tendencies). **Fallback route since 2026-07-11 — prefer `nvidia`/`glm-5.2` above.** | opus |
 | `zai` / `glm-5.1` | Secondary/alternate to 5.2 (rate-limit relief, or as the different-model reviewer in GLM-only degraded mode) | opus fallback |
 | `zai` / `glm-4.7` | Routine implementation, mechanical edits, QA runs, mockup builds | sonnet/haiku |
-| `openai-codex` / `gpt-5.4` | ALL reviews and audits — spec-review, code-quality, plan review, security. Deliberately **cross-family** vs the GLM builders | opus reviewers |
+|  `openai-codex` / `gpt-5.6-luna` (owner-directed 2026-07-11; supersedes `gpt-5.4`) | ALL reviews and audits — spec-review, code-quality, plan review, security. Deliberately **cross-family** vs the GLM builders | opus reviewers |
 
 > **⚑ GLM-only degraded mode (gpt-5.4/openai-codex UNAVAILABLE, observed 2026-06-16).** When the
 > cross-family reviewer is down, route reviews to a **different GLM model than the builder** (e.g. build
@@ -37,7 +42,7 @@ Replaces playbook §3's opus/sonnet/haiku mapping when running the trial:
 > same-family-only sign-off.
 | `openrouter` / `nvidia/nemotron-3-ultra-550b-a55b:free` · `nex-agi/nex-n2-pro:free` | **Tertiary fallback only** — when BOTH z.ai and codex are rate-limited. Free, so no quota cost; keeps the loop moving instead of stalling for the reset | spare tire |
 
-**Fallback (owner rule):** z.ai API limit → use `gpt-5.4`; OpenAI limit → use GLM. **When BOTH are
+**Fallback (owner rule):** z.ai API limit → use `gpt-5.6-luna`; OpenAI limit → use GLM. **When BOTH are
 rate-limited at once** (the 5-hour windows can overlap — observed 2026-06-12), drop to the
 **OpenRouter free models** (`openrouter` provider, both smoke-tested OK): Nemotron 3 Ultra for the
 heavier slice, NEX N2 Pro as its alternate. They're free — no quota — but unproven on this codebase,
@@ -243,3 +248,21 @@ their ACs, an org_id seam violation) — while the Director's own read caught 2 
 - Grading: playbook §10 rubric applies to pi-produced work unchanged.
 - If pi/the providers are unavailable, fall back to the standard Claude role agents
   (`.claude/agents/`, playbook §3) — the loop is substrate-agnostic by design.
+
+## 8. ⚑ Shared-DB verdict rule (binding, learned 2026-07-12/13)
+
+A pgTAP verdict on the shared local stack counts ONLY when `supabase db reset && supabase test db`
+run **chained inside one `with-db-lock.sh` hold**:
+
+```bash
+scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db'
+```
+
+Separate holds let a sibling worktree's reset apply a *different* migration set in between —
+producing false-FAIL (missing tables) and, worse, false-PASS (a failure masked by someone else's
+schema). Both were observed live. Related pgTAP fixture discipline (all three defects shipped in
+one file and masked each other, 2026-07-12): **namespaced fixture UUIDs** (never bare `01…`
+prefixes — they collide with seed data), **`begin;`/`rollback;` wrappers** (a file that ever ran
+without one has COMMITTED fixtures poisoning every later run until a reset), and **pgTAP's
+`finish()`** (not `finish_testing()`). An aborted file reports "Bad plan … ran 0" and contributes
+zero tests — a green-looking summary can hide it; grep for `Parse errors` in gate output.

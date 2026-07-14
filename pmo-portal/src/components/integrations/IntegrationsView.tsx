@@ -69,6 +69,13 @@ export const IntegrationsView: React.FC = () => {
                   <span>ClickUp is US-hosted SaaS — task-domain data resides with ClickUp</span>
                 </p>
               )}
+              {/* task FIX-3 (Discover IMPORTANT) — the parallel self-hosted residency note (ADR-0048/0055). */}
+              {tier === 'erpnext' && (
+                <p className="mt-2 flex items-center gap-1 text-sm text-muted-foreground">
+                  <Icon name="info" className="size-3.5 shrink-0" aria-hidden="true" />
+                  <span>Self-hosted ERP — data resides on your ERPNext instance</span>
+                </p>
+              )}
             </Card>
           ))}
         </div>

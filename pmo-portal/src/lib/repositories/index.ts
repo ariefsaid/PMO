@@ -29,6 +29,8 @@ import {
   updateCompany,
   archiveCompany,
   deleteCompany,
+  type CompanyRow,
+  type CompanyType,
 } from '@/src/lib/db/companies';
 import {
   listProjectDocuments,
@@ -76,6 +78,10 @@ import {
   createRfq,
   createPurchaseOrder,
   createPayment,
+  type PurchaseRequestRow,
+  type RfqRow,
+  type PurchaseOrderRow,
+  type PaymentRow,
 } from '@/src/lib/db/procurementRecords';
 import {
   getProcurementDetail,
@@ -83,7 +89,10 @@ import {
   createQuotation,
   createReceipt,
   createInvoice,
+  type ProcurementReceiptRow,
+  type ProcurementInvoiceRow,
 } from '@/src/lib/db/procurementLifecycle';
+import type { Tables } from '@/src/lib/supabase/database.types';
 import {
   createProcurement,
   updateProcurementHeader,
@@ -170,6 +179,9 @@ import {
   grantOrgCredits,
 } from '@/src/lib/db/orgFeatures';
 import { listOwnExternalDomainOwnership } from '@/src/lib/db/externalDomainOwnership';
+import { listActualsSnapshot, listApAgingSnapshot, listArAgingSnapshot } from '@/src/lib/db/erpSnapshots';
+import { routeDomainWrite } from '@/src/lib/adapterSeam/ownershipCache';
+import { dispatchDomainCommand } from '@/src/lib/adapterSeam/dispatchClient';
 import type {
   Repositories,
   ProjectRepository,
@@ -191,6 +203,7 @@ import type {
   OrgFeatureRepository,
   CreditsRepository,
   ExternalDomainOwnershipRepository,
+  ErpSnapshotsRepository,
 } from './types';
 
 /** Runs a DAL call and rethrows any failure as a normalized `AppError` (code preserved). */
@@ -213,12 +226,42 @@ const project: ProjectRepository = {
   setContractValue: (id, value) => wrap(() => setProjectContractValue(id, value)),
 };
 
+// task 3.8 (finding-3 path fix, FR-ENA-090/091): the ERP party kind is DERIVED from the company's
+// own type — Vendor->'supplier', Client->'customer'. 'Internal' is never ERP-flipped (it is PMO's
+// own org marker, FR-ENA-090/091) — no `erp_doc_kind` exists for it in DOCTYPE_REGISTRY, so an
+// Internal-type write ALWAYS takes the direct DAL path regardless of the org's companies routing.
+function erpPartyDocKind(type: CompanyType): 'supplier' | 'customer' | null {
+  if (type === 'Vendor') return 'supplier';
+  if (type === 'Client') return 'customer';
+  return null;
+}
+
 const company: CompanyRepository = {
   listClients: () => wrap(() => listClientCompanies()),
   list: (params) => wrap(() => listCompanies(params)),
   get: (id) => wrap(() => getCompany(id)),
-  create: (input) => wrap(() => createCompany(input)),
-  update: (id, input) => wrap(() => updateCompany(id, input)),
+  create: (input) => {
+    const kind = erpPartyDocKind(input.type);
+    return routeDomainWrite('companies') === 'external' && kind
+      ? dispatchDomainCommand(
+          'companies',
+          'create',
+          { id: crypto.randomUUID(), ...input, erp_doc_kind: kind },
+          freshIdempotencyKey(),
+        ).then((res) => res.canonical as unknown as CompanyRow)
+      : wrap(() => createCompany(input));
+  },
+  update: (id, input) => {
+    const kind = erpPartyDocKind(input.type);
+    return routeDomainWrite('companies') === 'external' && kind
+      ? dispatchDomainCommand(
+          'companies',
+          'update',
+          { id, ...input, erp_doc_kind: kind },
+          freshIdempotencyKey(),
+        ).then(() => undefined)
+      : wrap(() => updateCompany(id, input));
+  },
   archive: (id) => wrap(() => archiveCompany(id)),
   delete: (id) => wrap(() => deleteCompany(id)),
 };
@@ -280,16 +323,57 @@ const task: TaskRepository = {
   removeDependency: (taskId, dependsOnId) => wrap(() => removeDependency(taskId, dependsOnId)),
 };
 
+// Task 1.10/1.11 (ADR-0055/ADR-0058): a fresh-key options bag for the erpnext money path — minted
+// ONLY on the 'external' branch. P0/P1 (and every 'pmo'-routed call) never mint one (byte-for-byte).
+const freshIdempotencyKey = () => ({ idempotencyKey: crypto.randomUUID() });
+
 const procurement: ProcurementRepository = {
   list: (params) => wrap(() => listProcurements(params)),
   get: (id) => wrap(() => getProcurementDetail(id)),
+  // Task 4.9 (finding-3 path fix): the case-AGGREGATE status transition is PMO-derived, never an ERP
+  // command (`to` is a PMO `ProcurementStatus` like 'Approved' — the erpnext adapter has no concept of
+  // it, FR-ENA-101/073). This ALWAYS stays on the direct DAL path, even when `procurement` is
+  // externally-owned — unlike every other method below, it carries no routeDomainWrite guard at all.
   transition: (id, to, notes) => wrap(() => transitionProcurement(id, to, notes)),
   createQuotation: (procurementId, vendorId, totalAmount, receivedDate) =>
-    wrap(() => createQuotation(procurementId, vendorId, totalAmount, receivedDate)),
-  createReceipt: (procurementId, status, receiptDate) =>
-    wrap(() => createReceipt(procurementId, status, receiptDate)),
-  createInvoice: (procurementId, status, invoiceDate) =>
-    wrap(() => createInvoice(procurementId, status, invoiceDate)),
+    routeDomainWrite('procurement') === 'external'
+      ? dispatchDomainCommand(
+          'procurement',
+          'create',
+          { id: crypto.randomUUID(), procurementId, vendorId, totalAmount, receivedDate, erp_doc_kind: 'quotation' },
+          freshIdempotencyKey(),
+        ).then((res) => res.canonical as unknown as Tables<'procurement_quotations'>)
+      : wrap(() => createQuotation(procurementId, vendorId, totalAmount, receivedDate)),
+  // task FIX-1: referenceNumber is a PMO-direct-DAL-only param (see types.ts) — appended to the DAL
+  // call ONLY when the caller actually supplied one, so a bare 3-arg call keeps its exact pre-existing
+  // shape (index.test.ts's byte-for-byte assertion). Never forwarded on the external-dispatch payload
+  // (FR-ENA-114 — it is mirrored back from the ERP doc, not client-supplied at creation).
+  createReceipt: (procurementId, status, receiptDate, referenceNumber) =>
+    routeDomainWrite('procurement') === 'external'
+      ? dispatchDomainCommand(
+          'procurement',
+          'create',
+          { id: crypto.randomUUID(), procurementId, status, receiptDate, erp_doc_kind: 'goods-receipt' },
+          freshIdempotencyKey(),
+        ).then((res) => res.canonical as unknown as ProcurementReceiptRow)
+      : wrap(() =>
+          referenceNumber !== undefined
+            ? createReceipt(procurementId, status, receiptDate, referenceNumber)
+            : createReceipt(procurementId, status, receiptDate),
+        ),
+  createInvoice: (procurementId, status, invoiceDate, referenceNumber, amount) =>
+    routeDomainWrite('procurement') === 'external'
+      ? dispatchDomainCommand(
+          'procurement',
+          'create',
+          { id: crypto.randomUUID(), procurementId, status, invoiceDate, erp_doc_kind: 'purchase-invoice' },
+          freshIdempotencyKey(),
+        ).then((res) => res.canonical as unknown as ProcurementInvoiceRow)
+      : wrap(() =>
+          referenceNumber !== undefined || amount !== undefined
+            ? createInvoice(procurementId, status, invoiceDate, referenceNumber, amount)
+            : createInvoice(procurementId, status, invoiceDate),
+        ),
   create: (input, requestedById) => wrap(() => createProcurement(input, requestedById)),
   updateHeader: (id, patch) => wrap(() => updateProcurementHeader(id, patch)),
   createItem: (procurementId, input) => wrap(() => createProcurementItem(procurementId, input)),
@@ -300,15 +384,43 @@ const procurement: ProcurementRepository = {
   createDocument: (procurementId, input) =>
     wrap(() => createProcurementDocument(procurementId, input)),
   deleteDocument: (id) => wrap(() => deleteProcurementDocument(id)),
-  // ── New ERP-canonical record creators (Slice 5.4) ──
+  // ── New ERP-canonical record creators (Slice 5.4; P2 routes them per-domain, task 1.10) ──
   createPurchaseRequest: (procurementId, referenceNumber, status, date, amount) =>
-    wrap(() => createPurchaseRequest(procurementId, referenceNumber, status, date, amount)),
+    routeDomainWrite('procurement') === 'external'
+      ? dispatchDomainCommand(
+          'procurement',
+          'create',
+          { id: crypto.randomUUID(), procurementId, referenceNumber, status, date, amount, erp_doc_kind: 'purchase-request' },
+          freshIdempotencyKey(),
+        ).then((res) => res.canonical as unknown as PurchaseRequestRow)
+      : wrap(() => createPurchaseRequest(procurementId, referenceNumber, status, date, amount)),
   createRfq: (procurementId, referenceNumber, status, date, amount) =>
-    wrap(() => createRfq(procurementId, referenceNumber, status, date, amount)),
+    routeDomainWrite('procurement') === 'external'
+      ? dispatchDomainCommand(
+          'procurement',
+          'create',
+          { id: crypto.randomUUID(), procurementId, referenceNumber, status, date, amount, erp_doc_kind: 'rfq' },
+          freshIdempotencyKey(),
+        ).then((res) => res.canonical as unknown as RfqRow)
+      : wrap(() => createRfq(procurementId, referenceNumber, status, date, amount)),
   createPurchaseOrder: (procurementId, referenceNumber, status, date, amount) =>
-    wrap(() => createPurchaseOrder(procurementId, referenceNumber, status, date, amount)),
+    routeDomainWrite('procurement') === 'external'
+      ? dispatchDomainCommand(
+          'procurement',
+          'create',
+          { id: crypto.randomUUID(), procurementId, referenceNumber, status, date, amount, erp_doc_kind: 'purchase-order' },
+          freshIdempotencyKey(),
+        ).then((res) => res.canonical as unknown as PurchaseOrderRow)
+      : wrap(() => createPurchaseOrder(procurementId, referenceNumber, status, date, amount)),
   createPayment: (procurementId, invoiceId, referenceNumber, status, date, amount) =>
-    wrap(() => createPayment(procurementId, invoiceId, referenceNumber, status, date, amount)),
+    routeDomainWrite('procurement') === 'external'
+      ? dispatchDomainCommand(
+          'procurement',
+          'create',
+          { id: crypto.randomUUID(), procurementId, invoiceId, referenceNumber, status, date, amount, erp_doc_kind: 'payment' },
+          freshIdempotencyKey(),
+        ).then((res) => res.canonical as unknown as PaymentRow)
+      : wrap(() => createPayment(procurementId, invoiceId, referenceNumber, status, date, amount)),
 };
 
 const timesheet: TimesheetRepository = {
@@ -404,6 +516,12 @@ const externalDomainOwnership: ExternalDomainOwnershipRepository = {
   listOwn: () => wrap(() => listOwnExternalDomainOwnership()),
 };
 
+const erpSnapshots: ErpSnapshotsRepository = {
+  actuals: () => wrap(() => listActualsSnapshot()),
+  apAging: () => wrap(() => listApAgingSnapshot()),
+  arAging: () => wrap(() => listArAgingSnapshot()),
+};
+
 /** The Supabase-backed repositories the FE/CRUD layer consumes (ADR-0017). */
 export const repositories: Repositories = {
   project,
@@ -425,6 +543,7 @@ export const repositories: Repositories = {
   orgFeature,
   credits,
   externalDomainOwnership,
+  erpSnapshots,
 };
 
 export type {
@@ -448,4 +567,5 @@ export type {
   OrgFeatureRepository,
   CreditsRepository,
   ExternalDomainOwnershipRepository,
+  ErpSnapshotsRepository,
 } from './types';

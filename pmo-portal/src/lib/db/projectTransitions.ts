@@ -108,8 +108,8 @@ export async function transitionProject(
   const { error } = await supabase.rpc('transition_project', {
     p_id: id,
     p_to: to,
-    p_customer_contract_ref: opts?.customerContractRef ?? null,
-    p_contract_date: opts?.contractDate ?? null,
+    p_customer_contract_ref: opts?.customerContractRef,
+    p_contract_date: opts?.contractDate,
   });
   if (error) throw new Error(error.message);
 }

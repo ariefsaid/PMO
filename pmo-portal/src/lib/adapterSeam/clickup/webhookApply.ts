@@ -28,45 +28,23 @@ import type { ClickUpStatusMap } from './statusMap.ts';
 import type { ClickUpMemberMap } from './memberMap.ts';
 import type { ClickUpWebhookPayload } from './types.ts';
 import type { ExternalRefSeed } from './onboarding.ts';
+import {
+  applyInboundChange as applyInboundChangeGeneric,
+  advanceWatermarkMonotonic,
+  type ApplyOutcome,
+  type ApplyChangeDeps,
+  type WatermarkDeps,
+} from '../applyEngine.ts';
 
 const CLICKUP_TIER = 'clickup';
 const TASKS_DOMAIN = 'tasks';
+const CLICKUP_TASKS_CTX = { tier: CLICKUP_TIER, domain: TASKS_DOMAIN };
 
-/** The outcome of one apply — lets the edge fn return a meaningful 200 and lets tests assert paths. */
-export type ApplyOutcome =
-  | { kind: 'upserted'; pmoRecordId: string; adopted: boolean }
-  | { kind: 'tombstoned'; pmoRecordId: string }
-  | { kind: 'no-op' };
-
-/**
- * Injected service-client deps for the apply engine. Every callback is a thin DB read/write the edge
- * fn wires (createClient(serviceRole)); the pure module owns the ordering + the guards. The source-mod
- * values flow as epoch-ms (TZ-safe numeric `>=` compare); the edge fn converts to/from the
- * `source_updated_at` timestamptz column.
- */
-
-/** The narrow dep surface `applyInboundChange` needs — shared by the webhook + the sweep so both
- *  apply through the SAME source-mod-guarded path (FR-CUA-049 "any apply"). */
-export interface ApplyChangeDeps {
-  /** Resolve the PMO record id already mapped to a ClickUp task id (`null` = unmapped → adopt). */
-  resolvePmoRecordId: (externalRecordId: string) => Promise<string | null>;
-  /** Read the mirrored row's stored source-modification timestamp (epoch-ms), or `null` if none. */
-  readMirrorSourceMod: (pmoRecordId: string) => Promise<number | null>;
-  /** Upsert native fields on an existing mirror + stamp `source_updated_at` (epoch-ms provided). */
-  updateMirror: (pmoRecordId: string, canonical: PmoRecord, sourceUpdatedAtMs: number) => Promise<void>;
-  /** Mint a new mirrored row for an adopted task + stamp `source_updated_at`; return its PMO id. */
-  mintMirror: (canonical: PmoRecord, sourceUpdatedAtMs: number) => Promise<string>;
-  /** Record the `external_refs` mapping for a newly-minted mirror. */
-  recordExternalRef: (mapping: ExternalRefSeed) => Promise<void>;
-}
-
-/** The narrow dep surface the monotonic-watermark helper needs (webhook + sweep). */
-export interface WatermarkDeps {
-  /** Read the org's `(tasks, clickup)` watermark cursor (epoch-ms string), or `null` if fresh. */
-  readWatermark: () => Promise<string | null>;
-  /** Advance the org's watermark cursor (the caller guarantees monotonicity — see advanceMonotonic). */
-  advanceWatermark: (cursor: string) => Promise<void>;
-}
+// Re-exported for byte-for-byte back-compat (task 1.12 hoists the implementation to
+// `../applyEngine.ts`; this module's exported names/shapes are unchanged for every existing
+// consumer — `sweep.ts`, and any future direct import of these types).
+export type { ApplyOutcome, ApplyChangeDeps, WatermarkDeps, ExternalRefSeed };
+export { advanceWatermarkMonotonic };
 
 export interface WebhookApplyDeps extends ApplyChangeDeps, WatermarkDeps, ClickUpMaps {
   statusMap: ClickUpStatusMap;
@@ -82,6 +60,10 @@ export interface WebhookApplyDeps extends ApplyChangeDeps, WatermarkDeps, ClickU
  * upsert/adopt path. Shared by the webhook (taskCreated/Updated/StatusUpdated) and the sweep (each
  * listed change). The `externalRecordId` is the ClickUp task id; the canonical.id is overwritten with
  * the resolved PMO id so the enhancement graph (keyed on pmo_record_id) stays intact (AC-CUA-071).
+ *
+ * Task 1.12: delegates to the hoisted, tier/domain-parameterized `applyEngine.ts` with
+ * `{tier:'clickup',domain:'tasks'}` baked in — byte-for-byte identical behavior to the pre-1.12
+ * ClickUp-only implementation.
  */
 export async function applyInboundChange(
   externalRecordId: string,
@@ -89,43 +71,7 @@ export async function applyInboundChange(
   sourceUpdatedAtMs: number,
   deps: ApplyChangeDeps,
 ): Promise<ApplyOutcome> {
-  const existingId = await deps.resolvePmoRecordId(externalRecordId);
-
-  if (existingId) {
-    const stored = await deps.readMirrorSourceMod(existingId);
-    // Per-row source-mod guard (FR-CUA-049): a strictly-older change is a no-op. `>=` (not `>`) is
-    // deliberate so re-delivery and the inclusive sweep boundary re-apply the SAME state (idempotent).
-    if (stored !== null && sourceUpdatedAtMs < stored) {
-      return { kind: 'no-op' };
-    }
-    const canonicalPinned: PmoRecord = { ...canonical, id: existingId };
-    await deps.updateMirror(existingId, canonicalPinned, sourceUpdatedAtMs);
-    return { kind: 'upserted', pmoRecordId: existingId, adopted: false };
-  }
-
-  // Pull-adopt (FR-CUA-062/044): mint a new mirror + mapping. A concurrent adopt that races us
-  // fails the A8 unique constraint; the loser reconciles to the existing mapping on re-run.
-  const pmoRecordId = await deps.mintMirror(canonical, sourceUpdatedAtMs);
-  await deps.recordExternalRef({
-    pmoRecordId,
-    externalTier: CLICKUP_TIER,
-    externalRecordId,
-    domain: TASKS_DOMAIN,
-  });
-  return { kind: 'upserted', pmoRecordId, adopted: true };
-}
-
-/**
- * Advance the org watermark to `max(current, candidateMs)` — monotonic, never rewinds
- * (FR-CUA-043/046). Read-then-write: the candidate is the event's date_updated (webhook) or the
- * page's max date_updated (sweep), both already >= any prior cursor by construction; the max() is the
- * no-rewind guarantee for an out-of-order older event whose apply was a per-row no-op.
- */
-export async function advanceWatermarkMonotonic(deps: WatermarkDeps, candidateMs: number): Promise<void> {
-  const current = await deps.readWatermark();
-  const currentMs = current !== null ? Number(current) : null;
-  const advanced = currentMs !== null && currentMs > candidateMs ? currentMs : candidateMs;
-  await deps.advanceWatermark(String(advanced));
+  return applyInboundChangeGeneric(CLICKUP_TASKS_CTX, externalRecordId, canonical, sourceUpdatedAtMs, deps);
 }
 
 /**
