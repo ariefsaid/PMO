@@ -474,10 +474,12 @@ const revenue: RevenueRepository = {
     wrap(async () => {
       if (routeDomainWrite('revenue') === 'external') {
         await submitSalesInvoiceSod(siId);   // SoD: server-enforced approver≠author (42501 on self-approval) BEFORE any ERP submit
+        const si = await getSalesInvoice(siId);
+        if (!si || !si.si_number) throw new AppError('sales invoice not found or missing si_number', 'not-found');
         await dispatchDomainCommand(
           'revenue',
           'transition',
-          { id: siId, erp_doc_kind: 'sales-invoice' },
+          { id: siId, erp_doc_kind: 'sales-invoice', verb: 'submit', externalRecordId: si.si_number },
           freshIdempotencyKey(),
         );
       } else {
@@ -486,21 +488,29 @@ const revenue: RevenueRepository = {
     }),
   cancelInvoice: (siId) =>
     routeDomainWrite('revenue') === 'external'
-      ? dispatchDomainCommand(
-          'revenue',
-          'transition',
-          { id: siId, erp_doc_kind: 'sales-invoice' },
-          freshIdempotencyKey(),
-        ).then(() => undefined)
+      ? wrap(async () => {
+          const si = await getSalesInvoice(siId);
+          if (!si || !si.si_number) throw new AppError('sales invoice not found or missing si_number', 'not-found');
+          await dispatchDomainCommand(
+            'revenue',
+            'transition',
+            { id: siId, erp_doc_kind: 'sales-invoice', verb: 'cancel', externalRecordId: si.si_number },
+            freshIdempotencyKey(),
+          );
+        })
       : Promise.reject(new AppError('revenue is not enabled for this org', 'revenue-not-enabled')),
   cancelPayment: (ipId) =>
     routeDomainWrite('revenue') === 'external'
-      ? dispatchDomainCommand(
-          'revenue',
-          'transition',
-          { id: ipId, erp_doc_kind: 'incoming-payment' },
-          freshIdempotencyKey(),
-        ).then(() => undefined)
+      ? wrap(async () => {
+          const ip = await getIncomingPayment(ipId);
+          if (!ip || !ip.ip_number) throw new AppError('incoming payment not found or missing ip_number', 'not-found');
+          await dispatchDomainCommand(
+            'revenue',
+            'transition',
+            { id: ipId, erp_doc_kind: 'incoming-payment', verb: 'cancel', externalRecordId: ip.ip_number },
+            freshIdempotencyKey(),
+          );
+        })
       : Promise.reject(new AppError('revenue is not enabled for this org', 'revenue-not-enabled')),
 };
 
