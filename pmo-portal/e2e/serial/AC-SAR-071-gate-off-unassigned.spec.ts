@@ -175,16 +175,21 @@ test.describe('AC-SAR-071: require_project_on_si=false allows null projectId -> 
       }
 
       // 3) Revenue-per-project view rolls it up under 'Unassigned'
-      // The view is a SQL aggregation: SUM(amount) GROUP BY project_id, with NULL -> 'Unassigned'
-      // We verify by querying the sales_invoices table directly with the same logic
-      const { data: revenueByProject } = await admin
+      // The view is a SQL aggregation: SUM(amount) GROUP BY project_id, with NULL -> 'Unassigned'.
+      // We verify by querying THIS spec's OWN row with the same logic — scoping to siRecordId (not a
+      // broad org-wide project_id-null sum) hardens against a sibling serial spec leaking a
+      // project_id-null mirror row into the shared org (e.g. AC-SAR-043 if its cleanup never ran),
+      // which would otherwise inflate the Unassigned total. The goal-oracle stays intact: this null-
+      // project SI rolls up under Unassigned (project_id=NULL, amount 75000).
+      const { data: ownRows } = await admin
         .from('sales_invoices')
         .select('project_id, amount')
-        .eq('org_id', ORG_ID);
-      const unassignedTotal = revenueByProject
+        .eq('org_id', ORG_ID)
+        .eq('id', siRecordId);
+      const ownUnassignedTotal = ownRows
         ?.filter(r => r.project_id === null)
         .reduce((sum, r) => sum + Number(r.amount), 0) ?? 0;
-      expect(unassignedTotal).toBe(75000);
+      expect(ownUnassignedTotal).toBe(75000);
     } finally {
       // Cleanup: un-flip + delete binding + companies + refs
       await admin.from('external_domain_ownership').delete().eq('org_id', ORG_ID).eq('external_tier', 'erpnext').eq('domain', 'revenue');

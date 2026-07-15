@@ -14,6 +14,12 @@
  * Cleanup deletes the `revenue` ownership + binding rows (the "un-flip" note) + all seeded mirror
  * rows + outbox + external_refs. Uses `ORG_ID=00000000-0000-0000-0000-000000000001`.
  * `EDGE_JWT_ISSUER` lane is the served-fn JWT path (P2 FR-ENA-001..003).
+ * Served-fn secrets shared between the test and the served fn (the Director exports them;
+ * `scripts/serve-functions.sh` forwards them from the shell env into the fn env; the specs read the
+ * SAME value from their own process env): the inbound WEBHOOK lane's HMAC `DEMO_ERP_WEBHOOK_SECRET`
+ * (the binding's `webhook_secret_ref`, default 'e2e-erpnext-webhook-secret') AND the SWEEP lane's
+ * dedicated bearer `ERPNEXT_SWEEP_SECRET` (`erpnext-sweep` constant-time-compares the
+ * `Authorization: Bearer` to it, default 'e2e-erpnext-sweep-secret' — AC-SAR-043 uses both).
  * Bench URLs: `ERPNEXT_SITE_URL=http://host.docker.internal:8080` (Docker-reachable from served fn),
  * `ERPNEXT_BENCH_URL=http://localhost:8080` (host-reachable for test-process optional verification).
  * SEED the binding's `site_url` with `SITE_URL` (the AC-ENA-040 lesson: a localhost binding is
