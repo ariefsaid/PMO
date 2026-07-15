@@ -422,6 +422,33 @@ async function upsertPaymentMirror(ctx: ReadModelWriterCtx, canonical: PmoRecord
 // P3a Slice 2 — Revenue read-model writers (FR-SAR-013/103/121/161)
 // ============================================================================
 
+/** Luna SF7: cross-org FK guard. The service-role writer bypasses RLS, so before copying a PMO-side
+ *  link (customer_id/project_id/sales_invoice_id) from the command into a created row, verify the
+ *  referenced row belongs to ctx.orgId — otherwise the writer would silently link a sales invoice /
+ *  incoming payment to ANOTHER org's record. A mismatch (or a missing referenced row) throws a
+ *  classified 'cross-org-link-rejected' AppError; the dispatch never reaches the create insert. Same
+ *  idiom as `findPmoRecordId` (the `as unknown as ExternalRefsLookupClient` cast over the structural
+ *  client). */
+async function assertLinkSameOrg(
+  ctx: ReadModelWriterCtx,
+  table: string,
+  id: string,
+): Promise<void> {
+  const { data, error } = await (ctx.serviceClient as unknown as ExternalRefsLookupClient)
+    .from(table)
+    .select('org_id')
+    .eq('id', id)
+    .maybeSingle();
+  if (error) throw new AppError(error.message, error.code);
+  const orgId = (data as { org_id: string } | null)?.org_id;
+  if (orgId !== ctx.orgId) {
+    throw new AppError(
+      `cross-org link rejected: ${table} '${id}' does not belong to org '${ctx.orgId}'`,
+      'cross-org-link-rejected',
+    );
+  }
+}
+
 /** `sales_invoices` — the SI read-model + project enhancement (spec §4.1).
  *  Mirrors ERP-derived canonical; `project_id`/`customer_id` from the command record;
  *  `status` via `deriveSiStatus` from `erp_outstanding_amount` + `erp_docstatus`;
@@ -447,6 +474,11 @@ async function upsertSalesInvoiceMirror(ctx: ReadModelWriterCtx, canonical: PmoR
   };
   if (command.operation === 'create') {
     const record = command.record as { projectId?: string; customerId?: string };
+    // Luna SF7: cross-org FK guard — verify each non-null link belongs to ctx.orgId BEFORE the
+    // service-role insert (RLS is bypassed, so the writer must enforce tenancy itself). A null link
+    // (e.g. an SI without a project) skips the lookup — only asserted links are guarded.
+    if (record.customerId) await assertLinkSameOrg(ctx, 'companies', record.customerId);
+    if (record.projectId) await assertLinkSameOrg(ctx, 'projects', record.projectId);
     // project_id and customer_id are machine-set from the command record
     // Luna BLOCK 4: stamp author_user_id = the dispatch caller (creator) so the submit SoD is not a
     // no-op (the RPC skips the approver≠author check when author is null). ctx.callerUserId is
@@ -499,6 +531,11 @@ async function upsertIncomingPaymentMirror(ctx: ReadModelWriterCtx, canonical: P
   };
   if (command.operation === 'create') {
     const record = command.record as { customerId?: string; salesInvoiceId?: string; date?: string };
+    // Luna SF7: cross-org FK guard — verify each non-null link belongs to ctx.orgId BEFORE the
+    // service-role insert (RLS is bypassed). customer_id → companies, sales_invoice_id →
+    // sales_invoices. A null link (e.g. an on-account PE with no customer/SI) skips the lookup.
+    if (record.customerId) await assertLinkSameOrg(ctx, 'companies', record.customerId);
+    if (record.salesInvoiceId) await assertLinkSameOrg(ctx, 'sales_invoices', record.salesInvoiceId);
     const { error } = await ctx.serviceClient.from('incoming_payments').insert({
       id: canonical.id,
       org_id: ctx.orgId,

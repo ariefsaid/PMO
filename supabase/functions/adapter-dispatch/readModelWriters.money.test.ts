@@ -20,9 +20,27 @@ function assert(cond: boolean, msg: string): void {
   if (!cond) throw new Error(msg);
 }
 
-/** Same fake-client shape as readModelWriters.poGr.test.ts. */
-function makeFakeClient() {
+/** Same fake-client shape as readModelWriters.poGr.test.ts, extended with a `select().eq().maybeSingle()`
+ *  chain (SF7 cross-org FK guard's lookup shape) keyed per table — `rows[table]` is the row a
+ *  `maybeSingle()` returns (e.g. `{ org_id: 'org-1' }`). Backward compatible: defaults to {} so existing
+ *  callers that pass nothing still work. */
+function makeFakeClient(rows: Record<string, unknown> = {}) {
   const calls: { table: string; method: string; args: unknown[] }[] = [];
+
+  function selectChain(table: string) {
+    const chain = {
+      eq(column: string, value: string) {
+        calls.push({ table, method: 'eq', args: [column, value] });
+        return chain;
+      },
+      async maybeSingle() {
+        calls.push({ table, method: 'maybeSingle', args: [] });
+        return { data: rows[table] ?? null, error: null };
+      },
+    };
+    return chain;
+  }
+
   const client = {
     from(table: string) {
       return {
@@ -40,6 +58,10 @@ function makeFakeClient() {
             then: (resolve: (v: { error: null }) => void) => resolve({ error: null }),
           };
           return updateChain;
+        },
+        select(columns: string) {
+          calls.push({ table, method: 'select', args: [columns] });
+          return selectChain(table);
         },
       };
     },
@@ -377,7 +399,7 @@ Deno.test({
 Deno.test({
   name: "READ_MODEL_WRITERS['revenue'].upsert (kind sales-invoice, create) writes NO external_ref_lineage row (a fresh create supersedes nothing)",
   fn: async () => {
-    const { client, calls } = makeFakeClient();
+    const { client, calls } = makeFakeClient({ companies: { org_id: 'org-1' }, projects: { org_id: 'org-1' } });
     const writer = getReadModelWriter('revenue');
     await writer.upsert(
       { serviceClient: client as never, orgId: 'org-1' },
@@ -398,7 +420,7 @@ Deno.test({
 Deno.test({
   name: "Luna BLOCK 4 — READ_MODEL_WRITERS['revenue'].upsert (kind sales-invoice, create) stamps author_user_id = the caller's user id (creator) so the submit SoD is not a no-op",
   fn: async () => {
-    const { client, calls } = makeFakeClient();
+    const { client, calls } = makeFakeClient({ companies: { org_id: 'org-1' }, projects: { org_id: 'org-1' } });
     const writer = getReadModelWriter('revenue');
     await writer.upsert(
       { serviceClient: client as never, orgId: 'org-1', callerUserId: 'user-author-1' },
@@ -415,7 +437,7 @@ Deno.test({
 Deno.test({
   name: "Luna BLOCK 4 — an inbound-adopted SI (no PMO caller) keeps author_user_id null (SoD-exempt)",
   fn: async () => {
-    const { client, calls } = makeFakeClient();
+    const { client, calls } = makeFakeClient({ companies: { org_id: 'org-1' }, projects: { org_id: 'org-1' } });
     const writer = getReadModelWriter('revenue');
     await writer.upsert(
       { serviceClient: client as never, orgId: 'org-1' }, // no callerUserId — the inbound-adopted path
@@ -486,5 +508,152 @@ Deno.test({
       !('date' in patch),
       'the update patch must NOT include date (a later mirror must never null a create-time date)',
     );
+  },
+});
+
+// ============================================================================
+// Luna money audit — SF7: the service-role writer bypasses RLS, so before copying a PMO-side link
+// (customer_id/project_id/sales_invoice_id) from the command into a created row, it must SELECT the
+// referenced row and assert org_id === ctx.orgId. A cross-org link is rejected with a classified
+// AppError 'cross-org-link-rejected' (never silently linked). Applies to the SI create
+// (companies.customer_id + projects.project_id) and the incoming-payment create
+// (companies.customer_id + sales_invoices.sales_invoice_id). Null links skip the lookup.
+// ============================================================================
+
+Deno.test({
+  name: "Luna SF7 — READ_MODEL_WRITERS['revenue'].upsert (kind sales-invoice, create) rejects a cross-org customer_id with code 'cross-org-link-rejected'",
+  fn: async () => {
+    // companies lookup returns a DIFFERENT org's row → the service-role writer must reject the link.
+    const { client } = makeFakeClient({ companies: { org_id: 'org-OTHER' }, projects: { org_id: 'org-1' } });
+    const writer = getReadModelWriter('revenue');
+    let err: unknown = null;
+    let threw = false;
+    try {
+      await writer.upsert(
+        { serviceClient: client as never, orgId: 'org-1' },
+        { id: 'pmo-si-sf7-1', si_number: 'ACC-SINV-2026-00001', amount: '50000.00', erp_outstanding_amount: '50000.00', erp_docstatus: 0, erp_modified: '2026-07-12 10:00:00.000000' },
+        { domain: 'revenue', operation: 'create', record: { id: 'pmo-si-sf7-1', projectId: 'proj-1', customerId: 'cust-OTHER-ORG', erp_doc_kind: 'sales-invoice' } },
+      );
+    } catch (e) {
+      threw = true;
+      err = e;
+    }
+    assert(threw, 'a cross-org customer_id must be rejected (never silently linked by the service-role writer)');
+    assertEquals((err as { code?: string }).code, 'cross-org-link-rejected', 'classified cross-org-link-rejected error code');
+  },
+});
+
+Deno.test({
+  name: "Luna SF7 — READ_MODEL_WRITERS['revenue'].upsert (kind sales-invoice, create) rejects a cross-org project_id with code 'cross-org-link-rejected'",
+  fn: async () => {
+    // companies is same-org but projects belongs to a different org → still rejected.
+    const { client } = makeFakeClient({ companies: { org_id: 'org-1' }, projects: { org_id: 'org-OTHER' } });
+    const writer = getReadModelWriter('revenue');
+    let err: unknown = null;
+    let threw = false;
+    try {
+      await writer.upsert(
+        { serviceClient: client as never, orgId: 'org-1' },
+        { id: 'pmo-si-sf7-2', si_number: 'ACC-SINV-2026-00002', amount: '50000.00', erp_outstanding_amount: '50000.00', erp_docstatus: 0, erp_modified: '2026-07-12 10:00:00.000000' },
+        { domain: 'revenue', operation: 'create', record: { id: 'pmo-si-sf7-2', projectId: 'proj-OTHER-ORG', customerId: 'cust-1', erp_doc_kind: 'sales-invoice' } },
+      );
+    } catch (e) {
+      threw = true;
+      err = e;
+    }
+    assert(threw, 'a cross-org project_id must be rejected');
+    assertEquals((err as { code?: string }).code, 'cross-org-link-rejected', 'classified cross-org-link-rejected error code');
+  },
+});
+
+Deno.test({
+  name: "Luna SF7 — READ_MODEL_WRITERS['revenue'].upsert (kind sales-invoice, create) passes when customer_id and project_id both belong to ctx.orgId",
+  fn: async () => {
+    const { client, calls } = makeFakeClient({ companies: { org_id: 'org-1' }, projects: { org_id: 'org-1' } });
+    const writer = getReadModelWriter('revenue');
+    await writer.upsert(
+      { serviceClient: client as never, orgId: 'org-1' },
+      { id: 'pmo-si-sf7-3', si_number: 'ACC-SINV-2026-00003', amount: '50000.00', erp_outstanding_amount: '50000.00', erp_docstatus: 0, erp_modified: '2026-07-12 10:00:00.000000' },
+      { domain: 'revenue', operation: 'create', record: { id: 'pmo-si-sf7-3', projectId: 'proj-1', customerId: 'cust-1', erp_doc_kind: 'sales-invoice' } },
+    );
+    const insertCall = calls.find((c) => c.method === 'insert' && c.table === 'sales_invoices');
+    assert(insertCall !== undefined, 'a same-org SI create must proceed to insert');
+  },
+});
+
+Deno.test({
+  name: "Luna SF7 — READ_MODEL_WRITERS['revenue'].upsert (kind incoming-payment, create) rejects a cross-org sales_invoice_id with code 'cross-org-link-rejected'",
+  fn: async () => {
+    const { client } = makeFakeClient({ companies: { org_id: 'org-1' }, sales_invoices: { org_id: 'org-OTHER' } });
+    const writer = getReadModelWriter('revenue');
+    let err: unknown = null;
+    let threw = false;
+    try {
+      await writer.upsert(
+        { serviceClient: client as never, orgId: 'org-1' },
+        { id: 'pmo-ip-sf7-1', ip_number: 'ACC-PAY-2026-00001', amount: '50000.00', erp_docstatus: 1, erp_modified: '2026-07-12 12:00:00.000000' },
+        { domain: 'revenue', operation: 'create', record: { id: 'pmo-ip-sf7-1', customerId: 'cust-1', salesInvoiceId: 'si-OTHER-ORG', date: '2026-07-12', erp_doc_kind: 'incoming-payment' } },
+      );
+    } catch (e) {
+      threw = true;
+      err = e;
+    }
+    assert(threw, 'a cross-org sales_invoice_id must be rejected');
+    assertEquals((err as { code?: string }).code, 'cross-org-link-rejected', 'classified cross-org-link-rejected error code');
+  },
+});
+
+Deno.test({
+  name: "Luna SF7 — READ_MODEL_WRITERS['revenue'].upsert (kind incoming-payment, create) rejects a cross-org customer_id with code 'cross-org-link-rejected'",
+  fn: async () => {
+    const { client } = makeFakeClient({ companies: { org_id: 'org-OTHER' }, sales_invoices: { org_id: 'org-1' } });
+    const writer = getReadModelWriter('revenue');
+    let err: unknown = null;
+    let threw = false;
+    try {
+      await writer.upsert(
+        { serviceClient: client as never, orgId: 'org-1' },
+        { id: 'pmo-ip-sf7-2', ip_number: 'ACC-PAY-2026-00002', amount: '50000.00', erp_docstatus: 1, erp_modified: '2026-07-12 12:00:00.000000' },
+        { domain: 'revenue', operation: 'create', record: { id: 'pmo-ip-sf7-2', customerId: 'cust-OTHER-ORG', salesInvoiceId: 'si-1', date: '2026-07-12', erp_doc_kind: 'incoming-payment' } },
+      );
+    } catch (e) {
+      threw = true;
+      err = e;
+    }
+    assert(threw, 'a cross-org customer_id must be rejected');
+    assertEquals((err as { code?: string }).code, 'cross-org-link-rejected', 'classified cross-org-link-rejected error code');
+  },
+});
+
+Deno.test({
+  name: "Luna SF7 — READ_MODEL_WRITERS['revenue'].upsert (kind incoming-payment, create) passes when customer_id and sales_invoice_id both belong to ctx.orgId",
+  fn: async () => {
+    const { client, calls } = makeFakeClient({ companies: { org_id: 'org-1' }, sales_invoices: { org_id: 'org-1' } });
+    const writer = getReadModelWriter('revenue');
+    await writer.upsert(
+      { serviceClient: client as never, orgId: 'org-1' },
+      { id: 'pmo-ip-sf7-3', ip_number: 'ACC-PAY-2026-00003', amount: '50000.00', erp_docstatus: 1, erp_modified: '2026-07-12 12:00:00.000000' },
+      { domain: 'revenue', operation: 'create', record: { id: 'pmo-ip-sf7-3', customerId: 'cust-1', salesInvoiceId: 'si-1', date: '2026-07-12', erp_doc_kind: 'incoming-payment' } },
+    );
+    const insertCall = calls.find((c) => c.method === 'insert' && c.table === 'incoming_payments');
+    assert(insertCall !== undefined, 'a same-org incoming-payment create must proceed to insert');
+  },
+});
+
+Deno.test({
+  name: "Luna SF7 — null/omitted links skip the cross-org lookup entirely (an on-account PE with no customer/sales_invoice is allowed, no select fired)",
+  fn: async () => {
+    const { client, calls } = makeFakeClient();
+    const writer = getReadModelWriter('revenue');
+    await writer.upsert(
+      { serviceClient: client as never, orgId: 'org-1' },
+      { id: 'pmo-ip-sf7-4', ip_number: 'ACC-PAY-2026-00004', amount: '50000.00', erp_docstatus: 1, erp_modified: '2026-07-12 12:00:00.000000' },
+      // no customerId, no salesInvoiceId — an on-account / unlinked receive
+      { domain: 'revenue', operation: 'create', record: { id: 'pmo-ip-sf7-4', date: '2026-07-12', erp_doc_kind: 'incoming-payment' } },
+    );
+    const insertCall = calls.find((c) => c.method === 'insert' && c.table === 'incoming_payments');
+    assert(insertCall !== undefined, 'an unlinked incoming-payment create must proceed (no links to validate)');
+    const selectCalls = calls.filter((c) => c.method === 'select');
+    assertEquals(selectCalls.length, 0, 'no link lookups when all links are null');
   },
 });
