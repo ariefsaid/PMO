@@ -175,23 +175,33 @@ async function resolveRevenueRefs(
     refs.project = record.projectId ? (projectMap[record.projectId] ?? null) : null;
   }
 
-  // Resolve SI reference for incoming-payment
-  if (kind === 'incoming-payment' && record.salesInvoiceId) {
-    const siExternalId = await resolveExternalRef(
-      deps.serviceClient as unknown as ExternalRefsLookupClient,
-      deps.orgId,
-      'revenue',
-      record.salesInvoiceId,
-    );
-    if (siExternalId) {
+  // Resolve SI reference for incoming-payment — Luna BLOCK 5 (MONEY-CRITICAL):
+  // - If salesInvoiceId is present but UNRESOLVABLE → reject (classified error, no ERP write)
+  // - If salesInvoiceId is present and RESOLVED → DISCARD any caller-supplied references,
+  //   build references[] ONLY from the server-resolved SI ERP name + paid_amount
+  // - If salesInvoiceId is null/absent → allow unreferenced on-account receipt (empty references[])
+  if (kind === 'incoming-payment') {
+    if (record.salesInvoiceId) {
+      const siExternalId = await resolveExternalRef(
+        deps.serviceClient as unknown as ExternalRefsLookupClient,
+        deps.orgId,
+        'revenue',
+        record.salesInvoiceId,
+      );
+      if (!siExternalId) {
+        throw new AppError(
+          `salesInvoiceId '${record.salesInvoiceId}' not found in this org's revenue external_refs`,
+          'cross-org-link-rejected',
+        );
+      }
       refs.si = siExternalId;
-      // Luna BLOCK 5 (MONEY-CRITICAL): populate record.references with the resolved SI ERP name + the
-      // paid amount so peReceiveToBody (reads rec.references) AND the recovery composite-probe payload
-      // (buildPaymentCompositePayload reads rec.references → si_names) both cite it. Without this the
-      // real FE path posts empty references and the recovery probe can't match (wrongly HELD).
+      // DISCARD caller-supplied references entirely; build ONLY from resolved SI
       (deps.command.record as { references?: unknown }).references = [
         { reference_doctype: 'Sales Invoice', reference_name: siExternalId, allocated_amount: record.paid_amount ?? null },
       ];
+    } else {
+      // No salesInvoiceId → on-account receipt: explicit empty references (never caller-supplied)
+      (deps.command.record as { references?: unknown }).references = [];
     }
   }
 

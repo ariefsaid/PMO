@@ -466,4 +466,134 @@ describe('resolveRevenueRefs — task 2.3 (FR-SAR-100/101/121)', () => {
     expect((capturedToBodyCtx as { refs: { customer?: string | null; project?: string | null } } | undefined)?.refs.customer).toBeUndefined();
     expect((capturedToBodyCtx as { refs: { customer?: string | null; project?: string | null } } | undefined)?.refs.project).toBeUndefined();
   });
+
+  // ============================================================================
+  // Luna BLOCK 5 (MONEY-CRITICAL) — PE-receive references FAIL CLOSED
+  // ============================================================================
+
+  it('Luna BLOCK 5 — incoming-payment: REJECTS when salesInvoiceId is present but UNRESOLVABLE (fail closed, no ERP write)', async () => {
+    const command = {
+      domain: 'revenue',
+      operation: 'create',
+      record: { id: 'pmo-1', erp_doc_kind: 'incoming-payment', customerId: 'cust-1', salesInvoiceId: 'si-missing', paid_amount: 100, received_amount: 100, date: '2026-07-14' },
+    } as never;
+    const serviceClient = multiTableServiceClient({
+      external_org_bindings: ACTIVATED_ROW_REVENUE,
+      'external_refs:companies:cust-1': { external_record_id: 'Customer:Spike Customer' },
+      // si-missing has NO mapping in external_refs -> unresolvable
+    });
+    let fetchCalled = false;
+    await expect(
+      resolveErpDispatchAdapter({
+        serviceClient,
+        orgId: 'org-1',
+        command,
+        fetchImpl: vi.fn(async (_url: string, init?: RequestInit) => {
+          fetchCalled = true;
+          return new Response(JSON.stringify({ name: 'ACC-PE-REC-2026-00001' }), { status: 200 });
+        }) as unknown as typeof fetch,
+        apiKey: 'k',
+        apiSecret: 's',
+        doctypeBodies: {
+          'incoming-payment': {
+            toBody: (rec) => ({ paid_amount: rec.paid_amount, references: rec.references ?? [] }),
+            fromDoc: () => ({ id: 'placeholder' }),
+          },
+        } as never,
+      }),
+    ).rejects.toMatchObject({ code: 'cross-org-link-rejected' });
+    expect(fetchCalled).toBe(false); // no ERP write attempted
+  });
+
+  it('Luna BLOCK 5 — incoming-payment: DISCARDS caller-supplied references; builds references[] ONLY from resolved SI', async () => {
+    let capturedBody: unknown;
+    const command = {
+      domain: 'revenue',
+      operation: 'create',
+      record: {
+        id: 'pmo-1',
+        erp_doc_kind: 'incoming-payment',
+        customerId: 'cust-1',
+        salesInvoiceId: 'si-1',
+        paid_amount: 100,
+        received_amount: 100,
+        date: '2026-07-14',
+        // Caller tries to inject arbitrary references (malicious or buggy)
+        references: [
+          { reference_doctype: 'Sales Invoice', reference_name: 'EVIL-SI-999', allocated_amount: 999999 },
+        ],
+      },
+    } as never;
+    const serviceClient = multiTableServiceClient({
+      external_org_bindings: ACTIVATED_ROW_REVENUE,
+      'external_refs:companies:cust-1': { external_record_id: 'Customer:Spike Customer' },
+      'external_refs:revenue:si-1': { external_record_id: 'ACC-SINV-2026-00001' },
+    });
+    const adapter = await resolveErpDispatchAdapter({
+      serviceClient,
+      orgId: 'org-1',
+      command,
+      fetchImpl: vi.fn(async (url: string, init?: RequestInit) => {
+        const isPost = init?.method === 'POST';
+        if (isPost) {
+          const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+          capturedBody = body;
+          return new Response(JSON.stringify({ name: 'ACC-PE-REC-2026-00001' }), { status: 200 });
+        }
+        // GET to fetch created doc
+        return new Response(JSON.stringify({ name: 'ACC-PE-REC-2026-00001', docstatus: 1, paid_amount: 100, references: [] }), { status: 200 });
+      }) as unknown as typeof fetch,
+      apiKey: 'k',
+      apiSecret: 's',
+      doctypeBodies: {
+        'incoming-payment': {
+          toBody: (rec) => ({ paid_amount: rec.paid_amount, references: rec.references ?? [] }),
+          fromDoc: () => ({ id: 'placeholder' }),
+        },
+      } as never,
+    });
+    await adapter.commit(command).catch(() => {});
+    // Caller-supplied 'EVIL-SI-999' must be DISCARDED; only the resolved SI 'ACC-SINV-2026-00001' is sent
+    expect((capturedBody as { references?: Array<{ reference_name?: string }> } | null)?.references?.[0]?.reference_name).toBe('ACC-SINV-2026-00001');
+    expect((capturedBody as { references?: Array<{ reference_name?: string }> } | null)?.references?.length).toBe(1);
+  });
+
+  it('Luna BLOCK 5 — incoming-payment: ALLOWS unreferenced on-account receipt ONLY when salesInvoiceId is null/absent', async () => {
+    let capturedBody: unknown;
+    const command = {
+      domain: 'revenue',
+      operation: 'create',
+      record: { id: 'pmo-1', erp_doc_kind: 'incoming-payment', customerId: 'cust-1', salesInvoiceId: null, paid_amount: 100, received_amount: 100, date: '2026-07-14' },
+    } as never;
+    const serviceClient = multiTableServiceClient({
+      external_org_bindings: ACTIVATED_ROW_REVENUE,
+      'external_refs:companies:cust-1': { external_record_id: 'Customer:Spike Customer' },
+    });
+    const adapter = await resolveErpDispatchAdapter({
+      serviceClient,
+      orgId: 'org-1',
+      command,
+      fetchImpl: vi.fn(async (url: string, init?: RequestInit) => {
+        const isPost = init?.method === 'POST';
+        if (isPost) {
+          const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+          capturedBody = body;
+          return new Response(JSON.stringify({ name: 'ACC-PE-REC-2026-00001' }), { status: 200 });
+        }
+        // GET to fetch created doc
+        return new Response(JSON.stringify({ name: 'ACC-PE-REC-2026-00001', docstatus: 1, paid_amount: 100, references: [] }), { status: 200 });
+      }) as unknown as typeof fetch,
+      apiKey: 'k',
+      apiSecret: 's',
+      doctypeBodies: {
+        'incoming-payment': {
+          toBody: (rec) => ({ paid_amount: rec.paid_amount, references: rec.references ?? [] }),
+          fromDoc: () => ({ id: 'placeholder' }),
+        },
+      } as never,
+    });
+    await adapter.commit(command).catch(() => {});
+    // No salesInvoiceId -> no references sent (empty array); this is a valid on-account receipt
+    expect((capturedBody as { references?: unknown[] } | null)?.references).toEqual([]);
+  });
 });
