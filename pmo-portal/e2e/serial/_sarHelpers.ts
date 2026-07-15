@@ -28,8 +28,6 @@
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
-const AUTH_URL = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? '';
-const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
 const ERPNEXT_SITE_URL = process.env.ERPNEXT_SITE_URL ?? 'http://host.docker.internal:8080';
 const ORG_ID = '00000000-0000-0000-0000-000000000001';
 

@@ -25,7 +25,7 @@
  */
 import { test, expect } from '@playwright/test';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { seedSAR, cleanupSAR, signInAdmin, dispatchCreateRevenue, dispatchTransitionRevenue } from './_sarHelpers';
+import { seedSAR, cleanupSAR, signInAdmin, dispatchCreateRevenue, dispatchTransitionRevenue, SARSeed } from './_sarHelpers';
 
 const FUNCTIONS_URL = process.env.SUPABASE_FUNCTIONS_URL ?? '';
 const AUTH_URL = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? FUNCTIONS_URL;
@@ -48,7 +48,7 @@ test.skip(!READY, 'AC-SAR-042-si-cancel-amend: SUPABASE_FUNCTIONS_URL/SUPABASE_U
 
 test.setTimeout(120_000);
 
-async function createAndSubmitSI(admin: SupabaseClient, accessToken: string, seeded: any, idempotencyKey: string) {
+async function createAndSubmitSI(admin: SupabaseClient, accessToken: string, seeded: SARSeed, idempotencyKey: string) {
   let createRes = await dispatchCreateRevenue(
     FUNCTIONS_URL,
     ANON_KEY,

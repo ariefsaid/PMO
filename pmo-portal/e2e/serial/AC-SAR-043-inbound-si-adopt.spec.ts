@@ -27,9 +27,9 @@
  *        npx playwright test AC-SAR-043
  */
 import { test, expect } from '@playwright/test';
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { createClient } from '@supabase/supabase-js';
 import { createHmac } from 'node:crypto';
-import { seedSAR, cleanupSAR, signInAdmin } from './_sarHelpers';
+import { seedSAR, cleanupSAR } from './_sarHelpers';
 
 const FUNCTIONS_URL = process.env.SUPABASE_FUNCTIONS_URL ?? '';
 const AUTH_URL = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? FUNCTIONS_URL;
@@ -74,7 +74,6 @@ test.setTimeout(120_000);
 test.describe('AC-SAR-043: Inbound Sales Invoice adoption (native ERP creation → webhook/sweep)', () => {
   test('a native ERP SI + inbound event mints sales_invoices with project_id=NULL + action-required notification; no project auto-assigned', async () => {
     const admin = createClient(AUTH_URL, SERVICE_KEY);
-    const accessToken = await signInAdmin(AUTH_URL, ANON_KEY);
     const suffix = `sar043-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
     // Seed the shared org (Customer + Project + binding + revenue flip) — same as other SAR specs
@@ -219,7 +218,7 @@ test.describe('AC-SAR-043: Inbound Sales Invoice adoption (native ERP creation �
           headers: { Authorization: `token ${ERPNEXT_ADMIN_KEY}:${ERPNEXT_ADMIN_SECRET}`, 'Content-Type': 'application/json' },
           body: JSON.stringify({ docstatus: 2 }),
         });
-      } catch { }
+      } catch { /* best-effort ERP cleanup - ignore failures */ }
       // Cleanup PMO seed
       await cleanupSAR(admin, seeded);
     }
