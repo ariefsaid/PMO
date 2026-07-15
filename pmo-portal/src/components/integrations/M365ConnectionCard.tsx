@@ -1,5 +1,5 @@
 import React from 'react';
-import { Card, Icon } from '@/src/components/ui';
+import { Button, Card, Icon } from '@/src/components/ui';
 import { useFeature } from '@/src/auth/useFeature';
 
 /**
@@ -25,14 +25,11 @@ export const M365ConnectionCard: React.FC<{ isAdmin: boolean }> = ({ isAdmin }) 
         Not connected. Link your Microsoft 365 tenant to bring OneDrive documents, Teams, and
         calendar into your projects.
       </p>
-      <button
-        type="button"
-        disabled
-        aria-disabled="true"
-        className="mt-3 inline-flex h-8 items-center rounded-md border border-border bg-secondary px-3 text-sm font-semibold text-muted-foreground"
-      >
+      {/* Phase-0 stub — live connect is HELD behind D1/D2 + the security-auditor gate (ADR-0060).
+          Uses the shared Button primitive (a11y focus/disabled semantics); wire onClick in Phase-1. */}
+      <Button variant="outline" disabled className="mt-3">
         Connect Microsoft 365 — available soon
-      </button>
+      </Button>
     </Card>
   );
 };
