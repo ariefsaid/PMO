@@ -8,7 +8,6 @@ import { scopeCoversPath } from '../../../../../supabase/functions/m365-token-cu
 import { mockClient, deps, encryptForTest } from './m365MockDeps';
 import type { ConnectionRow, GraphProxyRequest } from '../../../../../supabase/functions/m365-token-custody/types';
 
-const GRAPH_URL = 'https://graph.microsoft.com/v1.0/me/drive/root/children';
 const TOKEN_URL = 'https://login.microsoftonline.com/test-tenant-id/oauth2/v2.0/token';
 
 function callerClient() {
@@ -131,7 +130,7 @@ describe('AC-M365-110/111/112/113/114 — handleGraphProxy', () => {
         { data: null, error: null }, // update to revoked
       ],
     });
-    const fetch = vi.fn().mockImplementation((url: string) =>
+    const fetch = vi.fn().mockImplementation((_url: string) =>
       Promise.resolve({ ok: false, json: async () => ({ error: 'invalid_grant', error_description: 'token reuse detected' }) }),
     );
     void fetch;
