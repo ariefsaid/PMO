@@ -70,10 +70,25 @@ reviewed unit). NOT merged.**
     `m365_disconnect_cascade` RPC exists+pgTAP'd but wired to NOTHING → NFR-M365-107 unmet (fix: triggers on
     `profiles.status`/`org_features` + pgTAP the trigger fires). Cheap-now: MED-1 atomic PKCE consume, `refresh`
     action footgun→400, LOW-1 tenant re-validate+CHECK, LOW-2 reason allowlist, LOW-4/5, quality minors.
-    Deferred(tracked): LOW-3 hash reuse-detection, quality #4 perf. **Edge-fn fixes (HIGH-1 + TS) IN PROGRESS
-    (glm-5.2); DB fixes (HIGH-2 triggers + DB hardenings) next.**
-  - **⏳ Then:** re-verify + re-review the HIGHs → STOP at mocked+tested. FE Connect-button wiring deferred to the
-    deploy step. Live OAuth/Graph round-trip + the security-auditor sign-off on the LIVE surface stay owner-gated.
+    Deferred(tracked): LOW-3 hash reuse-detection, quality #4 perf.
+  - **✅ Edge-fn fix round DONE (glm-5.2, Director-verified + committed `69b448d6`, full verify 5079 green):**
+    HIGH-1 (id_token `tid` assertion before store + real tid/oid persisted — consent-phishing closed),
+    MED-1 (atomic `delete…returning` PKCE consume), `refresh`-action→400, LOW-4/5, quality #2/3/5/6/7/10,
+    graphTokenCrypto comment fix. Vitest 65 · typecheck 0 · lint 0 · deno clean.
+  - **⏸️ RESUME HERE — DB fix round (the ONLY remaining Phase-1 item):** wire **HIGH-2** cascade + the DB
+    hardenings. ⚠️ NOT hand-authored blind: `m365_disconnect_cascade` (0099) has a user-facing authz guard
+    (`is_operator()`/Admin-in-org), so triggers need care re: trigger auth-context — likely refactor the
+    delete+audit CORE into a guard-free internal fn called by BOTH the guarded RPC AND the triggers. Tasks:
+    (a) mig — AFTER-UPDATE trigger on `profiles` (status→disabled → cascade(org,user,'offboard')) + on
+    `org_features` (m365_integration→false/deleted → cascade(org,NULL,'disentitled')); (b) pgTAP proving the
+    TRIGGER fires (not just the RPC); (c) LOW-1 `CHECK (entra_tenant_id ~ '^[A-Za-z0-9._-]+$')` on
+    `ms_graph_connections` + TENANT_RE re-validate at refresh/revoke URL build; (d) LOW-2 `p_reason` allowlist
+    in the cascade; (e) quality #8 drop dead `v_deleted`; (f) quality #9 PKCE-states TTL sweep (pg_cron or a
+    scheduled delete). **Blocked 2026-07-16 00:22 WIB on:** z.ai quota (resets ~04:33) + the local supabase
+    stack is DOWN (needs a `db reset` cycle; the analytics/vector containers were flaky). Dispatch to glm-5.2
+    when quota resets; Director pgTAP-verifies under the db-lock. MANDATORY (NFR-M365-107) before live exposure.
+  - **⏳ After the DB round:** re-review the 2 HIGHs → mocked+tested+reviewed done. FE Connect-button wiring
+    deferred to deploy. Live OAuth/Graph round-trip + security-auditor sign-off on the LIVE surface owner-gated.
 - **Owner-gated inputs on GO** (handoff §5): (1) KEK `openssl rand -base64 32` → `supabase secrets set
   M365_TOKEN_KEK`; (2) `supabase secrets set M365_CLIENT_SECRET` (Entra secret — SSO dashboard config
   isn't edge-fn-readable); (3) Entra: delegated Graph scopes (`Files.Read`+`offline_access`) + the
