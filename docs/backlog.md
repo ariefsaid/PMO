@@ -43,18 +43,26 @@ reviewed unit). NOT merged.**
   delight-drives-enterprise-adoption (ADR-0058); token custody server-side (ADR-0060); **D1 encryption =
   app-layer AES-256-GCM**, **D2 bootstrap = server-side auth-code+PKCE** (ADR-0060 §3/§1). Open: publisher
   verification, provisioning invite-first-vs-JIT.
-- **HELD — Phase-1 live wiring** (handoff §4): PKCE exchange edge fn → encrypt+store → Graph proxy →
-  rotation/revoke → wire the FE stub → OneDrive doc-linking (ADR-0055 Graph tier), then the
-  **`security-auditor` gate on the live surface before exposure**.
+- **🔨 Phase-1 IN PROGRESS (owner signed off the spec 2026-07-15) — build mocked, deploy owner-gated.**
+  Spec `docs/specs/m365-phase1-graph-token-custody.spec.md` (33 FR / 10 NFR / 19 AC, all 10 ADR-0060
+  controls as NFRs). Plan `docs/plans/2026-07-15-m365-phase1-token-custody.md` (+ **Director audit-path
+  correction:** the edge fn is `service_role`, which can't call `log_audit` directly — added mig `0100`
+  `audit_m365_event` SD wrapper with explicit params for the JWT-less OAuth callback, `m365.*` allowlist).
+  - **✅ Slice A (DB)** — migs `0098` `m365_pkce_states` (PKCE/CSRF transient store, 0096-lockdown parity),
+    `0099` `m365_disconnect_cascade` (offboard/disentitlement SD RPC), `0100` `audit_m365_event`; pgTAP
+    `0145–0148` (AC-M365-101/121/133/142/170). Migrations read-verified; **pi ran full pgTAP green (1345)**;
+    ⚑ local re-run BLOCKED by a Docker infra flake (flaky analytics/vector containers + machine overload) —
+    deferred to a healthy env / the CI PR→main integration gate.
+  - **🔨 Slice B (edge fn `m365-token-custody` + Vitest units)** building (mocked fetch/crypto/DB).
+  - **⏳ Then:** wire the FE stub's Connect button → review battery → STOP at mocked+tested. Live wiring
+    (real OAuth/Graph round-trip) + **`security-auditor` gate on the live surface** stay owner-gated.
 - **Owner-gated inputs on GO** (handoff §5): (1) KEK `openssl rand -base64 32` → `supabase secrets set
   M365_TOKEN_KEK`; (2) `supabase secrets set M365_CLIENT_SECRET` (Entra secret — SSO dashboard config
   isn't edge-fn-readable); (3) Entra: delegated Graph scopes (`Files.Read`+`offline_access`) + the
   edge-fn PKCE redirect URI. Publisher verification if productizing past the first admin-consenting client.
-- **Next:** DB slice ✅ done. Phase-0 foundation is now fully proven. Remaining work is **Phase-1 live
-  wiring** (PKCE exchange edge fn → encrypt+store → Graph proxy → rotation/revoke → wire the FE stub →
-  OneDrive linking), which the code can be authored+mocked without secrets but is HELD pending owner
-  priority vs the other in-flight programs + the owner-gated inputs above + the `security-auditor` gate
-  before exposure. Owner decision needed to start Phase-1.
+- **Next:** finish Slice B build → verify (vitest + `npm run verify` + `deno check`) → wire FE Connect
+  button → Phase-1 review battery → stop at mocked+tested. Live deploy = owner-gated inputs above +
+  security-auditor gate. OneDrive doc-linking UI is a SEPARATE downstream spec that consumes this runtime.
 
 ### ⚑⚑ ADAPTER PROGRAM (2026-07-10) — P0 seam SHIPPED to dev; P1 ClickUp in flight
 - **✅ P0 external-adapter seam MERGED to `dev`** (PR #299, `2cbacd5`; ADR-0055): migrations
