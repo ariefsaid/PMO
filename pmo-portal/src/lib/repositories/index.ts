@@ -454,7 +454,19 @@ const revenue: RevenueRepository = {
       ? dispatchDomainCommand(
           'revenue',
           'create',
-          { id: crypto.randomUUID(), ...input, erp_doc_kind: 'incoming-payment' },
+          // Luna BLOCK 5 (MONEY-CRITICAL): map the camelCase input to the snake_case command record the
+          // dispatch/body (peReceiveToBody reads paid_amount/received_amount/references) AND the recovery
+          // composite-probe payload all read. references[] is resolved downstream by resolveRevenueRefs
+          // (the resolved SI ERP name + allocated_amount) — the repo only knows the PMO salesInvoiceId.
+          {
+            id: crypto.randomUUID(),
+            erp_doc_kind: 'incoming-payment',
+            customerId: input.customerId,
+            salesInvoiceId: input.salesInvoiceId ?? null,
+            paid_amount: input.paidAmount,
+            received_amount: input.receivedAmount ?? input.paidAmount,
+            date: input.date,
+          },
           freshIdempotencyKey(),
         ).then((res) => ({ id: String(res.canonical.id), ip_number: String(res.canonical.ip_number ?? '') }))
       : Promise.reject(new AppError('revenue is not enabled for this org', 'revenue-not-enabled')),

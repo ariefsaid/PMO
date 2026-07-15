@@ -148,6 +148,7 @@ async function resolveRevenueRefs(
     customerId?: string;
     projectId?: string;
     salesInvoiceId?: string;
+    paid_amount?: unknown;
   };
   const kind = record.erp_doc_kind;
 
@@ -183,11 +184,14 @@ async function resolveRevenueRefs(
       record.salesInvoiceId,
     );
     if (siExternalId) {
-      // The body builder (peReceiveToBody) reads `rec.references` which the repo sets from
-      // `salesInvoiceId`. We provide the ERP SI name here so the repo can build the references array.
-      // Actually the repo sets `rec.references` directly from `salesInvoiceId` — but we need the ERP name.
-      // The repo will use this resolved ERP name. For now we store it in refs.si for the repo to pick up.
       refs.si = siExternalId;
+      // Luna BLOCK 5 (MONEY-CRITICAL): populate record.references with the resolved SI ERP name + the
+      // paid amount so peReceiveToBody (reads rec.references) AND the recovery composite-probe payload
+      // (buildPaymentCompositePayload reads rec.references → si_names) both cite it. Without this the
+      // real FE path posts empty references and the recovery probe can't match (wrongly HELD).
+      (deps.command.record as { references?: unknown }).references = [
+        { reference_doctype: 'Sales Invoice', reference_name: siExternalId, allocated_amount: record.paid_amount ?? null },
+      ];
     }
   }
 

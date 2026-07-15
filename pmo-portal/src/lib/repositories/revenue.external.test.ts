@@ -192,14 +192,47 @@ describe('task 2.2 — flipped ownership map — revenue record creates route to
       expect.objectContaining({
         customerId: 'cust-1',
         salesInvoiceId: 'si-1',
-        paidAmount: 100,
-        receivedAmount: 100,
+        // Luna BLOCK 5: the repo maps the camelCase input to the snake_case command record the
+        // dispatch/body/recovery-payload all read (paid_amount/received_amount, NOT paidAmount).
+        paid_amount: 100,
+        received_amount: 100,
         date: '2026-07-14',
         erp_doc_kind: 'incoming-payment',
       }),
       expect.objectContaining({ idempotencyKey: expect.any(String) }),
     );
     expect(result).toMatchObject({ id: 'pmo-1', ip_number: 'ACC-PE-REC-2026-00001' });
+  });
+
+  // Luna BLOCK 5 (MONEY-CRITICAL): the repo MUST map the camelCase createPayment input to the
+  // snake_case command record the dispatch/body/recovery-payload read — else the real FE path sends
+  // undefined paid_amount/received_amount + empty references, the body posts empty amounts, and the
+  // recovery composite probe can't match (wrongly HELD).
+  it('Luna BLOCK 5 — createPayment command record carries paid_amount/received_amount (snake_case) + resolves references downstream', async () => {
+    dispatchSpy.mockResolvedValue({
+      externalRecordId: 'ACC-PE-REC-2026-00001',
+      canonical: { id: 'pmo-1', ip_number: 'ACC-PE-REC-2026-00001' },
+    });
+
+    await repositories.revenue.createPayment({
+      customerId: 'cust-1',
+      salesInvoiceId: 'si-1',
+      paidAmount: 100,
+      receivedAmount: 100,
+      date: '2026-07-14',
+    });
+
+    expect(dispatchSpy).toHaveBeenCalledTimes(1);
+    const [, , record] = dispatchSpy.mock.calls[0];
+    // The money amounts are present in snake_case (the body/recovery-payload read these).
+    expect(record).toMatchObject({ paid_amount: 100, received_amount: 100 });
+    // The buggy camelCase form is GONE (it never reached ERP before — undefined amounts).
+    expect(record).not.toHaveProperty('paidAmount');
+    expect(record).not.toHaveProperty('receivedAmount');
+    // received_amount defaults to paid_amount when omitted (peReceiveToBody treats it as mandatory).
+    await repositories.revenue.createPayment({ customerId: 'cust-1', paidAmount: 250, date: '2026-07-14' });
+    const [, , record2] = dispatchSpy.mock.calls[1];
+    expect(record2).toMatchObject({ paid_amount: 250, received_amount: 250 });
   });
 
   it('submitInvoice dispatches externally with erp_doc_kind=sales-invoice (transition)', async () => {

@@ -380,6 +380,55 @@ describe('resolveRevenueRefs — task 2.3 (FR-SAR-100/101/121)', () => {
     // The body builder reads rec.references (set by the repo from salesInvoiceId) - we verify the ref resolution path
   });
 
+  // Luna BLOCK 5 (MONEY-CRITICAL): for an incoming-payment, resolveRevenueRefs must populate
+  // record.references with the RESOLVED SI ERP name (+ allocated_amount) so peReceiveToBody (reads
+  // rec.references) AND the recovery composite-probe payload (si_names) cite it — else the body posts
+  // empty references and the recovery probe can't match (wrongly HELD).
+  it('Luna BLOCK 5 — incoming-payment: resolveRevenueRefs populates record.references with the resolved SI ERP name + allocated_amount', async () => {
+    let capturedBody: unknown;
+    const command = {
+      domain: 'revenue',
+      operation: 'create',
+      record: { id: 'pmo-1', erp_doc_kind: 'incoming-payment', customerId: 'cust-1', salesInvoiceId: 'si-1', paid_amount: 100, received_amount: 100, date: '2026-07-14' },
+    } as never;
+    const serviceClient = multiTableServiceClient({
+      external_org_bindings: ACTIVATED_ROW_REVENUE,
+      'external_refs:companies:cust-1': { external_record_id: 'Customer:Spike Customer' },
+      'external_refs:revenue:si-1': { external_record_id: 'ACC-SINV-2026-00001' },
+    });
+    const adapter = await resolveErpDispatchAdapter({
+      serviceClient,
+      orgId: 'org-1',
+      command,
+      fetchImpl: vi.fn(async (_url: string, init?: RequestInit) => {
+        if (init?.method === 'POST') {
+          const body = JSON.parse(String(init.body)) as Record<string, unknown>;
+          capturedBody = body;
+          return new Response(JSON.stringify({ name: 'ACC-PE-REC-2026-00001' }), { status: 200 });
+        }
+        return new Response(JSON.stringify({ name: 'ACC-PE-REC-2026-00001', docstatus: 0 }), { status: 200 });
+      }) as unknown as typeof fetch,
+      apiKey: 'k',
+      apiSecret: 's',
+      doctypeBodies: {
+        'incoming-payment': {
+          toBody: (rec: Record<string, unknown>) => ({ paid_amount: rec.paid_amount, references: rec.references ?? [] }),
+          fromDoc: () => ({ id: 'placeholder' }),
+        },
+      } as never,
+    });
+    await adapter.commit(command).catch(() => {});
+
+    // record.references is populated by resolveRevenueRefs with the resolved SI ERP name + amount.
+    const refs = (command as unknown as { record: { references?: unknown[] } }).record.references;
+    expect(refs).toEqual([
+      { reference_doctype: 'Sales Invoice', reference_name: 'ACC-SINV-2026-00001', allocated_amount: 100 },
+    ]);
+    // And the POSTed ERP body carries non-null paid_amount + a references entry citing the SI.
+    expect((capturedBody as { paid_amount?: unknown } | null)?.paid_amount).toBe(100);
+    expect((capturedBody as { references?: Array<{ reference_name?: string }> } | null)?.references?.[0]?.reference_name).toBe('ACC-SINV-2026-00001');
+  });
+
   it('non-revenue kinds (procurement) do NOT pay for revenue ref resolution (byte-for-byte)', async () => {
     let capturedToBodyCtx: unknown;
     const serviceClient = multiTableServiceClient({
