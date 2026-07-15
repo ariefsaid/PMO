@@ -242,3 +242,205 @@ A caller POSTing `{action:'refresh'}` is routed to `handleGraphProxy({path:'/me/
 **APPROVE-WITH-FIXES.** The architecture is the strongest part: a genuinely clean ADR-0039 DI seam (verified — no Deno/env leakage, not over-abstracted), tight single-responsibility modules, real-crypto/real-JWT tests that assert behavior, and properly-indexed migrations with lockdown RLS proven by pgTAP. None of the issues are Critical and there are no scaling/cliff defects. **Fix #1 (the `refresh` action footgun) before merge** — it's a small, isolated change and shipping a named action that silently does something else is the kind of thing that erodes trust in the API surface. The Minors (#2–#10) are polish: do the cheap ones (#2 scope ordering, #3 clock, #7 dead params, #8 dead var) in the same PR; queue #4/#5/#9/#10 as follow-ups.
 
 QUALITY-DONE
+
+---
+
+# Luna (gpt-5.6-luna:max) deep review — DB round (0101/0102/0149), 2026-07-16
+Verdict: BLOCK. Director-verified C1/H3/H4 real. Triage → backlog M365 entry.
+
+Subagent async grouped result intercom delivery was not acknowledged for '/var/folders/6q/rvc4t63n3ps7g5w5ckgl59qm0000gp/T/pi-subagents-uid-502/async-subagent-results/117bf319-7240-4cb6-a876-6516a935174d.json'.
+# Verdict: **BLOCK**
+
+The focused pgTAP passes **14/14**, and the full suite reportedly passes **167 files / 1,359 tests**. Those tests do not prove NFR-M365-107 end-to-end.
+
+## Critical
+
+### C1. Pending OAuth callback resurrects tokens after offboard/disentitlement
+
+**Locations:**  
+`0101_m365_cascade_triggers.sql:45-61,152-173`  
+`0098_m365_pkce_states.sql:10-16`  
+`supabase/functions/m365-token-custody/callback.ts:47-52,119-139`
+
+**Scenario:** An Admin starts OAuth. Before the callback completes, the user is disabled or M365 is disentitled. The trigger deletes existing connections, but the PKCE state remains valid. The callback then consumes that state and upserts a new active connection without checking current profile status or entitlement.
+
+This leaves a refresh token after the lifecycle event explicitly requiring deletion.
+
+**Fix:**  
+- Cascade-delete pending PKCE states for the user/org.  
+- Recheck status and entitlement immediately before upsert.  
+- Enforce the invariant at the `ms_graph_connections` INSERT/UPDATE boundary with row locking/serialization; callback-only checks remain TOCTOU-vulnerable.
+
+## High
+
+### H1. No org-disable path exists
+
+**Locations:**  
+`0001_init_schema.sql:30-34`  
+`0099_m365_disconnect_cascade.sql:5`  
+`0101_m365_cascade_triggers.sql:134-191`
+
+`organizations` has no status/disabled field, RPC, or trigger. `org_disabled` is merely allowlisted as a reason; no production path invokes it.
+
+Hard-deleting an organization removes local rows through FK cascades (`0096:17-19`), but that is not an org-disable lifecycle, emits no M365 audit, and performs no Microsoft revoke.
+
+**Fix:** Define an org-disable state/RPC and invoke the same audited cascade before/within the state transition.
+
+### H2. `operator_toggle_feature(..., false)` can INSERT without firing a trigger
+
+**Locations:**  
+`0070_org_features.sql:88-91`  
+`0101_m365_cascade_triggers.sql:152-179,181-190`
+
+Existing `true` rows correctly use `UPDATE`, but an absent row uses `INSERT enabled=false`. There is no INSERT trigger. Deleting an already-disabled row also intentionally skips the cascade.
+
+**Scenario:** A stale connection exists due to a callback race, legacy data, or service-role write. An operator toggles M365 off with no feature row; the row is inserted disabled and the token survives.
+
+**Fix:** Handle `AFTER INSERT` with `enabled=false`, and cascade on deletion of any M365 row. Add tests for absent-row → false and false-row deletion.
+
+### H3. Direct feature-row mutation can evade the cascade
+
+**Locations:**  
+`0070_org_features.sql:44-46`  
+`0075_explicit_api_grants.sql:118-121`  
+`0101_m365_cascade_triggers.sql:152-161`
+
+Operators have direct UPDATE privileges despite comments claiming the RPC is the sole write path.
+
+An operator can rename an enabled row from `m365_integration` to `crm`, or move it to another `org_id`. The trigger checks `NEW.feature_key` and therefore returns without deleting connections from the old M365 org.
+
+**Fix:** Make `feature_key` and `org_id` immutable, or remove direct client DML and permit only the RPC. Also cascade based on the old M365 row whenever its entitlement identity is lost.
+
+### H4. `TRUNCATE org_features` bypasses row triggers
+
+**Location:** `0075_explicit_api_grants.sql:118-121`
+
+`anon` and `authenticated` are granted `TRUNCATE`. PostgreSQL RLS and row-level DELETE triggers do not protect TRUNCATE. A SQL-capable role can truncate the table, remove every entitlement row, and leave every M365 connection untouched.
+
+The current REST surface may not expose arbitrary TRUNCATE, but this is an unsafe database privilege and a future RPC/SQL path would immediately bypass NFR-M365-107.
+
+**Fix:** Revoke TRUNCATE, and preferably all direct feature-table DML, from client roles.
+
+### H5. Token table does not enforce the user/org relationship
+
+**Locations:**  
+`0096_ms_graph_connections.sql:17-19,33`  
+`0101_m365_cascade_triggers.sql:45-47,129`  
+`0149_m365_cascade_triggers.test.sql:25-26,121-122`
+
+`ms_graph_connections` has separate FKs to `organizations` and `profiles`, but no composite relationship enforcing that both belong to the same org.
+
+The test itself inserts an Org-A connection for User C, whose profile belongs to Org B. If such a row exists, offboarding User C in Org B calls the core with Org B and leaves the Org-A row behind.
+
+**Fix:** Add a composite `(user_id, org_id)` FK backed by a unique profile key, or make the offboard delete user-scoped independent of org. Correct the test fixture.
+
+### H6. Explicit disconnect reports success when local deletion fails
+
+**Location:**  
+`supabase/functions/m365-token-custody/revoke.ts:59-70`
+
+The delete result is ignored. A database/API error can leave the encrypted row present, then the function writes a revoked audit event and returns HTTP 200.
+
+**Fix:** Inspect the delete error; do not emit success audit or return 200 unless deletion succeeded. Return a retryable failure and record an error event.
+
+## Medium
+
+### M1. Profile/org hard-delete paths bypass M365 auditing
+
+**Locations:**  
+`0001_init_schema.sql:50-52`  
+`0002_rls.sql:47-49`  
+`0096_ms_graph_connections.sql:17-19`  
+`0101_m365_cascade_triggers.sql:134-138`
+
+Profile deletion and `auth.users` deletion remove connection rows through FK cascades, so local token deletion normally occurs. However, no `m365.connection.revoked` audit event or Microsoft best-effort revoke occurs. Organization hard-delete has the same issue.
+
+**Fix:** Prefer status-based offboarding; otherwise add audited delete handling or an explicit deletion RPC.
+
+### M2. Cascade auditing is not concurrency-safe
+
+**Location:**  
+`0101_m365_cascade_triggers.sql:55-61`
+
+The core audits rows in a SELECT loop, then deletes them separately. Concurrent cascades can both audit the same connection. A connection inserted between the SELECT and DELETE can be deleted without an audit event.
+
+**Fix:** Delete with `RETURNING`, audit only returned rows, and serialize lifecycle transitions with row/advisory locks.
+
+### M3. Tenant CHECK accepts `.` and `..`; runtime paths are not revalidated
+
+**Locations:**  
+`0102_m365_db_hardening.sql:17-19`  
+`pmo-portal/src/lib/m365/graphPkce.ts:20,58-61`  
+`refresh.ts:46-57`  
+`revoke.ts:46`
+
+The regex accepts valid GUIDs, `common`, `organizations`, `consumers`, and ASCII/punycode domains. It rejects slash, query, percent, whitespace, and newline payloads.
+
+However, `.` and `..` also pass. URL normalization turns `.../../oauth2/...` into the parent path. The host remains pinned, so this is path confusion rather than arbitrary-host SSRF. Refresh/revoke also interpolate the DB value without runtime validation.
+
+**Fix:** Reject `.` and `..`, validate exact tenant forms, and use a shared runtime validator before every token/revoke URL construction. Add tests for dot segments and malformed values.
+
+Note: Phase 1 intentionally requires a concrete tenant GUID; although aliases are regex-valid, the callback rejects them because it compares `claims.tid` to the configured value.
+
+### M4. `0149` does not prove the real offboard path
+
+**Locations:**  
+`0149_m365_cascade_triggers.test.sql:5-6,57,83-88,125-129,170-182`  
+`0065_admin_set_user_status.sql:20-89`
+
+The profile test updates `profiles` as superuser rather than calling `admin_set_user_status`. The operator feature UPDATE and DELETE paths are realistic, but the test does not cover:
+
+- `admin_set_user_status → profiles` trigger;
+- absent-row false INSERT;
+- feature key/org mutation;
+- TRUNCATE;
+- profile/auth-user deletion;
+- pending callback resurrection;
+- org disable;
+- `actor_id` correctness.
+
+Also, `RESET ROLE` does not clear the transaction-local JWT claims, so the later public-RPC reason test is not a clean production-role test.
+
+**Fix:** Add realistic Admin RPC coverage and negative-path tests.
+
+## Low
+
+### L1. PKCE sweep is unindexed and unbounded
+
+**Locations:**  
+`0102_m365_db_hardening.sql:31-39`  
+`0098_m365_pkce_states.sql:15-21`
+
+The function is safe and idempotent, but `expires_at` has no index and the DELETE is unbatched. An entitled Admin can create many abandoned states, causing periodic sequential scans and large deletes.
+
+**Fix:** Add an `expires_at` index, batch cleanup, and rate-limit initiation.
+
+### L2. System cascades have null audit actors
+
+**Locations:**  
+`0101_m365_cascade_triggers.sql:129,161,173`  
+`0076_audit_events.sql:48-52`
+
+`auth.uid()` is null for service-role/system actions. This does not suppress deletion; the trigger is guard-free, and `actor_id` is explicitly nullable for system events. It does reduce repudiation detail. The test does not assert actor identity on the authenticated operator path.
+
+Also, `0080_service_role_grants.sql:20-28` means `service_role` can execute the supposedly internal core despite `REVOKE ... FROM PUBLIC`; this is acceptable for a trusted root role but the comments are technically inaccurate.
+
+### L3. Entitlement helper semantics are inconsistent
+
+**Locations:**  
+`0070_org_features.sql:48-66`  
+`supabase/functions/m365-token-custody/auth.ts:52-60`
+
+`org_has_feature()` treats an absent row as enabled, while the M365 edge function treats an absent M365 row as not entitled. Current M365 authorization uses the latter, so this is not an active bypass, but future RLS enforcement using `org_has_feature('m365_integration')` could incorrectly admit default-off organizations.
+
+## Explicit checks
+
+- **`operator_toggle_feature`:** existing row `true → false` is an UPDATE and the trigger fires. Absent row `→ false` is an INSERT and does not.
+- **`auth.uid()` null:** attribution loss only; no cascade suppression.
+- **SECURITY DEFINER/search path:** new functions pin `search_path`; table/function references are schema-qualified. No search-path hijack or recursion issue found.
+- **`pg_cron`:** fixed command, no parameters/secrets, public EXECUTE revoked, and cleanup is idempotent. Main risk is scale/performance.
+- **`user_disconnect`:** current edge disconnect does **not** call `m365_disconnect_cascade`; it directly deletes through `service_role` and audits `reason='user_disconnect'`. Therefore dropping that reason from the DB core allowlist is not a current regression. A future direct RPC caller using it would receive `22023`.
+
+**Final verdict: BLOCK.** NFR-M365-107 remains bypassable through pending OAuth callbacks, feature mutation/INSERT/TRUNCATE paths, inconsistent org/user rows, and the absent org-disable lifecycle.
+
+LUNA-REVIEW-DONE
