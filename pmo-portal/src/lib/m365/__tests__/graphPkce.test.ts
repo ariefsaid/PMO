@@ -101,4 +101,26 @@ describe('buildAuthorizeUrl', () => {
     expect(url).not.toMatch(/secret/i);
     expect(url).not.toMatch(/refresh_token/i);
   });
+
+  it('AC-M365-031: accepts the valid tenant forms (GUID, common/organizations/consumers, verified domain)', () => {
+    for (const tenant of [
+      '11111111-2222-3333-4444-555555555555',
+      'common',
+      'organizations',
+      'consumers',
+      'contoso.onmicrosoft.com',
+    ]) {
+      const url = new URL(buildAuthorizeUrl({ ...baseParams, tenant }));
+      expect(url.origin).toBe('https://login.microsoftonline.com');
+      expect(url.pathname).toBe(`/${tenant}/oauth2/v2.0/authorize`);
+    }
+  });
+
+  it('AC-M365-031: rejects a tenant that could smuggle path/query segments into the authorize URL', () => {
+    // Would otherwise inject a second client_id and break out of the intended path.
+    expect(() =>
+      buildAuthorizeUrl({ ...baseParams, tenant: 'common/oauth2/v2.0/authorize?client_id=evil&x=' }),
+    ).toThrow(/invalid tenant/i);
+    expect(() => buildAuthorizeUrl({ ...baseParams, tenant: '../../evil' })).toThrow(/invalid tenant/i);
+  });
 });

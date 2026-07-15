@@ -22,6 +22,7 @@
 
 const AES_KEY_BYTES = 32; // 256-bit key
 const GCM_IV_BYTES = 12; // 96-bit IV, the NIST-recommended size for AES-GCM
+const GCM_TAG_BYTES = 16; // 128-bit GCM auth tag, appended to the ciphertext by Web Crypto
 
 export interface TokenEnvelope {
   ciphertext: Uint8Array;
@@ -72,8 +73,11 @@ export function serializeEnvelope(iv: Uint8Array, ciphertext: Uint8Array): Uint8
 
 /** Inverse of `serializeEnvelope`: split a stored `bytea` blob back into `{ iv, ciphertext }`. */
 export function deserializeEnvelope(blob: Uint8Array): TokenEnvelope {
-  if (blob.byteLength < GCM_IV_BYTES) {
-    throw new Error('graphTokenCrypto: envelope blob shorter than the IV length');
+  // A valid envelope is IV (12) + ciphertext that carries at least the 16-byte GCM tag. Anything
+  // shorter is malformed — reject with a clear error rather than deferring to an opaque decrypt
+  // OperationError (security-audit Minor 2, 2026-07-14).
+  if (blob.byteLength < GCM_IV_BYTES + GCM_TAG_BYTES) {
+    throw new Error('graphTokenCrypto: envelope blob shorter than IV + GCM tag (malformed)');
   }
   return {
     iv: blob.slice(0, GCM_IV_BYTES),

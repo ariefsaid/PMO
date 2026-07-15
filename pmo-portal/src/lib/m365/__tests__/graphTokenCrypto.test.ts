@@ -79,4 +79,11 @@ describe('graphTokenCrypto', () => {
   it('AC-M365-030: deserializeEnvelope rejects a blob shorter than the IV length', () => {
     expect(() => deserializeEnvelope(new Uint8Array(4))).toThrow();
   });
+
+  it('AC-M365-030: deserializeEnvelope rejects a blob >= IV but shorter than IV + GCM tag (malformed)', () => {
+    // 12 (IV) + 15 = 27 bytes: passes the old IV-only guard but cannot hold the 16-byte GCM tag.
+    expect(() => deserializeEnvelope(new Uint8Array(27))).toThrow(/IV \+ GCM tag/);
+    // The boundary — exactly IV + tag (28) — is accepted (empty-plaintext ciphertext is just the tag).
+    expect(() => deserializeEnvelope(new Uint8Array(28))).not.toThrow();
+  });
 });

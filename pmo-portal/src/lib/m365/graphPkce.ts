@@ -14,6 +14,10 @@
 
 const VERIFIER_BYTES = 64; // → 86 base64url chars after encoding, within the RFC 7636 43-128 range
 const AUTHORIZE_BASE = 'https://login.microsoftonline.com';
+// Valid Microsoft tenant identifiers: a GUID, the keywords common/organizations/consumers, or a
+// verified domain (e.g. contoso.onmicrosoft.com). All match [A-Za-z0-9._-]. Anything else could
+// smuggle path/query segments into the authorize URL (security-audit Minor 1, 2026-07-14).
+const TENANT_RE = /^[A-Za-z0-9._-]+$/;
 
 function base64UrlEncode(bytes: Uint8Array): string {
   let binary = '';
@@ -48,7 +52,13 @@ export interface AuthorizeUrlParams {
  * `offline_access` for a durable refresh token (ADR-0060 §1/§5).
  */
 export function buildAuthorizeUrl(params: AuthorizeUrlParams): string {
-  const url = new URL(`${AUTHORIZE_BASE}/${params.tenant}/oauth2/v2.0/authorize`);
+  // Defense-in-depth: the tenant is interpolated into the URL *path* (query params are encoded by
+  // searchParams). Validate its shape and encode it so it cannot alter the path/query even if a
+  // future caller passes an unexpected value. Host stays pinned to login.microsoftonline.com.
+  if (!TENANT_RE.test(params.tenant)) {
+    throw new Error('graphPkce: invalid tenant identifier (expected a GUID, common/organizations/consumers, or a verified domain)');
+  }
+  const url = new URL(`${AUTHORIZE_BASE}/${encodeURIComponent(params.tenant)}/oauth2/v2.0/authorize`);
   url.searchParams.set('client_id', params.clientId);
   url.searchParams.set('response_type', 'code');
   url.searchParams.set('redirect_uri', params.redirectUri);
