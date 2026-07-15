@@ -33,7 +33,10 @@ async function importKey(keyBytes: Uint8Array): Promise<CryptoKey> {
   if (keyBytes.byteLength !== AES_KEY_BYTES) {
     throw new Error(`graphTokenCrypto: key must be ${AES_KEY_BYTES} bytes (256-bit), got ${keyBytes.byteLength}`);
   }
-  return globalThis.crypto.subtle.importKey('raw', keyBytes, { name: 'AES-GCM' }, false, [
+  // `as BufferSource`: a param-typed `Uint8Array` is `Uint8Array<ArrayBufferLike>` (TS 5.8+), which
+  // Deno 2.7's stricter Web-Crypto `BufferSource` rejects; the cast is a no-op in Node/tsc and makes
+  // this module genuinely dual-runtime (its documented purpose) with ZERO runtime change.
+  return globalThis.crypto.subtle.importKey('raw', keyBytes as BufferSource, { name: 'AES-GCM' }, false, [
     'encrypt',
     'decrypt',
   ]);
@@ -59,7 +62,8 @@ export async function decryptToken(
   keyBytes: Uint8Array,
 ): Promise<string> {
   const key = await importKey(keyBytes);
-  const decrypted = await globalThis.crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ciphertext);
+  const decrypted = await globalThis.crypto.subtle.decrypt(
+    { name: 'AES-GCM', iv: iv as BufferSource }, key, ciphertext as BufferSource);
   return new TextDecoder().decode(decrypted);
 }
 
