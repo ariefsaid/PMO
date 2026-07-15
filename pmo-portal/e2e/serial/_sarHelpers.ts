@@ -82,13 +82,21 @@ export async function seedSAR(admin: SupabaseClient, suffix: string): Promise<SA
   });
   if (companyErr) throw new Error(`seed companies failed: ${companyErr.message}`);
 
-  const { error: refErr } = await admin.from('external_refs').insert({
-    org_id: ORG_ID,
-    domain: 'companies',
-    pmo_record_id: companyId,
-    external_tier: 'erpnext',
-    external_record_id: 'Customer:Spike Customer',
-  });
+  // UPSERT on (org_id, domain, external_record_id) — across serial specs the FIXED
+  // external_record_id 'Customer:Spike Customer' is re-seeded each run; a plain .insert()
+  // violates external_refs_org_domain_extid_key (migration 0093). The conflict updates
+  // pmo_record_id to the current companyId, so cleanupSAR's delete-by-pmo_record_id still
+  // lands. The goal — a Customer party ref for the dispatch to resolve — stays intact.
+  const { error: refErr } = await admin.from('external_refs').upsert(
+    {
+      org_id: ORG_ID,
+      domain: 'companies',
+      pmo_record_id: companyId,
+      external_tier: 'erpnext',
+      external_record_id: 'Customer:Spike Customer',
+    },
+    { onConflict: 'org_id,domain,external_record_id' },
+  );
   if (refErr) throw new Error(`seed external_refs (companies) failed: ${refErr.message}`);
 
   // 2) Project row (PMO uuid) — the ERP project name will be resolved via the binding's
