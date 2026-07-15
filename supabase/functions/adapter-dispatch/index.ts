@@ -51,6 +51,7 @@ import { getReadModelWriter } from './readModelWriters.ts';
 import { maybeFault, type FaultGate } from './faultSeams.ts';
 import { isRevenueSiSubmitTransition, enforceSiSubmitSod } from './sodGuard.ts';
 import { checkErpnextCommandAuthorization, type AuthorizationClient } from './authGuard.ts';
+import { checkTransitionTargetBinding, type TransitionBindingClient } from './transitionTargetGuard.ts';
 import { canonicalCommandDigest, createDbMoneyOutboxDeps } from './moneyOutboxDeps.ts';
 import {
   verifyCallerJwt,
@@ -537,6 +538,43 @@ Deno.serve(async (req: Request): Promise<Response> => {
     }
     if (gates.require_bast_before_si) {
       console.warn('[adapter-dispatch] require_bast_before_si is true but not enforced in P3a (inert)');
+    }
+  }
+
+  // ── Luna BLOCK 3 — transition target bound to PMO mapping (money audit).
+  // For a revenue sales-invoice transition, the SoD/enforcement checks record.id (PMO id)
+  // but ERP operates on record.externalRecordId (ERP name). A caller could pass an
+  // authorized/own-org PMO id while targeting ANOTHER SI's externalRecordId.
+  // FIX: verify the command's externalRecordId matches the external_refs mapping for
+  // (org, 'revenue', record.id) — so SoD (on record.id) and ERP write (on externalRecordId)
+  // operate on the SAME doc. Reject 422 on mismatch.
+  if (command.domain === ERPNEXT_REVENUE_DOMAIN
+      && (command.operation as string) === 'transition'
+      && (command.record as { erp_doc_kind?: unknown }).erp_doc_kind === 'sales-invoice') {
+    const externalRecordId = (command.record as { externalRecordId?: unknown }).externalRecordId;
+    if (typeof externalRecordId === 'string' && externalRecordId.length > 0) {
+      const mapped = await resolveExternalRef(serviceClient as never, orgId, 'revenue', String(command.record.id));
+      if (mapped !== null && mapped !== externalRecordId) {
+        return new Response(JSON.stringify({ error: 'commit-rejected', message: 'externalRecordId does not match PMO record mapping' }), {
+          status: 422,
+          headers,
+        });
+      }
+      // If no mapping exists yet (should not happen for a transition), we still allow —
+      // the adapter will fail with a clear error if the ERP doc doesn't exist.
+    }
+  }
+
+  // ── Luna BLOCK 3 — transition target bound to PMO mapping (money audit).
+  // For a revenue sales-invoice transition, verify externalRecordId matches external_refs.
+  // Uses serviceClient (service role) since external_refs reads are service-role scoped.
+  if (isErpDomain) {
+    const binding = await checkTransitionTargetBinding(serviceClient as never, orgId, command);
+    if (!binding.ok) {
+      return new Response(JSON.stringify({ error: 'commit-rejected', message: binding.message }), {
+        status: binding.status,
+        headers,
+      });
     }
   }
 
