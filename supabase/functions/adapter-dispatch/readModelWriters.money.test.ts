@@ -427,3 +427,64 @@ Deno.test({
     assertEquals(row.author_user_id, null, 'an inbound-adopted SI (no PMO caller) keeps author_user_id null — SoD-exempt');
   },
 });
+
+// ============================================================================
+// Luna money audit — SF6: incoming_payments.date is clobbered to null on CREATE because the base
+// `patch` includes `date` (canonical.date, null from peReceiveFromDoc) and the create branch spreads
+// `...patch` AFTER `date: record.date`, overwriting it. FIX: `date` is a create-only command field
+// (like the SI customer_id/project_id links) — removed from the base patch; the create branch keeps
+// `date: record.date`. An UPDATE must NOT touch date (a status-sync mirror must never null it).
+// ============================================================================
+
+Deno.test({
+  name: "Luna SF6 — READ_MODEL_WRITERS['revenue'].upsert (kind incoming-payment, create) retains the command's date (NOT clobbered to null by the base patch)",
+  fn: async () => {
+    const { client, calls } = makeFakeClient();
+    const writer = getReadModelWriter('revenue');
+    await writer.upsert(
+      { serviceClient: client as never, orgId: 'org-1' },
+      {
+        id: 'pmo-ip-sf6-1',
+        ip_number: 'ACC-PAY-2026-00001',
+        // NOTE: canonical carries NO date (peReceiveFromDoc does not populate it) — the bug
+        // clobbered the command's record.date with this null via the base `...patch` spread.
+        amount: '50000.00',
+        erp_docstatus: 1,
+        erp_modified: '2026-07-12 12:00:00.000000',
+      },
+      {
+        domain: 'revenue',
+        operation: 'create',
+        record: { id: 'pmo-ip-sf6-1', date: '2026-07-12', erp_doc_kind: 'incoming-payment' },
+      },
+    );
+    const insertCall = calls.find((c) => c.method === 'insert' && c.table === 'incoming_payments');
+    assert(insertCall !== undefined, 'expected an insert into incoming_payments');
+    const row = insertCall!.args[0] as Record<string, unknown>;
+    assertEquals(
+      row.date,
+      '2026-07-12',
+      'a created incoming_payment must retain the command record.date (the base patch must not clobber it to null)',
+    );
+  },
+});
+
+Deno.test({
+  name: "Luna SF6 — an UPDATE (transition) does NOT include date in the patch (a status-sync mirror must never null a stable date)",
+  fn: async () => {
+    const { client, calls } = makeFakeClient();
+    const writer = getReadModelWriter('revenue');
+    await writer.upsert(
+      { serviceClient: client as never, orgId: 'org-1' },
+      { id: 'pmo-ip-sf6-2', ip_number: 'ACC-PAY-2026-00001', amount: '50000.00', erp_docstatus: 2, erp_modified: '2026-07-13 11:00:00.000000', erp_amended_from: null },
+      { domain: 'revenue', operation: 'transition', record: { id: 'pmo-ip-sf6-2', erp_doc_kind: 'incoming-payment', externalRecordId: 'ACC-PAY-2026-00001', verb: 'cancel' } },
+    );
+    const updateCall = calls.find((c) => c.method === 'update' && c.table === 'incoming_payments');
+    assert(updateCall !== undefined, 'expected an update on incoming_payments');
+    const patch = updateCall!.args[0] as Record<string, unknown>;
+    assert(
+      !('date' in patch),
+      'the update patch must NOT include date (a later mirror must never null a create-time date)',
+    );
+  },
+});

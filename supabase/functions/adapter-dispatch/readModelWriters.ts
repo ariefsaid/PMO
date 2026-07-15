@@ -482,11 +482,13 @@ async function upsertIncomingPaymentMirror(ctx: ReadModelWriterCtx, canonical: P
   const docstatus = canonical.erp_docstatus as number | null | undefined;
   const patch: Record<string, unknown> = {
     ip_number: canonical.ip_number ?? null,
-    // customer_id/sales_invoice_id are PMO-side links set ONLY on create (from command.record, below) —
-    // intentionally absent here: spreading them (even as null) would clobber the create-branch values
-    // AND null a stable link on a later update mirror (inbound feed / status sync).
+    // customer_id/sales_invoice_id/date are PMO-side links+values set ONLY on create (from
+    // command.record, below) — intentionally absent here: spreading them (even as null) would clobber
+    // the create-branch values AND null a stable link/value on a later update mirror (inbound feed /
+    // status sync). Luna SF6: `date` was previously in this patch (canonical.date, null from
+    // peReceiveFromDoc) and the create branch spread `...patch` AFTER `date: record.date`, clobbering
+    // the create-time date to null — now removed, matching the customer_id/sales_invoice_id discipline.
     reference_number: (canonical.reference_number as string | null | undefined) ?? null,
-    date: (canonical.date as string | null | undefined) ?? null,
     amount: canonical.amount ?? null,
     status: docstatus === 1 ? 'Paid' : 'Scheduled',
     erp_docstatus: docstatus ?? null,
