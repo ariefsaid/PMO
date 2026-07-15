@@ -2,8 +2,7 @@
 // row and audit. A pure function taking INJECTED deps (ADR-0039). No Deno.env, no client construction.
 
 import type { HandlerDeps, HandlerResult, ConnectionRow } from './types.ts';
-import { M365HandlerError, errorResult } from './types.ts';
-import { authorizeAdminEntitled } from './auth.ts';
+import { resolveOrgOrResult } from './auth.ts';
 import { decryptToken, deserializeEnvelope, resolveKek } from './crypto.ts';
 import { logAudit } from './audit.ts';
 
@@ -19,21 +18,13 @@ const REVOKE_ENDPOINT = 'https://login.microsoftonline.com';
  *   5. audit `m365.connection.revoked` with reason=user_disconnect.
  */
 export async function handleDisconnect(deps: HandlerDeps): Promise<HandlerResult> {
-  const { env, serviceClient, callerClient, userId } = deps;
+  const { env, serviceClient, userId } = deps;
   const fetchImpl = deps.fetch ?? fetch;
   const headers = { 'Content-Type': 'application/json' };
 
-  if (!callerClient) {
-    return { status: 500, body: { error: 'INTERNAL_ERROR', message: 'caller client missing' } };
-  }
-
-  let orgId: string;
-  try {
-    ({ orgId } = await authorizeAdminEntitled({ callerClient, userId }));
-  } catch (err) {
-    if (err instanceof M365HandlerError) return errorResult(err);
-    throw err;
-  }
+  const resolved = await resolveOrgOrResult(deps);
+  if (typeof resolved !== 'string') return resolved;
+  const orgId = resolved;
 
   const { data: conn, error } = await serviceClient
     .from('ms_graph_connections')

@@ -5,8 +5,8 @@
 // the verified `userId` into HandlerDeps), does NOT read Deno.env, and does NOT construct a
 // Supabase client — the caller-JWT client is injected. Importable in Vitest with a mock client.
 
-import type { M365SupabaseLike } from './types.ts';
-import { M365HandlerError } from './types.ts';
+import type { M365SupabaseLike, HandlerDeps, HandlerResult } from './types.ts';
+import { M365HandlerError, errorResult } from './types.ts';
 
 /** CORS headers, origin-narrowed by index.ts from env (never '*' — mirrors compose-view/agent-chat). */
 export function corsHeaders(allowedOrigin: string): Record<string, string> {
@@ -62,4 +62,24 @@ export async function authorizeAdminEntitled(deps: {
   }
 
   return { orgId, role };
+}
+
+/**
+ * Resolve the caller's org via authorizeAdminEntitled, mapping any gate failure to its typed
+ * HandlerResult. Shared by initiate_connect / graph_proxy / disconnect (DRY — those three handlers
+ * run the identical authorize-or-return-error gate, quality #6). Returns the orgId on success, or a
+ * HandlerResult (500 INTERNAL_ERROR if the caller client is missing, or the mapped gate error) for
+ * the handler to return verbatim. Rethrows non-M365HandlerError throws unchanged.
+ */
+export async function resolveOrgOrResult(deps: HandlerDeps): Promise<string | HandlerResult> {
+  if (!deps.callerClient) {
+    return { status: 500, body: { error: 'INTERNAL_ERROR', message: 'caller client missing' } };
+  }
+  try {
+    const { orgId } = await authorizeAdminEntitled({ callerClient: deps.callerClient, userId: deps.userId });
+    return orgId;
+  } catch (err) {
+    if (err instanceof M365HandlerError) return errorResult(err);
+    throw err;
+  }
 }

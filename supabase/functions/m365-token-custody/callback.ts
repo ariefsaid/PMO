@@ -6,7 +6,7 @@
 
 import type { HandlerDeps, HandlerResult } from './types.ts';
 import { consumePkceState } from './stateStore.ts';
-import { encryptToken, serializeEnvelope, resolveKek } from './crypto.ts';
+import { encryptToken, serializeEnvelope, resolveKek, base64UrlDecode } from './crypto.ts';
 import { logAudit, recordM365Error } from './audit.ts';
 
 const TOKEN_ENDPOINT = 'https://login.microsoftonline.com';
@@ -79,6 +79,32 @@ export async function handleCallback(req: Request, deps: HandlerDeps): Promise<H
     return redirectToFeError(env, 'Connection failed. Please try again.');
   }
 
+  // HIGH-1: bind the issued tokens to the expected tenant/user. Microsoft returns an id_token
+  // (because the initiate scopes include openid+profile); decode its JWT payload (NO signature
+  // verification — it arrives over direct server→Microsoft TLS in the token response) and ASSERT
+  // its `tid` === env.m365TenantId BEFORE any encrypt/upsert. This blocks the consent-phishing /
+  // OAuth-code-injection path where an attacker harvests a victim's tokens into the attacker's
+  // connection: a foreign tenant's id_token is rejected here and nothing is stored.
+  //
+  // NOTE: env.m365TenantId MUST be a concrete tenant GUID for Phase-1 Option C single-tenant
+  // (ADR-0059). 'common'/'organizations' is unsupported here — the assertion correctly rejects the
+  // foreign tid those flows would issue. The REAL token tid is stored as entra_tenant_id (not the
+  // env value) and the oid as entra_user_object_id (also fixes spec Minor: oid was never populated,
+  // FR-M365-110).
+  const claims = parseIdTokenClaims(tokenData.id_token);
+  if (!claims || claims.tid !== env.m365TenantId) {
+    console.error('[m365-token-custody] id_token tenant mismatch / missing id_token', {
+      errorCode: 'TOKEN_EXCHANGE_FAILED',
+      hasIdToken: typeof tokenData.id_token === 'string',
+    });
+    await recordM365Error(serviceClient, {
+      errorCode: 'TOKEN_EXCHANGE_FAILED',
+      contextId: state,
+      orgId: pkce.orgId,
+    });
+    return redirectToFeError(env, 'Connection failed: tenant mismatch. Please try again.');
+  }
+
   // Encrypt BOTH tokens at rest (ADR-0060 §3). No partial store on any failure below this point.
   const kek = resolveKek(env, 'kek-v1');
   const accessEnvelope = await encryptToken(String(tokenData.access_token), kek);
@@ -96,7 +122,8 @@ export async function handleCallback(req: Request, deps: HandlerDeps): Promise<H
       {
         org_id: pkce.orgId,
         user_id: pkce.userId,
-        entra_tenant_id: env.m365TenantId,
+        entra_tenant_id: claims.tid,
+        entra_user_object_id: claims.oid,
         scopes: pkce.scopes,
         refresh_token_ciphertext: refreshBlob,
         access_token_ciphertext: accessBlob,
@@ -125,10 +152,32 @@ export async function handleCallback(req: Request, deps: HandlerDeps): Promise<H
     orgId: pkce.orgId,
     actorId: pkce.userId,
     entityId: (conn as { id: string }).id,
-    detail: { scopes: pkce.scopes, entra_tenant_id: env.m365TenantId },
+    detail: { scopes: pkce.scopes, entra_tenant_id: claims.tid },
   });
 
   return redirectToFeSuccess(env);
+}
+
+/**
+ * Parse the id_token JWT payload (middle base64url segment) and return the `tid` + `oid` claims.
+ * NO signature verification — the id_token is extracted from Microsoft's direct server→server TLS
+ * token response (not a browser channel), so the transport is the integrity boundary (HIGH-1).
+ * Returns null if the token is absent/malformed or either claim is missing (caller treats that as a
+ * tenant mismatch → reject, store nothing).
+ */
+function parseIdTokenClaims(idToken: unknown): { tid: string; oid: string } | null {
+  if (typeof idToken !== 'string' || idToken.length === 0) return null;
+  const segments = idToken.split('.');
+  if (segments.length < 2) return null;
+  try {
+    const json = JSON.parse(new TextDecoder().decode(base64UrlDecode(segments[1]!))) as Record<string, unknown>;
+    const tid = typeof json.tid === 'string' ? json.tid : '';
+    const oid = typeof json.oid === 'string' ? json.oid : '';
+    if (!tid || !oid) return null;
+    return { tid, oid };
+  } catch {
+    return null;
+  }
 }
 
 function redirectToFeError(env: { siteUrl: string }, message: string): HandlerResult {

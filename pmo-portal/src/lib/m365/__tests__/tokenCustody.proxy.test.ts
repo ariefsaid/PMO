@@ -93,12 +93,13 @@ describe('AC-M365-110/111/112/113/114 — handleGraphProxy', () => {
     expect(service.rpc).toHaveBeenCalledWith('audit_m365_event', expect.objectContaining({ p_action: 'm365.token.refreshed' }));
   });
 
-  it('AC-M365-112: refresh invalid_grant → status=stale, audit refresh_failed, error_event REFRESH_FAILED, no Graph call', async () => {
+  it('AC-M365-112: refresh invalid_grant → status=stale, audit refresh_failed, error_event M365_REFRESH_FAILED, no Graph call', async () => {
     const expired = await connection({ access_token_expires_at: new Date(Date.now() - 1000).toISOString() });
     const service = mockClient({
       ms_graph_connections: [
         { data: expired, error: null },
         { data: null, error: null }, // update to stale
+        { data: { status: 'stale' }, error: null }, // re-read after refresh failure (quality #10)
       ],
     });
     const fetch = vi.fn().mockImplementation((url: string) => {
@@ -119,15 +120,16 @@ describe('AC-M365-110/111/112/113/114 — handleGraphProxy', () => {
     expect(update!.payload).toMatchObject({ status: 'stale' });
     expect(service.rpc).toHaveBeenCalledWith('audit_m365_event', expect.objectContaining({ p_action: 'm365.token.refresh_failed' }));
     const ev = service.writes.find((w) => w.table === 'error_events');
-    expect((ev!.payload as { error_code: string }).error_code).toBe('REFRESH_FAILED');
+    expect((ev!.payload as { error_code: string }).error_code).toBe('M365_REFRESH_FAILED');
   });
 
-  it('AC-M365-113: refresh-token reuse → status=revoked, audit reuse_detected, error_event SECURITY_EVENT_REUSE', async () => {
+  it('AC-M365-113: refresh-token reuse → status=revoked, audit reuse_detected, error_event M365_SECURITY_EVENT_REUSE, 410 CONNECTION_REVOKED', async () => {
     const expired = await connection({ access_token_expires_at: new Date(Date.now() - 1000).toISOString() });
     const service = mockClient({
       ms_graph_connections: [
         { data: expired, error: null },
         { data: null, error: null }, // update to revoked
+        { data: { status: 'revoked' }, error: null }, // re-read after refresh failure → CONNECTION_REVOKED (quality #10)
       ],
     });
     const fetch = vi.fn().mockImplementation((_url: string) =>
@@ -140,12 +142,14 @@ describe('AC-M365-110/111/112/113/114 — handleGraphProxy', () => {
       deps({ service, caller: callerClient(), userId: 'user-1', fetch }),
     );
 
-    expect(result).toMatchObject({ status: 409, body: { error: 'CONNECTION_STALE' } });
+    // Quality #10: the triggering call surfaces 410 CONNECTION_REVOKED (a reuse-revocation is not
+    // masked as a benign 409 reconnect).
+    expect(result).toMatchObject({ status: 410, body: { error: 'CONNECTION_REVOKED' } });
     const update = service.writes.find((w) => w.kind === 'update' && w.table === 'ms_graph_connections');
     expect(update!.payload).toMatchObject({ status: 'revoked' });
     expect(service.rpc).toHaveBeenCalledWith('audit_m365_event', expect.objectContaining({ p_action: 'm365.token.reuse_detected' }));
     const ev = service.writes.find((w) => w.table === 'error_events');
-    expect((ev!.payload as { error_code: string }).error_code).toBe('SECURITY_EVENT_REUSE');
+    expect((ev!.payload as { error_code: string }).error_code).toBe('M365_SECURITY_EVENT_REUSE');
   });
 
   it('AC-M365-114: a Files.Read-only connection requesting /me/events is rejected SCOPE_INSUFFICIENT (no Graph call)', async () => {
@@ -162,12 +166,88 @@ describe('AC-M365-110/111/112/113/114 — handleGraphProxy', () => {
     expect(graphFetch).not.toHaveBeenCalled();
   });
 
-  it('AC-M365-114 (matrix): scopeCoversPath — OneDrive paths covered by Files.*, everything else rejected', () => {
-    expect(scopeCoversPath(['Files.Read', 'offline_access'], '/me/drive/root/children')).toBe(true);
-    expect(scopeCoversPath(['Files.Read'], '/drives/x/items')).toBe(true);
-    expect(scopeCoversPath(['Files.Read'], '/me/events')).toBe(false);
-    expect(scopeCoversPath(['Files.Read'], '/me/messages')).toBe(false);
-    expect(scopeCoversPath([], '/me/drive/root')).toBe(false);
+  it('AC-M365-114 (matrix): scopeCoversPath — reads need Files.*, writes need ReadWrite*, trailing-slash safe', () => {
+    // Reads — any Files.* scope covers OneDrive reads.
+    expect(scopeCoversPath(['Files.Read', 'offline_access'], 'GET', '/me/drive/root/children')).toBe(true);
+    expect(scopeCoversPath(['Files.Read'], 'GET', '/drives/x/items')).toBe(true);
+    expect(scopeCoversPath(['Files.ReadWrite'], 'GET', '/me/drive/root')).toBe(true); // ReadWrite also permits read
+    // Writes (POST/PATCH/PUT/DELETE) require a Files.ReadWrite* scope (LOW-5).
+    expect(scopeCoversPath(['Files.Read', 'offline_access'], 'POST', '/me/drive/root/children')).toBe(false);
+    expect(scopeCoversPath(['Files.Read'], 'PATCH', '/drives/x/items')).toBe(false);
+    expect(scopeCoversPath(['Files.ReadWrite'], 'POST', '/me/drive/root/children')).toBe(true);
+    expect(scopeCoversPath(['Files.ReadWrite.All'], 'DELETE', '/drives/x/items')).toBe(true);
+    // Non-OneDrive paths always rejected.
+    expect(scopeCoversPath(['Files.Read'], 'GET', '/me/events')).toBe(false);
+    expect(scopeCoversPath(['Files.Read'], 'GET', '/me/messages')).toBe(false);
+    // No scopes → nothing covered.
+    expect(scopeCoversPath([], 'GET', '/me/drive/root')).toBe(false);
+    // LOW-5 trailing-slash prefix: '/me/driveEvil' must NOT pass as '/me/drive'.
+    expect(scopeCoversPath(['Files.Read'], 'GET', '/me/driveEvil')).toBe(false);
+    // The exact root ('/me/drive') is still allowed.
+    expect(scopeCoversPath(['Files.Read'], 'GET', '/me/drive')).toBe(true);
+  });
+
+  it('AC-M365-114 (LOW-5): a Files.Read-only connection POSTing to OneDrive is rejected SCOPE_INSUFFICIENT (no Graph call)', async () => {
+    const conn = await connection({ scopes: ['Files.Read', 'offline_access'] });
+    const service = mockClient({ ms_graph_connections: [{ data: conn, error: null }] });
+    const graphFetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) });
+
+    const result = await handleGraphProxy(
+      { action: 'graph_proxy', method: 'POST', path: '/me/drive/root/children', body: { name: 'new' } },
+      deps({ service, caller: callerClient(), userId: 'user-1', fetch: graphFetch }),
+    );
+
+    expect(result).toMatchObject({ status: 403, body: { error: 'SCOPE_INSUFFICIENT' } });
+    expect(graphFetch).not.toHaveBeenCalled();
+  });
+
+  it('AC-M365-114 (quality #2): a scope-insufficient request is rejected BEFORE refresh — even an expired token is not decrypted/refreshed', async () => {
+    // Expired token + a scope-insufficient path: the scope gate is hoisted before loadFreshAccessToken,
+    // so the token endpoint is never hit (no needless Microsoft refresh round-trip).
+    const expired = await connection({
+      access_token_expires_at: new Date(Date.now() - 1000).toISOString(),
+      scopes: ['Files.Read', 'offline_access'],
+    });
+    const service = mockClient({ ms_graph_connections: [{ data: expired, error: null }] });
+    const fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) });
+
+    const result = await handleGraphProxy(
+      graphReq('/me/events'),
+      deps({ service, caller: callerClient(), userId: 'user-1', fetch }),
+    );
+
+    expect(result).toMatchObject({ status: 403, body: { error: 'SCOPE_INSUFFICIENT' } });
+    // Token endpoint never called (scope gate short-circuited before refresh).
+    expect(fetch.mock.calls.every((c) => !String(c[0]).includes('login.microsoftonline.com'))).toBe(true);
+  });
+
+  it('AC-M365-112 (LOW-4): an unhandled refresh error (invalid_client) records M365_REFRESH_UNHANDLED, leaves the row active, returns CONNECTION_STALE', async () => {
+    const expired = await connection({ access_token_expires_at: new Date(Date.now() - 1000).toISOString() });
+    const service = mockClient({
+      ms_graph_connections: [
+        { data: expired, error: null },
+        { data: { status: 'active' }, error: null }, // re-read after failure: row untouched (still active)
+      ],
+    });
+    const fetch = vi.fn().mockImplementation((url: string) => {
+      if (url === TOKEN_URL) return Promise.resolve({ ok: false, json: async () => ({ error: 'invalid_client' }) });
+      return Promise.resolve({ ok: true, json: async () => ({}) });
+    });
+
+    const result = await handleGraphProxy(
+      graphReq('/me/drive/root/children'),
+      deps({ service, caller: callerClient(), userId: 'user-1', fetch }),
+    );
+
+    // Row stays active (transient/config failure self-heals on retry) but the call surfaces stale.
+    expect(result).toMatchObject({ status: 409, body: { error: 'CONNECTION_STALE' } });
+    // No status update was written for the unhandled branch (row untouched).
+    const update = service.writes.find((w) => w.kind === 'update' && w.table === 'ms_graph_connections');
+    expect(update).toBeUndefined();
+    // An error_event with the M365_REFRESH_UNHANDLED code was recorded (ops visibility, LOW-4).
+    const ev = service.writes.find((w) => w.table === 'error_events');
+    expect(ev).toBeTruthy();
+    expect((ev!.payload as { error_code: string }).error_code).toBe('M365_REFRESH_UNHANDLED');
   });
 
   it('AC-M365-110 (gates): a stale connection returns CONNECTION_STALE; a revoked one returns CONNECTION_REVOKED', async () => {

@@ -35,7 +35,7 @@ export async function refreshAccessToken(
     refreshToken = await decryptToken(envelope.ciphertext, envelope.iv, kek);
   } catch {
     await recordM365Error(serviceClient, {
-      errorCode: 'DECRYPT_FAILED',
+      errorCode: 'M365_DECRYPT_FAILED',
       contextId: connection.id,
       orgId: connection.org_id,
     });
@@ -62,7 +62,8 @@ export async function refreshAccessToken(
 
   if (!tokenRes.ok) {
     const errorCode = typeof tokenData.error === 'string' ? tokenData.error : 'UNKNOWN';
-    await classifyRefreshFailure(serviceClient, connection, errorCode, tokenData);
+    // Thread the injected clock so failure-path `updated_at` is deterministic (quality #3).
+    await classifyRefreshFailure(serviceClient, connection, errorCode, tokenData, nowFn);
     return false;
   }
 
@@ -108,8 +109,10 @@ async function classifyRefreshFailure(
   connection: ConnectionRow,
   errorCode: string,
   tokenData: Record<string, unknown>,
+  nowFn: () => Date,
 ): Promise<void> {
-  const nowIso = new Date().toISOString();
+  // Uses the injected clock (quality #3) so failure-path `updated_at` is deterministic.
+  const nowIso = nowFn().toISOString();
 
   if (isReuseError(tokenData, errorCode)) {
     // Security event: refresh-token reuse detected → revoke the connection.
@@ -125,7 +128,7 @@ async function classifyRefreshFailure(
       detail: { error: errorCode },
     });
     await recordM365Error(serviceClient, {
-      errorCode: 'SECURITY_EVENT_REUSE',
+      errorCode: 'M365_SECURITY_EVENT_REUSE',
       contextId: connection.id,
       orgId: connection.org_id,
     });
@@ -146,11 +149,23 @@ async function classifyRefreshFailure(
       detail: { error: errorCode },
     });
     await recordM365Error(serviceClient, {
-      errorCode: 'REFRESH_FAILED',
+      errorCode: 'M365_REFRESH_FAILED',
       contextId: connection.id,
       orgId: connection.org_id,
     });
+    return;
   }
+
+  // LOW-4: an unhandled refresh failure (e.g. invalid_client from a rotated client_secret, or
+  // UNKNOWN / temporarily_unavailable) previously fell through doing nothing — leaving the row
+  // silently 'active' with no signal (an ops blind spot). Record an error_event so the failure is
+  // observable. The row intentionally stays 'active' so a transient blip self-heals on retry; only
+  // a PERSISTENT config failure stays visible here.
+  await recordM365Error(serviceClient, {
+    errorCode: 'M365_REFRESH_UNHANDLED',
+    contextId: connection.id,
+    orgId: connection.org_id,
+  });
 }
 
 function isInvalidGrant(errorCode: string): boolean {

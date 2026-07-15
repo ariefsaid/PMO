@@ -21,13 +21,27 @@ export interface M365SupabaseLike {
       };
     };
     insert(row: object): PromiseLike<{ error: unknown }>;
-    delete(): { eq(column: string, value: string): PromiseLike<{ error: unknown }> };
+    // `delete` is fluent + thenable (the real supabase-js builder is): `.delete().eq(col, val)` is
+    // awaitable (revoke.ts awaits it) AND chains `.select(...).maybeSingle()` for the atomic
+    // delete-returning consume (stateStore.ts, MEDIUM-1). Both terminate in a thenable.
+    delete(): {
+      eq(column: string, value: string): DeleteEqBuilder;
+    };
     update(patch: object): { eq(column: string, value: string): PromiseLike<{ error: unknown }> };
     upsert(row: object, opts?: { onConflict?: string }): {
       select(columns: string): { single(): PromiseLike<{ data: unknown; error: unknown }> };
     };
   };
   rpc(fn: string, args?: Record<string, unknown>): PromiseLike<{ data: unknown; error: unknown }>;
+}
+
+/**
+ * Builder returned by `.delete().eq(...)`. It is BOTH thenable (await → `{ data, error }`, as
+ * revoke.ts does) AND chainable into `.select(columns).maybeSingle()` for the atomic single-use
+ * consume (stateStore.ts MEDIUM-1). Mirrors the real supabase-js fluent query builder shape.
+ */
+export interface DeleteEqBuilder extends PromiseLike<{ data: unknown; error: unknown }> {
+  select(columns: string): { maybeSingle(): PromiseLike<{ data: unknown; error: unknown }> };
 }
 
 // ── Request/response shapes (the wire contract, ADR-0060 §9) ───────────────────
@@ -49,10 +63,6 @@ export interface GraphProxyRequest {
   body?: unknown;
 }
 
-export interface RefreshRequest {
-  action: 'refresh';
-}
-
 export interface DisconnectRequest {
   action: 'disconnect';
 }
@@ -60,7 +70,6 @@ export interface DisconnectRequest {
 export type M365Request =
   | InitiateConnectRequest
   | GraphProxyRequest
-  | RefreshRequest
   | DisconnectRequest;
 
 // ── Errors ────────────────────────────────────────────────────────────────────

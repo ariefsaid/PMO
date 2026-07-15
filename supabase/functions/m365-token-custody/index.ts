@@ -79,7 +79,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
   // GET /callback — Microsoft redirect. No caller JWT; the single-use state row is the credential.
   if (req.method === 'GET' && url.pathname.endsWith('/callback')) {
-    const deps = await callbackDeps(req, env);
+    const deps = await callbackDeps(env);
     if (deps instanceof Response) return deps;
     return toResponse(await handleCallback(req, deps), env.allowedOrigin);
   }
@@ -116,13 +116,14 @@ Deno.serve(async (req: Request): Promise<Response> => {
         result = await handleGraphProxy(body as unknown as GraphProxyRequest, authed);
         break;
       case 'refresh':
-        // Explicit refresh: route through the proxy path, which refreshes if near-expiry.
-        // (Phase-1 callers POST {action:'graph_proxy', method:'GET', path:'/me/drive'} to read;
-        //  a bare refresh is exercised by proxy's auto-refresh. Keep the action recognized.)
-        result = await handleGraphProxy(
-          { action: 'graph_proxy', method: 'GET', path: '/me/drive' },
-          authed,
-        );
+        // Phase-1 callers exercise refresh implicitly via graph_proxy's auto-refresh (near-expiry).
+        // A standalone refresh action is NOT supported (quality #1): the previous router case
+        // silently impersonated a Graph GET /me/drive — returning drive metadata the caller never
+        // asked for and not actually refreshing if the token had life. Reject explicitly instead.
+        result = {
+          status: 400,
+          body: { error: 'BAD_REQUEST', message: 'action refresh not supported in Phase 1' } satisfies M365ErrorResponse,
+        };
         break;
       case 'disconnect':
         result = await handleDisconnect(authed);
@@ -149,8 +150,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
 });
 
 /** Build deps for the GET /callback path: service client only (no caller JWT, no caller client). */
-async function callbackDeps(req: Request, env: M365Env): Promise<HandlerDeps | Response> {
-  void req;
+async function callbackDeps(env: M365Env): Promise<HandlerDeps | Response> {
   if (!env.supabaseUrl || !cfg('SUPABASE_SERVICE_ROLE_KEY')) {
     return toResponse(
       { status: 500, body: { error: 'INTERNAL_ERROR', message: 'missing Supabase configuration' } },

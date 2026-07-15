@@ -41,32 +41,32 @@ export async function storePkceState(
 }
 
 /**
- * Consume (read + delete) a PKCE state row by state. Single-use: the row is DELETED on consume
- * so a replayed state is rejected (AC-M365-142, CSRF single-use). Returns null for missing or
- * expired rows (AC-M365-104). `now` is injectable for deterministic expiry tests.
+ * Atomically consume (delete + read) a PKCE state row by state. Single-use is race-free under
+ * concurrency: one round-trip `delete … returning *` removes the row AND returns it, so two
+ * concurrent callbacks carrying the same state cannot both pass the read before either deletes
+ * (MEDIUM-1 TOCTOU fix; AC-M365-142). Returns null for missing or expired rows (AC-M365-104). `now`
+ * is injectable for deterministic expiry tests.
  */
 export async function consumePkceState(
   serviceClient: M365SupabaseLike,
   state: string,
   now: () => Date = () => new Date(),
 ): Promise<ConsumePkceStateResult | null> {
+  // One statement: delete + return the deleted row (`.delete().eq('state').select().maybeSingle()`).
+  // maybeSingle (not single) so a missing state resolves { data: null } instead of erroring.
   const { data, error } = await serviceClient
     .from('m365_pkce_states')
-    .select('*')
+    .delete()
     .eq('state', state)
-    .single();
+    .select('*')
+    .maybeSingle();
 
   if (error || !data) return null;
 
   const row = data as PkceStateRow;
-  // Expired — delete and reject (AC-M365-104).
-  if (new Date(row.expires_at) < now()) {
-    await serviceClient.from('m365_pkce_states').delete().eq('id', row.id);
-    return null;
-  }
+  // Expired — reject (the row was already atomically deleted above; no second round-trip needed).
+  if (new Date(row.expires_at) < now()) return null;
 
-  // Valid — delete (single-use) and return the bound code_verifier + scopes + org/user.
-  await serviceClient.from('m365_pkce_states').delete().eq('id', row.id);
   return {
     codeVerifier: row.code_verifier,
     scopes: row.scopes,

@@ -85,7 +85,7 @@ describe('AC-M365-101/102 — handleInitiateConnect', () => {
     expect(body.authorizeUrl).toMatch(/^https:\/\/login\.microsoftonline\.com\/test-tenant-id\/oauth2\/v2\.0\/authorize/);
     expect(body.authorizeUrl).toContain('response_type=code');
     expect(body.authorizeUrl).toContain('code_challenge_method=S256');
-    expect(body.authorizeUrl).toContain('scope=Files.Read+offline_access');
+    expect(body.authorizeUrl).toContain('scope=Files.Read+offline_access+openid+profile');
     // The single-use state row was written for this org+user.
     expect(service.writes).toContainEqual(
       expect.objectContaining({ table: 'm365_pkce_states', kind: 'insert' }),

@@ -4,8 +4,7 @@
 // fetch, clock, env. No Deno.env, no client construction.
 
 import type { HandlerDeps, HandlerResult, GraphProxyRequest, ConnectionRow } from './types.ts';
-import { M365HandlerError, errorResult } from './types.ts';
-import { authorizeAdminEntitled } from './auth.ts';
+import { resolveOrgOrResult } from './auth.ts';
 import { decryptToken, deserializeEnvelope, resolveKek } from './crypto.ts';
 import { refreshAccessToken } from './refresh.ts';
 import { recordM365Error } from './audit.ts';
@@ -17,29 +16,22 @@ const ACCESS_TOKEN_REFRESH_BUFFER_MS = 30_000; // refresh if the access token ex
  * AC-M365-110/111/112/113/114. Flow:
  *   1. authorize (Admin + entitled) → orgId.
  *   2. load the caller's connection; reject NOT_CONNECTED / CONNECTION_STALE / CONNECTION_REVOKED.
- *   3. decrypt the cached access token; if absent/near-expiry, refresh (refreshAccessToken handles
+ *   3. enforce scope↔path (AC-M365-114): a Files.Read-only connection may only hit OneDrive paths;
+ *      write methods need a Files.ReadWrite* scope. Hoisted before decrypt/refresh (quality #2).
+ *   4. decrypt the cached access token; if absent/near-expiry, refresh (refreshAccessToken handles
  *      stale/revoke classification — AC-M365-111/112/113) and re-decrypt.
- *   4. enforce scope↔path (AC-M365-114): a Files.Read-only connection may only hit OneDrive paths.
  *   5. call Graph with the decrypted Bearer; return the JSON body. NEVER echo the token (AC-M365-140).
  */
 export async function handleGraphProxy(
   req: GraphProxyRequest,
   deps: HandlerDeps,
 ): Promise<HandlerResult> {
-  const { env, serviceClient, callerClient, userId, now } = deps;
+  const { serviceClient, userId } = deps;
   const headers = { 'Content-Type': 'application/json' };
 
-  if (!callerClient) {
-    return { status: 500, body: { error: 'INTERNAL_ERROR', message: 'caller client missing' } };
-  }
-
-  let orgId: string;
-  try {
-    ({ orgId } = await authorizeAdminEntitled({ callerClient, userId }));
-  } catch (err) {
-    if (err instanceof M365HandlerError) return errorResult(err);
-    throw err;
-  }
+  const resolved = await resolveOrgOrResult(deps);
+  if (typeof resolved !== 'string') return resolved;
+  const orgId = resolved;
 
   if (!req.path || !req.method) {
     return { status: 400, body: { error: 'BAD_REQUEST', message: 'method and path required' }, headers };
@@ -65,24 +57,34 @@ export async function handleGraphProxy(
     return { status: 410, body: { error: 'CONNECTION_REVOKED', message: 'connection revoked' }, headers };
   }
 
+  // Scope↔path enforcement (AC-M365-114). Hoisted BEFORE decrypt/refresh (quality #2) so a
+  // scope-insufficient request needlessly decrypts nothing and burns no Microsoft refresh round-trip.
+  if (!scopeCoversPath(connection.scopes, req.method, req.path)) {
+    return {
+      status: 403,
+      body: { error: 'SCOPE_INSUFFICIENT', message: 'requested Graph path requires additional consent' },
+      headers,
+    };
+  }
+
   // Decrypt the cached access token, refreshing first if it is absent or near expiry.
   let accessToken: string;
   try {
     accessToken = await loadFreshAccessToken(connection, deps);
   } catch {
-    // After a refresh failure the row is stale/revoked — surface CONNECTION_STALE so the user reconnects.
+    // After a refresh failure the row is stale OR revoked — re-read to map a security revocation to
+    // 410 CONNECTION_REVOKED (not a benign 409 stale), so a reuse-revocation isn't masked (quality #10).
+    const { data: fresh } = await serviceClient
+      .from('ms_graph_connections')
+      .select('status')
+      .eq('id', connection.id)
+      .single();
+    if ((fresh as { status?: string } | null)?.status === 'revoked') {
+      return { status: 410, body: { error: 'CONNECTION_REVOKED', message: 'connection revoked' }, headers };
+    }
     return {
       status: 409,
       body: { error: 'CONNECTION_STALE', message: 'token refresh failed, please reconnect' },
-      headers,
-    };
-  }
-
-  // Scope↔path enforcement (AC-M365-114).
-  if (!scopeCoversPath(connection.scopes, req.path)) {
-    return {
-      status: 403,
-      body: { error: 'SCOPE_INSUFFICIENT', message: 'requested Graph path requires additional consent' },
       headers,
     };
   }
@@ -140,18 +142,32 @@ async function loadFreshAccessToken(connection: ConnectionRow, deps: HandlerDeps
   return decryptToken(envelope.ciphertext, envelope.iv, kek);
 }
 
+const WRITE_METHODS = new Set(['POST', 'PATCH', 'PUT', 'DELETE']);
+
 /**
- * Phase-1 scope↔path matrix. Only Files.* scopes are provisioned, and they cover OneDrive paths.
- * Any non-OneDrive path (calendar, mail, …) from a Files.Read-only connection is rejected as
- * SCOPE_INSUFFICIENT (AC-M365-114) — the caller must re-consent with the needed scope. Conservative
- * by design: Graph would 403 anyway; we fail earlier with a clear code.
+ * OneDrive path family match. Uses trailing-slash prefixes (LOW-5) so a lookalike like
+ * '/me/driveEvil' cannot pass as '/me/drive'; the exact root ('/me/drive', '/drives', '/sites')
+ * is also accepted.
  */
-export function scopeCoversPath(scopes: string[], path: string): boolean {
-  const hasFiles = scopes.some(
+function isOneDrivePath(path: string): boolean {
+  return path === '/me/drive' || path.startsWith('/me/drive/')
+    || path === '/drives' || path.startsWith('/drives/')
+    || path === '/sites' || path.startsWith('/sites/');
+}
+
+/**
+ * Phase-1 scope↔path enforcement (AC-M365-114, LOW-5). Only Files.* scopes are provisioned and
+ * cover OneDrive paths; any non-OneDrive path (calendar, mail, …) is rejected SCOPE_INSUFFICIENT.
+ * Write methods (POST/PATCH/PUT/DELETE) additionally require a Files.ReadWrite* scope — a
+ * Files.Read-only connection may not write (Graph would 403 anyway; we fail earlier with a clear
+ * code). Conservative by design.
+ */
+export function scopeCoversPath(scopes: string[], method: string, path: string): boolean {
+  if (!isOneDrivePath(path)) return false;
+  if (WRITE_METHODS.has(method.toUpperCase())) {
+    return scopes.some((s) => s === 'Files.ReadWrite' || s === 'Files.ReadWrite.All');
+  }
+  return scopes.some(
     (s) => s === 'Files.Read' || s === 'Files.ReadWrite' || s === 'Files.Read.All' || s === 'Files.ReadWrite.All',
   );
-  if (path.startsWith('/me/drive') || path.startsWith('/drives') || path.startsWith('/sites')) {
-    return hasFiles;
-  }
-  return false;
 }

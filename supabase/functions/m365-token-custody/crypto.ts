@@ -1,9 +1,12 @@
 // crypto.ts — app-layer AES-256-GCM envelope (re-export of Phase-0 graphTokenCrypto) + the
 // m365-token-custody-localized KEK resolver. Pure + Deno-global-free.
 //
-// graphTokenCrypto is Phase-0, security-audited, and MUST NOT be edited — it is imported
-// cross-tree (ADR-0060 §3 D1). The KEK resolver here reads the resolved `M365Env` string
-// (NEVER Deno.env) so it stays Node-testable.
+// graphTokenCrypto is Phase-0 + security-audited. It carries Director-approved, behavior-neutral
+// `as BufferSource` casts on its importKey/encrypt/decrypt call sites (graphTokenCrypto.ts:39,66)
+// — a zero-runtime-change typing accommodation so the SAME module compiles under both Node/tsc and
+// Deno 2.7's stricter Web-Crypto `BufferSource` (its documented dual-runtime purpose). No other
+// change; the module is imported cross-tree (ADR-0060 §3 D1). The KEK resolver here reads the
+// resolved `M365Env` string (NEVER Deno.env) so it stays Node-testable.
 
 export {
   encryptToken,
