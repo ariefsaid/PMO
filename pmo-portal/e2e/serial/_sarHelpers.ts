@@ -119,13 +119,20 @@ export async function seedSAR(admin: SupabaseClient, suffix: string): Promise<SA
     project_map: { [projectId]: `PROJ-0001` }, // ERP auto-names to PROJ-#####; override with known name
   };
 
-  // 3) Pre-activated binding with receivable-side defaults + project_map
+  // 3) Pre-activated binding with receivable-side defaults + project_map. `webhook_secret_ref` is
+  //    REQUIRED for the inbound webhook lane (AC-SAR-043): `resolveEmployingOrgs` filters out any
+  //    binding lacking it, so the webhook fn would 401 every event without it. It points at a
+  //    function-secret env name (`DEMO_ERP_WEBHOOK_SECRET`) the served fn resolves via Deno.env —
+  //    the developer sets its VALUE in `supabase/functions/.env.local` (local-only, gitignored);
+  //    the test signs the webhook body with the SAME value (AC-SAR-043 reads
+  //    DEMO_ERP_WEBHOOK_SECRET from its own process env, default 'e2e-erpnext-webhook-secret').
   const { error: bindingErr } = await admin.from('external_org_bindings').upsert(
     {
       org_id: ORG_ID,
       external_tier: 'erpnext',
       site_url: ERPNEXT_SITE_URL,
       secret_ref: 'local-bench',
+      webhook_secret_ref: 'DEMO_ERP_WEBHOOK_SECRET',
       version_major: 15,
       config: bindingConfigWithProject,
       activated_at: new Date().toISOString(),

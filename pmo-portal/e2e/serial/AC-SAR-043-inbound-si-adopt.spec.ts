@@ -11,12 +11,18 @@
  *
  * Requires (process env, same as AC-ENA-053): SUPABASE_FUNCTIONS_URL, SUPABASE_URL/VITE_SUPABASE_URL,
  * VITE_SUPABASE_ANON_KEY/SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, ERPNEXT_BENCH_API_KEY/SECRET.
+ * The inbound webhook lane additionally needs the shared HMAC secret in BOTH places (the SOLE trust
+ * boundary, FR-ENA-082): the served fn resolves it from `webhook_secret_ref='DEMO_ERP_WEBHOOK_SECRET'`
+ * via Deno.env (set its VALUE in `supabase/functions/.env.local`, local-only gitignored), and the
+ * test signs the body with the SAME value (reads `DEMO_ERP_WEBHOOK_SECRET` from its own process env,
+ * default 'e2e-erpnext-webhook-secret').
  *
  * Run: scripts/with-db-lock.sh scripts/serve-functions.sh -- \
  *        npx playwright test AC-SAR-043
  */
 import { test, expect } from '@playwright/test';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { createHmac } from 'node:crypto';
 import { seedSAR, cleanupSAR, signInAdmin } from './_sarHelpers';
 
 const FUNCTIONS_URL = process.env.SUPABASE_FUNCTIONS_URL ?? '';
@@ -26,6 +32,20 @@ const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
 const ERPNEXT_BENCH_URL = process.env.ERPNEXT_BENCH_URL ?? 'http://localhost:8080';
 const ERPNEXT_ADMIN_KEY = process.env.ERPNEXT_BENCH_API_KEY ?? '';
 const ERPNEXT_ADMIN_SECRET = process.env.ERPNEXT_BENCH_API_SECRET ?? '';
+
+/** The webhook HMAC secret the test shares with the served `erpnext-webhook` fn. The binding's
+ *  `webhook_secret_ref='DEMO_ERP_WEBHOOK_SECRET'` (seeded by `seedSAR`) points the fn at this env;
+ *  the developer sets its VALUE in `supabase/functions/.env.local` (local-only, gitignored). The test
+ *  reads the SAME value from its own process env (default matches the documented local convention so
+ *  the lane works out-of-the-box once `.env.local` carries `DEMO_ERP_WEBHOOK_SECRET=e2e-erpnext-webhook-secret`). */
+const WEBHOOK_SECRET = process.env.DEMO_ERP_WEBHOOK_SECRET ?? 'e2e-erpnext-webhook-secret';
+
+/** Compute the Frappe `X-Frappe-Webhook-Signature` (base64 HMAC-SHA256 of the raw body) for the
+ *  shared secret — the exact algorithm `webhookSignature.ts`'s `verifyErpWebhookSignature` recomputes
+ *  constant-time at the boundary (the sole trust boundary, FR-ENA-082). */
+function signErpWebhook(rawBody: string): string {
+  return createHmac('sha256', WEBHOOK_SECRET).update(rawBody).digest('base64');
+}
 
 const ORG_ID = '00000000-0000-0000-0000-000000000001';
 
@@ -78,12 +98,22 @@ test.describe('AC-SAR-043: Inbound Sales Invoice adoption (native ERP creation �
 
     try {
       // ── 2. SIMULATE INBOUND WEBHOOK EVENT (or sweep) ──
-      // The erpnext-webhook endpoint expects a Frappe webhook payload. We call the served fn directly
-      // with a minimal event shape that the webhook handler accepts for Sales Invoice.
-      const webhookRes = await fetch(`${FUNCTIONS_URL}/functions/v1/erpnext-webhook`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      // The erpnext-webhook endpoint is the public Frappe-style ingress. Its SOLE trust boundary is the
+      // `X-Frappe-Webhook-Signature` header (base64 HMAC-SHA256 of the RAW body, keyed by the org's
+      // resolved `webhook_secret_ref` secret — FR-ENA-082): without a matching signature it 401s with
+      // NO side effect. The seeded binding carries `webhook_secret_ref='DEMO_ERP_WEBHOOK_SECRET'`
+      // (seedSAR), so the served fn resolves a secret and we sign the body with the SAME value.
+      //
+      // Payload shape: Frappe's webhook_json carries the document under `data`; `decodeErpWebhookEvent`
+      // reads the routing fields (doctype/name/docstatus/modified) off the top level THEN `data`, and
+      // the kind's `fromDoc` maps `data` → the PMO canonical at apply time. We send a faithful envelope
+      // (top-level routing + `data` doc body) so the adopt mints the mirror row.
+      const webhookBody = {
+        doctype: 'Sales Invoice',
+        name: nativeSiNameFromErp!,
+        docstatus: 1,
+        modified: new Date().toISOString(),
+        data: {
           doctype: 'Sales Invoice',
           name: nativeSiNameFromErp!,
           docstatus: 1,
@@ -91,11 +121,21 @@ test.describe('AC-SAR-043: Inbound Sales Invoice adoption (native ERP creation �
           outstanding_amount: 125000,
           posting_date: new Date().toISOString().split('T')[0],
           customer: 'Spike Customer', // matches the native SI's customer (the bench fixture)
+          amended_from: null,
           // No project field = project-less SI
-        }),
+        },
+      };
+      const webhookRawBody = JSON.stringify(webhookBody);
+      const webhookRes = await fetch(`${FUNCTIONS_URL}/functions/v1/erpnext-webhook`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Frappe-Webhook-Signature': signErpWebhook(webhookRawBody),
+        },
+        body: webhookRawBody,
       });
       // Webhook should ack (200) — it's a hint, lossy per FR-SAR-084
-      expect(webhookRes.status).toBe(200);
+      expect(webhookRes.status, `webhook should ack 200 (got ${webhookRes.status})`).toBe(200);
 
       // ── 3. ASSERTIONS ──
       // A) sales_invoices mirror row minted with project_id=NULL
