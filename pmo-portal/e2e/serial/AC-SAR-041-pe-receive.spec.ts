@@ -8,11 +8,16 @@
  * (Receive) is created+submitted (R9-P3a spike §2 frozen: adapter supplies `paid_from`=receivable,
  * `paid_to`=cash, `received_amount` explicit, `references[]` to the SI), then: ERP commits the
  * Receive Payment Entry; `incoming_payments` mirrors (`amount`=`paid_amount`,
- * `sales_invoice_id`→the SI, `reference_number`=the anchor carrier `reference_no`), and the SI
- * flips `Paid`/`erp_outstanding_amount=0` server-side (mirrored).
+ * `sales_invoice_id`→the SI, `reference_number`=the anchor carrier `reference_no`). The SI's
+ * `Paid`/`erp_outstanding_amount=0` flip happens SERVER-SIDE in ERP on the referenced PE submit —
+ * PMO's OWN `sales_invoices` mirror does NOT re-fetch outstanding on an outbound payment
+ * (ADR-0048 "PMO never recomputes"; it reaches the mirror only via the inbound feed/sweep, out of
+ * this command's scope — mirrors AC-ENA-053's PI-flip note), so the flip is asserted by querying
+ * the ERP Sales Invoice DOC DIRECTLY, not the PMO mirror.
  *
- * Requires (process env, same as served-fn-smoke.spec.ts / AC-ENA-053): SUPABASE_FUNCTIONS_URL,
- * SUPABASE_URL/VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY/SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY.
+ * Requires (process env, same as AC-ENA-053/AC-SAR-043): SUPABASE_FUNCTIONS_URL,
+ * SUPABASE_URL/VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY/SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY,
+ * ERPNEXT_BENCH_API_KEY/SECRET (REQUIRED — the SI flip is the ERP-side oracle, verified directly).
  * The served function additionally needs ERPNEXT_API_KEY/ERPNEXT_API_SECRET as function secrets
  * (`supabase/functions/.env.local`, local-only, gitignored, creds from
  * `~/Coding/frappe-docker-pmo/PMO-BENCH-NOTES.md` — never this repo, NFR-SAR-SEC-002).
@@ -34,11 +39,13 @@ const ERPNEXT_BENCH_URL = process.env.ERPNEXT_BENCH_URL ?? 'http://localhost:808
 const ERPNEXT_ADMIN_KEY = process.env.ERPNEXT_BENCH_API_KEY ?? '';
 const ERPNEXT_ADMIN_SECRET = process.env.ERPNEXT_BENCH_API_SECRET ?? '';
 
-const READY = Boolean(FUNCTIONS_URL && AUTH_URL && ANON_KEY && SERVICE_KEY);
+// Bench creds (ERPNEXT_BENCH_API_KEY/SECRET) are REQUIRED here: the SI paid-detection flip is the
+// ERP-SIDE oracle (PMO's own mirror does not re-fetch outstanding on an outbound payment — see B).
+const READY = Boolean(FUNCTIONS_URL && AUTH_URL && ANON_KEY && SERVICE_KEY && ERPNEXT_ADMIN_KEY && ERPNEXT_ADMIN_SECRET);
 if (!READY && process.env.CI) {
-  throw new Error('AC-SAR-041-pe-receive: SUPABASE_FUNCTIONS_URL + SUPABASE_URL + VITE_SUPABASE_ANON_KEY + SUPABASE_SERVICE_ROLE_KEY are required in CI — this spec cannot silently skip');
+  throw new Error('AC-SAR-041-pe-receive: SUPABASE_FUNCTIONS_URL + SUPABASE_URL + VITE_SUPABASE_ANON_KEY + SUPABASE_SERVICE_ROLE_KEY + ERPNEXT_BENCH_API_KEY/SECRET are required in CI — this spec cannot silently skip');
 }
-test.skip(!READY, 'AC-SAR-041-pe-receive: SUPABASE_FUNCTIONS_URL/SUPABASE_URL/VITE_SUPABASE_ANON_KEY/SUPABASE_SERVICE_ROLE_KEY not set — run via scripts/serve-functions.sh against the ERPNext bench');
+test.skip(!READY, 'AC-SAR-041-pe-receive: SUPABASE_FUNCTIONS_URL/SUPABASE_URL/VITE_SUPABASE_ANON_KEY/SUPABASE_SERVICE_ROLE_KEY/ERPNEXT_BENCH_API_KEY/SECRET not set — run via scripts/serve-functions.sh against the ERPNext bench');
 
 test.setTimeout(120_000);
 
@@ -226,61 +233,54 @@ test.describe('AC-SAR-041: PE-receive create+submit through the real served adap
       expect(ipRowAfterSubmit?.erp_modified).not.toBeNull();
       expect(ipRowAfterSubmit?.erp_cancelled_at).toBeNull();
 
-      // B) sales_invoices flips to Paid / erp_outstanding_amount=0 (server-side, mirrored)
-      const { data: siRowAfterPayment, error: siRowErr3 } = await admin
-        .from('sales_invoices')
-        .select('erp_outstanding_amount, status, erp_docstatus')
-        .eq('id', seeded.siRecordId)
-        .maybeSingle();
-      expect(siRowErr3).toBeNull();
-      expect(siRowAfterPayment?.erp_outstanding_amount).toBe(0);
-      expect(siRowAfterPayment?.status).toBe('Paid');
-      expect(siRowAfterPayment?.erp_docstatus).toBe(1);
+      // B) The SI paid-detection flip is the ERP-SIDE oracle (R9 §2 "References semantics"): the
+      //    referenced PE-receive submit flips the SI's outstanding_amount to 0 + status 'Paid'
+      //    SERVER-SIDE in ERP. PMO's OWN sales_invoices mirror does NOT re-fetch outstanding on an
+      //    outbound payment (ADR-0048 "PMO never recomputes"; it reaches the mirror only via the
+      //    inbound feed/sweep, out of this command's scope) — so the flip is verified the P2 way by
+      //    querying the ERP Sales Invoice DOC DIRECTLY (mirrors AC-ENA-053's PI-flip proof). The bench
+      //    creds are REQUIRED for this spec (READY), so this oracle runs unconditionally.
+      const siFlipRes = await fetch(`${ERPNEXT_BENCH_URL}/api/resource/Sales%20Invoice/${encodeURIComponent(siName)}`, {
+        headers: { Authorization: `token ${ERPNEXT_ADMIN_KEY}:${ERPNEXT_ADMIN_SECRET}` },
+      });
+      expect(siFlipRes.status, 'the referenced SI must be readable from the bench').toBe(200);
+      const siFlipDoc = (await siFlipRes.json()) as {
+        data?: { name?: string; status?: string; outstanding_amount?: number };
+      };
+      expect(siFlipDoc.data?.name).toBe(siName);
+      expect(siFlipDoc.data?.status).toBe('Paid');
+      expect(siFlipDoc.data?.outstanding_amount).toBe(0);
 
-      // ── Optional ERP-side proof: verify both docs ──
-      if (ERPNEXT_ADMIN_KEY && ERPNEXT_ADMIN_SECRET) {
-        // PE-receive doc
-        const peRes = await fetch(`${ERPNEXT_BENCH_URL}/api/resource/Payment%20Entry/${encodeURIComponent(ipName)}`, {
-          headers: { Authorization: `token ${ERPNEXT_ADMIN_KEY}:${ERPNEXT_ADMIN_SECRET}` },
-        });
-        expect(peRes.status).toBe(200);
-        const peDoc = (await peRes.json()) as {
-          data?: {
-            name?: string;
-            docstatus?: number;
-            payment_type?: string;
-            party_type?: string;
-            party?: string;
-            paid_amount?: number;
-            received_amount?: number;
-            references?: Array<{ reference_doctype: string; reference_name: string; allocated_amount: number }>;
-            reference_no?: string;
-          };
+      // ── ERP-side fidelity proof: the PE-receive doc ──
+      // (bench creds are already required above; kept as a separate block for readability.)
+      const peRes = await fetch(`${ERPNEXT_BENCH_URL}/api/resource/Payment%20Entry/${encodeURIComponent(ipName)}`, {
+        headers: { Authorization: `token ${ERPNEXT_ADMIN_KEY}:${ERPNEXT_ADMIN_SECRET}` },
+      });
+      expect(peRes.status).toBe(200);
+      const peDoc = (await peRes.json()) as {
+        data?: {
+          name?: string;
+          docstatus?: number;
+          payment_type?: string;
+          party_type?: string;
+          party?: string;
+          paid_amount?: number;
+          received_amount?: number;
+          references?: Array<{ reference_doctype: string; reference_name: string; allocated_amount: number }>;
+          reference_no?: string;
         };
-        expect(peDoc.data?.name).toBe(ipName);
-        expect(peDoc.data?.docstatus).toBe(1);
-        expect(peDoc.data?.payment_type).toBe('Receive');
-        expect(peDoc.data?.party_type).toBe('Customer');
-        expect(peDoc.data?.paid_amount).toBe(200000);
-        expect(peDoc.data?.received_amount).toBe(200000);
-        expect(peDoc.data?.references).toEqual(
-          expect.arrayContaining([expect.objectContaining({ reference_doctype: 'Sales Invoice', reference_name: siName, allocated_amount: 200000 })]),
-        );
-        // reference_no anchor survives (spike R9-P3a-4)
-        expect(peDoc.data?.reference_no).not.toBeNull();
-
-        // SI flips to Paid/outstanding 0
-        const siRes = await fetch(`${ERPNEXT_BENCH_URL}/api/resource/Sales%20Invoice/${encodeURIComponent(siName)}`, {
-          headers: { Authorization: `token ${ERPNEXT_ADMIN_KEY}:${ERPNEXT_ADMIN_SECRET}` },
-        });
-        expect(siRes.status).toBe(200);
-        const siDoc = (await siRes.json()) as {
-          data?: { name?: string; status?: string; outstanding_amount?: number };
-        };
-        expect(siDoc.data?.name).toBe(siName);
-        expect(siDoc.data?.status).toBe('Paid');
-        expect(siDoc.data?.outstanding_amount).toBe(0);
-      }
+      };
+      expect(peDoc.data?.name).toBe(ipName);
+      expect(peDoc.data?.docstatus).toBe(1);
+      expect(peDoc.data?.payment_type).toBe('Receive');
+      expect(peDoc.data?.party_type).toBe('Customer');
+      expect(peDoc.data?.paid_amount).toBe(200000);
+      expect(peDoc.data?.received_amount).toBe(200000);
+      expect(peDoc.data?.references).toEqual(
+        expect.arrayContaining([expect.objectContaining({ reference_doctype: 'Sales Invoice', reference_name: siName, allocated_amount: 200000 })]),
+      );
+      // reference_no anchor survives (spike R9-P3a-4)
+      expect(peDoc.data?.reference_no).not.toBeNull();
     } finally {
       await cleanupSAR(admin, seeded);
     }
