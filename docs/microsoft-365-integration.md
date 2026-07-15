@@ -2,8 +2,9 @@
 
 - **Owner-requested** (2026-07-14 grill, this session). Durable home of the M365 integration vision.
 - **Status:** living document. Auth layer (SSO) shipped; everything below the auth line is proposed.
-- **▶ Continuing this work?** Start at **[`docs/m365-handoff.md`](m365-handoff.md)** — the continuation
-  handoff (current state, locked decisions, the exact next action, Phase-1 task list, owner inputs needed).
+- **▶ Continuing this work?** Live status + the exact next action are in the M365 entry at the top of
+  **[`docs/backlog.md`](backlog.md)** (the read-first status doc); the Phase-0 build detail is in the
+  spec/plan below and ADR-0060's Phase-0 follow-ups.
 - **Controlling ADRs:** [ADR-0058](adr/0058-microsoft-365-integration-architecture.md) (integration
   architecture), [ADR-0059](adr/0059-entra-app-registration-topology.md) (Entra app topology).
   **Related:** ADR-0055 (external adapters — the pattern Graph *data* features follow), ADR-0049

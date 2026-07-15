@@ -8,6 +8,13 @@
 - **Build order:** TDD red→green throughout. Every behavior task writes the failing test first, then
   the minimum code to green, then `verify`.
 
+> **Progress (2026-07-14) — snapshot; live status is the M365 entry in `docs/backlog.md`:**
+> **F1 ✅ · F2 ✅ · F3 ✅ · P1 ✅** (FE slice, `npm run verify` green, commit `c80f829`).
+> **M1 ⏸️ · M2 ⏸️ · M3 ⏸️ · M4 ⏸️ · M5 ⏸️** — AUTHORED (commit `bb5df08`) but **DB-deferred**: this build
+> container had no Supabase CLI. **Next agent runs `scripts/with-db-lock.sh supabase db reset` +
+> `supabase test db` to prove 0142/0143/0144.** Beyond this plan, the Phase-1 crypto helpers
+> (`graphTokenCrypto`/`graphPkce`, AC-M365-030/031) are built + security-audited (commits `1ffeaf0`/`9d64c3a`).
+
 ---
 
 ## ⚑ CRITICAL environment caveat — read before starting

@@ -4,6 +4,45 @@
 [`docs/history.md`](history.md) (don't read it for status). Locked owner-decisions are in
 `docs/decisions.md` (OD-* lookup by id). Roadmap framing in `docs/roadmap-spines.md`.
 
+### ⚑⚑ M365 INTEGRATION (2026-07-14) — foundation BUILT on a collector branch; live wiring HELD for owner inputs + security gate
+**RESUME HERE (this entry is the continuation guide).** Detail: vision `docs/microsoft-365-integration.md`;
+decisions ADR-0058/0059/0060; contract `docs/specs/m365-phase0-foundation.spec.md`; build recipe + progress
+`docs/plans/2026-07-14-m365-phase0-foundation.md`; the Phase-1 edge-fn task list is ADR-0060's "Phase-0
+follow-ups". **Branch `claude/microsoft-teams-onedrive-integration-f656rx` → PR #333 → collector
+`feat/m365-integration` (off `dev`; NOT PR'd to `dev` directly — owner promotes the collector as one
+reviewed unit). NOT merged. Next agent's FIRST action: verify the DB slice (see the ⏸️ item below).**
+- **✅ Sign in with Microsoft** (Supabase `azure` OAuth; auth-only — authz stays invited-`profiles`+RLS,
+  `enable_signup=false`). Local `[auth.external.azure]` committed DISABLED; cloud dashboard-configured
+  (`docs/environments.md`). Prod SSO round-trip proven by the owner through to the profile gate.
+  AC-MSAUTH-001..003.
+- **✅ Provisioning hardening** — graceful "not set up for this workspace yet" state (Sign out, no Retry)
+  replaces the raw `PGRST116` "Cannot coerce…" error for an authenticated user with no `profiles` row.
+  AC-MSAUTH-010/011.
+- **✅ Phase-0 FE** (`npm run verify` green) — `m365_integration` entitlement key (Operator switch,
+  default-off) + `M365ConnectionCard` (two-switch gate; DISABLED "available soon" connect stub) mounted on
+  Administration. AC-M365-011/012/013.
+- **⏸️ Phase-0 DB — AUTHORED / DB-DEFERRED** (remote build container had NO Supabase CLI): `0096`
+  `ms_graph_connections` (token store: RLS forced + zero policies + `revoke all`; bytea ciphertext only,
+  org_id-scoped), `0097` entitlement CHECK key, pgTAP `0142`/`0143`/`0144` (AC-M365-001/002/010).
+  **RESUME: run `scripts/with-db-lock.sh supabase db reset` + `supabase test db` to prove them (§0 of the handoff).**
+- **✅ Phase-1 crypto foundation — SECURITY-AUDITED clean** (opus STRIDE; 2 Minor fixed):
+  `src/lib/m365/graphTokenCrypto.ts` (AES-256-GCM envelope) + `graphPkce.ts` (RFC-7636 PKCE + authorize
+  URL). Pure/dual-runtime, imported cross-tree by the future edge fn (the `verifyCallerJwt` precedent).
+  AC-M365-030/031.
+- **⚑ Decisions LOCKED (owner 2026-07-14 — don't re-open):** deployment siloed (ADR-0047); Entra topology
+  **Option C** — per-client app in vendor tenant, B escape hatch (ADR-0059); priority
+  delight-drives-enterprise-adoption (ADR-0058); token custody server-side (ADR-0060); **D1 encryption =
+  app-layer AES-256-GCM**, **D2 bootstrap = server-side auth-code+PKCE** (ADR-0060 §3/§1). Open: publisher
+  verification, provisioning invite-first-vs-JIT.
+- **HELD — Phase-1 live wiring** (handoff §4): PKCE exchange edge fn → encrypt+store → Graph proxy →
+  rotation/revoke → wire the FE stub → OneDrive doc-linking (ADR-0055 Graph tier), then the
+  **`security-auditor` gate on the live surface before exposure**.
+- **Owner-gated inputs on GO** (handoff §5): (1) KEK `openssl rand -base64 32` → `supabase secrets set
+  M365_TOKEN_KEK`; (2) `supabase secrets set M365_CLIENT_SECRET` (Entra secret — SSO dashboard config
+  isn't edge-fn-readable); (3) Entra: delegated Graph scopes (`Files.Read`+`offline_access`) + the
+  edge-fn PKCE redirect URI. Publisher verification if productizing past the first admin-consenting client.
+- **Next:** verify the DB slice (above), then the Phase-1 slices per handoff §4.
+
 ### ⚑⚑ ADAPTER PROGRAM (2026-07-10) — P0 seam SHIPPED to dev; P1 ClickUp in flight
 - **✅ P0 external-adapter seam MERGED to `dev`** (PR #299, `2cbacd5`; ADR-0055): migrations
   `0087–0090` (ownership switch + refs + watermarks + reference read-model w/ RLS write-flip),
