@@ -4,7 +4,40 @@
 [`docs/history.md`](history.md) (don't read it for status). Locked owner-decisions are in
 `docs/decisions.md` (OD-* lookup by id). Roadmap framing in `docs/roadmap-spines.md`.
 
-### ⚑⚑ ADAPTER PROGRAM (2026-07-14) — P2 ERPNext money core MERGING (#315, owner go; CI green)
+### ⚑⚑⚑ CURRENT FOCUS — P3a Sales/AR write-through (2026-07-15) — built + happy-path green; HARDENING ROUND mid-flight; branch, NOT merged
+**Branch `feat/erpnext-adapter-p3`** (off `dev` @ `b549d06`). **HOLD on the branch — NO PR** (owner: dev
+is moving with parallel agents). Spec + plan SIGNED OFF:
+[`docs/specs/erpnext-adapter-p3a-sales-ar.spec.md`](specs/erpnext-adapter-p3a-sales-ar.spec.md) ·
+[`docs/plans/2026-07-14-erpnext-adapter-p3a-sales-ar.md`](plans/2026-07-14-erpnext-adapter-p3a-sales-ar.md).
+R9 bench spike frozen: [`docs/spikes/2026-07-14-erpnext-si-pe-receive-fields.md`](spikes/2026-07-14-erpnext-si-pe-receive-fields.md).
+Owner rulings: `decisions.md` **OD-SAR-GATES · OD-SAR-PMO-IS-THE-UI · OD-SAR-DRAFT-SUBMIT**.
+- **✅ Built (8 slices) + happy-path proven:** migs `0104–0107`; revenue domain (SI + PE-receive) full
+  write-through through `adapter-dispatch` + the ADR-0058 fenced outbox; **two-person SoD** (SI create
+  leaves an ERP DRAFT → a DIFFERENT approver submits — OD-SAR-DRAFT-SUBMIT); process-gates seam;
+  inbound feed (lifecycle + adopt); AR aging (reuses P2 report path); FE (SalesInvoices/IncomingPayments/
+  RevenueByProject). **Served-fn money e2e: 19/19 GREEN at the live bench** (two-person flow). Gates:
+  verify (5,428) · pgTAP (1,506) · deno (69) green at the happy-path checkpoint.
+- **⚑ HARDENING ROUND IN PROGRESS (re-Luna@max NO SHIP):** the first Luna audit's 8 findings were fixed;
+  a **max-thinking re-audit** ([`docs/reviews/2026-07-15-luna-p3a-reaudit-maxthinking.md`](reviews/2026-07-15-luna-p3a-reaudit-maxthinking.md))
+  found the **dispatch/repo layer has real authz/targeting/reference holes** the happy-path e2e misses
+  (it hand-builds correct commands). **DONE + verified:** BLOCK 2/3/4 (dispatch domain-ownership+role+
+  kind↔domain gate before ERP write — hardens ALL erpnext money writes, incl. a gap P2 shared;
+  repo submit/cancel send verb+externalRecordId; transition targeting bound to the PMO mapping) + BLOCK 5
+  (PE references fail-closed). **REMAINING (resume — task tree + the re-audit doc):** BLOCK 6 (cross-org
+  FK check PRE-flight, before ERP write — nemotron's RED test was org-blind, needs a coherent rewrite),
+  BLOCK 1 (recoveryProbe anchor-key fallback must also filter payment_type/party_type), PE-sweep
+  payment_type disambiguation, BLOCK 7 (siFromDoc/peReceiveFromDoc extract customer/links so inbound
+  adopt doesn't NULL them), BLOCK 8 (wire the dead `reconcileSiCancelAutoUnlink`), SF9 (project-gate-
+  without-ERP-project), SF10 (partial `process_gates` bypass defaults). Then re-run the 2-person e2e +
+  **re-Luna `--thinking max` until SHIP** → hold on branch.
+- **Next after P3a SHIPs:** **P3b** timesheets push-Approved-only, **P3c** budget ERP-mirror + PMO
+  projection (both scoped, specs Director-drafted at PR time). **P4** Odoo (ADR-0055 §8).
+- **Substrate (this program):** build → nemotron-3-ultra (NIM, reliable) or zai/glm-5.2 window; FIXES →
+  glm-5.2 (owner directive); **money/security review → Luna `--thinking max`** (owner 2026-07-15,
+  `docs/pi-delegation.md`). ⚑ ONE op on the shared worktree at a time (verify-while-agent-edits = a
+  contaminated read; concurrent heavy dispatches + sibling agents' MCPs + Docker → OOM risk).
+
+### ⚑⚑ ADAPTER PROGRAM — P2 ERPNext money core ✅ MERGED to dev (#315 squash `b549d06`, 2026-07-14)
 - **✅ P2 BUILT + FULL BATTERY CLOSED + POST-OPEN HARDENING** (branch `feat/erpnext-adapter-p2`,
   migs `0093/0094 + 0096–0103`, 5 edge fns, live-bench-proven): 9 slices (served-fn e2e infra ·
   fenced money outbox · tier core · parties · MR/RFQ/SQ · PO/GR · PI/PE full AP surface ·

@@ -1,5 +1,14 @@
 # Plan: ERPNext adapter — Sales / AR full write-through (Issue P3a, ADR-0055 P3 phase, sales spine)
 
+> **⚑ BUILD STATUS (2026-07-15):** all 8 slices BUILT; served-fn money e2e **19/19 GREEN** at the live
+> bench with the two-person SoD flow (create=DRAFT → approver submits, OD-SAR-DRAFT-SUBMIT). A max-thinking
+> Luna re-audit ([`../reviews/2026-07-15-luna-p3a-reaudit-maxthinking.md`](../reviews/2026-07-15-luna-p3a-reaudit-maxthinking.md))
+> found the dispatch/repo layer had authz/targeting/reference holes the happy-path e2e missed → a
+> **HARDENING ROUND is mid-flight** (BLOCK 2/3/4/5 done; BLOCK 6/1/PE-sweep/7/8 + SF9/10 remaining →
+> re-Luna@max until SHIP). **Resume authority = that review doc + `docs/backlog.md` CURRENT-FOCUS block.**
+> Branch `feat/erpnext-adapter-p3`, HOLD-NO-PR. Migs shipped: 0104–0107.
+
+
 > **Spec:** `docs/specs/erpnext-adapter-p3a-sales-ar.spec.md` (**SIGNED OFF** — 2026-07-14 rediscussion;
 > all six OQ-SAR-SIGN-* decided; **OQ-SAR-1 ANSWERED** — the R9-P3a live-bench spike froze the SI +
 > PE-receive body maps 2026-07-14; `FR-SAR-004..195` / `NFR-SAR-*` / `AC-SAR-001..073` pinned. Two owner
