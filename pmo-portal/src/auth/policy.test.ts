@@ -304,6 +304,8 @@ describe('can() — integration entity (AC-EAC-003/004, FR-EAC-004)', () => {
 
   it('AC-EAC-004: can(\'manage\', \'integration\') is false for Operator (server-gated only)', () => {
     // Operator is not in the Role type — server gate via is_operator() RPC
-    expect(can('manage', 'integration', { realRole: 'Admin' })).toBe(true);
+    // FE is stricter than server: only Admin passes can('manage', 'integration')
+    // Test a non-Admin role (Project Manager) to verify the FE gate is correct
+    expect(can('manage', 'integration', { realRole: 'Project Manager' })).toBe(false);
   });
 });

@@ -8,12 +8,13 @@
  * Flow:
  * 1. Verify caller JWT locally (ES256, JWKS) → get `sub` (user id)
  * 2. Load profile (role, org_id) via service-role client
- * 3. Role gate: Admin of the org OR platform Operator (is_operator())
+ * 3. Role gate: Admin of the org OR platform Operator (direct platform_operators check)
  * 4. Validate credential against external system (injected fetch for testability)
  *    - ClickUp: GET /api/v2/user with Bearer token
  *    - ERPNext: GET /api/resource/User/<apiKey> with token apiKey:apiSecret
+ *    - SSRF hardening: reject private/loopback/link-local/metadata addresses for ERPNext
  * 5. On success: call create_vault_secret_for_org RPC (passes p_actor_id=sub for service-role path)
- * 6. For ClickUp: call operator_set_domain_ownership(org, 'clickup', 'tasks', 'employ')
+ * 6. For ClickUp: call admin_change_domain_ownership(org, 'clickup', 'tasks', 'employ', userId)
  * 7. Return { ok: true, binding: { secret_ref, status: 'active' } }
  *
  * Errors:
@@ -27,7 +28,6 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import {
   verifyCallerJwt,
-  bearerToken,
   JwtVerifyError,
   jwksFromUrl,
   type JwksResolver,
@@ -108,10 +108,29 @@ async function validateErpNextCredentials(
   apiSecret: string,
   deps: ValidatorDeps,
 ): Promise<void> {
+  // SSRF hardening: parse URL and reject private/loopback/link-local/metadata addresses
+  let parsedUrl: URL;
   try {
-    const url = `${siteUrl.replace(/\/$/, '')}/api/resource/User/${apiKey}`;
+    parsedUrl = new URL(siteUrl);
+  } catch {
+    throw new AppError('Invalid site URL', 'config-rejected');
+  }
+
+  if (parsedUrl.protocol !== 'https:') {
+    throw new AppError('Only HTTPS URLs are allowed', 'config-rejected');
+  }
+
+  const hostname = parsedUrl.hostname;
+  if (isPrivateOrReservedHost(hostname)) {
+    throw new AppError('Private or reserved addresses are not allowed', 'config-rejected');
+  }
+
+  try {
+    const url = `${siteUrl.replace(/\/$/, '')}/api/resource/User/${encodeURIComponent(apiKey)}`;
     const res = await deps.fetchImpl(url, {
       headers: { Authorization: `token ${apiKey}:${apiSecret}` },
+      redirect: 'manual',
+      signal: AbortSignal.timeout(5000),
     });
     if (!res.ok) {
       throw new AppError('Invalid ERPNext credentials', 'config-rejected');
@@ -120,6 +139,54 @@ async function validateErpNextCredentials(
     if (err instanceof AppError) throw err;
     throw new AppError('Invalid ERPNext credentials', 'config-rejected');
   }
+}
+
+/** Check if a hostname resolves to or is a private/loopback/link-local/metadata address. */
+function isPrivateOrReservedHost(hostname: string): boolean {
+  // Normalize: remove brackets from IPv6 addresses, remove port, lowercase
+  let host = hostname.toLowerCase();
+  if (host.startsWith('[') && host.endsWith(']')) {
+    host = host.slice(1, -1); // Remove brackets from [::1] format
+  }
+  host = host.split(':')[0]; // Remove port if present
+
+  // Localhost and loopback
+  if (host === 'localhost' || host === 'localhost.localdomain') return true;
+  if (host === '::1' || host.startsWith('127.')) return true;
+
+  // IPv4 private ranges
+  const ipv4Match = host.match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/);
+  if (ipv4Match) {
+    const a = parseInt(ipv4Match[1], 10);
+    const b = parseInt(ipv4Match[2], 10);
+    // 10.0.0.0/8
+    if (a === 10) return true;
+    // 172.16.0.0/12
+    if (a === 172 && b >= 16 && b <= 31) return true;
+    // 192.168.0.0/16
+    if (a === 192 && b === 168) return true;
+    // 169.254.0.0/16 (link-local)
+    if (a === 169 && b === 254) return true;
+    // 0.0.0.0/8
+    if (a === 0) return true;
+  }
+
+  // IPv6 private ranges
+  if (host.startsWith('fc') || host.startsWith('fd')) {
+    // More precise fc00::/7 check
+    const firstHextet = host.split(':')[0];
+    const first = parseInt(firstHextet, 16);
+    if (!isNaN(first) && (first & 0xfe) === 0xfc) return true; // fc00::/7
+  }
+  if (host === '::') return true; // unspecified
+  if (host === '::1') return true; // loopback (already caught above but safe)
+
+  // Cloud metadata endpoints (common patterns)
+  if (host === '169.254.169.254') return true; // AWS/Azure/GCE metadata
+  if (host === 'metadata.google.internal') return true;
+  if (host === 'metadata.azure.com') return true;
+
+  return false;
 }
 
 // ============================================================================
@@ -162,7 +229,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     return errorResponse('Invalid JWT', 'UNAUTHORIZED', status);
   }
 
-  // 2. Service-role client for admin lookups (profile, is_operator)
+  // 2. Service-role client for admin lookups (profile, operator check)
   const serviceClient = createClient(supabaseUrl, serviceRoleKey);
 
   // 3. Load caller profile (role + org_id)
@@ -177,7 +244,14 @@ Deno.serve(async (req: Request): Promise<Response> => {
   }
 
   // 4. Role gate: Admin of this org OR platform Operator
-  const { data: isOperator } = await serviceClient.rpc('is_operator').single();
+  //    REPLACED: is_operator() RPC call (uses auth.uid() which is null under service_role)
+  //    WITH: direct platform_operators table check on the verified userId
+  const { data: isOperator } = await serviceClient
+    .from('platform_operators')
+    .select('user_id')
+    .eq('user_id', userId)
+    .maybeSingle();
+
   const isAdmin = profile.role === 'Admin';
   if (!isAdmin && !isOperator) {
     return errorResponse('Admin or Operator role required', 'FORBIDDEN', 403);
@@ -245,21 +319,24 @@ Deno.serve(async (req: Request): Promise<Response> => {
     return errorResponse(rpcError.message, pgCode, pgCode === '42501' ? 403 : 500);
   }
 
-  // 8. For ClickUp, set domain ownership (tasks domain)
+  // 8. For ClickUp, set domain ownership via NEW definer RPC (gates on p_actor_id)
   if (tier === 'clickup') {
     const { error: ownershipError } = await serviceClient.rpc(
-      'operator_set_domain_ownership',
+      'admin_change_domain_ownership',
       {
         p_org_id: profile.org_id,
         p_external_tier: 'clickup',
         p_domain: 'tasks',
         p_action: 'employ',
+        p_actor_id: userId,
       }
     );
     if (ownershipError) {
       // Log but don't fail the connect — the binding is already created
-      console.error('operator_set_domain_ownership failed', ownershipError);
+      console.error('admin_change_domain_ownership failed', ownershipError);
     }
+    // Note: audit event for domain ownership employ is emitted by the RPC itself
+    // (integration.domain_ownership.employ). No separate log_audit call needed here.
   }
 
   // 9. Return success

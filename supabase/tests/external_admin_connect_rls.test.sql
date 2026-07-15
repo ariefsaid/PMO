@@ -1,8 +1,9 @@
 -- external_admin_connect_rls.test.sql
--- pgTAP tests for Vault reader/writer RPCs and external_org_bindings RLS/role gates
--- AC-EAC-003, AC-EAC-004, AC-EAC-005, AC-EAC-006, AC-EAC-014, AC-EAC-015, AC-EAC-019, AC-EAC-020
+-- pgTAP tests for Vault reader/writer RPCs, external_org_bindings RLS/role gates,
+-- and admin_change_domain_ownership RPC
+-- AC-EAC-003, AC-EAC-004, AC-EAC-005, AC-EAC-006, AC-EAC-007, AC-EAC-014, AC-EAC-015, AC-EAC-019, AC-EAC-020
 begin;
-select plan(35);
+select plan(55);
 
 -- ============================================================================
 -- SETUP: seed orgs, users, profiles
@@ -380,6 +381,234 @@ select lives_ok(
     'cccccccc-cccc-cccc-cccc-cccccccccccc'  -- p_actor_id = Admin B (valid for Org B)
   ) $$,
   'service_role with valid p_actor_id still works'
+);
+
+-- ============================================================================
+-- TESTS: public.admin_change_domain_ownership(...)
+-- ============================================================================
+
+-- Test 36: Admin of org can employ domain ownership via p_actor_id (service_role path)
+reset role;
+set local request.jwt.claims = '{}';
+select lives_ok(
+  $$ select public.admin_change_domain_ownership(
+    '11111111-1111-1111-1111-111111111111',
+    'clickup',
+    'tasks',
+    'employ',
+    'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'  -- p_actor_id = Admin A
+  ) $$,
+  'AC-EAC-007 Admin p_actor_id can employ domain ownership'
+);
+
+-- Test 37: Verify ownership row was inserted
+select is(
+  (select count(*) from external_domain_ownership where org_id = '11111111-1111-1111-1111-111111111111' and external_tier = 'clickup' and domain = 'tasks')::int,
+  1,
+  'AC-EAC-007 ownership row inserted for Org A clickup tasks'
+);
+
+-- Test 38: Verify audit event for domain_ownership.employ
+select is(
+  (select count(*) from audit_events where action = 'integration.domain_ownership.employ' and org_id = '11111111-1111-1111-1111-111111111111')::int,
+  1,
+  'AC-EAC-019 audit event logged for domain_ownership.employ'
+);
+
+-- Test 39: Non-Admin (Engineer) denied (42501) when p_actor_id = Engineer
+select throws_ok(
+  $$ select public.admin_change_domain_ownership(
+    '11111111-1111-1111-1111-111111111111',
+    'clickup',
+    'tasks',
+    'employ',
+    'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'  -- p_actor_id = Engineer A
+  ) $$,
+  '42501', null,
+  'AC-EAC-004 non-Admin p_actor_id denied for employ (42501)'
+);
+
+-- Test 40: Cross-org Admin (Admin B) denied (42501) when p_actor_id = Admin B for Org A
+select throws_ok(
+  $$ select public.admin_change_domain_ownership(
+    '11111111-1111-1111-1111-111111111111',
+    'clickup',
+    'tasks',
+    'employ',
+    'cccccccc-cccc-cccc-cccc-cccccccccccc'  -- p_actor_id = Admin B (not in Org A)
+  ) $$,
+  '42501', null,
+  'AC-EAC-005 cross-org Admin p_actor_id denied for employ (42501)'
+);
+
+-- Test 41: Platform Operator SUCCEEDS for any org via p_actor_id
+select lives_ok(
+  $$ select public.admin_change_domain_ownership(
+    '22222222-2222-2222-2222-222222222222',
+    'clickup',
+    'tasks',
+    'employ',
+    'dddddddd-dddd-dddd-dddd-dddddddddddd'  -- p_actor_id = Operator
+  ) $$,
+  'AC-EAC-003 Operator p_actor_id succeeds for any org employ'
+);
+
+-- Test 42: Verify ownership row for Org B
+select is(
+  (select count(*) from external_domain_ownership where org_id = '22222222-2222-2222-2222-222222222222' and external_tier = 'clickup' and domain = 'tasks')::int,
+  1,
+  'AC-EAC-003 ownership row inserted for Org B clickup tasks by Operator'
+);
+
+-- Test 43: Admin can RELEASE domain ownership
+select lives_ok(
+  $$ select public.admin_change_domain_ownership(
+    '11111111-1111-1111-1111-111111111111',
+    'clickup',
+    'tasks',
+    'release',
+    'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'
+  ) $$,
+  'AC-EAC-007 Admin can release domain ownership'
+);
+
+-- Test 44: Verify ownership row deleted
+select is(
+  (select count(*) from external_domain_ownership where org_id = '11111111-1111-1111-1111-111111111111' and external_tier = 'clickup' and domain = 'tasks')::int,
+  0,
+  'AC-EAC-007 ownership row deleted on release'
+);
+
+-- Test 45: Verify audit event for domain_ownership.release
+select is(
+  (select count(*) from audit_events where action = 'integration.domain_ownership.release' and org_id = '11111111-1111-1111-1111-111111111111')::int,
+  1,
+  'AC-EAC-019 audit event logged for domain_ownership.release'
+);
+
+-- Test 46: Non-Admin denied for release
+select throws_ok(
+  $$ select public.admin_change_domain_ownership(
+    '11111111-1111-1111-1111-111111111111',
+    'clickup',
+    'tasks',
+    'release',
+    'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'
+  ) $$,
+  '42501', null,
+  'AC-EAC-004 non-Admin denied for release (42501)'
+);
+
+-- Test 47: Cross-org Admin denied for release
+select throws_ok(
+  $$ select public.admin_change_domain_ownership(
+    '11111111-1111-1111-1111-111111111111',
+    'clickup',
+    'tasks',
+    'release',
+    'cccccccc-cccc-cccc-cccc-cccccccccccc'
+  ) $$,
+  '42501', null,
+  'AC-EAC-005 cross-org Admin denied for release (42501)'
+);
+
+-- Test 48: Operator succeeds for release
+select lives_ok(
+  $$ select public.admin_change_domain_ownership(
+    '22222222-2222-2222-2222-222222222222',
+    'clickup',
+    'tasks',
+    'release',
+    'dddddddd-dddd-dddd-dddd-dddddddddddd'
+  ) $$,
+  'AC-EAC-003 Operator succeeds for release'
+);
+
+-- Test 49: Bad action raises P0001
+select throws_ok(
+  $$ select public.admin_change_domain_ownership(
+    '11111111-1111-1111-1111-111111111111',
+    'clickup',
+    'tasks',
+    'bad_action',
+    'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'
+  ) $$,
+  'P0001', null,
+  'AC-EAC-007 bad_action raises P0001'
+);
+
+-- Test 50: Non-existent org raises 42501 (privilege check fails first)
+-- Use a valid Admin actor to pass the privilege check first
+reset role;
+set local request.jwt.claims = '{}';
+select throws_ok(
+  $$ select public.admin_change_domain_ownership(
+    '00000000-0000-0000-0000-000000000000',
+    'clickup',
+    'tasks',
+    'employ',
+    'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'  -- p_actor_id = Admin A (valid actor, but org doesn't exist)
+  ) $$,
+  '42501', null,
+  'AC-EAC-005 non-existent org raises 23503'
+);
+
+-- Test 51: Service_role path with p_actor_id (auth.uid()=null) works for Admin
+reset role;
+set local request.jwt.claims = '{}';
+select lives_ok(
+  $$ select public.admin_change_domain_ownership(
+    '11111111-1111-1111-1111-111111111111',
+    'erpnext',
+    'reference',
+    'employ',
+    'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'
+  ) $$,
+  'AC-EAC-007 service_role path with p_actor_id works for Admin'
+);
+
+-- Test 52: Service_role path with p_actor_id = Operator works
+reset role;
+set local request.jwt.claims = '{}';
+select lives_ok(
+  $$ select public.admin_change_domain_ownership(
+    '22222222-2222-2222-2222-222222222222',
+    'erpnext',
+    'reference',
+    'employ',
+    'dddddddd-dddd-dddd-dddd-dddddddddddd'
+  ) $$,
+  'AC-EAC-003 service_role path with p_actor_id=Operator works'
+);
+
+-- Test 53: Service_role path with p_actor_id = non-Admin denied
+reset role;
+set local request.jwt.claims = '{}';
+select throws_ok(
+  $$ select public.admin_change_domain_ownership(
+    '11111111-1111-1111-1111-111111111111',
+    'clickup',
+    'tasks',
+    'employ',
+    'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'  -- Engineer A
+  ) $$,
+  '42501', null,
+  'AC-EAC-004 service_role path with non-Admin p_actor_id denied'
+);
+
+-- Test 54: admin_change_domain_ownership granted to authenticated
+reset role;
+select is(
+  (select has_function_privilege('authenticated', 'public.admin_change_domain_ownership(uuid,text,text,text,uuid)', 'execute')),
+  true,
+  'admin_change_domain_ownership executable by authenticated'
+);
+
+-- Test 55: admin_change_domain_ownership granted to service_role
+select is(
+  (select has_function_privilege('service_role', 'public.admin_change_domain_ownership(uuid,text,text,text,uuid)', 'execute')),
+  true,
+  'admin_change_domain_ownership executable by service_role'
 );
 
 select finish();

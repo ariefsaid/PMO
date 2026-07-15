@@ -8,12 +8,12 @@
  * Flow:
  * 1. Verify caller JWT locally (ES256, JWKS) → get `sub` (user id)
  * 2. Load profile (role, org_id) via service-role client
- * 3. Role gate: Admin of the org OR platform Operator (is_operator())
+ * 3. Role gate: Admin of the org OR platform Operator (direct platform_operators check)
  * 4. Load external_org_bindings row for (org_id, tier)
  * 5. Call delete_vault_secret RPC with secret_ref
  * 6. Update binding: status='disconnected', disconnected_at=now()
- * 7. For ClickUp: call operator_set_domain_ownership(org, 'clickup', 'tasks', 'release')
- * 8. Emit audit event: action='integration.disconnect'
+ * 7. For ClickUp: call admin_change_domain_ownership(org, 'clickup', 'tasks', 'release', p_actor_id)
+ * 8. Audit is handled by the admin_change_domain_ownership RPC (integration.domain_ownership.release)
  * 9. Return { ok: true }
  *
  * Errors:
@@ -115,9 +115,22 @@ Deno.serve(async (req: Request): Promise<Response> => {
   }
 
   // 4. Role gate: Admin of this org OR platform Operator
-  const { data: isOperator } = await serviceClient.rpc('is_operator').single();
+  //    Direct check on platform_operators (service-role bypasses RLS) —
+  //    NOT is_operator() which uses auth.uid() and fails under service_role.
+  const { data: isOperator, error: operatorError } = await serviceClient
+    .from('platform_operators')
+    .select('user_id')
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  if (operatorError) {
+    console.error('platform_operators check failed', operatorError);
+    return errorResponse('Internal error', 'INTERNAL', 500);
+  }
+
   const isAdmin = profile.role === 'Admin';
-  if (!isAdmin && !isOperator) {
+  const isPlatformOperator = !!isOperator;
+  if (!isAdmin && !isPlatformOperator) {
     return errorResponse('Admin or Operator role required', 'FORBIDDEN', 403);
   }
 
@@ -167,28 +180,33 @@ Deno.serve(async (req: Request): Promise<Response> => {
     return errorResponse('Failed to update binding', 'INTERNAL', 500);
   }
 
-  // 9. For ClickUp, release domain ownership
+  // 9. For ClickUp, release domain ownership via NEW definer RPC (gates on p_actor_id)
   if (tier === 'clickup') {
     const { error: ownershipError } = await serviceClient.rpc(
-      'operator_set_domain_ownership',
+      'admin_change_domain_ownership',
       {
         p_org_id: profile.org_id,
         p_external_tier: 'clickup',
         p_domain: 'tasks',
         p_action: 'release',
+        p_actor_id: userId,
       }
     );
     if (ownershipError) {
       // Log but don't fail — binding is already disconnected
-      console.error('operator_set_domain_ownership release failed', ownershipError);
+      console.error('admin_change_domain_ownership release failed', ownershipError);
     }
+    // Note: audit event for domain ownership release is emitted by the RPC itself
+    // (integration.domain_ownership.release). No separate log_audit call needed here.
   }
 
-  // 10. Emit audit event
+  // 10. Emit audit event for the disconnect
   const { error: auditError } = await serviceClient.rpc('log_audit', {
     p_action: 'integration.disconnect',
     p_org_id: profile.org_id,
-    p_payload: {
+    p_entity_type: 'external_org_bindings',
+    p_entity_id: null,
+    p_detail: {
       tier,
       actor: userId,
     },

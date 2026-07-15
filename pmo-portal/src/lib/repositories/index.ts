@@ -577,7 +577,7 @@ const integrationsImpl: IntegrationsRepository = {
     return wrap(async () => {
       const binding = await integrationsImpl.getBinding(orgId, tier);
 
-      const { data: watermark } = await supabase
+      const { data: watermark, error: watermarkError } = await supabase
         .from('external_sync_watermarks')
         .select('synced_at')
         .eq('org_id', orgId)
@@ -586,12 +586,16 @@ const integrationsImpl: IntegrationsRepository = {
         .limit(1)
         .maybeSingle();
 
-      const { count: errorCount } = await supabase
+      if (watermarkError) throw watermarkError;
+
+      const { count: errorCount, error: outboxError } = await supabase
         .from('external_command_outbox')
         .select('*', { count: 'exact', head: true })
         .eq('org_id', orgId)
         .eq('external_tier', tier)
         .in('state', ['pending', 'failed', 'quarantined', 'held']);
+
+      if (outboxError) throw outboxError;
 
       return {
         tier,

@@ -24,26 +24,14 @@ import type { ExternalTier, IntegrationHealth } from '@/src/lib/repositories/typ
 const TIERS: ExternalTier[] = ['clickup', 'erpnext'];
 
 /** Connect credential form values per tier */
-interface _ClickUpCredentialForm {
-  token: string;
-}
-
-interface _ERPNextCredentialForm {
-  siteUrl: string;
-  apiKey: string;
-  apiSecret: string;
-}
-
-/** Union of all possible form field names */
-type FormFieldName = 'token' | 'siteUrl' | 'apiKey' | 'apiSecret';
-
-/** Form values with all possible fields */
 interface ConnectFormValues {
   token: string;
   siteUrl: string;
   apiKey: string;
   apiSecret: string;
 }
+
+type FormFieldName = 'token' | 'siteUrl' | 'apiKey' | 'apiSecret';
 
 const validateClickUp = (v: ConnectFormValues): Partial<Record<FormFieldName, string>> => {
   const errors: Partial<Record<FormFieldName, string>> = {};
@@ -85,7 +73,7 @@ function useIntegrationsHealth(connectedTiers: ExternalTier[], getHealth: (tier:
 }
 
 export const IntegrationsView: React.FC = () => {
-  const { bindings: _bindings = [], isPending, isError, error: _error, refetch, connect, disconnect, getBinding, getHealth } =
+  const { isPending, isError, refetch, connect, disconnect, getBinding, getHealth } =
     useIntegrations();
 
   // Group employed domains by tier (from external_domain_ownership)
