@@ -549,7 +549,7 @@ describe('IntegrationsView — Connect/Disconnect cards (AC-EAC-016, AC-EAC-017)
       expect(screen.getByTestId('liststate-loading')).toBeInTheDocument();
     });
 
-    it('shows error state on failure', async () => {
+    it('renders connect cards + a scoped error banner on status-load failure (does not hide the panel)', async () => {
       vi.mocked(useIntegrations).mockReturnValue({
         bindings: [],
         isPending: false,
@@ -565,8 +565,11 @@ describe('IntegrationsView — Connect/Disconnect cards (AC-EAC-016, AC-EAC-017)
 
       wrapWithRole('Admin', <IntegrationsView />);
 
-      expect(screen.getByRole('alert')).toBeInTheDocument();
-      expect(screen.getByText(/Couldn't load integrations/i)).toBeInTheDocument();
+      // Design-review finding (graduated): a failed status load must NOT hide the Connect affordance.
+      // The scoped error banner shows AND the tier cards still render (status falls back to Not connected).
+      expect(screen.getByTestId('integrations-status-error')).toBeInTheDocument();
+      expect(screen.getByTestId('integrations-connect-cards')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /^connect clickup$/i })).toBeInTheDocument();
     });
   });
 

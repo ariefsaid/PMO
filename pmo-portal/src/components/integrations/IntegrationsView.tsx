@@ -159,20 +159,20 @@ export const IntegrationsView: React.FC = () => {
     );
   }
 
-  // Error state
-  if (isError) {
-    return (
-      <ListState
-        variant="error"
-        title="Couldn't load integrations"
-        sub="The request failed. Check your connection and try again."
-        onRetry={refetch}
-      />
-    );
-  }
-
   return (
     <div>
+      {/* A failed status load must NOT hide the Connect affordance — surface it as a scoped banner and
+          still render the tier cards (status falls back to "Not connected" via an empty getBinding). */}
+      {isError && (
+        <div className="mb-3.5" data-testid="integrations-status-error">
+          <ListState
+            variant="error"
+            title="Couldn't load integration status"
+            sub="Showing available actions; connection status may be out of date."
+            onRetry={refetch}
+          />
+        </div>
+      )}
       {/* Connect/Disconnect cards for each tier */}
       <div className="flex flex-col gap-3.5" data-testid="integrations-connect-cards">
         {TIERS.map((tier) => {
