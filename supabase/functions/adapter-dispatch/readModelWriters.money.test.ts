@@ -2,6 +2,11 @@
 // `companies`-domain-adjacent... no: this file owns ONLY procurement_invoices/payments (money). Deno-
 // native test (no vitest import), matches readModelWriters.poGr.test.ts's idiom. Additive: leaves
 // every other kind's switch case untouched.
+//
+// Slice 5.5/6 (P3a, FR-SAR-050/052/053): the same money-doc lineage contract (cancel/amend writes an
+// `external_ref_lineage` row) is ALSO asserted here for the `revenue` domain's sales-invoice /
+// incoming-payment kinds — the outbound counterpart to the inbound apply path's lineage.ts
+// applyCancel/applyAmend, mirroring the procurement proofs below.
 // Verify: cd supabase/functions/adapter-dispatch && deno test readModelWriters.money.test.ts
 
 import { getReadModelWriter } from './readModelWriters.ts';
@@ -279,6 +284,105 @@ Deno.test({
       { serviceClient: client as never, orgId: 'org-1' },
       { id: 'pmo-pi-1', vi_number: 'ACC-PINV-2026-00001', amount: '150000.00', erp_outstanding_amount: '150000.00', erp_docstatus: 1, erp_modified: '2026-07-12 10:00:00.000000' },
       { domain: 'procurement', operation: 'create', record: { id: 'pmo-pi-1', procurementId: 'proc-1', erp_doc_kind: 'purchase-invoice' } },
+    );
+    const lineageCall = calls.find((c) => c.method === 'insert' && c.table === 'external_ref_lineage');
+    assert(lineageCall === undefined, 'a create must NOT write a lineage row (nothing superseded)');
+  },
+});
+
+// ── Slice 5.5/6 (P3a, FR-SAR-050/052/053): the `revenue` read-model writer's sales-invoice /
+// incoming-payment kinds carry the SAME cancel/amend lineage contract the procurement money docs do
+// (the audit record of the supersession — the outbound counterpart to the inbound apply path's
+// lineage.ts applyCancel/applyAmend). A PMO-initiated cancel writes a reason='cancelled' lineage row
+// (domain='revenue', no successor); an amend writes a reason='amended' row (superseded=old name,
+// successor=new name). A regular create writes NO lineage row.
+
+Deno.test({
+  name: "READ_MODEL_WRITERS['revenue'].upsert (kind sales-invoice, verb cancel) sets erp_cancelled_at and writes an external_ref_lineage row (reason='cancelled', domain='revenue')",
+  fn: async () => {
+    const { client, calls } = makeFakeClient();
+    const writer = getReadModelWriter('revenue');
+    await writer.upsert(
+      { serviceClient: client as never, orgId: 'org-1' },
+      { id: 'pmo-si-1', si_number: 'ACC-SINV-2026-00001', amount: '50000.00', erp_outstanding_amount: '0.00', erp_docstatus: 2, erp_modified: '2026-07-13 09:00:00.000000', erp_amended_from: null },
+      { domain: 'revenue', operation: 'transition', record: { id: 'pmo-si-1', erp_doc_kind: 'sales-invoice', externalRecordId: 'ACC-SINV-2026-00001', verb: 'cancel' } },
+    );
+    const updateCall = calls.find((c) => c.method === 'update' && c.table === 'sales_invoices');
+    assert(updateCall !== undefined, 'expected an update on sales_invoices');
+    const patch = updateCall!.args[0] as Record<string, unknown>;
+    assert(patch.erp_cancelled_at != null, 'erp_cancelled_at must be set when erp_docstatus=2 (cancel tombstone)');
+    assertEquals(patch.erp_docstatus, 2);
+    const lineageCall = calls.find((c) => c.method === 'insert' && c.table === 'external_ref_lineage');
+    assert(lineageCall !== undefined, 'expected an insert into external_ref_lineage for a revenue SI cancel');
+    const lineage = lineageCall!.args[0] as Record<string, unknown>;
+    assertEquals(lineage.org_id, 'org-1');
+    assertEquals(lineage.domain, 'revenue');
+    assertEquals(lineage.pmo_record_id, 'pmo-si-1');
+    assertEquals(lineage.superseded_external_record_id, 'ACC-SINV-2026-00001');
+    assertEquals(lineage.successor_external_record_id, null);
+    assertEquals(lineage.reason, 'cancelled');
+    assertEquals(lineage.erp_docstatus, 2);
+  },
+});
+
+Deno.test({
+  name: "READ_MODEL_WRITERS['revenue'].upsert (kind sales-invoice, amend) writes an external_ref_lineage row (reason='amended', domain='revenue', successor=new name) and does NOT set erp_cancelled_at",
+  fn: async () => {
+    const { client, calls } = makeFakeClient();
+    const writer = getReadModelWriter('revenue');
+    await writer.upsert(
+      { serviceClient: client as never, orgId: 'org-1' },
+      { id: 'pmo-si-1', si_number: 'ACC-SINV-2026-00002', amount: '100000.00', erp_outstanding_amount: '100000.00', erp_docstatus: 1, erp_modified: '2026-07-13 10:00:00.000000', erp_amended_from: 'ACC-SINV-2026-00001' },
+      { domain: 'revenue', operation: 'transition', record: { id: 'pmo-si-1', erp_doc_kind: 'sales-invoice', externalRecordId: 'ACC-SINV-2026-00001', verb: 'amend' } },
+    );
+    const updateCall = calls.find((c) => c.method === 'update' && c.table === 'sales_invoices');
+    assert(updateCall !== undefined, 'expected an update on sales_invoices');
+    const patch = updateCall!.args[0] as Record<string, unknown>;
+    assertEquals(patch.erp_amended_from, 'ACC-SINV-2026-00001');
+    assertEquals(patch.erp_cancelled_at, null, 'the NEW amended doc is docstatus 1 (submitted), not cancelled');
+    const lineageCall = calls.find((c) => c.method === 'insert' && c.table === 'external_ref_lineage');
+    assert(lineageCall !== undefined, 'expected an insert into external_ref_lineage for a revenue SI amend');
+    const lineage = lineageCall!.args[0] as Record<string, unknown>;
+    assertEquals(lineage.domain, 'revenue');
+    assertEquals(lineage.superseded_external_record_id, 'ACC-SINV-2026-00001', 'the old (amended-from) name');
+    assertEquals(lineage.successor_external_record_id, 'ACC-SINV-2026-00002', 'the new amended name');
+    assertEquals(lineage.reason, 'amended');
+  },
+});
+
+Deno.test({
+  name: "READ_MODEL_WRITERS['revenue'].upsert (kind incoming-payment, verb cancel) sets erp_cancelled_at and writes an external_ref_lineage row (reason='cancelled', domain='revenue')",
+  fn: async () => {
+    const { client, calls } = makeFakeClient();
+    const writer = getReadModelWriter('revenue');
+    await writer.upsert(
+      { serviceClient: client as never, orgId: 'org-1' },
+      { id: 'pmo-ip-1', ip_number: 'ACC-PAY-2026-00001', amount: '50000.00', erp_docstatus: 2, erp_modified: '2026-07-13 11:00:00.000000', erp_amended_from: null },
+      { domain: 'revenue', operation: 'transition', record: { id: 'pmo-ip-1', erp_doc_kind: 'incoming-payment', externalRecordId: 'ACC-PAY-2026-00001', verb: 'cancel' } },
+    );
+    const updateCall = calls.find((c) => c.method === 'update' && c.table === 'incoming_payments');
+    assert(updateCall !== undefined, 'expected an update on incoming_payments');
+    const patch = updateCall!.args[0] as Record<string, unknown>;
+    assert(patch.erp_cancelled_at != null, 'erp_cancelled_at must be set when erp_docstatus=2 (cancel tombstone)');
+    const lineageCall = calls.find((c) => c.method === 'insert' && c.table === 'external_ref_lineage');
+    assert(lineageCall !== undefined, 'expected an insert into external_ref_lineage for a revenue PE cancel');
+    const lineage = lineageCall!.args[0] as Record<string, unknown>;
+    assertEquals(lineage.domain, 'revenue');
+    assertEquals(lineage.superseded_external_record_id, 'ACC-PAY-2026-00001');
+    assertEquals(lineage.successor_external_record_id, null);
+    assertEquals(lineage.reason, 'cancelled');
+  },
+});
+
+Deno.test({
+  name: "READ_MODEL_WRITERS['revenue'].upsert (kind sales-invoice, create) writes NO external_ref_lineage row (a fresh create supersedes nothing)",
+  fn: async () => {
+    const { client, calls } = makeFakeClient();
+    const writer = getReadModelWriter('revenue');
+    await writer.upsert(
+      { serviceClient: client as never, orgId: 'org-1' },
+      { id: 'pmo-si-1', si_number: 'ACC-SINV-2026-00001', amount: '50000.00', erp_outstanding_amount: '50000.00', erp_docstatus: 1, erp_modified: '2026-07-12 10:00:00.000000' },
+      { domain: 'revenue', operation: 'create', record: { id: 'pmo-si-1', projectId: 'proj-1', customerId: 'cust-1', erp_doc_kind: 'sales-invoice' } },
     );
     const lineageCall = calls.find((c) => c.method === 'insert' && c.table === 'external_ref_lineage');
     assert(lineageCall === undefined, 'a create must NOT write a lineage row (nothing superseded)');

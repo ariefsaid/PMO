@@ -288,10 +288,12 @@ async function upsertGoodsReceiptMirror(ctx: ReadModelWriterCtx, canonical: PmoR
  *  a CANCEL (superseded name, no successor); a doc carrying `erp_amended_from` is an AMEND (the old
  *  name superseded by the new mirror name). Any other canonical (a fresh create, a draft update) is a
  *  no-op — a regular mirror supersedes nothing. Slice 6 has no inbound sweep, so this runs exactly once
- *  per finalized command (the outbox guarantees at-most-once finalize). */
+ *  per finalized command (the outbox guarantees at-most-once finalize). The `domain` param stamps the
+ *  lineage row's OWN domain (procurement OR revenue) — shared by both money-doc writers, never hardcoded. */
 async function recordOutboundLineage(
   ctx: ReadModelWriterCtx,
   canonical: PmoRecord,
+  domain: 'procurement' | 'revenue',
   erpName: string | undefined,
 ): Promise<void> {
   if (!erpName) return;
@@ -300,7 +302,7 @@ async function recordOutboundLineage(
   if (docstatus === 2 && !amendedFrom) {
     const { error } = await ctx.serviceClient.from('external_ref_lineage').insert({
       org_id: ctx.orgId,
-      domain: 'procurement',
+      domain,
       pmo_record_id: canonical.id,
       superseded_external_record_id: erpName,
       successor_external_record_id: null,
@@ -313,7 +315,7 @@ async function recordOutboundLineage(
   if (amendedFrom) {
     const { error } = await ctx.serviceClient.from('external_ref_lineage').insert({
       org_id: ctx.orgId,
-      domain: 'procurement',
+      domain,
       pmo_record_id: canonical.id,
       superseded_external_record_id: amendedFrom,
       successor_external_record_id: erpName,
@@ -363,7 +365,7 @@ async function upsertInvoiceMirror(ctx: ReadModelWriterCtx, canonical: PmoRecord
   if (error) throw new AppError(error.message, error.code);
   // Slice-6 task 6.10/6.11: a cancel/amend writes an external_ref_lineage row (the audit record of the
   // supersession). A no-op for a regular draft update (no docstatus-2, no amended_from).
-  await recordOutboundLineage(ctx, canonical, canonical.vi_number as string | undefined);
+  await recordOutboundLineage(ctx, canonical, 'procurement', canonical.vi_number as string | undefined);
 }
 
 /** `payments` (Slice 6, task 6.5, FR-ENA-116): `pay_number`/`amount` mirror the ERP-derived canonical
@@ -408,7 +410,7 @@ async function upsertPaymentMirror(ctx: ReadModelWriterCtx, canonical: PmoRecord
   );
   if (error) throw new AppError(error.message, error.code);
   // Slice-6 task 6.11: a PE cancel writes an external_ref_lineage row.
-  await recordOutboundLineage(ctx, canonical, canonical.pay_number as string | undefined);
+  await recordOutboundLineage(ctx, canonical, 'procurement', canonical.pay_number as string | undefined);
 }
 
 // ============================================================================
@@ -457,6 +459,10 @@ async function upsertSalesInvoiceMirror(ctx: ReadModelWriterCtx, canonical: PmoR
     }>
   );
   if (error) throw new AppError(error.message, error.code);
+  // Slice-6 task 6.10/6.11 (P3a FR-SAR-050/052/053): a cancel/amend writes an external_ref_lineage
+  // row (the audit record of the supersession — the outbound counterpart to the inbound apply path's
+  // lineage.ts applyCancel/applyAmend). A no-op for a regular status sync (no docstatus-2, no amended_from).
+  await recordOutboundLineage(ctx, canonical, 'revenue', canonical.si_number as string | undefined);
 }
 
 /** `incoming_payments` — the PE-receive read-model (spec §4.2).
@@ -499,6 +505,8 @@ async function upsertIncomingPaymentMirror(ctx: ReadModelWriterCtx, canonical: P
     }>
   );
   if (error) throw new AppError(error.message, error.code);
+  // Slice-6 task 6.10/6.11 (P3a FR-SAR-050/052/053): a cancel writes an external_ref_lineage row.
+  await recordOutboundLineage(ctx, canonical, 'revenue', canonical.ip_number as string | undefined);
 }
 
 /** P2 ERPNext `procurement` writer (task 4.5): dispatches by the command's `erp_doc_kind` — the SAME
