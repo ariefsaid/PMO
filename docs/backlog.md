@@ -60,9 +60,19 @@ reviewed unit). NOT merged.**
     through `audit_m365_event` (Director EF7 correction); no Deno/npm leaks (Director-verified). Also fixed
     `graphTokenCrypto` to genuinely deno-check (dual-runtime `BufferSource` casts, behavior-neutral).
     **Full `npm run verify` GREEN: 655 files / 5074 tests / build ✓.**
-  - **🔎 Phase-1 review battery RUNNING** (security-auditor = the ADR-0060 gate on the code · spec · quality,
-    via glm-5.1). **⚑ substrate now = z.ai coding plan + NIM only (no openrouter, owner 2026-07-15).**
-  - **⏳ Then:** address battery findings → STOP at mocked+tested. FE Connect-button wiring deferred to the
+  - **✅ Phase-1 review battery DONE** (glm-5.1, Director-verified; record `docs/spikes/2026-07-15-m365-phase1-security-audit.md`):
+    security **SHIP-WITH-FIXES** (2 HIGH, 1 MED, 5 LOW; no Critical — custody model sound) · spec **APPROVE-w-1-fix**
+    · quality **APPROVE-WITH-FIXES** (architecture praised: clean ADR-0039 DI seam, real-crypto/real-JWT tests).
+    **⚑ substrate = z.ai coding plan + NIM only (no openrouter, owner 2026-07-15).**
+  - **🔨 Fixing battery findings.** MANDATORY (ADR-0060 gaps): **HIGH-1** callback never validates the issued
+    token's tenant/user → consent-phishing harvests a victim's tokens into the attacker's connection (fix:
+    request `openid`, assert `id_token.tid`===expected before store, persist real tid/oid); **HIGH-2**
+    `m365_disconnect_cascade` RPC exists+pgTAP'd but wired to NOTHING → NFR-M365-107 unmet (fix: triggers on
+    `profiles.status`/`org_features` + pgTAP the trigger fires). Cheap-now: MED-1 atomic PKCE consume, `refresh`
+    action footgun→400, LOW-1 tenant re-validate+CHECK, LOW-2 reason allowlist, LOW-4/5, quality minors.
+    Deferred(tracked): LOW-3 hash reuse-detection, quality #4 perf. **Edge-fn fixes (HIGH-1 + TS) IN PROGRESS
+    (glm-5.2); DB fixes (HIGH-2 triggers + DB hardenings) next.**
+  - **⏳ Then:** re-verify + re-review the HIGHs → STOP at mocked+tested. FE Connect-button wiring deferred to the
     deploy step. Live OAuth/Graph round-trip + the security-auditor sign-off on the LIVE surface stay owner-gated.
 - **Owner-gated inputs on GO** (handoff §5): (1) KEK `openssl rand -base64 32` → `supabase secrets set
   M365_TOKEN_KEK`; (2) `supabase secrets set M365_CLIENT_SECRET` (Entra secret — SSO dashboard config
