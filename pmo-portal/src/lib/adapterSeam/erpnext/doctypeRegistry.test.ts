@@ -49,7 +49,7 @@ describe('erpnext/doctypeRegistry', () => {
       // P3a Slice 1 — Revenue domain (FR-SAR-011, OQ-SAR-1/R9-P3a spike frozen):
       // SI — anchor 'remarks', IMMUTABLE (OQ-SAR-4, R9-P3a spike #2: remarks survives validate+submit+refetch
       // verbatim — the PI twin, reissue-capable). ERP server-derives debit_to + items[].income_account.
-      'sales-invoice': { doctype: 'Sales Invoice', submittable: true, anchorField: 'remarks', anchorMutable: false },
+      'sales-invoice': { doctype: 'Sales Invoice', submittable: true, submitOnCreate: false, anchorField: 'remarks', anchorMutable: false },
       // PE-receive — anchor 'reference_no', MUTABLE (OQ-SAR-3, R9-P3a spike #4: remarks is clobbered by PE
       // validate; reference_no survives. C-1 applies verbatim: composite probe + held-on-inconclusive, NEVER
       // auto-reissued — the double-receive guard). Same doctype as 'payment', payment_type='Receive'.
@@ -74,7 +74,7 @@ describe('erpnext/doctypeRegistry', () => {
 
   it('P3a Slice 1: sales-invoice registry entry matches spike (R9-P3a-1, R9-P3a-2)', () => {
     const entry = DOCTYPE_REGISTRY['sales-invoice'];
-    expect(entry).toEqual({ doctype: 'Sales Invoice', submittable: true, anchorField: 'remarks', anchorMutable: false });
+    expect(entry).toEqual({ doctype: 'Sales Invoice', submittable: true, submitOnCreate: false, anchorField: 'remarks', anchorMutable: false });
   });
 
   it('P3a Slice 1: incoming-payment registry entry matches spike (R9-P3a-3, R9-P3a-4)', () => {

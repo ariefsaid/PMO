@@ -886,3 +886,14 @@ exists for audit and as the ledger engine. **ERP-grade financial reporting belon
 backlog** (a reporting track over the mirrored ledger/read-models), not in the Desk. Sharpens
 ADR-0055 §product-frame and [[product-vision-operational-layer]]; every future money issue assumes
 no user is ever required to open the ERPNext Desk.
+
+### OD-SAR-DRAFT-SUBMIT — revenue SI create leaves a DRAFT; submit is the SoD-gated approver step (owner ruling 2026-07-15)
+
+The signed-off SoD (approver≠author on SI submit, OD-SAR §14) is only real if create and submit are
+SEPARATE actors. The initial build did **atomic create+submit** (spike "two-step insert→submit" →
+docstatus 1 on create), which BYPASSED SoD at create (author submits their own invoice). **Binding
+correction:** a revenue **Sales Invoice** create leaves an ERP **draft (docstatus 0)**; **submit** is
+the separate, SoD-gated transition performed by a DIFFERENT approver (PM drafts → Finance approves +
+submits). Procurement PI/PE stay atomic create+submit (no SoD there). Mirror status: 'Draft' after
+create, 'Unpaid' after the approver submit. Surfaced by the post-Luna e2e re-run (sod-self-approval
+403 on single-user create+submit). Implemented via a registry `submitOnCreate:false` for sales-invoice.

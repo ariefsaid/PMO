@@ -84,7 +84,11 @@ async function commitCreate(command: AdapterCommand, deps: ErpAdapterDeps): Prom
   const body = stampAnchor(bodyFns.toBody(record, deps.ctx), command.idempotencyKey, entry.anchorField);
   const created = (await createDoc(deps.client, entry.doctype, body)) as { name: string };
 
-  if (!entry.submittable) {
+  // OD-SAR-DRAFT-SUBMIT: a `submitOnCreate:false` kind (revenue Sales Invoice) is created as an ERP
+  // DRAFT (docstatus 0) — the create does NOT submit. The separate SoD-gated `verb:'submit'` transition
+  // (a different approver) is the real commit. `fromDoc` on the just-created draft yields docstatus 0,
+  // so the mirror status derives to 'Draft'. Every other submittable kind keeps the R9 create+submit.
+  if (!entry.submittable || entry.submitOnCreate === false) {
     // The wire-level `externalRecordId` is always the BARE ERP `name` (AC-ENA-040: `body.
     // externalRecordId` must equal the real ERP `name`, e.g. Supplier autonames by
     // `field:supplier_name`) — the "<Doctype>:<name>" collision-safe encoding (task 3.2's
