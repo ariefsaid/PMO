@@ -10,7 +10,15 @@ decisions ADR-0058/0059/0060; contract `docs/specs/m365-phase0-foundation.spec.m
 `docs/plans/2026-07-14-m365-phase0-foundation.md`; the Phase-1 edge-fn task list is ADR-0060's "Phase-0
 follow-ups". **Branch `claude/microsoft-teams-onedrive-integration-f656rx` → PR #333 → collector
 `feat/m365-integration` (off `dev`; NOT PR'd to `dev` directly — owner promotes the collector as one
-reviewed unit). NOT merged. Next agent's FIRST action: verify the DB slice (see the ⏸️ item below).**
+reviewed unit). NOT merged.**
+- **✅ Phase-0 REVIEW BATTERY complete + green (2026-07-15, pi/Nemotron-Ultra via NIM, Director-verified):**
+  spec **APPROVE** (14/14 ACs, correctly layered); security **SHIP-WITH-FIXES** (no Crit/High — the
+  `enable_signup` note is pre-existing/out-of-scope, redirect + stub comments already present); quality
+  **APPROVE-WITH-FIXES** → verification collapsed ~8 findings to **1** real fix (hand-rolled connect
+  `<button>` → shared `Button` primitive, commit `4be5292a`; heading/icon left matching the sibling
+  `IntegrationsView` idiom; TENANT_RE already `encodeURIComponent`-hardened; scopes-constant = YAGNI).
+  Rendered design pass deferred (disabled stub; states Vitest-covered) → static token check instead.
+  Full `npm run verify` GREEN: 648 files / 5036 tests / 0 fail / build ✓. **Phase-0 is battery-clean.**
 - **✅ Sign in with Microsoft** (Supabase `azure` OAuth; auth-only — authz stays invited-`profiles`+RLS,
   `enable_signup=false`). Local `[auth.external.azure]` committed DISABLED; cloud dashboard-configured
   (`docs/environments.md`). Prod SSO round-trip proven by the owner through to the profile gate.
