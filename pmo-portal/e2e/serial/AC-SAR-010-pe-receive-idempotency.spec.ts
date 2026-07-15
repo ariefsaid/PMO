@@ -30,7 +30,7 @@
  */
 import { test, expect } from '@playwright/test';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { seedSAR, cleanupSAR, signInAdmin, dispatchCreateRevenue, dispatchTransitionRevenue } from './_sarHelpers';
+import { seedSAR, cleanupSAR, signInAdmin, signInApprover, dispatchCreateRevenue, dispatchTransitionRevenue } from './_sarHelpers';
 
 const FUNCTIONS_URL = process.env.SUPABASE_FUNCTIONS_URL ?? '';
 const AUTH_URL = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? FUNCTIONS_URL;
@@ -64,13 +64,14 @@ interface SeedWithSI {
 async function seedWithSubmittedSI(admin: SupabaseClient, suffix: string): Promise<SeedWithSI> {
   const base = await seedSAR(admin, suffix);
 
-  // Create + submit a SI first (so the PE-receive has something to reference)
-  const accessToken = await signInAdmin(AUTH_URL, ANON_KEY);
+  // Create + submit a SI first (author creates, approver submits) so the PE-receive has something to reference
+  const authorToken = await signInAdmin(AUTH_URL, ANON_KEY);
+  const approverToken = await signInApprover(AUTH_URL, ANON_KEY);
   const siIdempotencyKey = crypto.randomUUID();
   let siCreateRes = await dispatchCreateRevenue(
     FUNCTIONS_URL,
     ANON_KEY,
-    accessToken,
+    authorToken,
     {
       id: base.siRecordId,
       customerId: base.companyId,
@@ -90,7 +91,7 @@ async function seedWithSubmittedSI(admin: SupabaseClient, suffix: string): Promi
     siCreateRes = await dispatchCreateRevenue(
       FUNCTIONS_URL,
       ANON_KEY,
-      accessToken,
+      authorToken,
       {
         id: base.siRecordId,
         customerId: base.companyId,
@@ -110,7 +111,7 @@ async function seedWithSubmittedSI(admin: SupabaseClient, suffix: string): Promi
   const siSubmitRes = await dispatchTransitionRevenue(
     FUNCTIONS_URL,
     ANON_KEY,
-    accessToken,
+    approverToken, // approver submits (SoD: approver ≠ author)
     {
       id: base.siRecordId,
       customerId: base.companyId,

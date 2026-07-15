@@ -25,7 +25,7 @@
  */
 import { test, expect } from '@playwright/test';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { seedSAR, cleanupSAR, signInAdmin, dispatchCreateRevenue, dispatchTransitionRevenue, SARSeed } from './_sarHelpers';
+import { seedSAR, cleanupSAR, signInAdmin, signInApprover, dispatchCreateRevenue, dispatchTransitionRevenue, SARSeed } from './_sarHelpers';
 
 const FUNCTIONS_URL = process.env.SUPABASE_FUNCTIONS_URL ?? '';
 const AUTH_URL = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? FUNCTIONS_URL;
@@ -48,11 +48,13 @@ test.skip(!READY, 'AC-SAR-042-si-cancel-amend: SUPABASE_FUNCTIONS_URL/SUPABASE_U
 
 test.setTimeout(120_000);
 
-async function createAndSubmitSI(admin: SupabaseClient, accessToken: string, seeded: SARSeed, idempotencyKey: string) {
+async function createAndSubmitSI(admin: SupabaseClient, seeded: SARSeed, idempotencyKey: string) {
+  const authorToken = await signInAdmin(AUTH_URL, ANON_KEY);
+  const approverToken = await signInApprover(AUTH_URL, ANON_KEY);
   let createRes = await dispatchCreateRevenue(
     FUNCTIONS_URL,
     ANON_KEY,
-    accessToken,
+    authorToken, // author creates
     {
       id: seeded.siRecordId,
       customerId: seeded.companyId,
@@ -69,7 +71,7 @@ async function createAndSubmitSI(admin: SupabaseClient, accessToken: string, see
     createRes = await dispatchCreateRevenue(
       FUNCTIONS_URL,
       ANON_KEY,
-      accessToken,
+      authorToken,
       {
         id: seeded.siRecordId,
         customerId: seeded.companyId,
@@ -88,7 +90,7 @@ async function createAndSubmitSI(admin: SupabaseClient, accessToken: string, see
   const submitRes = await dispatchTransitionRevenue(
     FUNCTIONS_URL,
     ANON_KEY,
-    accessToken,
+    approverToken, // approver submits (SoD: approver ≠ author)
     {
       id: seeded.siRecordId,
       customerId: seeded.companyId,
@@ -109,19 +111,19 @@ async function createAndSubmitSI(admin: SupabaseClient, accessToken: string, see
 test.describe('AC-SAR-042: SI cancel + amend through the real served adapter-dispatch boundary', () => {
   test('cancel: a submitted SI cancelled via verb:cancel -> soft-tombstone (erp_docstatus=2, erp_cancelled_at) + a cancelled lineage row', async () => {
     const admin = createClient(AUTH_URL, SERVICE_KEY);
-    const accessToken = await signInAdmin(AUTH_URL, ANON_KEY);
     const suffix = `cancel-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const seeded = await seedSAR(admin, suffix);
 
     try {
       const siIdempotencyKey = crypto.randomUUID();
-      const siName = await createAndSubmitSI(admin, accessToken, seeded, siIdempotencyKey);
+      const siName = await createAndSubmitSI(admin, seeded, siIdempotencyKey);
 
-      // Cancel the SI via verb:cancel.
+      // Cancel the SI via verb:cancel (author can cancel; cancel/amend are NOT SI-submit, so no SoD)
+      const authorToken = await signInAdmin(AUTH_URL, ANON_KEY);
       const cancelRes = await dispatchTransitionRevenue(
         FUNCTIONS_URL,
         ANON_KEY,
-        accessToken,
+        authorToken,
         {
           id: seeded.siRecordId,
           customerId: seeded.companyId,
@@ -179,13 +181,12 @@ test.describe('AC-SAR-042: SI cancel + amend through the real served adapter-dis
 
   test('amend: a submitted SI amended via verb:amend -> external_refs repoints to the new name + erp_amended_from stamped + an amended lineage row + NO duplicate mirror row', async () => {
     const admin = createClient(AUTH_URL, SERVICE_KEY);
-    const accessToken = await signInAdmin(AUTH_URL, ANON_KEY);
     const suffix = `amend-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const seeded = await seedSAR(admin, suffix);
 
     try {
       const siIdempotencyKey = crypto.randomUUID();
-      const oldName = await createAndSubmitSI(admin, accessToken, seeded, siIdempotencyKey);
+      const oldName = await createAndSubmitSI(admin, seeded, siIdempotencyKey);
 
       // The original external_refs mapping points at the old name.
       const { data: refBefore } = await admin
@@ -197,11 +198,12 @@ test.describe('AC-SAR-042: SI cancel + amend through the real served adapter-dis
         .maybeSingle();
       expect((refBefore as { external_record_id: string } | null)?.external_record_id).toBe(oldName);
 
-      // Amend the SI via verb:amend (new line: 2 items @ 50000 = 100000).
+      // Amend the SI via verb:amend (author can amend; cancel/amend are NOT SI-submit, so no SoD)
+      const authorToken = await signInAdmin(AUTH_URL, ANON_KEY);
       const amendRes = await dispatchTransitionRevenue(
         FUNCTIONS_URL,
         ANON_KEY,
-        accessToken,
+        authorToken,
         {
           id: seeded.siRecordId,
           customerId: seeded.companyId,

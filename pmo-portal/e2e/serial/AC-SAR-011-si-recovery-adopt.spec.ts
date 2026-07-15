@@ -26,7 +26,7 @@
  */
 import { test, expect } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
-import { seedSAR, cleanupSAR, signInAdmin } from './_sarHelpers';
+import { seedSAR, cleanupSAR, signInAdmin, signInApprover } from './_sarHelpers';
 
 const FUNCTIONS_URL = process.env.SUPABASE_FUNCTIONS_URL ?? '';
 const AUTH_URL = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? FUNCTIONS_URL;
@@ -72,12 +72,12 @@ test.describe('AC-SAR-011: SI after-commit-before-mirror fault-seam interruption
     try {
       // ── Attempt 1: armed with the fault seam — the ERP commit succeeds server-side, then the
       // function's response path crashes BEFORE the mirror write (R3 partial-failure window). ──
-      const accessToken = await signInAdmin(AUTH_URL, ANON_KEY);
+      const authorToken = await signInAdmin(AUTH_URL, ANON_KEY);
       const firstRes = await fetch(`${FUNCTIONS_URL}/functions/v1/adapter-dispatch`, {
         method: 'POST',
         headers: {
           apikey: ANON_KEY,
-          Authorization: `Bearer ${accessToken}`,
+          Authorization: `Bearer ${authorToken}`,
           'Content-Type': 'application/json',
           'x-erpnext-test-fault': 'after-commit-before-mirror',
         },
@@ -110,10 +110,10 @@ test.describe('AC-SAR-011: SI after-commit-before-mirror fault-seam interruption
 
       // ── Attempt 2: the EXACT SAME command (same idempotencyKey), fault header dropped — reconciles
       // the 'committed' row via finalize-only. No second ERP POST. ──
-      const secondAccessToken = await signInAdmin(AUTH_URL, ANON_KEY);
+      const secondAuthorToken = await signInAdmin(AUTH_URL, ANON_KEY);
       const secondRes = await fetch(`${FUNCTIONS_URL}/functions/v1/adapter-dispatch`, {
         method: 'POST',
-        headers: { apikey: ANON_KEY, Authorization: `Bearer ${secondAccessToken}`, 'Content-Type': 'application/json' },
+        headers: { apikey: ANON_KEY, Authorization: `Bearer ${secondAuthorToken}`, 'Content-Type': 'application/json' },
         body: JSON.stringify(command),
       });
       const secondBody = (await secondRes.json()) as { externalRecordId?: string; message?: string };

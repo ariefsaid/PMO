@@ -16,7 +16,7 @@
  */
 import { test, expect } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
-import { signInAdmin, dispatchCreateRevenue, dispatchTransitionRevenue } from './_sarHelpers';
+import { signInAdmin, signInApprover, dispatchCreateRevenue, dispatchTransitionRevenue } from './_sarHelpers';
 
 const FUNCTIONS_URL = process.env.SUPABASE_FUNCTIONS_URL ?? '';
 const AUTH_URL = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? FUNCTIONS_URL;
@@ -39,7 +39,8 @@ test.setTimeout(120_000);
 test.describe('AC-SAR-071: require_project_on_si=false allows null projectId -> ERP commits project-less SI + Unassigned rollup', () => {
   test('a null-projectId SI on gate-OFF org -> ERP commits, sales_invoices.project_id=NULL, revenue view Unassigned bucket', async () => {
     const admin = createClient(AUTH_URL, SERVICE_KEY);
-    const accessToken = await signInAdmin(AUTH_URL, ANON_KEY);
+    const authorToken = await signInAdmin(AUTH_URL, ANON_KEY);
+    const approverToken = await signInApprover(AUTH_URL, ANON_KEY);
     const suffix = `sar071-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
     // Seed a Client company + external_refs + binding WITH project_map EMPTY + gate OFF
@@ -95,11 +96,11 @@ test.describe('AC-SAR-071: require_project_on_si=false allows null projectId -> 
       const siRecordId = crypto.randomUUID();
       const idempotencyKey = crypto.randomUUID();
 
-      // ── CREATE SI with NO projectId (null) ──
+      // ── CREATE SI with NO projectId (null) — author creates (leaves DRAFT) ──
       let createRes = await dispatchCreateRevenue(
         FUNCTIONS_URL,
         ANON_KEY,
-        accessToken,
+        authorToken, // author creates
         {
           id: siRecordId,
           customerId: companyId,
@@ -116,7 +117,7 @@ test.describe('AC-SAR-071: require_project_on_si=false allows null projectId -> 
         createRes = await dispatchCreateRevenue(
           FUNCTIONS_URL,
           ANON_KEY,
-          accessToken,
+          authorToken,
           {
             id: siRecordId,
             customerId: companyId,
@@ -133,11 +134,20 @@ test.describe('AC-SAR-071: require_project_on_si=false allows null projectId -> 
       const siName = createBody.externalRecordId as string;
       expect(siName).toMatch(/^ACC-SINV-/);
 
-      // ── SUBMIT ──
+      // PMO mirror after create: status 'Draft' (docstatus 0), erp_docstatus=0
+      const { data: siRowAfterCreate, error: siRowErr1 } = await admin
+        .from('sales_invoices')
+        .select('*')
+        .eq('id', siRecordId)
+        .maybeSingle();
+      expect(siRowErr1).toBeNull();
+      expect(siRowAfterCreate).toMatchObject({ si_number: siName, project_id: null, amount: 75000, status: 'Draft', erp_docstatus: 0, erp_outstanding_amount: 0 });
+
+      // ── SUBMIT the SI (approver submits — SoD: approver ≠ author) ──
       const submitRes = await dispatchTransitionRevenue(
         FUNCTIONS_URL,
         ANON_KEY,
-        accessToken,
+        approverToken, // approver submits
         {
           id: siRecordId,
           customerId: companyId,

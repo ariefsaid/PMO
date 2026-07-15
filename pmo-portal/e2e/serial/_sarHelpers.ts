@@ -32,6 +32,7 @@ const ERPNEXT_SITE_URL = process.env.ERPNEXT_SITE_URL ?? 'http://host.docker.int
 const ORG_ID = '00000000-0000-0000-0000-000000000001';
 
 const ADMIN_EMAIL = 'admin@acme.test';
+const APPROVER_EMAIL = 'finance@acme.test';
 const SEED_PASSWORD = 'Passw0rd!dev';
 
 export interface SARSeed {
@@ -53,7 +54,7 @@ const BINDING_CONFIG = {
   project_map: {} as Record<string, string>,
 };
 
-/** Sign in as admin and return the access token. */
+/** Sign in as admin (author/creator) and return the access token. */
 export async function signInAdmin(authUrl: string, anonKey: string): Promise<string> {
   const authClient = createClient(authUrl, anonKey);
   const { data, error } = await authClient.auth.signInWithPassword({
@@ -61,6 +62,17 @@ export async function signInAdmin(authUrl: string, anonKey: string): Promise<str
     password: SEED_PASSWORD,
   });
   if (error || !data.session) throw new Error(`sign-in failed: ${error?.message}`);
+  return data.session.access_token;
+}
+
+/** Sign in as finance approver (SoD: approver ≠ author) and return the access token. */
+export async function signInApprover(authUrl: string, anonKey: string): Promise<string> {
+  const authClient = createClient(authUrl, anonKey);
+  const { data, error } = await authClient.auth.signInWithPassword({
+    email: APPROVER_EMAIL,
+    password: SEED_PASSWORD,
+  });
+  if (error || !data.session) throw new Error(`approver sign-in failed: ${error?.message}`);
   return data.session.access_token;
 }
 
@@ -122,6 +134,23 @@ export async function seedSAR(admin: SupabaseClient, suffix: string): Promise<SA
     ...BINDING_CONFIG,
     project_map: { [projectId]: `PROJ-0001` }, // ERP auto-names to PROJ-#####; override with known name
   };
+
+  // 3.5) Pre-create the ERP Customer 'Spike Customer' so native ERP SI creation (AC-SAR-043)
+  // and native PE-receive references work. The bench fixture expects 'Spike Customer' to exist.
+  // We upsert via ERP API using the admin creds (best-effort; ignores 409 if exists).
+  try {
+    const createCustRes = await fetch(`${ERPNEXT_SITE_URL}/api/resource/Customer`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `token ${process.env.ERPNEXT_BENCH_API_KEY}:${process.env.ERPNEXT_BENCH_API_SECRET}`,
+      },
+      body: JSON.stringify({ customer_name: 'Spike Customer', customer_type: 'Company', customer_group: 'All Customer Groups', territory: 'All Territories' }),
+    });
+    // Ignore 409 (already exists) or other errors — the bench may already have it
+  } catch {
+    // best effort; bench may already have the fixture
+  }
 
   // 3) Pre-activated binding with receivable-side defaults + project_map. `webhook_secret_ref` is
   //    REQUIRED for the inbound webhook lane (AC-SAR-043): `resolveEmployingOrgs` filters out any

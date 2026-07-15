@@ -29,7 +29,7 @@
  */
 import { test, expect } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
-import { seedSAR, cleanupSAR, signInAdmin, dispatchCreateRevenue, dispatchTransitionRevenue } from './_sarHelpers';
+import { seedSAR, cleanupSAR, signInAdmin, signInApprover, dispatchCreateRevenue, dispatchTransitionRevenue } from './_sarHelpers';
 
 const FUNCTIONS_URL = process.env.SUPABASE_FUNCTIONS_URL ?? '';
 const AUTH_URL = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? FUNCTIONS_URL;
@@ -52,7 +52,8 @@ test.setTimeout(120_000);
 test.describe('AC-SAR-041: PE-receive create+submit through the real served adapter-dispatch boundary', () => {
   test('given a submitted SI with outstanding > 0, create+submit a PE-receive -> ERP commits; incoming_payments mirrors (amount, sales_invoice_id, reference_number); SI flips Paid/erp_outstanding_amount=0 server-side', async () => {
     const admin = createClient(AUTH_URL, SERVICE_KEY);
-    const accessToken = await signInAdmin(AUTH_URL, ANON_KEY);
+    const authorToken = await signInAdmin(AUTH_URL, ANON_KEY);
+    const approverToken = await signInApprover(AUTH_URL, ANON_KEY);
 
     const suffix = `sar041-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const seeded = await seedSAR(admin, suffix);
@@ -60,11 +61,11 @@ test.describe('AC-SAR-041: PE-receive create+submit through the real served adap
     try {
       const siIdempotencyKey = crypto.randomUUID();
 
-      // ── 1. CREATE + SUBMIT a Sales Invoice (to have an outstanding amount) ──
+      // ── 1. CREATE + SUBMIT a Sales Invoice (author creates, approver submits) ──
       let siCreateRes = await dispatchCreateRevenue(
         FUNCTIONS_URL,
         ANON_KEY,
-        accessToken,
+        authorToken, // author creates the SI
         {
           id: seeded.siRecordId,
           customerId: seeded.companyId,
@@ -81,7 +82,7 @@ test.describe('AC-SAR-041: PE-receive create+submit through the real served adap
         siCreateRes = await dispatchCreateRevenue(
           FUNCTIONS_URL,
           ANON_KEY,
-          accessToken,
+          authorToken, // same author token on retry
           {
             id: seeded.siRecordId,
             customerId: seeded.companyId,
@@ -100,7 +101,7 @@ test.describe('AC-SAR-041: PE-receive create+submit through the real served adap
       const siSubmitRes = await dispatchTransitionRevenue(
         FUNCTIONS_URL,
         ANON_KEY,
-        accessToken,
+        approverToken, // approver submits (SoD: approver ≠ author)
         {
           id: seeded.siRecordId,
           customerId: seeded.companyId,
@@ -130,7 +131,7 @@ test.describe('AC-SAR-041: PE-receive create+submit through the real served adap
       let ipCreateRes = await dispatchCreateRevenue(
         FUNCTIONS_URL,
         ANON_KEY,
-        accessToken,
+        authorToken, // author creates the PE-receive
         {
           id: seeded.ipRecordId,
           customerId: seeded.companyId,
@@ -149,7 +150,7 @@ test.describe('AC-SAR-041: PE-receive create+submit through the real served adap
         ipCreateRes = await dispatchCreateRevenue(
           FUNCTIONS_URL,
           ANON_KEY,
-          accessToken,
+          authorToken, // same author token on retry
           {
             id: seeded.ipRecordId,
             customerId: seeded.companyId,
@@ -197,7 +198,7 @@ test.describe('AC-SAR-041: PE-receive create+submit through the real served adap
       const ipSubmitRes = await dispatchTransitionRevenue(
         FUNCTIONS_URL,
         ANON_KEY,
-        accessToken,
+        approverToken, // approver submits the PE-receive
         {
           id: seeded.ipRecordId,
           customerId: seeded.companyId,

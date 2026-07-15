@@ -24,7 +24,7 @@
  */
 import { test, expect } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
-import { seedSAR, cleanupSAR, signInAdmin, dispatchCreateRevenue, dispatchTransitionRevenue } from './_sarHelpers';
+import { seedSAR, cleanupSAR, signInAdmin, signInApprover, dispatchCreateRevenue, dispatchTransitionRevenue } from './_sarHelpers';
 
 const FUNCTIONS_URL = process.env.SUPABASE_FUNCTIONS_URL ?? '';
 const AUTH_URL = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? FUNCTIONS_URL;
@@ -45,7 +45,8 @@ test.setTimeout(120_000);
 test.describe('AC-SAR-040: Sales Invoice create+submit through the real served adapter-dispatch boundary', () => {
   test('create+submit a Sales Invoice -> ERP commits; sales_invoices mirrors (si_number, customer_id, amount, erp_outstanding_amount, project_id); external_refs recorded; ERP project dimension stamped', async () => {
     const admin = createClient(AUTH_URL, SERVICE_KEY);
-    const accessToken = await signInAdmin(AUTH_URL, ANON_KEY);
+    const authorToken = await signInAdmin(AUTH_URL, ANON_KEY);
+    const approverToken = await signInApprover(AUTH_URL, ANON_KEY);
 
     const suffix = `sar040-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const seeded = await seedSAR(admin, suffix);
@@ -53,11 +54,11 @@ test.describe('AC-SAR-040: Sales Invoice create+submit through the real served a
     try {
       const idempotencyKey = crypto.randomUUID();
 
-      // ── 1. CREATE the Sales Invoice (atomic create+submit) ──
+      // ── 1. CREATE the Sales Invoice (author token) — now leaves an ERP DRAFT (docstatus 0) ──
       let createRes = await dispatchCreateRevenue(
         FUNCTIONS_URL,
         ANON_KEY,
-        accessToken,
+        authorToken, // author/creator token
         {
           id: seeded.siRecordId,
           customerId: seeded.companyId,
@@ -75,7 +76,7 @@ test.describe('AC-SAR-040: Sales Invoice create+submit through the real served a
         createRes = await dispatchCreateRevenue(
           FUNCTIONS_URL,
           ANON_KEY,
-          accessToken,
+          authorToken, // same author token on retry
           {
             id: seeded.siRecordId,
             customerId: seeded.companyId,
@@ -92,7 +93,7 @@ test.describe('AC-SAR-040: Sales Invoice create+submit through the real served a
       const siName = createBody.externalRecordId as string;
       expect(siName).toMatch(/^ACC-SINV-/);
 
-      // PMO mirror after create (atomic create+submit)
+      // PMO mirror after create: status 'Draft' (docstatus 0), erp_docstatus=0, outstanding=0
       const { data: siRowAfterCreate, error: siRowErr1 } = await admin
         .from('sales_invoices')
         .select('*')
@@ -104,7 +105,9 @@ test.describe('AC-SAR-040: Sales Invoice create+submit through the real served a
         customer_id: seeded.companyId,
         project_id: seeded.projectId,
         amount: 150000, // 2 * 75000
-        status: 'Unpaid', // create+submit is atomic (R9 money-doc) → docstatus 1 → Unpaid, not Draft
+        status: 'Draft', // create leaves ERP DRAFT (docstatus 0) → mirror status 'Draft', NOT 'Unpaid'
+        erp_outstanding_amount: 0,
+        erp_docstatus: 0,
       });
 
       // external_refs recorded
@@ -117,11 +120,11 @@ test.describe('AC-SAR-040: Sales Invoice create+submit through the real served a
         .maybeSingle();
       expect(refRow).toMatchObject({ external_record_id: siName, external_tier: 'erpnext' });
 
-      // ── 2. SUBMIT the Sales Invoice ──
+      // ── 2. SUBMIT the Sales Invoice (approver token — SoD: approver ≠ author) ──
       const submitRes = await dispatchTransitionRevenue(
         FUNCTIONS_URL,
         ANON_KEY,
-        accessToken,
+        approverToken, // approver token (finance@acme.test ≠ admin@acme.test)
         {
           id: seeded.siRecordId,
           customerId: seeded.companyId,
@@ -156,7 +159,7 @@ test.describe('AC-SAR-040: Sales Invoice create+submit through the real served a
       expect(siRowAfterSubmit?.erp_modified).not.toBeNull();
       expect(siRowAfterSubmit?.erp_cancelled_at).toBeNull();
 
-      // ── Optional ERP-side proof: GET the Sales Invoice, verify project dimension ──
+      // ── 3. ERP-side proof: GET the Sales Invoice, verify project dimension ──
       if (ERPNEXT_ADMIN_KEY && ERPNEXT_ADMIN_SECRET) {
         const docRes = await fetch(`${ERPNEXT_BENCH_URL}/api/resource/Sales%20Invoice/${encodeURIComponent(siName)}`, {
           headers: { Authorization: `token ${ERPNEXT_ADMIN_KEY}:${ERPNEXT_ADMIN_SECRET}` },

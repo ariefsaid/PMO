@@ -22,7 +22,7 @@
 import { test, expect } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
 import { refreshAging, type AgingScope } from '../../src/lib/adapterSeam/erpnext/agingSnapshot.ts';
-import { seedSAR, cleanupSAR, signInAdmin, dispatchCreateRevenue, dispatchTransitionRevenue, type SARSeed } from './_sarHelpers';
+import { seedSAR, cleanupSAR, signInAdmin, signInApprover, dispatchCreateRevenue, dispatchTransitionRevenue, type SARSeed } from './_sarHelpers';
 
 const FUNCTIONS_URL = process.env.SUPABASE_FUNCTIONS_URL ?? '';
 const AUTH_URL = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? FUNCTIONS_URL;
@@ -47,12 +47,15 @@ test.skip(!READY, 'AC-SAR-050-ar-aging-readback: required env not set — run vi
 
 test.setTimeout(120_000);
 
-/** Create + submit a Sales Invoice via the real served adapter-dispatch (open AR for the customer). */
-async function createAndSubmitSI(accessToken: string, seeded: SARSeed, idempotencyKey: string): Promise<string> {
+/** Create + submit a Sales Invoice via the real served adapter-dispatch (open AR for the customer).
+ * Author creates (leaves DRAFT), Approver submits (SoD: approver ≠ author). */
+async function createAndSubmitSI(seeded: SARSeed, idempotencyKey: string): Promise<string> {
+  const authorToken = await signInAdmin(AUTH_URL, ANON_KEY);
+  const approverToken = await signInApprover(AUTH_URL, ANON_KEY);
   let createRes = await dispatchCreateRevenue(
     FUNCTIONS_URL,
     ANON_KEY,
-    accessToken,
+    authorToken, // author creates
     {
       id: seeded.siRecordId,
       customerId: seeded.companyId,
@@ -72,7 +75,7 @@ async function createAndSubmitSI(accessToken: string, seeded: SARSeed, idempoten
     createRes = await dispatchCreateRevenue(
       FUNCTIONS_URL,
       ANON_KEY,
-      accessToken,
+      authorToken, // author creates
       {
         id: seeded.siRecordId,
         customerId: seeded.companyId,
@@ -91,7 +94,7 @@ async function createAndSubmitSI(accessToken: string, seeded: SARSeed, idempoten
   const submitRes = await dispatchTransitionRevenue(
     FUNCTIONS_URL,
     ANON_KEY,
-    accessToken,
+    approverToken, // approver submits (SoD: approver ≠ author)
     {
       id: seeded.siRecordId,
       customerId: seeded.companyId,
@@ -119,7 +122,7 @@ test.describe('AC-SAR-050: AR aging read-back stores report-backed buckets', () 
 
     try {
       // ── 1. Create + submit a Sales Invoice (open AR for the seeded Customer) ──
-      siName = await createAndSubmitSI(accessToken, seeded, crypto.randomUUID());
+      siName = await createAndSubmitSI(seeded, crypto.randomUUID());
 
       // ── 2. Refresh AR aging directly against the REAL bench report RPC + the local-DB snapshot
       //      write (mirrors AC-ENA-061's AP proof — refreshAging is the slice-7 logic; the served
