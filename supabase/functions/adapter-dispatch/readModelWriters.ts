@@ -39,6 +39,11 @@ export interface ReadModelEqChain {
 export interface ReadModelWriterCtx {
   serviceClient: ReadModelServiceClient;
   orgId: string;
+  /** Luna BLOCK 4: the dispatch caller's resolved user id (index.ts `verified.sub`), threaded in so a
+   *  PMO-created sales invoice stamps `author_user_id` = the creator — the submit_sales_invoice SoD
+   *  (approver≠author) is otherwise a no-op when author is null. Undefined on an inbound-adopted path
+   *  (no PMO caller) → author_user_id stays null (SoD-exempt). */
+  callerUserId?: string;
 }
 
 export interface ReadModelWriter {
@@ -443,11 +448,15 @@ async function upsertSalesInvoiceMirror(ctx: ReadModelWriterCtx, canonical: PmoR
   if (command.operation === 'create') {
     const record = command.record as { projectId?: string; customerId?: string };
     // project_id and customer_id are machine-set from the command record
+    // Luna BLOCK 4: stamp author_user_id = the dispatch caller (creator) so the submit SoD is not a
+    // no-op (the RPC skips the approver≠author check when author is null). ctx.callerUserId is
+    // undefined on the inbound-adopted path → null (SoD-exempt).
     const { error } = await ctx.serviceClient.from('sales_invoices').insert({
       id: canonical.id,
       org_id: ctx.orgId,
       project_id: record.projectId ?? null,
       customer_id: record.customerId ?? null,
+      author_user_id: ctx.callerUserId ?? null,
       ...patch,
     });
     if (error) throw new AppError(error.message, error.code);

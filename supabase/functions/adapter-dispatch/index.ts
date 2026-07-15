@@ -593,7 +593,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
         // Multi-domain read-model writer registry (task 1.6) — supersedes slice 0's inline
         // if-chain (its ClickUp/reference branches moved byte-for-byte into readModelWriters.ts).
         const writer = getReadModelWriter(command.domain);
-        await writer.upsert({ serviceClient: serviceClient as never, orgId }, canonical, command);
+        await writer.upsert({ serviceClient: serviceClient as never, orgId, callerUserId: userId }, canonical, command);
       },
       // Cast: the real supabase-js client's .from().upsert() returns a thenable
       // PostgrestFilterBuilder, not a plain Promise — structurally satisfies

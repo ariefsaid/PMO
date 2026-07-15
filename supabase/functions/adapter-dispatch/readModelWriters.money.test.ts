@@ -388,3 +388,42 @@ Deno.test({
     assert(lineageCall === undefined, 'a create must NOT write a lineage row (nothing superseded)');
   },
 });
+
+// ============================================================================
+// Luna money audit — BLOCK 4: a PMO-created SI must stamp author_user_id = the caller (creator) so
+// the submit_sales_invoice SoD (approver≠author) is NOT a no-op (the RPC skips the check when the
+// author is null). An inbound-adopted SI (no PMO caller) keeps author_user_id null — SoD-exempt.
+// ============================================================================
+
+Deno.test({
+  name: "Luna BLOCK 4 — READ_MODEL_WRITERS['revenue'].upsert (kind sales-invoice, create) stamps author_user_id = the caller's user id (creator) so the submit SoD is not a no-op",
+  fn: async () => {
+    const { client, calls } = makeFakeClient();
+    const writer = getReadModelWriter('revenue');
+    await writer.upsert(
+      { serviceClient: client as never, orgId: 'org-1', callerUserId: 'user-author-1' },
+      { id: 'pmo-si-block4-1', si_number: 'ACC-SINV-2026-00001', amount: '50000.00', erp_outstanding_amount: '50000.00', erp_docstatus: 0, erp_modified: '2026-07-12 10:00:00.000000' },
+      { domain: 'revenue', operation: 'create', record: { id: 'pmo-si-block4-1', projectId: 'proj-1', customerId: 'cust-1', erp_doc_kind: 'sales-invoice' } },
+    );
+    const insertCall = calls.find((c) => c.method === 'insert' && c.table === 'sales_invoices');
+    assert(insertCall !== undefined, 'expected an insert into sales_invoices');
+    const row = insertCall!.args[0] as Record<string, unknown>;
+    assertEquals(row.author_user_id, 'user-author-1', 'a PMO-created SI must stamp author_user_id = the caller (creator) so submit SoD is not a no-op');
+  },
+});
+
+Deno.test({
+  name: "Luna BLOCK 4 — an inbound-adopted SI (no PMO caller) keeps author_user_id null (SoD-exempt)",
+  fn: async () => {
+    const { client, calls } = makeFakeClient();
+    const writer = getReadModelWriter('revenue');
+    await writer.upsert(
+      { serviceClient: client as never, orgId: 'org-1' }, // no callerUserId — the inbound-adopted path
+      { id: 'pmo-si-block4-2', si_number: 'ACC-SINV-2026-00002', amount: '50000.00', erp_outstanding_amount: '50000.00', erp_docstatus: 0, erp_modified: '2026-07-12 10:00:00.000000' },
+      { domain: 'revenue', operation: 'create', record: { id: 'pmo-si-block4-2', projectId: 'proj-1', customerId: 'cust-1', erp_doc_kind: 'sales-invoice' } },
+    );
+    const insertCall = calls.find((c) => c.method === 'insert' && c.table === 'sales_invoices');
+    const row = insertCall!.args[0] as Record<string, unknown>;
+    assertEquals(row.author_user_id, null, 'an inbound-adopted SI (no PMO caller) keeps author_user_id null — SoD-exempt');
+  },
+});
