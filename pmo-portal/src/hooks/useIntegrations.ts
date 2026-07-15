@@ -48,7 +48,7 @@ export function useIntegrations() {
   };
 
   // Query: list ClickUp lists for the org
-  const { data: clickupLists = [], isPending: isListsPending, refetch: refetchLists } = useQuery<ClickUpListItem[]>({
+  const { data: clickupLists = [], isPending: isListsPending, isError: isListsError, error: listsError, refetch: refetchLists } = useQuery<ClickUpListItem[]>({
     queryKey: ['integrations', 'clickup-lists', orgId],
     queryFn: () => repositories.integrations.listProjectLists(orgId!),
     enabled: Boolean(orgId),
@@ -71,7 +71,7 @@ export function useIntegrations() {
   });
 
   // Query: list project bindings for the org
-  const { data: projectBindings = [], isPending: isBindingsPending, refetch: refetchBindings } = useQuery<ProjectBinding[]>({
+  const { data: projectBindings = [], isPending: isBindingsPending, isError: isBindingsError, error: bindingsError, refetch: refetchBindings } = useQuery<ProjectBinding[]>({
     queryKey: ['integrations', 'project-bindings', orgId],
     queryFn: () => repositories.integrations.listProjectBindings(orgId!),
     enabled: Boolean(orgId),
@@ -90,11 +90,15 @@ export function useIntegrations() {
     getHealth,
     clickupLists,
     isListsPending,
+    isListsError,
+    listsError,
     refetchLists,
     linkProject,
     unlinkProject,
     projectBindings,
     isBindingsPending,
+    isBindingsError,
+    bindingsError,
     refetchBindings,
   };
 }

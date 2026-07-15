@@ -128,15 +128,14 @@ async function getPmoTaskCount(
   orgId: string,
   projectId: string,
 ): Promise<number> {
-  const { data, error } = await serviceClient
+  const { count, error } = await serviceClient
     .from('tasks')
     .select('id', { count: 'exact', head: true })
     .eq('org_id', orgId)
     .eq('project_id', projectId)
-    .is('tombstoned_at', null)
-    .maybeSingle();
+    .is('tombstoned_at', null);
   if (error) throw new AppError(error.message, error.code);
-  return (data as { count?: number } | null)?.count ?? 0;
+  return count ?? 0;
 }
 
 /** Validate ClickUp link direction rules. */
@@ -263,7 +262,11 @@ function isPrivateOrReservedHost(hostname: string): boolean {
 // Main handler
 // ============================================================================
 
-Deno.serve(async (req: Request): Promise<Response> => {
+// ============================================================================
+// Main handler (exported for testability)
+// ============================================================================
+
+export async function handleLinkRequest(req: Request): Promise<Response> {
   const corsHeaders = {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
@@ -407,6 +410,26 @@ Deno.serve(async (req: Request): Promise<Response> => {
       return errorResponse('Direction validation failed', 'CONFIG_REJECTED', 422);
     }
 
+    // Pre-insert check: prevent linking a List that's already actively bound to another project
+    const { data: existingBinding, error: existingError } = await serviceClient
+      .from('external_project_bindings')
+      .select('id, project_id')
+      .eq('org_id', profile.org_id)
+      .eq('external_tier', 'clickup')
+      .eq('external_container_id', listId)
+      .is('disconnected_at', null)
+      .maybeSingle();
+
+    if (existingError) {
+      console.error('external_project_bindings lookup failed', existingError);
+      return errorResponse('Failed to check existing bindings', 'INTERNAL', 500);
+    }
+
+    if (existingBinding) {
+      return errorResponse(
+        `List is already linked to another project (${existingBinding.project_id})`, 'CONFLICT', 409);
+    }
+
     // Insert external_project_bindings row
     const { data: bindingRow, error: insertError } = await serviceClient
       .from('external_project_bindings')
@@ -534,7 +557,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
   }
 
   return errorResponse('Unknown tier', 'BAD_REQUEST', 400);
-});
+}
 
 // Helper to build JSONB object (since we can't use Postgres jsonb_build_object directly)
 export function jsonbBuildObject(obj: Record<string, unknown>): Record<string, unknown> {
@@ -542,5 +565,10 @@ export function jsonbBuildObject(obj: Record<string, unknown>): Record<string, u
 }
 
 // Export validation functions for testing
-export { validateClickUpLinkDirection, validateErpNextCompany };
+export { validateClickUpLinkDirection, validateErpNextCompany, getPmoTaskCount };
 export type { ClickUpDeps, ErpNextDeps };
+
+// Deno.serve entry point (only runs when module is main)
+if (import.meta.main) {
+  Deno.serve(handleLinkRequest);
+}

@@ -187,10 +187,10 @@ async function buildFlattenedLists(deps: ClickUpHierarchyDeps): Promise<ListItem
 }
 
 // ============================================================================
-// Main handler
+// Main handler (exported for testability)
 // ============================================================================
 
-Deno.serve(async (req: Request): Promise<Response> => {
+export async function handleListsRequest(req: Request): Promise<Response> {
   const corsHeaders = {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
@@ -305,7 +305,12 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const status = appError.code === 'external-unreachable' ? 502 : 500;
     return errorResponse(appError.message, appError.code ?? 'external-unreachable', status);
   }
-});
+}
+
+// Deno.serve entry point (only runs when module is main)
+if (import.meta.main) {
+  Deno.serve(handleListsRequest);
+}
 
 // Export for unit testing (Deno test imports this module)
 export { buildFlattenedLists, fetchTeams, fetchSpaces, fetchFolders, fetchLists };

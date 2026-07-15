@@ -17,92 +17,81 @@ import { useIntegrations } from '@/src/hooks/useIntegrations';
 import { useEntityForm } from '@/src/components/ui/useEntityForm';
 import { CanWrite } from '@/src/auth/usePermission';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import type { LinkInput, LinkDirection, ProjectBinding, ExternalTier } from '@/src/lib/repositories/types';
+import type { LinkInput, LinkDirection, ProjectBinding } from '@/src/lib/repositories/types';
 import { tierLabel } from '@/src/components/integrations/integrationLabels';
-
-type TierWithLists = 'clickup' | 'erpnext';
 
 interface LinkFormValues {
   listId: string;
   direction: LinkDirection;
-  companyId: string;
 }
 
-const validate = (v: LinkFormValues, tier: TierWithLists): Partial<Record<keyof LinkFormValues, string>> => {
+const validate = (v: LinkFormValues): Partial<Record<keyof LinkFormValues, string>> => {
   const errors: Partial<Record<keyof LinkFormValues, string>> = {};
-  if (tier === 'clickup') {
-    if (!v.listId) errors.listId = 'Select a ClickUp List.';
-  } else {
-    if (!v.companyId) errors.companyId = 'Select an ERPNext Company.';
-  }
+  if (!v.listId) errors.listId = 'Select a ClickUp List.';
   return errors;
 };
 
 /**
- * Project-level integration link/unlink control.
+ * Project-level integration link/unlink control for ClickUp only.
  * Renders on the project detail page (Tasks tab or a dedicated Integrations section).
  * Gate: Admin via `can('manage','integration')`; PM via `can('edit','project')` (server re-enforces).
+ * DEFER(P4/owner): per-project ERPNext company link — ERPNext is org-level; revisit as an org-settings enhancement
  */
 export const ProjectIntegrationsCard: React.FC<{ projectId: string }> = ({ projectId }) => {
   const {
     clickupLists,
     isListsPending,
+    isListsError,
+    listsError,
+    refetchLists,
     linkProject,
     unlinkProject,
     projectBindings,
     isBindingsPending,
+    isBindingsError,
+    bindingsError,
     refetchBindings,
     getBinding,
   } = useIntegrations();
 
   const clickupBinding = getBinding('clickup');
-  const erpnextBinding = getBinding('erpnext');
 
-  // Find the binding for THIS project (ClickUp only for now)
+  // Find the binding for THIS project (ClickUp only)
   const projectClickUpBinding = projectBindings.find(
     (b) => b.external_tier === 'clickup' && b.project_id === projectId,
   );
 
-  const projectErpNextBinding = projectBindings.find(
-    (b) => b.external_tier === 'erpnext' && b.project_id === projectId,
-  );
-
-  // Determine which tiers are connected at org level
+  // Determine if ClickUp is connected at org level
   const clickupConnected = clickupBinding?.status === 'active';
-  const erpnextConnected = erpnextBinding?.status === 'active';
 
   // UI state
-  const [linkTier, setLinkTier] = useState<TierWithLists | null>(null);
   const [linkError, setLinkError] = useState<string | null>(null);
-  const [unlinkTier, setUnlinkTier] = useState<ExternalTier | null>(null);
+  const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
+  const [unlinkTier, setUnlinkTier] = useState<'clickup' | null>(null);
   const [confirmUnlinkBindingId, setConfirmUnlinkBindingId] = useState<string | null>(null);
 
   // Form for link modal
   const linkForm = useEntityForm<LinkFormValues>({
-    initialValues: { listId: '', direction: 'push-seed', companyId: '' },
-    validate: (v) => validate(v, linkTier ?? 'clickup'),
+    initialValues: { listId: '', direction: 'push-seed' },
+    validate,
     idPrefix: 'link-form',
-    requiredFields: linkTier === 'clickup' ? ['listId'] : ['companyId'],
+    requiredFields: ['listId'],
   });
 
-  const handleLinkClick = (tier: TierWithLists) => {
-    setLinkTier(tier);
+  const handleLinkClick = () => {
     setLinkError(null);
-    linkForm.reset({ listId: '', direction: 'push-seed', companyId: '' });
+    linkForm.reset({ listId: '', direction: 'push-seed' });
+    setIsLinkModalOpen(true);
   };
 
   const handleLinkSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!linkTier) return;
 
     await linkForm.handleSubmit(async (values) => {
       try {
-        const input: LinkInput =
-          linkTier === 'clickup'
-            ? { tier: 'clickup', projectId, listId: values.listId, direction: values.direction }
-            : { tier: 'erpnext', companyId: values.companyId };
+        const input: LinkInput = { tier: 'clickup', projectId, listId: values.listId, direction: values.direction };
         await linkProject.mutateAsync(input);
-        setLinkTier(null);
+        setLinkError(null);
         refetchBindings();
       } catch (err) {
         // Surface inline (mixed-case 409 -> action-required)
@@ -112,27 +101,27 @@ export const ProjectIntegrationsCard: React.FC<{ projectId: string }> = ({ proje
     });
   };
 
-  const handleUnlinkClick = (tier: ExternalTier, bindingId: string) => {
-    setUnlinkTier(tier);
+  const handleUnlinkClick = (bindingId: string) => {
+    setUnlinkTier('clickup');
     setConfirmUnlinkBindingId(bindingId);
   };
 
   const handleUnlinkConfirm = async () => {
-    if (!unlinkTier || !confirmUnlinkBindingId) return;
+    if (!confirmUnlinkBindingId) return;
     try {
-      await unlinkProject.mutateAsync({ tier: unlinkTier, projectId });
+      await unlinkProject.mutateAsync({ tier: 'clickup', projectId });
       setUnlinkTier(null);
       setConfirmUnlinkBindingId(null);
       refetchBindings();
     } catch (err) {
       const { detail } = classifyMutationError(err);
-      console.error('Unlink failed:', detail);
+      setLinkError(detail);
+      setUnlinkTier(null);
+      setConfirmUnlinkBindingId(null);
     }
   };
 
-  const renderLinkStatus = (tier: TierWithLists, binding: ProjectBinding | undefined) => {
-    if (!binding) return null;
-
+  const renderLinkStatus = (binding: ProjectBinding) => {
     const direction = (binding.config?.direction as LinkDirection) ?? 'push-seed';
     const listId = binding.external_container_id;
     const list = clickupLists.find((l) => l.id === listId);
@@ -142,12 +131,12 @@ export const ProjectIntegrationsCard: React.FC<{ projectId: string }> = ({ proje
       <div className="space-y-2.5">
         <div className="flex items-center gap-2">
           <Icon name="plug" className="size-4 text-muted-foreground" />
-          <span className="text-sm font-medium text-foreground">Linked to {tierLabel(tier)}</span>
+          <span className="text-sm font-medium text-foreground">Linked to {tierLabel('clickup')}</span>
           <StatusPill variant="won">Linked</StatusPill>
         </div>
         <div className="ml-6 flex flex-col gap-1.5 text-sm text-muted-foreground">
           <span>
-            <span className="font-medium text-foreground">{tierLabel(tier)} List:</span>{' '}
+            <span className="font-medium text-foreground">{tierLabel('clickup')} List:</span>{' '}
             {listName}
           </span>
           <span>
@@ -160,55 +149,95 @@ export const ProjectIntegrationsCard: React.FC<{ projectId: string }> = ({ proje
           <Button
             variant="destructive"
             size="sm"
-            onClick={() => handleUnlinkClick(tier, binding.id)}
+            onClick={() => handleUnlinkClick(binding.id)}
             disabled={unlinkProject.isPending}
           >
             <Icon name="x" className="size-3.55" aria-hidden="true" />
-            Unlink from {tierLabel(tier)}
+            Unlink from {tierLabel('clickup')}
           </Button>
         </CanWrite>
       </div>
     );
   };
 
-  const renderNotLinked = (tier: TierWithLists, connected: boolean) => {
-    if (!connected) return null;
+  const renderNotLinked = () => {
+    if (!clickupConnected) return null;
 
     return (
       <CanWrite entity="integration" action="manage">
-        <Button variant="outline" size="sm" onClick={() => handleLinkClick(tier)}>
+        <Button variant="outline" size="sm" onClick={handleLinkClick}>
           <Icon name="plus" className="size-3.55" aria-hidden="true" />
-          Link to {tierLabel(tier)}
+          Link to {tierLabel('clickup')}
         </Button>
       </CanWrite>
     );
   };
 
-  const renderTierCard = (tier: TierWithLists) => {
-    const isClickUp = tier === 'clickup';
-    const binding = isClickUp ? projectClickUpBinding : projectErpNextBinding;
-    const connected = isClickUp ? clickupConnected : erpnextConnected;
+  const renderClickUpCard = () => {
+    // Error state for lists query
+    if (isListsError) {
+      return (
+        <Card key="clickup" className="p-4" data-tier="clickup">
+          <div className="flex items-center gap-2">
+            <Icon name="plug" />
+            <h3 className="text-[15px] text-foreground font-semibold">{tierLabel('clickup')}</h3>
+            <StatusPill variant="neutral" className="bg-destructive/10 text-destructive">
+              Failed to load lists
+            </StatusPill>
+          </div>
+          <div className="mt-3 flex items-center gap-2">
+            <p className="text-sm text-destructive">{listsError?.message ?? 'Failed to load ClickUp lists'}</p>
+            <Button variant="outline" size="sm" onClick={() => refetchLists()}>
+              <Icon name="refresh" className="size-3.55" aria-hidden="true" />
+              Retry
+            </Button>
+          </div>
+        </Card>
+      );
+    }
+
+    // Error state for project bindings query
+    if (isBindingsError) {
+      return (
+        <Card key="clickup" className="p-4" data-tier="clickup">
+          <div className="flex items-center gap-2">
+            <Icon name="plug" />
+            <h3 className="text-[15px] text-foreground font-semibold">{tierLabel('clickup')}</h3>
+            <StatusPill variant="neutral" className="bg-destructive/10 text-destructive">
+              Failed to load
+            </StatusPill>
+          </div>
+          <div className="mt-3 flex items-center gap-2">
+            <p className="text-sm text-destructive">{bindingsError?.message ?? 'Failed to load project bindings'}</p>
+            <Button variant="outline" size="sm" onClick={() => refetchBindings()}>
+              <Icon name="refresh" className="size-3.55" aria-hidden="true" />
+              Retry
+            </Button>
+          </div>
+        </Card>
+      );
+    }
 
     return (
-      <Card key={tier} className="p-4" data-tier={tier}>
+      <Card key="clickup" className="p-4" data-tier="clickup">
         <div className="flex items-center gap-2">
-          <Icon name={isClickUp ? 'plug' : 'table'} />
-          <h3 className="text-[15px] text-foreground font-semibold">{tierLabel(tier)}</h3>
+          <Icon name="plug" />
+          <h3 className="text-[15px] text-foreground font-semibold">{tierLabel('clickup')}</h3>
           <StatusPill
-            variant={binding ? 'won' : 'neutral'}
-            className={binding ? '' : 'bg-secondary'}
+            variant={projectClickUpBinding ? 'won' : 'neutral'}
+            className={projectClickUpBinding ? '' : 'bg-secondary'}
           >
-            {binding ? 'Linked' : connected ? 'Connected (org)' : 'Not connected'}
+            {projectClickUpBinding ? 'Linked' : clickupConnected ? 'Connected (org)' : 'Not connected'}
           </StatusPill>
         </div>
 
-        {binding ? (
-          renderLinkStatus(tier, binding)
+        {projectClickUpBinding ? (
+          renderLinkStatus(projectClickUpBinding)
         ) : (
-          renderNotLinked(tier, connected)
+          renderNotLinked()
         )}
 
-        {isClickUp && connected && !binding && isListsPending && (
+        {clickupConnected && !projectClickUpBinding && isListsPending && (
           <ListState variant="loading" rows={1} />
         )}
       </Card>
@@ -230,27 +259,23 @@ export const ProjectIntegrationsCard: React.FC<{ projectId: string }> = ({ proje
       <div className="flex items-center justify-between">
         <h3 className="text-[15px] font-semibold text-foreground">External Integrations</h3>
         <p className="text-[12px] text-muted-foreground">
-          Link this project to an external system for bi-directional sync.
+          Link this project to ClickUp for bi-directional sync.
         </p>
       </div>
 
       <div className="flex flex-col gap-3.5" data-testid="project-integrations-cards">
-        {['clickup', 'erpnext'].map((tier) => renderTierCard(tier as TierWithLists))}
+        {renderClickUpCard()}
       </div>
 
       {/* Link Modal */}
-      {linkTier && (
+      {isLinkModalOpen && (
         <EntityFormModal
           open
-          title={`Link to ${tierLabel(linkTier)}`}
-          subtitle={
-            linkTier === 'clickup'
-              ? 'Select a ClickUp List and choose how to sync this project.'
-              : 'Select the ERPNext Company to link this project to.'
-          }
-          submitLabel={`Link to ${tierLabel(linkTier)}`}
+          title={`Link to ${tierLabel('clickup')}`}
+          subtitle="Select a ClickUp List and choose how to sync this project."
+          submitLabel={`Link to ${tierLabel('clickup')}`}
           onSubmit={handleLinkSubmit}
-          onClose={() => setLinkTier(null)}
+          onClose={() => setIsLinkModalOpen(false)}
           loading={linkProject.isPending}
           dirty={linkForm.isDirty}
           submitDisabled={!linkForm.isComplete}
@@ -258,50 +283,41 @@ export const ProjectIntegrationsCard: React.FC<{ projectId: string }> = ({ proje
         >
           <FormSection legend="Configuration">
             <FormGrid>
-              {linkTier === 'clickup' ? (
-                <>
-                  <Combobox
-                    {...linkForm.fieldProps('listId')}
-                    label="ClickUp List"
-                    required
-                    value={linkForm.values.listId}
-                    selectedOption={clickupLists.find((l) => l.id === linkForm.values.listId) ? { value: clickupLists.find((l) => l.id === linkForm.values.listId)!.id, label: clickupLists.find((l) => l.id === linkForm.values.listId)!.name, sub: clickupLists.find((l) => l.id === linkForm.values.listId)!.folder_name ? `${clickupLists.find((l) => l.id === linkForm.values.listId)!.space_name} / ${clickupLists.find((l) => l.id === linkForm.values.listId)!.folder_name}` : clickupLists.find((l) => l.id === linkForm.values.listId)!.space_name } : null}
-                    loadOptions={async () =>
-                      clickupLists.map((l) => ({
-                        value: l.id,
-                        label: l.name,
-                        sub: l.folder_name ? `${l.space_name} / ${l.folder_name}` : l.space_name,
-                      }))
+              <Combobox
+                {...linkForm.fieldProps('listId')}
+                label="ClickUp List"
+                required
+                value={linkForm.values.listId}
+                selectedOption={clickupLists.find((l) => l.id === linkForm.values.listId)
+                  ? {
+                      value: clickupLists.find((l) => l.id === linkForm.values.listId)!.id,
+                      label: clickupLists.find((l) => l.id === linkForm.values.listId)!.name,
+                      sub: clickupLists.find((l) => l.id === linkForm.values.listId)!.folder_name
+                        ? `${clickupLists.find((l) => l.id === linkForm.values.listId)!.space_name} / ${clickupLists.find((l) => l.id === linkForm.values.listId)!.folder_name}`
+                        : clickupLists.find((l) => l.id === linkForm.values.listId)!.space_name,
                     }
-                    placeholder="Select a list…"
-                    searchPlaceholder="Search lists…"
-                    noun="list"
-                    disabled={linkProject.isPending}
-                  />
-                  <SelectField
-                    label="Sync Direction"
-                    options={[
-                      { value: 'push-seed', label: 'Push (seed new tasks)' },
-                      { value: 'pull-adopt', label: 'Pull (adopt existing)' },
-                    ]}
-                    value={linkForm.values.direction}
-                    onChange={(v) => linkForm.fieldProps('direction').onChange(v as LinkDirection)}
-                  />
-                </>
-              ) : (
-                <Combobox
-                  {...linkForm.fieldProps('companyId')}
-                  label="ERPNext Company"
-                  required
-                  value={linkForm.values.companyId}
-                  selectedOption={null}
-                  loadOptions={async () => []}
-                  placeholder="Select a company…"
-                  searchPlaceholder="Search companies…"
-                  noun="company"
-                  disabled={linkProject.isPending}
-                />
-              )}
+                  : null}
+                loadOptions={async () =>
+                  clickupLists.map((l) => ({
+                    value: l.id,
+                    label: l.name,
+                    sub: l.folder_name ? `${l.space_name} / ${l.folder_name}` : l.space_name,
+                  }))
+                }
+                placeholder="Select a list…"
+                searchPlaceholder="Search lists…"
+                noun="list"
+                disabled={linkProject.isPending}
+              />
+              <SelectField
+                label="Sync Direction"
+                options={[
+                  { value: 'push-seed', label: 'Push (seed new tasks)' },
+                  { value: 'pull-adopt', label: 'Pull (adopt existing)' },
+                ]}
+                value={linkForm.values.direction}
+                onChange={(v) => linkForm.fieldProps('direction').onChange(v as LinkDirection)}
+              />
             </FormGrid>
           </FormSection>
           {linkError && (
@@ -316,9 +332,9 @@ export const ProjectIntegrationsCard: React.FC<{ projectId: string }> = ({ proje
       <ConfirmDialog
         open={!!unlinkTier}
         tone="destructive"
-        title={unlinkTier ? `Unlink from ${tierLabel(unlinkTier)}?` : 'Unlink?'}
+        title={`Unlink from ${tierLabel('clickup')}?`}
         description="Synced tasks are retained; syncing stops. You can relink later with the same or different settings."
-        confirmLabel={unlinkTier ? `Unlink from ${tierLabel(unlinkTier)}` : 'Unlink'}
+        confirmLabel={`Unlink from ${tierLabel('clickup')}`}
         loading={unlinkProject.isPending}
         onConfirm={handleUnlinkConfirm}
         onCancel={() => {

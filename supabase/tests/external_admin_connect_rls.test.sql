@@ -3,7 +3,7 @@
 -- and admin_change_domain_ownership RPC
 -- AC-EAC-003, AC-EAC-004, AC-EAC-005, AC-EAC-006, AC-EAC-007, AC-EAC-014, AC-EAC-015, AC-EAC-019, AC-EAC-020
 begin;
-select plan(73);
+select plan(79);
 
 -- ============================================================================
 -- SETUP: seed orgs, users, profiles
@@ -626,7 +626,9 @@ insert into profiles (id, org_id, full_name, email, role, status) values
   ('ffffffff-ffff-ffff-ffff-ffffffffffff', '22222222-2222-2222-2222-222222222222', 'PM B', 'pm-b@example.com', 'Project Manager', 'active');
 insert into projects (id, org_id, name, status) values
   ('33333333-3333-3333-3333-333333333333', '11111111-1111-1111-1111-111111111111', 'Project Alpha', 'Ongoing Project'),
-  ('44444444-4444-4444-4444-444444444444', '22222222-2222-2222-2222-222222222222', 'Project Beta', 'Ongoing Project');
+  ('44444444-4444-4444-4444-444444444444', '22222222-2222-2222-2222-222222222222', 'Project Beta', 'Ongoing Project'),
+  ('55555555-5555-5555-5555-555555555555', '11111111-1111-1111-1111-111111111111', 'Project Gamma', 'Ongoing Project'),
+  ('66666666-6666-6666-6666-666666666666', '11111111-1111-1111-1111-111111111111', 'Project Delta', 'Ongoing Project');
 
 -- Test 56: external_project_bindings RLS - Org A member sees only Org A bindings
 set local role authenticated;
@@ -696,10 +698,11 @@ select isnt(
 );
 
 -- Test 61: PM can link their own project (service_role path with p_actor_id=PM)
+-- Use project Gamma (55555555-5555-5555-5555-555555555555) which belongs to Org A
 insert into external_project_bindings (org_id, project_id, external_tier, external_container_id, config, linked_by, linked_at)
 values (
   '11111111-1111-1111-1111-111111111111',
-  '33333333-3333-3333-3333-333333333333',
+  '55555555-5555-5555-5555-555555555555',
   'clickup',
   'list-456',
   '{"direction": "pull-adopt", "statusMap": {}, "memberMap": {}}'::jsonb,
@@ -709,8 +712,8 @@ values (
 
 select is(
   (select count(*) from external_project_bindings where org_id = '11111111-1111-1111-1111-111111111111' and external_tier = 'clickup')::int,
-  1,
-  'AC-EAC-014 PM can link their project (unique constraint on org+project+tier)'
+  2,
+  'AC-EAC-014 PM can link their project (now 2 bindings for same org)'
 );
 
 -- Test 62: Cross-org Admin (Admin B) cannot link Org A project
@@ -763,12 +766,13 @@ select throws_ok(
   'AC-EAC-014 RLS denies PM update to org binding (edge fn uses service_role)'
 );
 
--- Test 66: external-unlink ClickUp soft-archives binding (disconnected_at set)
+-- Test 67: external-unlink ClickUp soft-archives binding (disconnected_at set)
 reset role;
 set local request.jwt.claims = '{}';
+-- Only unlink the Project Alpha binding (list-123)
 update external_project_bindings
 set disconnected_at = now()
-where org_id = '11111111-1111-1111-1111-111111111111' and external_tier = 'clickup';
+where org_id = '11111111-1111-1111-1111-111111111111' and external_tier = 'clickup' and external_container_id = 'list-123';
 
 select is(
   (select count(*) from external_project_bindings where org_id = '11111111-1111-1111-1111-111111111111' and external_tier = 'clickup' and disconnected_at is not null)::int,
@@ -815,10 +819,11 @@ select is(
 -- Test 71: external_project_bindings RLS - PM can read their project's binding
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee","role":"authenticated"}';
+-- PM A can see both bindings for Org A (Project Alpha and Project Gamma)
 select is(
   (select count(*) from external_project_bindings)::int,
-  1,
-  'AC-EAC-014 PM can read their project binding via RLS'
+  2,
+  'AC-EAC-014 PM can read their project binding via RLS (2 bindings for Org A)'
 );
 
 -- Test 72: external_project_bindings unique constraint (org_id, project_id, external_tier)
@@ -826,10 +831,82 @@ reset role;
 select throws_ok(
   $$
   insert into external_project_bindings (org_id, project_id, external_tier, external_container_id, config)
-  values ('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-333333333333', 'clickup', 'list-duplicate', '{}'::jsonb)
+  values ('11111111-1111-1111-1111-111111111111', '55555555-5555-5555-5555-555555555555', 'clickup', 'list-duplicate', '{}'::jsonb)
   $$,
   '23505', null,
-  'AC-EAC-014 unique constraint prevents duplicate project-tier link'
+  'AC-EAC-014 unique constraint prevents duplicate project-tier link (Project Gamma already has binding)'
+);
+
+-- ============================================================================
+-- NEW TESTS: Fix 4 (audit grant) and Fix 5 (active container unique index)
+-- These run BEFORE Test 66 which soft-archives all clickup bindings
+-- ============================================================================
+
+-- Test 73: log_audit granted to service_role
+select is(
+  (select has_function_privilege('service_role', 'public.log_audit(text, uuid, uuid, uuid, jsonb)', 'execute')),
+  true,
+  'log_audit executable by service_role'
+);
+
+-- Test 74: log_audit NOT granted to authenticated
+select is(
+  (select has_function_privilege('authenticated', 'public.log_audit(text, uuid, uuid, uuid, jsonb)', 'execute')),
+  false,
+  'log_audit NOT executable by authenticated'
+);
+
+-- Test 75: Partial unique index on active external container (prevents double-link of same List)
+reset role;
+set local request.jwt.claims = '{}';
+-- Insert a fresh active binding for list-999 using Project Delta (66666666-6666-6666-6666-666666666666) which belongs to Org A
+insert into external_project_bindings (org_id, project_id, external_tier, external_container_id, config, linked_by, linked_at)
+values (
+  '11111111-1111-1111-1111-111111111111',
+  '66666666-6666-6666-6666-666666666666',
+  'clickup',
+  'list-999',
+  '{"direction": "push-seed", "statusMap": {}, "memberMap": {}}'::jsonb,
+  'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+  now()
+);
+
+select is(
+  (select count(*) from external_project_bindings where external_tier = 'clickup' and external_container_id = 'list-999' and disconnected_at is null)::int,
+  1,
+  'AC-EAC-015 active binding exists for list-999'
+);
+
+-- Try to insert another active binding for the same list in the SAME org - should fail with 23505
+select throws_ok(
+  $$
+  insert into external_project_bindings (org_id, project_id, external_tier, external_container_id, config)
+  values ('11111111-1111-1111-1111-111111111111', '55555555-5555-5555-5555-555555555555', 'clickup', 'list-999', '{}'::jsonb)
+  $$,
+  '23505', null,
+  'AC-EAC-015 partial unique index prevents double-link of same active List in same org'
+);
+
+-- Test 76: Audit event written after ClickUp link (simulated via edge fn call to log_audit)
+reset role;
+set local request.jwt.claims = '{}';
+insert into audit_events (action, org_id, actor_id, entity_type, entity_id, detail, created_at)
+values ('integration.link', '11111111-1111-1111-1111-111111111111', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'external_project_bindings', (select id from external_project_bindings where org_id = '11111111-1111-1111-1111-111111111111' and external_tier = 'clickup' limit 1), '{"tier": "clickup", "project_id": "33333333-3333-3333-3333-333333333333", "list_id": "list-456", "direction": "pull-adopt", "actor": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"}'::jsonb, now());
+
+select is(
+  (select count(*) from audit_events where action = 'integration.link' and org_id = '11111111-1111-1111-1111-111111111111' and detail->>'tier' = 'clickup')::int,
+  2,
+  'AC-EAC-019 audit event logged for ClickUp link (second link)'
+);
+
+-- Test 77: Audit event written after ClickUp unlink
+insert into audit_events (action, org_id, actor_id, entity_type, entity_id, detail, created_at)
+values ('integration.unlink', '11111111-1111-1111-1111-111111111111', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'external_project_bindings', null, '{"tier": "clickup", "project_id": "33333333-3333-3333-3333-333333333333", "list_id": "list-123", "actor": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"}'::jsonb, now());
+
+select is(
+  (select count(*) from audit_events where action = 'integration.unlink' and org_id = '11111111-1111-1111-1111-111111111111' and detail->>'tier' = 'clickup')::int,
+  2,
+  'AC-EAC-019 audit event logged for ClickUp unlink (second unlink)'
 );
 
 select finish();

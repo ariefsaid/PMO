@@ -43,28 +43,40 @@ function createMockFetch(routes: MockFetchRoute[]) {
 function createMockServiceClient(overrides: Record<string, any> = {}) {
   const defaultMaybeSingle = async () => ({ data: null, error: null });
   const defaultSingle = async () => ({ data: null, error: null });
+  const defaultCount = async () => ({ count: 0, error: null });
 
   const makeChain = (table: string) => {
     const selectOverride = overrides[`${table}_select_maybeSingle`] ?? defaultMaybeSingle;
     const singleOverride = overrides[`${table}_select_single`] ?? defaultSingle;
+    const countOverride = overrides[`${table}_select_count`] ?? defaultCount;
 
     return {
-      select: (cols: string, opts?: { count?: string; head?: boolean }) => ({
-        eq: (col: string, val: unknown) => ({
-          eq: (col2: string, val2: unknown) => ({
-            is: (col3: string, val3: unknown) => ({
+      select: (cols: string, opts?: { count?: string; head?: boolean }) => {
+        // If count and head options are provided, return a chain that resolves to count
+        if (opts?.count === 'exact' && opts?.head === true) {
+          return {
+            eq: (col: string, val: unknown) => ({
+              eq: (col2: string, val2: unknown) => ({
+                is: (col3: string, val3: unknown) => countOverride(),
+              }),
+            }),
+          };
+        }
+        return {
+          eq: (col: string, val: unknown) => ({
+            eq: (col2: string, val2: unknown) => ({
+              is: (col3: string, val3: unknown) => ({
+                maybeSingle: selectOverride,
+                single: singleOverride,
+              }),
               maybeSingle: selectOverride,
               single: singleOverride,
             }),
             maybeSingle: selectOverride,
             single: singleOverride,
           }),
-          maybeSingle: selectOverride,
-          single: singleOverride,
-        }),
-        maybeSingle: selectOverride,
-        single: singleOverride,
-      }),
+        };
+      },
       insert: (data: unknown) => ({
         select: () => ({
           single: async () => ({ data: { id: 'new-binding-id' }, error: null }),
@@ -131,7 +143,7 @@ Deno.test('validateClickUpLinkDirection: push-seed with non-empty List throws ac
   ]);
 
   const mockServiceClient = createMockServiceClient({
-    'tasks_select_maybeSingle': async () => ({ data: { count: 0 }, error: null }),
+    'tasks_select_count': async () => ({ count: 0, error: null }),
   });
 
   await assertRejects(
@@ -156,7 +168,7 @@ Deno.test('validateClickUpLinkDirection: pull-adopt with empty PMO project succe
   ]);
 
   const mockServiceClient = createMockServiceClient({
-    'tasks_select_maybeSingle': async () => ({ data: { count: 0 }, error: null }),
+    'tasks_select_count': async () => ({ count: 0, error: null }),
   });
 
   await validateClickUpLinkDirection(
@@ -176,7 +188,7 @@ Deno.test('validateClickUpLinkDirection: pull-adopt with non-empty PMO project t
   ]);
 
   const mockServiceClient = createMockServiceClient({
-    'tasks_select_maybeSingle': async () => ({ data: { count: 5 }, error: null }),
+    'tasks_select_count': async () => ({ count: 5, error: null }),
   });
 
   await assertRejects(
@@ -201,7 +213,7 @@ Deno.test('validateClickUpLinkDirection: mixed case (both non-empty) throws acti
   ]);
 
   const mockServiceClient = createMockServiceClient({
-    'tasks_select_maybeSingle': async () => ({ data: { count: 3 }, error: null }),
+    'tasks_select_count': async () => ({ count: 3, error: null }),
   });
 
   await assertRejects(
@@ -217,6 +229,53 @@ Deno.test('validateClickUpLinkDirection: mixed case (both non-empty) throws acti
     AppError,
     'List and project both non-empty',
   );
+});
+
+// ============================================================================
+// getPmoTaskCount unit tests (exposed for testability)
+// ============================================================================
+
+import { getPmoTaskCount } from './index.ts';
+
+Deno.test('getPmoTaskCount: reads count from response correctly (not data.count)', async () => {
+  // This test verifies the fix for the bug where getPmoTaskCount read data.count
+  // instead of the actual count field from Supabase head+count response.
+  // With head: true, count: 'exact', the count is on the response object, not data.
+  // We mock the service client to return count in the correct place.
+  const mockServiceClient = {
+    from: (table: string) => ({
+      select: (cols: string, opts: { count: string; head: boolean }) => ({
+        eq: (col: string, val: string) => ({
+          eq: (col2: string, val2: string) => ({
+            is: (col3: string, val3: string | null) => ({ count: 5, error: null }),
+          }),
+        }),
+      }),
+    }),
+  };
+
+  // This should return 5, not 0 (which would happen if reading data.count)
+  const count = await getPmoTaskCount(mockServiceClient as any, 'org-1', 'proj-1');
+  assertEquals(count, 5);
+});
+
+Deno.test('getPmoTaskCount: returns 0 when no tasks', async () => {
+  const mockServiceClient = {
+    from: (table: string) => ({
+      select: (cols: string, opts: { count: string; head: boolean }) => ({
+        eq: (col: string, val: string) => ({
+          eq: (col2: string, val2: string) => ({
+            is: (col3: string, val3: string | null) => ({
+              maybeSingle: async () => ({ data: null, error: null, count: 0 }),
+            }),
+          }),
+        }),
+      }),
+    }),
+  };
+
+  const count = await getPmoTaskCount(mockServiceClient as any, 'org-1', 'proj-1');
+  assertEquals(count, 0);
 });
 
 Deno.test('validateClickUpLinkDirection: non-existent List throws NOT_FOUND', async () => {

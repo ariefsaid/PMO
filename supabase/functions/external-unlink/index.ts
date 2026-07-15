@@ -57,7 +57,11 @@ function errorResponse(message: string, code: string, status: number): Response 
   return json({ error: code, message }, status);
 }
 
-Deno.serve(async (req: Request): Promise<Response> => {
+// ============================================================================
+// Main handler (exported for testability)
+// ============================================================================
+
+export async function handleUnlinkRequest(req: Request): Promise<Response> {
   const corsHeaders = {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
@@ -260,4 +264,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
   }
 
   return errorResponse('Unknown tier', 'BAD_REQUEST', 400);
-});
+}
+
+// Deno.serve entry point (only runs when module is main)
+if (import.meta.main) {
+  Deno.serve(handleUnlinkRequest);
+}

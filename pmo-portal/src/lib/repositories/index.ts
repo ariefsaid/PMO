@@ -645,7 +645,8 @@ const integrationsImpl: IntegrationsRepository = {
       const { data, error } = await supabase
         .from('external_project_bindings')
         .select('id, org_id, project_id, external_tier, external_container_id, config, linked_by, linked_at, disconnected_at')
-        .eq('org_id', orgId);
+        .eq('org_id', orgId)
+        .is('disconnected_at', null);
       if (error) throw error;
       return (data ?? []) as unknown as ProjectBinding[];
     });

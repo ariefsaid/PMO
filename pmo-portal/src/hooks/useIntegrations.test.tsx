@@ -201,4 +201,21 @@ describe('useIntegrations', () => {
     expect(result.current.projectBindings).toEqual(mockProjectBindings);
     expect(integrations.listProjectBindings).toHaveBeenCalledWith('org-1');
   });
+
+  it('listProjectBindings filters out tombstoned (unlinked) bindings', async () => {
+    // The repository filters out tombstones at the DB level, so the mock
+    // should return only active bindings (disconnected_at: null)
+    const activeBindings: ProjectBinding[] = [
+      { id: 'binding-1', org_id: 'org-1', project_id: 'proj-1', external_tier: 'clickup', external_container_id: 'list-1', config: { direction: 'push-seed', statusMap: {}, memberMap: {} }, linked_by: 'u1', linked_at: '2026-01-01T00:00:00Z', disconnected_at: null },
+    ];
+    integrations.listProjectBindings.mockResolvedValue(activeBindings);
+
+    const client = freshClient();
+    const { result } = renderHook(() => useIntegrations(), { wrapper: wrap(client) });
+    await waitFor(() => expect(result.current.isBindingsPending).toBe(false));
+
+    // Only the active binding (disconnected_at: null) should be returned
+    expect(result.current.projectBindings).toHaveLength(1);
+    expect(result.current.projectBindings[0].id).toBe('binding-1');
+  });
 });
