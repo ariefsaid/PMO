@@ -53,9 +53,17 @@ reviewed unit). NOT merged.**
     `0145–0148` (AC-M365-101/121/133/142/170). Migrations read-verified; **pi ran full pgTAP green (1345)**;
     ⚑ local re-run BLOCKED by a Docker infra flake (flaky analytics/vector containers + machine overload) —
     deferred to a healthy env / the CI PR→main integration gate.
-  - **🔨 Slice B (edge fn `m365-token-custody` + Vitest units)** building (mocked fetch/crypto/DB).
-  - **⏳ Then:** wire the FE stub's Connect button → review battery → STOP at mocked+tested. Live wiring
-    (real OAuth/Graph round-trip) + **`security-auditor` gate on the live surface** stay owner-gated.
+  - **✅ Slice B (edge fn `m365-token-custody` + Vitest units)** — built via **glm-5.2 (z.ai coding plan)**,
+    reworked to the Node-testable ADR-0039 pattern (DI handlers + `globalThis.Deno` guard + structural
+    `M365SupabaseLike` seam + thin `index.ts`; NIM/Nemotron's first attempt mis-architected it + OOM'd,
+    preserved on `wip/m365-sliceB-raw`). 12 edge-fn modules + 9 Vitest files / **60 tests**; audit routes
+    through `audit_m365_event` (Director EF7 correction); no Deno/npm leaks (Director-verified). Also fixed
+    `graphTokenCrypto` to genuinely deno-check (dual-runtime `BufferSource` casts, behavior-neutral).
+    **Full `npm run verify` GREEN: 655 files / 5074 tests / build ✓.**
+  - **🔎 Phase-1 review battery RUNNING** (security-auditor = the ADR-0060 gate on the code · spec · quality,
+    via glm-5.1). **⚑ substrate now = z.ai coding plan + NIM only (no openrouter, owner 2026-07-15).**
+  - **⏳ Then:** address battery findings → STOP at mocked+tested. FE Connect-button wiring deferred to the
+    deploy step. Live OAuth/Graph round-trip + the security-auditor sign-off on the LIVE surface stay owner-gated.
 - **Owner-gated inputs on GO** (handoff §5): (1) KEK `openssl rand -base64 32` → `supabase secrets set
   M365_TOKEN_KEK`; (2) `supabase secrets set M365_CLIENT_SECRET` (Entra secret — SSO dashboard config
   isn't edge-fn-readable); (3) Entra: delegated Graph scopes (`Files.Read`+`offline_access`) + the
