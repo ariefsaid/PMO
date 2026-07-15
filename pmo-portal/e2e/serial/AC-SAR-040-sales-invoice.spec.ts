@@ -106,7 +106,8 @@ test.describe('AC-SAR-040: Sales Invoice create+submit through the real served a
         project_id: seeded.projectId,
         amount: 150000, // 2 * 75000
         status: 'Draft', // create leaves ERP DRAFT (docstatus 0) → mirror status 'Draft', NOT 'Unpaid'
-        erp_outstanding_amount: 0,
+        // erp_outstanding_amount not asserted on a DRAFT (version-dependent: this bench returns the
+        // grand_total, not 0) — it becomes a meaningful receivable only after the approver submit.
         erp_docstatus: 0,
       });
 

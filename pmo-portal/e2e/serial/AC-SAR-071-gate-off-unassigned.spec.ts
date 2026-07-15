@@ -141,7 +141,7 @@ test.describe('AC-SAR-071: require_project_on_si=false allows null projectId -> 
         .eq('id', siRecordId)
         .maybeSingle();
       expect(siRowErr1).toBeNull();
-      expect(siRowAfterCreate).toMatchObject({ si_number: siName, project_id: null, amount: 75000, status: 'Draft', erp_docstatus: 0, erp_outstanding_amount: 0 });
+      expect(siRowAfterCreate).toMatchObject({ si_number: siName, project_id: null, amount: 75000, status: 'Draft', erp_docstatus: 0 });
 
       // ── SUBMIT the SI (approver submits — SoD: approver ≠ author) ──
       const submitRes = await dispatchTransitionRevenue(
