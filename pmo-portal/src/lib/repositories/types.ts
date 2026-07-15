@@ -559,6 +559,73 @@ export interface IntegrationHealth {
   error_count: number;
 }
 
+// ============================================================================
+// PROJECT LINK/UNLINK (Phase 3, tasks 3.2-3.4, 3.6)
+// ============================================================================
+
+/** Direction for ClickUp project link. */
+export type LinkDirection = 'push-seed' | 'pull-adopt';
+
+/** ClickUp list item (from external-lists edge fn). */
+export interface ClickUpListItem {
+  id: string;
+  name: string;
+  space_name: string;
+  folder_name: string | null;
+}
+
+/** Request payload for linking a project to ClickUp. */
+export interface LinkClickUpProjectInput {
+  tier: 'clickup';
+  projectId: string;
+  listId: string;
+  direction: LinkDirection;
+}
+
+/** Request payload for linking ERPNext org to a Company. */
+export interface LinkErpNextOrgInput {
+  tier: 'erpnext';
+  companyId: string;
+}
+
+/** Union of link inputs. */
+export type LinkInput = LinkClickUpProjectInput | LinkErpNextOrgInput;
+
+/** Response from link edge function. */
+export interface LinkResponse {
+  ok: true;
+  binding?: {
+    id: string;
+    direction?: LinkDirection;
+    listId?: string;
+  };
+  companyId?: string;
+}
+
+/** Request payload for unlinking. */
+export interface UnlinkInput {
+  tier: ExternalTier;
+  projectId?: string; // required for ClickUp, not used for ERPNext
+}
+
+/** Response from unlink edge function. */
+export interface UnlinkResponse {
+  ok: true;
+}
+
+/** Project binding row (mirrors external_project_bindings). */
+export interface ProjectBinding {
+  id: string;
+  org_id: string;
+  project_id: string;
+  external_tier: ExternalTier;
+  external_container_id: string;
+  config: Record<string, unknown>;
+  linked_by: string | null;
+  linked_at: string | null;
+  disconnected_at: string | null;
+}
+
 export interface IntegrationsRepository {
   /** Get the binding status for a specific tier. */
   getBinding(orgId: string, tier: ExternalTier): Promise<IntegrationBinding | null>;
@@ -570,4 +637,12 @@ export interface IntegrationsRepository {
   disconnectIntegration(orgId: string, tier: ExternalTier): Promise<DisconnectResponse>;
   /** Get health data for a tier (Phase 4). */
   getIntegrationHealth(orgId: string, tier: ExternalTier): Promise<IntegrationHealth>;
+  /** List ClickUp lists for the org (calls external-lists edge fn). */
+  listProjectLists(orgId: string): Promise<ClickUpListItem[]>;
+  /** Link a project/org to external system (calls external-link edge fn). */
+  linkProject(orgId: string, input: LinkInput): Promise<LinkResponse>;
+  /** Unlink a project/org from external system (calls external-unlink edge fn). */
+  unlinkProject(orgId: string, input: UnlinkInput): Promise<UnlinkResponse>;
+  /** List project bindings for the org (reads external_project_bindings). */
+  listProjectBindings(orgId: string): Promise<ProjectBinding[]>;
 }

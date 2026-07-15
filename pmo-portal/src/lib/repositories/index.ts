@@ -20,6 +20,12 @@ import {
   type DisconnectResponse,
   type IntegrationHealth,
   type ExternalTier,
+  type ClickUpListItem,
+  type LinkInput,
+  type LinkResponse,
+  type UnlinkInput,
+  type UnlinkResponse,
+  type ProjectBinding,
 } from './types';
 import {
   listProjects,
@@ -605,6 +611,43 @@ const integrationsImpl: IntegrationsRepository = {
         last_sync: (watermark as { synced_at?: string } | null)?.synced_at ?? null,
         error_count: errorCount ?? 0,
       };
+    });
+  },
+  listProjectLists: async (_orgId: string): Promise<ClickUpListItem[]> => {
+    return wrap(async () => {
+      const { data, error } = await supabase.functions.invoke('external-lists', {
+        body: { tier: 'clickup' },
+      });
+      if (error) throw error;
+      return (data as { lists: ClickUpListItem[] }).lists;
+    });
+  },
+  linkProject: async (_orgId: string, input: LinkInput): Promise<LinkResponse> => {
+    return wrap(async () => {
+      const { data, error } = await supabase.functions.invoke('external-link', {
+        body: { ...input },
+      });
+      if (error) throw error;
+      return data as LinkResponse;
+    });
+  },
+  unlinkProject: async (_orgId: string, input: UnlinkInput): Promise<UnlinkResponse> => {
+    return wrap(async () => {
+      const { data, error } = await supabase.functions.invoke('external-unlink', {
+        body: { ...input },
+      });
+      if (error) throw error;
+      return data as UnlinkResponse;
+    });
+  },
+  listProjectBindings: async (orgId: string): Promise<ProjectBinding[]> => {
+    return wrap(async () => {
+      const { data, error } = await supabase
+        .from('external_project_bindings')
+        .select('id, org_id, project_id, external_tier, external_container_id, config, linked_by, linked_at, disconnected_at')
+        .eq('org_id', orgId);
+      if (error) throw error;
+      return (data ?? []) as unknown as ProjectBinding[];
     });
   },
 };

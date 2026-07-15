@@ -1,0 +1,8 @@
+{
+  "imports": {
+    "@supabase/supabase-js": "npm:@supabase/supabase-js@2.110.0",
+    "jose": "npm:jose@6.2.3",
+    "@std/assert": "jsr:@std/assert@1.0.0",
+    "@/": "../../../pmo-portal/"
+  }
+}

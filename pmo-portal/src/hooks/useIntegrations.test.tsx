@@ -11,6 +11,10 @@ const { integrations } = vi.hoisted(() => ({
     connectIntegration: vi.fn(),
     disconnectIntegration: vi.fn(),
     getIntegrationHealth: vi.fn(),
+    listProjectLists: vi.fn(),
+    linkProject: vi.fn(),
+    unlinkProject: vi.fn(),
+    listProjectBindings: vi.fn(),
   },
 }));
 vi.mock('@/src/lib/repositories', () => ({ repositories: { integrations } }));
@@ -19,7 +23,7 @@ vi.mock('@/src/auth/useAuth', () => ({
 }));
 
 import { useIntegrations } from './useIntegrations';
-import type { IntegrationBinding, ConnectCredential, IntegrationHealth } from '@/src/lib/repositories/types';
+import type { IntegrationBinding, ConnectCredential, IntegrationHealth, ClickUpListItem, LinkInput, LinkResponse, UnlinkInput, UnlinkResponse, ProjectBinding } from '@/src/lib/repositories/types';
 
 const wrap = (client: QueryClient) =>
   function Wrapper({ children }: { children: React.ReactNode }) {
@@ -49,11 +53,31 @@ const mockHealth: IntegrationHealth = {
   error_count: 0,
 };
 
+const mockClickUpLists: ClickUpListItem[] = [
+  { id: 'list-1', name: 'List 1', space_name: 'Space 1', folder_name: 'Folder 1' },
+  { id: 'list-2', name: 'List 2', space_name: 'Space 2', folder_name: null },
+];
+
+const mockLinkResponse: LinkResponse = {
+  ok: true,
+  binding: { id: 'binding-1', direction: 'push-seed', listId: 'list-1' },
+};
+
+const mockUnlinkResponse: UnlinkResponse = { ok: true };
+
+const mockProjectBindings: ProjectBinding[] = [
+  { id: 'binding-1', org_id: 'org-1', project_id: 'proj-1', external_tier: 'clickup', external_container_id: 'list-1', config: { direction: 'push-seed', statusMap: {}, memberMap: {} }, linked_by: 'u1', linked_at: '2026-01-01T00:00:00Z', disconnected_at: null },
+];
+
 beforeEach(() => {
   integrations.listBindings.mockResolvedValue([mockBinding]);
   integrations.connectIntegration.mockResolvedValue({ ok: true, binding: { secret_ref: 'new_ref', status: 'active' } });
   integrations.disconnectIntegration.mockResolvedValue({ ok: true });
   integrations.getIntegrationHealth.mockResolvedValue(mockHealth);
+  integrations.listProjectLists.mockResolvedValue(mockClickUpLists);
+  integrations.linkProject.mockResolvedValue(mockLinkResponse);
+  integrations.unlinkProject.mockResolvedValue(mockUnlinkResponse);
+  integrations.listProjectBindings.mockResolvedValue(mockProjectBindings);
 });
 
 afterEach(() => vi.clearAllMocks());
@@ -118,5 +142,63 @@ describe('useIntegrations', () => {
     const health = await result.current.getHealth('clickup');
     expect(health).toEqual(mockHealth);
     expect(integrations.getIntegrationHealth).toHaveBeenCalledWith('org-1', 'clickup');
+  });
+
+  // --- New methods tests ---
+
+  it('listProjectLists returns ClickUp lists for the org', async () => {
+    const client = freshClient();
+    const { result } = renderHook(() => useIntegrations(), { wrapper: wrap(client) });
+    await waitFor(() => expect(result.current.isListsPending).toBe(false));
+
+    expect(result.current.clickupLists).toEqual(mockClickUpLists);
+    expect(integrations.listProjectLists).toHaveBeenCalledWith('org-1');
+  });
+
+  it('linkProject calls repository with link input and invalidates project bindings', async () => {
+    const client = freshClient();
+    const invalidate = vi.spyOn(client, 'invalidateQueries');
+    const { result } = renderHook(() => useIntegrations(), { wrapper: wrap(client) });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    const linkInput: LinkInput = {
+      tier: 'clickup',
+      projectId: 'proj-1',
+      listId: 'list-1',
+      direction: 'push-seed',
+    };
+    await act(async () => {
+      await result.current.linkProject.mutateAsync(linkInput);
+    });
+
+    expect(integrations.linkProject).toHaveBeenCalledWith('org-1', linkInput);
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['integrations', 'project-bindings', 'org-1'] });
+  });
+
+  it('unlinkProject calls repository with unlink input and invalidates project bindings', async () => {
+    const client = freshClient();
+    const invalidate = vi.spyOn(client, 'invalidateQueries');
+    const { result } = renderHook(() => useIntegrations(), { wrapper: wrap(client) });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    const unlinkInput: UnlinkInput = {
+      tier: 'clickup',
+      projectId: 'proj-1',
+    };
+    await act(async () => {
+      await result.current.unlinkProject.mutateAsync(unlinkInput);
+    });
+
+    expect(integrations.unlinkProject).toHaveBeenCalledWith('org-1', unlinkInput);
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['integrations', 'project-bindings', 'org-1'] });
+  });
+
+  it('listProjectBindings returns project bindings for the org', async () => {
+    const client = freshClient();
+    const { result } = renderHook(() => useIntegrations(), { wrapper: wrap(client) });
+    await waitFor(() => expect(result.current.isBindingsPending).toBe(false));
+
+    expect(result.current.projectBindings).toEqual(mockProjectBindings);
+    expect(integrations.listProjectBindings).toHaveBeenCalledWith('org-1');
   });
 });

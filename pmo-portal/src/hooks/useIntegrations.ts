@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { repositories } from '@/src/lib/repositories';
-import type { IntegrationBinding, ConnectCredential, IntegrationHealth, ExternalTier } from '@/src/lib/repositories/types';
+import type { IntegrationBinding, ConnectCredential, IntegrationHealth, ExternalTier, ClickUpListItem, LinkInput, UnlinkInput, ProjectBinding } from '@/src/lib/repositories/types';
 import { useAuth } from '@/src/auth/useAuth';
 
 /**
@@ -47,6 +47,36 @@ export function useIntegrations() {
     return repositories.integrations.getIntegrationHealth(orgId, tier);
   };
 
+  // Query: list ClickUp lists for the org
+  const { data: clickupLists = [], isPending: isListsPending, refetch: refetchLists } = useQuery<ClickUpListItem[]>({
+    queryKey: ['integrations', 'clickup-lists', orgId],
+    queryFn: () => repositories.integrations.listProjectLists(orgId!),
+    enabled: Boolean(orgId),
+  });
+
+  // Mutation: link project
+  const linkProject = useMutation({
+    mutationFn: (input: LinkInput) => repositories.integrations.linkProject(orgId!, input),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['integrations', 'project-bindings', orgId] });
+    },
+  });
+
+  // Mutation: unlink project
+  const unlinkProject = useMutation({
+    mutationFn: (input: UnlinkInput) => repositories.integrations.unlinkProject(orgId!, input),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['integrations', 'project-bindings', orgId] });
+    },
+  });
+
+  // Query: list project bindings for the org
+  const { data: projectBindings = [], isPending: isBindingsPending, refetch: refetchBindings } = useQuery<ProjectBinding[]>({
+    queryKey: ['integrations', 'project-bindings', orgId],
+    queryFn: () => repositories.integrations.listProjectBindings(orgId!),
+    enabled: Boolean(orgId),
+  });
+
   return {
     bindings,
     isPending,
@@ -58,5 +88,13 @@ export function useIntegrations() {
     disconnect,
     getBinding,
     getHealth,
+    clickupLists,
+    isListsPending,
+    refetchLists,
+    linkProject,
+    unlinkProject,
+    projectBindings,
+    isBindingsPending,
+    refetchBindings,
   };
 }
