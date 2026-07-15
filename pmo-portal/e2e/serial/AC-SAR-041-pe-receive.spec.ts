@@ -161,7 +161,7 @@ test.describe('AC-SAR-041: PE-receive create+submit through the real served adap
       const ipName = ipCreateBody.externalRecordId as string;
       expect(ipName).toMatch(/^ACC-PAY-/);
 
-      // PMO mirror after PE-receive create (draft)
+      // PMO mirror after PE-receive create (atomic create+submit)
       const { data: ipRowAfterCreate, error: ipRowErr1 } = await admin
         .from('incoming_payments')
         .select('*')
@@ -173,7 +173,7 @@ test.describe('AC-SAR-041: PE-receive create+submit through the real served adap
         customer_id: seeded.companyId,
         sales_invoice_id: seeded.siRecordId,
         amount: 200000,
-        status: 'Scheduled',
+        status: 'Paid', // create+submit is atomic (R9 money-doc) → docstatus 1 → Paid, not Scheduled
       });
 
       // external_refs recorded for the PE-receive

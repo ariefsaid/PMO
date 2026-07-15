@@ -53,7 +53,7 @@ test.describe('AC-SAR-040: Sales Invoice create+submit through the real served a
     try {
       const idempotencyKey = crypto.randomUUID();
 
-      // ── 1. CREATE the Sales Invoice (draft) ──
+      // ── 1. CREATE the Sales Invoice (atomic create+submit) ──
       let createRes = await dispatchCreateRevenue(
         FUNCTIONS_URL,
         ANON_KEY,
@@ -92,7 +92,7 @@ test.describe('AC-SAR-040: Sales Invoice create+submit through the real served a
       const siName = createBody.externalRecordId as string;
       expect(siName).toMatch(/^ACC-SINV-/);
 
-      // PMO mirror after create (draft)
+      // PMO mirror after create (atomic create+submit)
       const { data: siRowAfterCreate, error: siRowErr1 } = await admin
         .from('sales_invoices')
         .select('*')
@@ -104,7 +104,7 @@ test.describe('AC-SAR-040: Sales Invoice create+submit through the real served a
         customer_id: seeded.companyId,
         project_id: seeded.projectId,
         amount: 150000, // 2 * 75000
-        status: 'Draft',
+        status: 'Unpaid', // create+submit is atomic (R9 money-doc) → docstatus 1 → Unpaid, not Draft
       });
 
       // external_refs recorded
