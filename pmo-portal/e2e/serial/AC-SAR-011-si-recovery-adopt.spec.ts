@@ -150,8 +150,10 @@ test.describe('AC-SAR-011: SI after-commit-before-mirror fault-seam interruption
         });
         const doc = (await docRes.json()) as { data?: { name?: string; docstatus?: number; remarks?: string } };
         expect(doc.data?.name, 'the ERP-side SI genuinely exists (no faked success)').toBe(siName);
-        expect(doc.data?.docstatus).toBe(1);
-        expect(doc.data?.remarks, 'the SI remarks anchor carries the stamped idempotency key (survived validate+submit)').toBe(idempotencyKey);
+        // create leaves an ERP DRAFT (OD-SAR-DRAFT-SUBMIT) — recovery adopts the orphaned DRAFT, not a
+        // submitted doc; the SoD-gated approver submit is a separate step not exercised by this fault test.
+        expect(doc.data?.docstatus).toBe(0);
+        expect(doc.data?.remarks, 'the SI remarks anchor carries the stamped idempotency key (survived validate)').toBe(idempotencyKey);
       }
     } finally {
       await cleanupSAR(admin, seeded);
