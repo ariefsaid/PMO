@@ -424,8 +424,9 @@ async function upsertSalesInvoiceMirror(ctx: ReadModelWriterCtx, canonical: PmoR
   const docstatus = canonical.erp_docstatus as number | null | undefined;
   const patch: Record<string, unknown> = {
     si_number: canonical.si_number ?? null,
-    customer_id: canonical.customer_id ?? null,
-    project_id: canonical.project_id ?? null,
+    // customer_id/project_id are PMO-side links set ONLY on create (from command.record, below) —
+    // intentionally absent here: spreading them (even as null) would clobber the create-branch values
+    // AND null a stable link on a later update mirror (inbound feed / status sync).
     reference_number: (canonical.reference_number as string | null | undefined) ?? null,
     invoice_date: (canonical.invoice_date as string | null | undefined) ?? null,
     amount: canonical.amount ?? null,
@@ -466,8 +467,9 @@ async function upsertIncomingPaymentMirror(ctx: ReadModelWriterCtx, canonical: P
   const docstatus = canonical.erp_docstatus as number | null | undefined;
   const patch: Record<string, unknown> = {
     ip_number: canonical.ip_number ?? null,
-    customer_id: canonical.customer_id ?? null,
-    sales_invoice_id: canonical.sales_invoice_id ?? null,
+    // customer_id/sales_invoice_id are PMO-side links set ONLY on create (from command.record, below) —
+    // intentionally absent here: spreading them (even as null) would clobber the create-branch values
+    // AND null a stable link on a later update mirror (inbound feed / status sync).
     reference_number: (canonical.reference_number as string | null | undefined) ?? null,
     date: (canonical.date as string | null | undefined) ?? null,
     amount: canonical.amount ?? null,
