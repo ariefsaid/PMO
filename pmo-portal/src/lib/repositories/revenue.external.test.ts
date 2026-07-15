@@ -26,6 +26,8 @@ vi.mock('@/src/lib/adapterSeam/ownershipCache', () => ({
 }));
 vi.mock('@/src/lib/db/revenue', () => ({
   submitSalesInvoiceSod: vi.fn(),
+  getSalesInvoice: vi.fn(),
+  getIncomingPayment: vi.fn(),
 }));
 
 import * as dispatchClient from '@/src/lib/adapterSeam/dispatchClient';
@@ -139,6 +141,9 @@ describe('task 2.2 — flipped ownership map — revenue record creates route to
   beforeEach(() => {
     setDomainOwnership([{ domain: 'revenue', externalTier: 'erpnext' }]);
     vi.mocked(routeDomainWrite).mockReturnValue('external');
+    // Mock getSalesInvoice and getIncomingPayment to return ERP external IDs
+    vi.mocked(revenueDb.getSalesInvoice).mockResolvedValue({ si_number: 'ACC-SINV-2026-00001' } as any);
+    vi.mocked(revenueDb.getIncomingPayment).mockResolvedValue({ ip_number: 'ACC-PE-REC-2026-00001' } as any);
   });
 
   afterEach(() => {
@@ -293,6 +298,8 @@ describe('FIX 1 — submitInvoice SoD gate (AC-SAR-195 / FR-SAR-195)', () => {
   beforeEach(() => {
     setDomainOwnership([{ domain: 'revenue', externalTier: 'erpnext' }]);
     vi.mocked(routeDomainWrite).mockReturnValue('external');
+    // Mock getSalesInvoice to return ERP external ID for the transition
+    vi.mocked(revenueDb.getSalesInvoice).mockResolvedValue({ si_number: 'ACC-SINV-2026-00001' } as any);
   });
 
   afterEach(() => {
