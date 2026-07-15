@@ -67,7 +67,7 @@ async function seedWithSubmittedSI(admin: SupabaseClient, suffix: string): Promi
   // Create + submit a SI first (so the PE-receive has something to reference)
   const accessToken = await signInAdmin(AUTH_URL, ANON_KEY);
   const siIdempotencyKey = crypto.randomUUID();
-  const siCreateRes = await dispatchCreateRevenue(
+  let siCreateRes = await dispatchCreateRevenue(
     FUNCTIONS_URL,
     ANON_KEY,
     accessToken,
@@ -82,9 +82,12 @@ async function seedWithSubmittedSI(admin: SupabaseClient, suffix: string): Promi
     siIdempotencyKey,
   );
   let siCreateBody = await siCreateRes.json();
+  // Retry on 502 with the SAME idempotencyKey (ADR-0058 client contract) and USE the retry's result —
+  // the outbox dedupes, so a retry can never double-create; reassigning siCreateRes means a recovered
+  // 200 is what the assertion checks (a discarded retry would assert the original 502 and fail).
   for (let attempt = 0; siCreateRes.status === 502 && attempt < 2; attempt++) {
     await new Promise((r) => setTimeout(r, 750));
-    const retry = await dispatchCreateRevenue(
+    siCreateRes = await dispatchCreateRevenue(
       FUNCTIONS_URL,
       ANON_KEY,
       accessToken,
@@ -98,7 +101,7 @@ async function seedWithSubmittedSI(admin: SupabaseClient, suffix: string): Promi
       'sales-invoice',
       siIdempotencyKey,
     );
-    siCreateBody = await retry.json();
+    siCreateBody = await siCreateRes.json();
   }
   expect(siCreateRes.status, `SI create failed: ${JSON.stringify(siCreateBody)}`).toBe(200);
   const siName = siCreateBody.externalRecordId as string;

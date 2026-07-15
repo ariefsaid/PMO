@@ -48,7 +48,7 @@ test.describe('AC-SAR-043: Inbound Sales Invoice adoption (native ERP creation �
 
     // ── 1. CREATE a Sales Invoice NATIVELY in ERPNext (no PMO command) ──
     const nativeSiBody = {
-      customer: `Spike Customer ${suffix}`,
+      customer: 'Spike Customer', // the bench-fixture ERP Customer (must pre-exist — a suffixed name would 404)
       items: [{ item_code: 'SPIKE-ITEM-1', qty: 1, rate: 125000 }],
     };
 
@@ -90,7 +90,7 @@ test.describe('AC-SAR-043: Inbound Sales Invoice adoption (native ERP creation �
           grand_total: 125000,
           outstanding_amount: 125000,
           posting_date: new Date().toISOString().split('T')[0],
-          customer: `Spike Customer ${suffix}`,
+          customer: 'Spike Customer', // matches the native SI's customer (the bench fixture)
           // No project field = project-less SI
         }),
       });

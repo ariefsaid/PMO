@@ -49,7 +49,7 @@ test.skip(!READY, 'AC-SAR-042-si-cancel-amend: SUPABASE_FUNCTIONS_URL/SUPABASE_U
 test.setTimeout(120_000);
 
 async function createAndSubmitSI(admin: SupabaseClient, accessToken: string, seeded: any, idempotencyKey: string) {
-  const createRes = await dispatchCreateRevenue(
+  let createRes = await dispatchCreateRevenue(
     FUNCTIONS_URL,
     ANON_KEY,
     accessToken,
@@ -66,7 +66,7 @@ async function createAndSubmitSI(admin: SupabaseClient, accessToken: string, see
   let createBody = await createRes.json();
   for (let attempt = 0; createRes.status === 502 && attempt < 2; attempt++) {
     await new Promise((r) => setTimeout(r, 750));
-    const retry = await dispatchCreateRevenue(
+    createRes = await dispatchCreateRevenue(
       FUNCTIONS_URL,
       ANON_KEY,
       accessToken,
@@ -80,7 +80,7 @@ async function createAndSubmitSI(admin: SupabaseClient, accessToken: string, see
       'sales-invoice',
       idempotencyKey,
     );
-    createBody = await retry.json();
+    createBody = await createRes.json();
   }
   expect(createRes.status, `SI create failed: ${JSON.stringify(createBody)}`).toBe(200);
   const siName = createBody.externalRecordId as string;

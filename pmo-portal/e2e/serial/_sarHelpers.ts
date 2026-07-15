@@ -67,13 +67,18 @@ export async function seedSAR(admin: SupabaseClient, suffix: string): Promise<SA
   const siRecordId = crypto.randomUUID();
   const ipRecordId = crypto.randomUUID();
 
-  // 1) Client company (Customer) + external_refs mapping
+  // 1) Client company + external_refs mapping. The PMO `companies.type` enum is
+  // 'Internal'|'Client'|'Vendor' — an ERP Customer mirrors to PMO type='Client' (FR-ENA-091), NOT the
+  // ERP doctype name 'Customer'. The PMO company `name` is suffixed for per-run uniqueness, but
+  // `external_refs` maps to the FIXED bench-fixture ERP Customer name 'Spike Customer' (mirrors P2's
+  // `Supplier:Spike Supplier` in AC-ENA-053) — the dispatch resolves the bare Customer name from this
+  // mapping (stripping the `Customer:` prefix), and that ERP Customer must pre-exist on the bench.
   const customerName = `Spike Customer ${suffix}`;
   const { error: companyErr } = await admin.from('companies').insert({
     id: companyId,
     org_id: ORG_ID,
     name: customerName,
-    type: 'Customer',
+    type: 'Client',
   });
   if (companyErr) throw new Error(`seed companies failed: ${companyErr.message}`);
 
@@ -82,7 +87,7 @@ export async function seedSAR(admin: SupabaseClient, suffix: string): Promise<SA
     domain: 'companies',
     pmo_record_id: companyId,
     external_tier: 'erpnext',
-    external_record_id: `Customer:${customerName}`,
+    external_record_id: 'Customer:Spike Customer',
   });
   if (refErr) throw new Error(`seed external_refs (companies) failed: ${refErr.message}`);
 
@@ -94,7 +99,7 @@ export async function seedSAR(admin: SupabaseClient, suffix: string): Promise<SA
     id: projectId,
     org_id: ORG_ID,
     name: projectName,
-    status: 'Active',
+    status: 'Ongoing Project', // project_status enum has no 'Active' — 'Ongoing Project' is the live value
   });
   if (projectErr) throw new Error(`seed projects failed: ${projectErr.message}`);
 

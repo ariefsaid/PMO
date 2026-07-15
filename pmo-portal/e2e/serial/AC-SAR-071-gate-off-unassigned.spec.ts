@@ -50,7 +50,7 @@ test.describe('AC-SAR-071: require_project_on_si=false allows null projectId -> 
       id: companyId,
       org_id: ORG_ID,
       name: customerName,
-      type: 'Customer',
+      type: 'Client', // PMO companies.type enum is 'Client' (ERP Customer→PMO Client, FR-ENA-091), not 'Customer'
     });
     if (companyErr) throw new Error(`seed companies failed: ${companyErr.message}`);
 
@@ -59,7 +59,7 @@ test.describe('AC-SAR-071: require_project_on_si=false allows null projectId -> 
       domain: 'companies',
       pmo_record_id: companyId,
       external_tier: 'erpnext',
-      external_record_id: `Customer:${customerName}`,
+      external_record_id: 'Customer:Spike Customer', // bench-fixture ERP Customer (mirrors P2's Supplier:Spike Supplier)
     });
     if (refErr) throw new Error(`seed external_refs failed: ${refErr.message}`);
 
@@ -96,7 +96,7 @@ test.describe('AC-SAR-071: require_project_on_si=false allows null projectId -> 
       const idempotencyKey = crypto.randomUUID();
 
       // ── CREATE SI with NO projectId (null) ──
-      const createRes = await dispatchCreateRevenue(
+      let createRes = await dispatchCreateRevenue(
         FUNCTIONS_URL,
         ANON_KEY,
         accessToken,
@@ -113,7 +113,7 @@ test.describe('AC-SAR-071: require_project_on_si=false allows null projectId -> 
       let createBody = await createRes.json();
       for (let attempt = 0; createRes.status === 502 && attempt < 2; attempt++) {
         await new Promise((r) => setTimeout(r, 750));
-        const retry = await dispatchCreateRevenue(
+        createRes = await dispatchCreateRevenue(
           FUNCTIONS_URL,
           ANON_KEY,
           accessToken,
@@ -127,7 +127,7 @@ test.describe('AC-SAR-071: require_project_on_si=false allows null projectId -> 
           'sales-invoice',
           idempotencyKey,
         );
-        createBody = await retry.json();
+        createBody = await createRes.json();
       }
       expect(createRes.status, `SI create failed: ${JSON.stringify(createBody)}`).toBe(200);
       const siName = createBody.externalRecordId as string;

@@ -54,7 +54,7 @@ test.describe('AC-SAR-041: PE-receive create+submit through the real served adap
       const siIdempotencyKey = crypto.randomUUID();
 
       // ── 1. CREATE + SUBMIT a Sales Invoice (to have an outstanding amount) ──
-      const siCreateRes = await dispatchCreateRevenue(
+      let siCreateRes = await dispatchCreateRevenue(
         FUNCTIONS_URL,
         ANON_KEY,
         accessToken,
@@ -71,7 +71,7 @@ test.describe('AC-SAR-041: PE-receive create+submit through the real served adap
       let siCreateBody = await siCreateRes.json();
       for (let attempt = 0; siCreateRes.status === 502 && attempt < 2; attempt++) {
         await new Promise((r) => setTimeout(r, 750));
-        const retry = await dispatchCreateRevenue(
+        siCreateRes = await dispatchCreateRevenue(
           FUNCTIONS_URL,
           ANON_KEY,
           accessToken,
@@ -85,7 +85,7 @@ test.describe('AC-SAR-041: PE-receive create+submit through the real served adap
           'sales-invoice',
           siIdempotencyKey,
         );
-        siCreateBody = await retry.json();
+        siCreateBody = await siCreateRes.json();
       }
       expect(siCreateRes.status, `SI create failed: ${JSON.stringify(siCreateBody)}`).toBe(200);
       const siName = siCreateBody.externalRecordId as string;
@@ -120,7 +120,7 @@ test.describe('AC-SAR-041: PE-receive create+submit through the real served adap
 
       // ── 2. CREATE + SUBMIT a PE-receive referencing the SI ──
       const ipIdempotencyKey = crypto.randomUUID();
-      const ipCreateRes = await dispatchCreateRevenue(
+      let ipCreateRes = await dispatchCreateRevenue(
         FUNCTIONS_URL,
         ANON_KEY,
         accessToken,
@@ -139,7 +139,7 @@ test.describe('AC-SAR-041: PE-receive create+submit through the real served adap
       let ipCreateBody = await ipCreateRes.json();
       for (let attempt = 0; ipCreateRes.status === 502 && attempt < 2; attempt++) {
         await new Promise((r) => setTimeout(r, 750));
-        const retry = await dispatchCreateRevenue(
+        ipCreateRes = await dispatchCreateRevenue(
           FUNCTIONS_URL,
           ANON_KEY,
           accessToken,
@@ -155,7 +155,7 @@ test.describe('AC-SAR-041: PE-receive create+submit through the real served adap
           'incoming-payment',
           ipIdempotencyKey,
         );
-        ipCreateBody = await retry.json();
+        ipCreateBody = await ipCreateRes.json();
       }
       expect(ipCreateRes.status, `PE-receive create failed: ${JSON.stringify(ipCreateBody)}`).toBe(200);
       const ipName = ipCreateBody.externalRecordId as string;
