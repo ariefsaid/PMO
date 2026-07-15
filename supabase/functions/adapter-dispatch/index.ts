@@ -49,6 +49,7 @@ import type { Adapter, AdapterCommand, PmoRecord } from '../../../pmo-portal/src
 import type { DispatchMoneyOutboxDeps, ExternalRefMapping } from '../../../pmo-portal/src/lib/adapterSeam/dispatch.ts';
 import { getReadModelWriter } from './readModelWriters.ts';
 import { maybeFault, type FaultGate } from './faultSeams.ts';
+import { isRevenueSiSubmitTransition, enforceSiSubmitSod } from './sodGuard.ts';
 import { canonicalCommandDigest, createDbMoneyOutboxDeps } from './moneyOutboxDeps.ts';
 import {
   verifyCallerJwt,
@@ -463,6 +464,24 @@ Deno.serve(async (req: Request): Promise<Response> => {
       status: 422,
       headers,
     });
+  }
+
+  // ── Luna BLOCK 2 — server-side Sales-Invoice submit SoD (FR-SAR-195, ADR-0019). `submitInvoice()`
+  // in the repository already calls the SoD RPC for the legitimate FE path, but a caller POSTing the
+  // dispatch command directly could skip it. Enforce SoD HERE, under the CALLER's JWT (the deputy
+  // `callerClient`, never service_role — auth.uid()/auth_org_id() must resolve to the real submitter):
+  // a revenue sales-invoice SUBMIT transition must pass `submit_sales_invoice(p_si_id)` BEFORE the
+  // adapter commits the ERP submit. A 42501 (self-approval / not-authorized) closes the bypass — the
+  // dispatch returns 403/409 and does NOT submit to ERP, regardless of which client dispatched.
+  if (isRevenueSiSubmitTransition(command)) {
+    const sod = await enforceSiSubmitSod(callerClient as never, String(command.record.id));
+    if (!sod.ok) {
+      const message = /sod|self-approval|approver|author|not authorized/i.test(sod.message) ? 'sod-self-approval' : sod.message;
+      return new Response(JSON.stringify({ error: sod.status === 403 ? 'commit-rejected' : 'DISPATCH_FAILED', message }), {
+        status: sod.status,
+        headers,
+      });
+    }
   }
 
   // service_role client — used for the machine-write helpers (read-model upsert/update + external_refs
