@@ -21,10 +21,11 @@ reviewed unit). NOT merged. Next agent's FIRST action: verify the DB slice (see 
 - **✅ Phase-0 FE** (`npm run verify` green) — `m365_integration` entitlement key (Operator switch,
   default-off) + `M365ConnectionCard` (two-switch gate; DISABLED "available soon" connect stub) mounted on
   Administration. AC-M365-011/012/013.
-- **⏸️ Phase-0 DB — AUTHORED / DB-DEFERRED** (remote build container had NO Supabase CLI): `0096`
+- **✅ Phase-0 DB — VERIFIED locally 2026-07-15** (`db reset` + `supabase test db` green): `0096`
   `ms_graph_connections` (token store: RLS forced + zero policies + `revoke all`; bytea ciphertext only,
-  org_id-scoped), `0097` entitlement CHECK key, pgTAP `0142`/`0143`/`0144` (AC-M365-001/002/010).
-  **RESUME: run `scripts/with-db-lock.sh supabase db reset` + `supabase test db` to prove them (§0 of the handoff).**
+  org_id-scoped), `0097` entitlement CHECK key. Constraint drift checked — only `0070`/`0097` touch
+  `org_features_feature_key_check`; `0097` preserves `0070`'s full key set + adds `m365_integration`.
+  pgTAP `0142`/`0143`/`0144` PASS (AC-M365-001/002/010); full suite 162 files / 1322 tests, 0 fail.
 - **✅ Phase-1 crypto foundation — SECURITY-AUDITED clean** (opus STRIDE; 2 Minor fixed):
   `src/lib/m365/graphTokenCrypto.ts` (AES-256-GCM envelope) + `graphPkce.ts` (RFC-7636 PKCE + authorize
   URL). Pure/dual-runtime, imported cross-tree by the future edge fn (the `verifyCallerJwt` precedent).
@@ -41,7 +42,11 @@ reviewed unit). NOT merged. Next agent's FIRST action: verify the DB slice (see 
   M365_TOKEN_KEK`; (2) `supabase secrets set M365_CLIENT_SECRET` (Entra secret — SSO dashboard config
   isn't edge-fn-readable); (3) Entra: delegated Graph scopes (`Files.Read`+`offline_access`) + the
   edge-fn PKCE redirect URI. Publisher verification if productizing past the first admin-consenting client.
-- **Next:** verify the DB slice (above), then the Phase-1 slices per handoff §4.
+- **Next:** DB slice ✅ done. Phase-0 foundation is now fully proven. Remaining work is **Phase-1 live
+  wiring** (PKCE exchange edge fn → encrypt+store → Graph proxy → rotation/revoke → wire the FE stub →
+  OneDrive linking), which the code can be authored+mocked without secrets but is HELD pending owner
+  priority vs the other in-flight programs + the owner-gated inputs above + the `security-auditor` gate
+  before exposure. Owner decision needed to start Phase-1.
 
 ### ⚑⚑ ADAPTER PROGRAM (2026-07-10) — P0 seam SHIPPED to dev; P1 ClickUp in flight
 - **✅ P0 external-adapter seam MERGED to `dev`** (PR #299, `2cbacd5`; ADR-0055): migrations
