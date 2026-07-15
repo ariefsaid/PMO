@@ -7,7 +7,7 @@
 -- Uses namespaced UUIDs, begin/rollback, finish() not finish_testing().
 
 begin;
-select plan(6);
+select plan(8);
 
 -- Fixtures: two orgs (A flipped on revenue, B not), users with different roles
 insert into organizations (id, name) values
@@ -112,6 +112,19 @@ select is(
 --   get_process_gates('11050000-0000-0000-0000-000000000001'),
 --   '{"require_so_before_si":false,"require_bast_before_si":false,"require_project_on_si":false}'::jsonb,
 --   'AC-SAR-072: get_process_gates RPC returns flipped value');
+
+-- 7) SF8 (Luna audit): get_process_gates enforces caller-org — a user reads its OWN org's gates...
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"11050000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select lives_ok(
+  $$ select get_process_gates('11050000-0000-0000-0000-000000000001'::uuid) $$,
+  'SF8: get_process_gates for the caller''s OWN org succeeds (no cross-org raise)');
+
+-- 8) ...but reading ANOTHER org's gates (org B) is denied 42501 (no cross-org config leak).
+select throws_ok(
+  $$ select get_process_gates('11050000-0000-0000-0000-000000000002'::uuid) $$,
+  '42501', null,
+  'SF8: get_process_gates for a DIFFERENT org is denied 42501 (cross-org config leak closed)');
 
 select * from finish();
 rollback;
