@@ -50,6 +50,7 @@ import type { DispatchMoneyOutboxDeps, ExternalRefMapping } from '../../../pmo-p
 import { getReadModelWriter } from './readModelWriters.ts';
 import { maybeFault, type FaultGate } from './faultSeams.ts';
 import { isRevenueSiSubmitTransition, enforceSiSubmitSod } from './sodGuard.ts';
+import { checkErpnextCommandAuthorization, type AuthorizationClient } from './authGuard.ts';
 import { canonicalCommandDigest, createDbMoneyOutboxDeps } from './moneyOutboxDeps.ts';
 import {
   verifyCallerJwt,
@@ -450,13 +451,29 @@ Deno.serve(async (req: Request): Promise<Response> => {
     );
   }
 
+  // Compute isErpDomain early so it's available for both the auth guard and idempotency check.
+  const isErpDomain = command.domain === ERPNEXT_COMPANIES_DOMAIN || command.domain === ERPNEXT_PROCUREMENT_DOMAIN || command.domain === ERPNEXT_REVENUE_DOMAIN;
+
+  // ── Luna BLOCK 4 — server-side authorization gate for erpnext-tier commands (money audit).
+  // After resolving the caller's org/userId and parsing the command, but BEFORE any adapter/
+  // outbox/ERP write. The deputy `callerClient` (caller's JWT) is used so domain_externally_owned
+  // and profiles.select run under the caller's RLS — consistent with the SoD gate below.
+  if (isErpDomain) {
+    const auth = await checkErpnextCommandAuthorization(callerClient as never, orgId, userId, command);
+    if (!auth.ok) {
+      return new Response(JSON.stringify({ error: 'commit-rejected', message: auth.message }), {
+        status: auth.status,
+        headers,
+      });
+    }
+  }
+
   // ── Server-side idempotency-key enforcement (task 6.4, FR-ENA-040, ADR-0058 §4) — at the top of
   // the served path, BEFORE any adapter-select/binding/credential resolution: a non-read-only erpnext
   // command with no idempotencyKey is rejected fast, never reaching the outbox or ERP. `dispatch.ts`'s
   // `dispatchMoneyWrite` re-asserts the identical guard (unit-tested, AC-ENA-012) — this is a
   // fail-fast duplicate at the integration boundary, not the sole enforcement point. P0/P1 (every
   // other domain) is unaffected.
-  const isErpDomain = command.domain === ERPNEXT_COMPANIES_DOMAIN || command.domain === ERPNEXT_PROCUREMENT_DOMAIN || command.domain === ERPNEXT_REVENUE_DOMAIN;
   // `AdapterOperation` has no 'read' member (reads never reach this handler as a write command) —
   // the string cast mirrors dispatch.ts's own `(command.operation as string) !== 'read'` guard.
   if (isErpDomain && (command.operation as string) !== 'read' && !command.idempotencyKey) {
