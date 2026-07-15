@@ -115,7 +115,7 @@ async function createAndSubmitSI(seeded: SARSeed, idempotencyKey: string): Promi
 test.describe('AC-SAR-050: AR aging read-back stores report-backed buckets', () => {
   test('an open SI + refreshAging -> erp_ar_aging_snapshot stores report metadata + buckets verbatim; no local math', async () => {
     const admin = createClient(AUTH_URL, SERVICE_KEY);
-    const accessToken = await signInAdmin(AUTH_URL, ANON_KEY);
+    const _accessToken = await signInAdmin(AUTH_URL, ANON_KEY);
     const suffix = `sar050-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const seeded = await seedSAR(admin, suffix);
     let siName: string | undefined;

@@ -139,7 +139,7 @@ export async function seedSAR(admin: SupabaseClient, suffix: string): Promise<SA
   // and native PE-receive references work. The bench fixture expects 'Spike Customer' to exist.
   // We upsert via ERP API using the admin creds (best-effort; ignores 409 if exists).
   try {
-    const createCustRes = await fetch(`${ERPNEXT_SITE_URL}/api/resource/Customer`, {
+    await fetch(`${ERPNEXT_SITE_URL}/api/resource/Customer`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
