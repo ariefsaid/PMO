@@ -7,7 +7,7 @@
 -- Uses namespaced UUIDs, begin/rollback, finish() not finish_testing().
 
 begin;
-select plan(8);
+select plan(9);
 
 -- Fixtures: two orgs (A flipped on revenue, B not), users with different roles
 insert into organizations (id, name) values
@@ -125,6 +125,14 @@ select throws_ok(
   $$ select get_process_gates('11050000-0000-0000-0000-000000000002'::uuid) $$,
   '42501', null,
   'SF8: get_process_gates for a DIFFERENT org is denied 42501 (cross-org config leak closed)');
+
+-- 9) SF8 service_role bypass (load-bearing): the dispatch pre-flight reads the command's org via the
+-- service client (auth_org_id() is null there) — service_role may read ANY org's gates.
+reset role;
+set local request.jwt.claims = '{"role":"service_role"}';
+select lives_ok(
+  $$ select get_process_gates('11050000-0000-0000-0000-000000000002'::uuid) $$,
+  'SF8: service_role (the dispatch machine call) may read any org gates — the require_project_on_si pre-flight works');
 
 select * from finish();
 rollback;

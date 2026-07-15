@@ -10,9 +10,13 @@
 create or replace function public.get_process_gates(p_org uuid)
 returns jsonb language plpgsql security definer set search_path = public as $$
 begin
-  -- A SECURITY DEFINER reader must not hand back another org's config. The caller may only read
-  -- its OWN org's gates; a mismatched p_org is a 42501 (not a silent empty — surfaces misuse).
-  if p_org is distinct from auth_org_id() then
+  -- A SECURITY DEFINER reader must not hand back another org's config to a USER. The machine
+  -- (service_role — the adapter-dispatch pre-flight gate check reads the command's own org) is
+  -- exempt; a user-JWT caller may read only its OWN org's gates. A cross-org user read is 42501.
+  -- (service_role bypass is load-bearing: the dispatch calls this with the serviceClient, where
+  --  auth_org_id() is null — without the bypass every revenue create fails 'gate-check-failed'.)
+  if coalesce(auth.jwt() ->> 'role', '') <> 'service_role'
+     and p_org is distinct from auth_org_id() then
     raise exception 'not authorized' using errcode = '42501';
   end if;
   return coalesce(
