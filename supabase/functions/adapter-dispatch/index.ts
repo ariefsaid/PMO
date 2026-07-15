@@ -346,6 +346,7 @@ const ADAPTER_REGISTRY: Record<string, AdapterFactory> = {
   [CLICKUP_TASKS_DOMAIN]: resolveClickUpAdapter,
   [ERPNEXT_COMPANIES_DOMAIN]: resolveErpAdapter,
   [ERPNEXT_PROCUREMENT_DOMAIN]: resolveErpAdapter,
+  [ERPNEXT_REVENUE_DOMAIN]: resolveErpAdapter,
 };
 
 // Same origin-narrowing seam as agent-chat/compose-view (AUDIT quick-win 2026-07-07): set
