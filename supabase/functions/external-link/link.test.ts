@@ -170,6 +170,13 @@ describe('external-link — ClickUp branch', () => {
           headers: { 'content-type': 'application/json' },
         })),
 
+        supabaseSelect('external_org_bindings', () =>
+          jsonResponse({ secret_ref: 'vault-ref', status: 'active', config: {}, site_url: 'https://erp.example.com' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
+
+        supabaseRpc('read_vault_secret', () => jsonResponse('test-pat-token')),
+
         supabaseSelect('projects', () =>
           jsonResponse({ id: 'proj-1', project_manager_id: 'different-pm', org_id: 'org-1' }, {
             headers: { 'content-type': 'application/vnd.pgrst.object+json' },
@@ -201,6 +208,13 @@ describe('external-link — ClickUp branch', () => {
           headers: { 'content-type': 'application/json' },
         })),
 
+        supabaseSelect('external_org_bindings', () =>
+          jsonResponse({ secret_ref: 'vault-ref', status: 'active', config: {}, site_url: 'https://erp.example.com' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
+
+        supabaseRpc('read_vault_secret', () => jsonResponse('test-pat-token')),
+
         supabaseSelect('projects', () =>
           jsonResponse({ id: 'proj-1', project_manager_id: 'user-1', org_id: 'org-1' }, {
             headers: { 'content-type': 'application/vnd.pgrst.object+json' },
@@ -231,6 +245,13 @@ describe('external-link — ClickUp branch', () => {
           status: 200,
           headers: { 'content-type': 'application/json' },
         })),
+
+        supabaseSelect('external_org_bindings', () =>
+          jsonResponse({ secret_ref: 'vault-ref', status: 'active', config: {}, site_url: 'https://erp.example.com' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
+
+        supabaseRpc('read_vault_secret', () => jsonResponse('test-pat-token')),
 
         supabaseSelect('projects', () =>
           jsonResponse({ id: 'proj-1', project_manager_id: 'pm-1', org_id: 'org-1' }, {
@@ -454,6 +475,8 @@ describe('external-link — ClickUp branch', () => {
           jsonResponse({ id: 'binding-2', project_id: 'proj-2' }, {
             headers: { 'content-type': 'application/vnd.pgrst.object+json' },
           })),
+
+        { label: 'pmo-task-count', method: 'HEAD', pathname: '/rest/v1/tasks', response: () => countResponse(0) },
       ],
       async ({ calls }) => {
         const res = await handleLinkRequest(await authed({
@@ -501,7 +524,9 @@ describe('external-link — ClickUp branch', () => {
           headers: { 'content-type': 'application/json' },
         })),
 
-        { label: 'insert binding 23505', method: 'POST', pathname: '/rest/v1/external_project_bindings', response: () => new Response('conflict', { status: 409, headers: { 'content-type': 'application/json' } }) },
+        { label: 'pmo-task-count', method: 'HEAD', pathname: '/rest/v1/tasks', response: () => countResponse(0) },
+
+        { label: 'insert binding 23505', method: 'POST', pathname: '/rest/v1/external_project_bindings', response: () => new Response(JSON.stringify({ code: '23505', message: 'duplicate key value violates unique constraint', details: null, hint: null }), { status: 409, headers: { 'content-type': 'application/json' } }) },
       ],
       async ({ calls }) => {
         const res = await handleLinkRequest(await authed({
@@ -579,6 +604,13 @@ describe('external-link — ERPNext branch', () => {
           status: 200,
           headers: { 'content-type': 'application/json' },
         })),
+
+        supabaseSelect('external_org_bindings', () =>
+          jsonResponse({ secret_ref: 'vault-ref', status: 'active', config: {}, site_url: 'https://erp.example.com' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
+
+        supabaseRpc('read_vault_secret', () => jsonResponse('test-key:test-secret')),
       ],
       async ({ calls }) => {
         const res = await handleLinkRequest(await authed({
