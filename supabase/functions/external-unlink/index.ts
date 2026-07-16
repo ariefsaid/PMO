@@ -5,8 +5,8 @@
  * - ClickUp: soft-archives external_project_bindings row (sets disconnected_at=now(), keeps tombstone)
  * - ERPNext: clears external_org_bindings.config.company
  *
- * Auth: runs under CALLER JWT (verifyCallerJwt, ADR-0057), re-enforces role gate on verified `sub`.
- * - ClickUp: Admin OR Operator OR Project Manager (PM can unlink their project per ADR-0016)
+ * Auth: runs under CALLER JWT (verifyCallerJwt, ADR-0057), re-enforces tier-specific role gate on verified `sub`.
+ * - ClickUp: Admin OR Operator OR (Project Manager of the project AND PM profile active)
  * - ERPNext: Admin OR Operator (org-level)
  *
  * Errors:
@@ -100,10 +100,10 @@ export async function handleUnlinkRequest(req: Request): Promise<Response> {
   // 2. Service-role client for admin lookups
   const serviceClient = createClient(supabaseUrl, serviceRoleKey);
 
-  // 3. Load caller profile (role + org_id)
+  // 3. Load caller profile (role + org_id + status)
   const { data: profile, error: profileError } = await serviceClient
     .from('profiles')
-    .select('org_id, role')
+    .select('org_id, role, status')
     .eq('id', userId)
     .single();
 
@@ -111,7 +111,7 @@ export async function handleUnlinkRequest(req: Request): Promise<Response> {
     return errorResponse('Profile not found', 'FORBIDDEN', 403);
   }
 
-  // 4. Role gate: Admin OR Operator (PM allowed for ClickUp project unlink)
+  // 4. Check platform operator status
   const { data: isOperator } = await serviceClient
     .from('platform_operators')
     .select('user_id')
@@ -119,14 +119,9 @@ export async function handleUnlinkRequest(req: Request): Promise<Response> {
     .maybeSingle();
 
   const isAdmin = profile.role === 'Admin';
-  const isPM = profile.role === 'Project Manager';
   const isPlatformOperator = !!isOperator;
 
-  if (!isAdmin && !isPlatformOperator) {
-    return errorResponse('Admin or Operator role required', 'FORBIDDEN', 403);
-  }
-
-  // 5. Parse body
+  // 5. Parse body - tier FIRST, then tier-specific auth
   let body: UnlinkBody;
   try {
     body = (await req.json()) as UnlinkBody;
@@ -143,25 +138,41 @@ export async function handleUnlinkRequest(req: Request): Promise<Response> {
   // ClickUp branch: soft-archive external_project_bindings row
   // =========================================================================
   if (tier === 'clickup') {
-    // PM allowed for project unlink (per ADR-0016 project matrix)
-    if (!isAdmin && !isPlatformOperator && !isPM) {
-      return errorResponse('Admin, Operator, or Project Manager role required', 'FORBIDDEN', 403);
-    }
-
     if (!projectId) {
       return errorResponse('projectId is required for ClickUp unlink', 'BAD_REQUEST', 400);
     }
 
-    // Verify project belongs to caller's org
+    // Load project and verify it belongs to caller's org
     const { data: project, error: projectError } = await serviceClient
       .from('projects')
-      .select('id')
+      .select('id, project_manager_id, org_id')
       .eq('id', projectId)
       .eq('org_id', profile.org_id)
       .maybeSingle();
 
     if (projectError || !project) {
       return errorResponse('Project not found in this org', 'NOT_FOUND', 404);
+    }
+
+    // ClickUp tier-specific auth: Admin OR Operator OR (PM of this project AND PM profile active)
+    const isPmOfProject = project.project_manager_id === userId;
+    let pmProfileActive = false;
+    if (isPmOfProject) {
+      const { data: pmProfile } = await serviceClient
+        .from('profiles')
+        .select('status')
+        .eq('id', userId)
+        .single();
+      pmProfileActive = pmProfile?.status === 'active';
+    }
+
+    const allowed = isAdmin || isPlatformOperator || (isPmOfProject && pmProfileActive);
+    if (!allowed) {
+      return errorResponse(
+        'Admin, Operator, or Project Manager of this project (with active profile) required',
+        'FORBIDDEN',
+        403,
+      );
     }
 
     // Load the project binding
@@ -211,7 +222,7 @@ export async function handleUnlinkRequest(req: Request): Promise<Response> {
   // ERPNext branch: clear config.company
   // =========================================================================
   if (tier === 'erpnext') {
-    // ERPNext is org-level; PM not allowed (only Admin/Operator)
+    // ERPNext is org-level; Admin/Operator only (PM not allowed)
     if (!isAdmin && !isPlatformOperator) {
       return errorResponse('Admin or Operator role required for ERPNext unlink', 'FORBIDDEN', 403);
     }

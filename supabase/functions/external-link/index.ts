@@ -5,8 +5,8 @@
  * - ClickUp: links a PMO project to a ClickUp List with direction (push-seed | pull-adopt)
  * - ERPNext: updates the org's ERPNext binding with a Company doc name
  *
- * Auth: runs under CALLER JWT (verifyCallerJwt, ADR-0057), re-enforces role gate on verified `sub`.
- * - ClickUp: Admin OR Operator OR Project Manager (PM can link their project per ADR-0016)
+ * Auth: runs under CALLER JWT (verifyCallerJwt, ADR-0057), re-enforces tier-specific role gate on verified `sub`.
+ * - ClickUp: Admin OR Operator OR (Project Manager of the project AND PM profile active)
  * - ERPNext: Admin OR Operator (org-level, not project-scoped)
  *
  * ClickUp direction rules (OD-CUA-3, mirrored from clickup-onboard):
@@ -259,10 +259,6 @@ function isPrivateOrReservedHost(hostname: string): boolean {
 }
 
 // ============================================================================
-// Main handler
-// ============================================================================
-
-// ============================================================================
 // Main handler (exported for testability)
 // ============================================================================
 
@@ -305,10 +301,10 @@ export async function handleLinkRequest(req: Request): Promise<Response> {
   // 2. Service-role client for admin lookups
   const serviceClient = createClient(supabaseUrl, serviceRoleKey);
 
-  // 3. Load caller profile (role + org_id)
+  // 3. Load caller profile (role + org_id + status)
   const { data: profile, error: profileError } = await serviceClient
     .from('profiles')
-    .select('org_id, role')
+    .select('org_id, role, status')
     .eq('id', userId)
     .single();
 
@@ -316,7 +312,7 @@ export async function handleLinkRequest(req: Request): Promise<Response> {
     return errorResponse('Profile not found', 'FORBIDDEN', 403);
   }
 
-  // 4. Role gate: Admin OR Operator (ERPNext) / Admin OR Operator OR PM (ClickUp)
+  // 4. Check platform operator status
   const { data: isOperator } = await serviceClient
     .from('platform_operators')
     .select('user_id')
@@ -324,14 +320,9 @@ export async function handleLinkRequest(req: Request): Promise<Response> {
     .maybeSingle();
 
   const isAdmin = profile.role === 'Admin';
-  const isPM = profile.role === 'Project Manager';
   const isPlatformOperator = !!isOperator;
 
-  if (!isAdmin && !isPlatformOperator) {
-    return errorResponse('Admin or Operator role required', 'FORBIDDEN', 403);
-  }
-
-  // 5. Parse body
+  // 5. Parse body - tier FIRST, then tier-specific auth
   let body: LinkBody;
   try {
     body = (await req.json()) as LinkBody;
@@ -360,15 +351,10 @@ export async function handleLinkRequest(req: Request): Promise<Response> {
     return errorResponse(`${tier} binding is not active`, 'CONFIG_REJECTED', 422);
   }
 
-  // ======================================================================= =========================================================================
+  // =========================================================================
   // ClickUp branch
-  //= =========================================================================
+  // =========================================================================
   if (tier === 'clickup') {
-    // PM role check for ClickUp project link (per ADR-0016 project matrix)
-    if (!isAdmin && !isPlatformOperator && !isPM) {
-      return errorResponse('Admin, Operator, or Project Manager role required', 'FORBIDDEN', 403);
-    }
-
     const { projectId, listId, direction } = body;
     if (!projectId || !listId || !direction) {
       return errorResponse('projectId, listId, and direction are required for ClickUp', 'BAD_REQUEST', 400);
@@ -378,16 +364,37 @@ export async function handleLinkRequest(req: Request): Promise<Response> {
       return errorResponse('direction must be push-seed or pull-adopt', 'BAD_REQUEST', 400);
     }
 
-    // Verify project exists in caller's org
+    // Load project and verify it belongs to caller's org
     const { data: project, error: projectError } = await serviceClient
       .from('projects')
-      .select('id')
+      .select('id, project_manager_id, org_id')
       .eq('id', projectId)
       .eq('org_id', profile.org_id)
       .maybeSingle();
 
     if (projectError || !project) {
       return errorResponse('Project not found in this org', 'NOT_FOUND', 404);
+    }
+
+    // ClickUp tier-specific auth: Admin OR Operator OR (PM of this project AND PM profile active)
+    const isPmOfProject = project.project_manager_id === userId;
+    let pmProfileActive = false;
+    if (isPmOfProject) {
+      const { data: pmProfile } = await serviceClient
+        .from('profiles')
+        .select('status')
+        .eq('id', userId)
+        .single();
+      pmProfileActive = pmProfile?.status === 'active';
+    }
+
+    const allowed = isAdmin || isPlatformOperator || (isPmOfProject && pmProfileActive);
+    if (!allowed) {
+      return errorResponse(
+        'Admin, Operator, or Project Manager of this project (with active profile) required',
+        'FORBIDDEN',
+        403,
+      );
     }
 
     // Resolve token from Vault
@@ -427,7 +434,10 @@ export async function handleLinkRequest(req: Request): Promise<Response> {
 
     if (existingBinding) {
       return errorResponse(
-        `List is already linked to another project (${existingBinding.project_id})`, 'CONFLICT', 409);
+        `List is already linked to another project (${existingBinding.project_id})`,
+        'CONFLICT',
+        409,
+      );
     }
 
     // Insert external_project_bindings row
@@ -480,9 +490,9 @@ export async function handleLinkRequest(req: Request): Promise<Response> {
     });
   }
 
-  //= =========================================================================
+  // =========================================================================
   // ERPNext branch
-  //= =========================================================================
+  // =========================================================================
   if (tier === 'erpnext') {
     // ERPNext is org-level, not project-scoped. Admin/Operator only (PM not allowed).
     if (!isAdmin && !isPlatformOperator) {

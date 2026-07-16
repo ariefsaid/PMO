@@ -331,8 +331,44 @@ describe('ProjectIntegrationsCard', () => {
     });
   });
 
-  describe('Non-Admin view (read-only, no write controls)', () => {
-    it('renders tier cards WITHOUT Link/Unlink buttons for Engineer when project is linked', async () => {
+  describe('Non-Admin view (PM sees Link/Unlink via org-wide hint; server enforces project scope)', () => {
+    it('renders tier cards WITH Link/Unlink buttons for Project Manager when org connected', async () => {
+      vi.mocked(useIntegrations).mockReturnValue({
+        ...baseMockReturn,
+        getBinding: vi.fn((tier: string) => (tier === 'clickup' ? mockClickUpBinding : undefined)),
+        projectBindings: [],
+      } as any);
+
+      wrapWithRole('Project Manager', <ProjectIntegrationsCard projectId="proj-1" />);
+
+      await waitFor(() => expect(screen.getByText('ClickUp')).toBeInTheDocument());
+
+      // PM sees Link button (org-wide DELIVERY hint via can('edit','project'))
+      expect(screen.getByRole('button', { name: /^Link to ClickUp$/i })).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /^Unlink from ClickUp$/i })).not.toBeInTheDocument();
+      // NOTE: Server enforces project-scoped PM check — PM of a DIFFERENT project gets 403
+    });
+
+    it('renders tier cards WITH Unlink button for Project Manager when project is linked', async () => {
+      vi.mocked(useIntegrations).mockReturnValue({
+        ...baseMockReturn,
+        getBinding: vi.fn((tier: string) => (tier === 'clickup' ? mockClickUpBinding : undefined)),
+        projectBindings: [mockProjectClickUpBinding],
+      } as any);
+
+      wrapWithRole('Project Manager', <ProjectIntegrationsCard projectId="proj-1" />);
+
+      await waitFor(() => expect(screen.getByText('ClickUp')).toBeInTheDocument());
+      const clickupCard = within(screen.getByTestId('project-integrations-cards').querySelector('[data-tier="clickup"]')!);
+      expect(clickupCard.getByText('Linked to ClickUp')).toBeInTheDocument();
+
+      // PM sees Unlink button (org-wide DELIVERY hint)
+      expect(screen.getByRole('button', { name: /^Unlink from ClickUp$/i })).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /^Link to ClickUp$/i })).not.toBeInTheDocument();
+      // NOTE: Server enforces project-scoped PM check — PM of a DIFFERENT project gets 403
+    });
+
+    it('renders tier cards WITHOUT Link/Unlink buttons for Engineer', async () => {
       vi.mocked(useIntegrations).mockReturnValue({
         ...baseMockReturn,
         getBinding: vi.fn((tier: string) => (tier === 'clickup' ? mockClickUpBinding : undefined)),
@@ -350,21 +386,6 @@ describe('ProjectIntegrationsCard', () => {
       expect(screen.queryByRole('button', { name: /^Link to ERPNext$/i })).not.toBeInTheDocument();
     });
 
-    it('renders tier cards WITHOUT Link/Unlink buttons for Project Manager when org connected', async () => {
-      vi.mocked(useIntegrations).mockReturnValue({
-        ...baseMockReturn,
-        getBinding: vi.fn((tier: string) => (tier === 'clickup' ? mockClickUpBinding : undefined)),
-        projectBindings: [],
-      } as any);
-
-      wrapWithRole('Project Manager', <ProjectIntegrationsCard projectId="proj-1" />);
-
-      await waitFor(() => expect(screen.getByText('ClickUp')).toBeInTheDocument());
-
-      expect(screen.queryByRole('button', { name: /^Link to ClickUp$/i })).not.toBeInTheDocument();
-      expect(screen.queryByRole('button', { name: /^Unlink from ClickUp$/i })).not.toBeInTheDocument();
-    });
-
     it('renders tier cards WITHOUT Link/Unlink buttons for Finance', async () => {
       wrapWithRole('Finance', <ProjectIntegrationsCard projectId="proj-1" />);
 
@@ -374,12 +395,13 @@ describe('ProjectIntegrationsCard', () => {
       expect(screen.queryByRole('button', { name: /^Unlink from ClickUp$/i })).not.toBeInTheDocument();
     });
 
-    it('renders tier cards WITHOUT Link/Unlink buttons for Executive', async () => {
+    it('renders tier cards WITH Link button for Executive (DELIVERY role)', async () => {
       wrapWithRole('Executive', <ProjectIntegrationsCard projectId="proj-1" />);
 
       await waitFor(() => expect(screen.getByText('ClickUp')).toBeInTheDocument());
 
-      expect(screen.queryByRole('button', { name: /^Link to ClickUp$/i })).not.toBeInTheDocument();
+      // Executive is in DELIVERY role, so sees Link button (org-wide hint)
+      expect(screen.getByRole('button', { name: /^Link to ClickUp$/i })).toBeInTheDocument();
       expect(screen.queryByRole('button', { name: /^Unlink from ClickUp$/i })).not.toBeInTheDocument();
     });
   });

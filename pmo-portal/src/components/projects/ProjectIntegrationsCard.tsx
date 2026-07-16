@@ -34,7 +34,10 @@ const validate = (v: LinkFormValues): Partial<Record<keyof LinkFormValues, strin
 /**
  * Project-level integration link/unlink control for ClickUp only.
  * Renders on the project detail page (Tasks tab or a dedicated Integrations section).
- * Gate: Admin via `can('manage','integration')`; PM via `can('edit','project')` (server re-enforces).
+ * Gate: `can('edit','project')` for Link/Unlink controls (server re-enforces project-scoped PM check).
+ * NOTE: `policy.ts` has NO project-scoped integration primitive; `can('edit','project')` is an
+ * ORG-WIDE hint (DELIVERY roles) — the SERVER does the real project-scoped check
+ * (ADR-0016: can() is UX-only).
  * DEFER(P4/owner): per-project ERPNext company link — ERPNext is org-level; revisit as an org-settings enhancement
  */
 export const ProjectIntegrationsCard: React.FC<{ projectId: string }> = ({ projectId }) => {
@@ -145,7 +148,7 @@ export const ProjectIntegrationsCard: React.FC<{ projectId: string }> = ({ proje
           </span>
         </div>
 
-        <CanWrite entity="integration" action="manage">
+        <CanWrite entity="project" action="edit">
           <Button
             variant="destructive"
             size="sm"
@@ -164,7 +167,7 @@ export const ProjectIntegrationsCard: React.FC<{ projectId: string }> = ({ proje
     if (!clickupConnected) return null;
 
     return (
-      <CanWrite entity="integration" action="manage">
+      <CanWrite entity="project" action="edit">
         <Button variant="outline" size="sm" onClick={handleLinkClick}>
           <Icon name="plus" className="size-3.55" aria-hidden="true" />
           Link to {tierLabel('clickup')}
