@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { afterEach, describe, expect, it, vi, beforeEach } from 'vitest';
 import { render, screen, cleanup, waitFor, fireEvent, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 import React from 'react';
@@ -634,5 +635,80 @@ describe('IntegrationsView — Connect/Disconnect cards (AC-EAC-016, AC-EAC-017)
       await waitFor(() => expect(screen.getByText('ClickUp')).toBeInTheDocument());
       expect(screen.queryByText(/errors?/i)).not.toBeInTheDocument();
     });
+  });
+});
+// ============================================================================
+// OD-INT-6 — ERPNext Company selection at ORG level (connected-but-not-activated)
+// Regression guard: the picker previously had `value={null}` + a no-op onChange, and submit sent the
+// TIER as the companyId — so selecting a Company did nothing and Activate would have written
+// config.company='erpnext'. These tests drive the real interaction end-to-end.
+// ============================================================================
+describe('OD-INT-6 ERPNext Company selection (org-level)', () => {
+  const erpnextNotActivated: IntegrationBinding = {
+    org_id: 'org-1',
+    external_tier: 'erpnext',
+    site_url: 'https://erp.example.com',
+    secret_ref: 'erpnext_token_org_1',
+    status: 'active',
+    connected_by: 'u1',
+    connected_at: '2026-01-01T00:00:00Z',
+    disconnected_at: null,
+    config: {}, // <-- no company => connected-but-NOT-activated
+  };
+
+  const mockSetCompany = vi.fn().mockResolvedValue({ ok: true });
+
+  const mockReturn = (overrides: Record<string, unknown> = {}) => ({
+    bindings: [erpnextNotActivated],
+    isPending: false,
+    isError: false,
+    isSuccess: true,
+    error: null,
+    refetch: vi.fn(),
+    connect: { mutateAsync: vi.fn(), isPending: false, isError: false, isSuccess: true, isIdle: false, data: undefined, variables: undefined, failureCount: 0, failureReason: null, isPaused: false, mutate: vi.fn(), reset: vi.fn(), status: 'success', submittedAt: 0 },
+    disconnect: { mutateAsync: vi.fn(), isPending: false, isError: false, isSuccess: true, isIdle: false, data: undefined, variables: undefined, failureCount: 0, failureReason: null, isPaused: false, mutate: vi.fn(), reset: vi.fn(), status: 'success', submittedAt: 0 },
+    getBinding: vi.fn((tier: string) => (tier === 'erpnext' ? erpnextNotActivated : undefined)),
+    getHealth: vi.fn().mockResolvedValue(null),
+    erpnextCompanies: [{ name: 'Acme Corp' }, { name: 'Beta Ltd' }],
+    isCompaniesPending: false,
+    setCompany: { mutateAsync: mockSetCompany, isPending: false, isError: false, isSuccess: true, isIdle: false, data: undefined, variables: undefined, failureCount: 0, failureReason: null, isPaused: false, mutate: vi.fn(), reset: vi.fn(), status: 'success', submittedAt: 0 },
+    ...overrides,
+  });
+
+  beforeEach(() => {
+    vi.mocked(useExternalDomainOwnership).mockReturnValue(baseExternalDomainReturn);
+    vi.mocked(useIntegrations).mockReturnValue(mockReturn() as any);
+  });
+
+  it('OD-INT-6 shows connected-but-not-activated for ERPNext with no Company', async () => {
+    wrapWithRole('Admin', <IntegrationsView />);
+    await waitFor(() => expect(screen.getByText('Connected — select a Company to activate')).toBeInTheDocument());
+    expect(screen.getByText(/ERP sync is paused until a Company is selected/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Select Company$/i })).toBeInTheDocument();
+  });
+
+  it('OD-INT-6 Activate sends the SELECTED Company doc name (not the tier)', async () => {
+    const user = userEvent.setup();
+    wrapWithRole('Admin', <IntegrationsView />);
+
+    await user.click(await screen.findByRole('button', { name: /^Select Company$/i }));
+    await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
+
+    // Pick a Company from the combobox (mirrors the ClickUp List picker interaction).
+    await user.click(screen.getByLabelText(/^Company$/i));
+    await waitFor(() => expect(screen.getByRole('listbox')).toBeInTheDocument());
+    await user.click(within(screen.getByRole('listbox')).getByRole('option', { name: /Acme Corp/i }));
+
+    await user.click(screen.getByRole('button', { name: /^Activate$/i }));
+
+    // The regression: this must be the Company name, NOT 'erpnext'.
+    await waitFor(() => expect(mockSetCompany).toHaveBeenCalledWith('Acme Corp'));
+    expect(mockSetCompany).not.toHaveBeenCalledWith('erpnext');
+  });
+
+  it('OD-INT-6 a non-Admin sees no Select Company control (server is the real gate)', async () => {
+    wrapWithRole('Engineer', <IntegrationsView />);
+    await waitFor(() => expect(screen.getByText('ERPNext')).toBeInTheDocument());
+    expect(screen.queryByRole('button', { name: /^Select Company$/i })).not.toBeInTheDocument();
   });
 });

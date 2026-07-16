@@ -113,6 +113,7 @@ export const IntegrationsView: React.FC = () => {
   // OD-INT-6: Company picker state for ERPNext
   const [setCompanyTier, setSetCompanyTier] = useState<ExternalTier | null>(null);
   const [setCompanyError, setSetCompanyError] = useState<string | null>(null);
+  const [selectedCompany, setSelectedCompany] = useState<string | null>(null);
 
   // Form state (using useEntityForm)
   const connectForm = useEntityForm<ConnectFormValues>({
@@ -157,15 +158,23 @@ export const IntegrationsView: React.FC = () => {
   const handleSetCompanyClick = (tier: ExternalTier) => {
     setSetCompanyTier(tier);
     setSetCompanyError(null);
+    setSelectedCompany(null);
   };
 
   const handleSetCompanySubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!setCompanyTier) return;
+    if (!selectedCompany) {
+      setSetCompanyError('Select a Company to activate.');
+      return;
+    }
 
     try {
-      await setCompany.mutateAsync(setCompanyTier);
+      // Send the SELECTED Company doc name — NOT the tier. `config.company` must hold the Company
+      // (OD-INT-6); the binding stays connected-but-not-activated until this is set.
+      await setCompany.mutateAsync(selectedCompany);
       setSetCompanyTier(null);
+      setSelectedCompany(null);
     } catch (err) {
       const { detail } = classifyMutationError(err);
       setSetCompanyError(detail);
@@ -487,15 +496,16 @@ export const IntegrationsView: React.FC = () => {
           }}
           loading={setCompany.isPending}
           dirty={true}
-          submitDisabled={erpnextCompanies.length === 0 || isCompaniesPending}
+          submitDisabled={!selectedCompany || erpnextCompanies.length === 0 || isCompaniesPending}
           errorSummary={setCompanyError ? [{ fieldId: 'company-select', message: setCompanyError }] : undefined}
         >
           <FormSection legend="Company">
             <Combobox
               label="Company"
-              value={null}
-              onChange={(_value, _option) => {
-                // We don't use the value directly; the modal submit reads from the selected option
+              value={selectedCompany}
+              onChange={(value) => {
+                setSelectedCompany(value as string | null);
+                setSetCompanyError(null);
               }}
               loadOptions={async () => {
                 return erpnextCompanies.map((c) => ({ value: c.name, label: c.name }));
