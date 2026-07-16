@@ -87,8 +87,39 @@ reviewed unit). NOT merged.**
     scheduled delete). **Blocked 2026-07-16 00:22 WIB on:** z.ai quota (resets ~04:33) + the local supabase
     stack is DOWN (needs a `db reset` cycle; the analytics/vector containers were flaky). Dispatch to glm-5.2
     when quota resets; Director pgTAP-verifies under the db-lock. MANDATORY (NFR-M365-107) before live exposure.
-  - **⏳ After the DB round:** re-review the 2 HIGHs → mocked+tested+reviewed done. FE Connect-button wiring
-    deferred to deploy. Live OAuth/Graph round-trip + security-auditor sign-off on the LIVE surface owner-gated.
+  - **⚠️ MERGE BLOCKER — migration/test number collisions (found 2026-07-16, Director).** This branch was cut
+    from a STALE base (`99df5fc`, old dev) and numbered its migrations **0096–0104**; meanwhile `dev` has
+    advanced to **0103** with the ERPNext work (`0096_erpnext_seam_tables` … `0103_companies_feed_ordering_cols`)
+    → **8 duplicate numbers** (two 0096/0097/0098/0099/0100/0101/0102/0103) the moment M365 merges. Also
+    `supabase/tests/0142_*` exists on BOTH this branch (`0142_ms_graph_connections_lockdown`) and the grants
+    branch (`0142_revoke_client_truncate_refs_trigger`), and the grants branch's `0104_revoke_client_truncate_refs_trigger`
+    collides with M365's `0104_m365_race_lock`. Each branch is self-consistent + green in isolation (no
+    duplicate exists ON a branch), so this is a MERGE-time problem, not a code defect. **Before merging M365:
+    rebase onto current `dev`, RENUMBER its migrations + pgTAP to the next free range, then RE-RUN the DB gate —
+    M365 has never been tested against dev's ERPNext schema.** Coordinate ordering with the grants branch.
+  - **⏸️ OWNER DECISION PENDING — same-tenant `oid` binding (Luna round-2 HIGH).** The callback asserts the
+    id_token's `tid` (cross-tenant phishing CLOSED) but never binds `oid`, so an Admin can still phish a
+    colleague IN THE SAME Entra tenant and store their tokens. No expected `oid` exists on a FIRST connect →
+    needs a design call: (a) bind to the MS-SSO identity (strongest; breaks connect for email/password users),
+    (b) trust-on-first-use + enforce on reconnect (Director's lean), (c) accept + rely on MS consent UX +
+    publisher verification (already a Non-Goal). Deliberately scoped OUT of the fix rounds pending the owner.
+  - **⏳ After Luna clears:** FE Connect-button wiring deferred to deploy. Live OAuth/Graph round-trip +
+    security-auditor sign-off on the LIVE surface stay owner-gated.
+
+### ⚑ H4 GRANTS HARDENING (2026-07-16) — spun out of the M365 Luna audit; separate branch, NOT merged
+Branch `fix/revoke-client-truncate-grants` (off `dev`), commits `57957091` (Tier 1) + `246be744` (Tier 2). Built
+via glm-5.2, Director-approved Tier 2. **Root cause was bigger than the original finding:** the grants come from
+Supabase's bootstrap **DEFAULT PRIVILEGES** (`pg_default_acl`), so EVERY new table silently inherited `truncate`
+for `anon`+`authenticated` — `0075` was just where it was visible. Fixed at BOTH layers (`ALTER DEFAULT
+PRIVILEGES` for future tables + a catalog sweep across all 65 current public tables). Tier 1 = revoke
+`truncate/references/trigger` from anon+authenticated (mig `0104`). Tier 2 = revoke anon `insert/update/delete`
+(mig `0105`); swept the whole pgTAP suite — `0109` was the ONLY test depending on the anon grant (its assertion
+moved from "UPDATE affects 0 rows" → `throws_ok 42501`: same goal-oracle, strictly STRONGER mechanism, intent
+unchanged). New ACs `AC-GRANT-007/010/011/012/013` incl. a creator-agnostic catalog-sweep backstop. Gates:
+pgTAP 166/1471 PASS · `npm run verify` exit 0. **Accepted residual:** a `supabase_admin` default-priv entry
+can't be revoked (the migration runner `postgres` isn't a superuser/member) — inert because every public table
+is created BY `postgres` so inherits postgres's defaults; `AC-GRANT-010` catches any real drift regardless of
+creator. **⚠️ Its `0104`/`0142` numbers collide with M365's — sequence the two merges.**
 - **Owner-gated inputs on GO** (handoff §5): (1) KEK `openssl rand -base64 32` → `supabase secrets set
   M365_TOKEN_KEK`; (2) `supabase secrets set M365_CLIENT_SECRET` (Entra secret — SSO dashboard config
   isn't edge-fn-readable); (3) Entra: delegated Graph scopes (`Files.Read`+`offline_access`) + the
