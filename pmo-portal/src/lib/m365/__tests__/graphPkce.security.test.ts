@@ -3,11 +3,57 @@
  * AC-M365-142 — CSRF state single-use (consume deletes the row; a replayed state yields no verifier).
  */
 import { describe, it, expect } from 'vitest';
-import { buildAuthorizeUrl } from '../graphPkce';
+import { buildAuthorizeUrl, isValidTenant } from '../graphPkce';
 import { handleInitiateConnect } from '../../../../../supabase/functions/m365-token-custody/initiate';
 import { consumePkceState } from '../../../../../supabase/functions/m365-token-custody/stateStore';
 import { mockClient, deps } from './m365MockDeps';
 import type { PkceStateRow } from '../../../../../supabase/functions/m365-token-custody/types';
+
+describe('AC-M365-141 — isValidTenant (M3 Luna tightening)', () => {
+  it('AC-M365-141 / M3: accepts the valid tenant forms (GUID, common/organizations/consumers, verified domain)', () => {
+    for (const tenant of [
+      '11111111-2222-3333-4444-555555555555',
+      'common',
+      'organizations',
+      'consumers',
+      'contoso.onmicrosoft.com',
+      'tenant-a',
+    ]) {
+      expect(isValidTenant(tenant), tenant).toBe(true);
+    }
+  });
+
+  it('AC-M365-141 / M3: rejects dot-segments (..) anywhere and all-dot values', () => {
+    for (const tenant of ['.', '..', '...', 'a..b', '../evil', 'evil/..', 'foo..']) {
+      expect(isValidTenant(tenant), tenant).toBe(false);
+    }
+  });
+
+  it('AC-M365-141 / M3: rejects path / query / whitespace / percent payloads', () => {
+    for (const tenant of [
+      'common/oauth2/v2.0/authorize?client_id=evil',
+      'common?client_id=evil',
+      '../../evil',
+      'evil\\x20',
+      'a b',
+      'a%20b',
+      '',
+    ]) {
+      expect(isValidTenant(tenant), tenant).toBe(false);
+    }
+  });
+
+  it('AC-M365-141 / M3: isValidTenant is a type guard (narrows unknown → string)', () => {
+    const t: unknown = '11111111-2222-3333-4444-555555555555';
+    if (isValidTenant(t)) {
+      // t is narrowed to string here (compile-time check).
+      expect(t.length).toBe(36);
+    }
+    expect(isValidTenant(undefined)).toBe(false);
+    expect(isValidTenant(null)).toBe(false);
+    expect(isValidTenant(123)).toBe(false);
+  });
+});
 
 describe('AC-M365-141 — tenant pinning (graphPkce.buildAuthorizeUrl)', () => {
   it('AC-M365-141: rejects a tenant carrying path traversal', () => {

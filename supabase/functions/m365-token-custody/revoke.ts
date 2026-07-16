@@ -4,7 +4,8 @@
 import type { HandlerDeps, HandlerResult, ConnectionRow } from './types.ts';
 import { resolveOrgOrResult } from './auth.ts';
 import { decryptToken, deserializeEnvelope, resolveKek } from './crypto.ts';
-import { logAudit } from './audit.ts';
+import { logAudit, recordM365Error } from './audit.ts';
+import { isValidTenant } from '../../../pmo-portal/src/lib/m365/graphPkce.ts';
 
 const REVOKE_ENDPOINT = 'https://login.microsoftonline.com';
 
@@ -39,7 +40,14 @@ export async function handleDisconnect(deps: HandlerDeps): Promise<HandlerResult
   const connection = conn as ConnectionRow;
 
   // Best-effort Microsoft revoke — ignore failures (local delete is authoritative).
+  // M3 (Luna): validate the DB-sourced tenant before constructing the revoke URL (this POST carries
+  // the decrypted refresh_token + client_secret). The column CHECK (0103) rejects bad values on
+  // write, so this is defense-in-depth; a bad tenant simply skips the Microsoft revoke and still
+  // proceeds to the authoritative local delete below.
   try {
+    if (!isValidTenant(connection.entra_tenant_id)) {
+      throw new Error('invalid tenant');
+    }
     const kek = resolveKek(env, connection.key_id);
     const envelope = deserializeEnvelope(connection.refresh_token_ciphertext);
     const refreshToken = await decryptToken(envelope.ciphertext, envelope.iv, kek);
@@ -57,7 +65,26 @@ export async function handleDisconnect(deps: HandlerDeps): Promise<HandlerResult
   }
 
   // Delete the local row (source of truth).
-  await serviceClient.from('ms_graph_connections').delete().eq('id', connection.id);
+  // H6 (Luna): inspect the delete result. Previously the awaited delete was IGNORED — a DB error
+  // left the encrypted row in place yet the function still wrote a 'revoked' audit event and
+  // returned 200. Now: only the success audit + 200 are emitted when the delete actually succeeded;
+  // otherwise an error_event is recorded and a retryable 503 is returned so the caller retries.
+  const { error: deleteError } = await serviceClient
+    .from('ms_graph_connections')
+    .delete()
+    .eq('id', connection.id);
+  if (deleteError) {
+    await recordM365Error(serviceClient, {
+      errorCode: 'INTERNAL_ERROR',
+      contextId: connection.id,
+      orgId,
+    });
+    return {
+      status: 503,
+      body: { error: 'INTERNAL_ERROR', message: 'failed to delete connection; please retry' },
+      headers,
+    };
+  }
 
   await logAudit(serviceClient, {
     action: 'm365.connection.revoked',

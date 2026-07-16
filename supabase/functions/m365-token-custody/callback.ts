@@ -8,6 +8,7 @@ import type { HandlerDeps, HandlerResult } from './types.ts';
 import { consumePkceState } from './stateStore.ts';
 import { encryptToken, serializeEnvelope, resolveKek, base64UrlDecode } from './crypto.ts';
 import { logAudit, recordM365Error } from './audit.ts';
+import { isValidTenant } from '../../../pmo-portal/src/lib/m365/graphPkce.ts';
 
 const TOKEN_ENDPOINT = 'https://login.microsoftonline.com';
 
@@ -49,6 +50,15 @@ export async function handleCallback(req: Request, deps: HandlerDeps): Promise<H
   if (!pkce) {
     await recordM365Error(serviceClient, { errorCode: 'INVALID_STATE', contextId: state });
     return redirectToFeError(env, 'Invalid or expired state. Please try connecting again.');
+  }
+
+  // M3 (Luna): re-validate the env tenant BEFORE building the token URL. The host is pinned, so a
+  // bad tenant is path-confusion rather than arbitrary-host SSRF — but this POST carries the
+  // confidential client_secret + the auth code, so the defense-in-depth check runs at every URL
+  // construction site. A misconfigured tenant is surfaced as a clear error_event + FE redirect.
+  if (!isValidTenant(env.m365TenantId)) {
+    await recordM365Error(serviceClient, { errorCode: 'TOKEN_EXCHANGE_FAILED', contextId: state });
+    return redirectToFeError(env, 'Connection failed: tenant misconfigured. Please contact support.');
   }
 
   // Exchange the auth code for tokens (confidential client + PKCE verifier).
@@ -105,6 +115,28 @@ export async function handleCallback(req: Request, deps: HandlerDeps): Promise<H
     return redirectToFeError(env, 'Connection failed: tenant mismatch. Please try again.');
   }
 
+  // C1(c) (Luna): the BEFORE INSERT OR UPDATE trigger (0103) is the AUTHORITY that makes token
+  // resurrection structurally impossible — if the user was disabled or the org disentitled between
+  // initiate and callback, the upsert is REJECTED with errcode 42501. This best-effort pre-check
+  // gives a CLEARER error_event + user message before the encrypt/upsert round-trip; it is
+  // TOCTOU by nature, so the upsertError branch below remains the authoritative backstop. No
+  // client JWT is available on this GET path, so the reads go through the service client (RLS-free
+  // but exact — the trigger re-checks authoritatively at write time).
+  const { data: profRow } = await serviceClient.from('profiles').select('status')
+    .eq('id', pkce.userId).maybeSingle();
+  const { data: featRow } = await serviceClient.from('org_features').select('enabled')
+    .eq('org_id', pkce.orgId).eq('feature_key', 'm365_integration').maybeSingle();
+  const profileActive = (profRow as { status?: string } | null)?.status === 'active';
+  const entitled = (featRow as { enabled?: boolean } | null)?.enabled === true;
+  if (!profileActive || !entitled) {
+    await recordM365Error(serviceClient, {
+      errorCode: 'CONNECTION_NOT_ALLOWED',
+      contextId: state,
+      orgId: pkce.orgId,
+    });
+    return redirectToFeError(env, 'This connection is no longer allowed. Please contact your administrator.');
+  }
+
   // Encrypt BOTH tokens at rest (ADR-0060 §3). No partial store on any failure below this point.
   const kek = resolveKek(env, 'kek-v1');
   const accessEnvelope = await encryptToken(String(tokenData.access_token), kek);
@@ -139,12 +171,16 @@ export async function handleCallback(req: Request, deps: HandlerDeps): Promise<H
     .single();
 
   if (upsertError || !conn) {
+    // C1(c) (Luna): the write-guard trigger rejected the upsert — the user was disabled / the org
+    // disentitled mid-flight (or a race flipped state between the pre-check above and here). NEVER
+    // reported as success: emit a token-free error_event and redirect to the FE error page. The
+    // encrypted blobs are local variables only — nothing is persisted on this path.
     await recordM365Error(serviceClient, {
-      errorCode: 'INTERNAL_ERROR',
+      errorCode: 'CONNECTION_NOT_ALLOWED',
       contextId: state,
       orgId: pkce.orgId,
     });
-    return redirectToFeError(env, 'Failed to save connection. Please try again.');
+    return redirectToFeError(env, 'This connection is no longer allowed. Please contact your administrator.');
   }
 
   await logAudit(serviceClient, {

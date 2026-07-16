@@ -17,7 +17,43 @@ const AUTHORIZE_BASE = 'https://login.microsoftonline.com';
 // Valid Microsoft tenant identifiers: a GUID, the keywords common/organizations/consumers, or a
 // verified domain (e.g. contoso.onmicrosoft.com). All match [A-Za-z0-9._-]. Anything else could
 // smuggle path/query segments into the authorize URL (security-audit Minor 1, 2026-07-14).
+// The charset alone accepts '.' and '..' — M3 (Luna) tightens that here: dot-segments ('..' anywhere)
+// and all-dot values ('.', '..', '...') are rejected while keeping every legitimate tenant valid.
 const TENANT_RE = /^[A-Za-z0-9._-]+$/;
+const TENANT_DOTSEGMENT_RE = /\.\./; // two consecutive dots anywhere
+const TENANT_ALLDOTS_RE = /^[.]+$/; // one or more dots and nothing else
+
+/**
+ * M3 (Luna): the shared tenant validator. True for a GUID, common/organizations/consumers, or an
+ * ASCII/punycode verified domain (e.g. contoso.onmicrosoft.com); false for anything carrying path /
+ * query / whitespace metacharacters, dot-segments ('..'), or all-dot values ('.'). Reused by every
+ * authorize/token/revoke URL construction site (buildAuthorizeUrl + the callback/refresh/revoke
+ * handlers) so a DB- or env-sourced tenant can NEVER redirect a secret-bearing body via path
+ * confusion (the host stays pinned — this closes path-confusion, not arbitrary-host SSRF).
+ */
+export function isValidTenant(tenant: unknown): tenant is string {
+  return (
+    typeof tenant === 'string' &&
+    tenant.length > 0 &&
+    TENANT_RE.test(tenant) &&
+    !TENANT_DOTSEGMENT_RE.test(tenant) &&
+    !TENANT_ALLDOTS_RE.test(tenant)
+  );
+}
+
+/**
+ * M3 (Luna): throw on an invalid tenant. Used by buildAuthorizeUrl (initiate) where a bad tenant is
+ * a misconfiguration best surfaced as a hard failure rather than a silent bad URL. The token/revoke
+ * handlers use {@link isValidTenant} directly so they can route a bad DB value to their own
+ * error-handling (best-effort revoke must NOT block the authoritative local delete).
+ */
+export function validateTenant(tenant: string): void {
+  if (!isValidTenant(tenant)) {
+    throw new Error(
+      'graphPkce: invalid tenant identifier (expected a GUID, common/organizations/consumers, or a verified domain; dot-segments and all-dot values are rejected)',
+    );
+  }
+}
 
 function base64UrlEncode(bytes: Uint8Array): string {
   let binary = '';
@@ -55,9 +91,8 @@ export function buildAuthorizeUrl(params: AuthorizeUrlParams): string {
   // Defense-in-depth: the tenant is interpolated into the URL *path* (query params are encoded by
   // searchParams). Validate its shape and encode it so it cannot alter the path/query even if a
   // future caller passes an unexpected value. Host stays pinned to login.microsoftonline.com.
-  if (!TENANT_RE.test(params.tenant)) {
-    throw new Error('graphPkce: invalid tenant identifier (expected a GUID, common/organizations/consumers, or a verified domain)');
-  }
+  // M3 (Luna): validateTenant also rejects dot-segments ('..') and all-dot values.
+  validateTenant(params.tenant);
   const url = new URL(`${AUTHORIZE_BASE}/${encodeURIComponent(params.tenant)}/oauth2/v2.0/authorize`);
   url.searchParams.set('client_id', params.clientId);
   url.searchParams.set('response_type', 'code');

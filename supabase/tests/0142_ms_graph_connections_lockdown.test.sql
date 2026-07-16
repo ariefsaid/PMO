@@ -11,6 +11,10 @@ insert into auth.users (id, email) values
 insert into profiles (id, org_id, full_name, email, role) values
   ('01420000-0000-0000-0000-0000000000a1','01420000-0000-0000-0000-000000000001','M365 User','m365-lockdown@example.com','Admin');
 
+-- 0103 C1(b) write-guard requires an enabled m365_integration entitlement for any connection INSERT.
+insert into org_features (org_id, feature_key, enabled)
+values ('01420000-0000-0000-0000-000000000001','m365_integration',true);
+
 -- Seed a connection AS THE TABLE OWNER (the service_role/edge-fn write path bypasses RLS).
 insert into public.ms_graph_connections
   (org_id, user_id, entra_tenant_id, scopes, refresh_token_ciphertext, key_id)

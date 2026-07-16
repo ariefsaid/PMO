@@ -16,8 +16,12 @@ export interface M365SupabaseLike {
   from(table: string): {
     select(columns: string): {
       eq(column: string, value: string): {
-        eq(column: string, value: string): { single(): PromiseLike<{ data: unknown; error: unknown }> };
+        eq(column: string, value: string): {
+          single(): PromiseLike<{ data: unknown; error: unknown }>;
+          maybeSingle(): PromiseLike<{ data: unknown; error: unknown }>;
+        };
         single(): PromiseLike<{ data: unknown; error: unknown }>;
+        maybeSingle(): PromiseLike<{ data: unknown; error: unknown }>;
       };
     };
     insert(row: object): PromiseLike<{ error: unknown }>;

@@ -20,6 +20,11 @@ insert into profiles (id, org_id, full_name, email, role) values
   ('01470000-0000-0000-0000-0000000000c1','01470000-0000-0000-0000-000000000002','Admin B','m365-admin-b@example.com','Admin'),
   ('00000000-0000-0000-0000-0000000000f1','01470000-0000-0000-0000-000000000001','Operator','m365-operator@example.com','Admin');
 
+-- 0103 C1(b) write-guard requires an enabled m365_integration entitlement in each org.
+insert into org_features (org_id, feature_key, enabled) values
+  ('01470000-0000-0000-0000-000000000001','m365_integration',true),
+  ('01470000-0000-0000-0000-000000000002','m365_integration',true);
+
 insert into public.ms_graph_connections
   (org_id, user_id, entra_tenant_id, scopes, refresh_token_ciphertext, access_token_ciphertext, key_id, status)
 values

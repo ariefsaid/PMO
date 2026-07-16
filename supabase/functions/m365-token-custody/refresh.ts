@@ -6,6 +6,7 @@
 import type { ConnectionRow, HandlerDeps } from './types.ts';
 import { decryptToken, encryptToken, deserializeEnvelope, serializeEnvelope, resolveKek } from './crypto.ts';
 import { logAudit, recordM365Error } from './audit.ts';
+import { isValidTenant } from '../../../pmo-portal/src/lib/m365/graphPkce.ts';
 
 const TOKEN_ENDPOINT = 'https://login.microsoftonline.com';
 
@@ -43,6 +44,19 @@ export async function refreshAccessToken(
   }
 
   // 2. Exchange at the Microsoft token endpoint (confidential client).
+  // M3 (Luna): re-validate the DB-sourced tenant before URL construction. This POST carries the
+  // decrypted refresh_token + client_secret, so the check runs at every construction site. A bad
+  // tenant (path-confusion — host is pinned) records an error_event and returns false (no refresh)
+  // rather than building a malformed URL. The column CHECK (0103) already rejects such values on
+  // write, so this is defense-in-depth for any legacy/tampered row.
+  if (!isValidTenant(connection.entra_tenant_id)) {
+    await recordM365Error(serviceClient, {
+      errorCode: 'M365_REFRESH_UNHANDLED',
+      contextId: connection.id,
+      orgId: connection.org_id,
+    });
+    return false;
+  }
   const tokenRes = await fetchImpl(
     `${TOKEN_ENDPOINT}/${connection.entra_tenant_id}/oauth2/v2.0/token`,
     {

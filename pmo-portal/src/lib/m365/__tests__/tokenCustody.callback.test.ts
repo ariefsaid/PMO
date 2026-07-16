@@ -40,6 +40,9 @@ describe('AC-M365-103/104/105 — handleCallback', () => {
   it('AC-M365-103: valid state+code → exchanges, encrypts BOTH tokens, upserts an active connection, audits, redirects', async () => {
     const service = mockClient({
       m365_pkce_states: [{ data: pkceRow(), error: null }],
+      // C1(c) pre-check (status + entitlement) — both must pass for the upsert to proceed.
+      profiles: [{ data: { status: 'active' }, error: null }],
+      org_features: [{ data: { enabled: true }, error: null }],
       ms_graph_connections: [{ data: { id: 'conn-1' }, error: null }],
     });
     const fetch = fetchOk({
@@ -185,5 +188,100 @@ describe('AC-M365-103/104/105 — handleCallback', () => {
     expect(result.status).toBe(302);
     expect(result.headers?.Location).toContain('m365_error=');
     expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('AC-M365-103 (C1c): a disabled user (pre-check) is rejected before the upsert — error_event, no token material, FE error redirect', async () => {
+    // The user was offboarded after initiate but before callback. The pre-check surfaces a clear
+    // CONNECTION_NOT_ALLOWED; the authoritative write-guard (0103) would also reject the upsert.
+    const service = mockClient({
+      m365_pkce_states: [{ data: pkceRow(), error: null }],
+      profiles: [{ data: { status: 'disabled' }, error: null }],
+      org_features: [{ data: { enabled: true }, error: null }],
+    });
+    const fetch = fetchOk({
+      access_token: 'ACCESS', refresh_token: 'REFRESH', expires_in: 3600,
+      id_token: mintIdToken({ tid: 'test-tenant-id', oid: 'user-oid-123' }),
+    });
+
+    const result = await handleCallback(callbackReq({ code: 'auth-code', state: 'state-xyz' }), deps({ service, fetch }));
+
+    expect(result.status).toBe(302);
+    expect(result.headers?.Location).toContain('m365_error=');
+    // NO connection stored — resurrection is impossible.
+    expect(service.writes.some((w) => w.table === 'ms_graph_connections')).toBe(false);
+    // A CONNECTION_NOT_ALLOWED error_event was recorded with NO token material.
+    const ev = service.writes.find((w) => w.table === 'error_events');
+    expect(ev).toBeTruthy();
+    expect((ev!.payload as { error_code: string }).error_code).toBe('CONNECTION_NOT_ALLOWED');
+    // No token MATERIAL leaked: the actual access/refresh values + the code verifier are absent.
+    const evJson = JSON.stringify(ev!.payload);
+    expect(evJson).not.toMatch(/ACCESS|REFRESH|verifier-abc/i);
+  });
+
+  it('AC-M365-103 (C1c): a disentitled org (pre-check) is rejected before the upsert — error_event, no store', async () => {
+    const service = mockClient({
+      m365_pkce_states: [{ data: pkceRow(), error: null }],
+      profiles: [{ data: { status: 'active' }, error: null }],
+      org_features: [{ data: { enabled: false }, error: null }],
+    });
+    const fetch = fetchOk({
+      access_token: 'ACCESS', refresh_token: 'REFRESH', expires_in: 3600,
+      id_token: mintIdToken({ tid: 'test-tenant-id', oid: 'user-oid-123' }),
+    });
+
+    const result = await handleCallback(callbackReq({ code: 'auth-code', state: 'state-xyz' }), deps({ service, fetch }));
+
+    expect(result.status).toBe(302);
+    expect(result.headers?.Location).toContain('m365_error=');
+    expect(service.writes.some((w) => w.table === 'ms_graph_connections')).toBe(false);
+    const ev = service.writes.find((w) => w.table === 'error_events');
+    expect((ev!.payload as { error_code: string }).error_code).toBe('CONNECTION_NOT_ALLOWED');
+  });
+
+  it('AC-M365-103 (C1c): a write-guard upsert rejection (race) is NOT reported as success — error_event + redirect, no token stored', async () => {
+    // The pre-check passed (active + entitled) but a race disabled the user / disentitled the org
+    // between the pre-check and the upsert; the BEFORE trigger (0103) rejects the upsert. This is
+    // the authoritative backstop — the rejection must surface as an error, never success.
+    const service = mockClient({
+      m365_pkce_states: [{ data: pkceRow(), error: null }],
+      profiles: [{ data: { status: 'active' }, error: null }],
+      org_features: [{ data: { enabled: true }, error: null }],
+      ms_graph_connections: [{ data: null, error: { code: '42501', message: 'user_not_active' } }],
+    });
+    const fetch = fetchOk({
+      access_token: 'ACCESS', refresh_token: 'REFRESH', expires_in: 3600,
+      id_token: mintIdToken({ tid: 'test-tenant-id', oid: 'user-oid-123' }),
+    });
+
+    const result = await handleCallback(callbackReq({ code: 'auth-code', state: 'state-xyz' }), deps({ service, fetch }));
+
+    expect(result.status).toBe(302);
+    expect(result.headers?.Location).toContain('m365_error=');
+    // The upsert was attempted but rejected — still NO successful connection stored.
+    const upserts = service.writes.filter((w) => w.kind === 'upsert' && w.table === 'ms_graph_connections');
+    expect(upserts).toHaveLength(1); // attempted
+    // No token material leaked into the error_event.
+    const ev = service.writes.find((w) => w.table === 'error_events');
+    expect((ev!.payload as { error_code: string }).error_code).toBe('CONNECTION_NOT_ALLOWED');
+    expect(JSON.stringify(ev!.payload)).not.toMatch(/ACCESS|REFRESH|verifier-abc/i);
+    // No success audit.
+    expect(service.rpc).not.toHaveBeenCalledWith('audit_m365_event', expect.objectContaining({ p_action: 'm365.connection.initiated' }));
+  });
+
+  it('AC-M365-103 (M3): a malformed env tenant (dot-segment) is rejected before the token URL is built', async () => {
+    // A dot-segment tenant is path-confusion; validate it before building the secret-bearing URL.
+    const service = mockClient({ m365_pkce_states: [{ data: pkceRow(), error: null }] });
+    const fetch = vi.fn();
+
+    const result = await handleCallback(
+      callbackReq({ code: 'auth-code', state: 'state-xyz' }),
+      deps({ service, fetch, env: { m365TenantId: '..' } }),
+    );
+
+    expect(result.status).toBe(302);
+    expect(result.headers?.Location).toContain('m365_error=');
+    expect(fetch).not.toHaveBeenCalled(); // no token URL built
+    const ev = service.writes.find((w) => w.table === 'error_events');
+    expect((ev!.payload as { error_code: string }).error_code).toBe('TOKEN_EXCHANGE_FAILED');
   });
 });

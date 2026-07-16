@@ -16,6 +16,11 @@ insert into profiles (id, org_id, full_name, email, role) values
   ('01460000-0000-0000-0000-0000000000a1','01460000-0000-0000-0000-000000000001','User A','m365-orgscope-a@example.com','Admin'),
   ('01460000-0000-0000-0000-0000000000b1','01460000-0000-0000-0000-000000000002','User B','m365-orgscope-b@example.com','Admin');
 
+-- 0103 C1(b) write-guard requires an enabled m365_integration entitlement in each org.
+insert into org_features (org_id, feature_key, enabled) values
+  ('01460000-0000-0000-0000-000000000001','m365_integration',true),
+  ('01460000-0000-0000-0000-000000000002','m365_integration',true);
+
 -- Simulate the edge function's service-role write for Org A's user (org_id comes from caller-JWT RLS read).
 insert into public.ms_graph_connections
   (org_id, user_id, entra_tenant_id, scopes, refresh_token_ciphertext, access_token_ciphertext, key_id, status)
@@ -46,11 +51,15 @@ select is(
 
 -- Prove service_role cannot be tricked into writing org_id != resolved caller's org (the function
 -- controls this; here we just show the FK on org_id rejects a non-existent org).
+-- 0103: suspend the C1(b) write-guard for this one insert so the FK (not the guard's user/org-agreement
+-- check) is what fires — the AC is specifically the org_id FK seam.
+alter table public.ms_graph_connections disable trigger m365_connection_write_guard;
 select throws_ok(
   $$ insert into public.ms_graph_connections
        (org_id, user_id, entra_tenant_id, refresh_token_ciphertext, key_id)
      values ('00000000-0000-0000-0000-000000000999','01460000-0000-0000-0000-0000000000a1','t','\x05'::bytea,'k') $$,
   '23503', null, 'AC-M365-133 FK on org_id rejects a non-existent org (org_id seam)');
+alter table public.ms_graph_connections enable trigger m365_connection_write_guard;
 
 select * from finish();
 rollback;
