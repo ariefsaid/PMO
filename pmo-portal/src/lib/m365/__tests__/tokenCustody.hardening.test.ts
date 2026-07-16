@@ -92,7 +92,7 @@ describe('H6 — revoke reports failure (not success) when the local delete fail
     const service = mockClient({
       ms_graph_connections: [
         { data: conn, error: null },          // SELECT
-        { data: null, error: null },          // DELETE → ok
+        { data: { id: 'conn-1' }, error: null }, // DELETE … RETURNING → the deleted row
       ],
     });
     const fetch = vi.fn().mockResolvedValue({ ok: true });
@@ -112,7 +112,7 @@ describe('M3 — revoke re-validates the tenant before the revoke URL (best-effo
     const service = mockClient({
       ms_graph_connections: [
         { data: conn, error: null },          // SELECT
-        { data: null, error: null },          // DELETE → ok
+        { data: { id: 'conn-1' }, error: null }, // DELETE … RETURNING → the deleted row
       ],
     });
     const fetch = vi.fn();
@@ -125,5 +125,73 @@ describe('M3 — revoke re-validates the tenant before the revoke URL (best-effo
     expect(result).toMatchObject({ status: 200, body: { success: true } });
     expect(service.writes.some((w) => w.kind === 'delete' && w.table === 'ms_graph_connections')).toBe(true);
     expect(service.rpc).toHaveBeenCalledWith('audit_m365_event', expect.objectContaining({ p_action: 'm365.connection.revoked' }));
+  });
+});
+
+describe('Luna-Med — refresh reports failure (not success) when token persistence fails', () => {
+  it('Luna-Med: a write-guard rejection (42501) on the refresh UPDATE returns false + error_event, and NO success audit', async () => {
+    const conn = await connection({ entra_tenant_id: '11111111-2222-3333-4444-555555555555' });
+    // Microsoft returns a fresh pair; the persistence UPDATE is REJECTED (42501) — the lifecycle
+    // write-guard (0104) blocks the write because the user was just disabled / the org disentitled.
+    const service = mockClient({
+      ms_graph_connections: [
+        { data: null, error: { code: '42501', message: 'user_not_active' } }, // UPDATE … RETURNING → rejected
+      ],
+    });
+    const fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ access_token: 'NEW-A', refresh_token: 'NEW-R', expires_in: 3600 }),
+    });
+
+    const ok = await refreshAccessToken(conn, deps({ service, fetch }));
+
+    // NOT reported as success.
+    expect(ok).toBe(false);
+    // No 'refreshed' audit was written for a row that was never persisted.
+    expect(service.rpc).not.toHaveBeenCalledWith('audit_m365_event', expect.objectContaining({ p_action: 'm365.token.refreshed' }));
+    // An error_event was recorded (no token material).
+    expect(service.writes.some((w) => w.table === 'error_events')).toBe(true);
+  });
+
+  it('Luna-Med: a zero-row UPDATE (row deleted under us) returns false + error_event, no success audit', async () => {
+    const conn = await connection({ entra_tenant_id: '11111111-2222-3333-4444-555555555555' });
+    // The UPDATE returned no error AND no row — the connection was deleted between the caller's
+    // SELECT and this write (a just-fired lifecycle cascade). Must NOT be treated as refreshed.
+    const service = mockClient({
+      ms_graph_connections: [{ data: null, error: null }], // UPDATE … RETURNING → zero rows
+    });
+    const fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ access_token: 'NEW-A', refresh_token: 'NEW-R', expires_in: 3600 }),
+    });
+
+    const ok = await refreshAccessToken(conn, deps({ service, fetch }));
+
+    expect(ok).toBe(false);
+    expect(service.rpc).not.toHaveBeenCalledWith('audit_m365_event', expect.objectContaining({ p_action: 'm365.token.refreshed' }));
+    expect(service.writes.some((w) => w.table === 'error_events')).toBe(true);
+  });
+});
+
+describe('Luna-Low — revoke treats a concurrent zero-row DELETE as NOT_CONNECTED (not success)', () => {
+  it('Luna-Low: a concurrent zero-row DELETE (row already gone) → 404 NOT_CONNECTED, no success audit', async () => {
+    const conn = await connection();
+    // SELECT returns the connection; the DELETE returns NO row — a lifecycle cascade fired between
+    // the SELECT and the DELETE. Previously this was reported as success (200 + revoked audit).
+    const service = mockClient({
+      ms_graph_connections: [
+        { data: conn, error: null },          // SELECT
+        { data: null, error: null },          // DELETE … RETURNING → zero rows (already gone)
+      ],
+    });
+    const fetch = vi.fn().mockResolvedValue({ ok: true });
+
+    const result = await handleDisconnect(deps({ service, caller: callerClient(), userId: 'user-1', fetch }));
+
+    expect(result).toMatchObject({ status: 404, body: { error: 'NOT_CONNECTED' } });
+    // CRUCIAL: no success 'revoked' audit for a row that was never deleted by this call.
+    expect(service.rpc).not.toHaveBeenCalledWith('audit_m365_event', expect.objectContaining({ p_action: 'm365.connection.revoked' }));
+    // An error_event was recorded so the zero-row outcome is observable.
+    expect(service.writes.some((w) => w.table === 'error_events')).toBe(true);
   });
 });

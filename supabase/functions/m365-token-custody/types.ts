@@ -31,7 +31,7 @@ export interface M365SupabaseLike {
     delete(): {
       eq(column: string, value: string): DeleteEqBuilder;
     };
-    update(patch: object): { eq(column: string, value: string): PromiseLike<{ error: unknown }> };
+    update(patch: object): { eq(column: string, value: string): UpdateEqBuilder };
     upsert(row: object, opts?: { onConflict?: string }): {
       select(columns: string): { single(): PromiseLike<{ data: unknown; error: unknown }> };
     };
@@ -45,6 +45,18 @@ export interface M365SupabaseLike {
  * consume (stateStore.ts MEDIUM-1). Mirrors the real supabase-js fluent query builder shape.
  */
 export interface DeleteEqBuilder extends PromiseLike<{ data: unknown; error: unknown }> {
+  select(columns: string): { maybeSingle(): PromiseLike<{ data: unknown; error: unknown }> };
+}
+
+/**
+ * Builder returned by `.update(patch).eq(...)`. Thenable (await → `{ data, error }`) AND chainable
+ * into `.select(columns).maybeSingle()` so callers can read the affected row (refresh.ts / revoke.ts
+ * inspect it after a write — the H6 / Luna-Med pattern: only treat a write as authoritative when a
+ * row was actually returned; a zero-row update or a 42501 guard rejection is surfaced as failure).
+ * Mirrors the real supabase-js fluent query builder shape (PostgREST returns the updated row on
+ * `.update().select()`).
+ */
+export interface UpdateEqBuilder extends PromiseLike<{ data: unknown; error: unknown }> {
   select(columns: string): { maybeSingle(): PromiseLike<{ data: unknown; error: unknown }> };
 }
 

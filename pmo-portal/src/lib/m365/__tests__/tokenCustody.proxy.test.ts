@@ -63,11 +63,13 @@ describe('AC-M365-110/111/112/113/114 — handleGraphProxy', () => {
       access_token_expires_at: new Date(Date.now() - 1000).toISOString(), // expired → triggers refresh
     });
     // Queue order: load(q0) → refresh's update(q1) → re-load fresh ciphertext(q2).
+    // q1 reflects the Luna-Med contract: refresh inspects the affected row, so a SUCCESSFUL token
+    // persistence returns the updated row (not null).
     const freshBlob = await encryptForTest('NEW-ACCESS-TOKEN');
     const service = mockClient({
       ms_graph_connections: [
         { data: expired, error: null },
-        { data: null, error: null }, // update result (ignored)
+        { data: { id: 'conn-1' }, error: null }, // update … RETURNING → the persisted row
         { data: { access_token_ciphertext: freshBlob, key_id: 'kek-v1' }, error: null },
       ],
     });

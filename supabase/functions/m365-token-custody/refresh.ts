@@ -95,7 +95,14 @@ export async function refreshAccessToken(
   const nowIso = nowFn().toISOString();
   const accessExpiresAt = new Date(nowFn().getTime() + expiresIn * 1000).toISOString();
 
-  await serviceClient
+  // Luna (Med): inspect BOTH the update error AND the affected row. Previously the result was
+  // ignored — during a lifecycle race the BEFORE write-guard (0104) rejects this UPDATE with 42501
+  // (user just disabled / org just disentitled) yet refresh still audited 'm365.token.refreshed' and
+  // returned true. Now: the success audit + return true are emitted ONLY after the row was actually
+  // persisted. On rejection (42501) or a zero-row update (the row was deleted under us), record a
+  // token-free error_event and surface a typed failure (the caller surfaces CONNECTION_STALE).
+  // Mirrors the H6 pattern in revoke.ts. No token material is ever logged.
+  const { data: updated, error: persistError } = await serviceClient
     .from('ms_graph_connections')
     .update({
       access_token_ciphertext: accessBlob,
@@ -105,7 +112,18 @@ export async function refreshAccessToken(
       status: 'active',
       updated_at: nowIso,
     })
-    .eq('id', connection.id);
+    .eq('id', connection.id)
+    .select('id')
+    .maybeSingle();
+
+  if (persistError || !updated) {
+    await recordM365Error(serviceClient, {
+      errorCode: 'INTERNAL_ERROR',
+      contextId: connection.id,
+      orgId: connection.org_id,
+    });
+    return false;
+  }
 
   await logAudit(serviceClient, {
     action: 'm365.token.refreshed',
@@ -130,7 +148,7 @@ async function classifyRefreshFailure(
 
   if (isReuseError(tokenData, errorCode)) {
     // Security event: refresh-token reuse detected → revoke the connection.
-    await serviceClient
+    const { error: markError } = await serviceClient
       .from('ms_graph_connections')
       .update({ status: 'revoked', updated_at: nowIso })
       .eq('id', connection.id);
@@ -146,12 +164,22 @@ async function classifyRefreshFailure(
       contextId: connection.id,
       orgId: connection.org_id,
     });
+    // Luna (Med): the marking UPDATE previously ignored its error. Surface a failure here too so a
+    // row that could NOT be marked revoked (e.g. a concurrent lifecycle 42501) is observable — the
+    // reuse signal above is still emitted because Microsoft DID report reuse.
+    if (markError) {
+      await recordM365Error(serviceClient, {
+        errorCode: 'INTERNAL_ERROR',
+        contextId: connection.id,
+        orgId: connection.org_id,
+      });
+    }
     return;
   }
 
   if (isInvalidGrant(errorCode)) {
     // Consent revoked / refresh expired → mark stale so the user reconnects.
-    await serviceClient
+    const { error: markError } = await serviceClient
       .from('ms_graph_connections')
       .update({ status: 'stale', updated_at: nowIso })
       .eq('id', connection.id);
@@ -167,6 +195,14 @@ async function classifyRefreshFailure(
       contextId: connection.id,
       orgId: connection.org_id,
     });
+    // Luna (Med): surface a marking failure (see the reuse branch above for rationale).
+    if (markError) {
+      await recordM365Error(serviceClient, {
+        errorCode: 'INTERNAL_ERROR',
+        contextId: connection.id,
+        orgId: connection.org_id,
+      });
+    }
     return;
   }
 

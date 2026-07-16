@@ -67,12 +67,15 @@ export async function handleDisconnect(deps: HandlerDeps): Promise<HandlerResult
   // Delete the local row (source of truth).
   // H6 (Luna): inspect the delete result. Previously the awaited delete was IGNORED — a DB error
   // left the encrypted row in place yet the function still wrote a 'revoked' audit event and
-  // returned 200. Now: only the success audit + 200 are emitted when the delete actually succeeded;
-  // otherwise an error_event is recorded and a retryable 503 is returned so the caller retries.
-  const { error: deleteError } = await serviceClient
+  // returned 200. Luna (Low) additionally: a CONCURRENT zero-row delete (the row was already gone —
+  // e.g. a just-fired lifecycle cascade) was treated as success too. Use DELETE ... RETURNING and
+  // only audit success / return 200 when a row was ACTUALLY returned; otherwise surface failure.
+  const { data: deleted, error: deleteError } = await serviceClient
     .from('ms_graph_connections')
     .delete()
-    .eq('id', connection.id);
+    .eq('id', connection.id)
+    .select('id')
+    .maybeSingle();
   if (deleteError) {
     await recordM365Error(serviceClient, {
       errorCode: 'INTERNAL_ERROR',
@@ -84,6 +87,17 @@ export async function handleDisconnect(deps: HandlerDeps): Promise<HandlerResult
       body: { error: 'INTERNAL_ERROR', message: 'failed to delete connection; please retry' },
       headers,
     };
+  }
+  if (!deleted) {
+    // Concurrent zero-row delete — the connection was already revoked (e.g. a lifecycle cascade
+    // fired between our SELECT and our DELETE). NOT success: surface NOT_CONNECTED so the caller
+    // doesn't believe a token it no longer holds was just revoked. No success audit is written.
+    await recordM365Error(serviceClient, {
+      errorCode: 'INTERNAL_ERROR',
+      contextId: connection.id,
+      orgId,
+    });
+    return { status: 404, body: { error: 'NOT_CONNECTED', message: 'no active connection' }, headers };
   }
 
   await logAudit(serviceClient, {

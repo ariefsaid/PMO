@@ -70,8 +70,19 @@ export function mockClient(seeded: Record<string, unknown[]> = {}): MockClient {
     };
     const next = () => {
       const list = queues[table] ?? [];
-      const resp = list.length ? list.shift() : { data: null, error: null };
-      return Promise.resolve(resp);
+      if (list.length) {
+        const resp = list.shift();
+        return Promise.resolve(resp);
+      }
+      // Default terminal response when nothing is queued. For writes that callers inspect via
+      // `.select()` (update/delete RETURNING — refresh.ts & revoke.ts), return a non-null affected
+      // row so the default path models a SUCCESSFUL write (an affected row exists). Tests that need
+      // a zero-row write or a guard rejection seed an explicit queued response.
+      if (kind === 'update' || kind === 'delete') {
+        const idEq = eqs.find(([c]) => c === 'id');
+        return Promise.resolve({ data: idEq ? { id: idEq[1] } : { id: 'ok' }, error: null });
+      }
+      return Promise.resolve({ data: null, error: null });
     };
     const self: Record<string, unknown> = {
       select: () => { kind = kind || 'select' as never; return self; },

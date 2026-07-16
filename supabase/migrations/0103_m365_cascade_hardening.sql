@@ -221,7 +221,39 @@ create trigger m365_org_features_immutable_trigger
   execute function public.m365_org_features_immutable();
 
 -- ============================================================================
--- 5. H5(ii): enforce that a connection's user and org AGREE.
+-- 5a. HIGH (Luna 'Conditional migration deployment failure'): RECONCILE before the constraints.
+--    The composite FK (§5b) and the tightened tenant CHECK (§6) both validate EXISTING rows the
+--    instant they are added. On a database that already holds (i) a legacy mis-orged connection
+--    (user_id whose profile is in a DIFFERENT org, or an orphaned user_id) or (ii) a legacy
+--    path-confusion tenant value ('..' / all-dot), those ALTERs would ABORT — leaving the ENTIRE
+--    hardening silently half-applied (a fresh local reset has no rows, which is why this only bites
+--    a populated prod DB). We DELETE the offending rows FIRST; the constraints then add cleanly, so
+--    the migration can never land half-applied (if a DELETE failed, none of the DDL below would run).
+--
+--    Why deletion is safe (vs NOT VALID/VALIDATE): both classes are UNUSABLE TOKENS by definition —
+--    a mis-orged connection structurally violates the new (user_id, org_id)↔profiles invariant
+--    (it can never be a legitimate connection) and a '..'/all-dot tenant is SSRF path-confusion
+--    garbage the tightened CHECK exists to forbid. They carry no valid org attribution to audit
+--    under and are already opaque ciphertext we cannot read, so no audit/revoke trail is emitted.
+--    The DELETEs are idempotent (no-ops on a clean/fresh DB). Reversibility: a row once deleted here
+--    is gone — but it was unusable; repopulate via a fresh OAuth connect after deploy.
+-- ============================================================================
+
+-- (i) connections that would violate the composite FK (user_id, org_id) → profiles (id, org_id):
+--     mis-orged (profile exists in a different org) OR orphaned (no profile at all).
+delete from public.ms_graph_connections c
+ where not exists (
+   select 1 from public.profiles p where p.id = c.user_id and p.org_id = c.org_id
+ );
+
+-- (ii) connections whose entra_tenant_id the tightened CHECK (§6) will reject: '..' anywhere
+--      (dot-segment) or all-dot values ('.', '..', '...'). The 0102 CHECK already enforced
+--      ^[A-Za-z0-9._-]+$, so only these two new rejections need reconciling.
+delete from public.ms_graph_connections
+ where entra_tenant_id ~ '\\.\\.' or entra_tenant_id ~ '^[.]+$';
+
+-- ============================================================================
+-- 5b. H5(ii): enforce that a connection's user and org AGREE.
 --    (a) profiles (id, org_id) uniqueness so a composite FK can target it (id is already PK, so this
 --        is trivially satisfied by existing data — safe to add on a fresh reset).
 --    (b) replace the single-column user_id FK with a composite (user_id, org_id) → profiles (id,
