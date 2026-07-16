@@ -682,3 +682,111 @@ The same-tenant `oid` binding remains owner-pending and is excluded as requested
 C1 token resurrection is closed, but the migration can still fail to install the protection, and the new lock protocol has a reproducible production-path deadlock. No Critical finding; High findings remain.
 
 LUNA-ROUND3-DONE
+
+---
+
+# Luna ROUND 4 (gpt-5.6-luna:max) — 2026-07-17
+## Verdict: **SHIP-WITH-FIXES** — the BLOCK is CLEARED.
+No new High/Critical on the public edge surface; disabled-user + disentitled-org RPC bypass attempts
+rejected LIVE with 42501. All round-3 findings closed. Residual = 3 MED + 3 LOW (below).
+
+## Part 1 — Round-3 closure
+
+| Finding | Closed? | Evidence |
+|---|---|---|
+| C1 token resurrection | **Yes, intended paths** | Locked guard: `0104_m365_race_lock.sql:107-120`; callback RPC: `callback.ts:159-173`; refresh/status RPCs: `refresh.ts:109-126,155-194`. Live race probes passed both interleavings for user and feature targets, with zero surviving rows. |
+| 0103 preflight escaping | **Yes for `foo..bar`; test proof partial** | Correct regexes: `0103_m365_cascade_hardening.sql:270-279,304-311`. `0151:53-101` proves buggy regex=false, fixed regex=true, deletion, audit, and successful CHECK creation. It replays the relevant upgrade sequence rather than applying the complete migration to a legacy populated database. |
+| Refresh/lifecycle deadlock | **Yes for matching production edge paths; not globally** | All callback/refresh/status mutations use parent-first RPCs. Live deadlock probe: legacy mode reproduced the deadlock; fixed mode had no deadlock for both targets. Remaining exceptions are Part-2 findings below. |
+| Already-stale scrub | **Yes** | Transactional `DELETE ... RETURNING` scrub with per-row audit: `0105_m365_lock_order_and_reconcile.sql:182-205`. 0103 preflight mis-org and bad-tenant deletes are also audited: `0103:259-279`. Re-running cleanly is idempotent. |
+| Trigger column scoping | **Yes** | Profile trigger is `UPDATE OF status` with final-state repair: `0104:143-148`. Feature trigger is `UPDATE OF enabled`: `0104:199-206`. `0150:106-165` proves both self-repair paths and no false cleanup on enable. |
+| Refresh success persistence | **Yes** | RPC error and returned ID are checked before success audit: `refresh.ts:109-136`. |
+| User indexes / revoke zero-row handling / trigger EXECUTE lockdown | **Yes** | Indexes: `0104:213-214`; revoke `DELETE ... RETURNING`: `revoke.ts:73-100`; trigger EXECUTE revocation: `0104:251-254`. |
+| Probe honesty | **Mostly** | Exit codes and final counts are asserted: `m365-race-probe.sh:165-197`; deadlock outcomes are checked: `m365-deadlock-probe.sh:140-150`. Recursive wrapper locking is fixed at `with-db-lock.sh:55-59` and worked live. The probes explicitly remain direct-SQL probes, not full OAuth/JWT HTTP tests; `q()` still suppresses some diagnostic errors. |
+
+All executable regexes in 0103/0104/0105 are correctly escaped under `standard_conforming_strings=on`; 0104 and 0105 contain no executable regexes.
+
+## Part 2 — New findings
+
+### MEDIUM — RPC connection identity is not bound
+
+**Location:** `supabase/migrations/0105_m365_lock_order_and_reconcile.sql:115-130,154-165`
+
+`m365_refresh_connection` and `m365_set_connection_status` lock parents using `p_org_id/p_user_id`, but update solely with `where id = p_connection_id`.
+
+**Verified live:**
+
+- A connection belonging to Org A/User A was updated successfully while passing Org B/User B parameters.
+- A mismatched call can deadlock: lifecycle holds User A’s profile and waits for the connection; the RPC locks User B’s profile, locks the child, then the guard waits for User A. PostgreSQL reported `deadlock detected`.
+
+**Fix:** Add `org_id = p_org_id AND user_id = p_user_id` to both UPDATE predicates, reject mismatches, and add mismatch/deadlock regression tests.
+
+### MEDIUM — `service_role` retains direct child-first DML
+
+**Locations:** `supabase/migrations/0080_service_role_grants.sql:20-28`; `0104_m365_race_lock.sql:81-97`
+
+The current edge code has no direct INSERT/UPDATE path:
+
+- callback → `m365_upsert_connection`
+- refresh/status → `m365_refresh_connection` / `m365_set_connection_status`
+- revoke performs only direct DELETE: `revoke.ts:73-78`
+
+However, live catalog inspection confirms `service_role` still has INSERT/UPDATE/DELETE on `ms_graph_connections`. A future or stray service-role UPDATE can reproduce the old child→parent deadlock. Direct DELETE does not form the same cycle because the guard is only INSERT/UPDATE-scoped.
+
+**Fix:** Remove direct service-role INSERT/UPDATE/DELETE access and provide a parent-first delete RPC; retain only narrowly required reads.
+
+### MEDIUM — Status RPC failures ignore returned-row identity
+
+**Locations:** `refresh.ts:155-180,188-213`; RPC contract `0105:161-165`
+
+The handler checks `markError` but ignores `data`. A zero-row status RPC returns `NULL`, yet the code still audits `stale` or `revoked`.
+
+**Impact:** A reuse event can be recorded without actually marking the row revoked; a transient persistence error can leave the row active.
+
+**Fix:** Require both `!markError` and a non-null returned connection ID before emitting the state-success audit. Retry or fail closed when revocation persistence fails.
+
+### LOW — 0103 preflight overmatches leading-dot values
+
+**Locations:** `0103_m365_cascade_hardening.sql:270-275` vs `:304-311`
+
+`entra_tenant_id ~ '^[.]+'` matches `.foo`, but the installed CHECK accepts `.foo`. Live evaluation confirmed:
+
+- preflight matches `.foo`
+- final CHECK accepts `.foo`
+
+This can delete a legacy row that the final schema considers valid.
+
+**Fix:** Change the preflight predicate to `^[.]+$`, or tighten the final CHECK/runtime validator consistently.
+
+### LOW — Tests do not enforce the new RPC call shape
+
+**Location:** `pmo-portal/src/lib/m365/__tests__/m365MockDeps.ts:108-165`
+
+The mock preserves ciphertext, IDs, errors, and behavioral assertions, so existing test intent is retained. But it synthesizes writes and does not require the production code to call the lock-order RPC. A regression to direct `.from(...).update()` could leave unit tests green.
+
+**Fix:** Add explicit assertions for `m365_upsert_connection`, `m365_refresh_connection`, and `m365_set_connection_status`, or make direct connection writes fail in the mock.
+
+### LOW — `0151` is not a full populated-upgrade test
+
+**Location:** `supabase/tests/0151_m365_lock_order_reconcile.test.sql:58-101,190-205`
+
+It accurately proves the `foo..bar` failure sequence and scrub predicate, but manually replays migration logic after the hardened schema already exists. It does not apply 0103/0105 to a pre-hardening populated database.
+
+**Fix:** Add a migration-upgrade fixture that seeds legacy rows before applying the migrations.
+
+### Scrub assessment
+
+The 0105 scrub is stale-only, transactional, per-row audited, and idempotent. It cannot delete a conforming active+entitled connection. The only deletion mismatch is the leading-dot preflight issue above.
+
+### `with-db-lock.sh`
+
+No finding. `PMO_DB_LOCK_HELD=1` is child-only and advisory. Scripts that ignore it are unaffected; the M365 probes honor it. The documented wrapped invocation worked live.
+
+## Final verdict
+
+**SHIP-WITH-FIXES**
+
+No new High/Critical finding was verified on the current public edge surface. The disabled-user and disentitled-org RPC bypass attempts were rejected live with `42501`. The same-tenant Microsoft `oid` binding remains owner-pending and is excluded as instructed.
+
+The RPC identity binding, service-role direct-DML seam, and status-result handling should be fixed before claiming the lock-order redesign is universally safe.
+
+LUNA-ROUND4-DONE
