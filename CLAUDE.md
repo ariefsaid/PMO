@@ -67,6 +67,22 @@ for one client, architected to scale to millions.
   cross-component breakage (a change to a shared component silently breaks every *other* test that renders
   it; recurring CI-verify-red, 2026-06). The build/Director MUST run the full verify before the phase
   transition; subagent briefs MUST mandate it as their final gate.
+- **⛔ NOT DONE UNTIL GREEN — enforced, not advised (2026-07-17).** A task is not complete while any
+  test is red. **Never** weaken, skip, delete, or re-implement a test to get green — fix the code; if a
+  test is genuinely wrong, say so explicitly and stop. Dispatched agents violated this **5×** (claimed
+  "DONE, all green" and committed red) and wrote tests that didn't bind to shipped code **3×** — so it
+  is now mechanical, because briefs advise and hooks enforce:
+  - **`.githooks/pre-commit`** (tracked; install once via `scripts/setup-hooks.sh`) — blocks a red
+    commit from ANY actor. Fast + scoped: edge-fn test-binding guard + `deno test` for the *changed*
+    functions only. The full `npm run verify` stays a pre-push/CI concern (a slow hook gets bypassed).
+  - **`scripts/check-edge-fn-test-binding.mjs`** (also a CI step) — an edge-fn test MUST import the
+    SHIPPED handler from `./index.ts`; copied `handle*WithDeps`/validators are a hard failure. Pattern
+    per Supabase's guidance: **import the real handler + mock `globalThis.fetch`; NO dependency
+    injection in production code** (https://supabase.com/docs/guides/functions/unit-test).
+  - **`scripts/agent-git-shim/git`** — prepend to a dispatch's PATH; rejects `git commit --no-verify`
+    (verified: `--no-verify` really does bypass the hook, so this is the only layer that holds).
+  - **Mutation-check anything security-critical:** break the rule (e.g. `const allowed = true`) and the
+    tests MUST go red. A suite that stays green while the handler is broken is not a suite.
 - **Coverage:** ≥80% lines on changed code to merge; tests must assert behavior, not inflate numbers.
 - **Typecheck/lint:** `npm run typecheck` zero errors; ESLint zero errors (CI `--max-warnings=0`). Both block merge.
 - **Branch flow (binding, owner directive 2026-06-17):** **work lands on `dev` → promoted to `main` (gated). `main` is the ceiling for autonomous work.** **NEVER promote to `production` — no `git push origin main:production`, no prod DB push (`db-push-prod.sh`), no prod reseed — unless the owner instructs it DIRECTLY, that time.** A prior "ship to prod" is per-instance, never standing. CI is tiered + resource-lean: PR→`dev` = `verify` only (fast lane); PR→`main` = `verify` + `integration` (pgTAP + e2e + visual gates) so `main` is always clean; push to `main` = `verify` smoke. Push CI is `main`-ONLY (dev/feature are PR-gated → no duplicate verify); `integration` fires once per change (the PR→`main`) and starts Supabase without the CI-unused containers (`studio,realtime,vector`) with Playwright browsers cached. `main`→`production` is a manual, owner-instructed promote only.
