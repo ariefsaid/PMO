@@ -168,6 +168,33 @@ control number for traceability.
   - Render a user-friendly error page redirecting to the FE with a generic "Connection failed"
     message.
 
+- **FR-M365-112 (State-driven — same-tenant identity binding via trust-on-first-use; owner decision
+  2026-07-17).** While a callback presents an id_token whose `oid` claim is being bound to an
+  `(org_id, user_id)` connection, the system shall bind the Microsoft USER identity — not just the
+  tenant (`tid`, FR-M365-111) — using trust-on-first-use (TOFU) + enforce-on-reconnect:
+  - **FIRST connect** (no existing `ms_graph_connections` row, OR a row whose `entra_user_object_id`
+    IS NULL): ACCEPT and **PIN** the id_token's `oid` as `entra_user_object_id` (the trust event).
+  - **RECONNECT** (an existing row whose `entra_user_object_id` is NON-NULL): the presented `oid`
+    MUST equal the pinned value. **On MISMATCH**, the system shall reject **BEFORE any encrypt/upsert**
+    (no token stored): emit a sanitized `M365_IDENTITY_MISMATCH` `error_event` (NO token material, NO
+    raw oid in any client-facing message), emit an `m365.connection.identity_mismatch` `audit_events`
+    row (the forensic trail — oids are public Microsoft identifiers, not secrets), and redirect to
+    the FE error page with a generic message.
+  - This invariant is **ENFORCED STRUCTURALLY at the DB boundary**: a `BEFORE UPDATE` trigger makes
+    `entra_user_object_id` **write-once** (`NULL`→value allowed as TOFU; value→different and
+    value→NULL raise errcode `42501`), so identity re-binding is impossible even if a future code
+    path forgets the callback pre-check. *(Closes the Luna round-2 HIGH "Same-tenant OAuth user
+    binding remains incomplete" — a PMO Admin could otherwise initiate a connect, phish the authorize
+    URL to a different person in the SAME Entra tenant, and store the victim's tokens in the
+    attacker's connection; `tid` matched so the tenant check passed. SSO-identity binding was
+    explicitly NOT taken — it would break connect for email/password PMO users who have no SSO
+    principal to bind.)*
+
+  **Residual risk (documented, owner-accepted 2026-07-17):** the FIRST connect remains phishable
+  WITHIN the tenant — an attacker who initiates AND completes the first connect can harvest their
+  own victim's tokens once. TOFU bounds that exposure to exactly one event; every subsequent
+  reconnect is pinned. This is the accepted trade-off for not requiring SSO-identity binding.
+
 ### 3.3 Encrypt-at-rest (AES-256-GCM envelope — ADR-0060 §3 D1)
 
 - **FR-M365-120 (Ubiquitous).** The edge function shall use **only** `graphTokenCrypto.encryptToken`
@@ -378,6 +405,38 @@ When the function processes the callback,
 Then it logs an `error_event` with sanitized metadata, **does not** insert into
 `ms_graph_connections`, and redirects to the FE error page. *(Owns FR-M365-111, NFR-M365-108.)*
 
+**AC-M365-171 (TOFU first-connect pins the oid — Unit).**
+Given a pre-existing `ms_graph_connections` row for `(org, user)` whose `entra_user_object_id` IS
+NULL (or no row at all), and a callback presenting a valid id_token with `oid = X`,
+When the callback processes the exchange,
+Then it ACCEPTS, upserts the connection pinning `entra_user_object_id = X`, and emits
+`m365.connection.initiated` (no identity-mismatch audit). *(Owns FR-M365-112, NFR-M365-108.)*
+
+**AC-M365-172 (reconnect with the SAME oid succeeds — Unit).**
+Given an existing connection whose `entra_user_object_id = X` (non-null), and a callback presenting
+`oid = X`,
+When the callback processes the exchange,
+Then it ACCEPTS, rotates the tokens (upsert), and emits `m365.connection.initiated`. *(Owns
+FR-M365-112.)*
+
+**AC-M365-173 (reconnect with a DIFFERENT oid is rejected — Unit).**
+Given an existing connection whose `entra_user_object_id = X` (non-null, pinned), and a callback
+presenting `oid = Y ≠ X` (a same-tenant consent-phishing indicator),
+When the callback processes the exchange,
+Then it REJECTS before any encrypt/upsert (no token stored), emits a sanitized
+`M365_IDENTITY_MISMATCH` `error_event` (no token material, no raw oid), emits an
+`m365.connection.identity_mismatch` `audit_events` row, and redirects to the FE error page with a
+message that leaks NO oid and NO token. *(Owns FR-M365-112, NFR-M365-101, NFR-M365-108.)*
+
+**AC-M365-174 (entra_user_object_id is write-once at the DB boundary — pgTAP).**
+Given a `ms_graph_connections` row,
+When an UPDATE attempts to change `entra_user_object_id` from a non-null value to a different value
+(or to NULL),
+Then the BEFORE UPDATE trigger raises errcode `42501` (`identity_rebind_forbidden`) and the column
+is unchanged; `NULL`→value (TOFU first-write), value→same-value (reconnect), and unrelated column
+updates are all ALLOWED. The production reconnect path (`m365_upsert_connection`'s `ON CONFLICT DO
+UPDATE`) obeys the same rule. *(Owns FR-M365-112, structural enforcement.)*
+
 ### 4.2 Graph proxy + refresh
 
 **AC-M365-110 (graph_proxy returns Graph data, never tokens — Unit).**
@@ -500,6 +559,10 @@ callback with the same `state` is rejected per AC-M365-104. *(Owns FR-M365-102, 
 | AC-M365-140 | NFR-101/103/108/110 | Unit (log capture) + **security-auditor review** | `pmo-portal/src/lib/m365/__tests__/tokenCustody.secrets.test.ts` | **Now + Gate** |
 | AC-M365-141 | FR-M365-183/184 | Unit (graphPkce + callback validation) | `pmo-portal/src/lib/m365/__tests__/graphPkce.security.test.ts` | **Now** |
 | AC-M365-142 | FR-M365-102/182 | Unit (state consume) | `pmo-portal/src/lib/m365/__tests__/tokenCustody.initiate.test.ts` | **Now** |
+| AC-M365-171 | FR-M365-112, NFR-108 | Unit (mocked token endpoint + existing-row SELECT) | `pmo-portal/src/lib/m365/__tests__/tokenCustody.callback.test.ts` | **Now** |
+| AC-M365-172 | FR-M365-112 | Unit | same file | **Now** |
+| AC-M365-173 | FR-M365-112, NFR-101/108 | Unit | same file | **Now** |
+| AC-M365-174 | FR-M365-112 (structural) | pgTAP (trigger) | `supabase/tests/0153_m365_connection_oid_write_once.test.sql` | **DB** |
 
 **NFR verification schedule.** NFR-M365-101 through -110 are **proven at the unit layer** for the
 edge function logic (mocked crypto, fetch, DB) **and** structurally by the Phase-0 schema (RLS,
@@ -571,6 +634,14 @@ All error responses follow the repo's `AppError` / edge-function convention (see
 detail; the function shall map known `error` codes to the above taxonomy and **never** pass
 Microsoft's raw `error_description` to the client. Log the raw error to `error_events` (server-side
 only).
+
+**Observability codes (`error_events.error_code` — server-side only, NOT the wire `error` field
+above):** distinct from the wire taxonomy, the `error_events.error_code` column carries a
+server-side observability namespace. New codes are prefixed `M365_*` so a grep/filter is
+unambiguous. `M365_IDENTITY_MISMATCH` — the TOFU / enforce-on-reconnect mismatch (FR-M365-112 /
+AC-M365-173): a reconnect whose id_token `oid` differs from the pinned `entra_user_object_id`
+(same-tenant consent-phishing indicator). Sanitized: NO token material, NO raw oid — the forensic
+trail (stored vs presented oid) lives in the paired `m365.connection.identity_mismatch` audit row.
 
 ---
 

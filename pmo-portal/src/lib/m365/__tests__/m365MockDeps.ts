@@ -108,7 +108,14 @@ export function mockClient(seeded: Record<string, unknown[]> = {}): MockClient {
       }
     };
     const self: Record<string, unknown> = {
-      select: () => { kind = kind || 'select' as never; return self; },
+      // Pure reads (SELECT) are NOT recorded as writes — `writes` tracks MUTATIONS only
+    // (insert/update/upsert/delete). A select chained AFTER a mutation (e.g. delete().select() /
+    // update().select() for RETURNING) inherits that mutation's kind via the `kind = kind || ...`
+    // guard on the mutation builder, so RETURNING-style reads still record the mutation. This keeps
+    // `service.writes.some(w => w.table === X)` honest: a READ does not count as a store — e.g. the
+    // callback's TOFU identity-binding SELECT on ms_graph_connections must not trip the "no
+    // connection stored" assertions on the disabled/disentitled rejection paths.
+    select: () => { return self; },
       delete: () => { forbidDirectConnWrite(); kind = 'delete'; return self; },
       insert: (p: unknown) => { forbidDirectConnWrite(); kind = 'insert'; payload = p; return self; },
       update: (p: unknown) => { forbidDirectConnWrite(); kind = 'update'; payload = p; return self; },

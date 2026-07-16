@@ -4,7 +4,8 @@
 // (ADR-0039). No Deno.env, no client construction, no JWT (the consumed state row is the credential
 // — a 302 from Microsoft carries no Bearer header; state is single-use + user/org-bound).
 
-import type { HandlerDeps, HandlerResult } from './types.ts';
+import type { HandlerDeps, HandlerResult, M365SupabaseLike } from './types.ts';
+import { M365_IDENTITY_MISMATCH } from './types.ts';
 import { consumePkceState } from './stateStore.ts';
 import { encryptToken, serializeEnvelope, resolveKek, base64UrlDecode } from './crypto.ts';
 import { logAudit, recordM365Error } from './audit.ts';
@@ -115,6 +116,46 @@ export async function handleCallback(req: Request, deps: HandlerDeps): Promise<H
     return redirectToFeError(env, 'Connection failed: tenant mismatch. Please try again.');
   }
 
+  // TOFU + enforce-on-reconnect (owner design decision, 2026-07-17): bind the Microsoft USER
+  // identity, not just the tenant. The FIRST connect for (org, user) — no row, OR a row whose
+  // entra_user_object_id IS NULL — is ACCEPTED and the id_token's `oid` is PINNED as
+  // entra_user_object_id (trust-on-first-use). Every RECONNECT (an existing row with a NON-NULL
+  // entra_user_object_id) MUST present the SAME `oid`; a mismatch is a same-tenant consent-phishing
+  // indicator — a PMO Admin phished the authorize URL to a DIFFERENT person in the SAME Entra
+  // tenant (tid matches, so the tenant check above passes, but the victim's oid differs from the
+  // pinned value). On mismatch: reject BEFORE any encrypt/upsert — no token stored, a sanitized
+  // M365_IDENTITY_MISMATCH error_event, an m365.connection.identity_mismatch audit row (forensic
+  // trail), and a generic FE redirect (no raw oid).
+  //
+  // RESIDUAL RISK (documented, not solved here): the FIRST connect is still phishable within the
+  // tenant — an attacker who initiates AND completes the first connect themselves can still harvest
+  // their own victim's tokens once. TOFU bounds that exposure to exactly one event; every
+  // subsequent reconnect is pinned. (SSO-identity binding was explicitly NOT taken — it would
+  // break connect for email/password PMO users who have no SSO principal to bind.)
+  //
+  // This SELECT is best-effort (TOCTOU by nature); the m365_connection_oid_write_once BEFORE
+  // UPDATE trigger (0107) is the STRUCTURAL AUTHORITY — it makes identity re-binding IMPOSSIBLE
+  // even if this check is bypassed or a future code path forgets it. The upsertError branch below
+  // sniffs for the trigger's identity_rebind_forbidden message so the (narrow) race surfaces as the
+  // same M365_IDENTITY_MISMATCH outcome rather than CONNECTION_NOT_ALLOWED.
+  const { data: existingConn } = await serviceClient.from('ms_graph_connections')
+    .select('id,entra_user_object_id')
+    .eq('org_id', pkce.orgId)
+    .eq('user_id', pkce.userId)
+    .maybeSingle();
+  const existingRow = existingConn as { id?: string; entra_user_object_id?: string | null } | null;
+  const pinnedOid = existingRow?.entra_user_object_id ?? null;
+  if (pinnedOid !== null && pinnedOid !== claims.oid) {
+    return rejectIdentityMismatch(serviceClient, env, state, {
+      orgId: pkce.orgId,
+      userId: pkce.userId,
+      entraTenantId: claims.tid,
+      storedOid: pinnedOid,
+      presentedOid: claims.oid,
+      existingConnectionId: existingRow?.id,
+    });
+  }
+
   // C1(c) (Luna): the BEFORE INSERT OR UPDATE trigger (0103) is the AUTHORITY that makes token
   // resurrection structurally impossible — if the user was disabled or the org disentitled between
   // initiate and callback, the upsert is REJECTED with errcode 42501. This best-effort pre-check
@@ -171,6 +212,26 @@ export async function handleCallback(req: Request, deps: HandlerDeps): Promise<H
   });
 
   if (upsertError || !connId) {
+    // RACE (TOFU): a concurrent callback pinned a DIFFERENT oid between the identity pre-check
+    // above and this upsert; the m365_connection_oid_write_once BEFORE UPDATE trigger (0107)
+    // rejected the rebind (identity_rebind_forbidden, 42501). Surface it as the SAME identity-
+    // mismatch outcome (M365_IDENTITY_MISMATCH + audit + generic redirect) so the security event is
+    // greppable/auditable regardless of which path caught it. The stored oid is unknown under the
+    // TOCTOU window (the concurrently-committed value is not reliably visible here) — the audit row
+    // records the presented oid + tenant + the 'race' reason. Any OTHER upsertError (the C1(c)
+    // write-guard: user_not_active / org_not_entitled) stays CONNECTION_NOT_ALLOWED.
+    const upsertErrMsg = String((upsertError as { message?: string } | null)?.message ?? '');
+    if (upsertErrMsg.includes('identity_rebind')) {
+      return rejectIdentityMismatch(serviceClient, env, state, {
+        orgId: pkce.orgId,
+        userId: pkce.userId,
+        entraTenantId: claims.tid,
+        storedOid: 'unknown_pinned_by_concurrent_connect',
+        presentedOid: claims.oid,
+        existingConnectionId: undefined,
+        reason: 'race',
+      });
+    }
     // C1(c) (Luna): the write-guard trigger rejected the upsert — the user was disabled / the org
     // disentitled mid-flight (or a race flipped state between the pre-check above and here). NEVER
     // reported as success: emit a token-free error_event and redirect to the FE error page. The
@@ -214,6 +275,53 @@ function parseIdTokenClaims(idToken: unknown): { tid: string; oid: string } | nu
   } catch {
     return null;
   }
+}
+
+/**
+ * TOFU / enforce-on-reconnect mismatch path (owner decision, 2026-07-17): the presented id_token
+ * `oid` differs from the PINNED `entra_user_object_id`. Emit a SANITIZED error_event (NO token
+ * material, NO raw oid — just the M365_IDENTITY_MISMATCH code + state context), a forensic
+ * audit_events row (m365.connection.identity_mismatch — oids are public Microsoft identifiers, not
+ * secrets; recording stored vs presented is the point of the trail), and a GENERIC FE redirect
+ * whose message carries NO oid and NO token (AC-M365-140/173). No upsert is attempted.
+ */
+async function rejectIdentityMismatch(
+  serviceClient: M365SupabaseLike,
+  env: { siteUrl: string },
+  state: string,
+  detail: {
+    orgId: string;
+    userId: string;
+    entraTenantId: string;
+    storedOid: string;
+    presentedOid: string;
+    existingConnectionId?: string;
+    reason?: string;
+  },
+): Promise<HandlerResult> {
+  // Sanitized error_event: code + context only. NO token material, NO raw oid.
+  await recordM365Error(serviceClient, {
+    errorCode: M365_IDENTITY_MISMATCH,
+    contextId: state,
+    orgId: detail.orgId,
+  });
+  // Forensic audit trail (server-side). oids are public Microsoft identifiers (already stored in
+  // the DB) — safe + valuable for incident response. NO token material. entityId = the existing
+  // pinned connection when known (ties the event to the connection row); a null-uuid sentinel when
+  // the mismatch was caught in the upsert race (no connection id in hand).
+  await logAudit(serviceClient, {
+    action: 'm365.connection.identity_mismatch',
+    orgId: detail.orgId,
+    actorId: detail.userId,
+    entityId: detail.existingConnectionId ?? '00000000-0000-0000-0000-000000000000',
+    detail: {
+      entra_tenant_id: detail.entraTenantId,
+      stored_entra_user_object_id: detail.storedOid,
+      presented_entra_user_object_id: detail.presentedOid,
+      reason: detail.reason ?? 'identity_mismatch',
+    },
+  });
+  return redirectToFeError(env, 'Connection failed: identity mismatch. Please contact your administrator.');
 }
 
 function redirectToFeError(env: { siteUrl: string }, message: string): HandlerResult {

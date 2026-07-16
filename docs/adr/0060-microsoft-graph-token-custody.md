@@ -99,6 +99,15 @@ vault-`AS` / Supabase secrets, on a **rotation schedule**, held solely by the ed
 - ~~Choose bootstrap flow~~ **DONE (D2, 2026-07-14): server-side auth-code + PKCE (§1).**
 - ~~Author the `ms_graph_connections` migration + pgTAP~~ **AUTHORED (Phase-0 DB slice, `0096`/`0142`/`0143`);
   DB-deferred pending the owner's local `supabase test db` pass.**
+- ~~**Same-tenant OAuth user identity binding** (was open)~~ **DECIDED (owner, 2026-07-17): trust-on-first-use
+  (TOFU) + enforce-on-reconnect.** The first connect for `(org, user)` PINS the id_token's `oid` as
+  `entra_user_object_id`; every reconnect MUST present the same `oid` or the callback rejects (a
+  sanitized `M365_IDENTITY_MISMATCH` `error_event` + an `m365.connection.identity_mismatch` audit
+  row) and a `BEFORE UPDATE` trigger (`0107`) makes the column write-once so re-binding is
+  structurally impossible. Supersedes the previously-open question (the Luna round-2 HIGH "Same-tenant
+  OAuth user binding remains incomplete"). **Residual (owner-accepted):** the first connect is still
+  phishable within the tenant; TOFU bounds that to one event and every subsequent reconnect is pinned.
+  SSO-identity binding was explicitly NOT taken — it would break connect for email/password users.
 - Implement the Phase-1 exchange edge function (PKCE bootstrap + AES-256-GCM encrypt/decrypt + Graph
   proxy) — needs live Entra secrets + the KEK provisioned in secrets.
 - Wire audit_events hooks; define the re-consent UX for the stale-connection path.

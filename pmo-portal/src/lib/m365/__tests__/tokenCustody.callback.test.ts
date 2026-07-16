@@ -43,7 +43,11 @@ describe('AC-M365-103/104/105 — handleCallback', () => {
       // C1(c) pre-check (status + entitlement) — both must pass for the upsert to proceed.
       profiles: [{ data: { status: 'active' }, error: null }],
       org_features: [{ data: { enabled: true }, error: null }],
-      ms_graph_connections: [{ data: { id: 'conn-1' }, error: null }],
+      // TOFU identity SELECT (no existing row → pinnedOid null → proceed) THEN the upsert RPC (conn-1).
+      ms_graph_connections: [
+        { data: null, error: null },
+        { data: { id: 'conn-1' }, error: null },
+      ],
     });
     const fetch = fetchOk({
       access_token: 'ACCESS-VALUE',
@@ -246,7 +250,12 @@ describe('AC-M365-103/104/105 — handleCallback', () => {
       m365_pkce_states: [{ data: pkceRow(), error: null }],
       profiles: [{ data: { status: 'active' }, error: null }],
       org_features: [{ data: { enabled: true }, error: null }],
-      ms_graph_connections: [{ data: null, error: { code: '42501', message: 'user_not_active' } }],
+      // TOFU identity SELECT (no existing row → pinnedOid null → proceed) THEN the upsert RPC, which
+      // the write-guard rejects (42501 user_not_active) — the authoritative backstop path.
+      ms_graph_connections: [
+        { data: null, error: null },
+        { data: null, error: { code: '42501', message: 'user_not_active' } },
+      ],
     });
     const fetch = fetchOk({
       access_token: 'ACCESS', refresh_token: 'REFRESH', expires_in: 3600,
@@ -283,5 +292,135 @@ describe('AC-M365-103/104/105 — handleCallback', () => {
     expect(fetch).not.toHaveBeenCalled(); // no token URL built
     const ev = service.writes.find((w) => w.table === 'error_events');
     expect((ev!.payload as { error_code: string }).error_code).toBe('TOKEN_EXCHANGE_FAILED');
+  });
+
+  // ==========================================================================
+  // AC-M365-171/172/173 — TOFU + enforce-on-reconnect (owner design decision, 2026-07-17).
+  // The FIRST connect for (org, user) PINS the id_token's `oid` as entra_user_object_id (trust-on-
+  // first-use); every RECONNECT (an existing row with a NON-NULL entra_user_object_id) MUST present
+  // the SAME `oid`. A mismatch is a same-tenant consent-phishing indicator (a PMO Admin phished the
+  // authorize URL to a DIFFERENT person in the SAME Entra tenant — tid matches, so the tenant check
+  // passes, but the victim's oid differs from the pinned value). The structural authority is the
+  // m365_connection_oid_write_once BEFORE UPDATE trigger (0107, AC-M365-174); this callback pre-check
+  // is the best-effort detection that rejects BEFORE any encrypt/upsert.
+  // ==========================================================================
+
+  it('AC-M365-171 (TOFU first-write): a pre-existing connection with a NULL entra_user_object_id is ACCEPTED and the id_token oid is pinned', async () => {
+    // Models the "row whose entra_user_object_id IS NULL" first-connect case: a legacy / pre-feature
+    // row exists but no identity was pinned yet. The callback ACCEPTS and stores the presented oid
+    // (trust-on-first-use). pinnedOid (null) !== non-null is false, so the mismatch guard does NOT
+    // fire and the upsert proceeds with the new oid.
+    const service = mockClient({
+      m365_pkce_states: [{ data: pkceRow(), error: null }],
+      profiles: [{ data: { status: 'active' }, error: null }],
+      org_features: [{ data: { enabled: true }, error: null }],
+      // identity SELECT → existing row with a NULL oid (TOFU first-write) → proceed; then upsert.
+      ms_graph_connections: [
+        { data: { id: 'conn-legacy', entra_user_object_id: null }, error: null },
+        { data: { id: 'conn-legacy' }, error: null },
+      ],
+    });
+    const fetch = fetchOk({
+      access_token: 'ACCESS', refresh_token: 'REFRESH', expires_in: 3600,
+      id_token: mintIdToken({ tid: 'test-tenant-id', oid: 'user-oid-123' }),
+    });
+
+    const result = await handleCallback(callbackReq({ code: 'auth-code', state: 'state-xyz' }), deps({ service, fetch }));
+
+    // Accepted — success redirect.
+    expect(result.status).toBe(302);
+    expect(result.headers?.Location).toMatch(/m365_connected=true$/);
+    // The upsert PINNED the presented oid (TOFU first-write).
+    const upsert = service.writes.find((w) => w.kind === 'upsert' && w.table === 'ms_graph_connections');
+    expect(upsert).toBeTruthy();
+    expect((upsert!.payload as Record<string, unknown>).entra_user_object_id).toBe('user-oid-123');
+    // Initiated audit emitted.
+    expect(service.rpc).toHaveBeenCalledWith('audit_m365_event', expect.objectContaining({
+      p_action: 'm365.connection.initiated', p_org_id: 'org-1', p_entity_id: 'conn-legacy',
+    }));
+    // No identity-mismatch audit (this was an accepted first-write).
+    expect(service.rpc).not.toHaveBeenCalledWith('audit_m365_event', expect.objectContaining({ p_action: 'm365.connection.identity_mismatch' }));
+  });
+
+  it('AC-M365-172 (enforce-on-reconnect): a reconnect presenting the SAME pinned oid SUCCEEDS — tokens rotated, identity unchanged', async () => {
+    // A legitimate reconnect: the same PMO user re-consents (e.g. after a stale). The pinned oid
+    // equals the presented oid → ACCEPTED → upsert rotates the tokens, identity stays pinned.
+    const service = mockClient({
+      m365_pkce_states: [{ data: pkceRow(), error: null }],
+      profiles: [{ data: { status: 'active' }, error: null }],
+      org_features: [{ data: { enabled: true }, error: null }],
+      // identity SELECT → existing row ALREADY pinned to 'user-oid-123' (matches presented) → proceed; then upsert.
+      ms_graph_connections: [
+        { data: { id: 'conn-1', entra_user_object_id: 'user-oid-123' }, error: null },
+        { data: { id: 'conn-1' }, error: null },
+      ],
+    });
+    const fetch = fetchOk({
+      access_token: 'NEW-ACCESS', refresh_token: 'NEW-REFRESH', expires_in: 3600,
+      id_token: mintIdToken({ tid: 'test-tenant-id', oid: 'user-oid-123' }),
+    });
+
+    const result = await handleCallback(callbackReq({ code: 'auth-code', state: 'state-xyz' }), deps({ service, fetch }));
+
+    expect(result.status).toBe(302);
+    expect(result.headers?.Location).toMatch(/m365_connected=true$/);
+    const upsert = service.writes.find((w) => w.kind === 'upsert' && w.table === 'ms_graph_connections');
+    expect(upsert).toBeTruthy();
+    expect((upsert!.payload as Record<string, unknown>).entra_user_object_id).toBe('user-oid-123');
+    expect(service.rpc).toHaveBeenCalledWith('audit_m365_event', expect.objectContaining({ p_action: 'm365.connection.initiated' }));
+    expect(service.rpc).not.toHaveBeenCalledWith('audit_m365_event', expect.objectContaining({ p_action: 'm365.connection.identity_mismatch' }));
+  });
+
+  it('AC-M365-173 (enforce-on-reconnect): a reconnect presenting a DIFFERENT oid is REJECTED — no upsert, M365_IDENTITY_MISMATCH error_event + m365.connection.identity_mismatch audit, no oid/token leak', async () => {
+    // The same-tenant consent-phishing exploit: a PMO Admin (pinned oid 'user-oid-123') initiates a
+    // connect and phishes the authorize URL to a victim in the SAME Entra tenant. The victim
+    // consents; Microsoft issues tokens with tid = test-tenant-id (matches!) but oid = 'victim-oid'
+    // (differs from the pinned value). The callback MUST reject before any encrypt/upsert.
+    const service = mockClient({
+      m365_pkce_states: [{ data: pkceRow(), error: null }],
+      profiles: [{ data: { status: 'active' }, error: null }],
+      org_features: [{ data: { enabled: true }, error: null }],
+      // identity SELECT → existing row pinned to 'user-oid-123'; presented 'victim-oid' → MISMATCH → reject.
+      ms_graph_connections: [{ data: { id: 'conn-1', entra_user_object_id: 'user-oid-123' }, error: null }],
+    });
+    const fetch = fetchOk({
+      access_token: 'VICTIM-ACCESS', refresh_token: 'VICTIM-REFRESH', expires_in: 3600,
+      id_token: mintIdToken({ tid: 'test-tenant-id', oid: 'victim-oid' }),
+    });
+
+    const result = await handleCallback(callbackReq({ code: 'auth-code', state: 'state-xyz' }), deps({ service, fetch }));
+
+    // Rejected — FE error redirect (NOT success).
+    expect(result.status).toBe(302);
+    expect(result.headers?.Location).toContain('m365_error=');
+    expect(result.headers?.Location).not.toMatch(/m365_connected=true$/);
+    // NO connection mutation stored — the victim's tokens are not persisted into the attacker's row.
+    // (Pure reads are not recorded by the mock, so this is an honest no-mutation check.)
+    expect(service.writes.some((w) => w.table === 'ms_graph_connections')).toBe(false);
+    // A SANITIZED error_event with the distinct, greppable M365_IDENTITY_MISMATCH code.
+    const ev = service.writes.find((w) => w.table === 'error_events');
+    expect(ev).toBeTruthy();
+    expect((ev!.payload as { error_code: string }).error_code).toBe('M365_IDENTITY_MISMATCH');
+    // The error_event carries NO token material and NO raw oid.
+    const evJson = JSON.stringify(ev!.payload);
+    expect(evJson).not.toMatch(/VICTIM-ACCESS|VICTIM-REFRESH|user-oid-123|victim-oid|verifier-abc|auth-code/i);
+    // A forensic m365.connection.identity_mismatch audit row (server-side) — records stored vs
+    // presented oid (public MS identifiers, not secrets) for the security trail. NO token material.
+    expect(service.rpc).toHaveBeenCalledWith('audit_m365_event', expect.objectContaining({
+      p_action: 'm365.connection.identity_mismatch',
+      p_org_id: 'org-1',
+      p_entity_id: 'conn-1',
+      p_detail: expect.objectContaining({
+        stored_entra_user_object_id: 'user-oid-123',
+        presented_entra_user_object_id: 'victim-oid',
+        entra_tenant_id: 'test-tenant-id',
+      }),
+    }));
+    const auditJson = JSON.stringify(service.rpc.mock.calls.filter((c) => c[0] === 'audit_m365_event'));
+    expect(auditJson).not.toMatch(/VICTIM-ACCESS|VICTIM-REFRESH|verifier-abc|auth-code/i);
+    // The CLIENT-FACING redirect message leaks NO oid and NO token.
+    expect(JSON.stringify(result.headers)).not.toMatch(/victim-oid|user-oid-123|VICTIM-ACCESS|VICTIM-REFRESH/i);
+    // No success audit.
+    expect(service.rpc).not.toHaveBeenCalledWith('audit_m365_event', expect.objectContaining({ p_action: 'm365.connection.initiated' }));
   });
 });

@@ -124,6 +124,25 @@ export const ERROR_STATUS: Record<M365ErrorCode, number> = {
   INTERNAL_ERROR: 500,
 };
 
+// ── Observability error_codes (error_events.error_code) ───────────────────────
+// DISTINCT from the wire-contract M365ErrorCode union above: these populate the server-side
+// `error_events.error_code` column (observability), NEVER the HTTP response `error` field. The
+// quality review (Minor #5) flagged a namespace drift — the observability column mixed wire codes
+// (TOKEN_EXCHANGE_FAILED, INVALID_STATE, CONNECTION_NOT_ALLOWED) with refresh-path codes
+// (REFRESH_FAILED, SECURITY_EVENT_REUSE, DECRYPT_FAILED). NEW observability codes are prefixed
+// `M365_*` so a grep/filter is unambiguous (the legacy codes are left as-is to avoid churning the
+// existing error_events population + tests).
+//
+// M365_IDENTITY_MISMATCH — the TOFU / enforce-on-reconnect code (owner decision, 2026-07-17): a
+// reconnect whose id_token `oid` differs from the PINNED `entra_user_object_id` for (org, user) —
+// a same-tenant consent-phishing indicator (a PMO Admin phished the authorize URL to a DIFFERENT
+// person in the SAME Entra tenant; `tid` matches, so the tenant check passes, but the victim's
+// `oid` differs from the pinned value). Sanitized: the error_event carries NO token material and
+// NO raw oid; the forensic trail (stored vs presented oid) lives in the paired
+// `m365.connection.identity_mismatch` audit_events row (server-side only — oids are public
+// Microsoft identifiers, not secrets).
+export const M365_IDENTITY_MISMATCH = 'M365_IDENTITY_MISMATCH' as const;
+
 /**
  * Typed handler error. Handlers throw this from pure helper logic (e.g. authz gates) and the
  * top-level handler maps it to a `HandlerResult` via `ERROR_STATUS`. Carries NO secret material —
