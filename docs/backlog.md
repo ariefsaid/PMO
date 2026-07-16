@@ -64,7 +64,23 @@ reviewed unit). NOT merged.**
     security **SHIP-WITH-FIXES** (2 HIGH, 1 MED, 5 LOW; no Critical — custody model sound) · spec **APPROVE-w-1-fix**
     · quality **APPROVE-WITH-FIXES** (architecture praised: clean ADR-0039 DI seam, real-crypto/real-JWT tests).
     **⚑ substrate = z.ai coding plan + NIM only (no openrouter, owner 2026-07-15).**
-  - **🔨 Fixing battery findings.** MANDATORY (ADR-0060 gaps): **HIGH-1** callback never validates the issued
+  - **✅ SECURITY HARDENING COMPLETE — Luna (gpt-5.6-luna:max) verdict `SHIP-WITH-FIXES`, fixes applied.**
+    4 max-rigor rounds, all recorded in `docs/spikes/2026-07-15-m365-phase1-security-audit.md`:
+    R1 BLOCK (Critical: consent-phishing cross-account harvest + cascade wired to nothing) → closed;
+    R2 BLOCK (Critical: **empirically reproduced** MVCC callback/lifecycle race) → closed + re-proven;
+    R3 BLOCK (**reproduced a real deadlock**, disproving the Director's "deadlock-free" claim; + a regex-escape
+    bug that would have installed NONE of the hardening) → closed; **R4 `SHIP-WITH-FIXES`** (no High/Critical;
+    disabled-user + disentitled-org bypass attempts rejected LIVE with 42501) → its 3 MED + 3 LOW applied
+    (`0f8be124`): RPC identity binding (Luna proved a cross-org update live), `service_role` direct-DML
+    lockdown on `ms_graph_connections` (mig `0106` — the lock-order RPCs are now the ONLY mutation path;
+    `0137` backstop carve-out + AC-SVCROLE-009..012 assert the exception), fail-closed status persistence,
+    preflight leading-dot, mock enforces the RPC shape (a direct write now throws).
+    **Every gate Director-re-run, not taken on report:** pgTAP **170 files/1436 PASS** · deadlock probe
+    (legacy reproduces / fixed resolves, both targets) · race probe (TOCTOU closed, both interleavings) ·
+    full verify **656/5100 + build**. Migrations `0096–0106`, pgTAP `0142–0152`, probes
+    `scripts/m365-{race,deadlock}-probe.sh`. **⚑ Lesson: all 4 rounds' defects passed the happy-path pgTAP
+    AND the 5100-test verify — tests alone would have shipped every one of them.**
+  - **(historical) battery findings.** MANDATORY (ADR-0060 gaps): **HIGH-1** callback never validates the issued
     token's tenant/user → consent-phishing harvests a victim's tokens into the attacker's connection (fix:
     request `openid`, assert `id_token.tid`===expected before store, persist real tid/oid); **HIGH-2**
     `m365_disconnect_cascade` RPC exists+pgTAP'd but wired to NOTHING → NFR-M365-107 unmet (fix: triggers on
