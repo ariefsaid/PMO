@@ -426,7 +426,12 @@ export async function handleLinkRequest(req: Request): Promise<Response> {
       await validateClickUpLinkDirection(clickUpDeps, serviceClient, profile.org_id, projectId, listId, direction);
     } catch (err) {
       if (err instanceof AppError) {
-        return errorResponse(err.message, err.code ?? 'CONFIG_REJECTED', err.code === 'action-required' ? 409 : 422);
+        // Map the thrown AppError code to this fn's documented contract (see the header comment):
+        // 404 = List/project/binding not found · 409 = action-required (mixed push-seed/pull-adopt)
+        // · 422 = everything else (validation). Previously NOT_FOUND fell through to 422, which
+        // contradicted the contract — a missing ClickUp List must be 404.
+        const status = err.code === 'action-required' ? 409 : err.code === 'NOT_FOUND' ? 404 : 422;
+        return errorResponse(err.message, err.code ?? 'CONFIG_REJECTED', status);
       }
       return errorResponse('Direction validation failed', 'CONFIG_REJECTED', 422);
     }
