@@ -52,6 +52,20 @@ function getJwks(supabaseUrl: string): JwksResolver {
   return _jwks;
 }
 
+// Test hook: allow injecting a local JWKS resolver to avoid background intervals.
+export function setTestJwks(resolver: JwksResolver): void {
+  _jwks = resolver;
+}
+
+// Test hook: Supabase client options for tests (disable auto-refresh to prevent timer leaks).
+export const testSupabaseOptions = {
+  auth: {
+    autoRefreshToken: false,
+    persistSession: false,
+    detectSessionInUrl: false,
+  },
+};
+
 function bearerTokenFromHeader(authHeader: string | null): string | null {
   if (!authHeader) return null;
   const m = /^Bearer\s+(.+)$/i.exec(authHeader);
@@ -227,7 +241,7 @@ export async function handleListsRequest(req: Request): Promise<Response> {
   }
 
   // 2. Service-role client for admin lookups
-  const serviceClient = createClient(supabaseUrl, serviceRoleKey);
+  const serviceClient = createClient(supabaseUrl, serviceRoleKey, testSupabaseOptions);
 
   // 3. Load caller profile (role + org_id)
   const { data: profile, error: profileError } = await serviceClient

@@ -1,7 +1,7 @@
 /**
  * external-lists edge fn — Deno unit tests (task 3.1).
  *
- * Tests the core logic with mocked fetch and mocked Supabase RPC.
+ * Tests the REAL handler (imported from ./index.ts) with mocked fetch via edgeTestKit.
  * Verifies:
  * - Admin/PM/Operator can fetch lists
  * - Non-authorized role (Engineer) gets 403
@@ -11,244 +11,382 @@
  * - Response shape is flattened list tree
  */
 
+import { describe, it, beforeAll, afterAll } from '@std/testing/bdd';
 import { assertEquals, assertRejects } from '@std/assert';
-import { buildFlattenedLists, fetchTeams, fetchSpaces, fetchFolders, fetchLists } from './index.ts';
-import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
+import { handleListsRequest, setTestJwks } from './index.ts';
+import {
+  createJwtAuthority,
+  installEdgeEnv,
+  withFetchMock,
+  supabaseRpc,
+  supabaseSelect,
+  restCall,
+  rpcCall,
+  jsonResponse,
+  clickup,
+  createAuthedRequest,
+  createTestJwksResolver,
+} from '../_shared/testing/edgeTestKit.ts';
 
-// ============================================================================
-// Test utilities / mocks
-// ============================================================================
+// One stable authority + env per test module (see TEST-ARCH.md _jwks memoization nuance)
+const env = installEdgeEnv();
+const auth = await createJwtAuthority(env.SUPABASE_URL);
 
-interface MockFetchRoute {
-  method: string;
-  urlIncludes: string;
-  status?: number;
-  json: unknown | (() => unknown);
+// Install test JWKS resolver (no background intervals)
+setTestJwks(createTestJwksResolver(auth));
+
+afterAll(() => env.restore());
+
+async function authed(body: unknown, sub = 'user-1') {
+  const jwt = await auth.mintJwt({ sub });
+  return createAuthedRequest('http://edge.test/lists', body, jwt);
 }
 
-function createMockFetch(routes: MockFetchRoute[]) {
-  const calls: { url: string; init?: RequestInit }[] = [];
-  const fetchImpl = async (url: string, init?: RequestInit) => {
-    calls.push({ url, init });
-    const method = (init?.method ?? 'GET').toUpperCase();
-    const route = routes.find((r) => r.method.toUpperCase() === method && url.includes(r.urlIncludes));
-    if (!route) {
-      throw new Error(`Unexpected fetch: ${method} ${url}`);
-    }
-    const json = typeof route.json === 'function' ? (route.json as () => unknown)() : route.json;
-    return new Response(JSON.stringify(json), { status: route.status ?? 200 });
-  };
-  return { fetchImpl: fetchImpl as unknown as typeof fetch, calls };
-}
+describe('external-lists — ClickUp branch', () => {
+  it('Admin OK — returns flattened lists', async () => {
+    await withFetchMock(
+      [
+        supabaseSelect('profiles', () =>
+          jsonResponse({ org_id: 'org-1', role: 'Admin' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
 
-// ClickUp API response fixtures
-function teamResponse() {
-  return { teams: [{ id: 'team-1', name: 'Acme Workspace' }] };
-}
+        supabaseSelect('platform_operators', () => new Response('null', {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })),
 
-function spacesResponse(teamId: string) {
-  if (teamId === 'team-1') {
-    return {
-      spaces: [
-        { id: 'space-1', name: 'Engineering' },
-        { id: 'space-2', name: 'Marketing' },
+        supabaseSelect('external_org_bindings', () =>
+          jsonResponse({ secret_ref: 'vault-ref', status: 'active' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
+
+        supabaseRpc('read_vault_secret', () => jsonResponse('test-pat-token')),
+
+        clickup('/api/v2/team', () => jsonResponse({ teams: [{ id: 'team-1', name: 'Acme Workspace' }] })),
+
+        clickup('/api/v2/team/team-1/space', () => jsonResponse({
+          spaces: [
+            { id: 'space-1', name: 'Engineering' },
+            { id: 'space-2', name: 'Marketing' },
+          ],
+        })),
+
+        clickup('/api/v2/space/space-1/folder', () => jsonResponse({
+          folders: [
+            { id: 'folder-1', name: 'Backend', space_id: 'space-1' },
+            { id: 'folder-2', name: 'Frontend', space_id: 'space-1' },
+          ],
+        })),
+
+        clickup('/api/v2/space/space-2/folder', () => jsonResponse({ folders: [] })),
+
+        clickup('/api/v2/space/space-1/list', () => jsonResponse({
+          lists: [
+            { id: 'list-1', name: 'Bugs', folder_id: null, space_id: 'space-1' },
+            { id: 'list-2', name: 'Features', folder_id: null, space_id: 'space-1' },
+          ],
+        })),
+
+        clickup('/api/v2/folder/folder-1/list', () => jsonResponse({
+          lists: [
+            { id: 'list-3', name: 'API Tasks', folder_id: 'folder-1', space_id: 'space-1' },
+            { id: 'list-4', name: 'DB Tasks', folder_id: 'folder-1', space_id: 'space-1' },
+          ],
+        })),
+
+        clickup('/api/v2/folder/folder-2/list', () => jsonResponse({
+          lists: [
+            { id: 'list-5', name: 'UI Tasks', folder_id: 'folder-2', space_id: 'space-1' },
+          ],
+        })),
+
+        clickup('/api/v2/space/space-2/list', () => jsonResponse({
+          lists: [
+            { id: 'list-6', name: 'Campaigns', folder_id: null, space_id: 'space-2' },
+          ],
+        })),
       ],
-    };
-  }
-  return { spaces: [] };
-}
+      async ({ calls }) => {
+        const res = await handleListsRequest(await authed({ tier: 'clickup' }));
+        assertEquals(res.status, 200);
+        const data = await res.json();
+        assertEquals(data.lists.length, 6);
+        const names = data.lists.map((l: { name: string }) => l.name).sort();
+        assertEquals(names, ['API Tasks', 'Bugs', 'Campaigns', 'DB Tasks', 'Features', 'UI Tasks']);
+        // Verify structure
+        const bugs = data.lists.find((l: { name: string }) => l.name === 'Bugs');
+        assertEquals(bugs?.space_name, 'Engineering');
+        assertEquals(bugs?.folder_name, null);
+        const apiTasks = data.lists.find((l: { name: string }) => l.name === 'API Tasks');
+        assertEquals(apiTasks?.space_name, 'Engineering');
+        assertEquals(apiTasks?.folder_name, 'Backend');
+      },
+    );
+  });
 
-function foldersResponse(spaceId: string) {
-  if (spaceId === 'space-1') {
-    return {
-      folders: [
-        { id: 'folder-1', name: 'Backend', space_id: 'space-1' },
-        { id: 'folder-2', name: 'Frontend', space_id: 'space-1' },
+  it('PM OK', async () => {
+    await withFetchMock(
+      [
+        supabaseSelect('profiles', () =>
+          jsonResponse({ org_id: 'org-1', role: 'Project Manager' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
+
+        supabaseSelect('platform_operators', () => new Response('null', {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })),
+
+        supabaseSelect('external_org_bindings', () =>
+          jsonResponse({ secret_ref: 'vault-ref', status: 'active' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
+
+        supabaseRpc('read_vault_secret', () => jsonResponse('test-pat-token')),
+
+        clickup('/api/v2/team', () => jsonResponse({ teams: [{ id: 'team-1', name: 'Acme Workspace' }] })),
+        clickup('/api/v2/team/team-1/space', () => jsonResponse({ spaces: [] })),
       ],
-    };
-  }
-  if (spaceId === 'space-2') {
-    return { folders: [] };
-  }
-  return { folders: [] };
-}
+      async ({ calls }) => {
+        const res = await handleListsRequest(await authed({ tier: 'clickup' }));
+        assertEquals(res.status, 200);
+      },
+    );
+  });
 
-function listsResponse(spaceId: string, folderId: string | null) {
-  const key = `${spaceId}:${folderId ?? 'null'}`;
-  const fixtures: Record<string, { lists: Array<{ id: string; name: string; folder_id: string | null; space_id: string }> }> = {
-    'space-1:null': {
-      lists: [
-        { id: 'list-1', name: 'Bugs', folder_id: null, space_id: 'space-1' },
-        { id: 'list-2', name: 'Features', folder_id: null, space_id: 'space-1' },
+  it('Operator OK', async () => {
+    await withFetchMock(
+      [
+        supabaseSelect('profiles', () =>
+          jsonResponse({ org_id: 'org-1', role: 'Engineer' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
+
+        supabaseSelect('platform_operators', () =>
+          jsonResponse({ user_id: 'user-1' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
+
+        supabaseSelect('external_org_bindings', () =>
+          jsonResponse({ secret_ref: 'vault-ref', status: 'active' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
+
+        supabaseRpc('read_vault_secret', () => jsonResponse('test-pat-token')),
+
+        clickup('/api/v2/team', () => jsonResponse({ teams: [{ id: 'team-1', name: 'Acme Workspace' }] })),
+        clickup('/api/v2/team/team-1/space', () => jsonResponse({ spaces: [] })),
       ],
-    },
-    'space-1:folder-1': {
-      lists: [
-        { id: 'list-3', name: 'API Tasks', folder_id: 'folder-1', space_id: 'space-1' },
-        { id: 'list-4', name: 'DB Tasks', folder_id: 'folder-1', space_id: 'space-1' },
+      async ({ calls }) => {
+        const res = await handleListsRequest(await authed({ tier: 'clickup' }));
+        assertEquals(res.status, 200);
+      },
+    );
+  });
+
+  it('Engineer 403', async () => {
+    await withFetchMock(
+      [
+        supabaseSelect('profiles', () =>
+          jsonResponse({ org_id: 'org-1', role: 'Engineer' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
+
+        supabaseSelect('platform_operators', () => new Response('null', {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })),
       ],
-    },
-    'space-1:folder-2': {
-      lists: [
-        { id: 'list-5', name: 'UI Tasks', folder_id: 'folder-2', space_id: 'space-1' },
+      async ({ calls }) => {
+        const res = await handleListsRequest(await authed({ tier: 'clickup' }));
+        assertEquals(res.status, 403);
+      },
+    );
+  });
+
+  it('missing binding 404', async () => {
+    await withFetchMock(
+      [
+        supabaseSelect('profiles', () =>
+          jsonResponse({ org_id: 'org-1', role: 'Admin' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
+
+        supabaseSelect('platform_operators', () => new Response('null', {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })),
+
+        supabaseSelect('external_org_bindings', () => new Response('null', {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })),
       ],
-    },
-    'space-2:null': {
-      lists: [
-        { id: 'list-6', name: 'Campaigns', folder_id: null, space_id: 'space-2' },
+      async ({ calls }) => {
+        const res = await handleListsRequest(await authed({ tier: 'clickup' }));
+        assertEquals(res.status, 404);
+      },
+    );
+  });
+
+  it('inactive binding 422', async () => {
+    await withFetchMock(
+      [
+        supabaseSelect('profiles', () =>
+          jsonResponse({ org_id: 'org-1', role: 'Admin' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
+
+        supabaseSelect('platform_operators', () => new Response('null', {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })),
+
+        supabaseSelect('external_org_bindings', () =>
+          jsonResponse({ secret_ref: 'vault-ref', status: 'inactive' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
       ],
-    },
-  };
-  return fixtures[key] ?? { lists: [] };
-}
+      async ({ calls }) => {
+        const res = await handleListsRequest(await authed({ tier: 'clickup' }));
+        assertEquals(res.status, 422);
+      },
+    );
+  });
 
-// ============================================================================
-// Unit tests for buildFlattenedLists
-// ============================================================================
+  it('Vault secret missing 422', async () => {
+    await withFetchMock(
+      [
+        supabaseSelect('profiles', () =>
+          jsonResponse({ org_id: 'org-1', role: 'Admin' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
 
-Deno.test('buildFlattenedLists: flattens space -> folder -> list hierarchy', async () => {
-  const { fetchImpl, calls } = createMockFetch([
-    { method: 'GET', urlIncludes: '/team/team-1/space', json: spacesResponse('team-1') },
-    { method: 'GET', urlIncludes: '/space/space-1/folder', json: foldersResponse('space-1') },
-    { method: 'GET', urlIncludes: '/space/space-2/folder', json: foldersResponse('space-2') },
-    { method: 'GET', urlIncludes: '/space/space-1/list', json: listsResponse('space-1', null) },
-    { method: 'GET', urlIncludes: '/folder/folder-1/list', json: listsResponse('space-1', 'folder-1') },
-    { method: 'GET', urlIncludes: '/folder/folder-2/list', json: listsResponse('space-1', 'folder-2') },
-    { method: 'GET', urlIncludes: '/space/space-2/list', json: listsResponse('space-2', null) },
-    { method: 'GET', urlIncludes: '/team', json: teamResponse() },
-  ]);
+        supabaseSelect('platform_operators', () => new Response('null', {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })),
 
-  const lists = await buildFlattenedLists({ fetchImpl, token: 'test-token' });
+        supabaseSelect('external_org_bindings', () =>
+          jsonResponse({ secret_ref: 'vault-ref', status: 'active' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
 
-  assertEquals(lists.length, 6);
+        supabaseRpc('read_vault_secret', () => jsonResponse(null)),
+      ],
+      async ({ calls }) => {
+        const res = await handleListsRequest(await authed({ tier: 'clickup' }));
+        assertEquals(res.status, 422);
+      },
+    );
+  });
 
-  // Verify structure
-  const bugs = lists.find((l) => l.name === 'Bugs');
-  assertEquals(bugs?.space_name, 'Engineering');
-  assertEquals(bugs?.folder_name, null);
+  it('ClickUp team fetch failure → 502', async () => {
+    await withFetchMock(
+      [
+        supabaseSelect('profiles', () =>
+          jsonResponse({ org_id: 'org-1', role: 'Admin' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
 
-  const apiTasks = lists.find((l) => l.name === 'API Tasks');
-  assertEquals(apiTasks?.space_name, 'Engineering');
-  assertEquals(apiTasks?.folder_name, 'Backend');
+        supabaseSelect('platform_operators', () => new Response('null', {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })),
 
-  const campaigns = lists.find((l) => l.name === 'Campaigns');
-  assertEquals(campaigns?.space_name, 'Marketing');
-  assertEquals(campaigns?.folder_name, null);
+        supabaseSelect('external_org_bindings', () =>
+          jsonResponse({ secret_ref: 'vault-ref', status: 'active' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
 
-  // Verify all expected lists present
-  const names = lists.map((l) => l.name).sort();
-  assertEquals(names, ['API Tasks', 'Bugs', 'Campaigns', 'DB Tasks', 'Features', 'UI Tasks']);
-});
+        supabaseRpc('read_vault_secret', () => jsonResponse('test-pat-token')),
 
-Deno.test('buildFlattenedLists: handles empty workspace', async () => {
-  const { fetchImpl } = createMockFetch([
-    { method: 'GET', urlIncludes: '/team', json: { teams: [] } },
-  ]);
+        clickup('/api/v2/team', () => new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 })),
+      ],
+      async ({ calls }) => {
+        const res = await handleListsRequest(await authed({ tier: 'clickup' }));
+        assertEquals(res.status, 502);
+      },
+    );
+  });
 
-  const lists = await buildFlattenedLists({ fetchImpl, token: 'test-token' });
-  assertEquals(lists.length, 0);
-});
+  it('handles empty workspace', async () => {
+    await withFetchMock(
+      [
+        supabaseSelect('profiles', () =>
+          jsonResponse({ org_id: 'org-1', role: 'Admin' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
 
-Deno.test('buildFlattenedLists: handles API error on team fetch', async () => {
-  const { fetchImpl } = createMockFetch([
-    { method: 'GET', urlIncludes: '/team', status: 401, json: { error: 'unauthorized' } },
-  ]);
+        supabaseSelect('platform_operators', () => new Response('null', {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })),
 
-  await assertRejects(
-    async () => await buildFlattenedLists({ fetchImpl, token: 'bad-token' }),
-    AppError,
-    'Failed to fetch ClickUp workspaces',
-  );
-});
+        supabaseSelect('external_org_bindings', () =>
+          jsonResponse({ secret_ref: 'vault-ref', status: 'active' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
 
-Deno.test('buildFlattenedLists: handles space with no folders', async () => {
-  const { fetchImpl } = createMockFetch([
-    { method: 'GET', urlIncludes: '/team/team-1/space', json: spacesResponse('team-1') },
-    { method: 'GET', urlIncludes: '/space/space-1/folder', json: foldersResponse('space-1') },
-    { method: 'GET', urlIncludes: '/space/space-2/folder', json: foldersResponse('space-2') },
-    { method: 'GET', urlIncludes: '/space/space-1/list', json: listsResponse('space-1', null) },
-    { method: 'GET', urlIncludes: '/folder/folder-1/list', json: listsResponse('space-1', 'folder-1') },
-    { method: 'GET', urlIncludes: '/folder/folder-2/list', json: listsResponse('space-1', 'folder-2') },
-    { method: 'GET', urlIncludes: '/space/space-2/list', json: { lists: [] } },
-    { method: 'GET', urlIncludes: '/team', json: teamResponse() },
-  ]);
+        supabaseRpc('read_vault_secret', () => jsonResponse('test-pat-token')),
 
-  const lists = await buildFlattenedLists({ fetchImpl, token: 'test-token' });
-  // 5 lists total (2 in space-1 root + 3 in folders + 0 in space-2)
-  assertEquals(lists.length, 5);
-});
+        clickup('/api/v2/team', () => jsonResponse({ teams: [] })),
+      ],
+      async ({ calls }) => {
+        const res = await handleListsRequest(await authed({ tier: 'clickup' }));
+        assertEquals(res.status, 200);
+        const data = await res.json();
+        assertEquals(data.lists.length, 0);
+      },
+    );
+  });
 
-Deno.test('buildFlattenedLists: continues on folder/list fetch failure', async () => {
-  const { fetchImpl } = createMockFetch([
-    { method: 'GET', urlIncludes: '/team/team-1/space', json: spacesResponse('team-1') },
-    { method: 'GET', urlIncludes: '/space/space-1/folder', status: 500, json: { error: 'server error' } },
-    { method: 'GET', urlIncludes: '/space/space-2/folder', json: { folders: [] } },
-    { method: 'GET', urlIncludes: '/space/space-1/list', json: listsResponse('space-1', null) },
-    { method: 'GET', urlIncludes: '/space/space-2/list', json: { lists: [] } },
-    { method: 'GET', urlIncludes: '/team', json: teamResponse() },
-  ]);
+  it('continues on folder/list fetch failure', async () => {
+    await withFetchMock(
+      [
+        supabaseSelect('profiles', () =>
+          jsonResponse({ org_id: 'org-1', role: 'Admin' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
 
-  const lists = await buildFlattenedLists({ fetchImpl, token: 'test-token' });
-  // Only space-1 root lists should be returned
-  assertEquals(lists.length, 2);
-  assertEquals(lists.map((l) => l.name).sort(), ['Bugs', 'Features']);
-});
+        supabaseSelect('platform_operators', () => new Response('null', {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })),
 
-// ============================================================================
-// Low-level fetch function tests
-// ============================================================================
+        supabaseSelect('external_org_bindings', () =>
+          jsonResponse({ secret_ref: 'vault-ref', status: 'active' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
 
-Deno.test('fetchTeams: returns teams array', async () => {
-  const { fetchImpl } = createMockFetch([
-    { method: 'GET', urlIncludes: '/team', json: { teams: [{ id: 't1', name: 'T1' }] } },
-  ]);
-  const teams = await fetchTeams({ fetchImpl, token: 't' });
-  assertEquals(teams.length, 1);
-  assertEquals(teams[0].id, 't1');
-});
+        supabaseRpc('read_vault_secret', () => jsonResponse('test-pat-token')),
 
-Deno.test('fetchTeams: throws on error', async () => {
-  const { fetchImpl } = createMockFetch([
-    { method: 'GET', urlIncludes: '/team', status: 403, json: { error: 'forbidden' } },
-  ]);
-  await assertRejects(
-    async () => await fetchTeams({ fetchImpl, token: 't' }),
-    AppError,
-    'Failed to fetch ClickUp workspaces',
-  );
-});
-
-Deno.test('fetchSpaces: returns spaces for team', async () => {
-  const { fetchImpl } = createMockFetch([
-    { method: 'GET', urlIncludes: '/team/t1/space', json: { spaces: [{ id: 's1', name: 'Space 1' }] } },
-  ]);
-  const spaces = await fetchSpaces({ fetchImpl, token: 't' }, 't1');
-  assertEquals(spaces.length, 1);
-  assertEquals(spaces[0].name, 'Space 1');
-});
-
-Deno.test('fetchFolders: returns folders for space', async () => {
-  const { fetchImpl } = createMockFetch([
-    { method: 'GET', urlIncludes: '/space/s1/folder', json: { folders: [{ id: 'f1', name: 'Folder 1', space_id: 's1' }] } },
-  ]);
-  const folders = await fetchFolders({ fetchImpl, token: 't' }, 's1');
-  assertEquals(folders.length, 1);
-});
-
-Deno.test('fetchLists: returns lists for folder', async () => {
-  const { fetchImpl } = createMockFetch([
-    { method: 'GET', urlIncludes: '/folder/f1/list', json: { lists: [{ id: 'l1', name: 'List 1', folder_id: 'f1', space_id: 's1' }] } },
-  ]);
-  const lists = await fetchLists({ fetchImpl, token: 't' }, 's1', 'f1');
-  assertEquals(lists.length, 1);
-  assertEquals(lists[0].name, 'List 1');
-});
-
-Deno.test('fetchLists: returns lists for space (no folder)', async () => {
-  const { fetchImpl } = createMockFetch([
-    { method: 'GET', urlIncludes: '/space/s1/list', json: { lists: [{ id: 'l1', name: 'List 1', folder_id: null, space_id: 's1' }] } },
-  ]);
-  const lists = await fetchLists({ fetchImpl, token: 't' }, 's1', null);
-  assertEquals(lists.length, 1);
-  assertEquals(lists[0].folder_id, null);
+        clickup('/api/v2/team', () => jsonResponse({ teams: [{ id: 'team-1', name: 'Acme Workspace' }] })),
+        clickup('/api/v2/team/team-1/space', () => jsonResponse({
+          spaces: [
+            { id: 'space-1', name: 'Engineering' },
+            { id: 'space-2', name: 'Marketing' },
+          ],
+        })),
+        clickup('/api/v2/space/space-1/folder', () => new Response(JSON.stringify({ error: 'server error' }), { status: 500 })),
+        clickup('/api/v2/space/space-2/folder', () => jsonResponse({ folders: [] })),
+        clickup('/api/v2/space/space-1/list', () => jsonResponse({
+          lists: [
+            { id: 'list-1', name: 'Bugs', folder_id: null, space_id: 'space-1' },
+            { id: 'list-2', name: 'Features', folder_id: null, space_id: 'space-1' },
+          ],
+        })),
+        clickup('/api/v2/space/space-2/list', () => jsonResponse({ lists: [] })),
+      ],
+      async ({ calls }) => {
+        const res = await handleListsRequest(await authed({ tier: 'clickup' }));
+        assertEquals(res.status, 200);
+        const data = await res.json();
+        // Only space-1 root lists should be returned
+        assertEquals(data.lists.length, 2);
+        assertEquals(data.lists.map((l: { name: string }) => l.name).sort(), ['Bugs', 'Features']);
+      },
+    );
+  });
 });

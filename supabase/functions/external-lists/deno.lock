@@ -3,8 +3,10 @@
   "specifiers": {
     "jsr:@std/assert@1.0.0": "1.0.0",
     "jsr:@std/assert@1.0.10": "1.0.10",
+    "jsr:@std/assert@^1.0.2": "1.0.10",
     "jsr:@std/internal@^1.0.1": "1.0.14",
     "jsr:@std/internal@^1.0.5": "1.0.14",
+    "jsr:@std/testing@1.0.0": "1.0.0",
     "npm:@supabase/supabase-js@2.110.0": "2.110.0",
     "npm:jose@6.2.3": "6.2.3"
   },
@@ -23,6 +25,12 @@
     },
     "@std/internal@1.0.14": {
       "integrity": "291516b3d4c35024d6ffbc0a9df5bf4c64116e05b50012cf846710152d2ffdf7"
+    },
+    "@std/testing@1.0.0": {
+      "integrity": "27cfc06392c69c2acffe54e6d0bcb5f961cf193f519255372bd4fff1481bfef8",
+      "dependencies": [
+        "jsr:@std/assert@^1.0.2"
+      ]
     }
   },
   "npm": {
@@ -84,6 +92,7 @@
   "workspace": {
     "dependencies": [
       "jsr:@std/assert@1.0.0",
+      "jsr:@std/testing@1.0.0",
       "npm:@supabase/supabase-js@2.110.0",
       "npm:jose@6.2.3"
     ]

@@ -1,7 +1,7 @@
 /**
  * external-unlink edge fn — Deno unit tests (task 3.4).
  *
- * Tests the handler logic with mocked Supabase client and fetch.
+ * Tests the REAL handler (imported from ./index.ts) with mocked fetch via edgeTestKit.
  * Verifies:
  * - ClickUp: Admin/Operator/PM can unlink (soft-archive with disconnected_at)
  * - ClickUp: Engineer gets 403
@@ -16,917 +16,477 @@
  * - Role gates enforced
  */
 
+import { describe, it, beforeAll, afterAll } from '@std/testing/bdd';
 import { assertEquals, assertRejects } from '@std/assert';
-import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
+import { handleUnlinkRequest, setTestJwks } from './index.ts';
+import {
+  createJwtAuthority,
+  installEdgeEnv,
+  withFetchMock,
+  supabaseRpc,
+  supabaseSelect,
+  restCall,
+  rpcCall,
+  jsonResponse,
+  createAuthedRequest,
+  createTestJwksResolver,
+} from '../_shared/testing/edgeTestKit.ts';
 
-// ============================================================================
-// Test utilities / mocks
-// ============================================================================
+// One stable authority + env per test module (see TEST-ARCH.md _jwks memoization nuance)
+const env = installEdgeEnv();
+const auth = await createJwtAuthority(env.SUPABASE_URL);
 
-interface MockFetchRoute {
-  method: string;
-  urlIncludes: string;
-  status?: number;
-  json: unknown | (() => unknown);
+// Install test JWKS resolver (no background intervals)
+setTestJwks(createTestJwksResolver(auth));
+
+afterAll(() => env.restore());
+
+async function authed(body: unknown, sub = 'user-1') {
+  const jwt = await auth.mintJwt({ sub });
+  return createAuthedRequest('http://edge.test/unlink', body, jwt);
 }
 
-function createMockFetch(routes: MockFetchRoute[]) {
-  const calls: { url: string; init?: RequestInit }[] = [];
-  const fetchImpl = async (url: string, init?: RequestInit) => {
-    calls.push({ url, init });
-    const method = (init?.method ?? 'GET').toUpperCase();
-    const route = routes.find((r) => r.method.toUpperCase() === method && url.includes(r.urlIncludes));
-    if (!route) {
-      throw new Error(`Unexpected fetch: ${method} ${url}`);
-    }
-    const json = typeof route.json === 'function' ? (route.json as () => unknown)() : route.json;
-    return new Response(JSON.stringify(json), { status: route.status ?? 200 });
-  };
-  return { fetchImpl: fetchImpl as unknown as typeof fetch, calls };
-}
+describe('external-unlink — ClickUp branch', () => {
+  it('Admin OK — clickup unlink soft-archives binding and audits', async () => {
+    await withFetchMock(
+      [
+        supabaseSelect('profiles', () =>
+          jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
 
-function createMockSupabaseClient(overrides: Record<string, any> = {}): any {
-  const defaultMaybeSingle = async () => ({ data: null, error: null });
-  const defaultSingle = async () => ({ data: null, error: null });
-  const defaultCount = async () => ({ count: 0, error: null });
+        supabaseSelect('platform_operators', () => new Response('null', {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })),
 
-  const makeChain = (table: string) => {
-    const selectOverride = overrides[`${table}_select_maybeSingle`] ?? defaultMaybeSingle;
-    const singleOverride = overrides[`${table}_select_single`] ?? defaultSingle;
-    const countOverride = overrides[`${table}_select_count`] ?? defaultCount;
-    const updateOverride = overrides[`${table}_update_eq_eq`];
-
-    return {
-      select: (cols: string, opts?: { count?: string; head?: boolean }) => {
-        if (opts?.count === 'exact' && opts?.head === true) {
-          return {
-            eq: (col: string, val: unknown) => ({
-              eq: (col2: string, val2: unknown) => ({
-                is: (col3: string, val3: unknown) => countOverride,
-              }),
-            }),
-          };
-        }
-        return {
-          eq: (col: string, val: unknown) => ({
-            eq: (col2: string, val2: unknown) => ({
-              eq: (col3: string, val3: unknown) => ({
-                is: (col4: string, val4: unknown) => ({
-                  maybeSingle: selectOverride,
-                  single: singleOverride,
-                }),
-                maybeSingle: selectOverride,
-                single: singleOverride,
-              }),
-              is: (col3: string, val3: unknown) => ({
-                maybeSingle: selectOverride,
-                single: singleOverride,
-              }),
-              maybeSingle: selectOverride,
-              single: singleOverride,
-            }),
-            is: (col2: string, val2: unknown) => ({
-              maybeSingle: selectOverride,
-              single: singleOverride,
-            }),
-            maybeSingle: selectOverride,
-            single: singleOverride,
-          }),
-          is: (col: string, val: unknown) => ({
-            maybeSingle: selectOverride,
-            single: singleOverride,
-          }),
-          maybeSingle: selectOverride,
-          single: singleOverride,
-        };
-      },
-      insert: (data: unknown) => ({
-        select: () => ({
-          single: async () => ({ data: { id: 'new-binding-id' }, error: null }),
+        supabaseSelect('projects', (call) => {
+          assertEquals(call.url.searchParams.get('id'), 'eq.proj-1');
+          assertEquals(call.url.searchParams.get('org_id'), 'eq.org-1');
+          return jsonResponse({ id: 'proj-1', project_manager_id: 'pm-9', org_id: 'org-1' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          });
         }),
-      }),
-      update: (data: unknown) => ({
-        eq: (col: string, val: unknown) => {
-          if (updateOverride) {
-            return {
-              eq: (col2: string, val2: unknown) => Promise.resolve(updateOverride()),
-            };
-          }
-          return {
-            eq: (col2: string, val2: unknown) => Promise.resolve({ error: null }),
-          };
+
+        supabaseSelect('external_project_bindings', () =>
+          jsonResponse({ id: 'binding-1', external_container_id: 'list-1' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
+
+        {
+          label: 'soft-archive binding',
+          method: 'PATCH',
+          pathname: '/rest/v1/external_project_bindings',
+          response: (call) => {
+            assertEquals(typeof call.bodyJson, 'object');
+            const body = call.bodyJson as Record<string, unknown>;
+            if (typeof body.disconnected_at !== 'string') throw new Error('missing disconnected_at');
+            return jsonResponse([]);
+          },
         },
-      }),
-      upsert: (data: unknown) => ({ error: null }),
-      rpc: async (name: string, params: unknown) => {
-        if (name === 'log_audit') return { data: null, error: null };
-        if (name === 'read_vault_secret') return { data: 'pat-token', error: null };
-        return { data: null, error: null };
-      },
-    };
-  };
 
-  return {
-    from: (table: string) => makeChain(table),
-    rpc: async (name: string, params: unknown) => {
-      if (name === 'log_audit') return { data: null, error: null };
-      if (name === 'read_vault_secret') return { data: 'pat-token', error: null };
-      return { data: null, error: null };
-    },
-    ...overrides,
-  };
-}
-
-// ============================================================================
-// Handler with injected dependencies for testing
-// ============================================================================
-
-interface HandlerDeps {
-  supabaseUrl: string;
-  serviceRoleKey: string;
-  serviceClient: any;
-  verifyJwt: (jwt: string) => Promise<{ sub: string }>;
-  fetchImpl: typeof fetch;
-}
-
-async function handleUnlinkRequestWithDeps(req: Request, deps: HandlerDeps): Promise<Response> {
-  const corsHeaders = {
-    'Content-Type': 'application/json',
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'authorization, content-type',
-  };
-
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
-  }
-
-  // 1. Extract and verify caller JWT
-  const authHeader = req.headers.get('Authorization');
-  if (!authHeader) {
-    return new Response(JSON.stringify({ error: 'UNAUTHORIZED', message: 'Missing Authorization header' }), {
-      status: 401,
-      headers: { 'Content-Type': 'application/json' },
-    });
-  }
-  const m = /^Bearer\s+(.+)$/i.exec(authHeader);
-  if (!m) {
-    return new Response(JSON.stringify({ error: 'UNAUTHORIZED', message: 'Missing Authorization header' }), {
-      status: 401,
-      headers: { 'Content-Type': 'application/json' },
-    });
-  }
-  const jwt = m[1];
-
-  let userId: string;
-  try {
-    const verified = await deps.verifyJwt(jwt);
-    userId = verified.sub;
-  } catch {
-    return new Response(JSON.stringify({ error: 'UNAUTHORIZED', message: 'Invalid JWT' }), {
-      status: 401,
-      headers: { 'Content-Type': 'application/json' },
-    });
-  }
-
-  // 2. Service-role client for admin lookups
-  const serviceClient = deps.serviceClient;
-
-  // 3. Load caller profile (role + org_id + status)
-  const { data: profile, error: profileError } = await serviceClient
-    .from('profiles')
-    .select('org_id, role, status')
-    .eq('id', userId)
-    .single();
-
-  if (profileError || !profile) {
-    return new Response(JSON.stringify({ error: 'FORBIDDEN', message: 'Profile not found' }), {
-      status: 403,
-      headers: { 'Content-Type': 'application/json' },
-    });
-  }
-
-  // 4. Check platform operator status
-  const { data: isOperator } = await serviceClient
-    .from('platform_operators')
-    .select('user_id')
-    .eq('user_id', userId)
-    .maybeSingle();
-
-  const isAdmin = profile.role === 'Admin';
-  const isPlatformOperator = !!isOperator;
-
-  // 5. Parse body - tier FIRST, then tier-specific auth
-  let body: { tier: 'clickup' | 'erpnext'; projectId?: string };
-  try {
-    body = (await req.json()) as any;
-  } catch {
-    return new Response(JSON.stringify({ error: 'BAD_REQUEST', message: 'Invalid JSON body' }), {
-      status: 400,
-      headers: { 'Content-Type': 'application/json' },
-    });
-  }
-
-  const { tier, projectId } = body;
-  if (tier !== 'clickup' && tier !== 'erpnext') {
-    return new Response(JSON.stringify({ error: 'BAD_REQUEST', message: 'Unknown tier (must be clickup or erpnext)' }), {
-      status: 400,
-      headers: { 'Content-Type': 'application/json' },
-    });
-  }
-
-  // =========================================================================
-  // ClickUp branch: soft-archive external_project_bindings row
-  // =========================================================================
-  if (tier === 'clickup') {
-    if (!projectId) {
-      return new Response(JSON.stringify({ error: 'BAD_REQUEST', message: 'projectId is required for ClickUp unlink' }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' },
-      });
-    }
-
-    // Load project and verify it belongs to caller's org
-    const { data: project, error: projectError } = await serviceClient
-      .from('projects')
-      .select('id, project_manager_id, org_id')
-      .eq('id', projectId)
-      .eq('org_id', profile.org_id)
-      .maybeSingle();
-
-    if (projectError || !project) {
-      return new Response(JSON.stringify({ error: 'NOT_FOUND', message: 'Project not found in this org' }), {
-        status: 404,
-        headers: { 'Content-Type': 'application/json' },
-      });
-    }
-
-    // ClickUp tier-specific auth: Admin OR Operator OR (PM of this project AND PM profile active)
-    const isPmOfProject = project.project_manager_id === userId;
-    let pmProfileActive = false;
-    if (isPmOfProject) {
-      const { data: pmProfile } = await serviceClient
-        .from('profiles')
-        .select('status')
-        .eq('id', userId)
-        .single();
-      pmProfileActive = pmProfile?.status === 'active';
-    }
-
-    const allowed = isAdmin || isPlatformOperator || (isPmOfProject && pmProfileActive);
-    if (!allowed) {
-      return new Response(
-        JSON.stringify({
-          error: 'FORBIDDEN',
-          message: 'Admin, Operator, or Project Manager of this project (with active profile) required',
+        supabaseRpc('log_audit', (call) => {
+          const body = call.bodyJson as Record<string, unknown>;
+          assertEquals(body.p_action, 'integration.unlink');
+          assertEquals((body.p_detail as Record<string, unknown>).tier, 'clickup');
+          assertEquals((body.p_detail as Record<string, unknown>).project_id, 'proj-1');
+          return jsonResponse(null);
         }),
-        { status: 403, headers: { 'Content-Type': 'application/json' } },
-      );
-    }
-
-    // Load the project binding
-    const { data: binding, error: bindingError } = await serviceClient
-      .from('external_project_bindings')
-      .select('id, external_container_id')
-      .eq('org_id', profile.org_id)
-      .eq('project_id', projectId)
-      .eq('external_tier', 'clickup')
-      .is('disconnected_at', null) // only active bindings
-      .maybeSingle();
-
-    if (bindingError || !binding) {
-      return new Response(
-        JSON.stringify({ error: 'NOT_FOUND', message: 'No active ClickUp binding found for this project' }),
-        { status: 404, headers: { 'Content-Type': 'application/json' } },
-      );
-    }
-
-    // Soft-archive: set disconnected_at = now()
-    const { error: updateError } = await serviceClient
-      .from('external_project_bindings')
-      .update({ disconnected_at: new Date().toISOString() })
-      .eq('id', binding.id);
-
-    if (updateError) {
-      console.error('external_project_bindings soft-archive failed', updateError);
-      return new Response(JSON.stringify({ error: 'INTERNAL', message: 'Failed to unlink project' }), {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' },
-      });
-    }
-
-    // Audit log
-    const { error: auditError } = await serviceClient.rpc('log_audit', {
-      p_action: 'integration.unlink',
-      p_org_id: profile.org_id,
-      p_actor_id: userId,
-      p_entity_id: binding.id,
-      p_detail: {
-        tier: 'clickup',
-        project_id: projectId,
-        list_id: binding.external_container_id,
-        actor: userId,
+      ],
+      async ({ calls }) => {
+        const res = await handleUnlinkRequest(await authed({ tier: 'clickup', projectId: 'proj-1' }));
+        assertEquals(res.status, 200);
+        assertEquals(await res.json(), { ok: true });
+        assertEquals(restCall(calls, 'external_project_bindings', 'PATCH').length, 1);
+        assertEquals(rpcCall(calls, 'log_audit').length, 1);
       },
-    });
-    if (auditError) console.error('log_audit failed', auditError);
+    );
+  });
 
-    return new Response(JSON.stringify({ ok: true }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
-    });
-  }
+  it('PM of project OK', async () => {
+    await withFetchMock(
+      [
+        supabaseSelect('profiles', () =>
+          jsonResponse({ org_id: 'org-1', role: 'Project Manager', status: 'active' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
 
-  // =========================================================================
-  // ERPNext branch: clear config.company
-  // =========================================================================
-  if (tier === 'erpnext') {
-    // ERPNext is org-level; Admin/Operator only (PM not allowed)
-    if (!isAdmin && !isPlatformOperator) {
-      return new Response(
-        JSON.stringify({ error: 'FORBIDDEN', message: 'Admin or Operator role required for ERPNext unlink' }),
-        { status: 403, headers: { 'Content-Type': 'application/json' } },
-      );
-    }
+        supabaseSelect('platform_operators', () => new Response('null', {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })),
 
-    // Load org binding
-    const { data: binding, error: bindingError } = await serviceClient
-      .from('external_org_bindings')
-      .select('config')
-      .eq('org_id', profile.org_id)
-      .eq('external_tier', 'erpnext')
-      .maybeSingle();
+        supabaseSelect('projects', () =>
+          jsonResponse({ id: 'proj-1', project_manager_id: 'user-1', org_id: 'org-1' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
 
-    if (bindingError || !binding) {
-      return new Response(
-        JSON.stringify({ error: 'NOT_FOUND', message: 'No ERPNext binding found for this org' }),
-        { status: 404, headers: { 'Content-Type': 'application/json' } },
-      );
-    }
+        supabaseSelect('external_project_bindings', () =>
+          jsonResponse({ id: 'binding-1', external_container_id: 'list-1' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
 
-    const currentConfig = (binding.config as Record<string, unknown>) ?? {};
-    if (!currentConfig.company) {
-      return new Response(
-        JSON.stringify({ error: 'NOT_FOUND', message: 'No ERPNext company linked' }),
-        { status: 404, headers: { 'Content-Type': 'application/json' } },
-      );
-    }
+        {
+          label: 'soft-archive binding',
+          method: 'PATCH',
+          pathname: '/rest/v1/external_project_bindings',
+          response: (call) => {
+            const body = call.bodyJson as Record<string, unknown>;
+            if (typeof body.disconnected_at !== 'string') throw new Error('missing disconnected_at');
+            return jsonResponse([]);
+          },
+        },
 
-    // Clear company from config
-    const newConfig = { ...currentConfig, company: null };
-    const { error: updateError } = await serviceClient
-      .from('external_org_bindings')
-      .update({ config: newConfig })
-      .eq('org_id', profile.org_id)
-      .eq('external_tier', 'erpnext');
-
-    if (updateError) {
-      console.error('external_org_bindings config clear failed', updateError);
-      return new Response(JSON.stringify({ error: 'INTERNAL', message: 'Failed to unlink ERPNext company' }), {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' },
-      });
-    }
-
-    // Audit log
-    const { error: auditError } = await serviceClient.rpc('log_audit', {
-      p_action: 'integration.unlink',
-      p_org_id: profile.org_id,
-      p_actor_id: userId,
-      p_entity_id: null,
-      p_detail: {
-        tier: 'erpnext',
-        company_id: currentConfig.company,
-        actor: userId,
+        supabaseRpc('log_audit', () => jsonResponse(null)),
+      ],
+      async ({ calls }) => {
+        const res = await handleUnlinkRequest(await authed({ tier: 'clickup', projectId: 'proj-1' }));
+        assertEquals(res.status, 200);
+        assertEquals(restCall(calls, 'external_project_bindings', 'PATCH').length, 1);
       },
-    });
-    if (auditError) console.error('log_audit failed', auditError);
-
-    return new Response(JSON.stringify({ ok: true }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
-    });
-  }
-
-  return new Response(JSON.stringify({ error: 'BAD_REQUEST', message: 'Unknown tier' }), {
-    status: 400,
-    headers: { 'Content-Type': 'application/json' },
-  });
-}
-
-// ============================================================================
-// ClickUp unlink tests
-// ============================================================================
-
-Deno.test('external-unlink: ClickUp soft-archives binding (disconnected_at set)', async () => {
-  const mockServiceClient = createMockSupabaseClient({
-    'profiles_select_single': async () => ({ data: { org_id: 'org-1', role: 'Admin', status: 'active' }, error: null }),
-    'platform_operators_select_maybeSingle': async () => ({ data: null, error: null }),
-    'projects_select_maybeSingle': async () => ({ data: { id: 'proj-1', project_manager_id: 'pm-1', org_id: 'org-1' }, error: null }),
-    'external_project_bindings_select_maybeSingle': async () => ({
-      data: { id: 'binding-1', external_container_id: 'list-1' },
-      error: null,
-    }),
-    'external_project_bindings_update_eq_eq': async () => ({ error: null }),
+    );
   });
 
-  const req = new Request('https://example.com/unlink', {
-    method: 'POST',
-    headers: { Authorization: 'Bearer valid-jwt' },
-    body: JSON.stringify({ tier: 'clickup', projectId: 'proj-1' }),
+  it('PM of other project 403 — no mutation, no audit', async () => {
+    await withFetchMock(
+      [
+        supabaseSelect('profiles', () =>
+          jsonResponse({ org_id: 'org-1', role: 'Project Manager', status: 'active' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
+
+        supabaseSelect('platform_operators', () => new Response('null', {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })),
+
+        supabaseSelect('projects', () =>
+          jsonResponse({ id: 'proj-1', project_manager_id: 'different-pm', org_id: 'org-1' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
+      ],
+      async ({ calls }) => {
+        const res = await handleUnlinkRequest(await authed({ tier: 'clickup', projectId: 'proj-1' }));
+        assertEquals(res.status, 403);
+        assertEquals(restCall(calls, 'external_project_bindings', 'PATCH').length, 0);
+        assertEquals(rpcCall(calls, 'log_audit').length, 0);
+      },
+    );
   });
 
-  const res = await handleUnlinkRequestWithDeps(req, {
-    supabaseUrl: 'https://test.supabase.co',
-    serviceRoleKey: 'test-key',
-    serviceClient: mockServiceClient,
-    verifyJwt: async () => ({ sub: 'user-1' }),
-    fetchImpl: fetch,
+  it('inactive PM 403 — no mutation, no audit', async () => {
+    await withFetchMock(
+      [
+        supabaseSelect('profiles', () =>
+          jsonResponse({ org_id: 'org-1', role: 'Project Manager', status: 'inactive' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
+
+        supabaseSelect('platform_operators', () => new Response('null', {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })),
+
+        supabaseSelect('projects', () =>
+          jsonResponse({ id: 'proj-1', project_manager_id: 'user-1', org_id: 'org-1' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
+      ],
+      async ({ calls }) => {
+        const res = await handleUnlinkRequest(await authed({ tier: 'clickup', projectId: 'proj-1' }));
+        assertEquals(res.status, 403);
+        assertEquals(restCall(calls, 'external_project_bindings', 'PATCH').length, 0);
+        assertEquals(rpcCall(calls, 'log_audit').length, 0);
+      },
+    );
   });
-  assertEquals(res.status, 200);
+
+  it('Engineer 403', async () => {
+    await withFetchMock(
+      [
+        supabaseSelect('profiles', () =>
+          jsonResponse({ org_id: 'org-1', role: 'Engineer', status: 'active' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
+
+        supabaseSelect('platform_operators', () => new Response('null', {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })),
+
+        supabaseSelect('projects', () =>
+          jsonResponse({ id: 'proj-1', project_manager_id: 'pm-1', org_id: 'org-1' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
+      ],
+      async ({ calls }) => {
+        const res = await handleUnlinkRequest(await authed({ tier: 'clickup', projectId: 'proj-1' }));
+        assertEquals(res.status, 403);
+        assertEquals(restCall(calls, 'external_project_bindings', 'PATCH').length, 0);
+        assertEquals(rpcCall(calls, 'log_audit').length, 0);
+      },
+    );
+  });
+
+  it('missing projectId 400', async () => {
+    await withFetchMock(
+      [
+        supabaseSelect('profiles', () =>
+          jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
+
+        supabaseSelect('platform_operators', () => new Response('null', {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })),
+      ],
+      async ({ calls }) => {
+        const res = await handleUnlinkRequest(await authed({ tier: 'clickup' }));
+        assertEquals(res.status, 400);
+        assertEquals(restCall(calls, 'external_project_bindings', 'PATCH').length, 0);
+      },
+    );
+  });
+
+  it('missing binding 404 — no mutation, no audit', async () => {
+    await withFetchMock(
+      [
+        supabaseSelect('profiles', () =>
+          jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
+
+        supabaseSelect('platform_operators', () => new Response('null', {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })),
+
+        supabaseSelect('projects', () =>
+          jsonResponse({ id: 'proj-1', project_manager_id: 'user-1', org_id: 'org-1' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
+
+        supabaseSelect('external_project_bindings', () => new Response('null', {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })),
+      ],
+      async ({ calls }) => {
+        const res = await handleUnlinkRequest(await authed({ tier: 'clickup', projectId: 'proj-1' }));
+        assertEquals(res.status, 404);
+        assertEquals(restCall(calls, 'external_project_bindings', 'PATCH').length, 0);
+        assertEquals(rpcCall(calls, 'log_audit').length, 0);
+      },
+    );
+  });
 });
 
-Deno.test('external-unlink: ClickUp PM can unlink their project', async () => {
-  const mockServiceClient = createMockSupabaseClient({
-    'profiles_select_single': async () => ({ data: { org_id: 'org-1', role: 'Project Manager', status: 'active' }, error: null }),
-    'platform_operators_select_maybeSingle': async () => ({ data: null, error: null }),
-    'projects_select_maybeSingle': async () => ({ data: { id: 'proj-1', project_manager_id: 'user-1', org_id: 'org-1' }, error: null }),
-    'external_project_bindings_select_maybeSingle': async () => ({
-      data: { id: 'binding-1', external_container_id: 'list-1' },
-      error: null,
-    }),
-    'external_project_bindings_update_eq_eq': async () => ({ error: null }),
+describe('external-unlink — ERPNext branch', () => {
+  it('Admin OK — clears config.company', async () => {
+    await withFetchMock(
+      [
+        supabaseSelect('profiles', () =>
+          jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
+
+        supabaseSelect('platform_operators', () => new Response('null', {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })),
+
+        supabaseSelect('external_org_bindings', () =>
+          jsonResponse({ config: { company: 'ACME' } }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
+
+        {
+          label: 'clear company config',
+          method: 'PATCH',
+          pathname: '/rest/v1/external_org_bindings',
+          response: (call) => {
+            const body = call.bodyJson as Record<string, unknown>;
+            const config = body.config as Record<string, unknown>;
+            assertEquals(config.company, null);
+            return jsonResponse([]);
+          },
+        },
+
+        supabaseRpc('log_audit', (call) => {
+          const body = call.bodyJson as Record<string, unknown>;
+          assertEquals(body.p_action, 'integration.unlink');
+          assertEquals((body.p_detail as Record<string, unknown>).tier, 'erpnext');
+          return jsonResponse(null);
+        }),
+      ],
+      async ({ calls }) => {
+        const res = await handleUnlinkRequest(await authed({ tier: 'erpnext' }));
+        assertEquals(res.status, 200);
+        assertEquals(await res.json(), { ok: true });
+        assertEquals(restCall(calls, 'external_org_bindings', 'PATCH').length, 1);
+        assertEquals(rpcCall(calls, 'log_audit').length, 1);
+      },
+    );
   });
 
-  const req = new Request('https://example.com/unlink', {
-    method: 'POST',
-    headers: { Authorization: 'Bearer valid-jwt' },
-    body: JSON.stringify({ tier: 'clickup', projectId: 'proj-1' }),
+  it('Operator OK', async () => {
+    await withFetchMock(
+      [
+        supabaseSelect('profiles', () =>
+          jsonResponse({ org_id: 'org-1', role: 'Engineer', status: 'active' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
+
+        supabaseSelect('platform_operators', () =>
+          jsonResponse({ user_id: 'user-1' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
+
+        supabaseSelect('external_org_bindings', () =>
+          jsonResponse({ config: { company: 'ACME' } }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
+
+        {
+          label: 'clear company config',
+          method: 'PATCH',
+          pathname: '/rest/v1/external_org_bindings',
+          response: (call) => {
+            const body = call.bodyJson as Record<string, unknown>;
+            const config = body.config as Record<string, unknown>;
+            assertEquals(config.company, null);
+            return jsonResponse([]);
+          },
+        },
+
+        supabaseRpc('log_audit', () => jsonResponse(null)),
+      ],
+      async ({ calls }) => {
+        const res = await handleUnlinkRequest(await authed({ tier: 'erpnext' }));
+        assertEquals(res.status, 200);
+        assertEquals(restCall(calls, 'external_org_bindings', 'PATCH').length, 1);
+      },
+    );
   });
 
-  const res = await handleUnlinkRequestWithDeps(req, {
-    supabaseUrl: 'https://test.supabase.co',
-    serviceRoleKey: 'test-key',
-    serviceClient: mockServiceClient,
-    verifyJwt: async () => ({ sub: 'user-1' }),
-    fetchImpl: fetch,
-  });
-  assertEquals(res.status, 200);
-});
+  it('PM 403 (org-level only)', async () => {
+    await withFetchMock(
+      [
+        supabaseSelect('profiles', () =>
+          jsonResponse({ org_id: 'org-1', role: 'Project Manager', status: 'active' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
 
-Deno.test('external-unlink: ClickUp PM with inactive profile gets 403', async () => {
-  const mockServiceClient = createMockSupabaseClient({
-    'profiles_select_single': async () => ({ data: { org_id: 'org-1', role: 'Project Manager', status: 'inactive' }, error: null }),
-    'platform_operators_select_maybeSingle': async () => ({ data: null, error: null }),
-    'projects_select_maybeSingle': async () => ({ data: { id: 'proj-1', project_manager_id: 'user-1', org_id: 'org-1' }, error: null }),
-  });
-
-  const req = new Request('https://example.com/unlink', {
-    method: 'POST',
-    headers: { Authorization: 'Bearer valid-jwt' },
-    body: JSON.stringify({ tier: 'clickup', projectId: 'proj-1' }),
+        supabaseSelect('platform_operators', () => new Response('null', {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })),
+      ],
+      async ({ calls }) => {
+        const res = await handleUnlinkRequest(await authed({ tier: 'erpnext' }));
+        assertEquals(res.status, 403);
+        assertEquals(rpcCall(calls, 'log_audit').length, 0);
+      },
+    );
   });
 
-  const res = await handleUnlinkRequestWithDeps(req, {
-    supabaseUrl: 'https://test.supabase.co',
-    serviceRoleKey: 'test-key',
-    serviceClient: mockServiceClient,
-    verifyJwt: async () => ({ sub: 'user-1' }),
-    fetchImpl: fetch,
-  });
-  assertEquals(res.status, 403);
-});
+  it('missing binding 404', async () => {
+    await withFetchMock(
+      [
+        supabaseSelect('profiles', () =>
+          jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
 
-Deno.test('external-unlink: ClickUp PM of different project gets 403', async () => {
-  const mockServiceClient = createMockSupabaseClient({
-    'profiles_select_single': async () => ({ data: { org_id: 'org-1', role: 'Project Manager', status: 'active' }, error: null }),
-    'platform_operators_select_maybeSingle': async () => ({ data: null, error: null }),
-    'projects_select_maybeSingle': async () => ({ data: { id: 'proj-1', project_manager_id: 'different-pm', org_id: 'org-1' }, error: null }),
-  });
+        supabaseSelect('platform_operators', () => new Response('null', {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })),
 
-  const req = new Request('https://example.com/unlink', {
-    method: 'POST',
-    headers: { Authorization: 'Bearer valid-jwt' },
-    body: JSON.stringify({ tier: 'clickup', projectId: 'proj-1' }),
-  });
-
-  const res = await handleUnlinkRequestWithDeps(req, {
-    supabaseUrl: 'https://test.supabase.co',
-    serviceRoleKey: 'test-key',
-    serviceClient: mockServiceClient,
-    verifyJwt: async () => ({ sub: 'user-1' }),
-    fetchImpl: fetch,
-  });
-  assertEquals(res.status, 403);
-});
-
-Deno.test('external-unlink: ClickUp project with null project_manager_id requires Admin/Operator', async () => {
-  const mockServiceClient = createMockSupabaseClient({
-    'profiles_select_single': async () => ({ data: { org_id: 'org-1', role: 'Project Manager', status: 'active' }, error: null }),
-    'platform_operators_select_maybeSingle': async () => ({ data: null, error: null }),
-    'projects_select_maybeSingle': async () => ({ data: { id: 'proj-1', project_manager_id: null, org_id: 'org-1' }, error: null }),
+        supabaseSelect('external_org_bindings', () => new Response('null', {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })),
+      ],
+      async ({ calls }) => {
+        const res = await handleUnlinkRequest(await authed({ tier: 'erpnext' }));
+        assertEquals(res.status, 404);
+        assertEquals(rpcCall(calls, 'log_audit').length, 0);
+      },
+    );
   });
 
-  const req = new Request('https://example.com/unlink', {
-    method: 'POST',
-    headers: { Authorization: 'Bearer valid-jwt' },
-    body: JSON.stringify({ tier: 'clickup', projectId: 'proj-1' }),
+  it('no company linked 404', async () => {
+    await withFetchMock(
+      [
+        supabaseSelect('profiles', () =>
+          jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
+
+        supabaseSelect('platform_operators', () => new Response('null', {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })),
+
+        supabaseSelect('external_org_bindings', () =>
+          jsonResponse({ config: {} }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
+      ],
+      async ({ calls }) => {
+        const res = await handleUnlinkRequest(await authed({ tier: 'erpnext' }));
+        assertEquals(res.status, 404);
+        assertEquals(rpcCall(calls, 'log_audit').length, 0);
+      },
+    );
   });
 
-  const res = await handleUnlinkRequestWithDeps(req, {
-    supabaseUrl: 'https://test.supabase.co',
-    serviceRoleKey: 'test-key',
-    serviceClient: mockServiceClient,
-    verifyJwt: async () => ({ sub: 'user-1' }),
-    fetchImpl: fetch,
+  it('audit event logged for ERPNext unlink', async () => {
+    let auditCalled = false;
+    await withFetchMock(
+      [
+        supabaseSelect('profiles', () =>
+          jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
+
+        supabaseSelect('platform_operators', () => new Response('null', {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })),
+
+        supabaseSelect('external_org_bindings', () =>
+          jsonResponse({ config: { company: 'ACME' } }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
+
+        {
+          label: 'clear company config',
+          method: 'PATCH',
+          pathname: '/rest/v1/external_org_bindings',
+          response: (call) => {
+            const body = call.bodyJson as Record<string, unknown>;
+            const config = body.config as Record<string, unknown>;
+            assertEquals(config.company, null);
+            return jsonResponse([]);
+          },
+        },
+
+        supabaseRpc('log_audit', (call) => {
+          const body = call.bodyJson as Record<string, unknown>;
+          assertEquals(body.p_action, 'integration.unlink');
+          assertEquals((body.p_detail as Record<string, unknown>).tier, 'erpnext');
+          auditCalled = true;
+          return jsonResponse(null);
+        }),
+      ],
+      async () => {
+        const res = await handleUnlinkRequest(await authed({ tier: 'erpnext' }));
+        assertEquals(res.status, 200);
+        assertEquals(auditCalled, true);
+      },
+    );
   });
-  assertEquals(res.status, 403);
-});
-
-Deno.test('external-unlink: ClickUp Engineer gets 403', async () => {
-  const mockServiceClient = createMockSupabaseClient({
-    'profiles_select_single': async () => ({ data: { org_id: 'org-1', role: 'Engineer', status: 'active' }, error: null }),
-    'platform_operators_select_maybeSingle': async () => ({ data: null, error: null }),
-    'projects_select_maybeSingle': async () => ({ data: { id: 'proj-1', project_manager_id: 'pm-1', org_id: 'org-1' }, error: null }),
-  });
-
-  const req = new Request('https://example.com/unlink', {
-    method: 'POST',
-    headers: { Authorization: 'Bearer valid-jwt' },
-    body: JSON.stringify({ tier: 'clickup', projectId: 'proj-1' }),
-  });
-
-  const res = await handleUnlinkRequestWithDeps(req, {
-    supabaseUrl: 'https://test.supabase.co',
-    serviceRoleKey: 'test-key',
-    serviceClient: mockServiceClient,
-    verifyJwt: async () => ({ sub: 'user-1' }),
-    fetchImpl: fetch,
-  });
-  assertEquals(res.status, 403);
-});
-
-Deno.test('external-unlink: ClickUp missing projectId returns 400', async () => {
-  const mockServiceClient = createMockSupabaseClient({
-    'profiles_select_single': async () => ({ data: { org_id: 'org-1', role: 'Admin', status: 'active' }, error: null }),
-    'platform_operators_select_maybeSingle': async () => ({ data: null, error: null }),
-  });
-
-  const req = new Request('https://example.com/unlink', {
-    method: 'POST',
-    headers: { Authorization: 'Bearer valid-jwt' },
-    body: JSON.stringify({ tier: 'clickup' }),
-  });
-
-  const res = await handleUnlinkRequestWithDeps(req, {
-    supabaseUrl: 'https://test.supabase.co',
-    serviceRoleKey: 'test-key',
-    serviceClient: mockServiceClient,
-    verifyJwt: async () => ({ sub: 'user-1' }),
-    fetchImpl: fetch,
-  });
-  assertEquals(res.status, 400);
-});
-
-Deno.test('external-unlink: missing ClickUp binding returns 404', async () => {
-  const mockServiceClient = createMockSupabaseClient({
-    'profiles_select_single': async () => ({ data: { org_id: 'org-1', role: 'Admin', status: 'active' }, error: null }),
-    'platform_operators_select_maybeSingle': async () => ({ data: null, error: null }),
-    'projects_select_maybeSingle': async () => ({ data: { id: 'proj-1', project_manager_id: 'user-1', org_id: 'org-1' }, error: null }),
-    'external_project_bindings_select_maybeSingle': async () => ({ data: null, error: null }),
-  });
-
-  const req = new Request('https://example.com/unlink', {
-    method: 'POST',
-    headers: { Authorization: 'Bearer valid-jwt' },
-    body: JSON.stringify({ tier: 'clickup', projectId: 'proj-1' }),
-  });
-
-  const res = await handleUnlinkRequestWithDeps(req, {
-    supabaseUrl: 'https://test.supabase.co',
-    serviceRoleKey: 'test-key',
-    serviceClient: mockServiceClient,
-    verifyJwt: async () => ({ sub: 'user-1' }),
-    fetchImpl: fetch,
-  });
-  assertEquals(res.status, 404);
-});
-
-// ============================================================================
-// ERPNext unlink tests
-// ============================================================================
-
-Deno.test('external-unlink: ERPNext clears config.company', async () => {
-  const mockServiceClient = createMockSupabaseClient({
-    'profiles_select_single': async () => ({ data: { org_id: 'org-1', role: 'Admin', status: 'active' }, error: null }),
-    'platform_operators_select_maybeSingle': async () => ({ data: null, error: null }),
-    'external_org_bindings_select_maybeSingle': async () => ({
-      data: { config: { company: 'ACME' } },
-      error: null,
-    }),
-    'external_org_bindings_update_eq_eq': async () => ({ error: null }),
-  });
-
-  const req = new Request('https://example.com/unlink', {
-    method: 'POST',
-    headers: { Authorization: 'Bearer valid-jwt' },
-    body: JSON.stringify({ tier: 'erpnext' }),
-  });
-
-  const res = await handleUnlinkRequestWithDeps(req, {
-    supabaseUrl: 'https://test.supabase.co',
-    serviceRoleKey: 'test-key',
-    serviceClient: mockServiceClient,
-    verifyJwt: async () => ({ sub: 'user-1' }),
-    fetchImpl: fetch,
-  });
-  assertEquals(res.status, 200);
-});
-
-Deno.test('external-unlink: ERPNext PM gets 403 (org-level only)', async () => {
-  const mockServiceClient = createMockSupabaseClient({
-    'profiles_select_single': async () => ({ data: { org_id: 'org-1', role: 'Project Manager', status: 'active' }, error: null }),
-    'platform_operators_select_maybeSingle': async () => ({ data: null, error: null }),
-  });
-
-  const req = new Request('https://example.com/unlink', {
-    method: 'POST',
-    headers: { Authorization: 'Bearer valid-jwt' },
-    body: JSON.stringify({ tier: 'erpnext' }),
-  });
-
-  const res = await handleUnlinkRequestWithDeps(req, {
-    supabaseUrl: 'https://test.supabase.co',
-    serviceRoleKey: 'test-key',
-    serviceClient: mockServiceClient,
-    verifyJwt: async () => ({ sub: 'user-1' }),
-    fetchImpl: fetch,
-  });
-  assertEquals(res.status, 403);
-});
-
-Deno.test('external-unlink: missing ERPNext binding returns 404', async () => {
-  const mockServiceClient = createMockSupabaseClient({
-    'profiles_select_single': async () => ({ data: { org_id: 'org-1', role: 'Admin', status: 'active' }, error: null }),
-    'platform_operators_select_maybeSingle': async () => ({ data: null, error: null }),
-    'external_org_bindings_select_maybeSingle': async () => ({ data: null, error: null }),
-  });
-
-  const req = new Request('https://example.com/unlink', {
-    method: 'POST',
-    headers: { Authorization: 'Bearer valid-jwt' },
-    body: JSON.stringify({ tier: 'erpnext' }),
-  });
-
-  const res = await handleUnlinkRequestWithDeps(req, {
-    supabaseUrl: 'https://test.supabase.co',
-    serviceRoleKey: 'test-key',
-    serviceClient: mockServiceClient,
-    verifyJwt: async () => ({ sub: 'user-1' }),
-    fetchImpl: fetch,
-  });
-  assertEquals(res.status, 404);
-});
-
-Deno.test('external-unlink: ERPNext no company linked returns 404', async () => {
-  const mockServiceClient = createMockSupabaseClient({
-    'profiles_select_single': async () => ({ data: { org_id: 'org-1', role: 'Admin', status: 'active' }, error: null }),
-    'platform_operators_select_maybeSingle': async () => ({ data: null, error: null }),
-    'external_org_bindings_select_maybeSingle': async () => ({
-      data: { config: {} },
-      error: null,
-    }),
-  });
-
-  const req = new Request('https://example.com/unlink', {
-    method: 'POST',
-    headers: { Authorization: 'Bearer valid-jwt' },
-    body: JSON.stringify({ tier: 'erpnext' }),
-  });
-
-  const res = await handleUnlinkRequestWithDeps(req, {
-    supabaseUrl: 'https://test.supabase.co',
-    serviceRoleKey: 'test-key',
-    serviceClient: mockServiceClient,
-    verifyJwt: async () => ({ sub: 'user-1' }),
-    fetchImpl: fetch,
-  });
-  assertEquals(res.status, 404);
-});
-
-// ============================================================================
-// Audit log tests
-// ============================================================================
-
-Deno.test('external-unlink: audit event logged for ClickUp unlink', async () => {
-  let auditCalled = false;
-  const mockServiceClient = createMockSupabaseClient({
-    'profiles_select_single': async () => ({ data: { org_id: 'org-1', role: 'Admin', status: 'active' }, error: null }),
-    'platform_operators_select_maybeSingle': async () => ({ data: null, error: null }),
-    'projects_select_maybeSingle': async () => ({ data: { id: 'proj-1', project_manager_id: 'user-1', org_id: 'org-1' }, error: null }),
-    'external_project_bindings_select_maybeSingle': async () => ({
-      data: { id: 'binding-1', external_container_id: 'list-1' },
-      error: null,
-    }),
-    'external_project_bindings_update_eq_eq': async () => ({ error: null }),
-    rpc: async (name: string, params: Record<string, any>) => {
-      if (name === 'log_audit') {
-        auditCalled = true;
-        assertEquals(params.p_action, 'integration.unlink');
-        assertEquals(params.p_detail.tier, 'clickup');
-      }
-      return { data: null, error: null };
-    },
-  });
-
-  const req = new Request('https://example.com/unlink', {
-    method: 'POST',
-    headers: { Authorization: 'Bearer valid-jwt' },
-    body: JSON.stringify({ tier: 'clickup', projectId: 'proj-1' }),
-  });
-
-  const res = await handleUnlinkRequestWithDeps(req, {
-    supabaseUrl: 'https://test.supabase.co',
-    serviceRoleKey: 'test-key',
-    serviceClient: mockServiceClient,
-    verifyJwt: async () => ({ sub: 'user-1' }),
-    fetchImpl: fetch,
-  });
-  assertEquals(res.status, 200);
-  assertEquals(auditCalled, true);
-});
-
-Deno.test('external-unlink: audit event logged for ERPNext unlink', async () => {
-  let auditCalled = false;
-  const mockServiceClient = createMockSupabaseClient({
-    'profiles_select_single': async () => ({ data: { org_id: 'org-1', role: 'Admin', status: 'active' }, error: null }),
-    'platform_operators_select_maybeSingle': async () => ({ data: null, error: null }),
-    'external_org_bindings_select_maybeSingle': async () => ({
-      data: { config: { company: 'ACME' } },
-      error: null,
-    }),
-    'external_org_bindings_update_eq_eq': async () => ({ error: null }),
-    rpc: async (name: string, params: Record<string, any>) => {
-      if (name === 'log_audit') {
-        auditCalled = true;
-        assertEquals(params.p_action, 'integration.unlink');
-        assertEquals(params.p_detail.tier, 'erpnext');
-      }
-      return { data: null, error: null };
-    },
-  });
-
-  const req = new Request('https://example.com/unlink', {
-    method: 'POST',
-    headers: { Authorization: 'Bearer valid-jwt' },
-    body: JSON.stringify({ tier: 'erpnext' }),
-  });
-
-  const res = await handleUnlinkRequestWithDeps(req, {
-    supabaseUrl: 'https://test.supabase.co',
-    serviceRoleKey: 'test-key',
-    serviceClient: mockServiceClient,
-    verifyJwt: async () => ({ sub: 'user-1' }),
-    fetchImpl: fetch,
-  });
-  assertEquals(res.status, 200);
-  assertEquals(auditCalled, true);
-});
-
-// ============================================================================
-// Role gate tests
-// ============================================================================
-
-Deno.test('external-unlink: Admin role allowed for ClickUp', async () => {
-  const mockServiceClient = createMockSupabaseClient({
-    'profiles_select_single': async () => ({ data: { org_id: 'org-1', role: 'Admin', status: 'active' }, error: null }),
-    'platform_operators_select_maybeSingle': async () => ({ data: null, error: null }),
-    'projects_select_maybeSingle': async () => ({ data: { id: 'proj-1', project_manager_id: 'pm-1', org_id: 'org-1' }, error: null }),
-    'external_project_bindings_select_maybeSingle': async () => ({
-      data: { id: 'binding-1', external_container_id: 'list-1' },
-      error: null,
-    }),
-    'external_project_bindings_update_eq_eq': async () => ({ error: null }),
-  });
-
-  const req = new Request('https://example.com/unlink', {
-    method: 'POST',
-    headers: { Authorization: 'Bearer valid-jwt' },
-    body: JSON.stringify({ tier: 'clickup', projectId: 'proj-1' }),
-  });
-
-  const res = await handleUnlinkRequestWithDeps(req, {
-    supabaseUrl: 'https://test.supabase.co',
-    serviceRoleKey: 'test-key',
-    serviceClient: mockServiceClient,
-    verifyJwt: async () => ({ sub: 'user-1' }),
-    fetchImpl: fetch,
-  });
-  assertEquals(res.status, 200);
-});
-
-Deno.test('external-unlink: Operator role allowed for ClickUp', async () => {
-  const mockServiceClient = createMockSupabaseClient({
-    'profiles_select_single': async () => ({ data: { org_id: 'org-1', role: 'Engineer', status: 'active' }, error: null }),
-    'platform_operators_select_maybeSingle': async () => ({ data: { user_id: 'operator-1' }, error: null }),
-    'projects_select_maybeSingle': async () => ({ data: { id: 'proj-1', project_manager_id: 'pm-1', org_id: 'org-1' }, error: null }),
-    'external_project_bindings_select_maybeSingle': async () => ({
-      data: { id: 'binding-1', external_container_id: 'list-1' },
-      error: null,
-    }),
-    'external_project_bindings_update_eq_eq': async () => ({ error: null }),
-  });
-
-  const req = new Request('https://example.com/unlink', {
-    method: 'POST',
-    headers: { Authorization: 'Bearer valid-jwt' },
-    body: JSON.stringify({ tier: 'clickup', projectId: 'proj-1' }),
-  });
-
-  const res = await handleUnlinkRequestWithDeps(req, {
-    supabaseUrl: 'https://test.supabase.co',
-    serviceRoleKey: 'test-key',
-    serviceClient: mockServiceClient,
-    verifyJwt: async () => ({ sub: 'user-1' }),
-    fetchImpl: fetch,
-  });
-  assertEquals(res.status, 200);
-});
-
-Deno.test('external-unlink: Admin role allowed for ERPNext', async () => {
-  const mockServiceClient = createMockSupabaseClient({
-    'profiles_select_single': async () => ({ data: { org_id: 'org-1', role: 'Admin', status: 'active' }, error: null }),
-    'platform_operators_select_maybeSingle': async () => ({ data: null, error: null }),
-    'external_org_bindings_select_maybeSingle': async () => ({
-      data: { config: { company: 'ACME' } },
-      error: null,
-    }),
-    'external_org_bindings_update_eq_eq': async () => ({ error: null }),
-  });
-
-  const req = new Request('https://example.com/unlink', {
-    method: 'POST',
-    headers: { Authorization: 'Bearer valid-jwt' },
-    body: JSON.stringify({ tier: 'erpnext' }),
-  });
-
-  const res = await handleUnlinkRequestWithDeps(req, {
-    supabaseUrl: 'https://test.supabase.co',
-    serviceRoleKey: 'test-key',
-    serviceClient: mockServiceClient,
-    verifyJwt: async () => ({ sub: 'user-1' }),
-    fetchImpl: fetch,
-  });
-  assertEquals(res.status, 200);
-});
-
-Deno.test('external-unlink: Operator role allowed for ERPNext', async () => {
-  const mockServiceClient = createMockSupabaseClient({
-    'profiles_select_single': async () => ({ data: { org_id: 'org-1', role: 'Engineer', status: 'active' }, error: null }),
-    'platform_operators_select_maybeSingle': async () => ({ data: { user_id: 'operator-1' }, error: null }),
-    'external_org_bindings_select_maybeSingle': async () => ({
-      data: { config: { company: 'ACME' } },
-      error: null,
-    }),
-    'external_org_bindings_update_eq_eq': async () => ({ error: null }),
-  });
-
-  const req = new Request('https://example.com/unlink', {
-    method: 'POST',
-    headers: { Authorization: 'Bearer valid-jwt' },
-    body: JSON.stringify({ tier: 'erpnext' }),
-  });
-
-  const res = await handleUnlinkRequestWithDeps(req, {
-    supabaseUrl: 'https://test.supabase.co',
-    serviceRoleKey: 'test-key',
-    serviceClient: mockServiceClient,
-    verifyJwt: async () => ({ sub: 'user-1' }),
-    fetchImpl: fetch,
-  });
-  assertEquals(res.status, 200);
-});
-
-// ============================================================================
-// Invalid tier tests
-// ============================================================================
-
-Deno.test('external-unlink: unknown tier returns 400', async () => {
-  const mockServiceClient = createMockSupabaseClient({
-    'profiles_select_single': async () => ({ data: { org_id: 'org-1', role: 'Admin', status: 'active' }, error: null }),
-    'platform_operators_select_maybeSingle': async () => ({ data: null, error: null }),
-  });
-
-  const req = new Request('https://example.com/unlink', {
-    method: 'POST',
-    headers: { Authorization: 'Bearer valid-jwt' },
-    body: JSON.stringify({ tier: 'unknown' }),
-  });
-
-  const res = await handleUnlinkRequestWithDeps(req, {
-    supabaseUrl: 'https://test.supabase.co',
-    serviceRoleKey: 'test-key',
-    serviceClient: mockServiceClient,
-    verifyJwt: async () => ({ sub: 'user-1' }),
-    fetchImpl: fetch,
-  });
-  assertEquals(res.status, 400);
 });

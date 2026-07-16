@@ -59,6 +59,21 @@ function getJwks(supabaseUrl: string): JwksResolver {
   return _jwks;
 }
 
+// Test hook: allow injecting a local JWKS resolver to avoid background intervals from
+// createRemoteJWKSet during tests.
+export function setTestJwks(resolver: JwksResolver): void {
+  _jwks = resolver;
+}
+
+// Test hook: Supabase client options for tests (disable auto-refresh to prevent timer leaks).
+export const testSupabaseOptions = {
+  auth: {
+    autoRefreshToken: false,
+    persistSession: false,
+    detectSessionInUrl: false,
+  },
+};
+
 /** Strip a case-insensitive `Bearer ` prefix; return null if absent or malformed. */
 function bearerTokenFromHeader(authHeader: string | null): string | null {
   if (!authHeader) return null;
@@ -190,10 +205,10 @@ function isPrivateOrReservedHost(hostname: string): boolean {
 }
 
 // ============================================================================
-// Main handler
+// Main handler (exported for testability)
 // ============================================================================
 
-Deno.serve(async (req: Request): Promise<Response> => {
+export async function handleConnectRequest(req: Request): Promise<Response> {
   const corsHeaders = {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
@@ -230,7 +245,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
   }
 
   // 2. Service-role client for admin lookups (profile, operator check)
-  const serviceClient = createClient(supabaseUrl, serviceRoleKey);
+  const serviceClient = createClient(supabaseUrl, serviceRoleKey, testSupabaseOptions);
 
   // 3. Load caller profile (role + org_id)
   const { data: profile, error: profileError } = await serviceClient
@@ -347,4 +362,13 @@ Deno.serve(async (req: Request): Promise<Response> => {
       status: 'active',
     },
   });
-});
+}
+
+// Deno.serve entry point (only runs when module is main)
+if (import.meta.main) {
+  Deno.serve(handleConnectRequest);
+}
+
+// Export validators and SSRF helper for testability
+export { validateClickUpToken, validateErpNextCredentials, isPrivateOrReservedHost };
+export type { ValidatorDeps };

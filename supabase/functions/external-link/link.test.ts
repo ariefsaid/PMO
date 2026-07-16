@@ -1,7 +1,7 @@
 /**
  * external-link edge fn — Deno unit tests (tasks 3.2, 3.3).
  *
- * Tests both ClickUp and ERPNext link branches with mocked fetch and Supabase.
+ * Tests the REAL handler (imported from ./index.ts) with mocked fetch via edgeTestKit.
  * Verifies:
  * - ClickUp: push-seed requires empty List, pull-adopt requires empty PMO project
  * - ClickUp: mixed case (both non-empty) returns 409 action-required
@@ -9,360 +9,618 @@
  * - ERPNext: validates Company exists, updates external_org_bindings.config.company
  * - Role gates: Admin/PM/Operator for ClickUp, Admin/Operator for ERPNext
  * - Audit events logged for integration.link
+ * - getPmoTaskCount uses HEAD+count via Content-Range (catches count-path bug)
  */
 
+import { describe, it, beforeAll, afterAll } from '@std/testing/bdd';
 import { assertEquals, assertRejects } from '@std/assert';
-import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
+import { handleLinkRequest, setTestJwks, testSupabaseOptions } from './index.ts';
+import {
+  createJwtAuthority,
+  installEdgeEnv,
+  withFetchMock,
+  supabaseRpc,
+  supabaseSelect,
+  restCall,
+  rpcCall,
+  jsonResponse,
+  countResponse,
+  clickup,
+  erp,
+  createAuthedRequest,
+  createTestJwksResolver,
+} from '../_shared/testing/edgeTestKit.ts';
 
-// ============================================================================
-// Test utilities / mocks
-// ============================================================================
+// One stable authority + env per test module (see TEST-ARCH.md _jwks memoization nuance)
+const env = installEdgeEnv();
+const auth = await createJwtAuthority(env.SUPABASE_URL);
 
-interface MockFetchRoute {
-  method: string;
-  urlIncludes: string;
-  status?: number;
-  json: unknown | (() => unknown);
+// Install test JWKS resolver (no background intervals)
+setTestJwks(createTestJwksResolver(auth));
+
+afterAll(() => env.restore());
+
+async function authed(body: unknown, sub = 'user-1') {
+  const jwt = await auth.mintJwt({ sub });
+  return createAuthedRequest('http://edge.test/link', body, jwt);
 }
 
-function createMockFetch(routes: MockFetchRoute[]) {
-  const calls: { url: string; init?: RequestInit }[] = [];
-  const fetchImpl = async (url: string, init?: RequestInit) => {
-    calls.push({ url, init });
-    const method = (init?.method ?? 'GET').toUpperCase();
-    const route = routes.find((r) => r.method.toUpperCase() === method && url.includes(r.urlIncludes));
-    if (!route) {
-      throw new Error(`Unexpected fetch: ${method} ${url}`);
-    }
-    const json = typeof route.json === 'function' ? (route.json as () => unknown)() : route.json;
-    return new Response(JSON.stringify(json), { status: route.status ?? 200 });
-  };
-  return { fetchImpl: fetchImpl as unknown as typeof fetch, calls };
-}
+describe('external-link — ClickUp branch', () => {
+  it('Admin OK — push-seed with empty List succeeds', async () => {
+    await withFetchMock(
+      [
+        supabaseSelect('profiles', () =>
+          jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
 
-function createMockServiceClient(overrides: Record<string, any> = {}) {
-  const defaultMaybeSingle = async () => ({ data: null, error: null });
-  const defaultSingle = async () => ({ data: null, error: null });
-  const defaultCount = async () => ({ count: 0, error: null });
+        supabaseSelect('platform_operators', () => new Response('null', {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })),
 
-  const makeChain = (table: string) => {
-    const selectOverride = overrides[`${table}_select_maybeSingle`] ?? defaultMaybeSingle;
-    const singleOverride = overrides[`${table}_select_single`] ?? defaultSingle;
-    const countOverride = overrides[`${table}_select_count`] ?? defaultCount;
+        supabaseSelect('external_org_bindings', () =>
+          jsonResponse({ secret_ref: 'vault-ref', status: 'active', config: {}, site_url: 'https://erp.example.com' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
 
-    return {
-      select: (cols: string, opts?: { count?: string; head?: boolean }) => {
-        // If count and head options are provided, return a chain that resolves to count
-        if (opts?.count === 'exact' && opts?.head === true) {
-          return {
-            eq: (col: string, val: unknown) => ({
-              eq: (col2: string, val2: unknown) => ({
-                is: (col3: string, val3: unknown) => countOverride(),
-              }),
-            }),
-          };
-        }
-        return {
-          eq: (col: string, val: unknown) => ({
-            eq: (col2: string, val2: unknown) => ({
-              is: (col3: string, val3: unknown) => ({
-                maybeSingle: selectOverride,
-                single: singleOverride,
-              }),
-              maybeSingle: selectOverride,
-              single: singleOverride,
-            }),
-            maybeSingle: selectOverride,
-            single: singleOverride,
-          }),
-        };
+        supabaseRpc('read_vault_secret', () => jsonResponse('test-pat-token')),
+
+        clickup('/api/v2/list/list-1', () => jsonResponse({ name: 'Test List' })),
+        clickup('/api/v2/list/list-1/task', () => jsonResponse({ tasks: [] })),
+
+        supabaseSelect('projects', () =>
+          jsonResponse({ id: 'proj-1', project_manager_id: 'pm-9', org_id: 'org-1' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
+
+        supabaseSelect('external_project_bindings', () => new Response('null', {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })),
+
+        // PMO task count via HEAD+count
+        { label: 'pmo-task-count', method: 'HEAD', pathname: '/rest/v1/tasks', response: () => countResponse(0) },
+
+        { label: 'insert binding', method: 'POST', pathname: '/rest/v1/external_project_bindings', searchParams: { select: 'id' }, response: () => jsonResponse([{ id: 'binding-1' }], { status: 201 }) },
+
+        supabaseRpc('log_audit', (call) => {
+          const body = call.bodyJson as Record<string, unknown>;
+          assertEquals(body.p_action, 'integration.link');
+          assertEquals((body.p_detail as Record<string, unknown>).tier, 'clickup');
+          assertEquals((body.p_detail as Record<string, unknown>).direction, 'push-seed');
+          return jsonResponse(null);
+        }),
+      ],
+      async ({ calls }) => {
+        const res = await handleLinkRequest(await authed({
+          tier: 'clickup',
+          projectId: 'proj-1',
+          listId: 'list-1',
+          direction: 'push-seed',
+        }));
+        assertEquals(res.status, 200);
+        assertEquals(restCall(calls, 'external_project_bindings', 'POST').length, 1);
+        assertEquals(rpcCall(calls, 'log_audit').length, 1);
       },
-      insert: (data: unknown) => ({
-        select: () => ({
-          single: async () => ({ data: { id: 'new-binding-id' }, error: null }),
+    );
+  });
+
+  it('PM of project OK', async () => {
+    await withFetchMock(
+      [
+        supabaseSelect('profiles', () =>
+          jsonResponse({ org_id: 'org-1', role: 'Project Manager', status: 'active' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
+
+        supabaseSelect('platform_operators', () => new Response('null', {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })),
+
+        supabaseSelect('external_org_bindings', () =>
+          jsonResponse({ secret_ref: 'vault-ref', status: 'active', config: {}, site_url: 'https://erp.example.com' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
+
+        supabaseRpc('read_vault_secret', () => jsonResponse('test-pat-token')),
+
+        clickup('/api/v2/list/list-1', () => jsonResponse({ name: 'Test List' })),
+        clickup('/api/v2/list/list-1/task', () => jsonResponse({ tasks: [] })),
+
+        supabaseSelect('projects', () =>
+          jsonResponse({ id: 'proj-1', project_manager_id: 'user-1', org_id: 'org-1' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
+
+        supabaseSelect('external_project_bindings', () => new Response('null', {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })),
+
+        { label: 'pmo-task-count', method: 'HEAD', pathname: '/rest/v1/tasks', response: () => countResponse(0) },
+
+        { label: 'insert binding', method: 'POST', pathname: '/rest/v1/external_project_bindings', searchParams: { select: 'id' }, response: () => jsonResponse([{ id: 'binding-1' }], { status: 201 }) },
+        supabaseRpc('log_audit', () => jsonResponse(null)),
+      ],
+      async ({ calls }) => {
+        const res = await handleLinkRequest(await authed({
+          tier: 'clickup',
+          projectId: 'proj-1',
+          listId: 'list-1',
+          direction: 'push-seed',
+        }));
+        assertEquals(res.status, 200);
+        assertEquals(restCall(calls, 'external_project_bindings', 'POST').length, 1);
+      },
+    );
+  });
+
+  it('PM of other project 403', async () => {
+    await withFetchMock(
+      [
+        supabaseSelect('profiles', () =>
+          jsonResponse({ org_id: 'org-1', role: 'Project Manager', status: 'active' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
+
+        supabaseSelect('platform_operators', () => new Response('null', {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })),
+
+        supabaseSelect('projects', () =>
+          jsonResponse({ id: 'proj-1', project_manager_id: 'different-pm', org_id: 'org-1' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
+      ],
+      async ({ calls }) => {
+        const res = await handleLinkRequest(await authed({
+          tier: 'clickup',
+          projectId: 'proj-1',
+          listId: 'list-1',
+          direction: 'push-seed',
+        }));
+        assertEquals(res.status, 403);
+        assertEquals(rpcCall(calls, 'log_audit').length, 0);
+      },
+    );
+  });
+
+  it('inactive PM 403', async () => {
+    await withFetchMock(
+      [
+        supabaseSelect('profiles', () =>
+          jsonResponse({ org_id: 'org-1', role: 'Project Manager', status: 'inactive' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
+
+        supabaseSelect('platform_operators', () => new Response('null', {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })),
+
+        supabaseSelect('projects', () =>
+          jsonResponse({ id: 'proj-1', project_manager_id: 'user-1', org_id: 'org-1' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
+      ],
+      async ({ calls }) => {
+        const res = await handleLinkRequest(await authed({
+          tier: 'clickup',
+          projectId: 'proj-1',
+          listId: 'list-1',
+          direction: 'push-seed',
+        }));
+        assertEquals(res.status, 403);
+        assertEquals(rpcCall(calls, 'log_audit').length, 0);
+      },
+    );
+  });
+
+  it('Engineer 403', async () => {
+    await withFetchMock(
+      [
+        supabaseSelect('profiles', () =>
+          jsonResponse({ org_id: 'org-1', role: 'Engineer', status: 'active' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
+
+        supabaseSelect('platform_operators', () => new Response('null', {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })),
+
+        supabaseSelect('projects', () =>
+          jsonResponse({ id: 'proj-1', project_manager_id: 'pm-1', org_id: 'org-1' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
+      ],
+      async ({ calls }) => {
+        const res = await handleLinkRequest(await authed({
+          tier: 'clickup',
+          projectId: 'proj-1',
+          listId: 'list-1',
+          direction: 'push-seed',
+        }));
+        assertEquals(res.status, 403);
+        assertEquals(rpcCall(calls, 'log_audit').length, 0);
+      },
+    );
+  });
+
+  it('List not found 404', async () => {
+    await withFetchMock(
+      [
+        supabaseSelect('profiles', () =>
+          jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
+
+        supabaseSelect('platform_operators', () => new Response('null', {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })),
+
+        supabaseSelect('external_org_bindings', () =>
+          jsonResponse({ secret_ref: 'vault-ref', status: 'active', config: {}, site_url: 'https://erp.example.com' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
+
+        supabaseRpc('read_vault_secret', () => jsonResponse('test-pat-token')),
+
+        supabaseSelect('projects', () =>
+          jsonResponse({ id: 'proj-1', project_manager_id: 'user-1', org_id: 'org-1' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
+
+        clickup('/api/v2/list/list-999', () => new Response(JSON.stringify({ error: 'not found' }), { status: 404 })),
+      ],
+      async ({ calls }) => {
+        const res = await handleLinkRequest(await authed({
+          tier: 'clickup',
+          projectId: 'proj-1',
+          listId: 'list-999',
+          direction: 'push-seed',
+        }));
+        assertEquals(res.status, 404);
+        assertEquals(rpcCall(calls, 'log_audit').length, 0);
+      },
+    );
+  });
+
+  it('mixed content (both non-empty) → 409', async () => {
+    await withFetchMock(
+      [
+        supabaseSelect('profiles', () =>
+          jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
+
+        supabaseSelect('platform_operators', () => new Response('null', {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })),
+
+        supabaseSelect('external_org_bindings', () =>
+          jsonResponse({ secret_ref: 'vault-ref', status: 'active', config: {}, site_url: 'https://erp.example.com' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
+
+        supabaseRpc('read_vault_secret', () => jsonResponse('test-pat-token')),
+
+        clickup('/api/v2/list/list-1', () => jsonResponse({ name: 'Test List' })),
+        clickup('/api/v2/list/list-1/task', () => jsonResponse({ tasks: [{ id: 't1' }] })),
+
+        supabaseSelect('projects', () =>
+          jsonResponse({ id: 'proj-1', project_manager_id: 'user-1', org_id: 'org-1' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
+
+        supabaseRpc('log_audit', () => jsonResponse(null)), // count query
+
+        // PMO task count via HEAD+count
+        { label: 'pmo-task-count', method: 'HEAD', pathname: '/rest/v1/tasks', response: () => countResponse(3) },
+      ],
+      async ({ calls }) => {
+        const res = await handleLinkRequest(await authed({
+          tier: 'clickup',
+          projectId: 'proj-1',
+          listId: 'list-1',
+          direction: 'push-seed',
+        }));
+        assertEquals(res.status, 409);
+        assertEquals(rpcCall(calls, 'log_audit').length, 0); // audit NOT called on 409
+      },
+    );
+  });
+
+  it('push-seed with non-empty List → 409', async () => {
+    await withFetchMock(
+      [
+        supabaseSelect('profiles', () =>
+          jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
+
+        supabaseSelect('platform_operators', () => new Response('null', {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })),
+
+        supabaseSelect('external_org_bindings', () =>
+          jsonResponse({ secret_ref: 'vault-ref', status: 'active', config: {}, site_url: 'https://erp.example.com' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
+
+        supabaseRpc('read_vault_secret', () => jsonResponse('test-pat-token')),
+
+        clickup('/api/v2/list/list-1', () => jsonResponse({ name: 'Test List' })),
+        clickup('/api/v2/list/list-1/task', () => jsonResponse({ tasks: [{ id: 't1' }] })),
+
+        supabaseSelect('projects', () =>
+          jsonResponse({ id: 'proj-1', project_manager_id: 'user-1', org_id: 'org-1' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
+
+        { label: 'pmo-task-count', method: 'HEAD', pathname: '/rest/v1/tasks', response: () => countResponse(0) },
+      ],
+      async ({ calls }) => {
+        const res = await handleLinkRequest(await authed({
+          tier: 'clickup',
+          projectId: 'proj-1',
+          listId: 'list-1',
+          direction: 'push-seed',
+        }));
+        assertEquals(res.status, 409);
+        assertEquals(rpcCall(calls, 'log_audit').length, 0);
+      },
+    );
+  });
+
+  it('pull-adopt with non-empty PMO project → 409', async () => {
+    await withFetchMock(
+      [
+        supabaseSelect('profiles', () =>
+          jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
+
+        supabaseSelect('platform_operators', () => new Response('null', {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })),
+
+        supabaseSelect('external_org_bindings', () =>
+          jsonResponse({ secret_ref: 'vault-ref', status: 'active', config: {}, site_url: 'https://erp.example.com' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
+
+        supabaseRpc('read_vault_secret', () => jsonResponse('test-pat-token')),
+
+        clickup('/api/v2/list/list-1', () => jsonResponse({ name: 'Test List' })),
+        clickup('/api/v2/list/list-1/task', () => jsonResponse({ tasks: [] })),
+
+        supabaseSelect('projects', () =>
+          jsonResponse({ id: 'proj-1', project_manager_id: 'user-1', org_id: 'org-1' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
+
+        { label: 'pmo-task-count', method: 'HEAD', pathname: '/rest/v1/tasks', response: () => countResponse(5) },
+      ],
+      async ({ calls }) => {
+        const res = await handleLinkRequest(await authed({
+          tier: 'clickup',
+          projectId: 'proj-1',
+          listId: 'list-1',
+          direction: 'pull-adopt',
+        }));
+        assertEquals(res.status, 409);
+        assertEquals(rpcCall(calls, 'log_audit').length, 0);
+      },
+    );
+  });
+
+  it('list already actively bound → 409', async () => {
+    await withFetchMock(
+      [
+        supabaseSelect('profiles', () =>
+          jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
+
+        supabaseSelect('platform_operators', () => new Response('null', {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })),
+
+        supabaseSelect('external_org_bindings', () =>
+          jsonResponse({ secret_ref: 'vault-ref', status: 'active', config: {}, site_url: 'https://erp.example.com' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
+
+        supabaseRpc('read_vault_secret', () => jsonResponse('test-pat-token')),
+
+        clickup('/api/v2/list/list-1', () => jsonResponse({ name: 'Test List' })),
+        clickup('/api/v2/list/list-1/task', () => jsonResponse({ tasks: [] })),
+
+        supabaseSelect('projects', () =>
+          jsonResponse({ id: 'proj-1', project_manager_id: 'user-1', org_id: 'org-1' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
+
+        supabaseSelect('external_project_bindings', () =>
+          jsonResponse({ id: 'binding-2', project_id: 'proj-2' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
+      ],
+      async ({ calls }) => {
+        const res = await handleLinkRequest(await authed({
+          tier: 'clickup',
+          projectId: 'proj-1',
+          listId: 'list-1',
+          direction: 'push-seed',
+        }));
+        assertEquals(res.status, 409);
+        assertEquals(rpcCall(calls, 'log_audit').length, 0);
+      },
+    );
+  });
+
+  it('project already linked (23505) → 409', async () => {
+    await withFetchMock(
+      [
+        supabaseSelect('profiles', () =>
+          jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
+
+        supabaseSelect('platform_operators', () => new Response('null', {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })),
+
+        supabaseSelect('external_org_bindings', () =>
+          jsonResponse({ secret_ref: 'vault-ref', status: 'active', config: {}, site_url: 'https://erp.example.com' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
+
+        supabaseRpc('read_vault_secret', () => jsonResponse('test-pat-token')),
+
+        clickup('/api/v2/list/list-1', () => jsonResponse({ name: 'Test List' })),
+        clickup('/api/v2/list/list-1/task', () => jsonResponse({ tasks: [] })),
+
+        supabaseSelect('projects', () =>
+          jsonResponse({ id: 'proj-1', project_manager_id: 'user-1', org_id: 'org-1' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
+
+        supabaseSelect('external_project_bindings', () => new Response('null', {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })),
+
+        { label: 'insert binding 23505', method: 'POST', pathname: '/rest/v1/external_project_bindings', response: () => new Response('conflict', { status: 409, headers: { 'content-type': 'application/json' } }) },
+      ],
+      async ({ calls }) => {
+        const res = await handleLinkRequest(await authed({
+          tier: 'clickup',
+          projectId: 'proj-1',
+          listId: 'list-1',
+          direction: 'push-seed',
+        }));
+        assertEquals(res.status, 409);
+      },
+    );
+  });
+});
+
+describe('external-link — ERPNext branch', () => {
+  it('Admin/Operator OK — company set', async () => {
+    await withFetchMock(
+      [
+        supabaseSelect('profiles', () =>
+          jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
+
+        supabaseSelect('platform_operators', () => new Response('null', {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })),
+
+        supabaseSelect('external_org_bindings', () =>
+          jsonResponse({ secret_ref: 'vault-ref', status: 'active', config: {}, site_url: 'https://erp.example.com' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
+
+        supabaseRpc('read_vault_secret', () => jsonResponse('test-key:test-secret')),
+
+        erp('erp.example.com', '/api/resource/Company/ACME', () => jsonResponse({ data: { name: 'ACME' } })),
+
+        { label: 'update company config', method: 'PATCH', pathname: '/rest/v1/external_org_bindings', response: (call) => {
+          const body = call.bodyJson as Record<string, unknown>;
+          const config = body.config as Record<string, unknown>;
+          assertEquals(config.company, 'ACME');
+          return jsonResponse([]);
+        } },
+
+        supabaseRpc('log_audit', (call) => {
+          const body = call.bodyJson as Record<string, unknown>;
+          assertEquals(body.p_action, 'integration.link');
+          assertEquals((body.p_detail as Record<string, unknown>).tier, 'erpnext');
+          assertEquals((body.p_detail as Record<string, unknown>).company_id, 'ACME');
+          return jsonResponse(null);
         }),
-      }),
-      update: (data: unknown) => ({
-        eq: (col: string, val: unknown) => ({
-          eq: (col2: string, val2: unknown) => ({ error: null }),
-        }),
-      }),
-      upsert: (data: unknown) => ({ error: null }),
-      rpc: async (name: string, params: unknown) => ({ data: null, error: null }),
-    };
-  };
-
-  return {
-    from: (table: string) => makeChain(table),
-    rpc: async (name: string, params: unknown) => {
-      if (name === 'log_audit') return { data: null, error: null };
-      if (name === 'read_vault_secret') return { data: 'pat-token', error: null };
-      return { data: null, error: null };
-    },
-    ...overrides,
-  };
-}
-
-// ============================================================================
-// Mock the handler logic (extracted for testability)
-// ============================================================================
-
-// Since the edge fn uses Deno.serve, we'll test the validation logic directly
-// by importing the module and calling the exported validation functions.
-
-import { validateClickUpLinkDirection, validateErpNextCompany } from './index.ts';
-
-// ============================================================================
-// ClickUp link validation tests
-// ============================================================================
-
-Deno.test('validateClickUpLinkDirection: push-seed with empty List succeeds', async () => {
-  const { fetchImpl } = createMockFetch([
-    { method: 'GET', urlIncludes: '/list/list-1/task', json: { tasks: [] } },
-    { method: 'GET', urlIncludes: '/list/list-1', json: { name: 'Test List' } },
-  ]);
-
-  const mockServiceClient = createMockServiceClient({
-    'tasks_select_maybeSingle': async () => ({ data: { count: 0 }, error: null }),
+      ],
+      async ({ calls }) => {
+        const res = await handleLinkRequest(await authed({
+          tier: 'erpnext',
+          companyId: 'ACME',
+        }));
+        assertEquals(res.status, 200);
+        assertEquals(await res.json(), { ok: true, companyId: 'ACME' });
+        assertEquals(restCall(calls, 'external_org_bindings', 'PATCH').length, 1);
+        assertEquals(rpcCall(calls, 'log_audit').length, 1);
+      },
+    );
   });
 
-  await validateClickUpLinkDirection(
-    { fetchImpl, token: 'test-token' },
-    mockServiceClient as any,
-    'org-1',
-    'proj-1',
-    'list-1',
-    'push-seed',
-  );
-});
+  it('PM forbidden → 403', async () => {
+    await withFetchMock(
+      [
+        supabaseSelect('profiles', () =>
+          jsonResponse({ org_id: 'org-1', role: 'Project Manager', status: 'active' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
 
-Deno.test('validateClickUpLinkDirection: push-seed with non-empty List throws action-required', async () => {
-  const { fetchImpl } = createMockFetch([
-    { method: 'GET', urlIncludes: '/list/list-1/task', json: { tasks: [{ id: 't1' }] } },
-    { method: 'GET', urlIncludes: '/list/list-1', json: { name: 'Test List' } },
-  ]);
-
-  const mockServiceClient = createMockServiceClient({
-    'tasks_select_count': async () => ({ count: 0, error: null }),
+        supabaseSelect('platform_operators', () => new Response('null', {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })),
+      ],
+      async ({ calls }) => {
+        const res = await handleLinkRequest(await authed({
+          tier: 'erpnext',
+          companyId: 'ACME',
+        }));
+        assertEquals(res.status, 403);
+        assertEquals(rpcCall(calls, 'log_audit').length, 0);
+      },
+    );
   });
 
-  await assertRejects(
-    async () =>
-      await validateClickUpLinkDirection(
-        { fetchImpl, token: 'test-token' },
-        mockServiceClient as any,
-        'org-1',
-        'proj-1',
-        'list-1',
-        'push-seed',
-      ),
-    AppError,
-    'List is not empty',
-  );
-});
+  it('invalid company → 404', async () => {
+    await withFetchMock(
+      [
+        supabaseSelect('profiles', () =>
+          jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
 
-Deno.test('validateClickUpLinkDirection: pull-adopt with empty PMO project succeeds', async () => {
-  const { fetchImpl } = createMockFetch([
-    { method: 'GET', urlIncludes: '/list/list-1/task', json: { tasks: [{ id: 't1' }, { id: 't2' }] } },
-    { method: 'GET', urlIncludes: '/list/list-1', json: { name: 'Test List' } },
-  ]);
+        supabaseSelect('platform_operators', () => new Response('null', {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })),
 
-  const mockServiceClient = createMockServiceClient({
-    'tasks_select_count': async () => ({ count: 0, error: null }),
+        supabaseSelect('external_org_bindings', () =>
+          jsonResponse({ secret_ref: 'vault-ref', status: 'active', config: {}, site_url: 'https://erp.example.com' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
+
+        supabaseRpc('read_vault_secret', () => jsonResponse('test-key:test-secret')),
+
+        erp('erp.example.com', '/api/resource/Company/UNKNOWN', () => new Response(JSON.stringify({ error: 'not found' }), { status: 404 })),
+      ],
+      async ({ calls }) => {
+        const res = await handleLinkRequest(await authed({
+          tier: 'erpnext',
+          companyId: 'UNKNOWN',
+        }));
+        assertEquals(res.status, 404);
+        assertEquals(rpcCall(calls, 'log_audit').length, 0);
+      },
+    );
   });
-
-  await validateClickUpLinkDirection(
-    { fetchImpl, token: 'test-token' },
-    mockServiceClient as any,
-    'org-1',
-    'proj-1',
-    'list-1',
-    'pull-adopt',
-  );
 });
-
-Deno.test('validateClickUpLinkDirection: pull-adopt with non-empty PMO project throws action-required', async () => {
-  const { fetchImpl } = createMockFetch([
-    { method: 'GET', urlIncludes: '/list/list-1/task', json: { tasks: [] } },
-    { method: 'GET', urlIncludes: '/list/list-1', json: { name: 'Test List' } },
-  ]);
-
-  const mockServiceClient = createMockServiceClient({
-    'tasks_select_count': async () => ({ count: 5, error: null }),
-  });
-
-  await assertRejects(
-    async () =>
-      await validateClickUpLinkDirection(
-        { fetchImpl, token: 'test-token' },
-        mockServiceClient as any,
-        'org-1',
-        'proj-1',
-        'list-1',
-        'pull-adopt',
-      ),
-    AppError,
-    'PMO project has tasks',
-  );
-});
-
-Deno.test('validateClickUpLinkDirection: mixed case (both non-empty) throws action-required', async () => {
-  const { fetchImpl } = createMockFetch([
-    { method: 'GET', urlIncludes: '/list/list-1/task', json: { tasks: [{ id: 't1' }] } },
-    { method: 'GET', urlIncludes: '/list/list-1', json: { name: 'Test List' } },
-  ]);
-
-  const mockServiceClient = createMockServiceClient({
-    'tasks_select_count': async () => ({ count: 3, error: null }),
-  });
-
-  await assertRejects(
-    async () =>
-      await validateClickUpLinkDirection(
-        { fetchImpl, token: 'test-token' },
-        mockServiceClient as any,
-        'org-1',
-        'proj-1',
-        'list-1',
-        'push-seed', // direction doesn't matter for mixed check
-      ),
-    AppError,
-    'List and project both non-empty',
-  );
-});
-
-// ============================================================================
-// getPmoTaskCount unit tests (exposed for testability)
-// ============================================================================
-
-import { getPmoTaskCount } from './index.ts';
-
-Deno.test('getPmoTaskCount: reads count from response correctly (not data.count)', async () => {
-  // This test verifies the fix for the bug where getPmoTaskCount read data.count
-  // instead of the actual count field from Supabase head+count response.
-  // With head: true, count: 'exact', the count is on the response object, not data.
-  // We mock the service client to return count in the correct place.
-  const mockServiceClient = {
-    from: (table: string) => ({
-      select: (cols: string, opts: { count: string; head: boolean }) => ({
-        eq: (col: string, val: string) => ({
-          eq: (col2: string, val2: string) => ({
-            is: (col3: string, val3: string | null) => ({ count: 5, error: null }),
-          }),
-        }),
-      }),
-    }),
-  };
-
-  // This should return 5, not 0 (which would happen if reading data.count)
-  const count = await getPmoTaskCount(mockServiceClient as any, 'org-1', 'proj-1');
-  assertEquals(count, 5);
-});
-
-Deno.test('getPmoTaskCount: returns 0 when no tasks', async () => {
-  const mockServiceClient = {
-    from: (table: string) => ({
-      select: (cols: string, opts: { count: string; head: boolean }) => ({
-        eq: (col: string, val: string) => ({
-          eq: (col2: string, val2: string) => ({
-            is: (col3: string, val3: string | null) => ({
-              maybeSingle: async () => ({ data: null, error: null, count: 0 }),
-            }),
-          }),
-        }),
-      }),
-    }),
-  };
-
-  const count = await getPmoTaskCount(mockServiceClient as any, 'org-1', 'proj-1');
-  assertEquals(count, 0);
-});
-
-Deno.test('validateClickUpLinkDirection: non-existent List throws NOT_FOUND', async () => {
-  const { fetchImpl } = createMockFetch([
-    { method: 'GET', urlIncludes: '/list/list-999', status: 404, json: { error: 'not found' } },
-  ]);
-
-  const mockServiceClient = createMockServiceClient();
-
-  await assertRejects(
-    async () =>
-      await validateClickUpLinkDirection(
-        { fetchImpl, token: 'test-token' },
-        mockServiceClient as any,
-        'org-1',
-        'proj-1',
-        'list-999',
-        'push-seed',
-      ),
-    AppError,
-    'ClickUp List not found',
-  );
-});
-
-// ============================================================================
-// ERPNext link validation tests
-// ============================================================================
-
-Deno.test('validateErpNextCompany: valid company succeeds', async () => {
-  const { fetchImpl } = createMockFetch([
-    { method: 'GET', urlIncludes: '/api/resource/Company/ACME', json: { data: { name: 'ACME' } } },
-  ]);
-
-  await validateErpNextCompany(
-    { fetchImpl, siteUrl: 'https://erp.example.com', apiKey: 'key', apiSecret: 'secret' },
-    'ACME',
-  );
-});
-
-Deno.test('validateErpNextCompany: 404 throws NOT_FOUND', async () => {
-  const { fetchImpl } = createMockFetch([
-    { method: 'GET', urlIncludes: '/api/resource/Company/UNKNOWN', status: 404, json: { error: 'not found' } },
-  ]);
-
-  await assertRejects(
-    async () =>
-      await validateErpNextCompany(
-        { fetchImpl, siteUrl: 'https://erp.example.com', apiKey: 'key', apiSecret: 'secret' },
-        'UNKNOWN',
-      ),
-    AppError,
-    'Company not found in ERPNext',
-  );
-});
-
-Deno.test('validateErpNextCompany: SSRF protection rejects private IP', async () => {
-  const { fetchImpl } = createMockFetch([]);
-
-  await assertRejects(
-    async () =>
-      await validateErpNextCompany(
-        { fetchImpl, siteUrl: 'http://192.168.1.100', apiKey: 'key', apiSecret: 'secret' },
-        'ACME',
-      ),
-    AppError,
-    'Only HTTPS',
-  );
-});
-
-Deno.test('validateErpNextCompany: SSRF protection rejects localhost', async () => {
-  const { fetchImpl } = createMockFetch([]);
-
-  await assertRejects(
-    async () =>
-      await validateErpNextCompany(
-        { fetchImpl, siteUrl: 'https://localhost:8000', apiKey: 'key', apiSecret: 'secret' },
-        'ACME',
-      ),
-    AppError,
-    'Private or reserved',
-  );
-});
-
-// ============================================================================
-// Integration-style tests for the full handler (mocked)
-// ============================================================================
-
-// These tests would require a more complex test harness to invoke the Deno.serve handler.
-// For now, we verify the validation logic above which is the core business logic.
-// The full integration is tested via pgTAP in supabase/tests/external_admin_connect_rls.test.sql
