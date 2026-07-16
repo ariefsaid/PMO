@@ -103,10 +103,13 @@ select is(
   (select count(*)::int from public.ms_graph_connections where user_id = 'a1500000-0000-0000-0000-0000000000b1'),
   1, 'AC-M365-161 setup: a leftover stale row is present (simulating a past-race survivor)');
 
--- Re-save the disabled profile (disabled→disabled — NOT a transition). Under 0104 the trigger fires
--- (WHEN NEW.status = 'disabled') and REPAIRS the leftover; under the old transition-only WHEN it
--- would NOT fire and the row would survive.
-update public.profiles set full_name = 'U1 (renamed)' where id = 'a1500000-0000-0000-0000-0000000000b1';
+-- Re-save the disabled profile by re-asserting the status column (disabled→disabled). Under 0104
+-- the trigger is AFTER UPDATE OF status + WHEN NEW.status='disabled', so a status re-save FIRES
+-- and REPAIRS the leftover survivor; under the old transition-only WHEN it would NOT fire and the
+-- row would survive. (Round-3 LOW narrowed the trigger to OF status — so a non-status edit no
+-- longer fires; the realistic repair path is a status write, which admin_set_user_status always
+-- issues. The self-repair-on-final-state semantics are preserved.)
+update public.profiles set status = 'disabled' where id = 'a1500000-0000-0000-0000-0000000000b1';
 select is(
   (select count(*)::int from public.ms_graph_connections where user_id = 'a1500000-0000-0000-0000-0000000000b1'),
   0, 'AC-M365-161 self-repair: re-saving a DISABLED profile (disabled→disabled) cleans the leftover survivor');
@@ -145,10 +148,12 @@ select is(
   (select count(*)::int from public.ms_graph_connections where org_id = 'a1500000-0000-0000-0000-000000000003'),
   1, 'AC-M365-162 setup: a leftover stale row is present (simulating a past-race survivor)');
 
--- Re-save the disabled entitlement (false→false — NOT a true→false transition). Under 0104 the
--- UPDATE branch fires (FINAL enabled=false) and REPAIRS the leftover; under the old true→false-only
--- branch it would NOT fire and the row would survive.
-update public.org_features set updated_at = now()
+-- Re-save the disabled entitlement by re-asserting enabled=false (false→false). Under 0104 the
+-- UPDATE trigger is AFTER UPDATE OF enabled + the body fires on FINAL enabled=false, so an enabled
+-- re-save REPAIRS the leftover survivor; under the old true→false-only branch it would NOT fire.
+-- (Round-3 LOW narrowed the trigger to OF enabled; operator_toggle_feature always SETs enabled, so
+-- the lifecycle repair path still fires. The self-repair-on-final-state semantics are preserved.)
+update public.org_features set enabled = false
  where org_id = 'a1500000-0000-0000-0000-000000000003' and feature_key = 'm365_integration';
 select is(
   (select count(*)::int from public.ms_graph_connections where org_id = 'a1500000-0000-0000-0000-000000000003'),

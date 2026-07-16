@@ -148,29 +148,29 @@ export async function handleCallback(req: Request, deps: HandlerDeps): Promise<H
   const expiresIn = typeof tokenData.expires_in === 'number' ? tokenData.expires_in : 3600;
   const accessExpiresAt = new Date(nowFn().getTime() + expiresIn * 1000).toISOString();
 
-  const { data: conn, error: upsertError } = await serviceClient
-    .from('ms_graph_connections')
-    .upsert(
-      {
-        org_id: pkce.orgId,
-        user_id: pkce.userId,
-        entra_tenant_id: claims.tid,
-        entra_user_object_id: claims.oid,
-        scopes: pkce.scopes,
-        refresh_token_ciphertext: refreshBlob,
-        access_token_ciphertext: accessBlob,
-        access_token_expires_at: accessExpiresAt,
-        key_id: 'kek-v1',
-        status: 'active',
-        connected_at: nowIso,
-        last_refresh_at: nowIso,
-      },
-      { onConflict: 'org_id,user_id' },
-    )
-    .select('id')
-    .single();
+  // C1(c) (Luna) + DEADLOCK closure (Luna round-3): the write goes through the
+  // m365_upsert_connection SECURITY-DEFINER RPC, which locks PROFILES → ORG_FEATURES for update
+  // BEFORE the connection upsert — the single global lock order (see 0105 file header). The BEFORE
+  // write-guard (0103) is still the AUTHORITY: if the user was disabled / the org disentitled
+  // mid-flight, the guard raises 42501 and the RPC propagates it (upsertError set). This best-
+  // effort pre-check above gives a CLEARER error_event + user message before the encrypt/round-trip;
+  // it is TOCTOU by nature, so the upsertError branch below remains the authoritative backstop. No
+  // client JWT is available on this GET path, so the pre-check reads go through the service client.
+  const { data: connId, error: upsertError } = await serviceClient.rpc('m365_upsert_connection', {
+    p_org_id: pkce.orgId,
+    p_user_id: pkce.userId,
+    p_entra_tenant_id: claims.tid,
+    p_entra_user_object_id: claims.oid,
+    p_scopes: pkce.scopes,
+    p_refresh_token_ciphertext: refreshBlob,
+    p_access_token_ciphertext: accessBlob,
+    p_access_token_expires_at: accessExpiresAt,
+    p_key_id: 'kek-v1',
+    p_connected_at: nowIso,
+    p_last_refresh_at: nowIso,
+  });
 
-  if (upsertError || !conn) {
+  if (upsertError || !connId) {
     // C1(c) (Luna): the write-guard trigger rejected the upsert — the user was disabled / the org
     // disentitled mid-flight (or a race flipped state between the pre-check above and here). NEVER
     // reported as success: emit a token-free error_event and redirect to the FE error page. The
@@ -187,7 +187,7 @@ export async function handleCallback(req: Request, deps: HandlerDeps): Promise<H
     action: 'm365.connection.initiated',
     orgId: pkce.orgId,
     actorId: pkce.userId,
-    entityId: (conn as { id: string }).id,
+    entityId: connId as string,
     detail: { scopes: pkce.scopes, entra_tenant_id: claims.tid },
   });
 

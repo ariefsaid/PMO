@@ -11,9 +11,17 @@
 -- migration (0 surviving). pgTAP cannot express a two-session race (single-txn), hence the probe.
 --
 --   • C1-RACE(a): m365_connection_write_guard now takes PROFILES then ORG_FEATURES row locks
---                 (FOR UPDATE) so the callback INSERT and the lifecycle UPDATE SERIALIZE. Lock
---                 ordering is documented in the function; each lifecycle writer touches a single one
---                 of those tables → no lock cycle → no deadlock.
+--                 (FOR UPDATE) so the callback INSERT and the lifecycle UPDATE SERIALIZE (this is
+--                 the C1 token-resurrection closure — CONFIRMED CLOSED by Luna round-3 in BOTH
+--                 interleavings). NOTE: the guard's parent locks alone do NOT make every write
+--                 deadlock-free — a DIRECT UPDATE/INSERT on ms_graph_connections locks the connection
+--                 tuple FIRST, then the BEFORE trigger locks the parents (child→parent), while the
+--                 lifecycle cascade goes parent→child → a real cycle. Luna round-3 REPRODUCED this
+--                 deadlock. The closure is in 0105: every edge-fn connection mutation goes through a
+--                 security-definer RPC that locks PROFILES → ORG_FEATURES BEFORE the connection row
+--                 (the single global order), so no mutating path takes locks child→parent. The guard
+--                 stays as the authoritative backstop (its parent locks are no-op re-locks inside the
+--                 RPC's transaction).
 --   • C1-RACE(b): the lifecycle cleanup is now idempotent/self-repairing on the FINAL state, so a
 --                 stale row from any past race (or legacy data) is cleaned the next time the state is
 --                 re-written —
@@ -67,13 +75,26 @@ begin
   -- AFTER the lifecycle cascade — which could not see the callback's uncommitted row — leaving a
   -- live encrypted refresh token for a disabled user / disentitled org (NFR-M365-107).
   --
-  -- LOCK ORDERING (binding — DO NOT add any path that locks org_features before profiles):
-  --    this guard locks   PROFILES first, then ORG_FEATURES.
-  -- Each lifecycle writer touches a SINGLE one of those tables (admin_set_user_status → only
-  -- profiles; operator_toggle_feature → only org_features), so each holds exactly one of the two
-  -- locks this guard takes — there is NO lock cycle with the guard's order, hence NO deadlock. (Two
-  -- concurrent callbacks for the same org both lock the same org_features row in this same order →
-  -- serialized, not deadlocked.)
+  -- LOCK ORDERING (binding — the SINGLE global order is PROFILES → ORG_FEATURES → ms_graph_connections):
+  --    this guard locks PROFILES first, then ORG_FEATURES.
+  --
+  -- CORRECTION (Luna round-3): the guard's parent locks SERIALIZE the callback vs the lifecycle
+  -- (closing C1 token-resurrection), BUT they do NOT by themselves prevent a deadlock. A DIRECT
+  -- UPDATE/INSERT on this table locks the connection tuple FIRST, and only THEN does this BEFORE
+  -- trigger reach the parents (child→parent) — the REVERSE of the lifecycle cascade (parent→child)
+  -- → a real lock cycle. Luna reproduced PostgreSQL `deadlock detected` in both the user-disable and
+  -- feature-disable variants (a liveness/DoS defect, NOT a token bypass — the lifecycle commits and
+  -- the connection count is 0).
+  --
+  -- CLOSURE (0105): every edge-fn connection mutation (callback upsert, refresh token-persist,
+  -- refresh stale/revoked status) goes through a security-definer RPC (m365_upsert_connection /
+  -- m365_refresh_connection / m365_set_connection_status) that locks PROFILES → ORG_FEATURES for
+  -- update BEFORE the connection write. The whole mutation therefore takes locks in the single
+  -- global order, matching the cascade's direction → no cycle → no deadlock. This guard's parent
+  -- reads become no-op re-locks inside that transaction (the RPC already holds them). The guard
+  -- remains the AUTHORITY that rejects a write for a disabled user / disentitled org regardless of
+  -- the calling path (direct writes still trigger it — they just risk the now-avoided deadlock, so
+  -- all production writes route through the 0105 RPCs).
   --
   -- Why it closes the race (either interleaving is safe):
   --   • callback-first: the guard holds the profile/entitlement row locks for the whole callback
@@ -121,7 +142,7 @@ revoke all on function public.m365_offboard_trigger() from public;
 
 drop trigger if exists m365_offboard_trigger on public.profiles;
 create trigger m365_offboard_trigger
-  after update on public.profiles
+  after update of status on public.profiles   -- Luna round-3 (LOW): only status writes fire (not every profile edit)
   for each row
   when (NEW.status = 'disabled')   -- FINAL state 'disabled' (was: OLD<>NEW AND 'disabled') → self-repair
   execute function public.m365_offboard_trigger();
@@ -131,6 +152,10 @@ create trigger m365_offboard_trigger
 --    Cascade whenever the FINAL state is m365_integration + enabled=false (true→false AND false→false),
 --    so re-saving false cleans any leftover connection. Enable (enabled=true) NEVER cascades. The
 --    INSERT (absent-row toggle-OFF) and DELETE (broadened) branches are unchanged from 0103.
+--    Luna round-3 (LOW): the UPDATE trigger is restricted to `OF enabled` (re-created below) so an
+--    unrelated org_features edit (e.g. updated_by) does not fire a full-org cascade scan. The
+--    FINAL-state self-repair semantics are preserved: operator_toggle_feature upserts `enabled` on
+--    every call, so a re-save of false (false→false) still fires and repairs (AC-M365-162).
 -- ============================================================================
 create or replace function public.m365_disentitle_trigger() returns trigger
   language plpgsql security definer set search_path = public as $$
@@ -170,6 +195,15 @@ begin
 end $$;
 
 revoke all on function public.m365_disentitle_trigger() from public;
+
+-- Luna round-3 (LOW): restrict the UPDATE trigger to `OF enabled` (was: all-column UPDATE from
+-- 0103). operator_toggle_feature always SETs `enabled` (on-conflict upsert), so the lifecycle write
+-- path still fires + self-repairs; unrelated org_features edits no longer trigger a cascade.
+drop trigger if exists m365_disentitle_update_trigger on public.org_features;
+create trigger m365_disentitle_update_trigger
+  after update of enabled on public.org_features
+  for each row
+  execute function public.m365_disentitle_trigger();
 
 -- ============================================================================
 -- 4. Med (Luna): index the user-scoped cascade deletes.

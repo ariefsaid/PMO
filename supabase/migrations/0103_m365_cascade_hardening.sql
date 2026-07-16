@@ -52,7 +52,9 @@ declare
   v_conn_org  uuid;
   v_user_id   uuid;
   v_detail    jsonb;
-  v_allowed_reasons constant text[] := array['disentitled','offboard','org_disabled','admin_disconnect'];
+  -- 'reconciled' is the one-time migration scrub reason (0103 preflight + 0105 reconcile): a
+  -- connection scrubbed because it was already stale (user inactive / org disentitled / bad tenant).
+  v_allowed_reasons constant text[] := array['disentitled','offboard','org_disabled','admin_disconnect','reconciled'];
 begin
   -- Reason allowlist (LOW-2): enforced in core so ALL call paths are guarded.
   if p_reason is null or p_reason <> all(v_allowed_reasons) then
@@ -234,23 +236,48 @@ create trigger m365_org_features_immutable_trigger
 --    a mis-orged connection structurally violates the new (user_id, org_id)↔profiles invariant
 --    (it can never be a legitimate connection) and a '..'/all-dot tenant is SSRF path-confusion
 --    garbage the tightened CHECK exists to forbid. They carry no valid org attribution to audit
---    under and are already opaque ciphertext we cannot read, so no audit/revoke trail is emitted.
---    The DELETEs are idempotent (no-ops on a clean/fresh DB). Reversibility: a row once deleted here
---    is gone — but it was unusable; repopulate via a fresh OAuth connect after deploy.
+--    under and are already opaque ciphertext we cannot read. The DELETEs are idempotent (no-ops on
+--    a clean/fresh DB). Reversibility: a row once deleted here is gone — but it was unusable;
+--    repopulate via a fresh OAuth connect after deploy.
+--
+--    Luna round-3 (HIGH + MED-audit): (1) the tenant preflight regex was MIS-ESCAPED —
+--    under standard_conforming_strings=on, '~ \'\\\\.\\\\.\'' matches a literal BACKSLASH + any char
+--    (twice), NOT 'foo..bar', so a legacy dot-segment tenant SURVIVED the preflight and the
+--    (correctly-escaped) CHECK then rejected it → 0103 ABORTED → the composite FK, write guard, and
+--    ALL hardening never installed. The correct pattern is '~ \'\\.\\.\'' (literal dot, literal
+--    dot). (2) The preflight deletes dropped ciphertext IRREVERSIBLY with NO audit trail — both
+--    deletes now run as DELETE ... RETURNING + log_audit loops (reason='reconciled', allowlisted in
+--    §1) so every scrubbed connection leaves a durable m365.connection.revoked audit row.
 -- ============================================================================
+do $$
+declare
+  v_id  uuid;
+  v_org uuid;
+begin
+  -- (i) mis-orged (profile exists in a different org) OR orphaned (no profile at all) — would
+  --     violate the composite FK (user_id, org_id) → profiles (id, org_id) added in §5b.
+  for v_id, v_org in
+    delete from public.ms_graph_connections c
+     where not exists (
+       select 1 from public.profiles p where p.id = c.user_id and p.org_id = c.org_id
+     )
+    returning c.id, c.org_id
+  loop
+    perform public.log_audit('m365.connection.revoked', v_org, null, v_id,
+      jsonb_build_object('reason','reconciled','source','preflight_misorg_or_orphan'));
+  end loop;
 
--- (i) connections that would violate the composite FK (user_id, org_id) → profiles (id, org_id):
---     mis-orged (profile exists in a different org) OR orphaned (no profile at all).
-delete from public.ms_graph_connections c
- where not exists (
-   select 1 from public.profiles p where p.id = c.user_id and p.org_id = c.org_id
- );
-
--- (ii) connections whose entra_tenant_id the tightened CHECK (§6) will reject: '..' anywhere
---      (dot-segment) or all-dot values ('.', '..', '...'). The 0102 CHECK already enforced
---      ^[A-Za-z0-9._-]+$, so only these two new rejections need reconciling.
-delete from public.ms_graph_connections
- where entra_tenant_id ~ '\\.\\.' or entra_tenant_id ~ '^[.]+$';
+  -- (ii) entra_tenant_id the tightened CHECK (§6) will reject: '..' anywhere (dot-segment) or
+  --      all-dot values. FIXED regex: '\.\.' = literal-dot literal-dot (matches 'foo..bar').
+  for v_id, v_org in
+    delete from public.ms_graph_connections
+     where entra_tenant_id ~ '\.\.' or entra_tenant_id ~ '^[.]+'
+    returning id, org_id
+  loop
+    perform public.log_audit('m365.connection.revoked', v_org, null, v_id,
+      jsonb_build_object('reason','reconciled','source','preflight_bad_tenant'));
+  end loop;
+end $$;
 
 -- ============================================================================
 -- 5b. H5(ii): enforce that a connection's user and org AGREE.

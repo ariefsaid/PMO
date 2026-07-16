@@ -105,7 +105,65 @@ export function mockClient(seeded: Record<string, unknown[]> = {}): MockClient {
     return self;
   });
 
-  const rpc = vi.fn(() => Promise.resolve({ data: null, error: null }));
+  // The m365 connection-mutation RPCs (0105 — the lock-order / deadlock closure) are translated
+  // here into the SAME write-record + queue shape the tests already assert on, so routing the
+  // edge-fn writes through RPCs is transparent to the existing assertions (the tests check behavior
+  // — what got written + the success/failure outcome — not the call mechanism). Each records a
+  // synthetic write (kind upsert/update on ms_graph_connections) and pops the next queued
+  // ms_graph_connections response, reducing {data:{id}} → the scalar id the real RPC returns.
+  const popConnId = (table: string) => {
+    const list = queues[table] ?? [];
+    if (list.length) {
+      const resp = list.shift() as { data?: unknown; error?: unknown } | null;
+      const rowData = resp?.data;
+      const id = rowData && typeof rowData === 'object' ? (rowData as { id?: unknown }).id ?? null : rowData;
+      return Promise.resolve({ data: id ?? null, error: resp?.error ?? null });
+    }
+    // Empty queue → model a SUCCESSFUL write (a truthy affected id), mirroring the old
+    // update/delete default so success-path tests that don't queue a response still pass.
+    return Promise.resolve({ data: 'ok', error: null });
+  };
+
+  const rpc = vi.fn((fn: string, args?: Record<string, unknown>) => {
+    if (fn === 'm365_upsert_connection' && args) {
+      writes.push({
+        table: 'ms_graph_connections', kind: 'upsert', eqs: [],
+        payload: {
+          org_id: args.p_org_id, user_id: args.p_user_id,
+          entra_tenant_id: args.p_entra_tenant_id, entra_user_object_id: args.p_entra_user_object_id,
+          scopes: args.p_scopes,
+          refresh_token_ciphertext: args.p_refresh_token_ciphertext,
+          access_token_ciphertext: args.p_access_token_ciphertext,
+          access_token_expires_at: args.p_access_token_expires_at,
+          key_id: args.p_key_id, status: 'active',
+          connected_at: args.p_connected_at, last_refresh_at: args.p_last_refresh_at,
+        },
+      });
+      return popConnId('ms_graph_connections');
+    }
+    if (fn === 'm365_refresh_connection' && args) {
+      writes.push({
+        table: 'ms_graph_connections', kind: 'update', eqs: [['id', args.p_connection_id]],
+        payload: {
+          status: 'active',
+          access_token_ciphertext: args.p_access_token_ciphertext,
+          refresh_token_ciphertext: args.p_refresh_token_ciphertext,
+          access_token_expires_at: args.p_access_token_expires_at,
+          last_refresh_at: args.p_last_refresh_at,
+        },
+      });
+      return popConnId('ms_graph_connections');
+    }
+    if (fn === 'm365_set_connection_status' && args) {
+      writes.push({
+        table: 'ms_graph_connections', kind: 'update', eqs: [['id', args.p_connection_id]],
+        payload: { status: args.p_status, updated_at: args.p_updated_at },
+      });
+      return popConnId('ms_graph_connections');
+    }
+    // audit_m365_event / recordErrorEvent / any other rpc → default success (audit is swallowed).
+    return Promise.resolve({ data: null, error: null });
+  });
 
   return {
     client: { from, rpc },
