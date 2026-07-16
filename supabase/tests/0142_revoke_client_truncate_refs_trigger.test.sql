@@ -1,7 +1,9 @@
 -- 0142_revoke_client_truncate_refs_trigger.test.sql — security hardening, finding H4: proves
 -- migration 0104_revoke_client_truncate_refs_trigger.sql left `anon` and `authenticated` with NO
 -- truncate / references / trigger on ANY public business table, AND closed the root cause so the
--- privilege can't silently return on future tables.
+-- privilege can't silently return on future tables. ALSO proves Tier 2 (migration
+-- 0105_revoke_anon_write_dml.sql): `anon` holds NO insert/update/delete on ANY public business table,
+-- and the postgres-default root cause is closed for those too (AC-GRANT-010..013).
 --
 -- Two catalog-driven backstops are authoritative:
 --   • AC-GRANT-007 sweeps EVERY current public base table by OID (relkind 'r') -> 0 grant any of the
@@ -13,11 +15,10 @@
 -- AC-GRANT-009 is a positive control proving the revoke was SURGICAL (authenticated keeps the
 -- RLS-gated DML the app genuinely uses — only the three indefensible privileges went).
 --
--- SCOPE NOTE: Tier 2 (revoking anon write DML) was investigated and is INTENTIONALLY NOT asserted
--- here — see migration 0104's header. Revoking anon DML breaks 0109_agent_dispatch_watermarks
--- _denydefault (it asserts RLS default-deny by performing an anon UPDATE and counting 0 rows, which
--- depends on anon holding the UPDATE grant). Per the binding rule that test-breakage is a signal to
--- stop, Tier 2 is left for the Director; this test therefore proves Tier 1 only.
+-- SCOPE NOTE: Tier 2 (revoking anon write DML) is now DONE in migration 0105_revoke_anon_write_dml.sql
+-- (Director-approved) and asserted below as AC-GRANT-010..013. 0109_agent_dispatch_watermarks
+-- _denydefault was updated to the privilege-denial mechanism (throws_ok 42501) since anon UPDATE/DELETE
+-- grants no longer exist — see 0105's header for why that is a STRENGTHENING, not a weakening-to-pass.
 --
 -- pgTAP runs as the superuser migration role which BYPASSES grants — these assertions check the
 -- *catalog* grant via has_table_privilege(role, ...) / pg_default_acl, so they DO catch the real grant
@@ -26,7 +27,7 @@
 -- AC ids owned here: AC-GRANT-001..009. Reversibility (ADR-0006): this file makes no schema changes
 -- (pure catalog reads); `supabase db reset` / re-run is a no-op.
 begin;
-select plan(9);
+select plan(13);
 
 -- ════════════════════════════════════════════════════════════════════════════════════════════════
 -- Tier 1 — spot checks: authenticated & anon hold NO truncate/references/trigger on representative
@@ -102,6 +103,71 @@ select is(
    and has_table_privilege('authenticated', 'public.profiles', 'DELETE')),
   true,
   'AC-GRANT-009 authenticated keeps full DML on profiles (revoke was surgical)');
+
+-- ════════════════════════════════════════════════════════════════════════════════════════════════
+-- Tier 2 (migration 0105) — authoritative CURRENT-STATE backstop: NO public base table grants
+-- insert/update/delete to `anon`. Same OID catalog sweep as AC-GRANT-007. anon is the
+-- UNAUTHENTICATED PostgREST role; it has zero write RLS policies anywhere, so no public table has
+-- any legitimate anon write. (authenticated DML and anon SELECT are untouched by 0105.)
+-- ════════════════════════════════════════════════════════════════════════════════════════════════
+select is(
+  (select count(*)::int
+     from pg_class c join pg_namespace n on n.oid = c.relnamespace
+    where n.nspname = 'public' and c.relkind = 'r'
+      and (has_table_privilege('anon', c.oid, 'INSERT')
+        or has_table_privilege('anon', c.oid, 'UPDATE')
+        or has_table_privilege('anon', c.oid, 'DELETE'))),
+  0,
+  'AC-GRANT-010 NO public base table grants insert/update/delete to anon');
+
+-- ════════════════════════════════════════════════════════════════════════════════════════════════
+-- Tier 2 — authoritative ROOT-CAUSE backstop: the `postgres` creator's public-schema DEFAULT
+-- PRIVILEGES no longer grant insert/update/delete to `anon`. Every public business table is owned
+-- by postgres (migrations create tables as postgres), so this is the creator whose defaults future
+-- migration tables inherit — closing it stops the next migration's table from silently re-opening
+-- the anon-DML hole. (Same residual/coverage reasoning as AC-GRANT-008 for supabase_admin's parallel
+-- defaults.)
+-- ════════════════════════════════════════════════════════════════════════════════════════════════
+with exploded_dml as (
+  select (aclexplode(d.defaclacl)).grantee::regrole::text as grantee,
+         (aclexplode(d.defaclacl)).privilege_type         as priv
+    from pg_default_acl d
+    join pg_namespace n on n.oid = d.defaclnamespace
+   where n.nspname = 'public' and d.defaclobjtype = 'r'
+     and d.defaclrole = 'postgres'::regrole
+)
+select is(
+  (select count(*)::int from exploded_dml
+    where grantee = 'anon'
+      and priv in ('INSERT','UPDATE','DELETE')),
+  0,
+  'AC-GRANT-011 postgres public table DEFAULT PRIVILEGES grant NO insert/update/delete to anon (migration-table root cause closed)');
+
+-- ════════════════════════════════════════════════════════════════════════════════════════════════
+-- Tier 2 — spot checks: anon holds NO insert/update/delete on named security-critical tables (for
+-- grep-ability). agent_dispatch_watermarks is the 0109 proof target; audit_events and error_events
+-- are the other deny-default tables whose anon INSERTs already used throws_ok 42501.
+-- ════════════════════════════════════════════════════════════════════════════════════════════════
+select is(
+  (has_table_privilege('anon','public.agent_dispatch_watermarks','INSERT')
+   or has_table_privilege('anon','public.agent_dispatch_watermarks','UPDATE')
+   or has_table_privilege('anon','public.agent_dispatch_watermarks','DELETE')
+   or has_table_privilege('anon','public.audit_events','INSERT')
+   or has_table_privilege('anon','public.audit_events','UPDATE')
+   or has_table_privilege('anon','public.audit_events','DELETE')
+   or has_table_privilege('anon','public.error_events','INSERT')
+   or has_table_privilege('anon','public.error_events','UPDATE')
+   or has_table_privilege('anon','public.error_events','DELETE')),
+  false,
+  'AC-GRANT-012 anon has NO insert/update/delete on agent_dispatch_watermarks, audit_events, error_events');
+
+-- ════════════════════════════════════════════════════════════════════════════════════════════════
+-- Tier 2 — surgical positive control: the revoke was SURGICAL. anon still holds SELECT on profiles
+-- (0105 stripped only insert/update/delete from anon, not select — out of scope, conservative). Pairs
+-- with AC-GRANT-009 (authenticated keeps full DML) to prove neither migration over-revoked.
+-- ════════════════════════════════════════════════════════════════════════════════════════════════
+select is(has_table_privilege('anon', 'public.profiles', 'SELECT'), true,
+  'AC-GRANT-013 anon keeps SELECT on profiles (Tier-2 revoke was surgical: only DML went, not SELECT)');
 
 select * from finish();
 rollback;

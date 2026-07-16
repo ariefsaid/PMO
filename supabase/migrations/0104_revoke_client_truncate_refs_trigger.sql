@@ -43,18 +43,24 @@
 -- of creator, so the residual is covered. If a future migration ever sets role supabase_admin before
 -- creating a public table, that table would inherit — AC-GRANT-007 would then fail loud, flagging it.
 --
--- ── TIER 2 (anon write DML) — INTENTIONALLY NOT DONE HERE ─────────────────────────────────────
+-- ── TIER 2 (anon write DML) — DONE IN 0105_revoke_anon_write_dml.sql ───────────────────────────
 -- The audit also flagged that `anon` holds insert/update/delete on business tables. Investigation
 -- proved NO anon write PATH exists (zero `for ... to anon` write RLS policies; RLS enabled on all
 -- tables, never disabled; the whole FE is behind <RequireAuth/> and the auth flow uses supabase.auth.*
 -- not public.* DML; edge-fn anon-key clients forward the CALLER's JWT behind a 401 gate, so the
--- effective role is `authenticated`, never `anon`). So the anon DML grant is dormant (RLS already
--- denies every anon write). HOWEVER, revoking it BREAKS an existing test: 0109_agent_dispatch_watermarks
--- _denydefault asserts RLS default-deny by performing an `anon UPDATE ... returning` and counting 0
--- rows — it *depends* on anon holding the UPDATE grant (so RLS, not the grant, is what denies). The
--- revoke turns that into a privilege error (42501) mid-test. Per the binding rule ("if revoking a
--- grant breaks an existing test, that is a SIGNAL the grant is actually needed — do not revoke; report
--- it"), Tier 2 is left for the Director. anon SELECT is also left intact (out of scope; conservative).
+-- effective role is `authenticated`, never `anon`). So the anon DML grant was dormant (RLS already
+-- denied every anon write). This migration (0104) deferred it: revoking it broke 0109_agent_dispatch
+-- _watermarks_denydefault, which asserted RLS default-deny via an `anon UPDATE/DELETE ... returning`
+-- counting 0 rows (it depended on anon holding the UPDATE/DELETE grants, so the statement was
+-- executable and RLS — not the grant — was what denied). Per the binding rule ("if revoking a grant
+-- breaks an existing test, that is a SIGNAL — stop, report it"), Tier 2 was escalated to the Director.
+-- The Director APPROVED: 0109's GOAL-ORACLE ("anon cannot mutate agent_dispatch_watermarks") is
+-- UNCHANGED; only the MECHANISM proving it changes — from "UPDATE/DELETE affects 0 rows (RLS
+-- row-denial)" to "UPDATE/DELETE raises 42501 (privilege denial)", which is strictly STRONGER (anon
+-- can no longer even attempt the statement). So Tier 2 is implemented in 0105 (revokes insert/update/
+-- delete from anon on all public base tables + closes the postgres-default root cause), 0109 is updated
+-- to the privilege-denial mechanism, and 0142's AC-GRANT-010..013 prove the new state. anon SELECT is
+-- still left intact (out of scope; RLS gates reads; conservative).
 --
 -- Idempotent / re-runnable: ALTER DEFAULT PRIVILEGES REVOKE and plain REVOKE are both idempotent.
 --
