@@ -268,10 +268,17 @@ begin
   end loop;
 
   -- (ii) entra_tenant_id the tightened CHECK (§6) will reject: '..' anywhere (dot-segment) or
-  --      all-dot values. FIXED regex: '\.\.' = literal-dot literal-dot (matches 'foo..bar').
+  --      all-dot values. FIXED regexes: '\.\.' = literal-dot literal-dot (matches 'foo..bar'); and
+  --      '^[.]+$' = ALL-dot values only (., .., ...). Luna round-4 (LOW-4): the prior '^[.]+'
+  --      (one-or-more leading dots) OVERMATCHED — it matched '.foo' (leading dot + real chars),
+  --      but the final CHECK ACCEPTS '.foo' (it only rejects all-dot '^[.]+$'). A leading-dot but
+  --      non-all-dot tenant is a valid (if unusual) value the CHECK keeps, so the preflight must
+  --      NOT delete it. '^[.]+$' deletes exactly what the CHECK rejects (the all-dot set) plus the
+  --      '\.\.' arm catches any dot-segment anywhere. Verified: '.foo'→survives, '..'/'.'→deleted,
+  --      'foo..bar'→deleted (via '\.\.'), GUID→survives.
   for v_id, v_org in
     delete from public.ms_graph_connections
-     where entra_tenant_id ~ '\.\.' or entra_tenant_id ~ '^[.]+'
+     where entra_tenant_id ~ '\.\.' or entra_tenant_id ~ '^[.]+$'
     returning id, org_id
   loop
     perform public.log_audit('m365.connection.revoked', v_org, null, v_id,

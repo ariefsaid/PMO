@@ -68,14 +68,23 @@ export async function handleDisconnect(deps: HandlerDeps): Promise<HandlerResult
   // H6 (Luna): inspect the delete result. Previously the awaited delete was IGNORED — a DB error
   // left the encrypted row in place yet the function still wrote a 'revoked' audit event and
   // returned 200. Luna (Low) additionally: a CONCURRENT zero-row delete (the row was already gone —
-  // e.g. a just-fired lifecycle cascade) was treated as success too. Use DELETE ... RETURNING and
-  // only audit success / return 200 when a row was ACTUALLY returned; otherwise surface failure.
-  const { data: deleted, error: deleteError } = await serviceClient
-    .from('ms_graph_connections')
-    .delete()
-    .eq('id', connection.id)
-    .select('id')
-    .maybeSingle();
+  // e.g. a just-fired lifecycle cascade) was treated as success too. Only audit success / return
+  // 200 when a row was ACTUALLY deleted; otherwise surface failure.
+  //
+  // Luna round-4 (MED-2 — service-role direct-DML lockdown + DEADLOCK closure): the delete now goes
+  // through the m365_delete_connection SECURITY-DEFINER RPC, which locks PROFILES → ORG_FEATURES for
+  // update BEFORE the connection DELETE — the single global lock order (see 0105/0106 headers) — so
+  // every connection mutation (upsert/refresh/status/delete) takes locks parent→child and NONE can
+  // reproduce the child→parent deadlock. The RPC is also IDENTITY-BOUND (MED-1): the DELETE matches
+  // only a row whose (org_id, user_id) equal the caller's org/user, so a mismatched (org,user,id)
+  // can NEVER mutate another identity's row (returns null → NOT_CONNECTED). service_role no longer
+  // holds direct INSERT/UPDATE/DELETE on this table (0106), so the RPCs are the only write path.
+  // The returned id is the proof the row was actually deleted; null = already gone / mismatched.
+  const { data: deletedId, error: deleteError } = await serviceClient.rpc('m365_delete_connection', {
+    p_org_id: orgId,
+    p_user_id: userId,
+    p_connection_id: connection.id,
+  });
   if (deleteError) {
     await recordM365Error(serviceClient, {
       errorCode: 'INTERNAL_ERROR',
@@ -88,7 +97,7 @@ export async function handleDisconnect(deps: HandlerDeps): Promise<HandlerResult
       headers,
     };
   }
-  if (!deleted) {
+  if (!deletedId) {
     // Concurrent zero-row delete — the connection was already revoked (e.g. a lifecycle cascade
     // fired between our SELECT and our DELETE). NOT success: surface NOT_CONNECTED so the caller
     // doesn't believe a token it no longer holds was just revoked. No success audit is written.

@@ -119,6 +119,15 @@ begin
     where org_id = p_org_id and feature_key = 'm365_integration'
     for update;
 
+  -- Luna round-4 (MED-1 — identity binding): the UPDATE predicate is bound to the SAME (org_id,
+  -- user_id) whose parents were locked above. Without this, a mismatched caller (p_org_id/p_user_id
+  -- belonging to a DIFFERENT row than p_connection_id) would lock User B's profile, then UPDATE User
+  -- A's connection — the BEFORE write-guard then locks User A's profile (child→parent against a
+  -- concurrent lifecycle that holds A) → a REAL deadlock (Luna reproduced `deadlock detected` live).
+  -- With the identity predicate, a mismatched UPDATE matches ZERO rows → no connection tuple is
+  -- locked, no BEFORE trigger fires → no cycle, and the NULL return is treated as failure by every
+  -- caller (refresh.ts treats null|error as failure — no success audit). A matching call is
+  -- unaffected. The contract (null|error = failure) is unchanged from §2's header.
   update public.ms_graph_connections
      set access_token_ciphertext  = p_access_token_ciphertext,
          refresh_token_ciphertext = p_refresh_token_ciphertext,
@@ -127,6 +136,8 @@ begin
          status                   = 'active',
          updated_at               = p_last_refresh_at
    where id = p_connection_id
+     and org_id = p_org_id
+     and user_id = p_user_id
    returning id into v_id;
   return v_id;
 end $$;
@@ -158,9 +169,16 @@ begin
     where org_id = p_org_id and feature_key = 'm365_integration'
     for update;
 
+  -- Luna round-4 (MED-1 — identity binding): see §2. The UPDATE is bound to the same (org_id,
+  -- user_id) whose parents were locked, so a mismatched caller matches ZERO rows (no tuple lock,
+  -- no BEFORE trigger, no child→parent deadlock) and returns NULL → the caller treats it as
+  -- failure (refresh.ts status classification requires a non-null id before auditing — round-4
+  -- MED-3). A matching call is unaffected.
   update public.ms_graph_connections
      set status = p_status, updated_at = p_updated_at
    where id = p_connection_id
+     and org_id = p_org_id
+     and user_id = p_user_id
    returning id into v_id;
   return v_id;
 end $$;

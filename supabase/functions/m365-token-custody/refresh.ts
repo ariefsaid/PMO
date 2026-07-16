@@ -149,16 +149,39 @@ async function classifyRefreshFailure(
   if (isReuseError(tokenData, errorCode)) {
     // Security event: refresh-token reuse detected → revoke the connection.
     // Luna round-3 (DEADLOCK): route the status write through m365_set_connection_status (locks
-    // parents first). Inspect the error so a row that could NOT be marked revoked (e.g. a concurrent
-    // lifecycle 42501) is observable — the reuse signal above is still emitted because Microsoft
-    // DID report reuse.
-    const { error: markError } = await serviceClient.rpc('m365_set_connection_status', {
+    // parents first). Luna round-4 (MED-3): require BOTH no error AND a non-null returned id before
+    // emitting the state-change success audit — a zero-row status RPC (the row was deleted under us,
+    // or an identity mismatch from MED-1) returns NULL, and previously the code still audited
+    // reuse_detected as if the row had been marked revoked. The reuse DETECTION is a fact (Microsoft
+    // reported it) regardless of whether we could persist the revocation, so the security event is
+    // recorded either way; but on failure to persist a REVOKE we FAIL CLOSED — emit an INTERNAL_ERROR
+    // and do NOT emit the reuse_detected audit (no successful revocation to record). Mirrors the
+    // refresh success path (refresh.ts) + revoke.ts. No token material is ever logged.
+    const { data: markedId, error: markError } = await serviceClient.rpc('m365_set_connection_status', {
       p_org_id: connection.org_id,
       p_user_id: connection.user_id,
       p_connection_id: connection.id,
       p_status: 'revoked',
       p_updated_at: nowIso,
     });
+    // The DETECTION is real (Microsoft reported reuse) — record the security event regardless of
+    // whether the row could be marked revoked.
+    await recordM365Error(serviceClient, {
+      errorCode: 'M365_SECURITY_EVENT_REUSE',
+      contextId: connection.id,
+      orgId: connection.org_id,
+    });
+    if (markError || !markedId) {
+      // FAIL CLOSED: the row was NOT marked revoked. Surface the persistence failure so it is
+      // observable; do NOT emit the reuse_detected state-change audit (that would record a
+      // successful revocation that never happened).
+      await recordM365Error(serviceClient, {
+        errorCode: 'INTERNAL_ERROR',
+        contextId: connection.id,
+        orgId: connection.org_id,
+      });
+      return;
+    }
     await logAudit(serviceClient, {
       action: 'm365.token.reuse_detected',
       orgId: connection.org_id,
@@ -166,32 +189,41 @@ async function classifyRefreshFailure(
       entityId: connection.id,
       detail: { error: errorCode },
     });
-    await recordM365Error(serviceClient, {
-      errorCode: 'M365_SECURITY_EVENT_REUSE',
-      contextId: connection.id,
-      orgId: connection.org_id,
-    });
-    if (markError) {
-      await recordM365Error(serviceClient, {
-        errorCode: 'INTERNAL_ERROR',
-        contextId: connection.id,
-        orgId: connection.org_id,
-      });
-    }
     return;
   }
 
   if (isInvalidGrant(errorCode)) {
     // Consent revoked / refresh expired → mark stale so the user reconnects.
     // Luna round-3 (DEADLOCK): route the status write through m365_set_connection_status (locks
-    // parents first). Surface a marking failure (see the reuse branch above for rationale).
-    const { error: markError } = await serviceClient.rpc('m365_set_connection_status', {
+    // parents first). Luna round-4 (MED-3): require no error AND a non-null returned id before
+    // emitting the refresh_failed state-change audit — a zero-row/error status RPC (row deleted
+    // under us, or an identity mismatch from MED-1) must NOT be audited as a stale-marking that
+    // didn't happen. On failure, record the classification (the invalid_grant is still a fact) + an
+    // INTERNAL_ERROR and return without the state-change audit. Mirrors the reuse branch + the
+    // refresh success path.
+    const { data: markedId, error: markError } = await serviceClient.rpc('m365_set_connection_status', {
       p_org_id: connection.org_id,
       p_user_id: connection.user_id,
       p_connection_id: connection.id,
       p_status: 'stale',
       p_updated_at: nowIso,
     });
+    if (markError || !markedId) {
+      // Could not mark stale (row gone / mismatched / transient error). The classification is still
+      // a fact (Microsoft returned invalid_grant), but do NOT emit the refresh_failed state-change
+      // audit for a row that was never marked stale. Surface the persistence failure.
+      await recordM365Error(serviceClient, {
+        errorCode: 'M365_REFRESH_FAILED',
+        contextId: connection.id,
+        orgId: connection.org_id,
+      });
+      await recordM365Error(serviceClient, {
+        errorCode: 'INTERNAL_ERROR',
+        contextId: connection.id,
+        orgId: connection.org_id,
+      });
+      return;
+    }
     await logAudit(serviceClient, {
       action: 'm365.token.refresh_failed',
       orgId: connection.org_id,
@@ -204,13 +236,6 @@ async function classifyRefreshFailure(
       contextId: connection.id,
       orgId: connection.org_id,
     });
-    if (markError) {
-      await recordM365Error(serviceClient, {
-        errorCode: 'INTERNAL_ERROR',
-        contextId: connection.id,
-        orgId: connection.org_id,
-      });
-    }
     return;
   }
 

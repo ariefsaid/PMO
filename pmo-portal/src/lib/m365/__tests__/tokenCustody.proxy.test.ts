@@ -100,7 +100,7 @@ describe('AC-M365-110/111/112/113/114 — handleGraphProxy', () => {
     const service = mockClient({
       ms_graph_connections: [
         { data: expired, error: null },
-        { data: null, error: null }, // update to stale
+        { data: { id: 'conn-1' }, error: null }, // m365_set_connection_status('stale') RETURNING → the marked row (Luna round-4 MED-3: a non-null id is required before the refresh_failed state-change audit)
         { data: { status: 'stale' }, error: null }, // re-read after refresh failure (quality #10)
       ],
     });
@@ -130,7 +130,7 @@ describe('AC-M365-110/111/112/113/114 — handleGraphProxy', () => {
     const service = mockClient({
       ms_graph_connections: [
         { data: expired, error: null },
-        { data: null, error: null }, // update to revoked
+        { data: { id: 'conn-1' }, error: null }, // m365_set_connection_status('revoked') RETURNING → the marked row (Luna round-4 MED-3: a non-null id is required before the reuse_detected state-change audit)
         { data: { status: 'revoked' }, error: null }, // re-read after refresh failure → CONNECTION_REVOKED (quality #10)
       ],
     });

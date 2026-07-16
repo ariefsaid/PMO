@@ -48,15 +48,29 @@ export interface MockClient {
   push(table: string, resp: unknown): void;
 }
 
-/**
- * A flexible mock supabase-js client. `push(table, resp)` queues terminal responses (FIFO per
- * table); every write (insert/update/upsert/delete) is recorded with its payload + eq filters for
- * assertions. `.rpc()` resolves `{ data: null, error: null }` by default (audit always succeeds).
- */
+// A flexible mock supabase-js client. `push(table, resp)` queues terminal responses (FIFO per
+// table); every write (insert/update/upsert/delete) is recorded with its payload + eq filters for
+// assertions. `.rpc()` resolves `{ data: null, error: null }` by default (audit always succeeds).
+//
+// Luna round-4 (LOW-5 — enforce the RPC call shape): the m365 connection-mutation contract is that
+// production code MUST route every ms_graph_connections write through the security-definer lock-order
+// RPCs (0105/0106). A regression to a direct `.from('ms_graph_connections').insert/update/upsert/
+// delete()` would silently reintroduce the child→parent deadlock order while leaving these unit
+// tests GREEN (the mock synthesized writes regardless of call mechanism). To make a regression
+// LOUD, a direct write via `.from('ms_graph_connections')` now THROWS (SELECT stays allowed — the
+// edge fn loads connection rows). The RPC handlers below synthesize the SAME `writes` entries the
+// existing assertions check, so routing through the RPCs is transparent to every behavioral
+// assertion while a direct write fails the test immediately.
 export function mockClient(seeded: Record<string, unknown[]> = {}): MockClient {
   const queues: Record<string, unknown[]> = {};
   for (const [t, rs] of Object.entries(seeded)) queues[t] = [...rs];
   const writes: RecordedWrite[] = [];
+
+  // The ONLY sanctioned mutation path for ms_graph_connections is the lock-order RPC (a direct
+  // `.from('ms_graph_connections').<write>` would lock the child tuple before the parents and
+  // reintroduce the deadlock). This sentinel is thrown from the `.from()` write builders.
+  const DIRECT_CONN_WRITE_FORBIDDEN =
+    'm365 mock contract: a direct .from(ms_graph_connections) write is forbidden — route through the m365_*_connection RPC (0105/0106). A direct write reintroduces the child→parent deadlock order.';
 
   const from = vi.fn((table: string) => {
     let kind: RecordedWrite['kind'] | '' = '';
@@ -84,12 +98,21 @@ export function mockClient(seeded: Record<string, unknown[]> = {}): MockClient {
       }
       return Promise.resolve({ data: null, error: null });
     };
+    // A direct write to ms_graph_connections is forbidden (LOW-5): the lock-order RPCs are the only
+    // sanctioned path. Selects stay allowed (the edge fn loads connection rows). Throwing here makes
+    // a regression to a direct `.from('ms_graph_connections').update()`/`.delete()` FAIL the test
+    // immediately instead of silently synthesizing a write.
+    const forbidDirectConnWrite = () => {
+      if (table === 'ms_graph_connections') {
+        throw new Error(DIRECT_CONN_WRITE_FORBIDDEN);
+      }
+    };
     const self: Record<string, unknown> = {
       select: () => { kind = kind || 'select' as never; return self; },
-      delete: () => { kind = 'delete'; return self; },
-      insert: (p: unknown) => { kind = 'insert'; payload = p; return self; },
-      update: (p: unknown) => { kind = 'update'; payload = p; return self; },
-      upsert: (p: unknown) => { kind = 'upsert'; payload = p; return self; },
+      delete: () => { forbidDirectConnWrite(); kind = 'delete'; return self; },
+      insert: (p: unknown) => { forbidDirectConnWrite(); kind = 'insert'; payload = p; return self; },
+      update: (p: unknown) => { forbidDirectConnWrite(); kind = 'update'; payload = p; return self; },
+      upsert: (p: unknown) => { forbidDirectConnWrite(); kind = 'upsert'; payload = p; return self; },
       eq: (c: string, v: unknown) => { eqs.push([c, v]); return self; },
       order: () => self,
       range: () => self,
@@ -158,6 +181,16 @@ export function mockClient(seeded: Record<string, unknown[]> = {}): MockClient {
       writes.push({
         table: 'ms_graph_connections', kind: 'update', eqs: [['id', args.p_connection_id]],
         payload: { status: args.p_status, updated_at: args.p_updated_at },
+      });
+      return popConnId('ms_graph_connections');
+    }
+    if (fn === 'm365_delete_connection' && args) {
+      // Luna round-4 (MED-2): revoke.ts's connection delete now routes through this parent-first
+      // identity-bound RPC. Synthesize a 'delete' write (same shape the existing revoke assertions
+      // check) so routing through the RPC is transparent to every behavioral assertion.
+      writes.push({
+        table: 'ms_graph_connections', kind: 'delete', eqs: [['id', args.p_connection_id]],
+        payload: { org_id: args.p_org_id, user_id: args.p_user_id },
       });
       return popConnId('ms_graph_connections');
     }
