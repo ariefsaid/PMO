@@ -444,3 +444,140 @@ Also, `0080_service_role_grants.sql:20-28` means `service_role` can execute the 
 **Final verdict: BLOCK.** NFR-M365-107 remains bypassable through pending OAuth callbacks, feature mutation/INSERT/TRUNCATE paths, inconsistent org/user rows, and the absent org-disable lifecycle.
 
 LUNA-REVIEW-DONE
+
+---
+
+# Luna RE-VERIFY (round 2, gpt-5.6-luna:max) — 2026-07-16
+Verdict: BLOCK. Luna EMPIRICALLY REPRODUCED the concurrent race locally (profile=disabled connections=1).
+Deterministic fixes all landed; the residual is an MVCC TOCTOU in the unlocked write-guard.
+
+# Part 1 — Finding closure
+
+I read the prior Luna review first. I also verified the live database:
+
+- `service_role` INSERT for disabled user: rejected `42501`.
+- `service_role` UPDATE for disabled user: rejected `42501`.
+- Active/entitled `service_role` UPDATE: succeeds.
+- Concurrent callback/lifecycle probes reproduced **disabled/disentitled state with one connection remaining**.
+
+| Finding | Status | Evidence |
+|---|---|---|
+| C1(a) PKCE purge | **CLOSED in isolation** | `_core` purges by user/org: `supabase/migrations/0103_m365_cascade_hardening.sql:76-89`; atomic consume: `stateStore.ts:55-68`. It does not prevent the concurrent race below after the callback already consumed state. |
+| C1(b) write guard | **PARTIALLY CLOSED** | Trigger genuinely covers INSERT/UPDATE and fires for `service_role`: `0103_m365_cascade_hardening.sql:106-133`. However, checks at `:113-120` take no lock. A concurrent INSERT can pass on the old lifecycle state. |
+| C1(c) callback error handling | **PARTIALLY CLOSED** | Pre-check and rejected-upsert handling are correct: `callback.ts:118-184`. The mocked race test `tokenCustody.callback.test.ts:241-268` is not a real concurrent database race. |
+| H2 absent-row INSERT / disabled-row DELETE | **PARTIALLY CLOSED** | INSERT and broadened DELETE exist: `0103_m365_cascade_hardening.sql:145-194`; tested at `0149:153-218`. But `false → false` UPDATE does not cascade (`:153-162`), so stale rows can remain after a race or legacy state. |
+| H3 feature identity mutation | **CLOSED** | Immutable trigger: `0103_m365_cascade_hardening.sql:203-221`; upsert changes only mutable columns: `0070_org_features.sql:88-91`; tests: `0149:221-239`. |
+| H5(i) user-only cleanup | **CLOSED in code** | Single-user deletion uses `where user_id = p_user_id`: `0103_m365_cascade_hardening.sql:62-78`. |
+| H5(ii) composite FK | **CLOSED in code** | `(user_id, org_id)` FK with `ON DELETE CASCADE`: `0103_m365_cascade_hardening.sql:230-236`. Profile org changes fail with `23503`; profile deletion cascades the connection. |
+| H5(iii) buggy fixture | **CLOSED** | All seeded connection/profile orgs now agree: `0149_m365_cascade_triggers.test.sql:56-66`. The test does not directly assert a mismatched insert fails. |
+| H6 revoke deletion error | **CLOSED for the reported failure** | Delete errors now return `503`, record an error event, and skip success audit: `revoke.ts:67-97`; tests: `tokenCustody.hardening.test.ts:65-106`. |
+| M2 audit/delete race | **CLOSED** | `DELETE ... RETURNING` audits only rows actually deleted: `0103_m365_cascade_hardening.sql:70-87`. |
+| M3 tenant validation | **CLOSED for the reported path-confusion issue** | Tightened DB check: `0103_m365_cascade_hardening.sql:245-255`; shared runtime validation: `graphPkce.ts:34-56`; callback/refresh/revoke validation: `callback.ts:55-65`, `refresh.ts:52-61`, `revoke.ts:47-55`. |
+| M4 lifecycle-test gap | **PARTIALLY CLOSED** | Real RPC paths and actor assertions now exist: `0149:79-132`. Trigger disabling is transactional and intentionally simulates legacy data (`:157-162`, `:207-210`), but the test still does not prove concurrent races or the service-role callback path. |
+| L1 PKCE sweep | **PARTIALLY CLOSED** | Expiry index added: `0103_m365_cascade_hardening.sql:258-260`. Cleanup remains one unbatched `DELETE`, and initiation is not rate-limited: `0102_m365_db_hardening.sql:34-39`, `initiate.ts:40-50`. |
+
+## Remaining C1 write paths
+
+Sequentially, the guard blocks callback/service-role writes for disabled users and disentitled orgs. However, **a normal concurrent callback path can still create a connection after lifecycle disablement**.
+
+The deliberately out-of-scope `TRUNCATE org_features` path also remains able to leave existing connections behind (`0075_explicit_api_grants.sql:118-121`).
+
+# Part 2 — New or remaining defects
+
+## Critical
+
+### C1-RACE — write guard is TOCTOU-vulnerable
+
+**Scenario**
+
+1. Callback transaction inserts a new connection while profile is active and entitlement is true.
+2. The guard reads the old values and leaves the insert uncommitted.
+3. `admin_set_user_status` disables the user, or `operator_toggle_feature` disables M365.
+4. The AFTER trigger deletes rows visible to its snapshot, but cannot see the callback’s uncommitted new row.
+5. Lifecycle transaction commits; callback commits afterward.
+
+Observed locally:
+
+- `profile=disabled connections=1`
+- `feature=false connections=1`
+
+**Evidence:** `0103_m365_cascade_hardening.sql:113-122`; lifecycle deletes at `:153-170`; callback upsert at `callback.ts:151-184`.
+
+**Fix:** Lock the profile row and entitlement row in the write guard with `FOR UPDATE`, using the same lock ordering as lifecycle updates, or use a shared transaction-scoped advisory lock. Add a real concurrent integration test. Also make disabled/false lifecycle cleanup idempotent on repeated writes.
+
+## High
+
+### Same-tenant OAuth user binding remains incomplete
+
+The callback validates only `tid`; it never compares `claims.oid` with the expected Microsoft identity for the PMO user.
+
+A PMO Admin can initiate a flow, send the authorize URL to another user in the same Entra tenant, and store that victim’s tokens in the attacker’s PMO connection. `tid` matches, so the new check passes.
+
+**Evidence:** `callback.ts:92-105`, `callback.ts:151-158`; state binds only to PMO user/org in `initiate.ts:20-50`.
+
+**Fix:** Bind the callback to a previously verified Entra object ID, and validate the ID token issuer, audience, signature, `tid`, and `oid`.
+
+### Conditional migration deployment failure
+
+The composite FK and tightened tenant CHECK validate existing rows immediately:
+
+**Evidence:** `0103_m365_cascade_hardening.sql:230-236`, `:245-252`.
+
+A legacy mis-org connection or legacy `..` tenant value causes migration 0103 to abort, leaving all hardening unapplied.
+
+**Fix:** Add a preflight/data-reconciliation step before adding constraints, or explicitly gate deployment on zero violating rows.
+
+## Medium
+
+### Refresh ignores write-guard failures
+
+`refreshAccessToken` ignores the result of the token-row UPDATE, then audits success and returns `true`.
+
+**Evidence:** `refresh.ts:98-118`; stale/revoked updates also ignore errors at `:133-170`.
+
+During a lifecycle race, refresh can report `m365.token.refreshed` even though the update was rejected or the row disappeared.
+
+**Fix:** Check update errors and affected-row identity. Emit lifecycle/error outcomes only after persistence succeeds.
+
+### User-only cascade deletes are unindexed
+
+The new user-only deletes use `user_id`, but existing indexes lead with `org_id`.
+
+**Evidence:** deletes at `0103_m365_cascade_hardening.sql:70-78`; indexes only at `0096_ms_graph_connections.sql:38` and `0098_m365_pkce_states.sql:21`.
+
+**Fix:** Add indexes on `ms_graph_connections(user_id)` and `m365_pkce_states(user_id)`.
+
+### Repeated disabled/false state does not repair stale rows
+
+- Profile trigger fires only on transition to disabled: `0101_m365_cascade_triggers.sql:134-138`.
+- Feature trigger fires only `true → false`: `0103_m365_cascade_hardening.sql:153-162`.
+
+If a stale row survives a race, repeating “disable” or “toggle false” does not remove it.
+
+**Fix:** Cascade whenever the final state is disabled/false, or add a repair/scrub path.
+
+## Low
+
+- Revoke treats a concurrent zero-row DELETE as success because it checks only `deleteError`, not returned row identity: `revoke.ts:72-97`. Use `DELETE ... RETURNING`.
+- PKCE sweep is indexed but still unbatched and initiation is unrate-limited: `0102_m365_db_hardening.sql:34-39`.
+- `isValidTenant` accepts aliases/domains, while callback requires an exact concrete tenant GUID: `graphPkce.ts:17-41`, `callback.ts:99-105`. This fails closed but can reject valid misconfigured deployments.
+- Trigger functions retain public EXECUTE privilege, though PostgreSQL rejects direct scalar invocation of trigger functions. Revoke for least-privilege hygiene.
+
+## Requested checks
+
+- **(a)** Active refresh/revoke flows work. Mid-lifecycle UPDATEs correctly fail closed, but refresh mishandles the error.
+- **(b)** Profile org moves fail with FK violation; no orphan is created. Profile deletion cascades connections. Default `ON UPDATE NO ACTION` is appropriate.
+- **(c)** `operator_toggle_feature` leaves identity columns unchanged; no false immutability failure.
+- **(d)** Enable INSERT does not cascade; no recursion. The concurrency race remains.
+- **(e)** Test trigger disable/enable is transactional, but intentionally bypasses production behavior and does not prove a real race.
+- **(f)** Fixture entitlement additions do not weaken prior assertions; lockdown grants remain revoked.
+- **(g)** The guarded public RPC remains org-safe for Admins: `0101_m365_cascade_triggers.sql:92-103`. Operators are intentionally cross-org. The user-only cleanup can delete a legacy mis-org row, by design.
+- **(h)** Added functions are SECURITY DEFINER with `search_path=public`; no exploitable search-path or privilege issue found.
+
+Out-of-scope residuals remain as requested: no org-disable lifecycle (`0001_init_schema.sql:30-34`), TRUNCATE bypass, and `org_has_feature` default-enabled absence semantics. Profile/auth hard deletes also still remove connections without M365 audit/revoke.
+
+# Final verdict
+
+**BLOCK.** The deterministic fixes are present, but NFR-M365-107 is still bypassable through a real concurrent callback/lifecycle race. Add lifecycle/write serialization, repair stale-state transitions, handle refresh persistence errors, and re-run the DB gate.
+
+LUNA-REVERIFY-DONE
