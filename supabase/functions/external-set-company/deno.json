@@ -1,0 +1,10 @@
+{
+  "imports": {
+    "@supabase/supabase-js": "npm:@supabase/supabase-js@2.110.0",
+    "jose": "npm:jose@6.2.3",
+    "@/": "../../../pmo-portal/"
+  },
+  "tasks": {
+    "test": "deno test --allow-all set-company.test.ts"
+  }
+}

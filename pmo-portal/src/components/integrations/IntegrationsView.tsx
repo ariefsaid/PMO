@@ -12,6 +12,7 @@ import {
   TextField,
   FieldError,
   ListState,
+  Combobox,
 } from '@/src/components/ui';
 import { useIntegrations } from '@/src/hooks/useIntegrations';
 import { useExternalDomainOwnership } from '@/src/hooks/useExternalDomainOwnership';
@@ -73,8 +74,19 @@ function useIntegrationsHealth(connectedTiers: ExternalTier[], getHealth: (tier:
 }
 
 export const IntegrationsView: React.FC = () => {
-  const { isPending, isError, refetch, connect, disconnect, getBinding, getHealth } =
-    useIntegrations();
+  const {
+    isPending,
+    isError,
+    refetch,
+    connect,
+    disconnect,
+    getBinding,
+    getHealth,
+    // OD-INT-6: ERPNext company selection
+    erpnextCompanies,
+    isCompaniesPending,
+    setCompany,
+  } = useIntegrations();
 
   // Group employed domains by tier (from external_domain_ownership)
   const { data: ownershipRows = [] } = useExternalDomainOwnership();
@@ -98,6 +110,9 @@ export const IntegrationsView: React.FC = () => {
   const [connectTier, setConnectTier] = useState<ExternalTier | null>(null);
   const [disconnectTier, setDisconnectTier] = useState<ExternalTier | null>(null);
   const [connectError, setConnectError] = useState<string | null>(null);
+  // OD-INT-6: Company picker state for ERPNext
+  const [setCompanyTier, setSetCompanyTier] = useState<ExternalTier | null>(null);
+  const [setCompanyError, setSetCompanyError] = useState<string | null>(null);
 
   // Form state (using useEntityForm)
   const connectForm = useEntityForm<ConnectFormValues>({
@@ -136,6 +151,25 @@ export const IntegrationsView: React.FC = () => {
         setConnectError(detail);
       }
     });
+  };
+
+  // OD-INT-6: Handle ERPNext company selection
+  const handleSetCompanyClick = (tier: ExternalTier) => {
+    setSetCompanyTier(tier);
+    setSetCompanyError(null);
+  };
+
+  const handleSetCompanySubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!setCompanyTier) return;
+
+    try {
+      await setCompany.mutateAsync(setCompanyTier);
+      setSetCompanyTier(null);
+    } catch (err) {
+      const { detail } = classifyMutationError(err);
+      setSetCompanyError(detail);
+    }
   };
 
   const handleDisconnectConfirm = async () => {
@@ -184,15 +218,32 @@ export const IntegrationsView: React.FC = () => {
 
           const health = healthMap[tier] ?? null;
 
+          // OD-INT-6: Check if ERPNext is connected but not activated (no company selected)
+          const isConnectedButNotActivated = tier === 'erpnext' && isConnected && !binding?.config?.company;
+
           return (
             <Card key={tier} className="p-4" data-tier={tier}>
               <div className="flex items-center gap-2">
                 <Icon name="plug" />
                 <h3 className="text-[15px] text-foreground font-semibold">{tierLabel(tier)}</h3>
                 <StatusPill
-                  variant={isConnected ? 'won' : isDisconnected ? 'lost' : 'neutral'}
+                  variant={
+                    isConnectedButNotActivated
+                      ? 'warn'
+                      : isConnected
+                      ? 'won'
+                      : isDisconnected
+                      ? 'lost'
+                      : 'neutral'
+                  }
                 >
-                  {isConnected ? 'Active' : isDisconnected ? 'Disconnected' : 'Not connected'}
+                  {isConnectedButNotActivated
+                    ? 'Connected — select a Company to activate'
+                    : isConnected
+                    ? 'Active'
+                    : isDisconnected
+                    ? 'Disconnected'
+                    : 'Not connected'}
                 </StatusPill>
               </div>
 
@@ -231,8 +282,8 @@ export const IntegrationsView: React.FC = () => {
                 </div>
               )}
 
-              {/* Health info when connected */}
-              {isConnected && health && (
+              {/* Health info when connected and activated */}
+              {isConnected && !isConnectedButNotActivated && health && (
                 <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
                   <span className="flex items-center gap-1 text-muted-foreground">
                     <Icon name="refresh" className="size-3.55" aria-hidden="true" />
@@ -258,23 +309,45 @@ export const IntegrationsView: React.FC = () => {
                 </div>
               )}
 
+              {/* OD-INT-6: ERPNext Company picker when connected but not activated */}
+              {isConnectedButNotActivated && (
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <p className="text-sm text-muted-foreground">
+                    ERP sync is paused until a Company is selected.
+                  </p>
+                  <CanWrite entity="integration" action="manage">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleSetCompanyClick(tier)}
+                      disabled={isCompaniesPending}
+                    >
+                      <Icon name="folder" className="size-3.55" aria-hidden="true" />
+                      Select Company
+                    </Button>
+                  </CanWrite>
+                </div>
+              )}
+
               {/* Connect / Disconnect buttons (Admin only via CanWrite) */}
-              <div className="mt-3 flex items-center gap-2">
-                <CanWrite entity="integration" action="manage">
-                  {showConnect && (
-                    <Button variant="outline" size="sm" onClick={() => handleConnectClick(tier)}>
-                      <Icon name="plus" className="size-3.55" aria-hidden="true" />
-                      Connect {tierLabel(tier)}
-                    </Button>
-                  )}
-                  {showDisconnect && (
-                    <Button variant="destructive" size="sm" onClick={() => setDisconnectTier(tier)}>
-                      <Icon name="plug" className="size-3.55" aria-hidden="true" />
-                      Disconnect {tierLabel(tier)}
-                    </Button>
-                  )}
-                </CanWrite>
-              </div>
+              {!isConnectedButNotActivated && (
+                <div className="mt-3 flex items-center gap-2">
+                  <CanWrite entity="integration" action="manage">
+                    {showConnect && (
+                      <Button variant="outline" size="sm" onClick={() => handleConnectClick(tier)}>
+                        <Icon name="plus" className="size-3.55" aria-hidden="true" />
+                        Connect {tierLabel(tier)}
+                      </Button>
+                    )}
+                    {showDisconnect && (
+                      <Button variant="destructive" size="sm" onClick={() => setDisconnectTier(tier)}>
+                        <Icon name="plug" className="size-3.55" aria-hidden="true" />
+                        Disconnect {tierLabel(tier)}
+                      </Button>
+                    )}
+                  </CanWrite>
+                </div>
+              )}
 
               {/* Tier-specific info notes */}
               {tier === 'clickup' && (
@@ -395,6 +468,46 @@ export const IntegrationsView: React.FC = () => {
           {connectError && (
             <FieldError id={`${connectForm.fieldProps('token').id}-submit`}>
               {connectError}
+            </FieldError>
+          )}
+        </EntityFormModal>
+      )}
+
+      {/* OD-INT-6: ERPNext Company Picker Modal */}
+      {setCompanyTier && (
+        <EntityFormModal
+          open
+          title="Select ERPNext Company"
+          subtitle="Choose the Company from your ERPNext instance to activate the integration"
+          submitLabel="Activate"
+          onSubmit={handleSetCompanySubmit}
+          onClose={() => {
+            setSetCompanyTier(null);
+            setSetCompanyError(null);
+          }}
+          loading={setCompany.isPending}
+          dirty={true}
+          submitDisabled={erpnextCompanies.length === 0 || isCompaniesPending}
+          errorSummary={setCompanyError ? [{ fieldId: 'company-select', message: setCompanyError }] : undefined}
+        >
+          <FormSection legend="Company">
+            <Combobox
+              label="Company"
+              value={null}
+              onChange={(_value, _option) => {
+                // We don't use the value directly; the modal submit reads from the selected option
+              }}
+              loadOptions={async () => {
+                return erpnextCompanies.map((c) => ({ value: c.name, label: c.name }));
+              }}
+              placeholder={isCompaniesPending ? 'Loading companies...' : 'Select a Company...'}
+              disabled={isCompaniesPending}
+              noun="company"
+            />
+          </FormSection>
+          {setCompanyError && (
+            <FieldError id="company-select-error">
+              {setCompanyError}
             </FieldError>
           )}
         </EntityFormModal>

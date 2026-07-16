@@ -522,6 +522,7 @@ export interface IntegrationBinding {
   connected_by: string | null;
   connected_at: string | null;
   disconnected_at: string | null;
+  config: Record<string, unknown>;
 }
 
 /** Credential payload for connect. */
@@ -645,4 +646,8 @@ export interface IntegrationsRepository {
   unlinkProject(orgId: string, input: UnlinkInput): Promise<UnlinkResponse>;
   /** List project bindings for the org (reads external_project_bindings). */
   listProjectBindings(orgId: string): Promise<ProjectBinding[]>;
+  /** List ERPNext companies for the org (calls external-companies edge fn). */
+  listCompanies(orgId: string, tier: ExternalTier): Promise<Array<{ name: string }>>;
+  /** Set ERPNext company on org binding (calls external-set-company edge fn). */
+  setCompany(orgId: string, tier: ExternalTier, companyId: string): Promise<{ ok: true; companyId: string }>;
 }

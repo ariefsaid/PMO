@@ -16,6 +16,7 @@
  * per-org watermark cursor; omit for a full backfill).
  */
 import { erpnextRequest, type ErpClientDeps } from './client.ts';
+import { AppError } from '../../appError.ts';
 
 /** The mirrored GL Entry row shape — feeds erp_gl_entry_mirror. Money is decimal-string (R4). */
 export interface GlEntryRow {
@@ -124,6 +125,14 @@ async function fetchAllPages(
 
 /** `GET /api/resource/GL Entry` — mirrored GL Entry truth (FR-ENA-150). Pure fetch; never persists. */
 export async function fetchGlEntries(client: ErpClientDeps, opts: LedgerFetchOpts): Promise<GlEntryRow[]> {
+  // OD-INT-6: fail loud on missing Company (config-rejected) instead of silently filtering ['company','=',null]
+  // which returns zero rows silently — no error, no sync, no alert.
+  if (!opts.company || typeof opts.company !== 'string' || opts.company.trim() === '') {
+    throw new AppError(
+      'ERPNext company is required for ledger fetch — set config.company in the org binding',
+      'config-rejected'
+    );
+  }
   const pageSize = opts.pageSize ?? DEFAULT_PAGE_SIZE;
   const filters: unknown[] = [
     ['is_cancelled', '=', 0],
@@ -154,6 +163,13 @@ export async function fetchGlEntries(client: ErpClientDeps, opts: LedgerFetchOpt
 /** `GET /api/resource/Payment Ledger Entry` — mirrored Payment Ledger Entry truth (FR-ENA-162).
  *  Pure fetch; never persists. */
 export async function fetchPaymentLedgerEntries(client: ErpClientDeps, opts: LedgerFetchOpts): Promise<PaymentLedgerEntryRow[]> {
+  // OD-INT-6: fail loud on missing Company (config-rejected) instead of silently filtering ['company','=',null]
+  if (!opts.company || typeof opts.company !== 'string' || opts.company.trim() === '') {
+    throw new AppError(
+      'ERPNext company is required for ledger fetch — set config.company in the org binding',
+      'config-rejected'
+    );
+  }
   const pageSize = opts.pageSize ?? DEFAULT_PAGE_SIZE;
   const filters: unknown[] = [
     ['docstatus', '!=', 2],

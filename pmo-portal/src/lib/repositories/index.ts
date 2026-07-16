@@ -543,7 +543,7 @@ const integrationsImpl: IntegrationsRepository = {
     return wrap(async () => {
       const { data, error } = await supabase
         .from('external_org_bindings')
-        .select('org_id, external_tier, site_url, secret_ref, status, connected_by, connected_at, disconnected_at')
+        .select('org_id, external_tier, site_url, secret_ref, status, connected_by, connected_at, disconnected_at, config')
         .eq('org_id', orgId)
         .eq('external_tier', tier)
         .maybeSingle();
@@ -555,7 +555,7 @@ const integrationsImpl: IntegrationsRepository = {
     return wrap(async () => {
       const { data, error } = await supabase
         .from('external_org_bindings')
-        .select('org_id, external_tier, site_url, secret_ref, status, connected_by, connected_at, disconnected_at')
+        .select('org_id, external_tier, site_url, secret_ref, status, connected_by, connected_at, disconnected_at, config')
         .eq('org_id', orgId);
       if (error) throw error;
       return (data ?? []) as unknown as IntegrationBinding[];
@@ -649,6 +649,30 @@ const integrationsImpl: IntegrationsRepository = {
         .is('disconnected_at', null);
       if (error) throw error;
       return (data ?? []) as unknown as ProjectBinding[];
+    });
+  },
+  listCompanies: async (orgId: string, tier: ExternalTier): Promise<{ name: string }[]> => {
+    return wrap(async () => {
+      if (tier !== 'erpnext') {
+        return [];
+      }
+      const { data, error } = await supabase.functions.invoke('external-companies', {
+        body: { tier: 'erpnext' },
+      });
+      if (error) throw error;
+      return (data as { companies: { name: string }[] }).companies;
+    });
+  },
+  setCompany: async (orgId: string, tier: ExternalTier, companyId: string): Promise<{ ok: true; companyId: string }> => {
+    return wrap(async () => {
+      if (tier !== 'erpnext') {
+        throw new Error('Only erpnext tier supports company selection');
+      }
+      const { data, error } = await supabase.functions.invoke('external-set-company', {
+        body: { tier: 'erpnext', companyId },
+      });
+      if (error) throw error;
+      return data as { ok: true; companyId: string };
     });
   },
 };

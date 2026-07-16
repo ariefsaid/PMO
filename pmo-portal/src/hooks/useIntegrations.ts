@@ -54,6 +54,13 @@ export function useIntegrations() {
     enabled: Boolean(orgId),
   });
 
+  // Query: list ERPNext companies for the org (OD-INT-6)
+  const { data: erpnextCompanies = [], isPending: isCompaniesPending, isError: isCompaniesError, error: companiesError, refetch: refetchCompanies } = useQuery<Array<{ name: string }>>({
+    queryKey: ['integrations', 'erpnext-companies', orgId],
+    queryFn: () => repositories.integrations.listCompanies(orgId!, 'erpnext'),
+    enabled: Boolean(orgId),
+  });
+
   // Mutation: link project
   const linkProject = useMutation({
     mutationFn: (input: LinkInput) => repositories.integrations.linkProject(orgId!, input),
@@ -67,6 +74,15 @@ export function useIntegrations() {
     mutationFn: (input: UnlinkInput) => repositories.integrations.unlinkProject(orgId!, input),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['integrations', 'project-bindings', orgId] });
+    },
+  });
+
+  // Mutation: set ERPNext company (OD-INT-6)
+  const setCompany = useMutation({
+    mutationFn: (companyId: string) => repositories.integrations.setCompany(orgId!, 'erpnext', companyId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['integrations', 'bindings', orgId] });
+      qc.invalidateQueries({ queryKey: ['integrations', 'health', orgId, 'erpnext'] });
     },
   });
 
@@ -100,5 +116,12 @@ export function useIntegrations() {
     isBindingsError,
     bindingsError,
     refetchBindings,
+    // OD-INT-6: ERPNext company selection
+    erpnextCompanies,
+    isCompaniesPending,
+    isCompaniesError,
+    companiesError,
+    refetchCompanies,
+    setCompany,
   };
 }
