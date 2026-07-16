@@ -860,6 +860,24 @@ resolution from `Deno.env` → a Vault reader (contained — already behind the 
 (b) ClickUp adopts `external_org_bindings` for the org connection (today it uses
 `external_domain_ownership` + `external_project_bindings` + a single global `CLICKUP_API_TOKEN`).
 
+**Forward-note (2026-07-16, architect + adversarial review — OD-INT-4 STANDS AS WRITTEN).** An
+architecture pass proposed amending the granularity to add an *optional ERPNext **Project** per PMO
+project*. The ADR basis is **accurate** — `docs/adr/0055-*.md:138-140` ownership map literally reads
+`| Projects (header) | PMO, reference pushed down | ERP needs Project as accounting dimension |`, so a
+per-project ERP reference **is** the ADR-endorsed direction. It is **deferred, not rejected** — it is
+**premature**, because the prerequisites do not exist:
+1. **The read-model cannot express it.** `erp_gl_entry_mirror` carries only ERP `project` (text);
+   `erp_payment_ledger_mirror` has none; neither has a PMO `project_id`. `actualsSnapshot.ts` filters
+   only `org_id`/`fiscalYear` → **project-scoped ERP actuals are structurally impossible today**, so the
+   link would deliver nothing it exists for.
+2. **No rename reconciliation.** ERPNext `Project.name` is a *renameable* Frappe PK; storing it as
+   `external_container_id` rots the binding on rename, and no reconciliation exists anywhere.
+3. **Nothing shipped needs it** — procurement stamps `company` (`bodies/materialRequest.ts`), not
+   project; snapshots/aging are org-scoped. Charter is "minimal for 1 client".
+**Phase-2 prerequisites before revisiting:** mirror tables gain a PMO `project_id` (or a join key) ·
+snapshot refresh supports project scope · an ERP Project rename/archive reconciliation design.
+`external_project_bindings` is already tier-generic, so adding it later costs no migration pain.
+
 ### OD-INT-5 — Sequenced after #315 merges
 Build on the **merged** `external_org_bindings` foundation, not the unmerged/conflicting `#315` branch.
 The in-flight #315 implementer agent is NOT handed this layer — it finishes ERPNext P2 sync hardening
@@ -867,3 +885,34 @@ and lands #315 as-is (operator-provisioned/function-secret is fine for that scop
 two coordination notes: keep the `credentials.ts` resolver seam clean (Vault swap comes later); confirm
 `external_org_bindings` is the shared per-org connection table. The Director orchestrates this layer as
 its own spec → eng-planner plan → PRs afterward (security-auditor mandatory on the token path).
+
+### OD-INT-6 — ERPNext Company is selected at the ORG level, not per project (owner-approved 2026-07-16)
+**Supersedes plan tasks 3.3 + 3.5's ERPNext-in-the-project-modal.** ERPNext **Company** is a legal
+entity — org-scoped by nature (OD-INT-4), and the shipped ERP code depends on it: `binding.ts`
+activation resolves Company defaults from `external_org_bindings.config.company`,
+`bodies/materialRequest.ts` sends `company: ctx.config.company`, and `ledgerFetch.ts` scopes every
+ledger read by `company`. Therefore Company selection lives in the **org Integrations card** (the P2
+connect surface), NOT the per-project card — the per-project ERPNext UI built in P3 was broken (empty
+combobox, read the wrong table) *and* contradicted OD-INT-4, and was removed.
+**Consequence — an explicit `connected-but-not-activated` state:** credential validated + stored, but
+no Company yet ⇒ the binding is connected and **not activated**; ERP sync must not run. This is a
+**runtime** gate (activation fails without Company), NOT a schema constraint — deliberately, so the
+"connected, pick your Company" UX state remains representable. ⚑ Related hardening: if `config.company`
+is ever absent at sweep time, `ledgerFetch` filters `['company','=',null]` and returns **zero rows
+silently** — it must fail loud instead.
+
+### OD-INT-7 — Project↔List linking is PROJECT-SCOPED to the owning PM (owner-approved 2026-07-16)
+Applies to **ClickUp only** (ERPNext has no per-project link — OD-INT-4/OD-INT-6).
+- **Org connect/disconnect** (the credential = the trust boundary): **Admin ∨ Operator** only. Unchanged.
+- **Project↔List link/unlink**: **Admin ∨ platform Operator ∨ that project's `projects.project_manager_id`
+  — and that PM's `profiles.status` must be `active`**. Routine project configuration belongs to the PM
+  who owns the project; requiring an Admin per link makes Admin a bottleneck.
+- **Project-scoped, NOT role-scoped.** "Any user with the Project Manager role" would let the PM of
+  project A link project B — a cross-project hole. The server loads the project, requires
+  `project.org_id = caller.org_id`, then applies the rule above. `project_manager_id` is **nullable**
+  (`0001_init_schema.sql:76`) ⇒ when NULL, only Admin/Operator may link.
+- ⚑ **`policy.ts` has NO project-scoped integration primitive.** `can('edit','project')` is an
+  **org-wide** hint (DELIVERY roles), so the FE gate is necessarily looser than the server: a PM of a
+  *different* project sees the control and is rejected **server-side** with 403. This is consistent with
+  ADR-0016 (`can()` is UX-only; the server is the authority). Adding a project-scoped primitive is a
+  possible later refinement, not a correctness requirement.

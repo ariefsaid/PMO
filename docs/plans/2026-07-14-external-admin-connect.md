@@ -71,6 +71,16 @@
 
 ### Phase 3 — Project Link/Unlink (D3: ClickUp List picker + direction; ERPNext Company/module)
 
+> **⚑ SUPERSEDED IN PART (owner-approved 2026-07-16, `docs/decisions.md` OD-INT-6 / OD-INT-7):**
+> **(a)** Task **3.3** (ERPNext company link) and the ERPNext branch of task **3.5** are **withdrawn** —
+> ERPNext **Company is selected at the ORG level** (the P2 Integrations card), never per project. The
+> per-project ERPNext UI built here was broken *and* contradicted OD-INT-4; it was removed.
+> **(b)** Task **3.2/3.4/3.5** auth is now **project-scoped**: ClickUp link/unlink = Admin ∨ Operator ∨
+> that project's **active** `projects.project_manager_id` — NOT the org-wide "Admin/PM" role check this
+> plan originally specified. `policy.ts` has no project-scoped primitive, so the FE gate
+> (`can('edit','project')`) is an org-wide hint and the **server** does the real check.
+
+
 **Goal:** `external-lists` edge fn (ClickUp List picker via per-org Vault token). `external-link` / `external-unlink` fns (wrap `clickup-onboard` logic for push-seed vs pull-adopt, reject mixed; ERPNext = Company/module binding per org). Project-level UI control (List picker + direction choice; ERPNext company select) + unlink ConfirmDialog.
 
 | # | Task | Failing test first (TDD) | Implementation (exact paths, real code) | Verify command |

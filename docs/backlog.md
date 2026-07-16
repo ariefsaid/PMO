@@ -43,10 +43,39 @@ Plan + prod runbook: [`docs/plans/2026-07-12-jwt-signing-keys.md`](plans/2026-07
   cron `0094` idle until Vault secrets (`clickup_sweep_url`/`clickup_sweep_secret`) + fn env set;
   (3) PostHog events need `POSTHOG_PROJECT_KEY` in prod.
 
-### ⚑⚑ NEXT (scoped, not started) — EXTERNAL-SYSTEM ADMIN-CONNECT layer (ClickUp + ERPNext)
-Admin **self-serve** connect for external systems, replacing the operator-CLI-only onboarding. **Locked
-decisions: `docs/decisions.md` OD-INT-1..5** (admin self-serve · personal-token/API-key v1 · **Vault-backed
-`secret_ref`** · one tier-generic layer · **sequenced after #315 merges**). Full scope + phases + #315
+### ⚑⚑ IN FLIGHT (2026-07-16) — EXTERNAL-SYSTEM ADMIN-CONNECT layer (ClickUp + ERPNext)
+**Status: P1 + P2 + P3 BUILT, reviewed, and HELD on PR #332** (branch `feat/external-admin-connect` off
+`dev` — **do NOT merge**; owner holds all PRs while other agents share `dev`). P4 (health/observability)
+not started.
+- **P1** per-org Vault `secret_ref` model (reader/writer/delete RPCs actor-keyed; resolvers +
+  `_shared/perOrgSecret.ts` tri-state fail-closed; 6 edge fns flag-gated `EXTERNAL_CONNECT_ENABLED`,
+  default off = byte-for-byte legacy). Security battery + re-review: **all findings CLOSED**.
+- **P2** org Connect/Disconnect (`external-connect`/`external-disconnect`, `0106
+  admin_change_domain_ownership` definer RPC actor-keyed, `integration` policy entity, CI-safe `0105`
+  ClickUp-adopt, admin Connect UI + `useIntegrations`). Full battery incl. **rendered design-review**.
+- **P3** project Link/Unlink (`external-lists`/`external-link`/`external-unlink`, `0107` audit cols,
+  `0108` audit-grant + org-scoped active-container unique index, repo/hook, project card).
+**Locked decisions: `docs/decisions.md` OD-INT-1..7** (admin self-serve · personal-token/API-key v1 ·
+**Vault-backed `secret_ref`** · one tier-generic layer · sequenced after #315 · **OD-INT-6 ERPNext Company
+selected at ORG level** · **OD-INT-7 project↔List link is PROJECT-SCOPED to the owning active PM**).
+
+**⚑ Tracked gaps — decided/known, deliberately NOT built (do not rediscover):**
+1. **Per-org ClickUp webhook secret** — `external_org_bindings.webhook_secret_ref` exists (mig 0096) but
+   **nothing writes it**; `clickup-webhook` still verifies with the global `CLICKUP_WEBHOOK_SECRET` env.
+   (This was plan task 1.7, reverted in P1 — a per-org webhook secret needs an **org-in-URL** design
+   because you cannot parse-before-verify without moving the HMAC trust boundary.) **Blocks multi-org
+   ClickUp.**
+2. **ERPNext multi-domain ownership flip is undefined** — ERPNext owns *several* capability domains
+   (companies/procurement/sales/accounting…) but `operator_set_domain_ownership` takes **one** domain per
+   call; the ERPNext connect flow never enumerates which domains to flip.
+3. **Per-project ERPNext Project link** — ADR-0055-endorsed but **premature**; prerequisites in the
+   OD-INT-4 forward-note (mirror `project_id` · snapshot project-scope · rename reconciliation).
+4. **`ledgerFetch` fails silent on missing Company** — `['company','=',null]` returns zero rows with no
+   error/alert; should fail loud (OD-INT-6).
+5. **Deeper extracted-handler tests** for the connect/disconnect edge fns (P2 Important; code is correct
+   and pgTAP-proven, tests are mock-level).
+
+Full scope + phases + #315
 alignment: [`docs/plans/2026-07-13-clickup-admin-integration-flow.md`](plans/2026-07-13-clickup-admin-integration-flow.md).
 Key alignment: #315 (ERPNext P2) has the right table (`external_org_bindings`) + a clean credential seam
 but resolves creds from **function secrets** (operator-only) — the self-serve layer swaps that to **Vault**
