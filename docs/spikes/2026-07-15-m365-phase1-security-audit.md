@@ -581,3 +581,104 @@ Out-of-scope residuals remain as requested: no org-disable lifecycle (`0001_init
 **BLOCK.** The deterministic fixes are present, but NFR-M365-107 is still bypassable through a real concurrent callback/lifecycle race. Add lifecycle/write serialization, repair stale-state transitions, handle refresh persistence errors, and re-run the DB gate.
 
 LUNA-REVERIFY-DONE
+
+---
+
+# Luna ROUND 3 (gpt-5.6-luna:max) — 2026-07-16
+Verdict: BLOCK. **C1 token-resurrection CONFIRMED CLOSED** (both callback-first AND lifecycle-first verified).
+Residual: (HIGH) preflight regex escaping bug can abort 0103 so the hardening never installs;
+(MED) REPRODUCED refresh/lifecycle deadlock — the Director's 'deadlock-free' claim was WRONG:
+an UPDATE locks the child connection tuple BEFORE its BEFORE-trigger reaches the parent, while the
+cascade goes parent->child. Liveness/DoS, not a token bypass. (MED) no one-time scrub for
+already-stale rows. (LOW) probe proves less than claimed.
+
+## Part 1 — C1-RACE
+
+**Verdict: CLOSED for token-custody safety.** The original callback/lifecycle TOCTOU no longer leaves a committed token.
+
+Evidence:
+
+- Callback-first probe: user and feature modes both returned **0 surviving connections**.
+- Lifecycle-first probe: callback failed with `user_not_active` / `org_not_entitled`; connection count remained **0**.
+- pgTAP: **168 files / 1,381 tests passed**.
+- Unit tests: **10 files / 81 tests passed**.
+
+Reasoning:
+
+- Callback-first: `FOR UPDATE` locks `profiles`, then `org_features`; lifecycle waits, then its cascade sees and deletes the committed row.
+- Lifecycle-first: the guard waits and, under READ COMMITTED, rechecks the committed disabled/disentitled value and rejects.
+- Missing rows are safe: the guard rejects before the connection write.
+- Savepoints, subtransactions, and stronger isolation can abort or roll back the write; none create a committed unsafe row.
+
+However, the migration’s **“deadlock-free” claim is false**. I reproduced a real deadlock for existing-connection updates:
+
+1. Lifecycle transaction holds the profile/feature row.
+2. Refresh `UPDATE ms_graph_connections` locks the connection tuple, then the BEFORE trigger waits for the parent row.
+3. Lifecycle AFTER-trigger cascade tries to delete the connection and waits for the refresh transaction.
+
+Both user-disable and feature-disable variants produced PostgreSQL `deadlock detected`. The lifecycle committed and the connection count was 0, so this is a liveness/DoS defect, not a token-resurrection bypass.
+
+## Part 2 — Closure table
+
+| Finding | Status | Evidence |
+|---|---|---|
+| Migration preflight HIGH | **NOT CLOSED** | `0103:249-253` uses `~ '\\.\\.'`; with `standard_conforming_strings=on`, `foo..bar` is not matched. The new CHECK rejects it, so migration can still abort before hardening applies. |
+| Refresh persistence MEDIUM | **CLOSED for success path** | `refresh.ts:105-126` checks both error and returned row before success audit. Tests cover rejection and zero-row updates. |
+| User-scoped delete indexes MEDIUM | **CLOSED** | `0104:179-180`; live indexes exist and `EXPLAIN` uses them. |
+| Stale-state repair MEDIUM | **PARTIAL** | Repeated disabled/false writes repair stale rows; AC-M365-161/162 pass. But no one-time migration scrub removes already-stale rows if no later lifecycle write occurs. |
+| Revoke zero-row LOW | **CLOSED** | `revoke.ts:73-100` uses `DELETE ... RETURNING`; zero-row deletion is not reported as success. |
+| Batched sweep LOW | **PARTIAL** | `LIMIT 1000 / SKIP LOCKED` bounds statements, but the loop remains one transaction; deleted-row locks persist until function return. |
+| Trigger EXECUTE LOW | **CLOSED for client roles** | Public execute is revoked (`0104:217-220`). Live ACL retains only `postgres`/`service_role`, both trusted. |
+
+## Part 3 — New or residual findings
+
+### High — migration preflight still permits deployment failure
+
+**Location:** `supabase/migrations/0103_m365_cascade_hardening.sql:249-253`
+
+`foo..bar` was accepted by the old 0102 constraint, is rejected by the new constraint, but survives the preflight. This can abort 0103 before the composite FK and write guard are installed.
+
+**Fix:** use `~ '\.\.'` or `E'\\.\\.'`; add a populated-upgrade test for `foo..bar`.
+
+### Medium — real refresh/lifecycle deadlock
+
+**Locations:** `0104_m365_race_lock.sql:70-85`, `0104:146-165`, `refresh.ts:105-117`
+
+The guard locks parent rows only after an UPDATE has locked the child connection row. The lifecycle cascade takes the reverse path.
+
+**Fix:** perform connection mutations through a transaction/RPC that locks `profiles → org_features` before touching the connection row, or redesign the cascade lock protocol and add a two-session deadlock regression test.
+
+### Medium — pre-existing stale rows are not scrubbed
+
+The idempotent triggers repair only when a profile or feature row is subsequently updated. A stale token for an already-disabled user or already-false entitlement can remain indefinitely.
+
+**Fix:** add a transactional migration/deployment reconciliation for disabled users and disentitled/missing entitlements, with audit or quarantine handling.
+
+### Low — cascade work on unrelated updates
+
+`0104:123-127` and `0104:146-165` run cleanup on every update whose final state is disabled/false. This is safe and indexed, but can cause unnecessary per-profile work or full-org scans.
+
+**Fix:** restrict triggers to relevant columns or provide a separate periodic repair scrub.
+
+### Low — race probe proves less than claimed
+
+- It drives direct `postgres` SQL, not the real RPC/auth path.
+- It only tests callback-first INSERT.
+- `sleep 2` is not a synchronization guarantee.
+- A/B process exit codes are ignored.
+- `COUNT = 0` does not prove both statements succeeded.
+- The documented wrapped invocation deadlocks recursively because `with-db-lock.sh` does not set `PMO_DB_LOCK_HELD`; I reproduced the timeout.
+
+**Fix:** make the wrapper cooperative, assert process success and final lifecycle state, and use explicit readiness/lock synchronization.
+
+The preflight intentionally deletes rows violating the new FK/check; no conforming rows are targeted, and failed DDL rolls the deletes back. But successful deployment irreversibly deletes ciphertext without audit or quarantine.
+
+The same-tenant `oid` binding remains owner-pending and is excluded as requested. H4 grants, org-disable lifecycle, absence semantics, and hard-delete audit gaps are also excluded.
+
+## Final verdict
+
+**BLOCK**
+
+C1 token resurrection is closed, but the migration can still fail to install the protection, and the new lock protocol has a reproducible production-path deadlock. No Critical finding; High findings remain.
+
+LUNA-ROUND3-DONE
