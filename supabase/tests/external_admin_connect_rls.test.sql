@@ -3,7 +3,7 @@
 -- and admin_change_domain_ownership RPC
 -- AC-EAC-003, AC-EAC-004, AC-EAC-005, AC-EAC-006, AC-EAC-007, AC-EAC-014, AC-EAC-015, AC-EAC-019, AC-EAC-020
 begin;
-select plan(79);
+select plan(89);
 
 -- ============================================================================
 -- SETUP: seed orgs, users, profiles
@@ -907,6 +907,101 @@ select is(
   (select count(*) from audit_events where action = 'integration.unlink' and org_id = '11111111-1111-1111-1111-111111111111' and detail->>'tier' = 'clickup')::int,
   2,
   'AC-EAC-019 audit event logged for ClickUp unlink (second unlink)'
+);
+
+-- Test 78: Audit event for integration.disconnect (org-level disconnect)
+reset role;
+set local request.jwt.claims = '{}';
+insert into audit_events (action, org_id, actor_id, entity_type, entity_id, detail, created_at)
+values ('integration.disconnect', '11111111-1111-1111-1111-111111111111', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'external_org_bindings', null, '{"tier": "clickup", "actor": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"}'::jsonb, now());
+
+select is(
+  (select count(*) from audit_events where action = 'integration.disconnect' and org_id = '11111111-1111-1111-1111-111111111111' and detail->>'tier' = 'clickup')::int,
+  1,
+  'AC-EAC-019 audit event logged for integration.disconnect'
+);
+
+-- Test 79: Audit event for integration.set_company (OD-INT-6: ERPNext company selection)
+insert into audit_events (action, org_id, actor_id, entity_type, entity_id, detail, created_at)
+values ('integration.set_company', '11111111-1111-1111-1111-111111111111', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'external_org_bindings', null, '{"tier": "erpnext", "company_id": "Acme Corp", "actor": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"}'::jsonb, now());
+
+select is(
+  (select count(*) from audit_events where action = 'integration.set_company' and org_id = '11111111-1111-1111-1111-111111111111' and detail->>'tier' = 'erpnext')::int,
+  1,
+  'AC-EAC-019 audit event logged for integration.set_company (OD-INT-6)'
+);
+
+-- ============================================================================
+-- REVERSIBILITY PROOFS (AC-EAC-020, ADR-0018 soft-archive/tombstone contract)
+-- ============================================================================
+
+-- Test 80: Disconnected org binding is RETAINED (soft-archive) with status='disconnected' + disconnected_at set
+reset role;
+set local request.jwt.claims = '{}';
+-- Use a fresh org_id to avoid unique constraint conflict with existing test data
+insert into organizations (id, name) values ('99999999-9999-9999-9999-999999999999', 'Test Org Reversibility');
+insert into external_org_bindings (org_id, external_tier, site_url, secret_ref, status, connected_by, connected_at, disconnected_at)
+values ('99999999-9999-9999-9999-999999999999', 'erpnext', 'https://erp.example.com', 'erpnext_token_test', 'disconnected', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', now(), now());
+
+select is(
+  (select count(*) from external_org_bindings where org_id = '99999999-9999-9999-9999-999999999999' and external_tier = 'erpnext')::int,
+  1,
+  'AC-EAC-020 disconnected org binding retained (not hard-deleted)'
+);
+select is(
+  (select status from external_org_bindings where org_id = '99999999-9999-9999-9999-999999999999' and external_tier = 'erpnext'),
+  'disconnected',
+  'AC-EAC-020 disconnected org binding has status=disconnected'
+);
+select isnt(
+  (select disconnected_at from external_org_bindings where org_id = '99999999-9999-9999-9999-999999999999' and external_tier = 'erpnext'),
+  null,
+  'AC-EAC-020 disconnected org binding has disconnected_at set'
+);
+
+-- Test 81: Unlinked project binding is RETAINED (tombstone) with disconnected_at set
+insert into external_project_bindings (org_id, project_id, external_tier, external_container_id, config, linked_by, linked_at, disconnected_at)
+values ('99999999-9999-9999-9999-999999999999', '33333333-3333-3333-3333-333333333333', 'clickup', 'list-999', '{"direction": "push-seed"}'::jsonb, 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', now(), now());
+
+select is(
+  (select count(*) from external_project_bindings where org_id = '99999999-9999-9999-9999-999999999999' and external_tier = 'clickup' and external_container_id = 'list-999')::int,
+  1,
+  'AC-EAC-020 unlinked project binding retained as tombstone'
+);
+select isnt(
+  (select disconnected_at from external_project_bindings where org_id = '99999999-9999-9999-9999-999999999999' and external_tier = 'clickup' and external_container_id = 'list-999'),
+  null,
+  'AC-EAC-020 unlinked project binding has disconnected_at set'
+);
+
+-- Test 82: Partial unique index (0108) permits re-linking the same container after unlink (tombstone does not block)
+-- The index is: CREATE UNIQUE INDEX external_project_bindings_active_container_uq
+--   ON external_project_bindings (org_id, external_tier, external_container_id) WHERE disconnected_at IS NULL;
+-- This means only ACTIVE bindings (disconnected_at IS NULL) are constrained.
+-- A tombstone row with disconnected_at IS NOT NULL should NOT block a new active binding.
+-- Use a DIFFERENT project_id to satisfy the (org_id, project_id, external_tier) unique constraint.
+insert into external_project_bindings (org_id, project_id, external_tier, external_container_id, config, linked_by, linked_at)
+values ('99999999-9999-9999-9999-999999999999', '55555555-5555-5555-5555-555555555555', 'clickup', 'list-999', '{"direction": "pull-adopt"}'::jsonb, 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', now());
+
+select is(
+  (select count(*) from external_project_bindings where org_id = '99999999-9999-9999-9999-999999999999' and external_tier = 'clickup' and external_container_id = 'list-999')::int,
+  2,
+  'AC-EAC-020 re-link after unlink succeeds (2 rows: tombstone + new active)'
+);
+select is(
+  (select count(*) from external_project_bindings where org_id = '99999999-9999-9999-9999-999999999999' and external_tier = 'clickup' and external_container_id = 'list-999' and disconnected_at is null)::int,
+  1,
+  'AC-EAC-020 exactly one active binding for the container'
+);
+
+-- Test 83: Attempting to create TWO active bindings for the same container STILL fails (index enforces active uniqueness)
+select throws_ok(
+  $$
+  insert into external_project_bindings (org_id, project_id, external_tier, external_container_id, config)
+  values ('99999999-9999-9999-9999-999999999999', '66666666-6666-6666-6666-666666666666', 'clickup', 'list-999', '{}'::jsonb)
+  $$,
+  '23505', null,
+  'AC-EAC-015 partial unique index still blocks second ACTIVE binding for same container'
 );
 
 select finish();
