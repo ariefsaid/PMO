@@ -1,5 +1,5 @@
 -- 0153_m365_connection_oid_write_once.test.sql
--- AC-M365-174 [pgTAP]: the entra_user_object_id WRITE-ONCE column trigger (0107) — the structural
+-- AC-M365-174 [pgTAP]: the entra_user_object_id WRITE-ONCE column trigger (0115) — the structural
 -- enforcement for the TOFU + enforce-on-reconnect owner decision (2026-07-17). Makes Microsoft-user-
 -- identity re-binding IMPOSSIBLE at the DB boundary, complementing the callback's best-effort TOFU
 -- pre-check (a callback-only check is TOCTOU-vulnerable; the trigger fires for every role incl.
@@ -15,7 +15,7 @@
 --   • the production reconnect path — m365_upsert_connection's ON CONFLICT DO UPDATE — obeys the
 --     same rule (same oid rotates tokens; a different oid raises 42501 'identity_rebind_forbidden').
 --
--- Runs as pgTAP superuser (triggers fire regardless of role). The write-guard (0103) also fires on
+-- Runs as pgTAP superuser (triggers fire regardless of role). The write-guard (0111) also fires on
 -- these writes; the fixture user is active + the org entitled so it permits them, isolating the
 -- write-once behavior under test. throws_ok catches each exception in a subtransaction so the outer
 -- transaction survives for the post-state assertions.

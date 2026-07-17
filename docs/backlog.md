@@ -4,147 +4,108 @@
 [`docs/history.md`](history.md) (don't read it for status). Locked owner-decisions are in
 `docs/decisions.md` (OD-* lookup by id). Roadmap framing in `docs/roadmap-spines.md`.
 
-### ⚑⚑ M365 INTEGRATION (2026-07-14) — foundation BUILT on a collector branch; live wiring HELD for owner inputs + security gate
-**RESUME HERE (this entry is the continuation guide).** Detail: vision `docs/microsoft-365-integration.md`;
-decisions ADR-0058/0059/0060; contract `docs/specs/m365-phase0-foundation.spec.md`; build recipe + progress
-`docs/plans/2026-07-14-m365-phase0-foundation.md`; the Phase-1 edge-fn task list is ADR-0060's "Phase-0
-follow-ups". **Branch `claude/microsoft-teams-onedrive-integration-f656rx` → PR #333 → collector
-`feat/m365-integration` (off `dev`; NOT PR'd to `dev` directly — owner promotes the collector as one
-reviewed unit). NOT merged.**
-- **✅ Phase-0 REVIEW BATTERY complete + green (2026-07-15, pi/Nemotron-Ultra via NIM, Director-verified):**
-  spec **APPROVE** (14/14 ACs, correctly layered); security **SHIP-WITH-FIXES** (no Crit/High — the
-  `enable_signup` note is pre-existing/out-of-scope, redirect + stub comments already present); quality
-  **APPROVE-WITH-FIXES** → verification collapsed ~8 findings to **1** real fix (hand-rolled connect
-  `<button>` → shared `Button` primitive, commit `4be5292a`; heading/icon left matching the sibling
-  `IntegrationsView` idiom; TENANT_RE already `encodeURIComponent`-hardened; scopes-constant = YAGNI).
-  Rendered design pass deferred (disabled stub; states Vitest-covered) → static token check instead.
-  Full `npm run verify` GREEN: 648 files / 5036 tests / 0 fail / build ✓. **Phase-0 is battery-clean.**
-- **✅ Sign in with Microsoft** (Supabase `azure` OAuth; auth-only — authz stays invited-`profiles`+RLS,
-  `enable_signup=false`). Local `[auth.external.azure]` committed DISABLED; cloud dashboard-configured
-  (`docs/environments.md`). Prod SSO round-trip proven by the owner through to the profile gate.
-  AC-MSAUTH-001..003.
-- **✅ Provisioning hardening** — graceful "not set up for this workspace yet" state (Sign out, no Retry)
-  replaces the raw `PGRST116` "Cannot coerce…" error for an authenticated user with no `profiles` row.
-  AC-MSAUTH-010/011.
-- **✅ Phase-0 FE** (`npm run verify` green) — `m365_integration` entitlement key (Operator switch,
-  default-off) + `M365ConnectionCard` (two-switch gate; DISABLED "available soon" connect stub) mounted on
-  Administration. AC-M365-011/012/013.
-- **✅ Phase-0 DB — VERIFIED locally 2026-07-15** (`db reset` + `supabase test db` green): `0096`
-  `ms_graph_connections` (token store: RLS forced + zero policies + `revoke all`; bytea ciphertext only,
-  org_id-scoped), `0097` entitlement CHECK key. Constraint drift checked — only `0070`/`0097` touch
-  `org_features_feature_key_check`; `0097` preserves `0070`'s full key set + adds `m365_integration`.
-  pgTAP `0142`/`0143`/`0144` PASS (AC-M365-001/002/010); full suite 162 files / 1322 tests, 0 fail.
-- **✅ Phase-1 crypto foundation — SECURITY-AUDITED clean** (opus STRIDE; 2 Minor fixed):
-  `src/lib/m365/graphTokenCrypto.ts` (AES-256-GCM envelope) + `graphPkce.ts` (RFC-7636 PKCE + authorize
-  URL). Pure/dual-runtime, imported cross-tree by the future edge fn (the `verifyCallerJwt` precedent).
-  AC-M365-030/031.
-- **⚑ Decisions LOCKED (owner 2026-07-14 — don't re-open):** deployment siloed (ADR-0047); Entra topology
-  **Option C** — per-client app in vendor tenant, B escape hatch (ADR-0059); priority
-  delight-drives-enterprise-adoption (ADR-0058); token custody server-side (ADR-0060); **D1 encryption =
-  app-layer AES-256-GCM**, **D2 bootstrap = server-side auth-code+PKCE** (ADR-0060 §3/§1). Open: publisher
-  verification, provisioning invite-first-vs-JIT.
-- **🔨 Phase-1 IN PROGRESS (owner signed off the spec 2026-07-15) — build mocked, deploy owner-gated.**
-  Spec `docs/specs/m365-phase1-graph-token-custody.spec.md` (33 FR / 10 NFR / 19 AC, all 10 ADR-0060
-  controls as NFRs). Plan `docs/plans/2026-07-15-m365-phase1-token-custody.md` (+ **Director audit-path
-  correction:** the edge fn is `service_role`, which can't call `log_audit` directly — added mig `0100`
-  `audit_m365_event` SD wrapper with explicit params for the JWT-less OAuth callback, `m365.*` allowlist).
-  - **✅ Slice A (DB)** — migs `0098` `m365_pkce_states` (PKCE/CSRF transient store, 0096-lockdown parity),
-    `0099` `m365_disconnect_cascade` (offboard/disentitlement SD RPC), `0100` `audit_m365_event`; pgTAP
-    `0145–0148` (AC-M365-101/121/133/142/170). Migrations read-verified; **pi ran full pgTAP green (1345)**;
-    ⚑ local re-run BLOCKED by a Docker infra flake (flaky analytics/vector containers + machine overload) —
-    deferred to a healthy env / the CI PR→main integration gate.
-  - **✅ Slice B (edge fn `m365-token-custody` + Vitest units)** — built via **glm-5.2 (z.ai coding plan)**,
-    reworked to the Node-testable ADR-0039 pattern (DI handlers + `globalThis.Deno` guard + structural
-    `M365SupabaseLike` seam + thin `index.ts`; NIM/Nemotron's first attempt mis-architected it + OOM'd,
-    preserved on `wip/m365-sliceB-raw`). 12 edge-fn modules + 9 Vitest files / **60 tests**; audit routes
-    through `audit_m365_event` (Director EF7 correction); no Deno/npm leaks (Director-verified). Also fixed
-    `graphTokenCrypto` to genuinely deno-check (dual-runtime `BufferSource` casts, behavior-neutral).
-    **Full `npm run verify` GREEN: 655 files / 5074 tests / build ✓.**
-  - **✅ Phase-1 review battery DONE** (glm-5.1, Director-verified; record `docs/spikes/2026-07-15-m365-phase1-security-audit.md`):
-    security **SHIP-WITH-FIXES** (2 HIGH, 1 MED, 5 LOW; no Critical — custody model sound) · spec **APPROVE-w-1-fix**
-    · quality **APPROVE-WITH-FIXES** (architecture praised: clean ADR-0039 DI seam, real-crypto/real-JWT tests).
-    **⚑ substrate = z.ai coding plan + NIM only (no openrouter, owner 2026-07-15).**
-  - **✅ SECURITY HARDENING COMPLETE — Luna (gpt-5.6-luna:max) verdict `SHIP-WITH-FIXES`, fixes applied.**
-    4 max-rigor rounds, all recorded in `docs/spikes/2026-07-15-m365-phase1-security-audit.md`:
-    R1 BLOCK (Critical: consent-phishing cross-account harvest + cascade wired to nothing) → closed;
-    R2 BLOCK (Critical: **empirically reproduced** MVCC callback/lifecycle race) → closed + re-proven;
-    R3 BLOCK (**reproduced a real deadlock**, disproving the Director's "deadlock-free" claim; + a regex-escape
-    bug that would have installed NONE of the hardening) → closed; **R4 `SHIP-WITH-FIXES`** (no High/Critical;
-    disabled-user + disentitled-org bypass attempts rejected LIVE with 42501) → its 3 MED + 3 LOW applied
-    (`0f8be124`): RPC identity binding (Luna proved a cross-org update live), `service_role` direct-DML
-    lockdown on `ms_graph_connections` (mig `0106` — the lock-order RPCs are now the ONLY mutation path;
-    `0137` backstop carve-out + AC-SVCROLE-009..012 assert the exception), fail-closed status persistence,
-    preflight leading-dot, mock enforces the RPC shape (a direct write now throws).
-    **Every gate Director-re-run, not taken on report:** pgTAP **170 files/1436 PASS** · deadlock probe
-    (legacy reproduces / fixed resolves, both targets) · race probe (TOCTOU closed, both interleavings) ·
-    full verify **656/5100 + build**. Migrations `0096–0106`, pgTAP `0142–0152`, probes
-    `scripts/m365-{race,deadlock}-probe.sh`. **⚑ Lesson: all 4 rounds' defects passed the happy-path pgTAP
-    AND the 5100-test verify — tests alone would have shipped every one of them.**
-  - **(historical) battery findings.** MANDATORY (ADR-0060 gaps): **HIGH-1** callback never validates the issued
-    token's tenant/user → consent-phishing harvests a victim's tokens into the attacker's connection (fix:
-    request `openid`, assert `id_token.tid`===expected before store, persist real tid/oid); **HIGH-2**
-    `m365_disconnect_cascade` RPC exists+pgTAP'd but wired to NOTHING → NFR-M365-107 unmet (fix: triggers on
-    `profiles.status`/`org_features` + pgTAP the trigger fires). Cheap-now: MED-1 atomic PKCE consume, `refresh`
-    action footgun→400, LOW-1 tenant re-validate+CHECK, LOW-2 reason allowlist, LOW-4/5, quality minors.
-    Deferred(tracked): LOW-3 hash reuse-detection, quality #4 perf.
-  - **✅ Edge-fn fix round DONE (glm-5.2, Director-verified + committed `69b448d6`, full verify 5079 green):**
-    HIGH-1 (id_token `tid` assertion before store + real tid/oid persisted — consent-phishing closed),
-    MED-1 (atomic `delete…returning` PKCE consume), `refresh`-action→400, LOW-4/5, quality #2/3/5/6/7/10,
-    graphTokenCrypto comment fix. Vitest 65 · typecheck 0 · lint 0 · deno clean.
-  - **⏸️ RESUME HERE — DB fix round (the ONLY remaining Phase-1 item):** wire **HIGH-2** cascade + the DB
-    hardenings. ⚠️ NOT hand-authored blind: `m365_disconnect_cascade` (0099) has a user-facing authz guard
-    (`is_operator()`/Admin-in-org), so triggers need care re: trigger auth-context — likely refactor the
-    delete+audit CORE into a guard-free internal fn called by BOTH the guarded RPC AND the triggers. Tasks:
-    (a) mig — AFTER-UPDATE trigger on `profiles` (status→disabled → cascade(org,user,'offboard')) + on
-    `org_features` (m365_integration→false/deleted → cascade(org,NULL,'disentitled')); (b) pgTAP proving the
-    TRIGGER fires (not just the RPC); (c) LOW-1 `CHECK (entra_tenant_id ~ '^[A-Za-z0-9._-]+$')` on
-    `ms_graph_connections` + TENANT_RE re-validate at refresh/revoke URL build; (d) LOW-2 `p_reason` allowlist
-    in the cascade; (e) quality #8 drop dead `v_deleted`; (f) quality #9 PKCE-states TTL sweep (pg_cron or a
-    scheduled delete). **Blocked 2026-07-16 00:22 WIB on:** z.ai quota (resets ~04:33) + the local supabase
-    stack is DOWN (needs a `db reset` cycle; the analytics/vector containers were flaky). Dispatch to glm-5.2
-    when quota resets; Director pgTAP-verifies under the db-lock. MANDATORY (NFR-M365-107) before live exposure.
-  - **⚠️ MERGE BLOCKER — migration/test number collisions (found 2026-07-16, Director).** This branch was cut
-    from a STALE base (`99df5fc`, old dev) and numbered its migrations **0096–0104**; meanwhile `dev` has
-    advanced to **0103** with the ERPNext work (`0096_erpnext_seam_tables` … `0103_companies_feed_ordering_cols`)
-    → **8 duplicate numbers** (two 0096/0097/0098/0099/0100/0101/0102/0103) the moment M365 merges. Also
-    `supabase/tests/0142_*` exists on BOTH this branch (`0142_ms_graph_connections_lockdown`) and the grants
-    branch (`0142_revoke_client_truncate_refs_trigger`), and the grants branch's `0104_revoke_client_truncate_refs_trigger`
-    collides with M365's `0104_m365_race_lock`. Each branch is self-consistent + green in isolation (no
-    duplicate exists ON a branch), so this is a MERGE-time problem, not a code defect. **Before merging M365:
-    rebase onto current `dev`, RENUMBER its migrations + pgTAP to the next free range, then RE-RUN the DB gate —
-    M365 has never been tested against dev's ERPNext schema.** Coordinate ordering with the grants branch.
-  - **⏸️ OWNER DECISION PENDING — same-tenant `oid` binding (Luna round-2 HIGH).** The callback asserts the
-    id_token's `tid` (cross-tenant phishing CLOSED) but never binds `oid`, so an Admin can still phish a
-    colleague IN THE SAME Entra tenant and store their tokens. No expected `oid` exists on a FIRST connect →
-    needs a design call: (a) bind to the MS-SSO identity (strongest; breaks connect for email/password users),
-    (b) trust-on-first-use + enforce on reconnect (Director's lean), (c) accept + rely on MS consent UX +
-    publisher verification (already a Non-Goal). Deliberately scoped OUT of the fix rounds pending the owner.
-  - **⏳ After Luna clears:** FE Connect-button wiring deferred to deploy. Live OAuth/Graph round-trip +
-    security-auditor sign-off on the LIVE surface stay owner-gated.
+### ⚑⚑ M365 INTEGRATION (2026-07-17) — Phase-0 + Phase-1 token custody BUILT, 4-round security-hardened, PR #333 → `dev` (NOT merged)
+Branch `claude/microsoft-teams-onedrive-integration-f656rx` (worktree `pmo-backend-ig-audit-c393d3`), **PR #333
+retargeted to `dev`** (the old `feat/m365-integration` collector was a stale no-op — 0 commits ahead of dev —
+and is abandoned; delete it). Vision `docs/microsoft-365-integration.md`; ADR-0058/0059/0060; specs
+`docs/specs/m365-phase0-foundation.spec.md` + `m365-phase1-graph-token-custody.spec.md`; plans
+`docs/plans/2026-07-14-m365-phase0-foundation.md` + `2026-07-15-m365-phase1-token-custody.md`.
+- **✅ Phase-0** — Sign in with Microsoft (`azure` OAuth; auth-only, authz stays invited-`profiles`+RLS),
+  provisioning hardening (graceful not-provisioned state), `m365_integration` entitlement (Operator switch,
+  default-off) + `M365ConnectionCard` (two-switch gate, disabled stub). Battery green (spec APPROVE ·
+  security SHIP-WITH-FIXES · quality APPROVE-WITH-FIXES → fixes applied).
+- **✅ Phase-1 token-custody runtime** — edge fn `supabase/functions/m365-token-custody/` (ADR-0039 pattern:
+  Node-testable DI handlers + thin `Deno.serve` index): PKCE initiate → callback code-exchange →
+  AES-256-GCM encrypt → store → Graph proxy (server-side decrypt, data-only responses) → refresh rotation +
+  reuse-detection → revoke → audit via the `audit_m365_event` SD wrapper. Store `ms_graph_connections`
+  (RLS forced, zero policies, ciphertext-only) + `m365_pkce_states` (single-use, TTL, swept).
+- **⚑ SECURITY: 4 Luna (gpt-5.6-luna:max) rounds → `SHIP-WITH-FIXES`, all fixes applied.** Full record:
+  `docs/spikes/2026-07-15-m365-phase1-security-audit.md`. R1 BLOCK (Critical: cross-account consent-phishing
+  harvest; cascade wired to nothing) · R2 BLOCK (Critical: **empirically reproduced** MVCC callback/lifecycle
+  race) · R3 BLOCK (**reproduced a real deadlock**, disproving the Director's "deadlock-free" claim; + a
+  regex-escape bug that would have installed NONE of the hardening) · **R4 SHIP-WITH-FIXES** (no High/Critical;
+  disabled-user + disentitled-org bypass rejected LIVE with 42501). Controls: id_token `tid` assertion,
+  **TOFU + enforce-on-reconnect `oid` binding (owner 2026-07-17)** with a write-once DB trigger, a locked
+  write-guard (resurrection structurally impossible), ONE global lock order (profiles→org_features→connection)
+  via SD RPCs with `service_role` direct-DML revoked, offboard/disentitlement cascade + triggers + one-time
+  audited scrub. Probes: `scripts/m365-{race,deadlock}-probe.sh` (two-session, fail-before/pass-after).
+  **⚑ Lesson: every defect across all 4 rounds passed the happy-path pgTAP AND the full verify — tests alone
+  would have shipped all of them.**
+- **⚑ Migrations RENUMBERED onto dev (2026-07-17):** M365 was cut from a stale base and numbered 0096–0107,
+  colliding with dev's ERPNext 0096–0103 → renumbered to **0104–0115**; pgTAP `0142–0153` unchanged (dev max
+  was 0141). The `fix/revoke-client-truncate-grants` branch must renumber its `0104`/`0105` + test `0142`
+  behind these when it lands.
+- **⏸️ Owner-gated (NOT done):** live deploy — KEK (`M365_TOKEN_KEK`), `M365_CLIENT_SECRET`/`_ID`/`_TENANT_ID`
+  (a concrete tenant GUID; `common`/`organizations` unsupported), the allowlisted redirect URI, Entra
+  delegated scopes (`Files.Read`+`offline_access`+`openid`+`profile`) w/ admin consent, and a
+  `security-auditor` pass on the LIVE flow (ADR-0060 mandatory gate). FE Connect-button wiring is deferred to
+  that step (wiring a non-deployed fn = a broken affordance). **Residual (owner-accepted):** the FIRST connect
+  is still phishable within-tenant; TOFU bounds it to one event.
+- **Next:** OneDrive doc-linking UI = a SEPARATE downstream spec consuming this runtime (vision §3.2).
 
-### ⚑ H4 GRANTS HARDENING (2026-07-16) — spun out of the M365 Luna audit; separate branch, NOT merged
-Branch `fix/revoke-client-truncate-grants` (off `dev`), commits `57957091` (Tier 1) + `246be744` (Tier 2). Built
-via glm-5.2, Director-approved Tier 2. **Root cause was bigger than the original finding:** the grants come from
-Supabase's bootstrap **DEFAULT PRIVILEGES** (`pg_default_acl`), so EVERY new table silently inherited `truncate`
-for `anon`+`authenticated` — `0075` was just where it was visible. Fixed at BOTH layers (`ALTER DEFAULT
-PRIVILEGES` for future tables + a catalog sweep across all 65 current public tables). Tier 1 = revoke
-`truncate/references/trigger` from anon+authenticated (mig `0104`). Tier 2 = revoke anon `insert/update/delete`
-(mig `0105`); swept the whole pgTAP suite — `0109` was the ONLY test depending on the anon grant (its assertion
-moved from "UPDATE affects 0 rows" → `throws_ok 42501`: same goal-oracle, strictly STRONGER mechanism, intent
-unchanged). New ACs `AC-GRANT-007/010/011/012/013` incl. a creator-agnostic catalog-sweep backstop. Gates:
-pgTAP 166/1471 PASS · `npm run verify` exit 0. **Accepted residual:** a `supabase_admin` default-priv entry
-can't be revoked (the migration runner `postgres` isn't a superuser/member) — inert because every public table
-is created BY `postgres` so inherits postgres's defaults; `AC-GRANT-010` catches any real drift regardless of
-creator. **⚠️ Its `0104`/`0142` numbers collide with M365's — sequence the two merges.**
-- **Owner-gated inputs on GO** (handoff §5): (1) KEK `openssl rand -base64 32` → `supabase secrets set
-  M365_TOKEN_KEK`; (2) `supabase secrets set M365_CLIENT_SECRET` (Entra secret — SSO dashboard config
-  isn't edge-fn-readable); (3) Entra: delegated Graph scopes (`Files.Read`+`offline_access`) + the
-  edge-fn PKCE redirect URI. Publisher verification if productizing past the first admin-consenting client.
-- **Next:** finish Slice B build → verify (vitest + `npm run verify` + `deno check`) → wire FE Connect
-  button → Phase-1 review battery → stop at mocked+tested. Live deploy = owner-gated inputs above +
-  security-auditor gate. OneDrive doc-linking UI is a SEPARATE downstream spec that consumes this runtime.
+### ⚑ H4 GRANTS HARDENING (2026-07-16) — separate branch `fix/revoke-client-truncate-grants` (off `dev`), NOT pushed/PR'd
+Spun out of the M365 Luna audit. Commits `57957091` (Tier 1) + `246be744` (Tier 2). **Root cause was bigger than
+the finding:** the grants come from Supabase's bootstrap **DEFAULT PRIVILEGES** (`pg_default_acl`), so EVERY new
+table silently inherited `truncate` for `anon`+`authenticated` — `0075` was just where it was visible. Fixed at
+BOTH layers (`ALTER DEFAULT PRIVILEGES` + a catalog sweep over all 65 public tables). Tier 1 = revoke
+`truncate/references/trigger` from both client roles. Tier 2 = revoke `anon` I/U/D (`0109` was the ONLY test
+depending on it — its assertion moved "UPDATE affects 0 rows" → `throws_ok 42501`: same goal-oracle, strictly
+stronger mechanism). ACs `AC-GRANT-007/010/011/012/013`. Gates: pgTAP 166/1471 PASS · verify exit 0. **Accepted
+residual:** a `supabase_admin` default-priv entry can't be revoked (migration runner `postgres` isn't a
+superuser/member) — inert (every public table is created BY `postgres`), and `AC-GRANT-010`'s creator-agnostic
+catalog sweep catches real drift. **⚠️ Renumber its `0104`/`0105` + test `0142` behind M365's 0104–0115.**
 
-### ⚑⚑ ADAPTER PROGRAM (2026-07-10) — P0 seam SHIPPED to dev; P1 ClickUp in flight
+### ⚑⚑ ADAPTER PROGRAM (2026-07-14) — P2 ERPNext money core MERGING (#315, owner go; CI green)
+- **✅ P2 BUILT + FULL BATTERY CLOSED + POST-OPEN HARDENING** (branch `feat/erpnext-adapter-p2`,
+  migs `0093/0094 + 0096–0103`, 5 edge fns, live-bench-proven): 9 slices (served-fn e2e infra ·
+  fenced money outbox · tier core · parties · MR/RFQ/SQ · PO/GR · PI/PE full AP surface ·
+  aging/actuals · change-feed). Battery: Luna money audit ×2 (build round: double-pay C-1 → PE
+  composite probe + `held`; finalization TOCTOU → fenced RPC; post-open round: 3 BLOCK + 2 SF all
+  fixed — 0097 Internal-exemption bypass, webhook shared-secret ambiguity → 401, future-due aging
+  leftover → `current` invariant, fencing-loss re-read, per-currency aging rows) · quality/spec ·
+  Discover. **Post-open (2026-07-14): EDGE_JWT_ISSUER (SUPABASE_ env prefix platform-rejected —
+  dev's override was dead) · aging parser rewritten for the real per-voucher v15 report ·
+  PostgREST NULL-composite in claim/quarantine RPCs · 3s bounded committing-wait · INBOUND FEED
+  ARMED LIVE (Frappe Webhook + HMAC → full-fidelity party adopt; sweep GL/PLE mirror; field-level
+  inbound re-sync of linked rows deliberately out of P2 scope — lifecycle+adopt only).** Gates:
+  verify 5,325 · pgTAP 166/1,458 · serial battery 21/21 + smokes 16/16 (zero skips, live bench).
+  Residuals (decisions.md `OD-ENA-*`): contacts-inbound deferred · procurement_items INSERT open
+  by design · VendorQuotesTab badge slot · e2e-cleanup un-flips manual fixtures (ops note) ·
+  OD-ENA-VAULT-SEAM + OD-ENA-SHARED-BINDINGS (coordination with the OD-INT admin-connect layer).
+  **Activation checklist (owner-gated):** per-org `external_org_bindings` + secret_ref fn-secrets ·
+  Vault `erpnext_sweep_url/secret` · webhook secret per instance · Frappe Webhook doctype config
+  (local demo of ALL of it ran 2026-07-14 on the owner's machine — 2-way sync verified).
+
+### ⚑⚑ SHIPPED TO PROD — v0.7.0 (2026-07-14, owner-instructed full release)
+`main`→`production` promoted; release-please cut **v0.7.0** (PR #319 admin-merged). Prod state: **DB at
+mig `0095`** (`db-push-prod.sh` applied `0084–0095` — agent_usage cols, external adapter seam, rate-limit,
+ClickUp flip/sweep, is_active_member banned_until; all additive/flag-off), **all 10 edge fns deployed at
+`99df5fc`** (health reports it), **FE `production`=`99df5fc`** (pmo-bfb.pages.dev). Contents = **ADR-0057
+JWT Task 3** (compose-view/adapter-dispatch/agent-chat → local ES256 JWKS caller-JWT verify, dropping
+`auth.getUser`; is_active_member also checks `banned_until`) + analytics #324 + e2e-isolation #317/#326.
+Plan + prod runbook: [`docs/plans/2026-07-12-jwt-signing-keys.md`](plans/2026-07-12-jwt-signing-keys.md).
+- **Deploy gotchas learned (see `deployment.md` memory):** `stamp-edge-fns.sh`/`supabase functions deploy`
+  ship the WORKING-TREE code at the CURRENT `HEAD` — `git reset --hard origin/main` BEFORE deploying (a
+  stale local `main` briefly regressed prod fns this release, corrected). Docker Desktop file-sharing
+  breaks under heavy load → restart Docker if the bundler mount-fails. `db-push-prod` is all-or-nothing
+  sequential — check the `--dry-run` list before confirming.
+- **Pending (owner, none blocking):** (1) valid-token end-to-end smoke = a live-app login → Assistant
+  answers (couldn't mint a prod token safely; reject-path + JWKS(ES256) already green); (2) ClickUp sweep
+  cron `0094` idle until Vault secrets (`clickup_sweep_url`/`clickup_sweep_secret`) + fn env set;
+  (3) PostHog events need `POSTHOG_PROJECT_KEY` in prod.
+
+### ⚑⚑ NEXT (scoped, not started) — EXTERNAL-SYSTEM ADMIN-CONNECT layer (ClickUp + ERPNext)
+Admin **self-serve** connect for external systems, replacing the operator-CLI-only onboarding. **Locked
+decisions: `docs/decisions.md` OD-INT-1..5** (admin self-serve · personal-token/API-key v1 · **Vault-backed
+`secret_ref`** · one tier-generic layer · **sequenced after #315 merges**). Full scope + phases + #315
+alignment: [`docs/plans/2026-07-13-clickup-admin-integration-flow.md`](plans/2026-07-13-clickup-admin-integration-flow.md).
+Key alignment: #315 (ERPNext P2) has the right table (`external_org_bindings`) + a clean credential seam
+but resolves creds from **function secrets** (operator-only) — the self-serve layer swaps that to **Vault**
+for both tiers, and ClickUp adopts `external_org_bindings`. The in-flight #315 agent is NOT handed this —
+it lands ERPNext P2 as-is + gets two coordination notes (keep `credentials.ts` seam clean; confirm
+`external_org_bindings` shared). Then Director orchestrates this as its own spec → plan → PRs.
+
+### ⚑ prior program block (2026-07-10) — P0 seam SHIPPED to dev; P1 ClickUp shipped (#307)
 - **✅ P0 external-adapter seam MERGED to `dev`** (PR #299, `2cbacd5`; ADR-0055): migrations
   `0087–0090` (ownership switch + refs + watermarks + reference read-model w/ RLS write-flip),
   `adapterSeam` pure core, `adapter-dispatch` edge fn, read-only Integrations section on

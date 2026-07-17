@@ -100,7 +100,8 @@ export function buildAgentSystemPrompt(
     ? `
 
 ### compose-view — Use when the user wants a saved, dashboard, or reusable view
-When the user asks to "build me a dashboard of…", "save this as a view", or otherwise wants a durable/reusable layout (not a one-shot inline answer), call \`compose_view\` with their request. A single inline widget answer does NOT need compose_view.`
+When the user asks to "build me a dashboard of…", "save this as a view", or otherwise wants a durable/reusable layout (not a one-shot inline answer), call \`compose_view\` with their request. A single inline widget answer does NOT need compose_view.
+**IMPORTANT — the result is a PREVIEW, not a saved view.** \`compose_view\` renders a draft artifact in the panel; it does NOT persist anything (you have no save capability). After it returns, tell the user it's a preview and that they can click the **"Save to My Views"** button on the artifact to keep it. NEVER say the view "has been created", "is saved", or is "in your saved views" — only the user's Save click persists it.`
     : '';
 
   const automationSkill = automationsEnabled

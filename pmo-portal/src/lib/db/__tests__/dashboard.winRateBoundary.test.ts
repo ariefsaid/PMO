@@ -64,14 +64,15 @@ describe('AC-W2-3-04: getWinRate boundary params — no UTC day-shift', () => {
     expect(params.p_to).toBe('2026-12-31');
   });
 
-  it('passes null params when no date is supplied', async () => {
+  it('omits params when no date is supplied', async () => {
     rpcCalls.length = 0;
 
     await getWinRate();
 
     expect(rpcCalls.length).toBe(1);
     const { params } = rpcCalls[0];
-    expect(params.p_from).toBeNull();
-    expect(params.p_to).toBeNull();
+    // Regenerated RPC arg types encode optional args as omit-not-null (types regen, P2 assembly).
+    expect(params.p_from).toBeUndefined();
+    expect(params.p_to).toBeUndefined();
   });
 });

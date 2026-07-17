@@ -96,4 +96,28 @@ describe('AC-EAS-015 the read-only Integrations view renders both states with no
       expect(screen.queryByText(/US-hosted SaaS/)).toBeNull();
     });
   });
+
+  // task FIX-3 (Discover IMPORTANT) — ERPNext (P2, ADR-0055/0057) gets a parallel residency line:
+  // self-hosted, so the note names the org's OWN instance rather than a US-hosted vendor.
+  describe('ERPNext tier renders with human label and a self-hosted residency note', () => {
+    it('ERPNext tier heading renders as "ERPNext" not the raw slug', () => {
+      const rows: ExternalDomainOwnershipRow[] = [
+        { id: '1', orgId: 'org-1', externalTier: 'erpnext', domain: 'procurement' },
+      ];
+      vi.mocked(useExternalDomainOwnership).mockReturnValue({ data: rows, isPending: false, isError: false } as never);
+      wrap(<IntegrationsView />);
+      expect(screen.getByRole('heading', { name: 'ERPNext' })).toBeInTheDocument();
+    });
+
+    it('ERPNext tier renders the self-hosted data-locality note', () => {
+      const rows: ExternalDomainOwnershipRow[] = [
+        { id: '1', orgId: 'org-1', externalTier: 'erpnext', domain: 'procurement' },
+      ];
+      vi.mocked(useExternalDomainOwnership).mockReturnValue({ data: rows, isPending: false, isError: false } as never);
+      wrap(<IntegrationsView />);
+      expect(
+        screen.getByText(/Self-hosted ERP — data resides on your ERPNext instance/),
+      ).toBeInTheDocument();
+    });
+  });
 });

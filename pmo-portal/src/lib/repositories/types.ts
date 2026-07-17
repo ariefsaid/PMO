@@ -85,6 +85,7 @@ import type { PageParams } from '@/src/lib/pagination';
 import type { UsageSummaryRow, OperatorUsageSummaryRow, OperatorOrgRow, RunStatsRow, OperatorRunStatsRow } from '@/src/lib/db/usage';
 import type { OrgFeatureKey } from '@/src/lib/features';
 import type { ExternalDomainOwnershipRow } from '@/src/lib/db/externalDomainOwnership';
+import type { ErpActualsSnapshotRow, ErpAgingSnapshotRow } from '@/src/lib/db/erpSnapshots';
 
 export interface ProjectRepository {
   list(
@@ -238,11 +239,20 @@ export interface ProcurementRepository {
     procurementId: string,
     status: 'Partial' | 'Complete',
     receiptDate: string,
+    // task FIX-1 (Discover CRITICAL 1): optional so pre-existing 3-arg call sites/tests keep their
+    // exact byte-for-byte shape; the supplier reference number is only forwarded on the PMO-owned
+    // direct-DAL path — when externally-owned it is mirrored FROM the ERP doc (FR-ENA-114), never
+    // sent as part of the outbound create body.
+    referenceNumber?: string | null,
   ): Promise<ProcurementReceiptRow>;
   createInvoice(
     procurementId: string,
     status: 'Received' | 'Scheduled' | 'Paid',
     invoiceDate: string,
+    // task FIX-1 — same rationale as createReceipt's referenceNumber; `amount` is likewise
+    // ERP-computed (`grand_total`) when externally-owned (FR-ENA-115), so it is never sent outbound.
+    referenceNumber?: string | null,
+    amount?: number | null,
   ): Promise<ProcurementInvoiceRow>;
   // ── CRUD slice (editing paths) ──
   /** Raise a new PR (Draft); requester stamped from the caller's identity. */
@@ -448,6 +458,7 @@ export interface Repositories {
   orgFeature: OrgFeatureRepository;
   credits: CreditsRepository;
   externalDomainOwnership: ExternalDomainOwnershipRepository;
+  erpSnapshots: ErpSnapshotsRepository;
 }
 
 /**
@@ -481,4 +492,11 @@ export interface CreditsRepository {
  */
 export interface ExternalDomainOwnershipRepository {
   listOwn(): Promise<ExternalDomainOwnershipRow[]>;
+}
+
+/** Read-only accounting snapshot surface (Slice 7, ADR-0048). RLS-scoped; no write path. */
+export interface ErpSnapshotsRepository {
+  actuals(): Promise<ErpActualsSnapshotRow[]>;
+  apAging(): Promise<ErpAgingSnapshotRow[]>;
+  arAging(): Promise<ErpAgingSnapshotRow[]>;
 }

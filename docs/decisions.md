@@ -755,3 +755,115 @@ the same AA token idiom StatusPill established", not a one-off darken.
 style) + `TaskPushBadge.test.tsx` (push-failed → `--status-lost-text`, pushed → `--status-won-text`,
 no raw `text-destructive`/`text-success`). The Layer-1 a11y/visual gate assertion was extended to cover
 the badge. Any new tinted-status text MUST follow the same token or it regresses AA.
+
+## OD-ENA — ERPNext adapter P2 final consolidated fix round (2026-07-13)
+
+Four durable notes graduated from the final quality/spec/Discover fix round on the ERPNext adapter P2
+(branch `feat/erpnext-adapter-p2`).
+
+### OD-ENA-E2E-CLEANUP — The erpnext e2e cleanup deletes `external_domain_ownership`/`external_org_bindings`
+rows for `tier='erpnext'` (ops note)
+
+**Note (operational, not a code change):** the erpnext served-fn e2e suite's cleanup hook deletes its
+own `external_domain_ownership` + `external_org_bindings` rows scoped to `external_tier = 'erpnext'`
+after each run, on the SHARED local Docker DB (`docs/environments.md`'s parallel-agent hygiene). This
+is correct for the suite's own fixtures, but it means a MANUAL flip fixture an engineer seeds by hand
+(e.g. `setDomainOwnership`/a direct row insert for local exploratory testing) on `tier='erpnext'` gets
+silently un-flipped the next time the e2e suite runs on the same DB. **Operational implication:** don't
+rely on a hand-seeded erpnext flip surviving an e2e run on the shared stack — reseed it after, or use a
+dedicated org id the e2e suite doesn't touch.
+
+### OD-ENA-ITEMS-INSERT — `procurement_items` INSERT stays open on a flipped org BY DESIGN (Director ruling, 2026-07-13)
+
+**Decision (binding):** while `procurement` is externally-owned, user-JWT `INSERT` on
+`procurement_items` (the PR line-item table) is **NOT** RLS-denied, unlike the seven record tables'
+native/mirrored fields (FR-ENA-170). This is intentional, not a gap: line items are **drafted PMO-side
+before a PR is pushed** (the requester builds the item list authoring a Purchase Request in the PMO
+UI — `item_code`/`qty`/`rate`/`schedule_date`), and only that drafted set is read at dispatch time to
+build the ERP command body (FR-ENA-110's `{items:[...]}`). The **pushed** state is what the flip
+protects: once a PR/RFQ/PO/etc. is dispatched, the money doctypes' own native/mirrored fields (§7) are
+machine-written-only — `procurement_items` rows already used in a pushed command are not retroactively
+locked, but the record tables that carry the ERP truth are. A blanket `procurement_items` INSERT deny
+would break authoring entirely (no org could ever draft a new PR once flipped), so this is a deliberate
+scope boundary, not an oversight.
+
+**Why:** treating "flipped" as "every table under the `procurement` domain is machine-only" conflates
+the draft-authoring surface with the ERP-truth surface. The spec's own model is: PMO owns
+case-aggregate + draft state, ERP owns the seven money doctypes once submitted (FR-ENA-101).
+
+### OD-ENA-CONTACTS-DEFERRED — Contacts inbound-adopt is NOT wired; companies-domain inbound mints companies only
+
+**Noted, deferred:** the `companies` domain's inbound change-feed (webhook + sweep) mints/updates PMO
+`companies` rows from ERPNext `Supplier`/`Customer` documents, but there is **no `contact` kind in the
+feed registry** — an ERPNext `Contact` document arriving inbound is never adopted into PMO `contacts`.
+This was the reason `_shared/erpnextMirrorDeps.ts` (a contacts-table-writer fork with zero production
+consumers) existed and has now been removed (dead code, task FIX-4) rather than wired in. **Deferred
+to a future issue:** contacts inbound-adopt needs its own doctype-registry entry + ambiguous-match
+resolution (mirroring the companies pull-adopt path) — out of scope for this consolidated round.
+
+### OD-ENA-CREDS-REDACT — M-4 RESOLVED
+
+Credential-resolution failures now return a generic client-safe message and log only the specific configuration names server-side.
+
+### OD-ENA-VAULT-SEAM — secret_ref resolution stays confined to credentials.ts (owner heads-up 2026-07-14)
+
+**Binding coordination note:** the `secret_ref`/`webhook_secret_ref` backend will move from
+function-secret env vars to **Vault** later (admin self-serve). All ref→secret derivation MUST stay
+confined to `erpnext/credentials.ts` (`resolveErpCredentials(secretRef, getEnv)` — the getter is
+injected at every call site) so the swap is a one-function change. Do not derive env names from a
+ref anywhere else; the webhook's `webhook_secret_ref` lookup follows the same single-injected-getter
+rule.
+
+### OD-ENA-SHARED-BINDINGS — external_org_bindings is the shared per-org connection table (owner heads-up 2026-07-14)
+
+`external_org_bindings` (migration 0096, `unique (org_id, external_tier)`, tier-generic columns:
+site_url/secret_ref/webhook_secret_ref/version_major/config/activated_at) is the ONE per-org
+external-connection table for ALL tiers. **ClickUp will adopt it** (post-#315: add a
+`tier='clickup'` row; today P1 ClickUp uses env-based global creds + `external_project_bindings`
+for containers only). New tiers add rows, never new tables.
+
+---
+
+## OD-INT — External-system admin-connect layer (LOCKED 2026-07-14)
+
+The self-serve UI for connecting an external system (ClickUp P1, ERPNext P2/#315) to an org. The sync
+engines already exist (`adapter-dispatch`/`clickup-webhook`/`clickup-sweep`; `erpnext-onboard`/`erpnext-
+sweep`); this is the operator/admin **connection** layer on top. Full scope + phases + #315 alignment:
+`docs/plans/2026-07-13-clickup-admin-integration-flow.md`. Backlog: the "EXTERNAL-SYSTEM ADMIN-CONNECT"
+section. Depends on ADR-0055 (external adapters), ADR-0016/0019 (can()+RLS/RPC authority), ADR-0057
+(`verifyCallerJwt`). Sequenced **after #315 merges**.
+
+### OD-INT-1 — Admin self-serve
+Org **Admin** connects the integration from the app (not operator-only). Platform Operator retains the
+existing service-role CLI path (`clickup-onboard`/`erpnext-onboard`) as the fallback/bulk path.
+
+### OD-INT-2 — Personal token / API-key, v1
+Credential entry is a **paste-a-token** flow: ClickUp **personal API token** (from a Workspace
+owner/admin — user-scoped, sees the whole workspace) · ERPNext **`apiKey:apiSecret`** (Frappe token,
+from a System Manager). ClickUp **OAuth** app is a later UX upgrade, explicitly out of v1.
+
+### OD-INT-3 — Vault-backed `secret_ref` (the enabler for self-serve)
+The secret backend for BOTH tiers is **Supabase Vault**, not function secrets. Admin enters the
+credential once → a role-gated server endpoint calls `vault.create_secret(value, name)` → the DB stores
+only a `secret_ref` (the Vault name) on the binding row; the value is **write-only, never returned**.
+Rationale: function secrets (`supabase secrets set`) can only be set by an operator via CLI/dashboard —
+Vault can be written from a role-gated app endpoint, which is what makes admin self-serve possible.
+Precedent: mig `0082` (automation dispatch), `0094` (ClickUp sweep). Edge fns resolve the per-org
+credential from Vault via `secret_ref` at request time (locked-down security-definer reader).
+
+### OD-INT-4 — One tier-generic layer, not per-tier forks
+Shared across tiers: **`external_org_bindings`** (#315's table: `org_id, external_tier, site URL,
+secret_ref, webhook_secret_ref`) + Vault `secret_ref` + one Connect endpoint + one admin UI card.
+Tier-specific (thin): credential shape, the validation call, and link granularity (ClickUp → **List**
+per project · ERPNext → **Company/module** per org). **Alignment work:** (a) #315 swaps its credential
+resolution from `Deno.env` → a Vault reader (contained — already behind the `credentials.ts` seam);
+(b) ClickUp adopts `external_org_bindings` for the org connection (today it uses
+`external_domain_ownership` + `external_project_bindings` + a single global `CLICKUP_API_TOKEN`).
+
+### OD-INT-5 — Sequenced after #315 merges
+Build on the **merged** `external_org_bindings` foundation, not the unmerged/conflicting `#315` branch.
+The in-flight #315 implementer agent is NOT handed this layer — it finishes ERPNext P2 sync hardening
+and lands #315 as-is (operator-provisioned/function-secret is fine for that scope). It receives only
+two coordination notes: keep the `credentials.ts` resolver seam clean (Vault swap comes later); confirm
+`external_org_bindings` is the shared per-org connection table. The Director orchestrates this layer as
+its own spec → eng-planner plan → PRs afterward (security-auditor mandatory on the token path).

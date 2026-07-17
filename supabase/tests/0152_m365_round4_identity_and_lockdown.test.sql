@@ -11,7 +11,7 @@
 --                  → no child→parent cycle); the two-session deadlock-freedom itself is proven by
 --                  scripts/m365-deadlock-probe.sh. The matching call is unaffected.
 --   • AC-M365-168 (MED-2): service_role no longer holds direct INSERT/UPDATE/DELETE on
---                  ms_graph_connections (the 0105/0106 RPCs are the only mutation path), SELECT is
+--                  ms_graph_connections (the 0113/0114 RPCs are the only mutation path), SELECT is
 --                  retained, the new m365_delete_connection RPC exists + is SECURITY DEFINER +
 --                  identity-bound, and the lifecycle cascade (SECURITY DEFINER / postgres-owned)
 --                  STILL deletes on offboard despite the service_role lockdown.
@@ -118,8 +118,8 @@ select is(
 -- AC-M365-168 (MED-2): service_role direct-DML lockdown + the m365_delete_connection RPC.
 -- ============================================================================
 
--- service_role may NOT directly INSERT/UPDATE/DELETE ms_graph_connections (0106 revoked them); the
--- 0105/0106 SECURITY-DEFINER RPCs are the only mutation path. SELECT is retained.
+-- service_role may NOT directly INSERT/UPDATE/DELETE ms_graph_connections (0114 revoked them); the
+-- 0113/0114 SECURITY-DEFINER RPCs are the only mutation path. SELECT is retained.
 select is(has_table_privilege('service_role','public.ms_graph_connections','insert'), false,
   'AC-M365-168 MED-2: service_role may NOT directly INSERT ms_graph_connections (RPCs are the only path)');
 select is(has_table_privilege('service_role','public.ms_graph_connections','update'), false,

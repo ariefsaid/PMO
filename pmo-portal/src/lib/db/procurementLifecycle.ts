@@ -206,7 +206,7 @@ export async function transitionProcurement(
   const { error } = (await supabase.rpc('transition_procurement', {
     p_id: id,
     p_to: to,
-    p_notes: notes ?? null,
+    p_notes: notes,
   })) as unknown as { data: null; error: RpcErrorLike | null };
   if (error) throwRpc(error);
 }
@@ -229,9 +229,9 @@ export async function createQuotation(
     p_vendor_id: vendorId,
     p_total_amount: totalAmount,
     p_received_date: receivedDate,
-    p_import_key: importKey ?? null,
-    p_import_batch_id: importBatchId ?? null,
-    p_imported_at: importedAt ?? null,
+    p_import_key: importKey,
+    p_import_batch_id: importBatchId,
+    p_imported_at: importedAt,
   })) as unknown as { data: Tables<'procurement_quotations'>; error: RpcErrorLike | null };
   if (error) throwRpc(error);
   return data;
@@ -255,10 +255,10 @@ export async function createReceipt(
     p_procurement_id: procurementId,
     p_status: status,
     p_receipt_date: receiptDate,
-    p_reference_number: referenceNumber ?? null,
-    p_import_key: importKey ?? null,
-    p_import_batch_id: importBatchId ?? null,
-    p_imported_at: importedAt ?? null,
+    p_reference_number: referenceNumber ?? undefined,
+    p_import_key: importKey,
+    p_import_batch_id: importBatchId,
+    p_imported_at: importedAt,
   })) as unknown as { data: ProcurementReceiptRow; error: RpcErrorLike | null };
   if (error) throwRpc(error);
   return data;
@@ -283,11 +283,11 @@ export async function createInvoice(
     p_procurement_id: procurementId,
     p_status: status,
     p_invoice_date: invoiceDate,
-    p_reference_number: referenceNumber ?? null,
-    p_amount: amount ?? null,
-    p_import_key: importKey ?? null,
-    p_import_batch_id: importBatchId ?? null,
-    p_imported_at: importedAt ?? null,
+    p_reference_number: referenceNumber ?? undefined,
+    p_amount: amount ?? undefined,
+    p_import_key: importKey,
+    p_import_batch_id: importBatchId,
+    p_imported_at: importedAt,
   })) as unknown as { data: ProcurementInvoiceRow; error: RpcErrorLike | null };
   if (error) throwRpc(error);
   return data;
@@ -313,9 +313,9 @@ export async function captureVendorInvoice(
     p_procurement_id: procurementId,
     p_status: status,
     p_invoice_date: invoiceDate,
-    p_reference_number: referenceNumber ?? null,
-    p_amount: amount ?? null,
-    p_notes: notes ?? null,
+    p_reference_number: referenceNumber ?? undefined,
+    p_amount: amount ?? undefined,
+    p_notes: notes ?? undefined,
   })) as unknown as { data: ProcurementInvoiceRow; error: RpcErrorLike | null };
   if (error) throwRpc(error);
   return data;

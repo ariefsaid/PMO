@@ -16,7 +16,7 @@ insert into profiles (id, org_id, full_name, email, role) values
   ('01460000-0000-0000-0000-0000000000a1','01460000-0000-0000-0000-000000000001','User A','m365-orgscope-a@example.com','Admin'),
   ('01460000-0000-0000-0000-0000000000b1','01460000-0000-0000-0000-000000000002','User B','m365-orgscope-b@example.com','Admin');
 
--- 0103 C1(b) write-guard requires an enabled m365_integration entitlement in each org.
+-- 0111 C1(b) write-guard requires an enabled m365_integration entitlement in each org.
 insert into org_features (org_id, feature_key, enabled) values
   ('01460000-0000-0000-0000-000000000001','m365_integration',true),
   ('01460000-0000-0000-0000-000000000002','m365_integration',true);
@@ -51,7 +51,7 @@ select is(
 
 -- Prove service_role cannot be tricked into writing org_id != resolved caller's org (the function
 -- controls this; here we just show the FK on org_id rejects a non-existent org).
--- 0103: suspend the C1(b) write-guard for this one insert so the FK (not the guard's user/org-agreement
+-- 0111: suspend the C1(b) write-guard for this one insert so the FK (not the guard's user/org-agreement
 -- check) is what fires — the AC is specifically the org_id FK seam.
 alter table public.ms_graph_connections disable trigger m365_connection_write_guard;
 select throws_ok(

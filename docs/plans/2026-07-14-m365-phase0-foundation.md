@@ -249,10 +249,10 @@ typecheck confirm the mount compiles and renders without regressions.
 
 ### Task M1 — `ms_graph_connections` migration (token store + lockdown)
 
-Create `supabase/migrations/0096_ms_graph_connections.sql`:
+Create `supabase/migrations/0104_ms_graph_connections.sql`:
 
 ```sql
--- 0096_ms_graph_connections.sql — the Microsoft Graph token store (ADR-0060, FR-M365-001..004).
+-- 0104_ms_graph_connections.sql — the Microsoft Graph token store (ADR-0060, FR-M365-001..004).
 -- Server-only custody: RLS enabled+FORCED with NO policy of any kind and NO client grant → a client
 -- JWT can neither read nor write (append-only-by-omission, the platform_operators pattern, 0064).
 -- Only service_role / a future security-definer edge function reaches it. Tokens are stored ONLY as
@@ -414,10 +414,10 @@ rollback;
 
 ### Task M4 — Migration: add `m365_integration` to the `org_features` CHECK registry
 
-Create `supabase/migrations/0097_org_features_add_m365.sql`:
+Create `supabase/migrations/0105_org_features_add_m365.sql`:
 
 ```sql
--- 0097_org_features_add_m365.sql — extend the org_features CHECK registry (0070) with the
+-- 0105_org_features_add_m365.sql — extend the org_features CHECK registry (0070) with the
 -- 'm365_integration' entitlement key (ADR-0058 §Decision 3 two-switch; FR-M365-010). Operator-owned
 -- entitlement switch; toggled via the EXISTING operator_toggle_feature RPC (no new RPC). Default-OFF
 -- is an FE concern (FEATURE_ENV_DEFAULT.m365_integration=false) — absence of a row + env default false
@@ -520,10 +520,10 @@ not-provisioned card + Sign out (no Retry, no auto-provision) still passes. Do *
 | F2 | M365 connection card | `M365ConnectionCard.tsx` + `.test.tsx` | unit | `npm run verify` | AC-M365-012/013 |
 | F3 | Mount card in Administration | `pages/AdminUsers.tsx` | wiring | `npm run verify` | FR-M365-012 (AC owned by F2) |
 | P1 | Not-provisioned regression pin | (none) | unit (existing) | `vitest run RequireAuth.test.tsx` | AC-M365-020 |
-| M1 | `ms_graph_connections` store | `0096_ms_graph_connections.sql` | migration | **owner:** `db reset` | FR-M365-001..004 |
+| M1 | `ms_graph_connections` store | `0104_ms_graph_connections.sql` | migration | **owner:** `db reset` | FR-M365-001..004 |
 | M2 | Lockdown pgTAP | `0142_..._lockdown.test.sql` | pgTAP | **owner:** `test db` | AC-M365-001 |
 | M3 | Schema-invariant pgTAP | `0143_..._schema.test.sql` | pgTAP | **owner:** `test db` | AC-M365-002 |
-| M4 | CHECK-registry expansion | `0097_org_features_add_m365.sql` | migration | **owner:** `db reset` | FR-M365-010/011 |
+| M4 | CHECK-registry expansion | `0105_org_features_add_m365.sql` | migration | **owner:** `db reset` | FR-M365-010/011 |
 | M5 | Entitlement pgTAP | `0144_org_features_m365_key.test.sql` | pgTAP | **owner:** `test db` | AC-M365-010 |
 
 **Recommended execution order:** F1 → F2 → F3 → P1 (all FE, fully verifiable now), then M1 → M2 →

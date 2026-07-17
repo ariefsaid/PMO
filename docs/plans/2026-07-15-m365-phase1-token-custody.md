@@ -13,10 +13,10 @@
 
 ### Task DB1 — Migration 0098: `m365_pkce_states` table (RED proof for AC-M365-101/102/104/142)
 
-**RED.** Create `supabase/migrations/0098_m365_pkce_states.sql`:
+**RED.** Create `supabase/migrations/0106_m365_pkce_states.sql`:
 
 ```sql
--- 0098_m365_pkce_states.sql — transient PKCE state store for the server-side auth-code + PKCE
+-- 0106_m365_pkce_states.sql — transient PKCE state store for the server-side auth-code + PKCE
 -- bootstrap (ADR-0060 §1 D2, FR-M365-101/102/103). Single-use, short-TTL (10 min), service_role-only.
 -- Mirrors the ms_graph_connections lockdown pattern (0096): RLS enabled+forced, ZERO policies,
 -- revoke all from authenticated/anon. The edge function writes/reads via service_role client.
@@ -272,7 +272,7 @@ select * from finish();
 rollback;
 ```
 
-**GREEN.** Implement the RPC in a new migration `0099_m365_disconnect_cascade.sql` (see Task DB5), then run pgTAP.
+**GREEN.** Implement the RPC in a new migration `0107_m365_disconnect_cascade.sql` (see Task DB5), then run pgTAP.
 
 **Verify:** `scripts/with-db-lock.sh supabase db reset` then `scripts/with-db-lock.sh supabase test db`.
 
@@ -282,10 +282,10 @@ rollback;
 
 ### Task DB5 — Migration 0099: `m365_disconnect_cascade` security-definer RPC
 
-**RED.** Create `supabase/migrations/0099_m365_disconnect_cascade.sql`:
+**RED.** Create `supabase/migrations/0107_m365_disconnect_cascade.sql`:
 
 ```sql
--- 0099_m365_disconnect_cascade.sql — security-definer RPC for offboard/disentitlement cascade
+-- 0107_m365_disconnect_cascade.sql — security-definer RPC for offboard/disentitlement cascade
 -- (FR-M365-151, NFR-M365-107). Called by:
 --   • operator_toggle_feature when m365_integration is toggled OFF (Operator path).
 --   • admin_set_user_status when a user is disabled (Admin path, via trigger or explicit call).
@@ -374,10 +374,10 @@ grant execute on function public.m365_disconnect_cascade(uuid, uuid, text) to au
 > `m365_pkce_states` row) and is granted to `service_role`, with an `m365.*` action allowlist so the
 > broad grant can't forge arbitrary audit actions.
 
-**RED.** Create `supabase/migrations/0100_audit_m365_event.sql`:
+**RED.** Create `supabase/migrations/0108_audit_m365_event.sql`:
 
 ```sql
--- 0100_audit_m365_event.sql — service-role-callable audit wrapper for the m365-token-custody edge fn
+-- 0108_audit_m365_event.sql — service-role-callable audit wrapper for the m365-token-custody edge fn
 -- (FR-M365-170, NFR-M365-108). log_audit (0076) is revoked from public and callable only by
 -- postgres-owned SECURITY DEFINER fns; the edge fn is service_role and its OAuth callback path has no
 -- caller JWT, so it passes org/actor explicitly through this wrapper (cf. audit_agent_denial 0079,

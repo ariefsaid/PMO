@@ -3,24 +3,33 @@
  * (purchase_requests / rfqs / purchase_orders / payments) + their file uploads.
  *
  * Mirrors the shape of `useProcurementMutations` (useProcurementDetail.ts):
- *   - each mutation calls the security-definer RPC via the DAL (procurementRecords.ts)
+ *   - each mutation calls the `repositories.procurement.*` seam (task FIX-1, Discover CRITICAL 1 —
+ *     was calling the DAL directly, which bypassed Slice 1's `routeDomainWrite('procurement')`
+ *     guard and local-wrote with a false success on a flipped org)
  *   - each invalidates ['procurement', orgId, id] on success so the detail page refetches
  *   - errors propagate as ProcurementError (code preserved) for classifyMutationError
+ *   - a shared `pendingPush` state surfaces pushing/pushed/push-failed for the capture UI
+ *     (TaskPushBadge, the P1 idiom) — stays idle for PMO-owned orgs
  *
  * org_id is NEVER sent — the security-definer RPCs re-assert auth context. (ADR-0016/0017)
  */
 
+import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/src/auth/useAuth';
+import { repositories } from '@/src/lib/repositories';
+import { routeDomainWrite } from '@/src/lib/adapterSeam/ownershipCache';
 import {
-  createPurchaseRequest,
-  createRfq,
-  createPurchaseOrder,
-  createPayment,
-  type PurchaseRequestRow,
-  type RfqRow,
-  type PurchaseOrderRow,
-  type PaymentRow,
+  IDLE_PENDING_PUSH,
+  beginPush,
+  pendingPushAfterWrite,
+  type PendingPushState,
+} from '@/src/lib/adapterSeam/pendingPush';
+import type {
+  PurchaseRequestRow,
+  RfqRow,
+  PurchaseOrderRow,
+  PaymentRow,
 } from '@/src/lib/db/procurementRecords';
 import { ProcurementError } from '@/src/lib/db/procurementLifecycle';
 
@@ -81,20 +90,39 @@ export function useProcurementRecordMutations(procurementId: string) {
   const invalidateDetail = () =>
     qc.invalidateQueries({ queryKey: procurementDetailKey(orgId, procurementId) });
 
+  // Shared pending-push state across the four record-creation kinds — only one capture form is
+  // open at a time (LedgerCaptureRow, task FIX-1). Stays idle for PMO-owned orgs.
+  const [pendingPush, setPendingPush] = useState<PendingPushState>(IDLE_PENDING_PUSH);
+  const isExternal = () => routeDomainWrite('procurement') === 'external';
+  const onMutate = () => {
+    if (isExternal()) setPendingPush(beginPush(IDLE_PENDING_PUSH));
+  };
+  const onSettledOk = () => {
+    invalidateDetail();
+    if (isExternal()) setPendingPush(pendingPushAfterWrite('external', { ok: true }));
+  };
+  const onSettledErr = (err: unknown) => {
+    if (isExternal()) setPendingPush(pendingPushAfterWrite('external', { ok: false, err }));
+  };
+
   const createPurchaseRequestMut = useMutation<
     PurchaseRequestRow,
     ProcurementError,
     CreatePurchaseRequestInput
   >({
     mutationFn: ({ referenceNumber, status, date, amount }) =>
-      createPurchaseRequest(procurementId, referenceNumber, status, date, amount),
-    onSuccess: invalidateDetail,
+      repositories.procurement.createPurchaseRequest(procurementId, referenceNumber, status, date, amount),
+    onMutate,
+    onSuccess: onSettledOk,
+    onError: onSettledErr,
   });
 
   const createRfqMut = useMutation<RfqRow, ProcurementError, CreateRfqInput>({
     mutationFn: ({ referenceNumber, status, date, amount }) =>
-      createRfq(procurementId, referenceNumber, status, date, amount),
-    onSuccess: invalidateDetail,
+      repositories.procurement.createRfq(procurementId, referenceNumber, status, date, amount),
+    onMutate,
+    onSuccess: onSettledOk,
+    onError: onSettledErr,
   });
 
   const createPurchaseOrderMut = useMutation<
@@ -103,14 +131,18 @@ export function useProcurementRecordMutations(procurementId: string) {
     CreatePurchaseOrderInput
   >({
     mutationFn: ({ referenceNumber, status, date, amount }) =>
-      createPurchaseOrder(procurementId, referenceNumber, status, date, amount),
-    onSuccess: invalidateDetail,
+      repositories.procurement.createPurchaseOrder(procurementId, referenceNumber, status, date, amount),
+    onMutate,
+    onSuccess: onSettledOk,
+    onError: onSettledErr,
   });
 
   const createPaymentMut = useMutation<PaymentRow, ProcurementError, CreatePaymentInput>({
     mutationFn: ({ invoiceId, referenceNumber, status, date, amount }) =>
-      createPayment(procurementId, invoiceId, referenceNumber, status, date, amount),
-    onSuccess: invalidateDetail,
+      repositories.procurement.createPayment(procurementId, invoiceId, referenceNumber, status, date, amount),
+    onMutate,
+    onSuccess: onSettledOk,
+    onError: onSettledErr,
   });
 
   return {
@@ -118,5 +150,6 @@ export function useProcurementRecordMutations(procurementId: string) {
     createRfq: createRfqMut,
     createPurchaseOrder: createPurchaseOrderMut,
     createPayment: createPaymentMut,
+    pendingPush,
   };
 }

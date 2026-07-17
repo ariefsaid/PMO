@@ -72,7 +72,7 @@ export async function submitTimesheet(id: string): Promise<void> {
   const { error } = await supabase.rpc('transition_timesheet', {
     p_timesheet_id: id,
     p_to: 'Submitted',
-    p_notes: null,
+
   });
   if (error) throw new Error(error.message);
 }
@@ -85,7 +85,7 @@ export async function approveTimesheet(id: string, notes?: string): Promise<void
   const { error } = await supabase.rpc('transition_timesheet', {
     p_timesheet_id: id,
     p_to: 'Approved',
-    p_notes: notes ?? null,
+    p_notes: notes,
   });
   if (error) throw new Error(error.message);
 }
@@ -98,7 +98,8 @@ export async function rejectTimesheet(id: string, notes?: string): Promise<void>
   const { error } = await supabase.rpc('transition_timesheet', {
     p_timesheet_id: id,
     p_to: 'Rejected',
-    p_notes: notes ?? null,
+    // Regenerated RPC arg types encode optionals as `string | undefined` — omit, never null.
+    p_notes: notes,
   });
   if (error) throw new Error(error.message);
 }
@@ -112,7 +113,6 @@ export async function reopenTimesheet(id: string): Promise<void> {
   const { error } = await supabase.rpc('transition_timesheet', {
     p_timesheet_id: id,
     p_to: 'Draft',
-    p_notes: null,
   });
   if (error) throw new Error(error.message);
 }

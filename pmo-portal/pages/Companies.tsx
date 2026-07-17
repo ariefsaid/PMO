@@ -32,6 +32,8 @@ import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { trackFilterApplied } from '@/src/lib/analytics';
 import type { CompanyRow, CompanyType, CompanyInput } from '@/src/lib/db/companies';
 import { companyTypeVariant } from '@/src/lib/status/statusVariants';
+import { TaskPushBadge } from '@/src/components/tasks/TaskPushBadge';
+import { IDLE_PENDING_PUSH, type PendingPushState } from '@/src/lib/adapterSeam/pendingPush';
 
 /** Type filter segments: All + the three company_type enum values (Internal / Client / Vendor). */
 type TypeFilter = 'All' | CompanyType;
@@ -66,7 +68,8 @@ const Companies: React.FC = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { data, isPending, isError, refetch } = useCompanies();
-  const { create, update, archive, remove } = useCompanyMutations();
+  // `?? IDLE_PENDING_PUSH` — existing hook mocks (RBAC/export test suites) predate this field.
+  const { create, update, archive, remove, pendingPush = IDLE_PENDING_PUSH } = useCompanyMutations();
 
   // A-5 (rbac-visibility §D): Companies directory view = Admin·Exec·PM·Finance; Engineer = ○
   // (no nav, no page). The rail hides it but the ROUTE does not — so an Engineer reaching
@@ -330,6 +333,7 @@ const Companies: React.FC = () => {
       {formTarget && (
         <CompanyFormModal
           company={formTarget.company}
+          pendingPush={pendingPush}
           onClose={() => setFormTarget(null)}
           onCreate={async (input) => {
             await create.mutateAsync(input);
@@ -383,6 +387,8 @@ interface CompanyFormModalProps {
   onCreate: (input: CompanyInput) => Promise<void>;
   onUpdate: (id: string, input: CompanyInput) => Promise<void>;
   onError: (err: unknown) => void;
+  /** ADR-0056/FR-EAS-060..063 pending-push state for a flipped org's Vendor/Client write. */
+  pendingPush: PendingPushState;
 }
 
 const CompanyFormModal: React.FC<CompanyFormModalProps> = ({
@@ -391,6 +397,7 @@ const CompanyFormModal: React.FC<CompanyFormModalProps> = ({
   onCreate,
   onUpdate,
   onError,
+  pendingPush,
 }) => {
   const isEdit = !!company;
   const form = useEntityForm<FormValues>({
@@ -435,6 +442,11 @@ const CompanyFormModal: React.FC<CompanyFormModalProps> = ({
       submitDisabled={!form.isComplete}
       errorSummary={errorSummary}
     >
+      {pendingPush.status !== 'idle' && (
+        <div className="mb-3.5 flex justify-end">
+          <TaskPushBadge state={pendingPush} />
+        </div>
+      )}
       <FormSection legend="Identity">
         <FormGrid>
           <TextField

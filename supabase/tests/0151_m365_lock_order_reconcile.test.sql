@@ -6,11 +6,11 @@
 -- file proves the DETERMINISTIC invariants those fixes rely on. Runs as pgTAP superuser.
 --
 -- Luna round-4 (LOW-6 — populated-upgrade limitation, acknowledged): a TRUE migration-upgrade test
--- would seed legacy rows against the PRE-hardening (0102-era) schema, then APPLY 0103/0105 and
+-- would seed legacy rows against the PRE-hardening (0110-era) schema, then APPLY 0111/0113 and
 -- prove they migrate cleanly. This pgTAP harness CANNOT express that: pgTAP runs AFTER every
 -- migration has already been applied (the schema is hardened by the time any test body runs), and
 -- pgTAP has no mechanism to re-run a subset of migrations from a pre-hardening baseline against
--- seeded data within a single test transaction. The 0103/0105 migrations also contain irreversible
+-- seeded data within a single test transaction. The 0111/0113 migrations also contain irreversible
 -- one-time DO blocks (the scrub) that re-running would double-execute. We do the next-best thing:
 -- this test DROPS the relevant constraints to mimic the pre-hardening baseline, seeds legacy rows
 -- that baseline would accept, then RE-PLAYS the EXACT preflight/scrub predicates + re-adds the
@@ -58,8 +58,8 @@ insert into org_features (org_id, feature_key, enabled, updated_by) values
 -- ============================================================================
 -- AC-M365-163: populated-upgrade 'foo..bar' — the corrected preflight matches dot-segments, scrubs
 -- the offending row (with a 'reconciled' audit), and the tightened CHECK then adds cleanly.
--- Reproduces the OLD (0102-era) looser tenant CHECK so a legacy 'foo..bar' row is seedable, then
--- re-runs the EXACT corrected 0103 §5a(ii) preflight + re-adds the §6 CHECK. Proves 0103 no longer
+-- Reproduces the OLD (0110-era) looser tenant CHECK so a legacy 'foo..bar' row is seedable, then
+-- re-runs the EXACT corrected 0111 §5a(ii) preflight + re-adds the §6 CHECK. Proves 0111 no longer
 -- aborts on a populated DB (the round-3 HIGH).
 -- ============================================================================
 
@@ -87,7 +87,7 @@ select is(text '.foo'   ~ '^[A-Za-z0-9._-]+$' and text '.foo'   !~ '\.\.' and te
 select is(text '..'     ~ '^[A-Za-z0-9._-]+$' and text '..'     !~ '\.\.' and text '..'     !~ '^[.]+$', false,
   'AC-M365-163 LOW-4: the final CHECK REJECTS .. (preflight must delete it)');
 
--- Revert the tenant CHECK to the looser 0102-era form so 'foo..bar' is seedable (legacy data).
+-- Revert the tenant CHECK to the looser 0110-era form so 'foo..bar' is seedable (legacy data).
 alter table public.ms_graph_connections drop constraint ms_graph_connections_entra_tenant_id_fmt;
 alter table public.ms_graph_connections add constraint ms_graph_connections_entra_tenant_id_fmt
   check (entra_tenant_id ~ '^[A-Za-z0-9._-]+$');
@@ -100,13 +100,13 @@ insert into public.ms_graph_connections
 values ('a1510000-0000-0000-0000-000000000001','a1510000-0000-0000-0000-0000000000a1',
         'foo..bar', array['offline_access'], '\x63'::bytea, 'kek-v1', 'active');
 alter table public.ms_graph_connections enable trigger m365_connection_write_guard;
-select is(count(*)::int, 1, 'AC-M365-163 setup: the legacy foo..bar row is present (0102-era constraint allowed it)')
+select is(count(*)::int, 1, 'AC-M365-163 setup: the legacy foo..bar row is present (0110-era constraint allowed it)')
   from public.ms_graph_connections where org_id = 'a1510000-0000-0000-0000-000000000001';
 
 -- Seed a legacy '.foo' row too (Luna round-4 LOW-4): a leading-dot-but-not-all-dot tenant is a
 -- VALID value the final CHECK keeps. The preflight must NOT delete it. Uses a DISTINCT user (a4)
 -- from the foo..bar row (a1) — ms_graph_connections is UNIQUE on (org_id, user_id). Seedable under
--- the looser 0102-era CHECK restored above; the write-guard is disabled for the seed as for foo..bar.
+-- the looser 0110-era CHECK restored above; the write-guard is disabled for the seed as for foo..bar.
 alter table public.ms_graph_connections disable trigger m365_connection_write_guard;
 insert into public.ms_graph_connections
   (org_id, user_id, entra_tenant_id, scopes, refresh_token_ciphertext, key_id, status)
@@ -114,7 +114,7 @@ values ('a1510000-0000-0000-0000-000000000001','a1510000-0000-0000-0000-00000000
         '.foo', array['offline_access'], '\x64'::bytea, 'kek-v1', 'active');
 alter table public.ms_graph_connections enable trigger m365_connection_write_guard;
 
--- Re-run the EXACT corrected 0103 §5a(ii) preflight (Luna round-4 LOW-4: '^[.]+$' not '^[.]+').
+-- Re-run the EXACT corrected 0111 §5a(ii) preflight (Luna round-4 LOW-4: '^[.]+$' not '^[.]+').
 do $$
 declare v_id uuid; v_org uuid;
 begin
@@ -138,23 +138,23 @@ select is(count(*)::int, 1, 'AC-M365-163: the preflight emitted a m365.connectio
    and detail->>'reason' = 'reconciled' and detail->>'source' = 'preflight_bad_tenant';
 
 -- Re-add the tightened §6 CHECK — it now adds CLEANLY (no violating rows). Under the buggy preflight
--- the foo..bar row would have survived and this ALTER would have ABORTED (→ 0103 never installed).
+-- the foo..bar row would have survived and this ALTER would have ABORTED (→ 0111 never installed).
 -- Luna round-4 (LOW-4): the surviving '.foo' row also PASSES this CHECK (it is a valid value).
 alter table public.ms_graph_connections drop constraint ms_graph_connections_entra_tenant_id_fmt;
 select lives_ok($$
   alter table public.ms_graph_connections add constraint ms_graph_connections_entra_tenant_id_fmt
     check (entra_tenant_id ~ '^[A-Za-z0-9._-]+$' and entra_tenant_id !~ '\.\.' and entra_tenant_id !~ '^[.]+$')
-$$, 'AC-M365-163: the tightened tenant CHECK adds cleanly after the scrub (0103 no longer aborts on a populated DB)');
+$$, 'AC-M365-163: the tightened tenant CHECK adds cleanly after the scrub (0111 no longer aborts on a populated DB)');
 select is(count(*)::int, 1, 'AC-M365-163 LOW-4: the .foo row survives AND passes the tightened CHECK (no data loss on upgrade)')
   from public.ms_graph_connections where entra_tenant_id = '.foo';
 
 -- ============================================================================
--- AC-M365-164: the 0105 lock-order connection-mutation RPCs. Shape + grants + the deterministic
+-- AC-M365-164: the 0113 lock-order connection-mutation RPCs. Shape + grants + the deterministic
 -- success/reject/no-row contract. (The two-session deadlock-freedom is proven by the shell probe.)
 -- ============================================================================
 
 -- Shape: all three exist, are SECURITY DEFINER.
-select is(count(*)::int, 3, 'AC-M365-164: the three 0105 connection-mutation RPCs exist in public')
+select is(count(*)::int, 3, 'AC-M365-164: the three 0113 connection-mutation RPCs exist in public')
   from pg_proc
  where pronamespace = 'public'::regnamespace
    and proname in ('m365_upsert_connection','m365_refresh_connection','m365_set_connection_status');
@@ -212,7 +212,7 @@ select is(
   'AC-M365-164: m365_set_connection_status returns null for a nonexistent connection');
 
 -- ============================================================================
--- AC-M365-166: the one-time reconcile scrub (0105 §4). Seed a survivor (active+entitled) and two
+-- AC-M365-166: the one-time reconcile scrub (0113 §4). Seed a survivor (active+entitled) and two
 -- stale connections (inactive user / not-entitled org), then re-run the scrub's exact logic and
 -- assert each stale row is deleted WITH a 'reconciled' audit row while the survivor is untouched.
 -- (The scrub runs once at migrate time; this re-runs its logic to prove the conditional + audit.)
@@ -235,7 +235,7 @@ values ('a1510000-0000-0000-0000-000000000020','a1510000-0000-0000-0000-00000000
         '11111111-2222-3333-4444-555555555555', array['offline_access'], '\x30'::bytea, 'kek-v1', 'active');
 alter table public.ms_graph_connections enable trigger m365_connection_write_guard;
 
--- Re-run the EXACT 0105 §4 reconcile scrub.
+-- Re-run the EXACT 0113 §4 reconcile scrub.
 do $$
 declare v_id uuid; v_org uuid; v_user uuid;
 begin

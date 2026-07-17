@@ -49,7 +49,7 @@ I read every handler, the router, both migrations' lockdown, the cascade/audit R
 ---
 
 ### HIGH-2 — Offboard / disentitlement cascade is NOT wired → NFR-M365-107 unmet
-**Location:** `0099_m365_disconnect_cascade.sql` (RPC exists + `0147` tests it in isolation) but **`operator_toggle_feature` (0070) and `admin_set_user_status` (0065) contain zero `m365` references** (grep-confirmed), and there is **no trigger** anywhere referencing the cascade.
+**Location:** `0107_m365_disconnect_cascade.sql` (RPC exists + `0147` tests it in isolation) but **`operator_toggle_feature` (0070) and `admin_set_user_status` (0065) contain zero `m365` references** (grep-confirmed), and there is **no trigger** anywhere referencing the cascade.
 
 **The gap:** ADR-0060 §7 / NFR-M365-107 / FR-M365-151 require tokens to be **deleted on user offboard, org disable, and entitlement toggle-off**. The `m365_disconnect_cascade` RPC is correct and its guard is sound (`auth_role()`/`auth_org_id()` are SECURITY DEFINER reading `profiles` — Operator-or-Admin-in-org enforced, cross-org blocked), but **nothing invokes it**. The migration *comment* claims it's "Called by operator_toggle_feature / admin_set_user_status" — that is aspirational, not wired.
 
@@ -76,7 +76,7 @@ I read every handler, the router, both migrations' lockdown, the cascade/audit R
 **Fix:** Re-validate `TENANT_RE` at every token/revoke URL construction site (callback + refresh + revoke), and add a `CHECK (entra_tenant_id ~ '^[A-Za-z0-9._-]+$')` on the column. Cheap, closes the class.
 
 ### LOW-2 — `p_reason` not allowlisted in cascade (audit integrity)
-**Location:** `0099_m365_disconnect_cascade.sql:14` — `p_reason text` is caller-supplied and placed into audit `detail` via `jsonb_build_object` (no injection, but no allowlist).
+**Location:** `0107_m365_disconnect_cascade.sql:14` — `p_reason text` is caller-supplied and placed into audit `detail` via `jsonb_build_object` (no injection, but no allowlist).
 
 **Exploit:** A malicious Admin/Operator can write a misleading `reason` (e.g. log `offboard` while the event was a disentitlement), corrupting the audit trail's semantic integrity.
 
@@ -146,7 +146,7 @@ None.
 
 ### Important
 **1. AC-M365-121 / FR-M365-151 — cascade RPC exists but is never wired to its triggers.**
-The RPC `m365_disconnect_cascade` is defined (`supabase/migrations/0099_m365_disconnect_cascade.sql:10`) and the pgTAP 0147 proves the *RPC contract* (deletes + audits, org-scoped). **But nothing invokes it.** Verified: `grep -rn m365_disconnect_cascade supabase/` returns only `0099` (def) and `0147` (test). `operator_toggle_feature` (`0070_org_features.sql`) and `admin_set_user_status` (`0065_admin_set_user_status.sql`) contain **zero** m365/cascade references.
+The RPC `m365_disconnect_cascade` is defined (`supabase/migrations/0107_m365_disconnect_cascade.sql:10`) and the pgTAP 0147 proves the *RPC contract* (deletes + audits, org-scoped). **But nothing invokes it.** Verified: `grep -rn m365_disconnect_cascade supabase/` returns only `0099` (def) and `0147` (test). `operator_toggle_feature` (`0070_org_features.sql`) and `admin_set_user_status` (`0065_admin_set_user_status.sql`) contain **zero** m365/cascade references.
 
 AC-M365-121's When/Then is explicit: *"when `operator_toggle_feature(org, 'm365_integration', false)` is called (or a user is offboarded via `admin_set_user_status`), Then a security-definer RPC deletes all connections…"* — that end-to-end behavior is **not implemented**. Today, disentitling an org or offboarding a user **leaves the encrypted tokens in place** (NFR-M365-107 unmet as an automated guarantee). The plan's traceability scoped this AC as "RPC contract" only, but the **spec's AC text** is the contract for a spec-review and it requires the trigger wiring.
 → Fix: add the call (or a trigger on `org_features`/`profiles.status`) in `0070`/`0065`, or get the owner to explicitly re-scope AC-M365-121. Building block is sound, so this is contained — hence Important, not Critical.
@@ -231,7 +231,7 @@ A caller POSTing `{action:'refresh'}` is routed to `handleGraphProxy({path:'/me/
 - `index.ts:151-153` `callbackDeps(req, env)` takes `req` then `void req;` — drop the param.
 - `initiate.ts:55-61` `newStateToken(nowFn)` takes `nowFn` then `void nowFn` ("kept if later needed") — remove the param; entropy is crypto-sourced and the clock is irrelevant here.
 
-**8. `0099_m365_disconnect_cascade.sql:64` — dead `v_deleted` assignment.** `get diagnostics v_deleted = row_count;` in the all-orgs branch is never read (only the single-user branch at line 50 reads it). Remove, or use it to audit a count.
+**8. `0107_m365_disconnect_cascade.sql:64` — dead `v_deleted` assignment.** `get diagnostics v_deleted = row_count;` in the all-orgs branch is never read (only the single-user branch at line 50 reads it). Remove, or use it to audit a count.
 
 **9. PKCE states are never swept.** `m365_pkce_states` rows are deleted on consume (incl. consume-after-expiry), but a row created and *abandoned* (user closes the tab) is never cleaned up — there's no TTL sweep. At Phase-1 volume it's noise; add a scheduled `delete where expires_at < now()` (or a `pg_cron` job) before this table grows unbounded.
 
@@ -258,8 +258,8 @@ The focused pgTAP passes **14/14**, and the full suite reportedly passes **167 f
 ### C1. Pending OAuth callback resurrects tokens after offboard/disentitlement
 
 **Locations:**  
-`0101_m365_cascade_triggers.sql:45-61,152-173`  
-`0098_m365_pkce_states.sql:10-16`  
+`0109_m365_cascade_triggers.sql:45-61,152-173`  
+`0106_m365_pkce_states.sql:10-16`  
 `supabase/functions/m365-token-custody/callback.ts:47-52,119-139`
 
 **Scenario:** An Admin starts OAuth. Before the callback completes, the user is disabled or M365 is disentitled. The trigger deletes existing connections, but the PKCE state remains valid. The callback then consumes that state and upserts a new active connection without checking current profile status or entitlement.
@@ -277,8 +277,8 @@ This leaves a refresh token after the lifecycle event explicitly requiring delet
 
 **Locations:**  
 `0001_init_schema.sql:30-34`  
-`0099_m365_disconnect_cascade.sql:5`  
-`0101_m365_cascade_triggers.sql:134-191`
+`0107_m365_disconnect_cascade.sql:5`  
+`0109_m365_cascade_triggers.sql:134-191`
 
 `organizations` has no status/disabled field, RPC, or trigger. `org_disabled` is merely allowlisted as a reason; no production path invokes it.
 
@@ -290,7 +290,7 @@ Hard-deleting an organization removes local rows through FK cascades (`0096:17-1
 
 **Locations:**  
 `0070_org_features.sql:88-91`  
-`0101_m365_cascade_triggers.sql:152-179,181-190`
+`0109_m365_cascade_triggers.sql:152-179,181-190`
 
 Existing `true` rows correctly use `UPDATE`, but an absent row uses `INSERT enabled=false`. There is no INSERT trigger. Deleting an already-disabled row also intentionally skips the cascade.
 
@@ -303,7 +303,7 @@ Existing `true` rows correctly use `UPDATE`, but an absent row uses `INSERT enab
 **Locations:**  
 `0070_org_features.sql:44-46`  
 `0075_explicit_api_grants.sql:118-121`  
-`0101_m365_cascade_triggers.sql:152-161`
+`0109_m365_cascade_triggers.sql:152-161`
 
 Operators have direct UPDATE privileges despite comments claiming the RPC is the sole write path.
 
@@ -324,8 +324,8 @@ The current REST surface may not expose arbitrary TRUNCATE, but this is an unsaf
 ### H5. Token table does not enforce the user/org relationship
 
 **Locations:**  
-`0096_ms_graph_connections.sql:17-19,33`  
-`0101_m365_cascade_triggers.sql:45-47,129`  
+`0104_ms_graph_connections.sql:17-19,33`  
+`0109_m365_cascade_triggers.sql:45-47,129`  
 `0149_m365_cascade_triggers.test.sql:25-26,121-122`
 
 `ms_graph_connections` has separate FKs to `organizations` and `profiles`, but no composite relationship enforcing that both belong to the same org.
@@ -350,8 +350,8 @@ The delete result is ignored. A database/API error can leave the encrypted row p
 **Locations:**  
 `0001_init_schema.sql:50-52`  
 `0002_rls.sql:47-49`  
-`0096_ms_graph_connections.sql:17-19`  
-`0101_m365_cascade_triggers.sql:134-138`
+`0104_ms_graph_connections.sql:17-19`  
+`0109_m365_cascade_triggers.sql:134-138`
 
 Profile deletion and `auth.users` deletion remove connection rows through FK cascades, so local token deletion normally occurs. However, no `m365.connection.revoked` audit event or Microsoft best-effort revoke occurs. Organization hard-delete has the same issue.
 
@@ -360,7 +360,7 @@ Profile deletion and `auth.users` deletion remove connection rows through FK cas
 ### M2. Cascade auditing is not concurrency-safe
 
 **Location:**  
-`0101_m365_cascade_triggers.sql:55-61`
+`0109_m365_cascade_triggers.sql:55-61`
 
 The core audits rows in a SELECT loop, then deletes them separately. Concurrent cascades can both audit the same connection. A connection inserted between the SELECT and DELETE can be deleted without an audit event.
 
@@ -369,7 +369,7 @@ The core audits rows in a SELECT loop, then deletes them separately. Concurrent 
 ### M3. Tenant CHECK accepts `.` and `..`; runtime paths are not revalidated
 
 **Locations:**  
-`0102_m365_db_hardening.sql:17-19`  
+`0110_m365_db_hardening.sql:17-19`  
 `pmo-portal/src/lib/m365/graphPkce.ts:20,58-61`  
 `refresh.ts:46-57`  
 `revoke.ts:46`
@@ -408,8 +408,8 @@ Also, `RESET ROLE` does not clear the transaction-local JWT claims, so the later
 ### L1. PKCE sweep is unindexed and unbounded
 
 **Locations:**  
-`0102_m365_db_hardening.sql:31-39`  
-`0098_m365_pkce_states.sql:15-21`
+`0110_m365_db_hardening.sql:31-39`  
+`0106_m365_pkce_states.sql:15-21`
 
 The function is safe and idempotent, but `expires_at` has no index and the DELETE is unbatched. An entitled Admin can create many abandoned states, causing periodic sequential scans and large deletes.
 
@@ -418,7 +418,7 @@ The function is safe and idempotent, but `expires_at` has no index and the DELET
 ### L2. System cascades have null audit actors
 
 **Locations:**  
-`0101_m365_cascade_triggers.sql:129,161,173`  
+`0109_m365_cascade_triggers.sql:129,161,173`  
 `0076_audit_events.sql:48-52`
 
 `auth.uid()` is null for service-role/system actions. This does not suppress deletion; the trigger is guard-free, and `actor_id` is explicitly nullable for system events. It does reduce repudiation detail. The test does not assert actor identity on the authenticated operator path.
@@ -462,19 +462,19 @@ I read the prior Luna review first. I also verified the live database:
 
 | Finding | Status | Evidence |
 |---|---|---|
-| C1(a) PKCE purge | **CLOSED in isolation** | `_core` purges by user/org: `supabase/migrations/0103_m365_cascade_hardening.sql:76-89`; atomic consume: `stateStore.ts:55-68`. It does not prevent the concurrent race below after the callback already consumed state. |
-| C1(b) write guard | **PARTIALLY CLOSED** | Trigger genuinely covers INSERT/UPDATE and fires for `service_role`: `0103_m365_cascade_hardening.sql:106-133`. However, checks at `:113-120` take no lock. A concurrent INSERT can pass on the old lifecycle state. |
+| C1(a) PKCE purge | **CLOSED in isolation** | `_core` purges by user/org: `supabase/migrations/0111_m365_cascade_hardening.sql:76-89`; atomic consume: `stateStore.ts:55-68`. It does not prevent the concurrent race below after the callback already consumed state. |
+| C1(b) write guard | **PARTIALLY CLOSED** | Trigger genuinely covers INSERT/UPDATE and fires for `service_role`: `0111_m365_cascade_hardening.sql:106-133`. However, checks at `:113-120` take no lock. A concurrent INSERT can pass on the old lifecycle state. |
 | C1(c) callback error handling | **PARTIALLY CLOSED** | Pre-check and rejected-upsert handling are correct: `callback.ts:118-184`. The mocked race test `tokenCustody.callback.test.ts:241-268` is not a real concurrent database race. |
-| H2 absent-row INSERT / disabled-row DELETE | **PARTIALLY CLOSED** | INSERT and broadened DELETE exist: `0103_m365_cascade_hardening.sql:145-194`; tested at `0149:153-218`. But `false → false` UPDATE does not cascade (`:153-162`), so stale rows can remain after a race or legacy state. |
-| H3 feature identity mutation | **CLOSED** | Immutable trigger: `0103_m365_cascade_hardening.sql:203-221`; upsert changes only mutable columns: `0070_org_features.sql:88-91`; tests: `0149:221-239`. |
-| H5(i) user-only cleanup | **CLOSED in code** | Single-user deletion uses `where user_id = p_user_id`: `0103_m365_cascade_hardening.sql:62-78`. |
-| H5(ii) composite FK | **CLOSED in code** | `(user_id, org_id)` FK with `ON DELETE CASCADE`: `0103_m365_cascade_hardening.sql:230-236`. Profile org changes fail with `23503`; profile deletion cascades the connection. |
+| H2 absent-row INSERT / disabled-row DELETE | **PARTIALLY CLOSED** | INSERT and broadened DELETE exist: `0111_m365_cascade_hardening.sql:145-194`; tested at `0149:153-218`. But `false → false` UPDATE does not cascade (`:153-162`), so stale rows can remain after a race or legacy state. |
+| H3 feature identity mutation | **CLOSED** | Immutable trigger: `0111_m365_cascade_hardening.sql:203-221`; upsert changes only mutable columns: `0070_org_features.sql:88-91`; tests: `0149:221-239`. |
+| H5(i) user-only cleanup | **CLOSED in code** | Single-user deletion uses `where user_id = p_user_id`: `0111_m365_cascade_hardening.sql:62-78`. |
+| H5(ii) composite FK | **CLOSED in code** | `(user_id, org_id)` FK with `ON DELETE CASCADE`: `0111_m365_cascade_hardening.sql:230-236`. Profile org changes fail with `23503`; profile deletion cascades the connection. |
 | H5(iii) buggy fixture | **CLOSED** | All seeded connection/profile orgs now agree: `0149_m365_cascade_triggers.test.sql:56-66`. The test does not directly assert a mismatched insert fails. |
 | H6 revoke deletion error | **CLOSED for the reported failure** | Delete errors now return `503`, record an error event, and skip success audit: `revoke.ts:67-97`; tests: `tokenCustody.hardening.test.ts:65-106`. |
-| M2 audit/delete race | **CLOSED** | `DELETE ... RETURNING` audits only rows actually deleted: `0103_m365_cascade_hardening.sql:70-87`. |
-| M3 tenant validation | **CLOSED for the reported path-confusion issue** | Tightened DB check: `0103_m365_cascade_hardening.sql:245-255`; shared runtime validation: `graphPkce.ts:34-56`; callback/refresh/revoke validation: `callback.ts:55-65`, `refresh.ts:52-61`, `revoke.ts:47-55`. |
+| M2 audit/delete race | **CLOSED** | `DELETE ... RETURNING` audits only rows actually deleted: `0111_m365_cascade_hardening.sql:70-87`. |
+| M3 tenant validation | **CLOSED for the reported path-confusion issue** | Tightened DB check: `0111_m365_cascade_hardening.sql:245-255`; shared runtime validation: `graphPkce.ts:34-56`; callback/refresh/revoke validation: `callback.ts:55-65`, `refresh.ts:52-61`, `revoke.ts:47-55`. |
 | M4 lifecycle-test gap | **PARTIALLY CLOSED** | Real RPC paths and actor assertions now exist: `0149:79-132`. Trigger disabling is transactional and intentionally simulates legacy data (`:157-162`, `:207-210`), but the test still does not prove concurrent races or the service-role callback path. |
-| L1 PKCE sweep | **PARTIALLY CLOSED** | Expiry index added: `0103_m365_cascade_hardening.sql:258-260`. Cleanup remains one unbatched `DELETE`, and initiation is not rate-limited: `0102_m365_db_hardening.sql:34-39`, `initiate.ts:40-50`. |
+| L1 PKCE sweep | **PARTIALLY CLOSED** | Expiry index added: `0111_m365_cascade_hardening.sql:258-260`. Cleanup remains one unbatched `DELETE`, and initiation is not rate-limited: `0110_m365_db_hardening.sql:34-39`, `initiate.ts:40-50`. |
 
 ## Remaining C1 write paths
 
@@ -501,7 +501,7 @@ Observed locally:
 - `profile=disabled connections=1`
 - `feature=false connections=1`
 
-**Evidence:** `0103_m365_cascade_hardening.sql:113-122`; lifecycle deletes at `:153-170`; callback upsert at `callback.ts:151-184`.
+**Evidence:** `0111_m365_cascade_hardening.sql:113-122`; lifecycle deletes at `:153-170`; callback upsert at `callback.ts:151-184`.
 
 **Fix:** Lock the profile row and entitlement row in the write guard with `FOR UPDATE`, using the same lock ordering as lifecycle updates, or use a shared transaction-scoped advisory lock. Add a real concurrent integration test. Also make disabled/false lifecycle cleanup idempotent on repeated writes.
 
@@ -521,7 +521,7 @@ A PMO Admin can initiate a flow, send the authorize URL to another user in the s
 
 The composite FK and tightened tenant CHECK validate existing rows immediately:
 
-**Evidence:** `0103_m365_cascade_hardening.sql:230-236`, `:245-252`.
+**Evidence:** `0111_m365_cascade_hardening.sql:230-236`, `:245-252`.
 
 A legacy mis-org connection or legacy `..` tenant value causes migration 0103 to abort, leaving all hardening unapplied.
 
@@ -543,14 +543,14 @@ During a lifecycle race, refresh can report `m365.token.refreshed` even though t
 
 The new user-only deletes use `user_id`, but existing indexes lead with `org_id`.
 
-**Evidence:** deletes at `0103_m365_cascade_hardening.sql:70-78`; indexes only at `0096_ms_graph_connections.sql:38` and `0098_m365_pkce_states.sql:21`.
+**Evidence:** deletes at `0111_m365_cascade_hardening.sql:70-78`; indexes only at `0104_ms_graph_connections.sql:38` and `0106_m365_pkce_states.sql:21`.
 
 **Fix:** Add indexes on `ms_graph_connections(user_id)` and `m365_pkce_states(user_id)`.
 
 ### Repeated disabled/false state does not repair stale rows
 
-- Profile trigger fires only on transition to disabled: `0101_m365_cascade_triggers.sql:134-138`.
-- Feature trigger fires only `true → false`: `0103_m365_cascade_hardening.sql:153-162`.
+- Profile trigger fires only on transition to disabled: `0109_m365_cascade_triggers.sql:134-138`.
+- Feature trigger fires only `true → false`: `0111_m365_cascade_hardening.sql:153-162`.
 
 If a stale row survives a race, repeating “disable” or “toggle false” does not remove it.
 
@@ -559,7 +559,7 @@ If a stale row survives a race, repeating “disable” or “toggle false” do
 ## Low
 
 - Revoke treats a concurrent zero-row DELETE as success because it checks only `deleteError`, not returned row identity: `revoke.ts:72-97`. Use `DELETE ... RETURNING`.
-- PKCE sweep is indexed but still unbatched and initiation is unrate-limited: `0102_m365_db_hardening.sql:34-39`.
+- PKCE sweep is indexed but still unbatched and initiation is unrate-limited: `0110_m365_db_hardening.sql:34-39`.
 - `isValidTenant` accepts aliases/domains, while callback requires an exact concrete tenant GUID: `graphPkce.ts:17-41`, `callback.ts:99-105`. This fails closed but can reject valid misconfigured deployments.
 - Trigger functions retain public EXECUTE privilege, though PostgreSQL rejects direct scalar invocation of trigger functions. Revoke for least-privilege hygiene.
 
@@ -571,7 +571,7 @@ If a stale row survives a race, repeating “disable” or “toggle false” do
 - **(d)** Enable INSERT does not cascade; no recursion. The concurrency race remains.
 - **(e)** Test trigger disable/enable is transactional, but intentionally bypasses production behavior and does not prove a real race.
 - **(f)** Fixture entitlement additions do not weaken prior assertions; lockdown grants remain revoked.
-- **(g)** The guarded public RPC remains org-safe for Admins: `0101_m365_cascade_triggers.sql:92-103`. Operators are intentionally cross-org. The user-only cleanup can delete a legacy mis-org row, by design.
+- **(g)** The guarded public RPC remains org-safe for Admins: `0109_m365_cascade_triggers.sql:92-103`. Operators are intentionally cross-org. The user-only cleanup can delete a legacy mis-org row, by design.
 - **(h)** Added functions are SECURITY DEFINER with `search_path=public`; no exploitable search-path or privilege issue found.
 
 Out-of-scope residuals remain as requested: no org-disable lifecycle (`0001_init_schema.sql:30-34`), TRUNCATE bypass, and `org_has_feature` default-enabled absence semantics. Profile/auth hard deletes also still remove connections without M365 audit/revoke.
@@ -634,7 +634,7 @@ Both user-disable and feature-disable variants produced PostgreSQL `deadlock det
 
 ### High — migration preflight still permits deployment failure
 
-**Location:** `supabase/migrations/0103_m365_cascade_hardening.sql:249-253`
+**Location:** `supabase/migrations/0111_m365_cascade_hardening.sql:249-253`
 
 `foo..bar` was accepted by the old 0102 constraint, is rejected by the new constraint, but survives the preflight. This can abort 0103 before the composite FK and write guard are installed.
 
@@ -642,7 +642,7 @@ Both user-disable and feature-disable variants produced PostgreSQL `deadlock det
 
 ### Medium — real refresh/lifecycle deadlock
 
-**Locations:** `0104_m365_race_lock.sql:70-85`, `0104:146-165`, `refresh.ts:105-117`
+**Locations:** `0112_m365_race_lock.sql:70-85`, `0104:146-165`, `refresh.ts:105-117`
 
 The guard locks parent rows only after an UPDATE has locked the child connection row. The lifecycle cascade takes the reverse path.
 
@@ -694,10 +694,10 @@ rejected LIVE with 42501. All round-3 findings closed. Residual = 3 MED + 3 LOW 
 
 | Finding | Closed? | Evidence |
 |---|---|---|
-| C1 token resurrection | **Yes, intended paths** | Locked guard: `0104_m365_race_lock.sql:107-120`; callback RPC: `callback.ts:159-173`; refresh/status RPCs: `refresh.ts:109-126,155-194`. Live race probes passed both interleavings for user and feature targets, with zero surviving rows. |
-| 0103 preflight escaping | **Yes for `foo..bar`; test proof partial** | Correct regexes: `0103_m365_cascade_hardening.sql:270-279,304-311`. `0151:53-101` proves buggy regex=false, fixed regex=true, deletion, audit, and successful CHECK creation. It replays the relevant upgrade sequence rather than applying the complete migration to a legacy populated database. |
+| C1 token resurrection | **Yes, intended paths** | Locked guard: `0112_m365_race_lock.sql:107-120`; callback RPC: `callback.ts:159-173`; refresh/status RPCs: `refresh.ts:109-126,155-194`. Live race probes passed both interleavings for user and feature targets, with zero surviving rows. |
+| 0103 preflight escaping | **Yes for `foo..bar`; test proof partial** | Correct regexes: `0111_m365_cascade_hardening.sql:270-279,304-311`. `0151:53-101` proves buggy regex=false, fixed regex=true, deletion, audit, and successful CHECK creation. It replays the relevant upgrade sequence rather than applying the complete migration to a legacy populated database. |
 | Refresh/lifecycle deadlock | **Yes for matching production edge paths; not globally** | All callback/refresh/status mutations use parent-first RPCs. Live deadlock probe: legacy mode reproduced the deadlock; fixed mode had no deadlock for both targets. Remaining exceptions are Part-2 findings below. |
-| Already-stale scrub | **Yes** | Transactional `DELETE ... RETURNING` scrub with per-row audit: `0105_m365_lock_order_and_reconcile.sql:182-205`. 0103 preflight mis-org and bad-tenant deletes are also audited: `0103:259-279`. Re-running cleanly is idempotent. |
+| Already-stale scrub | **Yes** | Transactional `DELETE ... RETURNING` scrub with per-row audit: `0113_m365_lock_order_and_reconcile.sql:182-205`. 0103 preflight mis-org and bad-tenant deletes are also audited: `0103:259-279`. Re-running cleanly is idempotent. |
 | Trigger column scoping | **Yes** | Profile trigger is `UPDATE OF status` with final-state repair: `0104:143-148`. Feature trigger is `UPDATE OF enabled`: `0104:199-206`. `0150:106-165` proves both self-repair paths and no false cleanup on enable. |
 | Refresh success persistence | **Yes** | RPC error and returned ID are checked before success audit: `refresh.ts:109-136`. |
 | User indexes / revoke zero-row handling / trigger EXECUTE lockdown | **Yes** | Indexes: `0104:213-214`; revoke `DELETE ... RETURNING`: `revoke.ts:73-100`; trigger EXECUTE revocation: `0104:251-254`. |
@@ -709,7 +709,7 @@ All executable regexes in 0103/0104/0105 are correctly escaped under `standard_c
 
 ### MEDIUM — RPC connection identity is not bound
 
-**Location:** `supabase/migrations/0105_m365_lock_order_and_reconcile.sql:115-130,154-165`
+**Location:** `supabase/migrations/0113_m365_lock_order_and_reconcile.sql:115-130,154-165`
 
 `m365_refresh_connection` and `m365_set_connection_status` lock parents using `p_org_id/p_user_id`, but update solely with `where id = p_connection_id`.
 
@@ -722,7 +722,7 @@ All executable regexes in 0103/0104/0105 are correctly escaped under `standard_c
 
 ### MEDIUM — `service_role` retains direct child-first DML
 
-**Locations:** `supabase/migrations/0080_service_role_grants.sql:20-28`; `0104_m365_race_lock.sql:81-97`
+**Locations:** `supabase/migrations/0080_service_role_grants.sql:20-28`; `0112_m365_race_lock.sql:81-97`
 
 The current edge code has no direct INSERT/UPDATE path:
 
@@ -746,7 +746,7 @@ The handler checks `markError` but ignores `data`. A zero-row status RPC returns
 
 ### LOW — 0103 preflight overmatches leading-dot values
 
-**Locations:** `0103_m365_cascade_hardening.sql:270-275` vs `:304-311`
+**Locations:** `0111_m365_cascade_hardening.sql:270-275` vs `:304-311`
 
 `entra_tenant_id ~ '^[.]+'` matches `.foo`, but the installed CHECK accepts `.foo`. Live evaluation confirmed:
 

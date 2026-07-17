@@ -1,9 +1,17 @@
+import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { repositories } from '@/src/lib/repositories';
 import type { CompanyRow, CompanyType, CompanyInput } from '@/src/lib/db/companies';
 import { listProjectsByClient, type ProjectWithRefs } from '@/src/lib/db/projects';
 import { listProcurementsByVendor, type ProcurementWithRefs } from '@/src/lib/db/procurements';
 import { useAuth } from '@/src/auth/useAuth';
+import { routeDomainWrite } from '@/src/lib/adapterSeam/ownershipCache';
+import {
+  IDLE_PENDING_PUSH,
+  beginPush,
+  pendingPushAfterWrite,
+  type PendingPushState,
+} from '@/src/lib/adapterSeam/pendingPush';
 
 /**
  * Org-scoped Companies list over the repository seam (ADR-0017). queryKey includes
@@ -90,14 +98,41 @@ export function useCompanyMutations() {
     qc.invalidateQueries({ queryKey: ['fk-options', 'client'] });
   };
 
+  // Discover CRITICAL 1 follow-up: create/update already route through the repository seam (Slice
+  // 1's `routeDomainWrite('companies')` guard) — this state surfaces that routing to the form UI
+  // (TaskPushBadge, the P1 idiom). Only a Vendor/Client create dispatches externally (an Internal
+  // company never carries an `erp_doc_kind`, FR-ENA-090/091) — `isExternal` mirrors that check so
+  // an Internal-type write never shows a push badge even on a flipped org.
+  const [pendingPush, setPendingPush] = useState<PendingPushState>(IDLE_PENDING_PUSH);
+  const isExternal = (type: CompanyType) =>
+    routeDomainWrite('companies') === 'external' && type !== 'Internal';
+
   const create = useMutation({
     mutationFn: (input: CompanyInput) => repositories.company.create(input),
-    onSuccess: invalidate,
+    onMutate: (input: CompanyInput) => {
+      if (isExternal(input.type)) setPendingPush(beginPush(IDLE_PENDING_PUSH));
+    },
+    onSuccess: (_data, input) => {
+      invalidate();
+      if (isExternal(input.type)) setPendingPush(pendingPushAfterWrite('external', { ok: true }));
+    },
+    onError: (err, input) => {
+      if (isExternal(input.type)) setPendingPush(pendingPushAfterWrite('external', { ok: false, err }));
+    },
   });
 
   const update = useMutation({
     mutationFn: ({ id, input }: UpdateCompanyArgs) => repositories.company.update(id, input),
-    onSuccess: invalidate,
+    onMutate: ({ input }: UpdateCompanyArgs) => {
+      if (isExternal(input.type)) setPendingPush(beginPush(IDLE_PENDING_PUSH));
+    },
+    onSuccess: (_data, { input }) => {
+      invalidate();
+      if (isExternal(input.type)) setPendingPush(pendingPushAfterWrite('external', { ok: true }));
+    },
+    onError: (err, { input }) => {
+      if (isExternal(input.type)) setPendingPush(pendingPushAfterWrite('external', { ok: false, err }));
+    },
   });
 
   const archive = useMutation({
@@ -110,5 +145,5 @@ export function useCompanyMutations() {
     onSuccess: invalidate,
   });
 
-  return { create, update, archive, remove };
+  return { create, update, archive, remove, pendingPush };
 }

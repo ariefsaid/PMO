@@ -6,11 +6,13 @@
 // module; it must be server-enforced before any feature becomes paid.
 export const FEATURES = {
   incidents: false,
-  userViews: import.meta.env.VITE_FEATURES_USERVIEWS === 'true' || false,  // I3: user-view renderer; flip to true to enable (FR-VR-001)
-  // I5: AI composer sub-flag (AS-OD-003). Gated AND-wise with userViews.
-  // Allows disabling AI compose without disabling the whole User Views feature
-  // (e.g. when the function secret for the AI service is absent in an environment).
-  aiComposer: import.meta.env.VITE_FEATURES_AI_COMPOSER === 'true' || false,
+  // I3: user-view renderer (FR-VR-001). ON BY DEFAULT (owner directive 2026-07-14) — set
+  // VITE_FEATURES_USERVIEWS='false' to hide the My Views UI in a given environment.
+  userViews: import.meta.env.VITE_FEATURES_USERVIEWS !== 'false',
+  // I5: AI composer sub-flag (AS-OD-003). Gated AND-wise with userViews. ON BY DEFAULT — set
+  // VITE_FEATURES_AI_COMPOSER='false' to disable AI compose without hiding the whole User Views
+  // feature (e.g. when the function secret for the AI service is absent in an environment).
+  aiComposer: import.meta.env.VITE_FEATURES_AI_COMPOSER !== 'false',
   // A2 (ADR-0040): the in-app agent AssistantPanel + ⌘J. UI-hide-first; off by default.
   agentAssistant: import.meta.env.VITE_FEATURES_AGENT_ASSISTANT === 'true' || false,
 } as const;
@@ -99,7 +101,7 @@ export const FEATURE_ENV_DEFAULT: Record<OrgFeatureKey, boolean> = {
   timesheets: true,
   import_export: true,
   agent_assistant: import.meta.env.VITE_FEATURES_AGENT_ASSISTANT === 'true' || false,
-  user_views: import.meta.env.VITE_FEATURES_USERVIEWS === 'true' || false,
+  user_views: import.meta.env.VITE_FEATURES_USERVIEWS !== 'false', // ON BY DEFAULT (owner 2026-07-14)
   m365_integration: false,
 };
 

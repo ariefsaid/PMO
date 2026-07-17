@@ -159,7 +159,7 @@ export class M365HandlerError extends Error {
   }
 }
 
-// ── Row shapes (ms_graph_connections 0096, m365_pkce_states 0098) ──────────────
+// ── Row shapes (ms_graph_connections 0104, m365_pkce_states 0106) ──────────────
 
 export interface ConnectionRow {
   id: string;
