@@ -88,6 +88,21 @@ describe('erpnext/bodies — Sales Invoice (AC-SAR-030: SI money shape)', () => 
     });
   });
 
+  it('Luna BLOCK A3: siFromDoc carries the ERP customer name so an inbound-adopted SI resolves customer_id (not NULL)', () => {
+    const canonical = siFromDoc({
+      name: 'ACC-SINV-2026-00001',
+      customer: 'Spike Customer',
+      posting_date: '2026-07-14',
+      po_no: 'CUST-PO-123',
+      grand_total: 150000,
+      outstanding_amount: 150000,
+      docstatus: 1,
+      modified: '2026-07-14 10:00:00.000000',
+      amended_from: null,
+    });
+    expect(canonical).toMatchObject({ customer: 'Spike Customer' });
+  });
+
   it('siFromDoc handles null/undefined optional fields gracefully', () => {
     const canonical = siFromDoc({
       name: 'ACC-SINV-2026-00002',
@@ -108,6 +123,7 @@ describe('erpnext/bodies — Sales Invoice (AC-SAR-030: SI money shape)', () => 
       erp_docstatus: 0,
       erp_modified: null,
       erp_amended_from: null,
+      customer: null,
     });
   });
 });
@@ -178,6 +194,25 @@ describe('erpnext/bodies — Incoming Payment / PE-receive (AC-SAR-031: PE-recei
     });
   });
 
+  it('Luna BLOCK A3: peReceiveFromDoc carries customer/posting_date/references so an inbound-adopted PE-receive resolves customer_id + sales_invoice_id (not NULL)', () => {
+    const canonical = peReceiveFromDoc({
+      name: 'ACC-PAY-2026-00060',
+      party: 'Spike Customer',
+      posting_date: '2026-07-14',
+      reference_no: 'SAR-PE-ANCHOR-001',
+      paid_amount: 150000,
+      docstatus: 1,
+      modified: '2026-07-14 11:00:00.000000',
+      amended_from: null,
+      references: [{ reference_doctype: 'Sales Invoice', reference_name: 'ACC-SINV-2026-00001', allocated_amount: 150000 }],
+    });
+    expect(canonical).toMatchObject({
+      customer: 'Spike Customer',
+      date: '2026-07-14',
+      references: [{ reference_doctype: 'Sales Invoice', reference_name: 'ACC-SINV-2026-00001', allocated_amount: 150000 }],
+    });
+  });
+
   it('peReceiveFromDoc handles null optional fields', () => {
     const canonical = peReceiveFromDoc({
       name: 'ACC-PAY-2026-00061',
@@ -194,6 +229,9 @@ describe('erpnext/bodies — Incoming Payment / PE-receive (AC-SAR-031: PE-recei
       erp_docstatus: 0,
       erp_modified: null,
       erp_amended_from: null,
+      customer: null,
+      date: null,
+      references: [],
     });
   });
 });

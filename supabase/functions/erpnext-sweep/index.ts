@@ -61,6 +61,16 @@ const SWEEP_DOCTYPES: Array<{ kind: ErpDocKind; doctype: string }> = (Object.ent
   [ErpDocKind, { doctype: string }]
 >).map(([kind, entry]) => ({ kind, doctype: entry.doctype }));
 
+/** Luna BLOCK A1 (cross-domain corruption guard): `payment` (Pay/supplier) and `incoming-payment`
+ *  (Receive/customer) share the ONE `Payment Entry` doctype (`doctypeRegistry.ts`) — polling it without
+ *  a `payment_type` discriminator lets a Pay doc be adopted into `incoming_payments` (or vice-versa).
+ *  Every OTHER kind polls its own dedicated doctype, so this map is empty for them (no filter needed).
+ *  Exported for direct unit testing (mirrors the `reportVersionFromOrg` FIX-6 pattern). */
+export const PAYMENT_TYPE_BY_KIND: Partial<Record<ErpDocKind, 'Pay' | 'Receive'>> = {
+  payment: 'Pay',
+  'incoming-payment': 'Receive',
+};
+
 // ────────────────────────────────────────────────────────────────────────────────────────────────
 // (1) The outbox recovery pass — ADR-0058 §Consequences. Delegates to the REAL dispatchMoneyWrite per
 //     candidate so the sweep path and the retry path share ONE reconciliation algorithm.
@@ -272,6 +282,13 @@ async function sweepOrgDoctypesLive(serviceClient: SupabaseClient, org: OrgBindi
         if (error) throw new AppError(error.message, error.code);
       },
     };
+    // Luna BLOCK A1: `payment`/`incoming-payment` share the `Payment Entry` doctype — fetch
+    // `payment_type` and filter the poll (server-side + defense-in-depth post-fetch) so a Pay doc is
+    // NEVER adopted by the incoming-payment poll and vice-versa.
+    const paymentType = PAYMENT_TYPE_BY_KIND[kind];
+    const fields = paymentType
+      ? ['name', 'modified', 'docstatus', 'amended_from', 'payment_type']
+      : ['name', 'modified', 'docstatus', 'amended_from'];
     try {
       const result = await runSweep(
         { tier: ERPNEXT_TIER, domain },
@@ -281,7 +298,18 @@ async function sweepOrgDoctypesLive(serviceClient: SupabaseClient, org: OrgBindi
           applyChange: (ctx, externalRecordId, canonical, sourceModMs, d) =>
             applyErpFeedEvent(ctx, externalRecordId, canonical, sourceModMs, d as Parameters<typeof applyErpFeedEvent>[4]),
           listChanges: (cursor) => listErpChangesSinceWatermark(
-            { client, doctype, fields: ['name', 'modified', 'docstatus', 'amended_from'], fromDoc: bodyFns.fromDoc },
+            {
+              client,
+              doctype,
+              fields,
+              fromDoc: bodyFns.fromDoc,
+              ...(paymentType
+                ? {
+                    extraFilters: [['payment_type', '=', paymentType]],
+                    filterRow: (row: Record<string, unknown>) => row.payment_type === paymentType,
+                  }
+                : {}),
+            },
             cursor,
           ),
         },
@@ -381,10 +409,12 @@ Deno.serve(async (req: Request): Promise<Response> => {
  */
 async function buildReconcileDepsLive(serviceClient: SupabaseClient, org: OrgBinding, row: OutboxRow): Promise<DispatchMoneyWriteDeps> {
   // Re-read the persisted operation + payload (the OutboxRow projection drops them) to reconstruct the command.
+  // `actor_user_id` (0108): the ORIGINAL command's verified caller. Without it a sweep-finalized SI
+  // mirror lands `author_user_id = NULL`, and the approver≠author SoD check then passes for everyone.
   const { data, error } = await serviceClient.from('external_command_outbox')
-    .select('operation, payload').eq('id', row.id).maybeSingle();
+    .select('operation, payload, actor_user_id').eq('id', row.id).maybeSingle();
   if (error || !data) throw new AppError(`outbox row ${row.id} not readable for reconcile`, error?.code ?? 'not-found');
-  const rowExtra = data as { operation: 'create' | 'update' | 'transition'; payload: Record<string, unknown> | null };
+  const rowExtra = data as { operation: 'create' | 'update' | 'transition'; payload: Record<string, unknown> | null; actor_user_id: string | null };
   const payload = rowExtra.payload ?? {};
   const kind = payload.erp_doc_kind;
   const entry = typeof kind === 'string' && kind in DOCTYPE_REGISTRY ? DOCTYPE_REGISTRY[kind as ErpDocKind] : undefined;
@@ -453,7 +483,11 @@ async function buildReconcileDepsLive(serviceClient: SupabaseClient, org: OrgBin
   });
 
   const writeReadModel = async (canonical: PmoRecord): Promise<void> => {
-    await getReadModelWriter(row.domain).upsert({ serviceClient: serviceClient as never, orgId: org.orgId }, canonical, command);
+    await getReadModelWriter(row.domain).upsert(
+      { serviceClient: serviceClient as never, orgId: org.orgId, callerUserId: rowExtra.actor_user_id ?? undefined },
+      canonical,
+      command,
+    );
   };
   const recordExternalRef = (mapping: ExternalRefMapping): Promise<void> =>
     recordExternalRefWrite(serviceClient as never, { ...mapping, externalRecordId: encodeExternalRecordId(mapping), orgId: org.orgId });

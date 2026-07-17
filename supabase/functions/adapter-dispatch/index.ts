@@ -75,6 +75,10 @@ interface AdapterSelectContext {
   orgId: string;
   command: AdapterCommand;
   serviceClient: SupabaseClient;
+  /** The VERIFIED caller's user id (`verified.sub` — never a client-supplied body field). Persisted
+   *  onto the money-outbox row as `actor_user_id` (0108 §C) so a LATER sweep finalize — which has no
+   *  request JWT — can still attribute `sales_invoices.author_user_id` and keep the submit SoD real. */
+  userId: string;
   /** Read-only pass-through so a tier's factory can wire an in-flow fault seam (e.g. ERPNext's
    *  two-step submit, task 2.14) — factories that don't need it (P0/P1) simply ignore this field. */
   faultGate: FaultGate;
@@ -231,6 +235,10 @@ async function resolveErpMoneyOutboxDeps(ctx: AdapterSelectContext): Promise<Dis
     orgId: ctx.orgId,
     externalTier: ERPNEXT_TIER,
     operation: ctx.command.operation as 'create' | 'update' | 'transition',
+    // BLOCK 7 (0108 §C): persist the VERIFIED dispatching actor on the outbox row. The sweep finalizes
+    // committed-but-unmirrored rows with no request JWT — without this the author is unrecoverable and
+    // the mirrored SI's author_user_id lands NULL, silently voiding the approver≠author SoD.
+    actorUserId: ctx.userId,
     // C-1 per-kind reissue policy: a mutable-anchor (PE) inconclusive recovery is HELD, never reissued.
     reissueOnInconclusiveAbsence: !entry.anchorMutable,
     payload,
@@ -602,13 +610,13 @@ Deno.serve(async (req: Request): Promise<Response> => {
   let adapter: Adapter;
   let money: DispatchMoneyOutboxDeps | undefined;
   try {
-    adapter = await adapterFactory({ orgId, command, serviceClient, faultGate });
+    adapter = await adapterFactory({ orgId, command, serviceClient, faultGate, userId });
     // Task 6.4 (ADR-0058): every non-read-only erpnext command routes through the money-idempotency
     // outbox — `dispatchExternallyOwnedWrite` requires `money` to be set for this tier (it throws
     // "dispatched without outbox deps" otherwise, the exact failure this task closes). P0/P1 (every
     // other tier) never resolves this — `money` stays `undefined`, their path is byte-for-byte.
     if (adapter.tier === ERPNEXT_TIER && (command.operation as string) !== 'read') {
-      money = await resolveErpMoneyOutboxDeps({ orgId, command, serviceClient, faultGate });
+      money = await resolveErpMoneyOutboxDeps({ orgId, command, serviceClient, faultGate, userId });
     }
   } catch (err) {
     const appError = err instanceof AppError ? err : new AppError(err instanceof Error ? err.message : 'adapter select failed');

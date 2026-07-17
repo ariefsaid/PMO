@@ -158,8 +158,12 @@ async function commitTransition(command: AdapterCommand, deps: ErpAdapterDeps): 
  * cancel the old doc (`PUT {docstatus:2}`), then create a NEW doc carrying `amended_from` = the old
  * name (the lineage seam: the mirror + `external_refs` repoint to the new name; a lineage row records
  * the supersession), stamp the idempotency key into the anchor field (so the outbox recovery probe can
- * adopt an orphaned amend create), and run the R9 two-step submit + re-fetch on the new doc. Returns
- * the NEW ERP `name` + the amended canonical (carrying `erp_amended_from` via `fromDoc`). Shared by
+ * adopt an orphaned amend create), and then — for a kind the adapter may auto-submit — run the R9
+ * two-step submit + re-fetch on the new doc. A `submitOnCreate:false` kind (the revenue Sales Invoice,
+ * OD-SAR-DRAFT-SUBMIT) is deliberately left a DRAFT: its replacement, exactly like its create, requires
+ * a separate SoD-gated submit by a DIFFERENT approver (Luna re-audit BLOCK 1 — otherwise the author
+ * amends their own submitted SI and self-approves the replacement). Returns the NEW ERP `name` + the
+ * amended canonical (carrying `erp_amended_from` via `fromDoc`). Shared by
  * `commitTransition(verb:'amend')` and `commitUpdateSubmittable`'s routeEdit(1)=amend branch.
  */
 async function commitAmend(command: AdapterCommand, deps: ErpAdapterDeps, oldExternalRecordId: string): Promise<CommandResult> {
@@ -176,7 +180,18 @@ async function commitAmend(command: AdapterCommand, deps: ErpAdapterDeps, oldExt
     entry.anchorField,
   );
   const created = (await createDoc(deps.client, entry.doctype, newBody)) as { name: string };
-  // 3. R9 two-step: submit the new doc + re-fetch (the amend produces a submittable doc — the stale-
+  // 3. OD-SAR-DRAFT-SUBMIT (Luna re-audit BLOCK 1 — the SoD bypass): the amend/replacement path obeys
+  // the SAME two-person rule as create. A `submitOnCreate:false` kind (the revenue Sales Invoice) is
+  // NEVER auto-submitted here — the replacement lands as an ERP DRAFT (docstatus 0) awaiting the
+  // SEPARATE SoD-gated `verb:'submit'` transition by a DIFFERENT approver. Without this, an author
+  // could amend their own submitted SI (an `update` of a submitted doc routes here via routeEdit(1))
+  // and self-approve the replacement, defeating the signed-off approver≠author SoD entirely.
+  // Every other submittable kind (purchase-invoice, Pay payment entries) keeps the R9 two-step.
+  if (!entry.submittable || entry.submitOnCreate === false) {
+    const canonical: PmoRecord = { ...bodyFns.fromDoc(created), id: command.record.id };
+    return { externalRecordId: created.name, canonical };
+  }
+  // 4. R9 two-step: submit the new doc + re-fetch (the amend produces a submittable doc — the stale-
   // status trap applies, same as commitCreate). Fires afterSubmitHook for FR-ENA-003 seam parity.
   await submitDoc(deps.client, entry.doctype, created.name);
   await deps.afterSubmitHook?.();

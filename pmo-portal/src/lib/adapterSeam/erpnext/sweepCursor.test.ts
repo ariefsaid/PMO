@@ -153,6 +153,55 @@ describe('erpnext/sweepCursor — listErpChangesSinceWatermark (AC-ENA-071)', ()
     expect(changes[0].sourceModMs).toBe(Date.parse('2026-07-12 12:00:00.000000'));
   });
 
+  it('Luna BLOCK A1: extraFilters conjoin with the modified >= cursor filter (Payment Entry payment_type discriminator)', async () => {
+    const seenUrls: string[] = [];
+    const fetchImpl = vi.fn(async (url: string | URL | Request) => {
+      seenUrls.push(String(url));
+      return new Response(
+        JSON.stringify({ data: [{ name: 'ACC-PAY-2026-00001', modified: '2026-07-12 12:00:00.000000', docstatus: 1, amended_from: null, payment_type: 'Receive' }] }),
+        { status: 200 },
+      );
+    });
+    const client = { fetchImpl: fetchImpl as unknown as typeof fetch, apiKey: 'k', apiSecret: 's', baseUrl: 'http://erp.test' };
+    await listErpChangesSinceWatermark(
+      {
+        client,
+        doctype: 'Payment Entry',
+        fields: ['name', 'modified', 'docstatus', 'amended_from', 'payment_type'],
+        fromDoc: FROM_DOC,
+        extraFilters: [['payment_type', '=', 'Receive']],
+      },
+      '2026-07-12 12:00:00.000000',
+    );
+    const filtersParam = new URL(seenUrls[0]).searchParams.get('filters') ?? '[]';
+    const filters = JSON.parse(filtersParam) as unknown[];
+    expect(filters).toContainEqual(['payment_type', '=', 'Receive']);
+    expect(filters).toContainEqual(['modified', '>=', '2026-07-12 12:00:00.000000']);
+  });
+
+  it('Luna BLOCK A1: filterRow SKIPS a fetched doc whose payment_type does not match the kind discriminator (a Pay doc must never be emitted for an incoming-payment poll)', async () => {
+    const client = clientWithPages([
+      [
+        { name: 'ACC-PAY-2026-00002', modified: '2026-07-12 12:00:00.000000', docstatus: 1, amended_from: null, payment_type: 'Pay' },
+        { name: 'ACC-PAY-2026-00003', modified: '2026-07-12 12:00:01.000000', docstatus: 1, amended_from: null, payment_type: 'Receive' },
+      ],
+    ]);
+    const { changes } = await listErpChangesSinceWatermark(
+      {
+        client,
+        doctype: 'Payment Entry',
+        fields: ['name', 'modified', 'docstatus', 'amended_from', 'payment_type'],
+        fromDoc: FROM_DOC,
+        extraFilters: [['payment_type', '=', 'Receive']],
+        filterRow: (row) => row.payment_type === 'Receive',
+      },
+      '2026-07-12 12:00:00.000000',
+    );
+    // The Pay doc (ACC-PAY-2026-00002) MUST be skipped — never adopted into the incoming-payment feed —
+    // even though it was fetched (defense-in-depth beyond the server-side extraFilters).
+    expect(changes.map((c) => c.record.id)).toEqual(['ACC-PAY-2026-00003']);
+  });
+
   it('a strictly-older row still flows as a SweepChange whose sourceModMs the per-row apply guard drops (FR-ENA-053)', async () => {
     // sweepCursor LISTS the older row (it does not apply the per-row guard — that is applyEngine's
     // job). The proof here is that the older row's sourceModMs is the EXACT value applyInboundChange

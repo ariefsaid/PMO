@@ -26,6 +26,7 @@ import { findPmoRecordId, recordExternalRef } from '../../../pmo-portal/src/lib/
 import { ERPNEXT_TIER } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/adapter.ts';
 import { KIND_DOMAIN, KIND_MIRROR_TABLE, type ErpDocKind } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/feedKinds.ts';
 import { deriveSiStatus } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/siStatus.ts';
+import { reconcileSiCancelAutoUnlink } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/transitionPolicy.ts';
 import type { ErpFeedDeps } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/applyFeed.ts';
 import type { LineageRow } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/lineage.ts';
 import type { PmoRecord } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
@@ -165,6 +166,22 @@ export function createErpFeedDeps(serviceClient: SupabaseClient, orgId: string, 
         erp_modified: erpModified,
       }).eq('org_id', orgId).eq('id', pmoRecordId) as unknown as Promise<{ error: { message: string; code?: string } | null }>);
       if (error) throw new AppError(error.message, error.code);
+      // Luna BLOCK A4 (feed side): ERPNext auto-unlinks a Receive Payment Entry's `references` when the
+      // Sales Invoice it cites cancels (AC-SAR-022) — PMO's `incoming_payments.sales_invoice_id` is
+      // otherwise left stale. Reconcile via the EXISTING pure helper (never duplicate its logic); the
+      // outbound/dispatch-side wiring is owned by the other agent.
+      if (kind === 'sales-invoice') {
+        const { data: referencing, error: refErr } = await serviceClient.from('incoming_payments')
+          .select('id').eq('org_id', orgId).eq('sales_invoice_id', pmoRecordId);
+        if (refErr) throw new AppError(refErr.message, refErr.code);
+        for (const row of (referencing as Array<{ id: string }> | null) ?? []) {
+          const { peReceivePatch } = reconcileSiCancelAutoUnlink(row.id, erpModified);
+          if (!peReceivePatch) continue;
+          const { error: unlinkErr } = await (serviceClient.from('incoming_payments').update(peReceivePatch)
+            .eq('org_id', orgId).eq('id', row.id) as unknown as Promise<{ error: { message: string; code?: string } | null }>);
+          if (unlinkErr) throw new AppError(unlinkErr.message, unlinkErr.code);
+        }
+      }
     },
     repointExternalRef: async (_domain, pmoRecordId, newExternalRecordId) => {
       // Guarded by `unique(org_id,domain,external_record_id)` (0093) — a concurrent duplicate repoint

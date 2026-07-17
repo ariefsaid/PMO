@@ -11,6 +11,7 @@ import { createErpAdapter, ERPNEXT_TIER, type DoctypeBodyFns, type ErpAdapterDep
 import type { ErpDocKind } from './doctypeRegistry.ts';
 import { getDoc, type ErpClientDeps, type ErpRateLimiter } from './client.ts';
 import { resolveExternalRef, type ExternalRefsLookupClient } from '../refs.ts';
+import { readProcessGates } from './processGates.ts';
 import type { Adapter, AdapterCommand } from '../contract.ts';
 import { AppError } from '../../appError.ts';
 
@@ -123,6 +124,103 @@ async function resolvePoItemChildNames(client: ErpClientDeps, poName: string): P
 }
 
 // ============================================================================
+// Luna re-audit BLOCK 2 — cross-org link PRE-FLIGHT (money-critical, ordering)
+// ============================================================================
+
+/** The revenue command's cross-entity links and the table each must belong to, in the caller's org.
+ *  `readModelWriters.assertLinkSameOrg` guards the SAME links, but only inside the MIRROR writers —
+ *  which run AFTER `adapter.commit()` and `recordOutboxRef`. By then a cross-org link has already
+ *  minted a REAL ERP money document that no PMO row can ever reference (orphan money). This table
+ *  drives the PRE-flight; the post-commit guard stays as defence in depth. */
+const REVENUE_LINK_TABLES: ReadonlyArray<{ field: 'customerId' | 'projectId' | 'salesInvoiceId'; table: string }> = [
+  { field: 'customerId', table: 'companies' },
+  { field: 'projectId', table: 'projects' },
+  { field: 'salesInvoiceId', table: 'sales_invoices' },
+];
+
+/** Assert one linked row exists AND belongs to `orgId`. Fails CLOSED: a missing row (no row, or an id
+ *  from another tenant that RLS-free service-role reads would happily return) is rejected exactly like
+ *  a cross-org one — never treated as an absent link. Throws the classified `cross-org-link-rejected`
+ *  (the same code `readModelWriters` raises, so the caller-facing classification is unchanged). */
+async function assertLinkBelongsToOrg(
+  serviceClient: DispatchServiceClient,
+  orgId: string,
+  table: string,
+  id: string,
+): Promise<void> {
+  const { data, error } = await serviceClient.from(table).select('org_id').eq('id', id).maybeSingle();
+  if (error) throw new AppError(error.message, error.code);
+  const rowOrgId = (data as { org_id: string } | null)?.org_id;
+  if (rowOrgId !== orgId) {
+    throw new AppError(
+      `cross-org link rejected: ${table} '${id}' does not belong to org '${orgId}'`,
+      'cross-org-link-rejected',
+    );
+  }
+}
+
+/**
+ * Validate EVERY cross-entity link a revenue command carries BEFORE the adapter exists — so a command
+ * pairing (say) a valid own-org customer with ANOTHER org's `salesInvoiceId` is refused with no ERP
+ * write and no outbox commit. Runs ahead of ref resolution (which itself issues ERP GETs for a GR) and
+ * ahead of `dispatchExternallyOwnedWrite` (index.ts resolves the adapter first). A null/absent link is
+ * skipped — only ASSERTED links are validated (an on-account receipt legitimately carries none).
+ */
+async function assertRevenueLinksSameOrg(deps: ErpDispatchFactoryDeps): Promise<void> {
+  const record = deps.command.record as Partial<Record<'customerId' | 'projectId' | 'salesInvoiceId', string | null>> & { erp_doc_kind?: string };
+  if (record.erp_doc_kind !== 'sales-invoice' && record.erp_doc_kind !== 'incoming-payment') return;
+  for (const { field, table } of REVENUE_LINK_TABLES) {
+    const id = record[field];
+    if (typeof id === 'string' && id.length > 0) {
+      await assertLinkBelongsToOrg(deps.serviceClient, deps.orgId, table, id);
+    }
+  }
+}
+
+// ============================================================================
+// Luna re-audit BLOCK 4 — the require_project_on_si gate needs a RESOLVED ERP project
+// ============================================================================
+
+/** PMO `projectId` -> the ERP project name, via the binding's `config.project_map` override (Director
+ *  ruling §6.1 — search-by-`project_name` + auto-create is a fast-follow; the map is the source of
+ *  truth today). `null` = no projectId, or a projectId this binding has no ERP mapping for. ONE
+ *  definition, shared by the ref resolution and the gate below — they must never disagree about what
+ *  "the ERP project resolved" means. */
+function resolveErpProjectName(config: Record<string, unknown> | undefined, projectId: string | null | undefined): string | null {
+  const projectMap = (config?.project_map as Record<string, string> | undefined) ?? {};
+  return projectId ? (projectMap[projectId] ?? null) : null;
+}
+
+/**
+ * Enforce `require_project_on_si` on an SI CREATE against the ERP project that ACTUALLY resolved —
+ * not merely against a non-null PMO `projectId` (the dispatch's own pre-flight already covers that).
+ * A PMO project with no `project_map` entry resolves to `null`, and `bodies/salesInvoice.ts` then omits
+ * the ERP `project` field entirely: the invoice posts with NO project dimension on the GL while PMO
+ * reports it as project revenue. With the gate ON that silent divergence must be fatal, and fatal HERE
+ * — before the adapter is constructed, so nothing is written to ERPNext.
+ *
+ * Gate OFF (or a non-SI/non-create command) ⇒ untouched: an unmapped project stays a legitimate
+ * unattributed invoice. Gates are read from the SAME `config` the FE reads (`readProcessGates`, which
+ * applies the per-key defaults — `require_project_on_si` defaults TRUE).
+ */
+function assertSiProjectGate(deps: ErpDispatchFactoryDeps, binding: ExternalOrgBindingRow): void {
+  const record = deps.command.record as { erp_doc_kind?: string; projectId?: string | null };
+  if (record.erp_doc_kind !== 'sales-invoice' || (deps.command.operation as string) !== 'create') return;
+  if (!readProcessGates(binding.config).require_project_on_si) return;
+  // A MISSING projectId is the dispatch's own gate (index.ts -> 422 'project-required'), enforced
+  // before this factory is ever reached — not re-thrown here with a different status. This guard owns
+  // the half that check cannot see: a projectId that is present but resolves to no ERP project.
+  if (!record.projectId) return;
+  if (resolveErpProjectName(binding.config, record.projectId) === null) {
+    throw new AppError(
+      `require_project_on_si is on but project '${record.projectId}' has no ERP project mapping — ` +
+        'the invoice would post with no project dimension on the ERP ledger',
+      'commit-rejected',
+    );
+  }
+}
+
+// ============================================================================
 // Task 2.3 — Revenue ref resolver (FR-SAR-100/101/121)
 // ============================================================================
 
@@ -169,10 +267,10 @@ async function resolveRevenueRefs(
       : customerExternalId;
   }
 
-  // Resolve project for sales-invoice
+  // Resolve project for sales-invoice (the gate on this ref is enforced by `assertSiProjectGate`,
+  // ahead of the adapter — both use `resolveErpProjectName` so they can never diverge).
   if (kind === 'sales-invoice') {
-    const projectMap = (binding.config?.project_map as Record<string, string> | undefined) ?? {};
-    refs.project = record.projectId ? (projectMap[record.projectId] ?? null) : null;
+    refs.project = resolveErpProjectName(binding.config, record.projectId);
   }
 
   // Resolve SI reference for incoming-payment — Luna BLOCK 5 (MONEY-CRITICAL):
@@ -288,6 +386,13 @@ export async function resolveErpDispatchAdapter(deps: ErpDispatchFactoryDeps): P
   if (!binding.activated_at) {
     throw new AppError('erpnext binding is not activated (version handshake mismatch or never activated)', 'config-rejected');
   }
+
+  // Luna re-audit BLOCK 2 — the cross-org link pre-flight runs FIRST: before ref resolution (which
+  // can issue ERP GETs), before the adapter is constructed, and therefore before any ERP write or
+  // outbox commit. A cross-org link must never reach ERPNext (orphan money, no PMO row).
+  await assertRevenueLinksSameOrg(deps);
+  // Luna re-audit BLOCK 4 — the SI project gate, likewise ahead of any ERP write.
+  assertSiProjectGate(deps, binding);
 
   // Ref resolution (supplier/PO/PO-item) — task 5.3 wires the PO/GR case; slice 3 wires the
   // companies-domain party create/update path (which needs no cross-doctype resolution of its own).

@@ -14,8 +14,8 @@
  * edits that file beyond the one stale "update not yet wired" placeholder task 6.3 retires.
  */
 import { describe, expect, it, vi } from 'vitest';
-import { AdapterError } from '../contract.ts';
-import { createErpAdapter, type ErpAdapterDeps } from './adapter.ts';
+import { AdapterError, type PmoRecord } from '../contract.ts';
+import { createErpAdapter, type DoctypeBodyFns, type ErpAdapterDeps } from './adapter.ts';
 
 function jsonResponse(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
@@ -304,6 +304,111 @@ describe('erpnext/adapter — commit() update on a SUBMITTABLE kind (task 6.3 up
     await expect(
       adapter.commit({ domain: 'procurement', operation: 'update', record: { id: 'pmo-pi-1', erp_doc_kind: 'purchase-invoice' } }),
     ).rejects.toMatchObject({ code: 'commit-rejected' });
+  });
+});
+
+// ============================================================================
+// Luna re-audit BLOCK B1 (SoD bypass) — the amend/replacement path must obey the SAME
+// OD-SAR-DRAFT-SUBMIT rule as create: a `submitOnCreate:false` kind (the revenue Sales Invoice) is
+// NEVER auto-submitted by the adapter. Before this fix `commitAmend` unconditionally submitted the
+// replacement doc, so an author could amend their OWN submitted SI (an `update` of a submitted doc
+// routes to amend) and self-approve the replacement — defeating the two-person approver≠author SoD.
+// The replacement must land as an ERP DRAFT awaiting a separate SoD-gated `verb:'submit'`.
+// Procurement (purchase-invoice / Pay payment entries — `submittable:true` with NO
+// `submitOnCreate:false`) keeps its POST→submit→refetch behaviour unchanged (asserted above + below).
+// ============================================================================
+
+const SI_BODY_FNS: DoctypeBodyFns = {
+  toBody: (rec: PmoRecord) => ({ customer: 'Spike Customer', items: rec.items }),
+  fromDoc: (doc: unknown) => ({
+    id: 'placeholder',
+    si_number: (doc as { name: string }).name,
+    erp_amended_from: (doc as { amended_from?: string }).amended_from ?? null,
+    erp_docstatus: (doc as { docstatus?: number }).docstatus ?? 0,
+  }),
+};
+
+describe('erpnext/adapter — amend of a submitOnCreate:false kind (Luna B1, OD-SAR-DRAFT-SUBMIT)', () => {
+  it('verb:amend on a sales-invoice cancels the old doc and creates the replacement as a DRAFT — never auto-submits it (SoD: a different approver must submit)', async () => {
+    const calls: Array<{ method: string; body?: unknown }> = [];
+    const fetchImpl = async (_url: string, init?: RequestInit) => {
+      calls.push({ method: init?.method ?? 'GET', body: init?.body ? JSON.parse(init.body as string) : undefined });
+      if (init?.method === 'PUT') return jsonResponse(200, { name: 'ACC-SINV-2026-00001', docstatus: 2 });
+      if (init?.method === 'POST') return jsonResponse(200, { name: 'ACC-SINV-2026-00002', docstatus: 0, amended_from: 'ACC-SINV-2026-00001' });
+      return jsonResponse(200, { name: 'ACC-SINV-2026-00002', docstatus: 1 });
+    };
+    const adapter = createErpAdapter(baseDeps(fetchImpl, { doctypeBodies: { 'sales-invoice': SI_BODY_FNS } }));
+    const result = await adapter.commit({
+      domain: 'revenue',
+      operation: 'transition',
+      record: { id: 'pmo-si-1', erp_doc_kind: 'sales-invoice', externalRecordId: 'ACC-SINV-2026-00001', verb: 'amend', items: [{ item_code: 'X', qty: 1 }] },
+      idempotencyKey: 'idem-si-amend-1',
+    });
+    // cancel the old (PUT docstatus:2) then create the replacement (POST) — and STOP. A submit PUT
+    // here would be the author self-approving their own replacement.
+    expect(calls.map((c) => c.method)).toEqual(['PUT', 'POST']);
+    expect(calls[0].body).toEqual({ docstatus: 2 });
+    expect(calls[1].body).toMatchObject({ amended_from: 'ACC-SINV-2026-00001', remarks: 'idem-si-amend-1' });
+    expect(result.externalRecordId).toBe('ACC-SINV-2026-00002');
+    expect(result.canonical).toMatchObject({ id: 'pmo-si-1', erp_docstatus: 0, erp_amended_from: 'ACC-SINV-2026-00001' });
+  });
+
+  it('operation:update on a SUBMITTED sales-invoice (routeEdit(1)=amend) leaves the replacement a DRAFT — the author cannot self-approve via the update path', async () => {
+    const calls: Array<{ method: string; body?: unknown }> = [];
+    const fetchImpl = async (_url: string, init?: RequestInit) => {
+      calls.push({ method: init?.method ?? 'GET', body: init?.body ? JSON.parse(init.body as string) : undefined });
+      if (init?.method === 'GET') return jsonResponse(200, { name: 'ACC-SINV-2026-00001', docstatus: 1 });
+      if (init?.method === 'PUT') return jsonResponse(200, { name: 'ACC-SINV-2026-00001', docstatus: 2 });
+      return jsonResponse(200, { name: 'ACC-SINV-2026-00002', docstatus: 0, amended_from: 'ACC-SINV-2026-00001' });
+    };
+    const adapter = createErpAdapter(baseDeps(fetchImpl, { doctypeBodies: { 'sales-invoice': SI_BODY_FNS } }));
+    const result = await adapter.commit({
+      domain: 'revenue',
+      operation: 'update',
+      record: { id: 'pmo-si-1', erp_doc_kind: 'sales-invoice', externalRecordId: 'ACC-SINV-2026-00001', items: [{ item_code: 'X', qty: 2 }] },
+    });
+    // routeEdit probe GET -> cancel PUT -> create POST. No submit PUT, no post-submit refetch.
+    expect(calls.map((c) => c.method)).toEqual(['GET', 'PUT', 'POST']);
+    expect(result.canonical).toMatchObject({ erp_docstatus: 0 });
+  });
+
+  it('never fires afterSubmitHook on a sales-invoice amend (nothing is submitted)', async () => {
+    const fetchImpl = async (_url: string, init?: RequestInit) => {
+      if (init?.method === 'PUT') return jsonResponse(200, { name: 'ACC-SINV-2026-00001', docstatus: 2 });
+      if (init?.method === 'POST') return jsonResponse(200, { name: 'ACC-SINV-2026-00002', docstatus: 0 });
+      return jsonResponse(200, { name: 'ACC-SINV-2026-00002', docstatus: 0 });
+    };
+    const afterSubmitHook = vi.fn(async () => {});
+    const adapter = createErpAdapter(baseDeps(fetchImpl, { afterSubmitHook, doctypeBodies: { 'sales-invoice': SI_BODY_FNS } }));
+    await adapter.commit({
+      domain: 'revenue',
+      operation: 'transition',
+      record: { id: 'pmo-si-1', erp_doc_kind: 'sales-invoice', externalRecordId: 'ACC-SINV-2026-00001', verb: 'amend' },
+    });
+    expect(afterSubmitHook).not.toHaveBeenCalled();
+  });
+
+  it('REGRESSION — a Pay payment-entry amend (submittable, no submitOnCreate:false) KEEPS the POST→submit→refetch behaviour (procurement must not regress)', async () => {
+    const calls: Array<{ method: string; body?: unknown }> = [];
+    const fetchImpl = async (_url: string, init?: RequestInit) => {
+      calls.push({ method: init?.method ?? 'GET', body: init?.body ? JSON.parse(init.body as string) : undefined });
+      if (init?.method === 'PUT' && init.body && JSON.parse(init.body as string).docstatus === 2) return jsonResponse(200, { name: 'ACC-PAY-2026-00001', docstatus: 2 });
+      if (init?.method === 'POST') return jsonResponse(200, { name: 'ACC-PAY-2026-00002' });
+      if (init?.method === 'PUT') return jsonResponse(200, { name: 'ACC-PAY-2026-00002', docstatus: 1 });
+      return jsonResponse(200, { name: 'ACC-PAY-2026-00002', docstatus: 1 });
+    };
+    const adapter = createErpAdapter(
+      baseDeps(fetchImpl, {
+        doctypeBodies: { payment: { toBody: () => ({}), fromDoc: (doc) => ({ id: 'placeholder', pay_number: (doc as { name: string }).name, erp_docstatus: (doc as { docstatus: number }).docstatus }) } },
+      }),
+    );
+    const result = await adapter.commit({
+      domain: 'procurement',
+      operation: 'transition',
+      record: { id: 'pmo-pe-1', erp_doc_kind: 'payment', externalRecordId: 'ACC-PAY-2026-00001', verb: 'amend' },
+    });
+    expect(calls.map((c) => c.method)).toEqual(['PUT', 'POST', 'PUT', 'GET']);
+    expect(result.canonical).toMatchObject({ erp_docstatus: 1 });
   });
 });
 

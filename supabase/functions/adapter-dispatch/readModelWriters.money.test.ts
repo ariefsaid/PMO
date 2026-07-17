@@ -24,7 +24,7 @@ function assert(cond: boolean, msg: string): void {
  *  chain (SF7 cross-org FK guard's lookup shape) keyed per table — `rows[table]` is the row a
  *  `maybeSingle()` returns (e.g. `{ org_id: 'org-1' }`). Backward compatible: defaults to {} so existing
  *  callers that pass nothing still work. */
-function makeFakeClient(rows: Record<string, unknown> = {}) {
+function makeFakeClient(rows: Record<string, unknown> = {}, listRows: Record<string, unknown[]> = {}) {
   const calls: { table: string; method: string; args: unknown[] }[] = [];
 
   function selectChain(table: string) {
@@ -36,6 +36,12 @@ function makeFakeClient(rows: Record<string, unknown> = {}) {
       async maybeSingle() {
         calls.push({ table, method: 'maybeSingle', args: [] });
         return { data: rows[table] ?? null, error: null };
+      },
+      // A bare (non-maybeSingle) select is directly awaitable — matching supabase-js's thenable
+      // PostgrestFilterBuilder. Used by the SI-cancel auto-unlink's referencing-PE list query (B3).
+      then(resolve: (v: { data: unknown; error: null }) => void) {
+        calls.push({ table, method: 'list', args: [] });
+        resolve({ data: listRows[table] ?? [], error: null });
       },
     };
     return chain;
@@ -447,6 +453,73 @@ Deno.test({
     const insertCall = calls.find((c) => c.method === 'insert' && c.table === 'sales_invoices');
     const row = insertCall!.args[0] as Record<string, unknown>;
     assertEquals(row.author_user_id, null, 'an inbound-adopted SI (no PMO caller) keeps author_user_id null — SoD-exempt');
+  },
+});
+
+// ============================================================================
+// Luna re-audit BLOCK 3 — SI cancel auto-unlink (AC-SAR-022, OQ-SAR-1 #8). ERPNext cancels an SI that
+// a Receive Payment Entry references with a 200 and AUTO-UNLINKS the PE's `references` child table.
+// `transitionPolicy.reconcileSiCancelAutoUnlink` is the designated reconcile helper but was wired to
+// NOTHING but its own test: the SI-cancel mirror updated only the SI, leaving every referencing
+// `incoming_payments` row pointing at a cancelled invoice (a stale `sales_invoice_id` — PMO shows the
+// receipt still allocated to an invoice ERPNext has since made on-account).
+// ============================================================================
+
+Deno.test({
+  name: "Luna B3 — READ_MODEL_WRITERS['revenue'].upsert (kind sales-invoice, verb cancel) unlinks every referencing incoming_payments row (sales_invoice_id -> null), matching ERPNext's auto-unlink",
+  fn: async () => {
+    // Two PE-receives in this org reference the cancelled SI (ERPNext auto-unlinked BOTH).
+    const { client, calls } = makeFakeClient({}, { incoming_payments: [{ id: 'pmo-ip-1' }, { id: 'pmo-ip-2' }] });
+    const writer = getReadModelWriter('revenue');
+    await writer.upsert(
+      { serviceClient: client as never, orgId: 'org-1' },
+      { id: 'pmo-si-1', si_number: 'ACC-SINV-2026-00001', amount: '50000.00', erp_outstanding_amount: '0.00', erp_docstatus: 2, erp_modified: '2026-07-16 09:00:00.000000', erp_amended_from: null },
+      { domain: 'revenue', operation: 'transition', record: { id: 'pmo-si-1', erp_doc_kind: 'sales-invoice', externalRecordId: 'ACC-SINV-2026-00001', verb: 'cancel' } },
+    );
+    const unlinkUpdates = calls.filter((c) => c.method === 'update' && c.table === 'incoming_payments');
+    assertEquals(unlinkUpdates.length, 2, 'expected each referencing incoming_payments row to be unlinked');
+    assertEquals(
+      (unlinkUpdates[0].args[0] as Record<string, unknown>).sales_invoice_id,
+      null,
+      'a PE-receive whose SI was cancelled becomes on-account: sales_invoice_id -> null',
+    );
+    // Every unlink is org-scoped + row-scoped (the service-role writer bypasses RLS).
+    const eqCalls = calls.filter((c) => c.method === 'update.eq' && c.table === 'incoming_payments');
+    assertEquals(eqCalls.length, 4, 'expected two scoping .eq() calls (org_id, id) per unlinked row');
+    assert(
+      eqCalls.some((c) => c.args[0] === 'org_id' && c.args[1] === 'org-1'),
+      'the unlink must be scoped to ctx.orgId',
+    );
+  },
+});
+
+Deno.test({
+  name: 'Luna B3 — an SI cancel with NO referencing incoming_payments writes no unlink (nothing to reconcile)',
+  fn: async () => {
+    const { client, calls } = makeFakeClient({}, { incoming_payments: [] });
+    const writer = getReadModelWriter('revenue');
+    await writer.upsert(
+      { serviceClient: client as never, orgId: 'org-1' },
+      { id: 'pmo-si-2', si_number: 'ACC-SINV-2026-00002', amount: '50000.00', erp_docstatus: 2, erp_modified: '2026-07-16 09:00:00.000000' },
+      { domain: 'revenue', operation: 'transition', record: { id: 'pmo-si-2', erp_doc_kind: 'sales-invoice', externalRecordId: 'ACC-SINV-2026-00002', verb: 'cancel' } },
+    );
+    const unlinkUpdates = calls.filter((c) => c.method === 'update' && c.table === 'incoming_payments');
+    assertEquals(unlinkUpdates.length, 0, 'no referencing PE-receive -> no unlink write');
+  },
+});
+
+Deno.test({
+  name: 'Luna B3 — a NON-cancel SI mirror (a plain status sync, docstatus 1) never unlinks a PE-receive',
+  fn: async () => {
+    const { client, calls } = makeFakeClient({}, { incoming_payments: [{ id: 'pmo-ip-1' }] });
+    const writer = getReadModelWriter('revenue');
+    await writer.upsert(
+      { serviceClient: client as never, orgId: 'org-1' },
+      { id: 'pmo-si-3', si_number: 'ACC-SINV-2026-00003', amount: '50000.00', erp_outstanding_amount: '0.00', erp_docstatus: 1, erp_modified: '2026-07-16 10:00:00.000000' },
+      { domain: 'revenue', operation: 'transition', record: { id: 'pmo-si-3', erp_doc_kind: 'sales-invoice', externalRecordId: 'ACC-SINV-2026-00003', verb: 'submit' } },
+    );
+    const unlinkUpdates = calls.filter((c) => c.method === 'update' && c.table === 'incoming_payments');
+    assertEquals(unlinkUpdates.length, 0, 'a submitted (docstatus 1) SI must never unlink its receipts');
   },
 });
 

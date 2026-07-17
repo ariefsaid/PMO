@@ -36,6 +36,14 @@ export function peReceiveFromDoc(doc: unknown): PmoRecord {
   return {
     id: String(d.name),
     ip_number: String(d.name),
+    // Luna BLOCK A3: `party` (the Customer name, party_type='Customer' for a Receive PE), `posting_date`
+    // (mapped to canonical `date`), and `references` (the child table citing the paid SI). The inbound
+    // feed's mint path (erpnextFeedDeps.ts) resolves `customer`->customer_id and
+    // `references[0].reference_name`->sales_invoice_id via external_refs — omitting these left every
+    // inbound-adopted native Receive entry with customer_id/sales_invoice_id = NULL.
+    customer: (d.party as string | null) ?? null,
+    date: (d.posting_date as string | null) ?? null,
+    references: (d.references as Array<{ reference_doctype?: string; reference_name?: string | null; allocated_amount?: unknown }> | null) ?? [],
     reference_number: (d.reference_no as string | null) ?? null, // also the anchor carrier
     amount: mirrorMoney(d.paid_amount), // header = money oracle
     erp_docstatus: (d.docstatus as number | null) ?? null,

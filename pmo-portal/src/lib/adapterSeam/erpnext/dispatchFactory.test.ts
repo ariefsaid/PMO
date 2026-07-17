@@ -9,6 +9,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { AppError } from '../../appError.ts';
 import { resolveErpDispatchAdapter, type DispatchServiceClient } from './dispatchFactory.ts';
 import { ERPNEXT_TIER } from './adapter.ts';
+import type { PmoRecord } from '../contract.ts';
 
 function serviceClientReturning(row: unknown): DispatchServiceClient {
   return {
@@ -205,6 +206,19 @@ describe('resolveRevenueRefs — task 2.3 (FR-SAR-100/101/121)', () => {
     },
   };
 
+  /** The link-table rows behind the org-scoped pre-flight (Luna B2): `<table>:<id>` -> the row's REAL
+   *  org_id. org-1 is the caller's org in these tests; org-2 is a DIFFERENT tenant, so a cross-org id
+   *  is distinguishable from a same-org one by the id ALONE — an org-blind fake (one canned org_id per
+   *  table) could not tell them apart and so could not prove the guard. */
+  const TWO_ORG_ROWS: Record<string, { org_id: string }> = {
+    'companies:cust-1': { org_id: 'org-1' },
+    'companies:cust-org2': { org_id: 'org-2' },
+    'projects:proj-1': { org_id: 'org-1' },
+    'projects:proj-org2': { org_id: 'org-2' },
+    'sales_invoices:si-1': { org_id: 'org-1' },
+    'sales_invoices:si-org2': { org_id: 'org-2' },
+  };
+
   function multiTableServiceClient(tables: Record<string, unknown>): DispatchServiceClient {
     return {
       from: (table: string) => ({
@@ -225,7 +239,9 @@ describe('resolveRevenueRefs — task 2.3 (FR-SAR-100/101/121)', () => {
                 const key = `external_refs:${filters.domain}:${filters.pmo_record_id}`;
                 return { data: tables[key] ?? null, error: null };
               }
-              return { data: null, error: null };
+              // The link tables (companies/projects/sales_invoices) — a REAL per-id row carrying its
+              // own org_id, so the pre-flight resolves genuine tenancy rather than a canned answer.
+              return { data: TWO_ORG_ROWS[`${table}:${filters.id}`] ?? null, error: null };
             },
           };
           return chain;
@@ -429,6 +445,186 @@ describe('resolveRevenueRefs — task 2.3 (FR-SAR-100/101/121)', () => {
     expect((capturedBody as { references?: Array<{ reference_name?: string }> } | null)?.references?.[0]?.reference_name).toBe('ACC-SINV-2026-00001');
   });
 
+  // ============================================================================
+  // Luna re-audit BLOCK 2 (orphan money) — cross-org link validation must happen BEFORE any ERP
+  // write. `readModelWriters.assertLinkSameOrg` runs only in the MIRROR writers, i.e. AFTER
+  // adapter.commit() + recordOutboxRef: a command pairing a valid customer with ANOTHER org's
+  // salesInvoiceId therefore minted a REAL ERP money document and only then failed the mirror
+  // insert — committed money with no PMO row. The pre-flight belongs here, in the dispatch path
+  // ahead of the adapter being constructed at all, so a cross-org link is rejected with NO ERP
+  // write and NO outbox commit (index.ts resolves the adapter before dispatchExternallyOwnedWrite).
+  //
+  // The `multiTableServiceClient` fixture above is a GENUINE two-org row table keyed by (table:id) —
+  // each row carries its own real org_id, so a cross-org id is distinguishable from a same-org one by
+  // the id alone. (An org-blind mock returning one canned org_id per table cannot prove this fix.)
+  // ============================================================================
+
+  const LINK_TABLES = {
+    external_org_bindings: ACTIVATED_ROW_REVENUE,
+    'external_refs:companies:cust-1': { external_record_id: 'Customer:Spike Customer' },
+    'external_refs:companies:cust-org2': { external_record_id: 'Customer:Other Tenant Customer' },
+    'external_refs:revenue:si-1': { external_record_id: 'ACC-SINV-2026-00001' },
+    'external_refs:revenue:si-org2': { external_record_id: 'ACC-SINV-2026-09999' },
+  };
+
+  it('Luna B2 — sales-invoice: a customerId owned by ANOTHER org is rejected BEFORE any ERP write (no orphan money)', async () => {
+    const fetchImpl = vi.fn(async () => new Response('{}', { status: 200 })) as unknown as typeof fetch;
+    await expect(
+      resolveErpDispatchAdapter({
+        serviceClient: multiTableServiceClient(LINK_TABLES),
+        orgId: 'org-1',
+        // cust-org2 genuinely belongs to org-2 in the fixture; cust-1 would pass.
+        command: { domain: 'revenue', operation: 'create', record: { id: 'pmo-si-1', erp_doc_kind: 'sales-invoice', customerId: 'cust-org2', projectId: 'proj-1', items: [] } },
+        fetchImpl,
+        apiKey: 'k',
+        apiSecret: 's',
+      }),
+    ).rejects.toMatchObject({ code: 'cross-org-link-rejected' });
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it('Luna B2 — sales-invoice: a projectId owned by ANOTHER org is rejected BEFORE any ERP write', async () => {
+    const fetchImpl = vi.fn(async () => new Response('{}', { status: 200 })) as unknown as typeof fetch;
+    await expect(
+      resolveErpDispatchAdapter({
+        serviceClient: multiTableServiceClient(LINK_TABLES),
+        orgId: 'org-1',
+        command: { domain: 'revenue', operation: 'create', record: { id: 'pmo-si-1', erp_doc_kind: 'sales-invoice', customerId: 'cust-1', projectId: 'proj-org2', items: [] } },
+        fetchImpl,
+        apiKey: 'k',
+        apiSecret: 's',
+      }),
+    ).rejects.toMatchObject({ code: 'cross-org-link-rejected' });
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it('Luna B2 — incoming-payment: a salesInvoiceId owned by ANOTHER org is rejected BEFORE any ERP write (the orphan-receipt case)', async () => {
+    const fetchImpl = vi.fn(async () => new Response('{}', { status: 200 })) as unknown as typeof fetch;
+    await expect(
+      resolveErpDispatchAdapter({
+        serviceClient: multiTableServiceClient(LINK_TABLES),
+        orgId: 'org-1',
+        // A VALID own-org customer paired with ANOTHER org's SI — the exact audit scenario. Note the
+        // cross-org SI even HAS an external_refs mapping, so the BLOCK-5 resolvability check passes:
+        // only a real org_id check on the row can catch this.
+        command: { domain: 'revenue', operation: 'create', record: { id: 'pmo-ip-1', erp_doc_kind: 'incoming-payment', customerId: 'cust-1', salesInvoiceId: 'si-org2', paid_amount: 100, date: '2026-07-16' } },
+        fetchImpl,
+        apiKey: 'k',
+        apiSecret: 's',
+      }),
+    ).rejects.toMatchObject({ code: 'cross-org-link-rejected' });
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it('Luna B2 — a link id that does not exist at all is rejected (fail closed, never a silent null link)', async () => {
+    const fetchImpl = vi.fn(async () => new Response('{}', { status: 200 })) as unknown as typeof fetch;
+    await expect(
+      resolveErpDispatchAdapter({
+        serviceClient: multiTableServiceClient(LINK_TABLES),
+        orgId: 'org-1',
+        command: { domain: 'revenue', operation: 'create', record: { id: 'pmo-si-1', erp_doc_kind: 'sales-invoice', customerId: 'cust-does-not-exist', projectId: 'proj-1', items: [] } },
+        fetchImpl,
+        apiKey: 'k',
+        apiSecret: 's',
+      }),
+    ).rejects.toMatchObject({ code: 'cross-org-link-rejected' });
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it('Luna B2 — same-org links (customer + project + SI all in org-1) resolve normally: the adapter is built', async () => {
+    const adapter = await resolveErpDispatchAdapter({
+      serviceClient: multiTableServiceClient(LINK_TABLES),
+      orgId: 'org-1',
+      command: { domain: 'revenue', operation: 'create', record: { id: 'pmo-ip-1', erp_doc_kind: 'incoming-payment', customerId: 'cust-1', salesInvoiceId: 'si-1', paid_amount: 100, date: '2026-07-16' } },
+      fetchImpl: vi.fn() as unknown as typeof fetch,
+      apiKey: 'k',
+      apiSecret: 's',
+    });
+    expect(adapter.tier).toBe(ERPNEXT_TIER);
+  });
+
+  it('Luna B2 — the SAME cross-org customerId is accepted for the org that DOES own it (the guard checks the row, not a canned answer)', async () => {
+    const adapter = await resolveErpDispatchAdapter({
+      serviceClient: multiTableServiceClient({ ...LINK_TABLES, 'external_refs:companies:cust-org2': { external_record_id: 'Customer:Other Tenant Customer' } }),
+      // caller is org-2 this time — cust-org2 is its OWN customer, so the identical id must pass.
+      orgId: 'org-2',
+      command: { domain: 'revenue', operation: 'create', record: { id: 'pmo-si-2', erp_doc_kind: 'sales-invoice', customerId: 'cust-org2', items: [] } },
+      fetchImpl: vi.fn() as unknown as typeof fetch,
+      apiKey: 'k',
+      apiSecret: 's',
+    });
+    expect(adapter.tier).toBe(ERPNEXT_TIER);
+  });
+
+  // ============================================================================
+  // Luna re-audit BLOCK 4 — the require_project_on_si gate must require a RESOLVED ERP project, not
+  // merely a non-null PMO projectId. index.ts checked only `record.projectId !== null`; a PMO project
+  // with no `project_map` entry yields `ctx.refs.project === null` and `salesInvoice.toBody` then omits
+  // the ERP `project` field entirely — so PMO reports project-attributed revenue while the ERP GL
+  // carries no project dimension at all. With the gate ON, an unmapped project must fail closed.
+  // ============================================================================
+
+  /** The gate lives in `external_org_bindings.config.process_gates`; `project_map` maps PMO project id
+   *  -> ERP project name. Here the gate is ON but `proj-unmapped` has no map entry. */
+  const GATED_ROW = (gates: Record<string, boolean>, projectMap: Record<string, string> = { 'proj-1': 'PROJ-0001' }) => ({
+    ...ACTIVATED_ROW_REVENUE,
+    config: { ...ACTIVATED_ROW_REVENUE.config, project_map: projectMap, process_gates: gates },
+  });
+
+  it('Luna B4 — require_project_on_si ON + a projectId with NO project_map entry: fails closed BEFORE any ERP write (never silently unattributed revenue)', async () => {
+    const fetchImpl = vi.fn(async () => new Response('{}', { status: 200 })) as unknown as typeof fetch;
+    await expect(
+      resolveErpDispatchAdapter({
+        serviceClient: multiTableServiceClient({ ...LINK_TABLES, external_org_bindings: GATED_ROW({ require_project_on_si: true }, {}) }),
+        orgId: 'org-1',
+        // proj-1 is a REAL own-org project (passes the B2 tenancy pre-flight) but this binding's
+        // project_map is empty, so it maps to no ERP project — exactly the case the old gate waved
+        // through (non-null projectId => "gate satisfied", ERP body silently omits `project`).
+        command: { domain: 'revenue', operation: 'create', record: { id: 'pmo-si-1', erp_doc_kind: 'sales-invoice', customerId: 'cust-1', projectId: 'proj-1', items: [] } },
+        fetchImpl,
+        apiKey: 'k',
+        apiSecret: 's',
+      }),
+    ).rejects.toMatchObject({ code: 'commit-rejected' });
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it('Luna B4 — require_project_on_si ON + a MAPPED project: resolves normally (the gate blocks only unresolved projects)', async () => {
+    const adapter = await resolveErpDispatchAdapter({
+      serviceClient: multiTableServiceClient({ ...LINK_TABLES, external_org_bindings: GATED_ROW({ require_project_on_si: true }, { 'proj-1': 'PROJ-0001' }) }),
+      orgId: 'org-1',
+      command: { domain: 'revenue', operation: 'create', record: { id: 'pmo-si-1', erp_doc_kind: 'sales-invoice', customerId: 'cust-1', projectId: 'proj-1', items: [] } },
+      fetchImpl: vi.fn() as unknown as typeof fetch,
+      apiKey: 'k',
+      apiSecret: 's',
+    });
+    expect(adapter.tier).toBe(ERPNEXT_TIER);
+  });
+
+  it('Luna B4 — require_project_on_si OFF: an unmapped project is allowed through (the gate is the only thing that makes it fatal)', async () => {
+    const adapter = await resolveErpDispatchAdapter({
+      serviceClient: multiTableServiceClient({ ...LINK_TABLES, external_org_bindings: GATED_ROW({ require_project_on_si: false }, {}) }),
+      orgId: 'org-1',
+      command: { domain: 'revenue', operation: 'create', record: { id: 'pmo-si-1', erp_doc_kind: 'sales-invoice', customerId: 'cust-1', projectId: 'proj-1', items: [] } },
+      fetchImpl: vi.fn() as unknown as typeof fetch,
+      apiKey: 'k',
+      apiSecret: 's',
+    });
+    expect(adapter.tier).toBe(ERPNEXT_TIER);
+  });
+
+  it('Luna B4 — the gate applies to an SI CREATE only: a submit transition (which carries no projectId) is never blocked by it', async () => {
+    const adapter = await resolveErpDispatchAdapter({
+      serviceClient: multiTableServiceClient({ ...LINK_TABLES, external_org_bindings: GATED_ROW({ require_project_on_si: true }, {}) }),
+      orgId: 'org-1',
+      command: { domain: 'revenue', operation: 'transition', record: { id: 'pmo-si-1', erp_doc_kind: 'sales-invoice', externalRecordId: 'ACC-SINV-2026-00001', verb: 'submit' } },
+      fetchImpl: vi.fn() as unknown as typeof fetch,
+      apiKey: 'k',
+      apiSecret: 's',
+    });
+    expect(adapter.tier).toBe(ERPNEXT_TIER);
+  });
+
   it('non-revenue kinds (procurement) do NOT pay for revenue ref resolution (byte-for-byte)', async () => {
     let capturedToBodyCtx: unknown;
     const serviceClient = multiTableServiceClient({
@@ -488,7 +684,7 @@ describe('resolveRevenueRefs — task 2.3 (FR-SAR-100/101/121)', () => {
         serviceClient,
         orgId: 'org-1',
         command,
-        fetchImpl: vi.fn(async (_url: string, init?: RequestInit) => {
+        fetchImpl: vi.fn(async (_url: string, _init?: RequestInit) => {
           fetchCalled = true;
           return new Response(JSON.stringify({ name: 'ACC-PE-REC-2026-00001' }), { status: 200 });
         }) as unknown as typeof fetch,
@@ -496,7 +692,7 @@ describe('resolveRevenueRefs — task 2.3 (FR-SAR-100/101/121)', () => {
         apiSecret: 's',
         doctypeBodies: {
           'incoming-payment': {
-            toBody: (rec) => ({ paid_amount: rec.paid_amount, references: rec.references ?? [] }),
+            toBody: (rec: PmoRecord) => ({ paid_amount: rec.paid_amount, references: rec.references ?? [] }),
             fromDoc: () => ({ id: 'placeholder' }),
           },
         } as never,
@@ -547,7 +743,7 @@ describe('resolveRevenueRefs — task 2.3 (FR-SAR-100/101/121)', () => {
       apiSecret: 's',
       doctypeBodies: {
         'incoming-payment': {
-          toBody: (rec) => ({ paid_amount: rec.paid_amount, references: rec.references ?? [] }),
+          toBody: (rec: PmoRecord) => ({ paid_amount: rec.paid_amount, references: rec.references ?? [] }),
           fromDoc: () => ({ id: 'placeholder' }),
         },
       } as never,
@@ -587,7 +783,7 @@ describe('resolveRevenueRefs — task 2.3 (FR-SAR-100/101/121)', () => {
       apiSecret: 's',
       doctypeBodies: {
         'incoming-payment': {
-          toBody: (rec) => ({ paid_amount: rec.paid_amount, references: rec.references ?? [] }),
+          toBody: (rec: PmoRecord) => ({ paid_amount: rec.paid_amount, references: rec.references ?? [] }),
           fromDoc: () => ({ id: 'placeholder' }),
         },
       } as never,

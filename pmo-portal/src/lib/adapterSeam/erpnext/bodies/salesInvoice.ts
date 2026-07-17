@@ -31,6 +31,10 @@ export function siFromDoc(doc: unknown): PmoRecord {
   return {
     id: String(d.name),
     si_number: String(d.name),
+    // Luna BLOCK A3: the ERP customer name — the inbound feed's mint path (erpnextFeedDeps.ts)
+    // resolves this to the PMO customer_id via external_refs. Omitting it left every inbound-adopted
+    // native SI with customer_id = NULL (a money row with no party).
+    customer: (d.customer as string | null) ?? null,
     invoice_date: (d.posting_date as string | null) ?? null,
     reference_number: (d.po_no as string | null) ?? null, // customer PO/bill ref (AR-aging row, #6)
     amount: mirrorMoney(d.grand_total),

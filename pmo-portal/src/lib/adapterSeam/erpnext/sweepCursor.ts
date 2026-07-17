@@ -21,7 +21,7 @@
  */
 import type { SweepChange } from '../applyEngine.ts';
 import type { PmoRecord } from '../contract.ts';
-import { erpnextRequest, type ErpClientDeps } from './client.ts';
+import { erpnextRequest, type ErpClientDeps, type ErpFilter } from './client.ts';
 
 export interface SweepCursorDeps {
   client: ErpClientDeps;
@@ -34,6 +34,17 @@ export interface SweepCursorDeps {
   fromDoc: (doc: unknown) => PmoRecord;
   /** Page size for the list endpoint. Default 500 (a safe Frappe page length). */
   pageSize?: number;
+  /** Luna BLOCK A1 (cross-domain corruption guard): additional server-side filter conjuncts, conjoined
+   *  with the `modified >=` cursor filter — the SAME `ErpFilter` shape `recoveryProbe.ts` uses for its
+   *  Payment Entry composite probe (`payment_type`/`party_type`). Two PMO kinds (`payment`,
+   *  `incoming-payment`) share the ONE `Payment Entry` doctype; without this a poll for one kind could
+   *  list the OTHER kind's docs (a Pay doc adopted into `incoming_payments`, or vice-versa). */
+  extraFilters?: ErpFilter[];
+  /** Defense-in-depth (mirrors `recoveryProbe.ts`'s `validateAdoptedDoc`): re-validates each fetched row
+   *  BEFORE it is emitted as a `SweepChange`, even though the server-side `extraFilters` should already
+   *  have excluded it. A row failing validation is SKIPPED — never surfaced as a change for this kind's
+   *  poll (it still counts toward `nextCursor` — it is a genuine ERP row, just not this kind's). */
+  filterRow?: (row: Record<string, unknown>) => boolean;
 }
 
 const DEFAULT_PAGE_SIZE = 500;
@@ -72,6 +83,9 @@ export async function listErpChangesSinceWatermark(
   const fields = Array.from(new Set([...deps.fields, ...REQUIRED_FIELDS]));
   const filters: unknown[] = [];
   if (cursor !== null && cursor !== '') filters.push(['modified', '>=', cursor]);
+  // Luna BLOCK A1: conjoin the caller's discriminator filters (e.g. payment_type='Receive' for
+  // incoming-payment) so a poll for one kind server-side excludes the other kind's docs.
+  if (deps.extraFilters) filters.push(...deps.extraFilters);
 
   const byName = new Map<string, { row: Record<string, unknown>; modified: string }>();
   let nextCursor: string | null = null;
@@ -99,6 +113,9 @@ export async function listErpChangesSinceWatermark(
 
   const changes: SweepChange[] = [];
   for (const { row, modified } of byName.values()) {
+    // Luna BLOCK A1 defense-in-depth: skip a doc that fails the kind's discriminator even if it
+    // somehow surfaced past the server-side extraFilters — never adopted into the wrong kind.
+    if (deps.filterRow && !deps.filterRow(row)) continue;
     const canonical = deps.fromDoc(row);
     // Enrich with the routing fields the lineage-aware apply (8.5) reads — the kind's `fromDoc` may
     // not surface them, so they are stamped here at the feed boundary (confinement: erpnext/** only).
