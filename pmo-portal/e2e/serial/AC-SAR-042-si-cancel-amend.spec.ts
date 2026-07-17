@@ -254,13 +254,18 @@ test.describe('AC-SAR-042: SI cancel + amend through the real served adapter-dis
       expect(lineageRows?.length).toBe(1);
       expect(lineageRows?.[0]).toMatchObject({ superseded_external_record_id: oldName, successor_external_record_id: newName });
 
-      // ERP-side proof (optional): the new SI is docstatus 1 with amended_from = old name.
+      // ERP-side proof (optional): the amended replacement is a DRAFT (docstatus 0) with
+      // amended_from = old name. It is NOT submitted: an amend recreates the invoice, so
+      // auto-submitting it would let the author approve their own replacement and defeat the
+      // two-person rule (OD-SAR-DRAFT-SUBMIT). The replacement takes the same road as any new
+      // SI — a DIFFERENT approver submits it. Asserting docstatus 0 here is what keeps that
+      // guarantee honest at the real ERP boundary.
       if (ERPNEXT_ADMIN_KEY && ERPNEXT_ADMIN_SECRET) {
         const docRes = await fetch(`${ERPNEXT_BENCH_URL}/api/resource/Sales%20Invoice/${encodeURIComponent(newName)}`, {
           headers: { Authorization: `token ${ERPNEXT_ADMIN_KEY}:${ERPNEXT_ADMIN_SECRET}` },
         });
         const doc = (await docRes.json()) as { data?: { docstatus?: number; amended_from?: string } };
-        expect(doc.data?.docstatus).toBe(1);
+        expect(doc.data?.docstatus, 'the amended replacement must land as a DRAFT — never self-approved by its author').toBe(0);
         expect(doc.data?.amended_from).toBe(oldName);
       }
     } finally {
