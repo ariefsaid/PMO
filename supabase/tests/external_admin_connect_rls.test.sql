@@ -909,26 +909,49 @@ select is(
   'AC-EAC-019 audit event logged for ClickUp unlink (second unlink)'
 );
 
--- Test 78: Audit event for integration.disconnect (org-level disconnect)
-reset role;
-set local request.jwt.claims = '{}';
-insert into audit_events (action, org_id, actor_id, entity_type, entity_id, detail, created_at)
-values ('integration.disconnect', '11111111-1111-1111-1111-111111111111', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'external_org_bindings', null, '{"tier": "clickup", "actor": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"}'::jsonb, now());
+-- Tests 78-79: audit for integration.disconnect / integration.set_company.
+--
+-- ⚑ These CALL public.log_audit() with the real 5-arg signature and assert the row it writes — they do
+-- NOT insert into audit_events directly (asserting your own insert is circular and bypasses the
+-- definer barrier; an earlier revision of this file did exactly that and proved nothing).
+--
+-- ⚑ What these do NOT prove, and why there is no "grant proof" here: a prior security review claimed
+-- `log_audit` was not granted to service_role, so the edge fn's call 403'd silently. **That claim was
+-- FALSE** — `0080_service_role_grants.sql` already does `grant all on all functions in schema public
+-- to service_role` (+ default privileges), so service_role has always had EXECUTE. Verified:
+-- `has_function_privilege('service_role', 'public.log_audit(...)', 'EXECUTE')` = true even with 0108's
+-- grant removed. A "service_role can execute log_audit" assertion is therefore UNFALSIFIABLE and was
+-- removed rather than left as decoration. The disconnect-audit bug that actually shipped was the WRONG
+-- ARG SHAPE at the call site; that is proven where it lives — in the edge fns' deno tests, which assert
+-- `rpc('log_audit', { p_action, p_org_id, p_actor_id, p_entity_id, p_detail })`.
 
+-- Test 78: log_audit records a disconnect with the expected action/org/tier
+reset role;
+select public.log_audit(
+  'integration.disconnect',
+  '11111111-1111-1111-1111-111111111111'::uuid,
+  'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'::uuid,
+  null::uuid,
+  '{"tier": "clickup"}'::jsonb
+);
 select is(
   (select count(*) from audit_events where action = 'integration.disconnect' and org_id = '11111111-1111-1111-1111-111111111111' and detail->>'tier' = 'clickup')::int,
   1,
-  'AC-EAC-019 audit event logged for integration.disconnect'
+  'AC-EAC-019 log_audit writes the integration.disconnect audit row'
 );
 
--- Test 79: Audit event for integration.set_company (OD-INT-6: ERPNext company selection)
-insert into audit_events (action, org_id, actor_id, entity_type, entity_id, detail, created_at)
-values ('integration.set_company', '11111111-1111-1111-1111-111111111111', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'external_org_bindings', null, '{"tier": "erpnext", "company_id": "Acme Corp", "actor": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"}'::jsonb, now());
-
+-- Test 79: log_audit records set_company WITH the selected Company (OD-INT-6)
+select public.log_audit(
+  'integration.set_company',
+  '11111111-1111-1111-1111-111111111111'::uuid,
+  'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'::uuid,
+  null::uuid,
+  '{"tier": "erpnext", "company_id": "Acme Corp"}'::jsonb
+);
 select is(
-  (select count(*) from audit_events where action = 'integration.set_company' and org_id = '11111111-1111-1111-1111-111111111111' and detail->>'tier' = 'erpnext')::int,
-  1,
-  'AC-EAC-019 audit event logged for integration.set_company (OD-INT-6)'
+  (select detail->>'company_id' from audit_events where action = 'integration.set_company' and org_id = '11111111-1111-1111-1111-111111111111'),
+  'Acme Corp',
+  'AC-EAC-019 set_company audit records the selected Company (OD-INT-6)'
 );
 
 -- ============================================================================

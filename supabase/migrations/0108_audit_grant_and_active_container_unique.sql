@@ -7,7 +7,13 @@
 
 -- Fix 4: Grant execute on log_audit to service_role
 -- service_role is a trusted server context (not a client role) - safe to grant
-grant execute on function public.log_audit(text, uuid, uuid, uuid, jsonb) to service_role;
+-- (REMOVED 2026-07-17) `grant execute on function public.log_audit(...) to service_role;`
+-- It was redundant and encoded a FALSE premise from a review claim that log_audit lacked a
+-- service_role grant. `0080_service_role_grants.sql` already does `grant all on all functions in
+-- schema public to service_role` + default privileges, so service_role always had EXECUTE
+-- (verified: has_function_privilege('service_role','public.log_audit(...)','EXECUTE') = true with
+-- this line removed). The disconnect-audit bug that actually shipped was the wrong ARG SHAPE at
+-- the call site, proven in the edge fns' deno tests — not a missing grant.
 
 -- Fix 5: Partial unique index to prevent the same List from being actively linked to multiple projects
 -- Only one active (disconnected_at is null) binding per (external_tier, external_container_id) per org
