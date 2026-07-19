@@ -51,13 +51,15 @@ select throws_ok(
 );
 reset role;
 
--- Simulate anon: same.
+-- Simulate anon: same. (Note: migration 0105 revoked anon insert/update/delete on all public base
+-- tables, so this 42501 is now raised at the privilege check BEFORE RLS is evaluated — strictly
+-- stronger than the previous RLS default-deny. The assertion is unchanged: throws_ok 42501.)
 set local role anon;
 select throws_ok(
   $$ insert into error_events (fn, error_code) values ('agent-chat', 'TEST_CODE') $$,
   '42501',
   null,
-  'AC-OF-004 anon INSERT on error_events is denied (RLS, no policy)'
+  'AC-OF-004 anon INSERT on error_events is denied (0105: privilege denial precedes RLS)'
 );
 reset role;
 
