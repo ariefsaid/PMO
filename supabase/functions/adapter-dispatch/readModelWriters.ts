@@ -18,6 +18,7 @@ import { derivePurchaseOrderStatus, deriveProcurementReceiptStatus } from '../..
 import { derivePiStatus } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/piStatus.ts';
 import { deriveSiStatus } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/siStatus.ts';
 import { reconcileSiCancelAutoUnlink } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/transitionPolicy.ts';
+import { buildsSalesInvoiceBody } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/dispatchFactory.ts';
 
 /** Structural service-role client seam the writers below need: `.from(t).{insert,update,upsert}`.
  *  The real supabase-js client satisfies this at runtime but is not nominally assignable (thenable
@@ -566,8 +567,30 @@ async function upsertSalesInvoiceMirror(ctx: ReadModelWriterCtx, canonical: PmoR
     if (error) throw new AppError(error.message, error.code);
     return;
   }
+  // Luna re-audit (SoD, approver half) — WHOEVER BUILDS THE BODY IS THE AUTHOR.
+  // `buildsSalesInvoiceBody` (imported from dispatchFactory — the ONE definition, never duplicated)
+  // marks the operations that REBUILD the ERP Sales Invoice body from the caller-supplied `items`:
+  // `update` (draft field PUT / routeEdit -> commitAmend) and `transition{verb:'amend'}`. Those SET
+  // THE MONEY, but the submit SoD (`isRevenueSiSubmitTransition`) only fires on verb 'submit' — so
+  // without this the designated approver B could rewrite A's draft to their own number under A's
+  // name and then satisfy approver≠author against a person who never chose it. Re-stamping makes the
+  // body-writer the author, which the RPC then refuses to let them self-approve.
+  // A NON-body-building transition (submit/cancel) leaves authorship untouched: submitting is not
+  // authoring. The service-role writer bypasses 0106's mirror guard (it early-returns on
+  // `auth.jwt()->>'role' = 'service_role'`, verified), so no migration is needed for this write.
+  //
+  // ONLY when the caller is KNOWN. On the inbound feed / sweep finalize `ctx.callerUserId` is
+  // undefined, and the key must be OMITTED rather than written as null — nulling a real author would
+  // re-open the NULL-author SoD hole 0108 §B fails closed on (and a machine tick authors nothing).
+  const authorPatch =
+    ctx.callerUserId &&
+    buildsSalesInvoiceBody({ operation: command.operation, record: command.record as { verb?: unknown } })
+      ? { author_user_id: ctx.callerUserId }
+      // (the `as` mirrors dispatchFactory's own call site: PmoRecord is an index-signature record, so
+      //  TypeScript's weak-type check rejects the structurally-fine `{ verb?: unknown }` narrowing)
+      : {};
   const { error } = await (
-    ctx.serviceClient.from('sales_invoices').update(patch).eq('org_id', ctx.orgId).eq('id', canonical.id) as unknown as Promise<{
+    ctx.serviceClient.from('sales_invoices').update({ ...patch, ...authorPatch }).eq('org_id', ctx.orgId).eq('id', canonical.id) as unknown as Promise<{
       error: { message: string; code?: string } | null;
     }>
   );

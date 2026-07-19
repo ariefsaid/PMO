@@ -18,8 +18,11 @@ import {
   listDocNamesByAnchor,
   ERP_REQUEST_TIMEOUT_MS,
   ERP_QUARANTINE_WINDOW_MS,
+  ERP_PROBE_TIMEOUT_MS,
+  withProbeBudget,
   type ErpClientDeps,
 } from './client.ts';
+import { MONEY_COMMIT_CLAIM_BUDGET_MS } from '../dispatch.ts';
 
 function jsonResponse(status: number, body: unknown, headers: Record<string, string> = {}): Response {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json', ...headers } });
@@ -307,6 +310,54 @@ describe('erpnext/client', () => {
       // ≥2 minutes of settle time between the abort and the earliest possible reissue, so a POST that
       // still commits server-side becomes probe-visible before recovery could ever re-POST it.
       expect(ERP_QUARANTINE_WINDOW_MS - ERP_REQUEST_TIMEOUT_MS).toBeGreaterThanOrEqual(120_000);
+    });
+
+    // Money-safety audit BLOCK 1: the SETTLE MARGIN is what actually carries the no-duplicate
+    // guarantee (a client-side abort does not prove ERP rolled back), and the POST no longer starts
+    // at the claim — the recovery probe runs first. So the three budgets must compose. A static
+    // relationship between only the two ERP constants is what missed the defect; this asserts the
+    // WHOLE chain, and fails the moment any of them drifts.
+    it('the claim budget + the POST deadline + a 2-minute settle margin all fit inside the quarantine window', () => {
+      expect(ERP_REQUEST_TIMEOUT_MS).toBeLessThan(ERP_QUARANTINE_WINDOW_MS);
+      expect(MONEY_COMMIT_CLAIM_BUDGET_MS + ERP_REQUEST_TIMEOUT_MS + 120_000).toBeLessThanOrEqual(ERP_QUARANTINE_WINDOW_MS);
+    });
+
+    it('the probe budget is strictly tighter than the claim budget, so a probe can never consume it whole', () => {
+      expect(ERP_PROBE_TIMEOUT_MS).toBeLessThan(MONEY_COMMIT_CLAIM_BUDGET_MS);
+    });
+
+    it('withProbeBudget gives a probe ONE attempt only — a retryable 503 is not retried into the claim budget', async () => {
+      // Un-budgeted, an idempotent GET burns `maxRetries` (3) × the per-attempt deadline — the ~483 s
+      // worst case that let a claimant outlive its own quarantine window and still POST.
+      const unbudgeted = fetchDeps(async () => jsonResponse(503, { exception: 'ServiceUnavailable' }));
+      await expect(erpnextRequest(unbudgeted, { method: 'GET', path: '/api/resource/X' })).rejects.toBeInstanceOf(ErpError);
+      expect(unbudgeted.fetchImpl).toHaveBeenCalledTimes(4);
+
+      const budgeted = withProbeBudget(fetchDeps(async () => jsonResponse(503, { exception: 'ServiceUnavailable' })));
+      await expect(erpnextRequest(budgeted, { method: 'GET', path: '/api/resource/X' })).rejects.toMatchObject({
+        code: 'external-unreachable',
+      });
+      expect(budgeted.fetchImpl).toHaveBeenCalledTimes(1);
+    });
+
+    it('withProbeBudget applies the tighter probe deadline and preserves the caller credentials/base URL', () => {
+      const base = fetchDeps(async () => jsonResponse(200, {}));
+      const budgeted = withProbeBudget(base);
+      expect(budgeted.timeoutMs).toBe(ERP_PROBE_TIMEOUT_MS);
+      expect(budgeted.maxRetries).toBe(0);
+      expect(budgeted.apiKey).toBe(base.apiKey);
+      expect(budgeted.baseUrl).toBe(base.baseUrl);
+      // The caller's own client is untouched — the budget is probe-scoped, never global.
+      expect(base.maxRetries).toBeUndefined();
+      expect(base.timeoutMs).toBeUndefined();
+    });
+
+    it('a hung probe aborts at the probe deadline instead of hanging into the claim budget', async () => {
+      const deps = { ...withProbeBudget(fetchDeps(hangingFetch())), timeoutMs: 20 };
+      await expect(erpnextRequest(deps, { method: 'GET', path: '/api/resource/X' })).rejects.toMatchObject({
+        code: 'external-unreachable',
+      });
+      expect(deps.fetchImpl).toHaveBeenCalledTimes(1); // no retry — the single attempt IS the budget
     });
 
     it('aborts a hung POST at the deadline and surfaces external-unreachable — with NO re-POST', async () => {

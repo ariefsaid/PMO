@@ -89,6 +89,31 @@ export const ERP_QUARANTINE_WINDOW_MS = 5 * 60_000;
 export const ERP_REQUEST_TIMEOUT_MS = 120_000;
 
 /**
+ * The per-attempt deadline for a RECOVERY-PROBE request (money-safety audit BLOCK 1).
+ *
+ * The probe is the first thing a claim winner does, and it is a `GET` — so under the DEFAULT budget it
+ * retries (`maxRetries` 3) at 120 s per attempt: ~483 s worst case, LONGER than the entire 300 s
+ * quarantine window. That let a claimant finish probing only after its row had been quarantined,
+ * reclaimed and reissued, and then still `POST` — two ERP money documents. `dispatch.ts`'s claim
+ * budget refuses that POST, but the probe must ALSO be prevented from silently eating the whole
+ * window: an answer that cannot arrive inside the claim budget is not an answer, it is an outage, and
+ * must surface as `external-unreachable` promptly so the reconciler takes over.
+ *
+ * 20 s is generous for a single indexed Frappe list query (the live bench measured sub-second) and
+ * comfortably inside `MONEY_COMMIT_CLAIM_BUDGET_MS`.
+ */
+export const ERP_PROBE_TIMEOUT_MS = 20_000;
+
+/**
+ * Applies the recovery-probe budget to a client: exactly ONE attempt (no retry into the claim budget)
+ * with the tighter `ERP_PROBE_TIMEOUT_MS` deadline. Returns a COPY — the caller's own client (which a
+ * sweep also uses for its doctype polling, where the normal retry budget is correct) is untouched.
+ */
+export function withProbeBudget(deps: ErpClientDeps): ErpClientDeps {
+  return { ...deps, maxRetries: 0, timeoutMs: ERP_PROBE_TIMEOUT_MS };
+}
+
+/**
  * Escapes the SQL `LIKE` metacharacters (`%`, `_`) and the escape character itself (`\`) so a value
  * interpolated into a `LIKE` pattern can only ever match ITSELF, literally (Luna BLOCK 1).
  *

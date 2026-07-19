@@ -10,6 +10,7 @@ import {
   dispatchExternallyOwnedWrite,
   dispatchMoneyWrite,
   redactErrorForOutbox,
+  MONEY_COMMIT_CLAIM_BUDGET_MS,
   type DispatchMoneyOutboxDeps,
   type OutboxRow,
 } from './dispatch.ts';
@@ -823,6 +824,171 @@ describe('C-1 DIRECTOR RULING: a mutable-anchor money doc (Payment Entry) is HEL
     expect(commit).not.toHaveBeenCalled(); // adopted, not re-POSTed
     expect(result.externalRecordId).toBe('PE-LANDED');
     expect([...fake.rows.values()][0].state).toBe('confirmed');
+  });
+});
+
+/**
+ * Money-safety audit BLOCK 1 — the CLAIM BUDGET.
+ *
+ * ADR-0058's per-attempt request deadline was reasoned about as if the POST began at the instant of
+ * the claim. It does not: `claimAndCommit` awaits the recovery PROBE first, and the probe is a GET, so
+ * it retries (`maxRetries` default 3) with a per-ATTEMPT deadline — a worst case of ~483 s, LONGER
+ * than the whole 300 s quarantine window. A claimant could therefore still reach `adapter.commit`
+ * AFTER its row had been quarantined, reclaimed and REISSUED by the reconciler ⇒ two ERP money
+ * documents (two SUBMITTED docs with posted GL/AP on the shared Purchase-Invoice / Pay-PE path). The
+ * fencing token discards the stale claimant's WRITE-BACK; it cannot un-mint its DOCUMENT.
+ *
+ * The invariant is enforced at the POST SITE against real elapsed time — never inferred from the
+ * relationship between two constants (a static assertion of the flawed model is exactly what missed
+ * this). These tests drive an injected clock through `money.now`.
+ */
+describe('BLOCK 1: no POST may be issued once the claim budget is exhausted (the claim is superseded by then)', () => {
+  /** Wires an injected clock into the fake and makes the probe consume `probeCostMs` of it. */
+  function withClock(fake: ReturnType<typeof createFakeOutbox>, probeCostMs: number) {
+    const clock = { ms: 1_000_000 };
+    fake.deps.now = () => clock.ms;
+    const probe = fake.deps.probeByRemarksKey.bind(fake.deps);
+    fake.deps.probeByRemarksKey = async (domain, key) => {
+      clock.ms += probeCostMs;
+      return probe(domain, key);
+    };
+    return clock;
+  }
+
+  it('a probe that outlives the budget makes the POST refused — no ERP document, row left committing', async () => {
+    const fake = createFakeOutbox();
+    // The audited worst case: 4 × 120 s attempts + backoff, longer than the entire 300 s quarantine
+    // window — by now a reconciler has claimed, missed the probe and already reissued this command.
+    withClock(fake, 483_000);
+    const commit = vi.fn(async () => ({ externalRecordId: 'PI-DUPLICATE', canonical: { id: 'pmo-1' } }));
+
+    await expect(
+      dispatchMoneyWrite({
+        adapter: erpnextAdapter(commit),
+        command: baseCommand,
+        writeReadModel: vi.fn(), recordExternalRef: vi.fn(),
+        money: fake.deps,
+      }),
+    ).rejects.toMatchObject({ code: 'external-unreachable' });
+
+    expect(commit).not.toHaveBeenCalled(); // the critical assertion: no second money document
+    const row = [...fake.rows.values()][0];
+    // Retryable ⇒ nothing is marked: the row stays claimable-after-lease and the reconciler owns it.
+    expect(row.state).toBe('committing');
+    expect(row.externalRecordId).toBeNull();
+  });
+
+  it('the normal fast path (a probe answering well inside the budget) still POSTs and confirms', async () => {
+    const fake = createFakeOutbox();
+    withClock(fake, 1_500);
+    const commit = vi.fn(async () => ({ externalRecordId: 'PI-0001', canonical: { id: 'pmo-1' } }));
+
+    const result = await dispatchMoneyWrite({
+      adapter: erpnextAdapter(commit),
+      command: baseCommand,
+      writeReadModel: vi.fn(), recordExternalRef: vi.fn(),
+      money: fake.deps,
+    });
+
+    expect(commit).toHaveBeenCalledTimes(1);
+    expect(result.externalRecordId).toBe('PI-0001');
+    expect([...fake.rows.values()][0].state).toBe('confirmed');
+  });
+
+  it('the boundary is exact: 1 ms inside the budget POSTs, the budget itself does not', async () => {
+    const inside = createFakeOutbox();
+    withClock(inside, MONEY_COMMIT_CLAIM_BUDGET_MS - 1);
+    const insideCommit = vi.fn(async () => ({ externalRecordId: 'PI-0002', canonical: { id: 'pmo-1' } }));
+    await dispatchMoneyWrite({
+      adapter: erpnextAdapter(insideCommit), command: baseCommand,
+      writeReadModel: vi.fn(), recordExternalRef: vi.fn(), money: inside.deps,
+    });
+    expect(insideCommit).toHaveBeenCalledTimes(1);
+
+    const atBudget = createFakeOutbox();
+    withClock(atBudget, MONEY_COMMIT_CLAIM_BUDGET_MS);
+    const atBudgetCommit = vi.fn();
+    await expect(
+      dispatchMoneyWrite({
+        adapter: erpnextAdapter(atBudgetCommit), command: baseCommand,
+        writeReadModel: vi.fn(), recordExternalRef: vi.fn(), money: atBudget.deps,
+      }),
+    ).rejects.toMatchObject({ code: 'external-unreachable' });
+    expect(atBudgetCommit).not.toHaveBeenCalled();
+  });
+
+  it('the budget never turns an ADOPTION into a refusal — a probe hit past the budget still finalizes', async () => {
+    const fake = createFakeOutbox();
+    withClock(fake, 483_000);
+    fake.setProbe('procurement', 'key-1', { externalRecordId: 'PI-LANDED' });
+    const commit = vi.fn();
+
+    const result = await dispatchMoneyWrite({
+      adapter: erpnextAdapter(commit),
+      command: baseCommand,
+      writeReadModel: vi.fn(), recordExternalRef: vi.fn(),
+      money: fake.deps,
+    });
+
+    // Adoption issues no ERP write at all, and the fenced write-backs already guard a stale claimant's
+    // result — so the budget must not block it.
+    expect(commit).not.toHaveBeenCalled();
+    expect(result.externalRecordId).toBe('PI-LANDED');
+  });
+
+  it('C-1 is preserved: a budget-exhausted mutable-anchor PE is still HELD, never reissued', async () => {
+    const fake = createFakeOutbox({ reissueOnInconclusiveAbsence: false });
+    await fake.deps.insertOutboxPending('procurement', 'pmo-pe-3', 'key-pe3');
+    const id = [...fake.rows.keys()][0];
+    await fake.deps.claimOutboxForCommit(id);
+    fake.backdate(id, LEASE_MS + 1);
+    const commit = vi.fn(async () => ({ externalRecordId: 'PE-DUP', canonical: { id: 'pmo-pe-3' } }));
+    const peCommand: AdapterCommand = { domain: 'procurement', operation: 'create', record: { id: 'pmo-pe-3' }, idempotencyKey: 'key-pe3' };
+
+    await expect(
+      dispatchMoneyWrite({ adapter: erpnextAdapter(commit), command: peCommand, writeReadModel: vi.fn(), recordExternalRef: vi.fn(), money: fake.deps }),
+    ).rejects.toMatchObject({ code: 'external-unreachable' });
+
+    withClock(fake, 483_000);
+    fake.elapseWindow(id);
+    await expect(
+      dispatchMoneyWrite({ adapter: erpnextAdapter(commit), command: peCommand, writeReadModel: vi.fn(), recordExternalRef: vi.fn(), money: fake.deps }),
+    ).rejects.toMatchObject({ code: 'command-held' });
+    expect(commit).not.toHaveBeenCalled();
+    expect([...fake.rows.values()][0].state).toBe('held');
+  });
+
+  it('the post-window RECOVERY reissue is bounded by the same budget (the exploit path)', async () => {
+    // An immutable-anchor (reissue-capable) kind whose recovery claim probes past the budget must NOT
+    // reissue either — by then ITS OWN claim can have been superseded in turn.
+    const fake = createFakeOutbox();
+    await fake.deps.insertOutboxPending('procurement', 'pmo-1', 'key-1');
+    const id = [...fake.rows.keys()][0];
+    await fake.deps.claimOutboxForCommit(id);
+    fake.backdate(id, LEASE_MS + 1);
+    const commit = vi.fn(async () => ({ externalRecordId: 'PI-DUPLICATE', canonical: { id: 'pmo-1' } }));
+
+    await expect(
+      dispatchMoneyWrite({ adapter: erpnextAdapter(commit), command: baseCommand, writeReadModel: vi.fn(), recordExternalRef: vi.fn(), money: fake.deps }),
+    ).rejects.toMatchObject({ code: 'external-unreachable' });
+
+    withClock(fake, 483_000);
+    fake.elapseWindow(id);
+    await expect(
+      dispatchMoneyWrite({ adapter: erpnextAdapter(commit), command: baseCommand, writeReadModel: vi.fn(), recordExternalRef: vi.fn(), money: fake.deps }),
+    ).rejects.toMatchObject({ code: 'external-unreachable' });
+    expect(commit).not.toHaveBeenCalled();
+  });
+
+  it('falls back to the wall clock when no `now` is injected (production wiring needs no extra dep)', async () => {
+    const fake = createFakeOutbox();
+    expect(fake.deps.now).toBeUndefined();
+    const commit = vi.fn(async () => ({ externalRecordId: 'PI-0003', canonical: { id: 'pmo-1' } }));
+    const result = await dispatchMoneyWrite({
+      adapter: erpnextAdapter(commit), command: baseCommand,
+      writeReadModel: vi.fn(), recordExternalRef: vi.fn(), money: fake.deps,
+    });
+    expect(result.externalRecordId).toBe('PI-0003');
   });
 });
 

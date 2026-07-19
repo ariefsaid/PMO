@@ -56,7 +56,7 @@ import { refreshAccountingSnapshots, type OrgAccountingScope } from '../../../pm
 import { dispatchMoneyWrite, type DispatchMoneyWriteDeps, type ExternalRefMapping, type OutboxRow } from '../../../pmo-portal/src/lib/adapterSeam/dispatch.ts';
 import type { AdapterCommand, PmoRecord } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
 import { resolveErpCredentials } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/credentials.ts';
-import { erpnextRequest, type ErpClientDeps } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/client.ts';
+import { erpnextRequest, withProbeBudget, type ErpClientDeps } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/client.ts';
 import { resolveErpDispatchAdapter } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/dispatchFactory.ts';
 import { canonicalCommandDigest, createDbMoneyOutboxDeps } from '../adapter-dispatch/moneyOutboxDeps.ts';
 import { getReadModelWriter } from '../adapter-dispatch/readModelWriters.ts';
@@ -160,17 +160,38 @@ export interface ReconcileOrgOutboxResult {
  * (pending/failed/committing-past-lease/committed) via `outbox_reconcile_candidates(org)` and drives
  * each through the REAL `dispatchMoneyWrite` — one algorithm, shared with the retry path. A candidate
  * whose reconcile throws is recorded + skipped (sweep resilience); the next schedule retries it.
+ *
+ * Luna re-audit (ownership): the pass is DOMAIN-GATED, like `sweepOrgDoctypesLive` (sweepKindsForOrg)
+ * and `repairOrgLinksLive`. It previously gated on nothing, so revoking a domain — the Operator's
+ * kill-switch — refused NEW dispatches and stopped inbound adoption while queued/committing/committed
+ * rows of that domain kept reconciling on the next tick and POSTED REAL money documents into an org
+ * that no longer owns the domain. Fail-CLOSED: an org with no recorded ownership reconciles nothing.
+ *
+ * The skip is NOT silent (never drop a money row): `mark_outbox_held` cannot express it — 0096
+ * transitions only `state='committing'`, while candidates are pending/failed/committing-past-lease/
+ * committed — so the row is left EXACTLY as it is (no state change, no ERP call) and reported as a
+ * per-candidate error, which `runErpSweepCycle` surfaces as `reconcile:<id>:<error>`. Re-granting the
+ * domain resumes it on the next tick.
  */
 export async function reconcileOrgOutbox(
   listCandidates: ListOutboxCandidates,
-  orgId: string,
+  org: { orgId: string; ownedDomains: readonly string[] },
   buildDeps: BuildReconcileDeps,
   dispatch: typeof dispatchMoneyWrite = dispatchMoneyWrite,
 ): Promise<ReconcileOrgOutboxResult> {
-  const candidates = await listCandidates(orgId);
+  const candidates = await listCandidates(org.orgId);
+  const owned = new Set(org.ownedDomains);
   let reconciled = 0;
   const errors: Array<{ id: string; error: string }> = [];
   for (const candidate of candidates) {
+    // The gate runs BEFORE buildDeps so a revoked domain never even resolves ERP credentials/adapter.
+    // `candidate.domain` is the outbox row's own PMO domain, which the dispatch's authGuard already
+    // proved equal to `KIND_DOMAIN[payload.erp_doc_kind]` at insert time — one value, checked here
+    // without a second read of the payload.
+    if (!owned.has(candidate.domain)) {
+      errors.push({ id: candidate.id, error: `domain-not-owned: '${candidate.domain}' is no longer assigned to this tier — held for an operator, NOT reconciled` });
+      continue;
+    }
     try {
       await dispatch(await buildDeps(candidate));
       reconciled += 1;
@@ -597,7 +618,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
   const listCandidates = listCandidatesLive(serviceClient);
   const cycle = await runErpSweepCycle({
     listEmployingOrgs: () => listEmployingOrgsLive(serviceClient),
-    reconcileOrgOutbox: (org) => reconcileOrgOutbox(listCandidates, org.orgId, (row) => buildReconcileDepsLive(serviceClient, org, row)),
+    reconcileOrgOutbox: (org) => reconcileOrgOutbox(listCandidates, org, (row) => buildReconcileDepsLive(serviceClient, org, row)),
     sweepOrgDoctypes: (org) => sweepOrgDoctypesLive(serviceClient, org),
     repairOrgLinks: (org) => repairOrgLinksLive(serviceClient, org),
     feedOrgLedgers: (org) => feedOrgLedgersLive(serviceClient, org),
@@ -633,7 +654,10 @@ async function buildReconcileDepsLive(serviceClient: SupabaseClient, org: OrgBin
   }
 
   const { apiKey, apiSecret } = resolveErpCredentials(org.secretRef, (key) => Deno.env.get(key));
-  const client = { fetchImpl: fetch, apiKey, apiSecret, baseUrl: org.siteUrl };
+  // BLOCK 1 (money double-POST): the recovery probe must not burn the claim budget. withProbeBudget
+  // caps it (maxRetries 0 + tighter deadline) so a hung probe surfaces as unreachable instead of
+  // consuming the whole 300s quarantine window and letting a claimant POST after its own reissue.
+  const client = withProbeBudget({ fetchImpl: fetch, apiKey, apiSecret, baseUrl: org.siteUrl });
   // M-3: dispatch digests the exact payload persisted at INSERT. Reuse that full payload as the
   // digest input (and command record), rather than reconstructing only id + erp_doc_kind.
   const command: AdapterCommand = {

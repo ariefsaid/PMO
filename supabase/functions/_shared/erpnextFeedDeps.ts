@@ -273,12 +273,17 @@ async function mintMirrorRow(
  *  read-model writer on the outbound commit are left untouched here. */
 function mirrorStatusPatch(canonical: PmoRecord, sourceModMs: number): Record<string, unknown> {
   const docstatus = (canonical.erp_docstatus as number | null | undefined) ?? null;
-  return {
-    erp_modified: new Date(sourceModMs).toISOString(),
-    erp_docstatus: docstatus,
-    erp_amended_from: (canonical.erp_amended_from as string | null | undefined) ?? null,
-    erp_cancelled_at: docstatus === 2 ? new Date().toISOString() : null,
-  };
+  // erp_modified always advances. The lifecycle columns follow putIfPresent discipline: a partial
+  // webhook that omits docstatus must not clear a real erp_docstatus, nor wipe a genuine
+  // erp_cancelled_at stamp back to null. Only a payload that actually carries docstatus writes them,
+  // and only docstatus===2 stamps the cancellation time.
+  const patch: Record<string, unknown> = { erp_modified: new Date(sourceModMs).toISOString() };
+  putIfPresent(patch, 'erp_amended_from', (canonical.erp_amended_from as string | null | undefined));
+  if (docstatus != null) {
+    patch.erp_docstatus = docstatus;
+    if (docstatus === 2) patch.erp_cancelled_at = new Date().toISOString();
+  }
+  return patch;
 }
 
 /**
@@ -333,7 +338,16 @@ async function revenueFieldPatch(
     putIfPresent(patch, 'si_number', (canonical as { si_number?: unknown }).si_number);
     putIfPresent(patch, 'invoice_date', (canonical as { invoice_date?: unknown }).invoice_date);
     putIfPresent(patch, 'erp_outstanding_amount', outstanding);
-    patch.status = deriveSiStatus(outstanding == null ? null : String(outstanding), docstatus);
+    // Money-safety (audit SHOULD-FIX 2): `status` follows the SAME "only write what the change
+    // carries" discipline as every column above it. `deriveSiStatus(null, 1)` is deliberately
+    // 'Unpaid' (null is NOT zero, siStatus.ts) — so recomputing it from an absent oracle flipped a
+    // SETTLED invoice back to 'Unpaid' and re-entered it into `open_ar` at its FULL amount. The
+    // sweep always carries `outstanding_amount`, but a Frappe WEBHOOK maps whatever field subset the
+    // operator configured, so a lifecycle-only payload is a real inbound shape. A cancel is the one
+    // case whose oracle IS the docstatus, so it still derives.
+    if (outstanding != null || docstatus === 2) {
+      patch.status = deriveSiStatus(outstanding == null ? null : String(outstanding), docstatus);
+    }
     return patch;
   }
 
@@ -343,7 +357,10 @@ async function revenueFieldPatch(
   // sales_invoice_id = NULL forever. An unresolvable reference leaves the column UNTOUCHED — a
   // repair pass must never un-link a payment that is already correctly linked.
   putIfPresent(patch, 'sales_invoice_id', await resolveSalesInvoiceId(serviceClient, orgId, canonical));
-  patch.status = deriveIpStatus(docstatus);
+  // The IP twin of the SI status guard above: `status` carries an oracle only when the payload states
+  // the lifecycle. A partial webhook that omits `docstatus` must NOT flip a Paid payment back to
+  // Scheduled (deriveIpStatus(null) === 'Scheduled'). A cancel (docstatus 2) always writes.
+  if (docstatus != null) patch.status = deriveIpStatus(docstatus);
   return patch;
 }
 

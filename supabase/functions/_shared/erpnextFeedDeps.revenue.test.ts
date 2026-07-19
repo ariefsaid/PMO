@@ -114,6 +114,79 @@ Deno.test('BLOCK 8: an inbound Receive-PE cancel drops it out of Paid (a cancell
   assert(patch.status === 'Scheduled', `expected 'Scheduled' (the only non-Paid value the check constraint allows), got ${String(patch.status)}`);
 });
 
+// ── SHOULD-FIX 2, the IP twin: an Incoming Payment's `status` was ALSO derived unconditionally
+// (`deriveIpStatus(null) === 'Scheduled'`), so a partial webhook omitting `docstatus` flipped a
+// settled 'Paid' receipt back to 'Scheduled'. Same putIfPresent discipline as the SI path. ──────────
+Deno.test('SHOULD-FIX 2 (IP twin): a partial Receive-PE payload with NO docstatus leaves `status` untouched (a Paid receipt never flips to Scheduled)', async () => {
+  const { client, calls } = fakeServiceClient();
+  const deps = createErpFeedDeps(client, 'org-1', 'incoming-payment');
+  // A lifecycle webhook carrying an amount but not the docstatus oracle.
+  await deps.updateMirror('pmo-ip-1', { id: 'pmo-ip-1', amount: '250.00' }, 1000);
+
+  const patch = findUpdate(calls, 'incoming_payments')?.payload as Record<string, unknown>;
+  assert(!('status' in patch), `expected NO status write without a docstatus, got status=${String(patch.status)}`);
+  assert(patch.amount === '250.00', `expected the carried amount to still be repaired, got ${String(patch.amount)}`);
+});
+
+Deno.test('SHOULD-FIX 2 (IP twin): a Receive-PE payload that DOES carry docstatus still derives status', async () => {
+  const { client, calls } = fakeServiceClient();
+  const deps = createErpFeedDeps(client, 'org-1', 'incoming-payment');
+  await deps.updateMirror('pmo-ip-1', { id: 'pmo-ip-1', erp_docstatus: 1 }, 1000);
+
+  const patch = findUpdate(calls, 'incoming_payments')?.payload as Record<string, unknown>;
+  assert(patch.status === 'Paid', `expected a submitted receipt to derive 'Paid', got ${String(patch.status)}`);
+});
+
+// ── Money-safety audit SHOULD-FIX 2: a PARTIAL inbound payload must never re-derive `status` ───────
+//
+// Every financial column is written through `putIfPresent` (absent ⇒ untouched), but `status` used to
+// be assigned UNCONDITIONALLY from `deriveSiStatus(outstanding, docstatus)`. `deriveSiStatus(null, 1)`
+// is deliberately 'Unpaid' (null is NOT zero, siStatus.ts) — so a SETTLED invoice (outstanding 0,
+// 'Paid') receiving ANY lifecycle webhook that carries `docstatus:1` but no `outstanding_amount`
+// flipped back to 'Unpaid' and re-entered `open_ar` at its FULL amount until the next sweep tick.
+// Frappe lets the operator pick the webhook's field subset, so the payload genuinely may omit it.
+
+Deno.test('SHOULD-FIX 2: a partial SI payload with NO outstanding_amount leaves `status` untouched (a Paid invoice never flips to Unpaid)', async () => {
+  const { client, calls } = fakeServiceClient();
+  const deps = createErpFeedDeps(client, 'org-1', 'sales-invoice');
+  // A lifecycle-only webhook: docstatus present, the money oracle absent.
+  await deps.updateMirror('pmo-si-1', { id: 'pmo-si-1', erp_docstatus: 1 }, 1000);
+
+  const patch = findUpdate(calls, 'sales_invoices')?.payload as Record<string, unknown>;
+  assert(
+    !('status' in patch),
+    `expected NO status write without the outstanding oracle, got status=${String(patch.status)}`,
+  );
+});
+
+Deno.test('SHOULD-FIX 2: a partial SI payload still repairs the columns it DOES carry', async () => {
+  const { client, calls } = fakeServiceClient();
+  const deps = createErpFeedDeps(client, 'org-1', 'sales-invoice');
+  await deps.updateMirror('pmo-si-1', { id: 'pmo-si-1', erp_docstatus: 1, amount: '500.00' }, 1000);
+
+  const patch = findUpdate(calls, 'sales_invoices')?.payload as Record<string, unknown>;
+  assert(patch.amount === '500.00', `expected the carried amount to be repaired, got ${String(patch.amount)}`);
+  assert(!('status' in patch), 'expected status to stay untouched when only non-oracle fields arrived');
+});
+
+Deno.test('SHOULD-FIX 2: a CANCEL (docstatus 2) still derives status even with no outstanding_amount', async () => {
+  const { client, calls } = fakeServiceClient();
+  const deps = createErpFeedDeps(client, 'org-1', 'sales-invoice');
+  await deps.updateMirror('pmo-si-1', { id: 'pmo-si-1', erp_docstatus: 2 }, 1000);
+
+  const patch = findUpdate(calls, 'sales_invoices')?.payload as Record<string, unknown>;
+  assert(patch.status === 'Cancelled', `expected a cancel to derive 'Cancelled', got ${String(patch.status)}`);
+});
+
+Deno.test('SHOULD-FIX 2: an explicit outstanding of 0 still derives Paid (the oracle IS carried)', async () => {
+  const { client, calls } = fakeServiceClient();
+  const deps = createErpFeedDeps(client, 'org-1', 'sales-invoice');
+  await deps.updateMirror('pmo-si-1', { id: 'pmo-si-1', erp_docstatus: 1, erp_outstanding_amount: 0 }, 1000);
+
+  const patch = findUpdate(calls, 'sales_invoices')?.payload as Record<string, unknown>;
+  assert(patch.status === 'Paid', `expected 'Paid' for an explicit zero outstanding, got ${String(patch.status)}`);
+});
+
 // ── BLOCK 6 ────────────────────────────────────────────────────────────────────────────────────────
 
 Deno.test('BLOCK 6: an inbound SI update repairs the FINANCIAL columns (amount/outstanding/date), not just erp_*', async () => {

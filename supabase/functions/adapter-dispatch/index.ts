@@ -36,6 +36,7 @@ import { ClickUpRateLimiter } from '../../../pmo-portal/src/lib/adapterSeam/clic
 import { ERPNEXT_COMPANIES_DOMAIN, ERPNEXT_PROCUREMENT_DOMAIN, ERPNEXT_REVENUE_DOMAIN, ERPNEXT_TIER } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/adapter.ts';
 import { buildsSalesInvoiceBody, resolveErpDispatchAdapter, withPaymentTypeDiscriminator } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/dispatchFactory.ts';
 import { resolveErpCredentials } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/credentials.ts';
+import { withProbeBudget } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/client.ts';
 // The runtime (kind)->{toBody,fromDoc} side table (task 5.2) — ADDITIVE across slices 3/4/5/6, each
 // wiring only the kinds it owns; an un-wired kind is `commit-rejected` at commit time, never a
 // silent no-op (adapter.ts's `requireBodyFns`). Slice 3's supplier/customer entries now live in this
@@ -199,7 +200,12 @@ async function resolveErpMoneyOutboxDeps(ctx: AdapterSelectContext): Promise<Dis
   // overwrites remarks; reference_no survives, ADR-0058 §3 amended). Captured in a const here so the
   // probe closure sees the narrowed `string` type (entry.anchorField is `string | null` on the record).
   const anchorField = entry.anchorField;
-  const client = { fetchImpl: fetch, apiKey, apiSecret, baseUrl: binding.site_url };
+  // Money-safety audit BLOCK 1: the probe client carries the PROBE budget (one attempt, tighter
+  // deadline). Un-budgeted, this GET retries 3× at 120 s = ~483 s — longer than the whole 300 s
+  // quarantine window — so the claim winner could finish probing only after its row had been
+  // reclaimed and REISSUED, and then still POST a second money document. `dispatch.ts`'s claim budget
+  // refuses that POST; this stops the probe eating the budget in the first place.
+  const client = withProbeBudget({ fetchImpl: fetch, apiKey, apiSecret, baseUrl: binding.site_url });
   const probeDeps = { client, doctype: entry.doctype, anchorField: anchorField ?? '', fromDoc: bodyFns.fromDoc, pmoRecordId: ctx.command.record.id };
 
   // C-1 (companies "<Doctype>:<name>" encoding): now that external_refs is written INSIDE the fenced

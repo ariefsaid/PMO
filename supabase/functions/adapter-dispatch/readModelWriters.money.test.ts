@@ -837,3 +837,93 @@ Deno.test({
     assertEquals((err as { code?: string }).code, 'cross-org-link-rejected', 'classified cross-org-link-rejected');
   },
 });
+
+// ============================================================================
+// Luna re-audit (SoD) — the APPROVER half of the two-person rule (OD-SAR-DRAFT-SUBMIT).
+//
+// An earlier round closed the AUTHOR side (an author can no longer self-submit, incl. via amend).
+// The approver side stayed open: `author_user_id` was stamped ONLY on `create`, and the update branch
+// deliberately excludes it. But `buildsSalesInvoiceBody` (dispatchFactory) confirms that `update` AND
+// `transition{verb:'amend'}` REBUILD the ERP Sales Invoice body from the caller-supplied `items` —
+// i.e. they SET THE MONEY — while `isRevenueSiSubmitTransition` fires only on verb 'submit'. So the
+// designated approver B could rewrite A's 1,000 draft to 1,000,000 (author still recorded as A) and
+// then submit it: approver≠author passed against a person who never chose that number.
+//
+// Fix: whoever BUILDS the body is the author. A body-building update re-stamps author_user_id.
+// The subtle half: on the inbound/sweep path there is NO caller (`ctx.callerUserId` undefined) and the
+// key must be OMITTED, never written as null — nulling a real author would re-open the NULL-author
+// hole 0108 §B fails closed on.
+// ============================================================================
+
+Deno.test({
+  name: "Luna SoD — a BODY-BUILDING sales-invoice update re-stamps author_user_id = the updating caller (B), so B cannot then approve the money B just set",
+  fn: async () => {
+    const { client, calls } = makeFakeClient();
+    const writer = getReadModelWriter('revenue');
+    await writer.upsert(
+      { serviceClient: client as never, orgId: 'org-1', callerUserId: 'user-approver-b' },
+      { id: 'pmo-si-sod-1', si_number: 'ACC-SINV-2026-00010', amount: '1000000.00', erp_outstanding_amount: '1000000.00', erp_docstatus: 0, erp_modified: '2026-07-19 10:00:00.000000' },
+      { domain: 'revenue', operation: 'update', record: { id: 'pmo-si-sod-1', erp_doc_kind: 'sales-invoice', items: [{ rate: 1000000 }] } },
+    );
+    const updateCall = calls.find((c) => c.method === 'update' && c.table === 'sales_invoices');
+    assert(updateCall !== undefined, 'expected an update on sales_invoices');
+    const patch = updateCall!.args[0] as Record<string, unknown>;
+    assertEquals(patch.author_user_id, 'user-approver-b', 'the caller who rebuilt the SI body IS the author of that money');
+  },
+});
+
+Deno.test({
+  name: "Luna SoD — a transition{verb:'amend'} (which rebuilds the body) also re-stamps author_user_id = the amending caller",
+  fn: async () => {
+    const { client, calls } = makeFakeClient();
+    const writer = getReadModelWriter('revenue');
+    await writer.upsert(
+      { serviceClient: client as never, orgId: 'org-1', callerUserId: 'user-approver-b' },
+      { id: 'pmo-si-sod-2', si_number: 'ACC-SINV-2026-00011', amount: '1000000.00', erp_outstanding_amount: '1000000.00', erp_docstatus: 0, erp_modified: '2026-07-19 11:00:00.000000', erp_amended_from: 'ACC-SINV-2026-00010' },
+      { domain: 'revenue', operation: 'transition', record: { id: 'pmo-si-sod-2', erp_doc_kind: 'sales-invoice', verb: 'amend', items: [{ rate: 1000000 }] } },
+    );
+    const updateCall = calls.find((c) => c.method === 'update' && c.table === 'sales_invoices');
+    const patch = updateCall!.args[0] as Record<string, unknown>;
+    assertEquals(patch.author_user_id, 'user-approver-b', "an amend rebuilds the body from the caller's items — the amender is the author");
+  },
+});
+
+Deno.test({
+  name: "Luna SoD — a NON-body-building transition (verb 'submit'/'cancel' — a lifecycle-only patch) does NOT change author_user_id",
+  fn: async () => {
+    for (const verb of ['submit', 'cancel']) {
+      const { client, calls } = makeFakeClient();
+      const writer = getReadModelWriter('revenue');
+      await writer.upsert(
+        { serviceClient: client as never, orgId: 'org-1', callerUserId: 'user-approver-b' },
+        { id: 'pmo-si-sod-3', si_number: 'ACC-SINV-2026-00012', amount: '1000.00', erp_outstanding_amount: '1000.00', erp_docstatus: verb === 'cancel' ? 2 : 1, erp_modified: '2026-07-19 12:00:00.000000' },
+        { domain: 'revenue', operation: 'transition', record: { id: 'pmo-si-sod-3', erp_doc_kind: 'sales-invoice', verb } },
+      );
+      const updateCall = calls.find((c) => c.method === 'update' && c.table === 'sales_invoices');
+      const patch = updateCall!.args[0] as Record<string, unknown>;
+      assert(
+        !('author_user_id' in patch),
+        `verb '${verb}' builds no body — it must leave authorship exactly as recorded (submitting is NOT authoring)`,
+      );
+    }
+  },
+});
+
+Deno.test({
+  name: 'Luna SoD — the inbound/sweep path (no callerUserId) OMITS author_user_id on a body-building update: a machine tick must never null a real author',
+  fn: async () => {
+    const { client, calls } = makeFakeClient();
+    const writer = getReadModelWriter('revenue');
+    await writer.upsert(
+      { serviceClient: client as never, orgId: 'org-1' }, // no callerUserId — inbound feed / sweep finalize of an unattributed row
+      { id: 'pmo-si-sod-4', si_number: 'ACC-SINV-2026-00013', amount: '1000.00', erp_outstanding_amount: '1000.00', erp_docstatus: 0, erp_modified: '2026-07-19 13:00:00.000000' },
+      { domain: 'revenue', operation: 'update', record: { id: 'pmo-si-sod-4', erp_doc_kind: 'sales-invoice', items: [{ rate: 1000 }] } },
+    );
+    const updateCall = calls.find((c) => c.method === 'update' && c.table === 'sales_invoices');
+    const patch = updateCall!.args[0] as Record<string, unknown>;
+    assert(
+      !('author_user_id' in patch),
+      'no caller ⇒ the key must be ABSENT (writing null would wipe a real author and re-open the NULL-author SoD hole 0108 §B fails closed on)',
+    );
+  },
+});

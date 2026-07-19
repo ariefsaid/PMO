@@ -126,9 +126,43 @@ export interface DispatchMoneyOutboxDeps {
    *  insert and compared against a re-read row's stored digest to reject idempotency-key reuse with a
    *  different payload. Absent ⇒ the binding check is skipped (P0/P1 and pre-M-3 callers). */
   payloadDigest?: string;
+  /** Injectable monotonic-enough wall clock (ms) for the claim-budget gate below. Defaults to
+   *  `Date.now`; tests inject a controllable clock so the budget can be proven against REAL elapsed
+   *  time rather than a static relationship between two constants (audit BLOCK 1). */
+  now?: () => number;
 }
 
+/**
+ * The wall-clock budget, measured from the moment this process asks for the claim, within which a
+ * claim winner may still ISSUE its ERP `POST` (money-safety audit BLOCK 1).
+ *
+ * ADR-0058 bounds a duplicate money document with a per-ATTEMPT request deadline, reasoned about as if
+ * the POST started at the claim. It does not: the claim winner awaits the recovery PROBE first, and a
+ * probe is a GET — so it retries with its own per-attempt deadline. A slow ERP therefore let a
+ * claimant reach `adapter.commit` LONG after its row had been quarantined, reclaimed and reissued by
+ * the reconciler ⇒ two ERP money documents. The `claim_generation` fence discards the stale
+ * claimant's write-BACK; it cannot un-mint its DOCUMENT. Only refusing the POST can.
+ *
+ * The value must satisfy, against the ERPNext timings in `erpnext/client.ts`:
+ *
+ *     BUDGET + ERP_REQUEST_TIMEOUT_MS + settle-margin  ≤  ERP_QUARANTINE_WINDOW_MS
+ *     60 s   + 120 s                  + 120 s          =  300 s
+ *
+ * i.e. a POST admitted at the very edge of the budget is still aborted a full 2 minutes before the
+ * EARLIEST possible reissue, preserving exactly the settle margin ADR-0058 claimed (a client-side
+ * abort does not guarantee an ERP rollback, so the margin — not the abort — carries the guarantee).
+ * `client.test.ts` asserts that arithmetic so the two cannot drift apart. Kept here rather than
+ * imported because this module is tier-agnostic (no ERPNext vocabulary).
+ */
+export const MONEY_COMMIT_CLAIM_BUDGET_MS = 60_000;
+
 export type DispatchMoneyWriteDeps = DispatchExternallyOwnedWriteDeps & { money: DispatchMoneyOutboxDeps };
+
+/** The injected clock, or the wall clock. One definition so every elapsed-time decision in this
+ *  module reads the SAME source (audit BLOCK 1). */
+function nowMs(money: DispatchMoneyOutboxDeps): number {
+  return money.now?.() ?? Date.now();
+}
 
 /** Discriminates a retryable transport failure (never blindly re-POSTed, but the row is left
  *  reclaimable) from a non-retryable rejection (marked `failed` immediately). */
@@ -220,9 +254,10 @@ async function finalizeOutboxRow(
 async function claimAndCommit(
   claimed: OutboxRow,
   deps: DispatchMoneyWriteDeps,
-  isRecoveryReissue = false,
+  opts: { claimStartedAtMs: number; isRecoveryReissue?: boolean },
 ): Promise<CommandResult> {
   const { command, money, adapter } = deps;
+  const isRecoveryReissue = opts.isRecoveryReissue ?? false;
   const token = claimed.claimGeneration;
 
   const probed = await money.probeByRemarksKey(command.domain, command.idempotencyKey!);
@@ -255,6 +290,26 @@ async function claimAndCommit(
     // generic transient 'external-unreachable' (retrying will not help; an operator must resolve it).
     throw new AppError('payment command held for operator resolution — not auto-reissued (mutable anchor)', 'command-held');
   } else {
+    // Audit BLOCK 1 — the CLAIM BUDGET, enforced at the POST SITE against real elapsed time (never
+    // inferred from the relationship between two constants). Everything above this point is
+    // read-only or a fenced write-back, both of which a supersede makes harmless; `adapter.commit` is
+    // the one irreversible act, so it is the one that must be time-gated. If the budget has run out,
+    // this claim can already have been quarantined + superseded and the reconciler can already have
+    // reissued — POSTing now would mint a SECOND money document (on the shared Purchase-Invoice /
+    // Pay-PE path, a second SUBMITTED doc with posted GL/AP, cancel-only and permanent).
+    //
+    // Bail RETRYABLY and mark NOTHING: the row stays `committing`, becomes reclaimable at lease
+    // expiry, and the quarantine/reconcile path owns it from here — exactly as for any other
+    // `external-unreachable`.
+    const elapsedMs = nowMs(money) - opts.claimStartedAtMs;
+    if (elapsedMs >= MONEY_COMMIT_CLAIM_BUDGET_MS) {
+      console.error(
+        `[money-outbox] REFUSED POST ${command.domain}/${command.record.id} (idempotencyKey=${command.idempotencyKey}) — ` +
+          `${elapsedMs}ms elapsed since the claim exceeds the ${MONEY_COMMIT_CLAIM_BUDGET_MS}ms commit budget; ` +
+          'this claim may already be superseded and the reconciler owns the row',
+      );
+      throw toDispatchError(new AdapterError('external-unreachable', 'commit-claim-budget-exhausted'));
+    }
     let result: CommandResult;
     try {
       result = await adapter.commit(command);
@@ -346,8 +401,12 @@ async function reconcileOutbox(row: OutboxRow, deps: DispatchMoneyWriteDeps, com
       // doc (Payment Entry), where a no-hit is HELD not reissued (C-1, enforced by the recovery-reissue
       // flag). Window NOT elapsed (or another caller owns the reconcile) → surface a retryable
       // "reconciling"; the sweep finalizes it once the window passes. We deliberately do NOT spin here.
+      // BLOCK 1: the budget clock starts BEFORE the claim RPC, so it is never shorter than the real
+      // time this process has held the critical section (the DB's own `claimed_at` is stamped inside
+      // that RPC, i.e. no earlier than this instant).
+      const claimStartedAtMs = nowMs(money);
       const claimed = await money.claimOutboxForCommit(row.id);
-      if (claimed) return claimAndCommit(claimed, deps, true);
+      if (claimed) return claimAndCommit(claimed, deps, { claimStartedAtMs, isRecoveryReissue: true });
       throw toDispatchError(new AdapterError('external-unreachable', 'command-quarantined-reconciling'));
     }
     case 'held':
@@ -356,8 +415,9 @@ async function reconcileOutbox(row: OutboxRow, deps: DispatchMoneyWriteDeps, com
       throw new AppError('payment command held for operator resolution — not auto-reissued (mutable anchor)', 'command-held');
     case 'pending':
     case 'failed': {
+      const claimStartedAtMs = nowMs(money);   // BLOCK 1 — see the quarantined branch above.
       const claimed = await money.claimOutboxForCommit(row.id);
-      if (claimed) return claimAndCommit(claimed, deps);
+      if (claimed) return claimAndCommit(claimed, deps, { claimStartedAtMs });
       // lost the race for this row — another caller claimed it first; re-read and reconcile
       // (never POST).
       const fresh = await money.readOutbox(command.domain, command.record.id, command.idempotencyKey!);

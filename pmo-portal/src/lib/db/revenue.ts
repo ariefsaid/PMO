@@ -141,28 +141,54 @@ export async function submitSalesInvoiceSod(siId: string): Promise<void> {
 }
 
 /**
+ * PostgREST refuses to return more than `max_rows` (1000, `supabase/config.toml`) rows in ONE
+ * response — and signals nothing when it truncates. Any read that aggregates a whole table must
+ * therefore page explicitly; this is that page size.
+ */
+const ROLLUP_PAGE_SIZE = 1000;
+
+/**
  * Revenue rollup per project — SUM(amount) grouped by project_id.
  * Returns an 'Unassigned' bucket for rows where project_id IS NULL (when
  * process_gates.require_project_on_si is OFF).
  * This is a read-model aggregate; it never writes.
+ *
+ * Money-safety (audit SHOULD-FIX 3): the invoice scan is PAGED. An unpaged `select()` is silently
+ * capped at PostgREST's `max_rows` (1000), so past 1000 in-scope invoices `total_amount`,
+ * `open_ar` and `invoice_count` were all understated on every revenue view — with no error and no
+ * truncation signal — and the understatement grew with the org. Paging keeps the figures exact.
+ *
+ * Draft exclusion (audit SHOULD-FIX 4, owner ruling 2026-07-20): revenue counts only invoices an
+ * approver has SUBMITTED. P3a creates every SI as an ERP DRAFT (OD-SAR-DRAFT-SUBMIT) so the
+ * SoD-gated submit is the real commitment — a draft has not hit the GL, and ADR-0048 makes the
+ * ledger the oracle. So the scan is a POSITIVE allow-list of the submitted states
+ * (`Submitted`/`Unpaid`/`Paid`), not merely "not Cancelled"; a Draft never inflates project revenue,
+ * and any status added later is excluded until deliberately admitted here.
  */
+const REVENUE_STATUSES = ['Submitted', 'Unpaid', 'Paid'] as const;
 export async function getRevenueByProject(): Promise<
   Array<{ project_id: string | null; project_name: string | null; total_amount: number; open_ar: number; invoice_count: number }>
 > {
-  const { data, error } = await supabase
-    .from('sales_invoices')
-    .select('project_id, amount, erp_outstanding_amount')
-    .neq('status', 'Cancelled');
-  if (error) throwWrite(error);
-
   const agg = new Map<string, { total_amount: number; open_ar: number; invoice_count: number }>();
-  for (const row of data ?? []) {
-    const key = row.project_id ?? '__unassigned__';
-    const existing = agg.get(key) ?? { total_amount: 0, open_ar: 0, invoice_count: 0 };
-    existing.total_amount += Number(row.amount ?? 0);
-    existing.open_ar += Number(row.erp_outstanding_amount ?? 0);
-    existing.invoice_count += 1;
-    agg.set(key, existing);
+  for (let page = 0; ; page += 1) {
+    const from = page * ROLLUP_PAGE_SIZE;
+    const { data, error } = await supabase
+      .from('sales_invoices')
+      .select('project_id, amount, erp_outstanding_amount')
+      .in('status', REVENUE_STATUSES as unknown as string[])
+      .range(from, from + ROLLUP_PAGE_SIZE - 1);
+    if (error) throwWrite(error);
+    const rows = data ?? [];
+    for (const row of rows) {
+      const key = row.project_id ?? '__unassigned__';
+      const existing = agg.get(key) ?? { total_amount: 0, open_ar: 0, invoice_count: 0 };
+      existing.total_amount += Number(row.amount ?? 0);
+      existing.open_ar += Number(row.erp_outstanding_amount ?? 0);
+      existing.invoice_count += 1;
+      agg.set(key, existing);
+    }
+    // A SHORT page proves the end of the set; a full one may or may not be the last, so ask again.
+    if (rows.length < ROLLUP_PAGE_SIZE) break;
   }
 
   // Resolve project names for non-null project_ids
