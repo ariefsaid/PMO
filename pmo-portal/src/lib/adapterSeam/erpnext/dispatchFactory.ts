@@ -10,6 +10,7 @@
 import { createErpAdapter, ERPNEXT_TIER, type DoctypeBodyFns, type ErpAdapterDeps } from './adapter.ts';
 import type { ErpDocKind } from './doctypeRegistry.ts';
 import { getDoc, type ErpClientDeps, type ErpRateLimiter } from './client.ts';
+import type { ErpProbeDeps } from './recoveryProbe.ts';
 import { resolveExternalRef, type ExternalRefsLookupClient } from '../refs.ts';
 import { readProcessGates } from './processGates.ts';
 import type { Adapter, AdapterCommand } from '../contract.ts';
@@ -192,7 +193,29 @@ function resolveErpProjectName(config: Record<string, unknown> | undefined, proj
 }
 
 /**
- * Enforce `require_project_on_si` on an SI CREATE against the ERP project that ACTUALLY resolved —
+ * Does this command BUILD a Sales Invoice body (and therefore decide whether the ERP document
+ * carries a `project` dimension)? Luna re-audit BLOCK #12 — the gate used to ask "is this a create?",
+ * which left the amend path wide open:
+ *   - `create`                      -> `bodies/salesInvoice.toBody`
+ *   - `update`                      -> a draft field PUT, or routeEdit(1) -> commitAmend, both of
+ *                                      which rebuild the body
+ *   - `transition{verb:'amend'}`    -> commitAmend (cancel + create-with-`amended_from`)
+ * `submit`/`cancel` transitions act on an EXISTING document and build no body, so the gate must not
+ * (and does not) touch them.
+ *
+ * Exported because `adapter-dispatch/index.ts` enforces the OTHER half of the same gate (the
+ * "projectId present at all" check) and the two must never disagree about which operations qualify.
+ */
+export function buildsSalesInvoiceBody(command: { operation: string; record: { verb?: unknown } }): boolean {
+  const operation = String(command.operation);
+  if (operation === 'create' || operation === 'update') return true;
+  if (operation === 'transition') return command.record.verb === 'amend';
+  return false;
+}
+
+/**
+ * Enforce `require_project_on_si` on every SI body-building operation against the ERP project that
+ * ACTUALLY resolved —
  * not merely against a non-null PMO `projectId` (the dispatch's own pre-flight already covers that).
  * A PMO project with no `project_map` entry resolves to `null`, and `bodies/salesInvoice.ts` then omits
  * the ERP `project` field entirely: the invoice posts with NO project dimension on the GL while PMO
@@ -204,8 +227,9 @@ function resolveErpProjectName(config: Record<string, unknown> | undefined, proj
  * applies the per-key defaults — `require_project_on_si` defaults TRUE).
  */
 function assertSiProjectGate(deps: ErpDispatchFactoryDeps, binding: ExternalOrgBindingRow): void {
-  const record = deps.command.record as { erp_doc_kind?: string; projectId?: string | null };
-  if (record.erp_doc_kind !== 'sales-invoice' || (deps.command.operation as string) !== 'create') return;
+  const record = deps.command.record as { erp_doc_kind?: string; projectId?: string | null; verb?: unknown };
+  if (record.erp_doc_kind !== 'sales-invoice') return;
+  if (!buildsSalesInvoiceBody({ operation: deps.command.operation as string, record })) return;
   if (!readProcessGates(binding.config).require_project_on_si) return;
   // A MISSING projectId is the dispatch's own gate (index.ts -> 422 'project-required'), enforced
   // before this factory is ever reached — not re-thrown here with a different status. This guard owns
@@ -218,6 +242,41 @@ function assertSiProjectGate(deps: ErpDispatchFactoryDeps, binding: ExternalOrgB
       'commit-rejected',
     );
   }
+}
+
+// ============================================================================
+// Luna re-audit BLOCK #1 — the fallback anchor probe needs the payment_type discriminator
+// ============================================================================
+
+/** The two PMO kinds that share Frappe's single `Payment Entry` doctype, and the `payment_type` that
+ *  tells them apart. Any other kind has no discriminator (its doctype is unambiguous). */
+const PAYMENT_TYPE_BY_KIND: Readonly<Record<string, 'Pay' | 'Receive'>> = {
+  payment: 'Pay',
+  'incoming-payment': 'Receive',
+};
+
+/**
+ * Conjoin the `payment_type` discriminator onto a Payment Entry recovery probe.
+ *
+ * `probeErpByPaymentComposite` already does this for the composite path, but the adapter-dispatch
+ * FALLBACK (taken when no composite payload has been persisted yet) called the bare
+ * `probeErpByAnchorKey`. Since 'Pay' and 'Receive' entries share one doctype and the anchor field
+ * (`reference_no`) is ERP-side editable, an unfiltered anchor `like` can adopt an entry of the WRONG
+ * direction whenever the two share a reference_no — mirroring a PMO incoming payment onto an outgoing
+ * payment document (or cancelling the wrong one later, since the adopted name becomes the mapping).
+ *
+ * Applies both the server-side list filter AND the post-fetch validator (defense in depth, matching
+ * `probeErpByPaymentComposite`'s own anchor deps). A doc that does not state its `payment_type` is
+ * refused rather than adopted. A non-Payment-Entry kind is returned UNCHANGED (byte-for-byte).
+ */
+export function withPaymentTypeDiscriminator(deps: ErpProbeDeps, kind: unknown): ErpProbeDeps {
+  const paymentType = typeof kind === 'string' ? PAYMENT_TYPE_BY_KIND[kind] : undefined;
+  if (!paymentType) return deps;
+  return {
+    ...deps,
+    anchorExtraFilters: [['payment_type', '=', paymentType]],
+    validateAdoptedDoc: (doc) => (doc as { payment_type?: unknown }).payment_type === paymentType,
+  };
 }
 
 // ============================================================================

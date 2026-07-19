@@ -79,6 +79,10 @@ export async function readBodyBounded(req: Request, maxBytes: number): Promise<s
 export interface EmployingOrg {
   orgId: string;
   webhookSecret: string;
+  /** Luna BLOCK 9: the PMO domains this org has ACTUALLY assigned to the ERPNext tier
+   *  (`external_domain_ownership`). A valid HMAC proves who sent the event, NOT that the org opted
+   *  this domain into external ownership — an event for an unowned domain is ack'd and dropped. */
+  ownedDomains: string[];
 }
 
 /** The injectable surface `handleErpWebhook` needs — so the gate + decode + apply routing are
@@ -156,6 +160,15 @@ export async function handleErpWebhook(req: Request, deps: ErpWebhookHandlerDeps
   // An unmapped doctype (one P2 does not mirror) — ack and skip (lossy hint, FR-ENA-083).
   if (!event.kind || !event.domain) return json({ ok: true, skipped: 'unmapped-doctype' });
 
+  // Luna BLOCK 9: per-DOMAIN ownership gate. The signature identified the org; it did NOT establish
+  // that this org employs ERPNext for THIS domain. Without the check, a procurement-only org received
+  // native Sales Invoice / Receive Payment Entry mirrors and surfaced them in its revenue read model.
+  // Fail-CLOSED (an empty/unknown owned-domain set adopts nothing); ack'd 200 so Frappe does not retry
+  // an event that is genuine but simply not ours to mirror.
+  if (!matchedOrg.ownedDomains.includes(event.domain)) {
+    return json({ ok: true, skipped: 'domain-not-owned' });
+  }
+
   // ── 3. Apply via the lineage-aware feed (lossy hint; the sweep is the convergence authority). ──
   try {
     const outcome = await deps.applyEvent(matchedOrg.orgId, event);
@@ -189,10 +202,28 @@ async function resolveEmployingOrgsLive(serviceClient: SupabaseClient): Promise<
   // Only ACTIVATED bindings are employing (a binding is activated once the version handshake passes,
   // 2.6/8.8). A binding without a webhook_secret_ref is employing for COMMANDS but not webhooks — it
   // contributes no HMAC key (webhook events for it are rejected until a secret is configured).
-  return rows
+  const candidates = rows
     .filter((r) => r.activated_at && r.webhook_secret_ref)
     .map((r) => ({ orgId: r.org_id, webhookSecret: Deno.env.get(r.webhook_secret_ref!) ?? '' }))
     .filter((r) => r.webhookSecret !== '');
+  if (candidates.length === 0) return [];
+
+  // Luna BLOCK 9: load each org's ACTUAL per-domain ERPNext ownership. A load failure THROWS (→ a
+  // retryable 500) rather than degrading to "owns nothing" silently — but a successful read with no
+  // rows genuinely means the org owns no domain, and the gate then adopts nothing (fail-closed).
+  const { data: owned, error: ownedError } = await serviceClient.from('external_domain_ownership')
+    .select('org_id, domain')
+    .eq('external_tier', ERPNEXT_TIER)
+    .in('org_id', candidates.map((c) => c.orgId));
+  if (ownedError) {
+    console.error(`[erpnext-webhook] external_domain_ownership load failed: code=${ownedError.code ?? 'none'} message=${ownedError.message}`);
+    throw new AppError(ownedError.message, ownedError.code);
+  }
+  const byOrg = new Map<string, string[]>();
+  for (const row of (owned as Array<{ org_id: string; domain: string }> | null) ?? []) {
+    byOrg.set(row.org_id, [...(byOrg.get(row.org_id) ?? []), row.domain]);
+  }
+  return candidates.map((c) => ({ ...c, ownedDomains: byOrg.get(c.orgId) ?? [] }));
 }
 
 /** The real applyEvent: map the ERP doc → canonical via the kind's fromDoc, stamp the routing fields,

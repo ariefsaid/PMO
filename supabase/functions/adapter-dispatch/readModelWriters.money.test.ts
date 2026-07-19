@@ -730,3 +730,110 @@ Deno.test({
     assertEquals(selectCalls.length, 0, 'no link lookups when all links are null');
   },
 });
+
+// ============================================================================
+// Luna re-audit BLOCK #11 — cross-org preflight is TOCTOU-prone: tolerate-and-quarantine at the
+// mirror rather than hard-fail.
+//
+// `dispatchFactory.assertRevenueLinksSameOrg` validates every link BEFORE any ERP work, and 0109's
+// in-flight-command delete guard blocks a linked project/customer/invoice from being deleted while
+// this command's outbox row is unresolved. A residual window remains between the pre-flight SELECT
+// and the outbox INSERT. If a linked row is deleted inside THAT window, the ERP money document has
+// already been created and hard-failing the mirror leaves it INVISIBLE to PMO forever (the outbox
+// retries into the same missing FK on every attempt).
+//
+// So the writer now distinguishes the two cases:
+//   - the referenced row EXISTS but belongs to another org  -> still a hard 'cross-org-link-rejected'
+//     (a genuine tenancy violation, and the pre-flight already rejected it before any ERP write, so
+//     reaching here means something is badly wrong).
+//   - the referenced row is GONE                            -> tolerate: mirror the money with that
+//     link NULLED, landing the invoice in the existing "Unassigned" / on-account bucket where an
+//     operator can re-attribute it. Real money is never invisible.
+// ============================================================================
+
+Deno.test({
+  name: 'Luna B11 — a sales-invoice create whose project was DELETED in the TOCTOU window still mirrors, with project_id nulled (money never invisible)',
+  fn: async () => {
+    // companies row present + same org; projects row absent (deleted between pre-flight and mirror).
+    const { client, calls } = makeFakeClient({ companies: { org_id: 'org-1' } });
+    const writer = getReadModelWriter('revenue');
+    await writer.upsert(
+      { serviceClient: client as never, orgId: 'org-1', callerUserId: 'user-1' },
+      { id: 'pmo-si-1', si_number: 'ACC-SINV-2026-00001', amount: '1000.00', erp_outstanding_amount: '1000.00', erp_docstatus: 1 },
+      { domain: 'revenue', operation: 'create', record: { id: 'pmo-si-1', erp_doc_kind: 'sales-invoice', customerId: 'cust-1', projectId: 'proj-deleted' } },
+    );
+    const insert = calls.find((c) => c.table === 'sales_invoices' && c.method === 'insert');
+    assert(insert !== undefined, 'the mirror insert must still happen — the ERP invoice is real money');
+    const row = insert!.args[0] as { project_id: unknown; customer_id: unknown; amount: unknown };
+    assertEquals(row.project_id, null, 'the vanished project link is nulled, not fabricated');
+    assertEquals(row.customer_id, 'cust-1', 'the still-valid customer link is preserved');
+    assertEquals(row.amount, '1000.00', 'the money fields are mirrored intact');
+  },
+});
+
+Deno.test({
+  name: 'Luna B11 — a sales-invoice create whose customer belongs to ANOTHER org is STILL hard-rejected (tolerance never covers a tenancy violation)',
+  fn: async () => {
+    const { client } = makeFakeClient({ companies: { org_id: 'org-2' } });
+    const writer = getReadModelWriter('revenue');
+    let err: unknown;
+    try {
+      await writer.upsert(
+        { serviceClient: client as never, orgId: 'org-1' },
+        { id: 'pmo-si-1', si_number: 'ACC-SINV-2026-00001', amount: '1000.00' },
+        { domain: 'revenue', operation: 'create', record: { id: 'pmo-si-1', erp_doc_kind: 'sales-invoice', customerId: 'cust-org2' } },
+      );
+    } catch (e) {
+      err = e;
+    }
+    assert(err !== undefined, 'a cross-org customer must never be tolerated');
+    assertEquals((err as { code?: string }).code, 'cross-org-link-rejected', 'classified cross-org-link-rejected');
+  },
+});
+
+Deno.test({
+  name: 'Luna B11 — an incoming-payment create whose sales invoice was DELETED in the window still mirrors, on-account (sales_invoice_id nulled)',
+  fn: async () => {
+    const { client, calls } = makeFakeClient({ companies: { org_id: 'org-1' } });
+    const writer = getReadModelWriter('revenue');
+    await writer.upsert(
+      { serviceClient: client as never, orgId: 'org-1' },
+      { id: 'pmo-ip-1', ip_number: 'ACC-PE-2026-00001', amount: '500.00', erp_docstatus: 1 },
+      {
+        domain: 'revenue',
+        operation: 'create',
+        record: { id: 'pmo-ip-1', erp_doc_kind: 'incoming-payment', customerId: 'cust-1', salesInvoiceId: 'si-deleted', date: '2026-07-15' },
+      },
+    );
+    const insert = calls.find((c) => c.table === 'incoming_payments' && c.method === 'insert');
+    assert(insert !== undefined, 'the receipt mirror must still happen — the ERP payment entry is real money');
+    const row = insert!.args[0] as { sales_invoice_id: unknown; customer_id: unknown; amount: unknown };
+    assertEquals(row.sales_invoice_id, null, 'the vanished invoice link is nulled — the receipt becomes on-account');
+    assertEquals(row.customer_id, 'cust-1', 'the still-valid customer link is preserved');
+    assertEquals(row.amount, '500.00', 'the money fields are mirrored intact');
+  },
+});
+
+Deno.test({
+  name: 'Luna B11 — an incoming-payment create whose sales invoice belongs to ANOTHER org is STILL hard-rejected',
+  fn: async () => {
+    const { client } = makeFakeClient({ companies: { org_id: 'org-1' }, sales_invoices: { org_id: 'org-2' } });
+    const writer = getReadModelWriter('revenue');
+    let err: unknown;
+    try {
+      await writer.upsert(
+        { serviceClient: client as never, orgId: 'org-1' },
+        { id: 'pmo-ip-1', ip_number: 'ACC-PE-2026-00001', amount: '500.00' },
+        {
+          domain: 'revenue',
+          operation: 'create',
+          record: { id: 'pmo-ip-1', erp_doc_kind: 'incoming-payment', customerId: 'cust-1', salesInvoiceId: 'si-org2' },
+        },
+      );
+    } catch (e) {
+      err = e;
+    }
+    assert(err !== undefined, 'a cross-org sales_invoice_id must never be tolerated');
+    assertEquals((err as { code?: string }).code, 'cross-org-link-rejected', 'classified cross-org-link-rejected');
+  },
+});

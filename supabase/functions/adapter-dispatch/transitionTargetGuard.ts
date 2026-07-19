@@ -1,26 +1,34 @@
-// Luna money audit — BLOCK 3: transition target bound to PMO mapping.
-// Extracted as a pure/testable module so the dispatch-path enforcement is unit-provable.
-// For a revenue sales-invoice transition, the SoD/enforcement checks record.id (PMO id)
-// but ERP operates on record.externalRecordId (ERP name). A caller could pass an
-// authorized/own-org PMO id while targeting ANOTHER SI's externalRecordId.
-// FIX: verify the command's externalRecordId matches the external_refs mapping for
-// (org, 'revenue', record.id) — so SoD (on record.id) and ERP write (on externalRecordId)
-// operate on the SAME doc. Reject 422 on mismatch.
-import { resolveExternalRef } from '../../../pmo-portal/src/lib/adapterSeam/refs.ts';
+/**
+ * PMO-target binding guards for erpnext-tier commands (Luna re-audit BLOCK #2 + BLOCK #4).
+ *
+ * The adapter acts on a CALLER-SUPPLIED `record.externalRecordId` (`erpnext/adapter.ts`
+ * commitTransition / commitUpdateSubmittable), while every authorization/SoD check upstream is keyed
+ * on the PMO `record.id`. Unless the two are bound to each other, an authorized caller can pair their
+ * own PMO id with SOMEONE ELSE'S ERP document name and submit/cancel/amend it.
+ *
+ * BLOCK #2 — bind EVERY erpnext transition/update (all kinds, all domains) to the PMO record's OWN
+ * recorded `external_refs` mapping, and FAIL CLOSED when no mapping exists. The previous revision
+ * guarded only revenue sales-invoice transitions and explicitly permitted a missing mapping, so
+ * `incoming-payment` and the whole `procurement` domain were unprotected (e.g. cancel a Pay Payment
+ * Entry through the Receive kind), and an unmapped PMO id passed straight through.
+ *
+ * BLOCK #4 — a `create` must not target an ALREADY-MAPPED PMO record. `record_outbox_ref`
+ * (0096) upserts `external_refs` BEFORE the read-model mirror insert, so a caller reusing an existing
+ * `sales_invoices.id` repoints that invoice's external identity to a brand-new ERP document and only
+ * THEN fails on the duplicate PK — the ERP money is already minted and the old mapping is gone. The
+ * one legitimate case of "mapping already present on a create" is this same command's own retry
+ * (crash after `record_outbox_ref`, before/at the mirror), which is identified by its outbox row
+ * carrying the SAME idempotency key.
+ *
+ * Both guards run in `index.ts` BEFORE adapter select / outbox insert / any ERP write.
+ */
+import { resolveExternalRef, type ExternalRefsLookupClient } from '../../../pmo-portal/src/lib/adapterSeam/refs.ts';
+import { DOCTYPE_REGISTRY, type ErpDocKind } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/doctypeRegistry.ts';
 
-export interface TransitionBindingClient {
-  from(table: string): {
-    select(columns: string): {
-      eq(column: string, value: string): {
-        eq(column: string, value: string): {
-          eq(column: string, value: string): {
-            maybeSingle(): Promise<{ data: { external_record_id: string } | null; error: { code?: string; message: string } | null }>;
-          };
-        };
-      };
-    };
-  };
-}
+/** The structural service-role read seam both guards need: `.from(t).select(c).eq(...)…maybeSingle()`.
+ *  Identical to `refs.ts`'s `ExternalRefsLookupClient` (the filter builder is chainable), re-exported
+ *  under a guard-local name so callers/tests have one import site. */
+export type GuardLookupClient = ExternalRefsLookupClient;
 
 export interface TransitionBindingResult {
   ok: boolean;
@@ -28,33 +36,140 @@ export interface TransitionBindingResult {
   message: string;
 }
 
+const OK: TransitionBindingResult = { ok: true, status: 200, message: '' };
+
+/** The PMO domains the erpnext tier owns. A P0/P1 domain (`reference`/`tasks`) is never guarded here —
+ *  it has no ERP document identity to bind. */
+const ERP_DOMAINS = new Set(['companies', 'procurement', 'revenue']);
+
+interface GuardCommand {
+  domain: string;
+  operation: string;
+  record: { id: string; erp_doc_kind?: unknown; externalRecordId?: unknown; [key: string]: unknown };
+}
+
+/** The `external_refs` storage encoding for a companies-domain party is `"<Doctype>:<name>"` (task
+ *  3.2's collision rule) while the wire/adapter value is the BARE ERP name — so a stored mapping
+ *  matches either verbatim or with this command's own doctype prefix. Never a bare `indexOf(':')`
+ *  strip: that would let a `Supplier:X` mapping validate a `Customer:X` target. */
+function mappingMatches(mapped: string, suppliedExternalRecordId: string, record: GuardCommand['record']): boolean {
+  if (mapped === suppliedExternalRecordId) return true;
+  const kind = record.erp_doc_kind;
+  const entry = typeof kind === 'string' && kind in DOCTYPE_REGISTRY ? DOCTYPE_REGISTRY[kind as ErpDocKind] : undefined;
+  return entry ? mapped === `${entry.doctype}:${suppliedExternalRecordId}` : false;
+}
+
 /**
- * Verify that for a revenue sales-invoice transition, the command's externalRecordId
- * matches the external_refs mapping for (org, 'revenue', record.id).
- * Returns {ok:true} when not applicable (other domains/operations/kinds) or when binding matches.
- * Returns {ok:false, status:422} when externalRecordId is provided but mismatches the mapping.
+ * BLOCK #2 — bind a transition/update to the PMO record's own `external_refs` mapping.
+ *
+ * Applies to EVERY erpnext domain and EVERY `erp_doc_kind`. Returns `{ok:false, status:422}` when
+ * the PMO record has no recorded mapping (fail closed — there is no legitimate transition of a record
+ * that was never externalized) or when the caller's `externalRecordId` names a DIFFERENT document
+ * than the one this PMO record is mapped to.
+ *
+ * A command carrying NO `externalRecordId` on a mapped record is allowed through: there is no
+ * caller-supplied target to mis-bind (the companies update path resolves its target server-side from
+ * the same mapping; the submittable paths are rejected by the adapter's own explicit check).
  */
 export async function checkTransitionTargetBinding(
-  client: TransitionBindingClient,
+  client: GuardLookupClient,
   orgId: string,
-  command: { domain: string; operation: string; record: { id: string; erp_doc_kind?: unknown; externalRecordId?: unknown } },
+  command: GuardCommand,
 ): Promise<TransitionBindingResult> {
-  // Only applies to revenue sales-invoice transitions
-  if (command.domain !== 'revenue') return { ok: true, status: 200, message: '' };
-  if ((command.operation as string) !== 'transition') return { ok: true, status: 200, message: '' };
-  if ((command.record as { erp_doc_kind?: unknown }).erp_doc_kind !== 'sales-invoice') return { ok: true, status: 200, message: '' };
+  if (!ERP_DOMAINS.has(command.domain)) return OK;
+  const operation = String(command.operation);
+  if (operation !== 'transition' && operation !== 'update') return OK;
 
-  const externalRecordId = (command.record as { externalRecordId?: unknown }).externalRecordId;
-  if (typeof externalRecordId !== 'string' || externalRecordId.length === 0) {
-    // Missing externalRecordId — adapter will reject with its own error
-    return { ok: true, status: 200, message: '' };
+  const mapped = await resolveExternalRef(client, orgId, command.domain, String(command.record.id));
+  if (mapped === null) {
+    return {
+      ok: false,
+      status: 422,
+      message: 'no external mapping recorded for this PMO record — refusing to act on a caller-supplied external id',
+    };
   }
 
-  const mapped = await resolveExternalRef(client as never, orgId, 'revenue', String(command.record.id));
-  if (mapped !== null && mapped !== externalRecordId) {
+  const externalRecordId = command.record.externalRecordId;
+  if (typeof externalRecordId !== 'string' || externalRecordId.length === 0) return OK;
+
+  if (!mappingMatches(mapped, externalRecordId, command.record)) {
     return { ok: false, status: 422, message: 'externalRecordId does not match PMO record mapping' };
   }
-  // If no mapping exists yet (should not happen for a transition), we allow —
-  // the adapter will fail with a clear error if the ERP doc doesn't exist.
-  return { ok: true, status: 200, message: '' };
+  return OK;
+}
+
+/**
+ * BLOCK #4 — a `create` may not target an already-mapped PMO record.
+ *
+ * Rejects 422 BEFORE the adapter/outbox/ERP write when `(org, domain, record.id)` already resolves to
+ * an external document, UNLESS an outbox row for this exact command (same idempotency key) already
+ * exists — that is this command's own retry finalizing after a crash, which MUST be allowed through.
+ */
+export async function checkCreateTargetUnmapped(
+  client: GuardLookupClient,
+  orgId: string,
+  command: GuardCommand,
+  idempotencyKey: string | undefined,
+): Promise<TransitionBindingResult> {
+  if (!ERP_DOMAINS.has(command.domain)) return OK;
+  if (String(command.operation) !== 'create') return OK;
+
+  const pmoRecordId = String(command.record.id);
+  const mapped = await resolveExternalRef(client, orgId, command.domain, pmoRecordId);
+  if (mapped === null) return OK;
+
+  if (idempotencyKey && (await outboxRowExists(client, orgId, command.domain, pmoRecordId, idempotencyKey))) {
+    return OK;
+  }
+  return {
+    ok: false,
+    status: 422,
+    message: 'record.id is already mapped to an external document — a create must target a new PMO record',
+  };
+}
+
+/** Canonical RFC-4122 8-4-4-4-12 hex layout, anchored and case-insensitive — the shape
+ *  `crypto.randomUUID()` produces (`repositories/index.ts` freshIdempotencyKey). Deliberately NOT
+ *  version/variant-pinned: any opaque 122-bit-ish UUID is fine, the property we need is unguessable
+ *  fixed-width opacity, not a particular UUID version. */
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * BLOCK #1 (Lane C hand-off) — the idempotency key must be an OPAQUE UUID.
+ *
+ * The ERPNext recovery probe matches the doctype's anchor field with `%key%` — a SUBSTRING match,
+ * kept deliberately: a false-negative probe triggers a REISSUE (duplicate money), which is worse than
+ * the LIKE-metacharacter injection Lane C closed by escaping the pattern in `client.ts`. That leaves
+ * a second vector at THIS boundary: a direct caller supplying a SHORT key (say `"1"`) matches every
+ * ERP document whose anchor merely CONTAINS that substring, and recovery then adopts the wrong
+ * document — the same "recovery can adopt the wrong ERP document" money path.
+ *
+ * Requiring a UUID-shaped key makes the entire substring class unreachable BY CONSTRUCTION: a
+ * canonical UUID cannot be a proper substring of another document's UUID anchor, and it cannot carry
+ * a LIKE metacharacter. This is a shape check, never a length threshold — `'a'.repeat(64)` is
+ * rejected exactly like `'1'`.
+ */
+export function isOpaqueIdempotencyKey(key: string | undefined | null): boolean {
+  return typeof key === 'string' && UUID_RE.test(key);
+}
+
+/** Does THIS command (org+domain+record+idempotency key — the outbox's own unique 4-tuple, 0096)
+ *  already have an outbox row? `true` ⇒ the create in flight is a retry of the row that wrote the
+ *  mapping, not a caller reusing another record's id. */
+async function outboxRowExists(
+  client: GuardLookupClient,
+  orgId: string,
+  domain: string,
+  pmoRecordId: string,
+  idempotencyKey: string,
+): Promise<boolean> {
+  const { data } = await client
+    .from('external_command_outbox')
+    .select('id')
+    .eq('org_id', orgId)
+    .eq('domain', domain)
+    .eq('pmo_record_id', pmoRecordId)
+    .eq('idempotency_key', idempotencyKey)
+    .maybeSingle();
+  return data !== null && data !== undefined;
 }

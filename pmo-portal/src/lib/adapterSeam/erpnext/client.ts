@@ -50,6 +50,56 @@ export interface ErpClientDeps {
   /** Awaited once before every attempt (create + each retry) when present — the per-org factory
    *  (2.13) shares ONE instance across a request so the budget is real, not per-call. */
   rateLimiter?: ErpRateLimiter;
+  /** Per-ATTEMPT request deadline in ms (default `ERP_REQUEST_TIMEOUT_MS`). Bounds how long a single
+   *  ERP request may hang before it is aborted — see `ERP_REQUEST_TIMEOUT_MS` for WHY the default is
+   *  tied to the outbox quarantine window. Overridden only by tests (a few ms) and callers with a
+   *  tighter budget; a value ≥ the quarantine window would re-open the double-commit race. */
+  timeoutMs?: number;
+}
+
+/**
+ * The outbox quarantine reclaim window (ADR-0058 §2 F1 / migration 0096 `quarantine_committing`'s
+ * `p_window default interval '5 minutes'`): a stale `committing` row becomes reconcilable — and, for
+ * an IMMUTABLE-anchor kind, REISSUABLE — at `claimed_at + 5 minutes`. Mirrored here as a constant so
+ * the request deadline below can be reasoned about (and asserted) against it.
+ */
+export const ERP_QUARANTINE_WINDOW_MS = 5 * 60_000;
+
+/**
+ * The default per-attempt ERP request deadline (Luna BLOCK 5 — the double-pay window).
+ *
+ * WHY 2 minutes, and why it MUST relate to `ERP_QUARANTINE_WINDOW_MS`: an unbounded `POST` can hang
+ * past the outbox's quarantine reclaim (`claimed_at + 5 min`, migration 0096). Recovery would then
+ * probe, miss the not-yet-visible document and — for a reissue-capable (immutable-anchor) kind,
+ * ADR-0058 C-1 — re-`POST` under the same key while the ORIGINAL request is still alive and can still
+ * commit ⇒ TWO ERP money documents, the exact defect the outbox exists to prevent.
+ *
+ * Bounding every attempt at 2 minutes makes that impossible by construction: the request is aborted
+ * at `claim + ~120 s`, leaving ≥180 s of settle time before the EARLIEST possible reissue at
+ * `claim + 300 s` — ample for a document the server nonetheless committed to land and become
+ * anchor-probe-visible, so the post-window probe adopts it instead of duplicating it. (An abort is a
+ * client-side signal — it does NOT guarantee ERP rolls back — which is precisely why the margin, not
+ * the abort, is what carries the safety guarantee.) ADR-0058 C-1's mutable-anchor kinds (Payment
+ * Entry) remain held-never-reissued regardless; this constant closes the window for the kinds that
+ * ARE reissue-capable.
+ *
+ * It is also comfortably above any realistic ERPNext money-document commit (the R9 live bench measured
+ * sub-second submits), so a legitimate slow save is never cut short.
+ */
+export const ERP_REQUEST_TIMEOUT_MS = 120_000;
+
+/**
+ * Escapes the SQL `LIKE` metacharacters (`%`, `_`) and the escape character itself (`\`) so a value
+ * interpolated into a `LIKE` pattern can only ever match ITSELF, literally (Luna BLOCK 1).
+ *
+ * The recovery probe (ADR-0058 §3) filters the anchor field by the CALLER-SUPPLIED idempotency key.
+ * Unescaped, a key carrying `%`/`_` becomes a wildcard pattern and the recovery path can adopt — then
+ * submit or cancel — a DIFFERENT org member's money document. Backslash is the default `LIKE` escape
+ * character in both MariaDB (Frappe's usual backend) and Postgres, and the key travels as a bound
+ * parameter, so the escaped value reaches the pattern verbatim.
+ */
+export function escapeLikePattern(value: string): string {
+  return value.replace(/[\\%_]/g, (ch) => `\\${ch}`);
 }
 
 export interface ErpRequestOptions {
@@ -118,15 +168,27 @@ export async function erpnextRequest(deps: ErpClientDeps, opts: ErpRequestOption
     'Content-Type': 'application/json',
   };
 
+  const timeoutMs = deps.timeoutMs ?? ERP_REQUEST_TIMEOUT_MS;
+
   let attempt = 0;
   for (;;) {
     if (deps.rateLimiter) await deps.rateLimiter.acquire();
     let res: Response;
+    // Luna BLOCK 5: bound EVERY attempt with a deadline strictly shorter than the outbox quarantine
+    // reclaim window, so a hung-but-alive request can never still be able to commit while recovery
+    // has already started a second POST (see ERP_REQUEST_TIMEOUT_MS). The controller/timer is
+    // per-attempt and always cleared, so a settled request leaves no dangling timer or handle.
+    const controller = new AbortController();
+    const deadline = setTimeout(
+      () => controller.abort(new Error(`ERPNext request exceeded its ${timeoutMs}ms deadline`)),
+      timeoutMs,
+    );
     try {
       res = await deps.fetchImpl(`${deps.baseUrl}${opts.path}`, {
         method: opts.method,
         headers,
         body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
+        signal: controller.signal,
       });
     } catch (err) {
       if (attempt < maxRetries) {
@@ -137,6 +199,8 @@ export async function erpnextRequest(deps: ErpClientDeps, opts: ErpRequestOption
       // Server-only module (creds) — log the real cause; the client-facing error stays typed/generic.
       console.error(`[erpnext-client] fetch failed ${opts.method} ${opts.path}:`, err instanceof Error ? err.message : String(err));
       throw new ErpError(0, 'external-unreachable', err instanceof Error ? err.message : 'ERPNext request failed', true);
+    } finally {
+      clearTimeout(deadline);
     }
 
     if (res.status === 429 || res.status >= 500) {
@@ -248,7 +312,11 @@ export async function listDocNamesByAnchor(
   idempotencyKey: string,
   limit = 1,
 ): Promise<string[]> {
-  const filters = encodeURIComponent(JSON.stringify([[anchorField, 'like', `%${idempotencyKey}%`]]));
+  // Luna BLOCK 1: the key is caller-supplied — escape `LIKE` metacharacters so it can only match
+  // ITSELF (an unescaped `%`/`_` would turn the probe into a wildcard search and let recovery adopt
+  // somebody else's money document). The leading/trailing `%` stay real wildcards: the anchor value
+  // is the key, but the surrounding-tolerant match is what the live bench verified (ADR-0058 §3).
+  const filters = encodeURIComponent(JSON.stringify([[anchorField, 'like', `%${escapeLikePattern(idempotencyKey)}%`]]));
   const path = `${doctypePath(doctype)}?filters=${filters}&limit_page_length=${limit}`;
   const res = await erpnextRequest(deps, { method: 'GET', path });
   const data = (res as { data?: Array<{ name?: unknown }> } | null)?.data;

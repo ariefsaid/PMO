@@ -40,7 +40,7 @@ async function sign(body: string): Promise<string> {
 function deps(applyEvent: () => Promise<unknown> = async () => ({ kind: 'upserted', pmoRecordId: 'pmo-1', adopted: false })): ErpWebhookHandlerDeps {
   let applied = 0;
   return {
-    resolveEmployingOrgs: async () => [{ orgId: ORG_ID, webhookSecret: SECRET }],
+    resolveEmployingOrgs: async () => [{ orgId: ORG_ID, webhookSecret: SECRET, ownedDomains: ['procurement', 'revenue', 'companies'] }],
     applyEvent: async () => { applied += 1; await applyEvent(); return { kind: 'upserted' as const, pmoRecordId: 'pmo-1', adopted: false }; },
     // exposed via closure for the no-side-effect assertion
     _applied: () => applied,
@@ -123,7 +123,7 @@ Deno.test('FIX-5: resolveEmployingOrgs THROWING (a DB load error) ⇒ 500, disti
 
 Deno.test('AC-ENA-070: a webhook whose secret does NOT match any employing org ⇒ 401 (no side effect)', async () => {
   const otherSecretDeps: ErpWebhookHandlerDeps = {
-    resolveEmployingOrgs: async () => [{ orgId: ORG_ID, webhookSecret: 'a-DIFFERENT-secret' }],
+    resolveEmployingOrgs: async () => [{ orgId: ORG_ID, webhookSecret: 'a-DIFFERENT-secret', ownedDomains: ['procurement', 'revenue', 'companies'] }],
     applyEvent: async () => { throw new Error('applyEvent must not be called on a secret mismatch'); },
   };
   const validSig = await sign(PI_EVENT); // signed with SECRET, not 'a-DIFFERENT-secret'
@@ -191,4 +191,53 @@ Deno.test('AC-ENA-070: a generic apply failure ⇒ 500 GENERIC (never leaks the 
   assert(body.error === 'WEBHOOK_APPLY_FAILED', `expected WEBHOOK_APPLY_FAILED, got ${body.error}`);
   assert(!JSON.stringify(body).includes('secret_col'), 'the raw error detail must NOT leak to the public surface');
   assert(body.message === 'the webhook could not be applied', 'the public message must be GENERIC');
+});
+
+// ────────────────────────────────────────────────────────────────────────────────────────────────
+// Luna BLOCK 9 — inbound adoption must be gated on the org's ACTUAL per-domain ownership. A valid
+// HMAC proves WHO sent the event, not that the org opted this DOMAIN into external ownership: a
+// procurement-only org was still handed native Sales Invoice / Receive Payment Entry mirrors, which
+// then surfaced in its revenue read model as data it never opted into. Fail-CLOSED (an org whose
+// owned-domain set is unknown adopts nothing).
+// ────────────────────────────────────────────────────────────────────────────────────────────────
+
+const SI_EVENT = JSON.stringify({
+  doctype: 'Sales Invoice',
+  name: 'ACC-SINV-2026-00003',
+  docstatus: 1,
+  amended_from: null,
+  modified: '2026-07-18 12:00:00.000000',
+  doc: { name: 'ACC-SINV-2026-00003', docstatus: 1, grand_total: '125000.00', outstanding_amount: '125000.00' },
+});
+
+function depsOwning(ownedDomains: string[]): ErpWebhookHandlerDeps & { _applied: () => number } {
+  let applied = 0;
+  return {
+    resolveEmployingOrgs: async () => [{ orgId: ORG_ID, webhookSecret: SECRET, ownedDomains }],
+    applyEvent: async () => { applied += 1; return { kind: 'upserted' as const, pmoRecordId: 'pmo-1', adopted: false }; },
+    _applied: () => applied,
+  } as unknown as ErpWebhookHandlerDeps & { _applied: () => number };
+}
+
+Deno.test('BLOCK 9: a correctly-signed Sales Invoice for a PROCUREMENT-only org is NOT adopted (no unowned revenue row)', async () => {
+  const d = depsOwning(['procurement', 'companies']);
+  const res = await handleErpWebhook(req(SI_EVENT, await sign(SI_EVENT)), d);
+  assert(res.status === 200, `expected a 200 ack (the event is genuine, just not ours to mirror), got ${res.status}`);
+  assert(d._applied() === 0, 'applyEvent must NOT run for a domain the org does not externally own');
+  const body = await res.json();
+  assert(body.skipped === 'domain-not-owned', `expected an explicit domain-not-owned skip, got ${JSON.stringify(body)}`);
+});
+
+Deno.test('BLOCK 9: the SAME Sales Invoice IS adopted once the org owns the revenue domain', async () => {
+  const d = depsOwning(['procurement', 'revenue']);
+  const res = await handleErpWebhook(req(SI_EVENT, await sign(SI_EVENT)), d);
+  assert(res.status === 200, `expected 200, got ${res.status}`);
+  assert(d._applied() === 1, 'expected the event to apply for an org that owns revenue');
+});
+
+Deno.test('BLOCK 9: an org with NO owned domains adopts nothing (fail-closed, not fail-open)', async () => {
+  const d = depsOwning([]);
+  const res = await handleErpWebhook(req(PI_EVENT, await sign(PI_EVENT)), d);
+  assert(res.status === 200, `expected a 200 ack, got ${res.status}`);
+  assert(d._applied() === 0, 'expected NO apply when the org owns no domain at all');
 });

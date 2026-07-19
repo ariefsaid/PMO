@@ -432,6 +432,78 @@ describe('AC-ENA-012 committed retry — finalize only, no second commit, no cla
     expect(result.externalRecordId).toBe('PI-0001');
     expect([...fake.rows.values()][0].state).toBe('confirmed');
   });
+
+  // Luna BLOCK 3 — finalization must be RETRY-IDEMPOTENT. The finalize order is
+  // record_outbox_ref → mirror → confirm_outbox. A crash AFTER the mirror insert but BEFORE the
+  // confirm leaves the row `committed`; the retry re-enters the SAME fixed-PK mirror INSERT, which
+  // now collides (Postgres 23505). Without convergence the row can NEVER reach `confirmed`: the ERP
+  // money document exists, but PMO retries forever — a stuck money row needing manual intervention.
+  it('a committed replay whose mirror ALREADY exists (23505) converges to confirmed instead of erroring', async () => {
+    const fake = createFakeOutbox();
+    await fake.deps.insertOutboxPending('procurement', 'pmo-1', 'key-1');
+    const id = [...fake.rows.keys()][0];
+    const claimed = await fake.deps.claimOutboxForCommit(id);
+    const erpCanonical = { id: 'pmo-1', erp_total: '250.00' };
+    await fake.deps.markOutboxCommitted(id, 'PI-0001', erpCanonical, claimed!.claimGeneration);
+    // the prior attempt got as far as the mirror insert, then crashed before confirm_outbox.
+    const alreadyMirrored = vi.fn(async () => {
+      throw new AppError('duplicate key value violates unique constraint "sales_invoices_pkey"', '23505');
+    });
+
+    const commit = vi.fn();
+    const result = await dispatchMoneyWrite({
+      adapter: erpnextAdapter(commit),
+      command: baseCommand,
+      writeReadModel: alreadyMirrored, recordExternalRef: vi.fn(),
+      money: fake.deps,
+    });
+    expect(commit).not.toHaveBeenCalled();          // never a second ERP create
+    expect(alreadyMirrored).toHaveBeenCalledTimes(1);
+    expect(result).toEqual({ externalRecordId: 'PI-0001', canonical: erpCanonical });
+    expect([...fake.rows.values()][0].state).toBe('confirmed');   // converged, not stuck
+  });
+
+  it('a committed replay whose mirror fails for ANY OTHER reason still surfaces the error and stays committed', async () => {
+    const fake = createFakeOutbox();
+    await fake.deps.insertOutboxPending('procurement', 'pmo-1', 'key-1');
+    const id = [...fake.rows.keys()][0];
+    const claimed = await fake.deps.claimOutboxForCommit(id);
+    await fake.deps.markOutboxCommitted(id, 'PI-0001', { id: 'pmo-1' }, claimed!.claimGeneration);
+    const mirrorDown = vi.fn(async () => {
+      throw new AppError('null value in column "project_id" violates not-null constraint', '23502');
+    });
+
+    await expect(
+      dispatchMoneyWrite({
+        adapter: erpnextAdapter(vi.fn()),
+        command: baseCommand,
+        writeReadModel: mirrorDown, recordExternalRef: vi.fn(),
+        money: fake.deps,
+      }),
+    ).rejects.toMatchObject({ code: '23502' });
+    expect([...fake.rows.values()][0].state).toBe('committed');   // NOT confirmed — still needs a real finalize
+  });
+
+  it('a FIRST finalize (fresh claim + POST) does NOT tolerate a 23505 mirror — an unexpected pre-existing row is surfaced', async () => {
+    const fake = createFakeOutbox();
+    const commit = vi.fn(async () => ({ externalRecordId: 'PI-0001', canonical: { id: 'pmo-1' } }));
+    // On the FIRST finalize the mirror cannot legitimately pre-exist (a crash after the mirror leaves
+    // the row `committed`, which takes the replay branch above). A 23505 here means the PMO record id
+    // already had a mirror row — a real anomaly that must NOT be silently confirmed.
+    const collidingMirror = vi.fn(async () => {
+      throw new AppError('duplicate key value violates unique constraint "sales_invoices_pkey"', '23505');
+    });
+
+    await expect(
+      dispatchMoneyWrite({
+        adapter: erpnextAdapter(commit),
+        command: baseCommand,
+        writeReadModel: collidingMirror, recordExternalRef: vi.fn(),
+        money: fake.deps,
+      }),
+    ).rejects.toMatchObject({ code: '23505' });
+    expect([...fake.rows.values()][0].state).toBe('committed');
+  });
 });
 
 describe('AC-ENA-012 F2 finalization mirrors the adapter\'s REAL canonical, not a {id} stub', () => {

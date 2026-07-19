@@ -149,6 +149,18 @@ export function redactErrorForOutbox(error: unknown): string {
   return scrubbed.length > 240 ? `${scrubbed.slice(0, 240)}…` : scrubbed;
 }
 
+/** Postgres unique-violation — the mirror row for this PMO record id already exists. */
+const PG_UNIQUE_VIOLATION = '23505';
+
+/** Luna BLOCK 3: is this the "the mirror I am about to write is ALREADY there" signal? The per-domain
+ *  mirror insert is keyed on the PMO record id (a FIXED primary key), so a unique violation on a
+ *  REPLAYED finalize means the previous attempt's mirror landed — i.e. the converged state we want —
+ *  rather than a failure. Matched on the Postgres code only (never a message), so it holds for every
+ *  domain writer. */
+function isAlreadyMirrored(error: unknown): boolean {
+  return (error as { code?: unknown } | null)?.code === PG_UNIQUE_VIOLATION;
+}
+
 /** The DB-side FENCED finalization (H-1), ordered `record_outbox_ref` → mirror → `confirm_outbox`:
  *  1. Fenced `external_refs` upsert — a superseded claimant writes NOTHING (returns 0) and the whole
  *     finalization is a no-op (no mirror, no confirm); this closes the old verify-then-write TOCTOU.
@@ -163,6 +175,7 @@ async function finalizeOutboxRow(
   row: OutboxRow,
   claimGeneration: number,
   deps: DispatchMoneyWriteDeps,
+  isReplay = false,
 ): Promise<number> {
   const refWritten = await deps.money.recordOutboxRef(row.id, claimGeneration, {
     pmoRecordId: deps.command.record.id,
@@ -175,7 +188,23 @@ async function finalizeOutboxRow(
   // the read-model carries the ERP-derived fields (totals, status, outstanding, …). Fall back to the id
   // stub only for a row adopted without a full record (a later read-back/sweep reconciles its fields).
   const canonical: PmoRecord = row.canonical ?? { id: deps.command.record.id };
-  await deps.writeReadModel(canonical);
+  try {
+    await deps.writeReadModel(canonical);
+  } catch (error) {
+    // Luna BLOCK 3 — retry-idempotent finalization. On a REPLAY of a `committed` row (the previous
+    // attempt crashed somewhere in ref → mirror → confirm), the mirror insert may already have landed.
+    // Its fixed-PK collision is then the CONVERGED state, not a failure: swallowing it lets the replay
+    // reach `confirm_outbox`, whereas rethrowing wedges a real ERP money document at `committed`
+    // forever (every retry dies on the same duplicate insert → manual intervention).
+    // Deliberately NOT tolerated on a first finalize (`isReplay === false`): there, a pre-existing
+    // mirror for this PMO record id is a genuine anomaly (e.g. a reused caller-supplied record id) and
+    // must surface rather than be confirmed away.
+    if (!isReplay || !isAlreadyMirrored(error)) throw error;
+    console.warn(
+      `[money-outbox] finalize replay ${deps.command.domain}/${deps.command.record.id}: mirror already present — ` +
+        'converging to confirmed (the prior attempt mirrored, then crashed before confirm)',
+    );
+  }
   return deps.money.confirmOutbox(row.id, claimGeneration);
 }
 
@@ -279,7 +308,9 @@ async function reconcileOutbox(row: OutboxRow, deps: DispatchMoneyWriteDeps, com
     case 'confirmed':
       return { externalRecordId: row.externalRecordId!, canonical: row.canonical ?? { id: command.record.id } };
     case 'committed': {
-      const finalized = await finalizeOutboxRow(row, row.claimGeneration, deps);
+      // A `committed` row means ERP already committed and a PRIOR attempt's finalization did not
+      // complete — this is the REPLAY path, so an already-present mirror converges (Luna BLOCK 3).
+      const finalized = await finalizeOutboxRow(row, row.claimGeneration, deps, true);
       if (finalized === 0) {
         // F3 — superseded before the finalize writes landed; reconcile off the current state.
         const fresh = await money.readOutbox(command.domain, command.record.id, command.idempotencyKey!);

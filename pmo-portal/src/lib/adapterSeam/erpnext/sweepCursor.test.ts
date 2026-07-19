@@ -226,3 +226,83 @@ describe('erpnext/sweepCursor — listErpChangesSinceWatermark (AC-ENA-071)', ()
     expect(outcome).toEqual({ kind: 'no-op' });
   });
 });
+
+// ────────────────────────────────────────────────────────────────────────────────────────────────
+// Luna BLOCK 6 — a kind whose canonical depends on a CHILD TABLE cannot be mapped from the list
+// endpoint alone (Frappe list responses omit child tables). A Receive Payment Entry's `references`
+// rows carry the Sales Invoice it pays — the money link behind `incoming_payments.sales_invoice_id` —
+// so the poll must re-read those docs in full before mapping them.
+// ────────────────────────────────────────────────────────────────────────────────────────────────
+describe('erpnext/sweepCursor — full-doc hydration for child-table-dependent kinds (Luna BLOCK 6)', () => {
+  const PE_FROM_DOC = (doc: unknown) => {
+    const d = doc as Record<string, unknown>;
+    return { id: String(d.name), amount: (d.paid_amount as string) ?? null, references: (d.references as unknown[]) ?? [] };
+  };
+
+  it('maps each change from the HYDRATED doc, so the child-table references survive into the canonical', async () => {
+    const client = clientWithPages([
+      [{ name: 'ACC-PAY-0001', modified: '2026-07-18 10:00:00.000000', docstatus: 1, amended_from: null, paid_amount: '5000.00' }],
+      [],
+    ]);
+    const hydrateDoc = vi.fn(async (name: string) => ({
+      name,
+      docstatus: 1,
+      paid_amount: '5000.00',
+      references: [{ reference_doctype: 'Sales Invoice', reference_name: 'ACC-SINV-0007', allocated_amount: '5000.00' }],
+    }));
+
+    const { changes } = await listErpChangesSinceWatermark(
+      { client, doctype: 'Payment Entry', fields: ['name', 'modified', 'docstatus', 'paid_amount'], fromDoc: PE_FROM_DOC, hydrateDoc },
+      null,
+    );
+
+    expect(hydrateDoc).toHaveBeenCalledWith('ACC-PAY-0001');
+    expect(changes).toHaveLength(1);
+    expect(changes[0].record.references).toEqual([
+      { reference_doctype: 'Sales Invoice', reference_name: 'ACC-SINV-0007', allocated_amount: '5000.00' },
+    ]);
+    // The routing fields + the cursor still come from the LIST row (the poll's own contract).
+    expect(changes[0].record.erp_docstatus).toBe(1);
+    expect(changes[0].sourceModMs).toBe(Date.parse('2026-07-18 10:00:00.000000'));
+  });
+
+  it('hydrates only the rows it emits — a row filtered out by the kind discriminator is never re-read', async () => {
+    const client = clientWithPages([
+      [
+        { name: 'ACC-PAY-PAY-1', modified: '2026-07-18 10:00:00.000000', docstatus: 1, payment_type: 'Pay' },
+        { name: 'ACC-PAY-RCV-1', modified: '2026-07-18 11:00:00.000000', docstatus: 1, payment_type: 'Receive' },
+      ],
+      [],
+    ]);
+    const hydrateDoc = vi.fn(async (name: string) => ({ name, docstatus: 1, references: [] }));
+
+    const { changes } = await listErpChangesSinceWatermark(
+      {
+        client,
+        doctype: 'Payment Entry',
+        fields: ['name', 'modified', 'docstatus', 'payment_type'],
+        fromDoc: PE_FROM_DOC,
+        filterRow: (row) => row.payment_type === 'Receive',
+        hydrateDoc,
+      },
+      null,
+    );
+
+    expect(changes).toHaveLength(1);
+    expect(hydrateDoc).toHaveBeenCalledTimes(1);
+    expect(hydrateDoc).toHaveBeenCalledWith('ACC-PAY-RCV-1');
+  });
+
+  it('without hydrateDoc the list row IS the doc (no needless extra ERP round-trip)', async () => {
+    const client = clientWithPages([
+      [{ name: 'ACC-SINV-0001', modified: '2026-07-18 10:00:00.000000', docstatus: 1, grand_total: '125000.00' }],
+      [],
+    ]);
+    const { changes } = await listErpChangesSinceWatermark(
+      { client, doctype: 'Sales Invoice', fields: ['name', 'modified', 'docstatus', 'grand_total'], fromDoc: FROM_DOC },
+      null,
+    );
+    expect(changes).toHaveLength(1);
+    expect((client.fetchImpl as unknown as { mock: { calls: unknown[] } }).mock.calls).toHaveLength(1); // the single short list page — no per-doc read
+  });
+});

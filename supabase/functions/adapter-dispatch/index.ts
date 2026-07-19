@@ -34,7 +34,7 @@ import { CLICKUP_TASKS_DOMAIN } from '../../../pmo-portal/src/lib/adapterSeam/cl
 import { resolveClickUpDispatchAdapter } from '../../../pmo-portal/src/lib/adapterSeam/clickup/dispatchFactory.ts';
 import { ClickUpRateLimiter } from '../../../pmo-portal/src/lib/adapterSeam/clickup/rateLimit.ts';
 import { ERPNEXT_COMPANIES_DOMAIN, ERPNEXT_PROCUREMENT_DOMAIN, ERPNEXT_REVENUE_DOMAIN, ERPNEXT_TIER } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/adapter.ts';
-import { resolveErpDispatchAdapter } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/dispatchFactory.ts';
+import { buildsSalesInvoiceBody, resolveErpDispatchAdapter, withPaymentTypeDiscriminator } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/dispatchFactory.ts';
 import { resolveErpCredentials } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/credentials.ts';
 // The runtime (kind)->{toBody,fromDoc} side table (task 5.2) — ADDITIVE across slices 3/4/5/6, each
 // wiring only the kinds it owns; an un-wired kind is `commit-rejected` at commit time, never a
@@ -51,7 +51,7 @@ import { getReadModelWriter } from './readModelWriters.ts';
 import { maybeFault, type FaultGate } from './faultSeams.ts';
 import { isRevenueSiSubmitTransition, enforceSiSubmitSod } from './sodGuard.ts';
 import { checkErpnextCommandAuthorization, type AuthorizationClient } from './authGuard.ts';
-import { checkTransitionTargetBinding, type TransitionBindingClient } from './transitionTargetGuard.ts';
+import { checkCreateTargetUnmapped, checkTransitionTargetBinding, isOpaqueIdempotencyKey } from './transitionTargetGuard.ts';
 import { canonicalCommandDigest, createDbMoneyOutboxDeps } from './moneyOutboxDeps.ts';
 import {
   verifyCallerJwt,
@@ -254,7 +254,15 @@ async function resolveErpMoneyOutboxDeps(ctx: AdapterSelectContext): Promise<Dis
         // Handles both PE-pay (payment_type=Pay, pi_names) and PE-receive (payment_type=Receive, si_names).
         : async (domain, idempotencyKey) => {
             const p = await readOutboxCompositePayload(ctx.serviceClient, ctx.orgId, domain, ctx.command.record.id, idempotencyKey);
-            if (!p || !p.party || p.paid_amount == null) return probeErpByAnchorKey(probeDeps, idempotencyKey);
+            // Luna re-audit BLOCK #1: the FALLBACK anchor probe (no persisted composite payload yet —
+            // e.g. a first attempt that crashed before the outbox insert landed its payload) must STILL
+            // carry the `payment_type` discriminator. 'Pay' and 'Receive' Payment Entries share one
+            // doctype, and `reference_no` is ERP-side editable, so an unfiltered anchor `like` can adopt
+            // a Pay entry for a Receive recovery (and vice-versa) whenever the two share a reference_no
+            // — mirroring a PMO incoming payment onto someone's outgoing payment document. The
+            // discriminator is derived from the command's OWN `erp_doc_kind`, never from live ERP state.
+            const fallbackProbeDeps = withPaymentTypeDiscriminator(probeDeps, kind);
+            if (!p || !p.party || p.paid_amount == null) return probeErpByAnchorKey(fallbackProbeDeps, idempotencyKey);
             const paymentType = String(p.payment_type ?? 'Pay') as 'Pay' | 'Receive';
             return probeErpByPaymentComposite(probeDeps, idempotencyKey, {
               partyType: String(p.party_type ?? 'Supplier'),
@@ -485,11 +493,21 @@ Deno.serve(async (req: Request): Promise<Response> => {
   // other domain) is unaffected.
   // `AdapterOperation` has no 'read' member (reads never reach this handler as a write command) —
   // the string cast mirrors dispatch.ts's own `(command.operation as string) !== 'read'` guard.
-  if (isErpDomain && (command.operation as string) !== 'read' && !command.idempotencyKey) {
-    return new Response(JSON.stringify({ error: 'commit-rejected', message: 'missing-idempotency-key' }), {
-      status: 422,
-      headers,
-    });
+  //
+  // Luna re-audit BLOCK #1 (Lane C hand-off): the key must additionally be an OPAQUE UUID, not merely
+  // present. The recovery probe matches the anchor field with `%key%` — a SUBSTRING match kept
+  // deliberately (a false-negative probe reissues, i.e. duplicate money). A short key like `"1"`
+  // therefore matches any ERP document whose anchor merely CONTAINS it, and recovery adopts the wrong
+  // document. A UUID-shaped key makes that class unreachable by construction (and cannot carry a LIKE
+  // metacharacter). The legitimate client already mints `crypto.randomUUID()`.
+  if (isErpDomain && (command.operation as string) !== 'read' && !isOpaqueIdempotencyKey(command.idempotencyKey)) {
+    return new Response(
+      JSON.stringify({
+        error: 'commit-rejected',
+        message: command.idempotencyKey ? 'invalid-idempotency-key (must be a UUID)' : 'missing-idempotency-key',
+      }),
+      { status: 422, headers },
+    );
   }
 
   // ── Luna BLOCK 2 — server-side Sales-Invoice submit SoD (FR-SAR-195, ADR-0019). `submitInvoice()`
@@ -516,10 +534,17 @@ Deno.serve(async (req: Request): Promise<Response> => {
   const serviceClient = createClient(supabaseUrl, serviceRoleKey);
 
   // ── Slice 3: process_gates enforcement (FR-SAR-191, AC-SAR-070).
-  // Check require_project_on_si gate for revenue/sales-invoice create commands.
+  // Check the require_project_on_si gate for every revenue/sales-invoice command that BUILDS AN ERP
+  // SALES INVOICE BODY — create, update, and an amend transition (Luna re-audit BLOCK #12).
+  // Gating only `create` left the money path open: `update` on a SUBMITTED SI routes to amend
+  // (adapter.ts routeEdit(1) -> commitAmend) and `transition{verb:'amend'}` does the same — both
+  // build a REPLACEMENT document from `bodies/salesInvoice.ts`, which omits the ERP `project` field
+  // entirely when it is unresolved. The replacement then posts with no project dimension on the GL
+  // while PMO keeps the old project attribution — exactly what the signed spec forbids
+  // (docs/specs/erpnext-adapter-p3a-sales-ar.spec.md:713-718).
   // This runs BEFORE any adapter/outbox work so we reject fast without creating an outbox row.
-  if (command.domain === ERPNEXT_REVENUE_DOMAIN 
-      && (command.operation as string) === 'create' 
+  if (command.domain === ERPNEXT_REVENUE_DOMAIN
+      && buildsSalesInvoiceBody({ operation: command.operation as string, record: command.record as { verb?: unknown } })
       && (command.record as { erp_doc_kind?: unknown }).erp_doc_kind === 'sales-invoice') {
     const { data: gatesData, error: gatesError } = await serviceClient
       .rpc('get_process_gates', { p_org: orgId });
@@ -549,38 +574,30 @@ Deno.serve(async (req: Request): Promise<Response> => {
     }
   }
 
-  // ── Luna BLOCK 3 — transition target bound to PMO mapping (money audit).
-  // For a revenue sales-invoice transition, the SoD/enforcement checks record.id (PMO id)
-  // but ERP operates on record.externalRecordId (ERP name). A caller could pass an
-  // authorized/own-org PMO id while targeting ANOTHER SI's externalRecordId.
-  // FIX: verify the command's externalRecordId matches the external_refs mapping for
-  // (org, 'revenue', record.id) — so SoD (on record.id) and ERP write (on externalRecordId)
-  // operate on the SAME doc. Reject 422 on mismatch.
-  if (command.domain === ERPNEXT_REVENUE_DOMAIN
-      && (command.operation as string) === 'transition'
-      && (command.record as { erp_doc_kind?: unknown }).erp_doc_kind === 'sales-invoice') {
-    const externalRecordId = (command.record as { externalRecordId?: unknown }).externalRecordId;
-    if (typeof externalRecordId === 'string' && externalRecordId.length > 0) {
-      const mapped = await resolveExternalRef(serviceClient as never, orgId, 'revenue', String(command.record.id));
-      if (mapped !== null && mapped !== externalRecordId) {
-        return new Response(JSON.stringify({ error: 'commit-rejected', message: 'externalRecordId does not match PMO record mapping' }), {
-          status: 422,
-          headers,
-        });
-      }
-      // If no mapping exists yet (should not happen for a transition), we still allow —
-      // the adapter will fail with a clear error if the ERP doc doesn't exist.
-    }
-  }
-
-  // ── Luna BLOCK 3 — transition target bound to PMO mapping (money audit).
-  // For a revenue sales-invoice transition, verify externalRecordId matches external_refs.
-  // Uses serviceClient (service role) since external_refs reads are service-role scoped.
+  // ── Luna re-audit BLOCK #2 / BLOCK #4 — PMO-target binding (money audit), for EVERY erpnext
+  // domain and kind, BEFORE adapter select / outbox insert / any ERP write. Uses `serviceClient`
+  // (external_refs + external_command_outbox are service-role-scoped, policy-less machine tables).
+  //
+  //  #2: authorization/SoD is keyed on `record.id` while the adapter acts on the caller-supplied
+  //      `record.externalRecordId` — so a transition/update MUST be bound to the PMO record's own
+  //      recorded mapping, and a MISSING mapping fails closed (a record that was never externalized
+  //      has nothing to transition). Previously only revenue sales-invoice transitions were checked
+  //      and a missing mapping was permitted.
+  //  #4: a create must not target an ALREADY-MAPPED PMO record — `record_outbox_ref` would repoint
+  //      that record's external identity to a fresh ERP document before the mirror insert fails on
+  //      the duplicate PK. This command's own retry (same idempotency key) stays allowed.
   if (isErpDomain) {
     const binding = await checkTransitionTargetBinding(serviceClient as never, orgId, command);
     if (!binding.ok) {
       return new Response(JSON.stringify({ error: 'commit-rejected', message: binding.message }), {
         status: binding.status,
+        headers,
+      });
+    }
+    const createTarget = await checkCreateTargetUnmapped(serviceClient as never, orgId, command, command.idempotencyKey);
+    if (!createTarget.ok) {
+      return new Response(JSON.stringify({ error: 'commit-rejected', message: createTarget.message }), {
+        status: createTarget.status,
         headers,
       });
     }

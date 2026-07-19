@@ -45,6 +45,13 @@ export interface SweepCursorDeps {
    *  have excluded it. A row failing validation is SKIPPED — never surfaced as a change for this kind's
    *  poll (it still counts toward `nextCursor` — it is a genuine ERP row, just not this kind's). */
   filterRow?: (row: Record<string, unknown>) => boolean;
+  /** Luna BLOCK 6: re-read ONE changed doc in full before mapping it. Frappe's LIST endpoint never
+   *  returns child tables, so a kind whose canonical depends on one (a Receive Payment Entry's
+   *  `references` — the rows citing the Sales Invoice it pays, i.e. the money link behind
+   *  `incoming_payments.sales_invoice_id`) cannot be mapped from a list row alone. Supplied ONLY for
+   *  those kinds (the sweep's `KINDS_NEEDING_FULL_DOC`), so no other poll pays an extra round-trip.
+   *  Applied AFTER dedupe + `filterRow`, so exactly the emitted rows are hydrated. */
+  hydrateDoc?: (name: string) => Promise<Record<string, unknown>>;
 }
 
 const DEFAULT_PAGE_SIZE = 500;
@@ -116,7 +123,11 @@ export async function listErpChangesSinceWatermark(
     // Luna BLOCK A1 defense-in-depth: skip a doc that fails the kind's discriminator even if it
     // somehow surfaced past the server-side extraFilters — never adopted into the wrong kind.
     if (deps.filterRow && !deps.filterRow(row)) continue;
-    const canonical = deps.fromDoc(row);
+    // Luna BLOCK 6: for a child-table-dependent kind, map the FULL doc, not the list projection —
+    // otherwise the canonical silently loses the child data (e.g. the PE→SI reference) and the mirror
+    // is written with a NULL money link. The list row still owns the routing fields + the cursor.
+    const doc = deps.hydrateDoc ? await deps.hydrateDoc(String(row.name)) : row;
+    const canonical = deps.fromDoc(doc);
     // Enrich with the routing fields the lineage-aware apply (8.5) reads — the kind's `fromDoc` may
     // not surface them, so they are stamped here at the feed boundary (confinement: erpnext/** only).
     const enriched: PmoRecord = {

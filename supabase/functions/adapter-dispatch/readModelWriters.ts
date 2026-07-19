@@ -423,31 +423,56 @@ async function upsertPaymentMirror(ctx: ReadModelWriterCtx, canonical: PmoRecord
 // P3a Slice 2 — Revenue read-model writers (FR-SAR-013/103/121/161)
 // ============================================================================
 
-/** Luna SF7: cross-org FK guard. The service-role writer bypasses RLS, so before copying a PMO-side
- *  link (customer_id/project_id/sales_invoice_id) from the command into a created row, verify the
+/** Luna SF7 + re-audit BLOCK #11: cross-org FK guard, TOCTOU-tolerant.
+ *
+ *  The service-role writer bypasses RLS, so before copying a PMO-side link
+ *  (customer_id/project_id/sales_invoice_id) from the command into a created row it verifies the
  *  referenced row belongs to ctx.orgId — otherwise the writer would silently link a sales invoice /
- *  incoming payment to ANOTHER org's record. A mismatch (or a missing referenced row) throws a
- *  classified 'cross-org-link-rejected' AppError; the dispatch never reaches the create insert. Same
- *  idiom as `findPmoRecordId` (the `as unknown as ExternalRefsLookupClient` cast over the structural
- *  client). */
-async function assertLinkSameOrg(
-  ctx: ReadModelWriterCtx,
-  table: string,
-  id: string,
-): Promise<void> {
+ *  incoming payment to ANOTHER org's record.
+ *
+ *  Two OUTCOMES, deliberately distinguished (BLOCK #11):
+ *   - `'cross-org'` — the row EXISTS under a different org. Still a hard, classified
+ *     'cross-org-link-rejected' throw: a genuine tenancy violation, which `dispatchFactory`'s
+ *     pre-flight already refuses BEFORE any ERP write, so reaching here means something is badly wrong.
+ *   - `'missing'`   — the row is GONE. By construction this can only be a delete that landed inside
+ *     the residual pre-flight→outbox-insert window (the pre-flight fails closed on a missing row, and
+ *     0109's in-flight-command delete guard blocks deletes from the outbox INSERT onward). At this
+ *     point the ERP money document ALREADY EXISTS, so throwing would leave real money permanently
+ *     invisible to PMO (every finalize retry re-hits the same missing FK). The caller therefore
+ *     tolerates it by NULLING that one link — the invoice lands in the existing Unassigned bucket /
+ *     the receipt becomes on-account, both operator-recoverable states.
+ *
+ *  Same client idiom as `findPmoRecordId` (`as unknown as ExternalRefsLookupClient`). */
+type LinkCheck = 'ok' | 'missing';
+
+async function checkLinkSameOrg(ctx: ReadModelWriterCtx, table: string, id: string): Promise<LinkCheck> {
   const { data, error } = await (ctx.serviceClient as unknown as ExternalRefsLookupClient)
     .from(table)
     .select('org_id')
     .eq('id', id)
     .maybeSingle();
   if (error) throw new AppError(error.message, error.code);
-  const orgId = (data as { org_id: string } | null)?.org_id;
-  if (orgId !== ctx.orgId) {
+  const row = data as { org_id: string } | null;
+  if (row === null || row === undefined) return 'missing';
+  if (row.org_id !== ctx.orgId) {
     throw new AppError(
       `cross-org link rejected: ${table} '${id}' does not belong to org '${ctx.orgId}'`,
       'cross-org-link-rejected',
     );
   }
+  return 'ok';
+}
+
+/** Resolve a create-time link to the id to store: the id itself when it still resolves in this org,
+ *  or `null` when the referenced row vanished in the TOCTOU window (BLOCK #11). Throws on a genuine
+ *  cross-org link. A null/absent link is passed through untouched — no lookup fired. */
+async function resolveLinkOrNull(
+  ctx: ReadModelWriterCtx,
+  table: string,
+  id: string | undefined | null,
+): Promise<string | null> {
+  if (!id) return null;
+  return (await checkLinkSameOrg(ctx, table, id)) === 'ok' ? id : null;
 }
 
 /** Structural seam for a LIST select (`.from(t).select(c).eq(...).eq(...)` awaited directly — the
@@ -518,11 +543,14 @@ async function upsertSalesInvoiceMirror(ctx: ReadModelWriterCtx, canonical: PmoR
   };
   if (command.operation === 'create') {
     const record = command.record as { projectId?: string; customerId?: string };
-    // Luna SF7: cross-org FK guard — verify each non-null link belongs to ctx.orgId BEFORE the
-    // service-role insert (RLS is bypassed, so the writer must enforce tenancy itself). A null link
-    // (e.g. an SI without a project) skips the lookup — only asserted links are guarded.
-    if (record.customerId) await assertLinkSameOrg(ctx, 'companies', record.customerId);
-    if (record.projectId) await assertLinkSameOrg(ctx, 'projects', record.projectId);
+    // Luna SF7 + BLOCK #11: cross-org FK guard — verify each non-null link belongs to ctx.orgId BEFORE
+    // the service-role insert (RLS is bypassed, so the writer must enforce tenancy itself). A null link
+    // (e.g. an SI without a project) skips the lookup — only asserted links are guarded. A link whose
+    // row VANISHED in the TOCTOU window is nulled rather than fatal (the ERP invoice already exists;
+    // it lands in the Unassigned bucket instead of becoming invisible money). A CROSS-ORG link still
+    // throws.
+    const customerId = await resolveLinkOrNull(ctx, 'companies', record.customerId);
+    const projectId = await resolveLinkOrNull(ctx, 'projects', record.projectId);
     // project_id and customer_id are machine-set from the command record
     // Luna BLOCK 4: stamp author_user_id = the dispatch caller (creator) so the submit SoD is not a
     // no-op (the RPC skips the approver≠author check when author is null). ctx.callerUserId is
@@ -530,8 +558,8 @@ async function upsertSalesInvoiceMirror(ctx: ReadModelWriterCtx, canonical: PmoR
     const { error } = await ctx.serviceClient.from('sales_invoices').insert({
       id: canonical.id,
       org_id: ctx.orgId,
-      project_id: record.projectId ?? null,
-      customer_id: record.customerId ?? null,
+      project_id: projectId,
+      customer_id: customerId,
       author_user_id: ctx.callerUserId ?? null,
       ...patch,
     });
@@ -578,16 +606,18 @@ async function upsertIncomingPaymentMirror(ctx: ReadModelWriterCtx, canonical: P
   };
   if (command.operation === 'create') {
     const record = command.record as { customerId?: string; salesInvoiceId?: string; date?: string };
-    // Luna SF7: cross-org FK guard — verify each non-null link belongs to ctx.orgId BEFORE the
-    // service-role insert (RLS is bypassed). customer_id → companies, sales_invoice_id →
-    // sales_invoices. A null link (e.g. an on-account PE with no customer/SI) skips the lookup.
-    if (record.customerId) await assertLinkSameOrg(ctx, 'companies', record.customerId);
-    if (record.salesInvoiceId) await assertLinkSameOrg(ctx, 'sales_invoices', record.salesInvoiceId);
+    // Luna SF7 + BLOCK #11: cross-org FK guard — verify each non-null link belongs to ctx.orgId BEFORE
+    // the service-role insert (RLS is bypassed). customer_id → companies, sales_invoice_id →
+    // sales_invoices. A null link (e.g. an on-account PE with no customer/SI) skips the lookup. A link
+    // whose row VANISHED in the TOCTOU window is nulled (the receipt becomes on-account) rather than
+    // stranding a real ERP payment entry unmirrored; a CROSS-ORG link still throws.
+    const customerId = await resolveLinkOrNull(ctx, 'companies', record.customerId);
+    const salesInvoiceId = await resolveLinkOrNull(ctx, 'sales_invoices', record.salesInvoiceId);
     const { error } = await ctx.serviceClient.from('incoming_payments').insert({
       id: canonical.id,
       org_id: ctx.orgId,
-      customer_id: record.customerId ?? null,
-      sales_invoice_id: record.salesInvoiceId ?? null,
+      customer_id: customerId,
+      sales_invoice_id: salesInvoiceId,
       date: record.date ?? null,
       ...patch,
     });

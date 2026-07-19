@@ -175,15 +175,20 @@ test.describe('AC-SAR-043: Inbound Sales Invoice adoption (native ERP creation �
       expect(siMirror?.status).toBe('Unpaid');
       expect(siMirror?.erp_docstatus).toBe(1);
 
-      // B) action-required notification emitted (the AR twin of companies ambiguous-match)
-      // The inbound feed path inserts an action-required operator task. We check for the existence
-      // of a notification/operator_task row. The exact table depends on the impl; check the
-      // `action_required` surfacing pattern used for companies.
-      // For this e2e we verify the inbound feed code path ran by checking the mirror has the
-      // action-required marker (e.g., a specific status or an operator_task row).
-      // Since the plan says "emits an in-app notification to Finance/Admin (existing notifications path)",
-      // we check the notifications table or a dedicated operator_tasks table.
-      // This is intentionally loose — the key oracle is project_id=NULL + mirror exists.
+      // B) action-required surfacing (FR-SAR-085, Luna BLOCK 13). A project-less native invoice lands in
+      // the 'Unassigned' revenue bucket — the job is only done if somebody is actually PROMPTED to
+      // assign it. The feed raises this on the existing in-app `notifications` surface (0048), addressed
+      // to the org's active Finance/Admin profiles. (Previously this oracle was deliberately loose,
+      // which let the unimplemented surfacing pass.)
+      const { data: notifications } = await admin
+        .from('notifications')
+        .select('owner_id, severity, title, body, metadata, profiles!notifications_owner_id_fkey(role)')
+        .eq('org_id', ORG_ID)
+        .contains('metadata', { sales_invoice_id: refRow!.pmo_record_id });
+      expect(notifications?.length, 'a Finance action-required notification is raised for the unassigned invoice').toBeGreaterThan(0);
+      const roles = (notifications ?? []).map((n) => (n as unknown as { profiles: { role: string } }).profiles?.role);
+      expect(roles, 'the notification reaches Finance (not just any user)').toContain('Finance');
+      expect(notifications?.[0]?.body, 'the notification names the invoice so it is actionable').toContain(nativeSiNameFromErp);
 
       // ── 4. SWEEP RE-SURFACES IT (idempotent re-application) ──
       // Call the sweep function's revenue-adopt path (or re-fire webhook) — should NOT duplicate

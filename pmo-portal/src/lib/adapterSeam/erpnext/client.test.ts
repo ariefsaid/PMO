@@ -4,10 +4,75 @@
  * non-idempotent POSTs. Every call injects `fetchImpl` — no real ERPNext bench is ever required.
  */
 import { describe, expect, it, vi } from 'vitest';
-import { createDoc, callMethod, erpnextRequest, ErpError, getDoc, submitDoc, cancelDoc, updateDoc, unwrapFrappeDoc, type ErpClientDeps } from './client.ts';
+import {
+  createDoc,
+  callMethod,
+  erpnextRequest,
+  ErpError,
+  getDoc,
+  submitDoc,
+  cancelDoc,
+  updateDoc,
+  unwrapFrappeDoc,
+  escapeLikePattern,
+  listDocNamesByAnchor,
+  ERP_REQUEST_TIMEOUT_MS,
+  ERP_QUARANTINE_WINDOW_MS,
+  type ErpClientDeps,
+} from './client.ts';
 
 function jsonResponse(status: number, body: unknown, headers: Record<string, string> = {}): Response {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json', ...headers } });
+}
+
+/** Escapes a literal for embedding in a RegExp source. */
+function reLiteral(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Minimal SQL `LIKE` semantics with the DEFAULT backslash escape character (MariaDB and Postgres
+ * agree here): `%` = any run, `_` = exactly one char, `\x` = the literal `x`. Used to prove the
+ * probe's pattern against a REAL matcher rather than only asserting the query string.
+ */
+function likeMatches(pattern: string, value: string): boolean {
+  let re = '';
+  for (let i = 0; i < pattern.length; i += 1) {
+    const ch = pattern[i];
+    if (ch === '\\') {
+      const next = pattern[i + 1];
+      i += 1;
+      re += next === undefined ? reLiteral('\\') : reLiteral(next);
+      continue;
+    }
+    if (ch === '%') { re += '[\\s\\S]*'; continue; }
+    if (ch === '_') { re += '[\\s\\S]'; continue; }
+    re += reLiteral(ch);
+  }
+  return new RegExp(`^${re}$`).test(value);
+}
+
+/** A fake Frappe list endpoint that evaluates `like` filters with REAL LIKE semantics. */
+function likeAwareFetch(docs: Array<Record<string, string>>) {
+  return async (url: string): Promise<Response> => {
+    const raw = new URL(url).searchParams.get('filters');
+    const filters = JSON.parse(raw ?? '[]') as Array<[string, string, string]>;
+    const matched = docs.filter((doc) =>
+      filters.every(([field, op, value]) => (op === 'like' ? likeMatches(value, doc[field] ?? '') : doc[field] === value)),
+    );
+    return jsonResponse(200, { data: matched.map((d) => ({ name: d.name })) });
+  };
+}
+
+/** A fetch that never settles until its `AbortSignal` fires — models a hung-but-alive ERP POST. */
+function hangingFetch(): (url: string, init?: RequestInit) => Promise<Response> {
+  return (_url, init) =>
+    new Promise<Response>((_resolve, reject) => {
+      const signal = init?.signal;
+      if (!signal) return; // no deadline wired → hangs forever (the RED state)
+      if (signal.aborted) reject(signal.reason ?? new Error('aborted'));
+      signal.addEventListener('abort', () => reject(signal.reason ?? new Error('aborted')));
+    });
 }
 
 /** Types the mock's inferred call signature as `(url, init)` (matching `typeof fetch`) so
@@ -185,6 +250,98 @@ describe('erpnext/client', () => {
     it('passes null/non-object bodies through unchanged (never throws)', () => {
       expect(unwrapFrappeDoc(null)).toBeNull();
       expect(unwrapFrappeDoc(undefined)).toBeUndefined();
+    });
+  });
+
+  // ── Luna BLOCK 1 (money path): recovery must never adopt the WRONG ERP document ────────────────
+  // The anchor probe interpolates the caller-supplied idempotency key into a Frappe `LIKE` pattern.
+  // Unescaped, a key carrying `%`/`_` becomes a WILDCARD and the recovery path adopts (and can then
+  // submit/cancel) somebody else's money document. The key must only ever match ITSELF, literally.
+  describe('escapeLikePattern (ADR-0058 §3 anchor probe — wildcard-injection guard)', () => {
+    it('escapes %, _ and the backslash escape character itself', () => {
+      expect(escapeLikePattern('a%b_c')).toBe('a\\%b\\_c');
+      expect(escapeLikePattern('a\\b')).toBe('a\\\\b');
+      expect(escapeLikePattern('plain-uuid-1234')).toBe('plain-uuid-1234');
+    });
+
+    it('leaves an ordinary UUID key byte-for-byte unchanged (no behavior change for real keys)', () => {
+      const uuid = '3f1b2c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d';
+      expect(escapeLikePattern(uuid)).toBe(uuid);
+    });
+  });
+
+  describe('listDocNamesByAnchor wildcard-injection guard (Luna BLOCK 1)', () => {
+    it('a key containing % and _ matches ONLY its own document, never a wildcard-matched decoy', async () => {
+      const docs = [
+        { name: 'PI-OWN', remarks: 'a%b_c' },        // the doc actually stamped with the key
+        { name: 'PI-DECOY', remarks: 'aZZZbQc' },    // matches `%a%b_c%` ONLY if % / _ stay wildcards
+      ];
+      const deps = fetchDeps(likeAwareFetch(docs));
+      const names = await listDocNamesByAnchor(deps, 'Purchase Invoice', 'remarks', 'a%b_c', 5);
+      expect(names).toEqual(['PI-OWN']);
+    });
+
+    it('a key containing a backslash matches its own document (the escape char is itself escaped)', async () => {
+      const docs = [
+        { name: 'PI-BS', remarks: 'a\\b' },
+        { name: 'PI-BS-DECOY', remarks: 'aXb' },
+      ];
+      const deps = fetchDeps(likeAwareFetch(docs));
+      const names = await listDocNamesByAnchor(deps, 'Purchase Invoice', 'remarks', 'a\\b', 5);
+      expect(names).toEqual(['PI-BS']);
+    });
+
+    it('sends the ESCAPED pattern in the filters query string', async () => {
+      const deps = fetchDeps(async () => jsonResponse(200, { data: [] }));
+      await listDocNamesByAnchor(deps, 'Purchase Invoice', 'remarks', 'a%b_c');
+      const fetchMock = deps.fetchImpl as unknown as ReturnType<typeof vi.fn>;
+      const filters = new URL(fetchMock.mock.calls[0][0] as string).searchParams.get('filters');
+      expect(JSON.parse(filters!)).toEqual([['remarks', 'like', '%a\\%b\\_c%']]);
+    });
+  });
+
+  // ── Luna BLOCK 5 (money path): a hung POST must never race its own recovery ────────────────────
+  describe('request deadline (Luna BLOCK 5 — no unbounded POST vs. the 5-minute quarantine reclaim)', () => {
+    it('the default deadline is strictly shorter than the quarantine reclaim window, with real settle margin', () => {
+      expect(ERP_REQUEST_TIMEOUT_MS).toBeLessThan(ERP_QUARANTINE_WINDOW_MS);
+      // ≥2 minutes of settle time between the abort and the earliest possible reissue, so a POST that
+      // still commits server-side becomes probe-visible before recovery could ever re-POST it.
+      expect(ERP_QUARANTINE_WINDOW_MS - ERP_REQUEST_TIMEOUT_MS).toBeGreaterThanOrEqual(120_000);
+    });
+
+    it('aborts a hung POST at the deadline and surfaces external-unreachable — with NO re-POST', async () => {
+      const deps = { ...fetchDeps(hangingFetch()), timeoutMs: 20 };
+      await expect(createDoc(deps, 'Purchase Invoice', { supplier: 'Acme' })).rejects.toMatchObject({
+        name: 'ErpError',
+        code: 'external-unreachable',
+      });
+      // FR-ENA-042: a non-idempotent POST gets exactly one attempt, deadline or not.
+      expect(deps.fetchImpl).toHaveBeenCalledTimes(1);
+    });
+
+    it('passes an AbortSignal to fetch on every request', async () => {
+      const deps = fetchDeps(async () => jsonResponse(200, { name: 'X' }));
+      await createDoc(deps, 'Purchase Invoice', { supplier: 'Acme' });
+      const fetchMock = deps.fetchImpl as unknown as ReturnType<typeof vi.fn>;
+      const init = fetchMock.mock.calls[0][1] as RequestInit;
+      expect(init.signal).toBeInstanceOf(AbortSignal);
+      // the deadline timer is cleared on a settled request — the signal must NOT be left aborted.
+      expect((init.signal as AbortSignal).aborted).toBe(false);
+    });
+
+    it('an idempotent GET whose deadline fires is retried within the normal budget, then classified', async () => {
+      let calls = 0;
+      const deps: ErpClientDeps = {
+        ...fetchDeps(async (url, init) => {
+          calls += 1;
+          if (calls === 1) return hangingFetch()(url, init);
+          return jsonResponse(200, { name: 'Spike Supplier' });
+        }),
+        timeoutMs: 20,
+      };
+      const result = await getDoc(deps, 'Supplier', 'Spike Supplier');
+      expect(result).toEqual({ name: 'Spike Supplier' });
+      expect(calls).toBe(2);
     });
   });
 });

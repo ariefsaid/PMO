@@ -436,4 +436,40 @@ describe('Luna BLOCK 1 — anchor collision: a Receive probe never adopts a Pay 
     );
     expect(result).toBeNull();
   });
+
+  // Luna BLOCK 1: the composite path builds the anchor `like` tuple ITSELF (to conjoin the
+  // payment_type/party_type discriminators) — it must escape the caller-supplied key just like
+  // `listDocNamesByAnchor` does, or a key carrying `%`/`_` turns the PE anchor probe into a wildcard
+  // search that can adopt a DIFFERENT Payment Entry (then submit/cancel the wrong money document).
+  it('escapes LIKE metacharacters in the key on the composite anchor filter (wildcard-injection guard)', async () => {
+    let anchorFilters: unknown;
+    const fetchImpl = async (url: string) => {
+      const raw = new URL(url).searchParams.get('filters');
+      const parsed = JSON.parse(raw ?? '[]') as Array<[string, string, string]>;
+      if (parsed.some(([field, op]) => field === 'reference_no' && op === 'like')) {
+        anchorFilters = parsed;
+        return new Response(JSON.stringify({ data: [] }), { status: 200 });
+      }
+      return new Response(JSON.stringify({ data: [] }), { status: 200 });
+    };
+    const result = await probeErpByPaymentComposite(
+      { client: client(fetchImpl), doctype: 'Payment Entry', anchorField: 'reference_no', fromDoc: () => ({ id: 'x' }), pmoRecordId: 'pmo-pe-1' },
+      'evil%key_1',
+      {
+        partyType: 'Supplier',
+        party: 'ACME',
+        paidAmount: '250.00',
+        piNames: ['ACC-PINV-2026-00007'],
+        siNames: [],
+        createdAfter: '2026-07-14 00:00:00',
+        paymentType: 'Pay',
+      },
+    );
+    expect(result).toBeNull();
+    expect(anchorFilters).toEqual([
+      ['reference_no', 'like', '%evil\\%key\\_1%'],
+      ['payment_type', '=', 'Pay'],
+      ['party_type', '=', 'Supplier'],
+    ]);
+  });
 });

@@ -37,13 +37,26 @@ import { applyErpFeedEvent } from '../../../pmo-portal/src/lib/adapterSeam/erpne
 import { createErpFeedDeps, ERPNEXT_TIER } from '../_shared/erpnextFeedDeps.ts';
 import { DOCTYPE_REGISTRY, type ErpDocKind } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/doctypeRegistry.ts';
 import { DOCTYPE_BODIES } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/doctypeBodies.ts';
+// Luna BLOCK 6: each body module declares the list-endpoint fields ITS `fromDoc` reads, next to the
+// mapper — the poll is built from those so the two cannot drift apart.
+import { SI_FROM_DOC_FIELDS } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/bodies/salesInvoice.ts';
+import { PE_RECEIVE_FROM_DOC_FIELDS } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/bodies/incomingPayment.ts';
+import { PE_PAY_FROM_DOC_FIELDS } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/bodies/paymentEntry.ts';
+import { PI_FROM_DOC_FIELDS } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/bodies/purchaseInvoice.ts';
+import { PO_FROM_DOC_FIELDS } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/bodies/purchaseOrder.ts';
+import { GR_FROM_DOC_FIELDS } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/bodies/goodsReceipt.ts';
+import { MR_FROM_DOC_FIELDS } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/bodies/materialRequest.ts';
+import { RFQ_FROM_DOC_FIELDS } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/bodies/rfq.ts';
+import { SQ_FROM_DOC_FIELDS } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/bodies/supplierQuotation.ts';
+import { SUPPLIER_FROM_DOC_FIELDS } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/bodies/supplier.ts';
+import { CUSTOMER_FROM_DOC_FIELDS } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/bodies/customer.ts';
 import { KIND_DOMAIN, KIND_MIRROR_TABLE } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/feedKinds.ts';
 import { feedLedgerMirrors } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/ledgerMirrorFeed.ts';
 import { refreshAccountingSnapshots, type OrgAccountingScope } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/accountingFanout.ts';
 import { dispatchMoneyWrite, type DispatchMoneyWriteDeps, type ExternalRefMapping, type OutboxRow } from '../../../pmo-portal/src/lib/adapterSeam/dispatch.ts';
 import type { AdapterCommand, PmoRecord } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
 import { resolveErpCredentials } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/credentials.ts';
-import type { ErpClientDeps } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/client.ts';
+import { erpnextRequest, type ErpClientDeps } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/client.ts';
 import { resolveErpDispatchAdapter } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/dispatchFactory.ts';
 import { canonicalCommandDigest, createDbMoneyOutboxDeps } from '../adapter-dispatch/moneyOutboxDeps.ts';
 import { getReadModelWriter } from '../adapter-dispatch/readModelWriters.ts';
@@ -60,6 +73,55 @@ function json(body: unknown, status = 200): Response {
 const SWEEP_DOCTYPES: Array<{ kind: ErpDocKind; doctype: string }> = (Object.entries(DOCTYPE_REGISTRY) as Array<
   [ErpDocKind, { doctype: string }]
 >).map(([kind, entry]) => ({ kind, doctype: entry.doctype }));
+
+/**
+ * The list-endpoint fields each kind's poll must request (Luna BLOCK 6). Sourced from the field list
+ * each body module declares NEXT TO its `fromDoc`, so the poll always fetches exactly what the mapper
+ * reads — the sweep previously fetched only the four lifecycle fields, so every sweep-adopted Sales
+ * Invoice entered the PMO revenue rollup with `amount = NULL` and `outstanding = NULL`.
+ */
+const FROM_DOC_FIELDS_BY_KIND: Record<ErpDocKind, readonly string[]> = {
+  'purchase-request': MR_FROM_DOC_FIELDS,
+  rfq: RFQ_FROM_DOC_FIELDS,
+  quotation: SQ_FROM_DOC_FIELDS,
+  'purchase-order': PO_FROM_DOC_FIELDS,
+  'goods-receipt': GR_FROM_DOC_FIELDS,
+  'purchase-invoice': PI_FROM_DOC_FIELDS,
+  payment: PE_PAY_FROM_DOC_FIELDS,
+  supplier: SUPPLIER_FROM_DOC_FIELDS,
+  customer: CUSTOMER_FROM_DOC_FIELDS,
+  'sales-invoice': SI_FROM_DOC_FIELDS,
+  'incoming-payment': PE_RECEIVE_FROM_DOC_FIELDS,
+};
+
+/** The fields the poll requests for one kind: the mapper's own fields plus the `payment_type`
+ *  discriminator where the kind shares a doctype (BLOCK A1). Exported for direct unit testing. */
+export function sweepFieldsForKind(kind: ErpDocKind): string[] {
+  const fields = new Set<string>(FROM_DOC_FIELDS_BY_KIND[kind] ?? []);
+  for (const routing of ['name', 'modified', 'docstatus', 'amended_from']) fields.add(routing);
+  if (PAYMENT_TYPE_BY_KIND[kind]) fields.add('payment_type');
+  return Array.from(fields);
+}
+
+/**
+ * Kinds whose canonical depends on a CHILD TABLE, which Frappe's list endpoint does not return
+ * (Luna BLOCK 6). A Receive Payment Entry's `references` — the rows citing the Sales Invoice it pays —
+ * is the money LINK behind `incoming_payments.sales_invoice_id`; without it every sweep-adopted receipt
+ * is permanently unlinked from its invoice. These kinds therefore re-read each changed doc in full.
+ * Deliberately minimal (no needless N+1): only the kinds whose child data drives a money column.
+ */
+export const KINDS_NEEDING_FULL_DOC: ErpDocKind[] = ['incoming-payment'];
+
+/**
+ * The doctypes ONE org's sweep may poll (Luna BLOCK 9). A valid, activated ERPNext binding says the org
+ * talks to ERPNext; it does NOT say which PMO domains it handed over. Polling every doctype regardless
+ * pushed native Sales Invoice / Receive PE mirrors into a procurement-only org's revenue read model.
+ * Fail-CLOSED: an org with no recorded ownership polls nothing. Exported for direct unit testing.
+ */
+export function sweepKindsForOrg(ownedDomains: readonly string[]): Array<{ kind: ErpDocKind; doctype: string }> {
+  const owned = new Set(ownedDomains);
+  return SWEEP_DOCTYPES.filter(({ kind }) => owned.has(KIND_DOMAIN[kind]));
+}
 
 /** Luna BLOCK A1 (cross-domain corruption guard): `payment` (Pay/supplier) and `incoming-payment`
  *  (Receive/customer) share the ONE `Payment Entry` doctype (`doctypeRegistry.ts`) — polling it without
@@ -132,6 +194,9 @@ interface OrgBinding {
   secretRef: string;
   company: string;
   config: Record<string, unknown>;
+  /** Luna BLOCK 9: the PMO domains this org actually assigned to the ERPNext tier
+   *  (`external_domain_ownership`) — the sweep polls only these. */
+  ownedDomains: string[];
   // task FIX-6 (Quality MINOR 4): the handshake-stamped ERPNext major version lives on the
   // `external_org_bindings.version_major` COLUMN (§4.1), never inside `config` (which has no
   // `version` key — `report_filter_shape`/`aging_report_names`/the account defaults live there).
@@ -142,6 +207,9 @@ export interface ErpSweepCycleDeps {
   listEmployingOrgs: () => Promise<OrgBinding[]>;
   reconcileOrgOutbox: (org: OrgBinding) => Promise<ReconcileOrgOutboxResult>;
   sweepOrgDoctypes: (org: OrgBinding) => Promise<{ applied: number; error?: string }>;
+  /** Luna BLOCK 6: the late-link self-heal (receipts adopted before their invoice). Optional so the
+   *  existing cycle tests stay byte-for-byte; the live wiring always supplies it. */
+  repairOrgLinks?: (org: OrgBinding) => Promise<{ repaired: number; error?: string }>;
   feedOrgLedgers: (org: OrgBinding) => Promise<{ gl: number; ple: number; error?: string }>;
   refreshOrgAccounting: (org: OrgBinding) => Promise<{ error?: string }>;
 }
@@ -178,6 +246,16 @@ export async function runErpSweepCycle(deps: ErpSweepCycleDeps): Promise<ErpSwee
       if (r.error) errors.push(`sweep:${r.error}`);
     } catch (err) {
       errors.push(`sweep:${err instanceof Error ? err.message : String(err)}`);
+    }
+    // (2b) late-link self-heal — AFTER the doctype sweep, so an invoice adopted THIS tick is already
+    //      mapped when the receipts that cite it are re-checked (Luna BLOCK 6).
+    if (deps.repairOrgLinks) {
+      try {
+        const r = await deps.repairOrgLinks(org);
+        if (r.error) errors.push(`repair:${r.error}`);
+      } catch (err) {
+        errors.push(`repair:${err instanceof Error ? err.message : String(err)}`);
+      }
     }
     // (3) ledger-mirror feed.
     let ledger: { gl: number; ple: number } | undefined;
@@ -219,7 +297,26 @@ export async function listEmployingOrgsLive(serviceClient: SupabaseClient): Prom
     return [];
   }
   const rows = (data as Array<{ org_id: string; site_url: string; secret_ref: string; config: Record<string, unknown> | null; activated_at: string | null; version_major: number | null }> | null) ?? [];
-  return rows.filter((r) => r.activated_at).map((r) => ({
+  const activated = rows.filter((r) => r.activated_at);
+  if (activated.length === 0) return [];
+
+  // Luna BLOCK 9: an activated binding says the org talks to ERPNext, NOT which PMO domains it handed
+  // over. Load the real per-domain ownership so the sweep polls only what the org opted into. A load
+  // error fail-safes this tick to [] (logged, like the binding read above) rather than sweeping blind.
+  const { data: owned, error: ownedError } = await serviceClient.from('external_domain_ownership')
+    .select('org_id, domain')
+    .eq('external_tier', ERPNEXT_TIER)
+    .in('org_id', activated.map((r) => r.org_id));
+  if (ownedError) {
+    console.error(`[erpnext-sweep] external_domain_ownership load failed: code=${ownedError.code ?? 'none'} message=${ownedError.message}`);
+    return [];
+  }
+  const ownedByOrg = new Map<string, string[]>();
+  for (const row of (owned as Array<{ org_id: string; domain: string }> | null) ?? []) {
+    ownedByOrg.set(row.org_id, [...(ownedByOrg.get(row.org_id) ?? []), row.domain]);
+  }
+
+  return activated.map((r) => ({
     orgId: r.org_id,
     siteUrl: r.site_url,
     secretRef: r.secret_ref,
@@ -227,7 +324,18 @@ export async function listEmployingOrgsLive(serviceClient: SupabaseClient): Prom
     config: r.config ?? {},
     // task FIX-6 (Quality MINOR 4): version_major is a top-level column, not a `config` key.
     versionMajor: r.version_major ?? null,
+    ownedDomains: ownedByOrg.get(r.org_id) ?? [],
   }));
+}
+
+/** Re-read ONE ERP doc in full (Luna BLOCK 6) — the list endpoint omits child tables, and a Receive
+ *  Payment Entry's `references` child rows carry the Sales Invoice link the money read-model needs. */
+async function fetchErpDoc(client: ErpClientDeps, doctype: string, name: string): Promise<Record<string, unknown>> {
+  const body = await erpnextRequest(client, {
+    method: 'GET',
+    path: `/api/resource/${encodeURIComponent(doctype)}/${encodeURIComponent(name)}`,
+  });
+  return ((body as { data?: Record<string, unknown> } | null)?.data ?? {}) as Record<string, unknown>;
 }
 
 function erpClientForOrg(org: OrgBinding): ErpClientDeps {
@@ -259,7 +367,8 @@ function listCandidatesLive(serviceClient: SupabaseClient): ListOutboxCandidates
 async function sweepOrgDoctypesLive(serviceClient: SupabaseClient, org: OrgBinding): Promise<{ applied: number; error?: string }> {
   const client = erpClientForOrg(org);
   let applied = 0;
-  for (const { kind, doctype } of SWEEP_DOCTYPES) {
+  // Luna BLOCK 9: only the doctypes whose PMO domain this org actually assigned to the ERPNext tier.
+  for (const { kind, doctype } of sweepKindsForOrg(org.ownedDomains)) {
     const domain = KIND_DOMAIN[kind];
     const bodyFns = DOCTYPE_BODIES[kind];
     if (!bodyFns) continue; // not yet wired — skip (inert until the slice that wires it lands)
@@ -286,9 +395,13 @@ async function sweepOrgDoctypesLive(serviceClient: SupabaseClient, org: OrgBindi
     // `payment_type` and filter the poll (server-side + defense-in-depth post-fetch) so a Pay doc is
     // NEVER adopted by the incoming-payment poll and vice-versa.
     const paymentType = PAYMENT_TYPE_BY_KIND[kind];
-    const fields = paymentType
-      ? ['name', 'modified', 'docstatus', 'amended_from', 'payment_type']
-      : ['name', 'modified', 'docstatus', 'amended_from'];
+    // Luna BLOCK 6: fetch exactly the fields THIS kind's mapper consumes (money included), plus — where
+    // the canonical depends on a child table the list endpoint cannot return (the Receive PE's
+    // `references`) — re-read each changed doc in full.
+    const fields = sweepFieldsForKind(kind);
+    const hydrateDoc = KINDS_NEEDING_FULL_DOC.includes(kind)
+      ? (name: string) => fetchErpDoc(client, doctype, name)
+      : undefined;
     try {
       const result = await runSweep(
         { tier: ERPNEXT_TIER, domain },
@@ -303,6 +416,7 @@ async function sweepOrgDoctypesLive(serviceClient: SupabaseClient, org: OrgBindi
               doctype,
               fields,
               fromDoc: bodyFns.fromDoc,
+              ...(hydrateDoc ? { hydrateDoc } : {}),
               ...(paymentType
                 ? {
                     extraFilters: [['payment_type', '=', paymentType]],
@@ -322,6 +436,99 @@ async function sweepOrgDoctypesLive(serviceClient: SupabaseClient, org: OrgBindi
     }
   }
   return { applied };
+}
+
+// ────────────────────────────────────────────────────────────────────────────────────────────────
+// The late-link self-heal (Luna BLOCK 6). A Receive Payment Entry adopted BEFORE the Sales Invoice it
+// cites resolves `sales_invoice_id` to NULL — and its own ERP row does not change when that invoice is
+// later adopted, so the modified-poll never re-surfaces it and the payment stays attached to no
+// invoice forever. This pass re-checks the org's unlinked ERP-sourced receipts each tick.
+// ────────────────────────────────────────────────────────────────────────────────────────────────
+
+export interface RepairUnlinkedReceiptsDeps {
+  /** The org's ERP-sourced receipts still missing their invoice link (bounded per tick). */
+  listUnlinkedReceipts: () => Promise<Array<{ id: string; erpName: string }>>;
+  /** Re-read one Payment Entry in full (its `references` child rows are not list-endpoint fields). */
+  fetchDoc: (erpName: string) => Promise<Record<string, unknown>>;
+  /** The PMO id the cited Sales Invoice ERP name now maps to, or `null` if still unmapped. */
+  resolveSalesInvoicePmoId: (siErpName: string) => Promise<string | null>;
+  /** Write the repaired link. */
+  link: (ipId: string, salesInvoicePmoId: string) => Promise<void>;
+}
+
+/**
+ * Link every unlinked receipt whose cited invoice has since been adopted. A receipt with no
+ * `references` is a genuine on-account payment and is left alone; a receipt whose invoice is still
+ * unmapped is left alone too (a guessed link is a WRONG money attribution — it retries next tick). One
+ * unreadable doc is recorded and skipped, never aborting the pass. Exported for direct unit testing.
+ */
+export async function repairUnlinkedReceipts(
+  deps: RepairUnlinkedReceiptsDeps,
+): Promise<{ repaired: number; errors: Array<{ id: string; error: string }> }> {
+  const unlinked = await deps.listUnlinkedReceipts();
+  let repaired = 0;
+  const errors: Array<{ id: string; error: string }> = [];
+  for (const receipt of unlinked) {
+    try {
+      const doc = await deps.fetchDoc(receipt.erpName);
+      const references = doc.references as Array<{ reference_name?: string | null }> | undefined;
+      const siErpName = Array.isArray(references) ? references[0]?.reference_name : null;
+      if (!siErpName) continue; // an unreferenced receipt is a valid on-account payment
+      const salesInvoicePmoId = await deps.resolveSalesInvoicePmoId(siErpName);
+      if (!salesInvoicePmoId) continue; // still unmapped — retry next tick rather than guess
+      await deps.link(receipt.id, salesInvoicePmoId);
+      repaired += 1;
+    } catch (err) {
+      errors.push({ id: receipt.id, error: err instanceof Error ? err.message : String(err) });
+    }
+  }
+  return { repaired, errors };
+}
+
+/** The per-tick scan bound for the late-link repair: an org with many genuine on-account receipts must
+ *  not turn the pass into an unbounded per-tick ERP read (NFR-ENA-PERF-001, interactive over bulk). */
+const UNLINKED_RECEIPT_SCAN_LIMIT = 100;
+
+/** The live wiring of the late-link self-heal for one org. Runs ONLY for an org that owns the revenue
+ *  domain (Luna BLOCK 9) — a procurement-only org has no receipts to repair. */
+async function repairOrgLinksLive(serviceClient: SupabaseClient, org: OrgBinding): Promise<{ repaired: number; error?: string }> {
+  if (!org.ownedDomains.includes('revenue')) return { repaired: 0 };
+  try {
+    const client = erpClientForOrg(org);
+    const result = await repairUnlinkedReceipts({
+      listUnlinkedReceipts: async () => {
+        const { data, error } = await serviceClient.from('incoming_payments')
+          .select('id').eq('org_id', org.orgId).is('sales_invoice_id', null).not('erp_docstatus', 'is', null)
+          .limit(UNLINKED_RECEIPT_SCAN_LIMIT);
+        if (error) throw new AppError(error.message, error.code);
+        const rows = (data as Array<{ id: string }> | null) ?? [];
+        if (rows.length === 0) return [];
+        // The ERP name lives on external_refs (the mirror row carries no ERP name column).
+        const { data: refs, error: refErr } = await serviceClient.from('external_refs')
+          .select('pmo_record_id, external_record_id').eq('org_id', org.orgId).eq('domain', 'revenue')
+          .in('pmo_record_id', rows.map((r) => r.id));
+        if (refErr) throw new AppError(refErr.message, refErr.code);
+        return ((refs as Array<{ pmo_record_id: string; external_record_id: string }> | null) ?? [])
+          .map((r) => ({ id: r.pmo_record_id, erpName: r.external_record_id }));
+      },
+      fetchDoc: (erpName) => fetchErpDoc(client, DOCTYPE_REGISTRY['incoming-payment'].doctype, erpName),
+      resolveSalesInvoicePmoId: async (siErpName) => {
+        const { data, error } = await serviceClient.from('external_refs').select('pmo_record_id')
+          .eq('org_id', org.orgId).eq('domain', 'revenue').eq('external_record_id', siErpName).maybeSingle();
+        if (error) throw new AppError(error.message, error.code);
+        return (data as { pmo_record_id?: string } | null)?.pmo_record_id ?? null;
+      },
+      link: async (ipId, salesInvoicePmoId) => {
+        const { error } = await (serviceClient.from('incoming_payments').update({ sales_invoice_id: salesInvoicePmoId })
+          .eq('org_id', org.orgId).eq('id', ipId) as unknown as Promise<{ error: { message: string; code?: string } | null }>);
+        if (error) throw new AppError(error.message, error.code);
+      },
+    });
+    const first = result.errors[0];
+    return { repaired: result.repaired, ...(first ? { error: `${first.id}:${first.error}` } : {}) };
+  } catch (err) {
+    return { repaired: 0, error: err instanceof Error ? err.message : String(err) };
+  }
 }
 
 /** The ledger-mirror feed for one org (8.6b). */
@@ -392,6 +599,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     listEmployingOrgs: () => listEmployingOrgsLive(serviceClient),
     reconcileOrgOutbox: (org) => reconcileOrgOutbox(listCandidates, org.orgId, (row) => buildReconcileDepsLive(serviceClient, org, row)),
     sweepOrgDoctypes: (org) => sweepOrgDoctypesLive(serviceClient, org),
+    repairOrgLinks: (org) => repairOrgLinksLive(serviceClient, org),
     feedOrgLedgers: (org) => feedOrgLedgersLive(serviceClient, org),
     refreshOrgAccounting: (org) => refreshOrgAccountingLive(serviceClient, org),
   });

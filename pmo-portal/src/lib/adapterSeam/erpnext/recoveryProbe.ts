@@ -10,7 +10,7 @@
  * record id so the adopted mirror keys correctly.
  */
 import type { PmoRecord } from '../contract.ts';
-import { getDoc, listDocNamesByAnchor, listDocNamesByFilters, type ErpClientDeps, type ErpFilter } from './client.ts';
+import { escapeLikePattern, getDoc, listDocNamesByAnchor, listDocNamesByFilters, type ErpClientDeps, type ErpFilter } from './client.ts';
 
 export interface ErpProbeDeps {
   client: ErpClientDeps;
@@ -53,7 +53,14 @@ export async function probeErpByAnchorKey(
   const extra = deps.anchorExtraFilters ?? [];
   const names =
     extra.length > 0
-      ? await listDocNamesByFilters(deps.client, deps.doctype, [[deps.anchorField, 'like', `%${idempotencyKey}%`], ...extra], 1)
+      ? // Luna BLOCK 1: same wildcard-injection guard as `listDocNamesByAnchor` — this path builds the
+        // anchor `like` tuple itself (to conjoin the discriminators), so it must escape the key too.
+        await listDocNamesByFilters(
+          deps.client,
+          deps.doctype,
+          [[deps.anchorField, 'like', `%${escapeLikePattern(idempotencyKey)}%`], ...extra],
+          1,
+        )
       : await listDocNamesByAnchor(deps.client, deps.doctype, deps.anchorField, idempotencyKey, 1);
   if (names.length === 0) return null;
   const name = names[0];

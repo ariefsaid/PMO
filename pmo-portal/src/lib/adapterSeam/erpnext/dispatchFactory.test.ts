@@ -7,7 +7,7 @@
  */
 import { describe, expect, it, vi } from 'vitest';
 import { AppError } from '../../appError.ts';
-import { resolveErpDispatchAdapter, type DispatchServiceClient } from './dispatchFactory.ts';
+import { buildsSalesInvoiceBody, resolveErpDispatchAdapter, withPaymentTypeDiscriminator, type DispatchServiceClient } from './dispatchFactory.ts';
 import { ERPNEXT_TIER } from './adapter.ts';
 import type { PmoRecord } from '../contract.ts';
 
@@ -791,5 +791,235 @@ describe('resolveRevenueRefs — task 2.3 (FR-SAR-100/101/121)', () => {
     await adapter.commit(command).catch(() => {});
     // No salesInvoiceId -> no references sent (empty array); this is a valid on-account receipt
     expect((capturedBody as { references?: unknown[] } | null)?.references).toEqual([]);
+  });
+});
+
+// ============================================================================
+// Luna re-audit BLOCK #12 — `require_project_on_si` was enforced on CREATE ONLY.
+//
+// `assertSiProjectGate` returned early for every non-create operation, and index.ts gated only
+// `create`. But an `update` of a SUBMITTED SI routes to amend (adapter.ts routeEdit(1) ->
+// commitAmend) and `transition{verb:'amend'}` does the same: both build a REPLACEMENT Sales Invoice
+// from `bodies/salesInvoice.ts`, which OMITS the ERP `project` field when it is unresolved. So a
+// caller could amend a submitted, project-attributed SI into a replacement carrying no project
+// dimension on the GL, have a second approver submit it, and PMO would still report the old project
+// attribution. Contradicts the signed spec (erpnext-adapter-p3a-sales-ar.spec.md:713-718).
+// ============================================================================
+
+describe('Luna B12 — require_project_on_si applies to every SI body-building operation', () => {
+  const ACTIVATED_ROW_B12 = {
+    site_url: 'https://erp.example.com',
+    version_major: 15,
+    activated_at: '2026-07-11T00:00:00.000Z',
+    config: {
+      company: 'PMO Smoke Co',
+      default_receivable_account: 'Debtors - PSC',
+      default_income_account: 'Sales - PSC',
+      project_map: {} as Record<string, string>,
+      process_gates: { require_project_on_si: true },
+    },
+  };
+
+  function bindingClient(config: Record<string, unknown>): DispatchServiceClient {
+    return {
+      from: (table: string) => ({
+        select: () => {
+          let filters: Record<string, string> = {};
+          const chain = {
+            eq: (col: string, val: string) => {
+              filters = { ...filters, [col]: val };
+              return chain;
+            },
+            order: () => chain,
+            limit: () => chain,
+            maybeSingle: async () => {
+              if (table === 'external_org_bindings') return { data: { ...ACTIVATED_ROW_B12, config }, error: null };
+              if (table === 'external_refs' && filters.domain === 'companies') {
+                return { data: { external_record_id: 'Customer:Spike Customer' }, error: null };
+              }
+              if (table === 'external_refs' && filters.domain === 'revenue') {
+                return { data: { external_record_id: 'ACC-SINV-2026-00001' }, error: null };
+              }
+              // Every link row belongs to org-1 (the caller's org) — the tenancy pre-flight is not
+              // what these tests are about.
+              return { data: { org_id: 'org-1' }, error: null };
+            },
+            then: (resolve: (v: { data: unknown; error: null }) => unknown) => resolve({ data: [], error: null }),
+          };
+          return chain;
+        },
+      }),
+    } as unknown as DispatchServiceClient;
+  }
+
+  const GATE_ON_UNMAPPED = { ...ACTIVATED_ROW_B12.config, project_map: {}, process_gates: { require_project_on_si: true } };
+  const GATE_ON_MAPPED = { ...ACTIVATED_ROW_B12.config, project_map: { 'proj-1': 'PROJ-0001' }, process_gates: { require_project_on_si: true } };
+  const GATE_OFF = { ...ACTIVATED_ROW_B12.config, project_map: {}, process_gates: { require_project_on_si: false } };
+
+  const siRecord = (extra: Record<string, unknown>) => ({
+    id: 'pmo-si-1',
+    erp_doc_kind: 'sales-invoice',
+    customerId: 'cust-1',
+    projectId: 'proj-1',
+    items: [],
+    ...extra,
+  });
+
+  it('B12 — an UPDATE of an SI whose project resolves to no ERP project fails closed BEFORE any ERP write', async () => {
+    const fetchImpl = vi.fn(async () => new Response('{}', { status: 200 })) as unknown as typeof fetch;
+    await expect(
+      resolveErpDispatchAdapter({
+        serviceClient: bindingClient(GATE_ON_UNMAPPED),
+        orgId: 'org-1',
+        command: { domain: 'revenue', operation: 'update', record: siRecord({ externalRecordId: 'ACC-SINV-2026-00001' }) },
+        fetchImpl,
+        apiKey: 'k',
+        apiSecret: 's',
+      }),
+    ).rejects.toMatchObject({ code: 'commit-rejected' });
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it('B12 — an AMEND transition of an SI whose project resolves to no ERP project fails closed BEFORE any ERP write', async () => {
+    const fetchImpl = vi.fn(async () => new Response('{}', { status: 200 })) as unknown as typeof fetch;
+    await expect(
+      resolveErpDispatchAdapter({
+        serviceClient: bindingClient(GATE_ON_UNMAPPED),
+        orgId: 'org-1',
+        command: {
+          domain: 'revenue',
+          operation: 'transition',
+          record: siRecord({ verb: 'amend', externalRecordId: 'ACC-SINV-2026-00001' }),
+        },
+        fetchImpl,
+        apiKey: 'k',
+        apiSecret: 's',
+      }),
+    ).rejects.toMatchObject({ code: 'commit-rejected' });
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it('B12 — an UPDATE whose project IS mapped resolves normally (the gate blocks only unresolved projects)', async () => {
+    const adapter = await resolveErpDispatchAdapter({
+      serviceClient: bindingClient(GATE_ON_MAPPED),
+      orgId: 'org-1',
+      command: { domain: 'revenue', operation: 'update', record: siRecord({ externalRecordId: 'ACC-SINV-2026-00001' }) },
+      fetchImpl: vi.fn() as unknown as typeof fetch,
+      apiKey: 'k',
+      apiSecret: 's',
+    });
+    expect(adapter.tier).toBe(ERPNEXT_TIER);
+  });
+
+  it('B12 — a SUBMIT transition builds no body and is still never blocked by the gate', async () => {
+    const adapter = await resolveErpDispatchAdapter({
+      serviceClient: bindingClient(GATE_ON_UNMAPPED),
+      orgId: 'org-1',
+      command: {
+        domain: 'revenue',
+        operation: 'transition',
+        record: { id: 'pmo-si-1', erp_doc_kind: 'sales-invoice', verb: 'submit', externalRecordId: 'ACC-SINV-2026-00001' },
+      },
+      fetchImpl: vi.fn() as unknown as typeof fetch,
+      apiKey: 'k',
+      apiSecret: 's',
+    });
+    expect(adapter.tier).toBe(ERPNEXT_TIER);
+  });
+
+  it('B12 — a CANCEL transition builds no body and is still never blocked by the gate', async () => {
+    const adapter = await resolveErpDispatchAdapter({
+      serviceClient: bindingClient(GATE_ON_UNMAPPED),
+      orgId: 'org-1',
+      command: {
+        domain: 'revenue',
+        operation: 'transition',
+        record: { id: 'pmo-si-1', erp_doc_kind: 'sales-invoice', verb: 'cancel', externalRecordId: 'ACC-SINV-2026-00001' },
+      },
+      fetchImpl: vi.fn() as unknown as typeof fetch,
+      apiKey: 'k',
+      apiSecret: 's',
+    });
+    expect(adapter.tier).toBe(ERPNEXT_TIER);
+  });
+
+  it('B12 — gate OFF: an unmapped project on an amend is allowed through (the gate is the only thing that makes it fatal)', async () => {
+    const adapter = await resolveErpDispatchAdapter({
+      serviceClient: bindingClient(GATE_OFF),
+      orgId: 'org-1',
+      command: {
+        domain: 'revenue',
+        operation: 'transition',
+        record: siRecord({ verb: 'amend', externalRecordId: 'ACC-SINV-2026-00001' }),
+      },
+      fetchImpl: vi.fn() as unknown as typeof fetch,
+      apiKey: 'k',
+      apiSecret: 's',
+    });
+    expect(adapter.tier).toBe(ERPNEXT_TIER);
+  });
+});
+
+// The SHARED predicate index.ts uses for its own half of the same gate (the "is projectId present at
+// all" check). Exported from dispatchFactory so the two enforcement points can never disagree about
+// which operations build a Sales Invoice body.
+describe('Luna B12 — buildsSalesInvoiceBody (the shared operation predicate)', () => {
+  it('is true for create, update, and an amend transition — the three that call salesInvoice.toBody', () => {
+    expect(buildsSalesInvoiceBody({ operation: 'create', record: {} })).toBe(true);
+    expect(buildsSalesInvoiceBody({ operation: 'update', record: {} })).toBe(true);
+    expect(buildsSalesInvoiceBody({ operation: 'transition', record: { verb: 'amend' } })).toBe(true);
+  });
+
+  it('is false for submit/cancel transitions and for delete — they act on an existing doc, building no body', () => {
+    expect(buildsSalesInvoiceBody({ operation: 'transition', record: { verb: 'submit' } })).toBe(false);
+    expect(buildsSalesInvoiceBody({ operation: 'transition', record: { verb: 'cancel' } })).toBe(false);
+    expect(buildsSalesInvoiceBody({ operation: 'delete', record: {} })).toBe(false);
+  });
+});
+
+// ============================================================================
+// Luna re-audit BLOCK #1 (this call site's half) — the FALLBACK anchor probe dropped the
+// `payment_type` discriminator.
+//
+// 'Pay' (procurement) and 'Receive' (revenue) Payment Entries are the SAME Frappe doctype, and their
+// anchor field `reference_no` is ERP-side editable. `probeErpByPaymentComposite` correctly conjoins
+// payment_type + party_type onto its anchor probe — but the adapter-dispatch fallback used when no
+// composite payload has been persisted yet called the BARE `probeErpByAnchorKey`, so a Receive
+// recovery could adopt a Pay entry that happened to share a reference_no (and vice-versa), mirroring
+// an incoming payment onto an outgoing payment document.
+// ============================================================================
+
+describe('Luna B1 — withPaymentTypeDiscriminator (the fallback anchor-probe guard)', () => {
+  const BASE = {
+    client: { fetchImpl: vi.fn() as unknown as typeof fetch, apiKey: 'k', apiSecret: 's', baseUrl: 'https://erp.example.com' },
+    doctype: 'Payment Entry',
+    anchorField: 'reference_no',
+    fromDoc: () => ({ id: 'x' }),
+    pmoRecordId: 'pmo-1',
+  };
+
+  it("an incoming-payment probe filters payment_type='Receive' server-side AND re-validates the fetched doc", () => {
+    const deps = withPaymentTypeDiscriminator(BASE, 'incoming-payment');
+    expect(deps.anchorExtraFilters).toEqual([['payment_type', '=', 'Receive']]);
+    expect(deps.validateAdoptedDoc?.({ payment_type: 'Receive' })).toBe(true);
+    // The exploit: a Pay entry sharing the reference_no must never be adopted by a Receive recovery.
+    expect(deps.validateAdoptedDoc?.({ payment_type: 'Pay' })).toBe(false);
+  });
+
+  it("a procurement payment probe filters payment_type='Pay' and refuses a Receive doc", () => {
+    const deps = withPaymentTypeDiscriminator(BASE, 'payment');
+    expect(deps.anchorExtraFilters).toEqual([['payment_type', '=', 'Pay']]);
+    expect(deps.validateAdoptedDoc?.({ payment_type: 'Pay' })).toBe(true);
+    expect(deps.validateAdoptedDoc?.({ payment_type: 'Receive' })).toBe(false);
+  });
+
+  it('a doc missing payment_type entirely is refused (fail closed, never adopted on absence)', () => {
+    const deps = withPaymentTypeDiscriminator(BASE, 'incoming-payment');
+    expect(deps.validateAdoptedDoc?.({})).toBe(false);
+  });
+
+  it('a non-Payment-Entry kind is returned byte-for-byte (PI/Purchase Receipt keep the bare anchor probe)', () => {
+    const deps = withPaymentTypeDiscriminator(BASE, 'purchase-invoice');
+    expect(deps).toBe(BASE);
   });
 });
