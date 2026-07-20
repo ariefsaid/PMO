@@ -1,0 +1,44 @@
+{
+  "signatureHeaderPresent": true,
+  "payload": {
+    "event": "taskStatusUpdated",
+    "history_items": [
+      {
+        "id": "5179799730331272033",
+        "type": 1,
+        "date": "1784536262542",
+        "field": "status",
+        "parent_id": "901819740362",
+        "data": {
+          "status_type": "closed"
+        },
+        "source": null,
+        "user": {
+          "id": 312760343,
+          "username": "Redacted User",
+          "email": "redacted@example.test",
+          "color": "#595d66",
+          "initials": "AS",
+          "profilePicture": null,
+          "role": 1,
+          "role_subtype": 0
+        },
+        "before": {
+          "status": "to do",
+          "color": "#87909e",
+          "orderindex": 0,
+          "type": "open"
+        },
+        "after": {
+          "status": "complete",
+          "color": "#008844",
+          "orderindex": 2,
+          "type": "closed"
+        }
+      }
+    ],
+    "task_id": "86eybn1n2",
+    "team_id": "90182862715",
+    "webhook_id": "78c63442-b149-45da-9fbd-ac4411540696"
+  }
+}

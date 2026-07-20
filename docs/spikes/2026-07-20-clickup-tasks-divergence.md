@@ -76,6 +76,12 @@ link paths diverged; the one wired to the UI is the empty one.
   done` **[doc]** — a `done`-type status maps to PMO `To Do`. Completions made in ClickUp under a
   `done` status will read back as not-started.
 
+**Confirmed against the real workspace (2026-07-20):** the probe List's statuses were
+`to do` (type `open`), `in progress` (type `custom`), `complete` (type `closed`). Under `captureMaps`
+that yields `pmoToClickUp = {To Do:"to do", Done:"complete"}` — so a PMO task in **`In Progress` or
+`Blocked` is `commit-rejected`**, even though the List has a perfectly good `in progress` status.
+Inbound, `in progress` (type `custom`) maps to PMO `To Do`.
+
 **Consequence beyond tasks:** PMO's `delivery_pct`, milestone `effective_pct`, the S-curve and the
 project Gantt are all derived from `status = 'Done'` (`0023:59-66`, `0033:161-176`, `sCurve.ts:46-54`).
 A silent status mis-map corrupts **delivery reporting**, not just a task row.
@@ -123,7 +129,14 @@ diff every sync** — each one a write, an invalidation, and a rate-limit call. 
 **Fill:** send `*_time: false` on writes; normalise inbound to the date in a fixed timezone; add a
 "no-op if unchanged" guard before writing the mirror.
 
-### 2.5 `date_done` vs `date_closed`
+### 2.5 `date_done` vs `date_closed` — **partly resolved live 2026-07-20**
+
+Moving a task into a `closed`-type status set **both** `date_done` and `date_closed`, so the mapping
+holds for `closed`. The probe workspace had no `done`-type status, so the `done`-type case is still
+**[unverified]** — keep the fallback (`status='Done'` + `completed_at is null` ⇒ use `date_closed`,
+then `end_date`).
+
+Original concern:
 
 We map `date_done` → `completed_at` and the completion trigger **trusts it verbatim** under external
 ownership (`0093:141-166`). ClickUp distinguishes `date_done` from `date_closed` **[doc]**. A task in a
@@ -143,7 +156,36 @@ implements it and there is no `archived_at` column.
 
 ## 3. Protocol / correctness gaps
 
-### 3.1 ⛔ Webhook payload shape is wrong
+### 3.1 ⛔ Webhook payload shape is wrong — **VERIFIED LIVE 2026-07-20**
+
+Captured with `scripts/clickup-webhook-capture.ts` (7 real deliveries, fixtures in
+`supabase/functions/_shared/testing/fixtures/clickup-webhook/`). The workspace artifacts were deleted.
+
+**Real envelope — identical on all 7 deliveries:**
+```json
+{ "event": "...", "task_id": "...", "team_id": "...", "webhook_id": "...", "history_items": [ ... ] }
+```
+
+- **No `task` object** on any event (`hasTaskObject: false`, 7/7). Our type assumes one.
+- **No `date_updated`** ⇒ the source-mod guard (`applyEngine.ts:78-80`) has no cursor to compare.
+- **No `list_id`.** ⚠️ **New finding:** `clickup-webhook/index.ts:87-96` resolves the binding for an
+  unmapped (adopt) task from the payload's `list_id`. That field does not exist ⇒ **the adopt tier is
+  unreachable dead code**. The List must come from the re-GET (`task.list.id`).
+- `team_id` **is** present and undocumented — a cheaper org-resolution key than the current
+  single-org fallback (`:99-114`).
+- `taskDeleted` carries `history_items: []` (docs say the key is absent; ours had it empty). Either
+  way there is no state — a tombstone still needs a locally cached last-known value.
+- **Signature header present on 7/7**, confirming verify-before-parse on the raw body.
+
+**Event fan-out — 5 actions produced 7 deliveries.** One status change fires **both** `taskUpdated`
+(`field: "status"`) *and* `taskStatusUpdated`. Since the fix re-GETs the task, duplicates are
+idempotent but double the API cost. **Subscribe to `taskCreated`/`taskUpdated`/`taskDeleted` only** —
+`taskUpdated` already carries status and archive changes; `taskStatusUpdated` is pure duplication.
+
+**Archive confirmed (§2.6):** archiving fired `taskUpdated` with `history_items[].field === "archived"`.
+That is the exact detection hook.
+
+
 
 `ClickUpWebhookPayload` (`types.ts:63+`) assumes `{ event, task_id, date_updated, list_id, task }`.
 The real envelope is `{ event, task_id, webhook_id, history_items[] }` **[doc]** — **there is no task
