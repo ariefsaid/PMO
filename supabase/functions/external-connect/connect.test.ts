@@ -79,7 +79,24 @@ describe('external-connect — ClickUp branch', () => {
           return jsonResponse(null);
         }),
 
-        clickup('/api/v2/user', () => jsonResponse({ id: 123, username: 'test-user' })),
+        // The real ClickUp `GET /user` shape is `{ user: { id, username, ... } }` (live-smoke
+        // 2026-07-17). We already call this to validate the token — now we also persist the id (the
+        // echo-loop guard's actor id, item 4 of the read-hygiene fix).
+        clickup('/api/v2/user', () => jsonResponse({ user: { id: 123, username: 'test-user' } })),
+
+        supabaseSelect('external_org_bindings', () =>
+          jsonResponse({ config: {} }, { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
+
+        {
+          label: 'persist clickup_actor_id',
+          method: 'PATCH',
+          pathname: '/rest/v1/external_org_bindings',
+          response: (call) => {
+            const body = call.bodyJson as Record<string, unknown>;
+            assertEquals(body.config, { clickup_actor_id: '123' });
+            return jsonResponse([{ id: 'binding-1' }]);
+          },
+        },
       ],
       async ({ calls }) => {
         const res = await handleConnectRequest(await authed({ tier: 'clickup', credential: { token: 'valid-token' } }));
@@ -87,6 +104,7 @@ describe('external-connect — ClickUp branch', () => {
         assertEquals(await res.json(), { ok: true, binding: { secret_ref: 'vault-ref-123', status: 'active' } });
         assertEquals(rpcCall(calls, 'create_vault_secret_for_org').length, 1);
         assertEquals(rpcCall(calls, 'admin_change_domain_ownership').length, 1);
+        assertEquals(restCall(calls, 'external_org_bindings', 'PATCH').length, 1);
       },
     );
   });
@@ -108,7 +126,12 @@ describe('external-connect — ClickUp branch', () => {
 
         supabaseRpc('admin_change_domain_ownership', () => jsonResponse(null)),
 
-        clickup('/api/v2/user', () => jsonResponse({ id: 456, username: 'operator-user' })),
+        clickup('/api/v2/user', () => jsonResponse({ user: { id: 456, username: 'operator-user' } })),
+
+        supabaseSelect('external_org_bindings', () =>
+          jsonResponse({ config: {} }, { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
+
+        { label: 'persist clickup_actor_id', method: 'PATCH', pathname: '/rest/v1/external_org_bindings', response: () => jsonResponse([{ id: 'binding-1' }]) },
       ],
       async ({ calls }) => {
         const res = await handleConnectRequest(await authed({ tier: 'clickup', credential: { token: 'valid-token' } }));
@@ -136,6 +159,37 @@ describe('external-connect — ClickUp branch', () => {
         assertEquals(res.status, 403);
         assertEquals(rpcCall(calls, 'create_vault_secret_for_org').length, 0);
         assertEquals(rpcCall(calls, 'admin_change_domain_ownership').length, 0);
+      },
+    );
+  });
+
+  it('GET /user response missing a user id → connect still succeeds, no actor id persisted', async () => {
+    await withFetchMock(
+      [
+        supabaseSelect('profiles', () =>
+          jsonResponse({ org_id: 'org-1', role: 'Admin' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
+
+        supabaseSelect('platform_operators', () => new Response('null', {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })),
+
+        supabaseRpc('create_vault_secret_for_org', () => jsonResponse('vault-ref-789')),
+
+        supabaseRpc('admin_change_domain_ownership', () => jsonResponse(null)),
+
+        // No `user.id` in the response — an unexpected/degraded wire shape must not block the connect
+        // (the token itself validated fine, res.ok); it only means the echo-loop guard can't be armed
+        // for this org until a later reconnect gets a well-formed response.
+        clickup('/api/v2/user', () => jsonResponse({ user: {} })),
+      ],
+      async ({ calls }) => {
+        const res = await handleConnectRequest(await authed({ tier: 'clickup', credential: { token: 'valid-token' } }));
+        assertEquals(res.status, 200);
+        assertEquals(rpcCall(calls, 'create_vault_secret_for_org').length, 1);
+        assertEquals(restCall(calls, 'external_org_bindings', 'PATCH').length, 0);
       },
     );
   });
