@@ -82,16 +82,40 @@ export interface WithBackoffOptions {
   /** Bounded retry budget for 429/5xx responses (default 3). */
   maxRetries?: number;
   sleep?: (ms: number) => Promise<void>;
+  /** Injectable clock (default `Date.now`) — lets tests compute an `X-RateLimit-Reset` wait deterministically. */
+  now?: () => number;
 }
 
 const defaultSleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
+/** Parsed `X-RateLimit-*` headers ClickUp sends on every response (no `Retry-After` — ClickUp does not
+ *  send that header at all; `X-RateLimit-Reset` is its only backoff signal on a 429). */
+export interface ClickUpRateLimitHeaders {
+  limit: number | null;
+  remaining: number | null;
+  /** Unix seconds when the current window resets. */
+  reset: number | null;
+}
+
+/** Read `X-RateLimit-Limit` / `X-RateLimit-Remaining` / `X-RateLimit-Reset` off a response. Any
+ *  missing/non-numeric header parses to `null` (never throws — headers are advisory). */
+export function readClickUpRateLimitHeaders(res: Response): ClickUpRateLimitHeaders {
+  const num = (name: string): number | null => {
+    const raw = res.headers.get(name);
+    if (raw === null) return null;
+    const n = Number(raw);
+    return Number.isFinite(n) ? n : null;
+  };
+  return { limit: num('X-RateLimit-Limit'), remaining: num('X-RateLimit-Remaining'), reset: num('X-RateLimit-Reset') };
+}
+
 /**
- * Retries a fetch on a transient response (429 or 5xx), honoring `Retry-After` when the server sends
- * it (falling back to a linear backoff otherwise). Bounded by `maxRetries` — an exhausted budget
- * returns the last (still-failing) response as-is; the caller (client.ts) classifies it as
- * `external-unreachable`. Never drops or duplicates the underlying call — `fn` is invoked exactly
- * once per attempt.
+ * Retries a fetch on a transient response (429 or 5xx). Backoff precedence: `Retry-After` (kept for
+ * any non-ClickUp caller that sends it) → ClickUp's `X-RateLimit-Reset` (unix seconds — ClickUp's ONLY
+ * 429 backoff signal; it never sends `Retry-After`) → a linear fallback when neither header is present.
+ * Bounded by `maxRetries` — an exhausted budget returns the last (still-failing) response as-is; the
+ * caller (client.ts) classifies it as `external-unreachable` (a clean typed error, not a hang). Never
+ * drops or duplicates the underlying call — `fn` is invoked exactly once per attempt.
  */
 export async function withBackoff(
   fn: () => Promise<Response>,
@@ -99,6 +123,7 @@ export async function withBackoff(
 ): Promise<Response> {
   const maxRetries = opts.maxRetries ?? 3;
   const sleep = opts.sleep ?? defaultSleep;
+  const now = opts.now ?? Date.now;
   let attempt = 0;
   for (;;) {
     const res = await fn();
@@ -106,7 +131,13 @@ export async function withBackoff(
     if (!transient || attempt >= maxRetries) return res;
     attempt += 1;
     const retryAfterHeader = res.headers.get('Retry-After');
-    const retryAfterMs = retryAfterHeader ? Number(retryAfterHeader) * 1000 : 500 * attempt;
-    await sleep(retryAfterMs);
+    let waitMs: number;
+    if (retryAfterHeader !== null) {
+      waitMs = Number(retryAfterHeader) * 1000;
+    } else {
+      const { reset } = readClickUpRateLimitHeaders(res);
+      waitMs = reset !== null ? Math.max(0, reset * 1000 - now()) : 500 * attempt;
+    }
+    await sleep(waitMs);
   }
 }

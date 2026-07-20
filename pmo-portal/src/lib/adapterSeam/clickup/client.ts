@@ -4,7 +4,13 @@
  * ever required to exercise this module.
  */
 import { AdapterError } from '../contract.ts';
-import { withBackoff, type ClickUpLanePriority, type ClickUpRateLimiter } from './rateLimit.ts';
+import {
+  withBackoff,
+  readClickUpRateLimitHeaders,
+  type ClickUpLanePriority,
+  type ClickUpRateLimiter,
+  type ClickUpRateLimitHeaders,
+} from './rateLimit.ts';
 
 const DEFAULT_BASE_URL = 'https://api.clickup.com/api/v2';
 
@@ -26,6 +32,11 @@ export interface ClickUpClientDeps {
   token: string;
   baseUrl?: string;
   rateLimiter?: ClickUpRateLimiter;
+  /** Optional sink for the `X-RateLimit-*` headers off the FINAL response of every request (success or
+   *  failure, after any retry/backoff) — lets a caller (e.g. the sweep) throttle bulk work BEFORE
+   *  hitting a 429, instead of only reacting after one (NFR-CUA-PERF-003). Never throws from this
+   *  callback outward — a caller's throttle logic is its own concern. */
+  onRateLimitInfo?: (info: ClickUpRateLimitHeaders) => void;
 }
 
 export interface ClickUpRequestOptions {
@@ -62,6 +73,8 @@ export async function clickUpRequest(deps: ClickUpClientDeps, opts: ClickUpReque
   } catch (err) {
     throw new ClickUpHttpError(0, 'external-unreachable', err instanceof Error ? err.message : 'ClickUp request failed');
   }
+
+  deps.onRateLimitInfo?.(readClickUpRateLimitHeaders(res));
 
   if (res.status === 429 || res.status >= 500) {
     throw new ClickUpHttpError(res.status, 'external-unreachable', `ClickUp request failed with status ${res.status}`);

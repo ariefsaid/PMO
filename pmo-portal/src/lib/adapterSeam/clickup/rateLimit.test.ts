@@ -65,6 +65,40 @@ describe('AC-CUA-080 a 429 triggers backoff honoring Retry-After, then resumes w
     expect(fetchImpl).toHaveBeenCalledTimes(3); // 1 initial + 2 retries, then gives up
     expect(res.status).toBe(503);
   });
+
+  it('AC-CUA-081 ClickUp never sends Retry-After — a 429 backs off to X-RateLimit-Reset instead, then resumes', async () => {
+    vi.setSystemTime(new Date(0)); // whole-second baseline — avoids a sub-second-truncation edge in the unix-seconds reset math
+    const start = Date.now();
+    const resetAtSeconds = Math.floor(start / 1000) + 3; // 3s in the future
+    let call = 0;
+    const fetchImpl = vi.fn(async () => {
+      call += 1;
+      if (call === 1) {
+        return new Response(null, { status: 429, headers: { 'X-RateLimit-Reset': String(resetAtSeconds) } });
+      }
+      return new Response(JSON.stringify({ ok: true }), { status: 200 });
+    });
+
+    const resultPromise = withBackoff(() => fetchImpl());
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(2900);
+    expect(fetchImpl).toHaveBeenCalledTimes(1); // reset hasn't elapsed yet
+
+    await vi.advanceTimersByTimeAsync(200);
+    const res = await resultPromise;
+    expect(fetchImpl).toHaveBeenCalledTimes(2); // resumed exactly once at the reset boundary
+    expect(res.status).toBe(200);
+  });
+
+  it('AC-CUA-081 exhausts the retry budget on repeated 429s (no Retry-After/X-RateLimit-Reset) — clean failure, not a hang', async () => {
+    const fetchImpl = vi.fn(async () => new Response(null, { status: 429 }));
+    const resultPromise = withBackoff(() => fetchImpl(), { maxRetries: 2, sleep: async () => {} });
+    const res = await resultPromise;
+    expect(fetchImpl).toHaveBeenCalledTimes(3);
+    expect(res.status).toBe(429);
+  });
 });
 
 describe('NFR-CUA-PERF-003 an interactive command jumps ahead of remaining queued bulk work', () => {
