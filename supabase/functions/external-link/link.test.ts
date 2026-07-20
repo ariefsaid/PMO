@@ -45,6 +45,22 @@ async function authed(body: unknown, sub = 'user-1') {
   return createAuthedRequest('http://edge.test/link', body, jwt);
 }
 
+// A List config that covers all four PMO statuses (OD-INT-10) — the real 2026-07-20 workspace probe
+// shape (open/custom/closed, no `done` type). Tests that must reach a successful link (past the new
+// link-time status-map validation) use this; tests that fail earlier (role gate, mixed-content, list
+// not found) are unaffected and keep the bare `{ name: 'Test List' }` response.
+const FULL_COVERAGE_LIST = {
+  name: 'Test List',
+  statuses: [
+    { status: 'to do', type: 'open', orderindex: 0 },
+    { status: 'in progress', type: 'custom', orderindex: 1 },
+    { status: 'complete', type: 'closed', orderindex: 2 },
+  ],
+};
+
+// A List with no members configured — the routine, non-fatal case for the member-map join.
+const NO_MEMBERS = { members: [] as Array<{ id: number; email?: string }> };
+
 describe('external-link — ClickUp branch', () => {
   it('Admin OK — push-seed with empty List succeeds', async () => {
     await withFetchMock(
@@ -66,8 +82,9 @@ describe('external-link — ClickUp branch', () => {
 
         supabaseRpc('read_vault_secret', () => jsonResponse('test-pat-token')),
 
-        clickup('/api/v2/list/list-1', () => jsonResponse({ name: 'Test List' })),
+        clickup('/api/v2/list/list-1', () => jsonResponse(FULL_COVERAGE_LIST)),
         clickup('/api/v2/list/list-1/task', () => jsonResponse({ tasks: [] })),
+        clickup('/api/v2/list/list-1/member', () => jsonResponse(NO_MEMBERS)),
 
         supabaseSelect('projects', () =>
           jsonResponse({ id: 'proj-1', project_manager_id: 'pm-9', org_id: 'org-1' }, {
@@ -82,7 +99,22 @@ describe('external-link — ClickUp branch', () => {
         // PMO task count via HEAD+count
         { label: 'pmo-task-count', method: 'HEAD', pathname: '/rest/v1/tasks', response: () => countResponse(0) },
 
-        { label: 'insert binding', method: 'POST', pathname: '/rest/v1/external_project_bindings', searchParams: { select: 'id' }, response: () => jsonResponse([{ id: 'binding-1' }], { status: 201 }) },
+        {
+          label: 'insert binding',
+          method: 'POST',
+          pathname: '/rest/v1/external_project_bindings',
+          searchParams: { select: 'id' },
+          response: (call) => {
+            const body = call.bodyJson as { config: { statusMap: { pmoToClickUp: Record<string, string> } } };
+            // OD-INT-10: the persisted config must cover all four PMO statuses, never the empty
+            // maps this bug used to ship.
+            assertEquals(body.config.statusMap.pmoToClickUp['To Do'], 'to do');
+            assertEquals(body.config.statusMap.pmoToClickUp['In Progress'], 'in progress');
+            assertEquals(body.config.statusMap.pmoToClickUp.Done, 'complete');
+            assertEquals(body.config.statusMap.pmoToClickUp.Blocked, 'in progress');
+            return jsonResponse([{ id: 'binding-1' }], { status: 201 });
+          },
+        },
 
         supabaseRpc('log_audit', (call) => {
           const body = call.bodyJson as Record<string, unknown>;
@@ -126,8 +158,9 @@ describe('external-link — ClickUp branch', () => {
 
         supabaseRpc('read_vault_secret', () => jsonResponse('test-pat-token')),
 
-        clickup('/api/v2/list/list-1', () => jsonResponse({ name: 'Test List' })),
+        clickup('/api/v2/list/list-1', () => jsonResponse(FULL_COVERAGE_LIST)),
         clickup('/api/v2/list/list-1/task', () => jsonResponse({ tasks: [] })),
+        clickup('/api/v2/list/list-1/member', () => jsonResponse(NO_MEMBERS)),
 
         supabaseSelect('projects', () =>
           jsonResponse({ id: 'proj-1', project_manager_id: 'user-1', org_id: 'org-1' }, {
@@ -463,8 +496,9 @@ describe('external-link — ClickUp branch', () => {
 
         supabaseRpc('read_vault_secret', () => jsonResponse('test-pat-token')),
 
-        clickup('/api/v2/list/list-1', () => jsonResponse({ name: 'Test List' })),
+        clickup('/api/v2/list/list-1', () => jsonResponse(FULL_COVERAGE_LIST)),
         clickup('/api/v2/list/list-1/task', () => jsonResponse({ tasks: [] })),
+        clickup('/api/v2/list/list-1/member', () => jsonResponse(NO_MEMBERS)),
 
         supabaseSelect('projects', () =>
           jsonResponse({ id: 'proj-1', project_manager_id: 'user-1', org_id: 'org-1' }, {
@@ -511,8 +545,9 @@ describe('external-link — ClickUp branch', () => {
 
         supabaseRpc('read_vault_secret', () => jsonResponse('test-pat-token')),
 
-        clickup('/api/v2/list/list-1', () => jsonResponse({ name: 'Test List' })),
+        clickup('/api/v2/list/list-1', () => jsonResponse(FULL_COVERAGE_LIST)),
         clickup('/api/v2/list/list-1/task', () => jsonResponse({ tasks: [] })),
+        clickup('/api/v2/list/list-1/member', () => jsonResponse(NO_MEMBERS)),
 
         supabaseSelect('projects', () =>
           jsonResponse({ id: 'proj-1', project_manager_id: 'user-1', org_id: 'org-1' }, {
@@ -536,6 +571,132 @@ describe('external-link — ClickUp branch', () => {
           direction: 'push-seed',
         }));
         assertEquals(res.status, 409);
+      },
+    );
+  });
+
+  it('OD-INT-10: a List whose statuses cannot cover the four PMO statuses is rejected → 422', async () => {
+    await withFetchMock(
+      [
+        supabaseSelect('profiles', () =>
+          jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
+
+        supabaseSelect('platform_operators', () => new Response('null', {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })),
+
+        supabaseSelect('external_org_bindings', () =>
+          jsonResponse({ secret_ref: 'vault-ref', status: 'active', config: {}, site_url: 'https://erp.example.com' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
+
+        supabaseRpc('read_vault_secret', () => jsonResponse('test-pat-token')),
+
+        // A List with ONLY a single open-type status: never a Done target -> coverage MUST fail.
+        clickup('/api/v2/list/list-1', () =>
+          jsonResponse({ name: 'Test List', statuses: [{ status: 'open', type: 'open', orderindex: 0 }] })),
+        clickup('/api/v2/list/list-1/task', () => jsonResponse({ tasks: [] })),
+
+        supabaseSelect('projects', () =>
+          jsonResponse({ id: 'proj-1', project_manager_id: 'user-1', org_id: 'org-1' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
+
+        { label: 'pmo-task-count', method: 'HEAD', pathname: '/rest/v1/tasks', response: () => countResponse(0) },
+      ],
+      async ({ calls }) => {
+        const res = await handleLinkRequest(await authed({
+          tier: 'clickup',
+          projectId: 'proj-1',
+          listId: 'list-1',
+          direction: 'push-seed',
+        }));
+        assertEquals(res.status, 422);
+        // Never persisted a half-broken binding, and never audited a link that didn't happen.
+        assertEquals(restCall(calls, 'external_project_bindings', 'POST').length, 0);
+        assertEquals(rpcCall(calls, 'log_audit').length, 0);
+      },
+    );
+  });
+
+  it('OD-INT-10 §4: member map matches by email; an unmatched member/profile on either side is absent, never blocks the link', async () => {
+    await withFetchMock(
+      [
+        supabaseSelect('profiles', (call) => {
+          // Two distinct queries hit /rest/v1/profiles: the caller's own profile (?id=eq.<uid>) and
+          // the org-wide member-map join (?org_id=eq.<org>) — disambiguate on the query param.
+          if (call.url.searchParams.has('org_id')) {
+            return jsonResponse([
+              { id: 'user-1', email: 'matched@example.com' },
+              { id: 'user-unmatched', email: 'nobody@example.com' },
+            ]);
+          }
+          return jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          });
+        }),
+
+        supabaseSelect('platform_operators', () => new Response('null', {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })),
+
+        supabaseSelect('external_org_bindings', () =>
+          jsonResponse({ secret_ref: 'vault-ref', status: 'active', config: {}, site_url: 'https://erp.example.com' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
+
+        supabaseRpc('read_vault_secret', () => jsonResponse('test-pat-token')),
+
+        clickup('/api/v2/list/list-1', () => jsonResponse(FULL_COVERAGE_LIST)),
+        clickup('/api/v2/list/list-1/task', () => jsonResponse({ tasks: [] })),
+        clickup('/api/v2/list/list-1/member', () =>
+          jsonResponse({
+            members: [
+              { id: 111, email: 'matched@example.com' },
+              { id: 222, email: 'ghost@example.com' }, // no PMO counterpart
+            ],
+          })),
+
+        supabaseSelect('projects', () =>
+          jsonResponse({ id: 'proj-1', project_manager_id: 'user-1', org_id: 'org-1' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
+
+        supabaseSelect('external_project_bindings', () => new Response('null', {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })),
+
+        { label: 'pmo-task-count', method: 'HEAD', pathname: '/rest/v1/tasks', response: () => countResponse(0) },
+
+        {
+          label: 'insert binding',
+          method: 'POST',
+          pathname: '/rest/v1/external_project_bindings',
+          searchParams: { select: 'id' },
+          response: (call) => {
+            const body = call.bodyJson as { config: { memberMap: { pmoToClickUp: Record<string, number>; clickUpToPmo: Record<string, string> } } };
+            assertEquals(body.config.memberMap.pmoToClickUp, { 'user-1': 111 });
+            assertEquals(body.config.memberMap.clickUpToPmo, { '111': 'user-1' });
+            return jsonResponse([{ id: 'binding-1' }], { status: 201 });
+          },
+        },
+
+        supabaseRpc('log_audit', () => jsonResponse(null)),
+      ],
+      async ({ calls }) => {
+        const res = await handleLinkRequest(await authed({
+          tier: 'clickup',
+          projectId: 'proj-1',
+          listId: 'list-1',
+          direction: 'push-seed',
+        }));
+        assertEquals(res.status, 200);
+        assertEquals(restCall(calls, 'external_project_bindings', 'POST').length, 1);
       },
     );
   });
