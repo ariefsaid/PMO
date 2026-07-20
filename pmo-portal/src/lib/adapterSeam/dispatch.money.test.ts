@@ -828,6 +828,115 @@ describe('C-1 DIRECTOR RULING: a mutable-anchor money doc (Payment Entry) is HEL
 });
 
 /**
+ * FIX 2 (round-9 cross-family SHOULD-FIX): a post-window RECOVERY REISSUE must re-assert the recorded
+ * actor's CURRENT authorization before it mints a NEW ERP money document.
+ *
+ * A quarantined-past-window immutable-anchor row whose probe MISSES falls through to a fresh ERP POST
+ * (only mutable-anchor/PE rows are held). The sweep's pre-dispatch `checkOutboxReplayAuthorization`
+ * deliberately re-authorizes ONLY `pending`/`failed` (so it does not also block an ADOPT of a real ERP
+ * doc, which would strand real money). That left the quarantined→reissue transition ungated: a demoted
+ * or deactivated actor's command could still be reissued hours later. The reissue is the one place we
+ * KNOW a new money write is about to happen, so the fresh check runs there — via `reauthorizeRecoveryReissue`.
+ */
+describe('FIX 2: a post-window recovery REISSUE re-asserts the actor authz; adopt/hold are never blocked', () => {
+  /** Drive an immutable-anchor row to quarantined-past-window with an EMPTY probe (so a reissue is what
+   *  would happen next), returning the fake + the outbox id. */
+  async function quarantinedReadyToReissue(opts: { reissueOnInconclusiveAbsence?: boolean } = {}) {
+    const fake = createFakeOutbox(opts);
+    await fake.deps.insertOutboxPending('procurement', 'pmo-1', 'key-1');
+    const id = [...fake.rows.keys()][0];
+    await fake.deps.claimOutboxForCommit(id); // a dead claimant that never finished
+    fake.backdate(id, LEASE_MS + 1);
+    // First retry quarantines the stale committing row (window not yet elapsed → retryable, no POST).
+    await expect(
+      dispatchMoneyWrite({ adapter: erpnextAdapter(vi.fn()), command: baseCommand, writeReadModel: vi.fn(), recordExternalRef: vi.fn(), money: fake.deps }),
+    ).rejects.toMatchObject({ code: 'external-unreachable' });
+    expect([...fake.rows.values()][0].state).toBe('quarantined');
+    fake.elapseWindow(id);
+    return { fake, id };
+  }
+
+  it('a DEMOTED/DEACTIVATED actor whose immutable-anchor row would reissue is HELD, never re-POSTed', async () => {
+    const { fake } = await quarantinedReadyToReissue();
+    const commit = vi.fn(async () => ({ externalRecordId: 'PI-REISSUE', canonical: { id: 'pmo-1' } }));
+    const reauthorizeRecoveryReissue = vi.fn(async () => ({ ok: false, message: 'actor no longer active' }));
+
+    await expect(
+      dispatchMoneyWrite({
+        adapter: erpnextAdapter(commit),
+        command: baseCommand,
+        writeReadModel: vi.fn(), recordExternalRef: vi.fn(),
+        money: { ...fake.deps, reauthorizeRecoveryReissue },
+      }),
+    ).rejects.toMatchObject({ code: 'command-held' });
+
+    expect(reauthorizeRecoveryReissue).toHaveBeenCalledTimes(1);
+    expect(commit).not.toHaveBeenCalled(); // the critical assertion: NO reissue under a stale actor
+    // Operator-visible, never dropped: the row is HELD (not confirmed, not silently discarded).
+    expect([...fake.rows.values()][0].state).toBe('held');
+  });
+
+  it('a STILL-AUTHORIZED actor DOES reissue (the check gates, it does not block a valid recovery)', async () => {
+    const { fake } = await quarantinedReadyToReissue();
+    const commit = vi.fn(async () => ({ externalRecordId: 'PI-REISSUE', canonical: { id: 'pmo-1' } }));
+    const reauthorizeRecoveryReissue = vi.fn(async () => ({ ok: true, message: '' }));
+
+    const result = await dispatchMoneyWrite({
+      adapter: erpnextAdapter(commit),
+      command: baseCommand,
+      writeReadModel: vi.fn(), recordExternalRef: vi.fn(),
+      money: { ...fake.deps, reauthorizeRecoveryReissue },
+    });
+
+    expect(reauthorizeRecoveryReissue).toHaveBeenCalledTimes(1);
+    expect(commit).toHaveBeenCalledTimes(1);
+    expect(result.externalRecordId).toBe('PI-REISSUE');
+    expect([...fake.rows.values()][0].state).toBe('confirmed');
+  });
+
+  it('an ADOPT (probe HIT) is NOT blocked by the reissue check — the recorded actor is not re-consulted', async () => {
+    const { fake } = await quarantinedReadyToReissue();
+    // The original POST actually landed: the probe now resolves the ERP doc → this is an adopt, not a reissue.
+    fake.setProbe('procurement', 'key-1', { externalRecordId: 'PI-LANDED' });
+    const commit = vi.fn();
+    // Even a refusing re-auth must not touch an adopt: adopting a REAL posted money doc must never be blocked.
+    const reauthorizeRecoveryReissue = vi.fn(async () => ({ ok: false, message: 'actor no longer active' }));
+
+    const result = await dispatchMoneyWrite({
+      adapter: erpnextAdapter(commit),
+      command: baseCommand,
+      writeReadModel: vi.fn(), recordExternalRef: vi.fn(),
+      money: { ...fake.deps, reauthorizeRecoveryReissue },
+    });
+
+    expect(reauthorizeRecoveryReissue).not.toHaveBeenCalled();
+    expect(commit).not.toHaveBeenCalled(); // adopted, not re-POSTed
+    expect(result.externalRecordId).toBe('PI-LANDED');
+    expect([...fake.rows.values()][0].state).toBe('confirmed');
+  });
+
+  it('a mutable-anchor PE still HOLDS regardless of the reissue check (C-1 is unchanged, no re-auth needed)', async () => {
+    const { fake } = await quarantinedReadyToReissue({ reissueOnInconclusiveAbsence: false });
+    const commit = vi.fn();
+    const reauthorizeRecoveryReissue = vi.fn(async () => ({ ok: true, message: '' }));
+
+    await expect(
+      dispatchMoneyWrite({
+        adapter: erpnextAdapter(commit),
+        command: baseCommand,
+        writeReadModel: vi.fn(), recordExternalRef: vi.fn(),
+        money: { ...fake.deps, reauthorizeRecoveryReissue },
+      }),
+    ).rejects.toMatchObject({ code: 'command-held' });
+
+    // The mutable-anchor hold owns this path — the reissue re-auth is never reached (nothing to reissue).
+    expect(reauthorizeRecoveryReissue).not.toHaveBeenCalled();
+    expect(commit).not.toHaveBeenCalled();
+    expect([...fake.rows.values()][0].state).toBe('held');
+  });
+});
+
+/**
  * Money-safety audit BLOCK 1 — the CLAIM BUDGET.
  *
  * ADR-0058's per-attempt request deadline was reasoned about as if the POST began at the instant of

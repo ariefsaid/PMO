@@ -59,13 +59,18 @@ import { resolveErpCredentials } from '../../../pmo-portal/src/lib/adapterSeam/e
 import { erpnextRequest, withProbeBudget, type ErpClientDeps } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/client.ts';
 import { resolveErpDispatchAdapter, withPaymentTypeDiscriminator } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/dispatchFactory.ts';
 import { canonicalCommandDigest, createDbMoneyOutboxDeps } from '../adapter-dispatch/moneyOutboxDeps.ts';
-import { checkOutboxReplayAuthorization } from '../adapter-dispatch/authGuard.ts';
+import { checkErpnextCommandAuthorization, checkOutboxReplayAuthorization } from '../adapter-dispatch/authGuard.ts';
 import { getReadModelWriter } from '../adapter-dispatch/readModelWriters.ts';
 import { recordExternalRef as recordExternalRefWrite } from '../../../pmo-portal/src/lib/adapterSeam/refs.ts';
 import { probeErpByAnchorKey, probeErpByPaymentComposite, type ErpProbeDeps } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/recoveryProbe.ts';
 import { ERPNEXT_COMPANIES_DOMAIN } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/adapter.ts';
 import { admitsDocForBindingCompany, companyDocFilters, isCompanyScopedKind } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/companyScope.ts';
+// BLOCK 1 / B5: the pull-adopt barrier now lives in `_shared/` so the WEBHOOK adopt path raises the
+// IDENTICAL guard (round-9 FIX 1). Re-exported below so this module's existing test imports still resolve.
+import { createInFlightAnchorProbe, type InFlightAnchorProbe } from '../_shared/inFlightAnchorProbe.ts';
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
+
+export { createInFlightAnchorProbe, type InFlightAnchorProbe };
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
@@ -113,84 +118,6 @@ export function sweepFieldsForKind(kind: ErpDocKind): string[] {
   // a global master (Supplier/Customer): Frappe rejects a list query naming a non-existent field.
   if (isCompanyScopedKind(kind)) fields.add('company');
   return Array.from(fields);
-}
-
-/**
- * The outbox states whose row may correspond to an ERP document that EXISTS but is NOT yet mapped to
- * its PMO record — the ONLY rows the pull-adopt guard has to know about (round-6 re-audit, finding 1).
- *
- * Why `failed` is excluded and that is SAFE: `dispatch.ts` marks a row `failed` ONLY on a
- * NON-retryable adapter error — i.e. ERP explicitly REFUSED the write, so no ERP document carries that
- * idempotency key. An ambiguous/lost outcome is retryable and deliberately marks NOTHING (the row
- * stays `committing`), and a human "try again" re-claims a `failed` row back to `committing` before
- * any POST. So every state in which an ERP doc can exist un-mapped is guarded here.
- *
- * `confirmed` stays out for the original reason: its `external_refs` mapping exists, so the poll
- * resolves rather than adopts (and must keep applying that doc's updates).
- */
-const IN_FLIGHT_OUTBOX_STATES = ['pending', 'committing', 'committed', 'quarantined', 'held'] as const;
-
-/**
- * Every UUID appearing in an anchor value. The idempotency key of an ERPNext money command is ALWAYS a
- * UUID — `adapter-dispatch/index.ts` rejects a non-UUID key (`isOpaqueIdempotencyKey`) before any ERP
- * write, precisely so a short key cannot substring-match an unrelated document. So extracting the UUIDs
- * from a document's anchor field yields the complete set of keys that document could possibly carry,
- * and the guard can ask the outbox about exactly those instead of scanning the whole table.
- */
-const UUID_IN_TEXT = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
-
-/** Answers, for ONE candidate document's anchor value, "does an unresolved outbox row own this?" */
-export type InFlightAnchorProbe = (anchorValue: string) => Promise<boolean>;
-
-/**
- * BLOCK 1 (the double-adoption fix), rebuilt as a real barrier — round-7 cross-family audit, B5.
- *
- * A document whose anchor field carries the idempotency key of an UNRESOLVED outbox row for this org is
- * NOT the poll's to adopt: it belongs to a PMO-originated command still inside the ADR-0058 recovery
- * algorithm, and the outbox finalization maps it to the ORIGINAL PMO record id. Adopting it mints a
- * SECOND PMO row for the ONE ERP document — revenue double-counted — and the outbox's own
- * `record_outbox_ref` then fails the `unique (org_id, domain, external_record_id)` constraint (0093)
- * forever, wedging a real money row at `committed`.
- *
- * The previous shape read the org's in-flight keys into a `Set` ONCE per tick. That was unsound twice
- * over (B5):
- *   (a) the saturation check could not fire — it asked for `limit(1001)` while PostgREST's
- *       `max_rows = 1000` (supabase/config.toml) caps every read at 1000, so a truncated guard looked
- *       exactly like a complete one; and
- *   (b) the set was STALE — read before the ERP poll, so a create started mid-tick (outbox row inserted,
- *       ERP document POSTed, both before the poll) was simply absent from it and got pull-adopted.
- *
- * This shape has no snapshot and no cap. Each candidate is checked WHEN IT IS SEEN, with an existence
- * query keyed on the UUIDs in that document's OWN anchor value — a bounded `in (…)` of at most a
- * handful of keys, which `max_rows` cannot truncate and staleness cannot affect. Correctness rests on
- * ADR-0058 §2's ordering: the outbox row is INSERTED BEFORE the ERP POST, so a visible ERP document
- * always has its row already present.
- *
- * The per-tick memo is safe in both directions: a key it caches as in-flight only makes the guard more
- * conservative for the rest of the tick (the document is adopted on a later tick), and a key it caches
- * as unknown was proven to have no outbox row at a moment the document already existed — which, by the
- * insert-before-POST ordering, means the document is native.
- *
- * Fails CLOSED on a read error: sweeping with a blind guard is what duplicated money rows.
- */
-export function createInFlightAnchorProbe(serviceClient: SupabaseClient, orgId: string): InFlightAnchorProbe {
-  const memo = new Map<string, boolean>();
-  return async (anchorValue: string): Promise<boolean> => {
-    const keys = Array.from(new Set(anchorValue.match(UUID_IN_TEXT) ?? [])).map((k) => k.toLowerCase());
-    if (keys.length === 0) return false; // a native ERP document carries no stamped key — nothing to ask.
-    const unknown = keys.filter((k) => !memo.has(k));
-    if (unknown.length > 0) {
-      const { data, error } = await serviceClient.from('external_command_outbox')
-        .select('idempotency_key')
-        .eq('org_id', orgId)
-        .in('state', IN_FLIGHT_OUTBOX_STATES as unknown as string[])
-        .in('idempotency_key', unknown);
-      if (error) throw new AppError(error.message, error.code);
-      const found = new Set(((data as Array<{ idempotency_key: string }> | null) ?? []).map((r) => r.idempotency_key));
-      for (const key of unknown) memo.set(key, found.has(key));
-    }
-    return keys.some((k) => memo.get(k) === true);
-  };
 }
 
 /**
@@ -920,6 +847,24 @@ export async function buildReconcileDepsLive(serviceClient: SupabaseClient, org:
     // `payment_type` discriminator the synchronous dispatch fallback uses, so a Receive recovery can
     // never adopt a Pay document (and vice-versa) through a shared `reference_no`.
     probeByRemarksKey: buildOutboxProbe({ probeDeps, kind: String(kind), anchorField, anchorMutable: entry.anchorMutable === true, payload }),
+    // FIX 2 (round-9 SHOULD-FIX): a post-window RECOVERY REISSUE (a quarantined immutable-anchor row
+    // whose probe misses → a fresh ERP POST) re-asserts the RECORDED actor's CURRENT authorization. The
+    // pre-dispatch `checkOutboxReplayAuthorization` above re-authorizes only pending/failed (so it does
+    // not also block an ADOPT of a real ERP doc); this closes the quarantined→reissue gap with the SAME
+    // `checkErpnextCommandAuthorization` rule the synchronous gate + that replay check run. Consulted by
+    // `dispatch.ts` ONLY on the actual reissue branch — an adopt or a mutable-anchor hold never calls it.
+    // Fail-CLOSED on an unattributable row; a refusal HOLDS the row for an operator (never dropped).
+    reauthorizeRecoveryReissue: async () => {
+      if (!rowExtra.actor_user_id) {
+        return { ok: false, message: `outbox row ${row.id} has no recorded actor — reissue held for an operator` };
+      }
+      const res = await checkErpnextCommandAuthorization(serviceClient as never, org.orgId, rowExtra.actor_user_id, {
+        domain: command.domain,
+        operation: rowExtra.operation,
+        record: { id: row.pmoRecordId, erp_doc_kind: payload.erp_doc_kind },
+      });
+      return { ok: res.ok, message: res.message };
+    },
   });
 
   const writeReadModel = async (canonical: PmoRecord): Promise<void> => {

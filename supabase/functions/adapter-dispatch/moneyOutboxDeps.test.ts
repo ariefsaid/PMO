@@ -388,3 +388,27 @@ Deno.test('probeByRemarksKey + backoff are passed through from the injected opts
   assert(probeCalled, 'expected the injected probe to be invoked');
   assert(backoffCalled, 'expected the injected backoff to be invoked');
 });
+
+Deno.test('FIX 2: reauthorizeRecoveryReissue is passed through when supplied (sweep path) and UNDEFINED when omitted (sync path is byte-for-byte)', async () => {
+  const { client } = makeFakeClient();
+
+  // Sync path: no reauth supplied ⇒ the dep is undefined, so dispatch.ts never re-checks a reissue
+  // (the synchronous gate already ran fresh for the current caller).
+  const syncDeps = createDbMoneyOutboxDeps({
+    serviceClient: client, orgId: 'org-1', externalTier: 'erpnext', operation: 'create',
+    probeByRemarksKey: async () => null,
+  });
+  assert(syncDeps.reauthorizeRecoveryReissue === undefined, 'the sync path must not carry a reissue re-check');
+
+  // Sweep path: the recovery pass supplies it, and it is invoked verbatim on the reissue branch.
+  let reauthCalled = false;
+  const sweepDeps = createDbMoneyOutboxDeps({
+    serviceClient: client, orgId: 'org-1', externalTier: 'erpnext', operation: 'create',
+    probeByRemarksKey: async () => null,
+    reauthorizeRecoveryReissue: async () => { reauthCalled = true; return { ok: false, message: 'actor demoted' }; },
+  });
+  assert(typeof sweepDeps.reauthorizeRecoveryReissue === 'function', 'the sweep path must carry the reissue re-check');
+  const result = await sweepDeps.reauthorizeRecoveryReissue!();
+  assert(reauthCalled, 'expected the injected reissue re-check to be invoked');
+  assertEquals(result, { ok: false, message: 'actor demoted' }, 'the re-check result is passed through unchanged');
+});

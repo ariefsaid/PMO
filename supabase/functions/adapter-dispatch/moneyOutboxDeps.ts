@@ -150,6 +150,12 @@ export interface DbMoneyOutboxDepsOpts {
   /** Production backoff delay before re-reading a fresh (live-owned) `committing` row. Defaults to a
    *  small real delay; tests inject an instant/fast one. */
   backoff?: () => Promise<void>;
+  /** FIX 2 (round-9 SHOULD-FIX): the post-window RECOVERY-REISSUE authorization re-check. Supplied by
+   *  the SWEEP recovery path (which reconstructs a frozen command with no fresh dispatch gate) so a
+   *  quarantined immutable-anchor row reissued after its actor was demoted/deactivated is HELD, not
+   *  posted. The synchronous dispatch path leaves it undefined — its gate already ran fresh for the
+   *  current caller (see `dispatch.ts` `reauthorizeRecoveryReissue`). */
+  reauthorizeRecoveryReissue?: () => Promise<{ ok: boolean; message: string }>;
 }
 
 /** Builds the DB-backed `DispatchMoneyOutboxDeps` for ONE request's org/tier/operation. */
@@ -253,5 +259,7 @@ export function createDbMoneyOutboxDeps(opts: DbMoneyOutboxDepsOpts): DispatchMo
     probeByRemarksKey: opts.probeByRemarksKey,
     backoff: opts.backoff ?? defaultBackoff,
     payloadDigest: opts.payloadDigest,
+    // FIX 2: undefined on the synchronous path (byte-for-byte); the sweep recovery path supplies it.
+    ...(opts.reauthorizeRecoveryReissue ? { reauthorizeRecoveryReissue: opts.reauthorizeRecoveryReissue } : {}),
   };
 }

@@ -126,6 +126,17 @@ export interface DispatchMoneyOutboxDeps {
    *  insert and compared against a re-read row's stored digest to reject idempotency-key reuse with a
    *  different payload. Absent ⇒ the binding check is skipped (P0/P1 and pre-M-3 callers). */
   payloadDigest?: string;
+  /**
+   * FIX 2 (round-9 cross-family SHOULD-FIX): re-assert the recorded actor's CURRENT authorization at a
+   * post-window RECOVERY REISSUE — a `quarantined` immutable-anchor claim whose probe MISSES, about to
+   * mint a NEW ERP money document. A reissue is a new money write, so it runs the SAME authz rule the
+   * synchronous dispatch gate and the first-attempt (`pending`/`failed`) replay run, against the row's
+   * recorded actor + the org's CURRENT role/active-membership/domain-ownership. `{ok:false}` HOLDS the
+   * row for an operator (never drops it). Absent ⇒ NO re-check: the synchronous path already gated the
+   * current caller fresh, and P0/P1/non-money tiers never reissue. It is consulted ONLY on the actual
+   * reissue branch — an ADOPT (probe hit) or a mutable-anchor HOLD returns earlier and never calls it,
+   * so neither is newly blocked (only the reissue needs the fresh check). */
+  reauthorizeRecoveryReissue?: () => Promise<{ ok: boolean; message: string }>;
   /** Injectable monotonic-enough wall clock (ms) for the claim-budget gate below. Defaults to
    *  `Date.now`; tests inject a controllable clock so the budget can be proven against REAL elapsed
    *  time rather than a static relationship between two constants (audit BLOCK 1). */
@@ -290,6 +301,33 @@ async function claimAndCommit(
     // generic transient 'external-unreachable' (retrying will not help; an operator must resolve it).
     throw new AppError('payment command held for operator resolution — not auto-reissued (mutable anchor)', 'command-held');
   } else {
+    // FIX 2 (round-9 SHOULD-FIX): a post-window RECOVERY REISSUE mints a NEW ERP money document, so it
+    // must re-assert the recorded actor's CURRENT authorization — the SAME rule the synchronous gate +
+    // the first-attempt (`pending`/`failed`) replay run. Those first-attempt POSTs
+    // (`isRecoveryReissue === false`) are already gated upstream (`checkOutboxReplayAuthorization` in
+    // the sweep's buildReconcileDeps), and the synchronous path leaves this dep undefined (its gate ran
+    // fresh for the current caller). The ONE gap this closes is the `quarantined`→reissue transition,
+    // which that pre-dispatch check deliberately skips so it does NOT also block an ADOPT of a real ERP
+    // doc (the `probed` branch above) or a mutable-anchor HOLD (the branch above) — only the actual
+    // reissue reaches here. A demoted / deactivated actor's reissue is HELD for an operator (fenced on
+    // the token), surfaced non-silently, and NEVER auto-reissued or dropped.
+    if (isRecoveryReissue && money.reauthorizeRecoveryReissue) {
+      const auth = await money.reauthorizeRecoveryReissue();
+      if (!auth.ok) {
+        const heldCount = await money.markOutboxHeld(claimed.id, `recovery-reissue-unauthorized: ${auth.message}`, token);
+        if (heldCount === 0) {
+          // Fencing loss: another claimant superseded this token before the hold landed — surface the
+          // row's CURRENT (possibly confirmed) state, not this claimant's stale hold.
+          const fresh = await money.readOutbox(command.domain, command.record.id, command.idempotencyKey!);
+          return reconcileOutbox(fresh!, deps);
+        }
+        console.error(
+          `[money-outbox] HELD ${command.domain}/${command.record.id} (idempotencyKey=${command.idempotencyKey}) — ` +
+            `recovery reissue blocked: the recorded actor is no longer authorized (${auth.message}); awaiting operator resolution`,
+        );
+        throw new AppError('money command held for operator resolution — recovery reissue blocked: actor no longer authorized', 'command-held');
+      }
+    }
     // Audit BLOCK 1 — the CLAIM BUDGET, enforced at the POST SITE against real elapsed time (never
     // inferred from the relationship between two constants). Everything above this point is
     // read-only or a fenced write-back, both of which a supersede makes harmless; `adapter.commit` is

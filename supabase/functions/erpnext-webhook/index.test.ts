@@ -17,8 +17,9 @@
 // (the same stance as scripts/deno-boot-smoke.ts). The handler under test is `handleErpWebhook`
 // (exported), not the Deno.serve wrapper itself.
 (Deno as unknown as { serve: (...a: unknown[]) => unknown }).serve = () => ({ finished: Promise.resolve() });
-const { handleErpWebhook } = await import('./index.ts');
+const { handleErpWebhook, buildIsInFlightAdopt } = await import('./index.ts');
 type ErpWebhookHandlerDeps = Parameters<typeof handleErpWebhook>[1];
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 const SECRET = 'test-webhook-secret';
 const ORG_ID = '00000000-0000-0000-0000-000000000001';
@@ -310,4 +311,98 @@ Deno.test('B4: a GLOBAL master (Customer) is still adopted — it carries no com
   const res = await handleErpWebhook(req(event, await sign(event)), d);
   assert(res.status === 200, `expected 200, got ${res.status}`);
   assert((d as unknown as { _applied: () => number })._applied() === 1, 'a Customer master must still be adopted (no company field exists on it)');
+});
+
+// ────────────────────────────────────────────────────────────────────────────────────────────────
+// FIX 1 (round-9 cross-family SHOULD-FIX) — the webhook must NOT adopt a doc a still-in-flight
+// PMO-originated command owns. The race: dispatch POSTs a Sales Invoice (outbox `committing`); ERP
+// commits and fires the webhook immediately; the webhook's claim-first adopt records `external_refs`
+// (a fresh UUID ← ERP name) BEFORE the dispatch's fenced `record_outbox_ref` (R ← ERP name). The outbox
+// insert then hard-fails 23505 on the `external_refs (org,domain,external_record_id)` unique (0093) — a
+// DIFFERENT constraint than its on-conflict target — so it is NOT caught, stranding the outbox row at
+// `committed` and leaving a phantom mirror under a random UUID; the user's real SI is unlinked.
+//
+// The fix mirrors the sweep's B5 barrier on the webhook: refuse to adopt any doc whose anchor field
+// carries the idempotency key of an UNRESOLVED (in-flight, non-confirmed) outbox row — let the
+// dispatch/sweep own finalization. Once the dispatch confirms, its row is `confirmed` (not an IN_FLIGHT
+// state), so the probe returns false and a legitimately-later webhook flows through the normal path.
+// ────────────────────────────────────────────────────────────────────────────────────────────────
+
+const INFLIGHT_KEY = '5f7d2b1e-0c3a-4a9e-9f10-2b6c8d4e1a77';
+
+/** A Sales Invoice event whose `remarks` anchor carries `key` (the ADR-0058 §3 stamp). */
+function siEventWithRemarks(key: string, name = 'ACC-SINV-2026-00099'): string {
+  const doc = { name, docstatus: 1, grand_total: '125000.00', outstanding_amount: '125000.00', company: COMPANY, remarks: `Invoice for ACME — ${key}` };
+  return JSON.stringify({ doctype: 'Sales Invoice', name, docstatus: 1, amended_from: null, modified: '2026-07-20 09:00:00.000000', doc });
+}
+
+/** A fake `external_command_outbox` that really applies the probe's filters (org + in-flight states +
+ *  idempotency_key set), so `buildIsInFlightAdopt` runs its REAL query against seeded rows. */
+function fakeOutboxClient(rows: Array<{ org_id: string; state: string; idempotency_key: string }>) {
+  const client = {
+    from: () => {
+      let filtered = rows;
+      const builder = {
+        eq: (col: string, val: string) => { filtered = filtered.filter((r) => (r as unknown as Record<string, string>)[col] === val); return builder; },
+        in: (col: string, vals: readonly string[]) => { filtered = filtered.filter((r) => vals.includes((r as unknown as Record<string, string>)[col])); return builder; },
+        then: (resolve: (v: unknown) => void) => resolve({ data: filtered.map((r) => ({ idempotency_key: r.idempotency_key })), error: null }),
+      };
+      return { select: () => builder };
+    },
+  } as unknown as SupabaseClient;
+  return client;
+}
+
+/** deps whose `isInFlightAdopt` is the REAL wiring (`buildIsInFlightAdopt`) over a seeded outbox. */
+function depsWithOutbox(rows: Array<{ org_id: string; state: string; idempotency_key: string }>): ErpWebhookHandlerDeps & { _applied: () => number } {
+  let applied = 0;
+  return {
+    resolveEmployingOrgs: async () => [{ orgId: ORG_ID, webhookSecret: SECRET, company: COMPANY, ownedDomains: ['procurement', 'revenue', 'companies'] }],
+    applyEvent: async () => { applied += 1; return { kind: 'upserted' as const, pmoRecordId: 'pmo-1', adopted: false }; },
+    isInFlightAdopt: buildIsInFlightAdopt(fakeOutboxClient(rows)),
+    _applied: () => applied,
+  } as unknown as ErpWebhookHandlerDeps & { _applied: () => number };
+}
+
+Deno.test('FIX 1: a Sales Invoice a still-COMMITTING dispatch owns is NOT adopted (no phantom mirror/ref — dispatch keeps its one row)', async () => {
+  const d = depsWithOutbox([{ org_id: ORG_ID, state: 'committing', idempotency_key: INFLIGHT_KEY }]);
+  const event = siEventWithRemarks(INFLIGHT_KEY);
+  const res = await handleErpWebhook(req(event, await sign(event)), d);
+  assert(res.status === 200, `expected a 200 ack (the dispatch/sweep owns this doc), got ${res.status}`);
+  assert(d._applied() === 0, 'applyEvent must NOT run — adopting mints a phantom mirror + wedges record_outbox_ref on the extid unique');
+  const body = await res.json();
+  assert(body.skipped === 'in-flight-command-owns-doc', `expected an explicit in-flight skip, got ${JSON.stringify(body)}`);
+});
+
+Deno.test('FIX 1: every UNRESOLVED outbox state guards the webhook (committed/quarantined/held too)', async () => {
+  for (const state of ['pending', 'committing', 'committed', 'quarantined', 'held']) {
+    const d = depsWithOutbox([{ org_id: ORG_ID, state, idempotency_key: INFLIGHT_KEY }]);
+    const event = siEventWithRemarks(INFLIGHT_KEY);
+    const res = await handleErpWebhook(req(event, await sign(event)), d);
+    assert(d._applied() === 0, `a '${state}' outbox row's doc may exist unmapped — the webhook must not adopt it`);
+    assert((await res.json()).skipped === 'in-flight-command-owns-doc', `expected in-flight skip for state '${state}'`);
+  }
+});
+
+Deno.test('FIX 1: once the dispatch CONFIRMS (outbox confirmed), the SAME webhook flows through normally (legitimate later delivery is not blocked)', async () => {
+  const d = depsWithOutbox([{ org_id: ORG_ID, state: 'confirmed', idempotency_key: INFLIGHT_KEY }]);
+  const event = siEventWithRemarks(INFLIGHT_KEY);
+  const res = await handleErpWebhook(req(event, await sign(event)), d);
+  assert(res.status === 200, `expected 200, got ${res.status}`);
+  assert(d._applied() === 1, 'a confirmed dispatch has its external_refs mapping — the webhook resolves+updates, never blocked');
+});
+
+Deno.test('FIX 1: a NATIVE Sales Invoice (no stamped key in remarks) is still adopted normally', async () => {
+  const d = depsWithOutbox([{ org_id: ORG_ID, state: 'committing', idempotency_key: INFLIGHT_KEY }]);
+  const event = siEventWithRemarks('cash sale — no PMO key here'); // remarks carries no UUID
+  const res = await handleErpWebhook(req(event, await sign(event)), d);
+  assert(res.status === 200, `expected 200, got ${res.status}`);
+  assert(d._applied() === 1, 'a native ERP invoice must still be adopted (its anchor carries no in-flight key)');
+});
+
+Deno.test('FIX 1: ANOTHER org\'s in-flight row never blocks this org (org scoping preserved)', async () => {
+  const d = depsWithOutbox([{ org_id: 'some-other-org', state: 'committing', idempotency_key: INFLIGHT_KEY }]);
+  const event = siEventWithRemarks(INFLIGHT_KEY);
+  const res = await handleErpWebhook(req(event, await sign(event)), d);
+  assert(d._applied() === 1, 'the in-flight guard is org-scoped — a foreign org\'s command must not block adoption here');
 });

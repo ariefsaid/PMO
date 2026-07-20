@@ -28,8 +28,9 @@ import { decodeErpWebhookEvent } from '../../../pmo-portal/src/lib/adapterSeam/e
 import { applyErpFeedEvent } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/applyFeed.ts';
 import { admitsDocForBindingCompany } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/companyScope.ts';
 import { createErpFeedDeps, ERPNEXT_TIER } from '../_shared/erpnextFeedDeps.ts';
+import { createInFlightAnchorProbe } from '../_shared/inFlightAnchorProbe.ts';
 import { DOCTYPE_BODIES } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/doctypeBodies.ts';
-import type { ErpDocKind } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/doctypeRegistry.ts';
+import { DOCTYPE_REGISTRY, type ErpDocKind } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/doctypeRegistry.ts';
 import type { ErpFeedEvent } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/webhookEvent.ts';
 import type { ApplyOutcome } from '../../../pmo-portal/src/lib/adapterSeam/applyEngine.ts';
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
@@ -101,6 +102,16 @@ export interface ErpWebhookHandlerDeps {
   /** Apply one decoded event for a resolved org (the wrapper builds the feed deps + the fromDoc-mapped
    *  canonical + calls applyErpFeedEvent). Returns the apply outcome (or throws on a real failure). */
   applyEvent: (orgId: string, event: ErpFeedEvent) => Promise<ApplyOutcome>;
+  /**
+   * FIX 1 (round-9 SHOULD-FIX): the in-flight adopt guard — the SAME `createInFlightAnchorProbe` barrier
+   * the sweep raises (`buildIsInFlightAdopt`). Answers "does an UNRESOLVED (in-flight, non-confirmed)
+   * outbox row for this org own this event's anchor key?" When true, the ERP doc belongs to a
+   * PMO-originated command still inside the ADR-0058 recovery algorithm — the webhook must NOT adopt it
+   * (adopting mints a phantom mirror under a random id AND wedges the dispatch's fenced
+   * `record_outbox_ref` on the 0093 extid unique). Optional so the existing gate/decode tests stay
+   * byte-for-byte; the Deno.serve wrapper ALWAYS wires it.
+   */
+  isInFlightAdopt?: (orgId: string, event: ErpFeedEvent) => Promise<boolean>;
 }
 
 /**
@@ -186,6 +197,18 @@ export async function handleErpWebhook(req: Request, deps: ErpWebhookHandlerDeps
     return json({ ok: true, skipped: 'company-not-in-scope' });
   }
 
+  // FIX 1 (round-9 SHOULD-FIX): the in-flight adopt guard — the SAME barrier the sweep's
+  // `createInFlightAnchorProbe` raises. If this doc's anchor carries the idempotency key of an
+  // UNRESOLVED (in-flight, non-confirmed) outbox row, it belongs to a PMO-originated command still
+  // finalizing (ADR-0058 §4) — the dispatch/sweep maps that ERP name to the ORIGINAL PMO record id.
+  // Adopting it here mints a SECOND (phantom) mirror under a random id AND makes the dispatch's fenced
+  // `record_outbox_ref` fail the 0093 extid unique, wedging a real money row at `committed`. Ack-and-skip
+  // (lossy hint, FR-ENA-083) — the dispatch/sweep owns finalization; once it CONFIRMS, its outbox row is
+  // no longer in-flight and a legitimately-later webhook flows through the normal resolve/update path.
+  if (await deps.isInFlightAdopt?.(matchedOrg.orgId, event)) {
+    return json({ ok: true, skipped: 'in-flight-command-owns-doc' });
+  }
+
   // ── 3. Apply via the lineage-aware feed (lossy hint; the sweep is the convergence authority). ──
   try {
     const outcome = await deps.applyEvent(matchedOrg.orgId, event);
@@ -254,6 +277,25 @@ async function resolveEmployingOrgsLive(serviceClient: SupabaseClient): Promise<
   return candidates.map((c) => ({ ...c, ownedDomains: byOrg.get(c.orgId) ?? [] }));
 }
 
+/**
+ * FIX 1 (round-9 SHOULD-FIX): build the webhook's in-flight adopt guard over the SAME
+ * `createInFlightAnchorProbe` the sweep uses. Reads the anchor off `event.doc` using the kind's stock
+ * anchor field (DOCTYPE_REGISTRY) — a doc that carries no key, or a kind with no anchor, is a native doc
+ * and adopts normally. Exported so its wiring is unit-tested (index.test.ts) against a seeded outbox
+ * rather than reachable only through the live stack.
+ */
+export function buildIsInFlightAdopt(serviceClient: SupabaseClient): (orgId: string, event: ErpFeedEvent) => Promise<boolean> {
+  return (orgId, event) => {
+    if (!event.kind) return Promise.resolve(false);
+    const anchorField = DOCTYPE_REGISTRY[event.kind].anchorField;
+    if (!anchorField) return Promise.resolve(false); // anchor-less kind — nothing to probe.
+    const anchor = ((event.doc ?? {}) as Record<string, unknown>)[anchorField];
+    if (typeof anchor !== 'string' || anchor === '') return Promise.resolve(false);
+    // A fresh probe per event: one anchor is checked, so the per-tick memo carries no benefit here.
+    return createInFlightAnchorProbe(serviceClient, orgId)(anchor);
+  };
+}
+
 /** The real applyEvent: map the ERP doc → canonical via the kind's fromDoc, stamp the routing fields,
  *  build the feed deps, and call applyErpFeedEvent. */
 async function applyEventLive(
@@ -284,5 +326,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
   return handleErpWebhook(req, {
     resolveEmployingOrgs: () => resolveEmployingOrgsLive(serviceClient),
     applyEvent: (orgId, event) => applyEventLive(serviceClient, orgId, event),
+    // FIX 1: the in-flight adopt guard is ALWAYS wired on the live path (the dep is optional only so the
+    // gate/decode unit tests stay byte-for-byte).
+    isInFlightAdopt: buildIsInFlightAdopt(serviceClient),
   });
 });
