@@ -919,7 +919,7 @@ select is(
 -- `log_audit` was not granted to service_role, so the edge fn's call 403'd silently. **That claim was
 -- FALSE** — `0080_service_role_grants.sql` already does `grant all on all functions in schema public
 -- to service_role` (+ default privileges), so service_role has always had EXECUTE. Verified:
--- `has_function_privilege('service_role', 'public.log_audit(...)', 'EXECUTE')` = true even with 0108's
+-- `has_function_privilege('service_role', 'public.log_audit(...)', 'EXECUTE')` = true even with 0110's
 -- grant removed. A "service_role can execute log_audit" assertion is therefore UNFALSIFIABLE and was
 -- removed rather than left as decoration. The disconnect-audit bug that actually shipped was the WRONG
 -- ARG SHAPE at the call site; that is proven where it lives — in the edge fns' deno tests, which assert
@@ -997,7 +997,7 @@ select isnt(
   'AC-EAC-020 unlinked project binding has disconnected_at set'
 );
 
--- Test 82: Partial unique index (0108) permits re-linking the same container after unlink (tombstone does not block)
+-- Test 82: Partial unique index (0110) permits re-linking the same container after unlink (tombstone does not block)
 -- The index is: CREATE UNIQUE INDEX external_project_bindings_active_container_uq
 --   ON external_project_bindings (org_id, external_tier, external_container_id) WHERE disconnected_at IS NULL;
 -- This means only ACTIVE bindings (disconnected_at IS NULL) are constrained.
