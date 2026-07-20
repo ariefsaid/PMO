@@ -108,10 +108,24 @@ interface ClickUpDeps {
   baseUrl?: string;
 }
 
-/** Get ClickUp List task count (page=0 to check if empty). */
+/**
+ * Get ClickUp List task count (page=0 to check if empty).
+ *
+ * `GET /list/{id}/task` excludes closed, subtasks, archived, and multi-list tasks by DEFAULT — without
+ * these flags a List holding only closed/archived (or only-subtask) items reads as EMPTY, so push-seed
+ * would proceed to seed into a List that is not actually empty. Count with the SAME full filter set the
+ * sweep reads use (`reads.ts`'s `buildListQuery`) so emptiness here means the same thing it means there.
+ */
 async function getListTaskCount(deps: ClickUpDeps, listId: string): Promise<number> {
   const baseUrl = deps.baseUrl ?? 'https://api.clickup.com/api/v2';
-  const res = await deps.fetchImpl(`${baseUrl}/list/${listId}/task?page=0`, {
+  const query = new URLSearchParams({
+    page: '0',
+    include_closed: 'true',
+    subtasks: 'true',
+    archived: 'true',
+    include_timl: 'true',
+  });
+  const res = await deps.fetchImpl(`${baseUrl}/list/${listId}/task?${query.toString()}`, {
     headers: { Authorization: `Bearer ${deps.token}` },
   });
   if (!res.ok) {
