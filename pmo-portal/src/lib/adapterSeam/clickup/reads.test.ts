@@ -3,10 +3,12 @@ import {
   clickUpListChangesSinceWatermark,
   clickUpListRawChangesSinceWatermark,
   clickUpGetByExternalId,
+  clickUpGetTaskRaw,
   type ClickUpReadDeps,
 } from './reads.ts';
 import type { ClickUpStatusMap } from './statusMap.ts';
 import type { ClickUpMemberMap } from './memberMap.ts';
+import type { ClickUpClientDeps } from './client.ts';
 
 const statusMap: ClickUpStatusMap = {
   pmoToClickUp: { 'To Do': 'to do', Done: 'complete' },
@@ -116,5 +118,30 @@ describe('AC-CUA-036 getByExternalId resolves a task or null on a 404', () => {
     const fetchImpl = vi.fn(async () => new Response(JSON.stringify({ err: 'Task not found' }), { status: 404 }));
     const record = await clickUpGetByExternalId('tasks', 'cu-missing', baseDeps(fetchImpl as unknown as typeof fetch));
     expect(record).toBeNull();
+  });
+});
+
+describe('clickUpGetTaskRaw — the WORKER re-GET (OD-INT-11): the RAW task incl. list.id + archived', () => {
+  it('GET /task/{id} returns the raw task (list.id + archived preserved, not just the mapped canonical)', async () => {
+    const fetchImpl = vi.fn(async (url: string) => {
+      expect(url).toContain('/task/cu-1');
+      return new Response(
+        JSON.stringify({ ...task('cu-1', '9999'), list: { id: 'list-9' }, archived: true }),
+        { status: 200 },
+      );
+    });
+    const deps: ClickUpClientDeps = { fetchImpl: fetchImpl as unknown as typeof fetch, token: 't' };
+    const raw = await clickUpGetTaskRaw('cu-1', deps);
+    expect(raw?.id).toBe('cu-1');
+    expect(raw?.date_updated).toBe('9999');
+    expect(raw?.list?.id).toBe('list-9');
+    expect(raw?.archived).toBe(true);
+  });
+
+  it('a 404 (the task no longer exists) resolves to null (not thrown)', async () => {
+    const fetchImpl = vi.fn(async () => new Response(JSON.stringify({ err: 'Task not found' }), { status: 404 }));
+    const deps: ClickUpClientDeps = { fetchImpl: fetchImpl as unknown as typeof fetch, token: 't' };
+    const raw = await clickUpGetTaskRaw('cu-gone', deps);
+    expect(raw).toBeNull();
   });
 });
