@@ -31,10 +31,16 @@ and is abandoned; delete it). Vision `docs/microsoft-365-integration.md`; ADR-00
   audited scrub. Probes: `scripts/m365-{race,deadlock}-probe.sh` (two-session, fail-before/pass-after).
   **⚑ Lesson: every defect across all 4 rounds passed the happy-path pgTAP AND the full verify — tests alone
   would have shipped all of them.**
-- **⚑ Migrations RENUMBERED onto dev (2026-07-17):** M365 was cut from a stale base and numbered 0096–0107,
-  colliding with dev's ERPNext 0096–0103 → renumbered to **0104–0115**; pgTAP `0142–0153` unchanged (dev max
-  was 0141). The `fix/revoke-client-truncate-grants` branch must renumber its `0104`/`0105` + test `0142`
-  behind these when it lands.
+- **⚑ Migrations RENUMBERED TWICE onto dev (2026-07-17):** M365 was cut from a stale base and numbered
+  0096–0107, colliding with dev's ERPNext 0096–0103 → renumbered to 0104–0115. Then the **H4 grants work
+  merged to `dev` (#336)** taking migrations `0104`/`0105` + test `0142` — the exact numbers — so M365 was
+  renumbered AGAIN to **`0106–0117`**, test `0142`→**`0154`** (`0143–0153` were already unique; note
+  `0034/0052/0066` duplicate pgTAP prefixes pre-exist on dev, so test numbers are not ordering-critical —
+  migrations are). **⚠️ Lesson: GitHub reported PR #333 `MERGEABLE`/`CLEAN` the whole time — git only sees
+  different FILENAMES, so a green mergeable status does NOT catch migration-number collisions. Check
+  `ls supabase/migrations | sed -E 's/^([0-9]{4})_.*/\1/' | sort | uniq -d` before merging any branch that
+  adds migrations.** Cross-refs rewritten in M365 files only; non-M365 refs (0064/0070/0075/0076/0079/0080)
+  + the 32 `AC-M365-1xx` ids verified untouched; `docs/spikes/` deliberately left as the historical record.
 - **⏸️ Owner-gated (NOT done):** live deploy — KEK (`M365_TOKEN_KEK`), `M365_CLIENT_SECRET`/`_ID`/`_TENANT_ID`
   (a concrete tenant GUID; `common`/`organizations` unsupported), the allowlisted redirect URI, Entra
   delegated scopes (`Files.Read`+`offline_access`+`openid`+`profile`) w/ admin consent, and a
@@ -53,7 +59,8 @@ depending on it — its assertion moved "UPDATE affects 0 rows" → `throws_ok 4
 stronger mechanism). ACs `AC-GRANT-007/010/011/012/013`. Gates: pgTAP 166/1471 PASS · verify exit 0. **Accepted
 residual:** a `supabase_admin` default-priv entry can't be revoked (migration runner `postgres` isn't a
 superuser/member) — inert (every public table is created BY `postgres`), and `AC-GRANT-010`'s creator-agnostic
-catalog sweep catches real drift. **⚠️ Renumber its `0104`/`0105` + test `0142` behind M365's 0104–0115.**
+catalog sweep catches real drift. **✅ MERGED to `dev` as PR #336 (`adf79e48`, owner) — it KEPT `0104`/`0105`
++ test `0142`; M365 renumbered above it to `0106–0117`/`0154` instead.** Branch deleted.
 
 ### ⚑⚑ ADAPTER PROGRAM (2026-07-14) — P2 ERPNext money core MERGING (#315, owner go; CI green)
 - **✅ P2 BUILT + FULL BATTERY CLOSED + POST-OPEN HARDENING** (branch `feat/erpnext-adapter-p2`,
