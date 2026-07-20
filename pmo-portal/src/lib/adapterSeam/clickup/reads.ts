@@ -21,21 +21,51 @@ export interface ClickUpReadDeps extends ClickUpClientDeps {
 // `last_page: true`) cannot spin this into an infinite loop.
 const MAX_PAGES = 1000;
 
-/** Build the `date_updated_gt` + `page` query string for a given cursor (inclusive `>=` boundary). */
+/**
+ * Build the `date_updated_gt` + `page` query string for a given cursor (inclusive `>=` boundary).
+ *
+ * `GET /list/{id}/task` EXCLUDES four categories by default (ClickUp REST v2) — each flag below closes
+ * one hole in the read-hygiene sweep:
+ *   - `include_closed=true`: without it, closed-status tasks never reach the change-feed (found by the
+ *     live smoke, 2026-07-11 — a completion made in ClickUp would never mirror into PMO).
+ *   - `subtasks=true`: without it, ClickUp subtasks NEVER reach PMO at all. With it, the feed now
+ *     carries tasks whose `parent` field PMO does not map — they flow through `mapping.ts` as flat
+ *     top-level tasks (no parent/child link). The subtask DATA MODEL is a separate, later issue —
+ *     this fix only stops silently dropping the tasks.
+ *   - `archived=true`: without it, an archived ClickUp task vanishes from the feed while its PMO mirror
+ *     (if one was already minted) lives on forever, never converging. With it, the feed now carries
+ *     archived tasks — `pageListTasks` below filters them back OUT of every returned change set, since
+ *     there is no `archived_at` column on this branch to record the state faithfully (one exists on
+ *     `origin/feat/task-model-fields`, migration 0123, deliberately not pulled in here). This is an
+ *     interim "never mirror archived as live" stance, not a full archived-tasks model.
+ *   - `include_timl=true` ("tasks in multiple lists"): without it, a task that also lives in another
+ *     ClickUp List is seen or missed depending on which List happens to be polled. With it: a task
+ *     shared across two Lists bound to two DIFFERENT PMO projects can now be adopted/mirrored by BOTH
+ *     sweeps — a known, out-of-scope duplicate-mirror risk this fix does not resolve (flagged, not
+ *     built here; same "separate issue" boundary as the subtask model).
+ */
 function buildListQuery(cursor: string | null, page: number): URLSearchParams {
-  // include_closed: without it ClickUp omits closed-status tasks, so a completion made in ClickUp
-  // would never reach the change-feed (found by the live smoke, 2026-07-11 — not reproducible
-  // against mocks; the sweep MUST see closed tasks to mirror them).
-  const query = new URLSearchParams({ order_by: 'updated', page: String(page), include_closed: 'true' });
+  const query = new URLSearchParams({
+    order_by: 'updated',
+    page: String(page),
+    include_closed: 'true',
+    subtasks: 'true',
+    archived: 'true',
+    include_timl: 'true',
+  });
   if (cursor !== null) query.set('date_updated_gt', String(Math.max(0, Number(cursor) - 1)));
   return query;
 }
 
 /**
  * Page `GET /list/{list_id}/task` until the server signals `last_page` (shared by the mapped read
- * and the raw sweep source — DRY). Returns the raw ClickUp tasks + the max `date_updated` observed
- * as the next cursor (`null` at exhaustion). The cursor is made inclusive (`date_updated_gt` =
- * cursor − 1ms) so a task last seen exactly at the boundary is re-included, not silently skipped.
+ * and the raw sweep source — DRY). Returns the LIVE (non-archived) ClickUp tasks + the max
+ * `date_updated` observed **across every task fetched, archived or not** as the next cursor (`null` at
+ * exhaustion). Archived tasks are excluded from the returned `tasks` (never mirrored as live — see
+ * `buildListQuery`'s `archived=true` note) but still count toward the cursor: otherwise an org whose
+ * only recent ClickUp activity is archiving a task would re-fetch that same page forever (the cursor
+ * would never move past it). The cursor is made inclusive (`date_updated_gt` = cursor − 1ms) so a task
+ * last seen exactly at the boundary is re-included, not silently skipped.
  */
 async function pageListTasks(
   deps: ClickUpClientDeps & { listId: string },
@@ -57,7 +87,8 @@ async function pageListTasks(
     page += 1;
   }
   const nextCursor = allTasks.length > 0 ? String(Math.max(...allTasks.map((t) => Number(t.date_updated)))) : null;
-  return { tasks: allTasks, nextCursor };
+  const liveTasks = allTasks.filter((t) => t.archived !== true);
+  return { tasks: liveTasks, nextCursor };
 }
 
 /**

@@ -31,6 +31,24 @@ function baseDeps(fetchImpl: typeof fetch): ClickUpReadDeps {
   return { fetchImpl, token: 't', listId: 'list-1', statusMap, memberMap };
 }
 
+describe('buildListQuery emits the full non-default-excluding filter set (read-hygiene fix)', () => {
+  it('every page read carries include_closed, subtasks, archived, and include_timl', async () => {
+    const fetchImpl = vi.fn(async (url: string) => {
+      // GET /list/{id}/task excludes closed, subtasks, archived, and multi-list tasks BY DEFAULT
+      // (ClickUp REST v2). Without all four flags: ClickUp subtasks never reach PMO; archived tasks
+      // vanish from the feed while their PMO mirror lives on forever; a task in two Lists is seen or
+      // missed depending which List is polled.
+      expect(url).toContain('include_closed=true');
+      expect(url).toContain('subtasks=true');
+      expect(url).toContain('archived=true');
+      expect(url).toContain('include_timl=true');
+      return new Response(JSON.stringify({ tasks: [], last_page: true }), { status: 200 });
+    });
+    await clickUpListChangesSinceWatermark('tasks', null, baseDeps(fetchImpl as unknown as typeof fetch));
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('AC-CUA-035 listChangesSinceWatermark pages through changes and advances the cursor', () => {
   it('AC-CUA-035 two mocked pages combine into canonical records + a max-date_updated nextCursor', async () => {
     let call = 0;
@@ -71,6 +89,39 @@ describe('AC-CUA-035 listChangesSinceWatermark pages through changes and advance
     });
     await clickUpListChangesSinceWatermark('tasks', null, baseDeps(fetchImpl as unknown as typeof fetch));
     expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('archived tasks (present now that archived=true is passed) are excluded from every change set', () => {
+  it('an archived task is dropped from listChangesSinceWatermark but still advances the cursor', async () => {
+    const fetchImpl = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          tasks: [task('cu-1', '1000'), { ...task('cu-2', '2000'), archived: true }],
+          last_page: true,
+        }),
+        { status: 200 },
+      ),
+    );
+    const page = await clickUpListChangesSinceWatermark('tasks', null, baseDeps(fetchImpl as unknown as typeof fetch));
+    // The archived task (cu-2) must never be mirrored as live — no archived_at column exists on this
+    // branch to record its real state, so the safe interim behaviour is: don't mirror it at all.
+    expect(page.changes.map((r) => r.id)).toEqual(['cu-1']);
+    // The cursor still advances past the archived task's date_updated (2000), not just the live one's
+    // (1000) — otherwise an org with only-ever-archived changes would re-fetch the same page forever.
+    expect(page.nextCursor).toBe('2000');
+  });
+
+  it('an archived task is dropped from the raw sweep source too', async () => {
+    const fetchImpl = vi.fn(async () =>
+      new Response(
+        JSON.stringify({ tasks: [{ ...task('cu-1', '1000'), archived: true }], last_page: true }),
+        { status: 200 },
+      ),
+    );
+    const page = await clickUpListRawChangesSinceWatermark(null, baseDeps(fetchImpl as unknown as typeof fetch));
+    expect(page.changes).toEqual([]);
+    expect(page.nextCursor).toBe('1000');
   });
 });
 
