@@ -518,6 +518,17 @@ verify_jwt = false
 [functions.clickup-webhook]
 verify_jwt = false
 
+# ── Edge Function: clickup-webhook-worker ──────────────────────────────────────
+# verify_jwt = false: invoked by the pg_cron tick (migration 0124) via net.http_post — the caller is
+# Postgres, not a browser/end-user JWT. The handler verifies the bearer itself (it MUST equal
+# CLICKUP_WEBHOOK_WORKER_SECRET, constant-time) — least-privilege, mirrors clickup-sweep's
+# CLICKUP_SWEEP_SECRET pattern. The durable-queue processor (OD-INT-11, 2026-07-20): claims pending
+# clickup_webhook_inbox rows, re-GETs each task, and applies through the existing source-mod-guarded
+# engine. Registered-but-idle per the 0048/0082/0094 precedent until an operator creates the Vault
+# secrets.
+[functions.clickup-webhook-worker]
+verify_jwt = false
+
 # ── Edge Function: clickup-sweep ───────────────────────────────────────────────
 # verify_jwt = false: invoked by the pg_cron job (migration 0092) via net.http_post — the caller is
 # Postgres, not a browser/end-user JWT. The handler verifies the bearer itself (it MUST equal
