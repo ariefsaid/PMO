@@ -20,7 +20,7 @@ insert into auth.users (id, email) values
   ('11060000-0000-0000-0000-0000000001b1','approver-block4@example.com');
 
 insert into profiles (id, org_id, full_name, email, role, status) values
-  ('11060000-0000-0000-0000-0000000001a1','11060000-0000-0000-0000-000000000101','Author B4','author-block4@example.com','Project Manager','active'),
+  ('11060000-0000-0000-0000-0000000001a1','11060000-0000-0000-0000-000000000101','Author B4','author-block4@example.com','Finance','active'),
   ('11060000-0000-0000-0000-0000000001b1','11060000-0000-0000-0000-000000000101','Approver B4','approver-block4@example.com','Finance','active');
 
 -- Org employs revenue → erpnext (so revenue is externally owned; the RPC is the SoD authority)

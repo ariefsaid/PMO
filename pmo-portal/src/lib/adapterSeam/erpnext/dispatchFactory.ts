@@ -128,16 +128,32 @@ async function resolvePoItemChildNames(client: ErpClientDeps, poName: string): P
 // Luna re-audit BLOCK 2 — cross-org link PRE-FLIGHT (money-critical, ordering)
 // ============================================================================
 
-/** The revenue command's cross-entity links and the table each must belong to, in the caller's org.
- *  `readModelWriters.assertLinkSameOrg` guards the SAME links, but only inside the MIRROR writers —
- *  which run AFTER `adapter.commit()` and `recordOutboxRef`. By then a cross-org link has already
- *  minted a REAL ERP money document that no PMO row can ever reference (orphan money). This table
- *  drives the PRE-flight; the post-commit guard stays as defence in depth. */
-const REVENUE_LINK_TABLES: ReadonlyArray<{ field: 'customerId' | 'projectId' | 'salesInvoiceId'; table: string }> = [
-  { field: 'customerId', table: 'companies' },
-  { field: 'projectId', table: 'projects' },
-  { field: 'salesInvoiceId', table: 'sales_invoices' },
-];
+/** Every cross-entity PMO link a command can carry, and the table each must belong to in the caller's
+ *  org. `readModelWriters` guards the SAME links, but only inside the MIRROR writers — which run AFTER
+ *  `adapter.commit()` and `recordOutboxRef`. By then a cross-org link has already minted a REAL ERP
+ *  money document that no PMO row can ever reference (orphan money), or — round-7 B10 — a mirror row
+ *  stamped with the CALLER's org_id but ANOTHER tenant's foreign key (a service-role write; RLS does
+ *  not protect it). This table drives the PRE-flight; the post-commit guards stay as defence in depth.
+ *
+ *  Round-7 B10 added the `procurement` half: only the three revenue links were pre-flighted, so a
+ *  direct command carrying another tenant's known `procurementId` was accepted. */
+type LinkField = 'customerId' | 'projectId' | 'salesInvoiceId' | 'procurementId' | 'vendorId' | 'invoiceId';
+
+const LINK_TABLE: Readonly<Record<LinkField, string>> = {
+  customerId: 'companies',
+  projectId: 'projects',
+  salesInvoiceId: 'sales_invoices',
+  procurementId: 'procurements',
+  vendorId: 'companies',
+  invoiceId: 'procurement_invoices',
+};
+
+/** The links each ERPNext domain's commands can carry (the fields `readModelWriters` copies into the
+ *  service-role mirror insert). `companies` (supplier/customer parties) carries none. */
+const DOMAIN_LINK_FIELDS: Readonly<Record<string, ReadonlyArray<LinkField>>> = {
+  revenue: ['customerId', 'projectId', 'salesInvoiceId'],
+  procurement: ['procurementId', 'vendorId', 'invoiceId'],
+};
 
 /** Assert one linked row exists AND belongs to `orgId`. Fails CLOSED: a missing row (no row, or an id
  *  from another tenant that RLS-free service-role reads would happily return) is rejected exactly like
@@ -161,19 +177,19 @@ async function assertLinkBelongsToOrg(
 }
 
 /**
- * Validate EVERY cross-entity link a revenue command carries BEFORE the adapter exists — so a command
- * pairing (say) a valid own-org customer with ANOTHER org's `salesInvoiceId` is refused with no ERP
- * write and no outbox commit. Runs ahead of ref resolution (which itself issues ERP GETs for a GR) and
- * ahead of `dispatchExternallyOwnedWrite` (index.ts resolves the adapter first). A null/absent link is
- * skipped — only ASSERTED links are validated (an on-account receipt legitimately carries none).
+ * Validate EVERY cross-entity link this command carries BEFORE the adapter exists — so a command
+ * pairing (say) a valid own-org customer with ANOTHER org's `salesInvoiceId`, or naming another
+ * tenant's `procurementId`, is refused with no ERP write and no outbox commit. Runs ahead of ref
+ * resolution (which itself issues ERP GETs for a GR) and ahead of `dispatchExternallyOwnedWrite`
+ * (index.ts resolves the adapter first). A null/absent link is skipped — only ASSERTED links are
+ * validated (an on-account receipt, or a Material Request with no vendor, legitimately carries none).
  */
-async function assertRevenueLinksSameOrg(deps: ErpDispatchFactoryDeps): Promise<void> {
-  const record = deps.command.record as Partial<Record<'customerId' | 'projectId' | 'salesInvoiceId', string | null>> & { erp_doc_kind?: string };
-  if (record.erp_doc_kind !== 'sales-invoice' && record.erp_doc_kind !== 'incoming-payment') return;
-  for (const { field, table } of REVENUE_LINK_TABLES) {
+async function assertCommandLinksSameOrg(deps: ErpDispatchFactoryDeps): Promise<void> {
+  const record = deps.command.record as Partial<Record<LinkField, string | null>>;
+  for (const field of DOMAIN_LINK_FIELDS[deps.command.domain] ?? []) {
     const id = record[field];
     if (typeof id === 'string' && id.length > 0) {
-      await assertLinkBelongsToOrg(deps.serviceClient, deps.orgId, table, id);
+      await assertLinkBelongsToOrg(deps.serviceClient, deps.orgId, LINK_TABLE[field], id);
     }
   }
 }
@@ -446,10 +462,11 @@ export async function resolveErpDispatchAdapter(deps: ErpDispatchFactoryDeps): P
     throw new AppError('erpnext binding is not activated (version handshake mismatch or never activated)', 'config-rejected');
   }
 
-  // Luna re-audit BLOCK 2 — the cross-org link pre-flight runs FIRST: before ref resolution (which
-  // can issue ERP GETs), before the adapter is constructed, and therefore before any ERP write or
-  // outbox commit. A cross-org link must never reach ERPNext (orphan money, no PMO row).
-  await assertRevenueLinksSameOrg(deps);
+  // Luna re-audit BLOCK 2 (+ round-7 B10, the procurement half) — the cross-org link pre-flight runs
+  // FIRST: before ref resolution (which can issue ERP GETs), before the adapter is constructed, and
+  // therefore before any ERP write or outbox commit. A cross-org link must never reach ERPNext (orphan
+  // money, no PMO row) nor a service-role mirror insert (this org's org_id + another tenant's FK).
+  await assertCommandLinksSameOrg(deps);
   // Luna re-audit BLOCK 4 — the SI project gate, likewise ahead of any ERP write.
   assertSiProjectGate(deps, binding);
 

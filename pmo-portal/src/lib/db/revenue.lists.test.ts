@@ -12,6 +12,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 interface Call {
   table: string;
+  columns: string;
   orders: Array<{ column: string; ascending?: boolean }>;
   range: [number, number] | null;
   eq: Array<[string, unknown]>;
@@ -25,9 +26,9 @@ const h = vi.hoisted(() => {
   };
 
   function builder(table: string) {
-    const call: Call = { table, orders: [], range: null, eq: [] };
+    const call: Call = { table, columns: '', orders: [], range: null, eq: [] };
     const b = {
-      select() { return b; },
+      select(columns: string) { call.columns = columns; return b; },
       eq(column: string, value: unknown) { call.eq.push([column, value]); return b; },
       order(column: string, opts?: { ascending?: boolean }) {
         call.orders.push({ column, ascending: opts?.ascending });
@@ -116,6 +117,35 @@ describe('db/revenue listSalesInvoices — the list must not silently stop at Po
 
     expect(h.state.calls[0].eq).toContainEqual(['project_id', 'proj-1']);
     expect(rows[0].erp_payment_terms_days).toBe(30);
+  });
+
+  // ── Round-6 re-audit, NIT 1: the row must carry the SoD oracle the DB actually uses.
+  // 0113 moved that oracle from the last-writer-wins `author_user_id` scalar to the append-only
+  // `sales_invoice_authors` SET. Without the set on the row, the page can only compare the scalar —
+  // so an earlier body writer whom a co-worker's edit displaced sees an ENABLED "Submit" that 403s.
+  it('NIT 1: reads the append-only author SET so the Submit affordance matches the DB oracle', async () => {
+    h.state.pages.sales_invoices = [[
+      {
+        id: 'si-1',
+        si_number: 'ACC-SINV-1',
+        author_user_id: 'u-2',
+        companies: { erp_payment_terms_days: 30 },
+        sales_invoice_authors: [{ user_id: 'u-1' }, { user_id: 'u-2' }],
+      },
+    ]];
+
+    const rows = await listSalesInvoices();
+
+    expect(h.state.calls[0].columns).toContain('sales_invoice_authors');
+    expect(rows[0].author_user_ids).toEqual(['u-1', 'u-2']);
+  });
+
+  it('NIT 1: an invoice with no recorded body writers yields an EMPTY author set (never undefined)', async () => {
+    h.state.pages.sales_invoices = [[{ id: 'si-2', si_number: 'ACC-SINV-2', author_user_id: null, companies: null }]];
+
+    const rows = await listSalesInvoices();
+
+    expect(rows[0].author_user_ids).toEqual([]);
   });
 });
 

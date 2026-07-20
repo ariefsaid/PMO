@@ -20,6 +20,14 @@ export interface SalesInvoiceRow {
   erp_cancelled_at: string | null;
   created_at: string;
   author_user_id: string | null;
+  /**
+   * EVERY user who has built this invoice's ERP body — migration 0113's append-only
+   * `sales_invoice_authors` set, which is the SoD oracle `submit_sales_invoice` actually enforces.
+   * `author_user_id` alone is last-writer-wins: a co-worker's edit moves it, so comparing only the
+   * scalar showed an earlier body writer an ENABLED "Submit" that then 403'd (round-6 re-audit NIT 1).
+   * Always an array — `[]` for an invoice with no recorded writer (which the RPC refuses outright).
+   */
+  author_user_ids: string[];
   /** Customer's payment terms in days (from companies.erp_payment_terms_days). */
   erp_payment_terms_days: number | null;
   /** ERP-computed due date from the mirrored SI (when available). */
@@ -101,13 +109,33 @@ async function fetchAllPages<T>(
  * saw only the newest 1000 and answered "No invoices match your filters" for an invoice that
  * exists. An explicit `page`/`pageSize` still issues exactly one bounded request.
  */
+/**
+ * The invoice projection every SI read shares: the row, the customer's payment terms, and the
+ * append-only AUTHOR SET (0113) that the submit SoD is really enforced on — the affordance must
+ * consult the same oracle as the RPC, or it offers a "Submit" that 403s (round-6 re-audit NIT 1).
+ */
+const SALES_INVOICE_SELECT =
+  '*, companies!sales_invoices_customer_id_fkey(erp_payment_terms_days), sales_invoice_authors(user_id)';
+
+/** One joined SI row → the flat `SalesInvoiceRow` (payment terms + author set flattened). */
+function toSalesInvoiceRow(row: Record<string, unknown>): SalesInvoiceRow {
+  const authors = (row.sales_invoice_authors as Array<{ user_id: string }> | null) ?? [];
+  return {
+    ...row,
+    erp_payment_terms_days: (row.companies as { erp_payment_terms_days: number | null } | null)?.erp_payment_terms_days ?? null,
+    author_user_ids: authors.map((a) => a.user_id),
+    // erp_due_date will be populated when ERP mirror includes it (future enhancement)
+    erp_due_date: null,
+  } as unknown as SalesInvoiceRow;
+}
+
 export async function listSalesInvoices(
   params?: { projectId?: string } & PageParams,
 ): Promise<SalesInvoiceRow[]> {
   const build = (from: number, to: number) => {
     let query = supabase
       .from('sales_invoices')
-      .select('*, companies!sales_invoices_customer_id_fkey(erp_payment_terms_days)');
+      .select(SALES_INVOICE_SELECT);
     if (params?.projectId) query = query.eq('project_id', params.projectId);
     return query
       .order('invoice_date', { ascending: false })
@@ -128,13 +156,7 @@ export async function listSalesInvoices(
       build(from, to) as unknown as PromiseLike<PageResult<Record<string, unknown>>>,
     );
   }
-  // Transform the joined company data into flat fields
-  return data.map((row: Record<string, unknown>) => ({
-    ...row,
-    erp_payment_terms_days: (row.companies as { erp_payment_terms_days: number | null } | null)?.erp_payment_terms_days ?? null,
-    // erp_due_date will be populated when ERP mirror includes it (future enhancement)
-    erp_due_date: null,
-  })) as SalesInvoiceRow[];
+  return data.map(toSalesInvoiceRow);
 }
 
 /**
@@ -145,16 +167,12 @@ export async function listSalesInvoices(
 export async function getSalesInvoice(id: string): Promise<SalesInvoiceRow | null> {
   const { data, error } = await supabase
     .from('sales_invoices')
-    .select('*, companies!sales_invoices_customer_id_fkey(erp_payment_terms_days)')
+    .select(SALES_INVOICE_SELECT)
     .eq('id', id)
     .maybeSingle();
   if (error) throwWrite(error);
   if (!data) return null;
-  return {
-    ...data,
-    erp_payment_terms_days: (data.companies as { erp_payment_terms_days: number | null } | null)?.erp_payment_terms_days ?? null,
-    erp_due_date: null,
-  } as SalesInvoiceRow;
+  return toSalesInvoiceRow(data as Record<string, unknown>);
 }
 
 /**
@@ -232,17 +250,24 @@ export async function getRevenueByProject(): Promise<
   Array<{ project_id: string | null; project_name: string | null; total_amount: number; open_ar: number; invoice_count: number }>
 > {
   const agg = new Map<string, { total_amount: number; open_ar: number; invoice_count: number }>();
-  for (let page = 0; ; page += 1) {
-    const from = page * PAGE_SCAN_SIZE;
-    const { data, error } = await supabase
+  let cursor: string | null = null;
+  for (;;) {
+    let query = supabase
       .from('sales_invoices')
-      .select('project_id, amount, erp_outstanding_amount')
+      .select('id, project_id, amount, erp_outstanding_amount')
       .in('status', REVENUE_STATUSES as unknown as string[])
       // S1: Postgres guarantees NO row order across statements, so a paged scan without a total
       // ORDER BY can count one invoice twice and skip another when a concurrent write moves a
       // tuple between page reads — Total Revenue then drifts by up to a whole invoice, silently.
-      .order('id', { ascending: true })
-      .range(from, from + PAGE_SCAN_SIZE - 1);
+      .order('id', { ascending: true });
+    // NIT 2 (round-6 re-audit): KEYSET, not OFFSET. A stable ORDER BY makes an offset scan
+    // repeatable but not concurrency-safe — an invoice raised between two page reads with a
+    // lower-sorting id shifts every later row one slot right, so the next `.range()` re-reads the
+    // row already counted at the end of the previous page (and a delete skips one). The cursor
+    // names the row to resume AFTER, so a concurrent write can neither duplicate nor skip a row
+    // that has already been scanned.
+    if (cursor !== null) query = query.gt('id', cursor);
+    const { data, error } = await query.limit(PAGE_SCAN_SIZE);
     if (error) throwWrite(error);
     const rows = data ?? [];
     for (const row of rows) {
@@ -253,8 +278,10 @@ export async function getRevenueByProject(): Promise<
       existing.invoice_count += 1;
       agg.set(key, existing);
     }
-    // A SHORT page proves the end of the set; a full one may or may not be the last, so ask again.
+    // A SHORT page proves the end of the set; a full one may or may not be the last, so ask again —
+    // resuming after the last id THIS page returned.
     if (rows.length < PAGE_SCAN_SIZE) break;
+    cursor = String(rows[rows.length - 1].id);
   }
 
   // Resolve project names for non-null project_ids

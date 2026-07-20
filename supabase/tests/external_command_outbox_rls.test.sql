@@ -42,11 +42,15 @@ select throws_ok(
        values ('005c0000-0000-0000-0000-000000000001','revenue','pmo-rev-1','key-rev-1','erpnext','create','pending') $$,
   '23505', null,
   'AC-SAR-012 the unique (org,domain,pmo_record_id,idempotency_key) 4-tuple rejects duplicate insert for revenue domain');
--- Different idempotency_key for same pmo_record_id succeeds (a re-command).
+-- A re-command under a different idempotency_key is admitted only once the previous row reaches a
+-- TERMINAL state (0116/B3: at most one NON-TERMINAL row per record — two in-flight rows for one record
+-- are the duplicate-money race, proven in outbox_serialization.test.sql). Confirm the first, then
+-- re-command.
+update external_command_outbox set state='confirmed' where id='005c0000-0000-0000-0000-0000000000c1';
 insert into external_command_outbox (id, org_id, domain, pmo_record_id, idempotency_key, external_tier, operation, state)
 values ('005c0000-0000-0000-0000-0000000000c2','005c0000-0000-0000-0000-000000000001','revenue','pmo-rev-1','key-rev-2','erpnext','create','pending');
 select is((select count(*)::int from external_command_outbox where pmo_record_id='pmo-rev-1' and org_id='005c0000-0000-0000-0000-000000000001'), 2,
-  'AC-SAR-012 different idempotency_key for same pmo_record_id succeeds (re-command allowed)');
+  'AC-SAR-012 a different idempotency_key for the same pmo_record_id succeeds once the previous row is terminal (re-command allowed)');
 
 -- Org-isolated SELECT.
 set local role authenticated;

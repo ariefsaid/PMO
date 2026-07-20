@@ -213,13 +213,17 @@ const SalesInvoices: React.FC = () => {
     if (canEdit) items.push({ label: 'Edit', onClick: () => setFormTarget({ invoice: inv }) });
     if (canCancel && inv.status !== 'Cancelled')
       items.push({ label: 'Cancel', onClick: () => setCancelTarget(inv), danger: true });
-    // Submit action: only for DRAFT status, gated by submit_sales_invoice permission with record context (SoD)
+    // Submit action: only for DRAFT status, gated by submit_sales_invoice permission with record
+    // context (SoD). The oracle is the APPEND-ONLY author SET (`sales_invoice_authors`, migration
+    // 0113) union the legacy scalar — the same one `submit_sales_invoice` enforces. Passing only the
+    // last-writer-wins scalar showed an EARLIER body writer an enabled "Submit" that 403'd on click
+    // (round-6 re-audit NIT 1). `can()` also fails closed on an unattributable invoice, so the
+    // separate author-not-null guard is no longer needed here.
     if (
       inv.status === 'Draft'
-      && inv.author_user_id !== null
       && may('submit_sales_invoice', 'salesInvoice', {
         currentUserId: currentUser?.id,
-        record: { author_id: inv.author_user_id },
+        record: { author_id: inv.author_user_id, author_ids: inv.author_user_ids },
       })
     ) {
       items.push({ label: 'Submit', onClick: () => setSubmitTarget(inv) });

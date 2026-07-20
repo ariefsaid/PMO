@@ -300,7 +300,7 @@ describe('can() — revenue (P3a) reachability + SoD (owner ruling 2026-07-20)',
     expect(allowedRoles('edit', 'incomingPayment')).toEqual([]);
   });
 
-  it('FR-SAR-195: submit_sales_invoice SoD is unchanged — money-author roles, never the author', () => {
+  it('FR-SAR-195: submit_sales_invoice SoD — the revenue write roles, never the author', () => {
     // Author cannot submit their own draft…
     expect(
       can('submit_sales_invoice', 'salesInvoice', {
@@ -309,19 +309,57 @@ describe('can() — revenue (P3a) reachability + SoD (owner ruling 2026-07-20)',
         record: { author_id: 'u-1' },
       }),
     ).toBe(false);
-    // …a different money-author user can.
+    // …a different revenue writer can. (Exec/PM are NOT submitters: migration 0114 gates the
+    // `submit_sales_invoice` RPC on the owner ruling's Admin+Finance, so offering them the affordance
+    // would render a button that 403s.)
     expect(
       allowedRoles('submit_sales_invoice', 'salesInvoice', {
         currentUserId: 'u-2',
         record: { author_id: 'u-1' },
       }),
-    ).toEqual(['Admin', 'Executive', 'Project Manager', 'Finance']);
+    ).toEqual(['Admin', 'Finance']);
     // Engineer is never a submitter.
     expect(
       can('submit_sales_invoice', 'salesInvoice', {
         realRole: 'Engineer',
         currentUserId: 'u-2',
         record: { author_id: 'u-1' },
+      }),
+    ).toBe(false);
+  });
+
+  // ── Round-6 re-audit, NIT 1: the affordance must consult the SAME oracle as the DB.
+  // 0113 moved the SoD oracle from the last-writer-wins `sales_invoices.author_user_id` scalar to the
+  // APPEND-ONLY `sales_invoice_authors` SET. A user who wrote the body earlier but is no longer the
+  // current scalar author therefore still gets an ENABLED "Submit" — which 403s on click. Enforcement
+  // was right; the affordance lied.
+  it('NIT 1: an EARLIER body writer (in the author set, not the current scalar author) gets no Submit affordance', () => {
+    expect(
+      can('submit_sales_invoice', 'salesInvoice', {
+        realRole: 'Finance',
+        currentUserId: 'u-1',
+        // A co-worker's later edit moved the scalar to u-2; u-1 is still in the append-only set.
+        record: { author_id: 'u-2', author_ids: ['u-1', 'u-2'] },
+      }),
+    ).toBe(false);
+  });
+
+  it('NIT 1: a genuine third party (in neither the set nor the scalar) still gets Submit', () => {
+    expect(
+      can('submit_sales_invoice', 'salesInvoice', {
+        realRole: 'Finance',
+        currentUserId: 'u-3',
+        record: { author_id: 'u-2', author_ids: ['u-1', 'u-2'] },
+      }),
+    ).toBe(true);
+  });
+
+  it('NIT 1: an EMPTY author set + null scalar is refused (the DB fails closed on an unattributable invoice)', () => {
+    expect(
+      can('submit_sales_invoice', 'salesInvoice', {
+        realRole: 'Finance',
+        currentUserId: 'u-3',
+        record: { author_id: null, author_ids: [] },
       }),
     ).toBe(false);
   });

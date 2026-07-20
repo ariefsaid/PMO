@@ -5,7 +5,7 @@
 // Verify: cd supabase/functions/adapter-dispatch && deno test --allow-all --config deno.json sodGuard.test.ts
 
 import { assertEquals, assert } from 'jsr:@std/assert';
-import { isRevenueSiSubmitTransition, enforceSiSubmitSod, requiresSiAuthorClaim, claimSiAuthor, type SodRpcClient } from './sodGuard.ts';
+import { isRevenueSiSubmitTransition, grantSiSubmitClearance, requiresSiAuthorClaim, claimSiAuthor, releaseSiSubmitClearance, type SodRpcClient } from './sodGuard.ts';
 
 Deno.test('isRevenueSiSubmitTransition: true only for revenue/sales-invoice/transition/submit', () => {
   const yes = (r: Record<string, unknown>) =>
@@ -30,40 +30,54 @@ Deno.test('isRevenueSiSubmitTransition: false for non-revenue domains / non-tran
   );
 });
 
-/** A fake deputy client whose .rpc() resolves a scripted {data,error} for the submit_sales_invoice call. */
-function fakeClient(result: { data: unknown; error: { code?: string; message: string } | null }): SodRpcClient {
+/**
+ * A fake SERVICE-ROLE client scripting the clearance-grant RPC.
+ *
+ * Round-7 B1b: the gate is no longer `submit_sales_invoice` under the caller's JWT. That RPC records no
+ * clearance any more (it would be a freeze primitive any authenticated Admin/Finance member could aim at
+ * a draft), and the clearance it used to record was releasable by the very approver it constrains. The
+ * authoritative gate is the SERVICE-ROLE-ONLY `grant_sales_invoice_submit_clearance`, which authorizes
+ * an EXPLICIT actor (service_role has no `auth.uid()`) and mints a clearance the dispatch alone can
+ * release, by id.
+ */
+function fakeGrantClient(result: { data: unknown; error: { code?: string; message: string } | null }): SodRpcClient {
   return {
     rpc: async (fn: string, args: Record<string, unknown>) => {
-      assertEquals(fn, 'submit_sales_invoice', 'must invoke the SECURITY DEFINER SoD RPC by name');
-      assertEquals(args, { p_si_id: 'si-1' }, 'must pass the SI id under the p_si_id arg');
+      assertEquals(fn, 'grant_sales_invoice_submit_clearance', 'must invoke the dispatch-only clearance RPC by name');
+      assertEquals(
+        args,
+        { p_si_id: 'si-1', p_actor_id: 'user-b', p_clearance_id: 'clr-1' },
+        'must pass the SI id, the JWT-verified ACTOR, and this dispatch\'s clearance id',
+      );
       return result;
     },
   };
 }
 
-Deno.test('enforceSiSubmitSod: a 42501 self-approval error → NOT ok, 403 (the bypass is closed — dispatch must NOT submit to ERP)', async () => {
-  const res = await enforceSiSubmitSod(
-    fakeClient({ data: null, error: { code: '42501', message: 'approver must differ from author (SoD)' } }),
+Deno.test('grantSiSubmitClearance: a 42501 self-approval error → NOT ok, 403 (the bypass is closed — dispatch must NOT submit to ERP)', async () => {
+  const res = await grantSiSubmitClearance(
+    fakeGrantClient({ data: null, error: { code: '42501', message: 'approver must differ from author (SoD)' } }),
     'si-1',
+    'user-b',
+    'clr-1',
   );
   assertEquals(res.ok, false);
   assertEquals(res.status, 403);
 });
 
-Deno.test('enforceSiSubmitSod: a non-42501 error → NOT ok, 409 (distinct from the SoD 403)', async () => {
-  const res = await enforceSiSubmitSod(
-    fakeClient({ data: null, error: { code: 'P0002', message: 'sales invoice not found' } }),
+Deno.test('grantSiSubmitClearance: a non-42501 error → NOT ok, 409 (distinct from the SoD 403)', async () => {
+  const res = await grantSiSubmitClearance(
+    fakeGrantClient({ data: null, error: { code: 'P0002', message: 'sales invoice not found' } }),
     'si-1',
+    'user-b',
+    'clr-1',
   );
   assertEquals(res.ok, false);
   assertEquals(res.status, 409);
 });
 
-Deno.test('enforceSiSubmitSod: success (a different approver) → ok, dispatch may proceed', async () => {
-  const res = await enforceSiSubmitSod(
-    fakeClient({ data: { id: 'si-1' }, error: null }),
-    'si-1',
-  );
+Deno.test('grantSiSubmitClearance: success (a different approver) → ok, dispatch may proceed', async () => {
+  const res = await grantSiSubmitClearance(fakeGrantClient({ data: { id: 'si-1' }, error: null }), 'si-1', 'user-b', 'clr-1');
   assertEquals(res.ok, true);
 });
 
@@ -132,4 +146,72 @@ Deno.test('claimSiAuthor: success → ok (authorship is recorded BEFORE the ERP 
   const res = await claimSiAuthor(fakeClaimClient({ data: null, error: null }), 'si-1');
   assertEquals(res.ok, true);
   assertEquals(res.status, 200);
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+// Round-7 cross-family audit, B1b/B1c — RELEASING the submit clearance.
+//
+// The clearance's side effect is that `claim_sales_invoice_author` raises 55006, refusing EVERY body
+// rewrite. It must therefore be released as soon as the dispatch it protects resolves — otherwise
+// Finance is frozen out of correcting the amount for the whole (now 30-minute) TTL.
+//
+// But WHO may release it is the security question. The first cut fenced the release to the grantee
+// (`user_id = auth.uid()`) and exposed it to `authenticated` — and the attacker IS the grantee, so the
+// very approver the clearance constrains could release it mid-submit and rewrite the body their own
+// in-flight submit was about to commit. The release is now fenced to the CLEARANCE ID the granting
+// dispatch minted, on a service-role-only RPC: neither the constrained party nor a SECOND concurrent
+// submit can lift a still-outstanding freeze.
+//
+// Best-effort by construction: the freeze has a TTL backstop, so a failed release must never turn a
+// RESOLVED money dispatch into a client-visible error.
+// ════════════════════════════════════════════════════════════════════════════
+
+/** A fake service-role client scripting the release RPC, recording what it was asked. */
+function fakeReleaseClient(result: { data: unknown; error: { code?: string; message: string } | null }) {
+  const calls: Array<{ fn: string; args: Record<string, unknown> }> = [];
+  const client: SodRpcClient = {
+    rpc: async (fn: string, args: Record<string, unknown>) => {
+      calls.push({ fn, args });
+      return result;
+    },
+  };
+  return { client, calls };
+}
+
+Deno.test('releaseSiSubmitClearance: releases by CLEARANCE ID — the dispatch\'s own grant, not "whatever clearance this user holds"', async () => {
+  const { client, calls } = fakeReleaseClient({ data: null, error: null });
+
+  const released = await releaseSiSubmitClearance(client, 'si-1', 'clr-1');
+
+  assertEquals(released, true);
+  assertEquals(calls.length, 1);
+  assertEquals(calls[0].fn, 'release_sales_invoice_submit_clearance');
+  // The id is what fences it: a concurrent submit's clearance carries a different id and survives.
+  assertEquals(calls[0].args, { p_si_id: 'si-1', p_clearance_id: 'clr-1' });
+});
+
+Deno.test('releaseSiSubmitClearance: a failing release is swallowed (the TTL is the backstop — never fail a resolved money dispatch)', async () => {
+  const { client } = fakeReleaseClient({ data: null, error: { code: '42501', message: 'not authorized' } });
+  const originalError = console.error;
+  const logs: unknown[][] = [];
+  console.error = (...args: unknown[]) => { logs.push(args); };
+  try {
+    const released = await releaseSiSubmitClearance(client, 'si-1', 'clr-1');
+    assertEquals(released, false, 'the caller learns it failed…');
+    assert(logs.length === 1, '…and it is observable in the function logs, never silent');
+  } finally {
+    console.error = originalError;
+  }
+});
+
+Deno.test('releaseSiSubmitClearance: is only ever driven for the command that took a clearance', () => {
+  // The clearance is taken ONLY by `isRevenueSiSubmitTransition` commands — the same predicate the
+  // dispatch uses to decide whether to release, so the two can never drift apart.
+  assert(
+    isRevenueSiSubmitTransition({ domain: 'revenue', operation: 'transition', record: { id: 'si-1', erp_doc_kind: 'sales-invoice', verb: 'submit' } } as never),
+  );
+  assert(
+    !isRevenueSiSubmitTransition({ domain: 'revenue', operation: 'transition', record: { id: 'si-1', erp_doc_kind: 'sales-invoice', verb: 'cancel' } } as never),
+    'a cancel never took a clearance, so it must never release one',
+  );
 });

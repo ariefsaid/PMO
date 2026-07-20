@@ -24,7 +24,18 @@ function assert(cond: boolean, msg: string): void {
  *  chain (SF7 cross-org FK guard's lookup shape) keyed per table — `rows[table]` is the row a
  *  `maybeSingle()` returns (e.g. `{ org_id: 'org-1' }`). Backward compatible: defaults to {} so existing
  *  callers that pass nothing still work. */
+/** B10 (round-7): the procurement mirror writers now verify each NOT-NULL link row belongs to the
+ *  caller's org before the service-role insert, so every fixture needs those link rows to EXIST in
+ *  org-1 (the ctx.orgId these tests use). A test that wants the cross-org/missing case overrides the
+ *  entry — the dedicated proofs live in readModelWriters.crossOrg.test.ts. */
+const OWN_ORG_LINK_ROWS: Record<string, unknown> = {
+  procurements: { org_id: 'org-1' },
+  companies: { org_id: 'org-1' },
+  procurement_invoices: { org_id: 'org-1' },
+};
+
 function makeFakeClient(rows: Record<string, unknown> = {}, listRows: Record<string, unknown[]> = {}) {
+  rows = { ...OWN_ORG_LINK_ROWS, ...rows };
   const calls: { table: string; method: string; args: unknown[] }[] = [];
 
   function selectChain(table: string) {

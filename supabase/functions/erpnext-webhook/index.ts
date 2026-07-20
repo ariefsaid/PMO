@@ -26,6 +26,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { verifyErpWebhookSignature } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/webhookSignature.ts';
 import { decodeErpWebhookEvent } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/webhookEvent.ts';
 import { applyErpFeedEvent } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/applyFeed.ts';
+import { admitsDocForBindingCompany } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/companyScope.ts';
 import { createErpFeedDeps, ERPNEXT_TIER } from '../_shared/erpnextFeedDeps.ts';
 import { DOCTYPE_BODIES } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/doctypeBodies.ts';
 import type { ErpDocKind } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/doctypeRegistry.ts';
@@ -79,6 +80,11 @@ export async function readBodyBounded(req: Request, maxBytes: number): Promise<s
 export interface EmployingOrg {
   orgId: string;
   webhookSecret: string;
+  /** Round-7 B4: the ERP Company this binding represents (`external_org_bindings.config.company`).
+   *  One ERPNext site routinely hosts several Companies; a valid HMAC proves the SITE sent the event,
+   *  not that the document belongs to THIS tenant. `null` (an unconfigured binding) scopes nothing and
+   *  therefore adopts no company-scoped document. */
+  company: string | null;
   /** Luna BLOCK 9: the PMO domains this org has ACTUALLY assigned to the ERPNext tier
    *  (`external_domain_ownership`). A valid HMAC proves who sent the event, NOT that the org opted
    *  this domain into external ownership — an event for an unowned domain is ack'd and dropped. */
@@ -169,6 +175,17 @@ export async function handleErpWebhook(req: Request, deps: ErpWebhookHandlerDeps
     return json({ ok: true, skipped: 'domain-not-owned' });
   }
 
+  // Round-7 B4: per-COMPANY admission. The org owns the domain — but an ERPNext site routinely hosts
+  // several Company records, and the binding represents exactly ONE of them. Without this, a Company-B
+  // Sales Invoice or Receive Payment Entry was adopted into Company A's PMO tenant and surfaced in its
+  // revenue/AR views with no error: another tenant's financial data. Fail CLOSED — a document that does
+  // not state its company, and a binding that names none, adopt nothing. Ack'd 200 (like
+  // domain-not-owned): the event is genuine, it is simply not ours to mirror, so Frappe must not retry.
+  // The rule lives in `companyScope` so the sweep applies the IDENTICAL one (as a server-side filter).
+  if (!admitsDocForBindingCompany(event.kind, event.doc, matchedOrg.company)) {
+    return json({ ok: true, skipped: 'company-not-in-scope' });
+  }
+
   // ── 3. Apply via the lineage-aware feed (lossy hint; the sweep is the convergence authority). ──
   try {
     const outcome = await deps.applyEvent(matchedOrg.orgId, event);
@@ -189,7 +206,7 @@ export async function handleErpWebhook(req: Request, deps: ErpWebhookHandlerDeps
 /** Loads the employing orgs + resolves each org's webhook secret from its `webhook_secret_ref` env. */
 async function resolveEmployingOrgsLive(serviceClient: SupabaseClient): Promise<EmployingOrg[]> {
   const { data, error } = await serviceClient.from('external_org_bindings')
-    .select('org_id, webhook_secret_ref, activated_at')
+    .select('org_id, webhook_secret_ref, activated_at, config')
     .eq('external_tier', ERPNEXT_TIER);
   // task FIX-5 (Quality IMPORTANT 2): a real DB error must not be swallowed into "no employing org"
   // (that reads as a permanent 401 to Frappe) — log it and THROW so the caller (handleErpWebhook)
@@ -198,13 +215,24 @@ async function resolveEmployingOrgsLive(serviceClient: SupabaseClient): Promise<
     console.error(`[erpnext-webhook] external_org_bindings load failed: code=${error.code ?? 'none'} message=${error.message}`);
     throw new AppError(error.message, error.code);
   }
-  const rows = (data as Array<{ org_id: string; webhook_secret_ref: string | null; activated_at: string | null }> | null) ?? [];
+  const rows = (data as Array<{
+    org_id: string;
+    webhook_secret_ref: string | null;
+    activated_at: string | null;
+    config: Record<string, unknown> | null;
+  }> | null) ?? [];
   // Only ACTIVATED bindings are employing (a binding is activated once the version handshake passes,
   // 2.6/8.8). A binding without a webhook_secret_ref is employing for COMMANDS but not webhooks — it
   // contributes no HMAC key (webhook events for it are rejected until a secret is configured).
   const candidates = rows
     .filter((r) => r.activated_at && r.webhook_secret_ref)
-    .map((r) => ({ orgId: r.org_id, webhookSecret: Deno.env.get(r.webhook_secret_ref!) ?? '' }))
+    // B4: carry the binding's ERP Company through — the per-document admission gate below scopes
+    // adoption to it (a multi-company ERP site must not leak Company B's money into Company A's tenant).
+    .map((r) => ({
+      orgId: r.org_id,
+      webhookSecret: Deno.env.get(r.webhook_secret_ref!) ?? '',
+      company: typeof r.config?.company === 'string' && r.config.company.length > 0 ? r.config.company : null,
+    }))
     .filter((r) => r.webhookSecret !== '');
   if (candidates.length === 0) return [];
 

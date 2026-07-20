@@ -21,7 +21,7 @@ insert into auth.users (id, email) values
   ('11080000-0000-0000-0000-0000000002b1','approver-b-b6@example.com');
 
 insert into profiles (id, org_id, full_name, email, role, status) values
-  ('11080000-0000-0000-0000-0000000002a1','11080000-0000-0000-0000-000000000201','Author A','author-a-b6@example.com','Project Manager','active'),
+  ('11080000-0000-0000-0000-0000000002a1','11080000-0000-0000-0000-000000000201','Author A','author-a-b6@example.com','Finance','active'),
   ('11080000-0000-0000-0000-0000000002b1','11080000-0000-0000-0000-000000000201','Approver B','approver-b-b6@example.com','Finance','active');
 
 insert into external_domain_ownership (org_id, external_tier, domain) values

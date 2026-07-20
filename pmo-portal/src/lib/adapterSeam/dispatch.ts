@@ -467,7 +467,35 @@ export async function dispatchMoneyWrite(deps: DispatchMoneyWriteDeps): Promise<
   return reconcileOutbox(row, deps);
 }
 
+/**
+ * WIRE 4 — the 0116 partial unique index `external_command_outbox_one_inflight_per_record` (at most ONE
+ * non-terminal outbox row per (org, domain, pmo_record_id)) is the barrier against two concurrent
+ * creates minting two ERP documents for one PMO record. Its violation carries a DIFFERENT idempotency
+ * key than the row already in flight, so the read-the-winner branch above finds nothing and the raw
+ * Postgres error would escape verbatim — a 500 naming an internal index, which tells the caller neither
+ * what happened nor what to do. Classified here into a distinct, actionable conflict code (mapped to
+ * HTTP 409 by adapter-dispatch).
+ *
+ * Detected on the pg CODE **and** the constraint name: the code alone covers every unique index on the
+ * table (and the mirror tables), and the name alone would match any message that merely mentions it.
+ */
+const OUTBOX_IN_FLIGHT_INDEX = 'external_command_outbox_one_inflight_per_record';
+export const COMMAND_IN_FLIGHT_FOR_RECORD = 'command-in-flight-for-record';
+
+function isOutboxInFlightConflict(error: unknown): boolean {
+  const e = error as { code?: unknown; message?: unknown; details?: unknown } | null | undefined;
+  if (e?.code !== '23505') return false;
+  const text = `${typeof e.message === 'string' ? e.message : ''} ${typeof e.details === 'string' ? e.details : ''}`;
+  return text.includes(OUTBOX_IN_FLIGHT_INDEX);
+}
+
 function toDispatchError(error: unknown): AppError {
+  if (isOutboxInFlightConflict(error)) {
+    return new AppError(
+      'another command for this record is already in flight — wait for it to settle (or resolve it) before dispatching again',
+      COMMAND_IN_FLIGHT_FOR_RECORD,
+    );
+  }
   if (error instanceof AppError) return error;
   if (error instanceof AdapterError) {
     if (error.code === 'external-unreachable') {

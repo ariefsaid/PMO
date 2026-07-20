@@ -36,7 +36,7 @@ insert into auth.users (id, email) values
   ('11130000-0000-0000-0000-0000000001d1','set-outsider@example.com');
 
 insert into profiles (id, org_id, full_name, email, role, status) values
-  ('11130000-0000-0000-0000-0000000001a1','11130000-0000-0000-0000-000000000101','Author A','set-a@example.com','Project Manager','active'),
+  ('11130000-0000-0000-0000-0000000001a1','11130000-0000-0000-0000-000000000101','Author A','set-a@example.com','Finance','active'),
   ('11130000-0000-0000-0000-0000000001b1','11130000-0000-0000-0000-000000000101','Approver B','set-b@example.com','Finance','active'),
   ('11130000-0000-0000-0000-0000000001c1','11130000-0000-0000-0000-000000000101','Third Party C','set-c@example.com','Finance','active'),
   ('11130000-0000-0000-0000-0000000001d1','11130000-0000-0000-0000-000000000102','Outsider D','set-outsider@example.com','Admin','active');

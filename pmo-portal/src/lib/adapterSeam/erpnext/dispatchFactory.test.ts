@@ -129,6 +129,9 @@ describe('erpnext/dispatchFactory', () => {
               if (table === 'external_refs' && filters.domain === 'companies' && filters.pmo_record_id === 'company-1') {
                 return { data: { external_record_id: 'Supplier:Spike Supplier' }, error: null };
               }
+              // B10: the cross-org link pre-flight resolves `vendorId` against `companies.org_id`
+              // before any ref resolution — the vendor belongs to the caller's org here.
+              if (table === 'companies' && filters.id === 'company-1') return { data: { org_id: 'org-1' }, error: null };
               return { data: null, error: null };
             },
           };

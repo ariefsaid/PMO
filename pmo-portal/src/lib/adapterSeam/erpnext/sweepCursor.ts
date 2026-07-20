@@ -43,8 +43,14 @@ export interface SweepCursorDeps {
   /** Defense-in-depth (mirrors `recoveryProbe.ts`'s `validateAdoptedDoc`): re-validates each fetched row
    *  BEFORE it is emitted as a `SweepChange`, even though the server-side `extraFilters` should already
    *  have excluded it. A row failing validation is SKIPPED — never surfaced as a change for this kind's
-   *  poll (it still counts toward `nextCursor` — it is a genuine ERP row, just not this kind's). */
-  filterRow?: (row: Record<string, unknown>) => boolean;
+   *  poll (it still counts toward `nextCursor` — it is a genuine ERP row, just not this kind's).
+   *
+   *  MAY be ASYNC (round-7 finding B5): the sweep's in-flight pull-adopt guard asks the outbox, PER
+   *  CANDIDATE, whether the document belongs to a PMO command still inside the recovery algorithm. That
+   *  question must be answered against the outbox as it stands WHEN THE DOCUMENT IS SEEN — a snapshot
+   *  taken before the poll goes stale the moment a user starts a create mid-tick. The awaited result is
+   *  what decides; a promise is never coerced truthy. */
+  filterRow?: (row: Record<string, unknown>) => boolean | Promise<boolean>;
   /** Luna BLOCK 6: re-read ONE changed doc in full before mapping it. Frappe's LIST endpoint never
    *  returns child tables, so a kind whose canonical depends on one (a Receive Payment Entry's
    *  `references` — the rows citing the Sales Invoice it pays, i.e. the money link behind
@@ -60,6 +66,23 @@ const DEFAULT_PAGE_SIZE = 500;
  *  list endpoint must return these so each `SweepChange` carries them on its canonical record. */
 const REQUIRED_FIELDS = ['name', 'modified', 'docstatus', 'amended_from'] as const;
 
+/**
+ * The DETERMINISTIC total order every page request carries (round-7 cross-family audit, SHOULD-FIX).
+ *
+ * Paging with `limit_start` against an UNSPECIFIED server order is unsound: rows tied on `modified` (a
+ * bulk ERP write commits many documents at once) may come back in a different arbitrary sequence per
+ * request, so a document that sat on page 2 for the first request can sit on page 1 for the second and
+ * never be returned at all. `nextCursor` — the max `modified` OBSERVED, which the tied rows all share —
+ * then advances past it and that document's revenue/payment change is omitted permanently.
+ *
+ * `name` is what makes the order TOTAL (it is the doctype's primary key, so no two rows tie on it), and
+ * ASCENDING is what makes it skip-proof under concurrency: an ERP write sets `modified = now()`, so a
+ * document created or updated while we are paging sorts to the END of the result set — at or after the
+ * page pointer — and is therefore still listed. (Descending would prepend it and push unseen rows past
+ * the pointer.) The worst case is that a row is listed TWICE, which the `byName` dedupe already absorbs.
+ */
+const SWEEP_ORDER_BY = 'modified asc,name asc';
+
 function listPath(
   doctype: string,
   filters: unknown[],
@@ -70,7 +93,8 @@ function listPath(
   const encodedDoctype = encodeURIComponent(doctype);
   const f = encodeURIComponent(JSON.stringify(filters));
   const fld = encodeURIComponent(JSON.stringify(fields));
-  const qs = `filters=${f}&fields=${fld}&limit_page_length=${pageSize}&limit_start=${limitStart}`;
+  const qs = `filters=${f}&fields=${fld}&order_by=${encodeURIComponent(SWEEP_ORDER_BY)}`
+    + `&limit_page_length=${pageSize}&limit_start=${limitStart}`;
   return `/api/resource/${encodedDoctype}?${qs}`;
 }
 
@@ -122,7 +146,7 @@ export async function listErpChangesSinceWatermark(
   for (const { row, modified } of byName.values()) {
     // Luna BLOCK A1 defense-in-depth: skip a doc that fails the kind's discriminator even if it
     // somehow surfaced past the server-side extraFilters — never adopted into the wrong kind.
-    if (deps.filterRow && !deps.filterRow(row)) continue;
+    if (deps.filterRow && !(await deps.filterRow(row))) continue;
     // Luna BLOCK 6: for a child-table-dependent kind, map the FULL doc, not the list projection —
     // otherwise the canonical silently loses the child data (e.g. the PE→SI reference) and the mirror
     // is written with a NULL money link. The list row still owns the routing fields + the cursor.

@@ -134,6 +134,9 @@ test.describe('AC-SAR-043: Inbound Sales Invoice adoption (native ERP creation â
           outstanding_amount: 125000,
           posting_date: new Date().toISOString().split('T')[0],
           customer: 'Spike Customer', // matches the native SI's customer (the bench fixture)
+          company: 'PMO Smoke Co', // round-7 B4: a company-scoped doc must STATE its company or it fails
+          // closed (unattributable on a multi-company ERP site). A real Frappe webhook_json must include
+          // it; the binding's config.company (seedSAR BINDING_CONFIG) is the same value it's matched against.
           amended_from: null,
           // No project field = project-less SI
         },

@@ -131,6 +131,41 @@ export const ERP_PROBE_TIMEOUT_MS = 20_000;
  */
 export const ERP_RETRY_AFTER_CAP_MS = 15_000;
 
+/** The retry budget an IDEMPOTENT request gets when the caller does not override `maxRetries`. Named
+ *  (rather than inlined at the `??`) because the worst-case in-flight budget below is DERIVED from it —
+ *  a silent change here must move that budget, and the SoD clearance TTL with it. */
+export const ERP_DEFAULT_MAX_RETRIES = 3;
+
+/**
+ * The worst-case wall-clock ONE idempotent ERP request can occupy: every attempt may burn its full
+ * per-attempt deadline, and every retry may wait the full capped `Retry-After`.
+ *
+ * (A non-idempotent `POST` is exempt — it gets exactly one attempt, FR-ENA-042.)
+ */
+export const ERP_IDEMPOTENT_REQUEST_MAX_MS =
+  (ERP_DEFAULT_MAX_RETRIES + 1) * ERP_REQUEST_TIMEOUT_MS + ERP_DEFAULT_MAX_RETRIES * ERP_RETRY_AFTER_CAP_MS;
+
+/**
+ * How many full-budget ERP requests ONE submit dispatch can issue: the outbox recovery probe, the
+ * `PUT {docstatus:1}` submit, and the mandatory post-submit re-fetch (`adapter.ts` `commitTransition`,
+ * `verb:'submit'`). The probe actually runs on the tighter `ERP_PROBE_TIMEOUT_MS` single-attempt budget,
+ * so counting it as a full one is deliberately conservative.
+ */
+export const ERP_SUBMIT_MAX_ERP_REQUESTS = 3;
+
+/**
+ * The LONGEST a Sales Invoice submit can still be in flight — i.e. the longest a body rewrite must stay
+ * refused after the submit was authorized (round-7 cross-family audit, B1a).
+ *
+ * The SoD submit clearance (`sales_invoice_submit_authorizations`) is what refuses a concurrent body
+ * rewrite, and migration 0113 gave it a hand-picked 5-minute TTL — SHORTER than this. The clearance
+ * therefore lapsed while the submit was still running, and the approver could then claim authorship,
+ * rewrite the amount, and have the in-flight submit commit their own numbers under their own earlier
+ * approval. The clearance TTL is now derived from this value, and `submitClearanceTtl.test.ts` asserts
+ * the migration honours it so the two cannot drift apart.
+ */
+export const ERP_SUBMIT_MAX_IN_FLIGHT_MS = ERP_SUBMIT_MAX_ERP_REQUESTS * ERP_IDEMPOTENT_REQUEST_MAX_MS;
+
 /**
  * Applies the recovery-probe budget to a client: exactly ONE attempt (no retry into the claim budget)
  * with the tighter `ERP_PROBE_TIMEOUT_MS` deadline. Returns a COPY — the caller's own client (which a
@@ -235,7 +270,7 @@ async function safeParseBody(res: Response): Promise<unknown> {
  */
 export async function erpnextRequest(deps: ErpClientDeps, opts: ErpRequestOptions): Promise<unknown> {
   const sleep = deps.sleep ?? defaultSleep;
-  const maxRetries = opts.method === 'POST' ? 0 : (deps.maxRetries ?? 3);
+  const maxRetries = opts.method === 'POST' ? 0 : (deps.maxRetries ?? ERP_DEFAULT_MAX_RETRIES);
   const headers = {
     Authorization: `token ${deps.apiKey}:${deps.apiSecret}`,
     'Content-Type': 'application/json',

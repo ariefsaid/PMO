@@ -31,7 +31,7 @@ insert into auth.users (id, email) values
 insert into profiles (id, org_id, full_name, email, role, status) values
   ('11120000-0000-0000-0000-0000000001a1','11120000-0000-0000-0000-000000000101','A Active','rpc-active@example.com','Finance','active'),
   ('11120000-0000-0000-0000-0000000001d1','11120000-0000-0000-0000-000000000101','D Disabled','rpc-disabled@example.com','Finance','disabled'),
-  ('11120000-0000-0000-0000-0000000001c1','11120000-0000-0000-0000-000000000101','X Author','rpc-author@example.com','Project Manager','active');
+  ('11120000-0000-0000-0000-0000000001c1','11120000-0000-0000-0000-000000000101','X Author','rpc-author@example.com','Finance','active');
 
 insert into external_domain_ownership (org_id, external_tier, domain) values
   ('11120000-0000-0000-0000-000000000101','erpnext','revenue');

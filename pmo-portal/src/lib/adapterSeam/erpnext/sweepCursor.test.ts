@@ -306,3 +306,141 @@ describe('erpnext/sweepCursor — full-doc hydration for child-table-dependent k
     expect((client.fetchImpl as unknown as { mock: { calls: unknown[] } }).mock.calls).toHaveLength(1); // the single short list page — no per-doc read
   });
 });
+
+// ────────────────────────────────────────────────────────────────────────────────────────────────
+// Round-7 cross-family audit, SHOULD-FIX — DETERMINISTIC PAGING.
+//
+// The poll pages with `limit_start` but sent NO `order_by`, so the page boundaries depended on an
+// UNSPECIFIED server-side ordering. Rows tied on `modified` (a bulk ERP write commits many docs in one
+// go) can come back in a different arbitrary order per request, so a row that sat on page 2 during the
+// first request can sit on page 1 during the second — and is never returned at all. The watermark then
+// advances past it (`nextCursor` = the max `modified` OBSERVED, which the tied rows all share), so that
+// document's revenue/payment change is omitted PERMANENTLY: the next tick's `modified >= nextCursor`
+// still lists it, but the apply guard sees no newer source-mod and the row was never mapped.
+//
+// The fix is a deterministic total order — `modified asc, name asc`:
+//   • `name` breaks the `modified` ties, so the sort is TOTAL and the page boundaries are stable;
+//   • ASCENDING is what makes it skip-proof under concurrency: an ERP write sets `modified = now()`, so
+//     a doc created or updated mid-paging sorts to the END of the result set — at or after the page
+//     pointer — and is therefore still listed. (Descending would prepend it and shift unseen rows past
+//     the pointer.) A row can only ever be listed TWICE, which the `byName` dedupe already absorbs.
+// ────────────────────────────────────────────────────────────────────────────────────────────────
+describe('erpnext/sweepCursor — deterministic paging (round-7 SHOULD-FIX)', () => {
+  /**
+   * A fake Frappe list endpoint over a MUTABLE dataset that really applies `order_by`, `limit_start`
+   * and `limit_page_length`.
+   *
+   * When the request sends NO `order_by` it models an unspecified server order: the rows come back in
+   * an arbitrary (here: rotated-per-request) sequence — exactly what an unstable sort over tied
+   * `modified` values does. That is the state the fix must remove, not tolerate.
+   */
+  function orderAwareClient(rows: Array<Record<string, unknown>>): { client: ErpClientDeps; urls: string[]; rows: Array<Record<string, unknown>> } {
+    const urls: string[] = [];
+    let request = 0;
+    const fetchImpl = vi.fn(async (url: string | URL | Request) => {
+      const href = String(url);
+      urls.push(href);
+      const params = new URL(href).searchParams;
+      const orderBy = params.get('order_by');
+      const start = Number(params.get('limit_start') ?? '0');
+      const length = Number(params.get('limit_page_length') ?? '20');
+      let ordered: Array<Record<string, unknown>>;
+      if (orderBy) {
+        const keys = orderBy.split(',').map((k) => k.trim().split(/\s+/)[0]);
+        ordered = [...rows].sort((a, b) => {
+          for (const key of keys) {
+            const cmp = String(a[key]).localeCompare(String(b[key]));
+            if (cmp !== 0) return cmp;
+          }
+          return 0;
+        });
+      } else {
+        // Unspecified order: rotate by one per request so tied rows land on different pages.
+        const rotation = request % Math.max(rows.length, 1);
+        ordered = [...rows.slice(rotation), ...rows.slice(0, rotation)];
+      }
+      request += 1;
+      return new Response(JSON.stringify({ data: ordered.slice(start, start + length) }), { status: 200 });
+    });
+    return { client: { fetchImpl: fetchImpl as unknown as typeof fetch, apiKey: 'k', apiSecret: 's', baseUrl: 'http://erp.test' }, urls, rows };
+  }
+
+  const TIED = '2026-07-20 09:00:00.000000';
+  const tiedRows = () =>
+    ['SINV-0001', 'SINV-0002', 'SINV-0003', 'SINV-0004', 'SINV-0005', 'SINV-0006'].map((name) => ({
+      name,
+      modified: TIED,
+      docstatus: 1,
+      amended_from: null,
+    }));
+
+  it('sends an explicit deterministic order (modified asc, name asc) on EVERY page request', async () => {
+    const { client, urls } = orderAwareClient(tiedRows());
+    await listErpChangesSinceWatermark(
+      { client, doctype: 'Sales Invoice', fields: ['name', 'modified', 'docstatus', 'amended_from'], fromDoc: FROM_DOC, pageSize: 2 },
+      null,
+    );
+    expect(urls.length).toBeGreaterThan(1); // it really paged
+    for (const url of urls) {
+      expect(new URL(url).searchParams.get('order_by')).toBe('modified asc,name asc');
+    }
+  });
+
+  it('pages tied-`modified` rows without SKIPPING any (the ordering is total — `name` breaks the tie)', async () => {
+    const { client } = orderAwareClient(tiedRows());
+    const { changes } = await listErpChangesSinceWatermark(
+      { client, doctype: 'Sales Invoice', fields: ['name', 'modified', 'docstatus', 'amended_from'], fromDoc: FROM_DOC, pageSize: 2 },
+      null,
+    );
+    // Every document must be emitted exactly once — a skipped one is a permanently omitted money change.
+    expect(changes.map((c) => String(c.record.id)).sort()).toEqual([
+      'SINV-0001', 'SINV-0002', 'SINV-0003', 'SINV-0004', 'SINV-0005', 'SINV-0006',
+    ]);
+  });
+
+  it('a document written DURING the paging is still listed (an ERP write sets modified=now, so ascending order appends it)', async () => {
+    const { client, rows } = orderAwareClient([
+      { name: 'SINV-0001', modified: '2026-07-20 09:00:00.000000', docstatus: 1, amended_from: null },
+      { name: 'SINV-0002', modified: '2026-07-20 09:00:01.000000', docstatus: 1, amended_from: null },
+    ]);
+    // Race the poll: the concurrent create lands after the first page has been served.
+    const original = client.fetchImpl;
+    let served = 0;
+    client.fetchImpl = (async (url: string | URL | Request, init?: RequestInit) => {
+      const res = await (original as typeof fetch)(url, init);
+      served += 1;
+      if (served === 1) rows.push({ name: 'SINV-0003', modified: '2026-07-20 09:00:02.000000', docstatus: 1, amended_from: null });
+      return res;
+    }) as unknown as typeof fetch;
+
+    const { changes, nextCursor } = await listErpChangesSinceWatermark(
+      { client, doctype: 'Sales Invoice', fields: ['name', 'modified', 'docstatus', 'amended_from'], fromDoc: FROM_DOC, pageSize: 2 },
+      null,
+    );
+
+    expect(changes.map((c) => String(c.record.id)).sort()).toEqual(['SINV-0001', 'SINV-0002', 'SINV-0003']);
+    expect(nextCursor).toBe('2026-07-20 09:00:02.000000');
+  });
+
+  it('filterRow may be ASYNC — the poll awaits it (the in-flight adopt guard checks the outbox per candidate)', async () => {
+    const { client } = orderAwareClient([
+      { name: 'SINV-0001', modified: '2026-07-20 09:00:00.000000', docstatus: 1, amended_from: null, remarks: 'pmo-key-A' },
+      { name: 'SINV-0002', modified: '2026-07-20 09:00:01.000000', docstatus: 1, amended_from: null, remarks: 'native' },
+    ]);
+    const { changes } = await listErpChangesSinceWatermark(
+      {
+        client,
+        doctype: 'Sales Invoice',
+        fields: ['name', 'modified', 'docstatus', 'amended_from', 'remarks'],
+        fromDoc: FROM_DOC,
+        // A real async guard: a promise that resolves FALSE must skip the row, never be coerced truthy.
+        filterRow: async (row) => {
+          await Promise.resolve();
+          return row.remarks !== 'pmo-key-A';
+        },
+      },
+      null,
+    );
+    expect(changes.map((c) => String(c.record.id))).toEqual(['SINV-0002']);
+  });
+});

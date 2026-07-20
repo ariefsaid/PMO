@@ -22,6 +22,9 @@ type ErpWebhookHandlerDeps = Parameters<typeof handleErpWebhook>[1];
 
 const SECRET = 'test-webhook-secret';
 const ORG_ID = '00000000-0000-0000-0000-000000000001';
+/** The ERP Company this org's binding names (`external_org_bindings.config.company`). B4: every inbound
+ *  company-scoped document must state THIS company or it is not ours to adopt. */
+const COMPANY = 'PMO Smoke Co';
 
 function assert(cond: boolean, msg: string): void {
   if (!cond) throw new Error(msg);
@@ -40,7 +43,7 @@ async function sign(body: string): Promise<string> {
 function deps(applyEvent: () => Promise<unknown> = async () => ({ kind: 'upserted', pmoRecordId: 'pmo-1', adopted: false })): ErpWebhookHandlerDeps {
   let applied = 0;
   return {
-    resolveEmployingOrgs: async () => [{ orgId: ORG_ID, webhookSecret: SECRET, ownedDomains: ['procurement', 'revenue', 'companies'] }],
+    resolveEmployingOrgs: async () => [{ orgId: ORG_ID, webhookSecret: SECRET, company: COMPANY, ownedDomains: ['procurement', 'revenue', 'companies'] }],
     applyEvent: async () => { applied += 1; await applyEvent(); return { kind: 'upserted' as const, pmoRecordId: 'pmo-1', adopted: false }; },
     // exposed via closure for the no-side-effect assertion
     _applied: () => applied,
@@ -60,7 +63,7 @@ const PI_EVENT = JSON.stringify({
   docstatus: 1,
   amended_from: null,
   modified: '2026-07-12 12:00:00.000000',
-  doc: { name: 'ACC-PINV-2026-00002', docstatus: 1, grand_total: '50000.00' },
+  doc: { name: 'ACC-PINV-2026-00002', docstatus: 1, grand_total: '50000.00', company: 'PMO Smoke Co' },
 });
 
 Deno.test('AC-ENA-070: an ABSENT X-Frappe-Webhook-Signature ⇒ 401 with NO side effect', async () => {
@@ -123,7 +126,7 @@ Deno.test('FIX-5: resolveEmployingOrgs THROWING (a DB load error) ⇒ 500, disti
 
 Deno.test('AC-ENA-070: a webhook whose secret does NOT match any employing org ⇒ 401 (no side effect)', async () => {
   const otherSecretDeps: ErpWebhookHandlerDeps = {
-    resolveEmployingOrgs: async () => [{ orgId: ORG_ID, webhookSecret: 'a-DIFFERENT-secret', ownedDomains: ['procurement', 'revenue', 'companies'] }],
+    resolveEmployingOrgs: async () => [{ orgId: ORG_ID, webhookSecret: 'a-DIFFERENT-secret', company: COMPANY, ownedDomains: ['procurement', 'revenue', 'companies'] }],
     applyEvent: async () => { throw new Error('applyEvent must not be called on a secret mismatch'); },
   };
   const validSig = await sign(PI_EVENT); // signed with SECRET, not 'a-DIFFERENT-secret'
@@ -207,13 +210,13 @@ const SI_EVENT = JSON.stringify({
   docstatus: 1,
   amended_from: null,
   modified: '2026-07-18 12:00:00.000000',
-  doc: { name: 'ACC-SINV-2026-00003', docstatus: 1, grand_total: '125000.00', outstanding_amount: '125000.00' },
+  doc: { name: 'ACC-SINV-2026-00003', docstatus: 1, grand_total: '125000.00', outstanding_amount: '125000.00', company: 'PMO Smoke Co' },
 });
 
 function depsOwning(ownedDomains: string[]): ErpWebhookHandlerDeps & { _applied: () => number } {
   let applied = 0;
   return {
-    resolveEmployingOrgs: async () => [{ orgId: ORG_ID, webhookSecret: SECRET, ownedDomains }],
+    resolveEmployingOrgs: async () => [{ orgId: ORG_ID, webhookSecret: SECRET, company: COMPANY, ownedDomains }],
     applyEvent: async () => { applied += 1; return { kind: 'upserted' as const, pmoRecordId: 'pmo-1', adopted: false }; },
     _applied: () => applied,
   } as unknown as ErpWebhookHandlerDeps & { _applied: () => number };
@@ -240,4 +243,71 @@ Deno.test('BLOCK 9: an org with NO owned domains adopts nothing (fail-closed, no
   const res = await handleErpWebhook(req(PI_EVENT, await sign(PI_EVENT)), d);
   assert(res.status === 200, `expected a 200 ack, got ${res.status}`);
   assert(d._applied() === 0, 'expected NO apply when the org owns no domain at all');
+});
+
+// ────────────────────────────────────────────────────────────────────────────────────────────────
+// Round-7 cross-family B4 — MULTI-COMPANY ERP DATA MUST BE SCOPED ON ADOPTION (CROSS-TENANT).
+// The binding names one ERP Company (`config.company`) but inbound admission checked only HMAC +
+// domain ownership. On an ERP site hosting Company A and Company B, a Company-B Sales Invoice or
+// Receive Payment Entry was adopted into Company A's PMO tenant and appeared in its revenue/AR views
+// with no error. The gate is `companyScope.admitsDocForBindingCompany` — shared with the sweep so the
+// two inbound paths cannot drift.
+// ────────────────────────────────────────────────────────────────────────────────────────────────
+
+/** A Sales Invoice event whose doc states `company`. */
+function siEventForCompany(company: string | undefined, name = 'ACC-SINV-2026-00042'): string {
+  const doc: Record<string, unknown> = { name, docstatus: 1, grand_total: '99000.00', outstanding_amount: '99000.00' };
+  if (company !== undefined) doc.company = company;
+  return JSON.stringify({ doctype: 'Sales Invoice', name, docstatus: 1, amended_from: null, modified: '2026-07-20 09:00:00.000000', doc });
+}
+
+Deno.test("B4: a correctly-signed Sales Invoice belonging to ANOTHER ERP company is NOT adopted (cross-tenant money)", async () => {
+  const d = deps();
+  const event = siEventForCompany('Other Tenant Ltd');
+  const res = await handleErpWebhook(req(event, await sign(event)), d);
+  assert(res.status === 200, `expected a 200 ack (genuine event, not ours), got ${res.status}`);
+  assert((d as unknown as { _applied: () => number })._applied() === 0, 'applyEvent must NOT run for another company\'s document');
+  const body = await res.json();
+  assert(body.skipped === 'company-not-in-scope', `expected company-not-in-scope, got ${JSON.stringify(body)}`);
+});
+
+Deno.test("B4: the SAME invoice IS adopted when it states this binding's own company", async () => {
+  const d = deps();
+  const event = siEventForCompany(COMPANY);
+  const res = await handleErpWebhook(req(event, await sign(event)), d);
+  assert(res.status === 200, `expected 200, got ${res.status}`);
+  assert((d as unknown as { _applied: () => number })._applied() === 1, 'expected the own-company invoice to apply');
+});
+
+Deno.test('B4: a company-scoped document that states NO company is NOT adopted (fail closed)', async () => {
+  const d = deps();
+  const event = siEventForCompany(undefined);
+  const res = await handleErpWebhook(req(event, await sign(event)), d);
+  assert(res.status === 200, `expected a 200 ack, got ${res.status}`);
+  assert((d as unknown as { _applied: () => number })._applied() === 0, 'a document that does not state its company must not be adopted');
+  const body = await res.json();
+  assert(body.skipped === 'company-not-in-scope', `expected company-not-in-scope, got ${JSON.stringify(body)}`);
+});
+
+Deno.test('B4: a binding with NO configured company adopts no company-scoped document (fail closed)', async () => {
+  let applied = 0;
+  const d = {
+    resolveEmployingOrgs: async () => [{ orgId: ORG_ID, webhookSecret: SECRET, company: null, ownedDomains: ['procurement', 'revenue', 'companies'] }],
+    applyEvent: async () => { applied += 1; return { kind: 'upserted' as const, pmoRecordId: 'pmo-1', adopted: false }; },
+  } as unknown as ErpWebhookHandlerDeps;
+  const event = siEventForCompany(COMPANY);
+  const res = await handleErpWebhook(req(event, await sign(event)), d);
+  assert(res.status === 200, `expected a 200 ack, got ${res.status}`);
+  assert(applied === 0, 'an unconfigured binding company can scope nothing ⇒ adopt nothing');
+});
+
+Deno.test('B4: a GLOBAL master (Customer) is still adopted — it carries no company dimension', async () => {
+  const d = deps();
+  const event = JSON.stringify({
+    doctype: 'Customer', name: 'Acme Corp', docstatus: 0, modified: '2026-07-20 09:00:00.000000',
+    doc: { name: 'Acme Corp', customer_name: 'Acme Corp' },
+  });
+  const res = await handleErpWebhook(req(event, await sign(event)), d);
+  assert(res.status === 200, `expected 200, got ${res.status}`);
+  assert((d as unknown as { _applied: () => number })._applied() === 1, 'a Customer master must still be adopted (no company field exists on it)');
 });

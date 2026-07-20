@@ -19,7 +19,7 @@ insert into auth.users (id, email) values
   ('11050000-0000-0000-0000-0000000001c1','non-approver-c@example.com');
 
 insert into profiles (id, org_id, full_name, email, role, status) values
-  ('11050000-0000-0000-0000-0000000001a1','11050000-0000-0000-0000-000000000101','Author A','author-a@example.com','Project Manager','active'),
+  ('11050000-0000-0000-0000-0000000001a1','11050000-0000-0000-0000-000000000101','Author A','author-a@example.com','Finance','active'),
   ('11050000-0000-0000-0000-0000000001b1','11050000-0000-0000-0000-000000000101','Approver B','approver-b@example.com','Finance','active'),
   ('11050000-0000-0000-0000-0000000001c1','11050000-0000-0000-0000-000000000101','Non-Approver C','non-approver-c@example.com','Engineer','active');
 

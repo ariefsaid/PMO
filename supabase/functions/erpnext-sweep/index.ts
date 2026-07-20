@@ -59,10 +59,12 @@ import { resolveErpCredentials } from '../../../pmo-portal/src/lib/adapterSeam/e
 import { erpnextRequest, withProbeBudget, type ErpClientDeps } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/client.ts';
 import { resolveErpDispatchAdapter, withPaymentTypeDiscriminator } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/dispatchFactory.ts';
 import { canonicalCommandDigest, createDbMoneyOutboxDeps } from '../adapter-dispatch/moneyOutboxDeps.ts';
+import { checkOutboxReplayAuthorization } from '../adapter-dispatch/authGuard.ts';
 import { getReadModelWriter } from '../adapter-dispatch/readModelWriters.ts';
 import { recordExternalRef as recordExternalRefWrite } from '../../../pmo-portal/src/lib/adapterSeam/refs.ts';
 import { probeErpByAnchorKey, probeErpByPaymentComposite, type ErpProbeDeps } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/recoveryProbe.ts';
 import { ERPNEXT_COMPANIES_DOMAIN } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/adapter.ts';
+import { admitsDocForBindingCompany, companyDocFilters, isCompanyScopedKind } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/companyScope.ts';
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
 
 function json(body: unknown, status = 200): Response {
@@ -105,59 +107,112 @@ export function sweepFieldsForKind(kind: ErpDocKind): string[] {
   // from a native one, and pull-adopts a SECOND PMO row for a doc the outbox is about to finalize.
   const anchorField = DOCTYPE_REGISTRY[kind].anchorField;
   if (anchorField) fields.add(anchorField);
+  // WIRE 3 / B4: the `company` dimension, for the kinds whose doctype HAS one. The per-document
+  // admission gate reads it off each returned row, and it fails CLOSED on a document that states no
+  // company — so a poll that did not request the field would admit nothing at all. Never requested for
+  // a global master (Supplier/Customer): Frappe rejects a list query naming a non-existent field.
+  if (isCompanyScopedKind(kind)) fields.add('company');
   return Array.from(fields);
 }
 
 /**
- * BLOCK 1 (the double-adoption fix) — the poll's pull-adopt guard.
+ * The outbox states whose row may correspond to an ERP document that EXISTS but is NOT yet mapped to
+ * its PMO record — the ONLY rows the pull-adopt guard has to know about (round-6 re-audit, finding 1).
  *
- * Returns the `filterRow` predicate for one kind: a doc whose anchor field carries the idempotency key
- * of a NON-CONFIRMED outbox row for this org is NOT this poll's to adopt. That document belongs to a
- * PMO-originated command still inside the ADR-0058 recovery algorithm (committing / quarantined /
- * committed / pending / failed / held); the outbox finalization maps it to the ORIGINAL PMO record id.
- * Adopting it here mints a SECOND PMO row for the ONE ERP document — the revenue is double-counted and
- * the outbox's own `record_outbox_ref` then fails the `unique (org_id, domain, external_record_id)`
- * constraint (0093) forever, wedging a real money row at `committed`.
+ * Why `failed` is excluded and that is SAFE: `dispatch.ts` marks a row `failed` ONLY on a
+ * NON-retryable adapter error — i.e. ERP explicitly REFUSED the write, so no ERP document carries that
+ * idempotency key. An ambiguous/lost outcome is retryable and deliberately marks NOTHING (the row
+ * stays `committing`), and a human "try again" re-claims a `failed` row back to `committing` before
+ * any POST. So every state in which an ERP doc can exist un-mapped is guarded here.
  *
- * A CONFIRMED row is deliberately NOT in the set: its `external_refs` mapping exists, so the poll
+ * `confirmed` stays out for the original reason: its `external_refs` mapping exists, so the poll
  * resolves rather than adopts (and must keep applying that doc's updates).
- *
- * Returns `undefined` when the guard cannot or need not apply (no anchor field, nothing in flight) so
- * the poll keeps its exact pre-existing shape — composed with the caller's own `filterRow` (the
- * BLOCK A1 payment_type discriminator), which is preserved when supplied.
  */
-export function inFlightAnchorFilter(
-  kind: ErpDocKind,
-  inFlightKeys: ReadonlySet<string>,
-  baseFilter?: (row: Record<string, unknown>) => boolean,
-): ((row: Record<string, unknown>) => boolean) | undefined {
-  const anchorField = DOCTYPE_REGISTRY[kind].anchorField;
-  if (!anchorField || inFlightKeys.size === 0) return baseFilter;
-  return (row: Record<string, unknown>) => {
-    if (baseFilter && !baseFilter(row)) return false;
-    const anchor = row[anchorField];
-    if (typeof anchor !== 'string' || anchor === '') return true;
-    // The stamp is the key itself, but ADR-0058 §3 describes it as APPENDED into the field, and the
-    // recovery probe matches with surrounding wildcards — so match the same way (substring), never an
-    // exact compare that a prefix/suffix would defeat.
-    for (const key of inFlightKeys) {
-      if (anchor.includes(key)) return false;
+const IN_FLIGHT_OUTBOX_STATES = ['pending', 'committing', 'committed', 'quarantined', 'held'] as const;
+
+/**
+ * Every UUID appearing in an anchor value. The idempotency key of an ERPNext money command is ALWAYS a
+ * UUID — `adapter-dispatch/index.ts` rejects a non-UUID key (`isOpaqueIdempotencyKey`) before any ERP
+ * write, precisely so a short key cannot substring-match an unrelated document. So extracting the UUIDs
+ * from a document's anchor field yields the complete set of keys that document could possibly carry,
+ * and the guard can ask the outbox about exactly those instead of scanning the whole table.
+ */
+const UUID_IN_TEXT = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
+
+/** Answers, for ONE candidate document's anchor value, "does an unresolved outbox row own this?" */
+export type InFlightAnchorProbe = (anchorValue: string) => Promise<boolean>;
+
+/**
+ * BLOCK 1 (the double-adoption fix), rebuilt as a real barrier — round-7 cross-family audit, B5.
+ *
+ * A document whose anchor field carries the idempotency key of an UNRESOLVED outbox row for this org is
+ * NOT the poll's to adopt: it belongs to a PMO-originated command still inside the ADR-0058 recovery
+ * algorithm, and the outbox finalization maps it to the ORIGINAL PMO record id. Adopting it mints a
+ * SECOND PMO row for the ONE ERP document — revenue double-counted — and the outbox's own
+ * `record_outbox_ref` then fails the `unique (org_id, domain, external_record_id)` constraint (0093)
+ * forever, wedging a real money row at `committed`.
+ *
+ * The previous shape read the org's in-flight keys into a `Set` ONCE per tick. That was unsound twice
+ * over (B5):
+ *   (a) the saturation check could not fire — it asked for `limit(1001)` while PostgREST's
+ *       `max_rows = 1000` (supabase/config.toml) caps every read at 1000, so a truncated guard looked
+ *       exactly like a complete one; and
+ *   (b) the set was STALE — read before the ERP poll, so a create started mid-tick (outbox row inserted,
+ *       ERP document POSTed, both before the poll) was simply absent from it and got pull-adopted.
+ *
+ * This shape has no snapshot and no cap. Each candidate is checked WHEN IT IS SEEN, with an existence
+ * query keyed on the UUIDs in that document's OWN anchor value — a bounded `in (…)` of at most a
+ * handful of keys, which `max_rows` cannot truncate and staleness cannot affect. Correctness rests on
+ * ADR-0058 §2's ordering: the outbox row is INSERTED BEFORE the ERP POST, so a visible ERP document
+ * always has its row already present.
+ *
+ * The per-tick memo is safe in both directions: a key it caches as in-flight only makes the guard more
+ * conservative for the rest of the tick (the document is adopted on a later tick), and a key it caches
+ * as unknown was proven to have no outbox row at a moment the document already existed — which, by the
+ * insert-before-POST ordering, means the document is native.
+ *
+ * Fails CLOSED on a read error: sweeping with a blind guard is what duplicated money rows.
+ */
+export function createInFlightAnchorProbe(serviceClient: SupabaseClient, orgId: string): InFlightAnchorProbe {
+  const memo = new Map<string, boolean>();
+  return async (anchorValue: string): Promise<boolean> => {
+    const keys = Array.from(new Set(anchorValue.match(UUID_IN_TEXT) ?? [])).map((k) => k.toLowerCase());
+    if (keys.length === 0) return false; // a native ERP document carries no stamped key — nothing to ask.
+    const unknown = keys.filter((k) => !memo.has(k));
+    if (unknown.length > 0) {
+      const { data, error } = await serviceClient.from('external_command_outbox')
+        .select('idempotency_key')
+        .eq('org_id', orgId)
+        .in('state', IN_FLIGHT_OUTBOX_STATES as unknown as string[])
+        .in('idempotency_key', unknown);
+      if (error) throw new AppError(error.message, error.code);
+      const found = new Set(((data as Array<{ idempotency_key: string }> | null) ?? []).map((r) => r.idempotency_key));
+      for (const key of unknown) memo.set(key, found.has(key));
     }
-    return true;
+    return keys.some((k) => memo.get(k) === true);
   };
 }
 
-/** The idempotency keys of an org's NON-CONFIRMED outbox rows — the input to `inFlightAnchorFilter`.
- *  Bounded per tick: a healthy org has a handful of unresolved money commands, and the cap keeps one
- *  pathological org from turning the guard into an unbounded read (NFR-ENA-PERF-001). A read failure
- *  THROWS: sweeping with a blind guard would re-open the double-adoption hole. */
-const IN_FLIGHT_KEY_SCAN_LIMIT = 1000;
-
-export async function listInFlightAnchorKeys(serviceClient: SupabaseClient, orgId: string): Promise<Set<string>> {
-  const { data, error } = await serviceClient.from('external_command_outbox')
-    .select('idempotency_key').eq('org_id', orgId).neq('state', 'confirmed').limit(IN_FLIGHT_KEY_SCAN_LIMIT);
-  if (error) throw new AppError(error.message, error.code);
-  return new Set(((data as Array<{ idempotency_key: string }> | null) ?? []).map((r) => r.idempotency_key));
+/**
+ * The `filterRow` predicate for one kind: skips any document the in-flight probe claims.
+ *
+ * Returns `undefined` only when there is nothing to apply (an anchor-less kind with no base filter), so
+ * the poll keeps its exact pre-existing shape. The caller's own `filterRow` (the BLOCK A1 `payment_type`
+ * discriminator) is preserved and evaluated FIRST — a row it already rejects costs no outbox read.
+ */
+export function inFlightAnchorFilter(
+  kind: ErpDocKind,
+  probe: InFlightAnchorProbe,
+  baseFilter?: (row: Record<string, unknown>) => boolean,
+): ((row: Record<string, unknown>) => Promise<boolean>) | undefined {
+  const anchorField = DOCTYPE_REGISTRY[kind].anchorField;
+  if (!anchorField) return baseFilter ? async (row) => baseFilter(row) : undefined;
+  return async (row: Record<string, unknown>): Promise<boolean> => {
+    if (baseFilter && !baseFilter(row)) return false;
+    const anchor = row[anchorField];
+    if (typeof anchor !== 'string' || anchor === '') return true;
+    return !(await probe(anchor));
+  };
 }
 
 /**
@@ -495,24 +550,34 @@ function listCandidatesLive(serviceClient: SupabaseClient): ListOutboxCandidates
 }
 
 /** The per-org sweep: runSweep per doctype with the lineage-aware apply injected, per-doctype watermark. */
-async function sweepOrgDoctypesLive(serviceClient: SupabaseClient, org: OrgBinding): Promise<{ applied: number; error?: string }> {
+export async function sweepOrgDoctypesLive(serviceClient: SupabaseClient, org: OrgBinding): Promise<{ applied: number; error?: string }> {
   const client = erpClientForOrg(org);
   let applied = 0;
-  // BLOCK 1: read the org's unresolved outbox keys ONCE per tick — every kind's poll is guarded with
-  // them so a PMO-originated document still inside the recovery algorithm is never pull-adopted into a
-  // SECOND PMO row. A failed read aborts this org's doctype pass (the next tick retries): polling with
-  // a blind guard is exactly the state that duplicated money rows.
-  let inFlightKeys: Set<string>;
-  try {
-    inFlightKeys = await listInFlightAnchorKeys(serviceClient, org.orgId);
-  } catch (err) {
-    return { applied, error: `in-flight-outbox-keys:${err instanceof Error ? err.message : String(err)}` };
-  }
+  // BLOCK 1 / round-7 B5: the pull-adopt guard. NOT a snapshot — the probe asks the outbox about each
+  // CANDIDATE document at the moment the poll sees it, so neither a stale key set nor PostgREST's
+  // `max_rows` ceiling can let a PMO-originated document be pull-adopted into a SECOND PMO row. A read
+  // failure throws out of the poll below (fail closed): polling with a blind guard is exactly the state
+  // that duplicated money rows. One probe per org tick shares the memo across that org's doctypes.
+  const inFlightProbe = createInFlightAnchorProbe(serviceClient, org.orgId);
   // Luna BLOCK 9: only the doctypes whose PMO domain this org actually assigned to the ERPNext tier.
   for (const { kind, doctype } of sweepKindsForOrg(org.ownedDomains)) {
     const domain = KIND_DOMAIN[kind];
     const bodyFns = DOCTYPE_BODIES[kind];
     if (!bodyFns) continue; // not yet wired — skip (inert until the slice that wires it lands)
+    // WIRE 3 / round-7 B4 (CROSS-TENANT): scope the poll to the ERP Company this binding represents.
+    // An ERPNext site hosts many Companies; without this the poll adopted ANOTHER tenant's Sales
+    // Invoices / Receive PEs into this org's revenue and AR views, with no error anywhere.
+    // `null` means UNSCOPEABLE (a company-scoped kind on a binding that names no company) — skip the
+    // kind entirely and log it as the configuration error it is. It is deliberately NOT `[]` ("no
+    // company dimension, sweep freely"), which is what would sweep the whole ERP site into one tenant.
+    const companyFilters = companyDocFilters(kind, org.company || null);
+    if (companyFilters === null) {
+      console.error(
+        `[erpnext-sweep] org ${org.orgId}: binding names no ERP company — the company-scoped '${kind}' poll is `
+          + 'SKIPPED (an unscopeable poll would adopt every company on the site). Set config.company on the binding.',
+      );
+      continue;
+    }
     const feedDeps = createErpFeedDeps(serviceClient as unknown as SupabaseClient, org.orgId, kind);
     // Per-doctype watermark (FR-ENA-080: org × doctype) — keyed on a namespaced domain value so each
     // doctype has its own cursor row on external_sync_watermarks (the applyEngine ctx.domain stays the
@@ -558,14 +623,22 @@ async function sweepOrgDoctypesLive(serviceClient: SupabaseClient, org: OrgBindi
               fields,
               fromDoc: bodyFns.fromDoc,
               ...(hydrateDoc ? { hydrateDoc } : {}),
-              ...(paymentType ? { extraFilters: [['payment_type', '=', paymentType]] as [string, string, string][] } : {}),
-              // BLOCK A1's post-fetch discriminator, composed under BLOCK 1's in-flight-adopt guard
-              // (`inFlightAnchorFilter` returns the base filter unchanged when it has nothing to add).
+              // WIRE 3: the company conjunct rides alongside BLOCK A1's payment_type discriminator.
+              extraFilters: [
+                ...(paymentType ? ([['payment_type', '=', paymentType]] as [string, string, string][]) : []),
+                ...companyFilters,
+              ],
+              // BLOCK A1's post-fetch discriminator AND WIRE 3's per-document company gate — the
+              // server-side filters above are an optimization, these are the authority — composed under
+              // BLOCK 1's in-flight-adopt guard (`inFlightAnchorFilter` returns the base filter
+              // unchanged when it has nothing of its own to add).
               ...(() => {
                 const filterRow = inFlightAnchorFilter(
                   kind,
-                  inFlightKeys,
-                  paymentType ? (row: Record<string, unknown>) => row.payment_type === paymentType : undefined,
+                  inFlightProbe,
+                  (row: Record<string, unknown>) =>
+                    (paymentType ? row.payment_type === paymentType : true)
+                    && admitsDocForBindingCompany(kind, row, org.company || null),
                 );
                 return filterRow ? { filterRow } : {};
               })(),
@@ -761,7 +834,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
  * + its persisted `payload.erp_doc_kind`. Inert in practice until an org is flipped AND a money command
  * leaves a candidate (no employing org ⇒ no candidate ⇒ this never fires — "inert-by-empty-map").
  */
-async function buildReconcileDepsLive(serviceClient: SupabaseClient, org: OrgBinding, row: OutboxRow): Promise<DispatchMoneyWriteDeps> {
+export async function buildReconcileDepsLive(serviceClient: SupabaseClient, org: OrgBinding, row: OutboxRow): Promise<DispatchMoneyWriteDeps> {
   // Re-read the persisted operation + payload (the OutboxRow projection drops them) to reconstruct the command.
   // `actor_user_id` (0108): the ORIGINAL command's verified caller. Without it a sweep-finalized SI
   // mirror lands `author_user_id = NULL`, and the approver≠author SoD check then passes for everyone.
@@ -770,6 +843,31 @@ async function buildReconcileDepsLive(serviceClient: SupabaseClient, org: OrgBin
   if (error || !data) throw new AppError(`outbox row ${row.id} not readable for reconcile`, error?.code ?? 'not-found');
   const rowExtra = data as { operation: 'create' | 'update' | 'transition'; payload: Record<string, unknown> | null; actor_user_id: string | null };
   const payload = rowExtra.payload ?? {};
+
+  // WIRE 1 / round-7 B6 — RE-ASSERT authorization before replaying a FROZEN command. The recovery pass
+  // reconstructs the command from the persisted payload and calls `dispatchMoneyWrite` directly, so a
+  // replay re-runs NONE of the synchronous dispatch gates: without this, a user could issue a money
+  // command, be demoted / deactivated / have their org's domain ownership revoked, and the cron would
+  // still POST it up to 24 hours later. The rule is not forked — this is the SAME
+  // `checkErpnextCommandAuthorization` the synchronous path runs, against the row's RECORDED actor
+  // (0108 §C) and the org's CURRENT state.
+  //
+  // Runs BEFORE credential/adapter resolution, so a refusal never touches ERP. It THROWS, which
+  // `reconcileOrgOutbox` records as a per-candidate error while leaving the row byte-for-byte as it is
+  // (no state change, no ERP call) — held for an operator and surfaced as `reconcile:<id>:<message>`,
+  // exactly like the `domain-not-owned` hold. A money row is never dropped. `reconcileOrgOutbox`'s
+  // `ownedDomains` pre-filter stays as the cheap early-out; THIS is the authority.
+  const replayAuth = await checkOutboxReplayAuthorization(serviceClient as never, org.orgId, {
+    id: row.id,
+    state: row.state,
+    domain: row.domain,
+    operation: rowExtra.operation,
+    pmoRecordId: row.pmoRecordId,
+    actorUserId: rowExtra.actor_user_id,
+    payload,
+  });
+  if (!replayAuth.ok) throw new AppError(replayAuth.message, 'commit-rejected');
+
   const kind = payload.erp_doc_kind;
   const entry = typeof kind === 'string' && kind in DOCTYPE_REGISTRY ? DOCTYPE_REGISTRY[kind as ErpDocKind] : undefined;
   const bodyFns = typeof kind === 'string' ? DOCTYPE_BODIES[kind as ErpDocKind] : undefined;

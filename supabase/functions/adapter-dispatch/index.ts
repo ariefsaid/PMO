@@ -27,14 +27,14 @@
 
 // Deno-native imports (not in pmo-portal/package.json)
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { dispatchExternallyOwnedWrite } from '../../../pmo-portal/src/lib/adapterSeam/dispatch.ts';
+import { COMMAND_IN_FLIGHT_FOR_RECORD, dispatchExternallyOwnedWrite } from '../../../pmo-portal/src/lib/adapterSeam/dispatch.ts';
 import { recordExternalRef as recordExternalRefWrite } from '../../../pmo-portal/src/lib/adapterSeam/refs.ts';
 import { createReferenceAdapter, REFERENCE_DOMAIN } from '../../../pmo-portal/src/lib/adapterSeam/referenceAdapter.ts';
 import { CLICKUP_TASKS_DOMAIN } from '../../../pmo-portal/src/lib/adapterSeam/clickup/adapter.ts';
 import { resolveClickUpDispatchAdapter } from '../../../pmo-portal/src/lib/adapterSeam/clickup/dispatchFactory.ts';
 import { ClickUpRateLimiter } from '../../../pmo-portal/src/lib/adapterSeam/clickup/rateLimit.ts';
 import { ERPNEXT_COMPANIES_DOMAIN, ERPNEXT_PROCUREMENT_DOMAIN, ERPNEXT_REVENUE_DOMAIN, ERPNEXT_TIER } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/adapter.ts';
-import { buildsSalesInvoiceBody, resolveErpDispatchAdapter, withPaymentTypeDiscriminator } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/dispatchFactory.ts';
+import { resolveErpDispatchAdapter, withPaymentTypeDiscriminator } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/dispatchFactory.ts';
 import { resolveErpCredentials } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/credentials.ts';
 import { withProbeBudget } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/client.ts';
 // The runtime (kind)->{toBody,fromDoc} side table (task 5.2) — ADDITIVE across slices 3/4/5/6, each
@@ -50,8 +50,9 @@ import type { Adapter, AdapterCommand, PmoRecord } from '../../../pmo-portal/src
 import type { DispatchMoneyOutboxDeps, ExternalRefMapping } from '../../../pmo-portal/src/lib/adapterSeam/dispatch.ts';
 import { getReadModelWriter } from './readModelWriters.ts';
 import { maybeFault, type FaultGate } from './faultSeams.ts';
-import { isRevenueSiSubmitTransition, enforceSiSubmitSod, requiresSiAuthorClaim, claimSiAuthor } from './sodGuard.ts';
+import { isRevenueSiSubmitTransition, grantSiSubmitClearance, requiresSiAuthorClaim, claimSiAuthor, releaseSiSubmitClearance } from './sodGuard.ts';
 import { checkErpnextCommandAuthorization, type AuthorizationClient } from './authGuard.ts';
+import { checkSiProjectGate } from './projectGateGuard.ts';
 import { checkCreateTargetUnmapped, checkTransitionTargetBinding, isOpaqueIdempotencyKey } from './transitionTargetGuard.ts';
 import { canonicalCommandDigest, createDbMoneyOutboxDeps } from './moneyOutboxDeps.ts';
 import {
@@ -516,67 +517,29 @@ Deno.serve(async (req: Request): Promise<Response> => {
     );
   }
 
-  // ── Luna BLOCK 2 — server-side Sales-Invoice submit SoD (FR-SAR-195, ADR-0019). `submitInvoice()`
-  // in the repository already calls the SoD RPC for the legitimate FE path, but a caller POSTing the
-  // dispatch command directly could skip it. Enforce SoD HERE, under the CALLER's JWT (the deputy
-  // `callerClient`, never service_role — auth.uid()/auth_org_id() must resolve to the real submitter):
-  // a revenue sales-invoice SUBMIT transition must pass `submit_sales_invoice(p_si_id)` BEFORE the
-  // adapter commits the ERP submit. A 42501 (self-approval / not-authorized) closes the bypass — the
-  // dispatch returns 403/409 and does NOT submit to ERP, regardless of which client dispatched.
-  if (isRevenueSiSubmitTransition(command)) {
-    const sod = await enforceSiSubmitSod(callerClient as never, String(command.record.id));
-    if (!sod.ok) {
-      const message = /sod|self-approval|approver|author|not authorized/i.test(sod.message) ? 'sod-self-approval' : sod.message;
-      return new Response(JSON.stringify({ error: sod.status === 403 ? 'commit-rejected' : 'DISPATCH_FAILED', message }), {
-        status: sod.status,
-        headers,
-      });
-    }
-  }
-
   // service_role client — used for the machine-write helpers (read-model upsert/update + external_refs
   // record) AND, for 'tasks', to resolve the per-request ClickUp binding/mapping at adapter-select time.
   // Never used for adapter.commit() — org_id never crosses into the adapter (AC-EAS-023).
   const serviceClient = createClient(supabaseUrl, serviceRoleKey);
 
-  // ── Slice 3: process_gates enforcement (FR-SAR-191, AC-SAR-070).
-  // Check the require_project_on_si gate for every revenue/sales-invoice command that BUILDS AN ERP
-  // SALES INVOICE BODY — create, update, and an amend transition (Luna re-audit BLOCK #12).
-  // Gating only `create` left the money path open: `update` on a SUBMITTED SI routes to amend
-  // (adapter.ts routeEdit(1) -> commitAmend) and `transition{verb:'amend'}` does the same — both
-  // build a REPLACEMENT document from `bodies/salesInvoice.ts`, which omits the ERP `project` field
-  // entirely when it is unresolved. The replacement then posts with no project dimension on the GL
-  // while PMO keeps the old project attribution — exactly what the signed spec forbids
-  // (docs/specs/erpnext-adapter-p3a-sales-ar.spec.md:713-718).
-  // This runs BEFORE any adapter/outbox work so we reject fast without creating an outbox row.
-  if (command.domain === ERPNEXT_REVENUE_DOMAIN
-      && buildsSalesInvoiceBody({ operation: command.operation as string, record: command.record as { verb?: unknown } })
-      && (command.record as { erp_doc_kind?: unknown }).erp_doc_kind === 'sales-invoice') {
-    const { data: gatesData, error: gatesError } = await serviceClient
-      .rpc('get_process_gates', { p_org: orgId });
-    if (gatesError) {
-      console.error('[adapter-dispatch] get_process_gates RPC failed:', gatesError);
-      return new Response(JSON.stringify({ error: 'commit-rejected', message: 'gate-check-failed' }), {
-        status: 422,
+  // ── Slice 3 / round-7 B8: the `require_project_on_si` process gate (FR-SAR-191, AC-SAR-070), for
+  // EVERY Sales-Invoice command that puts revenue on the ERP ledger — the body-building ones
+  // (create / update / amend) AND the **submit**, whose authority is the PMO mirror row rather than the
+  // command (a submit builds no body). The shipped inline gate covered only the body-building half, so
+  // an SI created while the gate was OFF — or an unassigned SI adopted inbound by the sweep — could
+  // still be SUBMITTED with the gate ON: revenue on the ERP GL with no project dimension while PMO
+  // reports project-attributed revenue.
+  //
+  // The whole rule (scoping, gate read, the SO/BAST inert warnings, fail-closed on any unreadable
+  // input) lives in `projectGateGuard.ts` so it is unit-provable and cannot be forked. Runs BEFORE any
+  // adapter/outbox work, so a rejection creates no outbox row and touches no ERP.
+  {
+    const projectGate = await checkSiProjectGate(serviceClient as never, orgId, command as never);
+    if (!projectGate.ok) {
+      return new Response(JSON.stringify({ error: 'commit-rejected', message: projectGate.message }), {
+        status: projectGate.status,
         headers,
       });
-    }
-    const gates = gatesData as { require_so_before_si: boolean; require_bast_before_si: boolean; require_project_on_si: boolean };
-    if (gates.require_project_on_si) {
-      const projectId = (command.record as { projectId?: string | null }).projectId ?? null;
-      if (projectId === null) {
-        return new Response(JSON.stringify({ error: 'commit-rejected', message: 'project-required' }), {
-          status: 422,
-          headers,
-        });
-      }
-    }
-    // SO/BAST gates are recognized but inert in P3a — log if enabled for visibility
-    if (gates.require_so_before_si) {
-      console.warn('[adapter-dispatch] require_so_before_si is true but not enforced in P3a (inert)');
-    }
-    if (gates.require_bast_before_si) {
-      console.warn('[adapter-dispatch] require_bast_before_si is true but not enforced in P3a (inert)');
     }
   }
 
@@ -637,6 +600,51 @@ Deno.serve(async (req: Request): Promise<Response> => {
     }
   }
 
+  // ── Luna BLOCK 2 — server-side Sales-Invoice submit SoD (FR-SAR-195, ADR-0019). `submitInvoice()`
+  // in the repository already calls the SoD RPC for the legitimate FE path, but a caller POSTing the
+  // dispatch command directly could skip it. Enforce SoD HERE, under the CALLER's JWT (the deputy
+  // `callerClient`, never service_role — auth.uid()/auth_org_id() must resolve to the real submitter):
+  // a revenue sales-invoice SUBMIT transition must pass `submit_sales_invoice(p_si_id)` BEFORE the
+  // adapter commits the ERP submit. A 42501 (self-approval / not-authorized) closes the bypass — the
+  // dispatch returns 403/409 and does NOT submit to ERP, regardless of which client dispatched.
+  //
+  // Round-6 re-audit, finding 2 — POSITION MATTERS: this gate RECORDS a submit clearance that freezes
+  // every body rewrite (0114 §D/§E), so it runs LAST of the pre-dispatch gates. Every rejection a
+  // submit can collect (target binding, create-target, authorization, gates) therefore happens BEFORE a
+  // clearance exists, and the only exits after it are the adapter-select failure and the dispatch
+  // itself — both of which RELEASE it below. The freeze is thereby scoped to a dispatch that is
+  // genuinely in progress.
+  //
+  // Round-7 B1b — the gate is the SERVICE-ROLE-ONLY `grant_sales_invoice_submit_clearance`, not
+  // `submit_sales_invoice` under the caller's JWT. A clearance that an authenticated caller can mint is
+  // an insider freeze on the money path, and one they can RELEASE is a self-approval bypass: the grantee
+  // IS the approver the clearance constrains, so a grantee-fenced release let them lift it mid-submit
+  // and rewrite the body their own in-flight submit was about to commit. Because service_role carries no
+  // `auth.uid()`, the JWT-verified `userId` is passed EXPLICITLY and the RPC authorizes that actor.
+  //
+  // `clearanceId` is this dispatch's fencing token: the release names it, so a SECOND concurrent submit
+  // resolving cannot lift THIS submit's freeze (B1c).
+  const takesSubmitClearance = isRevenueSiSubmitTransition(command);
+  const clearanceId = crypto.randomUUID();
+  if (takesSubmitClearance) {
+    const sod = await grantSiSubmitClearance(serviceClient as never, String(command.record.id), userId, clearanceId);
+    if (!sod.ok) {
+      const message = /sod|self-approval|approver|author|not authorized/i.test(sod.message) ? 'sod-self-approval' : sod.message;
+      return new Response(JSON.stringify({ error: sod.status === 403 ? 'commit-rejected' : 'DISPATCH_FAILED', message }), {
+        status: sod.status,
+        headers,
+      });
+    }
+  }
+  /** Ends the body-rewrite freeze this request's submit clearance imposes (no-op for every other
+   *  command). Best-effort — the clearance's TTL is the backstop, so it never fails a resolved
+   *  dispatch. MUST run on every exit path below. */
+  const releaseSubmitClearance = async (): Promise<void> => {
+    if (takesSubmitClearance) {
+      await releaseSiSubmitClearance(serviceClient as never, String(command.record.id), clearanceId);
+    }
+  };
+
   // ── Named server-side fault seams (Slice 0 task 0.7, FR-ENA-003, plan §2 decision 5; host
   // allowlist added fix-round finding 5): read the gate ONCE per request and thread it through.
   // `maybeFault` re-checks ALL THREE conditions per named seam, so this is a pure no-op in every
@@ -670,6 +678,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
       money = await resolveErpMoneyOutboxDeps({ orgId, command, serviceClient, faultGate, userId });
     }
   } catch (err) {
+    // The submit never reaches ERP — end the body-rewrite freeze now rather than in five minutes.
+    await releaseSubmitClearance();
     const appError = err instanceof AppError ? err : new AppError(err instanceof Error ? err.message : 'adapter select failed');
     return new Response(JSON.stringify({ error: appError.code ?? 'ADAPTER_SELECT_FAILED', message: appError.message }), {
       status: 400,
@@ -752,16 +762,25 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const appError = err instanceof AppError ? err : new AppError(err instanceof Error ? err.message : 'adapter dispatch failed');
     // 'command-held' (C-1): a mutable-anchor money doc held for operator resolution — a 409 Conflict
     // (retrying will NOT help; an operator must resolve), distinct from the transient 502 unreachable.
+    // WIRE 4: `command-in-flight-for-record` (0116's one-in-flight-per-record index, classified in
+    // dispatch.ts) is a genuine CONFLICT — another command for this PMO record is still settling.
+    // Retrying now cannot help, but retrying LATER can, so it is a 409 like `command-held`, never a 500
+    // carrying the raw index name.
     const status = appError.code === 'external-unreachable'
       ? 502
       : appError.code === 'commit-rejected'
         ? 422
-        : appError.code === 'command-held'
+        : appError.code === 'command-held' || appError.code === COMMAND_IN_FLIGHT_FOR_RECORD
           ? 409
           : 500;
     return new Response(JSON.stringify({ error: appError.code ?? 'DISPATCH_FAILED', message: appError.message }), {
       status,
       headers,
     });
+  } finally {
+    // Finding 2: the submit has RESOLVED — successfully, rejected by ERP, or held. Either way the
+    // clearance has served its purpose (it exists only to stop a body rewrite racing an IN-FLIGHT
+    // submit), so release it here rather than leaving Finance blocked for the rest of the TTL.
+    await releaseSubmitClearance();
   }
 });

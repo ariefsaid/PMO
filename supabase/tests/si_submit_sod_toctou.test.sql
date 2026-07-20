@@ -9,15 +9,17 @@
 -- The fix puts BOTH halves behind the SAME row lock in the DB (the serialization point and the
 -- enforcement authority — a stateless edge function holds no transaction across the ERP HTTP call):
 --
---   submit_sales_invoice(si)        : select … for update on the invoice → check the author SET →
---                                     RECORD the authorization (sales_invoice_submit_authorizations)
+--   grant_sales_invoice_submit_clearance(si, actor, clearance)
+--                                   : select … for update on the invoice → check the author SET →
+--                                     RECORD the clearance (sales_invoice_submit_authorizations).
+--                                     Service-role only (round-7 B1b — see si_submit_clearance_release).
 --   claim_sales_invoice_author(si)  : select … for update on the invoice → REFUSE (55006) while an
 --                                     authorization is outstanding → else APPEND the caller to the set
 --
 -- and `index.ts` calls the claim BEFORE the ERP body write. The two possible serialization orders are
 -- therefore both safe:
 --   claim wins the lock  → the rewriter is in the author set → the submit is refused as self-approval;
---   submit wins the lock → the claim blocks on the lock, then sees the authorization → the rewrite is
+--   submit wins the lock → the claim blocks on the lock, then sees the clearance → the rewrite is
 --                          refused with 55006 and NEVER reaches ERP.
 --
 -- ⚑ COVERAGE HONESTY: pgTAP is single-session, so a true concurrent interleave cannot be expressed
@@ -42,7 +44,7 @@ insert into auth.users (id, email) values
   ('11131000-0000-0000-0000-0000000001d1','toctou-d@example.com');
 
 insert into profiles (id, org_id, full_name, email, role, status) values
-  ('11131000-0000-0000-0000-0000000001a1','11131000-0000-0000-0000-000000000101','Author A','toctou-a@example.com','Project Manager','active'),
+  ('11131000-0000-0000-0000-0000000001a1','11131000-0000-0000-0000-000000000101','Author A','toctou-a@example.com','Finance','active'),
   ('11131000-0000-0000-0000-0000000001b1','11131000-0000-0000-0000-000000000101','Approver B','toctou-b@example.com','Finance','active'),
   ('11131000-0000-0000-0000-0000000001d1','11131000-0000-0000-0000-000000000101','Third Party D','toctou-d@example.com','Finance','active');
 
@@ -65,17 +67,21 @@ insert into sales_invoice_authors (org_id, sales_invoice_id, user_id) values
 -- Order 1 — the SUBMIT wins the lock. It must leave a record that makes the racing body rewrite
 -- impossible, rather than a check whose result is stale the moment it returns.
 -- ════════════════════════════════════════════════════════════════════════════
-set local role authenticated;
-set local request.jwt.claims = '{"sub":"11131000-0000-0000-0000-0000000001b1","role":"authenticated"}';
-
+-- The clearance is taken by the DISPATCH (service-role), for an explicit actor — B here.
 select lives_ok(
-  $$ select submit_sales_invoice('11131000-0000-0000-0000-0000000001e1') $$,
+  $$ select grant_sales_invoice_submit_clearance(
+       '11131000-0000-0000-0000-0000000001e1',
+       '11131000-0000-0000-0000-0000000001b1',
+       '11131000-0000-0000-0000-0000000000c1') $$,
   'B (not an author) legitimately authorizes the submit');
 
 select is(
   (select user_id from sales_invoice_submit_authorizations where sales_invoice_id = '11131000-0000-0000-0000-0000000001e1'),
   '11131000-0000-0000-0000-0000000001b1'::uuid,
-  'the authorization is RECORDED under the invoice row lock (not merely returned to the caller)');
+  'the clearance is RECORDED under the invoice row lock (not merely returned to the caller)');
+
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"11131000-0000-0000-0000-0000000001b1","role":"authenticated"}';
 
 -- B now races a body rewrite (the exploit: B rewrites the amount while B''s own submit is in flight).
 select throws_ok(
@@ -90,16 +96,16 @@ select is(
 
 -- ── The mechanism that makes those the ONLY two outcomes: both RPCs serialize on the invoice row. ──
 select alike(
-  pg_get_functiondef('public.submit_sales_invoice(uuid)'::regprocedure),
+  pg_get_functiondef('public.grant_sales_invoice_submit_clearance(uuid,uuid,uuid)'::regprocedure),
   '%for update%',
-  'submit_sales_invoice takes `select … for update` on the invoice — the authorship check and the '
-  'authorization record are atomic w.r.t. a concurrent body write');
+  'the clearance grant takes `select … for update` on the invoice — the authorship check and the '
+  'clearance record are atomic w.r.t. a concurrent body write');
 
 select alike(
   pg_get_functiondef('public.claim_sales_invoice_author(uuid)'::regprocedure),
   '%for update%',
   'claim_sales_invoice_author takes the SAME row lock — a rewrite cannot interleave between the '
-  'submit''s check and its authorization record');
+  'submit''s check and its clearance record');
 
 -- ════════════════════════════════════════════════════════════════════════════
 -- The authorization LAPSES (a submit that never completed must not freeze the invoice forever).

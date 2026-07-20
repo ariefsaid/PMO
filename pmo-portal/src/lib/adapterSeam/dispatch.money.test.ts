@@ -1062,3 +1062,74 @@ describe('AC-ENA-012 classified failures: commit-rejected marks failed; external
     expect([...fake.rows.values()][0].state).toBe('committing');
   });
 });
+
+/**
+ * Round-7 cross-family wiring, WIRE 4 — migration 0116's partial unique index
+ * `external_command_outbox_one_inflight_per_record` (at most ONE non-terminal outbox row per
+ * (org, domain, pmo_record_id)) is the money-safety barrier against two concurrent creates for one PMO
+ * record. It fires with a DIFFERENT idempotency key than the row already in flight, so the
+ * read-the-winner branch finds nothing and the raw Postgres error escaped verbatim: the API answered
+ * 500 with `duplicate key value violates unique constraint "external_command_outbox_one_inflight_per_record"`.
+ * Money-safe (nothing was minted) but leaky (it names an internal index) and unactionable (a caller
+ * cannot tell "wait for the in-flight command" from "the server broke").
+ *
+ * Detection is on the pg CODE **and** the constraint name — never on message text alone.
+ */
+describe('WIRE 4: the 0116 one-in-flight-per-record violation is a clean, actionable conflict', () => {
+  const inFlightViolation = () => {
+    const err = new Error(
+      'duplicate key value violates unique constraint "external_command_outbox_one_inflight_per_record"',
+    ) as Error & { code?: string };
+    err.code = '23505';
+    return err;
+  };
+
+  const dispatchWithInsertError = (error: Error, key = 'key-2') => {
+    const fake = createFakeOutbox();
+    const commit = vi.fn();
+    const money: DispatchMoneyOutboxDeps = {
+      ...fake.deps,
+      insertOutboxPending: async () => { throw error; },
+    };
+    return {
+      commit,
+      run: () => dispatchMoneyWrite({
+        adapter: erpnextAdapter(commit),
+        command: { ...baseCommand, idempotencyKey: key },
+        writeReadModel: vi.fn(), recordExternalRef: vi.fn(),
+        money,
+      }),
+    };
+  };
+
+  it('a second concurrent create for one PMO record is classified command-in-flight-for-record', async () => {
+    const { run, commit } = dispatchWithInsertError(inFlightViolation());
+    await expect(run()).rejects.toMatchObject({ code: 'command-in-flight-for-record' });
+    expect(commit).not.toHaveBeenCalled();
+  });
+
+  it('the surfaced message is operator-actionable and leaks no index/pg internals', async () => {
+    const { run } = dispatchWithInsertError(inFlightViolation());
+    const error: AppError = await run().then(
+      () => { throw new Error('the insert conflict must reject, never resolve'); },
+      (e: unknown) => e as AppError,
+    );
+    expect(error).toBeInstanceOf(AppError);
+    expect(error.message).not.toContain('external_command_outbox_one_inflight_per_record');
+    expect(error.message).not.toContain('duplicate key');
+    expect(error.message).toMatch(/in flight/i);
+  });
+
+  it('a DIFFERENT 23505 is not misclassified (the code alone is never the signal)', async () => {
+    const other = new Error('duplicate key value violates unique constraint "sales_invoices_pkey"') as Error & { code?: string };
+    other.code = '23505';
+    const { run } = dispatchWithInsertError(other);
+    await expect(run()).rejects.not.toMatchObject({ code: 'command-in-flight-for-record' });
+  });
+
+  it('the index name alone, without the pg code, is not enough to classify (never message text alone)', async () => {
+    const noCode = new Error('unrelated failure mentioning external_command_outbox_one_inflight_per_record');
+    const { run } = dispatchWithInsertError(noCode);
+    await expect(run()).rejects.not.toMatchObject({ code: 'command-in-flight-for-record' });
+  });
+});

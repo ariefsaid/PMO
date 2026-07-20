@@ -140,6 +140,29 @@ const companiesWriter: ReadModelWriter = {
   },
 };
 
+/** Round-7 B10 — the REQUIRED-link org guard for the procurement mirrors (the defence-in-depth half;
+ *  `dispatchFactory.assertCommandLinksSameOrg` is the pre-flight that refuses before any ERP write).
+ *
+ *  These writers run as SERVICE ROLE, so RLS does not protect them: they used to copy the command's
+ *  `procurementId`/`vendorId`/`invoiceId` verbatim into an insert stamped with the CALLER's org_id,
+ *  producing a PMO row with cross-tenant procurement links. The writers are reachable without the
+ *  pre-flight (the sweep's recovery path reconstructs a command from the frozen outbox payload and
+ *  finalizes it directly), so the check belongs here too.
+ *
+ *  Unlike the revenue links this guard is for NOT-NULL FKs: a vanished row cannot be tolerated by
+ *  nulling (the insert would fail on the constraint anyway), so `missing` throws the SAME classified
+ *  error as cross-org rather than a raw 23503. Defined below `checkLinkSameOrg`/`resolveLinkOrNull`
+ *  is not possible (hoisting is fine for function declarations) — it reuses them, never a second copy. */
+async function requireOwnOrgLink(ctx: ReadModelWriterCtx, table: string, id: string): Promise<string> {
+  if ((await checkLinkSameOrg(ctx, table, id)) === 'missing') {
+    throw new AppError(
+      `cross-org link rejected: ${table} '${id}' does not exist in org '${ctx.orgId}'`,
+      'cross-org-link-rejected',
+    );
+  }
+  return id;
+}
+
 /** A registered-but-not-yet-wired erp_doc_kind WITHIN the 'procurement' writer (task 4.5's own
  *  loud-throw discipline, one level down from `notWired` — 'procurement' the domain IS wired, but not
  *  every sub-doctype kind is yet). Slice 5 adds the purchase-order/goods-receipt cases to the switch
@@ -169,6 +192,8 @@ async function upsertHeaderMirror(
   if (command.operation === 'create') {
     const procurementId = (command.record as { procurementId?: string }).procurementId;
     if (!procurementId) throw new AppError(`procurementId is required to mirror a created ${opts.table} row`, 'BAD_REQUEST');
+    // B10: the FK must belong to THIS org (service-role write — RLS does not check it).
+    await requireOwnOrgLink(ctx, 'procurements', procurementId);
     const { error } = await ctx.serviceClient.from(opts.table).insert({ id: canonical.id, org_id: ctx.orgId, procurement_id: procurementId, ...mirrorFields });
     if (error) throw new AppError(error.message, error.code);
     return;
@@ -197,6 +222,9 @@ async function upsertQuotationMirror(ctx: ReadModelWriterCtx, canonical: PmoReco
     if (!record.procurementId || !record.vendorId) {
       throw new AppError('procurementId and vendorId are required to mirror a created procurement_quotations row', 'BAD_REQUEST');
     }
+    // B10: both FKs must belong to THIS org (service-role write — RLS does not check them).
+    await requireOwnOrgLink(ctx, 'procurements', record.procurementId);
+    await requireOwnOrgLink(ctx, 'companies', record.vendorId);
     const { error } = await ctx.serviceClient
       .from('procurement_quotations')
       .insert({ id: canonical.id, org_id: ctx.orgId, procurement_id: record.procurementId, vendor_id: record.vendorId, ...mirrorFields });
@@ -229,6 +257,7 @@ async function upsertPurchaseOrderMirror(ctx: ReadModelWriterCtx, canonical: Pmo
   if (command.operation === 'create') {
     const record = command.record as { procurementId?: string; referenceNumber?: string; date?: string };
     if (!record.procurementId) throw new AppError('procurementId is required to mirror a created purchase order', 'BAD_REQUEST');
+    await requireOwnOrgLink(ctx, 'procurements', record.procurementId);   // B10
     const { error } = await ctx.serviceClient.from('purchase_orders').insert({
       id: canonical.id,
       org_id: ctx.orgId,
@@ -271,6 +300,7 @@ async function upsertGoodsReceiptMirror(ctx: ReadModelWriterCtx, canonical: PmoR
   if (command.operation === 'create') {
     const record = command.record as { procurementId?: string; receiptDate?: string };
     if (!record.procurementId) throw new AppError('procurementId is required to mirror a created goods receipt', 'BAD_REQUEST');
+    await requireOwnOrgLink(ctx, 'procurements', record.procurementId);   // B10
     const { error } = await ctx.serviceClient.from('procurement_receipts').insert({
       id: canonical.id,
       org_id: ctx.orgId,
@@ -362,6 +392,7 @@ async function upsertInvoiceMirror(ctx: ReadModelWriterCtx, canonical: PmoRecord
   if (command.operation === 'create') {
     const record = command.record as { procurementId?: string };
     if (!record.procurementId) throw new AppError('procurementId is required to mirror a created purchase invoice', 'BAD_REQUEST');
+    await requireOwnOrgLink(ctx, 'procurements', record.procurementId);   // B10
     const { error } = await ctx.serviceClient.from('procurement_invoices').insert({ id: canonical.id, org_id: ctx.orgId, procurement_id: record.procurementId, ...patch });
     if (error) throw new AppError(error.message, error.code);
     return;
@@ -401,11 +432,16 @@ async function upsertPaymentMirror(ctx: ReadModelWriterCtx, canonical: PmoRecord
   if (command.operation === 'create') {
     const record = command.record as { procurementId?: string; invoiceId?: string; date?: string };
     if (!record.procurementId) throw new AppError('procurementId is required to mirror a created payment', 'BAD_REQUEST');
+    // B10: the case FK is required (throws when cross-org/absent); the invoice link is OPTIONAL — a
+    // cross-org one throws, and one that vanished in the TOCTOU window is nulled (same tolerance the
+    // revenue writers apply: the ERP money already exists, so it must not become invisible).
+    await requireOwnOrgLink(ctx, 'procurements', record.procurementId);
+    const invoiceId = await resolveLinkOrNull(ctx, 'procurement_invoices', record.invoiceId);
     const { error } = await ctx.serviceClient.from('payments').insert({
       id: canonical.id,
       org_id: ctx.orgId,
       procurement_id: record.procurementId,
-      invoice_id: record.invoiceId ?? null,
+      invoice_id: invoiceId,
       date: record.date ?? null,
       ...patch,
     });

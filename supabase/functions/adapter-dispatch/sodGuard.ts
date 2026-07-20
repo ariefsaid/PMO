@@ -29,8 +29,10 @@ export function isRevenueSiSubmitTransition(command: AdapterCommand): boolean {
   return rec.erp_doc_kind === 'sales-invoice' && rec.verb === 'submit';
 }
 
-/** Structural seam for the SECURITY DEFINER RPC invocation under the caller's JWT (the deputy client,
- *  never service_role — auth.uid()/auth_org_id() must resolve to the real submitter). */
+/** Structural seam for a SECURITY DEFINER RPC invocation. Which client is passed is per-RPC and is a
+ *  security decision: `claim_sales_invoice_author` runs under the CALLER's JWT (auth.uid() must be the
+ *  real body-writer), while the clearance grant/release run under SERVICE ROLE (round-7 B1b — the party
+ *  the clearance constrains must be unable to call them at all). */
 export interface SodRpcClient {
   rpc(fn: string, args: Record<string, unknown>): Promise<{ data: unknown; error: { code?: string; message: string } | null }>;
 }
@@ -43,11 +45,36 @@ export interface SodResult {
   message: string;
 }
 
-/** Enforce SoD server-side: invoke `submit_sales_invoice(p_si_id)` under the caller's JWT. On a 42501
- *  (self-approval / not-authorized) the bypass is closed — returns `{ok:false, status:403}` and the
- *  dispatch returns 403 WITHOUT submitting to ERP. Any other RPC failure → `{ok:false, status:409}`. */
-export async function enforceSiSubmitSod(client: SodRpcClient, siId: string): Promise<SodResult> {
-  const { error } = await client.rpc('submit_sales_invoice', { p_si_id: siId });
+/**
+ * Enforce SoD server-side AND take this dispatch's body-rewrite clearance, in one locked DB step:
+ * `grant_sales_invoice_submit_clearance(p_si_id, p_actor_id, p_clearance_id)`.
+ *
+ * Round-7 B1b — why this is not `submit_sales_invoice` under the caller's JWT any more:
+ *   • that RPC recorded a clearance ANY authenticated Admin/Finance member could take, repeatedly, on a
+ *     draft nobody was submitting — an insider freeze on the money path; and
+ *   • the release that fixed the freeze was fenced to the GRANTEE, i.e. to the very approver the
+ *     clearance constrains, who could therefore lift it mid-submit and rewrite the body their own
+ *     in-flight submit was about to commit.
+ * The grant is now SERVICE-ROLE ONLY, so a clearance can only come into existence through this dispatch
+ * — which always releases it. Because service_role has no `auth.uid()`, the JWT-verified `actorId` is
+ * passed explicitly and every authorization predicate in the RPC reads THAT user's profile.
+ *
+ * `clearanceId` is this dispatch's fencing token; `releaseSiSubmitClearance` names it to release exactly
+ * this grant and no other. On a 42501 (self-approval / not-authorized) the bypass is closed — returns
+ * `{ok:false, status:403}` and the dispatch returns 403 WITHOUT submitting to ERP. Any other RPC failure
+ * → `{ok:false, status:409}`.
+ */
+export async function grantSiSubmitClearance(
+  client: SodRpcClient,
+  siId: string,
+  actorId: string,
+  clearanceId: string,
+): Promise<SodResult> {
+  const { error } = await client.rpc('grant_sales_invoice_submit_clearance', {
+    p_si_id: siId,
+    p_actor_id: actorId,
+    p_clearance_id: clearanceId,
+  });
   if (error) {
     const isSod = error.code === '42501' || /sod|self-approval|approver|author|not authorized/i.test(error.message);
     return { ok: false, status: isSod ? 403 : 409, message: error.message };
@@ -88,6 +115,35 @@ export function requiresSiAuthorClaim(command: AdapterCommand): boolean {
   const rec = command.record as { erp_doc_kind?: unknown; verb?: unknown };
   if (rec.erp_doc_kind !== 'sales-invoice') return false;
   return buildsSalesInvoiceBody({ operation, record: rec });
+}
+
+/**
+ * Release the clearance THIS dispatch was granted (migration 0114 §F), once the submit it protects has
+ * RESOLVED — on the ERP-success, the ERP-rejection and the adapter-select-failure path alike.
+ *
+ * Without a release the invoice stays frozen for the whole TTL and Finance cannot correct an amount
+ * nobody is submitting any more (the round-6 insider-DoS). With the WRONG release it is worse: the first
+ * cut let the grantee release their own clearance, and the grantee is exactly the approver the clearance
+ * constrains (round-7 B1b). So the release is service-role-only and fenced to `clearanceId` — the token
+ * the grant minted — which also stops a SECOND concurrent submit from lifting the FIRST one's freeze
+ * while that submit is still in flight (B1c).
+ *
+ * BEST-EFFORT by construction: the freeze already has a TTL, so a failed release must never turn a
+ * RESOLVED money dispatch into a client-visible error. It is logged, never thrown.
+ */
+export async function releaseSiSubmitClearance(client: SodRpcClient, siId: string, clearanceId: string): Promise<boolean> {
+  const { error } = await client.rpc('release_sales_invoice_submit_clearance', {
+    p_si_id: siId,
+    p_clearance_id: clearanceId,
+  });
+  if (error) {
+    console.error(
+      `[adapter-dispatch] submit clearance release failed for sales invoice ${siId} (clearance ${clearanceId}): `
+        + `code=${error.code ?? 'none'} message=${error.message} — the clearance TTL remains the backstop`,
+    );
+    return false;
+  }
+  return true;
 }
 
 /** Claim authorship of the sales invoice's body BEFORE the ERP write, under the CALLER's JWT.
