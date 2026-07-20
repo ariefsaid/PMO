@@ -4,16 +4,18 @@
 // and an AppError carrying the stable M365ErrorCode as `code` so the UI can classify uniformly.
 //
 // The edge fn is the ONLY server-side authority over `ms_graph_connections` (RLS forced, zero
-// client policy). This module issues exactly two actions: `initiate_connect` (returns the
-// Microsoft authorize URL — the FE then top-level-redirects) and `disconnect` (revokes + deletes
-// server-side). It does NOT read connection status — there is no client-readable status path
-// (gap reported to Director; the card surfaces state only from the callback return).
+// client policy). This module issues exactly three actions: `initiate_connect` (returns the
+// Microsoft authorize URL — the FE then top-level-redirects), `disconnect` (revokes + deletes
+// server-side), and `connection_status` (the non-sensitive metadata read — the FE's source of
+// truth for the connection card on a fresh page load).
 //
 // NFR-M365-101/108 (binding): no token, `oid`, `code_verifier`, or raw internal error string is
 // ever surfaced. The edge fn returns only `{ authorizeUrl, state }` (initiate) / `{ success }`
-// (disconnect); error responses are mapped BY their stable `error` code to reviewed human copy,
-// never echoed. The `state` is a CSRF token bound to the server-side PKCE row — it is not secret,
-// but it is also not rendered in the DOM (the card navigates to `authorizeUrl` only).
+// (disconnect) / `{ connected, status, connected_at, last_refresh_at, scopes }` (status — no
+// ciphertext / key_id / entra oid / tenant, AC-M365-152); error responses are mapped BY their
+// stable `error` code to reviewed human copy, never echoed. The `state` is a CSRF token bound to
+// the server-side PKCE row — it is not secret, but it is also not rendered in the DOM (the card
+// navigates to `authorizeUrl` only).
 import { supabase } from '../supabase/client.ts';
 import { AppError } from '../appError.ts';
 
@@ -28,6 +30,19 @@ export interface InitiateConnectResult {
 /** disconnect success body (revoke.ts → { status: 200, body: { success: true } }). */
 interface DisconnectResult {
   success: boolean;
+}
+
+/**
+ * connection_status success body (status.ts → ConnectionStatusResponse). The allow-list of
+ * non-sensitive metadata a client may learn about its own connection. NEVER carries token /
+ * key_id / entra oid / tenant material (AC-M365-152).
+ */
+export interface ConnectionStatus {
+  connected: boolean;
+  status: 'active' | 'stale' | 'revoked' | null;
+  connected_at: string | null;
+  last_refresh_at: string | null;
+  scopes: string[];
 }
 
 /** The edge fn's JSON error body shape ({ error: M365ErrorCode, message: string }). */
@@ -147,4 +162,25 @@ export async function disconnectM365(): Promise<void> {
     body: { action: 'disconnect' },
   });
   if (error) await throwClassified(error);
+}
+
+/**
+ * POST `action: 'connection_status'` → the non-sensitive metadata for the caller's own
+ * connection (status.ts, AC-M365-150). This is the FE's source of truth for the connection
+ * card on a fresh page load: connected / active / stale / revoked / absent. Throws
+ * `AppError(message, M365ErrorCode)` on any failure (FORBIDDEN / NOT_ENTITLED / INTERNAL_ERROR /
+ * network) — the caller MUST render an honest unknown state, never a false "Connected".
+ *
+ * A malformed 2xx (no `connected` boolean) is a generic failure — the client never treats an
+ * unparseable response as "connected".
+ */
+export async function getM365ConnectionStatus(): Promise<ConnectionStatus> {
+  const { data, error } = await supabase.functions.invoke<ConnectionStatus>(FN_NAME, {
+    body: { action: 'connection_status' },
+  });
+  if (error) await throwClassified(error);
+  if (!data || typeof data.connected !== 'boolean') {
+    throw new AppError(describeM365Error('INTERNAL_ERROR'), 'INTERNAL_ERROR');
+  }
+  return data;
 }

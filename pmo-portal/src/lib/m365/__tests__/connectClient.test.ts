@@ -12,6 +12,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   initiateM365Connect,
   disconnectM365,
+  getM365ConnectionStatus,
   describeM365Error,
   classifyM365InvokeError,
 } from '../connectClient';
@@ -148,7 +149,6 @@ describe('AC-M365-019 — disconnectM365 transport', () => {
     await expect(disconnectM365()).resolves.toBeUndefined();
     expect(invoke).toHaveBeenCalledWith('m365-token-custody', { body: { action: 'disconnect' } });
   });
-
   it('AC-M365-019: a NOT_CONNECTED response surfaces the mapped human copy + code', async () => {
     invoke.mockResolvedValueOnce({
       data: null,
@@ -166,6 +166,68 @@ describe('AC-M365-019 — disconnectM365 transport', () => {
     });
     const thrown = await captureThrow(() => disconnectM365());
     expect(thrown.code).toBe('INTERNAL_ERROR');
+  });
+});
+
+describe('AC-M365-022 (transport) — getM365ConnectionStatus', () => {
+  it('AC-M365-022: POSTs action:connection_status and returns the allow-list metadata', async () => {
+    invoke.mockResolvedValueOnce({
+      data: {
+        connected: true,
+        status: 'active',
+        connected_at: '2026-07-15T10:00:00.000Z',
+        last_refresh_at: '2026-07-20T09:00:00.000Z',
+        scopes: ['Files.Read', 'offline_access'],
+      },
+      error: null,
+    });
+
+    const result = await getM365ConnectionStatus();
+
+    expect(invoke).toHaveBeenCalledWith('m365-token-custody', { body: { action: 'connection_status' } });
+    expect(result).toEqual({
+      connected: true,
+      status: 'active',
+      connected_at: '2026-07-15T10:00:00.000Z',
+      last_refresh_at: '2026-07-20T09:00:00.000Z',
+      scopes: ['Files.Read', 'offline_access'],
+    });
+  });
+
+  it('AC-M365-022: an absent connection (connected:false) unwraps cleanly — the default load', async () => {
+    invoke.mockResolvedValueOnce({
+      data: { connected: false, status: null, connected_at: null, last_refresh_at: null, scopes: [] },
+      error: null,
+    });
+    const result = await getM365ConnectionStatus();
+    expect(result.connected).toBe(false);
+    expect(result.status).toBeNull();
+  });
+
+  it('AC-M365-023 (transport): a FAILED status fetch (INTERNAL_ERROR) throws AppError, never a false connected', async () => {
+    invoke.mockResolvedValueOnce({
+      data: null,
+      error: httpError({ error: 'INTERNAL_ERROR', message: 'status read failed' }, 500),
+    });
+    const thrown = await captureThrow(() => getM365ConnectionStatus());
+    expect(thrown).toBeInstanceOf(AppError);
+    expect(thrown.code).toBe('INTERNAL_ERROR');
+    expect(thrown.message).toBe(describeM365Error('INTERNAL_ERROR'));
+    // The caller MUST render an honest unknown state from this throw — it carries NO status data.
+  });
+
+  it('AC-M365-023 (transport): a malformed 2xx (no `connected` boolean) throws generic — never treated as connected', async () => {
+    invoke.mockResolvedValueOnce({ data: { connected: 'yes' }, error: null }); // wrong type
+    const thrown = await captureThrow(() => getM365ConnectionStatus());
+    expect(thrown).toBeInstanceOf(AppError);
+    expect(thrown.code).toBe('INTERNAL_ERROR');
+  });
+
+  it('AC-M365-023 (transport): a network failure throws AppError(external-unreachable), no raw string', async () => {
+    invoke.mockResolvedValueOnce({ data: null, error: networkError('Failed to send a request') });
+    const thrown = await captureThrow(() => getM365ConnectionStatus());
+    expect(thrown.code).toBe('external-unreachable');
+    expect(thrown.message).not.toContain('Failed to send a request');
   });
 });
 
