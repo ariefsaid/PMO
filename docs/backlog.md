@@ -101,10 +101,15 @@ Plan + prod runbook: [`docs/plans/2026-07-12-jwt-signing-keys.md`](plans/2026-07
   cron `0094` idle until Vault secrets (`clickup_sweep_url`/`clickup_sweep_secret`) + fn env set;
   (3) PostHog events need `POSTHOG_PROJECT_KEY` in prod.
 
-### ⚑⚑ IN FLIGHT (2026-07-16) — EXTERNAL-SYSTEM ADMIN-CONNECT layer (ClickUp + ERPNext)
-**Status: P1 + P2 + P3 BUILT, reviewed, and HELD on PR #332** (branch `feat/external-admin-connect` off
-`dev` — **do NOT merge**; owner holds all PRs while other agents share `dev`). P4 (health/observability)
-not started.
+### ⚑⚑ IN FLIGHT (2026-07-20) — EXTERNAL-SYSTEM ADMIN-CONNECT layer (ClickUp + ERPNext)
+> **COLD-CONTEXT? START HERE →** [`docs/plans/2026-07-20-clickup-integration-completion.md`](plans/2026-07-20-clickup-integration-completion.md)
+> — what's built vs *assumed*, the 6 user journeys that must work, the ordered remaining work, the
+> ClickUp/local-DB test-fixture rules (OD-INT-8), and the traps that already cost time.
+> Live-smoke evidence: [`docs/spikes/2026-07-17-clickup-live-smoke.md`](spikes/2026-07-17-clickup-live-smoke.md).
+**Status: P1 + P2 + P3 + P4 BUILT, reviewed, and HELD on PR #332** (branch `feat/external-admin-connect` off
+`dev` — **do NOT merge**; owner holds all PRs while other agents share `dev`). P4 (health/observability) DONE. **`EXTERNAL_CONNECT_ENABLED` is OFF everywhere — nothing is live for
+users.** ClickUp read wire-shapes are live-verified; **writes + webhook envelope are NOT** (see the
+completion plan §3).
 - **P1** per-org Vault `secret_ref` model (reader/writer/delete RPCs actor-keyed; resolvers +
   `_shared/perOrgSecret.ts` tri-state fail-closed; 6 edge fns flag-gated `EXTERNAL_CONNECT_ENABLED`,
   default off = byte-for-byte legacy). Security battery + re-review: **all findings CLOSED**.

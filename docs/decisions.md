@@ -901,6 +901,25 @@ no Company yet ⇒ the binding is connected and **not activated**; ERP sync must
 is ever absent at sweep time, `ledgerFetch` filters `['company','=',null]` and returns **zero rows
 silently** — it must fail loud instead.
 
+### OD-INT-8 — The cloud ClickUp workspace + local DB are TEST fixtures; do not spam the API (owner 2026-07-20)
+Both the **cloud ClickUp workspace** (token: 1Password `clickup-api` / vault `AS` / field `credential`)
+and the **local Supabase DB** are testing environments — shared, disposable-but-not-abusable.
+- **Mocks are the default.** The fetch-mocked suites test behaviour; the live API is used ONLY to verify
+  a *wire shape* or an end-to-end journey mocks cannot prove (the shapes are `PROVISIONAL` in-source —
+  see `docs/spikes/2026-07-17-clickup-live-smoke.md`).
+- **No polling / no spam.** Call ClickUp only for a verification whose result you are about to read. No
+  polling loops, no warm-up calls, no repeat runs to watch output. Limit is **100 req/min per token**,
+  shared with anything else on that token; `x-ratelimit-remaining` is in every response — respect it.
+- **Always clean up in the same session.** Tasks, lists, and webhook registrations created for a test
+  MUST be deleted afterwards; leave the workspace as found. If a run dies mid-way, the next session's
+  first job is removing the orphans.
+- **Never print the token.** Pipe it straight from `op-get.sh` into the consumer — never echo, never to
+  a file, never in argv (visible in `ps`) or a URL. Reduce responses to key names/counts before printing
+  so workspace content (task titles, emails) never reaches a transcript.
+  `scripts/clickup-live-smoke.sh` is the worked example.
+- **Local DB:** wrap every DB-touching command in `scripts/with-db-lock.sh` (one shared Docker Postgres;
+  concurrent `db reset`/`test db`/e2e corrupt each other).
+
 ### OD-INT-7 — Project↔List linking is PROJECT-SCOPED to the owning PM (owner-approved 2026-07-16)
 Applies to **ClickUp only** (ERPNext has no per-project link — OD-INT-4/OD-INT-6).
 - **Org connect/disconnect** (the credential = the trust boundary): **Admin ∨ Operator** only. Unchanged.
