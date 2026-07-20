@@ -265,6 +265,68 @@ describe('can() — CRM RBAC (W3-CRM)', () => {
   });
 });
 
+describe('can() — revenue (P3a) reachability + SoD (owner ruling 2026-07-20)', () => {
+  it('P3a: create salesInvoice = Finance + Admin (Exec/PM view-only, Engineer denied)', () => {
+    expect(allowedRoles('create', 'salesInvoice')).toEqual(['Admin', 'Finance']);
+    expect(can('create', 'salesInvoice', { realRole: 'Executive' })).toBe(false);
+    expect(can('create', 'salesInvoice', { realRole: 'Project Manager' })).toBe(false);
+    expect(can('create', 'salesInvoice', { realRole: 'Engineer' })).toBe(false);
+  });
+
+  it('P3a: create incomingPayment = Finance + Admin (Exec/PM view-only, Engineer denied)', () => {
+    expect(allowedRoles('create', 'incomingPayment')).toEqual(['Admin', 'Finance']);
+    expect(can('create', 'incomingPayment', { realRole: 'Executive' })).toBe(false);
+    expect(can('create', 'incomingPayment', { realRole: 'Project Manager' })).toBe(false);
+    expect(can('create', 'incomingPayment', { realRole: 'Engineer' })).toBe(false);
+  });
+
+  it('P3a: view incomingPayment = MASTER_DATA (mirrors salesInvoice view); Engineer denied', () => {
+    expect(allowedRoles('view', 'incomingPayment')).toEqual([
+      'Admin',
+      'Executive',
+      'Project Manager',
+      'Finance',
+    ]);
+    expect(allowedRoles('view', 'incomingPayment')).toEqual(allowedRoles('view', 'salesInvoice'));
+  });
+
+  it('P3a: cancel (transition) a sales invoice / incoming payment = Finance + Admin', () => {
+    expect(allowedRoles('transition', 'salesInvoice')).toEqual(['Admin', 'Finance']);
+    expect(allowedRoles('transition', 'incomingPayment')).toEqual(['Admin', 'Finance']);
+  });
+
+  it('P3a: no `edit` affordance exists for either revenue entity (no update path is implemented)', () => {
+    expect(allowedRoles('edit', 'salesInvoice')).toEqual([]);
+    expect(allowedRoles('edit', 'incomingPayment')).toEqual([]);
+  });
+
+  it('FR-SAR-195: submit_sales_invoice SoD is unchanged — money-author roles, never the author', () => {
+    // Author cannot submit their own draft…
+    expect(
+      can('submit_sales_invoice', 'salesInvoice', {
+        realRole: 'Finance',
+        currentUserId: 'u-1',
+        record: { author_id: 'u-1' },
+      }),
+    ).toBe(false);
+    // …a different money-author user can.
+    expect(
+      allowedRoles('submit_sales_invoice', 'salesInvoice', {
+        currentUserId: 'u-2',
+        record: { author_id: 'u-1' },
+      }),
+    ).toEqual(['Admin', 'Executive', 'Project Manager', 'Finance']);
+    // Engineer is never a submitter.
+    expect(
+      can('submit_sales_invoice', 'salesInvoice', {
+        realRole: 'Engineer',
+        currentUserId: 'u-2',
+        record: { author_id: 'u-1' },
+      }),
+    ).toBe(false);
+  });
+});
+
 describe('can() — deny-by-default safety', () => {
   it('ADR-0016: a null role is always denied (RLS stays the authority; FE never opens on no role)', () => {
     expect(can('create', 'project', { realRole: null })).toBe(false);

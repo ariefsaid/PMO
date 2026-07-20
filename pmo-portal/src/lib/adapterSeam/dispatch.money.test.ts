@@ -980,6 +980,43 @@ describe('BLOCK 1: no POST may be issued once the claim budget is exhausted (the
     expect(commit).not.toHaveBeenCalled();
   });
 
+  it('BLOCK 10: the claim ARMS an absolute deadline on the command, so the budget also bounds a MULTI-CALL commit', async () => {
+    // The single pre-commit check cannot bound a commit that issues several ERP calls (an amend is
+    // cancel PUT → create POST). The claim therefore hands the adapter the absolute instant past which
+    // its non-idempotent POST must be refused; the ERPNext client enforces it at the POST site.
+    const fake = createFakeOutbox();
+    const clock = withClock(fake, 1_500);
+    const claimStartedAt = clock.ms;
+    let seen: AdapterCommand | undefined;
+    const commit = vi.fn(async (c: AdapterCommand) => {
+      seen = c;
+      return { externalRecordId: 'PI-0004', canonical: { id: 'pmo-1' } };
+    });
+
+    await dispatchMoneyWrite({
+      adapter: erpnextAdapter(commit), command: baseCommand,
+      writeReadModel: vi.fn(), recordExternalRef: vi.fn(), money: fake.deps,
+    });
+
+    expect(seen?.commitDeadlineAtMs).toBe(claimStartedAt + MONEY_COMMIT_CLAIM_BUDGET_MS);
+    // The rest of the command is untouched (the deadline is per-attempt metadata, never identity).
+    expect(seen).toMatchObject({ domain: 'procurement', operation: 'create', idempotencyKey: 'key-1', record: { id: 'pmo-1' } });
+  });
+
+  it('BLOCK 10: a NON-money dispatch (P0/P1) never arms a deadline — byte-for-byte', async () => {
+    let seen: AdapterCommand | undefined;
+    const commit = vi.fn(async (c: AdapterCommand) => {
+      seen = c;
+      return { externalRecordId: 'T-1', canonical: { id: 'pmo-1' } };
+    });
+    await dispatchExternallyOwnedWrite({
+      adapter: { tier: 'clickup', capabilityMap: new Set(['tasks']), commit },
+      command: { domain: 'tasks', operation: 'create', record: { id: 'pmo-1' } },
+      writeReadModel: vi.fn(), recordExternalRef: vi.fn(),
+    });
+    expect(seen && 'commitDeadlineAtMs' in seen).toBe(false);
+  });
+
   it('falls back to the wall clock when no `now` is injected (production wiring needs no extra dep)', async () => {
     const fake = createFakeOutbox();
     expect(fake.deps.now).toBeUndefined();

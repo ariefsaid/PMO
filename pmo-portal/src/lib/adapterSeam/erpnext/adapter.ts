@@ -14,7 +14,7 @@
  */
 import type { Adapter, AdapterCommand, ChangesSinceWatermark, CommandResult, PmoDomain, PmoRecord } from '../contract.ts';
 import { AdapterError } from '../contract.ts';
-import { cancelDoc, createDoc, ErpError, getDoc, submitDoc, updateDoc, type ErpClientDeps } from './client.ts';
+import { cancelDoc, createDoc, ErpError, getDoc, submitDoc, updateDoc, withCommitDeadline, type ErpClientDeps } from './client.ts';
 import { DOCTYPE_REGISTRY, type ErpCtx, type ErpDocKind } from './doctypeRegistry.ts';
 import { routeEdit } from './transitionPolicy.ts';
 
@@ -247,7 +247,21 @@ async function commitUpdateNonSubmittable(command: AdapterCommand, deps: ErpAdap
   return { externalRecordId: updated.name, canonical };
 }
 
-async function commitErpCommand(command: AdapterCommand, deps: ErpAdapterDeps): Promise<CommandResult> {
+/**
+ * Luna round-5 BLOCK 10 — applies THIS command's claim deadline to the client ONCE, at the single
+ * entry point every operation/verb passes through, so every ERP call this commit makes (including the
+ * amend's `cancel` → `create` pair, where the non-idempotent POST is the third call) is issued through
+ * a client that refuses a POST past the deadline. Doing it here rather than per-path means a future
+ * doctype or verb inherits the guard automatically and cannot forget it. No deadline on the command
+ * (P0/P1, reads, any non-claimed commit) ⇒ the caller's own deps, byte-for-byte.
+ */
+function budgetedDeps(command: AdapterCommand, deps: ErpAdapterDeps): ErpAdapterDeps {
+  if (command.commitDeadlineAtMs === undefined) return deps;
+  return { ...deps, client: withCommitDeadline(deps.client, command.commitDeadlineAtMs) };
+}
+
+async function commitErpCommand(command: AdapterCommand, rawDeps: ErpAdapterDeps): Promise<CommandResult> {
+  const deps = budgetedDeps(command, rawDeps);
   if (command.operation === 'create') return commitCreate(command, deps);
   if (command.operation === 'transition') return commitTransition(command, deps);
   if (command.operation === 'delete') {

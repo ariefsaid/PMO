@@ -80,6 +80,15 @@ const ARCHIVE_ROLES: Role[] = ['Admin', 'Executive'];
 const MONEY_AUTHORITY: Role[] = ['Admin', 'Executive', 'Finance']; // contract_value-on-won SoD
 const MILESTONE_WRITE: Role[] = ['Admin', 'Project Manager']; // OD-DEL-7: PM+Admin only
 const MONEY_AUTHOR_ROLES: Role[] = ['Admin', 'Executive', 'Project Manager', 'Finance']; // can submit sales invoice (not author)
+/**
+ * Revenue WRITE set — who may raise a sales invoice / record an incoming receipt (owner ruling,
+ * 2026-07-20). Deliberately NARROWER than the backend's `MONEY_WRITE_ROLES`
+ * (`supabase/functions/adapter-dispatch/authGuard.ts` = Admin·Exec·PM·Finance): the FE may be
+ * stricter than RLS/the dispatch guard (see the header note) and here it is — Exec and PM keep the
+ * revenue surface VIEW-ONLY. Do NOT widen this to match the backend, and do NOT narrow the backend
+ * to match this without a security review.
+ */
+const REVENUE_WRITE: Role[] = ['Admin', 'Finance'];
 
 const has = (set: Role[], role: Role | null): boolean => role != null && set.includes(role);
 
@@ -255,11 +264,28 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
   salesInvoice: {
     // Sales Invoices index — Finance, PM, Exec can view (rbac-visibility §D mirror).
     view: allow(MASTER_DATA),
+    // Raise an invoice = Finance + Admin (owner ruling 2026-07-20). Without this entry the
+    // "New Invoice" affordance rendered for NO role and the whole P3a create path was unreachable.
+    create: allow(REVENUE_WRITE),
+    // Cancel (docstatus 1→2) is modelled as a `transition` — the same write set as create.
+    // NOTE: no `edit` entry on purpose — the page has no update mutation (the row-menu Edit is a
+    // no-op stub), so granting `edit` would surface an affordance that does nothing.
+    transition: allow(REVENUE_WRITE),
     submit_sales_invoice: (role, ctx) => {
       if (!has(MONEY_AUTHOR_ROLES, role)) return false;
       // Author cannot submit their own draft (SoD) — checked via record.author_id
       return !!ctx.currentUserId && ctx.record?.author_id !== ctx.currentUserId;
     },
+  },
+  incomingPayment: {
+    // Incoming Payments index — mirrors the salesInvoice view set (Admin·Exec·PM·Finance);
+    // Engineer has no revenue nav/page. Missing entirely before this entry, which made
+    // /incoming-payments render "You don't have access" for EVERY role incl. Admin.
+    view: allow(MASTER_DATA),
+    // Record a receipt = Finance + Admin (owner ruling 2026-07-20).
+    create: allow(REVENUE_WRITE),
+    // Cancel (docstatus 1→2). No `edit` — the page has no update mutation.
+    transition: allow(REVENUE_WRITE),
   },
   // External bindings management — Admin only
   externalBinding: {

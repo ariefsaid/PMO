@@ -54,6 +54,10 @@ function makeFakeClient(rows: Record<string, unknown> = {}, listRows: Record<str
           calls.push({ table, method: 'insert', args: [row] });
           return { error: null };
         },
+        upsert: async (row: unknown, options: unknown) => {
+          calls.push({ table, method: 'upsert', args: [row, options] });
+          return { error: null };
+        },
         update: (patch: unknown) => {
           calls.push({ table, method: 'update', args: [patch] });
           const updateChain = {
@@ -925,5 +929,106 @@ Deno.test({
       !('author_user_id' in patch),
       'no caller ⇒ the key must be ABSENT (writing null would wipe a real author and re-open the NULL-author SoD hole 0108 §B fails closed on)',
     );
+  },
+});
+
+// ============================================================================
+// SoD DEFECT 1 — authorship must be a SET, not a last-writer-wins scalar.
+//
+// `author_user_id` records only the MOST RECENT body-writer, and the submit RPC compared against that
+// single value. Exploit: A authors a 1,000,000 invoice; A asks the designated approver B to fix the
+// due date; B's update REBUILDS the body, so `author_user_id` becomes B; B is now SoD-blocked, so A
+// submits — and the RPC sees author B ≠ submitter A and PASSES. A both set the money and approved it.
+//
+// The invariant is "NOBODY WHO EVER WROTE THE BODY MAY APPROVE". The writer therefore APPENDS every
+// body-writing caller to `sales_invoice_authors` (append-only; `ignoreDuplicates` so a repeat writer
+// is a no-op), and the RPC refuses any submitter present in that set. `author_user_id` is kept (other
+// code + 0106's mirror guard reference it) but is no longer the SoD oracle.
+// ============================================================================
+
+Deno.test({
+  name: 'SoD author SET — an SI create APPENDS the creator to sales_invoice_authors (append-only, ignoreDuplicates)',
+  fn: async () => {
+    const { client, calls } = makeFakeClient({ companies: { org_id: 'org-1' } });
+    const writer = getReadModelWriter('revenue');
+    await writer.upsert(
+      { serviceClient: client as never, orgId: 'org-1', callerUserId: 'user-a' },
+      { id: 'pmo-si-set-1', si_number: 'ACC-SINV-2026-00020', amount: '1000000.00', erp_docstatus: 0 },
+      { domain: 'revenue', operation: 'create', record: { id: 'pmo-si-set-1', erp_doc_kind: 'sales-invoice', customerId: 'cust-1', items: [{ rate: 1000000 }] } },
+    );
+    const authorCall = calls.find((c) => c.table === 'sales_invoice_authors' && c.method === 'upsert');
+    assert(authorCall !== undefined, 'expected the creator to be appended to the author SET');
+    const row = authorCall!.args[0] as Record<string, unknown>;
+    assertEquals(row.org_id, 'org-1');
+    assertEquals(row.sales_invoice_id, 'pmo-si-set-1');
+    assertEquals(row.user_id, 'user-a');
+    const opts = authorCall!.args[1] as Record<string, unknown>;
+    assertEquals(opts.onConflict, 'sales_invoice_id,user_id');
+    assertEquals(opts.ignoreDuplicates, true, 'append-only: a repeat body-writer must be a no-op, never an error');
+  },
+});
+
+Deno.test({
+  name: "SoD author SET — a body-building update APPENDS the updating caller (B) so A, the ORIGINAL author, can no longer approve it either",
+  fn: async () => {
+    const { client, calls } = makeFakeClient();
+    const writer = getReadModelWriter('revenue');
+    await writer.upsert(
+      { serviceClient: client as never, orgId: 'org-1', callerUserId: 'user-b' },
+      { id: 'pmo-si-set-2', si_number: 'ACC-SINV-2026-00021', amount: '1000000.00', erp_docstatus: 0 },
+      { domain: 'revenue', operation: 'update', record: { id: 'pmo-si-set-2', erp_doc_kind: 'sales-invoice', items: [{ rate: 1000000 }] } },
+    );
+    const authorCall = calls.find((c) => c.table === 'sales_invoice_authors' && c.method === 'upsert');
+    assert(authorCall !== undefined, 'a body-building update must APPEND its caller — the set never loses A');
+    assertEquals((authorCall!.args[0] as Record<string, unknown>).user_id, 'user-b');
+  },
+});
+
+Deno.test({
+  name: "SoD author SET — a transition{verb:'amend'} also APPENDS the amending caller",
+  fn: async () => {
+    const { client, calls } = makeFakeClient();
+    const writer = getReadModelWriter('revenue');
+    await writer.upsert(
+      { serviceClient: client as never, orgId: 'org-1', callerUserId: 'user-b' },
+      { id: 'pmo-si-set-3', si_number: 'ACC-SINV-2026-00022', amount: '1000000.00', erp_docstatus: 0 },
+      { domain: 'revenue', operation: 'transition', record: { id: 'pmo-si-set-3', erp_doc_kind: 'sales-invoice', verb: 'amend', items: [{ rate: 1000000 }] } },
+    );
+    const authorCall = calls.find((c) => c.table === 'sales_invoice_authors' && c.method === 'upsert');
+    assert(authorCall !== undefined, 'an amend rebuilds the body — the amender joins the author set');
+    assertEquals((authorCall!.args[0] as Record<string, unknown>).user_id, 'user-b');
+  },
+});
+
+Deno.test({
+  name: "SoD author SET — a NON-body-building transition (submit/cancel) appends NOTHING (submitting is not authoring)",
+  fn: async () => {
+    for (const verb of ['submit', 'cancel']) {
+      const { client, calls } = makeFakeClient();
+      const writer = getReadModelWriter('revenue');
+      await writer.upsert(
+        { serviceClient: client as never, orgId: 'org-1', callerUserId: 'user-b' },
+        { id: 'pmo-si-set-4', si_number: 'ACC-SINV-2026-00023', amount: '1000.00', erp_docstatus: verb === 'cancel' ? 2 : 1 },
+        { domain: 'revenue', operation: 'transition', record: { id: 'pmo-si-set-4', erp_doc_kind: 'sales-invoice', verb } },
+      );
+      assert(
+        calls.find((c) => c.table === 'sales_invoice_authors') === undefined,
+        `verb '${verb}' builds no body — the approver must not be poisoned into the author set by approving`,
+      );
+    }
+  },
+});
+
+Deno.test({
+  name: 'SoD author SET — the inbound/sweep path (no callerUserId) appends NOTHING (a machine tick authors nothing)',
+  fn: async () => {
+    const { client, calls } = makeFakeClient();
+    const writer = getReadModelWriter('revenue');
+    await writer.upsert(
+      { serviceClient: client as never, orgId: 'org-1' },
+      { id: 'pmo-si-set-5', si_number: 'ACC-SINV-2026-00024', amount: '1000.00', erp_docstatus: 0 },
+      { domain: 'revenue', operation: 'update', record: { id: 'pmo-si-set-5', erp_doc_kind: 'sales-invoice', items: [{ rate: 1000 }] } },
+    );
+    assert(calls.find((c) => c.table === 'sales_invoice_authors') === undefined, 'no caller ⇒ nothing to append');
   },
 });

@@ -29,7 +29,9 @@ export interface ReadModelServiceClient {
     insert(row: unknown): Promise<{ error: { message: string; code?: string } | null }>;
     upsert(
       rows: unknown,
-      options: { onConflict: string },
+      // `ignoreDuplicates` is supabase-js's "insert … on conflict do nothing" — needed by the
+      // append-only sales_invoice_authors writer (a repeat body-writer must be a no-op, not an error).
+      options: { onConflict: string; ignoreDuplicates?: boolean },
     ): Promise<{ error: { message: string; code?: string } | null }>;
     update(patch: unknown): ReadModelEqChain;
   };
@@ -519,6 +521,29 @@ async function unlinkPeReceivesOnSiCancel(ctx: ReadModelWriterCtx, canonical: Pm
   }
 }
 
+/** Append a body-writing caller to `sales_invoice_authors` — the APPEND-ONLY authorship SET the
+ *  submit SoD reads (migration 0113).
+ *
+ *  `sales_invoices.author_user_id` records only the MOST RECENT body-writer, so authorship was
+ *  last-writer-wins: A authors a 1,000,000 invoice, asks the designated approver B to fix one field,
+ *  B's update re-stamps the author to B — and A, who chose the number, may now "approve" it, because
+ *  the RPC compared the submitter against that one current value. The invariant is *nobody who ever
+ *  wrote the body may approve*, so every body-building write APPENDS its caller here and the set is
+ *  never overwritten. `author_user_id` is still stamped (0106's mirror guard and other code reference
+ *  it) but is no longer the SoD oracle.
+ *
+ *  `ignoreDuplicates` makes a repeat writer a silent no-op (append-only, PK (sales_invoice_id,
+ *  user_id)). A caller-less write (inbound feed / sweep finalize) appends nothing: a machine tick
+ *  authors nothing, and an empty set already fails the submit closed. */
+async function appendSalesInvoiceAuthor(ctx: ReadModelWriterCtx, salesInvoiceId: string): Promise<void> {
+  if (!ctx.callerUserId) return;
+  const { error } = await ctx.serviceClient.from('sales_invoice_authors').upsert(
+    { org_id: ctx.orgId, sales_invoice_id: salesInvoiceId, user_id: ctx.callerUserId },
+    { onConflict: 'sales_invoice_id,user_id', ignoreDuplicates: true },
+  );
+  if (error) throw new AppError(error.message, error.code);
+}
+
 /** `sales_invoices` — the SI read-model + project enhancement (spec §4.1).
  *  Mirrors ERP-derived canonical; `project_id`/`customer_id` from the command record;
  *  `status` via `deriveSiStatus` from `erp_outstanding_amount` + `erp_docstatus`;
@@ -565,6 +590,8 @@ async function upsertSalesInvoiceMirror(ctx: ReadModelWriterCtx, canonical: PmoR
       ...patch,
     });
     if (error) throw new AppError(error.message, error.code);
+    // 0113: the creator joins the append-only authorship SET (the submit SoD's real oracle).
+    await appendSalesInvoiceAuthor(ctx, String(canonical.id));
     return;
   }
   // Luna re-audit (SoD, approver half) — WHOEVER BUILDS THE BODY IS THE AUTHOR.
@@ -582,19 +609,23 @@ async function upsertSalesInvoiceMirror(ctx: ReadModelWriterCtx, canonical: PmoR
   // ONLY when the caller is KNOWN. On the inbound feed / sweep finalize `ctx.callerUserId` is
   // undefined, and the key must be OMITTED rather than written as null — nulling a real author would
   // re-open the NULL-author SoD hole 0108 §B fails closed on (and a machine tick authors nothing).
-  const authorPatch =
-    ctx.callerUserId &&
-    buildsSalesInvoiceBody({ operation: command.operation, record: command.record as { verb?: unknown } })
-      ? { author_user_id: ctx.callerUserId }
-      // (the `as` mirrors dispatchFactory's own call site: PmoRecord is an index-signature record, so
-      //  TypeScript's weak-type check rejects the structurally-fine `{ verb?: unknown }` narrowing)
-      : {};
+  const buildsBody = buildsSalesInvoiceBody({
+    operation: command.operation,
+    // (the `as` mirrors dispatchFactory's own call site: PmoRecord is an index-signature record, so
+    //  TypeScript's weak-type check rejects the structurally-fine `{ verb?: unknown }` narrowing)
+    record: command.record as { verb?: unknown },
+  });
+  const authorPatch = ctx.callerUserId && buildsBody ? { author_user_id: ctx.callerUserId } : {};
   const { error } = await (
     ctx.serviceClient.from('sales_invoices').update({ ...patch, ...authorPatch }).eq('org_id', ctx.orgId).eq('id', canonical.id) as unknown as Promise<{
       error: { message: string; code?: string } | null;
     }>
   );
   if (error) throw new AppError(error.message, error.code);
+  // 0113: the body-writer ALSO joins the append-only authorship SET. The scalar re-stamp above is
+  // last-writer-wins (a later co-worker edit hands approval rights back to the original author); the
+  // set is the invariant the submit SoD actually reads.
+  if (buildsBody) await appendSalesInvoiceAuthor(ctx, String(canonical.id));
   // AC-SAR-022 (Luna B3): an SI cancel auto-unlinks its PE-receives ERP-side — mirror that here, or
   // the read-model keeps a stale allocation to a cancelled invoice.
   if (docstatus === 2) await unlinkPeReceivesOnSiCancel(ctx, canonical);

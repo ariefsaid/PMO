@@ -19,7 +19,9 @@ import {
   ERP_REQUEST_TIMEOUT_MS,
   ERP_QUARANTINE_WINDOW_MS,
   ERP_PROBE_TIMEOUT_MS,
+  ERP_RETRY_AFTER_CAP_MS,
   withProbeBudget,
+  withCommitDeadline,
   type ErpClientDeps,
 } from './client.ts';
 import { MONEY_COMMIT_CLAIM_BUDGET_MS } from '../dispatch.ts';
@@ -150,6 +152,48 @@ describe('erpnext/client', () => {
     expect(result).toEqual({ name: 'Spike Supplier' });
     expect(deps.fetchImpl).toHaveBeenCalledTimes(2);
     expect(deps.sleep).toHaveBeenCalledWith(1000);
+  });
+
+  // Money-safety audit (SHOULD-FIX): an unbounded `Retry-After` sleep blows the claim budget.
+  // The amend path is cancel(PUT) -> create(POST): the claim budget is checked ONCE, before
+  // `adapter.commit`, so a `Retry-After: 300` honored verbatim on the CANCEL puts the subsequent
+  // non-idempotent POST outside the window this process was admitted for — the exact state the
+  // 60 s budget exists to refuse.
+  it('caps an honored Retry-After at ERP_RETRY_AFTER_CAP_MS (a hostile/huge value cannot blow the claim budget)', async () => {
+    let call = 0;
+    const deps = fetchDeps(async () => {
+      call += 1;
+      return call === 1
+        ? jsonResponse(429, { exc_type: 'RateLimitExceededError' }, { 'Retry-After': '300' })
+        : jsonResponse(200, { name: 'ACC-SINV-2026-00001' });
+    });
+    await erpnextRequest(deps, { method: 'PUT', path: '/api/resource/Sales%20Invoice/X', body: { docstatus: 2 } });
+    expect(deps.sleep).toHaveBeenCalledWith(ERP_RETRY_AFTER_CAP_MS);
+    expect(ERP_RETRY_AFTER_CAP_MS).toBeLessThan(MONEY_COMMIT_CLAIM_BUDGET_MS);
+  });
+
+  it('honors a Retry-After that is already within the cap, verbatim', async () => {
+    let call = 0;
+    const deps = fetchDeps(async () => {
+      call += 1;
+      return call === 1
+        ? jsonResponse(429, { exc_type: 'RateLimitExceededError' }, { 'Retry-After': '2' })
+        : jsonResponse(200, { name: 'X' });
+    });
+    await erpnextRequest(deps, { method: 'GET', path: '/api/resource/Supplier/X' });
+    expect(deps.sleep).toHaveBeenCalledWith(2000);
+  });
+
+  it('ignores a malformed Retry-After and falls back to the linear backoff', async () => {
+    let call = 0;
+    const deps = fetchDeps(async () => {
+      call += 1;
+      return call === 1
+        ? jsonResponse(429, { exc_type: 'RateLimitExceededError' }, { 'Retry-After': 'Wed, 21 Oct 2026 07:28:00 GMT' })
+        : jsonResponse(200, { name: 'X' });
+    });
+    await erpnextRequest(deps, { method: 'GET', path: '/api/resource/Supplier/X' });
+    expect(deps.sleep).toHaveBeenCalledWith(500);
   });
 
   it('AC-ENA-011 an exhausted 5xx (idempotent GET) surfaces external-unreachable', async () => {
@@ -304,6 +348,46 @@ describe('erpnext/client', () => {
   });
 
   // ── Luna BLOCK 5 (money path): a hung POST must never race its own recovery ────────────────────
+  describe('commit deadline (Luna BLOCK 10 — the claim budget bounds the POST itself, not the commit entry)', () => {
+    it('refuses a POST issued AT/PAST the commit deadline — the request never reaches ERP', async () => {
+      const deps: ErpClientDeps = { ...fetchDeps(async () => jsonResponse(200, { name: 'PINV-NEW' })), commitDeadlineAtMs: 1_000, now: () => 1_000 };
+      await expect(createDoc(deps, 'Purchase Invoice', { supplier: 'Acme' })).rejects.toMatchObject({
+        name: 'ErpError',
+        code: 'external-unreachable',
+        retryable: true,
+      });
+      expect(deps.fetchImpl).not.toHaveBeenCalled();
+    });
+
+    it('allows a POST issued INSIDE the deadline (1 ms of budget is still budget)', async () => {
+      const deps: ErpClientDeps = { ...fetchDeps(async () => jsonResponse(200, { name: 'PINV-NEW' })), commitDeadlineAtMs: 1_000, now: () => 999 };
+      await expect(createDoc(deps, 'Purchase Invoice', { supplier: 'Acme' })).resolves.toMatchObject({ name: 'PINV-NEW' });
+      expect(deps.fetchImpl).toHaveBeenCalledTimes(1);
+    });
+
+    it('never refuses an IDEMPOTENT request past the deadline (submit/cancel/GET stay re-issuable)', async () => {
+      const deps: ErpClientDeps = { ...fetchDeps(async () => jsonResponse(200, { name: 'PINV-NEW', docstatus: 1 })), commitDeadlineAtMs: 1_000, now: () => 9_999 };
+      await expect(submitDoc(deps, 'Purchase Invoice', 'PINV-NEW')).resolves.toMatchObject({ docstatus: 1 });
+      await expect(cancelDoc(deps, 'Purchase Invoice', 'PINV-NEW')).resolves.toBeTruthy();
+      await expect(getDoc(deps, 'Purchase Invoice', 'PINV-NEW')).resolves.toBeTruthy();
+      expect(deps.fetchImpl).toHaveBeenCalledTimes(3);
+    });
+
+    it('a client with NO commit deadline is unbounded — byte-for-byte (P0/P1 and every read path)', async () => {
+      const deps = fetchDeps(async () => jsonResponse(200, { name: 'PINV-NEW' }));
+      await expect(createDoc(deps, 'Purchase Invoice', { supplier: 'Acme' })).resolves.toMatchObject({ name: 'PINV-NEW' });
+      expect(deps.fetchImpl).toHaveBeenCalledTimes(1);
+    });
+
+    it('withCommitDeadline returns a COPY — the caller\'s own client is untouched', () => {
+      const base = fetchDeps(async () => jsonResponse(200, {}));
+      const budgeted = withCommitDeadline(base, 42);
+      expect(budgeted.commitDeadlineAtMs).toBe(42);
+      expect(base.commitDeadlineAtMs).toBeUndefined();
+      expect(budgeted.fetchImpl).toBe(base.fetchImpl);
+    });
+  });
+
   describe('request deadline (Luna BLOCK 5 — no unbounded POST vs. the 5-minute quarantine reclaim)', () => {
     it('the default deadline is strictly shorter than the quarantine reclaim window, with real settle margin', () => {
       expect(ERP_REQUEST_TIMEOUT_MS).toBeLessThan(ERP_QUARANTINE_WINDOW_MS);

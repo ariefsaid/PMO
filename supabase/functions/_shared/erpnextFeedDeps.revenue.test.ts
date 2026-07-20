@@ -128,6 +128,40 @@ Deno.test('SHOULD-FIX 2 (IP twin): a partial Receive-PE payload with NO docstatu
   assert(patch.amount === '250.00', `expected the carried amount to still be repaired, got ${String(patch.amount)}`);
 });
 
+// ── Round-5 BLOCK 1: the MIRROR IMAGE of the guard above, and a regression the round-4 fix itself
+// introduced. Round 4 covered "docstatus present, outstanding absent". The opposite shape — a
+// MONEY-ONLY webhook (outstanding present, docstatus omitted) — fell through to
+// `deriveSiStatus(x, null)` === 'Draft'. Because revenue now positively allow-lists
+// Submitted/Unpaid/Paid, that demoted a live invoice to Draft and made its revenue AND open AR
+// VANISH from the rollup, while erp_docstatus still said 1. Two individually-correct changes that
+// combined into money disappearing from the screen. ────────────────────────────────────────────────
+Deno.test('BLOCK 1: a money-only SI payload (outstanding, NO docstatus) never demotes a live invoice to Draft', async () => {
+  const { client, calls } = fakeServiceClient();
+  const deps = createErpFeedDeps(client, 'org-1', 'sales-invoice');
+  // A partial-payment webhook mapped with money fields but no `docstatus`.
+  await deps.updateMirror('pmo-si-1', { id: 'pmo-si-1', erp_outstanding_amount: '150000.00' }, 1000);
+
+  const patch = findUpdate(calls, 'sales_invoices')?.payload as Record<string, unknown>;
+  assert(
+    !('status' in patch),
+    `expected NO status write without the docstatus oracle, got status=${String(patch.status)}`,
+  );
+  // The money it DID carry is still repaired — the guard must not suppress the whole patch.
+  assert(
+    patch.erp_outstanding_amount === '150000.00',
+    `expected the carried outstanding to be repaired, got ${String(patch.erp_outstanding_amount)}`,
+  );
+});
+
+Deno.test('BLOCK 1: a draft SI (docstatus 0, no outstanding) still derives Draft — the docstatus IS the whole oracle there', async () => {
+  const { client, calls } = fakeServiceClient();
+  const deps = createErpFeedDeps(client, 'org-1', 'sales-invoice');
+  await deps.updateMirror('pmo-si-1', { id: 'pmo-si-1', erp_docstatus: 0 }, 1000);
+
+  const patch = findUpdate(calls, 'sales_invoices')?.payload as Record<string, unknown>;
+  assert(patch.status === 'Draft', `expected a docstatus-0 invoice to derive 'Draft', got ${String(patch.status)}`);
+});
+
 Deno.test('SHOULD-FIX 2 (IP twin): a Receive-PE payload that DOES carry docstatus still derives status', async () => {
   const { client, calls } = fakeServiceClient();
   const deps = createErpFeedDeps(client, 'org-1', 'incoming-payment');
@@ -243,6 +277,103 @@ Deno.test('BLOCK 6: an unresolvable SI reference never UN-links an already-linke
 
   const patch = findUpdate(calls, 'incoming_payments')?.payload as Record<string, unknown>;
   assert(!('sales_invoice_id' in patch), 'expected an unresolved reference to leave sales_invoice_id untouched, not null it');
+});
+
+// ── Round-5 cross-family finding 6: the NATIVE-AMEND money convergence ─────────────────────────────
+//
+// A desk amend cancels the predecessor (docstatus 2) and mints a successor carrying `amended_from`.
+// `applyFeed` repoints `external_refs` onto the SAME PMO row and then refreshes it from the successor
+// through THIS `updateMirror`. Two things must hold for the accountant's figure to be right:
+//   • the successor's amount/outstanding/status land (not the cancelled predecessor's), and
+//   • the predecessor's tombstone stamp does not linger on a row that is now a LIVE document.
+
+Deno.test('finding 6: the successor of a native amend lands its OWN money + status (not the cancelled predecessor\'s)', async () => {
+  const { client, calls } = fakeServiceClient();
+  const deps = createErpFeedDeps(client, 'org-1', 'sales-invoice');
+  // The row currently holds the predecessor's figures (125000, Cancelled). The successor arrives at 90000.
+  await deps.updateMirror('pmo-si-1', {
+    id: 'pmo-si-1',
+    si_number: 'ACC-SINV-2026-00007-1',
+    amount: '90000.00',
+    erp_outstanding_amount: '90000.00',
+    erp_docstatus: 1,
+    erp_amended_from: 'ACC-SINV-2026-00007',
+  }, 1000);
+
+  const patch = findUpdate(calls, 'sales_invoices')?.payload as Record<string, unknown>;
+  assert(patch.amount === '90000.00', `expected the SUCCESSOR amount, got ${String(patch.amount)}`);
+  assert(patch.erp_outstanding_amount === '90000.00', `expected the SUCCESSOR outstanding, got ${String(patch.erp_outstanding_amount)}`);
+  assert(patch.status === 'Unpaid', `expected the successor to re-enter revenue as 'Unpaid', got ${String(patch.status)}`);
+  assert(patch.erp_amended_from === 'ACC-SINV-2026-00007', 'expected the lineage stamp to be carried');
+});
+
+Deno.test('finding 6: a live docstatus CLEARS a predecessor tombstone stamp (docstatus 2 is terminal in ERPNext, so a non-2 doc is not cancelled)', async () => {
+  const { client, calls } = fakeServiceClient();
+  const deps = createErpFeedDeps(client, 'org-1', 'sales-invoice');
+  await deps.updateMirror('pmo-si-1', { id: 'pmo-si-1', erp_docstatus: 1, erp_outstanding_amount: '90000.00' }, 1000);
+
+  const patch = findUpdate(calls, 'sales_invoices')?.payload as Record<string, unknown>;
+  assert(patch.erp_cancelled_at === null, `expected the stale tombstone stamp to be cleared, got ${String(patch.erp_cancelled_at)}`);
+});
+
+Deno.test('finding 6: a cancel still STAMPS the tombstone (the clear never fights the cancel path)', async () => {
+  const { client, calls } = fakeServiceClient();
+  const deps = createErpFeedDeps(client, 'org-1', 'sales-invoice');
+  await deps.updateMirror('pmo-si-1', { id: 'pmo-si-1', erp_docstatus: 2 }, 1000);
+
+  const patch = findUpdate(calls, 'sales_invoices')?.payload as Record<string, unknown>;
+  assert(typeof patch.erp_cancelled_at === 'string', 'expected a docstatus-2 change to stamp erp_cancelled_at');
+  assert(patch.status === 'Cancelled', 'expected the cancel to still derive Cancelled');
+});
+
+Deno.test('finding 6: an amend payload WITHOUT the docstatus oracle leaves status AND the tombstone stamp untouched (never guesses)', async () => {
+  const { client, calls } = fakeServiceClient();
+  const deps = createErpFeedDeps(client, 'org-1', 'sales-invoice');
+  // A Frappe webhook mapped without `docstatus`: it states the lineage + a money figure, nothing else.
+  await deps.updateMirror('pmo-si-1', {
+    id: 'pmo-si-1',
+    erp_amended_from: 'ACC-SINV-2026-00007',
+    amount: '90000.00',
+  }, 1000);
+
+  const patch = findUpdate(calls, 'sales_invoices')?.payload as Record<string, unknown>;
+  assert(!('status' in patch), `expected NO status guess without the docstatus oracle, got ${String(patch.status)}`);
+  assert(!('erp_cancelled_at' in patch), 'expected no tombstone rewrite without the docstatus oracle');
+  assert(patch.amount === '90000.00', 'expected the carried amount to still be repaired');
+});
+
+// The PE-link half of the same story (AC-SAR-022). ERPNext auto-unlinks a Receive PE's references when
+// the invoice it cites is cancelled — and a native amend cancels the predecessor. So the receipt goes
+// on-account, exactly as it now is in ERP; when the accountant re-allocates it against the successor,
+// the next tick resolves the SUCCESSOR name (external_refs was repointed to the same PMO row) and the
+// link is restored. Both halves are asserted here so the pair can never drift apart silently.
+Deno.test('finding 6 (PE links): the predecessor cancel un-links the Receive PE (an on-account receipt, matching ERP)', async () => {
+  const { client, calls } = fakeServiceClient({ list: { incoming_payments: [{ id: 'pmo-ip-9' }] } });
+  const deps = createErpFeedDeps(client, 'org-1', 'sales-invoice');
+  await deps.tombstoneMirror('pmo-si-1', '2026-07-19T09:00:00.000Z');
+
+  const unlink = calls.find((c) => c.table === 'incoming_payments' && c.op === 'update');
+  assert(!!unlink, 'expected the referencing Receive PE to be reconciled');
+  assert((unlink!.payload as Record<string, unknown>).sales_invoice_id === null, 'expected the auto-unlink to be mirrored');
+  assert(unlink!.eq.some(([c, v]) => c === 'id' && v === 'pmo-ip-9'), 'expected the reconcile to target the referencing payment');
+});
+
+Deno.test('finding 6 (PE links): a re-allocated Receive PE re-links to the SUCCESSOR name (the repointed ref resolves to the same PMO row)', async () => {
+  const { client, calls } = fakeServiceClient({ single: { external_refs: { pmo_record_id: 'pmo-si-1' } } });
+  const deps = createErpFeedDeps(client, 'org-1', 'incoming-payment');
+  await deps.updateMirror('pmo-ip-9', {
+    id: 'pmo-ip-9',
+    erp_docstatus: 1,
+    references: [{ reference_doctype: 'Sales Invoice', reference_name: 'ACC-SINV-2026-00007-1' }],
+  }, 2000);
+
+  const lookup = calls.find((c) => c.table === 'external_refs' && c.op === 'select');
+  assert(
+    lookup?.eq.some(([c, v]) => c === 'external_record_id' && v === 'ACC-SINV-2026-00007-1') ?? false,
+    'expected the SUCCESSOR name to be the one resolved',
+  );
+  const patch = findUpdate(calls, 'incoming_payments')?.payload as Record<string, unknown>;
+  assert(patch.sales_invoice_id === 'pmo-si-1', `expected the receipt to re-link to the amended invoice row, got ${String(patch.sales_invoice_id)}`);
 });
 
 // ── BLOCK 7 ────────────────────────────────────────────────────────────────────────────────────────

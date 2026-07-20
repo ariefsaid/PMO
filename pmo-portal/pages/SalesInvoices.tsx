@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   ListPage,
   SearchMini,
@@ -17,12 +17,14 @@ import {
   Icon,
   useToast,
   type Column,
+  type ComboboxOption,
   type RowMenuItem,
 } from '@/src/components/ui';
 import { useNavigate } from 'react-router-dom';
 import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useSalesInvoices, useRevenueMutations } from '@/src/hooks/useRevenue';
+import { useClientCompanyOptions, useProjectOptions } from '@/src/hooks/useFkOptions';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { trackFilterApplied } from '@/src/lib/analytics';
 import type { SalesInvoiceRow, SalesInvoiceStatus } from '@/src/lib/db/revenue';
@@ -31,6 +33,8 @@ import { salesInvoiceStatusVariant } from '@/src/lib/status/statusVariants';
 import { type PendingPushState } from '@/src/lib/adapterSeam/pendingPush';
 import { useAuth } from '@/src/auth/useAuth';
 import { useEntityForm } from '@/src/components/ui/useEntityForm';
+import { useCommandIntent, useCommandIntentMap } from '@/src/hooks/useCommandIntent';
+import type { CommandIntent } from '@/src/lib/repositories/types';
 
 /** Status filter segments. */
 type StatusFilter = 'All' | SalesInvoiceStatus;
@@ -88,6 +92,11 @@ const SalesInvoices: React.FC = () => {
   const [formTarget, setFormTarget] = useState<{ invoice: SalesInvoiceRow | null } | null>(null);
   const [cancelTarget, setCancelTarget] = useState<SalesInvoiceRow | null>(null);
   const [submitTarget, setSubmitTarget] = useState<SalesInvoiceRow | null>(null);
+
+  // BLOCK 2 (ADR-0058): the confirm dialogs are ALWAYS mounted, so their command identity cannot be
+  // a plain ref — it must be per (record, verb) or a retry on invoice B would carry invoice A's key.
+  // Released only after a terminal success (never on error — reusing the key on retry IS the fix).
+  const verbIntents = useCommandIntentMap();
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -220,8 +229,10 @@ const SalesInvoices: React.FC = () => {
 
   const onCancelConfirm = async () => {
     if (!cancelTarget) return;
+    const key = `cancel:${cancelTarget.id}`;
     try {
-      await cancelInvoice.mutateAsync(cancelTarget.id);
+      await cancelInvoice.mutateAsync({ siId: cancelTarget.id, intent: verbIntents.intentFor(key) });
+      verbIntents.release(key);
       toast('Invoice cancelled', cancelTarget.si_number ?? cancelTarget.id, 'success');
       setCancelTarget(null);
     } catch (err) {
@@ -232,8 +243,10 @@ const SalesInvoices: React.FC = () => {
 
   const onSubmitConfirm = async () => {
     if (!submitTarget) return;
+    const key = `submit:${submitTarget.id}`;
     try {
-      await submitInvoice.mutateAsync(submitTarget.id);
+      await submitInvoice.mutateAsync({ siId: submitTarget.id, intent: verbIntents.intentFor(key) });
+      verbIntents.release(key);
       toast('Invoice submitted', submitTarget.si_number ?? submitTarget.id, 'success');
       setSubmitTarget(null);
     } catch (err) {
@@ -331,11 +344,12 @@ const SalesInvoices: React.FC = () => {
           invoice={formTarget.invoice}
           pendingPush={pendingPush}
           onClose={() => setFormTarget(null)}
-          onCreate={async (input) => {
+          onCreate={async (input, intent) => {
             await create.mutateAsync({
               customerId: input.customerId,
               projectId: input.projectId,
               items: input.lineItems,
+              intent,
             });
             toast('Invoice created', input.customerId, 'success');
             setFormTarget(null);
@@ -383,7 +397,11 @@ const SalesInvoices: React.FC = () => {
 interface SalesInvoiceFormModalProps {
   invoice: SalesInvoiceRow | null;
   onClose: () => void;
-  onCreate: (input: { customerId: string; projectId: string | null; lineItems: LineItem[] }) => Promise<void>;
+  /** `intent` is the modal's OWN command identity — stable for this form session (BLOCK 2). */
+  onCreate: (
+    input: { customerId: string; projectId: string | null; lineItems: LineItem[] },
+    intent: CommandIntent,
+  ) => Promise<void>;
   onUpdate: (id: string, input: { customerId: string; projectId: string | null; lineItems: LineItem[] }) => Promise<void>;
   onError: (err: unknown) => void;
   pendingPush: PendingPushState;
@@ -398,6 +416,11 @@ const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
   pendingPush,
 }) => {
   const isEdit = !!invoice;
+  // BLOCK 2 (ADR-0058): ONE command identity per form session. This modal is mounted only while the
+  // form is open (`{formTarget && …}`), so its mount IS the session: every retry of a failed submit
+  // reuses this identity (the ERP doc a lost response already committed gets reconciled, not
+  // duplicated), and a success closes the modal → the next "New Invoice" mints a fresh one.
+  const intent = useCommandIntent();
   const form = useEntityForm<FormValues>({
     initialValues: {
       customerId: '',
@@ -426,20 +449,29 @@ const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
       const input = { customerId: values.customerId, projectId: values.projectId, lineItems: values.lineItems };
       try {
         if (isEdit && invoice) await onUpdate(invoice.id, input);
-        else await onCreate(input);
+        else await onCreate(input, intent);
       } catch (err) {
         onError(err);
       }
     });
   };
 
-  // Line items management
-  const [lineItems, setLineItems] = useState<LineItem[]>([{ item_code: '', qty: 1, rate: 0 }]);
+  // FK options come from the cached hooks ("hooks own data fetching"); the Combobox loader just
+  // hands back the already-fetched list (no re-fetch on popover open).
+  const { data: customerOptions } = useClientCompanyOptions();
+  const { data: projectOptions } = useProjectOptions();
+  const loadCustomers = useCallback(async (): Promise<ComboboxOption[]> => customerOptions ?? [], [customerOptions]);
+  const loadProjects = useCallback(async (): Promise<ComboboxOption[]> => projectOptions ?? [], [projectOptions]);
 
-  const addLineItem = () => setLineItems([...lineItems, { item_code: '', qty: 1, rate: 0 }]);
-  const removeLineItem = (index: number) => setLineItems(lineItems.filter((_, i) => i !== index));
+  // Line items live IN the form (BLOCK 1b): a detached useState meant the VALIDATED values and the
+  // SUBMITTED values were different objects — the user's typed lines were dropped and an invoice
+  // worth $0 would have posted for someone who typed $25,000.
+  const lineItems = form.values.lineItems;
+  const addLineItem = () => form.setValue('lineItems', [...lineItems, { item_code: '', qty: 1, rate: 0 }]);
+  const removeLineItem = (index: number) =>
+    form.setValue('lineItems', lineItems.filter((_, i) => i !== index));
   const updateLineItem = (index: number, field: keyof LineItem, value: string | number) =>
-    setLineItems(lineItems.map((item, i) => (i === index ? { ...item, [field]: value } : item)));
+    form.setValue('lineItems', lineItems.map((item, i) => (i === index ? { ...item, [field]: value } : item)));
 
   return (
     <EntityFormModal
@@ -468,7 +500,7 @@ const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
             onChange={(value, _option) => customerField.onChange(value)}
             error={customerField.error}
             placeholder="Select or search customer…"
-            loadOptions={async () => []} // TODO: load from companies list (type=Client)
+            loadOptions={loadCustomers}
             noun="customer"
           />
           <Combobox
@@ -477,7 +509,7 @@ const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
             onChange={(value, _option) => projectField.onChange(value ?? '')}
             error={projectField.error}
             placeholder="Select project (optional)…"
-            loadOptions={async () => []} // TODO: load from projects list
+            loadOptions={loadProjects}
             noun="project"
           />
         </FormGrid>

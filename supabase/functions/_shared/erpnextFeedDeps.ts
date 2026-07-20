@@ -206,7 +206,12 @@ async function mintMirrorRow(
   // Finance action-required notification (Luna BLOCK 13, FR-SAR-085 — no new table).
   if (domain === 'revenue') {
     const erpModifiedIso = new Date(sourceModMs).toISOString();
-    const docstatus = (canonical.erp_docstatus as number | null | undefined) ?? 0;
+    // Keep an absent docstatus as NULL rather than defaulting to 0: a payload that never stated the
+    // lifecycle must not have a "draft" claim invented for it. Defaulting to 0 minted a FALSE mirror
+    // (erp_docstatus=0 for an invoice ERP has actually submitted) and, with the revenue allow-list,
+    // permanently excluded that invoice's money. NULL is honest — the sweep repairs it on a tick
+    // carrying the real docstatus.
+    const docstatus = (canonical.erp_docstatus as number | null | undefined) ?? null;
     const erpOutstanding = (canonical as { erp_outstanding_amount?: string | number | null }).erp_outstanding_amount;
     const customerId = await resolveCustomerId(serviceClient, orgId, canonical);
     if (kind === 'sales-invoice') {
@@ -281,7 +286,13 @@ function mirrorStatusPatch(canonical: PmoRecord, sourceModMs: number): Record<st
   putIfPresent(patch, 'erp_amended_from', (canonical.erp_amended_from as string | null | undefined));
   if (docstatus != null) {
     patch.erp_docstatus = docstatus;
-    if (docstatus === 2) patch.erp_cancelled_at = new Date().toISOString();
+    // Round-5 finding 6: docstatus 2 is TERMINAL in ERPNext (a cancelled doc is never un-cancelled —
+    // it is amended into a NEW document instead). So a change that authoritatively states a non-2
+    // docstatus describes a live document, and any `erp_cancelled_at` on that row belongs to a
+    // superseded predecessor: on a native amend the successor is repointed onto the SAME mirror row
+    // the predecessor's cancel had already tombstoned. Clear it so the row's lifecycle matches the
+    // document it now mirrors. Absent docstatus ⇒ untouched (the putIfPresent discipline).
+    patch.erp_cancelled_at = docstatus === 2 ? new Date().toISOString() : null;
   }
   return patch;
 }
@@ -345,7 +356,15 @@ async function revenueFieldPatch(
     // sweep always carries `outstanding_amount`, but a Frappe WEBHOOK maps whatever field subset the
     // operator configured, so a lifecycle-only payload is a real inbound shape. A cancel is the one
     // case whose oracle IS the docstatus, so it still derives.
-    if (outstanding != null || docstatus === 2) {
+    // The oracle for `status` is the LIFECYCLE (docstatus); `outstanding` only splits a SUBMITTED
+    // invoice into Paid vs Unpaid. So both halves must be present before we rewrite it:
+    //   • docstatus absent  -> leave status alone. deriveSiStatus(x, null) returns 'Draft', and since
+    //     revenue positively allow-lists Submitted/Unpaid/Paid, a money-only webhook (outstanding
+    //     present, docstatus omitted) would otherwise demote a live invoice to Draft and make its
+    //     revenue and open AR VANISH from the rollup — while erp_docstatus still says 1.
+    //   • docstatus 1 with no outstanding -> leave alone (a settled 'Paid' must not flip to 'Unpaid').
+    //   • docstatus 0 or 2 -> the docstatus IS the whole oracle; always derive.
+    if (docstatus != null && (docstatus !== 1 || outstanding != null)) {
       patch.status = deriveSiStatus(outstanding == null ? null : String(outstanding), docstatus);
     }
     return patch;

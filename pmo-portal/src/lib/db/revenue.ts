@@ -56,25 +56,80 @@ function throwWrite(error: PostgrestErrorLike): never {
 }
 
 /**
+ * PostgREST refuses to return more than `max_rows` (1000, `supabase/config.toml`) rows in ONE
+ * response — and signals nothing when it truncates. Any read that must see a WHOLE table
+ * (the revenue rollup, and the money lists whose client-side search indexes them) therefore
+ * pages explicitly; this is that page size.
+ */
+const PAGE_SCAN_SIZE = 1000;
+
+interface PageResult<T> {
+  data: T[] | null;
+  error: PostgrestErrorLike | null;
+}
+
+/**
+ * Reads EVERY row of a query by asking for successive `[from, to]` pages until a SHORT page
+ * proves the end of the set. The caller's `page` builder MUST apply a total, stable ORDER BY
+ * (an `id` tiebreaker) — Postgres guarantees no row order across statements, so an unordered
+ * paged scan can return one row twice and miss another.
+ */
+async function fetchAllPages<T>(
+  page: (from: number, to: number) => PromiseLike<PageResult<T>>,
+): Promise<T[]> {
+  const out: T[] = [];
+  for (let p = 0; ; p += 1) {
+    const from = p * PAGE_SCAN_SIZE;
+    const { data, error } = await page(from, from + PAGE_SCAN_SIZE - 1);
+    if (error) throwWrite(error);
+    const rows = data ?? [];
+    for (const row of rows) out.push(row);
+    if (rows.length < PAGE_SCAN_SIZE) break;
+  }
+  return out;
+}
+
+/**
  * List all sales invoices in the caller's org (RLS scopes org).
  * Optional `projectId` filters to a single project.
  * Ordered by invoice_date desc for a stable, scannable list.
  * Includes customer's payment terms (erp_payment_terms_days) for due-date derivation.
+ *
+ * Money-safety (read-model audit S6): with no explicit `page`/`pageSize` this scans the WHOLE
+ * list in `PAGE_SCAN_SIZE` pages. A single unpaged request is silently capped at PostgREST's
+ * `max_rows`, so past 1000 invoices the list — and the client-side search that indexes it —
+ * saw only the newest 1000 and answered "No invoices match your filters" for an invoice that
+ * exists. An explicit `page`/`pageSize` still issues exactly one bounded request.
  */
 export async function listSalesInvoices(
   params?: { projectId?: string } & PageParams,
 ): Promise<SalesInvoiceRow[]> {
-  let query = supabase
-    .from('sales_invoices')
-    .select('*, companies!sales_invoices_customer_id_fkey(erp_payment_terms_days)');
-  if (params?.projectId) query = query.eq('project_id', params.projectId);
+  const build = (from: number, to: number) => {
+    let query = supabase
+      .from('sales_invoices')
+      .select('*, companies!sales_invoices_customer_id_fkey(erp_payment_terms_days)');
+    if (params?.projectId) query = query.eq('project_id', params.projectId);
+    return query
+      .order('invoice_date', { ascending: false })
+      .order('created_at', { ascending: false })
+      // Total, stable ordering — the tiebreaker that makes the paged scan repeatable.
+      .order('id', { ascending: true })
+      .range(from, to);
+  };
+
   const range = resolveRange(params);
-  let ordered = query.order('invoice_date', { ascending: false }).order('created_at', { ascending: false });
-  if (range) ordered = ordered.range(range.from, range.to);
-  const { data, error } = await ordered;
-  if (error) throwWrite(error);
+  let data: Array<Record<string, unknown>>;
+  if (range) {
+    const res = await build(range.from, range.to);
+    if (res.error) throwWrite(res.error);
+    data = (res.data ?? []) as Array<Record<string, unknown>>;
+  } else {
+    data = await fetchAllPages<Record<string, unknown>>((from, to) =>
+      build(from, to) as unknown as PromiseLike<PageResult<Record<string, unknown>>>,
+    );
+  }
   // Transform the joined company data into flat fields
-  return (data ?? []).map((row: Record<string, unknown>) => ({
+  return data.map((row: Record<string, unknown>) => ({
     ...row,
     erp_payment_terms_days: (row.companies as { erp_payment_terms_days: number | null } | null)?.erp_payment_terms_days ?? null,
     // erp_due_date will be populated when ERP mirror includes it (future enhancement)
@@ -105,19 +160,33 @@ export async function getSalesInvoice(id: string): Promise<SalesInvoiceRow | nul
 /**
  * List all incoming payments in the caller's org (RLS scopes org).
  * Optional `customerId` filters to one customer.
- * Ordered by date desc then created_at desc.
+ * Ordered by date desc then created_at desc, with an `id` tiebreaker so the scan is stable.
+ *
+ * Same money-safety contract as `listSalesInvoices` (audit S6): unpaged callers get the WHOLE
+ * list via successive pages, never a silently-capped first 1000.
  */
 export async function listIncomingPayments(
   params?: { customerId?: string } & PageParams,
 ): Promise<IncomingPaymentRow[]> {
-  let query = supabase.from('incoming_payments').select('*');
-  if (params?.customerId) query = query.eq('customer_id', params.customerId);
+  const build = (from: number, to: number) => {
+    let query = supabase.from('incoming_payments').select('*');
+    if (params?.customerId) query = query.eq('customer_id', params.customerId);
+    return query
+      .order('date', { ascending: false })
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: true })
+      .range(from, to);
+  };
+
   const range = resolveRange(params);
-  let ordered = query.order('date', { ascending: false }).order('created_at', { ascending: false });
-  if (range) ordered = ordered.range(range.from, range.to);
-  const { data, error } = await ordered;
-  if (error) throwWrite(error);
-  return (data ?? []) as IncomingPaymentRow[];
+  if (range) {
+    const { data, error } = await build(range.from, range.to);
+    if (error) throwWrite(error);
+    return (data ?? []) as IncomingPaymentRow[];
+  }
+  return fetchAllPages<IncomingPaymentRow>((from, to) =>
+    build(from, to) as unknown as PromiseLike<PageResult<IncomingPaymentRow>>,
+  );
 }
 
 /**
@@ -139,13 +208,6 @@ export async function submitSalesInvoiceSod(siId: string): Promise<void> {
   const { error } = await supabase.rpc('submit_sales_invoice', { p_si_id: siId });
   if (error) throw error;
 }
-
-/**
- * PostgREST refuses to return more than `max_rows` (1000, `supabase/config.toml`) rows in ONE
- * response — and signals nothing when it truncates. Any read that aggregates a whole table must
- * therefore page explicitly; this is that page size.
- */
-const ROLLUP_PAGE_SIZE = 1000;
 
 /**
  * Revenue rollup per project — SUM(amount) grouped by project_id.
@@ -171,12 +233,16 @@ export async function getRevenueByProject(): Promise<
 > {
   const agg = new Map<string, { total_amount: number; open_ar: number; invoice_count: number }>();
   for (let page = 0; ; page += 1) {
-    const from = page * ROLLUP_PAGE_SIZE;
+    const from = page * PAGE_SCAN_SIZE;
     const { data, error } = await supabase
       .from('sales_invoices')
       .select('project_id, amount, erp_outstanding_amount')
       .in('status', REVENUE_STATUSES as unknown as string[])
-      .range(from, from + ROLLUP_PAGE_SIZE - 1);
+      // S1: Postgres guarantees NO row order across statements, so a paged scan without a total
+      // ORDER BY can count one invoice twice and skip another when a concurrent write moves a
+      // tuple between page reads — Total Revenue then drifts by up to a whole invoice, silently.
+      .order('id', { ascending: true })
+      .range(from, from + PAGE_SCAN_SIZE - 1);
     if (error) throwWrite(error);
     const rows = data ?? [];
     for (const row of rows) {
@@ -188,7 +254,7 @@ export async function getRevenueByProject(): Promise<
       agg.set(key, existing);
     }
     // A SHORT page proves the end of the set; a full one may or may not be the last, so ask again.
-    if (rows.length < ROLLUP_PAGE_SIZE) break;
+    if (rows.length < PAGE_SCAN_SIZE) break;
   }
 
   // Resolve project names for non-null project_ids

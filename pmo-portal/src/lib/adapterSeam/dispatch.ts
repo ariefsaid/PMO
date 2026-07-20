@@ -312,7 +312,13 @@ async function claimAndCommit(
     }
     let result: CommandResult;
     try {
-      result = await adapter.commit(command);
+      // BLOCK 10 — the check above bounds the ENTRY into commit; it cannot bound a commit that issues
+      // SEVERAL external calls (an ERPNext amend is `cancel` PUT → `create` POST, so the money-minting
+      // POST is the third call and a slow cancel can carry it past this claim's window). So ARM the
+      // command with the absolute deadline this claim was admitted for and let the adapter's transport
+      // refuse the non-idempotent write at the POST site. Per-attempt metadata only — the command's
+      // identity (domain/operation/record/idempotencyKey, and therefore its payload digest) is unchanged.
+      result = await adapter.commit({ ...command, commitDeadlineAtMs: opts.claimStartedAtMs + MONEY_COMMIT_CLAIM_BUDGET_MS });
     } catch (error) {
       if (!isRetryableTransport(error)) {
         // a non-retryable (commit-rejected) failure — mark failed under the current fencing token.

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   ListPage,
   SearchMini,
@@ -17,18 +17,22 @@ import {
   Icon,
   useToast,
   type Column,
+  type ComboboxOption,
   type RowMenuItem,
 } from '@/src/components/ui';
 import { useNavigate } from 'react-router-dom';
 import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
-import { useIncomingPayments, useRevenueMutations } from '@/src/hooks/useRevenue';
+import { useIncomingPayments, useSalesInvoices, useRevenueMutations } from '@/src/hooks/useRevenue';
+import { useClientCompanyOptions } from '@/src/hooks/useFkOptions';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { trackFilterApplied } from '@/src/lib/analytics';
-import type { IncomingPaymentRow, IncomingPaymentStatus } from '@/src/lib/db/revenue';
+import type { IncomingPaymentRow, IncomingPaymentStatus, SalesInvoiceRow } from '@/src/lib/db/revenue';
 import { incomingPaymentStatusVariant } from '@/src/lib/status/statusVariants';
 import { type PendingPushState } from '@/src/lib/adapterSeam/pendingPush';
 import { useEntityForm } from '@/src/components/ui/useEntityForm';
+import { useCommandIntent, useCommandIntentMap } from '@/src/hooks/useCommandIntent';
+import type { CommandIntent } from '@/src/lib/repositories/types';
 
 /** Status filter segments. */
 type StatusFilter = 'All' | IncomingPaymentStatus;
@@ -52,6 +56,33 @@ const validate = (v: FormValues): Partial<Record<keyof FormValues, string>> => {
   return errors;
 };
 
+/**
+ * The invoices a receipt can still be applied to, as picker options.
+ *
+ * "Open" = SUBMITTED to the ledger (`Submitted`/`Unpaid`) and still owing. A `Draft` has not hit
+ * the GL yet (P3a creates every SI as an ERP draft — the SoD-gated submit is the commitment), and
+ * `Paid`/`Cancelled` can receive nothing. A null `erp_outstanding_amount` means the ERP mirror
+ * hasn't reported one yet, so the invoice stays selectable rather than silently disappearing.
+ * Scoped to `customerId` when one is chosen — a receipt must never settle another client's invoice.
+ */
+function openInvoiceOptions(
+  invoices: SalesInvoiceRow[],
+  customerId?: string | null,
+): ComboboxOption[] {
+  return invoices
+    .filter((inv) => inv.status === 'Submitted' || inv.status === 'Unpaid')
+    .filter((inv) => inv.erp_outstanding_amount == null || inv.erp_outstanding_amount > 0)
+    .filter((inv) => !customerId || inv.customer_id === customerId)
+    .map((inv) => ({
+      value: inv.id,
+      label: inv.si_number ?? inv.id,
+      sub:
+        inv.erp_outstanding_amount != null
+          ? `$${inv.erp_outstanding_amount.toLocaleString(undefined, { minimumFractionDigits: 2 })} outstanding`
+          : undefined,
+    }));
+}
+
 const IncomingPayments: React.FC = () => {
   const may = usePermission();
   const { realRole } = useEffectiveRole();
@@ -72,6 +103,11 @@ const IncomingPayments: React.FC = () => {
 
   const [formTarget, setFormTarget] = useState<{ payment: IncomingPaymentRow | null } | null>(null);
   const [cancelTarget, setCancelTarget] = useState<IncomingPaymentRow | null>(null);
+
+  // BLOCK 2 (ADR-0058): the cancel confirm dialog is ALWAYS mounted, so its command identity is per
+  // (record, verb) — a retry on payment B must never carry payment A's key. Released only after a
+  // terminal success (never on error — reusing the key on retry IS the fix).
+  const verbIntents = useCommandIntentMap();
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -170,8 +206,10 @@ const IncomingPayments: React.FC = () => {
 
   const onCancelConfirm = async () => {
     if (!cancelTarget) return;
+    const key = `cancel:${cancelTarget.id}`;
     try {
-      await cancelPayment.mutateAsync(cancelTarget.id);
+      await cancelPayment.mutateAsync({ ipId: cancelTarget.id, intent: verbIntents.intentFor(key) });
+      verbIntents.release(key);
       toast('Payment cancelled', cancelTarget.ip_number ?? cancelTarget.id, 'success');
       setCancelTarget(null);
     } catch (err) {
@@ -269,8 +307,8 @@ const IncomingPayments: React.FC = () => {
           payment={formTarget.payment}
           pendingPush={pendingPush}
           onClose={() => setFormTarget(null)}
-          onCreate={async (input) => {
-            await createPayment.mutateAsync(input);
+          onCreate={async (input, intent) => {
+            await createPayment.mutateAsync({ ...input, intent });
             toast('Payment created', input.customerId, 'success');
             setFormTarget(null);
           }}
@@ -301,13 +339,17 @@ const IncomingPayments: React.FC = () => {
 interface IncomingPaymentFormModalProps {
   payment: IncomingPaymentRow | null;
   onClose: () => void;
-  onCreate: (input: {
-    customerId: string;
-    salesInvoiceId: string | null;
-    paidAmount: number;
-    receivedAmount: number;
-    date: string;
-  }) => Promise<void>;
+  /** `intent` is the modal's OWN command identity — stable for this form session (BLOCK 2). */
+  onCreate: (
+    input: {
+      customerId: string;
+      salesInvoiceId: string | null;
+      paidAmount: number;
+      receivedAmount: number;
+      date: string;
+    },
+    intent: CommandIntent,
+  ) => Promise<void>;
   onError: (err: unknown) => void;
   pendingPush: PendingPushState;
 }
@@ -320,6 +362,11 @@ const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> = ({
   pendingPush,
 }) => {
   const isEdit = !!payment;
+  // BLOCK 2 (ADR-0058): ONE command identity per form session. This modal is mounted only while the
+  // form is open, so its mount IS the session: a retry after "external system unreachable" reuses
+  // this identity (the committed Payment Entry is reconciled, NOT posted twice), while a success
+  // closes the modal → the next "Receive Payment" mints a fresh one.
+  const intent = useCommandIntent();
   const form = useEntityForm<FormValues>({
     initialValues: {
       customerId: '',
@@ -333,6 +380,18 @@ const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> = ({
     requiredFields: ['customerId', 'paidAmount', 'receivedAmount', 'date'],
     module: 'incomingPayments',
   });
+
+  // FK options from the cached hooks ("hooks own data fetching"); the Combobox loaders just hand
+  // back the already-fetched lists. The invoice loader depends on the chosen customer, so the
+  // picker re-loads when the customer changes.
+  const { data: customerOptions } = useClientCompanyOptions();
+  const { data: invoices } = useSalesInvoices();
+  const loadCustomers = useCallback(async (): Promise<ComboboxOption[]> => customerOptions ?? [], [customerOptions]);
+  const selectedCustomerId = form.values.customerId;
+  const loadOpenInvoices = useCallback(
+    async (): Promise<ComboboxOption[]> => openInvoiceOptions(invoices ?? [], selectedCustomerId),
+    [invoices, selectedCustomerId],
+  );
 
   const customerField = form.fieldProps('customerId');
   const salesInvoiceField = form.fieldProps('salesInvoiceId');
@@ -360,7 +419,7 @@ const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> = ({
         date: values.date,
       };
       try {
-        await onCreate(input);
+        await onCreate(input, intent);
       } catch (err) {
         onError(err);
       }
@@ -394,7 +453,7 @@ const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> = ({
             onChange={(value, _option) => customerField.onChange(value)}
             error={customerField.error}
             placeholder="Select or search customer…"
-            loadOptions={async () => []} // TODO: load from companies list (type=Client)
+            loadOptions={loadCustomers}
             noun="customer"
           />
           <Combobox
@@ -403,7 +462,7 @@ const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> = ({
             onChange={(value, _option) => salesInvoiceField.onChange(value ?? '')}
             error={salesInvoiceField.error}
             placeholder="Link to sales invoice…"
-            loadOptions={async () => []} // TODO: load from open sales invoices
+            loadOptions={loadOpenInvoices}
             noun="invoice"
           />
           <NumberField

@@ -132,7 +132,7 @@ describe('useProcurementMutations', () => {
       });
     });
 
-    expect(procurement.createReceipt).toHaveBeenCalledWith('proc-1', 'Partial', '2026-06-04', undefined);
+    expect(procurement.createReceipt).toHaveBeenCalledWith('proc-1', 'Partial', '2026-06-04', undefined, undefined);
     const calls = invalidateSpy.mock.calls.map((c) => JSON.stringify(c[0]));
     expect(
       calls.some(
@@ -155,7 +155,7 @@ describe('useProcurementMutations', () => {
       });
     });
 
-    expect(procurement.createInvoice).toHaveBeenCalledWith('proc-1', 'Received', '2026-06-04', undefined, undefined);
+    expect(procurement.createInvoice).toHaveBeenCalledWith('proc-1', 'Received', '2026-06-04', undefined, undefined, undefined);
     const calls = invalidateSpy.mock.calls.map((c) => JSON.stringify(c[0]));
     expect(
       calls.some((c) => c.includes('"procurement"') && c.includes('"org-1"')),
@@ -176,7 +176,7 @@ describe('useProcurementMutations', () => {
       });
     });
 
-    expect(procurement.createQuotation).toHaveBeenCalledWith('proc-1', 'vendor-1', 50000, '2026-06-04');
+    expect(procurement.createQuotation).toHaveBeenCalledWith('proc-1', 'vendor-1', 50000, '2026-06-04', undefined);
     const calls = invalidateSpy.mock.calls.map((c) => JSON.stringify(c[0]));
     expect(
       calls.some((c) => c.includes('"procurement"') && c.includes('"org-1"')),
@@ -260,7 +260,7 @@ describe('task FIX-1 — flipped ownership map routes createReceipt externally +
     });
 
     expect(result.current.pendingPush.status).toBe('pushed');
-    expect(procurement.createReceipt).toHaveBeenCalledWith('proc-1', 'Complete', '2026-07-13', undefined);
+    expect(procurement.createReceipt).toHaveBeenCalledWith('proc-1', 'Complete', '2026-07-13', undefined, undefined);
   });
 
   it('a failed external createReceipt sets pendingPush to push-failed', async () => {

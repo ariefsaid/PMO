@@ -18,6 +18,8 @@ const h = vi.hoisted(() => {
     ranges: [] as Array<[number, number]>,
     /** The `.in(column, values)` filters the DAL applied to the invoice scan. */
     inFilters: [] as Array<{ column: string; values: unknown }>,
+    /** Every `.order(column, opts)` the DAL applied, in order. */
+    orders: [] as Array<{ column: string; ascending?: boolean }>,
     invoiceQueries: 0,
   };
 
@@ -25,6 +27,10 @@ const h = vi.hoisted(() => {
     const b = {
       select() { return b; },
       neq() { return b; },
+      order(column: string, opts?: { ascending?: boolean }) {
+        state.orders.push({ column, ascending: opts?.ascending });
+        return b;
+      },
       in(column: string, values: unknown) { state.inFilters.push({ column, values }); return b; },
       range(from: number, to: number) { state.ranges.push([from, to]); return b; },
       then(resolve: (v: { data: unknown; error: unknown }) => unknown) {
@@ -52,6 +58,7 @@ beforeEach(() => {
   h.state.projects = [];
   h.state.ranges = [];
   h.state.inFilters = [];
+  h.state.orders = [];
   h.state.invoiceQueries = 0;
   h.from.mockClear();
 });
@@ -88,6 +95,17 @@ describe('db/revenue getRevenueByProject — the rollup must not silently trunca
     expect(statusFilter?.values).toEqual(['Submitted', 'Unpaid', 'Paid']);
     expect(statusFilter?.values).not.toContain('Draft');
     expect(statusFilter?.values).not.toContain('Cancelled');
+  });
+
+  it('pages on a STABLE order (id asc) — without one, a concurrent write can double-count or skip an invoice (S1)', async () => {
+    h.state.projects = [{ id: 'proj-1', name: 'Alpha' }];
+    h.state.invoicePages = [invoices(1000, 'proj-1', 10, 4), invoices(1, 'proj-1', 10, 4)];
+
+    await getRevenueByProject();
+
+    // Postgres guarantees NO row order across statements: `.range()` without an ORDER BY can move a
+    // tuple between page reads, so Total Revenue silently drifts by up to a whole invoice.
+    expect(h.state.orders).toContainEqual({ column: 'id', ascending: true });
   });
 
   it('stops after a single request when the first page is short (no needless round-trips)', async () => {

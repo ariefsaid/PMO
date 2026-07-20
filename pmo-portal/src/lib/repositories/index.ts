@@ -191,6 +191,7 @@ import {
   submitSalesInvoiceSod,
 } from '@/src/lib/db/revenue';
 import type {
+  CommandIntent,
   Repositories,
   ProjectRepository,
   CompanyRepository,
@@ -235,6 +236,32 @@ const project: ProjectRepository = {
   setContractValue: (id, value) => wrap(() => setProjectContractValue(id, value)),
 };
 
+// BLOCK 2 (MONEY-CRITICAL): `newCommandIntent()` lives in ./commandIntent (a leaf module) and is
+// re-exported here so the public seam is unchanged — see that file for the full rationale.
+export { newCommandIntent } from './commandIntent';
+import { newCommandIntent } from './commandIntent';
+
+/** The identity of a `create` command: the caller's intent, or a fresh per-attempt one (legacy default). */
+const identityFor = (intent?: CommandIntent): CommandIntent => intent ?? newCommandIntent();
+
+/** The dispatch options bag of a `transition` command — the record id is the EXISTING record, so only
+ *  the idempotency key comes from the intent (a retry of the same click reuses it verbatim). */
+const keyFor = (intent?: CommandIntent) => ({ idempotencyKey: intent?.idempotencyKey ?? crypto.randomUUID() });
+
+/** Dispatch a `create` under ONE command identity — the caller's intent when supplied, else a fresh
+ *  per-attempt one. The record id and the idempotency key come from the SAME identity, so they cannot
+ *  drift apart (the 4-tuple is what the outbox de-duplicates on). */
+const dispatchCreate = (
+  domain: string,
+  record: Record<string, unknown>,
+  intent: CommandIntent | undefined,
+): ReturnType<typeof dispatchDomainCommand> => {
+  const identity = identityFor(intent);
+  // `id` is written LAST so the intent's id is authoritative — a record that happens to carry its own
+  // `id` can never silently decouple the PMO record id from the idempotency key it is paired with.
+  return dispatchDomainCommand(domain, 'create', { ...record, id: identity.id }, { idempotencyKey: identity.idempotencyKey });
+};
+
 // task 3.8 (finding-3 path fix, FR-ENA-090/091): the ERP party kind is DERIVED from the company's
 // own type — Vendor->'supplier', Client->'customer'. 'Internal' is never ERP-flipped (it is PMO's
 // own org marker, FR-ENA-090/091) — no `erp_doc_kind` exists for it in DOCTYPE_REGISTRY, so an
@@ -252,12 +279,8 @@ const company: CompanyRepository = {
   create: (input) => {
     const kind = erpPartyDocKind(input.type);
     return routeDomainWrite('companies') === 'external' && kind
-      ? dispatchDomainCommand(
-          'companies',
-          'create',
-          { id: crypto.randomUUID(), ...input, erp_doc_kind: kind },
-          freshIdempotencyKey(),
-        ).then((res) => res.canonical as unknown as CompanyRow)
+      ? dispatchCreate('companies', { ...input, erp_doc_kind: kind }, undefined)
+          .then((res) => res.canonical as unknown as CompanyRow)
       : wrap(() => createCompany(input));
   },
   update: (id, input) => {
@@ -267,7 +290,7 @@ const company: CompanyRepository = {
           'companies',
           'update',
           { id, ...input, erp_doc_kind: kind },
-          freshIdempotencyKey(),
+          keyFor(),
         ).then(() => undefined)
       : wrap(() => updateCompany(id, input));
   },
@@ -332,10 +355,6 @@ const task: TaskRepository = {
   removeDependency: (taskId, dependsOnId) => wrap(() => removeDependency(taskId, dependsOnId)),
 };
 
-// Task 1.10/1.11 (ADR-0055/ADR-0058): a fresh-key options bag for the erpnext money path — minted
-// ONLY on the 'external' branch. P0/P1 (and every 'pmo'-routed call) never mint one (byte-for-byte).
-const freshIdempotencyKey = () => ({ idempotencyKey: crypto.randomUUID() });
-
 const procurement: ProcurementRepository = {
   list: (params) => wrap(() => listProcurements(params)),
   get: (id) => wrap(() => getProcurementDetail(id)),
@@ -344,39 +363,36 @@ const procurement: ProcurementRepository = {
   // it, FR-ENA-101/073). This ALWAYS stays on the direct DAL path, even when `procurement` is
   // externally-owned — unlike every other method below, it carries no routeDomainWrite guard at all.
   transition: (id, to, notes) => wrap(() => transitionProcurement(id, to, notes)),
-  createQuotation: (procurementId, vendorId, totalAmount, receivedDate) =>
+  createQuotation: (procurementId, vendorId, totalAmount, receivedDate, intent) =>
     routeDomainWrite('procurement') === 'external'
-      ? dispatchDomainCommand(
+      ? dispatchCreate(
           'procurement',
-          'create',
-          { id: crypto.randomUUID(), procurementId, vendorId, totalAmount, receivedDate, erp_doc_kind: 'quotation' },
-          freshIdempotencyKey(),
+          { procurementId, vendorId, totalAmount, receivedDate, erp_doc_kind: 'quotation' },
+          intent,
         ).then((res) => res.canonical as unknown as Tables<'procurement_quotations'>)
       : wrap(() => createQuotation(procurementId, vendorId, totalAmount, receivedDate)),
   // task FIX-1: referenceNumber is a PMO-direct-DAL-only param (see types.ts) — appended to the DAL
   // call ONLY when the caller actually supplied one, so a bare 3-arg call keeps its exact pre-existing
   // shape (index.test.ts's byte-for-byte assertion). Never forwarded on the external-dispatch payload
   // (FR-ENA-114 — it is mirrored back from the ERP doc, not client-supplied at creation).
-  createReceipt: (procurementId, status, receiptDate, referenceNumber) =>
+  createReceipt: (procurementId, status, receiptDate, referenceNumber, intent) =>
     routeDomainWrite('procurement') === 'external'
-      ? dispatchDomainCommand(
+      ? dispatchCreate(
           'procurement',
-          'create',
-          { id: crypto.randomUUID(), procurementId, status, receiptDate, erp_doc_kind: 'goods-receipt' },
-          freshIdempotencyKey(),
+          { procurementId, status, receiptDate, erp_doc_kind: 'goods-receipt' },
+          intent,
         ).then((res) => res.canonical as unknown as ProcurementReceiptRow)
       : wrap(() =>
           referenceNumber !== undefined
             ? createReceipt(procurementId, status, receiptDate, referenceNumber)
             : createReceipt(procurementId, status, receiptDate),
         ),
-  createInvoice: (procurementId, status, invoiceDate, referenceNumber, amount) =>
+  createInvoice: (procurementId, status, invoiceDate, referenceNumber, amount, intent) =>
     routeDomainWrite('procurement') === 'external'
-      ? dispatchDomainCommand(
+      ? dispatchCreate(
           'procurement',
-          'create',
-          { id: crypto.randomUUID(), procurementId, status, invoiceDate, erp_doc_kind: 'purchase-invoice' },
-          freshIdempotencyKey(),
+          { procurementId, status, invoiceDate, erp_doc_kind: 'purchase-invoice' },
+          intent,
         ).then((res) => res.canonical as unknown as ProcurementInvoiceRow)
       : wrap(() =>
           referenceNumber !== undefined || amount !== undefined
@@ -394,40 +410,36 @@ const procurement: ProcurementRepository = {
     wrap(() => createProcurementDocument(procurementId, input)),
   deleteDocument: (id) => wrap(() => deleteProcurementDocument(id)),
   // ── New ERP-canonical record creators (Slice 5.4; P2 routes them per-domain, task 1.10) ──
-  createPurchaseRequest: (procurementId, referenceNumber, status, date, amount) =>
+  createPurchaseRequest: (procurementId, referenceNumber, status, date, amount, intent) =>
     routeDomainWrite('procurement') === 'external'
-      ? dispatchDomainCommand(
+      ? dispatchCreate(
           'procurement',
-          'create',
-          { id: crypto.randomUUID(), procurementId, referenceNumber, status, date, amount, erp_doc_kind: 'purchase-request' },
-          freshIdempotencyKey(),
+          { procurementId, referenceNumber, status, date, amount, erp_doc_kind: 'purchase-request' },
+          intent,
         ).then((res) => res.canonical as unknown as PurchaseRequestRow)
       : wrap(() => createPurchaseRequest(procurementId, referenceNumber, status, date, amount)),
-  createRfq: (procurementId, referenceNumber, status, date, amount) =>
+  createRfq: (procurementId, referenceNumber, status, date, amount, intent) =>
     routeDomainWrite('procurement') === 'external'
-      ? dispatchDomainCommand(
+      ? dispatchCreate(
           'procurement',
-          'create',
-          { id: crypto.randomUUID(), procurementId, referenceNumber, status, date, amount, erp_doc_kind: 'rfq' },
-          freshIdempotencyKey(),
+          { procurementId, referenceNumber, status, date, amount, erp_doc_kind: 'rfq' },
+          intent,
         ).then((res) => res.canonical as unknown as RfqRow)
       : wrap(() => createRfq(procurementId, referenceNumber, status, date, amount)),
-  createPurchaseOrder: (procurementId, referenceNumber, status, date, amount) =>
+  createPurchaseOrder: (procurementId, referenceNumber, status, date, amount, intent) =>
     routeDomainWrite('procurement') === 'external'
-      ? dispatchDomainCommand(
+      ? dispatchCreate(
           'procurement',
-          'create',
-          { id: crypto.randomUUID(), procurementId, referenceNumber, status, date, amount, erp_doc_kind: 'purchase-order' },
-          freshIdempotencyKey(),
+          { procurementId, referenceNumber, status, date, amount, erp_doc_kind: 'purchase-order' },
+          intent,
         ).then((res) => res.canonical as unknown as PurchaseOrderRow)
       : wrap(() => createPurchaseOrder(procurementId, referenceNumber, status, date, amount)),
-  createPayment: (procurementId, invoiceId, referenceNumber, status, date, amount) =>
+  createPayment: (procurementId, invoiceId, referenceNumber, status, date, amount, intent) =>
     routeDomainWrite('procurement') === 'external'
-      ? dispatchDomainCommand(
+      ? dispatchCreate(
           'procurement',
-          'create',
-          { id: crypto.randomUUID(), procurementId, invoiceId, referenceNumber, status, date, amount, erp_doc_kind: 'payment' },
-          freshIdempotencyKey(),
+          { procurementId, invoiceId, referenceNumber, status, date, amount, erp_doc_kind: 'payment' },
+          intent,
         ).then((res) => res.canonical as unknown as PaymentRow)
       : wrap(() => createPayment(procurementId, invoiceId, referenceNumber, status, date, amount)),
 };
@@ -440,26 +452,20 @@ const revenue: RevenueRepository = {
   getPayment: (id) => wrap(() => getIncomingPayment(id)),
   getRevenueByProject: () => wrap(() => getRevenueByProject()),
   // Write methods — route through dispatch when externally-owned
-  createInvoice: (input) =>
+  createInvoice: (input, intent) =>
     routeDomainWrite('revenue') === 'external'
-      ? dispatchDomainCommand(
-          'revenue',
-          'create',
-          { id: crypto.randomUUID(), ...input, erp_doc_kind: 'sales-invoice' },
-          freshIdempotencyKey(),
-        ).then((res) => ({ id: String(res.canonical.id), si_number: String(res.canonical.si_number ?? '') }))
+      ? dispatchCreate('revenue', { ...input, erp_doc_kind: 'sales-invoice' }, intent)
+          .then((res) => ({ id: String(res.canonical.id), si_number: String(res.canonical.si_number ?? '') }))
       : Promise.reject(new AppError('revenue is not enabled for this org', 'revenue-not-enabled')),
-  createPayment: (input) =>
+  createPayment: (input, intent) =>
     routeDomainWrite('revenue') === 'external'
-      ? dispatchDomainCommand(
+      ? dispatchCreate(
           'revenue',
-          'create',
           // Luna BLOCK 5 (MONEY-CRITICAL): map the camelCase input to the snake_case command record the
           // dispatch/body (peReceiveToBody reads paid_amount/received_amount/references) AND the recovery
           // composite-probe payload all read. references[] is resolved downstream by resolveRevenueRefs
           // (the resolved SI ERP name + allocated_amount) — the repo only knows the PMO salesInvoiceId.
           {
-            id: crypto.randomUUID(),
             erp_doc_kind: 'incoming-payment',
             customerId: input.customerId,
             salesInvoiceId: input.salesInvoiceId ?? null,
@@ -467,10 +473,10 @@ const revenue: RevenueRepository = {
             received_amount: input.receivedAmount ?? input.paidAmount,
             date: input.date,
           },
-          freshIdempotencyKey(),
+          intent,
         ).then((res) => ({ id: String(res.canonical.id), ip_number: String(res.canonical.ip_number ?? '') }))
       : Promise.reject(new AppError('revenue is not enabled for this org', 'revenue-not-enabled')),
-  submitInvoice: (siId) =>
+  submitInvoice: (siId, intent) =>
     wrap(async () => {
       if (routeDomainWrite('revenue') === 'external') {
         await submitSalesInvoiceSod(siId);   // SoD: server-enforced approver≠author (42501 on self-approval) BEFORE any ERP submit
@@ -480,13 +486,13 @@ const revenue: RevenueRepository = {
           'revenue',
           'transition',
           { id: siId, erp_doc_kind: 'sales-invoice', verb: 'submit', externalRecordId: si.si_number },
-          freshIdempotencyKey(),
+          keyFor(intent),
         );
       } else {
         throw new AppError('revenue is not enabled for this org', 'revenue-not-enabled');
       }
     }),
-  cancelInvoice: (siId) =>
+  cancelInvoice: (siId, intent) =>
     routeDomainWrite('revenue') === 'external'
       ? wrap(async () => {
           const si = await getSalesInvoice(siId);
@@ -495,11 +501,11 @@ const revenue: RevenueRepository = {
             'revenue',
             'transition',
             { id: siId, erp_doc_kind: 'sales-invoice', verb: 'cancel', externalRecordId: si.si_number },
-            freshIdempotencyKey(),
+            keyFor(intent),
           );
         })
       : Promise.reject(new AppError('revenue is not enabled for this org', 'revenue-not-enabled')),
-  cancelPayment: (ipId) =>
+  cancelPayment: (ipId, intent) =>
     routeDomainWrite('revenue') === 'external'
       ? wrap(async () => {
           const ip = await getIncomingPayment(ipId);
@@ -508,7 +514,7 @@ const revenue: RevenueRepository = {
             'revenue',
             'transition',
             { id: ipId, erp_doc_kind: 'incoming-payment', verb: 'cancel', externalRecordId: ip.ip_number },
-            freshIdempotencyKey(),
+            keyFor(intent),
           );
         })
       : Promise.reject(new AppError('revenue is not enabled for this org', 'revenue-not-enabled')),

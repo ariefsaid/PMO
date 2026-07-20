@@ -55,6 +55,16 @@ export interface ErpClientDeps {
    *  tied to the outbox quarantine window. Overridden only by tests (a few ms) and callers with a
    *  tighter budget; a value ≥ the quarantine window would re-open the double-commit race. */
   timeoutMs?: number;
+  /**
+   * Luna round-5 BLOCK 10 — the ABSOLUTE instant (ms, `Date.now()` domain) past which a NON-IDEMPOTENT
+   * `POST` must be REFUSED. Armed per command by the money dispatch's claim (see
+   * `AdapterCommand.commitDeadlineAtMs`) and applied here because `erpnextRequest` is the ONE
+   * chokepoint every ERPNext create passes through — so no doctype, verb or future adapter path can
+   * forget the check. Absent ⇒ unbounded (every read path, P0/P1, and any non-claimed commit).
+   */
+  commitDeadlineAtMs?: number;
+  /** Injectable clock (ms) for the commit-deadline check. Defaults to `Date.now`; tests drive it. */
+  now?: () => number;
 }
 
 /**
@@ -105,12 +115,38 @@ export const ERP_REQUEST_TIMEOUT_MS = 120_000;
 export const ERP_PROBE_TIMEOUT_MS = 20_000;
 
 /**
+ * The maximum `Retry-After` this client will honor (money-safety audit SHOULD-FIX).
+ *
+ * `Retry-After` is server-controlled and was honored VERBATIM — a `Retry-After: 300` therefore parked a
+ * request for the entire quarantine window. That matters because the claim budget
+ * (`MONEY_COMMIT_CLAIM_BUDGET_MS`, dispatch.ts) is checked ONCE, before `adapter.commit`, while a
+ * commit can issue SEVERAL ERP calls: the amend path is `cancel (PUT)` → `create (POST)`, so a long
+ * honored sleep inside the cancel pushes the non-idempotent POST far outside the window this claimant
+ * was admitted for — precisely the state the budget exists to refuse.
+ *
+ * Capping the honored value keeps the courtesy behavior (a real rate-limit hint is respected) while
+ * bounding it well inside the claim budget. A retry that a genuinely overloaded ERP wanted delayed
+ * longer simply exhausts the retry budget and surfaces `external-unreachable`, which the outbox
+ * recovery path already handles safely.
+ */
+export const ERP_RETRY_AFTER_CAP_MS = 15_000;
+
+/**
  * Applies the recovery-probe budget to a client: exactly ONE attempt (no retry into the claim budget)
  * with the tighter `ERP_PROBE_TIMEOUT_MS` deadline. Returns a COPY — the caller's own client (which a
  * sweep also uses for its doctype polling, where the normal retry budget is correct) is untouched.
  */
 export function withProbeBudget(deps: ErpClientDeps): ErpClientDeps {
   return { ...deps, maxRetries: 0, timeoutMs: ERP_PROBE_TIMEOUT_MS };
+}
+
+/**
+ * Applies a claim's ABSOLUTE commit deadline to a client (Luna round-5 BLOCK 10): past `deadlineAtMs`
+ * this client refuses to issue a non-idempotent `POST`. Returns a COPY — the caller's own client
+ * (shared with reads and with other commands) is untouched.
+ */
+export function withCommitDeadline(deps: ErpClientDeps, deadlineAtMs: number): ErpClientDeps {
+  return { ...deps, commitDeadlineAtMs: deadlineAtMs };
 }
 
 /**
@@ -169,6 +205,18 @@ function isTypeErrorBucket(parsed: ParsedFrappeError): boolean {
   return parsed.excType === 'TypeError' || Boolean(parsed.message?.startsWith('TypeError'));
 }
 
+/** How long to wait before the next attempt: the server's `Retry-After` hint, CAPPED at
+ *  `ERP_RETRY_AFTER_CAP_MS` (see that constant), else the linear backoff. A non-numeric header (the
+ *  HTTP-date form) is ignored rather than coerced to `NaN` — which previously made `sleep(NaN)` return
+ *  immediately, silently turning the backoff off exactly when the server asked for it. */
+function retryDelayMs(retryAfterHeader: string | null, attempt: number): number {
+  const linear = 500 * attempt;
+  if (!retryAfterHeader) return linear;
+  const seconds = Number(retryAfterHeader);
+  if (!Number.isFinite(seconds) || seconds < 0) return linear;
+  return Math.min(seconds * 1000, ERP_RETRY_AFTER_CAP_MS);
+}
+
 async function safeParseBody(res: Response): Promise<unknown> {
   if (res.status === 204) return null;
   const text = await res.text();
@@ -197,6 +245,27 @@ export async function erpnextRequest(deps: ErpClientDeps, opts: ErpRequestOption
 
   let attempt = 0;
   for (;;) {
+    // Luna round-5 BLOCK 10 — the CLAIM BUDGET, enforced HERE, at the one place every non-idempotent
+    // create is issued. `dispatch.ts` checks the budget once before `adapter.commit`, but an ERPNext
+    // commit is often several calls (an amend is `cancel` PUT → `create` POST): a slow cancel could
+    // push the POST past the outbox's `reconcile_after`, by which time a reconciler may already have
+    // reissued the command ⇒ TWO ERP money documents. Past the deadline this claim is possibly already
+    // superseded, so the POST is refused and classified RETRYABLE `external-unreachable`: the dispatch
+    // marks NOTHING, the outbox row stays `committing` and the reconciler owns it (ADR-0058 §4).
+    // Idempotent methods are deliberately unaffected — a submit/cancel/GET stays safely re-issuable,
+    // and refusing them would strand a committed document.
+    if (
+      opts.method === 'POST' &&
+      deps.commitDeadlineAtMs !== undefined &&
+      (deps.now?.() ?? Date.now()) >= deps.commitDeadlineAtMs
+    ) {
+      throw new ErpError(
+        0,
+        'external-unreachable',
+        'commit-claim-budget-exhausted: refusing a non-idempotent POST past this claim\'s deadline',
+        true,
+      );
+    }
     if (deps.rateLimiter) await deps.rateLimiter.acquire();
     let res: Response;
     // Luna BLOCK 5: bound EVERY attempt with a deadline strictly shorter than the outbox quarantine
@@ -237,9 +306,7 @@ export async function erpnextRequest(deps: ErpClientDeps, opts: ErpRequestOption
       }
       if (attempt < maxRetries) {
         attempt += 1;
-        const retryAfterHeader = res.headers.get('Retry-After');
-        const retryAfterMs = retryAfterHeader ? Number(retryAfterHeader) * 1000 : 500 * attempt;
-        await sleep(retryAfterMs);
+        await sleep(retryDelayMs(res.headers.get('Retry-After'), attempt));
         continue;
       }
       console.error(`[erpnext-client] upstream ${res.status} ${opts.method} ${opts.path}:`, (parsed.message ?? '').slice(0, 300));

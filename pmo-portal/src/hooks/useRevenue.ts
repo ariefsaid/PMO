@@ -10,6 +10,7 @@ import {
   type PendingPushState,
 } from '@/src/lib/adapterSeam/pendingPush';
 import type { SalesInvoiceRow, IncomingPaymentRow } from '@/src/lib/db/revenue';
+import type { CommandIntent } from '@/src/lib/repositories/types';
 
 /**
  * Org-scoped sales invoices list over the repository seam (ADR-0017).
@@ -89,6 +90,13 @@ export function useRevenuePerProject() {
 /**
  * Revenue create / submit / cancel mutations over the repository seam.
  * Each invalidates the relevant query families on success.
+ *
+ * BLOCK 2 (MONEY-CRITICAL, ADR-0058): every mutation takes the caller's `intent` — the command
+ * identity minted ONCE per form / confirm session (`useCommandIntent` / `useCommandIntentMap`) and
+ * passed VERBATIM on every attempt. The hook deliberately does NOT mint it: only the UI knows when
+ * one user intent ends and the next begins, and a hook-owned identity would let a retry after a lost
+ * response POST a SECOND submitted money document. It stays optional so non-retrying call sites
+ * (and the existing tests) keep the legacy per-attempt minting inside the repository.
  */
 export function useRevenueMutations() {
   const qc = useQueryClient();
@@ -104,8 +112,8 @@ export function useRevenueMutations() {
   };
 
   const create = useMutation({
-    mutationFn: (input: { customerId: string; projectId?: string | null; items: Array<{ item_code: string; qty: number; rate: number }> }) =>
-      repositories.revenue.createInvoice(input),
+    mutationFn: ({ intent, ...input }: { customerId: string; projectId?: string | null; items: Array<{ item_code: string; qty: number; rate: number }>; intent?: CommandIntent }) =>
+      repositories.revenue.createInvoice(input, intent),
     onMutate: () => {
       if (isExternal) setPendingPush(beginPush(IDLE_PENDING_PUSH));
     },
@@ -119,7 +127,8 @@ export function useRevenueMutations() {
   });
 
   const submitInvoice = useMutation({
-    mutationFn: (siId: string) => repositories.revenue.submitInvoice(siId),
+    mutationFn: ({ siId, intent }: { siId: string; intent?: CommandIntent }) =>
+      repositories.revenue.submitInvoice(siId, intent),
     onMutate: () => {
       if (isExternal) setPendingPush(beginPush(IDLE_PENDING_PUSH));
     },
@@ -133,7 +142,8 @@ export function useRevenueMutations() {
   });
 
   const cancelInvoice = useMutation({
-    mutationFn: (siId: string) => repositories.revenue.cancelInvoice(siId),
+    mutationFn: ({ siId, intent }: { siId: string; intent?: CommandIntent }) =>
+      repositories.revenue.cancelInvoice(siId, intent),
     onMutate: () => {
       if (isExternal) setPendingPush(beginPush(IDLE_PENDING_PUSH));
     },
@@ -147,8 +157,8 @@ export function useRevenueMutations() {
   });
 
   const createPayment = useMutation({
-    mutationFn: (input: { customerId: string; salesInvoiceId?: string | null; paidAmount: number; receivedAmount: number; date: string }) =>
-      repositories.revenue.createPayment(input),
+    mutationFn: ({ intent, ...input }: { customerId: string; salesInvoiceId?: string | null; paidAmount: number; receivedAmount: number; date: string; intent?: CommandIntent }) =>
+      repositories.revenue.createPayment(input, intent),
     onMutate: () => {
       if (isExternal) setPendingPush(beginPush(IDLE_PENDING_PUSH));
     },
@@ -162,7 +172,8 @@ export function useRevenueMutations() {
   });
 
   const cancelPayment = useMutation({
-    mutationFn: (ipId: string) => repositories.revenue.cancelPayment(ipId),
+    mutationFn: ({ ipId, intent }: { ipId: string; intent?: CommandIntent }) =>
+      repositories.revenue.cancelPayment(ipId, intent),
     onMutate: () => {
       if (isExternal) setPendingPush(beginPush(IDLE_PENDING_PUSH));
     },

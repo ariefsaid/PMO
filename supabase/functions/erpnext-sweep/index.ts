@@ -57,11 +57,11 @@ import { dispatchMoneyWrite, type DispatchMoneyWriteDeps, type ExternalRefMappin
 import type { AdapterCommand, PmoRecord } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
 import { resolveErpCredentials } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/credentials.ts';
 import { erpnextRequest, withProbeBudget, type ErpClientDeps } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/client.ts';
-import { resolveErpDispatchAdapter } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/dispatchFactory.ts';
+import { resolveErpDispatchAdapter, withPaymentTypeDiscriminator } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/dispatchFactory.ts';
 import { canonicalCommandDigest, createDbMoneyOutboxDeps } from '../adapter-dispatch/moneyOutboxDeps.ts';
 import { getReadModelWriter } from '../adapter-dispatch/readModelWriters.ts';
 import { recordExternalRef as recordExternalRefWrite } from '../../../pmo-portal/src/lib/adapterSeam/refs.ts';
-import { probeErpByAnchorKey, probeErpByPaymentComposite } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/recoveryProbe.ts';
+import { probeErpByAnchorKey, probeErpByPaymentComposite, type ErpProbeDeps } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/recoveryProbe.ts';
 import { ERPNEXT_COMPANIES_DOMAIN } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/adapter.ts';
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
 
@@ -100,7 +100,64 @@ export function sweepFieldsForKind(kind: ErpDocKind): string[] {
   const fields = new Set<string>(FROM_DOC_FIELDS_BY_KIND[kind] ?? []);
   for (const routing of ['name', 'modified', 'docstatus', 'amended_from']) fields.add(routing);
   if (PAYMENT_TYPE_BY_KIND[kind]) fields.add('payment_type');
+  // BLOCK 1: the recovery ANCHOR field (ADR-0058 §3 — 'remarks' for SI/PI/PR, 'reference_no' for the
+  // Payment Entry kinds). Without it the poll cannot tell a PMO-originated, still-unresolved document
+  // from a native one, and pull-adopts a SECOND PMO row for a doc the outbox is about to finalize.
+  const anchorField = DOCTYPE_REGISTRY[kind].anchorField;
+  if (anchorField) fields.add(anchorField);
   return Array.from(fields);
+}
+
+/**
+ * BLOCK 1 (the double-adoption fix) — the poll's pull-adopt guard.
+ *
+ * Returns the `filterRow` predicate for one kind: a doc whose anchor field carries the idempotency key
+ * of a NON-CONFIRMED outbox row for this org is NOT this poll's to adopt. That document belongs to a
+ * PMO-originated command still inside the ADR-0058 recovery algorithm (committing / quarantined /
+ * committed / pending / failed / held); the outbox finalization maps it to the ORIGINAL PMO record id.
+ * Adopting it here mints a SECOND PMO row for the ONE ERP document — the revenue is double-counted and
+ * the outbox's own `record_outbox_ref` then fails the `unique (org_id, domain, external_record_id)`
+ * constraint (0093) forever, wedging a real money row at `committed`.
+ *
+ * A CONFIRMED row is deliberately NOT in the set: its `external_refs` mapping exists, so the poll
+ * resolves rather than adopts (and must keep applying that doc's updates).
+ *
+ * Returns `undefined` when the guard cannot or need not apply (no anchor field, nothing in flight) so
+ * the poll keeps its exact pre-existing shape — composed with the caller's own `filterRow` (the
+ * BLOCK A1 payment_type discriminator), which is preserved when supplied.
+ */
+export function inFlightAnchorFilter(
+  kind: ErpDocKind,
+  inFlightKeys: ReadonlySet<string>,
+  baseFilter?: (row: Record<string, unknown>) => boolean,
+): ((row: Record<string, unknown>) => boolean) | undefined {
+  const anchorField = DOCTYPE_REGISTRY[kind].anchorField;
+  if (!anchorField || inFlightKeys.size === 0) return baseFilter;
+  return (row: Record<string, unknown>) => {
+    if (baseFilter && !baseFilter(row)) return false;
+    const anchor = row[anchorField];
+    if (typeof anchor !== 'string' || anchor === '') return true;
+    // The stamp is the key itself, but ADR-0058 §3 describes it as APPENDED into the field, and the
+    // recovery probe matches with surrounding wildcards — so match the same way (substring), never an
+    // exact compare that a prefix/suffix would defeat.
+    for (const key of inFlightKeys) {
+      if (anchor.includes(key)) return false;
+    }
+    return true;
+  };
+}
+
+/** The idempotency keys of an org's NON-CONFIRMED outbox rows — the input to `inFlightAnchorFilter`.
+ *  Bounded per tick: a healthy org has a handful of unresolved money commands, and the cap keeps one
+ *  pathological org from turning the guard into an unbounded read (NFR-ENA-PERF-001). A read failure
+ *  THROWS: sweeping with a blind guard would re-open the double-adoption hole. */
+const IN_FLIGHT_KEY_SCAN_LIMIT = 1000;
+
+export async function listInFlightAnchorKeys(serviceClient: SupabaseClient, orgId: string): Promise<Set<string>> {
+  const { data, error } = await serviceClient.from('external_command_outbox')
+    .select('idempotency_key').eq('org_id', orgId).neq('state', 'confirmed').limit(IN_FLIGHT_KEY_SCAN_LIMIT);
+  if (error) throw new AppError(error.message, error.code);
+  return new Set(((data as Array<{ idempotency_key: string }> | null) ?? []).map((r) => r.idempotency_key));
 }
 
 /**
@@ -132,6 +189,59 @@ export const PAYMENT_TYPE_BY_KIND: Partial<Record<ErpDocKind, 'Pay' | 'Receive'>
   payment: 'Pay',
   'incoming-payment': 'Receive',
 };
+
+/**
+ * Luna round-5 BLOCK 4 — the sweep's outbox-recovery probe (`DispatchMoneyOutboxDeps.probeByRemarksKey`).
+ *
+ * Extracted from `buildReconcileDepsLive` so the discriminator guard is directly unit-provable
+ * (`outboxProbeDiscriminator.test.ts`) rather than reachable only through a live Supabase + ERP wiring.
+ *
+ * Three shapes, one per anchor policy (ADR-0058 §3):
+ *  - NO anchor field  ⇒ no probe at all (the kind has no recovery anchor; R3 adoption is forgone).
+ *  - IMMUTABLE anchor (Purchase Invoice / Purchase Receipt `remarks`) ⇒ the plain anchor `like` probe.
+ *  - MUTABLE anchor (Payment Entry `reference_no`) ⇒ the C-1 composite deterministic probe when this
+ *    row's persisted payload carries its inputs, ELSE the anchor probe — and THAT fallback is the
+ *    BLOCK-4 hole: `payment` (Pay) and `incoming-payment` (Receive) share the one `Payment Entry`
+ *    doctype, so a bare anchor `like` could adopt a document of the WRONG direction whenever the two
+ *    share a `reference_no` (an outgoing supplier payment mirrored as an incoming customer receipt —
+ *    and a later `cancelPayment` then cancels the wrong, real, outgoing payment).
+ *    `withPaymentTypeDiscriminator` (dispatchFactory.ts — the SAME guard the synchronous dispatch
+ *    fallback uses, imported rather than re-implemented) conjoins the server-side `payment_type` filter
+ *    AND the post-fetch validator, so a doc that does not STATE its direction is refused, not adopted.
+ *    It is a no-op for every non-Payment-Entry kind (byte-for-byte).
+ */
+export function buildOutboxProbe(args: {
+  probeDeps: ErpProbeDeps;
+  /** The command's `erp_doc_kind` — the AUTHORITATIVE direction source for a Payment Entry. */
+  kind: string;
+  anchorField: string | null;
+  anchorMutable: boolean;
+  /** The outbox row's persisted `payload` (the composite probe's inputs, ADR-0058 C-1). */
+  payload: Record<string, unknown>;
+}): (domain: string, idempotencyKey: string) => Promise<{ externalRecordId: string; canonical?: PmoRecord } | null> {
+  const { probeDeps, kind, anchorField, anchorMutable, payload } = args;
+  // BLOCK 4: the discriminated deps are what EVERY anchor-probe path in here uses.
+  const anchorProbeDeps = withPaymentTypeDiscriminator(probeDeps, kind);
+  if (!anchorField) return async () => null;
+  if (!anchorMutable) return (_domain, idempotencyKey) => probeErpByAnchorKey(anchorProbeDeps, idempotencyKey);
+  return async (_domain, idempotencyKey) => {
+    // The direction comes from the KIND (what PMO commanded), falling back to the persisted payload
+    // only for a kind that is not one of the two Payment Entry kinds — never a bare 'Pay' default,
+    // which would probe the wrong direction for a Receive row whose payload omitted `payment_type`.
+    const paymentType: 'Pay' | 'Receive' =
+      PAYMENT_TYPE_BY_KIND[kind as ErpDocKind] ?? (payload.payment_type === 'Receive' ? 'Receive' : 'Pay');
+    if (!payload.party || payload.paid_amount == null) return probeErpByAnchorKey(anchorProbeDeps, idempotencyKey);
+    return probeErpByPaymentComposite(probeDeps, idempotencyKey, {
+      partyType: String(payload.party_type ?? 'Supplier'),
+      party: String(payload.party),
+      paidAmount: payload.paid_amount as string | number,
+      piNames: Array.isArray(payload.pi_names) ? (payload.pi_names as string[]) : [],
+      siNames: Array.isArray(payload.si_names) ? (payload.si_names as string[]) : [],
+      createdAfter: String(payload.created_after ?? ''),
+      paymentType,
+    });
+  };
+}
 
 // ────────────────────────────────────────────────────────────────────────────────────────────────
 // (1) The outbox recovery pass — ADR-0058 §Consequences. Delegates to the REAL dispatchMoneyWrite per
@@ -388,6 +498,16 @@ function listCandidatesLive(serviceClient: SupabaseClient): ListOutboxCandidates
 async function sweepOrgDoctypesLive(serviceClient: SupabaseClient, org: OrgBinding): Promise<{ applied: number; error?: string }> {
   const client = erpClientForOrg(org);
   let applied = 0;
+  // BLOCK 1: read the org's unresolved outbox keys ONCE per tick — every kind's poll is guarded with
+  // them so a PMO-originated document still inside the recovery algorithm is never pull-adopted into a
+  // SECOND PMO row. A failed read aborts this org's doctype pass (the next tick retries): polling with
+  // a blind guard is exactly the state that duplicated money rows.
+  let inFlightKeys: Set<string>;
+  try {
+    inFlightKeys = await listInFlightAnchorKeys(serviceClient, org.orgId);
+  } catch (err) {
+    return { applied, error: `in-flight-outbox-keys:${err instanceof Error ? err.message : String(err)}` };
+  }
   // Luna BLOCK 9: only the doctypes whose PMO domain this org actually assigned to the ERPNext tier.
   for (const { kind, doctype } of sweepKindsForOrg(org.ownedDomains)) {
     const domain = KIND_DOMAIN[kind];
@@ -438,12 +558,17 @@ async function sweepOrgDoctypesLive(serviceClient: SupabaseClient, org: OrgBindi
               fields,
               fromDoc: bodyFns.fromDoc,
               ...(hydrateDoc ? { hydrateDoc } : {}),
-              ...(paymentType
-                ? {
-                    extraFilters: [['payment_type', '=', paymentType]],
-                    filterRow: (row: Record<string, unknown>) => row.payment_type === paymentType,
-                  }
-                : {}),
+              ...(paymentType ? { extraFilters: [['payment_type', '=', paymentType]] as [string, string, string][] } : {}),
+              // BLOCK A1's post-fetch discriminator, composed under BLOCK 1's in-flight-adopt guard
+              // (`inFlightAnchorFilter` returns the base filter unchanged when it has nothing to add).
+              ...(() => {
+                const filterRow = inFlightAnchorFilter(
+                  kind,
+                  inFlightKeys,
+                  paymentType ? (row: Record<string, unknown>) => row.payment_type === paymentType : undefined,
+                );
+                return filterRow ? { filterRow } : {};
+              })(),
             },
             cursor,
           ),
@@ -693,25 +818,10 @@ async function buildReconcileDepsLive(serviceClient: SupabaseClient, org: OrgBin
     reissueOnInconclusiveAbsence: !entry.anchorMutable,
     payloadDigest,
     encodeExternalRecordId,
-    probeByRemarksKey: !anchorField
-      ? async () => null
-      : !entry.anchorMutable
-        ? (_domain, idempotencyKey) => probeErpByAnchorKey(probeDeps, idempotencyKey)
-        // Mutable anchor (PE): the composite probe reads its inputs from THIS row's persisted payload.
-        : async (_domain, idempotencyKey) => {
-            if (!payload.party || payload.paid_amount == null) return probeErpByAnchorKey(probeDeps, idempotencyKey);
-            const paymentTypeRaw = (payload.payment_type as string | undefined) ?? 'Pay';
-            const paymentType: 'Pay' | 'Receive' = paymentTypeRaw === 'Receive' ? 'Receive' : 'Pay';
-            return probeErpByPaymentComposite(probeDeps, idempotencyKey, {
-              partyType: String(payload.party_type ?? 'Supplier'),
-              party: String(payload.party),
-              paidAmount: payload.paid_amount as string | number,
-              piNames: Array.isArray(payload.pi_names) ? (payload.pi_names as string[]) : [],
-              siNames: Array.isArray(payload.si_names) ? (payload.si_names as string[]) : [],
-              createdAfter: String(payload.created_after ?? ''),
-              paymentType,
-            });
-          },
+    // BLOCK 4: one shared builder — the mutable-anchor (Payment Entry) FALLBACK carries the same
+    // `payment_type` discriminator the synchronous dispatch fallback uses, so a Receive recovery can
+    // never adopt a Pay document (and vice-versa) through a shared `reference_no`.
+    probeByRemarksKey: buildOutboxProbe({ probeDeps, kind: String(kind), anchorField, anchorMutable: entry.anchorMutable === true, payload }),
   });
 
   const writeReadModel = async (canonical: PmoRecord): Promise<void> => {

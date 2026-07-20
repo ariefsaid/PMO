@@ -5,8 +5,10 @@
  * canonical record (`erp_docstatus`, `erp_amended_from`) and dispatches to:
  *   • a stale superseded name        → `isSupersededName` no-op (never clobbers the live amended row);
  *   • `docstatus:2`                  → `applyCancel` (soft-tombstone + cancelled lineage; external_refs retained);
- *   • `amended_from` set (new name)  → `applyAmend` (repoint + stamp + amended lineage — no duplicate mirror;
- *                                       a native amend of an unmapped old doc falls back to a fresh adopt);
+ *   • `amended_from` set (new name)  → `applyAmend` (repoint + stamp + amended lineage — no duplicate mirror)
+ *                                       FOLLOWED BY the successor's money/status convergence; an already-
+ *                                       repointed successor keeps applying through the guarded upsert, and a
+ *                                       native amend of an unmapped old doc falls back to a fresh adopt;
  *   • otherwise                      → `applyInboundChange` (the shared source-mod-guarded upsert/adopt).
  *
  * Pure + Deno-importable (relative imports only); all DB access via injected deps. Reuses the hoisted
@@ -79,12 +81,27 @@ export async function applyErpFeedEvent(
   //    back to a fresh adopt of the new name.
   if (amendedFrom !== null) {
     const newMapped = await deps.resolvePmoRecordId(externalRecordId);
-    if (newMapped) return { kind: 'no-op' }; // already repointed (idempotent re-delivery)
+    if (newMapped) {
+      // Already repointed. The LINEAGE work is done (never repeat it — that is this guard's real
+      // purpose), but `amended_from` stays on the successor document FOREVER, so every later change to
+      // it re-enters this branch. Returning a flat no-op here froze the mirror on whatever figures it
+      // held at the repoint: a part-payment, a settle, a re-cancel of the successor never landed
+      // (round-5 cross-family finding 6). Route the event through the shared source-mod-guarded
+      // upsert instead — a genuinely stale re-delivery is still a no-op, by the per-row guard.
+      return applyInboundChange(ctx, externalRecordId, canonical, sourceModMs, deps);
+    }
     const oldMapped = await deps.resolvePmoRecordId(amendedFrom);
     if (oldMapped) {
       // applyAmend repoints external_refs to the new name for the SAME pmo_record_id (no duplicate
       // mirror), stamps erp_amended_from, and records the amended lineage row.
       await applyAmend({ domain: ctx.domain }, amendedFrom, externalRecordId, erpModifiedIso, deps);
+      // …then CONVERGE the mirror on the successor's own money + lifecycle. Repointing alone left the
+      // row carrying the PREDECESSOR's amount/outstanding/status — so a natively-amended invoice kept
+      // counting its cancelled figures toward project revenue and open AR indefinitely, and the
+      // successor's real (possibly very different) amount never landed. `updateMirror` owns the
+      // canonical status derivations + the putIfPresent discipline: an event that does not carry the
+      // status oracle leaves `status` alone for the next sweep tick to repair rather than guessing.
+      await deps.updateMirror(oldMapped, { ...canonical, id: oldMapped }, sourceModMs);
       return { kind: 'upserted', pmoRecordId: oldMapped, adopted: false };
     }
     // The old name was never mapped (a native ERP amend of a doc PMO never tracked) — fall through to

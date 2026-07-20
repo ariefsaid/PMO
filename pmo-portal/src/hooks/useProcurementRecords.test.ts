@@ -80,7 +80,7 @@ describe('task FIX-1 — cold ownership map (PMO-owned) — createPurchaseOrder 
       });
     });
 
-    expect(procurement.createPurchaseOrder).toHaveBeenCalledWith('proc1', 'PO-0001', 'Draft', '2026-07-13', 500);
+    expect(procurement.createPurchaseOrder).toHaveBeenCalledWith('proc1', 'PO-0001', 'Draft', '2026-07-13', 500, undefined);
     expect(result.current.pendingPush).toEqual({ status: 'idle', error: null });
   });
 });
@@ -118,7 +118,7 @@ describe('task FIX-1 — flipped ownership map routes createPurchaseOrder extern
     });
 
     expect(result.current.pendingPush.status).toBe('pushed');
-    expect(procurement.createPurchaseOrder).toHaveBeenCalledWith('proc1', 'PO-0002', 'Draft', '2026-07-13', 750);
+    expect(procurement.createPurchaseOrder).toHaveBeenCalledWith('proc1', 'PO-0002', 'Draft', '2026-07-13', 750, undefined);
   });
 
   it('sets pendingPush to push-failed on a rejected external write', async () => {

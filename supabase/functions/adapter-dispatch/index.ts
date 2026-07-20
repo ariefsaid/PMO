@@ -50,7 +50,7 @@ import type { Adapter, AdapterCommand, PmoRecord } from '../../../pmo-portal/src
 import type { DispatchMoneyOutboxDeps, ExternalRefMapping } from '../../../pmo-portal/src/lib/adapterSeam/dispatch.ts';
 import { getReadModelWriter } from './readModelWriters.ts';
 import { maybeFault, type FaultGate } from './faultSeams.ts';
-import { isRevenueSiSubmitTransition, enforceSiSubmitSod } from './sodGuard.ts';
+import { isRevenueSiSubmitTransition, enforceSiSubmitSod, requiresSiAuthorClaim, claimSiAuthor } from './sodGuard.ts';
 import { checkErpnextCommandAuthorization, type AuthorizationClient } from './authGuard.ts';
 import { checkCreateTargetUnmapped, checkTransitionTargetBinding, isOpaqueIdempotencyKey } from './transitionTargetGuard.ts';
 import { canonicalCommandDigest, createDbMoneyOutboxDeps } from './moneyOutboxDeps.ts';
@@ -606,6 +606,34 @@ Deno.serve(async (req: Request): Promise<Response> => {
         status: createTarget.status,
         headers,
       });
+    }
+  }
+
+  // ── SoD defect 2 (TOCTOU) — CLAIM authorship of the sales-invoice body BEFORE the ERP write.
+  //
+  // The submit SoD above runs before the ERP body is constructed, and the author re-stamp used to
+  // happen only afterwards, in the (post-ERP) read-model writer. So an approver could issue an
+  // `update` rewriting the amount AND, concurrently, a `submit`: the submit's check read the
+  // authorship as it stood BEFORE the rewrite, passed, and the rewrite then landed the approver's own
+  // numbers — the approver's amount carrying the approver's own approval.
+  //
+  // `claim_sales_invoice_author` (0113 §D) closes that window IN THE DB, which is the only place it
+  // CAN be closed: a stateless edge function holds no transaction across the ERP HTTP call. It takes
+  // the same `select … for update` on the invoice row that `submit_sales_invoice` takes, so the two
+  // serialize: whichever wins the lock, the loser is refused (the rewriter is already in the author
+  // set, or the rewrite hits an outstanding submit authorization → 409 `si-submit-in-progress`).
+  // Refused HERE means refused BEFORE any ERP call — no money moves either way.
+  //
+  // Runs under the CALLER's JWT (the deputy `callerClient`, never service_role — auth.uid() must
+  // resolve to the real body-writer), and AFTER the binding/target guards so a command that is about
+  // to be rejected never records authorship.
+  if (requiresSiAuthorClaim(command)) {
+    const claim = await claimSiAuthor(callerClient as never, String(command.record.id));
+    if (!claim.ok) {
+      return new Response(
+        JSON.stringify({ error: claim.status === 403 ? 'commit-rejected' : 'DISPATCH_FAILED', message: claim.message }),
+        { status: claim.status, headers },
+      );
     }
   }
 

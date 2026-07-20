@@ -129,31 +129,41 @@ const RevenueByProject: React.FC = () => {
         </Button>
       }
     >
-      {/* KPI Summary */}
+      {/* KPI Summary — honest states only (BLOCK 2 / the AccountingSnapshotsSection rule): while the
+          rollup is loading the tiles are skeletons, and on a failed query they show "—", NEVER a
+          fabricated $0 that reads as a real figure for an org that may bill millions. */}
       <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-4 mb-6">
         <KPITile
           label="Total Revenue"
           value={`$${totalRevenue.toLocaleString(undefined, { minimumFractionDigits: 0 })}`}
           icon="dollar"
           tone="blue"
+          loading={isPending}
+          error={isError}
         />
         <KPITile
           label="Open AR"
           value={`$${totalOpenAR.toLocaleString(undefined, { minimumFractionDigits: 0 })}`}
           icon="dollar"
           tone="amber"
+          loading={isPending}
+          error={isError}
         />
         <KPITile
           label="Total Invoices"
           value={totalInvoices.toLocaleString()}
           icon="file"
           tone="violet"
+          loading={isPending}
+          error={isError}
         />
         <KPITile
           label="Projects"
           value={all.filter((r) => r.project_id).length.toLocaleString()}
           icon="pipe"
           tone="green"
+          loading={isPending}
+          error={isError}
         />
       </div>
 
