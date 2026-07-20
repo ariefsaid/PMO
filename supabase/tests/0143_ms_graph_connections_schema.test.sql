@@ -25,7 +25,7 @@ insert into auth.users (id, email) values
   ('01430000-0000-0000-0000-0000000000a1','m365-schema@example.com');
 insert into profiles (id, org_id, full_name, email, role) values
   ('01430000-0000-0000-0000-0000000000a1','01430000-0000-0000-0000-000000000001','S','m365-schema@example.com','Admin');
--- 0111 C1(b) write-guard requires an enabled m365_integration entitlement (so the status CHECK,
+-- 0113 C1(b) write-guard requires an enabled m365_integration entitlement (so the status CHECK,
 -- not the guard, is what rejects the 'bogus' status below).
 insert into org_features (org_id, feature_key, enabled)
 values ('01430000-0000-0000-0000-000000000001','m365_integration',true);

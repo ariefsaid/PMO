@@ -1,12 +1,12 @@
 -- 0112_m365_race_lock.sql — closes the C1-RACE MVCC TOCTOU (Luna re-verify round 2, BLOCK) +
 -- makes the lifecycle cleanup idempotent/self-repairing + supporting hardening (Luna Med/Low).
 --
--- The deterministic fixes from round 1 (0111) all landed, but the BEFORE INSERT OR UPDATE write-guard
+-- The deterministic fixes from round 1 (0113) all landed, but the BEFORE INSERT OR UPDATE write-guard
 -- on ms_graph_connections read profiles.status and the org_features entitlement WITHOUT a lock, so a
 -- concurrent callback/lifecycle pair could leave a live encrypted refresh token for a disabled user /
 -- disentitled org (NFR-M365-107). This migration is the concurrency closure + the residual Med/Low.
 --
--- Proven by scripts/m365-race-probe.sh: the probe FALSIFIES the unlocked (0111) guard (a callback-first
+-- Proven by scripts/m365-race-probe.sh: the probe FALSIFIES the unlocked (0113) guard (a callback-first
 -- interleaving leaves 1 surviving connection for a disabled/disentitled target) and PASSES after this
 -- migration (0 surviving). pgTAP cannot express a two-session race (single-txn), hence the probe.
 --
@@ -17,7 +17,7 @@
 --                 deadlock-free — a DIRECT UPDATE/INSERT on ms_graph_connections locks the connection
 --                 tuple FIRST, then the BEFORE trigger locks the parents (child→parent), while the
 --                 lifecycle cascade goes parent→child → a real cycle. Luna round-3 REPRODUCED this
---                 deadlock. The closure is in 0113: every edge-fn connection mutation goes through a
+--                 deadlock. The closure is in 0115: every edge-fn connection mutation goes through a
 --                 security-definer RPC that locks PROFILES → ORG_FEATURES BEFORE the connection row
 --                 (the single global order), so no mutating path takes locks child→parent. The guard
 --                 stays as the authoritative backstop (its parent locks are no-op re-locks inside the
@@ -38,7 +38,7 @@
 --     scalar invocation of trigger fns anyway — this is hygiene).
 --
 -- Reversibility (ADR-0006): supabase db reset. Manual reverse (exact statements):
---   -- restore the unlocked write-guard (0111 form):
+--   -- restore the unlocked write-guard (0113 form):
 --   create or replace function public.m365_connection_write_guard() returns trigger
 --     language plpgsql security definer set search_path = public as $$
 --     declare v_status public.profile_status;
@@ -54,8 +54,8 @@
 --   create trigger m365_offboard_trigger after update on public.profiles for each row
 --     when (OLD.status is distinct from NEW.status and NEW.status = 'disabled')
 --     execute function public.m365_offboard_trigger();
---   -- restore the true→false-only disentitle UPDATE branch (0111 form) by recreating its function;
---   -- restore the unbatched sweep (0110 form):
+--   -- restore the true→false-only disentitle UPDATE branch (0113 form) by recreating its function;
+--   -- restore the unbatched sweep (0112 form):
 --   create or replace function public.m365_pkce_sweep_tick() returns void language plpgsql security definer set search_path = public as $$ begin delete from public.m365_pkce_states where expires_at < now(); end; $$;
 --   drop index if exists public.ms_graph_connections_user_idx;
 --   drop index if exists public.m365_pkce_states_user_idx;
@@ -86,7 +86,7 @@ begin
   -- feature-disable variants (a liveness/DoS defect, NOT a token bypass — the lifecycle commits and
   -- the connection count is 0).
   --
-  -- CLOSURE (0113): every edge-fn connection mutation (callback upsert, refresh token-persist,
+  -- CLOSURE (0115): every edge-fn connection mutation (callback upsert, refresh token-persist,
   -- refresh stale/revoked status) goes through a security-definer RPC (m365_upsert_connection /
   -- m365_refresh_connection / m365_set_connection_status) that locks PROFILES → ORG_FEATURES for
   -- update BEFORE the connection write. The whole mutation therefore takes locks in the single
@@ -94,7 +94,7 @@ begin
   -- reads become no-op re-locks inside that transaction (the RPC already holds them). The guard
   -- remains the AUTHORITY that rejects a write for a disabled user / disentitled org regardless of
   -- the calling path (direct writes still trigger it — they just risk the now-avoided deadlock, so
-  -- all production writes route through the 0113 RPCs).
+  -- all production writes route through the 0115 RPCs).
   --
   -- Why it closes the race (either interleaving is safe):
   --   • callback-first: the guard holds the profile/entitlement row locks for the whole callback
@@ -151,7 +151,7 @@ create trigger m365_offboard_trigger
 -- 3. C1-RACE(b): idempotent / self-repairing DISENTITLE trigger (UPDATE branch).
 --    Cascade whenever the FINAL state is m365_integration + enabled=false (true→false AND false→false),
 --    so re-saving false cleans any leftover connection. Enable (enabled=true) NEVER cascades. The
---    INSERT (absent-row toggle-OFF) and DELETE (broadened) branches are unchanged from 0111.
+--    INSERT (absent-row toggle-OFF) and DELETE (broadened) branches are unchanged from 0113.
 --    Luna round-3 (LOW): the UPDATE trigger is restricted to `OF enabled` (re-created below) so an
 --    unrelated org_features edit (e.g. updated_by) does not fire a full-org cascade scan. The
 --    FINAL-state self-repair semantics are preserved: operator_toggle_feature upserts `enabled` on
@@ -197,7 +197,7 @@ end $$;
 revoke all on function public.m365_disentitle_trigger() from public;
 
 -- Luna round-3 (LOW): restrict the UPDATE trigger to `OF enabled` (was: all-column UPDATE from
--- 0111). operator_toggle_feature always SETs `enabled` (on-conflict upsert), so the lifecycle write
+-- 0113). operator_toggle_feature always SETs `enabled` (on-conflict upsert), so the lifecycle write
 -- path still fires + self-repairs; unrelated org_features edits no longer trigger a cascade.
 drop trigger if exists m365_disentitle_update_trigger on public.org_features;
 create trigger m365_disentitle_update_trigger

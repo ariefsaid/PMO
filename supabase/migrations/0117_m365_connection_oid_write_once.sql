@@ -1,6 +1,6 @@
 -- 0115_m365_connection_oid_write_once.sql — TOFU + enforce-on-reconnect (owner design decision,
 -- 2026-07-17). The STRUCTURAL enforcement that makes Microsoft-user-identity re-binding impossible
--- at the DB boundary — the same reasoning that made the C1 write-guard (0111) the authority (a
+-- at the DB boundary — the same reasoning that made the C1 write-guard (0113) the authority (a
 -- callback-only check is TOCTOU-vulnerable; the trigger fires for every role including service_role,
 -- RLS bypass does not skip triggers).
 --
@@ -25,11 +25,11 @@
 --   identity binding was explicitly NOT taken (it would break connect for email/password users).
 --
 -- HOW IT COMPOSES WITH THE LOCK-ORDER DESIGN (binding — DO NOT reintroduce a child→parent lock):
---   The connection-mutation path goes through the security-definer lock-order RPCs (0113/0114),
+--   The connection-mutation path goes through the security-definer lock-order RPCs (0115/0116),
 --   which lock PROFILES → ORG_FEATURES → ms_graph_connections (the single global lock order). This
 --   trigger is a BEFORE UPDATE row-level check that inspects ONLY OLD/NEW.entra_user_object_id — it
 --   performs NO table reads and acquires NO additional locks. It therefore does not reverse the lock
---   order and cannot form a lock cycle. It composes with the sibling C1 write-guard (0111, also a
+--   order and cannot form a lock cycle. It composes with the sibling C1 write-guard (0113, also a
 --   BEFORE trigger — multiple BEFORE triggers fire in name order; both are independent necessary
 --   conditions, so firing order is immaterial). scripts/m365-deadlock-probe.sh + m365-race-probe.sh
 --   are re-run green below to prove the lock order is undisturbed.

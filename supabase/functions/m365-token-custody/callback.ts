@@ -134,7 +134,7 @@ export async function handleCallback(req: Request, deps: HandlerDeps): Promise<H
   // break connect for email/password PMO users who have no SSO principal to bind.)
   //
   // This SELECT is best-effort (TOCTOU by nature); the m365_connection_oid_write_once BEFORE
-  // UPDATE trigger (0115) is the STRUCTURAL AUTHORITY — it makes identity re-binding IMPOSSIBLE
+  // UPDATE trigger (0117) is the STRUCTURAL AUTHORITY — it makes identity re-binding IMPOSSIBLE
   // even if this check is bypassed or a future code path forgets it. The upsertError branch below
   // sniffs for the trigger's identity_rebind_forbidden message so the (narrow) race surfaces as the
   // same M365_IDENTITY_MISMATCH outcome rather than CONNECTION_NOT_ALLOWED.
@@ -156,7 +156,7 @@ export async function handleCallback(req: Request, deps: HandlerDeps): Promise<H
     });
   }
 
-  // C1(c) (Luna): the BEFORE INSERT OR UPDATE trigger (0111) is the AUTHORITY that makes token
+  // C1(c) (Luna): the BEFORE INSERT OR UPDATE trigger (0113) is the AUTHORITY that makes token
   // resurrection structurally impossible — if the user was disabled or the org disentitled between
   // initiate and callback, the upsert is REJECTED with errcode 42501. This best-effort pre-check
   // gives a CLEARER error_event + user message before the encrypt/upsert round-trip; it is
@@ -191,8 +191,8 @@ export async function handleCallback(req: Request, deps: HandlerDeps): Promise<H
 
   // C1(c) (Luna) + DEADLOCK closure (Luna round-3): the write goes through the
   // m365_upsert_connection SECURITY-DEFINER RPC, which locks PROFILES → ORG_FEATURES for update
-  // BEFORE the connection upsert — the single global lock order (see 0113 file header). The BEFORE
-  // write-guard (0111) is still the AUTHORITY: if the user was disabled / the org disentitled
+  // BEFORE the connection upsert — the single global lock order (see 0115 file header). The BEFORE
+  // write-guard (0113) is still the AUTHORITY: if the user was disabled / the org disentitled
   // mid-flight, the guard raises 42501 and the RPC propagates it (upsertError set). This best-
   // effort pre-check above gives a CLEARER error_event + user message before the encrypt/round-trip;
   // it is TOCTOU by nature, so the upsertError branch below remains the authoritative backstop. No
@@ -213,7 +213,7 @@ export async function handleCallback(req: Request, deps: HandlerDeps): Promise<H
 
   if (upsertError || !connId) {
     // RACE (TOFU): a concurrent callback pinned a DIFFERENT oid between the identity pre-check
-    // above and this upsert; the m365_connection_oid_write_once BEFORE UPDATE trigger (0115)
+    // above and this upsert; the m365_connection_oid_write_once BEFORE UPDATE trigger (0117)
     // rejected the rebind (identity_rebind_forbidden, 42501). Surface it as the SAME identity-
     // mismatch outcome (M365_IDENTITY_MISMATCH + audit + generic redirect) so the security event is
     // greppable/auditable regardless of which path caught it. The stored oid is unknown under the

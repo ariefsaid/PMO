@@ -199,7 +199,7 @@ regression guard and records the open decision.)*
 
 | AC | Satisfies | Owning layer | Owning test (leading AC-id) | Verifiable |
 |---|---|---|---|---|
-| AC-M365-001 | FR-M365-002, NFR-M365-004 | pgTAP (RLS/tenancy) | `supabase/tests/0142_ms_graph_connections_lockdown.test.sql` | **DB-deferred** |
+| AC-M365-001 | FR-M365-002, NFR-M365-004 | pgTAP (RLS/tenancy) | `supabase/tests/0154_ms_graph_connections_lockdown.test.sql` | **DB-deferred** |
 | AC-M365-002 | FR-M365-001/003, NFR-M365-003 | pgTAP (schema/constraint) | `supabase/tests/0143_ms_graph_connections_schema.test.sql` | **DB-deferred** |
 | AC-M365-010 | FR-M365-010/011 | pgTAP (RPC/entitlement) | `supabase/tests/0144_org_features_m365_key.test.sql` | **DB-deferred** |
 | AC-M365-011 | FR-M365-010 (FE) | Unit (Vitest/RTL) | `pmo-portal/src/auth/__tests__/useFeature.m365.test.tsx` | **Now** |

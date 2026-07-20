@@ -1,6 +1,6 @@
 -- 0106_m365_pkce_states.sql — transient PKCE state store for the server-side auth-code + PKCE
 -- bootstrap (ADR-0060 §1 D2, FR-M365-101/102/103). Single-use, short-TTL (10 min), service_role-only.
--- Mirrors the ms_graph_connections lockdown pattern (0104): RLS enabled+forced, ZERO policies,
+-- Mirrors the ms_graph_connections lockdown pattern (0106): RLS enabled+forced, ZERO policies,
 -- revoke all from authenticated/anon. The edge function writes/reads via service_role client.
 -- Reversibility (ADR-0006): supabase db reset. Manual reverse:
 --   drop table if exists public.m365_pkce_states;

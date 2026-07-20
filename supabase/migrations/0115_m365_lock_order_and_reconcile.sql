@@ -4,7 +4,7 @@
 -- WHAT THIS MIGRATION DOES
 --   • DEADLOCK (Luna round-3 MED): every edge-fn connection mutation now goes through a security-
 --     definer RPC that locks PROFILES → ORG_FEATURES for update BEFORE touching the connection row,
---     establishing ONE global lock order. The write-guard (0111/0112) stays as the authoritative
+--     establishing ONE global lock order. The write-guard (0113/0114) stays as the authoritative
 --     rejection backstop; its parent FOR UPDATE reads become no-op re-locks inside the RPC's
 --     transaction (the RPC already holds them). The lifecycle cascade takes the SAME direction
 --     (parent → connection), so no mutating path takes locks child→parent → no lock cycle → no
@@ -13,7 +13,7 @@
 --   • STALE-ROW SCRUB (Luna round-3 MED): a one-time transactional reconciliation deletes
 --     connections whose user is NOT active OR whose org lacks an enabled m365_integration
 --     entitlement, emitting a m365.connection.revoked audit row (reason='reconciled') per deleted
---     connection (0111 §1 allowlist was widened with 'reconciled'). Idempotent — a no-op on a
+--     connection (0113 §1 allowlist was widened with 'reconciled'). Idempotent — a no-op on a
 --     clean/fresh DB.
 --
 -- GLOBAL LOCK ORDER (binding — DO NOT add any ms_graph_connections mutation that locks the
@@ -33,7 +33,7 @@
 -- ============================================================================
 -- 1. m365_upsert_connection — the callback's connection write (AC-M365-103).
 --    Locks parents FIRST, then the INSERT … ON CONFLICT upsert. Returns the connection id, or NULL
---    if the write affected no row. The BEFORE write-guard (0111) still fires authoritatively on the
+--    if the write affected no row. The BEFORE write-guard (0113) still fires authoritatively on the
 --    INSERT/UPDATE; if it rejects (user_not_active / org_not_entitled, 42501) the exception
 --    propagates as the RPC's error (the caller treats error|null as failure — never success).
 -- ============================================================================
@@ -188,12 +188,12 @@ grant execute on function public.m365_set_connection_status(uuid,uuid,uuid,text,
 
 -- ============================================================================
 -- 4. ONE-TIME RECONCILIATION SCRUB (Luna round-3 MED): delete already-stale connections.
---    The idempotent self-repairing triggers (0112) only repair when a profiles/org_features row is
+--    The idempotent self-repairing triggers (0114) only repair when a profiles/org_features row is
 --    SUBSEQUENTLY written; a token for an ALREADY-disabled user / ALREADY-disentitled org can persist
 --    indefinitely with no later lifecycle write to trigger cleanup. This migration scrubs them once,
 --    transactionally, emitting a m365.connection.revoked audit row per deleted connection
---    (reason='reconciled' — allowlisted in 0111 §1) so the irreversible ciphertext delete leaves a
---    durable trail. Idempotent (a no-op on a clean/fresh DB). The composite FK (0111 §5b) guarantees
+--    (reason='reconciled' — allowlisted in 0113 §1) so the irreversible ciphertext delete leaves a
+--    durable trail. Idempotent (a no-op on a clean/fresh DB). The composite FK (0113 §5b) guarantees
 --    every surviving connection's (user_id, org_id) matches a profile, so the user-inactive check is
 --    a plain status read; the org-not-entitled check covers both a disabled and an absent row.
 -- ============================================================================

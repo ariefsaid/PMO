@@ -1,4 +1,4 @@
--- 0142_ms_graph_connections_lockdown.test.sql
+-- 0154_ms_graph_connections_lockdown.test.sql
 -- AC-M365-001 [pgTAP]: ms_graph_connections is server-only — RLS enabled+forced, ZERO policies, and
 -- an authenticated (non-service_role) JWT is denied SELECT/INSERT/UPDATE (FR-M365-002, NFR-M365-004).
 begin;
@@ -11,7 +11,7 @@ insert into auth.users (id, email) values
 insert into profiles (id, org_id, full_name, email, role) values
   ('01420000-0000-0000-0000-0000000000a1','01420000-0000-0000-0000-000000000001','M365 User','m365-lockdown@example.com','Admin');
 
--- 0111 C1(b) write-guard requires an enabled m365_integration entitlement for any connection INSERT.
+-- 0113 C1(b) write-guard requires an enabled m365_integration entitlement for any connection INSERT.
 insert into org_features (org_id, feature_key, enabled)
 values ('01420000-0000-0000-0000-000000000001','m365_integration',true);
 

@@ -41,7 +41,7 @@ export async function handleDisconnect(deps: HandlerDeps): Promise<HandlerResult
 
   // Best-effort Microsoft revoke — ignore failures (local delete is authoritative).
   // M3 (Luna): validate the DB-sourced tenant before constructing the revoke URL (this POST carries
-  // the decrypted refresh_token + client_secret). The column CHECK (0111) rejects bad values on
+  // the decrypted refresh_token + client_secret). The column CHECK (0113) rejects bad values on
   // write, so this is defense-in-depth; a bad tenant simply skips the Microsoft revoke and still
   // proceeds to the authoritative local delete below.
   try {
@@ -73,12 +73,12 @@ export async function handleDisconnect(deps: HandlerDeps): Promise<HandlerResult
   //
   // Luna round-4 (MED-2 — service-role direct-DML lockdown + DEADLOCK closure): the delete now goes
   // through the m365_delete_connection SECURITY-DEFINER RPC, which locks PROFILES → ORG_FEATURES for
-  // update BEFORE the connection DELETE — the single global lock order (see 0113/0114 headers) — so
+  // update BEFORE the connection DELETE — the single global lock order (see 0115/0116 headers) — so
   // every connection mutation (upsert/refresh/status/delete) takes locks parent→child and NONE can
   // reproduce the child→parent deadlock. The RPC is also IDENTITY-BOUND (MED-1): the DELETE matches
   // only a row whose (org_id, user_id) equal the caller's org/user, so a mismatched (org,user,id)
   // can NEVER mutate another identity's row (returns null → NOT_CONNECTED). service_role no longer
-  // holds direct INSERT/UPDATE/DELETE on this table (0114), so the RPCs are the only write path.
+  // holds direct INSERT/UPDATE/DELETE on this table (0116), so the RPCs are the only write path.
   // The returned id is the proof the row was actually deleted; null = already gone / mismatched.
   const { data: deletedId, error: deleteError } = await serviceClient.rpc('m365_delete_connection', {
     p_org_id: orgId,

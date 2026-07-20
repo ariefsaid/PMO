@@ -47,7 +47,7 @@ export async function refreshAccessToken(
   // M3 (Luna): re-validate the DB-sourced tenant before URL construction. This POST carries the
   // decrypted refresh_token + client_secret, so the check runs at every construction site. A bad
   // tenant (path-confusion — host is pinned) records an error_event and returns false (no refresh)
-  // rather than building a malformed URL. The column CHECK (0111) already rejects such values on
+  // rather than building a malformed URL. The column CHECK (0113) already rejects such values on
   // write, so this is defense-in-depth for any legacy/tampered row.
   if (!isValidTenant(connection.entra_tenant_id)) {
     await recordM365Error(serviceClient, {
@@ -97,10 +97,10 @@ export async function refreshAccessToken(
 
   // Luna round-3 (DEADLOCK): the persistence write goes through the m365_refresh_connection
   // SECURITY-DEFINER RPC, which locks PROFILES → ORG_FEATURES for update BEFORE the connection
-  // UPDATE — the single global lock order (see 0113 file header) — so a concurrent lifecycle
+  // UPDATE — the single global lock order (see 0115 file header) — so a concurrent lifecycle
   // disable/disentitle cannot deadlock with this write. Luna (Med): inspect BOTH the RPC error AND
   // the returned id. Previously the update result was ignored — during a lifecycle race the BEFORE
-  // write-guard (0112) rejects this UPDATE with 42501 (user just disabled / org just disentitled)
+  // write-guard (0114) rejects this UPDATE with 42501 (user just disabled / org just disentitled)
   // yet refresh still audited 'm365.token.refreshed' and returned true. Now: the success audit +
   // return true are emitted ONLY after the row was actually persisted. On rejection (42501) or a
   // null return (the row was deleted under us), record a token-free error_event and surface a typed

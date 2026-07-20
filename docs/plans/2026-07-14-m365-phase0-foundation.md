@@ -309,10 +309,10 @@ pgTAP. **AUTHORED / DB-deferred** here.
 
 ### Task M2 — pgTAP: token-store lockdown (RED proof for AC-M365-001)
 
-Create `supabase/tests/0142_ms_graph_connections_lockdown.test.sql`:
+Create `supabase/tests/0154_ms_graph_connections_lockdown.test.sql`:
 
 ```sql
--- 0142_ms_graph_connections_lockdown.test.sql
+-- 0154_ms_graph_connections_lockdown.test.sql
 -- AC-M365-001 [pgTAP]: ms_graph_connections is server-only — RLS enabled+forced, ZERO policies, and
 -- an authenticated (non-service_role) JWT is denied SELECT/INSERT/UPDATE (FR-M365-002, NFR-M365-004).
 begin;

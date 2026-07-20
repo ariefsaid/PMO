@@ -1,6 +1,6 @@
 -- 0111_m365_cascade_hardening.sql — Luna BLOCK fixes (C1/H2/H3/H5/M2/M3/L1) for the M365 cascade.
 -- Closes every path by which NFR-M365-107 (tokens deleted on offboard / disentitlement) was
--- bypassable. Replaces the 0109 _core + disentitle trigger with hardened versions and adds:
+-- bypassable. Replaces the 0111 _core + disentitle trigger with hardened versions and adds:
 --   • C1(b): BEFORE INSERT OR UPDATE write-guard on ms_graph_connections — the authority that makes
 --            token resurrection structurally impossible (a callback-only check is TOCTOU-vulnerable).
 --   • C1(a): _core ALSO purges pending m365_pkce_states (per-user / per-org) so an in-flight OAuth
@@ -22,7 +22,7 @@
 --   drop trigger if exists m365_disentitle_insert_trigger on public.org_features;
 --   drop trigger if exists m365_org_features_immutable_trigger on public.org_features;
 --   drop function if exists public.m365_org_features_immutable();
---   -- restore the 0110 (looser) tenant CHECK:
+--   -- restore the 0112 (looser) tenant CHECK:
 --   alter table public.ms_graph_connections drop constraint if exists ms_graph_connections_entra_tenant_id_fmt;
 --   alter table public.ms_graph_connections add constraint ms_graph_connections_entra_tenant_id_fmt
 --     check (entra_tenant_id ~ '^[A-Za-z0-9._-]+$');
@@ -33,7 +33,7 @@
 --     foreign key (user_id) references public.profiles(id) on delete cascade;
 --   alter table public.profiles drop constraint if exists profiles_id_org_id_key;
 --   drop index if exists public.m365_pkce_states_expires_at_idx;
---   -- _core + m365_disentitle_trigger revert to their 0109 definitions on a fresh db reset.
+--   -- _core + m365_disentitle_trigger revert to their 0111 definitions on a fresh db reset.
 
 -- ============================================================================
 -- 1. C1(a) + H5(i) + M2: harden the internal cascade core.
@@ -52,7 +52,7 @@ declare
   v_conn_org  uuid;
   v_user_id   uuid;
   v_detail    jsonb;
-  -- 'reconciled' is the one-time migration scrub reason (0111 preflight + 0113 reconcile): a
+  -- 'reconciled' is the one-time migration scrub reason (0113 preflight + 0115 reconcile): a
   -- connection scrubbed because it was already stale (user inactive / org disentitled / bad tenant).
   v_allowed_reasons constant text[] := array['disentitled','offboard','org_disabled','admin_disconnect','reconciled'];
 begin
@@ -243,7 +243,7 @@ create trigger m365_org_features_immutable_trigger
 --    Luna round-3 (HIGH + MED-audit): (1) the tenant preflight regex was MIS-ESCAPED —
 --    under standard_conforming_strings=on, '~ \'\\\\.\\\\.\'' matches a literal BACKSLASH + any char
 --    (twice), NOT 'foo..bar', so a legacy dot-segment tenant SURVIVED the preflight and the
---    (correctly-escaped) CHECK then rejected it → 0111 ABORTED → the composite FK, write guard, and
+--    (correctly-escaped) CHECK then rejected it → 0113 ABORTED → the composite FK, write guard, and
 --    ALL hardening never installed. The correct pattern is '~ \'\\.\\.\'' (literal dot, literal
 --    dot). (2) The preflight deletes dropped ciphertext IRREVERSIBLY with NO audit trail — both
 --    deletes now run as DELETE ... RETURNING + log_audit loops (reason='reconciled', allowlisted in
@@ -302,7 +302,7 @@ alter table public.ms_graph_connections
   foreign key (user_id, org_id) references public.profiles (id, org_id) on delete cascade;
 
 -- ============================================================================
--- 6. M3: tighten the entra_tenant_id format CHECK (the 0110 version accepted '.' and '..').
+-- 6. M3: tighten the entra_tenant_id format CHECK (the 0112 version accepted '.' and '..').
 --    Keep GUIDs / common / organizations / consumers / ASCII+punycode domains valid; reject '..'
 --    anywhere (path-confusion) and all-dot values ('.', '..', '...'). The host stays pinned so this
 --    is path-confusion hardening, not arbitrary-host SSRF; runtime re-validation lives in the edge
@@ -318,9 +318,9 @@ alter table public.ms_graph_connections
   );
 
 comment on constraint ms_graph_connections_entra_tenant_id_fmt on public.ms_graph_connections is
-  'M3: SSRF defense-in-depth for refresh/revoke URL construction. Tightened from 0110 to reject dot-segments (..) and all-dot values while keeping GUIDs / common / organizations / consumers / verified domains valid.';
+  'M3: SSRF defense-in-depth for refresh/revoke URL construction. Tightened from 0112 to reject dot-segments (..) and all-dot values while keeping GUIDs / common / organizations / consumers / verified domains valid.';
 
 -- ============================================================================
--- 7. L1: index the PKCE sweep's predicate (the 0110 cron deletes where expires_at < now()).
+-- 7. L1: index the PKCE sweep's predicate (the 0112 cron deletes where expires_at < now()).
 -- ============================================================================
 create index if not exists m365_pkce_states_expires_at_idx on public.m365_pkce_states (expires_at);

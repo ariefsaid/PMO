@@ -6,7 +6,7 @@
 --
 -- What this proves (Luna re-verify round 2 closure):
 --   • AC-M365-160: the write-guard STILL rejects an INSERT for a disabled user and a disentitled org
---                  (the FOR UPDATE locks added in 0112 serialize, they do not weaken the check).
+--                  (the FOR UPDATE locks added in 0114 serialize, they do not weaken the check).
 --   • AC-M365-161: the offboard trigger now fires whenever NEW.status = 'disabled' (not only on the
 --                  active→disabled transition) → re-saving an already-disabled profile REPAIRS a
 --                  leftover connection from a past race / legacy data.
@@ -91,7 +91,7 @@ select is(
   (select count(*)::int from public.ms_graph_connections where user_id = 'a1500000-0000-0000-0000-0000000000b1'),
   0, 'AC-M365-161 setup: active→disabled offboard cleaned the connection');
 
--- Seed a LEFTOVER (a stale survivor the transition-only trigger of 0109/0111 could not reach). The
+-- Seed a LEFTOVER (a stale survivor the transition-only trigger of 0111/0113 could not reach). The
 -- write-guard would reject this for a disabled user, so suspend it briefly (mirrors 0149 TEST 4).
 alter table public.ms_graph_connections disable trigger m365_connection_write_guard;
 insert into public.ms_graph_connections
@@ -103,7 +103,7 @@ select is(
   (select count(*)::int from public.ms_graph_connections where user_id = 'a1500000-0000-0000-0000-0000000000b1'),
   1, 'AC-M365-161 setup: a leftover stale row is present (simulating a past-race survivor)');
 
--- Re-save the disabled profile by re-asserting the status column (disabled→disabled). Under 0112
+-- Re-save the disabled profile by re-asserting the status column (disabled→disabled). Under 0114
 -- the trigger is AFTER UPDATE OF status + WHEN NEW.status='disabled', so a status re-save FIRES
 -- and REPAIRS the leftover survivor; under the old transition-only WHEN it would NOT fire and the
 -- row would survive. (Round-3 LOW narrowed the trigger to OF status — so a non-status edit no
@@ -148,7 +148,7 @@ select is(
   (select count(*)::int from public.ms_graph_connections where org_id = 'a1500000-0000-0000-0000-000000000003'),
   1, 'AC-M365-162 setup: a leftover stale row is present (simulating a past-race survivor)');
 
--- Re-save the disabled entitlement by re-asserting enabled=false (false→false). Under 0112 the
+-- Re-save the disabled entitlement by re-asserting enabled=false (false→false). Under 0114 the
 -- UPDATE trigger is AFTER UPDATE OF enabled + the body fires on FINAL enabled=false, so an enabled
 -- re-save REPAIRS the leftover survivor; under the old true→false-only branch it would NOT fire.
 -- (Round-3 LOW narrowed the trigger to OF enabled; operator_toggle_feature always SETs enabled, so
