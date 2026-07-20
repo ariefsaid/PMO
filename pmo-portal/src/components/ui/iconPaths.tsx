@@ -42,6 +42,7 @@ export type IconName =
   | 'file'
   | 'download'
   | 'eye'
+  | 'eye-off'
   | 'message'
   | 'sun'
   | 'moon'
@@ -211,6 +212,14 @@ export const ICON_PATHS: Record<IconName, React.ReactNode> = {
     <>
       <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
       <circle cx="12" cy="12" r="3" />
+    </>
+  ),
+  // Crossed-out eye — the "hide/revealed" state of a secret field's reveal toggle (TextField/AuthInput).
+  'eye-off': (
+    <>
+      <path d="M10.7 5.1A9.9 9.9 0 0 1 12 5c7 0 10 7 10 7a17.6 17.6 0 0 1-2.2 3.2M6.6 6.6A17.5 17.5 0 0 0 2 12s3 7 10 7a9.8 9.8 0 0 0 5.4-1.6" />
+      <path d="M14.1 14.1a3 3 0 1 1-4.2-4.2" />
+      <path d="m2 2 20 20" />
     </>
   ),
   // Chat-bubble outline — used for the AssistantPanel Rail entry + header trigger (A2, FR-AP-005).

@@ -45,7 +45,14 @@ export const AuthInput: React.FC<{
   onChange: (v: string) => void;
   errorId?: string;
   disabled?: boolean;
-}> = ({ id, label, type, autoComplete, required, value, onChange, errorId, disabled }) => (
+}> = ({ id, label, type, autoComplete, required, value, onChange, errorId, disabled }) => {
+  // Secret fields render MASKED by default with an eye toggle to reveal (same contract as the shared
+  // TextField primitive) — so a typed/pasted password can be confirmed without sitting legible on
+  // screen. Reveal is local, ephemeral state; nothing is persisted or logged.
+  const isSecret = type === 'password';
+  const [revealed, setRevealed] = React.useState(false);
+
+  return (
   <div className="flex flex-col gap-1.5">
     <label
       htmlFor={id}
@@ -53,9 +60,10 @@ export const AuthInput: React.FC<{
     >
       {label}
     </label>
+    <div className="relative">
     <input
       id={id}
-      type={type}
+      type={isSecret && revealed ? 'text' : type}
       autoComplete={autoComplete}
       required={required}
       value={value}
@@ -67,7 +75,26 @@ export const AuthInput: React.FC<{
         'placeholder:text-muted-foreground',
         'transition-[border-color,box-shadow] duration-100',
         'disabled:cursor-not-allowed disabled:opacity-45',
+        isSecret && 'pr-8',
       )}
     />
+      {isSecret && (
+        <button
+          type="button"
+          onClick={() => setRevealed((r) => !r)}
+          tabIndex={-1}
+          // "value" not "password" on purpose: an accessible name containing the field's own label
+          // makes getByLabelText(/password/i) ambiguous (the toggle and the input both match), which
+          // is a real usability smell as well as a test one. Matches the shared TextField toggle.
+          aria-label={revealed ? 'Hide value' : 'Show value'}
+          aria-pressed={revealed}
+          disabled={disabled}
+          className="absolute inset-y-0 right-0 flex w-8 items-center justify-center text-muted-foreground hover:text-foreground disabled:cursor-not-allowed disabled:opacity-45"
+        >
+          <Icon name={revealed ? 'eye-off' : 'eye'} className="size-3.55" aria-hidden="true" />
+        </button>
+      )}
+    </div>
   </div>
-);
+  );
+};
