@@ -1364,12 +1364,16 @@ export type Database = {
         Row: {
           activated_at: string | null
           config: Json
+          connected_at: string | null
+          connected_by: string | null
           created_at: string
+          disconnected_at: string | null
           external_tier: string
           id: string
           org_id: string
           secret_ref: string
           site_url: string
+          status: string
           updated_at: string
           version_major: number | null
           webhook_secret_ref: string | null
@@ -1377,12 +1381,16 @@ export type Database = {
         Insert: {
           activated_at?: string | null
           config?: Json
+          connected_at?: string | null
+          connected_by?: string | null
           created_at?: string
+          disconnected_at?: string | null
           external_tier: string
           id?: string
           org_id?: string
           secret_ref: string
           site_url: string
+          status?: string
           updated_at?: string
           version_major?: number | null
           webhook_secret_ref?: string | null
@@ -1390,12 +1398,16 @@ export type Database = {
         Update: {
           activated_at?: string | null
           config?: Json
+          connected_at?: string | null
+          connected_by?: string | null
           created_at?: string
+          disconnected_at?: string | null
           external_tier?: string
           id?: string
           org_id?: string
           secret_ref?: string
           site_url?: string
+          status?: string
           updated_at?: string
           version_major?: number | null
           webhook_secret_ref?: string | null
@@ -1414,27 +1426,36 @@ export type Database = {
         Row: {
           config: Json
           created_at: string
+          disconnected_at: string | null
           external_container_id: string
           external_tier: string
           id: string
+          linked_at: string | null
+          linked_by: string | null
           org_id: string
           project_id: string
         }
         Insert: {
           config?: Json
           created_at?: string
+          disconnected_at?: string | null
           external_container_id: string
           external_tier: string
           id?: string
+          linked_at?: string | null
+          linked_by?: string | null
           org_id?: string
           project_id: string
         }
         Update: {
           config?: Json
           created_at?: string
+          disconnected_at?: string | null
           external_container_id?: string
           external_tier?: string
           id?: string
+          linked_at?: string | null
+          linked_by?: string | null
           org_id?: string
           project_id?: string
         }
@@ -1665,6 +1686,123 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      m365_pkce_states: {
+        Row: {
+          code_verifier: string
+          created_at: string
+          expires_at: string
+          id: string
+          org_id: string
+          scopes: string[]
+          state: string
+          user_id: string
+        }
+        Insert: {
+          code_verifier: string
+          created_at?: string
+          expires_at: string
+          id?: string
+          org_id: string
+          scopes?: string[]
+          state: string
+          user_id: string
+        }
+        Update: {
+          code_verifier?: string
+          created_at?: string
+          expires_at?: string
+          id?: string
+          org_id?: string
+          scopes?: string[]
+          state?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "m365_pkce_states_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "m365_pkce_states_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ms_graph_connections: {
+        Row: {
+          access_token_ciphertext: string | null
+          access_token_expires_at: string | null
+          connected_at: string
+          entra_tenant_id: string
+          entra_user_object_id: string | null
+          id: string
+          key_id: string
+          last_refresh_at: string | null
+          org_id: string
+          refresh_token_ciphertext: string
+          refresh_token_expires_at: string | null
+          scopes: string[]
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          access_token_ciphertext?: string | null
+          access_token_expires_at?: string | null
+          connected_at?: string
+          entra_tenant_id: string
+          entra_user_object_id?: string | null
+          id?: string
+          key_id: string
+          last_refresh_at?: string | null
+          org_id?: string
+          refresh_token_ciphertext: string
+          refresh_token_expires_at?: string | null
+          scopes?: string[]
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          access_token_ciphertext?: string | null
+          access_token_expires_at?: string | null
+          connected_at?: string
+          entra_tenant_id?: string
+          entra_user_object_id?: string | null
+          id?: string
+          key_id?: string
+          last_refresh_at?: string | null
+          org_id?: string
+          refresh_token_ciphertext?: string
+          refresh_token_expires_at?: string | null
+          scopes?: string[]
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ms_graph_connections_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ms_graph_connections_user_org_fkey"
+            columns: ["user_id", "org_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id", "org_id"]
           },
         ]
       }
@@ -3429,14 +3567,18 @@ export type Database = {
       }
       tasks: {
         Row: {
+          archived_at: string | null
           assignee_id: string | null
           completed_at: string | null
           created_at: string
+          description: string | null
           end_date: string | null
           id: string
           milestone_id: string | null
           name: string
           org_id: string
+          parent_task_id: string | null
+          priority: Database["public"]["Enums"]["task_priority"] | null
           project_id: string
           source_updated_at: string | null
           start_date: string | null
@@ -3444,14 +3586,18 @@ export type Database = {
           tombstoned_at: string | null
         }
         Insert: {
+          archived_at?: string | null
           assignee_id?: string | null
           completed_at?: string | null
           created_at?: string
+          description?: string | null
           end_date?: string | null
           id?: string
           milestone_id?: string | null
           name: string
           org_id?: string
+          parent_task_id?: string | null
+          priority?: Database["public"]["Enums"]["task_priority"] | null
           project_id: string
           source_updated_at?: string | null
           start_date?: string | null
@@ -3459,14 +3605,18 @@ export type Database = {
           tombstoned_at?: string | null
         }
         Update: {
+          archived_at?: string | null
           assignee_id?: string | null
           completed_at?: string | null
           created_at?: string
+          description?: string | null
           end_date?: string | null
           id?: string
           milestone_id?: string | null
           name?: string
           org_id?: string
+          parent_task_id?: string | null
+          priority?: Database["public"]["Enums"]["task_priority"] | null
           project_id?: string
           source_updated_at?: string | null
           start_date?: string | null
@@ -3493,6 +3643,13 @@ export type Database = {
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_parent_task_id_fkey"
+            columns: ["parent_task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
             referencedColumns: ["id"]
           },
           {
@@ -3670,8 +3827,27 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      _m365_disconnect_cascade_core: {
+        Args: {
+          p_actor_id: string
+          p_org_id: string
+          p_reason: string
+          p_user_id: string
+        }
+        Returns: undefined
+      }
       activate_budget_version: {
         Args: { version_id: string }
+        Returns: undefined
+      }
+      admin_change_domain_ownership: {
+        Args: {
+          p_action: string
+          p_actor_id?: string
+          p_domain: string
+          p_external_tier: string
+          p_org_id: string
+        }
         Returns: undefined
       }
       admin_set_user_status: {
@@ -3685,6 +3861,16 @@ export type Database = {
       agent_dispatch_tick: { Args: never; Returns: undefined }
       audit_agent_denial: {
         Args: { p_detail?: Json; p_reason: string }
+        Returns: undefined
+      }
+      audit_m365_event: {
+        Args: {
+          p_action: string
+          p_actor_id: string
+          p_detail?: Json
+          p_entity_id: string
+          p_org_id: string
+        }
         Returns: undefined
       }
       auth_org_id: { Args: never; Returns: string }
@@ -4022,6 +4208,20 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      create_vault_secret_for_org: {
+        Args: {
+          p_actor_id?: string
+          p_external_tier: string
+          p_org_id: string
+          p_secret_name: string
+          p_secret_value: string
+        }
+        Returns: string
+      }
+      delete_vault_secret: {
+        Args: { p_secret_name: string }
+        Returns: undefined
+      }
       domain_externally_owned: {
         Args: { p_domain: string; p_org_id: string }
         Returns: boolean
@@ -4076,6 +4276,53 @@ export type Database = {
           p_org_id: string
         }
         Returns: undefined
+      }
+      m365_delete_connection: {
+        Args: { p_connection_id: string; p_org_id: string; p_user_id: string }
+        Returns: string
+      }
+      m365_disconnect_cascade: {
+        Args: { p_org_id: string; p_reason: string; p_user_id: string }
+        Returns: undefined
+      }
+      m365_pkce_sweep_tick: { Args: never; Returns: undefined }
+      m365_refresh_connection: {
+        Args: {
+          p_access_token_ciphertext: string
+          p_access_token_expires_at: string
+          p_connection_id: string
+          p_last_refresh_at: string
+          p_org_id: string
+          p_refresh_token_ciphertext: string
+          p_user_id: string
+        }
+        Returns: string
+      }
+      m365_set_connection_status: {
+        Args: {
+          p_connection_id: string
+          p_org_id: string
+          p_status: string
+          p_updated_at: string
+          p_user_id: string
+        }
+        Returns: string
+      }
+      m365_upsert_connection: {
+        Args: {
+          p_access_token_ciphertext: string
+          p_access_token_expires_at: string
+          p_connected_at: string
+          p_entra_tenant_id: string
+          p_entra_user_object_id: string
+          p_key_id: string
+          p_last_refresh_at: string
+          p_org_id: string
+          p_refresh_token_ciphertext: string
+          p_scopes: string[]
+          p_user_id: string
+        }
+        Returns: string
       }
       mark_outbox_held: {
         Args: { p_generation: number; p_id: string; p_reason: string }
@@ -4252,6 +4499,7 @@ export type Database = {
         Args: { p_key: string; p_limit: number; p_window_secs: number }
         Returns: boolean
       }
+      read_vault_secret: { Args: { p_secret_ref: string }; Returns: string }
       record_outbox_ref: {
         Args: {
           p_domain: string
@@ -4385,6 +4633,7 @@ export type Database = {
         | "Close Out"
         | "Loss Tender"
         | "Internal Project"
+      task_priority: "Urgent" | "High" | "Normal" | "Low"
       task_status: "To Do" | "In Progress" | "Done" | "Blocked"
       timesheet_status: "Draft" | "Submitted" | "Approved" | "Rejected"
       user_role:
@@ -4574,6 +4823,7 @@ export const Constants = {
         "Loss Tender",
         "Internal Project",
       ],
+      task_priority: ["Urgent", "High", "Normal", "Low"],
       task_status: ["To Do", "In Progress", "Done", "Blocked"],
       timesheet_status: ["Draft", "Submitted", "Approved", "Rejected"],
       user_role: [
