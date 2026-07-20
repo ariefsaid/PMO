@@ -108,11 +108,11 @@ not started.
 - **P1** per-org Vault `secret_ref` model (reader/writer/delete RPCs actor-keyed; resolvers +
   `_shared/perOrgSecret.ts` tri-state fail-closed; 6 edge fns flag-gated `EXTERNAL_CONNECT_ENABLED`,
   default off = byte-for-byte legacy). Security battery + re-review: **all findings CLOSED**.
-- **P2** org Connect/Disconnect (`external-connect`/`external-disconnect`, `0108
-  admin_change_domain_ownership` definer RPC actor-keyed, `integration` policy entity, CI-safe `0107`
+- **P2** org Connect/Disconnect (`external-connect`/`external-disconnect`, `0120
+  admin_change_domain_ownership` definer RPC actor-keyed, `integration` policy entity, CI-safe `0119`
   ClickUp-adopt, admin Connect UI + `useIntegrations`). Full battery incl. **rendered design-review**.
-- **P3** project Link/Unlink (`external-lists`/`external-link`/`external-unlink`, `0109` audit cols,
-  `0110` audit-grant + org-scoped active-container unique index, repo/hook, project card).
+- **P3** project Link/Unlink (`external-lists`/`external-link`/`external-unlink`, `0121` audit cols,
+  `0122` audit-grant + org-scoped active-container unique index, repo/hook, project card).
 **Locked decisions: `docs/decisions.md` OD-INT-1..7** (admin self-serve · personal-token/API-key v1 ·
 **Vault-backed `secret_ref`** · one tier-generic layer · sequenced after #315 · **OD-INT-6 ERPNext Company
 selected at ORG level** · **OD-INT-7 project↔List link is PROJECT-SCOPED to the owning active PM**).
