@@ -40,7 +40,7 @@ export type AnalyticsEventName =
 // ---------------------------------------------------------------------------
 
 /** Known authentication methods. */
-export type AuthMethod = 'password' | 'magic_link' | 'password_reset' | 'invite_accept';
+export type AuthMethod = 'password' | 'magic_link' | 'password_reset' | 'invite_accept' | 'microsoft';
 
 /** Known authentication failure reason codes. */
 export type AuthFailureReason =

@@ -46,7 +46,8 @@ const LoginPage: React.FC = () => {
   // Show the demo-login panel in local dev OR a demo build (VITE_DEMO_MODE=true); never real prod.
   const showDemoLogin =
     import.meta.env.DEV || import.meta.env.VITE_DEMO_MODE === 'true';
-  const { signInWithPassword, signInWithMagicLink, resendEmailConfirmation } = useAuth();
+  const { signInWithPassword, signInWithMagicLink, signInWithMicrosoft, resendEmailConfirmation } =
+    useAuth();
   const navigate = useNavigate();
 
   const [email, setEmail] = useState('');
@@ -111,6 +112,22 @@ const LoginPage: React.FC = () => {
     }
     trackAuthLoginSucceeded('magic_link');
     setNotice('Check your email for a sign-in link.');
+  };
+
+  const onMicrosoft = async () => {
+    setError(null);
+    setNotice(null);
+    setBusy(true);
+    const { error } = await signInWithMicrosoft();
+    if (error) {
+      setBusy(false);
+      trackAuthLoginFailed('microsoft', authReasonCode(error));
+      setError(error);
+      return;
+    }
+    // Success = the browser is about to leave for Microsoft's login page; keep `busy` on so the
+    // form stays inert during the redirect. Login success is observed post-redirect by the
+    // session listener (AuthProvider onAuthStateChange), not here.
   };
 
   return (
@@ -222,6 +239,17 @@ const LoginPage: React.FC = () => {
               className="w-full"
             >
               Send magic link
+            </Button>
+
+            {/* SECONDARY action — Microsoft Entra ID (work/school) SSO; needs no email typed */}
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onMicrosoft}
+              disabled={busy}
+              className="w-full"
+            >
+              Continue with Microsoft
             </Button>
 
             {/* Demo-login panel — local dev OR a demo build (VITE_DEMO_MODE=true); never real prod.

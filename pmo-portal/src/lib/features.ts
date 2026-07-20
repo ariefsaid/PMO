@@ -64,6 +64,7 @@ export const FEATURE_KEYS = [
   'import_export',
   'agent_assistant',
   'user_views',
+  'm365_integration',
 ] as const;
 export type OrgFeatureKey = (typeof FEATURE_KEYS)[number];
 
@@ -78,6 +79,7 @@ export const FEATURE_KEYS_TOGGLEABLE: readonly OrgFeatureKey[] = [
   'procurement',
   'timesheets',
   'import_export',
+  'm365_integration',
 ];
 
 /** Core modules — always enabled, never gated, never persisted (FR-ENT-001/007, AC-ENT-002). */
@@ -100,6 +102,7 @@ export const FEATURE_ENV_DEFAULT: Record<OrgFeatureKey, boolean> = {
   import_export: true,
   agent_assistant: import.meta.env.VITE_FEATURES_AGENT_ASSISTANT === 'true' || false,
   user_views: import.meta.env.VITE_FEATURES_USERVIEWS !== 'false', // ON BY DEFAULT (owner 2026-07-14)
+  m365_integration: false,
 };
 
 /** Human-readable labels for the Admin › Features section (AC-ENT-004). */
@@ -111,6 +114,7 @@ export const FEATURE_LABELS: Record<EntitleableKey, string> = {
   import_export: 'Import / Export',
   agent_assistant: 'Agent Assistant',
   user_views: 'User Views',
+  m365_integration: 'Microsoft 365 integration',
   projects: 'Projects',
   dashboard: 'Dashboard',
   approvals: 'Approvals',
