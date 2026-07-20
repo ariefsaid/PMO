@@ -122,6 +122,68 @@ export async function clickUpListRawChangesSinceWatermark(
   return { changes: tasks, nextCursor };
 }
 
+/** A single bound List the multi-List sweep enumerates (item 5, bound-List lifecycle). */
+export interface ClickUpListBindingRef {
+  listId: string;
+  statusMap: ClickUpStatusMap;
+  memberMap: ClickUpMemberMap;
+}
+
+/** One raw task tagged with the List it came from (the sweep resolves the adopt-mint project by this). */
+export interface ClickUpTaggedRawChange {
+  task: ClickUpTask;
+  listId: string;
+}
+
+export interface ClickUpMultiListRawChanges {
+  changes: ClickUpTaggedRawChange[];
+  /** The max nextCursor across every List that read successfully (`null` if none did). */
+  nextCursor: string | null;
+  /** listIds whose `GET /list/{id}/task` 404'd this cycle — the List was deleted/moved. The caller
+   *  marks these bindings unhealthy (P4 health surface) rather than failing the whole org sweep. */
+  notFoundListIds: string[];
+}
+
+/**
+ * Read raw changes across every List a sweep enumerates for one org (item 5, bound-List lifecycle).
+ * Previously, `clickup-sweep`'s per-org loop threw on the FIRST List read failure — including a 404
+ * from a deleted/moved List — which aborted the WHOLE org's sweep (every other bound List's changes
+ * silently stopped applying too, forever, since the org's watermark never advanced). A 404 is now
+ * caught PER LIST: that List is skipped (reported in `notFoundListIds`) and every other bound List
+ * still enumerates + still advances the cursor. Any OTHER error (network, 5xx, 4xx) still propagates —
+ * only a 404 (the specific "this List no longer exists here" signal) is treated as skippable.
+ */
+export async function clickUpListRawChangesAcrossLists(
+  cursor: string | null,
+  lists: ClickUpListBindingRef[],
+  clientDeps: Pick<ClickUpClientDeps, 'fetchImpl' | 'token' | 'baseUrl' | 'rateLimiter' | 'onRateLimitInfo'>,
+): Promise<ClickUpMultiListRawChanges> {
+  const changes: ClickUpTaggedRawChange[] = [];
+  const notFoundListIds: string[] = [];
+  let maxNext: string | null = null;
+  for (const list of lists) {
+    try {
+      const { changes: rawTasks, nextCursor } = await clickUpListRawChangesSinceWatermark(cursor, {
+        ...clientDeps,
+        listId: list.listId,
+        statusMap: list.statusMap,
+        memberMap: list.memberMap,
+      });
+      for (const t of rawTasks) changes.push({ task: t, listId: list.listId });
+      if (nextCursor !== null && (maxNext === null || Number(nextCursor) > Number(maxNext))) {
+        maxNext = nextCursor;
+      }
+    } catch (err) {
+      if (err instanceof ClickUpHttpError && err.status === 404) {
+        notFoundListIds.push(list.listId);
+        continue;
+      }
+      throw err;
+    }
+  }
+  return { changes, nextCursor: maxNext, notFoundListIds };
+}
+
 /** `get-by-external-id` (AC-CUA-036): resolves a ClickUp task by id, or `null` on a 404. */
 export async function clickUpGetByExternalId(
   _domain: PmoDomain,

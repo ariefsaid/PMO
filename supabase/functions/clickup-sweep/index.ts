@@ -24,7 +24,7 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { constantTimeBearerEquals } from '../_shared/constantTimeBearerEquals.ts';
 import { runSweep, type SweepChange } from '../../../pmo-portal/src/lib/adapterSeam/clickup/sweep.ts';
-import { clickUpListRawChangesSinceWatermark } from '../../../pmo-portal/src/lib/adapterSeam/clickup/reads.ts';
+import { clickUpListRawChangesAcrossLists } from '../../../pmo-portal/src/lib/adapterSeam/clickup/reads.ts';
 import { clickUpTaskToPmoRecord, type ClickUpMaps } from '../../../pmo-portal/src/lib/adapterSeam/clickup/mapping.ts';
 import { ClickUpRateLimiter } from '../../../pmo-portal/src/lib/adapterSeam/clickup/rateLimit.ts';
 import type { ClickUpStatusMap } from '../../../pmo-portal/src/lib/adapterSeam/clickup/statusMap.ts';
@@ -57,6 +57,44 @@ interface LoadedBinding {
 
 function mapsOf(binding: LoadedBinding): ClickUpMaps {
   return { statusMap: binding.statusMap, memberMap: binding.memberMap };
+}
+
+/**
+ * Mark a bound List's binding unhealthy (item 5, bound-List lifecycle): the List 404'd on read (deleted
+ * or moved in ClickUp). Recorded in the binding's own `config` jsonb (no new table/column — the "P4
+ * health surface" is org-tier-wide, not per-project-List-granular, so this is the smallest useful
+ * per-binding signal). Deliberately does NOT attempt List-move recovery — that is a separate issue.
+ * Best-effort: a failure here is logged, never thrown (must not abort the rest of the sweep).
+ */
+async function markBindingUnhealthy(serviceClient: SupabaseClient, orgId: string, listId: string): Promise<void> {
+  const { data: current, error: readError } = await serviceClient
+    .from('external_project_bindings')
+    .select('config')
+    .eq('org_id', orgId)
+    .eq('external_tier', CLICKUP_TIER)
+    .eq('external_container_id', listId)
+    .is('disconnected_at', null)
+    .maybeSingle();
+  if (readError) {
+    console.error(`[clickup-sweep] unhealthy-mark config read failed: org=${orgId} list=${listId}`, readError);
+    return;
+  }
+  const mergedConfig = {
+    ...((current?.config as Record<string, unknown> | null) ?? {}),
+    unhealthy: true,
+    last_error: 'ClickUp List not found (404) — deleted or moved',
+    last_error_at: new Date().toISOString(),
+  };
+  const { error: updateError } = await serviceClient
+    .from('external_project_bindings')
+    .update({ config: mergedConfig })
+    .eq('org_id', orgId)
+    .eq('external_tier', CLICKUP_TIER)
+    .eq('external_container_id', listId)
+    .is('disconnected_at', null);
+  if (updateError) {
+    console.error(`[clickup-sweep] unhealthy-mark update failed: org=${orgId} list=${listId}`, updateError);
+  }
 }
 
 /** Sweep one org: enumerate changes across all its bound Lists, apply, advance the org watermark. */
@@ -96,29 +134,26 @@ async function sweepOrg(serviceClient: SupabaseClient, orgId: string, token: str
         statusMap: bindings[0].statusMap, // maps are per-List; the apply-side mapping happens in
         memberMap: bindings[0].memberMap,  // listChanges below (per binding), so these are unused there
         // Merged multi-List enumeration: query every bound List with the org cursor, merge changes
-        // (each tagged with its project), return the max nextCursor across Lists.
+        // (each tagged with its project), return the max nextCursor across the Lists that read OK.
+        // A 404'd List (deleted/moved) is skipped — not thrown — so it no longer poisons the WHOLE
+        // org's sweep (item 5, bound-List lifecycle); its binding is marked unhealthy instead.
         listChanges: async (cursor): Promise<{ changes: SweepChange[]; nextCursor: string | null }> => {
-          const all: SweepChange[] = [];
-          let maxNext: string | null = null;
-          for (const binding of bindings) {
-            const { changes: rawTasks, nextCursor } = await clickUpListRawChangesSinceWatermark(cursor, {
-              fetchImpl: fetch,
-              token,
-              listId: binding.listId,
-              rateLimiter,
-              statusMap: binding.statusMap,
-              memberMap: binding.memberMap,
-            });
-            const maps = mapsOf(binding);
-            for (const t of rawTasks) {
-              projectByClickUpTaskId.set(t.id, binding.projectId); // tag for adopt-mint resolution
-              all.push({ record: clickUpTaskToPmoRecord(t, maps), sourceModMs: Number(t.date_updated) });
-            }
-            if (nextCursor !== null && (maxNext === null || Number(nextCursor) > Number(maxNext))) {
-              maxNext = nextCursor;
-            }
+          const bindingByListId = new Map(bindings.map((b) => [b.listId, b]));
+          const { changes: tagged, nextCursor, notFoundListIds } = await clickUpListRawChangesAcrossLists(
+            cursor,
+            bindings.map((b) => ({ listId: b.listId, statusMap: b.statusMap, memberMap: b.memberMap })),
+            { fetchImpl: fetch, token, rateLimiter },
+          );
+          for (const listId of notFoundListIds) {
+            await markBindingUnhealthy(serviceClient, orgId, listId);
           }
-          return { changes: all, nextCursor: maxNext };
+          const all: SweepChange[] = tagged.map(({ task: t, listId }) => {
+            const binding = bindingByListId.get(listId);
+            if (binding) projectByClickUpTaskId.set(t.id, binding.projectId); // tag for adopt-mint resolution
+            const maps = binding ? mapsOf(binding) : { statusMap: bindings[0].statusMap, memberMap: bindings[0].memberMap };
+            return { record: clickUpTaskToPmoRecord(t, maps), sourceModMs: Number(t.date_updated) };
+          });
+          return { changes: all, nextCursor };
         },
         mintMirror: async (canonical, sourceModMs) => {
           // Adopt: the project is the change's List's project (tagged during listChanges). Overrides the

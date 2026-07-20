@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import {
   clickUpListChangesSinceWatermark,
   clickUpListRawChangesSinceWatermark,
+  clickUpListRawChangesAcrossLists,
   clickUpGetByExternalId,
   type ClickUpReadDeps,
 } from './reads.ts';
@@ -153,6 +154,57 @@ describe('clickUpListRawChangesSinceWatermark — raw tasks + per-row source-mod
     const page = await clickUpListRawChangesSinceWatermark(null, baseDeps(fetchImpl as unknown as typeof fetch));
     expect(page.changes).toHaveLength(1);
     expect(page.nextCursor).toBe('500');
+  });
+});
+
+describe('clickUpListRawChangesAcrossLists — a 404 on one bound List no longer poisons the whole org sweep', () => {
+  it('a deleted/moved List (404) is skipped + reported; the other bound Lists still enumerate + the cursor advances', async () => {
+    const fetchImpl = vi.fn(async (url: string) => {
+      if (url.includes('/list/list-gone/')) {
+        return new Response(JSON.stringify({ err: 'List not found' }), { status: 404 });
+      }
+      if (url.includes('/list/list-ok/')) {
+        return new Response(JSON.stringify({ tasks: [task('cu-1', '5000')], last_page: true }), { status: 200 });
+      }
+      throw new Error(`unexpected url ${url}`);
+    });
+    const result = await clickUpListRawChangesAcrossLists(
+      null,
+      [
+        { listId: 'list-gone', statusMap, memberMap },
+        { listId: 'list-ok', statusMap, memberMap },
+      ],
+      { fetchImpl: fetchImpl as unknown as typeof fetch, token: 't' },
+    );
+    expect(result.notFoundListIds).toEqual(['list-gone']);
+    expect(result.changes.map((c) => c.task.id)).toEqual(['cu-1']);
+    expect(result.changes.map((c) => c.listId)).toEqual(['list-ok']);
+    expect(result.nextCursor).toBe('5000');
+  });
+
+  it('a non-404 failure on one List still propagates (only 404 — a deleted/moved List — is treated as skippable)', async () => {
+    const fetchImpl = vi.fn(async () => new Response(JSON.stringify({ err: 'boom' }), { status: 500 }));
+    await expect(
+      clickUpListRawChangesAcrossLists(null, [{ listId: 'list-a', statusMap, memberMap }], {
+        fetchImpl: fetchImpl as unknown as typeof fetch,
+        token: 't',
+      }),
+    ).rejects.toThrow();
+  });
+
+  it('every bound List 404ing -> empty changes, all reported not-found, null cursor (nothing to advance to)', async () => {
+    const fetchImpl = vi.fn(async () => new Response(JSON.stringify({ err: 'not found' }), { status: 404 }));
+    const result = await clickUpListRawChangesAcrossLists(
+      null,
+      [
+        { listId: 'list-a', statusMap, memberMap },
+        { listId: 'list-b', statusMap, memberMap },
+      ],
+      { fetchImpl: fetchImpl as unknown as typeof fetch, token: 't' },
+    );
+    expect(result.notFoundListIds).toEqual(['list-a', 'list-b']);
+    expect(result.changes).toEqual([]);
+    expect(result.nextCursor).toBeNull();
   });
 });
 
