@@ -52,7 +52,11 @@ else:
 waited = time.time() - t0
 sys.stderr.write("[db-lock] ACQUIRED (waited %.0fs) - running: %s\n" % (waited, joined))
 f.write("pid=%d started=%s\n" % (os.getpid(), time.strftime("%H:%M:%S"))); f.flush()
-rc = subprocess.call(cmd)  # inherits stdio (real stdin), lock held for its whole lifetime
+# Cooperative (Luna round-3): advertise the lock is held so a wrapped script that self-wraps in
+# this same lock (e.g. `with-db-lock.sh scripts/m365-race-probe.sh`) does NOT re-acquire it
+# recursively and self-deadlock. The child sees PMO_DB_LOCK_HELD=1 and skips its own self-wrap.
+os.environ["PMO_DB_LOCK_HELD"] = "1"
+rc = subprocess.call(cmd)  # inherits stdio (real stdin) + the env above; lock held for its whole lifetime
 sys.stderr.write("[db-lock] released (rc=%d)\n" % rc)
 sys.exit(rc)
 ' "$LOCK" "$TIMEOUT" "$@"

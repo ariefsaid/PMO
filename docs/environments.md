@@ -691,6 +691,36 @@ The reset/confirm/invite endpoints this issue exposes are the primary abuse surf
 The Operator (glossary) completes 7.1–7.6 as the final step of new-client provisioning (ADR-0047: this *is*
 the "add org" operation's auth step). Recorded against the client's registry row in `## Registry` above.
 
+## Microsoft (Entra ID) OAuth provider — optional, per client
+
+> Companion to the auth runbook above (kept outside the spec-numbered §7.1–7.7 checklist — those numbers
+> are pinned by `docs/specs/auth-production-floor.spec.md`). Enables the LoginPage "Continue with
+> Microsoft" button (Supabase provider `azure`). One **multi-tenant** Entra app registration serves all
+> clients (registered in the vendor tenant; NEVER per-client registrations — the Supabase Azure provider
+> takes exactly one client id). Skip this section entirely for clients not using Microsoft sign-in.
+
+- **Entra app registration (vendor tenant, once):** supported account types = *multiple organizations*
+  (multi-tenant). Redirect URIs (platform **Web**): the cloud callback
+  `https://<project-ref>.supabase.co/auth/v1/callback` + local `http://localhost:54321/auth/v1/callback`
+  (Entra only accepts plain-http for `localhost`; the local stack pins that exact form via
+  `[auth.external.azure] redirect_uri` in `supabase/config.toml`). Client secret expiry (max ~2y) goes in
+  the ops calendar — an expired secret is an app-wide login outage for this method.
+- **Cloud project — dashboard Authentication → Sign In / Providers → Azure:** enable; paste the
+  Application (client) ID + a current client secret (LITERAL values, same stance as SMTP §7.1b); Azure
+  tenant URL = `https://login.microsoftonline.com/common` (multi-tenant). Secret lives in 1Password
+  (vault `AS` pattern); never committed.
+- **Local dev:** `supabase/config.toml` `[auth.external.azure]` is committed **disabled**; to test
+  locally set `SUPABASE_AUTH_EXTERNAL_AZURE_CLIENT_ID` / `SUPABASE_AUTH_EXTERNAL_AZURE_SECRET` in `.env`,
+  flip `enabled = true` (do not commit the flip), `supabase stop && supabase start`.
+- **Authorization is unchanged:** OAuth is an authentication method only — org membership still comes
+  from the invited `profiles` row + RLS; Supabase links the Microsoft identity to the existing user by
+  verified email. `enable_signup = false` (§7.3) keeps uninvited Microsoft users out; a signed-in
+  Microsoft user with no `profiles` row hits the standard profile-error gate, not data.
+- **Unverified-publisher caveat (pre publisher-verification):** until the vendor tenant completes
+  Microsoft publisher verification, client-side *user* consent may show "needs admin approval" under
+  default Entra policies — the client's M365 admin grants org-wide **admin consent** once (standard
+  flow; disclose the "unverified" label upfront).
+
 ## Self-hosted (Docker/VPS) later
 
 Just another target: `supabase db push --db-url postgres://…@your-vps` (store that URL in 1Password too, add a
