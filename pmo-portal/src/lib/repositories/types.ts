@@ -459,6 +459,7 @@ export interface Repositories {
   credits: CreditsRepository;
   externalDomainOwnership: ExternalDomainOwnershipRepository;
   erpSnapshots: ErpSnapshotsRepository;
+  integrations: IntegrationsRepository;
 }
 
 /**
@@ -499,4 +500,154 @@ export interface ErpSnapshotsRepository {
   actuals(): Promise<ErpActualsSnapshotRow[]>;
   apAging(): Promise<ErpAgingSnapshotRow[]>;
   arAging(): Promise<ErpAgingSnapshotRow[]>;
+}
+
+// ============================================================================
+// INTEGRATIONS REPOSITORY (Phase 2, task 2.6)
+// ============================================================================
+
+/** Integration binding status from external_org_bindings. */
+export type IntegrationStatus = 'active' | 'disconnected';
+
+/** The tier of external system. */
+export type ExternalTier = 'clickup' | 'erpnext';
+
+/** Integration binding row (mirrors external_org_bindings). */
+export interface IntegrationBinding {
+  org_id: string;
+  external_tier: ExternalTier;
+  site_url: string;
+  secret_ref: string;
+  status: IntegrationStatus;
+  connected_by: string | null;
+  connected_at: string | null;
+  disconnected_at: string | null;
+  config: Record<string, unknown>;
+}
+
+/** Credential payload for connect. */
+export interface ConnectCredential {
+  tier: ExternalTier;
+  credential: {
+    token?: string;           // ClickUp personal access token
+    apiKey?: string;          // ERPNext API key
+    apiSecret?: string;       // ERPNext API secret
+    siteUrl?: string;         // ERPNext site URL
+  };
+}
+
+/** Response from connect edge function. */
+export interface ConnectResponse {
+  ok: true;
+  binding: {
+    secret_ref: string;
+    status: IntegrationStatus;
+  };
+}
+
+/** Response from disconnect edge function. */
+export interface DisconnectResponse {
+  ok: true;
+}
+
+/** Integration health data (Phase 4). */
+export interface IntegrationHealth {
+  tier: ExternalTier;
+  status: IntegrationStatus;
+  connected_by: string | null;
+  connected_at: string | null;
+  last_sync: string | null;
+  error_count: number;
+}
+
+// ============================================================================
+// PROJECT LINK/UNLINK (Phase 3, tasks 3.2-3.4, 3.6)
+// ============================================================================
+
+/** Direction for ClickUp project link. */
+export type LinkDirection = 'push-seed' | 'pull-adopt';
+
+/** ClickUp list item (from external-lists edge fn). */
+export interface ClickUpListItem {
+  id: string;
+  name: string;
+  space_name: string;
+  folder_name: string | null;
+}
+
+/** Request payload for linking a project to ClickUp. */
+export interface LinkClickUpProjectInput {
+  tier: 'clickup';
+  projectId: string;
+  listId: string;
+  direction: LinkDirection;
+}
+
+/** Request payload for linking ERPNext org to a Company. */
+export interface LinkErpNextOrgInput {
+  tier: 'erpnext';
+  companyId: string;
+}
+
+/** Union of link inputs. */
+export type LinkInput = LinkClickUpProjectInput | LinkErpNextOrgInput;
+
+/** Response from link edge function. */
+export interface LinkResponse {
+  ok: true;
+  binding?: {
+    id: string;
+    direction?: LinkDirection;
+    listId?: string;
+  };
+  companyId?: string;
+}
+
+/** Request payload for unlinking. */
+export interface UnlinkInput {
+  tier: ExternalTier;
+  projectId?: string; // required for ClickUp, not used for ERPNext
+}
+
+/** Response from unlink edge function. */
+export interface UnlinkResponse {
+  ok: true;
+}
+
+/** Project binding row (mirrors external_project_bindings). */
+export interface ProjectBinding {
+  id: string;
+  org_id: string;
+  project_id: string;
+  external_tier: ExternalTier;
+  external_container_id: string;
+  config: Record<string, unknown>;
+  linked_by: string | null;
+  linked_at: string | null;
+  disconnected_at: string | null;
+}
+
+export interface IntegrationsRepository {
+  /** Get the binding status for a specific tier. */
+  getBinding(orgId: string, tier: ExternalTier): Promise<IntegrationBinding | null>;
+  /** List all bindings for the org. */
+  listBindings(orgId: string): Promise<IntegrationBinding[]>;
+  /** Connect an org to an external tier (calls external-connect edge fn). */
+  connectIntegration(orgId: string, credential: ConnectCredential): Promise<ConnectResponse>;
+  /** Disconnect an org from an external tier (calls external-disconnect edge fn). */
+  disconnectIntegration(orgId: string, tier: ExternalTier): Promise<DisconnectResponse>;
+  /** Get health data for a tier (Phase 4). */
+  getIntegrationHealth(orgId: string, tier: ExternalTier): Promise<IntegrationHealth>;
+  /** List ClickUp lists for the org (calls external-lists edge fn). */
+  listProjectLists(orgId: string): Promise<ClickUpListItem[]>;
+  /** Link a project/org to external system (calls external-link edge fn). */
+  linkProject(orgId: string, input: LinkInput): Promise<LinkResponse>;
+  /** Unlink a project/org from external system (calls external-unlink edge fn). */
+  unlinkProject(orgId: string, input: UnlinkInput): Promise<UnlinkResponse>;
+  /** List project bindings for the org (reads external_project_bindings). */
+  listProjectBindings(orgId: string): Promise<ProjectBinding[]>;
+  /** List ERPNext companies for the org (calls external-companies edge fn). */
+  listCompanies(orgId: string, tier: ExternalTier): Promise<Array<{ name: string }>>;
+  /** Set ERPNext company on org binding (calls external-set-company edge fn). */
+  setCompany(orgId: string, tier: ExternalTier, companyId: string): Promise<{ ok: true; companyId: string }>;
 }

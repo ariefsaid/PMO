@@ -43,6 +43,7 @@ import { refreshAccountingSnapshots, type OrgAccountingScope } from '../../../pm
 import { dispatchMoneyWrite, type DispatchMoneyWriteDeps, type ExternalRefMapping, type OutboxRow } from '../../../pmo-portal/src/lib/adapterSeam/dispatch.ts';
 import type { AdapterCommand, PmoRecord } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
 import { resolveErpCredentials } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/credentials.ts';
+import { resolvePerOrgSecret } from '../_shared/perOrgSecret.ts';
 import type { ErpClientDeps } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/client.ts';
 import { resolveErpDispatchAdapter } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/dispatchFactory.ts';
 import { canonicalCommandDigest, createDbMoneyOutboxDeps } from '../adapter-dispatch/moneyOutboxDeps.ts';
@@ -220,8 +221,58 @@ export async function listEmployingOrgsLive(serviceClient: SupabaseClient): Prom
   }));
 }
 
-function erpClientForOrg(org: OrgBinding): ErpClientDeps {
-  const { apiKey, apiSecret } = resolveErpCredentials(org.secretRef, (key) => Deno.env.get(key));
+async function erpClientForOrg(serviceClient: SupabaseClient, org: OrgBinding): Promise<ErpClientDeps> {
+  const connectEnabled = Deno.env.get('EXTERNAL_CONNECT_ENABLED') === 'true';
+  let apiKey: string;
+  let apiSecret: string;
+
+  if (connectEnabled) {
+    // Use shared per-org Vault secret resolution (flag gate + binding lookup + tri-state)
+    const result = await resolvePerOrgSecret({
+      connectEnabled: true,
+      orgId: org.orgId,
+      tier: 'erpnext',
+      lookupBinding: async (orgId, tier) => {
+        const { data, error } = await serviceClient
+          .from('external_org_bindings')
+          .select('secret_ref')
+          .eq('org_id', orgId)
+          .eq('external_tier', tier)
+          .maybeSingle();
+        if (error) return null;
+        return data as { secret_ref?: string | null } | null;
+      },
+      readVaultSecret: async (ref) => {
+        const { data, error } = await serviceClient.rpc('read_vault_secret', { p_secret_ref: ref });
+        if (error) {
+          console.error('read_vault_secret failed', error);
+          return null;
+        }
+        return (data as string | null) ?? null;
+      },
+    });
+
+    if (result.kind === 'resolved') {
+      // Vault stores apiKey:apiSecret format
+      const idx = result.secret.indexOf(':');
+      if (idx > 0 && idx < result.secret.length - 1) {
+        apiKey = result.secret.slice(0, idx);
+        apiSecret = result.secret.slice(idx + 1);
+      } else {
+        throw new AppError('ERPNext credential format invalid (expected apiKey:apiSecret)', 'config-rejected');
+      }
+    } else {
+      // kind === 'no-binding' OR 'binding-vault-miss' → fall back to env resolver
+      const creds = resolveErpCredentials(org.secretRef, (key) => Deno.env.get(key));
+      apiKey = creds.apiKey;
+      apiSecret = creds.apiSecret;
+    }
+  } else {
+    const creds = resolveErpCredentials(org.secretRef, (key) => Deno.env.get(key));
+    apiKey = creds.apiKey;
+    apiSecret = creds.apiSecret;
+  }
+
   return { fetchImpl: fetch, apiKey, apiSecret, baseUrl: org.siteUrl };
 }
 
@@ -247,7 +298,7 @@ function listCandidatesLive(serviceClient: SupabaseClient): ListOutboxCandidates
 
 /** The per-org sweep: runSweep per doctype with the lineage-aware apply injected, per-doctype watermark. */
 async function sweepOrgDoctypesLive(serviceClient: SupabaseClient, org: OrgBinding): Promise<{ applied: number; error?: string }> {
-  const client = erpClientForOrg(org);
+  const client = await erpClientForOrg(serviceClient, org);
   let applied = 0;
   for (const { kind, doctype } of SWEEP_DOCTYPES) {
     const domain = KIND_DOMAIN[kind];
@@ -299,7 +350,7 @@ async function sweepOrgDoctypesLive(serviceClient: SupabaseClient, org: OrgBindi
 /** The ledger-mirror feed for one org (8.6b). */
 async function feedOrgLedgersLive(serviceClient: SupabaseClient, org: OrgBinding): Promise<{ gl: number; ple: number; error?: string }> {
   try {
-    const client = erpClientForOrg(org);
+    const client = await erpClientForOrg(serviceClient, org);
     const r = await feedLedgerMirrors(serviceClient as unknown as Parameters<typeof feedLedgerMirrors>[0], {
       client, orgId: org.orgId, company: org.company,
     });
@@ -324,7 +375,7 @@ export function reportVersionFromOrg(org: Pick<OrgBinding, 'versionMajor'>): str
  *  Exported for unit testing (task FIX-6, Quality MINOR 4). */
 export async function refreshOrgAccountingLive(serviceClient: SupabaseClient, org: OrgBinding): Promise<{ error?: string }> {
   try {
-    const client = erpClientForOrg(org);
+    const client = await erpClientForOrg(serviceClient, org);
     const reportVersion = reportVersionFromOrg(org);
     const scope: OrgAccountingScope = {
       orgId: org.orgId,

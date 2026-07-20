@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+# Pre-commit gate — blocks RED commits, from any actor (agent, human, script).
+#
+# Why (2026-07-17): dispatched build agents claimed "DONE, all green" and committed with FAILING tests
+# five separate times. Briefs did not stop it — instructions advise, hooks enforce. This runs whether
+# the commit comes from a pi/nemotron dispatch, Claude, or a person.
+#
+# Design rule: FAST + SCOPED. Only gates what is actually staged. The full `npm run verify` (3-7 min)
+# stays a pre-push/CI concern — a slow hook gets bypassed, which defeats the point.
+#
+# Install: scripts/setup-hooks.sh   (sets core.hooksPath=.githooks)
+# Escape hatch: `git commit --no-verify` skips this. That is deliberate for humans mid-rebase — but an
+# AGENT doing it is a red flag; scripts/agent-git-shim/git blocks it for dispatches.
+set -uo pipefail
+
+staged() { git diff --cached --name-only --diff-filter=ACM; }
+fail=0
+note() { printf '\033[31m✗ pre-commit: %s\033[0m\n' "$1"; fail=1; }
+ok()   { printf '\033[32m✓ %s\033[0m\n' "$1"; }
+
+STAGED="$(staged)"
+[ -z "$STAGED" ] && exit 0
+
+# ── 1. Edge-fn tests must bind to the shipped handler (instant: ~0.04s) ────────────────────────────
+if echo "$STAGED" | grep -q '^supabase/functions/'; then
+  if ! node scripts/check-edge-fn-test-binding.mjs; then
+    note "edge-fn tests do not bind to the shipped handlers (see output above)"
+  fi
+fi
+
+# ── 2. Deno tests for the CHANGED edge functions only (seconds) ────────────────────────────────────
+CHANGED_FNS="$(echo "$STAGED" | grep '^supabase/functions/[^_][^/]*/' | cut -d/ -f3 | sort -u)"
+for fn in $CHANGED_FNS; do
+  dir="supabase/functions/$fn"
+  ls "$dir"/*.test.ts >/dev/null 2>&1 || continue
+  if ! (cd "$dir" && deno test --allow-all --quiet >/dev/null 2>&1); then
+    note "deno tests FAIL in $dir — run: (cd $dir && deno test --allow-all)"
+  else
+    ok "deno tests pass: $fn"
+  fi
+done
+
+if [ "$fail" -ne 0 ]; then
+  cat >&2 <<'MSG'
+
+Commit BLOCKED: the staged change is red.
+
+A task is not done until the tests pass. Do NOT weaken, skip, or delete a test to get green —
+fix the code. If a test is genuinely wrong, say so explicitly rather than bending it.
+MSG
+  exit 1
+fi
+exit 0

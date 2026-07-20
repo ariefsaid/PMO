@@ -11,6 +11,22 @@
  * imports `repositories` and never changes.
  */
 import { toAppError } from '@/src/lib/appError';
+import { supabase } from '@/src/lib/supabase/client';
+import {
+  type IntegrationsRepository,
+  type IntegrationBinding,
+  type ConnectCredential,
+  type ConnectResponse,
+  type DisconnectResponse,
+  type IntegrationHealth,
+  type ExternalTier,
+  type ClickUpListItem,
+  type LinkInput,
+  type LinkResponse,
+  type UnlinkInput,
+  type UnlinkResponse,
+  type ProjectBinding,
+} from './types';
 import {
   listProjects,
   createProject,
@@ -522,6 +538,145 @@ const erpSnapshots: ErpSnapshotsRepository = {
   arAging: () => wrap(() => listArAgingSnapshot()),
 };
 
+const integrationsImpl: IntegrationsRepository = {
+  getBinding: async (orgId: string, tier: ExternalTier): Promise<IntegrationBinding | null> => {
+    return wrap(async () => {
+      const { data, error } = await supabase
+        .from('external_org_bindings')
+        .select('org_id, external_tier, site_url, secret_ref, status, connected_by, connected_at, disconnected_at, config')
+        .eq('org_id', orgId)
+        .eq('external_tier', tier)
+        .maybeSingle();
+      if (error) throw error;
+      return data as unknown as IntegrationBinding | null;
+    });
+  },
+  listBindings: async (orgId: string): Promise<IntegrationBinding[]> => {
+    return wrap(async () => {
+      const { data, error } = await supabase
+        .from('external_org_bindings')
+        .select('org_id, external_tier, site_url, secret_ref, status, connected_by, connected_at, disconnected_at, config')
+        .eq('org_id', orgId);
+      if (error) throw error;
+      return (data ?? []) as unknown as IntegrationBinding[];
+    });
+  },
+  connectIntegration: async (orgId: string, credential: ConnectCredential): Promise<ConnectResponse> => {
+    return wrap(async () => {
+      const { data, error } = await supabase.functions.invoke('external-connect', {
+        body: { tier: credential.tier, credential: credential.credential },
+      });
+      if (error) throw error;
+      return data as ConnectResponse;
+    });
+  },
+  disconnectIntegration: async (orgId: string, tier: ExternalTier): Promise<DisconnectResponse> => {
+    return wrap(async () => {
+      const { data, error } = await supabase.functions.invoke('external-disconnect', {
+        body: { tier },
+      });
+      if (error) throw error;
+      return data as DisconnectResponse;
+    });
+  },
+  getIntegrationHealth: async (orgId: string, tier: ExternalTier): Promise<IntegrationHealth> => {
+    return wrap(async () => {
+      const binding = await integrationsImpl.getBinding(orgId, tier);
+
+      const { data: watermark, error: watermarkError } = await supabase
+        .from('external_sync_watermarks')
+        .select('synced_at')
+        .eq('org_id', orgId)
+        .eq('external_tier', tier)
+        .order('synced_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (watermarkError) throw watermarkError;
+
+      const { count: errorCount, error: outboxError } = await supabase
+        .from('external_command_outbox')
+        .select('*', { count: 'exact', head: true })
+        .eq('org_id', orgId)
+        .eq('external_tier', tier)
+        .in('state', ['pending', 'failed', 'quarantined', 'held']);
+
+      if (outboxError) throw outboxError;
+
+      return {
+        tier,
+        status: binding?.status ?? 'disconnected',
+        connected_by: binding?.connected_by ?? null,
+        connected_at: binding?.connected_at ?? null,
+        last_sync: (watermark as { synced_at?: string } | null)?.synced_at ?? null,
+        error_count: errorCount ?? 0,
+      };
+    });
+  },
+  listProjectLists: async (_orgId: string): Promise<ClickUpListItem[]> => {
+    return wrap(async () => {
+      const { data, error } = await supabase.functions.invoke('external-lists', {
+        body: { tier: 'clickup' },
+      });
+      if (error) throw error;
+      return (data as { lists: ClickUpListItem[] }).lists;
+    });
+  },
+  linkProject: async (_orgId: string, input: LinkInput): Promise<LinkResponse> => {
+    return wrap(async () => {
+      const { data, error } = await supabase.functions.invoke('external-link', {
+        body: { ...input },
+      });
+      if (error) throw error;
+      return data as LinkResponse;
+    });
+  },
+  unlinkProject: async (_orgId: string, input: UnlinkInput): Promise<UnlinkResponse> => {
+    return wrap(async () => {
+      const { data, error } = await supabase.functions.invoke('external-unlink', {
+        body: { ...input },
+      });
+      if (error) throw error;
+      return data as UnlinkResponse;
+    });
+  },
+  listProjectBindings: async (orgId: string): Promise<ProjectBinding[]> => {
+    return wrap(async () => {
+      const { data, error } = await supabase
+        .from('external_project_bindings')
+        .select('id, org_id, project_id, external_tier, external_container_id, config, linked_by, linked_at, disconnected_at')
+        .eq('org_id', orgId)
+        .is('disconnected_at', null);
+      if (error) throw error;
+      return (data ?? []) as unknown as ProjectBinding[];
+    });
+  },
+  listCompanies: async (orgId: string, tier: ExternalTier): Promise<{ name: string }[]> => {
+    return wrap(async () => {
+      if (tier !== 'erpnext') {
+        return [];
+      }
+      const { data, error } = await supabase.functions.invoke('external-companies', {
+        body: { tier: 'erpnext' },
+      });
+      if (error) throw error;
+      return (data as { companies: { name: string }[] }).companies;
+    });
+  },
+  setCompany: async (orgId: string, tier: ExternalTier, companyId: string): Promise<{ ok: true; companyId: string }> => {
+    return wrap(async () => {
+      if (tier !== 'erpnext') {
+        throw new Error('Only erpnext tier supports company selection');
+      }
+      const { data, error } = await supabase.functions.invoke('external-set-company', {
+        body: { tier: 'erpnext', companyId },
+      });
+      if (error) throw error;
+      return data as { ok: true; companyId: string };
+    });
+  },
+};
+
 /** The Supabase-backed repositories the FE/CRUD layer consumes (ADR-0017). */
 export const repositories: Repositories = {
   project,
@@ -544,6 +699,7 @@ export const repositories: Repositories = {
   credits,
   externalDomainOwnership,
   erpSnapshots,
+  integrations: integrationsImpl,
 };
 
 export type {
@@ -568,4 +724,5 @@ export type {
   CreditsRepository,
   ExternalDomainOwnershipRepository,
   ErpSnapshotsRepository,
+  IntegrationsRepository,
 } from './types';

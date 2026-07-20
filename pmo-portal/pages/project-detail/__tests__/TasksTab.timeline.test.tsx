@@ -9,6 +9,7 @@ import React from 'react';
 import { MemoryRouter } from 'react-router-dom';
 import type { Role } from '@/src/auth/AuthContext';
 import { ToastProvider } from '@/src/components/ui';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 // ── Mocks (must mirror TasksTab.test.tsx to avoid double-registration) ────────
 const { listState, milestoneState, mutations } = vi.hoisted(() => ({
@@ -94,14 +95,18 @@ const seed = [
   },
 ];
 
-const renderTab = () =>
-  render(
-    <MemoryRouter initialEntries={['/projects/p1/tasks']}>
-      <ToastProvider>
-        <TasksTab projectId="p1" />
-      </ToastProvider>
-    </MemoryRouter>,
+const renderTab = () => {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(
+    <QueryClientProvider client={qc}>
+      <MemoryRouter initialEntries={['/projects/p1/tasks']}>
+        <ToastProvider>
+          <TasksTab projectId="p1" />
+        </ToastProvider>
+      </MemoryRouter>
+    </QueryClientProvider>,
   );
+};
 
 beforeEach(() => {
   listState.data = seed;

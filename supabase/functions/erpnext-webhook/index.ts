@@ -31,6 +31,7 @@ import { DOCTYPE_BODIES } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/
 import type { ErpDocKind } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/doctypeRegistry.ts';
 import type { ErpFeedEvent } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/webhookEvent.ts';
 import type { ApplyOutcome } from '../../../pmo-portal/src/lib/adapterSeam/applyEngine.ts';
+import { resolvePerOrgSecret } from '../_shared/perOrgSecret.ts';
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
 
 // 256 KiB body cap: reject an oversized payload so a huge body can't exhaust the isolate (mirrors
@@ -173,26 +174,60 @@ export async function handleErpWebhook(req: Request, deps: ErpWebhookHandlerDeps
 
 // ── The real wiring the Deno.serve wrapper uses (DB + env + createErpFeedDeps). ──────────────────
 
-/** Loads the employing orgs + resolves each org's webhook secret from its `webhook_secret_ref` env. */
+/** Loads the employing orgs + resolves each org's webhook secret from its `webhook_secret_ref` env.
+ * Phase 1b (task 1.8): Vault-first resolution behind EXTERNAL_CONNECT_ENABLED flag.
+ * FIX-2: tri-state — no-binding → skip; resolved → use vault secret; binding-vault-miss → skip (fail closed for webhook). */
 async function resolveEmployingOrgsLive(serviceClient: SupabaseClient): Promise<EmployingOrg[]> {
+  const connectEnabled = Deno.env.get('EXTERNAL_CONNECT_ENABLED') === 'true';
   const { data, error } = await serviceClient.from('external_org_bindings')
     .select('org_id, webhook_secret_ref, activated_at')
     .eq('external_tier', ERPNEXT_TIER);
-  // task FIX-5 (Quality IMPORTANT 2): a real DB error must not be swallowed into "no employing org"
-  // (that reads as a permanent 401 to Frappe) — log it and THROW so the caller (handleErpWebhook)
-  // surfaces a retryable 500 instead.
   if (error) {
     console.error(`[erpnext-webhook] external_org_bindings load failed: code=${error.code ?? 'none'} message=${error.message}`);
     throw new AppError(error.message, error.code);
   }
   const rows = (data as Array<{ org_id: string; webhook_secret_ref: string | null; activated_at: string | null }> | null) ?? [];
-  // Only ACTIVATED bindings are employing (a binding is activated once the version handshake passes,
-  // 2.6/8.8). A binding without a webhook_secret_ref is employing for COMMANDS but not webhooks — it
-  // contributes no HMAC key (webhook events for it are rejected until a secret is configured).
-  return rows
-    .filter((r) => r.activated_at && r.webhook_secret_ref)
-    .map((r) => ({ orgId: r.org_id, webhookSecret: Deno.env.get(r.webhook_secret_ref!) ?? '' }))
-    .filter((r) => r.webhookSecret !== '');
+  const results: EmployingOrg[] = [];
+  for (const r of rows) {
+    if (!r.activated_at || !r.webhook_secret_ref) continue;
+    let webhookSecret = '';
+    if (connectEnabled) {
+      // Use shared per-org Vault secret resolution (flag gate + binding lookup + tri-state)
+      const result = await resolvePerOrgSecret({
+        connectEnabled: true,
+        orgId: r.org_id,
+        tier: 'erpnext',
+        column: 'webhook_secret_ref',
+        lookupBinding: async (orgId, tier) => {
+          const { data, error } = await serviceClient
+            .from('external_org_bindings')
+            .select('webhook_secret_ref')
+            .eq('org_id', orgId)
+            .eq('external_tier', tier)
+            .maybeSingle();
+          if (error) return null;
+          return data as { webhook_secret_ref?: string | null } | null;
+        },
+        readVaultSecret: async (ref) => {
+          const { data, error } = await serviceClient.rpc('read_vault_secret', { p_secret_ref: ref });
+          if (error) {
+            console.error('read_vault_secret failed', error);
+            return null;
+          }
+          return (data as string | null) ?? null;
+        },
+      });
+
+      if (result.kind === 'resolved') {
+        webhookSecret = result.secret;
+      }
+      // kind === 'no-binding' OR 'binding-vault-miss' → webhookSecret stays empty, org is skipped
+    } else {
+      webhookSecret = Deno.env.get(r.webhook_secret_ref!) ?? '';
+    }
+    if (webhookSecret) results.push({ orgId: r.org_id, webhookSecret });
+  }
+  return results;
 }
 
 /** The real applyEvent: map the ERP doc → canonical via the kind's fromDoc, stamp the routing fields,
