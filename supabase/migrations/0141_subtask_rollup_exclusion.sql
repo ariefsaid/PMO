@@ -1,10 +1,10 @@
--- 0125_subtask_rollup_exclusion.sql — OD-INT-9 subtask rollup rule (binding).
+-- 0141_subtask_rollup_exclusion.sql — OD-INT-9 subtask rollup rule (binding).
 --
 -- Only tasks with parent_task_id IS NULL participate in milestone counts (task_count,
 -- calculated_pct), project delivery_pct, and (by extension — they consume these same RPCs)
 -- the S-curve and Gantt derivations. Subtasks render nested under their parent and never
 -- independently move a percentage. Without this rule a parent and its children double-count
--- and delivery reporting silently inflates (proven RED by 0155_subtask_rollup_exclusion.test.sql).
+-- and delivery reporting silently inflates (proven RED by 0141_subtask_rollup_exclusion.test.sql).
 --
 -- Mechanism: both read-aggregation RPCs are versioned by RE-CREATION in a later migration
 -- (get_projects_delivery has been re-created in 0026 and 0033). This migration follows that

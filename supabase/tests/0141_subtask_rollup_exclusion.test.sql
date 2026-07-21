@@ -1,4 +1,4 @@
--- 0155_subtask_rollup_exclusion.test.sql
+-- 0141_subtask_rollup_exclusion.test.sql
 -- OD-INT-9 subtask rollup rule (binding): only tasks with parent_task_id IS NULL participate in
 -- milestone counts (task_count / calculated_pct) and project delivery_pct. Subtasks never
 -- independently move a percentage. Without this rule a parent and its children double-count and
