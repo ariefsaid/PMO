@@ -389,6 +389,9 @@ export interface TimesheetRepository {
   approve(id: string, notes?: string): Promise<void>;
   reject(id: string, notes?: string): Promise<void>;
   listAwaitingApproval(selfId: string): Promise<TimesheetAwaitingApproval[]>;
+  /** P3b (FR-TSP-005/041): push an already-APPROVED sheet to the org's external system. A no-op when
+   *  the org does not employ one for `timesheets` — never a rejection (the approval already committed). */
+  pushApproved(timesheetId: string): Promise<void>;
 }
 
 export interface BudgetRepository {

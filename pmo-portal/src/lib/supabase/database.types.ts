@@ -3821,6 +3821,15 @@ export type Database = {
         Returns: undefined
       }
       agent_dispatch_tick: { Args: never; Returns: undefined }
+      approved_timesheet_for_push: {
+        Args: { p_actor?: string; p_timesheet_id: string }
+        Returns: {
+          approved_at: string
+          entries: Json
+          timesheet_id: string
+          user_id: string
+        }[]
+      }
       audit_agent_denial: {
         Args: { p_detail?: Json; p_reason: string }
         Returns: undefined

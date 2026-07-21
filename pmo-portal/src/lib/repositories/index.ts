@@ -134,6 +134,7 @@ import {
   rejectTimesheet,
   listTimesheetsAwaitingApproval,
 } from '@/src/lib/db/timesheetTransition';
+import { approvedTimesheetForPush } from '@/src/lib/db/timesheetPush';
 import {
   deriveProjectBudget,
   listBudgetVersions,
@@ -536,6 +537,21 @@ const revenue: RevenueRepository = {
       : Promise.reject(new AppError('revenue is not enabled for this org', 'revenue-not-enabled')),
 };
 
+/**
+ * P3b (FR-TSP-041, ADR-0059 §4): the timesheet push key is DETERMINISTIC, not `freshIdempotencyKey()`.
+ *
+ * The push has TWO independent originators — this path (a user approving) and the reconciling sweep
+ * backstop — with NO shared client state. A random key per attempt would make the outbox's
+ * `unique (org_id, domain, pmo_record_id, idempotency_key)` useless for exactly the collision it
+ * exists to prevent: sweep and user racing to two ERP Timesheets, i.e. a DUPLICATED WEEK of hours on
+ * project cost. With a derived key the second originator fails atomically (23505) and reconciles to
+ * the winner's result. Including `approved_at` keeps a legitimate future re-approval a DIFFERENT
+ * command rather than a silently suppressed one.
+ */
+export function timesheetPushKey(timesheetId: string, approvedAt: string): string {
+  return `ts:${timesheetId}:${approvedAt}`;
+}
+
 const timesheet: TimesheetRepository = {
   list: (userId, params) => wrap(() => listTimesheets(userId, params)),
   createDraft: (weekStartDate, userId) => wrap(() => createDraftTimesheet(weekStartDate, userId)),
@@ -545,6 +561,33 @@ const timesheet: TimesheetRepository = {
   approve: (id, notes) => wrap(() => approveTimesheet(id, notes)),
   reject: (id, notes) => wrap(() => rejectTimesheet(id, notes)),
   listAwaitingApproval: (selfId) => wrap(() => listTimesheetsAwaitingApproval(selfId)),
+  // P3b (FR-TSP-005/006/041) — push an ALREADY-APPROVED sheet to the external system. Called AFTER
+  // `transition_timesheet` has committed, never inside it: the approval must never depend on external
+  // liveness (ADR-0059 §3.2), so a rejection here surfaces as durable push state, never as a failed
+  // approval.
+  pushApproved: (timesheetId) =>
+    wrap(async () => {
+      // FR-TSP-005: a cold/absent ownership map ⇒ 'pmo' ⇒ a benign NO-OP. Deliberately NOT a rejection
+      // (contrast `revenue`'s `revenue-not-enabled`): `timesheets` is a shipped PMO feature and the
+      // approval has already succeeded — rejecting here would break approval for every existing client.
+      if (routeDomainWrite('timesheets') !== 'external') return;
+      // The gate RPC is server truth for status + authorization + the entries (FR-TSP-010/011); the
+      // client asserts nothing. It throws 42501/P0001 before a command is ever built, and the edge
+      // function re-reads it under the caller's JWT before any ERP call.
+      const gate = await approvedTimesheetForPush(timesheetId);
+      await dispatchDomainCommand(
+        'timesheets',
+        'create',
+        {
+          id: timesheetId,
+          erp_doc_kind: 'timesheet',
+          user_id: gate.user_id,
+          approved_at: gate.approved_at,
+          entries: gate.entries,
+        },
+        { idempotencyKey: timesheetPushKey(timesheetId, gate.approved_at) },
+      );
+    }),
 };
 
 const budget: BudgetRepository = {

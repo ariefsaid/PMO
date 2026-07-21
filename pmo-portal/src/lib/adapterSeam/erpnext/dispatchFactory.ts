@@ -12,6 +12,7 @@ import type { ErpDocKind } from './doctypeRegistry.ts';
 import { getDoc, type ErpClientDeps, type ErpRateLimiter } from './client.ts';
 import type { ErpProbeDeps } from './recoveryProbe.ts';
 import { resolveExternalRef, type ExternalRefsLookupClient } from '../refs.ts';
+import { packTimeLogs } from './timeLogPacking.ts';
 import { readProcessGates } from './processGates.ts';
 import type { Adapter, AdapterCommand } from '../contract.ts';
 import { AppError } from '../../appError.ts';
@@ -153,6 +154,9 @@ const LINK_TABLE: Readonly<Record<LinkField, string>> = {
 const DOMAIN_LINK_FIELDS: Readonly<Record<string, ReadonlyArray<LinkField>>> = {
   revenue: ['customerId', 'projectId', 'salesInvoiceId'],
   procurement: ['procurementId', 'vendorId', 'invoiceId'],
+  // P3c: a budget push is scoped to ONE project. A cross-org `projectId` would push this org's figures
+  // onto another tenant's ERP project dimension — refused here, before the adapter exists.
+  budget: ['projectId'],
 };
 
 /** Assert one linked row exists AND belongs to `orgId`. Fails CLOSED: a missing row (no row, or an id
@@ -381,6 +385,109 @@ async function resolveRevenueRefs(
   return { refs };
 }
 
+// ============================================================================
+// P3b (FR-TSP-050..055) — the Posture-B timesheet ref pre-flight
+// ============================================================================
+
+/**
+ * Resolve `timesheets`-domain refs. EVERY resolution is FAIL-CLOSED and happens HERE — before the
+ * adapter is constructed, therefore before the outbox claim and before the ERP POST (FR-TSP-050;
+ * Luna BLOCK-6: P3a validated cross-org AFTER the external write, which can leave committed money
+ * with no PMO row — the P3b twin is committed HOURS with no PMO push record). A miss THROWS a
+ * classified `AppError`; it is NEVER silently omitted from the body (Luna SF9).
+ *
+ * ⚑ This is the ONLY backstop for two of these dimensions. ERPNext validates neither the `employee`
+ * nor the `project` link (spike §8 — a Frappe `fetch_from` quirk): a garbage or stale value is
+ * accepted through save AND submit with a clean 200 and no error, silently attributing a week of
+ * hours to a phantom employee or posting it with no project dimension.
+ *
+ * The record's `user_id`/`entries` are SERVER TRUTH, re-read by `approved_timesheet_for_push`
+ * (migration 0138) in the dispatch's approval gate and substituted onto the command — never a
+ * caller-supplied payload (ADR-0059 §3.3).
+ */
+async function resolveTimesheetRefs(
+  deps: ErpDispatchFactoryDeps,
+  binding: ExternalOrgBindingRow,
+): Promise<{ refs: Record<string, string | null> }> {
+  const refs: Record<string, string | null> = {};
+  const record = deps.command.record as {
+    erp_doc_kind?: string;
+    user_id?: string;
+    entries?: Array<{ project_id: string; entry_date: string; hours: string; project_org_id?: string }>;
+  };
+  if (record.erp_doc_kind !== 'timesheet') return { refs };
+
+  const config = binding.config ?? {};
+  const entries = record.entries ?? [];
+
+  // (1) employee — via the CONFIRMED adopt link ONLY (FR-TSP-051). NEVER auto-create an HR master;
+  //     NEVER a shared default (it would mis-attribute cost). 'proposed' is NOT authoritative: an
+  //     ERP-side email edit may PROPOSE a link but must never silently re-point whose cost a week
+  //     becomes. The org filter is in the QUERY, so a cross-org row cannot even be read (FR-TSP-054).
+  const { data: employeeRow, error: employeeError } = await deps.serviceClient
+    .from('erp_employees')
+    .select('id, employee_number, org_id')
+    .eq('org_id', deps.orgId)
+    .eq('profile_id', record.user_id ?? '')
+    .eq('link_state', 'confirmed')
+    .maybeSingle();
+  if (employeeError) throw new AppError(employeeError.message, employeeError.code);
+  const employeeId = (employeeRow as { id?: string } | null)?.id;
+  if (!employeeId) {
+    throw new AppError(
+      `no confirmed erp_employees link for user '${record.user_id ?? ''}' — an Admin must confirm it`,
+      'employee-unlinked',
+    );
+  }
+  // The ERP target comes from `external_refs`, never from a mirrored display column.
+  const employeeExternalId = await resolveExternalRef(
+    deps.serviceClient as unknown as ExternalRefsLookupClient,
+    deps.orgId,
+    'timesheets',
+    employeeId,
+  );
+  if (!employeeExternalId) {
+    throw new AppError(`employee '${employeeId}' has no external_refs mapping`, 'employee-unlinked');
+  }
+  refs.employee = employeeExternalId.startsWith('Employee:')
+    ? employeeExternalId.slice('Employee:'.length)
+    : employeeExternalId;
+
+  // (2) activity type — mandatory at submit whenever `employee` is set (spike §1b), and P3b always
+  //     sets it. Fail closed rather than let ERP reject the whole document after the claim.
+  if (typeof config.default_activity_type !== 'string' || config.default_activity_type.length === 0) {
+    throw new AppError('binding config has no default_activity_type', 'activity-type-unconfigured');
+  }
+
+  // (3) per-entry project — fail-closed. An unmapped project is a REJECT, never an omitted dimension.
+  const projectMap = (config.project_map as Record<string, string> | undefined) ?? {};
+  for (const entry of entries) {
+    // (4) same-org pre-flight BEFORE the external write (FR-TSP-054). `project_org_id` comes from the
+    //     gate RPC — server truth, never the payload.
+    if (entry.project_org_id && entry.project_org_id !== deps.orgId) {
+      throw new AppError(`project '${entry.project_id}' belongs to another org`, 'cross-org-link-rejected');
+    }
+    const erpProject = projectMap[entry.project_id];
+    if (!erpProject) throw new AppError(`no project_map entry for project '${entry.project_id}'`, 'project-unmapped');
+    refs[`project:${entry.project_id}`] = erpProject;
+  }
+
+  // (5) daily-hours pre-validation (FR-TSP-055): PMO caps a single entry at 24h but not a DAY's total
+  //     across projects, and ERP caps neither (spike §7 — it accepts the spill 200-clean and quietly
+  //     mis-dates the tail into the next ERP day). Run the real packing here so the rejection happens
+  //     before the claim, not inside `toBody` after it.
+  try {
+    packTimeLogs(
+      entries.map((e) => ({ project_id: e.project_id, entry_date: e.entry_date, hours: e.hours })),
+      typeof config.timesheet_day_start === 'string' ? config.timesheet_day_start : '09:00:00',
+    );
+  } catch (err) {
+    throw new AppError(err instanceof Error ? err.message : 'timesheet entries could not be packed', 'commit-rejected');
+  }
+
+  return { refs };
+}
+
 /** Resolve every PO/GR ref this command needs (task 5.3). Returns the `ctx.refs` additions +
  *  `resolvedItems` (only set when the command carried none — `adapter.ts`'s fallback substitutes it). */
 async function resolveProcurementOrderRefs(
@@ -421,6 +528,50 @@ async function resolveProcurementOrderRefs(
   }
 
   return { refs, resolvedItems };
+}
+
+// ============================================================================
+// P3c — the budget push (ADR-0055 §6 + ADR-0059 Posture B)
+// ============================================================================
+
+/** Is this command the budget push? (The map read + config extension below are gated on it so every
+ *  other domain stays byte-for-byte: no extra DB round trip, no mutated `ctx.config`.) */
+function isBudgetCommand(command: AdapterCommand): boolean {
+  return (command.record as { erp_doc_kind?: string }).erp_doc_kind === 'budget';
+}
+
+/**
+ * Read the org's `budget_category_account_map` (mig 0137) — the Admin-administered bijection that turns
+ * PMO's `budget_category` into the client's own ERP account. It is a TABLE, not binding config, so it is
+ * resolved SERVER-SIDE here and injected into `ctx.config`; the command payload never carries it (a
+ * client-supplied map would let the caller pick which GL accounts their budget constrains).
+ *
+ * Fails CLOSED on a read error rather than proceeding with an empty map: "we could not read the map" and
+ * "the org has no map" must both refuse the push (the second is refused downstream by
+ * `resolveBudgetAccounts`, naming the categories).
+ */
+async function readCategoryAccountMap(
+  serviceClient: DispatchServiceClient,
+  orgId: string,
+): Promise<Array<{ category: string; erp_account: string }>> {
+  const { data, error } = await serviceClient
+    .from('budget_category_account_map')
+    .select('category, erp_account')
+    .eq('org_id', orgId);
+  if (error) {
+    throw new AppError(`budget push: the category→account map could not be read: ${error.message}`, 'commit-rejected');
+  }
+  return Array.isArray(data) ? (data as Array<{ category: string; erp_account: string }>) : [];
+}
+
+/** Resolve the budget push's refs: the ERP `Project` name for the version's project, via the SAME
+ *  binding `project_map` the revenue path uses (`resolveErpProjectName` — one definition, so the two can
+ *  never disagree about what "the ERP project resolved" means). A miss stays `null` and
+ *  `bodies/budget.ts` refuses the push — never a Cost-Center fallback, never an unscoped budget. */
+function resolveBudgetRefs(deps: ErpDispatchFactoryDeps, binding: ExternalOrgBindingRow): { refs: Record<string, string | null> } {
+  if (!isBudgetCommand(deps.command)) return { refs: {} };
+  const record = deps.command.record as { projectId?: string | null };
+  return { refs: { project: resolveErpProjectName(binding.config, record.projectId) } };
 }
 
 export interface ErpDispatchFactoryDeps {
@@ -474,6 +625,15 @@ export async function resolveErpDispatchAdapter(deps: ErpDispatchFactoryDeps): P
   // companies-domain party create/update path (which needs no cross-doctype resolution of its own).
   const { refs: procurementRefs, resolvedItems } = await resolveProcurementOrderRefs(deps, binding);
   const { refs: revenueRefs } = await resolveRevenueRefs(deps, binding);
+  // P3b: the timesheet push's fail-closed pre-flight (employee link, per-entry project, activity type,
+  // same-org, daily hours). Gated on the kind, so no other command pays for the extra reads.
+  const { refs: timesheetRefs } = await resolveTimesheetRefs(deps, binding);
+  // P3c: the budget push's ERP project + the org's server-resolved category→account map. Both are gated
+  // on the kind, so no other command pays for the extra read or sees a modified `ctx.config`.
+  const { refs: budgetRefs } = resolveBudgetRefs(deps, binding);
+  const budgetConfig = isBudgetCommand(deps.command)
+    ? { ...binding.config, category_account_map: await readCategoryAccountMap(deps.serviceClient, deps.orgId) }
+    : binding.config;
 
   const adapterDeps: ErpAdapterDeps = {
     client: {
@@ -493,8 +653,8 @@ export async function resolveErpDispatchAdapter(deps: ErpDispatchFactoryDeps): P
     // Revenue commands (sales-invoice/incoming-payment) resolve customer + project + SI ref via
     // `resolveRevenueRefs` (task 2.3, FR-SAR-100/101/121).
     ctx: {
-      refs: { ...procurementRefs, ...revenueRefs, supplier: procurementRefs.supplier ?? (await resolveSupplierRef(deps.serviceClient, deps.orgId, deps.command)) },
-      config: binding.config,
+      refs: { ...procurementRefs, ...revenueRefs, ...budgetRefs, ...timesheetRefs, supplier: procurementRefs.supplier ?? (await resolveSupplierRef(deps.serviceClient, deps.orgId, deps.command)) },
+      config: budgetConfig,
       resolvedItems,
     },
     afterSubmitHook: deps.afterSubmitHook,

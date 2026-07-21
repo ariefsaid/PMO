@@ -22,8 +22,11 @@ export interface ErpFeedEvent {
   doctype: string;
   /** The PMO `erp_doc_kind` (PMO verb) — `undefined` for a doctype P2 does not mirror (skip). */
   kind: ErpDocKind | undefined;
-  /** The PMO domain (`'companies'|'procurement'|'revenue'`) — `undefined` when `kind` is undefined. */
-  domain: 'companies' | 'procurement' | 'revenue' | undefined;
+  /** The PMO domain this kind belongs to — `undefined` when `kind` is undefined.
+   *  ⚑ DERIVED from `KIND_DOMAIN` rather than re-listed: a hand-written union silently went stale each
+   *  time a new domain was registered (P3b `timesheets`, P3c `budget`), turning an additive registry
+   *  entry into a typecheck failure in an unrelated file. */
+  domain: (typeof KIND_DOMAIN)[ErpDocKind] | undefined;
   /** The ERP `name` (the external record id source). */
   erpName: string;
   /** The externalRecordId the feed resolves `external_refs` by (`Supplier:<name>` for parties). */

@@ -21,6 +21,8 @@ import { supplierToBody, supplierFromDoc } from './bodies/supplier.ts';
 import { customerToBody, customerFromDoc } from './bodies/customer.ts';
 import { piToBody, piFromDoc } from './bodies/purchaseInvoice.ts';
 import { peToBody, peFromDoc } from './bodies/paymentEntry.ts';
+import { tsToBody, tsFromDoc } from './bodies/timesheet.ts';
+import { budgetToBody, budgetFromDoc } from './bodies/budget.ts';
 
 describe('erpnext/doctypeBodies — DOCTYPE_BODIES composition (task 4.3)', () => {
   it('wires purchase-request to the R9-frozen materialRequest toBody/fromDoc (byte-identical function refs)', () => {
@@ -56,6 +58,16 @@ describe('erpnext/doctypeBodies — DOCTYPE_BODIES composition (task 4.3)', () =
   it('wires payment to the R9 §2 paymentEntry.ts toBody/fromDoc (slice 6, FR-ENA-116)', () => {
     expect(DOCTYPE_BODIES.payment?.toBody).toBe(peToBody);
     expect(DOCTYPE_BODIES.payment?.fromDoc).toBe(peFromDoc);
+  });
+
+  it('AC-TSP-032 wires timesheet to the spike-frozen timesheet.ts toBody/fromDoc (P3b)', () => {
+    expect(DOCTYPE_BODIES.timesheet?.toBody).toBe(tsToBody);
+    expect(DOCTYPE_BODIES.timesheet?.fromDoc).toBe(tsFromDoc);
+  });
+
+  it('AC-BUD-012 wires budget to the spike-frozen budget.ts toBody/fromDoc (P3c)', () => {
+    expect(DOCTYPE_BODIES.budget?.toBody).toBe(budgetToBody);
+    expect(DOCTYPE_BODIES.budget?.fromDoc).toBe(budgetFromDoc);
   });
 
   it('end to end: an adapter built with DOCTYPE_BODIES commits a purchase-request create (no "not yet wired" throw)', async () => {

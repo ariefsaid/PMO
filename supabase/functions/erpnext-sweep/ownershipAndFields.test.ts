@@ -80,3 +80,22 @@ Deno.test("BLOCK 6: the Receive PE is marked as needing a full-doc read (its `re
   );
   assert(!KINDS_NEEDING_FULL_DOC.includes('sales-invoice'), 'the SI needs no child table — a list read suffices (no needless N+1)');
 });
+
+// ── P3c — the budget kind must NOT be polled yet ───────────────────────────────────────────────────
+//
+// Registering `budget` in DOCTYPE_REGISTRY automatically enrols it in SWEEP_DOCTYPES (the poll list is
+// derived from the registry). The INBOUND half of P3c — ack-and-skip a Desk-created Budget, never adopt
+// it, never fight an operator's cancel (FR-BUD-140/142) — is NOT built yet, and the generic feed path
+// would instead try to MINT a mirror row for a native ERP Budget that belongs to no PMO version.
+// So the outbound push ships first and the poll stays closed until that branch lands.
+
+Deno.test('AC-BUD-040 an org that owns `budget` polls NO Budget doctype yet (the never-adopt branch is not built)', () => {
+  const kinds = sweepKindsForOrg(['budget']).map((k) => k.kind);
+  assert(!kinds.includes('budget'), 'the sweep must not poll ERP Budgets before the never-adopt branch exists');
+  assert(kinds.length === 0, 'a budget-only org currently polls nothing inbound');
+});
+
+Deno.test('AC-BUD-040 excluding budget does not disturb any other domain’s poll list', () => {
+  const revenue = sweepKindsForOrg(['revenue']).map((k) => k.kind).sort();
+  assert(JSON.stringify(revenue) === JSON.stringify(['incoming-payment', 'sales-invoice']), `revenue poll list changed: ${revenue}`);
+});

@@ -35,12 +35,33 @@ const MONEY_WRITE_ROLES_BY_DOMAIN: Record<string, readonly string[]> = {
   companies: MASTER_DATA_WRITE_ROLES,
   procurement: MASTER_DATA_WRITE_ROLES,
   revenue: REVENUE_WRITE_ROLES,
+  // P3c `budget` (ADR-0059 Posture B): OD-BUDGET-3 — the SAME role set `activate_budget_version`
+  // (mig 0005) requires. The push is the CONSEQUENCE of that PMO act, so its authority must be neither
+  // wider (a role that could not activate must not be able to push) nor narrower (a legitimate
+  // activation would strand as a permanently failed push).
+  budget: MASTER_DATA_WRITE_ROLES,
 };
 
 /** The roles permitted to issue a money write in `domain` (empty ⇒ nobody: fail closed). */
 export function moneyWriteRolesForDomain(domain: string): readonly string[] {
   return MONEY_WRITE_ROLES_BY_DOMAIN[domain] ?? [];
 }
+
+/**
+ * P3b (FR-TSP-011) — the domains whose ACTOR rule is enforced by a DB gate instead of by a role list.
+ *
+ * `timesheets` is the first: a legitimate pusher is the sheet's approver, who is very often an
+ * **Engineer-role LINE MANAGER** (`profiles.manager_id`; `0007` A2/A4) — reusing the money-write set
+ * would refuse the PRIMARY approval path. The real rule ("`approved_by` OR a privileged role, on an
+ * **Approved** sheet, in the caller's own org") is enforced by `approved_timesheet_for_push`
+ * (migration 0138) under the caller's own JWT, i.e. in the DB against DB truth, by `approvalGuard.ts`
+ * — which the dispatch runs on exactly the same commands, before any outbox/ERP work.
+ *
+ * This is a DELEGATION, never a waiver, and never the default: check (a) domain-ownership-on-tier and
+ * the ACTIVE-membership half of check (b) still run for these domains, and an unlisted domain still
+ * resolves to the empty (fail-closed) role set.
+ */
+const ROLE_RULE_DELEGATED_TO_DB_GATE = new Set(['timesheets']);
 
 /** Structural client for the two authorization RPCs (`domain_owned_by_tier`,
  *  `actor_authorization_state` — mig 0117). Satisfied by the deputy (caller-JWT) client on the
@@ -98,7 +119,9 @@ export async function checkErpnextCommandAuthorization(
   if (!active) {
     return { ok: false, status: 403, message: `actor ${userId} is not an active member of org ${orgId}` };
   }
-  if (!role || !moneyWriteRolesForDomain(command.domain).includes(role)) {
+  // P3b: a DB-gated domain skips the ROLE half only (the active-member check above still applied) —
+  // its actor rule is re-asserted from DB truth by that domain's own gate before any ERP work.
+  if (!ROLE_RULE_DELEGATED_TO_DB_GATE.has(command.domain) && (!role || !moneyWriteRolesForDomain(command.domain).includes(role))) {
     return { ok: false, status: 403, message: `role "${role ?? 'null'}" not authorized for a "${command.domain}" money write` };
   }
 

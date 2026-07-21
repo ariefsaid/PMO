@@ -407,3 +407,116 @@ Deno.test('B6: replay authorization is the SAME rule as the synchronous path (pa
     assertEquals(replay.ok, sync.ok, `role ${role}: replay and synchronous verdicts must not diverge`);
   }
 });
+
+// ════════════════════════════════════════════════════════════════════════════
+// P3c — the `budget` domain (ADR-0055 §6 + ADR-0059 Posture B). Its write set is OD-BUDGET-3, the SAME
+// authority that may ACTIVATE a budget version in PMO (Admin/Executive/Project Manager/Finance) — the
+// push must not be reachable by anyone who could not have caused it, and must not be narrower than the
+// PMO act it propagates either (that would strand legitimate activations as failed pushes).
+// ════════════════════════════════════════════════════════════════════════════
+
+Deno.test('AC-BUD-020 budget domain write set is OD-BUDGET-3 (the activation authority), not the revenue pair', async () => {
+  assertEquals([...moneyWriteRolesForDomain('budget')], ['Admin', 'Executive', 'Project Manager', 'Finance']);
+  for (const role of moneyWriteRolesForDomain('budget')) {
+    const res = await checkErpnextCommandAuthorization(
+      fakeClient({ domainOwned: true, role }),
+      'org-1',
+      'user-1',
+      { domain: 'budget', operation: 'create', record: { id: 'ver-1', erp_doc_kind: 'budget' } } as any,
+    );
+    assertEquals(res.ok, true, `role ${role} may push a budget (they may activate one)`);
+  }
+});
+
+Deno.test('AC-BUD-020 an Engineer may not push a budget, and a budget kind may not ride another domain', async () => {
+  const engineer = await checkErpnextCommandAuthorization(
+    fakeClient({ domainOwned: true, role: 'Engineer' }),
+    'org-1',
+    'user-1',
+    { domain: 'budget', operation: 'create', record: { id: 'ver-1', erp_doc_kind: 'budget' } } as any,
+  );
+  assertEquals(engineer.ok, false);
+  assertEquals(engineer.status, 403);
+
+  // kind↔domain consistency (FR-BUD-013): a 'budget' kind smuggled into the revenue domain — whose
+  // write set is only Admin+Finance — must be refused on the KIND, not silently accepted.
+  const crossDomain = await checkErpnextCommandAuthorization(
+    fakeClient({ domainOwned: true, role: 'Finance' }),
+    'org-1',
+    'user-1',
+    { domain: 'revenue', operation: 'create', record: { id: 'ver-1', erp_doc_kind: 'budget' } } as any,
+  );
+  assertEquals(crossDomain.ok, false);
+  assertEquals(crossDomain.status, 422);
+});
+
+// ── P3b (FR-TSP-011/012) — the `timesheets` domain's role rule is DELIBERATELY not the money one ──
+
+Deno.test('FR-TSP-011: an Engineer may issue a timesheets push — the role list is NOT the authority there', async () => {
+  // A legitimate approver is very often an ENGINEER-role LINE MANAGER (profiles.manager_id; 0007 A2/A4).
+  // Narrowing the push to the money-write roles would break the PRIMARY approval path. Authorization for
+  // this domain lives in `approved_timesheet_for_push` (0138, under the caller's JWT) — the DB, not here.
+  const res = await checkErpnextCommandAuthorization(
+    fakeClient({ domainOwned: true, role: 'Engineer' }),
+    'org-1',
+    'user-1',
+    { domain: 'timesheets', operation: 'create', record: { id: 'ts-1', erp_doc_kind: 'timesheet' } } as any,
+  );
+  assertEquals(res.ok, true);
+});
+
+Deno.test('FR-TSP-011: every OTHER domain keeps its shipped role rule byte-for-byte (an Engineer is still 403)', async () => {
+  for (const [domain, kind] of [['revenue', 'sales-invoice'], ['procurement', 'purchase-invoice'], ['companies', 'supplier']] as const) {
+    const res = await checkErpnextCommandAuthorization(
+      fakeClient({ domainOwned: true, role: 'Engineer' }),
+      'org-1',
+      'user-1',
+      { domain, operation: 'create', record: { id: 'x', erp_doc_kind: kind } } as any,
+    );
+    assertEquals(res.ok, false, `${domain} must still refuse an Engineer`);
+    assertEquals(res.status, 403);
+  }
+});
+
+Deno.test('FR-TSP-011: a timesheets push still requires an ACTIVE member of the org (the deactivation gate is not waived)', async () => {
+  const res = await checkErpnextCommandAuthorization(
+    fakeClient({ domainOwned: true, role: 'Engineer', active: false }),
+    'org-1',
+    'user-1',
+    { domain: 'timesheets', operation: 'create', record: { id: 'ts-1', erp_doc_kind: 'timesheet' } } as any,
+  );
+  assertEquals(res.ok, false);
+  assertEquals(res.status, 403);
+});
+
+Deno.test('FR-TSP-011: a timesheets push still requires the org to own `timesheets` ON the erpnext tier', async () => {
+  const res = await checkErpnextCommandAuthorization(
+    fakeClient({ domainOwned: true, role: 'Engineer', ownedPairs: ['revenue:erpnext'] }),
+    'org-1',
+    'user-1',
+    { domain: 'timesheets', operation: 'create', record: { id: 'ts-1', erp_doc_kind: 'timesheet' } } as any,
+  );
+  assertEquals(res.ok, false);
+  assertEquals(res.status, 403);
+});
+
+Deno.test('FR-TSP-012: a cross-domain kind is refused 422 in both directions', async () => {
+  const wrongKind = await checkErpnextCommandAuthorization(
+    fakeClient({ domainOwned: true, role: 'Admin' }),
+    'org-1',
+    'user-1',
+    { domain: 'timesheets', operation: 'create', record: { id: 'x', erp_doc_kind: 'incoming-payment' } } as any,
+  );
+  assertEquals(wrongKind.status, 422);
+  const wrongDomain = await checkErpnextCommandAuthorization(
+    fakeClient({ domainOwned: true, role: 'Admin' }),
+    'org-1',
+    'user-1',
+    { domain: 'procurement', operation: 'create', record: { id: 'x', erp_doc_kind: 'timesheet' } } as any,
+  );
+  assertEquals(wrongDomain.status, 422);
+});
+
+Deno.test('moneyWriteRolesForDomain: an unknown domain still resolves to the EMPTY set (fail closed)', () => {
+  assertEquals(moneyWriteRolesForDomain('some-future-domain'), []);
+});

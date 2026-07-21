@@ -15,7 +15,7 @@ import { DOCTYPE_REGISTRY, type ErpDocKind } from './doctypeRegistry.ts';
 export type { ErpDocKind } from './doctypeRegistry.ts';
 
 /** kind → the PMO domain (the three ERPNext-owned domains). */
-export const KIND_DOMAIN: Record<ErpDocKind, 'companies' | 'procurement' | 'revenue'> = {
+export const KIND_DOMAIN: Record<ErpDocKind, 'companies' | 'procurement' | 'revenue' | 'timesheets' | 'budget'> = {
   'purchase-request': 'procurement',
   rfq: 'procurement',
   quotation: 'procurement',
@@ -28,6 +28,11 @@ export const KIND_DOMAIN: Record<ErpDocKind, 'companies' | 'procurement' | 'reve
   // P3a Slice 1 — Revenue domain:
   'sales-invoice': 'revenue',
   'incoming-payment': 'revenue',
+  // P3b — Timesheets (ADR-0059 Posture B: PMO-SoT + an ERP side mirror).
+  timesheet: 'timesheets',
+  // P3c — the budget push (ADR-0059 Posture B). PMO authors the budget; ERP receives a copy for the GL
+  // + its native overspend controls.
+  budget: 'budget',
 };
 
 /** kind → the PMO mirror table the feed upserts/reads (the table carrying `erp_modified`/`erp_docstatus`).
@@ -46,6 +51,13 @@ export const KIND_MIRROR_TABLE: Record<ErpDocKind, string> = {
   // P3a Slice 1 — Revenue domain mirror tables (created in slice 0):
   'sales-invoice': 'sales_invoices',
   'incoming-payment': 'incoming_payments',
+  // P3b — the SIDE mirror (0136). ⛔ NEVER `timesheets`/`timesheet_entries`: PMO is the SoT there and
+  // no feed/mirror write may ever touch them (ADR-0059 §3.1, FR-TSP-004(ii)).
+  timesheet: 'timesheet_erp_mirror',
+  // P3c — the SIDE mirror (0137). ⛔ NEVER `budget_versions`/`budget_line_items`: PMO is the SoT for the
+  // budget figure (OD-BUDGET-1) and no feed/mirror write may ever touch them. A Desk-created ERP Budget
+  // is ack-and-skipped, never adopted (FR-BUD-140) — the inverse of P3a's adopt rule.
+  budget: 'budget_version_erp_mirror',
 };
 
 /** Reverse doctype→kind lookup (built from the registry — one source of doctype names). */

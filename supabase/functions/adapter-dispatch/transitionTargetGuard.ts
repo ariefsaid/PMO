@@ -40,7 +40,33 @@ const OK: TransitionBindingResult = { ok: true, status: 200, message: '' };
 
 /** The PMO domains the erpnext tier owns. A P0/P1 domain (`reference`/`tasks`) is never guarded here —
  *  it has no ERP document identity to bind. */
-const ERP_DOMAINS = new Set(['companies', 'procurement', 'revenue']);
+const ERP_DOMAINS = new Set(['companies', 'procurement', 'revenue', 'timesheets']);
+
+/**
+ * P3b FR-TSP-013 — the domains that accept NO caller-supplied ERP target AT ALL.
+ *
+ * The other domains compare a supplied `externalRecordId` against the PMO record's own
+ * `external_refs` mapping. A Posture-B push (ADR-0059) never needs one: its ERP target is resolved
+ * solely server-side from `external_refs(org, domain, record.id)`. Rejecting the mere PRESENCE of a
+ * client-supplied target therefore removes the "authorized PMO id paired with a foreign ERP document"
+ * class BY CONSTRUCTION rather than by comparison — a strictly stronger rule, applied to the new
+ * domain only, so every shipped domain stays byte-for-byte.
+ */
+const REJECT_CLIENT_SUPPLIED_TARGET = new Set(['timesheets']);
+
+/** `{ok:false}` when this domain forbids a caller-supplied ERP target and the command carries one. */
+function checkNoClientSuppliedTarget(command: GuardCommand): TransitionBindingResult | null {
+  if (!REJECT_CLIENT_SUPPLIED_TARGET.has(command.domain)) return null;
+  const supplied = command.record.externalRecordId;
+  if (typeof supplied === 'string' && supplied.length > 0) {
+    return {
+      ok: false,
+      status: 422,
+      message: 'externalRecordId is not accepted for this domain — the external target is resolved server-side',
+    };
+  }
+  return null;
+}
 
 interface GuardCommand {
   domain: string;
@@ -77,6 +103,8 @@ export async function checkTransitionTargetBinding(
   command: GuardCommand,
 ): Promise<TransitionBindingResult> {
   if (!ERP_DOMAINS.has(command.domain)) return OK;
+  const noClientTarget = checkNoClientSuppliedTarget(command);
+  if (noClientTarget) return noClientTarget;
   const operation = String(command.operation);
   if (operation !== 'transition' && operation !== 'update') return OK;
 
@@ -113,6 +141,8 @@ export async function checkCreateTargetUnmapped(
 ): Promise<TransitionBindingResult> {
   if (!ERP_DOMAINS.has(command.domain)) return OK;
   if (String(command.operation) !== 'create') return OK;
+  const noClientTarget = checkNoClientSuppliedTarget(command);
+  if (noClientTarget) return noClientTarget;
 
   const pmoRecordId = String(command.record.id);
   const mapped = await resolveExternalRef(client, orgId, command.domain, pmoRecordId);
@@ -135,6 +165,23 @@ export async function checkCreateTargetUnmapped(
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
+ * P3b FR-TSP-041 (ADR-0059 §4) — the DETERMINISTIC Posture-B key: `'<prefix>:<uuid>:<state stamp>'`.
+ *
+ * A Posture-B push has TWO independent originators (the user's transition and the reconciling sweep)
+ * with NO shared client state, so a freshly-minted random key would make the outbox's
+ * `unique (org_id, domain, pmo_record_id, idempotency_key)` useless for exactly the collision it
+ * exists to prevent — two external documents for one intent (a DUPLICATED WEEK of hours). The key
+ * must therefore be DERIVED, which the canonical-UUID shape below cannot express.
+ *
+ * This shape keeps all three properties the UUID rule exists for:
+ *  • it embeds a full canonical UUID, so it can never be a proper substring of another document's
+ *    anchor (the `%key%` recovery probe stays unambiguous);
+ *  • it is anchored and fixed-alphabet — no `%` or `_` LIKE metacharacter can appear;
+ *  • the state stamp is REQUIRED, so a key can never degrade to a short/guessable token.
+ */
+const DETERMINISTIC_KEY_RE = /^[a-z]{1,8}:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}:[0-9TZ:.+-]{4,40}$/i;
+
+/**
  * BLOCK #1 (Lane C hand-off) — the idempotency key must be an OPAQUE UUID.
  *
  * The ERPNext recovery probe matches the doctype's anchor field with `%key%` — a SUBSTRING match,
@@ -150,7 +197,7 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
  * rejected exactly like `'1'`.
  */
 export function isOpaqueIdempotencyKey(key: string | undefined | null): boolean {
-  return typeof key === 'string' && UUID_RE.test(key);
+  return typeof key === 'string' && (UUID_RE.test(key) || DETERMINISTIC_KEY_RE.test(key));
 }
 
 /** Does THIS command (org+domain+record+idempotency key — the outbox's own unique 4-tuple, 0096)

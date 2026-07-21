@@ -1,6 +1,6 @@
 /**
  * The `erpnext` tier engine (FR-ENA-010, task 2.12): a `tier:'erpnext'`, `capabilityMap:{companies,
- * procurement,revenue}` implementation of the P0 `Adapter` contract. `commit()` dispatches by
+ * procurement,revenue,timesheets}` implementation of the P0 `Adapter` contract. `commit()` dispatches by
  * `record.erp_doc_kind` through `DOCTYPE_REGISTRY` — a `submittable` kind gets the R9 two-step
  * create->submit->re-fetch (FR-ENA-044, separating the create-commit idempotency window from the
  * submit window and always trusting the RE-FETCHED `status`, never the stale POST/PUT response body);
@@ -22,6 +22,14 @@ export const ERPNEXT_TIER = 'erpnext';
 export const ERPNEXT_COMPANIES_DOMAIN: PmoDomain = 'companies';
 export const ERPNEXT_PROCUREMENT_DOMAIN: PmoDomain = 'procurement';
 export const ERPNEXT_REVENUE_DOMAIN: PmoDomain = 'revenue';
+/** P3b (ADR-0059 Posture B): PMO is SoT for timesheet entry + approval; ERP receives the APPROVED
+ *  result as a costing document. The domain is listed here so the shipped router/dispatch machinery
+ *  routes it generically — nothing about the engine is timesheet-specific. */
+export const ERPNEXT_TIMESHEETS_DOMAIN: PmoDomain = 'timesheets';
+/** P3c (ADR-0055 §6, likewise Posture B): PMO authors the budget and owns the figure; ERP receives the
+ *  ACTIVE version so the GL reports against it and its native overspend controls enforce it. Listed here
+ *  so the shipped router/dispatch machinery routes it generically. */
+export const ERPNEXT_BUDGET_DOMAIN: PmoDomain = 'budget';
 
 export interface DoctypeBodyFns {
   toBody: (record: PmoRecord, ctx: ErpCtx) => unknown;
@@ -300,7 +308,13 @@ function findKindByDoctype(doctype: string): ErpDocKind | undefined {
 export function createErpAdapter(deps: ErpAdapterDeps): Adapter {
   return {
     tier: ERPNEXT_TIER,
-    capabilityMap: new Set<PmoDomain>([ERPNEXT_COMPANIES_DOMAIN, ERPNEXT_PROCUREMENT_DOMAIN, ERPNEXT_REVENUE_DOMAIN]),
+    capabilityMap: new Set<PmoDomain>([
+      ERPNEXT_COMPANIES_DOMAIN,
+      ERPNEXT_PROCUREMENT_DOMAIN,
+      ERPNEXT_REVENUE_DOMAIN,
+      ERPNEXT_TIMESHEETS_DOMAIN,
+      ERPNEXT_BUDGET_DOMAIN,
+    ]),
     commit: (command: AdapterCommand) => commitErpCommand(command, deps),
     // The modified-poll sweep is the change-feed convergence authority (design decision #9) — its
     // real implementation lands in slice 8 (`applyEngine.ts` reuse). A loud throw here, never a

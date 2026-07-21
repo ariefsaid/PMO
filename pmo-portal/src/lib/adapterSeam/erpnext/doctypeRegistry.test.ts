@@ -54,6 +54,12 @@ describe('erpnext/doctypeRegistry', () => {
       // validate; reference_no survives. C-1 applies verbatim: composite probe + held-on-inconclusive, NEVER
       // auto-reissued — the double-receive guard). Same doctype as 'payment', payment_type='Receive'.
       'incoming-payment': { doctype: 'Payment Entry', submittable: true, anchorField: 'reference_no', anchorMutable: true },
+      // P3b — Timesheets domain (ADR-0059 Posture B). Anchor `note`, IMMUTABLE (spike §2: `note`
+      // survives validate+submit+refetch verbatim, is REST-filterable, and a post-submit PUT is
+      // rejected `UpdateAfterSubmitError` — the PI/SI twin, reissue-capable).
+      timesheet: { doctype: 'Timesheet', submittable: true, submitOnCreate: true, anchorField: 'note', anchorMutable: false },
+      // P3c — Budget (ADR-0059 Posture B). ⚑ The ONLY kind with NO anchor at all AND neverReissue.
+      budget: { doctype: 'Budget', submittable: true, submitOnCreate: true, anchorField: null, neverReissue: true },
     });
   });
 
@@ -80,5 +86,65 @@ describe('erpnext/doctypeRegistry', () => {
   it('P3a Slice 1: incoming-payment registry entry matches spike (R9-P3a-3, R9-P3a-4)', () => {
     const entry = DOCTYPE_REGISTRY['incoming-payment'];
     expect(entry).toEqual({ doctype: 'Payment Entry', submittable: true, anchorField: 'reference_no', anchorMutable: true });
+  });
+
+  it('AC-TSP-021 P3b: the timesheet entry is the spike-frozen triple — anchor `note`, immutable, submit-on-create', () => {
+    const entry = DOCTYPE_REGISTRY.timesheet;
+    expect(entry).toEqual({ doctype: 'Timesheet', submittable: true, submitOnCreate: true, anchorField: 'note', anchorMutable: false });
+  });
+
+  it('AC-TSP-021 P3b: submitOnCreate is TRUE — the deliberate OPPOSITE of sales-invoice (OD-SAR-DRAFT-SUBMIT does NOT apply)', () => {
+    // A timesheet's approval gate is `transition_timesheet`'s SoD (approver≠author), ALREADY passed in
+    // PMO by a DIFFERENT actor. An ERP draft would mean approved hours never reach costing.
+    expect(DOCTYPE_REGISTRY.timesheet.submitOnCreate).toBe(true);
+    expect(DOCTYPE_REGISTRY['sales-invoice'].submitOnCreate).toBe(false);
+  });
+
+  // ── P3c — the budget kind (ADR-0055 §6 + ADR-0059 Posture B) ──────────────────────────────────
+  // The budget-write spike (docs/spikes/2026-07-16-erpnext-budget-fields.md §7) established, from the
+  // doctype META rather than a guess, that `Budget` and its `Budget Account` child carry NO free-text
+  // field of ANY kind — no remarks, title, note or reference_no. So there is NOWHERE to stamp a PMO
+  // idempotency key, and the P3a anchor idiom has no home here.
+  it('AC-BUD-022 the budget kind is the spike-frozen entry: doctype Budget, submittable, submit-on-create, NO anchor', () => {
+    const entry = DOCTYPE_REGISTRY.budget;
+    expect(entry).toEqual({
+      doctype: 'Budget',
+      submittable: true,
+      submitOnCreate: true,
+      anchorField: null,
+      neverReissue: true,
+    });
+  });
+
+  it('AC-BUD-022 anchor-less ⇒ neverReissue ⇒ reissueOnInconclusiveAbsence is FALSE (held, never reissued)', () => {
+    const entry = DOCTYPE_REGISTRY.budget;
+    // Today `anchorField: null` alone means "skip the probe → fresh claim+POST" = REISSUE-CAPABLE.
+    // For a Posture-B budget that is a silently DUPLICATED ERP object — and ERP's own duplicate guard
+    // fires only at the (company, dimension, fiscal_year, account) grain, so a reissue after a genuine
+    // in-flight timeout lands as a 417 the adapter cannot distinguish from a real conflict.
+    // ADR-0059 §4's corollary closes it: the dispatch computes
+    //   reissueOnInconclusiveAbsence = !(anchorMutable || neverReissue)
+    expect(entry.anchorField).toBeNull();
+    expect(entry.neverReissue).toBe(true);
+    expect(!(entry.anchorMutable || entry.neverReissue)).toBe(false);
+  });
+
+  it('AC-BUD-022 `neverReissue` is additive + default-absent — every shipped kind keeps its reissue behaviour byte-for-byte', () => {
+    for (const kind of ['purchase-request', 'rfq', 'quotation', 'purchase-order', 'goods-receipt', 'purchase-invoice', 'payment', 'supplier', 'customer', 'sales-invoice', 'incoming-payment', 'timesheet'] as const) {
+      expect(DOCTYPE_REGISTRY[kind].neverReissue, `${kind} must not gain neverReissue`).toBeUndefined();
+    }
+    // still reissue-capable (immutable/absent anchor)
+    const pi = DOCTYPE_REGISTRY['purchase-invoice'];
+    expect(!(pi.anchorMutable || pi.neverReissue)).toBe(true);
+    // still HELD (C-1, mutable anchor)
+    const pe = DOCTYPE_REGISTRY.payment;
+    expect(!(pe.anchorMutable || pe.neverReissue)).toBe(false);
+  });
+
+  it('AC-BUD-022 budget is the ONLY kind that is both anchor-less and never-reissued (the rule is not blanket)', () => {
+    const anchorlessHeld = Object.entries(DOCTYPE_REGISTRY)
+      .filter(([, e]) => e.anchorField === null && e.neverReissue === true)
+      .map(([kind]) => kind);
+    expect(anchorlessHeld).toEqual(['budget']);
   });
 });

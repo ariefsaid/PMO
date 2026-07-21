@@ -292,3 +292,73 @@ Deno.test('BLOCK1: an absent/empty/non-string key is rejected', () => {
   assertEquals(isOpaqueIdempotencyKey(''), false);
   assertEquals(isOpaqueIdempotencyKey(12345 as unknown as string), false);
 });
+
+// ── P3b (FR-TSP-013) — the timesheets domain accepts NO client-supplied ERP target at all ─────────
+
+Deno.test('FR-TSP-013: a timesheets command carrying ANY externalRecordId is refused 422 (create)', async () => {
+  // Stricter than the compare-against-external_refs rule the other domains take: for a Posture-B push
+  // the ERP target is resolved solely server-side, so rejecting the mere PRESENCE of a caller-supplied
+  // target removes the "authorized PMO id + foreign ERP document" class by construction.
+  const res = await checkCreateTargetUnmapped(
+    fakeClient({ mappedExternalId: null }),
+    'org-1',
+    { domain: 'timesheets', operation: 'create', record: { id: 'ts-1', erp_doc_kind: 'timesheet', externalRecordId: 'TS-2026-00011' } },
+    'ts:ts-1:2026-01-12T03:04:05Z',
+  );
+  assertEquals(res.ok, false);
+  assertEquals(res.status, 422);
+  assert(res.message.includes('externalRecordId'));
+});
+
+Deno.test('FR-TSP-013: a timesheets transition carrying an externalRecordId is refused 422 too', async () => {
+  const res = await checkTransitionTargetBinding(
+    fakeClient({ mappedExternalId: 'TS-2026-00011' }),
+    'org-1',
+    { domain: 'timesheets', operation: 'transition', record: { id: 'ts-1', erp_doc_kind: 'timesheet', externalRecordId: 'TS-2026-00011' } },
+  );
+  assertEquals(res.ok, false);
+  assertEquals(res.status, 422);
+});
+
+Deno.test('FR-TSP-013: a clean timesheets create (no externalRecordId, unmapped record) passes both guards', async () => {
+  const client = fakeClient({ mappedExternalId: null });
+  const create = await checkCreateTargetUnmapped(client, 'org-1', { domain: 'timesheets', operation: 'create', record: { id: 'ts-1', erp_doc_kind: 'timesheet' } }, 'ts:ts-1:2026-01-12T03:04:05Z');
+  assertEquals(create.ok, true);
+  const binding = await checkTransitionTargetBinding(client, 'org-1', { domain: 'timesheets', operation: 'create', record: { id: 'ts-1', erp_doc_kind: 'timesheet' } });
+  assertEquals(binding.ok, true);
+});
+
+Deno.test('BLOCK #4 still applies to timesheets: an already-mapped sheet may not be re-created (no duplicate week)', async () => {
+  const res = await checkCreateTargetUnmapped(
+    fakeClient({ mappedExternalId: 'TS-2026-00011', outboxKeys: [] }),
+    'org-1',
+    { domain: 'timesheets', operation: 'create', record: { id: 'ts-1', erp_doc_kind: 'timesheet' } },
+    'ts:ts-1:2026-01-12T03:04:05Z',
+  );
+  assertEquals(res.ok, false);
+  assertEquals(res.status, 422);
+});
+
+Deno.test('BLOCK #4 retry exemption still applies to timesheets: the SAME deterministic key finalizes', async () => {
+  const key = 'ts:ts-1:2026-01-12T03:04:05Z';
+  const res = await checkCreateTargetUnmapped(
+    fakeClient({ mappedExternalId: 'TS-2026-00011', outboxKeys: [key] }),
+    'org-1',
+    { domain: 'timesheets', operation: 'create', record: { id: 'ts-1', erp_doc_kind: 'timesheet' } },
+    key,
+  );
+  assertEquals(res.ok, true);
+});
+
+Deno.test('FR-TSP-041: the DETERMINISTIC Posture-B key is accepted as opaque; a short/loose key is still refused', () => {
+  // ADR-0059 §4 pins `ts:<uuid>:<approved_at>` — two originators with no shared client state need a
+  // DERIVED key or the outbox 4-tuple cannot de-duplicate them. It satisfies the same three properties
+  // the UUID rule exists for: it embeds a full UUID (so it can never be a proper substring of another
+  // document's anchor), it is fixed-shape, and it carries no LIKE metacharacter (`%`/`_`).
+  assert(isOpaqueIdempotencyKey('ts:3f1b0c9e-1a2b-4c3d-8e4f-5a6b7c8d9e0f:2026-01-12T03:04:05.678Z'));
+  assert(isOpaqueIdempotencyKey('ts:3f1b0c9e-1a2b-4c3d-8e4f-5a6b7c8d9e0f:2026-01-12T03:04:05+00:00'));
+  assert(!isOpaqueIdempotencyKey('ts:1:2026-01-12T03:04:05Z'), 'a short id must not pass as opaque');
+  assert(!isOpaqueIdempotencyKey('ts:3f1b0c9e-1a2b-4c3d-8e4f-5a6b7c8d9e0f:%'), 'a LIKE metacharacter must not pass');
+  assert(!isOpaqueIdempotencyKey('ts:3f1b0c9e-1a2b-4c3d-8e4f-5a6b7c8d9e0f:2026-01-12T03:04:05Z_'), 'a LIKE metacharacter must not pass');
+  assert(!isOpaqueIdempotencyKey('ts:3f1b0c9e-1a2b-4c3d-8e4f-5a6b7c8d9e0f'), 'the state stamp is not optional');
+});

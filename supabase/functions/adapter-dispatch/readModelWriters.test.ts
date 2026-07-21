@@ -334,3 +334,90 @@ Deno.test({
     assert(threw, 'expected the not-yet-wired purchase-order kind to throw rather than silently no-op');
   },
 });
+
+// ════════════════════════════════════════════════════════════════════════════
+// P3c — the `budget` writer (ADR-0059 Posture B §6 side mirror).
+// ⚑ It writes EXTERNAL-SIDE STATE ONLY. `budget_versions`/`budget_line_items` are PMO's SoT and must
+// never be an outbound-mirror write target — a service-role writer is not protected by RLS, so "the
+// writer simply doesn't do it" is the only thing standing between a push and PMO's own budget figure.
+// ════════════════════════════════════════════════════════════════════════════
+
+Deno.test({
+  name: "AC-BUD-012 READ_MODEL_WRITERS['budget'] upserts the SIDE MIRROR and never a PMO budget table",
+  fn: async () => {
+    const { client, calls } = makeFakeClient();
+    const writer = getReadModelWriter('budget');
+    await writer.upsert(
+      { serviceClient: client as never, orgId: 'org-1' },
+      {
+        id: 'ver-1',
+        erp_budget_name: 'BUDGET-2026-00001',
+        erp_docstatus: 1,
+        erp_modified: '2026-07-20 10:00:00',
+        fiscal_year: '2026',
+      },
+      { domain: 'budget', operation: 'create', record: { id: 'ver-1', erp_doc_kind: 'budget' } },
+    );
+
+    const upsertCall = calls.find((c) => c.method === 'upsert');
+    assert(upsertCall !== undefined, 'expected an upsert into the side mirror');
+    assertEquals(upsertCall!.table, 'budget_version_erp_mirror');
+    const row = upsertCall!.args[0] as Record<string, unknown>;
+    assertEquals(row.org_id, 'org-1');
+    assertEquals(row.budget_version_id, 'ver-1');
+    assertEquals(row.fiscal_year, '2026');
+    assertEquals(row.erp_budget_name, 'BUDGET-2026-00001');
+    assertEquals(row.erp_docstatus, 1);
+    assertEquals(row.push_state, 'pushed');
+    assertEquals(row.push_error, null);
+    assert(typeof row.pushed_at === 'string', 'the push must be stamped with when it landed');
+    assertEquals(
+      (upsertCall!.args[1] as { onConflict: string }).onConflict,
+      'org_id,budget_version_id,fiscal_year',
+    );
+
+    // ⚑ the invariant
+    assert(
+      !calls.some((c) => c.table === 'budget_versions' || c.table === 'budget_line_items'),
+      'the budget writer must NEVER touch PMO SoT budget tables (FR-BUD-006)',
+    );
+  },
+});
+
+Deno.test({
+  name: 'AC-BUD-012 the budget writer refuses a canonical with no fiscal year (the mirror grain would be wrong)',
+  fn: async () => {
+    const { client } = makeFakeClient();
+    const writer = getReadModelWriter('budget');
+    let threw = false;
+    try {
+      await writer.upsert(
+        { serviceClient: client as never, orgId: 'org-1' },
+        { id: 'ver-1', erp_budget_name: 'BUDGET-2026-00001' },
+        { domain: 'budget', operation: 'create', record: { id: 'ver-1', erp_doc_kind: 'budget' } },
+      );
+    } catch {
+      threw = true;
+    }
+    assert(threw, 'a mirror row keyed on a missing fiscal_year must fail loudly, not write a wrong grain');
+  },
+});
+
+Deno.test({
+  name: 'AC-BUD-012 an unknown erp_doc_kind inside the budget domain throws (no silent skip)',
+  fn: async () => {
+    const { client } = makeFakeClient();
+    const writer = getReadModelWriter('budget');
+    let threw = false;
+    try {
+      await writer.upsert(
+        { serviceClient: client as never, orgId: 'org-1' },
+        { id: 'x' },
+        { domain: 'budget', operation: 'create', record: { id: 'x', erp_doc_kind: 'sales-invoice' } },
+      );
+    } catch {
+      threw = true;
+    }
+    assert(threw, 'expected an unwired kind in the budget domain to throw');
+  },
+});

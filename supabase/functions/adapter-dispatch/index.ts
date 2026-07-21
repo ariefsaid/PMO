@@ -33,7 +33,7 @@ import { createReferenceAdapter, REFERENCE_DOMAIN } from '../../../pmo-portal/sr
 import { CLICKUP_TASKS_DOMAIN } from '../../../pmo-portal/src/lib/adapterSeam/clickup/adapter.ts';
 import { resolveClickUpDispatchAdapter } from '../../../pmo-portal/src/lib/adapterSeam/clickup/dispatchFactory.ts';
 import { ClickUpRateLimiter } from '../../../pmo-portal/src/lib/adapterSeam/clickup/rateLimit.ts';
-import { ERPNEXT_COMPANIES_DOMAIN, ERPNEXT_PROCUREMENT_DOMAIN, ERPNEXT_REVENUE_DOMAIN, ERPNEXT_TIER } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/adapter.ts';
+import { ERPNEXT_BUDGET_DOMAIN, ERPNEXT_COMPANIES_DOMAIN, ERPNEXT_PROCUREMENT_DOMAIN, ERPNEXT_REVENUE_DOMAIN, ERPNEXT_TIMESHEETS_DOMAIN, ERPNEXT_TIER } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/adapter.ts';
 import { resolveErpDispatchAdapter, withPaymentTypeDiscriminator } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/dispatchFactory.ts';
 import { resolveErpCredentials } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/credentials.ts';
 import { withProbeBudget } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/client.ts';
@@ -50,7 +50,8 @@ import { resolveExternalRef } from '../../../pmo-portal/src/lib/adapterSeam/refs
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
 import type { Adapter, AdapterCommand, PmoRecord } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
 import type { DispatchMoneyOutboxDeps, ExternalRefMapping } from '../../../pmo-portal/src/lib/adapterSeam/dispatch.ts';
-import { getReadModelWriter } from './readModelWriters.ts';
+import { getReadModelWriter, markTimesheetPushOutcome } from './readModelWriters.ts';
+import { enforceTimesheetApproved, isTimesheetPush, type ApprovedTimesheet } from './approvalGuard.ts';
 import { maybeFault, type FaultGate } from './faultSeams.ts';
 import { isRevenueSiSubmitTransition, grantSiSubmitClearance, requiresSiAuthorClaim, claimSiAuthor, releaseSiSubmitClearance } from './sodGuard.ts';
 import { checkErpnextCommandAuthorization, type AuthorizationClient } from './authGuard.ts';
@@ -291,7 +292,11 @@ async function resolveErpMoneyOutboxDeps(ctx: AdapterSelectContext): Promise<Dis
     // the mirrored SI's author_user_id lands NULL, silently voiding the approver≠author SoD.
     actorUserId: ctx.userId,
     // C-1 per-kind reissue policy: a mutable-anchor (PE) inconclusive recovery is HELD, never reissued.
-    reissueOnInconclusiveAbsence: !entry.anchorMutable,
+    // ADR-0059 §4 corollary (P3c): an ANCHOR-LESS kind flagged `neverReissue` (ERP `Budget` — the
+    // doctype has no field to stamp a key into at all, so no probe can exist) is likewise HELD, because
+    // "no probe hit" there carries no information whatsoever. Default-absent ⇒ every shipped kind is
+    // byte-for-byte.
+    reissueOnInconclusiveAbsence: !(entry.anchorMutable || entry.neverReissue),
     payload,
     payloadDigest,
     encodeExternalRecordId,
@@ -417,6 +422,11 @@ const ADAPTER_REGISTRY: Record<string, AdapterFactory> = {
   [ERPNEXT_COMPANIES_DOMAIN]: resolveErpAdapter,
   [ERPNEXT_PROCUREMENT_DOMAIN]: resolveErpAdapter,
   [ERPNEXT_REVENUE_DOMAIN]: resolveErpAdapter,
+  // P3c — the budget push (ADR-0055 §6). Same tier, same adapter; the domain is additive.
+  [ERPNEXT_BUDGET_DOMAIN]: resolveErpAdapter,
+  // P3b — the timesheets push (ADR-0059 Posture B). Same tier, same adapter, same outbox: Posture B
+  // reuses the shipped machinery wholesale; only its GATE and its key derivation differ.
+  [ERPNEXT_TIMESHEETS_DOMAIN]: resolveErpAdapter,
 };
 
 // Same origin-narrowing seam as agent-chat/compose-view (AUDIT quick-win 2026-07-07): set
@@ -520,7 +530,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
   }
 
   // Compute isErpDomain early so it's available for both the auth guard and idempotency check.
-  const isErpDomain = command.domain === ERPNEXT_COMPANIES_DOMAIN || command.domain === ERPNEXT_PROCUREMENT_DOMAIN || command.domain === ERPNEXT_REVENUE_DOMAIN;
+  const isErpDomain = command.domain === ERPNEXT_COMPANIES_DOMAIN || command.domain === ERPNEXT_PROCUREMENT_DOMAIN || command.domain === ERPNEXT_REVENUE_DOMAIN || command.domain === ERPNEXT_BUDGET_DOMAIN || command.domain === ERPNEXT_TIMESHEETS_DOMAIN;
 
   // ── Luna BLOCK 4 — server-side authorization gate for erpnext-tier commands (money audit).
   // After resolving the caller's org/userId and parsing the command, but BEFORE any adapter/
@@ -534,6 +544,37 @@ Deno.serve(async (req: Request): Promise<Response> => {
         headers,
       });
     }
+  }
+
+  // ── P3b FR-TSP-010 — THE APPROVED-ONLY GATE (ADR-0059 §3.3). BEFORE the outbox, BEFORE adapter
+  // selection, BEFORE any ERP call. Runs on the deputy `callerClient` (the caller's own JWT), the same
+  // posture as the SI SoD gate below, so `approved_timesheet_for_push` (0138) evaluates its org and
+  // actor arms against the REAL caller.
+  //
+  // It does two things, and the second matters as much as the first:
+  //  (1) it re-reads `timesheets.status` from the DB — the payload is never trusted to assert
+  //      approved-ness, and there is no null/absent branch to fall into (the guard either reads an
+  //      Approved row or it refuses);
+  //  (2) it hands back the sheet's AUTHOR, its `approved_at` witness and its ENTRIES, which REPLACE
+  //      whatever the command carried. So a caller cannot post hours that are not on the approved
+  //      sheet, cannot re-attribute them to another user, and cannot forge the mirror's witness.
+  let approvedSheet: ApprovedTimesheet | undefined;
+  if (isTimesheetPush(command)) {
+    const approved = await enforceTimesheetApproved(callerClient as never, String(command.record.id));
+    if (!approved.ok || !approved.sheet) {
+      return new Response(JSON.stringify({ error: 'commit-rejected', message: approved.message }), {
+        status: approved.status,
+        headers,
+      });
+    }
+    approvedSheet = approved.sheet;
+    // Server truth REPLACES the payload for every field the push is built from.
+    command.record = {
+      ...command.record,
+      user_id: approvedSheet.user_id,
+      approved_at: approvedSheet.approved_at,
+      entries: approvedSheet.entries,
+    };
   }
 
   // ── Server-side idempotency-key enforcement (task 6.4, FR-ENA-040, ADR-0058 §4) — at the top of
@@ -565,6 +606,23 @@ Deno.serve(async (req: Request): Promise<Response> => {
   // record) AND, for 'tasks', to resolve the per-request ClickUp binding/mapping at adapter-select time.
   // Never used for adapter.commit() — org_id never crosses into the adapter (AC-EAS-023).
   const serviceClient = createClient(supabaseUrl, serviceRoleKey);
+
+  // ── P3b FR-TSP-056 — an approved sheet with NO chargeable hours is a SKIP, not a push. ERP rejects
+  // an empty `time_logs` table outright (417 MandatoryError), so sending it would park a perfectly
+  // valid approved week in the sweep's retry queue forever. Record it as `pushed` with a null
+  // ts_number — a success — and return without touching ERP.
+  if (approvedSheet && approvedSheet.entries.length === 0) {
+    await markTimesheetPushOutcome(
+      { serviceClient: serviceClient as never, orgId, callerUserId: userId },
+      String(command.record.id),
+      approvedSheet.approved_at,
+      null,
+    );
+    return new Response(JSON.stringify({ externalRecordId: null, canonical: { id: command.record.id }, skipped: 'no-chargeable-hours' }), {
+      status: 200,
+      headers,
+    });
+  }
 
   // ── Slice 3 / round-7 B8: the `require_project_on_si` process gate (FR-SAR-191, AC-SAR-070), for
   // EVERY Sales-Invoice command that puts revenue on the ERP ledger — the body-building ones
@@ -689,6 +747,27 @@ Deno.serve(async (req: Request): Promise<Response> => {
     }
   };
 
+  /** P3b FR-TSP-085 / ADR-0059 §6 — record a failed push as DURABLE, operator-visible state.
+   *
+   *  The PMO approval has ALREADY committed and the user has moved on, so nothing else will ever
+   *  surface this failure: an unrecorded one is indistinguishable from a push that never happened.
+   *  Best-effort by design — a failure to record must never mask the original error the caller gets.
+   *  A no-op for every other domain (`approvedSheet` is only set for a gated timesheet push), and the
+   *  witness it writes is the one the GATE read from the DB, never a payload value. */
+  const recordTimesheetPushFailure = async (failure: AppError): Promise<void> => {
+    if (!approvedSheet) return;
+    try {
+      await markTimesheetPushOutcome(
+        { serviceClient: serviceClient as never, orgId, callerUserId: userId },
+        String(command.record.id),
+        approvedSheet.approved_at,
+        { code: failure.code, message: failure.message },
+      );
+    } catch (recordErr) {
+      console.error('[adapter-dispatch] failed to record timesheet push failure:', recordErr);
+    }
+  };
+
   // ── Named server-side fault seams (Slice 0 task 0.7, FR-ENA-003, plan §2 decision 5; host
   // allowlist added fix-round finding 5): read the gate ONCE per request and thread it through.
   // `maybeFault` re-checks ALL THREE conditions per named seam, so this is a pure no-op in every
@@ -725,6 +804,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
     // The submit never reaches ERP — end the body-rewrite freeze now rather than in five minutes.
     await releaseSubmitClearance();
     const appError = err instanceof AppError ? err : new AppError(err instanceof Error ? err.message : 'adapter select failed');
+    // A timesheet push fails MOST often right here: the fail-closed ref pre-flight (employee-unlinked /
+    // project-unmapped / activity-type-unconfigured / cross-org-link-rejected / daily-hours-exceed-24)
+    // runs inside the factory, deliberately BEFORE the outbox claim and any ERP call.
+    await recordTimesheetPushFailure(appError);
     return new Response(JSON.stringify({ error: appError.code ?? 'ADAPTER_SELECT_FAILED', message: appError.message }), {
       status: 400,
       headers,
@@ -810,6 +893,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     // dispatch.ts) is a genuine CONFLICT — another command for this PMO record is still settling.
     // Retrying now cannot help, but retrying LATER can, so it is a 409 like `command-held`, never a 500
     // carrying the raw index name.
+    await recordTimesheetPushFailure(appError);
     const status = appError.code === 'external-unreachable'
       ? 502
       : appError.code === 'commit-rejected'

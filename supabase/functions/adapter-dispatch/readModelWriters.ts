@@ -810,16 +810,141 @@ const revenueWriter: ReadModelWriter = {
   },
 };
 
+/**
+ * P3c ERPNext `budget` writer (ADR-0059 §6 side mirror).
+ *
+ * ⚑ POSTURE B. This writer records EXTERNAL-SIDE STATE ONLY, into `budget_version_erp_mirror` (0137).
+ * It deliberately has NO route to `budget_versions`/`budget_line_items`: PMO is the SoT for the budget
+ * figure (OD-BUDGET-1), the push is one-way, and this code runs as SERVICE ROLE — RLS would not stop it
+ * if it tried. The mirror's whole value is that `drop table` reverses P3c with zero PMO data loss.
+ *
+ * `activated_at_witness` (ADR-0059 §6) is NOT written here: it must be resolved from DB truth by the
+ * push gate, never from a command payload, so it stays null until that gate lands.
+ */
+const budgetWriter: ReadModelWriter = {
+  async upsert(ctx, canonical, command) {
+    const kind = (command.record as { erp_doc_kind?: string }).erp_doc_kind;
+    if (kind !== 'budget') {
+      throw new AppError(`erpnext budget read-model writer for erp_doc_kind '${String(kind)}' is not wired`, 'UNSUPPORTED_DOMAIN');
+    }
+    // The mirror's grain is (budget_version_id x fiscal_year) — a row written without the fiscal year
+    // would be a wrong-grain row that the next push could not find, so this fails loudly instead.
+    const fiscalYear = canonical.fiscal_year;
+    if (typeof fiscalYear !== 'string' || fiscalYear === '') {
+      throw new AppError('budget mirror: the pushed budget carries no fiscal year', 'commit-rejected');
+    }
+    const { error } = await ctx.serviceClient.from('budget_version_erp_mirror').upsert(
+      {
+        org_id: ctx.orgId,
+        budget_version_id: canonical.id,
+        fiscal_year: fiscalYear,
+        push_state: 'pushed',
+        push_error: null,
+        erp_budget_name: (canonical.erp_budget_name as string | null | undefined) ?? null,
+        erp_docstatus: (canonical.erp_docstatus as number | null | undefined) ?? null,
+        erp_modified: (canonical.erp_modified as string | null | undefined) ?? null,
+        pushed_at: new Date().toISOString(),
+      },
+      { onConflict: 'org_id,budget_version_id,fiscal_year' },
+    );
+    if (error) throw new AppError(error.message, error.code);
+  },
+};
+
 // Both P2 ERPNext domains are wired: `companies` (task 3.6, supplier/customer parties) and
 // `procurement` (task 4.5/5.4, the per-erp_doc_kind money-doc switch above) — one registry entry per
 // domain, never a per-slice edit to another domain's entry (confinement, FR-ENA-013/090).
 // P3a adds `revenue` (task 2.4) additively.
+// ════════════════════════════════════════════════════════════════════════════════════════════════
+// P3b — the `timesheets` writer (ADR-0059 Posture B: PMO-SoT + an external SIDE mirror)
+// ════════════════════════════════════════════════════════════════════════════════════════════════
+
+/** The server-resolved `approved_at` witness this push was keyed on. It is threaded onto the command
+ *  by the dispatch's approval gate FROM THE DB (`approved_timesheet_for_push`), never from a client
+ *  payload. A missing witness THROWS rather than writing a null: the mirrored row would otherwise be
+ *  unauditable — nothing would tie it to the approval it was supposed to record (ADR-0059 §6; the
+ *  Luna P3a finding where a sweep finalized with a NULL actor and silently no-op'd an SoD). */
+function requireApprovedAtWitness(command: AdapterCommand): string {
+  const at = (command.record as { approved_at?: unknown }).approved_at;
+  if (typeof at !== 'string' || !at) {
+    throw new AppError('approved_at witness missing on timesheet push command', 'DISPATCH_FAILED');
+  }
+  return at;
+}
+
+/**
+ * P3b: the ERP-side state for a PMO-OWNED record. Writes ONLY `timesheet_erp_mirror` — NEVER
+ * `timesheets`, `timesheet_entries` or `profiles` (FR-TSP-072, ADR-0059 §3.1: PMO is SoT there, and a
+ * service-role write is not protected by their RLS). `onConflict:'timesheet_id'` makes a re-apply
+ * idempotent on the 1:1 seam. ERP totals are mirrored VERBATIM as the read-back oracle (ADR-0048),
+ * never recomputed from `timesheet_entries`.
+ */
+const timesheetsWriter: ReadModelWriter = {
+  async upsert(ctx, canonical, command) {
+    const approvedAt = requireApprovedAtWitness(command);
+    const { error } = await ctx.serviceClient.from('timesheet_erp_mirror').upsert(
+      {
+        org_id: ctx.orgId,
+        timesheet_id: String(command.record.id),
+        ts_number: (canonical.ts_number as string | null | undefined) ?? null,
+        push_state: 'pushed',
+        push_error: null,
+        pushed_at: new Date().toISOString(),
+        approved_at_pushed: approvedAt,
+        erp_total_hours: (canonical.erp_total_hours as string | null | undefined) ?? null,
+        erp_total_costing_amount: (canonical.erp_total_costing_amount as string | null | undefined) ?? null,
+        erp_docstatus: (canonical.erp_docstatus as number | null | undefined) ?? null,
+        erp_modified: (canonical.erp_modified as string | null | undefined) ?? null,
+        erp_amended_from: (canonical.erp_amended_from as string | null | undefined) ?? null,
+      },
+      { onConflict: 'timesheet_id' },
+    );
+    if (error) throw new AppError(`timesheet_erp_mirror upsert failed: ${error.message}`, 'DISPATCH_FAILED');
+  },
+};
+
+/**
+ * FR-TSP-085 / ADR-0059 §6 — record the OUTCOME of a push that produced no ERP document.
+ *
+ * Because the PMO transition already succeeded, **nothing else will ever surface a failed push**: the
+ * user has moved on and the sheet looks fine. So every classified rejection must land as durable,
+ * operator-visible state rather than as a log line.
+ *  • `outcome === null` ⇒ nothing to push (an empty / all-zero-hours approved sheet, FR-TSP-056):
+ *    recorded as `pushed` with a NULL `ts_number` — a SUCCESS, so it never re-enters the retry queue.
+ *  • `command-held` ⇒ `held` (terminal until an operator acts — never re-driven).
+ *  • anything else ⇒ `failed` + the classified, client-safe reason.
+ */
+export async function markTimesheetPushOutcome(
+  ctx: ReadModelWriterCtx,
+  timesheetId: string,
+  approvedAt: string,
+  outcome: { code?: string; message: string } | null,
+): Promise<void> {
+  const pushState = outcome === null ? 'pushed' : outcome.code === 'command-held' ? 'held' : 'failed';
+  const { error } = await ctx.serviceClient.from('timesheet_erp_mirror').upsert(
+    {
+      org_id: ctx.orgId,
+      timesheet_id: timesheetId,
+      ts_number: null,
+      push_state: pushState,
+      push_error: outcome === null ? null : `${outcome.code ?? 'error'}: ${outcome.message}`,
+      pushed_at: outcome === null ? new Date().toISOString() : null,
+      approved_at_pushed: approvedAt,
+    },
+    { onConflict: 'timesheet_id' },
+  );
+  if (error) throw new AppError(`timesheet_erp_mirror outcome write failed: ${error.message}`, 'DISPATCH_FAILED');
+}
+
 export const READ_MODEL_WRITERS: Record<string, ReadModelWriter> = {
   reference: referenceWriter,
   tasks: tasksWriter,
   companies: companiesWriter,
   procurement: procurementWriter,
   revenue: revenueWriter,
+  budget: budgetWriter,
+  // P3b — the Posture-B side mirror (ADR-0059). Additive: no other domain's entry is touched.
+  timesheets: timesheetsWriter,
 };
 
 /** The single lookup point — an unknown domain throws (no silent skip). */

@@ -23,6 +23,8 @@ import { piToBody, piFromDoc } from './bodies/purchaseInvoice.ts';
 import { peToBody, peFromDoc } from './bodies/paymentEntry.ts';
 import { siToBody, siFromDoc } from './bodies/salesInvoice.ts';
 import { peReceiveToBody, peReceiveFromDoc } from './bodies/incomingPayment.ts';
+import { tsToBody, tsFromDoc } from './bodies/timesheet.ts';
+import { budgetToBody, budgetFromDoc } from './bodies/budget.ts';
 
 export const DOCTYPE_BODIES: Partial<Record<ErpDocKind, DoctypeBodyFns>> = {
   supplier: { toBody: supplierToBody, fromDoc: supplierFromDoc },
@@ -38,4 +40,9 @@ export const DOCTYPE_BODIES: Partial<Record<ErpDocKind, DoctypeBodyFns>> = {
   // P3a Slice 1 — Revenue domain spike-frozen bodies (FR-SAR-100/103, FR-SAR-120, OQ-SAR-1 #1-#4).
   'sales-invoice': { toBody: siToBody, fromDoc: siFromDoc },
   'incoming-payment': { toBody: peReceiveToBody, fromDoc: peReceiveFromDoc },
+  // P3b Slice 2 — Timesheets domain (ADR-0059 Posture B), spike-frozen body (FR-TSP-064).
+  timesheet: { toBody: tsToBody, fromDoc: tsFromDoc },
+  // P3c — the budget push (ADR-0055 §6 + ADR-0059 Posture B). `fromDoc` is LIFECYCLE-ONLY: an ERP-side
+  // budget_amount has no route back into PMO, which is the SoT for the figure (FR-BUD-140/152).
+  budget: { toBody: budgetToBody, fromDoc: budgetFromDoc },
 };

@@ -39,6 +39,8 @@ import { DOCTYPE_REGISTRY, type ErpDocKind } from '../../../pmo-portal/src/lib/a
 import { DOCTYPE_BODIES } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/doctypeBodies.ts';
 // Luna BLOCK 6: each body module declares the list-endpoint fields ITS `fromDoc` reads, next to the
 // mapper — the poll is built from those so the two cannot drift apart.
+import { BUDGET_FROM_DOC_FIELDS } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/bodies/budget.ts';
+import { TS_FROM_DOC_FIELDS } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/bodies/timesheet.ts';
 import { SI_FROM_DOC_FIELDS } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/bodies/salesInvoice.ts';
 import { PE_RECEIVE_FROM_DOC_FIELDS } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/bodies/incomingPayment.ts';
 import { PE_PAY_FROM_DOC_FIELDS } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/bodies/paymentEntry.ts';
@@ -78,9 +80,28 @@ function json(body: unknown, status = 200): Response {
 }
 
 /** The list of doctypes the sweep polls, per domain. Built from DOCTYPE_REGISTRY (one source). */
+/**
+ * P3c — kinds whose OUTBOUND push has shipped but whose INBOUND handling has not, so the poll must stay
+ * closed for them. `budget` (ADR-0059 Posture B) needs the never-adopt branch (FR-BUD-140: a
+ * Desk-created ERP Budget is ack-and-skipped, NEVER minted into PMO) and the never-fight-the-operator
+ * rule (FR-BUD-142) before it can be polled; the generic feed path would otherwise try to mint a mirror
+ * row for an ERP Budget that belongs to no PMO version. Registering a kind in DOCTYPE_REGISTRY enrols it
+ * here automatically, which is exactly why this exclusion has to be explicit.
+ *
+ * `timesheet` (P3b) is excluded for the same shape but a sharper reason: FR-TSP's feed is
+ * LIFECYCLE-ONLY and must NEVER adopt a natively-created ERP Timesheet — PMO owns entry AND approval
+ * (ADR-0059 Posture B), so minting a mirror from a Desk-created Timesheet would import hours that no
+ * PMO approver ever approved. The push is approved-only; the poll stays shut until the never-adopt
+ * branch lands.
+ * ⚑ Remove the entry in the SAME change that lands the inbound branch — never before.
+ */
+const SWEEP_UNPOLLED_KINDS = new Set<ErpDocKind>(['budget', 'timesheet']);
+
 const SWEEP_DOCTYPES: Array<{ kind: ErpDocKind; doctype: string }> = (Object.entries(DOCTYPE_REGISTRY) as Array<
   [ErpDocKind, { doctype: string }]
->).map(([kind, entry]) => ({ kind, doctype: entry.doctype }));
+>)
+  .filter(([kind]) => !SWEEP_UNPOLLED_KINDS.has(kind))
+  .map(([kind, entry]) => ({ kind, doctype: entry.doctype }));
 
 /**
  * The list-endpoint fields each kind's poll must request (Luna BLOCK 6). Sourced from the field list
@@ -100,6 +121,11 @@ const FROM_DOC_FIELDS_BY_KIND: Record<ErpDocKind, readonly string[]> = {
   customer: CUSTOMER_FROM_DOC_FIELDS,
   'sales-invoice': SI_FROM_DOC_FIELDS,
   'incoming-payment': PE_RECEIVE_FROM_DOC_FIELDS,
+  // P3c: declared for completeness (the map is exhaustive over ErpDocKind); `budget` is not polled
+  // today — see SWEEP_UNPOLLED_KINDS. `accounts` is deliberately absent: the list endpoint drops child
+  // tables anyway, and an ERP-side budget amount must never flow back into PMO (FR-BUD-152).
+  budget: BUDGET_FROM_DOC_FIELDS,
+  timesheet: TS_FROM_DOC_FIELDS,
 };
 
 /** The fields the poll requests for one kind: the mapper's own fields plus the `payment_type`
@@ -894,7 +920,12 @@ export async function buildReconcileDepsLive(serviceClient: SupabaseClient, org:
     orgId: org.orgId,
     externalTier: ERPNEXT_TIER,
     operation: rowExtra.operation,
-    reissueOnInconclusiveAbsence: !entry.anchorMutable,
+    // C-1 per-kind reissue policy: a mutable-anchor (PE) inconclusive recovery is HELD, never reissued.
+    // ADR-0059 §4 corollary (P3c): an ANCHOR-LESS kind flagged `neverReissue` (ERP `Budget` — the
+    // doctype has no field to stamp a key into at all, so no probe can exist) is likewise HELD, because
+    // "no probe hit" there carries no information whatsoever. Default-absent ⇒ every shipped kind is
+    // byte-for-byte.
+    reissueOnInconclusiveAbsence: !(entry.anchorMutable || entry.neverReissue),
     payloadDigest,
     encodeExternalRecordId,
     // BLOCK 4: one shared builder — the mutable-anchor (Payment Entry) FALLBACK carries the same
