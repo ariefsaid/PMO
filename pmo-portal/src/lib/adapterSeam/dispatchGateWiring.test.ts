@@ -1,5 +1,6 @@
 /**
- * WIRE 2 + WIRE 4 — the dispatch ENTRY POINT actually calls the guards that were otherwise inert.
+ * WIRE 2 + WIRE 4 + WIRE P3B — the dispatch ENTRY POINT actually calls the guards that were
+ * otherwise inert, in an order that keeps them in front of the work they exist to prevent.
  *
  * `supabase/functions/adapter-dispatch/index.ts` is integration-only by contract: its handler is
  * registered inside a top-level `Deno.serve` and every gate before the ones under test needs a real
@@ -65,5 +66,91 @@ describe('WIRE 4: the in-flight-for-record conflict is mapped to 409', () => {
     const statusExpr = mapping.slice(0, mapping.indexOf(';'));
     expect(statusExpr).toContain('COMMAND_IN_FLIGHT_FOR_RECORD');
     expect(statusExpr).toMatch(/COMMAND_IN_FLIGHT_FOR_RECORD[\s\S]{0,40}409/);
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════════════════════════════════
+// WIRE P3B — the Approved-only gate + the `timesheets` adapter route are LIVE at the entry point.
+//
+// `approvalGuard.test.ts` proves the gate's DECISION and `dispatchFactory.timesheetRefs.test.ts`
+// proves the fail-closed ref pre-flight — but neither can observe whether `index.ts` calls them, or
+// WHERE. Both failure modes are silent and severe: an uncalled gate pushes an unapproved week of
+// hours into ERP costing (the owner's one binding ruling for P3b), and a gate placed after the
+// service client / adapter select / outbox claim would refuse only AFTER the work it exists to
+// prevent — the Luna BLOCK-6 class (validate before the external write, never after).
+//
+// Same source-scan idiom, and same justification, as WIRE 2/WIRE 4 above.
+// ════════════════════════════════════════════════════════════════════════════════════════════════
+
+/** Character offset of `needle` in the comment-stripped source (−1 when absent). */
+const at = (needle: string): number => CODE.indexOf(needle);
+
+describe('WIRE P3B: the Approved-only timesheet gate is wired into the dispatch entry point', () => {
+  it('FR-TSP-010 index.ts imports AND awaits enforceTimesheetApproved (the gate is not inert)', () => {
+    expect(INDEX).toMatch(/import \{[^}]*enforceTimesheetApproved[^}]*\} from '\.\/approvalGuard\.ts'/);
+    expect(INDEX).toMatch(/import \{[^}]*isTimesheetPush[^}]*\} from '\.\/approvalGuard\.ts'/);
+    expect(
+      /await enforceTimesheetApproved\(/.test(CODE),
+      'an imported-but-uncalled gate lets an UNAPPROVED week of hours reach ERP costing',
+    ).toBe(true);
+    // Applicability is the guard's own predicate — never re-spelled here as a domain/kind if-chain.
+    expect(CODE).toMatch(/if \(isTimesheetPush\(command\)\)/);
+  });
+
+  it('FR-TSP-010 the gate runs under the CALLER JWT client, never the service role', () => {
+    expect(CODE).toMatch(/await enforceTimesheetApproved\(\s*callerClient/);
+    expect(CODE).not.toMatch(/await enforceTimesheetApproved\(\s*serviceClient/);
+  });
+
+  it("FR-TSP-010 a refusal is returned with the guard's own status and message (never swallowed)", () => {
+    const block = CODE.slice(at('await enforceTimesheetApproved('));
+    const refusal = block.slice(0, block.indexOf('\n  }\n') + 5);
+    expect(refusal).toMatch(/if \(!approved\.ok/);
+    expect(refusal).toMatch(/status: approved\.status/);
+    expect(refusal).toMatch(/message: approved\.message/);
+    expect(refusal).toContain("error: 'commit-rejected'");
+  });
+
+  it('FR-TSP-050 the gate runs BEFORE the service client, the adapter select, and the outbox deps', () => {
+    const gate = at('await enforceTimesheetApproved(');
+    expect(gate).toBeGreaterThan(-1);
+    for (const later of [
+      'createClient(supabaseUrl, serviceRoleKey)', // no machine-write client exists before the refusal
+      'ADAPTER_REGISTRY[command.domain]', // no adapter is selected for an unapproved sheet
+      'await resolveErpMoneyOutboxDeps(', // no outbox row, therefore no ERP POST (the CALL, not the decl)
+      'dispatchExternallyOwnedWrite(',
+    ]) {
+      expect(at(later), `${later} must come AFTER the Approved gate`).toBeGreaterThan(gate);
+    }
+  });
+
+  it('FR-TSP-014 the DB-read sheet REPLACES the payload for every field the push is built from', () => {
+    const block = CODE.slice(at('await enforceTimesheetApproved('), at('const serviceClient'));
+    // FR-TSP-014 / ADR-0059 §3.3: author, witness and hours are server truth, so a forged payload can
+    // decide neither whose cost this becomes nor which hours are posted.
+    expect(block).toMatch(/command\.record = \{/);
+    expect(block).toMatch(/user_id: approvedSheet\.user_id/);
+    expect(block).toMatch(/approved_at: approvedSheet\.approved_at/);
+    expect(block).toMatch(/entries: approvedSheet\.entries/);
+  });
+});
+
+describe('WIRE P3B: the `timesheets` domain resolves an ERPNext adapter and rides every erp gate', () => {
+  it('FR-TSP-005 ADAPTER_REGISTRY routes the timesheets domain to the ERPNext factory', () => {
+    expect(INDEX).toMatch(/import \{[^}]*ERPNEXT_TIMESHEETS_DOMAIN[^}]*\} from '[^']*\/erpnext\/adapter\.ts'/);
+    const registry = CODE.slice(at('const ADAPTER_REGISTRY'));
+    expect(
+      registry.slice(0, registry.indexOf('};')),
+      'without a registry entry a timesheet command answers UNSUPPORTED_DOMAIN, never a push',
+    ).toMatch(/\[ERPNEXT_TIMESHEETS_DOMAIN\]: resolveErpAdapter/);
+  });
+
+  it('FR-TSP-012/013 isErpDomain includes timesheets, so authz + idempotency + target binding all apply', () => {
+    const decl = CODE.slice(at('const isErpDomain'));
+    expect(decl.slice(0, decl.indexOf(';'))).toContain('ERPNEXT_TIMESHEETS_DOMAIN');
+    // The three gates keyed on that predicate, each of which a timesheets push must pass.
+    expect(CODE).toMatch(/await checkErpnextCommandAuthorization\(/);
+    expect(CODE).toMatch(/await checkTransitionTargetBinding\(/);
+    expect(CODE).toMatch(/isOpaqueIdempotencyKey\(command\.idempotencyKey\)/);
   });
 });

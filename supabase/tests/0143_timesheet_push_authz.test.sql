@@ -11,7 +11,7 @@
 -- ⚑ The command payload is never trusted to assert approved-ness: the entries come back FROM THIS READ,
 --   so a forged payload cannot decide what hours are pushed (ADR-0059 §3.3).
 begin;
-select plan(12);
+select plan(13);
 
 insert into organizations (id, name) values
   ('01430000-0000-0000-0000-00000000000a','TS Push Org A'),
@@ -136,6 +136,22 @@ select throws_ok(
   $$ select * from approved_timesheet_for_push('01430000-0000-0000-0000-0000000000ff') $$,
   'P0002', null,
   'AC-TSP-012: an unknown timesheet raises P0002 not-found');
+reset role;
+
+-- ── G) IMPERSONATION — `p_actor` must NEVER override a JWT caller's own identity ──────────────────
+-- The original `v_actor := coalesce(p_actor, auth.uid())` let p_actor WIN, so any authenticated org
+-- member could pass the sheet's `approved_by` and satisfy actor-rule (c) — defeating the check the
+-- rule exists to enforce. `p_actor` is only for the service_role sweep (auth.uid() is null there),
+-- which `coalesce(auth.uid(), p_actor)` expresses exactly. Bystander is an Engineer with no relation
+-- to this sheet: unprivileged AND not the approver, so with their real identity they must be refused.
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"01430000-0000-0000-0000-0000000000a4","role":"authenticated"}';
+select throws_ok(
+  $$ select * from approved_timesheet_for_push(
+       '01430000-0000-0000-0000-000000000010',
+       '01430000-0000-0000-0000-0000000000a2') $$,
+  '42501', null,
+  'AC-TSP-011: a bystander passing the APPROVER''s id as p_actor is still refused 42501 (no impersonation)');
 reset role;
 
 select * from finish();

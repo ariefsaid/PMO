@@ -32,7 +32,12 @@ create or replace function approved_timesheet_for_push(p_timesheet_id uuid, p_ac
   language plpgsql security definer set search_path = public as $$
 declare
   v_org uuid; v_status timesheet_status; v_owner uuid; v_approved_by uuid; v_approved_at timestamptz;
-  v_actor uuid := coalesce(p_actor, auth.uid());
+  -- ⚑ auth.uid() FIRST — a JWT caller can NEVER override their own identity with `p_actor`.
+  -- `coalesce(p_actor, auth.uid())` (the original order) was an impersonation hole: any authenticated
+  -- org member could pass the sheet's `approved_by` as p_actor and satisfy actor-rule (c) below,
+  -- defeating the check entirely. `p_actor` is ONLY for the service_role sweep, where auth.uid() is
+  -- null — which this ordering expresses exactly.
+  v_actor uuid := coalesce(auth.uid(), p_actor);
   v_actor_org uuid;
   v_role  user_role;
 begin

@@ -295,7 +295,7 @@ Deno.test('BLOCK1: an absent/empty/non-string key is rejected', () => {
 
 // ── P3b (FR-TSP-013) — the timesheets domain accepts NO client-supplied ERP target at all ─────────
 
-Deno.test('FR-TSP-013: a timesheets command carrying ANY externalRecordId is refused 422 (create)', async () => {
+Deno.test('AC-TSP-013 FR-TSP-013: a timesheets command carrying ANY externalRecordId is refused 422 (create)', async () => {
   // Stricter than the compare-against-external_refs rule the other domains take: for a Posture-B push
   // the ERP target is resolved solely server-side, so rejecting the mere PRESENCE of a caller-supplied
   // target removes the "authorized PMO id + foreign ERP document" class by construction.
@@ -310,7 +310,7 @@ Deno.test('FR-TSP-013: a timesheets command carrying ANY externalRecordId is ref
   assert(res.message.includes('externalRecordId'));
 });
 
-Deno.test('FR-TSP-013: a timesheets transition carrying an externalRecordId is refused 422 too', async () => {
+Deno.test('AC-TSP-013 FR-TSP-013: a timesheets transition carrying an externalRecordId is refused 422 too', async () => {
   const res = await checkTransitionTargetBinding(
     fakeClient({ mappedExternalId: 'TS-2026-00011' }),
     'org-1',
@@ -320,11 +320,37 @@ Deno.test('FR-TSP-013: a timesheets transition carrying an externalRecordId is r
   assertEquals(res.status, 422);
 });
 
-Deno.test('FR-TSP-013: a clean timesheets create (no externalRecordId, unmapped record) passes both guards', async () => {
+Deno.test('AC-TSP-013 FR-TSP-013: a clean timesheets create (no externalRecordId, unmapped record) passes both guards', async () => {
   const client = fakeClient({ mappedExternalId: null });
   const create = await checkCreateTargetUnmapped(client, 'org-1', { domain: 'timesheets', operation: 'create', record: { id: 'ts-1', erp_doc_kind: 'timesheet' } }, 'ts:ts-1:2026-01-12T03:04:05Z');
   assertEquals(create.ok, true);
   const binding = await checkTransitionTargetBinding(client, 'org-1', { domain: 'timesheets', operation: 'create', record: { id: 'ts-1', erp_doc_kind: 'timesheet' } });
+  assertEquals(binding.ok, true);
+});
+
+// ── P3c (FR-BUD-121) — budget is the same Posture-B shape: no client-supplied target either ───────
+
+Deno.test('AC-BUD-021 FR-BUD-121: a budget command carrying ANY externalRecordId is refused 422 (create)', async () => {
+  // Nothing in the budget path reads `externalRecordId` — `resolveBudgetRefs` takes the ERP Project from
+  // the binding's project_map and the upsert target from external_refs — so a supplied one could only
+  // ever be an attempt to redirect the write at a foreign Budget document.
+  const res = await checkCreateTargetUnmapped(
+    fakeClient({ mappedExternalId: null }),
+    'org-1',
+    { domain: 'budget', operation: 'create', record: { id: 'bv-1', erp_doc_kind: 'budget', externalRecordId: 'BUDGET-2026-0009' } },
+    'bud:bv-1:1768532645000',
+  );
+  assertEquals(res.ok, false);
+  assertEquals(res.status, 422);
+  assert(res.message.includes('externalRecordId'));
+});
+
+Deno.test('AC-BUD-021 FR-BUD-121: a clean budget create (no externalRecordId, unmapped version) passes both guards', async () => {
+  // The negative half — proves the rule above refuses the TARGET, not the domain.
+  const client = fakeClient({ mappedExternalId: null });
+  const create = await checkCreateTargetUnmapped(client, 'org-1', { domain: 'budget', operation: 'create', record: { id: 'bv-1', erp_doc_kind: 'budget' } }, 'bud:bv-1:1768532645000');
+  assertEquals(create.ok, true);
+  const binding = await checkTransitionTargetBinding(client, 'org-1', { domain: 'budget', operation: 'create', record: { id: 'bv-1', erp_doc_kind: 'budget' } });
   assertEquals(binding.ok, true);
 });
 
@@ -361,4 +387,110 @@ Deno.test('FR-TSP-041: the DETERMINISTIC Posture-B key is accepted as opaque; a 
   assert(!isOpaqueIdempotencyKey('ts:3f1b0c9e-1a2b-4c3d-8e4f-5a6b7c8d9e0f:%'), 'a LIKE metacharacter must not pass');
   assert(!isOpaqueIdempotencyKey('ts:3f1b0c9e-1a2b-4c3d-8e4f-5a6b7c8d9e0f:2026-01-12T03:04:05Z_'), 'a LIKE metacharacter must not pass');
   assert(!isOpaqueIdempotencyKey('ts:3f1b0c9e-1a2b-4c3d-8e4f-5a6b7c8d9e0f'), 'the state stamp is not optional');
+});
+
+// ── P3c — the `budget` domain must be GUARDED, not vacuously OK ───────────────────────────────────
+//
+// `index.ts` counts `budget` among the erpnext domains (it routes to the ERP adapter and the money
+// outbox), so if `ERP_DOMAINS` here omits it BOTH guards short-circuit on their first line and return
+// OK without reading anything — inert, not passing. That silently re-opens, for budget, the two classes
+// closed for P3a in round 8: aiming a transition at a foreign ERP document (BLOCK #2) and repointing an
+// already-mapped PMO record's external identity with a create (BLOCK #4). For a Budget the second one
+// is the sharper of the two: the ERP object it repoints away from is what the client's GL enforces its
+// overspend controls against.
+//
+// ⚑ Anchor-less note: neither guard reads an anchor. BLOCK #2 compares `external_refs` to the supplied
+// target (using the doctype only for the companies `"<Doctype>:<name>"` prefix), and BLOCK #4's retry
+// exemption keys off the outbox 4-tuple. So both hold for `budget` (`anchorField: null`) exactly as for
+// an anchored kind — the guards' correctness never depended on a probe.
+
+const BUDGET_VERSION = '3f1b0c9e-1a2b-4c3d-8e4f-5a6b7c8d9e0f';
+const BUDGET_KEY = `bud:${BUDGET_VERSION}:1784196000000`;
+
+// ⚑ Budget joined REJECT_CLIENT_SUPPLIED_TARGET (FR-BUD-121), so its target rule is now the STRONGER
+//   by-construction one, not the comparison the other domains take. These three cases were rewritten
+//   to that contract: a supplied target is refused whether it matches or not, and BLOCK #2's
+//   fail-closed-on-unmapped is proven WITHOUT one (where it is still the only thing standing).
+
+Deno.test('AC-BUD-021 BLOCK #2: a budget transition aimed at ANOTHER ERP Budget is rejected 422', async () => {
+  const res = await checkTransitionTargetBinding(fakeClient({ mappedExternalId: 'BUDGET-2026-00001' }), 'org-1', {
+    domain: 'budget',
+    operation: 'transition',
+    record: { id: BUDGET_VERSION, erp_doc_kind: 'budget', externalRecordId: 'BUDGET-2026-00099' },
+  });
+  assertEquals(res.ok, false);
+  assertEquals(res.status, 422);
+});
+
+Deno.test('AC-BUD-021 BLOCK #2: a budget transition on a record with NO mapping FAILS CLOSED', async () => {
+  // No caller-supplied target here on purpose: the by-construction rule cannot be what refuses this,
+  // so the assertion genuinely pins BLOCK #2's "never transition a record that was never externalized".
+  const res = await checkTransitionTargetBinding(fakeClient({ mappedExternalId: null }), 'org-1', {
+    domain: 'budget',
+    operation: 'transition',
+    record: { id: BUDGET_VERSION, erp_doc_kind: 'budget' },
+  });
+  assertEquals(res.ok, false);
+  assertEquals(res.status, 422);
+});
+
+Deno.test('AC-BUD-021 FR-BUD-121: even a budget target that MATCHES its own mapping is refused (stronger than comparison)', async () => {
+  const res = await checkTransitionTargetBinding(fakeClient({ mappedExternalId: 'BUDGET-2026-00001' }), 'org-1', {
+    domain: 'budget',
+    operation: 'transition',
+    record: { id: BUDGET_VERSION, erp_doc_kind: 'budget', externalRecordId: 'BUDGET-2026-00001' },
+  });
+  assertEquals(res.ok, false);
+  assertEquals(res.status, 422);
+  assert(res.message.includes('externalRecordId'));
+});
+
+Deno.test('AC-BUD-021 BLOCK #2: a budget transition on a MAPPED version, carrying no target, is allowed', async () => {
+  // The legitimate FR-BUD-121 upsert: the target comes from `external_refs`, server-side.
+  const res = await checkTransitionTargetBinding(fakeClient({ mappedExternalId: 'BUDGET-2026-00001' }), 'org-1', {
+    domain: 'budget',
+    operation: 'transition',
+    record: { id: BUDGET_VERSION, erp_doc_kind: 'budget' },
+  });
+  assertEquals(res.ok, true);
+});
+
+Deno.test('AC-BUD-021 BLOCK #4: a budget create against an ALREADY-MAPPED version is rejected before any ERP write', async () => {
+  // FR-BUD-121's upsert repoints `external_refs`; a create that lands here would mint a SECOND ERP
+  // Budget and orphan the object ERPNext is currently enforcing against.
+  const res = await checkCreateTargetUnmapped(
+    fakeClient({ mappedExternalId: 'BUDGET-2026-00001', outboxKeys: [] }),
+    'org-1',
+    { domain: 'budget', operation: 'create', record: { id: BUDGET_VERSION, erp_doc_kind: 'budget' } },
+    BUDGET_KEY,
+  );
+  assertEquals(res.ok, false);
+  assertEquals(res.status, 422);
+});
+
+Deno.test('AC-BUD-021 BLOCK #4: the retry exemption survives — the SAME deterministic budget key finalizes', async () => {
+  const res = await checkCreateTargetUnmapped(
+    fakeClient({ mappedExternalId: 'BUDGET-2026-00001', outboxKeys: [BUDGET_KEY] }),
+    'org-1',
+    { domain: 'budget', operation: 'create', record: { id: BUDGET_VERSION, erp_doc_kind: 'budget' } },
+    BUDGET_KEY,
+  );
+  assertEquals(res.ok, true);
+});
+
+Deno.test('AC-BUD-021 the budget guards actually READ the mapping (not vacuously OK on the domain check)', async () => {
+  // The regression that motivated these tests returned OK without a single lookup, so asserting the
+  // verdict alone would have passed against an inert guard for the allowed cases.
+  const client = fakeClient({ mappedExternalId: null });
+  await checkCreateTargetUnmapped(
+    client,
+    'org-1',
+    { domain: 'budget', operation: 'create', record: { id: BUDGET_VERSION, erp_doc_kind: 'budget' } },
+    BUDGET_KEY,
+  );
+  const refLookup = client.filters.find((f) => f.table === 'external_refs');
+  assert(refLookup, 'the guard must resolve external_refs for a budget command');
+  assertEquals(refLookup.org_id, 'org-1');
+  assertEquals(refLookup.domain, 'budget');
+  assertEquals(refLookup.pmo_record_id, BUDGET_VERSION);
 });

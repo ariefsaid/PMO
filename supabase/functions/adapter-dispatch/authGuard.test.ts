@@ -500,7 +500,7 @@ Deno.test('FR-TSP-011: a timesheets push still requires the org to own `timeshee
   assertEquals(res.status, 403);
 });
 
-Deno.test('FR-TSP-012: a cross-domain kind is refused 422 in both directions', async () => {
+Deno.test('AC-TSP-013 FR-TSP-012: a cross-domain kind is refused 422 in both directions', async () => {
   const wrongKind = await checkErpnextCommandAuthorization(
     fakeClient({ domainOwned: true, role: 'Admin' }),
     'org-1',

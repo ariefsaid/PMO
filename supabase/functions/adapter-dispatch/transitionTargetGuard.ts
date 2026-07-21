@@ -39,8 +39,12 @@ export interface TransitionBindingResult {
 const OK: TransitionBindingResult = { ok: true, status: 200, message: '' };
 
 /** The PMO domains the erpnext tier owns. A P0/P1 domain (`reference`/`tasks`) is never guarded here —
- *  it has no ERP document identity to bind. */
-const ERP_DOMAINS = new Set(['companies', 'procurement', 'revenue', 'timesheets']);
+ *  it has no ERP document identity to bind.
+ *
+ *  ⚑ This set MUST stay in step with `index.ts`'s `isErpDomain`: a domain that routes to the ERP adapter
+ *  but is missing here makes BOTH guards return OK on their first line — INERT, not passing — which
+ *  silently re-opens BLOCK #2 and BLOCK #4 for that domain. `budget` (P3c) was exactly that gap. */
+const ERP_DOMAINS = new Set(['companies', 'procurement', 'revenue', 'timesheets', 'budget']);
 
 /**
  * P3b FR-TSP-013 — the domains that accept NO caller-supplied ERP target AT ALL.
@@ -50,9 +54,13 @@ const ERP_DOMAINS = new Set(['companies', 'procurement', 'revenue', 'timesheets'
  * solely server-side from `external_refs(org, domain, record.id)`. Rejecting the mere PRESENCE of a
  * client-supplied target therefore removes the "authorized PMO id paired with a foreign ERP document"
  * class BY CONSTRUCTION rather than by comparison — a strictly stronger rule, applied to the new
- * domain only, so every shipped domain stays byte-for-byte.
+ * domains only, so every shipped domain stays byte-for-byte.
+ *
+ * `budget` (P3c, FR-BUD-121) is the same shape: `resolveBudgetRefs` resolves its ERP `Project` from the
+ * binding's `project_map` and its upsert target from `external_refs` — nothing in the budget path ever
+ * reads `externalRecordId`, so accepting one could only ever mean an attempt to redirect the write.
  */
-const REJECT_CLIENT_SUPPLIED_TARGET = new Set(['timesheets']);
+const REJECT_CLIENT_SUPPLIED_TARGET = new Set(['timesheets', 'budget']);
 
 /** `{ok:false}` when this domain forbids a caller-supplied ERP target and the command carries one. */
 function checkNoClientSuppliedTarget(command: GuardCommand): TransitionBindingResult | null {
