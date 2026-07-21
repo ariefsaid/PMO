@@ -142,6 +142,7 @@ describe('AC-TASK-003 createTask', () => {
         start_date: '2026-06-10',
         end_date: '2026-06-20',
         milestone_id: null,
+        parent_task_id: null,
       },
     ]);
     expect(JSON.stringify(h.calls.insert)).not.toContain('org_id');
@@ -163,6 +164,28 @@ describe('AC-TASK-003 createTask', () => {
     await expect(
       createTask({ project_id: 'p1', name: 'X', status: 'To Do', assignee_id: null }),
     ).rejects.toMatchObject({ code: '42501' });
+  });
+
+  // ── OD-INT-9: parent_task_id threading (PMO-direct branch only; ClickUp mapping is a separate issue). ──
+  it('AC-TASK-003: threads parent_task_id into the insert (subtask of a top-level task)', async () => {
+    h.result.value = { data: { id: 'new' }, error: null };
+    await createTask({
+      project_id: 'p1',
+      name: 'Sub',
+      status: 'To Do',
+      assignee_id: null,
+      parent_task_id: 'parent-t',
+    });
+    const insert = h.calls.insert[0] as Record<string, unknown>;
+    expect(insert.parent_task_id).toBe('parent-t');
+    expect(JSON.stringify(h.calls.insert)).not.toContain('org_id');
+  });
+
+  it('AC-TASK-003: defaults parent_task_id to null when not supplied (top-level task)', async () => {
+    h.result.value = { data: { id: 'new' }, error: null };
+    await createTask({ project_id: 'p1', name: 'Top', status: 'To Do', assignee_id: null });
+    const insert = h.calls.insert[0] as Record<string, unknown>;
+    expect(insert.parent_task_id).toBeNull();
   });
 });
 
@@ -216,6 +239,30 @@ describe('AC-TASK-004 updateTask (structure)', () => {
     await updateTask('t1', { name: 'Only rename' });
     const patch = h.calls.update[0] as Record<string, unknown>;
     expect(patch).not.toHaveProperty('milestone_id');
+  });
+
+  // ── OD-INT-9: parent_task_id threading (PMO-direct branch only; ClickUp mapping is a separate issue). ──
+  it('AC-TASK-004: parent_task_id present in patch is threaded into the DB update', async () => {
+    h.result.value = { data: null, error: null };
+    await updateTask('t1', { parent_task_id: 'parent-t' });
+    const patch = h.calls.update[0] as Record<string, unknown>;
+    expect(patch).toHaveProperty('parent_task_id', 'parent-t');
+    expect(patch).not.toHaveProperty('org_id');
+    expect(patch).not.toHaveProperty('project_id');
+  });
+
+  it('AC-TASK-004: parent_task_id: null in patch explicitly clears the parent (subtask → top-level)', async () => {
+    h.result.value = { data: null, error: null };
+    await updateTask('t1', { parent_task_id: null });
+    const patch = h.calls.update[0] as Record<string, unknown>;
+    expect(patch).toHaveProperty('parent_task_id', null);
+  });
+
+  it('AC-TASK-004: omitting parent_task_id from patch leaves it untouched (absent key not sent)', async () => {
+    h.result.value = { data: null, error: null };
+    await updateTask('t1', { name: 'Only rename' });
+    const patch = h.calls.update[0] as Record<string, unknown>;
+    expect(patch).not.toHaveProperty('parent_task_id');
   });
 });
 
