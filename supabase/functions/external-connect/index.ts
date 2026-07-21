@@ -391,31 +391,25 @@ export async function handleConnectRequest(req: Request): Promise<Response> {
 
     // 8b. Persist the resolved ClickUp actor id onto the org binding (echo-loop guard identity,
     // item 4 of the read-hygiene fix). Non-fatal, same stance as the ownership RPC above — the
-    // binding is already created; a failure here just means the guard can't be armed yet. Merge-safe
-    // (read-then-update) so a reconnect never clobbers any other config key ClickUp might gain later.
-    if (clickUpTeamId !== null) {
-      const { data: currentBinding, error: readError } = await serviceClient
-        .from('external_org_bindings')
-        .select('config')
-        .eq('org_id', profile.org_id)
-        .eq('external_tier', 'clickup')
-        .maybeSingle();
-      if (readError) {
-        console.error('external_org_bindings config read (clickup_actor_id persist) failed', readError);
-      } else {
-        const mergedConfig = {
-          ...((currentBinding?.config as Record<string, unknown> | null) ?? {}),
-          ...(clickUpUserId !== null ? { clickup_actor_id: clickUpUserId } : {}),
-          clickup_team_id: clickUpTeamId,
-        };
-        const { error: configError } = await serviceClient
-          .from('external_org_bindings')
-          .update({ config: mergedConfig })
-          .eq('org_id', profile.org_id)
-          .eq('external_tier', 'clickup');
-        if (configError) {
-          console.error('external_org_bindings clickup_actor_id persist failed', configError);
-        }
+    // binding is already created; a failure here just means the guard can't be armed yet. The
+    // security-definer RPC merges this patch in the database statement, so a concurrent writer
+    // cannot clobber statusMap, memberMap, or any future sibling key (that read-then-write race
+    // was a MEDIUM audit finding — never reintroduce a client-side merge here).
+    //
+    // Both identities are persisted in ONE patch: `clickup_actor_id` arms the echo-loop guard, and
+    // `clickup_team_id` is what lets clickup-webhook-worker resolve the org from a delivery's
+    // `team_id` BEFORE it makes any ClickUp call — the fix for the global-token HIGH.
+    const configPatch: Record<string, unknown> = {};
+    if (clickUpUserId !== null) configPatch.clickup_actor_id = clickUpUserId;
+    if (clickUpTeamId !== null) configPatch.clickup_team_id = clickUpTeamId;
+    if (Object.keys(configPatch).length > 0) {
+      const { error: configError } = await serviceClient.rpc('merge_external_org_binding_config', {
+        p_org_id: profile.org_id,
+        p_external_tier: 'clickup',
+        p_patch: configPatch,
+      });
+      if (configError) {
+        console.error('external_org_bindings clickup identity persist failed', configError);
       }
     }
   }

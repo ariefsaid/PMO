@@ -4,7 +4,13 @@
  * ever required to exercise this module.
  */
 import { AdapterError } from '../contract.ts';
-import { withBackoff, type ClickUpLanePriority, type ClickUpRateLimiter } from './rateLimit.ts';
+import {
+  withBackoff,
+  readClickUpRateLimitHeaders,
+  type ClickUpLanePriority,
+  type ClickUpRateLimiter,
+  type ClickUpRateLimitHeaders,
+} from './rateLimit.ts';
 
 const DEFAULT_BASE_URL = 'https://api.clickup.com/api/v2';
 
@@ -26,6 +32,11 @@ export interface ClickUpClientDeps {
   token: string;
   baseUrl?: string;
   rateLimiter?: ClickUpRateLimiter;
+  /** Optional sink for the `X-RateLimit-*` headers off the FINAL response of every request (success or
+   *  failure, after any retry/backoff) — lets a caller (e.g. the sweep) throttle bulk work BEFORE
+   *  hitting a 429, instead of only reacting after one (NFR-CUA-PERF-003). Never throws from this
+   *  callback outward — a caller's throttle logic is its own concern. */
+  onRateLimitInfo?: (info: ClickUpRateLimitHeaders) => void;
 }
 
 export interface ClickUpRequestOptions {
@@ -63,12 +74,27 @@ export async function clickUpRequest(deps: ClickUpClientDeps, opts: ClickUpReque
     throw new ClickUpHttpError(0, 'external-unreachable', err instanceof Error ? err.message : 'ClickUp request failed');
   }
 
+  deps.onRateLimitInfo?.(readClickUpRateLimitHeaders(res));
+
   if (res.status === 429 || res.status >= 500) {
     throw new ClickUpHttpError(res.status, 'external-unreachable', `ClickUp request failed with status ${res.status}`);
   }
 
   const bodyText = res.status === 204 ? '' : await res.text();
-  const body: unknown = bodyText ? JSON.parse(bodyText) : null;
+  // SEC-MEDIUM-5: an error body is not guaranteed to be JSON (an HTML error page, an empty body, or a
+  // plain-text upstream failure all reach here on a 404/4xx/5xx). A raw JSON.parse threw a SyntaxError
+  // BEFORE the status-based classification below ever ran, so a non-JSON 404 crashed the whole request
+  // instead of being recognised as a 404 (reads.ts's 404 -> "List/task not found" branch never saw it).
+  // Defensive parse: fall back to `null` on a malformed body — every caller downstream branches on
+  // `res.status`, never on the parsed body being present.
+  let body: unknown = null;
+  if (bodyText) {
+    try {
+      body = JSON.parse(bodyText);
+    } catch {
+      body = null;
+    }
+  }
 
   if (res.status >= 400) {
     throw new ClickUpHttpError(res.status, 'commit-rejected', extractErrorMessage(body, res.status));

@@ -118,30 +118,53 @@ async function createClickUpList(deps: ClickUpClientDeps, folderId: string, name
   return raw.id;
 }
 
+/** Delete a ClickUp List (REST v2 `DELETE /list/{list_id}`), bulk lane — orphan-cleanup only, see
+ *  `provisionBinding` below. Never called for `kind: 'bind'` (an existing List the org already owns). */
+async function deleteClickUpList(deps: ClickUpClientDeps, listId: string): Promise<void> {
+  await clickUpRequest(deps, { method: 'DELETE', path: `/list/${listId}`, priority: 'bulk' });
+}
+
 /**
  * Provision (or bind) one ClickUp List per project, capture its maps, persist the binding, and pick
  * the onboarding direction. Rejects the mixed case at provisioning (OD-CUA-3) BEFORE persisting.
+ *
+ * Orphan-List cleanup (security audit LOW, round 2): for `kind: 'create'`, the List must exist before
+ * its statuses can be fetched/validated, so a rejection AFTER creation (an incomplete status map, or
+ * the mixed-content case) would otherwise leave an orphan List sitting in the customer's ClickUp
+ * workspace forever. Any rejection reached after we created the List triggers a best-effort DELETE of
+ * that List; a cleanup failure is logged, never masks the original rejection, and `kind: 'bind'`
+ * (an existing List the org already owns) is NEVER deleted.
  */
 export async function provisionBinding(projectId: string, deps: ProvisioningDeps): Promise<ProvisioningResult> {
+  const weCreatedIt = deps.target.kind === 'create';
   const listId =
     deps.target.kind === 'create'
       ? await createClickUpList(deps, deps.target.folderId, deps.target.name ?? projectId)
       : deps.target.listId;
 
-  const { statusMap, memberMap } = await deps.captureMaps(listId);
-  const pmoCount = await deps.countPmoTasks(projectId);
-  const listCount = await deps.countListTasks(listId);
+  try {
+    const { statusMap, memberMap } = await deps.captureMaps(listId);
+    const pmoCount = await deps.countPmoTasks(projectId);
+    const listCount = await deps.countListTasks(listId);
 
-  if (pmoCount > 0 && listCount > 0) {
-    // OD-CUA-3: reject the mixed case at provisioning — no half-provisioned binding is persisted.
-    throw new Error(MIXED_ONBOARDING_MESSAGE);
+    if (pmoCount > 0 && listCount > 0) {
+      // OD-CUA-3: reject the mixed case at provisioning — no half-provisioned binding is persisted.
+      throw new Error(MIXED_ONBOARDING_MESSAGE);
+    }
+
+    // Empty List → push-seed (seed it from PMO); non-empty List (with an empty project) → pull-adopt.
+    const direction: OnboardingDirection = listCount > 0 ? 'pull-adopt' : 'push-seed';
+    const binding: ProjectBinding = { projectId, listId, statusMap, memberMap };
+    await deps.upsertBinding(binding);
+    return { direction, binding };
+  } catch (err) {
+    if (weCreatedIt) {
+      await deleteClickUpList(deps, listId).catch((cleanupErr) => {
+        console.error(`orphan ClickUp List ${listId} cleanup failed after a provisioning rejection`, cleanupErr);
+      });
+    }
+    throw err;
   }
-
-  // Empty List → push-seed (seed it from PMO); non-empty List (with an empty project) → pull-adopt.
-  const direction: OnboardingDirection = listCount > 0 ? 'pull-adopt' : 'push-seed';
-  const binding: ProjectBinding = { projectId, listId, statusMap, memberMap };
-  await deps.upsertBinding(binding);
-  return { direction, binding };
 }
 
 // ──────────────────────────────────────────────────────────────────────────────

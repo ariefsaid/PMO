@@ -22,6 +22,10 @@ function makeTask(
     completed_at: null,
     tombstoned_at: null,
     source_updated_at: null,
+    description: null,
+    priority: null,
+    parent_task_id: null,
+    archived_at: null,
     assignee: null,
     dependencies: [],
     start_date: null,
@@ -493,5 +497,60 @@ describe('axis ticks', () => {
       expect(tick.left).toBeGreaterThanOrEqual(0 - EPS);
       expect(tick.left).toBeLessThanOrEqual(1 + EPS);
     }
+  });
+});
+
+// ── OD-INT-9: subtask exclusion from Gantt bars ───────────────────────────────
+// Only top-level tasks (parent_task_id IS NULL) render as Gantt bars / points / undated footer
+// entries. A subtask renders nested under its parent in the LIST view, never on the timeline.
+// This also keeps a subtask's dates from extending the axis span (the parent's dates define it).
+describe('OD-INT-9: subtasks never render as Gantt bars', () => {
+  it('AC-SUB-GANTT-001: a dated subtask does not become a bar (only the parent does)', () => {
+    const tasks: TaskWithRefs[] = [
+      makeTask({ id: 'parent', name: 'Parent', start_date: '2026-01-01', end_date: '2026-01-11' }),
+      makeTask({ id: 'sub', name: 'Subtask', start_date: '2026-01-02', end_date: '2026-01-05', parent_task_id: 'parent' }),
+    ];
+    const model = buildGanttModel(tasks, [], '2026-01-05');
+    const bars = model.lanes.flatMap((l) => l.bars);
+
+    expect(bars.find((b) => b.id === 'parent')).toBeDefined();
+    expect(bars.find((b) => b.id === 'sub')).toBeUndefined();
+  });
+
+  it('AC-SUB-GANTT-002: a subtask with dates does NOT land in undated (it is simply absent)', () => {
+    const tasks: TaskWithRefs[] = [
+      makeTask({ id: 'parent', name: 'Parent', start_date: '2026-01-01', end_date: '2026-01-11' }),
+      makeTask({ id: 'sub', name: 'Dated subtask', start_date: '2026-01-02', end_date: '2026-01-05', parent_task_id: 'parent' }),
+    ];
+    const model = buildGanttModel(tasks, [], '2026-01-05');
+
+    expect(model.undated.find((u) => u.id === 'sub')).toBeUndefined();
+  });
+
+  it('AC-SUB-GANTT-003: a subtask with NO dates does NOT land in undated either (never counted)', () => {
+    const tasks: TaskWithRefs[] = [
+      makeTask({ id: 'parent', name: 'Parent', start_date: '2026-01-01', end_date: '2026-01-11' }),
+      makeTask({ id: 'sub', name: 'Undated subtask', parent_task_id: 'parent' }),
+    ];
+    const model = buildGanttModel(tasks, [], '2026-01-05');
+
+    expect(model.undated.find((u) => u.id === 'sub')).toBeUndefined();
+    // The parent still renders normally.
+    const bars = model.lanes.flatMap((l) => l.bars);
+    expect(bars.find((b) => b.id === 'parent')).toBeDefined();
+  });
+
+  it('AC-SUB-GANTT-004: a subtask with dates outside the parent span cannot extend the axis span', () => {
+    // Parent spans 2026-01-10..2026-01-11 (2 days). Subtask dates 2026-03-01..2026-03-31 (way later).
+    // The subtask must NOT extend the axis — the span stays anchored to the parent (+ today).
+    const tasks: TaskWithRefs[] = [
+      makeTask({ id: 'parent', name: 'Parent', start_date: '2026-01-10', end_date: '2026-01-11' }),
+      makeTask({ id: 'sub', name: 'Far-future subtask', start_date: '2026-03-01', end_date: '2026-03-31', parent_task_id: 'parent' }),
+    ];
+    const model = buildGanttModel(tasks, [], '2026-01-10');
+
+    expect(model.span).toBeDefined();
+    // Span end must be well before the subtask's 2026-03-31 end (subtask did not extend it).
+    expect(model.span!.endIso < '2026-03-31').toBe(true);
   });
 });

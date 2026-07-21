@@ -53,6 +53,7 @@ export interface WebhookApplyDeps extends ApplyChangeDeps, WatermarkDeps, ClickU
   tombstoneMirror: (pmoRecordId: string) => Promise<void>;
   /** Surface a deletion (AC-CUA-070 non-silent) — an audit/notice write; optional (P1: structured log). */
   surfaceDeletion?: (pmoRecordId: string, externalRecordId: string) => Promise<void>;
+<<<<<<< HEAD
   /** Set/clear the mirror's archived state (`tasks.archived_at`) — `null` un-archives. Archiving fires
    *  `taskUpdated` with a `history_items[].field === 'archived'` entry, NEVER `taskDeleted`; this is
    *  wired SEPARATELY from `tombstoneMirror` so an archive is never mistaken for a delete. */
@@ -82,6 +83,14 @@ function findArchivedTransition(historyItems: ClickUpHistoryItem[]): { after: bo
   const item = historyItems.find((h) => h.field === 'archived');
   if (!item) return null;
   return { after: String(item.after) === 'true', atMs: item.date ? Number(item.date) : null };
+=======
+  /** Read the mirror's CURRENT PMO status (OD-INT-10, round 3) — feeds `fromClickUpStatus`'s
+   *  stickiness so an inbound sync never moves a row OUT of a `pmo-only` status, and never downgrades
+   *  the more specific PMO status of an explicitly recorded collapse. OPTIONAL: absent (the P1
+   *  default) preserves byte-for-byte pre-round-3 behavior — status resolves off the plain inbound
+   *  map with no "current status" awareness. */
+  readMirrorStatus?: (pmoRecordId: string) => Promise<string | null>;
+>>>>>>> origin/dev
 }
 
 /**
@@ -131,7 +140,43 @@ export async function applyWebhookEvent(
   if (event.task === null) {
     const existingId = await deps.resolvePmoRecordId(event.taskId);
     if (existingId === null) {
+<<<<<<< HEAD
       return { kind: 'no-op' };
+=======
+      // Nothing to tombstone (the task was never mirrored) — a faithful no-op.
+      outcome = { kind: 'no-op' };
+    } else {
+      // A delete is also a read-model apply (a tombstone) — guard it the same way (FR-CUA-049): a
+      // strictly-older delete is a no-op (a fresher state already won). Once applied, tombstoning an
+      // already-tombstoned row is itself idempotent.
+      const stored = await deps.readMirrorSourceMod(existingId);
+      if (stored !== null && sourceUpdatedAtMs < stored) {
+        outcome = { kind: 'no-op' };
+      } else {
+        await deps.tombstoneMirror(existingId);
+        await deps.surfaceDeletion?.(existingId, externalRecordId);
+        outcome = { kind: 'tombstoned', pmoRecordId: existingId };
+      }
+    }
+  } else {
+    if (!event.task) {
+      // A created/updated event without a task body is malformed — surface and treat as a no-op
+      // rather than crashing the ingress (the sweep is the safety net for the missing change).
+      outcome = { kind: 'no-op' };
+    } else {
+      // OD-INT-10, round 3: resolve the mirror's CURRENT PMO status (when the caller supplies
+      // `readMirrorStatus`) so `fromClickUpStatus`'s stickiness applies — a `pmo-only` status is never
+      // moved out of by this sync, and an explicit collapse never downgrades the more specific status.
+      let currentPmoStatus: string | undefined;
+      if (deps.readMirrorStatus) {
+        const existingId = await deps.resolvePmoRecordId(externalRecordId);
+        if (existingId !== null) {
+          currentPmoStatus = (await deps.readMirrorStatus(existingId)) ?? undefined;
+        }
+      }
+      const canonical = clickUpTaskToPmoRecord(event.task, maps, currentPmoStatus);
+      outcome = await applyInboundChange(externalRecordId, canonical, sourceUpdatedAtMs, deps);
+>>>>>>> origin/dev
     }
     await deps.tombstoneMirror(existingId);
     await deps.surfaceDeletion?.(existingId, event.taskId);
