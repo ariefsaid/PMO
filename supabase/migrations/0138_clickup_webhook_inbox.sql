@@ -1,4 +1,4 @@
--- 0124_clickup_webhook_inbox.sql — the durable ClickUp webhook-ingress queue (OD-INT-11 fix,
+-- 0138_clickup_webhook_inbox.sql — the durable ClickUp webhook-ingress queue (OD-INT-11 fix,
 -- 2026-07-20). ClickUp's REAL webhook envelope (live-verified, 7/7 real deliveries) carries only
 -- {event, task_id, team_id, webhook_id, history_items} — NO task body, NO date_updated, NO list_id.
 -- `clickup-webhook` can therefore no longer apply inline: it verifies the X-Signature HMAC BEFORE any
