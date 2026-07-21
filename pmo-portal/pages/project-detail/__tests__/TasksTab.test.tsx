@@ -5,6 +5,7 @@ import React from 'react';
 import { MemoryRouter } from 'react-router-dom';
 import type { Role } from '@/src/auth/AuthContext';
 import { ToastProvider } from '@/src/components/ui';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 // ── Repository-seam-backed hooks are mocked; the tab is the unit under test. ──
 const { listState, profilesState, mutations } = vi.hoisted(() => ({
@@ -87,12 +88,15 @@ const seed = [
 const renderTab = (role: Role = 'Project Manager', userId = 'pm-1') => {
   realRole = role;
   currentUserId = userId;
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
-    <MemoryRouter initialEntries={['/projects/p1/tasks']}>
-      <ToastProvider>
-        <TasksTab projectId="p1" />
-      </ToastProvider>
-    </MemoryRouter>,
+    <QueryClientProvider client={qc}>
+      <MemoryRouter initialEntries={['/projects/p1/tasks']}>
+        <ToastProvider>
+          <TasksTab projectId="p1" />
+        </ToastProvider>
+      </MemoryRouter>
+    </QueryClientProvider>,
   );
 };
 

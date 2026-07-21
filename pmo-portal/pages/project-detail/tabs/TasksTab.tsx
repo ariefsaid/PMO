@@ -20,6 +20,7 @@ import {
   type RowMenuItem,
   type ComboboxOption,
 } from '@/src/components/ui';
+import { ProjectIntegrationsCard } from '@/src/components/projects/ProjectIntegrationsCard';
 import { useLocation } from 'react-router-dom';
 import { usePermission } from '@/src/auth/usePermission';
 import { useAuth } from '@/src/auth/useAuth';
@@ -274,6 +275,9 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId }) => {
           </Button>
         )}
       </div>
+
+      {/* Project Integrations Link/Unlink control */}
+      <ProjectIntegrationsCard projectId={projectId} />
 
       {state !== 'loading' && state !== 'empty' && (
         <Toolbar standalone>

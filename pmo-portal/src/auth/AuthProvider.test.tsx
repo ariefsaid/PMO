@@ -62,11 +62,12 @@ describe('useAuth', () => {
 });
 
 function Probe() {
-  const { currentUser, role, profileError } = useAuth();
+  const { currentUser, role, profileError, profileErrorKind } = useAuth();
   return (
     <div>
       {currentUser?.full_name}|{role}
       {profileError && <span data-testid="profile-error">{profileError}</span>}
+      {profileErrorKind && <span data-testid="profile-error-kind">{profileErrorKind}</span>}
     </div>
   );
 }
@@ -119,6 +120,44 @@ describe('AuthProvider', () => {
     expect(screen.getByTestId('profile-error').textContent).toMatch(/profile/i);
   });
 
+  // AC-MSAUTH-010: a zero-rows PostgREST error (PGRST116 — "Cannot coerce the result
+  // to a single JSON object") means the user has no `profiles` row yet (e.g. signed in
+  // via SSO before being invited). Classify it as "not_provisioned", not a generic error.
+  it('AC-MSAUTH-010: classifies a PGRST116 profile-fetch error as profileErrorKind=not_provisioned', async () => {
+    state.session = { user: { id: '00000000-0000-0000-0000-0000000000fe' } };
+    state.profile = null;
+    state.profileError = {
+      message: 'Cannot coerce the result to a single JSON object',
+      code: 'PGRST116',
+    };
+
+    render(
+      <AuthProvider>
+        <Probe />
+      </AuthProvider>
+    );
+
+    await waitFor(() =>
+      expect(screen.getByTestId('profile-error-kind')).toHaveTextContent('not_provisioned')
+    );
+  });
+
+  it('AC-MSAUTH-011: classifies a generic (non-PGRST116) profile-fetch error as profileErrorKind=load_error', async () => {
+    state.session = { user: { id: '00000000-0000-0000-0000-0000000000fd' } };
+    state.profile = null;
+    state.profileError = { message: 'network timeout', code: '57014' };
+
+    render(
+      <AuthProvider>
+        <Probe />
+      </AuthProvider>
+    );
+
+    await waitFor(() =>
+      expect(screen.getByTestId('profile-error-kind')).toHaveTextContent('load_error')
+    );
+  });
+
   it('keeps currentUser null and clears profileError when there is no session', async () => {
     state.session = null;
     state.profile = null;
@@ -131,6 +170,7 @@ describe('AuthProvider', () => {
     );
 
     await waitFor(() => expect(screen.queryByTestId('profile-error')).toBeNull());
+    expect(screen.queryByTestId('profile-error-kind')).toBeNull();
   });
 });
 

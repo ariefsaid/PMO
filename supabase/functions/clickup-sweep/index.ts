@@ -15,12 +15,9 @@
  * monotonic watermark advance, unreachable ⇒ no advance) is unit-tested under sweep.test.ts. This
  * file is INTEGRATION-ONLY — verified by `deno check` + the boot-smoke.
  *
- * Per employing org: load the org's ClickUp bindings (one List per bound project), enumerate changes
- * since the org `(tasks, clickup)` watermark across ALL the org's Lists (merged — correct for single-
- * and multi-List orgs), apply each through the pure engine, and advance the org watermark once to the
- * max `nextCursor`. An unreachable adapter surfaces a per-org failure without advancing that org's
- * watermark or touching its read-model (AC-CUA-044); the next schedule retries. Bulk lane throughout
- * (NFR-CUA-PERF-003).
+ * Phase 1b (task 1.6): Per-org Vault credential resolution behind EXTERNAL_CONNECT_ENABLED flag.
+ * When flag is ON: iterate external_org_bindings for ClickUp tier, resolve each org's token via Vault.
+ * When flag is OFF (default): legacy global CLICKUP_API_TOKEN behavior unchanged.
  */
 
 // Deno-native imports (not in pmo-portal/package.json)
@@ -33,6 +30,7 @@ import { ClickUpRateLimiter } from '../../../pmo-portal/src/lib/adapterSeam/clic
 import type { ClickUpStatusMap } from '../../../pmo-portal/src/lib/adapterSeam/clickup/statusMap.ts';
 import type { ClickUpMemberMap } from '../../../pmo-portal/src/lib/adapterSeam/clickup/memberMap.ts';
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
+import { resolvePerOrgSecret } from '../_shared/perOrgSecret.ts';
 import {
   CLICKUP_TIER,
   CLICKUP_TASKS_DOMAIN,
@@ -152,6 +150,50 @@ async function sweepOrg(serviceClient: SupabaseClient, orgId: string, token: str
   }
 }
 
+/** Resolve a single org's ClickUp token: Vault-first when EXTERNAL_CONNECT_ENABLED=true, else global fallback.
+ * ClickUp: fail CLOSED on binding-vault-miss (bound org with missing Vault secret). */
+async function resolveOrgClickUpToken(
+  serviceClient: SupabaseClient,
+  orgId: string,
+): Promise<string> {
+  const globalToken = Deno.env.get('CLICKUP_API_TOKEN') ?? '';
+
+  // Use shared per-org Vault secret resolution (flag gate + binding lookup + tri-state result)
+  const result = await resolvePerOrgSecret({
+    connectEnabled: Deno.env.get('EXTERNAL_CONNECT_ENABLED') === 'true',
+    orgId,
+    tier: 'clickup',
+    lookupBinding: async (orgId, tier) => {
+      const { data, error } = await serviceClient
+        .from('external_org_bindings')
+        .select('secret_ref')
+        .eq('org_id', orgId)
+        .eq('external_tier', tier)
+        .maybeSingle();
+      if (error) return null;
+      return data as { secret_ref?: string | null } | null;
+    },
+    readVaultSecret: async (ref) => {
+      const { data, error } = await serviceClient.rpc('read_vault_secret', { p_secret_ref: ref });
+      if (error) {
+        console.error('read_vault_secret failed', error);
+        return null;
+      }
+      return (data as string | null) ?? null;
+    },
+  });
+
+  if (result.kind === 'resolved') {
+    return result.secret;
+  }
+  if (result.kind === 'binding-vault-miss') {
+    // Bound org but Vault secret missing — FAIL CLOSED (no global fallback)
+    throw new AppError('ClickUp credentials unresolved for this org — check the binding secret_ref configuration', 'config-rejected');
+  }
+  // kind === 'no-binding' → use global fallback
+  return globalToken;
+}
+
 Deno.serve(async (req: Request): Promise<Response> => {
   // ── 1. Authorization: the caller (the pg_cron job) must present the DEDICATED sweep secret (NOT the
   //    master service_role key — least-privilege, mirroring 0082's AGENT_DISPATCH_SECRET). The cron
@@ -173,12 +215,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
   if (!supabaseUrl || !serviceRoleKey) return json({ error: 'MISCONFIGURED', message: 'missing Supabase configuration' }, 500);
 
-  const token = Deno.env.get('CLICKUP_API_TOKEN') ?? '';
-  // Cast: see adapter-dispatch/index.ts — the real supabase-js client structurally satisfies the pure
-  // modules' service-client seams at runtime but is not nominally assignable (thenable builder).
   const serviceClient = createClient(supabaseUrl, serviceRoleKey);
 
-  // ── 2. Iterate employing orgs (orgs whose `tasks` domain is owned by ClickUp) → sweep each. ──
+  // ── 2. Iterate employing orgs via external_domain_ownership (ClickUp tasks tier) → sweep each with its token.
+  // FIX-3: Restore legacy discovery (byte-for-byte the origin/dev query) so flag-off/prod works.
   const { data: ownership, error: ownershipError } = await serviceClient
     .from('external_domain_ownership')
     .select('org_id')
@@ -188,12 +228,23 @@ Deno.serve(async (req: Request): Promise<Response> => {
   const orgIds = Array.from(new Set(((ownership as Array<{ org_id: string }> | null) ?? []).map((r) => r.org_id)));
 
   const perOrg = [];
+  const failures = [];
   let totalApplied = 0;
   for (const orgId of orgIds) {
-    const result = await sweepOrg(serviceClient, orgId, token);
-    totalApplied += result.applied;
-    perOrg.push({ orgId, ...result });
+    // Per-org isolation: a fail-closed token error (bound org whose Vault secret is missing) or a
+    // sweep error for ONE org must not abort reconciliation for the OTHERS (no cross-org DoS). Record
+    // the failure and continue; the org's watermark simply does not advance and retries next schedule.
+    try {
+      const token = await resolveOrgClickUpToken(serviceClient, orgId);
+      const result = await sweepOrg(serviceClient, orgId, token);
+      totalApplied += result.applied;
+      perOrg.push({ orgId, ...result });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error(`[clickup-sweep] org sweep failed: org=${orgId} detail=${message}`);
+      failures.push({ orgId, error: message });
+    }
   }
 
-  return json({ ok: true, orgs: orgIds.length, applied: totalApplied, perOrg });
+  return json({ ok: true, orgs: orgIds.length, applied: totalApplied, perOrg, failures });
 });

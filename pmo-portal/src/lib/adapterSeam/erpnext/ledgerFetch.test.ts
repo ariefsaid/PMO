@@ -11,6 +11,7 @@
  */
 import { describe, expect, it, vi } from 'vitest';
 import { fetchGlEntries, fetchPaymentLedgerEntries } from './ledgerFetch.ts';
+import { AppError } from '../../appError.ts';
 import type { ErpClientDeps } from './client.ts';
 
 function client(fetchImpl: (url: string, init?: RequestInit) => Promise<Response>): ErpClientDeps {
@@ -22,6 +23,36 @@ function jsonResponse(body: unknown, status = 200): Response {
 }
 
 describe('erpnext/ledgerFetch — fetchGlEntries', () => {
+  it('OD-INT-6 throws config-rejected when company is missing (null)', async () => {
+    const fetchImpl = async () => jsonResponse({ data: [] });
+    await expect(
+      fetchGlEntries(client(fetchImpl), { company: null as unknown as string })
+    ).rejects.toThrow(AppError);
+    await expect(
+      fetchGlEntries(client(fetchImpl), { company: null as unknown as string })
+    ).rejects.toHaveProperty('code', 'config-rejected');
+  });
+
+  it('OD-INT-6 throws config-rejected when company is empty string', async () => {
+    const fetchImpl = async () => jsonResponse({ data: [] });
+    await expect(
+      fetchGlEntries(client(fetchImpl), { company: '' })
+    ).rejects.toThrow(AppError);
+    await expect(
+      fetchGlEntries(client(fetchImpl), { company: '' })
+    ).rejects.toHaveProperty('code', 'config-rejected');
+  });
+
+  it('OD-INT-6 throws config-rejected when company is undefined', async () => {
+    const fetchImpl = async () => jsonResponse({ data: [] });
+    await expect(
+      fetchGlEntries(client(fetchImpl), { company: undefined as unknown as string })
+    ).rejects.toThrow(AppError);
+    await expect(
+      fetchGlEntries(client(fetchImpl), { company: undefined as unknown as string })
+    ).rejects.toHaveProperty('code', 'config-rejected');
+  });
+
   it('AC-ENA-060/162 sends the GL Entry filters (is_cancelled=0, docstatus!=2, modified>=since, company) + the field list on page 0', async () => {
     const urls: string[] = [];
     const fetchImpl = async (url: string) => {

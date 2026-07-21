@@ -38,6 +38,65 @@ Owner rulings: `decisions.md` **OD-SAR-GATES · OD-SAR-PMO-IS-THE-UI · OD-SAR-D
   contaminated read; concurrent heavy dispatches + sibling agents' MCPs + Docker → OOM risk).
 
 ### ⚑⚑ ADAPTER PROGRAM — P2 ERPNext money core ✅ MERGED to dev (#315 squash `b549d06`, 2026-07-14)
+### ⚑⚑ M365 INTEGRATION (2026-07-17) — Phase-0 + Phase-1 token custody BUILT, 4-round security-hardened, PR #333 → `dev` (NOT merged)
+Branch `claude/microsoft-teams-onedrive-integration-f656rx` (worktree `pmo-backend-ig-audit-c393d3`), **PR #333
+retargeted to `dev`** (the old `feat/m365-integration` collector was a stale no-op — 0 commits ahead of dev —
+and is abandoned; delete it). Vision `docs/microsoft-365-integration.md`; ADR-0058/0059/0060; specs
+`docs/specs/m365-phase0-foundation.spec.md` + `m365-phase1-graph-token-custody.spec.md`; plans
+`docs/plans/2026-07-14-m365-phase0-foundation.md` + `2026-07-15-m365-phase1-token-custody.md`.
+- **✅ Phase-0** — Sign in with Microsoft (`azure` OAuth; auth-only, authz stays invited-`profiles`+RLS),
+  provisioning hardening (graceful not-provisioned state), `m365_integration` entitlement (Operator switch,
+  default-off) + `M365ConnectionCard` (two-switch gate, disabled stub). Battery green (spec APPROVE ·
+  security SHIP-WITH-FIXES · quality APPROVE-WITH-FIXES → fixes applied).
+- **✅ Phase-1 token-custody runtime** — edge fn `supabase/functions/m365-token-custody/` (ADR-0039 pattern:
+  Node-testable DI handlers + thin `Deno.serve` index): PKCE initiate → callback code-exchange →
+  AES-256-GCM encrypt → store → Graph proxy (server-side decrypt, data-only responses) → refresh rotation +
+  reuse-detection → revoke → audit via the `audit_m365_event` SD wrapper. Store `ms_graph_connections`
+  (RLS forced, zero policies, ciphertext-only) + `m365_pkce_states` (single-use, TTL, swept).
+- **⚑ SECURITY: 4 Luna (gpt-5.6-luna:max) rounds → `SHIP-WITH-FIXES`, all fixes applied.** Full record:
+  `docs/spikes/2026-07-15-m365-phase1-security-audit.md`. R1 BLOCK (Critical: cross-account consent-phishing
+  harvest; cascade wired to nothing) · R2 BLOCK (Critical: **empirically reproduced** MVCC callback/lifecycle
+  race) · R3 BLOCK (**reproduced a real deadlock**, disproving the Director's "deadlock-free" claim; + a
+  regex-escape bug that would have installed NONE of the hardening) · **R4 SHIP-WITH-FIXES** (no High/Critical;
+  disabled-user + disentitled-org bypass rejected LIVE with 42501). Controls: id_token `tid` assertion,
+  **TOFU + enforce-on-reconnect `oid` binding (owner 2026-07-17)** with a write-once DB trigger, a locked
+  write-guard (resurrection structurally impossible), ONE global lock order (profiles→org_features→connection)
+  via SD RPCs with `service_role` direct-DML revoked, offboard/disentitlement cascade + triggers + one-time
+  audited scrub. Probes: `scripts/m365-{race,deadlock}-probe.sh` (two-session, fail-before/pass-after).
+  **⚑ Lesson: every defect across all 4 rounds passed the happy-path pgTAP AND the full verify — tests alone
+  would have shipped all of them.**
+- **⚑ Migrations RENUMBERED TWICE onto dev (2026-07-17):** M365 was cut from a stale base and numbered
+  0096–0107, colliding with dev's ERPNext 0096–0103 → renumbered to 0104–0115. Then the **H4 grants work
+  merged to `dev` (#336)** taking migrations `0104`/`0105` + test `0142` — the exact numbers — so M365 was
+  renumbered AGAIN to **`0106–0117`**, test `0142`→**`0154`** (`0143–0153` were already unique; note
+  `0034/0052/0066` duplicate pgTAP prefixes pre-exist on dev, so test numbers are not ordering-critical —
+  migrations are). **⚠️ Lesson: GitHub reported PR #333 `MERGEABLE`/`CLEAN` the whole time — git only sees
+  different FILENAMES, so a green mergeable status does NOT catch migration-number collisions. Check
+  `ls supabase/migrations | sed -E 's/^([0-9]{4})_.*/\1/' | sort | uniq -d` before merging any branch that
+  adds migrations.** Cross-refs rewritten in M365 files only; non-M365 refs (0064/0070/0075/0076/0079/0080)
+  + the 32 `AC-M365-1xx` ids verified untouched; `docs/spikes/` deliberately left as the historical record.
+- **⏸️ Owner-gated (NOT done):** live deploy — KEK (`M365_TOKEN_KEK`), `M365_CLIENT_SECRET`/`_ID`/`_TENANT_ID`
+  (a concrete tenant GUID; `common`/`organizations` unsupported), the allowlisted redirect URI, Entra
+  delegated scopes (`Files.Read`+`offline_access`+`openid`+`profile`) w/ admin consent, and a
+  `security-auditor` pass on the LIVE flow (ADR-0060 mandatory gate). FE Connect-button wiring is deferred to
+  that step (wiring a non-deployed fn = a broken affordance). **Residual (owner-accepted):** the FIRST connect
+  is still phishable within-tenant; TOFU bounds it to one event.
+- **Next:** OneDrive doc-linking UI = a SEPARATE downstream spec consuming this runtime (vision §3.2).
+
+### ⚑ H4 GRANTS HARDENING (2026-07-16) — separate branch `fix/revoke-client-truncate-grants` (off `dev`), NOT pushed/PR'd
+Spun out of the M365 Luna audit. Commits `57957091` (Tier 1) + `246be744` (Tier 2). **Root cause was bigger than
+the finding:** the grants come from Supabase's bootstrap **DEFAULT PRIVILEGES** (`pg_default_acl`), so EVERY new
+table silently inherited `truncate` for `anon`+`authenticated` — `0075` was just where it was visible. Fixed at
+BOTH layers (`ALTER DEFAULT PRIVILEGES` + a catalog sweep over all 65 public tables). Tier 1 = revoke
+`truncate/references/trigger` from both client roles. Tier 2 = revoke `anon` I/U/D (`0109` was the ONLY test
+depending on it — its assertion moved "UPDATE affects 0 rows" → `throws_ok 42501`: same goal-oracle, strictly
+stronger mechanism). ACs `AC-GRANT-007/010/011/012/013`. Gates: pgTAP 166/1471 PASS · verify exit 0. **Accepted
+residual:** a `supabase_admin` default-priv entry can't be revoked (migration runner `postgres` isn't a
+superuser/member) — inert (every public table is created BY `postgres`), and `AC-GRANT-010`'s creator-agnostic
+catalog sweep catches real drift. **✅ MERGED to `dev` as PR #336 (`adf79e48`, owner) — it KEPT `0104`/`0105`
++ test `0142`; M365 renumbered above it to `0106–0117`/`0154` instead.** Branch deleted.
+
+### ⚑⚑ ADAPTER PROGRAM (2026-07-14) — P2 ERPNext money core MERGING (#315, owner go; CI green)
 - **✅ P2 BUILT + FULL BATTERY CLOSED + POST-OPEN HARDENING** (branch `feat/erpnext-adapter-p2`,
   migs `0093/0094 + 0096–0103`, 5 edge fns, live-bench-proven): 9 slices (served-fn e2e infra ·
   fenced money outbox · tier core · parties · MR/RFQ/SQ · PO/GR · PI/PE full AP surface ·
@@ -76,10 +135,44 @@ Plan + prod runbook: [`docs/plans/2026-07-12-jwt-signing-keys.md`](plans/2026-07
   cron `0094` idle until Vault secrets (`clickup_sweep_url`/`clickup_sweep_secret`) + fn env set;
   (3) PostHog events need `POSTHOG_PROJECT_KEY` in prod.
 
-### ⚑⚑ NEXT (scoped, not started) — EXTERNAL-SYSTEM ADMIN-CONNECT layer (ClickUp + ERPNext)
-Admin **self-serve** connect for external systems, replacing the operator-CLI-only onboarding. **Locked
-decisions: `docs/decisions.md` OD-INT-1..5** (admin self-serve · personal-token/API-key v1 · **Vault-backed
-`secret_ref`** · one tier-generic layer · **sequenced after #315 merges**). Full scope + phases + #315
+### ⚑⚑ IN FLIGHT (2026-07-20) — EXTERNAL-SYSTEM ADMIN-CONNECT layer (ClickUp + ERPNext)
+> **COLD-CONTEXT? START HERE →** [`docs/plans/2026-07-20-clickup-integration-completion.md`](plans/2026-07-20-clickup-integration-completion.md)
+> — what's built vs *assumed*, the 6 user journeys that must work, the ordered remaining work, the
+> ClickUp/local-DB test-fixture rules (OD-INT-8), and the traps that already cost time.
+> Live-smoke evidence: [`docs/spikes/2026-07-17-clickup-live-smoke.md`](spikes/2026-07-17-clickup-live-smoke.md).
+**Status: P1 + P2 + P3 + P4 BUILT, reviewed, and HELD on PR #332** (branch `feat/external-admin-connect` off
+`dev` — **do NOT merge**; owner holds all PRs while other agents share `dev`). P4 (health/observability) DONE. **`EXTERNAL_CONNECT_ENABLED` is OFF everywhere — nothing is live for
+users.** ClickUp read wire-shapes are live-verified; **writes + webhook envelope are NOT** (see the
+completion plan §3).
+- **P1** per-org Vault `secret_ref` model (reader/writer/delete RPCs actor-keyed; resolvers +
+  `_shared/perOrgSecret.ts` tri-state fail-closed; 6 edge fns flag-gated `EXTERNAL_CONNECT_ENABLED`,
+  default off = byte-for-byte legacy). Security battery + re-review: **all findings CLOSED**.
+- **P2** org Connect/Disconnect (`external-connect`/`external-disconnect`, `0120
+  admin_change_domain_ownership` definer RPC actor-keyed, `integration` policy entity, CI-safe `0119`
+  ClickUp-adopt, admin Connect UI + `useIntegrations`). Full battery incl. **rendered design-review**.
+- **P3** project Link/Unlink (`external-lists`/`external-link`/`external-unlink`, `0121` audit cols,
+  `0122` audit-grant + org-scoped active-container unique index, repo/hook, project card).
+**Locked decisions: `docs/decisions.md` OD-INT-1..7** (admin self-serve · personal-token/API-key v1 ·
+**Vault-backed `secret_ref`** · one tier-generic layer · sequenced after #315 · **OD-INT-6 ERPNext Company
+selected at ORG level** · **OD-INT-7 project↔List link is PROJECT-SCOPED to the owning active PM**).
+
+**⚑ Tracked gaps — decided/known, deliberately NOT built (do not rediscover):**
+1. **Per-org ClickUp webhook secret** — `external_org_bindings.webhook_secret_ref` exists (mig 0096) but
+   **nothing writes it**; `clickup-webhook` still verifies with the global `CLICKUP_WEBHOOK_SECRET` env.
+   (This was plan task 1.7, reverted in P1 — a per-org webhook secret needs an **org-in-URL** design
+   because you cannot parse-before-verify without moving the HMAC trust boundary.) **Blocks multi-org
+   ClickUp.**
+2. **ERPNext multi-domain ownership flip is undefined** — ERPNext owns *several* capability domains
+   (companies/procurement/sales/accounting…) but `operator_set_domain_ownership` takes **one** domain per
+   call; the ERPNext connect flow never enumerates which domains to flip.
+3. **Per-project ERPNext Project link** — ADR-0055-endorsed but **premature**; prerequisites in the
+   OD-INT-4 forward-note (mirror `project_id` · snapshot project-scope · rename reconciliation).
+4. **`ledgerFetch` fails silent on missing Company** — `['company','=',null]` returns zero rows with no
+   error/alert; should fail loud (OD-INT-6).
+5. **Deeper extracted-handler tests** for the connect/disconnect edge fns (P2 Important; code is correct
+   and pgTAP-proven, tests are mock-level).
+
+Full scope + phases + #315
 alignment: [`docs/plans/2026-07-13-clickup-admin-integration-flow.md`](plans/2026-07-13-clickup-admin-integration-flow.md).
 Key alignment: #315 (ERPNext P2) has the right table (`external_org_bindings`) + a clean credential seam
 but resolves creds from **function secrets** (operator-only) — the self-serve layer swaps that to **Vault**

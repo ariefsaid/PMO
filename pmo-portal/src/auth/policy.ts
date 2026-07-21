@@ -28,7 +28,8 @@ export type Action =
   | 'transition'
   | 'editContractValue'
   | 'submit_sales_invoice'
-  | 'manage_external_bindings';
+  | 'manage_external_bindings'
+  | 'manage';
 
 export type Entity =
   | 'project'
@@ -54,7 +55,8 @@ export type Entity =
   | 'userView'
   | 'salesInvoice'
   | 'incomingPayment'
-  | 'externalBinding';
+  | 'externalBinding'
+  | 'integration';
 
 export interface PolicyContext {
   /** The REAL JWT role (not the impersonated effectiveRole). */
@@ -311,6 +313,11 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
   // External bindings management — Admin only
   externalBinding: {
     manage_external_bindings: allow(ADMIN),
+  },
+  integration: {
+    // Admin self-serve connect/disconnect (UX gate). Server (edge fn + RPC) re-enforces
+    // Admin OR platform Operator. FE is stricter (Admin only).
+    manage: allow(ADMIN),
   },
 };
 
