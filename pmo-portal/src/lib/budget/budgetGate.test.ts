@@ -205,6 +205,23 @@ describe('AC-BUD-124 ⚑ OQ-BUD-3b — the fiscal year comes from the CLIENT\'S 
     ).rejects.toMatchObject({ code: 'budget-fiscal-year-unresolved' });
   });
 
+  it('AC-BUD-124 OVERLAPPING fiscal years are REFUSED, never silently resolved to one of them', async () => {
+    // ERPNext does not prevent overlapping Fiscal Years and returns them unordered. With a bare
+    // `.find()` the activation push and the sweep backstop could pick DIFFERENT years in separate
+    // requests, derive different keys, and mint a SECOND ERP Budget — the exact duplicate the
+    // deterministic key exists to prevent. Refusing is the same call the owner made for the multi-FY
+    // split: PMO does not get to choose which fiscal year a client's money belongs to.
+    await expect(
+      runBudgetGate(makeDeps({
+        project: { ...DEFAULT_PROJECT, start_date: '2026-03-01', end_date: '2026-03-31' },
+        fiscalYears: [
+          { name: '2026', year_start_date: '2026-01-01', year_end_date: '2026-12-31' },
+          { name: 'FY26-legacy', year_start_date: '2025-07-01', year_end_date: '2026-06-30' },
+        ],
+      })),
+    ).rejects.toMatchObject({ code: 'budget-fiscal-year-ambiguous' });
+  });
+
   it('AC-BUD-124 a fiscal-year boundary date resolves to the year that CONTAINS it (inclusive ends)', async () => {
     // 2026-06-30 is the last day of 2025-2026 and 2026-07-01 the first of 2026-2027; an off-by-one
     // here files a whole budget against the neighbouring year.

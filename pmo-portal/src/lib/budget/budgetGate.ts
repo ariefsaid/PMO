@@ -112,7 +112,22 @@ export interface BudgetGateResult {
  *  and it avoids `Date` parsing (whose timezone handling could push a boundary day into the wrong year —
  *  precisely the class of bug this function exists to prevent). */
 function fiscalYearContaining(date: string, fiscalYears: readonly FiscalYearRow[]): FiscalYearRow | null {
-  return fiscalYears.find((fy) => date >= fy.year_start_date && date <= fy.year_end_date) ?? null;
+  const matches = fiscalYears.filter((fy) => date >= fy.year_start_date && date <= fy.year_end_date);
+  // ⚑ AMBIGUITY IS REFUSED, NOT RESOLVED. ERPNext does not prevent OVERLAPPING Fiscal Years, and the
+  // doctype list comes back UNORDERED — so a bare `.find()` would return whichever row the API happened
+  // to put first. The budget push has TWO originators (the activation consequence and the sweep
+  // backstop) reading this list in separate requests: if they picked different years they would derive
+  // different keys and mint a SECOND ERP Budget, which is precisely the duplicate the deterministic key
+  // exists to prevent. Sorting would make the pick stable but would still be PMO silently choosing which
+  // fiscal year a client's budget belongs to — the same "plausible guess" the owner rejected for the
+  // multi-FY split (ADR-0048). Overlapping years are a client misconfiguration a human must fix.
+  if (matches.length > 1) {
+    throw new BudgetGateError(
+      'budget-fiscal-year-ambiguous',
+      `budget push: ${matches.length} ERPNext Fiscal Years contain ${date} (${matches.map((fy) => fy.name).join(', ')}) — refusing rather than picking one`,
+    );
+  }
+  return matches[0] ?? null;
 }
 
 function resolveFiscalYearOrFailClosed(project: BudgetGateProjectRow, fiscalYears: readonly FiscalYearRow[]): string {
