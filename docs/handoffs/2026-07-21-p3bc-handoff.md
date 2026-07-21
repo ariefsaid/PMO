@@ -1,6 +1,6 @@
 # P3b/P3c handoff — 2026-07-21
 
-**Branch:** `feat/erpnext-adapter-p3` · **last commit:** `bc59ad19` · **HOLD — no PR yet.**
+**Branch:** `feat/erpnext-adapter-p3` · **last commit:** `a1a486e1` · **HOLD — no PR yet.**
 **Read this before touching P3b/P3c.** P3a already SHIPPED to `dev` (PR #338, merge `c7b4ad16`).
 
 ---
@@ -191,9 +191,18 @@ Run against the full 45-file working tree (all four lanes' work on disk):
      against `''`. It failed loudly here, but the same shape with a `.not.toContain` assertion would
      have passed **vacuously** and reported a guard that no longer exists. Audit the other
      structural tests for this.
-- Deno suites at `bc59ad19` were 214 (adapter-dispatch) + 72 (erpnext-sweep), all green. **Re-run
-  them** — the lanes edited `erpnext-sweep/index.ts`, `erpnextFeedDeps.ts` and
-  `adapter-dispatch/index.ts` after that.
+- **Deno: all 21 edge functions green** — adapter-dispatch 214 · erpnext-sweep 76 · erpnext-webhook
+  30 · external-disconnect 19 · erpnext-onboard 8 · agent-chat 3 · clickup-sweep 3 · the six
+  `external-*` singles · the rest have no tests.
+
+  ⚑ **Invocation gotcha:** the six `external-*` functions need
+  `deno test . --config deno.json --allow-env --allow-net --allow-read`. A bare
+  `deno test . --config deno.json` reports `0 passed | 1 failed` with
+  `NotCapable: Requires env access to "SUPABASE_URL"` — that is the **harness missing permission
+  flags, not a code failure**. Don't chase it as a regression.
+
+**So the full battery is GREEN at `a1a486e1`:** verify 737 files / 5990 tests exit 0 · pgTAP
+2016/2016 · deno all green. **What is missing is not test coverage — it is ADVERSARIAL review** (§6).
 
 ### ⚑ A type lie the regen introduced (fixed — but know the pattern)
 A lane regenerated `pmo-portal/src/lib/supabase/database.types.ts` (+685 lines) and the regen
