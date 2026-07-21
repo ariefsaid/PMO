@@ -45,20 +45,22 @@ async function authed(body: unknown, sub = 'user-1') {
   return createAuthedRequest('http://edge.test/link', body, jwt);
 }
 
-// A List config that covers all four PMO statuses DISTINCTLY (OD-INT-10; security audit HIGH, round
-// 2 — a List with only ONE custom status collapses Blocked onto In Progress, which is now correctly
-// REJECTED by statusMapCoversAllPmoStatuses, see the dedicated 422 test below). This fixture has TWO
-// custom statuses so Blocked and In Progress each land on their own ClickUp status. Tests that must
-// reach a successful link (past the link-time status-map validation) use this; tests that fail
-// earlier (role gate, mixed-content, list not found) are unaffected and keep the bare
+// The real, default ClickUp workspace shape (2026-07-20 workspace probe — mirrors the committed
+// fixture `_shared/testing/fixtures/clickup-webhook/list-statuses.json`): open/custom/closed only, no
+// second custom status. OD-INT-10 round 3 reverted round 2's pairwise-distinctness requirement — a
+// fresh ClickUp workspace ships exactly THIS shape, and forcing a customer to add a fourth status
+// before they may link inverts ADR-0055 (the external system owns its own domain vocabulary). Every
+// PMO status still gets an EXPLICIT, RECORDED resolution: To Do/In Progress/Done map normally,
+// Blocked resolves `pmo-only` (see the dedicated LINK-succeeds test below) — so this List IS linkable.
+// Tests that must reach a successful link (past the link-time status-map validation) use this; tests
+// that fail earlier (role gate, mixed-content, list not found) are unaffected and keep the bare
 // `{ name: 'Test List' }` response.
-const FULL_COVERAGE_LIST = {
+const LINKABLE_LIST = {
   name: 'Test List',
   statuses: [
     { status: 'to do', type: 'open', orderindex: 0 },
     { status: 'in progress', type: 'custom', orderindex: 1 },
-    { status: 'blocked', type: 'custom', orderindex: 2 },
-    { status: 'complete', type: 'closed', orderindex: 3 },
+    { status: 'complete', type: 'closed', orderindex: 2 },
   ],
 };
 
@@ -86,7 +88,7 @@ describe('external-link — ClickUp branch', () => {
 
         supabaseRpc('read_vault_secret', () => jsonResponse('test-pat-token')),
 
-        clickup('/api/v2/list/list-1', () => jsonResponse(FULL_COVERAGE_LIST)),
+        clickup('/api/v2/list/list-1', () => jsonResponse(LINKABLE_LIST)),
         clickup('/api/v2/list/list-1/task', () => jsonResponse({ tasks: [] })),
         clickup('/api/v2/list/list-1/member', () => jsonResponse(NO_MEMBERS)),
 
@@ -109,15 +111,19 @@ describe('external-link — ClickUp branch', () => {
           pathname: '/rest/v1/external_project_bindings',
           searchParams: { select: 'id' },
           response: (call) => {
-            const body = call.bodyJson as { config: { statusMap: { pmoToClickUp: Record<string, string> } } };
-            // OD-INT-10: the persisted config must cover all four PMO statuses, never the empty
-            // maps this bug used to ship.
+            const body = call.bodyJson as {
+              config: { statusMap: { pmoToClickUp: Record<string, string>; pmoOnlyStatuses?: string[] } };
+            };
+            // OD-INT-10: the persisted config must record an explicit resolution for all four PMO
+            // statuses, never the empty maps this bug used to ship.
             assertEquals(body.config.statusMap.pmoToClickUp['To Do'], 'to do');
             assertEquals(body.config.statusMap.pmoToClickUp['In Progress'], 'in progress');
             assertEquals(body.config.statusMap.pmoToClickUp.Done, 'complete');
-            // A DISTINCT target from In Progress (security audit HIGH, round 2) — never the same
-            // ClickUp status, which would silently destroy the Blocked state in both directions.
-            assertEquals(body.config.statusMap.pmoToClickUp.Blocked, 'blocked');
+            // Round 3 (OD-INT-10): this List has no second custom status, so Blocked has NO ClickUp
+            // entry — it resolves `pmo-only` instead of silently colliding with In Progress's target
+            // (round 2's fix for exactly that corruption).
+            assertEquals(body.config.statusMap.pmoToClickUp.Blocked, undefined);
+            assertEquals(body.config.statusMap.pmoOnlyStatuses, ['Blocked']);
             return jsonResponse([{ id: 'binding-1' }], { status: 201 });
           },
         },
@@ -164,7 +170,7 @@ describe('external-link — ClickUp branch', () => {
 
         supabaseRpc('read_vault_secret', () => jsonResponse('test-pat-token')),
 
-        clickup('/api/v2/list/list-1', () => jsonResponse(FULL_COVERAGE_LIST)),
+        clickup('/api/v2/list/list-1', () => jsonResponse(LINKABLE_LIST)),
         clickup('/api/v2/list/list-1/task', () => jsonResponse({ tasks: [] })),
         clickup('/api/v2/list/list-1/member', () => jsonResponse(NO_MEMBERS)),
 
@@ -502,7 +508,7 @@ describe('external-link — ClickUp branch', () => {
 
         supabaseRpc('read_vault_secret', () => jsonResponse('test-pat-token')),
 
-        clickup('/api/v2/list/list-1', () => jsonResponse(FULL_COVERAGE_LIST)),
+        clickup('/api/v2/list/list-1', () => jsonResponse(LINKABLE_LIST)),
         clickup('/api/v2/list/list-1/task', () => jsonResponse({ tasks: [] })),
         clickup('/api/v2/list/list-1/member', () => jsonResponse(NO_MEMBERS)),
 
@@ -551,7 +557,7 @@ describe('external-link — ClickUp branch', () => {
 
         supabaseRpc('read_vault_secret', () => jsonResponse('test-pat-token')),
 
-        clickup('/api/v2/list/list-1', () => jsonResponse(FULL_COVERAGE_LIST)),
+        clickup('/api/v2/list/list-1', () => jsonResponse(LINKABLE_LIST)),
         clickup('/api/v2/list/list-1/task', () => jsonResponse({ tasks: [] })),
         clickup('/api/v2/list/list-1/member', () => jsonResponse(NO_MEMBERS)),
 
@@ -639,13 +645,12 @@ describe('external-link — ClickUp branch', () => {
     );
   });
 
-  // Security audit HIGH (round 2): a List with only ONE custom status has an outbound target for
-  // EVERY PMO status (so the old coverage check passed) but Blocked and In Progress silently
-  // collapse onto the SAME ClickUp status — a PMO task set to Blocked would be written to ClickUp as
-  // 'in progress', and reading it back would always resolve to In Progress, destroying the blocked
-  // signal in both directions. This must reject the link at 422, exactly like the "no Done target"
-  // case above, not silently activate a binding that corrupts delivery reporting.
-  it('OD-INT-10: a List with only one custom status collapses Blocked onto In Progress → rejected 422, never a silent corruption', async () => {
+  // OD-INT-10, round 3: the real 2026-07-20 workspace probe shape — open/custom/closed, exactly ONE
+  // custom status, no second one for Blocked. Round 2 rejected this List outright (a since-reverted
+  // pairwise-distinctness rule too strict to ship: a FRESH ClickUp workspace has exactly this shape).
+  // Blocked now resolves `pmo-only` instead — never pushed outbound, never overwritten by an inbound
+  // sync — so this List LINKS successfully, exactly like `LINKABLE_LIST` above (same shape).
+  it('OD-INT-10: the real 3-status List (one custom status, no Blocked counterpart) LINKS successfully, with Blocked resolving pmo-only', async () => {
     await withFetchMock(
       [
         supabaseSelect('profiles', () =>
@@ -665,25 +670,41 @@ describe('external-link — ClickUp branch', () => {
 
         supabaseRpc('read_vault_secret', () => jsonResponse('test-pat-token')),
 
-        // The real 2026-07-20 workspace probe shape: open/custom/closed, exactly ONE custom status —
-        // Blocked has nowhere distinct to go.
-        clickup('/api/v2/list/list-1', () =>
-          jsonResponse({
-            name: 'Test List',
-            statuses: [
-              { status: 'to do', type: 'open', orderindex: 0 },
-              { status: 'in progress', type: 'custom', orderindex: 1 },
-              { status: 'complete', type: 'closed', orderindex: 2 },
-            ],
-          })),
+        clickup('/api/v2/list/list-1', () => jsonResponse(LINKABLE_LIST)),
         clickup('/api/v2/list/list-1/task', () => jsonResponse({ tasks: [] })),
+        clickup('/api/v2/list/list-1/member', () => jsonResponse(NO_MEMBERS)),
 
         supabaseSelect('projects', () =>
           jsonResponse({ id: 'proj-1', project_manager_id: 'user-1', org_id: 'org-1' }, {
             headers: { 'content-type': 'application/vnd.pgrst.object+json' },
           })),
 
+        supabaseSelect('external_project_bindings', () => new Response('null', {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })),
+
         { label: 'pmo-task-count', method: 'HEAD', pathname: '/rest/v1/tasks', response: () => countResponse(0) },
+
+        {
+          label: 'insert binding',
+          method: 'POST',
+          pathname: '/rest/v1/external_project_bindings',
+          searchParams: { select: 'id' },
+          response: (call) => {
+            const body = call.bodyJson as {
+              config: { statusMap: { pmoToClickUp: Record<string, string>; pmoOnlyStatuses?: string[] } };
+            };
+            assertEquals(body.config.statusMap.pmoToClickUp['To Do'], 'to do');
+            assertEquals(body.config.statusMap.pmoToClickUp['In Progress'], 'in progress');
+            assertEquals(body.config.statusMap.pmoToClickUp.Done, 'complete');
+            assertEquals(body.config.statusMap.pmoToClickUp.Blocked, undefined);
+            assertEquals(body.config.statusMap.pmoOnlyStatuses, ['Blocked']);
+            return jsonResponse([{ id: 'binding-1' }], { status: 201 });
+          },
+        },
+
+        supabaseRpc('log_audit', () => jsonResponse(null)),
       ],
       async ({ calls }) => {
         const res = await handleLinkRequest(await authed({
@@ -692,13 +713,9 @@ describe('external-link — ClickUp branch', () => {
           listId: 'list-1',
           direction: 'push-seed',
         }));
-        assertEquals(res.status, 422);
-        const errorBody = (await res.json()) as { error: string; message: string };
-        assertEquals(errorBody.error, 'CONFIG_REJECTED');
-        // Never persisted a binding whose Blocked/In Progress writes would collapse into one status,
-        // and never audited a link that didn't happen.
-        assertEquals(restCall(calls, 'external_project_bindings', 'POST').length, 0);
-        assertEquals(rpcCall(calls, 'log_audit').length, 0);
+        assertEquals(res.status, 200);
+        assertEquals(restCall(calls, 'external_project_bindings', 'POST').length, 1);
+        assertEquals(rpcCall(calls, 'log_audit').length, 1);
       },
     );
   });
@@ -732,7 +749,7 @@ describe('external-link — ClickUp branch', () => {
 
         supabaseRpc('read_vault_secret', () => jsonResponse('test-pat-token')),
 
-        clickup('/api/v2/list/list-1', () => jsonResponse(FULL_COVERAGE_LIST)),
+        clickup('/api/v2/list/list-1', () => jsonResponse(LINKABLE_LIST)),
         clickup('/api/v2/list/list-1/task', () => jsonResponse({ tasks: [] })),
         clickup('/api/v2/list/list-1/member', () =>
           jsonResponse({

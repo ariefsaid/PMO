@@ -27,13 +27,19 @@ function isoToMs(iso: string): number {
  * no access to a PMO id) — callers that already know the PMO id (commands.ts, on a create/update
  * response) overwrite it; callers that don't (reads.ts) leave it for the caller's own
  * external_refs/adopt resolution (Slice D).
+ *
+ * `currentPmoStatus` (optional — the mirrored row's PMO status BEFORE this inbound change, when a
+ * caller can cheaply resolve it) is threaded straight through to `fromClickUpStatus`'s stickiness
+ * (OD-INT-10, round 3): a `pmo-only` status is never moved out of by an inbound sync, and an
+ * explicitly recorded collapse never downgrades the more specific PMO status. Absent (the default),
+ * behavior is byte-for-byte identical to before this parameter existed.
  */
-export function clickUpTaskToPmoRecord(raw: ClickUpTask, maps: ClickUpMaps): PmoRecord {
+export function clickUpTaskToPmoRecord(raw: ClickUpTask, maps: ClickUpMaps, currentPmoStatus?: string): PmoRecord {
   const assigneeClickUpId = raw.assignees[0]?.id;
   return {
     id: raw.id,
     name: raw.name,
-    status: fromClickUpStatus(maps.statusMap, raw.status.status),
+    status: fromClickUpStatus(maps.statusMap, raw.status.status, currentPmoStatus),
     assignee_id: assigneeClickUpId !== undefined ? fromClickUpAssignee(maps.memberMap, assigneeClickUpId) : null,
     start_date: raw.start_date ? msToIso(raw.start_date) : null,
     end_date: raw.due_date ? msToIso(raw.due_date) : null,
@@ -79,7 +85,13 @@ export function pmoTaskToClickUpBody(
 ): ClickUpCreateTaskBody | ClickUpUpdateTaskBody {
   const scalarFields: ClickUpScalarFields = {};
   if ('name' in record) scalarFields.name = record.name as string;
-  if ('status' in record) scalarFields.status = toClickUpStatus(maps.statusMap, record.status as string);
+  if ('status' in record) {
+    // A `pmo-only` PMO status (OD-INT-10, round 3) resolves to `undefined` here — a legitimate
+    // configured outcome, not a config error: the other patched fields still sync, the status key is
+    // simply omitted from the ClickUp write (there is nothing to write it as).
+    const clickUpStatus = toClickUpStatus(maps.statusMap, record.status as string);
+    if (clickUpStatus !== undefined) scalarFields.status = clickUpStatus;
+  }
   if ('start_date' in record) {
     scalarFields.start_date = record.start_date ? isoToMs(record.start_date as string) : undefined;
   }

@@ -7,6 +7,15 @@
  * unmapped and treating only ClickUp's `closed` type (not `done`) as complete. Confined to
  * `clickup/**` (FR-CUA-012); keyed on ClickUp status **type** (`open|custom|closed|done`), never on
  * name — names are workspace-specific, types are not.
+ *
+ * Round 3 (this task) reverts round 2's pairwise-distinctness requirement — too strict to ship: a
+ * fresh ClickUp workspace ships only THREE default statuses (`to do`/`in progress`/`complete`, see
+ * the committed fixture `_shared/testing/fixtures/clickup-webhook/list-statuses.json`), and forcing a
+ * customer to add a fourth ClickUp status before they may link inverts ADR-0055 (the external system
+ * owns its own domain vocabulary). `Blocked` now defaults to `pmo-only` (`statusMap.ts`) when the List
+ * has no distinct, unused status to represent it — never silently collapsed onto In Progress's target
+ * (round 2's fix for the WORSE bug: a silent collapse corrupts state in both directions, since the
+ * outbound write loses which PMO status was intended and the inbound read-back can never recover it).
  */
 import type { ClickUpStatusMap } from './statusMap.ts';
 
@@ -24,13 +33,19 @@ export type PmoTaskStatus = (typeof PMO_TASK_STATUSES)[number];
 /**
  * Build a `ClickUpStatusMap` from a List's configured statuses.
  *
- * Outbound (`pmoToClickUp`):
+ * Outbound (`pmoToClickUp`, plus `pmoOnlyStatuses` for a status with no ClickUp counterpart):
  *  - `To Do`       -> the first `open`-type status (by `orderindex`)
  *  - `Done`        -> the first `done`-type status if present, else the first `closed`-type
- *  - `In Progress` -> the first `custom`-type status if present, else the `To Do` target
- *  - `Blocked`     -> a SECOND, distinct `custom`-type status if one exists, else the same target
- *                     as `In Progress` — this collapsed case is a valid MAP but an INVALID binding;
- *                     `statusMapCoversAllPmoStatuses` below rejects it (security audit, round 2).
+ *  - `In Progress` -> the first `custom`-type status if present, else the `To Do` target (unchanged
+ *                     from before this task — a List with no `custom`-type status at all still has no
+ *                     way to represent In Progress distinctly, and that's an existing, accepted gap
+ *                     this task does not extend)
+ *  - `Blocked`     -> a SECOND, distinct `custom`-type status if one exists, else `pmo-only` (round
+ *                     3, this task) — NEVER silently collapsed onto In Progress's target (round 2's
+ *                     fix for exactly that corruption). `Blocked` is a PMO management signal
+ *                     (escalation/dependency) with no natural ClickUp equivalent in the default
+ *                     three-status vocabulary; `pmo-only` records that explicitly instead of forcing
+ *                     every List to grow a fourth status before it may link (ADR-0055).
  *
  * Inbound (`clickUpToPmo`), for every configured status:
  *  - `closed`/`done` -> `Done` · `open` -> `To Do` · `custom` -> `In Progress`, except the one
@@ -49,16 +64,18 @@ export function buildClickUpStatusMap(statuses: ClickUpListStatus[]): ClickUpSta
   const doneStatus = dones[0]?.status ?? closed[0]?.status;
   const inProgressStatus = customs[0]?.status ?? toDoStatus;
   // A second, distinct custom status (if the List has one) becomes the Blocked target; otherwise
-  // Blocked collapses onto In Progress rather than being left unmapped (every PMO status MUST get
-  // an outbound target — see statusMapCoversAllPmoStatuses below).
+  // Blocked has no distinct ClickUp counterpart and resolves pmo-only (see the doc comment above) —
+  // this is deliberate, never a silent collapse onto In Progress's target.
   const distinctBlockedStatus = customs.length > 1 ? customs[1].status : undefined;
-  const blockedStatus = distinctBlockedStatus ?? inProgressStatus;
 
   const pmoToClickUp: Record<string, string> = {};
   if (toDoStatus) pmoToClickUp['To Do'] = toDoStatus;
   if (inProgressStatus) pmoToClickUp['In Progress'] = inProgressStatus;
   if (doneStatus) pmoToClickUp['Done'] = doneStatus;
-  if (blockedStatus) pmoToClickUp['Blocked'] = blockedStatus;
+  if (distinctBlockedStatus) pmoToClickUp['Blocked'] = distinctBlockedStatus;
+
+  const pmoOnlyStatuses: string[] = [];
+  if (!distinctBlockedStatus) pmoOnlyStatuses.push('Blocked');
 
   const clickUpToPmo: Record<string, string> = {};
   for (const s of sorted) {
@@ -72,24 +89,24 @@ export function buildClickUpStatusMap(statuses: ClickUpListStatus[]): ClickUpSta
     // Any other type is intentionally left unmapped (see doc comment above).
   }
 
-  return { pmoToClickUp, clickUpToPmo, defaultPmoStatus: 'To Do' };
+  return { pmoToClickUp, clickUpToPmo, defaultPmoStatus: 'To Do', pmoOnlyStatuses };
 }
 
 /**
- * OD-INT-10: a binding is safe to activate ONLY once every PMO status has a DISTINCT outbound
- * target. Callers (link-time validation) must reject a binding for which this returns `false`
- * rather than persist a config that either `commit-rejected`s on the first outbound write of an
- * unmapped status, or — the collapse case fixed by the security audit (round 2) — silently writes
- * two different PMO statuses (most commonly `Blocked` and `In Progress`, when a List has only one
- * `custom`-type status) to the SAME ClickUp status. A collapsed target corrupts state in both
- * directions: the outbound write loses which PMO status was intended, and the inbound read-back can
- * never recover it — for `Blocked` specifically, this silently destroys delivery-reporting signal
- * (S-curve/health reads are computed off task status). If a List cannot represent all four PMO
- * statuses as four distinct ClickUp statuses, the link must be rejected — the fix is to add another
- * status of the needed type in ClickUp, not to collapse two PMO states into one silently.
+ * OD-INT-10 (round 3): a binding is safe to activate ONLY once every PMO status has an EXPLICIT,
+ * RECORDED resolution — mapped to a real ClickUp status, or explicitly `pmo-only` (`statusMap.ts`).
+ * Callers (link-time validation) must reject a binding for which this returns `false` rather than
+ * persist a config that `commit-rejected`s on the first outbound write of a genuinely unresolved
+ * status.
+ *
+ * Distinctness among the mapped (non-pmo-only) targets is NO LONGER required here (round 2's
+ * pairwise-distinctness rule was too strict — a fresh ClickUp workspace ships only three default
+ * statuses and would always fail it). Two PMO statuses sharing one ClickUp status is still only ever
+ * VALID when explicitly recorded (never produced silently by `buildClickUpStatusMap` above); when it
+ * is explicit, `statusMap.ts:fromClickUpStatus`'s stickiness keeps the more specific PMO status from
+ * being downgraded by an inbound sync.
  */
 export function statusMapCoversAllPmoStatuses(map: ClickUpStatusMap): boolean {
-  const targets = PMO_TASK_STATUSES.map((status) => map.pmoToClickUp[status]);
-  if (!targets.every((target) => Boolean(target))) return false;
-  return new Set(targets).size === targets.length;
+  const pmoOnly = new Set(map.pmoOnlyStatuses ?? []);
+  return PMO_TASK_STATUSES.every((status) => Boolean(map.pmoToClickUp[status]) || pmoOnly.has(status));
 }

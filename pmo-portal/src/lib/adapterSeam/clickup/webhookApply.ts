@@ -53,6 +53,12 @@ export interface WebhookApplyDeps extends ApplyChangeDeps, WatermarkDeps, ClickU
   tombstoneMirror: (pmoRecordId: string) => Promise<void>;
   /** Surface a deletion (AC-CUA-070 non-silent) — an audit/notice write; optional (P1: structured log). */
   surfaceDeletion?: (pmoRecordId: string, externalRecordId: string) => Promise<void>;
+  /** Read the mirror's CURRENT PMO status (OD-INT-10, round 3) — feeds `fromClickUpStatus`'s
+   *  stickiness so an inbound sync never moves a row OUT of a `pmo-only` status, and never downgrades
+   *  the more specific PMO status of an explicitly recorded collapse. OPTIONAL: absent (the P1
+   *  default) preserves byte-for-byte pre-round-3 behavior — status resolves off the plain inbound
+   *  map with no "current status" awareness. */
+  readMirrorStatus?: (pmoRecordId: string) => Promise<string | null>;
 }
 
 /**
@@ -113,7 +119,17 @@ export async function applyWebhookEvent(
       // rather than crashing the ingress (the sweep is the safety net for the missing change).
       outcome = { kind: 'no-op' };
     } else {
-      const canonical = clickUpTaskToPmoRecord(event.task, maps);
+      // OD-INT-10, round 3: resolve the mirror's CURRENT PMO status (when the caller supplies
+      // `readMirrorStatus`) so `fromClickUpStatus`'s stickiness applies — a `pmo-only` status is never
+      // moved out of by this sync, and an explicit collapse never downgrades the more specific status.
+      let currentPmoStatus: string | undefined;
+      if (deps.readMirrorStatus) {
+        const existingId = await deps.resolvePmoRecordId(externalRecordId);
+        if (existingId !== null) {
+          currentPmoStatus = (await deps.readMirrorStatus(existingId)) ?? undefined;
+        }
+      }
+      const canonical = clickUpTaskToPmoRecord(event.task, maps, currentPmoStatus);
       outcome = await applyInboundChange(externalRecordId, canonical, sourceUpdatedAtMs, deps);
     }
   }
