@@ -600,10 +600,20 @@ async function proposeEmployeeLink(
   // after which that user's hours post against the attacker's Employee costing rate. Escaped, `.ilike`
   // with no live wildcards IS the case-insensitive exact match this intends. Same helper, same reason,
   // as the P3a anchor-search fix (`client.ts:escapeLikePattern`).
-  const { data, error } = await serviceClient.from('profiles').select('id')
+  const { data, error } = await serviceClient.from('profiles').select('id, email')
     .eq('org_id', orgId).ilike('email', escapeLikePattern(workEmail));
   if (error) throw new AppError(error.message, error.code);
-  const rows = (data as Array<{ id: string }> | null) ?? [];
+  // ⚑ THE DB FILTER IS A PREFILTER ONLY — the match is DECIDED here, by exact case-insensitive
+  // equality. `escapeLikePattern` escapes `%`/`_`/`\\`, which is the SQL LIKE metacharacter set, but
+  // the value crosses PostgREST, which ALSO substitutes `*` -> `%` in `like`/`ilike` — so an escaped
+  // pattern is still not guaranteed to be literal end-to-end, and the fix for `finance.lead%` alone
+  // was reopened by `finance.lead*`. Rather than chase one transport's metacharacters, nothing
+  // downstream depends on the pattern being literal: a wildcard can only ever WIDEN the candidate set,
+  // and this comparison then rejects every row that is not a true exact match. Belt and braces —
+  // the escape narrows in the DB, this decides.
+  const candidates = (data as Array<{ id: string; email: string | null }> | null) ?? [];
+  const target = workEmail.trim().toLowerCase();
+  const rows = candidates.filter((r) => (r.email ?? '').trim().toLowerCase() === target);
   if (rows.length !== 1) {
     await surfaceActionRequired(
       serviceClient,

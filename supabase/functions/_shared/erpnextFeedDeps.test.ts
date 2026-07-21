@@ -178,7 +178,9 @@ Deno.test('AC-TSP-090 the Employee adopt NEVER writes a `profiles` row (FR-TSP-0
 });
 
 Deno.test('AC-TSP-091/092 OQ-TSP-10(C): a UNIQUE work-email match PROPOSES the link (link_state=proposed), never confirms it', async () => {
-  const { client, calls } = fakeServiceClient({ profiles: [{ id: 'profile-42' }] });
+  // The fixture must actually CARRY the work email — the match is now decided by exact equality in
+  // code, not by the DB pattern, so a fixture without it no longer models a 'unique work-email match'.
+  const { client, calls } = fakeServiceClient({ profiles: [{ id: 'profile-42', email: 'unique@example.com' }] });
   const deps = createErpFeedDeps(client, 'org-1', 'employee');
   await deps.mintMirror(
     { id: 'HR-EMP-00003', employee_number: 'HR-EMP-00003', work_email: 'unique@example.com' },
@@ -216,7 +218,7 @@ Deno.test('AC-TSP-092 ZERO work-email matches: link stays unlinked, NO erp_emplo
 });
 
 Deno.test('AC-TSP-092 MULTIPLE work-email matches (ambiguous): link stays unlinked, NO erp_employees link update, action-required surfaced', async () => {
-  const { client, calls } = fakeServiceClient({ profiles: [{ id: 'p1' }, { id: 'p2' }] });
+  const { client, calls } = fakeServiceClient({ profiles: [{ id: 'p1', email: 'shared@example.com' }, { id: 'p2', email: 'shared@example.com' }] });
   const deps = createErpFeedDeps(client, 'org-1', 'employee');
   await deps.mintMirror(
     { id: 'HR-EMP-00005', employee_number: 'HR-EMP-00005', work_email: 'shared@example.com' },
@@ -414,6 +416,29 @@ Deno.test('MEDIUM-1 a Desk-controlled work_email is ESCAPED before it reaches il
     lookup!.ilike![1] === 'finance.lead\\%',
     `MEDIUM-1: the % must reach ilike ESCAPED (literal percent, not a prefix wildcard) — got ${JSON.stringify(lookup!.ilike![1])}`,
   );
+});
+
+Deno.test('MEDIUM-1b a `*` work_email cannot hijack a link — the MATCH is decided in code, not by the transport', async () => {
+  // The reopened attack: `escapeLikePattern` covers the SQL LIKE set (`%`/`_`/`\\`), but PostgREST
+  // ALSO substitutes `*` -> `%` in like/ilike, so `finance.lead*` sails through the escape and becomes
+  // a prefix wildcard again. This test models a transport that HONOURS the wildcard (the fake returns
+  // the victim row regardless of the pattern) and asserts the hijack still fails — i.e. the DB filter
+  // is a prefilter and exact equality decides. That is why the fix does not chase metacharacters.
+  const { client, calls } = fakeServiceClient({
+    profiles: [{ id: 'victim-1', email: 'finance.lead@corp.com' }],
+  });
+  const deps = createErpFeedDeps(client, 'org-1', 'employee');
+  await deps.mintMirror({ id: 'HR-EMP-00010', work_email: 'finance.lead*' }, Date.parse('2026-07-20T09:00:00.000Z'));
+
+  const proposed = calls.find(
+    (c) => c.table === 'erp_employees' && c.op === 'update' && (c.patch as { link_state?: string })?.link_state === 'proposed',
+  );
+  assert(
+    !proposed,
+    'MEDIUM-1b: a wildcard work_email must NEVER reach link_state=proposed — that is the cost-identity hijack',
+  );
+  const surfaced = calls.find((c) => c.table === 'notifications' && c.op === 'insert');
+  assert(!!surfaced, 'MEDIUM-1b: the non-match must surface action-required instead of silently linking');
 });
 
 Deno.test('AC-TSP-041 a non-timesheet cancel (e.g. purchase-invoice) does NOT gain a push_state field (additive only, byte-for-byte for other kinds)', async () => {
