@@ -27,8 +27,11 @@
  *
  * Thin wiring ONLY — the sweepCursor list+dedupe, applyFeed lineage, ledgerMirrorFeed, and
  * dispatchMoneyWrite reconcile are unit-proven elsewhere. `reconcileOrgOutbox` + `runErpSweepCycle`
- * are the testable core (outboxRecovery.test.ts); `reconcileOrgBudgetPushes` + `applyBudgetFeedEvent`
- * are `budgetBackstop.ts`'s testable core (budgetBackstop.test.ts); this Deno.serve wrapper is
+ * are the testable core (outboxRecovery.test.ts); `reconcileOrgBudgetPushes` is `budgetBackstop.ts`'s
+ * testable core (budgetBackstop.test.ts) — the budget domain's INBOUND rules (never adopt, never fight
+ * the operator) live on the generic feed path, proven in `_shared/erpnextFeedDeps.test.ts`; the
+ * `sweepOrgDoctypesLive` wiring itself is proven in companyScopedSweep/sweepWedge.test.ts. The
+ * remaining Deno.serve wrapper is
  * INTEGRATION-ONLY — verified by `deno check` + the boot-smoke.
  */
 
@@ -38,6 +41,8 @@ import { constantTimeBearerEquals } from '../_shared/constantTimeBearerEquals.ts
 import { runSweep } from '../../../pmo-portal/src/lib/adapterSeam/applyEngine.ts';
 import { listErpChangesSinceWatermark } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/sweepCursor.ts';
 import { applyErpFeedEvent } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/applyFeed.ts';
+// HIGH-A: which per-change apply failure is a terminal ack-and-skip vs. a halt (see feedErrorPolicy.ts).
+import { erpFeedApplyErrorPolicy } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/feedErrorPolicy.ts';
 import { createErpFeedDeps, ERPNEXT_TIER, surfaceActionRequired } from '../_shared/erpnextFeedDeps.ts';
 import { DOCTYPE_REGISTRY, type ErpDocKind } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/doctypeRegistry.ts';
 import { DOCTYPE_BODIES } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/doctypeBodies.ts';
@@ -144,9 +149,9 @@ const FROM_DOC_FIELDS_BY_KIND: Record<ErpDocKind, readonly string[]> = {
   customer: CUSTOMER_FROM_DOC_FIELDS,
   'sales-invoice': SI_FROM_DOC_FIELDS,
   'incoming-payment': PE_RECEIVE_FROM_DOC_FIELDS,
-  // P3c: declared for completeness (the map is exhaustive over ErpDocKind); `budget` is not polled
-  // today — see SWEEP_UNPOLLED_KINDS. `accounts` is deliberately absent: the list endpoint drops child
-  // tables anyway, and an ERP-side budget amount must never flow back into PMO (FR-BUD-152).
+  // P3c: `budget` IS polled (SWEEP_UNPOLLED_KINDS is empty — the inbound never-adopt/never-fight-the-
+  // operator branches landed). `accounts` is deliberately absent from its field list: the list endpoint
+  // drops child tables anyway, and an ERP-side budget amount must never flow back into PMO (FR-BUD-152).
   budget: BUDGET_FROM_DOC_FIELDS,
   timesheet: TS_FROM_DOC_FIELDS,
   employee: EMPLOYEE_FROM_DOC_FIELDS,
@@ -599,6 +604,11 @@ function listCandidatesLive(serviceClient: SupabaseClient): ListOutboxCandidates
 export async function sweepOrgDoctypesLive(serviceClient: SupabaseClient, org: OrgBinding): Promise<{ applied: number; error?: string }> {
   const client = await erpClientForOrg(serviceClient, org);
   let applied = 0;
+  // HIGH-A: one doctype's failure is RECORDED and the loop CONTINUES. It used to `return`, so a single
+  // refused/unreachable doctype abandoned every doctype after it for that org this tick — and with
+  // `DOCTYPE_REGISTRY`'s order that meant a Timesheet problem silently stopped `employee` and `budget`
+  // (the money-control push's own feed) from sweeping at all.
+  const doctypeErrors: string[] = [];
   // BLOCK 1 / round-7 B5: the pull-adopt guard. NOT a snapshot — the probe asks the outbox about each
   // CANDIDATE document at the moment the poll sees it, so neither a stale key set nor PostgREST's
   // `max_rows` ceiling can let a PMO-originated document be pull-adopted into a SECOND PMO row. A read
@@ -662,6 +672,12 @@ export async function sweepOrgDoctypesLive(serviceClient: SupabaseClient, org: O
           ...watermarkDeps,
           applyChange: (ctx, externalRecordId, canonical, sourceModMs, d) =>
             applyErpFeedEvent(ctx, externalRecordId, canonical, sourceModMs, d as Parameters<typeof applyErpFeedEvent>[4]),
+          // HIGH-A: a document PMO must NEVER adopt (a Desk-created Budget/Timesheet, or a procurement
+          // doc whose PMO case link only the dispatch path can make) throws BY DESIGN. That is a
+          // terminal, already-surfaced outcome for that ONE document — ack it and keep going, so the
+          // watermark still advances and the changes behind it (a Desk cancel of a PMO-pushed Budget)
+          // apply. Anything unclassified still halts this doctype, unadvanced, for the next tick.
+          applyErrorPolicy: erpFeedApplyErrorPolicy,
           listChanges: (cursor) => listErpChangesSinceWatermark(
             {
               client,
@@ -694,13 +710,19 @@ export async function sweepOrgDoctypesLive(serviceClient: SupabaseClient, org: O
         },
       );
       applied += result.applied;
+      // Never silent: an acked-and-skipped document (never-adopt / lossy hint) is logged with its ERP
+      // name so an operator can see exactly what the poll declined to import.
+      for (const s of result.skipped) {
+        console.warn(`[erpnext-sweep] org ${org.orgId} ${doctype} ${s.externalRecordId}: acked+skipped — ${s.error}`);
+      }
     } catch (err) {
       // An unreachable adapter (or one doctype's failure) is recorded but does NOT abort the other
       // doctypes/orgs (AC-CUA-044 sibling: the next schedule retries).
-      return { applied, error: `${doctype}:${err instanceof Error ? err.message : String(err)}` };
+      doctypeErrors.push(`${doctype}:${err instanceof Error ? err.message : String(err)}`);
+      continue;
     }
   }
-  return { applied };
+  return { applied, ...(doctypeErrors.length > 0 ? { error: doctypeErrors.join(' | ') } : {}) };
 }
 
 // ────────────────────────────────────────────────────────────────────────────────────────────────

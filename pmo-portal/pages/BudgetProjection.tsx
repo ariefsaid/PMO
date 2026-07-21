@@ -7,6 +7,7 @@ import { formatCurrency, parseMoneyInput, pct } from '@/src/lib/format';
 import {
   fetchBudgetProjection,
   upsertBudgetProjectionEtc,
+  retryActiveBudgetPush,
   type BudgetProjectionCellRow,
   type BudgetCategory,
 } from '@/src/lib/repositories/budgetProjection';
@@ -89,10 +90,42 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
     }
   };
 
-  // FR-BUD-123: the push-state banner — the FIRST failed/held row drives it (one banner per project,
-  // not per category; the operational consequence is project-wide regardless of which category
-  // triggered it).
-  const blockedRow = rows.find((r) => r.pushState === 'failed' || r.pushState === 'held');
+  // FR-BUD-123: the push-state banner — the FIRST unhealthy row drives it (one banner per project, not
+  // per category; the operational consequence is project-wide regardless of which category triggered
+  // it).
+  //
+  // ⚑ HIGH-C: `'never-pushed'` is in this set. It is what `get_budget_projection` reports when the
+  // project HAS an Active, activated version and the org has handed the budget domain to ERPNext, yet
+  // no mirror row exists at all — i.e. the push never reached the edge function (dropped connection,
+  // tab closed mid-request, platform 502). Every mirror writer lives inside `adapter-dispatch`, and the
+  // sweep backstop's work queue IS that mirror, so nothing re-drives it and nobody is notified. It used
+  // to render as a NULL push_state, i.e. a completely clean screen.
+  const blockedRow = rows.find(
+    (r) => r.pushState === 'failed' || r.pushState === 'held' || r.pushState === 'never-pushed',
+  );
+
+  // HIGH-D: the recovery affordance. `held`/`failed`/`never-pushed` are all re-drivable — under the
+  // OPERATOR's own JWT, which is the authenticated actor the sweep backstop can never synthesize
+  // (FR-BUD-102). Without it, fixing the blocking cause (mapping the missing category) changed nothing:
+  // the backstop excludes `held`, and re-activating is refused by the Draft-only guard.
+  const retryMutation = useMutation({
+    mutationFn: () => retryActiveBudgetPush(projectId),
+    onSettled: () => qc.invalidateQueries({ queryKey }),
+  });
+
+  const retryPush = async () => {
+    try {
+      const { pushState } = await retryMutation.mutateAsync();
+      if (pushState === 'pushed') {
+        toast('Budget pushed to ERPNext', 'ERPNext is now enforcing the active budget.', 'success');
+      } else {
+        toast('The push did not complete', 'The reason shown above may need fixing first.', 'warning');
+      }
+    } catch (err) {
+      const { headline, detail } = classifyMutationError(err);
+      toast(headline, detail, 'warning');
+    }
+  };
 
   if (isPending) {
     return (
@@ -144,9 +177,18 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
 
       {blockedRow && (
         <GateNotice variant="blocked" className="mt-3.5">
-          <div>
-            <b className="font-semibold">ERPNext is still enforcing the previous budget for this project.</b>
-            <div className="mt-1">{blockedRow.pushError ?? 'The push to ERPNext has not completed.'}</div>
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div>
+              <b className="font-semibold">ERPNext is still enforcing the previous budget for this project.</b>
+              <div className="mt-1">
+                {blockedRow.pushState === 'never-pushed'
+                  ? 'The activated budget never reached ERPNext — it was not recorded as pushed at all.'
+                  : blockedRow.pushError ?? 'The push to ERPNext has not completed.'}
+              </div>
+            </div>
+            <Button variant="outline" size="sm" loading={retryMutation.isPending} onClick={() => void retryPush()}>
+              Retry the push
+            </Button>
           </div>
         </GateNotice>
       )}

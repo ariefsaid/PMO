@@ -26,8 +26,14 @@ vi.mock('@/src/lib/supabase/client', () => ({
   supabase: { from: mockFrom, rpc: mockRpc },
 }));
 
+// HIGH-D: the retry seam delegates to the ONE budget push in the DAL — mocked here so this file proves
+// the SEAM's own job (resolve the project's Active version from DB truth, refuse when there is none).
+const { retryBudgetPushMock } = vi.hoisted(() => ({ retryBudgetPushMock: vi.fn() }));
+vi.mock('@/src/lib/db/budgets', () => ({ retryBudgetPush: retryBudgetPushMock }));
+
 import {
   fetchBudgetProjection,
+  retryActiveBudgetPush,
   listBudgetCategoryAccountMap,
   createBudgetCategoryAccountMapRow,
   updateBudgetCategoryAccountMapRow,
@@ -211,5 +217,25 @@ describe('upsertBudgetProjectionEtc (Finance-authored ETC, OD-BUDGET-3)', () => 
     await expect(upsertBudgetProjectionEtc('proj-1', '2026', 'Materials', 100)).rejects.toMatchObject({
       code: '42501',
     });
+  });
+});
+
+describe('retryActiveBudgetPush (HIGH-D — the operator-invokable recovery)', () => {
+  it('resolves the project\'s ACTIVE version from DB truth and re-drives its push', async () => {
+    const builder = makeFromBuilder({ data: { id: 'ver-active' }, error: null });
+    (builder as Record<string, unknown>).maybeSingle = () => Promise.resolve({ data: { id: 'ver-active' }, error: null });
+    retryBudgetPushMock.mockResolvedValue({ pushState: 'pushed' });
+
+    await expect(retryActiveBudgetPush('proj-1')).resolves.toEqual({ pushState: 'pushed' });
+    expect(mockFrom).toHaveBeenCalledWith('budget_versions');
+    expect(mockEq).toHaveBeenCalledWith('status', 'Active');
+    expect(retryBudgetPushMock).toHaveBeenCalledWith('ver-active');
+  });
+
+  it('refuses (never invents a push) when the project has no Active version at all', async () => {
+    const builder = makeFromBuilder({ data: null, error: null });
+    (builder as Record<string, unknown>).maybeSingle = () => Promise.resolve({ data: null, error: null });
+    await expect(retryActiveBudgetPush('proj-1')).rejects.toThrow(/no Active budget version/i);
+    expect(retryBudgetPushMock).not.toHaveBeenCalled();
   });
 });

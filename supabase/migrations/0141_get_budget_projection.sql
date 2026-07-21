@@ -68,6 +68,33 @@ as $$
      where v.project_id = p_project_id and v.status = 'Active' and em.fiscal_year = p_fiscal_year
      limit 1
   ),
+  -- ⚑ HIGH-C (Luna re-audit round 2, 2026-07-21) — "no row" is a STATE, not an absence of news.
+  -- EVERY writer of `budget_version_erp_mirror` lives inside the `adapter-dispatch` edge function, so a
+  -- dispatch that never REACHES it (dropped connection, tab closed mid-request, platform 502) leaves NO
+  -- mirror row at all — and the sweep backstop's work queue IS that mirror, so nothing re-drives it and
+  -- nobody is ever notified. `push_state` then came back NULL, which the operator surface renders as a
+  -- perfectly clean screen while ERPNext keeps enforcing the previous budget (or none) indefinitely.
+  -- The DB itself is the honest witness: an Active version carrying its `activated_at` stamp, in an org
+  -- that HAS handed the `budget` domain to the ERPNext tier, with no mirror row for ANY fiscal year.
+  --   • scoped on "any fiscal year", not this one, so viewing a year the push does not cover is NOT a
+  --     false alarm (it stays NULL);
+  --   • gated on real domain ownership, so a non-employing org — which has no ERP to push to — never
+  --     sees a push banner at all;
+  --   • a RECORDED push state always wins (this is only ever consulted when `push` is empty).
+  unrecorded as (
+    select 1
+     where exists (
+             select 1 from public.budget_versions v
+              where v.project_id = p_project_id and v.status = 'Active' and v.activated_at is not null)
+       and not exists (
+             select 1 from public.budget_version_erp_mirror em
+               join public.budget_versions v on v.id = em.budget_version_id
+              where v.project_id = p_project_id and v.status = 'Active')
+       and exists (
+             select 1 from public.projects p
+              where p.id = p_project_id
+                and public.domain_owned_by_tier(p.org_id, 'budget', 'erpnext'))
+  ),
   cells as (
     -- FULL OUTER: an ETC or an actual on a category the Active version does not budget MUST surface —
     -- never an inner join that silently drops it.
@@ -91,7 +118,11 @@ as $$
               else c.pmo_budget_amount - (c.actuals_to_date + c.pmo_etc) end as projected_variance,
          -- NULLIF => NULL on a zero/absent budget: never a divide-by-zero, never Infinity (AC-BUD-051).
          ((c.actuals_to_date + c.pmo_etc) / nullif(c.pmo_budget_amount, 0)) as projected_utilization,
-         (select push_state from push), (select push_error from push)
+         coalesce(
+           (select push_state from push),
+           case when exists (select 1 from unrecorded) then 'never-pushed' end
+         ),
+         (select push_error from push)
     from cells c
    order by c.category;
 $$;

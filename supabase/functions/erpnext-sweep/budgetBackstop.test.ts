@@ -1,12 +1,15 @@
 /**
- * budgetBackstop.test.ts (P3c slice 5, AC-BUD-023/040/041) — the sweep backstop (originator 2 of the
- * budget push) + the budget domain's inbound never-adopt / never-fight-the-operator rules.
+ * budgetBackstop.test.ts (P3c slice 5, AC-BUD-023) — the sweep backstop (originator 2 of the budget
+ * push).
+ *
+ * ⛑ MEDIUM-E: AC-BUD-040/041 no longer live here. They used to be proven against
+ * `applyBudgetFeedEvent`, which production never called; they now own the REAL inbound path in
+ * `supabase/functions/_shared/erpnextFeedDeps.test.ts`.
  *
  * Verify: cd pmo-portal && npx vitest run ../supabase/functions/erpnext-sweep/budgetBackstop.test.ts
  *
- * `stubDb` is a single in-memory double satisfying BOTH `BudgetBackstopDeps` (the outbound backstop)
- * and `BudgetFeedDeps` (the inbound never-adopt/never-fight-the-operator path), plus test-only
- * introspection (`rows`/`erpCreateCount`/`finalizedWithNullActor`/`lastQueryLimit`) — the REAL
+ * `stubDb` is an in-memory double satisfying `BudgetBackstopDeps` (the outbound backstop), plus
+ * test-only introspection (`rows`/`erpCreateCount`/`finalizedWithNullActor`/`lastQueryLimit`) — the REAL
  * production wiring (`erpnext-sweep/index.ts`'s `reconcileOrgBudgetPushesLive` +
  * `_shared/erpnextFeedDeps.ts`'s budget branches) is Deno-integration-only (verified by `deno check` +
  * the boot-smoke), exactly like every other `*Live` pass in this function — this file proves the PURE
@@ -15,13 +18,10 @@
 import { describe, it, expect } from 'vitest';
 import {
   reconcileOrgBudgetPushes,
-  applyBudgetFeedEvent,
   BUDGET_BACKSTOP_TICK_LIMIT,
   type BudgetBackstopDeps,
-  type BudgetFeedDeps,
   type BudgetMirrorCandidateRow,
   type BudgetBackstopVersionRow,
-  type BudgetFeedDoc,
 } from './budgetBackstop';
 
 const ORG = { orgId: 'org-a' };
@@ -53,8 +53,7 @@ interface StubSeed {
 }
 
 /** The single in-memory double, implementing both deps interfaces this file's functions need. */
-function stubDb(seed: StubSeed): BudgetBackstopDeps &
-  BudgetFeedDeps & {
+function stubDb(seed: StubSeed): BudgetBackstopDeps & {
     rows(table: string): Array<Record<string, unknown>>;
     erpCreateCount(): number;
     finalizedWithNullActor(): boolean;
@@ -106,28 +105,6 @@ function stubDb(seed: StubSeed): BudgetBackstopDeps &
       const mirror = tables.budget_version_erp_mirror.find((r) => r.budget_version_id === row.budget_version_id);
       if (mirror) mirror.push_state = 'pushed';
     },
-
-    // ── BudgetFeedDeps ──
-    async findMappedVersionId(erpBudgetName: string): Promise<string | null> {
-      const ref = tables.external_refs.find((r) => r.domain === 'budget' && r.external_record_id === erpBudgetName);
-      return ref ? (ref.pmo_record_id as string) : null;
-    },
-    async ackNeverAdopted(_erpBudgetName: string): Promise<void> {
-      // Surfaced elsewhere (the notifications insert, production-side); nothing is minted here, ever.
-    },
-    async tombstoneCancel(versionId: string, doc: BudgetFeedDoc): Promise<void> {
-      const mirror = tables.budget_version_erp_mirror.find((r) => r.budget_version_id === versionId);
-      if (mirror) {
-        mirror.erp_cancelled_at = new Date().toISOString();
-        mirror.erp_docstatus = doc.docstatus;
-        mirror.push_state = 'failed';
-        mirror.actionRequired = true;
-      }
-    },
-    async updateLifecycle(versionId: string, doc: BudgetFeedDoc): Promise<void> {
-      const mirror = tables.budget_version_erp_mirror.find((r) => r.budget_version_id === versionId);
-      if (mirror) mirror.erp_docstatus = doc.docstatus;
-    },
   };
 }
 
@@ -162,35 +139,5 @@ describe('reconcileOrgBudgetPushes (AC-BUD-023 — the sweep backstop)', () => {
     await reconcileOrgBudgetPushes(db, ORG);
     expect(db.erpCreateCount()).toBe(0);
     expect(db.lastQueryLimit('budget_version_erp_mirror')).toBeLessThanOrEqual(BUDGET_BACKSTOP_TICK_LIMIT);
-  });
-});
-
-describe('applyBudgetFeedEvent (AC-BUD-040/041 — never adopt, never fight the operator)', () => {
-  it('AC-BUD-040 ⚑ a Desk-created Budget is ACK-AND-SKIPPED, NEVER adopted (ADR-0059 §5)', async () => {
-    const db = stubDb({ external_refs: [] }); // no mapping ⇒ natively created
-    const res = await applyBudgetFeedEvent(db, ORG, { name: 'BUDGET-DESK-001', docstatus: 1, modified: 'x' });
-    expect(res.acked).toBe(true);
-    expect(res.actionRequired).toBe(true);
-    expect(db.rows('budget_versions')).toHaveLength(0); // ⚑ NOTHING minted into PMO's SoT
-    expect(db.rows('budget_line_items')).toHaveLength(0);
-    // ⚑ the deliberate INVERSE of P3a's FR-SAR-085 adopt rule — do not pattern-match
-  });
-
-  it('AC-BUD-041 ⚑ an external CANCEL is tombstoned + failed + surfaced, and NEVER auto-re-pushed', async () => {
-    const db = stubDb({
-      external_refs: [{ domain: 'budget', pmo_record_id: 'ver-1', external_record_id: 'BUDGET-001' }],
-      budget_version_erp_mirror: [{ budget_version_id: 'ver-1', push_state: 'pushed', erp_budget_name: 'BUDGET-001' }],
-      budget_versions: [{ id: 'ver-1', status: 'Active', activated_at: '2026-07-16T10:00:00Z' }],
-    });
-    await applyBudgetFeedEvent(db, ORG, { name: 'BUDGET-001', docstatus: 2, modified: 'y' });
-    const m = db.rows('budget_version_erp_mirror')[0];
-    expect(m.erp_cancelled_at).toBeTruthy();
-    expect(m.erp_docstatus).toBe(2);
-    expect(m.push_state).toBe('failed');
-    expect(m.actionRequired).toBe(true);
-
-    await reconcileOrgBudgetPushes(db, ORG); // the backstop then runs
-    expect(db.erpCreateCount()).toBe(0); // ⚑ NEVER re-pushes (never fight the operator)
-    expect(db.rows('budget_versions')[0].status).toBe('Active'); // ⚑ PMO's budget is not ERP's to revoke
   });
 });

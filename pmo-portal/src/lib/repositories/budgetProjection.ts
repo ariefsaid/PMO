@@ -12,7 +12,8 @@
  * directly by its consumers, the same seam-over-the-DAL shape as `revenueDisplay.ts`).
  */
 import { supabase } from '@/src/lib/supabase/client';
-import { toAppError } from '@/src/lib/appError';
+import { AppError, toAppError } from '@/src/lib/appError';
+import { retryBudgetPush, type ActivateVersionResult } from '@/src/lib/db/budgets';
 import type { Database } from '@/src/lib/supabase/database.types';
 
 export type BudgetCategory = Database['public']['Enums']['budget_category'];
@@ -65,6 +66,32 @@ export async function fetchBudgetProjection(
     pushState: row.push_state ?? null,
     pushError: row.push_error ?? null,
   }));
+}
+
+/**
+ * HIGH-D — re-drive the ERPNext push for this project's ACTIVE budget version.
+ *
+ * The operator-invokable half of the recovery story: a `failed` push whose gate rejected before the
+ * outbox (an unmapped category) leaves the sweep backstop nothing to reconcile, and the backstop then
+ * parks it as `held`, which its own candidate query excludes — so once the Admin maps the category,
+ * ONLY a re-dispatch under a real, authenticated actor can land it (re-activating is impossible: the
+ * version is no longer Draft). Resolves the Active version from DB truth rather than trusting anything
+ * on screen, then delegates to the ONE push in `db/budgets.ts` (same command, same deterministic key).
+ */
+export async function retryActiveBudgetPush(projectId: string): Promise<ActivateVersionResult> {
+  const { data, error } = await supabase
+    .from('budget_versions')
+    .select('id')
+    .eq('project_id', projectId)
+    .eq('status', 'Active')
+    .maybeSingle();
+  if (error) throw toAppError(error);
+  const versionId = (data as { id: string } | null)?.id;
+  if (!versionId) {
+    // Nothing to push: no Active version at all. Never invent one — say so.
+    throw new AppError('This project has no Active budget version to push.', 'not-found');
+  }
+  return retryBudgetPush(versionId);
 }
 
 /** Lists the caller org's category→account map, ordered by category (RLS scopes the org). */

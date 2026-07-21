@@ -26,6 +26,7 @@ import type {
   DocStatus,
 } from '@/src/lib/db/documents';
 import type { PreparedAgentAttachmentUpload } from '@/src/lib/db/agentAttachments';
+import type { ActivateVersionResult } from '@/src/lib/db/budgets';
 import type { ProfileRow } from '@/src/lib/db/profiles';
 import type { UserRow, UserRole, InviteUserInput, SetUserStatusInput } from '@/src/lib/db/adminUsers';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
@@ -405,7 +406,9 @@ export interface BudgetRepository {
   deleteLineItem(id: string): Promise<void>;
   createVersion(projectId: string, name: string): Promise<BudgetVersionRow>;
   cloneVersion(versionId: string): Promise<string>;
-  activateVersion(versionId: string): Promise<void>;
+  /** HIGH-C: returns the ERP push CONSEQUENCE (the PMO transition itself either succeeded or threw).
+   *  Never `void` — a push that failed (or never reached the edge function) must be surfaced. */
+  activateVersion(versionId: string): Promise<ActivateVersionResult>;
   archiveVersion(versionId: string): Promise<void>;
   deleteDraftVersion(versionId: string): Promise<void>;
 }

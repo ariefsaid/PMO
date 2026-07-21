@@ -670,7 +670,7 @@ describe('delegation — methods pass args through and return the DAL result', (
     vi.mocked(budgetsDal.deleteLineItem).mockResolvedValue(undefined);
     vi.mocked(budgetsDal.createBudgetVersion).mockResolvedValue({} as never);
     vi.mocked(budgetsDal.cloneVersion).mockResolvedValue('v2');
-    vi.mocked(budgetsDal.activateVersion).mockResolvedValue(undefined);
+    vi.mocked(budgetsDal.activateVersion).mockResolvedValue({ pushState: 'pushed' });
     vi.mocked(budgetsDal.archiveVersion).mockResolvedValue(undefined);
     vi.mocked(budgetsDal.deleteDraftVersion).mockResolvedValue(undefined);
 

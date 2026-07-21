@@ -18,6 +18,8 @@ interface QueryShape {
   eq: Array<[string, unknown]>;
   ilike?: [string, string];
   in?: [string, unknown[]];
+  is?: [string, unknown];
+  contains?: [string, Record<string, unknown>];
 }
 
 interface Call extends QueryShape {
@@ -47,6 +49,9 @@ function fakeServiceClient(selectResults: SelectResults | SelectFn) {
     const eq: Array<[string, unknown]> = [];
     let ilikeVal: [string, string] | undefined;
     let inVal: [string, unknown[]] | undefined;
+    let isVal: [string, unknown] | undefined;
+    let containsVal: [string, Record<string, unknown>] | undefined;
+    const shape = (): QueryShape => ({ eq, ilike: ilikeVal, in: inVal, is: isVal, contains: containsVal });
     const builder = {
       eq(col: string, val: unknown) {
         eq.push([col, val]);
@@ -60,14 +65,27 @@ function fakeServiceClient(selectResults: SelectResults | SelectFn) {
         inVal = [col, vals];
         return builder;
       },
+      is(col: string, val: unknown) {
+        isVal = [col, val];
+        return builder;
+      },
+      contains(col: string, val: Record<string, unknown>) {
+        containsVal = [col, val];
+        return builder;
+      },
+      limit(_n: number) {
+        calls.push({ table, op, patch, ...shape() });
+        const rows = op === 'select' ? resolveRows(table, shape()) : [];
+        return Promise.resolve({ data: rows, error: null });
+      },
       maybeSingle() {
-        calls.push({ table, op, patch, eq, ilike: ilikeVal, in: inVal });
-        const rows = op === 'select' ? resolveRows(table, { eq, ilike: ilikeVal, in: inVal }) : [];
+        calls.push({ table, op, patch, ...shape() });
+        const rows = op === 'select' ? resolveRows(table, shape()) : [];
         return Promise.resolve({ data: rows[0] ?? null, error: null });
       },
       then(resolve: (v: { data: Array<Record<string, unknown>>; error: null }) => void) {
-        calls.push({ table, op, patch, eq, ilike: ilikeVal, in: inVal });
-        const rows = op === 'select' ? resolveRows(table, { eq, ilike: ilikeVal, in: inVal }) : [];
+        calls.push({ table, op, patch, ...shape() });
+        const rows = op === 'select' ? resolveRows(table, shape()) : [];
         resolve({ data: rows, error: null });
       },
     };
@@ -439,6 +457,153 @@ Deno.test('MEDIUM-1b a `*` work_email cannot hijack a link — the MATCH is deci
   );
   const surfaced = calls.find((c) => c.table === 'notifications' && c.op === 'insert');
   assert(!!surfaced, 'MEDIUM-1b: the non-match must surface action-required instead of silently linking');
+});
+
+// ── P3c slice 5 — the budget feed, ON THE PATH PRODUCTION ACTUALLY RUNS (MEDIUM-E) ───────────────
+// AC-BUD-040/041 used to be proven against `budgetBackstop.applyBudgetFeedEvent`, which NOTHING in
+// production called (both inbound paths route budget through `applyErpFeedEvent` + `createErpFeedDeps`)
+// — so both "proofs" passed while testing a module that never ran, which is precisely why HIGH-A's
+// wedge and MEDIUM-G's tombstone clear survived. They now own the REAL path.
+
+Deno.test('AC-BUD-040 ⚑ an unmapped (Desk-created) Budget mints ZERO rows in budget_versions/budget_line_items/budget_version_erp_mirror and surfaces ONE action-required (FR-BUD-140)', async () => {
+  const { client, calls } = fakeServiceClient({ profiles: [{ id: 'admin-1' }] });
+  const deps = createErpFeedDeps(client, 'org-1', 'budget');
+
+  let threw: unknown = null;
+  try {
+    await deps.mintMirror({ id: 'BUDGET-DESK-001' }, Date.parse('2026-07-20T09:00:00.000Z'));
+  } catch (err) {
+    threw = err;
+  }
+  assert(threw !== null, 'AC-BUD-040: adopting a Desk-created Budget must NEVER silently succeed');
+  assert((threw as { code?: string } | null)?.code === 'commit-rejected', `expected a commit-rejected AdapterError, got ${JSON.stringify(threw)}`);
+  assert(
+    (threw as { message?: string }).message?.includes('native-budget-not-adopted') ?? false,
+    'expected the native-budget-not-adopted classification (the sweep skip policy keys on it)',
+  );
+
+  for (const forbiddenTable of ['budget_versions', 'budget_line_items', 'budget_version_erp_mirror']) {
+    const write = calls.find((c) => c.table === forbiddenTable && (c.op === 'insert' || c.op === 'update'));
+    assert(!write, `AC-BUD-040: expected NO write to '${forbiddenTable}' — PMO is the SoT for the budget figure (OD-BUDGET-1)`);
+  }
+
+  const notifInsert = calls.find((c) => c.table === 'notifications' && c.op === 'insert');
+  assert(!!notifInsert, 'expected ONE action-required notification for the never-adopted Budget');
+  const rows = (notifInsert!.patch as { rows: Array<{ metadata: { action_required: string } }> }).rows;
+  assert(rows.every((r) => r.metadata.action_required === 'budget-native-not-adopted'), 'expected the budget-native-not-adopted reason code');
+});
+
+Deno.test('AC-BUD-040 the `budget` kind provides NO adoptAtomically strategy — the never-adopt throw fires BEFORE any external_refs claim', () => {
+  const { client } = fakeServiceClient({});
+  const deps = createErpFeedDeps(client, 'org-1', 'budget');
+  assert(
+    deps.adoptAtomically === undefined,
+    'a claim-first adopt would orphan an external_refs mapping for a PMO id nothing is ever minted for',
+  );
+});
+
+Deno.test('AC-BUD-041 ⚑ a desk-cancelled (mapped) Budget REOPENS push_state to failed, filters on budget_version_id, leaves budget_versions untouched, and surfaces action-required (FR-BUD-142)', async () => {
+  const { client, calls } = fakeServiceClient({ profiles: [{ id: 'admin-1' }] });
+  const deps = createErpFeedDeps(client, 'org-1', 'budget');
+  await deps.tombstoneMirror('ver-1', '2026-07-20T00:00:00.000Z');
+
+  const update = calls.find((c) => c.table === 'budget_version_erp_mirror' && c.op === 'update');
+  assert(!!update, 'expected the budget_version_erp_mirror row to be tombstoned');
+  assert(update!.patch!.erp_docstatus === 2, 'expected the standard cancel patch (erp_docstatus=2)');
+  assert(!!update!.patch!.erp_cancelled_at, 'expected the tombstone stamp (the backstop candidate-query exclusion)');
+  assert(update!.patch!.push_state === 'failed', 'FR-BUD-142: a desk cancel must REOPEN push_state to failed');
+  // The Posture-B mirror is keyed by its OWN uuid; the PMO record lives in `budget_version_id` (0137).
+  assert(
+    update!.eq.some(([col, val]) => col === 'budget_version_id' && val === 'ver-1'),
+    "expected the tombstone to filter on budget_version_id — filtering on the mirror's own 'id' matches no row at all",
+  );
+  assert(!update!.eq.some(([col]) => col === 'id'), "the tombstone must NOT filter on the mirror's own 'id' column");
+
+  const budgetWrite = calls.find((c) => c.table === 'budget_versions' || c.table === 'budget_line_items');
+  assert(!budgetWrite, "FR-BUD-142: PMO's version stays Active — PMO's budget is not ERP's to revoke");
+
+  const notifInsert = calls.find((c) => c.table === 'notifications' && c.op === 'insert');
+  const rows = (notifInsert!.patch as { rows: Array<{ metadata: { action_required: string } }> }).rows;
+  assert(rows.every((r) => r.metadata.action_required === 'budget-desk-cancelled'), 'expected the budget-desk-cancelled reason code');
+});
+
+// ── MEDIUM-G — the tombstone must be STICKY for the PMO-SoT kinds ────────────────────────────────
+// `mirrorStatusPatch` cleared `erp_cancelled_at` on ANY non-2 docstatus (correct for the revenue
+// amend-onto-the-same-row case). For budget/timesheet that broke the stated invariant "the tombstone
+// excludes the row from the backstop's candidate list FOREVER": the accountant's standard correction —
+// cancel BUDGET-001, then AMEND it into BUDGET-001-1 — repointed external_refs onto the same mirror
+// row and cleared the stamp, so the row became a permanent backstop candidate that re-dispatched every
+// cron tick against a document the operator had just authored.
+
+Deno.test('MEDIUM-G an AMEND after a desk cancel must NOT clear erp_cancelled_at on a budget mirror (the tombstone is permanent for a PMO-SoT kind)', async () => {
+  const { client, calls } = fakeServiceClient({});
+  const deps = createErpFeedDeps(client, 'org-1', 'budget');
+  // The successor document: live (docstatus 1), carrying `amended_from` — exactly what applyFeed's
+  // amend branch hands to `updateMirror` right after repointing external_refs.
+  await deps.updateMirror('ver-1', { id: 'BUDGET-001-1', erp_docstatus: 1, erp_amended_from: 'BUDGET-001' }, Date.parse('2026-07-21T09:00:00.000Z'));
+  const update = calls.find((c) => c.table === 'budget_version_erp_mirror' && c.op === 'update');
+  assert(!!update, 'expected a budget_version_erp_mirror update');
+  assert(
+    !('erp_cancelled_at' in update!.patch!),
+    'MEDIUM-G: clearing the tombstone re-arms the sweep backstop against a Budget the operator just amended — it must be left alone',
+  );
+});
+
+Deno.test('MEDIUM-G the same stickiness applies to the timesheet mirror (the other Posture-B, PMO-SoT kind)', async () => {
+  const { client, calls } = fakeServiceClient({});
+  const deps = createErpFeedDeps(client, 'org-1', 'timesheet');
+  await deps.updateMirror('pmo-ts-1', { id: 'TS-2026-00001-1', erp_docstatus: 1, erp_amended_from: 'TS-2026-00001' }, Date.parse('2026-07-21T09:00:00.000Z'));
+  const update = calls.find((c) => c.table === 'timesheet_erp_mirror' && c.op === 'update');
+  assert(!('erp_cancelled_at' in update!.patch!), 'MEDIUM-G: a PMO-SoT tombstone is never cleared by a later live docstatus');
+});
+
+Deno.test('MEDIUM-G a REVENUE kind still clears erp_cancelled_at on a live docstatus (the round-5 amend-onto-the-same-row behaviour is unchanged)', async () => {
+  const { client, calls } = fakeServiceClient({});
+  const deps = createErpFeedDeps(client, 'org-1', 'sales-invoice');
+  await deps.updateMirror('pmo-si-1', { id: 'ACC-SINV-1-1', erp_docstatus: 1, erp_amended_from: 'ACC-SINV-1' }, Date.parse('2026-07-21T09:00:00.000Z'));
+  const update = calls.find((c) => c.table === 'sales_invoices' && c.op === 'update');
+  assert(update!.patch!.erp_cancelled_at === null, 'a revenue successor mirrored onto the tombstoned row must clear the predecessor stamp');
+});
+
+// ── HIGH-A (second half) — the notification storm ────────────────────────────────────────────────
+// The never-adopt branch surfaces action-required on EVERY tick for the SAME Desk document, one row
+// per Admin/Finance profile, forever: unbounded `notifications` growth from one Desk action.
+
+Deno.test('HIGH-A an action-required that is already UNRESOLVED for the same document is NOT re-inserted (no per-tick notification storm)', async () => {
+  const { client, calls } = fakeServiceClient((table, query) => {
+    if (table === 'notifications' && query.contains) return [{ id: 'notif-1' }]; // an unread one already exists
+    if (table === 'profiles') return [{ id: 'admin-1' }];
+    return [];
+  });
+  const deps = createErpFeedDeps(client, 'org-1', 'budget');
+  await deps.mintMirror({ id: 'BUDGET-DESK-001' }, Date.parse('2026-07-20T09:00:00.000Z')).catch(() => {});
+
+  const dedupeProbe = calls.find((c) => c.table === 'notifications' && c.op === 'select');
+  assert(!!dedupeProbe, 'expected the surface to CHECK for an existing unresolved notification first');
+  assert(
+    dedupeProbe!.is?.[0] === 'read_at' && dedupeProbe!.is?.[1] === null,
+    'the dedupe must only suppress against an UNRESOLVED (unread) notification — a dismissed one may surface again',
+  );
+  assert(
+    (dedupeProbe!.contains?.[1] as { erpName?: string })?.erpName === 'BUDGET-DESK-001',
+    `the dedupe must be scoped to this DOCUMENT, not just the reason — got ${JSON.stringify(dedupeProbe!.contains)}`,
+  );
+  const notifInsert = calls.find((c) => c.table === 'notifications' && c.op === 'insert');
+  assert(!notifInsert, 'HIGH-A: the same unresolved action-required must NOT be re-inserted every cron tick');
+});
+
+Deno.test('HIGH-A a DIFFERENT document still surfaces its own action-required (the dedupe is per-document, not a global mute)', async () => {
+  const { client, calls } = fakeServiceClient((table, query) => {
+    if (table === 'notifications' && query.contains) {
+      return (query.contains[1] as { erpName?: string }).erpName === 'BUDGET-DESK-001' ? [{ id: 'notif-1' }] : [];
+    }
+    if (table === 'profiles') return [{ id: 'admin-1' }];
+    return [];
+  });
+  const deps = createErpFeedDeps(client, 'org-1', 'budget');
+  await deps.mintMirror({ id: 'BUDGET-DESK-002' }, Date.parse('2026-07-20T09:00:00.000Z')).catch(() => {});
+  const notifInsert = calls.find((c) => c.table === 'notifications' && c.op === 'insert');
+  assert(!!notifInsert, 'a second, different Desk Budget must still raise its own action-required');
 });
 
 Deno.test('AC-TSP-041 a non-timesheet cancel (e.g. purchase-invoice) does NOT gain a push_state field (additive only, byte-for-byte for other kinds)', async () => {

@@ -13,18 +13,33 @@
 --       invariant, the OD-BUDGET-3 role gate, and the KPI figure itself.
 -- The shipped budget suite (0008-0012, 0060, 0075) is the other half of that proof and must stay green.
 
+--
+-- MEDIUM-F (Luna re-audit round 2, 2026-07-21): the re-created body was missing `is_active_member()`.
+-- 0139 rewrote this SECURITY DEFINER function, preserving 0005's body verbatim — which preserved
+-- 0005's pre-offboarding gap. `auth_role()` reads `profiles.role` with NO status filter, and the
+-- function is `grant execute … to authenticated` (reachable directly over PostgREST), so a deactivated
+-- or raw-banned PM/Finance holding an unexpired JWT could archive the Active version, make a version of
+-- their choosing Active (moving every budget KPI) and — new in P3c — TRIGGER A REAL ERPNext Budget push
+-- that changes the client's GL overspend controls. Same class as 0128/0129/0130 and 0140. A plain
+-- conjunct (not 0138's resolved-actor form) is correct here: this RPC has NO service-role caller —
+-- every caller is a user JWT via `budgets.ts`.
+
 begin;
-select plan(11);
+select plan(13);
 
 -- ── Fixtures (inserted as table owner, bypassing RLS) ────────────────────────────────────────────
 insert into organizations (id, name) values
   ('e0000000-0000-0000-0000-000000000001','Activated-At Test Org');
 
 insert into auth.users (id, email) values
-  ('e0000000-0000-0000-0000-0000000000a1','pm-actat@example.com');
+  ('e0000000-0000-0000-0000-0000000000a1','pm-actat@example.com'),
+  ('e0000000-0000-0000-0000-0000000000a2','fin-offboarded@example.com');
 
 insert into profiles (id, org_id, full_name, email, role) values
-  ('e0000000-0000-0000-0000-0000000000a1','e0000000-0000-0000-0000-000000000001','PM ActAt','pm-actat@example.com','Project Manager');
+  ('e0000000-0000-0000-0000-0000000000a1','e0000000-0000-0000-0000-000000000001','PM ActAt','pm-actat@example.com','Project Manager'),
+  -- MEDIUM-F: an OD-BUDGET-3 role who has been DEACTIVATED but still holds a valid JWT.
+  ('e0000000-0000-0000-0000-0000000000a2','e0000000-0000-0000-0000-000000000001','Finance Offboarded','fin-offboarded@example.com','Finance');
+update profiles set status = 'disabled' where id = 'e0000000-0000-0000-0000-0000000000a2';
 
 insert into projects (id, org_id, name, status) values
   ('e1111111-0000-0000-0000-000000000001','e0000000-0000-0000-0000-000000000001','ActAt Project','Ongoing Project');
@@ -45,6 +60,22 @@ select col_type_is('public','budget_versions','activated_at','timestamp with tim
 select is((select activated_at from budget_versions where id = 'e2222222-0000-0000-0000-000000000002'),
           null::timestamptz,
           'OQ-BUD-2 a never-activated Draft version has a NULL activated_at (additive + nullable)');
+
+-- ── MEDIUM-F: a DEACTIVATED Finance user with a live JWT may not activate anything ───────────────
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"e0000000-0000-0000-0000-0000000000a2","role":"authenticated"}';
+
+select throws_ok(
+  $$ select activate_budget_version('e2222222-0000-0000-0000-000000000002') $$,
+  '42501', null,
+  'MEDIUM-F a DEACTIVATED user holding a valid JWT cannot activate a budget version (the offboarding gate)');
+
+reset role;
+-- Read back as the table owner: a DEACTIVATED member cannot SELECT under RLS either (is_active_member),
+-- so this assertion has to run outside their session to observe the real row state.
+select is((select status::text from budget_versions where id = 'e2222222-0000-0000-0000-000000000001'),
+          'Active',
+          'MEDIUM-F the refused call changed NOTHING — the incumbent Active version is untouched');
 
 -- ── Become the PM (OD-BUDGET-3) ──────────────────────────────────────────────────────────────────
 set local role authenticated;

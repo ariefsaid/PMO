@@ -19,6 +19,12 @@ export type BudgetVersionWithItems = BudgetVersionRow & {
   total: number;
 };
 
+/** What activating (or retrying the push for) a version did to the ERPNext side (HIGH-C). The PMO
+ *  transition itself either succeeded or threw — this only ever describes the push CONSEQUENCE. */
+export interface ActivateVersionResult {
+  pushState: 'pushed' | 'failed';
+}
+
 export interface NewLineItem {
   category: BudgetLineItemRow['category'];
   description: string | null;
@@ -204,26 +210,63 @@ async function readActivatedAt(versionId: string): Promise<string | null> {
  * re-thrown here: this function still only throws for a REAL activation failure (the RPC's own
  * authorization/state-machine rejection), exactly as it did before P3c.
  */
-export async function activateVersion(versionId: string): Promise<void> {
+export async function activateVersion(versionId: string): Promise<ActivateVersionResult> {
   const result = await activateAndPush({
     versionId,
     rpc: async (_fn, args) => {
       const { error } = await supabase.rpc('activate_budget_version', args as { version_id: string });
       return { error };
     },
-    dispatch: async (id) => {
-      const activatedAt = await readActivatedAt(id);
-      // `budgetPushKey` fails closed (throws `commit-rejected`) on a missing/unparseable stamp — caught
-      // by `activateAndPush`'s try/catch like any other push failure, never surfaced as an activation one.
-      return dispatchDomainCommand(
-        'budget',
-        'create',
-        { id, erp_doc_kind: 'budget' },
-        { idempotencyKey: budgetPushKey(id, activatedAt) },
-      );
-    },
+    dispatch: (id) => pushActivatedBudget(id),
   });
   if (!result.activated) throw toAppError(result.error);
+  // ⚑ HIGH-C (Luna re-audit round 2): the push outcome is RETURNED, not discarded. Every writer of
+  // `budget_version_erp_mirror` lives INSIDE `adapter-dispatch`, so a dispatch that never REACHES the
+  // function (a dropped connection, the tab closed mid-request, a 502 from the platform) leaves no
+  // mirror row at all — and the sweep backstop's work queue IS that mirror, so nothing ever re-drives
+  // it. Discarding this made the UI show a plain success while ERPNext kept enforcing the previous
+  // budget (or none) forever, with nobody notified. The durable half of the same fix is
+  // `get_budget_projection`'s `'never-pushed'` state (migration 0141) + the retry below.
+  return { pushState: result.pushState ?? 'failed' };
+}
+
+/**
+ * HIGH-D — the operator-invokable retry for a budget push that never landed.
+ *
+ * The stranding it removes is certain, not hypothetical: a line in a category the Admin has not mapped
+ * yet makes `runBudgetGate` reject BEFORE the outbox, so `push_state='failed'` exists with NO outbox
+ * row; the sweep backstop then finds no candidate and flips it to `'held'`, which its own candidate
+ * query excludes. Fixing the category map afterwards did nothing at all — and re-activating is
+ * impossible (`activate_budget_version` refuses a non-Draft version). Re-dispatching under the
+ * operator's OWN JWT is what makes it recoverable: it re-runs the full gate with a real, authenticated
+ * actor (which is exactly what the backstop cannot synthesize — FR-BUD-102's "never finalize with a
+ * NULL actor"), and derives the SAME deterministic key from `activated_at`, so a push that DID reach
+ * the outbox reconciles instead of duplicating.
+ *
+ * NEVER re-activates: the version is already Active and its activation stamp is the key's own input.
+ */
+export async function retryBudgetPush(versionId: string): Promise<ActivateVersionResult> {
+  try {
+    await pushActivatedBudget(versionId);
+    return { pushState: 'pushed' };
+  } catch {
+    // Same money invariant as activation: a retry that fails again is reported, never thrown — the
+    // durable state (mirror row + notification) is written server-side by the dispatch itself.
+    return { pushState: 'failed' };
+  }
+}
+
+/** The ONE budget-push dispatch (activation consequence AND retry) — same domain, same command, same
+ *  `activated_at`-derived deterministic key. `budgetPushKey` fails closed (throws `commit-rejected`) on
+ *  a missing/unparseable stamp, so an unkeyable push is a push FAILURE, never an activation failure. */
+async function pushActivatedBudget(versionId: string): Promise<unknown> {
+  const activatedAt = await readActivatedAt(versionId);
+  return dispatchDomainCommand(
+    'budget',
+    'create',
+    { id: versionId, erp_doc_kind: 'budget' },
+    { idempotencyKey: budgetPushKey(versionId, activatedAt) },
+  );
 }
 
 /**

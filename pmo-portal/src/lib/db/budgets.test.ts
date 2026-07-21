@@ -63,6 +63,7 @@ import {
   createBudgetVersion,
   cloneVersion,
   activateVersion,
+  retryBudgetPush,
   archiveVersion,
   deleteDraftVersion,
 } from './budgets';
@@ -457,14 +458,48 @@ describe('activateVersion', () => {
     makeFromBuilder({ data: { activated_at: '2026-07-16T10:00:00Z' }, error: null });
     mockFunctionsInvoke.mockResolvedValue({ data: null, error: { message: 'external-unreachable' } });
     // Never rejects — the push failure is swallowed into durable server-side state, never re-thrown here.
-    await expect(activateVersion('v-draft')).resolves.toBeUndefined();
+    // HIGH-C: but it is REPORTED. A dispatch that never reached the edge function leaves NO mirror row
+    // at all (every mirror writer lives inside `adapter-dispatch`), so the sweep backstop — whose work
+    // queue IS that mirror — is structurally blind to it. Returning `void` made the UI show a plain
+    // success while ERPNext kept enforcing the previous budget indefinitely.
+    await expect(activateVersion('v-draft')).resolves.toEqual({ pushState: 'failed' });
+  });
+
+  it('HIGH-C a SUCCESSFUL push is reported as such', async () => {
+    makeRpcBuilder({ data: null, error: null });
+    makeFromBuilder({ data: { activated_at: '2026-07-16T10:00:00Z' }, error: null });
+    mockFunctionsInvoke.mockResolvedValue({ data: { externalRecordId: 'BUDGET-2026-00001', canonical: { id: 'v-draft' } }, error: null });
+    await expect(activateVersion('v-draft')).resolves.toEqual({ pushState: 'pushed' });
   });
 
   it('AC-BUD-032 activation still succeeds when the version carries no activation stamp to key the push on', async () => {
     makeRpcBuilder({ data: null, error: null });
     makeFromBuilder({ data: { activated_at: null }, error: null }); // budgetPushKey fails closed on this
-    await expect(activateVersion('v-draft')).resolves.toBeUndefined();
+    await expect(activateVersion('v-draft')).resolves.toEqual({ pushState: 'failed' });
     expect(mockFunctionsInvoke).not.toHaveBeenCalled();
+  });
+
+  it('HIGH-D retryBudgetPush re-dispatches the SAME deterministic key (so a fixed category map can finally land)', async () => {
+    makeFromBuilder({ data: { activated_at: '2026-07-16T10:00:00Z' }, error: null });
+    mockFunctionsInvoke.mockResolvedValue({ data: { externalRecordId: null, canonical: { id: 'v-1' } }, error: null });
+    await expect(retryBudgetPush('v-1')).resolves.toEqual({ pushState: 'pushed' });
+    expect(mockRpc).not.toHaveBeenCalled(); // ⚑ a retry NEVER re-activates — the version is already Active
+    expect(mockFunctionsInvoke).toHaveBeenCalledWith(
+      'adapter-dispatch',
+      expect.objectContaining({
+        body: expect.objectContaining({
+          domain: 'budget',
+          record: { id: 'v-1', erp_doc_kind: 'budget' },
+          idempotencyKey: 'bud:v-1:1784196000000',
+        }),
+      }),
+    );
+  });
+
+  it('HIGH-D a retry that fails again REPORTS the failure instead of throwing (the money invariant holds on the retry path too)', async () => {
+    makeFromBuilder({ data: { activated_at: '2026-07-16T10:00:00Z' }, error: null });
+    mockFunctionsInvoke.mockResolvedValue({ data: null, error: { message: 'budget-category-unmapped' } });
+    await expect(retryBudgetPush('v-1')).resolves.toEqual({ pushState: 'failed' });
   });
 
   it('activateVersion dispatches the budget push through the served boundary with a deterministic idempotency key', async () => {

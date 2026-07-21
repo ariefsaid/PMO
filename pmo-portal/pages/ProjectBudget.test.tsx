@@ -21,7 +21,7 @@ const versionsState = {
   refetch: vi.fn(),
 };
 
-const mockActivate = vi.fn().mockResolvedValue(undefined);
+const mockActivate = vi.fn().mockResolvedValue({ pushState: 'pushed' });
 const mockArchive = vi.fn().mockResolvedValue(undefined);
 const mockClone = vi.fn().mockResolvedValue('v-clone');
 const mockDeleteDraft = vi.fn().mockResolvedValue(undefined);
@@ -231,6 +231,24 @@ describe('ProjectBudget Draft version actions', () => {
     await userEvent.click(screen.getByRole('button', { name: /Activate version/i }));
     expect(mockActivate).toHaveBeenCalledWith('v-draft');
     await waitFor(() => expect(screen.getByRole('status')).toBeInTheDocument());
+    resetState();
+  });
+
+  // ── HIGH-C (Luna re-audit round 2): the push is a CONSEQUENCE of activation, never its precondition
+  //    (ADR-0059 §3.2) — so activation still SUCCEEDS when the push fails. But "swallowed" must mean
+  //    "recorded and surfaced", never "lost": a dispatch that never reached the edge function writes no
+  //    mirror row at all, the sweep backstop's queue IS that mirror, and the user was shown a plain
+  //    success while ERPNext kept enforcing the previous budget.
+  it('HIGH-C activation whose ERP push failed still succeeds, but SAYS SO instead of toasting a clean success', async () => {
+    mockActivate.mockResolvedValueOnce({ pushState: 'failed' });
+    budgetState.data = 0;
+    versionsState.data = [draftVersion];
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: /^Activate$/i }));
+    await userEvent.click(screen.getByRole('button', { name: /Activate version/i }));
+    await waitFor(() => expect(screen.getByRole('status')).toBeInTheDocument());
+    expect(screen.getByRole('status')).toHaveTextContent(/activated/i);
+    expect(screen.getByRole('status')).toHaveTextContent(/ERPNext/i);
     resetState();
   });
 

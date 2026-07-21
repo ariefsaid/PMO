@@ -128,7 +128,7 @@ describe('applyEngine.runSweep — ctx-parameterized reconciliation sweep (reuse
       '200',
     );
     const result = await runSweep(ctx, deps);
-    expect(result).toEqual({ applied: 2, nextCursor: '200' });
+    expect(result).toEqual({ applied: 2, nextCursor: '200', skipped: [] });
     expect(deps.advanced).toEqual(['200']);
     expect(deps.listChanges).toHaveBeenCalledWith(null);
   });
@@ -143,7 +143,68 @@ describe('applyEngine.runSweep — ctx-parameterized reconciliation sweep (reuse
   it('a null nextCursor (exhaustion) leaves the watermark untouched', async () => {
     const deps = makeSweepDeps([], null);
     const result = await runSweep(ctx, deps);
-    expect(result).toEqual({ applied: 0, nextCursor: null });
+    expect(result).toEqual({ applied: 0, nextCursor: null, skipped: [] });
+    expect(deps.advanced).toHaveLength(0);
+  });
+
+  // ── HIGH-A (Luna re-audit round 2, 2026-07-21): ONE document whose apply throws a TERMINAL,
+  //    expected outcome (an ERP doc PMO must never adopt — FR-BUD-140/FR-TSP-082) wedged the whole
+  //    poll: the throw escaped the loop before `advanceWatermarkMonotonic`, so the watermark never
+  //    moved and EVERY later change queued behind it — including a Desk CANCEL of a genuinely
+  //    PMO-pushed Budget — was never applied, on this tick or any future one.
+  it('HIGH-A a terminal per-change apply failure is ACKED and SKIPPED — later changes still apply and the watermark advances', async () => {
+    const applied: string[] = [];
+    const deps = makeSweepDeps(
+      [
+        { record: { id: 'BUDGET-DESK-001' }, sourceModMs: 100 },
+        { record: { id: 'BUDGET-PMO-002' }, sourceModMs: 200 },
+      ],
+      '200',
+    );
+    deps.applyChange = async (_c, externalRecordId) => {
+      if (externalRecordId === 'BUDGET-DESK-001') {
+        throw Object.assign(new Error('native-budget-not-adopted'), { code: 'commit-rejected' });
+      }
+      applied.push(externalRecordId);
+      return { kind: 'upserted', pmoRecordId: 'pmo-1', adopted: false };
+    };
+    deps.applyErrorPolicy = () => 'skip';
+
+    const result = await runSweep(ctx, deps);
+
+    expect(applied).toEqual(['BUDGET-PMO-002']); // ⚑ the change BEHIND the never-adopt doc still applies
+    expect(result.applied).toBe(1);
+    expect(result.skipped).toEqual([
+      { externalRecordId: 'BUDGET-DESK-001', error: 'native-budget-not-adopted' },
+    ]);
+    expect(deps.advanced).toEqual(['200']); // ⚑ the poll is NOT wedged — the watermark moves past it
+  });
+
+  // ⚑ FOUND WHILE FIXING HIGH-A (not in the audit): the sweep coerced `nextCursor` with `Number()`
+  //   before advancing. ClickUp's cursor IS epoch-ms, but ERPNext's is the ERP `modified` DATETIME
+  //   string ('2026-07-20 10:00:00' — `sweepCursor.ts` returns the max observed `modified`, and the
+  //   next tick sends it straight back as `["modified",">=",cursor]`). `Number()` of that is NaN, so
+  //   every ERPNext doctype persisted the literal string 'NaN' as its watermark and the next tick's
+  //   filter was `modified >= 'NaN'` — the per-doctype cursor never worked at all.
+  it('the watermark advances with the cursor AS GIVEN when it is not epoch-ms (an ERP `modified` datetime), never NaN', async () => {
+    const deps = makeSweepDeps([{ record: { id: 'BUDGET-001' }, sourceModMs: 1 }], '2026-07-20 10:00:00');
+    await runSweep(ctx, deps);
+    expect(deps.advanced).toEqual(['2026-07-20 10:00:00']);
+  });
+
+  it('a non-numeric cursor still never REWINDS (a lower datetime string leaves the stored one alone)', async () => {
+    const deps = makeSweepDeps([{ record: { id: 'BUDGET-001' }, sourceModMs: 1 }], '2026-07-19 08:00:00');
+    deps.readWatermark = async () => '2026-07-20 10:00:00';
+    await runSweep(ctx, deps);
+    expect(deps.advanced).toEqual(['2026-07-20 10:00:00']);
+  });
+
+  it('HIGH-A an UNCLASSIFIED per-change failure still halts the run without advancing (a transient DB error must retry, never be skipped past)', async () => {
+    const deps = makeSweepDeps([{ record: { id: 'MAT-REQ-001' }, sourceModMs: 100 }], '100');
+    deps.applyChange = async () => {
+      throw new Error('connection terminated unexpectedly');
+    };
+    await expect(runSweep(ctx, deps)).rejects.toThrow('connection terminated unexpectedly');
     expect(deps.advanced).toHaveLength(0);
   });
 });

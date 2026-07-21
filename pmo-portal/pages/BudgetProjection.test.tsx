@@ -12,14 +12,16 @@ import type { Role } from '@/src/auth/AuthContext';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastProvider } from '@/src/components/ui';
 
-const { fetchMock, upsertEtcMock } = vi.hoisted(() => ({
+const { fetchMock, upsertEtcMock, retryMock } = vi.hoisted(() => ({
   fetchMock: vi.fn(),
   upsertEtcMock: vi.fn(),
+  retryMock: vi.fn(),
 }));
 
 vi.mock('@/src/lib/repositories/budgetProjection', () => ({
   fetchBudgetProjection: fetchMock,
   upsertBudgetProjectionEtc: upsertEtcMock,
+  retryActiveBudgetPush: retryMock,
 }));
 
 let realRole: Role = 'Finance';
@@ -57,8 +59,10 @@ const renderPage = (role: Role = 'Finance') => {
 beforeEach(() => {
   fetchMock.mockReset();
   upsertEtcMock.mockReset();
+  retryMock.mockReset();
   fetchMock.mockResolvedValue([ROW]);
   upsertEtcMock.mockResolvedValue(undefined);
+  retryMock.mockResolvedValue({ pushState: 'pushed' });
   realRole = 'Finance';
 });
 
@@ -120,6 +124,50 @@ describe('BudgetProjection — the push-state banner (FR-BUD-123)', () => {
     renderPage();
     await screen.findByText('Labor');
     expect(screen.queryByText(/still enforcing the previous budget/i)).not.toBeInTheDocument();
+  });
+
+  // ── HIGH-C (Luna re-audit round 2): a push that NEVER REACHED the edge function leaves no mirror row
+  //    at all, so `push_state` comes back NULL — which rendered as a perfectly clean screen while
+  //    ERPNext enforced the previous budget (or none) indefinitely. `get_budget_projection` now
+  //    distinguishes that state as 'never-pushed'.
+  it('HIGH-C banners an ACTIVE version whose push was never recorded at all (a NULL push_state is not "fine")', async () => {
+    fetchMock.mockResolvedValue([{ ...ROW, pushState: 'never-pushed', pushError: null }]);
+    renderPage();
+    expect(await screen.findByText(/never reached ERPNext/i)).toBeInTheDocument();
+  });
+
+  // ── HIGH-D: 'held' (and 'failed', and 'never-pushed') must be RECOVERABLE. A gate rejection writes
+  //    `failed` pre-outbox; the backstop finds no outbox candidate and flips it to `held`, which its own
+  //    candidate query excludes — so after the Admin maps the missing category, nothing re-drives it and
+  //    re-activation is blocked by the Draft-only guard. The retry re-dispatches under the operator's
+  //    own JWT, which is the actor the sweep can never synthesize.
+  it('HIGH-D offers a retry on a held push and re-drives it (so fixing the category map finally lands)', async () => {
+    const user = userEvent.setup();
+    fetchMock.mockResolvedValue([
+      { ...ROW, pushState: 'held', pushError: 'budget-category-unmapped' },
+    ]);
+    renderPage();
+    await user.click(await screen.findByRole('button', { name: /retry the push/i }));
+    await waitFor(() => expect(retryMock).toHaveBeenCalledWith('proj-1'));
+    expect(await screen.findByText(/budget pushed to ERPNext/i)).toBeInTheDocument();
+  });
+
+  it('HIGH-D a retry that fails again says so, and leaves the banner in place', async () => {
+    const user = userEvent.setup();
+    retryMock.mockResolvedValue({ pushState: 'failed' });
+    fetchMock.mockResolvedValue([{ ...ROW, pushState: 'failed', pushError: 'budget-category-unmapped' }]);
+    renderPage();
+    await user.click(await screen.findByRole('button', { name: /retry the push/i }));
+    await waitFor(() => expect(retryMock).toHaveBeenCalled());
+    expect(await screen.findByText(/push did not complete/i)).toBeInTheDocument();
+    expect(screen.getByText(/still enforcing the previous budget/i)).toBeInTheDocument();
+  });
+
+  it('offers NO retry when the push is healthy', async () => {
+    fetchMock.mockResolvedValue([{ ...ROW, pushState: 'pushed', pushError: null }]);
+    renderPage();
+    await screen.findByText('Labor');
+    expect(screen.queryByRole('button', { name: /retry the push/i })).not.toBeInTheDocument();
   });
 });
 

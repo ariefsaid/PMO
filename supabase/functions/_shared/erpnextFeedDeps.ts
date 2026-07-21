@@ -97,7 +97,7 @@ export function createErpFeedDeps(serviceClient: SupabaseClient, orgId: string, 
       // contributing to project revenue + open AR), and a payment adopted before its invoice could never
       // repair its `sales_invoice_id`.
       const patch = {
-        ...mirrorStatusPatch(canonical, sourceModMs),
+        ...mirrorStatusPatch(kind, canonical, sourceModMs),
         ...(await revenueFieldPatch(serviceClient, orgId, kind, canonical)),
         ...(await employeeFieldPatch(serviceClient, orgId, kind, pmoRecordId, canonical)),
       };
@@ -393,7 +393,7 @@ async function mintMirrorRow(
 /** The `erp_*` lifecycle/status columns the inbound feed stamps on a normal upsert (the per-row
  *  source-mod guard already gated the write). Native ERP-derived fields synced by the dispatch
  *  read-model writer on the outbound commit are left untouched here. */
-function mirrorStatusPatch(canonical: PmoRecord, sourceModMs: number): Record<string, unknown> {
+function mirrorStatusPatch(kind: ErpDocKind, canonical: PmoRecord, sourceModMs: number): Record<string, unknown> {
   const docstatus = (canonical.erp_docstatus as number | null | undefined) ?? null;
   // erp_modified always advances. The lifecycle columns follow putIfPresent discipline: a partial
   // webhook that omits docstatus must not clear a real erp_docstatus, nor wipe a genuine
@@ -409,7 +409,22 @@ function mirrorStatusPatch(canonical: PmoRecord, sourceModMs: number): Record<st
     // superseded predecessor: on a native amend the successor is repointed onto the SAME mirror row
     // the predecessor's cancel had already tombstoned. Clear it so the row's lifecycle matches the
     // document it now mirrors. Absent docstatus ⇒ untouched (the putIfPresent discipline).
-    patch.erp_cancelled_at = docstatus === 2 ? new Date().toISOString() : null;
+    //
+    // ⚑ MEDIUM-G — EXCEPT for the PMO-SoT (Posture-B) kinds. There the tombstone is not just a
+    // lifecycle mirror: it is the sweep backstop's candidate-query EXCLUSION, and `budgetBackstop.ts`
+    // states the invariant as "the tombstone excludes the row from the candidate list FOREVER". The
+    // accountant's standard correction after cancelling a PMO-pushed Budget is to AMEND it into
+    // BUDGET-001-1 — `applyFeed`'s amend branch repoints external_refs onto the SAME mirror row and
+    // then calls `updateMirror`, whose non-2 docstatus cleared the stamp. The row (still
+    // `push_state='failed'`) then became a permanent backstop candidate, re-dispatched every cron tick
+    // against the very document the operator had just authored: exactly the fight FR-BUD-142 /
+    // FR-TSP-084 forbid. `erp_cancelled_at` on these two kinds is cleared by ONE writer only — a fresh
+    // PMO push (`readModelWriters.ts`).
+    if (!isPmoSoTKind(kind)) {
+      patch.erp_cancelled_at = docstatus === 2 ? new Date().toISOString() : null;
+    } else if (docstatus === 2) {
+      patch.erp_cancelled_at = new Date().toISOString();
+    }
   }
   return patch;
 }
@@ -445,6 +460,13 @@ function cancelStatusPatch(kind: ErpDocKind): Record<string, unknown> {
   // caller alongside this patch) is ALSO `reconcileOrgBudgetPushes`'s candidate-query exclusion.
   if (kind === 'budget') return { push_state: 'failed' };
   return {};
+}
+
+/** The ADR-0059 Posture-B kinds: PMO is the source of truth and the ERP object is a projection of it.
+ *  Their mirror's `erp_cancelled_at` is a never-fight-the-operator TOMBSTONE (the sweep backstop's
+ *  candidate exclusion), not merely a lifecycle mirror — see `mirrorStatusPatch` (MEDIUM-G). */
+function isPmoSoTKind(kind: ErpDocKind): boolean {
+  return kind === 'timesheet' || kind === 'budget';
 }
 
 /** Add `key: value` only when the inbound change actually carries the value — an absent field must
@@ -646,6 +668,19 @@ export async function surfaceActionRequired(
   detail: Record<string, unknown>,
 ): Promise<void> {
   try {
+    // ⚑ HIGH-A — DEDUPE FIRST. Every one of these reasons is raised from a path the sweep re-runs on a
+    // cron tick for as long as the underlying condition holds (a Desk-created Budget sits in ERPNext
+    // forever; a desk-cancelled push stays cancelled). Inserting one row per Admin/Finance profile per
+    // tick is unbounded `notifications` growth from a single Desk action — and it buries the inbox that
+    // is supposed to make the condition actionable. Suppressed only against an UNRESOLVED (unread)
+    // notification for the SAME reason AND the SAME document: once a human reads/dismisses it, a
+    // recurrence is allowed to surface again, and a different document always surfaces on its own.
+    const dedupeKey = { action_required: actionRequired, ...detail };
+    const { data: existing, error: existingError } = await serviceClient.from('notifications').select('id')
+      .eq('org_id', orgId).is('read_at', null).contains('metadata', dedupeKey).limit(1);
+    if (existingError) throw new AppError(existingError.message, existingError.code);
+    if (Array.isArray(existing) && existing.length > 0) return;
+
     const { data, error } = await serviceClient.from('profiles').select('id')
       .eq('org_id', orgId).eq('status', 'active').in('role', ['Admin', 'Finance']);
     if (error) throw new AppError(error.message, error.code);
@@ -661,7 +696,7 @@ export async function surfaceActionRequired(
         severity: 'warning',
         title: 'Action required',
         body: describeActionRequired(actionRequired, detail),
-        metadata: { action_required: actionRequired, ...detail },
+        metadata: dedupeKey, // the SAME shape the dedupe probe matches on (`metadata @> dedupeKey`)
       })),
     );
     if (insertError) throw new AppError(insertError.message, insertError.code);

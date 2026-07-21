@@ -23,9 +23,25 @@
  */
 import type { ErpDocKind } from './feedKinds.ts';
 
-/** The kinds whose Frappe doctype carries a `company` field — every transaction/money doctype.
- *  `supplier`/`customer` are GLOBAL masters in ERPNext (a Customer is site-wide; only its optional
- *  accounts child-rows are per-company), so they have no company dimension to scope by. */
+/**
+ * The kinds whose Frappe doctype carries a `company` field — every transaction/money doctype.
+ * `supplier`/`customer` are GLOBAL masters in ERPNext (a Customer is site-wide; only its optional
+ * accounts child-rows are per-company), so they have no company dimension to scope by. THEY ARE THE
+ * ONLY EXEMPTIONS — `companyScope.test.ts` asserts that exhaustively over `DOCTYPE_REGISTRY`, because
+ * this guard is a `Set` membership test and the way it fails is silently, by omission.
+ *
+ * ⚑ HIGH-B (Luna re-audit round 2, 2026-07-21): `timesheet`, `budget` and `employee` were missing —
+ * the guard was INERT for exactly the three newest kinds, so on a shared/multi-entity ERPNext site
+ * another Company's Timesheets/Budgets/Employees were admitted into this org's inbound feed (and their
+ * ERP document names leaked into its notifications).
+ *   • `Budget`    — `company` is a REQUIRED Link (budget-write spike 2026-07-16 §2).
+ *   • `Timesheet` — carries `company` (auto-derived from the employee/activity).
+ *   • `Employee`  — carries a REQUIRED `company`. It is deliberately NOT treated as a global master
+ *     like Customer/Supplier: an Employee belongs to ONE company, and adopting one is the COST-IDENTITY
+ *     path (FR-TSP-090/092 → `confirm_erp_employee_link` → approved hours posting against that
+ *     Employee's costing rate), so admitting another tenant's Employee is the same class of leak as
+ *     admitting their invoice, with a money consequence attached.
+ */
 const COMPANY_SCOPED_KINDS: ReadonlySet<string> = new Set<ErpDocKind>([
   'purchase-request',
   'rfq',
@@ -36,6 +52,9 @@ const COMPANY_SCOPED_KINDS: ReadonlySet<string> = new Set<ErpDocKind>([
   'payment',
   'sales-invoice',
   'incoming-payment',
+  'timesheet',
+  'budget',
+  'employee',
 ]);
 
 /** Does this kind's ERP doctype carry a `company` dimension? */

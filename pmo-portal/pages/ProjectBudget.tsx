@@ -643,11 +643,26 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId }) => {
           setPendingConfirm(null);
           toast('Budget version created', c.name, 'success');
           break;
-        case 'activate':
-          await mutations.activate.mutateAsync(c.id);
+        case 'activate': {
+          const { pushState } = await mutations.activate.mutateAsync(c.id);
           setPendingConfirm(null);
-          toast('Version activated', c.label, 'success');
+          // ⚑ HIGH-C: PMO's transition succeeded either way (ADR-0059 §3.2 — the ERPNext push is a
+          // CONSEQUENCE of activation, never its precondition), but a push that did not land must be
+          // said out loud. Otherwise ERPNext keeps enforcing the previous budget (or none) while this
+          // screen reports a clean success — and when the dispatch never reached the edge function
+          // there is no mirror row for the sweep backstop to re-drive either. The recovery affordance
+          // is the Budget projection's "Retry the push".
+          if (pushState === 'failed') {
+            toast(
+              'Version activated — but ERPNext was not updated',
+              `${c.label}. PMO's budget is active; retry the push from the Budget projection.`,
+              'warning',
+            );
+          } else {
+            toast('Version activated', c.label, 'success');
+          }
           break;
+        }
         case 'clone': {
           const newDraftId = await mutations.cloneVersion.mutateAsync(c.id);
           setPendingConfirm(null);

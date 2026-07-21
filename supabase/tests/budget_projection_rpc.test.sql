@@ -6,7 +6,7 @@
 -- request.jwt.claims), modelled on budget_version_activated_at.test.sql / budget_category_account_map_rls
 -- .test.sql. Namespaced 0b3e UUIDs (valid hex, not seed-colliding).
 begin;
-select plan(6);
+select plan(10);
 
 -- ── Fixtures (inserted as table owner, bypassing RLS) ────────────────────────────────────────────
 insert into organizations (id, name) values
@@ -79,6 +79,52 @@ select results_eq(
       from public.get_budget_projection('0b3e1111-0000-0000-0000-000000000001','2026') where category = 'Materials'$$,
   $$values ('Materials'::text, null::numeric, 500.00::numeric)$$,
   'AC-BUD-053 a category with actuals but no PMO budget line still surfaces (never inner-joined away)');
+
+-- ── HIGH-C (Luna re-audit round 2): an ACTIVE, ACTIVATED version with NO mirror row at all ───────
+-- Every writer of `budget_version_erp_mirror` lives inside `adapter-dispatch`. A dispatch that never
+-- REACHES the function (dropped connection, tab closed mid-request, platform 502) therefore leaves no
+-- row — and the sweep backstop's work queue IS that mirror, so nothing re-drives it. `push_state` came
+-- back NULL, which the UI renders as a perfectly clean screen while ERPNext enforces the previous
+-- budget (or none) indefinitely. The RPC must name that state.
+set local role postgres;
+update budget_versions set activated_at = now() where id = '0b3e2222-0000-0000-0000-000000000001';
+insert into external_domain_ownership (org_id, domain, external_tier)
+  values ('0b3e0000-0000-0000-0000-000000000001','budget','erpnext');
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"0b3e0000-0000-0000-0000-0000000000a2","role":"authenticated"}';
+
+select is(
+  (select distinct push_state from public.get_budget_projection('0b3e1111-0000-0000-0000-000000000001','2026')),
+  'never-pushed',
+  'HIGH-C an Active+activated version with NO mirror row at all reports never-pushed, not NULL');
+
+-- A REAL mirror row for the fiscal year always wins — the never-pushed state is only ever the absence.
+set local role postgres;
+insert into budget_version_erp_mirror (org_id, budget_version_id, fiscal_year, push_state, push_error)
+  values ('0b3e0000-0000-0000-0000-000000000001','0b3e2222-0000-0000-0000-000000000001','2026','failed','budget-category-unmapped');
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"0b3e0000-0000-0000-0000-0000000000a2","role":"authenticated"}';
+select is(
+  (select distinct push_state from public.get_budget_projection('0b3e1111-0000-0000-0000-000000000001','2026')),
+  'failed',
+  'HIGH-C a recorded push state always wins over the never-pushed inference');
+
+-- A DIFFERENT fiscal year is NOT "never pushed": the version has a mirror row, just not for this year.
+select is(
+  (select distinct push_state from public.get_budget_projection('0b3e1111-0000-0000-0000-000000000001','2027')),
+  null,
+  'HIGH-C a fiscal year the push does not cover stays NULL — never a false alarm');
+
+-- An org that never handed `budget` to ERPNext has nothing to push, so it is never "never-pushed".
+set local role postgres;
+delete from budget_version_erp_mirror where budget_version_id = '0b3e2222-0000-0000-0000-000000000001';
+delete from external_domain_ownership where org_id = '0b3e0000-0000-0000-0000-000000000001' and domain = 'budget';
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"0b3e0000-0000-0000-0000-0000000000a2","role":"authenticated"}';
+select is(
+  (select distinct push_state from public.get_budget_projection('0b3e1111-0000-0000-0000-000000000001','2026')),
+  null,
+  'HIGH-C a NON-employing org never sees a push banner (there is no ERP to push to)');
 
 -- ── Cross-org: org B''s Finance reads zero rows (RLS, not a hand-rolled org filter) ────────────────
 set local request.jwt.claims = '{"sub":"0b3e0000-0000-0000-0000-0000000000b1","role":"authenticated"}';

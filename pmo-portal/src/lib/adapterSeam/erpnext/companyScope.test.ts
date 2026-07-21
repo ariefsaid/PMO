@@ -10,6 +10,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { isCompanyScopedKind, admitsDocForBindingCompany, companyDocFilters } from './companyScope';
+import { DOCTYPE_REGISTRY, type ErpDocKind } from './doctypeRegistry';
 
 describe('isCompanyScopedKind — which ERP doctypes carry a company dimension', () => {
   it('every money/transaction kind is company-scoped', () => {
@@ -24,6 +25,27 @@ describe('isCompanyScopedKind — which ERP doctypes carry a company dimension',
   it('Supplier/Customer are GLOBAL masters in ERPNext (no company field) — not company-scoped', () => {
     expect(isCompanyScopedKind('supplier')).toBe(false);
     expect(isCompanyScopedKind('customer')).toBe(false);
+  });
+
+  // ── HIGH-B (Luna re-audit round 2) ──────────────────────────────────────────────────────────────
+  // The guard is a `Set` membership test, and the P3b/P3c kinds were simply never added to it — so it
+  // was INERT for exactly the two newest money-adjacent doctypes. `Budget` carries a REQUIRED `company`
+  // Link; `Timesheet` derives one; `Employee` requires one (it is emphatically NOT a site-wide master
+  // like Customer/Supplier — the stated reason those two are exempt).
+  it('HIGH-B Budget and Timesheet are company-scoped (both doctypes carry `company`)', () => {
+    expect(isCompanyScopedKind('budget')).toBe(true);
+    expect(isCompanyScopedKind('timesheet')).toBe(true);
+  });
+
+  it('HIGH-B Employee is company-scoped — a required `company`, and adopting one is the COST-IDENTITY path', () => {
+    expect(isCompanyScopedKind('employee')).toBe(true);
+  });
+
+  it('HIGH-B the exemption list is EXHAUSTIVE over every registered kind — a new kind cannot be silently forgotten', () => {
+    const unscoped = (Object.keys(DOCTYPE_REGISTRY) as ErpDocKind[]).filter((k) => !isCompanyScopedKind(k));
+    // The ONLY ERPNext doctypes with no company dimension at all. Anything else appearing here is a
+    // kind whose documents another tenant on the same site can push into this org's feed.
+    expect(unscoped.sort()).toEqual(['customer', 'supplier']);
   });
 });
 

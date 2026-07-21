@@ -17,6 +17,7 @@ const { sweepKindsForOrg, sweepFieldsForKind, KINDS_NEEDING_FULL_DOC } = await i
 import { SI_FROM_DOC_FIELDS } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/bodies/salesInvoice.ts';
 import { PE_RECEIVE_FROM_DOC_FIELDS } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/bodies/incomingPayment.ts';
 import { EMPLOYEE_FROM_DOC_FIELDS } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/bodies/employee.ts';
+import { isCompanyScopedKind } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/companyScope.ts';
 
 function assert(cond: boolean, msg: string): void {
   if (!cond) throw new Error(msg);
@@ -137,7 +138,15 @@ Deno.test('AC-TSP-003 an org owning `timesheets` alone still polls NO companies/
   assert(!kinds.includes('sales-invoice'), 'a timesheets-only org must not poll revenue doctypes');
 });
 
-Deno.test('AC-TSP-003 the Employee poll fetches every field employeeFromDoc consumes, plus lifecycle routing fields, and NO company filter (a global-ish master, not company-scoped)', () => {
+// ⚑ HIGH-B (Luna re-audit round 2, 2026-07-21) — DELIBERATE REVERSAL. This test previously asserted
+// that Employee is "a global-ish master, not company-scoped". It is not: `Employee.company` is
+// REQUIRED at create (the timesheet/employee spike, docs/spikes/2026-07-20-erpnext-timesheet-fields.md
+// §"`company` | yes | required at create"), unlike Customer/Supplier which really are site-wide. An
+// Employee belongs to exactly one Company, and adopting one is the COST-IDENTITY path (FR-TSP-090/092
+// → confirm_erp_employee_link → approved hours posting against that Employee's costing rate), so
+// admitting another tenant's Employee is a tenancy leak with a money consequence. The poll therefore
+// requests `company` and conjoins it, exactly like every other company-scoped kind.
+Deno.test('AC-TSP-003/HIGH-B the Employee poll fetches every field employeeFromDoc consumes, the lifecycle routing fields, AND the company dimension it is scoped by', () => {
   const fields = sweepFieldsForKind('employee');
   for (const required of EMPLOYEE_FROM_DOC_FIELDS) {
     assert(fields.includes(required), `the Employee poll must fetch every field its mapper reads — missing '${required}'`);
@@ -145,5 +154,19 @@ Deno.test('AC-TSP-003 the Employee poll fetches every field employeeFromDoc cons
   for (const required of ['name', 'modified', 'docstatus', 'amended_from']) {
     assert(fields.includes(required), `expected the Employee poll to fetch the lifecycle routing field '${required}'`);
   }
-  assert(!fields.includes('company'), 'Employee is not company-scoped (companyScope.ts) — the poll must not request `company`');
+  assert(
+    fields.includes('company'),
+    'HIGH-B: Employee IS company-scoped — without fetching `company` the per-document admission gate is blind and (failing closed) would adopt nothing at all',
+  );
+});
+
+Deno.test('HIGH-B every company-scoped kind FETCHES `company` — the half-fix (scope it, but never read it) fails closed and breaks adoption entirely', () => {
+  for (const { kind } of sweepKindsForOrg(['procurement', 'revenue', 'timesheets', 'budget', 'companies'])) {
+    const wants = isCompanyScopedKind(kind);
+    const fetches = sweepFieldsForKind(kind).includes('company');
+    assert(
+      wants === fetches,
+      `'${kind}': company-scoped=${wants} but the poll ${fetches ? 'does' : 'does NOT'} request the field — the two must move together`,
+    );
+  }
 });

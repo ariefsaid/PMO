@@ -35,10 +35,11 @@ comment on column public.budget_versions.activated_at is
   'When this version was last set Active by activate_budget_version (null = never activated). The '
   'ADR-0059 §4 deterministic-key state stamp for the P3c ERPNext budget push; read by no KPI.';
 
--- Re-created from 0005_budget_mutation_rpc.sql. ⚑ EVERY line below is lifted VERBATIM from that file —
--- the authorization re-assertion, the org/project defence-in-depth checks, the Draft-only guard, the
--- archive-the-current-Active step and the single-Active invariant are unchanged. The ONE delta is the
--- `activated_at = now()` set on the final update.
+-- Re-created from 0005_budget_mutation_rpc.sql. Every line below is lifted from that file — the
+-- org/project defence-in-depth checks, the Draft-only guard, the archive-the-current-Active step and
+-- the single-Active invariant are unchanged. TWO deltas, both marked inline: the `activated_at = now()`
+-- stamp on the final update, and (MEDIUM-F) the `is_active_member()` offboarding conjunct in the
+-- authorization re-assertion.
 create or replace function activate_budget_version(version_id uuid)
   returns void language plpgsql security definer set search_path = public as $$
 declare v_project uuid; v_org uuid; v_status budget_status;
@@ -46,8 +47,20 @@ begin
   select project_id, org_id, status into v_project, v_org, v_status
     from budget_versions where id = version_id;
   if v_project is null then raise exception 'budget version not found' using errcode = 'P0002'; end if;
+  -- ⚑ MEDIUM-F (Luna re-audit round 2, 2026-07-21) — THE ONE AUTHORIZATION DELTA vs 0005, and it is
+  -- deliberate: `and public.is_active_member()`. Preserving 0005's body verbatim also preserved its
+  -- pre-offboarding gap. `auth_role()` reads `profiles.role` with NO status filter (0130's own header
+  -- says so) and this function is `grant execute … to authenticated`, i.e. reachable DIRECTLY over
+  -- PostgREST — so a DEACTIVATED or raw-banned PM/Finance holding an unexpired JWT could archive the
+  -- Active version, make a version of their choosing Active (moving every budget KPI: get_project_budget
+  -- / get_budget_projection / margin / at-risk / S-curve) and — new in P3c — trigger a real ERPNext
+  -- Budget push that changes the client's GL overspend controls. This is the 0128/0129/0130 offboarding
+  -- pass applied to the RPC 0139 rewrote; 0140 closed the identical hole for confirm_erp_employee_link.
+  -- The PLAIN conjunct (not 0138's resolved-actor form) is correct: this RPC has NO service-role caller
+  -- — every caller is a user JWT (`pmo-portal/src/lib/db/budgets.ts`), so `auth.uid()` is always set.
   if v_org is distinct from auth_org_id()
      or auth_role() not in ('Admin','Executive','Project Manager','Finance')
+     or not public.is_active_member()
   then raise exception 'not authorized' using errcode = '42501'; end if;
   -- Defense-in-depth (audit HIGH-BV-1): also assert the parent project belongs to the caller's org, so a
   -- definer-context archive-by-project_id can never cross orgs even if a grafted version slipped past RLS.
