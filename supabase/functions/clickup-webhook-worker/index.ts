@@ -28,6 +28,7 @@
 // Deno-native imports (not in pmo-portal/package.json)
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { constantTimeBearerEquals } from '../_shared/constantTimeBearerEquals.ts';
+import { resolvePerOrgSecret } from '../_shared/perOrgSecret.ts';
 import { clickUpGetTaskRaw } from '../../../pmo-portal/src/lib/adapterSeam/clickup/reads.ts';
 import { applyWebhookEvent, type WebhookApplyDeps } from '../../../pmo-portal/src/lib/adapterSeam/clickup/webhookApply.ts';
 import type { ApplyOutcome } from '../../../pmo-portal/src/lib/adapterSeam/applyEngine.ts';
@@ -51,6 +52,7 @@ export interface InboxRow {
   id: string;
   event: ClickUpWebhookEvent;
   task_id: string;
+  team_id: string | null;
   history_items: ClickUpHistoryItem[];
 }
 
@@ -68,7 +70,9 @@ export interface ResolvedBinding {
 export interface ProcessRowDeps {
   /** Re-GET the task from ClickUp; `null` on a 404 (also used directly for `taskDeleted` — never
    *  called for that verb, there is nothing to re-GET). */
-  getTask: (taskId: string) => Promise<ClickUpTask | null>;
+  resolveOrg: (teamId: string | null) => Promise<{ orgId: string; token: string } | null>;
+  /** Re-GET the task from ClickUp with the already-authorized org token; `null` on a 404. */
+  getTask: (taskId: string, token: string) => Promise<ClickUpTask | null>;
   /** Resolve the org/project binding: mapped path (task_id, works with a `null` listId) → adopt path
    *  (listId, from the re-GET'd `task.list.id` — never the payload) → the P1 single-org fallback.
    *  `null` when unresolvable (ack'd-and-skipped; the periodic sweep is the safety net). */
@@ -85,7 +89,9 @@ export interface ProcessRowDeps {
  * periodic sweep (ADR-0055 §3) is the safety net, matching the pre-fix ingress's "no-binding" stance.
  */
 export async function processInboxRow(row: InboxRow, deps: ProcessRowDeps): Promise<ApplyOutcome> {
-  const task = row.event === 'taskDeleted' ? null : await deps.getTask(row.task_id);
+  const org = await deps.resolveOrg(row.team_id);
+  if (!org) return { kind: 'no-op' };
+  const task = row.event === 'taskDeleted' ? null : await deps.getTask(row.task_id, org.token);
   const listId = task?.list?.id ?? null;
   const binding = await deps.resolveBinding(row.task_id, listId);
   if (!binding) return { kind: 'no-op' };
@@ -141,6 +147,38 @@ export async function runWorkerBatch(deps: WorkerBatchDeps, batchSize = 25): Pro
 }
 
 // ── The real wiring the Deno.serve wrapper uses (DB + ClickUp HTTP + mirror callbacks). ────────────
+
+export function getTaskWithToken(taskId: string, token: string): Promise<ClickUpTask | null> {
+  return clickUpGetTaskRaw(taskId, { fetchImpl: fetch, token });
+}
+
+async function resolveOrgForTeam(
+  serviceClient: SupabaseClient,
+  teamId: string | null,
+): Promise<{ orgId: string; token: string } | null> {
+  if (!teamId) return null;
+  const { data: binding, error } = await serviceClient
+    .from('external_org_bindings')
+    .select('org_id, secret_ref')
+    .eq('external_tier', CLICKUP_TIER)
+    .eq('config->>clickup_team_id', teamId)
+    .maybeSingle();
+  if (error || !binding) return null;
+  const orgId = (binding as { org_id?: string }).org_id;
+  if (!orgId) return null;
+  const result = await resolvePerOrgSecret({
+    connectEnabled: true,
+    orgId,
+    tier: CLICKUP_TIER,
+    lookupBinding: async () => binding as { secret_ref?: string | null },
+    readVaultSecret: async (ref) => {
+      const { data, error: vaultError } = await serviceClient.rpc('read_vault_secret', { p_secret_ref: ref });
+      if (vaultError) return null;
+      return (data as string | null) ?? null;
+    },
+  });
+  return result.kind === 'resolved' ? { orgId, token: result.secret } : null;
+}
 
 function bindingFromRow(row: { org_id: string; project_id: string; config: unknown }): ResolvedBinding {
   const { statusMap, memberMap } = mapsFromBindingConfig(row.config);
@@ -264,7 +302,7 @@ function buildApplyDepsLive(serviceClient: SupabaseClient, binding: ResolvedBind
 async function claimPendingLive(serviceClient: SupabaseClient, batchSize: number): Promise<InboxRow[]> {
   const { data, error } = await serviceClient
     .from('clickup_webhook_inbox')
-    .select('id, event, task_id, history_items')
+    .select('id, event, task_id, team_id, history_items')
     .eq('status', 'pending')
     .order('received_at', { ascending: true })
     .limit(batchSize);
@@ -320,7 +358,6 @@ if (import.meta.main) {
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
-    const clickUpToken = Deno.env.get('CLICKUP_API_TOKEN') ?? '';
     if (!supabaseUrl || !serviceRoleKey) {
       return json({ error: 'MISCONFIGURED', message: 'missing Supabase configuration' }, 500);
     }
@@ -332,7 +369,8 @@ if (import.meta.main) {
       markFailed: (id, message) => markFailedLive(serviceClient, id, message),
       processRow: (row) =>
         processInboxRow(row, {
-          getTask: (taskId) => clickUpGetTaskRaw(taskId, { fetchImpl: fetch, token: clickUpToken }),
+          resolveOrg: (teamId) => resolveOrgForTeam(serviceClient, teamId),
+          getTask: (taskId, token) => getTaskWithToken(taskId, token),
           resolveBinding: (taskId, listId) => resolveBindingLive(serviceClient, taskId, listId),
           buildApplyDeps: (binding) => buildApplyDepsLive(serviceClient, binding),
         }),

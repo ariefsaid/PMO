@@ -135,6 +135,21 @@ async function validateClickUpToken(
   }
 }
 
+async function validateClickUpTeam(token: string, deps: ValidatorDeps): Promise<string> {
+  const res = await deps.fetchImpl('https://api.clickup.com/api/v2/team', {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new AppError('Unable to resolve ClickUp workspace', 'config-rejected');
+  try {
+    const body = (await res.json()) as { teams?: Array<{ id?: number | string }> };
+    const id = body.teams?.[0]?.id;
+    if (id === undefined || id === null || String(id) === '') throw new Error('missing team id');
+    return String(id);
+  } catch {
+    throw new AppError('Unable to resolve ClickUp workspace', 'config-rejected');
+  }
+}
+
 async function validateErpNextCredentials(
   siteUrl: string,
   apiKey: string,
@@ -306,6 +321,7 @@ export async function handleConnectRequest(req: Request): Promise<Response> {
   // 6. Validate credential against external system BEFORE any Vault write
   const validatorDeps = { fetchImpl: fetch };
   let clickUpUserId: string | null = null;
+  let clickUpTeamId: string | null = null;
   try {
     if (tier === 'clickup') {
       const token = credential.token;
@@ -313,6 +329,7 @@ export async function handleConnectRequest(req: Request): Promise<Response> {
         return errorResponse('ClickUp token is required', 'BAD_REQUEST', 400);
       }
       clickUpUserId = await validateClickUpToken(token, validatorDeps);
+      clickUpTeamId = await validateClickUpTeam(token, validatorDeps);
     } else {
       const { siteUrl, apiKey, apiSecret } = credential;
       if (!siteUrl || !apiKey || !apiSecret) {
@@ -376,7 +393,7 @@ export async function handleConnectRequest(req: Request): Promise<Response> {
     // item 4 of the read-hygiene fix). Non-fatal, same stance as the ownership RPC above — the
     // binding is already created; a failure here just means the guard can't be armed yet. Merge-safe
     // (read-then-update) so a reconnect never clobbers any other config key ClickUp might gain later.
-    if (clickUpUserId !== null) {
+    if (clickUpTeamId !== null) {
       const { data: currentBinding, error: readError } = await serviceClient
         .from('external_org_bindings')
         .select('config')
@@ -388,7 +405,8 @@ export async function handleConnectRequest(req: Request): Promise<Response> {
       } else {
         const mergedConfig = {
           ...((currentBinding?.config as Record<string, unknown> | null) ?? {}),
-          clickup_actor_id: clickUpUserId,
+          ...(clickUpUserId !== null ? { clickup_actor_id: clickUpUserId } : {}),
+          clickup_team_id: clickUpTeamId,
         };
         const { error: configError } = await serviceClient
           .from('external_org_bindings')

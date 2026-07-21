@@ -87,15 +87,64 @@ function row(overrides: Partial<InboxRow> = {}): InboxRow {
     id: overrides.id ?? 'row-1',
     event: overrides.event ?? 'taskUpdated',
     task_id: overrides.task_id ?? 'cu-1',
+    team_id: overrides.team_id ?? 'team-1',
     history_items: overrides.history_items ?? [],
   };
 }
+
+Deno.test('worker resolves the org from team_id before fetching the task', async () => {
+  const order: string[] = [];
+  const binding: ResolvedBinding = { orgId: 'org-1', projectId: 'proj-1', statusMap, memberMap };
+  const deps: ProcessRowDeps = {
+    resolveOrg: async (teamId) => {
+      order.push(`resolve-org:${teamId}`);
+      return { orgId: 'org-1', token: 'per-org-token' };
+    },
+    getTask: async (_taskId, token) => {
+      order.push(`get-task:${token}`);
+      return task({ list: { id: 'list-9' } });
+    },
+    resolveBinding: async () => binding,
+    buildApplyDeps: () => makeApplyDeps({ mappedPmoId: 'pmo-1' }).deps,
+  };
+  await processInboxRow(row(), deps);
+  assert(order.join('|') === 'resolve-org:team-1|get-task:per-org-token', 'org and Vault token must resolve before ClickUp HTTP');
+});
+
+Deno.test('worker does not fetch when team_id has no org binding', async () => {
+  let fetches = 0;
+  const deps: ProcessRowDeps = {
+    resolveOrg: async () => null,
+    getTask: async () => { fetches += 1; return task(); },
+    resolveBinding: async () => { throw new Error('must not resolve project binding'); },
+    buildApplyDeps: () => { throw new Error('must not apply'); },
+  };
+  const outcome = await processInboxRow(row(), deps);
+  assert(outcome.kind === 'no-op' && fetches === 0, 'unresolved team must fail closed without HTTP');
+});
+
+Deno.test('worker task re-GET uses the supplied per-org token via the shipped handler', async () => {
+  const originalFetch = globalThis.fetch;
+  let authorization = '';
+  globalThis.fetch = async (_input, init) => {
+    authorization = new Headers((init as RequestInit | undefined)?.headers).get('Authorization') ?? '';
+    return new Response(JSON.stringify({ id: 'cu-1', name: 'Task', status: { status: 'to do' }, assignees: [], list: { id: 'list-9' }, date_updated: '1' }), { status: 200 });
+  };
+  try {
+    const getTaskWithToken = (await import('./index.ts')).getTaskWithToken;
+    await getTaskWithToken('cu-1', 'per-org-token');
+    assert(authorization === 'per-org-token', 're-GET must use the per-org Vault token');
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
 
 Deno.test('OD-INT-11: a MAPPED taskUpdated re-GETs, applies, and the mirror is updated', async () => {
   const applyDeps = makeApplyDeps({ mappedPmoId: 'pmo-1' });
   let getTaskCalls = 0;
   const binding: ResolvedBinding = { orgId: 'org-1', projectId: 'proj-1', statusMap, memberMap };
   const deps: ProcessRowDeps = {
+    resolveOrg: async () => ({ orgId: 'org-1', token: 'test-token' }),
     getTask: async (taskId) => {
       getTaskCalls += 1;
       assert(taskId === 'cu-1', 'getTask must be called with the row task_id');
@@ -117,6 +166,7 @@ Deno.test('OD-INT-11: binding is resolved from the re-GETd task.list.id — an U
   let resolvedListId: string | null | undefined;
   const binding: ResolvedBinding = { orgId: 'org-1', projectId: 'proj-1', statusMap, memberMap };
   const deps: ProcessRowDeps = {
+    resolveOrg: async () => ({ orgId: 'org-1', token: 'test-token' }),
     getTask: async () => task({ id: 'cu-new', date_updated: '9000', list: { id: 'list-9' } }),
     resolveBinding: async (taskId, listId) => {
       resolvedListId = listId;
@@ -139,6 +189,7 @@ Deno.test('OD-INT-11: a taskDeleted tombstones WITHOUT any re-GET call', async (
   let getTaskCalls = 0;
   const binding: ResolvedBinding = { orgId: 'org-1', projectId: 'proj-1', statusMap, memberMap };
   const deps: ProcessRowDeps = {
+    resolveOrg: async () => ({ orgId: 'org-1', token: 'test-token' }),
     getTask: async () => {
       getTaskCalls += 1;
       throw new Error('getTask must NEVER be called for a taskDeleted — there is nothing to re-GET');
@@ -158,6 +209,7 @@ Deno.test('OD-INT-11: a re-GET 404 (task no longer exists) collapses to the same
   const applyDeps = makeApplyDeps({ mappedPmoId: 'pmo-1' });
   const binding: ResolvedBinding = { orgId: 'org-1', projectId: 'proj-1', statusMap, memberMap };
   const deps: ProcessRowDeps = {
+    resolveOrg: async () => ({ orgId: 'org-1', token: 'test-token' }),
     getTask: async () => null, // 404
     resolveBinding: async (_taskId, listId) => {
       assert(listId === null, 'a re-GET-404 has no list.id — must resolve via the mapped path only');
@@ -174,6 +226,7 @@ Deno.test('OD-INT-11: a re-GET 404 (task no longer exists) collapses to the same
 
 Deno.test('OD-INT-11: an unresolvable binding is a faithful ack-and-skip (no-op) — the sweep is the safety net', async () => {
   const deps: ProcessRowDeps = {
+    resolveOrg: async () => ({ orgId: 'org-1', token: 'test-token' }),
     getTask: async () => task({ list: { id: 'list-unbound' } }),
     resolveBinding: async () => null,
     buildApplyDeps: () => {

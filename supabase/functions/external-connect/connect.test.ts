@@ -83,6 +83,7 @@ describe('external-connect — ClickUp branch', () => {
         // 2026-07-17). We already call this to validate the token — now we also persist the id (the
         // echo-loop guard's actor id, item 4 of the read-hygiene fix).
         clickup('/api/v2/user', () => jsonResponse({ user: { id: 123, username: 'test-user' } })),
+        clickup('/api/v2/team', () => jsonResponse({ teams: [{ id: 'team-123' }] })),
 
         supabaseSelect('external_org_bindings', () =>
           jsonResponse({ config: {} }, { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
@@ -93,7 +94,7 @@ describe('external-connect — ClickUp branch', () => {
           pathname: '/rest/v1/external_org_bindings',
           response: (call) => {
             const body = call.bodyJson as Record<string, unknown>;
-            assertEquals(body.config, { clickup_actor_id: '123' });
+            assertEquals(body.config, { clickup_actor_id: '123', clickup_team_id: 'team-123' });
             return jsonResponse([{ id: 'binding-1' }]);
           },
         },
@@ -127,6 +128,7 @@ describe('external-connect — ClickUp branch', () => {
         supabaseRpc('admin_change_domain_ownership', () => jsonResponse(null)),
 
         clickup('/api/v2/user', () => jsonResponse({ user: { id: 456, username: 'operator-user' } })),
+        clickup('/api/v2/team', () => jsonResponse({ teams: [{ id: 'team-456' }] })),
 
         supabaseSelect('external_org_bindings', () =>
           jsonResponse({ config: {} }, { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
@@ -184,12 +186,16 @@ describe('external-connect — ClickUp branch', () => {
         // (the token itself validated fine, res.ok); it only means the echo-loop guard can't be armed
         // for this org until a later reconnect gets a well-formed response.
         clickup('/api/v2/user', () => jsonResponse({ user: {} })),
+        clickup('/api/v2/team', () => jsonResponse({ teams: [{ id: 'team-789' }] })),
+
+        supabaseSelect('external_org_bindings', () => jsonResponse({ config: {} }, { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
+        { label: 'persist clickup_team_id', method: 'PATCH', pathname: '/rest/v1/external_org_bindings', response: () => jsonResponse([{ id: 'binding-1' }]) },
       ],
       async ({ calls }) => {
         const res = await handleConnectRequest(await authed({ tier: 'clickup', credential: { token: 'valid-token' } }));
         assertEquals(res.status, 200);
         assertEquals(rpcCall(calls, 'create_vault_secret_for_org').length, 1);
-        assertEquals(restCall(calls, 'external_org_bindings', 'PATCH').length, 0);
+        assertEquals(restCall(calls, 'external_org_bindings', 'PATCH').length, 1);
       },
     );
   });
