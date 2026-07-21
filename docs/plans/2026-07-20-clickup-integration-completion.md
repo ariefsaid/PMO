@@ -4,8 +4,9 @@
 It tells you what exists, what is proven, what is *assumed*, the end-to-end user journeys that must
 work before enabling the feature, and the rules for touching the live ClickUp workspace.
 
-- **Branch:** `feat/external-admin-connect` · **PR:** #332 (base `dev`, **HELD — do not merge** without owner say-so)
-- **Decisions:** `docs/decisions.md` **OD-INT-1..8** (binding — read before changing behaviour)
+- **Branch:** `feat/external-admin-connect` · **PR:** #332 (base `dev`, **HELD — do not merge**
+  without owner say-so)
+- **Decisions:** `docs/decisions.md` **OD-INT-1..13** (binding — read before changing behaviour)
 - **Architecture:** ADR-0055 (external systems own their domains; PMO = operational layer + read-models), ADR-0016 (`can()` is UX-only, server is authority), ADR-0018 (soft-archive), ADR-0057 (`verifyCallerJwt`)
 - **Live-smoke result:** `docs/spikes/2026-07-17-clickup-live-smoke.md`
 - **Original scope/plan:** `docs/plans/2026-07-14-external-admin-connect.md` (**historical** — Phase 3 partly superseded, see its banner)
@@ -67,8 +68,12 @@ The 2026-07-17 live-smoke **validated the read shapes** (`/user`, `/team`→`tea
    computed without `include_closed`, a List full of **closed** tasks reads as empty and push-seed
    proceeds into a non-empty List. The smoke could not settle it (test list has no closed tasks).
    **→ Create a closed task in the test List and re-run before enabling the flag.**
-2. **Webhook envelope is PROVISIONAL.** `clickup-webhook` assumes `event`/`task_id`/`list_id`/`task` +
-   an `X-Signature` HMAC. Needs a real delivery to a public callback. **Largest remaining unknown.**
+2. ~~**Webhook envelope is PROVISIONAL.**~~ **RESOLVED 2026-07-20 — do NOT re-run a live capture.**
+   7 real deliveries were captured (`scripts/clickup-webhook-capture.ts`) and committed as fixtures at
+   `supabase/functions/_shared/testing/fixtures/clickup-webhook/`. The envelope is
+   `{event, task_id, team_id, webhook_id, history_items}` — **no `task`, no `date_updated`, no `list_id`**
+   on 7/7. The rewrite that consumes it lives on `fix/clickup-webhook-v2` (**pushed, not yet merged**) —
+   so what remains is *merging the fix*, not *discovering the shape*.
 3. **Write paths never touched ClickUp.** Task create/update/delete via `adapter-dispatch` are
    mock-only. The smoke is read-only by design.
 4. **Per-org webhook secret does not exist.** `external_org_bindings.webhook_secret_ref` is a column
@@ -116,9 +121,10 @@ secret revoked, ownership released, binding tombstoned. Nothing is hard-deleted 
    `external-link` to pass `include_closed=true` (and add a mocked regression test).
 2. **Live write round-trip (J3)** — with the flag on for the test org only: create a PMO task → assert
    it appears in the test List → update → delete/tombstone. **Clean up every task afterwards (§6).**
-3. **Webhook envelope (J4)** — expose a callback (tunnel), register a ClickUp webhook against the test
-   workspace, capture ONE real delivery, diff against `ClickUpWebhookPayload`, fix, then
-   **delete the webhook registration**.
+3. ~~**Webhook envelope (J4)**~~ **DONE 2026-07-20 — the capture already happened; do not repeat it.**
+   Fixtures are committed and the rewrite is on `fix/clickup-webhook-v2`. What is left here is to
+   **merge that branch** (after `feat/task-model-fields`, which it depends on for `archived_at`) and
+   then confirm inbound sync end-to-end against the live workspace.
 4. **Per-org webhook secret** — design org-in-URL callbacks, write `webhook_secret_ref`, verify per-org.
    (Required for multi-org; not for a single test org.)
 5. **Curated e2e (AC-EAC-018)** — connect → link → sync round-trip, the one cross-stack journey test.
@@ -165,3 +171,23 @@ shared, disposable-but-not-abusable fixtures.
 - **The service-role auth-context trap.** `auth.uid()` is NULL under service_role, and `is_operator()`
   is `security invoker` — so RPCs gated on them silently misfire when called from an edge fn. Pass an
   explicit `p_actor_id` and check `platform_operators` directly. This bit P1 *and* P2.
+
+---
+
+## 8. Divergence analysis appendix
+
+The full field/behaviour divergence between PMO and ClickUp tasks, with verified vs. assumed gaps, is
+in `docs/spikes/2026-07-20-clickup-tasks-divergence.md` — the companion spike that feeds this plan.
+Key blockers from that analysis:
+
+- **§2.1 Status map** — `external-link` writes empty maps; `toClickUpStatus` throws on unmapped;
+  `captureMaps` only captures 2 of 4 PMO statuses. **Outbound fails entirely; inbound corrupts
+  delivery reporting.**
+- **§3.1 Webhook envelope** — real payload has no `task` object, no `date_updated`, no `list_id`; has
+  `history_items[]` deltas instead. The adopt tier is dead code.
+- **§2.2 Read filters** — `subtasks`/`archived`/`include_timl`/`include_closed` all default-excluded;
+  emptiness check is broken; sweep misses archived.
+- **§2.3 Member map absent** — assignee sync is dead; needs PMO-profile ↔ ClickUp-member join by
+  email at link time.
+
+These are the **verification targets** for the live-write round-trip (J3) and the webhook fix (J4).

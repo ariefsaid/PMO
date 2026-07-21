@@ -1023,3 +1023,35 @@ task write, rather than writing `tasks.status` directly under the caller's JWT.
 **Why.** Under external ownership the column-pin trigger (`0093:97-139`) pins all roles to enhancement
 columns, so the direct write raises a raw `42501` — the assistant would break exactly on the projects
 with the most tasks. Routing keeps the capability and keeps ClickUp authoritative.
+
+---
+
+## OD-INT-13 — status map round 3: pmo-only outcomes with Blocked defaulting to pmo-only (2026-07-21, owner)
+
+**Decision.** The strict pairwise-distinctness rule for PMO→ClickUp status mapping was reverted as
+unshippable. ClickUp ships **three** statuses by default (`to do` / `in progress` / `complete`) — the
+real probed workspace has exactly that — so the rule rejected it and would have forced customers to
+restructure their ClickUp Space before linking, inverting ADR-0055 (the external system owns its
+domain). Distinctness was not even sufficient: `Blocked → complete` passed while being semantically
+wrong.
+
+Every PMO status must still resolve to an explicit recorded outcome, but **"no ClickUp counterpart"**
+is now a valid one:
+
+```
+{ kind: 'clickup', status } | { kind: 'pmo-only' }
+```
+
+- `pmo-only` statuses are never pushed outbound (the task's other fields still sync) and are never
+  overwritten by an inbound sync.
+- **`Blocked` defaults to `pmo-only`** when no distinct ClickUp status is available — it is a PMO
+  management signal (escalation/dependency) with no equivalent in ClickUp's default vocabulary;
+  collapsing it onto `In Progress` destroyed the state in both directions.
+- A collapse is still permitted but only when **explicitly recorded**, never produced silently by
+  auto-derivation. Where a collapse is recorded, inbound must not downgrade the more specific PMO
+  status.
+- Storage is `pmoOnlyStatuses?: string[]` on the existing binding `config` jsonb — optional, so
+  bindings persisted before this change stay valid byte-for-byte. **No migration.**
+- Validation keeps its teeth: a PMO status with no recorded resolution is still rejected at link time.
+- Implemented on `fix/status-map-round3`. A named test asserts the real 3-status List links
+  successfully with `Blocked` resolving `pmo-only`.

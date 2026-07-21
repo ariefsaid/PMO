@@ -152,9 +152,10 @@ completion plan §3).
   ClickUp-adopt, admin Connect UI + `useIntegrations`). Full battery incl. **rendered design-review**.
 - **P3** project Link/Unlink (`external-lists`/`external-link`/`external-unlink`, `0121` audit cols,
   `0122` audit-grant + org-scoped active-container unique index, repo/hook, project card).
-**Locked decisions: `docs/decisions.md` OD-INT-1..7** (admin self-serve · personal-token/API-key v1 ·
+**Locked decisions: `docs/decisions.md` OD-INT-1..13** (admin self-serve · personal-token/API-key v1 ·
 **Vault-backed `secret_ref`** · one tier-generic layer · sequenced after #315 · **OD-INT-6 ERPNext Company
-selected at ORG level** · **OD-INT-7 project↔List link is PROJECT-SCOPED to the owning active PM**).
+selected at ORG level** · **OD-INT-7 project↔List link is PROJECT-SCOPED to the owning active PM** ·
+**OD-INT-13 status map round 3 — pmo-only outcomes with Blocked defaulting to pmo-only**).
 
 **⚑ Tracked gaps — decided/known, deliberately NOT built (do not rediscover):**
 1. **Per-org ClickUp webhook secret** — `external_org_bindings.webhook_secret_ref` exists (mig 0096) but

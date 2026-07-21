@@ -2,6 +2,17 @@
 
 **Date:** 2026-07-20 · **Status:** analysis, no code changed · **Follows:** `docs/plans/2026-07-20-clickup-integration-completion.md`
 
+### Resolved since (2026-07-21)
+**OD-INT-13 (status map round 3, `fix/status-map-round3`)** — the strict pairwise-distinctness rule for PMO→ClickUp status mapping was replaced with explicit per-status resolution allowing `pmo-only` outcomes:
+- `Blocked` defaults to `pmo-only` when no distinct ClickUp status exists (ClickUp ships 3 statuses by default).
+- `pmo-only` statuses are never pushed outbound and never overwritten inbound.
+- Collapse is permitted only when explicitly recorded, never by auto-derivation.
+- Storage: `pmoOnlyStatuses?: string[]` on binding `config` jsonb (optional, no migration).
+- Validation still rejects a PMO status with no recorded resolution at link time.
+- A named test asserts the real 3-status List links successfully with `Blocked` resolving `pmo-only`.
+
+This resolves the shipping blocker in §2.1 (both bugs A and B). The remaining divergences in §2.1 are now about *map completeness at link time*, not a structural impossibility.
+
 What PMO's task model can and cannot express against ClickUp's, where the current sync code
 diverges from ClickUp's documented behaviour, and what must be filled, verified and tested before
 `EXTERNAL_CONNECT_ENABLED` goes on.
