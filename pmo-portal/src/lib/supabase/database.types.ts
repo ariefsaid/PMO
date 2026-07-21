@@ -4944,7 +4944,7 @@ export type Database = {
           cached_tokens: number
           completion_tokens: number
           cost: number
-          margin_usd: number
+          margin_usd: number | null
           month: string
           org_id: string
           owner_id: string
@@ -4989,7 +4989,7 @@ export type Database = {
           cached_tokens: number
           completion_tokens: number
           cost: number
-          margin_usd: number
+          margin_usd: number | null
           month: string
           owner_id: string
           prompt_tokens: number
