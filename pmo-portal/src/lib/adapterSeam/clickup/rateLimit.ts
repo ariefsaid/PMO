@@ -88,6 +88,18 @@ export interface WithBackoffOptions {
 
 const defaultSleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
+/**
+ * SEC-HIGH-3: the maximum backoff wait this client will EVER honor, regardless of source. Both
+ * `Retry-After` and `X-RateLimit-Reset` are fully server-controlled with no maximum in the ClickUp
+ * REST v2 contract — a 429 carrying `X-RateLimit-Reset: 4102444800` (decades in the future, malicious
+ * or misconfigured) would otherwise compute a multi-year `sleep()`, effectively hanging that attempt
+ * forever. Mirrors the sibling ERPNext adapter's `ERP_RETRY_AFTER_CAP_MS` precedent (same class of
+ * unbounded-server-header risk) — capped well under any reasonable sweep/webhook deadline; an
+ * over-long wait a genuinely overloaded ClickUp wanted simply exhausts the bounded retry budget
+ * (`maxRetries`) and surfaces `external-unreachable`, which every caller already handles cleanly.
+ */
+export const CLICKUP_BACKOFF_WAIT_CAP_MS = 15_000;
+
 /** Parsed `X-RateLimit-*` headers ClickUp sends on every response (no `Retry-After` — ClickUp does not
  *  send that header at all; `X-RateLimit-Reset` is its only backoff signal on a 429). */
 export interface ClickUpRateLimitHeaders {
@@ -133,10 +145,13 @@ export async function withBackoff(
     const retryAfterHeader = res.headers.get('Retry-After');
     let waitMs: number;
     if (retryAfterHeader !== null) {
-      waitMs = Number(retryAfterHeader) * 1000;
+      waitMs = Math.min(Number(retryAfterHeader) * 1000, CLICKUP_BACKOFF_WAIT_CAP_MS);
     } else {
       const { reset } = readClickUpRateLimitHeaders(res);
-      waitMs = reset !== null ? Math.max(0, reset * 1000 - now()) : 500 * attempt;
+      waitMs =
+        reset !== null
+          ? Math.min(Math.max(0, reset * 1000 - now()), CLICKUP_BACKOFF_WAIT_CAP_MS)
+          : 500 * attempt;
     }
     await sleep(waitMs);
   }
