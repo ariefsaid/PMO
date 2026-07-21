@@ -44,7 +44,7 @@ function json(body: unknown, status = 200): Response {
  *  `clickup_webhook_inbox` insert. */
 export interface ClickUpWebhookHandlerDeps {
   /** Durably enqueue one verified event; the worker (clickup-webhook-worker) claims + applies it. */
-  enqueue: (payload: ClickUpWebhookPayload) => Promise<void>;
+  enqueue: (payload: ClickUpWebhookPayload, rawBodySha256: string) => Promise<void>;
 }
 
 /**
@@ -85,9 +85,15 @@ export async function handleClickUpWebhook(req: Request, deps: ClickUpWebhookHan
   }
 
   // ── 3. Enqueue + ack. Never applies inline — the worker re-GETs + applies (OD-INT-11). ──
+  const digestBytes = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(rawBody));
+  const rawBodySha256 = Array.from(new Uint8Array(digestBytes))
+    .map((byte) => byte.toString(16).padStart(2, '0'))
+    .join('');
   try {
-    await deps.enqueue(payload);
+    await deps.enqueue(payload, rawBodySha256);
   } catch (err) {
+    const code = (err as { code?: string } | null)?.code;
+    if (code === '23505') return json({ ok: true, enqueued: true, duplicate: true });
     const message = err instanceof Error ? err.message : 'enqueue failed';
     console.error(`[clickup-webhook] enqueue failed: task=${payload.task_id} event=${payload.event} detail=${message}`);
     // Review fix #7c: a 5xx response carries a GENERIC message (never the raw error detail — which
@@ -100,15 +106,21 @@ export async function handleClickUpWebhook(req: Request, deps: ClickUpWebhookHan
 // ── The real wiring the Deno.serve wrapper uses (DB insert into clickup_webhook_inbox). ──────────
 
 function enqueueLive(serviceClient: SupabaseClient): ClickUpWebhookHandlerDeps['enqueue'] {
-  return async (payload) => {
+  return async (payload, rawBodySha256) => {
     const { error } = await serviceClient.from('clickup_webhook_inbox').insert({
       event: payload.event,
       task_id: payload.task_id,
       team_id: payload.team_id ?? null,
       webhook_id: payload.webhook_id ?? null,
       history_items: payload.history_items,
+      raw_body_sha256: rawBodySha256,
     });
-    if (error) throw new Error(error.message);
+    if (error) {
+      if (error.code === '23505') return;
+      const enqueueError = new Error(error.message) as Error & { code?: string };
+      enqueueError.code = error.code;
+      throw enqueueError;
+    }
   };
 }
 

@@ -89,6 +89,24 @@ for (const fileName of FIXTURE_FILES) {
   });
 }
 
+Deno.test('replay protection: enqueue receives a SHA-256 digest of the raw body and duplicate insert is acknowledged', async () => {
+  const payload = loadFixturePayload('00-taskCreated.json');
+  const body = JSON.stringify(payload);
+  const sig = await sign(body);
+  let digest = '';
+  const d: ClickUpWebhookHandlerDeps = {
+    enqueue: async (_payload, rawBodySha256) => {
+      digest = rawBodySha256;
+      const duplicate = new Error('duplicate') as Error & { code: string };
+      duplicate.code = '23505';
+      throw duplicate;
+    },
+  };
+  const res = await handleClickUpWebhook(req(body, sig), d);
+  assert(res.status === 200, `duplicate delivery must still be acknowledged, got ${res.status}`);
+  assert(/^[0-9a-f]{64}$/.test(digest), 'queue key must be a SHA-256 hex digest');
+});
+
 Deno.test('AC-CUA-040/041: an ABSENT X-Signature ⇒ 401 with NO side effect (enqueue never called)', async () => {
   const payload = loadFixturePayload('00-taskCreated.json');
   const body = JSON.stringify(payload);
