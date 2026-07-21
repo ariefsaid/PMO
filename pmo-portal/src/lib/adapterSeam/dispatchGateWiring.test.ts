@@ -62,8 +62,17 @@ describe('WIRE 4: the in-flight-for-record conflict is mapped to 409', () => {
   });
 
   it('a second concurrent create for one PMO record answers 409, not a raw 500', () => {
-    const mapping = CODE.slice(CODE.indexOf('const status = appError.code'));
-    const statusExpr = mapping.slice(0, mapping.indexOf(';'));
+    // ⚑ Anchor on `const status =` only — NOT on the error variable's name. P3c renamed it
+    // `appError` -> `budgetAppError`, and the old anchor then matched nothing: `indexOf` returned -1,
+    // the slice chain collapsed to '', and the assertion was checking an empty string. It failed
+    // loudly here, but a `.not.toContain`-shaped assertion in the same position would have passed
+    // VACUOUSLY and reported a guard that no longer exists. So assert the anchor is found first.
+    // Anchor on the mapping's OWN unique content (`external-unreachable` appears only in this
+    // expression), not on `const status =` — there is more than one of those in the file, and the
+    // first belongs to the JWT check.
+    const anchor = CODE.search(/const status =[\s\S]{0,80}'external-unreachable'/);
+    expect(anchor, 'the dispatch-error status mapping in adapter-dispatch/index.ts was renamed or removed').toBeGreaterThan(-1);
+    const statusExpr = CODE.slice(anchor, CODE.indexOf(';', anchor));
     expect(statusExpr).toContain('COMMAND_IN_FLIGHT_FOR_RECORD');
     expect(statusExpr).toMatch(/COMMAND_IN_FLIGHT_FOR_RECORD[\s\S]{0,40}409/);
   });

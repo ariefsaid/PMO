@@ -170,7 +170,27 @@ Run against the full 45-file working tree (all four lanes' work on disk):
   from the lanes (`0155_confirm_erp_employee_link`, `budget_projection_rpc`,
   `erpnext_timesheets_module_unchanged_when_flipped`) all pass.
 - **Typecheck: clean** — but only after a fix, see below.
-- **`npm run verify`:** started at handoff; result not yet folded in. **Re-run it.**
+- **`npm run verify`: was RED — 2 files / 11 tests — now fixed.** Both failures were **cross-file
+  breakage from the lanes**, and both specs pass in isolation, which is exactly why a targeted run
+  can't be trusted as the gate:
+  1. `pages/__tests__/Approvals.inbox.test.tsx` (10 tests) — B2 added `PushAttentionSection` and
+     `EmployeeLinkConfirmSection` to `Approvals.tsx`, but that pre-existing spec `vi.mock`s
+     `@/src/hooks/useTimesheetApproval` **without** the two new exports, so the page threw on render.
+     Fixed by adding `usePushesNeedingAttention` + `useEmployeeLinkConfirm` to the mock, both empty
+     and settled so the sections render nothing and the spec's assertions stay about the queues.
+  2. `src/lib/adapterSeam/dispatchGateWiring.test.ts` (1 test) — a **structural** test that greps
+     `adapter-dispatch/index.ts`. C1 renamed `appError` → `budgetAppError` in the shared final catch,
+     so the anchor `'const status = appError.code'` matched nothing: `indexOf` returned `-1`, the
+     slice chain collapsed to `''`, and the assertion was checking an empty string.
+     **The 409 behaviour it guards is intact** (verified by reading the mapping — `budgetAppError`
+     falls back to `appError` for non-budget commands, so other domains are byte-for-byte).
+     Re-anchored on the mapping's own unique content (`'external-unreachable'`, which appears only
+     there — note `const status =` alone is ambiguous, the first one belongs to the JWT check) and
+     added an explicit assertion that the anchor is **found**.
+     ⚑ **Generalise this:** a structural/grep test whose anchor goes stale degrades to asserting
+     against `''`. It failed loudly here, but the same shape with a `.not.toContain` assertion would
+     have passed **vacuously** and reported a guard that no longer exists. Audit the other
+     structural tests for this.
 - Deno suites at `bc59ad19` were 214 (adapter-dispatch) + 72 (erpnext-sweep), all green. **Re-run
   them** — the lanes edited `erpnext-sweep/index.ts`, `erpnextFeedDeps.ts` and
   `adapter-dispatch/index.ts` after that.
