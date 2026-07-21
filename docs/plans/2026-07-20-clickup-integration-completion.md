@@ -4,8 +4,9 @@
 It tells you what exists, what is proven, what is *assumed*, the end-to-end user journeys that must
 work before enabling the feature, and the rules for touching the live ClickUp workspace.
 
-- **Branch:** `feat/external-admin-connect` · **PR:** #332 (base `dev`, **HELD — do not merge** without owner say-so)
-- **Decisions:** `docs/decisions.md` **OD-INT-1..8** (binding — read before changing behaviour)
+- **Branch:** `feat/external-admin-connect` · **PR:** #332 (base `dev`, **HELD — do not merge**
+  without owner say-so)
+- **Decisions:** `docs/decisions.md` **OD-INT-1..13** (binding — read before changing behaviour)
 - **Architecture:** ADR-0055 (external systems own their domains; PMO = operational layer + read-models), ADR-0016 (`can()` is UX-only, server is authority), ADR-0018 (soft-archive), ADR-0057 (`verifyCallerJwt`)
 - **Live-smoke result:** `docs/spikes/2026-07-17-clickup-live-smoke.md`
 - **Original scope/plan:** `docs/plans/2026-07-14-external-admin-connect.md` (**historical** — Phase 3 partly superseded, see its banner)
@@ -165,3 +166,23 @@ shared, disposable-but-not-abusable fixtures.
 - **The service-role auth-context trap.** `auth.uid()` is NULL under service_role, and `is_operator()`
   is `security invoker` — so RPCs gated on them silently misfire when called from an edge fn. Pass an
   explicit `p_actor_id` and check `platform_operators` directly. This bit P1 *and* P2.
+
+---
+
+## 8. Divergence analysis appendix
+
+The full field/behaviour divergence between PMO and ClickUp tasks, with verified vs. assumed gaps, is
+in `docs/spikes/2026-07-20-clickup-tasks-divergence.md` — the companion spike that feeds this plan.
+Key blockers from that analysis:
+
+- **§2.1 Status map** — `external-link` writes empty maps; `toClickUpStatus` throws on unmapped;
+  `captureMaps` only captures 2 of 4 PMO statuses. **Outbound fails entirely; inbound corrupts
+  delivery reporting.**
+- **§3.1 Webhook envelope** — real payload has no `task` object, no `date_updated`, no `list_id`; has
+  `history_items[]` deltas instead. The adopt tier is dead code.
+- **§2.2 Read filters** — `subtasks`/`archived`/`include_timl`/`include_closed` all default-excluded;
+  emptiness check is broken; sweep misses archived.
+- **§2.3 Member map absent** — assignee sync is dead; needs PMO-profile ↔ ClickUp-member join by
+  email at link time.
+
+These are the **verification targets** for the live-write round-trip (J3) and the webhook fix (J4).
