@@ -38,6 +38,7 @@ import { findPmoRecordId, recordExternalRef } from '../../../pmo-portal/src/lib/
 import { ERPNEXT_TIER } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/adapter.ts';
 import { KIND_DOMAIN, KIND_MIRROR_TABLE, type ErpDocKind } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/feedKinds.ts';
 import { deriveSiStatus } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/siStatus.ts';
+import { escapeLikePattern } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/client.ts';
 import { reconcileSiCancelAutoUnlink } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/transitionPolicy.ts';
 import type { ErpFeedDeps } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/applyFeed.ts';
 import type { LineageRow } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/lineage.ts';
@@ -591,8 +592,16 @@ async function proposeEmployeeLink(
     await surfaceActionRequired(serviceClient, orgId, 'employee-link-no-email', { erpEmployeeId });
     return;
   }
+  // ⚑ `work_email` is DESK-EDITABLE — it is the exact untrusted input 0140's human-confirm step exists
+  // to contain, so it must never reach a pattern operator unescaped. `.ilike()` treats `%`/`_` as
+  // wildcards: a Desk user setting `work_email` to `finance.lead%` yields a UNIQUE match against
+  // `finance.lead@corp.com` and gets auto-proposed with `link_proposed_reason:
+  // 'work-email-exact-match'` — a claim that is simply FALSE, shown to the Admin who then confirms it,
+  // after which that user's hours post against the attacker's Employee costing rate. Escaped, `.ilike`
+  // with no live wildcards IS the case-insensitive exact match this intends. Same helper, same reason,
+  // as the P3a anchor-search fix (`client.ts:escapeLikePattern`).
   const { data, error } = await serviceClient.from('profiles').select('id')
-    .eq('org_id', orgId).ilike('email', workEmail);
+    .eq('org_id', orgId).ilike('email', escapeLikePattern(workEmail));
   if (error) throw new AppError(error.message, error.code);
   const rows = (data as Array<{ id: string }> | null) ?? [];
   if (rows.length !== 1) {

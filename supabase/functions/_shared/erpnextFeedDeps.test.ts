@@ -398,6 +398,24 @@ Deno.test('HIGH-1 readMirrorSourceMod on a Timesheet reads by timesheet_id, neve
   );
 });
 
+Deno.test('MEDIUM-1 a Desk-controlled work_email is ESCAPED before it reaches ilike (no wildcard injection)', async () => {
+  // `work_email` is editable by anyone with ERPNext Desk access — the exact untrusted input 0140's
+  // human-confirm step exists to contain. Unescaped, `.ilike()` treats `%`/`_` as wildcards, so
+  // `finance.lead%` matches `finance.lead@corp.com` UNIQUELY and is auto-proposed with
+  // `link_proposed_reason: 'work-email-exact-match'` — a FALSE claim shown to the confirming Admin.
+  // After the confirm, that user's hours post against the attacker's Employee costing rate.
+  const { client, calls } = fakeServiceClient({ profiles: [{ id: 'victim-1' }] });
+  const deps = createErpFeedDeps(client, 'org-1', 'employee');
+  await deps.mintMirror({ id: 'HR-EMP-00009', work_email: 'finance.lead%' }, Date.parse('2026-07-20T09:00:00.000Z'));
+
+  const lookup = calls.find((c) => c.table === 'profiles' && c.op === 'select' && !!c.ilike);
+  assert(!!lookup, 'expected the work-email profile lookup');
+  assert(
+    lookup!.ilike![1] === 'finance.lead\\%',
+    `MEDIUM-1: the % must reach ilike ESCAPED (literal percent, not a prefix wildcard) — got ${JSON.stringify(lookup!.ilike![1])}`,
+  );
+});
+
 Deno.test('AC-TSP-041 a non-timesheet cancel (e.g. purchase-invoice) does NOT gain a push_state field (additive only, byte-for-byte for other kinds)', async () => {
   const { client, calls } = fakeServiceClient({});
   const deps = createErpFeedDeps(client, 'org-1', 'purchase-invoice');
