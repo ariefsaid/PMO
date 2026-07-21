@@ -80,4 +80,19 @@ describe('erpnext/feedKinds — Payment Entry disambiguation (AC-SAR-060)', () =
     expect(externalIdForKind('payment', 'PE-PAY-001')).toBe('PE-PAY-001');
     expect(externalIdForKind('timesheet', 'TS-2026-00011')).toBe('TS-2026-00011');
   });
+
+  it('AC-TSP-090/094 Employee routes to the TIMESHEETS domain (NOT companies) + its own erp_employees mirror table', () => {
+    const kind = kindFromDoctype('Employee');
+    expect(kind).toBe('employee');
+    // FR-TSP-094: `companies` is already flipped for existing orgs — an Employee doctype must NEVER
+    // ride that sweep/feed, or it changes behavior for orgs that never asked for it. The Employee
+    // master lives in the `timesheets` domain the OWNER RULING created for it (AC-TSP-003's proof).
+    expect(KIND_DOMAIN[kind!]).toBe('timesheets');
+    expect(KIND_DOMAIN[kind!]).not.toBe('companies');
+    expect(KIND_MIRROR_TABLE[kind!]).toBe('erp_employees');
+  });
+
+  it('externalIdForKind encodes Employee with the SAME Supplier:/Customer: prefix convention (FR-TSP-091)', () => {
+    expect(externalIdForKind('employee', 'HR-EMP-00001')).toBe('Employee:HR-EMP-00001');
+  });
 });

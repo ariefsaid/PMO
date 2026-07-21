@@ -34,7 +34,15 @@ import { CLICKUP_TASKS_DOMAIN } from '../../../pmo-portal/src/lib/adapterSeam/cl
 import { resolveClickUpDispatchAdapter } from '../../../pmo-portal/src/lib/adapterSeam/clickup/dispatchFactory.ts';
 import { ClickUpRateLimiter } from '../../../pmo-portal/src/lib/adapterSeam/clickup/rateLimit.ts';
 import { ERPNEXT_BUDGET_DOMAIN, ERPNEXT_COMPANIES_DOMAIN, ERPNEXT_PROCUREMENT_DOMAIN, ERPNEXT_REVENUE_DOMAIN, ERPNEXT_TIMESHEETS_DOMAIN, ERPNEXT_TIER } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/adapter.ts';
-import { resolveErpDispatchAdapter, withPaymentTypeDiscriminator } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/dispatchFactory.ts';
+import { resolveErpDispatchAdapter, withPaymentTypeDiscriminator, readCategoryAccountMap } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/dispatchFactory.ts';
+import {
+  runBudgetGate,
+  BudgetGateError,
+  type BudgetGateDeps,
+  type BudgetVersionGateRow,
+  type BudgetGateProjectRow,
+} from '../../../pmo-portal/src/lib/budget/budgetGate.ts';
+import type { BudgetLineItem } from '../../../pmo-portal/src/lib/budget/categoryAccountMap.ts';
 import { resolveErpCredentials } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/credentials.ts';
 import { withProbeBudget } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/client.ts';
 import { resolveClickUpCredentialsFromVault } from '../../../pmo-portal/src/lib/adapterSeam/clickup/vaultCredentials.ts';
@@ -413,6 +421,87 @@ async function readOutboxCompositePayload(
   return (data as { payload?: Record<string, unknown> | null } | null)?.payload ?? null;
 }
 
+// ============================================================================
+// P3c — THE BUDGET GATE wiring (ADR-0059 §3.3, the missing half of slice 3). `runBudgetGate`
+// (pmo-portal/src/lib/budget/budgetGate.ts) is the pure orchestration; everything below wires it to the
+// deputy (caller-scoped) client for the three PMO-table re-reads and to the service-role client for the
+// Admin-administered category→account map, matching `dispatchFactory.ts`'s OWN map read exactly (the
+// SAME `readCategoryAccountMap`) so the gate and the real push can never disagree about "mapped".
+// ============================================================================
+
+/** Does this command push a PMO budget version to ERPNext (and therefore need the gate)? */
+function isBudgetPushCommand(cmd: { domain: string; record: Record<string, unknown> }): boolean {
+  return cmd.domain === ERPNEXT_BUDGET_DOMAIN && cmd.record.erp_doc_kind === 'budget';
+}
+
+/** Does this org have an ACTIVATED erpnext binding at all? A non-employing org's budget push is a
+ *  BENIGN NO-OP — same posture as the timesheet "no chargeable hours" skip above — never a rejection, and
+ *  critically the GATE never runs for it: a non-employing org legitimately carries zero
+ *  `budget_category_account_map` rows, and running the map check anyway would record a spurious
+ *  'budget-category-unmapped' failure into `budget_version_erp_mirror` for every org that will never use
+ *  this feature (AC-BUD-001 — a non-employing org must stay byte-for-byte). */
+async function orgEmploysErpnext(serviceClient: SupabaseClient, orgId: string): Promise<boolean> {
+  const { data } = await serviceClient
+    .from('external_org_bindings')
+    .select('activated_at')
+    .eq('org_id', orgId)
+    .eq('external_tier', ERPNEXT_TIER)
+    .maybeSingle();
+  return !!(data as { activated_at: string | null } | null)?.activated_at;
+}
+
+/** Wire `runBudgetGate`'s readers: the three PMO tables under the CALLER's own JWT (RLS is the org
+ *  boundary — ADR-0059 §3.3), the map via the service-role reader `dispatchFactory.ts` already uses for
+ *  the real push. */
+function buildBudgetGateDeps(callerClient: SupabaseClient, serviceClient: SupabaseClient, orgId: string, versionId: string): BudgetGateDeps {
+  return {
+    orgId,
+    versionId,
+    readVersion: async (id) => {
+      const { data } = await callerClient
+        .from('budget_versions')
+        .select('id, org_id, project_id, status, activated_at')
+        .eq('id', id)
+        .maybeSingle();
+      return (data as BudgetVersionGateRow | null) ?? null;
+    },
+    readProject: async (id) => {
+      const { data } = await callerClient.from('projects').select('id, org_id, start_date, end_date').eq('id', id).maybeSingle();
+      return (data as BudgetGateProjectRow | null) ?? null;
+    },
+    readLineItems: async (id) => {
+      const { data } = await callerClient.from('budget_line_items').select('category, budgeted_amount').eq('budget_version_id', id);
+      return Array.isArray(data) ? (data as unknown as BudgetLineItem[]) : [];
+    },
+    readCategoryMap: () => readCategoryAccountMap(serviceClient as never, orgId),
+  };
+}
+
+/** Record the gate's durable failure into the ADR-0059 §6 side mirror — BEFORE returning the rejection —
+ *  so the operator surface + the sweep backstop's work queue both see it. Only written when the gate had
+ *  already resolved a `fiscalYear` (the mirror's grain): an earlier rejection (version/project unreadable,
+ *  no activation stamp) has no fiscal year to key a row on, and `budget_version_erp_mirror`'s own writer
+ *  (`readModelWriters.ts`) already refuses a fiscal-year-less row for the identical reason. Best-effort —
+ *  a failure to record this must never mask the rejection the caller already gets. */
+async function recordBudgetGateFailure(serviceClient: SupabaseClient, orgId: string, versionId: string, err: BudgetGateError): Promise<void> {
+  if (!err.fiscalYear) return;
+  try {
+    await serviceClient.from('budget_version_erp_mirror').upsert(
+      {
+        org_id: orgId,
+        budget_version_id: versionId,
+        fiscal_year: err.fiscalYear,
+        push_state: 'failed',
+        push_error: err.code,
+        unmapped_categories: err.unmappedCategories ?? null,
+      },
+      { onConflict: 'org_id,budget_version_id,fiscal_year' },
+    );
+  } catch (mirrorErr) {
+    console.error('[adapter-dispatch] failed to record budget gate failure:', mirrorErr);
+  }
+}
+
 // Adapter registry, keyed by the PMO domain the tier natively owns. 'reference' is the P0 synthetic
 // domain (ADR-0055 §"out of scope"); 'tasks' is ClickUp's P1 domain (ADR-0055 P1, FR-CUA-001);
 // 'companies'/'procurement' are ERPNext's P2 domains (FR-ENA-010, task 2.14).
@@ -622,6 +711,33 @@ Deno.serve(async (req: Request): Promise<Response> => {
       status: 200,
       headers,
     });
+  }
+
+  // ── P3c — THE BUDGET GATE (ADR-0059 §3.3, the missing half of slice 3). Before adapter selection,
+  // before the outbox, before any ERP call: re-read the version's status, the project's org + fiscal
+  // year, and the line items — from the DB under the CALLER's own JWT — and resolve the category→account
+  // map (FR-BUD-113) BEFORE any ERP call. A non-employing org is a benign no-op (see `orgEmploysErpnext`).
+  // On a PASS, server truth (never the payload) REPLACES the fields the push body is built from.
+  if (isBudgetPushCommand(command)) {
+    if (!(await orgEmploysErpnext(serviceClient, orgId))) {
+      return new Response(
+        JSON.stringify({ externalRecordId: null, canonical: { id: command.record.id }, skipped: 'org-not-employing-erpnext' }),
+        { status: 200, headers },
+      );
+    }
+
+    const versionId = String(command.record.id);
+    try {
+      const gate = await runBudgetGate(buildBudgetGateDeps(callerClient, serviceClient, orgId, versionId));
+      // Server truth REPLACES the payload for every field the push body is built from (ADR-0059 §3.3) —
+      // `projectId` (camelCase) feeds `dispatchFactory.ts`'s cross-org pre-flight + ERP-project ref
+      // resolution; `fiscal_year`/`line_items` (snake_case) feed `bodies/budget.ts`'s `budgetToBody`.
+      command.record = { ...command.record, projectId: gate.projectId, fiscal_year: gate.fiscalYear, line_items: gate.lineItems };
+    } catch (err) {
+      const gateErr = err instanceof BudgetGateError ? err : new BudgetGateError('commit-rejected', err instanceof Error ? err.message : 'budget gate failed');
+      await recordBudgetGateFailure(serviceClient, orgId, versionId, gateErr);
+      return new Response(JSON.stringify({ error: 'commit-rejected', message: gateErr.message }), { status: 422, headers });
+    }
   }
 
   // ── Slice 3 / round-7 B8: the `require_project_on_si` process gate (FR-SAR-191, AC-SAR-070), for
@@ -894,14 +1010,26 @@ Deno.serve(async (req: Request): Promise<Response> => {
     // Retrying now cannot help, but retrying LATER can, so it is a 409 like `command-held`, never a 500
     // carrying the raw index name.
     await recordTimesheetPushFailure(appError);
-    const status = appError.code === 'external-unreachable'
+    // P3c defense-in-depth: the budget gate above already refuses an unmapped category / multi-FY
+    // project BEFORE this try block ever runs, so this branch is unreachable in the normal path — but
+    // `BudgetCategoryUnmappedError` (categoryAccountMap.ts) is a plain `Error` subclass, not an
+    // `AppError`/`AdapterError`, so were it ever to bubble up from here (a race between the gate's map
+    // read and `bodies/budget.ts`'s own re-check at commit time) the generic `new AppError(err.message)`
+    // above would silently DROP its `.code`/`.unmappedCategories` and fall through to a bare 500. Budget
+    // is a money-adjacent surface, so its own classified codes are preserved explicitly here.
+    const isBudgetCode = (code: unknown): code is string => code === 'budget-category-unmapped' || code === 'budget-multi-fiscal-year';
+    const budgetAppError =
+      isBudgetPushCommand(command) && err instanceof Error && isBudgetCode((err as { code?: unknown }).code)
+        ? new AppError(err.message, (err as unknown as { code: string }).code)
+        : appError;
+    const status = budgetAppError.code === 'external-unreachable'
       ? 502
-      : appError.code === 'commit-rejected'
+      : budgetAppError.code === 'commit-rejected' || isBudgetCode(budgetAppError.code)
         ? 422
-        : appError.code === 'command-held' || appError.code === COMMAND_IN_FLIGHT_FOR_RECORD
+        : budgetAppError.code === 'command-held' || budgetAppError.code === COMMAND_IN_FLIGHT_FOR_RECORD
           ? 409
           : 500;
-    return new Response(JSON.stringify({ error: appError.code ?? 'DISPATCH_FAILED', message: appError.message }), {
+    return new Response(JSON.stringify({ error: budgetAppError.code ?? 'DISPATCH_FAILED', message: budgetAppError.message }), {
       status,
       headers,
     });

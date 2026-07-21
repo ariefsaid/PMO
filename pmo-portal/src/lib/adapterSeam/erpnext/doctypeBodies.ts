@@ -24,6 +24,7 @@ import { peToBody, peFromDoc } from './bodies/paymentEntry.ts';
 import { siToBody, siFromDoc } from './bodies/salesInvoice.ts';
 import { peReceiveToBody, peReceiveFromDoc } from './bodies/incomingPayment.ts';
 import { tsToBody, tsFromDoc } from './bodies/timesheet.ts';
+import { employeeToBody, employeeFromDoc } from './bodies/employee.ts';
 import { budgetToBody, budgetFromDoc } from './bodies/budget.ts';
 
 export const DOCTYPE_BODIES: Partial<Record<ErpDocKind, DoctypeBodyFns>> = {
@@ -42,6 +43,9 @@ export const DOCTYPE_BODIES: Partial<Record<ErpDocKind, DoctypeBodyFns>> = {
   'incoming-payment': { toBody: peReceiveToBody, fromDoc: peReceiveFromDoc },
   // P3b Slice 2 — Timesheets domain (ADR-0059 Posture B), spike-frozen body (FR-TSP-064).
   timesheet: { toBody: tsToBody, fromDoc: tsFromDoc },
+  // P3b Slice 3 — the Employee MASTER (OQ-TSP-3 ruling), READ-ONLY (FR-TSP-093): `toBody` throws;
+  // `fromDoc` is the ONLY function ever invoked, by the inbound adopt (`erpnextFeedDeps.mintMirrorRow`).
+  employee: { toBody: employeeToBody, fromDoc: employeeFromDoc },
   // P3c — the budget push (ADR-0055 §6 + ADR-0059 Posture B). `fromDoc` is LIFECYCLE-ONLY: an ERP-side
   // budget_amount has no route back into PMO, which is the SoT for the figure (FR-BUD-140/152).
   budget: { toBody: budgetToBody, fromDoc: budgetFromDoc },

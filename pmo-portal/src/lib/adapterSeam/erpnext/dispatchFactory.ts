@@ -549,8 +549,12 @@ function isBudgetCommand(command: AdapterCommand): boolean {
  * Fails CLOSED on a read error rather than proceeding with an empty map: "we could not read the map" and
  * "the org has no map" must both refuse the push (the second is refused downstream by
  * `resolveBudgetAccounts`, naming the categories).
+ *
+ * Exported so `adapter-dispatch/index.ts`'s budget gate (`budgetGate.ts`'s `runBudgetGate`) reads the
+ * SAME map this factory injects into `ctx.config` — one definition, so a gate PASS can never be followed
+ * by a push-time "actually unmapped" surprise.
  */
-async function readCategoryAccountMap(
+export async function readCategoryAccountMap(
   serviceClient: DispatchServiceClient,
   orgId: string,
 ): Promise<Array<{ category: string; erp_account: string }>> {

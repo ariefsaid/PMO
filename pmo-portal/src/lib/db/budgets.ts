@@ -1,6 +1,9 @@
 import { supabase } from '@/src/lib/supabase/client';
 import type { Tables } from '@/src/lib/supabase/database.types';
 import { toAppError } from '@/src/lib/appError';
+import { activateAndPush } from '@/src/lib/budget/budgetPushConsequence';
+import { dispatchDomainCommand } from '@/src/lib/adapterSeam/dispatchClient';
+import { budgetPushKey } from '@/src/lib/adapterSeam/erpnext/budgetPushKey';
 
 // ---------------------------------------------------------------------------
 // Type contract (plan §3 "Type contract used across tasks")
@@ -173,14 +176,54 @@ export async function cloneVersion(versionId: string): Promise<string> {
 }
 
 /**
- * Activates a Draft version via the `activate_budget_version` security-definer
- * RPC (atomic archive-prior + activate). org_id NEVER sent (FR-BV-005).
+ * Re-reads the version's own `activated_at` witness right after `activate_budget_version` commits — the
+ * RPC itself returns void, and the ADR-0059 §4 deterministic key (`budgetPushKey`) MUST be derived from
+ * the SAME server-stamped value the sweep backstop will later read, never a client-side `Date.now()`
+ * (a locally-minted timestamp could disagree with the DB by the width of the round trip and mint two keys
+ * for the SAME activation).
+ */
+async function readActivatedAt(versionId: string): Promise<string | null> {
+  const { data, error } = await supabase
+    .from('budget_versions')
+    .select('activated_at')
+    .eq('id', versionId)
+    .maybeSingle();
+  if (error) throw toAppError(error);
+  return (data as { activated_at: string | null } | null)?.activated_at ?? null;
+}
+
+/**
+ * Activates a Draft version via the `activate_budget_version` security-definer RPC (atomic archive-prior
+ * + activate, UNTOUCHED — ADR-0059 §3.1), then pushes the consequence into the org's ERPNext binding, if
+ * any (ADR-0055 §6 / ADR-0059 Posture B). org_id NEVER sent (FR-BV-005).
+ *
+ * ⚑ THE MONEY INVARIANT (ADR-0059 §3.2): the push is a CONSEQUENCE, never a precondition. Every failure
+ * class the push can produce — no ERPNext binding configured, ERP unreachable, an unmapped category, a
+ * multi-fiscal-year project — is swallowed by `activateAndPush` into durable side-mirror state (written
+ * server-side by the `adapter-dispatch` budget gate into `budget_version_erp_mirror`) and is NEVER
+ * re-thrown here: this function still only throws for a REAL activation failure (the RPC's own
+ * authorization/state-machine rejection), exactly as it did before P3c.
  */
 export async function activateVersion(versionId: string): Promise<void> {
-  const { error } = await supabase.rpc('activate_budget_version', {
-    version_id: versionId,
+  const result = await activateAndPush({
+    versionId,
+    rpc: async (_fn, args) => {
+      const { error } = await supabase.rpc('activate_budget_version', args as { version_id: string });
+      return { error };
+    },
+    dispatch: async (id) => {
+      const activatedAt = await readActivatedAt(id);
+      // `budgetPushKey` fails closed (throws `commit-rejected`) on a missing/unparseable stamp — caught
+      // by `activateAndPush`'s try/catch like any other push failure, never surfaced as an activation one.
+      return dispatchDomainCommand(
+        'budget',
+        'create',
+        { id, erp_doc_kind: 'budget' },
+        { idempotencyKey: budgetPushKey(id, activatedAt) },
+      );
+    },
   });
-  if (error) throw toAppError(error);
+  if (!result.activated) throw toAppError(result.error);
 }
 
 /**

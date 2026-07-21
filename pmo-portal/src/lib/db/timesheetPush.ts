@@ -35,3 +35,120 @@ export async function approvedTimesheetForPush(timesheetId: string): Promise<App
     entries: Array.isArray(row.entries) ? (row.entries as unknown as ApprovedTimesheetForPush['entries']) : [],
   };
 }
+
+/**
+ * The push-state operator surface (P3b, FR-TSP-085/173) — a typed read of the sheet's
+ * `timesheet_erp_mirror` row (migration 0136). `null` when NO mirror row exists (an org that hasn't
+ * flipped `timesheets`, or a sheet that hasn't reached the push path yet) — a NORMAL state, never an
+ * error. The badge that consumes this must render nothing on `null`, never a blocked/error page
+ * (FR-TSP-173: the ERP badge is supplementary; its absence can never gate the page's render).
+ */
+export interface TimesheetPushState {
+  push_state: string;
+  push_error: string | null;
+  ts_number: string | null;
+}
+
+export async function getPushState(timesheetId: string): Promise<TimesheetPushState | null> {
+  const { data, error } = await supabase
+    .from('timesheet_erp_mirror')
+    .select('push_state, push_error, ts_number')
+    .eq('timesheet_id', timesheetId)
+    .maybeSingle();
+  if (error) throw new AppError(error.message, error.code);
+  return data ?? null;
+}
+
+/**
+ * The Approvals "needs attention" operator surface (P3b, FR-TSP-085) — every `failed`/`held` push
+ * visible to the caller, joined to its sheet's week + owner. `timesheet_erp_mirror_select` RLS (0136)
+ * already scopes visibility to exactly the audience that may read the parent sheet (own / line-manager
+ * / privileged) — this read adds NO further scoping, it only shapes the two failure states an operator
+ * must act on. A `pending`/`pushing`/`pushed` row never appears here (nothing to act on).
+ */
+export interface PushNeedingAttention {
+  timesheet_id: string;
+  push_state: string;
+  push_error: string | null;
+  ts_number: string | null;
+  week_start_date: string;
+  approved_by: string | null;
+  owner_name: string;
+}
+
+export async function listPushesNeedingAttention(): Promise<PushNeedingAttention[]> {
+  const { data: mirrors, error: mirrorError } = await supabase
+    .from('timesheet_erp_mirror')
+    .select('timesheet_id, push_state, push_error, ts_number')
+    .in('push_state', ['failed', 'held']);
+  if (mirrorError) throw new AppError(mirrorError.message, mirrorError.code);
+  const mirrorRows = mirrors ?? [];
+  if (mirrorRows.length === 0) return [];
+
+  const timesheetIds = mirrorRows.map((m) => m.timesheet_id);
+  const { data: sheets, error: sheetsError } = await supabase
+    .from('timesheets')
+    .select('id, week_start_date, approved_by, owner:profiles!timesheets_user_id_fkey(full_name)')
+    .in('id', timesheetIds);
+  if (sheetsError) throw new AppError(sheetsError.message, sheetsError.code);
+
+  const byId = new Map((sheets ?? []).map((s) => [s.id, s]));
+  return mirrorRows.map((m) => {
+    const sheet = byId.get(m.timesheet_id);
+    const owner = sheet?.owner as { full_name?: string } | null | undefined;
+    return {
+      timesheet_id: m.timesheet_id,
+      push_state: m.push_state,
+      push_error: m.push_error,
+      ts_number: m.ts_number,
+      week_start_date: sheet?.week_start_date ?? '',
+      approved_by: sheet?.approved_by ?? null,
+      owner_name: owner?.full_name ?? 'Unknown',
+    };
+  });
+}
+
+/**
+ * The Employee-adopt-link Admin queue (P3b, OQ-TSP-10(C)) — `erp_employees` rows proposed by the
+ * adopt probe on a unique work-email match but NOT YET confirmed. NEVER includes `'confirmed'` or
+ * `'unlinked'` rows: a proposed link is a human decision, never surfaced as already-done.
+ */
+export interface ProposedEmployeeLink {
+  id: string;
+  employee_name: string | null;
+  work_email: string | null;
+  link_proposed_reason: string | null;
+  profile_id: string | null;
+}
+
+export async function listProposedEmployeeLinks(): Promise<ProposedEmployeeLink[]> {
+  const { data, error } = await supabase
+    .from('erp_employees')
+    .select('id, employee_name, work_email, link_proposed_reason, profile_id')
+    .eq('link_state', 'proposed')
+    .order('employee_name', { ascending: true });
+  if (error) throw new AppError(error.message, error.code);
+  return data ?? [];
+}
+
+/**
+ * Confirms a proposed Employee→PMO-user link (P3b, OQ-TSP-10(C) — the owner ruling: adopt-then-
+ * CONFIRM, never auto-confirmed). Admin-only; the enforcement authority is the `confirm_erp_employee_link`
+ * RPC itself, not this wrapper (ADR-0016 — `can('confirm_employee_link', 'employeeLink')` is UX only).
+ *
+ * ⚑ The RPC ships in a companion migration this slice does not own (Slice 3 / OQ-TSP-10 — the Admin
+ * confirm RPC + adopt probe are explicitly deferred by migration 0136's own docstring). This wrapper is
+ * written against the FROZEN CONTRACT (Admin-only, audited, propose-never-self-confirm) so the Confirm
+ * affordance lights up the moment that migration lands. Until then the call surfaces a normal,
+ * classifiable `AppError` (P0002/42883 "function does not exist") — never a silent success — the same
+ * additive "registered but inert" posture as every other not-yet-flipped P3b seam in this plan.
+ */
+export async function confirmEmployeeLink(erpEmployeeId: string, profileId: string): Promise<void> {
+  const { error } = await supabase.rpc(
+    // Cast: not yet in the generated `Database['public']['Functions']` union (Slice 3 migration
+    // pending) — see the docstring above. Remove the cast the moment `supabase gen types` picks it up.
+    'confirm_erp_employee_link' as unknown as Parameters<typeof supabase.rpc>[0],
+    { p_erp_employee_id: erpEmployeeId, p_profile_id: profileId } as never,
+  );
+  if (error) throw new AppError(error.message, error.code);
+}

@@ -41,6 +41,7 @@ import { DOCTYPE_BODIES } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/
 // mapper — the poll is built from those so the two cannot drift apart.
 import { BUDGET_FROM_DOC_FIELDS } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/bodies/budget.ts';
 import { TS_FROM_DOC_FIELDS } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/bodies/timesheet.ts';
+import { EMPLOYEE_FROM_DOC_FIELDS } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/bodies/employee.ts';
 import { SI_FROM_DOC_FIELDS } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/bodies/salesInvoice.ts';
 import { PE_RECEIVE_FROM_DOC_FIELDS } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/bodies/incomingPayment.ts';
 import { PE_PAY_FROM_DOC_FIELDS } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/bodies/paymentEntry.ts';
@@ -88,14 +89,19 @@ function json(body: unknown, status = 200): Response {
  * row for an ERP Budget that belongs to no PMO version. Registering a kind in DOCTYPE_REGISTRY enrols it
  * here automatically, which is exactly why this exclusion has to be explicit.
  *
- * `timesheet` (P3b) is excluded for the same shape but a sharper reason: FR-TSP's feed is
+ * `timesheet` (P3b) WAS excluded for the same shape but a sharper reason: FR-TSP's feed is
  * LIFECYCLE-ONLY and must NEVER adopt a natively-created ERP Timesheet — PMO owns entry AND approval
  * (ADR-0059 Posture B), so minting a mirror from a Desk-created Timesheet would import hours that no
- * PMO approver ever approved. The push is approved-only; the poll stays shut until the never-adopt
- * branch lands.
- * ⚑ Remove the entry in the SAME change that lands the inbound branch — never before.
+ * PMO approver ever approved. **That never-adopt branch now lands (task 6.2, `erpnextFeedDeps.ts`'s
+ * `mintMirrorRow` throws `native-timesheet-not-adopted` for an unmapped Timesheet — it mints nothing),
+ * and the desk-cancel reopen (task 6.3) needs the poll running to ever observe a cancelled Timesheet —
+ * so `timesheet` is REMOVED from this set in the SAME change, per the instruction below.** `employee`
+ * is never added here: it is the adopt TARGET (FR-TSP-090/091), gated only by domain ownership
+ * (`KIND_DOMAIN.employee === 'timesheets'`, AC-TSP-003) via `sweepKindsForOrg`, exactly like every
+ * other adopted master (Supplier/Customer).
+ * ⚑ Remove an entry in the SAME change that lands its inbound branch — never before.
  */
-const SWEEP_UNPOLLED_KINDS = new Set<ErpDocKind>(['budget', 'timesheet']);
+const SWEEP_UNPOLLED_KINDS = new Set<ErpDocKind>(['budget']);
 
 const SWEEP_DOCTYPES: Array<{ kind: ErpDocKind; doctype: string }> = (Object.entries(DOCTYPE_REGISTRY) as Array<
   [ErpDocKind, { doctype: string }]
@@ -126,6 +132,7 @@ const FROM_DOC_FIELDS_BY_KIND: Record<ErpDocKind, readonly string[]> = {
   // tables anyway, and an ERP-side budget amount must never flow back into PMO (FR-BUD-152).
   budget: BUDGET_FROM_DOC_FIELDS,
   timesheet: TS_FROM_DOC_FIELDS,
+  employee: EMPLOYEE_FROM_DOC_FIELDS,
 };
 
 /** The fields the poll requests for one kind: the mapper's own fields plus the `payment_type`

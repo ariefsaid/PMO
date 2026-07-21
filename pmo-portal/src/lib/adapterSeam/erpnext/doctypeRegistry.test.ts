@@ -60,6 +60,11 @@ describe('erpnext/doctypeRegistry', () => {
       timesheet: { doctype: 'Timesheet', submittable: true, submitOnCreate: true, anchorField: 'note', anchorMutable: false },
       // P3c — Budget (ADR-0059 Posture B). ⚑ The ONLY kind with NO anchor at all AND neverReissue.
       budget: { doctype: 'Budget', submittable: true, submitOnCreate: true, anchorField: null, neverReissue: true },
+      // P3b — the Employee MASTER (OQ-TSP-3 ruling, spike §8b/§9). readOnly:true — PMO NEVER writes an
+      // ERP Employee; this kind exists ONLY for the inbound adopt (ADR-0059 §5's master-data exception).
+      // No anchor (masters are never recovery-probed the way a money doc is) and not submittable
+      // (Employee is not a submittable doctype, spike §8b).
+      employee: { doctype: 'Employee', submittable: false, readOnly: true, anchorField: null },
     });
   });
 
@@ -100,6 +105,21 @@ describe('erpnext/doctypeRegistry', () => {
     expect(DOCTYPE_REGISTRY['sales-invoice'].submitOnCreate).toBe(false);
   });
 
+  it('AC-TSP-093 P3b: the employee entry is READ-ONLY, not submittable, with no recovery anchor (spike §8b/§9)', () => {
+    const entry = DOCTYPE_REGISTRY.employee;
+    expect(entry).toEqual({ doctype: 'Employee', submittable: false, readOnly: true, anchorField: null });
+  });
+
+  it('AC-TSP-093 P3b: employee is the ONLY OTHER read-only party besides supplier/customer, and it alone sets readOnly:true', () => {
+    // supplier/customer are also PMO-never-writes-beyond-party-create-in-practice (OQ-4), but neither
+    // entry actually SETS readOnly:true today (unconsumed field, pre-existing gap) — employee is the
+    // first kind to set it, matching FR-TSP-093's explicit "PMO never writes an ERP Employee" contract.
+    const readOnlyKinds = Object.entries(DOCTYPE_REGISTRY)
+      .filter(([, e]) => e.readOnly === true)
+      .map(([kind]) => kind);
+    expect(readOnlyKinds).toEqual(['employee']);
+  });
+
   // ── P3c — the budget kind (ADR-0055 §6 + ADR-0059 Posture B) ──────────────────────────────────
   // The budget-write spike (docs/spikes/2026-07-16-erpnext-budget-fields.md §7) established, from the
   // doctype META rather than a guess, that `Budget` and its `Budget Account` child carry NO free-text
@@ -130,7 +150,7 @@ describe('erpnext/doctypeRegistry', () => {
   });
 
   it('AC-BUD-022 `neverReissue` is additive + default-absent — every shipped kind keeps its reissue behaviour byte-for-byte', () => {
-    for (const kind of ['purchase-request', 'rfq', 'quotation', 'purchase-order', 'goods-receipt', 'purchase-invoice', 'payment', 'supplier', 'customer', 'sales-invoice', 'incoming-payment', 'timesheet'] as const) {
+    for (const kind of ['purchase-request', 'rfq', 'quotation', 'purchase-order', 'goods-receipt', 'purchase-invoice', 'payment', 'supplier', 'customer', 'sales-invoice', 'incoming-payment', 'timesheet', 'employee'] as const) {
       expect(DOCTYPE_REGISTRY[kind].neverReissue, `${kind} must not gain neverReissue`).toBeUndefined();
     }
     // still reissue-capable (immutable/absent anchor)

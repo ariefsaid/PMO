@@ -25,6 +25,7 @@ export type ErpDocKind =
   | 'sales-invoice'
   | 'incoming-payment'
   | 'timesheet'
+  | 'employee'
   | 'budget';
 
 /** Per-command context injected into `toBody` (resolved refs + the org's binding config defaults). */
@@ -120,6 +121,12 @@ export const DOCTYPE_REGISTRY: Record<ErpDocKind, Pick<DoctypeEntry, 'doctype' |
   // CONSEQUENCE of that approval, not a second gate; an ERP draft would mean approved hours never reach
   // costing, which is the entire point of P3b. Submit posts NO GL entry (§5) — it commits HOURS.
   timesheet: { doctype: 'Timesheet', submittable: true, submitOnCreate: true, anchorField: 'note', anchorMutable: false },
+  // P3b — the Employee MASTER (OQ-TSP-3 ruling, spike §8b/§9, FR-TSP-090..095). readOnly: PMO NEVER
+  // writes an ERP Employee — this kind exists ONLY for the inbound adopt (ADR-0059 §5's master-data
+  // exception: the never-adopt rule governs this domain's PROCESS documents — Timesheet — not the
+  // masters they reference). No anchor: a master is never recovery-probed like a money doc; not
+  // submittable: Employee is not a submittable doctype (`is_submittable: 0`, spike §8b).
+  employee: { doctype: 'Employee', submittable: false, readOnly: true, anchorField: null },
   // P3c — Budget (ADR-0055 §6 + ADR-0059 Posture B; contract frozen by
   // docs/spikes/2026-07-16-erpnext-budget-fields.md).
   // ⚑ anchorField: null is NOT the usual "we didn't find a good one" — the spike read the doctype META

@@ -227,7 +227,27 @@ the stamp is *"the state stamp the gate read"* (P3b: `timesheets.approved_at`). 
 
 **Blocks sign-off** (it decides the key, which decides the outbox contract).
 
-### OQ-BUD-3 — ⚑ Multi-fiscal-year projects — the grain mismatch — **OPEN — owner ruling needed**
+### OQ-BUD-3 — ⚑ Multi-fiscal-year projects — the grain mismatch — **✅ RULED (owner, 2026-07-21)**
+
+> **⚑ THE RULING (binding, owner 2026-07-21): option (a) NOW, option (c) as the NEXT ISSUE.**
+> Ship the fail-closed refusal below to close P3c, and **immediately file (c) — the fiscal-year /
+> phasing dimension on `budget_line_items` — as its own issue**, so multi-FY projects are unblocked
+> soon rather than indefinitely. Sizing measured this session: **8 of 54 seeded projects span
+> calendar years**, including the flagship `2025-09-01 → 2026-06-30`.
+>
+> **⚑ SECOND RULING — how the fiscal year is DERIVED: resolve it from ERPNext's `Fiscal Year`
+> doctype**, finding the FY whose range contains the project's `start_date`, and **fail closed if
+> none matches**. NOT the calendar year of `start_date`.
+> **This is currently an OPEN DEFECT:** `budgetGate.ts:resolveFiscalYearOrFailClosed()` ships
+> calendar-year derivation, which is correct only for a Jan–Dec client and otherwise targets the
+> **wrong ERP Budget object** — a wrong-year overspend control that looks like it worked.
+> **It also changes which projects get refused:** the multi-FY *span* check must compare real FY
+> ranges, not calendar years — under a Jul–Jun calendar the flagship project above is **single-FY**
+> and must push normally. See `docs/handoffs/2026-07-21-p3bc-handoff.md` §1 for the implementation
+> constraint (the gate is DB-only and has no ERP client; resolve in the adapter path or inject a
+> resolver — never fall back to the calendar year).
+
+**Original open question, retained for context:**
 
 **PMO's `budget_versions` has NO fiscal-year dimension** (a version is per *project*; its line items are per
 *category*, with no date). **ERP's `Budget` is per (company, fiscal_year, project)** — ADR-0055 §6 says so:

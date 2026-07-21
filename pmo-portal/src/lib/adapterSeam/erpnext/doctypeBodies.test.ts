@@ -22,6 +22,7 @@ import { customerToBody, customerFromDoc } from './bodies/customer.ts';
 import { piToBody, piFromDoc } from './bodies/purchaseInvoice.ts';
 import { peToBody, peFromDoc } from './bodies/paymentEntry.ts';
 import { tsToBody, tsFromDoc } from './bodies/timesheet.ts';
+import { employeeToBody, employeeFromDoc } from './bodies/employee.ts';
 import { budgetToBody, budgetFromDoc } from './bodies/budget.ts';
 
 describe('erpnext/doctypeBodies — DOCTYPE_BODIES composition (task 4.3)', () => {
@@ -63,6 +64,11 @@ describe('erpnext/doctypeBodies — DOCTYPE_BODIES composition (task 4.3)', () =
   it('AC-TSP-032 wires timesheet to the spike-frozen timesheet.ts toBody/fromDoc (P3b)', () => {
     expect(DOCTYPE_BODIES.timesheet?.toBody).toBe(tsToBody);
     expect(DOCTYPE_BODIES.timesheet?.fromDoc).toBe(tsFromDoc);
+  });
+
+  it('AC-TSP-093 wires employee to the READ-ONLY employee.ts toBody/fromDoc pair (P3b, toBody throws)', () => {
+    expect(DOCTYPE_BODIES.employee?.toBody).toBe(employeeToBody);
+    expect(DOCTYPE_BODIES.employee?.fromDoc).toBe(employeeFromDoc);
   });
 
   it('AC-BUD-012 wires budget to the spike-frozen budget.ts toBody/fromDoc (P3c)', () => {

@@ -409,3 +409,63 @@ describe('can() — integration entity (AC-EAC-003/004, FR-EAC-004)', () => {
     expect(can('manage', 'integration', { realRole: 'Project Manager' })).toBe(false);
   });
 });
+
+describe('can() — push_timesheet (P3b FR-TSP-011; UX only — approved_timesheet_for_push (0138) + approvalGuard.ts are the enforcement authority)', () => {
+  it('AC-TSP-051(ux): the sheet\'s own approved_by (an Engineer-role line manager) may push — NOT narrowed to money-write roles', () => {
+    expect(
+      can('push_timesheet', 'timesheet', {
+        realRole: 'Engineer',
+        currentUserId: 'm-1',
+        record: { approved_by: 'm-1' },
+      }),
+    ).toBe(true);
+  });
+
+  it('AC-TSP-051(ux): Admin·Executive·Project Manager·Finance may push ANY approved sheet (not just their own approval)', () => {
+    for (const realRole of ['Admin', 'Executive', 'Project Manager', 'Finance'] as Role[]) {
+      expect(
+        can('push_timesheet', 'timesheet', {
+          realRole,
+          currentUserId: 'someone-else',
+          record: { approved_by: 'm-1' },
+        }),
+      ).toBe(true);
+    }
+  });
+
+  it('AC-TSP-051(ux): an unrelated Engineer bystander (not the approver, not privileged) is denied', () => {
+    expect(
+      can('push_timesheet', 'timesheet', {
+        realRole: 'Engineer',
+        currentUserId: 'bystander-1',
+        record: { approved_by: 'm-1' },
+      }),
+    ).toBe(false);
+  });
+
+  it('AC-TSP-051(ux): with no record context (approved_by unknown) a non-privileged role is denied (fail closed)', () => {
+    expect(can('push_timesheet', 'timesheet', { realRole: 'Engineer', currentUserId: 'm-1' })).toBe(
+      false,
+    );
+  });
+
+  it('AC-TSP-051(ux): a null role is always denied', () => {
+    expect(can('push_timesheet', 'timesheet', { realRole: null })).toBe(false);
+  });
+});
+
+describe('can() — confirm_employee_link (P3b OQ-TSP-10(C); UX only — confirm_erp_employee_link (0111/0141) is the enforcement authority)', () => {
+  it('AC-TSP-092(ux): Admin may confirm a proposed Employee link', () => {
+    expect(can('confirm_employee_link', 'employeeLink', { realRole: 'Admin' })).toBe(true);
+  });
+
+  it('AC-TSP-092(ux): every non-Admin role is denied (identity re-pointing is Admin-only)', () => {
+    for (const realRole of ['Executive', 'Project Manager', 'Finance', 'Engineer'] as Role[]) {
+      expect(can('confirm_employee_link', 'employeeLink', { realRole })).toBe(false);
+    }
+  });
+
+  it('AC-TSP-092(ux): a null role is always denied', () => {
+    expect(can('confirm_employee_link', 'employeeLink', { realRole: null })).toBe(false);
+  });
+});

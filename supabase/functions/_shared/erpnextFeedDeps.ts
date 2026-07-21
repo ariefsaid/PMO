@@ -33,6 +33,7 @@
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
+import { AdapterError } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
 import { findPmoRecordId, recordExternalRef } from '../../../pmo-portal/src/lib/adapterSeam/refs.ts';
 import { ERPNEXT_TIER } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/adapter.ts';
 import { KIND_DOMAIN, KIND_MIRROR_TABLE, type ErpDocKind } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/feedKinds.ts';
@@ -67,6 +68,7 @@ export function createErpFeedDeps(serviceClient: SupabaseClient, orgId: string, 
       const patch = {
         ...mirrorStatusPatch(canonical, sourceModMs),
         ...(await revenueFieldPatch(serviceClient, orgId, kind, canonical)),
+        ...(await employeeFieldPatch(serviceClient, orgId, kind, pmoRecordId, canonical)),
       };
       const { error } = await (serviceClient.from(table).update(patch).eq('org_id', orgId).eq('id', pmoRecordId) as unknown as Promise<{
         error: { message: string; code?: string } | null;
@@ -78,16 +80,28 @@ export function createErpFeedDeps(serviceClient: SupabaseClient, orgId: string, 
     // unique(org_id,domain,external_record_id) race (0093) never inserts a mirror row at all — no orphan
     // duplicate money row. `mirrorExists` closes the inverse window (claimed, then the process died
     // before the mint): the next apply re-mints with the SAME pre-claimed id.
-    adoptAtomically: {
-      newPmoRecordId: () => crypto.randomUUID(),
-      claimExternalRef: (mapping) => recordExternalRef(serviceClient as never, { orgId, ...mapping }),
-      mintWithId: (canonical, sourceModMs, pmoRecordId) => mintMirrorRow(serviceClient, orgId, kind, canonical, sourceModMs, pmoRecordId),
-      mirrorExists: async (pmoRecordId) => {
-        const { data, error } = await serviceClient.from(table).select('id').eq('org_id', orgId).eq('id', pmoRecordId).maybeSingle();
-        if (error) throw new AppError(error.message, error.code);
-        return data !== null;
+    //
+    // P3b FR-TSP-082/task 6.2 — `timesheet` gets NO atomic-adopt strategy at all. The claim-first order
+    // is exactly wrong for a kind that must NEVER adopt: `claimExternalRef` would run and insert a
+    // permanent `external_refs` row for a native ERP Timesheet BEFORE `mintWithId` (mintMirrorRow) ever
+    // gets a chance to throw — orphaning a claimed PMO id nothing is ever minted for, and (worse)
+    // making every LATER event for that same ERP name look "already mapped" to `resolvePmoRecordId`,
+    // permanently wedging it. Omitting `adoptAtomically` here falls the engine back to the LEGACY
+    // mint-then-ref path (`mintMirror` below), where the throw fires BEFORE any external_refs write —
+    // truly no side effect, matching FR-TSP-082's intent. `employee` KEEPS the claim-first strategy: it
+    // legitimately adopts, so the race-safety property is wanted there.
+    ...(kind === 'timesheet' ? {} : {
+      adoptAtomically: {
+        newPmoRecordId: () => crypto.randomUUID(),
+        claimExternalRef: (mapping) => recordExternalRef(serviceClient as never, { orgId, ...mapping }),
+        mintWithId: (canonical, sourceModMs, pmoRecordId) => mintMirrorRow(serviceClient, orgId, kind, canonical, sourceModMs, pmoRecordId),
+        mirrorExists: async (pmoRecordId) => {
+          const { data, error } = await serviceClient.from(table).select('id').eq('org_id', orgId).eq('id', pmoRecordId).maybeSingle();
+          if (error) throw new AppError(error.message, error.code);
+          return data !== null;
+        },
       },
-    },
+    }),
     // Retained for the ApplyChangeDeps contract (the engine uses `adoptAtomically` above); delegates to
     // the SAME mint so there is exactly one insert implementation per kind.
     mintMirror: async (canonical, sourceModMs) => {
@@ -109,6 +123,12 @@ export function createErpFeedDeps(serviceClient: SupabaseClient, orgId: string, 
         ...cancelStatusPatch(kind),
       }).eq('org_id', orgId).eq('id', pmoRecordId) as unknown as Promise<{ error: { message: string; code?: string } | null }>);
       if (error) throw new AppError(error.message, error.code);
+      // P3b FR-TSP-084 — the desk-cancel action-required surface (task 6.3). The push_state='failed'
+      // reopen above is silent by itself; an operator needs a prompt that a human cancelled the ERP
+      // Timesheet a PMO sheet was already pushed to.
+      if (kind === 'timesheet') {
+        await surfaceActionRequired(serviceClient, orgId, 'timesheet-desk-cancelled', { pmoRecordId });
+      }
       // Luna BLOCK A4 (feed side): ERPNext auto-unlinks a Receive Payment Entry's `references` when the
       // Sales Invoice it cites cancels (AC-SAR-022) — PMO's `incoming_payments.sales_invoice_id` is
       // otherwise left stale. Reconcile via the EXISTING pure helper (never duplicate its logic); the
@@ -198,6 +218,49 @@ async function mintMirrorRow(
     });
     if (error) throw new AppError(error.message, error.code);
     return;
+  }
+  // P3b — the Timesheets domain (ADR-0059 Posture B). Two SIBLING kinds, opposite adopt rules:
+  //   • `employee` — a MASTER (ADR-0059 §5's exception): adopts exactly like Supplier/Customer above —
+  //     the SAME shipped party-adopt path, no new adopt function, no new engine.
+  //   • `timesheet` — a PROCESS document (FR-TSP-082): the DELIBERATE INVERSE of P3a's Sales Invoice
+  //     adopt. PMO is SoT for entry AND approval here, so minting a PMO row from a natively-created ERP
+  //     Timesheet would import HOURS THAT NEVER PASSED PMO APPROVAL — exactly what the owner's ruling
+  //     forbids. So: mint NOTHING (no `timesheets` row, no `timesheet_entries`, no
+  //     `timesheet_erp_mirror` row — this function returns before any insert), surface
+  //     action-required, and throw a classified error so the caller (webhook/sweep) neither silently
+  //     drops nor treats this as a landed adopt. (This also removes the Luna BLOCK-7 "inbound adoption
+  //     loses links" class by deleting the adopt path entirely for this kind.)
+  if (domain === 'timesheets') {
+    if (kind === 'employee') {
+      // Mint the FULL canonical + the erp_modified stamp — never a half-empty name-only row (the exact
+      // party-adopt bug found live 2026-07-14: a half-empty adopted row never engages the per-row
+      // staleness guard because erp_modified was NULL). link_state is NEVER auto-confirmed (FR-TSP-092)
+      // — only a Human `confirm_erp_employee_link` (0140) authorizes a push.
+      const { error } = await serviceClient.from('erp_employees').insert({
+        id,
+        org_id: orgId,
+        employee_number: (canonical.employee_number as string | null | undefined) ?? canonical.id,
+        employee_name: (canonical.employee_name as string | null | undefined) ?? null,
+        work_email: (canonical.work_email as string | null | undefined) ?? null,
+        erp_user_id: (canonical.erp_user_id as string | null | undefined) ?? null,
+        erp_status: (canonical.erp_status as string | null | undefined) ?? null,
+        link_state: 'unlinked',
+        erp_docstatus: (canonical.erp_docstatus as number | null | undefined) ?? null,
+        erp_modified: new Date(sourceModMs).toISOString(),
+      });
+      if (error) throw new AppError(error.message, error.code);
+      // OQ-TSP-10(C): PROPOSE only, on a unique exact case-insensitive work-email match. Zero/multiple
+      // hits stay 'unlinked' + surface action-required (the party-adopt ambiguous-match precedent:
+      // SURFACE, never auto-resolve). A proposal does NOT authorize a push — only a confirm does.
+      await proposeEmployeeLink(serviceClient, orgId, id, (canonical.work_email as string | null | undefined) ?? null);
+      return;
+    }
+    if (kind === 'timesheet') {
+      await surfaceActionRequired(serviceClient, orgId, 'timesheet-native-not-adopted', {
+        erpName: String(canonical.id ?? ''),
+      });
+      throw new AdapterError('commit-rejected', 'native-timesheet-not-adopted');
+    }
   }
   // Revenue domain inbound adopt (sales-invoice / incoming-payment) — mint the FULL canonical
   // row + erp_modified stamp (the 0103 lesson: NOT just name/status). Resolve customer_id from
@@ -314,6 +377,14 @@ export function deriveIpStatus(docstatus: number | null | undefined): 'Scheduled
 function cancelStatusPatch(kind: ErpDocKind): Record<string, unknown> {
   if (kind === 'sales-invoice') return { status: deriveSiStatus(null, 2) };
   if (kind === 'incoming-payment') return { status: deriveIpStatus(2) };
+  // P3b FR-TSP-084 — desk cancel REOPENS the push state to 'failed' + action-required (surfaced by the
+  // caller, `tombstoneMirror`, right after this patch lands). Do NOT re-push here: the sweep backstop
+  // would instantly re-create what a human just cancelled — an infinite fight between the backstop and
+  // the accountant. `erp_cancelled_at` (set by the caller alongside this patch) is ALSO the sweep's
+  // candidate-query exclusion (task 6.4). The PMO `timesheets` row itself is UNTOUCHED here — still
+  // Approved; PMO's approval is not ERP's to revoke (FR-TSP-004(ii)). Resolution is the OQ-TSP-6
+  // correction path (OPEN).
+  if (kind === 'timesheet') return { push_state: 'failed' };
   return {};
 }
 
@@ -402,6 +473,142 @@ async function resolveSalesInvoiceId(serviceClient: SupabaseClient, orgId: strin
   const { data } = await serviceClient.from('external_refs').select('pmo_record_id')
     .eq('org_id', orgId).eq('domain', 'revenue').eq('external_record_id', siErpName).maybeSingle();
   return (data as { pmo_record_id?: string } | null)?.pmo_record_id ?? null;
+}
+
+/**
+ * P3b — the Employee mirror columns an inbound update repairs (FR-TSP-090/092.4). Only `employee`-kind
+ * changes touch this; every other kind is untouched (`{}`).
+ *
+ * ⚑ FR-TSP-092.4 (the confirmed-link guard): `profile_id`/`link_state`/`linked_by`/`linked_at` are
+ * NEVER part of this patch — those columns are written EXCLUSIVELY by `confirm_erp_employee_link`
+ * (migration 0140). This function only mirrors the Employee master's OWN fields. When the row's
+ * CURRENT `link_state` is `'confirmed'` and the incoming `work_email` differs from what is stored, an
+ * ERP-side email edit on a confirmed link surfaces `employee-link-email-changed` — the confirmed link
+ * itself STANDS (never re-pointed here); the mirrored `work_email` column still updates for display
+ * accuracy (ERP-side email is Desk-editable and the mirror should reflect current reality — only the
+ * PMO-user LINK is the security-sensitive part, and this function structurally cannot touch it).
+ */
+async function employeeFieldPatch(
+  serviceClient: SupabaseClient,
+  orgId: string,
+  kind: ErpDocKind,
+  pmoRecordId: string,
+  canonical: PmoRecord,
+): Promise<Record<string, unknown>> {
+  if (kind !== 'employee') return {};
+  const patch: Record<string, unknown> = {};
+  putIfPresent(patch, 'employee_name', (canonical as { employee_name?: unknown }).employee_name);
+  putIfPresent(patch, 'erp_user_id', (canonical as { erp_user_id?: unknown }).erp_user_id);
+  putIfPresent(patch, 'erp_status', (canonical as { erp_status?: unknown }).erp_status);
+
+  const newWorkEmail = (canonical as { work_email?: string | null | undefined }).work_email;
+  if (newWorkEmail !== undefined) {
+    const { data, error } = await serviceClient.from('erp_employees').select('work_email, link_state')
+      .eq('org_id', orgId).eq('id', pmoRecordId).maybeSingle();
+    if (error) throw new AppError(error.message, error.code);
+    const row = data as { work_email?: string | null; link_state?: string } | null;
+    if (row && row.link_state === 'confirmed' && (row.work_email ?? null) !== (newWorkEmail ?? null)) {
+      await surfaceActionRequired(serviceClient, orgId, 'employee-link-email-changed', { erpEmployeeId: pmoRecordId });
+    }
+    patch.work_email = newWorkEmail;
+  }
+  return patch;
+}
+
+/**
+ * OQ-TSP-10(C) FR-TSP-092: PROPOSE, never confirm. On adopt, an Employee's `work_email` is probed
+ * against `profiles.email` for a UNIQUE, exact, case-insensitive match. Zero or multiple hits leave the
+ * row `link_state='unlinked'` + surface action-required (the party-adopt ambiguous-match precedent:
+ * SURFACE, never auto-resolve) — only a Human `confirm_erp_employee_link` (0140) authorizes a push.
+ * The update is scoped to `link_state='unlinked'` so it never re-proposes over an already-
+ * proposed/confirmed/rejected row (FR-TSP-092.4 stays intact even on a re-apply).
+ */
+async function proposeEmployeeLink(
+  serviceClient: SupabaseClient,
+  orgId: string,
+  erpEmployeeId: string,
+  workEmail: string | null,
+): Promise<void> {
+  if (!workEmail) {
+    await surfaceActionRequired(serviceClient, orgId, 'employee-link-no-email', { erpEmployeeId });
+    return;
+  }
+  const { data, error } = await serviceClient.from('profiles').select('id')
+    .eq('org_id', orgId).ilike('email', workEmail);
+  if (error) throw new AppError(error.message, error.code);
+  const rows = (data as Array<{ id: string }> | null) ?? [];
+  if (rows.length !== 1) {
+    await surfaceActionRequired(
+      serviceClient,
+      orgId,
+      rows.length === 0 ? 'employee-link-no-match' : 'employee-link-ambiguous',
+      { erpEmployeeId, workEmail },
+    );
+    return; // stays link_state='unlinked', profile_id=null — NEVER auto-resolve
+  }
+  const { error: updateError } = await serviceClient.from('erp_employees')
+    .update({ link_state: 'proposed', profile_id: rows[0].id, link_proposed_reason: 'work-email-exact-match' })
+    .eq('org_id', orgId).eq('id', erpEmployeeId).eq('link_state', 'unlinked');
+  if (updateError) throw new AppError(updateError.message, updateError.code);
+}
+
+/**
+ * P3b — the generic action-required surface (task 6.2/3.6). Writes to the EXISTING `notifications`
+ * surface (0048), matching `notifyFinanceUnassignedInvoice`'s established pattern, generalized across
+ * every P3b action-required reason (never-adopted Timesheet, desk-cancel, unresolved/ambiguous Employee
+ * link, a confirmed link's email changing). Best-effort: a notification failure is logged, never
+ * propagated — the caller's own write (the mint/update/tombstone) must never be lost to it.
+ */
+async function surfaceActionRequired(
+  serviceClient: SupabaseClient,
+  orgId: string,
+  actionRequired: string,
+  detail: Record<string, unknown>,
+): Promise<void> {
+  try {
+    const { data, error } = await serviceClient.from('profiles').select('id')
+      .eq('org_id', orgId).eq('status', 'active').in('role', ['Admin', 'Finance']);
+    if (error) throw new AppError(error.message, error.code);
+    const recipients = (data as Array<{ id: string }> | null) ?? [];
+    if (recipients.length === 0) {
+      console.error(`[erpnextFeedDeps] no active Admin/Finance recipient in org ${orgId} — ${actionRequired} is unsurfaced`);
+      return;
+    }
+    const { error: insertError } = await serviceClient.from('notifications').insert(
+      recipients.map((r) => ({
+        org_id: orgId,
+        owner_id: r.id,
+        severity: 'warning',
+        title: 'Action required',
+        body: describeActionRequired(actionRequired, detail),
+        metadata: { action_required: actionRequired, ...detail },
+      })),
+    );
+    if (insertError) throw new AppError(insertError.message, insertError.code);
+  } catch (err) {
+    console.error(`[erpnextFeedDeps] surfaceActionRequired(${actionRequired}) for org ${orgId} failed: ${err instanceof Error ? err.message : String(err)}`);
+  }
+}
+
+/** Human-readable body text per action-required reason — kept out of the caller sites so a new reason
+ *  is a one-line addition here, never a copy-pasted notification insert. */
+function describeActionRequired(actionRequired: string, detail: Record<string, unknown>): string {
+  switch (actionRequired) {
+    case 'employee-link-no-email':
+      return `Adopted Employee ${detail.erpEmployeeId ?? ''} has no work email on record — link it to a PMO user manually.`;
+    case 'employee-link-no-match':
+      return `No PMO user matches work email ${detail.workEmail ?? ''} for the adopted Employee ${detail.erpEmployeeId ?? ''} — link it manually.`;
+    case 'employee-link-ambiguous':
+      return `Multiple PMO users match work email ${detail.workEmail ?? ''} for the adopted Employee ${detail.erpEmployeeId ?? ''} — confirm the correct link manually.`;
+    case 'employee-link-email-changed':
+      return `The linked Employee's work email changed in ERPNext — the CONFIRMED link was NOT re-pointed (a security property, not a bug).`;
+    case 'timesheet-native-not-adopted':
+      return `A Timesheet created directly in ERPNext (${detail.erpName ?? ''}) was NOT imported — PMO is the source of truth for hours; enter it in PMO instead.`;
+    case 'timesheet-desk-cancelled':
+      return `A Timesheet was cancelled directly in ERPNext after PMO pushed it — the push is marked failed for review.`;
+    default:
+      return `Action required: ${actionRequired}`;
+  }
 }
 
 /**

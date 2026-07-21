@@ -5,23 +5,53 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // extended to cover both .from() chains AND .rpc() calls.
 // ---------------------------------------------------------------------------
 
-const { mockRpc, mockFrom, mockSelect, mockEq, mockOrder, mockLimit, mockUpdate, mockDelete, mockInsert, mockSingle } =
-  vi.hoisted(() => {
-    const mockRpc = vi.fn();
-    const mockFrom = vi.fn();
-    const mockSelect = vi.fn();
-    const mockEq = vi.fn();
-    const mockOrder = vi.fn();
-    const mockLimit = vi.fn();
-    const mockUpdate = vi.fn();
-    const mockDelete = vi.fn();
-    const mockInsert = vi.fn();
-    const mockSingle = vi.fn();
-    return { mockRpc, mockFrom, mockSelect, mockEq, mockOrder, mockLimit, mockUpdate, mockDelete, mockInsert, mockSingle };
-  });
+const {
+  mockRpc,
+  mockFrom,
+  mockSelect,
+  mockEq,
+  mockOrder,
+  mockLimit,
+  mockUpdate,
+  mockDelete,
+  mockInsert,
+  mockSingle,
+  mockMaybeSingle,
+  mockFunctionsInvoke,
+} = vi.hoisted(() => {
+  const mockRpc = vi.fn();
+  const mockFrom = vi.fn();
+  const mockSelect = vi.fn();
+  const mockEq = vi.fn();
+  const mockOrder = vi.fn();
+  const mockLimit = vi.fn();
+  const mockUpdate = vi.fn();
+  const mockDelete = vi.fn();
+  const mockInsert = vi.fn();
+  const mockSingle = vi.fn();
+  const mockMaybeSingle = vi.fn();
+  const mockFunctionsInvoke = vi.fn();
+  return {
+    mockRpc,
+    mockFrom,
+    mockSelect,
+    mockEq,
+    mockOrder,
+    mockLimit,
+    mockUpdate,
+    mockDelete,
+    mockInsert,
+    mockSingle,
+    mockMaybeSingle,
+    mockFunctionsInvoke,
+  };
+});
 
+// P3c (slice 4): `activateVersion` now also re-reads `activated_at` (`.maybeSingle()`) and dispatches the
+// push consequence (`supabase.functions.invoke`) — both mocked here so the invariant tests below can wire
+// the FULL success/failure paths, not just the RPC half.
 vi.mock('@/src/lib/supabase/client', () => ({
-  supabase: { from: mockFrom, rpc: mockRpc },
+  supabase: { from: mockFrom, rpc: mockRpc, functions: { invoke: mockFunctionsInvoke } },
 }));
 
 import {
@@ -67,6 +97,7 @@ function makeFromBuilder(resolved: { data: unknown; error: unknown }) {
   builder.delete = mockDelete.mockReturnValue(builder);
   builder.insert = mockInsert.mockReturnValue(builder);
   builder.single = mockSingle.mockReturnValue(builder);
+  builder.maybeSingle = mockMaybeSingle.mockReturnValue(builder);
   // Make the builder thenable — awaiting it yields resolved
   builder.then = (resolve: (v: typeof resolved) => void, reject?: (e: unknown) => void) =>
     Promise.resolve(resolved).then(resolve, reject);
@@ -86,6 +117,8 @@ beforeEach(() => {
   mockDelete.mockReset();
   mockInsert.mockReset();
   mockSingle.mockReset();
+  mockMaybeSingle.mockReset();
+  mockFunctionsInvoke.mockReset();
 });
 
 // ---------------------------------------------------------------------------
@@ -407,6 +440,8 @@ describe('cloneVersion', () => {
 describe('activateVersion', () => {
   it('activateVersion calls the activate RPC with version_id, no org_id (FR-BV-005)', async () => {
     makeRpcBuilder({ data: null, error: null });
+    makeFromBuilder({ data: { activated_at: '2026-07-16T10:00:00Z' }, error: null });
+    mockFunctionsInvoke.mockResolvedValue({ data: { externalRecordId: null, canonical: { id: 'v-draft' } }, error: null });
     await activateVersion('v-draft');
     expect(mockRpc).toHaveBeenCalledWith('activate_budget_version', { version_id: 'v-draft' });
     expect(JSON.stringify(mockRpc.mock.calls)).not.toContain('org_id');
@@ -415,6 +450,39 @@ describe('activateVersion', () => {
   it('throws on RPC error', async () => {
     makeRpcBuilder({ data: null, error: { message: 'activate error' } });
     await expect(activateVersion('v-draft')).rejects.toThrow('activate error');
+  });
+
+  it('AC-BUD-032 ⚑ the money invariant: activation still succeeds when the ERP push dispatch fails', async () => {
+    makeRpcBuilder({ data: null, error: null });
+    makeFromBuilder({ data: { activated_at: '2026-07-16T10:00:00Z' }, error: null });
+    mockFunctionsInvoke.mockResolvedValue({ data: null, error: { message: 'external-unreachable' } });
+    // Never rejects — the push failure is swallowed into durable server-side state, never re-thrown here.
+    await expect(activateVersion('v-draft')).resolves.toBeUndefined();
+  });
+
+  it('AC-BUD-032 activation still succeeds when the version carries no activation stamp to key the push on', async () => {
+    makeRpcBuilder({ data: null, error: null });
+    makeFromBuilder({ data: { activated_at: null }, error: null }); // budgetPushKey fails closed on this
+    await expect(activateVersion('v-draft')).resolves.toBeUndefined();
+    expect(mockFunctionsInvoke).not.toHaveBeenCalled();
+  });
+
+  it('activateVersion dispatches the budget push through the served boundary with a deterministic idempotency key', async () => {
+    makeRpcBuilder({ data: null, error: null });
+    makeFromBuilder({ data: { activated_at: '2026-07-16T10:00:00Z' }, error: null });
+    mockFunctionsInvoke.mockResolvedValue({ data: { externalRecordId: null, canonical: { id: 'v-draft' } }, error: null });
+    await activateVersion('v-draft');
+    expect(mockFunctionsInvoke).toHaveBeenCalledWith(
+      'adapter-dispatch',
+      expect.objectContaining({
+        body: expect.objectContaining({
+          domain: 'budget',
+          operation: 'create',
+          record: { id: 'v-draft', erp_doc_kind: 'budget' },
+          idempotencyKey: 'bud:v-draft:1784196000000',
+        }),
+      }),
+    );
   });
 });
 

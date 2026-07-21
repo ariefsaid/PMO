@@ -14,7 +14,7 @@ import { DOCTYPE_REGISTRY, type ErpDocKind } from './doctypeRegistry.ts';
 
 export type { ErpDocKind } from './doctypeRegistry.ts';
 
-/** kind → the PMO domain (the three ERPNext-owned domains). */
+/** kind → the PMO domain (the ERPNext-owned domains: companies/procurement/revenue/timesheets/budget). */
 export const KIND_DOMAIN: Record<ErpDocKind, 'companies' | 'procurement' | 'revenue' | 'timesheets' | 'budget'> = {
   'purchase-request': 'procurement',
   rfq: 'procurement',
@@ -30,6 +30,11 @@ export const KIND_DOMAIN: Record<ErpDocKind, 'companies' | 'procurement' | 'reve
   'incoming-payment': 'revenue',
   // P3b — Timesheets (ADR-0059 Posture B: PMO-SoT + an ERP side mirror).
   timesheet: 'timesheets',
+  // P3b — the Employee MASTER (OQ-TSP-3 ruling). `timesheets`, deliberately NOT `companies`
+  // (FR-TSP-094): `companies` is ALREADY FLIPPED for existing orgs, so adding an Employee doctype to
+  // its sweep/feed would change their behavior — an FR-ENA-004 violation. The timesheets flip brings
+  // its own master. AC-TSP-003 proves this.
+  employee: 'timesheets',
   // P3c — the budget push (ADR-0059 Posture B). PMO authors the budget; ERP receives a copy for the GL
   // + its native overspend controls.
   budget: 'budget',
@@ -54,6 +59,8 @@ export const KIND_MIRROR_TABLE: Record<ErpDocKind, string> = {
   // P3b — the SIDE mirror (0136). ⛔ NEVER `timesheets`/`timesheet_entries`: PMO is the SoT there and
   // no feed/mirror write may ever touch them (ADR-0059 §3.1, FR-TSP-004(ii)).
   timesheet: 'timesheet_erp_mirror',
+  // P3b — the adopted Employee master (0136). Its OWN table, never `companies` (FR-TSP-094).
+  employee: 'erp_employees',
   // P3c — the SIDE mirror (0137). ⛔ NEVER `budget_versions`/`budget_line_items`: PMO is the SoT for the
   // budget figure (OD-BUDGET-1) and no feed/mirror write may ever touch them. A Desk-created ERP Budget
   // is ack-and-skipped, never adopted (FR-BUD-140) — the inverse of P3a's adopt rule.
@@ -89,5 +96,8 @@ export function kindFromDoctypeAndPaymentType(doctype: string, paymentType?: str
 export function externalIdForKind(kind: ErpDocKind, erpName: string): string {
   if (kind === 'supplier') return `Supplier:${erpName}`;
   if (kind === 'customer') return `Customer:${erpName}`;
+  // P3b (FR-TSP-091): the SAME collision-prevention idiom as Supplier:/Customer: — deterministic and
+  // namespace-safe within the domain, even though `Employee` collides with no other doctype here today.
+  if (kind === 'employee') return `Employee:${erpName}`;
   return erpName;
 }

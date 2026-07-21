@@ -29,7 +29,9 @@ export type Action =
   | 'editContractValue'
   | 'submit_sales_invoice'
   | 'manage_external_bindings'
-  | 'manage';
+  | 'manage'
+  | 'push_timesheet'
+  | 'confirm_employee_link';
 
 export type Entity =
   | 'project'
@@ -56,7 +58,8 @@ export type Entity =
   | 'salesInvoice'
   | 'incomingPayment'
   | 'externalBinding'
-  | 'integration';
+  | 'integration'
+  | 'employeeLink';
 
 export interface PolicyContext {
   /** The REAL JWT role (not the impersonated effectiveRole). */
@@ -73,6 +76,9 @@ export interface PolicyContext {
      *  append-only `sales_invoice_authors` set). The `author_id` scalar is last-writer-wins and so is
      *  only a legacy member of this set, never the whole truth. */
     author_ids?: string[] | null;
+    /** The sheet's approver (`timesheets.approved_by`) — the P3b `push_timesheet` oracle
+     *  (FR-TSP-011): the sheet's OWN approver may always push it, regardless of role. */
+    approved_by?: string | null;
     [k: string]: unknown;
   };
 }
@@ -232,6 +238,19 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
   timesheet: {
     create: allow(['Admin', 'Executive', 'Project Manager', 'Engineer']),
     edit: allow(['Admin', 'Executive', 'Project Manager', 'Engineer']),
+    /**
+     * P3b (FR-TSP-011) — the Retry/push affordance for a flipped org's ERP push. UX ONLY: the
+     * enforcement authorities are `approved_timesheet_for_push` (migration 0138) and
+     * `approvalGuard.ts`'s `enforceTimesheetApproved` — the FE may be STRICTER than the DB, never
+     * looser. The rule is deliberately NOT `MONEY_WRITE_ROLES`/`MASTER_DATA` alone: a legitimate
+     * approver is very often an Engineer-role line manager (`profiles.manager_id`), so the sheet's
+     * OWN `approved_by` always passes regardless of role — narrowing this to a money-role set would
+     * break the primary approval path (the exact P3a-pattern-matching trap the plan calls out).
+     */
+    push_timesheet: (role, ctx) => {
+      if (has(MASTER_DATA, role)) return true; // Admin·Executive·Project Manager·Finance
+      return !!ctx.currentUserId && ctx.record?.approved_by === ctx.currentUserId;
+    },
   },
   approval: {
     transition: allow(DELIVERY), // approve others' timesheets; !self enforced at the call-site + RPC
@@ -318,6 +337,13 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     // Admin self-serve connect/disconnect (UX gate). Server (edge fn + RPC) re-enforces
     // Admin OR platform Operator. FE is stricter (Admin only).
     manage: allow(ADMIN),
+  },
+  // P3b (OQ-TSP-10(C) — the owner ruling): the Employee-adopt link is PROPOSE-then-CONFIRM, never
+  // auto-confirmed. Confirming re-points which PMO user a week of ERP hours is attributed to — an
+  // identity decision, Admin-only. UX ONLY: `confirm_erp_employee_link` (migrations 0111/0141) is the
+  // enforcement authority.
+  employeeLink: {
+    confirm_employee_link: allow(ADMIN),
   },
 };
 

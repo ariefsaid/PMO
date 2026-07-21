@@ -16,6 +16,7 @@
 const { sweepKindsForOrg, sweepFieldsForKind, KINDS_NEEDING_FULL_DOC } = await import('./index.ts');
 import { SI_FROM_DOC_FIELDS } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/bodies/salesInvoice.ts';
 import { PE_RECEIVE_FROM_DOC_FIELDS } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/bodies/incomingPayment.ts';
+import { EMPLOYEE_FROM_DOC_FIELDS } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/bodies/employee.ts';
 
 function assert(cond: boolean, msg: string): void {
   if (!cond) throw new Error(msg);
@@ -98,4 +99,44 @@ Deno.test('AC-BUD-040 an org that owns `budget` polls NO Budget doctype yet (the
 Deno.test('AC-BUD-040 excluding budget does not disturb any other domain’s poll list', () => {
   const revenue = sweepKindsForOrg(['revenue']).map((k) => k.kind).sort();
   assert(JSON.stringify(revenue) === JSON.stringify(['incoming-payment', 'sales-invoice']), `revenue poll list changed: ${revenue}`);
+});
+
+// ── P3b Slice 3 — the Employee sweep cursor, gated on the `timesheets` flip (AC-TSP-003) ────────────
+//
+// THE REGRESSION GUARD (FR-TSP-094): `companies` is ALREADY FLIPPED for existing orgs. Employee lives
+// in the `timesheets` domain, deliberately NOT `companies` — so an org that owns `companies` but has
+// NOT flipped `timesheets` must issue ZERO Employee doctype calls, and its `companies` sweep behavior
+// (supplier/customer) must stay byte-for-byte. An org that DOES own `timesheets` sweeps BOTH
+// `Timesheet` (lifecycle-only, never adopts — task 6.2) and `Employee` (the adopt target) — the cursor
+// starts at zero, so the first tick after the flip backfills every pre-existing Employee (FR-TSP-091).
+
+Deno.test('AC-TSP-003 an org owning `companies` but NOT `timesheets` polls ZERO Employee doctype calls, and its companies poll is unaffected', () => {
+  const kinds = sweepKindsForOrg(['companies']).map((k) => k.kind);
+  assert(!kinds.includes('employee'), 'a companies-only org must never poll Employee (FR-TSP-094)');
+  assert(!kinds.includes('timesheet'), 'a companies-only org must never poll Timesheet either');
+  assert(kinds.includes('supplier') && kinds.includes('customer'), 'the companies doctypes it DOES own must still be polled, unaffected');
+});
+
+Deno.test('AC-TSP-003 an org owning `timesheets` sweeps BOTH Timesheet and Employee', () => {
+  const kinds = sweepKindsForOrg(['timesheets']).map((k) => k.kind).sort();
+  assert(kinds.includes('timesheet'), 'a timesheets-owning org must poll Timesheet (lifecycle-only, task 6.2)');
+  assert(kinds.includes('employee'), 'a timesheets-owning org must poll Employee (the adopt target, FR-TSP-091)');
+});
+
+Deno.test('AC-TSP-003 an org owning `timesheets` alone still polls NO companies/procurement/revenue doctype', () => {
+  const kinds = sweepKindsForOrg(['timesheets']).map((k) => k.kind);
+  assert(!kinds.includes('supplier') && !kinds.includes('customer'), 'a timesheets-only org must not poll companies doctypes');
+  assert(!kinds.includes('purchase-invoice'), 'a timesheets-only org must not poll procurement doctypes');
+  assert(!kinds.includes('sales-invoice'), 'a timesheets-only org must not poll revenue doctypes');
+});
+
+Deno.test('AC-TSP-003 the Employee poll fetches every field employeeFromDoc consumes, plus lifecycle routing fields, and NO company filter (a global-ish master, not company-scoped)', () => {
+  const fields = sweepFieldsForKind('employee');
+  for (const required of EMPLOYEE_FROM_DOC_FIELDS) {
+    assert(fields.includes(required), `the Employee poll must fetch every field its mapper reads — missing '${required}'`);
+  }
+  for (const required of ['name', 'modified', 'docstatus', 'amended_from']) {
+    assert(fields.includes(required), `expected the Employee poll to fetch the lifecycle routing field '${required}'`);
+  }
+  assert(!fields.includes('company'), 'Employee is not company-scoped (companyScope.ts) — the poll must not request `company`');
 });
