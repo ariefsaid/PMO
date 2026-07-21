@@ -39,10 +39,10 @@ const MAX_PAGES = 1000;
  *     `origin/feat/task-model-fields`, migration 0123, deliberately not pulled in here). This is an
  *     interim "never mirror archived as live" stance, not a full archived-tasks model.
  *   - `include_timl=true` ("tasks in multiple lists"): without it, a task that also lives in another
- *     ClickUp List is seen or missed depending on which List happens to be polled. With it: a task
- *     shared across two Lists bound to two DIFFERENT PMO projects can now be adopted/mirrored by BOTH
- *     sweeps — a known, out-of-scope duplicate-mirror risk this fix does not resolve (flagged, not
- *     built here; same "separate issue" boundary as the subtask model).
+ *     ClickUp List is seen or missed depending on which List happens to be polled. With it, the raw
+ *     reader deliberately tags every occurrence; the multi-List sweep deduplicates those occurrences,
+ *     preserves an existing mirror's project, and holds an unmapped task seen in multiple bound Lists
+ *     rather than adopting it ambiguously.
  */
 function buildListQuery(cursor: string | null, page: number): URLSearchParams {
   const query = new URLSearchParams({
