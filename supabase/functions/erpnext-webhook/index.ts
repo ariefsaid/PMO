@@ -26,9 +26,11 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { verifyErpWebhookSignature } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/webhookSignature.ts';
 import { decodeErpWebhookEvent } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/webhookEvent.ts';
 import { applyErpFeedEvent } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/applyFeed.ts';
+import { admitsDocForBindingCompany } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/companyScope.ts';
 import { createErpFeedDeps, ERPNEXT_TIER } from '../_shared/erpnextFeedDeps.ts';
+import { createInFlightAnchorProbe } from '../_shared/inFlightAnchorProbe.ts';
 import { DOCTYPE_BODIES } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/doctypeBodies.ts';
-import type { ErpDocKind } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/doctypeRegistry.ts';
+import { DOCTYPE_REGISTRY, type ErpDocKind } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/doctypeRegistry.ts';
 import type { ErpFeedEvent } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/webhookEvent.ts';
 import type { ApplyOutcome } from '../../../pmo-portal/src/lib/adapterSeam/applyEngine.ts';
 import { resolvePerOrgSecret } from '../_shared/perOrgSecret.ts';
@@ -80,6 +82,15 @@ export async function readBodyBounded(req: Request, maxBytes: number): Promise<s
 export interface EmployingOrg {
   orgId: string;
   webhookSecret: string;
+  /** Round-7 B4: the ERP Company this binding represents (`external_org_bindings.config.company`).
+   *  One ERPNext site routinely hosts several Companies; a valid HMAC proves the SITE sent the event,
+   *  not that the document belongs to THIS tenant. `null` (an unconfigured binding) scopes nothing and
+   *  therefore adopts no company-scoped document. */
+  company: string | null;
+  /** Luna BLOCK 9: the PMO domains this org has ACTUALLY assigned to the ERPNext tier
+   *  (`external_domain_ownership`). A valid HMAC proves who sent the event, NOT that the org opted
+   *  this domain into external ownership — an event for an unowned domain is ack'd and dropped. */
+  ownedDomains: string[];
 }
 
 /** The injectable surface `handleErpWebhook` needs — so the gate + decode + apply routing are
@@ -92,6 +103,16 @@ export interface ErpWebhookHandlerDeps {
   /** Apply one decoded event for a resolved org (the wrapper builds the feed deps + the fromDoc-mapped
    *  canonical + calls applyErpFeedEvent). Returns the apply outcome (or throws on a real failure). */
   applyEvent: (orgId: string, event: ErpFeedEvent) => Promise<ApplyOutcome>;
+  /**
+   * FIX 1 (round-9 SHOULD-FIX): the in-flight adopt guard — the SAME `createInFlightAnchorProbe` barrier
+   * the sweep raises (`buildIsInFlightAdopt`). Answers "does an UNRESOLVED (in-flight, non-confirmed)
+   * outbox row for this org own this event's anchor key?" When true, the ERP doc belongs to a
+   * PMO-originated command still inside the ADR-0058 recovery algorithm — the webhook must NOT adopt it
+   * (adopting mints a phantom mirror under a random id AND wedges the dispatch's fenced
+   * `record_outbox_ref` on the 0093 extid unique). Optional so the existing gate/decode tests stay
+   * byte-for-byte; the Deno.serve wrapper ALWAYS wires it.
+   */
+  isInFlightAdopt?: (orgId: string, event: ErpFeedEvent) => Promise<boolean>;
 }
 
 /**
@@ -157,6 +178,38 @@ export async function handleErpWebhook(req: Request, deps: ErpWebhookHandlerDeps
   // An unmapped doctype (one P2 does not mirror) — ack and skip (lossy hint, FR-ENA-083).
   if (!event.kind || !event.domain) return json({ ok: true, skipped: 'unmapped-doctype' });
 
+  // Luna BLOCK 9: per-DOMAIN ownership gate. The signature identified the org; it did NOT establish
+  // that this org employs ERPNext for THIS domain. Without the check, a procurement-only org received
+  // native Sales Invoice / Receive Payment Entry mirrors and surfaced them in its revenue read model.
+  // Fail-CLOSED (an empty/unknown owned-domain set adopts nothing); ack'd 200 so Frappe does not retry
+  // an event that is genuine but simply not ours to mirror.
+  if (!matchedOrg.ownedDomains.includes(event.domain)) {
+    return json({ ok: true, skipped: 'domain-not-owned' });
+  }
+
+  // Round-7 B4: per-COMPANY admission. The org owns the domain — but an ERPNext site routinely hosts
+  // several Company records, and the binding represents exactly ONE of them. Without this, a Company-B
+  // Sales Invoice or Receive Payment Entry was adopted into Company A's PMO tenant and surfaced in its
+  // revenue/AR views with no error: another tenant's financial data. Fail CLOSED — a document that does
+  // not state its company, and a binding that names none, adopt nothing. Ack'd 200 (like
+  // domain-not-owned): the event is genuine, it is simply not ours to mirror, so Frappe must not retry.
+  // The rule lives in `companyScope` so the sweep applies the IDENTICAL one (as a server-side filter).
+  if (!admitsDocForBindingCompany(event.kind, event.doc, matchedOrg.company)) {
+    return json({ ok: true, skipped: 'company-not-in-scope' });
+  }
+
+  // FIX 1 (round-9 SHOULD-FIX): the in-flight adopt guard — the SAME barrier the sweep's
+  // `createInFlightAnchorProbe` raises. If this doc's anchor carries the idempotency key of an
+  // UNRESOLVED (in-flight, non-confirmed) outbox row, it belongs to a PMO-originated command still
+  // finalizing (ADR-0058 §4) — the dispatch/sweep maps that ERP name to the ORIGINAL PMO record id.
+  // Adopting it here mints a SECOND (phantom) mirror under a random id AND makes the dispatch's fenced
+  // `record_outbox_ref` fail the 0093 extid unique, wedging a real money row at `committed`. Ack-and-skip
+  // (lossy hint, FR-ENA-083) — the dispatch/sweep owns finalization; once it CONFIRMS, its outbox row is
+  // no longer in-flight and a legitimately-later webhook flows through the normal resolve/update path.
+  if (await deps.isInFlightAdopt?.(matchedOrg.orgId, event)) {
+    return json({ ok: true, skipped: 'in-flight-command-owns-doc' });
+  }
+
   // ── 3. Apply via the lineage-aware feed (lossy hint; the sweep is the convergence authority). ──
   try {
     const outcome = await deps.applyEvent(matchedOrg.orgId, event);
@@ -180,19 +233,30 @@ export async function handleErpWebhook(req: Request, deps: ErpWebhookHandlerDeps
 async function resolveEmployingOrgsLive(serviceClient: SupabaseClient): Promise<EmployingOrg[]> {
   const connectEnabled = Deno.env.get('EXTERNAL_CONNECT_ENABLED') === 'true';
   const { data, error } = await serviceClient.from('external_org_bindings')
-    .select('org_id, webhook_secret_ref, activated_at')
+    .select('org_id, webhook_secret_ref, activated_at, config')
     .eq('external_tier', ERPNEXT_TIER);
   if (error) {
     console.error(`[erpnext-webhook] external_org_bindings load failed: code=${error.code ?? 'none'} message=${error.message}`);
     throw new AppError(error.message, error.code);
   }
-  const rows = (data as Array<{ org_id: string; webhook_secret_ref: string | null; activated_at: string | null }> | null) ?? [];
-  const results: EmployingOrg[] = [];
+  const rows = (data as Array<{
+    org_id: string;
+    webhook_secret_ref: string | null;
+    activated_at: string | null;
+    config: Record<string, unknown> | null;
+  }> | null) ?? [];
+  // Only ACTIVATED bindings are employing (a binding is activated once the version handshake passes,
+  // 2.6/8.8). A binding without a webhook_secret_ref is employing for COMMANDS but not webhooks — it
+  // contributes no HMAC key (webhook events for it are rejected until a secret is configured).
+  // Merged with dev's admin-connect (Phase 1b): resolve the webhook HMAC secret Vault-first behind
+  // EXTERNAL_CONNECT_ENABLED (tri-state — no-binding / resolved / vault-miss → empty → skip = fail
+  // closed for webhooks), falling back to the env resolver when the flag is off. The B4 company scoping
+  // is preserved on top. A `.map` can't do the async Vault call, so this is an explicit loop.
+  const candidates: Array<{ orgId: string; webhookSecret: string; company: string | null }> = [];
   for (const r of rows) {
     if (!r.activated_at || !r.webhook_secret_ref) continue;
     let webhookSecret = '';
     if (connectEnabled) {
-      // Use shared per-org Vault secret resolution (flag gate + binding lookup + tri-state)
       const result = await resolvePerOrgSecret({
         connectEnabled: true,
         orgId: r.org_id,
@@ -217,17 +281,54 @@ async function resolveEmployingOrgsLive(serviceClient: SupabaseClient): Promise<
           return (data as string | null) ?? null;
         },
       });
-
-      if (result.kind === 'resolved') {
-        webhookSecret = result.secret;
-      }
-      // kind === 'no-binding' OR 'binding-vault-miss' → webhookSecret stays empty, org is skipped
+      if (result.kind === 'resolved') webhookSecret = result.secret;
+      // no-binding / binding-vault-miss → webhookSecret stays empty → skipped (fail closed)
     } else {
       webhookSecret = Deno.env.get(r.webhook_secret_ref!) ?? '';
     }
-    if (webhookSecret) results.push({ orgId: r.org_id, webhookSecret });
+    if (webhookSecret === '') continue;
+    // B4: carry the binding's ERP Company through — the per-document admission gate below scopes
+    // adoption to it (a multi-company ERP site must not leak Company B's money into Company A's tenant).
+    const company = typeof r.config?.company === 'string' && r.config.company.length > 0 ? r.config.company : null;
+    candidates.push({ orgId: r.org_id, webhookSecret, company });
   }
-  return results;
+  if (candidates.length === 0) return [];
+
+  // Luna BLOCK 9: load each org's ACTUAL per-domain ERPNext ownership. A load failure THROWS (→ a
+  // retryable 500) rather than degrading to "owns nothing" silently — but a successful read with no
+  // rows genuinely means the org owns no domain, and the gate then adopts nothing (fail-closed).
+  const { data: owned, error: ownedError } = await serviceClient.from('external_domain_ownership')
+    .select('org_id, domain')
+    .eq('external_tier', ERPNEXT_TIER)
+    .in('org_id', candidates.map((c) => c.orgId));
+  if (ownedError) {
+    console.error(`[erpnext-webhook] external_domain_ownership load failed: code=${ownedError.code ?? 'none'} message=${ownedError.message}`);
+    throw new AppError(ownedError.message, ownedError.code);
+  }
+  const byOrg = new Map<string, string[]>();
+  for (const row of (owned as Array<{ org_id: string; domain: string }> | null) ?? []) {
+    byOrg.set(row.org_id, [...(byOrg.get(row.org_id) ?? []), row.domain]);
+  }
+  return candidates.map((c) => ({ ...c, ownedDomains: byOrg.get(c.orgId) ?? [] }));
+}
+
+/**
+ * FIX 1 (round-9 SHOULD-FIX): build the webhook's in-flight adopt guard over the SAME
+ * `createInFlightAnchorProbe` the sweep uses. Reads the anchor off `event.doc` using the kind's stock
+ * anchor field (DOCTYPE_REGISTRY) — a doc that carries no key, or a kind with no anchor, is a native doc
+ * and adopts normally. Exported so its wiring is unit-tested (index.test.ts) against a seeded outbox
+ * rather than reachable only through the live stack.
+ */
+export function buildIsInFlightAdopt(serviceClient: SupabaseClient): (orgId: string, event: ErpFeedEvent) => Promise<boolean> {
+  return (orgId, event) => {
+    if (!event.kind) return Promise.resolve(false);
+    const anchorField = DOCTYPE_REGISTRY[event.kind].anchorField;
+    if (!anchorField) return Promise.resolve(false); // anchor-less kind — nothing to probe.
+    const anchor = ((event.doc ?? {}) as Record<string, unknown>)[anchorField];
+    if (typeof anchor !== 'string' || anchor === '') return Promise.resolve(false);
+    // A fresh probe per event: one anchor is checked, so the per-tick memo carries no benefit here.
+    return createInFlightAnchorProbe(serviceClient, orgId)(anchor);
+  };
 }
 
 /** The real applyEvent: map the ERP doc → canonical via the kind's fromDoc, stamp the routing fields,
@@ -260,5 +361,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
   return handleErpWebhook(req, {
     resolveEmployingOrgs: () => resolveEmployingOrgsLive(serviceClient),
     applyEvent: (orgId, event) => applyEventLive(serviceClient, orgId, event),
+    // FIX 1: the in-flight adopt guard is ALWAYS wired on the live path (the dep is optional only so the
+    // gate/decode unit tests stay byte-for-byte).
+    isInFlightAdopt: buildIsInFlightAdopt(serviceClient),
   });
 });

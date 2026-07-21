@@ -27,6 +27,8 @@ export type Action =
   | 'delete'
   | 'transition'
   | 'editContractValue'
+  | 'submit_sales_invoice'
+  | 'manage_external_bindings'
   | 'manage';
 
 export type Entity =
@@ -51,6 +53,9 @@ export type Entity =
   | 'contact'
   | 'contactActivity'
   | 'userView'
+  | 'salesInvoice'
+  | 'incomingPayment'
+  | 'externalBinding'
   | 'integration';
 
 export interface PolicyContext {
@@ -64,6 +69,10 @@ export interface PolicyContext {
     assignee_id?: string | null;
     /** Author id — for the document-edit author rule (A-7). */
     author_id?: string | null;
+    /** EVERY user who has built this record's body — the sales-invoice SoD oracle (migration 0113's
+     *  append-only `sales_invoice_authors` set). The `author_id` scalar is last-writer-wins and so is
+     *  only a legacy member of this set, never the whole truth. */
+    author_ids?: string[] | null;
     [k: string]: unknown;
   };
 }
@@ -76,6 +85,20 @@ const MASTER_DATA: Role[] = ['Admin', 'Executive', 'Project Manager', 'Finance']
 const ARCHIVE_ROLES: Role[] = ['Admin', 'Executive'];
 const MONEY_AUTHORITY: Role[] = ['Admin', 'Executive', 'Finance']; // contract_value-on-won SoD
 const MILESTONE_WRITE: Role[] = ['Admin', 'Project Manager']; // OD-DEL-7: PM+Admin only
+/**
+ * Revenue WRITE set — who may raise a sales invoice, record an incoming receipt, cancel either, or
+ * approve (submit) an invoice (owner ruling, 2026-07-20). Exec and PM keep the revenue surface
+ * VIEW-ONLY.
+ *
+ * The ruling is ENFORCED SERVER-SIDE, and this constant only mirrors it (round-6 re-audit, finding 3):
+ * `supabase/functions/adapter-dispatch/authGuard.ts` (`moneyWriteRolesForDomain('revenue')`) and
+ * migration 0114's `submit_sales_invoice` / `claim_sales_invoice_author` gates carry the SAME two
+ * roles. Before that, the backend admitted Exec/PM and a PM could POST a sales-invoice cancel straight
+ * to the edge function with no revenue affordance anywhere in their UI. The FE may be STRICTER than
+ * the backend; it must never be the ONLY place a ruling lives. PROCUREMENT's ruling is different
+ * (Admin·Exec·PM·Finance) — do not fold the two together.
+ */
+const REVENUE_WRITE: Role[] = ['Admin', 'Finance'];
 
 const has = (set: Role[], role: Role | null): boolean => role != null && set.includes(role);
 
@@ -244,6 +267,52 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     create: allow(ALL),
     edit: allow(ALL),
     archive: allow(ALL),
+  },
+  // Revenue domain — SI submit SoD (OD-SAR-PMO-IS-THE-UI, FR-SAR-195)
+  // UX-only: author cannot submit their own draft; different approver-role user can.
+  // RLS/RPC is the enforcement authority (submit_sales_invoice RPC).
+  salesInvoice: {
+    // Sales Invoices index — Finance, PM, Exec can view (rbac-visibility §D mirror).
+    view: allow(MASTER_DATA),
+    // Raise an invoice = Finance + Admin (owner ruling 2026-07-20). Without this entry the
+    // "New Invoice" affordance rendered for NO role and the whole P3a create path was unreachable.
+    create: allow(REVENUE_WRITE),
+    // Cancel (docstatus 1→2) is modelled as a `transition` — the same write set as create.
+    // NOTE: no `edit` entry on purpose — the page has no update mutation (the row-menu Edit is a
+    // no-op stub), so granting `edit` would surface an affordance that does nothing.
+    transition: allow(REVENUE_WRITE),
+    // Approve/submit an invoice = the revenue write set (Admin + Finance). Migration 0114 gates the
+    // `submit_sales_invoice` RPC on exactly these roles, so offering Exec/PM the affordance would
+    // render a button that 403s.
+    submit_sales_invoice: (role, ctx) => {
+      if (!has(REVENUE_WRITE, role)) return false;
+      if (!ctx.currentUserId) return false;
+      const authorIds = ctx.record?.author_ids ?? null;
+      const authorScalar = ctx.record?.author_id ?? null;
+      // Fail CLOSED on an unattributable invoice — mirrors the RPC's `sod-author-missing`: an invoice
+      // nobody is recorded as having authored is exactly one with no two-person control.
+      if (authorScalar == null && (authorIds == null || authorIds.length === 0)) return false;
+      // NOBODY WHO EVER WROTE THE BODY MAY APPROVE (0113): the oracle is the append-only author SET,
+      // union the legacy scalar. Comparing the scalar alone was last-writer-wins — an earlier writer
+      // whom a co-worker's edit displaced saw an ENABLED Submit that 403'd on click.
+      if (authorScalar === ctx.currentUserId) return false;
+      if (authorIds?.includes(ctx.currentUserId)) return false;
+      return true;
+    },
+  },
+  incomingPayment: {
+    // Incoming Payments index — mirrors the salesInvoice view set (Admin·Exec·PM·Finance);
+    // Engineer has no revenue nav/page. Missing entirely before this entry, which made
+    // /incoming-payments render "You don't have access" for EVERY role incl. Admin.
+    view: allow(MASTER_DATA),
+    // Record a receipt = Finance + Admin (owner ruling 2026-07-20).
+    create: allow(REVENUE_WRITE),
+    // Cancel (docstatus 1→2). No `edit` — the page has no update mutation.
+    transition: allow(REVENUE_WRITE),
+  },
+  // External bindings management — Admin only
+  externalBinding: {
+    manage_external_bindings: allow(ADMIN),
   },
   integration: {
     // Admin self-serve connect/disconnect (UX gate). Server (edge fn + RPC) re-enforces

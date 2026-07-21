@@ -32,7 +32,7 @@ Replaces playbook §3's opus/sonnet/haiku mapping when running the trial:
 | `zai` / `glm-5.2` | **The opus-grade default (owner, 2026-07-04: currently better than 5.1 across the board).** Planning, specs, complex or security-sensitive slices (schema, RLS, RPC), manager-grade judgment, AND implementation slices (trialed-good as builder 2026-06-16 — first-pass-correct, no §6 tendencies). **Fallback route since 2026-07-11 — prefer `nvidia`/`glm-5.2` above.** | opus |
 | `zai` / `glm-5.1` | Secondary/alternate to 5.2 (rate-limit relief, or as the different-model reviewer in GLM-only degraded mode) | opus fallback |
 | `zai` / `glm-4.7` | Routine implementation, mechanical edits, QA runs, mockup builds | sonnet/haiku |
-|  `openai-codex` / `gpt-5.6-luna` (owner-directed 2026-07-11; supersedes `gpt-5.4`) | ALL reviews and audits — spec-review, code-quality, plan review, security. Deliberately **cross-family** vs the GLM builders | opus reviewers |
+|  `openai-codex` / `gpt-5.6-luna` (owner-directed 2026-07-11; supersedes `gpt-5.4`) | ALL reviews and audits — spec-review, code-quality, plan review, security. Deliberately **cross-family** vs the GLM builders. **⚑ money/security audits run at `--thinking max` (owner 2026-07-15)** — always pass `pi --provider openai-codex --model gpt-5.6-luna --thinking max` for a money/security review | opus reviewers |
 
 > **⚑ GLM-only degraded mode (gpt-5.4/openai-codex UNAVAILABLE, observed 2026-06-16).** When the
 > cross-family reviewer is down, route reviews to a **different GLM model than the builder** (e.g. build

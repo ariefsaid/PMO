@@ -49,6 +49,23 @@ export interface AdapterCommand {
    *  REQUIRED for non-read-only `erpnext`-tier commands — enforced server-side in adapter-dispatch
    *  (rejects a missing key as commit-rejected/missing-idempotency-key before the outbox is touched). */
   idempotencyKey?: string;
+  /**
+   * Luna round-5 BLOCK 10 — the absolute wall-clock instant (ms, `Date.now()` domain) past which this
+   * command's claim on the money-outbox critical section expires, and therefore past which a
+   * NON-IDEMPOTENT external write (a create POST) must be REFUSED rather than issued.
+   *
+   * ARMED by `dispatch.ts` at claim time (`claimStartedAt + MONEY_COMMIT_CLAIM_BUDGET_MS`) — never by a
+   * client — and it is per-ATTEMPT metadata, not command identity: it is deliberately NOT part of the
+   * payload digest and never crosses the FE→edge-fn wire. Absent for every non-money path (P0/P1 and
+   * any commit that did not go through a claim) ⇒ unbounded, byte-for-byte prior behavior.
+   *
+   * WHY it lives on the command rather than in the adapter's construction deps: an ERPNext `commit` is
+   * frequently SEVERAL calls (an amend is `cancel` PUT → `create` POST), so a single budget check
+   * before `adapter.commit` cannot bound the POST that actually mints money. Threading the deadline
+   * with the command lets the ONE chokepoint every non-idempotent create passes through
+   * (`erpnext/client.ts`'s `erpnextRequest`) enforce it — a future doctype or verb cannot forget it.
+   */
+  commitDeadlineAtMs?: number;
 }
 
 /** A page of changes since a watermark cursor — the `list-changes-since-watermark` read result (FR-EAS-021). */

@@ -5,18 +5,22 @@
 -- at-most-once, the F1 quarantine of a stale committing row (never a blind re-POST) resolved only after
 -- its reconcile_after window, the claim_generation fencing-token proof that a stale claimant's write-back
 -- is discarded (F4), and the function-privilege proof that the outbox RPCs are service_role-only.
+-- AC-SAR-012 extension: the unique 4-tuple constraint also covers the 'revenue' domain.
 begin;
-select plan(42);
+select plan(44);
 
 insert into organizations (id, name) values
   ('00950000-0000-0000-0000-000000000001','AC-ENA Outbox A'),
-  ('00950000-0000-0000-0000-000000000002','AC-ENA Outbox B');
+  ('00950000-0000-0000-0000-000000000002','AC-ENA Outbox B'),
+  ('005c0000-0000-0000-0000-000000000001','AC-SAR Outbox Revenue');
 insert into auth.users (id, email) values
   ('00950000-0000-0000-0000-0000000000a1','outbox-a@example.com'),
-  ('00950000-0000-0000-0000-0000000000b1','outbox-b@example.com');
+  ('00950000-0000-0000-0000-0000000000b1','outbox-b@example.com'),
+  ('005c0000-0000-0000-0000-0000000000a1','sar-outbox@example.com');
 insert into profiles (id, org_id, full_name, email, role, status) values
   ('00950000-0000-0000-0000-0000000000a1','00950000-0000-0000-0000-000000000001','A','outbox-a@example.com','Admin','active'),
-  ('00950000-0000-0000-0000-0000000000b1','00950000-0000-0000-0000-000000000002','B','outbox-b@example.com','Admin','active');
+  ('00950000-0000-0000-0000-0000000000b1','00950000-0000-0000-0000-000000000002','B','outbox-b@example.com','Admin','active'),
+  ('005c0000-0000-0000-0000-0000000000a1','005c0000-0000-0000-0000-000000000001','SAR Outbox','sar-outbox@example.com','Admin','active');
 
 -- Seed as OWNER (the dispatch service-role path; bypasses RLS).
 reset role;
@@ -29,6 +33,24 @@ select throws_ok(
        values ('00950000-0000-0000-0000-000000000001','procurement','pmo-1','key-1','erpnext','create','pending') $$,
   '23505', null,
   'AC-ENA-012 the unique (org,domain,pmo_record_id,idempotency_key) 4-tuple rejects a concurrent duplicate insert');
+
+-- AC-SAR-012: same unique 4-tuple constraint also covers the 'revenue' domain.
+insert into external_command_outbox (id, org_id, domain, pmo_record_id, idempotency_key, external_tier, operation, state)
+values ('005c0000-0000-0000-0000-0000000000c1','005c0000-0000-0000-0000-000000000001','revenue','pmo-rev-1','key-rev-1','erpnext','create','pending');
+select throws_ok(
+  $$ insert into external_command_outbox (org_id, domain, pmo_record_id, idempotency_key, external_tier, operation, state)
+       values ('005c0000-0000-0000-0000-000000000001','revenue','pmo-rev-1','key-rev-1','erpnext','create','pending') $$,
+  '23505', null,
+  'AC-SAR-012 the unique (org,domain,pmo_record_id,idempotency_key) 4-tuple rejects duplicate insert for revenue domain');
+-- A re-command under a different idempotency_key is admitted only once the previous row reaches a
+-- TERMINAL state (0116/B3: at most one NON-TERMINAL row per record — two in-flight rows for one record
+-- are the duplicate-money race, proven in outbox_serialization.test.sql). Confirm the first, then
+-- re-command.
+update external_command_outbox set state='confirmed' where id='005c0000-0000-0000-0000-0000000000c1';
+insert into external_command_outbox (id, org_id, domain, pmo_record_id, idempotency_key, external_tier, operation, state)
+values ('005c0000-0000-0000-0000-0000000000c2','005c0000-0000-0000-0000-000000000001','revenue','pmo-rev-1','key-rev-2','erpnext','create','pending');
+select is((select count(*)::int from external_command_outbox where pmo_record_id='pmo-rev-1' and org_id='005c0000-0000-0000-0000-000000000001'), 2,
+  'AC-SAR-012 a different idempotency_key for the same pmo_record_id succeeds once the previous row is terminal (re-command allowed)');
 
 -- Org-isolated SELECT.
 set local role authenticated;

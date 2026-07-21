@@ -126,9 +126,54 @@ export interface DispatchMoneyOutboxDeps {
    *  insert and compared against a re-read row's stored digest to reject idempotency-key reuse with a
    *  different payload. Absent ⇒ the binding check is skipped (P0/P1 and pre-M-3 callers). */
   payloadDigest?: string;
+  /**
+   * FIX 2 (round-9 cross-family SHOULD-FIX): re-assert the recorded actor's CURRENT authorization at a
+   * post-window RECOVERY REISSUE — a `quarantined` immutable-anchor claim whose probe MISSES, about to
+   * mint a NEW ERP money document. A reissue is a new money write, so it runs the SAME authz rule the
+   * synchronous dispatch gate and the first-attempt (`pending`/`failed`) replay run, against the row's
+   * recorded actor + the org's CURRENT role/active-membership/domain-ownership. `{ok:false}` HOLDS the
+   * row for an operator (never drops it). Absent ⇒ NO re-check: the synchronous path already gated the
+   * current caller fresh, and P0/P1/non-money tiers never reissue. It is consulted ONLY on the actual
+   * reissue branch — an ADOPT (probe hit) or a mutable-anchor HOLD returns earlier and never calls it,
+   * so neither is newly blocked (only the reissue needs the fresh check). */
+  reauthorizeRecoveryReissue?: () => Promise<{ ok: boolean; message: string }>;
+  /** Injectable monotonic-enough wall clock (ms) for the claim-budget gate below. Defaults to
+   *  `Date.now`; tests inject a controllable clock so the budget can be proven against REAL elapsed
+   *  time rather than a static relationship between two constants (audit BLOCK 1). */
+  now?: () => number;
 }
 
+/**
+ * The wall-clock budget, measured from the moment this process asks for the claim, within which a
+ * claim winner may still ISSUE its ERP `POST` (money-safety audit BLOCK 1).
+ *
+ * ADR-0058 bounds a duplicate money document with a per-ATTEMPT request deadline, reasoned about as if
+ * the POST started at the claim. It does not: the claim winner awaits the recovery PROBE first, and a
+ * probe is a GET — so it retries with its own per-attempt deadline. A slow ERP therefore let a
+ * claimant reach `adapter.commit` LONG after its row had been quarantined, reclaimed and reissued by
+ * the reconciler ⇒ two ERP money documents. The `claim_generation` fence discards the stale
+ * claimant's write-BACK; it cannot un-mint its DOCUMENT. Only refusing the POST can.
+ *
+ * The value must satisfy, against the ERPNext timings in `erpnext/client.ts`:
+ *
+ *     BUDGET + ERP_REQUEST_TIMEOUT_MS + settle-margin  ≤  ERP_QUARANTINE_WINDOW_MS
+ *     60 s   + 120 s                  + 120 s          =  300 s
+ *
+ * i.e. a POST admitted at the very edge of the budget is still aborted a full 2 minutes before the
+ * EARLIEST possible reissue, preserving exactly the settle margin ADR-0058 claimed (a client-side
+ * abort does not guarantee an ERP rollback, so the margin — not the abort — carries the guarantee).
+ * `client.test.ts` asserts that arithmetic so the two cannot drift apart. Kept here rather than
+ * imported because this module is tier-agnostic (no ERPNext vocabulary).
+ */
+export const MONEY_COMMIT_CLAIM_BUDGET_MS = 60_000;
+
 export type DispatchMoneyWriteDeps = DispatchExternallyOwnedWriteDeps & { money: DispatchMoneyOutboxDeps };
+
+/** The injected clock, or the wall clock. One definition so every elapsed-time decision in this
+ *  module reads the SAME source (audit BLOCK 1). */
+function nowMs(money: DispatchMoneyOutboxDeps): number {
+  return money.now?.() ?? Date.now();
+}
 
 /** Discriminates a retryable transport failure (never blindly re-POSTed, but the row is left
  *  reclaimable) from a non-retryable rejection (marked `failed` immediately). */
@@ -149,6 +194,18 @@ export function redactErrorForOutbox(error: unknown): string {
   return scrubbed.length > 240 ? `${scrubbed.slice(0, 240)}…` : scrubbed;
 }
 
+/** Postgres unique-violation — the mirror row for this PMO record id already exists. */
+const PG_UNIQUE_VIOLATION = '23505';
+
+/** Luna BLOCK 3: is this the "the mirror I am about to write is ALREADY there" signal? The per-domain
+ *  mirror insert is keyed on the PMO record id (a FIXED primary key), so a unique violation on a
+ *  REPLAYED finalize means the previous attempt's mirror landed — i.e. the converged state we want —
+ *  rather than a failure. Matched on the Postgres code only (never a message), so it holds for every
+ *  domain writer. */
+function isAlreadyMirrored(error: unknown): boolean {
+  return (error as { code?: unknown } | null)?.code === PG_UNIQUE_VIOLATION;
+}
+
 /** The DB-side FENCED finalization (H-1), ordered `record_outbox_ref` → mirror → `confirm_outbox`:
  *  1. Fenced `external_refs` upsert — a superseded claimant writes NOTHING (returns 0) and the whole
  *     finalization is a no-op (no mirror, no confirm); this closes the old verify-then-write TOCTOU.
@@ -163,6 +220,7 @@ async function finalizeOutboxRow(
   row: OutboxRow,
   claimGeneration: number,
   deps: DispatchMoneyWriteDeps,
+  isReplay = false,
 ): Promise<number> {
   const refWritten = await deps.money.recordOutboxRef(row.id, claimGeneration, {
     pmoRecordId: deps.command.record.id,
@@ -175,7 +233,23 @@ async function finalizeOutboxRow(
   // the read-model carries the ERP-derived fields (totals, status, outstanding, …). Fall back to the id
   // stub only for a row adopted without a full record (a later read-back/sweep reconciles its fields).
   const canonical: PmoRecord = row.canonical ?? { id: deps.command.record.id };
-  await deps.writeReadModel(canonical);
+  try {
+    await deps.writeReadModel(canonical);
+  } catch (error) {
+    // Luna BLOCK 3 — retry-idempotent finalization. On a REPLAY of a `committed` row (the previous
+    // attempt crashed somewhere in ref → mirror → confirm), the mirror insert may already have landed.
+    // Its fixed-PK collision is then the CONVERGED state, not a failure: swallowing it lets the replay
+    // reach `confirm_outbox`, whereas rethrowing wedges a real ERP money document at `committed`
+    // forever (every retry dies on the same duplicate insert → manual intervention).
+    // Deliberately NOT tolerated on a first finalize (`isReplay === false`): there, a pre-existing
+    // mirror for this PMO record id is a genuine anomaly (e.g. a reused caller-supplied record id) and
+    // must surface rather than be confirmed away.
+    if (!isReplay || !isAlreadyMirrored(error)) throw error;
+    console.warn(
+      `[money-outbox] finalize replay ${deps.command.domain}/${deps.command.record.id}: mirror already present — ` +
+        'converging to confirmed (the prior attempt mirrored, then crashed before confirm)',
+    );
+  }
   return deps.money.confirmOutbox(row.id, claimGeneration);
 }
 
@@ -191,9 +265,10 @@ async function finalizeOutboxRow(
 async function claimAndCommit(
   claimed: OutboxRow,
   deps: DispatchMoneyWriteDeps,
-  isRecoveryReissue = false,
+  opts: { claimStartedAtMs: number; isRecoveryReissue?: boolean },
 ): Promise<CommandResult> {
   const { command, money, adapter } = deps;
+  const isRecoveryReissue = opts.isRecoveryReissue ?? false;
   const token = claimed.claimGeneration;
 
   const probed = await money.probeByRemarksKey(command.domain, command.idempotencyKey!);
@@ -226,9 +301,62 @@ async function claimAndCommit(
     // generic transient 'external-unreachable' (retrying will not help; an operator must resolve it).
     throw new AppError('payment command held for operator resolution — not auto-reissued (mutable anchor)', 'command-held');
   } else {
+    // FIX 2 (round-9 SHOULD-FIX): a post-window RECOVERY REISSUE mints a NEW ERP money document, so it
+    // must re-assert the recorded actor's CURRENT authorization — the SAME rule the synchronous gate +
+    // the first-attempt (`pending`/`failed`) replay run. Those first-attempt POSTs
+    // (`isRecoveryReissue === false`) are already gated upstream (`checkOutboxReplayAuthorization` in
+    // the sweep's buildReconcileDeps), and the synchronous path leaves this dep undefined (its gate ran
+    // fresh for the current caller). The ONE gap this closes is the `quarantined`→reissue transition,
+    // which that pre-dispatch check deliberately skips so it does NOT also block an ADOPT of a real ERP
+    // doc (the `probed` branch above) or a mutable-anchor HOLD (the branch above) — only the actual
+    // reissue reaches here. A demoted / deactivated actor's reissue is HELD for an operator (fenced on
+    // the token), surfaced non-silently, and NEVER auto-reissued or dropped.
+    if (isRecoveryReissue && money.reauthorizeRecoveryReissue) {
+      const auth = await money.reauthorizeRecoveryReissue();
+      if (!auth.ok) {
+        const heldCount = await money.markOutboxHeld(claimed.id, `recovery-reissue-unauthorized: ${auth.message}`, token);
+        if (heldCount === 0) {
+          // Fencing loss: another claimant superseded this token before the hold landed — surface the
+          // row's CURRENT (possibly confirmed) state, not this claimant's stale hold.
+          const fresh = await money.readOutbox(command.domain, command.record.id, command.idempotencyKey!);
+          return reconcileOutbox(fresh!, deps);
+        }
+        console.error(
+          `[money-outbox] HELD ${command.domain}/${command.record.id} (idempotencyKey=${command.idempotencyKey}) — ` +
+            `recovery reissue blocked: the recorded actor is no longer authorized (${auth.message}); awaiting operator resolution`,
+        );
+        throw new AppError('money command held for operator resolution — recovery reissue blocked: actor no longer authorized', 'command-held');
+      }
+    }
+    // Audit BLOCK 1 — the CLAIM BUDGET, enforced at the POST SITE against real elapsed time (never
+    // inferred from the relationship between two constants). Everything above this point is
+    // read-only or a fenced write-back, both of which a supersede makes harmless; `adapter.commit` is
+    // the one irreversible act, so it is the one that must be time-gated. If the budget has run out,
+    // this claim can already have been quarantined + superseded and the reconciler can already have
+    // reissued — POSTing now would mint a SECOND money document (on the shared Purchase-Invoice /
+    // Pay-PE path, a second SUBMITTED doc with posted GL/AP, cancel-only and permanent).
+    //
+    // Bail RETRYABLY and mark NOTHING: the row stays `committing`, becomes reclaimable at lease
+    // expiry, and the quarantine/reconcile path owns it from here — exactly as for any other
+    // `external-unreachable`.
+    const elapsedMs = nowMs(money) - opts.claimStartedAtMs;
+    if (elapsedMs >= MONEY_COMMIT_CLAIM_BUDGET_MS) {
+      console.error(
+        `[money-outbox] REFUSED POST ${command.domain}/${command.record.id} (idempotencyKey=${command.idempotencyKey}) — ` +
+          `${elapsedMs}ms elapsed since the claim exceeds the ${MONEY_COMMIT_CLAIM_BUDGET_MS}ms commit budget; ` +
+          'this claim may already be superseded and the reconciler owns the row',
+      );
+      throw toDispatchError(new AdapterError('external-unreachable', 'commit-claim-budget-exhausted'));
+    }
     let result: CommandResult;
     try {
-      result = await adapter.commit(command);
+      // BLOCK 10 — the check above bounds the ENTRY into commit; it cannot bound a commit that issues
+      // SEVERAL external calls (an ERPNext amend is `cancel` PUT → `create` POST, so the money-minting
+      // POST is the third call and a slow cancel can carry it past this claim's window). So ARM the
+      // command with the absolute deadline this claim was admitted for and let the adapter's transport
+      // refuse the non-idempotent write at the POST site. Per-attempt metadata only — the command's
+      // identity (domain/operation/record/idempotencyKey, and therefore its payload digest) is unchanged.
+      result = await adapter.commit({ ...command, commitDeadlineAtMs: opts.claimStartedAtMs + MONEY_COMMIT_CLAIM_BUDGET_MS });
     } catch (error) {
       if (!isRetryableTransport(error)) {
         // a non-retryable (commit-rejected) failure — mark failed under the current fencing token.
@@ -279,7 +407,9 @@ async function reconcileOutbox(row: OutboxRow, deps: DispatchMoneyWriteDeps, com
     case 'confirmed':
       return { externalRecordId: row.externalRecordId!, canonical: row.canonical ?? { id: command.record.id } };
     case 'committed': {
-      const finalized = await finalizeOutboxRow(row, row.claimGeneration, deps);
+      // A `committed` row means ERP already committed and a PRIOR attempt's finalization did not
+      // complete — this is the REPLAY path, so an already-present mirror converges (Luna BLOCK 3).
+      const finalized = await finalizeOutboxRow(row, row.claimGeneration, deps, true);
       if (finalized === 0) {
         // F3 — superseded before the finalize writes landed; reconcile off the current state.
         const fresh = await money.readOutbox(command.domain, command.record.id, command.idempotencyKey!);
@@ -315,8 +445,12 @@ async function reconcileOutbox(row: OutboxRow, deps: DispatchMoneyWriteDeps, com
       // doc (Payment Entry), where a no-hit is HELD not reissued (C-1, enforced by the recovery-reissue
       // flag). Window NOT elapsed (or another caller owns the reconcile) → surface a retryable
       // "reconciling"; the sweep finalizes it once the window passes. We deliberately do NOT spin here.
+      // BLOCK 1: the budget clock starts BEFORE the claim RPC, so it is never shorter than the real
+      // time this process has held the critical section (the DB's own `claimed_at` is stamped inside
+      // that RPC, i.e. no earlier than this instant).
+      const claimStartedAtMs = nowMs(money);
       const claimed = await money.claimOutboxForCommit(row.id);
-      if (claimed) return claimAndCommit(claimed, deps, true);
+      if (claimed) return claimAndCommit(claimed, deps, { claimStartedAtMs, isRecoveryReissue: true });
       throw toDispatchError(new AdapterError('external-unreachable', 'command-quarantined-reconciling'));
     }
     case 'held':
@@ -325,8 +459,9 @@ async function reconcileOutbox(row: OutboxRow, deps: DispatchMoneyWriteDeps, com
       throw new AppError('payment command held for operator resolution — not auto-reissued (mutable anchor)', 'command-held');
     case 'pending':
     case 'failed': {
+      const claimStartedAtMs = nowMs(money);   // BLOCK 1 — see the quarantined branch above.
       const claimed = await money.claimOutboxForCommit(row.id);
-      if (claimed) return claimAndCommit(claimed, deps);
+      if (claimed) return claimAndCommit(claimed, deps, { claimStartedAtMs });
       // lost the race for this row — another caller claimed it first; re-read and reconcile
       // (never POST).
       const fresh = await money.readOutbox(command.domain, command.record.id, command.idempotencyKey!);
@@ -370,7 +505,35 @@ export async function dispatchMoneyWrite(deps: DispatchMoneyWriteDeps): Promise<
   return reconcileOutbox(row, deps);
 }
 
+/**
+ * WIRE 4 — the 0116 partial unique index `external_command_outbox_one_inflight_per_record` (at most ONE
+ * non-terminal outbox row per (org, domain, pmo_record_id)) is the barrier against two concurrent
+ * creates minting two ERP documents for one PMO record. Its violation carries a DIFFERENT idempotency
+ * key than the row already in flight, so the read-the-winner branch above finds nothing and the raw
+ * Postgres error would escape verbatim — a 500 naming an internal index, which tells the caller neither
+ * what happened nor what to do. Classified here into a distinct, actionable conflict code (mapped to
+ * HTTP 409 by adapter-dispatch).
+ *
+ * Detected on the pg CODE **and** the constraint name: the code alone covers every unique index on the
+ * table (and the mirror tables), and the name alone would match any message that merely mentions it.
+ */
+const OUTBOX_IN_FLIGHT_INDEX = 'external_command_outbox_one_inflight_per_record';
+export const COMMAND_IN_FLIGHT_FOR_RECORD = 'command-in-flight-for-record';
+
+function isOutboxInFlightConflict(error: unknown): boolean {
+  const e = error as { code?: unknown; message?: unknown; details?: unknown } | null | undefined;
+  if (e?.code !== '23505') return false;
+  const text = `${typeof e.message === 'string' ? e.message : ''} ${typeof e.details === 'string' ? e.details : ''}`;
+  return text.includes(OUTBOX_IN_FLIGHT_INDEX);
+}
+
 function toDispatchError(error: unknown): AppError {
+  if (isOutboxInFlightConflict(error)) {
+    return new AppError(
+      'another command for this record is already in flight — wait for it to settle (or resolve it) before dispatching again',
+      COMMAND_IN_FLIGHT_FOR_RECORD,
+    );
+  }
   if (error instanceof AppError) return error;
   if (error instanceof AdapterError) {
     if (error.code === 'external-unreachable') {

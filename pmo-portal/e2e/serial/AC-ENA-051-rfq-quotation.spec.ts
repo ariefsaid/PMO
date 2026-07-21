@@ -104,7 +104,7 @@ test.describe('AC-ENA-051: RFQ + Supplier Quotation — served adapter-dispatch 
           erp_doc_kind: 'rfq',
           items: [{ item_code: 'SPIKE-ITEM-1', qty: 5, schedule_date: '2026-08-05' }],
         },
-        idempotencyKey: `ac-ena-051-rfq-${suffix}`,
+        idempotencyKey: crypto.randomUUID(), // Luna B1: UUID-shaped keys only (see AC-ENA-050)
       });
       expect(rfqResult.status, `RFQ create failed: ${rfqResult.message ?? ''}`).toBe(200);
 
@@ -113,7 +113,7 @@ test.describe('AC-ENA-051: RFQ + Supplier Quotation — served adapter-dispatch 
         domain: 'procurement',
         operation: 'create',
         record: { id: quoteAPmoId, procurementId, vendorId: companyId, erp_doc_kind: 'quotation', items: [{ item_code: 'SPIKE-ITEM-1', qty: 5, rate: 42000 }] },
-        idempotencyKey: `ac-ena-051-sq-a-${suffix}`,
+        idempotencyKey: crypto.randomUUID(),
       });
       expect(quoteAResult.status, `Quotation A create failed: ${quoteAResult.message ?? ''}`).toBe(200);
 
@@ -121,7 +121,7 @@ test.describe('AC-ENA-051: RFQ + Supplier Quotation — served adapter-dispatch 
         domain: 'procurement',
         operation: 'create',
         record: { id: quoteBPmoId, procurementId, vendorId: companyId, erp_doc_kind: 'quotation', items: [{ item_code: 'SPIKE-ITEM-1', qty: 5, rate: 39000 }] },
-        idempotencyKey: `ac-ena-051-sq-b-${suffix}`,
+        idempotencyKey: crypto.randomUUID(),
       });
       expect(quoteBResult.status, `Quotation B create failed: ${quoteBResult.message ?? ''}`).toBe(200);
 

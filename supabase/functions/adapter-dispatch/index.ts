@@ -27,15 +27,16 @@
 
 // Deno-native imports (not in pmo-portal/package.json)
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { dispatchExternallyOwnedWrite } from '../../../pmo-portal/src/lib/adapterSeam/dispatch.ts';
+import { COMMAND_IN_FLIGHT_FOR_RECORD, dispatchExternallyOwnedWrite } from '../../../pmo-portal/src/lib/adapterSeam/dispatch.ts';
 import { recordExternalRef as recordExternalRefWrite } from '../../../pmo-portal/src/lib/adapterSeam/refs.ts';
 import { createReferenceAdapter, REFERENCE_DOMAIN } from '../../../pmo-portal/src/lib/adapterSeam/referenceAdapter.ts';
 import { CLICKUP_TASKS_DOMAIN } from '../../../pmo-portal/src/lib/adapterSeam/clickup/adapter.ts';
 import { resolveClickUpDispatchAdapter } from '../../../pmo-portal/src/lib/adapterSeam/clickup/dispatchFactory.ts';
 import { ClickUpRateLimiter } from '../../../pmo-portal/src/lib/adapterSeam/clickup/rateLimit.ts';
-import { ERPNEXT_COMPANIES_DOMAIN, ERPNEXT_PROCUREMENT_DOMAIN, ERPNEXT_TIER } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/adapter.ts';
-import { resolveErpDispatchAdapter } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/dispatchFactory.ts';
+import { ERPNEXT_COMPANIES_DOMAIN, ERPNEXT_PROCUREMENT_DOMAIN, ERPNEXT_REVENUE_DOMAIN, ERPNEXT_TIER } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/adapter.ts';
+import { resolveErpDispatchAdapter, withPaymentTypeDiscriminator } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/dispatchFactory.ts';
 import { resolveErpCredentials } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/credentials.ts';
+import { withProbeBudget } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/client.ts';
 import { resolveClickUpCredentialsFromVault } from '../../../pmo-portal/src/lib/adapterSeam/clickup/vaultCredentials.ts';
 import { resolvePerOrgSecret } from '../_shared/perOrgSecret.ts';
 // The runtime (kind)->{toBody,fromDoc} side table (task 5.2) — ADDITIVE across slices 3/4/5/6, each
@@ -51,6 +52,10 @@ import type { Adapter, AdapterCommand, PmoRecord } from '../../../pmo-portal/src
 import type { DispatchMoneyOutboxDeps, ExternalRefMapping } from '../../../pmo-portal/src/lib/adapterSeam/dispatch.ts';
 import { getReadModelWriter } from './readModelWriters.ts';
 import { maybeFault, type FaultGate } from './faultSeams.ts';
+import { isRevenueSiSubmitTransition, grantSiSubmitClearance, requiresSiAuthorClaim, claimSiAuthor, releaseSiSubmitClearance } from './sodGuard.ts';
+import { checkErpnextCommandAuthorization, type AuthorizationClient } from './authGuard.ts';
+import { checkSiProjectGate } from './projectGateGuard.ts';
+import { checkCreateTargetUnmapped, checkTransitionTargetBinding, isOpaqueIdempotencyKey } from './transitionTargetGuard.ts';
 import { canonicalCommandDigest, createDbMoneyOutboxDeps } from './moneyOutboxDeps.ts';
 import {
   verifyCallerJwt,
@@ -74,6 +79,10 @@ interface AdapterSelectContext {
   orgId: string;
   command: AdapterCommand;
   serviceClient: SupabaseClient;
+  /** The VERIFIED caller's user id (`verified.sub` — never a client-supplied body field). Persisted
+   *  onto the money-outbox row as `actor_user_id` (0108 §C) so a LATER sweep finalize — which has no
+   *  request JWT — can still attribute `sales_invoices.author_user_id` and keep the submit SoD real. */
+  userId: string;
   /** Read-only pass-through so a tier's factory can wire an in-flow fault seam (e.g. ERPNext's
    *  two-step submit, task 2.14) — factories that don't need it (P0/P1) simply ignore this field. */
   faultGate: FaultGate;
@@ -236,7 +245,12 @@ async function resolveErpMoneyOutboxDeps(ctx: AdapterSelectContext): Promise<Dis
   // overwrites remarks; reference_no survives, ADR-0058 §3 amended). Captured in a const here so the
   // probe closure sees the narrowed `string` type (entry.anchorField is `string | null` on the record).
   const anchorField = entry.anchorField;
-  const client = { fetchImpl: fetch, apiKey, apiSecret, baseUrl: binding.site_url };
+  // Money-safety audit BLOCK 1: the probe client carries the PROBE budget (one attempt, tighter
+  // deadline). Un-budgeted, this GET retries 3× at 120 s = ~483 s — longer than the whole 300 s
+  // quarantine window — so the claim winner could finish probing only after its row had been
+  // reclaimed and REISSUED, and then still POST a second money document. `dispatch.ts`'s claim budget
+  // refuses that POST; this stops the probe eating the budget in the first place.
+  const client = withProbeBudget({ fetchImpl: fetch, apiKey, apiSecret, baseUrl: binding.site_url });
   const probeDeps = { client, doctype: entry.doctype, anchorField: anchorField ?? '', fromDoc: bodyFns.fromDoc, pmoRecordId: ctx.command.record.id };
 
   // C-1 (companies "<Doctype>:<name>" encoding): now that external_refs is written INSIDE the fenced
@@ -272,6 +286,10 @@ async function resolveErpMoneyOutboxDeps(ctx: AdapterSelectContext): Promise<Dis
     orgId: ctx.orgId,
     externalTier: ERPNEXT_TIER,
     operation: ctx.command.operation as 'create' | 'update' | 'transition',
+    // BLOCK 7 (0108 §C): persist the VERIFIED dispatching actor on the outbox row. The sweep finalizes
+    // committed-but-unmirrored rows with no request JWT — without this the author is unrecoverable and
+    // the mirrored SI's author_user_id lands NULL, silently voiding the approver≠author SoD.
+    actorUserId: ctx.userId,
     // C-1 per-kind reissue policy: a mutable-anchor (PE) inconclusive recovery is HELD, never reissued.
     reissueOnInconclusiveAbsence: !entry.anchorMutable,
     payload,
@@ -284,15 +302,27 @@ async function resolveErpMoneyOutboxDeps(ctx: AdapterSelectContext): Promise<Dis
         ? (_domain, idempotencyKey) => probeErpByAnchorKey(probeDeps, idempotencyKey)
         // Mutable anchor (PE `reference_no`): the COMPOSITE probe — anchor OR the deterministic
         // conjunction, every input read back from our persisted outbox payload (ADR-0058 §4 amended).
+        // Handles both PE-pay (payment_type=Pay, pi_names) and PE-receive (payment_type=Receive, si_names).
         : async (domain, idempotencyKey) => {
             const p = await readOutboxCompositePayload(ctx.serviceClient, ctx.orgId, domain, ctx.command.record.id, idempotencyKey);
-            if (!p || !p.party || p.paid_amount == null) return probeErpByAnchorKey(probeDeps, idempotencyKey);
+            // Luna re-audit BLOCK #1: the FALLBACK anchor probe (no persisted composite payload yet —
+            // e.g. a first attempt that crashed before the outbox insert landed its payload) must STILL
+            // carry the `payment_type` discriminator. 'Pay' and 'Receive' Payment Entries share one
+            // doctype, and `reference_no` is ERP-side editable, so an unfiltered anchor `like` can adopt
+            // a Pay entry for a Receive recovery (and vice-versa) whenever the two share a reference_no
+            // — mirroring a PMO incoming payment onto someone's outgoing payment document. The
+            // discriminator is derived from the command's OWN `erp_doc_kind`, never from live ERP state.
+            const fallbackProbeDeps = withPaymentTypeDiscriminator(probeDeps, kind);
+            if (!p || !p.party || p.paid_amount == null) return probeErpByAnchorKey(fallbackProbeDeps, idempotencyKey);
+            const paymentType = String(p.payment_type ?? 'Pay') as 'Pay' | 'Receive';
             return probeErpByPaymentComposite(probeDeps, idempotencyKey, {
               partyType: String(p.party_type ?? 'Supplier'),
               party: String(p.party),
               paidAmount: p.paid_amount as string | number,
               piNames: Array.isArray(p.pi_names) ? (p.pi_names as string[]) : [],
+              siNames: Array.isArray(p.si_names) ? (p.si_names as string[]) : [],
               createdAfter: String(p.created_after ?? ''),
+              paymentType,
             });
           },
   });
@@ -303,17 +333,45 @@ function erpDatetime(ms: number): string {
   return new Date(ms).toISOString().replace('T', ' ').slice(0, 19);
 }
 
-/** Build the Payment Entry composite-probe payload from the command (persisted at outbox INSERT). The
- *  supplier `party` is resolved through `external_refs` (companies domain) exactly as the adapter body
- *  resolves `ctx.refs.supplier`; the referenced Purchase Invoice names come from the command's
- *  `references` rows. `created_after` bounds the candidate set to this attempt's window. */
+/** Build the Payment Entry composite-probe payload from the command (persisted at outbox INSERT).
+ *  Handles both PE-pay (procurement) and PE-receive (revenue).
+ *  - PE-pay: supplier `party` via external_refs (companies domain), `piNames` from `references`.
+ *  - PE-receive: customer `party` via external_refs (companies domain), `siNames` from `references`.
+ *  `created_after` bounds the candidate set to this attempt's window. */
 async function buildPaymentCompositePayload(ctx: AdapterSelectContext): Promise<Record<string, unknown>> {
   const rec = ctx.command.record as Record<string, unknown>;
+  const kind = typeof rec.erp_doc_kind === 'string' ? rec.erp_doc_kind : '';
+  const isReceive = kind === 'incoming-payment';
+
+  if (isReceive) {
+    // PE-receive (revenue): customer party + SI references
+    const customerPmoId = typeof rec.customerId === 'string' ? rec.customerId : undefined;
+    let party: string | null = null;
+    if (customerPmoId) {
+      const resolved = await resolveExternalRef(ctx.serviceClient as never, ctx.orgId, ERPNEXT_COMPANIES_DOMAIN, customerPmoId);
+      // external_refs stores companies "<Doctype>:<name>" encoding — strip to bare Customer name.
+      party = resolved ? resolved.slice(resolved.indexOf(':') + 1) : null;
+    }
+    const siNames = Array.isArray(rec.references)
+      ? (rec.references as Array<{ reference_name?: unknown }>).map((r) => String(r.reference_name)).filter((n) => n && n !== 'undefined')
+      : [];
+    return {
+      party_type: 'Customer',
+      party,
+      paid_amount: rec.paid_amount ?? null,
+      pi_names: [],
+      si_names: siNames,
+      payment_type: 'Receive',
+      // A 1-minute pre-dispatch buffer so a doc created just before the outbox row is still in-window.
+      created_after: erpDatetime(Date.now() - 60_000),
+    };
+  }
+
+  // PE-pay (procurement): supplier party + PI references
   const supplierPmoId = typeof rec.supplier === 'string' ? rec.supplier : undefined;
   let party: string | null = null;
   if (supplierPmoId) {
     const resolved = await resolveExternalRef(ctx.serviceClient as never, ctx.orgId, ERPNEXT_COMPANIES_DOMAIN, supplierPmoId);
-    // external_refs stores the companies "<Doctype>:<name>" encoding — strip to the bare Supplier name.
     party = resolved ? resolved.slice(resolved.indexOf(':') + 1) : null;
   }
   const piNames = Array.isArray(rec.references)
@@ -324,7 +382,8 @@ async function buildPaymentCompositePayload(ctx: AdapterSelectContext): Promise<
     party,
     paid_amount: rec.paid_amount ?? null,
     pi_names: piNames,
-    // A 1-minute pre-dispatch buffer so a doc created just before the outbox row is still in-window.
+    si_names: [],
+    payment_type: 'Pay',
     created_after: erpDatetime(Date.now() - 60_000),
   };
 }
@@ -357,6 +416,7 @@ const ADAPTER_REGISTRY: Record<string, AdapterFactory> = {
   [CLICKUP_TASKS_DOMAIN]: resolveClickUpAdapter,
   [ERPNEXT_COMPANIES_DOMAIN]: resolveErpAdapter,
   [ERPNEXT_PROCUREMENT_DOMAIN]: resolveErpAdapter,
+  [ERPNEXT_REVENUE_DOMAIN]: resolveErpAdapter,
 };
 
 // Same origin-narrowing seam as agent-chat/compose-view (AUDIT quick-win 2026-07-07): set
@@ -459,26 +519,175 @@ Deno.serve(async (req: Request): Promise<Response> => {
     );
   }
 
+  // Compute isErpDomain early so it's available for both the auth guard and idempotency check.
+  const isErpDomain = command.domain === ERPNEXT_COMPANIES_DOMAIN || command.domain === ERPNEXT_PROCUREMENT_DOMAIN || command.domain === ERPNEXT_REVENUE_DOMAIN;
+
+  // ── Luna BLOCK 4 — server-side authorization gate for erpnext-tier commands (money audit).
+  // After resolving the caller's org/userId and parsing the command, but BEFORE any adapter/
+  // outbox/ERP write. The deputy `callerClient` (caller's JWT) is used so domain_externally_owned
+  // and profiles.select run under the caller's RLS — consistent with the SoD gate below.
+  if (isErpDomain) {
+    const auth = await checkErpnextCommandAuthorization(callerClient as never, orgId, userId, command);
+    if (!auth.ok) {
+      return new Response(JSON.stringify({ error: 'commit-rejected', message: auth.message }), {
+        status: auth.status,
+        headers,
+      });
+    }
+  }
+
   // ── Server-side idempotency-key enforcement (task 6.4, FR-ENA-040, ADR-0058 §4) — at the top of
   // the served path, BEFORE any adapter-select/binding/credential resolution: a non-read-only erpnext
   // command with no idempotencyKey is rejected fast, never reaching the outbox or ERP. `dispatch.ts`'s
   // `dispatchMoneyWrite` re-asserts the identical guard (unit-tested, AC-ENA-012) — this is a
   // fail-fast duplicate at the integration boundary, not the sole enforcement point. P0/P1 (every
   // other domain) is unaffected.
-  const isErpDomain = command.domain === ERPNEXT_COMPANIES_DOMAIN || command.domain === ERPNEXT_PROCUREMENT_DOMAIN;
   // `AdapterOperation` has no 'read' member (reads never reach this handler as a write command) —
   // the string cast mirrors dispatch.ts's own `(command.operation as string) !== 'read'` guard.
-  if (isErpDomain && (command.operation as string) !== 'read' && !command.idempotencyKey) {
-    return new Response(JSON.stringify({ error: 'commit-rejected', message: 'missing-idempotency-key' }), {
-      status: 422,
-      headers,
-    });
+  //
+  // Luna re-audit BLOCK #1 (Lane C hand-off): the key must additionally be an OPAQUE UUID, not merely
+  // present. The recovery probe matches the anchor field with `%key%` — a SUBSTRING match kept
+  // deliberately (a false-negative probe reissues, i.e. duplicate money). A short key like `"1"`
+  // therefore matches any ERP document whose anchor merely CONTAINS it, and recovery adopts the wrong
+  // document. A UUID-shaped key makes that class unreachable by construction (and cannot carry a LIKE
+  // metacharacter). The legitimate client already mints `crypto.randomUUID()`.
+  if (isErpDomain && (command.operation as string) !== 'read' && !isOpaqueIdempotencyKey(command.idempotencyKey)) {
+    return new Response(
+      JSON.stringify({
+        error: 'commit-rejected',
+        message: command.idempotencyKey ? 'invalid-idempotency-key (must be a UUID)' : 'missing-idempotency-key',
+      }),
+      { status: 422, headers },
+    );
   }
 
   // service_role client — used for the machine-write helpers (read-model upsert/update + external_refs
   // record) AND, for 'tasks', to resolve the per-request ClickUp binding/mapping at adapter-select time.
   // Never used for adapter.commit() — org_id never crosses into the adapter (AC-EAS-023).
   const serviceClient = createClient(supabaseUrl, serviceRoleKey);
+
+  // ── Slice 3 / round-7 B8: the `require_project_on_si` process gate (FR-SAR-191, AC-SAR-070), for
+  // EVERY Sales-Invoice command that puts revenue on the ERP ledger — the body-building ones
+  // (create / update / amend) AND the **submit**, whose authority is the PMO mirror row rather than the
+  // command (a submit builds no body). The shipped inline gate covered only the body-building half, so
+  // an SI created while the gate was OFF — or an unassigned SI adopted inbound by the sweep — could
+  // still be SUBMITTED with the gate ON: revenue on the ERP GL with no project dimension while PMO
+  // reports project-attributed revenue.
+  //
+  // The whole rule (scoping, gate read, the SO/BAST inert warnings, fail-closed on any unreadable
+  // input) lives in `projectGateGuard.ts` so it is unit-provable and cannot be forked. Runs BEFORE any
+  // adapter/outbox work, so a rejection creates no outbox row and touches no ERP.
+  {
+    const projectGate = await checkSiProjectGate(serviceClient as never, orgId, command as never);
+    if (!projectGate.ok) {
+      return new Response(JSON.stringify({ error: 'commit-rejected', message: projectGate.message }), {
+        status: projectGate.status,
+        headers,
+      });
+    }
+  }
+
+  // ── Luna re-audit BLOCK #2 / BLOCK #4 — PMO-target binding (money audit), for EVERY erpnext
+  // domain and kind, BEFORE adapter select / outbox insert / any ERP write. Uses `serviceClient`
+  // (external_refs + external_command_outbox are service-role-scoped, policy-less machine tables).
+  //
+  //  #2: authorization/SoD is keyed on `record.id` while the adapter acts on the caller-supplied
+  //      `record.externalRecordId` — so a transition/update MUST be bound to the PMO record's own
+  //      recorded mapping, and a MISSING mapping fails closed (a record that was never externalized
+  //      has nothing to transition). Previously only revenue sales-invoice transitions were checked
+  //      and a missing mapping was permitted.
+  //  #4: a create must not target an ALREADY-MAPPED PMO record — `record_outbox_ref` would repoint
+  //      that record's external identity to a fresh ERP document before the mirror insert fails on
+  //      the duplicate PK. This command's own retry (same idempotency key) stays allowed.
+  if (isErpDomain) {
+    const binding = await checkTransitionTargetBinding(serviceClient as never, orgId, command);
+    if (!binding.ok) {
+      return new Response(JSON.stringify({ error: 'commit-rejected', message: binding.message }), {
+        status: binding.status,
+        headers,
+      });
+    }
+    const createTarget = await checkCreateTargetUnmapped(serviceClient as never, orgId, command, command.idempotencyKey);
+    if (!createTarget.ok) {
+      return new Response(JSON.stringify({ error: 'commit-rejected', message: createTarget.message }), {
+        status: createTarget.status,
+        headers,
+      });
+    }
+  }
+
+  // ── SoD defect 2 (TOCTOU) — CLAIM authorship of the sales-invoice body BEFORE the ERP write.
+  //
+  // The submit SoD above runs before the ERP body is constructed, and the author re-stamp used to
+  // happen only afterwards, in the (post-ERP) read-model writer. So an approver could issue an
+  // `update` rewriting the amount AND, concurrently, a `submit`: the submit's check read the
+  // authorship as it stood BEFORE the rewrite, passed, and the rewrite then landed the approver's own
+  // numbers — the approver's amount carrying the approver's own approval.
+  //
+  // `claim_sales_invoice_author` (0113 §D) closes that window IN THE DB, which is the only place it
+  // CAN be closed: a stateless edge function holds no transaction across the ERP HTTP call. It takes
+  // the same `select … for update` on the invoice row that `submit_sales_invoice` takes, so the two
+  // serialize: whichever wins the lock, the loser is refused (the rewriter is already in the author
+  // set, or the rewrite hits an outstanding submit authorization → 409 `si-submit-in-progress`).
+  // Refused HERE means refused BEFORE any ERP call — no money moves either way.
+  //
+  // Runs under the CALLER's JWT (the deputy `callerClient`, never service_role — auth.uid() must
+  // resolve to the real body-writer), and AFTER the binding/target guards so a command that is about
+  // to be rejected never records authorship.
+  if (requiresSiAuthorClaim(command)) {
+    const claim = await claimSiAuthor(callerClient as never, String(command.record.id));
+    if (!claim.ok) {
+      return new Response(
+        JSON.stringify({ error: claim.status === 403 ? 'commit-rejected' : 'DISPATCH_FAILED', message: claim.message }),
+        { status: claim.status, headers },
+      );
+    }
+  }
+
+  // ── Luna BLOCK 2 — server-side Sales-Invoice submit SoD (FR-SAR-195, ADR-0019). `submitInvoice()`
+  // in the repository already calls the SoD RPC for the legitimate FE path, but a caller POSTing the
+  // dispatch command directly could skip it. Enforce SoD HERE, under the CALLER's JWT (the deputy
+  // `callerClient`, never service_role — auth.uid()/auth_org_id() must resolve to the real submitter):
+  // a revenue sales-invoice SUBMIT transition must pass `submit_sales_invoice(p_si_id)` BEFORE the
+  // adapter commits the ERP submit. A 42501 (self-approval / not-authorized) closes the bypass — the
+  // dispatch returns 403/409 and does NOT submit to ERP, regardless of which client dispatched.
+  //
+  // Round-6 re-audit, finding 2 — POSITION MATTERS: this gate RECORDS a submit clearance that freezes
+  // every body rewrite (0114 §D/§E), so it runs LAST of the pre-dispatch gates. Every rejection a
+  // submit can collect (target binding, create-target, authorization, gates) therefore happens BEFORE a
+  // clearance exists, and the only exits after it are the adapter-select failure and the dispatch
+  // itself — both of which RELEASE it below. The freeze is thereby scoped to a dispatch that is
+  // genuinely in progress.
+  //
+  // Round-7 B1b — the gate is the SERVICE-ROLE-ONLY `grant_sales_invoice_submit_clearance`, not
+  // `submit_sales_invoice` under the caller's JWT. A clearance that an authenticated caller can mint is
+  // an insider freeze on the money path, and one they can RELEASE is a self-approval bypass: the grantee
+  // IS the approver the clearance constrains, so a grantee-fenced release let them lift it mid-submit
+  // and rewrite the body their own in-flight submit was about to commit. Because service_role carries no
+  // `auth.uid()`, the JWT-verified `userId` is passed EXPLICITLY and the RPC authorizes that actor.
+  //
+  // `clearanceId` is this dispatch's fencing token: the release names it, so a SECOND concurrent submit
+  // resolving cannot lift THIS submit's freeze (B1c).
+  const takesSubmitClearance = isRevenueSiSubmitTransition(command);
+  const clearanceId = crypto.randomUUID();
+  if (takesSubmitClearance) {
+    const sod = await grantSiSubmitClearance(serviceClient as never, String(command.record.id), userId, clearanceId);
+    if (!sod.ok) {
+      const message = /sod|self-approval|approver|author|not authorized/i.test(sod.message) ? 'sod-self-approval' : sod.message;
+      return new Response(JSON.stringify({ error: sod.status === 403 ? 'commit-rejected' : 'DISPATCH_FAILED', message }), {
+        status: sod.status,
+        headers,
+      });
+    }
+  }
+  /** Ends the body-rewrite freeze this request's submit clearance imposes (no-op for every other
+   *  command). Best-effort — the clearance's TTL is the backstop, so it never fails a resolved
+   *  dispatch. MUST run on every exit path below. */
+  const releaseSubmitClearance = async (): Promise<void> => {
+    if (takesSubmitClearance) {
+      await releaseSiSubmitClearance(serviceClient as never, String(command.record.id), clearanceId);
+    }
+  };
 
   // ── Named server-side fault seams (Slice 0 task 0.7, FR-ENA-003, plan §2 decision 5; host
   // allowlist added fix-round finding 5): read the gate ONCE per request and thread it through.
@@ -504,15 +713,17 @@ Deno.serve(async (req: Request): Promise<Response> => {
   let adapter: Adapter;
   let money: DispatchMoneyOutboxDeps | undefined;
   try {
-    adapter = await adapterFactory({ orgId, command, serviceClient, faultGate });
+    adapter = await adapterFactory({ orgId, command, serviceClient, faultGate, userId });
     // Task 6.4 (ADR-0058): every non-read-only erpnext command routes through the money-idempotency
     // outbox — `dispatchExternallyOwnedWrite` requires `money` to be set for this tier (it throws
     // "dispatched without outbox deps" otherwise, the exact failure this task closes). P0/P1 (every
     // other tier) never resolves this — `money` stays `undefined`, their path is byte-for-byte.
     if (adapter.tier === ERPNEXT_TIER && (command.operation as string) !== 'read') {
-      money = await resolveErpMoneyOutboxDeps({ orgId, command, serviceClient, faultGate });
+      money = await resolveErpMoneyOutboxDeps({ orgId, command, serviceClient, faultGate, userId });
     }
   } catch (err) {
+    // The submit never reaches ERP — end the body-rewrite freeze now rather than in five minutes.
+    await releaseSubmitClearance();
     const appError = err instanceof AppError ? err : new AppError(err instanceof Error ? err.message : 'adapter select failed');
     return new Response(JSON.stringify({ error: appError.code ?? 'ADAPTER_SELECT_FAILED', message: appError.message }), {
       status: 400,
@@ -550,7 +761,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
         // Multi-domain read-model writer registry (task 1.6) — supersedes slice 0's inline
         // if-chain (its ClickUp/reference branches moved byte-for-byte into readModelWriters.ts).
         const writer = getReadModelWriter(command.domain);
-        await writer.upsert({ serviceClient: serviceClient as never, orgId }, canonical, command);
+        await writer.upsert({ serviceClient: serviceClient as never, orgId, callerUserId: userId }, canonical, command);
       },
       // Cast: the real supabase-js client's .from().upsert() returns a thenable
       // PostgrestFilterBuilder, not a plain Promise — structurally satisfies
@@ -595,16 +806,25 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const appError = err instanceof AppError ? err : new AppError(err instanceof Error ? err.message : 'adapter dispatch failed');
     // 'command-held' (C-1): a mutable-anchor money doc held for operator resolution — a 409 Conflict
     // (retrying will NOT help; an operator must resolve), distinct from the transient 502 unreachable.
+    // WIRE 4: `command-in-flight-for-record` (0116's one-in-flight-per-record index, classified in
+    // dispatch.ts) is a genuine CONFLICT — another command for this PMO record is still settling.
+    // Retrying now cannot help, but retrying LATER can, so it is a 409 like `command-held`, never a 500
+    // carrying the raw index name.
     const status = appError.code === 'external-unreachable'
       ? 502
       : appError.code === 'commit-rejected'
         ? 422
-        : appError.code === 'command-held'
+        : appError.code === 'command-held' || appError.code === COMMAND_IN_FLIGHT_FOR_RECORD
           ? 409
           : 500;
     return new Response(JSON.stringify({ error: appError.code ?? 'DISPATCH_FAILED', message: appError.message }), {
       status,
       headers,
     });
+  } finally {
+    // Finding 2: the submit has RESOLVED — successfully, rejected by ERP, or held. Either way the
+    // clearance has served its purpose (it exists only to stop a body rewrite racing an IN-FLIGHT
+    // submit), so release it here rather than leaving Finance blocked for the rest of the TTL.
+    await releaseSubmitClearance();
   }
 });

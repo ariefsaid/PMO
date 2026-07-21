@@ -886,6 +886,35 @@ two coordination notes: keep the `credentials.ts` resolver seam clean (Vault swa
 `external_org_bindings` is the shared per-org connection table. The Director orchestrates this layer as
 its own spec → eng-planner plan → PRs afterward (security-auditor mandatory on the token path).
 
+### OD-SAR-GATES — PMO is the flexible layer; process gates are org-config, default permissive (owner ruling 2026-07-14)
+
+**Binding product architecture:** the PMO caters to field reality; the ERP is strict. Chain/process
+gating (require-SO-before-SI, require-BAST-before-SI, require-project-on-SI, procurement chain-entry
+restrictions, …) is **org-level configuration** (`process_gates`), **default OFF/permissive**, flipped
+ON only when an org's accounting demands it — and flipped back when an edge case becomes the norm.
+Doctypes must be representable without their gate being mandatory. First shipped seam: P3a revenue
+gates (inert, default-off). Fast-follow issue: SO + BAST (Indonesian services handover — DN-doctype vs
+document+milestone-acceptance needs its own ruling). **P2 retrofit (backlog): flexible procurement
+chain entry** (direct-to-PO, payment-first) under the same philosophy.
+
+### OD-SAR-PMO-IS-THE-UI — the accountant's UI is PMO; ERPNext is the headless audit/ledger engine (owner ruling 2026-07-14)
+
+Accountants work IN PMO (authoring, corrections — hence SI cancel/amend in-app); the ERPNext bench
+exists for audit and as the ledger engine. **ERP-grade financial reporting belongs on the PMO
+backlog** (a reporting track over the mirrored ledger/read-models), not in the Desk. Sharpens
+ADR-0055 §product-frame and [[product-vision-operational-layer]]; every future money issue assumes
+no user is ever required to open the ERPNext Desk.
+
+### OD-SAR-DRAFT-SUBMIT — revenue SI create leaves a DRAFT; submit is the SoD-gated approver step (owner ruling 2026-07-15)
+
+The signed-off SoD (approver≠author on SI submit, OD-SAR §14) is only real if create and submit are
+SEPARATE actors. The initial build did **atomic create+submit** (spike "two-step insert→submit" →
+docstatus 1 on create), which BYPASSED SoD at create (author submits their own invoice). **Binding
+correction:** a revenue **Sales Invoice** create leaves an ERP **draft (docstatus 0)**; **submit** is
+the separate, SoD-gated transition performed by a DIFFERENT approver (PM drafts → Finance approves +
+submits). Procurement PI/PE stay atomic create+submit (no SoD there). Mirror status: 'Draft' after
+create, 'Unpaid' after the approver submit. Surfaced by the post-Luna e2e re-run (sod-self-approval
+403 on single-user create+submit). Implemented via a registry `submitOnCreate:false` for sales-invoice.
 ### OD-INT-6 — ERPNext Company is selected at the ORG level, not per project (owner-approved 2026-07-16)
 **Supersedes plan tasks 3.3 + 3.5's ERPNext-in-the-project-modal.** ERPNext **Company** is a legal
 entity — org-scoped by nature (OD-INT-4), and the shipped ERP code depends on it: `binding.ts`
