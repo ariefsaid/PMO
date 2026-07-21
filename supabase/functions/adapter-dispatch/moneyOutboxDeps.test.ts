@@ -34,6 +34,9 @@ function makeFakeClient(seed: FakeRow[] = []) {
   let seq = rows.size;
   const rpcCalls: Array<{ fn: string; args: Record<string, unknown> }> = [];
   const externalRefs: Array<Record<string, unknown>> = [];
+  /** The RAW row objects handed to `.insert()` — so a test can assert exactly which columns the
+   *  writer sends (an omitted column is distinguishable from an explicit null). */
+  const inserted: unknown[] = [];
 
   const client: OutboxServiceClient = {
     from(table: string) {
@@ -60,6 +63,7 @@ function makeFakeClient(seed: FakeRow[] = []) {
         },
         insert(row: unknown) {
           const r = row as Partial<FakeRow>;
+          inserted.push(row);
           const dup = [...rows.values()].some(
             (existing) =>
               existing.org_id === r.org_id &&
@@ -162,7 +166,7 @@ function makeFakeClient(seed: FakeRow[] = []) {
       throw new Error(`unexpected rpc ${fn}`);
     },
   };
-  return { client, rows, rpcCalls, externalRefs };
+  return { client, rows, rpcCalls, externalRefs, inserted };
 }
 
 Deno.test('readOutbox: null when no row for the 4-tuple; maps a found row to camelCase OutboxRow', async () => {
@@ -180,6 +184,44 @@ Deno.test('readOutbox: null when no row for the 4-tuple; maps a found row to cam
   assertEquals(found?.claimGeneration, 0);
   const notFound = await deps.readOutbox('procurement', 'pmo-1', 'key-nope');
   assertEquals(notFound, null);
+});
+
+// ============================================================================
+// Luna re-audit BLOCK 7 — persist the dispatching actor on the outbox row.
+// The caller's user id was threaded ONLY from the live request JWT (index.ts -> the read-model
+// writer's callerUserId), never persisted. So when the SWEEP later finalizes a committed-but-
+// unmirrored SI there is no request JWT and the author is unrecoverable: `author_user_id` lands NULL
+// and the approver≠author SoD then passes for everyone (B6 is the fail-closed backstop; this is the
+// root-cause fix). `actor_user_id` is stamped at INSERT from the VERIFIED JWT (index.ts's
+// `verified.sub`), never from anything the client can supply.
+// ============================================================================
+
+Deno.test('Luna B7 — insertOutboxPending persists actor_user_id (the verified caller) so a later sweep finalize can attribute the author', async () => {
+  const { client, inserted } = makeFakeClient();
+  const deps = createDbMoneyOutboxDeps({
+    serviceClient: client,
+    orgId: 'org-1',
+    externalTier: 'erpnext',
+    operation: 'create',
+    probeByRemarksKey: async () => null,
+    actorUserId: 'user-author-1',
+  });
+  await deps.insertOutboxPending('revenue', 'pmo-si-1', 'key-b7-1');
+  assertEquals(
+    (inserted[0] as Record<string, unknown>).actor_user_id,
+    'user-author-1',
+    'the outbox row must carry the dispatching actor so the sweep can recover the author',
+  );
+});
+
+Deno.test('Luna B7 — insertOutboxPending omits actor_user_id when no actor is known (nullable: the machine/sweep-originated path stays valid)', async () => {
+  const { client, inserted } = makeFakeClient();
+  const deps = createDbMoneyOutboxDeps({ serviceClient: client, orgId: 'org-1', externalTier: 'erpnext', operation: 'create', probeByRemarksKey: async () => null });
+  await deps.insertOutboxPending('revenue', 'pmo-si-2', 'key-b7-2');
+  assert(
+    !('actor_user_id' in (inserted[0] as Record<string, unknown>)),
+    'an actor-less caller must not write the column at all (never a bogus/empty actor)',
+  );
 });
 
 Deno.test('insertOutboxPending: inserts a fresh pending row; a duplicate 4-tuple throws with .code=23505', async () => {
@@ -345,4 +387,28 @@ Deno.test('probeByRemarksKey + backoff are passed through from the injected opts
   await deps.backoff();
   assert(probeCalled, 'expected the injected probe to be invoked');
   assert(backoffCalled, 'expected the injected backoff to be invoked');
+});
+
+Deno.test('FIX 2: reauthorizeRecoveryReissue is passed through when supplied (sweep path) and UNDEFINED when omitted (sync path is byte-for-byte)', async () => {
+  const { client } = makeFakeClient();
+
+  // Sync path: no reauth supplied ⇒ the dep is undefined, so dispatch.ts never re-checks a reissue
+  // (the synchronous gate already ran fresh for the current caller).
+  const syncDeps = createDbMoneyOutboxDeps({
+    serviceClient: client, orgId: 'org-1', externalTier: 'erpnext', operation: 'create',
+    probeByRemarksKey: async () => null,
+  });
+  assert(syncDeps.reauthorizeRecoveryReissue === undefined, 'the sync path must not carry a reissue re-check');
+
+  // Sweep path: the recovery pass supplies it, and it is invoked verbatim on the reissue branch.
+  let reauthCalled = false;
+  const sweepDeps = createDbMoneyOutboxDeps({
+    serviceClient: client, orgId: 'org-1', externalTier: 'erpnext', operation: 'create',
+    probeByRemarksKey: async () => null,
+    reauthorizeRecoveryReissue: async () => { reauthCalled = true; return { ok: false, message: 'actor demoted' }; },
+  });
+  assert(typeof sweepDeps.reauthorizeRecoveryReissue === 'function', 'the sweep path must carry the reissue re-check');
+  const result = await sweepDeps.reauthorizeRecoveryReissue!();
+  assert(reauthCalled, 'expected the injected reissue re-check to be invoked');
+  assertEquals(result, { ok: false, message: 'actor demoted' }, 'the re-check result is passed through unchanged');
 });

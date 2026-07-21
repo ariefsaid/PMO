@@ -10,7 +10,9 @@
 import { createErpAdapter, ERPNEXT_TIER, type DoctypeBodyFns, type ErpAdapterDeps } from './adapter.ts';
 import type { ErpDocKind } from './doctypeRegistry.ts';
 import { getDoc, type ErpClientDeps, type ErpRateLimiter } from './client.ts';
+import type { ErpProbeDeps } from './recoveryProbe.ts';
 import { resolveExternalRef, type ExternalRefsLookupClient } from '../refs.ts';
+import { readProcessGates } from './processGates.ts';
 import type { Adapter, AdapterCommand } from '../contract.ts';
 import { AppError } from '../../appError.ts';
 
@@ -122,6 +124,263 @@ async function resolvePoItemChildNames(client: ErpClientDeps, poName: string): P
   return map;
 }
 
+// ============================================================================
+// Luna re-audit BLOCK 2 — cross-org link PRE-FLIGHT (money-critical, ordering)
+// ============================================================================
+
+/** Every cross-entity PMO link a command can carry, and the table each must belong to in the caller's
+ *  org. `readModelWriters` guards the SAME links, but only inside the MIRROR writers — which run AFTER
+ *  `adapter.commit()` and `recordOutboxRef`. By then a cross-org link has already minted a REAL ERP
+ *  money document that no PMO row can ever reference (orphan money), or — round-7 B10 — a mirror row
+ *  stamped with the CALLER's org_id but ANOTHER tenant's foreign key (a service-role write; RLS does
+ *  not protect it). This table drives the PRE-flight; the post-commit guards stay as defence in depth.
+ *
+ *  Round-7 B10 added the `procurement` half: only the three revenue links were pre-flighted, so a
+ *  direct command carrying another tenant's known `procurementId` was accepted. */
+type LinkField = 'customerId' | 'projectId' | 'salesInvoiceId' | 'procurementId' | 'vendorId' | 'invoiceId';
+
+const LINK_TABLE: Readonly<Record<LinkField, string>> = {
+  customerId: 'companies',
+  projectId: 'projects',
+  salesInvoiceId: 'sales_invoices',
+  procurementId: 'procurements',
+  vendorId: 'companies',
+  invoiceId: 'procurement_invoices',
+};
+
+/** The links each ERPNext domain's commands can carry (the fields `readModelWriters` copies into the
+ *  service-role mirror insert). `companies` (supplier/customer parties) carries none. */
+const DOMAIN_LINK_FIELDS: Readonly<Record<string, ReadonlyArray<LinkField>>> = {
+  revenue: ['customerId', 'projectId', 'salesInvoiceId'],
+  procurement: ['procurementId', 'vendorId', 'invoiceId'],
+};
+
+/** Assert one linked row exists AND belongs to `orgId`. Fails CLOSED: a missing row (no row, or an id
+ *  from another tenant that RLS-free service-role reads would happily return) is rejected exactly like
+ *  a cross-org one — never treated as an absent link. Throws the classified `cross-org-link-rejected`
+ *  (the same code `readModelWriters` raises, so the caller-facing classification is unchanged). */
+async function assertLinkBelongsToOrg(
+  serviceClient: DispatchServiceClient,
+  orgId: string,
+  table: string,
+  id: string,
+): Promise<void> {
+  const { data, error } = await serviceClient.from(table).select('org_id').eq('id', id).maybeSingle();
+  if (error) throw new AppError(error.message, error.code);
+  const rowOrgId = (data as { org_id: string } | null)?.org_id;
+  if (rowOrgId !== orgId) {
+    throw new AppError(
+      `cross-org link rejected: ${table} '${id}' does not belong to org '${orgId}'`,
+      'cross-org-link-rejected',
+    );
+  }
+}
+
+/**
+ * Validate EVERY cross-entity link this command carries BEFORE the adapter exists — so a command
+ * pairing (say) a valid own-org customer with ANOTHER org's `salesInvoiceId`, or naming another
+ * tenant's `procurementId`, is refused with no ERP write and no outbox commit. Runs ahead of ref
+ * resolution (which itself issues ERP GETs for a GR) and ahead of `dispatchExternallyOwnedWrite`
+ * (index.ts resolves the adapter first). A null/absent link is skipped — only ASSERTED links are
+ * validated (an on-account receipt, or a Material Request with no vendor, legitimately carries none).
+ */
+async function assertCommandLinksSameOrg(deps: ErpDispatchFactoryDeps): Promise<void> {
+  const record = deps.command.record as Partial<Record<LinkField, string | null>>;
+  for (const field of DOMAIN_LINK_FIELDS[deps.command.domain] ?? []) {
+    const id = record[field];
+    if (typeof id === 'string' && id.length > 0) {
+      await assertLinkBelongsToOrg(deps.serviceClient, deps.orgId, LINK_TABLE[field], id);
+    }
+  }
+}
+
+// ============================================================================
+// Luna re-audit BLOCK 4 — the require_project_on_si gate needs a RESOLVED ERP project
+// ============================================================================
+
+/** PMO `projectId` -> the ERP project name, via the binding's `config.project_map` override (Director
+ *  ruling §6.1 — search-by-`project_name` + auto-create is a fast-follow; the map is the source of
+ *  truth today). `null` = no projectId, or a projectId this binding has no ERP mapping for. ONE
+ *  definition, shared by the ref resolution and the gate below — they must never disagree about what
+ *  "the ERP project resolved" means. */
+function resolveErpProjectName(config: Record<string, unknown> | undefined, projectId: string | null | undefined): string | null {
+  const projectMap = (config?.project_map as Record<string, string> | undefined) ?? {};
+  return projectId ? (projectMap[projectId] ?? null) : null;
+}
+
+/**
+ * Does this command BUILD a Sales Invoice body (and therefore decide whether the ERP document
+ * carries a `project` dimension)? Luna re-audit BLOCK #12 — the gate used to ask "is this a create?",
+ * which left the amend path wide open:
+ *   - `create`                      -> `bodies/salesInvoice.toBody`
+ *   - `update`                      -> a draft field PUT, or routeEdit(1) -> commitAmend, both of
+ *                                      which rebuild the body
+ *   - `transition{verb:'amend'}`    -> commitAmend (cancel + create-with-`amended_from`)
+ * `submit`/`cancel` transitions act on an EXISTING document and build no body, so the gate must not
+ * (and does not) touch them.
+ *
+ * Exported because `adapter-dispatch/index.ts` enforces the OTHER half of the same gate (the
+ * "projectId present at all" check) and the two must never disagree about which operations qualify.
+ */
+export function buildsSalesInvoiceBody(command: { operation: string; record: { verb?: unknown } }): boolean {
+  const operation = String(command.operation);
+  if (operation === 'create' || operation === 'update') return true;
+  if (operation === 'transition') return command.record.verb === 'amend';
+  return false;
+}
+
+/**
+ * Enforce `require_project_on_si` on every SI body-building operation against the ERP project that
+ * ACTUALLY resolved —
+ * not merely against a non-null PMO `projectId` (the dispatch's own pre-flight already covers that).
+ * A PMO project with no `project_map` entry resolves to `null`, and `bodies/salesInvoice.ts` then omits
+ * the ERP `project` field entirely: the invoice posts with NO project dimension on the GL while PMO
+ * reports it as project revenue. With the gate ON that silent divergence must be fatal, and fatal HERE
+ * — before the adapter is constructed, so nothing is written to ERPNext.
+ *
+ * Gate OFF (or a non-SI/non-create command) ⇒ untouched: an unmapped project stays a legitimate
+ * unattributed invoice. Gates are read from the SAME `config` the FE reads (`readProcessGates`, which
+ * applies the per-key defaults — `require_project_on_si` defaults TRUE).
+ */
+function assertSiProjectGate(deps: ErpDispatchFactoryDeps, binding: ExternalOrgBindingRow): void {
+  const record = deps.command.record as { erp_doc_kind?: string; projectId?: string | null; verb?: unknown };
+  if (record.erp_doc_kind !== 'sales-invoice') return;
+  if (!buildsSalesInvoiceBody({ operation: deps.command.operation as string, record })) return;
+  if (!readProcessGates(binding.config).require_project_on_si) return;
+  // A MISSING projectId is the dispatch's own gate (index.ts -> 422 'project-required'), enforced
+  // before this factory is ever reached — not re-thrown here with a different status. This guard owns
+  // the half that check cannot see: a projectId that is present but resolves to no ERP project.
+  if (!record.projectId) return;
+  if (resolveErpProjectName(binding.config, record.projectId) === null) {
+    throw new AppError(
+      `require_project_on_si is on but project '${record.projectId}' has no ERP project mapping — ` +
+        'the invoice would post with no project dimension on the ERP ledger',
+      'commit-rejected',
+    );
+  }
+}
+
+// ============================================================================
+// Luna re-audit BLOCK #1 — the fallback anchor probe needs the payment_type discriminator
+// ============================================================================
+
+/** The two PMO kinds that share Frappe's single `Payment Entry` doctype, and the `payment_type` that
+ *  tells them apart. Any other kind has no discriminator (its doctype is unambiguous). */
+const PAYMENT_TYPE_BY_KIND: Readonly<Record<string, 'Pay' | 'Receive'>> = {
+  payment: 'Pay',
+  'incoming-payment': 'Receive',
+};
+
+/**
+ * Conjoin the `payment_type` discriminator onto a Payment Entry recovery probe.
+ *
+ * `probeErpByPaymentComposite` already does this for the composite path, but the adapter-dispatch
+ * FALLBACK (taken when no composite payload has been persisted yet) called the bare
+ * `probeErpByAnchorKey`. Since 'Pay' and 'Receive' entries share one doctype and the anchor field
+ * (`reference_no`) is ERP-side editable, an unfiltered anchor `like` can adopt an entry of the WRONG
+ * direction whenever the two share a reference_no — mirroring a PMO incoming payment onto an outgoing
+ * payment document (or cancelling the wrong one later, since the adopted name becomes the mapping).
+ *
+ * Applies both the server-side list filter AND the post-fetch validator (defense in depth, matching
+ * `probeErpByPaymentComposite`'s own anchor deps). A doc that does not state its `payment_type` is
+ * refused rather than adopted. A non-Payment-Entry kind is returned UNCHANGED (byte-for-byte).
+ */
+export function withPaymentTypeDiscriminator(deps: ErpProbeDeps, kind: unknown): ErpProbeDeps {
+  const paymentType = typeof kind === 'string' ? PAYMENT_TYPE_BY_KIND[kind] : undefined;
+  if (!paymentType) return deps;
+  return {
+    ...deps,
+    anchorExtraFilters: [['payment_type', '=', paymentType]],
+    validateAdoptedDoc: (doc) => (doc as { payment_type?: unknown }).payment_type === paymentType,
+  };
+}
+
+// ============================================================================
+// Task 2.3 — Revenue ref resolver (FR-SAR-100/101/121)
+// ============================================================================
+
+/** Resolve revenue-domain refs for a sales-invoice or incoming-payment command.
+ *  - `ctx.refs.customer` from `record.customerId` via `external_refs` (companies domain,
+ *    `Customer:<name>` → strip prefix to bare ERP name).
+ *  - `ctx.refs.project` from `record.projectId` via the binding's ERP-project→PMO map
+ *    (`binding.config.project_map[projectId]` → ERP `project` name). The Director ruling §6.1
+ *    says: resolve by ERP `project_name` search first; auto-create on miss is a separate
+ *    concern (the binding map is the override; search-by-name + create is a fast-follow).
+ *    Here we use the binding map as the source of truth for the ERP project name.
+ *  - For `incoming-payment`: `references[]` row's `reference_name` from `record.salesInvoiceId`
+ *    via `external_refs` (revenue domain → the SI's ERP name). The body builder reads
+ *    `rec.references` (set by the repo from `salesInvoiceId`) and maps to ERP `references`.
+ */
+async function resolveRevenueRefs(
+  deps: ErpDispatchFactoryDeps,
+  binding: ExternalOrgBindingRow,
+): Promise<{ refs: Record<string, string | null> }> {
+  const refs: Record<string, string | null> = {};
+  const record = deps.command.record as {
+    erp_doc_kind?: string;
+    customerId?: string;
+    projectId?: string;
+    salesInvoiceId?: string;
+    paid_amount?: unknown;
+  };
+  const kind = record.erp_doc_kind;
+
+  if ((kind !== 'sales-invoice' && kind !== 'incoming-payment') || !record.customerId) {
+    return { refs };
+  }
+
+  // Resolve customer (companies domain: Customer:<name> → bare name)
+  const customerExternalId = await resolveExternalRef(
+    deps.serviceClient as unknown as ExternalRefsLookupClient,
+    deps.orgId,
+    'companies',
+    record.customerId,
+  );
+  if (customerExternalId) {
+    refs.customer = customerExternalId.startsWith('Customer:')
+      ? customerExternalId.slice('Customer:'.length)
+      : customerExternalId;
+  }
+
+  // Resolve project for sales-invoice (the gate on this ref is enforced by `assertSiProjectGate`,
+  // ahead of the adapter — both use `resolveErpProjectName` so they can never diverge).
+  if (kind === 'sales-invoice') {
+    refs.project = resolveErpProjectName(binding.config, record.projectId);
+  }
+
+  // Resolve SI reference for incoming-payment — Luna BLOCK 5 (MONEY-CRITICAL):
+  // - If salesInvoiceId is present but UNRESOLVABLE → reject (classified error, no ERP write)
+  // - If salesInvoiceId is present and RESOLVED → DISCARD any caller-supplied references,
+  //   build references[] ONLY from the server-resolved SI ERP name + paid_amount
+  // - If salesInvoiceId is null/absent → allow unreferenced on-account receipt (empty references[])
+  if (kind === 'incoming-payment') {
+    if (record.salesInvoiceId) {
+      const siExternalId = await resolveExternalRef(
+        deps.serviceClient as unknown as ExternalRefsLookupClient,
+        deps.orgId,
+        'revenue',
+        record.salesInvoiceId,
+      );
+      if (!siExternalId) {
+        throw new AppError(
+          `salesInvoiceId '${record.salesInvoiceId}' not found in this org's revenue external_refs`,
+          'cross-org-link-rejected',
+        );
+      }
+      refs.si = siExternalId;
+      // DISCARD caller-supplied references entirely; build ONLY from resolved SI
+      (deps.command.record as { references?: unknown }).references = [
+        { reference_doctype: 'Sales Invoice', reference_name: siExternalId, allocated_amount: record.paid_amount ?? null },
+      ];
+    } else {
+      // No salesInvoiceId → on-account receipt: explicit empty references (never caller-supplied)
+      (deps.command.record as { references?: unknown }).references = [];
+    }
+  }
+
+  return { refs };
+}
+
 /** Resolve every PO/GR ref this command needs (task 5.3). Returns the `ctx.refs` additions +
  *  `resolvedItems` (only set when the command carried none — `adapter.ts`'s fallback substitutes it). */
 async function resolveProcurementOrderRefs(
@@ -203,9 +462,18 @@ export async function resolveErpDispatchAdapter(deps: ErpDispatchFactoryDeps): P
     throw new AppError('erpnext binding is not activated (version handshake mismatch or never activated)', 'config-rejected');
   }
 
+  // Luna re-audit BLOCK 2 (+ round-7 B10, the procurement half) — the cross-org link pre-flight runs
+  // FIRST: before ref resolution (which can issue ERP GETs), before the adapter is constructed, and
+  // therefore before any ERP write or outbox commit. A cross-org link must never reach ERPNext (orphan
+  // money, no PMO row) nor a service-role mirror insert (this org's org_id + another tenant's FK).
+  await assertCommandLinksSameOrg(deps);
+  // Luna re-audit BLOCK 4 — the SI project gate, likewise ahead of any ERP write.
+  assertSiProjectGate(deps, binding);
+
   // Ref resolution (supplier/PO/PO-item) — task 5.3 wires the PO/GR case; slice 3 wires the
   // companies-domain party create/update path (which needs no cross-doctype resolution of its own).
-  const { refs, resolvedItems } = await resolveProcurementOrderRefs(deps, binding);
+  const { refs: procurementRefs, resolvedItems } = await resolveProcurementOrderRefs(deps, binding);
+  const { refs: revenueRefs } = await resolveRevenueRefs(deps, binding);
 
   const adapterDeps: ErpAdapterDeps = {
     client: {
@@ -222,8 +490,10 @@ export async function resolveErpDispatchAdapter(deps: ErpDispatchFactoryDeps): P
     // comes back unset there; fall back to resolving the command's own `vendorId` through the SAME
     // `companies` domain external_refs mapping (`resolveExternalRef`, task 1.6). The PO/GR path never
     // pays for this fallback call — `??` short-circuits once `refs.supplier` is already resolved.
+    // Revenue commands (sales-invoice/incoming-payment) resolve customer + project + SI ref via
+    // `resolveRevenueRefs` (task 2.3, FR-SAR-100/101/121).
     ctx: {
-      refs: { ...refs, supplier: refs.supplier ?? (await resolveSupplierRef(deps.serviceClient, deps.orgId, deps.command)) },
+      refs: { ...procurementRefs, ...revenueRefs, supplier: procurementRefs.supplier ?? (await resolveSupplierRef(deps.serviceClient, deps.orgId, deps.command)) },
       config: binding.config,
       resolvedItems,
     },

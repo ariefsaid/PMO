@@ -24,6 +24,7 @@ import {
   type ProcurementInvoiceRow,
 } from '@/src/lib/db/procurementLifecycle';
 import type { Tables } from '@/src/lib/supabase/database.types';
+import type { CommandIntent } from '@/src/lib/repositories/types';
 
 // ---------------------------------------------------------------------------
 // Query key factory — org-scoped (mirrors useBudget pattern, AC-816)
@@ -92,10 +93,10 @@ export function useProcurementMutations(id: string) {
   const createQuotation = useMutation<
     Tables<'procurement_quotations'>,
     ProcurementError,
-    { vendorId: string; totalAmount: number; receivedDate: string }
+    { vendorId: string; totalAmount: number; receivedDate: string; intent?: CommandIntent }
   >({
-    mutationFn: ({ vendorId, totalAmount, receivedDate }) =>
-      repositories.procurement.createQuotation(id, vendorId, totalAmount, receivedDate),
+    mutationFn: ({ vendorId, totalAmount, receivedDate, intent }) =>
+      repositories.procurement.createQuotation(id, vendorId, totalAmount, receivedDate, intent),
     onMutate: () => {
       if (isExternal()) setPendingPush(beginPush(IDLE_PENDING_PUSH));
     },
@@ -111,10 +112,10 @@ export function useProcurementMutations(id: string) {
   const createReceipt = useMutation<
     ProcurementReceiptRow,
     ProcurementError,
-    { status: 'Partial' | 'Complete'; receiptDate: string; referenceNumber?: string | null }
+    { status: 'Partial' | 'Complete'; receiptDate: string; referenceNumber?: string | null; intent?: CommandIntent }
   >({
-    mutationFn: ({ status, receiptDate, referenceNumber }) =>
-      repositories.procurement.createReceipt(id, status, receiptDate, referenceNumber),
+    mutationFn: ({ status, receiptDate, referenceNumber, intent }) =>
+      repositories.procurement.createReceipt(id, status, receiptDate, referenceNumber, intent),
     onMutate: () => {
       if (isExternal()) setPendingPush(beginPush(IDLE_PENDING_PUSH));
     },
@@ -130,10 +131,10 @@ export function useProcurementMutations(id: string) {
   const createInvoice = useMutation<
     ProcurementInvoiceRow,
     ProcurementError,
-    { status: 'Received' | 'Scheduled' | 'Paid'; invoiceDate: string; referenceNumber?: string | null; amount?: number | null }
+    { status: 'Received' | 'Scheduled' | 'Paid'; invoiceDate: string; referenceNumber?: string | null; amount?: number | null; intent?: CommandIntent }
   >({
-    mutationFn: ({ status, invoiceDate, referenceNumber, amount }) =>
-      repositories.procurement.createInvoice(id, status, invoiceDate, referenceNumber, amount),
+    mutationFn: ({ status, invoiceDate, referenceNumber, amount, intent }) =>
+      repositories.procurement.createInvoice(id, status, invoiceDate, referenceNumber, amount, intent),
     onMutate: () => {
       if (isExternal()) setPendingPush(beginPush(IDLE_PENDING_PUSH));
     },

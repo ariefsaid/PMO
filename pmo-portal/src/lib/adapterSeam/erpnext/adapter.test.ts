@@ -24,10 +24,10 @@ function baseDeps(fetchImpl: (url: string, init?: RequestInit) => Promise<Respon
 }
 
 describe('erpnext/adapter — capability + tier', () => {
-  it('exposes tier="erpnext" and capabilityMap={companies,procurement}', () => {
+  it('exposes tier="erpnext" and capabilityMap={companies,procurement,revenue}', () => {
     const adapter = createErpAdapter(baseDeps(async () => jsonResponse(200, {})));
     expect(adapter.tier).toBe(ERPNEXT_TIER);
-    expect(adapter.capabilityMap).toEqual(new Set(['companies', 'procurement']));
+    expect(adapter.capabilityMap).toEqual(new Set(['companies', 'procurement', 'revenue']));
   });
 });
 

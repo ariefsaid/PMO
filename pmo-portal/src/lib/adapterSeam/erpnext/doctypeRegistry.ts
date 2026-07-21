@@ -21,7 +21,9 @@ export type ErpDocKind =
   | 'purchase-invoice'
   | 'payment'
   | 'supplier'
-  | 'customer';
+  | 'customer'
+  | 'sales-invoice'
+  | 'incoming-payment';
 
 /** Per-command context injected into `toBody` (resolved refs + the org's binding config defaults). */
 export interface ErpCtx {
@@ -36,6 +38,12 @@ export interface ErpCtx {
 export interface DoctypeEntry {
   doctype: string;
   submittable: boolean;
+  /** Whether a `create` command auto-submits the doc (the R9 two-step insert→submit). Default TRUE
+   *  for every submittable kind. `false` ONLY for `sales-invoice` (OD-SAR-DRAFT-SUBMIT): a revenue SI
+   *  create leaves an ERP DRAFT (docstatus 0) so the SEPARATE SoD-gated `verb:'submit'` transition —
+   *  performed by a different approver — is the real commit. Without this the author submits their
+   *  own invoice at create and the signed-off SoD (approver≠author) is bypassed. */
+  submitOnCreate?: boolean;
   readOnly?: boolean;
   /** ADR-0058 §3 recovery-probe anchor (task 6.4 + Slice-6 completion, live-bench-verified
    *  2026-07-12): the stock text field the adapter stamps the idempotency key into AND the recovery
@@ -62,7 +70,7 @@ export interface DoctypeEntry {
  *  two-step create->submit (FR-ENA-044); `readOnly` marks a kind PMO never writes (e.g. Customer, OQ-4);
  *  `anchorField` names the per-doctype recovery-probe anchor (ADR-0058 §3, task 6.4 — `null` ⇒ skip the
  *  probe; 'remarks' for PI/PR; 'reference_no' for PE per the DIRECTOR RULING, see test docstring). */
-export const DOCTYPE_REGISTRY: Record<ErpDocKind, Pick<DoctypeEntry, 'doctype' | 'submittable' | 'readOnly' | 'anchorField' | 'anchorMutable'>> = {
+export const DOCTYPE_REGISTRY: Record<ErpDocKind, Pick<DoctypeEntry, 'doctype' | 'submittable' | 'submitOnCreate' | 'readOnly' | 'anchorField' | 'anchorMutable'>> = {
   'purchase-request': { doctype: 'Material Request', submittable: true, anchorField: null },
   rfq: { doctype: 'Request for Quotation', submittable: true, anchorField: null },
   quotation: { doctype: 'Supplier Quotation', submittable: true, anchorField: null },
@@ -81,6 +89,14 @@ export const DOCTYPE_REGISTRY: Record<ErpDocKind, Pick<DoctypeEntry, 'doctype' |
   payment: { doctype: 'Payment Entry', submittable: true, anchorField: 'reference_no', anchorMutable: true },
   supplier: { doctype: 'Supplier', submittable: false, anchorField: null },
   customer: { doctype: 'Customer', submittable: false, anchorField: null }, // write scope settled in slice 3 (OQ-4)
+  // P3a Slice 1 — Revenue domain (FR-SAR-011, OQ-SAR-1/R9-P3a spike frozen):
+  // SI — anchor 'remarks', IMMUTABLE (OQ-SAR-4, R9-P3a spike #2: remarks survives validate+submit+refetch
+  // verbatim — the PI twin, reissue-capable). ERP server-derives debit_to + items[].income_account.
+  'sales-invoice': { doctype: 'Sales Invoice', submittable: true, submitOnCreate: false, anchorField: 'remarks', anchorMutable: false },
+  // PE-receive — anchor 'reference_no', MUTABLE (OQ-SAR-3, R9-P3a spike #4: remarks is clobbered by PE
+  // validate; reference_no survives. C-1 applies verbatim: composite probe + held-on-inconclusive, NEVER
+  // auto-reissued — the double-receive guard). Same doctype as 'payment', payment_type='Receive'.
+  'incoming-payment': { doctype: 'Payment Entry', submittable: true, anchorField: 'reference_no', anchorMutable: true },
 };
 
 /** The generic 3-value ERP docstatus label (task 4.10, FR-ENA-110/111/117). Frappe's `docstatus`

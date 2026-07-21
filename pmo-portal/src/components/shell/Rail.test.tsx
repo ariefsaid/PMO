@@ -18,6 +18,9 @@ const { featureEnabled, userViewsData } = vi.hoisted(() => {
 vi.mock('@/src/lib/features', () => ({
   isFeatureEnabled: (key: string) => featureEnabled[key] ?? false,
   FEATURES: featureEnabled,
+  // Rail resolves each gated item's fallback via FEATURE_ENV_DEFAULT[key] (Rail.tsx) — the mock must
+  // expose it or the new revenue-gated nav items throw on an undefined lookup.
+  FEATURE_ENV_DEFAULT: featureEnabled,
 }));
 
 vi.mock('@/src/hooks/useUserViews', () => ({

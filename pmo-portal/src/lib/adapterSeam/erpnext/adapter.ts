@@ -1,6 +1,6 @@
 /**
  * The `erpnext` tier engine (FR-ENA-010, task 2.12): a `tier:'erpnext'`, `capabilityMap:{companies,
- * procurement}` implementation of the P0 `Adapter` contract. `commit()` dispatches by
+ * procurement,revenue}` implementation of the P0 `Adapter` contract. `commit()` dispatches by
  * `record.erp_doc_kind` through `DOCTYPE_REGISTRY` — a `submittable` kind gets the R9 two-step
  * create->submit->re-fetch (FR-ENA-044, separating the create-commit idempotency window from the
  * submit window and always trusting the RE-FETCHED `status`, never the stale POST/PUT response body);
@@ -14,13 +14,14 @@
  */
 import type { Adapter, AdapterCommand, ChangesSinceWatermark, CommandResult, PmoDomain, PmoRecord } from '../contract.ts';
 import { AdapterError } from '../contract.ts';
-import { cancelDoc, createDoc, ErpError, getDoc, submitDoc, updateDoc, type ErpClientDeps } from './client.ts';
+import { cancelDoc, createDoc, ErpError, getDoc, submitDoc, updateDoc, withCommitDeadline, type ErpClientDeps } from './client.ts';
 import { DOCTYPE_REGISTRY, type ErpCtx, type ErpDocKind } from './doctypeRegistry.ts';
 import { routeEdit } from './transitionPolicy.ts';
 
 export const ERPNEXT_TIER = 'erpnext';
 export const ERPNEXT_COMPANIES_DOMAIN: PmoDomain = 'companies';
 export const ERPNEXT_PROCUREMENT_DOMAIN: PmoDomain = 'procurement';
+export const ERPNEXT_REVENUE_DOMAIN: PmoDomain = 'revenue';
 
 export interface DoctypeBodyFns {
   toBody: (record: PmoRecord, ctx: ErpCtx) => unknown;
@@ -83,7 +84,11 @@ async function commitCreate(command: AdapterCommand, deps: ErpAdapterDeps): Prom
   const body = stampAnchor(bodyFns.toBody(record, deps.ctx), command.idempotencyKey, entry.anchorField);
   const created = (await createDoc(deps.client, entry.doctype, body)) as { name: string };
 
-  if (!entry.submittable) {
+  // OD-SAR-DRAFT-SUBMIT: a `submitOnCreate:false` kind (revenue Sales Invoice) is created as an ERP
+  // DRAFT (docstatus 0) — the create does NOT submit. The separate SoD-gated `verb:'submit'` transition
+  // (a different approver) is the real commit. `fromDoc` on the just-created draft yields docstatus 0,
+  // so the mirror status derives to 'Draft'. Every other submittable kind keeps the R9 create+submit.
+  if (!entry.submittable || entry.submitOnCreate === false) {
     // The wire-level `externalRecordId` is always the BARE ERP `name` (AC-ENA-040: `body.
     // externalRecordId` must equal the real ERP `name`, e.g. Supplier autonames by
     // `field:supplier_name`) — the "<Doctype>:<name>" collision-safe encoding (task 3.2's
@@ -153,8 +158,12 @@ async function commitTransition(command: AdapterCommand, deps: ErpAdapterDeps): 
  * cancel the old doc (`PUT {docstatus:2}`), then create a NEW doc carrying `amended_from` = the old
  * name (the lineage seam: the mirror + `external_refs` repoint to the new name; a lineage row records
  * the supersession), stamp the idempotency key into the anchor field (so the outbox recovery probe can
- * adopt an orphaned amend create), and run the R9 two-step submit + re-fetch on the new doc. Returns
- * the NEW ERP `name` + the amended canonical (carrying `erp_amended_from` via `fromDoc`). Shared by
+ * adopt an orphaned amend create), and then — for a kind the adapter may auto-submit — run the R9
+ * two-step submit + re-fetch on the new doc. A `submitOnCreate:false` kind (the revenue Sales Invoice,
+ * OD-SAR-DRAFT-SUBMIT) is deliberately left a DRAFT: its replacement, exactly like its create, requires
+ * a separate SoD-gated submit by a DIFFERENT approver (Luna re-audit BLOCK 1 — otherwise the author
+ * amends their own submitted SI and self-approves the replacement). Returns the NEW ERP `name` + the
+ * amended canonical (carrying `erp_amended_from` via `fromDoc`). Shared by
  * `commitTransition(verb:'amend')` and `commitUpdateSubmittable`'s routeEdit(1)=amend branch.
  */
 async function commitAmend(command: AdapterCommand, deps: ErpAdapterDeps, oldExternalRecordId: string): Promise<CommandResult> {
@@ -171,7 +180,18 @@ async function commitAmend(command: AdapterCommand, deps: ErpAdapterDeps, oldExt
     entry.anchorField,
   );
   const created = (await createDoc(deps.client, entry.doctype, newBody)) as { name: string };
-  // 3. R9 two-step: submit the new doc + re-fetch (the amend produces a submittable doc — the stale-
+  // 3. OD-SAR-DRAFT-SUBMIT (Luna re-audit BLOCK 1 — the SoD bypass): the amend/replacement path obeys
+  // the SAME two-person rule as create. A `submitOnCreate:false` kind (the revenue Sales Invoice) is
+  // NEVER auto-submitted here — the replacement lands as an ERP DRAFT (docstatus 0) awaiting the
+  // SEPARATE SoD-gated `verb:'submit'` transition by a DIFFERENT approver. Without this, an author
+  // could amend their own submitted SI (an `update` of a submitted doc routes here via routeEdit(1))
+  // and self-approve the replacement, defeating the signed-off approver≠author SoD entirely.
+  // Every other submittable kind (purchase-invoice, Pay payment entries) keeps the R9 two-step.
+  if (!entry.submittable || entry.submitOnCreate === false) {
+    const canonical: PmoRecord = { ...bodyFns.fromDoc(created), id: command.record.id };
+    return { externalRecordId: created.name, canonical };
+  }
+  // 4. R9 two-step: submit the new doc + re-fetch (the amend produces a submittable doc — the stale-
   // status trap applies, same as commitCreate). Fires afterSubmitHook for FR-ENA-003 seam parity.
   await submitDoc(deps.client, entry.doctype, created.name);
   await deps.afterSubmitHook?.();
@@ -227,7 +247,21 @@ async function commitUpdateNonSubmittable(command: AdapterCommand, deps: ErpAdap
   return { externalRecordId: updated.name, canonical };
 }
 
-async function commitErpCommand(command: AdapterCommand, deps: ErpAdapterDeps): Promise<CommandResult> {
+/**
+ * Luna round-5 BLOCK 10 — applies THIS command's claim deadline to the client ONCE, at the single
+ * entry point every operation/verb passes through, so every ERP call this commit makes (including the
+ * amend's `cancel` → `create` pair, where the non-idempotent POST is the third call) is issued through
+ * a client that refuses a POST past the deadline. Doing it here rather than per-path means a future
+ * doctype or verb inherits the guard automatically and cannot forget it. No deadline on the command
+ * (P0/P1, reads, any non-claimed commit) ⇒ the caller's own deps, byte-for-byte.
+ */
+function budgetedDeps(command: AdapterCommand, deps: ErpAdapterDeps): ErpAdapterDeps {
+  if (command.commitDeadlineAtMs === undefined) return deps;
+  return { ...deps, client: withCommitDeadline(deps.client, command.commitDeadlineAtMs) };
+}
+
+async function commitErpCommand(command: AdapterCommand, rawDeps: ErpAdapterDeps): Promise<CommandResult> {
+  const deps = budgetedDeps(command, rawDeps);
   if (command.operation === 'create') return commitCreate(command, deps);
   if (command.operation === 'transition') return commitTransition(command, deps);
   if (command.operation === 'delete') {
@@ -266,7 +300,7 @@ function findKindByDoctype(doctype: string): ErpDocKind | undefined {
 export function createErpAdapter(deps: ErpAdapterDeps): Adapter {
   return {
     tier: ERPNEXT_TIER,
-    capabilityMap: new Set<PmoDomain>([ERPNEXT_COMPANIES_DOMAIN, ERPNEXT_PROCUREMENT_DOMAIN]),
+    capabilityMap: new Set<PmoDomain>([ERPNEXT_COMPANIES_DOMAIN, ERPNEXT_PROCUREMENT_DOMAIN, ERPNEXT_REVENUE_DOMAIN]),
     commit: (command: AdapterCommand) => commitErpCommand(command, deps),
     // The modified-poll sweep is the change-feed convergence authority (design decision #9) — its
     // real implementation lands in slice 8 (`applyEngine.ts` reuse). A loud throw here, never a

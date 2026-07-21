@@ -137,6 +137,12 @@ export interface DbMoneyOutboxDepsOpts {
   /** M-3 (audit): the canonical digest of THIS command's payload (`canonicalCommandDigest`) — persisted
    *  at insert + exposed on the deps so dispatch can reject key-reuse with a different payload. */
   payloadDigest?: string;
+  /** BLOCK 7: the VERIFIED dispatching user (index.ts's `verified.sub` — never a client-supplied
+   *  field), persisted at INSERT into `actor_user_id` (0108). The caller's identity otherwise lives
+   *  only in the live request JWT, so a LATER sweep finalize cannot attribute the author and
+   *  `sales_invoices.author_user_id` lands NULL — voiding the approver≠author SoD. `undefined` (a
+   *  machine/sweep-originated command, and every pre-0108 caller) ⇒ the column is not written. */
+  actorUserId?: string;
   /** Domain-specific `external_refs.external_record_id` encoder (e.g. the companies "<Doctype>:<name>"
    *  prefix, index.ts) applied INSIDE the fenced `finalize_outbox` write so the moved-in-RPC ref
    *  matches the pre-H-1 caller encoding. Default identity (the bare ERP name). */
@@ -144,6 +150,12 @@ export interface DbMoneyOutboxDepsOpts {
   /** Production backoff delay before re-reading a fresh (live-owned) `committing` row. Defaults to a
    *  small real delay; tests inject an instant/fast one. */
   backoff?: () => Promise<void>;
+  /** FIX 2 (round-9 SHOULD-FIX): the post-window RECOVERY-REISSUE authorization re-check. Supplied by
+   *  the SWEEP recovery path (which reconstructs a frozen command with no fresh dispatch gate) so a
+   *  quarantined immutable-anchor row reissued after its actor was demoted/deactivated is HELD, not
+   *  posted. The synchronous dispatch path leaves it undefined — its gate already ran fresh for the
+   *  current caller (see `dispatch.ts` `reauthorizeRecoveryReissue`). */
+  reauthorizeRecoveryReissue?: () => Promise<{ ok: boolean; message: string }>;
 }
 
 /** Builds the DB-backed `DispatchMoneyOutboxDeps` for ONE request's org/tier/operation. */
@@ -180,6 +192,9 @@ export function createDbMoneyOutboxDeps(opts: DbMoneyOutboxDepsOpts): DispatchMo
           ...(opts.payload ? { payload: opts.payload } : {}),
           // M-3: persist the payload digest so a later key-reuse with a different payload is rejected.
           ...(opts.payloadDigest ? { payload_digest: opts.payloadDigest } : {}),
+          // BLOCK 7 (0108): persist the VERIFIED dispatching actor so a deferred sweep finalize can
+          // attribute the author (the request JWT is long gone by then). Omitted when unknown.
+          ...(opts.actorUserId ? { actor_user_id: opts.actorUserId } : {}),
         })
         .select('*')
         .single();
@@ -244,5 +259,7 @@ export function createDbMoneyOutboxDeps(opts: DbMoneyOutboxDepsOpts): DispatchMo
     probeByRemarksKey: opts.probeByRemarksKey,
     backoff: opts.backoff ?? defaultBackoff,
     payloadDigest: opts.payloadDigest,
+    // FIX 2: undefined on the synchronous path (byte-for-byte); the sweep recovery path supplies it.
+    ...(opts.reauthorizeRecoveryReissue ? { reauthorizeRecoveryReissue: opts.reauthorizeRecoveryReissue } : {}),
   };
 }

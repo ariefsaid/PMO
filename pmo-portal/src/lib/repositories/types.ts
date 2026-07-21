@@ -77,6 +77,10 @@ import type {
   ProjectDeliverySummary,
   MilestoneDate,
 } from '@/src/lib/db/milestones';
+import type {
+  SalesInvoiceRow,
+  IncomingPaymentRow,
+} from '@/src/lib/db/revenue';
 import type { ProcPhase, ProcurementFileRow } from '@/src/lib/db/procurementFiles';
 import type { ContactRow, ContactInput } from '@/src/lib/db/contacts';
 import type { CrmActivityRow, CrmActivityInput, CrmActivityPatch } from '@/src/lib/db/crmActivities';
@@ -86,6 +90,21 @@ import type { UsageSummaryRow, OperatorUsageSummaryRow, OperatorOrgRow, RunStats
 import type { OrgFeatureKey } from '@/src/lib/features';
 import type { ExternalDomainOwnershipRow } from '@/src/lib/db/externalDomainOwnership';
 import type { ErpActualsSnapshotRow, ErpAgingSnapshotRow } from '@/src/lib/db/erpSnapshots';
+
+/**
+ * The identity of ONE user INTENT to write an externally-owned record (BLOCK 2, ADR-0058).
+ *
+ * `id` is the PMO record id the command mints; `idempotencyKey` is the outbox key. They are minted
+ * TOGETHER, ONCE per form/mutation session (`newCommandIntent()`), and passed VERBATIM on every
+ * attempt — so a human retry after a lost response ("external system unreachable — try again") lands
+ * on the SAME outbox 4-tuple and is reconciled (the committed ERP doc is adopted) instead of opening a
+ * fresh row and POSTing a SECOND money document. Omitting it keeps the legacy per-attempt minting,
+ * which is safe only for a call site that never retries.
+ */
+export interface CommandIntent {
+  id: string;
+  idempotencyKey: string;
+}
 
 export interface ProjectRepository {
   list(
@@ -234,6 +253,8 @@ export interface ProcurementRepository {
     vendorId: string,
     totalAmount: number,
     receivedDate: string,
+    /** BLOCK 2: the per-INTENT command identity — pass the SAME value on every retry (see CommandIntent). */
+    intent?: CommandIntent,
   ): Promise<Tables<'procurement_quotations'>>;
   createReceipt(
     procurementId: string,
@@ -244,6 +265,8 @@ export interface ProcurementRepository {
     // direct-DAL path — when externally-owned it is mirrored FROM the ERP doc (FR-ENA-114), never
     // sent as part of the outbound create body.
     referenceNumber?: string | null,
+    /** BLOCK 2: the per-INTENT command identity — pass the SAME value on every retry (see CommandIntent). */
+    intent?: CommandIntent,
   ): Promise<ProcurementReceiptRow>;
   createInvoice(
     procurementId: string,
@@ -253,6 +276,8 @@ export interface ProcurementRepository {
     // ERP-computed (`grand_total`) when externally-owned (FR-ENA-115), so it is never sent outbound.
     referenceNumber?: string | null,
     amount?: number | null,
+    /** BLOCK 2: the per-INTENT command identity — pass the SAME value on every retry (see CommandIntent). */
+    intent?: CommandIntent,
   ): Promise<ProcurementInvoiceRow>;
   // ── CRUD slice (editing paths) ──
   /** Raise a new PR (Draft); requester stamped from the caller's identity. */
@@ -284,6 +309,8 @@ export interface ProcurementRepository {
     status: string | null,
     date: string | null,
     amount: number | null,
+    /** BLOCK 2: the per-INTENT command identity — pass the SAME value on every retry (see CommandIntent). */
+    intent?: CommandIntent,
   ): Promise<PurchaseRequestRow>;
   /** Create an RFQ record via RPC (mints RFQ#). */
   createRfq(
@@ -292,6 +319,8 @@ export interface ProcurementRepository {
     status: string | null,
     date: string | null,
     amount: number | null,
+    /** BLOCK 2: the per-INTENT command identity — pass the SAME value on every retry (see CommandIntent). */
+    intent?: CommandIntent,
   ): Promise<RfqRow>;
   /** Create a purchase-order record via RPC (mints PO#). */
   createPurchaseOrder(
@@ -300,6 +329,8 @@ export interface ProcurementRepository {
     status: string | null,
     date: string | null,
     amount: number | null,
+    /** BLOCK 2: the per-INTENT command identity — pass the SAME value on every retry (see CommandIntent). */
+    intent?: CommandIntent,
   ): Promise<PurchaseOrderRow>;
   /** Create a payment record via RPC (mints PAY#). invoiceId is nullable (FR-PR-004b). */
   createPayment(
@@ -309,7 +340,44 @@ export interface ProcurementRepository {
     status: string | null,
     date: string | null,
     amount: number | null,
+    /** BLOCK 2: the per-INTENT command identity — pass the SAME value on every retry (see CommandIntent). */
+    intent?: CommandIntent,
   ): Promise<PaymentRow>;
+}
+
+export interface RevenueRepository {
+  /** Create a Sales Invoice (Draft) — mints a PMO id, dispatches when revenue is externally-owned. */
+  createInvoice(input: {
+    customerId: string;
+    projectId?: string | null;
+    items: Array<{ item_code: string; qty: number; rate: number }>;
+  }, intent?: CommandIntent): Promise<{ id: string; si_number: string }>;
+  /** Create an Incoming Payment — mints a PMO id, dispatches when revenue is externally-owned. */
+  createPayment(input: {
+    customerId: string;
+    salesInvoiceId?: string | null;
+    paidAmount: number;
+    receivedAmount?: number;
+    date: string;
+  }, intent?: CommandIntent): Promise<{ id: string; ip_number: string }>;
+  /** Submit a Sales Invoice (docstatus 0→1) — SoD-gated at RPC layer (slice 3). */
+  submitInvoice(siId: string, intent?: CommandIntent): Promise<void>;
+  /** Cancel a Sales Invoice (docstatus 1→2) — mirrors ERP cancel. */
+  cancelInvoice(siId: string, intent?: CommandIntent): Promise<void>;
+  /** Cancel an Incoming Payment (docstatus 1→2) — mirrors ERP cancel. */
+  cancelPayment(ipId: string, intent?: CommandIntent): Promise<void>;
+  /** List sales invoices in the caller's org (RLS scopes org). */
+  listInvoices(params?: { projectId?: string } & PageParams): Promise<SalesInvoiceRow[]>;
+  /** Get a single sales invoice by id. */
+  getInvoice(id: string): Promise<SalesInvoiceRow | null>;
+  /** List incoming payments in the caller's org (RLS scopes org). */
+  listPayments(params?: { customerId?: string } & PageParams): Promise<IncomingPaymentRow[]>;
+  /** Get a single incoming payment by id. */
+  getPayment(id: string): Promise<IncomingPaymentRow | null>;
+  /** Revenue rollup per project — SUM(amount) grouped by project_id. */
+  getRevenueByProject(): Promise<
+    Array<{ project_id: string | null; project_name: string | null; total_amount: number; open_ar: number; invoice_count: number }>
+  >;
 }
 
 export interface TimesheetRepository {
@@ -445,6 +513,7 @@ export interface Repositories {
   agentAttachment: AgentAttachmentRepository;
   profile: ProfileRepository;
   procurement: ProcurementRepository;
+  revenue: RevenueRepository;
   timesheet: TimesheetRepository;
   budget: BudgetRepository;
   task: TaskRepository;

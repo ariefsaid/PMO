@@ -36,6 +36,14 @@ set -m
 # godotenv's last-wins parsing. The merged file lives in mktemp and is never printed.
 MERGED_ENV_FILE=$(mktemp)
 echo "EDGE_JWT_ISSUER=http://127.0.0.1:54321/auth/v1" > "$MERGED_ENV_FILE"
+# Pass-through of served-fn e2e test secrets from the SHELL env (the CLI's Deno runtime reads only
+# --env-file, not inherited env). A served-fn e2e that signs a webhook / calls the sweep must inject
+# its secret without editing the gitignored .env.local — the test runner exports these, we forward
+# them into the merged env-file when set. Only NON-secret-in-repo test values (the CI/dev harness
+# sets them); absent = unset (feature simply inert).
+for _v in DEMO_ERP_WEBHOOK_SECRET ERPNEXT_SWEEP_SECRET; do
+  if [ -n "${!_v:-}" ]; then echo "${_v}=${!_v}" >> "$MERGED_ENV_FILE"; fi
+done
 if [ -f supabase/functions/.env.local ]; then
   cat supabase/functions/.env.local >> "$MERGED_ENV_FILE"
 fi
