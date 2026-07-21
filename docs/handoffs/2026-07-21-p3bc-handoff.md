@@ -29,16 +29,27 @@ PMO holds no information about how to split it.
   (measured this session), including the flagship `2025-09-01 → 2026-06-30`. Those get no ERP budget
   until (c) ships.
 
-### OQ-BUD-3b (how the fiscal year is derived) — **RULED: resolve from ERPNext's `Fiscal Year` doctype**
-- **⚠️ THIS IS AN OPEN DEFECT.** Lane C1 shipped **calendar-year** derivation
-  (`fiscal year = calendar year of project.start_date`). That is only correct for a Jan–Dec client.
+### OQ-BUD-3b (how the fiscal year is derived) — **RULED + ✅ FIXED 2026-07-21**
+- Lane C1 had shipped **calendar-year** derivation
+  (`fiscal year = calendar year of project.start_date`), correct only for a Jan–Dec client. **Now fixed.**
 - **Required:** query the client's real `Fiscal Year` doctype for the FY whose range contains
   `start_date`, and **fail closed if none matches**. Correct for Apr–Mar, Jul–Jun, etc.
   Costs one extra read per push.
 - **Why it matters:** this figure drives real overspend controls in the client's GL. Calendar-year
   derivation silently targets the **wrong ERP Budget object** for a non-calendar-FY client — a
   wrong-year control that looks like it worked.
-- **Where:** `resolveFiscalYearOrFailClosed()` in `pmo-portal/src/lib/budget/budgetGate.ts` (~line 104).
+- **What shipped:** `BudgetGateDeps.readFiscalYears()` (new), wired in `adapter-dispatch/index.ts`'s
+  `readErpFiscalYears()` to `GET /api/resource/Fiscal Year`. `resolveFiscalYearOrFailClosed(project,
+  fiscalYears)` returns the FY **name** and judges the multi-FY span in real ranges. Inclusive
+  boundary compare, lexicographic on ISO dates (no `Date` parsing — a timezone shift at a boundary is
+  the exact class of bug being removed). The dead `calendarYear()` helper is gone.
+- **⚑ It was worse than a wrong label:** `fiscal_year` is a Link **by name**, so a Jul–Jun client
+  sending `"2025"` names *no Fiscal Year at all* — an invalid Link, not an off-by-one.
+- **Fails closed** on an empty/unreadable calendar or a project outside every declared year
+  (`budget-fiscal-year-unresolved`). It never falls back to the calendar year — that fallback *was*
+  the bug.
+- **Six new tests** pin it, including the mirror-image pair so neither can pass by never refusing:
+  the flagship project **pushes** under Jul–Jun and **is refused** under Jan–Dec.
 
 #### ⚑ The consequence nobody has costed yet — read before implementing
 The FY source does not just relabel the year; **it changes which projects get refused at all.**
@@ -115,11 +126,15 @@ Next free number is **0142**.
 
 ### Still open
 - **The FY-derivation defect** (§1, OQ-BUD-3b) — highest priority.
-- **`BudgetCategoryUnmappedError` is a plain `Error`**, not `AdapterError`/`AppError`
-  (`src/lib/budget/categoryAccountMap.ts`). `dispatch.ts:toDispatchError()` only special-cases those
-  two, so `.code`/`.unmappedCategories` would be silently dropped → a bare 500. C1 added a narrow
-  budget-scoped reclassification in `adapter-dispatch/index.ts`'s final catch as defence-in-depth,
-  but **`dispatch.ts` itself was not fixed** (outside C1's fence). Fix it properly.
+- ~~`BudgetCategoryUnmappedError` loses its code through the seam~~ — **✅ FIXED 2026-07-21.** The
+  real bug was upstream and wider than budget: `dispatch.ts:toDispatchError()`'s `Error` branch
+  returned `new AppError(error.message)`, **discarding a `.code` that was already there**, so ANY
+  error class that is not `AppError`/`AdapterError` arrived code-less and fell through the edge fn's
+  status mapping to a bare 500 — an opaque, retryable-looking server error in place of a precise
+  NON-RETRYABLE refusal. Fixed by preserving a structural string `.code` (the same rule
+  `appError.ts:toAppError` already applied). Widening `AdapterErrorCode` was rejected: it is a closed
+  2-value union in the **shipped P3a contract**. RED proven (`{ code: undefined }`).
+  C1's budget-scoped reclassification in `index.ts` is now redundant but harmless — left in place.
 - **C1 deviated from the plan's file list:** no `repositories/budgetPush.ts`; `db/budgets.ts` calls
   `dispatchDomainCommand` directly, following the `db/tasks.ts` precedent. Reasonable, but confirm
   it's the layering you want.

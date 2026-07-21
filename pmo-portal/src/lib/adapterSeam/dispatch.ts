@@ -527,6 +527,12 @@ function isOutboxInFlightConflict(error: unknown): boolean {
   return text.includes(OUTBOX_IN_FLIGHT_INDEX);
 }
 
+/** A structurally-present string `code`, or undefined. Mirrors `appError.ts`'s private `readCode`. */
+function readThrownCode(error: unknown): string | undefined {
+  const candidate = (error as { code?: unknown } | null | undefined)?.code;
+  return typeof candidate === 'string' ? candidate : undefined;
+}
+
 function toDispatchError(error: unknown): AppError {
   if (isOutboxInFlightConflict(error)) {
     return new AppError(
@@ -541,7 +547,13 @@ function toDispatchError(error: unknown): AppError {
     }
     return new AppError(error.message, error.code);
   }
-  if (error instanceof Error) return new AppError(error.message);
+  // ⚑ Preserve a structurally-present string `.code` — the SAME rule `appError.ts:toAppError` applies.
+  // Dropping it turned every non-AppError/AdapterError class that carries one (P3c's
+  // `BudgetCategoryUnmappedError` is a plain `Error` subclass with
+  // `code = 'budget-category-unmapped'`) into a code-less AppError, which then missed the edge fn's
+  // status mapping and became a bare 500 — an opaque, retryable-looking server error in place of a
+  // precise NON-RETRYABLE refusal an operator must act on (no amount of retrying creates a map row).
+  if (error instanceof Error) return new AppError(error.message, readThrownCode(error));
   return new AppError('An unexpected error occurred');
 }
 

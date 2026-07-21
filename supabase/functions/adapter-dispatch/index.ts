@@ -37,6 +37,7 @@ import { ERPNEXT_BUDGET_DOMAIN, ERPNEXT_COMPANIES_DOMAIN, ERPNEXT_PROCUREMENT_DO
 import { resolveErpDispatchAdapter, withPaymentTypeDiscriminator, readCategoryAccountMap } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/dispatchFactory.ts';
 import {
   runBudgetGate,
+  type FiscalYearRow,
   BudgetGateError,
   type BudgetGateDeps,
   type BudgetVersionGateRow,
@@ -474,7 +475,43 @@ function buildBudgetGateDeps(callerClient: SupabaseClient, serviceClient: Supaba
       return Array.isArray(data) ? (data as unknown as BudgetLineItem[]) : [];
     },
     readCategoryMap: () => readCategoryAccountMap(serviceClient as never, orgId),
+    readFiscalYears: () => readErpFiscalYears(serviceClient, orgId),
   };
+}
+
+/**
+ * ⚑ OQ-BUD-3b (owner ruling 2026-07-21) — read the CLIENT'S OWN fiscal calendar from ERPNext.
+ *
+ * A fiscal year is whatever the client declares (Apr–Mar, Jul–Jun, …) and Budget's `fiscal_year` is a
+ * **Link by NAME** (spike §3). Deriving the calendar year of `start_date` — what this shipped as —
+ * sends a value that for a non-calendar client names the WRONG Fiscal Year or none at all: an invalid
+ * Link, and a real overspend control enforced against the wrong period.
+ *
+ * This is the ONE extra read per budget push the ruling accepts. It is deliberately NOT cached: the
+ * cost of a stale calendar here is a budget filed against the wrong year, which is exactly the failure
+ * being removed. Errors propagate — `runBudgetGate` fails closed on an unresolvable calendar rather
+ * than falling back (the fallback IS the bug).
+ */
+async function readErpFiscalYears(serviceClient: SupabaseClient, orgId: string): Promise<FiscalYearRow[]> {
+  const binding = await resolveErpBindingRow(serviceClient, orgId);
+  const { apiKey, apiSecret } = resolveErpCredentials(binding.secret_ref, (key) => Deno.env.get(key));
+  const url = new URL('/api/resource/Fiscal Year', binding.site_url);
+  url.searchParams.set('fields', JSON.stringify(['name', 'year_start_date', 'year_end_date']));
+  url.searchParams.set('limit_page_length', '0'); // all of them — a client may declare many years
+  const res = await fetch(url.toString(), {
+    headers: { Authorization: `token ${apiKey}:${apiSecret}`, Accept: 'application/json' },
+  });
+  if (!res.ok) {
+    throw new AppError(`could not read the ERPNext fiscal calendar (HTTP ${res.status})`, 'external-unreachable');
+  }
+  const body = (await res.json()) as { data?: unknown };
+  const rows = Array.isArray(body.data) ? body.data : [];
+  return rows.filter(
+    (r): r is FiscalYearRow =>
+      typeof (r as FiscalYearRow)?.name === 'string' &&
+      typeof (r as FiscalYearRow)?.year_start_date === 'string' &&
+      typeof (r as FiscalYearRow)?.year_end_date === 'string',
+  );
 }
 
 /** Record the gate's durable failure into the ADR-0059 §6 side mirror — BEFORE returning the rejection —

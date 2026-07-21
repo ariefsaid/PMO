@@ -70,53 +70,88 @@ export interface BudgetGateDeps {
   readLineItems(versionId: string): Promise<BudgetLineItem[]>;
   /** The org's `budget_category_account_map` rows (Admin-administered, FR-BUD-110..112). */
   readCategoryMap(): Promise<CategoryAccountMapRow[]>;
+  /** ⚑ OQ-BUD-3b (owner ruling 2026-07-21): the CLIENT'S OWN fiscal calendar, read from ERPNext's
+   *  `Fiscal Year` doctype. NOT derivable in PMO — a fiscal year is whatever the client says it is
+   *  (Apr–Mar, Jul–Jun, …), and Budget's `fiscal_year` is a **Link by NAME** (spike §3: the bench's is
+   *  literally named `"2026"` only because that bench is a calendar-year one). Deriving the calendar
+   *  year of `start_date` therefore sends an id that, for a non-calendar client, names the WRONG
+   *  Fiscal Year or **no Fiscal Year at all** — an invalid Link, not merely an off-by-one label. */
+  readFiscalYears(): Promise<FiscalYearRow[]>;
+}
+
+/** One ERPNext `Fiscal Year`: its `name` IS the Link value Budget wants (spike §3/§10). */
+export interface FiscalYearRow {
+  name: string;
+  year_start_date: string;
+  year_end_date: string;
 }
 
 export interface BudgetGateResult {
   versionId: string;
   projectId: string;
-  /** OQ-BUD-3(a)'s proposed default: the calendar year containing the project's `start_date` — the ONLY
-   *  fiscal year this issue supports pending the owner's ruling on OQ-BUD-3. */
+  /** The ERPNext `Fiscal Year` NAME containing the project's `start_date` — the exact Link value
+   *  Budget's `fiscal_year` field wants. Resolved from the client's own calendar, never derived. */
   fiscalYear: string;
   activatedAt: string;
   lineItems: BudgetLineItem[];
 }
 
-/** ERPNext's own bench Fiscal Year is literally named by calendar year (spike §5:
- *  `"2026"` ↔ `year_start_date=2026-01-01`/`year_end_date=2026-12-31`). Postgres `date` columns come back
- *  `YYYY-MM-DD` from PostgREST, so a plain string slice resolves the year with zero `Date`/timezone
- *  parsing risk (there is no time component to misparse in the first place). */
-function calendarYear(dateIso: string): string {
-  return dateIso.slice(0, 4);
+/**
+ * FR-BUD-124 / OQ-BUD-3 — ⚑ RULED by the owner 2026-07-21: **option (a) now, option (c) as the next
+ * issue.** The push targets the fiscal year containing the project's `start_date`; a project spanning
+ * MORE THAN ONE fiscal year is refused before any ERP call, rather than PMO inventing a pro-rata/phased
+ * split (ADR-0048 — that would be a PMO-authored accounting allocation, and it would make the overspend
+ * control wrong in BOTH years). A project with no `end_date` is single-FY by construction.
+ *
+ * ⚑ OQ-BUD-3b, same ruling: the year comes from the CLIENT'S OWN `Fiscal Year` doctype, never from the
+ * calendar year of `start_date`. Both the returned Link value AND the span comparison use real FY
+ * ranges, which changes WHICH projects are refused — see `resolveFiscalYearOrFailClosed`.
+ */
+/** The `Fiscal Year` whose [year_start_date, year_end_date] contains `date` (inclusive), or null.
+ *  Plain lexicographic compare — every value here is an ISO `YYYY-MM-DD`, for which that IS date order,
+ *  and it avoids `Date` parsing (whose timezone handling could push a boundary day into the wrong year —
+ *  precisely the class of bug this function exists to prevent). */
+function fiscalYearContaining(date: string, fiscalYears: readonly FiscalYearRow[]): FiscalYearRow | null {
+  return fiscalYears.find((fy) => date >= fy.year_start_date && date <= fy.year_end_date) ?? null;
 }
 
-/**
- * FR-BUD-124 / OQ-BUD-3(a) — ⚑ the PROPOSED DEFAULT, not a policy invented here: OQ-BUD-3 (does one Budget
- * per fiscal year fan out multi-year projects, and how) is still OPEN — owner ruling needed (spec §3,
- * "Blocks sign-off"). Until it is ratified, the spec's own stated default is what this gate enforces: the
- * push targets the fiscal year containing the project's `start_date`, and a project whose `start_date`/
- * `end_date` span MORE THAN ONE calendar year is refused, before any ERP call, rather than PMO inventing a
- * pro-rata/phased split across fiscal years (ADR-0048 — that would be a PMO-authored accounting
- * allocation). A project with no `end_date` (open-ended) is single-FY by construction — nothing to compare
- * the start year against.
- */
-function resolveFiscalYearOrFailClosed(project: BudgetGateProjectRow): string {
+function resolveFiscalYearOrFailClosed(project: BudgetGateProjectRow, fiscalYears: readonly FiscalYearRow[]): string {
   if (!project.start_date) {
     throw new BudgetGateError('commit-rejected', 'budget push: the project has no start date to resolve a fiscal year');
   }
-  const startYear = calendarYear(project.start_date);
+  // Fail closed on an unresolvable calendar: an empty/unreadable Fiscal Year list, or a project that
+  // starts outside every declared year. NEVER fall back to the calendar year — that is exactly the
+  // silent wrong-Link this ruling removed.
+  const startFy = fiscalYearContaining(project.start_date, fiscalYears);
+  if (!startFy) {
+    throw new BudgetGateError(
+      'budget-fiscal-year-unresolved',
+      `budget push: no ERPNext Fiscal Year contains the project start date ${project.start_date} — refusing rather than guessing a year`,
+    );
+  }
   if (project.end_date) {
-    const endYear = calendarYear(project.end_date);
-    if (endYear !== startYear) {
+    const endFy = fiscalYearContaining(project.end_date, fiscalYears);
+    if (!endFy) {
+      throw new BudgetGateError(
+        'budget-fiscal-year-unresolved',
+        `budget push: no ERPNext Fiscal Year contains the project end date ${project.end_date} — refusing rather than guessing a year`,
+        undefined,
+        startFy.name,
+      );
+    }
+    // ⚑ The span is judged in the CLIENT'S OWN year ranges, not calendar years. This changes WHICH
+    // projects are refused, and that is the point: a 2025-09-01 → 2026-06-30 project spans two
+    // CALENDAR years but sits entirely inside ONE Jul–Jun fiscal year, and must push normally.
+    if (endFy.name !== startFy.name) {
       throw new BudgetGateError(
         'budget-multi-fiscal-year',
-        `budget push: the project spans fiscal years ${startYear}-${endYear} — no pro-rata split is invented (OQ-BUD-3(a))`,
+        `budget push: the project spans fiscal years ${startFy.name}–${endFy.name} — no pro-rata split is invented (OQ-BUD-3(a))`,
         undefined,
-        startYear,
+        startFy.name,
       );
     }
   }
-  return startYear;
+  return startFy.name;
 }
 
 /**
@@ -149,7 +184,7 @@ export async function runBudgetGate(deps: BudgetGateDeps): Promise<BudgetGateRes
     throw new BudgetGateError('commit-rejected', 'budget push: project not readable');
   }
 
-  const fiscalYear = resolveFiscalYearOrFailClosed(project);
+  const fiscalYear = resolveFiscalYearOrFailClosed(project, await deps.readFiscalYears());
 
   const lineItems = await deps.readLineItems(deps.versionId);
   const map = await deps.readCategoryMap();

@@ -103,6 +103,32 @@ describe('AC-EAS-034 external-unreachable ⇒ write fails honestly, read-model u
     ).rejects.toBeInstanceOf(AppError);
     expect(writeReadModel).not.toHaveBeenCalled();
   });
+
+  it('a coded plain Error keeps its .code through the seam (never degraded to a bare 500)', async () => {
+    // ⚑ The seam classifies a thrown value into an AppError. Its `Error` branch used to drop `.code`
+    // entirely, so any error class that is NOT AppError/AdapterError — e.g. P3c's
+    // `BudgetCategoryUnmappedError`, a plain `Error` subclass carrying
+    // `code = 'budget-category-unmapped'` — arrived at the edge fn code-less and fell through the
+    // status mapping to a bare 500. That turns a precise, NON-RETRYABLE, operator-actionable refusal
+    // ("these budget categories have no ERP account") into an opaque server error a client may retry
+    // forever. `appError.ts` already preserves a structural string `.code`; the seam must too.
+    class CodedError extends Error {
+      readonly code = 'budget-category-unmapped';
+    }
+    const throwingAdapter = {
+      tier: createReferenceAdapter('commit-success').tier,
+      capabilityMap: createReferenceAdapter('commit-success').capabilityMap,
+      commit: async () => {
+        throw new CodedError('budget categories have no ERP account mapping: Labour');
+      },
+    };
+    await expect(
+      dispatchExternallyOwnedWrite({
+        adapter: throwingAdapter, command,
+        writeReadModel: vi.fn(), recordExternalRef: vi.fn(),
+      }),
+    ).rejects.toMatchObject({ code: 'budget-category-unmapped' });
+  });
 });
 
 describe('AC-EAS-042 a successful write-through records the external_refs mapping', () => {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { runBudgetGate, BudgetGateError, type BudgetGateDeps, type BudgetVersionGateRow, type BudgetGateProjectRow } from './budgetGate';
+import { runBudgetGate, BudgetGateError, type BudgetGateDeps, type BudgetVersionGateRow, type BudgetGateProjectRow, type FiscalYearRow } from './budgetGate';
 import type { BudgetLineItem, CategoryAccountMapRow } from './categoryAccountMap';
 
 // The missing half of P3c slice 3 (ADR-0059 §3.3): the served boundary must re-read the budget version's
@@ -30,11 +30,26 @@ const DEFAULT_PROJECT: BudgetGateProjectRow = {
 const DEFAULT_LINE_ITEMS: BudgetLineItem[] = [{ category: 'Labor', budgeted_amount: '50000.00' }];
 const DEFAULT_MAP: CategoryAccountMapRow[] = [{ category: 'Labor', erp_account: '5100 - Direct Costs' }];
 
+/** A CALENDAR-year client (Jan-Dec) — the shape ERPNext's own bench ships, which is why the original
+ *  calendar-year derivation looked correct against it. `name` IS Budget's `fiscal_year` Link value. */
+const CALENDAR_FISCAL_YEARS = [
+  { name: '2025', year_start_date: '2025-01-01', year_end_date: '2025-12-31' },
+  { name: '2026', year_start_date: '2026-01-01', year_end_date: '2026-12-31' },
+  { name: '2027', year_start_date: '2027-01-01', year_end_date: '2027-12-31' },
+];
+
+/** A JUL-JUN client. The whole point of OQ-BUD-3b: the SAME dates classify differently here. */
+const JUL_JUN_FISCAL_YEARS = [
+  { name: '2025-2026', year_start_date: '2025-07-01', year_end_date: '2026-06-30' },
+  { name: '2026-2027', year_start_date: '2026-07-01', year_end_date: '2027-06-30' },
+];
+
 function makeDeps(overrides: {
   version?: BudgetVersionGateRow | null;
   project?: BudgetGateProjectRow | null;
   lineItems?: BudgetLineItem[];
   map?: CategoryAccountMapRow[];
+  fiscalYears?: FiscalYearRow[];
 } = {}): BudgetGateDeps {
   const version = 'version' in overrides ? overrides.version : DEFAULT_VERSION;
   const project = 'project' in overrides ? overrides.project : DEFAULT_PROJECT;
@@ -45,6 +60,7 @@ function makeDeps(overrides: {
     readProject: async () => project ?? null,
     readLineItems: async () => overrides.lineItems ?? DEFAULT_LINE_ITEMS,
     readCategoryMap: async () => overrides.map ?? DEFAULT_MAP,
+    readFiscalYears: async () => overrides.fiscalYears ?? CALENDAR_FISCAL_YEARS,
   };
 }
 
@@ -142,5 +158,65 @@ describe('runBudgetGate', () => {
       activatedAt: '2026-07-16T10:00:00Z',
       lineItems: DEFAULT_LINE_ITEMS,
     });
+  });
+});
+
+describe('AC-BUD-124 ⚑ OQ-BUD-3b — the fiscal year comes from the CLIENT\'S calendar, never the calendar year', () => {
+  // The project that made this defect concrete: PMO's flagship seed, 2025-09-01 -> 2026-06-30.
+  const SPANNING_PROJECT: BudgetGateProjectRow = {
+    ...DEFAULT_PROJECT, start_date: '2025-09-01', end_date: '2026-06-30',
+  };
+
+  it('AC-BUD-124 a Jul-Jun client: a project inside ONE fiscal year pushes, though it spans two CALENDAR years', async () => {
+    // ⚑ The behaviour change. Calendar-year derivation refused this project as "multi-fiscal-year".
+    // Under the client's real Jul-Jun calendar it sits entirely inside 2025-2026 and MUST push.
+    const gate = await runBudgetGate(makeDeps({ project: SPANNING_PROJECT, fiscalYears: JUL_JUN_FISCAL_YEARS }));
+    expect(gate.fiscalYear).toBe('2025-2026');
+  });
+
+  it('AC-BUD-124 the SAME project IS refused for a Jan-Dec client — the calendar decides, not the dates', async () => {
+    // The mirror image, so the test above cannot pass by simply never refusing anything.
+    await expect(
+      runBudgetGate(makeDeps({ project: SPANNING_PROJECT, fiscalYears: CALENDAR_FISCAL_YEARS })),
+    ).rejects.toMatchObject({ code: 'budget-multi-fiscal-year' });
+  });
+
+  it('AC-BUD-124 the returned value is the Fiscal Year NAME (Budget links by name), not a year number', async () => {
+    // `fiscal_year` is a Link to Fiscal Year BY NAME (spike §3). '2025' is not a valid Link for this
+    // client — it names no Fiscal Year at all, so ERP would reject or mis-link the budget.
+    const gate = await runBudgetGate(makeDeps({ project: SPANNING_PROJECT, fiscalYears: JUL_JUN_FISCAL_YEARS }));
+    expect(gate.fiscalYear).not.toBe('2025');
+    expect(JUL_JUN_FISCAL_YEARS.map((fy) => fy.name)).toContain(gate.fiscalYear);
+  });
+
+  it('AC-BUD-124 an unresolvable calendar FAILS CLOSED — it never falls back to the calendar year', async () => {
+    // The fallback IS the bug. An empty/unreadable Fiscal Year list must refuse, not guess '2026'.
+    await expect(
+      runBudgetGate(makeDeps({ fiscalYears: [] })),
+    ).rejects.toMatchObject({ code: 'budget-fiscal-year-unresolved' });
+  });
+
+  it('AC-BUD-124 a project starting outside every declared fiscal year is refused, not silently placed', async () => {
+    await expect(
+      runBudgetGate(makeDeps({
+        project: { ...DEFAULT_PROJECT, start_date: '2019-03-01', end_date: '2019-11-30' },
+        fiscalYears: CALENDAR_FISCAL_YEARS,
+      })),
+    ).rejects.toMatchObject({ code: 'budget-fiscal-year-unresolved' });
+  });
+
+  it('AC-BUD-124 a fiscal-year boundary date resolves to the year that CONTAINS it (inclusive ends)', async () => {
+    // 2026-06-30 is the last day of 2025-2026 and 2026-07-01 the first of 2026-2027; an off-by-one
+    // here files a whole budget against the neighbouring year.
+    const last = await runBudgetGate(makeDeps({
+      project: { ...DEFAULT_PROJECT, start_date: '2026-06-30', end_date: '2026-06-30' },
+      fiscalYears: JUL_JUN_FISCAL_YEARS,
+    }));
+    expect(last.fiscalYear).toBe('2025-2026');
+    const first = await runBudgetGate(makeDeps({
+      project: { ...DEFAULT_PROJECT, start_date: '2026-07-01', end_date: '2026-07-01' },
+      fiscalYears: JUL_JUN_FISCAL_YEARS,
+    }));
+    expect(first.fiscalYear).toBe('2026-2027');
   });
 });

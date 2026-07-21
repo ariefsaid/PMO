@@ -238,14 +238,15 @@ the stamp is *"the state stamp the gate read"* (P3b: `timesheets.approved_at`). 
 > **⚑ SECOND RULING — how the fiscal year is DERIVED: resolve it from ERPNext's `Fiscal Year`
 > doctype**, finding the FY whose range contains the project's `start_date`, and **fail closed if
 > none matches**. NOT the calendar year of `start_date`.
-> **This is currently an OPEN DEFECT:** `budgetGate.ts:resolveFiscalYearOrFailClosed()` ships
-> calendar-year derivation, which is correct only for a Jan–Dec client and otherwise targets the
-> **wrong ERP Budget object** — a wrong-year overspend control that looks like it worked.
-> **It also changes which projects get refused:** the multi-FY *span* check must compare real FY
-> ranges, not calendar years — under a Jul–Jun calendar the flagship project above is **single-FY**
-> and must push normally. See `docs/handoffs/2026-07-21-p3bc-handoff.md` §1 for the implementation
-> constraint (the gate is DB-only and has no ERP client; resolve in the adapter path or inject a
-> resolver — never fall back to the calendar year).
+> **✅ CLOSED 2026-07-21.** `budgetGate.ts` now takes a `readFiscalYears()` dependency, wired in
+> `adapter-dispatch/index.ts` to `GET /api/resource/Fiscal Year`, and resolves BOTH the returned Link
+> value and the multi-FY span check against the client's real year ranges.
+> **It was worse than a wrong label:** `fiscal_year` is a Link **by name**, so a Jul–Jun client sending
+> `"2025"` names *no Fiscal Year at all* — an invalid Link, not an off-by-one.
+> **It also changed which projects are refused** (as predicted): the flagship
+> `2025-09-01 → 2026-06-30` is multi-FY by calendar but **single-FY** under Jul–Jun, and now pushes
+> normally. An unresolvable calendar **fails closed** (`budget-fiscal-year-unresolved`) — it never
+> falls back to the calendar year, because that fallback *was* the bug.
 
 **Original open question, retained for context:**
 
