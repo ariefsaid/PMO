@@ -1668,6 +1668,72 @@ export type Database = {
           },
         ]
       }
+      incoming_payments: {
+        Row: {
+          amount: number | null
+          created_at: string
+          customer_id: string | null
+          date: string | null
+          erp_amended_from: string | null
+          erp_cancelled_at: string | null
+          erp_docstatus: number | null
+          erp_modified: string | null
+          id: string
+          ip_number: string | null
+          org_id: string
+          reference_number: string | null
+          sales_invoice_id: string | null
+          status: string
+        }
+        Insert: {
+          amount?: number | null
+          created_at?: string
+          customer_id?: string | null
+          date?: string | null
+          erp_amended_from?: string | null
+          erp_cancelled_at?: string | null
+          erp_docstatus?: number | null
+          erp_modified?: string | null
+          id?: string
+          ip_number?: string | null
+          org_id?: string
+          reference_number?: string | null
+          sales_invoice_id?: string | null
+          status?: string
+        }
+        Update: {
+          amount?: number | null
+          created_at?: string
+          customer_id?: string | null
+          date?: string | null
+          erp_amended_from?: string | null
+          erp_cancelled_at?: string | null
+          erp_docstatus?: number | null
+          erp_modified?: string | null
+          id?: string
+          ip_number?: string | null
+          org_id?: string
+          reference_number?: string | null
+          sales_invoice_id?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "incoming_payments_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "incoming_payments_sales_invoice_id_fkey"
+            columns: ["sales_invoice_id"]
+            isOneToOne: false
+            referencedRelation: "sales_invoices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notifications: {
         Row: {
           body: string | null
@@ -3387,6 +3453,78 @@ export type Database = {
           },
         ]
       }
+      sales_invoices: {
+        Row: {
+          amount: number | null
+          author_user_id: string | null
+          created_at: string
+          customer_id: string | null
+          erp_amended_from: string | null
+          erp_cancelled_at: string | null
+          erp_docstatus: number | null
+          erp_modified: string | null
+          erp_outstanding_amount: number | null
+          id: string
+          invoice_date: string | null
+          org_id: string
+          project_id: string | null
+          reference_number: string | null
+          si_number: string | null
+          status: string
+        }
+        Insert: {
+          amount?: number | null
+          author_user_id?: string | null
+          created_at?: string
+          customer_id?: string | null
+          erp_amended_from?: string | null
+          erp_cancelled_at?: string | null
+          erp_docstatus?: number | null
+          erp_modified?: string | null
+          erp_outstanding_amount?: number | null
+          id?: string
+          invoice_date?: string | null
+          org_id?: string
+          project_id?: string | null
+          reference_number?: string | null
+          si_number?: string | null
+          status?: string
+        }
+        Update: {
+          amount?: number | null
+          author_user_id?: string | null
+          created_at?: string
+          customer_id?: string | null
+          erp_amended_from?: string | null
+          erp_cancelled_at?: string | null
+          erp_docstatus?: number | null
+          erp_modified?: string | null
+          erp_outstanding_amount?: number | null
+          id?: string
+          invoice_date?: string | null
+          org_id?: string
+          project_id?: string | null
+          reference_number?: string | null
+          si_number?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sales_invoices_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_invoices_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       task_dependencies: {
         Row: {
           depends_on_id: string
@@ -4029,6 +4167,7 @@ export type Database = {
       erpnext_sweep_tick: { Args: never; Returns: undefined }
       get_executive_dashboard: { Args: never; Returns: Json }
       get_finance_budget_review: { Args: never; Returns: Json }
+      get_process_gates: { Args: { p_org: string }; Returns: Json }
       get_project_budget: { Args: { p_project_id: string }; Returns: number }
       get_project_milestones: {
         Args: { p_project_id: string }
@@ -4298,6 +4437,33 @@ export type Database = {
       set_project_contract_value: {
         Args: { p_id: string; p_value: number }
         Returns: undefined
+      }
+      submit_sales_invoice: {
+        Args: { p_si_id: string }
+        Returns: {
+          amount: number | null
+          author_user_id: string | null
+          created_at: string
+          customer_id: string | null
+          erp_amended_from: string | null
+          erp_cancelled_at: string | null
+          erp_docstatus: number | null
+          erp_modified: string | null
+          erp_outstanding_amount: number | null
+          id: string
+          invoice_date: string | null
+          org_id: string
+          project_id: string | null
+          reference_number: string | null
+          si_number: string | null
+          status: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "sales_invoices"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       task_completion_proxy: {
         Args: { created_at: string; end_date: string }

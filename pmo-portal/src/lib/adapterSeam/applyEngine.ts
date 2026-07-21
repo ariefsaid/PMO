@@ -33,6 +33,31 @@ export interface ExternalRefSeed {
   domain: string;
 }
 
+/**
+ * OPTIONAL atomic-adopt strategy (Luna BLOCK 7). The DEFAULT adopt path mints the mirror row first and
+ * records `external_refs` second — so when two writers (webhook + sweep) adopt the SAME external record
+ * concurrently, the `unique (org_id, domain, external_record_id)` constraint (0093) makes one of them
+ * lose the ref write AFTER it has already inserted its randomly-keyed mirror row: a duplicate, forever
+ * unmapped read-model row (for revenue: a duplicate visible invoice/payment).
+ *
+ * A tier that supplies this strategy inverts the order — the ref CLAIM is the adoption lock, taken for
+ * a caller-generated PMO id BEFORE any mirror row exists, so a losing racer writes nothing at all. The
+ * inverse window (ref claimed, process died before the mint) is closed by `mirrorExists`: an already-
+ * mapped id whose mirror row is absent is re-minted with the SAME id on the next apply.
+ *
+ * Optional so P0/P1 (ClickUp) keep the legacy path byte-for-byte.
+ */
+export interface AtomicAdoptStrategy {
+  /** Generate the PMO id the ref is claimed for (the mirror is later minted with exactly this id). */
+  newPmoRecordId: () => string;
+  /** Claim the `external_refs` mapping. MUST reject (23505) when another writer already claimed it. */
+  claimExternalRef: (mapping: ExternalRefSeed) => Promise<void>;
+  /** Mint the mirror row with the pre-claimed PMO id (never generates its own id). */
+  mintWithId: (canonical: PmoRecord, sourceUpdatedAtMs: number, pmoRecordId: string) => Promise<void>;
+  /** Does the mirror row for this PMO id exist? `false` ⇒ a claimed-but-unminted ref to repair. */
+  mirrorExists: (pmoRecordId: string) => Promise<boolean>;
+}
+
 /** The narrow dep surface `applyInboundChange` needs — shared by a webhook AND a sweep so both apply
  *  through the SAME source-mod-guarded path ("any apply"). */
 export interface ApplyChangeDeps {
@@ -46,6 +71,8 @@ export interface ApplyChangeDeps {
   mintMirror: (canonical: PmoRecord, sourceUpdatedAtMs: number) => Promise<string>;
   /** Record the `external_refs` mapping for a newly-minted mirror. */
   recordExternalRef: (mapping: ExternalRefSeed) => Promise<void>;
+  /** OPTIONAL claim-then-mint adopt (Luna BLOCK 7). Absent ⇒ the legacy mint-then-ref path. */
+  adoptAtomically?: AtomicAdoptStrategy;
 }
 
 /** The narrow dep surface the monotonic-watermark helper needs (webhook + sweep). */
@@ -72,6 +99,14 @@ export async function applyInboundChange(
   const existingId = await deps.resolvePmoRecordId(externalRecordId);
 
   if (existingId) {
+    // Luna BLOCK 7 repair: the ref was claimed but the mirror never landed (the process died between
+    // the two writes). Re-mint with the SAME pre-claimed id so the mapping stays intact — otherwise the
+    // record is mapped to a row that does not exist and every later update silently patches 0 rows.
+    if (deps.adoptAtomically && !(await deps.adoptAtomically.mirrorExists(existingId))) {
+      const repaired: PmoRecord = { ...canonical, id: existingId };
+      await deps.adoptAtomically.mintWithId(repaired, sourceUpdatedAtMs, existingId);
+      return { kind: 'upserted', pmoRecordId: existingId, adopted: true };
+    }
     const stored = await deps.readMirrorSourceMod(existingId);
     // Per-row source-mod guard: a strictly-older change is a no-op. `>=` (not `>`) is deliberate so
     // re-delivery and an inclusive sweep boundary re-apply the SAME state (idempotent).
@@ -83,9 +118,23 @@ export async function applyInboundChange(
     return { kind: 'upserted', pmoRecordId: existingId, adopted: false };
   }
 
-  // Pull-adopt: mint a new mirror + mapping. A concurrent adopt that races us fails the
-  // `unique (org_id, domain, external_record_id)` constraint; the loser reconciles to the existing
-  // mapping on re-run.
+  // Pull-adopt. With the atomic strategy (Luna BLOCK 7) the `external_refs` CLAIM is taken FIRST, for a
+  // caller-generated id: a concurrent adopt that races us fails the
+  // `unique (org_id, domain, external_record_id)` constraint BEFORE any mirror row exists, so the loser
+  // leaves no orphan (it reconciles to the winner's mapping on re-run).
+  if (deps.adoptAtomically) {
+    const claimedId = deps.adoptAtomically.newPmoRecordId();
+    await deps.adoptAtomically.claimExternalRef({
+      pmoRecordId: claimedId,
+      externalTier: ctx.tier,
+      externalRecordId,
+      domain: ctx.domain,
+    });
+    await deps.adoptAtomically.mintWithId({ ...canonical, id: claimedId }, sourceUpdatedAtMs, claimedId);
+    return { kind: 'upserted', pmoRecordId: claimedId, adopted: true };
+  }
+
+  // Legacy (P0/P1) path: mint a new mirror + mapping. The loser of a race reconciles on re-run.
   const pmoRecordId = await deps.mintMirror(canonical, sourceUpdatedAtMs);
   await deps.recordExternalRef({
     pmoRecordId,

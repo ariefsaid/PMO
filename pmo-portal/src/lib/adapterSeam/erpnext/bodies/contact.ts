@@ -29,3 +29,10 @@ export function contactFromDoc(doc: unknown): ContactMirrorFields {
     phone: d.phone ?? null,
   };
 }
+
+/**
+ * The list-endpoint fields `contactFromDoc` actually READS (Luna BLOCK 6). The modified-poll sweep builds its
+ * `fields=[…]` request from this, so an adopted/updated mirror row is never written with NULLs for
+ * data the ERP doc carries. Co-located with the mapper so the two cannot drift apart.
+ */
+export const CONTACT_FROM_DOC_FIELDS = ['name', 'modified', 'first_name', 'last_name', 'email_id', 'phone'] as const;

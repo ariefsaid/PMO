@@ -99,7 +99,16 @@ describe('ProcurementLedger — flipped ownership routes a real capture external
     // Pushing state renders while the write is in flight.
     await waitFor(() => expect(screen.getByText('Pushing…')).toBeInTheDocument());
     expect(procurement.createPurchaseRequest).toHaveBeenCalledTimes(1);
-    expect(procurement.createPurchaseRequest).toHaveBeenCalledWith('proc-1', null, 'Draft', expect.any(String), null);
+    // BLOCK 2 (ADR-0058): the capture form's own command identity rides the call, so a retry after a
+    // lost response reconciles the already-committed ERP doc instead of POSTing a second one.
+    expect(procurement.createPurchaseRequest).toHaveBeenCalledWith(
+      'proc-1',
+      null,
+      'Draft',
+      expect.any(String),
+      null,
+      { id: expect.any(String), idempotencyKey: expect.any(String) },
+    );
 
     // Resolve the external write — the badge converges to Pushed.
     resolveCreate({ id: 'pr-ext-1', pr_number: 'MAT-REQ-2026-00001' });
