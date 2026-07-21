@@ -36,27 +36,23 @@ export interface ClickUpTask {
   date_updated: string;
   /** Unix-ms as a string — set when the task was marked done; null otherwise (FR-CUA-030 Finding 6). */
   date_done?: string | null;
-<<<<<<< HEAD
   /** The List this task belongs to — only present on a full task GET, never on a webhook payload. The
    *  worker's re-GET is the ONLY source of `list.id` for binding resolution (2026-07-20 fix — the
    *  payload's `list_id` never exists on a real delivery, so the old payload-driven adopt path was
    *  unreachable dead code). */
   list?: ClickUpTaskList;
-  /** Current archived state — only present on a full task GET. Archiving fires `taskUpdated` with a
-   *  `history_items[].field === 'archived'` entry (NEVER `taskDeleted`); mapped to `tasks.archived_at`. */
-  archived?: boolean;
-=======
-  /** True when the task is archived in ClickUp. Only present because reads now pass `archived=true`
-   *  (read-hygiene fix); `pageListTasks` filters these out of every returned change set — an archived
-   *  task must never be mirrored as live (no `archived_at` column on this branch to record the state
-   *  faithfully instead). */
+  /** Current archived state. Present on a full task GET, and on sweep reads because they now pass
+   *  `archived=true` (read-hygiene fix) — `pageListTasks` filters archived rows out of every returned
+   *  change set so one is never mirrored as live. Archiving fires `taskUpdated` with a
+   *  `history_items[].field === 'archived'` entry (NEVER `taskDeleted`), which the worker maps to
+   *  `tasks.archived_at` (the column now exists — migration `0140`). */
   archived?: boolean;
   /** The parent task id when this is a ClickUp subtask. Only present because reads now pass
-   *  `subtasks=true` (read-hygiene fix). PMO does NOT model parent/child yet — a subtask flows through
-   *  mapping as a flat top-level task (this field is deliberately never read by `mapping.ts`); the
-   *  subtask data model is a separate, later issue. */
+   *  `subtasks=true` (read-hygiene fix). PMO now HAS `tasks.parent_task_id` (migration `0140`), but the
+   *  two are NOT yet wired together — a ClickUp subtask still flows through mapping as a flat
+   *  top-level task, and this field is deliberately never read by `mapping.ts`. Syncing
+   *  `parent` ↔ `parent_task_id` is its own issue. */
   parent?: string | null;
->>>>>>> origin/dev
 }
 
 /** A page of tasks from `GET /list/{list_id}/task` (REST v2). */
