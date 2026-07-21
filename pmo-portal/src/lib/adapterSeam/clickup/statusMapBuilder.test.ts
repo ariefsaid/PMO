@@ -19,18 +19,22 @@ const REAL_LIST_STATUSES = JSON.parse(
   ),
 ) as ClickUpListStatus[];
 
-describe('OD-INT-10 buildClickUpStatusMap: a List with open/custom/closed only covers all four PMO statuses', () => {
-  it('yields a pmoToClickUp entry for every PMO status', () => {
+describe('OD-INT-10 buildClickUpStatusMap: a List with open/custom/closed only builds a full map, but a single custom status cannot represent Blocked distinctly from In Progress', () => {
+  it('yields a pmoToClickUp entry for every PMO status, but Blocked and In Progress collapse to the same target', () => {
     const map = buildClickUpStatusMap(REAL_LIST_STATUSES);
-    expect(statusMapCoversAllPmoStatuses(map)).toBe(true);
     expect(map.pmoToClickUp).toEqual({
       'To Do': 'to do',
       'In Progress': 'in progress',
       Done: 'complete',
       // No second custom status exists in this real List -> Blocked collapses onto In Progress
-      // rather than being left unmapped (every PMO status MUST get an outbound target).
+      // rather than being left unmapped (every PMO status still gets an outbound target)...
       Blocked: 'in progress',
     });
+    // ...but security audit HIGH (round 2): a PMO task set to Blocked would be written to ClickUp as
+    // 'in progress', and reading 'in progress' back can never recover which PMO state it was — the
+    // Blocked state is destroyed in both directions. Coverage now requires every PMO status to map
+    // to a DISTINCT ClickUp status, not merely a present one, so this List is correctly rejected.
+    expect(statusMapCoversAllPmoStatuses(map)).toBe(false);
   });
 
   it('toClickUpStatus throws for none of the four PMO statuses', () => {
@@ -85,6 +89,11 @@ describe('OD-INT-10 buildClickUpStatusMap: two distinct custom statuses split In
     expect(map.clickUpToPmo['in review']).toBe('In Progress');
     expect(map.clickUpToPmo['on hold']).toBe('Blocked');
   });
+
+  it('a List that CAN represent every PMO status distinctly passes coverage', () => {
+    const map = buildClickUpStatusMap(statuses);
+    expect(statusMapCoversAllPmoStatuses(map)).toBe(true);
+  });
 });
 
 describe('OD-INT-10 statusMapCoversAllPmoStatuses: rejects a List that cannot represent every PMO status', () => {
@@ -98,11 +107,33 @@ describe('OD-INT-10 statusMapCoversAllPmoStatuses: rejects a List that cannot re
     expect(statusMapCoversAllPmoStatuses(buildClickUpStatusMap([]))).toBe(false);
   });
 
+  // Security audit HIGH (round 2): a List with only ONE custom status has an outbound target for
+  // every PMO status, but Blocked and In Progress collapse onto the SAME target — writing PMO
+  // Blocked to ClickUp lands on 'in progress', and reading 'in progress' back can never recover
+  // which PMO state it was. This must be rejected, not silently accepted as "covered".
+  it('a List with a single custom status collapses Blocked onto In Progress -> coverage fails', () => {
+    const statuses: ClickUpListStatus[] = [
+      { status: 'to do', type: 'open', orderindex: 0 },
+      { status: 'doing', type: 'custom', orderindex: 1 },
+      { status: 'done', type: 'closed', orderindex: 2 },
+    ];
+    const map = buildClickUpStatusMap(statuses);
+    expect(map.pmoToClickUp['In Progress']).toBe('doing');
+    expect(map.pmoToClickUp.Blocked).toBe('doing'); // same target — the collapse
+    expect(statusMapCoversAllPmoStatuses(map)).toBe(false);
+  });
+
   // Mutation check (required by the brief): if the builder's output silently dropped a PMO status,
   // the coverage check MUST catch it — an assertion that cannot fail is decoration.
   it('MUTATION CHECK: deleting one PMO status from the builder output flips coverage to false', () => {
-    const map = buildClickUpStatusMap(REAL_LIST_STATUSES);
-    expect(statusMapCoversAllPmoStatuses(map)).toBe(true); // sanity: real output covers everything
+    const distinctStatuses: ClickUpListStatus[] = [
+      { status: 'open', type: 'open', orderindex: 0 },
+      { status: 'in review', type: 'custom', orderindex: 1 },
+      { status: 'on hold', type: 'custom', orderindex: 2 },
+      { status: 'closed', type: 'closed', orderindex: 3 },
+    ];
+    const map = buildClickUpStatusMap(distinctStatuses);
+    expect(statusMapCoversAllPmoStatuses(map)).toBe(true); // sanity: this List covers everything distinctly
     const mutated = { ...map, pmoToClickUp: { ...map.pmoToClickUp } };
     delete mutated.pmoToClickUp.Blocked; // simulate the builder "forgetting" one PMO status
     expect(statusMapCoversAllPmoStatuses(mutated)).toBe(false);

@@ -29,7 +29,8 @@ export type PmoTaskStatus = (typeof PMO_TASK_STATUSES)[number];
  *  - `Done`        -> the first `done`-type status if present, else the first `closed`-type
  *  - `In Progress` -> the first `custom`-type status if present, else the `To Do` target
  *  - `Blocked`     -> a SECOND, distinct `custom`-type status if one exists, else the same target
- *                     as `In Progress`
+ *                     as `In Progress` — this collapsed case is a valid MAP but an INVALID binding;
+ *                     `statusMapCoversAllPmoStatuses` below rejects it (security audit, round 2).
  *
  * Inbound (`clickUpToPmo`), for every configured status:
  *  - `closed`/`done` -> `Done` · `open` -> `To Do` · `custom` -> `In Progress`, except the one
@@ -75,10 +76,20 @@ export function buildClickUpStatusMap(statuses: ClickUpListStatus[]): ClickUpSta
 }
 
 /**
- * OD-INT-10: a binding is safe to activate ONLY once every PMO status has an outbound target.
- * Callers (link-time validation) must reject a binding for which this returns `false` rather than
- * persist a config that will `commit-rejected` on the first outbound write of an unmapped status.
+ * OD-INT-10: a binding is safe to activate ONLY once every PMO status has a DISTINCT outbound
+ * target. Callers (link-time validation) must reject a binding for which this returns `false`
+ * rather than persist a config that either `commit-rejected`s on the first outbound write of an
+ * unmapped status, or — the collapse case fixed by the security audit (round 2) — silently writes
+ * two different PMO statuses (most commonly `Blocked` and `In Progress`, when a List has only one
+ * `custom`-type status) to the SAME ClickUp status. A collapsed target corrupts state in both
+ * directions: the outbound write loses which PMO status was intended, and the inbound read-back can
+ * never recover it — for `Blocked` specifically, this silently destroys delivery-reporting signal
+ * (S-curve/health reads are computed off task status). If a List cannot represent all four PMO
+ * statuses as four distinct ClickUp statuses, the link must be rejected — the fix is to add another
+ * status of the needed type in ClickUp, not to collapse two PMO states into one silently.
  */
 export function statusMapCoversAllPmoStatuses(map: ClickUpStatusMap): boolean {
-  return PMO_TASK_STATUSES.every((status) => Boolean(map.pmoToClickUp[status]));
+  const targets = PMO_TASK_STATUSES.map((status) => map.pmoToClickUp[status]);
+  if (!targets.every((target) => Boolean(target))) return false;
+  return new Set(targets).size === targets.length;
 }

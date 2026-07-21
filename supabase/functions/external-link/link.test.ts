@@ -45,16 +45,20 @@ async function authed(body: unknown, sub = 'user-1') {
   return createAuthedRequest('http://edge.test/link', body, jwt);
 }
 
-// A List config that covers all four PMO statuses (OD-INT-10) — the real 2026-07-20 workspace probe
-// shape (open/custom/closed, no `done` type). Tests that must reach a successful link (past the new
-// link-time status-map validation) use this; tests that fail earlier (role gate, mixed-content, list
-// not found) are unaffected and keep the bare `{ name: 'Test List' }` response.
+// A List config that covers all four PMO statuses DISTINCTLY (OD-INT-10; security audit HIGH, round
+// 2 — a List with only ONE custom status collapses Blocked onto In Progress, which is now correctly
+// REJECTED by statusMapCoversAllPmoStatuses, see the dedicated 422 test below). This fixture has TWO
+// custom statuses so Blocked and In Progress each land on their own ClickUp status. Tests that must
+// reach a successful link (past the link-time status-map validation) use this; tests that fail
+// earlier (role gate, mixed-content, list not found) are unaffected and keep the bare
+// `{ name: 'Test List' }` response.
 const FULL_COVERAGE_LIST = {
   name: 'Test List',
   statuses: [
     { status: 'to do', type: 'open', orderindex: 0 },
     { status: 'in progress', type: 'custom', orderindex: 1 },
-    { status: 'complete', type: 'closed', orderindex: 2 },
+    { status: 'blocked', type: 'custom', orderindex: 2 },
+    { status: 'complete', type: 'closed', orderindex: 3 },
   ],
 };
 
@@ -111,7 +115,9 @@ describe('external-link — ClickUp branch', () => {
             assertEquals(body.config.statusMap.pmoToClickUp['To Do'], 'to do');
             assertEquals(body.config.statusMap.pmoToClickUp['In Progress'], 'in progress');
             assertEquals(body.config.statusMap.pmoToClickUp.Done, 'complete');
-            assertEquals(body.config.statusMap.pmoToClickUp.Blocked, 'in progress');
+            // A DISTINCT target from In Progress (security audit HIGH, round 2) — never the same
+            // ClickUp status, which would silently destroy the Blocked state in both directions.
+            assertEquals(body.config.statusMap.pmoToClickUp.Blocked, 'blocked');
             return jsonResponse([{ id: 'binding-1' }], { status: 201 });
           },
         },
@@ -627,6 +633,70 @@ describe('external-link — ClickUp branch', () => {
           true,
         );
         // Never persisted a half-broken binding, and never audited a link that didn't happen.
+        assertEquals(restCall(calls, 'external_project_bindings', 'POST').length, 0);
+        assertEquals(rpcCall(calls, 'log_audit').length, 0);
+      },
+    );
+  });
+
+  // Security audit HIGH (round 2): a List with only ONE custom status has an outbound target for
+  // EVERY PMO status (so the old coverage check passed) but Blocked and In Progress silently
+  // collapse onto the SAME ClickUp status — a PMO task set to Blocked would be written to ClickUp as
+  // 'in progress', and reading it back would always resolve to In Progress, destroying the blocked
+  // signal in both directions. This must reject the link at 422, exactly like the "no Done target"
+  // case above, not silently activate a binding that corrupts delivery reporting.
+  it('OD-INT-10: a List with only one custom status collapses Blocked onto In Progress → rejected 422, never a silent corruption', async () => {
+    await withFetchMock(
+      [
+        supabaseSelect('profiles', () =>
+          jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
+
+        supabaseSelect('platform_operators', () => new Response('null', {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })),
+
+        supabaseSelect('external_org_bindings', () =>
+          jsonResponse({ secret_ref: 'vault-ref', status: 'active', config: {}, site_url: 'https://erp.example.com' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
+
+        supabaseRpc('read_vault_secret', () => jsonResponse('test-pat-token')),
+
+        // The real 2026-07-20 workspace probe shape: open/custom/closed, exactly ONE custom status —
+        // Blocked has nowhere distinct to go.
+        clickup('/api/v2/list/list-1', () =>
+          jsonResponse({
+            name: 'Test List',
+            statuses: [
+              { status: 'to do', type: 'open', orderindex: 0 },
+              { status: 'in progress', type: 'custom', orderindex: 1 },
+              { status: 'complete', type: 'closed', orderindex: 2 },
+            ],
+          })),
+        clickup('/api/v2/list/list-1/task', () => jsonResponse({ tasks: [] })),
+
+        supabaseSelect('projects', () =>
+          jsonResponse({ id: 'proj-1', project_manager_id: 'user-1', org_id: 'org-1' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
+
+        { label: 'pmo-task-count', method: 'HEAD', pathname: '/rest/v1/tasks', response: () => countResponse(0) },
+      ],
+      async ({ calls }) => {
+        const res = await handleLinkRequest(await authed({
+          tier: 'clickup',
+          projectId: 'proj-1',
+          listId: 'list-1',
+          direction: 'push-seed',
+        }));
+        assertEquals(res.status, 422);
+        const errorBody = (await res.json()) as { error: string; message: string };
+        assertEquals(errorBody.error, 'CONFIG_REJECTED');
+        // Never persisted a binding whose Blocked/In Progress writes would collapse into one status,
+        // and never audited a link that didn't happen.
         assertEquals(restCall(calls, 'external_project_bindings', 'POST').length, 0);
         assertEquals(rpcCall(calls, 'log_audit').length, 0);
       },
