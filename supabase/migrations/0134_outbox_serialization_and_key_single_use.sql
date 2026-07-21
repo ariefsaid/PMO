@@ -1,4 +1,4 @@
--- 0116_outbox_serialization_and_key_single_use.sql — round-7 cross-family B3 + B7 (duplicate money /
+-- 0134_outbox_serialization_and_key_single_use.sql — round-7 cross-family B3 + B7 (duplicate money /
 -- key replay). The outbox is where a money command becomes serializable; 0096's single unique
 -- 4-tuple (org_id, domain, pmo_record_id, idempotency_key) was not enough to make it one.
 --
@@ -33,7 +33,7 @@
 --     • members lose column SELECT on `idempotency_key` — the field the replay actually needs. The row
 --       itself stays member-visible (state/last_error/record id — the operator view) and no PMO code
 --       reads the key with a user JWT (the dispatch/sweep read it as service_role, which is exempt from
---       column privileges). `payload` is deliberately LEFT readable: 0109's
+--       column privileges). `payload` is deliberately LEFT readable: 0128's
 --       `block_delete_with_inflight_external_command` trigger reads `payload ->> '<link>'` under the
 --       DELETING USER's privileges, so revoking it would break the in-flight-link delete guard on
 --       projects/companies/sales_invoices. The payload carries this org's own money-command inputs,
@@ -60,7 +60,7 @@ create unique index external_command_outbox_key_single_use
 
 -- ── B7: drop member SELECT on the replay-enabling columns. Postgres has no column-level REVOKE that
 -- narrows a table-level grant, so the table grant is revoked and re-issued per column. The list is
--- every column of 0096 + 0108's actor_user_id, MINUS idempotency_key/payload. A future column addition
+-- every column of 0096 + 0127's actor_user_id, MINUS idempotency_key/payload. A future column addition
 -- is intentionally NOT auto-granted (fail closed for a machine-written money table; add it here
 -- deliberately if members must see it).
 revoke select on public.external_command_outbox from authenticated, anon;

@@ -1,10 +1,10 @@
--- 0113_si_author_set_and_submit_authorization.sql — two separation-of-duties defects on the Sales
+-- 0132_si_author_set_and_submit_authorization.sql — two separation-of-duties defects on the Sales
 -- Invoice money path. Both let ONE human set the money AND approve it: the exact thing the two-person
 -- rule exists to prevent.
 --
 -- ── DEFECT 1 (cross-family audit, finding 5): authorship was LAST-WRITER-WINS.
 -- `readModelWriters.ts` re-stamps `sales_invoices.author_user_id` to the caller on EVERY body-building
--- write, and 0108 §B's `submit_sales_invoice` compared only that single current value. So:
+-- write, and 0127 §B's `submit_sales_invoice` compared only that single current value. So:
 --     A creates a 1,000,000 invoice                     → author = A
 --     A asks B (the designated approver) to fix a field → B's update rebuilds the body → author = B
 --     B is now SoD-blocked, so **A submits it**          → author B ≠ submitter A → PASS
@@ -32,15 +32,15 @@
 --   submit wins → the claim blocks on the lock, then sees the authorization → the rewrite is refused
 --                 with 55006 and NEVER reaches ERP.
 --
--- ⚑ `author_user_id` is KEPT (0106's mirror guard and other code reference it) and is still honoured
---   as a member of the author set, so pre-0113 rows carrying only the scalar stay covered — but it is
+-- ⚑ `author_user_id` is KEPT (0125's mirror guard and other code reference it) and is still honoured
+--   as a member of the author set, so pre-0132 rows carrying only the scalar stay covered — but it is
 --   no longer the SoD oracle.
--- ⚑ 0108 §B's NULL-author fail-closed rule survives as "an EMPTY author set refuses submit".
--- ⚑ 0111's `is_active_member()` conjunct and 0105's org/role guard are preserved VERBATIM.
+-- ⚑ 0127 §B's NULL-author fail-closed rule survives as "an EMPTY author set refuses submit".
+-- ⚑ 0130's `is_active_member()` conjunct and 0124's org/role guard are preserved VERBATIM.
 --
 -- Reversibility (ADR-0006, pre-production): `supabase db reset`. Manual reverse:
 --   drop function if exists public.claim_sales_invoice_author(uuid);
---   -- re-create 0111 §B's submit_sales_invoice body (the author_user_id-scalar variant);
+--   -- re-create 0130 §B's submit_sales_invoice body (the author_user_id-scalar variant);
 --   drop table if exists public.sales_invoice_submit_authorizations;
 --   drop table if exists public.sales_invoice_authors;
 
@@ -73,7 +73,7 @@ alter table public.sales_invoice_authors enable row level security;
 -- unaffected (BYPASSRLS), and the SECURITY DEFINER RPCs below run as the bypassing owner role.
 alter table public.sales_invoice_authors force row level security;
 
--- Org-scoped read for ACTIVE members only (the 0109/0111 idiom — a disabled user with a live JWT is
+-- Org-scoped read for ACTIVE members only (the 0128/0130 idiom — a disabled user with a live JWT is
 -- no longer a member). No write policy: every write is service-role / SECURITY DEFINER.
 create policy sales_invoice_authors_select on public.sales_invoice_authors for select
   using (org_id = auth_org_id() and is_active_member());
@@ -95,7 +95,7 @@ on conflict do nothing;
 -- makes the check-then-write atomic with respect to a concurrent body rewrite.
 --
 -- Deliberately a SEPARATE machine-only table rather than columns on sales_invoices: the
--- sales_invoices UPDATE policy (0109) lets any approver-role member write that table, and 0106's
+-- sales_invoices UPDATE policy (0128) lets any approver-role member write that table, and 0125's
 -- native mirror guard pins only its enumerated columns — so a clearance column there could simply be
 -- nulled by the very approver it constrains.
 -- ============================================================================
@@ -124,7 +124,7 @@ grant select on public.sales_invoice_submit_authorizations to authenticated;
 -- ============================================================================
 -- §B — submit_sales_invoice: the author SET is the oracle, under a row lock.
 --
--- Byte-identical to 0111 §B except: (1) `for update` on the invoice select, (2) the authorship check
+-- Byte-identical to 0130 §B except: (1) `for update` on the invoice select, (2) the authorship check
 -- reads the SET (union the legacy scalar) instead of the scalar alone, (3) the clearance is recorded.
 -- ============================================================================
 
@@ -146,7 +146,7 @@ begin
   end if;
 
   v_org := v_row.org_id;
-  -- (0105/0111, predicates unchanged) org + approver-role + still-an-active-member.
+  -- (0124/0130, predicates unchanged) org + approver-role + still-an-active-member.
   if v_org is distinct from auth_org_id()
      or auth_role() not in ('Admin','Executive','Project Manager','Finance')
      or not is_active_member()
@@ -155,12 +155,12 @@ begin
   end if;
 
   -- The authorship SET = every recorded body-writer, UNION the legacy `author_user_id` scalar (rows
-  -- written before 0113, and the scalar the mirror writer still stamps).
+  -- written before 0132, and the scalar the mirror writer still stamps).
   select count(*) into v_authors
     from public.sales_invoice_authors a
    where a.sales_invoice_id = p_si_id;
 
-  -- (0108 §B, preserved) FAIL CLOSED on an unknown author: an invoice we cannot attribute is exactly
+  -- (0127 §B, preserved) FAIL CLOSED on an unknown author: an invoice we cannot attribute is exactly
   -- an invoice with no two-person control. An empty set AND a null scalar ⇒ refuse.
   if v_authors = 0 and v_row.author_user_id is null then
     raise exception 'sales invoice has no recorded author — SoD cannot be verified'

@@ -1,4 +1,4 @@
--- 0114_si_revenue_write_roles_and_clearance_release.sql — round-6 findings 2 + 3, re-worked to close
+-- 0133_si_revenue_write_roles_and_clearance_release.sql — round-6 findings 2 + 3, re-worked to close
 -- round-7 cross-family finding B1.
 --
 -- ── FINDING 3: the owner's revenue ruling was not enforced by the server.
@@ -11,7 +11,7 @@
 -- DIFFERENT ruling and are deliberately untouched (Admin·Exec·PM·Finance), here and in authGuard.
 --
 -- ── ROUND-7 FINDING B1: the submit clearance could be BYPASSED — self-approval was still reachable.
--- 0113 §C made `submit_sales_invoice` record a clearance whose side effect is that
+-- 0132 §C made `submit_sales_invoice` record a clearance whose side effect is that
 -- `claim_sales_invoice_author` raises 55006, refusing a body rewrite while a submit is in flight. Three
 -- separate defects made that a decoration rather than a barrier:
 --
@@ -56,13 +56,13 @@
 -- Reversibility (ADR-0006, pre-production): `supabase db reset`. Manual reverse:
 --   drop function if exists public.grant_sales_invoice_submit_clearance(uuid, uuid, uuid);
 --   drop function if exists public.release_sales_invoice_submit_clearance(uuid, uuid);
---   -- re-create 0113 §B/§D's bodies (the 4-role, clearance-recording variants);
+--   -- re-create 0132 §B/§D's bodies (the 4-role, clearance-recording variants);
 --   alter table public.sales_invoice_submit_authorizations drop column clearance_id;  -- + restore PK
 
 -- ============================================================================
 -- §A — sales_invoice_submit_authorizations: ONE ROW PER GRANT (B1c).
 --
--- 0113 keyed the table by `sales_invoice_id` alone, so a second submit's `on conflict do update`
+-- 0132 keyed the table by `sales_invoice_id` alone, so a second submit's `on conflict do update`
 -- REPLACED the first's clearance and the second's release then un-froze an invoice whose first submit
 -- was still in flight. A grant is now identified by the `clearance_id` its dispatch minted; the gate
 -- asks "is ANY grant outstanding?" and the release names exactly one.
@@ -99,7 +99,7 @@ comment on column public.sales_invoice_submit_authorizations.clearance_id is
 -- ============================================================================
 -- §B — submit_sales_invoice: the SoD CHECK, and nothing else (B1b).
 --
--- Byte-identical to 0113 §B except: (1) the role list is the revenue write set (finding 3), and (2) it
+-- Byte-identical to 0132 §B except: (1) the role list is the revenue write set (finding 3), and (2) it
 -- NO LONGER RECORDS A CLEARANCE. Recording one here made every Admin/Finance member holder of a
 -- repeatable body-freeze primitive (round-6 finding 2) and, worse, made the freeze releasable by its own
 -- grantee once §C released it (B1b). The authoritative, clearance-taking gate is §E, reachable only by
@@ -119,7 +119,7 @@ begin
     raise exception 'sales invoice not found' using errcode = 'P0002';
   end if;
 
-  -- (0105/0111 predicates preserved) org + still-an-active-member; the ROLE set is the revenue write
+  -- (0124/0130 predicates preserved) org + still-an-active-member; the ROLE set is the revenue write
   -- set (finding 3, owner ruling 2026-07-20) rather than the four master-data money roles.
   if v_row.org_id is distinct from auth_org_id()
      or auth_role() not in ('Admin','Finance')
@@ -132,14 +132,14 @@ begin
     from public.sales_invoice_authors a
    where a.sales_invoice_id = p_si_id;
 
-  -- (0108 §B, preserved) FAIL CLOSED on an unknown author.
+  -- (0127 §B, preserved) FAIL CLOSED on an unknown author.
   if v_authors = 0 and v_row.author_user_id is null then
     raise exception 'sales invoice has no recorded author — SoD cannot be verified'
       using errcode = '42501',
             detail = 'sod-author-missing';
   end if;
 
-  -- (0113 DEFECT 1, preserved) NOBODY WHO EVER WROTE THE BODY MAY APPROVE.
+  -- (0132 DEFECT 1, preserved) NOBODY WHO EVER WROTE THE BODY MAY APPROVE.
   if v_row.author_user_id = v_uid
      or exists (select 1 from public.sales_invoice_authors a
                  where a.sales_invoice_id = p_si_id and a.user_id = v_uid)
@@ -187,7 +187,7 @@ grant execute on function public.si_submit_clearance_ttl() to authenticated, ser
 -- ============================================================================
 -- §D — claim_sales_invoice_author: refuse while ANY grant is outstanding (B1c).
 --
--- 0113 §D's mechanism (the SAME `select … for update` on the invoice that the submit gate takes) is
+-- 0132 §D's mechanism (the SAME `select … for update` on the invoice that the submit gate takes) is
 -- preserved verbatim; what changes is the role list (finding 3), the TTL source (§C) and the predicate,
 -- which now asks whether ANY unexpired grant exists rather than looking at one collapsed row.
 -- ============================================================================
@@ -236,10 +236,10 @@ grant execute on function public.claim_sales_invoice_author(uuid) to authenticat
 -- ============================================================================
 -- §E — grant_sales_invoice_submit_clearance: the AUTHORITATIVE, DISPATCH-ONLY submit gate (B1b).
 --
--- Does everything 0113 §B did — the org/role/active-member gate, the fail-closed unknown-author rule and
+-- Does everything 0132 §B did — the org/role/active-member gate, the fail-closed unknown-author rule and
 -- the author-set SoD check, all under `select … for update` on the invoice — and THEN records the
 -- clearance under that same lock, so the check and its consequence stay atomic with respect to a
--- concurrent `claim_sales_invoice_author` (0113 DEFECT 2's mechanism, unchanged).
+-- concurrent `claim_sales_invoice_author` (0132 DEFECT 2's mechanism, unchanged).
 --
 -- Two things make it a barrier rather than a decoration:
 --   • SERVICE-ROLE ONLY. `authenticated` cannot execute it, so the only way to obtain a clearance is to
@@ -296,14 +296,14 @@ begin
     from public.sales_invoice_authors a
    where a.sales_invoice_id = p_si_id;
 
-  -- (0108 §B, preserved) FAIL CLOSED on an unknown author.
+  -- (0127 §B, preserved) FAIL CLOSED on an unknown author.
   if v_authors = 0 and v_row.author_user_id is null then
     raise exception 'sales invoice has no recorded author — SoD cannot be verified'
       using errcode = '42501',
             detail = 'sod-author-missing';
   end if;
 
-  -- (0113 DEFECT 1, preserved) NOBODY WHO EVER WROTE THE BODY MAY APPROVE.
+  -- (0132 DEFECT 1, preserved) NOBODY WHO EVER WROTE THE BODY MAY APPROVE.
   if v_row.author_user_id = p_actor_id
      or exists (select 1 from public.sales_invoice_authors a
                  where a.sales_invoice_id = p_si_id and a.user_id = p_actor_id)

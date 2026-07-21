@@ -1,4 +1,4 @@
--- 0119_budget_push_seam.sql — ERPNext P3c slice 0 (spec §4; ADR-0055 §6 + ADR-0059 Posture B).
+-- 0137_budget_push_seam.sql — ERPNext P3c slice 0 (spec §4; ADR-0055 §6 + ADR-0059 Posture B).
 --
 -- ⚑ POSTURE B — PMO IS SoT. There is deliberately NO RLS FLIP here: no domain_externally_owned('budget'),
 -- no per-command RLS split, no *_native_mirror_guard, and NOT ONE existing table/RPC/policy is altered.

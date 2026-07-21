@@ -1,6 +1,6 @@
--- 0105_sales_invoice_submit_sod.sql (ERPNext P3a, Slice 3, tasks 3.2 + 3.4)
+-- 0124_sales_invoice_submit_sod.sql (ERPNext P3a, Slice 3, tasks 3.2 + 3.4)
 -- Carries BOTH the process_gates helper RPC (§A) and the SI-submit SoD RPC + author_user_id column (§B/C).
--- They are one PR per the plan. Re-verify migration number: ls supabase/migrations | tail -3 = 0104 at write time.
+-- They are one PR per the plan. Re-verify migration number: ls supabase/migrations | tail -3 = 0123 at write time.
 --
 -- Reversibility (pre-production): supabase db reset. Manual reverse:
 --   drop function if exists public.get_process_gates(uuid);

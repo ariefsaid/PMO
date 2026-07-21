@@ -1,9 +1,9 @@
--- 0109_sales_ar_active_member_and_inflight_link_guard.sql
+-- 0128_sales_ar_active_member_and_inflight_link_guard.sql
 -- Luna re-audit money round: BLOCK #10 (offboarded users can still read AR data) and the DB half of
 -- BLOCK #11 (cross-org link pre-flight is TOCTOU-prone).
 --
 -- Reversibility (ADR-0006): `supabase db reset`. Manual reverse:
---   -- §1: re-create the 0104 policies WITHOUT the `and is_active_member()` conjunct.
+--   -- §1: re-create the 0123 policies WITHOUT the `and is_active_member()` conjunct.
 --   drop trigger if exists projects_block_inflight_external_delete        on public.projects;
 --   drop trigger if exists companies_block_inflight_external_delete       on public.companies;
 --   drop trigger if exists sales_invoices_block_inflight_external_delete  on public.sales_invoices;
@@ -13,7 +13,7 @@
 -- ============================================================================
 -- §1 — BLOCK #10: conjoin is_active_member() into the revenue policies (FR-INV-003).
 --
--- 0104 built `sales_invoices` / `incoming_payments` from the 0100 template, which predates 0063's
+-- 0123 built `sales_invoices` / `incoming_payments` from the 0100 template, which predates 0063's
 -- conjunction pass, so its policies gate on `org_id = auth_org_id()` alone. Every other business
 -- table additionally requires `is_active_member()` (0062) — a disabled/offboarded user
 -- (`admin_set_user_status` sets status='disabled', 0065) holding a still-valid JWT could therefore

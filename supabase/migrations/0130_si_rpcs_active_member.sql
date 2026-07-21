@@ -1,22 +1,22 @@
--- 0111_si_rpcs_active_member.sql — Luna re-audit: the offboarding gate must cover the SI RPCs.
+-- 0130_si_rpcs_active_member.sql — Luna re-audit: the offboarding gate must cover the SI RPCs.
 --
--- 0109/0110 conjoined `is_active_member()` into the AR/AP table policies, so a disabled user with a
+-- 0128/0129 conjoined `is_active_member()` into the AR/AP table policies, so a disabled user with a
 -- still-valid JWT reads nothing from `sales_invoices` directly. Two SECURITY DEFINER functions read
 -- around those policies and were left out of that pass:
 --
---   §A `get_process_gates` (0108 §A) — guards only `auth_org_id()`.
---   §B `submit_sales_invoice` (0108 §B) — guards only `auth_org_id()` + `auth_role()`, and RETURNS
+--   §A `get_process_gates` (0127 §A) — guards only `auth_org_id()`.
+--   §B `submit_sales_invoice` (0127 §B) — guards only `auth_org_id()` + `auth_role()`, and RETURNS
 --      THE WHOLE `public.sales_invoices` ROW. Neither helper looks at status: both read `profiles`
 --      with no status filter, whereas `is_active_member()` (0062, tightened in 0095) is the one that
 --      checks `profiles.status = 'active'` AND `auth.users.banned_until`.
 --
 -- So a disabled/offboarded user (`admin_set_user_status`, 0065) holding a still-valid JWT could call
 -- the RPC and read back amount, erp_outstanding_amount, customer, project and si_number — exactly the
--- data 0109 denies them — and, on `submit_sales_invoice`, obtain the SoD clearance that gates a real
+-- data 0128 denies them — and, on `submit_sales_invoice`, obtain the SoD clearance that gates a real
 -- ERP submit.
 --
--- Same INLINE idiom as 0109/0110: every existing predicate is preserved VERBATIM, only the
--- active-member conjunct is added. Both bodies are otherwise byte-identical to 0108's.
+-- Same INLINE idiom as 0128/0129: every existing predicate is preserved VERBATIM, only the
+-- active-member conjunct is added. Both bodies are otherwise byte-identical to 0127's.
 --
 -- ⚑ `get_process_gates`'s service_role bypass is preserved EXACTLY. It is load-bearing:
 -- adapter-dispatch calls this RPC with the service client, whose `auth_org_id()` AND `auth.uid()` are
@@ -29,7 +29,7 @@
 -- Out of scope (filed separately): the same omission exists on ~17 other SECURITY DEFINER functions
 -- app-wide. This migration does not touch them.
 --
--- Reversibility (ADR-0006, pre-production): `supabase db reset`. Manual reverse: re-create 0108 §A and
+-- Reversibility (ADR-0006, pre-production): `supabase db reset`. Manual reverse: re-create 0127 §A and
 -- §B's bodies without the `is_active_member()` conjunct.
 
 -- ============================================================================
@@ -45,10 +45,10 @@ declare
     '{"require_so_before_si":false,"require_bast_before_si":false,"require_project_on_si":true}'::jsonb;
   v_stored   jsonb;
 begin
-  -- (0107/0108, predicates unchanged) A SECURITY DEFINER reader must not hand back another org's config
+  -- (0126/0127, predicates unchanged) A SECURITY DEFINER reader must not hand back another org's config
   -- to a USER. The machine (service_role — the adapter-dispatch pre-flight gate check reads the command's
   -- own org) is exempt; a user-JWT caller may read only its OWN org's gates, and only while it is still
-  -- an ACTIVE member (0111 — a disabled user with a live JWT is no longer a member).
+  -- an ACTIVE member (0130 — a disabled user with a live JWT is no longer a member).
   -- The service_role short-circuit remains FIRST and unmodified: the machine caller has neither an org
   -- nor a uid, so neither user-side conjunct is ever evaluated for it.
   if coalesce(auth.jwt() ->> 'role', '') <> 'service_role'
@@ -98,7 +98,7 @@ begin
   end if;
 
   v_org := v_row.org_id;
-  -- 0111: `is_active_member()` conjoined. auth_org_id()/auth_role() read `profiles` with NO status
+  -- 0130: `is_active_member()` conjoined. auth_org_id()/auth_role() read `profiles` with NO status
   -- filter, so without this an offboarded user with a live JWT kept both the row (this function RETURNS
   -- the whole sales_invoices row) and the submit clearance. Only ever called under the caller's JWT —
   -- there is no machine caller to exempt.

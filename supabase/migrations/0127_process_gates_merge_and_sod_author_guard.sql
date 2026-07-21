@@ -1,6 +1,6 @@
--- 0108_process_gates_merge_and_sod_author_guard.sql — Luna re-audit BLOCKs 5 + 6 (money path).
+-- 0127_process_gates_merge_and_sod_author_guard.sql — Luna re-audit BLOCKs 5 + 6 (money path).
 --
--- §A (BLOCK 5) get_process_gates: 0107 returned the STORED process_gates jsonb UNCHANGED, so the
+-- §A (BLOCK 5) get_process_gates: 0126 returned the STORED process_gates jsonb UNCHANGED, so the
 --    defaults applied ONLY when the whole value was NULL. A PARTIAL object — `{}`, or an Admin flip
 --    that states one key — silently dropped every unstated gate: adapter-dispatch then read
 --    `require_project_on_si` as `undefined` -> falsy -> a gate the org believes is ON was OFF.
@@ -18,12 +18,12 @@
 --    the root cause of the NULL-author SoD hole §B fails closed on. Additive + NULLABLE so existing
 --    P2 rows and the shipped insert path stay valid.
 --
--- 0107's org guard + service_role bypass are preserved VERBATIM in §A. The bypass is load-bearing:
+-- 0126's org guard + service_role bypass are preserved VERBATIM in §A. The bypass is load-bearing:
 -- the dispatch calls this RPC with the service client, whose auth_org_id() is NULL — without it every
 -- SI create fails 'gate-check-failed'.
 --
--- Reversibility (pre-production): `supabase db reset`. Manual reverse: re-create 0107's
--- get_process_gates body + 0105 §C's submit_sales_invoice body (the null-author-allowed variant), and
+-- Reversibility (pre-production): `supabase db reset`. Manual reverse: re-create 0126's
+-- get_process_gates body + 0124 §C's submit_sales_invoice body (the null-author-allowed variant), and
 --   alter table public.external_command_outbox drop column if exists actor_user_id;
 
 -- ============================================================================
@@ -39,7 +39,7 @@ declare
     '{"require_so_before_si":false,"require_bast_before_si":false,"require_project_on_si":true}'::jsonb;
   v_stored   jsonb;
 begin
-  -- (0107, unchanged) A SECURITY DEFINER reader must not hand back another org's config to a USER. The
+  -- (0126, unchanged) A SECURITY DEFINER reader must not hand back another org's config to a USER. The
   -- machine (service_role — the adapter-dispatch pre-flight gate check reads the command's own org) is
   -- exempt; a user-JWT caller may read only its OWN org's gates. A cross-org user read is 42501.
   -- (service_role bypass is load-bearing: the dispatch calls this with the serviceClient, where
@@ -129,7 +129,7 @@ grant execute on function public.submit_sales_invoice(uuid) to authenticated;
 
 -- Nullable (additive): existing P2 rows have no actor, and a machine/sweep-originated command
 -- legitimately has none. The dispatch stamps it from the VERIFIED JWT (never a client-supplied value);
--- the sweep reads it back to attribute the author on a deferred finalize. Same FK shape as 0105's
+-- the sweep reads it back to attribute the author on a deferred finalize. Same FK shape as 0124's
 -- sales_invoices.author_user_id.
 alter table public.external_command_outbox
   add column if not exists actor_user_id uuid references auth.users(id);
@@ -137,4 +137,4 @@ alter table public.external_command_outbox
 comment on column public.external_command_outbox.actor_user_id is
   'The verified dispatching user (adapter-dispatch JWT sub) — lets a LATER sweep finalize attribute '
   'sales_invoices.author_user_id, which would otherwise be NULL and silently void the submit SoD. '
-  'Nullable: machine/sweep-originated commands and pre-0108 rows have no actor.';
+  'Nullable: machine/sweep-originated commands and pre-0127 rows have no actor.';

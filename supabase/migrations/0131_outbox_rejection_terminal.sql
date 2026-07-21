@@ -1,4 +1,4 @@
--- 0112_outbox_rejection_terminal.sql — BLOCK 3 (money-safety audit): a classified REJECTION is
+-- 0131_outbox_rejection_terminal.sql — BLOCK 3 (money-safety audit): a classified REJECTION is
 -- TERMINAL for AUTOMATIC recovery.
 --
 -- The defect: `outbox_reconcile_candidates` (0096) offered every `failed` row, forever and unbounded.

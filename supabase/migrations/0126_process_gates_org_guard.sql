@@ -1,11 +1,11 @@
--- 0107_process_gates_org_guard — Luna money audit SHOULD-FIX 8.
+-- 0126_process_gates_org_guard — Luna money audit SHOULD-FIX 8.
 --
--- get_process_gates(p_org) (0105 §A) is SECURITY DEFINER and accepted an ARBITRARY p_org with no
+-- get_process_gates(p_org) (0124 §A) is SECURITY DEFINER and accepted an ARBITRARY p_org with no
 -- caller-org check → an authenticated user could read ANY org's process-gate configuration
 -- (cross-org config leak). Re-create it to enforce p_org = auth_org_id() (raise 42501 on mismatch).
 -- Return shape unchanged (the same jsonb with safe defaults).
 --
--- Rollback: re-create the 0105 §A body (the unguarded sql function).
+-- Rollback: re-create the 0124 §A body (the unguarded sql function).
 
 create or replace function public.get_process_gates(p_org uuid)
 returns jsonb language plpgsql security definer set search_path = public as $$

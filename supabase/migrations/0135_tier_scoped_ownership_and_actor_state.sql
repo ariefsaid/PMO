@@ -1,4 +1,4 @@
--- 0117_tier_scoped_ownership_and_actor_state.sql — round-7 cross-family audit, B9 + B6.
+-- 0135_tier_scoped_ownership_and_actor_state.sql — round-7 cross-family audit, B9 + B6.
 --
 -- §A (B9) domain_owned_by_tier(org, domain, tier): `domain_externally_owned(org, domain)` (0087:48-51)
 --    ignores `external_tier`, and the adapter-dispatch authorization guard called it without one. So an

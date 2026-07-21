@@ -1,4 +1,4 @@
--- 0104_sales_incoming_payments_flip.sql (ERPNext P3a, Slice 0, tasks 0.2–0.5)
+-- 0123_sales_incoming_payments_flip.sql (ERPNext P3a, Slice 0, tasks 0.2–0.5)
 -- Creates the two NEW machine-written revenue mirror tables (FR-SAR-170, OQ-SAR-SIGN-3) with the org
 -- seam (0074 stamp_org_id), the four day-one erp_* feed cols (the 0103 lesson), and the per-command RLS
 -- flip mirroring 0100 (forward-compat for a future PMO-native revenue path, OQ-SAR-6): INSERT

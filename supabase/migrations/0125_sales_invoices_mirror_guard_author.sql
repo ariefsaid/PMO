@@ -1,6 +1,6 @@
--- 0106_sales_invoices_mirror_guard_author.sql (Luna money audit — BLOCK 3)
--- sales_invoices_native_mirror_guard (0104) pinned every native field EXCEPT author_user_id — the
--- column landed in 0105 (after 0104's guard), so the guard's `is distinct from` denial set never
+-- 0125_sales_invoices_mirror_guard_author.sql (Luna money audit — BLOCK 3)
+-- sales_invoices_native_mirror_guard (0123) pinned every native field EXCEPT author_user_id — the
+-- column landed in 0124 (after 0123's guard), so the guard's `is distinct from` denial set never
 -- included it. On a revenue-flipped org an authenticated user could therefore UPDATE author_user_id
 -- to someone else and then self-approve (defeating the submit_sales_invoice approver≠author SoD).
 --
@@ -8,7 +8,7 @@
 -- still bypasses (coalesce(auth.jwt()->>'role','')='service_role' early-return) so the read-model
 -- writer can stamp it on a genuine create. No schema change; trigger/function swap only.
 --
--- Reversibility (pre-production): `supabase db reset`. Manual reverse: re-run 0104's original
+-- Reversibility (pre-production): `supabase db reset`. Manual reverse: re-run 0123's original
 -- sales_invoices_native_mirror_guard() body (without the author_user_id line).
 
 create or replace function public.sales_invoices_native_mirror_guard() returns trigger

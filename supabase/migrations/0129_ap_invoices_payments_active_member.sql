@@ -1,14 +1,14 @@
--- 0110_ap_invoices_payments_active_member.sql
+-- 0129_ap_invoices_payments_active_member.sql
 -- Luna re-audit money round, BLOCK #10 — the AP half.
 --
--- 0109 §1 conjoined `is_active_member()` into the AR tables (`sales_invoices`, `incoming_payments`).
+-- 0128 §1 conjoined `is_active_member()` into the AR tables (`sales_invoices`, `incoming_payments`).
 -- The identical gap exists on the AP side: `procurement_invoices_select` (0006:75) and
 -- `payments_select` (0035:136) predate 0062's active-member requirement, and 0100's flip rewrite of
 -- the write policies carried the omission forward. A disabled/offboarded user (`admin_set_user_status`
 -- sets status='disabled', 0065) holding a still-valid JWT can therefore keep reading — and writing —
 -- supplier invoice amounts, payment amounts and their procurement linkage.
 --
--- Same INLINE idiom as 0109/0097: predicates preserved VERBATIM, only `and is_active_member()` added.
+-- Same INLINE idiom as 0128/0097: predicates preserved VERBATIM, only `and is_active_member()` added.
 -- All commands are covered, not just SELECT — the C1 gap 0063 documents is that a select-only pass
 -- silently leaves the write policies open.
 --
