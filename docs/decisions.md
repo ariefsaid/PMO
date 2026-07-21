@@ -964,3 +964,62 @@ Applies to **ClickUp only** (ERPNext has no per-project link — OD-INT-4/OD-INT
   *different* project sees the control and is rejected **server-side** with 403. This is consistent with
   ADR-0016 (`can()` is UX-only; the server is the authority). Adding a project-scoped primitive is a
   possible later refinement, not a correctness requirement.
+
+## OD-INT-9 — PMO task model gains description, priority, subtasks and archive (2026-07-20, owner)
+
+**Decision.** Extend `public.tasks` with four nullable additions, in ONE migration:
+`description text`, `priority` (new nullable enum `task_priority` = `Urgent|High|Normal|Low`),
+`parent_task_id uuid null references tasks(id)` (a real subtask model, owner's call over
+flatten-or-ignore), and `archived_at timestamptz null`.
+
+**Why priority is a PMO enum, not ClickUp's raw 1–4.** ADR-0055 keeps PMO vendor-neutral and the
+codebase already confines vendor vocabulary to `clickup/**` (FR-CUA-012); ERPNext needs the same
+column. The PMO↔ClickUp priority map is a **fixed 4-value constant** in `clickup/mapping.ts`, not
+per-List config — so it cannot rot the way the per-List status map did (see OD-INT-10).
+
+**Subtask rollup rule (binding).** Only tasks with `parent_task_id is null` participate in milestone
+counts, `delivery_pct`, the S-curve and Gantt bars. Subtasks render nested under their parent and do
+not independently move any percentage. Without this rule a parent and its children double-count and
+delivery reporting silently inflates.
+
+**Archive is distinct from tombstone.** `archived_at` mirrors ClickUp archive (a reversible hide);
+`tombstoned_at` stays for upstream deletes. This also lights up the `task.archive` permission that
+`policy.ts:154-159` already declares but nothing implements.
+
+**Applies to:** `description`/`priority`/`archived_at` sync bidirectionally; `parent_task_id` maps to
+ClickUp `parent`. All four are optional in ClickUp (only `name` is required on create).
+
+## OD-INT-10 — one shared status/member map builder; a binding must cover every PMO status (2026-07-20)
+
+**Decision.** `external-link` and `clickup-onboard` MUST build binding config through a single shared
+function. A binding whose `pmoToClickUp` does not cover **all four** PMO `task_status` values is
+rejected at link time, not discovered at first push.
+
+**Why.** The two link paths drifted: `external-link` shipped `statusMap: {}` while `toClickUpStatus`
+throws on unmapped — every outbound write would have failed, and every inbound task would have landed
+as `To Do`, corrupting `delivery_pct` / milestone % / S-curve. The map builder must key on ClickUp
+status **`type`** (`open|custom|closed|done`), not name, and must map all four PMO statuses.
+Evidence: `docs/spikes/2026-07-20-clickup-tasks-divergence.md` §2.1.
+
+## OD-INT-11 — webhook ingress: verify → 200 → enqueue → re-GET (2026-07-20, verified live)
+
+**Decision.** The ClickUp webhook payload is a **delta, not a task**. Ingress MUST: verify `X-Signature`
+(HMAC-SHA256 over the **raw** body) → respond 200 immediately → enqueue `{event, task_id, team_id}` →
+a worker re-`GET`s the task and applies it. Resolve the org/project binding from the **re-GET'd
+`task.list.id`**, never from the payload (there is no `list_id` in it — the current adopt tier is
+unreachable). Subscribe to `taskCreated`/`taskUpdated`/`taskDeleted` only; `taskStatusUpdated` is a
+duplicate delivery of the same change.
+
+**Why 200-first is mandatory:** ClickUp marks a webhook *Failing* if the endpoint errors **or takes
+>7s**, retries 5× then **drops the event permanently**, and *Suspends* at 100 failures with **no
+notification**. Verified envelope + fixtures:
+`supabase/functions/_shared/testing/fixtures/clickup-webhook/`.
+
+## OD-INT-12 — the agent's task-status action routes through adapter-dispatch (2026-07-20, owner)
+
+**Decision.** `agent-chat`'s `update_task_status` must go through `adapter-dispatch` like every other
+task write, rather than writing `tasks.status` directly under the caller's JWT.
+
+**Why.** Under external ownership the column-pin trigger (`0093:97-139`) pins all roles to enhancement
+columns, so the direct write raises a raw `42501` — the assistant would break exactly on the projects
+with the most tasks. Routing keeps the capability and keeps ClickUp authoritative.

@@ -1,0 +1,10 @@
+{
+  "signatureHeaderPresent": true,
+  "payload": {
+    "event": "taskDeleted",
+    "history_items": [],
+    "task_id": "86eybn1n2",
+    "team_id": "90182862715",
+    "webhook_id": "78c63442-b149-45da-9fbd-ac4411540696"
+  }
+}
