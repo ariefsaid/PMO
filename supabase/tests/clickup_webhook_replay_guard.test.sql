@@ -15,11 +15,10 @@ select throws_ok(
   'the same verified raw body cannot be enqueued twice');
 
 select ok(
-  (select indisunique from pg_indexes
-   join pg_class on pg_class.relname = indexname
-   where schemaname = 'public'
-     and tablename = 'clickup_webhook_inbox'
-     and indexname = 'clickup_webhook_inbox_raw_body_sha256_uidx'),
+  (select c.indisunique from pg_class c
+   join pg_namespace n on n.oid = c.relnamespace
+   where n.nspname = 'public'
+     and c.relname = 'clickup_webhook_inbox_raw_body_sha256_uidx'),
   'replay digest index is unique');
 
 select * from finish();
