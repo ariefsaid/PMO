@@ -16,6 +16,9 @@ import { mapErpDocstatus } from '../../../pmo-portal/src/lib/adapterSeam/erpnext
 import { findPmoRecordId, type ExternalRefsLookupClient } from '../../../pmo-portal/src/lib/adapterSeam/refs.ts';
 import { derivePurchaseOrderStatus, deriveProcurementReceiptStatus } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/poGrStatus.ts';
 import { derivePiStatus } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/piStatus.ts';
+import { deriveSiStatus } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/siStatus.ts';
+import { reconcileSiCancelAutoUnlink } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/transitionPolicy.ts';
+import { buildsSalesInvoiceBody } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/dispatchFactory.ts';
 
 /** Structural service-role client seam the writers below need: `.from(t).{insert,update,upsert}`.
  *  The real supabase-js client satisfies this at runtime but is not nominally assignable (thenable
@@ -26,7 +29,9 @@ export interface ReadModelServiceClient {
     insert(row: unknown): Promise<{ error: { message: string; code?: string } | null }>;
     upsert(
       rows: unknown,
-      options: { onConflict: string },
+      // `ignoreDuplicates` is supabase-js's "insert … on conflict do nothing" — needed by the
+      // append-only sales_invoice_authors writer (a repeat body-writer must be a no-op, not an error).
+      options: { onConflict: string; ignoreDuplicates?: boolean },
     ): Promise<{ error: { message: string; code?: string } | null }>;
     update(patch: unknown): ReadModelEqChain;
   };
@@ -38,6 +43,11 @@ export interface ReadModelEqChain {
 export interface ReadModelWriterCtx {
   serviceClient: ReadModelServiceClient;
   orgId: string;
+  /** Luna BLOCK 4: the dispatch caller's resolved user id (index.ts `verified.sub`), threaded in so a
+   *  PMO-created sales invoice stamps `author_user_id` = the creator — the submit_sales_invoice SoD
+   *  (approver≠author) is otherwise a no-op when author is null. Undefined on an inbound-adopted path
+   *  (no PMO caller) → author_user_id stays null (SoD-exempt). */
+  callerUserId?: string;
 }
 
 export interface ReadModelWriter {
@@ -130,6 +140,29 @@ const companiesWriter: ReadModelWriter = {
   },
 };
 
+/** Round-7 B10 — the REQUIRED-link org guard for the procurement mirrors (the defence-in-depth half;
+ *  `dispatchFactory.assertCommandLinksSameOrg` is the pre-flight that refuses before any ERP write).
+ *
+ *  These writers run as SERVICE ROLE, so RLS does not protect them: they used to copy the command's
+ *  `procurementId`/`vendorId`/`invoiceId` verbatim into an insert stamped with the CALLER's org_id,
+ *  producing a PMO row with cross-tenant procurement links. The writers are reachable without the
+ *  pre-flight (the sweep's recovery path reconstructs a command from the frozen outbox payload and
+ *  finalizes it directly), so the check belongs here too.
+ *
+ *  Unlike the revenue links this guard is for NOT-NULL FKs: a vanished row cannot be tolerated by
+ *  nulling (the insert would fail on the constraint anyway), so `missing` throws the SAME classified
+ *  error as cross-org rather than a raw 23503. Defined below `checkLinkSameOrg`/`resolveLinkOrNull`
+ *  is not possible (hoisting is fine for function declarations) — it reuses them, never a second copy. */
+async function requireOwnOrgLink(ctx: ReadModelWriterCtx, table: string, id: string): Promise<string> {
+  if ((await checkLinkSameOrg(ctx, table, id)) === 'missing') {
+    throw new AppError(
+      `cross-org link rejected: ${table} '${id}' does not exist in org '${ctx.orgId}'`,
+      'cross-org-link-rejected',
+    );
+  }
+  return id;
+}
+
 /** A registered-but-not-yet-wired erp_doc_kind WITHIN the 'procurement' writer (task 4.5's own
  *  loud-throw discipline, one level down from `notWired` — 'procurement' the domain IS wired, but not
  *  every sub-doctype kind is yet). Slice 5 adds the purchase-order/goods-receipt cases to the switch
@@ -159,6 +192,8 @@ async function upsertHeaderMirror(
   if (command.operation === 'create') {
     const procurementId = (command.record as { procurementId?: string }).procurementId;
     if (!procurementId) throw new AppError(`procurementId is required to mirror a created ${opts.table} row`, 'BAD_REQUEST');
+    // B10: the FK must belong to THIS org (service-role write — RLS does not check it).
+    await requireOwnOrgLink(ctx, 'procurements', procurementId);
     const { error } = await ctx.serviceClient.from(opts.table).insert({ id: canonical.id, org_id: ctx.orgId, procurement_id: procurementId, ...mirrorFields });
     if (error) throw new AppError(error.message, error.code);
     return;
@@ -187,6 +222,9 @@ async function upsertQuotationMirror(ctx: ReadModelWriterCtx, canonical: PmoReco
     if (!record.procurementId || !record.vendorId) {
       throw new AppError('procurementId and vendorId are required to mirror a created procurement_quotations row', 'BAD_REQUEST');
     }
+    // B10: both FKs must belong to THIS org (service-role write — RLS does not check them).
+    await requireOwnOrgLink(ctx, 'procurements', record.procurementId);
+    await requireOwnOrgLink(ctx, 'companies', record.vendorId);
     const { error } = await ctx.serviceClient
       .from('procurement_quotations')
       .insert({ id: canonical.id, org_id: ctx.orgId, procurement_id: record.procurementId, vendor_id: record.vendorId, ...mirrorFields });
@@ -219,6 +257,7 @@ async function upsertPurchaseOrderMirror(ctx: ReadModelWriterCtx, canonical: Pmo
   if (command.operation === 'create') {
     const record = command.record as { procurementId?: string; referenceNumber?: string; date?: string };
     if (!record.procurementId) throw new AppError('procurementId is required to mirror a created purchase order', 'BAD_REQUEST');
+    await requireOwnOrgLink(ctx, 'procurements', record.procurementId);   // B10
     const { error } = await ctx.serviceClient.from('purchase_orders').insert({
       id: canonical.id,
       org_id: ctx.orgId,
@@ -261,6 +300,7 @@ async function upsertGoodsReceiptMirror(ctx: ReadModelWriterCtx, canonical: PmoR
   if (command.operation === 'create') {
     const record = command.record as { procurementId?: string; receiptDate?: string };
     if (!record.procurementId) throw new AppError('procurementId is required to mirror a created goods receipt', 'BAD_REQUEST');
+    await requireOwnOrgLink(ctx, 'procurements', record.procurementId);   // B10
     const { error } = await ctx.serviceClient.from('procurement_receipts').insert({
       id: canonical.id,
       org_id: ctx.orgId,
@@ -287,10 +327,12 @@ async function upsertGoodsReceiptMirror(ctx: ReadModelWriterCtx, canonical: PmoR
  *  a CANCEL (superseded name, no successor); a doc carrying `erp_amended_from` is an AMEND (the old
  *  name superseded by the new mirror name). Any other canonical (a fresh create, a draft update) is a
  *  no-op — a regular mirror supersedes nothing. Slice 6 has no inbound sweep, so this runs exactly once
- *  per finalized command (the outbox guarantees at-most-once finalize). */
+ *  per finalized command (the outbox guarantees at-most-once finalize). The `domain` param stamps the
+ *  lineage row's OWN domain (procurement OR revenue) — shared by both money-doc writers, never hardcoded. */
 async function recordOutboundLineage(
   ctx: ReadModelWriterCtx,
   canonical: PmoRecord,
+  domain: 'procurement' | 'revenue',
   erpName: string | undefined,
 ): Promise<void> {
   if (!erpName) return;
@@ -299,7 +341,7 @@ async function recordOutboundLineage(
   if (docstatus === 2 && !amendedFrom) {
     const { error } = await ctx.serviceClient.from('external_ref_lineage').insert({
       org_id: ctx.orgId,
-      domain: 'procurement',
+      domain,
       pmo_record_id: canonical.id,
       superseded_external_record_id: erpName,
       successor_external_record_id: null,
@@ -312,7 +354,7 @@ async function recordOutboundLineage(
   if (amendedFrom) {
     const { error } = await ctx.serviceClient.from('external_ref_lineage').insert({
       org_id: ctx.orgId,
-      domain: 'procurement',
+      domain,
       pmo_record_id: canonical.id,
       superseded_external_record_id: amendedFrom,
       successor_external_record_id: erpName,
@@ -350,6 +392,7 @@ async function upsertInvoiceMirror(ctx: ReadModelWriterCtx, canonical: PmoRecord
   if (command.operation === 'create') {
     const record = command.record as { procurementId?: string };
     if (!record.procurementId) throw new AppError('procurementId is required to mirror a created purchase invoice', 'BAD_REQUEST');
+    await requireOwnOrgLink(ctx, 'procurements', record.procurementId);   // B10
     const { error } = await ctx.serviceClient.from('procurement_invoices').insert({ id: canonical.id, org_id: ctx.orgId, procurement_id: record.procurementId, ...patch });
     if (error) throw new AppError(error.message, error.code);
     return;
@@ -362,7 +405,7 @@ async function upsertInvoiceMirror(ctx: ReadModelWriterCtx, canonical: PmoRecord
   if (error) throw new AppError(error.message, error.code);
   // Slice-6 task 6.10/6.11: a cancel/amend writes an external_ref_lineage row (the audit record of the
   // supersession). A no-op for a regular draft update (no docstatus-2, no amended_from).
-  await recordOutboundLineage(ctx, canonical, canonical.vi_number as string | undefined);
+  await recordOutboundLineage(ctx, canonical, 'procurement', canonical.vi_number as string | undefined);
 }
 
 /** `payments` (Slice 6, task 6.5, FR-ENA-116): `pay_number`/`amount` mirror the ERP-derived canonical
@@ -389,11 +432,16 @@ async function upsertPaymentMirror(ctx: ReadModelWriterCtx, canonical: PmoRecord
   if (command.operation === 'create') {
     const record = command.record as { procurementId?: string; invoiceId?: string; date?: string };
     if (!record.procurementId) throw new AppError('procurementId is required to mirror a created payment', 'BAD_REQUEST');
+    // B10: the case FK is required (throws when cross-org/absent); the invoice link is OPTIONAL — a
+    // cross-org one throws, and one that vanished in the TOCTOU window is nulled (same tolerance the
+    // revenue writers apply: the ERP money already exists, so it must not become invisible).
+    await requireOwnOrgLink(ctx, 'procurements', record.procurementId);
+    const invoiceId = await resolveLinkOrNull(ctx, 'procurement_invoices', record.invoiceId);
     const { error } = await ctx.serviceClient.from('payments').insert({
       id: canonical.id,
       org_id: ctx.orgId,
       procurement_id: record.procurementId,
-      invoice_id: record.invoiceId ?? null,
+      invoice_id: invoiceId,
       date: record.date ?? null,
       ...patch,
     });
@@ -407,7 +455,273 @@ async function upsertPaymentMirror(ctx: ReadModelWriterCtx, canonical: PmoRecord
   );
   if (error) throw new AppError(error.message, error.code);
   // Slice-6 task 6.11: a PE cancel writes an external_ref_lineage row.
-  await recordOutboundLineage(ctx, canonical, canonical.pay_number as string | undefined);
+  await recordOutboundLineage(ctx, canonical, 'procurement', canonical.pay_number as string | undefined);
+}
+
+// ============================================================================
+// P3a Slice 2 — Revenue read-model writers (FR-SAR-013/103/121/161)
+// ============================================================================
+
+/** Luna SF7 + re-audit BLOCK #11: cross-org FK guard, TOCTOU-tolerant.
+ *
+ *  The service-role writer bypasses RLS, so before copying a PMO-side link
+ *  (customer_id/project_id/sales_invoice_id) from the command into a created row it verifies the
+ *  referenced row belongs to ctx.orgId — otherwise the writer would silently link a sales invoice /
+ *  incoming payment to ANOTHER org's record.
+ *
+ *  Two OUTCOMES, deliberately distinguished (BLOCK #11):
+ *   - `'cross-org'` — the row EXISTS under a different org. Still a hard, classified
+ *     'cross-org-link-rejected' throw: a genuine tenancy violation, which `dispatchFactory`'s
+ *     pre-flight already refuses BEFORE any ERP write, so reaching here means something is badly wrong.
+ *   - `'missing'`   — the row is GONE. By construction this can only be a delete that landed inside
+ *     the residual pre-flight→outbox-insert window (the pre-flight fails closed on a missing row, and
+ *     0109's in-flight-command delete guard blocks deletes from the outbox INSERT onward). At this
+ *     point the ERP money document ALREADY EXISTS, so throwing would leave real money permanently
+ *     invisible to PMO (every finalize retry re-hits the same missing FK). The caller therefore
+ *     tolerates it by NULLING that one link — the invoice lands in the existing Unassigned bucket /
+ *     the receipt becomes on-account, both operator-recoverable states.
+ *
+ *  Same client idiom as `findPmoRecordId` (`as unknown as ExternalRefsLookupClient`). */
+type LinkCheck = 'ok' | 'missing';
+
+async function checkLinkSameOrg(ctx: ReadModelWriterCtx, table: string, id: string): Promise<LinkCheck> {
+  const { data, error } = await (ctx.serviceClient as unknown as ExternalRefsLookupClient)
+    .from(table)
+    .select('org_id')
+    .eq('id', id)
+    .maybeSingle();
+  if (error) throw new AppError(error.message, error.code);
+  const row = data as { org_id: string } | null;
+  if (row === null || row === undefined) return 'missing';
+  if (row.org_id !== ctx.orgId) {
+    throw new AppError(
+      `cross-org link rejected: ${table} '${id}' does not belong to org '${ctx.orgId}'`,
+      'cross-org-link-rejected',
+    );
+  }
+  return 'ok';
+}
+
+/** Resolve a create-time link to the id to store: the id itself when it still resolves in this org,
+ *  or `null` when the referenced row vanished in the TOCTOU window (BLOCK #11). Throws on a genuine
+ *  cross-org link. A null/absent link is passed through untouched — no lookup fired. */
+async function resolveLinkOrNull(
+  ctx: ReadModelWriterCtx,
+  table: string,
+  id: string | undefined | null,
+): Promise<string | null> {
+  if (!id) return null;
+  return (await checkLinkSameOrg(ctx, table, id)) === 'ok' ? id : null;
+}
+
+/** Structural seam for a LIST select (`.from(t).select(c).eq(...).eq(...)` awaited directly — the
+ *  thenable PostgrestFilterBuilder shape real supabase-js resolves through with no terminal call).
+ *  `ExternalRefsLookupClient` only models the `.maybeSingle()` single-row shape, and the SI-cancel
+ *  auto-unlink needs every referencing row, not just one. */
+interface ListSelectClient {
+  from(table: string): { select(columns: string): ListFilterBuilder };
+}
+interface ListFilterBuilder extends PromiseLike<{ data: unknown; error: { message: string; code?: string } | null }> {
+  eq(column: string, value: string): ListFilterBuilder;
+}
+
+/** AC-SAR-022 (Luna re-audit BLOCK 3) — the SI-cancel auto-unlink reconcile, OUTBOUND writer side.
+ *  ERPNext returns 200 on an SI cancel even when a Receive Payment Entry references it, silently
+ *  auto-unlinking the PE's `references` child table (OQ-SAR-1 #8 — unlike procurement, an active PE
+ *  does NOT block the cancel). The PMO mirror must follow: every `incoming_payments` row still citing
+ *  the cancelled SI becomes on-account (`sales_invoice_id` -> null), else the read-model shows a
+ *  receipt allocated to an invoice ERPNext no longer considers allocated.
+ *
+ *  The per-row patch comes from `transitionPolicy.reconcileSiCancelAutoUnlink` (the designated pure
+ *  helper — imported, never duplicated). Its `siTombstone` half is deliberately unused here: the SI's
+ *  own `erp_cancelled_at`/`erp_docstatus`/`erp_modified` tombstone is already written by the caller's
+ *  mirror `patch` from the ERP-refetched canonical; this writer applies only the PE-receive half. */
+async function unlinkPeReceivesOnSiCancel(ctx: ReadModelWriterCtx, canonical: PmoRecord): Promise<void> {
+  const { data, error } = await (ctx.serviceClient as unknown as ListSelectClient)
+    .from('incoming_payments')
+    .select('id')
+    .eq('org_id', ctx.orgId)
+    .eq('sales_invoice_id', String(canonical.id));
+  if (error) throw new AppError(error.message, error.code);
+  const referencing = Array.isArray(data) ? (data as Array<{ id: string }>) : [];
+  const erpModified = (canonical.erp_modified as string | null | undefined) ?? '';
+  for (const row of referencing) {
+    const { peReceivePatch } = reconcileSiCancelAutoUnlink(row.id, erpModified);
+    if (!peReceivePatch) continue;
+    const { error: unlinkError } = await (
+      ctx.serviceClient.from('incoming_payments').update(peReceivePatch).eq('org_id', ctx.orgId).eq('id', row.id) as unknown as Promise<{
+        error: { message: string; code?: string } | null;
+      }>
+    );
+    if (unlinkError) throw new AppError(unlinkError.message, unlinkError.code);
+  }
+}
+
+/** Append a body-writing caller to `sales_invoice_authors` — the APPEND-ONLY authorship SET the
+ *  submit SoD reads (migration 0113).
+ *
+ *  `sales_invoices.author_user_id` records only the MOST RECENT body-writer, so authorship was
+ *  last-writer-wins: A authors a 1,000,000 invoice, asks the designated approver B to fix one field,
+ *  B's update re-stamps the author to B — and A, who chose the number, may now "approve" it, because
+ *  the RPC compared the submitter against that one current value. The invariant is *nobody who ever
+ *  wrote the body may approve*, so every body-building write APPENDS its caller here and the set is
+ *  never overwritten. `author_user_id` is still stamped (0106's mirror guard and other code reference
+ *  it) but is no longer the SoD oracle.
+ *
+ *  `ignoreDuplicates` makes a repeat writer a silent no-op (append-only, PK (sales_invoice_id,
+ *  user_id)). A caller-less write (inbound feed / sweep finalize) appends nothing: a machine tick
+ *  authors nothing, and an empty set already fails the submit closed. */
+async function appendSalesInvoiceAuthor(ctx: ReadModelWriterCtx, salesInvoiceId: string): Promise<void> {
+  if (!ctx.callerUserId) return;
+  const { error } = await ctx.serviceClient.from('sales_invoice_authors').upsert(
+    { org_id: ctx.orgId, sales_invoice_id: salesInvoiceId, user_id: ctx.callerUserId },
+    { onConflict: 'sales_invoice_id,user_id', ignoreDuplicates: true },
+  );
+  if (error) throw new AppError(error.message, error.code);
+}
+
+/** `sales_invoices` — the SI read-model + project enhancement (spec §4.1).
+ *  Mirrors ERP-derived canonical; `project_id`/`customer_id` from the command record;
+ *  `status` via `deriveSiStatus` from `erp_outstanding_amount` + `erp_docstatus`;
+ *  `erp_cancelled_at` stamped on docstatus 2. */
+async function upsertSalesInvoiceMirror(ctx: ReadModelWriterCtx, canonical: PmoRecord, command: AdapterCommand): Promise<void> {
+  const outstanding = (canonical.erp_outstanding_amount as string | null | undefined) ?? null;
+  const docstatus = canonical.erp_docstatus as number | null | undefined;
+  const patch: Record<string, unknown> = {
+    si_number: canonical.si_number ?? null,
+    // customer_id/project_id are PMO-side links set ONLY on create (from command.record, below) —
+    // intentionally absent here: spreading them (even as null) would clobber the create-branch values
+    // AND null a stable link on a later update mirror (inbound feed / status sync).
+    reference_number: (canonical.reference_number as string | null | undefined) ?? null,
+    invoice_date: (canonical.invoice_date as string | null | undefined) ?? null,
+    amount: canonical.amount ?? null,
+    erp_outstanding_amount: outstanding,
+    status: deriveSiStatus(outstanding, docstatus),
+    erp_docstatus: docstatus ?? null,
+    erp_modified: (canonical.erp_modified as string | null | undefined) ?? null,
+    erp_amended_from: (canonical.erp_amended_from as string | null | undefined) ?? null,
+    // stamp erp_cancelled_at on a cancel tombstone (docstatus 2)
+    erp_cancelled_at: docstatus === 2 ? new Date().toISOString() : null,
+  };
+  if (command.operation === 'create') {
+    const record = command.record as { projectId?: string; customerId?: string };
+    // Luna SF7 + BLOCK #11: cross-org FK guard — verify each non-null link belongs to ctx.orgId BEFORE
+    // the service-role insert (RLS is bypassed, so the writer must enforce tenancy itself). A null link
+    // (e.g. an SI without a project) skips the lookup — only asserted links are guarded. A link whose
+    // row VANISHED in the TOCTOU window is nulled rather than fatal (the ERP invoice already exists;
+    // it lands in the Unassigned bucket instead of becoming invisible money). A CROSS-ORG link still
+    // throws.
+    const customerId = await resolveLinkOrNull(ctx, 'companies', record.customerId);
+    const projectId = await resolveLinkOrNull(ctx, 'projects', record.projectId);
+    // project_id and customer_id are machine-set from the command record
+    // Luna BLOCK 4: stamp author_user_id = the dispatch caller (creator) so the submit SoD is not a
+    // no-op (the RPC skips the approver≠author check when author is null). ctx.callerUserId is
+    // undefined on the inbound-adopted path → null (SoD-exempt).
+    const { error } = await ctx.serviceClient.from('sales_invoices').insert({
+      id: canonical.id,
+      org_id: ctx.orgId,
+      project_id: projectId,
+      customer_id: customerId,
+      author_user_id: ctx.callerUserId ?? null,
+      ...patch,
+    });
+    if (error) throw new AppError(error.message, error.code);
+    // 0113: the creator joins the append-only authorship SET (the submit SoD's real oracle).
+    await appendSalesInvoiceAuthor(ctx, String(canonical.id));
+    return;
+  }
+  // Luna re-audit (SoD, approver half) — WHOEVER BUILDS THE BODY IS THE AUTHOR.
+  // `buildsSalesInvoiceBody` (imported from dispatchFactory — the ONE definition, never duplicated)
+  // marks the operations that REBUILD the ERP Sales Invoice body from the caller-supplied `items`:
+  // `update` (draft field PUT / routeEdit -> commitAmend) and `transition{verb:'amend'}`. Those SET
+  // THE MONEY, but the submit SoD (`isRevenueSiSubmitTransition`) only fires on verb 'submit' — so
+  // without this the designated approver B could rewrite A's draft to their own number under A's
+  // name and then satisfy approver≠author against a person who never chose it. Re-stamping makes the
+  // body-writer the author, which the RPC then refuses to let them self-approve.
+  // A NON-body-building transition (submit/cancel) leaves authorship untouched: submitting is not
+  // authoring. The service-role writer bypasses 0106's mirror guard (it early-returns on
+  // `auth.jwt()->>'role' = 'service_role'`, verified), so no migration is needed for this write.
+  //
+  // ONLY when the caller is KNOWN. On the inbound feed / sweep finalize `ctx.callerUserId` is
+  // undefined, and the key must be OMITTED rather than written as null — nulling a real author would
+  // re-open the NULL-author SoD hole 0108 §B fails closed on (and a machine tick authors nothing).
+  const buildsBody = buildsSalesInvoiceBody({
+    operation: command.operation,
+    // (the `as` mirrors dispatchFactory's own call site: PmoRecord is an index-signature record, so
+    //  TypeScript's weak-type check rejects the structurally-fine `{ verb?: unknown }` narrowing)
+    record: command.record as { verb?: unknown },
+  });
+  const authorPatch = ctx.callerUserId && buildsBody ? { author_user_id: ctx.callerUserId } : {};
+  const { error } = await (
+    ctx.serviceClient.from('sales_invoices').update({ ...patch, ...authorPatch }).eq('org_id', ctx.orgId).eq('id', canonical.id) as unknown as Promise<{
+      error: { message: string; code?: string } | null;
+    }>
+  );
+  if (error) throw new AppError(error.message, error.code);
+  // 0113: the body-writer ALSO joins the append-only authorship SET. The scalar re-stamp above is
+  // last-writer-wins (a later co-worker edit hands approval rights back to the original author); the
+  // set is the invariant the submit SoD actually reads.
+  if (buildsBody) await appendSalesInvoiceAuthor(ctx, String(canonical.id));
+  // AC-SAR-022 (Luna B3): an SI cancel auto-unlinks its PE-receives ERP-side — mirror that here, or
+  // the read-model keeps a stale allocation to a cancelled invoice.
+  if (docstatus === 2) await unlinkPeReceivesOnSiCancel(ctx, canonical);
+  // Slice-6 task 6.10/6.11 (P3a FR-SAR-050/052/053): a cancel/amend writes an external_ref_lineage
+  // row (the audit record of the supersession — the outbound counterpart to the inbound apply path's
+  // lineage.ts applyCancel/applyAmend). A no-op for a regular status sync (no docstatus-2, no amended_from).
+  await recordOutboundLineage(ctx, canonical, 'revenue', canonical.si_number as string | undefined);
+}
+
+/** `incoming_payments` — the PE-receive read-model (spec §4.2).
+ *  Mirrors ERP-derived canonical; `sales_invoice_id` resolved from the command's
+ *  `record.salesInvoiceId`; `status` derives from docstatus (1 = Paid, else Scheduled);
+ *  `erp_cancelled_at` on docstatus 2. */
+async function upsertIncomingPaymentMirror(ctx: ReadModelWriterCtx, canonical: PmoRecord, command: AdapterCommand): Promise<void> {
+  const docstatus = canonical.erp_docstatus as number | null | undefined;
+  const patch: Record<string, unknown> = {
+    ip_number: canonical.ip_number ?? null,
+    // customer_id/sales_invoice_id/date are PMO-side links+values set ONLY on create (from
+    // command.record, below) — intentionally absent here: spreading them (even as null) would clobber
+    // the create-branch values AND null a stable link/value on a later update mirror (inbound feed /
+    // status sync). Luna SF6: `date` was previously in this patch (canonical.date, null from
+    // peReceiveFromDoc) and the create branch spread `...patch` AFTER `date: record.date`, clobbering
+    // the create-time date to null — now removed, matching the customer_id/sales_invoice_id discipline.
+    reference_number: (canonical.reference_number as string | null | undefined) ?? null,
+    amount: canonical.amount ?? null,
+    status: docstatus === 1 ? 'Paid' : 'Scheduled',
+    erp_docstatus: docstatus ?? null,
+    erp_modified: (canonical.erp_modified as string | null | undefined) ?? null,
+    erp_amended_from: (canonical.erp_amended_from as string | null | undefined) ?? null,
+    // stamp erp_cancelled_at on a cancel tombstone (docstatus 2)
+    erp_cancelled_at: docstatus === 2 ? new Date().toISOString() : null,
+  };
+  if (command.operation === 'create') {
+    const record = command.record as { customerId?: string; salesInvoiceId?: string; date?: string };
+    // Luna SF7 + BLOCK #11: cross-org FK guard — verify each non-null link belongs to ctx.orgId BEFORE
+    // the service-role insert (RLS is bypassed). customer_id → companies, sales_invoice_id →
+    // sales_invoices. A null link (e.g. an on-account PE with no customer/SI) skips the lookup. A link
+    // whose row VANISHED in the TOCTOU window is nulled (the receipt becomes on-account) rather than
+    // stranding a real ERP payment entry unmirrored; a CROSS-ORG link still throws.
+    const customerId = await resolveLinkOrNull(ctx, 'companies', record.customerId);
+    const salesInvoiceId = await resolveLinkOrNull(ctx, 'sales_invoices', record.salesInvoiceId);
+    const { error } = await ctx.serviceClient.from('incoming_payments').insert({
+      id: canonical.id,
+      org_id: ctx.orgId,
+      customer_id: customerId,
+      sales_invoice_id: salesInvoiceId,
+      date: record.date ?? null,
+      ...patch,
+    });
+    if (error) throw new AppError(error.message, error.code);
+    return;
+  }
+  const { error } = await (
+    ctx.serviceClient.from('incoming_payments').update(patch).eq('org_id', ctx.orgId).eq('id', canonical.id) as unknown as Promise<{
+      error: { message: string; code?: string } | null;
+    }>
+  );
+  if (error) throw new AppError(error.message, error.code);
+  // Slice-6 task 6.10/6.11 (P3a FR-SAR-050/052/053): a cancel writes an external_ref_lineage row.
+  await recordOutboundLineage(ctx, canonical, 'revenue', canonical.ip_number as string | undefined);
 }
 
 /** P2 ERPNext `procurement` writer (task 4.5): dispatches by the command's `erp_doc_kind` — the SAME
@@ -479,14 +793,33 @@ export async function upsertProcurementItemMirror(
   if (error) throw new AppError(error.message, error.code);
 }
 
+/** P3a Slice 2 — Revenue writer (FR-SAR-013/121): dispatches by the command's `erp_doc_kind`
+ *  (`sales-invoice` / `incoming-payment`) — additive, never touching `procurement` or `companies` entries.
+ */
+const revenueWriter: ReadModelWriter = {
+  async upsert(ctx, canonical, command) {
+    const kind = (command.record as { erp_doc_kind?: string }).erp_doc_kind;
+    switch (kind) {
+      case 'sales-invoice':
+        return upsertSalesInvoiceMirror(ctx, canonical, command);
+      case 'incoming-payment':
+        return upsertIncomingPaymentMirror(ctx, canonical, command);
+      default:
+        throw new AppError(`erpnext revenue read-model writer for erp_doc_kind '${String(kind)}' is not wired`, 'UNSUPPORTED_DOMAIN');
+    }
+  },
+};
+
 // Both P2 ERPNext domains are wired: `companies` (task 3.6, supplier/customer parties) and
 // `procurement` (task 4.5/5.4, the per-erp_doc_kind money-doc switch above) — one registry entry per
 // domain, never a per-slice edit to another domain's entry (confinement, FR-ENA-013/090).
+// P3a adds `revenue` (task 2.4) additively.
 export const READ_MODEL_WRITERS: Record<string, ReadModelWriter> = {
   reference: referenceWriter,
   tasks: tasksWriter,
   companies: companiesWriter,
   procurement: procurementWriter,
+  revenue: revenueWriter,
 };
 
 /** The single lookup point — an unknown domain throws (no silent skip). */

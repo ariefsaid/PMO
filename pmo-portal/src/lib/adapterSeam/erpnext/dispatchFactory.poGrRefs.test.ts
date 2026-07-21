@@ -67,7 +67,9 @@ describe('erpnext/dispatchFactory — Slice 5 PO/GR cross-doctype ref resolution
   it('a purchase-order command resolves ctx.refs.supplier from the case vendor via external_refs (companies domain)', async () => {
     const client = multiTableClient({
       external_org_bindings: ACTIVATED_ROW,
-      procurements: { vendor_id: 'company-1' },
+      // `org_id` is read by the B10 cross-org link pre-flight (`procurementId` must belong to the
+      // caller's org); `vendor_id` by the supplier ref resolution.
+      procurements: { org_id: 'org-1', vendor_id: 'company-1' },
       external_refs: [{ external_record_id: 'Supplier:Spike Supplier' }],
       procurement_items: [{ name: 'SPIKE-ITEM-1', quantity: 2, rate: 100000 }],
     });
@@ -105,7 +107,9 @@ describe('erpnext/dispatchFactory — Slice 5 PO/GR cross-doctype ref resolution
   it('a goods-receipt command additionally resolves the case PO + the PO-item child-row name (never a raw PMO id)', async () => {
     const client = multiTableClient({
       external_org_bindings: ACTIVATED_ROW,
-      procurements: { vendor_id: 'company-1' },
+      // `org_id` is read by the B10 cross-org link pre-flight (`procurementId` must belong to the
+      // caller's org); `vendor_id` by the supplier ref resolution.
+      procurements: { org_id: 'org-1', vendor_id: 'company-1' },
       // Branches on the `domain` filter — companies -> the supplier mapping, procurement -> the PO's
       // own ERP name (proves the two `external_refs` domains are resolved independently, never conflated).
       external_refs: (filters: Record<string, string>) =>

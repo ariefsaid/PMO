@@ -1,5 +1,5 @@
 -- task_model_fields.test.sql
--- Migration under test: 0123_task_model_fields.sql (OD-INT-9)
+-- Migration under test: 0140_task_model_fields.sql (OD-INT-9)
 --
 -- Extends public.tasks with four nullable columns: description, priority (new task_priority
 -- enum), parent_task_id (self-FK subtask model, ON DELETE CASCADE), archived_at. Proves the two

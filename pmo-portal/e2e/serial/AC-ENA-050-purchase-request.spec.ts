@@ -91,7 +91,9 @@ test.describe('AC-ENA-050: Material Request (Purchase Request) — served adapte
             erp_doc_kind: 'purchase-request',
             items: [{ item_code: 'SPIKE-ITEM-1', qty: 2, rate: 50000, schedule_date: '2026-08-01' }],
           },
-          idempotencyKey: `ac-ena-050-${suffix}`,
+          // Luna B1: the dispatch requires a UUID-shaped idempotency key (a short key can
+          // substring-match another document's recovery anchor) — mint a real one, as the app does.
+          idempotencyKey: crypto.randomUUID(),
         }),
       });
       const body = (await res.json()) as { externalRecordId?: string; canonical?: { pr_number?: string; erp_docstatus?: number }; message?: string };
