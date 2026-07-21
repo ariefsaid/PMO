@@ -10,6 +10,7 @@ import {
   dispatchExternallyOwnedWrite,
   dispatchMoneyWrite,
   redactErrorForOutbox,
+  MONEY_COMMIT_CLAIM_BUDGET_MS,
   type DispatchMoneyOutboxDeps,
   type OutboxRow,
 } from './dispatch.ts';
@@ -432,6 +433,78 @@ describe('AC-ENA-012 committed retry — finalize only, no second commit, no cla
     expect(result.externalRecordId).toBe('PI-0001');
     expect([...fake.rows.values()][0].state).toBe('confirmed');
   });
+
+  // Luna BLOCK 3 — finalization must be RETRY-IDEMPOTENT. The finalize order is
+  // record_outbox_ref → mirror → confirm_outbox. A crash AFTER the mirror insert but BEFORE the
+  // confirm leaves the row `committed`; the retry re-enters the SAME fixed-PK mirror INSERT, which
+  // now collides (Postgres 23505). Without convergence the row can NEVER reach `confirmed`: the ERP
+  // money document exists, but PMO retries forever — a stuck money row needing manual intervention.
+  it('a committed replay whose mirror ALREADY exists (23505) converges to confirmed instead of erroring', async () => {
+    const fake = createFakeOutbox();
+    await fake.deps.insertOutboxPending('procurement', 'pmo-1', 'key-1');
+    const id = [...fake.rows.keys()][0];
+    const claimed = await fake.deps.claimOutboxForCommit(id);
+    const erpCanonical = { id: 'pmo-1', erp_total: '250.00' };
+    await fake.deps.markOutboxCommitted(id, 'PI-0001', erpCanonical, claimed!.claimGeneration);
+    // the prior attempt got as far as the mirror insert, then crashed before confirm_outbox.
+    const alreadyMirrored = vi.fn(async () => {
+      throw new AppError('duplicate key value violates unique constraint "sales_invoices_pkey"', '23505');
+    });
+
+    const commit = vi.fn();
+    const result = await dispatchMoneyWrite({
+      adapter: erpnextAdapter(commit),
+      command: baseCommand,
+      writeReadModel: alreadyMirrored, recordExternalRef: vi.fn(),
+      money: fake.deps,
+    });
+    expect(commit).not.toHaveBeenCalled();          // never a second ERP create
+    expect(alreadyMirrored).toHaveBeenCalledTimes(1);
+    expect(result).toEqual({ externalRecordId: 'PI-0001', canonical: erpCanonical });
+    expect([...fake.rows.values()][0].state).toBe('confirmed');   // converged, not stuck
+  });
+
+  it('a committed replay whose mirror fails for ANY OTHER reason still surfaces the error and stays committed', async () => {
+    const fake = createFakeOutbox();
+    await fake.deps.insertOutboxPending('procurement', 'pmo-1', 'key-1');
+    const id = [...fake.rows.keys()][0];
+    const claimed = await fake.deps.claimOutboxForCommit(id);
+    await fake.deps.markOutboxCommitted(id, 'PI-0001', { id: 'pmo-1' }, claimed!.claimGeneration);
+    const mirrorDown = vi.fn(async () => {
+      throw new AppError('null value in column "project_id" violates not-null constraint', '23502');
+    });
+
+    await expect(
+      dispatchMoneyWrite({
+        adapter: erpnextAdapter(vi.fn()),
+        command: baseCommand,
+        writeReadModel: mirrorDown, recordExternalRef: vi.fn(),
+        money: fake.deps,
+      }),
+    ).rejects.toMatchObject({ code: '23502' });
+    expect([...fake.rows.values()][0].state).toBe('committed');   // NOT confirmed — still needs a real finalize
+  });
+
+  it('a FIRST finalize (fresh claim + POST) does NOT tolerate a 23505 mirror — an unexpected pre-existing row is surfaced', async () => {
+    const fake = createFakeOutbox();
+    const commit = vi.fn(async () => ({ externalRecordId: 'PI-0001', canonical: { id: 'pmo-1' } }));
+    // On the FIRST finalize the mirror cannot legitimately pre-exist (a crash after the mirror leaves
+    // the row `committed`, which takes the replay branch above). A 23505 here means the PMO record id
+    // already had a mirror row — a real anomaly that must NOT be silently confirmed.
+    const collidingMirror = vi.fn(async () => {
+      throw new AppError('duplicate key value violates unique constraint "sales_invoices_pkey"', '23505');
+    });
+
+    await expect(
+      dispatchMoneyWrite({
+        adapter: erpnextAdapter(commit),
+        command: baseCommand,
+        writeReadModel: collidingMirror, recordExternalRef: vi.fn(),
+        money: fake.deps,
+      }),
+    ).rejects.toMatchObject({ code: '23505' });
+    expect([...fake.rows.values()][0].state).toBe('committed');
+  });
 });
 
 describe('AC-ENA-012 F2 finalization mirrors the adapter\'s REAL canonical, not a {id} stub', () => {
@@ -754,6 +827,317 @@ describe('C-1 DIRECTOR RULING: a mutable-anchor money doc (Payment Entry) is HEL
   });
 });
 
+/**
+ * FIX 2 (round-9 cross-family SHOULD-FIX): a post-window RECOVERY REISSUE must re-assert the recorded
+ * actor's CURRENT authorization before it mints a NEW ERP money document.
+ *
+ * A quarantined-past-window immutable-anchor row whose probe MISSES falls through to a fresh ERP POST
+ * (only mutable-anchor/PE rows are held). The sweep's pre-dispatch `checkOutboxReplayAuthorization`
+ * deliberately re-authorizes ONLY `pending`/`failed` (so it does not also block an ADOPT of a real ERP
+ * doc, which would strand real money). That left the quarantined→reissue transition ungated: a demoted
+ * or deactivated actor's command could still be reissued hours later. The reissue is the one place we
+ * KNOW a new money write is about to happen, so the fresh check runs there — via `reauthorizeRecoveryReissue`.
+ */
+describe('FIX 2: a post-window recovery REISSUE re-asserts the actor authz; adopt/hold are never blocked', () => {
+  /** Drive an immutable-anchor row to quarantined-past-window with an EMPTY probe (so a reissue is what
+   *  would happen next), returning the fake + the outbox id. */
+  async function quarantinedReadyToReissue(opts: { reissueOnInconclusiveAbsence?: boolean } = {}) {
+    const fake = createFakeOutbox(opts);
+    await fake.deps.insertOutboxPending('procurement', 'pmo-1', 'key-1');
+    const id = [...fake.rows.keys()][0];
+    await fake.deps.claimOutboxForCommit(id); // a dead claimant that never finished
+    fake.backdate(id, LEASE_MS + 1);
+    // First retry quarantines the stale committing row (window not yet elapsed → retryable, no POST).
+    await expect(
+      dispatchMoneyWrite({ adapter: erpnextAdapter(vi.fn()), command: baseCommand, writeReadModel: vi.fn(), recordExternalRef: vi.fn(), money: fake.deps }),
+    ).rejects.toMatchObject({ code: 'external-unreachable' });
+    expect([...fake.rows.values()][0].state).toBe('quarantined');
+    fake.elapseWindow(id);
+    return { fake, id };
+  }
+
+  it('a DEMOTED/DEACTIVATED actor whose immutable-anchor row would reissue is HELD, never re-POSTed', async () => {
+    const { fake } = await quarantinedReadyToReissue();
+    const commit = vi.fn(async () => ({ externalRecordId: 'PI-REISSUE', canonical: { id: 'pmo-1' } }));
+    const reauthorizeRecoveryReissue = vi.fn(async () => ({ ok: false, message: 'actor no longer active' }));
+
+    await expect(
+      dispatchMoneyWrite({
+        adapter: erpnextAdapter(commit),
+        command: baseCommand,
+        writeReadModel: vi.fn(), recordExternalRef: vi.fn(),
+        money: { ...fake.deps, reauthorizeRecoveryReissue },
+      }),
+    ).rejects.toMatchObject({ code: 'command-held' });
+
+    expect(reauthorizeRecoveryReissue).toHaveBeenCalledTimes(1);
+    expect(commit).not.toHaveBeenCalled(); // the critical assertion: NO reissue under a stale actor
+    // Operator-visible, never dropped: the row is HELD (not confirmed, not silently discarded).
+    expect([...fake.rows.values()][0].state).toBe('held');
+  });
+
+  it('a STILL-AUTHORIZED actor DOES reissue (the check gates, it does not block a valid recovery)', async () => {
+    const { fake } = await quarantinedReadyToReissue();
+    const commit = vi.fn(async () => ({ externalRecordId: 'PI-REISSUE', canonical: { id: 'pmo-1' } }));
+    const reauthorizeRecoveryReissue = vi.fn(async () => ({ ok: true, message: '' }));
+
+    const result = await dispatchMoneyWrite({
+      adapter: erpnextAdapter(commit),
+      command: baseCommand,
+      writeReadModel: vi.fn(), recordExternalRef: vi.fn(),
+      money: { ...fake.deps, reauthorizeRecoveryReissue },
+    });
+
+    expect(reauthorizeRecoveryReissue).toHaveBeenCalledTimes(1);
+    expect(commit).toHaveBeenCalledTimes(1);
+    expect(result.externalRecordId).toBe('PI-REISSUE');
+    expect([...fake.rows.values()][0].state).toBe('confirmed');
+  });
+
+  it('an ADOPT (probe HIT) is NOT blocked by the reissue check — the recorded actor is not re-consulted', async () => {
+    const { fake } = await quarantinedReadyToReissue();
+    // The original POST actually landed: the probe now resolves the ERP doc → this is an adopt, not a reissue.
+    fake.setProbe('procurement', 'key-1', { externalRecordId: 'PI-LANDED' });
+    const commit = vi.fn();
+    // Even a refusing re-auth must not touch an adopt: adopting a REAL posted money doc must never be blocked.
+    const reauthorizeRecoveryReissue = vi.fn(async () => ({ ok: false, message: 'actor no longer active' }));
+
+    const result = await dispatchMoneyWrite({
+      adapter: erpnextAdapter(commit),
+      command: baseCommand,
+      writeReadModel: vi.fn(), recordExternalRef: vi.fn(),
+      money: { ...fake.deps, reauthorizeRecoveryReissue },
+    });
+
+    expect(reauthorizeRecoveryReissue).not.toHaveBeenCalled();
+    expect(commit).not.toHaveBeenCalled(); // adopted, not re-POSTed
+    expect(result.externalRecordId).toBe('PI-LANDED');
+    expect([...fake.rows.values()][0].state).toBe('confirmed');
+  });
+
+  it('a mutable-anchor PE still HOLDS regardless of the reissue check (C-1 is unchanged, no re-auth needed)', async () => {
+    const { fake } = await quarantinedReadyToReissue({ reissueOnInconclusiveAbsence: false });
+    const commit = vi.fn();
+    const reauthorizeRecoveryReissue = vi.fn(async () => ({ ok: true, message: '' }));
+
+    await expect(
+      dispatchMoneyWrite({
+        adapter: erpnextAdapter(commit),
+        command: baseCommand,
+        writeReadModel: vi.fn(), recordExternalRef: vi.fn(),
+        money: { ...fake.deps, reauthorizeRecoveryReissue },
+      }),
+    ).rejects.toMatchObject({ code: 'command-held' });
+
+    // The mutable-anchor hold owns this path — the reissue re-auth is never reached (nothing to reissue).
+    expect(reauthorizeRecoveryReissue).not.toHaveBeenCalled();
+    expect(commit).not.toHaveBeenCalled();
+    expect([...fake.rows.values()][0].state).toBe('held');
+  });
+});
+
+/**
+ * Money-safety audit BLOCK 1 — the CLAIM BUDGET.
+ *
+ * ADR-0058's per-attempt request deadline was reasoned about as if the POST began at the instant of
+ * the claim. It does not: `claimAndCommit` awaits the recovery PROBE first, and the probe is a GET, so
+ * it retries (`maxRetries` default 3) with a per-ATTEMPT deadline — a worst case of ~483 s, LONGER
+ * than the whole 300 s quarantine window. A claimant could therefore still reach `adapter.commit`
+ * AFTER its row had been quarantined, reclaimed and REISSUED by the reconciler ⇒ two ERP money
+ * documents (two SUBMITTED docs with posted GL/AP on the shared Purchase-Invoice / Pay-PE path). The
+ * fencing token discards the stale claimant's WRITE-BACK; it cannot un-mint its DOCUMENT.
+ *
+ * The invariant is enforced at the POST SITE against real elapsed time — never inferred from the
+ * relationship between two constants (a static assertion of the flawed model is exactly what missed
+ * this). These tests drive an injected clock through `money.now`.
+ */
+describe('BLOCK 1: no POST may be issued once the claim budget is exhausted (the claim is superseded by then)', () => {
+  /** Wires an injected clock into the fake and makes the probe consume `probeCostMs` of it. */
+  function withClock(fake: ReturnType<typeof createFakeOutbox>, probeCostMs: number) {
+    const clock = { ms: 1_000_000 };
+    fake.deps.now = () => clock.ms;
+    const probe = fake.deps.probeByRemarksKey.bind(fake.deps);
+    fake.deps.probeByRemarksKey = async (domain, key) => {
+      clock.ms += probeCostMs;
+      return probe(domain, key);
+    };
+    return clock;
+  }
+
+  it('a probe that outlives the budget makes the POST refused — no ERP document, row left committing', async () => {
+    const fake = createFakeOutbox();
+    // The audited worst case: 4 × 120 s attempts + backoff, longer than the entire 300 s quarantine
+    // window — by now a reconciler has claimed, missed the probe and already reissued this command.
+    withClock(fake, 483_000);
+    const commit = vi.fn(async () => ({ externalRecordId: 'PI-DUPLICATE', canonical: { id: 'pmo-1' } }));
+
+    await expect(
+      dispatchMoneyWrite({
+        adapter: erpnextAdapter(commit),
+        command: baseCommand,
+        writeReadModel: vi.fn(), recordExternalRef: vi.fn(),
+        money: fake.deps,
+      }),
+    ).rejects.toMatchObject({ code: 'external-unreachable' });
+
+    expect(commit).not.toHaveBeenCalled(); // the critical assertion: no second money document
+    const row = [...fake.rows.values()][0];
+    // Retryable ⇒ nothing is marked: the row stays claimable-after-lease and the reconciler owns it.
+    expect(row.state).toBe('committing');
+    expect(row.externalRecordId).toBeNull();
+  });
+
+  it('the normal fast path (a probe answering well inside the budget) still POSTs and confirms', async () => {
+    const fake = createFakeOutbox();
+    withClock(fake, 1_500);
+    const commit = vi.fn(async () => ({ externalRecordId: 'PI-0001', canonical: { id: 'pmo-1' } }));
+
+    const result = await dispatchMoneyWrite({
+      adapter: erpnextAdapter(commit),
+      command: baseCommand,
+      writeReadModel: vi.fn(), recordExternalRef: vi.fn(),
+      money: fake.deps,
+    });
+
+    expect(commit).toHaveBeenCalledTimes(1);
+    expect(result.externalRecordId).toBe('PI-0001');
+    expect([...fake.rows.values()][0].state).toBe('confirmed');
+  });
+
+  it('the boundary is exact: 1 ms inside the budget POSTs, the budget itself does not', async () => {
+    const inside = createFakeOutbox();
+    withClock(inside, MONEY_COMMIT_CLAIM_BUDGET_MS - 1);
+    const insideCommit = vi.fn(async () => ({ externalRecordId: 'PI-0002', canonical: { id: 'pmo-1' } }));
+    await dispatchMoneyWrite({
+      adapter: erpnextAdapter(insideCommit), command: baseCommand,
+      writeReadModel: vi.fn(), recordExternalRef: vi.fn(), money: inside.deps,
+    });
+    expect(insideCommit).toHaveBeenCalledTimes(1);
+
+    const atBudget = createFakeOutbox();
+    withClock(atBudget, MONEY_COMMIT_CLAIM_BUDGET_MS);
+    const atBudgetCommit = vi.fn();
+    await expect(
+      dispatchMoneyWrite({
+        adapter: erpnextAdapter(atBudgetCommit), command: baseCommand,
+        writeReadModel: vi.fn(), recordExternalRef: vi.fn(), money: atBudget.deps,
+      }),
+    ).rejects.toMatchObject({ code: 'external-unreachable' });
+    expect(atBudgetCommit).not.toHaveBeenCalled();
+  });
+
+  it('the budget never turns an ADOPTION into a refusal — a probe hit past the budget still finalizes', async () => {
+    const fake = createFakeOutbox();
+    withClock(fake, 483_000);
+    fake.setProbe('procurement', 'key-1', { externalRecordId: 'PI-LANDED' });
+    const commit = vi.fn();
+
+    const result = await dispatchMoneyWrite({
+      adapter: erpnextAdapter(commit),
+      command: baseCommand,
+      writeReadModel: vi.fn(), recordExternalRef: vi.fn(),
+      money: fake.deps,
+    });
+
+    // Adoption issues no ERP write at all, and the fenced write-backs already guard a stale claimant's
+    // result — so the budget must not block it.
+    expect(commit).not.toHaveBeenCalled();
+    expect(result.externalRecordId).toBe('PI-LANDED');
+  });
+
+  it('C-1 is preserved: a budget-exhausted mutable-anchor PE is still HELD, never reissued', async () => {
+    const fake = createFakeOutbox({ reissueOnInconclusiveAbsence: false });
+    await fake.deps.insertOutboxPending('procurement', 'pmo-pe-3', 'key-pe3');
+    const id = [...fake.rows.keys()][0];
+    await fake.deps.claimOutboxForCommit(id);
+    fake.backdate(id, LEASE_MS + 1);
+    const commit = vi.fn(async () => ({ externalRecordId: 'PE-DUP', canonical: { id: 'pmo-pe-3' } }));
+    const peCommand: AdapterCommand = { domain: 'procurement', operation: 'create', record: { id: 'pmo-pe-3' }, idempotencyKey: 'key-pe3' };
+
+    await expect(
+      dispatchMoneyWrite({ adapter: erpnextAdapter(commit), command: peCommand, writeReadModel: vi.fn(), recordExternalRef: vi.fn(), money: fake.deps }),
+    ).rejects.toMatchObject({ code: 'external-unreachable' });
+
+    withClock(fake, 483_000);
+    fake.elapseWindow(id);
+    await expect(
+      dispatchMoneyWrite({ adapter: erpnextAdapter(commit), command: peCommand, writeReadModel: vi.fn(), recordExternalRef: vi.fn(), money: fake.deps }),
+    ).rejects.toMatchObject({ code: 'command-held' });
+    expect(commit).not.toHaveBeenCalled();
+    expect([...fake.rows.values()][0].state).toBe('held');
+  });
+
+  it('the post-window RECOVERY reissue is bounded by the same budget (the exploit path)', async () => {
+    // An immutable-anchor (reissue-capable) kind whose recovery claim probes past the budget must NOT
+    // reissue either — by then ITS OWN claim can have been superseded in turn.
+    const fake = createFakeOutbox();
+    await fake.deps.insertOutboxPending('procurement', 'pmo-1', 'key-1');
+    const id = [...fake.rows.keys()][0];
+    await fake.deps.claimOutboxForCommit(id);
+    fake.backdate(id, LEASE_MS + 1);
+    const commit = vi.fn(async () => ({ externalRecordId: 'PI-DUPLICATE', canonical: { id: 'pmo-1' } }));
+
+    await expect(
+      dispatchMoneyWrite({ adapter: erpnextAdapter(commit), command: baseCommand, writeReadModel: vi.fn(), recordExternalRef: vi.fn(), money: fake.deps }),
+    ).rejects.toMatchObject({ code: 'external-unreachable' });
+
+    withClock(fake, 483_000);
+    fake.elapseWindow(id);
+    await expect(
+      dispatchMoneyWrite({ adapter: erpnextAdapter(commit), command: baseCommand, writeReadModel: vi.fn(), recordExternalRef: vi.fn(), money: fake.deps }),
+    ).rejects.toMatchObject({ code: 'external-unreachable' });
+    expect(commit).not.toHaveBeenCalled();
+  });
+
+  it('BLOCK 10: the claim ARMS an absolute deadline on the command, so the budget also bounds a MULTI-CALL commit', async () => {
+    // The single pre-commit check cannot bound a commit that issues several ERP calls (an amend is
+    // cancel PUT → create POST). The claim therefore hands the adapter the absolute instant past which
+    // its non-idempotent POST must be refused; the ERPNext client enforces it at the POST site.
+    const fake = createFakeOutbox();
+    const clock = withClock(fake, 1_500);
+    const claimStartedAt = clock.ms;
+    let seen: AdapterCommand | undefined;
+    const commit = vi.fn(async (c: AdapterCommand) => {
+      seen = c;
+      return { externalRecordId: 'PI-0004', canonical: { id: 'pmo-1' } };
+    });
+
+    await dispatchMoneyWrite({
+      adapter: erpnextAdapter(commit), command: baseCommand,
+      writeReadModel: vi.fn(), recordExternalRef: vi.fn(), money: fake.deps,
+    });
+
+    expect(seen?.commitDeadlineAtMs).toBe(claimStartedAt + MONEY_COMMIT_CLAIM_BUDGET_MS);
+    // The rest of the command is untouched (the deadline is per-attempt metadata, never identity).
+    expect(seen).toMatchObject({ domain: 'procurement', operation: 'create', idempotencyKey: 'key-1', record: { id: 'pmo-1' } });
+  });
+
+  it('BLOCK 10: a NON-money dispatch (P0/P1) never arms a deadline — byte-for-byte', async () => {
+    let seen: AdapterCommand | undefined;
+    const commit = vi.fn(async (c: AdapterCommand) => {
+      seen = c;
+      return { externalRecordId: 'T-1', canonical: { id: 'pmo-1' } };
+    });
+    await dispatchExternallyOwnedWrite({
+      adapter: { tier: 'clickup', capabilityMap: new Set(['tasks']), commit },
+      command: { domain: 'tasks', operation: 'create', record: { id: 'pmo-1' } },
+      writeReadModel: vi.fn(), recordExternalRef: vi.fn(),
+    });
+    expect(seen && 'commitDeadlineAtMs' in seen).toBe(false);
+  });
+
+  it('falls back to the wall clock when no `now` is injected (production wiring needs no extra dep)', async () => {
+    const fake = createFakeOutbox();
+    expect(fake.deps.now).toBeUndefined();
+    const commit = vi.fn(async () => ({ externalRecordId: 'PI-0003', canonical: { id: 'pmo-1' } }));
+    const result = await dispatchMoneyWrite({
+      adapter: erpnextAdapter(commit), command: baseCommand,
+      writeReadModel: vi.fn(), recordExternalRef: vi.fn(), money: fake.deps,
+    });
+    expect(result.externalRecordId).toBe('PI-0003');
+  });
+});
+
 describe('AC-ENA-012 classified failures: commit-rejected marks failed; external-unreachable stays reclaimable', () => {
   it('commit-rejected marks the row failed and rethrows', async () => {
     const fake = createFakeOutbox();
@@ -785,5 +1169,76 @@ describe('AC-ENA-012 classified failures: commit-rejected marks failed; external
       }),
     ).rejects.toMatchObject({ code: 'external-unreachable' });
     expect([...fake.rows.values()][0].state).toBe('committing');
+  });
+});
+
+/**
+ * Round-7 cross-family wiring, WIRE 4 — migration 0116's partial unique index
+ * `external_command_outbox_one_inflight_per_record` (at most ONE non-terminal outbox row per
+ * (org, domain, pmo_record_id)) is the money-safety barrier against two concurrent creates for one PMO
+ * record. It fires with a DIFFERENT idempotency key than the row already in flight, so the
+ * read-the-winner branch finds nothing and the raw Postgres error escaped verbatim: the API answered
+ * 500 with `duplicate key value violates unique constraint "external_command_outbox_one_inflight_per_record"`.
+ * Money-safe (nothing was minted) but leaky (it names an internal index) and unactionable (a caller
+ * cannot tell "wait for the in-flight command" from "the server broke").
+ *
+ * Detection is on the pg CODE **and** the constraint name — never on message text alone.
+ */
+describe('WIRE 4: the 0116 one-in-flight-per-record violation is a clean, actionable conflict', () => {
+  const inFlightViolation = () => {
+    const err = new Error(
+      'duplicate key value violates unique constraint "external_command_outbox_one_inflight_per_record"',
+    ) as Error & { code?: string };
+    err.code = '23505';
+    return err;
+  };
+
+  const dispatchWithInsertError = (error: Error, key = 'key-2') => {
+    const fake = createFakeOutbox();
+    const commit = vi.fn();
+    const money: DispatchMoneyOutboxDeps = {
+      ...fake.deps,
+      insertOutboxPending: async () => { throw error; },
+    };
+    return {
+      commit,
+      run: () => dispatchMoneyWrite({
+        adapter: erpnextAdapter(commit),
+        command: { ...baseCommand, idempotencyKey: key },
+        writeReadModel: vi.fn(), recordExternalRef: vi.fn(),
+        money,
+      }),
+    };
+  };
+
+  it('a second concurrent create for one PMO record is classified command-in-flight-for-record', async () => {
+    const { run, commit } = dispatchWithInsertError(inFlightViolation());
+    await expect(run()).rejects.toMatchObject({ code: 'command-in-flight-for-record' });
+    expect(commit).not.toHaveBeenCalled();
+  });
+
+  it('the surfaced message is operator-actionable and leaks no index/pg internals', async () => {
+    const { run } = dispatchWithInsertError(inFlightViolation());
+    const error: AppError = await run().then(
+      () => { throw new Error('the insert conflict must reject, never resolve'); },
+      (e: unknown) => e as AppError,
+    );
+    expect(error).toBeInstanceOf(AppError);
+    expect(error.message).not.toContain('external_command_outbox_one_inflight_per_record');
+    expect(error.message).not.toContain('duplicate key');
+    expect(error.message).toMatch(/in flight/i);
+  });
+
+  it('a DIFFERENT 23505 is not misclassified (the code alone is never the signal)', async () => {
+    const other = new Error('duplicate key value violates unique constraint "sales_invoices_pkey"') as Error & { code?: string };
+    other.code = '23505';
+    const { run } = dispatchWithInsertError(other);
+    await expect(run()).rejects.not.toMatchObject({ code: 'command-in-flight-for-record' });
+  });
+
+  it('the index name alone, without the pg code, is not enough to classify (never message text alone)', async () => {
+    const noCode = new Error('unrelated failure mentioning external_command_outbox_one_inflight_per_record');
+    const { run } = dispatchWithInsertError(noCode);
+    await expect(run()).rejects.not.toMatchObject({ code: 'command-in-flight-for-record' });
   });
 });

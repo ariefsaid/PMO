@@ -29,3 +29,10 @@ export const supplierFromDoc = (doc: unknown): PmoRecord => {
     erp_tax_id: d.tax_id ?? null,
   };
 };
+
+/**
+ * The list-endpoint fields `supplierFromDoc` actually READS (Luna BLOCK 6). The modified-poll sweep builds its
+ * `fields=[…]` request from this, so an adopted/updated mirror row is never written with NULLs for
+ * data the ERP doc carries. Co-located with the mapper so the two cannot drift apart.
+ */
+export const SUPPLIER_FROM_DOC_FIELDS = ['name', 'modified', 'supplier_name', 'tax_id'] as const;

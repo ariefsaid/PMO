@@ -76,6 +76,9 @@ const NotFoundPage = React.lazy(() => import('./pages/NotFound'));
 const UserViewRenderer = React.lazy(() => import('./pages/UserViewRenderer'));
 const MyViewsPage = React.lazy(() => import('./pages/MyViewsPage'));
 const ViewBuilderPage = React.lazy(() => import('./pages/ViewBuilderPage'));
+const SalesInvoicesPage = React.lazy(() => import('./pages/SalesInvoices'));
+const IncomingPaymentsPage = React.lazy(() => import('./pages/IncomingPayments'));
+const RevenueByProjectPage = React.lazy(() => import('./pages/RevenueByProject'));
 
 /**
  * Model B (ADR-0020, AC-IXD-PROJ-002): the legacy `/sales/:opportunityId` deep link redirects
@@ -131,6 +134,10 @@ export const AppRoutes: React.FC = () => (
       <Route path="/my-tasks" element={<MyTasksPage />} />
       <Route path="/reports" element={<PlaceholderPage title="Reports" />} />
       <Route path="/administration" element={<AdminUsersPage />} />
+      {/* Finance section */}
+      <Route path="/sales-invoices" element={<SalesInvoicesPage />} />
+      <Route path="/incoming-payments" element={<IncomingPaymentsPage />} />
+      <Route path="/revenue-by-project" element={<RevenueByProjectPage />} />
       {/* I4: My Views list (/views) — before /:viewId to avoid wildcard collision */}
       <Route
         path="/views"

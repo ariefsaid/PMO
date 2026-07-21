@@ -27,6 +27,10 @@ function assert(cond: boolean, msg: string): void {
   if (!cond) throw new Error(msg);
 }
 
+/** The org these recovery tests reconcile FOR. It owns both money domains, so the ownership gate
+ *  (below) is a no-op for every pre-existing assertion — those prove the recovery ALGORITHM. */
+const RECONCILE_ORG = { orgId: 'org-1', ownedDomains: ['procurement', 'revenue'] };
+
 function row(state: OutboxRow['state'], overrides: Partial<OutboxRow> = {}): OutboxRow {
   return {
     id: 'outbox-1',
@@ -98,7 +102,7 @@ Deno.test('AC-ENA-045: committed candidate → finalize-only (read-model upsert 
   const { deps, spies } = mockedDeps(committed);
   const listCandidates = async () => [committed];
   let driven = 0;
-  const result = await reconcileOrgOutbox(listCandidates, 'org-1', () => { driven += 1; return deps; }, dispatchMoneyWrite);
+  const result = await reconcileOrgOutbox(listCandidates, RECONCILE_ORG, () => { driven += 1; return deps; }, dispatchMoneyWrite);
   assert(driven === 1, `expected the sweep to drive dispatchMoneyWrite once per candidate, got ${driven}`);
   assert(result.reconciled === 1, `expected reconciled=1, got ${result.reconciled}`);
   // finalize-only: the adapter's REAL committed canonical was mirrored + ref-recorded + confirmed.
@@ -120,7 +124,7 @@ Deno.test('AC-ENA-045: pending candidate → claim FIRST; the claim WINNER probe
   // readOutbox returns the CURRENT state = pending (the default). The winner path claims → probes →
   // adopts → markCommitted → finalize; it does NOT re-read (no second readOutbox call).
   const listCandidates = async () => [pending];
-  const result = await reconcileOrgOutbox(listCandidates, 'org-1', () => deps);
+  const result = await reconcileOrgOutbox(listCandidates, RECONCILE_ORG, () => deps);
   assert(spies.calls.claim >= 1, 'pending → claimOutboxForCommit called FIRST (the claim gates the POST critical section)');
   assert(spies.calls.probe >= 1, 'pending winner → probeByRemarksKey called (adopt-or-POST)');
   assert(spies.calls.commit === 0, 'pending winner with a probe hit → ADOPT (NO ERP create — no duplicate doc)');
@@ -140,7 +144,7 @@ Deno.test('AC-ENA-045: pending candidate → claim LOSER (null return) → NO PO
     },
   });
   const listCandidates = async () => [pending];
-  await reconcileOrgOutbox(listCandidates, 'org-1', () => deps);
+  await reconcileOrgOutbox(listCandidates, RECONCILE_ORG, () => deps);
   assert(spies.calls.claim >= 1, 'pending → claim attempted');
   assert(spies.calls.commit === 0, 'pending LOSER → adapter.commit MUST NOT be called (never POSTs)');
   assert(spies.calls.probe === 0, 'pending LOSER → probe MUST NOT be called (only the winner probes)');
@@ -153,21 +157,21 @@ Deno.test('M-3: dispatch-persisted full payload reconciles through the sweep, bu
   const unchanged = mockedDeps(candidate);
   unchanged.deps.command.record = persistedPayload as PmoRecord;
   unchanged.deps.money.payloadDigest = digest;
-  const reconciled = await reconcileOrgOutbox(async () => [candidate], 'org-1', () => unchanged.deps, dispatchMoneyWrite);
+  const reconciled = await reconcileOrgOutbox(async () => [candidate], RECONCILE_ORG, () => unchanged.deps, dispatchMoneyWrite);
   assert(reconciled.reconciled === 1, 'unchanged dispatch payload must reconcile through the sweep');
 
   const mutated = mockedDeps(candidate);
   const mutatedPayload = { ...persistedPayload, paid_amount: '999.00' };
   mutated.deps.command.record = mutatedPayload as PmoRecord;
   mutated.deps.money.payloadDigest = await canonicalCommandDigest({ domain: 'procurement', operation: 'transition', record: mutatedPayload });
-  const rejected = await reconcileOrgOutbox(async () => [candidate], 'org-1', () => mutated.deps, dispatchMoneyWrite);
+  const rejected = await reconcileOrgOutbox(async () => [candidate], RECONCILE_ORG, () => mutated.deps, dispatchMoneyWrite);
   assert(rejected.reconciled === 0 && rejected.errors[0]?.error === 'idempotency-key-payload-mismatch', 'mutated payload must be commit-rejected');
 });
 
 Deno.test('AC-ENA-045: no candidates ⇒ no reconcile calls (the pass is a no-op for a clean org)', async () => {
   let buildCalls = 0;
   const listCandidates = async () => [];
-  const result = await reconcileOrgOutbox(listCandidates, 'org-1', () => { buildCalls += 1; return mockedDeps(row('pending')).deps; });
+  const result = await reconcileOrgOutbox(listCandidates, RECONCILE_ORG, () => { buildCalls += 1; return mockedDeps(row('pending')).deps; });
   assert(buildCalls === 0, 'buildDeps must NOT be called when there are no candidates');
   assert(result.reconciled === 0, `expected reconciled=0, got ${result.reconciled}`);
 });
@@ -178,10 +182,74 @@ Deno.test('AC-ENA-045: every candidate is reconciled exactly once (the pass enum
   const candidates = [row('committed', { id: 'a', externalRecordId: 'A' }), row('committed', { id: 'b', externalRecordId: 'B' })];
   const listCandidates = async () => candidates;
   const driven: string[] = [];
-  await reconcileOrgOutbox(listCandidates, 'org-1', (r) => { driven.push(r.id); return mockedDeps(r).deps; });
+  await reconcileOrgOutbox(listCandidates, RECONCILE_ORG, (r) => { driven.push(r.id); return mockedDeps(r).deps; });
   assert(driven.length === 2 && driven[0] === 'a' && driven[1] === 'b', `expected each candidate driven once in order, got ${JSON.stringify(driven)}`);
 });
 
 // satisfy the unused-import linter in deno check (CommandResult is part of the contract vocabulary
 // the sweep reuses; referenced here for documentation fidelity).
 void (null as unknown as CommandResult);
+
+// ────────────────────────────────────────────────────────────────────────────────────────────────
+// Luna re-audit — revoking domain ownership must also stop MONEY ALREADY IN FLIGHT.
+//
+// `sweepOrgDoctypesLive` and `repairOrgLinksLive` both gate on the org's owned domains, but the
+// reconcile pass gated on NOTHING: it drove every outbox candidate through `dispatchMoneyWrite`
+// purely off its persisted kind. So an Operator revoking revenue ownership — the intended
+// kill-switch — refused NEW dispatches and stopped inbound adoption, while queued/committing/
+// committed revenue rows kept reconciling on the next tick and POSTED REAL Sales Invoices into an
+// org that no longer owns the domain.
+//
+// The skip is deliberately NOT silent: `mark_outbox_held` cannot express it (0096 transitions only
+// `state='committing'`, while candidates are pending/failed/committing-past-lease/committed), so the
+// row is left EXACTLY as it is — no state change, no ERP call — and surfaced as a per-candidate
+// error, which `runErpSweepCycle` reports as `reconcile:<id>:<error>`. Re-granting ownership resumes
+// it on the next tick; nothing is dropped.
+// ────────────────────────────────────────────────────────────────────────────────────────────────
+
+Deno.test('Luna SoD/ownership — a candidate whose domain the org no longer owns is NEVER driven through dispatchMoneyWrite (no ERP money posted after a revoke)', async () => {
+  const revenueCandidate = row('committed', { id: 'outbox-rev-1', domain: 'revenue', externalRecordId: 'ACC-SINV-2026-00001' });
+  const { deps } = mockedDeps(revenueCandidate);
+  let built = 0;
+  let dispatched = 0;
+  const result = await reconcileOrgOutbox(
+    async () => [revenueCandidate],
+    { orgId: 'org-1', ownedDomains: ['procurement'] }, // revenue ownership REVOKED
+    () => { built += 1; return deps; },
+    async () => { dispatched += 1; return { externalRecordId: 'ERP-STUB', canonical: { id: 'pmo-1' } } as CommandResult; },
+  );
+  assert(dispatched === 0, 'a candidate in a revoked domain MUST NOT reach dispatchMoneyWrite (that is what posts the ERP document)');
+  assert(built === 0, 'the per-candidate deps (adapter + ERP credentials) must not even be built for a revoked domain');
+  assert(result.reconciled === 0, `expected reconciled=0, got ${result.reconciled}`);
+  assert(result.errors.length === 1 && result.errors[0].id === 'outbox-rev-1', 'the skip is REPORTED per candidate — never a silent drop of a money row');
+  assert(/revenue/.test(result.errors[0].error), `the report must name the unowned domain, got: ${result.errors[0].error}`);
+});
+
+Deno.test('Luna SoD/ownership — a candidate in a STILL-OWNED domain reconciles normally (the gate blocks revoked domains, it does not stop recovery)', async () => {
+  const procurementCandidate = row('committed', { id: 'outbox-proc-1' });
+  const { deps } = mockedDeps(procurementCandidate);
+  let dispatched = 0;
+  const result = await reconcileOrgOutbox(
+    async () => [procurementCandidate],
+    { orgId: 'org-1', ownedDomains: ['procurement'] },
+    () => deps,
+    async () => { dispatched += 1; return { externalRecordId: 'ERP-STUB', canonical: { id: 'pmo-1' } } as CommandResult; },
+  );
+  assert(dispatched === 1, 'an owned-domain candidate still reconciles');
+  assert(result.reconciled === 1, `expected reconciled=1, got ${result.reconciled}`);
+  assert(result.errors.length === 0, 'an owned-domain candidate produces no error entry');
+});
+
+Deno.test('Luna SoD/ownership — an org that owns NOTHING reconciles nothing (fail-closed, matching sweepKindsForOrg)', async () => {
+  const candidate = row('pending');
+  const { deps } = mockedDeps(candidate);
+  let dispatched = 0;
+  const result = await reconcileOrgOutbox(
+    async () => [candidate],
+    { orgId: 'org-1', ownedDomains: [] },
+    () => deps,
+    async () => { dispatched += 1; return { externalRecordId: 'ERP-STUB', canonical: { id: 'pmo-1' } } as CommandResult; },
+  );
+  assert(dispatched === 0, 'no recorded ownership ⇒ no money is driven (fail-closed, same posture as sweepKindsForOrg)');
+  assert(result.errors.length === 1, 'still reported, not dropped');
+});

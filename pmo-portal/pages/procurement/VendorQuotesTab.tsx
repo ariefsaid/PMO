@@ -17,6 +17,11 @@ import { trackComingSoonClicked } from '@/src/lib/analytics';
 import { formatCurrency, formatDate, parseMoneyInput } from '@/src/lib/format';
 import type { Tables } from '@/src/lib/supabase/database.types';
 import { ProcurementFilesSubsection } from './ProcurementFilesSubsection';
+import { useCommandIntentMap } from '@/src/hooks/useCommandIntent';
+import type { CommandIntent } from '@/src/lib/repositories/types';
+
+/** The single add-quotation session key (BLOCK 2 — one intent per open form, not per submit). */
+const ADD_QUOTE_INTENT_KEY = 'add-quotation';
 
 // ---------------------------------------------------------------------------
 // VendorQuotesTab — side-by-side bid comparison (Slice 3 / JTBD P2).
@@ -47,7 +52,13 @@ export interface VendorQuotesTabProps {
   canAdd: boolean;
   /** Select-quote action offered (sourcing role AND PR is Vendor Quoted). */
   canSelect: boolean;
-  onAdd: (input: { vendorId: string; totalAmount: number; receivedDate: string }) => Promise<unknown>;
+  onAdd: (input: {
+    vendorId: string;
+    totalAmount: number;
+    receivedDate: string;
+    /** BLOCK 2 (ADR-0058): the add-quote session's command identity — the SAME on every retry. */
+    intent: CommandIntent;
+  }) => Promise<unknown>;
   onSelect: (quotationId: string) => Promise<unknown>;
   onError: (err: unknown) => void;
   addBusy?: boolean;
@@ -119,6 +130,11 @@ export const VendorQuotesTab: React.FC<VendorQuotesTabProps> = ({
   const [total, setTotal] = useState('');
   const [totalError, setTotalError] = useState<string | undefined>(undefined);
   const [selectTarget, setSelectTarget] = useState<QuotationRow | null>(null);
+  // BLOCK 2 (ADR-0058): ONE command identity per add-quote session. This component does not unmount
+  // when the inline form closes, so the identity is keyed and released by `resetAdd` (the only exit
+  // — a success or a deliberate Cancel). A failed submit leaves the form open and the SAME identity
+  // in place, so the retry reconciles instead of creating a second quotation.
+  const quoteIntents = useCommandIntentMap();
 
   const { data: vendorOptions } = useVendorOptions();
   const loadVendors = useCallback(
@@ -127,6 +143,7 @@ export const VendorQuotesTab: React.FC<VendorQuotesTabProps> = ({
   );
 
   const resetAdd = () => {
+    quoteIntents.release(ADD_QUOTE_INTENT_KEY);
     setAdding(false);
     setVendorId(null);
     setTotal('');
@@ -146,6 +163,7 @@ export const VendorQuotesTab: React.FC<VendorQuotesTabProps> = ({
         vendorId,
         totalAmount: parsed,
         receivedDate: new Date().toISOString().slice(0, 10),
+        intent: quoteIntents.intentFor(ADD_QUOTE_INTENT_KEY),
       });
       resetAdd();
     } catch (err) {

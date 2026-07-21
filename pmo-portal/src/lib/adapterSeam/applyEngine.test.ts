@@ -147,3 +147,97 @@ describe('applyEngine.runSweep — ctx-parameterized reconciliation sweep (reuse
     expect(deps.advanced).toHaveLength(0);
   });
 });
+
+// ────────────────────────────────────────────────────────────────────────────────────────────────
+// Luna BLOCK 7 — concurrent webhook/sweep adoption must NOT leave an orphan mirror row.
+// The pre-fix engine minted the mirror FIRST and recorded `external_refs` second; the unique
+// (org_id, domain, external_record_id) constraint (0093) makes ONE writer lose the ref race — but the
+// loser had ALREADY inserted its randomly-keyed mirror row, so a duplicate, permanently-unmapped
+// revenue row stayed visible forever. The fix: an OPTIONAL `adoptAtomically` strategy that CLAIMS the
+// ref for a caller-generated PMO id BEFORE the mirror is minted, so a losing racer writes no mirror at
+// all — plus a repair path for the (crash-between) ref-claimed-but-mirror-missing window.
+// ────────────────────────────────────────────────────────────────────────────────────────────────
+describe('applyEngine.applyInboundChange — atomic adopt (Luna BLOCK 7)', () => {
+  function makeAtomicDeps(config: {
+    mappedPmoId?: string | null;
+    storedSourceModMs?: number | null;
+    mirrorExists?: boolean;
+    refClaimError?: Error;
+  }) {
+    const minted: { canonical: PmoRecord; sourceUpdatedAtMs: number; pmoRecordId: string }[] = [];
+    const refs: { pmoRecordId: string; externalRecordId: string }[] = [];
+    const legacyMints: PmoRecord[] = [];
+    const deps: ApplyChangeDeps & { minted: typeof minted; refs: typeof refs; legacyMints: typeof legacyMints } = {
+      minted,
+      refs,
+      legacyMints,
+      resolvePmoRecordId: async () => config.mappedPmoId ?? null,
+      readMirrorSourceMod: async () => config.storedSourceModMs ?? null,
+      updateMirror: async () => {},
+      mintMirror: async (canonical) => {
+        legacyMints.push(canonical);
+        return 'pmo-legacy-mint';
+      },
+      recordExternalRef: async () => {},
+      adoptAtomically: {
+        newPmoRecordId: () => 'pmo-new-1',
+        mintWithId: async (canonical, sourceUpdatedAtMs, pmoRecordId) => {
+          minted.push({ canonical, sourceUpdatedAtMs, pmoRecordId });
+        },
+        claimExternalRef: async (mapping) => {
+          if (config.refClaimError) throw config.refClaimError;
+          refs.push({ pmoRecordId: mapping.pmoRecordId, externalRecordId: mapping.externalRecordId });
+        },
+        mirrorExists: async () => config.mirrorExists ?? true,
+      },
+    };
+    return deps;
+  }
+
+  it('claims external_refs BEFORE minting the mirror (the ref is the adoption lock, not an afterthought)', async () => {
+    const order: string[] = [];
+    const deps = makeAtomicDeps({ mappedPmoId: null });
+    const claim = deps.adoptAtomically!.claimExternalRef;
+    const mint = deps.adoptAtomically!.mintWithId;
+    deps.adoptAtomically!.claimExternalRef = async (m) => { order.push('ref'); await claim(m); };
+    deps.adoptAtomically!.mintWithId = async (c, ms, id) => { order.push('mint'); await mint(c, ms, id); };
+
+    const outcome = await applyInboundChange(ctx, 'SINV-001', { id: 'ignored', amount: '125000.00' }, 1000, deps);
+
+    expect(order).toEqual(['ref', 'mint']);
+    expect(outcome).toEqual({ kind: 'upserted', pmoRecordId: 'pmo-new-1', adopted: true });
+    expect(deps.minted).toEqual([{ canonical: { id: 'pmo-new-1', amount: '125000.00' }, sourceUpdatedAtMs: 1000, pmoRecordId: 'pmo-new-1' }]);
+    expect(deps.legacyMints).toHaveLength(0);
+  });
+
+  it('a LOSING concurrent adopt (23505 on the ref claim) mints NO mirror row — no orphan duplicate revenue row', async () => {
+    const conflict = Object.assign(new Error('duplicate key value violates unique constraint'), { code: '23505' });
+    const deps = makeAtomicDeps({ mappedPmoId: null, refClaimError: conflict });
+
+    await expect(applyInboundChange(ctx, 'SINV-001', { id: 'ignored', amount: '125000.00' }, 1000, deps))
+      .rejects.toMatchObject({ code: '23505' });
+
+    expect(deps.minted).toHaveLength(0);
+    expect(deps.legacyMints).toHaveLength(0);
+  });
+
+  it('a ref claimed whose mirror is MISSING (crash between claim and mint) is repaired on the next tick with the SAME pmo id', async () => {
+    const deps = makeAtomicDeps({ mappedPmoId: 'pmo-claimed-1', mirrorExists: false });
+
+    const outcome = await applyInboundChange(ctx, 'SINV-001', { id: 'ignored', amount: '125000.00' }, 1000, deps);
+
+    expect(outcome).toEqual({ kind: 'upserted', pmoRecordId: 'pmo-claimed-1', adopted: true });
+    expect(deps.minted).toEqual([
+      { canonical: { id: 'pmo-claimed-1', amount: '125000.00' }, sourceUpdatedAtMs: 1000, pmoRecordId: 'pmo-claimed-1' },
+    ]);
+    expect(deps.refs).toHaveLength(0); // the ref is already claimed — never re-claimed
+  });
+
+  it('without the strategy (ClickUp/P0/P1) the legacy mint-then-ref path is byte-for-byte unchanged', async () => {
+    const deps = makeApplyDeps({ mappedPmoId: null });
+    const outcome = await applyInboundChange(ctx, 'MAT-REQ-009', { id: 'ignored' }, 1000, deps);
+    expect(outcome).toEqual({ kind: 'upserted', pmoRecordId: 'pmo-minted-1', adopted: true });
+    expect(deps.mints).toHaveLength(1);
+    expect(deps.refs).toHaveLength(1);
+  });
+});

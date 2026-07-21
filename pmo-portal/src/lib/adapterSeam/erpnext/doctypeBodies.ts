@@ -21,6 +21,8 @@ import { supplierToBody, supplierFromDoc } from './bodies/supplier.ts';
 import { customerToBody, customerFromDoc } from './bodies/customer.ts';
 import { piToBody, piFromDoc } from './bodies/purchaseInvoice.ts';
 import { peToBody, peFromDoc } from './bodies/paymentEntry.ts';
+import { siToBody, siFromDoc } from './bodies/salesInvoice.ts';
+import { peReceiveToBody, peReceiveFromDoc } from './bodies/incomingPayment.ts';
 
 export const DOCTYPE_BODIES: Partial<Record<ErpDocKind, DoctypeBodyFns>> = {
   supplier: { toBody: supplierToBody, fromDoc: supplierFromDoc },
@@ -33,4 +35,7 @@ export const DOCTYPE_BODIES: Partial<Record<ErpDocKind, DoctypeBodyFns>> = {
   // Slice 6 (task 6.2) — the R9 §1/§2 money-doc bodies (Purchase Invoice + Payment Entry).
   'purchase-invoice': { toBody: piToBody, fromDoc: piFromDoc },
   payment: { toBody: peToBody, fromDoc: peFromDoc },
+  // P3a Slice 1 — Revenue domain spike-frozen bodies (FR-SAR-100/103, FR-SAR-120, OQ-SAR-1 #1-#4).
+  'sales-invoice': { toBody: siToBody, fromDoc: siFromDoc },
+  'incoming-payment': { toBody: peReceiveToBody, fromDoc: peReceiveFromDoc },
 };

@@ -44,6 +44,7 @@ import {
   type ProcurementDetail,
 } from '@/src/lib/db/procurementLifecycle';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import type { CommandIntent } from '@/src/lib/repositories/types';
 import { useAgentContext } from '@/src/lib/agent/context/useAgentContext';
 import {
   lifecycleSteps,
@@ -103,6 +104,8 @@ type PendingConfirm =
       status: 'Partial' | 'Complete';
       receiptDate: string;
       referenceNumber: string | null;
+      /** BLOCK 2 (ADR-0058): the capture form's command identity, carried verbatim to the commit. */
+      intent: CommandIntent;
     }
   | {
       kind: 'createVI';
@@ -111,6 +114,8 @@ type PendingConfirm =
       invoiceDate: string;
       referenceNumber: string | null;
       amount: number | null;
+      /** BLOCK 2 (ADR-0058): see the createGR variant. */
+      intent: CommandIntent;
     };
 
 /**
@@ -517,6 +522,7 @@ const ProcurementDetails: React.FC = () => {
           status: pendingConfirm.status,
           receiptDate: pendingConfirm.receiptDate,
           referenceNumber: pendingConfirm.referenceNumber,
+          intent: pendingConfirm.intent,
         });
         setShowCreateGR(false);
         toast('Goods receipt recorded', undefined, 'success');
@@ -526,6 +532,7 @@ const ProcurementDetails: React.FC = () => {
           invoiceDate: pendingConfirm.invoiceDate,
           referenceNumber: pendingConfirm.referenceNumber,
           amount: pendingConfirm.amount,
+          intent: pendingConfirm.intent,
         });
         setShowCreateVI(false);
         toast('Vendor invoice recorded', undefined, 'success');

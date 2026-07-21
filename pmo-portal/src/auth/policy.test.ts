@@ -265,6 +265,106 @@ describe('can() — CRM RBAC (W3-CRM)', () => {
   });
 });
 
+describe('can() — revenue (P3a) reachability + SoD (owner ruling 2026-07-20)', () => {
+  it('P3a: create salesInvoice = Finance + Admin (Exec/PM view-only, Engineer denied)', () => {
+    expect(allowedRoles('create', 'salesInvoice')).toEqual(['Admin', 'Finance']);
+    expect(can('create', 'salesInvoice', { realRole: 'Executive' })).toBe(false);
+    expect(can('create', 'salesInvoice', { realRole: 'Project Manager' })).toBe(false);
+    expect(can('create', 'salesInvoice', { realRole: 'Engineer' })).toBe(false);
+  });
+
+  it('P3a: create incomingPayment = Finance + Admin (Exec/PM view-only, Engineer denied)', () => {
+    expect(allowedRoles('create', 'incomingPayment')).toEqual(['Admin', 'Finance']);
+    expect(can('create', 'incomingPayment', { realRole: 'Executive' })).toBe(false);
+    expect(can('create', 'incomingPayment', { realRole: 'Project Manager' })).toBe(false);
+    expect(can('create', 'incomingPayment', { realRole: 'Engineer' })).toBe(false);
+  });
+
+  it('P3a: view incomingPayment = MASTER_DATA (mirrors salesInvoice view); Engineer denied', () => {
+    expect(allowedRoles('view', 'incomingPayment')).toEqual([
+      'Admin',
+      'Executive',
+      'Project Manager',
+      'Finance',
+    ]);
+    expect(allowedRoles('view', 'incomingPayment')).toEqual(allowedRoles('view', 'salesInvoice'));
+  });
+
+  it('P3a: cancel (transition) a sales invoice / incoming payment = Finance + Admin', () => {
+    expect(allowedRoles('transition', 'salesInvoice')).toEqual(['Admin', 'Finance']);
+    expect(allowedRoles('transition', 'incomingPayment')).toEqual(['Admin', 'Finance']);
+  });
+
+  it('P3a: no `edit` affordance exists for either revenue entity (no update path is implemented)', () => {
+    expect(allowedRoles('edit', 'salesInvoice')).toEqual([]);
+    expect(allowedRoles('edit', 'incomingPayment')).toEqual([]);
+  });
+
+  it('FR-SAR-195: submit_sales_invoice SoD — the revenue write roles, never the author', () => {
+    // Author cannot submit their own draft…
+    expect(
+      can('submit_sales_invoice', 'salesInvoice', {
+        realRole: 'Finance',
+        currentUserId: 'u-1',
+        record: { author_id: 'u-1' },
+      }),
+    ).toBe(false);
+    // …a different revenue writer can. (Exec/PM are NOT submitters: migration 0114 gates the
+    // `submit_sales_invoice` RPC on the owner ruling's Admin+Finance, so offering them the affordance
+    // would render a button that 403s.)
+    expect(
+      allowedRoles('submit_sales_invoice', 'salesInvoice', {
+        currentUserId: 'u-2',
+        record: { author_id: 'u-1' },
+      }),
+    ).toEqual(['Admin', 'Finance']);
+    // Engineer is never a submitter.
+    expect(
+      can('submit_sales_invoice', 'salesInvoice', {
+        realRole: 'Engineer',
+        currentUserId: 'u-2',
+        record: { author_id: 'u-1' },
+      }),
+    ).toBe(false);
+  });
+
+  // ── Round-6 re-audit, NIT 1: the affordance must consult the SAME oracle as the DB.
+  // 0113 moved the SoD oracle from the last-writer-wins `sales_invoices.author_user_id` scalar to the
+  // APPEND-ONLY `sales_invoice_authors` SET. A user who wrote the body earlier but is no longer the
+  // current scalar author therefore still gets an ENABLED "Submit" — which 403s on click. Enforcement
+  // was right; the affordance lied.
+  it('NIT 1: an EARLIER body writer (in the author set, not the current scalar author) gets no Submit affordance', () => {
+    expect(
+      can('submit_sales_invoice', 'salesInvoice', {
+        realRole: 'Finance',
+        currentUserId: 'u-1',
+        // A co-worker's later edit moved the scalar to u-2; u-1 is still in the append-only set.
+        record: { author_id: 'u-2', author_ids: ['u-1', 'u-2'] },
+      }),
+    ).toBe(false);
+  });
+
+  it('NIT 1: a genuine third party (in neither the set nor the scalar) still gets Submit', () => {
+    expect(
+      can('submit_sales_invoice', 'salesInvoice', {
+        realRole: 'Finance',
+        currentUserId: 'u-3',
+        record: { author_id: 'u-2', author_ids: ['u-1', 'u-2'] },
+      }),
+    ).toBe(true);
+  });
+
+  it('NIT 1: an EMPTY author set + null scalar is refused (the DB fails closed on an unattributable invoice)', () => {
+    expect(
+      can('submit_sales_invoice', 'salesInvoice', {
+        realRole: 'Finance',
+        currentUserId: 'u-3',
+        record: { author_id: null, author_ids: [] },
+      }),
+    ).toBe(false);
+  });
+});
+
 describe('can() — deny-by-default safety', () => {
   it('ADR-0016: a null role is always denied (RLS stays the authority; FE never opens on no role)', () => {
     expect(can('create', 'project', { realRole: null })).toBe(false);
