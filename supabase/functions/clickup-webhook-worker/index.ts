@@ -1,7 +1,7 @@
 /**
  * clickup-webhook-worker — Deno Edge Function entry point (OD-INT-11, 2026-07-20).
  *
- * The durable-queue processor for `clickup_webhook_inbox` (migration 0124). ClickUp's real webhook
+ * The durable-queue processor for `clickup_webhook_inbox` (migration 0143). ClickUp's real webhook
  * delivery carries no task body and no timestamp, so `clickup-webhook` (the ingress) only verifies +
  * enqueues; THIS function re-GETs each pending task (`GET /task/{id}`) and applies the full current
  * state through the existing source-mod-guarded apply path (`applyWebhookEvent`,
@@ -14,9 +14,9 @@
  * (there is no task to re-GET, so no `list.id` — the mapped lookup is the only way to find the org).
  *
  * Auth: a DEDICATED worker secret (CLICKUP_WEBHOOK_WORKER_SECRET, constant-time bearer check) — NOT the
- * master service_role key — mirrors clickup-sweep's least-privilege pattern (migration 0094/0124's
+ * master service_role key — mirrors clickup-sweep's least-privilege pattern (migration 0094/0143's
  * pg_cron tick presents this secret, never the master key, to the DB). Registered-but-idle until an
- * operator creates the two Vault secrets (0124), same precedent as 0048/0082/0094.
+ * operator creates the two Vault secrets (0143), same precedent as 0048/0082/0094.
  *
  * The re-GET → resolve-binding → apply core (`processInboxRow`) and the claim/mark-done/mark-failed
  * bookkeeping (`runWorkerBatch`) are deps-injected and unit-tested (index.test.ts) with
@@ -348,7 +348,7 @@ async function markFailedLive(serviceClient: SupabaseClient, id: string, message
 if (import.meta.main) {
   Deno.serve(async (req: Request): Promise<Response> => {
     // The DEDICATED worker secret (NOT the master service_role key — least-privilege, mirrors
-    // clickup-sweep's CLICKUP_SWEEP_SECRET pattern). The pg_cron tick (migration 0124) presents this
+    // clickup-sweep's CLICKUP_SWEEP_SECRET pattern). The pg_cron tick (migration 0143) presents this
     // same secret from Vault; the master key never crosses into the DB.
     const workerSecret = Deno.env.get('CLICKUP_WEBHOOK_WORKER_SECRET') ?? '';
     const authHeader = req.headers.get('Authorization') ?? '';
