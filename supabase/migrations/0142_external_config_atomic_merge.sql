@@ -1,4 +1,4 @@
--- 0138_external_config_atomic_merge.sql — MEDIUM-4
+-- 0142_external_config_atomic_merge.sql — MEDIUM-4
 -- Atomic patches for integration config jsonb. Callers must never read/merge/write this field: a
 -- concurrent writer can otherwise replace the row with a stale object and erase sibling keys.
 
