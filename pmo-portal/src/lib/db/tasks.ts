@@ -25,6 +25,13 @@ export interface TaskInput {
   end_date?: string | null;
   /** Optional milestone grouping (FR-DEL-016). null = Ungrouped. */
   milestone_id?: string | null;
+  /**
+   * Optional parent task (OD-INT-9 subtask model). null = top-level (the default). A non-null
+   * id makes this task a subtask; subtasks render nested under their parent and never
+   * independently move a delivery percentage (rollup exclusion is server-side). The DB CHECK
+   * blocks self-parent; the UI additionally blocks descendant-parent (cycle) via taskTree.
+   */
+  parent_task_id?: string | null;
 }
 
 /** The structure fields an edit (PM/Exec/Admin) supplies. project_id/org_id are never patched. */
@@ -36,6 +43,8 @@ export interface TaskPatch {
   end_date?: string | null;
   /** Milestone re-assignment (FR-DEL-016). null explicitly ungroups the task. */
   milestone_id?: string | null;
+  /** Parent re-assignment (OD-INT-9). null explicitly promotes the subtask back to top-level. */
+  parent_task_id?: string | null;
 }
 
 /** Shape of a PostgREST/Postgres error we surface (only the fields we read). */
@@ -118,6 +127,10 @@ export async function getTask(id: string): Promise<TaskWithRefs | null> {
  */
 export async function createTask(input: TaskInput): Promise<TaskRow> {
   if (routeTaskWrite() === 'external') {
+    // NOTE (OD-INT-9 gap): parent_task_id is intentionally NOT forwarded to the external
+    // dispatch — mapping PMO parent_task_id to/from ClickUp `parent` is a separate issue
+    // (task brief; OD-INT-9 defers it). milestone_id is already omitted here for the same
+    // reason (PMO-native grouping). The direct DAL below honours parent_task_id.
     const res = await dispatchTaskCommand('create', {
       id: crypto.randomUUID(),
       project_id: input.project_id,
@@ -139,6 +152,7 @@ export async function createTask(input: TaskInput): Promise<TaskRow> {
       start_date: input.start_date || null,
       end_date: input.end_date || null,
       milestone_id: input.milestone_id ?? null,
+      parent_task_id: input.parent_task_id ?? null,
     })
     .select()
     .single();
@@ -156,7 +170,11 @@ export async function createTask(input: TaskInput): Promise<TaskRow> {
  */
 export async function updateTask(id: string, patch: TaskPatch): Promise<void> {
   if (routeTaskWrite() === 'external') {
-    await dispatchTaskCommand('update', { id, ...patch });
+    // NOTE (OD-INT-9 gap): strip parent_task_id before dispatch — same exclusion + reason as
+    // create above (ClickUp `parent` mapping is a separate issue). Forwarding an unhandled
+    // field to the ClickUp edge function risks rejecting the whole write.
+    const { parent_task_id: _omitted, ...rest } = patch;
+    await dispatchTaskCommand('update', { id, ...rest });
     return;
   }
   const next: TablesUpdate<'tasks'> = {};
@@ -166,6 +184,7 @@ export async function updateTask(id: string, patch: TaskPatch): Promise<void> {
   if (patch.start_date !== undefined) next.start_date = patch.start_date || null;
   if (patch.end_date !== undefined) next.end_date = patch.end_date || null;
   if (patch.milestone_id !== undefined) next.milestone_id = patch.milestone_id; // null ungroups
+  if (patch.parent_task_id !== undefined) next.parent_task_id = patch.parent_task_id; // null promotes
   const { error } = await supabase.from('tasks').update(next).eq('id', id);
   if (error) throwWrite(error);
 }

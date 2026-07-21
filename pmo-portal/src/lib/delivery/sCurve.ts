@@ -45,6 +45,12 @@ export interface SCurveModel {
  */
 export interface SCurveTask {
   milestone_id: string | null;
+  /**
+   * OD-INT-9 subtask rollup rule: a non-null parent_task_id marks this row a SUBTASK. Subtasks
+   * never contribute to the actual series (only top-level tasks move a percentage). Kept on the
+   * narrow view so buildSCurve can filter without callers pre-stripping subtasks.
+   */
+  parent_task_id: string | null;
   /** 'To Do' | 'In Progress' | 'Done' | 'Blocked' — only 'Done' matters here. */
   status: string;
   /** ISO timestamptz, trigger-stamped when task entered Done. null = not yet Done or backfill absent. */
@@ -298,6 +304,11 @@ export function buildSCurve(
   if (tasks !== undefined) {
     const tasksByMilestone = new Map<string | null, SCurveTask[]>();
     for (const t of tasks) {
+      // OD-INT-9 subtask rollup rule: subtasks (parent_task_id != null) never move a percentage.
+      // Excluding them here keeps them out of BOTH the per-milestone Done/total denominator AND
+      // the contribution series, so the gauge (driven by the milestone RPC's effective_pct) and
+      // the trajectory agree on "top-level tasks only".
+      if (t.parent_task_id !== null) continue;
       const key = t.milestone_id;
       if (!tasksByMilestone.has(key)) tasksByMilestone.set(key, []);
       tasksByMilestone.get(key)!.push(t);
