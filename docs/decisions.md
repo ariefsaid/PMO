@@ -886,6 +886,35 @@ two coordination notes: keep the `credentials.ts` resolver seam clean (Vault swa
 `external_org_bindings` is the shared per-org connection table. The Director orchestrates this layer as
 its own spec → eng-planner plan → PRs afterward (security-auditor mandatory on the token path).
 
+### OD-SAR-GATES — PMO is the flexible layer; process gates are org-config, default permissive (owner ruling 2026-07-14)
+
+**Binding product architecture:** the PMO caters to field reality; the ERP is strict. Chain/process
+gating (require-SO-before-SI, require-BAST-before-SI, require-project-on-SI, procurement chain-entry
+restrictions, …) is **org-level configuration** (`process_gates`), **default OFF/permissive**, flipped
+ON only when an org's accounting demands it — and flipped back when an edge case becomes the norm.
+Doctypes must be representable without their gate being mandatory. First shipped seam: P3a revenue
+gates (inert, default-off). Fast-follow issue: SO + BAST (Indonesian services handover — DN-doctype vs
+document+milestone-acceptance needs its own ruling). **P2 retrofit (backlog): flexible procurement
+chain entry** (direct-to-PO, payment-first) under the same philosophy.
+
+### OD-SAR-PMO-IS-THE-UI — the accountant's UI is PMO; ERPNext is the headless audit/ledger engine (owner ruling 2026-07-14)
+
+Accountants work IN PMO (authoring, corrections — hence SI cancel/amend in-app); the ERPNext bench
+exists for audit and as the ledger engine. **ERP-grade financial reporting belongs on the PMO
+backlog** (a reporting track over the mirrored ledger/read-models), not in the Desk. Sharpens
+ADR-0055 §product-frame and [[product-vision-operational-layer]]; every future money issue assumes
+no user is ever required to open the ERPNext Desk.
+
+### OD-SAR-DRAFT-SUBMIT — revenue SI create leaves a DRAFT; submit is the SoD-gated approver step (owner ruling 2026-07-15)
+
+The signed-off SoD (approver≠author on SI submit, OD-SAR §14) is only real if create and submit are
+SEPARATE actors. The initial build did **atomic create+submit** (spike "two-step insert→submit" →
+docstatus 1 on create), which BYPASSED SoD at create (author submits their own invoice). **Binding
+correction:** a revenue **Sales Invoice** create leaves an ERP **draft (docstatus 0)**; **submit** is
+the separate, SoD-gated transition performed by a DIFFERENT approver (PM drafts → Finance approves +
+submits). Procurement PI/PE stay atomic create+submit (no SoD there). Mirror status: 'Draft' after
+create, 'Unpaid' after the approver submit. Surfaced by the post-Luna e2e re-run (sod-self-approval
+403 on single-user create+submit). Implemented via a registry `submitOnCreate:false` for sales-invoice.
 ### OD-INT-6 — ERPNext Company is selected at the ORG level, not per project (owner-approved 2026-07-16)
 **Supersedes plan tasks 3.3 + 3.5's ERPNext-in-the-project-modal.** ERPNext **Company** is a legal
 entity — org-scoped by nature (OD-INT-4), and the shipped ERP code depends on it: `binding.ts`
@@ -935,3 +964,94 @@ Applies to **ClickUp only** (ERPNext has no per-project link — OD-INT-4/OD-INT
   *different* project sees the control and is rejected **server-side** with 403. This is consistent with
   ADR-0016 (`can()` is UX-only; the server is the authority). Adding a project-scoped primitive is a
   possible later refinement, not a correctness requirement.
+
+## OD-INT-9 — PMO task model gains description, priority, subtasks and archive (2026-07-20, owner)
+
+**Decision.** Extend `public.tasks` with four nullable additions, in ONE migration:
+`description text`, `priority` (new nullable enum `task_priority` = `Urgent|High|Normal|Low`),
+`parent_task_id uuid null references tasks(id)` (a real subtask model, owner's call over
+flatten-or-ignore), and `archived_at timestamptz null`.
+
+**Why priority is a PMO enum, not ClickUp's raw 1–4.** ADR-0055 keeps PMO vendor-neutral and the
+codebase already confines vendor vocabulary to `clickup/**` (FR-CUA-012); ERPNext needs the same
+column. The PMO↔ClickUp priority map is a **fixed 4-value constant** in `clickup/mapping.ts`, not
+per-List config — so it cannot rot the way the per-List status map did (see OD-INT-10).
+
+**Subtask rollup rule (binding).** Only tasks with `parent_task_id is null` participate in milestone
+counts, `delivery_pct`, the S-curve and Gantt bars. Subtasks render nested under their parent and do
+not independently move any percentage. Without this rule a parent and its children double-count and
+delivery reporting silently inflates.
+
+**Archive is distinct from tombstone.** `archived_at` mirrors ClickUp archive (a reversible hide);
+`tombstoned_at` stays for upstream deletes. This also lights up the `task.archive` permission that
+`policy.ts:154-159` already declares but nothing implements.
+
+**Applies to:** `description`/`priority`/`archived_at` sync bidirectionally; `parent_task_id` maps to
+ClickUp `parent`. All four are optional in ClickUp (only `name` is required on create).
+
+## OD-INT-10 — one shared status/member map builder; a binding must cover every PMO status (2026-07-20)
+
+**Decision.** `external-link` and `clickup-onboard` MUST build binding config through a single shared
+function. A binding whose `pmoToClickUp` does not cover **all four** PMO `task_status` values is
+rejected at link time, not discovered at first push.
+
+**Why.** The two link paths drifted: `external-link` shipped `statusMap: {}` while `toClickUpStatus`
+throws on unmapped — every outbound write would have failed, and every inbound task would have landed
+as `To Do`, corrupting `delivery_pct` / milestone % / S-curve. The map builder must key on ClickUp
+status **`type`** (`open|custom|closed|done`), not name, and must map all four PMO statuses.
+Evidence: `docs/spikes/2026-07-20-clickup-tasks-divergence.md` §2.1.
+
+## OD-INT-11 — webhook ingress: verify → 200 → enqueue → re-GET (2026-07-20, verified live)
+
+**Decision.** The ClickUp webhook payload is a **delta, not a task**. Ingress MUST: verify `X-Signature`
+(HMAC-SHA256 over the **raw** body) → respond 200 immediately → enqueue `{event, task_id, team_id}` →
+a worker re-`GET`s the task and applies it. Resolve the org/project binding from the **re-GET'd
+`task.list.id`**, never from the payload (there is no `list_id` in it — the current adopt tier is
+unreachable). Subscribe to `taskCreated`/`taskUpdated`/`taskDeleted` only; `taskStatusUpdated` is a
+duplicate delivery of the same change.
+
+**Why 200-first is mandatory:** ClickUp marks a webhook *Failing* if the endpoint errors **or takes
+>7s**, retries 5× then **drops the event permanently**, and *Suspends* at 100 failures with **no
+notification**. Verified envelope + fixtures:
+`supabase/functions/_shared/testing/fixtures/clickup-webhook/`.
+
+## OD-INT-12 — the agent's task-status action routes through adapter-dispatch (2026-07-20, owner)
+
+**Decision.** `agent-chat`'s `update_task_status` must go through `adapter-dispatch` like every other
+task write, rather than writing `tasks.status` directly under the caller's JWT.
+
+**Why.** Under external ownership the column-pin trigger (`0093:97-139`) pins all roles to enhancement
+columns, so the direct write raises a raw `42501` — the assistant would break exactly on the projects
+with the most tasks. Routing keeps the capability and keeps ClickUp authoritative.
+
+---
+
+## OD-INT-13 — status map round 3: pmo-only outcomes with Blocked defaulting to pmo-only (2026-07-21, owner)
+
+**Decision.** The strict pairwise-distinctness rule for PMO→ClickUp status mapping was reverted as
+unshippable. ClickUp ships **three** statuses by default (`to do` / `in progress` / `complete`) — the
+real probed workspace has exactly that — so the rule rejected it and would have forced customers to
+restructure their ClickUp Space before linking, inverting ADR-0055 (the external system owns its
+domain). Distinctness was not even sufficient: `Blocked → complete` passed while being semantically
+wrong.
+
+Every PMO status must still resolve to an explicit recorded outcome, but **"no ClickUp counterpart"**
+is now a valid one:
+
+```
+{ kind: 'clickup', status } | { kind: 'pmo-only' }
+```
+
+- `pmo-only` statuses are never pushed outbound (the task's other fields still sync) and are never
+  overwritten by an inbound sync.
+- **`Blocked` defaults to `pmo-only`** when no distinct ClickUp status is available — it is a PMO
+  management signal (escalation/dependency) with no equivalent in ClickUp's default vocabulary;
+  collapsing it onto `In Progress` destroyed the state in both directions.
+- A collapse is still permitted but only when **explicitly recorded**, never produced silently by
+  auto-derivation. Where a collapse is recorded, inbound must not downgrade the more specific PMO
+  status.
+- Storage is `pmoOnlyStatuses?: string[]` on the existing binding `config` jsonb — optional, so
+  bindings persisted before this change stay valid byte-for-byte. **No migration.**
+- Validation keeps its teeth: a PMO status with no recorded resolution is still rejected at link time.
+- Implemented on `fix/status-map-round3`. A named test asserts the real 3-status List links
+  successfully with `Blocked` resolving `pmo-only`.

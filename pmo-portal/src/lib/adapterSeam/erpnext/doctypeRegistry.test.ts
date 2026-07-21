@@ -46,12 +46,22 @@ describe('erpnext/doctypeRegistry', () => {
       payment: { doctype: 'Payment Entry', submittable: true, anchorField: 'reference_no', anchorMutable: true },
       supplier: { doctype: 'Supplier', submittable: false, anchorField: null },
       customer: { doctype: 'Customer', submittable: false, anchorField: null },
+      // P3a Slice 1 — Revenue domain (FR-SAR-011, OQ-SAR-1/R9-P3a spike frozen):
+      // SI — anchor 'remarks', IMMUTABLE (OQ-SAR-4, R9-P3a spike #2: remarks survives validate+submit+refetch
+      // verbatim — the PI twin, reissue-capable). ERP server-derives debit_to + items[].income_account.
+      'sales-invoice': { doctype: 'Sales Invoice', submittable: true, submitOnCreate: false, anchorField: 'remarks', anchorMutable: false },
+      // PE-receive — anchor 'reference_no', MUTABLE (OQ-SAR-3, R9-P3a spike #4: remarks is clobbered by PE
+      // validate; reference_no survives. C-1 applies verbatim: composite probe + held-on-inconclusive, NEVER
+      // auto-reissued — the double-receive guard). Same doctype as 'payment', payment_type='Receive'.
+      'incoming-payment': { doctype: 'Payment Entry', submittable: true, anchorField: 'reference_no', anchorMutable: true },
     });
   });
 
-  it('FR-ENA-013 no Frappe doctype name appears twice (each ERP doc kind is unambiguous)', () => {
+  it('FR-ENA-013 no Frappe doctype name appears twice (each ERP doc kind is unambiguous), except Payment Entry which maps to two PMO kinds (payment/incoming-payment) disambiguated by payment_type', () => {
     const doctypes = Object.values(DOCTYPE_REGISTRY).map((entry) => entry.doctype);
-    expect(new Set(doctypes).size).toBe(doctypes.length);
+    // One expected duplicate: payment + incoming-payment both map to 'Payment Entry'
+    const uniqueDoctypes = new Set(doctypes);
+    expect(uniqueDoctypes.size).toBe(doctypes.length - 1);
   });
 
   it('every anchored kind (anchorField != null) is submittable (the money-doc recovery surface)', () => {
@@ -60,5 +70,15 @@ describe('erpnext/doctypeRegistry', () => {
         expect(entry.submittable, `${kind} has an anchor but is not submittable`).toBe(true);
       }
     }
+  });
+
+  it('P3a Slice 1: sales-invoice registry entry matches spike (R9-P3a-1, R9-P3a-2)', () => {
+    const entry = DOCTYPE_REGISTRY['sales-invoice'];
+    expect(entry).toEqual({ doctype: 'Sales Invoice', submittable: true, submitOnCreate: false, anchorField: 'remarks', anchorMutable: false });
+  });
+
+  it('P3a Slice 1: incoming-payment registry entry matches spike (R9-P3a-3, R9-P3a-4)', () => {
+    const entry = DOCTYPE_REGISTRY['incoming-payment'];
+    expect(entry).toEqual({ doctype: 'Payment Entry', submittable: true, anchorField: 'reference_no', anchorMutable: true });
   });
 });

@@ -1,0 +1,113 @@
+[
+  {
+    "event": "taskCreated",
+    "topLevelKeys": [
+      "event",
+      "history_items",
+      "task_id",
+      "team_id",
+      "webhook_id"
+    ],
+    "hasTaskObject": false,
+    "hasHistoryItems": true,
+    "historyFields": [
+      "status",
+      "task_creation"
+    ],
+    "signaturePresent": true
+  },
+  {
+    "event": "taskStatusUpdated",
+    "topLevelKeys": [
+      "event",
+      "history_items",
+      "task_id",
+      "team_id",
+      "webhook_id"
+    ],
+    "hasTaskObject": false,
+    "hasHistoryItems": true,
+    "historyFields": [
+      "status"
+    ],
+    "signaturePresent": true
+  },
+  {
+    "event": "taskUpdated",
+    "topLevelKeys": [
+      "event",
+      "history_items",
+      "task_id",
+      "team_id",
+      "webhook_id"
+    ],
+    "hasTaskObject": false,
+    "hasHistoryItems": true,
+    "historyFields": [
+      "name"
+    ],
+    "signaturePresent": true
+  },
+  {
+    "event": "taskUpdated",
+    "topLevelKeys": [
+      "event",
+      "history_items",
+      "task_id",
+      "team_id",
+      "webhook_id"
+    ],
+    "hasTaskObject": false,
+    "hasHistoryItems": true,
+    "historyFields": [
+      "status"
+    ],
+    "signaturePresent": true
+  },
+  {
+    "event": "taskStatusUpdated",
+    "topLevelKeys": [
+      "event",
+      "history_items",
+      "task_id",
+      "team_id",
+      "webhook_id"
+    ],
+    "hasTaskObject": false,
+    "hasHistoryItems": true,
+    "historyFields": [
+      "status"
+    ],
+    "signaturePresent": true
+  },
+  {
+    "event": "taskUpdated",
+    "topLevelKeys": [
+      "event",
+      "history_items",
+      "task_id",
+      "team_id",
+      "webhook_id"
+    ],
+    "hasTaskObject": false,
+    "hasHistoryItems": true,
+    "historyFields": [
+      "archived"
+    ],
+    "signaturePresent": true
+  },
+  {
+    "event": "taskDeleted",
+    "topLevelKeys": [
+      "event",
+      "history_items",
+      "task_id",
+      "team_id",
+      "webhook_id"
+    ],
+    "hasTaskObject": false,
+    "hasHistoryItems": true,
+    "historyFields": [],
+    "signaturePresent": true
+  }
+]

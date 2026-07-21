@@ -10,7 +10,7 @@
  * record id so the adopted mirror keys correctly.
  */
 import type { PmoRecord } from '../contract.ts';
-import { getDoc, listDocNamesByAnchor, listDocNamesByFilters, type ErpClientDeps } from './client.ts';
+import { escapeLikePattern, getDoc, listDocNamesByAnchor, listDocNamesByFilters, type ErpClientDeps, type ErpFilter } from './client.ts';
 
 export interface ErpProbeDeps {
   client: ErpClientDeps;
@@ -24,6 +24,16 @@ export interface ErpProbeDeps {
   /** The PMO record id this command owns — stamped onto the adopted canonical so the read-model keys
    *  on the PMO id (never the ERP name), matching the create path (`adapter.ts` commitCreate). */
   pmoRecordId: string;
+  /** Luna BLOCK 1 (cross-domain corruption guard): additional SERVER-SIDE filters applied to the
+   *  anchor-candidate list query, so a Payment Entry anchor hit can never match a doc of the wrong
+   *  `payment_type`/`party_type` (a Receive probe must not adopt a Pay doc and vice-versa). PI /
+   *  Purchase Receipt (immutable `remarks` anchor) leave this unset — byte-for-byte. */
+  anchorExtraFilters?: ErpFilter[];
+  /** Luna BLOCK 1 (defense-in-depth): validates the re-fetched anchor doc BEFORE adopting it. Used by
+   *  the mutable-anchor (Payment Entry) composite path to re-confirm `payment_type`/`party_type` on
+   *  the fetched doc even when the server-side filter excluded the wrong type. Returns `null` (do not
+   *  adopt) when the validator returns false. Omitted for PI/Purchase Receipt. */
+  validateAdoptedDoc?: (doc: unknown) => boolean;
 }
 
 /**
@@ -36,16 +46,37 @@ export async function probeErpByAnchorKey(
   deps: ErpProbeDeps,
   idempotencyKey: string,
 ): Promise<{ externalRecordId: string; canonical: PmoRecord } | null> {
-  const names = await listDocNamesByAnchor(deps.client, deps.doctype, deps.anchorField, idempotencyKey, 1);
+  // Luna BLOCK 1: when the caller supplies cross-domain discriminator filters (Payment Entry
+  // payment_type + party_type), conjoin them with the anchor `like` filter so the anchor-candidate
+  // list never returns a doc of the wrong payment_type. PI/Purchase Receipt leave
+  // `anchorExtraFilters` unset → the query is byte-for-byte the anchor-only `like` filter.
+  const extra = deps.anchorExtraFilters ?? [];
+  const names =
+    extra.length > 0
+      ? // Luna BLOCK 1: same wildcard-injection guard as `listDocNamesByAnchor` — this path builds the
+        // anchor `like` tuple itself (to conjoin the discriminators), so it must escape the key too.
+        await listDocNamesByFilters(
+          deps.client,
+          deps.doctype,
+          [[deps.anchorField, 'like', `%${escapeLikePattern(idempotencyKey)}%`], ...extra],
+          1,
+        )
+      : await listDocNamesByAnchor(deps.client, deps.doctype, deps.anchorField, idempotencyKey, 1);
   if (names.length === 0) return null;
   const name = names[0];
   const doc = await getDoc(deps.client, deps.doctype, name);
+  // Defense-in-depth (Luna BLOCK 1): even if the server-side filter leaked a wrong-type candidate,
+  // refuse to adopt a fetched doc the caller's validator rejects (a Receive probe must not adopt a
+  // Pay doc, and vice-versa) — return null so the composite conjunction (or hold) decides.
+  if (deps.validateAdoptedDoc && !deps.validateAdoptedDoc(doc)) return null;
   return { externalRecordId: name, canonical: { ...deps.fromDoc(doc), id: deps.pmoRecordId } };
 }
 
 /** The composite deterministic Payment Entry recovery inputs (C-1 DIRECTOR RULING). All read from our
  *  OWN outbox row payload (persisted at insert) — never from live ERP state — so the sync retry and the
- *  sweep resolve identically. */
+ *  sweep resolve identically. The `paymentType` discriminator (FR-SAR-083, AC-SAR-014) ensures a
+ *  PE-receive probe (payment_type='Receive') cannot cross-match a PE-pay (payment_type='Pay') and
+ *  vice-versa — they share the same `Payment Entry` doctype but are distinct PMO kinds. */
 export interface ErpPaymentCompositeInput {
   partyType: string;
   party: string;
@@ -54,9 +85,15 @@ export interface ErpPaymentCompositeInput {
   /** The referenced Purchase Invoice ERP name(s) PMO's PE cited (matched against the PE `references`
    *  child table, which is NOT server-filterable — so it is matched after `getDoc`). */
   piNames: string[];
+  /** The referenced Sales Invoice ERP name(s) for a PE-receive (matched against the PE `references`
+   *  child table — same as piNames but for the AR side). */
+  siNames: string[];
   /** The claim-window lower bound (ERP `creation >=`) — a doc created before our command began cannot
    *  be ours. Bounds the candidate set to this idempotency attempt's window. */
   createdAfter: string;
+  /** C-1 / FR-SAR-083 discriminator: `Pay` for a PE-pay (procurement), `Receive` for a PE-receive
+   *  (revenue). A Receive probe MUST NOT match a Pay doc and vice-versa. */
+  paymentType: 'Pay' | 'Receive';
 }
 
 /**
@@ -74,8 +111,26 @@ export async function probeErpByPaymentComposite(
   idempotencyKey: string,
   input: ErpPaymentCompositeInput,
 ): Promise<{ externalRecordId: string; canonical: PmoRecord } | null> {
-  // 1. The immutable-intent fast path: the anchor (reference_no) still carries the key.
-  const anchorHit = await probeErpByAnchorKey(deps, idempotencyKey);
+  // 1. The immutable-intent fast path: the anchor (reference_no) still carries the key. Luna BLOCK 1:
+  //    conjoin the anchor `like` with payment_type + party_type discriminators (and re-validate the
+  //    fetched doc) so a Receive probe can never adopt a Pay doc (and vice-versa) via a colliding
+  //    reference_no — cross-domain corruption guard.
+  // Backwards-compat: default to 'Pay' (procurement PE) and empty siNames for old callers.
+  const paymentType = input.paymentType ?? 'Pay';
+  const piNames = input.piNames ?? [];
+  const siNames = input.siNames ?? [];
+  const anchorDeps: ErpProbeDeps = {
+    ...deps,
+    anchorExtraFilters: [
+      ['payment_type', '=', paymentType],
+      ['party_type', '=', input.partyType],
+    ],
+    validateAdoptedDoc: (doc) => {
+      const d = doc as { payment_type?: unknown; party_type?: unknown };
+      return d.payment_type === paymentType && d.party_type === input.partyType;
+    },
+  };
+  const anchorHit = await probeErpByAnchorKey(anchorDeps, idempotencyKey);
   if (anchorHit) return anchorHit;
 
   // 2. The composite conjunction on server-filterable columns (references is matched after getDoc).
@@ -84,6 +139,7 @@ export async function probeErpByPaymentComposite(
     ['party', '=', input.party],
     ['paid_amount', '=', input.paidAmount],
     ['creation', '>=', input.createdAfter],
+    ['payment_type', '=', paymentType], // FR-SAR-083: discriminates Pay vs Receive
     ['docstatus', '<', 2], // exclude cancelled — a cancelled PE is not a live duplicate
   ];
   const names = await listDocNamesByFilters(deps.client, deps.doctype, filters, 20);
@@ -91,7 +147,9 @@ export async function probeErpByPaymentComposite(
   for (const name of names) {
     const doc = await getDoc(deps.client, deps.doctype, name);
     const references = (doc as { references?: Array<{ reference_name?: unknown }> }).references ?? [];
-    if (references.some((r) => input.piNames.includes(String(r.reference_name)))) {
+    // Match against piNames (PE-pay) OR siNames (PE-receive) — the input carries the correct array
+    // based on paymentType, so a PE-receive probe never cross-matches a PE-pay doc.
+    if (references.some((r) => piNames.includes(String(r.reference_name)) || siNames.includes(String(r.reference_name)))) {
       matches.push({ name, doc });
     }
   }

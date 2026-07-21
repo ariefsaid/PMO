@@ -26,3 +26,10 @@ export function poFromDoc(doc: unknown): PmoRecord {
     erp_amended_from: (d.amended_from as string | null) ?? null,
   };
 }
+
+/**
+ * The list-endpoint fields `poFromDoc` actually READS (Luna BLOCK 6). The modified-poll sweep builds its
+ * `fields=[…]` request from this, so an adopted/updated mirror row is never written with NULLs for
+ * data the ERP doc carries. Co-located with the mapper so the two cannot drift apart.
+ */
+export const PO_FROM_DOC_FIELDS = ['name', 'modified', 'docstatus', 'amended_from', 'grand_total'] as const;

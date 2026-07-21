@@ -34,7 +34,7 @@ interface NavItem {
   icon: IconName;
   roles: UserRole[];
   /** Owning rail group. */
-  group: 'Overview' | 'CRM' | 'Delivery' | 'Workforce';
+  group: 'Overview' | 'CRM' | 'Delivery' | 'Workforce' | 'Finance';
   /**
    * Optional per-org entitlement gate (ops-admin-surface S6, FR-ENT-005). When set, the item
    * renders only if the org's `org_features` row (or the env default when absent) resolves the
@@ -70,12 +70,17 @@ const ALL_ITEMS: NavItem[] = [
   // Admin is included for parity (Admin may also have tasks assigned to them).
   // Executives and managers use the project Tasks tab for their task oversight (OD-W2-4).
   { to: '/my-tasks', text: 'My Tasks', icon: 'check', group: 'Workforce', roles: [UserRole.Engineer, UserRole.Admin] },
+  // Finance section — gated by the `revenue` feature flag (ERPNext external domain ownership).
+  // Visible to Finance, PM, Exec, Admin roles when the org has `revenue` externally owned.
+  { to: '/sales-invoices', text: 'Sales Invoices', icon: 'file', group: 'Finance', feature: 'revenue', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
+  { to: '/incoming-payments', text: 'Incoming Payments', icon: 'dollar', group: 'Finance', feature: 'revenue', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
+  { to: '/revenue-by-project', text: 'Revenue by Project', icon: 'table', group: 'Finance', feature: 'revenue', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
   // Reports is demoted from the rail until the module ships (AC-IXD-DASH-004 / IA F8): an unbuilt
   // module must not be a top-slot nav item leading to an empty stub. The /reports <Route> is kept
   // (App.tsx) so a stray deep link still resolves to the honest "arrives later" placeholder.
 ];
 
-const GROUP_ORDER: NavItem['group'][] = ['Overview', 'CRM', 'Delivery', 'Workforce'];
+const GROUP_ORDER: NavItem['group'][] = ['Overview', 'CRM', 'Delivery', 'Finance', 'Workforce'];
 
 /** Maximum number of user-view entries displayed in the rail (OD-7, FR-VR-065). */
 const MAX_NAV_VIEWS = 8;
@@ -280,7 +285,7 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
                 NAV_LINK_BASE,
                 isActive
                   ? 'bg-primary/10 font-semibold text-nav-active-text'
-                  : 'text-foreground hover:bg-accent'
+                  : 'text-foreground hover:bg-accent',
               )
             }
           >
@@ -299,3 +304,5 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
     </div>
   );
 };
+
+export default Rail;

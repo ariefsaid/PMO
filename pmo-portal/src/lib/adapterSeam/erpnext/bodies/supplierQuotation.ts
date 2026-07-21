@@ -28,3 +28,10 @@ export function supplierQuotationFromDoc(doc: unknown): PmoRecord {
     // is_selected is intentionally omitted — PMO-only, never sourced from ERP.
   };
 }
+
+/**
+ * The list-endpoint fields `sqFromDoc` actually READS (Luna BLOCK 6). The modified-poll sweep builds its
+ * `fields=[…]` request from this, so an adopted/updated mirror row is never written with NULLs for
+ * data the ERP doc carries. Co-located with the mapper so the two cannot drift apart.
+ */
+export const SQ_FROM_DOC_FIELDS = ['name', 'modified', 'docstatus', 'amended_from', 'grand_total', 'valid_till'] as const;
