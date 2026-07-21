@@ -374,30 +374,17 @@ export async function handleConnectRequest(req: Request): Promise<Response> {
 
     // 8b. Persist the resolved ClickUp actor id onto the org binding (echo-loop guard identity,
     // item 4 of the read-hygiene fix). Non-fatal, same stance as the ownership RPC above — the
-    // binding is already created; a failure here just means the guard can't be armed yet. Merge-safe
-    // (read-then-update) so a reconnect never clobbers any other config key ClickUp might gain later.
+    // binding is already created; a failure here just means the guard can't be armed yet. The
+    // security-definer RPC merges this patch in the database statement, so a concurrent writer
+    // cannot clobber clickup_team_id, statusMap, memberMap, or any future sibling key.
     if (clickUpUserId !== null) {
-      const { data: currentBinding, error: readError } = await serviceClient
-        .from('external_org_bindings')
-        .select('config')
-        .eq('org_id', profile.org_id)
-        .eq('external_tier', 'clickup')
-        .maybeSingle();
-      if (readError) {
-        console.error('external_org_bindings config read (clickup_actor_id persist) failed', readError);
-      } else {
-        const mergedConfig = {
-          ...((currentBinding?.config as Record<string, unknown> | null) ?? {}),
-          clickup_actor_id: clickUpUserId,
-        };
-        const { error: configError } = await serviceClient
-          .from('external_org_bindings')
-          .update({ config: mergedConfig })
-          .eq('org_id', profile.org_id)
-          .eq('external_tier', 'clickup');
-        if (configError) {
-          console.error('external_org_bindings clickup_actor_id persist failed', configError);
-        }
+      const { error: configError } = await serviceClient.rpc('merge_external_org_binding_config', {
+        p_org_id: profile.org_id,
+        p_external_tier: 'clickup',
+        p_patch: { clickup_actor_id: clickUpUserId },
+      });
+      if (configError) {
+        console.error('external_org_bindings clickup_actor_id persist failed', configError);
       }
     }
   }

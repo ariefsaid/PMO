@@ -84,19 +84,13 @@ describe('external-connect — ClickUp branch', () => {
         // echo-loop guard's actor id, item 4 of the read-hygiene fix).
         clickup('/api/v2/user', () => jsonResponse({ user: { id: 123, username: 'test-user' } })),
 
-        supabaseSelect('external_org_bindings', () =>
-          jsonResponse({ config: {} }, { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
-
-        {
-          label: 'persist clickup_actor_id',
-          method: 'PATCH',
-          pathname: '/rest/v1/external_org_bindings',
-          response: (call) => {
-            const body = call.bodyJson as Record<string, unknown>;
-            assertEquals(body.config, { clickup_actor_id: '123' });
-            return jsonResponse([{ id: 'binding-1' }]);
-          },
-        },
+        supabaseRpc('merge_external_org_binding_config', (call) => {
+          const body = call.bodyJson as Record<string, unknown>;
+          assertEquals(body.p_org_id, 'org-1');
+          assertEquals(body.p_external_tier, 'clickup');
+          assertEquals(body.p_patch, { clickup_actor_id: '123' });
+          return jsonResponse(null);
+        }),
       ],
       async ({ calls }) => {
         const res = await handleConnectRequest(await authed({ tier: 'clickup', credential: { token: 'valid-token' } }));
@@ -104,7 +98,7 @@ describe('external-connect — ClickUp branch', () => {
         assertEquals(await res.json(), { ok: true, binding: { secret_ref: 'vault-ref-123', status: 'active' } });
         assertEquals(rpcCall(calls, 'create_vault_secret_for_org').length, 1);
         assertEquals(rpcCall(calls, 'admin_change_domain_ownership').length, 1);
-        assertEquals(restCall(calls, 'external_org_bindings', 'PATCH').length, 1);
+        assertEquals(rpcCall(calls, 'merge_external_org_binding_config').length, 1);
       },
     );
   });
@@ -128,15 +122,13 @@ describe('external-connect — ClickUp branch', () => {
 
         clickup('/api/v2/user', () => jsonResponse({ user: { id: 456, username: 'operator-user' } })),
 
-        supabaseSelect('external_org_bindings', () =>
-          jsonResponse({ config: {} }, { headers: { 'content-type': 'application/vnd.pgrst.object+json' } })),
-
-        { label: 'persist clickup_actor_id', method: 'PATCH', pathname: '/rest/v1/external_org_bindings', response: () => jsonResponse([{ id: 'binding-1' }]) },
+        supabaseRpc('merge_external_org_binding_config', () => jsonResponse(null)),
       ],
       async ({ calls }) => {
         const res = await handleConnectRequest(await authed({ tier: 'clickup', credential: { token: 'valid-token' } }));
         assertEquals(res.status, 200);
         assertEquals(rpcCall(calls, 'create_vault_secret_for_org').length, 1);
+        assertEquals(rpcCall(calls, 'merge_external_org_binding_config').length, 1);
       },
     );
   });
