@@ -28,6 +28,16 @@ export interface ClickUpTask {
   date_updated: string;
   /** Unix-ms as a string — set when the task was marked done; null otherwise (FR-CUA-030 Finding 6). */
   date_done?: string | null;
+  /** True when the task is archived in ClickUp. Only present because reads now pass `archived=true`
+   *  (read-hygiene fix); `pageListTasks` filters these out of every returned change set — an archived
+   *  task must never be mirrored as live (no `archived_at` column on this branch to record the state
+   *  faithfully instead). */
+  archived?: boolean;
+  /** The parent task id when this is a ClickUp subtask. Only present because reads now pass
+   *  `subtasks=true` (read-hygiene fix). PMO does NOT model parent/child yet — a subtask flows through
+   *  mapping as a flat top-level task (this field is deliberately never read by `mapping.ts`); the
+   *  subtask data model is a separate, later issue. */
+  parent?: string | null;
 }
 
 /** A page of tasks from `GET /list/{list_id}/task` (REST v2). */

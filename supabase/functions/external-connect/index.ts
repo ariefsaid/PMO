@@ -100,20 +100,38 @@ interface ValidatorDeps {
   fetchImpl: typeof fetch;
 }
 
+/**
+ * Validate the token against `GET /user` and return the ClickUp actor id (`user.id`, stringified) —
+ * the echo-loop guard's identity (item 4 of the read-hygiene fix: PMO writes with a token belonging to
+ * a real ClickUp user, so PMO's own writes fire webhooks back at PMO; ClickUp's only supported
+ * loop-break is comparing `history_items[*].user.id` against this persisted actor id).
+ *
+ * Returns `null` (never throws) when the response is missing/malformed `user.id` — the token itself
+ * validated fine (`res.ok`), so an unexpected wire shape must not block the connect; it only means the
+ * echo-loop guard can't be armed for this org until a later reconnect gets a well-formed response.
+ */
 async function validateClickUpToken(
   token: string,
   deps: ValidatorDeps,
-): Promise<void> {
+): Promise<string | null> {
+  let res: Response;
   try {
-    const res = await deps.fetchImpl('https://api.clickup.com/api/v2/user', {
+    res = await deps.fetchImpl('https://api.clickup.com/api/v2/user', {
       headers: { Authorization: `Bearer ${token}` },
     });
-    if (!res.ok) {
-      throw new AppError('Invalid ClickUp token', 'config-rejected');
-    }
   } catch (err) {
     if (err instanceof AppError) throw err;
     throw new AppError('Invalid ClickUp token', 'config-rejected');
+  }
+  if (!res.ok) {
+    throw new AppError('Invalid ClickUp token', 'config-rejected');
+  }
+  try {
+    const body = (await res.json()) as { user?: { id?: number | string } };
+    const id = body.user?.id;
+    return id !== undefined && id !== null ? String(id) : null;
+  } catch {
+    return null;
   }
 }
 
@@ -287,13 +305,14 @@ export async function handleConnectRequest(req: Request): Promise<Response> {
 
   // 6. Validate credential against external system BEFORE any Vault write
   const validatorDeps = { fetchImpl: fetch };
+  let clickUpUserId: string | null = null;
   try {
     if (tier === 'clickup') {
       const token = credential.token;
       if (!token || typeof token !== 'string') {
         return errorResponse('ClickUp token is required', 'BAD_REQUEST', 400);
       }
-      await validateClickUpToken(token, validatorDeps);
+      clickUpUserId = await validateClickUpToken(token, validatorDeps);
     } else {
       const { siteUrl, apiKey, apiSecret } = credential;
       if (!siteUrl || !apiKey || !apiSecret) {
@@ -352,6 +371,22 @@ export async function handleConnectRequest(req: Request): Promise<Response> {
     }
     // Note: audit event for domain ownership employ is emitted by the RPC itself
     // (integration.domain_ownership.employ). No separate log_audit call needed here.
+
+    // 8b. Persist the resolved ClickUp actor id onto the org binding (echo-loop guard identity,
+    // item 4 of the read-hygiene fix). Non-fatal, same stance as the ownership RPC above — the
+    // binding is already created; a failure here just means the guard can't be armed yet. The
+    // security-definer RPC merges this patch in the database statement, so a concurrent writer
+    // cannot clobber clickup_team_id, statusMap, memberMap, or any future sibling key.
+    if (clickUpUserId !== null) {
+      const { error: configError } = await serviceClient.rpc('merge_external_org_binding_config', {
+        p_org_id: profile.org_id,
+        p_external_tier: 'clickup',
+        p_patch: { clickup_actor_id: clickUpUserId },
+      });
+      if (configError) {
+        console.error('external_org_bindings clickup_actor_id persist failed', configError);
+      }
+    }
   }
 
   // 9. Return success

@@ -445,6 +445,59 @@ describe('external-link — ClickUp branch', () => {
     );
   });
 
+  it('push-seed with a List holding only closed/archived tasks → 409 (not read as empty)', async () => {
+    await withFetchMock(
+      [
+        supabaseSelect('profiles', () =>
+          jsonResponse({ org_id: 'org-1', role: 'Admin', status: 'active' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
+
+        supabaseSelect('platform_operators', () => new Response('null', {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })),
+
+        supabaseSelect('external_org_bindings', () =>
+          jsonResponse({ secret_ref: 'vault-ref', status: 'active', config: {}, site_url: 'https://erp.example.com' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
+
+        supabaseRpc('read_vault_secret', () => jsonResponse('test-pat-token')),
+
+        clickup('/api/v2/list/list-1', () => jsonResponse({ name: 'Test List' })),
+        // The List's ONLY task is closed+archived. With the default GET /list/{id}/task filters
+        // (the OLD behaviour) ClickUp would omit it and this would read as an empty List — push-seed
+        // would then proceed to seed into a List that already has content. The count path must pass
+        // the full filter set so this task is counted.
+        clickup('/api/v2/list/list-1/task', (call) => {
+          assertEquals(call.url.searchParams.get('include_closed'), 'true');
+          assertEquals(call.url.searchParams.get('archived'), 'true');
+          assertEquals(call.url.searchParams.get('subtasks'), 'true');
+          assertEquals(call.url.searchParams.get('include_timl'), 'true');
+          return jsonResponse({ tasks: [{ id: 't1', archived: true, status: { status: 'closed' } }] });
+        }),
+
+        supabaseSelect('projects', () =>
+          jsonResponse({ id: 'proj-1', project_manager_id: 'user-1', org_id: 'org-1' }, {
+            headers: { 'content-type': 'application/vnd.pgrst.object+json' },
+          })),
+
+        { label: 'pmo-task-count', method: 'HEAD', pathname: '/rest/v1/tasks', response: () => countResponse(0) },
+      ],
+      async ({ calls }) => {
+        const res = await handleLinkRequest(await authed({
+          tier: 'clickup',
+          projectId: 'proj-1',
+          listId: 'list-1',
+          direction: 'push-seed',
+        }));
+        assertEquals(res.status, 409);
+        assertEquals(rpcCall(calls, 'log_audit').length, 0);
+      },
+    );
+  });
+
   it('pull-adopt with non-empty PMO project → 409', async () => {
     await withFetchMock(
       [
