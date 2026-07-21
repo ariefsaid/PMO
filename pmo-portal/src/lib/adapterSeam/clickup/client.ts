@@ -81,7 +81,20 @@ export async function clickUpRequest(deps: ClickUpClientDeps, opts: ClickUpReque
   }
 
   const bodyText = res.status === 204 ? '' : await res.text();
-  const body: unknown = bodyText ? JSON.parse(bodyText) : null;
+  // SEC-MEDIUM-5: an error body is not guaranteed to be JSON (an HTML error page, an empty body, or a
+  // plain-text upstream failure all reach here on a 404/4xx/5xx). A raw JSON.parse threw a SyntaxError
+  // BEFORE the status-based classification below ever ran, so a non-JSON 404 crashed the whole request
+  // instead of being recognised as a 404 (reads.ts's 404 -> "List/task not found" branch never saw it).
+  // Defensive parse: fall back to `null` on a malformed body — every caller downstream branches on
+  // `res.status`, never on the parsed body being present.
+  let body: unknown = null;
+  if (bodyText) {
+    try {
+      body = JSON.parse(bodyText);
+    } catch {
+      body = null;
+    }
+  }
 
   if (res.status >= 400) {
     throw new ClickUpHttpError(res.status, 'commit-rejected', extractErrorMessage(body, res.status));

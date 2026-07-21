@@ -34,6 +34,34 @@ describe('AC-CUA-081 clickUpRequest surfaces X-RateLimit-Remaining so callers ca
   });
 });
 
+describe('SEC-MEDIUM-5 a non-JSON error body must not crash status-based classification', () => {
+  it('a 404 with an HTML error body still throws ClickUpHttpError(status=404) — never a SyntaxError', async () => {
+    const fetchImpl = vi.fn(
+      async () => new Response('<html><body>Not Found</body></html>', { status: 404 }),
+    );
+    let thrown: unknown;
+    try {
+      await clickUpRequest({ fetchImpl: fetchImpl as unknown as typeof fetch, token: 't' }, { method: 'GET', path: '/list/gone/task' });
+    } catch (err) {
+      thrown = err;
+    }
+    expect(thrown).toBeInstanceOf(ClickUpHttpError);
+    expect((thrown as ClickUpHttpError).status).toBe(404);
+  });
+
+  it('a 404 with an empty (non-JSON) body still throws ClickUpHttpError(status=404)', async () => {
+    const fetchImpl = vi.fn(async () => new Response('not json at all', { status: 404 }));
+    let thrown: unknown;
+    try {
+      await clickUpRequest({ fetchImpl: fetchImpl as unknown as typeof fetch, token: 't' }, { method: 'GET', path: '/list/gone/task' });
+    } catch (err) {
+      thrown = err;
+    }
+    expect(thrown).toBeInstanceOf(ClickUpHttpError);
+    expect((thrown as ClickUpHttpError).status).toBe(404);
+  });
+});
+
 describe('AC-CUA-081 an exhausted 429 retry budget fails cleanly through the AdapterError vocabulary', () => {
   beforeEach(() => {
     vi.useFakeTimers();
