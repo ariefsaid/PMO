@@ -144,6 +144,48 @@ describe('WIRE P3B: the Approved-only timesheet gate is wired into the dispatch 
   });
 });
 
+// ════════════════════════════════════════════════════════════════════════════════════════════════
+// WIRE P3C (HIGH-2, Luna re-audit 2026-07-21) — a budget push failure AFTER the gate passes lands a
+// durable `budget_version_erp_mirror` row, never silently dropped.
+//
+// `recordBudgetGateFailure` (proven elsewhere by reading the code) covers ONLY a rejection BY THE
+// GATE ITSELF (unmapped category / multi-FY / unresolved fiscal year). The concrete gap: activating a
+// REVISION of an already-pushed budget mints a NEW version id, so the gate + BLOCK #4 both pass, and
+// ERP's own `(company, project, fiscal_year, account)` duplicate guard then rejects the POST — a
+// failure from adapter-select OR the dispatch write itself, neither of which the gate's own recorder
+// ever sees. Before this fix nothing wrote a mirror row for that case at all: `push_state` stayed
+// NULL — indistinguishable from "never pushed" — and the sweep backstop (which only re-drives
+// `pending`/`failed` rows) had nothing to pick up. Same source-scan idiom as WIRE 2/4/P3B above.
+// ════════════════════════════════════════════════════════════════════════════════════════════════
+
+describe('WIRE P3C: a post-gate budget push failure is recorded durably (HIGH-2)', () => {
+  it('recordBudgetPushFailure is defined and gated on isBudgetPushCommand + a resolved fiscal_year', () => {
+    const decl = at('const recordBudgetPushFailure = async');
+    expect(decl, 'recordBudgetPushFailure must exist — a post-gate budget failure needs SOMEWHERE durable to land').toBeGreaterThan(-1);
+    const body = CODE.slice(decl, CODE.indexOf('\n  };', decl) + 5);
+    expect(body).toMatch(/if \(!isBudgetPushCommand\(command\)\) return;/);
+    // Never invents a grain-less row: an earlier rejection (before the gate resolves a fiscal year)
+    // has nothing to key the mirror's (org_id, budget_version_id, fiscal_year) row on.
+    expect(body).toMatch(/typeof fiscalYear !== 'string'/);
+    expect(body).toMatch(/push_state:\s*'failed'/);
+    expect(body).toContain("onConflict: 'org_id,budget_version_id,fiscal_year'");
+  });
+
+  it('is called from BOTH failure paths: adapter-select AND the dispatch/ERP-write catch', () => {
+    const selectCatch = at('await recordTimesheetPushFailure(appError);\n    await recordBudgetPushFailure(appError);');
+    expect(selectCatch, 'the adapter-select catch must also record a budget push failure').toBeGreaterThan(-1);
+    const dispatchCall = CODE.indexOf('await recordBudgetPushFailure(budgetAppError);');
+    expect(dispatchCall, 'the dispatch/ERP-write catch must record with the BEST-classified error (budgetAppError), not the generic one').toBeGreaterThan(-1);
+    // The dispatch-catch recording must happen with the reclassified error already computed, and
+    // strictly BEFORE the HTTP status/response is built (never after the caller already got an answer).
+    const budgetAppErrorDecl = at('const budgetAppError =');
+    const statusDecl = CODE.indexOf('const status = budgetAppError.code', dispatchCall);
+    expect(budgetAppErrorDecl).toBeGreaterThan(-1);
+    expect(dispatchCall).toBeGreaterThan(budgetAppErrorDecl);
+    expect(statusDecl).toBeGreaterThan(dispatchCall);
+  });
+});
+
 describe('WIRE P3B: the `timesheets` domain resolves an ERPNext adapter and rides every erp gate', () => {
   it('FR-TSP-005 ADAPTER_REGISTRY routes the timesheets domain to the ERPNext factory', () => {
     expect(INDEX).toMatch(/import \{[^}]*ERPNEXT_TIMESHEETS_DOMAIN[^}]*\} from '[^']*\/erpnext\/adapter\.ts'/);

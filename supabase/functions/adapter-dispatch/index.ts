@@ -60,6 +60,7 @@ import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
 import type { Adapter, AdapterCommand, PmoRecord } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
 import type { DispatchMoneyOutboxDeps, ExternalRefMapping } from '../../../pmo-portal/src/lib/adapterSeam/dispatch.ts';
 import { getReadModelWriter, markTimesheetPushOutcome } from './readModelWriters.ts';
+import { surfaceActionRequired } from '../_shared/erpnextFeedDeps.ts';
 import { enforceTimesheetApproved, isTimesheetPush, type ApprovedTimesheet } from './approvalGuard.ts';
 import { maybeFault, type FaultGate } from './faultSeams.ts';
 import { isRevenueSiSubmitTransition, grantSiSubmitClearance, requiresSiAuthorClaim, claimSiAuthor, releaseSiSubmitClearance } from './sodGuard.ts';
@@ -921,6 +922,46 @@ Deno.serve(async (req: Request): Promise<Response> => {
     }
   };
 
+  /**
+   * Luna re-audit HIGH-2 (2026-07-21), ADR-0059 §6/FR-BUD-123 — record a POST-GATE budget push
+   * failure as DURABLE, operator-visible state. `recordBudgetGateFailure` (above) covers only a
+   * REJECTION BY THE GATE ITSELF (unmapped category, multi-FY, unresolved fiscal year) — a failure
+   * from adapter-select or the ERP write ITSELF (the money-safety-audit's concrete scenario: a
+   * revision's own outbox/ERP round-trip rejected by ERP's `(company, project, fiscal_year, account)`
+   * duplicate guard) landed NO mirror row at all, so `get_budget_projection.push_state` stayed `NULL`
+   * — indistinguishable from "never pushed" — and the sweep backstop (which only re-drives
+   * `pending`/`failed` rows) had nothing to pick up. ADR-0059 §3.2 STANDS: the swallow itself is
+   * correct — activation must never fail because ERP failed — but "swallowed" must mean "recorded and
+   * surfaced", never "lost". Keyed on the mirror's own `(org_id, budget_version_id, fiscal_year)`
+   * grain; the gate REPLACES `command.record.fiscal_year` with its own server-resolved value on a
+   * PASS (line ~772), so by the time either catch block below runs it is real, not a payload guess.
+   * Best-effort, like every other action-required surface — never masks the caller's own error.
+   */
+  const recordBudgetPushFailure = async (failure: AppError): Promise<void> => {
+    if (!isBudgetPushCommand(command)) return;
+    const fiscalYear = (command.record as { fiscal_year?: unknown }).fiscal_year;
+    if (typeof fiscalYear !== 'string' || fiscalYear === '') return; // the gate never resolved one — recordBudgetGateFailure already owns that rejection
+    const versionId = String(command.record.id);
+    try {
+      await serviceClient.from('budget_version_erp_mirror').upsert(
+        {
+          org_id: orgId,
+          budget_version_id: versionId,
+          fiscal_year: fiscalYear,
+          push_state: 'failed',
+          push_error: failure.code ?? 'DISPATCH_FAILED',
+        },
+        { onConflict: 'org_id,budget_version_id,fiscal_year' },
+      );
+      await surfaceActionRequired(serviceClient as never, orgId, 'budget-push-failed', {
+        versionId,
+        reason: failure.code ?? failure.message,
+      });
+    } catch (recordErr) {
+      console.error('[adapter-dispatch] failed to record budget push failure:', recordErr);
+    }
+  };
+
   // ── Named server-side fault seams (Slice 0 task 0.7, FR-ENA-003, plan §2 decision 5; host
   // allowlist added fix-round finding 5): read the gate ONCE per request and thread it through.
   // `maybeFault` re-checks ALL THREE conditions per named seam, so this is a pure no-op in every
@@ -961,6 +1002,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     // project-unmapped / activity-type-unconfigured / cross-org-link-rejected / daily-hours-exceed-24)
     // runs inside the factory, deliberately BEFORE the outbox claim and any ERP call.
     await recordTimesheetPushFailure(appError);
+    await recordBudgetPushFailure(appError); // HIGH-2: an adapter-select-time budget rejection is durable too
     return new Response(JSON.stringify({ error: appError.code ?? 'ADAPTER_SELECT_FAILED', message: appError.message }), {
       status: 400,
       headers,
@@ -1059,6 +1101,13 @@ Deno.serve(async (req: Request): Promise<Response> => {
       isBudgetPushCommand(command) && err instanceof Error && isBudgetCode((err as { code?: unknown }).code)
         ? new AppError(err.message, (err as unknown as { code: string }).code)
         : appError;
+    // HIGH-2 — THE concrete gap the money-safety audit found: a budget push that clears the gate but
+    // is then rejected by the ERP write ITSELF (the everyday "revise an already-pushed budget" path —
+    // ERP's own `(company, project, fiscal_year, account)` duplicate guard rejects it, doctypeRegistry.ts
+    // ~136-141) landed no mirror row at all, so `get_budget_projection.push_state` stayed indistinguishable
+    // from "never pushed" and the sweep backstop had nothing to re-drive. Recorded with the BEST-classified
+    // error (`budgetAppError`, not the generic `appError`) so the operator surface names the real reason.
+    await recordBudgetPushFailure(budgetAppError);
     const status = budgetAppError.code === 'external-unreachable'
       ? 502
       : budgetAppError.code === 'commit-rejected' || isBudgetCode(budgetAppError.code)

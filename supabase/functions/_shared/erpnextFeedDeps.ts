@@ -45,16 +45,46 @@ import type { PmoRecord } from '../../../pmo-portal/src/lib/adapterSeam/contract
 
 export { ERPNEXT_TIER };
 
+/**
+ * The mirror table's own lookup column keyed to `pmoRecordId`.
+ *
+ * Every P0/P1/P2/P3a mirror is minted with `table.id === pmoRecordId` (`mintMirrorRow`/`mintWithId`
+ * pass the PMO id in as the row's OWN primary key), so `.eq('id', pmoRecordId)` is correct for them.
+ *
+ * ⚑ Both Posture-B SIDE mirrors (ADR-0059 §6) are the exception, and for the SAME reason: they are
+ * keyed by their OWN generated `id` (`default gen_random_uuid()`) with the PMO record living in a
+ * SEPARATE FK column, because the outbound push writer (`readModelWriters.ts`) upserts on that FK
+ * column's own unique constraint, never sets `id` explicitly, and (for `budget`) the grain genuinely
+ * isn't 1:1 with a single PMO id at all (`(budget_version_id × fiscal_year)` — forward-compat for
+ * OQ-BUD-3(c), more than one row CAN exist per version):
+ *   • `timesheet` → `timesheet_erp_mirror.timesheet_id` (migration 0136; unique 1:1 with `timesheets.id`,
+ *     upserted `onConflict:'timesheet_id'` — `readModelWriters.ts`'s `timesheetsWriter`).
+ *   • `budget` → `budget_version_erp_mirror.budget_version_id` (migration 0137; NOT unique alone —
+ *     `unique(org_id, budget_version_id, fiscal_year)` — upserted on that composite).
+ * Querying `.eq('id', pmoRecordId)` for either would match NO row — a Postgres 0-row match is not an
+ * error, so `updateMirror`/`tombstoneMirror`/`readMirrorSourceMod`/`mirrorExists` would all silently
+ * no-op: a Desk-cancelled Timesheet/Budget would never reach `failed`/`held` (the mirror stays
+ * `pushed` forever, and `readMirrorSourceMod` always returns `null`, disabling the staleness guard
+ * too). This is exactly the class of bug the FR-BUD-102 "never trusts itself" invariant exists to
+ * catch downstream — but it must be caught HERE, at the query, not papered over by the caller.
+ */
+function pmoRecordLookupColumn(kind: ErpDocKind): string {
+  if (kind === 'timesheet') return 'timesheet_id';
+  if (kind === 'budget') return 'budget_version_id';
+  return 'id';
+}
+
 /** Build the inbound feed apply deps for one (org, kind). `kind` decides the mirror table + domain. */
 export function createErpFeedDeps(serviceClient: SupabaseClient, orgId: string, kind: ErpDocKind): ErpFeedDeps {
   const domain = KIND_DOMAIN[kind];
   const table = KIND_MIRROR_TABLE[kind];
+  const lookupColumn = pmoRecordLookupColumn(kind);
 
   return {
     // ── ApplyChangeDeps ──
     resolvePmoRecordId: (externalRecordId) => findPmoRecordId(serviceClient as never, orgId, domain, externalRecordId),
     readMirrorSourceMod: async (pmoRecordId) => {
-      const { data, error } = await serviceClient.from(table).select('erp_modified').eq('org_id', orgId).eq('id', pmoRecordId).maybeSingle();
+      const { data, error } = await serviceClient.from(table).select('erp_modified').eq('org_id', orgId).eq(lookupColumn, pmoRecordId).maybeSingle();
       if (error) throw new AppError(error.message, error.code);
       const modified = (data as { erp_modified?: string | null } | null)?.erp_modified ?? null;
       return modified ? Date.parse(modified) : null;
@@ -70,7 +100,7 @@ export function createErpFeedDeps(serviceClient: SupabaseClient, orgId: string, 
         ...(await revenueFieldPatch(serviceClient, orgId, kind, canonical)),
         ...(await employeeFieldPatch(serviceClient, orgId, kind, pmoRecordId, canonical)),
       };
-      const { error } = await (serviceClient.from(table).update(patch).eq('org_id', orgId).eq('id', pmoRecordId) as unknown as Promise<{
+      const { error } = await (serviceClient.from(table).update(patch).eq('org_id', orgId).eq(lookupColumn, pmoRecordId) as unknown as Promise<{
         error: { message: string; code?: string } | null;
       }>);
       if (error) throw new AppError(error.message, error.code);
@@ -90,13 +120,17 @@ export function createErpFeedDeps(serviceClient: SupabaseClient, orgId: string, 
     // mint-then-ref path (`mintMirror` below), where the throw fires BEFORE any external_refs write —
     // truly no side effect, matching FR-TSP-082's intent. `employee` KEEPS the claim-first strategy: it
     // legitimately adopts, so the race-safety property is wanted there.
-    ...(kind === 'timesheet' ? {} : {
+    //
+    // P3c FR-BUD-140 — `budget` gets the IDENTICAL exclusion, for the identical reason: PMO is the SoT
+    // for the budget figure (OD-BUDGET-1), so a Desk-created ERP Budget must NEVER be adopted. See
+    // `mintMirrorRow`'s `domain === 'budget'` branch below for the throw.
+    ...(kind === 'timesheet' || kind === 'budget' ? {} : {
       adoptAtomically: {
         newPmoRecordId: () => crypto.randomUUID(),
         claimExternalRef: (mapping) => recordExternalRef(serviceClient as never, { orgId, ...mapping }),
         mintWithId: (canonical, sourceModMs, pmoRecordId) => mintMirrorRow(serviceClient, orgId, kind, canonical, sourceModMs, pmoRecordId),
         mirrorExists: async (pmoRecordId) => {
-          const { data, error } = await serviceClient.from(table).select('id').eq('org_id', orgId).eq('id', pmoRecordId).maybeSingle();
+          const { data, error } = await serviceClient.from(table).select(lookupColumn).eq('org_id', orgId).eq(lookupColumn, pmoRecordId).maybeSingle();
           if (error) throw new AppError(error.message, error.code);
           return data !== null;
         },
@@ -121,13 +155,19 @@ export function createErpFeedDeps(serviceClient: SupabaseClient, orgId: string, 
         // `status='Cancelled'` (db/revenue.ts) — a cancelled SI left `Unpaid` keeps contributing its
         // amount to project revenue and its outstanding to open AR (a wrong money figure on screen).
         ...cancelStatusPatch(kind),
-      }).eq('org_id', orgId).eq('id', pmoRecordId) as unknown as Promise<{ error: { message: string; code?: string } | null }>);
+      }).eq('org_id', orgId).eq(lookupColumn, pmoRecordId) as unknown as Promise<{ error: { message: string; code?: string } | null }>);
       if (error) throw new AppError(error.message, error.code);
       // P3b FR-TSP-084 — the desk-cancel action-required surface (task 6.3). The push_state='failed'
       // reopen above is silent by itself; an operator needs a prompt that a human cancelled the ERP
       // Timesheet a PMO sheet was already pushed to.
       if (kind === 'timesheet') {
         await surfaceActionRequired(serviceClient, orgId, 'timesheet-desk-cancelled', { pmoRecordId });
+      }
+      // P3c FR-BUD-142 (never fight the operator) — the SAME desk-cancel action-required surface, for
+      // the SAME reason: the push_state='failed' reopen above (cancelStatusPatch) is silent by itself,
+      // and PMO's version stays exactly as it is (this writer never touches budget_versions).
+      if (kind === 'budget') {
+        await surfaceActionRequired(serviceClient, orgId, 'budget-desk-cancelled', { pmoRecordId });
       }
       // Luna BLOCK A4 (feed side): ERPNext auto-unlinks a Receive Payment Entry's `references` when the
       // Sales Invoice it cites cancels (AC-SAR-022) — PMO's `incoming_payments.sales_invoice_id` is
@@ -262,6 +302,19 @@ async function mintMirrorRow(
       throw new AdapterError('commit-rejected', 'native-timesheet-not-adopted');
     }
   }
+  // P3c FR-BUD-140 (⚑ never adopt — ADR-0059 §5) — a `Budget` doc with no `external_refs` mapping was
+  // created directly in the Desk. PMO is the SoT for the budget figure (OD-BUDGET-1): adopting it would
+  // mint a version that never passed PMO's activation authority — the DELIBERATE INVERSE of P3a's
+  // revenue adopt rule (FR-SAR-085), not a variant of it. Mint NOTHING (no `budget_versions` row, no
+  // `budget_line_items` row, no `budget_version_erp_mirror` row — this function returns before any
+  // insert), surface action-required, and throw a classified error so the caller (webhook/sweep)
+  // neither silently drops the event nor treats it as a landed adopt.
+  if (domain === 'budget') {
+    await surfaceActionRequired(serviceClient, orgId, 'budget-native-not-adopted', {
+      erpName: String(canonical.id ?? ''),
+    });
+    throw new AdapterError('commit-rejected', 'native-budget-not-adopted');
+  }
   // Revenue domain inbound adopt (sales-invoice / incoming-payment) — mint the FULL canonical
   // row + erp_modified stamp (the 0103 lesson: NOT just name/status). Resolve customer_id from
   // external_refs (companies domain). For incoming-payment, also resolve sales_invoice_id.
@@ -385,6 +438,11 @@ function cancelStatusPatch(kind: ErpDocKind): Record<string, unknown> {
   // Approved; PMO's approval is not ERP's to revoke (FR-TSP-004(ii)). Resolution is the OQ-TSP-6
   // correction path (OPEN).
   if (kind === 'timesheet') return { push_state: 'failed' };
+  // P3c FR-BUD-142 (⚑ never fight the operator) — the SAME reopen, for the SAME reason: a re-push here
+  // would instantly re-create the ERP object a human just cancelled. `budget_versions` is UNTOUCHED —
+  // PMO's version stays Active; PMO's budget is not ERP's to revoke. `erp_cancelled_at` (set by the
+  // caller alongside this patch) is ALSO `reconcileOrgBudgetPushes`'s candidate-query exclusion.
+  if (kind === 'budget') return { push_state: 'failed' };
   return {};
 }
 
@@ -558,8 +616,11 @@ async function proposeEmployeeLink(
  * every P3b action-required reason (never-adopted Timesheet, desk-cancel, unresolved/ambiguous Employee
  * link, a confirmed link's email changing). Best-effort: a notification failure is logged, never
  * propagated — the caller's own write (the mint/update/tombstone) must never be lost to it.
+ *
+ * Exported (P3c slice 5): `erpnext-sweep/index.ts`'s `reconcileOrgBudgetPushesLive` surfaces its own
+ * `'budget-push-no-outbox-candidate'` reason through this SAME surface, rather than a second one.
  */
-async function surfaceActionRequired(
+export async function surfaceActionRequired(
   serviceClient: SupabaseClient,
   orgId: string,
   actionRequired: string,
@@ -606,6 +667,14 @@ function describeActionRequired(actionRequired: string, detail: Record<string, u
       return `A Timesheet created directly in ERPNext (${detail.erpName ?? ''}) was NOT imported — PMO is the source of truth for hours; enter it in PMO instead.`;
     case 'timesheet-desk-cancelled':
       return `A Timesheet was cancelled directly in ERPNext after PMO pushed it — the push is marked failed for review.`;
+    case 'budget-native-not-adopted':
+      return `A Budget created directly in ERPNext (${detail.erpName ?? ''}) was NOT imported — PMO is the source of truth for the budget figure; author it in PMO instead.`;
+    case 'budget-desk-cancelled':
+      return `A Budget was cancelled directly in ERPNext after PMO pushed it — the push is marked failed for review. PMO's budget version is unchanged.`;
+    case 'budget-push-no-outbox-candidate':
+      return `An activated budget's automatic push to ERPNext never reached the queue — retry from the budget's version history, or contact support.`;
+    case 'budget-push-failed':
+      return `PMO could not push the activated budget to ERPNext (${detail.reason ?? 'unknown error'}) — ERPNext is still enforcing the previous budget (or none) for this project.`;
     default:
       return `Action required: ${actionRequired}`;
   }

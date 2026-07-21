@@ -90,13 +90,20 @@ Deno.test("BLOCK 6: the Receive PE is marked as needing a full-doc read (its `re
 // would instead try to MINT a mirror row for a native ERP Budget that belongs to no PMO version.
 // So the outbound push ships first and the poll stays closed until that branch lands.
 
-Deno.test('AC-BUD-040 an org that owns `budget` polls NO Budget doctype yet (the never-adopt branch is not built)', () => {
+// P3c slice 5: the never-adopt (FR-BUD-140) and never-fight-the-operator (FR-BUD-142) branches now
+// land (`erpnextFeedDeps.ts`'s `mintMirrorRow`/`cancelStatusPatch`/`tombstoneMirror` budget branches),
+// so `budget` is REMOVED from `SWEEP_UNPOLLED_KINDS` in the SAME change — an org that owns `budget` now
+// DOES poll the ERP `Budget` doctype (lifecycle-only: never-adopt on unmapped, tombstone+reopen on an
+// external cancel). This test previously pinned the OLD "not built yet" exclusion; it now pins the
+// opposite, per the BDD authoring rule (the app's real, intended behavior changed — the test's steps
+// update to match, the goal — "budget-only org's poll list is exactly what it owns" — stays intact).
+Deno.test('AC-BUD-040 an org that owns `budget` now polls the Budget doctype (the never-adopt + never-fight-the-operator branches are built)', () => {
   const kinds = sweepKindsForOrg(['budget']).map((k) => k.kind);
-  assert(!kinds.includes('budget'), 'the sweep must not poll ERP Budgets before the never-adopt branch exists');
-  assert(kinds.length === 0, 'a budget-only org currently polls nothing inbound');
+  assert(kinds.includes('budget'), 'the sweep must poll ERP Budgets now that the inbound never-adopt/never-fight-the-operator branches exist');
+  assert(kinds.length === 1, 'a budget-only org polls exactly the Budget doctype — nothing else');
 });
 
-Deno.test('AC-BUD-040 excluding budget does not disturb any other domain’s poll list', () => {
+Deno.test('AC-BUD-040 including budget does not disturb any other domain’s poll list', () => {
   const revenue = sweepKindsForOrg(['revenue']).map((k) => k.kind).sort();
   assert(JSON.stringify(revenue) === JSON.stringify(['incoming-payment', 'sales-invoice']), `revenue poll list changed: ${revenue}`);
 });

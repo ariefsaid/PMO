@@ -12,20 +12,24 @@
  * Registered-but-idle per the 0094 precedent: the cron helper no-ops until an operator creates the
  * Vault secrets, so the job fires as a no-op until then (no employing org ⇒ no-op).
  *
- * Per employing org, ONE cycle runs FOUR passes in order:
+ * Per employing org, ONE cycle runs FIVE passes in order:
  *   (1) reconcileOrgOutbox — the ADR-0058 §4 outbox recovery pass (delegates to the REAL
  *       dispatchMoneyWrite per candidate — one algorithm, shared with the retry path);
  *   (2) the modified-poll doctype sweep (runSweep per doctype, the convergence authority — AC-ENA-071);
  *   (3) the ledger-mirror feed (feedLedgerMirrors, 8.6b — populates erp_gl_entry_mirror/
  *       erp_payment_ledger_mirror);
- *   (4) refreshActuals + refreshAging (slice 7 — read the freshly-fed mirror).
+ *   (4) refreshActuals + refreshAging (slice 7 — read the freshly-fed mirror);
+ *   (5) P3c — reconcileOrgBudgetPushes, the budget push's sweep backstop (FR-BUD-141,
+ *       AC-BUD-023, `budgetBackstop.ts`) — re-drives the mirror's own (org_id, push_state) work queue,
+ *       re-asserting the SAME still-Active gate the foreground path enforces (FR-BUD-102).
  * An org's failure is recorded WITHOUT blocking the others (sweep resilience: one client's bench
  * hiccup must not kill every org's refresh). Interactive priority over bulk (NFR-ENA-PERF-001).
  *
  * Thin wiring ONLY — the sweepCursor list+dedupe, applyFeed lineage, ledgerMirrorFeed, and
  * dispatchMoneyWrite reconcile are unit-proven elsewhere. `reconcileOrgOutbox` + `runErpSweepCycle`
- * are the testable core (outboxRecovery.test.ts); this Deno.serve wrapper is INTEGRATION-ONLY —
- * verified by `deno check` + the boot-smoke.
+ * are the testable core (outboxRecovery.test.ts); `reconcileOrgBudgetPushes` + `applyBudgetFeedEvent`
+ * are `budgetBackstop.ts`'s testable core (budgetBackstop.test.ts); this Deno.serve wrapper is
+ * INTEGRATION-ONLY — verified by `deno check` + the boot-smoke.
  */
 
 // Deno-native imports (not in pmo-portal/package.json)
@@ -34,7 +38,7 @@ import { constantTimeBearerEquals } from '../_shared/constantTimeBearerEquals.ts
 import { runSweep } from '../../../pmo-portal/src/lib/adapterSeam/applyEngine.ts';
 import { listErpChangesSinceWatermark } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/sweepCursor.ts';
 import { applyErpFeedEvent } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/applyFeed.ts';
-import { createErpFeedDeps, ERPNEXT_TIER } from '../_shared/erpnextFeedDeps.ts';
+import { createErpFeedDeps, ERPNEXT_TIER, surfaceActionRequired } from '../_shared/erpnextFeedDeps.ts';
 import { DOCTYPE_REGISTRY, type ErpDocKind } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/doctypeRegistry.ts';
 import { DOCTYPE_BODIES } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/doctypeBodies.ts';
 // Luna BLOCK 6: each body module declares the list-endpoint fields ITS `fromDoc` reads, next to the
@@ -73,6 +77,15 @@ import { admitsDocForBindingCompany, companyDocFilters, isCompanyScopedKind } fr
 // IDENTICAL guard (round-9 FIX 1). Re-exported below so this module's existing test imports still resolve.
 import { createInFlightAnchorProbe, type InFlightAnchorProbe } from '../_shared/inFlightAnchorProbe.ts';
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
+// P3c slice 5 (FR-BUD-141, AC-BUD-023) — the budget push's sweep backstop, pure orchestration.
+import {
+  reconcileOrgBudgetPushes,
+  type BudgetBackstopDeps,
+  type BudgetMirrorCandidateRow,
+  type BudgetBackstopVersionRow,
+} from './budgetBackstop.ts';
+import { budgetPushKey } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/budgetPushKey.ts';
+import { ERPNEXT_BUDGET_DOMAIN } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/adapter.ts';
 
 export { createInFlightAnchorProbe, type InFlightAnchorProbe };
 
@@ -82,26 +95,30 @@ function json(body: unknown, status = 200): Response {
 
 /** The list of doctypes the sweep polls, per domain. Built from DOCTYPE_REGISTRY (one source). */
 /**
- * P3c — kinds whose OUTBOUND push has shipped but whose INBOUND handling has not, so the poll must stay
- * closed for them. `budget` (ADR-0059 Posture B) needs the never-adopt branch (FR-BUD-140: a
- * Desk-created ERP Budget is ack-and-skipped, NEVER minted into PMO) and the never-fight-the-operator
- * rule (FR-BUD-142) before it can be polled; the generic feed path would otherwise try to mint a mirror
- * row for an ERP Budget that belongs to no PMO version. Registering a kind in DOCTYPE_REGISTRY enrols it
- * here automatically, which is exactly why this exclusion has to be explicit.
+ * Kinds whose OUTBOUND push shipped before their INBOUND handling did, so the poll had to stay closed
+ * for them in the meantime. Registering a kind in DOCTYPE_REGISTRY enrols it in the poll
+ * automatically, which is exactly why an exclusion here has to be explicit.
  *
- * `timesheet` (P3b) WAS excluded for the same shape but a sharper reason: FR-TSP's feed is
- * LIFECYCLE-ONLY and must NEVER adopt a natively-created ERP Timesheet — PMO owns entry AND approval
- * (ADR-0059 Posture B), so minting a mirror from a Desk-created Timesheet would import hours that no
- * PMO approver ever approved. **That never-adopt branch now lands (task 6.2, `erpnextFeedDeps.ts`'s
- * `mintMirrorRow` throws `native-timesheet-not-adopted` for an unmapped Timesheet — it mints nothing),
- * and the desk-cancel reopen (task 6.3) needs the poll running to ever observe a cancelled Timesheet —
- * so `timesheet` is REMOVED from this set in the SAME change, per the instruction below.** `employee`
- * is never added here: it is the adopt TARGET (FR-TSP-090/091), gated only by domain ownership
- * (`KIND_DOMAIN.employee === 'timesheets'`, AC-TSP-003) via `sweepKindsForOrg`, exactly like every
- * other adopted master (Supplier/Customer).
+ * `timesheet` (P3b) WAS excluded: FR-TSP's feed is LIFECYCLE-ONLY and must NEVER adopt a
+ * natively-created ERP Timesheet — PMO owns entry AND approval (ADR-0059 Posture B), so minting a
+ * mirror from a Desk-created Timesheet would import hours that no PMO approver ever approved. That
+ * never-adopt branch landed (task 6.2, `erpnextFeedDeps.ts`'s `mintMirrorRow` throws
+ * `native-timesheet-not-adopted` for an unmapped Timesheet — it mints nothing), and the desk-cancel
+ * reopen (task 6.3) needed the poll running to ever observe a cancelled Timesheet — so `timesheet` was
+ * REMOVED from this set in that same change. `employee` was never added here: it is the adopt TARGET
+ * (FR-TSP-090/091), gated only by domain ownership (`KIND_DOMAIN.employee === 'timesheets'`,
+ * AC-TSP-003) via `sweepKindsForOrg`, exactly like every other adopted master (Supplier/Customer).
+ *
+ * `budget` (P3c) WAS excluded for the identical shape: FR-BUD-140's never-adopt (a Desk-created ERP
+ * Budget is ack-and-skipped, NEVER minted into PMO — PMO is the SoT for the budget figure,
+ * OD-BUDGET-1) and FR-BUD-142's never-fight-the-operator (an external cancel reopens `push_state`,
+ * never auto-re-pushes). Both now land (slice 5, `erpnextFeedDeps.ts`'s `mintMirrorRow` throws
+ * `native-budget-not-adopted` for an unmapped Budget; `cancelStatusPatch`/`tombstoneMirror` reopen +
+ * surface a desk-cancel) — so `budget` is REMOVED from this set in the SAME change, per the rule below.
+ *
  * ⚑ Remove an entry in the SAME change that lands its inbound branch — never before.
  */
-const SWEEP_UNPOLLED_KINDS = new Set<ErpDocKind>(['budget']);
+const SWEEP_UNPOLLED_KINDS = new Set<ErpDocKind>([]);
 
 const SWEEP_DOCTYPES: Array<{ kind: ErpDocKind; doctype: string }> = (Object.entries(DOCTYPE_REGISTRY) as Array<
   [ErpDocKind, { doctype: string }]
@@ -359,6 +376,11 @@ export interface ErpSweepCycleDeps {
   repairOrgLinks?: (org: OrgBinding) => Promise<{ repaired: number; error?: string }>;
   feedOrgLedgers: (org: OrgBinding) => Promise<{ gl: number; ple: number; error?: string }>;
   refreshOrgAccounting: (org: OrgBinding) => Promise<{ error?: string }>;
+  /** P3c slice 5 (FR-BUD-141, AC-BUD-023) — the budget push's SECOND originator: re-drive the mirror's
+   *  own work queue (`budget_version_erp_mirror`), re-asserting the SAME still-Active gate the
+   *  foreground path enforces (FR-BUD-102). Optional so the existing cycle tests stay byte-for-byte;
+   *  the live wiring always supplies it. */
+  reconcileOrgBudgetPushes?: (org: OrgBinding) => Promise<{ driven: number; error?: string }>;
 }
 
 export interface ErpSweepCycleResult {
@@ -419,6 +441,16 @@ export async function runErpSweepCycle(deps: ErpSweepCycleDeps): Promise<ErpSwee
       if (r.error) errors.push(`accounting:${r.error}`);
     } catch (err) {
       errors.push(`accounting:${err instanceof Error ? err.message : String(err)}`);
+    }
+    // (5) P3c — the budget push's sweep backstop (FR-BUD-141). AFTER everything else, in the SAME
+    // try/catch shape as its siblings so one org's failure never aborts the loop.
+    if (deps.reconcileOrgBudgetPushes) {
+      try {
+        const r = await deps.reconcileOrgBudgetPushes(org);
+        if (r.error) errors.push(`budget:${r.error}`);
+      } catch (err) {
+        errors.push(`budget:${err instanceof Error ? err.message : String(err)}`);
+      }
     }
     perOrg.push({ orgId: org.orgId, reconcile, sweep, ledger, errors });
   }
@@ -809,6 +841,114 @@ export async function refreshOrgAccountingLive(serviceClient: SupabaseClient, or
   }
 }
 
+// ────────────────────────────────────────────────────────────────────────────────────────────────
+// (5) P3c — the budget push's sweep backstop, live wiring (FR-BUD-141, AC-BUD-023, budgetBackstop.ts).
+// ────────────────────────────────────────────────────────────────────────────────────────────────
+
+/** Read the EXISTING `external_command_outbox` row for this budget version's deterministic key, if
+ *  any (FR-BUD-141: the SAME key the foreground path derives — `budgetPushKey` — so this finds the
+ *  SAME candidate rather than minting a second one; the two originators collide safely, ADR-0058). */
+async function findBudgetOutboxRow(
+  serviceClient: SupabaseClient,
+  orgId: string,
+  versionId: string,
+  idempotencyKey: string,
+): Promise<OutboxRow | null> {
+  const { data, error } = await serviceClient
+    .from('external_command_outbox')
+    .select('id, domain, pmo_record_id, idempotency_key, state, external_record_id, canonical, claim_generation, payload_digest')
+    .eq('org_id', orgId)
+    .eq('domain', ERPNEXT_BUDGET_DOMAIN)
+    .eq('pmo_record_id', versionId)
+    .eq('idempotency_key', idempotencyKey)
+    .maybeSingle();
+  if (error) throw new AppError(error.message, error.code);
+  if (!data) return null;
+  const r = data as {
+    id: string; domain: string; pmo_record_id: string; idempotency_key: string; state: OutboxRow['state'];
+    external_record_id: string | null; canonical: PmoRecord | null; claim_generation: number; payload_digest: string | null;
+  };
+  return {
+    id: r.id,
+    domain: r.domain,
+    pmoRecordId: r.pmo_record_id,
+    idempotencyKey: r.idempotency_key,
+    state: r.state,
+    externalRecordId: r.external_record_id,
+    canonical: r.canonical,
+    claimGeneration: r.claim_generation,
+    payloadDigest: r.payload_digest ?? null,
+  };
+}
+
+/** The live `BudgetBackstopDeps` for one org — the mirror's own work queue (FR-BUD-123, index-served
+ *  on `(org_id, push_state)`), the re-asserted version gate (FR-BUD-102), and driving a found
+ *  candidate through the EXACT SAME `dispatchMoneyWrite`/`buildReconcileDepsLive` machinery the
+ *  outbox-recovery pass (1) already uses — one algorithm, shared. */
+function budgetBackstopDepsLive(serviceClient: SupabaseClient, org: OrgBinding): BudgetBackstopDeps {
+  return {
+    listPendingBudgetPushes: async (orgId, limit) => {
+      const { data, error } = await serviceClient
+        .from('budget_version_erp_mirror')
+        .select('budget_version_id, push_state, erp_cancelled_at')
+        .eq('org_id', orgId)
+        .in('push_state', ['pending', 'failed'])
+        .is('erp_cancelled_at', null)
+        .order('created_at', { ascending: true })
+        .limit(limit);
+      if (error) throw new AppError(error.message, error.code);
+      return ((data as Array<{ budget_version_id: string; push_state: string; erp_cancelled_at: string | null }> | null) ?? [])
+        .map((r) => ({ budget_version_id: r.budget_version_id, push_state: r.push_state, erp_cancelled_at: r.erp_cancelled_at }));
+    },
+    readBudgetVersion: async (versionId) => {
+      // FR-BUD-102: re-read under SERVICE ROLE (the sweep carries no user JWT) — scoped to this org
+      // explicitly, since service role bypasses RLS. Never trust the mirror row's own push_state.
+      const { data, error } = await serviceClient
+        .from('budget_versions')
+        .select('id, status, activated_at')
+        .eq('id', versionId)
+        .eq('org_id', org.orgId)
+        .maybeSingle();
+      if (error) throw new AppError(error.message, error.code);
+      return (data as BudgetBackstopVersionRow | null) ?? null;
+    },
+    driveBudgetPush: async (row: BudgetMirrorCandidateRow, version: BudgetBackstopVersionRow) => {
+      const idempotencyKey = budgetPushKey(row.budget_version_id, version.activated_at);
+      const outboxRow = await findBudgetOutboxRow(serviceClient, org.orgId, row.budget_version_id, idempotencyKey);
+      if (!outboxRow) {
+        // FR-BUD-102 ("never finalize with a NULL actor"): the foreground dispatch never even reached
+        // the outbox for this activation (e.g. the browser tab died mid-request before the fetch) — so
+        // there is no RECORDED actor to reconcile against. Never mint a fresh, unattributed outbox row
+        // here; hold for an operator instead (never silently dropped — FR-BUD-123).
+        const { error } = await serviceClient
+          .from('budget_version_erp_mirror')
+          .update({ push_state: 'held', push_error: 'budget-push-no-outbox-candidate' })
+          .eq('org_id', org.orgId)
+          .eq('budget_version_id', row.budget_version_id);
+        if (error) throw new AppError(error.message, error.code);
+        await surfaceActionRequired(serviceClient, org.orgId, 'budget-push-no-outbox-candidate', { versionId: row.budget_version_id });
+        return;
+      }
+      // Re-authorizes against the RECORDED actor (`buildReconcileDepsLive`'s `checkOutboxReplayAuthorization`
+      // + `reauthorizeRecoveryReissue`) — the SAME discipline every other domain's recovery reissue
+      // already enforces; a null-actor row is refused THERE, never silently reissued.
+      await dispatchMoneyWrite(await buildReconcileDepsLive(serviceClient, org, outboxRow));
+    },
+  };
+}
+
+/** The live per-org budget backstop pass (P3c slice 5, AC-BUD-023). Domain-gated (Luna BLOCK 9): an
+ *  org that never assigned the `budget` domain to this tier has nothing to reconcile. */
+async function reconcileOrgBudgetPushesLive(serviceClient: SupabaseClient, org: OrgBinding): Promise<{ driven: number; error?: string }> {
+  if (!org.ownedDomains.includes(ERPNEXT_BUDGET_DOMAIN)) return { driven: 0 };
+  try {
+    const result = await reconcileOrgBudgetPushes(budgetBackstopDepsLive(serviceClient, org), { orgId: org.orgId });
+    return { driven: result.driven };
+  } catch (err) {
+    return { driven: 0, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
 Deno.serve(async (req: Request): Promise<Response> => {
   // ── 1. Authorization: the caller (the pg_cron job) must present the DEDICATED sweep secret (NOT the
   //    master service_role key — least-privilege, mirroring clickup-sweep). The cron presents this same
@@ -835,6 +975,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     repairOrgLinks: (org) => repairOrgLinksLive(serviceClient, org),
     feedOrgLedgers: (org) => feedOrgLedgersLive(serviceClient, org),
     refreshOrgAccounting: (org) => refreshOrgAccountingLive(serviceClient, org),
+    reconcileOrgBudgetPushes: (org) => reconcileOrgBudgetPushesLive(serviceClient, org),
   });
   return json({ ok: true, ...cycle });
 });

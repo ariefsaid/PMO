@@ -348,6 +348,19 @@ Deno.test('AC-TSP-041 a desk-cancelled (mapped) Timesheet REOPENS push_state to 
   assert(!!update, 'expected the timesheet_erp_mirror row to be tombstoned');
   assert(update!.patch!.erp_docstatus === 2, 'expected the standard cancel patch (erp_docstatus=2)');
   assert(update!.patch!.push_state === 'failed', 'AC-TSP-041/FR-TSP-084: desk-cancel must REOPEN push_state to failed');
+  // HIGH-1 (Luna re-audit, 2026-07-21): `timesheet_erp_mirror.id` is its OWN generated uuid — the PMO
+  // record lives in the SEPARATE `timesheet_id` column (migration 0136). A filter on `.eq('id', …)`
+  // would match ZERO rows (a silent Postgres no-op, not an error) and this mirror would never actually
+  // reopen. Assert the REAL filter column+value, not just that patch/table came out right — a fake
+  // that only checks those would still pass with the predicate deleted entirely.
+  assert(
+    update!.eq.some(([col, val]) => col === 'timesheet_id' && val === 'pmo-ts-1'),
+    "HIGH-1: expected the tombstone update to filter on timesheet_id = 'pmo-ts-1' (the mirror's own FK to the PMO row) — filtering on 'id' would match no row at all",
+  );
+  assert(
+    !update!.eq.some(([col]) => col === 'id'),
+    "HIGH-1: the tombstone update must NOT filter on the mirror's own 'id' column — that is a random uuid, never the PMO record id",
+  );
 
   const timesheetsWrite = calls.find((c) => c.table === 'timesheets');
   assert(!timesheetsWrite, "FR-TSP-004(ii): the PMO timesheets row itself is NEVER touched — PMO's approval is not ERP's to revoke");
@@ -356,6 +369,33 @@ Deno.test('AC-TSP-041 a desk-cancelled (mapped) Timesheet REOPENS push_state to 
   assert(!!notifInsert, 'expected an action-required notification for the desk cancel');
   const rows = (notifInsert!.patch as { rows: Array<{ metadata: { action_required: string } }> }).rows;
   assert(rows.every((r) => r.metadata.action_required === 'timesheet-desk-cancelled'), 'expected the desk-cancelled reason code');
+});
+
+Deno.test('HIGH-1 updateMirror on a mapped Timesheet filters on timesheet_id, never the mirror\'s own id', async () => {
+  const { client, calls } = fakeServiceClient({});
+  const deps = createErpFeedDeps(client, 'org-1', 'timesheet');
+  await deps.updateMirror('pmo-ts-2', { id: 'TS-2026-00050' }, Date.parse('2026-07-20T09:00:00.000Z'));
+  const update = calls.find((c) => c.table === 'timesheet_erp_mirror' && c.op === 'update');
+  assert(!!update, 'expected a timesheet_erp_mirror update');
+  assert(
+    update!.eq.some(([col, val]) => col === 'timesheet_id' && val === 'pmo-ts-2'),
+    "HIGH-1: expected updateMirror to filter on timesheet_id = 'pmo-ts-2'",
+  );
+});
+
+Deno.test('HIGH-1 readMirrorSourceMod on a Timesheet reads by timesheet_id, never the mirror\'s own id (a wrong filter silently disables the staleness guard)', async () => {
+  const { client, calls } = fakeServiceClient({
+    timesheet_erp_mirror: [{ erp_modified: '2026-07-20T09:00:00.000Z' }],
+  });
+  const deps = createErpFeedDeps(client, 'org-1', 'timesheet');
+  const ms = await deps.readMirrorSourceMod('pmo-ts-3');
+  assert(ms === Date.parse('2026-07-20T09:00:00.000Z'), 'expected the fixture row to be found and its erp_modified parsed');
+  const select = calls.find((c) => c.table === 'timesheet_erp_mirror' && c.op === 'select');
+  assert(!!select, 'expected a timesheet_erp_mirror select');
+  assert(
+    select!.eq.some(([col, val]) => col === 'timesheet_id' && val === 'pmo-ts-3'),
+    "HIGH-1: expected readMirrorSourceMod to filter on timesheet_id = 'pmo-ts-3'",
+  );
 });
 
 Deno.test('AC-TSP-041 a non-timesheet cancel (e.g. purchase-invoice) does NOT gain a push_state field (additive only, byte-for-byte for other kinds)', async () => {
