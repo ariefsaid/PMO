@@ -18,14 +18,17 @@
  *   - push-seed  : seed the project's PMO tasks into the (empty) bound List.
  *   - pull-adopt : mirror the bound List's ClickUp tasks into the read-model.
  *
- * captureMaps (the one piece of ClickUp logic that lives here rather than in the pure module): fetches
- * the List's available statuses and builds a statusMap by convention. The exact ClickUp status/member
- * wire shapes are PROVISIONAL here and re-verified in the deferred live-smoke appendix (mocked-only in
- * P1, same stance as mapping.ts); member-map capture is operator-configured (left empty by auto-capture).
+ * captureMaps (the one piece of ClickUp I/O that lives here rather than in a pure module): fetches the
+ * List's statuses + members and builds BOTH maps through the SHARED builders
+ * (`statusMapBuilder.ts`/`memberMap.ts`) — the same ones `external-link` uses (OD-INT-10), so the two
+ * link paths cannot drift apart again. Rejects (commit-rejected, 422) a List whose statuses cannot
+ * cover all four PMO task_status values, rather than persisting a binding that fails on first write.
+ * The exact ClickUp status/member wire shapes are PROVISIONAL here and re-verified in the deferred
+ * live-smoke appendix (mocked-only in P1, same stance as mapping.ts).
  */
 
 // Deno-native imports (not in pmo-portal/package.json)
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { constantTimeBearerEquals } from '../_shared/constantTimeBearerEquals.ts';
 import {
   provisionBinding,
@@ -37,7 +40,15 @@ import {
 import { clickUpRequest } from '../../../pmo-portal/src/lib/adapterSeam/clickup/client.ts';
 import { ClickUpRateLimiter } from '../../../pmo-portal/src/lib/adapterSeam/clickup/rateLimit.ts';
 import type { ClickUpStatusMap } from '../../../pmo-portal/src/lib/adapterSeam/clickup/statusMap.ts';
-import type { ClickUpMemberMap } from '../../../pmo-portal/src/lib/adapterSeam/clickup/memberMap.ts';
+import {
+  buildClickUpMemberMap,
+  type ClickUpMemberMap,
+} from '../../../pmo-portal/src/lib/adapterSeam/clickup/memberMap.ts';
+import {
+  buildClickUpStatusMap,
+  statusMapCoversAllPmoStatuses,
+  type ClickUpListStatus,
+} from '../../../pmo-portal/src/lib/adapterSeam/clickup/statusMapBuilder.ts';
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
 import {
   CLICKUP_TIER,
@@ -64,40 +75,57 @@ interface ResolvedBinding {
 /** Load the bound List + maps for a project (push-seed/pull-adopt run after provision). */
 
 /**
- * captureMaps (FR-CUA-011/013): fetch the List's available statuses and build a statusMap by
- * convention (a `closed` status → PMO 'Done'; any other → 'To Do'). memberMap is operator-configured
- * (auto-capture leaves it empty) — pending the live-smoke appendix. PROVISIONAL wire shape.
+ * captureMaps (FR-CUA-011/013, OD-INT-10): fetch the List's available statuses + members and build
+ * BOTH maps through the shared builders (`statusMapBuilder.ts`/`memberMap.ts`) — the same ones
+ * `external-link` uses, so the two link paths cannot drift apart again. Rejects (AppError
+ * `commit-rejected`, mapped to 422 below) when the List's statuses cannot cover all four PMO
+ * statuses, rather than persisting a binding that will fail on its first outbound write.
  */
 async function captureMaps(
   clientDeps: { fetchImpl: typeof fetch; token: string; baseUrl?: string },
   listId: string,
+  serviceClient: SupabaseClient,
+  orgId: string,
 ): Promise<{ statusMap: ClickUpStatusMap; memberMap: ClickUpMemberMap }> {
   const raw = (await clickUpRequest(clientDeps, {
     method: 'GET',
     path: `/list/${listId}`,
     priority: 'bulk',
-  })) as { statuses?: Array<{ status: string; type?: string }> };
-  const statuses = raw.statuses ?? [];
-  const clickUpToPmo: Record<string, string> = {};
-  let toDoStatus: string | undefined;
-  let doneStatus: string | undefined;
-  for (const s of statuses) {
-    const isClosed = s.type === 'closed';
-    clickUpToPmo[s.status] = isClosed ? 'Done' : 'To Do';
-    if (isClosed && !doneStatus) doneStatus = s.status;
-    if (!isClosed && !toDoStatus) toDoStatus = s.status;
+  })) as { statuses?: ClickUpListStatus[] };
+  const statusMap = buildClickUpStatusMap(raw.statuses ?? []);
+  if (!statusMapCoversAllPmoStatuses(statusMap)) {
+    throw new AppError(
+      'ClickUp List cannot represent every PMO task status (To Do, In Progress, Done, Blocked) — ' +
+        'add a status of each needed type in ClickUp before onboarding this List',
+      'commit-rejected',
+    );
   }
-  const statusMap: ClickUpStatusMap = {
-    pmoToClickUp: {
-      ...(toDoStatus ? { 'To Do': toDoStatus } : {}),
-      ...(doneStatus ? { Done: doneStatus } : {}),
-    },
-    clickUpToPmo,
-    defaultPmoStatus: 'To Do',
-  };
-  // Member mapping is operator-configured (a PMO-profile ↔ ClickUp-member join by email is a real
-  // integration step, out of scope for P1 mocked-only); auto-capture leaves it empty.
-  const memberMap: ClickUpMemberMap = { pmoToClickUp: {}, clickUpToPmo: {} };
+
+  // Best-effort member map (FR-CUA-013, OD-INT-10 §4): join PMO profiles to ClickUp List members by
+  // email. Never blocks onboarding — a fetch failure or a List with no members yet simply degrades
+  // to an empty map (an unmapped assignee is the routine, non-fatal case).
+  let memberMap: ClickUpMemberMap = { pmoToClickUp: {}, clickUpToPmo: {} };
+  try {
+    const rawMembers = (await clickUpRequest(clientDeps, {
+      method: 'GET',
+      path: `/list/${listId}/member`,
+      priority: 'bulk',
+    })) as { members?: Array<{ id: number; email?: string }> };
+    const clickUpMembers = (rawMembers.members ?? []).filter(
+      (m): m is { id: number; email: string } => typeof m.email === 'string' && m.email.length > 0,
+    );
+    if (clickUpMembers.length > 0) {
+      const { data: profiles, error } = await serviceClient.from('profiles').select('id, email').eq('org_id', orgId);
+      if (!error && profiles) {
+        memberMap = buildClickUpMemberMap(profiles as Array<{ id: string; email: string }>, clickUpMembers);
+      } else {
+        console.error('member-map profiles lookup failed (non-fatal, onboarding continues)', error);
+      }
+    }
+  } catch (err) {
+    console.error('ClickUp member map build failed (non-fatal, onboarding continues)', err);
+  }
+
   return { statusMap, memberMap };
 }
 
@@ -163,7 +191,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       const result = await provisionBinding(projectId, {
         ...clientDeps,
         target: body.target,
-        captureMaps: (listId: string) => captureMaps(clientDeps, listId),
+        captureMaps: (listId: string) => captureMaps(clientDeps, listId, serviceClient, orgId),
         countPmoTasks: async (pid: string) => {
           const { count } = await serviceClient
             .from('tasks')

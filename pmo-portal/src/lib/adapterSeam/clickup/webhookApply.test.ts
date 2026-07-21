@@ -55,6 +55,10 @@ function makeDeps(config: {
   mappedPmoId?: string | null;
   storedSourceModMs?: number | null;
   watermark?: string | null;
+  /** The mirror's CURRENT PMO status (OD-INT-10, round 3 stickiness) — absent = no `readMirrorStatus`
+   *  dep at all (byte-for-byte back-compat with every test that predates this parameter). */
+  currentMirrorStatus?: string;
+  statusMap?: ClickUpStatusMap;
 } = {}): WebhookApplyDeps & {
   updates: Array<{ pmoRecordId: string; canonical: PmoRecord; sourceUpdatedAtMs: number }>;
   mints: Array<{ canonical: PmoRecord; sourceUpdatedAtMs: number }>;
@@ -68,10 +72,13 @@ function makeDeps(config: {
   const advancedTo: string[] = [];
   const tombstones: string[] = [];
   const deps: WebhookApplyDeps = {
-    statusMap,
+    statusMap: config.statusMap ?? statusMap,
     memberMap,
     resolvePmoRecordId: vi.fn(async () => config.mappedPmoId ?? null),
     readMirrorSourceMod: vi.fn(async () => config.storedSourceModMs ?? null),
+    ...(config.currentMirrorStatus !== undefined
+      ? { readMirrorStatus: vi.fn(async () => config.currentMirrorStatus ?? null) }
+      : {}),
     updateMirror: vi.fn(async (pmoRecordId, canonical, sourceUpdatedAtMs) => {
       updates.push({ pmoRecordId, canonical, sourceUpdatedAtMs });
     }),
@@ -202,5 +209,103 @@ describe('AC-CUA-071 a taskUpdated updates native fields and leaves the enhancem
     // The enhancement graph (task_dependencies / milestone grouping) is keyed on pmo_record_id, which
     // is UNCHANGED — so the edges/grouping survive the native-field update byte-for-byte.
     expect(deps.updates[0].pmoRecordId).toBe('pmo-1');
+  });
+});
+
+describe('OD-INT-10 (round 3): an inbound ClickUp status change never moves a PMO row OUT of a pmo-only status', () => {
+  const pmoOnlyStatusMap: ClickUpStatusMap = {
+    pmoToClickUp: { 'To Do': 'to do', 'In Progress': 'in progress', Done: 'complete' },
+    clickUpToPmo: { 'to do': 'To Do', 'in progress': 'In Progress', complete: 'Done' },
+    defaultPmoStatus: 'To Do',
+    pmoOnlyStatuses: ['Blocked'],
+  };
+
+  it('a mirror currently Blocked (pmo-only) stays Blocked when ClickUp reports "in progress"', async () => {
+    const deps = makeDeps({
+      mappedPmoId: 'pmo-1',
+      statusMap: pmoOnlyStatusMap,
+      currentMirrorStatus: 'Blocked',
+    });
+    const event = payload('taskUpdated', {
+      date_updated: '5000',
+      task: clickUpTask({ id: 'cu-1', status: 'in progress' }),
+    });
+
+    const outcome = await applyWebhookEvent(event, deps);
+
+    expect(outcome.kind).toBe('upserted');
+    expect(deps.updates).toHaveLength(1);
+    expect(deps.updates[0].canonical.status).toBe('Blocked');
+  });
+
+  it('a mirror NOT currently pmo-only still resolves its status normally off the inbound ClickUp status', async () => {
+    const deps = makeDeps({
+      mappedPmoId: 'pmo-1',
+      statusMap: pmoOnlyStatusMap,
+      currentMirrorStatus: 'To Do',
+    });
+    const event = payload('taskUpdated', {
+      date_updated: '5000',
+      task: clickUpTask({ id: 'cu-1', status: 'in progress' }),
+    });
+
+    await applyWebhookEvent(event, deps);
+
+    expect(deps.updates[0].canonical.status).toBe('In Progress');
+  });
+
+  it('with no readMirrorStatus dep configured (byte-for-byte back-compat), status resolves off the plain inbound map', async () => {
+    const deps = makeDeps({ mappedPmoId: 'pmo-1', statusMap: pmoOnlyStatusMap });
+    expect((deps as unknown as { readMirrorStatus?: unknown }).readMirrorStatus).toBeUndefined();
+    const event = payload('taskUpdated', {
+      date_updated: '5000',
+      task: clickUpTask({ id: 'cu-1', status: 'in progress' }),
+    });
+
+    await applyWebhookEvent(event, deps);
+
+    expect(deps.updates[0].canonical.status).toBe('In Progress');
+  });
+});
+
+describe('OD-INT-10 (round 3): an explicitly recorded status collapse never downgrades the more specific PMO status inbound', () => {
+  // Blocked and In Progress both explicitly resolve to the SAME ClickUp status ('in progress') — the
+  // hand-authored case rule 3 allows (never produced silently by buildClickUpStatusMap).
+  const collapsedStatusMap: ClickUpStatusMap = {
+    pmoToClickUp: { 'To Do': 'to do', 'In Progress': 'in progress', Blocked: 'in progress', Done: 'complete' },
+    clickUpToPmo: { 'to do': 'To Do', 'in progress': 'In Progress', complete: 'Done' },
+    defaultPmoStatus: 'To Do',
+  };
+
+  it('a mirror currently Blocked stays Blocked when ClickUp reports the SAME shared "in progress" target', async () => {
+    const deps = makeDeps({
+      mappedPmoId: 'pmo-1',
+      statusMap: collapsedStatusMap,
+      currentMirrorStatus: 'Blocked',
+    });
+    const event = payload('taskUpdated', {
+      date_updated: '5000',
+      task: clickUpTask({ id: 'cu-1', status: 'in progress' }),
+    });
+
+    await applyWebhookEvent(event, deps);
+
+    expect(deps.updates[0].canonical.status).toBe('Blocked');
+  });
+
+  it('a mirror currently Blocked still transitions when ClickUp reports a genuinely different status', async () => {
+    const deps = makeDeps({
+      mappedPmoId: 'pmo-1',
+      statusMap: collapsedStatusMap,
+      currentMirrorStatus: 'Blocked',
+    });
+    const event = payload('taskUpdated', {
+      date_updated: '5000',
+      task: clickUpTask({ id: 'cu-1', status: 'complete' }),
+    });
+
+    await applyWebhookEvent(event, deps);
+
+    expect(deps.updates[0].canonical.status).toBe('Done');
   });
 });

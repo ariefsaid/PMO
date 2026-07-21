@@ -50,6 +50,22 @@ describe('AC-CUA-031 clickUpTaskToPmoRecord maps a ClickUp task JSON to the cano
     expect(record.start_date).toBeNull();
     expect(record.end_date).toBeNull();
   });
+
+  it('OD-INT-10: an optional currentPmoStatus is threaded through to fromClickUpStatus (pmo-only stickiness)', () => {
+    const pmoOnlyStatusMap: ClickUpStatusMap = {
+      pmoToClickUp: { 'To Do': 'to do', Done: 'complete' },
+      clickUpToPmo: { 'to do': 'To Do', complete: 'Done' },
+      defaultPmoStatus: 'To Do',
+      pmoOnlyStatuses: ['Blocked'],
+    };
+    const record = clickUpTaskToPmoRecord(
+      { ...rawTask, status: { status: 'to do' } },
+      { statusMap: pmoOnlyStatusMap, memberMap },
+      'Blocked',
+    );
+    // The mirror was Blocked (pmo-only); an inbound "to do" must not move it out of Blocked.
+    expect(record.status).toBe('Blocked');
+  });
 });
 
 describe('FR-CUA-010 pmoTaskToClickUpBody branches create vs. update/transition shapes', () => {
@@ -100,6 +116,25 @@ describe('FR-CUA-010 pmoTaskToClickUpBody branches create vs. update/transition 
       { mode: 'update', previousAssigneeIds: [222] },
     );
     expect(body).toEqual({ assignees: { add: [111], rem: [222] } });
+  });
+
+  it('OD-INT-10: a pmo-only status pushes the other patched fields but never throws and never emits a status key', () => {
+    const pmoOnlyStatusMap: ClickUpStatusMap = {
+      pmoToClickUp: { 'To Do': 'to do', Done: 'complete' },
+      clickUpToPmo: { 'to do': 'To Do', complete: 'Done' },
+      defaultPmoStatus: 'To Do',
+      pmoOnlyStatuses: ['Blocked'],
+    };
+    let body: ReturnType<typeof pmoTaskToClickUpBody>;
+    expect(() => {
+      body = pmoTaskToClickUpBody(
+        { id: 'pmo-1', name: 'Escalated task', status: 'Blocked', assignee_id: 'pmo-user-1' },
+        { statusMap: pmoOnlyStatusMap, memberMap },
+        { mode: 'update', previousAssigneeIds: [] },
+      );
+    }).not.toThrow();
+    expect('status' in body!).toBe(false);
+    expect(body!).toEqual({ name: 'Escalated task', assignees: { add: [111], rem: [] } });
   });
 
   it('update unassigning removes the previous assignee and adds none', () => {
