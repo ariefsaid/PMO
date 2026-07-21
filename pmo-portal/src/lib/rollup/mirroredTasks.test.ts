@@ -3,8 +3,8 @@
  *
  * A PIN test (the plan's wording): the rollup reads the read-model and never branches on ownership.
  * `buildSCurve` is a pure function of `(milestones, asOf, tasks?)`; none of those carry an ownership or
- * mirror field (`SCurveTask` is milestone_id/status/completed_at/end_date only), so a mirrored task row
- * and an equivalent PMO-owned task row feed the rollup identically. This file pins that invariant
+ * mirror field (`SCurveTask` is milestone_id/parent_task_id/status/completed_at/end_date only), so a mirrored
+ * task row and an equivalent PMO-owned task row feed the rollup identically. This file pins that invariant
  * byte-for-byte, and pins that the actual SERIES reflects exactly the tasks the caller passed (so a
  * tombstoned row — excluded by `listTasks`, AC-CUA-002/C5 — never contributes to the rollup's input).
  *
@@ -36,9 +36,9 @@ function milestone(overrides: Partial<MilestoneWithProgress> & { id: string; nam
 }
 
 const tasks: SCurveTask[] = [
-  { milestone_id: 'm1', status: 'Done', completed_at: '2026-01-10T00:00:00Z', end_date: '2026-01-10' },
-  { milestone_id: 'm1', status: 'Done', completed_at: '2026-01-20T00:00:00Z', end_date: '2026-01-20' },
-  { milestone_id: 'm1', status: 'In Progress', completed_at: null, end_date: '2026-01-30' },
+  { milestone_id: 'm1', parent_task_id: null, status: 'Done', completed_at: '2026-01-10T00:00:00Z', end_date: '2026-01-10' },
+  { milestone_id: 'm1', parent_task_id: null, status: 'Done', completed_at: '2026-01-20T00:00:00Z', end_date: '2026-01-20' },
+  { milestone_id: 'm1', parent_task_id: null, status: 'In Progress', completed_at: null, end_date: '2026-01-30' },
 ];
 
 /** The actual-series points (the Done-task contributions) — the part of the model driven by `tasks`. */
@@ -66,6 +66,7 @@ describe('AC-CUA-072 rollup is ownership-agnostic over mirrored tasks (reads the
     // first two. Construct that "after delete" input by passing just the two Done tasks.
     const doneThird: SCurveTask = {
       milestone_id: 'm1',
+      parent_task_id: null,
       status: 'Done',
       completed_at: '2026-01-25T00:00:00Z',
       end_date: '2026-01-25',
