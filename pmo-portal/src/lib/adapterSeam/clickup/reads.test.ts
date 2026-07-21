@@ -124,6 +124,21 @@ describe('archived tasks (present now that archived=true is passed) are excluded
     expect(page.changes).toEqual([]);
     expect(page.nextCursor).toBe('1000');
   });
+
+  it('SEC-MEDIUM-6 an archived task id is surfaced separately (not silently discarded) so a caller can archive its mirror', async () => {
+    const fetchImpl = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          tasks: [task('cu-1', '1000'), { ...task('cu-2', '2000'), archived: true }],
+          last_page: true,
+        }),
+        { status: 200 },
+      ),
+    );
+    const page = await clickUpListRawChangesSinceWatermark(null, baseDeps(fetchImpl as unknown as typeof fetch));
+    expect(page.changes.map((t) => t.id)).toEqual(['cu-1']);
+    expect(page.archivedTaskIds).toEqual(['cu-2']);
+  });
 });
 
 describe('clickUpListRawChangesSinceWatermark — raw tasks + per-row source-mod (sweep source, FR-CUA-049)', () => {
@@ -157,8 +172,8 @@ describe('clickUpListRawChangesSinceWatermark — raw tasks + per-row source-mod
   });
 });
 
-describe('clickUpListRawChangesAcrossLists — a 404 on one bound List no longer poisons the whole org sweep', () => {
-  it('a deleted/moved List (404) is skipped + reported; the other bound Lists still enumerate + the cursor advances', async () => {
+describe('clickUpListRawChangesAcrossLists — each bound List reads + advances on its OWN cursor (SEC-HIGH-1)', () => {
+  it('a deleted/moved List (404) is skipped + reported; the other bound List still enumerates on its own cursor', async () => {
     const fetchImpl = vi.fn(async (url: string) => {
       if (url.includes('/list/list-gone/')) {
         return new Response(JSON.stringify({ err: 'List not found' }), { status: 404 });
@@ -169,42 +184,97 @@ describe('clickUpListRawChangesAcrossLists — a 404 on one bound List no longer
       throw new Error(`unexpected url ${url}`);
     });
     const result = await clickUpListRawChangesAcrossLists(
-      null,
       [
-        { listId: 'list-gone', statusMap, memberMap },
-        { listId: 'list-ok', statusMap, memberMap },
+        { listId: 'list-gone', statusMap, memberMap, cursor: '999' },
+        { listId: 'list-ok', statusMap, memberMap, cursor: null },
       ],
       { fetchImpl: fetchImpl as unknown as typeof fetch, token: 't' },
     );
     expect(result.notFoundListIds).toEqual(['list-gone']);
     expect(result.changes.map((c) => c.task.id)).toEqual(['cu-1']);
     expect(result.changes.map((c) => c.listId)).toEqual(['list-ok']);
-    expect(result.nextCursor).toBe('5000');
+    // SEC-HIGH-1: no merged org-wide cursor — the failed List simply has NO entry (its own prior
+    // cursor, '999', is left completely untouched by the caller); only the healthy List's own
+    // progress is reported.
+    expect(result.perListNextCursor).toEqual({ 'list-ok': '5000' });
+    expect('list-gone' in result.perListNextCursor).toBe(false);
+  });
+
+  it('SEC-HIGH-1 repro: a List that 404s this cycle keeps ITS OWN cursor when restored — a healthy sibling never advances it', async () => {
+    // List A (the org's shared bug scenario) has a real change at date_updated=1500 sitting UNREAD
+    // behind its own last-successful cursor. This cycle, A 404s (temporarily unreachable); B is
+    // healthy and reports a change at 2000.
+    const fetchImpl = vi.fn(async (url: string) => {
+      if (url.includes('/list/list-a/')) return new Response(JSON.stringify({ err: 'not found' }), { status: 404 });
+      if (url.includes('/list/list-b/')) {
+        return new Response(JSON.stringify({ tasks: [task('cu-b', '2000')], last_page: true }), { status: 200 });
+      }
+      throw new Error(`unexpected url ${url}`);
+    });
+    const cycle1 = await clickUpListRawChangesAcrossLists(
+      [
+        { listId: 'list-a', statusMap, memberMap, cursor: '1000' }, // A's own prior cursor
+        { listId: 'list-b', statusMap, memberMap, cursor: '1000' },
+      ],
+      { fetchImpl: fetchImpl as unknown as typeof fetch, token: 't' },
+    );
+    expect(cycle1.notFoundListIds).toEqual(['list-a']);
+    // Only B's cursor is reported to advance — A's is untouched (a caller applying this map never
+    // rewrites A's watermark row at all).
+    expect(cycle1.perListNextCursor).toEqual({ 'list-b': '2000' });
+
+    // A is restored; the caller re-reads A with its OWN untouched cursor (1000), never B's 2000 —
+    // the 1500 change is still within range (date_updated_gt=999), not lost.
+    const fetchImpl2 = vi.fn(async (url: string) => {
+      expect(url).toContain('date_updated_gt=999'); // A's own cursor (1000) - 1, NOT B's 2000 - 1
+      return new Response(JSON.stringify({ tasks: [task('cu-a', '1500')], last_page: true }), { status: 200 });
+    });
+    const cycle2 = await clickUpListRawChangesAcrossLists(
+      [{ listId: 'list-a', statusMap, memberMap, cursor: '1000' }],
+      { fetchImpl: fetchImpl2 as unknown as typeof fetch, token: 't' },
+    );
+    expect(cycle2.changes.map((c) => c.task.id)).toEqual(['cu-a']);
   });
 
   it('a non-404 failure on one List still propagates (only 404 — a deleted/moved List — is treated as skippable)', async () => {
     const fetchImpl = vi.fn(async () => new Response(JSON.stringify({ err: 'boom' }), { status: 500 }));
     await expect(
-      clickUpListRawChangesAcrossLists(null, [{ listId: 'list-a', statusMap, memberMap }], {
+      clickUpListRawChangesAcrossLists([{ listId: 'list-a', statusMap, memberMap, cursor: null }], {
         fetchImpl: fetchImpl as unknown as typeof fetch,
         token: 't',
       }),
     ).rejects.toThrow();
   });
 
-  it('every bound List 404ing -> empty changes, all reported not-found, null cursor (nothing to advance to)', async () => {
+  it('every bound List 404ing -> empty changes, all reported not-found, nothing to advance', async () => {
     const fetchImpl = vi.fn(async () => new Response(JSON.stringify({ err: 'not found' }), { status: 404 }));
     const result = await clickUpListRawChangesAcrossLists(
-      null,
       [
-        { listId: 'list-a', statusMap, memberMap },
-        { listId: 'list-b', statusMap, memberMap },
+        { listId: 'list-a', statusMap, memberMap, cursor: null },
+        { listId: 'list-b', statusMap, memberMap, cursor: null },
       ],
       { fetchImpl: fetchImpl as unknown as typeof fetch, token: 't' },
     );
     expect(result.notFoundListIds).toEqual(['list-a', 'list-b']);
     expect(result.changes).toEqual([]);
-    expect(result.nextCursor).toBeNull();
+    expect(result.perListNextCursor).toEqual({});
+  });
+
+  it('SEC-MEDIUM-6 archived task ids across every List that read successfully are aggregated for the caller to archive', async () => {
+    const fetchImpl = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          tasks: [task('cu-1', '1000'), { ...task('cu-2', '2000'), archived: true }],
+          last_page: true,
+        }),
+        { status: 200 },
+      ),
+    );
+    const result = await clickUpListRawChangesAcrossLists(
+      [{ listId: 'list-a', statusMap, memberMap, cursor: null }],
+      { fetchImpl: fetchImpl as unknown as typeof fetch, token: 't' },
+    );
+    expect(result.archivedTaskIds).toEqual(['cu-2']);
   });
 });
 
