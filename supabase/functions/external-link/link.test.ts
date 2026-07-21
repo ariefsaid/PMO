@@ -575,6 +575,11 @@ describe('external-link — ClickUp branch', () => {
     );
   });
 
+  // HANDLER-BOUND mutation check (security audit, round 2): unlike the pure-predicate mutation test in
+  // statusMapBuilder.test.ts (which only proves statusMapCoversAllPmoStatuses itself works), THIS test
+  // drives the real handleLinkRequest end-to-end and asserts both the status code AND the error body
+  // shape. Deleting the `if (!statusMapCoversAllPmoStatuses(statusMap))` branch in index.ts flips this
+  // to 500 (an unmocked downstream call throws) — verified RED, then restored GREEN.
   it('OD-INT-10: a List whose statuses cannot cover the four PMO statuses is rejected → 422', async () => {
     await withFetchMock(
       [
@@ -615,6 +620,12 @@ describe('external-link — ClickUp branch', () => {
           direction: 'push-seed',
         }));
         assertEquals(res.status, 422);
+        const errorBody = (await res.json()) as { error: string; message: string };
+        assertEquals(errorBody.error, 'CONFIG_REJECTED');
+        assertEquals(
+          errorBody.message.includes('cannot represent every PMO task status'),
+          true,
+        );
         // Never persisted a half-broken binding, and never audited a link that didn't happen.
         assertEquals(restCall(calls, 'external_project_bindings', 'POST').length, 0);
         assertEquals(rpcCall(calls, 'log_audit').length, 0);
