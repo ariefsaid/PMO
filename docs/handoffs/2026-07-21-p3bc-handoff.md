@@ -232,6 +232,27 @@ configured" state. Supabase's generator cannot infer nullability for an RPC's
 `RETURNS TABLE (... numeric)` and defaults to non-null. **After any type regen, diff it for silently
 narrowed nullability before trusting a typecheck.**
 
+## 5c. ⚑ Load-induced phantom failures — do not chase them as regressions
+
+Running several build/audit agents concurrently drives this Mac to **load average 250+**, and at that
+point `npm run verify` produces failures that look real and are not.
+
+**The signature — all three must hold before you dismiss anything:**
+1. Every failure takes **~5000-5300ms** (the `userEvent`/async timeout boundary), rather than failing
+   on an assertion with a value diff.
+2. The failing specs are in areas **completely unrelated** to the change under test (this session:
+   a11y on `/administration`, auth-floor analytics, the panel-editor form — while the change touched
+   only the budget gate and the dispatch seam).
+3. `uptime` shows a load average in the hundreds.
+
+**What to do:** let the agents finish, confirm load has dropped, and re-run. Do NOT "fix" the tests
+and do NOT revert the change. The cost of getting this wrong is high in both directions — bending a
+real failing test to green, or burning hours on a phantom.
+
+**Prevention:** run the FULL verify as a quiet, exclusive gate — not while lanes are mid-edit. A
+verify that overlaps another agent's writes is also not cleanly attributable to your own change even
+when it passes.
+
 ## 6. Resume here
 
 1. Run the full battery — it is the ground truth, not any lane's report:

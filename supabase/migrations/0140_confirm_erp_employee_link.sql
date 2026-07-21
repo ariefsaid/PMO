@@ -44,7 +44,17 @@ begin
 
   -- Org + Admin re-assertion — MUST STAY (SECURITY DEFINER bypasses RLS entirely; without this any
   -- authenticated caller, in ANY org, could confirm ANY org's Employee link).
-  if v_org is distinct from public.auth_org_id() or public.auth_role() is distinct from 'Admin' then
+  --
+  -- ⚑ `is_active_member()` is part of that re-assertion, not an extra: `auth_role()` reads
+  -- `profiles.role` with NO status filter, and this function is `grant execute … to authenticated`,
+  -- i.e. reachable DIRECTLY over PostgREST — the edge fn's own auth guard is not in the path. Without
+  -- it, a just-disabled or raw-banned Admin holding a still-valid JWT could keep re-pointing an
+  -- employee COST IDENTITY (whose hours post against whose costing rate) until their token expires.
+  -- This is the 0128/0129/0130 offboarding pass applied to P3b's new definer function — the same gap
+  -- those migrations closed for the P3a money RPCs (0062 status + 0095 banned_until).
+  if v_org is distinct from public.auth_org_id()
+     or public.auth_role() is distinct from 'Admin'
+     or not public.is_active_member() then
     raise exception 'not authorized' using errcode = '42501';
   end if;
 

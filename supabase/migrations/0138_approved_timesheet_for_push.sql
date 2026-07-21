@@ -40,6 +40,7 @@ declare
   v_actor uuid := coalesce(auth.uid(), p_actor);
   v_actor_org uuid;
   v_role  user_role;
+  v_actor_status text;
 begin
   select t.org_id, t.status, t.user_id, t.approved_by, t.approved_at
     into v_org, v_status, v_owner, v_approved_by, v_approved_at
@@ -50,8 +51,25 @@ begin
 
   -- (a) tenancy — MUST STAY (definer bypasses RLS). Compared against the ACTOR's own org, never a payload.
   -- An actor that cannot be resolved at all (no JWT and no p_actor) is refused: fail closed.
-  select p.org_id, p.role into v_actor_org, v_role from public.profiles p where p.id = v_actor;
+  select p.org_id, p.role, p.status into v_actor_org, v_role, v_actor_status from public.profiles p where p.id = v_actor;
   if v_actor is null or v_actor_org is null or v_actor_org is distinct from v_org then
+    raise exception 'not authorized' using errcode = '42501';
+  end if;
+
+  -- (a2) OFFBOARDING GATE (0062/0095; the 0128/0129/0130 pass, now applied to P3b's definer function).
+  -- This function is `grant execute … to authenticated`, i.e. reachable DIRECTLY over PostgREST, so the
+  -- edge fn's auth guard is not in the path. Without this a just-disabled approver holding a valid JWT
+  -- could keep pushing payroll-costing hours into the client's ERP until their token expired.
+  --
+  -- ⚑ Deliberately NOT a bare `is_active_member()` conjunct. That helper keys on `auth.uid()`, which is
+  -- NULL on the service_role sweep path — conjoining it would refuse every sweep call and silently
+  -- disable the backstop. So: check the RESOLVED actor's status (covers BOTH the JWT and the `p_actor`
+  -- sweep path uniformly), and additionally require `is_active_member()` only when there IS a JWT
+  -- caller, which is what brings in 0095's `banned_until` (raw-ban) check for that path.
+  if v_actor_status is distinct from 'active' then
+    raise exception 'not authorized' using errcode = '42501';
+  end if;
+  if auth.uid() is not null and not public.is_active_member() then
     raise exception 'not authorized' using errcode = '42501';
   end if;
 

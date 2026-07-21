@@ -6,7 +6,7 @@
 -- (SECURITY DEFINER bypasses RLS, so the function must re-assert internally — the ADR-0011/0012 lesson),
 -- the partial-unique collision, and the audit trail.
 begin;
-select plan(13);
+select plan(14);
 
 -- ── Fixtures ─────────────────────────────────────────────────────────────────────────────────────
 insert into organizations (id, name) values
@@ -117,6 +117,21 @@ select is(
        and entity_id = '01550000-0000-0000-0000-0000000000e1'),
   1,
   'AC-TSP-091: the confirm writes exactly one audit_events row naming the confirming Admin + the linked Employee');
+
+-- ── OFFBOARDING GATE — a disabled Admin may not confirm an employee cost identity ─────────────────
+-- This function is `grant execute … to authenticated`, i.e. reachable DIRECTLY over PostgREST, so the
+-- edge fn's auth guard is NOT in the path. `auth_role()` reads `profiles.role` with no status filter,
+-- so without `is_active_member()` a just-disabled Admin holding a valid JWT could keep re-pointing
+-- whose hours post against whose costing rate until their token expired. (0128/0129/0130 closed
+-- exactly this for the P3a money RPCs; 0140 is P3b's new definer function.)
+update profiles set status = 'disabled' where id = '01550000-0000-0000-0000-0000000000a1';
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"01550000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select throws_ok(
+  $$ select confirm_erp_employee_link('01550000-0000-0000-0000-0000000000e1'::uuid, '01550000-0000-0000-0000-0000000000a4'::uuid) $$,
+  '42501', null,
+  'AC-TSP-091: a DISABLED Admin with a still-valid JWT is refused 42501 (offboarding gate)');
+reset role;
 
 select * from finish();
 rollback;

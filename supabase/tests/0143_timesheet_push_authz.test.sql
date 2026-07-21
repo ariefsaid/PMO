@@ -11,7 +11,7 @@
 -- ⚑ The command payload is never trusted to assert approved-ness: the entries come back FROM THIS READ,
 --   so a forged payload cannot decide what hours are pushed (ADR-0059 §3.3).
 begin;
-select plan(13);
+select plan(16);
 
 insert into organizations (id, name) values
   ('01430000-0000-0000-0000-00000000000a','TS Push Org A'),
@@ -152,6 +152,45 @@ select throws_ok(
        '01430000-0000-0000-0000-0000000000a2') $$,
   '42501', null,
   'AC-TSP-011: a bystander passing the APPROVER''s id as p_actor is still refused 42501 (no impersonation)');
+reset role;
+
+-- ── H) OFFBOARDING GATE — a disabled actor may not push, on EITHER path ───────────────────────────
+-- `approved_timesheet_for_push` is `grant execute … to authenticated`, i.e. reachable DIRECTLY over
+-- PostgREST, so the edge fn's auth guard is NOT in the path. Without this a just-disabled approver
+-- holding a still-valid JWT could keep pushing payroll-costing hours into the client's ERP.
+update profiles set status = 'disabled' where id = '01430000-0000-0000-0000-0000000000a2';
+
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"01430000-0000-0000-0000-0000000000a2","role":"authenticated"}';
+select throws_ok(
+  $$ select * from approved_timesheet_for_push('01430000-0000-0000-0000-000000000010') $$,
+  '42501', null,
+  'AC-TSP-013: a DISABLED approver with a still-valid JWT is refused 42501 (offboarding gate)');
+reset role;
+
+-- ⚑ The service_role sweep path must be refused for the SAME disabled actor. This is why the gate is
+--   not a bare `is_active_member()` conjunct (that helper keys on auth.uid(), null here) — it checks
+--   the RESOLVED actor's status, so `p_actor` cannot be used to route around offboarding either.
+set local role service_role;
+select throws_ok(
+  $$ select * from approved_timesheet_for_push(
+       '01430000-0000-0000-0000-000000000010',
+       '01430000-0000-0000-0000-0000000000a2') $$,
+  '42501', null,
+  'AC-TSP-013: the sweep passing a DISABLED actor as p_actor is refused 42501 too');
+reset role;
+
+-- ⚑ THE REGRESSION GUARD: re-activate, and the sweep path must WORK again. A naive
+--   `and is_active_member()` conjunct would refuse this (auth.uid() is null under service_role),
+--   silently disabling the backstop — green on every negative test above and broken in production.
+update profiles set status = 'active' where id = '01430000-0000-0000-0000-0000000000a2';
+set local role service_role;
+select is(
+  (select count(*)::int from approved_timesheet_for_push(
+     '01430000-0000-0000-0000-000000000010',
+     '01430000-0000-0000-0000-0000000000a2')),
+  1,
+  'AC-TSP-013: the sweep STILL works for an active actor (the gate must not disable the backstop)');
 reset role;
 
 select * from finish();
