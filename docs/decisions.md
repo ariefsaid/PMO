@@ -1055,3 +1055,24 @@ is now a valid one:
 - Validation keeps its teeth: a PMO status with no recorded resolution is still rejected at link time.
 - Implemented on `fix/status-map-round3`. A named test asserts the real 3-status List links
   successfully with `Blocked` resolving `pmo-only`.
+
+## OD-INT-14 — ClickUp sync targets SINGLE-ORG; per-org webhook secret is DEFERRED (2026-07-21, owner goal)
+
+**Decision.** The ClickUp integration is completed for the app's **current single-tenant direction**
+(CLAUDE.md: "single-tenant with a forward-compatible `org_id` seam"; ADR-0047: the multi-org RLS proof
+is deferred "until two unrelated clients deliberately" exist).
+
+**Consequences:**
+- **Per-org webhook secret is NOT built.** `external_org_bindings.webhook_secret_ref` stays an unused
+  column; `clickup-webhook` verifies with the global `CLICKUP_WEBHOOK_SECRET`. This is *correct* for
+  single-org — a global secret is a real control when there is one org. It only becomes a gap at the
+  multi-org boundary, which ADR-0047 defers. Building an org-in-URL callback + per-org secret now would
+  be speculative work against a deferred direction. When the second client lands, this is the first
+  thing the multi-org RLS-seam proof must close (recorded here so it is not forgotten).
+- **The org-resolution paths added for the webhook worker (`team_id` → binding) already work per-org**,
+  so nothing about single-org bakes in a rewrite — the seam stays forward-compatible.
+
+**Remaining to finish single-org sync (this decision's scope):** ClickUp `parent` ↔ PMO
+`parent_task_id` bidirectional sync (OD-INT-9 gap); the link-time status-mapping UI (surfaces OD-INT-13);
+curated e2e `AC-EAC-018`; the first live write round-trip; then enable `EXTERNAL_CONNECT_ENABLED` for
+the test org.
