@@ -14,9 +14,13 @@
 #
 # ── MATCHING RULE (conservative — will not touch unrelated 4-digit numbers) ──
 # A migration is referenced two ways:
-#   (a) FILENAME-FORM  "NNNN_slug" / "NNNN_slug.sql"   — the 4-digit prefix
-#       immediately followed by `_`. This is unambiguous (a 4-digit token +
-#       underscore is a migration filename token) and is AUTO-REWRITTEN. The
+#   (a) FILENAME-FORM  "NNNN_slug" / "NNNN_slug.sql"   — matched as the FULL
+#       basename `NNNN_<slug>`, never the bare prefix `NNNN_`. This matters:
+#       pgTAP files in supabase/tests/ deliberately reuse migration prefixes
+#       (0034/0052/0066 pre-exist and are TOLERATED — test files have no
+#       ordering semantics), so a `NNNN_`-only rule would rewrite 7 unrelated
+#       `0052_*.test.sql` references while renumbering migration 0052. Matching
+#       the whole basename confines the sweep to the one migration. The
 #       HARD guard re-greps for these afterwards: a survivor proves the sweep
 #       silently did nothing (T6), so the script EXITS NON-ZERO rather than
 #       claim a success it did not achieve.
@@ -126,18 +130,18 @@ git mv "$OLD_FILE" "$NEW_FILE"
 echo "renumber-migration: rewriting '${OLD}_' references -> '${NEW}_' ..."
 rewrite_one() {
   local f="$1"
-  sed -E -i '' "s/(^|[^0-9])${OLD}_/\1${NEW}_/g" "$f"
+  sed -E -i '' "s/(^|[^0-9])${OLD}_${SLUG}/\1${NEW}_${SLUG}/g" "$f"
 }
 while IFS= read -r -d '' f; do
   rewrite_one "$f"
-done < <(git grep -lzIE "(^|[^[:digit:]])${OLD}_" . 2>/dev/null || true)
+done < <(git grep -lzIE "(^|[^[:digit:]])${OLD}_${SLUG}" . 2>/dev/null || true)
 
 # ── GUARD (hard): did the sweep actually happen? ──
 # Re-grep for FILENAME-FORM refs only. These are exactly what the sweep claims to
 # rewrite, so a survivor means the sweep silently did nothing — the T6 failure
 # this script exists to make impossible. Hard-fail; do NOT report success.
-echo "renumber-migration: guard — re-grepping for surviving '${OLD}_' references..."
-GUARD_HITS="$(git grep -nIE "(^|[^[:digit:]])${OLD}_" . 2>/dev/null || true)"
+echo "renumber-migration: guard — re-grepping for surviving '${OLD}_${SLUG}' references..."
+GUARD_HITS="$(git grep -nIE "(^|[^[:digit:]])${OLD}_${SLUG}" . 2>/dev/null || true)"
 if [ -n "$GUARD_HITS" ]; then
   echo "renumber-migration: ERROR — '${OLD}_' references SURVIVED the sweep:" >&2
   printf '%s\n' "$GUARD_HITS" | sed 's/^/  /' >&2
@@ -160,6 +164,15 @@ if [ -n "$BARE_HITS" ]; then
   echo "  migration number MUST be updated by hand):" >&2
   printf '%s\n' "$BARE_HITS" | sed 's/^/  /' >&2
 fi
+
+# ── stage the rewrites alongside the rename ──
+# `git mv` stages the rename but `sed` edits are left unstaged. Leaving that split
+# is a trap: a plain `git commit` (no -a) would commit the RENAMED migration while
+# every rewritten reference stayed behind — the exact half-applied state this
+# script exists to prevent. Stage everything, so the operation is atomic to review.
+while IFS= read -r -d '' f; do
+  git add -- "$f"
+done < <(git grep -lzIE "(^|[^[:digit:]])${NEW}_${SLUG}" . 2>/dev/null || true)
 
 # ── collision check ──
 echo "renumber-migration: running migration-prefix collision check ..."

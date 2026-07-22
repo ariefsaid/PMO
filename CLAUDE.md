@@ -183,9 +183,10 @@ schema you did not migrate — producing **false REDs and false GREENs** alike. 
 `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db'`.
 **Three machine-global locks now exist**, sharing one core (`scripts/lib/flock-run.sh`): `with-db-lock.sh`
 (shared Supabase stack) · `with-erpnext-lock.sh` (ERPNext dev bed) · `with-test-lock.sh` (the heavy vitest
-suite — wrap `npm run verify` in it so only ONE full suite runs per machine; under concurrent runs unrelated
-tests fail on timeout, and *contention moves while a real regression stays put*). **When a command needs more
-than one, acquire in this order, outermost first: `db → erpnext → test`.** Each is re-entrancy-safe via its own
+suite — **on a shared machine run `npm run verify:locked`, not bare `npm run verify`**, so only ONE full suite
+runs at a time; under concurrent runs unrelated tests fail on timeout, and *contention moves while a real
+regression stays put*. Bare `verify` stays lock-free because CI is a single dedicated runner). **When a command needs more
+than one, acquire in this order, outermost first: `erpnext → db → test`.** Each is re-entrancy-safe via its own
 `*_LOCK_HELD` var, so a self-wrapping script under an outer hold does not deadlock. Stack wedged under load
 (`analytics`/`vector` blocking `db reset`)? `scripts/supabase-start-lean.sh`. Migration-number collision?
 `scripts/renumber-migration.sh <old> <new>` (never hand-roll the `git mv` + reference sweep).

@@ -23,7 +23,7 @@
 # clean up. macOS has no flock(1), hence python3 (stdlib fcntl; always present).
 # The flock core lives in scripts/lib/flock-run.sh.
 #
-# ── ACQUISITION ORDER (machine-global, outermost first): db -> erpnext -> test ──
+# ── ACQUISITION ORDER (machine-global, outermost first): erpnext -> db -> test ──
 # This is the OUTERMOST lock — acquire it FIRST. (with-erpnext-lock.sh and
 # with-test-lock.sh nest inside it; see scripts/lib/flock-run.sh.)
 #

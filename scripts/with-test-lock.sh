@@ -15,7 +15,7 @@
 # needs no stack, but two suites hammering the same CPU/RAM is the contention.
 # Cooperative: it only works if ALL agents route heavy test runs through it.
 #
-# ── ACQUISITION ORDER (machine-global, outermost first): db -> erpnext -> test ──
+# ── ACQUISITION ORDER (machine-global, outermost first): erpnext -> db -> test ──
 # This is the INNERMOST lock — acquire it LAST (only after db/erpnext if a command
 # needs those too). See scripts/lib/flock-run.sh.
 #

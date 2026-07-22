@@ -145,7 +145,13 @@ const makeRepo = (dir) => {
   git(dir, 'config', 'user.email', 'test@example.com');
   git(dir, 'config', 'user.name', 'Test');
   fs.mkdirSync(path.join(dir, 'supabase/migrations'), { recursive: true });
+  fs.mkdirSync(path.join(dir, 'supabase/tests'), { recursive: true });
   fs.mkdirSync(path.join(dir, 'scripts'), { recursive: true });
+  // pgTAP files DELIBERATELY reuse migration prefixes (0034/0052/0066 pre-exist in
+  // the real repo and are tolerated — test files have no ordering semantics). The
+  // sweep must not touch them.
+  fs.writeFileSync(path.join(dir, 'supabase/tests/0050_unrelated_rls.test.sql'),
+    '-- see 0050_unrelated_rls.test.sql\n');
   fs.writeFileSync(path.join(dir, 'supabase/migrations/0050_add_widgets.sql'), '-- widgets\n');
   fs.writeFileSync(path.join(dir, 'supabase/migrations/0051_add_gadgets.sql'), '-- gadgets\n');
   // A doc referencing the migration in FILENAME form (auto-rewritten) and in
@@ -209,6 +215,41 @@ test('renumber FAILS LOUDLY when the reference sweep silently does nothing', () 
     const { code, stderr } = runRenumber(dir, '0050', '0052');
     assert.notEqual(code, 0, 'a no-op sweep MUST fail, not report success');
     assert.match(stderr, /SURVIVED the sweep/);
+  });
+});
+
+// Regression (cross-family review, 2026-07-22): a `NNNN_`-prefix-only sweep
+// rewrote same-prefix pgTAP files. Renumbering migration 0050 must leave
+// supabase/tests/0050_*.test.sql completely alone.
+test('renumber does NOT touch same-prefix pgTAP test files', () => {
+  withTemp('pmo-renumber-pgtap-', (dir) => {
+    makeRepo(dir);
+    const pgtap = path.join(dir, 'supabase/tests/0050_unrelated_rls.test.sql');
+    const before = fs.readFileSync(pgtap, 'utf8');
+
+    const { code } = runRenumber(dir, '0050', '0052');
+    assert.equal(code, 0);
+
+    assert.ok(fs.existsSync(pgtap), 'the pgTAP file must not be renamed');
+    assert.equal(fs.readFileSync(pgtap, 'utf8'), before,
+      'pgTAP content must be byte-identical — prefix reuse there is intentional');
+  });
+});
+
+// Regression (cross-family review, 2026-07-22): `git mv` staged the rename while
+// the sed edits stayed unstaged, so a plain `git commit` committed a half-applied
+// renumber — the exact broken state this script exists to prevent.
+test('renumber leaves NOTHING unstaged (rename and rewrites commit together)', () => {
+  withTemp('pmo-renumber-staged-', (dir) => {
+    makeRepo(dir);
+    const { code } = runRenumber(dir, '0050', '0052');
+    assert.equal(code, 0);
+
+    const status = git(dir, 'status', '--porcelain');
+    // Column 2 is the worktree status; any non-space there means unstaged work.
+    const unstaged = status.split('\n').filter((l) => l.length > 1 && l[1] !== ' ');
+    assert.deepEqual(unstaged, [],
+      `these changes would be left out of a plain 'git commit':\n${unstaged.join('\n')}`);
   });
 });
 

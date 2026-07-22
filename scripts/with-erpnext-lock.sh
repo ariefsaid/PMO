@@ -17,7 +17,7 @@
 # flock(1), hence python3 (stdlib fcntl). The flock core lives in
 # scripts/lib/flock-run.sh.
 #
-# ── ACQUISITION ORDER (machine-global, outermost first): db -> erpnext -> test ──
+# ── ACQUISITION ORDER (machine-global, outermost first): erpnext -> db -> test ──
 # This lock sits BETWEEN the db lock (outer) and the test lock (inner). Acquire db
 # first, then this, then test — never the reverse (see scripts/lib/flock-run.sh).
 #

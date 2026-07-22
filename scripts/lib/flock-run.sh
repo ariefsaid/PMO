@@ -9,7 +9,7 @@
 # OS lock (fcntl.flock) the kernel releases the instant the holding process exits
 # (crash included), so there is never a stale lock to clean up.
 #
-# ── ACQUISITION ORDER (machine-global, outermost first): db -> erpnext -> test ──
+# ── ACQUISITION ORDER (machine-global, outermost first): erpnext -> db -> test ──
 # When a command needs MORE THAN ONE of these locks, acquire them in THIS order
 # only, to avoid cross-lock deadlock. (db is outermost; test is innermost.)
 # Each wrapper is independently re-entrant-safe via its OWN *_LOCK_HELD env var:
