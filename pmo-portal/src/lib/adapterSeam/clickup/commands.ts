@@ -21,6 +21,10 @@ export interface ClickUpCommandDeps extends ClickUpClientDeps {
   /** Resolve the ClickUp member ids currently assigned, for the update-mode add/rem delta. Optional
    * — omitted (or unresolvable) degrades to "no prior assignee known" rather than failing the write. */
   resolvePreviousAssigneeIds?: (pmoRecordId: string) => Promise<number[]>;
+  /** Resolve a PMO parent_task_id to its mapped ClickUp task id (the `external_refs` lookup, injected).
+   * Optional — when omitted or unresolvable, the child task is created/updated WITHOUT a parent
+   * (flat task), and reconciliation happens on a later sweep. */
+  resolveParentExternalId?: (pmoParentTaskId: string) => Promise<string | null>;
 }
 
 /** Commit one task command against ClickUp REST v2 (FR-CUA-002..008, AC-CUA-031/032/033). */
@@ -31,7 +35,19 @@ export async function commitClickUpTaskCommand(
   const maps: ClickUpMaps = { statusMap: deps.statusMap, memberMap: deps.memberMap };
 
   if (command.operation === 'create') {
-    const body = pmoTaskToClickUpBody(command.record, maps, { mode: 'create' });
+    let parentClickUpId: string | null | undefined;
+    const record = command.record as PmoRecord & { parent_task_id?: string | null };
+    if (record.parent_task_id && deps.resolveParentExternalId) {
+      try {
+        parentClickUpId = await deps.resolveParentExternalId(record.parent_task_id);
+      } catch {
+        // Unresolvable parent — log and proceed without parent (flat task).
+        // The periodic sweep will reconcile once the parent is mirrored.
+        console.warn(`[clickup] parent_task_id ${record.parent_task_id} unresolvable for child ${record.id}; creating flat`);
+        parentClickUpId = null;
+      }
+    }
+    const body = pmoTaskToClickUpBody(record, maps, { mode: 'create', parentClickUpId });
     const raw = (await clickUpRequest(deps, {
       method: 'POST',
       path: `/list/${deps.listId}/task`,
@@ -52,7 +68,22 @@ export async function commitClickUpTaskCommand(
     const previousAssigneeIds = deps.resolvePreviousAssigneeIds
       ? await deps.resolvePreviousAssigneeIds(command.record.id)
       : [];
-    const body = pmoTaskToClickUpBody(command.record, maps, { mode: 'update', previousAssigneeIds });
+    let parentClickUpId: string | null | undefined;
+    const record = command.record as PmoRecord & { parent_task_id?: string | null };
+    if ('parent_task_id' in record && deps.resolveParentExternalId) {
+      if (record.parent_task_id) {
+        try {
+          parentClickUpId = await deps.resolveParentExternalId(record.parent_task_id);
+        } catch {
+          console.warn(`[clickup] parent_task_id ${record.parent_task_id} unresolvable for child ${record.id}; updating without parent change`);
+          parentClickUpId = undefined; // no parent change
+        }
+      } else {
+        // Explicit null = promote to top-level
+        parentClickUpId = null;
+      }
+    }
+    const body = pmoTaskToClickUpBody(record, maps, { mode: 'update', previousAssigneeIds, parentClickUpId });
     const raw = (await clickUpRequest(deps, {
       method: 'PUT',
       path: `/task/${externalId}`,

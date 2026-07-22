@@ -143,3 +143,89 @@ describe('AC-CUA-033 ClickUp rejections/unreachability surface as classified Ada
     }
   });
 });
+
+describe('OD-INT-9 parent sync: outbound PMO parent_task_id → ClickUp parent', () => {
+  it('create with a RESOLVABLE parent_task_id includes parent in the ClickUp create body', async () => {
+    const fetchImpl = vi.fn(async (url: string, init?: RequestInit) => {
+      expect(url).toBe('https://api.clickup.com/api/v2/list/list-1/task');
+      expect(init?.method).toBe('POST');
+      const body = JSON.parse(init?.body as string);
+      expect(body).toMatchObject({
+        name: 'Child task',
+        status: 'to do',
+        assignees: [],
+        parent: 'cu-parent-1',
+      });
+      return new Response(JSON.stringify(clickUpTaskResponse({ id: 'cu-child-1' })), { status: 200 });
+    });
+    const command: AdapterCommand = {
+      domain: 'tasks',
+      operation: 'create',
+      record: { id: 'pmo-child-1', name: 'Child task', status: 'To Do', parent_task_id: 'pmo-parent-1' },
+    };
+    const deps = baseDeps(fetchImpl as unknown as typeof fetch, {
+      resolveParentExternalId: vi.fn(async () => 'cu-parent-1'),
+    });
+    const result = await commitClickUpTaskCommand(command, deps);
+    expect(result.externalRecordId).toBe('cu-child-1');
+  });
+
+  it('create with an UNRESOLVABLE parent_task_id omits parent and still creates the task (flat)', async () => {
+    const fetchImpl = vi.fn(async (url: string, init?: RequestInit) => {
+      expect(url).toBe('https://api.clickup.com/api/v2/list/list-1/task');
+      expect(init?.method).toBe('POST');
+      const body = JSON.parse(init?.body as string);
+      expect('parent' in body).toBe(false); // unresolved parent omitted
+      expect(body).toMatchObject({ name: 'Child task', assignees: [] });
+      return new Response(JSON.stringify(clickUpTaskResponse({ id: 'cu-child-1' })), { status: 200 });
+    });
+    const command: AdapterCommand = {
+      domain: 'tasks',
+      operation: 'create',
+      record: { id: 'pmo-child-1', name: 'Child task', status: 'To Do', parent_task_id: 'pmo-unknown-parent' },
+    };
+    const deps = baseDeps(fetchImpl as unknown as typeof fetch, {
+      resolveParentExternalId: vi.fn(async () => null), // unresolved
+    });
+    const result = await commitClickUpTaskCommand(command, deps);
+    expect(result.externalRecordId).toBe('cu-child-1');
+  });
+
+  it('update re-parents: setting a new resolved parent includes parent in the update body', async () => {
+    const fetchImpl = vi.fn(async (url: string, init?: RequestInit) => {
+      expect(url).toBe('https://api.clickup.com/api/v2/task/cu-task-1');
+      expect(init?.method).toBe('PUT');
+      const body = JSON.parse(init?.body as string);
+      expect(body).toMatchObject({ parent: 'cu-new-parent' });
+      return new Response(JSON.stringify(clickUpTaskResponse()), { status: 200 });
+    });
+    const command: AdapterCommand = {
+      domain: 'tasks',
+      operation: 'update',
+      record: { id: 'pmo-1', parent_task_id: 'pmo-new-parent' },
+    };
+    const deps = baseDeps(fetchImpl as unknown as typeof fetch, {
+      resolveParentExternalId: vi.fn(async () => 'cu-new-parent'),
+    });
+    await commitClickUpTaskCommand(command, deps);
+  });
+
+  it('update promoting to top-level (parent_task_id: null) sets parent: null in update body', async () => {
+    const fetchImpl = vi.fn(async (url: string, init?: RequestInit) => {
+      expect(url).toBe('https://api.clickup.com/api/v2/task/cu-task-1');
+      expect(init?.method).toBe('PUT');
+      const body = JSON.parse(init?.body as string);
+      expect(body).toMatchObject({ parent: null });
+      return new Response(JSON.stringify(clickUpTaskResponse()), { status: 200 });
+    });
+    const command: AdapterCommand = {
+      domain: 'tasks',
+      operation: 'update',
+      record: { id: 'pmo-1', parent_task_id: null },
+    };
+    const deps = baseDeps(fetchImpl as unknown as typeof fetch, {
+      resolveParentExternalId: vi.fn(async () => 'cu-old-parent'), // ignored when null
+    });
+    await commitClickUpTaskCommand(command, deps);
+  });
+});

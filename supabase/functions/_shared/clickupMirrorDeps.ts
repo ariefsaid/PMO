@@ -85,6 +85,7 @@ export function createClickUpMirrorCallbacks(ctx: MirrorCallbackCtx): ClickUpMir
           start_date: canonical.start_date ?? null,
           end_date: canonical.end_date ?? null,
           completed_at: (canonical.completed_at as string | null | undefined) ?? null,
+          parent_task_id: canonical.parent_task_id ?? null,
           source_updated_at: new Date(sourceModMs).toISOString(),
         })
         .eq('org_id', orgId)
@@ -104,6 +105,7 @@ export function createClickUpMirrorCallbacks(ctx: MirrorCallbackCtx): ClickUpMir
         start_date: canonical.start_date ?? null,
         end_date: canonical.end_date ?? null,
         completed_at: (canonical.completed_at as string | null | undefined) ?? null,
+        parent_task_id: canonical.parent_task_id ?? null,
         source_updated_at: new Date(sourceModMs).toISOString(),
       });
       if (error) throw new AppError(error.message, error.code);

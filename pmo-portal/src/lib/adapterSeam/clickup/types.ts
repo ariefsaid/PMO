@@ -69,6 +69,8 @@ export interface ClickUpCreateTaskBody {
   assignees?: number[];
   start_date?: number;
   due_date?: number;
+  /** Parent task id (ClickUp subtask parent) — settable on create to make the task a subtask in the same List. */
+  parent?: string | null;
 }
 
 /** ClickUp v2 **update** body (`PUT /task/{id}`) — assignees is an add/rem delta, not a flat array. */
@@ -78,6 +80,8 @@ export interface ClickUpUpdateTaskBody {
   assignees?: { add: number[]; rem: number[] };
   start_date?: number;
   due_date?: number;
+  /** Parent task id — set to re-parent, or `null` to promote to top-level. */
+  parent?: string | null;
 }
 
 // ── Webhook ingress shapes (FR-CUA-040..044) ───────────────────────────────────────────────────

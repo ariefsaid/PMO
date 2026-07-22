@@ -130,7 +130,15 @@ export async function applyInboundChange(
  */
 export async function applyWebhookEvent(
   event: WebhookWorkerEvent,
-  deps: WebhookApplyDeps,
+  deps: WebhookApplyDeps & {
+    /** Resolve a ClickUp parent task id to a PMO task id via `external_refs`. Optional — when
+     *  absent or unresolvable, the child flows through as a flat task (reconciled later by sweep). */
+    resolveParentPmoId?: (clickUpParentId: string) => Promise<string | null>;
+    /** Read the project_id of an existing mirror (for cross-project parent guard). */
+    readMirrorProjectId?: (pmoRecordId: string) => Promise<string | null>;
+    /** Map from ClickUp list id to binding (for cross-project parent guard). */
+    bindingByListId?: Map<string, { projectId: string }>;
+  },
 ): Promise<ApplyOutcome> {
   const maps: ClickUpMaps = { statusMap: deps.statusMap, memberMap: deps.memberMap };
 
@@ -158,7 +166,28 @@ export async function applyWebhookEvent(
     }
   }
 
-  const canonical = clickUpTaskToPmoRecord(event.task, maps, currentPmoStatus);
+  // OD-INT-9 parent sync (inbound): resolve ClickUp `parent` to a PMO task id via `external_refs`.
+  // The pure mapper has no DB access, so the lookup happens here and the resolved PMO id is
+  // threaded in — exactly like `currentPmoStatus`. When the parent is unresolvable (not yet
+  // mirrored), the child flows through as a flat task; the next sweep re-applies and resolves it.
+  let resolvedParentPmoId: string | null | undefined;
+  if (event.task.parent && deps.resolveParentPmoId) {
+    resolvedParentPmoId = await deps.resolveParentPmoId(event.task.parent);
+    // If the resolved parent is in a different project than the child's binding, refuse the link.
+    // The caller (webhook/sweep) knows the child's project; we log and null it here.
+    if (resolvedParentPmoId && deps.readMirrorProjectId) {
+      const parentProjectId = await deps.readMirrorProjectId(resolvedParentPmoId);
+      const childProjectId = (event.task.list?.id && deps.bindingByListId
+        ? deps.bindingByListId.get(event.task.list.id)?.projectId
+        : undefined);
+      if (parentProjectId && childProjectId && parentProjectId !== childProjectId) {
+        console.warn(`[clickup-webhook] cross-project parent refused: parent ${resolvedParentPmoId} in project ${parentProjectId}, child in ${childProjectId}`);
+        resolvedParentPmoId = null;
+      }
+    }
+  }
+
+  const canonical = clickUpTaskToPmoRecord(event.task, maps, currentPmoStatus, resolvedParentPmoId);
   const outcome = await applyInboundChange(event.taskId, canonical, sourceUpdatedAtMs, deps);
 
   const archived = findArchivedTransition(event.historyItems);
