@@ -95,8 +95,18 @@ The implementation must verify this caller inventory before changing the task ca
 
 26. **Verify the final documentation boundary.** Confirm the implementation plan, migration reversal, and recovery runbook all name the same post-`0145` migration, the same project-aware predicate, and the same false-first rollout order; record the AC-to-test ownership table unchanged. Verify: `git diff --check`.
 
-## Open questions for owner approval
+## Owner rulings (2026-07-22 — RESOLVED, build against these)
 
-1. Confirm the exact bounded ClickUp readiness operation and whether it may issue a non-mutating API request beyond token validation.
-2. Confirm the deployment mechanism that supplies the kill-switch's effective value to the finalize RPC; the RPC must not trust a client-provided boolean.
-3. Confirm which operator identity is permitted to execute trap-state recovery in the current single-org deployment.
+1. **Sync readiness = valid token + resolvable Vault secret. No extra ClickUp API call.** The existing
+   `GET /user` validation plus a successful `resolvePerOrgSecret` resolution is sufficient proof that
+   sync can run. Rationale: an additional non-mutating call adds latency to the adoption wedge's first
+   impression and can fail for transient reasons unrelated to readiness, turning a healthy connect into
+   a false negative.
+2. **The kill-switch value is passed to the finalize RPC by the edge function**, which already reads
+   `EXTERNAL_CONNECT_ENABLED` and runs under service_role. The RPC therefore **MUST be service-role-only**
+   — it trusts its caller, so the caller must be the only one who can reach it. It must never accept the
+   value from a client-supplied request body. Enforce and prove this with a pgTAP grant/execute test.
+3. **Trap-state recovery is platform-operator-only** (`platform_operators`), not org-Admin. Rationale:
+   recovery can RELEASE domain ownership, which is heavier and less reversible in effect than a normal
+   org-admin disconnect. Follow the established operator-gate pattern (explicit `p_actor_id` + a direct
+   `platform_operators` check — `is_operator()` is security-invoker and misfires under service_role).
