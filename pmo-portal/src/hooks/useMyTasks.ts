@@ -95,9 +95,9 @@ export function useMyTaskMutations() {
   const invalidate = () => qc.invalidateQueries({ queryKey: ['my-tasks', orgId, userId] });
 
   const updateStatus = useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: TaskStatus }) => {
+    mutationFn: async ({ id, status, projectId }: { id: string; status: TaskStatus; projectId?: string }) => {
       try {
-        await updateTaskStatus(id, status);
+        await updateTaskStatus(id, status, projectId);
       } catch (err) {
         throw toAppError(err);
       }

@@ -26,7 +26,7 @@ import type { PmoRecord } from '../contract.ts';
 import { clickUpTaskToPmoRecord, type ClickUpMaps } from './mapping.ts';
 import type { ClickUpStatusMap } from './statusMap.ts';
 import type { ClickUpMemberMap } from './memberMap.ts';
-import type { ClickUpWebhookPayload } from './types.ts';
+import type { ClickUpHistoryItem, ClickUpTask, ClickUpWebhookEvent } from './types.ts';
 import type { ExternalRefSeed } from './onboarding.ts';
 import {
   applyInboundChange as applyInboundChangeGeneric,
@@ -53,6 +53,41 @@ export interface WebhookApplyDeps extends ApplyChangeDeps, WatermarkDeps, ClickU
   tombstoneMirror: (pmoRecordId: string) => Promise<void>;
   /** Surface a deletion (AC-CUA-070 non-silent) — an audit/notice write; optional (P1: structured log). */
   surfaceDeletion?: (pmoRecordId: string, externalRecordId: string) => Promise<void>;
+  /** Set/clear the mirror's archived state (`tasks.archived_at`) — `null` un-archives. Archiving fires
+   *  `taskUpdated` with a `history_items[].field === 'archived'` entry, NEVER `taskDeleted`; this is
+   *  wired SEPARATELY from `tombstoneMirror` so an archive is never mistaken for a delete. */
+  archiveMirror: (pmoRecordId: string, archivedAtIso: string | null) => Promise<void>;
+  /** Read the mirror's CURRENT PMO status (OD-INT-10, round 3) — feeds `fromClickUpStatus`'s
+   *  stickiness so an inbound sync never moves a row OUT of a `pmo-only` status, and never downgrades
+   *  the more specific PMO status of an explicitly recorded collapse. OPTIONAL: absent (the P1
+   *  default) preserves byte-for-byte pre-round-3 behavior — status resolves off the plain inbound
+   *  map with no "current status" awareness. */
+  readMirrorStatus?: (pmoRecordId: string) => Promise<string | null>;
+}
+
+/**
+ * One event the WORKER applies (2026-07-20 fix, OD-INT-11): the real ClickUp webhook envelope carries
+ * NO task body and NO timestamp (verified live, 7/7 real deliveries), so `applyWebhookEvent` no longer
+ * reads either off the payload. Instead the worker re-GETs the task (`GET /task/{id}`) and passes the
+ * result here — `task` is `null` for a genuine `taskDeleted`, OR when the re-GET 404s (the task no
+ * longer exists, whatever verb triggered the check) — both collapse to the SAME tombstone-if-mapped
+ * path. `historyItems` is the webhook's own per-change detail (used only to detect an archive/unarchive
+ * transition — the re-GET'd task is otherwise the sole source of native-field truth, OD-INT-11 "apply
+ * full current state").
+ */
+export interface WebhookWorkerEvent {
+  event: ClickUpWebhookEvent;
+  taskId: string;
+  historyItems: ClickUpHistoryItem[];
+  task: ClickUpTask | null;
+}
+
+/** Find the `history_items[]` entry (if any) recording an archive/unarchive transition. ClickUp
+ *  stringifies the boolean (`after: 'true'|'false'`) — `String(...)` normalizes a real boolean too. */
+function findArchivedTransition(historyItems: ClickUpHistoryItem[]): { after: boolean; atMs: number | null } | null {
+  const item = historyItems.find((h) => h.field === 'archived');
+  if (!item) return null;
+  return { after: String(item.after) === 'true', atMs: item.date ? Number(item.date) : null };
 }
 
 /**
@@ -75,50 +110,93 @@ export async function applyInboundChange(
 }
 
 /**
- * Apply one verified webhook event (FR-CUA-043). Branches on the event verb:
- *   - taskDeleted → tombstone the mirror (AC-CUA-070, OD-CUA-2); unmapped → no-op (nothing to remove).
- *   - taskCreated/taskUpdated/taskStatusUpdated → applyInboundChange (upsert or adopt).
- * The org watermark advances monotonically on EVERY verified event (orthogonal to the per-row guard).
+ * Apply one WORKER-resolved webhook event (FR-CUA-043, OD-INT-11 2026-07-20 fix). `event.task === null`
+ * covers BOTH a genuine `taskDeleted` and a re-GET that 404'd (the task no longer exists regardless of
+ * which verb triggered the check) — both tombstone the mirror if mapped (AC-CUA-070, OD-CUA-2), else a
+ * faithful no-op. ClickUp's delete carries NO timestamp at all (`history_items` is empty on a real
+ * `taskDeleted`), so there is no comparable source-mod value to guard against staleness here — the
+ * watermark is intentionally left untouched on this branch (the periodic sweep, ADR-0055 §3, remains the
+ * convergence authority for this edge); tombstoning an already-tombstoned row is itself idempotent.
+ *
+ * `event.task !== null` (created/updated/status-updated, all re-GET'd): applies the FULL current state
+ * through the source-mod-guarded upsert/adopt path, keyed on the re-GET's own `date_updated` (the
+ * webhook payload carries none). If `history_items` records an archive/unarchive transition
+ * (`field === 'archived'`), `archiveMirror` sets/clears `tasks.archived_at` — SEPARATE from the tombstone
+ * path (an archive is never a delete) — skipped when the apply itself was a stale no-op (a fresher state
+ * already won, so a stale archive signal must not apply either).
+ *
+ * The org watermark advances monotonically whenever a real ClickUp timestamp is available (orthogonal
+ * to the per-row guard, FR-CUA-049).
  */
 export async function applyWebhookEvent(
-  event: ClickUpWebhookPayload,
-  deps: WebhookApplyDeps,
+  event: WebhookWorkerEvent,
+  deps: WebhookApplyDeps & {
+    /** Resolve a ClickUp parent task id to a PMO task id via `external_refs`. Optional — when
+     *  absent or unresolvable, the child flows through as a flat task (reconciled later by sweep). */
+    resolveParentPmoId?: (clickUpParentId: string) => Promise<string | null>;
+    /** Read the project_id of an existing mirror (for cross-project parent guard). */
+    readMirrorProjectId?: (pmoRecordId: string) => Promise<string | null>;
+    /** Map from ClickUp list id to binding (for cross-project parent guard). */
+    bindingByListId?: Map<string, { projectId: string }>;
+  },
 ): Promise<ApplyOutcome> {
-  const externalRecordId = event.task_id;
-  const sourceUpdatedAtMs = Number(event.date_updated);
   const maps: ClickUpMaps = { statusMap: deps.statusMap, memberMap: deps.memberMap };
 
-  let outcome: ApplyOutcome;
-  if (event.event === 'taskDeleted') {
-    const existingId = await deps.resolvePmoRecordId(externalRecordId);
+  if (event.task === null) {
+    const existingId = await deps.resolvePmoRecordId(event.taskId);
     if (existingId === null) {
-      // Nothing to tombstone (the task was never mirrored) — a faithful no-op.
-      outcome = { kind: 'no-op' };
-    } else {
-      // A delete is also a read-model apply (a tombstone) — guard it the same way (FR-CUA-049): a
-      // strictly-older delete is a no-op (a fresher state already won). Once applied, tombstoning an
-      // already-tombstoned row is itself idempotent.
-      const stored = await deps.readMirrorSourceMod(existingId);
-      if (stored !== null && sourceUpdatedAtMs < stored) {
-        outcome = { kind: 'no-op' };
-      } else {
-        await deps.tombstoneMirror(existingId);
-        await deps.surfaceDeletion?.(existingId, externalRecordId);
-        outcome = { kind: 'tombstoned', pmoRecordId: existingId };
-      }
+      return { kind: 'no-op' };
     }
-  } else {
-    if (!event.task) {
-      // A created/updated event without a task body is malformed — surface and treat as a no-op
-      // rather than crashing the ingress (the sweep is the safety net for the missing change).
-      outcome = { kind: 'no-op' };
-    } else {
-      const canonical = clickUpTaskToPmoRecord(event.task, maps);
-      outcome = await applyInboundChange(externalRecordId, canonical, sourceUpdatedAtMs, deps);
+    await deps.tombstoneMirror(existingId);
+    await deps.surfaceDeletion?.(existingId, event.taskId);
+    return { kind: 'tombstoned', pmoRecordId: existingId };
+  }
+
+  const sourceUpdatedAtMs = Number(event.task.date_updated);
+
+  // OD-INT-10 round 3: resolve the mirror's CURRENT PMO status (when the caller supplies
+  // `readMirrorStatus`) so `fromClickUpStatus`'s stickiness applies — an inbound sync never moves a
+  // row OUT of a `pmo-only` status, and an explicitly recorded collapse never downgrades the more
+  // specific PMO status. Absent (the P1 default) preserves pre-round-3 behavior byte-for-byte.
+  let currentPmoStatus: string | undefined;
+  if (deps.readMirrorStatus) {
+    const mappedId = await deps.resolvePmoRecordId(event.taskId);
+    if (mappedId !== null) {
+      currentPmoStatus = (await deps.readMirrorStatus(mappedId)) ?? undefined;
     }
   }
 
-  // Monotonic watermark advance on every verified event (FR-CUA-043/049 orthogonality).
+  // OD-INT-9 parent sync (inbound): resolve ClickUp `parent` to a PMO task id via `external_refs`.
+  // The pure mapper has no DB access, so the lookup happens here and the resolved PMO id is
+  // threaded in — exactly like `currentPmoStatus`. When the parent is unresolvable (not yet
+  // mirrored), the child flows through as a flat task; the next sweep re-applies and resolves it.
+  let resolvedParentPmoId: string | null | undefined;
+  if (event.task.parent && deps.resolveParentPmoId) {
+    resolvedParentPmoId = await deps.resolveParentPmoId(event.task.parent);
+    // If the resolved parent is in a different project than the child's binding, refuse the link.
+    // The caller (webhook/sweep) knows the child's project; we log and null it here.
+    if (resolvedParentPmoId && deps.readMirrorProjectId) {
+      const parentProjectId = await deps.readMirrorProjectId(resolvedParentPmoId);
+      const childProjectId = (event.task.list?.id && deps.bindingByListId
+        ? deps.bindingByListId.get(event.task.list.id)?.projectId
+        : undefined);
+      if (parentProjectId && childProjectId && parentProjectId !== childProjectId) {
+        console.warn(`[clickup-webhook] cross-project parent refused: parent ${resolvedParentPmoId} in project ${parentProjectId}, child in ${childProjectId}`);
+        resolvedParentPmoId = null;
+      }
+    }
+  }
+
+  const canonical = clickUpTaskToPmoRecord(event.task, maps, currentPmoStatus, resolvedParentPmoId);
+  const outcome = await applyInboundChange(event.taskId, canonical, sourceUpdatedAtMs, deps);
+
+  const archived = findArchivedTransition(event.historyItems);
+  if (archived && outcome.kind !== 'no-op') {
+    const archivedAtIso = archived.after ? new Date(archived.atMs ?? sourceUpdatedAtMs).toISOString() : null;
+    await deps.archiveMirror(outcome.pmoRecordId, archivedAtIso);
+  }
+
+  // Monotonic watermark advance — only when a real ClickUp `date_updated` is available.
   await advanceWatermarkMonotonic(deps, sourceUpdatedAtMs);
   return outcome;
 }

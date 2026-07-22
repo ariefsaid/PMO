@@ -6,6 +6,7 @@ import { dispatchTaskCommand } from '@/src/lib/adapterSeam/dispatchClient';
 
 export type TaskRow = Tables<'tasks'>;
 export type TaskStatus = Enums<'task_status'>;
+export type TaskPriority = Enums<'task_priority'>;
 export type TaskDependencyRow = Tables<'task_dependencies'>;
 
 /** A task row joined with its assignee profile (name only) and its `depends_on` edges. */
@@ -25,6 +26,18 @@ export interface TaskInput {
   end_date?: string | null;
   /** Optional milestone grouping (FR-DEL-016). null = Ungrouped. */
   milestone_id?: string | null;
+  /**
+   * Optional parent task (OD-INT-9 subtask model). null = top-level (the default). A non-null
+   * id makes this task a subtask; subtasks render nested under their parent and never
+   * independently move a delivery percentage (rollup exclusion is server-side). The DB CHECK
+   * blocks self-parent; the UI additionally blocks descendant-parent (cycle) via taskTree.
+   */
+  parent_task_id?: string | null;
+  /** Optional free-text description (OD-INT-9). Maps to ClickUp `description`. null = none. */
+  description?: string | null;
+  /** Optional priority (OD-INT-9). Maps to ClickUp's integer priority via the fixed 4-value map.
+   *  null = no priority set (the column is nullable — "no priority" stays expressible). */
+  priority?: TaskPriority | null;
 }
 
 /** The structure fields an edit (PM/Exec/Admin) supplies. project_id/org_id are never patched. */
@@ -36,6 +49,12 @@ export interface TaskPatch {
   end_date?: string | null;
   /** Milestone re-assignment (FR-DEL-016). null explicitly ungroups the task. */
   milestone_id?: string | null;
+  /** Parent re-assignment (OD-INT-9). null explicitly promotes the subtask back to top-level. */
+  parent_task_id?: string | null;
+  /** Description edit (OD-INT-9). null explicitly clears it. */
+  description?: string | null;
+  /** Priority edit (OD-INT-9). null explicitly clears the priority back to "unset". */
+  priority?: TaskPriority | null;
 }
 
 /** Shape of a PostgREST/Postgres error we surface (only the fields we read). */
@@ -115,9 +134,17 @@ export async function getTask(id: string): Promise<TaskWithRefs | null> {
  * ADR-0056 / AC-CUA-001/030: when the org's `tasks` domain is externally-owned (routeTaskWrite()),
  * the write routes through `dispatchTaskCommand` instead of the direct insert — fail-closed to the
  * direct DAL (this branch) whenever the ownership cache is empty/never-loaded (FR-CUA-030/031).
+ *
+ * OD-INT-9: parent_task_id IS forwarded to the external dispatch; the dispatch factory resolves
+ * it via `external_refs` to a ClickUp `parent` id. Unresolvable parents create a flat task
+ * (reconciled later). milestone_id remains omitted (PMO-native grouping).
  */
 export async function createTask(input: TaskInput): Promise<TaskRow> {
-  if (routeTaskWrite() === 'external') {
+  if (routeTaskWrite(input.project_id) === 'external') {
+    // OD-INT-9: parent_task_id IS forwarded to the external dispatch; the dispatch factory
+    // resolves it via `external_refs` to a ClickUp `parent` id. Unresolvable parents create
+    // a flat task (reconciled later by the sweep). milestone_id remains omitted (PMO-native
+    // grouping).
     const res = await dispatchTaskCommand('create', {
       id: crypto.randomUUID(),
       project_id: input.project_id,
@@ -126,6 +153,11 @@ export async function createTask(input: TaskInput): Promise<TaskRow> {
       assignee_id: input.assignee_id || null,
       start_date: input.start_date || null,
       end_date: input.end_date || null,
+      parent_task_id: input.parent_task_id ?? null,
+      // OD-INT-9: description + priority DO map to ClickUp (unlike milestone_id, a PMO-native
+      // enhancement that stays excluded). Follow the parent_task_id precedent.
+      description: input.description || null,
+      priority: input.priority ?? null,
     });
     return res.canonical as unknown as TaskRow;
   }
@@ -139,6 +171,9 @@ export async function createTask(input: TaskInput): Promise<TaskRow> {
       start_date: input.start_date || null,
       end_date: input.end_date || null,
       milestone_id: input.milestone_id ?? null,
+      parent_task_id: input.parent_task_id ?? null,
+      description: input.description || null, // OD-INT-9: "" normalises to null
+      priority: input.priority ?? null,
     })
     .select()
     .single();
@@ -154,9 +189,13 @@ export async function createTask(input: TaskInput): Promise<TaskRow> {
  * ADR-0056 / AC-CUA-001/030: routes through `dispatchTaskCommand('update', ...)` when the org's
  * `tasks` domain is externally-owned; fail-closed to the direct DAL below otherwise.
  */
-export async function updateTask(id: string, patch: TaskPatch): Promise<void> {
-  if (routeTaskWrite() === 'external') {
-    await dispatchTaskCommand('update', { id, ...patch });
+export async function updateTask(id: string, patch: TaskPatch, projectId?: string): Promise<void> {
+  if (routeTaskWrite(projectId) === 'external') {
+    // NOTE (OD-INT-9 gap): strip parent_task_id before dispatch — same exclusion + reason as
+    // create above (ClickUp `parent` mapping is a separate issue). Forwarding an unhandled
+    // field to the ClickUp edge function risks rejecting the whole write.
+    const { parent_task_id: _omitted, ...rest } = patch;
+    await dispatchTaskCommand('update', { id, ...rest });
     return;
   }
   const next: TablesUpdate<'tasks'> = {};
@@ -166,6 +205,9 @@ export async function updateTask(id: string, patch: TaskPatch): Promise<void> {
   if (patch.start_date !== undefined) next.start_date = patch.start_date || null;
   if (patch.end_date !== undefined) next.end_date = patch.end_date || null;
   if (patch.milestone_id !== undefined) next.milestone_id = patch.milestone_id; // null ungroups
+  if (patch.parent_task_id !== undefined) next.parent_task_id = patch.parent_task_id; // null promotes
+  if (patch.description !== undefined) next.description = patch.description || null; // OD-INT-9: "" → null
+  if (patch.priority !== undefined) next.priority = patch.priority; // null clears
   const { error } = await supabase.from('tasks').update(next).eq('id', id);
   if (error) throwWrite(error);
 }
@@ -180,8 +222,8 @@ export async function updateTask(id: string, patch: TaskPatch): Promise<void> {
  * ADR-0056 / AC-CUA-001/030: routes through `dispatchTaskCommand('transition', ...)` when the
  * org's `tasks` domain is externally-owned; fail-closed to the direct DAL below otherwise.
  */
-export async function updateTaskStatus(id: string, status: TaskStatus): Promise<void> {
-  if (routeTaskWrite() === 'external') {
+export async function updateTaskStatus(id: string, status: TaskStatus, projectId?: string): Promise<void> {
+  if (routeTaskWrite(projectId) === 'external') {
     await dispatchTaskCommand('transition', { id, status });
     return;
   }
@@ -198,8 +240,29 @@ export async function updateTaskStatus(id: string, status: TaskStatus): Promise<
  * `tasks` domain is externally-owned (the dispatch tombstones the mirror, C3); fail-closed to the
  * direct hard-delete below otherwise.
  */
-export async function deleteTask(id: string): Promise<void> {
-  if (routeTaskWrite() === 'external') {
+/** Set or clear PMO-owned task archive state. External domains are fail-closed: ClickUp is the
+ * authoritative writer and this path must never attempt a guaranteed 42501 update. */
+export async function archiveTask(id: string, projectId?: string): Promise<void> {
+  if (routeTaskWrite(projectId) === 'external') {
+    throw new AppError('Tasks are managed by the connected task system.', 'external-owned');
+  }
+  const { error } = await supabase
+    .from('tasks')
+    .update({ archived_at: new Date().toISOString() })
+    .eq('id', id);
+  if (error) throwWrite(error);
+}
+
+export async function unarchiveTask(id: string, projectId?: string): Promise<void> {
+  if (routeTaskWrite(projectId) === 'external') {
+    throw new AppError('Tasks are managed by the connected task system.', 'external-owned');
+  }
+  const { error } = await supabase.from('tasks').update({ archived_at: null }).eq('id', id);
+  if (error) throwWrite(error);
+}
+
+export async function deleteTask(id: string, projectId?: string): Promise<void> {
+  if (routeTaskWrite(projectId) === 'external') {
     await dispatchTaskCommand('delete', { id });
     return;
   }

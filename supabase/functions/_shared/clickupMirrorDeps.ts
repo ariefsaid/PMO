@@ -85,6 +85,12 @@ export function createClickUpMirrorCallbacks(ctx: MirrorCallbackCtx): ClickUpMir
           start_date: canonical.start_date ?? null,
           end_date: canonical.end_date ?? null,
           completed_at: (canonical.completed_at as string | null | undefined) ?? null,
+          // OD-INT-9: description + priority are ClickUp-owned native fields — mirror them inbound.
+          // `canonical.priority` is already the PMO enum label (mapping.ts converted the ClickUp
+          // object → label); null is preserved (never invent a default).
+          description: (canonical.description as string | null | undefined) ?? null,
+          priority: (canonical.priority as string | null | undefined) ?? null,
+          parent_task_id: canonical.parent_task_id ?? null,
           source_updated_at: new Date(sourceModMs).toISOString(),
         })
         .eq('org_id', orgId)
@@ -104,6 +110,9 @@ export function createClickUpMirrorCallbacks(ctx: MirrorCallbackCtx): ClickUpMir
         start_date: canonical.start_date ?? null,
         end_date: canonical.end_date ?? null,
         completed_at: (canonical.completed_at as string | null | undefined) ?? null,
+        description: (canonical.description as string | null | undefined) ?? null,
+        priority: (canonical.priority as string | null | undefined) ?? null,
+        parent_task_id: canonical.parent_task_id ?? null,
         source_updated_at: new Date(sourceModMs).toISOString(),
       });
       if (error) throw new AppError(error.message, error.code);

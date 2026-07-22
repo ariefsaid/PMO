@@ -9,9 +9,30 @@ export interface ClickUpTaskStatus {
   status: string;
 }
 
+/**
+ * A ClickUp task's priority sub-object (REST v2 GET). ASYMMETRIC vs. the write shape (OD-INT-9): on a
+ * GET, ClickUp returns `priority` as this OBJECT — `{ id, priority (the label), color, orderindex }`
+ * — or `null` when unset; on a WRITE (create/update body), the same field is the BARE INTEGER
+ * `1|2|3|4`. `mapping.ts` is the only place that knows this (FR-CUA-012 confinement). The `priority`
+ * label is lowercase on the wire (`urgent`/`high`/`normal`/`low`); the inbound map is
+ * case-insensitive so a casing drift on ClickUp's side can never silently drop it to null.
+ */
+export interface ClickUpTaskPriority {
+  id: string;
+  /** The human label, lowercase on the wire (`urgent`/`high`/`normal`/`low`). */
+  priority: string;
+  color: string;
+  orderindex: string;
+}
+
 /** A ClickUp assignee reference (REST v2 `assignees[]` entry). */
 export interface ClickUpAssigneeRef {
   id: number;
+}
+
+/** The ClickUp List a task belongs to (REST v2 `list` sub-object on a full task GET). */
+export interface ClickUpTaskList {
+  id: string;
 }
 
 /** The ClickUp REST v2 task shape (subset — only the fields the mapping set consumes, FR-CUA-010). */
@@ -24,10 +45,37 @@ export interface ClickUpTask {
   start_date: string | null;
   /** Unix-ms as a string (ClickUp convention), or null when unset. */
   due_date: string | null;
-  /** Unix-ms as a string — the ClickUp last-modified timestamp (the sync-cursor field). */
+  /** Unix-ms as a string — the ClickUp last-modified timestamp (the sync-cursor field). Only ever
+   *  observed on a `GET /task/{id}` response — a webhook delivery carries NO `date_updated`
+   *  (2026-07-20 live-verified, 7/7 real deliveries) so this is now the WORKER's re-GET cursor, never
+   *  read off a webhook payload. */
   date_updated: string;
+  /** The task description (ClickUp `description`, a free-text string). Absent/null when unset. Added
+   *  by OD-INT-9: maps bidirectionally to `tasks.description`. */
+  description?: string | null;
   /** Unix-ms as a string — set when the task was marked done; null otherwise (FR-CUA-030 Finding 6). */
   date_done?: string | null;
+  /** The List this task belongs to — only present on a full task GET, never on a webhook payload. The
+   *  worker's re-GET is the ONLY source of `list.id` for binding resolution (2026-07-20 fix — the
+   *  payload's `list_id` never exists on a real delivery, so the old payload-driven adopt path was
+   *  unreachable dead code). */
+  list?: ClickUpTaskList;
+  /** The priority OBJECT on a GET (OD-INT-9) — `{ id, priority, color, orderindex }` where `priority`
+   *  is the label, or `null` when unset. NOTE the asymmetry: the WRITE body uses the bare integer
+   *  `1|2|3|4`, modeled on `ClickUpCreateTaskBody.priority` / `ClickUpUpdateTaskBody.priority`. */
+  priority?: ClickUpTaskPriority | null;
+  /** Current archived state. Present on a full task GET, and on sweep reads because they now pass
+   *  `archived=true` (read-hygiene fix) — `pageListTasks` filters archived rows out of every returned
+   *  change set so one is never mirrored as live. Archiving fires `taskUpdated` with a
+   *  `history_items[].field === 'archived'` entry (NEVER `taskDeleted`), which the worker maps to
+   *  `tasks.archived_at` (the column now exists — migration `0140`). */
+  archived?: boolean;
+  /** The parent task id when this is a ClickUp subtask. Only present because reads now pass
+   *  `subtasks=true` (read-hygiene fix). PMO now HAS `tasks.parent_task_id` (migration `0140`), but the
+   *  two are NOT yet wired together — a ClickUp subtask still flows through mapping as a flat
+   *  top-level task, and this field is deliberately never read by `mapping.ts`. Syncing
+   *  `parent` ↔ `parent_task_id` is its own issue. */
+  parent?: string | null;
 }
 
 /** A page of tasks from `GET /list/{list_id}/task` (REST v2). */
@@ -44,6 +92,13 @@ export interface ClickUpCreateTaskBody {
   assignees?: number[];
   start_date?: number;
   due_date?: number;
+  /** The task description (OD-INT-9) — a free-text string, maps to `tasks.description`. */
+  description?: string;
+  /** The priority INTEGER on a write (OD-INT-9): `1`=Urgent, `2`=High, `3`=Normal, `4`=Low. NOTE the
+   *  asymmetry: a GET returns priority as an OBJECT (`ClickUpTaskPriority`); a write takes this integer. */
+  priority?: number;
+  /** Parent task id (ClickUp subtask parent) — settable on create to make the task a subtask in the same List. */
+  parent?: string | null;
 }
 
 /** ClickUp v2 **update** body (`PUT /task/{id}`) — assignees is an add/rem delta, not a flat array. */
@@ -53,29 +108,83 @@ export interface ClickUpUpdateTaskBody {
   assignees?: { add: number[]; rem: number[] };
   start_date?: number;
   due_date?: number;
+  /** The task description (OD-INT-9) — a free-text string, maps to `tasks.description`. */
+  description?: string;
+  /** The priority INTEGER on a write (OD-INT-9): `1`=Urgent, `2`=High, `3`=Normal, `4`=Low. */
+  priority?: number;
+  /** Parent task id — set to re-parent, or `null` to promote to top-level. */
+  parent?: string | null;
 }
 
 // ── Webhook ingress shapes (FR-CUA-040..044) ───────────────────────────────────────────────────
-// PROVISIONAL wire shape (mocked-only in P1; re-verified in the deferred live-smoke appendix, same
-// stance as mapping.ts). ClickUp webhook vocabulary is confined to this file + the clickup-webhook fn.
+// REAL wire shape (2026-07-20 live-verified against the real ClickUp API, 7/7 deliveries, identical
+// envelope): `{event, task_id, team_id, webhook_id, history_items}`. NO `task` object, NO
+// `date_updated`, NO `list_id` — ever. ClickUp webhook vocabulary is confined to this file + the
+// clickup-webhook / clickup-webhook-worker fns.
 
-/** The four ClickUp task-webhook event verbs (FR-CUA-040). */
+/** The four ClickUp task-webhook event verbs (FR-CUA-040). `taskStatusUpdated` is a pure duplicate of
+ *  `taskUpdated` for a status change (one status change fires BOTH) — still accepted here because a
+ *  currently-registered ClickUp webhook may still be subscribed to it; the worker treats it identically
+ *  to `taskUpdated` (re-GET + apply full state). New webhook registrations should subscribe to
+ *  `taskCreated`/`taskUpdated`/`taskDeleted` only. */
 export type ClickUpWebhookEvent = 'taskCreated' | 'taskUpdated' | 'taskStatusUpdated' | 'taskDeleted';
 
+/** One ClickUp `history_items[]` entry (REST v2 webhook envelope) — the only per-change detail a
+ *  delivery carries. `field`/`after` are the ones this codebase reads (e.g. `field: 'archived'`,
+ *  `after: 'true'|'false'` — ClickUp stringifies the boolean here); the rest passes through opaque. */
+export interface ClickUpHistoryItem {
+  field: string;
+  after?: unknown;
+  before?: unknown;
+  /** Unix-ms as a string — when this specific history entry happened. */
+  date?: string;
+  [key: string]: unknown;
+}
+
 /**
- * A ClickUp task-webhook payload. Carries the event verb, the ClickUp task id, the ClickUp
- * `date_updated` (unix-ms string — the per-row source-mod guard value + the watermark cursor), and
- * the full task body for created/updated/status-updated events (absent on `taskDeleted`).
+ * A ClickUp task-webhook payload — the REAL envelope (2026-07-20 live-verified): the event verb, the
+ * ClickUp task id, `team_id`/`webhook_id` (both undocumented-but-present, `team_id` is a usable org
+ * hint), and `history_items` (empty on `taskDeleted`). Carries NO task body and NO timestamp — the
+ * worker re-GETs the task for both (OD-INT-11).
  */
 export interface ClickUpWebhookPayload {
   event: ClickUpWebhookEvent;
   /** The ClickUp task id this event concerns. */
   task_id: string;
-  /** ClickUp `date_updated` (unix-ms string) — the source-modification + watermark cursor field. */
-  date_updated: string;
-  /** The ClickUp List id the task belongs to — used by the ingress to resolve the org + project
-   *  binding for an UNMAPPED (adopt) task. Absent on some verbs (e.g. a minimal `taskDeleted`). */
-  list_id?: string;
-  /** The full task body for created/updated/status-updated events; absent on `taskDeleted`. */
-  task?: ClickUpTask;
+  /** The ClickUp Workspace (Team) id — undocumented by ClickUp but present on every real delivery; a
+   *  usable org-narrowing hint, never the sole binding-resolution key (P1 remains single-org). */
+  team_id?: string;
+  webhook_id?: string;
+  /** Per-change detail; empty array on `taskDeleted` (ClickUp sends no state at all for a delete). */
+  history_items: ClickUpHistoryItem[];
+}
+
+const KNOWN_WEBHOOK_EVENTS: ReadonlySet<string> = new Set([
+  'taskCreated',
+  'taskUpdated',
+  'taskStatusUpdated',
+  'taskDeleted',
+]);
+
+/**
+ * Validate + narrow an unknown parsed JSON body into a `ClickUpWebhookPayload` — the ingress's ONLY
+ * read of the raw envelope. Requires `event` (a known verb) and a non-empty `task_id`; `team_id`/
+ * `webhook_id` are optional passthrough; `history_items` defaults to `[]` when absent/malformed.
+ * Returns `null` for anything that doesn't satisfy the minimum shape (the ingress replies 400).
+ */
+export function parseWebhookEnvelope(raw: unknown): ClickUpWebhookPayload | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const obj = raw as Record<string, unknown>;
+  const event = obj.event;
+  if (typeof event !== 'string' || !KNOWN_WEBHOOK_EVENTS.has(event)) return null;
+  const taskId = obj.task_id;
+  if (typeof taskId !== 'string' || taskId.length === 0) return null;
+  const historyItems = Array.isArray(obj.history_items) ? (obj.history_items as ClickUpHistoryItem[]) : [];
+  return {
+    event: event as ClickUpWebhookEvent,
+    task_id: taskId,
+    team_id: typeof obj.team_id === 'string' ? obj.team_id : undefined,
+    webhook_id: typeof obj.webhook_id === 'string' ? obj.webhook_id : undefined,
+    history_items: historyItems,
+  };
 }

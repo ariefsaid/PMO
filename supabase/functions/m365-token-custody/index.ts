@@ -22,6 +22,7 @@ import { handleInitiateConnect } from './initiate.ts';
 import { handleCallback } from './callback.ts';
 import { handleGraphProxy } from './proxy.ts';
 import { handleDisconnect } from './revoke.ts';
+import { handleConnectionStatus } from './status.ts';
 import { corsHeaders } from './auth.ts';
 import type {
   HandlerDeps,
@@ -127,6 +128,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
         break;
       case 'disconnect':
         result = await handleDisconnect(authed);
+        break;
+      case 'connection_status':
+        result = await handleConnectionStatus(authed);
         break;
       default:
         result = {

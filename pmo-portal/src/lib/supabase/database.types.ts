@@ -4030,14 +4030,18 @@ export type Database = {
       }
       tasks: {
         Row: {
+          archived_at: string | null
           assignee_id: string | null
           completed_at: string | null
           created_at: string
+          description: string | null
           end_date: string | null
           id: string
           milestone_id: string | null
           name: string
           org_id: string
+          parent_task_id: string | null
+          priority: Database["public"]["Enums"]["task_priority"] | null
           project_id: string
           source_updated_at: string | null
           start_date: string | null
@@ -4045,14 +4049,18 @@ export type Database = {
           tombstoned_at: string | null
         }
         Insert: {
+          archived_at?: string | null
           assignee_id?: string | null
           completed_at?: string | null
           created_at?: string
+          description?: string | null
           end_date?: string | null
           id?: string
           milestone_id?: string | null
           name: string
           org_id?: string
+          parent_task_id?: string | null
+          priority?: Database["public"]["Enums"]["task_priority"] | null
           project_id: string
           source_updated_at?: string | null
           start_date?: string | null
@@ -4060,14 +4068,18 @@ export type Database = {
           tombstoned_at?: string | null
         }
         Update: {
+          archived_at?: string | null
           assignee_id?: string | null
           completed_at?: string | null
           created_at?: string
+          description?: string | null
           end_date?: string | null
           id?: string
           milestone_id?: string | null
           name?: string
           org_id?: string
+          parent_task_id?: string | null
+          priority?: Database["public"]["Enums"]["task_priority"] | null
           project_id?: string
           source_updated_at?: string | null
           start_date?: string | null
@@ -4094,6 +4106,13 @@ export type Database = {
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_parent_task_id_fkey"
+            columns: ["parent_task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
             referencedColumns: ["id"]
           },
           {
@@ -5272,6 +5291,7 @@ export type Database = {
         | "Close Out"
         | "Loss Tender"
         | "Internal Project"
+      task_priority: "Urgent" | "High" | "Normal" | "Low"
       task_status: "To Do" | "In Progress" | "Done" | "Blocked"
       timesheet_status: "Draft" | "Submitted" | "Approved" | "Rejected"
       user_role:
@@ -5461,6 +5481,7 @@ export const Constants = {
         "Loss Tender",
         "Internal Project",
       ],
+      task_priority: ["Urgent", "High", "Normal", "Low"],
       task_status: ["To Do", "In Progress", "Done", "Blocked"],
       timesheet_status: ["Draft", "Submitted", "Approved", "Rejected"],
       user_role: [

@@ -90,6 +90,8 @@ import {
   updateTask,
   updateTaskStatus,
   deleteTask,
+  archiveTask,
+  unarchiveTask,
   addDependency,
   removeDependency,
 } from '@/src/lib/db/tasks';
@@ -368,9 +370,14 @@ const task: TaskRepository = {
   list: (projectId) => wrap(() => listTasks(projectId)),
   get: (id) => wrap(() => getTask(id)),
   create: (input) => wrap(() => createTask(input)),
-  update: (id, patch) => wrap(() => updateTask(id, patch)),
-  updateStatus: (id, status) => wrap(() => updateTaskStatus(id, status)),
-  delete: (id) => wrap(() => deleteTask(id)),
+  update: (id, patch, projectId) =>
+    wrap(() => (projectId === undefined ? updateTask(id, patch) : updateTask(id, patch, projectId))),
+  updateStatus: (id, status, projectId) =>
+    wrap(() => (projectId === undefined ? updateTaskStatus(id, status) : updateTaskStatus(id, status, projectId))),
+  delete: (id, projectId) => wrap(() => (projectId === undefined ? deleteTask(id) : deleteTask(id, projectId))),
+  archive: (id, projectId) => wrap(() => (projectId === undefined ? archiveTask(id) : archiveTask(id, projectId))),
+  unarchive: (id, projectId) =>
+    wrap(() => (projectId === undefined ? unarchiveTask(id) : unarchiveTask(id, projectId))),
   addDependency: (taskId, dependsOnId) => wrap(() => addDependency(taskId, dependsOnId)),
   removeDependency: (taskId, dependsOnId) => wrap(() => removeDependency(taskId, dependsOnId)),
 };
@@ -725,10 +732,10 @@ const integrationsImpl: IntegrationsRepository = {
 
       const { data: watermark, error: watermarkError } = await supabase
         .from('external_sync_watermarks')
-        .select('synced_at')
+        .select('updated_at')
         .eq('org_id', orgId)
         .eq('external_tier', tier)
-        .order('synced_at', { ascending: false })
+        .order('updated_at', { ascending: false })
         .limit(1)
         .maybeSingle();
 
@@ -736,7 +743,11 @@ const integrationsImpl: IntegrationsRepository = {
 
       const { count: errorCount, error: outboxError } = await supabase
         .from('external_command_outbox')
-        .select('*', { count: 'exact', head: true })
+        // `id`, NOT `*`: migration 0134 revoked the table-level SELECT and re-issued it per column,
+        // deliberately withholding `idempotency_key`. A `*` count therefore 403s for every member,
+        // which threw here and made the whole health surface null. Count a granted column instead —
+        // this respects the narrowing rather than re-granting it.
+        .select('id', { count: 'exact', head: true })
         .eq('org_id', orgId)
         .eq('external_tier', tier)
         .in('state', ['pending', 'failed', 'quarantined', 'held']);
@@ -748,7 +759,7 @@ const integrationsImpl: IntegrationsRepository = {
         status: binding?.status ?? 'disconnected',
         connected_by: binding?.connected_by ?? null,
         connected_at: binding?.connected_at ?? null,
-        last_sync: (watermark as { synced_at?: string } | null)?.synced_at ?? null,
+        last_sync: (watermark as { updated_at?: string } | null)?.updated_at ?? null,
         error_count: errorCount ?? 0,
       };
     });

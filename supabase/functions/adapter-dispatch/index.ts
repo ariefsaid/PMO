@@ -47,6 +47,7 @@ import { resolveErpCredentials } from '../../../pmo-portal/src/lib/adapterSeam/e
 import { withProbeBudget } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/client.ts';
 import { resolveClickUpCredentialsFromVault } from '../../../pmo-portal/src/lib/adapterSeam/clickup/vaultCredentials.ts';
 import { resolvePerOrgSecret } from '../_shared/perOrgSecret.ts';
+import { externalConnectEnabled } from '../_shared/externalConnectEnabled.ts';
 // The runtime (kind)->{toBody,fromDoc} side table (task 5.2) — ADDITIVE across slices 3/4/5/6, each
 // wiring only the kinds it owns; an un-wired kind is `commit-rejected` at commit time, never a
 // silent no-op (adapter.ts's `requireBodyFns`). Slice 3's supplier/customer entries now live in this
@@ -116,13 +117,16 @@ const clickUpRateLimiter = new ClickUpRateLimiter();
 // otherwise fall back to global CLICKUP_API_TOKEN (legacy behavior unchanged when flag is OFF).
 // FIX-2: tri-state — no-binding → global fallback; resolved → vault token; binding-vault-miss → FAIL CLOSED.
 async function resolveClickUpAdapter(ctx: AdapterSelectContext): Promise<Adapter> {
-  const connectEnabled = Deno.env.get('EXTERNAL_CONNECT_ENABLED') === 'true';
+  const connectEnabled = externalConnectEnabled();
+  if (!connectEnabled) {
+    throw new AppError('external integrations are disabled by the operator', 'config-rejected');
+  }
   let clickUpToken = Deno.env.get('CLICKUP_API_TOKEN') ?? '';
 
   if (connectEnabled) {
     // Use shared per-org Vault secret resolution (flag gate + binding lookup + fallback)
     const result = await resolvePerOrgSecret({
-      connectEnabled: true,
+      connectEnabled,
       orgId: ctx.orgId,
       tier: 'clickup',
       lookupBinding: async (orgId, tier) => {
@@ -202,6 +206,9 @@ async function resolveErpBindingRow(serviceClient: SupabaseClient, orgId: string
 }
 
 async function resolveErpAdapter(ctx: AdapterSelectContext): Promise<Adapter> {
+  if (!externalConnectEnabled()) {
+    throw new AppError('external integrations are disabled by the operator', 'config-rejected');
+  }
   const binding = await resolveErpBindingRow(ctx.serviceClient, ctx.orgId);
   const { apiKey, apiSecret } = resolveErpCredentials(binding.secret_ref, (key) => Deno.env.get(key));
   return resolveErpDispatchAdapter({
@@ -234,6 +241,9 @@ async function resolveErpAdapter(ctx: AdapterSelectContext): Promise<Adapter> {
  * outbox operation (claim/mark/verify/insert/read) is the tier-agnostic DB implementation.
  */
 async function resolveErpMoneyOutboxDeps(ctx: AdapterSelectContext): Promise<DispatchMoneyOutboxDeps> {
+  if (!externalConnectEnabled()) {
+    throw new AppError('external integrations are disabled by the operator', 'config-rejected');
+  }
   // The outbox `operation` column (0095) is CHECK-constrained to create|update|transition — 'delete'
   // never reaches it (the erpnext adapter itself rejects delete, OQ-8, cancel-only); reject loud here
   // too, before any DB write, rather than letting a raw CHECK-violation surface.

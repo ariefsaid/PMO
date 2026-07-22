@@ -79,6 +79,7 @@ import { resolveErpCredentials } from '../../../pmo-portal/src/lib/adapterSeam/e
 import { erpnextRequest, withProbeBudget, type ErpClientDeps } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/client.ts';
 import { resolveErpDispatchAdapter, withPaymentTypeDiscriminator } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/dispatchFactory.ts';
 import { resolvePerOrgSecret } from '../_shared/perOrgSecret.ts';
+import { externalConnectEnabled } from '../_shared/externalConnectEnabled.ts';
 import { canonicalCommandDigest, createDbMoneyOutboxDeps } from '../adapter-dispatch/moneyOutboxDeps.ts';
 import { checkErpnextCommandAuthorization, checkOutboxReplayAuthorization } from '../adapter-dispatch/authGuard.ts';
 import { getReadModelWriter } from '../adapter-dispatch/readModelWriters.ts';
@@ -598,14 +599,17 @@ async function fetchErpDoc(client: ErpClientDeps, doctype: string, name: string)
 // falling back to the env resolver when off / no binding / vault-miss). Kept alongside the P3a money
 // path — the async signature propagates to every call site (all now `await erpClientForOrg(serviceClient, org)`).
 async function erpClientForOrg(serviceClient: SupabaseClient, org: OrgBinding): Promise<ErpClientDeps> {
-  const connectEnabled = Deno.env.get('EXTERNAL_CONNECT_ENABLED') === 'true';
+  const connectEnabled = externalConnectEnabled();
+  if (!connectEnabled) {
+    throw new AppError('external integrations are disabled by the operator', 'config-rejected');
+  }
   let apiKey: string;
   let apiSecret: string;
 
   if (connectEnabled) {
     // Use shared per-org Vault secret resolution (flag gate + binding lookup + tri-state)
     const result = await resolvePerOrgSecret({
-      connectEnabled: true,
+      connectEnabled,
       orgId: org.orgId,
       tier: 'erpnext',
       lookupBinding: async (orgId, tier) => {

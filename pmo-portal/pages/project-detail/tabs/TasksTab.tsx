@@ -8,6 +8,7 @@ import {
   ConfirmDialog,
   EntityFormModal,
   TextField,
+  TextArea,
   SelectField,
   Combobox,
   FormSection,
@@ -32,11 +33,18 @@ import { formatDate } from '@/src/lib/format';
 import { routeTaskWrite } from '@/src/lib/adapterSeam/ownershipCache';
 import { IDLE_PENDING_PUSH } from '@/src/lib/adapterSeam/pendingPush';
 import { TaskPushBadge } from '@/src/components/tasks/TaskPushBadge';
-import type { TaskWithRefs, TaskStatus, TaskInput, TaskPatch } from '@/src/lib/db/tasks';
+import type { TaskWithRefs, TaskStatus, TaskPriority, TaskInput, TaskPatch } from '@/src/lib/db/tasks';
 import type { MilestoneWithProgress } from '@/src/lib/db/milestones';
 import { MilestonePhaseHeader } from '@/src/components/milestones/MilestonePhaseHeader';
 import { workflowVariant } from '@/src/lib/status/statusVariants';
+import { buildTaskRenderOrder, collectDescendants } from '@/src/lib/tasks/taskTree';
 import ProjectGantt from '../ProjectGantt';
+
+/**
+ * OD-INT-9 subtask nesting — the horizontal indent applied per depth level in the Task-name
+ * cell. A multiple of the DESIGN.md `spacing.base` token (4px), NOT an ad-hoc pixel value.
+ */
+const SUBTASK_INDENT_PX = 16;
 
 // ── Status vocabulary ───────────────────────────────────────────────────────
 // The four task_status enum values. The pill variant comes from the single status
@@ -47,6 +55,12 @@ import ProjectGantt from '../ProjectGantt';
 const STATUSES: TaskStatus[] = ['To Do', 'In Progress', 'Done', 'Blocked'];
 const STATUS_OPTIONS = STATUSES.map((s) => ({ value: s, label: s }));
 
+// OD-INT-9 — the four task_priority enum values, for the Priority select. The first option is the
+// explicit unset (value="" → null): the column is nullable, so "no priority" must stay expressible
+// AND clearable (a disabled placeholder couldn't be re-selected after a value was set).
+const PRIORITIES: TaskPriority[] = ['Urgent', 'High', 'Normal', 'Low'];
+const PRIORITY_OPTIONS = [{ value: '', label: 'No priority' }, ...PRIORITIES.map((p) => ({ value: p, label: p }))];
+
 type ViewMode = 'list' | 'board' | 'timeline';
 
 interface FormValues {
@@ -55,6 +69,8 @@ interface FormValues {
   assignee_id: string;
   start_date: string;
   end_date: string;
+  description: string;
+  priority: string;
 }
 
 const validate = (v: FormValues): Partial<Record<keyof FormValues, string>> => {
@@ -82,7 +98,7 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId }) => {
   const currentUserId = currentUser?.id ?? null;
   const { toast } = useToast();
   const { data, isPending, isError, refetch } = useTasks(projectId);
-  const { create, update, updateStatus, remove, addDependency, removeDependency, pendingPushByTask = {} } =
+  const { create, update, updateStatus, remove, archive, addDependency, removeDependency, pendingPushByTask = {} } =
     useTaskMutations(projectId);
   const { data: milestones } = useMilestones(projectId);
   const location = useLocation();
@@ -91,6 +107,7 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId }) => {
   // defaultMilestoneId — pre-populated when clicking "Add task" within a group.
   const [formTarget, setFormTarget] = useState<{ task: TaskWithRefs | null; defaultMilestoneId?: string | null } | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<TaskWithRefs | null>(null);
+  const [showArchived, setShowArchived] = useState(false);
 
   // T25 — hash-anchor scroll & transient highlight.
   // When the URL contains #task-<id>, scroll that row into view and apply a
@@ -125,11 +142,12 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId }) => {
   const canCreate = may('create', 'task');
   const canEdit = may('edit', 'task');
   const canDelete = may('delete', 'task');
-  const canRowWrite = canEdit || canDelete;
 
   // ADR-0056: the per-task pending-push badge wires in ONLY when task writes route externally
   // (ClickUp-owned). PMO-owned orgs stay byte-for-byte — no badge chrome at all (AC-CUA-061).
-  const externallyOwned = routeTaskWrite() === 'external';
+  const externallyOwned = routeTaskWrite(projectId) === 'external';
+  const canArchive = may('archive', 'task');
+  const canRowWrite = canEdit || canDelete || (canArchive && !externallyOwned);
 
   // Review fix #5 — one headline for one event: an externally-routed write fails through the SAME
   // vocabulary the badge renders (classifyExternalError), so the toast and the badge never disagree.
@@ -139,6 +157,23 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId }) => {
 
   const all = useMemo(() => data ?? [], [data]);
   const milestoneList = useMemo(() => milestones ?? [], [milestones]);
+
+  // OD-INT-9 — the flat list view (no milestone grouping) renders ALL tasks in a single
+  // depth-ordered slice: buildTaskRenderOrder gives parent-then-descendants order; the row
+  // type never changes (still TaskWithRefs) — depth is a SEPARATE lookup consumed only by the
+  // name cell renderer (buildColumns below). The milestone-grouped view computes its own
+  // per-group order (see MilestoneGroupedList) since a subtask can land in a different
+  // milestone group than its parent (AC-SUB-UI-004).
+  const visibleTasks = useMemo(
+    () => (showArchived ? all : all.filter((t) => t.archived_at == null)),
+    [all, showArchived],
+  );
+  const flatOrder = useMemo(() => buildTaskRenderOrder(visibleTasks), [visibleTasks]);
+  const flatRows = useMemo(() => flatOrder.map((n) => n.task), [flatOrder]);
+  const flatDepths = useMemo(
+    () => new Map(flatOrder.map((n) => [n.task.id, n.depth])),
+    [flatOrder],
+  );
 
   /** May the current viewer set THIS task's status? Managers: any; Engineer: own only. */
   const canSetStatus = (t: TaskWithRefs): boolean =>
@@ -160,6 +195,16 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId }) => {
     try {
       await updateStatus.mutateAsync({ id: t.id, status });
       toast('Status updated', `${t.name} is now ${status}`, 'success');
+    } catch (err) {
+      const { headline, detail } = classifyWriteError(err);
+      toast(headline, detail, 'warning');
+    }
+  };
+
+  const onArchive = async (task: TaskWithRefs) => {
+    try {
+      await archive.mutateAsync({ id: task.id, archived: task.archived_at == null });
+      toast(task.archived_at == null ? 'Task archived' : 'Task restored', task.name, 'success');
     } catch (err) {
       const { headline, detail } = classifyWriteError(err);
       toast(headline, detail, 'warning');
@@ -203,23 +248,36 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId }) => {
     </div>
   );
 
-  const columns: Column<TaskWithRefs>[] = [
+  // OD-INT-9 — the table's row type stays TaskWithRefs end to end; the ONLY hierarchy-aware
+  // piece is this name cell, which looks up the row's depth in a Map (never a parallel row
+  // type, never a DataTable change). `depths` is per-slice: the flat list passes `flatDepths`
+  // over ALL tasks; each milestone group passes its OWN depths computed over just that group's
+  // tasks (so a subtask whose parent lives in another group renders as a root, depth 0 —
+  // AC-SUB-UI-004 — instead of vanishing or grabbing an unrelated section's parent).
+  const buildColumns = (depths: Map<string, number>): Column<TaskWithRefs>[] => [
     {
       key: 'name',
       header: 'Task',
-      cell: (t) => (
-        <span
-          id={`task-${t.id}`}
-          /* `block`: `truncate` (overflow-hidden) is a no-op on an INLINE span, so a long
-             task name ("CONST — Structural Load Calc & Racking Design") bled past 390px on
-             the mobile card (AC-MOBILE-OVERFLOW-001, caught by CI on fresh seed). block +
-             the card title wrapper's min-w-0 lets it clip with an ellipsis. */
-          className={`block truncate font-semibold${highlightedTaskId === t.id ? ' ring-2 ring-primary ring-offset-1 rounded task-highlight' : ''}`}
-          title={t.name}
-        >
-          {t.name}
-        </span>
-      ),
+      cell: (t) => {
+        const depth = depths.get(t.id) ?? 0;
+        return (
+          <span
+            id={`task-${t.id}`}
+            /* `block`: `truncate` (overflow-hidden) is a no-op on an INLINE span, so a long
+               task name ("CONST — Structural Load Calc & Racking Design") bled past 390px on
+               the mobile card (AC-MOBILE-OVERFLOW-001, caught by CI on fresh seed). block +
+               the card title wrapper's min-w-0 lets it clip with an ellipsis. */
+            className={`block truncate font-semibold${highlightedTaskId === t.id ? ' ring-2 ring-primary ring-offset-1 rounded task-highlight' : ''}`}
+            style={depth > 0 ? { paddingLeft: depth * SUBTASK_INDENT_PX } : undefined}
+            title={t.name}
+          >
+            {depth > 0 && (
+              <span className="sr-only">{`Subtask, level ${depth}. `}</span>
+            )}
+            {t.name}
+          </span>
+        );
+      },
     },
     {
       key: 'assignee',
@@ -255,6 +313,9 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId }) => {
   const rowMenu = (t: TaskWithRefs): RowMenuItem[] => {
     const items: RowMenuItem[] = [];
     if (canEdit) items.push({ label: 'Edit', onClick: () => setFormTarget({ task: t }) });
+    if (canArchive && !externallyOwned) {
+      items.push({ label: t.archived_at == null ? 'Archive' : 'Unarchive', onClick: () => void onArchive(t) });
+    }
     if (canDelete) items.push({ label: 'Delete', onClick: () => setDeleteTarget(t), danger: true });
     return items;
   };
@@ -268,6 +329,16 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId }) => {
             Plan, assign, and track the work for this project.
           </p>
         </div>
+        {all.some((t) => t.archived_at != null) && (
+          <Button
+            variant="outline"
+            size="sm"
+            aria-pressed={showArchived}
+            onClick={() => setShowArchived((value) => !value)}
+          >
+            {showArchived ? 'Hide archived' : 'Show archived'}
+          </Button>
+        )}
         {canCreate && (
           <Button variant="outline" size="sm" onClick={() => setFormTarget({ task: null })}>
             <Icon name="plus" />
@@ -323,10 +394,10 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId }) => {
 
       {state === undefined && view === 'list' && (
         milestoneList.length === 0 ? (
-          // No milestones: flat list (original behaviour)
+          // No milestones: flat list, in depth-ordered (parent-then-descendants) order.
           <DataTable<TaskWithRefs>
-            rows={all}
-            columns={columns}
+            rows={flatRows}
+            columns={buildColumns(flatDepths)}
             rowKey={(t) => t.id}
             rowMenu={canRowWrite ? rowMenu : undefined}
             onActivate={canEdit ? (t) => setFormTarget({ task: t }) : undefined}
@@ -336,8 +407,8 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId }) => {
           // Milestones exist: group tasks by milestone
           <MilestoneGroupedList
             milestones={milestoneList}
-            tasks={all}
-            columns={columns}
+            tasks={visibleTasks}
+            buildColumns={buildColumns}
             canCreate={canCreate}
             canRowWrite={canRowWrite}
             rowMenu={rowMenu}
@@ -349,7 +420,7 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId }) => {
 
       {state === undefined && view === 'board' && (
         <TaskBoard
-          tasks={all}
+          tasks={visibleTasks}
           canSetStatus={canSetStatus}
           onStatusChange={onStatusChange}
           statusBusy={updateStatus.isPending}
@@ -360,7 +431,7 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId }) => {
 
       {state === undefined && view === 'timeline' && (
         <ProjectGantt
-          tasks={all}
+          tasks={visibleTasks}
           milestones={milestoneList}
           onSwitchView={setView}
           onActivateTask={
@@ -556,6 +627,10 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
     task?.milestone_id ?? defaultMilestoneId,
   );
 
+  // OD-INT-9 — parent_task_id is tracked the same way (string | null, not a text field).
+  // Default: the task's current parent when editing, or none (top-level) when creating.
+  const [parentTaskId, setParentTaskId] = useState<string | null>(task?.parent_task_id ?? null);
+
   const form = useEntityForm<FormValues>({
     initialValues: {
       name: task?.name ?? '',
@@ -563,6 +638,8 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
       assignee_id: task?.assignee_id ?? '',
       start_date: task?.start_date ?? '',
       end_date: task?.end_date ?? '',
+      description: task?.description ?? '',
+      priority: task?.priority ?? '',
     },
     validate,
     idPrefix: 'task-form',
@@ -581,6 +658,8 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
   const assigneeField = form.fieldProps('assignee_id');
   const startField = form.fieldProps('start_date');
   const endField = form.fieldProps('end_date');
+  const descriptionField = form.fieldProps('description');
+  const priorityField = form.fieldProps('priority');
 
   const assigneeOptions: ComboboxOption[] = (profiles ?? []).map((p) => ({
     value: p.id,
@@ -595,6 +674,21 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
     label: m.name,
   }));
   const selectedMilestone = milestoneOptions.find((o) => o.value === milestoneId) ?? null;
+
+  // OD-INT-9 — the parent-task cycle guard: a task must never become its own parent OR the
+  // parent of any of its own descendants (that would create a cycle). `collectDescendants`
+  // (the existing, unit-tested tree helper) walks the FULL descendant set; we exclude the task
+  // itself too, so both are simply unselectable — never presented as options at all.
+  const invalidParentIds = useMemo(() => {
+    if (!task) return new Set<string>(); // creating: nothing exists yet to cycle against
+    const s = collectDescendants(task.id, allTasks);
+    s.add(task.id);
+    return s;
+  }, [task, allTasks]);
+  const parentOptions: ComboboxOption[] = allTasks
+    .filter((t) => !invalidParentIds.has(t.id))
+    .map((t) => ({ value: t.id, label: t.name }));
+  const selectedParent = parentOptions.find((o) => o.value === parentTaskId) ?? null;
 
   // Dependency candidates: other tasks on this project, not already a dependency, not self.
   const depCandidates: ComboboxOption[] = allTasks
@@ -621,6 +715,9 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
         assignee_id: values.assignee_id || null,
         start_date: values.start_date || null,
         end_date: values.end_date || null,
+        // OD-INT-9: description (blank → null) + priority (unset → null) round-trip on save.
+        description: values.description.trim() || null,
+        priority: values.priority ? (values.priority as TaskPriority) : null,
       };
       try {
         if (isEdit && task) {
@@ -628,9 +725,18 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
             add: deps.filter((d) => !initialDeps.includes(d)),
             remove: initialDeps.filter((d) => !deps.includes(d)),
           };
-          await onUpdate(task.id, { ...base, milestone_id: milestoneId }, delta);
+          await onUpdate(
+            task.id,
+            { ...base, milestone_id: milestoneId, parent_task_id: parentTaskId },
+            delta,
+          );
         } else {
-          await onCreate({ project_id: projectId, ...base, milestone_id: milestoneId });
+          await onCreate({
+            project_id: projectId,
+            ...base,
+            milestone_id: milestoneId,
+            parent_task_id: parentTaskId,
+          });
         }
       } catch (err) {
         onError(err);
@@ -687,6 +793,16 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
             onBlur={statusField.onBlur}
             options={STATUS_OPTIONS}
           />
+          {/* OD-INT-9 — Priority. Nullable column: the leading "No priority" option (value="")
+              maps to null and stays selectable so an existing priority can be cleared. */}
+          <SelectField
+            id={priorityField.id}
+            label="Priority"
+            value={priorityField.value}
+            onChange={(v) => priorityField.onChange(v)}
+            onBlur={priorityField.onBlur}
+            options={PRIORITY_OPTIONS}
+          />
           <TextField
             id={startField.id}
             label="Start date"
@@ -715,6 +831,34 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
               noun="milestone"
             />
           )}
+          {/* OD-INT-9 — the parent-task picker. Options already exclude the task itself and
+              all of its descendants (the cycle guard), so an invalid choice can't be selected
+              at all. Hidden when there's nothing eligible to pick (e.g. the project's only
+              task), mirroring the Milestone field's gating above. */}
+          {parentOptions.length > 0 && (
+            <Combobox
+              label="Parent task"
+              value={parentTaskId}
+              selectedOption={selectedParent}
+              loadOptions={async () => parentOptions}
+              onChange={(v) => setParentTaskId(v || null)}
+              placeholder="No parent (top-level)"
+              searchPlaceholder="Search tasks…"
+              noun="task"
+            />
+          )}
+          {/* OD-INT-9 — Description. Multi-line (the shared TextArea primitive), full-width so the
+              textarea gets the room a scope/notes field needs. Uses the existing FieldShell a11y
+              (visible label + aria wiring) — no ad-hoc styling. */}
+          <TextArea
+            id={descriptionField.id}
+            label="Description"
+            value={descriptionField.value}
+            onChange={descriptionField.onChange}
+            onBlur={descriptionField.onBlur}
+            placeholder="Add scope, notes, or acceptance criteria…"
+            fullWidth
+          />
         </FormGrid>
         {profilesError && (
           <p className="mt-1 text-[12px] text-muted-foreground">
@@ -779,7 +923,9 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
 interface MilestoneGroupedListProps {
   milestones: MilestoneWithProgress[];
   tasks: TaskWithRefs[];
-  columns: Column<TaskWithRefs>[];
+  /** OD-INT-9 — a factory, not a static array: each milestone group needs columns bound to
+   *  ITS OWN depth map (a subtask can land in a different group than its parent). */
+  buildColumns: (depths: Map<string, number>) => Column<TaskWithRefs>[];
   canCreate: boolean;
   canRowWrite: boolean;
   rowMenu: (t: TaskWithRefs) => RowMenuItem[];
@@ -795,7 +941,7 @@ interface MilestoneGroupedListProps {
 const MilestoneGroupedList: React.FC<MilestoneGroupedListProps> = ({
   milestones,
   tasks,
-  columns,
+  buildColumns,
   canCreate,
   canRowWrite,
   rowMenu,
@@ -824,6 +970,13 @@ const MilestoneGroupedList: React.FC<MilestoneGroupedListProps> = ({
   const renderGroup = (ms: MilestoneWithProgress | null, groupTasks: TaskWithRefs[]) => {
     const sectionLabel = ms ? ms.name : 'Ungrouped';
     const isUngrouped = ms === null;
+    // OD-INT-9 (AC-SUB-UI-004) — order + depth are computed PER GROUP. A subtask whose parent
+    // sits in a different milestone group is not present in `groupTasks`, so
+    // buildTaskRenderOrder treats it as an orphan root (depth 0): it still renders in its OWN
+    // group — never silently dropped — just without indentation (its parent isn't in view here).
+    const order = buildTaskRenderOrder(groupTasks);
+    const rows = order.map((n) => n.task);
+    const depths = new Map(order.map((n) => [n.task.id, n.depth]));
     return (
       <section
         key={ms?.id ?? 'ungrouped'}
@@ -855,8 +1008,8 @@ const MilestoneGroupedList: React.FC<MilestoneGroupedListProps> = ({
         </div>
         {groupTasks.length > 0 ? (
           <DataTable<TaskWithRefs>
-            rows={groupTasks}
-            columns={columns}
+            rows={rows}
+            columns={buildColumns(depths)}
             rowKey={(t) => t.id}
             rowMenu={canRowWrite ? rowMenu : undefined}
             onActivate={onActivate}

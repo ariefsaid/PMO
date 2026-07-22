@@ -14,9 +14,14 @@
  * - pull-adopt: PMO project must have no tasks
  * - MIXED (both non-empty) → 409 'action-required'
  *
+ * ClickUp status/member maps (OD-INT-10): built through the SAME shared builders as clickup-onboard
+ * (`statusMapBuilder.ts`/`memberMap.ts`) — the two link paths must never drift apart again. A List
+ * whose statuses cannot cover all four PMO task_status values is rejected with 422 CONFIG_REJECTED
+ * before anything is persisted; the member map is a best-effort email join and never blocks the link.
+ *
  * On success (ClickUp): inserts external_project_bindings row with
  *   org_id, project_id, external_tier='clickup', external_container_id=listId,
- *   config={direction, statusMap:{}, memberMap:{}}, linked_by=sub, linked_at=now()
+ *   config={direction, statusMap, memberMap}, linked_by=sub, linked_at=now()
  *   Emits audit event 'integration.link'
  *
  * On success (ERPNext): updates external_org_bindings.config.company = companyId
@@ -27,7 +32,7 @@
  * - 403: role gate failed
  * - 404: project not found / binding not found / List not found
  * - 409: mixed content (ClickUp direction rejection)
- * - 422: validation failed
+ * - 422: validation failed (incl. an incomplete ClickUp status map, OD-INT-10)
  * - 500: internal/upstream error
  */
 
@@ -39,6 +44,15 @@ import {
   type JwksResolver,
 } from '../../../pmo-portal/src/lib/auth/verifyCallerJwt.ts';
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
+import {
+  buildClickUpStatusMap,
+  statusMapCoversAllPmoStatuses,
+  type ClickUpListStatus,
+} from '../../../pmo-portal/src/lib/adapterSeam/clickup/statusMapBuilder.ts';
+import {
+  buildClickUpMemberMap,
+  type ClickUpMemberMap,
+} from '../../../pmo-portal/src/lib/adapterSeam/clickup/memberMap.ts';
 
 interface LinkBody {
   tier: 'clickup' | 'erpnext';
@@ -108,10 +122,24 @@ interface ClickUpDeps {
   baseUrl?: string;
 }
 
-/** Get ClickUp List task count (page=0 to check if empty). */
+/**
+ * Get ClickUp List task count (page=0 to check if empty).
+ *
+ * `GET /list/{id}/task` excludes closed, subtasks, archived, and multi-list tasks by DEFAULT — without
+ * these flags a List holding only closed/archived (or only-subtask) items reads as EMPTY, so push-seed
+ * would proceed to seed into a List that is not actually empty. Count with the SAME full filter set the
+ * sweep reads use (`reads.ts`'s `buildListQuery`) so emptiness here means the same thing it means there.
+ */
 async function getListTaskCount(deps: ClickUpDeps, listId: string): Promise<number> {
   const baseUrl = deps.baseUrl ?? 'https://api.clickup.com/api/v2';
-  const res = await deps.fetchImpl(`${baseUrl}/list/${listId}/task?page=0`, {
+  const query = new URLSearchParams({
+    page: '0',
+    include_closed: 'true',
+    subtasks: 'true',
+    archived: 'true',
+    include_timl: 'true',
+  });
+  const res = await deps.fetchImpl(`${baseUrl}/list/${listId}/task?${query.toString()}`, {
     headers: { Authorization: `Bearer ${deps.token}` },
   });
   if (!res.ok) {
@@ -122,8 +150,13 @@ async function getListTaskCount(deps: ClickUpDeps, listId: string): Promise<numb
   return data.tasks?.length ?? 0;
 }
 
-/** Verify List exists and get its name. */
-async function verifyListExists(deps: ClickUpDeps, listId: string): Promise<string | null> {
+interface ClickUpListDetails {
+  name: string;
+  statuses: ClickUpListStatus[];
+}
+
+/** Verify List exists and get its name + configured statuses (statuses feed the status-map builder). */
+async function getListDetails(deps: ClickUpDeps, listId: string): Promise<ClickUpListDetails | null> {
   const baseUrl = deps.baseUrl ?? 'https://api.clickup.com/api/v2';
   const res = await deps.fetchImpl(`${baseUrl}/list/${listId}`, {
     headers: { Authorization: `Bearer ${deps.token}` },
@@ -132,8 +165,54 @@ async function verifyListExists(deps: ClickUpDeps, listId: string): Promise<stri
     if (res.status === 404) return null;
     throw new AppError('Failed to verify ClickUp list', 'external-unreachable');
   }
-  const data = (await res.json()) as { name: string };
-  return data.name;
+  const data = (await res.json()) as { name: string; statuses?: ClickUpListStatus[] };
+  return { name: data.name, statuses: data.statuses ?? [] };
+}
+
+/** Get the List's members (best-effort input to the member-map join — OD-INT-10 §4). */
+async function getListMembers(deps: ClickUpDeps, listId: string): Promise<Array<{ id: number; email?: string }>> {
+  const baseUrl = deps.baseUrl ?? 'https://api.clickup.com/api/v2';
+  const res = await deps.fetchImpl(`${baseUrl}/list/${listId}/member`, {
+    headers: { Authorization: `Bearer ${deps.token}` },
+  });
+  if (!res.ok) {
+    throw new AppError('Failed to fetch ClickUp list members', 'external-unreachable');
+  }
+  const data = (await res.json()) as { members?: Array<{ id: number; email?: string }> };
+  return data.members ?? [];
+}
+
+/**
+ * Build the per-project member map (OD-INT-10 §4): join PMO profiles to ClickUp List members by
+ * email. Best-effort and NEVER blocks the link — a fetch failure, or a List with no members yet,
+ * simply degrades to an empty map (unmapped assignees are the routine, non-fatal case already
+ * handled by toClickUpAssignee/fromClickUpAssignee).
+ */
+async function buildProjectMemberMap(
+  deps: ClickUpDeps,
+  serviceClient: SupabaseClient,
+  orgId: string,
+  listId: string,
+): Promise<ClickUpMemberMap> {
+  const empty: ClickUpMemberMap = { pmoToClickUp: {}, clickUpToPmo: {} };
+  try {
+    const rawMembers = await getListMembers(deps, listId);
+    const clickUpMembers = rawMembers.filter(
+      (m): m is { id: number; email: string } => typeof m.email === 'string' && m.email.length > 0,
+    );
+    if (clickUpMembers.length === 0) return empty;
+
+    const { data: profiles, error } = await serviceClient.from('profiles').select('id, email').eq('org_id', orgId);
+    if (error || !profiles) {
+      console.error('member-map profiles lookup failed (non-fatal, linking continues)', error);
+      return empty;
+    }
+
+    return buildClickUpMemberMap(profiles as Array<{ id: string; email: string }>, clickUpMembers);
+  } catch (err) {
+    console.error('ClickUp member map build failed (non-fatal, linking continues)', err);
+    return empty;
+  }
 }
 
 /** Get PMO project task count. */
@@ -152,7 +231,8 @@ async function getPmoTaskCount(
   return count ?? 0;
 }
 
-/** Validate ClickUp link direction rules. */
+/** Validate ClickUp link direction rules. Returns the List's configured statuses (feeds the
+ *  status-map builder) so the caller doesn't need a second `GET /list/{id}`. */
 async function validateClickUpLinkDirection(
   deps: ClickUpDeps,
   serviceClient: SupabaseClient,
@@ -160,10 +240,10 @@ async function validateClickUpLinkDirection(
   projectId: string,
   listId: string,
   direction: 'push-seed' | 'pull-adopt',
-): Promise<void> {
+): Promise<{ statuses: ClickUpListStatus[] }> {
   // Verify List exists
-  const listName = await verifyListExists(deps, listId);
-  if (!listName) {
+  const list = await getListDetails(deps, listId);
+  if (!list) {
     throw new AppError('ClickUp List not found', 'NOT_FOUND');
   }
 
@@ -196,6 +276,8 @@ async function validateClickUpLinkDirection(
       );
     }
   }
+
+  return { statuses: list.statuses };
 }
 
 // ============================================================================
@@ -420,10 +502,19 @@ export async function handleLinkRequest(req: Request): Promise<Response> {
       return errorResponse('ClickUp credentials not found in Vault', 'CONFIG_REJECTED', 422);
     }
 
-    // Validate direction rules
+    // Validate direction rules (also returns the List's configured statuses for the map builder)
     const clickUpDeps: ClickUpDeps = { fetchImpl: fetch, token: token as string };
+    let listStatuses: ClickUpListStatus[];
     try {
-      await validateClickUpLinkDirection(clickUpDeps, serviceClient, profile.org_id, projectId, listId, direction);
+      const result = await validateClickUpLinkDirection(
+        clickUpDeps,
+        serviceClient,
+        profile.org_id,
+        projectId,
+        listId,
+        direction,
+      );
+      listStatuses = result.statuses;
     } catch (err) {
       if (err instanceof AppError) {
         // Map the thrown AppError code to this fn's documented contract (see the header comment):
@@ -435,6 +526,26 @@ export async function handleLinkRequest(req: Request): Promise<Response> {
       }
       return errorResponse('Direction validation failed', 'CONFIG_REJECTED', 422);
     }
+
+    // OD-INT-10: build + reject an incomplete binding BEFORE persisting — a status map that does
+    // not cover every PMO status (To Do, In Progress, Done, Blocked) fails outbound writes on the
+    // first task and silently corrupts inbound delivery reporting (delivery_pct/S-curve read off
+    // status='Done'). This is a config problem with the List's status setup, not the mixed-content
+    // "choose a direction" case (409 action-required above) — so it is a 422, matching every other
+    // "the caller's input can't be honoured as configured" path in this function (e.g. the ERPNext
+    // branch below).
+    const statusMap = buildClickUpStatusMap(listStatuses);
+    if (!statusMapCoversAllPmoStatuses(statusMap)) {
+      return errorResponse(
+        'ClickUp List cannot represent every PMO task status (To Do, In Progress, Done, Blocked) — ' +
+          'add a status of each needed type in ClickUp before linking this List',
+        'CONFIG_REJECTED',
+        422,
+      );
+    }
+
+    // Best-effort member map (FR-CUA-013, OD-INT-10 §4): never blocks the link.
+    const memberMap = await buildProjectMemberMap(clickUpDeps, serviceClient, profile.org_id, listId);
 
     // Pre-insert check: prevent linking a List that's already actively bound to another project
     const { data: existingBinding, error: existingError } = await serviceClient
@@ -469,8 +580,8 @@ export async function handleLinkRequest(req: Request): Promise<Response> {
         external_container_id: listId,
         config: {
           direction,
-          statusMap: {},
-          memberMap: {},
+          statusMap,
+          memberMap,
         },
         linked_by: userId,
         linked_at: new Date().toISOString(),

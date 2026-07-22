@@ -174,11 +174,17 @@ export function buildGanttModel(
   todayIso: string,
   config?: GanttLayoutConfig,
 ): GanttModel {
+  // OD-INT-9 subtask rollup rule: subtasks (parent_task_id != null) never render on the Gantt —
+  // they nest under their parent in the LIST view. Filter them once, up-front, so they cannot become
+  // bars, undated footer entries, or axis-span-extending dates, and cannot anchor/resolve dependency
+  // edges (all downstream loops iterate `datedTasks`/`undated`, never raw `tasks`).
+  const topLevel = tasks.filter((t) => t.parent_task_id == null && t.archived_at == null);
+
   // Classify tasks
   const datedTasks: TaskWithRefs[] = [];
   const undated: { id: string; name: string }[] = [];
 
-  for (const t of tasks) {
+  for (const t of topLevel) {
     if (t.start_date || t.end_date) {
       datedTasks.push(t);
     } else {

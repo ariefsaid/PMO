@@ -84,8 +84,8 @@ describe('can() — RBAC matrix (ADR-0016, rbac-visibility.md §K)', () => {
     expect(allowedRoles('archive', 'company')).toEqual(['Admin', 'Executive']);
   });
 
-  it('ADR-0016: archive task = Admin·Exec·PM', () => {
-    expect(allowedRoles('archive', 'task')).toEqual(['Admin', 'Executive', 'Project Manager']);
+  it('ADR-0016: archive task = Admin·Exec·PM·Finance', () => {
+    expect(allowedRoles('archive', 'task')).toEqual(['Admin', 'Executive', 'Project Manager', 'Finance']);
   });
 
   // ── delete (hard) ────────────────────────────────────────────────────────

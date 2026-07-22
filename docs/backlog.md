@@ -56,12 +56,60 @@ Owner rulings: `decisions.md` **OD-SAR-GATES · OD-SAR-PMO-IS-THE-UI · OD-SAR-D
   contaminated read; concurrent heavy dispatches + sibling agents' MCPs + Docker → OOM risk).
 
 ### ⚑⚑ ADAPTER PROGRAM — P2 ERPNext money core ✅ MERGED to dev (#315 squash `b549d06`, 2026-07-14)
-### ⚑⚑ M365 INTEGRATION (2026-07-17) — Phase-0 + Phase-1 token custody BUILT, 4-round security-hardened, PR #333 → `dev` (NOT merged)
-Branch `claude/microsoft-teams-onedrive-integration-f656rx` (worktree `pmo-backend-ig-audit-c393d3`), **PR #333
-retargeted to `dev`** (the old `feat/m365-integration` collector was a stale no-op — 0 commits ahead of dev —
-and is abandoned; delete it). Vision `docs/microsoft-365-integration.md`; ADR-0058/0059/0060; specs
-`docs/specs/m365-phase0-foundation.spec.md` + `m365-phase1-graph-token-custody.spec.md`; plans
-`docs/plans/2026-07-14-m365-phase0-foundation.md` + `2026-07-15-m365-phase1-token-custody.md`.
+### ⚑⚑ M365 INTEGRATION — RESUME HERE (2026-07-22) — ✅ MERGED to `dev`; dark code, live connect is the next gate
+
+> **📌 RESUME HERE — cold-start block. A new agent needs nothing but this.**
+>
+> **State:** everything is **merged to `dev`** and green. There is **no in-flight M365 branch or worktree** —
+> nothing half-done to recover. Read the doc-map table below in order.
+>
+> **Your FIRST action depends on whether the owner has provisioned Microsoft yet:**
+> - **NOT provisioned** (the case as of 2026-07-22) → **do NOT start OneDrive doc-linking.** It is specified
+>   but its build is gated on one proven live connection (TBD-1). If you want progress without secrets, the
+>   only genuinely unblocked work is polish/hardening on what exists — check with the owner first.
+> - **Provisioned** → deploy the fn, prove ONE live connect end-to-end, then run the ADR-0060 live
+>   `security-auditor` gate, *then* build doc-linking.
+>
+> **Prove the surface still works before you change anything** (all four; the machine is shared, so wrap DB
+> work in the lock and chain reset+test as ONE hold):
+> ```
+> scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db'   # expect Result: PASS
+> bash scripts/m365-race-probe.sh        # expect: TOCTOU CLOSED in BOTH interleavings
+> bash scripts/m365-deadlock-probe.sh    # expect: legacy REPRODUCED + fixed RESOLVED, both targets
+> cd pmo-portal && npm run verify        # full suite + build
+> ```
+> ⚠️ If the Supabase stack wedges, `supabase stop` then
+> `supabase start -x vector,imgproxy,studio,realtime,logflare,supavisor`.
+> ⚠️ Unrelated tests failing on **5s timeouts** are almost certainly another worktree running vitest
+> concurrently — re-run the named failures in isolation before believing them (backlog track **T2**).
+>
+> **Do NOT touch** (other agents' live work as of 2026-07-22): the ERPNext P3 branch, `feat/task-model-fields`,
+> PR #346, and the ~15 `agent-*`/`wf_*` worktrees. M365 owns only `supabase/functions/m365-token-custody/`,
+> `pmo-portal/src/lib/m365/`, `components/integrations/`, migrations `0106–0117`, pgTAP `0144–0154`, and
+> `scripts/m365-*-probe.sh`.
+>
+> **Before you touch the write-guard, the cascade, or the lock order:** the two probes are NOT optional and
+> pgTAP cannot replace them (it runs in a single transaction and cannot express a two-session race).
+
+**Status in one line: the whole backend + the connect UI are on `dev` and green, but the runtime has NEVER
+talked to Microsoft — nothing is user-visible until an Operator entitles an org AND the edge fn is deployed
+with live secrets.**
+
+**Doc map (every M365 doc, so none orphan — read in this order):**
+| Doc | What it is |
+|---|---|
+| [`docs/microsoft-365-integration.md`](microsoft-365-integration.md) | The vision / capability map. Start here. |
+| [ADR-0058 *(m365 variant)*](adr/0058-microsoft-365-integration-architecture.md) | Integration architecture (auth≠authz, two-switch, Graph-follows-ADR-0055) |
+| [ADR-0059 *(entra variant)*](adr/0059-entra-app-registration-topology.md) | Entra app topology — **Option C**, per-client app in the vendor tenant |
+| [ADR-0060](adr/0060-microsoft-graph-token-custody.md) | The 10 binding token-custody controls + the mandatory live security gate |
+| [Phase-0 spec](specs/m365-phase0-foundation.spec.md) · [plan](plans/2026-07-14-m365-phase0-foundation.md) | SSO + entitlement + the card |
+| [Phase-1 spec](specs/m365-phase1-graph-token-custody.spec.md) · [plan](plans/2026-07-15-m365-phase1-token-custody.md) | The token-custody runtime |
+| [**OneDrive doc-linking spec**](specs/m365-onedrive-doc-linking.spec.md) | ⏸️ **NOT BUILT** — the next feature; 22 ACs, `AC-M365DOC-0xx` |
+| [Security audit record](spikes/2026-07-15-m365-phase1-security-audit.md) | All 4 adversarial rounds, verbatim |
+
+**Shipped (merged to `dev`):** PR **#333** (Phase-0 + Phase-1 custody) · **#337** (connect wiring +
+`connection_status`). Branches/collector deleted. Migrations **`0106–0117`**, pgTAP **`0144–0154`**, edge fn
+`supabase/functions/m365-token-custody/`, FE `pmo-portal/src/lib/m365/` + `components/integrations/`.
 - **✅ Phase-0** — Sign in with Microsoft (`azure` OAuth; auth-only, authz stays invited-`profiles`+RLS),
   provisioning hardening (graceful not-provisioned state), `m365_integration` entitlement (Operator switch,
   default-off) + `M365ConnectionCard` (two-switch gate, disabled stub). Battery green (spec APPROVE ·
@@ -93,13 +141,59 @@ and is abandoned; delete it). Vision `docs/microsoft-365-integration.md`; ADR-00
   `ls supabase/migrations | sed -E 's/^([0-9]{4})_.*/\1/' | sort | uniq -d` before merging any branch that
   adds migrations.** Cross-refs rewritten in M365 files only; non-M365 refs (0064/0070/0075/0076/0079/0080)
   + the 32 `AC-M365-1xx` ids verified untouched; `docs/spikes/` deliberately left as the historical record.
-- **⏸️ Owner-gated (NOT done):** live deploy — KEK (`M365_TOKEN_KEK`), `M365_CLIENT_SECRET`/`_ID`/`_TENANT_ID`
-  (a concrete tenant GUID; `common`/`organizations` unsupported), the allowlisted redirect URI, Entra
-  delegated scopes (`Files.Read`+`offline_access`+`openid`+`profile`) w/ admin consent, and a
-  `security-auditor` pass on the LIVE flow (ADR-0060 mandatory gate). FE Connect-button wiring is deferred to
-  that step (wiring a non-deployed fn = a broken affordance). **Residual (owner-accepted):** the FIRST connect
-  is still phishable within-tenant; TOFU bounds it to one event.
-- **Next:** OneDrive doc-linking UI = a SEPARATE downstream spec consuming this runtime (vision §3.2).
+- **✅ Connect UI wired (#337)** — `M365ConnectionCard` is no longer a stub: Connect → `initiate_connect` →
+  **top-level** redirect to Microsoft consent → callback consumed once + query-param cleared → Disconnect
+  behind a destructive `ConfirmDialog`; the whole `M365ErrorCode` taxonomy mapped to human copy; in-flight
+  guard; **no token/`oid`/raw error ever reaches the DOM**. Client transport `src/lib/m365/connectClient.ts`.
+- **✅ `connection_status` action (#337)** — wiring exposed a real defect: `ms_graph_connections` is RLS-forced
+  with ZERO client policies (by design), so the browser could never learn a connection existed and a connected
+  user was permanently shown "Not connected". Added a **read-only** action reusing the identical gate chain
+  (verifyCallerJwt → RLS-scoped org → real-JWT Admin → entitlement), own-row scoped, **explicit column
+  allowlist** `status, connected_at, last_refresh_at, scopes` — ciphertext/`key_id`/`oid`/tenant are never even
+  *read from the DB*, so a future schema column cannot leak by default. No writes, no RPCs, **no locks** (so it
+  cannot perturb the global lock order).
+
+#### ⏸️ TBD — what is NOT done, in dependency order
+1. **Live deploy + ONE proven connection (OWNER-GATED — the real next gate).** Needs: KEK `M365_TOKEN_KEK`;
+   `M365_CLIENT_SECRET`/`_ID`/`_TENANT_ID` — **a concrete tenant GUID** (`common`/`organizations` are
+   unsupported: the callback asserts `id_token.tid === M365_TENANT_ID`, which a wildcard value can never
+   satisfy); the allowlisted redirect URI; Entra delegated scopes `Files.Read`+`offline_access`+`openid`+
+   `profile` with **admin consent**; then `supabase functions deploy m365-token-custody`.
+   **Director recommendation (2026-07-22):** do NOT use a real client's tenant for the first connect. Use an
+   own tenant — an EMPTY one first (proves the mechanics with nothing to damage), then a client-*like* one
+   (real files/permissions/admin-consent = where the real surprises are). ADR-0059 Option C gives every client
+   its own app registration, so testing in one tenant commits nothing to another.
+2. **`security-auditor` pass on the LIVE flow** — ADR-0060 mandatory gate, distinct from the 4 code rounds.
+3. **OneDrive doc-linking** — [spec written, NOT built](specs/m365-onedrive-doc-linking.spec.md). **Build should
+   follow (1)**: it consumes a runtime that has never spoken to Microsoft, so a wrong assumption there reworks
+   both layers.
+4. Later (vision §3.3+): Teams, Outlook/Calendar, in-app browse/preview, Entra-group→role provisioning.
+
+#### ⚑ GOTCHAS — hard-won, do not rediscover
+- **The runtime has NEVER contacted Microsoft.** Every Phase-1 test mocks `fetch`. 4 security rounds + 1,600
+  pgTAP + 5,400 unit tests prove the custody *model* (encryption, RLS, races, deadlocks, lifecycle deletion) —
+  they prove **nothing** about real consent screens, real token payloads, or Graph behaviour. Expect
+  first-live-connect surprises; that is normal and is exactly what gate (1) buys.
+- **`common`/`organizations` will silently never work** — see TBD-1. Use a concrete tenant GUID.
+- **Tests alone would have shipped every one of the 4 security defects** (two Criticals, a reproduced deadlock,
+  and a wrong "deadlock-free" claim by the Director). They ALL passed the happy-path pgTAP *and* the full
+  verify. Adversarial review is what caught them — budget for it on any security-critical surface.
+- **A green "mergeable" does NOT catch duplicate migration numbers** (git compares filenames). Bit this
+  program **twice**. See backlog track **T1** for the proposed CI gate.
+- **A linked OneDrive doc will be a URL, not a token-mediated stream** — Microsoft stays the permission
+  authority, so a linked row must stay visible even when the connection is stale/revoked (spec §3.4).
+- **Our scope gate permitting a Graph path ≠ Microsoft granting it.** `scopeCoversPath` allows GET under
+  `/me/drive`,`/drives`,`/sites` with `Files.Read`; SharePoint libraries still need admin-consented
+  `Files.Read.All`/`Sites.Read.All` or Microsoft 403s (surfaced as `GRAPH_ERROR`).
+- **Two probes exist and must stay green** — `scripts/m365-{race,deadlock}-probe.sh` are two-session concurrency
+  probes with fail-before/pass-after semantics. pgTAP runs in ONE transaction and **cannot** express these races;
+  if you touch the write-guard, the cascade, or the lock order, run the probes, not just the suite.
+- **⚠️ ADR NUMBER COLLISION (debt, not M365-specific):** three ADRs are numbered **0059**
+  (`entra-app-registration-topology`, `external-admin-connect`, `pmo-sot-with-external-side-mirror`) and two are
+  **0058** (`microsoft-365-integration-architecture`, `erpnext-money-idempotency-outbox`) — same root cause as
+  the migration collisions (parallel agents numbering off stale bases). So a bare "ADR-0059" is **ambiguous**;
+  always cite ADRs by *filename* in M365 docs. NOT renumbered here: 0058 is cited in ~55 files and 0059 in ~21,
+  spanning other programs' work — that is an owner-level call, not a side effect of an M365 doc pass.
 
 ### ⚑ H4 GRANTS HARDENING (2026-07-16) — separate branch `fix/revoke-client-truncate-grants` (off `dev`), NOT pushed/PR'd
 Spun out of the M365 Luna audit. Commits `57957091` (Tier 1) + `246be744` (Tier 2). **Root cause was bigger than
@@ -153,50 +247,36 @@ Plan + prod runbook: [`docs/plans/2026-07-12-jwt-signing-keys.md`](plans/2026-07
   cron `0094` idle until Vault secrets (`clickup_sweep_url`/`clickup_sweep_secret`) + fn env set;
   (3) PostHog events need `POSTHOG_PROJECT_KEY` in prod.
 
-### ⚑⚑ IN FLIGHT (2026-07-20) — EXTERNAL-SYSTEM ADMIN-CONNECT layer (ClickUp + ERPNext)
+### ✅ COMPLETE ON `dev` (2026-07-22) — ClickUp integration + integration enablement
 > **COLD-CONTEXT? START HERE →** [`docs/plans/2026-07-20-clickup-integration-completion.md`](plans/2026-07-20-clickup-integration-completion.md)
-> — what's built vs *assumed*, the 6 user journeys that must work, the ordered remaining work, the
-> ClickUp/local-DB test-fixture rules (OD-INT-8), and the traps that already cost time.
-> Live-smoke evidence: [`docs/spikes/2026-07-17-clickup-live-smoke.md`](spikes/2026-07-17-clickup-live-smoke.md).
-**Status: P1 + P2 + P3 + P4 BUILT, reviewed, and HELD on PR #332** (branch `feat/external-admin-connect` off
-`dev` — **do NOT merge**; owner holds all PRs while other agents share `dev`). P4 (health/observability) DONE. **`EXTERNAL_CONNECT_ENABLED` is OFF everywhere — nothing is live for
-users.** ClickUp read wire-shapes are live-verified; **writes + webhook envelope are NOT** (see the
-completion plan §3).
-- **P1** per-org Vault `secret_ref` model (reader/writer/delete RPCs actor-keyed; resolvers +
-  `_shared/perOrgSecret.ts` tri-state fail-closed; 6 edge fns flag-gated `EXTERNAL_CONNECT_ENABLED`,
-  default off = byte-for-byte legacy). Security battery + re-review: **all findings CLOSED**.
-- **P2** org Connect/Disconnect (`external-connect`/`external-disconnect`, `0120
-  admin_change_domain_ownership` definer RPC actor-keyed, `integration` policy entity, CI-safe `0119`
-  ClickUp-adopt, admin Connect UI + `useIntegrations`). Full battery incl. **rendered design-review**.
-- **P3** project Link/Unlink (`external-lists`/`external-link`/`external-unlink`, `0121` audit cols,
-  `0122` audit-grant + org-scoped active-container unique index, repo/hook, project card).
-**Locked decisions: `docs/decisions.md` OD-INT-1..7** (admin self-serve · personal-token/API-key v1 ·
+> Current enablement authority: ADR-0061 + [`docs/specs/integration-enablement-model.spec.md`](specs/integration-enablement-model.spec.md).
+> Live-smoke evidence remains in [`docs/spikes/2026-07-17-clickup-live-smoke.md`](spikes/2026-07-17-clickup-live-smoke.md).
+
+The program is merged to `dev` through **PRs #353–#358**. The task feature is complete for every task
+column reachable from the UI without requiring ClickUp: description and priority (#350), subtasks,
+archive and delivery-rollup exclusion (#352), plus project-aware ownership and routing.
+
+`EXTERNAL_CONNECT_ENABLED` is **default-ON**, not a rollout flag. Unset, empty, and unrecognised values
+are enabled; trimmed case-insensitive `false|0|off|no|disabled` disables. It is an operator break-glass
+for ClickUp and ERPNext. Per-org active bindings and Vault credentials are the enablement authority, so
+production's unset variable does not mean the integration is inert and there is no flag-flip step.
+Ownership follows `project_domain_externally_owned` (migration `0146`): mixed ClickUp-owned and PMO-native
+projects are supported. An unbound List cannot leak tasks into PMO; zero active bindings is healthy/inert.
+**Locked decisions: `docs/decisions.md` OD-INT-1..13** (admin self-serve · personal-token/API-key v1 ·
 **Vault-backed `secret_ref`** · one tier-generic layer · sequenced after #315 · **OD-INT-6 ERPNext Company
-selected at ORG level** · **OD-INT-7 project↔List link is PROJECT-SCOPED to the owning active PM**).
+selected at ORG level** · **OD-INT-7 project↔List link is PROJECT-SCOPED to the owning active PM** ·
+**OD-INT-13 status map round 3 — pmo-only outcomes with Blocked defaulting to pmo-only**).
 
-**⚑ Tracked gaps — decided/known, deliberately NOT built (do not rediscover):**
-1. **Per-org ClickUp webhook secret** — `external_org_bindings.webhook_secret_ref` exists (mig 0096) but
-   **nothing writes it**; `clickup-webhook` still verifies with the global `CLICKUP_WEBHOOK_SECRET` env.
-   (This was plan task 1.7, reverted in P1 — a per-org webhook secret needs an **org-in-URL** design
-   because you cannot parse-before-verify without moving the HMAC trust boundary.) **Blocks multi-org
-   ClickUp.**
-2. **ERPNext multi-domain ownership flip is undefined** — ERPNext owns *several* capability domains
-   (companies/procurement/sales/accounting…) but `operator_set_domain_ownership` takes **one** domain per
-   call; the ERPNext connect flow never enumerates which domains to flip.
-3. **Per-project ERPNext Project link** — ADR-0055-endorsed but **premature**; prerequisites in the
-   OD-INT-4 forward-note (mirror `project_id` · snapshot project-scope · rename reconciliation).
-4. **`ledgerFetch` fails silent on missing Company** — `['company','=',null]` returns zero rows with no
-   error/alert; should fail loud (OD-INT-6).
-5. **Deeper extracted-handler tests** for the connect/disconnect edge fns (P2 Important; code is correct
-   and pgTAP-proven, tests are mock-level).
+**Still open:**
+1. Promote `dev` → `main` (117 commits); only PR→`main` runs integration (pgTAP + full e2e + visual),
+   and this work has only used the verify-only fast lane so far.
+2. Promote `main` → `production`, owner-gated per instance; this is the deployment, not a flag flip.
+3. Correct the owning layer for `AC-IEM-004` and `AC-IEM-007` (specified curated e2e, implemented lower).
+4. Add read-only per-status mapping visibility/override to the binding map (OD-INT-13; auto-derivation is
+   correct, so this is a transparency gap).
+5. Per-org webhook secret remains deliberately deferred for single-org scope (OD-INT-14 / ADR-0047).
 
-Full scope + phases + #315
-alignment: [`docs/plans/2026-07-13-clickup-admin-integration-flow.md`](plans/2026-07-13-clickup-admin-integration-flow.md).
-Key alignment: #315 (ERPNext P2) has the right table (`external_org_bindings`) + a clean credential seam
-but resolves creds from **function secrets** (operator-only) — the self-serve layer swaps that to **Vault**
-for both tiers, and ClickUp adopts `external_org_bindings`. The in-flight #315 agent is NOT handed this —
-it lands ERPNext P2 as-is + gets two coordination notes (keep `credentials.ts` seam clean; confirm
-`external_org_bindings` shared). Then Director orchestrates this as its own spec → plan → PRs.
+Historical design and phase details remain in [`docs/plans/2026-07-13-clickup-admin-integration-flow.md`](plans/2026-07-13-clickup-admin-integration-flow.md); they are not the current completion status.
 
 ### ⚑ prior program block (2026-07-10) — P0 seam SHIPPED to dev; P1 ClickUp shipped (#307)
 - **✅ P0 external-adapter seam MERGED to `dev`** (PR #299, `2cbacd5`; ADR-0055): migrations
@@ -870,6 +950,97 @@ Role work via the **pi CLI** (`docs/pi-delegation.md`) or Task subagents.
   header Edit button; "No deals in <stage>" → "No projects" copy leak.
 - **Pre-existing TZ flake** [Low, known]: `src/lib/db/procurementLifecycle.test.ts` AC-803 fails under a behind-UTC TZ
   (e.g. UTC-8 local); passes in CI/UTC. Fix: use UTC-fixed date construction in the test.
+
+### ⚑ TEST + BRANCH INFRA UNDER PARALLEL AGENTS (2026-07-22, Director — evidence from the M365 session)
+**Why this is its own track:** the repo went from a handful of worktrees to **~15 concurrent agent worktrees**
+during one session. Every item below cost real time, produced a *false* signal (a green that lied or a red that
+lied), and **will recur** — they are all consequences of parallelism, not of any one branch. Ordered by how
+badly each misleads.
+
+> **STATUS 2026-07-22 (branch `chore/test-infra-parallelism`).** Shipped: **T1 complete**
+> (`check-migration-collisions.sh` CI gate already existed; **`scripts/renumber-migration.sh`** added —
+> auto-rewrites filename-form refs, **hard-fails if the sweep silently no-ops**, lists bare-form refs for
+> manual review rather than corrupting unrelated 4-digit numbers) · **T2** (**`scripts/with-test-lock.sh`** —
+> a machine-global lock so only one full vitest suite runs at a time; the three lock wrappers now share
+> **`scripts/lib/flock-run.sh`** instead of being three copies, with a documented **`erpnext → db → test`**
+> acquisition order) · **T4** (**`scripts/supabase-start-lean.sh`**) · **T3 mitigation only** — the chained
+> one-hold recipe is now the documented default in CLAUDE.md.
+> Proof: `node --test scripts/parallel-infra.test.mjs` (8 tests), **mutation-checked in both directions** —
+> swapping `LOCK_EX`→`LOCK_SH` makes the serialisation test interleave, and sabotaging the sed sweep makes
+> the renumber guard fail.
+>
+> **STILL OPEN — T3's real fix: give each worktree its OWN database** (per-worktree Supabase port/project id).
+> The lock only *serialises* access to one shared Postgres; it cannot stop schema drift between two agents'
+> resets. That single change retires T3 outright and takes most of T2's pressure with it. Deliberately out of
+> scope here — it is an environment change affecting every agent at once.
+> **T5/T6 stay as written**: they are judgement lessons (verify-by-content-diff; the zsh no-op sweep) — though
+> T6's trap is now encoded in `renumber-migration.sh` rather than left to memory.
+>
+> **Cross-family review (gpt-5.6-luna, `--thinking max`, 2026-07-22) — no Criticals; 3 confirmed defects FIXED:**
+> (a) the sweep matched the bare prefix `NNNN_`, so renumbering migration 0052 would have rewritten **7
+> unrelated `supabase/tests/0052_*.test.sql`** references — prefix reuse in pgTAP is *deliberate and tolerated*.
+> It now matches the full basename `NNNN_<slug>`. (b) `git mv` staged the rename while the `sed` edits stayed
+> **unstaged**, so a plain `git commit` shipped a half-applied renumber; everything is staged now. (c)
+> `supabase-start-lean.sh` was committed non-executable. Both (a) and (b) have regression tests, each
+> mutation-checked. Also: the documented lock order was **flipped to `erpnext → db → test`** to match the live
+> P3c runbooks, which already nest erpnext outermost — a documented order that contradicts real call sites is a
+> deadlock waiting to happen. The infra tests now run in CI's `verify` job.
+>
+> **Accepted / still open from that review:** bare `npm run verify` stays lock-free (CI is a single dedicated
+> runner); **`npm run verify:locked` is the shared-machine entry point**, so the lock is opt-in *by design* and
+> relies on agents following CLAUDE.md · the renumber remote-safety check is prefix-based, so it can
+> false-refuse when another branch holds the same prefix (override `RENUMBER_FORCE=1`) and cannot detect a
+> migration applied only to a local DB · the lock tests use fixed 150/300 ms settle waits, which could flake
+> under extreme load · `with-erpnext-lock.sh` and `supabase-start-lean.sh` have no direct test coverage.
+
+- **T1 — `MERGEABLE`/`CLEAN` does NOT catch migration-number collisions** [High, BURNED US TWICE].
+  Git compares *filenames*, so two branches adding `0104_a.sql` and `0104_b.sql` merge "cleanly" and leave
+  duplicate numeric prefixes in `supabase/migrations/`. Hit twice in one session: M365 vs dev's ERPNext
+  (`0096–0103`), then M365 vs the merged H4 grants work (`0104`/`0105`) — GitHub reported CLEAN throughout
+  **both** times. Detection today is a manual command; it should be a **CI gate on every PR that adds a
+  migration**:
+  `ls supabase/migrations | sed -E 's/^([0-9]{4})_.*/\1/' | sort | uniq -d` → fail if non-empty.
+  (Note pgTAP duplicates are tolerated — `0034/0052/0066` pre-exist — because test files have no ordering
+  semantics. Migrations do. Gate migrations only.)
+  **Bonus fix:** renumbering is currently hand-rolled `git mv` + a cross-reference sweep (comments cite
+  migrations by number, and a stale reference in a *reversibility* note actively misleads a rollback). A
+  `scripts/renumber-migration.sh` would make this safe and repeatable.
+- **T2 — the unit suite is not parallel-safe: 5s timeouts + a shared machine** [High, recurring, produces
+  FALSE REDs]. `npm run verify` is ~5,400 tests with 5s per-test timeouts. When another worktree runs vitest
+  concurrently, **unrelated** tests fail on timeout — observed 4× in one session, a *different* test set each
+  time (`authFloorAnalytics`+`PanelEditorForm`, then `ProjectFormModal`, then `Companies.pushRouting`+
+  `authFloorAnalytics`), **every one passing in isolation**, with run timings blowing out to
+  `environment 1541s / import 1774s`. The tell that it is contention and not a regression: **a real regression
+  fails the same test deterministically; contention moves.** Options: raise the timeout for render-heavy
+  jsdom tests, cap `poolOptions` threads, or (best) a machine-level **test lock** mirroring
+  `scripts/with-db-lock.sh` so only one full suite runs at a time. Until then the rule is: *re-run the named
+  failures in isolation before believing them* — and CI on a clean runner is the authoritative answer.
+- **T3 — the shared local Supabase DB can drift mid-run even under the lock** [High, produces FALSE REDs
+  *and* FALSE GREENs]. `with-db-lock.sh` serialises commands, but a reset in worktree A between worktree B's
+  `db reset` and its `supabase test db` leaves B testing a **different schema than it migrated**. Observed:
+  the grants agent's suite failed against a schema missing its own migration (82 aborted tests) and passed
+  once re-run as a single lock hold. Mitigations: always chain as ONE hold —
+  `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db'` (make this the documented
+  default everywhere, incl. CLAUDE.md) — and longer-term give each worktree its **own DB** (per-worktree
+  port/project) so agents stop sharing one Postgres at all. That single change would retire T3 outright.
+- **T4 — heavy concurrent runs OOM the machine** [Medium]. A full `verify` + a pi build + other worktrees'
+  vitest exhausted RAM and killed the session mid-build (work was recovered from disk, uncommitted). Related:
+  the Supabase stack's `analytics`/`vector` containers wedge under load and block `db reset`; the reliable
+  recovery is `supabase stop` then
+  `supabase start -x vector,imgproxy,studio,realtime,logflare,supavisor` (worth documenting, or excluding
+  those containers locally by default since CI already skips them).
+- **T5 — stale worktrees/branches accumulate silently** [Medium]. Squash-merges leave branches looking
+  "unmerged", so dead and live work are indistinguishable at a glance; two 12-day-old local-only ClickUp
+  branches sat around until audited (both superseded — see the Slice E/F notes in
+  `docs/plans/2026-07-10-clickup-adapter.md`). **Never delete on appearance:** verify by *content diff* and
+  check each branch-only line, not line counts — line counts would have reached the right answer by luck
+  and would have missed genuinely dropped work. A periodic `git worktree prune` + a "verify-then-delete"
+  checklist would keep this cheap.
+- **T6 — a `sed`/glob loop that silently does nothing** [Low, but it faked a clean result]. In zsh an
+  unquoted file-list variable does not word-split, so `for f in $FILES; sed -i '' … "$f"` passed the whole
+  list as one filename ("File name too long") and changed **nothing** — while the follow-up grep, mangled the
+  same way, reported "clean". Use `while IFS= read -r f; do … done < filelist` for repo-wide sweeps, and
+  always re-grep for the *old* value afterwards to prove the rewrite happened.
 
 ### Standing debt
 - **Signed-URL TTL hardening** [Medium, owner-acked on #78] — client can mint long-TTL download URLs; move

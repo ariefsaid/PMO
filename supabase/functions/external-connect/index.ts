@@ -33,6 +33,8 @@ import {
   type JwksResolver,
 } from '../../../pmo-portal/src/lib/auth/verifyCallerJwt.ts';
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
+import { externalConnectEnabled } from '../_shared/externalConnectEnabled.ts';
+import { resolvePerOrgSecret } from '../_shared/perOrgSecret.ts';
 
 interface ConnectBody {
   tier: 'clickup' | 'erpnext';
@@ -100,20 +102,53 @@ interface ValidatorDeps {
   fetchImpl: typeof fetch;
 }
 
+/**
+ * Validate the token against `GET /user` and return the ClickUp actor id (`user.id`, stringified) —
+ * the echo-loop guard's identity (item 4 of the read-hygiene fix: PMO writes with a token belonging to
+ * a real ClickUp user, so PMO's own writes fire webhooks back at PMO; ClickUp's only supported
+ * loop-break is comparing `history_items[*].user.id` against this persisted actor id).
+ *
+ * Returns `null` (never throws) when the response is missing/malformed `user.id` — the token itself
+ * validated fine (`res.ok`), so an unexpected wire shape must not block the connect; it only means the
+ * echo-loop guard can't be armed for this org until a later reconnect gets a well-formed response.
+ */
 async function validateClickUpToken(
   token: string,
   deps: ValidatorDeps,
-): Promise<void> {
+): Promise<string | null> {
+  let res: Response;
   try {
-    const res = await deps.fetchImpl('https://api.clickup.com/api/v2/user', {
+    res = await deps.fetchImpl('https://api.clickup.com/api/v2/user', {
       headers: { Authorization: `Bearer ${token}` },
     });
-    if (!res.ok) {
-      throw new AppError('Invalid ClickUp token', 'config-rejected');
-    }
   } catch (err) {
     if (err instanceof AppError) throw err;
     throw new AppError('Invalid ClickUp token', 'config-rejected');
+  }
+  if (!res.ok) {
+    throw new AppError('Invalid ClickUp token', 'config-rejected');
+  }
+  try {
+    const body = (await res.json()) as { user?: { id?: number | string } };
+    const id = body.user?.id;
+    return id !== undefined && id !== null ? String(id) : null;
+  } catch {
+    return null;
+  }
+}
+
+async function validateClickUpTeam(token: string, deps: ValidatorDeps): Promise<string> {
+  const res = await deps.fetchImpl('https://api.clickup.com/api/v2/team', {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new AppError('Unable to resolve ClickUp workspace', 'config-rejected');
+  try {
+    const body = (await res.json()) as { teams?: Array<{ id?: number | string }> };
+    const id = body.teams?.[0]?.id;
+    if (id === undefined || id === null || String(id) === '') throw new Error('missing team id');
+    return String(id);
+  } catch {
+    throw new AppError('Unable to resolve ClickUp workspace', 'config-rejected');
   }
 }
 
@@ -285,15 +320,25 @@ export async function handleConnectRequest(req: Request): Promise<Response> {
     return errorResponse('Unknown tier (must be clickup or erpnext)', 'BAD_REQUEST', 400);
   }
 
-  // 6. Validate credential against external system BEFORE any Vault write
+  // 6. The deployment kill-switch is checked before external validation and all writes.
+  // It is an operator break-glass, never a client-side status signal.
+  const killSwitchEnabled = externalConnectEnabled();
+  if (!killSwitchEnabled) {
+    return errorResponse('Integration disabled by operator; try again later', 'INTEGRATION_DISABLED', 503);
+  }
+
+  // Validate credential against external system BEFORE any Vault write.
   const validatorDeps = { fetchImpl: fetch };
+  let clickUpUserId: string | null = null;
+  let clickUpTeamId: string | null = null;
   try {
     if (tier === 'clickup') {
       const token = credential.token;
       if (!token || typeof token !== 'string') {
         return errorResponse('ClickUp token is required', 'BAD_REQUEST', 400);
       }
-      await validateClickUpToken(token, validatorDeps);
+      clickUpUserId = await validateClickUpToken(token, validatorDeps);
+      clickUpTeamId = await validateClickUpTeam(token, validatorDeps);
     } else {
       const { siteUrl, apiKey, apiSecret } = credential;
       if (!siteUrl || !apiKey || !apiSecret) {
@@ -334,24 +379,66 @@ export async function handleConnectRequest(req: Request): Promise<Response> {
     return errorResponse(rpcError.message, pgCode, pgCode === '42501' ? 403 : 500);
   }
 
-  // 8. For ClickUp, set domain ownership via NEW definer RPC (gates on p_actor_id)
+  // 8. Readiness is exactly the valid token plus the real per-org Vault resolver. No extra
+  // ClickUp API call is made. The final RPC is the only path that can employ ownership.
   if (tier === 'clickup') {
-    const { error: ownershipError } = await serviceClient.rpc(
-      'admin_change_domain_ownership',
-      {
-        p_org_id: profile.org_id,
-        p_external_tier: 'clickup',
-        p_domain: 'tasks',
-        p_action: 'employ',
-        p_actor_id: userId,
+    const readiness = await resolvePerOrgSecret({
+      connectEnabled: true,
+      orgId: profile.org_id,
+      tier: 'clickup',
+      lookupBinding: async (orgId, externalTier) => {
+        const { data } = await serviceClient.from('external_org_bindings')
+          .select('secret_ref').eq('org_id', orgId).eq('external_tier', externalTier)
+          .eq('status', 'active').maybeSingle();
+        return data as { secret_ref?: string | null } | null;
+      },
+      readVaultSecret: async (ref) => {
+        const { data } = await serviceClient.rpc('read_vault_secret', { p_secret_ref: ref });
+        return typeof data === 'string' ? data : null;
+      },
+    });
+    if (readiness.kind !== 'resolved') {
+      // The service-only finalize boundary performs the binding + Vault cleanup in its transaction.
+      // The fallback is defensive for an unavailable RPC and remains secret-free.
+      const { error: readinessError } = await serviceClient.rpc('finalize_external_connect', {
+        p_org_id: profile.org_id, p_external_tier: tier, p_secret_ref: secretRef,
+        p_kill_switch_enabled: killSwitchEnabled, p_ready: false, p_actor_id: userId,
+      });
+      if (readinessError) {
+        await serviceClient.rpc('delete_vault_secret', { p_secret_name: secretRef });
+        await serviceClient.rpc('cleanup_external_connect_attempt', {
+          p_org_id: profile.org_id, p_external_tier: tier, p_secret_ref: secretRef, p_actor_id: userId,
+        });
       }
-    );
-    if (ownershipError) {
-      // Log but don't fail the connect — the binding is already created
-      console.error('admin_change_domain_ownership failed', ownershipError);
+      return errorResponse('ClickUp sync is not ready; no connection was activated', 'SYNC_NOT_READY', 422);
     }
-    // Note: audit event for domain ownership employ is emitted by the RPC itself
-    // (integration.domain_ownership.employ). No separate log_audit call needed here.
+
+    const { error: finalizeError } = await serviceClient.rpc('finalize_external_connect', {
+      p_org_id: profile.org_id,
+      p_external_tier: tier,
+      p_secret_ref: secretRef,
+      p_kill_switch_enabled: killSwitchEnabled,
+      p_ready: true,
+      p_actor_id: userId,
+    });
+    if (finalizeError) {
+      await serviceClient.rpc('delete_vault_secret', { p_secret_name: secretRef });
+      await serviceClient.rpc('cleanup_external_connect_attempt', {
+        p_org_id: profile.org_id, p_external_tier: tier, p_secret_ref: secretRef, p_actor_id: userId,
+      });
+      return errorResponse('ClickUp sync could not be activated; no connection was committed', 'CONNECT_NOT_COMMITTED', 500);
+    }
+
+    // Persist both identities atomically after the ownership/binding commit. They contain no secret.
+    const configPatch: Record<string, unknown> = {};
+    if (clickUpUserId !== null) configPatch.clickup_actor_id = clickUpUserId;
+    if (clickUpTeamId !== null) configPatch.clickup_team_id = clickUpTeamId;
+    if (Object.keys(configPatch).length > 0) {
+      const { error: configError } = await serviceClient.rpc('merge_external_org_binding_config', {
+        p_org_id: profile.org_id, p_external_tier: 'clickup', p_patch: configPatch,
+      });
+      if (configError) console.error('external_org_bindings clickup identity persist failed', configError);
+    }
   }
 
   // 9. Return success
