@@ -8,6 +8,7 @@ import {
   ConfirmDialog,
   EntityFormModal,
   TextField,
+  TextArea,
   SelectField,
   Combobox,
   FormSection,
@@ -32,7 +33,7 @@ import { formatDate } from '@/src/lib/format';
 import { routeTaskWrite } from '@/src/lib/adapterSeam/ownershipCache';
 import { IDLE_PENDING_PUSH } from '@/src/lib/adapterSeam/pendingPush';
 import { TaskPushBadge } from '@/src/components/tasks/TaskPushBadge';
-import type { TaskWithRefs, TaskStatus, TaskInput, TaskPatch } from '@/src/lib/db/tasks';
+import type { TaskWithRefs, TaskStatus, TaskPriority, TaskInput, TaskPatch } from '@/src/lib/db/tasks';
 import type { MilestoneWithProgress } from '@/src/lib/db/milestones';
 import { MilestonePhaseHeader } from '@/src/components/milestones/MilestonePhaseHeader';
 import { workflowVariant } from '@/src/lib/status/statusVariants';
@@ -54,6 +55,12 @@ const SUBTASK_INDENT_PX = 16;
 const STATUSES: TaskStatus[] = ['To Do', 'In Progress', 'Done', 'Blocked'];
 const STATUS_OPTIONS = STATUSES.map((s) => ({ value: s, label: s }));
 
+// OD-INT-9 — the four task_priority enum values, for the Priority select. The first option is the
+// explicit unset (value="" → null): the column is nullable, so "no priority" must stay expressible
+// AND clearable (a disabled placeholder couldn't be re-selected after a value was set).
+const PRIORITIES: TaskPriority[] = ['Urgent', 'High', 'Normal', 'Low'];
+const PRIORITY_OPTIONS = [{ value: '', label: 'No priority' }, ...PRIORITIES.map((p) => ({ value: p, label: p }))];
+
 type ViewMode = 'list' | 'board' | 'timeline';
 
 interface FormValues {
@@ -62,6 +69,8 @@ interface FormValues {
   assignee_id: string;
   start_date: string;
   end_date: string;
+  description: string;
+  priority: string;
 }
 
 const validate = (v: FormValues): Partial<Record<keyof FormValues, string>> => {
@@ -600,6 +609,8 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
       assignee_id: task?.assignee_id ?? '',
       start_date: task?.start_date ?? '',
       end_date: task?.end_date ?? '',
+      description: task?.description ?? '',
+      priority: task?.priority ?? '',
     },
     validate,
     idPrefix: 'task-form',
@@ -618,6 +629,8 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
   const assigneeField = form.fieldProps('assignee_id');
   const startField = form.fieldProps('start_date');
   const endField = form.fieldProps('end_date');
+  const descriptionField = form.fieldProps('description');
+  const priorityField = form.fieldProps('priority');
 
   const assigneeOptions: ComboboxOption[] = (profiles ?? []).map((p) => ({
     value: p.id,
@@ -673,6 +686,9 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
         assignee_id: values.assignee_id || null,
         start_date: values.start_date || null,
         end_date: values.end_date || null,
+        // OD-INT-9: description (blank → null) + priority (unset → null) round-trip on save.
+        description: values.description.trim() || null,
+        priority: values.priority ? (values.priority as TaskPriority) : null,
       };
       try {
         if (isEdit && task) {
@@ -748,6 +764,16 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
             onBlur={statusField.onBlur}
             options={STATUS_OPTIONS}
           />
+          {/* OD-INT-9 — Priority. Nullable column: the leading "No priority" option (value="")
+              maps to null and stays selectable so an existing priority can be cleared. */}
+          <SelectField
+            id={priorityField.id}
+            label="Priority"
+            value={priorityField.value}
+            onChange={(v) => priorityField.onChange(v)}
+            onBlur={priorityField.onBlur}
+            options={PRIORITY_OPTIONS}
+          />
           <TextField
             id={startField.id}
             label="Start date"
@@ -792,6 +818,18 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
               noun="task"
             />
           )}
+          {/* OD-INT-9 — Description. Multi-line (the shared TextArea primitive), full-width so the
+              textarea gets the room a scope/notes field needs. Uses the existing FieldShell a11y
+              (visible label + aria wiring) — no ad-hoc styling. */}
+          <TextArea
+            id={descriptionField.id}
+            label="Description"
+            value={descriptionField.value}
+            onChange={descriptionField.onChange}
+            onBlur={descriptionField.onBlur}
+            placeholder="Add scope, notes, or acceptance criteria…"
+            fullWidth
+          />
         </FormGrid>
         {profilesError && (
           <p className="mt-1 text-[12px] text-muted-foreground">
