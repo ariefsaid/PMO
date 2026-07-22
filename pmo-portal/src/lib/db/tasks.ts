@@ -124,13 +124,17 @@ export async function getTask(id: string): Promise<TaskWithRefs | null> {
  * ADR-0056 / AC-CUA-001/030: when the org's `tasks` domain is externally-owned (routeTaskWrite()),
  * the write routes through `dispatchTaskCommand` instead of the direct insert — fail-closed to the
  * direct DAL (this branch) whenever the ownership cache is empty/never-loaded (FR-CUA-030/031).
+ *
+ * OD-INT-9: parent_task_id IS forwarded to the external dispatch; the dispatch factory resolves
+ * it via `external_refs` to a ClickUp `parent` id. Unresolvable parents create a flat task
+ * (reconciled later). milestone_id remains omitted (PMO-native grouping).
  */
 export async function createTask(input: TaskInput): Promise<TaskRow> {
   if (routeTaskWrite() === 'external') {
-    // NOTE (OD-INT-9 gap): parent_task_id is intentionally NOT forwarded to the external
-    // dispatch — mapping PMO parent_task_id to/from ClickUp `parent` is a separate issue
-    // (task brief; OD-INT-9 defers it). milestone_id is already omitted here for the same
-    // reason (PMO-native grouping). The direct DAL below honours parent_task_id.
+    // OD-INT-9: parent_task_id IS forwarded to the external dispatch; the dispatch factory
+    // resolves it via `external_refs` to a ClickUp `parent` id. Unresolvable parents create
+    // a flat task (reconciled later by the sweep). milestone_id remains omitted (PMO-native
+    // grouping).
     const res = await dispatchTaskCommand('create', {
       id: crypto.randomUUID(),
       project_id: input.project_id,
@@ -139,6 +143,7 @@ export async function createTask(input: TaskInput): Promise<TaskRow> {
       assignee_id: input.assignee_id || null,
       start_date: input.start_date || null,
       end_date: input.end_date || null,
+      parent_task_id: input.parent_task_id ?? null,
     });
     return res.canonical as unknown as TaskRow;
   }

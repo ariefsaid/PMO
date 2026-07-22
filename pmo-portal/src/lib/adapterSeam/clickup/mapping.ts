@@ -33,8 +33,20 @@ function isoToMs(iso: string): number {
  * (OD-INT-10, round 3): a `pmo-only` status is never moved out of by an inbound sync, and an
  * explicitly recorded collapse never downgrades the more specific PMO status. Absent (the default),
  * behavior is byte-for-byte identical to before this parameter existed.
+ *
+ * `resolvedParentPmoId` (optional — OD-INT-9 parent sync): when the ClickUp task has a `parent`
+ * field and the caller can resolve it via `external_refs` to a PMO task id, that id is passed here.
+ * The pure mapper has no DB access, so the lookup happens in the apply path and the resolved PMO
+ * id is threaded in — exactly like `currentPmoStatus`. When the parent is unresolvable (not yet
+ * mirrored), the caller passes `null` and the child flows through as a flat task; the next sweep
+ * re-applies and resolves it once the parent exists.
  */
-export function clickUpTaskToPmoRecord(raw: ClickUpTask, maps: ClickUpMaps, currentPmoStatus?: string): PmoRecord {
+export function clickUpTaskToPmoRecord(
+  raw: ClickUpTask,
+  maps: ClickUpMaps,
+  currentPmoStatus?: string,
+  resolvedParentPmoId?: string | null,
+): PmoRecord {
   const assigneeClickUpId = raw.assignees[0]?.id;
   return {
     id: raw.id,
@@ -44,6 +56,11 @@ export function clickUpTaskToPmoRecord(raw: ClickUpTask, maps: ClickUpMaps, curr
     start_date: raw.start_date ? msToIso(raw.start_date) : null,
     end_date: raw.due_date ? msToIso(raw.due_date) : null,
     completed_at: raw.date_done ? msToIso(raw.date_done) : null,
+    // Parent sync (OD-INT-9): when the ClickUp task has a `parent` and the caller resolved it to a
+    // PMO task id, include it. `null` means explicitly top-level (or unresolvable — caller decided).
+    // Absent `resolvedParentPmoId` (undefined) means the caller didn't attempt resolution;
+    // the field is omitted from the canonical record (updateMirror only patches present fields).
+    ...(resolvedParentPmoId !== undefined ? { parent_task_id: resolvedParentPmoId } : {}),
   };
 }
 
@@ -52,6 +69,10 @@ export interface PmoTaskToClickUpBodyOptions {
   /** The ClickUp member ids currently assigned (before this write) — required to compute the
    * update-mode add/rem delta. Absent/empty on create (there is nothing to remove). */
   previousAssigneeIds?: number[];
+  /** Resolved ClickUp parent task id (from `external_refs`), or `null` for explicit top-level
+   * promotion. When provided on create, sets `parent` to make the task a subtask in the same List.
+   * When provided on update, re-parents (or promotes if `null`). Absent = no parent change. */
+  parentClickUpId?: string | null;
 }
 
 function resolveAssigneeId(memberMap: ClickUpMemberMap, pmoAssigneeId: unknown): number | null {
@@ -77,6 +98,11 @@ interface ClickUpScalarFields {
  * (FR-CUA-010, the B2 warning): **create** takes `assignees:[ids]`; **update** takes
  * `assignees:{add:[],rem:[]}`. Only fields PRESENT in `record` are emitted — never the full field set
  * on a partial update.
+ *
+ * Parent sync (OD-INT-9): the caller threads a resolved `parentClickUpId` (or `null` for explicit
+ * top-level promotion) via `opts.parentClickUpId`. The pure mapper has no DB access, so the
+ * `external_refs` lookup happens in the dispatch factory / apply path and the resolved ClickUp id
+ * is passed in — exactly like `resolvePreviousAssigneeIds` and `currentPmoStatus`.
  */
 export function pmoTaskToClickUpBody(
   record: PmoRecord,
@@ -100,13 +126,21 @@ export function pmoTaskToClickUpBody(
   }
 
   if (opts.mode === 'create') {
-    return {
+    const body: ClickUpCreateTaskBody = {
       ...scalarFields,
       assignees: (() => {
         const id = resolveAssigneeId(maps.memberMap, record.assignee_id);
         return id !== null ? [id] : [];
       })(),
     };
+    // Parent sync (OD-INT-9): when a RESOLVED ClickUp parent id is provided (string),
+    // set `parent` on create to make the task a subtask in the same List.
+    // `null` means unresolved — omit entirely (flat task); reconciliation happens later.
+    // `undefined` means no parent change requested.
+    if (typeof opts.parentClickUpId === 'string') {
+      body.parent = opts.parentClickUpId;
+    }
+    return body;
   }
 
   const body: ClickUpUpdateTaskBody = { ...scalarFields };
@@ -118,6 +152,12 @@ export function pmoTaskToClickUpBody(
       add: next.filter((id) => !prev.includes(id)),
       rem: prev.filter((id) => !next.includes(id)),
     };
+  }
+  // Parent sync (OD-INT-9): on update, when a resolved parentClickUpId is provided,
+  // set `parent` to re-parent (or `null` to promote to top-level).
+  // `undefined` = no parent change requested.
+  if (opts.parentClickUpId !== undefined) {
+    body.parent = opts.parentClickUpId; // string | null
   }
   return body;
 }

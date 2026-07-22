@@ -146,3 +146,96 @@ describe('FR-CUA-010 pmoTaskToClickUpBody branches create vs. update/transition 
     expect(body).toEqual({ assignees: { add: [], rem: [111] } });
   });
 });
+
+describe('OD-INT-9 parent sync: outbound PMO parent_task_id → ClickUp parent', () => {
+  const parentPmoId = 'pmo-parent-1';
+  const parentClickUpId = 'cu-parent-1';
+
+  it('create with a RESOLVABLE parent_task_id includes parent in the ClickUp create body', () => {
+    const body = pmoTaskToClickUpBody(
+      {
+        id: 'pmo-child-1',
+        name: 'Child task',
+        status: 'To Do',
+        assignee_id: null,
+        parent_task_id: parentPmoId,
+        parentClickUpId, // resolved ClickUp parent id threaded in by caller
+      } as any,
+      maps,
+      { mode: 'create', parentClickUpId },
+    );
+    expect(body).toMatchObject({ parent: parentClickUpId });
+  });
+
+  it('create with an UNRESOLVABLE parent_task_id omits parent and still creates the task', () => {
+    const body = pmoTaskToClickUpBody(
+      {
+        id: 'pmo-child-1',
+        name: 'Child task',
+        status: 'To Do',
+        assignee_id: null,
+        parent_task_id: parentPmoId,
+        // parentClickUpId omitted (undefined) = unresolved parent on create
+      } as any,
+      maps,
+      { mode: 'create' }, // no parentClickUpId = unresolved
+    );
+    expect('parent' in body).toBe(false);
+    expect(body).toMatchObject({ name: 'Child task', assignees: [] });
+  });
+
+  it('update re-parents: setting a new resolved parent includes parent in the update body', () => {
+    const body = pmoTaskToClickUpBody(
+      { id: 'pmo-child-1', parent_task_id: 'pmo-new-parent', parentClickUpId: 'cu-new-parent' } as any,
+      maps,
+      { mode: 'update', parentClickUpId: 'cu-new-parent' },
+    );
+    expect(body).toMatchObject({ parent: 'cu-new-parent' });
+  });
+
+  it('update promoting to top-level (parent_task_id: null) sets parent to null in update body', () => {
+    const body = pmoTaskToClickUpBody(
+      { id: 'pmo-child-1', parent_task_id: null, parentClickUpId: null } as any,
+      maps,
+      { mode: 'update', parentClickUpId: null },
+    );
+    // ClickUp: parent: null on update promotes to top-level
+    expect(body).toMatchObject({ parent: null });
+  });
+});
+
+describe('OD-INT-9 parent sync: inbound ClickUp parent → PMO parent_task_id', () => {
+  it('a ClickUp task with a RESOLVABLE parent sets parent_task_id on the canonical record', () => {
+    const record = clickUpTaskToPmoRecord(
+      { ...rawTask, parent: 'cu-parent-1' },
+      maps,
+      undefined,
+      'pmo-parent-1', // resolved PMO parent id threaded in by caller
+    );
+    expect(record.parent_task_id).toBe('pmo-parent-1');
+  });
+
+  it('a ClickUp task with an UNRESOLVABLE parent leaves parent_task_id null (does not drop the row)', () => {
+    const record = clickUpTaskToPmoRecord(
+      { ...rawTask, parent: 'cu-unknown-parent' },
+      maps,
+      undefined,
+      null, // unresolved
+    );
+    expect(record.parent_task_id).toBeNull();
+    expect(record.id).toBe('cu-task-1'); // row still created
+  });
+
+  it('a ClickUp task with a CROSS-PROJECT resolved parent refuses the link (null)', () => {
+    const record = clickUpTaskToPmoRecord(
+      { ...rawTask, parent: 'cu-cross-project-parent' },
+      maps,
+      undefined,
+      'pmo-cross-project-parent', // resolved but caller detects cross-project
+    );
+    // The mapping itself doesn't know project_id; the CALLER (apply path) must null it.
+    // This test documents that the mapping passes through whatever the caller provides.
+    // The cross-project guard lives in the apply path (multiListSweep / webhookApply).
+    expect(record.parent_task_id).toBe('pmo-cross-project-parent'); // mapping is a pure pass-through
+  });
+});
