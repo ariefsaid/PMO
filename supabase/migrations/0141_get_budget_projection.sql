@@ -31,22 +31,13 @@ create or replace function public.get_budget_projection(p_project_id uuid, p_fis
 returns table (
   category              public.budget_category,
   pmo_budget_amount     numeric,
+  -- ⚑ C-1 (rendered Discover pass, 2026-07-22) — NULL means "this figure is UNOBTAINABLE", and is a
+  -- different statement from 0.00. See the `mapped`/`cells` CTEs below.
   actuals_to_date       numeric,
   pmo_etc               numeric,
   projected_final_cost  numeric,
   projected_variance    numeric,
-  projected_utilization numeric,
-  push_state            text,
-  push_error            text,
-  -- ⚑ NEW-6 (audit round 4, 2026-07-22) — the blocking category NAMES, not just the code.
-  -- `recordBudgetGateFailure` (adapter-dispatch) has always PERSISTED these (0137), because FR-BUD-113
-  -- collected them precisely so an operator gets a to-do list. Nothing ever read them back: this RPC
-  -- returned only `push_state`/`push_error`, so the primary money screen could render nothing but the
-  -- bare code `budget-category-unmapped` — telling the Admin that *something* is unmapped while
-  -- withholding the one fact that makes it fixable.
-  -- The code STAYS in `push_error` (it is the machine-matchable token other logic keys on); the names
-  -- ride ALONGSIDE it rather than replacing it. NULL when the failure had nothing to do with the map.
-  unmapped_categories   text[]
+  projected_utilization numeric
 )
 language sql
 stable
@@ -55,11 +46,31 @@ set search_path = public, pg_temp
 as $$
   with pmo_budget as (
     -- PMO SoT (OD-BUDGET-1): Sigma the ACTIVE version's line items per category. Not an ERP read-back.
+    --
+    -- ⚑ C-3 (rendered Discover pass, 2026-07-22) — THE YEAR GUARD. This function's grain is
+    -- (project x FISCAL YEAR): every other input below is year-scoped by equality, and `''` is the
+    -- repository's explicit "this project has no fiscal year on record" sentinel. Without this guard the
+    -- PMO budget was the ONE unscoped input, so a project with no ERP linkage at all still rendered a
+    -- complete, plausible, entirely FABRICATED money grid — the whole budget "budgeted", $0 spent, 0%
+    -- utilized — and `rows.length = 0` (the surface's honest empty state) was unreachable by
+    -- construction. With no year there is nothing to project against; saying nothing is the only
+    -- truthful answer, and the alarm that matters survives it because the push state is read at PROJECT
+    -- grain (`get_budget_push_status`, below).
     select li.category, sum(li.budgeted_amount) as pmo_budget_amount
       from public.budget_versions v
       join public.budget_line_items li on li.budget_version_id = v.id
      where v.project_id = p_project_id and v.status = 'Active'
+       and coalesce(p_fiscal_year, '') <> ''
      group by li.category
+  ),
+  -- ⚑ C-1 — WHICH categories PMO can even ASK the ledger about. The map is the ONLY route from a PMO
+  -- category to ERP GL accounts (it is a bijection, FR-BUD-111), so a category with no map row has no
+  -- account to sum: its actuals are not zero, they are UNKNOWN. Merging those two into one `$0` (the
+  -- old `coalesce(a.actuals_to_date, 0)`) made a genuine zero, "no GL rows this year", and "no ERP
+  -- account mapped at all" byte-identical on the primary money screen — while the SAME screen banners
+  -- the third case as unmapped two inches above. Org-scoped by RLS, exactly like every other read here.
+  mapped as (
+    select m.category from public.budget_category_account_map m
   ),
   actuals as (
     -- ERP GL truth (P2's shipped snapshot), mapped account -> category via the BIJECTION's inverse.
@@ -75,65 +86,19 @@ as $$
       from public.budget_projections bp
      where bp.project_id = p_project_id and bp.fiscal_year = p_fiscal_year
   ),
-  push as (
-    select em.push_state, em.push_error, em.unmapped_categories
-      from public.budget_version_erp_mirror em
-      join public.budget_versions v on v.id = em.budget_version_id
-     where v.project_id = p_project_id and v.status = 'Active' and em.fiscal_year = p_fiscal_year
-     limit 1
-  ),
-  -- ⚑ HIGH-C (Luna re-audit round 2, 2026-07-21) — "no row" is a STATE, not an absence of news.
-  -- EVERY writer of `budget_version_erp_mirror` lives inside the `adapter-dispatch` edge function, so a
-  -- dispatch that never REACHES it (dropped connection, tab closed mid-request, platform 502) leaves NO
-  -- mirror row at all — and the sweep backstop's work queue IS that mirror, so nothing re-drives it and
-  -- nobody is ever notified. `push_state` then came back NULL, which the operator surface renders as a
-  -- perfectly clean screen while ERPNext keeps enforcing the previous budget (or none) indefinitely.
-  -- The DB itself is the honest witness: an Active version carrying its `activated_at` stamp, in an org
-  -- that HAS handed the `budget` domain to the ERPNext tier, with no mirror row for ANY fiscal year.
-  --   • scoped on "any fiscal year", not this one, so viewing a year the push does not cover is NOT a
-  --     false alarm (it stays NULL);
-  --   • gated on real domain ownership, so a non-employing org — which has no ERP to push to — never
-  --     sees a push banner at all;
-  --   • a RECORDED push state always wins (this is only ever consulted when `push` is empty).
-  --
-  -- ⚑ H-3 (Luna audit round 3, 2026-07-22) — the alarm no longer requires an activation STAMP.
-  -- `0139` added `budget_versions.activated_at` nullable with NO backfill, so every version already
-  -- Active at migration time carries NULL. Requiring the stamp here made that entire population
-  -- INVISIBLE: `push_state` came back NULL and the screen looked clean while ERPNext enforced nothing
-  -- at all — the exact failure the state above was introduced to kill, on the exact population a
-  -- nullable-additive column creates. The stamp is not what makes an Active version real; it is what
-  -- makes it PUSHABLE. So an unstamped Active version is reported as its own state rather than
-  -- silently swallowed, because the operator's route out of it is different: `budgetPushKey` AND the
-  -- server-side budget gate both refuse an unstamped version (deliberately — a money command keyed on
-  -- an invented timestamp is worse than one that never runs), so Retry cannot help and is not offered.
-  -- Activating a fresh version records a REAL activation act, which is both truthful and pushable.
-  active_version as (
-    select v.id, v.activated_at
-      from public.budget_versions v
-     where v.project_id = p_project_id and v.status = 'Active'
-     limit 1
-  ),
-  unrecorded as (
-    select case when (select av.activated_at from active_version av) is null
-                then 'unstamped-activation'
-                else 'never-pushed' end as state
-     where exists (select 1 from active_version)
-       and not exists (
-             select 1 from public.budget_version_erp_mirror em
-               join public.budget_versions v on v.id = em.budget_version_id
-              where v.project_id = p_project_id and v.status = 'Active')
-       and exists (
-             select 1 from public.projects p
-              where p.id = p_project_id
-                and public.domain_owned_by_tier(p.org_id, 'budget', 'erpnext'))
-  ),
   cells as (
     -- FULL OUTER: an ETC or an actual on a category the Active version does not budget MUST surface —
     -- never an inner join that silently drops it.
     select coalesce(b.category, a.category, e.category) as category,
            b.pmo_budget_amount,
-           coalesce(a.actuals_to_date, 0) as actuals_to_date,
-           coalesce(e.pmo_etc, 0)         as pmo_etc
+           -- ⚑ C-1: 0 is a CLAIM ("the ledger holds nothing for this account"), and PMO may only make it
+           -- when it actually has an account to look at. Mapped -> a real, computed zero. Unmapped ->
+           -- NULL, i.e. "not knowable from here", which the surface renders as unavailable rather than
+           -- as money.
+           case when exists (select 1 from mapped m where m.category = coalesce(b.category, a.category, e.category))
+                then coalesce(a.actuals_to_date, 0)
+                else null end            as actuals_to_date,
+           coalesce(e.pmo_etc, 0)        as pmo_etc
       from pmo_budget b
       full outer join actuals a on a.category = b.category
       full outer join etc     e on e.category = coalesce(b.category, a.category)
@@ -142,23 +107,20 @@ as $$
          c.pmo_budget_amount,
          c.actuals_to_date,
          c.pmo_etc,
+         -- ⚑ C-2: every figure DERIVED from an unobtainable actual is itself unobtainable. The screen
+         -- used to print a confident EAC, a full-budget variance and 0% utilization for a category it
+         -- had just told the operator it could not read — stating a figure it knows it cannot know.
+         -- `+` already propagates NULL; the two explicit CASEs below would not, so they say it outright.
          (c.actuals_to_date + c.pmo_etc) as projected_final_cost,
          -- the JS oracle yields -EAC when there is no budget line at all; keep the two in step with an
          -- explicit case (a plain subtraction would yield NULL and lose the signal that spend happened
          -- against an unbudgeted category).
-         case when c.pmo_budget_amount is null then -(c.actuals_to_date + c.pmo_etc)
+         case when c.actuals_to_date is null then null
+              when c.pmo_budget_amount is null then -(c.actuals_to_date + c.pmo_etc)
               else c.pmo_budget_amount - (c.actuals_to_date + c.pmo_etc) end as projected_variance,
          -- NULLIF => NULL on a zero/absent budget: never a divide-by-zero, never Infinity (AC-BUD-051).
-         ((c.actuals_to_date + c.pmo_etc) / nullif(c.pmo_budget_amount, 0)) as projected_utilization,
-         coalesce(
-           (select push_state from push),
-           (select state from unrecorded)
-         ),
-         (select push_error from push),
-         -- NEW-6: only ever from a RECORDED push row. The `unrecorded` inference above ('never-pushed' /
-         -- 'unstamped-activation') is derived from the ABSENCE of a mirror row, so by construction it has
-         -- no category names to offer — NULL there is the truth, not a gap.
-         (select unmapped_categories from push)
+         case when c.actuals_to_date is null then null
+              else (c.actuals_to_date + c.pmo_etc) / nullif(c.pmo_budget_amount, 0) end as projected_utilization
     from cells c
    order by c.category;
 $$;
@@ -225,3 +187,109 @@ $$;
 revoke all on function public.list_budget_fiscal_years(uuid) from public;
 grant execute on function public.list_budget_fiscal_years(uuid) to authenticated;
 revoke execute on function public.list_budget_fiscal_years(uuid) from anon;
+
+-- ════════════════════════════════════════════════════════════════════════════════════════════════
+-- C-5 / C-3 (rendered Discover pass, 2026-07-22) — get_budget_push_status: the push state, at the
+-- grain it has always actually had.
+--
+-- ⚑ WHY IT MOVED. `push_state` used to ride on every category cell of `get_budget_projection`, and the
+-- surface read it off `rows[0]` — its own comment already conceded the truth ("one banner per project,
+-- not per category"). Two defects fell out of that mismatch:
+--
+--   • C-3 — the alarm was HOSTAGE TO THE GRID. Once the projection is honestly year-scoped (above), a
+--     project with no fiscal year on record returns zero rows — and with the state riding on the rows,
+--     "ERPNext is enforcing nothing" would have gone silent for exactly the projects most likely to be
+--     in that state. The two findings therefore have ONE fix, not two.
+--   • C-5 — three of the five push states (`pending`, `pushing`, `pushed`) rendered NOTHING, making
+--     them indistinguishable from each other AND from "this org has no ERP at all", while
+--     `erp_budget_name` — the ERP document the push actually created — was stored and never read by
+--     anything. The cell grain had no room for it. *A state that renders nothing is a defect, not a
+--     default: silence is indistinguishable from absence* (DESIGN.md, recorded from this pass).
+--
+-- Also fixes a subtler scoping error inherited from the cell version: the old `push` CTE matched
+-- `em.fiscal_year = p_fiscal_year`, so a REAL failed push vanished the instant the user picked another
+-- year in the selector — the alarm's visibility made contingent on an unrelated navigation choice. It
+-- is now reported once, project-wide, and RETURNS the year it covers so it can name it instead.
+--
+-- Exactly one row, always (a `select` over `active_version`-less scalars still yields one row of
+-- NULLs). `push_state is null` is the honest "nothing to report": no Active version, no ERP tier, or a
+-- push that has not begun. RLS on `budget_versions` / `budget_version_erp_mirror` / `projects` is the
+-- org boundary, so a cross-org read yields all NULLs and leaks no ERP document name.
+--
+-- Reversibility (ADR-0006): drop function if exists public.get_budget_push_status(uuid);
+create or replace function public.get_budget_push_status(p_project_id uuid)
+returns table (
+  push_state          text,
+  push_error          text,
+  unmapped_categories text[],
+  -- C-5: the ERP `Budget` document the push created. Stored since 0137, read by nothing until now — so
+  -- a successful push could not even be shown to have produced anything.
+  erp_budget_name     text,
+  -- The fiscal year this status is ABOUT, so the banner names it rather than being suppressed on every
+  -- other year.
+  fiscal_year         text,
+  pushed_at           timestamptz
+)
+language sql
+stable
+security invoker
+set search_path = public, pg_temp
+as $$
+  with active_version as (
+    select v.id, v.activated_at
+      from public.budget_versions v
+     where v.project_id = p_project_id and v.status = 'Active'
+     limit 1
+  ),
+  recorded as (
+    select em.push_state, em.push_error, em.unmapped_categories, em.erp_budget_name, em.fiscal_year, em.pushed_at
+      from public.budget_version_erp_mirror em
+      join active_version av on av.id = em.budget_version_id
+     -- Under the deferred single-FY default there is exactly one row; ordering makes the choice
+     -- DETERMINISTIC rather than incidental should OQ-BUD-3(c) ever fan it out, and prefers the most
+     -- recently settled year.
+     order by em.pushed_at desc nulls last, em.fiscal_year desc
+     limit 1
+  ),
+  -- ⚑ HIGH-C (Luna re-audit round 2, 2026-07-21) — "no row" is a STATE, not an absence of news.
+  -- EVERY writer of `budget_version_erp_mirror` lives inside the `adapter-dispatch` edge function, so a
+  -- dispatch that never REACHES it (dropped connection, tab closed mid-request, platform 502) leaves NO
+  -- mirror row at all — and the sweep backstop's work queue IS that mirror, so nothing re-drives it and
+  -- nobody is ever notified. `push_state` then came back NULL, which the operator surface renders as a
+  -- perfectly clean screen while ERPNext keeps enforcing the previous budget (or none) indefinitely.
+  -- Gated on real domain ownership, so a non-employing org — which has no ERP to push to — never sees a
+  -- push banner at all. A RECORDED push state always wins (this is only consulted when `recorded` is
+  -- empty).
+  --
+  -- ⚑ H-3 (Luna audit round 3, 2026-07-22) — the alarm does not require an activation STAMP.
+  -- `0139` added `budget_versions.activated_at` nullable with NO backfill, so every version already
+  -- Active at migration time carries NULL. Requiring the stamp made that entire population INVISIBLE.
+  -- The stamp is not what makes an Active version real; it is what makes it PUSHABLE — so an unstamped
+  -- Active version gets its OWN state, because its route out is different: `budgetPushKey` AND the
+  -- server-side budget gate both refuse it (deliberately — a money command keyed on an invented
+  -- timestamp is worse than one that never runs), so Retry cannot help and is not offered. Activating a
+  -- fresh version records a REAL activation act, which is both truthful and pushable.
+  unrecorded as (
+    select case when (select av.activated_at from active_version av) is null
+                then 'unstamped-activation'
+                else 'never-pushed' end as state
+     where exists (select 1 from active_version)
+       and not exists (select 1 from recorded)
+       and exists (
+             select 1 from public.projects p
+              where p.id = p_project_id
+                and public.domain_owned_by_tier(p.org_id, 'budget', 'erpnext'))
+  )
+  select coalesce((select r.push_state from recorded r), (select u.state from unrecorded u)),
+         (select r.push_error          from recorded r),
+         -- Only ever from a RECORDED push row (NEW-6). The `unrecorded` inference is derived from the
+         -- ABSENCE of a mirror row, so by construction it has no names to offer — NULL is the truth.
+         (select r.unmapped_categories from recorded r),
+         (select r.erp_budget_name     from recorded r),
+         (select r.fiscal_year         from recorded r),
+         (select r.pushed_at           from recorded r);
+$$;
+
+revoke all on function public.get_budget_push_status(uuid) from public;
+grant execute on function public.get_budget_push_status(uuid) to authenticated;
+revoke execute on function public.get_budget_push_status(uuid) from anon;

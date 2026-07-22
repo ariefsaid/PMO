@@ -8,15 +8,19 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
+import { MemoryRouter } from 'react-router-dom';
 import type { Role } from '@/src/auth/AuthContext';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastProvider } from '@/src/components/ui';
+import { RAW_ADAPTER_TOKEN } from '@/src/lib/adapterSeam/pushErrorCopy';
+import type { BudgetPushStatusRow } from '@/src/lib/repositories/budgetProjection';
 
-const { fetchMock, upsertEtcMock, retryMock, yearsMock } = vi.hoisted(() => ({
+const { fetchMock, upsertEtcMock, retryMock, yearsMock, pushStatusMock } = vi.hoisted(() => ({
   fetchMock: vi.fn(),
   upsertEtcMock: vi.fn(),
   retryMock: vi.fn(),
   yearsMock: vi.fn(),
+  pushStatusMock: vi.fn(),
 }));
 
 vi.mock('@/src/lib/repositories/budgetProjection', () => ({
@@ -24,6 +28,7 @@ vi.mock('@/src/lib/repositories/budgetProjection', () => ({
   upsertBudgetProjectionEtc: upsertEtcMock,
   retryActiveBudgetPush: retryMock,
   listBudgetFiscalYears: yearsMock,
+  fetchBudgetPushStatus: pushStatusMock,
 }));
 
 let realRole: Role = 'Finance';
@@ -49,18 +54,29 @@ const ROW = {
   projectedFinalCost: 75000,
   projectedVariance: 25000,
   projectedUtilization: 0.75,
+};
+
+const NO_PUSH: BudgetPushStatusRow = {
   pushState: null,
   pushError: null,
+  unmappedCategories: null,
+  erpBudgetName: null,
+  fiscalYear: null,
+  pushedAt: null,
 };
+
+const pushStatus = (over: Partial<BudgetPushStatusRow>): BudgetPushStatusRow => ({ ...NO_PUSH, ...over });
 
 const renderPage = (role: Role = 'Finance') => {
   realRole = role;
   return render(
-    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-      <ToastProvider>
-        <BudgetProjection projectId="proj-1" />
-      </ToastProvider>
-    </QueryClientProvider>,
+    <MemoryRouter>
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <ToastProvider>
+          <BudgetProjection projectId="proj-1" />
+        </ToastProvider>
+      </QueryClientProvider>
+    </MemoryRouter>,
   );
 };
 
@@ -69,11 +85,13 @@ beforeEach(() => {
   upsertEtcMock.mockReset();
   retryMock.mockReset();
   yearsMock.mockReset();
+  pushStatusMock.mockReset();
   yearsMock.mockResolvedValue([
     { fiscalYear: ERP_FISCAL_YEAR, isActivePush: true },
     { fiscalYear: PRIOR_ERP_FISCAL_YEAR, isActivePush: false },
   ]);
   fetchMock.mockResolvedValue([ROW]);
+  pushStatusMock.mockResolvedValue(NO_PUSH);
   upsertEtcMock.mockResolvedValue(undefined);
   retryMock.mockResolvedValue({ pushState: 'pushed' });
   realRole = 'Finance';
@@ -128,7 +146,8 @@ describe('BudgetProjection — the forward view (AC-BUD-050/051)', () => {
 
   it('H-4 with no fiscal year on record, an unrecorded push is STILL alarmed (the banner is FY-independent)', async () => {
     yearsMock.mockResolvedValue([]);
-    fetchMock.mockResolvedValue([{ ...ROW, pushState: 'never-pushed', pushError: null }]);
+    fetchMock.mockResolvedValue([]);
+    pushStatusMock.mockResolvedValue(pushStatus({ pushState: 'never-pushed' }));
     renderPage();
     expect(await screen.findByText(/never reached ERPNext/i)).toBeInTheDocument();
   });
@@ -166,43 +185,170 @@ describe('BudgetProjection — the forward view (AC-BUD-050/051)', () => {
   });
 });
 
+// ════════════════════════════════════════════════════════════════════════════════════════════════
+// ⚑ C-1 / C-2 (rendered Discover pass, 2026-07-22) — MONEY HONESTY.
+// A figure the system cannot know must never be rendered as a number.
+// ════════════════════════════════════════════════════════════════════════════════════════════════
+describe('BudgetProjection — an unobtainable figure is never rendered as money (C-1/C-2)', () => {
+  const unmappedRow = {
+    ...ROW,
+    category: 'Equipment' as const,
+    pmoBudgetAmount: 20000,
+    actualsToDate: null,
+    projectedFinalCost: null,
+    projectedVariance: null,
+    projectedUtilization: null,
+  };
+
+  it('C-1 an unmapped category shows NO actuals figure — never a confident $0', async () => {
+    fetchMock.mockResolvedValue([unmappedRow]);
+    renderPage();
+    const row = (await screen.findByText('Equipment')).closest('tr')!;
+    expect(within(row).queryByText('$0')).not.toBeInTheDocument();
+    expect(within(row).queryByText('$0.00')).not.toBeInTheDocument();
+  });
+
+  it('C-2 the unavailable cells say WHY, not merely nothing — a dash alone reads as "we forgot"', async () => {
+    fetchMock.mockResolvedValue([unmappedRow]);
+    renderPage();
+    const row = (await screen.findByText('Equipment')).closest('tr')!;
+    // The accessible name of each unobtainable cell explains itself to a screen reader too.
+    expect(within(row).getAllByTitle(/no ERP account is mapped/i).length).toBeGreaterThanOrEqual(3);
+  });
+
+  it('C-2 utilization for an unmapped category is NOT 0% ', async () => {
+    fetchMock.mockResolvedValue([unmappedRow]);
+    renderPage();
+    const row = (await screen.findByText('Equipment')).closest('tr')!;
+    expect(within(row).queryByText('0%')).not.toBeInTheDocument();
+  });
+
+  it('C-1 a MAPPED category with an empty ledger still shows a real $0 — the distinction is the point', async () => {
+    fetchMock.mockResolvedValue([
+      { ...ROW, actualsToDate: 0, projectedFinalCost: 0, projectedVariance: 100000, projectedUtilization: 0 },
+    ]);
+    renderPage();
+    const row = (await screen.findByText('Labor')).closest('tr')!;
+    // actuals AND projected final are both a real, computed zero here.
+    expect(within(row).getAllByText('$0').length).toBeGreaterThanOrEqual(1);
+    expect(within(row).getByText('0%')).toBeInTheDocument();
+  });
+
+  // I-1 — DESIGN.md §3: `tabular-nums` is mandatory on every figure that can be compared.
+  it('I-1 every money cell carries tabular figures so columns align', async () => {
+    fetchMock.mockResolvedValue([ROW]);
+    renderPage();
+    const row = (await screen.findByText('Labor')).closest('tr')!;
+    const moneyCells = Array.from(row.querySelectorAll('td')).slice(1);
+    expect(moneyCells.length).toBeGreaterThan(0);
+    for (const cell of moneyCells) expect(cell.className).toContain('tabular');
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════════════════════════════════
+// ⚑ C-3 — with no fiscal year on record the grid must be EMPTY, and that empty state must offer a
+// route forward rather than being a dead end.
+// ════════════════════════════════════════════════════════════════════════════════════════════════
+describe('BudgetProjection — the no-fiscal-year state is reachable and has a way out (C-3)', () => {
+  beforeEach(() => {
+    yearsMock.mockResolvedValue([]);
+    fetchMock.mockResolvedValue([]); // the RPC is year-scoped: no year ⇒ no rows
+  });
+
+  it('C-3 renders the honest empty state, never a fabricated money grid', async () => {
+    renderPage();
+    await screen.findByText(/no fiscal year on record yet/i);
+    expect(screen.queryByRole('table')).not.toBeInTheDocument();
+  });
+
+  it('C-3 the empty state names what actually produces a fiscal year — it is not a dead end', async () => {
+    renderPage();
+    await screen.findByText(/no fiscal year on record yet/i);
+    expect(screen.getByText(/activate a budget version/i)).toBeInTheDocument();
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════════════════════════════════
+// ⚑ C-4 — two contradicting "Actual" columns on the same tab, unexplained.
+// ════════════════════════════════════════════════════════════════════════════════════════════════
+describe('BudgetProjection — the two Actual columns are disambiguated (C-4)', () => {
+  it('C-4 names the SOURCE of its actuals column and says which figure governs', async () => {
+    renderPage();
+    await screen.findByText('Labor');
+    expect(screen.getByRole('columnheader', { name: /actuals to date \(ERP ledger\)/i })).toBeInTheDocument();
+    expect(screen.getByText(/posted ERP ledger|differ from the .Actual./i)).toBeInTheDocument();
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════════════════════════════════
+// ⚑ C-5 — a state that renders nothing is a defect, not a default.
+// ════════════════════════════════════════════════════════════════════════════════════════════════
+describe('BudgetProjection — every push state is stated (C-5)', () => {
+  it.each([
+    ['pending', /queued for ERPNext/i],
+    ['pushing', /being sent to ERPNext/i],
+    ['pushed', /ERPNext is enforcing this budget/i],
+    ['failed', /still enforcing the previous budget/i],
+    ['held', /still enforcing the previous budget/i],
+  ])('C-5 %s renders its own distinct statement', async (state, matcher) => {
+    pushStatusMock.mockResolvedValue(
+      pushStatus({ pushState: state, fiscalYear: ERP_FISCAL_YEAR, erpBudgetName: 'BUDGET-0007' }),
+    );
+    renderPage();
+    expect(await screen.findByText(matcher)).toBeInTheDocument();
+  });
+
+  it('C-5 a SUCCESSFUL push names the ERP document it created (stored since 0137, never shown)', async () => {
+    pushStatusMock.mockResolvedValue(
+      pushStatus({ pushState: 'pushed', fiscalYear: ERP_FISCAL_YEAR, erpBudgetName: 'BUDGET-0007' }),
+    );
+    renderPage();
+    expect(await screen.findByText(/BUDGET-0007/)).toBeInTheDocument();
+  });
+
+  it('C-5 an org with NO ERP tier renders no push statement at all — absence, correctly, says nothing', async () => {
+    pushStatusMock.mockResolvedValue(NO_PUSH);
+    renderPage();
+    await screen.findByText('Labor');
+    expect(screen.queryByText(/ERPNext/)).not.toBeInTheDocument();
+  });
+});
+
 describe('BudgetProjection — the push-state banner (FR-BUD-123)', () => {
   it('states the operational consequence in plain words when the push is failed/held', async () => {
-    fetchMock.mockResolvedValue([
-      { ...ROW, pushState: 'held', pushError: 'budget categories have no ERP account mapping: Contingency' },
-    ]);
+    pushStatusMock.mockResolvedValue(
+      pushStatus({ pushState: 'held', pushError: 'budget-category-unmapped', unmappedCategories: ['Contingency'] }),
+    );
     renderPage();
     expect(await screen.findByText(/still enforcing the previous budget/i)).toBeInTheDocument();
     expect(screen.getByText(/Contingency/)).toBeInTheDocument();
   });
 
-  it('renders no banner when the push is healthy (pushed or no push at all)', async () => {
-    fetchMock.mockResolvedValue([{ ...ROW, pushState: 'pushed', pushError: null }]);
+  it('renders no BLOCKED banner when the push is healthy', async () => {
+    pushStatusMock.mockResolvedValue(pushStatus({ pushState: 'pushed' }));
     renderPage();
     await screen.findByText('Labor');
     expect(screen.queryByText(/still enforcing the previous budget/i)).not.toBeInTheDocument();
   });
 
-  // ── HIGH-C (Luna re-audit round 2): a push that NEVER REACHED the edge function leaves no mirror row
-  //    at all, so `push_state` comes back NULL — which rendered as a perfectly clean screen while
-  //    ERPNext enforced the previous budget (or none) indefinitely. `get_budget_projection` now
-  //    distinguishes that state as 'never-pushed'.
   it('HIGH-C banners an ACTIVE version whose push was never recorded at all (a NULL push_state is not "fine")', async () => {
-    fetchMock.mockResolvedValue([{ ...ROW, pushState: 'never-pushed', pushError: null }]);
+    pushStatusMock.mockResolvedValue(pushStatus({ pushState: 'never-pushed' }));
     renderPage();
     expect(await screen.findByText(/never reached ERPNext/i)).toBeInTheDocument();
   });
 
-  // ── HIGH-D: 'held' (and 'failed', and 'never-pushed') must be RECOVERABLE. A gate rejection writes
-  //    `failed` pre-outbox; the backstop finds no outbox candidate and flips it to `held`, which its own
-  //    candidate query excludes — so after the Admin maps the missing category, nothing re-drives it and
-  //    re-activation is blocked by the Draft-only guard. The retry re-dispatches under the operator's
-  //    own JWT, which is the actor the sweep can never synthesize.
+  // ── I-7: "still enforcing the PREVIOUS budget" is materially WRONG for a push that never arrived —
+  //    if this is the first push, ERPNext is enforcing NOTHING, which is worse, not better.
+  it('I-7 a never-arrived push says ERPNext is enforcing NOTHING, not "the previous budget"', async () => {
+    pushStatusMock.mockResolvedValue(pushStatus({ pushState: 'never-pushed' }));
+    renderPage();
+    expect(await screen.findByText(/not enforcing any budget/i)).toBeInTheDocument();
+    expect(screen.queryByText(/still enforcing the previous budget/i)).not.toBeInTheDocument();
+  });
+
   it('HIGH-D offers a retry on a held push and re-drives it (so fixing the category map finally lands)', async () => {
     const user = userEvent.setup();
-    fetchMock.mockResolvedValue([
-      { ...ROW, pushState: 'held', pushError: 'budget-category-unmapped' },
-    ]);
+    pushStatusMock.mockResolvedValue(pushStatus({ pushState: 'held', pushError: 'budget-category-unmapped' }));
     renderPage();
     await user.click(await screen.findByRole('button', { name: /retry the push/i }));
     await waitFor(() => expect(retryMock).toHaveBeenCalledWith('proj-1'));
@@ -212,48 +358,78 @@ describe('BudgetProjection — the push-state banner (FR-BUD-123)', () => {
   it('HIGH-D a retry that fails again says so, and leaves the banner in place', async () => {
     const user = userEvent.setup();
     retryMock.mockResolvedValue({ pushState: 'failed' });
-    fetchMock.mockResolvedValue([{ ...ROW, pushState: 'failed', pushError: 'budget-category-unmapped' }]);
+    pushStatusMock.mockResolvedValue(pushStatus({ pushState: 'failed', pushError: 'budget-category-unmapped' }));
     renderPage();
     await user.click(await screen.findByRole('button', { name: /retry the push/i }));
     await waitFor(() => expect(retryMock).toHaveBeenCalled());
-    expect(await screen.findByText(/push did not complete/i)).toBeInTheDocument();
+    expect(await screen.findByText(/did not complete/i)).toBeInTheDocument();
     expect(screen.getByText(/still enforcing the previous budget/i)).toBeInTheDocument();
   });
 
-  // ── H-3 (Luna audit round 3): a version activated BEFORE mig 0139 carries no `activated_at`. It
-  //    cannot be pushed — `budgetPushKey` and the server-side budget gate both refuse an unstamped
-  //    version, deliberately: a money command keyed on an invented timestamp is worse than one that
-  //    never runs. It used to be INVISIBLE (the alarm required the stamp), which meant ERPNext enforced
-  //    nothing at all behind a perfectly clean screen. Visible + told what actually works.
+  // ── I-6: a 503 is not a gate rejection. "The reason shown above may need fixing first" is false
+  //    when nothing above was fixable and the push simply never reached ERPNext.
+  it('I-6 a TRANSPORT failure does not tell the operator to fix something above', async () => {
+    const user = userEvent.setup();
+    retryMock.mockResolvedValue({ pushState: 'failed' });
+    pushStatusMock.mockResolvedValue(pushStatus({ pushState: 'failed', pushError: 'external-unreachable' }));
+    renderPage();
+    await user.click(await screen.findByRole('button', { name: /retry the push/i }));
+    await waitFor(() => expect(retryMock).toHaveBeenCalled());
+    await waitFor(() => expect(screen.getAllByText(/could not be reached/i).length).toBeGreaterThan(1));
+    expect(screen.queryByText(/may need fixing first/i)).not.toBeInTheDocument();
+  });
+
+  it('I-6 a GATE rejection still says the reason above may need fixing first', async () => {
+    const user = userEvent.setup();
+    retryMock.mockResolvedValue({ pushState: 'failed' });
+    pushStatusMock.mockResolvedValue(pushStatus({ pushState: 'failed', pushError: 'budget-category-unmapped' }));
+    renderPage();
+    await user.click(await screen.findByRole('button', { name: /retry the push/i }));
+    await waitFor(() => expect(retryMock).toHaveBeenCalled());
+    expect(await screen.findByText(/may need fixing first/i)).toBeInTheDocument();
+  });
+
   it('H-3 banners an Active version with NO activation stamp, and names the route out (a retry cannot mint one)', async () => {
-    fetchMock.mockResolvedValue([{ ...ROW, pushState: 'unstamped-activation', pushError: null }]);
+    pushStatusMock.mockResolvedValue(pushStatus({ pushState: 'unstamped-activation' }));
     renderPage();
     expect(await screen.findByText(/no record of when it was activated/i)).toBeInTheDocument();
     expect(screen.getByText(/activate a new version/i)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /retry the push/i })).not.toBeInTheDocument();
   });
 
+  // ── I-11: an unstamped activation's only route out is "Clone to revise, then activate". Naming the
+  //    remedy without naming the CONTROL that performs it is still a dead end.
+  it('I-11 the unstamped-activation banner names the control that performs its remedy', async () => {
+    pushStatusMock.mockResolvedValue(pushStatus({ pushState: 'unstamped-activation' }));
+    renderPage();
+    expect(await screen.findByText(/clone to revise/i)).toBeInTheDocument();
+  });
+
   it('offers NO retry when the push is healthy', async () => {
-    fetchMock.mockResolvedValue([{ ...ROW, pushState: 'pushed', pushError: null }]);
+    pushStatusMock.mockResolvedValue(pushStatus({ pushState: 'pushed' }));
     renderPage();
     await screen.findByText('Labor');
     expect(screen.queryByRole('button', { name: /retry the push/i })).not.toBeInTheDocument();
   });
 
-  // ── NEW-6 (audit round 4): `unmapped_categories` was WRITE-ONLY. The dispatch gate records exactly
-  //    WHICH categories have no ERP account (FR-BUD-113 collected the names on purpose), but nothing
-  //    read them back — so the banner showed the raw code `budget-category-unmapped`: an error message
-  //    that tells an Admin something is broken while withholding the one fact that makes it fixable.
-  //    The names are the operator's to-do list, so they are rendered AS a list.
+  // ── I-14: Retry must be WITHHELD where it provably cannot work — the contract the surface already
+  //    honours for `unstamped-activation`, applied to every ERP-side cause.
+  it('I-14 offers NO retry for an ERP-side cause a retry can never fix, and says what must change', async () => {
+    pushStatusMock.mockResolvedValue(pushStatus({ pushState: 'failed', pushError: 'budget-multi-fiscal-year' }));
+    renderPage();
+    await screen.findByRole('alert');
+    expect(screen.queryByRole('button', { name: /retry the push/i })).not.toBeInTheDocument();
+    expect(screen.getByText(/split the budget/i)).toBeInTheDocument();
+  });
+
   it('NEW-6 names the unmapped categories as the operator\'s to-do list, not just the bare error code', async () => {
-    fetchMock.mockResolvedValue([
-      {
-        ...ROW,
+    pushStatusMock.mockResolvedValue(
+      pushStatus({
         pushState: 'failed',
         pushError: 'budget-category-unmapped',
         unmappedCategories: ['Materials', 'Subcontract'],
-      },
-    ]);
+      }),
+    );
     renderPage();
 
     await screen.findByText(/still enforcing the previous budget/i);
@@ -262,15 +438,36 @@ describe('BudgetProjection — the push-state banner (FR-BUD-123)', () => {
     expect(within(todo).getByText('Subcontract')).toBeInTheDocument();
   });
 
+  // ── I-8: naming the to-do is half the job; the banner must LINK to the place it is done.
+  it('I-8 the unmapped-category banner links to the account map that fixes it', async () => {
+    pushStatusMock.mockResolvedValue(
+      pushStatus({ pushState: 'failed', pushError: 'budget-category-unmapped', unmappedCategories: ['Materials'] }),
+    );
+    renderPage();
+    const link = await screen.findByRole('link', { name: /account map/i });
+    expect(link).toHaveAttribute('href', expect.stringContaining('/administration'));
+  });
+
   it('NEW-6 renders no category list when the failure has nothing to do with the map', async () => {
-    fetchMock.mockResolvedValue([
-      { ...ROW, pushState: 'failed', pushError: 'external-unreachable', unmappedCategories: null },
-    ]);
+    pushStatusMock.mockResolvedValue(pushStatus({ pushState: 'failed', pushError: 'external-unreachable' }));
     renderPage();
 
     await screen.findByText(/still enforcing the previous budget/i);
     expect(screen.queryByRole('list', { name: /categories that need an ERP account/i })).not.toBeInTheDocument();
-    expect(screen.getByText('external-unreachable')).toBeInTheDocument();   // the code still surfaces
+  });
+
+  // ── I-5/I-15: no raw kebab-case adapter token may reach the DOM. The prior version of this file
+  //    asserted the OPPOSITE (`getByText('external-unreachable')`) — it pinned the defect in place.
+  it.each([
+    'external-unreachable',
+    'budget-category-unmapped',
+    'budget-multi-fiscal-year',
+    'erpnext-activity-type-missing: no Activity Type on the binding',
+  ])('I-5 the push error %s never reaches the DOM as a raw token', async (pushError) => {
+    pushStatusMock.mockResolvedValue(pushStatus({ pushState: 'failed', pushError }));
+    const { container } = renderPage();
+    await screen.findByRole('alert');
+    expect(container.textContent ?? '').not.toMatch(RAW_ADAPTER_TOKEN);
   });
 });
 
@@ -290,5 +487,57 @@ describe('BudgetProjection — ETC is editable only under OD-BUDGET-3 (ADR-0016 
     renderPage('Engineer');
     await screen.findByText('Labor');
     expect(screen.queryByRole('button', { name: /edit.*labor.*etc/i })).not.toBeInTheDocument();
+  });
+
+  // ── I-4: the editor was a hand-rolled <input>+<span>: the validation message was not wired to the
+  //    field at all, so a screen-reader user was told nothing was wrong.
+  it('I-4 an invalid amount marks the field invalid and wires the message to it', async () => {
+    const user = userEvent.setup();
+    renderPage('Finance');
+    await user.click(await screen.findByRole('button', { name: /edit.*labor.*etc/i }));
+    const field = screen.getByLabelText(/estimate to complete/i);
+    await user.clear(field);
+    await user.type(field, '-5');
+    await user.click(screen.getByRole('button', { name: /save/i }));
+
+    const message = await screen.findByRole('alert');
+    expect(message).toHaveTextContent(/valid, non-negative/i);
+    expect(field).toHaveAttribute('aria-invalid', 'true');
+    expect(field.getAttribute('aria-describedby') ?? '').toContain(message.id);
+    expect(upsertEtcMock).not.toHaveBeenCalled();
+  });
+
+  // ── I-3: focus was dumped to <body> on open/cancel/save — the keyboard user lost their place in a
+  //    table row entirely.
+  it('I-3 opening the editor moves focus INTO it, and cancelling returns focus to the trigger', async () => {
+    const user = userEvent.setup();
+    renderPage('Finance');
+    const trigger = await screen.findByRole('button', { name: /edit.*labor.*etc/i });
+    await user.click(trigger);
+    await waitFor(() => expect(screen.getByLabelText(/estimate to complete/i)).toHaveFocus());
+
+    await user.click(screen.getByRole('button', { name: /cancel/i }));
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /edit.*labor.*etc/i })).toHaveFocus(),
+    );
+  });
+
+  it('I-3 saving also returns focus to the trigger, never to <body>', async () => {
+    const user = userEvent.setup();
+    renderPage('Finance');
+    await user.click(await screen.findByRole('button', { name: /edit.*labor.*etc/i }));
+    await user.click(screen.getByRole('button', { name: /save/i }));
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /edit.*labor.*etc/i })).toHaveFocus(),
+    );
+  });
+
+  // ── I-2: the trigger printed the whole category name, so the ETC column's width changed per row and
+  //    the money in it stopped lining up. The category belongs in the accessible name, not on screen.
+  it('I-2 the Edit trigger shows a fixed label and keeps the category in its accessible name only', async () => {
+    renderPage('Finance');
+    const trigger = await screen.findByRole('button', { name: /edit.*labor.*etc/i });
+    expect(trigger.textContent).toContain('Edit');
+    expect(trigger.textContent).not.toMatch(/^Edit Labor ETC$/);
   });
 });

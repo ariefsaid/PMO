@@ -157,7 +157,7 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
             <TH>Category</TH>
             <TH>Description</TH>
             <TH align="right">Budgeted</TH>
-            <TH align="right">Actual</TH>
+            <TH align="right">Actual (PMO recorded)</TH>
             <th className="border-b border-border bg-card" />
           </tr>
         </thead>
@@ -499,7 +499,7 @@ const VersionCard: React.FC<VersionCardProps> = ({
                   <TH>Category</TH>
                   <TH>Description</TH>
                   <TH align="right">Budgeted</TH>
-                  <TH align="right">Actual</TH>
+                  <TH align="right">Actual (PMO recorded)</TH>
                 </tr>
               </thead>
               <tbody>

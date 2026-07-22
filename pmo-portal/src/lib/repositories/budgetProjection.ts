@@ -23,24 +23,47 @@ export interface BudgetProjectionCellRow {
   category: BudgetCategory;
   /** `null` when the Active version budgets no line for this category (FR-BUD-151) — never coerced to 0. */
   pmoBudgetAmount: number | null;
-  actualsToDate: number;
+  /**
+   * ⚑ C-1 — `null` means the figure is **UNOBTAINABLE**: the category has no ERP account mapped, so
+   * there is no account to ask the ledger about. A mapped category with an empty ledger is `0`, a real
+   * computed zero. Merging the two put a confident `$0` under a banner that had just said the category
+   * was unmapped.
+   */
+  actualsToDate: number | null;
   pmoEtc: number;
-  projectedFinalCost: number;
-  projectedVariance: number;
-  /** `null` on a zero/absent budget — never 0, never Infinity (AC-BUD-051). */
+  /** C-2 — `null` whenever `actualsToDate` is: nothing derived from an unknown is knowable. */
+  projectedFinalCost: number | null;
+  /** C-2 — `null` whenever `actualsToDate` is (never "the entire budget is still available"). */
+  projectedVariance: number | null;
+  /** `null` on a zero/absent budget, or on an unobtainable actual — never 0, never Infinity (AC-BUD-051). */
   projectedUtilization: number | null;
-  /** The category's Active-version push state, when a push exists for this project+FY (else `null`). */
+}
+
+/**
+ * C-5 — the project's ERP push status, read at PROJECT grain (`get_budget_push_status`, mig 0141).
+ *
+ * It used to ride on every projection cell and be read off `rows[0]`. That made a project-wide alarm
+ * hostage to the money grid having rows (C-3 makes the empty grid reachable), scoped it to whichever
+ * fiscal year the user happened to be looking at, and left no room for the ERP document the push
+ * actually created.
+ */
+export interface BudgetPushStatusRow {
+  /** One of `pending`/`pushing`/`pushed`/`failed`/`held`, or the derived `never-pushed`/
+   *  `unstamped-activation`. `null` = nothing to report (no Active version, or no ERP tier). */
   pushState: string | null;
+  /** The machine token as persisted. NEVER render it — pass it through `describePushError`. */
   pushError: string | null;
   /**
    * NEW-6 — the PMO categories that have no `budget_category_account_map` row, i.e. exactly what an
    * operator must fix. `null` when the failure had nothing to do with the map (never `[]`: an empty
    * list would read as "the map is fine" and force every consumer to special-case it).
-   *
-   * Additive to `pushError`, never a replacement: that column carries the machine-matchable CODE
-   * (`budget-category-unmapped`), which other logic keys on; this carries the human's to-do list.
    */
   unmappedCategories: string[] | null;
+  /** C-5 — the ERP `Budget` document a successful push created. Stored since 0137, never shown until now. */
+  erpBudgetName: string | null;
+  /** The fiscal year this status is ABOUT, so the banner can name it instead of hiding on other years. */
+  fiscalYear: string | null;
+  pushedAt: string | null;
 }
 
 /** One fiscal year that actually exists for a project, in the CLIENT'S own calendar (H-4). */
@@ -74,23 +97,45 @@ export async function fetchBudgetProjection(
     p_fiscal_year: fiscalYear ?? '',
   });
   if (error) throw toAppError(error);
+  // ⚑ C-1/C-2: NULL is LOAD-BEARING on every money column here — it is the difference between "zero"
+  // and "not knowable". `?? 0` on any of them re-introduces the exact defect the RPC change removed.
+  const num = (v: number | string | null | undefined): number | null =>
+    v === null || v === undefined ? null : Number(v);
   return (data ?? []).map((row) => ({
     category: row.category,
-    pmoBudgetAmount: row.pmo_budget_amount === null || row.pmo_budget_amount === undefined ? null : Number(row.pmo_budget_amount),
-    actualsToDate: Number(row.actuals_to_date ?? 0),
+    pmoBudgetAmount: num(row.pmo_budget_amount),
+    actualsToDate: num(row.actuals_to_date),
     pmoEtc: Number(row.pmo_etc ?? 0),
-    projectedFinalCost: Number(row.projected_final_cost ?? 0),
-    projectedVariance: Number(row.projected_variance ?? 0),
-    projectedUtilization:
-      row.projected_utilization === null || row.projected_utilization === undefined
-        ? null
-        : Number(row.projected_utilization),
-    pushState: row.push_state ?? null,
-    pushError: row.push_error ?? null,
+    projectedFinalCost: num(row.projected_final_cost),
+    projectedVariance: num(row.projected_variance),
+    projectedUtilization: num(row.projected_utilization),
+  }));
+}
+
+/**
+ * C-5 — reads the project's ERP push status (`get_budget_push_status`, mig 0141). Fiscal-year
+ * INDEPENDENT on purpose: a failed push is a fact about the project's Active version, not about the
+ * year the user happens to have selected, and hiding it behind that selection made the alarm's
+ * visibility contingent on an unrelated navigation choice.
+ *
+ * Always resolves (never throws on "nothing to report") — an org with no ERP tier legitimately has no
+ * status, and the RPC answers one all-NULL row for it.
+ */
+export async function fetchBudgetPushStatus(projectId: string): Promise<BudgetPushStatusRow> {
+  const { data, error } = await supabase.rpc('get_budget_push_status', { p_project_id: projectId });
+  if (error) throw toAppError(error);
+  // A set-returning RPC yields an array (never `.single()` — a 0-row read would 406, the shipped lesson).
+  const row = Array.isArray(data) ? data[0] : undefined;
+  return {
+    pushState: row?.push_state ?? null,
+    pushError: row?.push_error ?? null,
     // NEW-6: an absent/empty array normalizes to `null` — "no category names on record" is one state,
     // and collapsing it here keeps every consumer from having to test both spellings of it.
-    unmappedCategories: row.unmapped_categories?.length ? row.unmapped_categories : null,
-  }));
+    unmappedCategories: row?.unmapped_categories?.length ? row.unmapped_categories : null,
+    erpBudgetName: row?.erp_budget_name ?? null,
+    fiscalYear: row?.fiscal_year ?? null,
+    pushedAt: row?.pushed_at ?? null,
+  };
 }
 
 /**

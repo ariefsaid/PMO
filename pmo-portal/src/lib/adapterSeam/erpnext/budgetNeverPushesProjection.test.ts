@@ -37,7 +37,11 @@ const CELL = deriveProjectionCell({
   pmoEtc: '888802.22',
 });
 
-const FORBIDDEN_VALUES = [CELL.pmoEtc, CELL.projectedFinalCost, CELL.projectedVariance] as const;
+// C-1/C-2: these cells are now nullable (an unobtainable actual makes every derived figure
+// unobtainable too). Only a REAL value can leak, so only real values are forbidden.
+const FORBIDDEN_VALUES = [CELL.pmoEtc, CELL.projectedFinalCost, CELL.projectedVariance].filter(
+  (v): v is string => v !== null,
+);
 
 /** The ONE oracle both proofs share: no forbidden projection VALUE, and no projection-shaped KEY
  *  name, may appear anywhere in the serialized body. */

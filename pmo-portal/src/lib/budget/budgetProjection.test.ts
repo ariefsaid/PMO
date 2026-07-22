@@ -70,14 +70,57 @@ describe('budgetProjection (FR-BUD-151 — PMO forward view, never pushed)', () 
     expect(cell.projectedVariance).toBe('60000.00');
   });
 
-  it('AC-BUD-051 an absent actuals row (no GL activity yet) is treated as 0, not an error', () => {
+  it('AC-BUD-051 a MAPPED category with no GL activity yet is a real 0, not an error', () => {
     const cell = deriveProjectionCell({
       category: 'Equipment',
       pmoBudgetAmount: '5000.00',
-      actualsToDate: null,
+      // '' = "the account was queried and the ledger holds nothing" — a computed zero.
+      actualsToDate: '',
       pmoEtc: '1000.00',
     });
     expect(cell.projectedFinalCost).toBe('1000.00');
     expect(cell.actualsToDate).toBe('0.00');
+  });
+});
+
+/**
+ * ⚑ C-1 / C-2 (rendered Discover pass, 2026-07-22) — the oracle must make the SAME distinction the RPC
+ * now makes, or the two drift and this module stops being an oracle.
+ *
+ * `null` used to mean "no GL rows yet" and was folded to 0. That merged it with "there is no ERP
+ * account mapped for this category at all", where the figure is not zero but UNKNOWABLE — and every
+ * figure derived from it (EAC, variance, utilization) was then stated with equal confidence: a
+ * full-budget variance and 0% utilization for a category the same screen was simultaneously banner-ing
+ * as unmapped.
+ */
+describe('deriveProjectionCell — an unobtainable actual is never a zero (C-1/C-2)', () => {
+  const unmapped = () =>
+    deriveProjectionCell({
+      category: 'Equipment',
+      pmoBudgetAmount: '20000.00',
+      actualsToDate: null, // no ERP account mapped ⇒ PMO cannot know
+      pmoEtc: '1000.00',
+    });
+
+  it('C-1 reports NO actuals figure rather than 0.00', () => {
+    expect(unmapped().actualsToDate).toBeNull();
+  });
+
+  it('C-2 derives no projected final cost from an unobtainable actual', () => {
+    expect(unmapped().projectedFinalCost).toBeNull();
+  });
+
+  it('C-2 derives no variance — never "the entire budget is still available"', () => {
+    expect(unmapped().projectedVariance).toBeNull();
+  });
+
+  it('C-2 derives no utilization — never a confident 0%', () => {
+    expect(unmapped().projectedUtilization).toBeNull();
+  });
+
+  it('C-1 the PMO-owned halves are still stated: they are knowable without the ERP map', () => {
+    const cell = unmapped();
+    expect(cell.pmoBudgetAmount).toBe('20000.00');
+    expect(cell.pmoEtc).toBe('1000.00');
   });
 });

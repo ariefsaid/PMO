@@ -26,7 +26,15 @@ export interface ProjectionInput {
   /** `numeric(14,2)` as a decimal string, or `null` when the Active version budgets no line for this
    *  category (an actual/ETC can still exist with no corresponding budget line — FR-BUD-151). */
   pmoBudgetAmount: string | null;
-  /** `erp_actuals_snapshot.net` for the mapped account, or `null` when there is no GL activity yet. */
+  /**
+   * `erp_actuals_snapshot.net` summed over the category's MAPPED ERP account.
+   *
+   * ⚑ C-1 (rendered Discover pass, 2026-07-22) — `null` means the figure is **UNOBTAINABLE**: the
+   * category has no `budget_category_account_map` row, so there is no account to ask the ledger about.
+   * That is NOT zero, and it must never be folded into one — a genuine zero, "no GL rows this year"
+   * and "no ERP account mapped at all" rendered as one byte-identical `$0` on the primary money screen.
+   * A mapped category with an empty ledger is `''` (or `'0.00'`) — a real, computed zero.
+   */
   actualsToDate: string | null;
   /** `budget_projections.pmo_etc`, or `null` when no ETC row has been authored yet. */
   pmoEtc: string | null;
@@ -35,11 +43,15 @@ export interface ProjectionInput {
 export interface BudgetProjectionCell {
   category: string;
   pmoBudgetAmount: string | null;
-  actualsToDate: string;
+  /** C-1: `null` when the category has no mapped ERP account — the figure is unknowable, not zero. */
+  actualsToDate: string | null;
   pmoEtc: string;
-  projectedFinalCost: string;
-  projectedVariance: string;
-  /** `EAC / pmoBudgetAmount`, or `null` on a zero/absent budget — never 0, never `Infinity`, never NaN. */
+  /** C-2: `null` whenever `actualsToDate` is — nothing derived from an unknown is knowable either. */
+  projectedFinalCost: string | null;
+  /** C-2: `null` whenever `actualsToDate` is (never "the entire budget is still available"). */
+  projectedVariance: string | null;
+  /** `EAC / pmoBudgetAmount`, or `null` on a zero/absent budget, or on an unobtainable actual (C-2) —
+   *  never 0, never `Infinity`, never NaN. */
   projectedUtilization: number | null;
 }
 
@@ -75,12 +87,27 @@ function fromCents(cents: number): string {
  * `Infinity`).
  */
 export function deriveProjectionCell(input: ProjectionInput): BudgetProjectionCell {
-  const actualsCents = toCents(input.actualsToDate);
   const etcCents = toCents(input.pmoEtc); // an absent ETC row ⇒ 0, not an error
-  const eacCents = actualsCents + etcCents;
-
   const hasBudget = input.pmoBudgetAmount !== null && input.pmoBudgetAmount !== '';
   const budgetCents = hasBudget ? toCents(input.pmoBudgetAmount) : null;
+
+  // ⚑ C-1/C-2 — the honesty branch. With no mapped ERP account there is no account to sum, so the
+  // actual is UNKNOWN and every figure downstream of it is unknown too. The PMO-owned halves (budget,
+  // ETC) are still stated: they never depended on the ERP map.
+  if (input.actualsToDate === null) {
+    return {
+      category: input.category,
+      pmoBudgetAmount: hasBudget ? fromCents(budgetCents as number) : null,
+      actualsToDate: null,
+      pmoEtc: fromCents(etcCents),
+      projectedFinalCost: null,
+      projectedVariance: null,
+      projectedUtilization: null,
+    };
+  }
+
+  const actualsCents = toCents(input.actualsToDate);
+  const eacCents = actualsCents + etcCents;
 
   const varianceCents = budgetCents === null ? -eacCents : budgetCents - eacCents;
   const projectedUtilization = budgetCents === null || budgetCents === 0 ? null : eacCents / budgetCents;

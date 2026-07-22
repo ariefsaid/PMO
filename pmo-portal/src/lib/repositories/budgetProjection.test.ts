@@ -33,6 +33,7 @@ vi.mock('@/src/lib/db/budgets', () => ({ retryBudgetPush: retryBudgetPushMock })
 
 import {
   fetchBudgetProjection,
+  fetchBudgetPushStatus,
   listBudgetFiscalYears,
   retryActiveBudgetPush,
   listBudgetCategoryAccountMap,
@@ -93,9 +94,6 @@ describe('fetchBudgetProjection (AC-BUD-050/053)', () => {
           projected_final_cost: 75000,
           projected_variance: 25000,
           projected_utilization: 0.75,
-          push_state: 'pushed',
-          push_error: null,
-          unmapped_categories: null,
         },
       ],
       error: null,
@@ -116,9 +114,6 @@ describe('fetchBudgetProjection (AC-BUD-050/053)', () => {
         projectedFinalCost: 75000,
         projectedVariance: 25000,
         projectedUtilization: 0.75,
-        pushState: 'pushed',
-        pushError: null,
-        unmappedCategories: null,
       },
     ]);
   });
@@ -146,55 +141,53 @@ describe('fetchBudgetProjection (AC-BUD-050/053)', () => {
     expect(rows[0].projectedUtilization).toBeNull();
   });
 
-  // ⚑ NEW-6 (audit round 4) — `unmapped_categories` was WRITE-ONLY. The dispatch gate persists the NAMES
-  // of the categories that blocked the push (FR-BUD-113 collected them precisely so the operator gets a
-  // to-do list), but the read seam dropped them on the floor, so the screen could only ever show the bare
-  // code `budget-category-unmapped`. The code stays in `pushError`; the names ride alongside.
-  it('NEW-6 surfaces the recorded unmapped_categories alongside the push_error CODE', async () => {
+  // ⚑ C-1/C-2 (rendered Discover pass, 2026-07-22) — NULL is LOAD-BEARING on every money column: it is
+  // the difference between "zero" and "not knowable". The old mapper coerced with `?? 0`, which
+  // re-invents the exact defect the RPC change removed, one layer up.
+  it('C-1 preserves a NULL actuals figure — it means UNOBTAINABLE, never 0', async () => {
     makeRpcBuilder({
       data: [
         {
-          category: 'Labor',
-          pmo_budget_amount: 100000,
-          actuals_to_date: 0,
+          category: 'Equipment',
+          pmo_budget_amount: 20000,
+          actuals_to_date: null,
           pmo_etc: 0,
-          projected_final_cost: 0,
-          projected_variance: 100000,
-          projected_utilization: 0,
-          push_state: 'failed',
-          push_error: 'budget-category-unmapped',
-          unmapped_categories: ['Materials', 'Subcontract'],
+          projected_final_cost: null,
+          projected_variance: null,
+          projected_utilization: null,
         },
       ],
       error: null,
     });
 
     const rows = await fetchBudgetProjection('proj-1', '2026');
-    expect(rows[0].unmappedCategories).toEqual(['Materials', 'Subcontract']);
-    expect(rows[0].pushError).toBe('budget-category-unmapped');   // the CODE is never replaced by the names
+    expect(rows[0].actualsToDate).toBeNull();
+    expect(rows[0].projectedFinalCost).toBeNull();
+    expect(rows[0].projectedVariance).toBeNull();
+    expect(rows[0].projectedUtilization).toBeNull();
+    // the PMO-owned halves are still stated — they never depended on the ERP map
+    expect(rows[0].pmoBudgetAmount).toBe(20000);
   });
 
-  it('NEW-6 a failure unrelated to the map reports null categories, never a fabricated empty list', async () => {
+  it('C-1 a real, computed zero survives as 0 — the distinction is the whole point', async () => {
     makeRpcBuilder({
       data: [
         {
           category: 'Labor',
-          pmo_budget_amount: 100000,
+          pmo_budget_amount: 10000,
           actuals_to_date: 0,
           pmo_etc: 0,
           projected_final_cost: 0,
-          projected_variance: 100000,
+          projected_variance: 10000,
           projected_utilization: 0,
-          push_state: 'failed',
-          push_error: 'external-unreachable',
-          unmapped_categories: null,
         },
       ],
       error: null,
     });
 
     const rows = await fetchBudgetProjection('proj-1', '2026');
-    expect(rows[0].unmappedCategories).toBeNull();
+    expect(rows[0].actualsToDate).toBe(0);
+    expect(rows[0].projectedUtilization).toBe(0);
   });
 
   it('an empty result (no versions/actuals/ETC yet) resolves to an empty array, not a throw', async () => {
@@ -205,6 +198,55 @@ describe('fetchBudgetProjection (AC-BUD-050/053)', () => {
   it('throws an AppError (code preserved) on an RPC error — e.g. cross-org / RLS 42501', async () => {
     makeRpcBuilder({ data: null, error: { message: 'not authorized', code: '42501' } });
     await expect(fetchBudgetProjection('proj-1', '2026')).rejects.toMatchObject({ code: '42501' });
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════════════════════════════════
+// C-5 — the push status moved to its own PROJECT-grained read. It used to ride on every projection
+// cell and be read off `rows[0]`, which made a project-wide money alarm hostage to the grid having
+// rows at all (C-3 makes the empty grid reachable) and left no room for `erp_budget_name`.
+// ════════════════════════════════════════════════════════════════════════════════════════════════
+describe('fetchBudgetPushStatus (C-5)', () => {
+  it('C-5 reads the status at PROJECT grain — no fiscal year is passed, so no year can hide it', async () => {
+    makeRpcBuilder({ data: [{ push_state: 'pushed', push_error: null, unmapped_categories: null,
+                              erp_budget_name: 'BUDGET-0007', fiscal_year: '2025-2026', pushed_at: '2026-07-01T00:00:00Z' }],
+                     error: null });
+    const status = await fetchBudgetPushStatus('proj-1');
+    expect(mockRpc).toHaveBeenCalledWith('get_budget_push_status', { p_project_id: 'proj-1' });
+    expect(status.pushState).toBe('pushed');
+    expect(status.erpBudgetName).toBe('BUDGET-0007');
+    expect(status.fiscalYear).toBe('2025-2026');
+  });
+
+  // ⚑ NEW-6 (audit round 4) — `unmapped_categories` was WRITE-ONLY. The dispatch gate persists the NAMES
+  // of the categories that blocked the push (FR-BUD-113 collected them precisely so the operator gets a
+  // to-do list), but the read seam dropped them on the floor, so the screen could only ever show the bare
+  // code `budget-category-unmapped`. The code stays in `pushError`; the names ride alongside.
+  it('NEW-6 surfaces the recorded unmapped_categories alongside the push_error CODE', async () => {
+    makeRpcBuilder({ data: [{ push_state: 'failed', push_error: 'budget-category-unmapped',
+                              unmapped_categories: ['Materials', 'Subcontract'],
+                              erp_budget_name: null, fiscal_year: '2026', pushed_at: null }], error: null });
+    const status = await fetchBudgetPushStatus('proj-1');
+    expect(status.unmappedCategories).toEqual(['Materials', 'Subcontract']);
+    expect(status.pushError).toBe('budget-category-unmapped'); // the CODE is never replaced by the names
+  });
+
+  it('NEW-6 a failure unrelated to the map reports null categories, never a fabricated empty list', async () => {
+    makeRpcBuilder({ data: [{ push_state: 'failed', push_error: 'external-unreachable', unmapped_categories: null,
+                              erp_budget_name: null, fiscal_year: '2026', pushed_at: null }], error: null });
+    expect((await fetchBudgetPushStatus('proj-1')).unmappedCategories).toBeNull();
+  });
+
+  it('C-5 an org with no ERP tier resolves to an all-null status, never a throw', async () => {
+    makeRpcBuilder({ data: [], error: null });
+    const status = await fetchBudgetPushStatus('proj-1');
+    expect(status.pushState).toBeNull();
+    expect(status.erpBudgetName).toBeNull();
+  });
+
+  it('throws an AppError (code preserved) on an RPC error', async () => {
+    makeRpcBuilder({ data: null, error: { message: 'not authorized', code: '42501' } });
+    await expect(fetchBudgetPushStatus('proj-1')).rejects.toMatchObject({ code: '42501' });
   });
 });
 

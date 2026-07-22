@@ -590,3 +590,21 @@ describe('ProjectBudget version selector (budget-dropdown)', () => {
     resetState();
   });
 });
+
+/**
+ * ⚑ C-4 (rendered Discover pass, 2026-07-22) — two columns named "Actual" sat ~100px apart on the
+ * same tab, showing different figures ($1,200,000 here vs $1,150,000 in the projection below), with
+ * nothing on screen saying they came from different places or which governed. They are different
+ * facts: this is what PMO recorded on the budget line; the projection reads the ERP general ledger.
+ */
+describe('ProjectBudget — the Actual column names its own source (C-4)', () => {
+  it('C-4 the version grid column says the figure is PMO-recorded, not the ERP ledger', async () => {
+    budgetState.data = 4700000;
+    versionsState.data = [{ ...activeVersion, line_items: draftVersion.line_items }];
+    renderPage();
+    // the selected version's line-item grid is the surface that carries the column
+    await screen.findByRole('columnheader', { name: /Budgeted/i });
+    expect(screen.queryAllByRole('columnheader', { name: /^Actual$/ })).toHaveLength(0);
+    expect(screen.getAllByRole('columnheader', { name: /Actual \(PMO recorded\)/i }).length).toBeGreaterThan(0);
+  });
+});

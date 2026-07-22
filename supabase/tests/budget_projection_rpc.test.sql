@@ -6,7 +6,7 @@
 -- request.jwt.claims), modelled on budget_version_activated_at.test.sql / budget_category_account_map_rls
 -- .test.sql. Namespaced 0b3e UUIDs (valid hex, not seed-colliding).
 begin;
-select plan(26);
+select plan(40);
 
 -- ── Fixtures (inserted as table owner, bypassing RLS) ────────────────────────────────────────────
 insert into organizations (id, name) values
@@ -93,8 +93,19 @@ insert into external_domain_ownership (org_id, domain, external_tier)
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"0b3e0000-0000-0000-0000-0000000000a2","role":"authenticated"}';
 
+-- ⚑ C-3/C-5 (rendered Discover pass, 2026-07-22): the push state moved OUT of `get_budget_projection`
+-- into its own PROJECT-GRAINED function. It was never a property of a category cell — the component's
+-- own comment said so ("one banner per project, not per category") and read it off `rows[0]`, which
+-- made the alarm hostage to the money grid having rows at all. It must survive the grid being empty
+-- (C-3 makes the empty grid REACHABLE), and it carries facts the cell grain has no room for
+-- (`erp_budget_name`, the year the push covers).
+select has_function('public','get_budget_push_status', array['uuid'], 'C-5 the push-status read exists at PROJECT grain');
+select is(p.prosecdef, false, 'C-5 SECURITY INVOKER (org isolation comes from the underlying tables'' RLS)')
+  from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+  where n.nspname='public' and p.proname='get_budget_push_status';
+
 select is(
-  (select distinct push_state from public.get_budget_projection('0b3e1111-0000-0000-0000-000000000001','2026')),
+  (select push_state from public.get_budget_push_status('0b3e1111-0000-0000-0000-000000000001')),
   'never-pushed',
   'HIGH-C an Active+activated version with NO mirror row at all reports never-pushed, not NULL');
 
@@ -106,7 +117,7 @@ insert into budget_version_erp_mirror (org_id, budget_version_id, fiscal_year, p
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"0b3e0000-0000-0000-0000-0000000000a2","role":"authenticated"}';
 select is(
-  (select distinct push_state from public.get_budget_projection('0b3e1111-0000-0000-0000-000000000001','2026')),
+  (select push_state from public.get_budget_push_status('0b3e1111-0000-0000-0000-000000000001')),
   'failed',
   'HIGH-C a recorded push state always wins over the never-pushed inference');
 
@@ -117,12 +128,12 @@ select is(
 -- code `budget-category-unmapped` and the actionable names were never read by anything, ever.
 -- The CODE stays in `push_error` (other logic matches on it); the NAMES ride alongside.
 select is(
-  (select distinct unmapped_categories from public.get_budget_projection('0b3e1111-0000-0000-0000-000000000001','2026')),
+  (select unmapped_categories from public.get_budget_push_status('0b3e1111-0000-0000-0000-000000000001')),
   array['Materials','Subcontract']::text[],
   'NEW-6 the RPC returns the recorded unmapped_categories so the operator can be told WHICH categories to map');
 
 select is(
-  (select distinct push_error from public.get_budget_projection('0b3e1111-0000-0000-0000-000000000001','2026')),
+  (select push_error from public.get_budget_push_status('0b3e1111-0000-0000-0000-000000000001')),
   'budget-category-unmapped',
   'NEW-6 the machine-matchable CODE is retained in push_error (the names are additive, never a replacement)');
 
@@ -134,7 +145,7 @@ update budget_version_erp_mirror set push_error = 'external-unreachable', unmapp
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"0b3e0000-0000-0000-0000-0000000000a2","role":"authenticated"}';
 select is(
-  (select distinct unmapped_categories from public.get_budget_projection('0b3e1111-0000-0000-0000-000000000001','2026')),
+  (select unmapped_categories from public.get_budget_push_status('0b3e1111-0000-0000-0000-000000000001')),
   null,
   'NEW-6 a failure with no unmapped categories reports NULL, not a fabricated empty list');
 
@@ -145,11 +156,20 @@ update budget_version_erp_mirror set push_error = 'budget-category-unmapped'
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"0b3e0000-0000-0000-0000-0000000000a2","role":"authenticated"}';
 
--- A DIFFERENT fiscal year is NOT "never pushed": the version has a mirror row, just not for this year.
+-- ⚑ CONTRACT CHANGE (rendered Discover pass, C-5). The alarm used to be scoped to the fiscal year the
+-- user happened to be LOOKING AT, so a failed push was hidden the moment they changed the selector —
+-- the alarm's own visibility was made contingent on an unrelated navigation choice. The push state is a
+-- property of the PROJECT'S ACTIVE VERSION, so it is now reported once, project-wide, and NAMES the year
+-- it covers (so it is never mistaken for a statement about the year on screen). The original intent —
+-- "viewing another year is not a false alarm" — is preserved by that name, not by suppression.
 select is(
-  (select distinct push_state from public.get_budget_projection('0b3e1111-0000-0000-0000-000000000001','2027')),
-  null,
-  'HIGH-C a fiscal year the push does not cover stays NULL — never a false alarm');
+  (select fiscal_year from public.get_budget_push_status('0b3e1111-0000-0000-0000-000000000001')),
+  '2026',
+  'C-5 the project-wide push status NAMES the fiscal year it covers, rather than hiding on any other year');
+select is(
+  (select push_state from public.get_budget_push_status('0b3e1111-0000-0000-0000-000000000001')),
+  'failed',
+  'C-5 a failed push stays visible while the user browses a fiscal year it does not cover');
 
 -- An org that never handed `budget` to ERPNext has nothing to push, so it is never "never-pushed".
 set local role postgres;
@@ -158,7 +178,7 @@ delete from external_domain_ownership where org_id = '0b3e0000-0000-0000-0000-00
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"0b3e0000-0000-0000-0000-0000000000a2","role":"authenticated"}';
 select is(
-  (select distinct push_state from public.get_budget_projection('0b3e1111-0000-0000-0000-000000000001','2026')),
+  (select push_state from public.get_budget_push_status('0b3e1111-0000-0000-0000-000000000001')),
   null,
   'HIGH-C a NON-employing org never sees a push banner (there is no ERP to push to)');
 
@@ -182,8 +202,8 @@ insert into budget_line_items (org_id, budget_version_id, category, description,
 update budget_versions set status = 'Active', activated_at = now() where id = '0b3e2222-0000-0000-0000-000000000002';
 insert into erp_actuals_snapshot (org_id, project_id, account, fiscal_year, debit, credit, net, snapshot_id) values
   ('0b3e0000-0000-0000-0000-000000000001','0b3e1111-0000-0000-0000-000000000002','5100 - Direct Costs - PSC','2025-2026',400000.00,0,400000.00,gen_random_uuid());
-insert into budget_version_erp_mirror (org_id, budget_version_id, fiscal_year, push_state, push_error) values
-  ('0b3e0000-0000-0000-0000-000000000001','0b3e2222-0000-0000-0000-000000000002','2025-2026','pushed',null);
+insert into budget_version_erp_mirror (org_id, budget_version_id, fiscal_year, push_state, push_error, erp_budget_name) values
+  ('0b3e0000-0000-0000-0000-000000000001','0b3e2222-0000-0000-0000-000000000002','2025-2026','pushed',null,'BUDGET-2025-2026-0007');
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"0b3e0000-0000-0000-0000-0000000000a2","role":"authenticated"}';
 
@@ -198,18 +218,20 @@ select results_eq(
   'H-4 the offerable fiscal years are the client''s OWN (ERPNext Fiscal Year names), flagging the Active version''s push year');
 
 select results_eq(
-  $$select actuals_to_date, push_state
-      from public.get_budget_projection('0b3e1111-0000-0000-0000-000000000002','2025-2026') where category='Labor'$$,
-  $$values (400000.00::numeric, 'pushed'::text)$$,
-  'H-4 read with the CLIENT''S fiscal-year name, the ERP ledger actuals and the push state are there');
+  $$select actuals_to_date from public.get_budget_projection('0b3e1111-0000-0000-0000-000000000002','2025-2026') where category='Labor'$$,
+  $$values (400000.00::numeric)$$,
+  'H-4 read with the CLIENT''S fiscal-year name, the ERP ledger actuals are there');
+select results_eq(
+  $$select push_state, fiscal_year, erp_budget_name from public.get_budget_push_status('0b3e1111-0000-0000-0000-000000000002')$$,
+  $$values ('pushed'::text, '2025-2026'::text, 'BUDGET-2025-2026-0007'::text)$$,
+  'C-5 a SUCCESSFUL push is reportable — state, the year it covers, and the ERP document it created');
 
 -- The defect's signature, pinned: the calendar year the old UI synthesized joins NOTHING. This is why
 -- the selector must never be able to offer it.
 select results_eq(
-  $$select actuals_to_date, push_state
-      from public.get_budget_projection('0b3e1111-0000-0000-0000-000000000002','2026') where category='Labor'$$,
-  $$values (0::numeric, null::text)$$,
-  'H-4 a synthesized CALENDAR year returns zero actuals and no push state — never offerable');
+  $$select actuals_to_date from public.get_budget_projection('0b3e1111-0000-0000-0000-000000000002','2026') where category='Labor'$$,
+  $$values (0::numeric)$$,
+  'H-4 a synthesized CALENDAR year returns zero actuals for a MAPPED category — never offerable');
 
 set local role postgres;
 insert into projects (id, org_id, name, status) values
@@ -237,7 +259,7 @@ set local role authenticated;
 set local request.jwt.claims = '{"sub":"0b3e0000-0000-0000-0000-0000000000a2","role":"authenticated"}';
 
 select is(
-  (select distinct push_state from public.get_budget_projection('0b3e1111-0000-0000-0000-000000000002','2025-2026')),
+  (select push_state from public.get_budget_push_status('0b3e1111-0000-0000-0000-000000000002')),
   'unstamped-activation',
   'H-3 an Active version with NO activation stamp is NAMED as such, never a clean screen');
 
@@ -246,7 +268,7 @@ update budget_versions set activated_at = now() where id = '0b3e2222-0000-0000-0
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"0b3e0000-0000-0000-0000-0000000000a2","role":"authenticated"}';
 select is(
-  (select distinct push_state from public.get_budget_projection('0b3e1111-0000-0000-0000-000000000002','2025-2026')),
+  (select push_state from public.get_budget_push_status('0b3e1111-0000-0000-0000-000000000002')),
   'never-pushed',
   'H-3 a STAMPED Active version with no mirror row is the re-drivable never-pushed state (unchanged)');
 
@@ -312,12 +334,96 @@ set local role postgres;
 delete from erp_actuals_snapshot where org_id = '0b3e0000-0000-0000-0000-000000000001' and net = 777.00;
 set local role authenticated;
 
+-- ════════════════════════════════════════════════════════════════════════════════════════════════
+-- ⚑ C-1 / C-2 (rendered Discover pass, 2026-07-22) — MONEY HONESTY AT CATEGORY SCOPE.
+--
+-- `f9b48500` fixed "Actuals to date is structurally 0.00" at PROJECT scope. The identical class was
+-- still alive one grain down: `coalesce(a.actuals_to_date, 0)` collapsed THREE different facts into one
+-- byte-identical `$0` —
+--   (a) a real, computed zero (the account is mapped; the GL genuinely holds nothing yet);
+--   (b) no GL rows for that account this year; and
+--   (c) NO ERP ACCOUNT MAPPED AT ALL, i.e. the figure is UNOBTAINABLE.
+-- (a) and (b) are the same statement and are honestly 0. (c) is not a zero — it is an absence of
+-- knowledge, and reporting it as 0 also fabricates a full-budget variance and a 0% utilization. Worse,
+-- the SAME screen banners the category as unmapped two inches above. It must be NULL, so the surface
+-- can render it as unavailable.
+-- ════════════════════════════════════════════════════════════════════════════════════════════════
+set local role postgres;
+insert into projects (id, org_id, name, status) values
+  ('0b3e1111-0000-0000-0000-000000000004','0b3e0000-0000-0000-0000-000000000001','AC-BUD Money Honesty','Ongoing Project');
+insert into budget_versions (id, org_id, project_id, version, name, status) values
+  ('0b3e2222-0000-0000-0000-000000000004','0b3e0000-0000-0000-0000-000000000001','0b3e1111-0000-0000-0000-000000000004',1,'MH Budget','Draft');
+-- 'Labor' IS mapped (to 5100) and has NO GL rows for 2026 on this project  -> a REAL zero.
+-- 'Equipment' is NOT mapped at all                                          -> UNKNOWABLE.
+insert into budget_line_items (org_id, budget_version_id, category, description, budgeted_amount, actual_amount) values
+  ('0b3e0000-0000-0000-0000-000000000001','0b3e2222-0000-0000-0000-000000000004','Labor','Team',10000.00,0),
+  ('0b3e0000-0000-0000-0000-000000000001','0b3e2222-0000-0000-0000-000000000004','Equipment','Rigs',20000.00,0);
+update budget_versions set status='Active', activated_at=now() where id='0b3e2222-0000-0000-0000-000000000004';
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"0b3e0000-0000-0000-0000-0000000000a2","role":"authenticated"}';
+
+select results_eq(
+  $$select actuals_to_date, projected_final_cost, projected_variance, projected_utilization
+      from public.get_budget_projection('0b3e1111-0000-0000-0000-000000000004','2026') where category='Labor'$$,
+  $$values (0::numeric, 0::numeric, 10000.00::numeric, 0::numeric)$$,
+  'C-1 a MAPPED category with no GL rows is a REAL zero — 0.00 spent, full budget remaining, 0% used');
+
+select is(
+  (select actuals_to_date from public.get_budget_projection('0b3e1111-0000-0000-0000-000000000004','2026') where category='Equipment'),
+  null,
+  'C-1 an UNMAPPED category reports NULL actuals — the figure is unobtainable, never a confident 0');
+
+select is(
+  (select projected_final_cost from public.get_budget_projection('0b3e1111-0000-0000-0000-000000000004','2026') where category='Equipment'),
+  null,
+  'C-2 an unobtainable actual propagates: no projected final cost is derivable from it');
+
+select is(
+  (select projected_variance from public.get_budget_projection('0b3e1111-0000-0000-0000-000000000004','2026') where category='Equipment'),
+  null,
+  'C-2 an unmapped category reports NO variance — never "the entire budget is still available"');
+
+select is(
+  (select projected_utilization from public.get_budget_projection('0b3e1111-0000-0000-0000-000000000004','2026') where category='Equipment'),
+  null,
+  'C-2 an unmapped category reports NO utilization — never a confident 0%');
+
+-- The moment the Admin maps it, the same category becomes a real, computed zero. The distinction is
+-- the MAP, not the presence of ledger rows.
+set local request.jwt.claims = '{"sub":"0b3e0000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+insert into public.budget_category_account_map (category, erp_account) values ('Equipment','5300 - Equipment - PSC');
+set local request.jwt.claims = '{"sub":"0b3e0000-0000-0000-0000-0000000000a2","role":"authenticated"}';
+select results_eq(
+  $$select actuals_to_date, projected_utilization
+      from public.get_budget_projection('0b3e1111-0000-0000-0000-000000000004','2026') where category='Equipment'$$,
+  $$values (0::numeric, 0::numeric)$$,
+  'C-1 mapping the category turns the unobtainable figure into a real, computed zero');
+
+-- ════════════════════════════════════════════════════════════════════════════════════════════════
+-- ⚑ C-3 — with NO FISCAL YEAR on record the screen rendered a complete, plausible, FABRICATED money
+-- grid: the whole PMO budget as "budgeted", $0 spent, 0% utilized, for a project with no ERP linkage
+-- whatsoever. The `rows.length === 0` empty state was UNREACHABLE because `pmo_budget` was not
+-- year-scoped, so the grid always had rows. This function's entire grain is (project x fiscal year):
+-- with no year there is nothing to project, and saying so is the only honest answer.
+-- ════════════════════════════════════════════════════════════════════════════════════════════════
+select is((select count(*)::int from public.get_budget_projection('0b3e1111-0000-0000-0000-000000000004','')), 0,
+          'C-3 with NO fiscal year the projection is EMPTY — the honest empty state, never a fabricated grid');
+select is((select count(*)::int from public.get_budget_projection('0b3e1111-0000-0000-0000-000000000004',null)), 0,
+          'C-3 a NULL fiscal year is the same honest emptiness, not a grid');
+-- ...and the alarm still survives it: the push status is project-grained, so C-3's empty grid can never
+-- silence a real "ERPNext is enforcing nothing" (the exact trade that made the two findings one fix).
+select is((select push_state from public.get_budget_push_status('0b3e1111-0000-0000-0000-000000000004')),
+          'never-pushed',
+          'C-3/C-5 an EMPTY projection grid never silences the push alarm — it is read at project grain');
+
 -- ── Cross-org: org B''s Finance reads zero rows (RLS, not a hand-rolled org filter) ────────────────
 set local request.jwt.claims = '{"sub":"0b3e0000-0000-0000-0000-0000000000b1","role":"authenticated"}';
 select is((select count(*)::int from public.get_budget_projection('0b3e1111-0000-0000-0000-000000000001','2026')), 0,
           'AC-BUD-053 cross-org read returns zero rows (RLS)');
 select is((select count(*)::int from public.list_budget_fiscal_years('0b3e1111-0000-0000-0000-000000000002')), 0,
           'H-4 cross-org fiscal-year read returns zero rows (RLS)');
+select is((select push_state from public.get_budget_push_status('0b3e1111-0000-0000-0000-000000000001')), null,
+          'C-5 cross-org push status leaks nothing — no state, no ERP document name (RLS)');
 
 select finish();
 rollback;

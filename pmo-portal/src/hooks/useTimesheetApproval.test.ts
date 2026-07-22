@@ -38,6 +38,7 @@ vi.mock('@/src/lib/db/timesheetPush', () => ({
   listPushesNeedingAttention: vi.fn().mockResolvedValue([]),
   listProposedEmployeeLinks: vi.fn().mockResolvedValue([]),
   confirmEmployeeLink: vi.fn().mockResolvedValue(undefined),
+  getPushState: vi.fn().mockResolvedValue({ push_state: 'failed', push_error: 'external-unreachable', ts_number: null }),
 }));
 
 import {
@@ -45,7 +46,9 @@ import {
   useTimesheetMutations,
   usePushesNeedingAttention,
   useEmployeeLinkConfirm,
+  useOwnTimesheetPushState,
 } from './useTimesheetApproval';
+import { getPushState } from '@/src/lib/db/timesheetPush';
 import {
   listTimesheetsAwaitingApproval,
   submitTimesheet,
@@ -263,9 +266,12 @@ describe('useEmployeeLinkConfirm (OQ-TSP-10(C))', () => {
       {
         id: 'emp-1',
         employee_name: 'Jane Doe',
+        employee_number: 'HR-EMP-00087',
         work_email: 'jane@co.test',
         link_proposed_reason: 'unique work_email match',
         profile_id: 'profile-1',
+        profile_name: 'Jane Q. Doe',
+        profile_email: 'jane.doe@pmo.test',
       },
     ]);
     const { qc, Wrapper } = makeWrapper();
@@ -280,5 +286,30 @@ describe('useEmployeeLinkConfirm (OQ-TSP-10(C))', () => {
     });
     expect(confirmEmployeeLink).toHaveBeenCalledWith('emp-1', 'profile-1');
     expect(invalidateSpy).toHaveBeenCalled();
+  });
+});
+
+
+// ════════════════════════════════════════════════════════════════════════════════════════════════
+// ⚑ I-17 / I-16 (rendered Discover pass, 2026-07-22) — the OWNER could never see that their own hours
+// failed to reach ERP. `getPushState` had ZERO consumers, even though `timesheet_erp_mirror_select`
+// RLS DELIBERATELY grants the sheet's owner that read: the capability was built, granted, and then
+// never wired to a surface. The knock-on was I-16 — three of the badge's five states (`pending`,
+// `pushing`, `pushed`) were unreachable in the running app, because the ONLY consumer of push state
+// was the Approvals queue, which by construction lists `failed`/`held` only.
+// ════════════════════════════════════════════════════════════════════════════════════════════════
+describe('useOwnTimesheetPushState (I-16/I-17)', () => {
+  it('I-17 reads the sheet\'s own push state — the read RLS already grants its owner', async () => {
+    const { Wrapper } = makeWrapper();
+    const { result } = renderHook(() => useOwnTimesheetPushState('ts-1'), { wrapper: Wrapper });
+    await waitFor(() => expect(result.current.data).toBeTruthy());
+    expect(getPushState).toHaveBeenCalledWith('ts-1');
+    expect(result.current.data?.push_state).toBe('failed');
+  });
+
+  it('is disabled with no timesheet (a brand-new week has no sheet to ask about)', () => {
+    const { Wrapper } = makeWrapper();
+    const { result } = renderHook(() => useOwnTimesheetPushState(undefined), { wrapper: Wrapper });
+    expect(result.current.fetchStatus).toBe('idle');
   });
 });

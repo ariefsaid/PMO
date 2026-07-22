@@ -4762,16 +4762,25 @@ export type Database = {
       get_budget_projection: {
         Args: { p_fiscal_year: string; p_project_id: string }
         Returns: {
-          actuals_to_date: number
+          // C-1/C-2: `null` = the figure is UNOBTAINABLE (no ERP account mapped), never a zero.
+          actuals_to_date: number | null
           category: Database["public"]["Enums"]["budget_category"]
-          pmo_budget_amount: number
+          pmo_budget_amount: number | null
           pmo_etc: number
-          projected_final_cost: number
-          projected_utilization: number
-          projected_variance: number
-          push_error: string
-          push_state: string
-          unmapped_categories: string[]
+          projected_final_cost: number | null
+          projected_utilization: number | null
+          projected_variance: number | null
+        }[]
+      }
+      get_budget_push_status: {
+        Args: { p_project_id: string }
+        Returns: {
+          erp_budget_name: string | null
+          fiscal_year: string | null
+          push_error: string | null
+          push_state: string | null
+          pushed_at: string | null
+          unmapped_categories: string[] | null
         }[]
       }
       get_executive_dashboard: { Args: never; Returns: Json }

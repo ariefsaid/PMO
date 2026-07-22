@@ -13,8 +13,10 @@ import {
   listPushesNeedingAttention,
   listProposedEmployeeLinks,
   confirmEmployeeLink,
+  getPushState,
   type PushNeedingAttention,
   type ProposedEmployeeLink,
+  type TimesheetPushState,
 } from '@/src/lib/db/timesheetPush';
 
 /**
@@ -177,4 +179,28 @@ export function useEmployeeLinkConfirm() {
   });
 
   return { links, confirm };
+}
+
+
+/**
+ * ⚑ I-16 / I-17 (rendered Discover pass, 2026-07-22) — the sheet OWNER'S view of their own push.
+ *
+ * `getPushState` shipped with ZERO consumers, even though `timesheet_erp_mirror_select` (0136)
+ * DELIBERATELY grants the sheet's owner that read: the capability was built, granted, and never wired
+ * to a surface. So the person whose week it is — the one who has to re-do it if the hours never reach
+ * payroll costing — was the one person who could not find out.
+ *
+ * It also closes I-16: the ONLY other consumer of push state is the Approvals queue, which by
+ * construction lists `failed`/`held` only, so `pending`, `pushing` and `pushed` were unreachable in
+ * the running app. On the owner's own week they are the ordinary case.
+ *
+ * `null` (no mirror row: an unflipped org, or a sheet that has not reached the push path) is a NORMAL
+ * state and renders nothing — the badge is supplementary and never gates the page (FR-TSP-173).
+ */
+export function useOwnTimesheetPushState(timesheetId: string | undefined) {
+  return useQuery<TimesheetPushState | null>({
+    queryKey: ['timesheet-push-state', timesheetId],
+    queryFn: () => getPushState(timesheetId!),
+    enabled: Boolean(timesheetId),
+  });
 }

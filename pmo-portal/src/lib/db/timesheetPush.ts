@@ -116,19 +116,41 @@ export async function listPushesNeedingAttention(): Promise<PushNeedingAttention
 export interface ProposedEmployeeLink {
   id: string;
   employee_name: string | null;
+  /** ⚑ C-7 — the ERP employee's stable identifier ('HR-EMP-00087'). It was already fetched by nothing
+   *  and displayed by nothing; it is often the ONLY fact that identifies a row whose name/email the
+   *  ERP never filled in. */
+  employee_number: string | null;
   work_email: string | null;
   link_proposed_reason: string | null;
   profile_id: string | null;
+  /** ⚑ C-6 — the PMO user the hours would be attributed to. The dialog promised "the matched PMO user"
+   *  and never named them, though `profile_id` was right there on the row. */
+  profile_name: string | null;
+  profile_email: string | null;
 }
 
 export async function listProposedEmployeeLinks(): Promise<ProposedEmployeeLink[]> {
   const { data, error } = await supabase
     .from('erp_employees')
-    .select('id, employee_name, work_email, link_proposed_reason, profile_id')
+    .select(
+      'id, employee_name, employee_number, work_email, link_proposed_reason, profile_id, profile:profiles!erp_employees_profile_id_fkey(full_name, email)',
+    )
     .eq('link_state', 'proposed')
     .order('employee_name', { ascending: true });
   if (error) throw new AppError(error.message, error.code);
-  return data ?? [];
+  return (data ?? []).map((row) => {
+    const profile = row.profile as { full_name?: string | null; email?: string | null } | null | undefined;
+    return {
+      id: row.id,
+      employee_name: row.employee_name,
+      employee_number: row.employee_number,
+      work_email: row.work_email,
+      link_proposed_reason: row.link_proposed_reason,
+      profile_id: row.profile_id,
+      profile_name: profile?.full_name ?? null,
+      profile_email: profile?.email ?? null,
+    };
+  });
 }
 
 /**

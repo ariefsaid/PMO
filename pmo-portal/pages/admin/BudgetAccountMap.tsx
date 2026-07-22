@@ -125,7 +125,10 @@ const BudgetAccountMap: React.FC = () => {
   }
 
   return (
-    <section aria-label="Budget category to ERP account map">
+    // ⚑ I-8 (rendered Discover pass, 2026-07-22) — the budget projection's "categories need an ERP
+    // account" banner LINKS here (`/administration#budget-account-map`), so the anchor is part of the
+    // contract, not decoration.
+    <section id="budget-account-map" aria-label="Budget category to ERP account map">
       <h2 className="text-[15px] font-semibold tracking-[-0.01em]">Budget account map</h2>
       <p className="mt-1 text-[13px] text-muted-foreground">
         Every budget category must map to an ERP account before its amount can be pushed. An
@@ -154,7 +157,16 @@ const BudgetAccountMap: React.FC = () => {
               <tr key={category}>
                 <td className="border-b border-border px-3 py-2 text-[13.5px] font-medium">{category}</td>
                 <td className="border-b border-border px-3 py-2 text-[13.5px]">
-                  {account ? account : <StatusPill variant="neutral">Not mapped</StatusPill>}
+                  {/* ⚑ I-8 — an operator arriving from the budget banner asks one question: WHICH of
+                      these is blocking my push? "Not mapped" is a description; it never says that the
+                      consequence is project-wide. The page's own copy above already states the rule —
+                      an unmapped category blocks the WHOLE budget — so the row says it too, where the
+                      decision is actually made. */}
+                  {account ? (
+                    account
+                  ) : (
+                    <StatusPill variant="warn">Not mapped — blocks every push</StatusPill>
+                  )}
                 </td>
                 {canManage && (
                   <td className="border-b border-border px-3 py-2 text-right">

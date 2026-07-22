@@ -45,9 +45,12 @@ type AttentionRow = {
 type ProposedLink = {
   id: string;
   employee_name: string | null;
+  employee_number: string | null;
   work_email: string | null;
   link_proposed_reason: string | null;
   profile_id: string | null;
+  profile_name: string | null;
+  profile_email: string | null;
 };
 const attentionState: { data: AttentionRow[]; isPending: boolean; isError: boolean } = {
   data: [],
@@ -285,7 +288,9 @@ describe('Approvals page — P3b ERP push attention + Employee-link confirm (AC-
   const failedRow = {
     timesheet_id: 'ts-99',
     push_state: 'failed',
-    push_error: 'employee-unlinked',
+    // ⚑ I-14: `employee-unlinked` is ERP-side and a retry can never fix it, so Retry is now WITHHELD
+    // for it — this row proves the RETRY contract, so it carries a genuinely retryable cause.
+    push_error: 'external-unreachable',
     ts_number: null,
     week_start_date: '2026-01-05',
     approved_by: 'u-mgr',
@@ -294,9 +299,12 @@ describe('Approvals page — P3b ERP push attention + Employee-link confirm (AC-
   const proposedLink = {
     id: 'emp-1',
     employee_name: 'Jane Doe',
+    employee_number: 'HR-EMP-00087',
     work_email: 'jane@co.test',
     link_proposed_reason: 'unique work_email match',
     profile_id: 'profile-1',
+    profile_name: 'Jane Q. Doe',
+    profile_email: 'jane.doe@pmo.test',
   };
 
   it('AC-TSP-051: an authorized approver (the sheet\'s own approved_by) sees the failure + reason + a Retry affordance', async () => {
@@ -306,7 +314,7 @@ describe('Approvals page — P3b ERP push attention + Employee-link confirm (AC-
     renderPage();
 
     expect(screen.getByText('Dave Engineer')).toBeInTheDocument();
-    expect(screen.getByText(/employee-unlinked/)).toBeInTheDocument();
+    expect(screen.getByText(/could not be reached/i)).toBeInTheDocument();
     const retryBtn = screen.getByRole('button', { name: /retry/i });
     expect(retryBtn).toBeInTheDocument();
 
@@ -329,7 +337,7 @@ describe('Approvals page — P3b ERP push attention + Employee-link confirm (AC-
     attentionState.data = [];
     queryState.data = submittedSheets;
     renderPage();
-    expect(screen.queryByText(/employee-unlinked/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/could not be reached/i)).not.toBeInTheDocument();
     // The ordinary approvals surface still renders (never blocked by the ERP badge's absence).
     expect(screen.getByRole('region', { name: /Approval preview/i })).toBeInTheDocument();
   });
@@ -359,5 +367,41 @@ describe('Approvals page — P3b ERP push attention + Employee-link confirm (AC-
 
     expect(screen.getByText('Jane Doe')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^confirm$/i })).not.toBeInTheDocument();
+  });
+
+  // ⚑ I-13 (rendered Discover pass) — Retry gave ZERO feedback: no toast, no state change, no console
+  // error, while the budget Retry two screens away toasts. `useTimesheetApproval` had no `onError` on
+  // either path, so a failed re-drive was indistinguishable from a successful one AND from a dead
+  // button. Both outcomes are now stated.
+  it('I-13 a Retry that FAILS says so — a silent retry is indistinguishable from a dead button', async () => {
+    authState.userId = 'u-mgr';
+    authState.role = 'Project Manager';
+    attentionState.data = [failedRow];
+    retryMutation.mutate = vi.fn((_vars, opts) => opts?.onError?.(new Error('ERPNext is unreachable')));
+    renderPage();
+
+    await userEvent.click(screen.getByRole('button', { name: /retry/i }));
+    expect(await screen.findByText(/could not be pushed|update failed/i)).toBeInTheDocument();
+  });
+
+  it('I-13 a Retry that SUCCEEDS says so too', async () => {
+    authState.userId = 'u-mgr';
+    authState.role = 'Project Manager';
+    attentionState.data = [failedRow];
+    retryMutation.mutate = vi.fn((_vars, opts) => opts?.onSuccess?.());
+    renderPage();
+
+    await userEvent.click(screen.getByRole('button', { name: /retry/i }));
+    expect(await screen.findByText(/pushed to ERPNext/i)).toBeInTheDocument();
+  });
+
+  // ⚑ I-12 — axe `landmark-unique`: `<section aria-label="Employee links awaiting confirmation">`
+  // wrapped a `<div role="region">` carrying the IDENTICAL accessible name, so a screen-reader user
+  // met the same landmark twice with nothing distinguishing them.
+  it('I-12 the Employee-link queue is ONE landmark, not two with the same name', () => {
+    authState.role = 'Admin';
+    linksState.data = [proposedLink];
+    renderPage();
+    expect(screen.getAllByRole('region', { name: /Employee links awaiting confirmation/i })).toHaveLength(1);
   });
 });

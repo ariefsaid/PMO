@@ -63,7 +63,7 @@ describe('BudgetAccountMap — the 7 categories, always all present (AC-BUD-010/
       expect(await screen.findByText(cat)).toBeInTheDocument();
     }
     expect(screen.getByText('5100 - Direct Costs')).toBeInTheDocument();
-    expect(screen.getAllByText('Not mapped')).toHaveLength(6);
+    expect(screen.getAllByText(/^Not mapped/)).toHaveLength(6);
   });
 
   it('shows a loading state while the map is fetching', () => {
@@ -137,5 +137,31 @@ describe('BudgetAccountMap — CRUD (AC-BUD-010/011/012)', () => {
     const confirm = await screen.findByRole('alertdialog');
     await user.click(within(confirm).getByRole('button', { name: /unmap/i }));
     await waitFor(() => expect(deleteMock).toHaveBeenCalledWith('Labor'));
+  });
+});
+
+/**
+ * ⚑ I-8 (rendered Discover pass, 2026-07-22) — the budget banner now LINKS here, so this page has to
+ * be (a) reachable by that link and (b) able to answer the question the operator arrives with:
+ * "which of these is blocking my push?"
+ */
+describe('BudgetAccountMap — I-8: reachable, and it marks what is blocking', () => {
+  it('I-8 the section carries the anchor the budget banner links to', async () => {
+    renderPage('Admin');
+    await screen.findByText('Labor');
+    expect(document.getElementById('budget-account-map')).not.toBeNull();
+  });
+
+  it('I-8 an UNMAPPED category is marked as blocking every push, not merely "Not mapped"', async () => {
+    renderPage('Admin');
+    await screen.findByText('Labor');
+    const row = screen.getByText('Contingency').closest('tr')!;
+    expect(within(row).getByText(/blocks every push/i)).toBeInTheDocument();
+  });
+
+  it('I-8 a MAPPED category is not marked as blocking', async () => {
+    renderPage('Admin');
+    const row = (await screen.findByText('Labor')).closest('tr')!;
+    expect(within(row).queryByText(/blocks every push/i)).not.toBeInTheDocument();
   });
 });

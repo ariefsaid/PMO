@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { AccessDenied, Badge, Card, ListState, StatusPill, ViewToggle } from '@/src/components/ui';
+import { AccessDenied, Badge, Card, ListState, StatusPill, ViewToggle, useToast } from '@/src/components/ui';
+import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { usePermission } from '@/src/auth/usePermission';
 import { useProcurements } from '@/src/hooks/useProcurements';
 import {
@@ -197,6 +198,7 @@ function QueueGroup({
 function PushAttentionSection() {
   const { currentUser } = useAuth();
   const may = usePermission();
+  const { toast } = useToast();
   const { data, isPending, isError, retry: retryMutation } = usePushesNeedingAttention();
   const [retryingId, setRetryingId] = useState<string | null>(null);
 
@@ -226,11 +228,24 @@ function PushAttentionSection() {
                 state={{ push_state: row.push_state, push_error: row.push_error, ts_number: row.ts_number }}
                 canRetry={canRetry}
                 retryLoading={retryingId === row.timesheet_id && retryMutation.isPending}
+                // ⚑ I-13 (rendered Discover pass, 2026-07-22) — this Retry gave ZERO feedback: no
+                // toast, no state change, no console error, while the budget surface's Retry two
+                // screens away toasts both outcomes. A silent retry is indistinguishable from a dead
+                // button, so an operator either gives up or clicks it repeatedly. BOTH outcomes are
+                // now stated, at the call site that knows which row they belong to.
                 onRetry={() => {
                   setRetryingId(row.timesheet_id);
                   retryMutation.mutate(
                     { timesheetId: row.timesheet_id },
-                    { onSettled: () => setRetryingId(null) },
+                    {
+                      onSuccess: () =>
+                        toast('Timesheet pushed to ERPNext', `${row.owner_name} · ${weekLabel(row.week_start_date)}`, 'success'),
+                      onError: (err) => {
+                        const { detail } = classifyMutationError(err);
+                        toast("That timesheet could not be pushed", detail, 'warning');
+                      },
+                      onSettled: () => setRetryingId(null),
+                    },
                   );
                 }}
               />

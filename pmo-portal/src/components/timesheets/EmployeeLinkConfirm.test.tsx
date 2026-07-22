@@ -13,9 +13,12 @@ import type { ProposedEmployeeLink } from '@/src/lib/db/timesheetPush';
 const LINK: ProposedEmployeeLink = {
   id: 'emp-1',
   employee_name: 'Jane Doe',
+  employee_number: 'HR-EMP-00087',
   work_email: 'jane@co.test',
   link_proposed_reason: 'unique work_email match',
   profile_id: 'profile-1',
+  profile_name: 'Jane Q. Doe',
+  profile_email: 'jane.doe@pmo.test',
 };
 
 describe('EmployeeLinkConfirm', () => {
@@ -62,6 +65,62 @@ describe('EmployeeLinkConfirm', () => {
       <EmployeeLinkConfirm links={[LINK]} canConfirm onConfirm={() => {}} confirmingId="emp-1" />,
     );
     expect(screen.getByRole('button', { name: /confirm/i })).toBeDisabled();
+  });
+
+  // ════════════════════════════════════════════════════════════════════════════════════════════
+  // ⚑ C-6 / C-7 (rendered Discover pass, 2026-07-22) — AN IDENTITY DECISION WITH THE IDENTITY
+  // WITHHELD. This component's own docstring calls re-pointing a week of ERP hours too consequential
+  // to auto-confirm — and then presented the decision with the DESTINATION hidden: the dialog said
+  // the hours go "to the matched PMO user" and never named that user, though `profile_id` is on the
+  // row. Worse, Confirm was offered on rows identifying nobody at all (`Unknown employee` / `No
+  // email`) while `employee_number` — the one stable identifier — was fetched and never shown.
+  // ════════════════════════════════════════════════════════════════════════════════════════════
+  describe('C-6/C-7 — both parties to the link are named, or there is no decision to make', () => {
+    it('C-7 the card names the ERP employee AND its stable employee number', () => {
+      render(<EmployeeLinkConfirm links={[LINK]} canConfirm onConfirm={() => {}} />);
+      expect(screen.getByText('Jane Doe')).toBeInTheDocument();
+      expect(screen.getByText(/HR-EMP-00087/)).toBeInTheDocument();
+    });
+
+    it('C-6 the card names the PMO USER the hours would be attributed to', () => {
+      render(<EmployeeLinkConfirm links={[LINK]} canConfirm onConfirm={() => {}} />);
+      expect(screen.getByText(/Jane Q\. Doe/)).toBeInTheDocument();
+    });
+
+    it('C-6 the DIALOG names both parties — the decision is made there, so the facts belong there', () => {
+      render(<EmployeeLinkConfirm links={[LINK]} canConfirm onConfirm={() => {}} />);
+      fireEvent.click(screen.getByRole('button', { name: /confirm/i }));
+      const dialog = screen.getByRole('dialog');
+      expect(within(dialog).getAllByText(/Jane Doe/).length).toBeGreaterThan(0);
+      expect(within(dialog).getAllByText(/Jane Q\. Doe/).length).toBeGreaterThan(0);
+      expect(within(dialog).queryByText(/the matched PMO user/i)).not.toBeInTheDocument();
+    });
+
+    it('C-7 WITHHOLDS Confirm when the ERP side identifies nobody, and says why', () => {
+      const anonymous: ProposedEmployeeLink = {
+        ...LINK,
+        employee_name: null,
+        employee_number: null,
+        work_email: null,
+      };
+      render(<EmployeeLinkConfirm links={[anonymous]} canConfirm onConfirm={() => {}} />);
+      expect(screen.queryByRole('button', { name: /confirm/i })).not.toBeInTheDocument();
+      expect(screen.getByText(/cannot be confirmed/i)).toBeInTheDocument();
+    });
+
+    it('C-6 WITHHOLDS Confirm when the PMO side identifies nobody', () => {
+      const noDestination: ProposedEmployeeLink = { ...LINK, profile_id: null, profile_name: null, profile_email: null };
+      render(<EmployeeLinkConfirm links={[noDestination]} canConfirm onConfirm={() => {}} />);
+      expect(screen.queryByRole('button', { name: /confirm/i })).not.toBeInTheDocument();
+      expect(screen.getByText(/cannot be confirmed/i)).toBeInTheDocument();
+    });
+
+    it('C-7 an employee number alone is enough to identify the ERP side', () => {
+      const numberOnly: ProposedEmployeeLink = { ...LINK, employee_name: null, work_email: null };
+      render(<EmployeeLinkConfirm links={[numberOnly]} canConfirm onConfirm={() => {}} />);
+      expect(screen.getByRole('button', { name: /confirm/i })).toBeInTheDocument();
+      expect(screen.getAllByText(/HR-EMP-00087/).length).toBeGreaterThan(0);
+    });
   });
 
   it('a11y: the Admin view has no critical/serious axe violations', async () => {
