@@ -160,7 +160,7 @@ describe('OD-INT-9 parent sync: outbound PMO parent_task_id → ClickUp parent',
         assignee_id: null,
         parent_task_id: parentPmoId,
         parentClickUpId, // resolved ClickUp parent id threaded in by caller
-      } as any,
+      },
       maps,
       { mode: 'create', parentClickUpId },
     );
@@ -176,7 +176,7 @@ describe('OD-INT-9 parent sync: outbound PMO parent_task_id → ClickUp parent',
         assignee_id: null,
         parent_task_id: parentPmoId,
         // parentClickUpId omitted (undefined) = unresolved parent on create
-      } as any,
+      },
       maps,
       { mode: 'create' }, // no parentClickUpId = unresolved
     );
@@ -186,7 +186,7 @@ describe('OD-INT-9 parent sync: outbound PMO parent_task_id → ClickUp parent',
 
   it('update re-parents: setting a new resolved parent includes parent in the update body', () => {
     const body = pmoTaskToClickUpBody(
-      { id: 'pmo-child-1', parent_task_id: 'pmo-new-parent', parentClickUpId: 'cu-new-parent' } as any,
+      { id: 'pmo-child-1', parent_task_id: 'pmo-new-parent', parentClickUpId: 'cu-new-parent' },
       maps,
       { mode: 'update', parentClickUpId: 'cu-new-parent' },
     );
@@ -195,7 +195,7 @@ describe('OD-INT-9 parent sync: outbound PMO parent_task_id → ClickUp parent',
 
   it('update promoting to top-level (parent_task_id: null) sets parent to null in update body', () => {
     const body = pmoTaskToClickUpBody(
-      { id: 'pmo-child-1', parent_task_id: null, parentClickUpId: null } as any,
+      { id: 'pmo-child-1', parent_task_id: null, parentClickUpId: null },
       maps,
       { mode: 'update', parentClickUpId: null },
     );
