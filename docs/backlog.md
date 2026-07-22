@@ -854,6 +854,61 @@ Role work via the **pi CLI** (`docs/pi-delegation.md`) or Task subagents.
 - **Pre-existing TZ flake** [Low, known]: `src/lib/db/procurementLifecycle.test.ts` AC-803 fails under a behind-UTC TZ
   (e.g. UTC-8 local); passes in CI/UTC. Fix: use UTC-fixed date construction in the test.
 
+### ⚑ TEST + BRANCH INFRA UNDER PARALLEL AGENTS (2026-07-22, Director — evidence from the M365 session)
+**Why this is its own track:** the repo went from a handful of worktrees to **~15 concurrent agent worktrees**
+during one session. Every item below cost real time, produced a *false* signal (a green that lied or a red that
+lied), and **will recur** — they are all consequences of parallelism, not of any one branch. Ordered by how
+badly each misleads.
+
+- **T1 — `MERGEABLE`/`CLEAN` does NOT catch migration-number collisions** [High, BURNED US TWICE].
+  Git compares *filenames*, so two branches adding `0104_a.sql` and `0104_b.sql` merge "cleanly" and leave
+  duplicate numeric prefixes in `supabase/migrations/`. Hit twice in one session: M365 vs dev's ERPNext
+  (`0096–0103`), then M365 vs the merged H4 grants work (`0104`/`0105`) — GitHub reported CLEAN throughout
+  **both** times. Detection today is a manual command; it should be a **CI gate on every PR that adds a
+  migration**:
+  `ls supabase/migrations | sed -E 's/^([0-9]{4})_.*/\1/' | sort | uniq -d` → fail if non-empty.
+  (Note pgTAP duplicates are tolerated — `0034/0052/0066` pre-exist — because test files have no ordering
+  semantics. Migrations do. Gate migrations only.)
+  **Bonus fix:** renumbering is currently hand-rolled `git mv` + a cross-reference sweep (comments cite
+  migrations by number, and a stale reference in a *reversibility* note actively misleads a rollback). A
+  `scripts/renumber-migration.sh` would make this safe and repeatable.
+- **T2 — the unit suite is not parallel-safe: 5s timeouts + a shared machine** [High, recurring, produces
+  FALSE REDs]. `npm run verify` is ~5,400 tests with 5s per-test timeouts. When another worktree runs vitest
+  concurrently, **unrelated** tests fail on timeout — observed 4× in one session, a *different* test set each
+  time (`authFloorAnalytics`+`PanelEditorForm`, then `ProjectFormModal`, then `Companies.pushRouting`+
+  `authFloorAnalytics`), **every one passing in isolation**, with run timings blowing out to
+  `environment 1541s / import 1774s`. The tell that it is contention and not a regression: **a real regression
+  fails the same test deterministically; contention moves.** Options: raise the timeout for render-heavy
+  jsdom tests, cap `poolOptions` threads, or (best) a machine-level **test lock** mirroring
+  `scripts/with-db-lock.sh` so only one full suite runs at a time. Until then the rule is: *re-run the named
+  failures in isolation before believing them* — and CI on a clean runner is the authoritative answer.
+- **T3 — the shared local Supabase DB can drift mid-run even under the lock** [High, produces FALSE REDs
+  *and* FALSE GREENs]. `with-db-lock.sh` serialises commands, but a reset in worktree A between worktree B's
+  `db reset` and its `supabase test db` leaves B testing a **different schema than it migrated**. Observed:
+  the grants agent's suite failed against a schema missing its own migration (82 aborted tests) and passed
+  once re-run as a single lock hold. Mitigations: always chain as ONE hold —
+  `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db'` (make this the documented
+  default everywhere, incl. CLAUDE.md) — and longer-term give each worktree its **own DB** (per-worktree
+  port/project) so agents stop sharing one Postgres at all. That single change would retire T3 outright.
+- **T4 — heavy concurrent runs OOM the machine** [Medium]. A full `verify` + a pi build + other worktrees'
+  vitest exhausted RAM and killed the session mid-build (work was recovered from disk, uncommitted). Related:
+  the Supabase stack's `analytics`/`vector` containers wedge under load and block `db reset`; the reliable
+  recovery is `supabase stop` then
+  `supabase start -x vector,imgproxy,studio,realtime,logflare,supavisor` (worth documenting, or excluding
+  those containers locally by default since CI already skips them).
+- **T5 — stale worktrees/branches accumulate silently** [Medium]. Squash-merges leave branches looking
+  "unmerged", so dead and live work are indistinguishable at a glance; two 12-day-old local-only ClickUp
+  branches sat around until audited (both superseded — see the Slice E/F notes in
+  `docs/plans/2026-07-10-clickup-adapter.md`). **Never delete on appearance:** verify by *content diff* and
+  check each branch-only line, not line counts — line counts would have reached the right answer by luck
+  and would have missed genuinely dropped work. A periodic `git worktree prune` + a "verify-then-delete"
+  checklist would keep this cheap.
+- **T6 — a `sed`/glob loop that silently does nothing** [Low, but it faked a clean result]. In zsh an
+  unquoted file-list variable does not word-split, so `for f in $FILES; sed -i '' … "$f"` passed the whole
+  list as one filename ("File name too long") and changed **nothing** — while the follow-up grep, mangled the
+  same way, reported "clean". Use `while IFS= read -r f; do … done < filelist` for repo-wide sweeps, and
+  always re-grep for the *old* value afterwards to prove the rewrite happened.
+
 ### Standing debt
 - **Signed-URL TTL hardening** [Medium, owner-acked on #78] — client can mint long-TTL download URLs; move
   signing to a server/Edge Function with a hard max TTL. Own issue.
