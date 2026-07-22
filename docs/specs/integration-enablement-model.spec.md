@@ -39,6 +39,8 @@
 - **OBS-IEM-002:** `external-connect` currently validates, writes Vault/binding, and then calls `admin_change_domain_ownership`; an ownership RPC failure is logged as non-fatal. This permits a partially completed connection.
 - **OBS-IEM-003:** The current UI renders `IntegrationsView` unconditionally in `pmo-portal/pages/AdminUsers.tsx`; the connect form is not gated by `EXTERNAL_CONNECT_ENABLED`.
 - **OBS-IEM-004:** With ownership employed and resolver disabled, native task columns are protected by `enforce_assignee_status_only()` (migration `0140`), producing the documented trap state.
+- **OBS-IEM-005:** `supabase/functions/clickup-webhook-worker/index.ts:170` calls `resolvePerOrgSecret` with `connectEnabled: true` **hard-coded**, so inbound webhook application bypasses the flag entirely. Consequently the trap state is not "nothing syncs" but an **asymmetric one-way mirror**: ClickUp→PMO changes still land while PMO→ClickUp (`adapter-dispatch`) and the healing sweep (`clickup-sweep`) are both suppressed — and PMO's own tasks are read-only. A kill-switch that a component hard-codes past is not a kill-switch.
+- **OBS-IEM-006:** The flag's blast radius is not ClickUp-only: `erpnext-onboard` (2 refs), `erpnext-sweep` (2), and `erpnext-webhook` (3) also read `EXTERNAL_CONNECT_ENABLED`. Any change to its semantics affects the ERPNext tier identically and MUST be specified for both tiers.
 
 ### Non-functional
 
@@ -72,6 +74,9 @@
 
 ### AC-IEM-008 — server-side enforcement and tenancy *(owning layer: pgTAP)*
 **Given** a caller or database session from another org or without the required role, **when** it attempts connect, ownership employment, or recovery, **then** server authorization/RLS rejects it and no cross-org state changes occur; `can()` does not replace this enforcement.
+
+### AC-IEM-009 — the kill-switch is honoured uniformly by every execution path *(owning layer: unit)*
+**Given** the operator kill-switch is engaged, **when** ANY integration execution path runs — outbound dispatch, the reconciliation sweep, **and inbound webhook application** — **then** each one resolves no per-org credential and performs no external I/O; no path may hard-code its enablement (cf. OBS-IEM-005), and this holds identically for the `clickup` and `erpnext` tiers (cf. OBS-IEM-006).
 
 ## Out of scope
 
