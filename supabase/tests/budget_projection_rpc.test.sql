@@ -27,7 +27,7 @@
 -- known ⇒ the real figure — so a FOURTH scope of this class cannot be added without failing here.
 --
 begin;
-select plan(45);
+select plan(50);
 
 -- ── Fixtures (inserted as table owner, bypassing RLS) ────────────────────────────────────────────
 insert into organizations (id, name) values
@@ -529,6 +529,53 @@ select is((select push_state from public.get_budget_push_status('0b3e1111-0000-0
           'never-pushed',
           'C-3/C-5 an EMPTY projection grid never silences the push alarm — it is read at project grain');
 
+-- ════════════════════════════════════════════════════════════════════════════════════════════════
+-- ⚑ MEDIUM-1 (money-safety audit round 7) — `push_state='held'` HAS TWO PRODUCERS, AND ONLY ONE LEAVES
+-- A RELEASABLE COMMAND. The dispatch's real `command-held` outcome leaves the `external_command_outbox`
+-- row `held` (releasing it is the operator's only route out). The SWEEP also parks a mirror row at
+-- `held` when it may not re-drive it (`budget-push-attempts-exhausted` /
+-- `budget-push-no-outbox-candidate`) — and there the outbox row is `failed`/absent, so there is nothing
+-- to release. The mirror row is IDENTICAL in both, so the surface offered "Release the hold" in both and
+-- the second could only ever throw, on the screen reporting that ERPNext is enforcing the wrong budget
+-- or none. `hold_releasable` is the distinction, asserted here in BOTH directions.
+-- ════════════════════════════════════════════════════════════════════════════════════════════════
+set local role postgres;
+-- (the C-5 block above DELETED this version's mirror row to exercise the never-pushed state, so the
+-- sweep-parked hold is INSERTED here rather than updated — an update would match nothing and the
+-- assertions below would pass vacuously against 'never-pushed'.)
+insert into budget_version_erp_mirror (org_id, budget_version_id, fiscal_year, push_state, push_error)
+  values ('0b3e0000-0000-0000-0000-000000000001','0b3e2222-0000-0000-0000-000000000001','2026',
+          'held','budget-push-attempts-exhausted')
+  on conflict (org_id, budget_version_id, fiscal_year)
+  do update set push_state = excluded.push_state, push_error = excluded.push_error;
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"0b3e0000-0000-0000-0000-0000000000a2","role":"authenticated"}';
+select is((select push_state from public.get_budget_push_status('0b3e1111-0000-0000-0000-000000000001')),
+          'held', 'MEDIUM-1 precondition: the mirror row reads held');
+select is((select hold_releasable from public.get_budget_push_status('0b3e1111-0000-0000-0000-000000000001')),
+          false,
+          'MEDIUM-1 a SWEEP-PARKED hold is NOT releasable — no held outbox command exists, so the button would only throw');
+
+-- The dispatch's real hold: the outbox row genuinely IS held.
+set local role postgres;
+insert into external_command_outbox (org_id, domain, pmo_record_id, idempotency_key, external_tier, operation, state)
+  values ('0b3e0000-0000-0000-0000-000000000001','budget','0b3e2222-0000-0000-0000-000000000001',
+          'bud:0b3e2222-0000-0000-0000-000000000001:1','erpnext','create','held');
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"0b3e0000-0000-0000-0000-0000000000a2","role":"authenticated"}';
+select is((select hold_releasable from public.get_budget_push_status('0b3e1111-0000-0000-0000-000000000001')),
+          true,
+          'MEDIUM-1 a REAL dispatch hold IS releasable — the affordance is narrowed, never removed');
+
+-- A NON-held outbox row for the same version does not make it releasable (only `held` wedges the index).
+set local role postgres;
+update external_command_outbox set state='failed' where pmo_record_id = '0b3e2222-0000-0000-0000-000000000001';
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"0b3e0000-0000-0000-0000-0000000000a2","role":"authenticated"}';
+select is((select hold_releasable from public.get_budget_push_status('0b3e1111-0000-0000-0000-000000000001')),
+          false,
+          'MEDIUM-1 only a `held` outbox row counts — a failed one leaves nothing to release');
+
 -- ── Cross-org: org B''s Finance reads zero rows (RLS, not a hand-rolled org filter) ────────────────
 set local request.jwt.claims = '{"sub":"0b3e0000-0000-0000-0000-0000000000b1","role":"authenticated"}';
 select is((select count(*)::int from public.get_budget_projection('0b3e1111-0000-0000-0000-000000000001','2026')), 0,
@@ -537,6 +584,10 @@ select is((select count(*)::int from public.list_budget_fiscal_years('0b3e1111-0
           'H-4 cross-org fiscal-year read returns zero rows (RLS)');
 select is((select push_state from public.get_budget_push_status('0b3e1111-0000-0000-0000-000000000001')), null,
           'C-5 cross-org push status leaks nothing — no state, no ERP document name (RLS)');
+-- MEDIUM-1: and it never advertises another org's releasable hold either (the outbox read is under the
+-- caller's own RLS, so org B cannot even see the row).
+select is((select hold_releasable from public.get_budget_push_status('0b3e1111-0000-0000-0000-000000000001')),
+          false, 'MEDIUM-1 cross-org: another org''s held command is never reported as releasable (RLS)');
 
 select finish();
 rollback;

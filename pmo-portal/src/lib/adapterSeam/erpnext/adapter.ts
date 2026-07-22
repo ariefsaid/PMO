@@ -104,12 +104,15 @@ async function commitCreate(command: AdapterCommand, deps: ErpAdapterDeps): Prom
   // `amended_from` revision path (§6: money fields are locked post-submit) and the superseded document
   // is left as a cancelled tombstone, never a live rival.
   if (entry.upsertOnGrain && deps.ctx.refs.self) {
-    // ⚑ MED-1 (audit round 6): the resolved target may be a DRAFT — our own orphan from a
-    // create-OK/submit-FAIL, adopted by the refs resolution because `amended_from` proves it is ours.
-    // A create for this kind always ends SUBMITTED, so an upsert must too: leaving it a draft would
-    // record the push as landed while ERPNext still enforces nothing, which is the exact class of
-    // silent-untruth this program keeps removing. `submitAdoptedDraft` is therefore keyed on the same
-    // property that makes a create submit.
+    // `submitAdoptedDraft`: IF the resolved target is ever a DRAFT, a create for this kind always ends
+    // SUBMITTED, so the upsert must too — leaving it a draft would record the push as landed while
+    // ERPNext still enforces nothing, the exact class of silent-untruth this program keeps removing. So
+    // the flag is keyed on the same property that makes a create submit.
+    // ⚑ Round 7: today this cannot trigger for `budget`, the only `upsertOnGrain` kind — the refs
+    // resolution now hands back ONLY a live (docstatus 1) document, so `commitEditResolved` always routes
+    // to amend. Round 6's orphan-draft adoption, which was the one caller that produced a draft target,
+    // was deleted (see `dispatchFactory.resolveBudgetRefs` for the full rationale). The flag is kept as
+    // the correctness invariant a future recovery must satisfy, not as a live path.
     return commitEditResolved(command, deps, deps.ctx.refs.self, entry.submittable && entry.submitOnCreate !== false);
   }
   const bodyFns = requireBodyFns(deps, kind);

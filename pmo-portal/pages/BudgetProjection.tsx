@@ -281,7 +281,10 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
       void qc.invalidateQueries({ queryKey: pushKey });
     },
   });
-  const offerRelease = pushState === 'held' && canReleaseHold;
+  // ⚑ MEDIUM-1 (audit round 7): `pushState === 'held'` is NOT sufficient — the sweep parks mirror rows
+  // at `held` with no held outbox command behind them, and the release then throws. Ask the outbox
+  // (`holdReleasable`), which is the only thing that knows. Those rows keep Retry, their real route out.
+  const offerRelease = pushState === 'held' && push?.holdReleasable === true && canReleaseHold;
 
   const releaseHold = async () => {
     try {

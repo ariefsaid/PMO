@@ -103,3 +103,28 @@ describe('describePushError — budget-enforcement-absent states the money conse
     expect(copy.message).not.toMatch(RAW_ADAPTER_TOKEN);
   });
 });
+
+/**
+ * ⚑ MEDIUM-1 (money-safety audit round 7) — the SWEEP's two park reasons are classified, because they
+ * are the states in which the release affordance is (correctly) withheld. A withheld button with an
+ * unclassified "could not be classified against a known cause" beside it is the dead end this program
+ * keeps removing: the operator is told neither what happened nor what to do. Both are RETRYABLE — Retry
+ * is precisely their route out, since the sweep parked the row rather than rejecting the budget.
+ */
+describe('describePushError — the sweep park reasons are classified, not generic (MEDIUM-1)', () => {
+  it('budget-push-attempts-exhausted says the recovery gave up, and offers retry as the way out', () => {
+    const copy = describePushError('budget-push-attempts-exhausted');
+    expect(copy.message).not.toMatch(RAW_ADAPTER_TOKEN);
+    expect(copy.message, 'never the unclassified fallback').not.toMatch(/could not be classified/i);
+    expect(copy.message).toMatch(/attempt|retr/i);
+    expect(copy.retryable, 'Retry is the operator route out — the budget itself was never rejected').toBe(true);
+    expect(copy.remedy ?? copy.message).toBeTruthy();
+  });
+
+  it('budget-push-no-outbox-candidate says there is no queued command, and stays retryable', () => {
+    const copy = describePushError('budget-push-no-outbox-candidate');
+    expect(copy.message).not.toMatch(RAW_ADAPTER_TOKEN);
+    expect(copy.message).not.toMatch(/could not be classified/i);
+    expect(copy.retryable).toBe(true);
+  });
+});

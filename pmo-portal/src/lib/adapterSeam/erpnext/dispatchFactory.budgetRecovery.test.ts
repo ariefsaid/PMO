@@ -92,12 +92,24 @@ const VERSION_RECORD = {
 //   • `docstatus` transitions 0 → 1 (submit) and → 2 (cancel), and a cancelled doc is a tombstone;
 //   • the list endpoint filters server-side on the requested predicates.
 // ────────────────────────────────────────────────────────────────────────────────────────────────
+/**
+ * The ERPNext user PMO's own API credentials authenticate as — what
+ * `GET /api/method/frappe.auth.get_logged_user` returns on the bench for our key/secret pair, and
+ * therefore the `owner` stamped on every document PMO itself creates. ⚑ LOW-1: this is the ONLY fact
+ * that distinguishes a draft PMO authored from a draft a human authored in the Desk.
+ */
+const INTEGRATION_USER = 'pmo-integration@erp.example.com';
+/** A human accountant working in the ERPNext Desk — never PMO. */
+const DESK_USER = 'accountant@client.test';
+
 interface BudgetDoc {
   name: string;
   company: string;
   project: string;
   fiscal_year: string;
   docstatus: number;
+  /** Frappe stamps the authenticated user on every document at creation; it is not client-settable. */
+  owner: string;
   amended_from?: string;
   accounts?: unknown[];
   modified: string;
@@ -114,6 +126,9 @@ function fakeBench(seed: BudgetDoc[] = [], faults: BenchFaults = {}) {
   const docs: BudgetDoc[] = seed.map((d) => ({ ...d }));
   const calls: Array<{ method: string; url: string; body?: Record<string, unknown> }> = [];
   let seq = docs.length;
+  let childSeq = 0;
+  /** Frappe's server-generated `Budget Account` row name (a 10-char hash — never client-settable). */
+  const childName = () => `ba${(childSeq += 1).toString().padStart(8, '0')}`;
 
   const matches = (doc: BudgetDoc, filters: Array<[string, string, unknown]>): boolean =>
     filters.every(([field, op, value]) => {
@@ -130,6 +145,11 @@ function fakeBench(seed: BudgetDoc[] = [], faults: BenchFaults = {}) {
     const href = String(url);
     const body = init?.body ? (JSON.parse(String(init.body)) as Record<string, unknown>) : undefined;
     calls.push({ method, url: href, body });
+
+    // Frappe's "who am I" RPC — the identity PMO's credentials authenticate as (LOW-1's ownership proof).
+    if (href.includes('/api/method/frappe.auth.get_logged_user')) {
+      return new Response(JSON.stringify({ message: INTEGRATION_USER }), { status: 200 });
+    }
 
     if (method === 'GET' && href.includes('filters=')) {
       const filters = JSON.parse(decodeURIComponent(new URL(href).searchParams.get('filters')!)) as Array<[string, string, unknown]>;
@@ -159,7 +179,26 @@ function fakeBench(seed: BudgetDoc[] = [], faults: BenchFaults = {}) {
       }
       seq += 1;
       const name = b.amended_from ? `${b.amended_from}-${seq}` : `BUDGET-2026-0000${seq}`;
-      const created: BudgetDoc = { ...b, name, docstatus: 0, modified: '2026-07-22 10:00:00' };
+      // ⚑ ROUND 7, LIVE-BENCH-VERIFIED (frappe 15.96.0 / erpnext 15.94.3): Frappe generates each child
+      // row's own `name` server-side on insert — a client never supplies one, and the spike's §10(g)
+      // claim that a bare `{account, budget_amount}` child 404s could not be reproduced in any of five
+      // request shapes (the spike has since been corrected). Modelling the child rows AT ALL is the
+      // round-7 lesson: while this handler discarded them, the one ERP-side fact that decides whether a
+      // client is protected — what ERPNext actually ends up ENFORCING — was unobservable, and every
+      // assertion about it could only inspect the outgoing request. `enforcedAmounts` reads this.
+      // ⚑ Built into a NEW array — never mutate `b`, which is the very object recorded in `calls` and
+      // read back by the request-shape assertions.
+      const storedAccounts = (b.accounts ?? []).map((row) => ({ ...(row as object), name: childName() }));
+      // `owner` is SERVER-stamped from the authenticated session, never taken from the body — so a doc
+      // this bench creates for PMO is owned by PMO, exactly as the real bench behaves.
+      const created: BudgetDoc = {
+        ...b,
+        name,
+        docstatus: 0,
+        owner: INTEGRATION_USER,
+        accounts: storedAccounts,
+        modified: '2026-07-22 10:00:00',
+      };
       docs.push(created);
       return new Response(JSON.stringify({ data: created }), { status: 200 });
     }
@@ -189,28 +228,41 @@ function fakeBench(seed: BudgetDoc[] = [], faults: BenchFaults = {}) {
     calls,
     /** What ERP HOLDS for the grain right now — the oracle every recovery assertion reads. */
     liveOnGrain: () => docs.filter((d) => d.docstatus === 1).map((d) => d.name),
+    /**
+     * The figures ERPNext would actually ENFORCE for a document — read from bench state AFTER the
+     * write, never from the request that asked for it. A request body only says what PMO intended.
+     */
+    enforcedAmounts: (name: string) =>
+      ((docs.find((d) => d.name === name)?.accounts ?? []) as Array<{ account: string; budget_amount: string }>).map(
+        ({ account, budget_amount }) => ({ account, budget_amount }),
+      ),
     draftsOnGrain: () => docs.filter((d) => d.docstatus === 0).map((d) => d.name),
     writes: () => calls.filter((c) => c.method !== 'GET'),
   };
 }
 
-function budgetDoc(name: string, docstatus: number, amendedFrom?: string): BudgetDoc {
+function budgetDoc(name: string, docstatus: number, amendedFrom?: string, owner: string = INTEGRATION_USER): BudgetDoc {
   return {
     name,
     company: 'PMO Smoke Co',
     project: 'PROJ-0001',
     fiscal_year: '2026',
     docstatus,
+    owner,
     modified: '2026-07-20 10:00:00',
     ...(amendedFrom ? { amended_from: amendedFrom } : {}),
   };
 }
 
-async function pushBudget(bench: ReturnType<typeof fakeBench>, mirrorBudgetName: string | null = null) {
+async function pushBudget(
+  bench: ReturnType<typeof fakeBench>,
+  mirrorBudgetName: string | null = null,
+  record: Record<string, unknown> = VERSION_RECORD,
+) {
   const adapter = await resolveErpDispatchAdapter({
     serviceClient: serviceClient(mirrorBudgetName),
     orgId: 'org-1',
-    command: { domain: 'budget', operation: 'create', record: VERSION_RECORD } as never,
+    command: { domain: 'budget', operation: 'create', record } as never,
     fetchImpl: bench.fetchImpl,
     apiKey: 'k',
     apiSecret: 's',
@@ -219,7 +271,7 @@ async function pushBudget(bench: ReturnType<typeof fakeBench>, mirrorBudgetName:
   return await adapter.commit({
     domain: 'budget',
     operation: 'create',
-    record: VERSION_RECORD,
+    record,
     idempotencyKey: '22222222-2222-4222-8222-222222222222',
   } as never);
 }
@@ -312,6 +364,41 @@ describe('⚑ HIGH-1 — the budget upsert leaves a RECOVERABLE failure window, 
     expect(occupied.liveOnGrain(), 'the superseded doc is a tombstone; exactly one live Budget remains').toEqual([result.externalRecordId]);
     expect(occupied.docs.find((d) => d.name === 'BUDGET-2026-00007')!.docstatus).toBe(2);
     expect(occupied.calls.find((c) => c.method === 'POST')!.body).toMatchObject({ amended_from: 'BUDGET-2026-00007' });
+    // ⚑ ROUND 7 — read the BENCH, not the request. A request body only says what PMO asked for; the
+    // question that decides whether a client is protected is what ERPNext ends up ENFORCING. The fake's
+    // PUT/POST handlers used to ignore `accounts` entirely, so this could not be asserted anywhere.
+    expect(
+      occupied.enforcedAmounts(result.externalRecordId),
+      'the replacement ERPNext now enforces carries the current figures',
+    ).toEqual([
+      { account: 'Salary - PSC', budget_amount: '80000.00' },
+      { account: 'Cost of Goods Sold - PSC', budget_amount: '20000.00' },
+    ]);
+  });
+
+  /**
+   * ⚑ ROUND 7 REGRESSION GUARD. The one child-row failure mode that reproduces on the live bench is a
+   * client-supplied child `name` matching no existing row: the PUT returns 200 and the SUBMIT then
+   * raises a raw, unclassifiable 500. PMO is safe from it structurally — `budgetToBody` emits bare
+   * `{account, budget_amount}` rows and lets Frappe generate the names — and that property is worth
+   * pinning, because the round-7 audit very nearly had us start round-tripping child names on the
+   * strength of a spike finding that turned out to be unreproducible. Round-tripping names is the only
+   * way our own code could reach that 500, so this test makes that route go red.
+   */
+  it('round-7 PMO never sends a child-row `name` — the one shape that can 500 on submit stays unreachable', async () => {
+    const occupied = fakeBench([budgetDoc('BUDGET-2026-00007', 1)]);
+    await pushBudget(occupied);
+
+    const childRows = occupied.calls
+      .filter((c) => Array.isArray((c.body as { accounts?: unknown[] } | undefined)?.accounts))
+      .flatMap((c) => (c.body as { accounts: Array<Record<string, unknown>> }).accounts);
+    expect(childRows.length, 'the push really did carry child rows').toBeGreaterThan(0);
+    for (const row of childRows) {
+      expect(Object.keys(row).sort(), 'a child row is exactly {account, budget_amount} — never a `name`').toEqual([
+        'account',
+        'budget_amount',
+      ]);
+    }
   });
 
   it('AC-BUD-031 (regression) TWO live Budgets on one grain still fail CLOSED with zero writes', async () => {
@@ -330,20 +417,32 @@ describe('⚑ HIGH-1 — the budget upsert leaves a RECOVERABLE failure window, 
 });
 
 /**
- * ⚑ MED-1 (money-safety audit round 6) — WINDOW B IS OURS TO CLEAN UP WHEN WE CAN PROVE IT IS OURS.
+ * ⚑ ROUND 7 RULING — AUTO-ADOPTION OF AN ORPHAN DRAFT IS GONE. EVERY draft on the grain is refused.
  *
- * Round 5 made window B's refusal honest and named. But the refusal is PERMANENT (`retryable:false`),
- * and during an UPSERT it strands the grain in the worst state the program has: the predecessor is
- * already cancelled, so ERPNext enforces NOTHING, and every subsequent push — foreground retry AND
- * sweep backstop — is refused by name. The only exit is a human in the ERPNext Desk.
+ * Round 6 added a branch that adopted a lone draft when `amended_from` matched the ERP `Budget` name
+ * recorded on our own mirror row, intending to recover window B (create OK, submit FAILS) without a
+ * human. Round 7 established two things that together retire it:
  *
- * The stated reason for refusing was "`Budget` carries no anchor field, so we cannot PROVE a draft is
- * ours" (spike §7). That is true in general and FALSE in exactly this window: the replacement was
- * created with `amended_from` = the document we had just cancelled, and that document's name is
- * recorded on our own mirror row. A draft whose `amended_from` is the tombstone THIS push produced is
- * unambiguously ours. Anything else keeps round 5's refusal, which was right.
+ *  1. **The case it was BUILT for is unreachable.** `budget_version_erp_mirror.erp_budget_name` has
+ *     exactly ONE writer — the SUCCESS path (`readModelWriters.ts`) — and `activate_budget_version`
+ *     admits only a Draft version (`0005`/`0139`), so a version is activated once, pushed under one
+ *     idempotency key, and its mirror row carries a name only AFTER a push succeeded. In window B the
+ *     push did NOT succeed, so the name is null and the branch cannot fire.
+ *  2. **The only case it COULD fire on was the destructive one.** A Desk user who cancels our
+ *     successfully-pushed Budget (name recorded) and hand-starts its amendment produces a draft whose
+ *     `amended_from` IS that name — so PMO would PUT its own figures over the accountant's work and
+ *     submit it. Live-bench-verified: both calls return 200. `amended_from` identifies a draft's
+ *     PARENT and never its AUTHOR.
+ *
+ * So the branch was structurally incapable of recovering anything, and its one reachable path was the
+ * one FR-BUD-142 forbids outright. Round 5's position stands and is money-safe: window B ends in a
+ * NAMED, operator-actionable refusal (`budget-draft-rival-on-grain`) that tells the human which
+ * document to submit or delete — never silence, and never a write onto somebody else's document.
+ *
+ * These tests are the guard against re-adding it. See `resolveBudgetRefs` for what a real automatic
+ * recovery would require.
  */
-describe('⚑ MED-1 — PMO recovers from its OWN orphan draft, and still refuses a foreign one', () => {
+describe('⚑ round 7 — every DRAFT on the grain is refused by name, whoever authored it', () => {
   const OLD = 'BUDGET-2026-00007';
 
   /** Drives window B to completion: cancel(OLD) → create(replacement) → submit FAILS. */
@@ -355,51 +454,57 @@ describe('⚑ MED-1 — PMO recovers from its OWN orphan draft, and still refuse
     return bench;
   }
 
-  it('MED-1 the next attempt ADOPTS the orphan it can prove is its own and submits it — the grain is enforced again', async () => {
+  it('round-7 our OWN window-B orphan is refused BY NAME with zero writes — auto-adoption is not attempted', async () => {
     const stranded = await strandOrphan();
     const orphan = stranded.draftsOnGrain()[0];
 
     const retry = fakeBench(stranded.docs, {});
-    const result = await pushBudget(retry, OLD);
+    const err = (await pushBudget(retry, OLD).catch((e: unknown) => e)) as Error & { code?: string };
 
-    expect(retry.liveOnGrain(), 'exactly ONE live Budget enforces the grain again').toEqual([orphan]);
-    expect(result.externalRecordId).toBe(orphan);
-    // It must never cancel anything to get there — the predecessor is already a tombstone, and there is
-    // no second document to mint.
-    expect(retry.calls.some((c) => c.method === 'POST'), 'no second Budget is created').toBe(false);
-    expect(retry.calls.some((c) => c.method === 'PUT' && c.body?.docstatus === 2), 'nothing is cancelled').toBe(false);
+    expect(err.code, 'the named, operator-actionable refusal — never a silent strand').toBe('budget-draft-rival-on-grain');
+    expect(err.message, 'it names the document the human must submit or delete').toContain(orphan);
+    expect(
+      err.message.toLowerCase(),
+      'and it says the money part out loud: nothing is being enforced right now',
+    ).toMatch(/no live budget|enforcing no/);
+    expect(retry.writes(), 'a blocked grain issues ZERO ERP writes').toEqual([]);
+    expect(retry.docs.find((d) => d.name === orphan)!.docstatus, 'the draft is left exactly as it was').toBe(0);
   });
 
-  it('MED-1 the adopted draft is brought up to the CURRENT figures before it is submitted, never submitted blind', async () => {
-    const stranded = await strandOrphan();
-    const retry = fakeBench(stranded.docs, {});
-    await pushBudget(retry, OLD);
+  /**
+   * ⚑ THE GUARD THAT MATTERS MOST if anyone revisits automatic recovery. `amended_from` proves a
+   * draft's PARENT, never its AUTHOR — so it is not, and never was, an ownership proof. A future
+   * recovery must additionally prove authorship (the draft's server-stamped `owner` is the integration
+   * user PMO's credentials authenticate as, readable in the same grain list query). This scenario is
+   * the one that would silently overwrite an accountant's work if that were forgotten.
+   */
+  it('LOW-1 a DESK author\'s amendment of OUR OWN Budget is refused — `amended_from` proves the parent, never the author', async () => {
+    const bench = fakeBench([budgetDoc(`${OLD}-2`, 0, OLD, DESK_USER)]);
 
-    const fieldPut = retry.calls.find((c) => c.method === 'PUT' && c.body?.docstatus === undefined);
-    expect(fieldPut, 'the draft is updated before submit').toBeDefined();
-    expect((fieldPut!.body as { accounts: Array<{ account: string; budget_amount: string }> }).accounts).toEqual([
-      { account: 'Salary - PSC', budget_amount: '80000.00' },
-      { account: 'Cost of Goods Sold - PSC', budget_amount: '20000.00' },
-    ]);
+    const err = (await pushBudget(bench, OLD).catch((e: unknown) => e)) as Error & { code?: string };
+
+    expect(err.code).toBe('budget-draft-rival-on-grain');
+    expect(err.message, 'the operator is told WHICH document blocks them').toContain(`${OLD}-2`);
+    expect(bench.writes(), "the accountant's draft is never written to").toEqual([]);
+    // The decisive oracle: their work survives untouched and unsubmitted, with THEIR figures.
+    expect(bench.docs.find((d) => d.name === `${OLD}-2`)!.docstatus, 'never submitted on their behalf').toBe(0);
   });
 
-  it("MED-1 a Desk author's WIP draft is STILL refused with zero writes — ownership is proven, never assumed", async () => {
-    // Same shape as ours (a draft alone on an unenforced grain) but no `amended_from` lineage to our
-    // tombstone. Submitting it would enforce THEIR figure while PMO recorded it as our push.
-    const bench = fakeBench([budgetDoc('BUDGET-DESK-WIP', 0)]);
+  it("round-7 a Desk author's WIP draft (no lineage at all) is refused with zero writes", async () => {
+    const bench = fakeBench([budgetDoc('BUDGET-DESK-WIP', 0, undefined, DESK_USER)]);
     const err = (await pushBudget(bench, OLD).catch((e: unknown) => e)) as Error & { code?: string };
     expect(err.code).toBe('budget-draft-rival-on-grain');
     expect(bench.writes()).toEqual([]);
   });
 
-  it('MED-1 a draft amended from some OTHER document is refused too — the lineage must be ours specifically', async () => {
+  it('round-7 a draft amended from some OTHER document is refused too', async () => {
     const bench = fakeBench([budgetDoc('BUDGET-2026-99999-2', 0, 'BUDGET-2026-99999')]);
     const err = (await pushBudget(bench, OLD).catch((e: unknown) => e)) as Error & { code?: string };
     expect(err.code).toBe('budget-draft-rival-on-grain');
     expect(bench.writes()).toEqual([]);
   });
 
-  it('MED-1 with NO mirror row to prove ownership, even an amended draft is refused — absence of a record is not a proof', async () => {
+  it('round-7 a draft is refused whether or not a mirror row exists — the mirror is no longer consulted at all', async () => {
     const bench = fakeBench([budgetDoc(`${OLD}-2`, 0, OLD)]);
     const err = (await pushBudget(bench, null).catch((e: unknown) => e)) as Error & { code?: string };
     expect(err.code).toBe('budget-draft-rival-on-grain');

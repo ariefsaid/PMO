@@ -104,6 +104,22 @@ const CODES: Record<string, Entry> = {
     retryable: false,
     remedy: 'Set a default activity type on the ERPNext connection — this is ERP-side configuration, not something a retry can supply.',
   },
+  // ⚑ MEDIUM-1 (audit round 7) — the SWEEP's two park reasons. Both mark the mirror row `held`, but
+  // NEITHER leaves a `held` outbox command behind, so the release affordance is (correctly) withheld for
+  // them — which makes classifying them mandatory rather than nice: a withheld button beside an
+  // unclassified fallback tells the operator neither what happened nor what to do. Retryable ON PURPOSE:
+  // the sweep gave up on re-driving the row, it did not reject the budget, so a fresh push is exactly
+  // the way out and it re-runs every gate.
+  'budget-push-attempts-exhausted': {
+    message: 'The automatic recovery ran out of attempts before ERPNext accepted this budget, so it stopped trying on its own.',
+    retryable: true,
+    remedy: 'Retry the push — it starts a fresh attempt and runs every check again.',
+  },
+  'budget-push-no-outbox-candidate': {
+    message: 'There is no queued push command left for this budget, so the automatic recovery had nothing to work with.',
+    retryable: true,
+    remedy: 'Retry the push to queue a fresh command.',
+  },
   // ── shared ───────────────────────────────────────────────────────────────────────────────────
   'commit-rejected': {
     message: 'ERPNext understood the request and refused it.',

@@ -4781,6 +4781,10 @@ export type Database = {
         Returns: {
           erp_budget_name: string | null
           fiscal_year: string | null
+          // MEDIUM-1 (mig 0141): is there a genuinely `held` outbox command to release? `push_state =
+          // 'held'` alone is NOT that — the sweep also parks mirror rows with no held command behind
+          // them. Non-null by construction (`exists(...)`).
+          hold_releasable: boolean
           push_error: string | null
           push_state: string | null
           pushed_at: string | null

@@ -120,6 +120,26 @@ export interface BudSeed {
   erpProject: string;
   /** Every `budget_versions.id` this run created — cleanup deletes each (line items cascade). */
   versionIds: string[];
+  /**
+   * ⚑ MEDIUM-2 (money-safety audit round 7) — THE ORG-GLOBAL STATE THIS RUN TOUCHED, AS IT WAS FOUND.
+   *
+   * `external_org_bindings`, `external_domain_ownership` and `budget_category_account_map` are keyed on
+   * the ORG, not on this run's project, so every budget spec mutates state it shares with the whole
+   * suite AND with `supabase/seed.sql`. Cleanup used to DELETE those rows unconditionally, which meant a
+   * budget spec silently stripped the seeded org's ERPNext tier for every spec that ran after it — and
+   * the symptom is a later spec quietly taking a different branch, not a failure pointing here. (Same
+   * family as the shared-auth-mutation trap that only surfaced at a promote.)
+   *
+   * So the run snapshots what it found and PUTS IT BACK. Only rows this run itself created are deleted.
+   */
+  prior: {
+    /** The org's whole erpnext binding row before this run, or `null` if there was none. */
+    binding: Record<string, unknown> | null;
+    /** Did `(org, erpnext, budget)` domain ownership already exist? */
+    ownsBudgetDomain: boolean;
+    /** The category→account rows this run overwrites, exactly as they were. */
+    categoryMap: Array<{ org_id: string; category: string; erp_account: string }>;
+  };
 }
 
 /** The ERPNext `Fiscal Year` covering `date`, read from the client's OWN calendar (never derived). */
@@ -158,9 +178,10 @@ export async function seedBud(
   // shares this one `(org_id, external_tier)` row, and overwriting its config makes an unrelated spec
   // fail with a bogus `activity-type-unconfigured`.
   const { data: existingBinding } = await admin
-    .from('external_org_bindings').select('config')
+    .from('external_org_bindings').select('*')
     .eq('org_id', ORG_ID).eq('external_tier', 'erpnext').maybeSingle();
-  const priorConfig = ((existingBinding as { config?: Record<string, unknown> } | null)?.config ?? {}) as Record<string, unknown>;
+  const priorBinding = (existingBinding as Record<string, unknown> | null) ?? null;
+  const priorConfig = ((priorBinding?.config as Record<string, unknown> | undefined) ?? {}) as Record<string, unknown>;
   const priorMap = (priorConfig.project_map as Record<string, string> | undefined) ?? {};
   const { error: bindingErr } = await admin.from('external_org_bindings').upsert(
     {
@@ -180,12 +201,20 @@ export async function seedBud(
   );
   if (bindingErr) throw new Error(`seed external_org_bindings failed: ${bindingErr.message}`);
 
+  // Snapshot BEFORE the flip — cleanup restores exactly this.
+  const { data: priorOwnRow } = await admin
+    .from('external_domain_ownership').select('id')
+    .eq('org_id', ORG_ID).eq('external_tier', 'erpnext').eq('domain', 'budget').maybeSingle();
+  const ownsBudgetDomain = Boolean(priorOwnRow);
   const { error: flipErr } = await admin
     .from('external_domain_ownership')
     .upsert({ org_id: ORG_ID, external_tier: 'erpnext', domain: 'budget' }, { onConflict: 'org_id,external_tier,domain' });
   if (flipErr) throw new Error(`seed external_domain_ownership failed: ${flipErr.message}`);
 
   // THE CRUX (FR-BUD-110..113): the Admin-administered category→account bijection.
+  const { data: priorMapRows } = await admin
+    .from('budget_category_account_map').select('org_id, category, erp_account')
+    .eq('org_id', ORG_ID).in('category', ['Labor', 'Materials']);
   const { error: mapErr } = await admin.from('budget_category_account_map').upsert(
     [
       { org_id: ORG_ID, category: 'Labor', erp_account: LABOR_ACCOUNT },
@@ -195,7 +224,17 @@ export async function seedBud(
   );
   if (mapErr) throw new Error(`seed budget_category_account_map failed: ${mapErr.message}`);
 
-  return { suffix, projectId, erpProject, versionIds: [] };
+  return {
+    suffix,
+    projectId,
+    erpProject,
+    versionIds: [],
+    prior: {
+      binding: priorBinding,
+      ownsBudgetDomain,
+      categoryMap: (priorMapRows as Array<{ org_id: string; category: string; erp_account: string }> | null) ?? [],
+    },
+  };
 }
 
 /** Seed a Draft budget version + its line items. */
@@ -248,10 +287,36 @@ export async function cleanupBud(admin: SupabaseClient, seed: BudSeed): Promise<
   // Any version the UI created (a clone) that the run did not register explicitly.
   await admin.from('budget_versions').delete().eq('project_id', seed.projectId);
   await admin.from('notifications').delete().eq('org_id', ORG_ID).contains('metadata', { action_required: 'budget-push-failed' });
-  await admin.from('budget_category_account_map').delete().eq('org_id', ORG_ID).in('erp_account', [LABOR_ACCOUNT, MATERIALS_ACCOUNT]);
   await admin.from('projects').delete().eq('id', seed.projectId);
-  await admin.from('external_domain_ownership').delete().eq('org_id', ORG_ID).eq('external_tier', 'erpnext').eq('domain', 'budget');
-  await admin.from('external_org_bindings').delete().eq('org_id', ORG_ID).eq('external_tier', 'erpnext');
+
+  // ── ⚑ MEDIUM-2: ORG-GLOBAL STATE IS RESTORED, NEVER DELETED ─────────────────────────────────────
+  // These three tables are keyed on the ORG, so they are shared with every other spec AND with
+  // `supabase/seed.sql`. Deleting them (the previous behaviour) meant one budget spec stripped the
+  // seeded org's ERPNext tier for the rest of the run — after which any surface gated on domain
+  // ownership silently renders its not-employed branch, and the failure surfaces somewhere else
+  // entirely, as flake. Put back exactly what was found; delete only what this run introduced.
+  const priorMap = seed.prior?.categoryMap ?? [];
+  const priorCategories = priorMap.map((r) => r.category);
+  // Rows this run ADDED (a category with no prior row) go; rows it OVERWROTE are restored verbatim.
+  const addedCategories = ['Labor', 'Materials'].filter((c) => !priorCategories.includes(c));
+  if (addedCategories.length > 0) {
+    await admin.from('budget_category_account_map').delete().eq('org_id', ORG_ID).in('category', addedCategories);
+  }
+  if (priorMap.length > 0) {
+    await admin.from('budget_category_account_map').upsert(priorMap, { onConflict: 'org_id,category' });
+  }
+
+  if (!seed.prior?.ownsBudgetDomain) {
+    await admin.from('external_domain_ownership').delete().eq('org_id', ORG_ID).eq('external_tier', 'erpnext').eq('domain', 'budget');
+  }
+
+  if (seed.prior?.binding) {
+    // Restore the WHOLE row (site_url/secret_ref/config/activated_at) — `seedBud` merges into config,
+    // and the timesheets lane shares this same `(org_id, external_tier)` row.
+    await admin.from('external_org_bindings').upsert(seed.prior.binding, { onConflict: 'org_id,external_tier' });
+  } else {
+    await admin.from('external_org_bindings').delete().eq('org_id', ORG_ID).eq('external_tier', 'erpnext');
+  }
 }
 
 // ---------------------------------------------------------------------------

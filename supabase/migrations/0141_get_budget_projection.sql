@@ -323,7 +323,27 @@ returns table (
   -- The fiscal year this status is ABOUT, so the banner names it rather than being suppressed on every
   -- other year.
   fiscal_year         text,
-  pushed_at           timestamptz
+  pushed_at           timestamptz,
+  -- ⚑ MEDIUM-1 (money-safety audit round 7) — IS THERE ACTUALLY A HOLD TO RELEASE?
+  --
+  -- `budget_version_erp_mirror.push_state = 'held'` has TWO producers, and only one of them leaves a
+  -- releasable command behind:
+  --   (a) the dispatch's real `command-held` outcome — the `external_command_outbox` row genuinely IS
+  --       `held`, it wedges `external_command_outbox_one_inflight_per_record`, and releasing it is the
+  --       operator's only route out;
+  --   (b) the SWEEP parking a row it may not re-drive (`budget-push-attempts-exhausted` /
+  --       `budget-push-no-outbox-candidate`, `erpnext-sweep/index.ts`) — here the outbox row is
+  --       `failed`/`pending`/absent, so there is nothing in a `held` state at all.
+  -- The mirror alone cannot tell them apart, so the banner offered "Release the hold" in BOTH, and in
+  -- (b) the click could only ever fail ("There is no held ERP command to release for this project.") —
+  -- on the screen that is telling the operator ERPNext is enforcing the wrong budget, or none. A button
+  -- whose only outcome is an error is worse than no button: it costs the reader their remaining trust in
+  -- the screen. So the surface asks the OUTBOX, which is the only thing that knows.
+  --
+  -- Read under `security invoker`, so `external_command_outbox_select` (`org_id = auth_org_id() and
+  -- is_active_member()`) is the org boundary exactly as it is for the repository's own lookup — another
+  -- org's held row is not visible here and would be refused by the RPC regardless.
+  hold_releasable     boolean
 )
 language sql
 stable
@@ -374,6 +394,15 @@ as $$
              select 1 from public.projects p
               where p.id = p_project_id
                 and public.domain_owned_by_tier(p.org_id, 'budget', 'erpnext'))
+  ),
+  -- MEDIUM-1: a genuinely `held` outbox command for THIS project's Active version. `pmo_record_id` is
+  -- `text` (0096), so the version id is cast rather than the column — the index stays usable.
+  releasable as (
+    select 1
+      from public.external_command_outbox o
+      join active_version av on o.pmo_record_id = av.id::text
+     where o.domain = 'budget' and o.state = 'held'
+     limit 1
   )
   select coalesce((select r.push_state from recorded r), (select u.state from unrecorded u)),
          (select r.push_error          from recorded r),
@@ -382,7 +411,8 @@ as $$
          (select r.unmapped_categories from recorded r),
          (select r.erp_budget_name     from recorded r),
          (select r.fiscal_year         from recorded r),
-         (select r.pushed_at           from recorded r);
+         (select r.pushed_at           from recorded r),
+         exists (select 1 from releasable);
 $$;
 
 revoke all on function public.get_budget_push_status(uuid) from public;

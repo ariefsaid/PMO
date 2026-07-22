@@ -570,35 +570,6 @@ export async function readCategoryAccountMap(
 }
 
 /**
- * ⚑ MED-1 — the ERP `Budget` name PMO's own last push for this (version, fiscal year) produced, as
- * recorded on `budget_version_erp_mirror`. It is the ONLY ownership evidence that exists for a doctype
- * with no anchor field (budget-write spike §7), and it is consulted for exactly one decision: whether a
- * lone draft on an unenforced grain is the replacement THIS project's push created.
- *
- * Fails SOFT (null) on a read error or a missing row: "we could not prove ownership" and "there is no
- * ownership to prove" must both fall through to the refusal, never to an adoption. The strict direction
- * of a fail here is refusal, which is the pre-MED-1 behaviour — so a broken read can only ever cost the
- * recovery, never mis-submit somebody else's document.
- */
-async function mirrorErpBudgetName(
-  deps: ErpDispatchFactoryDeps,
-  budgetVersionId: string,
-  fiscalYear: string,
-): Promise<string | null> {
-  if (!budgetVersionId) return null;
-  const { data, error } = await deps.serviceClient
-    .from('budget_version_erp_mirror')
-    .select('erp_budget_name')
-    .eq('org_id', deps.orgId)
-    .eq('budget_version_id', budgetVersionId)
-    .eq('fiscal_year', fiscalYear)
-    .maybeSingle();
-  if (error) return null;
-  const name = (data as { erp_budget_name?: unknown } | null)?.erp_budget_name;
-  return typeof name === 'string' && name.length > 0 ? name : null;
-}
-
-/**
  * Resolve the budget push's refs:
  *
  *  • `refs.project` — the ERP `Project` name for the version's project, via the SAME binding
@@ -666,14 +637,15 @@ async function resolveBudgetRefs(
   // the live Budget FIRST and only then discovered it could not replace it, leaving ERPNext enforcing
   // NOTHING; and the orphan then blocked every future push for the grain with an opaque
   // `DuplicateBudgetError` no PMO surface explained.
+  const clientDeps: ErpClientDeps = {
+    fetchImpl: deps.fetchImpl,
+    apiKey: deps.apiKey,
+    apiSecret: deps.apiSecret,
+    baseUrl: binding.site_url,
+    rateLimiter: deps.rateLimiter,
+  };
   const grain = await listDocsByFilters(
-    {
-      fetchImpl: deps.fetchImpl,
-      apiKey: deps.apiKey,
-      apiSecret: deps.apiSecret,
-      baseUrl: binding.site_url,
-      rateLimiter: deps.rateLimiter,
-    },
+    clientDeps,
     'Budget',
     [
       ['company', '=', company],
@@ -681,9 +653,10 @@ async function resolveBudgetRefs(
       ['fiscal_year', '=', fiscalYear],
       ['docstatus', '<', 2],
     ],
-    // ⚑ MED-1 (audit round 6): `amended_from` is the ONE fact that can prove a draft is OURS — see the
-    // ownership branch below. It was already being written by `commitAmend`; it was simply never read.
-    ['name', 'docstatus', 'amended_from'],
+    // ⚑ MED-1 (round 6): `amended_from` carries the draft's LINEAGE. ⚑ LOW-1 (round 7): `owner` carries
+    // its AUTHOR — the half that was missing, and the half that decides whether adopting it would
+    // overwrite a human's work. Both are plain list fields: one read, zero extra calls.
+    ['name', 'docstatus', 'amended_from', 'owner'],
     5, // a handful is plenty to classify the grain; we never need to enumerate it
   );
   const live = grain.filter((row) => Number(row.docstatus) === 1).map((row) => String(row.name));
@@ -700,32 +673,6 @@ async function resolveBudgetRefs(
     );
   }
 
-  // ⚑ MED-1 (audit round 6) — (ii-a) OUR OWN ORPHAN. A create-OK/submit-FAIL during an UPSERT leaves the
-  // predecessor cancelled and the replacement stuck as a draft: ERPNext then enforces NOTHING for the
-  // project/fiscal-year, and round 5's refusal below is PERMANENT (`retryable:false`), so foreground
-  // retry AND sweep backstop are both refused by name and the only exit is a human in the Desk. That is
-  // the worst state this program has, reached by one transient 5xx.
-  //
-  // Round 5's stated reason for refusing — "`Budget` carries no anchor field, so we cannot PROVE a draft
-  // is ours" (spike §7) — is true in general and FALSE in exactly this window: `commitAmend` created the
-  // replacement with `amended_from` = the document it had just cancelled, and that document's name is
-  // recorded on OUR OWN mirror row. A sole draft, on an otherwise EMPTY grain, whose `amended_from` is
-  // that exact tombstone, is unambiguously the replacement this project's last push produced. Nothing
-  // weaker counts: no mirror row (no record ⇒ no proof), a different lineage, a bare Desk WIP, or a live
-  // Budget also present all fall through to the refusal, which was and remains correct.
-  //
-  // Adopting means `refs.self` = the draft, so the upsert path updates it to the CURRENT figures and
-  // submits it (adapter.ts `commitEditResolved`) — it never mints a second Budget and never cancels
-  // anything, because there is nothing live left to cancel.
-  if (live.length === 0 && draftRows.length === 1) {
-    const ownedByUs = await mirrorErpBudgetName(deps, String(record.id ?? ''), fiscalYear);
-    const amendedFrom = draftRows[0].amended_from;
-    if (ownedByUs && typeof amendedFrom === 'string' && amendedFrom === ownedByUs) {
-      refs.self = drafts[0];
-      return { refs };
-    }
-  }
-
   // (ii) A DRAFT rival — ours (an orphaned create-OK/submit-FAIL) or somebody's Desk work-in-progress.
   // Either way ERP WILL refuse our create, so attempting the push is a guaranteed-destructive act: we
   // would cancel the live Budget and then be unable to replace it. Refuse BEFORE any write, and NAME the
@@ -733,6 +680,30 @@ async function resolveBudgetRefs(
   // an opaque ERP 417 five minutes later tells them nothing. We deliberately do NOT adopt-and-submit it:
   // `Budget` carries no anchor field of any kind (spike §7), so we cannot PROVE a draft is ours, and
   // submitting somebody's WIP would enforce THEIR figure while PMO recorded it as our push.
+  //
+  // ⚑ DO NOT RE-ADD AUTOMATIC ADOPTION HERE WITHOUT READING THIS (audit rounds 6→7, DIRECTOR RULING).
+  // Round 6 added exactly that: a lone draft was adopted when its `amended_from` matched the ERP name on
+  // our own `budget_version_erp_mirror` row. It was deleted in round 7 because it was incapable of doing
+  // its job and capable of real harm:
+  //   • UNREACHABLE where it was needed. `erp_budget_name` has exactly ONE writer — the SUCCESS path
+  //     (`adapter-dispatch/readModelWriters.ts`) — and `activate_budget_version` admits only a Draft
+  //     version (`0005`/`0139`), so a version is activated ONCE, pushed under ONE idempotency key, and
+  //     its mirror row carries a name only after a push SUCCEEDED. Window B is by definition a push that
+  //     did not succeed, so the name is null and the branch could never fire for its own use case.
+  //   • HARMFUL where it WAS reachable. The one state that satisfies it is: our push succeeded (name
+  //     recorded), then a Desk user cancelled that Budget and hand-started its amendment. `amended_from`
+  //     identifies a draft's PARENT, never its AUTHOR — so PMO would PUT its own figures over the
+  //     accountant's work and submit it. Live-bench-verified (frappe 15.96.0/erpnext 15.94.3): both the
+  //     PUT and the submit return 200. That is precisely what FR-BUD-142 forbids.
+  // A real automatic recovery needs, at minimum: (a) a DISTINCT mirror column recording the document we
+  // created at create-time — never `erp_budget_name`, which the projection renders as THE enforcing ERP
+  // document, so a draft's name there would be a confident false claim about ERP state; (b) an
+  // authorship proof, since lineage is not ownership — the draft's server-stamped `owner` must equal the
+  // user our credentials authenticate as (`frappe.auth.get_logged_user`), which the grain list query
+  // above can return as a plain field; and (c) an `after-create-before-submit` fault seam, since window B
+  // is otherwise undrivable end to end. That is a slice, not a patch. Until then this refusal — named,
+  // zero-write, and telling the human exactly which document to submit or delete — is the correct
+  // behaviour, and `dispatchFactory.budgetRecovery.test.ts` guards it.
   if (drafts.length > 0) {
     throw new AppError(
       `budget push: ERPNext already holds a DRAFT Budget for (${company}, ${fiscalYear}, ${project}) — ` +

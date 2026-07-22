@@ -72,6 +72,17 @@ export interface BudgetPushStatusRow {
   /** The fiscal year this status is ABOUT, so the banner can name it instead of hiding on other years. */
   fiscalYear: string | null;
   pushedAt: string | null;
+  /**
+   * ⚑ MEDIUM-1 (audit round 7) — is there a genuinely `held` outbox command to release?
+   *
+   * `pushState === 'held'` alone does NOT mean there is: the sweep also parks a mirror row it may not
+   * re-drive (`budget-push-attempts-exhausted` / `budget-push-no-outbox-candidate`), and in that case
+   * the outbox row is `failed`/`pending`/absent. Offering "Release the hold" there produced a button
+   * whose only possible outcome was "There is no held ERP command to release for this project." — on
+   * the screen reporting that ERPNext is enforcing the wrong budget or none. The RPC derives this from
+   * `external_command_outbox.state = 'held'`, under the caller's own RLS.
+   */
+  holdReleasable: boolean;
 }
 
 /** One fiscal year that actually exists for a project, in the CLIENT'S own calendar (H-4). */
@@ -144,6 +155,9 @@ export async function fetchBudgetPushStatus(projectId: string): Promise<BudgetPu
     erpBudgetName: row?.erp_budget_name ?? null,
     fiscalYear: row?.fiscal_year ?? null,
     pushedAt: row?.pushed_at ?? null,
+    // Fails CLOSED: an older RPC shape (or a null) withholds the affordance rather than offering a
+    // button that can only error.
+    holdReleasable: row?.hold_releasable === true,
   };
 }
 

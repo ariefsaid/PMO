@@ -70,6 +70,7 @@ const NO_PUSH: BudgetPushStatusRow = {
   erpBudgetName: null,
   fiscalYear: null,
   pushedAt: null,
+  holdReleasable: false,
 };
 
 const pushStatus = (over: Partial<BudgetPushStatusRow>): BudgetPushStatusRow => ({ ...NO_PUSH, ...over });
@@ -715,7 +716,8 @@ describe('BudgetProjection — ETC is editable only under OD-BUDGET-3 (ADR-0016 
 // `psql`. A `held` push is exactly the state where the product must offer the release.
 // ════════════════════════════════════════════════════════════════════════════════════════════════
 describe('BudgetProjection — a held push has an in-app route out (MED-2)', () => {
-  const heldStatus = () => pushStatus({ pushState: 'held', pushError: 'command-held', fiscalYear: ERP_FISCAL_YEAR });
+  /** A REAL dispatch hold: the outbox row genuinely is `held`, so there is something to release. */
+  const heldStatus = () => pushStatus({ pushState: 'held', pushError: 'command-held', fiscalYear: ERP_FISCAL_YEAR, holdReleasable: true });
 
   it('MED-2 an Admin is offered the release, and it re-drives the ordinary recovery', async () => {
     const user = userEvent.setup();
@@ -747,5 +749,74 @@ describe('BudgetProjection — a held push has an in-app route out (MED-2)', () 
     renderPage('Admin');
     await user.click(await screen.findByRole('button', { name: /release the hold/i }));
     expect(await screen.findByText(/permission/i)).toBeInTheDocument();
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════════════════════════════════
+// ⚑ MEDIUM-1 (money-safety audit round 7) — `push_state = 'held'` HAS TWO PRODUCERS, AND ONLY ONE OF
+// THEM LEAVES A RELEASABLE COMMAND.
+//
+//   (a) the dispatch's real `command-held` outcome — the `external_command_outbox` row genuinely IS
+//       `held`, it wedges the one-in-flight index, and releasing it is the only route out;
+//   (b) the SWEEP parking a row it may not re-drive (`budget-push-attempts-exhausted` /
+//       `budget-push-no-outbox-candidate`) — the outbox row is `failed`/`pending`/absent, so there is
+//       nothing `held` anywhere.
+//
+// The mirror row looks identical in both, so the banner offered "Release the hold" in BOTH — and in (b)
+// the click could ONLY fail ("There is no held ERP command to release for this project."), on the very
+// screen that is telling the operator ERPNext is enforcing the wrong budget or none. A button whose only
+// possible outcome is an error costs the reader their remaining trust in the screen. The surface now
+// asks the outbox (`hold_releasable`), and case (b) gets its real route out instead: Retry.
+// ════════════════════════════════════════════════════════════════════════════════════════════════
+describe('BudgetProjection — the Release affordance is offered only where it can work (MEDIUM-1)', () => {
+  it('MEDIUM-1 a SWEEP-PARKED hold offers NO release button — there is no held command behind it', async () => {
+    pushStatusMock.mockResolvedValue(
+      pushStatus({
+        pushState: 'held',
+        pushError: 'budget-push-attempts-exhausted',
+        fiscalYear: ERP_FISCAL_YEAR,
+        holdReleasable: false,
+      }),
+    );
+    renderPage('Admin');
+    await screen.findByRole('alert');
+    expect(
+      screen.queryByRole('button', { name: /release the hold/i }),
+      'the release would throw "there is no held ERP command to release"',
+    ).not.toBeInTheDocument();
+  });
+
+  it('MEDIUM-1 a sweep-parked hold offers RETRY instead — the operator is never left with no route out', async () => {
+    pushStatusMock.mockResolvedValue(
+      pushStatus({
+        pushState: 'held',
+        pushError: 'budget-push-attempts-exhausted',
+        fiscalYear: ERP_FISCAL_YEAR,
+        holdReleasable: false,
+      }),
+    );
+    renderPage('Admin');
+    expect(await screen.findByRole('button', { name: /retry/i })).toBeInTheDocument();
+  });
+
+  it.each([['budget-push-attempts-exhausted'], ['budget-push-no-outbox-candidate']])(
+    'MEDIUM-1 %s reads as a sentence, never as a raw adapter token',
+    async (code) => {
+      pushStatusMock.mockResolvedValue(
+        pushStatus({ pushState: 'held', pushError: code, fiscalYear: ERP_FISCAL_YEAR, holdReleasable: false }),
+      );
+      renderPage('Admin');
+      const alert = await screen.findByRole('alert');
+      expect(alert.textContent ?? '').not.toMatch(RAW_ADAPTER_TOKEN);
+      expect(alert.textContent ?? '').not.toContain(code);
+    },
+  );
+
+  it('MEDIUM-1 a REAL dispatch hold still offers the release — the gate narrows the affordance, it does not remove it', async () => {
+    pushStatusMock.mockResolvedValue(
+      pushStatus({ pushState: 'held', pushError: 'command-held', fiscalYear: ERP_FISCAL_YEAR, holdReleasable: true }),
+    );
+    renderPage('Admin');
+    expect(await screen.findByRole('button', { name: /release the hold/i })).toBeInTheDocument();
   });
 });
