@@ -429,12 +429,45 @@ frozen fact.
 **(f) The amend mechanic (§6) is real but manual** — nothing auto-creates the amended doc; the client must
 explicitly `POST` with `amended_from` set. There is no REST "amend" verb/endpoint.
 
-**(g) `PUT`-ing a child-table update without preserving the child row's own `name` tries to create a NEW
-child row instead of editing the existing one**, and fails looking for a row that doesn't exist yet
-(`"Budget Account l9soo58ni8 not found"`, 404 `DoesNotExistError`) — the generated placeholder name in the
-error is **not** the row you're trying to update. **Always round-trip the child row's own `name`** (from a
-prior GET) when updating `accounts` via `PUT`, never send a bare `{account, budget_amount}` object expecting
-an in-place match by content.
+**(g) ⚠️ CORRECTED 2026-07-22 — THE ORIGINAL RULE HERE WAS WRONG, AND ITS REMEDY WAS HARMFUL.**
+
+> **What this section used to say:** that a `PUT` whose `accounts` children omit their own `name` 404s with
+> `DoesNotExistError`, and that you must always round-trip each child row's `name` from a prior GET.
+>
+> **That is not reproducible on the bench this spike froze** (frappe 15.96.0 / erpnext 15.94.3). Re-probed
+> from two independent directions — a full window-B adoption replay, and a controlled A/B/C — plus a direct
+> Director probe:
+>
+> ```
+> PUT /api/resource/Budget/BUDGET-2026-00077
+>   {"accounts":[{"account":"Administrative Expenses - PSC","budget_amount":7777}]}
+> → HTTP 200, persisted [('hvtuum0p2f', 7777.0)]        # bare child, NO name — regenerated, applied
+> ```
+>
+> Frappe **replaces** the child table on a `PUT` and regenerates row names. A bare
+> `{account, budget_amount}` child is fine; adding a row that did not exist is fine; sending only
+> `{"accounts":[…]}` is fine.
+>
+> **⚑ The real trap is the OPPOSITE, and it is worse because it surfaces late.** A **stale or foreign**
+> child `name` does NOT fail on the `PUT` — it returns 200 — and then blows up as a raw **500 on submit**:
+>
+> ```
+> [child name: NONE  (what our code sends)]  PUT 200 | submit 200
+> [child name: REAL  (the old remedy)]       PUT 200 | submit 200
+> [child name: BOGUS]                        PUT 200 | submit 500
+> ```
+>
+> So the old remedy was at best a no-op and at worst the ONLY way to reach the one reproducible failure:
+> any implementation that carried a `name` from a GET of a *different* document would turn a working push
+> into an unclassifiable 500.
+>
+> **Why this correction matters beyond the fact:** this section, as written, caused audit round 7 to raise
+> a HIGH against correct code, and would have driven a fix that added complexity AND introduced that 500.
+> A frozen spike that is wrong is more dangerous than no spike, because it is trusted. Field truth is
+> re-probed against the bench, not inherited.
+
+**The standing rule, corrected:** send `accounts` children as `{account, budget_amount}`. Do **not**
+synthesise or carry a child `name` you did not read from *this same document* in *this same operation*.
 
 ---
 
