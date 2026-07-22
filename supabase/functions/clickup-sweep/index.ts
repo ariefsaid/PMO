@@ -153,7 +153,8 @@ async function sweepOrg(
     .from('external_project_bindings')
     .select('project_id, external_container_id, config')
     .eq('org_id', orgId)
-    .eq('external_tier', CLICKUP_TIER);
+    .eq('external_tier', CLICKUP_TIER)
+    .is('disconnected_at', null);
   if (bindingError) throw new AppError(bindingError.message, bindingError.code);
   const rows = (bindingRows as Array<{ project_id: string; external_container_id: string; config: unknown }> | null) ?? [];
   if (rows.length === 0) return { applied: 0, archived: 0, skippedAmbiguous: 0, perList: [] }; // bound to nothing yet
