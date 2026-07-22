@@ -17,7 +17,7 @@
 // Verify: cd supabase/functions/clickup-webhook-worker && deno test index.test.ts
 
 (Deno as unknown as { serve: (...a: unknown[]) => unknown }).serve = () => ({ finished: Promise.resolve() });
-const { processInboxRow, runWorkerBatch } = await import('./index.ts');
+const { processInboxRow, resolveBindingLive, runWorkerBatch } = await import('./index.ts');
 type ProcessRowDeps = Parameters<typeof processInboxRow>[1];
 type WorkerBatchDeps = Parameters<typeof runWorkerBatch>[0];
 type InboxRow = Parameters<typeof processInboxRow>[0];
@@ -224,6 +224,55 @@ Deno.test('OD-INT-11: a re-GET 404 (task no longer exists) collapses to the same
   assert(applyDeps.tombstones.length === 1, 'expected exactly one tombstone');
 });
 
+function fakeBindingResolverClient() {
+  return {
+    from(table: string) {
+      const filters: Record<string, string> = {};
+      const query: any = {
+        select: () => query,
+        eq: (column: string, value: string) => { filters[column] = value; return query; },
+        maybeSingle: async () => {
+          if (table === 'external_refs') return { data: null };
+          if (table === 'external_project_bindings') {
+            return filters.external_container_id === 'list-unbound'
+              ? { data: null }
+              : { data: { org_id: 'org-1', project_id: 'project-only-bound', config: {} } };
+          }
+          return { data: null };
+        },
+        // The ownership query is the only multi-row read in the resolver.
+        then: (resolve: (value: unknown) => unknown) => table === 'external_domain_ownership'
+          ? resolve({ data: [{ org_id: 'org-1' }] })
+          : Promise.resolve(undefined),
+      };
+      return query;
+    },
+  };
+}
+
+Deno.test('AC-IEM-014: an unbound List never leaks into the one bound project and is recorded as unresolvable', async () => {
+  const applyDeps = makeApplyDeps();
+  const deps: ProcessRowDeps = {
+    resolveOrg: async () => ({ orgId: 'org-1', token: 'test-token' }),
+    getTask: async () => task({ list: { id: 'list-unbound' } }),
+    // Use the shipped live resolver: its only binding is list-bound; the unbound List must not
+    // fall through to org-level employment.
+    resolveBinding: async (taskId, listId) => resolveBindingLive(
+      fakeBindingResolverClient() as never, taskId, listId,
+    ),
+    buildApplyDeps: () => applyDeps.deps,
+  };
+  const outcome = await processInboxRow(row({ id: 'unbound-row' }), deps);
+  assert(outcome.kind === 'no-op', `expected no-op, got ${outcome.kind}`);
+  assert(applyDeps.mints.length === 0 && applyDeps.updates.length === 0,
+    'an unbound List must create or update no PMO task');
+
+  const batch = batchDeps([row({ id: 'unbound-row' })], async () => outcome);
+  await runWorkerBatch(batch);
+  assert(batch.unresolvable.length === 1 && batch.unresolvable[0].id === 'unbound-row',
+    'the discarded inbox event must be observable as unresolvable');
+});
+
 Deno.test('OD-INT-11: an unresolvable binding is a faithful ack-and-skip (no-op) — the sweep is the safety net', async () => {
   const deps: ProcessRowDeps = {
     resolveOrg: async () => ({ orgId: 'org-1', token: 'test-token' }),
@@ -242,9 +291,11 @@ Deno.test('OD-INT-11: an unresolvable binding is a faithful ack-and-skip (no-op)
 function batchDeps(rows: InboxRow[], processRow: WorkerBatchDeps['processRow']): WorkerBatchDeps & {
   done: string[];
   failed: Array<{ id: string; error: string }>;
+  unresolvable: Array<{ id: string; reason: string }>;
 } {
   const done: string[] = [];
   const failed: Array<{ id: string; error: string }> = [];
+  const unresolvable: Array<{ id: string; reason: string }> = [];
   return {
     claimPending: async () => rows,
     markDone: async (id) => {
@@ -253,9 +304,13 @@ function batchDeps(rows: InboxRow[], processRow: WorkerBatchDeps['processRow']):
     markFailed: async (id, error) => {
       failed.push({ id, error });
     },
+    markUnresolvable: async (id, reason) => {
+      unresolvable.push({ id, reason });
+    },
     processRow,
     done,
     failed,
+    unresolvable,
   };
 }
 

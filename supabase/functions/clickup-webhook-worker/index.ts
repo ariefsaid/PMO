@@ -74,7 +74,7 @@ export interface ProcessRowDeps {
   /** Re-GET the task from ClickUp with the already-authorized org token; `null` on a 404. */
   getTask: (taskId: string, token: string) => Promise<ClickUpTask | null>;
   /** Resolve the org/project binding: mapped path (task_id, works with a `null` listId) → adopt path
-   *  (listId, from the re-GET'd `task.list.id` — never the payload) → the P1 single-org fallback.
+   *  (listId, from the re-GET'd `task.list.id` — never the payload).
    *  `null` when unresolvable (ack'd-and-skipped; the periodic sweep is the safety net). */
   resolveBinding: (taskId: string, listId: string | null) => Promise<ResolvedBinding | null>;
   /** Build the full `WebhookApplyDeps` bag (mirror callbacks + tombstoneMirror + archiveMirror) for a
@@ -105,6 +105,8 @@ export interface WorkerBatchDeps {
   claimPending: (batchSize: number) => Promise<InboxRow[]>;
   markDone: (id: string) => Promise<void>;
   markFailed: (id: string, error: string) => Promise<void>;
+  /** Record a binding miss on the inbox row while acknowledging it; this is the P4 health signal. */
+  markUnresolvable: (id: string, reason: string) => Promise<void>;
   processRow: (row: InboxRow) => Promise<ApplyOutcome>;
 }
 
@@ -127,8 +129,12 @@ export async function runWorkerBatch(deps: WorkerBatchDeps, batchSize = 25): Pro
   let failed = 0;
   for (const row of rows) {
     try {
-      await deps.processRow(row);
-      await deps.markDone(row.id);
+      const outcome = await deps.processRow(row);
+      if (outcome.kind === 'no-op') {
+        await deps.markUnresolvable(row.id, 'ClickUp task could not be resolved to an active PMO project binding');
+      } else {
+        await deps.markDone(row.id);
+      }
       processed += 1;
     } catch (err) {
       const code = err instanceof AppError ? err.code : (err as { code?: string } | null)?.code;
@@ -187,7 +193,7 @@ function bindingFromRow(row: { org_id: string; project_id: string; config: unkno
 
 /** Resolve the per-project binding for a task — mirrors the pre-fix ingress's `resolveBinding`, now
  *  parameterized on an explicit `listId` (the WORKER's re-GET) instead of a nonexistent payload field. */
-async function resolveBindingLive(
+export async function resolveBindingLive(
   serviceClient: SupabaseClient,
   taskId: string,
   listId: string | null,
@@ -236,24 +242,7 @@ async function resolveBindingLive(
     if (row) return bindingFromRow(row);
   }
 
-  // 3. P1 fallback: a single employing org with a single binding. If unambiguous, use it; else null.
-  const { data: ownership } = await serviceClient
-    .from('external_domain_ownership')
-    .select('org_id')
-    .eq('external_tier', CLICKUP_TIER)
-    .eq('domain', CLICKUP_TASKS_DOMAIN);
-  const orgIds = ((ownership as Array<{ org_id: string }> | null) ?? []).map((r) => r.org_id);
-  if (orgIds.length === 1) {
-    const { data: anyBinding } = await serviceClient
-      .from('external_project_bindings')
-      .select('org_id, project_id, config')
-      .eq('org_id', orgIds[0])
-      .eq('external_tier', CLICKUP_TIER)
-      .maybeSingle();
-    const row = anyBinding as { org_id: string; project_id: string; config: unknown } | null;
-    if (row) return bindingFromRow(row);
-  }
-
+  // No project binding means no PMO write. Never infer a project from org-level employment.
   return null;
 }
 
@@ -328,6 +317,16 @@ async function markDoneLive(serviceClient: SupabaseClient, id: string): Promise<
   if (error) throw new AppError(error.message, error.code);
 }
 
+/** A binding miss is an acknowledged no-op, but remains visible through the existing P4 inbox
+ * health surface (`last_error`) rather than being silently swallowed or retried forever. */
+async function markUnresolvableLive(serviceClient: SupabaseClient, id: string, reason: string): Promise<void> {
+  const { error } = await serviceClient
+    .from('clickup_webhook_inbox')
+    .update({ status: 'done', last_error: `unresolvable-binding: ${reason}`, processed_at: new Date().toISOString() })
+    .eq('id', id);
+  if (error) throw new AppError(error.message, error.code);
+}
+
 async function markFailedLive(serviceClient: SupabaseClient, id: string, message: string): Promise<void> {
   // Best-effort read-then-increment (matches the best-effort claim above — no fencing needed, this is
   // an operator-visible retry counter, not a correctness guard).
@@ -367,6 +366,7 @@ if (import.meta.main) {
       claimPending: (batchSize) => claimPendingLive(serviceClient, batchSize),
       markDone: (id) => markDoneLive(serviceClient, id),
       markFailed: (id, message) => markFailedLive(serviceClient, id, message),
+      markUnresolvable: (id, reason) => markUnresolvableLive(serviceClient, id, reason),
       processRow: (row) =>
         processInboxRow(row, {
           resolveOrg: (teamId) => resolveOrgForTeam(serviceClient, teamId),
