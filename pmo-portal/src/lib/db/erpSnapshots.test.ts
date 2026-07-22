@@ -18,18 +18,42 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
  */
 const h = vi.hoisted(() => {
   const MAX_ROWS = 1000;
-  const calls = { table: '' as string, ranges: [] as Array<[number, number]> };
+  const calls = { table: '' as string, ranges: [] as Array<[number, number]>, tieRotations: 0 };
   let nextData: Record<string, unknown>[] | null = null;
   function makeBuilder() {
     const filters: Array<[string, string]> = [];
+    let after: string | null = null;
+    let orderCol: string | null = null;
+    let orderAsc = true;
+    let cap: number | null = null;
     const b = {
       select() { return b; },
-      order() { return b; },
+      order(col?: string, opts?: { ascending?: boolean }) { orderCol = col ?? null; orderAsc = opts?.ascending !== false; return b; },
       eq(col: string, val: string) { filters.push([col, val]); return b; },
-      limit() { return b; },
+      gt(col: string, val: string) { if (col === 'id') after = val; return b; },
+      limit(n: number) { cap = n; return b; },
       rows() {
         const all = nextData ?? [];
-        return filters.length === 0 ? all : all.filter((r) => filters.every(([c, v]) => r[c] === v));
+        let rows = filters.length === 0 ? all : all.filter((r) => filters.every(([c, v]) => r[c] === v));
+        // ⚑ Audit round 9: model a NON-TOTAL order honestly. When the query orders on a column whose
+        // values tie (every row of one snapshot shares `created_at`), the server is free to return
+        // ties in ANY order — so the fake rotates them per call. A pager that depends on a stable
+        // order across requests then loses rows here, exactly as Postgres would.
+        if (orderCol) {
+          // Sort like the DB would, respecting the direction the caller asked for.
+          const dir = orderAsc ? 1 : -1;
+          rows = [...rows].sort((x, y) => dir * String(x[orderCol!] ?? '').localeCompare(String(y[orderCol!] ?? '')));
+          // ⚑ Then model a NON-TOTAL order honestly: rows whose order value TIES may come back in ANY
+          // order, and in a different one each call. A pager that assumes a stable order across
+          // requests loses rows here, exactly as Postgres would. `id` is the PK, so it never ties.
+          if (orderCol !== 'id' && rows.length > 1 && rows.every((r) => r[orderCol!] === rows[0][orderCol!])) {
+            calls.tieRotations += 1;
+            const k = calls.tieRotations % rows.length;
+            rows = rows.slice(k).concat(rows.slice(0, k));
+          }
+        }
+        if (after !== null) rows = rows.filter((r) => String(r.id) > after!);
+        return cap === null ? rows : rows.slice(0, cap);
       },
       range(from: number, to: number) {
         calls.ranges.push([from, to]);
@@ -46,7 +70,11 @@ const h = vi.hoisted(() => {
   const from = vi.fn((table: string) => { calls.table = table; return makeBuilder(); });
   return {
     from, calls, MAX_ROWS,
-    setData: (d: Record<string, unknown>[] | null) => { nextData = d; calls.ranges = []; },
+    setData: (d: Record<string, unknown>[] | null) => {
+      nextData = d === null ? null : d.map((r, i) => ({ id: r.id ?? `row-${String(i).padStart(6, '0')}`, ...r }));
+      calls.ranges = []; calls.tieRotations = 0;
+    },
+    replaceWith: (d: Record<string, unknown>[]) => { nextData = d; },
   };
 });
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: h.from } }));
@@ -108,9 +136,9 @@ describe('db/erpSnapshots — read-only snapshot DAL (task 7.7)', () => {
   it('listActualsSnapshot filters out a stale snapshot_id when two generations coexist (concurrent-sweep race hardening)', async () => {
     h.setData([
       // Newest first (query orders created_at desc) — the CURRENT generation.
-      { cost_center: 'A', account: 'X', fiscal_year: '2026', debit: 1, credit: 0, net: 1, as_of: '2026-07-13T10:00:00Z', source_report: 'GL Entry', snapshot_id: 'snap-new', project_id: null },
+      { cost_center: 'A', account: 'X', fiscal_year: '2026', debit: 1, credit: 0, net: 1, as_of: '2026-07-13T10:00:00Z', source_report: 'GL Entry', snapshot_id: 'snap-new', project_id: null, created_at: '2026-07-13T10:00:00Z' },
       // A STALE row left behind from a prior generation that a racing delete failed to clear.
-      { cost_center: 'B', account: 'Y', fiscal_year: '2026', debit: 2, credit: 0, net: 2, as_of: '2026-07-12T10:00:00Z', source_report: 'GL Entry', snapshot_id: 'snap-old', project_id: null },
+      { cost_center: 'B', account: 'Y', fiscal_year: '2026', debit: 2, credit: 0, net: 2, as_of: '2026-07-12T10:00:00Z', source_report: 'GL Entry', snapshot_id: 'snap-old', project_id: null, created_at: '2026-07-12T10:00:00Z' },
     ]);
     const rows = await listActualsSnapshot();
     expect(rows).toHaveLength(1);
@@ -119,8 +147,8 @@ describe('db/erpSnapshots — read-only snapshot DAL (task 7.7)', () => {
 
   it('listApAgingSnapshot filters out a stale snapshot_id when two generations coexist', async () => {
     h.setData([
-      { party: 'Fresh Co', party_type: 'Supplier', currency: 'USD', total_outstanding: 100, current: 100, b_0_30: 0, b_31_60: 0, b_61_90: 0, b_90_plus: 0, range_labels: null, report_date: '2026-07-13', ageing_based_on: 'Due Date', as_of: '2026-07-13T10:00:00Z', source_report: 'Accounts Payable', report_version: '15', snapshot_id: 'snap-new' },
-      { party: 'Stale Co', party_type: 'Supplier', currency: 'USD', total_outstanding: 200, current: 200, b_0_30: 0, b_31_60: 0, b_61_90: 0, b_90_plus: 0, range_labels: null, report_date: '2026-07-12', ageing_based_on: 'Due Date', as_of: '2026-07-12T10:00:00Z', source_report: 'Accounts Payable', report_version: '15', snapshot_id: 'snap-old' },
+      { party: 'Fresh Co', party_type: 'Supplier', currency: 'USD', total_outstanding: 100, current: 100, b_0_30: 0, b_31_60: 0, b_61_90: 0, b_90_plus: 0, range_labels: null, report_date: '2026-07-13', ageing_based_on: 'Due Date', as_of: '2026-07-13T10:00:00Z', source_report: 'Accounts Payable', report_version: '15', snapshot_id: 'snap-new', created_at: '2026-07-13T10:00:00Z' },
+      { party: 'Stale Co', party_type: 'Supplier', currency: 'USD', total_outstanding: 200, current: 200, b_0_30: 0, b_31_60: 0, b_61_90: 0, b_90_plus: 0, range_labels: null, report_date: '2026-07-12', ageing_based_on: 'Due Date', as_of: '2026-07-12T10:00:00Z', source_report: 'Accounts Payable', report_version: '15', snapshot_id: 'snap-old', created_at: '2026-07-12T10:00:00Z' },
     ]);
     const rows = await listApAgingSnapshot();
     expect(rows).toHaveLength(1);
@@ -150,14 +178,14 @@ describe('erpSnapshots — a snapshot LARGER than PostgREST max_rows is returned
       rows.push({
         project_id: `p-${i}`, cost_center: null, account: `acct-${i}`, fiscal_year: '2026',
         debit: 10, credit: 0, net: 10, as_of: '2026-07-22T00:00:00Z',
-        source_report: 'GL', snapshot_id: 'snap-current',
+        source_report: 'GL', snapshot_id: 'snap-current', created_at: '2026-07-22T00:00:00Z',
       });
     }
     // A previous generation that must still be excluded — the filter moved server-side, not away.
     rows.push({
       project_id: 'p-old', cost_center: null, account: 'acct-old', fiscal_year: '2025',
       debit: 99, credit: 0, net: 99, as_of: '2026-01-01T00:00:00Z',
-      source_report: 'GL', snapshot_id: 'snap-previous',
+      source_report: 'GL', snapshot_id: 'snap-previous', created_at: '2026-01-01T00:00:00Z',
     });
     h.setData(rows);
 

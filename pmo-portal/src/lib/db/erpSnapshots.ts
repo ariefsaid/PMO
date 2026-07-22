@@ -1,5 +1,5 @@
 import { supabase } from '@/src/lib/supabase/client';
-import { fetchAllPages } from '../pagedRead.ts';
+import { fetchAllRowsByKeyset } from '../pagedRead.ts';
 import { AppError } from '@/src/lib/appError';
 
 /**
@@ -137,6 +137,7 @@ type SnapshotPage = Promise<{ data: unknown[] | null; error: { message: string; 
 interface LooseSnapshotQuery {
   order(column: string, opts?: { ascending?: boolean }): LooseSnapshotQuery;
   eq(column: string, value: string): LooseSnapshotQuery;
+  gt(column: string, value: string): LooseSnapshotQuery;
   limit(n: number): LooseSnapshotQuery;
   range(from: number, to: number): SnapshotPage;
   then: SnapshotPage['then'];
@@ -156,13 +157,44 @@ const loose = supabase as unknown as { from(table: string): { select(columns: st
  * resolve the newest `snapshot_id` (a single row), then page every row carrying it. This is strictly
  * less data than before — the old read also dragged back every historical snapshot only to discard it.
  */
-async function latestSnapshotRows(table: string, columns: string): Promise<unknown[]> {
+async function newestSnapshotId(table: string): Promise<string | null> {
   const newest = await loose.from(table).select('snapshot_id').order('created_at', { ascending: false }).limit(1).range(0, 0);
   if (newest.error) throw new AppError(newest.error.message, newest.error.code);
-  const head = (newest.data ?? [])[0] as { snapshot_id?: string } | undefined;
-  if (!head?.snapshot_id) return [];
-  return fetchAllPages<unknown>((from, to) =>
-    loose.from(table).select(columns).eq('snapshot_id', head.snapshot_id!).order('created_at', { ascending: false }).range(from, to));
+  return ((newest.data ?? [])[0] as { snapshot_id?: string } | undefined)?.snapshot_id ?? null;
+}
+
+/**
+ * ⚑ Audit round 9 (HIGH-1) — this function's FIRST version was the round-8 defect wearing the fix's
+ * clothes. Two independent faults, both of which returned a PARTIAL money table with `error === null`:
+ *
+ *  (a) It ordered by `created_at`, which is `default now()` written by ONE `.insert()` of the whole
+ *      snapshot (`0101:97`, `actualsSnapshot.ts:227`) — so EVERY row shares the same value. That is
+ *      not a TOTAL order, and OFFSET paging over ties lets Postgres return a row twice and skip
+ *      another at the page boundary. Ordering on the `id` PK is the only total order here.
+ *  (b) The two steps are separate round trips, and the 5-minute sweep replaces the snapshot as a
+ *      DELETE + INSERT. Anchor S1, read page 0, sweep swaps S1 -> S2, page 1 for `snapshot_id = S1`
+ *      returns ZERO rows — which the pager reads as a legitimate short page and stops. Result: the
+ *      first page of a stale generation, rendered as a complete, dated, provenance-stamped table.
+ *
+ * So: page on the PK, and RE-ASSERT the anchor after the scan. If the newest snapshot moved while we
+ * were reading, the rows in hand are a torn mix or a truncated generation — retry ONCE against the new
+ * anchor, then fail closed rather than return something that cannot be told apart from the truth.
+ */
+async function latestSnapshotRows(table: string, columns: string): Promise<unknown[]> {
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const anchor = await newestSnapshotId(table);
+    if (!anchor) return [];
+    const rows = await fetchAllRowsByKeyset<{ id: string }>((afterId, limit) => {
+      const base = loose.from(table).select(`id,${columns}`).eq('snapshot_id', anchor).order('id', { ascending: true });
+      return (afterId === null ? base : base.gt('id', afterId)).limit(limit).range(0, limit - 1) as PromiseLike<{
+        data: { id: string }[] | null; error: { message: string; code?: string } | null;
+      }>;
+    });
+    // The anchor still being newest proves no replace landed mid-scan, so these rows are one whole
+    // generation. (A replace that lands entirely BEFORE the first read is fine — we anchor on it.)
+    if ((await newestSnapshotId(table)) === anchor) return rows;
+  }
+  throw new AppError('the ERP snapshot was replaced while it was being read — retry', 'snapshot-replaced-mid-read');
 }
 
 /** Read the caller's own-org actuals snapshot (current scope). RLS-scoped; empty when no refresh has run. */

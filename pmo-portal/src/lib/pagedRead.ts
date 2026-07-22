@@ -41,7 +41,22 @@
  */
 import { AppError } from './appError.ts';
 
-/** One page's worth of rows. Matches PostgREST's `db-max-rows`, so a page is one full response. */
+/**
+ * One page's worth of rows.
+ *
+ * ⚑ Audit round 9 (MED-1) — THIS CONSTANT IS LOAD-BEARING AND ITS SAFETY IS CONDITIONAL. Both loops
+ * stop on a SHORT page, which is only sound while `PAGE_SCAN_SIZE <= db-max-rows`. If a deployment
+ * ever lowered `db-max-rows` beneath it, EVERY page would come back short, every scan would stop after
+ * page 1, and every paged money read would silently truncate — with all tests green, because the fakes
+ * cap at the number the tests hard-code.
+ *
+ * Stopping on an EMPTY page instead would be unconditionally correct, but it costs a needless round
+ * trip on every scan, and `pagedRead.test.ts` deliberately pins "a short first page ends the scan".
+ * So the dependency is kept and made EXPLICIT: `pagedRead.config.test.ts` reads `supabase/config.toml`
+ * and FAILS THE BUILD if this constant ever exceeds the configured cap. A silent runtime truncation
+ * becomes a loud CI failure — the same idiom `erpnext/submitClearanceTtl.test.ts` uses to pin a
+ * constant against the migration that declares it.
+ */
 export const PAGE_SCAN_SIZE = 1000;
 
 export interface PagedReadError {
@@ -64,13 +79,16 @@ export async function fetchAllPages<T>(
   page: (from: number, to: number) => PromiseLike<PageResult<T>>,
 ): Promise<T[]> {
   const out: T[] = [];
-  for (let p = 0; ; p += 1) {
-    const from = p * PAGE_SCAN_SIZE;
+  // ⚑ The window advances by rows ACTUALLY RECEIVED, never by the requested page size. If the server
+  // returns fewer rows than asked for (its own cap, a narrower window), advancing by the request size
+  // would step OVER the rows it withheld — losing money mid-scan with no error to show for it.
+  for (let from = 0; ; ) {
     const { data, error } = await page(from, from + PAGE_SCAN_SIZE - 1);
     if (error) throw new AppError(error.message, error.code);
     const rows = data ?? [];
     for (const row of rows) out.push(row);
     if (rows.length < PAGE_SCAN_SIZE) break;
+    from += rows.length;
   }
   return out;
 }
