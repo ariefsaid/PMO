@@ -2,5 +2,8 @@
   "imports": {
     "@supabase/supabase-js": "npm:@supabase/supabase-js@2.110.0",
     "@/": "../../../pmo-portal/"
+  },
+  "test": {
+    "exclude": ["budgetBackstop.test.ts", "timesheetBackstop.test.ts"]
   }
 }

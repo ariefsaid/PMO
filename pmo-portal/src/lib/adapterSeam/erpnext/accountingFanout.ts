@@ -12,7 +12,7 @@
  * Vitest (app) and the slice-8 sweep edge fn (Deno) — relative imports only.
  */
 import type { ErpClientDeps } from './client.ts';
-import type { ActualsScope, SnapshotServiceClient } from './actualsSnapshot.ts';
+import type { ActualsRefreshSummary, ActualsScope, SnapshotServiceClient } from './actualsSnapshot.ts';
 import type { AgingScope } from './agingSnapshot.ts';
 import { refreshActuals } from './actualsSnapshot.ts';
 import { refreshAging } from './agingSnapshot.ts';
@@ -37,6 +37,15 @@ export interface OrgRefreshResult {
   orgId: string;
   /** Populated if ANY refresher for this org threw (the others still ran for the NEXT orgs). */
   error?: string;
+  /**
+   * ⚑ NEW-1 (audit round 4) — what the actuals refresh stored but could NOT make selectable: money on
+   * GL rows with no resolvable PMO project, and money on GL rows whose fiscal year ERPNext never
+   * stated. Both are honest refusals to guess, and both are invisible to `get_budget_projection`
+   * (which matches project and fiscal year by equality) — so the caller SURFACES them rather than
+   * letting the refresh report a silent success over money nobody can see. Absent when the org's
+   * refresh threw before completing.
+   */
+  actuals?: ActualsRefreshSummary;
 }
 
 /** Default deps: the real refreshers. Tests inject spies. */
@@ -56,10 +65,10 @@ export async function refreshAccountingSnapshots(
   const results: OrgRefreshResult[] = [];
   for (const org of orgs) {
     try {
-      await deps.refreshActuals(serviceClient, org.orgId, org.actualsScope);
+      const actuals = await deps.refreshActuals(serviceClient, org.orgId, org.actualsScope);
       await deps.refreshAging(serviceClient, org.client, org.orgId, org.apAgingScope);
       await deps.refreshAging(serviceClient, org.client, org.orgId, org.arAgingScope);
-      results.push({ orgId: org.orgId });
+      results.push({ orgId: org.orgId, actuals });
     } catch (err) {
       results.push({ orgId: org.orgId, error: err instanceof Error ? err.message : String(err) });
     }

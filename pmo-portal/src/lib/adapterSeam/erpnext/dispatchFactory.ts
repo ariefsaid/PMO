@@ -9,12 +9,15 @@
  */
 import { createErpAdapter, ERPNEXT_TIER, type DoctypeBodyFns, type ErpAdapterDeps } from './adapter.ts';
 import type { ErpDocKind } from './doctypeRegistry.ts';
-import { getDoc, type ErpClientDeps, type ErpRateLimiter } from './client.ts';
+import { getDoc, listDocsByFilters, type ErpClientDeps, type ErpRateLimiter } from './client.ts';
 import type { ErpProbeDeps } from './recoveryProbe.ts';
 import { resolveExternalRef, type ExternalRefsLookupClient } from '../refs.ts';
+import { packTimeLogs } from './timeLogPacking.ts';
 import { readProcessGates } from './processGates.ts';
 import type { Adapter, AdapterCommand } from '../contract.ts';
 import { AppError } from '../../appError.ts';
+import { fetchAllRowsByKeyset } from '../../pagedRead.ts';
+import { resolveBudgetAccounts, type BudgetLineItem, type CategoryAccountMapRow } from '../../budget/categoryAccountMap.ts';
 
 /** Structural service-role client seam (matches supabase-js): `.from(t).select(c).eq(...)[.eq(...)]
  *  [.order(...).limit(...)][.maybeSingle()]` — every filter-builder is ALSO directly awaitable
@@ -31,6 +34,8 @@ export interface DispatchFilterBuilder extends PromiseLike<{ data: unknown; erro
   eq(column: string, value: string): DispatchFilterBuilder;
   order(column: string, opts?: { ascending?: boolean }): DispatchFilterBuilder;
   limit(n: number): DispatchFilterBuilder;
+  /** The KEYSET cursor: resume strictly AFTER the last row of the previous page. */
+  gt(column: string, value: string): DispatchFilterBuilder;
   maybeSingle(): Promise<{ data: unknown; error: { message: string; code?: string } | null }>;
 }
 
@@ -153,6 +158,9 @@ const LINK_TABLE: Readonly<Record<LinkField, string>> = {
 const DOMAIN_LINK_FIELDS: Readonly<Record<string, ReadonlyArray<LinkField>>> = {
   revenue: ['customerId', 'projectId', 'salesInvoiceId'],
   procurement: ['procurementId', 'vendorId', 'invoiceId'],
+  // P3c: a budget push is scoped to ONE project. A cross-org `projectId` would push this org's figures
+  // onto another tenant's ERP project dimension — refused here, before the adapter exists.
+  budget: ['projectId'],
 };
 
 /** Assert one linked row exists AND belongs to `orgId`. Fails CLOSED: a missing row (no row, or an id
@@ -381,6 +389,109 @@ async function resolveRevenueRefs(
   return { refs };
 }
 
+// ============================================================================
+// P3b (FR-TSP-050..055) — the Posture-B timesheet ref pre-flight
+// ============================================================================
+
+/**
+ * Resolve `timesheets`-domain refs. EVERY resolution is FAIL-CLOSED and happens HERE — before the
+ * adapter is constructed, therefore before the outbox claim and before the ERP POST (FR-TSP-050;
+ * Luna BLOCK-6: P3a validated cross-org AFTER the external write, which can leave committed money
+ * with no PMO row — the P3b twin is committed HOURS with no PMO push record). A miss THROWS a
+ * classified `AppError`; it is NEVER silently omitted from the body (Luna SF9).
+ *
+ * ⚑ This is the ONLY backstop for two of these dimensions. ERPNext validates neither the `employee`
+ * nor the `project` link (spike §8 — a Frappe `fetch_from` quirk): a garbage or stale value is
+ * accepted through save AND submit with a clean 200 and no error, silently attributing a week of
+ * hours to a phantom employee or posting it with no project dimension.
+ *
+ * The record's `user_id`/`entries` are SERVER TRUTH, re-read by `approved_timesheet_for_push`
+ * (migration 0138) in the dispatch's approval gate and substituted onto the command — never a
+ * caller-supplied payload (ADR-0059 §3.3).
+ */
+async function resolveTimesheetRefs(
+  deps: ErpDispatchFactoryDeps,
+  binding: ExternalOrgBindingRow,
+): Promise<{ refs: Record<string, string | null> }> {
+  const refs: Record<string, string | null> = {};
+  const record = deps.command.record as {
+    erp_doc_kind?: string;
+    user_id?: string;
+    entries?: Array<{ project_id: string; entry_date: string; hours: string; project_org_id?: string }>;
+  };
+  if (record.erp_doc_kind !== 'timesheet') return { refs };
+
+  const config = binding.config ?? {};
+  const entries = record.entries ?? [];
+
+  // (1) employee — via the CONFIRMED adopt link ONLY (FR-TSP-051). NEVER auto-create an HR master;
+  //     NEVER a shared default (it would mis-attribute cost). 'proposed' is NOT authoritative: an
+  //     ERP-side email edit may PROPOSE a link but must never silently re-point whose cost a week
+  //     becomes. The org filter is in the QUERY, so a cross-org row cannot even be read (FR-TSP-054).
+  const { data: employeeRow, error: employeeError } = await deps.serviceClient
+    .from('erp_employees')
+    .select('id, employee_number, org_id')
+    .eq('org_id', deps.orgId)
+    .eq('profile_id', record.user_id ?? '')
+    .eq('link_state', 'confirmed')
+    .maybeSingle();
+  if (employeeError) throw new AppError(employeeError.message, employeeError.code);
+  const employeeId = (employeeRow as { id?: string } | null)?.id;
+  if (!employeeId) {
+    throw new AppError(
+      `no confirmed erp_employees link for user '${record.user_id ?? ''}' — an Admin must confirm it`,
+      'employee-unlinked',
+    );
+  }
+  // The ERP target comes from `external_refs`, never from a mirrored display column.
+  const employeeExternalId = await resolveExternalRef(
+    deps.serviceClient as unknown as ExternalRefsLookupClient,
+    deps.orgId,
+    'timesheets',
+    employeeId,
+  );
+  if (!employeeExternalId) {
+    throw new AppError(`employee '${employeeId}' has no external_refs mapping`, 'employee-unlinked');
+  }
+  refs.employee = employeeExternalId.startsWith('Employee:')
+    ? employeeExternalId.slice('Employee:'.length)
+    : employeeExternalId;
+
+  // (2) activity type — mandatory at submit whenever `employee` is set (spike §1b), and P3b always
+  //     sets it. Fail closed rather than let ERP reject the whole document after the claim.
+  if (typeof config.default_activity_type !== 'string' || config.default_activity_type.length === 0) {
+    throw new AppError('binding config has no default_activity_type', 'activity-type-unconfigured');
+  }
+
+  // (3) per-entry project — fail-closed. An unmapped project is a REJECT, never an omitted dimension.
+  const projectMap = (config.project_map as Record<string, string> | undefined) ?? {};
+  for (const entry of entries) {
+    // (4) same-org pre-flight BEFORE the external write (FR-TSP-054). `project_org_id` comes from the
+    //     gate RPC — server truth, never the payload.
+    if (entry.project_org_id && entry.project_org_id !== deps.orgId) {
+      throw new AppError(`project '${entry.project_id}' belongs to another org`, 'cross-org-link-rejected');
+    }
+    const erpProject = projectMap[entry.project_id];
+    if (!erpProject) throw new AppError(`no project_map entry for project '${entry.project_id}'`, 'project-unmapped');
+    refs[`project:${entry.project_id}`] = erpProject;
+  }
+
+  // (5) daily-hours pre-validation (FR-TSP-055): PMO caps a single entry at 24h but not a DAY's total
+  //     across projects, and ERP caps neither (spike §7 — it accepts the spill 200-clean and quietly
+  //     mis-dates the tail into the next ERP day). Run the real packing here so the rejection happens
+  //     before the claim, not inside `toBody` after it.
+  try {
+    packTimeLogs(
+      entries.map((e) => ({ project_id: e.project_id, entry_date: e.entry_date, hours: e.hours })),
+      typeof config.timesheet_day_start === 'string' ? config.timesheet_day_start : '09:00:00',
+    );
+  } catch (err) {
+    throw new AppError(err instanceof Error ? err.message : 'timesheet entries could not be packed', 'commit-rejected');
+  }
+
+  return { refs };
+}
+
 /** Resolve every PO/GR ref this command needs (task 5.3). Returns the `ctx.refs` additions +
  *  `resolvedItems` (only set when the command carried none — `adapter.ts`'s fallback substitutes it). */
 async function resolveProcurementOrderRefs(
@@ -423,6 +534,229 @@ async function resolveProcurementOrderRefs(
   return { refs, resolvedItems };
 }
 
+// ============================================================================
+// P3c — the budget push (ADR-0055 §6 + ADR-0059 Posture B)
+// ============================================================================
+
+/** Is this command the budget push? (The map read + config extension below are gated on it so every
+ *  other domain stays byte-for-byte: no extra DB round trip, no mutated `ctx.config`.) */
+function isBudgetCommand(command: AdapterCommand): boolean {
+  return (command.record as { erp_doc_kind?: string }).erp_doc_kind === 'budget';
+}
+
+/**
+ * Read the org's `budget_category_account_map` (mig 0137) — the Admin-administered bijection that turns
+ * PMO's `budget_category` into the client's own ERP account. It is a TABLE, not binding config, so it is
+ * resolved SERVER-SIDE here and injected into `ctx.config`; the command payload never carries it (a
+ * client-supplied map would let the caller pick which GL accounts their budget constrains).
+ *
+ * Fails CLOSED on a read error rather than proceeding with an empty map: "we could not read the map" and
+ * "the org has no map" must both refuse the push (the second is refused downstream by
+ * `resolveBudgetAccounts`, naming the categories).
+ *
+ * Exported so `adapter-dispatch/index.ts`'s budget gate (`budgetGate.ts`'s `runBudgetGate`) reads the
+ * SAME map this factory injects into `ctx.config` — one definition, so a gate PASS can never be followed
+ * by a push-time "actually unmapped" surprise.
+ */
+export async function readCategoryAccountMap(
+  serviceClient: DispatchServiceClient,
+  orgId: string,
+): Promise<Array<{ category: string; erp_account: string }>> {
+  const { data, error } = await serviceClient
+    .from('budget_category_account_map')
+    .select('category, erp_account')
+    .eq('org_id', orgId);
+  if (error) {
+    throw new AppError(`budget push: the category→account map could not be read: ${error.message}`, 'commit-rejected');
+  }
+  return Array.isArray(data) ? (data as Array<{ category: string; erp_account: string }>) : [];
+}
+
+/**
+ * Read a budget version's line items — the SOURCE of every `budget_amount` PMO pushes into the
+ * client's ERP `Budget`, and the input the fail-closed `budget-category-unmapped` check judges.
+ *
+ * ⚑ PAGED (audit round 8, the HIGH-1 class swept to its fourth scope). One unpaged request is
+ * silently capped at PostgREST's `db-max-rows` (1000) — 200, short body, no error — so a version with
+ * more than 1000 line items would push an UNDERSTATED Budget and let ERP enforce a real overspend
+ * control against a figure smaller than the one PMO approved. Ordered on the `id` PK so consecutive
+ * pages can neither overlap (a duplicated line = over-budget) nor gap.
+ *
+ * Fails CLOSED on a read error. It previously returned `[]` on ANY non-array result, which is the same
+ * shape of hole: an unreadable budget must refuse the push, never push a smaller one.
+ *
+ * Exported (the `readCategoryAccountMap` precedent) so `adapter-dispatch`'s budget gate uses the
+ * SHIPPED reader rather than a copy inside the edge function.
+ */
+export async function readBudgetLineItems(
+  callerClient: DispatchServiceClient,
+  versionId: string,
+): Promise<BudgetLineItem[]> {
+  return await fetchAllRowsByKeyset<BudgetLineItem & { id: string }>((afterId, limit) => {
+    const q = callerClient
+      .from('budget_line_items')
+      .select('id, category, budgeted_amount')
+      .eq('budget_version_id', versionId)
+      .order('id', { ascending: true });
+    return (afterId === null ? q : q.gt('id', afterId))
+      .limit(limit) as PromiseLike<{ data: Array<BudgetLineItem & { id: string }> | null; error: { message: string; code?: string } | null }>;
+  });
+}
+
+/**
+ * Resolve the budget push's refs:
+ *
+ *  • `refs.project` — the ERP `Project` name for the version's project, via the SAME binding
+ *    `project_map` the revenue path uses (`resolveErpProjectName` — one definition, so the two can never
+ *    disagree about what "the ERP project resolved" means). A miss stays `null` and `bodies/budget.ts`
+ *    refuses the push — never a Cost-Center fallback, never an unscoped budget.
+ *
+ *  • `refs.self` — ⚑ FR-BUD-121, THE UPSERT TARGET: the EXISTING live ERP `Budget` for this
+ *    (company, fiscal_year, project) grain, if one is already there. ERPNext enforces at most one live
+ *    `Budget` per (company, fiscal_year, project|cost_center, account) and rejects a duplicate
+ *    ATOMICALLY (budget-write spike §8), so a revision dispatched as a plain create is REFUSED — and
+ *    ERP then keeps enforcing the SUPERSEDED figure while PMO shows the revision. Resolving the target
+ *    here (the refs seam, next to `refs.project`) is what lets `adapter.ts` route the create onto the
+ *    spike-frozen revision path (§6: money fields are `allow_on_submit=0`, so a revision is
+ *    cancel + create-with-`amended_from`, never a PUT).
+ *
+ * ⚑ Only `docstatus = 1` (SUBMITTED) is a valid upsert target. A DRAFT rival on the same grain is
+ * somebody's Desk-authored work-in-progress: amending it is invalid and PUT-ing our body onto it would
+ * mangle its child rows (spike §10(g) — a child update without the row's own `name` 404s against a
+ * phantom). We leave it alone and let ERP's own `DuplicateBudgetError` refuse the push with a message
+ * naming the conflict, which is a recorded, operator-actionable failure rather than a silent overwrite.
+ *
+ * ⚑ TWO live Budgets on one grain (only reachable by Desk authoring across disjoint accounts) fail
+ * CLOSED: the adapter never picks one to supersede.
+ */
+async function resolveBudgetRefs(
+  deps: ErpDispatchFactoryDeps,
+  binding: ExternalOrgBindingRow,
+  budgetConfig: Record<string, unknown>,
+): Promise<{ refs: Record<string, string | null> }> {
+  if (!isBudgetCommand(deps.command)) return { refs: {} };
+  const record = deps.command.record as {
+    id?: unknown;
+    projectId?: string | null;
+    fiscal_year?: unknown;
+    line_items?: unknown;
+  };
+  const project = resolveErpProjectName(binding.config, record.projectId);
+  const refs: Record<string, string | null> = { project };
+
+  const company = binding.config?.company;
+  const fiscalYear = record.fiscal_year;
+  // Any of these unresolved ⇒ `budgetToBody` refuses the push anyway (fail-closed, zero ERP calls);
+  // probing the grain with a missing coordinate would ask a question with no meaning.
+  if (!project || typeof company !== 'string' || !company || typeof fiscalYear !== 'string' || !fiscalYear) {
+    return { refs };
+  }
+
+  // ⚑ AC-BUD-011 ORDERING: every PMO-side fail-closed check runs BEFORE this ERP read, so an unmapped
+  // category (or an empty budget) still refuses with ZERO ERP calls. Run the REAL resolution
+  // (`resolveBudgetAccounts` — the same pure function `budgetToBody` uses, never a second copy of the
+  // rule) rather than re-deriving it; identical stance to `resolveTimesheetRefs`'s `packTimeLogs`
+  // pre-flight. An empty result is left for `budgetToBody` to reject with its own exact message.
+  const accounts = resolveBudgetAccounts(
+    (record.line_items as BudgetLineItem[] | undefined) ?? [],
+    (budgetConfig.category_account_map as CategoryAccountMapRow[] | undefined) ?? [],
+  );
+  if (accounts.length === 0) return { refs };
+
+  // ⚑ HIGH-1 (audit round 5) — READ THE WHOLE GRAIN, not just its live occupant: `docstatus < 2` is
+  // every document ERPNext's duplicate guard counts (spike §8 — the guard fires against a DRAFT exactly
+  // as it does against a submitted doc). The old `docstatus = 1` filter was blind to drafts, with two
+  // consequences, both destructive: a Desk-authored draft (or OUR OWN orphan draft, left by a
+  // create-OK/submit-FAIL) made the replacement create CERTAIN to be refused — so the upsert cancelled
+  // the live Budget FIRST and only then discovered it could not replace it, leaving ERPNext enforcing
+  // NOTHING; and the orphan then blocked every future push for the grain with an opaque
+  // `DuplicateBudgetError` no PMO surface explained.
+  const clientDeps: ErpClientDeps = {
+    fetchImpl: deps.fetchImpl,
+    apiKey: deps.apiKey,
+    apiSecret: deps.apiSecret,
+    baseUrl: binding.site_url,
+    rateLimiter: deps.rateLimiter,
+  };
+  const grain = await listDocsByFilters(
+    clientDeps,
+    'Budget',
+    [
+      ['company', '=', company],
+      ['project', '=', project],
+      ['fiscal_year', '=', fiscalYear],
+      ['docstatus', '<', 2],
+    ],
+    // ⚑ MED-1 (round 6): `amended_from` carries the draft's LINEAGE. ⚑ LOW-1 (round 7): `owner` carries
+    // its AUTHOR — the half that was missing, and the half that decides whether adopting it would
+    // overwrite a human's work. Both are plain list fields: one read, zero extra calls.
+    ['name', 'docstatus', 'amended_from', 'owner'],
+    5, // a handful is plenty to classify the grain; we never need to enumerate it
+  );
+  const live = grain.filter((row) => Number(row.docstatus) === 1).map((row) => String(row.name));
+  const draftRows = grain.filter((row) => Number(row.docstatus) === 0);
+  const drafts = draftRows.map((row) => String(row.name));
+
+  // (iii) Genuine ambiguity — two live Budgets, only reachable by Desk authoring across disjoint
+  // accounts. Fail CLOSED, zero writes: the adapter never picks one to supersede.
+  if (live.length > 1) {
+    throw new AppError(
+      `budget push: ${live.length} live ERPNext Budgets already exist for (${company}, ${fiscalYear}, ${project}) — ` +
+        `an operator must resolve the duplicate before PMO can revise it (${live.join(', ')})`,
+      'commit-rejected',
+    );
+  }
+
+  // (ii) A DRAFT rival — ours (an orphaned create-OK/submit-FAIL) or somebody's Desk work-in-progress.
+  // Either way ERP WILL refuse our create, so attempting the push is a guaranteed-destructive act: we
+  // would cancel the live Budget and then be unable to replace it. Refuse BEFORE any write, and NAME the
+  // document, because a draft on the grain is a thing a human must resolve (submit it, or delete it) and
+  // an opaque ERP 417 five minutes later tells them nothing. We deliberately do NOT adopt-and-submit it:
+  // `Budget` carries no anchor field of any kind (spike §7), so we cannot PROVE a draft is ours, and
+  // submitting somebody's WIP would enforce THEIR figure while PMO recorded it as our push.
+  //
+  // ⚑ DO NOT RE-ADD AUTOMATIC ADOPTION HERE WITHOUT READING THIS (audit rounds 6→7, DIRECTOR RULING).
+  // Round 6 added exactly that: a lone draft was adopted when its `amended_from` matched the ERP name on
+  // our own `budget_version_erp_mirror` row. It was deleted in round 7 because it was incapable of doing
+  // its job and capable of real harm:
+  //   • UNREACHABLE where it was needed. `erp_budget_name` has exactly ONE writer — the SUCCESS path
+  //     (`adapter-dispatch/readModelWriters.ts`) — and `activate_budget_version` admits only a Draft
+  //     version (`0005`/`0139`), so a version is activated ONCE, pushed under ONE idempotency key, and
+  //     its mirror row carries a name only after a push SUCCEEDED. Window B is by definition a push that
+  //     did not succeed, so the name is null and the branch could never fire for its own use case.
+  //   • HARMFUL where it WAS reachable. The one state that satisfies it is: our push succeeded (name
+  //     recorded), then a Desk user cancelled that Budget and hand-started its amendment. `amended_from`
+  //     identifies a draft's PARENT, never its AUTHOR — so PMO would PUT its own figures over the
+  //     accountant's work and submit it. Live-bench-verified (frappe 15.96.0/erpnext 15.94.3): both the
+  //     PUT and the submit return 200. That is precisely what FR-BUD-142 forbids.
+  // A real automatic recovery needs, at minimum: (a) a DISTINCT mirror column recording the document we
+  // created at create-time — never `erp_budget_name`, which the projection renders as THE enforcing ERP
+  // document, so a draft's name there would be a confident false claim about ERP state; (b) an
+  // authorship proof, since lineage is not ownership — the draft's server-stamped `owner` must equal the
+  // user our credentials authenticate as (`frappe.auth.get_logged_user`), which the grain list query
+  // above can return as a plain field; and (c) an `after-create-before-submit` fault seam, since window B
+  // is otherwise undrivable end to end. That is a slice, not a patch. Until then this refusal — named,
+  // zero-write, and telling the human exactly which document to submit or delete — is the correct
+  // behaviour, and `dispatchFactory.budgetRecovery.test.ts` guards it.
+  if (drafts.length > 0) {
+    throw new AppError(
+      `budget push: ERPNext already holds a DRAFT Budget for (${company}, ${fiscalYear}, ${project}) — ` +
+        `${drafts.join(', ')}. ERPNext refuses a second Budget on this grain while a draft exists, so PMO ` +
+        'cannot revise the budget until an operator submits or deletes that draft.' +
+        (live.length === 0
+          ? ' ⚑ There is currently NO live Budget for this project and fiscal year — ERPNext is enforcing no overspend control on it.'
+          : ''),
+      'budget-draft-rival-on-grain',
+    );
+  }
+
+  // (i) Exactly one live occupant ⇒ THE upsert target. None ⇒ a plain create, which is also how a
+  // post-cancel recovery converges: the cancelled predecessor is a tombstone (docstatus 2), invisible to
+  // this read and inert to ERP's duplicate guard, so re-creating is both safe and correct.
+  if (live.length === 1) refs.self = live[0];
+  return { refs };
+}
+
 export interface ErpDispatchFactoryDeps {
   serviceClient: DispatchServiceClient;
   orgId: string;
@@ -439,6 +773,9 @@ export interface ErpDispatchFactoryDeps {
    *  mirror` fault seam, wired by the edge fn at task 2.14). Optional — a production caller that
    *  never arms the fault gate can omit it (a true no-op). */
   afterSubmitHook?: () => Promise<void>;
+  /** Threaded straight into `ErpAdapterDeps.afterCancelHook` (⚑ HIGH-1 — the `after-cancel-before-create`
+   *  fault seam). Optional; omitted callers are a true no-op. */
+  afterCancelHook?: () => Promise<void>;
 }
 
 /**
@@ -474,6 +811,18 @@ export async function resolveErpDispatchAdapter(deps: ErpDispatchFactoryDeps): P
   // companies-domain party create/update path (which needs no cross-doctype resolution of its own).
   const { refs: procurementRefs, resolvedItems } = await resolveProcurementOrderRefs(deps, binding);
   const { refs: revenueRefs } = await resolveRevenueRefs(deps, binding);
+  // P3b: the timesheet push's fail-closed pre-flight (employee link, per-entry project, activity type,
+  // same-org, daily hours). Gated on the kind, so no other command pays for the extra reads.
+  const { refs: timesheetRefs } = await resolveTimesheetRefs(deps, binding);
+  // P3c: the org's server-resolved category→account map, then the budget push's refs (ERP project +
+  // the FR-BUD-121 upsert target). Both are gated on the kind, so no other command pays for the extra
+  // read or sees a modified `ctx.config`. ⚑ The map is resolved FIRST because the refs pre-flight
+  // validates the line items against it before issuing its ERP grain read (AC-BUD-011: an unmapped
+  // category refuses with zero ERP calls).
+  const budgetConfig = isBudgetCommand(deps.command)
+    ? { ...binding.config, category_account_map: await readCategoryAccountMap(deps.serviceClient, deps.orgId) }
+    : binding.config;
+  const { refs: budgetRefs } = await resolveBudgetRefs(deps, binding, budgetConfig);
 
   const adapterDeps: ErpAdapterDeps = {
     client: {
@@ -493,11 +842,12 @@ export async function resolveErpDispatchAdapter(deps: ErpDispatchFactoryDeps): P
     // Revenue commands (sales-invoice/incoming-payment) resolve customer + project + SI ref via
     // `resolveRevenueRefs` (task 2.3, FR-SAR-100/101/121).
     ctx: {
-      refs: { ...procurementRefs, ...revenueRefs, supplier: procurementRefs.supplier ?? (await resolveSupplierRef(deps.serviceClient, deps.orgId, deps.command)) },
-      config: binding.config,
+      refs: { ...procurementRefs, ...revenueRefs, ...budgetRefs, ...timesheetRefs, supplier: procurementRefs.supplier ?? (await resolveSupplierRef(deps.serviceClient, deps.orgId, deps.command)) },
+      config: budgetConfig,
       resolvedItems,
     },
     afterSubmitHook: deps.afterSubmitHook,
+    afterCancelHook: deps.afterCancelHook,
   };
   return createErpAdapter(adapterDeps);
 }

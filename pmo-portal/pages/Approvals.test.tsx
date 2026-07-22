@@ -30,6 +30,41 @@ const queryState: QueryState = {
 const approveMutation: MutationState = { mutate: vi.fn(), isPending: false };
 const rejectMutation: MutationState = { mutate: vi.fn(), isPending: false };
 
+// P3b (FR-TSP-085, OQ-TSP-10(C)) — the "needs attention" ERP-push queue + the Employee-link confirm
+// queue. Default EMPTY (no mirror row / no proposed link — FR-TSP-173: the page must still render
+// fully, the badge/section simply absent). Individual tests overwrite these per scenario.
+type AttentionRow = {
+  timesheet_id: string;
+  push_state: string;
+  push_error: string | null;
+  ts_number: string | null;
+  week_start_date: string;
+  approved_by: string | null;
+  owner_name: string;
+};
+type ProposedLink = {
+  id: string;
+  employee_name: string | null;
+  employee_number: string | null;
+  work_email: string | null;
+  link_proposed_reason: string | null;
+  profile_id: string | null;
+  profile_name: string | null;
+  profile_email: string | null;
+};
+const attentionState: { data: AttentionRow[]; isPending: boolean; isError: boolean } = {
+  data: [],
+  isPending: false,
+  isError: false,
+};
+const retryMutation: MutationState = { mutate: vi.fn(), isPending: false };
+const linksState: { data: ProposedLink[]; isPending: boolean; isError: boolean } = {
+  data: [],
+  isPending: false,
+  isError: false,
+};
+const confirmMutation: MutationState = { mutate: vi.fn(), isPending: false };
+
 vi.mock('@/src/hooks/useTimesheetApproval', () => ({
   useTimesheetsAwaitingApproval: () => queryState,
   useTimesheetMutations: () => ({
@@ -37,6 +72,8 @@ vi.mock('@/src/hooks/useTimesheetApproval', () => ({
     reject: rejectMutation,
     submit: { mutate: vi.fn(), isPending: false },
   }),
+  usePushesNeedingAttention: () => ({ ...attentionState, retry: retryMutation }),
+  useEmployeeLinkConfirm: () => ({ links: linksState, confirm: confirmMutation }),
 }));
 
 // N6: /approvals is now the unified inbox — it also reads the procurement queue.
@@ -47,12 +84,15 @@ vi.mock('@/src/hooks/useProcurements', () => ({
   useProcurements: () => ({ ...procState, refetch: vi.fn() }),
 }));
 
+// Mutable so a P3b test can flip the signed-in role to Admin/Engineer without a per-test module mock.
+const authState = { userId: 'u-mgr', orgId: 'org-1', role: 'Project Manager' as string };
+
 vi.mock('@/src/auth/useAuth', () => ({
-  useAuth: () => ({ currentUser: { id: 'u-mgr', org_id: 'org-1' }, role: 'Project Manager' }),
+  useAuth: () => ({ currentUser: { id: authState.userId, org_id: authState.orgId }, role: authState.role }),
 }));
 
 vi.mock('@/src/auth/impersonation', () => ({
-  useEffectiveRole: () => ({ effectiveRole: 'Project Manager', realRole: 'Project Manager' }),
+  useEffectiveRole: () => ({ effectiveRole: authState.role, realRole: authState.role }),
 }));
 
 const submittedSheets: TimesheetAwaitingApproval[] = [
@@ -103,6 +143,19 @@ beforeEach(() => {
   procState.data = [];
   procState.isPending = false;
   procState.isError = false;
+  attentionState.data = [];
+  attentionState.isPending = false;
+  attentionState.isError = false;
+  retryMutation.mutate = vi.fn();
+  retryMutation.isPending = false;
+  linksState.data = [];
+  linksState.isPending = false;
+  linksState.isError = false;
+  confirmMutation.mutate = vi.fn();
+  confirmMutation.isPending = false;
+  authState.userId = 'u-mgr';
+  authState.orgId = 'org-1';
+  authState.role = 'Project Manager';
 });
 
 // ---------------------------------------------------------------------------
@@ -225,5 +278,130 @@ describe('Approvals page actions', () => {
       { id: 'ts-1' },
       expect.objectContaining({ onSuccess: expect.any(Function), onError: expect.any(Function) }),
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P3b — the ERP push "needs attention" + Employee-link Confirm operator surfaces (AC-TSP-051)
+// ---------------------------------------------------------------------------
+describe('Approvals page — P3b ERP push attention + Employee-link confirm (AC-TSP-051)', () => {
+  const failedRow = {
+    timesheet_id: 'ts-99',
+    push_state: 'failed',
+    // ⚑ I-14: `employee-unlinked` is ERP-side and a retry can never fix it, so Retry is now WITHHELD
+    // for it — this row proves the RETRY contract, so it carries a genuinely retryable cause.
+    push_error: 'external-unreachable',
+    ts_number: null,
+    week_start_date: '2026-01-05',
+    approved_by: 'u-mgr',
+    owner_name: 'Dave Engineer',
+  };
+  const proposedLink = {
+    id: 'emp-1',
+    employee_name: 'Jane Doe',
+    employee_number: 'HR-EMP-00087',
+    work_email: 'jane@co.test',
+    link_proposed_reason: 'unique work_email match',
+    profile_id: 'profile-1',
+    profile_name: 'Jane Q. Doe',
+    profile_email: 'jane.doe@pmo.test',
+  };
+
+  it('AC-TSP-051: an authorized approver (the sheet\'s own approved_by) sees the failure + reason + a Retry affordance', async () => {
+    authState.userId = 'u-mgr';
+    authState.role = 'Project Manager';
+    attentionState.data = [failedRow];
+    renderPage();
+
+    expect(screen.getByText('Dave Engineer')).toBeInTheDocument();
+    expect(screen.getByText(/could not be reached/i)).toBeInTheDocument();
+    const retryBtn = screen.getByRole('button', { name: /retry/i });
+    expect(retryBtn).toBeInTheDocument();
+
+    await userEvent.click(retryBtn);
+    expect(retryMutation.mutate).toHaveBeenCalledWith(
+      { timesheetId: 'ts-99' },
+      expect.anything(),
+    );
+  });
+
+  // NOTE: the "sees the failure but no Retry" negative case is unreachable AT THIS PAGE by
+  // construction — `canApproveTimesheets` (Admin·Exec·PM, gating the whole ERP-attention section's
+  // visibility) is a strict subset of the push_timesheet privileged set (Admin·Exec·PM·Finance), so
+  // every role that can even see this section is retry-privileged. The canRetry=false render path
+  // (a viewer who is neither the approver nor privileged) is proven at the component layer instead:
+  // `src/components/timesheets/PushStateBadge.test.tsx` ("a non-privileged viewer sees the failure but
+  // NO Retry affordance").
+
+  it('FR-TSP-173: with NO mirror row (attention queue empty) the page renders fully — no ERP section, no error state', () => {
+    attentionState.data = [];
+    queryState.data = submittedSheets;
+    renderPage();
+    expect(screen.queryByText(/could not be reached/i)).not.toBeInTheDocument();
+    // The ordinary approvals surface still renders (never blocked by the ERP badge's absence).
+    expect(screen.getByRole('region', { name: /Approval preview/i })).toBeInTheDocument();
+  });
+
+  it('AC-TSP-092(ux): an Admin sees a proposed Employee link + match reason + a Confirm affordance', async () => {
+    authState.role = 'Admin';
+    linksState.data = [proposedLink];
+    renderPage();
+
+    expect(screen.getByText('Jane Doe')).toBeInTheDocument();
+    expect(screen.getByText(/unique work_email match/)).toBeInTheDocument();
+    const confirmBtn = screen.getByRole('button', { name: /^confirm$/i });
+
+    await userEvent.click(confirmBtn);
+    const dialog = screen.getByRole('dialog');
+    await userEvent.click(within(dialog).getByRole('button', { name: /confirm link/i }));
+    expect(confirmMutation.mutate).toHaveBeenCalledWith(
+      { erpEmployeeId: 'emp-1', profileId: 'profile-1' },
+      expect.anything(),
+    );
+  });
+
+  it('AC-TSP-092(ux): a non-Admin sees the proposed link but NO Confirm affordance', () => {
+    authState.role = 'Project Manager';
+    linksState.data = [proposedLink];
+    renderPage();
+
+    expect(screen.getByText('Jane Doe')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^confirm$/i })).not.toBeInTheDocument();
+  });
+
+  // ⚑ I-13 (rendered Discover pass) — Retry gave ZERO feedback: no toast, no state change, no console
+  // error, while the budget Retry two screens away toasts. `useTimesheetApproval` had no `onError` on
+  // either path, so a failed re-drive was indistinguishable from a successful one AND from a dead
+  // button. Both outcomes are now stated.
+  it('I-13 a Retry that FAILS says so — a silent retry is indistinguishable from a dead button', async () => {
+    authState.userId = 'u-mgr';
+    authState.role = 'Project Manager';
+    attentionState.data = [failedRow];
+    retryMutation.mutate = vi.fn((_vars, opts) => opts?.onError?.(new Error('ERPNext is unreachable')));
+    renderPage();
+
+    await userEvent.click(screen.getByRole('button', { name: /retry/i }));
+    expect(await screen.findByText(/could not be pushed|update failed/i)).toBeInTheDocument();
+  });
+
+  it('I-13 a Retry that SUCCEEDS says so too', async () => {
+    authState.userId = 'u-mgr';
+    authState.role = 'Project Manager';
+    attentionState.data = [failedRow];
+    retryMutation.mutate = vi.fn((_vars, opts) => opts?.onSuccess?.());
+    renderPage();
+
+    await userEvent.click(screen.getByRole('button', { name: /retry/i }));
+    expect(await screen.findByText(/pushed to ERPNext/i)).toBeInTheDocument();
+  });
+
+  // ⚑ I-12 — axe `landmark-unique`: `<section aria-label="Employee links awaiting confirmation">`
+  // wrapped a `<div role="region">` carrying the IDENTICAL accessible name, so a screen-reader user
+  // met the same landmark twice with nothing distinguishing them.
+  it('I-12 the Employee-link queue is ONE landmark, not two with the same name', () => {
+    authState.role = 'Admin';
+    linksState.data = [proposedLink];
+    renderPage();
+    expect(screen.getAllByRole('region', { name: /Employee links awaiting confirmation/i })).toHaveLength(1);
   });
 });

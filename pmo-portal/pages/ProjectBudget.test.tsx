@@ -21,7 +21,7 @@ const versionsState = {
   refetch: vi.fn(),
 };
 
-const mockActivate = vi.fn().mockResolvedValue(undefined);
+const mockActivate = vi.fn().mockResolvedValue({ pushState: 'pushed' });
 const mockArchive = vi.fn().mockResolvedValue(undefined);
 const mockClone = vi.fn().mockResolvedValue('v-clone');
 const mockDeleteDraft = vi.fn().mockResolvedValue(undefined);
@@ -231,6 +231,24 @@ describe('ProjectBudget Draft version actions', () => {
     await userEvent.click(screen.getByRole('button', { name: /Activate version/i }));
     expect(mockActivate).toHaveBeenCalledWith('v-draft');
     await waitFor(() => expect(screen.getByRole('status')).toBeInTheDocument());
+    resetState();
+  });
+
+  // ── HIGH-C (Luna re-audit round 2): the push is a CONSEQUENCE of activation, never its precondition
+  //    (ADR-0059 §3.2) — so activation still SUCCEEDS when the push fails. But "swallowed" must mean
+  //    "recorded and surfaced", never "lost": a dispatch that never reached the edge function writes no
+  //    mirror row at all, the sweep backstop's queue IS that mirror, and the user was shown a plain
+  //    success while ERPNext kept enforcing the previous budget.
+  it('HIGH-C activation whose ERP push failed still succeeds, but SAYS SO instead of toasting a clean success', async () => {
+    mockActivate.mockResolvedValueOnce({ pushState: 'failed' });
+    budgetState.data = 0;
+    versionsState.data = [draftVersion];
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: /^Activate$/i }));
+    await userEvent.click(screen.getByRole('button', { name: /Activate version/i }));
+    await waitFor(() => expect(screen.getByRole('status')).toBeInTheDocument());
+    expect(screen.getByRole('status')).toHaveTextContent(/activated/i);
+    expect(screen.getByRole('status')).toHaveTextContent(/ERPNext/i);
     resetState();
   });
 
@@ -570,5 +588,23 @@ describe('ProjectBudget version selector (budget-dropdown)', () => {
     const selectorBar = getByTestId('version-selector');
     expect(selectorBar.textContent).not.toContain('—'); // em-dash —
     resetState();
+  });
+});
+
+/**
+ * ⚑ C-4 (rendered Discover pass, 2026-07-22) — two columns named "Actual" sat ~100px apart on the
+ * same tab, showing different figures ($1,200,000 here vs $1,150,000 in the projection below), with
+ * nothing on screen saying they came from different places or which governed. They are different
+ * facts: this is what PMO recorded on the budget line; the projection reads the ERP general ledger.
+ */
+describe('ProjectBudget — the Actual column names its own source (C-4)', () => {
+  it('C-4 the version grid column says the figure is PMO-recorded, not the ERP ledger', async () => {
+    budgetState.data = 4700000;
+    versionsState.data = [{ ...activeVersion, line_items: draftVersion.line_items }];
+    renderPage();
+    // the selected version's line-item grid is the surface that carries the column
+    await screen.findByRole('columnheader', { name: /Budgeted/i });
+    expect(screen.queryAllByRole('columnheader', { name: /^Actual$/ })).toHaveLength(0);
+    expect(screen.getAllByRole('columnheader', { name: /Actual \(PMO recorded\)/i }).length).toBeGreaterThan(0);
   });
 });

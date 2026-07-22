@@ -178,7 +178,12 @@ export const AccountingSnapshotsSection: React.FC<AccountingSnapshotsSectionProp
       isError={actualsError}
       onRetry={onRetryActuals}
       columns={ACTUALS_COLUMNS}
-      rowKey={(r) => r.snapshotId + (r.account ?? '') + (r.costCenter ?? '')}
+      // ⚑ Audit round 11 (NEW-2): the key must carry the WHOLE grain. `erp_actuals_snapshot` is keyed
+      // by (project, cost_centre, account, fiscal_year); this omitted project and fiscal year, so two
+      // projects — or a project and the UNATTRIBUTED bucket — on one account+FY collided into one React
+      // key while rendering as indistinguishable money rows (no Project column exists). `\u0000` as the
+      // separator so concatenation cannot alias two different tuples into one string.
+      rowKey={(r) => [r.snapshotId, r.projectId ?? '', r.costCenter ?? '', r.account ?? '', r.fiscalYear ?? ''].join('\u0000')}
     />
     <SnapshotBlock<ErpAgingSnapshotRow>
       title="AP aging"

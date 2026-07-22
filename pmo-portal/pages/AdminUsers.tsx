@@ -35,6 +35,7 @@ import { AdministrationCredits } from './AdministrationCredits';
 import { AdministrationFeatures } from './AdministrationFeatures';
 import { IntegrationsView } from '@/src/components/integrations/IntegrationsView';
 import { M365ConnectionCard } from '@/src/components/integrations/M365ConnectionCard';
+import BudgetAccountMap from './admin/BudgetAccountMap';
 
 /**
  * Administration › Users (CRUD+RBAC program, plan §9.10; rbac-visibility §J; ops-admin-surface
@@ -469,6 +470,12 @@ const AdminUsers: React.FC = () => {
         <SectionHeader title="Integrations" />
         <M365ConnectionCard isAdmin={canManage} />
         <IntegrationsView />
+      </div>
+
+      {/* P3c (FR-BUD-110..113): the budget category↔ERP account bijection. The component gates its
+          own write affordances via can('manage', 'integration', ctx) — no prop threading needed. */}
+      <div className="mt-6">
+        <BudgetAccountMap />
       </div>
 
       {/* Edit-role modal */}

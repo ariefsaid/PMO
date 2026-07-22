@@ -22,7 +22,9 @@ import { useTimesheets } from '@/src/hooks/useTimesheets';
 import {
   useTimesheetMutations,
   useTimesheetsAwaitingApproval,
+  useOwnTimesheetPushState,
 } from '@/src/hooks/useTimesheetApproval';
+import { PushStateBadge } from '@/src/components/timesheets/PushStateBadge';
 import { useTimesheetEntryMutations } from '@/src/hooks/useTimesheetEntries';
 import { useProjects } from '@/src/hooks/useProjects';
 import { timesheetActions } from '@/src/lib/db/timesheetTransition';
@@ -113,6 +115,10 @@ const TimesheetsPage: React.FC = () => {
     () => currentTimesheet?.entries ?? [],
     [currentTimesheet]
   );
+
+  // ⚑ I-16/I-17 — the owner's own ERP push state (rendered by `PushStateBadge` beside the status pill
+  // below). Declared here, with the other top-level reads, so it stays above every early return.
+  const { data: ownPushState } = useOwnTimesheetPushState(currentTimesheet?.id);
 
   // Group entries into grid rows (one row per project), each with 7 daily hours.
   // Entries for the same project on the same day are summed regardless of note text.
@@ -659,6 +665,13 @@ const TimesheetsPage: React.FC = () => {
           <StatusPill variant={status ? workflowVariant(status) : 'neutral'}>
             {status === TimesheetStatus.Draft || !status ? 'Draft — not submitted' : status}
           </StatusPill>
+          {/* ⚑ I-16/I-17 (rendered Discover pass, 2026-07-22) — the OWNER'S view of their own ERP
+              push. `timesheet_erp_mirror_select` RLS deliberately grants the sheet's owner this read,
+              and nothing consumed it: the person whose week it is — the one who has to re-do it if
+              the hours never reach payroll costing — was the only one who could not find out. No
+              Retry here: re-driving is the approver's act (`can('push_timesheet', …)`), and this
+              badge is supplementary — a null state renders nothing and never gates the page. */}
+          <PushStateBadge state={ownPushState ?? null} canRetry={false} />
           {editable && (
             <div className="inline-flex min-w-0 max-w-full items-center gap-1.5 text-[13px] font-medium text-muted-foreground">
               <Icon name="plus" aria-hidden />

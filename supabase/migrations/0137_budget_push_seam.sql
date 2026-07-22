@@ -158,3 +158,101 @@ create trigger budget_category_account_map_stamp_org_id before insert on public.
   for each row execute function public.stamp_org_id();
 create trigger budget_projections_stamp_org_id before insert on public.budget_projections
   for each row execute function public.stamp_org_id();
+
+-- ============================================================================================
+-- §4 — release_outbox_hold: THE OPERATOR'S ROUTE OUT OF `held` (money-safety audit round 5, HIGH-2)
+-- ============================================================================================
+-- ⚑ Placed in this migration because the branch's migration set is frozen (0136–0141 are edited in
+-- place, never appended to). The function itself is DOMAIN-GENERAL — it serves every ERP-tier command
+-- (timesheets, budget, revenue, procurement), not just the budget push this file otherwise builds.
+--
+-- `held` (0096) is the ADR-0058 §4 terminal for a recovery a machine must NEVER resolve on its own:
+--   • a MUTABLE-anchor money doc (Payment Entry) whose probe misses — absence is not conclusive, and a
+--     blind reissue risks a double-pay (C-1 DIRECTOR RULING); or
+--   • a post-window recovery reissue whose RECORDED actor is no longer authorized (FIX 2).
+-- Both are correct refusals. What was missing is the other half: nothing anywhere moved a row OUT of
+-- `held`, while TWO code comments (`budgetPushOutcome.ts`, `dispatch.ts`) asserted an operator route out
+-- that did not exist. And because `held` sits INSIDE `external_command_outbox_one_inflight_per_record`
+-- (0134 B3), the wedge is not merely "this command is stuck": a NEW idempotency key for the SAME
+-- (org, domain, pmo_record_id) violates that index and the dispatch answers 409 forever. Concretely —
+-- an approver offboarded mid-recovery HOLDs a week; re-activate them, reopen and re-approve the week
+-- (a new `approved_at` ⇒ a new key) and EVERY attempt 409s: that week's payroll costing can never reach
+-- the client's ERP, by any in-app action whatsoever.
+--
+-- ⚑ WHAT IT DOES NOT DO. It does not touch ERPNext, does not adopt, does not confirm, and does not
+-- fabricate an outcome. It moves `held` → `failed`, which is (a) OUTSIDE the one-in-flight index and
+-- (b) INSIDE `outbox_reconcile_candidates` + both backstop queues — so the ORDINARY bounded recovery
+-- resumes and re-runs every gate (re-authorization, the recovery probe, the claim budget) from scratch.
+-- The operator is asserting "the CONDITION that caused the hold is resolved", never "the command
+-- succeeded". Releasing a still-broken condition simply holds again — safe by construction.
+--
+-- Admin-only + org-re-asserted + `is_active_member()`, because this re-opens the door to a MONEY write:
+-- SECURITY DEFINER bypasses RLS, and this is `grant execute … to authenticated` (reachable directly over
+-- PostgREST), so the edge fn's auth guard is not in the path (the 0128/0129/0130 offboarding pass; the
+-- 0140 pattern verbatim). Audited, because clearing a money-command hold is a human decision that must
+-- have a name and a reason attached to it.
+--
+-- Reversibility (ADR-0006, pre-production): `supabase db reset`. Manual reverse:
+--   drop function if exists public.release_outbox_hold(uuid, text);
+
+create or replace function public.release_outbox_hold(p_outbox_id uuid, p_reason text)
+  returns void
+  language plpgsql
+  security definer
+  set search_path = public
+as $$
+declare
+  v_org   uuid;
+  v_state text;
+  v_actor uuid := auth.uid();
+begin
+  if v_actor is null then
+    raise exception 'not authenticated' using errcode = '42501';
+  end if;
+
+  -- Load + LOCK the row: serializes a concurrent release against a live claimant's own fenced
+  -- write-back, so the state check below cannot be read stale.
+  select o.org_id, o.state into v_org, v_state
+    from public.external_command_outbox o where o.id = p_outbox_id for update;
+  if v_org is null then
+    raise exception 'outbox command not found' using errcode = 'P0002';
+  end if;
+
+  -- Org + Admin + active-membership re-assertion — MUST STAY (see the header: DEFINER bypasses RLS and
+  -- this is directly reachable by any authenticated caller).
+  if v_org is distinct from public.auth_org_id()
+     or public.auth_role() is distinct from 'Admin'
+     or not public.is_active_member() then
+    raise exception 'not authorized' using errcode = '42501';
+  end if;
+
+  -- Only a HELD row has a hold to release. Never resurrect a confirmed/committing/failed row: a
+  -- `confirmed` command already landed in the client's ERP, and re-opening it for the backstop would
+  -- re-drive a settled money write.
+  if v_state is distinct from 'held' then
+    raise exception 'outbox command is % — only a held command can be released', v_state using errcode = 'P0001';
+  end if;
+
+  -- `failed`, never `pending`: the recovery machinery treats both identically as claimable, and `failed`
+  -- preserves the fact that this command has a FAILURE HISTORY. `claim_generation` is bumped so any
+  -- still-running claimant's late write-back is fenced out (F4).
+  update public.external_command_outbox
+     set state            = 'failed',
+         last_error       = 'hold released by operator ' || v_actor::text || ': ' || coalesce(p_reason, ''),
+         claim_generation = claim_generation + 1,
+         updated_at       = now()
+   where id = p_outbox_id;
+
+  perform public.log_audit(
+    'release_outbox_hold',
+    v_org,
+    v_actor,
+    p_outbox_id,
+    jsonb_build_object('reason', p_reason, 'released_from', v_state)
+  );
+end;
+$$;
+
+revoke all     on function public.release_outbox_hold(uuid, text) from public;
+grant  execute on function public.release_outbox_hold(uuid, text) to   authenticated;
+revoke execute on function public.release_outbox_hold(uuid, text) from anon;

@@ -147,6 +147,13 @@ export interface TextFieldProps
   helper?: React.ReactNode;
   error?: React.ReactNode;
   fullWidth?: boolean;
+  /**
+   * Visually hide the label (kept as the accessible name via `sr-only`) for an in-row / in-cell
+   * control where a visible caption would be noise — the same escape hatch `SelectField` has always
+   * had. ⚑ I-4: its absence on the number field is why the budget ETC editor was hand-rolled, and the
+   * hand-rolled one shipped with no `aria-invalid`/`aria-describedby` at all.
+   */
+  hideLabel?: boolean;
   /** Render the value in SF Mono (codes/refs). */
   mono?: boolean;
 }
@@ -159,6 +166,7 @@ export const TextField: React.FC<TextFieldProps> = ({
   helper,
   error,
   fullWidth,
+  hideLabel,
   mono,
   className,
   type = 'text',
@@ -180,6 +188,7 @@ export const TextField: React.FC<TextFieldProps> = ({
       helper={helper}
       error={error}
       fullWidth={fullWidth}
+      hideLabel={hideLabel}
     >
       {(ctl) => (
         <div className={cn('relative', fullWidth && 'w-full')}>
@@ -237,6 +246,7 @@ export const NumberField: React.FC<NumberFieldProps> = ({
   helper,
   error,
   fullWidth,
+  hideLabel,
   prefix,
   className,
   ...rest
@@ -248,6 +258,7 @@ export const NumberField: React.FC<NumberFieldProps> = ({
     helper={helper}
     error={error}
     fullWidth={fullWidth}
+    hideLabel={hideLabel}
   >
     {(ctl) => (
       <div className="relative">

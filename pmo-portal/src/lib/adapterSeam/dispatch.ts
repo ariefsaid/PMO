@@ -3,7 +3,8 @@
  * Relative imports only so the edge-function can import this module directly.
  */
 import { AppError } from '../appError.ts';
-import { Adapter, AdapterCommand, AdapterError, CommandResult, PmoRecord } from './contract.ts';
+import { Adapter, AdapterCommand, AdapterError, CommandResult, PmoRecord, type SupersededDocumentMarker } from './contract.ts';
+export type { SupersededDocumentMarker } from './contract.ts';
 
 export interface ExternalRefMapping {
   pmoRecordId: string;
@@ -175,6 +176,14 @@ function nowMs(money: DispatchMoneyOutboxDeps): number {
   return money.now?.() ?? Date.now();
 }
 
+/** Propagate the marker across an error conversion — dropping it silently downgrades a "your control is
+ *  off" report back into "the push failed". */
+function carrySupersededMarker(from: unknown, to: AppError): AppError {
+  const id = (from as SupersededDocumentMarker | null | undefined)?.cancelledExternalRecordId;
+  if (id) (to as AppError & SupersededDocumentMarker).cancelledExternalRecordId = id;
+  return to;
+}
+
 /** Discriminates a retryable transport failure (never blindly re-POSTed, but the row is left
  *  reclaimable) from a non-retryable rejection (marked `failed` immediately). */
 function isRetryableTransport(error: unknown): boolean {
@@ -233,24 +242,35 @@ async function finalizeOutboxRow(
   // the read-model carries the ERP-derived fields (totals, status, outstanding, …). Fall back to the id
   // stub only for a row adopted without a full record (a later read-back/sweep reconciles its fields).
   const canonical: PmoRecord = row.canonical ?? { id: deps.command.record.id };
+  await convergeReadModel(canonical, deps, isReplay);
+  return deps.money.confirmOutbox(row.id, claimGeneration);
+}
+
+/**
+ * Write the read-model mirror for an outcome ERP has already committed.
+ *
+ * Luna BLOCK 3 — retry-idempotent finalization. On a REPLAY (a `committed` row whose previous attempt
+ * crashed somewhere in ref → mirror → confirm, or a `confirmed` row an operator is retrying), the
+ * mirror insert may already have landed. Its fixed-PK collision is then the CONVERGED state, not a
+ * failure: swallowing it lets the replay reach `confirm_outbox`, whereas rethrowing wedges a real ERP
+ * money document at `committed` forever (every retry dies on the same duplicate insert → manual
+ * intervention).
+ *
+ * Deliberately NOT tolerated on a FIRST finalize (`isReplay === false`): there, a pre-existing mirror
+ * for this PMO record id is a genuine anomaly (e.g. a reused caller-supplied record id) and must
+ * surface rather than be confirmed away. Anything that is not a duplicate-key collision always
+ * surfaces — a retry that cannot converge must never report success.
+ */
+async function convergeReadModel(canonical: PmoRecord, deps: DispatchMoneyWriteDeps, isReplay: boolean): Promise<void> {
   try {
     await deps.writeReadModel(canonical);
   } catch (error) {
-    // Luna BLOCK 3 — retry-idempotent finalization. On a REPLAY of a `committed` row (the previous
-    // attempt crashed somewhere in ref → mirror → confirm), the mirror insert may already have landed.
-    // Its fixed-PK collision is then the CONVERGED state, not a failure: swallowing it lets the replay
-    // reach `confirm_outbox`, whereas rethrowing wedges a real ERP money document at `committed`
-    // forever (every retry dies on the same duplicate insert → manual intervention).
-    // Deliberately NOT tolerated on a first finalize (`isReplay === false`): there, a pre-existing
-    // mirror for this PMO record id is a genuine anomaly (e.g. a reused caller-supplied record id) and
-    // must surface rather than be confirmed away.
     if (!isReplay || !isAlreadyMirrored(error)) throw error;
     console.warn(
       `[money-outbox] finalize replay ${deps.command.domain}/${deps.command.record.id}: mirror already present — ` +
         'converging to confirmed (the prior attempt mirrored, then crashed before confirm)',
     );
   }
-  return deps.money.confirmOutbox(row.id, claimGeneration);
 }
 
 /** The claim winner's critical section: probe-adopt-or-POST, then the guarded committed/finalize
@@ -293,9 +313,15 @@ async function claimAndCommit(
       return reconcileOutbox(fresh!, deps);
     }
     // Intentional ops signal (non-silent, per the C-1 ruling): a held money command needs a human.
+    // The human's route out is the Admin-only, audited `release_outbox_hold` RPC (migration 0137 §4):
+    // it moves the row `held` → `failed`, which is outside `external_command_outbox_one_inflight_per_
+    // record` and inside the reconcile/backstop queues, so the ordinary bounded recovery re-runs every
+    // gate from scratch. (Audit round 5, HIGH-2: a plain Retry cannot clear a hold — it derives the same
+    // key and lands right back here, and a NEW key for this record 409s on that index forever.)
     console.error(
       `[money-outbox] HELD ${command.domain}/${command.record.id} (idempotencyKey=${command.idempotencyKey}) — ` +
-        'post-window recovery found no ERP doc but the anchor is mutable; not auto-reissued, awaiting operator resolution',
+        'post-window recovery found no ERP doc but the anchor is mutable; not auto-reissued, awaiting operator ' +
+        'resolution (Admin: release_outbox_hold)',
     );
     // A DISTINCT non-retryable code (an AppError passes through toDispatchError unchanged) — never the
     // generic transient 'external-unreachable' (retrying will not help; an operator must resolve it).
@@ -404,8 +430,30 @@ const COMMITTING_WAIT_BUDGET_MS = 3_000;
 async function reconcileOutbox(row: OutboxRow, deps: DispatchMoneyWriteDeps, committingSince?: number): Promise<CommandResult> {
   const { command, money } = deps;
   switch (row.state) {
-    case 'confirmed':
-      return { externalRecordId: row.externalRecordId!, canonical: row.canonical ?? { id: command.record.id } };
+    case 'confirmed': {
+      // ⚑ NEW-4(b) (audit round 4, 2026-07-22) — CONVERGE the read-model to the confirmed outcome.
+      //
+      // A retry that lands here is by definition a REPLAY: a prior attempt already committed to ERP and
+      // confirmed the row. Returning the stored result alone left the operator's own recovery affordance
+      // inert and, worse, LYING. The user-visible reproduction: the budget push's gate rejects before the
+      // outbox (an unmapped category), the mirror is parked `failed`/`held`, the Admin maps the category
+      // and clicks "Retry the push" — which re-derives the SAME deterministic key (`budgetPushKey`), so
+      // it reads THIS confirmed row, reported success ("Budget pushed to ERPNext"), and never touched the
+      // mirror the banner is rendered from. The banner stayed forever, and the sweep backstop excludes
+      // `held`, so nothing else would ever clear it either.
+      //
+      // Convergence is the same act `case 'committed'` has always performed, at the same 23505 tolerance
+      // (this IS the replay path). A pre-existing mirror on a FIRST finalize keeps its meaning: still a
+      // genuine anomaly, still surfaced.
+      //
+      // ⛔ NOT via `finalizeOutboxRow`: `recordOutboxRef` is fenced on `state = 'committed'`, so a
+      // confirmed row returns 0, the caller reads that as F3 "superseded", re-reads and re-enters
+      // `reconcileOutbox` on the same confirmed row — an unbounded recursion. The ref + the confirm are
+      // already durably done; the mirror is the ONLY part that can still be behind.
+      const canonical: PmoRecord = row.canonical ?? { id: command.record.id };
+      await convergeReadModel(canonical, deps, true);
+      return { externalRecordId: row.externalRecordId!, canonical };
+    }
     case 'committed': {
       // A `committed` row means ERP already committed and a PRIOR attempt's finalization did not
       // complete — this is the REPLAY path, so an already-present mirror converges (Luna BLOCK 3).
@@ -455,7 +503,10 @@ async function reconcileOutbox(row: OutboxRow, deps: DispatchMoneyWriteDeps, com
     }
     case 'held':
       // C-1: a mutable-anchor money doc held for operator resolution (recovery-inconclusive). A retry
-      // must NOT re-drive it — surface the non-retryable held signal until an operator clears it.
+      // must NOT re-drive it — surface the non-retryable held signal until an operator clears it with
+      // the Admin-only, audited `release_outbox_hold` RPC (0137 §4, held → failed). That RPC is the ONLY
+      // way out: this branch makes a same-key retry inert, and 0134's one-in-flight index makes a
+      // NEW-key command for the same PMO record 409 (audit round 5, HIGH-2).
       throw new AppError('payment command held for operator resolution — not auto-reissued (mutable anchor)', 'command-held');
     case 'pending':
     case 'failed': {
@@ -527,7 +578,17 @@ function isOutboxInFlightConflict(error: unknown): boolean {
   return text.includes(OUTBOX_IN_FLIGHT_INDEX);
 }
 
-function toDispatchError(error: unknown): AppError {
+/** A structurally-present string `code`, or undefined. Mirrors `appError.ts`'s private `readCode`. */
+function readThrownCode(error: unknown): string | undefined {
+  const candidate = (error as { code?: unknown } | null | undefined)?.code;
+  return typeof candidate === 'string' ? candidate : undefined;
+}
+
+/** Exported (LOW-1, audit round 5) so the served `adapter-dispatch` fn's ADAPTER-SELECT exit classifies
+ *  a thrown value with the SAME rule as its dispatch exit — a hand-rolled `new AppError(err.message)`
+ *  there dropped the `.code` of a plain-`Error` subclass (`BudgetCategoryUnmappedError`, thrown from
+ *  `resolveBudgetRefs`'s pre-flight) and turned a precise 422 into a bare, code-less 400. */
+export function toDispatchError(error: unknown): AppError {
   if (isOutboxInFlightConflict(error)) {
     return new AppError(
       'another command for this record is already in flight — wait for it to settle (or resolve it) before dispatching again',
@@ -536,12 +597,26 @@ function toDispatchError(error: unknown): AppError {
   }
   if (error instanceof AppError) return error;
   if (error instanceof AdapterError) {
-    if (error.code === 'external-unreachable') {
+    // ⚑ HIGH-1 (audit round 5) — an ABANDONED-AMEND failure carries a PMO-authored message that states
+    // what the external system NOW HOLDS ("the superseded ERPNext Budget "X" is already CANCELLED and its
+    // replacement did not land … ERPNext is therefore enforcing NO budget for this grain right now").
+    // That sentence is the whole point of the finding: "external system unreachable — try again" does not
+    // tell an operator their overspend control is currently OFF. The generic text exists so a raw ERP
+    // body never reaches a client; this message is ours, so it is kept verbatim and the marker travels
+    // with it (`recordBudgetPushFailure` records the money statement off it).
+    const superseded = (error as AdapterError & SupersededDocumentMarker).cancelledExternalRecordId;
+    if (error.code === 'external-unreachable' && !superseded) {
       return new AppError('external system unreachable — try again', error.code);
     }
-    return new AppError(error.message, error.code);
+    return carrySupersededMarker(error, new AppError(error.message, error.code));
   }
-  if (error instanceof Error) return new AppError(error.message);
+  // ⚑ Preserve a structurally-present string `.code` — the SAME rule `appError.ts:toAppError` applies.
+  // Dropping it turned every non-AppError/AdapterError class that carries one (P3c's
+  // `BudgetCategoryUnmappedError` is a plain `Error` subclass with
+  // `code = 'budget-category-unmapped'`) into a code-less AppError, which then missed the edge fn's
+  // status mapping and became a bare 500 — an opaque, retryable-looking server error in place of a
+  // precise NON-RETRYABLE refusal an operator must act on (no amount of retrying creates a map row).
+  if (error instanceof Error) return new AppError(error.message, readThrownCode(error));
   return new AppError('An unexpected error occurred');
 }
 

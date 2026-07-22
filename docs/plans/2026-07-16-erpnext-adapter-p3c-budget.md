@@ -1,6 +1,12 @@
 # Plan: ERPNext adapter — PMO budget push + PMO projection (Issue P3c, ADR-0055 §6, ADR-0059 Posture B)
 
-> **⚑ BUILD STATUS:** **NOT STARTED — BLOCKED on sign-off.** **REWRITTEN 2026-07-16** — the owner ruling
+> **⚑ BUILD STATUS: COMPLETE — shipped in PR #360** (branch `feat/erpnext-adapter-p3`, head `fabde7c5`),
+> including the owner's OQ-BUD-3 ruling (fail closed on multi-FY; the phasing dimension is its own next
+> issue) and OQ-BUD-3b (the fiscal year comes from ERPNext's own `Fiscal Year` doctype, never a
+> synthesized calendar year). ⚑ This header read "NOT STARTED" long after the slices were built —
+> verify against the filesystem and git, never a checkbox. Original context below.
+>
+> **(historical)** **NOT STARTED — BLOCKED on sign-off.** **REWRITTEN 2026-07-16** — the owner ruling
 > **reversed the direction**; the prior inbound-mirror plan is **withdrawn in full**. Do not start slice 1
 > until: (a) the **budget-write spike** freezes OQ-BUD-1 (its output lands at
 > `docs/spikes/2026-07-16-erpnext-budget-fields.md`); (b) the owner rules **OQ-BUD-2** (the activation state

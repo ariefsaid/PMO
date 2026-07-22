@@ -41,6 +41,8 @@ vi.mock('@/src/hooks/useTimesheetApproval', () => ({
     reopen: { mutate: vi.fn(), isPending: false },
   }),
   useTimesheetsAwaitingApproval: () => awaitingState,
+  // I-16/I-17: the owner's own ERP push state. No mirror row here (an unflipped org).
+  useOwnTimesheetPushState: () => ({ data: null, isPending: false, isError: false }),
 }));
 vi.mock('@/src/hooks/useTimesheetEntries', () => ({
   useTimesheetEntryMutations: () => ({

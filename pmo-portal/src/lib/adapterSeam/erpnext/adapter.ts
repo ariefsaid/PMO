@@ -1,6 +1,6 @@
 /**
  * The `erpnext` tier engine (FR-ENA-010, task 2.12): a `tier:'erpnext'`, `capabilityMap:{companies,
- * procurement,revenue}` implementation of the P0 `Adapter` contract. `commit()` dispatches by
+ * procurement,revenue,timesheets}` implementation of the P0 `Adapter` contract. `commit()` dispatches by
  * `record.erp_doc_kind` through `DOCTYPE_REGISTRY` — a `submittable` kind gets the R9 two-step
  * create->submit->re-fetch (FR-ENA-044, separating the create-commit idempotency window from the
  * submit window and always trusting the RE-FETCHED `status`, never the stale POST/PUT response body);
@@ -12,7 +12,7 @@
  * factories. An un-wired kind fails loud (`commit-rejected`), mirroring the `notWired` read-model
  * writer pattern (task 1.6) — never a silent no-op that could swallow a real write.
  */
-import type { Adapter, AdapterCommand, ChangesSinceWatermark, CommandResult, PmoDomain, PmoRecord } from '../contract.ts';
+import type { Adapter, AdapterCommand, ChangesSinceWatermark, CommandResult, PmoDomain, PmoRecord, SupersededDocumentMarker } from '../contract.ts';
 import { AdapterError } from '../contract.ts';
 import { cancelDoc, createDoc, ErpError, getDoc, submitDoc, updateDoc, withCommitDeadline, type ErpClientDeps } from './client.ts';
 import { DOCTYPE_REGISTRY, type ErpCtx, type ErpDocKind } from './doctypeRegistry.ts';
@@ -22,6 +22,14 @@ export const ERPNEXT_TIER = 'erpnext';
 export const ERPNEXT_COMPANIES_DOMAIN: PmoDomain = 'companies';
 export const ERPNEXT_PROCUREMENT_DOMAIN: PmoDomain = 'procurement';
 export const ERPNEXT_REVENUE_DOMAIN: PmoDomain = 'revenue';
+/** P3b (ADR-0059 Posture B): PMO is SoT for timesheet entry + approval; ERP receives the APPROVED
+ *  result as a costing document. The domain is listed here so the shipped router/dispatch machinery
+ *  routes it generically — nothing about the engine is timesheet-specific. */
+export const ERPNEXT_TIMESHEETS_DOMAIN: PmoDomain = 'timesheets';
+/** P3c (ADR-0055 §6, likewise Posture B): PMO authors the budget and owns the figure; ERP receives the
+ *  ACTIVE version so the GL reports against it and its native overspend controls enforce it. Listed here
+ *  so the shipped router/dispatch machinery routes it generically. */
+export const ERPNEXT_BUDGET_DOMAIN: PmoDomain = 'budget';
 
 export interface DoctypeBodyFns {
   toBody: (record: PmoRecord, ctx: ErpCtx) => unknown;
@@ -39,6 +47,12 @@ export interface ErpAdapterDeps {
    *  the `after-submit-before-mirror` fault seam, wired by the edge fn, task 2.14). Optional — a
    *  production caller that never arms the fault gate can omit it (a true no-op). */
   afterSubmitHook?: () => Promise<void>;
+  /** ⚑ HIGH-1 — fires immediately after an amend's CANCEL succeeds and BEFORE the replacement create
+   *  (the `after-cancel-before-create` fault seam, FR-ENA-003). This is the window in which the
+   *  predecessor is a tombstone and its replacement does not exist yet; for an `upsertOnGrain` kind that
+   *  means ERPNext is enforcing nothing, so the recovery from it has to be provable at the real served
+   *  boundary. Optional — a production caller that never arms the fault gate omits it (a true no-op). */
+  afterCancelHook?: () => Promise<void>;
 }
 
 function requireKind(record: PmoRecord): ErpDocKind {
@@ -79,6 +93,28 @@ function recordWithResolvedItemsFallback(record: PmoRecord, ctx: ErpCtx): PmoRec
 async function commitCreate(command: AdapterCommand, deps: ErpAdapterDeps): Promise<CommandResult> {
   const kind = requireKind(command.record);
   const entry = DOCTYPE_REGISTRY[kind];
+  // ⚑ FR-BUD-121 / AC-BUD-031 — THE UPSERT. For a kind whose natural grain ERP itself enforces as
+  // unique (`upsertOnGrain`, today ERP `Budget`), a create against an ALREADY-OCCUPIED grain must edit
+  // the document that is there, not mint a second one: ERPNext rejects the duplicate atomically
+  // (budget-write spike §8), so the plain create fails and ERP goes on enforcing the SUPERSEDED figure
+  // while PMO shows the revision. The target is resolved by the dispatch factory (`ctx.refs.self`) —
+  // the adapter never guesses a PMO-id-to-ERP-name mapping — and with none resolved this is a plain
+  // create, byte-for-byte. `commitEditResolved` re-reads the doc's CURRENT docstatus and routes
+  // through `routeEdit`, so a submitted target takes the spike-frozen cancel + create-with-
+  // `amended_from` revision path (§6: money fields are locked post-submit) and the superseded document
+  // is left as a cancelled tombstone, never a live rival.
+  if (entry.upsertOnGrain && deps.ctx.refs.self) {
+    // `submitAdoptedDraft`: IF the resolved target is ever a DRAFT, a create for this kind always ends
+    // SUBMITTED, so the upsert must too — leaving it a draft would record the push as landed while
+    // ERPNext still enforces nothing, the exact class of silent-untruth this program keeps removing. So
+    // the flag is keyed on the same property that makes a create submit.
+    // ⚑ Round 7: today this cannot trigger for `budget`, the only `upsertOnGrain` kind — the refs
+    // resolution now hands back ONLY a live (docstatus 1) document, so `commitEditResolved` always routes
+    // to amend. Round 6's orphan-draft adoption, which was the one caller that produced a draft target,
+    // was deleted (see `dispatchFactory.resolveBudgetRefs` for the full rationale). The flag is kept as
+    // the correctness invariant a future recovery must satisfy, not as a live path.
+    return commitEditResolved(command, deps, deps.ctx.refs.self, entry.submittable && entry.submitOnCreate !== false);
+  }
   const bodyFns = requireBodyFns(deps, kind);
   const record = recordWithResolvedItemsFallback(command.record, deps.ctx);
   const body = stampAnchor(bodyFns.toBody(record, deps.ctx), command.idempotencyKey, entry.anchorField);
@@ -172,6 +208,31 @@ async function commitAmend(command: AdapterCommand, deps: ErpAdapterDeps, oldExt
   const bodyFns = requireBodyFns(deps, kind);
   // 1. cancel the old doc (an amend always cancels-then-recreates; the old name becomes a tombstone).
   await cancelDoc(deps.client, entry.doctype, oldExternalRecordId);
+  // ⚑ HIGH-1 (audit round 5) — FROM HERE ON THE PREDECESSOR IS ALREADY A TOMBSTONE. The cancel and the
+  // create cannot be made atomic (Frappe has no cross-document transaction, and creating first is not
+  // available either: the duplicate guard refuses a create while the old doc is still live). So the ONE
+  // thing this window owes the operator is an HONEST STATEMENT of what ERP now holds — for an
+  // `upsertOnGrain` kind (ERP `Budget`) a failure here means the client's overspend control is currently
+  // OFF, which "budget push failed" does not say. The classified code is preserved verbatim so a
+  // transient failure stays RETRYABLE and the outbox's ordinary recovery re-drives it (a fresh grain read
+  // then finds a tombstone, which is inert to the duplicate guard, and plainly re-creates).
+  return await amendFrom(command, deps, oldExternalRecordId, entry, bodyFns).catch((error: unknown) => {
+    throw describeAbandonedAmend(error, oldExternalRecordId, entry);
+  });
+}
+
+/** The post-cancel half of `commitAmend` (create → submit → re-fetch), split out ONLY so the window
+ *  after the cancel has a single catch boundary — no behavior of its own. */
+async function amendFrom(
+  command: AdapterCommand,
+  deps: ErpAdapterDeps,
+  oldExternalRecordId: string,
+  entry: (typeof DOCTYPE_REGISTRY)[ErpDocKind],
+  bodyFns: DoctypeBodyFns,
+): Promise<CommandResult> {
+  // The FR-ENA-003 seam for the window this function IS — deliberately INSIDE the catch boundary
+  // `commitAmend` wraps around it, so an injected failure here is described exactly like a real one.
+  await deps.afterCancelHook?.();
   // 2. create the new doc with amended_from + the anchor stamp (the recovery-probe key, ADR-0058 §3).
   const record = recordWithResolvedItemsFallback(command.record, deps.ctx);
   const newBody = stampAnchor(
@@ -201,6 +262,33 @@ async function commitAmend(command: AdapterCommand, deps: ErpAdapterDeps, oldExt
 }
 
 /**
+ * ⚑ HIGH-1 — an amend that lost its replacement AFTER the predecessor was already cancelled.
+ *
+ * Re-raises the SAME error object with its classification, retryability and transport status fully
+ * intact (a transient stays retryable so the outbox recovery owns it; a rejection stays terminal), but
+ * with the message stating what ERPNext now HOLDS. For a kind whose grain ERP itself enforces
+ * (`upsertOnGrain` — `Budget`) that statement is the money fact: the control this push exists to install
+ * is currently ABSENT, which "budget push failed" does not say. Enriching in place rather than wrapping
+ * is deliberate — a wrapper would drop `ErpError`'s `status`/`retryable` and its `instanceof` identity,
+ * which the transport and the outbox both read. `cancelledExternalRecordId` is attached so a programmatic
+ * consumer can name the tombstone without parsing prose. `redactErrorForOutbox` persists the message to
+ * the outbox `last_error`, which is what the push banner renders.
+ */
+function describeAbandonedAmend(error: unknown, oldExternalRecordId: string, entry: (typeof DOCTYPE_REGISTRY)[ErpDocKind]): unknown {
+  if (!(error instanceof Error)) return error;
+  const marked = error as Error & SupersededDocumentMarker;
+  if (marked.cancelledExternalRecordId) return marked; // already described — never garble the message
+  marked.cancelledExternalRecordId = oldExternalRecordId;
+  const enforcement = entry.upsertOnGrain
+    ? ` ⛑ ERPNext is therefore enforcing NO ${entry.doctype.toLowerCase()} for this grain right now.`
+    : '';
+  marked.message =
+    `the superseded ERPNext ${entry.doctype} "${oldExternalRecordId}" is already CANCELLED and its ` +
+    `replacement did not land: ${error.message}.${enforcement}`;
+  return marked;
+}
+
+/**
  * `operation:'update'` on a SUBMITTABLE kind (Slice-6 task 6.3 update-draft, FR-ENA-050): composes
  * `transitionPolicy.routeEdit` — GET the current docstatus, then route: a DRAFT (docstatus 0) takes a
  * direct field PUT (the safe update path); a SUBMITTED doc (docstatus 1) routes to amend (cancel +
@@ -210,19 +298,48 @@ async function commitAmend(command: AdapterCommand, deps: ErpAdapterDeps, oldExt
  * it — `toBody` never emits the anchor field for PI/PE).
  */
 async function commitUpdateSubmittable(command: AdapterCommand, deps: ErpAdapterDeps): Promise<CommandResult> {
-  const kind = requireKind(command.record);
-  const entry = DOCTYPE_REGISTRY[kind];
-  const bodyFns = requireBodyFns(deps, kind);
   const externalRecordId = command.record.externalRecordId;
   if (typeof externalRecordId !== 'string' || externalRecordId.length === 0) {
     throw new AdapterError('commit-rejected', 'update requires record.externalRecordId (nothing to edit)');
   }
+  return commitEditResolved(command, deps, externalRecordId);
+}
+
+/**
+ * Edit an ALREADY-EXISTING submittable ERP document whose name is already resolved — the shared body of
+ * `commitUpdateSubmittable` (target = `record.externalRecordId`) and of `commitCreate`'s
+ * `upsertOnGrain` branch (target = `ctx.refs.self`, FR-BUD-121 / AC-BUD-031). ONE routing rule for
+ * both, so an upsert can never diverge from an update.
+ */
+async function commitEditResolved(
+  command: AdapterCommand,
+  deps: ErpAdapterDeps,
+  externalRecordId: string,
+  /**
+   * ⚑ MED-1 — submit the target after the field PUT when it turns out to be a DRAFT. Passed ONLY by
+   * `commitCreate`'s `upsertOnGrain` branch, where the draft is PMO's own adopted orphan and a create
+   * would have ended submitted anyway. Deliberately NOT the default: an ordinary `update` of a draft
+   * (a Desk-authored PI/PE) must keep its current behaviour and never gain a submit as a side effect.
+   */
+  submitAdoptedDraft = false,
+): Promise<CommandResult> {
+  const kind = requireKind(command.record);
+  const entry = DOCTYPE_REGISTRY[kind];
+  const bodyFns = requireBodyFns(deps, kind);
   const current = await getDoc(deps.client, entry.doctype, externalRecordId);
   const docstatus = (current as { docstatus?: number | null }).docstatus ?? 0;
   const route = routeEdit(docstatus); // 'update' | 'amend' (routeEdit throws on docstatus 2)
   if (route === 'amend') return commitAmend(command, deps, externalRecordId);
   const body = bodyFns.toBody(command.record, deps.ctx);
   const updated = (await updateDoc(deps.client, entry.doctype, externalRecordId, body)) as { name: string };
+  if (submitAdoptedDraft) {
+    // R9 two-step, exactly as `commitCreate`: submit, then RE-FETCH (the PUT response's derived fields
+    // are stale — the re-fetch is the only trustworthy read).
+    await submitDoc(deps.client, entry.doctype, externalRecordId);
+    await deps.afterSubmitHook?.();
+    const refetched = await getDoc(deps.client, entry.doctype, externalRecordId);
+    return { externalRecordId, canonical: { ...bodyFns.fromDoc(refetched), id: command.record.id } };
+  }
   const canonical: PmoRecord = { ...bodyFns.fromDoc(updated), id: command.record.id };
   return { externalRecordId, canonical };
 }
@@ -300,7 +417,13 @@ function findKindByDoctype(doctype: string): ErpDocKind | undefined {
 export function createErpAdapter(deps: ErpAdapterDeps): Adapter {
   return {
     tier: ERPNEXT_TIER,
-    capabilityMap: new Set<PmoDomain>([ERPNEXT_COMPANIES_DOMAIN, ERPNEXT_PROCUREMENT_DOMAIN, ERPNEXT_REVENUE_DOMAIN]),
+    capabilityMap: new Set<PmoDomain>([
+      ERPNEXT_COMPANIES_DOMAIN,
+      ERPNEXT_PROCUREMENT_DOMAIN,
+      ERPNEXT_REVENUE_DOMAIN,
+      ERPNEXT_TIMESHEETS_DOMAIN,
+      ERPNEXT_BUDGET_DOMAIN,
+    ]),
     commit: (command: AdapterCommand) => commitErpCommand(command, deps),
     // The modified-poll sweep is the change-feed convergence authority (design decision #9) — its
     // real implementation lands in slice 8 (`applyEngine.ts` reuse). A loud throw here, never a

@@ -30,8 +30,26 @@ Owner rulings: `decisions.md` **OD-SAR-GATES · OD-SAR-PMO-IS-THE-UI · OD-SAR-D
   adopt doesn't NULL them), BLOCK 8 (wire the dead `reconcileSiCancelAutoUnlink`), SF9 (project-gate-
   without-ERP-project), SF10 (partial `process_gates` bypass defaults). Then re-run the 2-person e2e +
   **re-Luna `--thinking max` until SHIP** → hold on branch.
-- **Next after P3a SHIPs:** **P3b** timesheets push-Approved-only, **P3c** budget ERP-mirror + PMO
-  projection (both scoped, specs Director-drafted at PR time). **P4** Odoo (ADR-0055 §8).
+- **✅ P3 COMPLETE (2026-07-23).** P3a shipped in #338; **P3b (timesheets) + P3c (budget) are in
+  [PR #360](https://github.com/ariefsaid/PMO/pull/360) → `dev`** (branch `feat/erpnext-adapter-p3`,
+  head `fabde7c5`, 35 commits). Gates re-run by the Director on the PR head: verify 746 files / 6277
+  tests, pgTAP 211/2103, deno 447, **e2e serial 54/54 vs a live ERPNext bench**, visual gates 78/78.
+  **11 adversarial audit rounds — 10 NO SHIP, 1 SHIP; ~54 defects, nine of them in fixes made during
+  the review.** Full record + the eleven ways a test failed to fail:
+  `docs/reviews/2026-07-23-p3bc-audit-program.md` (read it before the next money slice).
+  Owner rulings folded in: OQ-BUD-3 (fail closed on multi-FY), OQ-BUD-3b (FY from ERPNext's own
+  `Fiscal Year` doctype), OQ-TSP-5 (per-org timezone first-class + mismatch BLOCKS the flip),
+  OQ-TSP-6 (ship with the correction gap).
+  **⚑ Next issues this spawned, in priority order:** (1) `Approved → Draft` re-open + ERP cancel
+  (OQ-TSP-6 — hit far more often than the budget deferral; mistyped timesheets are routine);
+  (2) the budget fiscal-year/phasing dimension (OQ-BUD-3(c) — 8 of 54 seeded projects span years);
+  (3) **FR-BUD-152 tension needs an owner ruling** — a gate rejection before FY resolution suppresses
+  PMO's OWN budget figure on a year with real GL actuals (PMO-SoT data hidden by external push health).
+  **Carried risks, deliberate:** `service_role` retains direct DML on the snapshot tables (the RPC is
+  the only *production* writer — convention, not structure); the e2e week separator is a random base,
+  safe for `--workers=1` but **not** a parallel CI matrix without deriving it from worker index.
+- **Next: P4** Odoo (ADR-0055 §8) — **demand-gated, not scheduled**: it starts when a real Odoo client
+  signs. There is no P5; P4 is the last defined phase.
 - **Substrate (this program):** build → nemotron-3-ultra (NIM, reliable) or zai/glm-5.2 window; FIXES →
   glm-5.2 (owner directive); **money/security review → Luna `--thinking max`** (owner 2026-07-15,
   `docs/pi-delegation.md`). ⚑ ONE op on the shared worktree at a time (verify-while-agent-edits = a

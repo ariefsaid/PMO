@@ -8,53 +8,86 @@
 // Verify: cd supabase/functions/erpnext-sweep && deno test ../_shared/erpnextFeedDeps.test.ts
 
 import { createErpFeedDeps } from './erpnextFeedDeps.ts';
+import { terminalApplyReason } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/feedErrorPolicy.ts';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 function assert(cond: boolean, msg: string): void {
   if (!cond) throw new Error(msg);
 }
 
-interface Call {
-  table: string;
-  op: 'update' | 'select';
-  patch?: Record<string, unknown>;
+interface QueryShape {
   eq: Array<[string, unknown]>;
+  ilike?: [string, string];
+  in?: [string, unknown[]];
+  is?: [string, unknown];
+  contains?: [string, Record<string, unknown>];
 }
 
-/** A minimal chainable fake matching exactly the `.from(table).update(patch).eq(a,b).eq(c,d)` /
- *  `.from(table).select(cols).eq(a,b).eq(c,d)` shapes `erpnextFeedDeps.ts` issues — both directly
- *  `await`-ed (no `.maybeSingle()`), so each builder is itself a thenable. */
-function fakeServiceClient(selectResults: Record<string, Array<Record<string, unknown>>>) {
+interface Call extends QueryShape {
+  table: string;
+  op: 'update' | 'select' | 'insert';
+  patch?: Record<string, unknown>;
+}
+
+/** Either the ORIGINAL plain `{table: rows}` fixture map (every existing test in this file), or a
+ *  function for finer per-query control (needed once two different SELECTs hit the same table with
+ *  different filters — e.g. the Employee link's work-email probe vs the action-required recipient
+ *  lookup both read `profiles`). */
+type SelectResults = Record<string, Array<Record<string, unknown>>>;
+type SelectFn = (table: string, query: QueryShape) => Array<Record<string, unknown>>;
+
+/** A chainable fake matching exactly the `.from(table).update(patch).eq(a,b)…` /
+ *  `.from(table).select(cols).eq(a,b)…[.ilike()/.in()][.maybeSingle()]` /
+ *  `.from(table).insert(payload)` shapes `erpnextFeedDeps.ts` issues. A bare `await` on the builder
+ *  (no `.maybeSingle()`) resolves the array form; `.maybeSingle()` resolves the single-row form. */
+function fakeServiceClient(selectResults: SelectResults | SelectFn) {
   const calls: Call[] = [];
+  const resolveRows: SelectFn = typeof selectResults === 'function'
+    ? selectResults
+    : (table) => selectResults[table] ?? [];
 
-  function makeUpdateBuilder(table: string, patch: Record<string, unknown>) {
+  function makeBuilder(table: string, op: Call['op'], patch?: Record<string, unknown>) {
     const eq: Array<[string, unknown]> = [];
+    let ilikeVal: [string, string] | undefined;
+    let inVal: [string, unknown[]] | undefined;
+    let isVal: [string, unknown] | undefined;
+    let containsVal: [string, Record<string, unknown>] | undefined;
+    const shape = (): QueryShape => ({ eq, ilike: ilikeVal, in: inVal, is: isVal, contains: containsVal });
     const builder = {
       eq(col: string, val: unknown) {
         eq.push([col, val]);
         return builder;
       },
-      then(resolve: (v: { error: null }) => void) {
-        calls.push({ table, op: 'update', patch, eq });
-        resolve({ error: null });
-      },
-    };
-    return builder;
-  }
-
-  function makeSelectBuilder(table: string) {
-    const eq: Array<[string, unknown]> = [];
-    const builder = {
-      eq(col: string, val: unknown) {
-        eq.push([col, val]);
+      ilike(col: string, val: string) {
+        ilikeVal = [col, val];
         return builder;
+      },
+      in(col: string, vals: unknown[]) {
+        inVal = [col, vals];
+        return builder;
+      },
+      is(col: string, val: unknown) {
+        isVal = [col, val];
+        return builder;
+      },
+      contains(col: string, val: Record<string, unknown>) {
+        containsVal = [col, val];
+        return builder;
+      },
+      limit(_n: number) {
+        calls.push({ table, op, patch, ...shape() });
+        const rows = op === 'select' ? resolveRows(table, shape()) : [];
+        return Promise.resolve({ data: rows, error: null });
       },
       maybeSingle() {
-        return Promise.resolve({ data: null, error: null });
+        calls.push({ table, op, patch, ...shape() });
+        const rows = op === 'select' ? resolveRows(table, shape()) : [];
+        return Promise.resolve({ data: rows[0] ?? null, error: null });
       },
       then(resolve: (v: { data: Array<Record<string, unknown>>; error: null }) => void) {
-        calls.push({ table, op: 'select', eq });
-        resolve({ data: selectResults[table] ?? [], error: null });
+        calls.push({ table, op, patch, ...shape() });
+        const rows = op === 'select' ? resolveRows(table, shape()) : [];
+        resolve({ data: rows, error: null });
       },
     };
     return builder;
@@ -63,8 +96,12 @@ function fakeServiceClient(selectResults: Record<string, Array<Record<string, un
   const client = {
     from(table: string) {
       return {
-        update: (patch: Record<string, unknown>) => makeUpdateBuilder(table, patch),
-        select: (_cols: string) => makeSelectBuilder(table),
+        update: (patch: Record<string, unknown>) => makeBuilder(table, 'update', patch),
+        select: (_cols: string) => makeBuilder(table, 'select'),
+        insert: (payload: Record<string, unknown> | Array<Record<string, unknown>>) => {
+          calls.push({ table, op: 'insert', patch: Array.isArray(payload) ? { rows: payload } : payload, eq: [] });
+          return Promise.resolve({ data: null, error: null });
+        },
       };
     },
   } as unknown as SupabaseClient;
@@ -118,3 +155,622 @@ Deno.test('Luna BLOCK A4: a non-SI kind (e.g. purchase-invoice) tombstones its o
   const piUpdate = calls.find((c) => c.table === 'procurement_invoices' && c.op === 'update');
   assert(!!piUpdate, 'expected the PI mirror row itself to be tombstoned as before');
 });
+
+// ── P3b Slice 3 — the Employee adopt (AC-TSP-090/091/092, task 3.5/3.6) ───────────────────────────
+
+Deno.test('AC-TSP-090 an inbound Employee with no mapping mints ONE erp_employees row with the FULL canonical + a non-null erp_modified, link_state unlinked (never auto-confirmed)', async () => {
+  const { client, calls } = fakeServiceClient({ profiles: [{ id: 'profile-1' }] }); // unique work-email match
+  const deps = createErpFeedDeps(client, 'org-1', 'employee');
+  await deps.mintMirror(
+    {
+      id: 'HR-EMP-00001',
+      employee_number: 'HR-EMP-00001',
+      employee_name: 'Spike Employee',
+      work_email: 'spike@example.com',
+      erp_user_id: 'Administrator',
+      erp_status: 'Active',
+      erp_docstatus: 0,
+    },
+    Date.parse('2026-07-20T09:00:00.000Z'),
+  );
+
+  const insert = calls.find((c) => c.table === 'erp_employees' && c.op === 'insert');
+  assert(!!insert, 'expected ONE erp_employees insert');
+  assert(insert!.patch!.employee_number === 'HR-EMP-00001', 'expected the FULL canonical employee_number mirrored');
+  assert(insert!.patch!.employee_name === 'Spike Employee', 'expected employee_name mirrored');
+  assert(insert!.patch!.work_email === 'spike@example.com', 'expected work_email mirrored');
+  assert(insert!.patch!.erp_user_id === 'Administrator', 'expected erp_user_id mirrored');
+  assert(insert!.patch!.erp_status === 'Active', 'expected erp_status mirrored');
+  assert(insert!.patch!.link_state === 'unlinked', 'AC-TSP-092: link_state must default unlinked at mint — NEVER auto-confirmed');
+  assert(typeof insert!.patch!.erp_modified === 'string' && insert!.patch!.erp_modified !== '', 'the 0103 lesson: erp_modified must be a real stamp, never absent/null');
+});
+
+Deno.test('AC-TSP-090 the Employee adopt NEVER writes a `profiles` row (FR-TSP-093: an ERP Employee never becomes a PMO identity)', async () => {
+  const { client, calls } = fakeServiceClient({ profiles: [{ id: 'profile-1' }] });
+  const deps = createErpFeedDeps(client, 'org-1', 'employee');
+  await deps.mintMirror(
+    { id: 'HR-EMP-00002', employee_number: 'HR-EMP-00002', work_email: 'x@example.com' },
+    Date.parse('2026-07-20T09:00:00.000Z'),
+  );
+  const profilesWrite = calls.find((c) => c.table === 'profiles' && (c.op === 'insert' || c.op === 'update'));
+  assert(!profilesWrite, 'expected NO insert/update to profiles — profile_id LINKS an existing user, never creates one');
+});
+
+Deno.test('AC-TSP-091/092 OQ-TSP-10(C): a UNIQUE work-email match PROPOSES the link (link_state=proposed), never confirms it', async () => {
+  // The fixture must actually CARRY the work email — the match is now decided by exact equality in
+  // code, not by the DB pattern, so a fixture without it no longer models a 'unique work-email match'.
+  const { client, calls } = fakeServiceClient({ profiles: [{ id: 'profile-42', email: 'unique@example.com' }] });
+  const deps = createErpFeedDeps(client, 'org-1', 'employee');
+  await deps.mintMirror(
+    { id: 'HR-EMP-00003', employee_number: 'HR-EMP-00003', work_email: 'unique@example.com' },
+    Date.parse('2026-07-20T09:00:00.000Z'),
+  );
+  const linkUpdate = calls.find((c) => c.table === 'erp_employees' && c.op === 'update');
+  assert(!!linkUpdate, 'expected an erp_employees UPDATE proposing the link');
+  assert(linkUpdate!.patch!.link_state === 'proposed', 'expected link_state=proposed, never confirmed');
+  assert(linkUpdate!.patch!.profile_id === 'profile-42', 'expected profile_id set to the matched profile');
+  assert(linkUpdate!.patch!.link_proposed_reason === 'work-email-exact-match', 'expected the auditable proposal reason');
+  assert(
+    linkUpdate!.eq.some(([col, val]) => col === 'link_state' && val === 'unlinked'),
+    'the proposal update must be scoped to link_state=unlinked — never re-propose over an existing proposed/confirmed/rejected row',
+  );
+  const notif = calls.find((c) => c.table === 'notifications' && c.op === 'insert');
+  assert(!notif, 'a clean unique match needs no action-required notification');
+});
+
+Deno.test('AC-TSP-092 ZERO work-email matches: link stays unlinked, NO erp_employees link update, ONE action-required notification', async () => {
+  // The ilike work-email probe finds zero matches; the (separate) eq+in recipient lookup for the
+  // action-required notification finds one Admin — both hit `profiles` with a DIFFERENT filter shape.
+  const { client, calls } = fakeServiceClient((table, query) =>
+    table === 'profiles' && !query.ilike ? [{ id: 'admin-1' }] : []);
+  const deps = createErpFeedDeps(client, 'org-1', 'employee');
+  await deps.mintMirror(
+    { id: 'HR-EMP-00004', employee_number: 'HR-EMP-00004', work_email: 'nomatch@example.com' },
+    Date.parse('2026-07-20T09:00:00.000Z'),
+  );
+  const linkUpdate = calls.find((c) => c.table === 'erp_employees' && c.op === 'update');
+  assert(!linkUpdate, 'zero matches must NEVER auto-resolve — no erp_employees update at all');
+  const notifInsert = calls.find((c) => c.table === 'notifications' && c.op === 'insert');
+  assert(!!notifInsert, 'expected ONE action-required notification for the zero-match case');
+  const rows = (notifInsert!.patch as { rows: Array<{ metadata: { action_required: string } }> }).rows;
+  assert(rows.every((r) => r.metadata.action_required === 'employee-link-no-match'), 'expected the no-match reason code');
+});
+
+Deno.test('AC-TSP-092 MULTIPLE work-email matches (ambiguous): link stays unlinked, NO erp_employees link update, action-required surfaced', async () => {
+  const { client, calls } = fakeServiceClient({ profiles: [{ id: 'p1', email: 'shared@example.com' }, { id: 'p2', email: 'shared@example.com' }] });
+  const deps = createErpFeedDeps(client, 'org-1', 'employee');
+  await deps.mintMirror(
+    { id: 'HR-EMP-00005', employee_number: 'HR-EMP-00005', work_email: 'shared@example.com' },
+    Date.parse('2026-07-20T09:00:00.000Z'),
+  );
+  const linkUpdate = calls.find((c) => c.table === 'erp_employees' && c.op === 'update');
+  assert(!linkUpdate, 'an ambiguous match must NEVER auto-resolve — no erp_employees update at all');
+  const notifInsert = calls.find((c) => c.table === 'notifications' && c.op === 'insert');
+  const rows = (notifInsert!.patch as { rows: Array<{ metadata: { action_required: string } }> }).rows;
+  assert(rows.every((r) => r.metadata.action_required === 'employee-link-ambiguous'), 'expected the ambiguous reason code');
+});
+
+Deno.test('AC-TSP-092 an Employee adopted with NO work_email skips the match probe entirely and surfaces action-required', async () => {
+  const { client, calls } = fakeServiceClient({ profiles: [{ id: 'p1' }] });
+  const deps = createErpFeedDeps(client, 'org-1', 'employee');
+  await deps.mintMirror(
+    { id: 'HR-EMP-00006', employee_number: 'HR-EMP-00006', work_email: null },
+    Date.parse('2026-07-20T09:00:00.000Z'),
+  );
+  const profilesSelect = calls.find((c) => c.table === 'profiles' && c.op === 'select' && c.ilike);
+  assert(!profilesSelect, 'no work_email means no email match probe should even run');
+  const notifInsert = calls.find((c) => c.table === 'notifications' && c.op === 'insert');
+  const rows = (notifInsert!.patch as { rows: Array<{ metadata: { action_required: string } }> }).rows;
+  assert(rows.every((r) => r.metadata.action_required === 'employee-link-no-email'), 'expected the no-email reason code');
+});
+
+Deno.test('AC-TSP-094 updateMirror on an Employee mirrors erp_status flipping to Left and leaves link_state/profile_id untouched', async () => {
+  const { client, calls } = fakeServiceClient((table) => (table === 'erp_employees' ? [{ work_email: 'x@example.com', link_state: 'confirmed' }] : []));
+  const deps = createErpFeedDeps(client, 'org-1', 'employee');
+  await deps.updateMirror(
+    'pmo-emp-1',
+    { id: 'HR-EMP-00001', erp_status: 'Left', work_email: 'x@example.com' },
+    Date.parse('2026-07-20T09:00:00.000Z'),
+  );
+  const update = calls.find((c) => c.table === 'erp_employees' && c.op === 'update');
+  assert(!!update, 'expected an erp_employees update');
+  assert(update!.patch!.erp_status === 'Left', 'expected erp_status=Left mirrored');
+  assert(!('link_state' in update!.patch!), 'FR-TSP-092.4: updateMirror must NEVER touch link_state');
+  assert(!('profile_id' in update!.patch!), 'FR-TSP-092.4: updateMirror must NEVER touch profile_id');
+});
+
+Deno.test("AC-TSP-092.4 updateMirror on a CONFIRMED Employee whose work_email changed surfaces employee-link-email-changed WITHOUT re-pointing the link", async () => {
+  const { client, calls } = fakeServiceClient((table) => {
+    if (table === 'erp_employees') return [{ work_email: 'old@example.com', link_state: 'confirmed' }];
+    if (table === 'profiles') return [{ id: 'admin-1' }]; // the action-required recipient lookup
+    return [];
+  });
+  const deps = createErpFeedDeps(client, 'org-1', 'employee');
+  await deps.updateMirror('pmo-emp-1', { id: 'HR-EMP-00001', work_email: 'new@example.com' }, Date.parse('2026-07-20T09:00:00.000Z'));
+
+  const notifInsert = calls.find((c) => c.table === 'notifications' && c.op === 'insert');
+  assert(!!notifInsert, 'expected an action-required notification for the confirmed-link email change');
+  const rows = (notifInsert!.patch as { rows: Array<{ metadata: { action_required: string } }> }).rows;
+  assert(rows.every((r) => r.metadata.action_required === 'employee-link-email-changed'), 'expected the email-changed reason code');
+
+  const update = calls.find((c) => c.table === 'erp_employees' && c.op === 'update');
+  assert(update!.patch!.work_email === 'new@example.com', 'the mirror column itself still updates (display accuracy)');
+  assert(!('profile_id' in update!.patch!), 'the confirmed link must NEVER be re-pointed by an update');
+  assert(!('link_state' in update!.patch!), 'the confirmed link_state must NEVER be altered by an update');
+});
+
+Deno.test('AC-TSP-092.4 updateMirror on a NON-confirmed Employee row (e.g. proposed) whose work_email changed does NOT surface the email-changed notice', async () => {
+  const { client, calls } = fakeServiceClient((table) => (table === 'erp_employees' ? [{ work_email: 'old@example.com', link_state: 'proposed' }] : []));
+  const deps = createErpFeedDeps(client, 'org-1', 'employee');
+  await deps.updateMirror('pmo-emp-1', { id: 'HR-EMP-00001', work_email: 'new@example.com' }, Date.parse('2026-07-20T09:00:00.000Z'));
+
+  const notifInsert = calls.find((c) => c.table === 'notifications' && c.op === 'insert');
+  assert(!notifInsert, 'a non-confirmed link changing email is not the security-sensitive case — no notification expected');
+  const update = calls.find((c) => c.table === 'erp_employees' && c.op === 'update');
+  assert(update!.patch!.work_email === 'new@example.com', 'the mirror column still updates for a non-confirmed row');
+});
+
+Deno.test('AC-TSP-040 the `timesheet` kind provides NO adoptAtomically strategy — the never-adopt throw must fire BEFORE any external_refs claim (no orphaned claimed-but-unminted mapping)', () => {
+  const { client } = fakeServiceClient({});
+  const deps = createErpFeedDeps(client, 'org-1', 'timesheet');
+  assert(
+    deps.adoptAtomically === undefined,
+    'Luna BLOCK 7\'s claim-first strategy claims external_refs BEFORE mintWithId runs — for a kind that must NEVER adopt, that claim would orphan a PMO id nothing is ever minted for. The timesheet kind must fall back to the legacy mintMirror-only path, where the throw fires before any external_refs write.',
+  );
+});
+
+Deno.test('AC-TSP-090 the `employee` kind KEEPS the claim-first adoptAtomically strategy (it legitimately adopts, unlike timesheet)', () => {
+  const { client } = fakeServiceClient({});
+  const deps = createErpFeedDeps(client, 'org-1', 'employee');
+  assert(deps.adoptAtomically !== undefined, 'employee legitimately adopts — the claim-first race-safety strategy must stay wired for it');
+});
+
+// ── P3b Slice 6 — never adopt a native Timesheet (AC-TSP-040, task 6.2) ──────────────────────────
+
+Deno.test('AC-TSP-040 an unmapped native Timesheet mints ZERO rows in timesheets/timesheet_entries/timesheet_erp_mirror, and surfaces ONE action-required', async () => {
+  const { client, calls } = fakeServiceClient({ profiles: [{ id: 'admin-1' }] });
+  const deps = createErpFeedDeps(client, 'org-1', 'timesheet');
+
+  let threw: unknown = null;
+  try {
+    await deps.mintMirror({ id: 'TS-2026-00099' }, Date.parse('2026-07-20T09:00:00.000Z'));
+  } catch (err) {
+    threw = err;
+  }
+  assert(threw !== null, 'AC-TSP-040: minting a native Timesheet must NEVER silently succeed — it must throw a classified error');
+  // ⚑ LOW-2 (audit round 5): the reason must be a real classified `code`, not prose in the message.
+  // `terminalApplyReason` decides an HTTP 200 ACK (AC-TSP-040) and an acked inbound event is dropped
+  // for good, so a message-substring match would let any wrapper that QUOTES this string drop a real
+  // event. The producer therefore carries the reason as the error CODE.
+  assert(
+    (threw as { code?: string } | null)?.code === 'native-timesheet-not-adopted',
+    `expected code 'native-timesheet-not-adopted', got ${JSON.stringify(threw)}`,
+  );
+  assert(
+    terminalApplyReason(threw) === 'native-timesheet-not-adopted',
+    'expected the shared feed policy to classify it terminal off the CODE alone',
+  );
+
+  for (const forbiddenTable of ['timesheets', 'timesheet_entries', 'timesheet_erp_mirror']) {
+    const write = calls.find((c) => c.table === forbiddenTable && (c.op === 'insert' || c.op === 'update'));
+    assert(!write, `AC-TSP-040: expected NO write to '${forbiddenTable}' — PMO owns entry AND approval, never minted from an ERP doc`);
+  }
+
+  const notifInsert = calls.find((c) => c.table === 'notifications' && c.op === 'insert');
+  assert(!!notifInsert, 'expected ONE action-required notification for the never-adopted native Timesheet');
+  const rows = (notifInsert!.patch as { rows: Array<{ metadata: { action_required: string } }> }).rows;
+  assert(rows.every((r) => r.metadata.action_required === 'timesheet-native-not-adopted'), 'expected the native-not-adopted reason code');
+});
+
+// ── P3b Slice 6 — desk-cancel reopens the push state (AC-TSP-041, task 6.3) ──────────────────────
+
+Deno.test('AC-TSP-041 a desk-cancelled (mapped) Timesheet REOPENS push_state to failed alongside the standard cancel patch, and surfaces action-required', async () => {
+  const { client, calls } = fakeServiceClient({ profiles: [{ id: 'admin-1' }] });
+  const deps = createErpFeedDeps(client, 'org-1', 'timesheet');
+  await deps.tombstoneMirror('pmo-ts-1', '2026-07-20T00:00:00.000Z');
+
+  const update = calls.find((c) => c.table === 'timesheet_erp_mirror' && c.op === 'update');
+  assert(!!update, 'expected the timesheet_erp_mirror row to be tombstoned');
+  assert(update!.patch!.erp_docstatus === 2, 'expected the standard cancel patch (erp_docstatus=2)');
+  assert(update!.patch!.push_state === 'failed', 'AC-TSP-041/FR-TSP-084: desk-cancel must REOPEN push_state to failed');
+  // HIGH-1 (Luna re-audit, 2026-07-21): `timesheet_erp_mirror.id` is its OWN generated uuid — the PMO
+  // record lives in the SEPARATE `timesheet_id` column (migration 0136). A filter on `.eq('id', …)`
+  // would match ZERO rows (a silent Postgres no-op, not an error) and this mirror would never actually
+  // reopen. Assert the REAL filter column+value, not just that patch/table came out right — a fake
+  // that only checks those would still pass with the predicate deleted entirely.
+  assert(
+    update!.eq.some(([col, val]) => col === 'timesheet_id' && val === 'pmo-ts-1'),
+    "HIGH-1: expected the tombstone update to filter on timesheet_id = 'pmo-ts-1' (the mirror's own FK to the PMO row) — filtering on 'id' would match no row at all",
+  );
+  assert(
+    !update!.eq.some(([col]) => col === 'id'),
+    "HIGH-1: the tombstone update must NOT filter on the mirror's own 'id' column — that is a random uuid, never the PMO record id",
+  );
+
+  const timesheetsWrite = calls.find((c) => c.table === 'timesheets');
+  assert(!timesheetsWrite, "FR-TSP-004(ii): the PMO timesheets row itself is NEVER touched — PMO's approval is not ERP's to revoke");
+
+  const notifInsert = calls.find((c) => c.table === 'notifications' && c.op === 'insert');
+  assert(!!notifInsert, 'expected an action-required notification for the desk cancel');
+  const rows = (notifInsert!.patch as { rows: Array<{ metadata: { action_required: string } }> }).rows;
+  assert(rows.every((r) => r.metadata.action_required === 'timesheet-desk-cancelled'), 'expected the desk-cancelled reason code');
+});
+
+Deno.test('HIGH-1 updateMirror on a mapped Timesheet filters on timesheet_id, never the mirror\'s own id', async () => {
+  const { client, calls } = fakeServiceClient({});
+  const deps = createErpFeedDeps(client, 'org-1', 'timesheet');
+  await deps.updateMirror('pmo-ts-2', { id: 'TS-2026-00050' }, Date.parse('2026-07-20T09:00:00.000Z'));
+  const update = calls.find((c) => c.table === 'timesheet_erp_mirror' && c.op === 'update');
+  assert(!!update, 'expected a timesheet_erp_mirror update');
+  assert(
+    update!.eq.some(([col, val]) => col === 'timesheet_id' && val === 'pmo-ts-2'),
+    "HIGH-1: expected updateMirror to filter on timesheet_id = 'pmo-ts-2'",
+  );
+});
+
+Deno.test('HIGH-1 readMirrorSourceMod on a Timesheet reads by timesheet_id, never the mirror\'s own id (a wrong filter silently disables the staleness guard)', async () => {
+  const { client, calls } = fakeServiceClient({
+    timesheet_erp_mirror: [{ erp_modified: '2026-07-20T09:00:00.000Z' }],
+  });
+  const deps = createErpFeedDeps(client, 'org-1', 'timesheet');
+  const ms = await deps.readMirrorSourceMod('pmo-ts-3');
+  assert(ms === Date.parse('2026-07-20T09:00:00.000Z'), 'expected the fixture row to be found and its erp_modified parsed');
+  const select = calls.find((c) => c.table === 'timesheet_erp_mirror' && c.op === 'select');
+  assert(!!select, 'expected a timesheet_erp_mirror select');
+  assert(
+    select!.eq.some(([col, val]) => col === 'timesheet_id' && val === 'pmo-ts-3'),
+    "HIGH-1: expected readMirrorSourceMod to filter on timesheet_id = 'pmo-ts-3'",
+  );
+});
+
+// ── L-1 (Luna audit round 3) — the LAST unconverted mirror query. ────────────────────────────────
+// `pmoRecordLookupColumn` exists because both Posture-B side mirrors key the PMO record in their OWN
+// FK column, not in `id`. `updateMirror`/`tombstoneMirror`/`readMirrorSourceMod`/`mirrorExists` were
+// all converted; `stampAmended` was missed and still filtered on `.eq('id', …)`, which matches ZERO
+// rows for these two kinds — a silent Postgres no-op, never an error. It is currently masked (the
+// amend branch calls `updateMirror` immediately afterwards, which re-writes `erp_amended_from` through
+// the correct column), but "another writer happens to repair it" is not an invariant: it is one
+// refactor away from silently losing the lineage stamp. Every sibling writer keys the same way.
+Deno.test("L-1 stampAmended on a Timesheet filters on timesheet_id, never the mirror's own id", async () => {
+  const { client, calls } = fakeServiceClient({});
+  const deps = createErpFeedDeps(client, 'org-1', 'timesheet');
+  await deps.stampAmended('pmo-ts-4', 'TS-2026-00051', '2026-07-20T09:00:00.000Z');
+  const update = calls.find((c) => c.table === 'timesheet_erp_mirror' && c.op === 'update');
+  assert(!!update, 'expected a timesheet_erp_mirror update');
+  assert(update!.patch!.erp_amended_from === 'TS-2026-00051', 'expected the amended-from lineage stamp');
+  assert(
+    update!.eq.some(([col, val]) => col === 'timesheet_id' && val === 'pmo-ts-4'),
+    "L-1: expected stampAmended to filter on timesheet_id = 'pmo-ts-4'",
+  );
+  assert(
+    !update!.eq.some(([col]) => col === 'id'),
+    "L-1: the mirror's own 'id' is a random uuid — filtering on it matches no row at all",
+  );
+});
+
+Deno.test("L-1 stampAmended on a Budget filters on budget_version_id, never the mirror's own id", async () => {
+  const { client, calls } = fakeServiceClient({});
+  const deps = createErpFeedDeps(client, 'org-1', 'budget');
+  await deps.stampAmended('ver-9', 'BUDGET-2026-00002', '2026-07-20T09:00:00.000Z');
+  const update = calls.find((c) => c.table === 'budget_version_erp_mirror' && c.op === 'update');
+  assert(!!update, 'expected a budget_version_erp_mirror update');
+  assert(
+    update!.eq.some(([col, val]) => col === 'budget_version_id' && val === 'ver-9'),
+    "L-1: expected stampAmended to filter on budget_version_id = 'ver-9'",
+  );
+});
+
+Deno.test('MEDIUM-1 a Desk-controlled work_email is ESCAPED before it reaches ilike (no wildcard injection)', async () => {
+  // `work_email` is editable by anyone with ERPNext Desk access — the exact untrusted input 0140's
+  // human-confirm step exists to contain. Unescaped, `.ilike()` treats `%`/`_` as wildcards, so
+  // `finance.lead%` matches `finance.lead@corp.com` UNIQUELY and is auto-proposed with
+  // `link_proposed_reason: 'work-email-exact-match'` — a FALSE claim shown to the confirming Admin.
+  // After the confirm, that user's hours post against the attacker's Employee costing rate.
+  const { client, calls } = fakeServiceClient({ profiles: [{ id: 'victim-1' }] });
+  const deps = createErpFeedDeps(client, 'org-1', 'employee');
+  await deps.mintMirror({ id: 'HR-EMP-00009', work_email: 'finance.lead%' }, Date.parse('2026-07-20T09:00:00.000Z'));
+
+  const lookup = calls.find((c) => c.table === 'profiles' && c.op === 'select' && !!c.ilike);
+  assert(!!lookup, 'expected the work-email profile lookup');
+  assert(
+    lookup!.ilike![1] === 'finance.lead\\%',
+    `MEDIUM-1: the % must reach ilike ESCAPED (literal percent, not a prefix wildcard) — got ${JSON.stringify(lookup!.ilike![1])}`,
+  );
+});
+
+Deno.test('MEDIUM-1b a `*` work_email cannot hijack a link — the MATCH is decided in code, not by the transport', async () => {
+  // The reopened attack: `escapeLikePattern` covers the SQL LIKE set (`%`/`_`/`\\`), but PostgREST
+  // ALSO substitutes `*` -> `%` in like/ilike, so `finance.lead*` sails through the escape and becomes
+  // a prefix wildcard again. This test models a transport that HONOURS the wildcard (the fake returns
+  // the victim row regardless of the pattern) and asserts the hijack still fails — i.e. the DB filter
+  // is a prefilter and exact equality decides. That is why the fix does not chase metacharacters.
+  const { client, calls } = fakeServiceClient({
+    profiles: [{ id: 'victim-1', email: 'finance.lead@corp.com' }],
+  });
+  const deps = createErpFeedDeps(client, 'org-1', 'employee');
+  await deps.mintMirror({ id: 'HR-EMP-00010', work_email: 'finance.lead*' }, Date.parse('2026-07-20T09:00:00.000Z'));
+
+  const proposed = calls.find(
+    (c) => c.table === 'erp_employees' && c.op === 'update' && (c.patch as { link_state?: string })?.link_state === 'proposed',
+  );
+  assert(
+    !proposed,
+    'MEDIUM-1b: a wildcard work_email must NEVER reach link_state=proposed — that is the cost-identity hijack',
+  );
+  const surfaced = calls.find((c) => c.table === 'notifications' && c.op === 'insert');
+  assert(!!surfaced, 'MEDIUM-1b: the non-match must surface action-required instead of silently linking');
+});
+
+// ── P3c slice 5 — the budget feed, ON THE PATH PRODUCTION ACTUALLY RUNS (MEDIUM-E) ───────────────
+// AC-BUD-040/041 used to be proven against `budgetBackstop.applyBudgetFeedEvent`, which NOTHING in
+// production called (both inbound paths route budget through `applyErpFeedEvent` + `createErpFeedDeps`)
+// — so both "proofs" passed while testing a module that never ran, which is precisely why HIGH-A's
+// wedge and MEDIUM-G's tombstone clear survived. They now own the REAL path.
+
+Deno.test('AC-BUD-040 ⚑ an unmapped (Desk-created) Budget mints ZERO rows in budget_versions/budget_line_items/budget_version_erp_mirror and surfaces ONE action-required (FR-BUD-140)', async () => {
+  const { client, calls } = fakeServiceClient({ profiles: [{ id: 'admin-1' }] });
+  const deps = createErpFeedDeps(client, 'org-1', 'budget');
+
+  let threw: unknown = null;
+  try {
+    await deps.mintMirror({ id: 'BUDGET-DESK-001' }, Date.parse('2026-07-20T09:00:00.000Z'));
+  } catch (err) {
+    threw = err;
+  }
+  assert(threw !== null, 'AC-BUD-040: adopting a Desk-created Budget must NEVER silently succeed');
+  // ⚑ LOW-2 (audit round 5) — see the timesheet twin above: the reason is the CODE, never the message.
+  assert(
+    (threw as { code?: string } | null)?.code === 'native-budget-not-adopted',
+    `expected code 'native-budget-not-adopted', got ${JSON.stringify(threw)}`,
+  );
+  assert(
+    terminalApplyReason(threw) === 'native-budget-not-adopted',
+    'expected the shared feed policy to classify it terminal off the CODE alone (the sweep skip policy keys on it)',
+  );
+
+  for (const forbiddenTable of ['budget_versions', 'budget_line_items', 'budget_version_erp_mirror']) {
+    const write = calls.find((c) => c.table === forbiddenTable && (c.op === 'insert' || c.op === 'update'));
+    assert(!write, `AC-BUD-040: expected NO write to '${forbiddenTable}' — PMO is the SoT for the budget figure (OD-BUDGET-1)`);
+  }
+
+  const notifInsert = calls.find((c) => c.table === 'notifications' && c.op === 'insert');
+  assert(!!notifInsert, 'expected ONE action-required notification for the never-adopted Budget');
+  const rows = (notifInsert!.patch as { rows: Array<{ metadata: { action_required: string } }> }).rows;
+  assert(rows.every((r) => r.metadata.action_required === 'budget-native-not-adopted'), 'expected the budget-native-not-adopted reason code');
+});
+
+Deno.test('AC-BUD-040 the `budget` kind provides NO adoptAtomically strategy — the never-adopt throw fires BEFORE any external_refs claim', () => {
+  const { client } = fakeServiceClient({});
+  const deps = createErpFeedDeps(client, 'org-1', 'budget');
+  assert(
+    deps.adoptAtomically === undefined,
+    'a claim-first adopt would orphan an external_refs mapping for a PMO id nothing is ever minted for',
+  );
+});
+
+Deno.test('AC-BUD-041 ⚑ a desk-cancelled (mapped) Budget REOPENS push_state to failed, filters on budget_version_id, leaves budget_versions untouched, and surfaces action-required (FR-BUD-142)', async () => {
+  const { client, calls } = fakeServiceClient({ profiles: [{ id: 'admin-1' }] });
+  const deps = createErpFeedDeps(client, 'org-1', 'budget');
+  await deps.tombstoneMirror('ver-1', '2026-07-20T00:00:00.000Z');
+
+  const update = calls.find((c) => c.table === 'budget_version_erp_mirror' && c.op === 'update');
+  assert(!!update, 'expected the budget_version_erp_mirror row to be tombstoned');
+  assert(update!.patch!.erp_docstatus === 2, 'expected the standard cancel patch (erp_docstatus=2)');
+  assert(!!update!.patch!.erp_cancelled_at, 'expected the tombstone stamp (the backstop candidate-query exclusion)');
+  assert(update!.patch!.push_state === 'failed', 'FR-BUD-142: a desk cancel must REOPEN push_state to failed');
+  // The Posture-B mirror is keyed by its OWN uuid; the PMO record lives in `budget_version_id` (0137).
+  assert(
+    update!.eq.some(([col, val]) => col === 'budget_version_id' && val === 'ver-1'),
+    "expected the tombstone to filter on budget_version_id — filtering on the mirror's own 'id' matches no row at all",
+  );
+  assert(!update!.eq.some(([col]) => col === 'id'), "the tombstone must NOT filter on the mirror's own 'id' column");
+
+  const budgetWrite = calls.find((c) => c.table === 'budget_versions' || c.table === 'budget_line_items');
+  assert(!budgetWrite, "FR-BUD-142: PMO's version stays Active — PMO's budget is not ERP's to revoke");
+
+  const notifInsert = calls.find((c) => c.table === 'notifications' && c.op === 'insert');
+  const rows = (notifInsert!.patch as { rows: Array<{ metadata: { action_required: string } }> }).rows;
+  assert(rows.every((r) => r.metadata.action_required === 'budget-desk-cancelled'), 'expected the budget-desk-cancelled reason code');
+});
+
+// ── MEDIUM-G — the tombstone must be STICKY for the PMO-SoT kinds ────────────────────────────────
+// `mirrorStatusPatch` cleared `erp_cancelled_at` on ANY non-2 docstatus (correct for the revenue
+// amend-onto-the-same-row case). For budget/timesheet that broke the stated invariant "the tombstone
+// excludes the row from the backstop's candidate list FOREVER": the accountant's standard correction —
+// cancel BUDGET-001, then AMEND it into BUDGET-001-1 — repointed external_refs onto the same mirror
+// row and cleared the stamp, so the row became a permanent backstop candidate that re-dispatched every
+// cron tick against a document the operator had just authored.
+
+Deno.test('MEDIUM-G an AMEND after a desk cancel must NOT clear erp_cancelled_at on a budget mirror (the tombstone is permanent for a PMO-SoT kind)', async () => {
+  const { client, calls } = fakeServiceClient({});
+  const deps = createErpFeedDeps(client, 'org-1', 'budget');
+  // The successor document: live (docstatus 1), carrying `amended_from` — exactly what applyFeed's
+  // amend branch hands to `updateMirror` right after repointing external_refs.
+  await deps.updateMirror('ver-1', { id: 'BUDGET-001-1', erp_docstatus: 1, erp_amended_from: 'BUDGET-001' }, Date.parse('2026-07-21T09:00:00.000Z'));
+  const update = calls.find((c) => c.table === 'budget_version_erp_mirror' && c.op === 'update');
+  assert(!!update, 'expected a budget_version_erp_mirror update');
+  assert(
+    !('erp_cancelled_at' in update!.patch!),
+    'MEDIUM-G: clearing the tombstone re-arms the sweep backstop against a Budget the operator just amended — it must be left alone',
+  );
+});
+
+Deno.test('MEDIUM-G the same stickiness applies to the timesheet mirror (the other Posture-B, PMO-SoT kind)', async () => {
+  const { client, calls } = fakeServiceClient({});
+  const deps = createErpFeedDeps(client, 'org-1', 'timesheet');
+  await deps.updateMirror('pmo-ts-1', { id: 'TS-2026-00001-1', erp_docstatus: 1, erp_amended_from: 'TS-2026-00001' }, Date.parse('2026-07-21T09:00:00.000Z'));
+  const update = calls.find((c) => c.table === 'timesheet_erp_mirror' && c.op === 'update');
+  assert(!('erp_cancelled_at' in update!.patch!), 'MEDIUM-G: a PMO-SoT tombstone is never cleared by a later live docstatus');
+});
+
+Deno.test('MEDIUM-G a REVENUE kind still clears erp_cancelled_at on a live docstatus (the round-5 amend-onto-the-same-row behaviour is unchanged)', async () => {
+  const { client, calls } = fakeServiceClient({});
+  const deps = createErpFeedDeps(client, 'org-1', 'sales-invoice');
+  await deps.updateMirror('pmo-si-1', { id: 'ACC-SINV-1-1', erp_docstatus: 1, erp_amended_from: 'ACC-SINV-1' }, Date.parse('2026-07-21T09:00:00.000Z'));
+  const update = calls.find((c) => c.table === 'sales_invoices' && c.op === 'update');
+  assert(update!.patch!.erp_cancelled_at === null, 'a revenue successor mirrored onto the tombstoned row must clear the predecessor stamp');
+});
+
+// ── HIGH-A (second half) — the notification storm ────────────────────────────────────────────────
+// The never-adopt branch surfaces action-required on EVERY tick for the SAME Desk document, one row
+// per Admin/Finance profile, forever: unbounded `notifications` growth from one Desk action.
+
+Deno.test('HIGH-A an action-required that is already UNRESOLVED for the same document is NOT re-inserted (no per-tick notification storm)', async () => {
+  const { client, calls } = fakeServiceClient((table, query) => {
+    if (table === 'notifications' && query.contains) return [{ id: 'notif-1' }]; // an unread one already exists
+    if (table === 'profiles') return [{ id: 'admin-1' }];
+    return [];
+  });
+  const deps = createErpFeedDeps(client, 'org-1', 'budget');
+  await deps.mintMirror({ id: 'BUDGET-DESK-001' }, Date.parse('2026-07-20T09:00:00.000Z')).catch(() => {});
+
+  const dedupeProbe = calls.find((c) => c.table === 'notifications' && c.op === 'select');
+  assert(!!dedupeProbe, 'expected the surface to CHECK for an existing unresolved notification first');
+  assert(
+    dedupeProbe!.is?.[0] === 'read_at' && dedupeProbe!.is?.[1] === null,
+    'the dedupe must only suppress against an UNRESOLVED (unread) notification — a dismissed one may surface again',
+  );
+  assert(
+    (dedupeProbe!.contains?.[1] as { erpName?: string })?.erpName === 'BUDGET-DESK-001',
+    `the dedupe must be scoped to this DOCUMENT, not just the reason — got ${JSON.stringify(dedupeProbe!.contains)}`,
+  );
+  const notifInsert = calls.find((c) => c.table === 'notifications' && c.op === 'insert');
+  assert(!notifInsert, 'HIGH-A: the same unresolved action-required must NOT be re-inserted every cron tick');
+});
+
+Deno.test('HIGH-A a DIFFERENT document still surfaces its own action-required (the dedupe is per-document, not a global mute)', async () => {
+  const { client, calls } = fakeServiceClient((table, query) => {
+    if (table === 'notifications' && query.contains) {
+      return (query.contains[1] as { erpName?: string }).erpName === 'BUDGET-DESK-001' ? [{ id: 'notif-1' }] : [];
+    }
+    if (table === 'profiles') return [{ id: 'admin-1' }];
+    return [];
+  });
+  const deps = createErpFeedDeps(client, 'org-1', 'budget');
+  await deps.mintMirror({ id: 'BUDGET-DESK-002' }, Date.parse('2026-07-20T09:00:00.000Z')).catch(() => {});
+  const notifInsert = calls.find((c) => c.table === 'notifications' && c.op === 'insert');
+  assert(!!notifInsert, 'a second, different Desk Budget must still raise its own action-required');
+});
+
+Deno.test('AC-TSP-041 a non-timesheet cancel (e.g. purchase-invoice) does NOT gain a push_state field (additive only, byte-for-byte for other kinds)', async () => {
+  const { client, calls } = fakeServiceClient({});
+  const deps = createErpFeedDeps(client, 'org-1', 'purchase-invoice');
+  await deps.tombstoneMirror('pmo-pi-9', '2026-07-20T00:00:00.000Z');
+  const update = calls.find((c) => c.table === 'procurement_invoices' && c.op === 'update');
+  assert(!('push_state' in update!.patch!), 'push_state is a timesheet-only reopen — must not leak onto other kinds');
+});
+
+// ════════════════════════════════════════════════════════════════════════════════════════════════
+// AC-TSP-042 / FR-TSP-083 (P3b slice 6.5) — a STALE / OUT-OF-ORDER event is a NO-OP, for both new kinds.
+//
+// ⚑ Why this AC had no proof until now. The guard it asserts lives in `applyEngine.applyInboundChange`
+// and is fed by `readMirrorSourceMod`. For BOTH Posture-B side mirrors that dep used to query
+// `.eq('id', pmoRecordId)` — and their `id` is their OWN `gen_random_uuid()`, with the PMO record in a
+// separate FK column (`timesheet_id` / `budget_version_id`, migs 0136/0137). A Postgres 0-row match is
+// not an error, so `readMirrorSourceMod` returned `null` for every timesheet, forever, and
+// `stored !== null` was never true: THE STALENESS GUARD WAS ENTIRELY DISABLED for this kind. An
+// out-of-order redelivery (Frappe retries webhooks, and the sweep re-polls an overlapping window) would
+// happily stamp an OLDER `erp_modified` and older ERP totals back over a newer state. The round-1 HIGH-1
+// fix (`pmoRecordLookupColumn`) repaired the query — this proves the guard it re-enabled actually holds.
+//
+// So this test drives the REAL `applyErpFeedEvent` through the REAL `createErpFeedDeps`, rather than
+// asserting on the dep in isolation: the isolated HIGH-1 test proves the FILTER is right, and this
+// proves the BEHAVIOUR the filter exists for. Both are needed — the filter was right in four sibling
+// writers while this one was wrong, precisely because nothing exercised the two together.
+// ════════════════════════════════════════════════════════════════════════════════════════════════
+
+import { applyErpFeedEvent } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/applyFeed.ts';
+
+/**
+ * A client wired so the ERP name RESOLVES to a mapped PMO record, and the kind's mirror row reports
+ * `storedErpModified` as its last-seen `modified`. Everything else answers empty.
+ *
+ * ⚑ The mirror row is returned ONLY to a query that filters on the kind's REAL lookup column. That is
+ * not incidental precision — it is the whole point. A fixture keyed on the table name alone hands the
+ * row back no matter WHICH column the query filtered on, so `readMirrorSourceMod` would appear to work
+ * even with the HIGH-1 `.eq('id', …)` defect restored, and the staleness test would pass while the
+ * guard it claims to prove was completely disabled in production. (Caught exactly that way: the first
+ * draft of this fixture survived a mutation that reintroduced the defect.) Postgres answers a
+ * wrong-column filter with ZERO rows and no error — so the fake must too.
+ */
+function mappedMirrorClient(opts: { mirrorTable: string; lookupColumn: string; pmoRecordId: string; storedErpModified: string }) {
+  return fakeServiceClient((table, query) => {
+    if (table === 'external_refs') return [{ pmo_record_id: opts.pmoRecordId }];
+    if (table === opts.mirrorTable) {
+      const matchesRow = query.eq.some(([col, val]) => col === opts.lookupColumn && val === opts.pmoRecordId);
+      return matchesRow ? [{ erp_modified: opts.storedErpModified }] : [];
+    }
+    return [];   // no lineage row ⇒ not a superseded name
+  });
+}
+
+const STORED_MOD = '2026-07-20T12:00:00.000Z';
+
+// The kind's REAL `pmoRecordLookupColumn`: `timesheet` is a Posture-B side mirror keyed by its own
+// uuid with the PMO id in `timesheet_id`; `employee` is keyed by `id` like every other mirror.
+for (const [label, kind, mirrorTable, lookupColumn] of [
+  ['Timesheet', 'timesheet', 'timesheet_erp_mirror', 'timesheet_id'],
+  ['Employee', 'employee', 'erp_employees', 'id'],
+] as const) {
+  Deno.test(`AC-TSP-042 a STALE ${label} event (modified OLDER than the mirror's) writes NOTHING to ${mirrorTable}`, async () => {
+    const { client, calls } = mappedMirrorClient({ mirrorTable, lookupColumn, pmoRecordId: 'pmo-1', storedErpModified: STORED_MOD });
+    const deps = createErpFeedDeps(client, 'org-1', kind);
+
+    const outcome = await applyErpFeedEvent(
+      { tier: 'erpnext', domain: 'timesheets' },
+      label === 'Timesheet' ? 'TS-2026-00050' : 'HR-EMP-00007',
+      { id: 'ignored', erp_docstatus: 1, erp_total_hours: '4.0' },
+      Date.parse('2026-07-20T09:00:00.000Z'),   // an HOUR OLDER than what the mirror already recorded
+      deps,
+    );
+
+    assert(outcome.kind === 'no-op', `AC-TSP-042: a stale ${label} event must be a no-op, got '${outcome.kind}'`);
+    const writes = calls.filter((c) => c.table === mirrorTable && c.op !== 'select');
+    assert(
+      writes.length === 0,
+      `AC-TSP-042: a stale ${label} event must issue ZERO writes to ${mirrorTable} — got ${JSON.stringify(writes)}`,
+    );
+  });
+
+  Deno.test(`AC-TSP-042 a ${label} event at the SAME modified still applies (re-delivery + the sweep's inclusive boundary are idempotent, never dropped)`, async () => {
+    const { client, calls } = mappedMirrorClient({ mirrorTable, lookupColumn, pmoRecordId: 'pmo-1', storedErpModified: STORED_MOD });
+    const deps = createErpFeedDeps(client, 'org-1', kind);
+
+    const outcome = await applyErpFeedEvent(
+      { tier: 'erpnext', domain: 'timesheets' },
+      label === 'Timesheet' ? 'TS-2026-00050' : 'HR-EMP-00007',
+      { id: 'ignored', erp_docstatus: 1 },
+      Date.parse(STORED_MOD),   // EXACTLY the stored value — the `>=` boundary, deliberately inclusive
+      deps,
+    );
+
+    assert(outcome.kind === 'upserted', `expected an upsert at the equal boundary, got '${outcome.kind}'`);
+    assert(
+      calls.some((c) => c.table === mirrorTable && c.op === 'update'),
+      `a re-delivered ${label} event at the same modified must still converge the mirror (idempotent, not dropped)`,
+    );
+  });
+
+  Deno.test(`AC-TSP-042 a NEWER ${label} event applies — the guard rejects staleness, not the whole feed`, async () => {
+    const { client, calls } = mappedMirrorClient({ mirrorTable, lookupColumn, pmoRecordId: 'pmo-1', storedErpModified: STORED_MOD });
+    const deps = createErpFeedDeps(client, 'org-1', kind);
+
+    const outcome = await applyErpFeedEvent(
+      { tier: 'erpnext', domain: 'timesheets' },
+      label === 'Timesheet' ? 'TS-2026-00050' : 'HR-EMP-00007',
+      { id: 'ignored', erp_docstatus: 1 },
+      Date.parse('2026-07-20T15:00:00.000Z'),   // newer than the mirror's
+      deps,
+    );
+
+    assert(outcome.kind === 'upserted', `expected an upsert for a newer ${label} event, got '${outcome.kind}'`);
+    const update = calls.find((c) => c.table === mirrorTable && c.op === 'update');
+    assert(!!update, `a newer ${label} event MUST update ${mirrorTable}`);
+    // ...and it must be found by the kind's OWN lookup column — the HIGH-1 defect that disabled the
+    // guard in the first place. Asserted here too, on the wired path, so the two cannot drift apart.
+    assert(
+      update!.eq.some(([col, val]) => col === lookupColumn && val === 'pmo-1'),
+      `expected the ${label} update to filter on ${lookupColumn} = 'pmo-1', got ${JSON.stringify(update!.eq)}`,
+    );
+  });
+}

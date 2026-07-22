@@ -38,6 +38,22 @@ export class AdapterError extends Error {
 }
 
 /**
+ * ⚑ HIGH-1 (money-safety audit round 5) — the marker an adapter attaches to a thrown error when THIS
+ * attempt CANCELLED an external document and then failed to create its replacement.
+ *
+ * It is not decoration. For a document whose natural grain the external system itself enforces (an ERP
+ * `Budget`), a revision must be `cancel(old) → create(new)` — the money fields are locked post-submit —
+ * and that pair cannot be made atomic. So the window exists, and in it the CLIENT'S CONTROL IS OFF.
+ * Every layer above has to be able to SAY that, rather than reporting a generic push failure: the
+ * dispatch keeps the adapter's message instead of its own transient text, and the served fn records it
+ * under its own named reason. Lives on the contract because the adapter raises it and the tier-agnostic
+ * dispatch consumes it.
+ */
+export interface SupersededDocumentMarker {
+  cancelledExternalRecordId?: string;
+}
+
+/**
  * A command issued to an adapter. PMO domain language; NEVER carries org_id (FR-EAS-024) — the dispatch
  * binds the org context ABOVE the adapter. This type is the proof surface for AC-EAS-023.
  */

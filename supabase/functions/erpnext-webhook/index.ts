@@ -26,8 +26,9 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { verifyErpWebhookSignature } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/webhookSignature.ts';
 import { decodeErpWebhookEvent } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/webhookEvent.ts';
 import { applyErpFeedEvent } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/applyFeed.ts';
-import { admitsDocForBindingCompany } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/companyScope.ts';
-import { createErpFeedDeps, ERPNEXT_TIER } from '../_shared/erpnextFeedDeps.ts';
+import { admitsDocForBindingCompany, companyRefusalReason } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/companyScope.ts';
+import { terminalApplyReason } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/feedErrorPolicy.ts';
+import { createErpFeedDeps, ERPNEXT_TIER, surfaceActionRequired } from '../_shared/erpnextFeedDeps.ts';
 import { createInFlightAnchorProbe } from '../_shared/inFlightAnchorProbe.ts';
 import { DOCTYPE_BODIES } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/doctypeBodies.ts';
 import { DOCTYPE_REGISTRY, type ErpDocKind } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/doctypeRegistry.ts';
@@ -114,6 +115,13 @@ export interface ErpWebhookHandlerDeps {
    * byte-for-byte; the Deno.serve wrapper ALWAYS wires it.
    */
   isInFlightAdopt?: (orgId: string, event: ErpFeedEvent) => Promise<boolean>;
+  /**
+   * Graceful escalation (owner 2026-07-22): fired ONLY when a company-scoped document arrives stating no
+   * company at all while our binding names one — an ERP webhook-config gap, not another tenant. Optional
+   * so the existing gate/decode/company tests stay byte-for-byte; the Deno.serve wrapper wires it to
+   * `surfaceActionRequired`. Never fired for an other-company doc (silent by design).
+   */
+  onCompanyMissing?: (orgId: string, event: ErpFeedEvent) => Promise<void>;
 }
 
 /**
@@ -196,6 +204,14 @@ export async function handleErpWebhook(req: Request, deps: ErpWebhookHandlerDeps
   // domain-not-owned): the event is genuine, it is simply not ours to mirror, so Frappe must not retry.
   // The rule lives in `companyScope` so the sweep applies the IDENTICAL one (as a server-side filter).
   if (!admitsDocForBindingCompany(event.kind, event.doc, matchedOrg.company)) {
+    // Graceful escalation (owner 2026-07-22): a company-scoped doc that states NO company (an ERP that
+    // will not say whose money this is) is a MISCONFIGURATION worth surfacing — the webhook config is
+    // missing the `company` field. A doc stating a DIFFERENT company is another tenant's and stays
+    // silent (surfacing would be noise AND leak their company name). Ack 200 either way (not ours to
+    // mirror, so Frappe must not retry); the escalation is a side effect, not a status change.
+    if (companyRefusalReason(event.kind, event.doc, matchedOrg.company) === 'no-company') {
+      await deps.onCompanyMissing?.(matchedOrg.orgId, event);
+    }
     return json({ ok: true, skipped: 'company-not-in-scope' });
   }
 
@@ -221,6 +237,18 @@ export async function handleErpWebhook(req: Request, deps: ErpWebhookHandlerDeps
       return json({ error: 'CONCURRENT_ADOPT', message: 'a concurrent adopt is reconciling' }, 409);
     }
     const detail = err instanceof Error ? err.message : 'webhook apply failed';
+    // AC-TSP-040 (FR-TSP-082 / FR-BUD-140) — a CLASSIFIED never-adopt refusal is an EXPECTED outcome
+    // for one document ("record it, tell a human, move on"), not a failure of this ingress. Frappe
+    // RETRIES a failed webhook, so answering 500 turns ONE Desk-created Timesheet into a permanent
+    // retry storm against the client's own ERP that reads as an outage. Ack-and-skip — the SAME
+    // posture the sweep takes for this exact class (`erpFeedApplyErrorPolicy` ⇒ 'skip'), from the SAME
+    // classification, so the two lanes can never disagree about what "terminal" means. The operator
+    // surface was already raised by the apply itself; this only decides the HTTP answer.
+    const terminal = terminalApplyReason(err);
+    if (terminal) {
+      console.warn(`[erpnext-webhook] ack-and-skip: org=${matchedOrg.orgId} doctype=${event.doctype} reason=${terminal}`);
+      return json({ ok: true, skipped: terminal });
+    }
     console.error(`[erpnext-webhook] apply failed: org=${matchedOrg.orgId} doctype=${event.doctype} code=${code ?? 'none'} detail=${detail}`);
     return json({ error: 'WEBHOOK_APPLY_FAILED', message: 'the webhook could not be applied' }, 500);
   }
@@ -365,5 +393,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
     // FIX 1: the in-flight adopt guard is ALWAYS wired on the live path (the dep is optional only so the
     // gate/decode unit tests stay byte-for-byte).
     isInFlightAdopt: buildIsInFlightAdopt(serviceClient),
+    onCompanyMissing: (orgId, event) =>
+      surfaceActionRequired(serviceClient, orgId, 'erp-doc-missing-company', {
+        kind: event.kind,
+        externalRecordId: event.externalRecordId,
+      }),
   });
 });

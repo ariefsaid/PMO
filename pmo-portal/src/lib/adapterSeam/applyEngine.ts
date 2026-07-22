@@ -158,6 +158,52 @@ export async function advanceWatermarkMonotonic(deps: WatermarkDeps, candidateMs
   await deps.advanceWatermark(String(advanced));
 }
 
+/**
+ * Advance the org watermark to `max(current, candidate)` for a cursor whose FORM is the tier's, not
+ * this engine's (found while fixing HIGH-A, 2026-07-21).
+ *
+ * ⚑ The sweep used to coerce with `Number(nextCursor)`. That is only valid for a tier whose cursor IS
+ * epoch-ms (ClickUp). ERPNext's cursor is the ERP `modified` DATETIME string — `sweepCursor.ts` returns
+ * the max observed `modified` and the next tick sends it straight back as `["modified",">=",cursor]` —
+ * so `Number()` produced `NaN` and every ERPNext doctype persisted the literal string `'NaN'`: the
+ * per-doctype cursor (FR-ENA-080/081) never functioned at all.
+ *
+ * Numeric comparison when BOTH sides parse as finite numbers (ClickUp, byte-for-byte); lexical
+ * otherwise — which is chronological for both the ISO and the Frappe `YYYY-MM-DD HH:MM:SS[.ffffff]`
+ * spellings. Either way it NEVER rewinds.
+ */
+/** Stored cursor values that carry no position and must be adopted over, never compared against:
+ *  `''` (0089's `not null default ''`) and the `'NaN'`/`'null'`/`'undefined'` stringifications a bad
+ *  coercion can persist. Anything here means "we do not know where we were" — start from the candidate. */
+const UNUSABLE_WATERMARKS = new Set(['', 'NaN', 'null', 'undefined', 'Infinity', '-Infinity']);
+
+export async function advanceWatermarkCursor(deps: WatermarkDeps, candidate: string): Promise<void> {
+  const current = await deps.readWatermark();
+  // ⚑ An UNUSABLE stored cursor is adopted-over, not compared against. `''` is 0089's default, and
+  // `'NaN'` is the corruption this function was written to end: the old `Number(nextCursor)` coercion
+  // persisted the literal string for every ERPNext doctype. Comparing against it does NOT self-heal —
+  // lexically `'NaN' > '2026-07-20 10:00:00'` is TRUE ('N' is 0x4E, '2' is 0x32), so the row would keep
+  // `'NaN'` forever and `sweepCursor.ts` would go on filtering `modified >= 'NaN'`, returning zero rows
+  // SILENTLY, for good. The first fix shipped without this and left every already-corrupted row stuck.
+  if (current === null || UNUSABLE_WATERMARKS.has(current)) {
+    // Graceful escalation (owner 2026-07-22): a NON-EMPTY unusable value is a healed CORRUPTION, not a
+    // fresh org — make it observable rather than silent, so an operator learns a watermark was reset even
+    // though the row now self-heals. `''` (the fresh-org default) is expected and stays quiet. This is a
+    // once-per-corrupted-row event: the root-cause `Number()` coercion is fixed, so no NEW NaN is minted.
+    if (current !== null && current !== '') {
+      console.warn(`[watermark] reset an unusable cursor ${JSON.stringify(current)} -> ${JSON.stringify(candidate)} (legacy corruption, self-healed)`);
+    }
+    await deps.advanceWatermark(candidate);
+    return;
+  }
+  const currentNum = Number(current);
+  const candidateNum = Number(candidate);
+  const keepCurrent = Number.isFinite(currentNum) && Number.isFinite(candidateNum)
+    ? currentNum > candidateNum
+    : current > candidate;
+  await deps.advanceWatermark(keepCurrent ? current : candidate);
+}
+
 /** One change a sweep applies: a canonical PMO record (id = the external record id) + its source-mod ms. */
 export interface SweepChange {
   record: PmoRecord;
@@ -183,9 +229,25 @@ export type SweepApplyChange = (
   deps: ApplyChangeDeps,
 ) => Promise<ApplyOutcome>;
 
+/**
+ * What a per-change apply THROW means for the rest of the stream (HIGH-A, Luna re-audit round 2).
+ *
+ *  • `'skip'` — a TERMINAL, EXPECTED outcome for this one document that the tier has already recorded
+ *    (an ERP doc PMO must never adopt: FR-BUD-140 / FR-TSP-082, or an inbound adopt that needs a link
+ *    only the outbound path can make: FR-ENA-083's lossy hint). Ack-and-skip: the sweep records it and
+ *    keeps going, so the watermark still advances past it.
+ *  • `'halt'` — anything else (a transient DB/network fault). The run stops WITHOUT advancing, so the
+ *    change is re-listed on the next tick rather than silently skipped past forever.
+ *
+ * DEFAULT `'halt'` — every pre-existing caller (P0/P1) is byte-for-byte.
+ */
+export type ApplyErrorPolicy = (err: unknown) => 'skip' | 'halt';
+
 export interface SweepDeps extends ApplyChangeDeps, WatermarkDeps, SweepListChangesDeps {
   /** Optional lineage-aware apply override (slice 8 wires ERPNext's cancel/amend feed here). */
   applyChange?: SweepApplyChange;
+  /** Optional per-change error policy (HIGH-A). Absent ⇒ every throw halts, exactly as before. */
+  applyErrorPolicy?: ApplyErrorPolicy;
 }
 
 export interface SweepResult {
@@ -193,6 +255,9 @@ export interface SweepResult {
   applied: number;
   /** The cursor the watermark was advanced to (`null` = not advanced — exhaustion or unreachable). */
   nextCursor: string | null;
+  /** Changes ACKED-AND-SKIPPED this run (a terminal per-change outcome — see `ApplyErrorPolicy`).
+   *  Never silently dropped: the caller logs/surfaces these. */
+  skipped: Array<{ externalRecordId: string; error: string }>;
 }
 
 /**
@@ -208,18 +273,34 @@ export async function runSweep(ctx: ApplyEngineCtx, deps: SweepDeps): Promise<Sw
   const { changes, nextCursor } = await deps.listChanges(cursor);
 
   let applied = 0;
+  const skipped: SweepResult['skipped'] = [];
   for (const change of changes) {
     // Default: the source-mod-guarded upsert/adopt core. A tier with richer per-event routing
     // (ERPNext cancel/amend) injects `deps.applyChange` — byte-for-byte for P0/P1 (absent ⇒ default).
     const applyFn = deps.applyChange ?? applyInboundChange;
-    const outcome = await applyFn(ctx, change.record.id, change.record, change.sourceModMs, deps);
+    let outcome: ApplyOutcome;
+    try {
+      outcome = await applyFn(ctx, change.record.id, change.record, change.sourceModMs, deps);
+    } catch (err) {
+      // HIGH-A: a TERMINAL per-change outcome (an ERP doc this tier must never adopt) is an expected
+      // event, not a stream failure — without this the FIRST such document wedged the poll forever,
+      // and every later change queued behind it (including a Desk cancel of a PMO-pushed Budget) was
+      // never applied. Anything unclassified still halts: a transient fault must be retried on the
+      // next tick, never skipped past by an advancing watermark.
+      if ((deps.applyErrorPolicy?.(err) ?? 'halt') === 'halt') throw err;
+      skipped.push({
+        externalRecordId: change.record.id,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      continue;
+    }
     if (outcome.kind === 'upserted') applied += 1;
   }
 
   // Advance to nextCursor, monotonically (never rewinds). A null nextCursor (exhaustion) with no
   // applied change leaves the watermark untouched (no rewind of a higher one).
   if (nextCursor !== null) {
-    await advanceWatermarkMonotonic(deps, Number(nextCursor));
+    await advanceWatermarkCursor(deps, nextCursor);
   }
-  return { applied, nextCursor };
+  return { applied, nextCursor, skipped };
 }

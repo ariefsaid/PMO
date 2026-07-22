@@ -227,7 +227,28 @@ the stamp is *"the state stamp the gate read"* (P3b: `timesheets.approved_at`). 
 
 **Blocks sign-off** (it decides the key, which decides the outbox contract).
 
-### OQ-BUD-3 — ⚑ Multi-fiscal-year projects — the grain mismatch — **OPEN — owner ruling needed**
+### OQ-BUD-3 — ⚑ Multi-fiscal-year projects — the grain mismatch — **✅ RULED (owner, 2026-07-21)**
+
+> **⚑ THE RULING (binding, owner 2026-07-21): option (a) NOW, option (c) as the NEXT ISSUE.**
+> Ship the fail-closed refusal below to close P3c, and **immediately file (c) — the fiscal-year /
+> phasing dimension on `budget_line_items` — as its own issue**, so multi-FY projects are unblocked
+> soon rather than indefinitely. Sizing measured this session: **8 of 54 seeded projects span
+> calendar years**, including the flagship `2025-09-01 → 2026-06-30`.
+>
+> **⚑ SECOND RULING — how the fiscal year is DERIVED: resolve it from ERPNext's `Fiscal Year`
+> doctype**, finding the FY whose range contains the project's `start_date`, and **fail closed if
+> none matches**. NOT the calendar year of `start_date`.
+> **✅ CLOSED 2026-07-21.** `budgetGate.ts` now takes a `readFiscalYears()` dependency, wired in
+> `adapter-dispatch/index.ts` to `GET /api/resource/Fiscal Year`, and resolves BOTH the returned Link
+> value and the multi-FY span check against the client's real year ranges.
+> **It was worse than a wrong label:** `fiscal_year` is a Link **by name**, so a Jul–Jun client sending
+> `"2025"` names *no Fiscal Year at all* — an invalid Link, not an off-by-one.
+> **It also changed which projects are refused** (as predicted): the flagship
+> `2025-09-01 → 2026-06-30` is multi-FY by calendar but **single-FY** under Jul–Jun, and now pushes
+> normally. An unresolvable calendar **fails closed** (`budget-fiscal-year-unresolved`) — it never
+> falls back to the calendar year, because that fallback *was* the bug.
+
+**Original open question, retained for context:**
 
 **PMO's `budget_versions` has NO fiscal-year dimension** (a version is per *project*; its line items are per
 *category*, with no date). **ERP's `Budget` is per (company, fiscal_year, project)** — ADR-0055 §6 says so:

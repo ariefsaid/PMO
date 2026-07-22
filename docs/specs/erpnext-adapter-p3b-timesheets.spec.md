@@ -252,8 +252,25 @@ bypassed by adopting one). **Do not invent a second adopt mechanism.** Full surf
 is added. The Timesheet→SI billing linkage and the billability/rate question are **deferred to their own
 issue** (§2 non-goals). P3b delivers **costing**.
 
-### OQ-TSP-5 — site timezone vs org timezone — **⚠️ STILL OPEN — needs an owner ruling (silent-corruption class)**
-*(No ruling yet. Drafted position kept and built; flagged here and in §14 — not buried.)*
+### OQ-TSP-5 — site timezone vs org timezone — **✅ RULED (owner, 2026-07-22)**
+
+> **THE RULING: per-org timezone becomes a FIRST-CLASS binding-config field, AND a mismatch BLOCKS the
+> flip.** The timesheet domain may not be handed to the ERPNext tier while the org's declared working
+> timezone disagrees with the ERP site's `System Settings.time_zone`.
+>
+> Rationale the owner endorsed: this is the **silent-corruption** class. A day-shifted entry produces
+> wrong period costing with **no error**, and is close to undetectable after the fact. A loud refusal at
+> onboarding costs one check; the alternative is wrong money that looks right. Same principle already
+> applied to `NaN` watermarks, missing `company`, multi-FY budgets, and the unstamped-activation gate:
+> **a visible refusal beats a plausible guess.**
+>
+> **Build implications:** (1) add the org timezone to `external_org_bindings.config` (it is currently
+> implicit — nothing in PMO records what the org's working timezone actually is); (2) the flip/enable
+> path must REFUSE on mismatch, not warn; (3) keep the built naive site-local `'YYYY-MM-DD HH:MM:SS'`
+> send and the `timesheet_day_start` default — the ruling adds the config + the block, it does not
+> change the wire format.
+
+*(Original open question retained below for context.)*
 PMO stores `entry_date` (a **date**, no time, no zone). ERPNext stores **naive datetimes** interpreted in the
 **site**'s `System Settings.time_zone`. The adapter synthesizes `from_time` (§5.5). If the bench site's
 timezone differs from the org's working timezone, a day-boundary entry lands on the **wrong ERP day** → wrong
@@ -263,8 +280,21 @@ binding config, and **assert at onboarding** that the ERP site timezone matches 
 **loud** mismatch rather than silently shifting hours. **Owner to rule:** is a per-org timezone a first-class
 binding-config field, and should a mismatch **block** the flip?
 
-### OQ-TSP-6 — correction path for an approved week — **⚠️ STILL OPEN — needs an owner ruling**
-*(No ruling yet. Drafted position kept — build nothing; flagged here and in §14 — not buried.)*
+### OQ-TSP-6 — correction path for an approved week — **✅ RULED (owner, 2026-07-22)**
+
+> **THE RULING: option (a) NOW — ship P3b with the gap — AND option (b) is the NEXT issue**, filed with
+> its own spec: `Approved → Draft` (a re-open) plus an ERP cancel command.
+>
+> ⚑ **"Next" means genuinely next, not someday.** This gap is hit far more often than the analogous
+> multi-FY budget deferral (which affects 8 of 54 seeded projects): **mistyped timesheets are routine** —
+> every timesheet product has a correction path because people get weeks wrong regularly. Until (b)
+> ships, a pushed week with a mistake can only be corrected by an ERPNext **Desk** cancel, which is a
+> known, accepted, temporary violation of **OD-SAR-PMO-IS-THE-UI**.
+>
+> **(b) is NOT a P3b task** — it changes the SHIPPED `FR-TS-001..010` state machine, so per ADR-0059 §8
+> it gets its own issue and its own spec. A builder must still not invent it inside P3b.
+
+*(Original open question retained below for context.)*
 `0007`'s map makes **`Approved` terminal** (`'Approved' → []`). Once pushed there is **no PMO path** to fix a
 mistake. The only correction today is an ERP **desk** cancel — which **contradicts OD-SAR-PMO-IS-THE-UI**
 ("no user is ever required to open the ERPNext Desk"). **This spec builds no correction path** (§2) and the

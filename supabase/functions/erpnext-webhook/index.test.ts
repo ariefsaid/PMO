@@ -197,6 +197,53 @@ Deno.test('AC-ENA-070: a generic apply failure ⇒ 500 GENERIC (never leaks the 
   assert(body.message === 'the webhook could not be applied', 'the public message must be GENERIC');
 });
 
+// AC-TSP-040 (FR-TSP-082 / FR-BUD-140) — a CLASSIFIED never-adopt refusal is an ACK, not a 500.
+// Frappe RETRIES a failed webhook, so one Desk-created Timesheet answering 500 becomes a permanent
+// retry storm against the client's own ERP — and reads as an outage rather than as the deliberate
+// never-adopt rule. This is the SAME posture the sweep already takes for this exact class
+// (`erpFeedApplyErrorPolicy` ⇒ 'skip'); the ingress must not fork it.
+Deno.test('AC-TSP-040: a never-adopt refusal (native-timesheet-not-adopted) ⇒ 200 ACK, never a retry-storming 500', async () => {
+  // ⚑ LOW-2 (audit round 5): the producer (`_shared/erpnextFeedDeps.ts`) carries the never-adopt reason
+  // as the error CODE. The ingress must ack on THAT, never on a message that merely quotes it.
+  const d = deps(async () => {
+    const e = new Error('native ERPNext Timesheet "TS-1" is not adopted') as Error & { code?: string };
+    e.code = 'native-timesheet-not-adopted';
+    throw e;
+  });
+  const validSig = await sign(PI_EVENT);
+  const res = await handleErpWebhook(req(PI_EVENT, validSig), d);
+  assert(res.status === 200, `a classified never-adopt refusal must ACK, got ${res.status}`);
+  const body = (await res.json()) as { ok?: boolean; skipped?: string };
+  assert(body.ok === true, 'expected { ok: true }');
+  assert(body.skipped === 'native-timesheet-not-adopted', `expected the classified reason, got ${body.skipped}`);
+});
+
+Deno.test('AC-TSP-040: a Desk-created Budget (native-budget-not-adopted) ⇒ 200 ACK too — same classified class', async () => {
+  const d = deps(async () => {
+    const e = new Error('native ERPNext Budget "BUDGET-1" is not adopted') as Error & { code?: string };
+    e.code = 'native-budget-not-adopted';
+    throw e;
+  });
+  const validSig = await sign(PI_EVENT);
+  const res = await handleErpWebhook(req(PI_EVENT, validSig), d);
+  assert(res.status === 200, `expected 200, got ${res.status}`);
+});
+
+// ⚑ LOW-2 (audit round 5) — the silent-drop vector the message-substring match opened: an inbound
+// event whose apply failed TRANSIENTLY, wrapped by an error that QUOTES a never-adopt reason, was
+// acked 200 and therefore dropped for good (the poll is `modified >= cursor` — it is never re-listed).
+// It must 500 so Frappe re-delivers it.
+Deno.test('⚑ LOW-2: a TRANSIENT failure whose message merely QUOTES a never-adopt reason must 500 (re-delivery), never ack', async () => {
+  const d = deps(async () => {
+    const e = new Error('retrying native-budget-not-adopted for BUDGET-00042: connection terminated unexpectedly') as Error & { code?: string };
+    e.code = '08006';
+    throw e;
+  });
+  const validSig = await sign(PI_EVENT);
+  const res = await handleErpWebhook(req(PI_EVENT, validSig), d);
+  assert(res.status === 500, `a transient apply failure must NOT be acked away, got ${res.status}`);
+});
+
 // ────────────────────────────────────────────────────────────────────────────────────────────────
 // Luna BLOCK 9 — inbound adoption must be gated on the org's ACTUAL per-domain ownership. A valid
 // HMAC proves WHO sent the event, not that the org opted this DOMAIN into external ownership: a
@@ -406,3 +453,87 @@ Deno.test('FIX 1: ANOTHER org\'s in-flight row never blocks this org (org scopin
   const res = await handleErpWebhook(req(event, await sign(event)), d);
   assert(d._applied() === 1, 'the in-flight guard is org-scoped — a foreign org\'s command must not block adoption here');
 });
+
+// ════════════════════════════════════════════════════════════════════════════════════════════════
+// AC-TSP-042 / FR-TSP-081 (P3b slice 6.5) — the trust boundary for the NEW kinds.
+//
+// `Timesheet` and `Employee` reached the public webhook surface in P3b. The HMAC gate is generic (it
+// runs before any doctype routing), so the claim is that they inherit it — but "no code change was
+// needed" is exactly the kind of assumption that is only true until someone reorders the handler, and
+// these two kinds are the ones where being wrong is worst: `Employee` is the identity master the
+// timesheet push resolves people through, and an unsigned write to it is an identity-spoofing surface.
+// So it is PROVEN per kind, not assumed from the shape of the code.
+//
+// ⚑ `timesheets` must be in `ownedDomains` here: KIND_DOMAIN maps BOTH kinds to the `timesheets`
+// domain (feedKinds.ts), and the domain-ownership gate would otherwise skip them for a reason that has
+// nothing to do with the signature — a green test proving nothing.
+// ════════════════════════════════════════════════════════════════════════════════════════════════
+
+/** An org that has handed the `timesheets` domain (both new kinds' domain) to the ERPNext tier. */
+function timesheetDeps(): ErpWebhookHandlerDeps & { _applied: () => number; _events: () => unknown[] } {
+  let applied = 0;
+  const events: unknown[] = [];
+  return {
+    resolveEmployingOrgs: async () => [{ orgId: ORG_ID, webhookSecret: SECRET, company: COMPANY, ownedDomains: ['timesheets'] }],
+    applyEvent: async (_orgId: string, event: unknown) => {
+      applied += 1;
+      events.push(event);
+      return { kind: 'upserted' as const, pmoRecordId: 'pmo-1', adopted: false };
+    },
+    _applied: () => applied,
+    _events: () => events,
+  } as unknown as ErpWebhookHandlerDeps & { _applied: () => number; _events: () => unknown[] };
+}
+
+const TIMESHEET_EVENT = JSON.stringify({
+  doctype: 'Timesheet',
+  name: 'TS-2026-00050',
+  docstatus: 1,
+  amended_from: null,
+  modified: '2026-07-20 09:00:00.000000',
+  doc: { name: 'TS-2026-00050', docstatus: 1, total_hours: '40.0', company: COMPANY },
+});
+
+const EMPLOYEE_EVENT = JSON.stringify({
+  doctype: 'Employee',
+  name: 'HR-EMP-00007',
+  docstatus: 1,
+  amended_from: null,
+  modified: '2026-07-20 09:00:00.000000',
+  doc: { name: 'HR-EMP-00007', docstatus: 1, employee_name: 'Dana Ops', company_email: 'dana@example.com', company: COMPANY },
+});
+
+for (const [label, body] of [['Timesheet', TIMESHEET_EVENT], ['Employee', EMPLOYEE_EVENT]] as const) {
+  Deno.test(`AC-TSP-042 an ABSENT signature on a ${label} ⇒ 401 with ZERO side effects`, async () => {
+    const d = timesheetDeps();
+    const res = await handleErpWebhook(req(body, null), d);
+    assert(res.status === 401, `expected 401, got ${res.status}`);
+    assert(d._applied() === 0, `FR-TSP-081: an unsigned ${label} must never reach the feed`);
+  });
+
+  Deno.test(`AC-TSP-042 an INVALID signature on a ${label} (wrong secret, and a tampered body) ⇒ 401 with ZERO side effects`, async () => {
+    const d = timesheetDeps();
+    const res = await handleErpWebhook(req(body, 'dGhpcy1pcy1ub3QtdGhlLWNvcnJlY3Qtc2ln'), d);
+    assert(res.status === 401, `expected 401, got ${res.status}`);
+    // A signature over the ORIGINAL body replayed against a MUTATED one is the real attack: the hours /
+    // the employee's work email are exactly what an attacker would want to rewrite in flight.
+    const validSig = await sign(body);
+    const tampered = body.replace('40.0', '400.0').replace('dana@example.com', 'attacker@example.com');
+    const res2 = await handleErpWebhook(req(tampered, validSig), d);
+    assert(res2.status === 401, `expected 401 for a tampered ${label} body, got ${res2.status}`);
+    assert(d._applied() === 0, `FR-TSP-081: neither a bad signature nor a tampered ${label} body may reach the feed`);
+  });
+
+  Deno.test(`AC-TSP-042 a VALID signature on a ${label} routes to the feed as a hint (200, kind resolved)`, async () => {
+    const d = timesheetDeps();
+    const res = await handleErpWebhook(req(body, await sign(body)), d);
+    assert(res.status === 200, `expected 200, got ${res.status}`);
+    assert(d._applied() === 1, `a correctly-signed ${label} MUST be routed to applyErpFeedEvent`);
+    // Proving it is ROUTED, not merely ack'd: `kindFromDoctype` resolved a real kind + the timesheets
+    // domain. An unresolved doctype would have returned 200 `skipped: 'unmapped-doctype'` — a green
+    // "it was accepted" assertion over a payload that was silently dropped.
+    const event = d._events()[0] as { kind?: string; domain?: string };
+    assert(event.kind === (label === 'Timesheet' ? 'timesheet' : 'employee'), `expected the ${label} kind, got '${event.kind}'`);
+    assert(event.domain === 'timesheets', `expected the timesheets domain, got '${event.domain}'`);
+  });
+}

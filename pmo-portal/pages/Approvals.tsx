@@ -1,9 +1,14 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { AccessDenied, Badge, Card, ListState, StatusPill, ViewToggle } from '@/src/components/ui';
+import { AccessDenied, Badge, Card, ListState, StatusPill, ViewToggle, useToast } from '@/src/components/ui';
+import { describePushMutationError } from '@/src/lib/adapterSeam/pushErrorCopy';
 import { usePermission } from '@/src/auth/usePermission';
 import { useProcurements } from '@/src/hooks/useProcurements';
-import { useTimesheetsAwaitingApproval } from '@/src/hooks/useTimesheetApproval';
+import {
+  useTimesheetsAwaitingApproval,
+  usePushesNeedingAttention,
+  useEmployeeLinkConfirm,
+} from '@/src/hooks/useTimesheetApproval';
 import { useAuth } from '@/src/auth/useAuth';
 import { ApprovalsQueue } from './timesheets/ApprovalsQueue';
 import { TimesheetApprovalPreview } from './timesheets/ApprovalsQueue';
@@ -12,6 +17,8 @@ import { ProcurementApprovalPreview } from './approvals/ProcurementApprovalRow';
 import { pendingProcurementApprovals } from '@/src/lib/selectors/approvals';
 import { workflowVariant } from '@/src/lib/status/statusVariants';
 import { formatCurrency } from '@/src/lib/format';
+import { PushStateBadge } from '@/src/components/timesheets/PushStateBadge';
+import { EmployeeLinkConfirm } from '@/src/components/timesheets/EmployeeLinkConfirm';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
 import type { TimesheetAwaitingApproval } from '@/src/lib/db/timesheetTransition';
 
@@ -183,6 +190,116 @@ function QueueGroup({
   );
 }
 
+/**
+ * P3b (FR-TSP-085) — the "needs attention" ERP-push queue. Every `failed`/`held` push visible to the
+ * caller (RLS is the only scoping authority, task 4.x). NOTHING renders when the list is empty — an
+ * unflipped org, or one with no failures, sees no trace of this section (FR-TSP-173).
+ */
+function PushAttentionSection() {
+  const { currentUser } = useAuth();
+  const may = usePermission();
+  const { toast } = useToast();
+  const { data, isPending, isError, retry: retryMutation } = usePushesNeedingAttention();
+  const [retryingId, setRetryingId] = useState<string | null>(null);
+
+  if (isPending || isError || !data || data.length === 0) return null;
+
+  return (
+    <section className="mb-4" aria-label="ERP pushes needing attention">
+      <h2 className="mb-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+        ERP pushes needing attention
+      </h2>
+      <div className="space-y-1.5">
+        {data.map((row) => {
+          const canRetry = may('push_timesheet', 'timesheet', {
+            currentUserId: currentUser?.id,
+            record: { approved_by: row.approved_by },
+          });
+          return (
+            <div
+              key={row.timesheet_id}
+              className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-card px-3 py-2.5"
+            >
+              <div className="min-w-0">
+                <div className="text-sm font-medium">{row.owner_name}</div>
+                <div className="mt-0.5 text-[12px] text-muted-foreground">{weekLabel(row.week_start_date)}</div>
+              </div>
+              <PushStateBadge
+                state={{ push_state: row.push_state, push_error: row.push_error, ts_number: row.ts_number }}
+                canRetry={canRetry}
+                retryLoading={retryingId === row.timesheet_id && retryMutation.isPending}
+                // ⚑ I-13 (rendered Discover pass, 2026-07-22) — this Retry gave ZERO feedback: no
+                // toast, no state change, no console error, while the budget surface's Retry two
+                // screens away toasts both outcomes. A silent retry is indistinguishable from a dead
+                // button, so an operator either gives up or clicks it repeatedly. BOTH outcomes are
+                // now stated, at the call site that knows which row they belong to.
+                onRetry={() => {
+                  setRetryingId(row.timesheet_id);
+                  retryMutation.mutate(
+                    { timesheetId: row.timesheet_id },
+                    {
+                      onSuccess: () =>
+                        toast('Timesheet pushed to ERPNext', `${row.owner_name} · ${weekLabel(row.week_start_date)}`, 'success'),
+                      // ⚑ NEW-2 (rendered re-verification, 2026-07-22) — I-13 gave this Retry a
+                      // voice and gave it the WRONG one. `classifyMutationError` is the generic CRUD
+                      // classifier: it passes the server's message through as `detail`, so the toast
+                      // read "That timesheet could not be pushed — timesheet-not-approved (status
+                      // Submitted)" — a raw adapter token on an operator surface, the precise thing
+                      // `pushErrorCopy` exists to prevent and which the badge two lines above already
+                      // obeys. A push failure is translated by the push vocabulary, on EVERY path.
+                      onError: (err) => {
+                        const copy = describePushMutationError(err);
+                        toast(
+                          'That timesheet could not be pushed',
+                          copy.remedy ? `${copy.message} ${copy.remedy}` : copy.message,
+                          'warning',
+                        );
+                      },
+                      onSettled: () => setRetryingId(null),
+                    },
+                  );
+                }}
+              />
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+/**
+ * P3b (OQ-TSP-10(C) — the owner ruling) — the Employee-adopt-link Admin queue. Renders nothing when
+ * there is no proposed link (the common case for every org that hasn't flipped `timesheets`).
+ */
+function EmployeeLinkConfirmSection() {
+  const may = usePermission();
+  const { links, confirm } = useEmployeeLinkConfirm();
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
+
+  if (links.isPending || links.isError || !links.data || links.data.length === 0) return null;
+
+  return (
+    <section className="mb-4" aria-label="Employee links awaiting confirmation">
+      <h2 className="mb-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+        Employee links awaiting confirmation
+      </h2>
+      <EmployeeLinkConfirm
+        links={links.data}
+        canConfirm={may('confirm_employee_link', 'employeeLink')}
+        confirmingId={confirmingId}
+        onConfirm={(link) => {
+          setConfirmingId(link.id);
+          confirm.mutate(
+            { erpEmployeeId: link.id, profileId: link.profile_id ?? '' },
+            { onSettled: () => setConfirmingId(null) },
+          );
+        }}
+      />
+    </section>
+  );
+}
+
 const ApprovalsPage: React.FC = () => {
   const may = usePermission();
   const navigate = useNavigate();
@@ -302,6 +419,9 @@ const ApprovalsPage: React.FC = () => {
           Needs my approval — everything waiting on your decision, across procurement and timesheets.
         </p>
       </div>
+
+      {canApproveTimesheets && <PushAttentionSection />}
+      {canApproveTimesheets && <EmployeeLinkConfirmSection />}
 
       {hasTabs && !allCaughtUp && (
         <div className="mb-4 min-w-0">

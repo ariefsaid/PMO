@@ -727,6 +727,7 @@ export type Database = {
       }
       budget_versions: {
         Row: {
+          activated_at: string | null
           created_at: string
           id: string
           name: string
@@ -736,6 +737,7 @@ export type Database = {
           version: number
         }
         Insert: {
+          activated_at?: string | null
           created_at?: string
           id?: string
           name: string
@@ -745,6 +747,7 @@ export type Database = {
           version: number
         }
         Update: {
+          activated_at?: string | null
           created_at?: string
           id?: string
           name?: string
@@ -4385,6 +4388,15 @@ export type Database = {
         Returns: undefined
       }
       agent_dispatch_tick: { Args: never; Returns: undefined }
+      approved_timesheet_for_push: {
+        Args: { p_actor?: string; p_timesheet_id: string }
+        Returns: {
+          approved_at: string
+          entries: Json
+          timesheet_id: string
+          user_id: string
+        }[]
+      }
       audit_agent_denial: {
         Args: { p_detail?: Json; p_reason: string }
         Returns: undefined
@@ -4478,6 +4490,10 @@ export type Database = {
       clickup_sweep_tick: { Args: never; Returns: undefined }
       clone_budget_version: { Args: { version_id: string }; Returns: string }
       committed_procurement_statuses: { Args: never; Returns: string[] }
+      confirm_erp_employee_link: {
+        Args: { p_erp_employee_id: string; p_profile_id: string }
+        Returns: undefined
+      }
       confirm_outbox: {
         Args: { p_generation: number; p_id: string }
         Returns: number
@@ -4762,6 +4778,38 @@ export type Database = {
         Returns: boolean
       }
       erpnext_sweep_tick: { Args: never; Returns: undefined }
+      get_budget_projection: {
+        Args: { p_fiscal_year: string; p_project_id: string }
+        Returns: {
+          // NEW-4: WHEN the ERP ledger was last read for this (project, fiscal_year). `null` = never
+          // read, which is why `actuals_to_date` is null on every category of such a year.
+          actuals_as_of: string | null
+          // C-1/C-2/NEW-4: `null` = the figure is UNOBTAINABLE (no ERP account mapped, or no ledger
+          // reading on record for this project-year at all), never a zero.
+          actuals_to_date: number | null
+          category: Database["public"]["Enums"]["budget_category"]
+          pmo_budget_amount: number | null
+          pmo_etc: number
+          projected_final_cost: number | null
+          projected_utilization: number | null
+          projected_variance: number | null
+        }[]
+      }
+      get_budget_push_status: {
+        Args: { p_project_id: string }
+        Returns: {
+          erp_budget_name: string | null
+          fiscal_year: string | null
+          // MEDIUM-1 (mig 0141): is there a genuinely `held` outbox command to release? `push_state =
+          // 'held'` alone is NOT that — the sweep also parks mirror rows with no held command behind
+          // them. Non-null by construction (`exists(...)`).
+          hold_releasable: boolean
+          push_error: string | null
+          push_state: string | null
+          pushed_at: string | null
+          unmapped_categories: string[] | null
+        }[]
+      }
       get_executive_dashboard: { Args: never; Returns: Json }
       get_finance_budget_review: { Args: never; Returns: Json }
       get_process_gates: { Args: { p_org: string }; Returns: Json }
@@ -4830,6 +4878,13 @@ export type Database = {
       }
       is_active_member: { Args: never; Returns: boolean }
       is_operator: { Args: never; Returns: boolean }
+      list_budget_fiscal_years: {
+        Args: { p_project_id: string }
+        Returns: {
+          fiscal_year: string
+          is_active_push: boolean
+        }[]
+      }
       log_audit: {
         Args: {
           p_action: string
@@ -5079,6 +5134,10 @@ export type Database = {
         Returns: number
       }
       release_credits: { Args: { p_run_id: string }; Returns: undefined }
+      // HIGH-2 / MED-2 (mig 0137 §4) — the operator's route out of a `held` money command:
+      // Admin-only, org-re-asserted, audited; moves `held` → `failed` so the ordinary bounded
+      // recovery resumes and re-runs every gate. Never touches the external system.
+      release_outbox_hold: { Args: { p_outbox_id: string; p_reason: string }; Returns: undefined }
       release_sales_invoice_submit_clearance: {
         Args: { p_clearance_id: string; p_si_id: string }
         Returns: undefined

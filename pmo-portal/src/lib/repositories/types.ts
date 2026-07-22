@@ -26,6 +26,7 @@ import type {
   DocStatus,
 } from '@/src/lib/db/documents';
 import type { PreparedAgentAttachmentUpload } from '@/src/lib/db/agentAttachments';
+import type { ActivateVersionResult } from '@/src/lib/db/budgets';
 import type { ProfileRow } from '@/src/lib/db/profiles';
 import type { UserRow, UserRole, InviteUserInput, SetUserStatusInput } from '@/src/lib/db/adminUsers';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
@@ -393,6 +394,9 @@ export interface TimesheetRepository {
   approve(id: string, notes?: string): Promise<void>;
   reject(id: string, notes?: string): Promise<void>;
   listAwaitingApproval(selfId: string): Promise<TimesheetAwaitingApproval[]>;
+  /** P3b (FR-TSP-005/041): push an already-APPROVED sheet to the org's external system. A no-op when
+   *  the org does not employ one for `timesheets` — never a rejection (the approval already committed). */
+  pushApproved(timesheetId: string): Promise<void>;
 }
 
 export interface BudgetRepository {
@@ -406,7 +410,9 @@ export interface BudgetRepository {
   deleteLineItem(id: string): Promise<void>;
   createVersion(projectId: string, name: string): Promise<BudgetVersionRow>;
   cloneVersion(versionId: string): Promise<string>;
-  activateVersion(versionId: string): Promise<void>;
+  /** HIGH-C: returns the ERP push CONSEQUENCE (the PMO transition itself either succeeded or threw).
+   *  Never `void` — a push that failed (or never reached the edge function) must be surfaced. */
+  activateVersion(versionId: string): Promise<ActivateVersionResult>;
   archiveVersion(versionId: string): Promise<void>;
   deleteDraftVersion(versionId: string): Promise<void>;
 }

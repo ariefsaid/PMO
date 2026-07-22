@@ -80,6 +80,9 @@ import {
 } from '@/src/lib/db/usage';
 import { routeDomainWrite } from '@/src/lib/adapterSeam/ownershipCache';
 import { dispatchDomainCommand } from '@/src/lib/adapterSeam/dispatchClient';
+// P3b FR-TSP-041 — the ONE derivation of the timesheet push's deterministic key, shared with the Deno
+// sweep backstop (see the re-export below for why it cannot be defined in this module).
+import { timesheetPushKey } from '@/src/lib/adapterSeam/erpnext/timesheetPushKey';
 import {
   listTasks,
   getTask,
@@ -136,6 +139,7 @@ import {
   rejectTimesheet,
   listTimesheetsAwaitingApproval,
 } from '@/src/lib/db/timesheetTransition';
+import { approvedTimesheetForPush } from '@/src/lib/db/timesheetPush';
 import {
   deriveProjectBudget,
   listBudgetVersions,
@@ -543,6 +547,18 @@ const revenue: RevenueRepository = {
       : Promise.reject(new AppError('revenue is not enabled for this org', 'revenue-not-enabled')),
 };
 
+/**
+ * P3b (FR-TSP-041, ADR-0059 §4): the timesheet push key is DETERMINISTIC, not `freshIdempotencyKey()`.
+ *
+ * ⚑ The derivation MOVED to `@/src/lib/adapterSeam/erpnext/timesheetPushKey` and is re-exported here so
+ * existing consumers keep resolving. It could not stay in this module: the push's SECOND originator is
+ * the Deno sweep backstop, and this file is a client module (38 imports, including the browser Supabase
+ * singleton) that no edge function can load — which would have forced the sweep to RE-IMPLEMENT the key.
+ * Two derivations drift, the outbox 4-tuple then fails to collide for what is really one command, and the
+ * client is billed a DUPLICATED WEEK of hours. See that module's header for the full reasoning.
+ */
+export { timesheetPushKey };
+
 const timesheet: TimesheetRepository = {
   list: (userId, params) => wrap(() => listTimesheets(userId, params)),
   createDraft: (weekStartDate, userId) => wrap(() => createDraftTimesheet(weekStartDate, userId)),
@@ -552,6 +568,33 @@ const timesheet: TimesheetRepository = {
   approve: (id, notes) => wrap(() => approveTimesheet(id, notes)),
   reject: (id, notes) => wrap(() => rejectTimesheet(id, notes)),
   listAwaitingApproval: (selfId) => wrap(() => listTimesheetsAwaitingApproval(selfId)),
+  // P3b (FR-TSP-005/006/041) — push an ALREADY-APPROVED sheet to the external system. Called AFTER
+  // `transition_timesheet` has committed, never inside it: the approval must never depend on external
+  // liveness (ADR-0059 §3.2), so a rejection here surfaces as durable push state, never as a failed
+  // approval.
+  pushApproved: (timesheetId) =>
+    wrap(async () => {
+      // FR-TSP-005: a cold/absent ownership map ⇒ 'pmo' ⇒ a benign NO-OP. Deliberately NOT a rejection
+      // (contrast `revenue`'s `revenue-not-enabled`): `timesheets` is a shipped PMO feature and the
+      // approval has already succeeded — rejecting here would break approval for every existing client.
+      if (routeDomainWrite('timesheets') !== 'external') return;
+      // The gate RPC is server truth for status + authorization + the entries (FR-TSP-010/011); the
+      // client asserts nothing. It throws 42501/P0001 before a command is ever built, and the edge
+      // function re-reads it under the caller's JWT before any ERP call.
+      const gate = await approvedTimesheetForPush(timesheetId);
+      await dispatchDomainCommand(
+        'timesheets',
+        'create',
+        {
+          id: timesheetId,
+          erp_doc_kind: 'timesheet',
+          user_id: gate.user_id,
+          approved_at: gate.approved_at,
+          entries: gate.entries,
+        },
+        { idempotencyKey: timesheetPushKey(timesheetId, gate.approved_at) },
+      );
+    }),
 };
 
 const budget: BudgetRepository = {

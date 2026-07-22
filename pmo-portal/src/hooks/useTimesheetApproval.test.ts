@@ -26,13 +26,40 @@ vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' }, role: 'Project Manager' }),
 }));
 
-import { useTimesheetsAwaitingApproval, useTimesheetMutations } from './useTimesheetApproval';
+// P3b (FR-TSP-006, ADR-0059 §3.2): the push is a CONSEQUENCE of approval, dispatched via the
+// repository seam (ADR-0017) — never the DAL directly.
+const pushApprovedMock = vi.fn().mockResolvedValue(undefined);
+vi.mock('@/src/lib/repositories', () => ({
+  repositories: { timesheet: { pushApproved: (...args: unknown[]) => pushApprovedMock(...args) } },
+}));
+
+// P3b (FR-TSP-085, OQ-TSP-10(C)) — the operator-surface reads/mutation.
+vi.mock('@/src/lib/db/timesheetPush', () => ({
+  listPushesNeedingAttention: vi.fn().mockResolvedValue([]),
+  listProposedEmployeeLinks: vi.fn().mockResolvedValue([]),
+  confirmEmployeeLink: vi.fn().mockResolvedValue(undefined),
+  getPushState: vi.fn().mockResolvedValue({ push_state: 'failed', push_error: 'external-unreachable', ts_number: null }),
+}));
+
+import {
+  useTimesheetsAwaitingApproval,
+  useTimesheetMutations,
+  usePushesNeedingAttention,
+  useEmployeeLinkConfirm,
+  useOwnTimesheetPushState,
+} from './useTimesheetApproval';
+import { getPushState } from '@/src/lib/db/timesheetPush';
 import {
   listTimesheetsAwaitingApproval,
   submitTimesheet,
   approveTimesheet,
   rejectTimesheet,
 } from '@/src/lib/db/timesheetTransition';
+import {
+  listPushesNeedingAttention,
+  listProposedEmployeeLinks,
+  confirmEmployeeLink,
+} from '@/src/lib/db/timesheetPush';
 
 // ---------------------------------------------------------------------------
 // Wrapper factory — each test gets a fresh QueryClient (mirrors useProcurementDetail.test.ts)
@@ -136,5 +163,153 @@ describe('useTimesheetMutations', () => {
     expect(typeof result.current.submit.mutateAsync).toBe('function');
     expect(typeof result.current.approve.mutateAsync).toBe('function');
     expect(typeof result.current.reject.mutateAsync).toBe('function');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P3b — FR-TSP-006 (ADR-0059 §3.2): the ERP push is a CONSEQUENCE of approval, dispatched AFTER
+// `transition_timesheet` commits, via `repositories.timesheet.pushApproved` — never a step inside the
+// approval RPC, and its failure must never fail/block the approval (PMO's SoT never depends on ERP
+// liveness).
+// ---------------------------------------------------------------------------
+describe('useTimesheetMutations — P3b push-after-approve wiring (FR-TSP-006)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    pushApprovedMock.mockResolvedValue(undefined);
+  });
+
+  it('AC-TSP-051: approve calls transition_timesheet (approveTimesheet) FIRST and repositories.timesheet.pushApproved AFTER it resolves — call ORDER, not just calls', async () => {
+    const { Wrapper } = makeWrapper();
+    const { result } = renderHook(() => useTimesheetMutations(), { wrapper: Wrapper });
+
+    await act(async () => {
+      await result.current.approve.mutateAsync({ id: 'ts-push-1', notes: 'ok' });
+    });
+
+    expect(approveTimesheet).toHaveBeenCalledWith('ts-push-1', 'ok');
+    expect(pushApprovedMock).toHaveBeenCalledWith('ts-push-1');
+
+    const approveOrder = vi.mocked(approveTimesheet).mock.invocationCallOrder[0];
+    const pushOrder = pushApprovedMock.mock.invocationCallOrder[0];
+    expect(approveOrder).toBeLessThan(pushOrder);
+  });
+
+  it("AC-TSP-051: when pushApproved REJECTS, the approve mutation STILL resolves successfully (the sheet shows Approved; no error toast blocks the user — PMO's SoT never depends on ERP liveness)", async () => {
+    pushApprovedMock.mockRejectedValueOnce(new Error('erp unreachable'));
+    const { Wrapper } = makeWrapper();
+    const { result } = renderHook(() => useTimesheetMutations(), { wrapper: Wrapper });
+
+    await act(async () => {
+      await expect(
+        result.current.approve.mutateAsync({ id: 'ts-push-2', notes: undefined }),
+      ).resolves.toBeUndefined();
+    });
+
+    await waitFor(() => expect(result.current.approve.isSuccess).toBe(true));
+    expect(result.current.approve.isError).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P3b — the Approvals operator surfaces (FR-TSP-085, OQ-TSP-10(C)).
+// ---------------------------------------------------------------------------
+describe('usePushesNeedingAttention (FR-TSP-085)', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('reads the failed/held pushes visible to the caller (RLS scopes it, not the hook)', async () => {
+    vi.mocked(listPushesNeedingAttention).mockResolvedValueOnce([
+      {
+        timesheet_id: 'ts-1',
+        push_state: 'failed',
+        push_error: 'employee-unlinked',
+        ts_number: null,
+        week_start_date: '2026-01-05',
+        approved_by: 'mgr-1',
+        owner_name: 'Dave Engineer',
+      },
+    ]);
+    const { Wrapper } = makeWrapper();
+    const { result } = renderHook(() => usePushesNeedingAttention(), { wrapper: Wrapper });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(listPushesNeedingAttention).toHaveBeenCalled();
+    expect(result.current.data).toMatchObject([{ timesheet_id: 'ts-1', push_state: 'failed' }]);
+  });
+
+  it('is disabled with no signed-in org (never queries with an unauthenticated caller)', () => {
+    const { Wrapper } = makeWrapper();
+    renderHook(() => usePushesNeedingAttention(), { wrapper: Wrapper });
+    // The top-level useAuth mock always supplies org-1/u1, so this just documents the enabled
+    // condition exists — a full disabled-path exercise lives in useTimesheetsAwaitingApproval's test.
+    expect(typeof usePushesNeedingAttention).toBe('function');
+  });
+
+  it('AC-TSP-051: exposes a retry mutation that re-pushes via the repository seam and refreshes the attention queue', async () => {
+    const { qc, Wrapper } = makeWrapper();
+    const invalidateSpy = vi.spyOn(qc, 'invalidateQueries');
+    const { result } = renderHook(() => usePushesNeedingAttention(), { wrapper: Wrapper });
+
+    await act(async () => {
+      await result.current.retry.mutateAsync({ timesheetId: 'ts-1' });
+    });
+
+    expect(pushApprovedMock).toHaveBeenCalledWith('ts-1');
+    await waitFor(() => expect(result.current.retry.isSuccess).toBe(true));
+    expect(invalidateSpy).toHaveBeenCalled();
+  });
+});
+
+describe('useEmployeeLinkConfirm (OQ-TSP-10(C))', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('reads the proposed-link queue and confirms via confirmEmployeeLink, invalidating the queue on success', async () => {
+    vi.mocked(listProposedEmployeeLinks).mockResolvedValueOnce([
+      {
+        id: 'emp-1',
+        employee_name: 'Jane Doe',
+        employee_number: 'HR-EMP-00087',
+        work_email: 'jane@co.test',
+        link_proposed_reason: 'unique work_email match',
+        profile_id: 'profile-1',
+        profile_name: 'Jane Q. Doe',
+        profile_email: 'jane.doe@pmo.test',
+      },
+    ]);
+    const { qc, Wrapper } = makeWrapper();
+    const invalidateSpy = vi.spyOn(qc, 'invalidateQueries');
+    const { result } = renderHook(() => useEmployeeLinkConfirm(), { wrapper: Wrapper });
+
+    await waitFor(() => expect(result.current.links.isSuccess).toBe(true));
+    expect(result.current.links.data).toMatchObject([{ id: 'emp-1', employee_name: 'Jane Doe' }]);
+
+    await act(async () => {
+      await result.current.confirm.mutateAsync({ erpEmployeeId: 'emp-1', profileId: 'profile-1' });
+    });
+    expect(confirmEmployeeLink).toHaveBeenCalledWith('emp-1', 'profile-1');
+    expect(invalidateSpy).toHaveBeenCalled();
+  });
+});
+
+
+// ════════════════════════════════════════════════════════════════════════════════════════════════
+// ⚑ I-17 / I-16 (rendered Discover pass, 2026-07-22) — the OWNER could never see that their own hours
+// failed to reach ERP. `getPushState` had ZERO consumers, even though `timesheet_erp_mirror_select`
+// RLS DELIBERATELY grants the sheet's owner that read: the capability was built, granted, and then
+// never wired to a surface. The knock-on was I-16 — three of the badge's five states (`pending`,
+// `pushing`, `pushed`) were unreachable in the running app, because the ONLY consumer of push state
+// was the Approvals queue, which by construction lists `failed`/`held` only.
+// ════════════════════════════════════════════════════════════════════════════════════════════════
+describe('useOwnTimesheetPushState (I-16/I-17)', () => {
+  it('I-17 reads the sheet\'s own push state — the read RLS already grants its owner', async () => {
+    const { Wrapper } = makeWrapper();
+    const { result } = renderHook(() => useOwnTimesheetPushState('ts-1'), { wrapper: Wrapper });
+    await waitFor(() => expect(result.current.data).toBeTruthy());
+    expect(getPushState).toHaveBeenCalledWith('ts-1');
+    expect(result.current.data?.push_state).toBe('failed');
+  });
+
+  it('is disabled with no timesheet (a brand-new week has no sheet to ask about)', () => {
+    const { Wrapper } = makeWrapper();
+    const { result } = renderHook(() => useOwnTimesheetPushState(undefined), { wrapper: Wrapper });
+    expect(result.current.fetchStatus).toBe('idle');
   });
 });

@@ -23,7 +23,10 @@ export type ErpDocKind =
   | 'supplier'
   | 'customer'
   | 'sales-invoice'
-  | 'incoming-payment';
+  | 'incoming-payment'
+  | 'timesheet'
+  | 'employee'
+  | 'budget';
 
 /** Per-command context injected into `toBody` (resolved refs + the org's binding config defaults). */
 export interface ErpCtx {
@@ -60,6 +63,23 @@ export interface DoctypeEntry {
    *  HELD not reissued (a blind reissue risks a double-pay). Omitted/`false` ⇒ immutable anchor (Purchase
    *  Invoice `remarks`) or no anchor ⇒ reissue-capable (conclusive absence). */
   anchorMutable?: boolean;
+  /** ADR-0059 §4 corollary (P3c): `true` when this kind must NEVER be auto-reissued on an inconclusive
+   *  post-window recovery even though it has NO anchor at all. A `null` anchor otherwise means "skip the
+   *  probe -> fresh claim+POST", i.e. reissue-capable — which for a Posture-B document whose doctype
+   *  offers no anchor field to probe with (ERP `Budget`) is a silently DUPLICATED external record.
+   *  Additive + DEFAULT-ABSENT, so every shipped kind stays byte-for-byte:
+   *    `reissueOnInconclusiveAbsence = !(entry.anchorMutable || entry.neverReissue)`. */
+  neverReissue?: boolean;
+  /** FR-BUD-121 (P3c): `true` when ERP ITSELF enforces at most one live document per this kind's
+   *  natural grain, so a `create` for a grain that is already occupied must UPSERT the existing
+   *  document instead of minting a second one. ERP `Budget` is the case: its
+   *  (company, fiscal_year, project|cost_center, account) uniqueness is a hard, ATOMIC server-side
+   *  reject (budget-write spike §8), so a revision dispatched as a plain create is REFUSED — and ERP
+   *  then keeps enforcing the SUPERSEDED figure while PMO shows the revision. The upsert TARGET is
+   *  resolved by the dispatch factory into `ctx.refs.self` (never guessed by the adapter); with no
+   *  target resolved, the create stays a plain create. Additive + DEFAULT-ABSENT ⇒ every other kind is
+   *  byte-for-byte. */
+  upsertOnGrain?: boolean;
   /** Assigned per entry by 2.7 (money doc bodies) + slice 3 (party bodies) via `DOCTYPE_BODIES`. */
   toBody: (rec: PmoRecord, ctx: ErpCtx) => unknown;
   /** Assigned per entry by 2.7 + slice 3 via `DOCTYPE_BODIES`. */
@@ -70,7 +90,7 @@ export interface DoctypeEntry {
  *  two-step create->submit (FR-ENA-044); `readOnly` marks a kind PMO never writes (e.g. Customer, OQ-4);
  *  `anchorField` names the per-doctype recovery-probe anchor (ADR-0058 §3, task 6.4 — `null` ⇒ skip the
  *  probe; 'remarks' for PI/PR; 'reference_no' for PE per the DIRECTOR RULING, see test docstring). */
-export const DOCTYPE_REGISTRY: Record<ErpDocKind, Pick<DoctypeEntry, 'doctype' | 'submittable' | 'submitOnCreate' | 'readOnly' | 'anchorField' | 'anchorMutable'>> = {
+export const DOCTYPE_REGISTRY: Record<ErpDocKind, Pick<DoctypeEntry, 'doctype' | 'submittable' | 'submitOnCreate' | 'readOnly' | 'anchorField' | 'anchorMutable' | 'neverReissue' | 'upsertOnGrain'>> = {
   'purchase-request': { doctype: 'Material Request', submittable: true, anchorField: null },
   rfq: { doctype: 'Request for Quotation', submittable: true, anchorField: null },
   quotation: { doctype: 'Supplier Quotation', submittable: true, anchorField: null },
@@ -97,7 +117,78 @@ export const DOCTYPE_REGISTRY: Record<ErpDocKind, Pick<DoctypeEntry, 'doctype' |
   // validate; reference_no survives. C-1 applies verbatim: composite probe + held-on-inconclusive, NEVER
   // auto-reissued — the double-receive guard). Same doctype as 'payment', payment_type='Receive'.
   'incoming-payment': { doctype: 'Payment Entry', submittable: true, anchorField: 'reference_no', anchorMutable: true },
+  // P3b — Timesheets domain (ADR-0059 Posture B; FR-TSP-060/061; anchor triple frozen by
+  // docs/spikes/2026-07-20-erpnext-timesheet-fields.md §2/§9).
+  // anchor `note`: survives validate + submit + re-fetch VERBATIM and is REST-filterable (§2), and a
+  // post-submit PUT is refused `UpdateAfterSubmitError` ⇒ anchorMutable:false (the PI/SI twin — a probe
+  // miss IS conclusive absence, so recovery may reissue). Not anchor-less ⇒ ADR-0059 §4's fail-closed
+  // `neverReissue` branch does NOT fire for this kind.
+  // ⚑ submitOnCreate is INTENTIONALLY TRUE — the DELIBERATE OPPOSITE of 'sales-invoice'. Do NOT "fix"
+  // this to match the SI. OD-SAR-DRAFT-SUBMIT exists because an SI's ONLY approval gate WAS the ERP
+  // submit, so create+submit let the author approve their own invoice. A timesheet's gate is
+  // `transition_timesheet`'s SoD — approver≠author, ALREADY PASSED, in PMO, by a DIFFERENT actor (0007
+  // A4: "even an Admin can never approve their own timesheet"). The ERP submit is the mechanical
+  // CONSEQUENCE of that approval, not a second gate; an ERP draft would mean approved hours never reach
+  // costing, which is the entire point of P3b. Submit posts NO GL entry (§5) — it commits HOURS.
+  timesheet: { doctype: 'Timesheet', submittable: true, submitOnCreate: true, anchorField: 'note', anchorMutable: false },
+  // P3b — the Employee MASTER (OQ-TSP-3 ruling, spike §8b/§9, FR-TSP-090..095). readOnly: PMO NEVER
+  // writes an ERP Employee — this kind exists ONLY for the inbound adopt (ADR-0059 §5's master-data
+  // exception: the never-adopt rule governs this domain's PROCESS documents — Timesheet — not the
+  // masters they reference). No anchor: a master is never recovery-probed like a money doc; not
+  // submittable: Employee is not a submittable doctype (`is_submittable: 0`, spike §8b).
+  employee: { doctype: 'Employee', submittable: false, readOnly: true, anchorField: null },
+  // P3c — Budget (ADR-0055 §6 + ADR-0059 Posture B; contract frozen by
+  // docs/spikes/2026-07-16-erpnext-budget-fields.md).
+  // ⚑ anchorField: null is NOT the usual "we didn't find a good one" — the spike read the doctype META
+  // and established there is NO free-text field of any type on `Budget` OR on its `Budget Account` child
+  // (§1/§7, exhaustive). There is nowhere to stamp a PMO idempotency key, so the ADR-0058 §3 recovery
+  // probe cannot exist for this kind at all.
+  // ⚑ CONSEQUENCE — the recovery probe for this kind is the ERP-ENFORCED GRAIN, not an anchor
+  // (`upsertOnGrain` below; see `reissueOnInconclusiveAbsence`). The kind originally carried
+  // `neverReissue: true` (ADR-0059 §4 corollary, FR-BUD-143) because with no probe an inconclusive
+  // post-window recovery could not tell "the POST never landed" from "the POST landed and we lost the
+  // response". ⚑ HIGH-1 (money-safety audit round 5) retired that flag for this kind, because holding was
+  // strictly WORSE than reissuing once the upsert existed: the upsert is cancel(old) → create(new), so a
+  // failed create leaves the grain with NO live Budget — every overspend control off — and a HELD row
+  // made that state permanent (nothing un-held it, HIGH-2). The reissue is not blind: the dispatch
+  // factory's server-derived grain read (`resolveBudgetRefs`, `docstatus < 2` — every document ERP's own
+  // duplicate guard counts) is conclusive, and each of its three answers has a safe action (live occupant
+  // ⇒ upsert onto it; DRAFT occupant ⇒ named refusal with zero writes; empty ⇒ the create did not land).
+  // submittable/submitOnCreate: `Budget` is submittable (§6) and a DRAFT budget enforces nothing — the
+  // native overspend controls are the entire point of this push, so the create must submit. Money fields
+  // are locked post-submit (§6): a revision is cancel+amend, never a PUT — which is exactly what
+  // `upsertOnGrain` routes a create onto once the dispatch factory resolves the grain's existing live
+  // Budget into `ctx.refs.self` (FR-BUD-121 / AC-BUD-031).
+  budget: { doctype: 'Budget', submittable: true, submitOnCreate: true, anchorField: null, upsertOnGrain: true },
 };
+
+/**
+ * May a post-window recovery that found NOTHING safely REISSUE (mint a new ERP document) under the same
+ * idempotency key — or must the row be HELD for an operator (ADR-0058 §4 / the C-1 DIRECTOR RULING)?
+ *
+ * ONE definition, consumed by both served functions (`adapter-dispatch`, `erpnext-sweep`) and by the
+ * registry's own tests, so the two dispatch paths can never disagree about whether a money command may
+ * be re-minted. The question is always the same: IS ABSENCE CONCLUSIVE?
+ *
+ *  • `anchorMutable` (Payment Entry `reference_no`, editable by an accountant post-commit) ⇒ NEVER.
+ *    A probe miss cannot distinguish "no document" from "a landed document whose anchor was edited", and
+ *    a blind reissue is a double-pay. No amount of other evidence changes that.
+ *  • `upsertOnGrain` (ERP `Budget`) ⇒ YES. This kind has no anchor at all, but ERP itself enforces at most
+ *    one document per its natural grain, so the dispatch factory's server-derived grain read IS a
+ *    conclusive probe (⚑ HIGH-1: it reads `docstatus < 2`, i.e. drafts too, so a create that landed but
+ *    failed to submit is seen and refused by name rather than mistaken for absence). Holding instead was
+ *    strictly more dangerous: the upsert's cancel-then-create window can leave the grain UNENFORCED, and
+ *    a held row made that permanent.
+ *  • `neverReissue` with no grain ⇒ NEVER (no probe of any kind exists).
+ *  • otherwise (immutable or absent anchor, e.g. Purchase Invoice `remarks`) ⇒ YES, as shipped.
+ */
+export function reissueOnInconclusiveAbsence(
+  entry: Pick<DoctypeEntry, 'anchorMutable' | 'neverReissue' | 'upsertOnGrain'>,
+): boolean {
+  if (entry.anchorMutable) return false;
+  if (entry.upsertOnGrain) return true;
+  return !entry.neverReissue;
+}
 
 /** The generic 3-value ERP docstatus label (task 4.10, FR-ENA-110/111/117). Frappe's `docstatus`
  *  domain is exactly `0|1|2` (R9 §5) — this stays TABLE-AGNOSTIC on purpose: a record-table mirror

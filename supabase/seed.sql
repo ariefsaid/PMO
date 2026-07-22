@@ -389,6 +389,79 @@ update budget_versions set status = 'Active'
     '51000000-0000-0000-0000-000000000004',
     '51000000-0000-0000-0000-000000000005');
 
+-- ============================================================
+-- §F.1  ⚑ MEDIUM-2 (money-safety audit round 7) — ONE PROJECT-YEAR WITH A GENUINELY PUSHED BUDGET.
+--
+-- `/projects/:id/budget` mounts the ERP projection panel, and the panel renders its money table only
+-- when a fiscal year is ON RECORD for the Active version (`budget_version_erp_mirror.fiscal_year` —
+-- the only in-DB authority for "which year was this budget filed under"). The seed had NO mirror row,
+-- NO actuals snapshot and NO ETC anywhere, so after the round-6 year-scoping fix every seeded project
+-- rendered the "no fiscal year on record" empty state and the money table NEVER MOUNTED. Both visual
+-- oracles (AC-VISUAL-ICON-001 and the AC-MOBILE-OVERFLOW-001 no-bleed gate, which points at exactly
+-- this route on MERIDIAN) were therefore measuring an empty panel — including for the responsive
+-- stacked-card rework they were added to protect. "Gates green" was not evidence about that surface.
+--
+-- So Meridian's Active version (51..0002) is seeded as a real, landed push: the org employs the
+-- `budget` domain on the erpnext tier, the categories are mapped to real ERP accounts, the mirror row
+-- records the year, the ledger has actually been READ (`as_of` — without it every actual is NULL by
+-- design, not zero), and one category carries a PMO ETC so the forward-view columns are exercised too.
+-- ============================================================
+
+-- The org employs `budget` externally — without this the panel does not mount at all (LOW-2a).
+insert into external_domain_ownership (org_id, external_tier, domain) values
+  ('00000000-0000-0000-0000-000000000001','erpnext','budget')
+on conflict (org_id, external_tier, domain) do nothing;
+
+-- FR-BUD-111 bijection: PMO category → the client's own ERP account. An UNMAPPED category's actuals are
+-- deliberately NULL ("no account to look at"), never 0 — 'Contingency' is left unmapped on purpose so
+-- the seeded screen shows BOTH states side by side.
+-- ⚑ THE MAP IS A BIJECTION IN BOTH DIRECTIONS — unique on `(org_id, category)` AND on
+-- `(org_id, erp_account)`. So these accounts MUST NOT collide with the ones the budget e2e lane binds
+-- per run (`e2e/serial/_budHelpers.ts`: LABOR_ACCOUNT = 'Administrative Expenses - PSC',
+-- MATERIALS_ACCOUNT = 'Commission on Sales - PSC'). If they do, the helper's upsert — which conflicts
+-- on CATEGORY — trips the ACCOUNT constraint instead and every budget spec dies in seeding with a
+-- 23505 that points at the helper rather than at this block. (Found exactly that way, round 7.)
+insert into budget_category_account_map (org_id, category, erp_account) values
+  ('00000000-0000-0000-0000-000000000001','Materials','Cost of Goods Sold - PSC'),
+  ('00000000-0000-0000-0000-000000000001','Labor','Salary - PSC'),
+  ('00000000-0000-0000-0000-000000000001','Equipment','Expenses Included In Asset Valuation - PSC'),
+  -- Mapped but with NO GL rows below -> a REAL, computed zero, which is a DIFFERENT fact from
+  -- 'Contingency'/'Subcontractors' (unmapped -> unobtainable/NULL). The seeded screen shows all three.
+  ('00000000-0000-0000-0000-000000000001','Permits & Fees','Entertainment Expenses - PSC')
+on conflict (org_id, category) do nothing;
+
+-- The landed push itself.
+insert into budget_version_erp_mirror
+  (org_id, budget_version_id, fiscal_year, push_state, erp_budget_name, erp_docstatus, pushed_at)
+values
+  ('00000000-0000-0000-0000-000000000001','51000000-0000-0000-0000-000000000002','2026',
+   'pushed','BUDGET-2026-00001',1, now() - interval '3 days')
+on conflict (org_id, budget_version_id, fiscal_year) do nothing;
+
+-- The ERP ledger reading. `as_of` is the knowability test for every actual on the screen: with no
+-- reading on record the column is UNOBTAINABLE (NULL), which is a different fact from a real zero.
+insert into erp_actuals_snapshot
+  (org_id, project_id, account, fiscal_year, debit, credit, net, as_of, snapshot_id)
+values
+  ('00000000-0000-0000-0000-000000000001','41000000-0000-0000-0000-000000000001',
+   'Cost of Goods Sold - PSC','2026',1300000.00,0,1300000.00, now() - interval '1 day',
+   '5a000000-0000-0000-0000-000000000001'),
+  ('00000000-0000-0000-0000-000000000001','41000000-0000-0000-0000-000000000001',
+   'Salary - PSC','2026',180000.00,0,180000.00, now() - interval '1 day',
+   '5a000000-0000-0000-0000-000000000001'),
+  ('00000000-0000-0000-0000-000000000001','41000000-0000-0000-0000-000000000001',
+   'Expenses Included In Asset Valuation - PSC','2026',300000.00,0,300000.00, now() - interval '1 day',
+   '5a000000-0000-0000-0000-000000000001')
+  -- ⚑ NOTE the deliberate absence: 'Entertainment Expenses - PSC' (Permits & Fees) is MAPPED but has no
+  -- row here, so its actual is a real, computed 0 — the third state.
+on conflict do nothing;
+
+-- PMO's own forward estimate (FR-BUD-151) — never pushed to ERP (FR-BUD-160).
+insert into budget_projections (org_id, project_id, fiscal_year, category, pmo_etc) values
+  ('00000000-0000-0000-0000-000000000001','41000000-0000-0000-0000-000000000001','2026','Materials',1000000.00),
+  ('00000000-0000-0000-0000-000000000001','41000000-0000-0000-0000-000000000001','2026','Labor',250000.00)
+on conflict (org_id, project_id, fiscal_year, category) do nothing;
+
 -- ── Pipeline/Loss budget stubs ────────────────────────────────────────────────
 
 insert into budget_versions (id, project_id, version, name, status) values
@@ -2036,3 +2109,24 @@ on conflict (id) do nothing;
 insert into platform_operators (user_id, granted_by) values
   ('00000000-0000-0000-0000-0000000000ff','00000000-0000-0000-0000-0000000000ff')
 on conflict (user_id) do nothing;
+
+-- ─────────────────────────────────────────────────────────────────────────────────────────────────
+-- ⚑ Local-only: the ERPNext webhook secret, in VAULT.
+--
+-- ADR-0061 / #355 / #357 moved per-org secret resolution to VAULT-ONLY: `resolvePerOrgSecret` used to
+-- fall back to `Deno.env.get(webhook_secret_ref)`, and that fallback is gone. The served
+-- `erpnext-webhook` therefore resolves NO employing org when the ref is missing from Vault, and every
+-- inbound event answers 401 — which looks exactly like a bad HMAC and reads as a product defect.
+--
+-- The e2e binding names `webhook_secret_ref = 'DEMO_ERP_WEBHOOK_SECRET'`; this seeds that name with the
+-- value the specs sign with. Seeded HERE (not from a spec) because `create_vault_secret_for_org` is
+-- Admin-gated on `auth.uid()` and a service_role caller gets 42501 — while `seed.sql` runs as
+-- `postgres` on `db reset`, which is exactly the privilege this needs. `seed.sql` is LOCAL ONLY and is
+-- never applied to a cloud project (docs/environments.md).
+do $$
+begin
+  if not exists (select 1 from vault.secrets where name = 'DEMO_ERP_WEBHOOK_SECRET') then
+    perform vault.create_secret('local-e2e-webhook-secret', 'DEMO_ERP_WEBHOOK_SECRET',
+      'ERPNext webhook HMAC secret for the local e2e lane (see supabase/seed.sql)');
+  end if;
+end $$;

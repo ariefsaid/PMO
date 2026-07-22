@@ -246,6 +246,30 @@ kind + `neutral` for the rest. The StatusPill `open` (blue-tint) variant is froz
 strokes. Never invent a second border color to "separate" regions — use surface-tone contrast or spacing
 (content-over-containers) instead.
 
+**The Stated-State Rule (rendered Discover pass, 2026-07-22).** *A state that renders nothing is a
+defect, not a default — silence is indistinguishable from absence.* If a machine can be in five states
+and three of them draw no pixels, the screen has told the user "there is nothing here" three times while
+meaning three different things. Every enumerated state gets its OWN visible, asserted string. The single
+exception is genuine absence: a capability the org does not have (no ERP tier ⇒ no push status) truly has
+nothing to say, and saying nothing is then the truth. Recorded after the budget push surface rendered
+`pending`, `pushing` and `pushed` identically — as nothing — while the timesheet badge, in the same
+product, rendered all five.
+
+**The Unknowable-Is-Not-Zero Rule (rendered Discover pass, 2026-07-22).** *A figure the system cannot
+know must never be rendered as a number.* `0`, `$0.00` and `0%` are CLAIMS about the world and may only
+be shown when they were computed. An unavailable figure renders as `—` **with the reason attached**
+(`title` + an `sr-only` sentence) — a bare dash reads as "we forgot" — and every figure DERIVED from it
+is unavailable too (an unreadable actual makes the variance and the utilization unknowable, not
+favourable). Recorded after a category the same screen banner-ed as unmapped printed a confident `$0`
+spent, a full-budget variance and `0%` utilized, two inches below the warning.
+
+**The No-Raw-Token Rule (rendered Discover pass, 2026-07-22).** No machine identifier —
+`budget-category-unmapped`, `activity-type-unconfigured: …` — may reach the DOM. Adapter/error codes are
+translated once, in a tested map (`src/lib/adapterSeam/pushErrorCopy.ts`), and an UNCLASSIFIED code is
+named as unclassified rather than printed. The same map decides whether a **Retry** affordance is offered
+at all: *a button that can only ever fail is worse than no button* — it says the problem is transient
+when it is structural. A withheld affordance always states the remedy that replaces it.
+
 **Content-over-containers (ADR-0037 §1).** Fewer boxes; prefer hairline dividers and whitespace to
 nested card wrappers. Drop a wrapping card where whitespace/dividers suffice; keep a container only where
 the content earns it (a phase/delivery card, a table frame).
@@ -359,11 +383,25 @@ status text apply them as `hsl(var(--token))`. See §6 for the verified contrast
   submit**, never on mount — no eager "Fix N fields" banner on an untouched form.
 
 ### Data Table (signature)
-- **Header cells:** sticky, `card` bg, 38px tall, Overline type (uppercase, `muted-foreground`), bottom
-  `border`. Numeric columns right-align. Row `⋯` menu trigger is **always visible** (hover-hidden was
-  reverted: undiscoverable on touch + keyboard).
-- **Body cells:** 54px today (airier target ~56–64px), 12px padding, divider = `border/70%`. Row hover →
-  `accent/60%`; selected → `primary/7%`; expanded → `accent/50%`.
+> **Reconciled against the shipped code, 2026-07-22** (rendered Discover pass, `DESIGN.md` drift). The
+> rendered `/projects` table measured 68px rows / 13.5px cells / 11.5px `0.03em` headers, which read as
+> drift from the 54px/11px/`0.06em` written here. Checked against `src/components/ui/DataTable.tsx`,
+> the shipped source of every table: the ROW token is `h-[54px]` and correct — 68px is that minimum
+> GROWN by the 2-line project cell §In-cell already documents, i.e. content, not a token. The two real
+> drifts were **table type**: the header cell is **11.5px / `0.03em`**, not the 11px / `0.06em`
+> Overline (§3), and the body is **13.5px**, which was never written down at all. The code is the
+> ground truth on both — the tighter tracking is what makes a dense numeric header legible, and every
+> shipped table already uses it — so this section is corrected to the code rather than the reverse.
+> Overline (11px / `0.06em`) remains correct for rail group labels and free-standing section captions.
+- **Header cells:** sticky, `card` bg, 38px tall, **Table-Header type — 11.5px / 600 / `0.03em`,
+  UPPERCASE, `muted-foreground`** (NOT §3's Overline: the tighter tracking is deliberate for dense
+  numeric columns), bottom `border`. Numeric columns right-align. Row `⋯` menu trigger is **always
+  visible** (hover-hidden was reverted: undiscoverable on touch + keyboard).
+- **Body cells:** **13.5px**, `h-[54px]` MINIMUM (a taller in-cell composition — e.g. the 2-line
+  project cell — legitimately grows the row to ~68px; airier target ~56–64px), 12px padding, divider =
+  `border/70%`. Row hover → `accent/60%`; selected → `primary/7%`; expanded → `accent/50%`.
+- **Money cells:** `tabular` is **mandatory** on every figure and on the `—` that stands in its place
+  (§3) — a column that loses it stops aligning against the table above it.
 - **In-cell:** project cell (28px mono icon + 2-line name/code, code in `font-mono`); money (`tabular`,
   sub-values `muted`); win-% bar (track `secondary`, fill `success`/`warning`/`destructive` by
   threshold); age chip (turns `warning`/`destructive` when aging/stale).

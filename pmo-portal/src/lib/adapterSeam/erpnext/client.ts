@@ -467,10 +467,28 @@ export async function listDocNamesByFilters(
   filters: ErpFilter[],
   limit = 20,
 ): Promise<string[]> {
+  const rows = await listDocsByFilters(deps, doctype, filters, ['name'], limit);
+  return rows.map((d) => String(d.name)).filter((n) => n !== 'undefined');
+}
+
+/**
+ * The same server-filtered list, but returning the requested `fields` instead of only `name` — so a
+ * caller can decide on ERP-side state (⚑ HIGH-1: the budget upsert must see each grain occupant's
+ * `docstatus`, because a DRAFT rival blocks a create exactly as a submitted one does while being
+ * invisible to a `docstatus = 1` filter). Frappe returns only whitelisted/queryable fields; a field it
+ * does not return is simply absent from the row, never a fabricated default.
+ */
+export async function listDocsByFilters(
+  deps: ErpClientDeps,
+  doctype: string,
+  filters: ErpFilter[],
+  fields: string[],
+  limit = 20,
+): Promise<Array<Record<string, unknown>>> {
   const encoded = encodeURIComponent(JSON.stringify(filters));
-  const path = `${doctypePath(doctype)}?filters=${encoded}&limit_page_length=${limit}`;
+  const encodedFields = encodeURIComponent(JSON.stringify(fields));
+  const path = `${doctypePath(doctype)}?filters=${encoded}&fields=${encodedFields}&limit_page_length=${limit}`;
   const res = await erpnextRequest(deps, { method: 'GET', path });
-  const data = (res as { data?: Array<{ name?: unknown }> } | null)?.data;
-  if (!Array.isArray(data)) return [];
-  return data.map((d) => String(d.name)).filter((n) => n !== 'undefined');
+  const data = (res as { data?: Array<Record<string, unknown>> } | null)?.data;
+  return Array.isArray(data) ? data : [];
 }
