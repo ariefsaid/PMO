@@ -54,6 +54,37 @@ const waitFor = (child) =>
     child.on('close', (code) => resolve({ code, stderr }));
   });
 
+/**
+ * Resolve once the wrapper has ACTUALLY taken the lock (it says so on stderr).
+ *
+ * A fixed `setTimeout` settle is not good enough here: these tests exist for a
+ * loaded machine, and on a loaded machine a 150ms head start is not a guarantee —
+ * the "first" holder can lose the race and the ordering assertion fails for a
+ * reason that has nothing to do with the lock. Waiting for the real acquisition
+ * signal makes the ordering deterministic instead of probable.
+ *
+ * Bounded, so a genuinely broken lock fails the test instead of hanging it.
+ */
+const waitUntilAcquired = (child, timeoutMs = 10_000) =>
+  new Promise((resolve, reject) => {
+    let seen = '';
+    const timer = setTimeout(
+      () => reject(new Error(`lock not acquired within ${timeoutMs}ms; stderr so far: ${seen}`)),
+      timeoutMs,
+    );
+    child.stderr.on('data', (d) => {
+      seen += d;
+      if (/ACQUIRED/.test(seen)) {
+        clearTimeout(timer);
+        resolve(seen);
+      }
+    });
+    child.on('close', () => {
+      clearTimeout(timer);
+      reject(new Error(`process exited before acquiring the lock; stderr: ${seen}`));
+    });
+  });
+
 // ── The lock actually excludes ────────────────────────────────────────────────
 // Two holders each append START/END markers. If the lock works the sequence is
 // strictly A-start A-end B-start B-end (or B before A) — never interleaved.
@@ -68,11 +99,14 @@ test('flock core serialises two concurrent holders (no interleaving)', async () 
       `printf '${tag}-start\\n' >> ${log}; sleep 1.5; printf '${tag}-end\\n' >> ${log}`;
 
     const a = spawnLocked(DB_LOCK, lock, {}, ['bash', '-c', body('A')]);
-    // Give A a beat to take the lock, so B genuinely contends for it.
-    await new Promise((r) => setTimeout(r, 150));
+    const aDone = waitFor(a); // attach before awaiting, so no stderr is missed
+    // Wait for A to REALLY hold the lock before starting B — then B provably
+    // contends, and "A first" is a fact rather than a hope.
+    await waitUntilAcquired(a);
     const b = spawnLocked(DB_LOCK, lock, {}, ['bash', '-c', body('B')]);
+    const bDone = waitFor(b);
 
-    const [ra, rb] = await Promise.all([waitFor(a), waitFor(b)]);
+    const [ra, rb] = await Promise.all([aDone, bDone]);
     assert.equal(ra.code, 0, `holder A failed: ${ra.stderr}`);
     assert.equal(rb.code, 0, `holder B failed: ${rb.stderr}`);
 
@@ -90,7 +124,8 @@ test('lock timeout exits 75 (EX_TEMPFAIL) instead of blocking forever', async ()
   await withTempAsync('pmo-lock-timeout-', async (dir) => {
     const lock = path.join(dir, 'the.lock');
     const holder = spawnLocked(DB_LOCK, lock, {}, ['sleep', '5']);
-    await new Promise((r) => setTimeout(r, 300));
+    const holderDone = waitFor(holder);
+    await waitUntilAcquired(holder); // the loser must contend, not race the holder
 
     const loser = spawnLocked(DB_LOCK, lock, { PMO_DB_LOCK_TIMEOUT: '1' }, ['true']);
     const { code, stderr } = await waitFor(loser);
@@ -98,7 +133,7 @@ test('lock timeout exits 75 (EX_TEMPFAIL) instead of blocking forever', async ()
     assert.match(stderr, /gave up after/);
 
     holder.kill('SIGKILL');
-    await waitFor(holder);
+    await holderDone;
   });
 });
 
@@ -122,7 +157,8 @@ test('the test lock is a SEPARATE lock from the db lock (they must not block eac
     // lockfile would time out (75); separate locks succeed immediately.
     const holder = spawn('bash', [DB_LOCK, 'sleep', '5'],
       { env: { ...process.env, PMO_DB_LOCK: dbLock }, stdio: ['ignore', 'pipe', 'pipe'] });
-    await new Promise((r) => setTimeout(r, 300));
+    const holderDone = waitFor(holder);
+    await waitUntilAcquired(holder); // db lock is provably held before we probe
 
     const other = spawn('bash', [TEST_LOCK, 'true'], {
       env: { ...process.env, PMO_TEST_LOCK: testLock, PMO_TEST_LOCK_TIMEOUT: '2' },
@@ -132,7 +168,7 @@ test('the test lock is a SEPARATE lock from the db lock (they must not block eac
     assert.equal(code, 0, 'test lock must be independent of the db lock');
 
     holder.kill('SIGKILL');
-    await waitFor(holder);
+    await holderDone;
   });
 });
 
