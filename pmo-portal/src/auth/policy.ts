@@ -177,7 +177,7 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
   task: {
     create: allow(DELIVERY),
     edit: allow(DELIVERY),
-    archive: allow(DELIVERY),
+    archive: allow(MASTER_DATA),
     delete: allow(DELIVERY),
   },
   taskStatus: {

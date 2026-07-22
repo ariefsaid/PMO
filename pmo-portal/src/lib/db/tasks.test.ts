@@ -71,6 +71,8 @@ import {
   updateTask,
   updateTaskStatus,
   deleteTask,
+  archiveTask,
+  unarchiveTask,
   addDependency,
   removeDependency,
 } from './tasks';
@@ -86,6 +88,24 @@ beforeEach(() => {
   ext.route = 'pmo';
   ext.dispatch.mockReset();
   ext.dispatch.mockResolvedValue({ externalRecordId: 'cu-1', canonical: { id: 'new', name: 'X', status: 'To Do' } });
+});
+
+describe('task archive writes', () => {
+  it('AC-CUA-096: archives and unarchives through the PMO DAL', async () => {
+    await archiveTask('t1');
+    expect(h.calls.update[0]).toEqual({ archived_at: expect.any(String) });
+    await unarchiveTask('t1');
+    expect(h.calls.update[1]).toEqual({ archived_at: null });
+    expect(ext.dispatch).not.toHaveBeenCalled();
+  });
+
+  it('AC-CUA-097: refuses to attempt a PMO archive while tasks are externally owned', async () => {
+    ext.route = 'external';
+    await expect(archiveTask('t1')).rejects.toMatchObject({ code: 'external-owned' });
+    await expect(unarchiveTask('t1')).rejects.toMatchObject({ code: 'external-owned' });
+    expect(h.from).not.toHaveBeenCalled();
+    expect(ext.dispatch).not.toHaveBeenCalled();
+  });
 });
 
 describe('AC-TASK-001 listTasks (per-project, with assignee + deps)', () => {

@@ -188,6 +188,10 @@ export interface TaskRepository {
   updateStatus(id: string, status: TaskStatus): Promise<void>;
   /** Hard-delete a task (cascades dependencies). */
   delete(id: string): Promise<void>;
+  /** PMO-owned reversible soft archive. */
+  archive(id: string): Promise<void>;
+  /** PMO-owned reversible unarchive. */
+  unarchive(id: string): Promise<void>;
   /** Add a dependency edge (taskId depends on dependsOnId). */
   addDependency(taskId: string, dependsOnId: string): Promise<void>;
   /** Remove a dependency edge. */
