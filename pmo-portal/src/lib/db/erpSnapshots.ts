@@ -7,8 +7,9 @@ import { AppError } from '@/src/lib/appError';
  * snapshot rows over `erp_actuals_snapshot` / `erp_ap_aging_snapshot` / `erp_ar_aging_snapshot`.
  * RLS (`org_id = auth_org_id()`) scopes every read — no `org_id` filter is sent by the client. There
  * is NO write path here by design — snapshots are machine-written by the sweep (slice 8), never a
- * client-side writer. The current scope (single as_of) is returned: snapshot-replace keeps exactly
- * one snapshot_id per scope, so every own-org row shares the latest coherent snapshot.
+ * client-side writer. The current scope (single as_of) is returned: snapshot-replace publishes exactly
+ * one snapshot_id per org, ATOMICALLY (`replace_erp_snapshot`, migration 0142), so every own-org row
+ * shares the latest coherent snapshot.
  */
 
 export interface ErpActualsSnapshotRow {
@@ -76,20 +77,18 @@ interface AgingDb {
 }
 
 /**
- * task FIX-7 (Quality MINOR 5) — the latest-snapshot_id filter hardening. Snapshot-replace (delete
- * old scope rows, then insert new) is TWO round-trips, not one transaction (`actualsSnapshot.ts`/
- * `agingSnapshot.ts`'s comment on the pattern). A concurrent double-sweep can race the delete of one
- * pass against the insert of another and leave rows from TWO snapshot_ids in the table at once. Rather
- * than trust "snapshot-replace keeps exactly one snapshot_id per scope" blindly, filter the read to
- * only the MOST RECENT snapshot_id — the first row's, since the query already orders `created_at`
- * desc — so a stale generation never mixes into what renders.
+ * ⚑ DELETED in audit round 10: `latestSnapshotOnly()` (task FIX-7). It re-filtered the rows in hand to
+ * "the first row's snapshot_id", justified by a comment claiming the query ordered `created_at desc`.
+ * Since round 9 it ordered the `id` PK ASCENDING, and the scan already pins `snapshot_id = anchor`
+ * SERVER-side — so the function was a no-op whose stated basis was false, and under the obvious
+ * mutation (drop the server-side `eq`) it would have kept the LOWEST-id row, which has no relationship
+ * to recency: it would have silently preserved the STALE generation. Two of its tests passed under
+ * exactly that mutation because the fixture's newer row happened to get the lower synthetic id.
+ *
+ * The server-side `eq` is the real filter; a redundant client-side one that can be wrong is not
+ * defence in depth, it is a second place for the truth to live. Its two behavioural tests survive and
+ * now prove the SERVER-side filter (they still fail if that `eq` is removed).
  */
-function latestSnapshotOnly<T extends { snapshot_id: string }>(rows: T[]): T[] {
-  if (rows.length === 0) return rows;
-  const latestId = rows[0].snapshot_id;
-  return rows.filter((r) => r.snapshot_id === latestId);
-}
-
 function toActualsRow(db: ActualsDb): ErpActualsSnapshotRow {
   return {
     projectId: db.project_id,
@@ -179,10 +178,24 @@ async function newestSnapshotId(table: string): Promise<string | null> {
  * So: page on the PK, and RE-ASSERT the anchor after the scan. If the newest snapshot moved while we
  * were reading, the rows in hand are a torn mix or a truncated generation — retry ONCE against the new
  * anchor, then fail closed rather than return something that cannot be told apart from the truth.
+ *
+ * ⚑ AUDIT ROUND 10 — WHAT ATOMICITY CLOSED, AND WHAT IT DID NOT. Migration 0142 makes snapshot-replace
+ * ONE statement, so fault (b) no longer produces a torn MIX (two generations can never coexist) and
+ * the zero-generation window is gone. It does NOT make this re-assert redundant, because the read is
+ * still multi-statement: anchor S1, take page 0, the sweep atomically publishes S2, page 1 for S1
+ * returns zero rows — a legitimate-looking SHORT PAGE — and the pager stops, holding a PREFIX of a
+ * generation that no longer exists. That is a truncated money table with `error === null`, which is
+ * exactly the class this whole file exists to end. Only the re-assert catches it. It is kept, and it
+ * is now covered (`erpSnapshots.test.ts`) rather than asserted by comment.
  */
 async function latestSnapshotRows(table: string, columns: string): Promise<unknown[]> {
   for (let attempt = 0; attempt < 2; attempt += 1) {
     const anchor = await newestSnapshotId(table);
+    // ⚑ Round-10 MED-1, closed by 0142: no anchor now means ONE thing — no generation has ever been
+    // published for this org (or the sweep published an empty one). It used to ALSO mean "we landed in
+    // the gap between the replace's delete and its insert", which rendered "No actuals snapshot yet"
+    // — byte-identical to never having synced — for the duration of a multi-thousand-row insert, then
+    // cached it for 30s. The atomic replace has no such gap, so this empty is honest.
     if (!anchor) return [];
     const rows = await fetchAllRowsByKeyset<{ id: string }>((afterId, limit) => {
       const base = loose.from(table).select(`id,${columns}`).eq('snapshot_id', anchor).order('id', { ascending: true });
@@ -200,17 +213,17 @@ async function latestSnapshotRows(table: string, columns: string): Promise<unkno
 /** Read the caller's own-org actuals snapshot (current scope). RLS-scoped; empty when no refresh has run. */
 export async function listActualsSnapshot(): Promise<ErpActualsSnapshotRow[]> {
   const rows = await latestSnapshotRows('erp_actuals_snapshot', ACTUALS_COLS);
-  return latestSnapshotOnly(rows as unknown as ActualsDb[]).map(toActualsRow);
+  return (rows as unknown as ActualsDb[]).map(toActualsRow);
 }
 
 /** Read the caller's own-org AP aging snapshot (current scope). RLS-scoped; empty when no refresh has run. */
 export async function listApAgingSnapshot(): Promise<ErpAgingSnapshotRow[]> {
   const rows = await latestSnapshotRows('erp_ap_aging_snapshot', AGING_COLS);
-  return latestSnapshotOnly(rows as unknown as AgingDb[]).map(toAgingRow);
+  return (rows as unknown as AgingDb[]).map(toAgingRow);
 }
 
 /** Read the caller's own-org AR aging snapshot (current scope). RLS-scoped; empty when no refresh has run. */
 export async function listArAgingSnapshot(): Promise<ErpAgingSnapshotRow[]> {
   const rows = await latestSnapshotRows('erp_ar_aging_snapshot', AGING_COLS);
-  return latestSnapshotOnly(rows as unknown as AgingDb[]).map(toAgingRow);
+  return (rows as unknown as AgingDb[]).map(toAgingRow);
 }

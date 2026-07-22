@@ -59,6 +59,14 @@ export interface FakePostgrestOptions {
    * here appends, matching an unconstrained insert.
    */
   upsertKeys?: Record<string, string[]>;
+  /** RPC names whose call must fail, mapped to the PostgREST-shaped error to return. */
+  rpcErrors?: Record<string, { message: string; code?: string }>;
+}
+
+/** One recorded `.rpc()` call, so a test can assert WHAT the writer asked the database to do. */
+export interface RecordedRpc {
+  fn: string;
+  args: Record<string, unknown>;
 }
 
 type PgError = { message: string; code?: string } | null;
@@ -73,11 +81,13 @@ export class FakePostgrest {
   readonly inserted: Record<string, FakeRow[][]> = {};
   readonly deletedScopes: Record<string, Filter[][]> = {};
   readonly upserted: Record<string, FakeRow[][]> = {};
+  readonly rpcCalls: RecordedRpc[] = [];
 
   private readonly data: Record<string, FakeRow[]>;
   private readonly maxRows: number;
   private readonly readErrors: Record<string, { message: string; code?: string }>;
   private readonly upsertKeys: Record<string, string[]>;
+  private readonly rpcErrors: Record<string, { message: string; code?: string }>;
   /** Bumped per request — drives the "no ORDER BY ⇒ no stable order" rotation. */
   private requestSeq = 0;
 
@@ -87,6 +97,30 @@ export class FakePostgrest {
     this.maxRows = opts.maxRows ?? DEFAULT_MAX_ROWS;
     this.readErrors = opts.readErrors ?? {};
     this.upsertKeys = opts.upsertKeys ?? {};
+    this.rpcErrors = opts.rpcErrors ?? {};
+  }
+
+  /**
+   * `supabase.rpc(fn, args)`. Only `replace_erp_snapshot` (migration 0142) is modelled, and it is
+   * modelled ATOMICALLY — the org's prior generation disappears and the new one appears in the SAME
+   * step, because that is the whole guarantee the RPC exists to provide. A fake that exposed an
+   * intermediate empty state would be modelling the defect, not the fix.
+   */
+  rpc(fn: string, args: Record<string, unknown>): Promise<{ data: unknown; error: PgError }> {
+    this.rpcCalls.push({ fn, args: { ...args } });
+    const failure = this.rpcErrors[fn];
+    if (failure) return Promise.resolve({ data: null, error: failure });
+    if (fn !== 'replace_erp_snapshot') {
+      return Promise.resolve({ data: null, error: { message: `unmodelled rpc: ${fn}` } });
+    }
+    const table = String(args.p_table);
+    const orgId = args.p_org_id;
+    const rows = (args.p_rows as FakeRow[] | undefined) ?? [];
+    this.tablesTouched.push(table);
+    const kept = (this.data[table] ?? []).filter((r) => r.org_id !== undefined && r.org_id !== orgId);
+    // `org_id` is stamped from `p_org_id` by the definer — a payload-supplied one is ignored (0142).
+    this.data[table] = [...kept, ...rows.map((r) => ({ ...r, org_id: orgId }))];
+    return Promise.resolve({ data: rows.length, error: null });
   }
 
   /** The table's current rows (post-write), for assertions. */

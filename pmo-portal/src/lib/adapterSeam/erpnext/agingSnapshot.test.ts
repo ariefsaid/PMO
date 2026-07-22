@@ -32,11 +32,14 @@ function reportResponse(rows: Record<string, unknown>[], columns?: { label: stri
  * Builds a recording service client on the PostgREST-FAITHFUL fake (`test/postgrestFake.ts`):
  * `erp_payment_ledger_mirror` select returns the seeded rows (CAPPED at `db-max-rows` exactly as
  * PostgREST caps them — see the MEDIUM-1 sibling block at the bottom of this file);
- * `erp_ap_aging_snapshot` / `erp_ar_aging_snapshot` record delete + insert. `tables` tracks every
- * `from()` so the test can assert procurement_invoices is NEVER touched.
+ * the AP/AR aging snapshots are published through the ATOMIC `replace_erp_snapshot` RPC and recorded
+ * there. `tables` tracks every `from()` so the test can assert procurement_invoices is NEVER touched.
  */
 function makeServiceClient(pleRows: Record<string, unknown>[]): {
-  client: unknown; tables: string[]; inserted: Record<string, unknown>[][]; deleted: Record<string, string | null>[];
+  client: unknown; tables: string[]; inserted: Record<string, unknown>[][];
+  /** ⚑ Audit round 10: direct deletes of a snapshot table — which must now be NONE (0142). */
+  deleted: Record<string, string | null>[];
+  replaces: { table: unknown; orgId: unknown }[];
   mirrorReads: { orderBy: string[]; cursors: unknown[]; returned: number }[];
 } {
   // `erp_payment_ledger_mirror.id` is a NOT NULL uuid PK (0101 §2) — the paged scan's stable order.
@@ -48,10 +51,20 @@ function makeServiceClient(pleRows: Record<string, unknown>[]): {
   });
   const snapshotTables = ['erp_ap_aging_snapshot', 'erp_ar_aging_snapshot'];
   return {
-    client: { from: (table: string) => fake.from(table) },
+    client: {
+      from: (table: string) => fake.from(table),
+      rpc: (fn: string, args: Record<string, unknown>) => fake.rpc(fn, args),
+    },
     get tables() { return fake.tablesTouched; },
     get inserted() {
-      return snapshotTables.flatMap((t) => (fake.inserted[t] ?? [])) as Record<string, unknown>[][];
+      return fake.rpcCalls
+        .filter((c) => c.fn === 'replace_erp_snapshot' && snapshotTables.includes(String(c.args.p_table)))
+        .map((c) => (c.args.p_rows ?? []) as Record<string, unknown>[]);
+    },
+    get replaces() {
+      return fake.rpcCalls
+        .filter((c) => c.fn === 'replace_erp_snapshot')
+        .map((c) => ({ table: c.args.p_table, orgId: c.args.p_org_id }));
     },
     get deleted() {
       return snapshotTables.flatMap((t) => (fake.deletedScopes[t] ?? []))
@@ -174,14 +187,28 @@ describe('erpnext/agingSnapshot — refreshAging FALLBACK (mirrored-ledger bucke
     expect(byParty['Supplier A'].source_report).toBe('Accounts Payable (mirrored-ledger fallback)');
   });
 
-  it('fallback snapshot-replaces the scope (delete prior + single snapshot_id)', async () => {
+  /**
+   * ⚑ HIGH-1 (Luna audit round 10) — the aging half of the non-atomic snapshot-replace. This used to
+   * be `await delete()` then `await insert()`, so two overlapping sweep passes could leave TWO
+   * generations of AP/AR aging in the table, and a reader landing in between saw NONE. Publishing is
+   * now one `replace_erp_snapshot` statement (0142), and the falsifier is that no direct delete of a
+   * snapshot table happens at all — that being the only way to reopen the window.
+   */
+  it('fallback publishes the scope in ONE atomic replace (no separate delete; single snapshot_id)', async () => {
     const fetchImpl = async () => new Response('{"exc_type":"X"}', { status: 404 });
     const svc = makeServiceClient([{ party: 'S', party_type: 'Supplier', account: 'C', amount: 1, due_date: '2026-07-12', posting_date: '2026-07-12' }]);
     await refreshAging(svc.client as never, erpClient(fetchImpl) as never, 'org-1', AP_SCOPE);
-    expect(svc.deleted).toHaveLength(1);
-    expect(svc.deleted[0]).toMatchObject({ org_id: 'org-1' });
+    expect(svc.deleted).toEqual([]);
+    expect(svc.replaces).toEqual([{ table: 'erp_ap_aging_snapshot', orgId: 'org-1' }]);
     const ids = new Set(svc.inserted[0]!.map((r) => r.snapshot_id));
     expect(ids.size).toBe(1);
+  });
+
+  it('does not send org_id on the payload rows — the definer stamps the tenant (0142)', async () => {
+    const fetchImpl = async () => new Response('{"exc_type":"X"}', { status: 404 });
+    const svc = makeServiceClient([{ party: 'S', party_type: 'Supplier', account: 'C', amount: 1, due_date: '2026-07-12', posting_date: '2026-07-12' }]);
+    await refreshAging(svc.client as never, erpClient(fetchImpl) as never, 'org-1', AP_SCOPE);
+    expect(svc.inserted[0]!.every((r) => !('org_id' in r))).toBe(true);
   });
 });
 
@@ -190,7 +217,7 @@ describe('erpnext/agingSnapshot — refreshAging edge', () => {
     const fetchImpl = async () => new Response(JSON.stringify(reportResponse([])), { status: 200 });
     const svc = makeServiceClient([]);
     await refreshAging(svc.client as never, erpClient(fetchImpl) as never, 'org-1', AP_SCOPE);
-    expect(svc.deleted).toHaveLength(1);
+    expect(svc.replaces).toHaveLength(1);
     expect(svc.inserted[0]).toEqual([]);
   });
 

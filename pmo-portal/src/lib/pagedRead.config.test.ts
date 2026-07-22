@@ -8,6 +8,19 @@
  * round trip on every scan, and `pagedRead.test.ts` pins the no-needless-round-trips behaviour). So it
  * is pinned HERE against the config that actually declares the cap: lowering `max_rows` without
  * revisiting `PAGE_SCAN_SIZE` fails the build instead of quietly understating money in production.
+ *
+ * ⚑ THE RESIDUAL GAP THIS GUARD CANNOT SEE (audit round 10, LOW-1). `supabase/config.toml` configures
+ * the LOCAL Docker PostgREST. Production is a Supabase Cloud project whose "Max rows" lives in the
+ * dashboard and appears NOWHERE in this repo, and nothing keeps the two in sync. So the guard is
+ * asymmetric on purpose to know about:
+ *   • DOWNWARD (someone lowers `max_rows`) — caught, which is the failure mode it was built for.
+ *   • UPWARD (someone raises `PAGE_SCAN_SIZE` to 2000 and bumps `config.toml` to match) — NOT caught:
+ *     CI goes green while Cloud still caps at its own value, every page comes back short, and every
+ *     paged money scan truncates silently in production only.
+ * Closing that would mean plumbing the deployed project's setting into CI, which is out of proportion
+ * to the risk (nobody has a reason to raise the constant). It is stated here so the next person to
+ * consider raising `PAGE_SCAN_SIZE` knows this test is not the authority they think it is: check the
+ * Cloud project's "Max rows" FIRST.
  */
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';

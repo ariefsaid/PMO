@@ -73,7 +73,32 @@ stable
 security invoker
 set search_path = public, pg_temp
 as $$
-  with budget_year as (
+  with current_snapshot as (
+    -- ⚑ HIGH-1 (audit round 10) — WHICH GENERATION OF THE LEDGER READING IS THIS?
+    --
+    -- `erp_actuals_snapshot` is GENERATIONAL: a sweep pass mints one `snapshot_id`, removes the org's
+    -- previous generation and publishes its own. Both money reads below used to carry NO `snapshot_id`
+    -- predicate at all — they summed every row for a (project, fiscal_year) regardless of which pass
+    -- wrote it. Two overlapping sweeps could therefore make a $40,000 category report $80,000: an EAC
+    -- of $115,000 against a $100,000 budget, a −$15,000 overrun that does not exist, 1.15 utilization
+    -- — and, because `max(as_of)` takes the NEWEST generation's stamp, all of it dated fresh under the
+    -- "Enforced by ERPNext" pill. The actuals card two clicks away showed $40,000, because it filters
+    -- generations. Both claimed to be ERP truth.
+    --
+    -- 0142 makes snapshot-replace ONE statement, so two generations are now unreachable. This CTE is
+    -- deliberately kept ANYWAY: a money aggregate must be correct independently of its writer, and the
+    -- previous defect hid precisely because the guarantee lived only on the write side while the
+    -- comment claiming it (0101) was false. Belt and braces, and it costs one index-backed row.
+    --
+    -- Org-scoped by RLS like every other read here, so this is "the caller's own org's current
+    -- generation". Empty table ⇒ NULL ⇒ the equality below matches nothing, which is exactly the
+    -- never-read state the money-honesty invariant already renders as unobtainable.
+    select s.snapshot_id
+      from public.erp_actuals_snapshot s
+     order by s.created_at desc, s.id desc
+     limit 1
+  ),
+  budget_year as (
     -- ⚑ HIGH-1 (audit round 6, found independently by the rendered pass as NEW-6) — IS THE PMO BUDGET
     -- KNOWABLE FOR THIS YEAR AT ALL?
     --
@@ -119,13 +144,19 @@ as $$
     -- while the version grid two inches above showed real PMO-recorded spend.
     --
     -- The snapshot is written ORG-WIDE and wholesale on every refresh (actualsSnapshot.ts: one
-    -- snapshot_id, one as_of, prior rows deleted in the same tx), so the absence of ANY row for a
-    -- project-year is exactly "PMO holds no ledger reading about this project-year" — whatever the
-    -- cause. That is one epistemic state and it is reported as one. `max(as_of)` doubles as the
-    -- provenance the surface renders.
+    -- snapshot_id, one as_of, prior rows deleted in the SAME STATEMENT since 0142), so the absence of
+    -- ANY row for a project-year is exactly "PMO holds no ledger reading about this project-year" —
+    -- whatever the cause. That is one epistemic state and it is reported as one. `max(as_of)` doubles
+    -- as the provenance the surface renders.
+    --
+    -- ⚑ HIGH-1 (round 10): scoped to the CURRENT generation, exactly like the sum it certifies. A
+    -- provenance stamp taken from a different generation than the money it dates is a false statement
+    -- about how current that money is — the worst kind here, because it is the field an operator uses
+    -- to decide whether to trust the figure.
     select max(s.as_of) as as_of
       from public.erp_actuals_snapshot s
      where s.project_id = p_project_id and s.fiscal_year = p_fiscal_year
+       and s.snapshot_id = (select cs.snapshot_id from current_snapshot cs)
   ),
   pmo_budget as (
     -- PMO SoT (OD-BUDGET-1): Sigma the ACTIVE version's line items per category. Not an ERP read-back.
@@ -154,11 +185,15 @@ as $$
   ),
   actuals as (
     -- ERP GL truth (P2's shipped snapshot), mapped account -> category via the BIJECTION's inverse.
+    --
+    -- ⚑ HIGH-1 (round 10) — ONE GENERATION. Without the `snapshot_id` predicate this `sum` counted the
+    -- same money once per coexisting snapshot generation. See `current_snapshot` above.
     select m.category, sum(s.net) as actuals_to_date
       from public.erp_actuals_snapshot s
       join public.budget_category_account_map m
         on m.org_id = s.org_id and m.erp_account = s.account
      where s.project_id = p_project_id and s.fiscal_year = p_fiscal_year
+       and s.snapshot_id = (select cs.snapshot_id from current_snapshot cs)
      group by m.category
   ),
   etc as (

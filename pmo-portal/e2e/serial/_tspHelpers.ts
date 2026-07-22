@@ -337,8 +337,20 @@ const RUN_WEEK_EPOCH_MONDAY = Date.UTC(2027, 0, 4); // a Monday
  * "From Time and To Time ... is overlapping" failures that look like product defects and are not.
  *
  * The clock component now wraps every ~5.5 HOURS and is combined with a wide random base, so the space
- * is ~40k weeks (≈770 years from the 2027 epoch — synthetic future dates ERPNext accepts happily) and
- * two runs in one session are separated by the second they started in.
+ * is ~40k weeks (≈770 years from the 2027 epoch — synthetic future dates ERPNext accepts happily).
+ *
+ * ⚑ WHAT ACTUALLY SEPARATES TWO RUNS (audit round 10, LOW-3). This comment used to credit "the second
+ * they started in". That is only true of runs started SEQUENTIALLY; two CONCURRENT processes start in
+ * the same second, so for them the clock term is identical and the ONLY separator is `RUN_WEEK_BASE`
+ * — a random draw from 20,000. That is a probabilistic guarantee, not a deterministic one: for two
+ * processes each taking N slots, the collision probability is ≈ 2N/20,000 (~0.1% at N=10), and a
+ * collision resurfaces as ERPNext's `OverlapError`, i.e. wearing a product defect's clothes.
+ *
+ * It is SAFE FOR THIS LANE because the lane is `--project=serial --workers=1`: one process, so the
+ * cursor alone guarantees distinctness and the base only has to beat PREVIOUS runs (which the clock
+ * term also separates). A concurrent CI matrix running this lane in parallel shards would NOT be safe
+ * on this reasoning — it would need the base derived from the shard/worker index or the PID, not from
+ * `Math.random()`. Do that before parallelising this lane, not after.
  */
 const RUN_WEEK_BASE = Math.floor(Math.random() * 20_000);
 

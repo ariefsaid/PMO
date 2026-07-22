@@ -24,13 +24,24 @@ import { FakePostgrest, DEFAULT_MAX_ROWS, type FakeRow } from '@/test/postgrestF
  */
 interface RecordingClient {
   readonly tables: string[];
+  /**
+   * ⚑ Audit round 10 (HIGH-1). Direct `.delete()` calls against the snapshot table — which MUST now be
+   * none. The refresh used to publish a generation as `await delete()` then `await insert()`, two
+   * PostgREST round trips, so two overlapping sweeps could leave TWO generations in the table (the
+   * budget RPC then summed both and doubled a category's ERP spend) and a reader landing between them
+   * saw ZERO. The replace is now one `replace_erp_snapshot` statement (0142).
+   */
   readonly deletedScopes: Record<string, unknown>[];
+  /** Every atomic snapshot-replace the refresh asked the database to perform. */
+  readonly replaces: { table: unknown; orgId: unknown; rows: Record<string, unknown>[] }[];
+  /** The rows each replace published — the snapshot the refresh actually wrote. */
   readonly inserted: Record<string, unknown>[][];
   /** The column list the refresh asked the GL mirror for — the read half of the attribution contract. */
   readonly selectedColumns: string[];
   /** Every request issued against the GL mirror (one per page) — proves the read was PAGED + ORDERED. */
   readonly mirrorReads: { orderBy: string[]; cursors: unknown[]; returned: number }[];
   from(table: string): unknown;
+  rpc(fn: string, args: Record<string, unknown>): unknown;
 }
 
 function makeClient(glRows: Record<string, unknown>[], maxRows = DEFAULT_MAX_ROWS): RecordingClient {
@@ -44,7 +55,18 @@ function makeClient(glRows: Record<string, unknown>[], maxRows = DEFAULT_MAX_ROW
       return (fake.deletedScopes['erp_actuals_snapshot'] ?? []).map((filters) =>
         Object.fromEntries(filters.map((f) => [f.column, f.value])));
     },
-    get inserted() { return (fake.inserted['erp_actuals_snapshot'] ?? []) as Record<string, unknown>[][]; },
+    get replaces() {
+      return fake.rpcCalls.filter((c) => c.fn === 'replace_erp_snapshot').map((c) => ({
+        table: c.args.p_table,
+        orgId: c.args.p_org_id,
+        rows: (c.args.p_rows ?? []) as Record<string, unknown>[],
+      }));
+    },
+    get inserted() {
+      return fake.rpcCalls
+        .filter((c) => c.fn === 'replace_erp_snapshot' && c.args.p_table === 'erp_actuals_snapshot')
+        .map((c) => (c.args.p_rows ?? []) as Record<string, unknown>[]);
+    },
     get selectedColumns() { return fake.reads.map((r) => r.columns); },
     get mirrorReads() {
       return fake.reads.filter((r) => r.table === 'erp_gl_entry_mirror').map((r) => ({
@@ -54,6 +76,7 @@ function makeClient(glRows: Record<string, unknown>[], maxRows = DEFAULT_MAX_ROW
       }));
     },
     from: (table: string) => fake.from(table),
+    rpc: (fn: string, args: Record<string, unknown>) => fake.rpc(fn, args),
   };
 }
 
@@ -93,16 +116,50 @@ describe('erpnext/actualsSnapshot — refreshActuals (AC-ENA-060)', () => {
     expect(asOfs.size).toBe(1); // single as_of (coherent snapshot)
   });
 
-  it('a refresh REPLACES the prior scope (delete prior-scope rows THEN insert, single snapshot_id)', async () => {
+  /**
+   * ⚑ HIGH-1 (Luna audit round 10, 2026-07-22) — THE SNAPSHOT-REPLACE THAT WAS NOT A TRANSACTION.
+   *
+   * 0101's table comment claimed the delete and the insert ran "in the SAME service-role tx". They
+   * did not: this function issued `await delete()` and THEN `await insert()`, two separate PostgREST
+   * round trips, while the sweep cron fires `net.http_post` fire-and-forget every 5 minutes with no
+   * single-flight guard (0102) — so passes overlap by construction. Interleave two (A deletes, A
+   * inserts, B's delete lands while A's insert is uncommitted and removes nothing, B inserts) and the
+   * table holds TWO generations of the same money. `get_budget_projection` summed across them, so a
+   * $40,000 category reported $80,000 — a −$15,000 overrun that does not exist, dated fresh. And
+   * between the delete and the insert the org's snapshot was genuinely EMPTY, which the dashboard
+   * renders as "No actuals snapshot yet" — indistinguishable from never having synced.
+   *
+   * Both states are now unreachable because the replace is ONE statement (`replace_erp_snapshot`,
+   * migration 0142). The falsifier is not "an rpc was called": it is that NO direct delete of the
+   * snapshot table happens any more, since that is the only way to reintroduce the window.
+   */
+  it('publishes a generation in ONE atomic replace — never a delete followed by a separate insert', async () => {
     const client = makeClient([
       { org_id: 'org-1', cost_center: 'Main - PSC', account: 'Cash - PSC', fiscal_year: '2026', debit: 1, credit: 0, is_cancelled: false },
     ]);
     await refreshActuals(client as unknown as never, 'org-1', {});
-    // a delete for the org's scope happened, scoped by org_id
-    expect(client.deletedScopes).toHaveLength(1);
-    expect(client.deletedScopes[0]).toMatchObject({ org_id: 'org-1' });
-    // exactly one insert (the new snapshot), exactly one snapshot_id
-    expect(client.inserted).toHaveLength(1);
+    // The two-round-trip window is gone: nothing deletes the snapshot table on its own any more.
+    expect(client.deletedScopes).toEqual([]);
+    // Exactly one replace, scoped to the org, publishing exactly one snapshot_id.
+    expect(client.replaces).toHaveLength(1);
+    expect(client.replaces[0]).toMatchObject({ table: 'erp_actuals_snapshot', orgId: 'org-1' });
+    expect(new Set(client.inserted[0]!.map((r) => r.snapshot_id)).size).toBe(1);
+  });
+
+  it('does not send org_id on the payload rows — the definer stamps the tenant (0142)', async () => {
+    const client = makeClient([
+      { org_id: 'org-1', cost_center: 'Main - PSC', account: 'Cash - PSC', fiscal_year: '2026', debit: 1, credit: 0, is_cancelled: false },
+    ]);
+    await refreshActuals(client as unknown as never, 'org-1', {});
+    expect(client.inserted[0]!.every((r) => !('org_id' in r))).toBe(true);
+  });
+
+  it('propagates a failed replace (a snapshot that did not publish is never reported as published)', async () => {
+    const fake = new FakePostgrest(
+      { erp_gl_entry_mirror: [{ id: 'gl-1', account: '5100', debit: 1, credit: 0 }], erp_actuals_snapshot: [] },
+      { rpcErrors: { replace_erp_snapshot: { message: 'deadlock detected', code: '40P01' } } },
+    );
+    await expect(refreshActuals(fake as unknown as never, 'org-1', {})).rejects.toThrow('deadlock detected');
   });
 
   it('NEVER reads or writes procurement_invoices (ADR-0048 / FR-ENA-162 prohibition)', async () => {
@@ -116,8 +173,7 @@ describe('erpnext/actualsSnapshot — refreshActuals (AC-ENA-060)', () => {
   it('an empty mirror (no GL rows) still snapshot-replaces → a single empty insert (scope cleared)', async () => {
     const client = makeClient([]);
     await refreshActuals(client as unknown as never, 'org-1', {});
-    expect(client.deletedScopes).toHaveLength(1);
-    expect(client.inserted).toHaveLength(1);
+    expect(client.replaces).toHaveLength(1);
     expect(client.inserted[0]).toEqual([]); // no rows, but the scope was replaced (cleared)
   });
 
@@ -262,7 +318,7 @@ describe('erpnext/actualsSnapshot — NEW-1 project attribution from the GL proj
       { project: 'PROJ-0001', cost_center: null, account: '5100', fiscal_year: '2026', debit: 1, credit: 0 },
     ]);
     await refreshActuals(client as unknown as never, 'org-1', { projectMap: { [PROJ_A]: 'PROJ-0001' } });
-    expect(client.deletedScopes).toEqual([{ org_id: 'org-1' }]);
+    expect(client.replaces).toEqual([expect.objectContaining({ table: 'erp_actuals_snapshot', orgId: 'org-1' })]);
   });
 });
 

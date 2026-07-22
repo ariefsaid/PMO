@@ -3,7 +3,8 @@
  * `erp_gl_entry_mirror` rows into `erp_actuals_snapshot`. PMO may SUM mirrored ledger rows (ERP
  * truth); it may NEVER invent an accounting figure or read `procurement_invoices` (the FR-ENA-162 /
  * ADR-0048 prohibition). Sums are per (project, cost_center, account, fiscal_year); a refresh mints a
- * new `snapshot_id`, deletes the prior-scope rows, and inserts the summed rows stamping
+ * new `snapshot_id` and publishes it through the ATOMIC `replace_erp_snapshot` RPC (0142) — the prior
+ * generation is removed and the summed rows inserted in ONE statement — stamping
  * `source_report='GL Entry'` + `as_of`.
  *
  * Read-source = the mirrored read-model ONLY (never a live ERP fetch) — the slice-8 sweep feed
@@ -15,10 +16,17 @@ import { AppError } from '../../appError.ts';
 import { fetchAllRowsByKeyset } from '../../pagedRead.ts';
 
 /** Structural service-role client seam (matches supabase-js): `.from(t).select(c).eq().eq().order().range()`
- *  (thenable), `.from(t).delete().eq().eq()` (thenable), `.from(t).insert([...])`. Real supabase-js is not
- *  nominally assignable (thenable PostgrestFilterBuilder) — callers cast `as never` at the boundary. */
+ *  (thenable) for the mirror READS, and `.rpc(fn, args)` for the one WRITE — the atomic snapshot
+ *  replace. Real supabase-js is not nominally assignable (thenable PostgrestFilterBuilder) — callers
+ *  cast `as never` at the boundary.
+ *
+ *  ⚑ HIGH-1 (audit round 10): `delete()`/`insert()` are deliberately GONE from this seam. They were
+ *  the affordance that made snapshot-replace two round trips, which is what let two generations of the
+ *  same money coexist (and a reader land on zero of them). The only way to publish a generation is now
+ *  `replace_erp_snapshot`, which does both in ONE statement (migration 0142). */
 export interface SnapshotServiceClient {
   from(table: string): SnapshotTable;
+  rpc(fn: string, args: Record<string, unknown>): PromiseLike<{ data: unknown; error: { message: string; code?: string } | null }>;
 }
 export interface SnapshotSelectBuilder extends PromiseLike<{ data: unknown[] | null; error: { message: string; code?: string } | null }> {
   eq(column: string, value: string | number | boolean | null): SnapshotSelectBuilder;
@@ -29,13 +37,39 @@ export interface SnapshotSelectBuilder extends PromiseLike<{ data: unknown[] | n
   /** One page's size. Without a bound PostgREST silently caps the response at `db-max-rows`. */
   limit(n: number): SnapshotSelectBuilder;
 }
-export interface SnapshotDeleteBuilder extends PromiseLike<{ error: { message: string; code?: string } | null }> {
-  eq(column: string, value: string | number | boolean | null): SnapshotDeleteBuilder;
-}
 export interface SnapshotTable {
   select(columns: string): SnapshotSelectBuilder;
-  delete(): SnapshotDeleteBuilder;
-  insert(rows: unknown[]): Promise<{ error: { message: string; code?: string } | null }>;
+}
+
+/** The one write: `public.replace_erp_snapshot(p_table, p_org_id, p_rows)` (migration 0142). */
+const REPLACE_SNAPSHOT_RPC = 'replace_erp_snapshot';
+
+/**
+ * Publish ONE snapshot generation for one org, atomically.
+ *
+ * ⚑ HIGH-1 (Luna audit round 10, 2026-07-22). This used to be `await delete().eq('org_id', orgId)`
+ * followed by `await insert(rows)` — two PostgREST round trips, despite 0101's table comment claiming
+ * they ran "in the SAME service-role tx". The sweep cron fires `net.http_post` fire-and-forget every
+ * five minutes with no single-flight guard (0102), so passes overlap by construction, and the
+ * interleave (A deletes, A inserts, B's delete finds nothing to remove because A's insert has not
+ * committed, B inserts) leaves TWO generations of the same money in the table. `get_budget_projection`
+ * summed across them with no `snapshot_id` predicate at all, so a $40,000 category reported $80,000:
+ * an EAC of $115,000 against a $100,000 budget, a −$15,000 overrun that does not exist, 1.15
+ * utilization — stamped fresh by `max(as_of)` and persistent until the next successful sweep. Between
+ * the delete and the insert the org's snapshot was also genuinely EMPTY, which the dashboard renders
+ * as "No actuals snapshot yet", byte-identical to an org that has never synced.
+ *
+ * One statement, one transaction, no window. `org_id` is stamped by the definer from `p_org_id`, so
+ * the payload never decides which tenant a money row lands in.
+ */
+export async function publishSnapshot(
+  serviceClient: SnapshotServiceClient,
+  table: string,
+  orgId: string,
+  rows: unknown[],
+): Promise<void> {
+  const { error } = await serviceClient.rpc(REPLACE_SNAPSHOT_RPC, { p_table: table, p_org_id: orgId, p_rows: rows });
+  if (error) throw new AppError(error.message, error.code);
 }
 
 export interface ActualsScope {
@@ -156,7 +190,8 @@ export interface ActualsRefreshSummary {
  *       PAGED over `id` — one unpaged request is silently capped at PostgREST's `max_rows` (HIGH-1);
  *   (2) resolve each row's PMO project from the binding's inverted `project_map`, then SUM debit/credit
  *       per (project_id, cost_center, account, fiscal_year); net = debit − credit;
- *   (3) new snapshot_id → DELETE the org's prior snapshot rows → INSERT the summed rows.
+ *   (3) new snapshot_id → publish it through the ATOMIC `replace_erp_snapshot` RPC (one statement:
+ *       the org's prior generation is removed and the new one inserted, with no observable window).
  *
  * The refresh is ORG-WIDE by construction: every project's rows are re-derived from the mirror on every
  * pass, so the delete is the whole org's scope and no project can be left holding a stale snapshot.
@@ -205,8 +240,9 @@ export async function refreshActuals(
 
   const snapshotId = crypto.randomUUID();
   const asOf = new Date().toISOString();
+  // No `org_id` on the payload: `replace_erp_snapshot` stamps it from `p_org_id` and ignores anything
+  // the caller puts here, so there is no caller-shaped route to another tenant's ledger.
   const newRows = Array.from(buckets.values()).map((b) => ({
-    org_id: orgId,
     project_id: b.projectId,
     cost_center: b.costCenter,
     account: b.account,
@@ -219,13 +255,8 @@ export async function refreshActuals(
     snapshot_id: snapshotId,
   }));
 
-  // (3) Snapshot-replace: delete the org's prior snapshot, then insert (single snapshot_id / as_of).
-  const deleteBuilder = serviceClient.from('erp_actuals_snapshot').delete().eq('org_id', orgId);
-  const { error: delErr } = await deleteBuilder;
-  if (delErr) throw new AppError(delErr.message, delErr.code);
-
-  const { error: insErr } = await serviceClient.from('erp_actuals_snapshot').insert(newRows);
-  if (insErr) throw new AppError(insErr.message, insErr.code);
+  // (3) Snapshot-replace, ATOMICALLY (single snapshot_id / as_of). See publishSnapshot.
+  await publishSnapshot(serviceClient, 'erp_actuals_snapshot', orgId, newRows);
 
   return {
     rows: newRows.length,

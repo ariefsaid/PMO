@@ -58,9 +58,18 @@ update budget_versions set status = 'Active' where id = '0b3e2222-0000-0000-0000
 -- ERP GL actuals on the MAPPED account (P2's shipped ledger-sourced snapshot — machine-written).
 -- Both rows inserted here, as table owner: erp_actuals_snapshot has NO insert policy for `authenticated`
 -- (machine-only, 0101) — a user-JWT insert of it would itself be a modelling error.
+--
+-- ⚑ HIGH-1 (audit round 10) — ONE `snapshot_id` FOR THE WHOLE FIXTURE, DELIBERATELY. Every snapshot
+-- row this file seeds used to carry its own `gen_random_uuid()`, which modelled a state production
+-- cannot produce: `erp_actuals_snapshot` is GENERATIONAL, and a sweep pass publishes exactly one
+-- `snapshot_id` per org (atomically, since 0142). Seeding a fresh id per row meant no two rows ever
+-- shared a generation — so the RPC's total blindness to `snapshot_id` (it summed ACROSS generations,
+-- doubling a category's ERP spend) could not be exercised in either direction by any assertion here.
+-- The real two-generation case is owned by erp_snapshot_generation_honesty.test.sql; this file now
+-- models the shape production actually writes.
 insert into erp_actuals_snapshot (org_id, project_id, account, fiscal_year, debit, credit, net, snapshot_id) values
-  ('0b3e0000-0000-0000-0000-000000000001','0b3e1111-0000-0000-0000-000000000001','5100 - Direct Costs - PSC','2026',40000.00,0,40000.00,gen_random_uuid()),
-  ('0b3e0000-0000-0000-0000-000000000001','0b3e1111-0000-0000-0000-000000000001','5200 - Materials - PSC','2026',500.00,0,500.00,gen_random_uuid());
+  ('0b3e0000-0000-0000-0000-000000000001','0b3e1111-0000-0000-0000-000000000001','5100 - Direct Costs - PSC','2026',40000.00,0,40000.00,'0b3e5555-0000-0000-0000-000000000001'),
+  ('0b3e0000-0000-0000-0000-000000000001','0b3e1111-0000-0000-0000-000000000001','5200 - Materials - PSC','2026',500.00,0,500.00,'0b3e5555-0000-0000-0000-000000000001');
 
 -- ⚑ HIGH-1 (audit round 6) — the ACTIVE version is ON RECORD as covering FY '2026'.
 -- `budget_versions` carries no fiscal year of its own (OQ-BUD-3 defers giving it one), so the ONLY
@@ -233,7 +242,7 @@ insert into budget_line_items (org_id, budget_version_id, category, description,
   ('0b3e0000-0000-0000-0000-000000000001','0b3e2222-0000-0000-0000-000000000002','Labor','Team costs',500000.00,0);
 update budget_versions set status = 'Active', activated_at = now() where id = '0b3e2222-0000-0000-0000-000000000002';
 insert into erp_actuals_snapshot (org_id, project_id, account, fiscal_year, debit, credit, net, snapshot_id) values
-  ('0b3e0000-0000-0000-0000-000000000001','0b3e1111-0000-0000-0000-000000000002','5100 - Direct Costs - PSC','2025-2026',400000.00,0,400000.00,gen_random_uuid());
+  ('0b3e0000-0000-0000-0000-000000000001','0b3e1111-0000-0000-0000-000000000002','5100 - Direct Costs - PSC','2025-2026',400000.00,0,400000.00,'0b3e5555-0000-0000-0000-000000000001');
 insert into budget_version_erp_mirror (org_id, budget_version_id, fiscal_year, push_state, push_error, erp_budget_name) values
   ('0b3e0000-0000-0000-0000-000000000001','0b3e2222-0000-0000-0000-000000000002','2025-2026','pushed',null,'BUDGET-2025-2026-0007');
 set local role authenticated;
@@ -275,7 +284,7 @@ select is((select count(*)::int from public.get_budget_projection('0b3e1111-0000
 -- beside a correct actual.
 set local role postgres;
 insert into erp_actuals_snapshot (org_id, project_id, account, fiscal_year, debit, credit, net, snapshot_id) values
-  ('0b3e0000-0000-0000-0000-000000000001','0b3e1111-0000-0000-0000-000000000002','5100 - Direct Costs - PSC','2026',12000.00,0,12000.00,gen_random_uuid());
+  ('0b3e0000-0000-0000-0000-000000000001','0b3e1111-0000-0000-0000-000000000002','5100 - Direct Costs - PSC','2026',12000.00,0,12000.00,'0b3e5555-0000-0000-0000-000000000001');
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"0b3e0000-0000-0000-0000-0000000000a2","role":"authenticated"}';
 
@@ -366,7 +375,7 @@ set local role postgres;
 -- The row exactly as production wrote it BEFORE the fix: right org, right (mapped) account, right
 -- fiscal year — and a NULL project dimension.
 insert into erp_actuals_snapshot (org_id, project_id, account, fiscal_year, debit, credit, net, snapshot_id) values
-  ('0b3e0000-0000-0000-0000-000000000001', null, '5100 - Direct Costs - PSC','2026',777.00,0,777.00,gen_random_uuid());
+  ('0b3e0000-0000-0000-0000-000000000001', null, '5100 - Direct Costs - PSC','2026',777.00,0,777.00,'0b3e5555-0000-0000-0000-000000000001');
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"0b3e0000-0000-0000-0000-0000000000a2","role":"authenticated"}';
 
@@ -461,7 +470,7 @@ select results_eq(
 set local role postgres;
 insert into erp_actuals_snapshot (org_id, project_id, account, fiscal_year, debit, credit, net, as_of, snapshot_id) values
   ('0b3e0000-0000-0000-0000-000000000001','0b3e1111-0000-0000-0000-000000000004','9100 - Bank - PSC','2026',42.00,0,42.00,
-   timestamptz '2026-03-04 09:00:00+00', gen_random_uuid());
+   timestamptz '2026-03-04 09:00:00+00', '0b3e5555-0000-0000-0000-000000000001');
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"0b3e0000-0000-0000-0000-0000000000a2","role":"authenticated"}';
 

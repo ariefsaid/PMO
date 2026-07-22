@@ -70,7 +70,19 @@ function fakeDb(glRows: Record<string, unknown>[], reads: Record<string, unknown
       builder.upsert = () => builder;
       return builder;
     },
-    rpc: () => Promise.resolve({ data: null, error: null }),
+    /**
+     * ⚑ Audit round 10 (HIGH-1). A snapshot generation is no longer published as `delete()` + `insert()`
+     * — that was two round trips, so two overlapping sweeps could leave TWO generations of the same
+     * money in the table (and `get_budget_projection`, which had no `snapshot_id` predicate, summed
+     * both). It is now ONE `replace_erp_snapshot` statement (migration 0142). Record what it published
+     * as this table's write, so every assertion below still observes the row that actually lands.
+     */
+    rpc: (fn: string, args: Record<string, unknown>) => {
+      if (fn === 'replace_erp_snapshot') {
+        inserts.push({ table: String(args.p_table), rows: (args.p_rows as Record<string, unknown>[]) ?? [] });
+      }
+      return Promise.resolve({ data: null, error: null });
+    },
   };
   return { client: client as unknown as SupabaseClient, inserts };
 }
