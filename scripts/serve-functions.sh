@@ -41,7 +41,11 @@ echo "EDGE_JWT_ISSUER=http://127.0.0.1:54321/auth/v1" > "$MERGED_ENV_FILE"
 # its secret without editing the gitignored .env.local — the test runner exports these, we forward
 # them into the merged env-file when set. Only NON-secret-in-repo test values (the CI/dev harness
 # sets them); absent = unset (feature simply inert).
-for _v in DEMO_ERP_WEBHOOK_SECRET ERPNEXT_SWEEP_SECRET; do
+#   EXTERNAL_CONNECT_ENABLED — feature flag; when set to 'true' in the shell, the served ClickUp/
+#     ERPNext paths become active for the e2e run. Absent/other ⇒ inert (fail-closed legacy path).
+#   CLICKUP_WEBHOOK_SECRET   — HMAC key for the clickup-webhook handler; required by any e2e that
+#     posts to the webhook endpoint. Without it the handler 401s every request.
+for _v in DEMO_ERP_WEBHOOK_SECRET ERPNEXT_SWEEP_SECRET EXTERNAL_CONNECT_ENABLED CLICKUP_WEBHOOK_SECRET; do
   if [ -n "${!_v:-}" ]; then echo "${_v}=${!_v}" >> "$MERGED_ENV_FILE"; fi
 done
 if [ -f supabase/functions/.env.local ]; then
