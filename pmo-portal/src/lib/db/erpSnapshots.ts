@@ -1,4 +1,5 @@
 import { supabase } from '@/src/lib/supabase/client';
+import { fetchAllPages } from '../pagedRead.ts';
 import { AppError } from '@/src/lib/appError';
 
 /**
@@ -132,28 +133,52 @@ const AGING_COLS = 'party,party_type,currency,total_outstanding,current,b_0_30,b
  *  `database.types.ts` (which lags the P2 migrations app-wide). Cast the typed client to a loose
  *  shape for these reads so the strict table-typing does not reject the query (the cast is confined
  *  to this read-only DAL; RLS still scopes every read). */
+type SnapshotPage = Promise<{ data: unknown[] | null; error: { message: string; code?: string } | null }>;
 interface LooseSnapshotQuery {
-  order(column: string, opts?: { ascending?: boolean }): Promise<{ data: unknown[] | null; error: { message: string; code?: string } | null }>;
+  order(column: string, opts?: { ascending?: boolean }): LooseSnapshotQuery;
+  eq(column: string, value: string): LooseSnapshotQuery;
+  limit(n: number): LooseSnapshotQuery;
+  range(from: number, to: number): SnapshotPage;
+  then: SnapshotPage['then'];
 }
 const loose = supabase as unknown as { from(table: string): { select(columns: string): LooseSnapshotQuery } };
 
+/**
+ * ⚑ Audit round 8, the `max_rows` class at this scope. These three reads used to fetch the table
+ * UNBOUNDED and then filter to the newest snapshot CLIENT-side. PostgREST caps every response at
+ * `max_rows` (1000, `supabase/config.toml`) and signals NOTHING when it does — 200, short body,
+ * `error === null`. `erp_actuals_snapshot` is one row per (project x account x fiscal_year), which a
+ * mid-size client clears easily (50 projects x 30 accounts x 2 years = 3,000), so the cap could slice
+ * through the MIDDLE of the latest snapshot and render a PARTIAL one as complete — understated money,
+ * silently, with no way for the reader to tell.
+ *
+ * Fixed by scoping the read to the ONE snapshot the caller actually wants, server-side, and paging it:
+ * resolve the newest `snapshot_id` (a single row), then page every row carrying it. This is strictly
+ * less data than before — the old read also dragged back every historical snapshot only to discard it.
+ */
+async function latestSnapshotRows(table: string, columns: string): Promise<unknown[]> {
+  const newest = await loose.from(table).select('snapshot_id').order('created_at', { ascending: false }).limit(1).range(0, 0);
+  if (newest.error) throw new AppError(newest.error.message, newest.error.code);
+  const head = (newest.data ?? [])[0] as { snapshot_id?: string } | undefined;
+  if (!head?.snapshot_id) return [];
+  return fetchAllPages<unknown>((from, to) =>
+    loose.from(table).select(columns).eq('snapshot_id', head.snapshot_id!).order('created_at', { ascending: false }).range(from, to));
+}
+
 /** Read the caller's own-org actuals snapshot (current scope). RLS-scoped; empty when no refresh has run. */
 export async function listActualsSnapshot(): Promise<ErpActualsSnapshotRow[]> {
-  const { data, error } = await loose.from('erp_actuals_snapshot').select(ACTUALS_COLS).order('created_at', { ascending: false });
-  if (error) throw new AppError(error.message, error.code);
-  return latestSnapshotOnly((data ?? []) as unknown as ActualsDb[]).map(toActualsRow);
+  const rows = await latestSnapshotRows('erp_actuals_snapshot', ACTUALS_COLS);
+  return latestSnapshotOnly(rows as unknown as ActualsDb[]).map(toActualsRow);
 }
 
 /** Read the caller's own-org AP aging snapshot (current scope). RLS-scoped; empty when no refresh has run. */
 export async function listApAgingSnapshot(): Promise<ErpAgingSnapshotRow[]> {
-  const { data, error } = await loose.from('erp_ap_aging_snapshot').select(AGING_COLS).order('created_at', { ascending: false });
-  if (error) throw new AppError(error.message, error.code);
-  return latestSnapshotOnly((data ?? []) as unknown as AgingDb[]).map(toAgingRow);
+  const rows = await latestSnapshotRows('erp_ap_aging_snapshot', AGING_COLS);
+  return latestSnapshotOnly(rows as unknown as AgingDb[]).map(toAgingRow);
 }
 
 /** Read the caller's own-org AR aging snapshot (current scope). RLS-scoped; empty when no refresh has run. */
 export async function listArAgingSnapshot(): Promise<ErpAgingSnapshotRow[]> {
-  const { data, error } = await loose.from('erp_ar_aging_snapshot').select(AGING_COLS).order('created_at', { ascending: false });
-  if (error) throw new AppError(error.message, error.code);
-  return latestSnapshotOnly((data ?? []) as unknown as AgingDb[]).map(toAgingRow);
+  const rows = await latestSnapshotRows('erp_ar_aging_snapshot', AGING_COLS);
+  return latestSnapshotOnly(rows as unknown as AgingDb[]).map(toAgingRow);
 }

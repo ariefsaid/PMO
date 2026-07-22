@@ -8,18 +8,46 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
+/**
+ * ⚑ Audit round 8: this fake used to be thenable-only — `select().order()` resolved the WHOLE set,
+ * with no `eq`, no `range`, and NO CAP. It therefore could not express the one behaviour that matters
+ * here: PostgREST truncates every response at `max_rows` (1000) and signals NOTHING when it does
+ * (200, short body, `error === null`). A fake more permissive than the real system is how the
+ * unpaged-read class survived eight audit rounds, so this one models the real thing: it honours
+ * `.eq()` filtering and `.range()` windows, and it CAPS every window at `MAX_ROWS`.
+ */
 const h = vi.hoisted(() => {
-  const calls = { table: '' as string };
+  const MAX_ROWS = 1000;
+  const calls = { table: '' as string, ranges: [] as Array<[number, number]> };
   let nextData: Record<string, unknown>[] | null = null;
-  const builder = {
-    select() { return builder; },
-    order() { return builder; },
-    then(resolve: (v: unknown) => unknown) {
-      return resolve({ data: nextData, error: null });
-    },
+  function makeBuilder() {
+    const filters: Array<[string, string]> = [];
+    const b = {
+      select() { return b; },
+      order() { return b; },
+      eq(col: string, val: string) { filters.push([col, val]); return b; },
+      limit() { return b; },
+      rows() {
+        const all = nextData ?? [];
+        return filters.length === 0 ? all : all.filter((r) => filters.every(([c, v]) => r[c] === v));
+      },
+      range(from: number, to: number) {
+        calls.ranges.push([from, to]);
+        // PostgREST semantics: an inclusive window, hard-capped at MAX_ROWS, silent when it caps.
+        const window = b.rows().slice(from, Math.min(to + 1, from + MAX_ROWS));
+        return Promise.resolve({ data: window, error: null });
+      },
+      then(resolve: (v: unknown) => unknown) {
+        return resolve({ data: b.rows().slice(0, MAX_ROWS), error: null });
+      },
+    };
+    return b;
+  }
+  const from = vi.fn((table: string) => { calls.table = table; return makeBuilder(); });
+  return {
+    from, calls, MAX_ROWS,
+    setData: (d: Record<string, unknown>[] | null) => { nextData = d; calls.ranges = []; },
   };
-  const from = vi.fn((table: string) => { calls.table = table; return builder; });
-  return { from, calls, setData: (d: Record<string, unknown>[] | null) => { nextData = d; } };
 });
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: h.from } }));
 
@@ -104,5 +132,40 @@ describe('db/erpSnapshots — read-only snapshot DAL (task 7.7)', () => {
     expect(await listActualsSnapshot()).toEqual([]);
     expect(await listApAgingSnapshot()).toEqual([]);
     expect(await listArAgingSnapshot()).toEqual([]);
+  });
+});
+
+/**
+ * ⚑ Audit round 8, the `max_rows` class at THIS scope. These reads used to fetch the table unbounded
+ * and filter to the newest snapshot CLIENT-side. `erp_actuals_snapshot` is one row per
+ * (project x account x fiscal_year), which a mid-size client clears easily (50 projects x 30 accounts
+ * x 2 years = 3,000), so PostgREST's silent 1000-row cap could slice through the MIDDLE of the latest
+ * snapshot and render a PARTIAL one as complete — understated money, with nothing on screen or in the
+ * response to say so.
+ */
+describe('erpSnapshots — a snapshot LARGER than PostgREST max_rows is returned WHOLE', () => {
+  it('returns every row of the latest snapshot, not the first page of it', async () => {
+    const rows: Record<string, unknown>[] = [];
+    for (let i = 0; i < 2400; i += 1) {
+      rows.push({
+        project_id: `p-${i}`, cost_center: null, account: `acct-${i}`, fiscal_year: '2026',
+        debit: 10, credit: 0, net: 10, as_of: '2026-07-22T00:00:00Z',
+        source_report: 'GL', snapshot_id: 'snap-current',
+      });
+    }
+    // A previous generation that must still be excluded — the filter moved server-side, not away.
+    rows.push({
+      project_id: 'p-old', cost_center: null, account: 'acct-old', fiscal_year: '2025',
+      debit: 99, credit: 0, net: 99, as_of: '2026-01-01T00:00:00Z',
+      source_report: 'GL', snapshot_id: 'snap-previous',
+    });
+    h.setData(rows);
+
+    const out = await listActualsSnapshot();
+
+    expect(out).toHaveLength(2400);
+    expect(out.every((r) => r.snapshotId === 'snap-current')).toBe(true);
+    // It cannot have come back in one request: the cap is 1000, so paging is the only way to 2400.
+    expect(h.calls.ranges.length).toBeGreaterThan(1);
   });
 });
