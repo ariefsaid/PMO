@@ -23,10 +23,29 @@ Then, per the standard series loop (grill → spec → …), the candidate queue
   pipeline forecast** (stage-probability × value; verified absent) [S] · D4 **win/loss reasons +
   analytics** (verified absent) [S–M] · D5 **tender/bid tracking** on the pipeline lens [M–L] ·
   D6 **agent CRM assists** (draft follow-ups, account summary; after D1/D2) [S].
-- **Owner decisions needed at grill:** (a) batch order A→B→C→D vs interleaving D3/D4 quick wins;
-  (b) R9 **id-ID/IDR localization** — market call (KANNA + Cicle are both Bahasa-first); (c) confirm
-  deprioritized set: in-house chat/video (Cicle turf — stays parked Big-track), field photos/forms
-  (KANNA turf), offline/native mobile.
+- **✅ GRILLED (owner, 2026-07-22) — locked decisions:**
+  - **[OD-CR-1] Order = quick wins → CRM → remainder:** first the S-effort wins (D3 weighted
+    forecast · D4 win/loss · A2 rejection comments · A3 bulk procurement approve), then **Batch D
+    CRM v2 as the main track**, then A/B remainder + C.
+  - **[OD-CR-2] D1 M365 capture v1 = manual log-to-CRM** (user picks an email/meeting to log
+    against a contact/deal). No background auto-sync in v1; design the data model so auto-sync can
+    ship later as a per-org opt-in flag.
+  - **[OD-CR-3] Localization = FULL id-ID in this program** (i18n framework + full Bahasa
+    translation + IDR first-class). Sequencing (Director): the **i18n seam + locale/currency
+    formatting land EARLY** — before new UI batches build on it (retrofit is the expensive part);
+    translation content lands last.
+  - **[OD-CR-4] Locale model (Director default, revisable at spec grill): per-org default
+    language + per-user override** — fits the org_id seam, covers mixed teams.
+  - **[OD-CR-5] Currency (Director default, revisable at spec grill): single currency per org,
+    display-only** (org setting: IDR/USD/…; all org amounts in that currency; format accordingly —
+    e.g. `Rp 1.500.000.000`, no decimals for IDR). **NO FX/conversion/mixed-currency** — true
+    multi-currency only if a real client brings mixed-currency contracts. ERPNext adapter must pin
+    org currency == ERPNext company currency at connect time.
+  - **[OD-CR-6] Parked set confirmed parked:** in-house chat/video (Cicle turf — stays Big-track),
+    field photos/forms (KANNA turf), offline/native mobile.
+  - **Resulting sequence:** dev-integrations promote → i18n seam (OD-CR-3) → quick wins
+    (D3·D4·A2·A3) → CRM v2 (D1 manual capture → D2 → D6, D5 own spec) → B1–B3 + A1/A4 + C →
+    Bahasa translation pass.
 
 ### ⚑⚑ ADAPTER PROGRAM (2026-07-10) — P0 seam SHIPPED to dev; P1 ClickUp in flight
 - **✅ P0 external-adapter seam MERGED to `dev`** (PR #299, `2cbacd5`; ADR-0055): migrations

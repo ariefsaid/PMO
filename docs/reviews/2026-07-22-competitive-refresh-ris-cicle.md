@@ -1,7 +1,8 @@
 # Competitive refresh — PMO vs RIS-portal-2, KANNA (recheck), Cicle (2026-07-22)
 
-> **Status: analysis + candidate backlog. Owner grill pending** — the derived program lives in
-> `docs/backlog.md` → "CANDIDATE PROGRAM (2026-07-22)". Sibling of
+> **Status: analysis complete; program GRILLED 2026-07-22** — locked decisions (OD-CR-1…6: quick
+> wins → CRM-first order, D1 manual capture v1, FULL id-ID + per-org locale + single-currency-per-org)
+> and the live queue are in `docs/backlog.md` → "CANDIDATE PROGRAM (2026-07-22)". Sibling of
 > [`2026-06-11-kanna-gap-analysis.md`](2026-06-11-kanna-gap-analysis.md) (whose waves 0–3 shipped;
 > this doc re-checks KANNA post-close and adds two new comparators).
 
