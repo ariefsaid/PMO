@@ -423,6 +423,15 @@ test(
     await expect(card).toBeVisible({ timeout: 15_000 });
     // The goal-oracle: the card renders a real "Last sync:" time (not absent, not the '—' empty marker).
     await expect(card.getByText(/Last sync:/i)).toBeVisible({ timeout: 10_000 });
-    await expect(card.getByText(/—/)).toHaveCount(0);
+    // The last-sync slot's value is a real formatted time, NOT the '—' empty marker.
+    //
+    // Scoped to the Last-sync line: the clickup card ALSO carries a permanent em-dash in its tier
+    // info note ("ClickUp is US-hosted SaaS — task-domain data resides with ClickUp",
+    // IntegrationsView.tsx), so a whole-card `getByText(/—/).toHaveCount(0)` is always ≥1 and can
+    // never pass. The goal — "the last-sync slot shows a real time, not '—'" — is preserved exactly:
+    // when last_sync is null the line reads "Last sync: —" (contains '—' → fails); when set it
+    // reads "Last sync: <date>" (no '—' → passes). The health-surface bug (synced_at→updated_at,
+    // outbox `*`→`id`) is still proven by this line — only the oracle's scope is corrected, not its strength.
+    await expect(card.getByText(/Last sync:/i)).not.toContainText('—');
   },
 );
