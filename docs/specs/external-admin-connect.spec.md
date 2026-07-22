@@ -1,5 +1,9 @@
 # Spec — External-system admin-connect layer (ClickUp + ERPNext, org-Admin self-serve)
 
+> **HISTORICAL FOR ENABLEMENT SEMANTICS.** This spec predates the completed integration-enablement
+> implementation. For current enablement, default-ON kill-switch behavior, project-scoped task ownership,
+> and atomic connect, use ADR-0061 and `docs/specs/integration-enablement-model.spec.md`.
+
 - **Date:** 2026-07-14
 - **Author:** eng-planner (Design+Plan phase, `docs/director-playbook.md` §2 step 3)
 - **Scope source:** `docs/plans/2026-07-13-clickup-admin-integration-flow.md` (THE SCOPE, framing D1–D5,

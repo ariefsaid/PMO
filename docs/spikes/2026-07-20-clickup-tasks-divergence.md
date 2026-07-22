@@ -2,7 +2,14 @@
 
 **Date:** 2026-07-20 · **Status:** analysis, no code changed · **Follows:** `docs/plans/2026-07-20-clickup-integration-completion.md`
 
-### Resolved since (2026-07-21)
+### Resolved since (2026-07-22)
+The divergences analyzed here are closed in the merged implementation: task description/priority (#350),
+archive and rollup exclusion (#352), and integration-enablement/project ownership through **PRs #353–#358**.
+That includes status-map resolution, project-aware ownership and client routing, safe unbound-List handling,
+active-binding-only sweep, default-ON uniform kill-switch, the two-direction binding map, and atomic connect
+with operator-only trap-state recovery. The remaining open items are tracked in the completion plan; this
+spike's analysis below is retained as historical evidence.
+
 **OD-INT-13 (status map round 3, `fix/status-map-round3`)** — the strict pairwise-distinctness rule for PMO→ClickUp status mapping was replaced with explicit per-status resolution allowing `pmo-only` outcomes:
 - `Blocked` defaults to `pmo-only` when no distinct ClickUp status exists (ClickUp ships 3 statuses by default).
 - `pmo-only` statuses are never pushed outbound and never overwritten inbound.

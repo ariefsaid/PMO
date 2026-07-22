@@ -1072,7 +1072,7 @@ is deferred "until two unrelated clients deliberately" exist).
 - **The org-resolution paths added for the webhook worker (`team_id` → binding) already work per-org**,
   so nothing about single-org bakes in a rewrite — the seam stays forward-compatible.
 
-**Remaining to finish single-org sync (this decision's scope):** ClickUp `parent` ↔ PMO
-`parent_task_id` bidirectional sync (OD-INT-9 gap); the link-time status-mapping UI (surfaces OD-INT-13);
-curated e2e `AC-EAC-018`; the first live write round-trip; then enable `EXTERNAL_CONNECT_ENABLED` for
-the test org.
+**Remaining for this decision's scope:** the binding-map UI is read-only and does not yet expose or
+allow override of per-status resolution (OD-INT-13). The integration-enablement spec also records the
+remaining test-layer corrections for `AC-IEM-004` and `AC-IEM-007`, while per-org webhook secrets remain
+deferred under this single-org decision.
