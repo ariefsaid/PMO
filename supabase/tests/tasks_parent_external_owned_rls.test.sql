@@ -32,6 +32,8 @@ insert into projects (id, org_id, code, name, status) values
 -- Flip the org's `tasks` domain to ClickUp (externally-owned).
 insert into external_domain_ownership (org_id, external_tier, domain)
 values ('0ae10000-0000-0000-0000-000000000001','clickup','tasks');
+insert into external_project_bindings (org_id, project_id, external_tier, external_container_id)
+values ('0ae10000-0000-0000-0000-000000000001','0ae10000-0000-0000-0000-000000000010','clickup','parent-list-a');
 
 -- Seed every task row as the service_role (the mirror writer) — the ONLY role permitted to write
 -- tasks while externally-owned. All children start at parent_task_id = null.

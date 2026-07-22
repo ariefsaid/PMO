@@ -37,6 +37,8 @@ select lives_ok($$update tasks set archived_at = null where id = '01450000-0000-
 reset role;
 set local request.jwt.claims = '{"role":"service_role"}';
 insert into external_domain_ownership (org_id, external_tier, domain) values ('01450000-0000-0000-0000-000000000001', 'clickup', 'tasks');
+insert into external_project_bindings (org_id, project_id, external_tier, external_container_id)
+values ('01450000-0000-0000-0000-000000000001', '01450000-0000-0000-0000-000000000001', 'clickup', 'archive-list');
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"01450000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 select throws_ok($$update tasks set archived_at = now() where id = '01450000-0000-0000-0000-000000000011'$$, '42501', null, 'AC-CUA-101: non-service user cannot archive while tasks are externally-owned');
