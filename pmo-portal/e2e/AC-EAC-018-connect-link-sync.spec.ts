@@ -44,6 +44,13 @@ const ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY ?? process.env.SUPABASE_ANON
 const ADMIN_EMAIL = 'admin@acme.test';
 const ORG = '00000000-0000-0000-0000-000000000001'; // Acme (the default seed org)
 
+// SERIAL (repo convention, cf. AC-PR-020-capture-advance.spec.ts): both tests in this file share ONE
+// dedicated project+task seeded in beforeAll, and that seeding starts with cleanOwnedRows(). Under
+// fullyParallel each worker would run the seeding, so worker B's clean would delete worker A's
+// project between A's project insert and A's task insert -> tasks_project_id_fkey violation. Serial
+// pins them to one worker and one seeding pass.
+test.describe.configure({ mode: 'serial' });
+
 // Dedicated, test-owned identifiers (stable across runs → idempotent pre-clean + cleanup).
 const PROJ_CODE = 'E2E-EAC-018';
 const PROJ_NAME = 'E2E EAC-018 Sync Probe';
@@ -365,14 +372,13 @@ test('AC-EAC-018: admin connects ClickUp → links project → edits task → we
   // THEN-2 (a): the Integrations card shows `Active` (the StatusPill, sourced from the org
   // binding's status — a REAL read through the repository + RLS).
   //
-  // THEN-2 (b) — "with an updated last sync" — is the COMPANION quarantined test below
-  // (`test.fixme`, AC-EAC-016 health-surface blocker). It is NOT weakened: the goal-oracle is
-  // preserved verbatim there. The blocker, reported plainly: getIntegrationHealth
-  // (src/lib/repositories/index.ts) selects/orders by a `synced_at` column that does NOT exist on
-  // external_sync_watermarks (mig 0089 defines `updated_at`); the PostgREST error is swallowed by
-  // useIntegrationsHealth → health=null → the Last-sync block is never rendered. Latent until now
-  // (no org is connected in the default seed, so the query never ran). Fix the query
-  // (synced_at → updated_at) and un-fixme the companion — its oracle goes green unchanged.
+  // THEN-2 (b) — "with an updated last sync" — is the COMPANION test below. It was quarantined on a
+  // real app bug this journey surfaced: getIntegrationHealth (src/lib/repositories/index.ts)
+  // selected/ordered by a `synced_at` column that does NOT exist on external_sync_watermarks
+  // (mig 0089 defines `updated_at`); PostgREST errored, useIntegrationsHealth swallowed it,
+  // health=null, and the Last-sync block never rendered for ANY connected org. Latent because the
+  // default seed connects no org. Fixed (synced_at → updated_at); the companion now runs with its
+  // original oracle, unchanged.
   // ===========================================================================
   await page.goto('/administration');
   await expect(connectCards).toBeVisible({ timeout: 15_000 });
@@ -383,21 +389,16 @@ test('AC-EAC-018: admin connects ClickUp → links project → edits task → we
 });
 
 // ===========================================================================
-// COMPANION — AC-EAC-018 THEN-2 (b): "the Integrations card shows ... an updated last sync".
-// QUARANTINED (test.fixme) — blocked by an AC-EAC-016 health-surface app bug, NOT a test defect.
-// The oracle is preserved verbatim (NOT weakened); un-fixme once the bug is fixed.
-//
-// BUG: src/lib/repositories/index.ts `getIntegrationHealth` selects + orders
-// `external_sync_watermarks` by `synced_at`, a column that does NOT exist (mig 0089 defines
-// `updated_at`). The PostgREST PGRST205 error is swallowed by `useIntegrationsHealth`'s catch →
-// `health = null` → the `{isConnected && health && (...)}` block in IntegrationsView never renders
-// → "Last sync:" never appears. Latent in the default seed (no org is connected, so the health
-// query is never issued); this AC-EAC-018 journey is the first thing to connect an org, so it is
-// the first to surface the bug. The fix is a one-liner: `synced_at` → `updated_at` (or add a
-// `synced_at` column). Once applied, remove `.fixme` here — this oracle goes green unchanged.
+// AC-EAC-018 THEN-2 (b): "the Integrations card shows ... an updated last sync".
+// Previously quarantined on an AC-EAC-016 health-surface bug: getIntegrationHealth selected and
+// ordered `external_sync_watermarks` by `synced_at`, a column that does not exist (mig 0089 defines
+// `updated_at`). PostgREST errored, useIntegrationsHealth swallowed it, health went null, and the
+// "Last sync:" block never rendered for ANY connected org. Latent because the default seed connects
+// no org, so the query never ran — this journey is the first thing to connect one. Fixed; the oracle
+// below is the one that was quarantined, unchanged.
 // ===========================================================================
-test.fixme(
-  'AC-EAC-018 THEN-2(b) (QUARANTINED: getIntegrationHealth synced_at bug): Integrations card shows an updated last sync after a sync',
+test(
+  'AC-EAC-018 THEN-2(b): Integrations card shows an updated last sync after a sync',
   async ({ page }) => {
     const db = adminClient();
     // A connected tier with a recent sync watermark — exactly the state THEN-2(b) assumes.
@@ -408,11 +409,13 @@ test.fixme(
         config: { domain: 'tasks' } },
       { onConflict: 'org_id,external_tier' },
     );
-    await db.from('external_sync_watermarks').upsert(
+    const { error: wmCompanionErr } = await db.from('external_sync_watermarks').upsert(
       { org_id: ORG, external_tier: 'clickup', domain: 'tasks',
         watermark_cursor: `eac018-companion-${syncedAt}`, updated_at: syncedAt },
       { onConflict: 'org_id,external_tier,domain' },
     );
+    // Assert the seed: a silently-failed upsert would surface later as a baffling '—' on the card.
+    if (wmCompanionErr) throw new Error(`Failed to seed companion watermark: ${wmCompanionErr.message}`);
 
     await signIn(page, ADMIN_EMAIL);
     await page.goto('/administration');
