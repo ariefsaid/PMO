@@ -83,10 +83,33 @@ export interface DisconnectRequest {
   action: 'disconnect';
 }
 
+/** `connection_status` request body (AC-M365-150). Read-only — no parameters beyond the action;
+ * the caller's org + user are resolved server-side from the verified JWT (never trusted from body). */
+export interface ConnectionStatusRequest {
+  action: 'connection_status';
+}
+
+/**
+ * `connection_status` response body (AC-M365-150). The ALLOW-LIST of non-sensitive metadata a
+ * client may learn about its own connection. This is the entire point of the status surface:
+ * it carries NO secret material — never `refresh_token_ciphertext`, `access_token_ciphertext`,
+ * `key_id`, `entra_user_object_id` (the Microsoft user oid), `entra_tenant_id`, or any
+ * token/expiry field. A future schema column added to `ms_graph_connections` CANNOT leak here:
+ * the handler selects this exact set by name (no `select('*')`-and-strip).
+ */
+export interface ConnectionStatusResponse {
+  connected: boolean;
+  status: 'active' | 'stale' | 'revoked' | null;
+  connected_at: string | null;
+  last_refresh_at: string | null;
+  scopes: string[];
+}
+
 export type M365Request =
   | InitiateConnectRequest
   | GraphProxyRequest
-  | DisconnectRequest;
+  | DisconnectRequest
+  | ConnectionStatusRequest;
 
 // ── Errors ────────────────────────────────────────────────────────────────────
 
