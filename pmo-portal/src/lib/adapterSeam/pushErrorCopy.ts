@@ -90,6 +90,15 @@ const CODES: Record<string, Entry> = {
     retryable: false,
     remedy: 'Map the project to its ERP counterpart before pushing these hours.',
   },
+  'timesheet-not-approved': {
+    // ⚑ NEW-2 — the server's structural refusal, which reached the operator VERBATIM through the
+    // retry toast (`timesheet-not-approved (status Submitted)`). Classifying it also withdraws the
+    // Retry on the badge path, which is the I-14 rule: the sheet's approval must change first, and no
+    // number of retries can do that.
+    message: 'Only an approved timesheet can be pushed to ERPNext, and this one is not approved right now.',
+    retryable: false,
+    remedy: 'Approve the timesheet first — the push is then driven under the approver’s own authority.',
+  },
   'activity-type-unconfigured': {
     message: 'The ERPNext connection has no default activity type, so hours cannot be recorded against one.',
     retryable: false,
@@ -130,7 +139,26 @@ const CODES: Record<string, Entry> = {
  */
 function splitCode(raw: string): string {
   const head = raw.split(':', 1)[0]!.trim();
-  return head;
+  // ⚑ NEW-2 — a LIVE mutation error does not arrive in the persisted `"<code>: <detail>"` shape. The
+  // server throws the writer's own prose, e.g. `timesheet-not-approved (status Submitted)`, so the
+  // code is the leading TOKEN rather than everything before the first colon. Without this the one
+  // surface that matters most — the operator's own retry — always fell through to the unclassified
+  // sentence, losing the remedy. No shipped code contains whitespace or a parenthesis, so taking the
+  // leading token can only ever classify MORE, never differently.
+  return head.split(/[\s(]/, 1)[0]!.trim();
+}
+
+/**
+ * ⚑ NEW-2 — the SAME translation, for a live mutation rejection rather than a persisted
+ * `push_error`. `classifyMutationError` is the generic CRUD classifier and passes the server's message
+ * through verbatim as `detail`; on a push surface that is an adapter token in front of an operator,
+ * which is the exact contract this module exists to enforce. Every push surface — persisted state AND
+ * live rejection — goes through here, so there is one vocabulary and one place to extend it.
+ */
+export function describePushMutationError(err: unknown): PushErrorCopy {
+  const raw =
+    err instanceof Error ? err.message : typeof err === 'string' ? err : null;
+  return describePushError(raw);
 }
 
 export function describePushError(raw: string | null | undefined): PushErrorCopy {

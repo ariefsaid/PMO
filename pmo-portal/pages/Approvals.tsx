@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { AccessDenied, Badge, Card, ListState, StatusPill, ViewToggle, useToast } from '@/src/components/ui';
-import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { describePushMutationError } from '@/src/lib/adapterSeam/pushErrorCopy';
 import { usePermission } from '@/src/auth/usePermission';
 import { useProcurements } from '@/src/hooks/useProcurements';
 import {
@@ -240,9 +240,20 @@ function PushAttentionSection() {
                     {
                       onSuccess: () =>
                         toast('Timesheet pushed to ERPNext', `${row.owner_name} · ${weekLabel(row.week_start_date)}`, 'success'),
+                      // ⚑ NEW-2 (rendered re-verification, 2026-07-22) — I-13 gave this Retry a
+                      // voice and gave it the WRONG one. `classifyMutationError` is the generic CRUD
+                      // classifier: it passes the server's message through as `detail`, so the toast
+                      // read "That timesheet could not be pushed — timesheet-not-approved (status
+                      // Submitted)" — a raw adapter token on an operator surface, the precise thing
+                      // `pushErrorCopy` exists to prevent and which the badge two lines above already
+                      // obeys. A push failure is translated by the push vocabulary, on EVERY path.
                       onError: (err) => {
-                        const { detail } = classifyMutationError(err);
-                        toast("That timesheet could not be pushed", detail, 'warning');
+                        const copy = describePushMutationError(err);
+                        toast(
+                          'That timesheet could not be pushed',
+                          copy.remedy ? `${copy.message} ${copy.remedy}` : copy.message,
+                          'warning',
+                        );
                       },
                       onSettled: () => setRetryingId(null),
                     },

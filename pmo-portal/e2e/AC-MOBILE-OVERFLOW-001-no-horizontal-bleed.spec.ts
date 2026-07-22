@@ -109,6 +109,22 @@ test.describe('AC-MOBILE-OVERFLOW-001 no horizontal bleed @mobile', () => {
           `Horizontal bleed on ${route.path} @${width}px — elements past the viewport:\n` +
             bleeders.map((b) => `  ${b.right}px <${b.tag} class="${b.cls}"> "${b.text}"`).join('\n'),
         ).toEqual([]);
+
+        // ⚑ NEW-1 (rendered re-verification, 2026-07-22) — THE SECOND ORACLE. The element sweep above
+        // deliberately EXCLUDES legitimate horizontal scrollers and their descendants, which is right
+        // for a wide data table that is meant to scroll — and blind to the failure that exclusion
+        // creates: a scroller whose own overflow escapes to the ROOT, so the whole page pans into empty
+        // space. That is exactly how the budget projection's `overflow-x-auto` regressed this gate
+        // (documentElement.scrollWidth 749 vs a 390px viewport; the page panned 359px) while the sweep
+        // stayed green. The two oracles are complements: elements must not bleed, AND the page must not
+        // pan. Neither subsumes the other.
+        const pageScrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
+        expect(
+          pageScrollWidth,
+          `The PAGE itself pans horizontally on ${route.path} @${width}px ` +
+            `(documentElement.scrollWidth ${pageScrollWidth} > ${width}). A horizontal scroller must ` +
+            `contain its own overflow — the user must never be able to scroll the whole page sideways.`,
+        ).toBeLessThanOrEqual(width + 2);
       });
     }
   }

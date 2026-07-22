@@ -30,6 +30,14 @@ export interface BudgetProjectionCellRow {
    * was unmapped.
    */
   actualsToDate: number | null;
+  /**
+   * ⚑ NEW-4 — WHEN the ERP ledger was last read for this (project, fiscal year), ISO-8601. `null` =
+   * PMO holds no reading for that project-year at all, which is exactly WHY `actualsToDate` is null on
+   * every category of such a year — a different absence from "this category has no ERP account
+   * mapped", and the surface says which. Non-null it is provenance: an undated `$0` is not a figure an
+   * operator can weigh.
+   */
+  actualsAsOf: string | null;
   pmoEtc: number;
   /** C-2 — `null` whenever `actualsToDate` is: nothing derived from an unknown is knowable. */
   projectedFinalCost: number | null;
@@ -105,6 +113,7 @@ export async function fetchBudgetProjection(
     category: row.category,
     pmoBudgetAmount: num(row.pmo_budget_amount),
     actualsToDate: num(row.actuals_to_date),
+    actualsAsOf: row.actuals_as_of ?? null,
     pmoEtc: Number(row.pmo_etc ?? 0),
     projectedFinalCost: num(row.projected_final_cost),
     projectedVariance: num(row.projected_variance),
@@ -165,6 +174,12 @@ export async function listBudgetFiscalYears(projectId: string): Promise<BudgetFi
  * on screen, then delegates to the ONE push in `db/budgets.ts` (same command, same deterministic key).
  */
 export async function retryActiveBudgetPush(projectId: string): Promise<ActivateVersionResult> {
+  return retryBudgetPush(await activeBudgetVersionId(projectId));
+}
+
+/** The project's ACTIVE budget version, from DB truth — never from anything on screen. Throws rather
+ *  than inventing one when the project has none. */
+async function activeBudgetVersionId(projectId: string): Promise<string> {
   const { data, error } = await supabase
     .from('budget_versions')
     .select('id')
@@ -177,7 +192,48 @@ export async function retryActiveBudgetPush(projectId: string): Promise<Activate
     // Nothing to push: no Active version at all. Never invent one — say so.
     throw new AppError('This project has no Active budget version to push.', 'not-found');
   }
-  return retryBudgetPush(versionId);
+  return versionId;
+}
+
+/**
+ * ⚑ MED-2 (money-safety audit round 6) — THE OPERATOR'S ROUTE OUT OF A HELD BUDGET PUSH.
+ *
+ * `release_outbox_hold` (mig 0137 §4) shipped correct and with ZERO callers, so the wedge its own
+ * header states in the present tense stayed literally true: a `held` row sits inside
+ * `external_command_outbox_one_inflight_per_record`, so every subsequent key for the same record 409s
+ * forever, and the only in-app exit was none — the operator's route out was `psql`.
+ *
+ * It touches no external system and fabricates no outcome: the RPC moves `held` → `failed`, which is
+ * outside the one-in-flight index and inside `outbox_reconcile_candidates`, so the ORDINARY bounded
+ * recovery resumes and re-runs every gate (re-authorization, the recovery probe, the claim budget).
+ * The operator asserts "the CONDITION that caused the hold is resolved", never "the command succeeded"
+ * — releasing a still-broken condition simply holds again.
+ *
+ * Admin-only, enforced by the RPC itself (org + Admin + `is_active_member`, re-asserted after the row
+ * lock, under SECURITY DEFINER). `can('manage','pushHold')` is the UX half only (ADR-0016).
+ */
+export async function releaseActiveBudgetPushHold(projectId: string): Promise<void> {
+  const versionId = await activeBudgetVersionId(projectId);
+  const { data, error } = await supabase
+    .from('external_command_outbox')
+    .select('id')
+    .eq('pmo_record_id', versionId)
+    .eq('state', 'held')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw toAppError(error);
+  const outboxId = (data as { id: string } | null)?.id;
+  if (!outboxId) {
+    // Never release "whatever is there": if the hold is gone (an operator released it in another tab,
+    // or the backstop already moved it on), say so rather than acting on a different command.
+    throw new AppError('There is no held ERP command to release for this project.', 'not-found');
+  }
+  const { error: rpcError } = await supabase.rpc('release_outbox_hold', {
+    p_outbox_id: outboxId,
+    p_reason: 'Released from the budget push banner',
+  });
+  if (rpcError) throw toAppError(rpcError);
 }
 
 /** Lists the caller org's category→account map, ordered by category (RLS scopes the org). */

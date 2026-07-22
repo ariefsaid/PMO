@@ -5,8 +5,29 @@
 -- AC-BUD-050/051 and this file assert the SAME numbers. Inline fixture idiom (set local role +
 -- request.jwt.claims), modelled on budget_version_activated_at.test.sql / budget_category_account_map_rls
 -- .test.sql. Namespaced 0b3e UUIDs (valid hex, not seed-colliding).
+--
+-- ⚑ THE MONEY-HONESTY INVARIANT (audit round 6 + rendered re-verification, 2026-07-22).
+-- The same class has now been found at three scopes — project (f9b48500), category (93827008) and
+-- fiscal-year/never-synced (this round). It is pinned here as ONE rule, asserted per INPUT rather than
+-- per symptom:
+--
+--     A money figure may be rendered only when its INPUTS ARE KNOWN. Otherwise it is NULL —
+--     "unobtainable" — and every figure derived from it is NULL too. `0` is a CLAIM, and PMO may only
+--     make it when it actually looked.
+--
+-- `get_budget_projection` has exactly three money inputs, and each has exactly one knowability test:
+--     pmo_budget_amount  KNOWN ⇔ the ACTIVE version is ON RECORD as covering p_fiscal_year
+--                                (budget_version_erp_mirror.fiscal_year — the only in-DB authority for
+--                                "which year was this budget filed under"; budget_versions has no year
+--                                column and OQ-BUD-3 defers giving it one, so none is invented).
+--     actuals_to_date    KNOWN ⇔ the category has a mapped ERP account (C-1) AND the ERP ledger has
+--                                been READ for this (project, fiscal_year) at all (`actuals_as_of`).
+--     pmo_etc            ALWAYS KNOWN (PMO authors it; an absent row is a real 0).
+-- Each of the three is asserted below in BOTH directions — unknown ⇒ NULL everywhere downstream, and
+-- known ⇒ the real figure — so a FOURTH scope of this class cannot be added without failing here.
+--
 begin;
-select plan(40);
+select plan(45);
 
 -- ── Fixtures (inserted as table owner, bypassing RLS) ────────────────────────────────────────────
 insert into organizations (id, name) values
@@ -40,6 +61,14 @@ update budget_versions set status = 'Active' where id = '0b3e2222-0000-0000-0000
 insert into erp_actuals_snapshot (org_id, project_id, account, fiscal_year, debit, credit, net, snapshot_id) values
   ('0b3e0000-0000-0000-0000-000000000001','0b3e1111-0000-0000-0000-000000000001','5100 - Direct Costs - PSC','2026',40000.00,0,40000.00,gen_random_uuid()),
   ('0b3e0000-0000-0000-0000-000000000001','0b3e1111-0000-0000-0000-000000000001','5200 - Materials - PSC','2026',500.00,0,500.00,gen_random_uuid());
+
+-- ⚑ HIGH-1 (audit round 6) — the ACTIVE version is ON RECORD as covering FY '2026'.
+-- `budget_versions` carries no fiscal year of its own (OQ-BUD-3 defers giving it one), so the ONLY
+-- in-DB authority for "which year was this budget filed under" is the year it was actually pushed for.
+-- Without this row the budget column is honestly unknowable for every year — see the wrong-year and
+-- never-pushed assertions further down, which delete it on purpose.
+insert into budget_version_erp_mirror (org_id, budget_version_id, fiscal_year, push_state) values
+  ('0b3e0000-0000-0000-0000-000000000001','0b3e2222-0000-0000-0000-000000000001','2026','pushed');
 
 -- ── Structure: the read RPC exists and is SECURITY INVOKER (RLS is the org filter, not a hand-rolled where) ──
 select has_function('public','get_budget_projection', array['uuid','text'], 'AC-BUD-053 the read RPC exists');
@@ -87,6 +116,9 @@ select results_eq(
 -- back NULL, which the UI renders as a perfectly clean screen while ERPNext enforces the previous
 -- budget (or none) indefinitely. The RPC must name that state.
 set local role postgres;
+-- The whole point of this state is that NO mirror row exists — drop the on-record row the fixture
+-- staged above (it is re-inserted a few assertions below, which restores FY '2026' as on-record).
+delete from budget_version_erp_mirror where budget_version_id = '0b3e2222-0000-0000-0000-000000000001';
 update budget_versions set activated_at = now() where id = '0b3e2222-0000-0000-0000-000000000001';
 insert into external_domain_ownership (org_id, domain, external_tier)
   values ('0b3e0000-0000-0000-0000-000000000001','budget','erpnext');
@@ -226,12 +258,51 @@ select results_eq(
   $$values ('pushed'::text, '2025-2026'::text, 'BUDGET-2025-2026-0007'::text)$$,
   'C-5 a SUCCESSFUL push is reportable — state, the year it covers, and the ERP document it created');
 
--- The defect's signature, pinned: the calendar year the old UI synthesized joins NOTHING. This is why
--- the selector must never be able to offer it.
+-- The defect's signature, pinned. ⚑ This assertion USED to select `actuals_to_date` alone and assert
+-- `0` — the ONE column that was right — on a row it had itself just proved was a wrong-year row, and
+-- defended the gap in a comment ("never offerable"). It was green while the wrong-year Budget /
+-- Variance / Utilization triple shipped underneath it (audit round 6, HIGH-1). A wrong-year read must
+-- now be asserted on EVERY money column, and there is nothing to assert them ON: with no budget filed
+-- for that year, no ledger reading for it and no ETC, the row cannot exist at all.
+select is((select count(*)::int from public.get_budget_projection('0b3e1111-0000-0000-0000-000000000002','2026')), 0,
+          'HIGH-1 a synthesized CALENDAR year projects NOTHING — no budget, no actuals, no row to state money on');
+
+-- ⚑ HIGH-1, the concrete failure, reproduced end to end: the wrong-year row IS reachable by an
+-- ORDINARY route. One late supplier invoice posts against the project's dimension in the NEXT fiscal
+-- year; `list_budget_fiscal_years` unions the actuals' years, so the selector OFFERS that year; the PM
+-- picks it to see what posted. Before the fix the grid answered Budget $500,000 / Variance $500,000 /
+-- Utilization 0.1% — three false statements about a year that has no budget at all, in tabular-nums
+-- beside a correct actual.
+set local role postgres;
+insert into erp_actuals_snapshot (org_id, project_id, account, fiscal_year, debit, credit, net, snapshot_id) values
+  ('0b3e0000-0000-0000-0000-000000000001','0b3e1111-0000-0000-0000-000000000002','5100 - Direct Costs - PSC','2026',12000.00,0,12000.00,gen_random_uuid());
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"0b3e0000-0000-0000-0000-0000000000a2","role":"authenticated"}';
+
 select results_eq(
-  $$select actuals_to_date from public.get_budget_projection('0b3e1111-0000-0000-0000-000000000002','2026') where category='Labor'$$,
-  $$values (0::numeric)$$,
-  'H-4 a synthesized CALENDAR year returns zero actuals for a MAPPED category — never offerable');
+  $$select fiscal_year, is_active_push from public.list_budget_fiscal_years('0b3e1111-0000-0000-0000-000000000002') order by fiscal_year$$,
+  $$values ('2025-2026'::text, true), ('2026'::text, false)$$,
+  'HIGH-1 a late GL posting in another fiscal year IS offered by the selector — the wrong-year read is an ordinary route, not a hypothetical');
+
+select results_eq(
+  $$select pmo_budget_amount, actuals_to_date, pmo_etc, projected_final_cost, projected_variance, projected_utilization
+      from public.get_budget_projection('0b3e1111-0000-0000-0000-000000000002','2026') where category='Labor'$$,
+  $$values (null::numeric, 12000.00::numeric, 0::numeric, 12000.00::numeric, null::numeric, null::numeric)$$,
+  'HIGH-1 on a year the ACTIVE version is NOT on record as covering, EVERY budget-derived figure is NULL — the correct actual is still stated');
+
+-- …and the year the version IS on record for still states its budget in full: the guard scopes, it
+-- does not suppress.
+select results_eq(
+  $$select pmo_budget_amount, projected_variance
+      from public.get_budget_projection('0b3e1111-0000-0000-0000-000000000002','2025-2026') where category='Labor'$$,
+  $$values (500000.00::numeric, 100000.00::numeric)$$,
+  'HIGH-1 the fiscal year the ACTIVE version IS on record for states its budget and variance in full');
+
+set local role postgres;
+delete from erp_actuals_snapshot
+ where project_id = '0b3e1111-0000-0000-0000-000000000002' and fiscal_year = '2026';
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"0b3e0000-0000-0000-0000-0000000000a2","role":"authenticated"}';
 
 set local role postgres;
 insert into projects (id, org_id, name, status) values
@@ -359,8 +430,45 @@ insert into budget_line_items (org_id, budget_version_id, category, description,
   ('0b3e0000-0000-0000-0000-000000000001','0b3e2222-0000-0000-0000-000000000004','Labor','Team',10000.00,0),
   ('0b3e0000-0000-0000-0000-000000000001','0b3e2222-0000-0000-0000-000000000004','Equipment','Rigs',20000.00,0);
 update budget_versions set status='Active', activated_at=now() where id='0b3e2222-0000-0000-0000-000000000004';
+-- HIGH-1: the version is on record as covering FY '2026', so its budget column is knowable here.
+insert into budget_version_erp_mirror (org_id, budget_version_id, fiscal_year, push_state) values
+  ('0b3e0000-0000-0000-0000-000000000001','0b3e2222-0000-0000-0000-000000000004','2026','pushed');
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"0b3e0000-0000-0000-0000-0000000000a2","role":"authenticated"}';
+
+-- ════════════════════════════════════════════════════════════════════════════════════════════════
+-- ⚑ NEW-4 (rendered re-verification, 2026-07-22) — MONEY HONESTY AT NEVER-SYNCED SCOPE.
+--
+-- C-1 asked "is there an ACCOUNT to look at?". It never asked "has anyone LOOKED?". A project whose GL
+-- has never been synced has no `erp_actuals_snapshot` row for the (project, fiscal_year) at all — and
+-- rendered `$0.00` actuals, a full-budget variance and 0% utilization under a green "Enforced by
+-- ERPNext" pill. `as_of` was stored on every snapshot row since 0101 and read by NOTHING, so the
+-- operator could not even date the zero.
+--
+-- The reading is the input, so its presence is the knowability test — and `actuals_as_of` is returned
+-- so the surface can both explain the absence and date the presence. Three distinguishable states, not
+-- two: unmapped category (C-1) ≠ unread ledger (this) ≠ a real, computed zero.
+-- ════════════════════════════════════════════════════════════════════════════════════════════════
+select results_eq(
+  $$select pmo_budget_amount, actuals_to_date, actuals_as_of, projected_final_cost, projected_variance, projected_utilization
+      from public.get_budget_projection('0b3e1111-0000-0000-0000-000000000004','2026') where category='Labor'$$,
+  $$values (10000.00::numeric, null::numeric, null::timestamptz, null::numeric, null::numeric, null::numeric)$$,
+  'NEW-4 a project-year whose ERP ledger has NEVER been read states NO actuals and NO figure derived from them — the PMO-owned budget is still stated');
+
+-- The ledger is read for this project-year. The reading covers an account this project spends on that
+-- no category maps (LOW-2's bucket) — so `Labor` still has no rows of its own, and the ONLY thing that
+-- changed is that PMO has now actually looked.
+set local role postgres;
+insert into erp_actuals_snapshot (org_id, project_id, account, fiscal_year, debit, credit, net, as_of, snapshot_id) values
+  ('0b3e0000-0000-0000-0000-000000000001','0b3e1111-0000-0000-0000-000000000004','9100 - Bank - PSC','2026',42.00,0,42.00,
+   timestamptz '2026-03-04 09:00:00+00', gen_random_uuid());
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"0b3e0000-0000-0000-0000-0000000000a2","role":"authenticated"}';
+
+select is(
+  (select actuals_as_of from public.get_budget_projection('0b3e1111-0000-0000-0000-000000000004','2026') where category='Labor'),
+  timestamptz '2026-03-04 09:00:00+00',
+  'NEW-4 a project-year that HAS been read reports WHEN — the operator can date the figures instead of trusting an undated zero');
 
 select results_eq(
   $$select actuals_to_date, projected_final_cost, projected_variance, projected_utilization
@@ -406,6 +514,11 @@ select results_eq(
 -- year-scoped, so the grid always had rows. This function's entire grain is (project x fiscal year):
 -- with no year there is nothing to project, and saying so is the only honest answer.
 -- ════════════════════════════════════════════════════════════════════════════════════════════════
+set local role postgres;
+-- Back to "no push on record at all", so the alarm below is the real never-pushed state again.
+delete from budget_version_erp_mirror where budget_version_id = '0b3e2222-0000-0000-0000-000000000004';
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"0b3e0000-0000-0000-0000-0000000000a2","role":"authenticated"}';
 select is((select count(*)::int from public.get_budget_projection('0b3e1111-0000-0000-0000-000000000004','')), 0,
           'C-3 with NO fiscal year the projection is EMPTY — the honest empty state, never a fabricated grid');
 select is((select count(*)::int from public.get_budget_projection('0b3e1111-0000-0000-0000-000000000004',null)), 0,

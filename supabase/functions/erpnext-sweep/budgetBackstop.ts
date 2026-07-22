@@ -43,6 +43,15 @@ export interface BudgetMirrorCandidateRow {
   budget_version_id: string;
   push_state: string;
   erp_cancelled_at?: string | null;
+  /**
+   * ⚑ LOW-1 (audit round 6) — the grain's fiscal year. Present for a real mirror row (it is the row's
+   * own key); for an outbox-only `absent` orphan it is whatever the outbox canonical states, and
+   * `null`/absent when even that does not say. It is carried because `budget_version_erp_mirror.
+   * fiscal_year` is `NOT NULL` — a hold that omits it raises 23502 rather than recording anything —
+   * and it is never DERIVED, because since HIGH-1 that column is the authority the budget projection
+   * scopes PMO's budget column by: a guessed year here becomes a wrong-year figure on the money screen.
+   */
+  fiscal_year?: string | null;
 }
 
 export interface BudgetBackstopDeps {

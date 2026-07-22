@@ -124,3 +124,51 @@ describe('deriveProjectionCell — an unobtainable actual is never a zero (C-1/C
     expect(cell.pmoEtc).toBe('1000.00');
   });
 });
+
+/**
+ * ⚑ HIGH-1 (audit round 6, 2026-07-22) — the oracle must also make the BUDGET's knowability explicit.
+ *
+ * A NULL `pmoBudgetAmount` had exactly one meaning here — "the Active version budgets no line for this
+ * category" — and yielded `-EAC`, a deliberate signal that spend happened against an unbudgeted
+ * category. There is a SECOND way to have no budget figure, and it is a different fact: the budget on
+ * record is not attributable to the fiscal year being projected (`budget_versions` has no fiscal year
+ * of its own; the only in-DB authority is the year the version was actually pushed for). Claiming
+ * "everything spent here is unbudgeted" about a year PMO has no budget for is the same class of false
+ * confidence C-1 removed from the actuals — so it is stated as unknown instead.
+ */
+describe('deriveProjectionCell — a budget that is not on record for the year states nothing (HIGH-1)', () => {
+  const offYear = () =>
+    deriveProjectionCell({
+      category: 'Labor',
+      pmoBudgetAmount: null,
+      budgetYearOnRecord: false,
+      actualsToDate: '12000.00',
+      pmoEtc: '0.00',
+    });
+
+  it('HIGH-1 derives NO variance when the budget is not on record for this fiscal year', () => {
+    expect(offYear().projectedVariance).toBeNull();
+  });
+
+  it('HIGH-1 derives no utilization either — never a plausible percentage of a budget that is not there', () => {
+    expect(offYear().projectedUtilization).toBeNull();
+  });
+
+  it('HIGH-1 the ERP actuals and the PMO ETC are still stated — they never depended on the budget', () => {
+    const cell = offYear();
+    expect(cell.actualsToDate).toBe('12000.00');
+    expect(cell.projectedFinalCost).toBe('12000.00');
+    expect(cell.pmoBudgetAmount).toBeNull();
+  });
+
+  it('HIGH-1 an UNBUDGETED CATEGORY within a year that IS on record keeps its -EAC signal', () => {
+    const cell = deriveProjectionCell({
+      category: 'Labor',
+      pmoBudgetAmount: null,
+      budgetYearOnRecord: true,
+      actualsToDate: '12000.00',
+      pmoEtc: '0.00',
+    });
+    expect(cell.projectedVariance).toBe('-12000.00');
+  });
+});

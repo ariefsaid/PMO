@@ -20,6 +20,29 @@
 -- Money arithmetic is SQL `numeric`; the JS twin (pmo-portal/src/lib/budget/budgetProjection.ts) is the
 -- unit oracle and MUST agree (AC-BUD-050/051 ↔ AC-BUD-053; supabase/tests/budget_projection_rpc.test.sql).
 --
+-- ════════════════════════════════════════════════════════════════════════════════════════════════
+-- ⚑ THE MONEY-HONESTY INVARIANT (audit round 6 + rendered re-verification, 2026-07-22) — ONE RULE,
+-- stated once, enforced per INPUT rather than patched per symptom.
+--
+--   ⚑ A MONEY FIGURE MAY BE STATED ONLY WHEN ITS INPUTS ARE KNOWN. Otherwise it is NULL —
+--     "unobtainable" — and EVERY figure derived from it is NULL too. `0` is a CLAIM about the world,
+--     and PMO may only make it when it actually looked.
+--
+-- This class has now been found three times at three scopes: project (f9b48500 — actuals structurally
+-- 0.00), category (93827008 — an unmapped category printed a confident $0) and, below, fiscal-year +
+-- never-synced. Each fix was correct and each was scoped to its symptom, which is why a fourth scope
+-- kept existing. So the rule is now applied to the three money INPUTS this function has, exhaustively:
+--
+--   pmo_budget_amount  KNOWN ⇔ the ACTIVE version is ON RECORD as covering p_fiscal_year.
+--   actuals_to_date    KNOWN ⇔ the category has a mapped ERP account (C-1)
+--                              AND the ERP ledger has been READ for this (project, fiscal_year) (NEW-4).
+--   pmo_etc            ALWAYS KNOWN — PMO authors it; an absent row is a real, PMO-owned 0.
+--
+-- Every derived column (`projected_final_cost`, `projected_variance`, `projected_utilization`) is a
+-- pure function of those three, so its knowability is the conjunction of theirs and nothing else. Both
+-- directions of all three are pinned in supabase/tests/budget_projection_rpc.test.sql.
+-- ════════════════════════════════════════════════════════════════════════════════════════════════
+--
 -- Reversibility (ADR-0006): drop function if exists public.get_budget_projection(uuid, text);
 
 -- `create or replace` CANNOT change a function's OUT columns ("cannot change return type of existing
@@ -32,8 +55,14 @@ returns table (
   category              public.budget_category,
   pmo_budget_amount     numeric,
   -- ⚑ C-1 (rendered Discover pass, 2026-07-22) — NULL means "this figure is UNOBTAINABLE", and is a
-  -- different statement from 0.00. See the `mapped`/`cells` CTEs below.
+  -- different statement from 0.00. See the `mapped`/`reading`/`cells` CTEs below.
   actuals_to_date       numeric,
+  -- ⚑ NEW-4 — WHEN the ERP ledger was last read for this (project, fiscal_year). NULL = never read,
+  -- which is precisely why `actuals_to_date` is NULL on every category of such a year. Non-NULL, it is
+  -- the provenance the surface shows ("Actuals as of …") so an operator can judge how current a figure
+  -- is instead of trusting an undated one. Stored on every snapshot row since 0101 and, until now,
+  -- read by NOTHING.
+  actuals_as_of         timestamptz,
   pmo_etc               numeric,
   projected_final_cost  numeric,
   projected_variance    numeric,
@@ -44,23 +73,74 @@ stable
 security invoker
 set search_path = public, pg_temp
 as $$
-  with pmo_budget as (
+  with budget_year as (
+    -- ⚑ HIGH-1 (audit round 6, found independently by the rendered pass as NEW-6) — IS THE PMO BUDGET
+    -- KNOWABLE FOR THIS YEAR AT ALL?
+    --
+    -- C-3 added a guard here that read `coalesce(p_fiscal_year,'') <> ''`. That is a PRESENCE test, not
+    -- a SCOPE: every other input joins `= p_fiscal_year`, the budget joined on nothing. So a project
+    -- pushed for FY '2025-2026' that later takes one late GL posting in '2026-2027' — a year
+    -- `list_budget_fiscal_years` then OFFERS, because it unions the actuals' years — answered the
+    -- CURRENT budget, a full-budget variance and a ~0% utilization about a year that has no budget at
+    -- all: three false statements in tabular-nums beside one correct actual.
+    --
+    -- ⚑ WHY THE MIRROR IS THE AUTHORITY, and why no year is invented. `budget_versions` carries NO
+    -- fiscal year (0001) — giving it one is OQ-BUD-3, which the owner DEFERRED (option (a) now, the
+    -- phasing dimension as the next issue), so this migration may not mint one. The pre-push authority
+    -- (`budgetGate.ts`) derives the year from the client's own ERPNext `Fiscal Year` doctype, which is
+    -- fetched live over the API and exists NOWHERE in Postgres — SQL cannot consult it. That leaves
+    -- exactly one in-database fact about which year a budget was filed under: the year it was actually
+    -- PUSHED for, `budget_version_erp_mirror.fiscal_year`. It is a record of a real act, not a guess.
+    --
+    -- This predicate is byte-for-byte `list_budget_fiscal_years.is_active_push` (below), deliberately:
+    -- the selector's "this is the Active version's year" flag and this function's "the budget is
+    -- knowable here" test must be the SAME question, or the surface could offer a year whose budget it
+    -- then refuses to state without being able to say why.
+    --
+    -- Fail-closed, and it costs no legitimate figure: a year with NO budget on record simply states the
+    -- facts it does have (the ERP actuals) and says "unavailable" for the rest, which is what the C-1/
+    -- C-2 machinery already renders. A year with a budget on record is unaffected.
+    select coalesce(p_fiscal_year, '') <> ''
+       and exists (
+             select 1
+               from public.budget_version_erp_mirror em
+               join public.budget_versions v on v.id = em.budget_version_id
+              where v.project_id = p_project_id and v.status = 'Active'
+                and em.fiscal_year = p_fiscal_year
+           ) as on_record
+  ),
+  reading as (
+    -- ⚑ NEW-4 (rendered re-verification, 2026-07-22) — HAS ANYONE ACTUALLY LOOKED AT THE LEDGER?
+    --
+    -- C-1 asked "is there an ACCOUNT to look at?" and stopped there. A project whose GL has never been
+    -- synced (never mapped to an ERP project, or simply never swept) has no snapshot row for the
+    -- (project, fiscal_year) at all — and the old `coalesce(a.actuals_to_date, 0)` answered $0.00
+    -- actuals, a FULL-BUDGET variance and 0% utilization, under a green "Enforced by ERPNext" pill,
+    -- while the version grid two inches above showed real PMO-recorded spend.
+    --
+    -- The snapshot is written ORG-WIDE and wholesale on every refresh (actualsSnapshot.ts: one
+    -- snapshot_id, one as_of, prior rows deleted in the same tx), so the absence of ANY row for a
+    -- project-year is exactly "PMO holds no ledger reading about this project-year" — whatever the
+    -- cause. That is one epistemic state and it is reported as one. `max(as_of)` doubles as the
+    -- provenance the surface renders.
+    select max(s.as_of) as as_of
+      from public.erp_actuals_snapshot s
+     where s.project_id = p_project_id and s.fiscal_year = p_fiscal_year
+  ),
+  pmo_budget as (
     -- PMO SoT (OD-BUDGET-1): Sigma the ACTIVE version's line items per category. Not an ERP read-back.
     --
-    -- ⚑ C-3 (rendered Discover pass, 2026-07-22) — THE YEAR GUARD. This function's grain is
-    -- (project x FISCAL YEAR): every other input below is year-scoped by equality, and `''` is the
-    -- repository's explicit "this project has no fiscal year on record" sentinel. Without this guard the
-    -- PMO budget was the ONE unscoped input, so a project with no ERP linkage at all still rendered a
-    -- complete, plausible, entirely FABRICATED money grid — the whole budget "budgeted", $0 spent, 0%
-    -- utilized — and `rows.length = 0` (the surface's honest empty state) was unreachable by
-    -- construction. With no year there is nothing to project against; saying nothing is the only
-    -- truthful answer, and the alarm that matters survives it because the push state is read at PROJECT
-    -- grain (`get_budget_push_status`, below).
+    -- ⚑ C-3 — THE YEAR GUARD (now a real scope, see `budget_year`). This function's grain is
+    -- (project x FISCAL YEAR). Without it the PMO budget was the ONE unscoped input, so a project with
+    -- no ERP linkage at all still rendered a complete, plausible, entirely FABRICATED money grid — the
+    -- whole budget "budgeted", $0 spent, 0% utilized — and `rows.length = 0` (the surface's honest
+    -- empty state) was unreachable by construction. The alarm that matters survives the empty grid
+    -- because the push state is read at PROJECT grain (`get_budget_push_status`, below).
     select li.category, sum(li.budgeted_amount) as pmo_budget_amount
       from public.budget_versions v
       join public.budget_line_items li on li.budget_version_id = v.id
      where v.project_id = p_project_id and v.status = 'Active'
-       and coalesce(p_fiscal_year, '') <> ''
+       and (select by.on_record from budget_year by)
      group by li.category
   ),
   -- ⚑ C-1 — WHICH categories PMO can even ASK the ledger about. The map is the ONLY route from a PMO
@@ -91,11 +171,13 @@ as $$
     -- never an inner join that silently drops it.
     select coalesce(b.category, a.category, e.category) as category,
            b.pmo_budget_amount,
-           -- ⚑ C-1: 0 is a CLAIM ("the ledger holds nothing for this account"), and PMO may only make it
-           -- when it actually has an account to look at. Mapped -> a real, computed zero. Unmapped ->
-           -- NULL, i.e. "not knowable from here", which the surface renders as unavailable rather than
-           -- as money.
-           case when exists (select 1 from mapped m where m.category = coalesce(b.category, a.category, e.category))
+           -- ⚑ C-1 + NEW-4: 0 is a CLAIM ("the ledger holds nothing for this account"), and PMO may
+           -- only make it when it has an account to look at AND has actually looked. Both inputs
+           -- present -> a real, computed zero. Either missing -> NULL, i.e. "not knowable from here",
+           -- which the surface renders as unavailable rather than as money. The two absences are
+           -- DIFFERENT facts and the surface tells them apart via `actuals_as_of`.
+           case when (select r.as_of from reading r) is null then null
+                when exists (select 1 from mapped m where m.category = coalesce(b.category, a.category, e.category))
                 then coalesce(a.actuals_to_date, 0)
                 else null end            as actuals_to_date,
            coalesce(e.pmo_etc, 0)        as pmo_etc
@@ -106,6 +188,7 @@ as $$
   select c.category,
          c.pmo_budget_amount,
          c.actuals_to_date,
+         (select r.as_of from reading r) as actuals_as_of,
          c.pmo_etc,
          -- ⚑ C-2: every figure DERIVED from an unobtainable actual is itself unobtainable. The screen
          -- used to print a confident EAC, a full-budget variance and 0% utilization for a category it
@@ -115,7 +198,14 @@ as $$
          -- the JS oracle yields -EAC when there is no budget line at all; keep the two in step with an
          -- explicit case (a plain subtraction would yield NULL and lose the signal that spend happened
          -- against an unbudgeted category).
+         --
+         -- ⚑ HIGH-1: that -EAC signal is only honest when the budget IS knowable for this year and this
+         -- category simply has no line — "everything spent here is unbudgeted" is a strong claim. When
+         -- the budget is not on record for the year at all, PMO does not know whether the spend is
+         -- budgeted, so it says nothing rather than asserting a variance about a year it has no budget
+         -- for. The two NULL budgets are different facts and must not collapse into one number.
          case when c.actuals_to_date is null then null
+              when c.pmo_budget_amount is null and not (select by.on_record from budget_year by) then null
               when c.pmo_budget_amount is null then -(c.actuals_to_date + c.pmo_etc)
               else c.pmo_budget_amount - (c.actuals_to_date + c.pmo_etc) end as projected_variance,
          -- NULLIF => NULL on a zero/absent budget: never a divide-by-zero, never Infinity (AC-BUD-051).
@@ -158,6 +248,11 @@ stable
 security invoker
 set search_path = public, pg_temp
 as $$
+  -- ⚑ HIGH-1: `is_active_push` is the SAME predicate as `get_budget_projection`'s `budget_year`
+  -- CTE — "the ACTIVE version is on record as covering this year". It is therefore also the surface's
+  -- answer to "why is the Budget column unavailable on this year?", which is why the two must stay one
+  -- question: the selector may offer a year whose budget is unknowable (a late GL posting is worth
+  -- looking at), but it must be able to SAY so rather than leave a bare dash.
   with active_push as (
     select em.fiscal_year
       from public.budget_version_erp_mirror em

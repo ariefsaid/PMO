@@ -59,7 +59,8 @@ export type Entity =
   | 'incomingPayment'
   | 'externalBinding'
   | 'integration'
-  | 'employeeLink';
+  | 'employeeLink'
+  | 'pushHold';
 
 export interface PolicyContext {
   /** The REAL JWT role (not the impersonated effectiveRole). */
@@ -344,6 +345,13 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
   // enforcement authority.
   employeeLink: {
     confirm_employee_link: allow(ADMIN),
+  },
+  // ⚑ MED-2 (money-safety audit round 6): releasing a `held` ERP command re-opens the door to a MONEY
+  // write — the machine refused to resolve it precisely because a human must. Admin-only, matching
+  // `release_outbox_hold` (mig 0137 §4), which re-asserts org + Admin + active membership itself.
+  // UX ONLY: the RPC is the enforcement authority (ADR-0016).
+  pushHold: {
+    manage: allow(ADMIN),
   },
 };
 

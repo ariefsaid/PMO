@@ -454,6 +454,28 @@ describe('can() — push_timesheet (P3b FR-TSP-011; UX only — approved_timeshe
   });
 });
 
+/**
+ * ⚑ MED-2 (money-safety audit round 6) — releasing a `held` money command re-opens the door to an ERP
+ * write, so it carries the same Admin-only gate as the RPC that performs it (`release_outbox_hold`,
+ * mig 0137 §4, which re-asserts org + Admin + active membership under SECURITY DEFINER). UX ONLY: the
+ * RPC is the enforcement authority and the FE is never allowed to be looser than it.
+ */
+describe('can() — manage a held ERP push (MED-2; UX only — release_outbox_hold (0137) is the authority)', () => {
+  it('MED-2 Admin may release a held push', () => {
+    expect(can('manage', 'pushHold', { realRole: 'Admin' })).toBe(true);
+  });
+
+  it('MED-2 every non-Admin role is denied — a hold is cleared by a named human with the authority to', () => {
+    for (const realRole of ['Executive', 'Project Manager', 'Finance', 'Engineer'] as Role[]) {
+      expect(can('manage', 'pushHold', { realRole })).toBe(false);
+    }
+  });
+
+  it('MED-2 a null role is always denied', () => {
+    expect(can('manage', 'pushHold', { realRole: null })).toBe(false);
+  });
+});
+
 describe('can() — confirm_employee_link (P3b OQ-TSP-10(C); UX only — confirm_erp_employee_link (0111/0141) is the enforcement authority)', () => {
   it('AC-TSP-092(ux): Admin may confirm a proposed Employee link', () => {
     expect(can('confirm_employee_link', 'employeeLink', { realRole: 'Admin' })).toBe(true);

@@ -27,6 +27,18 @@ export interface ProjectionInput {
    *  category (an actual/ETC can still exist with no corresponding budget line — FR-BUD-151). */
   pmoBudgetAmount: string | null;
   /**
+   * ⚑ HIGH-1 (audit round 6, 2026-07-22) — is the PMO budget KNOWABLE for the fiscal year being
+   * projected at all? `budget_versions` carries no fiscal year of its own (OQ-BUD-3 defers giving it
+   * one), so the only in-DB authority is the year the Active version was actually PUSHED for
+   * (`budget_version_erp_mirror.fiscal_year`, mirrored by the RPC's `budget_year` CTE).
+   *
+   * Defaults to `true`: a caller that does not model years is asking about the year the budget is on
+   * record for. When `false`, a null `pmoBudgetAmount` means "PMO has no budget for THIS YEAR", which
+   * is a different fact from "this category has no line" — the latter honestly yields `-EAC` ("all of
+   * this spend is unbudgeted"), the former knows nothing and says so.
+   */
+  budgetYearOnRecord?: boolean;
+  /**
    * `erp_actuals_snapshot.net` summed over the category's MAPPED ERP account.
    *
    * ⚑ C-1 (rendered Discover pass, 2026-07-22) — `null` means the figure is **UNOBTAINABLE**: the
@@ -109,6 +121,10 @@ export function deriveProjectionCell(input: ProjectionInput): BudgetProjectionCe
   const actualsCents = toCents(input.actualsToDate);
   const eacCents = actualsCents + etcCents;
 
+  // ⚑ HIGH-1 — the SAME honesty branch, one input to the left. `-EAC` says "every cent spent here is
+  // unbudgeted", which is only true when PMO has a budget for this year and it simply has no line for
+  // this category. With no budget on record for the year, PMO does not know that, so it states nothing.
+  const budgetUnknownForYear = budgetCents === null && input.budgetYearOnRecord === false;
   const varianceCents = budgetCents === null ? -eacCents : budgetCents - eacCents;
   const projectedUtilization = budgetCents === null || budgetCents === 0 ? null : eacCents / budgetCents;
 
@@ -118,7 +134,7 @@ export function deriveProjectionCell(input: ProjectionInput): BudgetProjectionCe
     actualsToDate: fromCents(actualsCents),
     pmoEtc: fromCents(etcCents),
     projectedFinalCost: fromCents(eacCents),
-    projectedVariance: fromCents(varianceCents),
+    projectedVariance: budgetUnknownForYear ? null : fromCents(varianceCents),
     projectedUtilization,
   };
 }

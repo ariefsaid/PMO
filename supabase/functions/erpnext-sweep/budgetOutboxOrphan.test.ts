@@ -111,7 +111,9 @@ Deno.test('⚑ MEDIUM-2: an `absent` candidate refused by the re-asserted gate h
   const { client, writes } = fakeDb([]);
   const deps = budgetBackstopDepsLive(client, ORG_BINDING, []);
   await deps.driveBudgetPush(
-    { budget_version_id: ORPHAN_VERSION, push_state: 'absent', erp_cancelled_at: null },
+    // LOW-1: the grain the hold is ABOUT. `budget_version_erp_mirror.fiscal_year` is NOT NULL, so a
+    // candidate that cannot state it cannot be held at all (see the LOW-1 tests below).
+    { budget_version_id: ORPHAN_VERSION, push_state: 'absent', erp_cancelled_at: null, fiscal_year: '2026' },
     { id: ORPHAN_VERSION, status: 'Active', activated_at: '2026-07-20T00:00:00.000Z' },
   );
   const parked = writes.find((w) => w.table === 'budget_version_erp_mirror');
@@ -121,4 +123,60 @@ Deno.test('⚑ MEDIUM-2: an `absent` candidate refused by the re-asserted gate h
     parked!.payload.push_error === 'budget-push-no-outbox-candidate',
     `the reason is recorded verbatim, got ${JSON.stringify(parked!.payload.push_error)}`,
   );
+});
+
+/**
+ * ⚑ LOW-1 (money-safety audit round 6) — THE RECOVERY INSERT WAS DEAD ON ARRIVAL.
+ *
+ * `budget_version_erp_mirror.fiscal_year` is `text NOT NULL` with no default (0137 §1) and
+ * `stamp_org_id` stamps only `org_id`, so the `absent` branch's insert — which omitted it entirely —
+ * raises 23502. The guard absorbs only 23505, so `driveBudgetPush` throws and the per-row containment
+ * records an error INSTEAD of the durable `held` state the branch exists to write. The unit fake could
+ * not see it because it models no constraints; so the CONTRACT is asserted here instead: the payload
+ * must carry the grain's fiscal year, and it must never carry an invented one.
+ *
+ * ⚑ And it may not be invented, for a reason that did not exist when this code was written: since
+ * HIGH-1, `budget_version_erp_mirror.fiscal_year` is the AUTHORITY `get_budget_projection` scopes the
+ * PMO budget column by. A fabricated year here would put a wrong-year budget on the primary money
+ * screen — the exact defect HIGH-1 removed, re-introduced through a recovery path.
+ */
+Deno.test('⚑ LOW-1: the `absent` hold carries the grain\'s fiscal year — the column is NOT NULL, so an omitted one is a 23502, not a hold', async () => {
+  const { client, writes } = fakeDb([]);
+  const deps = budgetBackstopDepsLive(client, ORG_BINDING, []);
+  await deps.driveBudgetPush(
+    { budget_version_id: ORPHAN_VERSION, push_state: 'absent', erp_cancelled_at: null, fiscal_year: '2025-2026' },
+    { id: ORPHAN_VERSION, status: 'Active', activated_at: '2026-07-20T00:00:00.000Z' },
+  );
+  const parked = writes.find((w) => w.table === 'budget_version_erp_mirror');
+  assert(parked?.op === 'insert', `expected an insert, got ${JSON.stringify(parked)}`);
+  assert(
+    parked!.payload.fiscal_year === '2025-2026',
+    `the hold must state the grain it holds — got ${JSON.stringify(parked!.payload)}`,
+  );
+});
+
+Deno.test('⚑ LOW-1: with NO fiscal year knowable, NO mirror row is fabricated — and the pass does not throw, so the action-required surface still runs', async () => {
+  const { client, writes } = fakeDb([]);
+  const deps = budgetBackstopDepsLive(client, ORG_BINDING, []);
+  // Not throwing is half the assertion: the pre-fix insert raised 23502, the guard absorbed only 23505,
+  // so `driveBudgetPush` threw — and the throw happened BEFORE the call site's `surfaceActionRequired`,
+  // which is the only remaining way an operator hears about a stranded push with no knowable grain.
+  await deps.driveBudgetPush(
+    { budget_version_id: ORPHAN_VERSION, push_state: 'absent', erp_cancelled_at: null },
+    { id: ORPHAN_VERSION, status: 'Active', activated_at: '2026-07-20T00:00:00.000Z' },
+  );
+  assert(
+    !writes.some((w) => w.table === 'budget_version_erp_mirror'),
+    `a mirror row with a guessed fiscal year would mis-scope the budget projection — none may be written: ${JSON.stringify(writes)}`,
+  );
+});
+
+/** The orphan queue must CARRY the fiscal year forward from the outbox row that knows it. */
+Deno.test('⚑ LOW-1: the orphan queue carries the fiscal year the outbox canonical states', async () => {
+  const { client } = fakeDb([]);
+  const deps = budgetBackstopDepsLive(client, ORG_BINDING, [
+    { id: 'outbox-orphan', pmo_record_id: ORPHAN_VERSION, fiscal_year: '2025-2026' },
+  ]);
+  const rows = await deps.listPendingBudgetPushes(ORG, 200);
+  assert(rows[0].fiscal_year === '2025-2026', `the queued orphan must carry its grain, got ${JSON.stringify(rows[0])}`);
 });

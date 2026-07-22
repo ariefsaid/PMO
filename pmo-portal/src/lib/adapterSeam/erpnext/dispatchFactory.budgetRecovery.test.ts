@@ -42,7 +42,12 @@ const BINDING = {
   config: { company: 'PMO Smoke Co', project_map: { 'proj-1': 'PROJ-0001' } },
 };
 
-function serviceClient(): DispatchServiceClient {
+/**
+ * @param mirrorBudgetName what `budget_version_erp_mirror.erp_budget_name` records for this version —
+ *   i.e. the ERP `Budget` PMO's own last push produced. MED-1 uses it as the OWNERSHIP PROOF for an
+ *   orphan draft. `null` models a version PMO has never successfully pushed.
+ */
+function serviceClient(mirrorBudgetName: string | null = null): DispatchServiceClient {
   return {
     from: (table: string) => ({
       select: () => {
@@ -51,7 +56,11 @@ function serviceClient(): DispatchServiceClient {
           order: () => chain,
           limit: () => chain,
           maybeSingle: async () =>
-            table === 'external_org_bindings' ? { data: BINDING, error: null } : { data: { org_id: 'org-1' }, error: null },
+            table === 'external_org_bindings'
+              ? { data: BINDING, error: null }
+              : table === 'budget_version_erp_mirror'
+                ? { data: mirrorBudgetName ? { erp_budget_name: mirrorBudgetName } : null, error: null }
+                : { data: { org_id: 'org-1' }, error: null },
           then: (resolve: (v: { data: unknown; error: null }) => unknown) =>
             resolve({ data: table === 'budget_category_account_map' ? MAP_ROWS : [], error: null }),
         };
@@ -197,9 +206,9 @@ function budgetDoc(name: string, docstatus: number, amendedFrom?: string): Budge
   };
 }
 
-async function pushBudget(bench: ReturnType<typeof fakeBench>) {
+async function pushBudget(bench: ReturnType<typeof fakeBench>, mirrorBudgetName: string | null = null) {
   const adapter = await resolveErpDispatchAdapter({
-    serviceClient: serviceClient(),
+    serviceClient: serviceClient(mirrorBudgetName),
     orgId: 'org-1',
     command: { domain: 'budget', operation: 'create', record: VERSION_RECORD } as never,
     fetchImpl: bench.fetchImpl,
@@ -317,5 +326,83 @@ describe('⚑ HIGH-1 — the budget upsert leaves a RECOVERABLE failure window, 
     const result = await pushBudget(bench);
     expect(bench.liveOnGrain()).toEqual([result.externalRecordId]);
     expect(bench.calls.find((c) => c.method === 'POST')!.body).not.toHaveProperty('amended_from');
+  });
+});
+
+/**
+ * ⚑ MED-1 (money-safety audit round 6) — WINDOW B IS OURS TO CLEAN UP WHEN WE CAN PROVE IT IS OURS.
+ *
+ * Round 5 made window B's refusal honest and named. But the refusal is PERMANENT (`retryable:false`),
+ * and during an UPSERT it strands the grain in the worst state the program has: the predecessor is
+ * already cancelled, so ERPNext enforces NOTHING, and every subsequent push — foreground retry AND
+ * sweep backstop — is refused by name. The only exit is a human in the ERPNext Desk.
+ *
+ * The stated reason for refusing was "`Budget` carries no anchor field, so we cannot PROVE a draft is
+ * ours" (spike §7). That is true in general and FALSE in exactly this window: the replacement was
+ * created with `amended_from` = the document we had just cancelled, and that document's name is
+ * recorded on our own mirror row. A draft whose `amended_from` is the tombstone THIS push produced is
+ * unambiguously ours. Anything else keeps round 5's refusal, which was right.
+ */
+describe('⚑ MED-1 — PMO recovers from its OWN orphan draft, and still refuses a foreign one', () => {
+  const OLD = 'BUDGET-2026-00007';
+
+  /** Drives window B to completion: cancel(OLD) → create(replacement) → submit FAILS. */
+  async function strandOrphan() {
+    const bench = fakeBench([budgetDoc(OLD, 1)], { failSubmit: true });
+    await pushBudget(bench, OLD).catch(() => undefined);
+    expect(bench.liveOnGrain(), 'precondition: ERPNext is enforcing NO budget').toEqual([]);
+    expect(bench.draftsOnGrain()).toHaveLength(1);
+    return bench;
+  }
+
+  it('MED-1 the next attempt ADOPTS the orphan it can prove is its own and submits it — the grain is enforced again', async () => {
+    const stranded = await strandOrphan();
+    const orphan = stranded.draftsOnGrain()[0];
+
+    const retry = fakeBench(stranded.docs, {});
+    const result = await pushBudget(retry, OLD);
+
+    expect(retry.liveOnGrain(), 'exactly ONE live Budget enforces the grain again').toEqual([orphan]);
+    expect(result.externalRecordId).toBe(orphan);
+    // It must never cancel anything to get there — the predecessor is already a tombstone, and there is
+    // no second document to mint.
+    expect(retry.calls.some((c) => c.method === 'POST'), 'no second Budget is created').toBe(false);
+    expect(retry.calls.some((c) => c.method === 'PUT' && c.body?.docstatus === 2), 'nothing is cancelled').toBe(false);
+  });
+
+  it('MED-1 the adopted draft is brought up to the CURRENT figures before it is submitted, never submitted blind', async () => {
+    const stranded = await strandOrphan();
+    const retry = fakeBench(stranded.docs, {});
+    await pushBudget(retry, OLD);
+
+    const fieldPut = retry.calls.find((c) => c.method === 'PUT' && c.body?.docstatus === undefined);
+    expect(fieldPut, 'the draft is updated before submit').toBeDefined();
+    expect((fieldPut!.body as { accounts: Array<{ account: string; budget_amount: string }> }).accounts).toEqual([
+      { account: 'Salary - PSC', budget_amount: '80000.00' },
+      { account: 'Cost of Goods Sold - PSC', budget_amount: '20000.00' },
+    ]);
+  });
+
+  it("MED-1 a Desk author's WIP draft is STILL refused with zero writes — ownership is proven, never assumed", async () => {
+    // Same shape as ours (a draft alone on an unenforced grain) but no `amended_from` lineage to our
+    // tombstone. Submitting it would enforce THEIR figure while PMO recorded it as our push.
+    const bench = fakeBench([budgetDoc('BUDGET-DESK-WIP', 0)]);
+    const err = (await pushBudget(bench, OLD).catch((e: unknown) => e)) as Error & { code?: string };
+    expect(err.code).toBe('budget-draft-rival-on-grain');
+    expect(bench.writes()).toEqual([]);
+  });
+
+  it('MED-1 a draft amended from some OTHER document is refused too — the lineage must be ours specifically', async () => {
+    const bench = fakeBench([budgetDoc('BUDGET-2026-99999-2', 0, 'BUDGET-2026-99999')]);
+    const err = (await pushBudget(bench, OLD).catch((e: unknown) => e)) as Error & { code?: string };
+    expect(err.code).toBe('budget-draft-rival-on-grain');
+    expect(bench.writes()).toEqual([]);
+  });
+
+  it('MED-1 with NO mirror row to prove ownership, even an amended draft is refused — absence of a record is not a proof', async () => {
+    const bench = fakeBench([budgetDoc(`${OLD}-2`, 0, OLD)]);
+    const err = (await pushBudget(bench, null).catch((e: unknown) => e)) as Error & { code?: string };
+    expect(err.code).toBe('budget-draft-rival-on-grain');
+    expect(bench.writes()).toEqual([]);
   });
 });

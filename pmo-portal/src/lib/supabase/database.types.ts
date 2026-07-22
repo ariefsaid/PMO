@@ -4762,7 +4762,11 @@ export type Database = {
       get_budget_projection: {
         Args: { p_fiscal_year: string; p_project_id: string }
         Returns: {
-          // C-1/C-2: `null` = the figure is UNOBTAINABLE (no ERP account mapped), never a zero.
+          // NEW-4: WHEN the ERP ledger was last read for this (project, fiscal_year). `null` = never
+          // read, which is why `actuals_to_date` is null on every category of such a year.
+          actuals_as_of: string | null
+          // C-1/C-2/NEW-4: `null` = the figure is UNOBTAINABLE (no ERP account mapped, or no ledger
+          // reading on record for this project-year at all), never a zero.
           actuals_to_date: number | null
           category: Database["public"]["Enums"]["budget_category"]
           pmo_budget_amount: number | null
@@ -5107,6 +5111,10 @@ export type Database = {
         Returns: number
       }
       release_credits: { Args: { p_run_id: string }; Returns: undefined }
+      // HIGH-2 / MED-2 (mig 0137 §4) — the operator's route out of a `held` money command:
+      // Admin-only, org-re-asserted, audited; moves `held` → `failed` so the ordinary bounded
+      // recovery resumes and re-runs every gate. Never touches the external system.
+      release_outbox_hold: { Args: { p_outbox_id: string; p_reason: string }; Returns: undefined }
       release_sales_invoice_submit_clearance: {
         Args: { p_clearance_id: string; p_si_id: string }
         Returns: undefined

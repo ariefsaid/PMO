@@ -131,3 +131,44 @@ describe('EmployeeLinkConfirm', () => {
     expect(blocking).toEqual([]);
   });
 });
+
+/**
+ * ⚑ NEW-7 / NEW-8 (rendered re-verification, 2026-07-22) — an identity decision must not look like a
+ * bug in the very fact it asks you to trust. With no `employee_name` on record, the ERP identity falls
+ * back to the employee NUMBER — and both the card and the dialog then printed that number twice, e.g.
+ * "ERP employee HR-EMP-00112 (HR-EMP-00112) will have their ERP timesheet hours attributed to…". On an
+ * irreversible attribution dialog that reads as a defect, and it costs the operator confidence exactly
+ * where confidence is the whole point of the step.
+ */
+describe('EmployeeLinkConfirm — an identity is stated once (NEW-7/NEW-8)', () => {
+  const NUMBER_ONLY: ProposedEmployeeLink = {
+    ...LINK,
+    id: 'emp-2',
+    employee_name: null,
+    employee_number: 'HR-EMP-00112',
+    work_email: null,
+  };
+
+  const occurrences = (haystack: string, needle: string) => haystack.split(needle).length - 1;
+
+  it('NEW-8 the CARD states the employee number once, not as both its title and its detail line', () => {
+    const { container } = render(<EmployeeLinkConfirm links={[NUMBER_ONLY]} canConfirm onConfirm={() => {}} />);
+    expect(occurrences(container.textContent ?? '', 'HR-EMP-00112')).toBe(1);
+  });
+
+  it('NEW-7 the DIALOG names the employee once — never "HR-EMP-00112 (HR-EMP-00112)"', () => {
+    render(<EmployeeLinkConfirm links={[NUMBER_ONLY]} canConfirm onConfirm={() => {}} />);
+    fireEvent.click(screen.getByRole('button', { name: /confirm/i }));
+    const dialog = screen.getByRole('dialog');
+    expect(dialog.textContent ?? '').not.toContain('HR-EMP-00112 (HR-EMP-00112)');
+    // …and the number is still THERE — de-duplicating must not remove the only identifier on screen.
+    expect(dialog.textContent ?? '').toContain('HR-EMP-00112');
+  });
+
+  it('NEW-7 a NAMED employee still gets its number as the disambiguator — the fix is de-duplication, not removal', () => {
+    render(<EmployeeLinkConfirm links={[LINK]} canConfirm onConfirm={() => {}} />);
+    fireEvent.click(screen.getByRole('button', { name: /confirm/i }));
+    const dialog = screen.getByRole('dialog');
+    expect(dialog.textContent ?? '').toContain('Jane Doe (HR-EMP-00087)');
+  });
+});

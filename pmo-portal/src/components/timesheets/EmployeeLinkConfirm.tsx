@@ -39,6 +39,20 @@ const pmoIdentity = (l: ProposedEmployeeLink): string | null =>
 const isDecidable = (l: ProposedEmployeeLink): boolean =>
   erpIdentity(l) !== null && pmoIdentity(l) !== null;
 
+/**
+ * ⚑ NEW-7 / NEW-8 — the supporting facts, MINUS whatever is already the headline.
+ *
+ * `erpIdentity` falls back name → number → email, so on a record with no name the headline IS the
+ * employee number — and both the card's detail line and the dialog's parenthetical then repeated it,
+ * rendering "ERP employee HR-EMP-00112 (HR-EMP-00112)". On an irreversible attribution decision a
+ * duplicated identifier reads as a bug in the very fact the operator is being asked to trust. The
+ * disambiguator is still shown whenever it disambiguates anything.
+ */
+const erpSupportingFacts = (l: ProposedEmployeeLink): string[] => {
+  const headline = erpIdentity(l);
+  return [l.employee_number, l.work_email].filter((f): f is string => Boolean(f) && f !== headline);
+};
+
 export const EmployeeLinkConfirm: React.FC<EmployeeLinkConfirmProps> = ({
   links,
   canConfirm,
@@ -64,7 +78,7 @@ export const EmployeeLinkConfirm: React.FC<EmployeeLinkConfirmProps> = ({
               {/* C-7: the ERP side — name if known, else the stable employee number, else the email. */}
               <div className="text-sm font-medium">{link.employee_name ?? erp ?? 'Unidentified ERP employee'}</div>
               <div className="mt-0.5 text-[12px] text-muted-foreground">
-                {[link.employee_number, link.work_email].filter(Boolean).join(' · ') || 'No identifying details on record'}
+                {erpSupportingFacts(link).join(' · ') || 'No further identifying details on record'}
               </div>
               {/* C-6: the DESTINATION. This is what the confirm actually decides, so it is stated on the
                   card, not only in the dialog. */}
@@ -113,7 +127,10 @@ export const EmployeeLinkConfirm: React.FC<EmployeeLinkConfirmProps> = ({
           tone="default"
           title={`Attribute ${erpIdentity(pending)}'s hours to ${pmoIdentity(pending)}?`}
           description={`ERP employee ${erpIdentity(pending)}${
-            pending.employee_number ? ` (${pending.employee_number})` : ''
+            // NEW-7: only when it adds something the headline does not already say.
+            pending.employee_number && pending.employee_number !== erpIdentity(pending)
+              ? ` (${pending.employee_number})`
+              : ''
           } will have their ERP timesheet hours attributed to the PMO user ${pmoIdentity(pending)}${
             pending.profile_email ? ` (${pending.profile_email})` : ''
           } from now on. An ERP-side email change can never silently re-point a confirmed link.`}

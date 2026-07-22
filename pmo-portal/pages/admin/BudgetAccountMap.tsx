@@ -134,8 +134,13 @@ const BudgetAccountMap: React.FC = () => {
         Every budget category must map to an ERP account before its amount can be pushed. An
         unmapped category blocks the push for the WHOLE budget, not just that line.
       </p>
+      {/* ⚑ AC-MOBILE-OVERFLOW-001 (audit round 6 e2e run) — at 390px this table's min-content width is
+          541px (the "Not mapped — blocks every push" pill plus a "Map <Category>" control), so it bled
+          151px past the viewport with no scroller to excuse it. Same remedy as the budget projection's
+          grid: below `sm` each row is a stacked label/value card — nothing is clipped, nothing pans —
+          and it is an ordinary table from `sm` up. One markup tree, one render. */}
       <table className="mt-3.5 w-full border-collapse">
-        <thead>
+        <thead className="hidden sm:table-header-group">
           <tr>
             <th className="h-[38px] border-b border-border bg-card px-3 text-left text-[11.5px] font-semibold uppercase tracking-[0.03em] text-muted-foreground">
               Category
@@ -154,9 +159,11 @@ const BudgetAccountMap: React.FC = () => {
           {BUDGET_CATEGORIES.map((category) => {
             const account = accountByCategory.get(category);
             return (
-              <tr key={category}>
-                <td className="border-b border-border px-3 py-2 text-[13.5px] font-medium">{category}</td>
-                <td className="border-b border-border px-3 py-2 text-[13.5px]">
+              <tr key={category} className="block border-b border-border py-2 sm:table-row sm:py-0">
+                <td className="block px-3 py-1 text-[13.5px] font-medium sm:table-cell sm:border-b sm:border-border sm:py-2">
+                  {category}
+                </td>
+                <td className="block px-3 py-1 text-[13.5px] sm:table-cell sm:border-b sm:border-border sm:py-2">
                   {/* ⚑ I-8 — an operator arriving from the budget banner asks one question: WHICH of
                       these is blocking my push? "Not mapped" is a description; it never says that the
                       consequence is project-wide. The page's own copy above already states the rule —
@@ -169,8 +176,8 @@ const BudgetAccountMap: React.FC = () => {
                   )}
                 </td>
                 {canManage && (
-                  <td className="border-b border-border px-3 py-2 text-right">
-                    <div className="flex justify-end gap-2">
+                  <td className="block px-3 py-1 text-right sm:table-cell sm:border-b sm:border-border sm:py-2">
+                    <div className="flex flex-wrap justify-end gap-2">
                       <Button
                         variant="outline"
                         size="sm"

@@ -5,13 +5,14 @@ import { ListState, GateNotice, Button, StatusPill, NumberField, useToast } from
 import { usePermission } from '@/src/auth/usePermission';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { describePushError } from '@/src/lib/adapterSeam/pushErrorCopy';
-import { formatCurrency, parseMoneyInput, pct } from '@/src/lib/format';
+import { formatCurrency, formatDate, parseMoneyInput, pct } from '@/src/lib/format';
 import {
   fetchBudgetProjection,
   fetchBudgetPushStatus,
   listBudgetFiscalYears,
   upsertBudgetProjectionEtc,
   retryActiveBudgetPush,
+  releaseActiveBudgetPushHold,
   type BudgetFiscalYearRow,
   type BudgetProjectionCellRow,
   type BudgetPushStatusRow,
@@ -65,6 +66,23 @@ const Unavailable: React.FC<{ reason: string }> = ({ reason }) => (
 const NO_ERP_ACCOUNT =
   'Not available: no ERP account is mapped for this category, so its spend cannot be read from the ledger.';
 const NO_BUDGET_LINE = 'Not available: the active budget version has no line for this category.';
+/**
+ * ⚑ NEW-4 — the THIRD scope of the money-honesty class. C-1 asked "is there an account to look at?";
+ * it never asked "has anyone LOOKED?". A project whose ERP ledger has never been synced for this year
+ * rendered a confident `$0` actual, a full-budget variance and 0% utilization under a green "Enforced
+ * by ERPNext" pill. It is a DIFFERENT absence from an unmapped category and has a different remedy, so
+ * it says so rather than borrowing the map's explanation.
+ */
+const NO_LEDGER_READING =
+  'Not available: the ERP ledger has not been read for this project and fiscal year, so its spend is not known here.';
+/**
+ * ⚑ HIGH-1 — the FOURTH. `budget_versions` carries no fiscal year of its own, so the only record of
+ * which year a budget was filed under is the year it was pushed for. On any other year PMO has no
+ * budget to compare against — and printing the CURRENT budget there produced a wrong-year Budget,
+ * Variance and Utilization beside a correct actual.
+ */
+const NO_BUDGET_FOR_YEAR =
+  'Not available: the active budget version is not on record as covering this fiscal year, so there is no budget here to compare against.';
 
 const money = (v: number | null, reason: string): React.ReactNode =>
   v === null ? <Unavailable reason={reason} /> : formatCurrency(v);
@@ -219,7 +237,15 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
   const errorCopy = describePushError(push?.pushError ?? null);
   // NEW-6: the blocking category names, when the failure is a map gap. The repository already
   // normalizes "none on record" to `null`, so there is exactly one falsy case to test here.
-  const unmappedCategories = push?.unmappedCategories ?? null;
+  //
+  // ⚑ NEW-3 (rendered re-verification) — and ONLY when the failure IS that map gap. `unmapped_categories`
+  // persists on the mirror row across attempts, so after an Admin fixed the map and the next push died
+  // in transport, this banner still rendered the PREVIOUS failure's to-do list ("Map these categories,
+  // then retry") while its own retry toast said "Nothing on this screen needs fixing". Two contradictory
+  // instructions, on screen at once. The names explain one specific cause, so they are shown for that
+  // cause only.
+  const unmappedCategories =
+    errorCopy.code === 'budget-category-unmapped' ? (push?.unmappedCategories ?? null) : null;
 
   // HIGH-D: the recovery affordance. `held`/`failed`/`never-pushed` are all re-drivable — under the
   // OPERATOR's own JWT, which is the authenticated actor the sweep backstop can never synthesize
@@ -238,6 +264,38 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
     },
   });
   const offerRetry = isBlocked && !isUnstamped && errorCopy.retryable;
+
+  /**
+   * ⚑ MED-2 (audit round 6) — the release. `release_outbox_hold` (mig 0137 §4) shipped correct and
+   * UNCALLED, so the wedge its own header states in the present tense stayed literally true: a `held`
+   * row sits inside `external_command_outbox_one_inflight_per_record`, every later key for the same
+   * record 409s forever, and the product offered no way out at all. Admin-only here because the RPC is
+   * Admin-only there — `can()` is UX and must never promise more than RLS/the RPC allows (ADR-0016).
+   * It asserts "the condition that caused the hold is resolved", never "the command succeeded": the
+   * row goes back to `failed`, and the ordinary bounded recovery re-runs every gate.
+   */
+  const canReleaseHold = may('manage', 'pushHold');
+  const releaseMutation = useMutation({
+    mutationFn: () => releaseActiveBudgetPushHold(projectId),
+    onSettled: () => {
+      void qc.invalidateQueries({ queryKey: pushKey });
+    },
+  });
+  const offerRelease = pushState === 'held' && canReleaseHold;
+
+  const releaseHold = async () => {
+    try {
+      await releaseMutation.mutateAsync();
+      toast(
+        'Hold released',
+        'The push is queued again — ERPNext is contacted on the next recovery pass, and every check runs afresh.',
+        'success',
+      );
+    } catch (err) {
+      const { headline, detail } = classifyMutationError(err);
+      toast(headline, detail, 'warning');
+    }
+  };
 
   const retryPush = async () => {
     try {
@@ -291,6 +349,17 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
 
   const rows = data ?? [];
   const quiet = pushState !== null ? QUIET_STATES[pushState] : undefined;
+
+  // ⚑ HIGH-1 — is the PMO budget knowable for the year on screen? `isActivePush` is the SAME predicate
+  // the RPC scopes `pmo_budget_amount` by ("the Active version is on record as covering this year"), so
+  // the two can never disagree about a null. The selector deliberately still OFFERS such a year — real
+  // ERP spend posted there is worth looking at — which is exactly why the surface must be able to SAY
+  // why the budget half is blank instead of leaving a bare dash.
+  const budgetYearOnRecord = fiscalYears.some((y) => y.fiscalYear === fiscalYear && y.isActivePush);
+  const budgetReason = budgetYearOnRecord ? NO_BUDGET_LINE : NO_BUDGET_FOR_YEAR;
+  // ⚑ NEW-4 — the provenance of the actuals column. Project-year-wide (one snapshot per refresh), so
+  // any row carries it. `null` = no reading on record, and nothing is dated.
+  const actualsAsOf = rows.find((r) => r.actualsAsOf !== null)?.actualsAsOf ?? null;
 
   return (
     <section aria-label="Budget projection" className="mt-5">
@@ -366,6 +435,13 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
                   activation and can be pushed.
                 </div>
               )}
+              {/* ⚑ NEW-5 — the QUIET states named the year; the BLOCKED branch, the only one that can be
+                  about a year OTHER than the one on screen, did not. On a multi-fiscal-year project the
+                  alarm was therefore unattributable: a failure about 2025-2026 sat over a grid of
+                  2024-2025 with nothing to connect or separate them. Mig 0141 returns the year for
+                  precisely this. Absent (an inferred never-pushed state has no mirror row and so no
+                  year), nothing is said — never a guess. */}
+              {push?.fiscalYear && <div className="mt-1 text-muted-foreground">Fiscal year {push.fiscalYear}</div>}
               {!isUnstamped && errorCopy.remedy && <div className="mt-1">{errorCopy.remedy}</div>}
               {/* ⚑ NEW-6 (audit round 4): the actionable half of the failure. The dispatch gate records
                   WHICH categories have no ERP account (FR-BUD-113 collected the names on purpose), but
@@ -394,11 +470,18 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
                 </div>
               )}
             </div>
-            {offerRetry && (
-              <Button variant="outline" size="sm" loading={retryMutation.isPending} onClick={() => void retryPush()}>
-                Retry the push
-              </Button>
-            )}
+            <div className="flex shrink-0 flex-wrap items-center gap-2">
+              {offerRelease && (
+                <Button variant="outline" size="sm" loading={releaseMutation.isPending} onClick={() => void releaseHold()}>
+                  Release the hold
+                </Button>
+              )}
+              {offerRetry && (
+                <Button variant="outline" size="sm" loading={retryMutation.isPending} onClick={() => void retryPush()}>
+                  Retry the push
+                </Button>
+              )}
+            </div>
           </div>
         </GateNotice>
       )}
@@ -410,9 +493,16 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
             icon="folder"
             title={fiscalYear === null ? 'No fiscal year on record yet' : `No projection data yet for ${fiscalYear}`}
             // ⚑ C-3 — this state is now REACHABLE (the projection is honestly year-scoped), so it has
-            // to be a route rather than a shrug: it names the three acts that actually produce a
-            // fiscal year, in the order a team performs them.
-            sub="Activate a budget version to record one, log an estimate to complete against it, or wait for the ERP ledger to sync its first postings."
+            // to be a route rather than a shrug: it names the acts that actually produce a fiscal year.
+            //
+            // ⚑ MED-3 (audit round 6) — it named THREE and one of them did not exist. "Log an estimate
+            // to complete against it" is performed by the per-row Edit control, which renders inside
+            // `rows.map` and is gated on a fiscal year, so from THIS state there is no such control:
+            // the copy instructed the user to do something the product does not offer, to exactly the
+            // population that has nothing else on the screen. Adding a year-picker here would be worse
+            // — it would let a user mint a fiscal year PMO has no budget for, which is the wrong-year
+            // grid HIGH-1 just removed. So only the two real routes are named.
+            sub="Activate a budget version and push it to the ERP to record one, or wait for the ERP ledger to sync its first postings for this project."
           />
         </div>
       ) : (
@@ -426,17 +516,28 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
             &ldquo;Actuals to date&rdquo; below is what the ERP general ledger has posted. It will differ from the
             &ldquo;Actual&rdquo; column on the budget versions above, which is what PMO recorded on each budget line.
           </p>
-          {/* ⚑ I-9 — at 390px the last money column was silently clipped mid-figure ($450,00), which
-              still LOOKS like a currency figure. The scroller is focusable (a keyboard user can reach
-              a scrollable region) and says so. */}
+          {/* ⚑ NEW-4 — the actuals column's PROVENANCE. An undated figure is not one an operator can
+              weigh, and `as_of` has been stored on every snapshot row since 0101 and rendered by
+              nothing. Absent (no reading on record) nothing is claimed — the cells themselves say so. */}
+          {actualsAsOf && (
+            <p className="mt-1 text-[12px] text-muted-foreground">Actuals as of {formatDate(actualsAsOf)}</p>
+          )}
+          {/* ⚑ NEW-1 (rendered re-verification) — the I-9 fix made this an unconditional
+              `overflow-x-auto`, which regressed the AC-MOBILE-OVERFLOW-001 gate (the whole page panned
+              359px into empty space at 390px) and did NOT fix I-9: $120,000 still rendered as "$120",
+              a clipped figure that still looks like a currency figure.
+              A horizontal scroller is the wrong instrument at phone width. Below `sm` each row becomes
+              a stacked label/value card — every figure whole, nothing to pan — and the scroller applies
+              only from `sm` up, where the table shape is the right one and clipping is recoverable.
+              One markup tree, one render: no media-query hook, no double render. */}
           <div
             role="group"
             aria-label="Budget projection figures, scrollable horizontally"
             tabIndex={0}
-            className="mt-2 overflow-x-auto focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+            className="mt-2 sm:overflow-x-auto focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
           >
             <table className="w-full border-collapse text-[13.5px]">
-              <thead>
+              <thead className="hidden sm:table-header-group">
                 <tr>
                   <TH>Category</TH>
                   <TH align="right">Budget (PMO)</TH>
@@ -449,22 +550,27 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
               </thead>
               <tbody>
                 {rows.map((row) => {
-                  // ⚑ C-1/C-2 — a NULL actual means the category has no mapped ERP account, so every
-                  // figure downstream of it is unknowable and says the SAME reason. A NULL utilization
-                  // with a known actual is a different fact (no budget line to divide by).
-                  const unreadable = row.actualsToDate === null;
-                  const derivedReason = unreadable ? NO_ERP_ACCOUNT : NO_BUDGET_LINE;
+                  // ⚑ THE MONEY-HONESTY INVARIANT, stated as the surface's own rule: a figure whose
+                  // INPUTS are unknown is never rendered as a number, and the cell names WHICH input is
+                  // missing — because "no ERP account is mapped" (C-1), "nobody has read this ledger"
+                  // (NEW-4) and "PMO has no budget for this year" (HIGH-1) have three different
+                  // remedies and only one of them belongs to the person reading the cell.
+                  const actualsReason = row.actualsAsOf === null ? NO_LEDGER_READING : NO_ERP_ACCOUNT;
+                  // Everything derived is unknowable for the reason its own missing input gives: the
+                  // actual first (nothing survives an unknown actual), then the budget.
+                  const derivedReason = row.actualsToDate === null ? actualsReason : budgetReason;
                   return (
-                    <tr key={row.category} className="border-b border-border/70 last:border-b-0">
-                      <td className="h-[54px] px-3 py-2 font-medium">{labelFor(row.category)}</td>
+                    <tr
+                      key={row.category}
+                      className="block border-b border-border/70 py-2 last:border-b-0 sm:table-row sm:py-0"
+                    >
+                      <td className="block px-3 pb-1 pt-1 font-medium sm:table-cell sm:h-[54px] sm:py-2">
+                        {labelFor(row.category)}
+                      </td>
                       {/* I-1: `tabular-nums` on every comparable figure (DESIGN.md §3, mandatory). */}
-                      <td className="h-[54px] px-3 py-2 text-right tabular">
-                        {money(row.pmoBudgetAmount, NO_BUDGET_LINE)}
-                      </td>
-                      <td className="h-[54px] px-3 py-2 text-right tabular">
-                        {money(row.actualsToDate, NO_ERP_ACCOUNT)}
-                      </td>
-                      <td className="h-[54px] px-3 py-2 text-right tabular">
+                      <Cell label="Budget (PMO)">{money(row.pmoBudgetAmount, budgetReason)}</Cell>
+                      <Cell label="Actuals to date (ERP ledger)">{money(row.actualsToDate, actualsReason)}</Cell>
+                      <Cell label="ETC (PMO)">
                         {editingCategory === row.category ? (
                           <div className="flex flex-col items-end gap-1">
                             {/* ⚑ I-4 — this was a hand-rolled <input> + <span>, so the validation
@@ -497,8 +603,12 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
                             </div>
                           </div>
                         ) : (
-                          <div className="flex items-center justify-end gap-2">
-                            {formatCurrency(row.pmoEtc)}
+                          // ⚑ NEW-10 — the Edit control sat to the RIGHT of the figure, so the ETC
+                          // money stopped ~50px short of the column's right edge while its header
+                          // (and every other column's figures) aligned to that edge. Putting the
+                          // control on the LEFT of the amount returns the money to the same right
+                          // edge as every other money column, which is the whole point of `tabular`.
+                          <span className="flex items-center justify-end gap-2">
                             {canEditEtc && fiscalYear !== null && (
                               // ⚑ I-2 — the trigger used to PRINT the category, so the column's width
                               // changed per row and the money in it stopped lining up. The category
@@ -515,22 +625,19 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
                                 Edit
                               </Button>
                             )}
-                          </div>
+                            {formatCurrency(row.pmoEtc)}
+                          </span>
                         )}
-                      </td>
-                      <td className="h-[54px] px-3 py-2 text-right tabular">
-                        {money(row.projectedFinalCost, derivedReason)}
-                      </td>
-                      <td className="h-[54px] px-3 py-2 text-right tabular">
-                        {money(row.projectedVariance, derivedReason)}
-                      </td>
-                      <td className="h-[54px] px-3 py-2 text-right tabular">
+                      </Cell>
+                      <Cell label="Projected final">{money(row.projectedFinalCost, derivedReason)}</Cell>
+                      <Cell label="Variance">{money(row.projectedVariance, derivedReason)}</Cell>
+                      <Cell label="Utilization">
                         {row.projectedUtilization === null ? (
                           <Unavailable reason={derivedReason} />
                         ) : (
                           pct(row.projectedUtilization * 100)
                         )}
-                      </td>
+                      </Cell>
                     </tr>
                   );
                 })}
@@ -542,6 +649,26 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
     </section>
   );
 };
+
+/**
+ * ⚑ NEW-1 — one money cell, two shapes, ONE markup tree.
+ *
+ * Below `sm` the table's header row is hidden and each cell becomes its own label/value line, so a
+ * figure is never clipped mid-way ("$120" for $120,000) and nothing is wide enough to make the page
+ * pan. From `sm` up it is an ordinary right-aligned table cell. Rendering the label in both shapes
+ * (visually hidden on desktop, where the column header carries it) keeps a single DOM for both — no
+ * media-query hook, no double render, and the a11y name of the value is the same either way.
+ */
+const Cell: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => (
+  <td className="flex items-baseline justify-between gap-4 px-3 py-1 text-right tabular sm:table-cell sm:h-[54px] sm:py-2">
+    {/* NOT `aria-hidden`: below `sm` the <thead> is `display:none`, so the column header is out of the
+        accessibility tree too — this label is then the ONLY thing naming the figure for a screen
+        reader. From `sm` up it is `display:none` itself, so the <th> does that job and nothing is
+        announced twice. */}
+    <span className="text-[12px] font-normal text-muted-foreground sm:hidden">{label}</span>
+    {children}
+  </td>
+);
 
 const TH: React.FC<{ children: React.ReactNode; align?: 'right' }> = ({ children, align }) => (
   <th

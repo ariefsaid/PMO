@@ -104,7 +104,13 @@ async function commitCreate(command: AdapterCommand, deps: ErpAdapterDeps): Prom
   // `amended_from` revision path (§6: money fields are locked post-submit) and the superseded document
   // is left as a cancelled tombstone, never a live rival.
   if (entry.upsertOnGrain && deps.ctx.refs.self) {
-    return commitEditResolved(command, deps, deps.ctx.refs.self);
+    // ⚑ MED-1 (audit round 6): the resolved target may be a DRAFT — our own orphan from a
+    // create-OK/submit-FAIL, adopted by the refs resolution because `amended_from` proves it is ours.
+    // A create for this kind always ends SUBMITTED, so an upsert must too: leaving it a draft would
+    // record the push as landed while ERPNext still enforces nothing, which is the exact class of
+    // silent-untruth this program keeps removing. `submitAdoptedDraft` is therefore keyed on the same
+    // property that makes a create submit.
+    return commitEditResolved(command, deps, deps.ctx.refs.self, entry.submittable && entry.submitOnCreate !== false);
   }
   const bodyFns = requireBodyFns(deps, kind);
   const record = recordWithResolvedItemsFallback(command.record, deps.ctx);
@@ -302,7 +308,18 @@ async function commitUpdateSubmittable(command: AdapterCommand, deps: ErpAdapter
  * `upsertOnGrain` branch (target = `ctx.refs.self`, FR-BUD-121 / AC-BUD-031). ONE routing rule for
  * both, so an upsert can never diverge from an update.
  */
-async function commitEditResolved(command: AdapterCommand, deps: ErpAdapterDeps, externalRecordId: string): Promise<CommandResult> {
+async function commitEditResolved(
+  command: AdapterCommand,
+  deps: ErpAdapterDeps,
+  externalRecordId: string,
+  /**
+   * ⚑ MED-1 — submit the target after the field PUT when it turns out to be a DRAFT. Passed ONLY by
+   * `commitCreate`'s `upsertOnGrain` branch, where the draft is PMO's own adopted orphan and a create
+   * would have ended submitted anyway. Deliberately NOT the default: an ordinary `update` of a draft
+   * (a Desk-authored PI/PE) must keep its current behaviour and never gain a submit as a side effect.
+   */
+  submitAdoptedDraft = false,
+): Promise<CommandResult> {
   const kind = requireKind(command.record);
   const entry = DOCTYPE_REGISTRY[kind];
   const bodyFns = requireBodyFns(deps, kind);
@@ -312,6 +329,14 @@ async function commitEditResolved(command: AdapterCommand, deps: ErpAdapterDeps,
   if (route === 'amend') return commitAmend(command, deps, externalRecordId);
   const body = bodyFns.toBody(command.record, deps.ctx);
   const updated = (await updateDoc(deps.client, entry.doctype, externalRecordId, body)) as { name: string };
+  if (submitAdoptedDraft) {
+    // R9 two-step, exactly as `commitCreate`: submit, then RE-FETCH (the PUT response's derived fields
+    // are stale — the re-fetch is the only trustworthy read).
+    await submitDoc(deps.client, entry.doctype, externalRecordId);
+    await deps.afterSubmitHook?.();
+    const refetched = await getDoc(deps.client, entry.doctype, externalRecordId);
+    return { externalRecordId, canonical: { ...bodyFns.fromDoc(refetched), id: command.record.id } };
+  }
   const canonical: PmoRecord = { ...bodyFns.fromDoc(updated), id: command.record.id };
   return { externalRecordId, canonical };
 }

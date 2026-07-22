@@ -570,6 +570,35 @@ export async function readCategoryAccountMap(
 }
 
 /**
+ * ⚑ MED-1 — the ERP `Budget` name PMO's own last push for this (version, fiscal year) produced, as
+ * recorded on `budget_version_erp_mirror`. It is the ONLY ownership evidence that exists for a doctype
+ * with no anchor field (budget-write spike §7), and it is consulted for exactly one decision: whether a
+ * lone draft on an unenforced grain is the replacement THIS project's push created.
+ *
+ * Fails SOFT (null) on a read error or a missing row: "we could not prove ownership" and "there is no
+ * ownership to prove" must both fall through to the refusal, never to an adoption. The strict direction
+ * of a fail here is refusal, which is the pre-MED-1 behaviour — so a broken read can only ever cost the
+ * recovery, never mis-submit somebody else's document.
+ */
+async function mirrorErpBudgetName(
+  deps: ErpDispatchFactoryDeps,
+  budgetVersionId: string,
+  fiscalYear: string,
+): Promise<string | null> {
+  if (!budgetVersionId) return null;
+  const { data, error } = await deps.serviceClient
+    .from('budget_version_erp_mirror')
+    .select('erp_budget_name')
+    .eq('org_id', deps.orgId)
+    .eq('budget_version_id', budgetVersionId)
+    .eq('fiscal_year', fiscalYear)
+    .maybeSingle();
+  if (error) return null;
+  const name = (data as { erp_budget_name?: unknown } | null)?.erp_budget_name;
+  return typeof name === 'string' && name.length > 0 ? name : null;
+}
+
+/**
  * Resolve the budget push's refs:
  *
  *  • `refs.project` — the ERP `Project` name for the version's project, via the SAME binding
@@ -601,7 +630,12 @@ async function resolveBudgetRefs(
   budgetConfig: Record<string, unknown>,
 ): Promise<{ refs: Record<string, string | null> }> {
   if (!isBudgetCommand(deps.command)) return { refs: {} };
-  const record = deps.command.record as { projectId?: string | null; fiscal_year?: unknown; line_items?: unknown };
+  const record = deps.command.record as {
+    id?: unknown;
+    projectId?: string | null;
+    fiscal_year?: unknown;
+    line_items?: unknown;
+  };
   const project = resolveErpProjectName(binding.config, record.projectId);
   const refs: Record<string, string | null> = { project };
 
@@ -647,11 +681,14 @@ async function resolveBudgetRefs(
       ['fiscal_year', '=', fiscalYear],
       ['docstatus', '<', 2],
     ],
-    ['name', 'docstatus'],
+    // ⚑ MED-1 (audit round 6): `amended_from` is the ONE fact that can prove a draft is OURS — see the
+    // ownership branch below. It was already being written by `commitAmend`; it was simply never read.
+    ['name', 'docstatus', 'amended_from'],
     5, // a handful is plenty to classify the grain; we never need to enumerate it
   );
   const live = grain.filter((row) => Number(row.docstatus) === 1).map((row) => String(row.name));
-  const drafts = grain.filter((row) => Number(row.docstatus) === 0).map((row) => String(row.name));
+  const draftRows = grain.filter((row) => Number(row.docstatus) === 0);
+  const drafts = draftRows.map((row) => String(row.name));
 
   // (iii) Genuine ambiguity — two live Budgets, only reachable by Desk authoring across disjoint
   // accounts. Fail CLOSED, zero writes: the adapter never picks one to supersede.
@@ -661,6 +698,32 @@ async function resolveBudgetRefs(
         `an operator must resolve the duplicate before PMO can revise it (${live.join(', ')})`,
       'commit-rejected',
     );
+  }
+
+  // ⚑ MED-1 (audit round 6) — (ii-a) OUR OWN ORPHAN. A create-OK/submit-FAIL during an UPSERT leaves the
+  // predecessor cancelled and the replacement stuck as a draft: ERPNext then enforces NOTHING for the
+  // project/fiscal-year, and round 5's refusal below is PERMANENT (`retryable:false`), so foreground
+  // retry AND sweep backstop are both refused by name and the only exit is a human in the Desk. That is
+  // the worst state this program has, reached by one transient 5xx.
+  //
+  // Round 5's stated reason for refusing — "`Budget` carries no anchor field, so we cannot PROVE a draft
+  // is ours" (spike §7) — is true in general and FALSE in exactly this window: `commitAmend` created the
+  // replacement with `amended_from` = the document it had just cancelled, and that document's name is
+  // recorded on OUR OWN mirror row. A sole draft, on an otherwise EMPTY grain, whose `amended_from` is
+  // that exact tombstone, is unambiguously the replacement this project's last push produced. Nothing
+  // weaker counts: no mirror row (no record ⇒ no proof), a different lineage, a bare Desk WIP, or a live
+  // Budget also present all fall through to the refusal, which was and remains correct.
+  //
+  // Adopting means `refs.self` = the draft, so the upsert path updates it to the CURRENT figures and
+  // submits it (adapter.ts `commitEditResolved`) — it never mints a second Budget and never cancels
+  // anything, because there is nothing live left to cancel.
+  if (live.length === 0 && draftRows.length === 1) {
+    const ownedByUs = await mirrorErpBudgetName(deps, String(record.id ?? ''), fiscalYear);
+    const amendedFrom = draftRows[0].amended_from;
+    if (ownedByUs && typeof amendedFrom === 'string' && amendedFrom === ownedByUs) {
+      refs.self = drafts[0];
+      return { refs };
+    }
   }
 
   // (ii) A DRAFT rival — ours (an orphaned create-OK/submit-FAIL) or somebody's Desk work-in-progress.

@@ -1020,7 +1020,7 @@ function holdBudgetMirrorRow(
   row: BudgetMirrorCandidateRow,
   reason: string,
 ): PromiseLike<{ error: { message: string; code?: string } | null }> {
-  const { budget_version_id: budgetVersionId, push_state: pushState } = row;
+  const { budget_version_id: budgetVersionId, push_state: pushState, fiscal_year: fiscalYear } = row;
   // ⚑ MEDIUM-2: an `absent` candidate (an outbox-only orphan — a dispatch that died between the ERP
   // commit and the mirror write) has NO row to compare-and-set against, so an update-only hold wrote
   // zero rows and the refusal was invisible: exactly the stranded-and-unseen outcome this pass exists to
@@ -1029,9 +1029,27 @@ function holdBudgetMirrorRow(
   // `parkTimesheetMirrorRow`, takes the same shape for the same reason.)
   if (pushState === BUDGET_MIRROR_ABSENT) {
     return (async () => {
+      // ⚑ LOW-1 (audit round 6) — `fiscal_year` is `text NOT NULL` with no default (0137 §1) and
+      // `stamp_org_id` stamps only `org_id`, so the insert that omitted it raised 23502 — which the
+      // 23505 guard does NOT absorb, so this recovery branch threw instead of recording the durable
+      // `held` state it exists to write. Dead on arrival.
+      //
+      // ⚑ And the missing year may NOT be derived to make the insert go through. Since HIGH-1,
+      // `budget_version_erp_mirror.fiscal_year` is the authority `get_budget_projection` scopes PMO's
+      // budget column by, so a guessed year here would put a wrong-year Budget/Variance/Utilization on
+      // the primary money screen — the exact defect HIGH-1 removed, re-entered through a recovery path.
+      // With no year on record there is no grain to hold, so nothing is written; the caller's
+      // `surfaceActionRequired` is what tells a human, and it runs either way.
+      if (!fiscalYear) return { error: null };
       const { error } = await serviceClient
         .from('budget_version_erp_mirror')
-        .insert({ org_id: orgId, budget_version_id: budgetVersionId, push_state: 'held', push_error: reason });
+        .insert({
+          org_id: orgId,
+          budget_version_id: budgetVersionId,
+          fiscal_year: fiscalYear,
+          push_state: 'held',
+          push_error: reason,
+        });
       return { error: error && error.code !== '23505' ? error : null };
     })();
   }
@@ -1059,22 +1077,28 @@ export function budgetBackstopDepsLive(
   /** ⚑ MEDIUM-2: the budget-domain rows `outbox_reconcile_candidates` (0131) STILL ADMITS — the id set
    *  the attempts-exhausted gate already used, plus each row's `pmo_record_id` so the queue can also
    *  find an outbox-only ORPHAN (a dispatch that died between the ERP commit and the mirror write). */
-  eligibleBudgetCandidates: ReadonlyArray<{ id: string; pmo_record_id: string }>,
+  eligibleBudgetCandidates: ReadonlyArray<{ id: string; pmo_record_id: string; fiscal_year?: string | null }>,
 ): BudgetBackstopDeps {
   const eligibleOutboxIds = new Set(eligibleBudgetCandidates.map((c) => c.id));
   return {
     listPendingBudgetPushes: async (orgId, limit) => {
       const { data, error } = await serviceClient
         .from('budget_version_erp_mirror')
-        .select('budget_version_id, push_state, erp_cancelled_at')
+        // LOW-1: `fiscal_year` rides along — a mirror row's own grain, needed by any hold this pass writes.
+        .select('budget_version_id, push_state, erp_cancelled_at, fiscal_year')
         .eq('org_id', orgId)
         .in('push_state', ['pending', 'failed'])
         .is('erp_cancelled_at', null)
         .order('created_at', { ascending: true })
         .limit(limit);
       if (error) throw new AppError(error.message, error.code);
-      const mirrored = ((data as Array<{ budget_version_id: string; push_state: string; erp_cancelled_at: string | null }> | null) ?? [])
-        .map((r) => ({ budget_version_id: r.budget_version_id, push_state: r.push_state, erp_cancelled_at: r.erp_cancelled_at }));
+      const mirrored = ((data as Array<{ budget_version_id: string; push_state: string; erp_cancelled_at: string | null; fiscal_year: string | null }> | null) ?? [])
+        .map((r) => ({
+          budget_version_id: r.budget_version_id,
+          push_state: r.push_state,
+          erp_cancelled_at: r.erp_cancelled_at,
+          fiscal_year: r.fiscal_year,
+        }));
       // ⚑ MEDIUM-2 — …plus the OUTBOX-ONLY orphans. Nothing writes a `budget_version_erp_mirror` row
       // before the dispatch (every mirror writer lives inside `adapter-dispatch`'s finalize), so a
       // dispatch that died after `adapter.commit` and before `finalize_outbox` left an outbox row
@@ -1089,7 +1113,14 @@ export function budgetBackstopDepsLive(
       const orphans = eligibleBudgetCandidates
         .filter((c) => !known.has(c.pmo_record_id))
         .slice(0, Math.max(limit - mirrored.length, 0))
-        .map((c) => ({ budget_version_id: c.pmo_record_id, push_state: BUDGET_MIRROR_ABSENT, erp_cancelled_at: null }));
+        .map((c) => ({
+          budget_version_id: c.pmo_record_id,
+          push_state: BUDGET_MIRROR_ABSENT,
+          erp_cancelled_at: null,
+          // LOW-1: the outbox canonical is the only thing that knows this orphan's grain. Absent ⇒ the
+          // hold writes nothing rather than guessing (see `holdBudgetMirrorRow`).
+          fiscal_year: c.fiscal_year ?? null,
+        }));
       return [...mirrored, ...orphans];
     },
     readBudgetVersion: async (versionId) => {
@@ -1158,7 +1189,16 @@ async function reconcileOrgBudgetPushesLive(serviceClient: SupabaseClient, org: 
     // RPC still admits. Scoped to the budget domain; any other domain's candidates are irrelevant here.
     const eligibleBudgetCandidates = (await listCandidatesLive(serviceClient)(org.orgId))
       .filter((c) => c.domain === ERPNEXT_BUDGET_DOMAIN)
-      .map((c) => ({ id: c.id, pmo_record_id: c.pmoRecordId }));
+      // LOW-1: the canonical the dispatch recorded is the ONLY in-DB statement of an outbox-only
+      // orphan's fiscal year. It is carried, never derived (a derived year would mis-scope the budget
+      // projection — HIGH-1).
+      .map((c) => ({
+        id: c.id,
+        pmo_record_id: c.pmoRecordId,
+        fiscal_year: typeof (c.canonical as Record<string, unknown> | null)?.fiscal_year === 'string'
+          ? ((c.canonical as Record<string, string>).fiscal_year)
+          : null,
+      }));
     const result = await reconcileOrgBudgetPushes(budgetBackstopDepsLive(serviceClient, org, eligibleBudgetCandidates), { orgId: org.orgId });
     // NEW-3: per-row throws are contained so the queue drains, but they are NEVER silent — a row that
     // keeps throwing is a stuck money push and must be visible in the tick's own result.

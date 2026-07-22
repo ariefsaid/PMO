@@ -36,6 +36,7 @@ import {
   fetchBudgetPushStatus,
   listBudgetFiscalYears,
   retryActiveBudgetPush,
+  releaseActiveBudgetPushHold,
   listBudgetCategoryAccountMap,
   createBudgetCategoryAccountMapRow,
   updateBudgetCategoryAccountMapRow,
@@ -90,6 +91,7 @@ describe('fetchBudgetProjection (AC-BUD-050/053)', () => {
           category: 'Labor',
           pmo_budget_amount: 100000,
           actuals_to_date: 40000,
+          actuals_as_of: '2026-03-04T09:00:00+00:00',
           pmo_etc: 35000,
           projected_final_cost: 75000,
           projected_variance: 25000,
@@ -110,6 +112,7 @@ describe('fetchBudgetProjection (AC-BUD-050/053)', () => {
         category: 'Labor',
         pmoBudgetAmount: 100000,
         actualsToDate: 40000,
+        actualsAsOf: '2026-03-04T09:00:00+00:00',
         pmoEtc: 35000,
         projectedFinalCost: 75000,
         projectedVariance: 25000,
@@ -188,6 +191,50 @@ describe('fetchBudgetProjection (AC-BUD-050/053)', () => {
     const rows = await fetchBudgetProjection('proj-1', '2026');
     expect(rows[0].actualsToDate).toBe(0);
     expect(rows[0].projectedUtilization).toBe(0);
+  });
+
+  // ⚑ NEW-4 (rendered re-verification, 2026-07-22) — the ledger's READING is itself an input, and the
+  // seam must carry it. Without `actualsAsOf` the surface cannot tell "no ERP account is mapped" from
+  // "nobody has ever read this project-year's ledger", and it cannot date a figure it does show.
+  it('NEW-4 carries actualsAsOf — a never-read ledger is null, and it is never invented', async () => {
+    makeRpcBuilder({
+      data: [
+        {
+          category: 'Labor',
+          pmo_budget_amount: 10000,
+          actuals_to_date: null,
+          actuals_as_of: null,
+          pmo_etc: 0,
+          projected_final_cost: null,
+          projected_variance: null,
+          projected_utilization: null,
+        },
+      ],
+      error: null,
+    });
+    const rows = await fetchBudgetProjection('proj-1', '2026');
+    expect(rows[0].actualsAsOf).toBeNull();
+    expect(rows[0].actualsToDate).toBeNull();
+  });
+
+  it('NEW-4 a project-year that HAS been read carries the reading timestamp through unchanged', async () => {
+    makeRpcBuilder({
+      data: [
+        {
+          category: 'Labor',
+          pmo_budget_amount: 10000,
+          actuals_to_date: 0,
+          actuals_as_of: '2026-03-04T09:00:00+00:00',
+          pmo_etc: 0,
+          projected_final_cost: 0,
+          projected_variance: 10000,
+          projected_utilization: 0,
+        },
+      ],
+      error: null,
+    });
+    const rows = await fetchBudgetProjection('proj-1', '2026');
+    expect(rows[0].actualsAsOf).toBe('2026-03-04T09:00:00+00:00');
   });
 
   it('an empty result (no versions/actuals/ETC yet) resolves to an empty array, not a throw', async () => {
@@ -375,5 +422,56 @@ describe('retryActiveBudgetPush (HIGH-D — the operator-invokable recovery)', (
     (builder as Record<string, unknown>).maybeSingle = () => Promise.resolve({ data: null, error: null });
     await expect(retryActiveBudgetPush('proj-1')).rejects.toThrow(/no Active budget version/i);
     expect(retryBudgetPushMock).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * ⚑ MED-2 (money-safety audit round 6) — `release_outbox_hold` shipped in mig 0137 with ZERO CALLERS,
+ * so the wedge its own header describes in the present tense ("that week's payroll costing can never
+ * reach the client's ERP, by ANY in-app action whatsoever") stayed literally true after the fix: the
+ * operator's route out was `psql`. This seam is that caller.
+ *
+ * It never touches ERPNext and never fabricates an outcome — the RPC moves `held` → `failed`, which
+ * puts the command back inside the ordinary bounded recovery with every gate re-run.
+ */
+describe('releaseActiveBudgetPushHold (MED-2 — the operator route out of a held budget push)', () => {
+  const heldOutboxBuilder = (row: unknown) => {
+    const builder = makeFromBuilder({ data: row, error: null });
+    (builder as Record<string, unknown>).limit = () => builder;
+    (builder as Record<string, unknown>).maybeSingle = () =>
+      Promise.resolve({ data: mockFrom.mock.calls.at(-1)?.[0] === 'budget_versions' ? { id: 'ver-active' } : row, error: null });
+    return builder;
+  };
+
+  it("MED-2 resolves the project's ACTIVE version, finds its HELD outbox command and releases THAT one", async () => {
+    heldOutboxBuilder({ id: 'outbox-held' });
+    makeRpcBuilder({ data: null, error: null });
+
+    await expect(releaseActiveBudgetPushHold('proj-1')).resolves.toBeUndefined();
+
+    expect(mockFrom).toHaveBeenCalledWith('external_command_outbox');
+    expect(mockEq).toHaveBeenCalledWith('state', 'held');
+    expect(mockEq).toHaveBeenCalledWith('pmo_record_id', 'ver-active');
+    expect(mockRpc).toHaveBeenCalledWith('release_outbox_hold', expect.objectContaining({ p_outbox_id: 'outbox-held' }));
+  });
+
+  it('MED-2 records a REASON with the release — clearing a money hold is a human decision with a name on it', async () => {
+    heldOutboxBuilder({ id: 'outbox-held' });
+    makeRpcBuilder({ data: null, error: null });
+    await releaseActiveBudgetPushHold('proj-1');
+    const reason = (mockRpc.mock.calls[0][1] as { p_reason: string }).p_reason;
+    expect(reason.length).toBeGreaterThan(0);
+  });
+
+  it('MED-2 refuses when there is no held command — never releases something it did not find', async () => {
+    heldOutboxBuilder(null);
+    await expect(releaseActiveBudgetPushHold('proj-1')).rejects.toThrow(/no held/i);
+    expect(mockRpc).not.toHaveBeenCalled();
+  });
+
+  it('MED-2 surfaces the RPC\'s own refusal (42501 — the Admin gate is server-side)', async () => {
+    heldOutboxBuilder({ id: 'outbox-held' });
+    makeRpcBuilder({ data: null, error: { message: 'not authorized', code: '42501' } });
+    await expect(releaseActiveBudgetPushHold('proj-1')).rejects.toMatchObject({ code: '42501' });
   });
 });
