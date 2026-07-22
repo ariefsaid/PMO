@@ -42,6 +42,32 @@
 - **FR-IEM-014 (ubiquitous):** While the org employs ClickUp, the Admin UI SHALL present a **binding map** showing, for every PMO project, which ClickUp List it is bound to (and which projects are unbound / PMO-native). The map is the org-admin's view of what is delegated to ClickUp and what is not.
 - **FR-IEM-015 (ubiquitous):** The server SHALL be the authority for the per-project ownership decision (the column-pin trigger and RLS), evaluated per project; `can()` and the binding map remain UX-only per ADR-0016.
 
+#### Unbound sides (owner ruling 2026-07-22 — "no project on either side")
+
+Binding is a **two-sided, partial** relation: PMO projects may be unbound, ClickUp Lists may be
+unbound, and either side may be empty entirely. Each case is specified, none is an error.
+
+- **FR-IEM-016 (event-driven):** When an inbound ClickUp change arrives for a task whose List has **no
+  active project binding** for that org, the system SHALL NOT create or update any PMO task. It SHALL
+  NOT infer a project. Specifically, the current "single employing org ⇒ use its only binding"
+  fallback SHALL be removed: an unresolvable binding is a **no-op**, not a guess.
+- **FR-IEM-017 (event-driven):** When such an unresolvable inbound event is discarded, the system
+  SHALL record it as an observable signal (health/audit) rather than dropping it silently, so an
+  org-admin can see that ClickUp activity exists outside what PMO tracks.
+- **FR-IEM-018 (ubiquitous):** The reconciliation sweep SHALL enumerate **only bound Lists**. An
+  unbound List's tasks SHALL never be read into PMO.
+- **FR-IEM-019 (state-driven):** While an org employs ClickUp but has **no project bindings at all**
+  (including immediately after connect), the integration SHALL be a valid, healthy, inert state: no
+  task is ClickUp-owned, all PMO tasks stay editable, no sync runs, and the tier SHALL still report
+  `Active` (the credential is valid) with an empty binding map — not an error or a warning.
+- **FR-IEM-020 (ubiquitous):** The Admin binding map (FR-IEM-014) SHALL show **both** directions: each
+  PMO project with its bound List or marked PMO-native, **and** ClickUp Lists in the workspace that are
+  bound to no PMO project — so the admin can see what is delegated, what is not, and what exists in
+  ClickUp that PMO does not track.
+- **FR-IEM-021 (event-driven):** When a bound PMO project is deleted or archived, its binding SHALL be
+  released (the project stops being ClickUp-owned) and the map SHALL surface the now-unbound List
+  rather than retaining a binding to a project that no longer exists.
+
 ### Observed / legacy behavior to remove
 
 - **OBS-IEM-001:** `resolvePerOrgSecret` currently returns `{ kind: 'no-binding' }` immediately when `connectEnabled` is false, causing flag-off to suppress per-org Vault resolution.
@@ -49,6 +75,7 @@
 - **OBS-IEM-003:** The current UI renders `IntegrationsView` unconditionally in `pmo-portal/pages/AdminUsers.tsx`; the connect form is not gated by `EXTERNAL_CONNECT_ENABLED`.
 - **OBS-IEM-004:** With ownership employed and resolver disabled, native task columns are protected by `enforce_assignee_status_only()` (migration `0140`), producing the documented trap state.
 - **OBS-IEM-005:** `supabase/functions/clickup-webhook-worker/index.ts:170` calls `resolvePerOrgSecret` with `connectEnabled: true` **hard-coded**, so inbound webhook application bypasses the flag entirely. Consequently the trap state is not "nothing syncs" but an **asymmetric one-way mirror**: ClickUp→PMO changes still land while PMO→ClickUp (`adapter-dispatch`) and the healing sweep (`clickup-sweep`) are both suppressed — and PMO's own tasks are read-only. A kill-switch that a component hard-codes past is not a kill-switch.
+- **OBS-IEM-008:** `clickup-webhook-worker`'s `resolveBindingLive` tier-3 fallback attributes an unresolvable task to the org's only `external_project_bindings` row when that org is the single employing org (`.maybeSingle()`). A task from an **unbound** ClickUp List is therefore minted into an unrelated PMO project — ClickUp-side work the client never delegated silently appears in PMO. This fallback must be removed, not narrowed.
 - **OBS-IEM-007:** `external_domain_ownership` is keyed `unique (org_id, external_tier, domain)` — **org-wide** — while `external_project_bindings` is per `(org_id, project_id, tier)`. `enforce_assignee_status_only()` (migration `0140`) and the `0093` task RLS policies both gate on `domain_externally_owned(org_id,'tasks')`, so employing ClickUp makes **every task in every project** read-only while only *bound* projects sync. A client piloting ClickUp on one of ten projects gets nine projects of permanently read-only, never-syncing tasks — the trap state generalized, independent of the kill-switch.
 - **OBS-IEM-006:** The flag's blast radius is not ClickUp-only: `erpnext-onboard` (2 refs), `erpnext-sweep` (2), and `erpnext-webhook` (3) also read `EXTERNAL_CONNECT_ENABLED`. Any change to its semantics affects the ERPNext tier identically and MUST be specified for both tiers.
 
@@ -99,6 +126,15 @@
 
 ### AC-IEM-013 — the Admin binding map reflects actual bindings *(owning layer: unit)*
 **Given** an org employing ClickUp with a mix of bound and unbound projects, **when** an org-admin opens the Integrations admin surface, **then** each project is listed with its bound ClickUp List (or shown as PMO-native/unbound), matching `external_project_bindings` exactly.
+
+### AC-IEM-014 — an unbound ClickUp List never leaks tasks into PMO *(owning layer: unit)*
+**Given** an org employing ClickUp with exactly one bound project, **when** an inbound change arrives for a task in a List bound to no PMO project, **then** no PMO task is created or updated in any project — in particular not in the single bound project — and the event is recorded as unresolvable.
+
+### AC-IEM-015 — employing ClickUp with zero bindings is healthy and inert *(owning layer: pgTAP)*
+**Given** an org that has connected ClickUp but bound no projects, **when** the state is inspected, **then** the tier reports `Active`, no task in any project is ClickUp-owned, every PMO task remains editable by write-roles, and no sync work is enumerated.
+
+### AC-IEM-016 — the binding map shows unbound Lists as well as unbound projects *(owning layer: unit)*
+**Given** a workspace with List L1 bound to project P1 and List L2 bound to nothing, and PMO project P2 unbound, **when** an org-admin opens the map, **then** P1→L1 is shown as bound, P2 is shown PMO-native, and L2 is shown as a ClickUp List PMO does not track.
 
 ## Out of scope
 
