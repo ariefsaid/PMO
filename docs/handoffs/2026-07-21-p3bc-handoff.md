@@ -191,6 +191,40 @@ Next free number is **0142**.
 > and headers have been unreliable in BOTH directions all program. Everything below was verified by
 > reading code/filesystem on 2026-07-22.
 
+### ⚠️ BEFORE building 6.4 — two blockers found 2026-07-22 by reading the code
+
+**(a) `timesheetPushKey` is in the WRONG MODULE for the sweep to use.**
+It is defined at `pmo-portal/src/lib/repositories/index.ts:551` — a CLIENT module with 38 imports
+including `@/src/lib/supabase/client` (the browser singleton). The Deno sweep cannot import that.
+Contrast `budgetPushKey.ts`, deliberately placed under `adapterSeam/` with a header saying exactly
+why: *"so both originators (FE consequence path and the Deno sweep) can import it."*
+**Move it to `adapterSeam/erpnext/timesheetPushKey.ts` FIRST.** If the sweep instead re-implements the
+key, the two originators can drift — and a drifted key is precisely a DUPLICATED WEEK OF HOURS.
+
+**(b) ⚑ LATENT HIGH — `timesheetPushKey` embeds the RAW timestamp string; `budgetPushKey` deliberately
+does NOT.**
+```ts
+timesheetPushKey = `ts:${timesheetId}:${approvedAt}`   // raw string
+budgetPushKey    = `bud:${versionId}:${epochMs}`       // NORMALISED to epoch ms
+```
+`budgetPushKey`'s own header explains why the normalisation exists: *"the two originators read the same
+column through different transports, which render one instant differently: PostgREST gives
+`2026-07-16T10:00:00+00:00`, a server-side/SQL read gives `2026-07-16 10:00:00+00`… Keying on the text
+would make two spellings of ONE activation two keys — the duplicate the constraint exists to stop."*
+
+**The timesheet path has exactly that shape.** The FE takes `approved_at` from the **RPC return**
+(`approved_timesheet_for_push` → `gate.approved_at`; the FE test shows `ts:ts-1:2026-01-12T03:04:05.678Z`).
+The plan's 6.4 sketch takes it from a **direct column select** (`c.approved_at`). Two different
+transports for one instant.
+
+**MUST be settled before 6.4 ships** — if those two render differently, the outbox 4-tuple does NOT
+collide, both originators create a Timesheet, and the client is billed a duplicated week of hours on
+project cost. That is the exact catastrophe the deterministic key exists to prevent, and the exact
+outcome `timesheetPushKey`'s own doc comment claims it prevents.
+**Do not assume either way — PROVE it** (print both renderings from the live DB), then normalise
+`timesheetPushKey` the same way `budgetPushKey` is normalised. It is masked today ONLY because the
+second originator does not exist; **6.4 makes it live.**
+
 ### The 9 MISSING served-fn e2e journeys — exact worklist (paths are the SPEC's own, §1010+)
 None of these exist. `e2e/serial/` currently has `AC-732-budget-activate.spec.ts` and the P3a
 `AC-SAR-*` set only. Idiom to copy: `AC-SAR-010-pe-receive-idempotency.spec.ts` (serial-isolation
