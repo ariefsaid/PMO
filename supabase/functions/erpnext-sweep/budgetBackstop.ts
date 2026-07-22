@@ -68,6 +68,10 @@ export interface ReconcileOrgBudgetPushesResult {
   /** Rows whose re-asserted gate refused the push (the version is no longer `Active`, or unreadable) —
    *  left exactly as they are; an operator (or a later re-activation) resolves them, never this pass. */
   skipped: number;
+  /** NEW-3: rows that THREW. Recorded per-row so one failure cannot abandon the queue (a pre-claim
+   *  throw never bumps `attempt_count`, and `created_at ASC` would put it first again every tick —
+   *  disabling the org's whole automatic budget recovery). Surfaced by the caller, never swallowed. */
+  errors: Array<{ budgetVersionId: string; error: string }>;
 }
 
 /**
@@ -84,16 +88,27 @@ export async function reconcileOrgBudgetPushes(
   const candidates = await deps.listPendingBudgetPushes(org.orgId, BUDGET_BACKSTOP_TICK_LIMIT);
   let driven = 0;
   let skipped = 0;
+  const errors: Array<{ budgetVersionId: string; error: string }> = [];
   for (const row of candidates) {
-    const version = await deps.readBudgetVersion(row.budget_version_id);
-    // FR-BUD-102: re-assert the gate from DB truth — never trust the mirror row's own state, and
-    // never drive a version that is no longer Active (or has no activation stamp at all).
-    if (!version || version.status !== 'Active' || !version.activated_at) {
-      skipped += 1;
-      continue;
+    // ⚑ NEW-3 (audit r4) — PER-ROW containment, the same rule `reconcileOrgOutbox` already applies and
+    // the same class as HIGH-A (one bad row wedging a whole pass). Without it, a row that throws BEFORE
+    // any outbox claim (e.g. its recorded actor was deactivated, so re-authorization refuses) never
+    // bumps `attempt_count` — and because the queue is ordered `created_at ASC` it is FIRST again on
+    // every tick, so the org's entire automatic budget recovery stays off until a human intervenes.
+    // Record and continue: the row is surfaced, the rest of the queue still drains.
+    try {
+      const version = await deps.readBudgetVersion(row.budget_version_id);
+      // FR-BUD-102: re-assert the gate from DB truth — never trust the mirror row's own state, and
+      // never drive a version that is no longer Active (or has no activation stamp at all).
+      if (!version || version.status !== 'Active' || !version.activated_at) {
+        skipped += 1;
+        continue;
+      }
+      await deps.driveBudgetPush(row, version);
+      driven += 1;
+    } catch (err) {
+      errors.push({ budgetVersionId: row.budget_version_id, error: err instanceof Error ? err.message : String(err) });
     }
-    await deps.driveBudgetPush(row, version);
-    driven += 1;
   }
-  return { driven, skipped };
+  return { driven, skipped, errors };
 }

@@ -923,9 +923,18 @@ const timesheetsWriter: ReadModelWriter = {
  * user has moved on and the sheet looks fine. So every classified rejection must land as durable,
  * operator-visible state rather than as a log line.
  *  • `outcome === null` ⇒ nothing to push (an empty / all-zero-hours approved sheet, FR-TSP-056):
- *    recorded as `pushed` with a NULL `ts_number` — a SUCCESS, so it never re-enters the retry queue.
+ *    recorded as `pushed` with no `ts_number` — a SUCCESS, so it never re-enters the retry queue.
  *  • `command-held` ⇒ `held` (terminal until an operator acts — never re-driven).
  *  • anything else ⇒ `failed` + the classified, client-safe reason.
+ *
+ * ⚑ NEW-7 (Luna audit round 4) — `ts_number` is deliberately NOT NAMED, the mirror image of M-1's
+ * deliberate `erp_cancelled_at: null`. An `upsert` updates only the columns it names, and this writer
+ * used to name `ts_number: null` on every path. A sheet that HAD pushed successfully
+ * (`ts_number='TS-2026-00042'`, a real ERPNext Timesheet) and whose LATER attempt was rejected had that
+ * number erased — the ERP document still existed, still carried hours, and PMO's only pointer to it was
+ * gone, so nobody could reconcile it. This function is by definition the NO-DOCUMENT outcome: it never
+ * learns a document number, so it must never claim one. A fresh row still gets the column default
+ * (NULL); a previously known number survives to be reconciled.
  */
 export async function markTimesheetPushOutcome(
   ctx: ReadModelWriterCtx,
@@ -938,7 +947,6 @@ export async function markTimesheetPushOutcome(
     {
       org_id: ctx.orgId,
       timesheet_id: timesheetId,
-      ts_number: null,
       push_state: pushState,
       push_error: outcome === null ? null : `${outcome.code ?? 'error'}: ${outcome.message}`,
       pushed_at: outcome === null ? new Date().toISOString() : null,

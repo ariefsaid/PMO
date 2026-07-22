@@ -166,3 +166,31 @@ Deno.test('HIGH-A: a transient failure INSIDE the apply still halts that doctype
     env.restore();
   }
 });
+
+// ── NEW-2/NEW-5 (audit r4): pass 1 must NOT drive `budget` — pass 5 owns it ────────────────────────
+// `reconcileOrgOutbox` re-checks only the actor's role. The budget domain's OTHER precondition — the
+// version is STILL Active with its stamp (FR-BUD-102) — lives solely in `budgetBackstop.ts`. So a
+// budget row replayed here bypasses that gate entirely. Concrete: v2's push fails while ERP is down, a
+// PM activates v3, ERP returns; `outbox_reconcile_candidates` has NO ORDER BY, so v2 can replay first
+// and leave ERPNext enforcing the ARCHIVED version's figures. Driving it twice per tick also burns
+// 0131's 5-attempt auto-recovery budget at 2x.
+Deno.test('NEW-2 reconcileOrgOutbox SKIPS budget candidates (pass 5 owns them, with the version gate)', async () => {
+  const { reconcileOrgOutbox } = await import('./index.ts');
+  const dispatched: string[] = [];
+  const candidates = [
+    { id: 'ob-budget', domain: 'budget', pmoRecordId: 'v2', idempotencyKey: 'bud:v2:1', state: 'failed', externalRecordId: null, canonical: null, claimGeneration: 0, payloadDigest: null },
+    { id: 'ob-revenue', domain: 'revenue', pmoRecordId: 'si1', idempotencyKey: 'k2', state: 'failed', externalRecordId: null, canonical: null, claimGeneration: 0, payloadDigest: null },
+  ];
+  const result = await reconcileOrgOutbox(
+    async () => candidates as never,
+    { orgId: 'org-1', ownedDomains: ['budget', 'revenue'] },
+    (async (c: { id: string }) => ({ id: c.id })) as never,
+    (async (d: { id: string }) => { dispatched.push(d.id); }) as never,
+  );
+  assert(
+    !dispatched.includes('ob-budget'),
+    'NEW-2: pass 1 must NOT drive a budget row — it would bypass the still-Active version gate and can push an ARCHIVED version\'s figures',
+  );
+  assert(dispatched.includes('ob-revenue'), 'every other domain must still be reconciled by pass 1');
+  assert(result.reconciled === 1, `expected exactly one non-budget reconcile, got ${result.reconciled}`);
+});

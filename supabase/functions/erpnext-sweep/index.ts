@@ -340,6 +340,19 @@ export async function reconcileOrgOutbox(
       errors.push({ id: candidate.id, error: `domain-not-owned: '${candidate.domain}' is no longer assigned to this tier — held for an operator, NOT reconciled` });
       continue;
     }
+    // ⚑ NEW-2/NEW-5 (audit r4): the `budget` domain is owned by pass 5 (`reconcileOrgBudgetPushes`)
+    // ALONE. Two originators must never both drive one budget row:
+    //   • CORRECTNESS — pass 5 re-asserts the version is STILL `Active` with its stamp, from DB truth
+    //     (FR-BUD-102, `budgetBackstop.ts`). This pass re-checks only the actor's role, so replaying a
+    //     budget row here bypasses that gate ENTIRELY. Scenario: v2's push fails while ERP is down, a PM
+    //     activates v3, ERP returns — `outbox_reconcile_candidates` has no ORDER BY, so v2 can replay
+    //     FIRST and leave ERPNext enforcing the figures of an ARCHIVED version while v3 is rejected by
+    //     ERP's own duplicate guard. That is a wrong number in the client's GL controls.
+    //   • BUDGET — driving the same row from both passes burns `0131`'s 5-attempt auto-recovery budget
+    //     at 2× per tick, so a genuinely recoverable push is abandoned in half the intended attempts.
+    // Skipping is safe precisely BECAUSE pass 5 owns it: the row is not dropped, it is reconciled by the
+    // one pass that re-reads the version first.
+    if (candidate.domain === ERPNEXT_BUDGET_DOMAIN) continue;
     try {
       await dispatch(await buildDeps(candidate));
       reconciled += 1;
@@ -842,8 +855,20 @@ export function reportVersionFromOrg(org: Pick<OrgBinding, 'versionMajor'>): str
   return org.versionMajor != null ? String(org.versionMajor) : '';
 }
 
-/** The accounting refresh for one org (slice 7 fanout — actuals + AP/AR aging from the mirror).
- *  Exported for unit testing (task FIX-6, Quality MINOR 4). */
+/**
+ * The accounting refresh for one org (slice 7 fanout — actuals + AP/AR aging from the mirror).
+ * Exported for unit testing (task FIX-6, Quality MINOR 4).
+ *
+ * ⚑ NEW-1 (audit round 4, 2026-07-22) — `actualsScope` carries the org's REAL `config.project_map`.
+ * It used to be a literal `{}`, and `refreshActuals` stamped `project_id` from a caller-supplied scope
+ * that was therefore always empty: every `erp_actuals_snapshot` row landed with `project_id = NULL`,
+ * while `0141_get_budget_projection.sql` joins `s.project_id = p_project_id`. "Actuals to date" was
+ * structurally 0.00 for every project with real posted GL spend — variance = the entire budget, on the
+ * primary money screen, with no error anywhere. Attribution now comes from the project dimension ERP
+ * itself states on the GL row, resolved through the SAME `project_map` seam `dispatchFactory.ts` uses
+ * for the budget push and every timesheet entry (`resolveErpProjectName`) — one mapping, consumed
+ * inverted, never a second one invented here.
+ */
 export async function refreshOrgAccountingLive(serviceClient: SupabaseClient, org: OrgBinding): Promise<{ error?: string }> {
   try {
     const client = await erpClientForOrg(serviceClient, org);
@@ -851,11 +876,22 @@ export async function refreshOrgAccountingLive(serviceClient: SupabaseClient, or
     const scope: OrgAccountingScope = {
       orgId: org.orgId,
       client,
-      actualsScope: {},
+      actualsScope: { projectMap: (org.config.project_map as Record<string, unknown> | undefined) ?? {} },
       apAgingScope: { reportName: 'Accounts Payable', snapshotTable: 'erp_ap_aging_snapshot', filters: org.config.report_filter_shape as Record<string, unknown> ?? {}, reportVersion },
       arAgingScope: { reportName: 'Accounts Receivable', snapshotTable: 'erp_ar_aging_snapshot', filters: org.config.report_filter_shape as Record<string, unknown> ?? {}, reportVersion },
     };
     const results = await refreshAccountingSnapshots(serviceClient as unknown as Parameters<typeof refreshAccountingSnapshots>[0], [scope]);
+    // ⚑ The undated-fiscal-year gap. `erp_actuals_snapshot.fiscal_year` is nullable (0101) and BOTH
+    // readers match it by EQUALITY, so a GL row whose fiscal year ERPNext never stated is money that is
+    // invisible under every year the UI can offer. PMO does not own the client's fiscal calendar and
+    // must never invent a year for it — so the row keeps its honest NULL and a human is told, rather
+    // than the refresh reporting a clean success over money nobody can see. `surfaceActionRequired`
+    // dedupes against an UNREAD notification for the same reason, so a persisting condition does not
+    // re-notify every cron tick.
+    const undatedRows = results[0]?.actuals?.undatedRows ?? 0;
+    if (undatedRows > 0) {
+      await surfaceActionRequired(serviceClient, org.orgId, 'erp-actuals-undated-fiscal-year', {});
+    }
     const err = results.find((r) => r.error)?.error;
     return err ? { error: err } : {};
   } catch (err) {
@@ -903,11 +939,43 @@ async function findBudgetOutboxRow(
   };
 }
 
+/**
+ * ⚑ NEW-4 (audit round 4, 2026-07-22) — park a budget mirror row at `held` as a COMPARE-AND-SET.
+ *
+ * The row's eligibility was established by `listPendingBudgetPushes` earlier in the SAME tick
+ * (`push_state in ('pending','failed')`, not tombstoned), and the FOREGROUND dispatch path runs
+ * concurrently on the very same row. Both `held` writes used to be keyed on `(org_id,
+ * budget_version_id)` alone, so between the list and the write an operator's Retry could move the row
+ * to `committing` — or all the way to `pushed` against a real ERPNext Budget — and the blind update
+ * relabelled that live success as `held`. The money screen then reported "ERPNext is still enforcing
+ * the previous budget" over a budget ERPNext IS enforcing, and because `held` is excluded from this
+ * very work queue, nothing ever re-drove it. A read-then-blind-write across a concurrent writer is a
+ * lost update, not a state machine.
+ *
+ * So the update REPEATS the listing's own predicate: it matches only a row still in the state that
+ * justified holding it. A row that has moved on is simply not matched, and the tick moves on with it.
+ */
+function holdBudgetMirrorRow(
+  serviceClient: SupabaseClient,
+  orgId: string,
+  budgetVersionId: string,
+  reason: string,
+): PromiseLike<{ error: { message: string; code?: string } | null }> {
+  return serviceClient
+    .from('budget_version_erp_mirror')
+    .update({ push_state: 'held', push_error: reason })
+    .eq('org_id', orgId)
+    .eq('budget_version_id', budgetVersionId)
+    // the SAME eligibility `listPendingBudgetPushes` asserted — never a state this pass did not observe
+    .in('push_state', ['pending', 'failed'])
+    .is('erp_cancelled_at', null);
+}
+
 /** The live `BudgetBackstopDeps` for one org — the mirror's own work queue (FR-BUD-123, index-served
  *  on `(org_id, push_state)`), the re-asserted version gate (FR-BUD-102), and driving a found
  *  candidate through the EXACT SAME `dispatchMoneyWrite`/`buildReconcileDepsLive` machinery the
  *  outbox-recovery pass (1) already uses — one algorithm, shared. */
-function budgetBackstopDepsLive(serviceClient: SupabaseClient, org: OrgBinding, eligibleOutboxIds: ReadonlySet<string>): BudgetBackstopDeps {
+export function budgetBackstopDepsLive(serviceClient: SupabaseClient, org: OrgBinding, eligibleOutboxIds: ReadonlySet<string>): BudgetBackstopDeps {
   return {
     listPendingBudgetPushes: async (orgId, limit) => {
       const { data, error } = await serviceClient
@@ -942,11 +1010,7 @@ function budgetBackstopDepsLive(serviceClient: SupabaseClient, org: OrgBinding, 
         // the outbox for this activation (e.g. the browser tab died mid-request before the fetch) — so
         // there is no RECORDED actor to reconcile against. Never mint a fresh, unattributed outbox row
         // here; hold for an operator instead (never silently dropped — FR-BUD-123).
-        const { error } = await serviceClient
-          .from('budget_version_erp_mirror')
-          .update({ push_state: 'held', push_error: 'budget-push-no-outbox-candidate' })
-          .eq('org_id', org.orgId)
-          .eq('budget_version_id', row.budget_version_id);
+        const { error } = await holdBudgetMirrorRow(serviceClient, org.orgId, row.budget_version_id, 'budget-push-no-outbox-candidate');
         if (error) throw new AppError(error.message, error.code);
         await surfaceActionRequired(serviceClient, org.orgId, 'budget-push-no-outbox-candidate', { versionId: row.budget_version_id });
         return;
@@ -960,11 +1024,7 @@ function budgetBackstopDepsLive(serviceClient: SupabaseClient, org: OrgBinding, 
       // SAME door the outbox-recovery pass uses. An absent-but-existing row is held for the operator, not
       // silently re-sent (FR-BUD-123: never dropped, never auto-looped past its budget).
       if (!eligibleOutboxIds.has(outboxRow.id)) {
-        const { error } = await serviceClient
-          .from('budget_version_erp_mirror')
-          .update({ push_state: 'held', push_error: 'budget-push-attempts-exhausted' })
-          .eq('org_id', org.orgId)
-          .eq('budget_version_id', row.budget_version_id);
+        const { error } = await holdBudgetMirrorRow(serviceClient, org.orgId, row.budget_version_id, 'budget-push-attempts-exhausted');
         if (error) throw new AppError(error.message, error.code);
         await surfaceActionRequired(serviceClient, org.orgId, 'budget-push-attempts-exhausted', { versionId: row.budget_version_id });
         return;
@@ -990,7 +1050,12 @@ async function reconcileOrgBudgetPushesLive(serviceClient: SupabaseClient, org: 
         .map((c) => c.id),
     );
     const result = await reconcileOrgBudgetPushes(budgetBackstopDepsLive(serviceClient, org, eligibleOutboxIds), { orgId: org.orgId });
-    return { driven: result.driven };
+    // NEW-3: per-row throws are contained so the queue drains, but they are NEVER silent — a row that
+    // keeps throwing is a stuck money push and must be visible in the tick's own result.
+    for (const e of result.errors) {
+      console.warn(`[erpnext-sweep] org ${org.orgId} budget ${e.budgetVersionId}: backstop row failed — ${e.error}`);
+    }
+    return { driven: result.driven, error: result.errors.length ? `${result.errors.length} budget row(s) failed` : undefined };
   } catch (err) {
     return { driven: 0, error: err instanceof Error ? err.message : String(err) };
   }

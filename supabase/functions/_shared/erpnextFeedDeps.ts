@@ -735,6 +735,8 @@ function describeActionRequired(actionRequired: string, detail: Record<string, u
       return `A Budget was cancelled directly in ERPNext after PMO pushed it — the push is marked failed for review. PMO's budget version is unchanged.`;
     case 'budget-push-no-outbox-candidate':
       return `An activated budget's automatic push to ERPNext never reached the queue — retry from the budget's version history, or contact support.`;
+    case 'erp-actuals-undated-fiscal-year':
+      return `Some ERP ledger entries carry no fiscal year, so their spend cannot appear under any year on the budget screen — set the fiscal year on those GL entries in ERPNext.`;
     case 'budget-push-failed':
       return `PMO could not push the activated budget to ERPNext (${detail.reason ?? 'unknown error'}) — ERPNext is still enforcing the previous budget (or none) for this project.`;
     default:

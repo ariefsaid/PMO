@@ -155,8 +155,44 @@ Deno.test('FR-TSP-056: an EMPTY approved sheet is recorded as pushed with NO ts_
   await markTimesheetPushOutcome(CTX(client), 'ts-1', '2026-01-12T03:04:05Z', null);
   const row = (calls.find((c) => c.method === 'upsert')?.args[0] ?? {}) as Record<string, unknown>;
   assertEquals(row.push_state, 'pushed');
-  assertEquals(row.ts_number, null);
+  // ⚑ NEW-7: "NO ts_number" is asserted as the recorder never NAMING the column, not as it WRITING a
+  // null. On a fresh row the two are identical (the column defaults to NULL, which is what this case
+  // is about); on a re-recorded row they are not — writing the null erases a live ERPNext Timesheet
+  // number. Asserting the payload literal is what let that erasure ship, so the oracle moved down to
+  // the real property.
+  assert(!('ts_number' in row), 'the recorder must not claim a document number it never learned');
   assertEquals(row.push_error, null);
+});
+
+/**
+ * ⚑ NEW-7 (Luna audit round 4, 2026-07-22) — THE FAILURE RECORDER MUST NOT ERASE A LIVE ERP DOCUMENT
+ * NUMBER. Exactly the shape of the M-1 fix above, inverted: an `upsert` updates ONLY the columns it
+ * NAMES, and this writer named `ts_number: null` unconditionally.
+ *
+ * So a sheet that HAD been pushed (`push_state='pushed'`, `ts_number='TS-2026-00042'`, a real ERPNext
+ * Timesheet) and whose LATER re-push attempt was rejected (ERP unreachable, held, employee unlinked)
+ * had its `ts_number` wiped to NULL. `PushStateBadge` then showed a failed push with no document
+ * number, the ERPNext Timesheet still existed and still carried hours, and the only pointer PMO had to
+ * it was gone — so nobody could reconcile it. The recorder learns NOTHING about a document number on
+ * any of its paths (it is by definition the no-document outcome), so it must not claim to: it leaves
+ * the column alone. A fresh row still gets the column default (NULL); a known number survives.
+ */
+Deno.test('NEW-7: the failure recorder never NAMES ts_number — a live ERP document number survives a failed re-push', async () => {
+  const { client, calls } = makeFakeClient();
+  await markTimesheetPushOutcome(CTX(client), 'ts-1', '2026-01-12T03:04:05Z', { code: 'external-unreachable', message: 'boom' });
+  const row = (calls.find((c) => c.method === 'upsert')?.args[0] ?? {}) as Record<string, unknown>;
+  assert(
+    !('ts_number' in row),
+    'the recorder must OMIT ts_number: an upsert only updates the columns it names, and naming it null ' +
+      'erases the number of an ERPNext Timesheet that still exists',
+  );
+});
+
+Deno.test('NEW-7: a HELD outcome likewise leaves a known ts_number intact', async () => {
+  const { client, calls } = makeFakeClient();
+  await markTimesheetPushOutcome(CTX(client), 'ts-1', '2026-01-12T03:04:05Z', { code: 'command-held', message: 'held for operator' });
+  const row = (calls.find((c) => c.method === 'upsert')?.args[0] ?? {}) as Record<string, unknown>;
+  assert(!('ts_number' in row), 'a held outcome learns no document number either — it must not null one out');
 });
 
 Deno.test('the failure recorder never touches the PMO SoT tables either', async () => {

@@ -6,7 +6,7 @@
 -- request.jwt.claims), modelled on budget_version_activated_at.test.sql / budget_category_account_map_rls
 -- .test.sql. Namespaced 0b3e UUIDs (valid hex, not seed-colliding).
 begin;
-select plan(19);
+select plan(23);
 
 -- ── Fixtures (inserted as table owner, bypassing RLS) ────────────────────────────────────────────
 insert into organizations (id, name) values
@@ -213,6 +213,68 @@ select is(
   (select distinct push_state from public.get_budget_projection('0b3e1111-0000-0000-0000-000000000002','2025-2026')),
   'never-pushed',
   'H-3 a STAMPED Active version with no mirror row is the re-drivable never-pushed state (unchanged)');
+
+-- ════════════════════════════════════════════════════════════════════════════════════════════════
+-- ⚑ NEW-1 (Luna audit round 4, 2026-07-22) — THE DIMENSIONS THAT MAKE A SNAPSHOT ROW VISIBLE.
+--
+-- Every `erp_actuals_snapshot` fixture ABOVE is hand-inserted with a `project_id` and a `fiscal_year`
+-- already filled in, so those assertions only ever proved that the RPC joins a WELL-FORMED row. They
+-- could not — and did not — notice that the sole production writer of that table (`refreshActuals`,
+-- called by `erpnext-sweep`) stamped `project_id` from a caller-supplied scope the sweep always left
+-- empty. Every real row therefore carried `project_id = NULL`, this RPC's `s.project_id =
+-- p_project_id` never matched, and "Actuals to date" was structurally 0.00 for every project with real
+-- posted GL spend — variance = the entire budget, on the primary money screen, silently, through four
+-- audit rounds of a green suite.
+--
+-- pgTAP cannot invoke the TypeScript writer, so it pins the OTHER half of the contract: exactly which
+-- row shapes this RPC can and cannot see. The production-shaped (NULL-dimension) row is asserted
+-- INVISIBLE here, and the writer that must never produce one is bound by
+-- `pmo-portal/src/lib/adapterSeam/erpnext/actualsSnapshot.test.ts` +
+-- `supabase/functions/erpnext-sweep/actualsProjectAttribution.test.ts` (which drive the shipped code).
+-- Together the two layers close the gap that each alone left open.
+-- ════════════════════════════════════════════════════════════════════════════════════════════════
+set local role postgres;
+-- The row exactly as production wrote it BEFORE the fix: right org, right (mapped) account, right
+-- fiscal year — and a NULL project dimension.
+insert into erp_actuals_snapshot (org_id, project_id, account, fiscal_year, debit, credit, net, snapshot_id) values
+  ('0b3e0000-0000-0000-0000-000000000001', null, '5100 - Direct Costs - PSC','2026',777.00,0,777.00,gen_random_uuid());
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"0b3e0000-0000-0000-0000-0000000000a2","role":"authenticated"}';
+
+select is((select count(*)::int from public.get_budget_projection('0b3e1111-0000-0000-0000-000000000003','2026')), 0,
+          'NEW-1 a snapshot row with a NULL project_id is INVISIBLE to every project — the defect''s exact DB signature');
+
+-- The identical row, attributed: `project_id` is the load-bearing dimension, so stamping it is the
+-- difference between 0.00 and the real spend.
+set local role postgres;
+update erp_actuals_snapshot set project_id = '0b3e1111-0000-0000-0000-000000000003'
+ where org_id = '0b3e0000-0000-0000-0000-000000000001' and net = 777.00;
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"0b3e0000-0000-0000-0000-0000000000a2","role":"authenticated"}';
+select results_eq(
+  $$select category::text, actuals_to_date
+      from public.get_budget_projection('0b3e1111-0000-0000-0000-000000000003','2026')$$,
+  $$values ('Labor'::text, 777.00::numeric)$$,
+  'NEW-1 the SAME row, attributed from the GL project dimension, surfaces its real spend');
+
+-- The UNDATED half of the same class: `erp_actuals_snapshot.fiscal_year` is nullable (0101) and both
+-- readers match it by EQUALITY, so a GL row whose fiscal year ERPNext never stated is invisible under
+-- EVERY year and is never offered as a selectable one. PMO does not own the client's fiscal calendar
+-- and must not invent a year for it — so the row keeps its honest NULL, and `erpnext-sweep` raises an
+-- `erp-actuals-undated-fiscal-year` action-required instead of the screen quietly under-reporting.
+set local role postgres;
+update erp_actuals_snapshot set fiscal_year = null
+ where org_id = '0b3e0000-0000-0000-0000-000000000001' and net = 777.00;
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"0b3e0000-0000-0000-0000-0000000000a2","role":"authenticated"}';
+select is((select count(*)::int from public.get_budget_projection('0b3e1111-0000-0000-0000-000000000003','2026')), 0,
+          'NEW-1 an UNDATED snapshot row (fiscal_year NULL) is invisible under every year — surfaced by the sweep, never guessed');
+select is((select count(*)::int from public.list_budget_fiscal_years('0b3e1111-0000-0000-0000-000000000003')), 0,
+          'NEW-1 a NULL fiscal year is never OFFERED as a selectable year (it would return nothing)');
+
+set local role postgres;
+delete from erp_actuals_snapshot where org_id = '0b3e0000-0000-0000-0000-000000000001' and net = 777.00;
+set local role authenticated;
 
 -- ── Cross-org: org B''s Finance reads zero rows (RLS, not a hand-rolled org filter) ────────────────
 set local request.jwt.claims = '{"sub":"0b3e0000-0000-0000-0000-0000000000b1","role":"authenticated"}';

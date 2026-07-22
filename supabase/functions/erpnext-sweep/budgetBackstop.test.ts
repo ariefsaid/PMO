@@ -141,3 +141,33 @@ describe('reconcileOrgBudgetPushes (AC-BUD-023 — the sweep backstop)', () => {
     expect(db.lastQueryLimit('budget_version_erp_mirror')).toBeLessThanOrEqual(BUDGET_BACKSTOP_TICK_LIMIT);
   });
 });
+
+describe('NEW-3 (audit r4): one throwing row must not abandon the org\'s whole budget queue', () => {
+  it('a row that THROWS is recorded and the rest of the queue still drains', async () => {
+    // The wedge: a pre-claim throw (e.g. the recorded actor was deactivated, so re-authorization
+    // refuses) never bumps `attempt_count`, and the queue is ordered `created_at ASC` — so the SAME
+    // row is first again on every tick and the org's entire automatic budget recovery stays off until
+    // a human intervenes. Same class as HIGH-A, which `reconcileOrgOutbox` already guards against.
+    const driven: string[] = [];
+    const deps = {
+      listPendingBudgetPushes: async () => [
+        { budget_version_id: 'v-poison', push_state: 'failed', erp_cancelled_at: null },
+        { budget_version_id: 'v-good', push_state: 'pending', erp_cancelled_at: null },
+      ],
+      readBudgetVersion: async (id: string) => ({ id, status: 'Active', activated_at: '2026-07-20T10:00:00Z' }),
+      driveBudgetPush: async (row: { budget_version_id: string }) => {
+        if (row.budget_version_id === 'v-poison') throw new Error('replay-actor-deactivated');
+        driven.push(row.budget_version_id);
+      },
+    };
+
+    const result = await reconcileOrgBudgetPushes(deps, { orgId: 'org-1' });
+
+    expect(driven, 'the healthy row MUST still be driven after the poison row threw').toEqual(['v-good']);
+    expect(result.driven).toBe(1);
+    expect(result.errors).toHaveLength(1);
+    expect(result.errors[0].budgetVersionId).toBe('v-poison');
+    // Never silent: a stuck money push must be visible in the tick's own result.
+    expect(result.errors[0].error).toContain('replay-actor-deactivated');
+  });
+});
