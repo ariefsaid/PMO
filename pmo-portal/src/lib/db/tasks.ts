@@ -240,6 +240,27 @@ export async function updateTaskStatus(id: string, status: TaskStatus): Promise<
  * `tasks` domain is externally-owned (the dispatch tombstones the mirror, C3); fail-closed to the
  * direct hard-delete below otherwise.
  */
+/** Set or clear PMO-owned task archive state. External domains are fail-closed: ClickUp is the
+ * authoritative writer and this path must never attempt a guaranteed 42501 update. */
+export async function archiveTask(id: string): Promise<void> {
+  if (routeTaskWrite() === 'external') {
+    throw new AppError('Tasks are managed by the connected task system.', 'external-owned');
+  }
+  const { error } = await supabase
+    .from('tasks')
+    .update({ archived_at: new Date().toISOString() })
+    .eq('id', id);
+  if (error) throwWrite(error);
+}
+
+export async function unarchiveTask(id: string): Promise<void> {
+  if (routeTaskWrite() === 'external') {
+    throw new AppError('Tasks are managed by the connected task system.', 'external-owned');
+  }
+  const { error } = await supabase.from('tasks').update({ archived_at: null }).eq('id', id);
+  if (error) throwWrite(error);
+}
+
 export async function deleteTask(id: string): Promise<void> {
   if (routeTaskWrite() === 'external') {
     await dispatchTaskCommand('delete', { id });

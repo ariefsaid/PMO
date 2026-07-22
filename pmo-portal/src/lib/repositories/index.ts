@@ -87,6 +87,8 @@ import {
   updateTask,
   updateTaskStatus,
   deleteTask,
+  archiveTask,
+  unarchiveTask,
   addDependency,
   removeDependency,
 } from '@/src/lib/db/tasks';
@@ -367,6 +369,8 @@ const task: TaskRepository = {
   update: (id, patch) => wrap(() => updateTask(id, patch)),
   updateStatus: (id, status) => wrap(() => updateTaskStatus(id, status)),
   delete: (id) => wrap(() => deleteTask(id)),
+  archive: (id) => wrap(() => archiveTask(id)),
+  unarchive: (id) => wrap(() => unarchiveTask(id)),
   addDependency: (taskId, dependsOnId) => wrap(() => addDependency(taskId, dependsOnId)),
   removeDependency: (taskId, dependsOnId) => wrap(() => removeDependency(taskId, dependsOnId)),
 };

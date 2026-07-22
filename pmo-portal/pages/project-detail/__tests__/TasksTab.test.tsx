@@ -16,6 +16,7 @@ const { listState, profilesState, mutations } = vi.hoisted(() => ({
     update: { mutateAsync: vi.fn(), isPending: false },
     updateStatus: { mutateAsync: vi.fn(), isPending: false },
     remove: { mutateAsync: vi.fn(), isPending: false },
+    archive: { mutateAsync: vi.fn(), isPending: false },
     addDependency: { mutateAsync: vi.fn(), isPending: false },
     removeDependency: { mutateAsync: vi.fn(), isPending: false },
   },
@@ -83,6 +84,11 @@ const seed = [
     assignee: { id: 'pm-1', full_name: 'Pat Manager' },
     dependencies: [{ depends_on_id: 't1' }],
   },
+  {
+    id: 't3', project_id: 'p1', name: 'Archived obsolete work', status: 'In Progress',
+    assignee_id: null, start_date: null, end_date: null, archived_at: '2026-06-01T00:00:00Z',
+    org_id: 'org-1', created_at: '2026-03-01T00:00:00Z', assignee: null, dependencies: [],
+  },
 ];
 
 const renderTab = (role: Role = 'Project Manager', userId = 'pm-1') => {
@@ -115,6 +121,32 @@ beforeEach(() => {
   });
   realRole = 'Project Manager';
   currentUserId = 'pm-1';
+});
+
+describe('TasksTab — archive affordance (AC-CUA-098/099/100)', () => {
+  it('AC-CUA-098: hides archived rows by default and Show archived reveals them', async () => {
+    renderTab();
+    expect(screen.queryByText('Archived obsolete work')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Show archived' }));
+    expect(screen.getByText('Archived obsolete work')).toBeInTheDocument();
+  });
+
+  it('AC-CUA-099: permitted manager gets Archive then Unarchive in the row menu', async () => {
+    renderTab();
+    await userEvent.click(screen.getAllByRole('button', { name: /Row actions/i })[0]);
+    expect(screen.getByText('Archive')).toBeInTheDocument();
+    await userEvent.click(screen.getByText('Show archived'));
+    await userEvent.click(screen.getAllByRole('button', { name: /Row actions/i })[2]);
+    expect(screen.getByText('Unarchive')).toBeInTheDocument();
+  });
+
+  it('AC-CUA-100: archive action is absent while tasks are externally owned', async () => {
+    const ownership = await import('@/src/lib/adapterSeam/ownershipCache');
+    vi.spyOn(ownership, 'routeTaskWrite').mockReturnValue('external');
+    renderTab();
+    await userEvent.click(screen.getAllByRole('button', { name: /Row actions/i })[0]);
+    expect(screen.queryByText('Archive')).not.toBeInTheDocument();
+  });
 });
 
 describe('TasksTab — list (AC-TASK-001)', () => {

@@ -178,7 +178,7 @@ export function buildGanttModel(
   // they nest under their parent in the LIST view. Filter them once, up-front, so they cannot become
   // bars, undated footer entries, or axis-span-extending dates, and cannot anchor/resolve dependency
   // edges (all downstream loops iterate `datedTasks`/`undated`, never raw `tasks`).
-  const topLevel = tasks.filter((t) => t.parent_task_id == null);
+  const topLevel = tasks.filter((t) => t.parent_task_id == null && t.archived_at == null);
 
   // Classify tasks
   const datedTasks: TaskWithRefs[] = [];
