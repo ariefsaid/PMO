@@ -1,7 +1,12 @@
 # Plan: ERPNext adapter — Timesheets push-Approved-only (Issue P3b, ADR-0055 P3 phase, time/costing spine)
 
-> **⚑ BUILD STATUS: NOT STARTED. Slice 0 (the OQ-TSP-1 spike) is a HARD GATE on Slice 1 and everything after
-> it that touches an ERP field name.**
+> **⚑ BUILD STATUS: COMPLETE — shipped in PR #360 (branch `feat/erpnext-adapter-p3`, head `fabde7c5`).**
+> All 9 slices built; 11 adversarial audit rounds (10 NO SHIP → 1 SHIP). Gates at merge: verify 746
+> files / 6277 tests, pgTAP 211/2103, deno 447, **e2e serial 54/54 against a live ERPNext bench**,
+> visual gates 78/78.
+>
+> ⚑ This header previously read "NOT STARTED" long after the slices were built, and a status inventory
+> was misled by it. **Verify build status against the filesystem and git, never against a checkbox.**
 > **⚑ Spike status 2026-07-16: it could NOT run — the ERPNext bench had been down ~36h. The bench is
 > restarted and the spike is re-dispatched.** Until `docs/spikes/2026-07-16-erpnext-timesheet-fields.md` §9
 > is frozen: **no `Timesheet` or `Employee` field name may be written into code, and no builder may guess one

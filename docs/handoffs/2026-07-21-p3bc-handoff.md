@@ -1,3 +1,18 @@
+# ⛔ SUPERSEDED — P3 IS COMPLETE (2026-07-23)
+
+> This was a **resume-here** handoff written mid-flight on 2026-07-21. **The work it describes shipped
+> in [PR #360](https://github.com/ariefsaid/PMO/pull/360).** Do NOT use it to plan work: its "what is
+> still NOT built" and "resume here" sections are historical, and several defects it lists as OPEN were
+> closed by audit rounds 4-11 (some of the fixes it recommends were later found wrong and replaced).
+>
+> **Current truth:** `docs/backlog.md` (status) and
+> `docs/reviews/2026-07-23-p3bc-audit-program.md` (the full 11-round record).
+>
+> Kept because its per-defect reasoning still explains WHY parts of the code look the way they do —
+> particularly the impersonation hole in `0138` and the load-phantom signature in §5c.
+
+---
+
 # P3b/P3c handoff — 2026-07-21
 
 **Branch:** `feat/erpnext-adapter-p3` · **last commit:** `305a6f72` · **HOLD — no PR yet.**
