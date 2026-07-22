@@ -229,51 +229,36 @@ Plan + prod runbook: [`docs/plans/2026-07-12-jwt-signing-keys.md`](plans/2026-07
   cron `0094` idle until Vault secrets (`clickup_sweep_url`/`clickup_sweep_secret`) + fn env set;
   (3) PostHog events need `POSTHOG_PROJECT_KEY` in prod.
 
-### ⚑⚑ IN FLIGHT (2026-07-20) — EXTERNAL-SYSTEM ADMIN-CONNECT layer (ClickUp + ERPNext)
+### ✅ COMPLETE ON `dev` (2026-07-22) — ClickUp integration + integration enablement
 > **COLD-CONTEXT? START HERE →** [`docs/plans/2026-07-20-clickup-integration-completion.md`](plans/2026-07-20-clickup-integration-completion.md)
-> — what's built vs *assumed*, the 6 user journeys that must work, the ordered remaining work, the
-> ClickUp/local-DB test-fixture rules (OD-INT-8), and the traps that already cost time.
-> Live-smoke evidence: [`docs/spikes/2026-07-17-clickup-live-smoke.md`](spikes/2026-07-17-clickup-live-smoke.md).
-**Status: P1 + P2 + P3 + P4 BUILT, reviewed, and HELD on PR #332** (branch `feat/external-admin-connect` off
-`dev` — **do NOT merge**; owner holds all PRs while other agents share `dev`). P4 (health/observability) DONE. **`EXTERNAL_CONNECT_ENABLED` is OFF everywhere — nothing is live for
-users.** ClickUp read wire-shapes are live-verified; **writes + webhook envelope are NOT** (see the
-completion plan §3).
-- **P1** per-org Vault `secret_ref` model (reader/writer/delete RPCs actor-keyed; resolvers +
-  `_shared/perOrgSecret.ts` tri-state fail-closed; 6 edge fns flag-gated `EXTERNAL_CONNECT_ENABLED`,
-  default off = byte-for-byte legacy). Security battery + re-review: **all findings CLOSED**.
-- **P2** org Connect/Disconnect (`external-connect`/`external-disconnect`, `0120
-  admin_change_domain_ownership` definer RPC actor-keyed, `integration` policy entity, CI-safe `0119`
-  ClickUp-adopt, admin Connect UI + `useIntegrations`). Full battery incl. **rendered design-review**.
-- **P3** project Link/Unlink (`external-lists`/`external-link`/`external-unlink`, `0121` audit cols,
-  `0122` audit-grant + org-scoped active-container unique index, repo/hook, project card).
+> Current enablement authority: ADR-0061 + [`docs/specs/integration-enablement-model.spec.md`](specs/integration-enablement-model.spec.md).
+> Live-smoke evidence remains in [`docs/spikes/2026-07-17-clickup-live-smoke.md`](spikes/2026-07-17-clickup-live-smoke.md).
+
+The program is merged to `dev` through **PRs #353–#358**. The task feature is complete for every task
+column reachable from the UI without requiring ClickUp: description and priority (#350), subtasks,
+archive and delivery-rollup exclusion (#352), plus project-aware ownership and routing.
+
+`EXTERNAL_CONNECT_ENABLED` is **default-ON**, not a rollout flag. Unset, empty, and unrecognised values
+are enabled; trimmed case-insensitive `false|0|off|no|disabled` disables. It is an operator break-glass
+for ClickUp and ERPNext. Per-org active bindings and Vault credentials are the enablement authority, so
+production's unset variable does not mean the integration is inert and there is no flag-flip step.
+Ownership follows `project_domain_externally_owned` (migration `0146`): mixed ClickUp-owned and PMO-native
+projects are supported. An unbound List cannot leak tasks into PMO; zero active bindings is healthy/inert.
 **Locked decisions: `docs/decisions.md` OD-INT-1..13** (admin self-serve · personal-token/API-key v1 ·
 **Vault-backed `secret_ref`** · one tier-generic layer · sequenced after #315 · **OD-INT-6 ERPNext Company
 selected at ORG level** · **OD-INT-7 project↔List link is PROJECT-SCOPED to the owning active PM** ·
 **OD-INT-13 status map round 3 — pmo-only outcomes with Blocked defaulting to pmo-only**).
 
-**⚑ Tracked gaps — decided/known, deliberately NOT built (do not rediscover):**
-1. **Per-org ClickUp webhook secret** — `external_org_bindings.webhook_secret_ref` exists (mig 0096) but
-   **nothing writes it**; `clickup-webhook` still verifies with the global `CLICKUP_WEBHOOK_SECRET` env.
-   (This was plan task 1.7, reverted in P1 — a per-org webhook secret needs an **org-in-URL** design
-   because you cannot parse-before-verify without moving the HMAC trust boundary.) **Blocks multi-org
-   ClickUp.**
-2. **ERPNext multi-domain ownership flip is undefined** — ERPNext owns *several* capability domains
-   (companies/procurement/sales/accounting…) but `operator_set_domain_ownership` takes **one** domain per
-   call; the ERPNext connect flow never enumerates which domains to flip.
-3. **Per-project ERPNext Project link** — ADR-0055-endorsed but **premature**; prerequisites in the
-   OD-INT-4 forward-note (mirror `project_id` · snapshot project-scope · rename reconciliation).
-4. **`ledgerFetch` fails silent on missing Company** — `['company','=',null]` returns zero rows with no
-   error/alert; should fail loud (OD-INT-6).
-5. **Deeper extracted-handler tests** for the connect/disconnect edge fns (P2 Important; code is correct
-   and pgTAP-proven, tests are mock-level).
+**Still open:**
+1. Promote `dev` → `main` (117 commits); only PR→`main` runs integration (pgTAP + full e2e + visual),
+   and this work has only used the verify-only fast lane so far.
+2. Promote `main` → `production`, owner-gated per instance; this is the deployment, not a flag flip.
+3. Correct the owning layer for `AC-IEM-004` and `AC-IEM-007` (specified curated e2e, implemented lower).
+4. Add read-only per-status mapping visibility/override to the binding map (OD-INT-13; auto-derivation is
+   correct, so this is a transparency gap).
+5. Per-org webhook secret remains deliberately deferred for single-org scope (OD-INT-14 / ADR-0047).
 
-Full scope + phases + #315
-alignment: [`docs/plans/2026-07-13-clickup-admin-integration-flow.md`](plans/2026-07-13-clickup-admin-integration-flow.md).
-Key alignment: #315 (ERPNext P2) has the right table (`external_org_bindings`) + a clean credential seam
-but resolves creds from **function secrets** (operator-only) — the self-serve layer swaps that to **Vault**
-for both tiers, and ClickUp adopts `external_org_bindings`. The in-flight #315 agent is NOT handed this —
-it lands ERPNext P2 as-is + gets two coordination notes (keep `credentials.ts` seam clean; confirm
-`external_org_bindings` shared). Then Director orchestrates this as its own spec → plan → PRs.
+Historical design and phase details remain in [`docs/plans/2026-07-13-clickup-admin-integration-flow.md`](plans/2026-07-13-clickup-admin-integration-flow.md); they are not the current completion status.
 
 ### ⚑ prior program block (2026-07-10) — P0 seam SHIPPED to dev; P1 ClickUp shipped (#307)
 - **✅ P0 external-adapter seam MERGED to `dev`** (PR #299, `2cbacd5`; ADR-0055): migrations
