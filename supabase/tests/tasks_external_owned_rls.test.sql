@@ -38,6 +38,8 @@ insert into tasks (id, org_id, project_id, name, status, assignee_id, start_date
   ('00910000-0000-0000-0000-000000000201','00910000-0000-0000-0000-000000000002','00910000-0000-0000-0000-000000000020','Native Task B','To Do','00910000-0000-0000-0000-0000000000b1','2026-07-10','2026-07-12');
 insert into external_domain_ownership (org_id, external_tier, domain)
 values ('00910000-0000-0000-0000-000000000001','clickup','tasks');
+insert into external_project_bindings (org_id, project_id, external_tier, external_container_id)
+values ('00910000-0000-0000-0000-000000000001','00910000-0000-0000-0000-000000000010','clickup','tasks-list-a');
 
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"00910000-0000-0000-0000-0000000000a1","role":"authenticated"}';
@@ -112,6 +114,11 @@ reset role;
 set local request.jwt.claims = '{"role":"service_role"}';
 delete from external_domain_ownership
  where org_id = '00910000-0000-0000-0000-000000000001' and external_tier = 'clickup' and domain = 'tasks';
+update external_project_bindings
+   set disconnected_at = now()
+ where org_id = '00910000-0000-0000-0000-000000000001'
+   and project_id = '00910000-0000-0000-0000-000000000010'
+   and external_tier = 'clickup';
 
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"00910000-0000-0000-0000-0000000000a1","role":"authenticated"}';
