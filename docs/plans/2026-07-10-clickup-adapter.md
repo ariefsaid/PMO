@@ -565,6 +565,11 @@ adopt-dedupe paths explicitly before D4 merges.
 > - The single global `CLICKUP_API_TOKEN` this slice read was superseded by **per-org Vault credentials**
 >   (`_shared/perOrgSecret.ts`, AC-EAC-009/011 flag/binding/vault matrix) — which **retains the global
 >   token as the documented fallback** when the flag is OFF, so no behaviour was dropped.
+>   **(Superseded again 2026-07-22, ADR-0061 slice 3.** The flag is now DEFAULT-ON and purely an
+>   operator break-glass; when it IS engaged, `clickup-sweep` throws *before* credential resolution
+>   (`index.ts` "external integrations are disabled by the operator"), so the global-token fallback is
+>   unreachable in that state — it now only serves an unbound org while the integration is enabled.
+>   Verified 2026-07-22.)
 > - Migration `0091_clickup_tasks_flip.sql` was **renumbered `0093`** and extended on `dev`.
 >
 > Verification before deletion: every file the branch touched exists on `dev`; each branch-only line was
