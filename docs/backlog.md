@@ -38,7 +38,41 @@ Owner rulings: `decisions.md` **OD-SAR-GATES · OD-SAR-PMO-IS-THE-UI · OD-SAR-D
   contaminated read; concurrent heavy dispatches + sibling agents' MCPs + Docker → OOM risk).
 
 ### ⚑⚑ ADAPTER PROGRAM — P2 ERPNext money core ✅ MERGED to dev (#315 squash `b549d06`, 2026-07-14)
-### ⚑⚑ M365 INTEGRATION (2026-07-22) — ✅ MERGED to `dev`; dark code, live connect is the next gate
+### ⚑⚑ M365 INTEGRATION — RESUME HERE (2026-07-22) — ✅ MERGED to `dev`; dark code, live connect is the next gate
+
+> **📌 RESUME HERE — cold-start block. A new agent needs nothing but this.**
+>
+> **State:** everything is **merged to `dev`** and green. There is **no in-flight M365 branch or worktree** —
+> nothing half-done to recover. Read the doc-map table below in order.
+>
+> **Your FIRST action depends on whether the owner has provisioned Microsoft yet:**
+> - **NOT provisioned** (the case as of 2026-07-22) → **do NOT start OneDrive doc-linking.** It is specified
+>   but its build is gated on one proven live connection (TBD-1). If you want progress without secrets, the
+>   only genuinely unblocked work is polish/hardening on what exists — check with the owner first.
+> - **Provisioned** → deploy the fn, prove ONE live connect end-to-end, then run the ADR-0060 live
+>   `security-auditor` gate, *then* build doc-linking.
+>
+> **Prove the surface still works before you change anything** (all four; the machine is shared, so wrap DB
+> work in the lock and chain reset+test as ONE hold):
+> ```
+> scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db'   # expect Result: PASS
+> bash scripts/m365-race-probe.sh        # expect: TOCTOU CLOSED in BOTH interleavings
+> bash scripts/m365-deadlock-probe.sh    # expect: legacy REPRODUCED + fixed RESOLVED, both targets
+> cd pmo-portal && npm run verify        # full suite + build
+> ```
+> ⚠️ If the Supabase stack wedges, `supabase stop` then
+> `supabase start -x vector,imgproxy,studio,realtime,logflare,supavisor`.
+> ⚠️ Unrelated tests failing on **5s timeouts** are almost certainly another worktree running vitest
+> concurrently — re-run the named failures in isolation before believing them (backlog track **T2**).
+>
+> **Do NOT touch** (other agents' live work as of 2026-07-22): the ERPNext P3 branch, `feat/task-model-fields`,
+> PR #346, and the ~15 `agent-*`/`wf_*` worktrees. M365 owns only `supabase/functions/m365-token-custody/`,
+> `pmo-portal/src/lib/m365/`, `components/integrations/`, migrations `0106–0117`, pgTAP `0144–0154`, and
+> `scripts/m365-*-probe.sh`.
+>
+> **Before you touch the write-guard, the cascade, or the lock order:** the two probes are NOT optional and
+> pgTAP cannot replace them (it runs in a single transaction and cannot express a two-session race).
+
 **Status in one line: the whole backend + the connect UI are on `dev` and green, but the runtime has NEVER
 talked to Microsoft — nothing is user-visible until an Operator entitles an org AND the edge fn is deployed
 with live secrets.**
