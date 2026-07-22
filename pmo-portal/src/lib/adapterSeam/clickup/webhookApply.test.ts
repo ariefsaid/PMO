@@ -214,7 +214,11 @@ describe('AC-CUA-071 a taskUpdated updates native fields and leaves the enhancem
     expect(canonical.status).toBe('Done'); // mapped via the status map
     expect(canonical.assignee_id).toBe('pmo-a'); // mapped via the member map
     expect(Object.keys(canonical).sort()).toEqual(
-      ['assignee_id', 'completed_at', 'end_date', 'id', 'name', 'start_date', 'status'].sort(),
+      // OD-INT-9: description + priority are NATIVE ClickUp-owned fields (migration 0140), so they
+      // join the native mapping set here — unconditionally present (null when unset on ClickUp).
+      // The assertion's intent is unchanged: NO enhancement vocabulary (milestone_id, dependencies)
+      // ever crosses the mapping boundary.
+      ['assignee_id', 'completed_at', 'description', 'end_date', 'id', 'name', 'priority', 'start_date', 'status'].sort(),
     );
     // The enhancement graph (task_dependencies / milestone grouping) is keyed on pmo_record_id, which
     // is UNCHANGED — so the edges/grouping survive the native-field update byte-for-byte.

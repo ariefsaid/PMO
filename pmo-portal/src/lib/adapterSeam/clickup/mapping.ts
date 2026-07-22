@@ -23,6 +23,49 @@ function isoToMs(iso: string): number {
 }
 
 /**
+ * OD-INT-9 — the FIXED PMO↔ClickUp priority map. Deliberately NOT per-List config (unlike the status
+ * map, which rotted): `Urgent=1, High=2, Normal=3, Low=4` is ClickUp's documented REST v2 priority
+ * ordering, and PMO's `task_priority` enum mirrors it 1:1. A null/absent priority on either side maps
+ * to null/omitted on the other — NEVER invent a default.
+ */
+const PMO_PRIORITY_TO_CLICKUP: Readonly<Record<string, number>> = {
+  Urgent: 1,
+  High: 2,
+  Normal: 3,
+  Low: 4,
+};
+
+/**
+ * The reverse map (ClickUp label → PMO enum). Keys are LOWERCASE because ClickUp's GET priority
+ * object carries the label lowercase on the wire; lookup lowercases first so a casing drift can
+ * never silently drop a priority to null.
+ */
+const CLICKUP_PRIORITY_TO_PMO: Readonly<Record<string, string>> = {
+  urgent: 'Urgent',
+  high: 'High',
+  normal: 'Normal',
+  low: 'Low',
+};
+
+/** Outbound: a PMO priority label (or null/absent) → the ClickUp integer, or `undefined` to omit. */
+function pmoPriorityToClickUp(pmoPriority: unknown): number | undefined {
+  if (typeof pmoPriority !== 'string') return undefined;
+  const n = PMO_PRIORITY_TO_CLICKUP[pmoPriority];
+  return n !== undefined ? n : undefined; // unknown label → omit (never invent)
+}
+
+/**
+ * Inbound: a ClickUp GET priority object (or null/absent) → the PMO enum label, or null. The label is
+ * lowercased before lookup so a casing drift on ClickUp's side never silently drops it to null.
+ */
+function clickUpPriorityToPmo(rawPriority: unknown): string | null {
+  if (!rawPriority || typeof rawPriority !== 'object') return null;
+  const label = (rawPriority as { priority?: unknown }).priority;
+  if (typeof label !== 'string') return null;
+  return CLICKUP_PRIORITY_TO_PMO[label.toLowerCase()] ?? null; // unknown label → null (never invent)
+}
+
+/**
  * ClickUp task JSON -> canonical PMO record. `id` is the ClickUp task id here (this pure mapper has
  * no access to a PMO id) — callers that already know the PMO id (commands.ts, on a create/update
  * response) overwrite it; callers that don't (reads.ts) leave it for the caller's own
@@ -56,6 +99,11 @@ export function clickUpTaskToPmoRecord(
     start_date: raw.start_date ? msToIso(raw.start_date) : null,
     end_date: raw.due_date ? msToIso(raw.due_date) : null,
     completed_at: raw.date_done ? msToIso(raw.date_done) : null,
+    // OD-INT-9: description + priority round-trip inbound. A null/absent value on ClickUp's side
+    // maps to null on the PMO side — never invent a default. ClickUp's GET priority is an OBJECT
+    // (asymmetric vs. the write integer); clickUpPriorityToPmo handles the object → PMO-enum label.
+    description: raw.description ?? null,
+    priority: clickUpPriorityToPmo(raw.priority),
     // Parent sync (OD-INT-9): when the ClickUp task has a `parent` and the caller resolved it to a
     // PMO task id, include it. `null` means explicitly top-level (or unresolvable — caller decided).
     // Absent `resolvedParentPmoId` (undefined) means the caller didn't attempt resolution;
@@ -90,6 +138,8 @@ interface ClickUpScalarFields {
   status?: string;
   start_date?: number;
   due_date?: number;
+  description?: string;
+  priority?: number;
 }
 
 /**
@@ -123,6 +173,20 @@ export function pmoTaskToClickUpBody(
   }
   if ('end_date' in record) {
     scalarFields.due_date = record.end_date ? isoToMs(record.end_date as string) : undefined;
+  }
+  // OD-INT-9: description + priority round-trip outbound. Only a NON-EMPTY description string is
+  // emitted (null/empty/absent → omit, never write an empty string). A priority is emitted ONLY when
+  // it is a known PMO enum label (mapped to the fixed ClickUp integer); null/absent/unknown → omit
+  // (never invent a default). This matches the start_date/due_date precedent in this same block.
+  if ('description' in record) {
+    const desc = record.description;
+    if (typeof desc === 'string' && desc.length > 0) {
+      scalarFields.description = desc;
+    }
+  }
+  if ('priority' in record) {
+    const clickUpPriority = pmoPriorityToClickUp(record.priority);
+    if (clickUpPriority !== undefined) scalarFields.priority = clickUpPriority;
   }
 
   if (opts.mode === 'create') {
