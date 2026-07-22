@@ -366,11 +366,14 @@ const task: TaskRepository = {
   list: (projectId) => wrap(() => listTasks(projectId)),
   get: (id) => wrap(() => getTask(id)),
   create: (input) => wrap(() => createTask(input)),
-  update: (id, patch) => wrap(() => updateTask(id, patch)),
-  updateStatus: (id, status) => wrap(() => updateTaskStatus(id, status)),
-  delete: (id) => wrap(() => deleteTask(id)),
-  archive: (id) => wrap(() => archiveTask(id)),
-  unarchive: (id) => wrap(() => unarchiveTask(id)),
+  update: (id, patch, projectId) =>
+    wrap(() => (projectId === undefined ? updateTask(id, patch) : updateTask(id, patch, projectId))),
+  updateStatus: (id, status, projectId) =>
+    wrap(() => (projectId === undefined ? updateTaskStatus(id, status) : updateTaskStatus(id, status, projectId))),
+  delete: (id, projectId) => wrap(() => (projectId === undefined ? deleteTask(id) : deleteTask(id, projectId))),
+  archive: (id, projectId) => wrap(() => (projectId === undefined ? archiveTask(id) : archiveTask(id, projectId))),
+  unarchive: (id, projectId) =>
+    wrap(() => (projectId === undefined ? unarchiveTask(id) : unarchiveTask(id, projectId))),
   addDependency: (taskId, dependsOnId) => wrap(() => addDependency(taskId, dependsOnId)),
   removeDependency: (taskId, dependsOnId) => wrap(() => removeDependency(taskId, dependsOnId)),
 };

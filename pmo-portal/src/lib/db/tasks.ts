@@ -140,7 +140,7 @@ export async function getTask(id: string): Promise<TaskWithRefs | null> {
  * (reconciled later). milestone_id remains omitted (PMO-native grouping).
  */
 export async function createTask(input: TaskInput): Promise<TaskRow> {
-  if (routeTaskWrite() === 'external') {
+  if (routeTaskWrite(input.project_id) === 'external') {
     // OD-INT-9: parent_task_id IS forwarded to the external dispatch; the dispatch factory
     // resolves it via `external_refs` to a ClickUp `parent` id. Unresolvable parents create
     // a flat task (reconciled later by the sweep). milestone_id remains omitted (PMO-native
@@ -189,8 +189,8 @@ export async function createTask(input: TaskInput): Promise<TaskRow> {
  * ADR-0056 / AC-CUA-001/030: routes through `dispatchTaskCommand('update', ...)` when the org's
  * `tasks` domain is externally-owned; fail-closed to the direct DAL below otherwise.
  */
-export async function updateTask(id: string, patch: TaskPatch): Promise<void> {
-  if (routeTaskWrite() === 'external') {
+export async function updateTask(id: string, patch: TaskPatch, projectId?: string): Promise<void> {
+  if (routeTaskWrite(projectId) === 'external') {
     // NOTE (OD-INT-9 gap): strip parent_task_id before dispatch — same exclusion + reason as
     // create above (ClickUp `parent` mapping is a separate issue). Forwarding an unhandled
     // field to the ClickUp edge function risks rejecting the whole write.
@@ -222,8 +222,8 @@ export async function updateTask(id: string, patch: TaskPatch): Promise<void> {
  * ADR-0056 / AC-CUA-001/030: routes through `dispatchTaskCommand('transition', ...)` when the
  * org's `tasks` domain is externally-owned; fail-closed to the direct DAL below otherwise.
  */
-export async function updateTaskStatus(id: string, status: TaskStatus): Promise<void> {
-  if (routeTaskWrite() === 'external') {
+export async function updateTaskStatus(id: string, status: TaskStatus, projectId?: string): Promise<void> {
+  if (routeTaskWrite(projectId) === 'external') {
     await dispatchTaskCommand('transition', { id, status });
     return;
   }
@@ -242,8 +242,8 @@ export async function updateTaskStatus(id: string, status: TaskStatus): Promise<
  */
 /** Set or clear PMO-owned task archive state. External domains are fail-closed: ClickUp is the
  * authoritative writer and this path must never attempt a guaranteed 42501 update. */
-export async function archiveTask(id: string): Promise<void> {
-  if (routeTaskWrite() === 'external') {
+export async function archiveTask(id: string, projectId?: string): Promise<void> {
+  if (routeTaskWrite(projectId) === 'external') {
     throw new AppError('Tasks are managed by the connected task system.', 'external-owned');
   }
   const { error } = await supabase
@@ -253,16 +253,16 @@ export async function archiveTask(id: string): Promise<void> {
   if (error) throwWrite(error);
 }
 
-export async function unarchiveTask(id: string): Promise<void> {
-  if (routeTaskWrite() === 'external') {
+export async function unarchiveTask(id: string, projectId?: string): Promise<void> {
+  if (routeTaskWrite(projectId) === 'external') {
     throw new AppError('Tasks are managed by the connected task system.', 'external-owned');
   }
   const { error } = await supabase.from('tasks').update({ archived_at: null }).eq('id', id);
   if (error) throwWrite(error);
 }
 
-export async function deleteTask(id: string): Promise<void> {
-  if (routeTaskWrite() === 'external') {
+export async function deleteTask(id: string, projectId?: string): Promise<void> {
+  if (routeTaskWrite(projectId) === 'external') {
     await dispatchTaskCommand('delete', { id });
     return;
   }

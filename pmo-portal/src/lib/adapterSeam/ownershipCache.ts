@@ -41,6 +41,15 @@ export function setProjectBindings(rows: readonly ProjectBindingRow[]): void {
   boundTaskProjects = new Set(rows.map((row) => row.projectId));
 }
 
+/** Update the loaded set after a successful link/unlink without making a write-time request. */
+export function setProjectBinding(projectId: string, isBound: boolean): void {
+  if (!cache) return;
+  const next = new Set(boundTaskProjects ?? []);
+  if (isBound) next.add(projectId);
+  else next.delete(projectId);
+  boundTaskProjects = next;
+}
+
 /** Alias naming the generalized intent (P2, FR-ENA-005) — P1 callers keep `setTaskOwnership`;
  * identical body (the cache is domain-keyed, so one seed already covers every domain). */
 export const setDomainOwnership = setTaskOwnership;

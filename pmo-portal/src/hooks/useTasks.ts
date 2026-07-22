@@ -73,7 +73,7 @@ export function useTaskMutations(projectId: string) {
   };
 
   // ADR-0056 / AC-CUA-060 — the per-task pending-push state for externally-owned writes. Keyed by
-  // task id; only ever populated when `routeTaskWrite() === 'external'` (PMO-owned writes stay idle
+  // task id; only ever populated when `routeTaskWrite(projectId) === 'external'` (PMO-owned writes stay idle
   // → no badge — AC-CUA-061). `pushed` is a transient confirmation that auto-clears; `push-failed`
   // persists until the next write to that task so the failure stays visible.
   const [pendingPushByTask, setPendingPushByTask] = useState<Record<string, PendingPushState>>({});
@@ -101,18 +101,18 @@ export function useTaskMutations(projectId: string) {
   });
 
   const update = useMutation({
-    mutationFn: ({ id, patch }: UpdateTaskArgs) => repositories.task.update(id, patch),
+    mutationFn: ({ id, patch }: UpdateTaskArgs) => repositories.task.update(id, patch, projectId),
     onMutate: ({ id }) => {
       // FR-CUA-070 breadth (review fix #4): the edit-modal save is ALSO an external write origin —
       // surface its push state on the row + the edit modal, not just status writes.
-      if (routeTaskWrite() === 'external') {
+      if (routeTaskWrite(projectId) === 'external') {
         clearPushTimer(id);
         setPush(id, beginPush(IDLE_PENDING_PUSH));
       }
     },
     onSuccess: (_data, { id }) => {
       invalidate();
-      if (routeTaskWrite() === 'external') {
+      if (routeTaskWrite(projectId) === 'external') {
         setPush(id, pendingPushAfterWrite('external', { ok: true }));
         clearPushTimer(id);
         pushTimers.current[id] = setTimeout(() => {
@@ -122,7 +122,7 @@ export function useTaskMutations(projectId: string) {
       }
     },
     onError: (err, { id }) => {
-      if (routeTaskWrite() === 'external') {
+      if (routeTaskWrite(projectId) === 'external') {
         clearPushTimer(id);
         setPush(id, pendingPushAfterWrite('external', { ok: false, err }));
       }
@@ -130,16 +130,16 @@ export function useTaskMutations(projectId: string) {
   });
 
   const updateStatus = useMutation({
-    mutationFn: ({ id, status }: UpdateTaskStatusArgs) => repositories.task.updateStatus(id, status),
+    mutationFn: ({ id, status }: UpdateTaskStatusArgs) => repositories.task.updateStatus(id, status, projectId),
     onMutate: ({ id }) => {
-      if (routeTaskWrite() === 'external') {
+      if (routeTaskWrite(projectId) === 'external') {
         clearPushTimer(id);
         setPush(id, beginPush(IDLE_PENDING_PUSH));
       }
     },
     onSuccess: (_data, { id }) => {
       invalidate();
-      if (routeTaskWrite() === 'external') {
+      if (routeTaskWrite(projectId) === 'external') {
         setPush(id, pendingPushAfterWrite('external', { ok: true }));
         clearPushTimer(id);
         // Transient success confirmation — fades so a card never carries a stale "Pushed".
@@ -150,7 +150,7 @@ export function useTaskMutations(projectId: string) {
       }
     },
     onError: (err, { id }) => {
-      if (routeTaskWrite() === 'external') {
+      if (routeTaskWrite(projectId) === 'external') {
         clearPushTimer(id);
         setPush(id, pendingPushAfterWrite('external', { ok: false, err }));
       }
@@ -158,13 +158,15 @@ export function useTaskMutations(projectId: string) {
   });
 
   const remove = useMutation({
-    mutationFn: (id: string) => repositories.task.delete(id),
+    mutationFn: (id: string) => repositories.task.delete(id, projectId),
     onSuccess: invalidate,
   });
 
   const archive = useMutation({
     mutationFn: ({ id, archived }: { id: string; archived: boolean }) =>
-      archived ? repositories.task.archive(id) : repositories.task.unarchive(id),
+      archived
+        ? repositories.task.archive(id, projectId)
+        : repositories.task.unarchive(id, projectId),
     onSuccess: invalidate,
   });
 

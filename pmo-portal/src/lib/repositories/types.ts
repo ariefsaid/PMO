@@ -183,15 +183,15 @@ export interface TaskRepository {
   /** Create a task (org_id stamped by RLS, never sent). */
   create(input: TaskInput): Promise<TaskRow>;
   /** Update structure fields (name/assignee/dates/status) — managers. */
-  update(id: string, patch: TaskPatch): Promise<void>;
+  update(id: string, patch: TaskPatch, projectId?: string): Promise<void>;
   /** Update ONLY the status column — the assignee (Engineer own-task) path. */
-  updateStatus(id: string, status: TaskStatus): Promise<void>;
+  updateStatus(id: string, status: TaskStatus, projectId?: string): Promise<void>;
   /** Hard-delete a task (cascades dependencies). */
-  delete(id: string): Promise<void>;
+  delete(id: string, projectId?: string): Promise<void>;
   /** PMO-owned reversible soft archive. */
-  archive(id: string): Promise<void>;
+  archive(id: string, projectId?: string): Promise<void>;
   /** PMO-owned reversible unarchive. */
-  unarchive(id: string): Promise<void>;
+  unarchive(id: string, projectId?: string): Promise<void>;
   /** Add a dependency edge (taskId depends on dependsOnId). */
   addDependency(taskId: string, dependsOnId: string): Promise<void>;
   /** Remove a dependency edge. */

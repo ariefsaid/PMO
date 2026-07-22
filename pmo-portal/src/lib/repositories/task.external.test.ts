@@ -71,7 +71,7 @@ import {
   addDependency,
 } from '@/src/lib/db/tasks';
 import { updateTaskMilestone } from '@/src/lib/db/milestones';
-import { setTaskOwnership, clearOwnershipCache } from '@/src/lib/adapterSeam/ownershipCache';
+import { setTaskOwnership, setProjectBindings, clearOwnershipCache } from '@/src/lib/adapterSeam/ownershipCache';
 import { AppError } from '@/src/lib/appError';
 
 beforeEach(() => {
@@ -96,21 +96,21 @@ describe('AC-CUA-001 empty ownership cache — every task write stays on the dir
 
   it('AC-CUA-001 updateTask never calls functions.invoke', async () => {
     h.result.value = { data: null, error: null };
-    await updateTask('t1', { name: 'Renamed' });
+    await updateTask('t1', { name: 'Renamed' }, 'p1');
     expect(h.invoke).not.toHaveBeenCalled();
     expect(h.calls.from).toEqual(['tasks']);
   });
 
   it('AC-CUA-001 updateTaskStatus never calls functions.invoke', async () => {
     h.result.value = { data: null, error: null };
-    await updateTaskStatus('t1', 'Done');
+    await updateTaskStatus('t1', 'Done', 'p1');
     expect(h.invoke).not.toHaveBeenCalled();
     expect(h.calls.from).toEqual(['tasks']);
   });
 
   it('AC-CUA-001 deleteTask never calls functions.invoke', async () => {
     h.result.value = { data: null, error: null };
-    await deleteTask('t1');
+    await deleteTask('t1', 'p1');
     expect(h.invoke).not.toHaveBeenCalled();
     expect(h.calls.from).toEqual(['tasks']);
     expect(h.calls.delete).toBe(1);
@@ -125,8 +125,8 @@ describe('AC-CUA-001 empty ownership cache — every task write stays on the dir
 
   it('AC-CUA-001 a thrown DAL error keeps its exact pre-P1 shape (AppError, code preserved)', async () => {
     h.result.value = { data: null, error: { message: 'denied', code: '42501' } };
-    await expect(updateTaskStatus('t1', 'Done')).rejects.toBeInstanceOf(AppError);
-    await expect(updateTaskStatus('t1', 'Done')).rejects.toMatchObject({ code: '42501' });
+    await expect(updateTaskStatus('t1', 'Done', 'p1')).rejects.toBeInstanceOf(AppError);
+    await expect(updateTaskStatus('t1', 'Done', 'p1')).rejects.toMatchObject({ code: '42501' });
     expect(h.invoke).not.toHaveBeenCalled();
   });
 });
@@ -134,6 +134,7 @@ describe('AC-CUA-001 empty ownership cache — every task write stays on the dir
 describe('AC-CUA-001 loaded cache asserting tasks→clickup — native writes route externally, enhancements never do', () => {
   beforeEach(() => {
     setTaskOwnership([{ domain: 'tasks', externalTier: 'clickup' }]);
+    setProjectBindings([{ projectId: 'p1', externalTier: 'clickup' }]);
   });
 
   it('AC-CUA-001 createTask routes to dispatchTaskCommand (functions.invoke) instead of the direct insert', async () => {
@@ -149,7 +150,7 @@ describe('AC-CUA-001 loaded cache asserting tasks→clickup — native writes ro
   });
 
   it('AC-CUA-001 updateTask (a native field) routes to dispatchTaskCommand', async () => {
-    await updateTask('t1', { name: 'Renamed' });
+    await updateTask('t1', { name: 'Renamed' }, 'p1');
     expect(h.invoke).toHaveBeenCalledTimes(1);
     const [, opts] = h.invoke.mock.calls[0] as unknown as [string, { body: { operation: string } }];
     expect(opts.body.operation).toBe('update');
@@ -157,14 +158,14 @@ describe('AC-CUA-001 loaded cache asserting tasks→clickup — native writes ro
   });
 
   it('AC-CUA-001 updateTaskStatus routes to dispatchTaskCommand as a transition', async () => {
-    await updateTaskStatus('t1', 'Done');
+    await updateTaskStatus('t1', 'Done', 'p1');
     expect(h.invoke).toHaveBeenCalledTimes(1);
     const [, opts] = h.invoke.mock.calls[0] as unknown as [string, { body: { operation: string } }];
     expect(opts.body.operation).toBe('transition');
   });
 
   it('AC-CUA-001 deleteTask routes to dispatchTaskCommand', async () => {
-    await deleteTask('t1');
+    await deleteTask('t1', 'p1');
     expect(h.invoke).toHaveBeenCalledTimes(1);
     const [, opts] = h.invoke.mock.calls[0] as unknown as [string, { body: { operation: string } }];
     expect(opts.body.operation).toBe('delete');
