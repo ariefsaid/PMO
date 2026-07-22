@@ -37,7 +37,14 @@ begin
     raise exception 'integration disabled by operator' using errcode = 'P0001';
   end if;
   if not p_ready then
-    raise exception 'ClickUp sync is not ready' using errcode = 'P0001';
+    -- Cleanup is part of the database transaction boundary. The edge function also revokes the
+    -- external Vault object, but a failed readiness proof can never leave an active binding here.
+    delete from public.external_org_bindings
+     where org_id=p_org_id and external_tier=p_external_tier and secret_ref=p_secret_ref;
+    perform public.delete_vault_secret(p_secret_ref);
+    perform public.log_audit('integration.connect.cleanup',p_org_id,p_actor_id,null,
+      jsonb_build_object('tier',p_external_tier,'actor',p_actor_id,'cleanup','readiness_failed'));
+    return 'rejected';
   end if;
   if not exists (select 1 from public.external_org_bindings
                  where org_id=p_org_id and external_tier=p_external_tier
