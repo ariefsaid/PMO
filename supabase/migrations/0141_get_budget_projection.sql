@@ -22,6 +22,11 @@
 --
 -- Reversibility (ADR-0006): drop function if exists public.get_budget_projection(uuid, text);
 
+-- `create or replace` CANNOT change a function's OUT columns ("cannot change return type of existing
+-- function"), and NEW-6 adds one. Dropping first keeps this migration re-runnable against a database
+-- that already has the previous shape, instead of failing halfway through the file.
+drop function if exists public.get_budget_projection(uuid, text);
+
 create or replace function public.get_budget_projection(p_project_id uuid, p_fiscal_year text)
 returns table (
   category              public.budget_category,
@@ -32,7 +37,16 @@ returns table (
   projected_variance    numeric,
   projected_utilization numeric,
   push_state            text,
-  push_error            text
+  push_error            text,
+  -- ⚑ NEW-6 (audit round 4, 2026-07-22) — the blocking category NAMES, not just the code.
+  -- `recordBudgetGateFailure` (adapter-dispatch) has always PERSISTED these (0137), because FR-BUD-113
+  -- collected them precisely so an operator gets a to-do list. Nothing ever read them back: this RPC
+  -- returned only `push_state`/`push_error`, so the primary money screen could render nothing but the
+  -- bare code `budget-category-unmapped` — telling the Admin that *something* is unmapped while
+  -- withholding the one fact that makes it fixable.
+  -- The code STAYS in `push_error` (it is the machine-matchable token other logic keys on); the names
+  -- ride ALONGSIDE it rather than replacing it. NULL when the failure had nothing to do with the map.
+  unmapped_categories   text[]
 )
 language sql
 stable
@@ -62,7 +76,7 @@ as $$
      where bp.project_id = p_project_id and bp.fiscal_year = p_fiscal_year
   ),
   push as (
-    select em.push_state, em.push_error
+    select em.push_state, em.push_error, em.unmapped_categories
       from public.budget_version_erp_mirror em
       join public.budget_versions v on v.id = em.budget_version_id
      where v.project_id = p_project_id and v.status = 'Active' and em.fiscal_year = p_fiscal_year
@@ -140,7 +154,11 @@ as $$
            (select push_state from push),
            (select state from unrecorded)
          ),
-         (select push_error from push)
+         (select push_error from push),
+         -- NEW-6: only ever from a RECORDED push row. The `unrecorded` inference above ('never-pushed' /
+         -- 'unstamped-activation') is derived from the ABSENCE of a mirror row, so by construction it has
+         -- no category names to offer — NULL there is the truth, not a gap.
+         (select unmapped_categories from push)
     from cells c
    order by c.category;
 $$;

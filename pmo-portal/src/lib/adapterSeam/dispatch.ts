@@ -233,24 +233,35 @@ async function finalizeOutboxRow(
   // the read-model carries the ERP-derived fields (totals, status, outstanding, …). Fall back to the id
   // stub only for a row adopted without a full record (a later read-back/sweep reconciles its fields).
   const canonical: PmoRecord = row.canonical ?? { id: deps.command.record.id };
+  await convergeReadModel(canonical, deps, isReplay);
+  return deps.money.confirmOutbox(row.id, claimGeneration);
+}
+
+/**
+ * Write the read-model mirror for an outcome ERP has already committed.
+ *
+ * Luna BLOCK 3 — retry-idempotent finalization. On a REPLAY (a `committed` row whose previous attempt
+ * crashed somewhere in ref → mirror → confirm, or a `confirmed` row an operator is retrying), the
+ * mirror insert may already have landed. Its fixed-PK collision is then the CONVERGED state, not a
+ * failure: swallowing it lets the replay reach `confirm_outbox`, whereas rethrowing wedges a real ERP
+ * money document at `committed` forever (every retry dies on the same duplicate insert → manual
+ * intervention).
+ *
+ * Deliberately NOT tolerated on a FIRST finalize (`isReplay === false`): there, a pre-existing mirror
+ * for this PMO record id is a genuine anomaly (e.g. a reused caller-supplied record id) and must
+ * surface rather than be confirmed away. Anything that is not a duplicate-key collision always
+ * surfaces — a retry that cannot converge must never report success.
+ */
+async function convergeReadModel(canonical: PmoRecord, deps: DispatchMoneyWriteDeps, isReplay: boolean): Promise<void> {
   try {
     await deps.writeReadModel(canonical);
   } catch (error) {
-    // Luna BLOCK 3 — retry-idempotent finalization. On a REPLAY of a `committed` row (the previous
-    // attempt crashed somewhere in ref → mirror → confirm), the mirror insert may already have landed.
-    // Its fixed-PK collision is then the CONVERGED state, not a failure: swallowing it lets the replay
-    // reach `confirm_outbox`, whereas rethrowing wedges a real ERP money document at `committed`
-    // forever (every retry dies on the same duplicate insert → manual intervention).
-    // Deliberately NOT tolerated on a first finalize (`isReplay === false`): there, a pre-existing
-    // mirror for this PMO record id is a genuine anomaly (e.g. a reused caller-supplied record id) and
-    // must surface rather than be confirmed away.
     if (!isReplay || !isAlreadyMirrored(error)) throw error;
     console.warn(
       `[money-outbox] finalize replay ${deps.command.domain}/${deps.command.record.id}: mirror already present — ` +
         'converging to confirmed (the prior attempt mirrored, then crashed before confirm)',
     );
   }
-  return deps.money.confirmOutbox(row.id, claimGeneration);
 }
 
 /** The claim winner's critical section: probe-adopt-or-POST, then the guarded committed/finalize
@@ -404,8 +415,30 @@ const COMMITTING_WAIT_BUDGET_MS = 3_000;
 async function reconcileOutbox(row: OutboxRow, deps: DispatchMoneyWriteDeps, committingSince?: number): Promise<CommandResult> {
   const { command, money } = deps;
   switch (row.state) {
-    case 'confirmed':
-      return { externalRecordId: row.externalRecordId!, canonical: row.canonical ?? { id: command.record.id } };
+    case 'confirmed': {
+      // ⚑ NEW-4(b) (audit round 4, 2026-07-22) — CONVERGE the read-model to the confirmed outcome.
+      //
+      // A retry that lands here is by definition a REPLAY: a prior attempt already committed to ERP and
+      // confirmed the row. Returning the stored result alone left the operator's own recovery affordance
+      // inert and, worse, LYING. The user-visible reproduction: the budget push's gate rejects before the
+      // outbox (an unmapped category), the mirror is parked `failed`/`held`, the Admin maps the category
+      // and clicks "Retry the push" — which re-derives the SAME deterministic key (`budgetPushKey`), so
+      // it reads THIS confirmed row, reported success ("Budget pushed to ERPNext"), and never touched the
+      // mirror the banner is rendered from. The banner stayed forever, and the sweep backstop excludes
+      // `held`, so nothing else would ever clear it either.
+      //
+      // Convergence is the same act `case 'committed'` has always performed, at the same 23505 tolerance
+      // (this IS the replay path). A pre-existing mirror on a FIRST finalize keeps its meaning: still a
+      // genuine anomaly, still surfaced.
+      //
+      // ⛔ NOT via `finalizeOutboxRow`: `recordOutboxRef` is fenced on `state = 'committed'`, so a
+      // confirmed row returns 0, the caller reads that as F3 "superseded", re-reads and re-enters
+      // `reconcileOutbox` on the same confirmed row — an unbounded recursion. The ref + the confirm are
+      // already durably done; the mirror is the ONLY part that can still be behind.
+      const canonical: PmoRecord = row.canonical ?? { id: command.record.id };
+      await convergeReadModel(canonical, deps, true);
+      return { externalRecordId: row.externalRecordId!, canonical };
+    }
     case 'committed': {
       // A `committed` row means ERP already committed and a PRIOR attempt's finalization did not
       // complete — this is the REPLAY path, so an already-present mirror converges (Luna BLOCK 3).

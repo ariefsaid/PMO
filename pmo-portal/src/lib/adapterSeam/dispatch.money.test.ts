@@ -14,7 +14,7 @@ import {
   type DispatchMoneyOutboxDeps,
   type OutboxRow,
 } from './dispatch.ts';
-import { AdapterError, type AdapterCommand, type CommandResult } from './contract.ts';
+import { AdapterError, type AdapterCommand, type CommandResult, type PmoRecord } from './contract.ts';
 import { AppError } from '../appError.ts';
 
 const LEASE_MS = 60_000;
@@ -373,8 +373,17 @@ describe('AC-ENA-012 the fencing token closes the lease-expiry overlap (F4)', ()
       writeReadModel, recordExternalRef,
       money: fake.deps,
     });
-    // The superseded claimant's finalize wrote NOTHING; the recovery reconciled off the reclaimer's state.
-    expect(writeReadModel).not.toHaveBeenCalled();
+    // The invariant this test owns: the SUPERSEDED CLAIMANT'S OWN FINALIZE wrote nothing — its stale
+    // `PI-0001` result never reaches the read-model. It reconciles off the reclaimer's state instead.
+    //
+    // ⚑ NEW-4(b) sharpened this from a blanket `not.toHaveBeenCalled()`. The recovery now lands on the
+    // reclaimer's `confirmed` row and CONVERGES the read-model to it — so the assertion pins WHOSE
+    // canonical is written, which is the property that actually matters (a superseded claimant writing
+    // its own stale record is the lost update; writing the winner's confirmed record is the convergence
+    // an operator's Retry depends on). Asserted by payload identity, not by call count.
+    expect(writeReadModel).toHaveBeenCalledTimes(1);
+    expect(writeReadModel).toHaveBeenCalledWith({ id: 'pmo-1', erp_total: '5.00', erp_status: 'Submitted' });
+    expect(writeReadModel).not.toHaveBeenCalledWith({ id: 'pmo-1', erp_total: '5.00' });   // the stale claimant's own
     expect(recordExternalRef).not.toHaveBeenCalled();
     expect(result.externalRecordId).toBe('PI-RECLAIMED');
     expect([...fake.rows.values()][0].state).toBe('confirmed');
@@ -568,6 +577,120 @@ describe('AC-ENA-012 F2 finalization mirrors the adapter\'s REAL canonical, not 
     });
     expect(commit).not.toHaveBeenCalled();
     expect(result.canonical).toEqual(erpCanonical);
+  });
+});
+
+/**
+ * ⚑ NEW-4(b) (audit round 4, 2026-07-22) — a `held` money row was UNRECOVERABLE through the operator's
+ * own Retry, and the screen LIED about it.
+ *
+ * The reproduction is entirely user-visible: the budget push's gate rejects before the outbox (an
+ * unmapped category), `recordBudgetGateFailure` parks the mirror at `held`/`failed`, the operator maps
+ * the category and clicks "Retry the push" — which re-dispatches the SAME deterministic key
+ * (`budgetPushKey`), lands on a row a previous attempt already CONFIRMED, and `case 'confirmed'`
+ * returned the stored result WITHOUT re-running the mirror writer. The toast said "Budget pushed to
+ * ERPNext" while the banner it was supposed to clear stayed exactly where it was, forever.
+ *
+ * The read-model is the thing the operator is looking at, so converging it to the confirmed outcome is
+ * the whole point of a retry — the SAME convergence `case 'committed'` has always performed. The 23505
+ * tolerance is scoped to this REPLAY path only: a pre-existing mirror on a FIRST finalize stays a
+ * genuine anomaly that must surface (the test below it).
+ *
+ * ⛔ `finalizeOutboxRow` is deliberately NOT reused here: `recordOutboxRef` is fenced on
+ * `state = 'committed'`, so a confirmed row returns 0 → the caller reads F3 as "superseded" and
+ * re-enters `reconcileOutbox` on the same confirmed row — an infinite recursion.
+ */
+describe('NEW-4(b) confirmed retry converges the read-model (the operator\'s Retry must clear the banner)', () => {
+  /** Drive a row all the way to `confirmed`, the state an operator's Retry lands on. */
+  async function seedConfirmed(fake: ReturnType<typeof createFakeOutbox>, canonical: PmoRecord) {
+    await fake.deps.insertOutboxPending('procurement', 'pmo-1', 'key-1');
+    const id = [...fake.rows.keys()][0];
+    const claimed = await fake.deps.claimOutboxForCommit(id);
+    await fake.deps.markOutboxCommitted(id, 'PI-0001', canonical, claimed!.claimGeneration);
+    await fake.deps.recordOutboxRef(id, claimed!.claimGeneration, { pmoRecordId: 'pmo-1', externalTier: 'erpnext', externalRecordId: 'PI-0001', domain: 'procurement' });
+    await fake.deps.confirmOutbox(id, claimed!.claimGeneration);
+    return id;
+  }
+
+  it('re-runs writeReadModel with the PERSISTED canonical, so a mirror left at failed/held converges to the confirmed outcome', async () => {
+    const fake = createFakeOutbox();
+    const erpCanonical = { id: 'pmo-1', erp_total: '250.00', erp_docstatus: 1 };
+    await seedConfirmed(fake, erpCanonical);
+
+    const commit = vi.fn();
+    const claimSpy = vi.spyOn(fake.deps, 'claimOutboxForCommit');
+    const writeReadModel = vi.fn();
+    const result = await dispatchMoneyWrite({
+      adapter: erpnextAdapter(commit),
+      command: baseCommand,
+      writeReadModel, recordExternalRef: vi.fn(),
+      money: fake.deps,
+    });
+
+    // the mirror is re-written from the REAL persisted canonical — a `{ id }` stub would blank the
+    // ERP-derived fields the screen reads (and, for budget/timesheets, the push_state itself).
+    expect(writeReadModel).toHaveBeenCalledTimes(1);
+    expect(writeReadModel).toHaveBeenCalledWith(erpCanonical);
+    // ...and nothing else changes: no second ERP document, no claim, no state churn.
+    expect(commit).not.toHaveBeenCalled();
+    expect(claimSpy).not.toHaveBeenCalled();
+    expect(result).toEqual({ externalRecordId: 'PI-0001', canonical: erpCanonical });
+    expect([...fake.rows.values()][0].state).toBe('confirmed');
+  });
+
+  it('never re-enters the fenced finalize (no recordOutboxRef / confirmOutbox) — that path returns 0 on a confirmed row and would recurse forever', async () => {
+    const fake = createFakeOutbox();
+    await seedConfirmed(fake, { id: 'pmo-1' });
+    const refSpy = vi.spyOn(fake.deps, 'recordOutboxRef');
+    const confirmSpy = vi.spyOn(fake.deps, 'confirmOutbox');
+
+    await dispatchMoneyWrite({
+      adapter: erpnextAdapter(vi.fn()),
+      command: baseCommand,
+      writeReadModel: vi.fn(), recordExternalRef: vi.fn(),
+      money: fake.deps,
+    });
+
+    expect(refSpy).not.toHaveBeenCalled();
+    expect(confirmSpy).not.toHaveBeenCalled();
+    expect(fake.refs).toHaveLength(1);   // still the ONE ref the original finalize wrote
+  });
+
+  it('tolerates a 23505 mirror collision (the row is already mirrored — that IS the converged state)', async () => {
+    const fake = createFakeOutbox();
+    const erpCanonical = { id: 'pmo-1', erp_total: '250.00' };
+    await seedConfirmed(fake, erpCanonical);
+    const alreadyMirrored = vi.fn(async () => {
+      throw new AppError('duplicate key value violates unique constraint "procurement_invoices_pkey"', '23505');
+    });
+
+    const result = await dispatchMoneyWrite({
+      adapter: erpnextAdapter(vi.fn()),
+      command: baseCommand,
+      writeReadModel: alreadyMirrored, recordExternalRef: vi.fn(),
+      money: fake.deps,
+    });
+
+    expect(alreadyMirrored).toHaveBeenCalledTimes(1);
+    expect(result).toEqual({ externalRecordId: 'PI-0001', canonical: erpCanonical });
+  });
+
+  it('surfaces a mirror failure for ANY OTHER reason — a retry that cannot converge must never report success', async () => {
+    const fake = createFakeOutbox();
+    await seedConfirmed(fake, { id: 'pmo-1' });
+    const mirrorDown = vi.fn(async () => {
+      throw new AppError('null value in column "fiscal_year" violates not-null constraint', '23502');
+    });
+
+    await expect(
+      dispatchMoneyWrite({
+        adapter: erpnextAdapter(vi.fn()),
+        command: baseCommand,
+        writeReadModel: mirrorDown, recordExternalRef: vi.fn(),
+        money: fake.deps,
+      }),
+    ).rejects.toMatchObject({ code: '23502' });
+    expect([...fake.rows.values()][0].state).toBe('confirmed');   // the ERP truth is untouched
   });
 });
 

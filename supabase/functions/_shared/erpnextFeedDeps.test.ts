@@ -650,3 +650,118 @@ Deno.test('AC-TSP-041 a non-timesheet cancel (e.g. purchase-invoice) does NOT ga
   const update = calls.find((c) => c.table === 'procurement_invoices' && c.op === 'update');
   assert(!('push_state' in update!.patch!), 'push_state is a timesheet-only reopen — must not leak onto other kinds');
 });
+
+// ════════════════════════════════════════════════════════════════════════════════════════════════
+// AC-TSP-042 / FR-TSP-083 (P3b slice 6.5) — a STALE / OUT-OF-ORDER event is a NO-OP, for both new kinds.
+//
+// ⚑ Why this AC had no proof until now. The guard it asserts lives in `applyEngine.applyInboundChange`
+// and is fed by `readMirrorSourceMod`. For BOTH Posture-B side mirrors that dep used to query
+// `.eq('id', pmoRecordId)` — and their `id` is their OWN `gen_random_uuid()`, with the PMO record in a
+// separate FK column (`timesheet_id` / `budget_version_id`, migs 0136/0137). A Postgres 0-row match is
+// not an error, so `readMirrorSourceMod` returned `null` for every timesheet, forever, and
+// `stored !== null` was never true: THE STALENESS GUARD WAS ENTIRELY DISABLED for this kind. An
+// out-of-order redelivery (Frappe retries webhooks, and the sweep re-polls an overlapping window) would
+// happily stamp an OLDER `erp_modified` and older ERP totals back over a newer state. The round-1 HIGH-1
+// fix (`pmoRecordLookupColumn`) repaired the query — this proves the guard it re-enabled actually holds.
+//
+// So this test drives the REAL `applyErpFeedEvent` through the REAL `createErpFeedDeps`, rather than
+// asserting on the dep in isolation: the isolated HIGH-1 test proves the FILTER is right, and this
+// proves the BEHAVIOUR the filter exists for. Both are needed — the filter was right in four sibling
+// writers while this one was wrong, precisely because nothing exercised the two together.
+// ════════════════════════════════════════════════════════════════════════════════════════════════
+
+import { applyErpFeedEvent } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/applyFeed.ts';
+
+/**
+ * A client wired so the ERP name RESOLVES to a mapped PMO record, and the kind's mirror row reports
+ * `storedErpModified` as its last-seen `modified`. Everything else answers empty.
+ *
+ * ⚑ The mirror row is returned ONLY to a query that filters on the kind's REAL lookup column. That is
+ * not incidental precision — it is the whole point. A fixture keyed on the table name alone hands the
+ * row back no matter WHICH column the query filtered on, so `readMirrorSourceMod` would appear to work
+ * even with the HIGH-1 `.eq('id', …)` defect restored, and the staleness test would pass while the
+ * guard it claims to prove was completely disabled in production. (Caught exactly that way: the first
+ * draft of this fixture survived a mutation that reintroduced the defect.) Postgres answers a
+ * wrong-column filter with ZERO rows and no error — so the fake must too.
+ */
+function mappedMirrorClient(opts: { mirrorTable: string; lookupColumn: string; pmoRecordId: string; storedErpModified: string }) {
+  return fakeServiceClient((table, query) => {
+    if (table === 'external_refs') return [{ pmo_record_id: opts.pmoRecordId }];
+    if (table === opts.mirrorTable) {
+      const matchesRow = query.eq.some(([col, val]) => col === opts.lookupColumn && val === opts.pmoRecordId);
+      return matchesRow ? [{ erp_modified: opts.storedErpModified }] : [];
+    }
+    return [];   // no lineage row ⇒ not a superseded name
+  });
+}
+
+const STORED_MOD = '2026-07-20T12:00:00.000Z';
+
+// The kind's REAL `pmoRecordLookupColumn`: `timesheet` is a Posture-B side mirror keyed by its own
+// uuid with the PMO id in `timesheet_id`; `employee` is keyed by `id` like every other mirror.
+for (const [label, kind, mirrorTable, lookupColumn] of [
+  ['Timesheet', 'timesheet', 'timesheet_erp_mirror', 'timesheet_id'],
+  ['Employee', 'employee', 'erp_employees', 'id'],
+] as const) {
+  Deno.test(`AC-TSP-042 a STALE ${label} event (modified OLDER than the mirror's) writes NOTHING to ${mirrorTable}`, async () => {
+    const { client, calls } = mappedMirrorClient({ mirrorTable, lookupColumn, pmoRecordId: 'pmo-1', storedErpModified: STORED_MOD });
+    const deps = createErpFeedDeps(client, 'org-1', kind);
+
+    const outcome = await applyErpFeedEvent(
+      { tier: 'erpnext', domain: 'timesheets' },
+      label === 'Timesheet' ? 'TS-2026-00050' : 'HR-EMP-00007',
+      { id: 'ignored', erp_docstatus: 1, erp_total_hours: '4.0' },
+      Date.parse('2026-07-20T09:00:00.000Z'),   // an HOUR OLDER than what the mirror already recorded
+      deps,
+    );
+
+    assert(outcome.kind === 'no-op', `AC-TSP-042: a stale ${label} event must be a no-op, got '${outcome.kind}'`);
+    const writes = calls.filter((c) => c.table === mirrorTable && c.op !== 'select');
+    assert(
+      writes.length === 0,
+      `AC-TSP-042: a stale ${label} event must issue ZERO writes to ${mirrorTable} — got ${JSON.stringify(writes)}`,
+    );
+  });
+
+  Deno.test(`AC-TSP-042 a ${label} event at the SAME modified still applies (re-delivery + the sweep's inclusive boundary are idempotent, never dropped)`, async () => {
+    const { client, calls } = mappedMirrorClient({ mirrorTable, lookupColumn, pmoRecordId: 'pmo-1', storedErpModified: STORED_MOD });
+    const deps = createErpFeedDeps(client, 'org-1', kind);
+
+    const outcome = await applyErpFeedEvent(
+      { tier: 'erpnext', domain: 'timesheets' },
+      label === 'Timesheet' ? 'TS-2026-00050' : 'HR-EMP-00007',
+      { id: 'ignored', erp_docstatus: 1 },
+      Date.parse(STORED_MOD),   // EXACTLY the stored value — the `>=` boundary, deliberately inclusive
+      deps,
+    );
+
+    assert(outcome.kind === 'upserted', `expected an upsert at the equal boundary, got '${outcome.kind}'`);
+    assert(
+      calls.some((c) => c.table === mirrorTable && c.op === 'update'),
+      `a re-delivered ${label} event at the same modified must still converge the mirror (idempotent, not dropped)`,
+    );
+  });
+
+  Deno.test(`AC-TSP-042 a NEWER ${label} event applies — the guard rejects staleness, not the whole feed`, async () => {
+    const { client, calls } = mappedMirrorClient({ mirrorTable, lookupColumn, pmoRecordId: 'pmo-1', storedErpModified: STORED_MOD });
+    const deps = createErpFeedDeps(client, 'org-1', kind);
+
+    const outcome = await applyErpFeedEvent(
+      { tier: 'erpnext', domain: 'timesheets' },
+      label === 'Timesheet' ? 'TS-2026-00050' : 'HR-EMP-00007',
+      { id: 'ignored', erp_docstatus: 1 },
+      Date.parse('2026-07-20T15:00:00.000Z'),   // newer than the mirror's
+      deps,
+    );
+
+    assert(outcome.kind === 'upserted', `expected an upsert for a newer ${label} event, got '${outcome.kind}'`);
+    const update = calls.find((c) => c.table === mirrorTable && c.op === 'update');
+    assert(!!update, `a newer ${label} event MUST update ${mirrorTable}`);
+    // ...and it must be found by the kind's OWN lookup column — the HIGH-1 defect that disabled the
+    // guard in the first place. Asserted here too, on the wired path, so the two cannot drift apart.
+    assert(
+      update!.eq.some(([col, val]) => col === lookupColumn && val === 'pmo-1'),
+      `expected the ${label} update to filter on ${lookupColumn} = 'pmo-1', got ${JSON.stringify(update!.eq)}`,
+    );
+  });
+}

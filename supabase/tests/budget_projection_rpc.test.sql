@@ -6,7 +6,7 @@
 -- request.jwt.claims), modelled on budget_version_activated_at.test.sql / budget_category_account_map_rls
 -- .test.sql. Namespaced 0b3e UUIDs (valid hex, not seed-colliding).
 begin;
-select plan(23);
+select plan(26);
 
 -- ── Fixtures (inserted as table owner, bypassing RLS) ────────────────────────────────────────────
 insert into organizations (id, name) values
@@ -100,14 +100,50 @@ select is(
 
 -- A REAL mirror row for the fiscal year always wins — the never-pushed state is only ever the absence.
 set local role postgres;
-insert into budget_version_erp_mirror (org_id, budget_version_id, fiscal_year, push_state, push_error)
-  values ('0b3e0000-0000-0000-0000-000000000001','0b3e2222-0000-0000-0000-000000000001','2026','failed','budget-category-unmapped');
+insert into budget_version_erp_mirror (org_id, budget_version_id, fiscal_year, push_state, push_error, unmapped_categories)
+  values ('0b3e0000-0000-0000-0000-000000000001','0b3e2222-0000-0000-0000-000000000001','2026','failed','budget-category-unmapped',
+          array['Materials','Subcontract']::text[]);
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"0b3e0000-0000-0000-0000-0000000000a2","role":"authenticated"}';
 select is(
   (select distinct push_state from public.get_budget_projection('0b3e1111-0000-0000-0000-000000000001','2026')),
   'failed',
   'HIGH-C a recorded push state always wins over the never-pushed inference');
+
+-- ── NEW-6 (audit round 4, 2026-07-22): `unmapped_categories` was WRITE-ONLY ──────────────────────
+-- `recordBudgetGateFailure` (adapter-dispatch) persists the NAMES of the categories that blocked the
+-- push — FR-BUD-113 collected them precisely so the operator gets a to-do list, not just a red banner.
+-- The read RPC returned only `push_state`/`push_error`, so the screen could render nothing but the bare
+-- code `budget-category-unmapped` and the actionable names were never read by anything, ever.
+-- The CODE stays in `push_error` (other logic matches on it); the NAMES ride alongside.
+select is(
+  (select distinct unmapped_categories from public.get_budget_projection('0b3e1111-0000-0000-0000-000000000001','2026')),
+  array['Materials','Subcontract']::text[],
+  'NEW-6 the RPC returns the recorded unmapped_categories so the operator can be told WHICH categories to map');
+
+select is(
+  (select distinct push_error from public.get_budget_projection('0b3e1111-0000-0000-0000-000000000001','2026')),
+  'budget-category-unmapped',
+  'NEW-6 the machine-matchable CODE is retained in push_error (the names are additive, never a replacement)');
+
+-- A push that failed for a reason unrelated to the map carries NO category names — an honest NULL, never
+-- an empty list the UI would have to special-case into "nothing to do".
+set local role postgres;
+update budget_version_erp_mirror set push_error = 'external-unreachable', unmapped_categories = null
+  where budget_version_id = '0b3e2222-0000-0000-0000-000000000001' and fiscal_year = '2026';
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"0b3e0000-0000-0000-0000-0000000000a2","role":"authenticated"}';
+select is(
+  (select distinct unmapped_categories from public.get_budget_projection('0b3e1111-0000-0000-0000-000000000001','2026')),
+  null,
+  'NEW-6 a failure with no unmapped categories reports NULL, not a fabricated empty list');
+
+-- Restore the fixture the following HIGH-C assertions were written against.
+set local role postgres;
+update budget_version_erp_mirror set push_error = 'budget-category-unmapped'
+  where budget_version_id = '0b3e2222-0000-0000-0000-000000000001' and fiscal_year = '2026';
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"0b3e0000-0000-0000-0000-0000000000a2","role":"authenticated"}';
 
 -- A DIFFERENT fiscal year is NOT "never pushed": the version has a mirror row, just not for this year.
 select is(

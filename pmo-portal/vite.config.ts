@@ -54,6 +54,9 @@ const BASE_TEST_EXCLUDE = [
 const NODE_LOGIC_INCLUDE = [
   'src/lib/**/*.{test,spec}.ts',
   '../supabase/functions/erpnext-sweep/budgetBackstop.test.ts',
+  // P3b task 6.4: `timesheetBackstop.test.ts` is the exact sibling of the entry above — same reason,
+  // same shape (a Deno- AND Vitest-importable pure-orchestration module beside its Deno-native tests).
+  '../supabase/functions/erpnext-sweep/timesheetBackstop.test.ts',
 ];
 
 const sharedTestOptions = {

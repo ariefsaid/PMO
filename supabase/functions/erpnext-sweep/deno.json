@@ -4,6 +4,6 @@
     "@/": "../../../pmo-portal/"
   },
   "test": {
-    "exclude": ["budgetBackstop.test.ts"]
+    "exclude": ["budgetBackstop.test.ts", "timesheetBackstop.test.ts"]
   }
 }

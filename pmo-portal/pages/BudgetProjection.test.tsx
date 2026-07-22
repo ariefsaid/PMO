@@ -5,7 +5,7 @@
  * mocked `useEffectiveRole`.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import type { Role } from '@/src/auth/AuthContext';
@@ -238,6 +238,39 @@ describe('BudgetProjection — the push-state banner (FR-BUD-123)', () => {
     renderPage();
     await screen.findByText('Labor');
     expect(screen.queryByRole('button', { name: /retry the push/i })).not.toBeInTheDocument();
+  });
+
+  // ── NEW-6 (audit round 4): `unmapped_categories` was WRITE-ONLY. The dispatch gate records exactly
+  //    WHICH categories have no ERP account (FR-BUD-113 collected the names on purpose), but nothing
+  //    read them back — so the banner showed the raw code `budget-category-unmapped`: an error message
+  //    that tells an Admin something is broken while withholding the one fact that makes it fixable.
+  //    The names are the operator's to-do list, so they are rendered AS a list.
+  it('NEW-6 names the unmapped categories as the operator\'s to-do list, not just the bare error code', async () => {
+    fetchMock.mockResolvedValue([
+      {
+        ...ROW,
+        pushState: 'failed',
+        pushError: 'budget-category-unmapped',
+        unmappedCategories: ['Materials', 'Subcontract'],
+      },
+    ]);
+    renderPage();
+
+    await screen.findByText(/still enforcing the previous budget/i);
+    const todo = screen.getByRole('list', { name: /categories that need an ERP account/i });
+    expect(within(todo).getByText('Materials')).toBeInTheDocument();
+    expect(within(todo).getByText('Subcontract')).toBeInTheDocument();
+  });
+
+  it('NEW-6 renders no category list when the failure has nothing to do with the map', async () => {
+    fetchMock.mockResolvedValue([
+      { ...ROW, pushState: 'failed', pushError: 'external-unreachable', unmappedCategories: null },
+    ]);
+    renderPage();
+
+    await screen.findByText(/still enforcing the previous budget/i);
+    expect(screen.queryByRole('list', { name: /categories that need an ERP account/i })).not.toBeInTheDocument();
+    expect(screen.getByText('external-unreachable')).toBeInTheDocument();   // the code still surfaces
   });
 });
 

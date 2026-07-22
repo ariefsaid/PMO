@@ -4771,6 +4771,7 @@ export type Database = {
           projected_variance: number
           push_error: string
           push_state: string
+          unmapped_categories: string[]
         }[]
       }
       get_executive_dashboard: { Args: never; Returns: Json }

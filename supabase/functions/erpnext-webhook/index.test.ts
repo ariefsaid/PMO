@@ -406,3 +406,87 @@ Deno.test('FIX 1: ANOTHER org\'s in-flight row never blocks this org (org scopin
   const res = await handleErpWebhook(req(event, await sign(event)), d);
   assert(d._applied() === 1, 'the in-flight guard is org-scoped — a foreign org\'s command must not block adoption here');
 });
+
+// ════════════════════════════════════════════════════════════════════════════════════════════════
+// AC-TSP-042 / FR-TSP-081 (P3b slice 6.5) — the trust boundary for the NEW kinds.
+//
+// `Timesheet` and `Employee` reached the public webhook surface in P3b. The HMAC gate is generic (it
+// runs before any doctype routing), so the claim is that they inherit it — but "no code change was
+// needed" is exactly the kind of assumption that is only true until someone reorders the handler, and
+// these two kinds are the ones where being wrong is worst: `Employee` is the identity master the
+// timesheet push resolves people through, and an unsigned write to it is an identity-spoofing surface.
+// So it is PROVEN per kind, not assumed from the shape of the code.
+//
+// ⚑ `timesheets` must be in `ownedDomains` here: KIND_DOMAIN maps BOTH kinds to the `timesheets`
+// domain (feedKinds.ts), and the domain-ownership gate would otherwise skip them for a reason that has
+// nothing to do with the signature — a green test proving nothing.
+// ════════════════════════════════════════════════════════════════════════════════════════════════
+
+/** An org that has handed the `timesheets` domain (both new kinds' domain) to the ERPNext tier. */
+function timesheetDeps(): ErpWebhookHandlerDeps & { _applied: () => number; _events: () => unknown[] } {
+  let applied = 0;
+  const events: unknown[] = [];
+  return {
+    resolveEmployingOrgs: async () => [{ orgId: ORG_ID, webhookSecret: SECRET, company: COMPANY, ownedDomains: ['timesheets'] }],
+    applyEvent: async (_orgId: string, event: unknown) => {
+      applied += 1;
+      events.push(event);
+      return { kind: 'upserted' as const, pmoRecordId: 'pmo-1', adopted: false };
+    },
+    _applied: () => applied,
+    _events: () => events,
+  } as unknown as ErpWebhookHandlerDeps & { _applied: () => number; _events: () => unknown[] };
+}
+
+const TIMESHEET_EVENT = JSON.stringify({
+  doctype: 'Timesheet',
+  name: 'TS-2026-00050',
+  docstatus: 1,
+  amended_from: null,
+  modified: '2026-07-20 09:00:00.000000',
+  doc: { name: 'TS-2026-00050', docstatus: 1, total_hours: '40.0', company: COMPANY },
+});
+
+const EMPLOYEE_EVENT = JSON.stringify({
+  doctype: 'Employee',
+  name: 'HR-EMP-00007',
+  docstatus: 1,
+  amended_from: null,
+  modified: '2026-07-20 09:00:00.000000',
+  doc: { name: 'HR-EMP-00007', docstatus: 1, employee_name: 'Dana Ops', company_email: 'dana@example.com', company: COMPANY },
+});
+
+for (const [label, body] of [['Timesheet', TIMESHEET_EVENT], ['Employee', EMPLOYEE_EVENT]] as const) {
+  Deno.test(`AC-TSP-042 an ABSENT signature on a ${label} ⇒ 401 with ZERO side effects`, async () => {
+    const d = timesheetDeps();
+    const res = await handleErpWebhook(req(body, null), d);
+    assert(res.status === 401, `expected 401, got ${res.status}`);
+    assert(d._applied() === 0, `FR-TSP-081: an unsigned ${label} must never reach the feed`);
+  });
+
+  Deno.test(`AC-TSP-042 an INVALID signature on a ${label} (wrong secret, and a tampered body) ⇒ 401 with ZERO side effects`, async () => {
+    const d = timesheetDeps();
+    const res = await handleErpWebhook(req(body, 'dGhpcy1pcy1ub3QtdGhlLWNvcnJlY3Qtc2ln'), d);
+    assert(res.status === 401, `expected 401, got ${res.status}`);
+    // A signature over the ORIGINAL body replayed against a MUTATED one is the real attack: the hours /
+    // the employee's work email are exactly what an attacker would want to rewrite in flight.
+    const validSig = await sign(body);
+    const tampered = body.replace('40.0', '400.0').replace('dana@example.com', 'attacker@example.com');
+    const res2 = await handleErpWebhook(req(tampered, validSig), d);
+    assert(res2.status === 401, `expected 401 for a tampered ${label} body, got ${res2.status}`);
+    assert(d._applied() === 0, `FR-TSP-081: neither a bad signature nor a tampered ${label} body may reach the feed`);
+  });
+
+  Deno.test(`AC-TSP-042 a VALID signature on a ${label} routes to the feed as a hint (200, kind resolved)`, async () => {
+    const d = timesheetDeps();
+    const res = await handleErpWebhook(req(body, await sign(body)), d);
+    assert(res.status === 200, `expected 200, got ${res.status}`);
+    assert(d._applied() === 1, `a correctly-signed ${label} MUST be routed to applyErpFeedEvent`);
+    // Proving it is ROUTED, not merely ack'd: `kindFromDoctype` resolved a real kind + the timesheets
+    // domain. An unresolved doctype would have returned 200 `skipped: 'unmapped-doctype'` — a green
+    // "it was accepted" assertion over a payload that was silently dropped.
+    const event = d._events()[0] as { kind?: string; domain?: string };
+    assert(event.kind === (label === 'Timesheet' ? 'timesheet' : 'employee'), `expected the ${label} kind, got '${event.kind}'`);
+    assert(event.domain === 'timesheets', `expected the timesheets domain, got '${event.domain}'`);
+  });
+}

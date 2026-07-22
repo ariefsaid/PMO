@@ -194,3 +194,46 @@ Deno.test('NEW-2 reconcileOrgOutbox SKIPS budget candidates (pass 5 owns them, w
   assert(dispatched.includes('ob-revenue'), 'every other domain must still be reconciled by pass 1');
   assert(result.reconciled === 1, `expected exactly one non-budget reconcile, got ${result.reconciled}`);
 });
+
+// ── P3b task 6.4: pass 1 must NOT drive `timesheets` either — the new pass 6 owns it ──────────────
+// The decision, made on evidence rather than by analogy with budget (the two differ in one important
+// way, and it is worth being precise about which argument actually carries):
+//
+//  (1) THE UNCONDITIONAL ARGUMENT — the attempt budget. My backstop drives exactly the rows
+//      `outbox_reconcile_candidates` admits, which is the SAME set pass 1 drives. Leaving `timesheets`
+//      in pass 1 means every candidate is driven TWICE per tick, burning `0131`'s 5-attempt
+//      auto-recovery budget at 2x — so a push that ERP would have accepted on attempt 4 is abandoned
+//      after two ticks instead of five. This argument holds today, unconditionally, on its own.
+//
+//  (2) THE GATE ARGUMENT — pass 1 never calls `approved_timesheet_for_push` at all, so it re-asserts
+//      NONE of 0138's preconditions. Unlike budget, that is not currently EXPLOITABLE via status:
+//      `transition_timesheet`'s map makes `Approved` TERMINAL (`'Approved' -> []`, mig 0007), so an
+//      approval cannot be revoked and a frozen payload cannot become unapproved behind pass 1's back.
+//      ⚑ But that safety is a property of a DIFFERENT migration that P3b does not own, and the
+//      correction path that would break it is explicitly ANTICIPATED and OPEN (OQ-TSP-6, cited by the
+//      desk-cancel branch in `_shared/erpnextFeedDeps.ts`). The day `Approved -> Rejected` is added for
+//      corrections, a `timesheets` row left in pass 1 silently posts payroll-costing hours that a human
+//      un-approved. Making pass 6 the sole owner NOW means that change cannot reintroduce the hole.
+//
+// So: skipped here, and 0138's gate is re-asserted by exactly one pass.
+Deno.test('task 6.4 reconcileOrgOutbox SKIPS timesheets candidates (pass 6 owns them, with the 0138 approval gate)', async () => {
+  const { reconcileOrgOutbox } = await import('./index.ts');
+  const dispatched: string[] = [];
+  const candidates = [
+    { id: 'ob-timesheet', domain: 'timesheets', pmoRecordId: 'ts1', idempotencyKey: 'ts:ts1:2026-07-19T02:55:21.340995+00:00', state: 'failed', externalRecordId: null, canonical: null, claimGeneration: 0, payloadDigest: null },
+    { id: 'ob-budget', domain: 'budget', pmoRecordId: 'v2', idempotencyKey: 'bud:v2:1', state: 'failed', externalRecordId: null, canonical: null, claimGeneration: 0, payloadDigest: null },
+    { id: 'ob-procurement', domain: 'procurement', pmoRecordId: 'pi1', idempotencyKey: 'k3', state: 'failed', externalRecordId: null, canonical: null, claimGeneration: 0, payloadDigest: null },
+  ];
+  const result = await reconcileOrgOutbox(
+    async () => candidates as never,
+    { orgId: 'org-1', ownedDomains: ['timesheets', 'budget', 'procurement'] },
+    (async (c: { id: string }) => ({ id: c.id })) as never,
+    (async (d: { id: string }) => { dispatched.push(d.id); }) as never,
+  );
+  assert(
+    !dispatched.includes('ob-timesheet'),
+    'task 6.4: pass 1 must NOT drive a timesheets row — it re-asserts none of 0138\'s gate and double-burns the 0131 attempt budget',
+  );
+  assert(dispatched.includes('ob-procurement'), 'every other domain must still be reconciled by pass 1');
+  assert(result.reconciled === 1, `expected exactly one non-owned-elsewhere reconcile, got ${result.reconciled}`);
+});

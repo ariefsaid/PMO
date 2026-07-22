@@ -80,6 +80,9 @@ import {
 } from '@/src/lib/db/usage';
 import { routeDomainWrite } from '@/src/lib/adapterSeam/ownershipCache';
 import { dispatchDomainCommand } from '@/src/lib/adapterSeam/dispatchClient';
+// P3b FR-TSP-041 — the ONE derivation of the timesheet push's deterministic key, shared with the Deno
+// sweep backstop (see the re-export below for why it cannot be defined in this module).
+import { timesheetPushKey } from '@/src/lib/adapterSeam/erpnext/timesheetPushKey';
 import {
   listTasks,
   getTask,
@@ -540,17 +543,14 @@ const revenue: RevenueRepository = {
 /**
  * P3b (FR-TSP-041, ADR-0059 §4): the timesheet push key is DETERMINISTIC, not `freshIdempotencyKey()`.
  *
- * The push has TWO independent originators — this path (a user approving) and the reconciling sweep
- * backstop — with NO shared client state. A random key per attempt would make the outbox's
- * `unique (org_id, domain, pmo_record_id, idempotency_key)` useless for exactly the collision it
- * exists to prevent: sweep and user racing to two ERP Timesheets, i.e. a DUPLICATED WEEK of hours on
- * project cost. With a derived key the second originator fails atomically (23505) and reconciles to
- * the winner's result. Including `approved_at` keeps a legitimate future re-approval a DIFFERENT
- * command rather than a silently suppressed one.
+ * ⚑ The derivation MOVED to `@/src/lib/adapterSeam/erpnext/timesheetPushKey` and is re-exported here so
+ * existing consumers keep resolving. It could not stay in this module: the push's SECOND originator is
+ * the Deno sweep backstop, and this file is a client module (38 imports, including the browser Supabase
+ * singleton) that no edge function can load — which would have forced the sweep to RE-IMPLEMENT the key.
+ * Two derivations drift, the outbox 4-tuple then fails to collide for what is really one command, and the
+ * client is billed a DUPLICATED WEEK of hours. See that module's header for the full reasoning.
  */
-export function timesheetPushKey(timesheetId: string, approvedAt: string): string {
-  return `ts:${timesheetId}:${approvedAt}`;
-}
+export { timesheetPushKey };
 
 const timesheet: TimesheetRepository = {
   list: (userId, params) => wrap(() => listTimesheets(userId, params)),

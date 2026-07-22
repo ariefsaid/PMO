@@ -32,6 +32,15 @@ export interface BudgetProjectionCellRow {
   /** The category's Active-version push state, when a push exists for this project+FY (else `null`). */
   pushState: string | null;
   pushError: string | null;
+  /**
+   * NEW-6 — the PMO categories that have no `budget_category_account_map` row, i.e. exactly what an
+   * operator must fix. `null` when the failure had nothing to do with the map (never `[]`: an empty
+   * list would read as "the map is fine" and force every consumer to special-case it).
+   *
+   * Additive to `pushError`, never a replacement: that column carries the machine-matchable CODE
+   * (`budget-category-unmapped`), which other logic keys on; this carries the human's to-do list.
+   */
+  unmappedCategories: string[] | null;
 }
 
 /** One fiscal year that actually exists for a project, in the CLIENT'S own calendar (H-4). */
@@ -78,6 +87,9 @@ export async function fetchBudgetProjection(
         : Number(row.projected_utilization),
     pushState: row.push_state ?? null,
     pushError: row.push_error ?? null,
+    // NEW-6: an absent/empty array normalizes to `null` — "no category names on record" is one state,
+    // and collapsing it here keeps every consumer from having to test both spellings of it.
+    unmappedCategories: row.unmapped_categories?.length ? row.unmapped_categories : null,
   }));
 }
 

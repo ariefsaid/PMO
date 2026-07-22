@@ -95,6 +95,7 @@ describe('fetchBudgetProjection (AC-BUD-050/053)', () => {
           projected_utilization: 0.75,
           push_state: 'pushed',
           push_error: null,
+          unmapped_categories: null,
         },
       ],
       error: null,
@@ -117,6 +118,7 @@ describe('fetchBudgetProjection (AC-BUD-050/053)', () => {
         projectedUtilization: 0.75,
         pushState: 'pushed',
         pushError: null,
+        unmappedCategories: null,
       },
     ]);
   });
@@ -142,6 +144,57 @@ describe('fetchBudgetProjection (AC-BUD-050/053)', () => {
     const rows = await fetchBudgetProjection('proj-1', '2026');
     expect(rows[0].pmoBudgetAmount).toBeNull();
     expect(rows[0].projectedUtilization).toBeNull();
+  });
+
+  // ⚑ NEW-6 (audit round 4) — `unmapped_categories` was WRITE-ONLY. The dispatch gate persists the NAMES
+  // of the categories that blocked the push (FR-BUD-113 collected them precisely so the operator gets a
+  // to-do list), but the read seam dropped them on the floor, so the screen could only ever show the bare
+  // code `budget-category-unmapped`. The code stays in `pushError`; the names ride alongside.
+  it('NEW-6 surfaces the recorded unmapped_categories alongside the push_error CODE', async () => {
+    makeRpcBuilder({
+      data: [
+        {
+          category: 'Labor',
+          pmo_budget_amount: 100000,
+          actuals_to_date: 0,
+          pmo_etc: 0,
+          projected_final_cost: 0,
+          projected_variance: 100000,
+          projected_utilization: 0,
+          push_state: 'failed',
+          push_error: 'budget-category-unmapped',
+          unmapped_categories: ['Materials', 'Subcontract'],
+        },
+      ],
+      error: null,
+    });
+
+    const rows = await fetchBudgetProjection('proj-1', '2026');
+    expect(rows[0].unmappedCategories).toEqual(['Materials', 'Subcontract']);
+    expect(rows[0].pushError).toBe('budget-category-unmapped');   // the CODE is never replaced by the names
+  });
+
+  it('NEW-6 a failure unrelated to the map reports null categories, never a fabricated empty list', async () => {
+    makeRpcBuilder({
+      data: [
+        {
+          category: 'Labor',
+          pmo_budget_amount: 100000,
+          actuals_to_date: 0,
+          pmo_etc: 0,
+          projected_final_cost: 0,
+          projected_variance: 100000,
+          projected_utilization: 0,
+          push_state: 'failed',
+          push_error: 'external-unreachable',
+          unmapped_categories: null,
+        },
+      ],
+      error: null,
+    });
+
+    const rows = await fetchBudgetProjection('proj-1', '2026');
+    expect(rows[0].unmappedCategories).toBeNull();
   });
 
   it('an empty result (no versions/actuals/ETC yet) resolves to an empty array, not a throw', async () => {

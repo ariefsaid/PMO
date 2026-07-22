@@ -12,7 +12,7 @@
  * Registered-but-idle per the 0094 precedent: the cron helper no-ops until an operator creates the
  * Vault secrets, so the job fires as a no-op until then (no employing org ⇒ no-op).
  *
- * Per employing org, ONE cycle runs FIVE passes in order:
+ * Per employing org, ONE cycle runs SIX passes in order:
  *   (1) reconcileOrgOutbox — the ADR-0058 §4 outbox recovery pass (delegates to the REAL
  *       dispatchMoneyWrite per candidate — one algorithm, shared with the retry path);
  *   (2) the modified-poll doctype sweep (runSweep per doctype, the convergence authority — AC-ENA-071);
@@ -21,7 +21,15 @@
  *   (4) refreshActuals + refreshAging (slice 7 — read the freshly-fed mirror);
  *   (5) P3c — reconcileOrgBudgetPushes, the budget push's sweep backstop (FR-BUD-141,
  *       AC-BUD-023, `budgetBackstop.ts`) — re-drives the mirror's own (org_id, push_state) work queue,
- *       re-asserting the SAME still-Active gate the foreground path enforces (FR-BUD-102).
+ *       re-asserting the SAME still-Active gate the foreground path enforces (FR-BUD-102);
+ *   (6) P3b — reconcileOrgTimesheetPushes, the timesheet push's sweep backstop (FR-TSP-045,
+ *       AC-TSP-022, `timesheetBackstop.ts`) — the structural twin of (5): re-drives the mirror's own
+ *       (org_id, push_state) work queue, re-asserting the SAME 0138 approval gate the foreground push
+ *       enforces, with `p_actor` => the sheet's own `approved_by`. Until this landed, the push had ONE
+ *       originator (the Approvals UI) and a push that died with the browser was stranded forever.
+ * ⚑ Passes (5) and (6) are the SOLE owners of the `budget` and `timesheets` domains: pass (1) skips
+ *   both, so each domain's gate is re-asserted by exactly one pass and `0131`'s attempt budget is
+ *   spent once per tick, not twice.
  * An org's failure is recorded WITHOUT blocking the others (sweep resilience: one client's bench
  * hiccup must not kill every org's refresh). Interactive priority over bulk (NFR-ENA-PERF-001).
  *
@@ -90,7 +98,17 @@ import {
   type BudgetBackstopVersionRow,
 } from './budgetBackstop.ts';
 import { budgetPushKey } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/budgetPushKey.ts';
-import { ERPNEXT_BUDGET_DOMAIN } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/adapter.ts';
+import { ERPNEXT_BUDGET_DOMAIN, ERPNEXT_TIMESHEETS_DOMAIN } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/adapter.ts';
+// P3b task 6.4 (FR-TSP-045, AC-TSP-022) — the timesheet push's sweep backstop, pure orchestration.
+import {
+  reconcileOrgTimesheetPushes,
+  type TimesheetBackstopDeps,
+  type TimesheetMirrorCandidateRow,
+} from './timesheetBackstop.ts';
+// ⚑ The ONE derivation of the timesheet key, IMPORTED — never re-implemented here. Two originators with
+// drifted keys means the outbox 4-tuple does not collide and the client is billed a DUPLICATED WEEK of
+// hours. (This is why the key was moved out of `repositories/index.ts`, which no edge fn can load.)
+import { timesheetPushKey } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/timesheetPushKey.ts';
 
 export { createInFlightAnchorProbe, type InFlightAnchorProbe };
 
@@ -353,6 +371,24 @@ export async function reconcileOrgOutbox(
     // Skipping is safe precisely BECAUSE pass 5 owns it: the row is not dropped, it is reconciled by the
     // one pass that re-reads the version first.
     if (candidate.domain === ERPNEXT_BUDGET_DOMAIN) continue;
+    // ⚑ P3b task 6.4 — the `timesheets` domain is likewise owned by pass 6
+    // (`reconcileOrgTimesheetPushes`) ALONE. Two arguments, of different strengths — worth separating,
+    // because only one of them is unconditional:
+    //   • BUDGET (unconditional). Pass 6 drives exactly the rows `outbox_reconcile_candidates` admits —
+    //     the SAME set this pass drives. Leaving `timesheets` here means every candidate is driven TWICE
+    //     per tick, burning `0131`'s 5-attempt auto-recovery budget at 2x, so a push ERP would have
+    //     accepted on attempt 4 is abandoned after two ticks instead of five.
+    //   • GATE (latent today, live tomorrow). This pass re-asserts only the actor's authorization; it
+    //     never calls `approved_timesheet_for_push`, so NONE of 0138's preconditions are re-checked.
+    //     Unlike budget that is not currently exploitable via status — `transition_timesheet`'s map makes
+    //     `Approved` TERMINAL (`'Approved' -> []`, mig 0007), so an approval cannot be revoked behind a
+    //     frozen payload's back. But that safety belongs to a migration P3b does not own, and the
+    //     correction path that would break it is explicitly ANTICIPATED and OPEN (OQ-TSP-6). The day
+    //     `Approved -> Rejected` lands, a row left here silently posts payroll-costing hours a human
+    //     un-approved. One owner now means that change cannot reintroduce the hole.
+    // Skipping is safe precisely BECAUSE pass 6 owns it: the row is not dropped, it is reconciled by the
+    // one pass that re-asserts the gate first.
+    if (candidate.domain === ERPNEXT_TIMESHEETS_DOMAIN) continue;
     try {
       await dispatch(await buildDeps(candidate));
       reconciled += 1;
@@ -399,6 +435,11 @@ export interface ErpSweepCycleDeps {
    *  foreground path enforces (FR-BUD-102). Optional so the existing cycle tests stay byte-for-byte;
    *  the live wiring always supplies it. */
   reconcileOrgBudgetPushes?: (org: OrgBinding) => Promise<{ driven: number; error?: string }>;
+  /** P3b task 6.4 (FR-TSP-045, AC-TSP-022) — the timesheet push's SECOND originator: re-drive the
+   *  mirror's own work queue (`timesheet_erp_mirror`), re-asserting the SAME 0138 approval gate the
+   *  foreground push enforces. Optional so the existing cycle tests stay byte-for-byte; the live wiring
+   *  always supplies it. */
+  reconcileOrgTimesheetPushes?: (org: OrgBinding) => Promise<{ driven: number; error?: string }>;
 }
 
 export interface ErpSweepCycleResult {
@@ -468,6 +509,16 @@ export async function runErpSweepCycle(deps: ErpSweepCycleDeps): Promise<ErpSwee
         if (r.error) errors.push(`budget:${r.error}`);
       } catch (err) {
         errors.push(`budget:${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+    // (6) P3b — the timesheet push's sweep backstop (FR-TSP-045). Same try/catch shape as its siblings
+    // so one org's failure never aborts the loop.
+    if (deps.reconcileOrgTimesheetPushes) {
+      try {
+        const r = await deps.reconcileOrgTimesheetPushes(org);
+        if (r.error) errors.push(`timesheet:${r.error}`);
+      } catch (err) {
+        errors.push(`timesheet:${err instanceof Error ? err.message : String(err)}`);
       }
     }
     perOrg.push({ orgId: org.orgId, reconcile, sweep, ledger, errors });
@@ -1061,6 +1112,215 @@ async function reconcileOrgBudgetPushesLive(serviceClient: SupabaseClient, org: 
   }
 }
 
+// ────────────────────────────────────────────────────────────────────────────────────────────────
+// (6) P3b — the timesheet push's sweep backstop, live wiring (FR-TSP-045, AC-TSP-022,
+//     timesheetBackstop.ts). The structural twin of pass (5).
+// ────────────────────────────────────────────────────────────────────────────────────────────────
+
+/** Read the EXISTING `external_command_outbox` row for this timesheet's deterministic key, if any —
+ *  the SAME key the Approvals UI derives (`timesheetPushKey`), so this finds the SAME candidate rather
+ *  than minting a second one; the two originators collide safely (ADR-0058). */
+async function findTimesheetOutboxRow(
+  serviceClient: SupabaseClient,
+  orgId: string,
+  timesheetId: string,
+  idempotencyKey: string,
+): Promise<OutboxRow | null> {
+  const { data, error } = await serviceClient
+    .from('external_command_outbox')
+    .select('id, domain, pmo_record_id, idempotency_key, state, external_record_id, canonical, claim_generation, payload_digest')
+    .eq('org_id', orgId)
+    .eq('domain', ERPNEXT_TIMESHEETS_DOMAIN)
+    .eq('pmo_record_id', timesheetId)
+    .eq('idempotency_key', idempotencyKey)
+    .maybeSingle();
+  if (error) throw new AppError(error.message, error.code);
+  if (!data) return null;
+  const r = data as {
+    id: string; domain: string; pmo_record_id: string; idempotency_key: string; state: OutboxRow['state'];
+    external_record_id: string | null; canonical: PmoRecord | null; claim_generation: number; payload_digest: string | null;
+  };
+  return {
+    id: r.id,
+    domain: r.domain,
+    pmoRecordId: r.pmo_record_id,
+    idempotencyKey: r.idempotency_key,
+    state: r.state,
+    externalRecordId: r.external_record_id,
+    canonical: r.canonical,
+    claimGeneration: r.claim_generation,
+    payloadDigest: r.payload_digest ?? null,
+  };
+}
+
+/**
+ * Park a timesheet mirror row (`held` or `failed`) as a COMPARE-AND-SET — the NEW-4 lesson from the
+ * budget twin, applied here by construction.
+ *
+ * The row's eligibility was established by `listPendingTimesheetPushes` earlier in the SAME tick, and
+ * the FOREGROUND push (the Approvals UI's Retry, or a fresh approval) runs concurrently on the very same
+ * row. A blind update keyed on `(org_id, timesheet_id)` alone would relabel a live success — a row that
+ * moved to `pushed` against a real ERPNext Timesheet — as `held`, and `held` is excluded from this very
+ * work queue, so nothing would ever re-drive it. A read-then-blind-write across a concurrent writer is a
+ * lost update, not a state machine. So the update REPEATS the listing's own predicate.
+ */
+function parkTimesheetMirrorRow(
+  serviceClient: SupabaseClient,
+  orgId: string,
+  timesheetId: string,
+  pushState: 'held' | 'failed',
+  reason: string,
+): PromiseLike<{ error: { message: string; code?: string } | null }> {
+  return serviceClient
+    .from('timesheet_erp_mirror')
+    .update({ push_state: pushState, push_error: reason })
+    .eq('org_id', orgId)
+    .eq('timesheet_id', timesheetId)
+    // the SAME eligibility `listPendingTimesheetPushes` asserted — never a state this pass did not observe
+    .in('push_state', ['pending', 'failed'])
+    .is('erp_cancelled_at', null);
+}
+
+/** The live `TimesheetBackstopDeps` for one org. */
+export function timesheetBackstopDepsLive(
+  serviceClient: SupabaseClient,
+  org: OrgBinding,
+  eligibleOutboxIds: ReadonlySet<string>,
+): TimesheetBackstopDeps {
+  return {
+    listPendingTimesheetPushes: async (orgId, limit) => {
+      // ⚑ Everything this pass must NEVER re-drive is expressed HERE, as query predicates:
+      //   • only `pending`/`failed` — so `pushed` (done), `held` (ADR-0058-terminal until an operator)
+      //     and `pushing` (an in-flight claim, owned by the stale-claim path — a naive re-POST would
+      //     mint a SECOND ERP Timesheet) are never even fetched;
+      //   • `erp_cancelled_at is null` — a Desk-cancelled sheet is never re-created (FR-TSP-084: never
+      //     fight the accountant).
+      // Index-served on (org_id, push_state) and bounded, ordered oldest-first so the queue is fair.
+      const { data, error } = await serviceClient
+        .from('timesheet_erp_mirror')
+        .select('timesheet_id, push_state, erp_cancelled_at')
+        .eq('org_id', orgId)
+        .in('push_state', ['pending', 'failed'])
+        .is('erp_cancelled_at', null)
+        .order('created_at', { ascending: true })
+        .limit(limit);
+      if (error) throw new AppError(error.message, error.code);
+      return ((data as Array<{ timesheet_id: string; push_state: string; erp_cancelled_at: string | null }> | null) ?? [])
+        .map((r) => ({ timesheet_id: r.timesheet_id, push_state: r.push_state, erp_cancelled_at: r.erp_cancelled_at }));
+    },
+
+    assertApprovedForPush: async (row) => {
+      // FR-TSP-045 / R-SWEEP: re-assert 0138's gate under SERVICE ROLE, resolving the actor to the
+      // sheet's OWN `approved_by` (the admin-connect `p_actor` precedent). The sweep never "trusts
+      // itself" past the status check — this RPC is server truth for status + authorization + entries.
+      const { data: sheet, error: sheetErr } = await serviceClient
+        .from('timesheets')
+        .select('approved_by')
+        .eq('id', row.timesheet_id)
+        .eq('org_id', org.orgId)   // service role bypasses RLS — scope explicitly
+        .maybeSingle();
+      if (sheetErr) throw new AppError(sheetErr.message, sheetErr.code);
+      const approvedBy = (sheet as { approved_by?: string | null } | null)?.approved_by ?? null;
+      if (!approvedBy) {
+        // No recorded approver ⇒ nothing resolvable to re-authorize against, and 0138 fails closed on a
+        // null actor anyway. A REFUSAL (recorded, visible), never a fabricated actor.
+        return { ok: false, reason: 'timesheet-push-no-recorded-approver' };
+      }
+      const gate = await serviceClient.rpc('approved_timesheet_for_push', {
+        p_timesheet_id: row.timesheet_id,
+        p_actor: approvedBy,
+      });
+      if (gate.error) {
+        // ⚑ 0138 raises P0001 ('timesheet-not-approved') and 42501 (cross-org, or its (a2) OFFBOARDING
+        // gate on the resolved actor — a deactivated approver). Those are INTENDED refusals: recorded
+        // per-row, never a wedge. Anything else is a real transport/DB failure and THROWS, so NEW-3's
+        // per-row containment surfaces it as an error rather than silently marking the sheet failed.
+        const code = gate.error.code;
+        if (code === 'P0001' || code === '42501' || code === 'P0002') {
+          return { ok: false, reason: gate.error.message };
+        }
+        throw new AppError(gate.error.message, code);
+      }
+      const gateRow = (gate.data as Array<{ approved_at?: string | null }> | null)?.[0];
+      const approvedAt = gateRow?.approved_at ?? null;
+      if (!approvedAt) {
+        // The key's own input. `ts:<id>:null` would be the SAME key for every future approval of this
+        // sheet, so only the first would ever reach ERP — fail closed rather than key on a fiction.
+        return { ok: false, reason: 'timesheet-push-no-approved-at-witness' };
+      }
+      return { ok: true, approvedAt };
+    },
+
+    recordGateRefusal: async (row, reason) => {
+      // Durable + operator-visible. `failed` (not `held`): a refusal caused by an offboarded approver is
+      // resolved by re-activating them or by a privileged user re-pushing, both of which SHOULD let this
+      // pass pick the row up again — `held` would exclude it from this queue permanently.
+      const { error } = await parkTimesheetMirrorRow(serviceClient, org.orgId, row.timesheet_id, 'failed', reason);
+      if (error) throw new AppError(error.message, error.code);
+      await surfaceActionRequired(serviceClient, org.orgId, 'timesheet-push-gate-refused', { timesheetId: row.timesheet_id });
+    },
+
+    driveTimesheetPush: async (row: TimesheetMirrorCandidateRow, approvedAt: string) => {
+      const idempotencyKey = timesheetPushKey(row.timesheet_id, approvedAt);
+      const outboxRow = await findTimesheetOutboxRow(serviceClient, org.orgId, row.timesheet_id, idempotencyKey);
+      if (!outboxRow) {
+        // The foreground dispatch never even reached the outbox for this approval (the browser died
+        // before the fetch), so there is no RECORDED actor to reconcile against. Never mint a fresh,
+        // unattributed outbox row here — the same rule the budget twin enforces (FR-BUD-102's "never
+        // finalize with a NULL actor"). Hold for an operator; the Approvals Retry re-dispatches it under
+        // a real, authenticated actor, which is precisely what the sweep cannot synthesize.
+        const { error } = await parkTimesheetMirrorRow(serviceClient, org.orgId, row.timesheet_id, 'held', 'timesheet-push-no-outbox-candidate');
+        if (error) throw new AppError(error.message, error.code);
+        await surfaceActionRequired(serviceClient, org.orgId, 'timesheet-push-no-outbox-candidate', { timesheetId: row.timesheet_id });
+        return;
+      }
+      // ⚑ H-1 (the budget twin's audit finding, applied here by construction): re-drive ONLY through
+      // `0131`'s ONE eligibility door. `findTimesheetOutboxRow` matches by key with no state/attempt/age
+      // filter, so on its own it would re-POST a terminally-rejected timesheet EVERY cron tick forever.
+      // `outbox_reconcile_candidates` is the single authority for "may this row be reconciled now"
+      // (bounded by state + attempt_count + age); a row absent from it is committed-already,
+      // attempt-exhausted, quarantined-not-due, or too old. Not a second door — the SAME door pass 1 uses.
+      if (!eligibleOutboxIds.has(outboxRow.id)) {
+        const { error } = await parkTimesheetMirrorRow(serviceClient, org.orgId, row.timesheet_id, 'held', 'timesheet-push-attempts-exhausted');
+        if (error) throw new AppError(error.message, error.code);
+        await surfaceActionRequired(serviceClient, org.orgId, 'timesheet-push-attempts-exhausted', { timesheetId: row.timesheet_id });
+        return;
+      }
+      // Re-authorizes against the RECORDED actor (`buildReconcileDepsLive`'s
+      // `checkOutboxReplayAuthorization` + `reauthorizeRecoveryReissue`) — the SAME discipline every
+      // other domain's recovery reissue enforces.
+      await dispatchMoneyWrite(await buildReconcileDepsLive(serviceClient, org, outboxRow));
+    },
+  };
+}
+
+/** The live per-org timesheet backstop pass (P3b task 6.4, AC-TSP-022). Domain-gated (Luna BLOCK 9): an
+ *  org that never assigned the `timesheets` domain to this tier has nothing to reconcile. */
+async function reconcileOrgTimesheetPushesLive(serviceClient: SupabaseClient, org: OrgBinding): Promise<{ driven: number; error?: string }> {
+  if (!org.ownedDomains.includes(ERPNEXT_TIMESHEETS_DOMAIN)) return { driven: 0 };
+  try {
+    // The SoT eligibility set (0131), fetched ONCE per pass — the backstop may only re-drive a row this
+    // RPC still admits. Scoped to the timesheets domain; other domains' candidates are irrelevant here.
+    const eligibleOutboxIds = new Set(
+      (await listCandidatesLive(serviceClient)(org.orgId))
+        .filter((c) => c.domain === ERPNEXT_TIMESHEETS_DOMAIN)
+        .map((c) => c.id),
+    );
+    const result = await reconcileOrgTimesheetPushes(
+      timesheetBackstopDepsLive(serviceClient, org, eligibleOutboxIds),
+      { orgId: org.orgId },
+    );
+    // NEW-3: per-row throws are contained so the queue drains, but they are NEVER silent — a row that
+    // keeps throwing is a stuck payroll-costing push and must be visible in the tick's own result.
+    for (const e of result.errors) {
+      console.warn(`[erpnext-sweep] org ${org.orgId} timesheet ${e.timesheetId}: backstop row failed — ${e.error}`);
+    }
+    return { driven: result.driven, error: result.errors.length ? `${result.errors.length} timesheet row(s) failed` : undefined };
+  } catch (err) {
+    return { driven: 0, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
 Deno.serve(async (req: Request): Promise<Response> => {
   // ── 1. Authorization: the caller (the pg_cron job) must present the DEDICATED sweep secret (NOT the
   //    master service_role key — least-privilege, mirroring clickup-sweep). The cron presents this same
@@ -1088,6 +1348,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     feedOrgLedgers: (org) => feedOrgLedgersLive(serviceClient, org),
     refreshOrgAccounting: (org) => refreshOrgAccountingLive(serviceClient, org),
     reconcileOrgBudgetPushes: (org) => reconcileOrgBudgetPushesLive(serviceClient, org),
+    reconcileOrgTimesheetPushes: (org) => reconcileOrgTimesheetPushesLive(serviceClient, org),
   });
   return json({ ok: true, ...cycle });
 });

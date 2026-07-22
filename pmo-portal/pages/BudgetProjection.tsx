@@ -147,6 +147,9 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
       r.pushState === 'unstamped-activation',
   );
   const isUnstamped = blockedRow?.pushState === 'unstamped-activation';
+  // NEW-6: the blocking category names, when the failure is a map gap. The repository already
+  // normalizes "none on record" to `null`, so there is exactly one falsy case to test here.
+  const unmappedCategories = blockedRow?.unmappedCategories ?? null;
 
   // HIGH-D: the recovery affordance. `held`/`failed`/`never-pushed` are all re-drivable — under the
   // OPERATOR's own JWT, which is the authenticated actor the sweep backstop can never synthesize
@@ -240,6 +243,24 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
                     ? 'The activated budget never reached ERPNext — it was not recorded as pushed at all.'
                     : blockedRow.pushError ?? 'The push to ERPNext has not completed.'}
               </div>
+              {/* ⚑ NEW-6 (audit round 4): the actionable half of the failure. The dispatch gate records
+                  WHICH categories have no ERP account (FR-BUD-113 collected the names on purpose), but
+                  nothing read them back — so this banner could only ever show the bare code
+                  `budget-category-unmapped`, telling an Admin that something is broken while withholding
+                  the one fact that makes it fixable. These names ARE the to-do list, so they are marked
+                  up as one: a real <ul> with an accessible name, not a comma-joined sentence. */}
+              {unmappedCategories && (
+                <div className="mt-2">
+                  <p className="text-[13px] font-medium">Map these categories to an ERP account, then retry:</p>
+                  {/* A STABLE accessible name, deliberately not `aria-labelledby` the sentence above:
+                      the list's identity should not change every time that copy is reworded. */}
+                  <ul aria-label="Categories that need an ERP account" className="mt-1 list-disc pl-5 text-[13px]">
+                    {unmappedCategories.map((c) => (
+                      <li key={c}>{c}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
             {!isUnstamped && (
               <Button variant="outline" size="sm" loading={retryMutation.isPending} onClick={() => void retryPush()}>
