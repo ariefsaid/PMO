@@ -205,3 +205,42 @@ describe('WIRE P3B: the `timesheets` domain resolves an ERPNext adapter and ride
     expect(CODE).toMatch(/isOpaqueIdempotencyKey\(command\.idempotencyKey\)/);
   });
 });
+
+// ════════════════════════════════════════════════════════════════════════════════════════════════
+// H-1 (audit r3) — the budget backstop re-drives ONLY reconcile-eligible outbox rows.
+//
+// `findBudgetOutboxRow` matches by deterministic key with NO state/attempt/age filter. Unguarded, the
+// backstop re-POSTs a terminally-rejected budget EVERY cron tick forever, and re-creates the ERP
+// Budget the day an operator clears the blocker. `outbox_reconcile_candidates` (0131) is the single
+// authority for "may this row be reconciled now" — 0131's own words: the rule lives in the ONE place
+// the sweep selects its work. A second, unfiltered door defeats it.
+//
+// Live wiring is integration-only by repo convention (every other *Live fn), so it is pinned by the
+// same source-scan idiom as WIRE 2/4/P3B above. It lives HERE, not under supabase/, because
+// `deno test` runs without --allow-read (a Deno.readTextFile scan fails NotCapable) and there is no
+// Vitest project rooted in supabase/.
+// ════════════════════════════════════════════════════════════════════════════════════════════════
+
+const SWEEP = readFileSync(
+  resolve(dirname(fileURLToPath(import.meta.url)), '../../../../supabase/functions/erpnext-sweep/index.ts'),
+  'utf8',
+);
+const SWEEP_CODE = SWEEP.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+
+describe('H-1: the budget backstop gates its re-POST on outbox eligibility', () => {
+  it('driveBudgetPush checks eligibility BEFORE dispatchMoneyWrite (never re-POSTs a terminal row)', () => {
+    const start = SWEEP_CODE.indexOf('driveBudgetPush:');
+    expect(start, 'driveBudgetPush not found — the anchor moved').toBeGreaterThan(-1);
+    const drive = SWEEP_CODE.slice(start, SWEEP_CODE.indexOf('reconcileOrgBudgetPushesLive', start));
+    const guardAt = drive.indexOf('eligibleOutboxIds.has(');
+    const postAt = drive.indexOf('dispatchMoneyWrite(');
+    expect(guardAt, 'H-1: the eligibility guard is GONE — the backstop would re-POST any-state rows every tick').toBeGreaterThan(-1);
+    expect(postAt, 'dispatchMoneyWrite call not found — the anchor moved').toBeGreaterThan(-1);
+    expect(guardAt, 'H-1: the guard must run BEFORE the POST, or a terminal row is re-sent').toBeLessThan(postAt);
+  });
+
+  it('the eligible set comes from the outbox_reconcile_candidates SoT, not a duplicated predicate', () => {
+    // A hand-rolled state/attempt filter here would be the "second door" 0131 exists to prevent.
+    expect(SWEEP_CODE).toMatch(/eligibleOutboxIds[\s\S]{0,400}listCandidatesLive\(/);
+  });
+});

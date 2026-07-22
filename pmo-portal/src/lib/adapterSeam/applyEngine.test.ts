@@ -10,6 +10,7 @@ import { describe, it, expect, vi } from 'vitest';
 import {
   applyInboundChange,
   advanceWatermarkMonotonic,
+  advanceWatermarkCursor,
   runSweep,
   type ApplyChangeDeps,
   type WatermarkDeps,
@@ -100,6 +101,41 @@ describe('applyEngine.advanceWatermarkMonotonic — never rewinds, independent o
     const deps = makeWatermarkDeps('900');
     await advanceWatermarkMonotonic(deps, 500);
     expect(deps.advanced).toEqual(['900']);
+  });
+});
+
+describe('applyEngine.advanceWatermarkCursor — string cursors (ERPNext modified-datetime), self-heals corruption', () => {
+  function makeWatermarkDeps(current: string | null): WatermarkDeps & { advanced: string[] } {
+    const advanced: string[] = [];
+    return { advanced, readWatermark: async () => current, advanceWatermark: async (c) => { advanced.push(c); } };
+  }
+
+  it('advances to the candidate on a fresh org (null / empty cursor)', async () => {
+    for (const start of [null, '']) {
+      const deps = makeWatermarkDeps(start);
+      await advanceWatermarkCursor(deps, '2026-07-20 10:00:00');
+      expect(deps.advanced).toEqual(['2026-07-20 10:00:00']);
+    }
+  });
+
+  it('advances forward and never rewinds on ISO/Frappe datetime strings', async () => {
+    const fwd = makeWatermarkDeps('2026-07-20 09:00:00');
+    await advanceWatermarkCursor(fwd, '2026-07-20 10:00:00');
+    expect(fwd.advanced).toEqual(['2026-07-20 10:00:00']);
+    const back = makeWatermarkDeps('2026-07-20 11:00:00');
+    await advanceWatermarkCursor(back, '2026-07-20 10:00:00');
+    expect(back.advanced).toEqual(['2026-07-20 11:00:00']);
+  });
+
+  it("⚑ SELF-HEALS a stored 'NaN' — the corruption the old Number() coercion persisted", async () => {
+    // The bug this test pins: lexically `'NaN' > '2026-07-20 10:00:00'` is TRUE ('N'=0x4E > '2'=0x32),
+    // so a naive compare KEEPS 'NaN' forever and the poll filters `modified >= 'NaN'` → 0 rows, silently,
+    // for good. The fix must ADOPT the candidate over any unusable stored value, not compare against it.
+    for (const junk of ['NaN', 'null', 'undefined', 'Infinity', '-Infinity']) {
+      const deps = makeWatermarkDeps(junk);
+      await advanceWatermarkCursor(deps, '2026-07-20 10:00:00');
+      expect(deps.advanced, `must heal '${junk}' by adopting the candidate`).toEqual(['2026-07-20 10:00:00']);
+    }
   });
 });
 

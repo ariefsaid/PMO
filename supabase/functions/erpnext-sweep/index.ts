@@ -907,7 +907,7 @@ async function findBudgetOutboxRow(
  *  on `(org_id, push_state)`), the re-asserted version gate (FR-BUD-102), and driving a found
  *  candidate through the EXACT SAME `dispatchMoneyWrite`/`buildReconcileDepsLive` machinery the
  *  outbox-recovery pass (1) already uses — one algorithm, shared. */
-function budgetBackstopDepsLive(serviceClient: SupabaseClient, org: OrgBinding): BudgetBackstopDeps {
+function budgetBackstopDepsLive(serviceClient: SupabaseClient, org: OrgBinding, eligibleOutboxIds: ReadonlySet<string>): BudgetBackstopDeps {
   return {
     listPendingBudgetPushes: async (orgId, limit) => {
       const { data, error } = await serviceClient
@@ -951,6 +951,24 @@ function budgetBackstopDepsLive(serviceClient: SupabaseClient, org: OrgBinding):
         await surfaceActionRequired(serviceClient, org.orgId, 'budget-push-no-outbox-candidate', { versionId: row.budget_version_id });
         return;
       }
+      // ⚑ H-1 (audit r3): re-drive ONLY through `0131`'s ONE eligibility door. `findBudgetOutboxRow`
+      // matches by key with no state/attempt/age filter, so on its own it would re-POST a
+      // terminally-rejected budget EVERY cron tick forever — and re-create the ERP Budget the moment an
+      // operator removes the blocker. `outbox_reconcile_candidates` is the single authority for "may this
+      // row be reconciled now" (bounded by state + attempt_count + age, 0131); a row absent from it is
+      // committed-already, attempt-exhausted, quarantined-not-due, or too old. Not a second door — the
+      // SAME door the outbox-recovery pass uses. An absent-but-existing row is held for the operator, not
+      // silently re-sent (FR-BUD-123: never dropped, never auto-looped past its budget).
+      if (!eligibleOutboxIds.has(outboxRow.id)) {
+        const { error } = await serviceClient
+          .from('budget_version_erp_mirror')
+          .update({ push_state: 'held', push_error: 'budget-push-attempts-exhausted' })
+          .eq('org_id', org.orgId)
+          .eq('budget_version_id', row.budget_version_id);
+        if (error) throw new AppError(error.message, error.code);
+        await surfaceActionRequired(serviceClient, org.orgId, 'budget-push-attempts-exhausted', { versionId: row.budget_version_id });
+        return;
+      }
       // Re-authorizes against the RECORDED actor (`buildReconcileDepsLive`'s `checkOutboxReplayAuthorization`
       // + `reauthorizeRecoveryReissue`) — the SAME discipline every other domain's recovery reissue
       // already enforces; a null-actor row is refused THERE, never silently reissued.
@@ -964,7 +982,14 @@ function budgetBackstopDepsLive(serviceClient: SupabaseClient, org: OrgBinding):
 async function reconcileOrgBudgetPushesLive(serviceClient: SupabaseClient, org: OrgBinding): Promise<{ driven: number; error?: string }> {
   if (!org.ownedDomains.includes(ERPNEXT_BUDGET_DOMAIN)) return { driven: 0 };
   try {
-    const result = await reconcileOrgBudgetPushes(budgetBackstopDepsLive(serviceClient, org), { orgId: org.orgId });
+    // The SoT eligibility set (0131), fetched ONCE per pass — the backstop may only re-drive a row this
+    // RPC still admits. Scoped to the budget domain; any other domain's candidates are irrelevant here.
+    const eligibleOutboxIds = new Set(
+      (await listCandidatesLive(serviceClient)(org.orgId))
+        .filter((c) => c.domain === ERPNEXT_BUDGET_DOMAIN)
+        .map((c) => c.id),
+    );
+    const result = await reconcileOrgBudgetPushes(budgetBackstopDepsLive(serviceClient, org, eligibleOutboxIds), { orgId: org.orgId });
     return { driven: result.driven };
   } catch (err) {
     return { driven: 0, error: err instanceof Error ? err.message : String(err) };

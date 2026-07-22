@@ -86,6 +86,28 @@ export function admitsDocForBindingCompany(
   return docCompany(doc) === bindingCompany;       // absent/other company ⇒ refused (fail closed)
 }
 
+/**
+ * WHY a refused company-scoped document was refused (owner 2026-07-22 — graceful escalation).
+ * Two refusals look identical to `admitsDocForBindingCompany` but are NOT the same operationally:
+ *   • `'other-company'` — the doc states a DIFFERENT, non-empty company. Correct, EXPECTED, and must
+ *     stay SILENT: it is another tenant's document, and surfacing it would both be noise and leak that
+ *     tenant's company name into this org. Never escalate this.
+ *   • `'no-company'` — the doc is a company-scoped kind that states NO company at all, while our binding
+ *     DOES name one. That is an ERP MISCONFIGURATION ("an ERP that will not say whose money this is"),
+ *     not another tenant — worth an operator escalation so the webhook config gets the `company` field.
+ * `null` ⇒ admitted (nothing to escalate). Only company-scoped kinds with a configured binding can
+ * yield `'no-company'`; an unscopeable binding yields `null`-vs-refusal handled by the caller's gate.
+ */
+export function companyRefusalReason(
+  kind: ErpDocKind | undefined,
+  doc: unknown,
+  bindingCompany: string | null | undefined,
+): 'other-company' | 'no-company' | null {
+  if (admitsDocForBindingCompany(kind, doc, bindingCompany)) return null;
+  if (!isCompanyScopedKind(kind) || !bindingCompany) return null; // unscopeable — not a "missing company"
+  return docCompany(doc) === null ? 'no-company' : 'other-company';
+}
+
 /** A Frappe REST list filter triple, e.g. `['company','=','PMO Smoke Co']`. */
 export type ErpDocFilter = [string, string, string];
 

@@ -9,7 +9,7 @@
  * its revenue/AR views with no error — another tenant's financial data.
  */
 import { describe, it, expect } from 'vitest';
-import { isCompanyScopedKind, admitsDocForBindingCompany, companyDocFilters } from './companyScope';
+import { isCompanyScopedKind, admitsDocForBindingCompany, companyDocFilters, companyRefusalReason } from './companyScope';
 import { DOCTYPE_REGISTRY, type ErpDocKind } from './doctypeRegistry';
 
 describe('isCompanyScopedKind — which ERP doctypes carry a company dimension', () => {
@@ -102,5 +102,39 @@ describe('companyDocFilters — the sweep-side list filter (same rule, applied s
     // ERP site into this tenant — the exact B4 exploit. `null` forces the caller to skip the kind.
     expect(companyDocFilters('sales-invoice', null)).toBeNull();
     expect(companyDocFilters('sales-invoice', '')).toBeNull();
+  });
+});
+
+describe('companyRefusalReason — graceful escalation only distinguishes MISSING company from OTHER company', () => {
+  const doc = (company: unknown) => ({ name: 'ACC-SINV-2026-00001', company });
+
+  it("admitted doc ⇒ null (nothing to escalate)", () => {
+    expect(companyRefusalReason('sales-invoice', doc('PMO Smoke Co'), 'PMO Smoke Co')).toBeNull();
+  });
+
+  it("a company-scoped doc that states NO company ⇒ 'no-company' (the ERP-misconfig case that escalates)", () => {
+    expect(companyRefusalReason('sales-invoice', doc(null), 'PMO Smoke Co')).toBe('no-company');
+    expect(companyRefusalReason('sales-invoice', doc(''), 'PMO Smoke Co')).toBe('no-company');
+    expect(companyRefusalReason('sales-invoice', { name: 'x' }, 'PMO Smoke Co')).toBe('no-company');
+  });
+
+  it("a doc stating a DIFFERENT company ⇒ 'other-company' (another tenant — must stay SILENT, never escalate)", () => {
+    // The distinction that matters: escalating this would be noise AND leak the other tenant's company name.
+    expect(companyRefusalReason('sales-invoice', doc('Other Co'), 'PMO Smoke Co')).toBe('other-company');
+  });
+
+  it('a global master is never a company refusal (no dimension to be missing)', () => {
+    expect(companyRefusalReason('supplier', doc(null), 'PMO Smoke Co')).toBeNull();
+  });
+
+  it("an unscopeable binding (no company configured) is not a 'missing-company' escalation", () => {
+    expect(companyRefusalReason('sales-invoice', doc(null), null)).toBeNull();
+  });
+
+  it('the new P3 company-scoped kinds classify too (timesheet/budget/employee)', () => {
+    for (const k of ['timesheet', 'budget', 'employee'] as const) {
+      expect(companyRefusalReason(k, doc(null), 'PMO Smoke Co')).toBe('no-company');
+      expect(companyRefusalReason(k, doc('Other Co'), 'PMO Smoke Co')).toBe('other-company');
+    }
   });
 });

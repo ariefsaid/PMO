@@ -172,9 +172,27 @@ export async function advanceWatermarkMonotonic(deps: WatermarkDeps, candidateMs
  * otherwise — which is chronological for both the ISO and the Frappe `YYYY-MM-DD HH:MM:SS[.ffffff]`
  * spellings. Either way it NEVER rewinds.
  */
+/** Stored cursor values that carry no position and must be adopted over, never compared against:
+ *  `''` (0089's `not null default ''`) and the `'NaN'`/`'null'`/`'undefined'` stringifications a bad
+ *  coercion can persist. Anything here means "we do not know where we were" — start from the candidate. */
+const UNUSABLE_WATERMARKS = new Set(['', 'NaN', 'null', 'undefined', 'Infinity', '-Infinity']);
+
 export async function advanceWatermarkCursor(deps: WatermarkDeps, candidate: string): Promise<void> {
   const current = await deps.readWatermark();
-  if (current === null || current === '') {
+  // ⚑ An UNUSABLE stored cursor is adopted-over, not compared against. `''` is 0089's default, and
+  // `'NaN'` is the corruption this function was written to end: the old `Number(nextCursor)` coercion
+  // persisted the literal string for every ERPNext doctype. Comparing against it does NOT self-heal —
+  // lexically `'NaN' > '2026-07-20 10:00:00'` is TRUE ('N' is 0x4E, '2' is 0x32), so the row would keep
+  // `'NaN'` forever and `sweepCursor.ts` would go on filtering `modified >= 'NaN'`, returning zero rows
+  // SILENTLY, for good. The first fix shipped without this and left every already-corrupted row stuck.
+  if (current === null || UNUSABLE_WATERMARKS.has(current)) {
+    // Graceful escalation (owner 2026-07-22): a NON-EMPTY unusable value is a healed CORRUPTION, not a
+    // fresh org — make it observable rather than silent, so an operator learns a watermark was reset even
+    // though the row now self-heals. `''` (the fresh-org default) is expected and stays quiet. This is a
+    // once-per-corrupted-row event: the root-cause `Number()` coercion is fixed, so no NEW NaN is minted.
+    if (current !== null && current !== '') {
+      console.warn(`[watermark] reset an unusable cursor ${JSON.stringify(current)} -> ${JSON.stringify(candidate)} (legacy corruption, self-healed)`);
+    }
     await deps.advanceWatermark(candidate);
     return;
   }
