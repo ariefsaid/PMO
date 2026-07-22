@@ -34,6 +34,7 @@ import { DOCTYPE_REGISTRY, type ErpDocKind } from '../../../pmo-portal/src/lib/a
 import type { ErpFeedEvent } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/webhookEvent.ts';
 import type { ApplyOutcome } from '../../../pmo-portal/src/lib/adapterSeam/applyEngine.ts';
 import { resolvePerOrgSecret } from '../_shared/perOrgSecret.ts';
+import { externalConnectEnabled } from '../_shared/externalConnectEnabled.ts';
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
 
 // 256 KiB body cap: reject an oversized payload so a huge body can't exhaust the isolate (mirrors
@@ -231,7 +232,7 @@ export async function handleErpWebhook(req: Request, deps: ErpWebhookHandlerDeps
  * Phase 1b (task 1.8): Vault-first resolution behind EXTERNAL_CONNECT_ENABLED flag.
  * FIX-2: tri-state — no-binding → skip; resolved → use vault secret; binding-vault-miss → skip (fail closed for webhook). */
 async function resolveEmployingOrgsLive(serviceClient: SupabaseClient): Promise<EmployingOrg[]> {
-  const connectEnabled = Deno.env.get('EXTERNAL_CONNECT_ENABLED') === 'true';
+  const connectEnabled = externalConnectEnabled();
   const { data, error } = await serviceClient.from('external_org_bindings')
     .select('org_id, webhook_secret_ref, activated_at, config')
     .eq('external_tier', ERPNEXT_TIER);
@@ -245,6 +246,8 @@ async function resolveEmployingOrgsLive(serviceClient: SupabaseClient): Promise<
     activated_at: string | null;
     config: Record<string, unknown> | null;
   }> | null) ?? [];
+  // An engaged kill-switch stops inbound application before any per-org credential resolution.
+  if (!connectEnabled) return [];
   // Only ACTIVATED bindings are employing (a binding is activated once the version handshake passes,
   // 2.6/8.8). A binding without a webhook_secret_ref is employing for COMMANDS but not webhooks — it
   // contributes no HMAC key (webhook events for it are rejected until a secret is configured).
@@ -258,7 +261,7 @@ async function resolveEmployingOrgsLive(serviceClient: SupabaseClient): Promise<
     let webhookSecret = '';
     if (connectEnabled) {
       const result = await resolvePerOrgSecret({
-        connectEnabled: true,
+        connectEnabled,
         orgId: r.org_id,
         tier: 'erpnext',
         column: 'webhook_secret_ref',
@@ -283,8 +286,6 @@ async function resolveEmployingOrgsLive(serviceClient: SupabaseClient): Promise<
       });
       if (result.kind === 'resolved') webhookSecret = result.secret;
       // no-binding / binding-vault-miss → webhookSecret stays empty → skipped (fail closed)
-    } else {
-      webhookSecret = Deno.env.get(r.webhook_secret_ref!) ?? '';
     }
     if (webhookSecret === '') continue;
     // B4: carry the binding's ERP Company through — the per-document admission gate below scopes

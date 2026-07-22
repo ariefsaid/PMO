@@ -29,6 +29,7 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { constantTimeBearerEquals } from '../_shared/constantTimeBearerEquals.ts';
 import { resolvePerOrgSecret } from '../_shared/perOrgSecret.ts';
+import { externalConnectEnabled } from '../_shared/externalConnectEnabled.ts';
 import { clickUpGetTaskRaw } from '../../../pmo-portal/src/lib/adapterSeam/clickup/reads.ts';
 import { applyWebhookEvent, type WebhookApplyDeps } from '../../../pmo-portal/src/lib/adapterSeam/clickup/webhookApply.ts';
 import type { ApplyOutcome } from '../../../pmo-portal/src/lib/adapterSeam/applyEngine.ts';
@@ -172,8 +173,10 @@ async function resolveOrgForTeam(
   if (error || !binding) return null;
   const orgId = (binding as { org_id?: string }).org_id;
   if (!orgId) return null;
+  const connectEnabled = externalConnectEnabled();
+  if (!connectEnabled) return null;
   const result = await resolvePerOrgSecret({
-    connectEnabled: true,
+    connectEnabled,
     orgId,
     tier: CLICKUP_TIER,
     lookupBinding: async () => binding as { secret_ref?: string | null },

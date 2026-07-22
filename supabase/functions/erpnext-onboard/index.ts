@@ -24,6 +24,7 @@ import { ERPNEXT_TIER } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/ad
 import { resolveErpCredentials } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/credentials.ts';
 import { resolveErpCredentialsFromVault } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/vaultCredentials.ts';
 import { resolvePerOrgSecret } from '../_shared/perOrgSecret.ts';
+import { externalConnectEnabled } from '../_shared/externalConnectEnabled.ts';
 import { findPmoRecordId, recordExternalRef as recordExternalRefWrite } from '../../../pmo-portal/src/lib/adapterSeam/refs.ts';
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
 import type { ErpClientDeps } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/client.ts';
@@ -80,12 +81,12 @@ Deno.serve(async (req: Request): Promise<Response> => {
     // FIX-6: use resolveErpCredentialsFromVault for vault path; on no-binding/binding-vault-miss fall back to env resolver.
     let apiKey: string;
     let apiSecret: string;
-    const connectEnabled = Deno.env.get('EXTERNAL_CONNECT_ENABLED') === 'true';
+    const connectEnabled = externalConnectEnabled();
 
     if (connectEnabled) {
       // Use shared per-org Vault secret resolution (flag gate + binding lookup + tri-state)
       const result = await resolvePerOrgSecret({
-        connectEnabled: true,
+        connectEnabled,
         orgId,
         tier: 'erpnext',
         lookupBinding: async (orgId, tier) => {

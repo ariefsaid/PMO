@@ -31,6 +31,7 @@ import {
 import { ClickUpRateLimiter } from '../../../pmo-portal/src/lib/adapterSeam/clickup/rateLimit.ts';
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
 import { resolvePerOrgSecret } from '../_shared/perOrgSecret.ts';
+import { externalConnectEnabled } from '../_shared/externalConnectEnabled.ts';
 import {
   CLICKUP_TIER,
   CLICKUP_TASKS_DOMAIN,
@@ -221,8 +222,12 @@ async function resolveOrgClickUpToken(
   const globalToken = Deno.env.get('CLICKUP_API_TOKEN') ?? '';
 
   // Use shared per-org Vault secret resolution (flag gate + binding lookup + tri-state result)
+  const connectEnabled = externalConnectEnabled();
+  if (!connectEnabled) {
+    throw new AppError('external integrations are disabled by the operator', 'config-rejected');
+  }
   const result = await resolvePerOrgSecret({
-    connectEnabled: Deno.env.get('EXTERNAL_CONNECT_ENABLED') === 'true',
+    connectEnabled,
     orgId,
     tier: 'clickup',
     lookupBinding: async (orgId, tier) => {
