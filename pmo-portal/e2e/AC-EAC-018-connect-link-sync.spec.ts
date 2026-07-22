@@ -227,6 +227,30 @@ test('AC-EAC-018: admin connects ClickUp → links project → edits task → we
     });
   });
 
+  // adapter-dispatch: the real adapter command updates the PMO read model before returning its
+  // canonical record. The edge runtime is disabled in this stack, so apply that same effect here;
+  // the outbox/watermark confirmation is seeded below exactly as the real command would persist it.
+  await page.route('**/functions/v1/adapter-dispatch', async (route) => {
+    const request = route.request();
+    const body = request.postDataJSON() as { operation?: string; record?: { id?: string; status?: string } };
+    if (body.operation !== 'transition' || !body.record?.status) {
+      await route.fulfill({ status: 400, contentType: 'application/json', body: JSON.stringify({ error: 'unexpected command' }) });
+      return;
+    }
+    const { data: canonical, error } = await db
+      .from('tasks')
+      .update({ status: body.record.status })
+      .eq('id', taskId)
+      .select()
+      .single();
+    if (error) throw new Error(`adapter-dispatch read-model update failed: ${error.message}`);
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ externalRecordId: CLICKUP_TASK_ID, canonical }),
+    });
+  });
+
   await signIn(page, ADMIN_EMAIL);
 
   // ===========================================================================

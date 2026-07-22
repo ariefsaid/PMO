@@ -45,7 +45,7 @@ vi.mock('@/src/auth/useAuth', () => ({
 }));
 
 import { useMyTaskMutations } from './useMyTasks';
-import { setTaskOwnership, clearOwnershipCache } from '@/src/lib/adapterSeam/ownershipCache';
+import { setTaskOwnership, setProjectBindings, clearOwnershipCache } from '@/src/lib/adapterSeam/ownershipCache';
 
 const wrap = (client: QueryClient) =>
   function Wrapper({ children }: { children: React.ReactNode }) {
@@ -66,9 +66,10 @@ beforeEach(() => {
 describe('useMyTaskMutations().updateStatus routes through the repository seam (ADR-0056)', () => {
   it('AC-CUA-001/060 externally-owned (tasks→clickup): the quick-status write dispatches via adapter-dispatch', async () => {
     setTaskOwnership([{ domain: 'tasks', externalTier: 'clickup' }]);
+    setProjectBindings([{ projectId: 'p1', externalTier: 'clickup' }]);
     const { result } = renderHook(() => useMyTaskMutations(), { wrapper: wrap(freshClient()) });
     await act(async () => {
-      await result.current.updateStatus.mutateAsync({ id: 't1', status: 'Done' });
+      await result.current.updateStatus.mutateAsync({ id: 't1', projectId: 'p1', status: 'Done' });
     });
     expect(h.invoke).toHaveBeenCalledTimes(1);
     const [fnName, opts] = h.invoke.mock.calls[0] as unknown as [
@@ -85,7 +86,7 @@ describe('useMyTaskMutations().updateStatus routes through the repository seam (
     // no setTaskOwnership() call — the cache is empty/never-loaded (fail-closed to 'pmo').
     const { result } = renderHook(() => useMyTaskMutations(), { wrapper: wrap(freshClient()) });
     await act(async () => {
-      await result.current.updateStatus.mutateAsync({ id: 't1', status: 'Done' });
+      await result.current.updateStatus.mutateAsync({ id: 't1', projectId: 'p1', status: 'Done' });
     });
     expect(h.invoke).not.toHaveBeenCalled();
     expect(h.calls.from).toEqual(['tasks']);

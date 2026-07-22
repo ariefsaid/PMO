@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { repositories } from '@/src/lib/repositories';
 import type { IntegrationBinding, ConnectCredential, IntegrationHealth, ExternalTier, ClickUpListItem, LinkInput, UnlinkInput, ProjectBinding } from '@/src/lib/repositories/types';
 import { useAuth } from '@/src/auth/useAuth';
+import { setProjectBinding } from '@/src/lib/adapterSeam/ownershipCache';
 
 /**
  * Hook for managing integrations (connect/disconnect/status/health).
@@ -64,7 +65,8 @@ export function useIntegrations() {
   // Mutation: link project
   const linkProject = useMutation({
     mutationFn: (input: LinkInput) => repositories.integrations.linkProject(orgId!, input),
-    onSuccess: () => {
+    onSuccess: (_data, input) => {
+      if (input.tier === 'clickup') setProjectBinding(input.projectId, true);
       qc.invalidateQueries({ queryKey: ['integrations', 'project-bindings', orgId] });
     },
   });
@@ -72,7 +74,8 @@ export function useIntegrations() {
   // Mutation: unlink project
   const unlinkProject = useMutation({
     mutationFn: (input: UnlinkInput) => repositories.integrations.unlinkProject(orgId!, input),
-    onSuccess: () => {
+    onSuccess: (_data, input) => {
+      if (input.projectId) setProjectBinding(input.projectId, false);
       qc.invalidateQueries({ queryKey: ['integrations', 'project-bindings', orgId] });
     },
   });

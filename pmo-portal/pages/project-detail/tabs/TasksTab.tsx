@@ -145,7 +145,7 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId }) => {
 
   // ADR-0056: the per-task pending-push badge wires in ONLY when task writes route externally
   // (ClickUp-owned). PMO-owned orgs stay byte-for-byte — no badge chrome at all (AC-CUA-061).
-  const externallyOwned = routeTaskWrite() === 'external';
+  const externallyOwned = routeTaskWrite(projectId) === 'external';
   const canArchive = may('archive', 'task');
   const canRowWrite = canEdit || canDelete || (canArchive && !externallyOwned);
 
