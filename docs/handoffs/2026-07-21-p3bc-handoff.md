@@ -1,6 +1,7 @@
 # P3b/P3c handoff — 2026-07-21
 
-**Branch:** `feat/erpnext-adapter-p3` · **last commit:** `a1a486e1` · **HOLD — no PR yet.**
+**Branch:** `feat/erpnext-adapter-p3` · **last commit:** `305a6f72` · **HOLD — no PR yet.**
+**Status 2026-07-22: THREE adversarial audit rounds, all NO SHIP; round 4 not yet run.**
 **Read this before touching P3b/P3c.** P3a already SHIPPED to `dev` (PR #338, merge `c7b4ad16`).
 
 ---
@@ -68,6 +69,46 @@ fetch into `budgetGate.ts` — either resolve the FY in the adapter path where t
 exists (`dispatchFactory.ts`, budget section) and pass it in, or inject a resolver function. Keep
 the gate's fail-closed ordering intact either way, and keep "no FY range contains `start_date`" as a
 **refusal**, never a fallback to the calendar year.
+
+---
+
+## 1b. ⚑ OWNER RULING 2026-07-22 — no prod data; graceful escalation for both classes
+
+**There is NO production data** — the ERPNext bench is local-only for this feature's development. So a
+corrupted watermark row is cleaned by a plain `supabase db reset`; no prod migration or data repair is
+owed. **But neither condition may be handled silently if it is met later**, and the owner confirmed the
+SAME answer applies to the `company` case as to `NaN`:
+
+| Condition | Handling (shipped in `305a6f72`) |
+|---|---|
+| An unusable stored watermark (`NaN`/`null`/`undefined`/`±Infinity`) | Adopted over (self-heals) **and warned** — a non-empty unusable value is a healed CORRUPTION, so it is observable, not silent. `''` (the fresh-org default) stays quiet. The root-cause coercion is fixed, so no NEW `NaN` can be minted; this heals legacy rows once. |
+| A company-scoped ERP doc stating **no** company while our binding names one | **Escalates** — `surfaceActionRequired('erp-doc-missing-company')`. This is an ERP webhook-config gap (the config should send `company`), not another tenant. |
+| A doc stating a **different** company | **Stays SILENT, by design.** It is another tenant's document; surfacing it would be noise AND would leak their company name into this org. `companyRefusalReason` exists precisely to keep these two apart. |
+
+Both refusals still ack `200` (the event is genuine, just not ours to mirror, so Frappe must not retry) —
+the escalation is a side effect, never a status change.
+
+---
+
+## 1c. Audit history — three rounds, three NO SHIPs, ~15 real defects
+
+**Every round found defects the previous round missed, including two in the Director's own fixes.**
+Do not treat any single round as convergence; P3a needed nine.
+
+| Round | Verdict | Notable |
+|---|---|---|
+| 1 | NO SHIP | Mirror updates matched ZERO rows silently (`.eq('id')` vs the FK column); post-gate budget failure recorded nowhere; Desk-editable `work_email` → `.ilike` wildcard; two new definer RPCs missing the offboarding gate; unordered `.find()` over fiscal years. |
+| 2 | NO SHIP | One Desk-created doc **wedged the whole sweep** (never-adopt throws, no per-change catch, `return` not `continue`) — so removing `budget` from `SWEEP_UNPOLLED_KINDS` was NOT safe; `COMPANY_SCOPED_KINDS` inert for the two new kinds; `escapeLikePattern` reopened by PostgREST's `*`→`%`; dead `applyBudgetFeedEvent` whose "proofs" tested code that never ran. **Plus a HIGH neither audit found: `Number(nextCursor)` made every ERPNext watermark the literal `'NaN'` — the per-doctype cursor had NEVER worked.** |
+| 3 | NO SHIP | The `'NaN'` fix could not recover `'NaN'` (`'NaN' > '2026-…'` is lexically TRUE ⇒ stuck forever); the budget backstop bypassed `0131`'s replay bounds (re-POST every tick forever). **H-1/H-2 fixed in `305a6f72`; H-3, H-4, M-1, M-2, L-1 still open** (see §6). |
+
+**Recurring defect classes, ranked by how often they actually bit here:**
+1. **A guard that is INERT rather than passing** — a kind/domain missing from a `Set`/map, so the guard
+   returns OK on its first line while its tests stay green. Hit **three times in one day**.
+2. **A test that passes VACUOUSLY** — ask of every key assertion: *would this still pass if the code under
+   test were deleted?* Stale grep anchors degrade to asserting against `''`; under-specified fixtures
+   (a "unique work-email match" seeded with no email) pass only because the fake ignores the input.
+3. **A fix that is correct in its own file and wrong end-to-end** — the FY fix landed on the write side
+   and left the read side (H-4); the escape covered SQL's metacharacters but not the transport's.
 
 ---
 
@@ -253,32 +294,37 @@ real failing test to green, or burning hours on a phantom.
 verify that overlaps another agent's writes is also not cleanly attributable to your own change even
 when it passes.
 
-## 6. Resume here
+## 6. Resume here (as of `305a6f72`, 2026-07-22)
 
-1. Run the full battery — it is the ground truth, not any lane's report:
-   `cd pmo-portal && npm run verify` · `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db'` ·
-   `cd supabase/functions/adapter-dispatch && deno test . --config deno.json` (and `../erpnext-sweep`).
-2. Fix whatever it turns up from the three lanes that died mid-verification.
-3. **Fix the FY-derivation defect** (§1) — it is a wrong-money-figure bug, not a polish item.
-4. Fix `BudgetCategoryUnmappedError`'s type in `dispatch.ts`.
-5. Fold the two owner rulings into `docs/specs/erpnext-adapter-p3c-budget.spec.md` §3 and file
-   option (c) as its own issue.
-6. **Run the adversarial audit round — it is still OWED, nothing was produced.** Both attempts this
-   session failed and the P3b/P3c money path has had **zero** adversarial review (contrast: P3a took
-   nine rounds, each finding real defects the last missed):
-   - `nvidia`/`nemotron-3-ultra` returned **14 bytes of `</tool_call>`** — the known mis-architecture.
-     Don't retry it.
-   - `zai`/`glm-5.2` **wedged**: ~0.02s CPU, zero bytes out, even with
-     `--exclude-tools subagent,wait,intercom,contact_supervisor,subagent_supervisor`. Diagnose by
-     **CPU delta, not elapsed time** — a wedged pi proc looks identical to a working one by clock.
-   - The audit brief is worth reusing verbatim — it targets the eight defect classes that have each
-     bitten this codebase in a prior round. It was at `/tmp/glm-audit-brief.md` (gone with the temp
-     dir); its content is reproduced in §7 below.
-   - Technique that worked well: run the auditor against a **detached `git worktree`** at the commit
-     under audit, so concurrent build lanes can't confuse it and it can't touch their work.
-7. Then, and only then, PR to `dev`.
+**Round-3 findings still OPEN** (a fix lane is in flight for these; verify its work, do not trust it):
+- **H-3 (HIGH)** — `0139` adds `activated_at` with NO backfill, so a pre-existing Active version is
+  BOTH unpushable (`budgetPushKey` throws, and `retryBudgetPush`'s bare `catch` swallows it) AND
+  invisible (`0141:88`'s never-pushed alarm requires `activated_at is not null`). Clean screen, zero
+  ERP enforcement, no reachable retry. ⚑ Whatever backfills it must be **stable forever** — the stamp
+  feeds the deterministic idempotency key, so a value derived at read time from a mutable column would
+  change the key and mint a SECOND ERP Budget.
+- **H-4 (HIGH)** — the READ-SIDE TWIN of the FY fix. `BudgetProjection.tsx:47/~167` offers CALENDAR
+  years while `0141` matches the ERP Fiscal Year **name**, so a Jul–Jun client sees actuals 0.00 and
+  variance = +the whole budget on the primary money screen. Existing tests feed the same string to both
+  sides — vacuous by construction.
+- **M-1** — MEDIUM-G's assumed "one clearing writer" for `erp_cancelled_at` does not exist, so a
+  once-cancelled version is excluded from the backstop queue permanently.
+- **M-2** — a benign `COMMAND_IN_FLIGHT_FOR_RECORD` 409 is recorded as a budget push failure (false
+  money alarm on a normal concurrent retry).
+- **L-1** — `stampAmended` (`erpnextFeedDeps.ts:~204`) still uses a bare `.eq('id', …)`; round 2 called
+  it benign but that claim is unverified.
 
----
+**Then:**
+1. Run the FULL battery yourself — it is the ground truth, not any lane's report:
+   `cd pmo-portal && npm run verify` (at LOW LOAD — see §5c) ·
+   `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db'` ·
+   `deno test .` in `adapter-dispatch`, `erpnext-sweep`, `erpnext-webhook` · boot-smoke.
+2. **Run audit round 4** with §7's brief. Three rounds have each found real defects; P3a needed nine.
+   Point it hardest at what changed since round 3 and at the H-3/H-4 fixes.
+3. Remaining BUILD gaps (filesystem-verified, not plan checkboxes): the P3b/P3c **e2e journeys** vs the
+   live bench (`e2e/serial/` has `AC-732-budget-activate.spec.ts` only — no TSP journey), and P3b
+   slice 6's feed/desk-cancel coverage.
+4. Only then PR to `dev`. **`main` is the autonomous ceiling; never touch `production`.**
 
 ## 7. The audit brief (reuse verbatim — it is tuned to this codebase's defect history)
 
