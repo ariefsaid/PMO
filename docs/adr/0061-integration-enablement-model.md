@@ -55,3 +55,36 @@ Sync: execution path → effective kill-switch check → active binding for the 
 ## Rollback
 
 The implementation plan must ship reversible migrations and a kill-switch runbook. Rollback stops new connects, releases ownership only through the existing authorized server path, and restores the previous resolver behavior only as a temporary emergency measure; it must not silently leave an org with employed ownership and no sync path. Vault cleanup must be explicit because database rollback cannot undo an external Vault side effect.
+
+## Amendment — ownership granularity (owner ruling 2026-07-22)
+
+This ADR also settles a second question the enablement bug exposed, and **supersedes the org-wide
+reading of ADR-0055 §7** ("a client employing ClickUp flips tasks to ClickUp-owned").
+
+**Decision: task-domain ownership follows the PROJECT BINDING, not the org.** A project's tasks are
+ClickUp-owned if and only if that project has an active `external_project_bindings` row. Mixed mode —
+some projects on ClickUp, some PMO-native — is a supported steady state.
+
+**Why.** ADR-0055's own rationale for ClickUp is the distributor partnership's **adoption wedge**:
+free-tier ClickUp works pre-upsell so a prospect can try it. Prospects trial on ONE project. Under
+org-wide ownership, employing ClickUp makes *every* task in *every* project read-only while only bound
+projects sync — so a ten-project client piloting one project bricks the other nine. That defeats the
+wedge the integration exists to serve, and it is reachable today with no operator action.
+
+It also keeps faith with ADR-0055's layering rule that PMO "runs fully standalone" and external tiers
+are "optional per client" — optionality is meaningless if adopting a tier for one project removes
+PMO's own capability everywhere else.
+
+**Consequence.** `domain_externally_owned(org_id, domain)` is no longer sufficient for the `tasks`
+domain: the column-pin trigger (`0140`) and the `0093` task RLS policies must evaluate ownership
+**per project**. Org-level `external_domain_ownership` continues to record that the org employs the
+tier (it drives discovery, the sweep's org enumeration, and the admin surface); it stops being the
+per-row write gate.
+
+**Also decided:** while the org employs ClickUp, the Admin UI presents a **binding map** — every PMO
+project with the ClickUp List it is bound to, or marked PMO-native. That is the org-admin's view of
+what has been delegated and what has not.
+
+**Rejected:** requiring every project to be linked on employ (option (b)). It makes onboarding heavy,
+makes every newly-created project born-broken until someone links it, and still offers no way to keep
+a project PMO-native by choice.
