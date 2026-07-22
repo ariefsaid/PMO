@@ -66,6 +66,19 @@ begin
       using errcode = '22023';
   end if;
 
+  -- ⚑ Audit round 11 (NEW-1) — THE LOCK IS WHAT MAKES "ONE GENERATION" TRUE, not the transaction.
+  -- `delete` + `insert` inside one txn removes the ZERO-row window, but under READ COMMITTED two
+  -- overlapping calls each delete only what the other has already COMMITTED — so both insert and the
+  -- org ends up with TWO generations. Reproduced on the bench with two interleaved sessions:
+  -- `generations=2  totalnet=200.00` where the truth was 100.00. It is reachable because the sweep is
+  -- a `*/5` fire-and-forget cron (`0102:59,71`) with no single-flight guard.
+  --
+  -- No reader is fooled today (every one is generation-scoped), but a claim that a state is
+  -- unreachable must be TRUE or the next author will rely on it. Serialising per ORG makes it true,
+  -- and costs nothing: two sweeps for the SAME org are exactly the case that must not interleave,
+  -- while different orgs never contend. `_xact_` so it releases with the transaction, on any exit.
+  perform pg_advisory_xact_lock(hashtext('replace_erp_snapshot'), hashtext(p_org_id::text));
+
   if p_table = 'erp_actuals_snapshot' then
     delete from public.erp_actuals_snapshot where org_id = p_org_id;
     insert into public.erp_actuals_snapshot
