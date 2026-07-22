@@ -21,6 +21,7 @@ export interface OwnershipRow {
 }
 
 let cache: OwnershipMap | null = null;
+let boundTaskProjects: ReadonlySet<string> | null = null;
 
 /** Build the caller's own-org ownership map (domain→tier) from its `external_domain_ownership`
  *  rows and cache it. Same body for every domain — the map is already domain-keyed. */
@@ -30,13 +31,24 @@ export function setTaskOwnership(rows: readonly OwnershipRow[]): void {
   cache = map;
 }
 
+/** Active project bindings used by the per-project tasks gate (migration 0146). */
+export interface ProjectBindingRow {
+  projectId: string;
+  externalTier: string;
+}
+
+export function setProjectBindings(rows: readonly ProjectBindingRow[]): void {
+  boundTaskProjects = new Set(rows.map((row) => row.projectId));
+}
+
 /** Alias naming the generalized intent (P2, FR-ENA-005) — P1 callers keep `setTaskOwnership`;
- *  identical body (the cache is domain-keyed, so one seed already covers every domain). */
+ * identical body (the cache is domain-keyed, so one seed already covers every domain). */
 export const setDomainOwnership = setTaskOwnership;
 
 /** Reset to the fail-closed cold-start state (sign-out) — `routeTaskWrite()` returns `'pmo'` until re-seeded. */
 export function clearOwnershipCache(): void {
   cache = null;
+  boundTaskProjects = null;
 }
 
 /**
@@ -48,7 +60,8 @@ export function routeDomainWrite(domain: string): WriteRoute {
   return cache ? routeWrite(domain, cache) : 'pmo';
 }
 
-/** Back-compat (P1) — delegates to the generalized per-domain route for `'tasks'`. */
-export function routeTaskWrite(): WriteRoute {
-  return routeDomainWrite('tasks');
+/** Project-aware tasks route matching `project_domain_externally_owned` (migration 0146).
+ * Unknown, cold, or unloaded project state fails closed to PMO. */
+export function routeTaskWrite(projectId?: string): WriteRoute {
+  return boundTaskProjects?.has(projectId ?? '') ? 'external' : 'pmo';
 }

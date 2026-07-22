@@ -5,6 +5,7 @@ import {
   clearOwnershipCache,
   routeTaskWrite,
   routeDomainWrite,
+  setProjectBindings,
 } from './ownershipCache.ts';
 
 /**
@@ -22,9 +23,9 @@ describe('ADR-0056 ownershipCache — fail-closed task-write routing', () => {
     expect(routeTaskWrite()).toBe('pmo');
   });
 
-  it('a loaded cache asserting tasks→clickup routes to external', () => {
+  it('a loaded cache asserting tasks→clickup still requires a bound project', () => {
     setTaskOwnership([{ domain: 'tasks', externalTier: 'clickup' }]);
-    expect(routeTaskWrite()).toBe('external');
+    expect(routeTaskWrite('project-bound')).toBe('pmo');
   });
 
   it('an empty rows array loads a present-but-empty map — still pmo', () => {
@@ -32,11 +33,26 @@ describe('ADR-0056 ownershipCache — fail-closed task-write routing', () => {
     expect(routeTaskWrite()).toBe('pmo');
   });
 
-  it('clearOwnershipCache resets a loaded cache back to fail-closed pmo', () => {
+  it('AC-CUA-105 bound and unbound projects in one org route independently', () => {
     setTaskOwnership([{ domain: 'tasks', externalTier: 'clickup' }]);
-    expect(routeTaskWrite()).toBe('external');
+    setProjectBindings([{ projectId: 'project-bound', externalTier: 'clickup' }]);
+    expect(routeTaskWrite('project-bound')).toBe('external');
+    expect(routeTaskWrite('project-unbound')).toBe('pmo');
+  });
+
+  it('AC-CUA-105 a cold or unknown project fails closed, even with org ownership', () => {
+    setTaskOwnership([{ domain: 'tasks', externalTier: 'clickup' }]);
+    expect(routeTaskWrite('project-bound')).toBe('pmo');
+    setProjectBindings([{ projectId: 'project-bound', externalTier: 'clickup' }]);
     clearOwnershipCache();
+    expect(routeTaskWrite('project-bound')).toBe('pmo');
     expect(routeTaskWrite()).toBe('pmo');
+  });
+
+  it('AC-CUA-105 ignores an org ownership row for an unbound project', () => {
+    setTaskOwnership([{ domain: 'tasks', externalTier: 'clickup' }]);
+    setProjectBindings([{ projectId: 'another-project', externalTier: 'clickup' }]);
+    expect(routeTaskWrite('project-unbound')).toBe('pmo');
   });
 });
 
@@ -72,11 +88,12 @@ describe('ADR-0056/FR-ENA-005 routeDomainWrite — generalized per-domain routin
       { domain: 'tasks', externalTier: 'clickup' },
       { domain: 'procurement', externalTier: 'erpnext' },
     ]);
+    setProjectBindings([{ projectId: 'project-1', externalTier: 'clickup' }]);
     expect(routeDomainWrite('tasks')).toBe('external');
     expect(routeDomainWrite('procurement')).toBe('external');
     expect(routeDomainWrite('companies')).toBe('pmo');
-    // back-compat: routeTaskWrite() still delegates correctly off the same seed.
-    expect(routeTaskWrite()).toBe('external');
+    // Task routing is project-aware; an unknown project remains fail-closed.
+    expect(routeTaskWrite()).toBe('pmo');
   });
 
   it('setTaskOwnership (the P1 name) is the same seed as setDomainOwnership (alias, identical body)', () => {
