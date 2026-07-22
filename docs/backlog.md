@@ -36,11 +36,16 @@ Then, per the standard series loop (grill → spec → …), the candidate queue
     translation content lands last.
   - **[OD-CR-4] Locale model (Director default, revisable at spec grill): per-org default
     language + per-user override** — fits the org_id seam, covers mixed teams.
-  - **[OD-CR-5] Currency (Director default, revisable at spec grill): single currency per org,
-    display-only** (org setting: IDR/USD/…; all org amounts in that currency; format accordingly —
-    e.g. `Rp 1.500.000.000`, no decimals for IDR). **NO FX/conversion/mixed-currency** — true
-    multi-currency only if a real client brings mixed-currency contracts. ERPNext adapter must pin
-    org currency == ERPNext company currency at connect time.
+  - **[OD-CR-5] Currency (owner-revised 2026-07-22): start single currency per org, but
+    ARCHITECT FOR MULTI-CURRENCY — fast follow-up is a real need** (even RIS has overseas
+    clients). v1 behavior: org setting picks the currency (IDR/USD/…), all org amounts display in
+    it (`Rp 1.500.000.000`, no decimals for IDR). **v1 architecture MUST carry the multi-currency
+    seam:** a `currency` column on every money table (defaulted to org currency by trigger, like
+    `org_id`), all formatting keyed off the record's currency (never a global constant), and
+    rollup/aggregation code written to group-or-convert by currency — so the fast-follow
+    (per-record currency + FX table for rollups, mixed-currency contracts) is additive, not a
+    migration rewrite. ERPNext adapter pins org currency == ERPNext company currency at connect;
+    the fast-follow maps per-record currency to ERPNext's native multi-currency docs.
   - **[OD-CR-6] Parked set confirmed parked:** in-house chat/video (Cicle turf — stays Big-track),
     field photos/forms (KANNA turf), offline/native mobile.
   - **Resulting sequence:** dev-integrations promote → i18n seam (OD-CR-3) → quick wins
