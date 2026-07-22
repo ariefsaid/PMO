@@ -191,6 +191,31 @@ Next free number is **0142**.
 > and headers have been unreliable in BOTH directions all program. Everything below was verified by
 > reading code/filesystem on 2026-07-22.
 
+### The 9 MISSING served-fn e2e journeys — exact worklist (paths are the SPEC's own, §1010+)
+None of these exist. `e2e/serial/` currently has `AC-732-budget-activate.spec.ts` and the P3a
+`AC-SAR-*` set only. Idiom to copy: `AC-SAR-010-pe-receive-idempotency.spec.ts` (serial-isolation
+header, `ERPNEXT_TEST_FAULTS`, live bench @ `localhost:8080`, served fns).
+
+| AC | File the spec names | Proves |
+|---|---|---|
+| AC-TSP-010 | `AC-TSP-010-approved-only-gate.spec.ts` | a non-Approved sheet NEVER reaches ERP, whatever the command claims |
+| AC-TSP-011 | `AC-TSP-011-timesheet-push.spec.ts` | approval pushes; the ERP doc lands submitted with hours + project |
+| AC-TSP-020 | `AC-TSP-020-push-idempotency.spec.ts` | **the sweep and the user cannot both create a Timesheet** |
+| AC-TSP-022 | `AC-TSP-022-sweep-backstop.spec.ts` | the backstop recovers a stranded push |
+| AC-TSP-031 | `AC-TSP-031-cross-org.spec.ts` | cross-org links rejected BEFORE the external write |
+| AC-TSP-040 | `AC-TSP-040-native-timesheet-not-adopted.spec.ts` | a natively-created ERP Timesheet is never adopted |
+| AC-TSP-041 | `AC-TSP-041-desk-cancel-tombstone.spec.ts` | desk-cancel reopens + tombstones |
+| AC-BUD-030 | `AC-BUD-030-*.spec.ts` | activation pushes the mapped budget with its overspend controls |
+| AC-BUD-031 | `AC-BUD-031-*.spec.ts` | **re-activation upserts the SAME ERP Budget — never a duplicate** |
+
+⚑ **Dependency:** `AC-TSP-020` and `AC-TSP-022` both exercise the SECOND originator, so **slice 6.4
+(the timesheet backstop) must be built FIRST** — otherwise those two specs have nothing to test and
+would either be skipped or written to assert the one-originator status quo (which would then pin the
+defect, defect class 2). Order: 6.4 → 6.5 → the 9 e2e journeys.
+
+⚑ **These need the live bench + served fns + the shared DB, so they are STRICTLY SERIAL** with any
+other DB-driving lane (`scripts/with-db-lock.sh`). Do not run an e2e lane and a build lane at once.
+
 ### P3b slice 6 — re-verified 2026-07-22 (the earlier "partial" was imprecise)
 - ✅ **6.2 never-adopt** — `native-timesheet-not-adopted` in `_shared/erpnextFeedDeps.ts`.
 - ✅ **6.3 desk-cancel reopen** — AC-TSP-040 + AC-TSP-041 proven in `_shared/erpnextFeedDeps.test.ts`.
