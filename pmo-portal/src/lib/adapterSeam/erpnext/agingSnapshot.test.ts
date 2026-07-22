@@ -10,6 +10,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { refreshAging } from './agingSnapshot.ts';
+import { FakePostgrest, type FakeRow } from '@/test/postgrestFake.ts';
 
 /** Frappe query_report.run response shape (object-typed result rows + column labels/fieldnames). */
 function reportResponse(rows: Record<string, unknown>[], columns?: { label: string; fieldname: string }[]): unknown {
@@ -27,47 +28,43 @@ function reportResponse(rows: Record<string, unknown>[], columns?: { label: stri
   return { message: { columns: cols, result: rows } };
 }
 
-/** Builds a recording service client: erp_payment_ledger_mirror select returns the seeded rows;
- *  erp_ap_aging_snapshot / erp_ar_aging_snapshot record delete + insert. Tables list tracks every
- *  from() so the test can assert procurement_invoices is NEVER touched. */
-function makeServiceClient(pleRows: Record<string, unknown>[]): { client: unknown; tables: string[]; inserted: Record<string, unknown>[][]; deleted: Record<string, string|null>[] } {
-  const tables: string[] = [];
-  const inserted: Record<string, unknown>[][] = [];
-  const deleted: Record<string, string | null>[] = [];
-  /** A typed chainable-thenable mock builder: `.eq()` returns self; `await` resolves to `value`. */
-  interface Chain<T> { eq(): Chain<T>; then<U>(onfulfilled: (v: T) => U | PromiseLike<U>): Promise<U>; }
-  const chain = <T>(value: T): Chain<T> => {
-    const self: Chain<T> = {
-      eq: () => self,
-      then: (onfulfilled) => Promise.resolve(value).then(onfulfilled),
-    };
-    return self;
+/**
+ * Builds a recording service client on the PostgREST-FAITHFUL fake (`test/postgrestFake.ts`):
+ * `erp_payment_ledger_mirror` select returns the seeded rows (CAPPED at `db-max-rows` exactly as
+ * PostgREST caps them — see the MEDIUM-1 sibling block at the bottom of this file);
+ * `erp_ap_aging_snapshot` / `erp_ar_aging_snapshot` record delete + insert. `tables` tracks every
+ * `from()` so the test can assert procurement_invoices is NEVER touched.
+ */
+function makeServiceClient(pleRows: Record<string, unknown>[]): {
+  client: unknown; tables: string[]; inserted: Record<string, unknown>[][]; deleted: Record<string, string | null>[];
+  mirrorReads: { orderBy: string[]; cursors: unknown[]; returned: number }[];
+} {
+  // `erp_payment_ledger_mirror.id` is a NOT NULL uuid PK (0101 §2) — the paged scan's stable order.
+  const seeded: FakeRow[] = pleRows.map((r, i) => ({ id: `ple-${String(i).padStart(8, '0')}`, ...r }));
+  const fake = new FakePostgrest({
+    erp_payment_ledger_mirror: seeded,
+    erp_ap_aging_snapshot: [],
+    erp_ar_aging_snapshot: [],
+  });
+  const snapshotTables = ['erp_ap_aging_snapshot', 'erp_ar_aging_snapshot'];
+  return {
+    client: { from: (table: string) => fake.from(table) },
+    get tables() { return fake.tablesTouched; },
+    get inserted() {
+      return snapshotTables.flatMap((t) => (fake.inserted[t] ?? [])) as Record<string, unknown>[][];
+    },
+    get deleted() {
+      return snapshotTables.flatMap((t) => (fake.deletedScopes[t] ?? []))
+        .map((filters) => Object.fromEntries(filters.map((f) => [f.column, f.value as string | null])));
+    },
+    get mirrorReads() {
+      return fake.reads.filter((r) => r.table === 'erp_payment_ledger_mirror').map((r) => ({
+        orderBy: r.orderBy,
+        cursors: r.filters.filter((f) => f.op === 'gt').map((f) => f.value),
+        returned: r.returned,
+      }));
+    },
   };
-  /** Delete-chain: `.eq(c,v)` records the filter into `scope` and returns self; `await` records the scope. */
-  interface DelChain { eq(c: string, v: string | null): DelChain; then<U>(onfulfilled: (v: { error: null }) => U | PromiseLike<U>): Promise<U>; }
-  const from = (table: string) => {
-    tables.push(table);
-    if (table === 'erp_payment_ledger_mirror') {
-      return { select: () => chain({ data: [...pleRows] as unknown[], error: null }) };
-    }
-    if (table === 'erp_ap_aging_snapshot' || table === 'erp_ar_aging_snapshot') {
-      return {
-        delete: () => {
-          const scope: Record<string, string | null> = {};
-          const resolve = <U>(onfulfilled: (v: { error: null }) => U | PromiseLike<U>) =>
-            Promise.resolve({ error: null } as { error: null }).then((r) => { deleted.push(scope); return onfulfilled(r); });
-          const builder: DelChain = {
-            eq: (c, v) => { scope[c] = v; return builder; },
-            then: resolve,
-          };
-          return builder;
-        },
-        insert: async (rows: Record<string, unknown>[]) => { inserted.push(rows); return { error: null }; },
-      };
-    }
-    throw new Error(`unexpected table: ${table}`);
-  };
-  return { client: { from }, tables, inserted, deleted };
 }
 
 function erpClient(fetchImpl: (url: string, init?: RequestInit) => Promise<Response>): unknown {
@@ -199,21 +196,47 @@ describe('erpnext/agingSnapshot — refreshAging edge', () => {
 
   it('propagates when the mirrored-ledger read itself fails (fallback read error surfaces, never swallowed)', async () => {
     const fetchImpl = async () => new Response('{"exc_type":"X"}', { status: 404 });
-    // a service client whose PLE read rejects — the fallback read error must propagate (no silent empty)
-    const from = (table: string) => {
-      if (table === 'erp_payment_ledger_mirror') {
-        // a chainable thenable that rejects on await (mirrors supabase-js's eq-chain shape).
-        // `then` forwards to a rejected promise so the await assimilation actually settles.
-        interface RejChain { eq(): RejChain; then(onf?: ((v: unknown) => unknown) | null, onr?: ((e: unknown) => unknown) | null): Promise<unknown>; }
-        const err = new Error('ple read down');
-        const rej: RejChain = {
-          eq: () => rej,
-          then: (onf, onr) => Promise.reject(err).then(onf ?? undefined, onr ?? undefined),
-        };
-        return { select: () => rej };
-      }
-      throw new Error(`unexpected table: ${table}`);
-    };
-    await expect(refreshAging({ from } as never, erpClient(fetchImpl) as never, 'org-1', AP_SCOPE)).rejects.toThrow('ple read down');
+    // A PostgREST-shaped read failure on the fallback source. It must PROPAGATE — a swallowed error
+    // would bucket zero rows and then snapshot-replace real aging with an all-zero, dated figure.
+    const fake = new FakePostgrest(
+      { erp_payment_ledger_mirror: [], erp_ap_aging_snapshot: [{ total_outstanding: 999 }] },
+      { readErrors: { erp_payment_ledger_mirror: { message: 'ple read down', code: '08006' } } },
+    );
+    await expect(refreshAging(fake as never, erpClient(fetchImpl) as never, 'org-1', AP_SCOPE)).rejects.toThrow('ple read down');
+    // ...and the prior snapshot is untouched (fail-closed: never replace good aging with nothing).
+    expect(fake.rowsOf('erp_ap_aging_snapshot')).toEqual([{ total_outstanding: 999 }]);
+  });
+});
+
+/**
+ * ⚑ MEDIUM-1 sibling (Luna audit round 8, 2026-07-22) — the SAME silently-truncated-read class, at
+ * the aging fallback's scope. `bucketFromMirror` read the whole `erp_payment_ledger_mirror` in ONE
+ * unpaged request; PostgREST caps at `db-max-rows` (1000) and says nothing, so past 1000 mirrored
+ * Payment Ledger Entries the AP/AR aging buckets understated every party's open balance — and, like
+ * the actuals snapshot, stored the shortfall as a dated, provenance-stamped figure that no screen
+ * could tell from the truth. The class is fixed at ALL its scopes or it is not fixed.
+ */
+describe('erpnext/agingSnapshot — the fallback mirror read is PAGED past PostgREST max_rows', () => {
+  const today = '2026-07-12';
+
+  it('buckets EVERY mirrored PLE row, not the first 1000 PostgREST chose to return', async () => {
+    const fetchImpl = async () => new Response('{"exc_type":"X"}', { status: 404 }); // force the fallback
+    const rows: Record<string, unknown>[] = [];
+    let expectedTotal = 0;
+    for (let i = 0; i < 2500; i += 1) {
+      const amount = 10 + i;
+      expectedTotal += amount;
+      rows.push({ party: 'Supplier A', party_type: 'Supplier', account: 'Creditors - PSC', amount, due_date: '2026-06-20', posting_date: '2026-06-01' });
+    }
+    const svc = makeServiceClient(rows);
+    await refreshAging(svc.client as never, erpClient(fetchImpl) as never, 'org-1', { ...AP_SCOPE, today });
+
+    const supplierA = svc.inserted[0]!.find((r) => r.party === 'Supplier A')!;
+    expect(supplierA.total_outstanding).toBe(expectedTotal);
+    expect(supplierA.b_0_30).toBe(expectedTotal); // age 22 ⇒ every row lands in the 0-30 bucket
+    // Paged + ordered: 1000 + 1000 + 500, every request bounded, every request on a total order.
+    expect(svc.mirrorReads.map((r) => r.returned)).toEqual([1000, 1000, 500]);
+    expect(svc.mirrorReads.every((r) => r.orderBy.includes('id'))).toBe(true);
+    expect(svc.mirrorReads.map((r) => r.cursors)).toEqual([[], ['ple-00000999'], ['ple-00001999']]);
   });
 });

@@ -10,63 +10,51 @@
  */
 import { describe, expect, it } from 'vitest';
 import { refreshActuals } from './actualsSnapshot.ts';
+import { FakePostgrest, DEFAULT_MAX_ROWS, type FakeRow } from '@/test/postgrestFake.ts';
 
-/** A recording structural service client: mirrors the supabase-js `.from(t).select(c).eq().eq()` +
- *  `.delete().eq()` + `.insert([])` shape (thenable filter builders). Every `from(table)` call is
- *  recorded so the test can assert procurement_invoices is never touched. */
+/**
+ * A recording structural service client over the PostgREST-FAITHFUL fake (`test/postgrestFake.ts`).
+ *
+ * ⚑ It used to be `Promise.resolve({ data: [...glRows] })` with `eq: () => builder` — a fake that
+ * could not express the ONE behaviour that matters for a money sum: PostgREST caps every response at
+ * `db-max-rows` (1000) and signals NOTHING when it truncates. That blindness is why an unpaged read
+ * of the GL mirror survived eight audit rounds. The fake now caps, honours `.range()`/`.gt()`/`.limit()`,
+ * and returns an UNSTABLE row order when no `.order()` is applied — so a truncated or unordered read
+ * fails loudly.
+ */
 interface RecordingClient {
-  tables: string[];
-  glRows: Record<string, unknown>[];
-  deletedScopes: Record<string, string | null>[];
-  inserted: Record<string, unknown>[][];
+  readonly tables: string[];
+  readonly deletedScopes: Record<string, unknown>[];
+  readonly inserted: Record<string, unknown>[][];
   /** The column list the refresh asked the GL mirror for — the read half of the attribution contract. */
-  selectedColumns: string[];
-  from?(table: string): unknown;
+  readonly selectedColumns: string[];
+  /** Every request issued against the GL mirror (one per page) — proves the read was PAGED + ORDERED. */
+  readonly mirrorReads: { orderBy: string[]; cursors: unknown[]; returned: number }[];
+  from(table: string): unknown;
 }
 
-function makeClient(glRows: Record<string, unknown>[]): RecordingClient {
-  const rec: RecordingClient = { tables: [], glRows, deletedScopes: [], inserted: [], selectedColumns: [] };
-  rec.from = (table: string) => {
-    rec.tables.push(table);
-    if (table === 'erp_gl_entry_mirror') {
-      // select + eq chain that resolves to the seeded rows (filters are structural here — the unit
-      // test seeds ONLY the org's rows, so an unfiltered return is the exact read-model the refresh
-      // consumes in production under RLS org-isolation).
-      const selectBuilder = Promise.resolve({ data: [...glRows], error: null });
-      Object.assign(selectBuilder, {
-        eq: () => selectBuilder,
-      });
-      return {
-        select: (columns: string) => {
-          rec.selectedColumns.push(columns);
-          return selectBuilder;
-        },
-      };
-    }
-    if (table === 'erp_actuals_snapshot') {
-      return {
-        delete: () => {
-          const scope: Record<string, string | null> = {};
-          const del = Promise.resolve({ error: null });
-          Object.assign(del, {
-            eq: (col: string, val: string | null) => {
-              scope[col] = val;
-              return del;
-            },
-          });
-          // resolve records the delete scope when awaited
-          void del.then(() => rec.deletedScopes.push(scope));
-          return del;
-        },
-        insert: async (rows: Record<string, unknown>[]) => {
-          rec.inserted.push(rows);
-          return { error: null };
-        },
-      };
-    }
-    throw new Error(`unexpected table access: ${table}`);
+function makeClient(glRows: Record<string, unknown>[], maxRows = DEFAULT_MAX_ROWS): RecordingClient {
+  // `erp_gl_entry_mirror.id` is a NOT NULL uuid PK (0101) — model it, since it is the total, stable
+  // order a paged scan must sort by. Zero-padded so the fake's string sort matches insertion order.
+  const seeded: FakeRow[] = glRows.map((r, i) => ({ id: `gl-${String(i).padStart(8, '0')}`, ...r }));
+  const fake = new FakePostgrest({ erp_gl_entry_mirror: seeded, erp_actuals_snapshot: [] }, { maxRows });
+  return {
+    get tables() { return fake.tablesTouched; },
+    get deletedScopes() {
+      return (fake.deletedScopes['erp_actuals_snapshot'] ?? []).map((filters) =>
+        Object.fromEntries(filters.map((f) => [f.column, f.value])));
+    },
+    get inserted() { return (fake.inserted['erp_actuals_snapshot'] ?? []) as Record<string, unknown>[][]; },
+    get selectedColumns() { return fake.reads.map((r) => r.columns); },
+    get mirrorReads() {
+      return fake.reads.filter((r) => r.table === 'erp_gl_entry_mirror').map((r) => ({
+        orderBy: r.orderBy,
+        cursors: r.filters.filter((f) => f.op === 'gt').map((f) => f.value),
+        returned: r.returned,
+      }));
+    },
+    from: (table: string) => fake.from(table),
   };
-  return rec;
 }
 
 describe('erpnext/actualsSnapshot — refreshActuals (AC-ENA-060)', () => {
@@ -134,8 +122,18 @@ describe('erpnext/actualsSnapshot — refreshActuals (AC-ENA-060)', () => {
   });
 
   it('propagates a service-role read error (never silently swallows a mirror read failure)', async () => {
-    const client: RecordingClient = { tables: [], glRows: [], deletedScopes: [], inserted: [], selectedColumns: [], from: () => { throw new Error('boom'); } };
+    const client = { from: () => { throw new Error('boom'); } };
     await expect(refreshActuals(client as unknown as never, 'org-1', {})).rejects.toThrow('boom');
+  });
+
+  it('propagates a PostgREST-shaped read error and NEVER deletes the prior snapshot (fail-closed)', async () => {
+    const fake = new FakePostgrest(
+      { erp_gl_entry_mirror: [{ id: 'gl-1', account: '5100', debit: 1, credit: 0 }], erp_actuals_snapshot: [{ net: 999 }] },
+      { readErrors: { erp_gl_entry_mirror: { message: 'connection reset', code: '08006' } } },
+    );
+    await expect(refreshActuals(fake as unknown as never, 'org-1', {})).rejects.toThrow('connection reset');
+    // A partial/failed read must never be allowed to replace a good snapshot with a worse one.
+    expect(fake.rowsOf('erp_actuals_snapshot')).toEqual([{ net: 999 }]);
   });
 });
 
@@ -265,5 +263,93 @@ describe('erpnext/actualsSnapshot — NEW-1 project attribution from the GL proj
     ]);
     await refreshActuals(client as unknown as never, 'org-1', { projectMap: { [PROJ_A]: 'PROJ-0001' } });
     expect(client.deletedScopes).toEqual([{ org_id: 'org-1' }]);
+  });
+});
+
+/**
+ * ⚑ HIGH-1 (Luna audit round 8, 2026-07-22) — THE SILENTLY TRUNCATED MONEY READ (AC-ENA-062).
+ *
+ * `refreshActuals` read the org's ENTIRE `erp_gl_entry_mirror` in ONE PostgREST request with no
+ * `.range()` and no `.order()`. PostgREST caps every response at `db-max-rows` (`supabase/config.toml`
+ * `max_rows = 1000`; also Supabase Cloud's default) and signals NOTHING when it truncates — HTTP 200,
+ * short body, `error === null` — and with no `ORDER BY`, WHICH 1000 rows come back is arbitrary and
+ * may differ between ticks. The refresh then DELETEd the org's whole prior snapshot and inserted the
+ * partial sums with a FRESH `as_of`.
+ *
+ * That is the worst variant of the money-honesty class shipped so far. Every earlier defect rendered
+ * an UNKNOWN figure as a number; this one renders a WRONG figure as a CONFIDENTLY-KNOWN one: the
+ * projection sees a non-null `as_of` on a mapped category, so the money-honesty invariant CERTIFIES
+ * it — understated actuals, an inflated favourable variance and a deflated utilization, dated, under
+ * the green "Enforced by ERPNext" pill, and a DIFFERENT wrong number on the next tick.
+ *
+ * The repo had already found, documented and fixed exactly this class at another scope
+ * (`src/lib/db/revenue.ts` `fetchAllPages`, whose comment names `max_rows`), and the ERPNext side of
+ * this very pipeline pages correctly (`ledgerFetch.ts`). The one hop nobody paged was reading the
+ * mirror back OUT of Postgres. Both halves are pinned here: page it, and order it.
+ */
+describe('erpnext/actualsSnapshot — HIGH-1: the mirror read is PAGED past PostgREST max_rows (AC-ENA-062)', () => {
+  const PROJ_A = '11111111-1111-4111-8111-111111111111';
+
+  /** 2,500 GL rows across 3 groups — 2.5× the 1000-row cap, so a single request cannot see them all. */
+  function bigMirror(): { rows: Record<string, unknown>[]; expected: Record<string, number> } {
+    const rows: Record<string, unknown>[] = [];
+    const expected: Record<string, number> = { '5100': 0, '5200': 0, '5300': 0 };
+    for (let i = 0; i < 2500; i += 1) {
+      const account = ['5100', '5200', '5300'][i % 3]!;
+      const debit = 100 + i; // distinct amounts, so a missed row cannot be masked by a coincidence
+      rows.push({ project: 'PROJ-0001', cost_center: null, account, fiscal_year: '2026', debit, credit: 0 });
+      expected[account] += debit;
+    }
+    return { rows, expected };
+  }
+
+  it('sums EVERY mirrored GL row, not the first 1000 PostgREST chose to return', async () => {
+    const { rows, expected } = bigMirror();
+    const client = makeClient(rows);
+    const summary = await refreshActuals(client as unknown as never, 'org-1', { projectMap: { [PROJ_A]: 'PROJ-0001' } });
+
+    const inserted = client.inserted[0]!;
+    const byAccount = Object.fromEntries(inserted.map((r) => [String(r.account), r]));
+    expect(byAccount['5100']).toMatchObject({ net: expected['5100'] });
+    expect(byAccount['5200']).toMatchObject({ net: expected['5200'] });
+    expect(byAccount['5300']).toMatchObject({ net: expected['5300'] });
+    // The falsifier in aggregate: the snapshot's total net === the mirror's total debit − credit.
+    const snapshotTotal = inserted.reduce((acc, r) => acc + Number(r.net), 0);
+    const mirrorTotal = Object.values(expected).reduce((a, b) => a + b, 0);
+    expect(snapshotTotal).toBe(mirrorTotal);
+    expect(summary).toEqual({ rows: 3, undatedRows: 0 });
+  });
+
+  it('issues MULTIPLE bounded requests (a short page proves the end of the set)', async () => {
+    const { rows } = bigMirror();
+    const client = makeClient(rows);
+    await refreshActuals(client as unknown as never, 'org-1', { projectMap: { [PROJ_A]: 'PROJ-0001' } });
+    // 2500 rows at a 1000-row page size ⇒ 1000 + 1000 + 500 (the short page terminates the scan).
+    expect(client.mirrorReads.map((r) => r.returned)).toEqual([1000, 1000, 500]);
+    // KEYSET, not offset: page 1 opens the scan, pages 2-3 resume strictly AFTER the previous last id.
+    // (Offset would re-count a row when the sweep's own ledger feed inserts during the scan — the
+    // 5-minute cron has no single-flight guard, so a slow backfill tick overlaps the next tick.)
+    expect(client.mirrorReads.map((r) => r.cursors)).toEqual([[], ['gl-00000999'], ['gl-00001999']]);
+  });
+
+  it('applies a deterministic ORDER BY so a truncated or resumed read is stable (no row read twice)', async () => {
+    const { rows } = bigMirror();
+    const client = makeClient(rows);
+    await refreshActuals(client as unknown as never, 'org-1', { projectMap: { [PROJ_A]: 'PROJ-0001' } });
+    // `id` is the mirror's uuid PK (0101) — a TOTAL order, so consecutive pages cannot overlap or gap.
+    expect(client.mirrorReads.every((r) => r.orderBy.includes('id'))).toBe(true);
+    // Every row lands EXACTLY once: 2500 distinct debits, so a duplicate or a gap moves the total.
+    const total = client.inserted[0]!.reduce((acc, r) => acc + Number(r.net), 0);
+    expect(total).toBe(Array.from({ length: 2500 }, (_, i) => 100 + i).reduce((a, b) => a + b, 0));
+  });
+
+  it('an exact multiple of the page size still terminates (the empty trailing page)', async () => {
+    const rows = Array.from({ length: DEFAULT_MAX_ROWS }, (_, i) => ({
+      project: 'PROJ-0001', cost_center: null, account: '5100', fiscal_year: '2026', debit: i + 1, credit: 0,
+    }));
+    const client = makeClient(rows);
+    await refreshActuals(client as unknown as never, 'org-1', { projectMap: { [PROJ_A]: 'PROJ-0001' } });
+    const expectedNet = (DEFAULT_MAX_ROWS * (DEFAULT_MAX_ROWS + 1)) / 2;
+    expect(client.inserted[0]![0]).toMatchObject({ net: expectedNet });
   });
 });

@@ -34,7 +34,7 @@ import { CLICKUP_TASKS_DOMAIN } from '../../../pmo-portal/src/lib/adapterSeam/cl
 import { resolveClickUpDispatchAdapter } from '../../../pmo-portal/src/lib/adapterSeam/clickup/dispatchFactory.ts';
 import { ClickUpRateLimiter } from '../../../pmo-portal/src/lib/adapterSeam/clickup/rateLimit.ts';
 import { ERPNEXT_BUDGET_DOMAIN, ERPNEXT_COMPANIES_DOMAIN, ERPNEXT_PROCUREMENT_DOMAIN, ERPNEXT_REVENUE_DOMAIN, ERPNEXT_TIMESHEETS_DOMAIN, ERPNEXT_TIER } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/adapter.ts';
-import { resolveErpDispatchAdapter, withPaymentTypeDiscriminator, readCategoryAccountMap } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/dispatchFactory.ts';
+import { resolveErpDispatchAdapter, withPaymentTypeDiscriminator, readCategoryAccountMap, readBudgetLineItems } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/dispatchFactory.ts';
 import {
   runBudgetGate,
   type FiscalYearRow,
@@ -43,7 +43,6 @@ import {
   type BudgetVersionGateRow,
   type BudgetGateProjectRow,
 } from '../../../pmo-portal/src/lib/budget/budgetGate.ts';
-import type { BudgetLineItem } from '../../../pmo-portal/src/lib/budget/categoryAccountMap.ts';
 import { resolveErpCredentials } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/credentials.ts';
 import { withProbeBudget } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/client.ts';
 import { resolveClickUpCredentialsFromVault } from '../../../pmo-portal/src/lib/adapterSeam/clickup/vaultCredentials.ts';
@@ -477,10 +476,10 @@ function buildBudgetGateDeps(callerClient: SupabaseClient, serviceClient: Supaba
       const { data } = await callerClient.from('projects').select('id, org_id, start_date, end_date').eq('id', id).maybeSingle();
       return (data as BudgetGateProjectRow | null) ?? null;
     },
-    readLineItems: async (id) => {
-      const { data } = await callerClient.from('budget_line_items').select('category, budgeted_amount').eq('budget_version_id', id);
-      return Array.isArray(data) ? (data as unknown as BudgetLineItem[]) : [];
-    },
+    // ⚑ PAGED + fail-closed (audit round 8). The SHIPPED reader lives in `dispatchFactory.ts` beside
+    // `readCategoryAccountMap` — one definition, unit-bound — because an unpaged read here silently
+    // capped at PostgREST's 1000 rows and would push an UNDERSTATED Budget into the client's ERP.
+    readLineItems: (id) => readBudgetLineItems(callerClient as never, id),
     readCategoryMap: () => readCategoryAccountMap(serviceClient as never, orgId),
     readFiscalYears: () => readErpFiscalYears(serviceClient, orgId),
   };

@@ -8,7 +8,8 @@
  * controls).
  */
 import { describe, it, expect, vi } from 'vitest';
-import { resolveErpDispatchAdapter, type DispatchServiceClient } from './dispatchFactory';
+import { resolveErpDispatchAdapter, readBudgetLineItems, type DispatchServiceClient } from './dispatchFactory';
+import { FakePostgrest } from '@/test/postgrestFake.ts';
 import { DOCTYPE_BODIES } from './doctypeBodies';
 
 const MAP_ROWS = [
@@ -291,5 +292,52 @@ describe('P3c dispatch wiring — the budget domain', () => {
       doctypeBodies: DOCTYPE_BODIES,
     });
     expect(tables).not.toContain('budget_category_account_map');
+  });
+});
+
+/**
+ * ⚑ THE HIGH-1 CLASS AT ITS FOURTH SCOPE (Luna audit round 8 sweep, 2026-07-22).
+ *
+ * `budget_line_items` is the SOURCE of every `budget_amount` PMO pushes into the client's ERP
+ * `Budget`. `adapter-dispatch` read it in ONE unpaged request, and PostgREST caps at `db-max-rows`
+ * (1000) with no signal — so a version with more than 1000 line items (a WBS-level budget on a large
+ * project) would push an UNDERSTATED Budget: ERP then enforces its real overspend controls against
+ * a figure smaller than the one PMO approved, and blocks purchases PMO authorised. It also made the
+ * fail-closed `budget-category-unmapped` check evaluate a PARTIAL set — a category present only past
+ * row 1000 passes the gate and is then under-budgeted rather than refused.
+ *
+ * The read is exported here (the `readCategoryAccountMap` precedent) so the SHIPPED reader is the one
+ * under test, rather than a copy inside the edge function.
+ */
+describe('dispatchFactory — readBudgetLineItems is PAGED past PostgREST max_rows', () => {
+  it('reads EVERY line item of a version, not the first 1000 PostgREST chose to return', async () => {
+    const rows = Array.from({ length: 2500 }, (_, i) => ({
+      id: `li-${String(i).padStart(8, '0')}`,
+      budget_version_id: 'ver-1',
+      category: i % 2 === 0 ? 'Labor' : 'Materials',
+      budgeted_amount: '100.00',
+    }));
+    const fake = new FakePostgrest({ budget_line_items: rows });
+
+    const items = await readBudgetLineItems(fake as unknown as DispatchServiceClient, 'ver-1');
+
+    expect(items).toHaveLength(2500);
+    const total = items.reduce((sum, li) => sum + Number(li.budgeted_amount), 0);
+    expect(total).toBe(250000);
+    // Paged + ordered on the PK: consecutive pages cannot overlap (a duplicated line = over-budget).
+    const reads = fake.reads.filter((r) => r.table === 'budget_line_items');
+    expect(reads.map((r) => r.returned)).toEqual([1000, 1000, 500]);
+    expect(reads.every((r) => r.orderBy.includes('id'))).toBe(true);
+    expect(reads.map((r) => r.filters.filter((f) => f.op === 'gt').map((f) => f.value)))
+      .toEqual([[], ['li-00000999'], ['li-00001999']]);
+  });
+
+  it('fails CLOSED on a read error — never an empty line-item set the gate would wave through', async () => {
+    const fake = new FakePostgrest(
+      { budget_line_items: [{ id: 'li-1', budget_version_id: 'ver-1', category: 'Labor', budgeted_amount: '1.00' }] },
+      { readErrors: { budget_line_items: { message: 'statement timeout', code: '57014' } } },
+    );
+    await expect(readBudgetLineItems(fake as unknown as DispatchServiceClient, 'ver-1'))
+      .rejects.toThrow('statement timeout');
   });
 });

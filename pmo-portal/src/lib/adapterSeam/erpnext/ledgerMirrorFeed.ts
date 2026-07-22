@@ -16,8 +16,12 @@
  * feed forwards whatever ledgerFetch returns (single responsibility: never a second cancellation filter).
  */
 import { AppError } from '../../appError.ts';
+import { fetchAllRowsByKeyset } from '../../pagedRead.ts';
 import { fetchGlEntries, fetchPaymentLedgerEntries, type GlEntryRow, type PaymentLedgerEntryRow } from './ledgerFetch.ts';
 import type { ErpClientDeps } from './client.ts';
+
+/** Both mirrors' uuid PRIMARY KEY (0101 §1–§2) — the KEYSET cursor + stable order the scan needs. */
+const MIRROR_SCAN_ORDER = 'id';
 
 /** Per-source watermark `domain` keys on `external_sync_watermarks` (namespaced under `ledger::`). */
 export const LEDGER_GL_WM_DOMAIN = 'ledger::GL Entry';
@@ -37,6 +41,12 @@ export interface LedgerFeedTable {
 }
 export interface LedgerFeedSelectBuilder extends PromiseLike<{ data: unknown[] | null; error: { message: string; code?: string } | null }> {
   eq(column: string, value: string | number | boolean | null): LedgerFeedSelectBuilder;
+  /** The TOTAL, STABLE order the paged mirror scan needs (the mirror's uuid PK). */
+  order(column: string, opts?: { ascending?: boolean }): LedgerFeedSelectBuilder;
+  /** The KEYSET cursor: resume strictly AFTER the last row of the previous page. */
+  gt(column: string, value: string): LedgerFeedSelectBuilder;
+  /** One page's size. Without a bound PostgREST silently caps the response at `db-max-rows`. */
+  limit(n: number): LedgerFeedSelectBuilder;
   maybeSingle(): Promise<{ data: unknown; error: { message: string; code?: string } | null }>;
 }
 
@@ -102,9 +112,16 @@ async function advanceWm(sc: LedgerFeedServiceClient, orgId: string, domain: str
   return value;
 }
 
-/** The per-row `erp_modified >=` guarded upsert. Reads the org's existing mirror rows ONCE, drops any
- *  fetched row whose `modified` is strictly older than the stored `erp_modified`, and batch-upserts
- *  the rest (the mirror's `unique(org_id, erp_name)` makes it an idempotent upsert-by-name). */
+/** The per-row `erp_modified >=` guarded upsert. Reads the org's existing mirror rows (PAGED), drops
+ *  any fetched row whose `modified` is strictly older than the stored `erp_modified`, and batch-upserts
+ *  the rest (the mirror's `unique(org_id, erp_name)` makes it an idempotent upsert-by-name).
+ *
+ *  ⚑ MEDIUM-1 (audit round 8): this read used to be ONE unpaged request, and its error was never
+ *  checked. Both holes made the guard INERT rather than red — past PostgREST's 1000-row cap every
+ *  unseen row read as "not yet mirrored" and skipped the freshness check, so a stale re-delivery
+ *  could overwrite newer money; a failed read did the same for EVERY row. It now pages over the
+ *  mirror's `id` PK (a total, stable order) and throws on a read error: fail CLOSED, never wave
+ *  money through on a map we could not build. */
 async function upsertMirrorRows(
   sc: LedgerFeedServiceClient,
   table: string,
@@ -114,8 +131,14 @@ async function upsertMirrorRows(
   if (rows.length === 0) return 0;
   // Read existing erp_modified per erp_name for the per-row guard (one batched read).
   const existing = new Map<string, string>();
-  const sel = await sc.from(table).select('erp_name,erp_modified').eq('org_id', orgId);
-  for (const r of (sel.data ?? []) as Array<{ erp_name?: string; erp_modified?: string }>) {
+  type MirrorKeyRow = { id: string; erp_name?: string; erp_modified?: string };
+  const mirrored = await fetchAllRowsByKeyset<MirrorKeyRow>((afterId, limit) => {
+    const q = sc.from(table).select('id,erp_name,erp_modified').eq('org_id', orgId)
+      .order(MIRROR_SCAN_ORDER, { ascending: true });
+    return (afterId === null ? q : q.gt(MIRROR_SCAN_ORDER, afterId))
+      .limit(limit) as PromiseLike<{ data: MirrorKeyRow[] | null; error: { message: string; code?: string } | null }>;
+  });
+  for (const r of mirrored) {
     if (r.erp_name) existing.set(String(r.erp_name), String(r.erp_modified ?? ''));
   }
   const fresh = rows.filter((r) => {

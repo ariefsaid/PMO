@@ -12,15 +12,22 @@
  * seam (no supabase-js nominal dep).
  */
 import { AppError } from '../../appError.ts';
+import { fetchAllRowsByKeyset } from '../../pagedRead.ts';
 
-/** Structural service-role client seam (matches supabase-js): `.from(t).select(c).eq().eq()` (thenable),
- *  `.from(t).delete().eq().eq()` (thenable), `.from(t).insert([...])`. Real supabase-js is not
+/** Structural service-role client seam (matches supabase-js): `.from(t).select(c).eq().eq().order().range()`
+ *  (thenable), `.from(t).delete().eq().eq()` (thenable), `.from(t).insert([...])`. Real supabase-js is not
  *  nominally assignable (thenable PostgrestFilterBuilder) — callers cast `as never` at the boundary. */
 export interface SnapshotServiceClient {
   from(table: string): SnapshotTable;
 }
 export interface SnapshotSelectBuilder extends PromiseLike<{ data: unknown[] | null; error: { message: string; code?: string } | null }> {
   eq(column: string, value: string | number | boolean | null): SnapshotSelectBuilder;
+  /** The TOTAL, STABLE order a paged scan needs — without it consecutive pages can overlap or gap. */
+  order(column: string, opts?: { ascending?: boolean }): SnapshotSelectBuilder;
+  /** The KEYSET cursor: resume strictly AFTER the last row of the previous page. */
+  gt(column: string, value: string): SnapshotSelectBuilder;
+  /** One page's size. Without a bound PostgREST silently caps the response at `db-max-rows`. */
+  limit(n: number): SnapshotSelectBuilder;
 }
 export interface SnapshotDeleteBuilder extends PromiseLike<{ error: { message: string; code?: string } | null }> {
   eq(column: string, value: string | number | boolean | null): SnapshotDeleteBuilder;
@@ -51,6 +58,8 @@ export interface ActualsScope {
 }
 
 interface MirrorRow {
+  /** The mirror's uuid PK — read only to give the paged scan a total, stable order. */
+  id: string;
   /** The ERPNext `Project` NAME the GL row itself states (`erp_gl_entry_mirror.project`, 0101). */
   project: string | null;
   cost_center: string | null;
@@ -75,7 +84,16 @@ interface SumBucket {
  * states on the row, and it is the ONLY thing that makes a snapshot row attributable to a PMO project
  * — a column that is never SELECTed can never be attributed by.
  */
-const GL_MIRROR_ACTUALS_COLUMNS = 'project,cost_center,account,fiscal_year,debit,credit';
+const GL_MIRROR_ACTUALS_COLUMNS = 'id,project,cost_center,account,fiscal_year,debit,credit';
+
+/**
+ * The mirror's uuid PRIMARY KEY (0101 §1) — the KEYSET cursor + total, stable order for the paged scan
+ * below. Postgres guarantees no row order across statements, so paging without this tiebreaker could
+ * return one GL row twice and miss another: double-counted money, worse than the truncation it fixes.
+ * Keyset (not offset) because the 5-minute sweep cron has no single-flight guard, so a slow ledger
+ * backfill tick overlaps the next tick's scan — exactly in the >1000-row regime that matters.
+ */
+const GL_MIRROR_SCAN_ORDER = 'id';
 
 const round2 = (n: number): number => Math.round((n + Number.EPSILON) * 100) / 100;
 
@@ -134,7 +152,8 @@ export interface ActualsRefreshSummary {
 
 /**
  * Refresh the actuals snapshot for ONE org by summing its mirrored GL rows. Steps:
- *   (1) SELECT mirrored erp_gl_entry_mirror rows (org-scoped; is_cancelled=false) INCLUDING `project`;
+ *   (1) SELECT mirrored erp_gl_entry_mirror rows (org-scoped; is_cancelled=false) INCLUDING `project`,
+ *       PAGED over `id` — one unpaged request is silently capped at PostgREST's `max_rows` (HIGH-1);
  *   (2) resolve each row's PMO project from the binding's inverted `project_map`, then SUM debit/credit
  *       per (project_id, cost_center, account, fiscal_year); net = debit − credit;
  *   (3) new snapshot_id → DELETE the org's prior snapshot rows → INSERT the summed rows.
@@ -150,15 +169,24 @@ export async function refreshActuals(
   orgId: string,
   scope: ActualsScope,
 ): Promise<ActualsRefreshSummary> {
-  // (1) Read the mirrored GL read-model (NEVER procurement_invoices).
-  const selectBuilder = serviceClient
-    .from('erp_gl_entry_mirror')
-    .select(GL_MIRROR_ACTUALS_COLUMNS)
-    .eq('org_id', orgId)
-    .eq('is_cancelled', false);
-  const { data: rawRows, error: readErr } = await selectBuilder;
-  if (readErr) throw new AppError(readErr.message, readErr.code);
-  const rows = (rawRows ?? []) as MirrorRow[];
+  // (1) Read the mirrored GL read-model (NEVER procurement_invoices) — PAGED.
+  //
+  // ⚑ HIGH-1 (audit round 8). This was ONE unpaged request. PostgREST caps every response at
+  // `db-max-rows` (1000) and says NOTHING when it truncates — 200, short body, no error — so past
+  // 1000 mirrored rows this summed an arbitrary subset, deleted the whole prior snapshot and stored
+  // the shortfall with a FRESH `as_of`. The projection then saw a non-null reading on a mapped
+  // category and CERTIFIED the wrong number as known. Money is summed over ALL rows or not at all:
+  // a page error throws BEFORE the delete below, so a partial read can never replace a good snapshot.
+  const rows = await fetchAllRowsByKeyset<MirrorRow>((afterId, limit) => {
+    const q = serviceClient
+      .from('erp_gl_entry_mirror')
+      .select(GL_MIRROR_ACTUALS_COLUMNS)
+      .eq('org_id', orgId)
+      .eq('is_cancelled', false)
+      .order(GL_MIRROR_SCAN_ORDER, { ascending: true });
+    return (afterId === null ? q : q.gt(GL_MIRROR_SCAN_ORDER, afterId))
+      .limit(limit) as PromiseLike<{ data: MirrorRow[] | null; error: { message: string; code?: string } | null }>;
+  });
 
   // (2) Attribute from the dimension ERP states, then sum per (project, cost_center, account, FY).
   const erpNameToPmoProject = invertProjectMap(scope.projectMap);

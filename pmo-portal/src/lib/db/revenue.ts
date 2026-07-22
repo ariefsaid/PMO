@@ -1,6 +1,7 @@
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError } from '@/src/lib/appError';
 import { resolveRange, type PageParams } from '@/src/lib/pagination';
+import { fetchAllPages, fetchAllRowsByKeyset, type PageResult } from '@/src/lib/pagedRead';
 
 /** Row shapes matching the DB schema (snake_case) from migration 0104. */
 export interface SalesInvoiceRow {
@@ -67,35 +68,10 @@ function throwWrite(error: PostgrestErrorLike): never {
  * PostgREST refuses to return more than `max_rows` (1000, `supabase/config.toml`) rows in ONE
  * response — and signals nothing when it truncates. Any read that must see a WHOLE table
  * (the revenue rollup, and the money lists whose client-side search indexes them) therefore
- * pages explicitly; this is that page size.
+ * pages explicitly, via the shared `fetchAllPages` seam (`src/lib/pagedRead.ts`) — the ONE
+ * definition every scope with this hazard uses, so a fix here can never again be "fixed in one
+ * place, alive in another" (Luna audit round 8).
  */
-const PAGE_SCAN_SIZE = 1000;
-
-interface PageResult<T> {
-  data: T[] | null;
-  error: PostgrestErrorLike | null;
-}
-
-/**
- * Reads EVERY row of a query by asking for successive `[from, to]` pages until a SHORT page
- * proves the end of the set. The caller's `page` builder MUST apply a total, stable ORDER BY
- * (an `id` tiebreaker) — Postgres guarantees no row order across statements, so an unordered
- * paged scan can return one row twice and miss another.
- */
-async function fetchAllPages<T>(
-  page: (from: number, to: number) => PromiseLike<PageResult<T>>,
-): Promise<T[]> {
-  const out: T[] = [];
-  for (let p = 0; ; p += 1) {
-    const from = p * PAGE_SCAN_SIZE;
-    const { data, error } = await page(from, from + PAGE_SCAN_SIZE - 1);
-    if (error) throwWrite(error);
-    const rows = data ?? [];
-    for (const row of rows) out.push(row);
-    if (rows.length < PAGE_SCAN_SIZE) break;
-  }
-  return out;
-}
 
 /**
  * List all sales invoices in the caller's org (RLS scopes org).
@@ -250,38 +226,32 @@ export async function getRevenueByProject(): Promise<
   Array<{ project_id: string | null; project_name: string | null; total_amount: number; open_ar: number; invoice_count: number }>
 > {
   const agg = new Map<string, { total_amount: number; open_ar: number; invoice_count: number }>();
-  let cursor: string | null = null;
-  for (;;) {
-    let query = supabase
-      .from('sales_invoices')
-      .select('id, project_id, amount, erp_outstanding_amount')
-      .in('status', REVENUE_STATUSES as unknown as string[])
-      // S1: Postgres guarantees NO row order across statements, so a paged scan without a total
-      // ORDER BY can count one invoice twice and skip another when a concurrent write moves a
-      // tuple between page reads — Total Revenue then drifts by up to a whole invoice, silently.
-      .order('id', { ascending: true });
-    // NIT 2 (round-6 re-audit): KEYSET, not OFFSET. A stable ORDER BY makes an offset scan
-    // repeatable but not concurrency-safe — an invoice raised between two page reads with a
-    // lower-sorting id shifts every later row one slot right, so the next `.range()` re-reads the
-    // row already counted at the end of the previous page (and a delete skips one). The cursor
-    // names the row to resume AFTER, so a concurrent write can neither duplicate nor skip a row
-    // that has already been scanned.
-    if (cursor !== null) query = query.gt('id', cursor);
-    const { data, error } = await query.limit(PAGE_SCAN_SIZE);
-    if (error) throwWrite(error);
-    const rows = data ?? [];
-    for (const row of rows) {
-      const key = row.project_id ?? '__unassigned__';
-      const existing = agg.get(key) ?? { total_amount: 0, open_ar: 0, invoice_count: 0 };
-      existing.total_amount += Number(row.amount ?? 0);
-      existing.open_ar += Number(row.erp_outstanding_amount ?? 0);
-      existing.invoice_count += 1;
-      agg.set(key, existing);
-    }
-    // A SHORT page proves the end of the set; a full one may or may not be the last, so ask again —
-    // resuming after the last id THIS page returned.
-    if (rows.length < PAGE_SCAN_SIZE) break;
-    cursor = String(rows[rows.length - 1].id);
+  // NIT 2 (round-6 re-audit) / audit round 8: KEYSET, not OFFSET — the shared money-sum loop
+  // (`src/lib/pagedRead.ts`). A stable ORDER BY makes an offset scan repeatable but not
+  // concurrency-safe: an invoice raised between two page reads with a lower-sorting id shifts every
+  // later row one slot right, so the next page re-reads the row already counted at the end of the
+  // previous one (and a delete skips one). The cursor names the row to RESUME AFTER.
+  const invoices = await fetchAllRowsByKeyset<{ id: string; project_id: string | null; amount: number | null; erp_outstanding_amount: number | null }>(
+    (afterId, limit) => {
+      let query = supabase
+        .from('sales_invoices')
+        .select('id, project_id, amount, erp_outstanding_amount')
+        .in('status', REVENUE_STATUSES as unknown as string[])
+        // S1: Postgres guarantees NO row order across statements, so a paged scan without a total
+        // ORDER BY can count one invoice twice and skip another when a concurrent write moves a
+        // tuple between page reads — Total Revenue then drifts by a whole invoice, silently.
+        .order('id', { ascending: true });
+      if (afterId !== null) query = query.gt('id', afterId);
+      return query.limit(limit) as unknown as PromiseLike<PageResult<{ id: string; project_id: string | null; amount: number | null; erp_outstanding_amount: number | null }>>;
+    },
+  );
+  for (const row of invoices) {
+    const key = row.project_id ?? '__unassigned__';
+    const existing = agg.get(key) ?? { total_amount: 0, open_ar: 0, invoice_count: 0 };
+    existing.total_amount += Number(row.amount ?? 0);
+    existing.open_ar += Number(row.erp_outstanding_amount ?? 0);
+    existing.invoice_count += 1;
+    agg.set(key, existing);
   }
 
   // Resolve project names for non-null project_ids

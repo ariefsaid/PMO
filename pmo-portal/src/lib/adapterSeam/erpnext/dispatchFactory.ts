@@ -16,6 +16,7 @@ import { packTimeLogs } from './timeLogPacking.ts';
 import { readProcessGates } from './processGates.ts';
 import type { Adapter, AdapterCommand } from '../contract.ts';
 import { AppError } from '../../appError.ts';
+import { fetchAllRowsByKeyset } from '../../pagedRead.ts';
 import { resolveBudgetAccounts, type BudgetLineItem, type CategoryAccountMapRow } from '../../budget/categoryAccountMap.ts';
 
 /** Structural service-role client seam (matches supabase-js): `.from(t).select(c).eq(...)[.eq(...)]
@@ -33,6 +34,8 @@ export interface DispatchFilterBuilder extends PromiseLike<{ data: unknown; erro
   eq(column: string, value: string): DispatchFilterBuilder;
   order(column: string, opts?: { ascending?: boolean }): DispatchFilterBuilder;
   limit(n: number): DispatchFilterBuilder;
+  /** The KEYSET cursor: resume strictly AFTER the last row of the previous page. */
+  gt(column: string, value: string): DispatchFilterBuilder;
   maybeSingle(): Promise<{ data: unknown; error: { message: string; code?: string } | null }>;
 }
 
@@ -567,6 +570,37 @@ export async function readCategoryAccountMap(
     throw new AppError(`budget push: the category→account map could not be read: ${error.message}`, 'commit-rejected');
   }
   return Array.isArray(data) ? (data as Array<{ category: string; erp_account: string }>) : [];
+}
+
+/**
+ * Read a budget version's line items — the SOURCE of every `budget_amount` PMO pushes into the
+ * client's ERP `Budget`, and the input the fail-closed `budget-category-unmapped` check judges.
+ *
+ * ⚑ PAGED (audit round 8, the HIGH-1 class swept to its fourth scope). One unpaged request is
+ * silently capped at PostgREST's `db-max-rows` (1000) — 200, short body, no error — so a version with
+ * more than 1000 line items would push an UNDERSTATED Budget and let ERP enforce a real overspend
+ * control against a figure smaller than the one PMO approved. Ordered on the `id` PK so consecutive
+ * pages can neither overlap (a duplicated line = over-budget) nor gap.
+ *
+ * Fails CLOSED on a read error. It previously returned `[]` on ANY non-array result, which is the same
+ * shape of hole: an unreadable budget must refuse the push, never push a smaller one.
+ *
+ * Exported (the `readCategoryAccountMap` precedent) so `adapter-dispatch`'s budget gate uses the
+ * SHIPPED reader rather than a copy inside the edge function.
+ */
+export async function readBudgetLineItems(
+  callerClient: DispatchServiceClient,
+  versionId: string,
+): Promise<BudgetLineItem[]> {
+  return await fetchAllRowsByKeyset<BudgetLineItem & { id: string }>((afterId, limit) => {
+    const q = callerClient
+      .from('budget_line_items')
+      .select('id, category, budgeted_amount')
+      .eq('budget_version_id', versionId)
+      .order('id', { ascending: true });
+    return (afterId === null ? q : q.gt('id', afterId))
+      .limit(limit) as PromiseLike<{ data: Array<BudgetLineItem & { id: string }> | null; error: { message: string; code?: string } | null }>;
+  });
 }
 
 /**
