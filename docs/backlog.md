@@ -954,6 +954,42 @@ during one session. Every item below cost real time, produced a *false* signal (
 lied), and **will recur** — they are all consequences of parallelism, not of any one branch. Ordered by how
 badly each misleads.
 
+> **STATUS 2026-07-22 (branch `chore/test-infra-parallelism`).** Shipped: **T1 complete**
+> (`check-migration-collisions.sh` CI gate already existed; **`scripts/renumber-migration.sh`** added —
+> auto-rewrites filename-form refs, **hard-fails if the sweep silently no-ops**, lists bare-form refs for
+> manual review rather than corrupting unrelated 4-digit numbers) · **T2** (**`scripts/with-test-lock.sh`** —
+> a machine-global lock so only one full vitest suite runs at a time; the three lock wrappers now share
+> **`scripts/lib/flock-run.sh`** instead of being three copies, with a documented **`erpnext → db → test`**
+> acquisition order) · **T4** (**`scripts/supabase-start-lean.sh`**) · **T3 mitigation only** — the chained
+> one-hold recipe is now the documented default in CLAUDE.md.
+> Proof: `node --test scripts/parallel-infra.test.mjs` (8 tests), **mutation-checked in both directions** —
+> swapping `LOCK_EX`→`LOCK_SH` makes the serialisation test interleave, and sabotaging the sed sweep makes
+> the renumber guard fail.
+>
+> **STILL OPEN — T3's real fix: give each worktree its OWN database** (per-worktree Supabase port/project id).
+> The lock only *serialises* access to one shared Postgres; it cannot stop schema drift between two agents'
+> resets. That single change retires T3 outright and takes most of T2's pressure with it. Deliberately out of
+> scope here — it is an environment change affecting every agent at once.
+> **T5/T6 stay as written**: they are judgement lessons (verify-by-content-diff; the zsh no-op sweep) — though
+> T6's trap is now encoded in `renumber-migration.sh` rather than left to memory.
+>
+> **Cross-family review (gpt-5.6-luna, `--thinking max`, 2026-07-22) — no Criticals; 3 confirmed defects FIXED:**
+> (a) the sweep matched the bare prefix `NNNN_`, so renumbering migration 0052 would have rewritten **7
+> unrelated `supabase/tests/0052_*.test.sql`** references — prefix reuse in pgTAP is *deliberate and tolerated*.
+> It now matches the full basename `NNNN_<slug>`. (b) `git mv` staged the rename while the `sed` edits stayed
+> **unstaged**, so a plain `git commit` shipped a half-applied renumber; everything is staged now. (c)
+> `supabase-start-lean.sh` was committed non-executable. Both (a) and (b) have regression tests, each
+> mutation-checked. Also: the documented lock order was **flipped to `erpnext → db → test`** to match the live
+> P3c runbooks, which already nest erpnext outermost — a documented order that contradicts real call sites is a
+> deadlock waiting to happen. The infra tests now run in CI's `verify` job.
+>
+> **Accepted / still open from that review:** bare `npm run verify` stays lock-free (CI is a single dedicated
+> runner); **`npm run verify:locked` is the shared-machine entry point**, so the lock is opt-in *by design* and
+> relies on agents following CLAUDE.md · the renumber remote-safety check is prefix-based, so it can
+> false-refuse when another branch holds the same prefix (override `RENUMBER_FORCE=1`) and cannot detect a
+> migration applied only to a local DB · the lock tests use fixed 150/300 ms settle waits, which could flake
+> under extreme load · `with-erpnext-lock.sh` and `supabase-start-lean.sh` have no direct test coverage.
+
 - **T1 — `MERGEABLE`/`CLEAN` does NOT catch migration-number collisions** [High, BURNED US TWICE].
   Git compares *filenames*, so two branches adding `0104_a.sql` and `0104_b.sql` merge "cleanly" and leave
   duplicate numeric prefixes in `supabase/migrations/`. Hit twice in one session: M365 vs dev's ERPNext

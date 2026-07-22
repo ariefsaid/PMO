@@ -82,6 +82,14 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: pmo-portal/package-lock.json
+      # Parallel-agent infra: the flock core behind the three machine-global lock
+      # wrappers, plus the migration renumber sweep. These guard the CI SIGNAL
+      # itself, so a regression here (LOCK_EX -> LOCK_SH, or a sweep that silently
+      # no-ops) must fail the build rather than be discovered later by an agent
+      # chasing a false red. Temp dirs + temp lock paths only — no DB, no network.
+      - name: Parallel-agent infra tests
+        working-directory: .
+        run: node --test scripts/parallel-infra.test.mjs
       - run: npm ci
       - name: Supply-chain audit — production deps (blocking)
         # Gate on vulnerabilities in code that SHIPS to users (the production dependency tree).
