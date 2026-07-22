@@ -954,6 +954,25 @@ during one session. Every item below cost real time, produced a *false* signal (
 lied), and **will recur** — they are all consequences of parallelism, not of any one branch. Ordered by how
 badly each misleads.
 
+> **STATUS 2026-07-22 (branch `chore/test-infra-parallelism`).** Shipped: **T1 complete**
+> (`check-migration-collisions.sh` CI gate already existed; **`scripts/renumber-migration.sh`** added —
+> auto-rewrites filename-form refs, **hard-fails if the sweep silently no-ops**, lists bare-form refs for
+> manual review rather than corrupting unrelated 4-digit numbers) · **T2** (**`scripts/with-test-lock.sh`** —
+> a machine-global lock so only one full vitest suite runs at a time; the three lock wrappers now share
+> **`scripts/lib/flock-run.sh`** instead of being three copies, with a documented **`db → erpnext → test`**
+> acquisition order) · **T4** (**`scripts/supabase-start-lean.sh`**) · **T3 mitigation only** — the chained
+> one-hold recipe is now the documented default in CLAUDE.md.
+> Proof: `node --test scripts/parallel-infra.test.mjs` (8 tests), **mutation-checked in both directions** —
+> swapping `LOCK_EX`→`LOCK_SH` makes the serialisation test interleave, and sabotaging the sed sweep makes
+> the renumber guard fail.
+>
+> **STILL OPEN — T3's real fix: give each worktree its OWN database** (per-worktree Supabase port/project id).
+> The lock only *serialises* access to one shared Postgres; it cannot stop schema drift between two agents'
+> resets. That single change retires T3 outright and takes most of T2's pressure with it. Deliberately out of
+> scope here — it is an environment change affecting every agent at once.
+> **T5/T6 stay as written**: they are judgement lessons (verify-by-content-diff; the zsh no-op sweep) — though
+> T6's trap is now encoded in `renumber-migration.sh` rather than left to memory.
+
 - **T1 — `MERGEABLE`/`CLEAN` does NOT catch migration-number collisions** [High, BURNED US TWICE].
   Git compares *filenames*, so two branches adding `0104_a.sql` and `0104_b.sql` merge "cleanly" and leave
   duplicate numeric prefixes in `supabase/migrations/`. Hit twice in one session: M365 vs dev's ERPNext

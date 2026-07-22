@@ -176,3 +176,16 @@ SA-key file**. `seed.sql` = local ONLY, **never prod**; never hand-edit a cloud 
 `db reset`/`test db`/e2e corrupt each other); (b) **assume parallel — never work in the shared working tree:**
 each dispatch/agent uses its OWN `git worktree` off `dev` on a **feature branch → PR to `dev`** (copy `.env.local`
 in; worktrees isolate FILES, not the one DB). Worktrees don't remove the DB contention — the lock does.
+
+**⚑ Chain reset+test as ONE lock hold (binding).** Serializing the two commands *separately* is not enough: a
+sibling worktree's reset landing **between** your `db reset` and your `supabase test db` leaves you testing a
+schema you did not migrate — producing **false REDs and false GREENs** alike. Always:
+`scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db'`.
+**Three machine-global locks now exist**, sharing one core (`scripts/lib/flock-run.sh`): `with-db-lock.sh`
+(shared Supabase stack) · `with-erpnext-lock.sh` (ERPNext dev bed) · `with-test-lock.sh` (the heavy vitest
+suite — wrap `npm run verify` in it so only ONE full suite runs per machine; under concurrent runs unrelated
+tests fail on timeout, and *contention moves while a real regression stays put*). **When a command needs more
+than one, acquire in this order, outermost first: `db → erpnext → test`.** Each is re-entrancy-safe via its own
+`*_LOCK_HELD` var, so a self-wrapping script under an outer hold does not deadlock. Stack wedged under load
+(`analytics`/`vector` blocking `db reset`)? `scripts/supabase-start-lean.sh`. Migration-number collision?
+`scripts/renumber-migration.sh <old> <new>` (never hand-roll the `git mv` + reference sweep).
