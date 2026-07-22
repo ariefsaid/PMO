@@ -48,6 +48,22 @@ const h = vi.hoisted(() => {
 
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: h.from } }));
 
+// External-dispatch mocks (OD-INT-9: the createTask/updateTask external branch). Hoisted so the
+// top-level vi.mock can reference them; toggled per-test.
+const ext = vi.hoisted(() => ({
+  route: 'pmo' as 'pmo' | 'external',
+  dispatch: vi.fn(async (_op: string, _record: unknown) => ({
+    externalRecordId: 'cu-1',
+    canonical: { id: 'new', name: 'X', status: 'To Do' },
+  })),
+}));
+vi.mock('@/src/lib/adapterSeam/ownershipCache', () => ({
+  routeTaskWrite: () => ext.route,
+}));
+vi.mock('@/src/lib/adapterSeam/dispatchClient', () => ({
+  dispatchTaskCommand: (op: string, record: unknown) => ext.dispatch(op, record),
+}));
+
 import {
   listTasks,
   getTask,
@@ -67,6 +83,9 @@ beforeEach(() => {
     else (h.calls[k] as unknown[]).length = 0;
   }
   h.result.value = { data: null, error: null };
+  ext.route = 'pmo';
+  ext.dispatch.mockReset();
+  ext.dispatch.mockResolvedValue({ externalRecordId: 'cu-1', canonical: { id: 'new', name: 'X', status: 'To Do' } });
 });
 
 describe('AC-TASK-001 listTasks (per-project, with assignee + deps)', () => {
@@ -143,6 +162,8 @@ describe('AC-TASK-003 createTask', () => {
         end_date: '2026-06-20',
         milestone_id: null,
         parent_task_id: null,
+        description: null, // OD-INT-9
+        priority: null, // OD-INT-9
       },
     ]);
     expect(JSON.stringify(h.calls.insert)).not.toContain('org_id');
@@ -320,5 +341,142 @@ describe('AC-TASK-007 task dependencies add / remove', () => {
   it('AC-TASK-007: addDependency surfaces the self/duplicate guard as AppError (code preserved)', async () => {
     h.result.value = { data: null, error: { message: 'duplicate key', code: '23505' } };
     await expect(addDependency('t1', 't1')).rejects.toMatchObject({ code: '23505' });
+  });
+});
+
+// ── OD-INT-9: description + priority round-trip (DAL layer). ──────────────────────────────────────
+
+describe('AC-TASK-003 createTask — description + priority (direct branch)', () => {
+  it('OD-INT-9: threads description + priority into the insert when supplied', async () => {
+    h.result.value = { data: { id: 'new' }, error: null };
+    await createTask({
+      project_id: 'p1',
+      name: 'Pour slab',
+      status: 'To Do',
+      assignee_id: null,
+      description: '5m³, M30 mix.',
+      priority: 'High',
+    });
+    const insert = h.calls.insert[0] as Record<string, unknown>;
+    expect(insert.description).toBe('5m³, M30 mix.');
+    expect(insert.priority).toBe('High');
+    expect(JSON.stringify(h.calls.insert)).not.toContain('org_id');
+  });
+
+  it('OD-INT-9: defaults description + priority to null when not supplied', async () => {
+    h.result.value = { data: { id: 'new' }, error: null };
+    await createTask({ project_id: 'p1', name: 'Bare', status: 'To Do', assignee_id: null });
+    const insert = h.calls.insert[0] as Record<string, unknown>;
+    expect(insert.description).toBeNull();
+    expect(insert.priority).toBeNull();
+  });
+
+  it('OD-INT-9: an empty-string description normalises to null (no empty-string rows)', async () => {
+    h.result.value = { data: { id: 'new' }, error: null };
+    await createTask({ project_id: 'p1', name: 'X', status: 'To Do', assignee_id: null, description: '' });
+    const insert = h.calls.insert[0] as Record<string, unknown>;
+    expect(insert.description).toBeNull();
+  });
+});
+
+describe('AC-TASK-003 createTask — description + priority (external dispatch branch)', () => {
+  it('OD-INT-9: forwards description + priority in the dispatch record (they DO map to ClickUp)', async () => {
+    ext.route = 'external';
+    await createTask({
+      project_id: 'p1',
+      name: 'Pour slab',
+      status: 'To Do',
+      assignee_id: null,
+      description: '5m³, M30 mix.',
+      priority: 'High',
+    });
+    expect(ext.dispatch).toHaveBeenCalledTimes(1);
+    const [op, record] = ext.dispatch.mock.calls[0];
+    expect(op).toBe('create');
+    expect(record).toMatchObject({
+      project_id: 'p1',
+      name: 'Pour slab',
+      status: 'To Do',
+      description: '5m³, M30 mix.',
+      priority: 'High',
+    });
+  });
+
+  it('OD-INT-9: forwards null description/priority in the dispatch record when unset', async () => {
+    ext.route = 'external';
+    await createTask({ project_id: 'p1', name: 'Bare', status: 'To Do', assignee_id: null });
+    const record = ext.dispatch.mock.calls[0][1] as Record<string, unknown>;
+    expect(record.description).toBeNull();
+    expect(record.priority).toBeNull();
+  });
+
+  it('OD-INT-9: NEVER forwards milestone_id in the dispatch record (PMO-native enhancement, excluded)', async () => {
+    ext.route = 'external';
+    await createTask({
+      project_id: 'p1',
+      name: 'X',
+      status: 'To Do',
+      assignee_id: null,
+      milestone_id: 'm1',
+      description: 'd',
+      priority: 'Low',
+    });
+    const record = ext.dispatch.mock.calls[0][1] as Record<string, unknown>;
+    expect(record).not.toHaveProperty('milestone_id');
+    expect(record.description).toBe('d');
+    expect(record.priority).toBe('Low');
+  });
+});
+
+describe('AC-TASK-004 updateTask — description + priority (direct branch)', () => {
+  it('OD-INT-9: threads description + priority into the DB update when present in patch', async () => {
+    h.result.value = { data: null, error: null };
+    await updateTask('t1', { description: 'Revised scope.', priority: 'Urgent' });
+    const patch = h.calls.update[0] as Record<string, unknown>;
+    expect(patch.description).toBe('Revised scope.');
+    expect(patch.priority).toBe('Urgent');
+    expect(patch).not.toHaveProperty('org_id');
+    expect(patch).not.toHaveProperty('project_id');
+  });
+
+  it('OD-INT-9: description: null explicitly clears the description', async () => {
+    h.result.value = { data: null, error: null };
+    await updateTask('t1', { description: null });
+    const patch = h.calls.update[0] as Record<string, unknown>;
+    expect(patch.description).toBeNull();
+  });
+
+  it('OD-INT-9: priority: null explicitly clears the priority', async () => {
+    h.result.value = { data: null, error: null };
+    await updateTask('t1', { priority: null });
+    const patch = h.calls.update[0] as Record<string, unknown>;
+    expect(patch.priority).toBeNull();
+  });
+
+  it('OD-INT-9: omitting description/priority from patch leaves them untouched (absent key not sent)', async () => {
+    h.result.value = { data: null, error: null };
+    await updateTask('t1', { name: 'Only rename' });
+    const patch = h.calls.update[0] as Record<string, unknown>;
+    expect(patch).not.toHaveProperty('description');
+    expect(patch).not.toHaveProperty('priority');
+  });
+});
+
+describe('AC-TASK-004 updateTask — description + priority (external dispatch branch)', () => {
+  it('OD-INT-9: forwards description + priority in the update dispatch record', async () => {
+    ext.route = 'external';
+    await updateTask('t1', { description: 'Revised.', priority: 'Urgent' });
+    expect(ext.dispatch).toHaveBeenCalledTimes(1);
+    const [op, record] = ext.dispatch.mock.calls[0];
+    expect(op).toBe('update');
+    expect(record).toMatchObject({ id: 't1', description: 'Revised.', priority: 'Urgent' });
+  });
+
+  it('OD-INT-9: null description/priority flow through to the update dispatch (clearable on ClickUp)', async () => {
+    ext.route = 'external';
+    await updateTask('t1', { description: null, priority: null });
+    const record = ext.dispatch.mock.calls[0][1] as Record<string, unknown>;
+    expect(record.description).toBeNull();
+    expect(record.priority).toBeNull();
   });
 });

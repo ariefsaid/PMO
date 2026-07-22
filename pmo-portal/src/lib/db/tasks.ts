@@ -6,6 +6,7 @@ import { dispatchTaskCommand } from '@/src/lib/adapterSeam/dispatchClient';
 
 export type TaskRow = Tables<'tasks'>;
 export type TaskStatus = Enums<'task_status'>;
+export type TaskPriority = Enums<'task_priority'>;
 export type TaskDependencyRow = Tables<'task_dependencies'>;
 
 /** A task row joined with its assignee profile (name only) and its `depends_on` edges. */
@@ -32,6 +33,11 @@ export interface TaskInput {
    * blocks self-parent; the UI additionally blocks descendant-parent (cycle) via taskTree.
    */
   parent_task_id?: string | null;
+  /** Optional free-text description (OD-INT-9). Maps to ClickUp `description`. null = none. */
+  description?: string | null;
+  /** Optional priority (OD-INT-9). Maps to ClickUp's integer priority via the fixed 4-value map.
+   *  null = no priority set (the column is nullable — "no priority" stays expressible). */
+  priority?: TaskPriority | null;
 }
 
 /** The structure fields an edit (PM/Exec/Admin) supplies. project_id/org_id are never patched. */
@@ -45,6 +51,10 @@ export interface TaskPatch {
   milestone_id?: string | null;
   /** Parent re-assignment (OD-INT-9). null explicitly promotes the subtask back to top-level. */
   parent_task_id?: string | null;
+  /** Description edit (OD-INT-9). null explicitly clears it. */
+  description?: string | null;
+  /** Priority edit (OD-INT-9). null explicitly clears the priority back to "unset". */
+  priority?: TaskPriority | null;
 }
 
 /** Shape of a PostgREST/Postgres error we surface (only the fields we read). */
@@ -144,6 +154,10 @@ export async function createTask(input: TaskInput): Promise<TaskRow> {
       start_date: input.start_date || null,
       end_date: input.end_date || null,
       parent_task_id: input.parent_task_id ?? null,
+      // OD-INT-9: description + priority DO map to ClickUp (unlike milestone_id, a PMO-native
+      // enhancement that stays excluded). Follow the parent_task_id precedent.
+      description: input.description || null,
+      priority: input.priority ?? null,
     });
     return res.canonical as unknown as TaskRow;
   }
@@ -158,6 +172,8 @@ export async function createTask(input: TaskInput): Promise<TaskRow> {
       end_date: input.end_date || null,
       milestone_id: input.milestone_id ?? null,
       parent_task_id: input.parent_task_id ?? null,
+      description: input.description || null, // OD-INT-9: "" normalises to null
+      priority: input.priority ?? null,
     })
     .select()
     .single();
@@ -190,6 +206,8 @@ export async function updateTask(id: string, patch: TaskPatch): Promise<void> {
   if (patch.end_date !== undefined) next.end_date = patch.end_date || null;
   if (patch.milestone_id !== undefined) next.milestone_id = patch.milestone_id; // null ungroups
   if (patch.parent_task_id !== undefined) next.parent_task_id = patch.parent_task_id; // null promotes
+  if (patch.description !== undefined) next.description = patch.description || null; // OD-INT-9: "" → null
+  if (patch.priority !== undefined) next.priority = patch.priority; // null clears
   const { error } = await supabase.from('tasks').update(next).eq('id', id);
   if (error) throwWrite(error);
 }
