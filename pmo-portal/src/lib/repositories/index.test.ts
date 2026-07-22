@@ -57,6 +57,8 @@ vi.mock('@/src/lib/db/tasks', () => ({
   deleteTask: vi.fn(),
   addDependency: vi.fn(),
   removeDependency: vi.fn(),
+  archiveTask: vi.fn(),
+  unarchiveTask: vi.fn(),
 }));
 vi.mock('@/src/lib/db/procurements', () => ({ listProcurements: vi.fn() }));
 vi.mock('@/src/lib/db/procurementLifecycle', () => ({
@@ -205,7 +207,10 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
       ['assignUserManager', 'inviteUser', 'listOrgProfiles', 'listProjectManagers', 'listUsers', 'setUserStatus', 'updateUserRole'].sort(),
     );
     expect(Object.keys(repositories.task).sort()).toEqual(
-      ['addDependency', 'create', 'delete', 'get', 'list', 'removeDependency', 'update', 'updateStatus'].sort(),
+      // 'archive'/'unarchive' added deliberately with the PMO task-archive affordance (ADR-0018
+      // soft-archive). This list is an exhaustive API-seam contract (ADR-0017) — extending the
+      // repository surface must be an explicit change here, never an accident.
+      ['addDependency', 'archive', 'create', 'delete', 'get', 'list', 'removeDependency', 'unarchive', 'update', 'updateStatus'].sort(),
     );
     expect(Object.keys(repositories.procurement).sort()).toEqual(
       [

@@ -98,7 +98,7 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId }) => {
   const currentUserId = currentUser?.id ?? null;
   const { toast } = useToast();
   const { data, isPending, isError, refetch } = useTasks(projectId);
-  const { create, update, updateStatus, remove, addDependency, removeDependency, pendingPushByTask = {} } =
+  const { create, update, updateStatus, remove, archive, addDependency, removeDependency, pendingPushByTask = {} } =
     useTaskMutations(projectId);
   const { data: milestones } = useMilestones(projectId);
   const location = useLocation();
@@ -107,6 +107,7 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId }) => {
   // defaultMilestoneId — pre-populated when clicking "Add task" within a group.
   const [formTarget, setFormTarget] = useState<{ task: TaskWithRefs | null; defaultMilestoneId?: string | null } | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<TaskWithRefs | null>(null);
+  const [showArchived, setShowArchived] = useState(false);
 
   // T25 — hash-anchor scroll & transient highlight.
   // When the URL contains #task-<id>, scroll that row into view and apply a
@@ -141,11 +142,12 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId }) => {
   const canCreate = may('create', 'task');
   const canEdit = may('edit', 'task');
   const canDelete = may('delete', 'task');
-  const canRowWrite = canEdit || canDelete;
 
   // ADR-0056: the per-task pending-push badge wires in ONLY when task writes route externally
   // (ClickUp-owned). PMO-owned orgs stay byte-for-byte — no badge chrome at all (AC-CUA-061).
   const externallyOwned = routeTaskWrite() === 'external';
+  const canArchive = may('archive', 'task');
+  const canRowWrite = canEdit || canDelete || (canArchive && !externallyOwned);
 
   // Review fix #5 — one headline for one event: an externally-routed write fails through the SAME
   // vocabulary the badge renders (classifyExternalError), so the toast and the badge never disagree.
@@ -162,7 +164,11 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId }) => {
   // name cell renderer (buildColumns below). The milestone-grouped view computes its own
   // per-group order (see MilestoneGroupedList) since a subtask can land in a different
   // milestone group than its parent (AC-SUB-UI-004).
-  const flatOrder = useMemo(() => buildTaskRenderOrder(all), [all]);
+  const visibleTasks = useMemo(
+    () => (showArchived ? all : all.filter((t) => t.archived_at == null)),
+    [all, showArchived],
+  );
+  const flatOrder = useMemo(() => buildTaskRenderOrder(visibleTasks), [visibleTasks]);
   const flatRows = useMemo(() => flatOrder.map((n) => n.task), [flatOrder]);
   const flatDepths = useMemo(
     () => new Map(flatOrder.map((n) => [n.task.id, n.depth])),
@@ -189,6 +195,16 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId }) => {
     try {
       await updateStatus.mutateAsync({ id: t.id, status });
       toast('Status updated', `${t.name} is now ${status}`, 'success');
+    } catch (err) {
+      const { headline, detail } = classifyWriteError(err);
+      toast(headline, detail, 'warning');
+    }
+  };
+
+  const onArchive = async (task: TaskWithRefs) => {
+    try {
+      await archive.mutateAsync({ id: task.id, archived: task.archived_at == null });
+      toast(task.archived_at == null ? 'Task archived' : 'Task restored', task.name, 'success');
     } catch (err) {
       const { headline, detail } = classifyWriteError(err);
       toast(headline, detail, 'warning');
@@ -297,6 +313,9 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId }) => {
   const rowMenu = (t: TaskWithRefs): RowMenuItem[] => {
     const items: RowMenuItem[] = [];
     if (canEdit) items.push({ label: 'Edit', onClick: () => setFormTarget({ task: t }) });
+    if (canArchive && !externallyOwned) {
+      items.push({ label: t.archived_at == null ? 'Archive' : 'Unarchive', onClick: () => void onArchive(t) });
+    }
     if (canDelete) items.push({ label: 'Delete', onClick: () => setDeleteTarget(t), danger: true });
     return items;
   };
@@ -310,6 +329,16 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId }) => {
             Plan, assign, and track the work for this project.
           </p>
         </div>
+        {all.some((t) => t.archived_at != null) && (
+          <Button
+            variant="outline"
+            size="sm"
+            aria-pressed={showArchived}
+            onClick={() => setShowArchived((value) => !value)}
+          >
+            {showArchived ? 'Hide archived' : 'Show archived'}
+          </Button>
+        )}
         {canCreate && (
           <Button variant="outline" size="sm" onClick={() => setFormTarget({ task: null })}>
             <Icon name="plus" />
@@ -378,7 +407,7 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId }) => {
           // Milestones exist: group tasks by milestone
           <MilestoneGroupedList
             milestones={milestoneList}
-            tasks={all}
+            tasks={visibleTasks}
             buildColumns={buildColumns}
             canCreate={canCreate}
             canRowWrite={canRowWrite}
@@ -391,7 +420,7 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId }) => {
 
       {state === undefined && view === 'board' && (
         <TaskBoard
-          tasks={all}
+          tasks={visibleTasks}
           canSetStatus={canSetStatus}
           onStatusChange={onStatusChange}
           statusBusy={updateStatus.isPending}
@@ -402,7 +431,7 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId }) => {
 
       {state === undefined && view === 'timeline' && (
         <ProjectGantt
-          tasks={all}
+          tasks={visibleTasks}
           milestones={milestoneList}
           onSwitchView={setView}
           onActivateTask={

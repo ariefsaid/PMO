@@ -51,6 +51,8 @@ export interface SCurveTask {
    * narrow view so buildSCurve can filter without callers pre-stripping subtasks.
    */
   parent_task_id: string | null;
+  /** Nullable archive timestamp; archived tasks never contribute to delivery. */
+  archived_at?: string | null;
   /** 'To Do' | 'In Progress' | 'Done' | 'Blocked' — only 'Done' matters here. */
   status: string;
   /** ISO timestamptz, trigger-stamped when task entered Done. null = not yet Done or backfill absent. */
@@ -308,7 +310,7 @@ export function buildSCurve(
       // Excluding them here keeps them out of BOTH the per-milestone Done/total denominator AND
       // the contribution series, so the gauge (driven by the milestone RPC's effective_pct) and
       // the trajectory agree on "top-level tasks only".
-      if (t.parent_task_id !== null) continue;
+      if (t.parent_task_id !== null || t.archived_at != null) continue;
       const key = t.milestone_id;
       if (!tasksByMilestone.has(key)) tasksByMilestone.set(key, []);
       tasksByMilestone.get(key)!.push(t);

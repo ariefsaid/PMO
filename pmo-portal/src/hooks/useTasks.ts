@@ -162,6 +162,12 @@ export function useTaskMutations(projectId: string) {
     onSuccess: invalidate,
   });
 
+  const archive = useMutation({
+    mutationFn: ({ id, archived }: { id: string; archived: boolean }) =>
+      archived ? repositories.task.archive(id) : repositories.task.unarchive(id),
+    onSuccess: invalidate,
+  });
+
   const addDependency = useMutation({
     mutationFn: ({ taskId, dependsOnId }: DependencyArgs) =>
       repositories.task.addDependency(taskId, dependsOnId),
@@ -183,5 +189,5 @@ export function useTaskMutations(projectId: string) {
     [],
   );
 
-  return { create, update, updateStatus, remove, addDependency, removeDependency, pendingPushByTask };
+  return { create, update, updateStatus, remove, archive, addDependency, removeDependency, pendingPushByTask };
 }
