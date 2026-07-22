@@ -44,8 +44,13 @@ Then, per the standard series loop (grill → spec → …), the candidate queue
     `org_id`), all formatting keyed off the record's currency (never a global constant), and
     rollup/aggregation code written to group-or-convert by currency — so the fast-follow
     (per-record currency + FX table for rollups, mixed-currency contracts) is additive, not a
-    migration rewrite. ERPNext adapter pins org currency == ERPNext company currency at connect;
-    the fast-follow maps per-record currency to ERPNext's native multi-currency docs.
+    migration rewrite. **The ERPNext adapter gets the same seam in v1 (owner directive):** every
+    money doc written through (SI/PE/PO/PI/quotes) sets `currency` EXPLICITLY from the PMO record
+    — never relies on the ERPNext company default — and read-backs (AR/AP aging, actuals) preserve
+    the source doc's currency. v1 still pins org currency == ERPNext company currency at connect
+    (one currency in practice), but with the field threaded end-to-end the fast-follow (per-record
+    currency + FX; ERPNext's native multi-currency + exchange-rate docs) is config, not adapter
+    rework.
   - **[OD-CR-6] Parked set confirmed parked:** in-house chat/video (Cicle turf — stays Big-track),
     field photos/forms (KANNA turf), offline/native mobile.
   - **Resulting sequence:** dev-integrations promote → i18n seam (OD-CR-3) → quick wins
