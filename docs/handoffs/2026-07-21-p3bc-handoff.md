@@ -201,29 +201,33 @@ why: *"so both originators (FE consequence path and the Deno sweep) can import i
 **Move it to `adapterSeam/erpnext/timesheetPushKey.ts` FIRST.** If the sweep instead re-implements the
 key, the two originators can drift — and a drifted key is precisely a DUPLICATED WEEK OF HOURS.
 
-**(b) ⚑ LATENT HIGH — `timesheetPushKey` embeds the RAW timestamp string; `budgetPushKey` deliberately
-does NOT.**
-```ts
-timesheetPushKey = `ts:${timesheetId}:${approvedAt}`   // raw string
-budgetPushKey    = `bud:${versionId}:${epochMs}`       // NORMALISED to epoch ms
+**(b) ✅ RESOLVED — NOT a defect. Probed 2026-07-22, and the probe REFUTED the concern.**
+`timesheetPushKey` embeds the RAW timestamp (`ts:<id>:<approved_at>`) whereas `budgetPushKey`
+normalises to epoch-ms, and `budgetPushKey`'s header warns that two transports can render one instant
+differently — so the worry was that the FE (which reads `approved_at` from the **RPC return**) and the
+6.4 sweep (which reads it from a **column select**) would derive DIFFERENT keys, the outbox 4-tuple
+would not collide, and the client would be billed a DUPLICATED WEEK of hours.
+
+**Measured against the live DB — they are identical:**
 ```
-`budgetPushKey`'s own header explains why the normalisation exists: *"the two originators read the same
-column through different transports, which render one instant differently: PostgREST gives
-`2026-07-16T10:00:00+00:00`, a server-side/SQL read gives `2026-07-16 10:00:00+00`… Keying on the text
-would make two spellings of ONE activation two keys — the duplicate the constraint exists to stop."*
+column select : "2026-07-19T02:55:21.340995+00:00"
+RPC return    : "2026-07-19T02:55:21.340995+00:00"
+IDENTICAL     : true
+```
+Reason: **both paths go through PostgREST**, which serialises `timestamptz` the same way whether it is
+a column or an RPC's returned field. `budgetPushKey`'s warning is about a *server-side/SQL* read
+(`2026-07-16 10:00:00+00`, space-separated) — a transport neither timesheet originator uses.
 
-**The timesheet path has exactly that shape.** The FE takes `approved_at` from the **RPC return**
-(`approved_timesheet_for_push` → `gate.approved_at`; the FE test shows `ts:ts-1:2026-01-12T03:04:05.678Z`).
-The plan's 6.4 sketch takes it from a **direct column select** (`c.approved_at`). Two different
-transports for one instant.
+**So 6.4 may proceed without changing the key.** ⚠️ The residual risk is narrow but real and worth a
+comment at the definition: the raw-string key is safe ONLY while every originator reads `approved_at`
+through PostgREST. If any future originator uses a non-PostgREST path (raw SQL, a Deno pg driver, a
+report export), the raw string breaks and duplicates hours. `budgetPushKey` is robust to that by
+construction; `timesheetPushKey` is not. Probe script:
+`scratchpad/probe-key.mjs` (re-runnable under `scripts/with-db-lock.sh`).
 
-**MUST be settled before 6.4 ships** — if those two render differently, the outbox 4-tuple does NOT
-collide, both originators create a Timesheet, and the client is billed a duplicated week of hours on
-project cost. That is the exact catastrophe the deterministic key exists to prevent, and the exact
-outcome `timesheetPushKey`'s own doc comment claims it prevents.
-**Do not assume either way — PROVE it** (print both renderings from the live DB), then normalise
-`timesheetPushKey` the same way `budgetPushKey` is normalised. It is masked today ONLY because the
-second originator does not exist; **6.4 makes it live.**
+*(Recorded as a HIGH earlier the same day and disproved by measurement — kept here deliberately so
+nobody re-raises it from the code shape alone. It was flagged must-PROVE, not must-fix; this is the
+proof.)*
 
 ### The 9 MISSING served-fn e2e journeys — exact worklist (paths are the SPEC's own, §1010+)
 None of these exist. `e2e/serial/` currently has `AC-732-budget-activate.spec.ts` and the P3a
