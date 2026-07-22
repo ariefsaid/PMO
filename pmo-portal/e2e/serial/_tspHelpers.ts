@@ -327,11 +327,23 @@ export async function cleanupTsp(admin: SupabaseClient, seed: TspSeed): Promise<
  */
 let weekCursor = 0;
 const RUN_WEEK_EPOCH_MONDAY = Date.UTC(2027, 0, 4); // a Monday
-/** A random per-process base so two runs minutes apart cannot land on the same week either. */
-const RUN_WEEK_BASE = Math.floor(Math.random() * 3000);
+/**
+ * A per-process base so two runs cannot land on the same week.
+ *
+ * ⚑ The previous allocator wrapped the clock component every 500 SECONDS (`% 500`), so two runs more
+ * than ~8 minutes apart could reuse a slot — and ERPNext validates `time_logs` overlap PER EMPLOYEE
+ * across the WHOLE BENCH, FOREVER, against the single shared `HR-EMP-00001`. Re-running this lane
+ * repeatedly in one session (exactly what a fix/verify loop does) therefore produced
+ * "From Time and To Time ... is overlapping" failures that look like product defects and are not.
+ *
+ * The clock component now wraps every ~5.5 HOURS and is combined with a wide random base, so the space
+ * is ~40k weeks (≈770 years from the 2027 epoch — synthetic future dates ERPNext accepts happily) and
+ * two runs in one session are separated by the second they started in.
+ */
+const RUN_WEEK_BASE = Math.floor(Math.random() * 20_000);
 
 export function runWeek(): { weekStartDate: string; day1: string; day2: string } {
-  const slot = RUN_WEEK_BASE + ((Math.floor(Date.now() / 1000) % 500) * 3) + weekCursor++;
+  const slot = RUN_WEEK_BASE + (Math.floor(Date.now() / 1000) % 20_000) + weekCursor++;
   const monday = RUN_WEEK_EPOCH_MONDAY + slot * 7 * 86_400_000;
   const iso = (ms: number): string => new Date(ms).toISOString().slice(0, 10);
   return { weekStartDate: iso(monday), day1: iso(monday), day2: iso(monday + 86_400_000) };
