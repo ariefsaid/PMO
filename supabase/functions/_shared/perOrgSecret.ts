@@ -1,5 +1,5 @@
 /**
- * Shared per-org Vault secret resolution (flag gate + binding lookup + fallback).
+ * Shared per-org Vault secret resolution (operator decision + binding lookup).
  * Pure, dependency-injected — no Supabase/Deno imports — unit-testable without a server.
  *
  * AC-EAC-009, AC-EAC-011: flag/binding/vault matrix.
@@ -10,7 +10,7 @@ export type PerOrgSecretResult =
   | { kind: 'binding-vault-miss' };
 
 export interface PerOrgSecretDeps {
-  /** EXTERNAL_CONNECT_ENABLED === 'true' */
+  /** Effective result of externalConnectEnabled(); false means fail closed. */
   connectEnabled: boolean;
   /** The caller's org_id */
   orgId: string;
@@ -28,7 +28,7 @@ export interface PerOrgSecretDeps {
  * Resolves a per-org secret from Vault when the feature flag is ON and a binding exists.
  *
  * Semantics (flag/binding/vault matrix):
- * - flag OFF → { kind: 'no-binding' } (caller uses legacy fallback)
+ * - flag OFF → { kind: 'no-binding' } (callers must fail closed, never fall back to external I/O)
  * - flag ON + no binding → { kind: 'no-binding' }
  * - flag ON + binding[column] null → { kind: 'binding-vault-miss' }
  * - flag ON + binding[column] + vault returns value → { kind: 'resolved', secret: value }
