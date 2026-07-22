@@ -167,8 +167,30 @@ describe('WIRE P3C: a post-gate budget push failure is recorded durably (HIGH-2)
     // Never invents a grain-less row: an earlier rejection (before the gate resolves a fiscal year)
     // has nothing to key the mirror's (org_id, budget_version_id, fiscal_year) row on.
     expect(body).toMatch(/typeof fiscalYear !== 'string'/);
-    expect(body).toMatch(/push_state:\s*'failed'/);
+    // ⚑ M-2 (audit r3) changed this DELIBERATELY: the recorded state is the policy's classification,
+    // not the literal 'failed' this originally pinned — a benign in-flight 409 is not a push failure
+    // and a held command belongs in 'held'. Every REAL failure still lands as 'failed'
+    // (budgetPushOutcome.test.ts owns that oracle); the durability guarantee is unchanged.
+    expect(body).toMatch(/push_state:\s*outcome\.pushState/);
     expect(body).toContain("onConflict: 'org_id,budget_version_id,fiscal_year'");
+  });
+
+  // ── M-2 (audit r3): the recorder consults the policy, so a benign 409 can never raise a money
+  //    alarm. The DECISION is proven in `budgetPushOutcome.test.ts`; what no unit test can see is
+  //    whether the handler asks it — an unconsulted policy leaves the old unconditional 'failed'.
+  it('M-2 the recorder classifies the error through budgetPushOutcome instead of hardcoding failed', () => {
+    expect(INDEX).toMatch(/import \{[^}]*classifyBudgetPushOutcome[^}]*\} from '\.\/budgetPushOutcome\.ts'/);
+    const decl = at('const recordBudgetPushFailure = async');
+    const body = CODE.slice(decl, CODE.indexOf('\n  };', decl) + 5);
+    expect(body).toMatch(/classifyBudgetPushOutcome\(/);
+    // A no-record outcome returns BEFORE any mirror write or notification.
+    const guard = body.search(/if \(!outcome\.record\) return;/);
+    expect(guard, 'M-2: a benign in-flight 409 must record nothing at all').toBeGreaterThan(-1);
+    expect(guard).toBeLessThan(body.indexOf('.upsert('));
+    expect(guard).toBeLessThan(body.indexOf('surfaceActionRequired'));
+    // …and the recorded state is the policy's, never a literal.
+    expect(body).toMatch(/push_state:\s*outcome\.pushState/);
+    expect(body).not.toMatch(/push_state:\s*'failed'/);
   });
 
   it('is called from BOTH failure paths: adapter-select AND the dispatch/ERP-write catch', () => {

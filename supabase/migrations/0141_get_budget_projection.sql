@@ -81,11 +81,29 @@ as $$
   --   • gated on real domain ownership, so a non-employing org — which has no ERP to push to — never
   --     sees a push banner at all;
   --   • a RECORDED push state always wins (this is only ever consulted when `push` is empty).
+  --
+  -- ⚑ H-3 (Luna audit round 3, 2026-07-22) — the alarm no longer requires an activation STAMP.
+  -- `0139` added `budget_versions.activated_at` nullable with NO backfill, so every version already
+  -- Active at migration time carries NULL. Requiring the stamp here made that entire population
+  -- INVISIBLE: `push_state` came back NULL and the screen looked clean while ERPNext enforced nothing
+  -- at all — the exact failure the state above was introduced to kill, on the exact population a
+  -- nullable-additive column creates. The stamp is not what makes an Active version real; it is what
+  -- makes it PUSHABLE. So an unstamped Active version is reported as its own state rather than
+  -- silently swallowed, because the operator's route out of it is different: `budgetPushKey` AND the
+  -- server-side budget gate both refuse an unstamped version (deliberately — a money command keyed on
+  -- an invented timestamp is worse than one that never runs), so Retry cannot help and is not offered.
+  -- Activating a fresh version records a REAL activation act, which is both truthful and pushable.
+  active_version as (
+    select v.id, v.activated_at
+      from public.budget_versions v
+     where v.project_id = p_project_id and v.status = 'Active'
+     limit 1
+  ),
   unrecorded as (
-    select 1
-     where exists (
-             select 1 from public.budget_versions v
-              where v.project_id = p_project_id and v.status = 'Active' and v.activated_at is not null)
+    select case when (select av.activated_at from active_version av) is null
+                then 'unstamped-activation'
+                else 'never-pushed' end as state
+     where exists (select 1 from active_version)
        and not exists (
              select 1 from public.budget_version_erp_mirror em
                join public.budget_versions v on v.id = em.budget_version_id
@@ -120,7 +138,7 @@ as $$
          ((c.actuals_to_date + c.pmo_etc) / nullif(c.pmo_budget_amount, 0)) as projected_utilization,
          coalesce(
            (select push_state from push),
-           case when exists (select 1 from unrecorded) then 'never-pushed' end
+           (select state from unrecorded)
          ),
          (select push_error from push)
     from cells c
@@ -130,3 +148,62 @@ $$;
 revoke all on function public.get_budget_projection(uuid, text) from public;
 grant execute on function public.get_budget_projection(uuid, text) to authenticated;
 revoke execute on function public.get_budget_projection(uuid, text) from anon;
+
+-- ════════════════════════════════════════════════════════════════════════════════════════════════
+-- H-4 (Luna audit round 3, 2026-07-22) — WHICH fiscal years may be asked for.
+--
+-- `p_fiscal_year` above is matched by EQUALITY against `erp_actuals_snapshot.fiscal_year` and
+-- `budget_version_erp_mirror.fiscal_year`, and both carry the ERPNext **Fiscal Year NAME** — whatever
+-- the client declared in their own calendar (round-2 OQ-BUD-3b: `budgetGate.ts` resolves the push's
+-- fiscal year from the client's `Fiscal Year` doctype BY NAME). A Jul–Jun client's is '2025-2026'.
+--
+-- The screen used to synthesize `new Date().getFullYear()`. For any non-calendar client that joins
+-- NOTHING: actuals 0.00, variance = the entire budget, utilization ~0, no push banner — every figure
+-- on the primary money screen silently wrong, with no way to navigate to the real year. The fix is
+-- not a smarter format guess (PMO does not own the client's calendar and must never invent it) but to
+-- offer ONLY years that exist in data, for ANY fiscal calendar:
+--   • the mirror's own pushed years (every version, not just the Active one — a prior year's push is
+--     legitimately inspectable), flagging the ACTIVE version's year as the sensible default;
+--   • the ERP GL actuals' years;
+--   • the PMO ETC rows' years.
+-- No rows at all is an honest empty state ("no fiscal year on record"), never a fabricated year.
+--
+-- SECURITY INVOKER, exactly as above: RLS on the three source tables is the org boundary.
+--
+-- Reversibility (ADR-0006): drop function if exists public.list_budget_fiscal_years(uuid);
+create or replace function public.list_budget_fiscal_years(p_project_id uuid)
+returns table (fiscal_year text, is_active_push boolean)
+language sql
+stable
+security invoker
+set search_path = public, pg_temp
+as $$
+  with active_push as (
+    select em.fiscal_year
+      from public.budget_version_erp_mirror em
+      join public.budget_versions v on v.id = em.budget_version_id
+     where v.project_id = p_project_id and v.status = 'Active'
+  ),
+  observed as (
+    select em.fiscal_year
+      from public.budget_version_erp_mirror em
+      join public.budget_versions v on v.id = em.budget_version_id
+     where v.project_id = p_project_id
+    union
+    select s.fiscal_year from public.erp_actuals_snapshot s where s.project_id = p_project_id
+    union
+    select bp.fiscal_year from public.budget_projections bp where bp.project_id = p_project_id
+  )
+  select o.fiscal_year,
+         exists (select 1 from active_push ap where ap.fiscal_year = o.fiscal_year) as is_active_push
+    from observed o
+   -- `erp_actuals_snapshot.fiscal_year` is nullable (0101): a GL row whose fiscal year ERPNext never
+   -- stated cannot be selected by an equality match anyway, so offering it would be an option that
+   -- returns nothing. The empty string is the "no year selected" sentinel and is never an offer.
+   where o.fiscal_year is not null and o.fiscal_year <> ''
+   order by o.fiscal_year desc;
+$$;
+
+revoke all on function public.list_budget_fiscal_years(uuid) from public;
+grant execute on function public.list_budget_fiscal_years(uuid) to authenticated;
+revoke execute on function public.list_budget_fiscal_years(uuid) from anon;

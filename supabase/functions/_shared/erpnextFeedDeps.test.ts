@@ -418,6 +418,43 @@ Deno.test('HIGH-1 readMirrorSourceMod on a Timesheet reads by timesheet_id, neve
   );
 });
 
+// ── L-1 (Luna audit round 3) — the LAST unconverted mirror query. ────────────────────────────────
+// `pmoRecordLookupColumn` exists because both Posture-B side mirrors key the PMO record in their OWN
+// FK column, not in `id`. `updateMirror`/`tombstoneMirror`/`readMirrorSourceMod`/`mirrorExists` were
+// all converted; `stampAmended` was missed and still filtered on `.eq('id', …)`, which matches ZERO
+// rows for these two kinds — a silent Postgres no-op, never an error. It is currently masked (the
+// amend branch calls `updateMirror` immediately afterwards, which re-writes `erp_amended_from` through
+// the correct column), but "another writer happens to repair it" is not an invariant: it is one
+// refactor away from silently losing the lineage stamp. Every sibling writer keys the same way.
+Deno.test("L-1 stampAmended on a Timesheet filters on timesheet_id, never the mirror's own id", async () => {
+  const { client, calls } = fakeServiceClient({});
+  const deps = createErpFeedDeps(client, 'org-1', 'timesheet');
+  await deps.stampAmended('pmo-ts-4', 'TS-2026-00051', '2026-07-20T09:00:00.000Z');
+  const update = calls.find((c) => c.table === 'timesheet_erp_mirror' && c.op === 'update');
+  assert(!!update, 'expected a timesheet_erp_mirror update');
+  assert(update!.patch!.erp_amended_from === 'TS-2026-00051', 'expected the amended-from lineage stamp');
+  assert(
+    update!.eq.some(([col, val]) => col === 'timesheet_id' && val === 'pmo-ts-4'),
+    "L-1: expected stampAmended to filter on timesheet_id = 'pmo-ts-4'",
+  );
+  assert(
+    !update!.eq.some(([col]) => col === 'id'),
+    "L-1: the mirror's own 'id' is a random uuid — filtering on it matches no row at all",
+  );
+});
+
+Deno.test("L-1 stampAmended on a Budget filters on budget_version_id, never the mirror's own id", async () => {
+  const { client, calls } = fakeServiceClient({});
+  const deps = createErpFeedDeps(client, 'org-1', 'budget');
+  await deps.stampAmended('ver-9', 'BUDGET-2026-00002', '2026-07-20T09:00:00.000Z');
+  const update = calls.find((c) => c.table === 'budget_version_erp_mirror' && c.op === 'update');
+  assert(!!update, 'expected a budget_version_erp_mirror update');
+  assert(
+    update!.eq.some(([col, val]) => col === 'budget_version_id' && val === 'ver-9'),
+    "L-1: expected stampAmended to filter on budget_version_id = 'ver-9'",
+  );
+});
+
 Deno.test('MEDIUM-1 a Desk-controlled work_email is ESCAPED before it reaches ilike (no wildcard injection)', async () => {
   // `work_email` is editable by anyone with ERPNext Desk access — the exact untrusted input 0140's
   // human-confirm step exists to contain. Unescaped, `.ilike()` treats `%`/`_` as wildcards, so

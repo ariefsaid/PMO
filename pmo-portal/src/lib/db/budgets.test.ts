@@ -496,6 +496,16 @@ describe('activateVersion', () => {
     );
   });
 
+  // ── H-3 (Luna audit round 3): the retry must not report a failure it never made durable. ──────
+  it('H-3 a retry of an UNSTAMPED version THROWS the reason (nothing durable was written, so "failed" would be a lie)', async () => {
+    makeFromBuilder({ data: { activated_at: null }, error: null });
+    // `budgetPushKey` fails closed client-side, BEFORE any dispatch: no request is made, so no mirror
+    // row and no notification exist. Swallowing it into `pushState:'failed'` told the operator the push
+    // was attempted and recorded — it was neither, and the banner then had no reachable way out.
+    await expect(retryBudgetPush('v-unstamped')).rejects.toThrow(/activation stamp/i);
+    expect(mockFunctionsInvoke).not.toHaveBeenCalled();
+  });
+
   it('HIGH-D a retry that fails again REPORTS the failure instead of throwing (the money invariant holds on the retry path too)', async () => {
     makeFromBuilder({ data: { activated_at: '2026-07-16T10:00:00Z' }, error: null });
     mockFunctionsInvoke.mockResolvedValue({ data: null, error: { message: 'budget-category-unmapped' } });

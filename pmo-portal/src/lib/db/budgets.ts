@@ -246,27 +246,35 @@ export async function activateVersion(versionId: string): Promise<ActivateVersio
  * NEVER re-activates: the version is already Active and its activation stamp is the key's own input.
  */
 export async function retryBudgetPush(versionId: string): Promise<ActivateVersionResult> {
+  // ⚑ H-3 (Luna audit round 3): the key is derived BEFORE the try, so a pre-dispatch refusal
+  // PROPAGATES. `budgetPushKey` fails closed on a missing/unparseable `activated_at` — the pre-0139
+  // population, which is Active but unstamped — and that throw happens client-side, before any request:
+  // no mirror row, no notification, nothing recorded anywhere. Reporting `pushState:'failed'` for it
+  // claimed an attempt that never happened and hid the only sentence that explains the state. It now
+  // reaches `classifyMutationError` on the caller's toast, exactly like any other refusal.
+  const idempotencyKey = budgetPushKey(versionId, await readActivatedAt(versionId));
   try {
-    await pushActivatedBudget(versionId);
+    await dispatchBudgetPush(versionId, idempotencyKey);
     return { pushState: 'pushed' };
   } catch {
-    // Same money invariant as activation: a retry that fails again is reported, never thrown — the
-    // durable state (mirror row + notification) is written server-side by the dispatch itself.
+    // Same money invariant as activation: a retry whose DISPATCH fails again is reported, never thrown
+    // — that durable state (mirror row + notification) is written server-side by the dispatch itself.
     return { pushState: 'failed' };
   }
 }
 
 /** The ONE budget-push dispatch (activation consequence AND retry) — same domain, same command, same
- *  `activated_at`-derived deterministic key. `budgetPushKey` fails closed (throws `commit-rejected`) on
- *  a missing/unparseable stamp, so an unkeyable push is a push FAILURE, never an activation failure. */
+ *  `activated_at`-derived deterministic key. */
+function dispatchBudgetPush(versionId: string, idempotencyKey: string): Promise<unknown> {
+  return dispatchDomainCommand('budget', 'create', { id: versionId, erp_doc_kind: 'budget' }, { idempotencyKey });
+}
+
+/** The activation-consequence push. `budgetPushKey` fails closed (throws `commit-rejected`) on a
+ *  missing/unparseable stamp, so an unkeyable push is a push FAILURE, never an activation failure —
+ *  `activateAndPush` swallows it into the returned push state (ADR-0059 §3.2). */
 async function pushActivatedBudget(versionId: string): Promise<unknown> {
   const activatedAt = await readActivatedAt(versionId);
-  return dispatchDomainCommand(
-    'budget',
-    'create',
-    { id: versionId, erp_doc_kind: 'budget' },
-    { idempotencyKey: budgetPushKey(versionId, activatedAt) },
-  );
+  return dispatchBudgetPush(versionId, budgetPushKey(versionId, activatedAt));
 }
 
 /**

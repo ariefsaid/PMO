@@ -147,6 +147,31 @@ jobs:
               scripts/deno-boot-smoke.ts "supabase/functions/$fn/index.ts"
           done
 
+      # ⚑ RUN THE EDGE-FUNCTION UNIT TESTS. `deno check` is type-only and boot-smoke only proves the
+      # module graph loads — NEITHER executes a single assertion. Until this step existed, all ~393
+      # edge-fn tests across 44 files were LOCAL-ONLY: every money/mirror oracle built during the P3
+      # audit rounds (outbox eligibility, never-adopt, mirror lookup columns, company scoping, the
+      # approved-only gate) was invisible to CI, so a regression in any of them merged green.
+      #
+      # Two invocation traps this step encodes (both cost real debugging time):
+      #   • `_shared/` is NOT picked up by `deno test` run from a function directory — it must be
+      #     named explicitly, which is why it gets its own line below.
+      #   • the `external-*` functions need `--allow-env --allow-net --allow-read`; without them the
+      #     runner reports `NotCapable: Requires env access` as a TEST FAILURE, which reads exactly
+      #     like a broken assertion but is a missing flag.
+      - name: Deno unit tests — edge functions + _shared
+        working-directory: .
+        run: |
+          set -e
+          for fn in adapter-dispatch erpnext-sweep erpnext-webhook erpnext-onboard clickup-sweep clickup-webhook clickup-onboard agent-chat compose-view external-connect external-disconnect external-companies external-link external-lists external-set-company external-unlink; do
+            if ls supabase/functions/$fn/*.test.ts >/dev/null 2>&1; then
+              echo "── deno test supabase/functions/$fn ──"
+              (cd "supabase/functions/$fn" && deno test . --config deno.json --allow-env --allow-net --allow-read)
+            fi
+          done
+          echo "── deno test supabase/functions/_shared (not reachable from a fn dir) ──"
+          (cd supabase/functions/erpnext-sweep && deno test ../_shared --config deno.json --allow-env --allow-net --allow-read)
+
   pgtap:
     # PR→dev fast-lane addition: pgTAP is cheap (no browser, Supabase stack only, seconds not
     # minutes) so it runs here too — RLS/tenancy/SoD regressions get caught before merge to

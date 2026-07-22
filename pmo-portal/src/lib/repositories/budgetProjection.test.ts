@@ -33,6 +33,7 @@ vi.mock('@/src/lib/db/budgets', () => ({ retryBudgetPush: retryBudgetPushMock })
 
 import {
   fetchBudgetProjection,
+  listBudgetFiscalYears,
   retryActiveBudgetPush,
   listBudgetCategoryAccountMap,
   createBudgetCategoryAccountMapRow,
@@ -151,6 +152,48 @@ describe('fetchBudgetProjection (AC-BUD-050/053)', () => {
   it('throws an AppError (code preserved) on an RPC error — e.g. cross-org / RLS 42501', async () => {
     makeRpcBuilder({ data: null, error: { message: 'not authorized', code: '42501' } });
     await expect(fetchBudgetProjection('proj-1', '2026')).rejects.toMatchObject({ code: '42501' });
+  });
+});
+
+// ── H-4 (audit r3) — the fiscal year is the CLIENT'S, read from data that exists ──────────────────
+describe('listBudgetFiscalYears (H-4)', () => {
+  it('H-4 returns the fiscal years actually on record for the project, marking the Active push year', async () => {
+    makeRpcBuilder({
+      data: [
+        { fiscal_year: '2025-2026', is_active_push: true },
+        { fiscal_year: '2024-2025', is_active_push: false },
+      ],
+      error: null,
+    });
+
+    const years = await listBudgetFiscalYears('proj-1');
+
+    expect(mockRpc).toHaveBeenCalledWith('list_budget_fiscal_years', { p_project_id: 'proj-1' });
+    expect(years).toEqual([
+      { fiscalYear: '2025-2026', isActivePush: true },
+      { fiscalYear: '2024-2025', isActivePush: false },
+    ]);
+  });
+
+  it('H-4 a project with no fiscal year on record resolves to an empty list, never a synthesized year', async () => {
+    makeRpcBuilder({ data: [], error: null });
+    expect(await listBudgetFiscalYears('proj-1')).toEqual([]);
+  });
+
+  it('H-4 throws an AppError (code preserved) on an RPC error — never falls back to a guess', async () => {
+    makeRpcBuilder({ data: null, error: { message: 'not authorized', code: '42501' } });
+    await expect(listBudgetFiscalYears('proj-1')).rejects.toMatchObject({ code: '42501' });
+  });
+});
+
+describe('fetchBudgetProjection with no fiscal year selected (H-4)', () => {
+  it('H-4 sends the empty fiscal year, which matches no ERP calendar — the FY-scoped figures stay empty', async () => {
+    makeRpcBuilder({ data: [], error: null });
+    await fetchBudgetProjection('proj-1', null);
+    expect(mockRpc).toHaveBeenCalledWith('get_budget_projection', {
+      p_project_id: 'proj-1',
+      p_fiscal_year: '',
+    });
   });
 });
 

@@ -4841,6 +4841,13 @@ export type Database = {
       }
       is_active_member: { Args: never; Returns: boolean }
       is_operator: { Args: never; Returns: boolean }
+      list_budget_fiscal_years: {
+        Args: { p_project_id: string }
+        Returns: {
+          fiscal_year: string
+          is_active_push: boolean
+        }[]
+      }
       log_audit: {
         Args: {
           p_action: string

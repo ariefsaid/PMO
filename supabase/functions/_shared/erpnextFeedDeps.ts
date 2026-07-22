@@ -63,7 +63,8 @@ export { ERPNEXT_TIER };
  *   • `budget` → `budget_version_erp_mirror.budget_version_id` (migration 0137; NOT unique alone —
  *     `unique(org_id, budget_version_id, fiscal_year)` — upserted on that composite).
  * Querying `.eq('id', pmoRecordId)` for either would match NO row — a Postgres 0-row match is not an
- * error, so `updateMirror`/`tombstoneMirror`/`readMirrorSourceMod`/`mirrorExists` would all silently
+ * error, so `updateMirror`/`tombstoneMirror`/`readMirrorSourceMod`/`mirrorExists`/`stampAmended`
+ * (the last one converted by audit-r3 L-1) would all silently
  * no-op: a Desk-cancelled Timesheet/Budget would never reach `failed`/`held` (the mirror stays
  * `pushed` forever, and `readMirrorSourceMod` always returns `null`, disabling the staleness guard
  * too). This is exactly the class of bug the FR-BUD-102 "never trusts itself" invariant exists to
@@ -198,10 +199,17 @@ export function createErpFeedDeps(serviceClient: SupabaseClient, orgId: string, 
       if (error) throw new AppError(error.message, error.code);
     },
     stampAmended: async (pmoRecordId, amendedFrom, erpModified) => {
+      // ⚑ L-1 (Luna audit round 3) — the LAST query in this module that still used `.eq('id', …)`.
+      // For the two Posture-B side mirrors that matches ZERO rows (their `id` is their own
+      // `gen_random_uuid()`; the PMO record lives in `timesheet_id` / `budget_version_id`), and a
+      // 0-row Postgres update is a silent no-op, not an error. Today the amend branch calls
+      // `updateMirror` immediately after this and re-writes `erp_amended_from` through the correct
+      // column, so nothing is observably lost — but a writer that only works because a DIFFERENT
+      // writer repairs it is not a writer, it is a latent trap. Keyed like every sibling.
       const { error } = await (serviceClient.from(table).update({
         erp_amended_from: amendedFrom,
         erp_modified: erpModified,
-      }).eq('org_id', orgId).eq('id', pmoRecordId) as unknown as Promise<{ error: { message: string; code?: string } | null }>);
+      }).eq('org_id', orgId).eq(lookupColumn, pmoRecordId) as unknown as Promise<{ error: { message: string; code?: string } | null }>);
       if (error) throw new AppError(error.message, error.code);
     },
     recordLineage: async (row: LineageRow) => {

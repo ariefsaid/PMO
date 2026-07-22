@@ -62,6 +62,8 @@ import type { DispatchMoneyOutboxDeps, ExternalRefMapping } from '../../../pmo-p
 import { getReadModelWriter, markTimesheetPushOutcome } from './readModelWriters.ts';
 import { surfaceActionRequired } from '../_shared/erpnextFeedDeps.ts';
 import { enforceTimesheetApproved, isTimesheetPush, type ApprovedTimesheet } from './approvalGuard.ts';
+// M-2: what a rejected budget push MEANS for the durable mirror state (a 409 is not a failure).
+import { classifyBudgetPushOutcome } from './budgetPushOutcome.ts';
 import { maybeFault, type FaultGate } from './faultSeams.ts';
 import { isRevenueSiSubmitTransition, grantSiSubmitClearance, requiresSiAuthorClaim, claimSiAuthor, releaseSiSubmitClearance } from './sodGuard.ts';
 import { checkErpnextCommandAuthorization, type AuthorizationClient } from './authGuard.ts';
@@ -939,6 +941,13 @@ Deno.serve(async (req: Request): Promise<Response> => {
    */
   const recordBudgetPushFailure = async (failure: AppError): Promise<void> => {
     if (!isBudgetPushCommand(command)) return;
+    // ⚑ M-2 (Luna audit round 3) — a 409 is not a push failure. `command-in-flight-for-record` is the
+    // normal outcome of a double-clicked Retry (or the backstop racing the operator): the command that
+    // IS settling owns the outcome, so recording one here raised a false money alarm and could
+    // overwrite the winner's `pushed` with `failed`. `command-held` is real but belongs in `held`, the
+    // state the backstop deliberately excludes because a human must resolve it. See budgetPushOutcome.ts.
+    const outcome = classifyBudgetPushOutcome(failure.code);
+    if (!outcome.record) return;
     const fiscalYear = (command.record as { fiscal_year?: unknown }).fiscal_year;
     if (typeof fiscalYear !== 'string' || fiscalYear === '') return; // the gate never resolved one — recordBudgetGateFailure already owns that rejection
     const versionId = String(command.record.id);
@@ -948,7 +957,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
           org_id: orgId,
           budget_version_id: versionId,
           fiscal_year: fiscalYear,
-          push_state: 'failed',
+          push_state: outcome.pushState,
           push_error: failure.code ?? 'DISPATCH_FAILED',
         },
         { onConflict: 'org_id,budget_version_id,fiscal_year' },

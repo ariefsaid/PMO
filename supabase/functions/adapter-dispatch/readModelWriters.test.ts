@@ -384,6 +384,29 @@ Deno.test({
   },
 });
 
+// ── M-1 (Luna audit round 3) — the tombstone's ONE clearing writer must actually exist. ──────────
+// MEDIUM-G made `erp_cancelled_at` STICKY for the two PMO-SoT kinds on purpose: it is the sweep
+// backstop's candidate-query EXCLUSION (`listPendingBudgetPushes` filters `erp_cancelled_at is null`),
+// so letting the inbound feed clear it on a Desk amend re-drove the push against the very document the
+// operator had just authored. That exception is only safe because a FRESH PMO PUSH clears it — and
+// that writer was never written. Without it, the first Desk cancel disables the backstop for that
+// version FOREVER: a later push failure is silently stranded, which is exactly the FR-BUD-123
+// guarantee MEDIUM-G was not allowed to trade away.
+Deno.test({
+  name: 'M-1 a fresh budget push CLEARS the Desk-cancel tombstone (the backstop is never permanently blinded)',
+  fn: async () => {
+    const { client, calls } = makeFakeClient();
+    await getReadModelWriter('budget').upsert(
+      { serviceClient: client as never, orgId: 'org-1' },
+      { id: 'ver-1', erp_budget_name: 'BUDGET-2026-00002', erp_docstatus: 1, fiscal_year: '2026' },
+      { domain: 'budget', operation: 'create', record: { id: 'ver-1', erp_doc_kind: 'budget' } },
+    );
+    const row = calls.find((c) => c.method === 'upsert')!.args[0] as Record<string, unknown>;
+    assert('erp_cancelled_at' in row, 'the fresh push must WRITE erp_cancelled_at — an upsert only updates the columns it names');
+    assertEquals(row.erp_cancelled_at, null, 'a successful re-push supersedes the cancelled ERP document');
+  },
+});
+
 Deno.test({
   name: 'AC-BUD-012 the budget writer refuses a canonical with no fiscal year (the mirror grain would be wrong)',
   fn: async () => {

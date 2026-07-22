@@ -844,6 +844,15 @@ const budgetWriter: ReadModelWriter = {
         erp_docstatus: (canonical.erp_docstatus as number | null | undefined) ?? null,
         erp_modified: (canonical.erp_modified as string | null | undefined) ?? null,
         pushed_at: new Date().toISOString(),
+        // ⚑ M-1 (Luna audit round 3) — THE clearing writer MEDIUM-G's sticky tombstone depends on.
+        // `erp_cancelled_at` on the two PMO-SoT kinds is deliberately NOT cleared by the inbound feed
+        // (it is the sweep backstop's candidate-query exclusion, `listPendingBudgetPushes`), which is
+        // only safe because a FRESH PMO PUSH supersedes the cancelled ERP document — and that writer
+        // did not exist. An `upsert` updates ONLY the columns it names, so a tombstone set by a Desk
+        // cancel survived a successful re-push and excluded that version from the backstop FOREVER:
+        // the next failed push was silently stranded, with nothing on screen to say so (FR-BUD-123).
+        // This row now mirrors a live ERP document, so the cancellation belongs to its predecessor.
+        erp_cancelled_at: null,
       },
       { onConflict: 'org_id,budget_version_id,fiscal_year' },
     );
@@ -896,6 +905,10 @@ const timesheetsWriter: ReadModelWriter = {
         erp_docstatus: (canonical.erp_docstatus as number | null | undefined) ?? null,
         erp_modified: (canonical.erp_modified as string | null | undefined) ?? null,
         erp_amended_from: (canonical.erp_amended_from as string | null | undefined) ?? null,
+        // ⚑ M-1 (Luna audit round 3) — the sibling of `budgetWriter`'s clear, for the same reason:
+        // MEDIUM-G's sticky tombstone is the backstop's exclusion, and only a fresh PMO push may lift
+        // it. Without this the first Desk cancel blinded the backstop to this sheet permanently.
+        erp_cancelled_at: null,
       },
       { onConflict: 'timesheet_id' },
     );

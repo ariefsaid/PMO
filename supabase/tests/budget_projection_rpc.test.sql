@@ -6,7 +6,7 @@
 -- request.jwt.claims), modelled on budget_version_activated_at.test.sql / budget_category_account_map_rls
 -- .test.sql. Namespaced 0b3e UUIDs (valid hex, not seed-colliding).
 begin;
-select plan(10);
+select plan(19);
 
 -- ── Fixtures (inserted as table owner, bypassing RLS) ────────────────────────────────────────────
 insert into organizations (id, name) values
@@ -126,10 +126,100 @@ select is(
   null,
   'HIGH-C a NON-employing org never sees a push banner (there is no ERP to push to)');
 
+-- ════════════════════════════════════════════════════════════════════════════════════════════════
+-- H-4 (Luna audit round 3) — the fiscal year is the CLIENT'S, and it is READ, never synthesized.
+--
+-- `fiscal_year` on both `erp_actuals_snapshot` and `budget_version_erp_mirror` carries the ERPNext
+-- `Fiscal Year` NAME (the round-2 OQ-BUD-3b ruling: a fiscal year is whatever the client declares).
+-- A Jul-Jun client's is named '2025-2026'. A surface that asks for a CALENDAR year ('2026') therefore
+-- joins nothing: zero actuals, a NULL push state, and no way to reach the real data — every figure on
+-- the primary money screen silently wrong. `list_budget_fiscal_years` is what makes the selector
+-- offerable-only-what-exists, for ANY fiscal calendar.
+-- ════════════════════════════════════════════════════════════════════════════════════════════════
+set local role postgres;
+insert into projects (id, org_id, name, status) values
+  ('0b3e1111-0000-0000-0000-000000000002','0b3e0000-0000-0000-0000-000000000001','AC-BUD Jul-Jun Project','Ongoing Project');
+insert into budget_versions (id, org_id, project_id, version, name, status) values
+  ('0b3e2222-0000-0000-0000-000000000002','0b3e0000-0000-0000-0000-000000000001','0b3e1111-0000-0000-0000-000000000002',1,'FY25/26 Budget','Draft');
+insert into budget_line_items (org_id, budget_version_id, category, description, budgeted_amount, actual_amount) values
+  ('0b3e0000-0000-0000-0000-000000000001','0b3e2222-0000-0000-0000-000000000002','Labor','Team costs',500000.00,0);
+update budget_versions set status = 'Active', activated_at = now() where id = '0b3e2222-0000-0000-0000-000000000002';
+insert into erp_actuals_snapshot (org_id, project_id, account, fiscal_year, debit, credit, net, snapshot_id) values
+  ('0b3e0000-0000-0000-0000-000000000001','0b3e1111-0000-0000-0000-000000000002','5100 - Direct Costs - PSC','2025-2026',400000.00,0,400000.00,gen_random_uuid());
+insert into budget_version_erp_mirror (org_id, budget_version_id, fiscal_year, push_state, push_error) values
+  ('0b3e0000-0000-0000-0000-000000000001','0b3e2222-0000-0000-0000-000000000002','2025-2026','pushed',null);
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"0b3e0000-0000-0000-0000-0000000000a2","role":"authenticated"}';
+
+select has_function('public','list_budget_fiscal_years', array['uuid'], 'H-4 the fiscal-year source exists');
+select is(p.prosecdef, false, 'H-4 SECURITY INVOKER (org isolation comes from the underlying tables'' RLS)')
+  from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+  where n.nspname='public' and p.proname='list_budget_fiscal_years';
+
+select results_eq(
+  $$select fiscal_year, is_active_push from public.list_budget_fiscal_years('0b3e1111-0000-0000-0000-000000000002')$$,
+  $$values ('2025-2026'::text, true)$$,
+  'H-4 the offerable fiscal years are the client''s OWN (ERPNext Fiscal Year names), flagging the Active version''s push year');
+
+select results_eq(
+  $$select actuals_to_date, push_state
+      from public.get_budget_projection('0b3e1111-0000-0000-0000-000000000002','2025-2026') where category='Labor'$$,
+  $$values (400000.00::numeric, 'pushed'::text)$$,
+  'H-4 read with the CLIENT''S fiscal-year name, the ERP ledger actuals and the push state are there');
+
+-- The defect's signature, pinned: the calendar year the old UI synthesized joins NOTHING. This is why
+-- the selector must never be able to offer it.
+select results_eq(
+  $$select actuals_to_date, push_state
+      from public.get_budget_projection('0b3e1111-0000-0000-0000-000000000002','2026') where category='Labor'$$,
+  $$values (0::numeric, null::text)$$,
+  'H-4 a synthesized CALENDAR year returns zero actuals and no push state — never offerable');
+
+set local role postgres;
+insert into projects (id, org_id, name, status) values
+  ('0b3e1111-0000-0000-0000-000000000003','0b3e0000-0000-0000-0000-000000000001','AC-BUD Fresh Project','Ongoing Project');
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"0b3e0000-0000-0000-0000-0000000000a2","role":"authenticated"}';
+select is((select count(*)::int from public.list_budget_fiscal_years('0b3e1111-0000-0000-0000-000000000003')), 0,
+          'H-4 a project with no fiscal year on record offers NONE — an honest empty state, not a guess');
+
+-- ════════════════════════════════════════════════════════════════════════════════════════════════
+-- H-3 (Luna audit round 3) — an Active version that carries NO activation stamp.
+--
+-- `0139` added `activated_at` nullable with no backfill, so every version already Active at migration
+-- time has NULL. That version cannot be pushed (`budgetPushKey` AND the server-side budget gate both
+-- refuse an unstamped version — correctly: an invented stamp would key a money command on a fiction),
+-- and the round-2 `never-pushed` alarm required `activated_at is not null`, so it stayed SILENT: a
+-- clean screen while ERPNext enforced nothing at all. Visible-and-honest beats silent-and-clean.
+-- ════════════════════════════════════════════════════════════════════════════════════════════════
+set local role postgres;
+delete from budget_version_erp_mirror where budget_version_id = '0b3e2222-0000-0000-0000-000000000002';
+update budget_versions set activated_at = null where id = '0b3e2222-0000-0000-0000-000000000002';
+insert into external_domain_ownership (org_id, domain, external_tier)
+  values ('0b3e0000-0000-0000-0000-000000000001','budget','erpnext');
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"0b3e0000-0000-0000-0000-0000000000a2","role":"authenticated"}';
+
+select is(
+  (select distinct push_state from public.get_budget_projection('0b3e1111-0000-0000-0000-000000000002','2025-2026')),
+  'unstamped-activation',
+  'H-3 an Active version with NO activation stamp is NAMED as such, never a clean screen');
+
+set local role postgres;
+update budget_versions set activated_at = now() where id = '0b3e2222-0000-0000-0000-000000000002';
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"0b3e0000-0000-0000-0000-0000000000a2","role":"authenticated"}';
+select is(
+  (select distinct push_state from public.get_budget_projection('0b3e1111-0000-0000-0000-000000000002','2025-2026')),
+  'never-pushed',
+  'H-3 a STAMPED Active version with no mirror row is the re-drivable never-pushed state (unchanged)');
+
 -- ── Cross-org: org B''s Finance reads zero rows (RLS, not a hand-rolled org filter) ────────────────
 set local request.jwt.claims = '{"sub":"0b3e0000-0000-0000-0000-0000000000b1","role":"authenticated"}';
 select is((select count(*)::int from public.get_budget_projection('0b3e1111-0000-0000-0000-000000000001','2026')), 0,
           'AC-BUD-053 cross-org read returns zero rows (RLS)');
+select is((select count(*)::int from public.list_budget_fiscal_years('0b3e1111-0000-0000-0000-000000000002')), 0,
+          'H-4 cross-org fiscal-year read returns zero rows (RLS)');
 
 select finish();
 rollback;

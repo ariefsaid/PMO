@@ -29,6 +29,29 @@
 --        of the archive step, the single-Active invariant, the Draft-only guard and get_project_budget).
 --        The shipped budget suite (0008-0012, 0060, 0075) stays green unchanged — the other half of the proof.
 
+-- ⚑ H-3 (Luna audit round 3, 2026-07-22) — DELIBERATELY NOT BACKFILLED. Recorded here because the
+--   omission looks like the bug and is not; the bug was that the omission was SILENT.
+--
+--   Adding this column nullable creates a population: every version already `status='Active'` carries
+--   NULL, and it can never be re-stamped (the RPC below refuses a non-Draft version). Those rows cannot
+--   be pushed — `budgetPushKey` and `budgetGate.runBudgetGate` both refuse an unstamped version — and
+--   round 3 found they also raised no alarm, i.e. ERPNext enforced nothing behind a clean screen.
+--
+--   The tempting repair is `set activated_at = coalesce(updated_at, created_at)`. Rejected:
+--     • `budget_versions` has no `updated_at` at all (0001), so the only candidate is `created_at` —
+--       when the DRAFT was authored, which for a version drafted in March and activated in June is off
+--       by months and is simply NOT the fact this column claims to record. It is also copied verbatim
+--       into `budget_version_erp_mirror.activated_at_witness`, the audit trail for "which activation
+--       act did we push", so a fabricated value corrupts the one record that exists of the act.
+--     • It feeds the DETERMINISTIC IDEMPOTENCY KEY (ADR-0059 §4). A key derived from an invented
+--       instant is stable, but it is stable AROUND A FICTION: it asserts an activation the DB never
+--       witnessed, on a money command that changes a client's GL overspend controls.
+--   Honest refusal beats a plausible guess. So the state is made VISIBLE and ACTIONABLE instead:
+--   `get_budget_projection` (0141) reports it as its OWN state, `'unstamped-activation'`, and the
+--   operator surface explains the route that DOES work and is truthful — activate a new version, which
+--   records a real activation act and pushes normally. `activated_at` is written by exactly one writer,
+--   the RPC below, and once written it never changes, so the key is stable forever by construction.
+
 alter table public.budget_versions add column if not exists activated_at timestamptz;
 
 comment on column public.budget_versions.activated_at is

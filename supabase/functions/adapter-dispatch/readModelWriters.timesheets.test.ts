@@ -89,6 +89,18 @@ Deno.test('FR-TSP-072: a timesheets upsert writes ONLY timesheet_erp_mirror, wit
   assertEquals(upserts[0].args[1], { onConflict: 'timesheet_id' }, 'a re-apply must be idempotent on the 1:1 seam');
 });
 
+// ── M-1 (Luna audit round 3) — the sibling of the budget case: MEDIUM-G's sticky `erp_cancelled_at`
+// is only safe if a fresh PMO push clears it. An `upsert` updates ONLY the columns it names, so a
+// tombstone set by a Desk cancel survived a successful re-push and permanently excluded the row from
+// the backstop's candidate query.
+Deno.test('M-1 a fresh timesheet push CLEARS the Desk-cancel tombstone (the backstop is never permanently blinded)', async () => {
+  const { client, calls } = makeFakeClient();
+  await getReadModelWriter('timesheets').upsert(CTX(client), CANONICAL, COMMAND);
+  const row = calls.find((c) => c.method === 'upsert')!.args[0] as Record<string, unknown>;
+  assert('erp_cancelled_at' in row, 'the fresh push must WRITE erp_cancelled_at — an upsert only updates the columns it names');
+  assertEquals(row.erp_cancelled_at, null, 'a successful re-push supersedes the cancelled ERP document');
+});
+
 Deno.test('ADR-0059 §3.1: the writer NEVER touches the PMO SoT tables (timesheets/timesheet_entries/profiles)', async () => {
   const { client, calls } = makeFakeClient();
   await getReadModelWriter('timesheets').upsert(CTX(client), CANONICAL, COMMAND);

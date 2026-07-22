@@ -6,8 +6,10 @@ import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatCurrency, parseMoneyInput, pct } from '@/src/lib/format';
 import {
   fetchBudgetProjection,
+  listBudgetFiscalYears,
   upsertBudgetProjectionEtc,
   retryActiveBudgetPush,
+  type BudgetFiscalYearRow,
   type BudgetProjectionCellRow,
   type BudgetCategory,
 } from '@/src/lib/repositories/budgetProjection';
@@ -44,19 +46,45 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
   const { toast } = useToast();
   const qc = useQueryClient();
 
-  const [fiscalYear, setFiscalYear] = useState(() => String(new Date().getFullYear()));
+  // ⚑ H-4 (Luna audit round 3): the fiscal year is READ, never synthesized. `fiscal_year` on both
+  // `erp_actuals_snapshot` and `budget_version_erp_mirror` carries the ERPNext `Fiscal Year` NAME the
+  // client declared (round-2 OQ-BUD-3b: "a fiscal year is whatever the client declares"), and every
+  // read joins it by EQUALITY. Synthesizing `new Date().getFullYear()` therefore joined NOTHING for any
+  // non-calendar client — a Jul–Jun client's year is named '2025-2026' — so this screen showed actuals
+  // 0.00, variance = the entire budget, utilization ~0 and NO push banner, silently, with no option in
+  // the selector that could reach the real data. PMO does not own the client's calendar and must never
+  // guess its format: the selector offers exactly the years that exist, so every option can return rows.
+  const yearsQuery = useQuery<BudgetFiscalYearRow[]>({
+    queryKey: ['budget-fiscal-years', projectId],
+    queryFn: () => listBudgetFiscalYears(projectId),
+  });
+  const fiscalYears = useMemo(() => yearsQuery.data ?? [], [yearsQuery.data]);
+
+  // Derived, never an effect: the user's pick wins; otherwise the year the ACTIVE version was pushed
+  // against; otherwise the newest on record; otherwise `null` = "no fiscal year on record" (a real
+  // state, not a placeholder). A pick that is no longer offered falls back the same way.
+  const [pickedYear, setPickedYear] = useState<string | null>(null);
+  const fiscalYear = useMemo<string | null>(() => {
+    if (pickedYear && fiscalYears.some((y) => y.fiscalYear === pickedYear)) return pickedYear;
+    return fiscalYears.find((y) => y.isActivePush)?.fiscalYear ?? fiscalYears[0]?.fiscalYear ?? null;
+  }, [pickedYear, fiscalYears]);
 
   const queryKey = useMemo(() => ['budget-projection', projectId, fiscalYear] as const, [projectId, fiscalYear]);
   const { data, isPending, isError, refetch } = useQuery<BudgetProjectionCellRow[]>({
     queryKey,
     queryFn: () => fetchBudgetProjection(projectId, fiscalYear),
+    // Never read the projection off a GUESSED year: until the real years are known (or their read has
+    // failed) there is no honest year to ask for.
+    enabled: yearsQuery.isSuccess,
   });
 
   const rows = data ?? [];
 
   const etcMutation = useMutation({
-    mutationFn: (v: { category: BudgetCategory; pmoEtc: number }) =>
-      upsertBudgetProjectionEtc(projectId, fiscalYear, v.category, v.pmoEtc),
+    // The fiscal year travels WITH the write: an ETC is only ever authored against a year the client
+    // actually declared, never against a placeholder.
+    mutationFn: (v: { fiscalYear: string; category: BudgetCategory; pmoEtc: number }) =>
+      upsertBudgetProjectionEtc(projectId, v.fiscalYear, v.category, v.pmoEtc),
     onSuccess: () => qc.invalidateQueries({ queryKey }),
   });
 
@@ -75,13 +103,14 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
   };
 
   const saveEdit = async (category: BudgetCategory) => {
+    if (fiscalYear === null) return; // unreachable: the edit affordance is not offered without a year
     const parsed = parseMoneyInput(etcInput);
     if (parsed === null || parsed < 0) {
       setEtcError('Enter a valid, non-negative amount');
       return;
     }
     try {
-      await etcMutation.mutateAsync({ category, pmoEtc: parsed });
+      await etcMutation.mutateAsync({ fiscalYear, category, pmoEtc: parsed });
       toast('Estimate to complete saved', `${category} · ${fiscalYear}`, 'success');
       setEditingCategory(null);
     } catch (err) {
@@ -100,9 +129,24 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
   // tab closed mid-request, platform 502). Every mirror writer lives inside `adapter-dispatch`, and the
   // sweep backstop's work queue IS that mirror, so nothing re-drives it and nobody is notified. It used
   // to render as a NULL push_state, i.e. a completely clean screen.
+  //
+  // ⚑ H-3 (audit round 3): `'unstamped-activation'` joins it. That is an Active version carrying no
+  // `activated_at` — the population mig 0139 created by adding the column nullable — and it was
+  // INVISIBLE, because the alarm above required the stamp. Its consequence is identical (ERPNext
+  // enforces nothing) but its remedy is NOT: the push cannot be re-driven at all, since both
+  // `budgetPushKey` and the server-side budget gate refuse an unstamped version. That refusal is
+  // correct and deliberate — the stamp is the deterministic key's own input, so inventing one would key
+  // a money command on a fiction and could mint a SECOND ERP Budget. So it is banner-ed with its own
+  // cause and its own real route out (activate a fresh version, which records a true activation act),
+  // and NO retry button, rather than a button that can only ever fail.
   const blockedRow = rows.find(
-    (r) => r.pushState === 'failed' || r.pushState === 'held' || r.pushState === 'never-pushed',
+    (r) =>
+      r.pushState === 'failed' ||
+      r.pushState === 'held' ||
+      r.pushState === 'never-pushed' ||
+      r.pushState === 'unstamped-activation',
   );
+  const isUnstamped = blockedRow?.pushState === 'unstamped-activation';
 
   // HIGH-D: the recovery affordance. `held`/`failed`/`never-pushed` are all re-drivable — under the
   // OPERATOR's own JWT, which is the authenticated actor the sweep backstop can never synthesize
@@ -127,22 +171,30 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
     }
   };
 
-  if (isPending) {
-    return (
-      <div className="rounded-lg border border-border bg-card">
-        <ListState variant="loading" rows={5} testId="budget-projection-loading" />
-      </div>
-    );
-  }
-
-  if (isError) {
+  // ⚑ Error BEFORE loading: the projection query is `enabled` on the fiscal-year read, and a DISABLED
+  // react-query stays `pending` forever — so checking loading first would render an eternal skeleton
+  // instead of naming a failed year read.
+  //
+  // A failed fiscal-year read is reported, never worked around: falling back to a guessed year would
+  // put a zeroed money screen in front of the user with no sign anything went wrong (H-4).
+  if (yearsQuery.isError || isError) {
     return (
       <ListState
         variant="error"
         title="Couldn't load the budget projection"
         sub="The request failed. Check your connection and try again."
-        onRetry={() => refetch()}
+        onRetry={() => {
+          void (yearsQuery.isError ? yearsQuery.refetch() : refetch());
+        }}
       />
+    );
+  }
+
+  if (yearsQuery.isPending || isPending) {
+    return (
+      <div className="rounded-lg border border-border bg-card">
+        <ListState variant="loading" rows={5} testId="budget-projection-loading" />
+      </div>
     );
   }
 
@@ -155,24 +207,25 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
             PMO&rsquo;s forward view — actuals from the ERP ledger, your own estimate to complete.
           </p>
         </div>
-        <label className="flex items-center gap-1.5 text-[13px] text-muted-foreground">
-          Fiscal year
-          <select
-            aria-label="Fiscal year"
-            value={fiscalYear}
-            onChange={(e) => setFiscalYear(e.target.value)}
-            className="h-8 rounded-md border border-input bg-background px-2 text-[13px] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-          >
-            {[0, 1, 2].map((delta) => {
-              const y = String(new Date().getFullYear() - delta);
-              return (
-                <option key={y} value={y}>
-                  {y}
+        {fiscalYears.length > 0 ? (
+          <label className="flex items-center gap-1.5 text-[13px] text-muted-foreground">
+            Fiscal year
+            <select
+              aria-label="Fiscal year"
+              value={fiscalYear ?? ''}
+              onChange={(e) => setPickedYear(e.target.value)}
+              className="h-8 rounded-md border border-input bg-background px-2 text-[13px] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+            >
+              {fiscalYears.map((y) => (
+                <option key={y.fiscalYear} value={y.fiscalYear}>
+                  {y.fiscalYear}
                 </option>
-              );
-            })}
-          </select>
-        </label>
+              ))}
+            </select>
+          </label>
+        ) : (
+          <p className="text-[13px] text-muted-foreground">No fiscal year on record</p>
+        )}
       </div>
 
       {blockedRow && (
@@ -181,14 +234,18 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
             <div>
               <b className="font-semibold">ERPNext is still enforcing the previous budget for this project.</b>
               <div className="mt-1">
-                {blockedRow.pushState === 'never-pushed'
-                  ? 'The activated budget never reached ERPNext — it was not recorded as pushed at all.'
-                  : blockedRow.pushError ?? 'The push to ERPNext has not completed.'}
+                {isUnstamped
+                  ? 'This budget version has no record of when it was activated, so it cannot be handed to ERPNext. Activate a new version to push the current budget.'
+                  : blockedRow.pushState === 'never-pushed'
+                    ? 'The activated budget never reached ERPNext — it was not recorded as pushed at all.'
+                    : blockedRow.pushError ?? 'The push to ERPNext has not completed.'}
               </div>
             </div>
-            <Button variant="outline" size="sm" loading={retryMutation.isPending} onClick={() => void retryPush()}>
-              Retry the push
-            </Button>
+            {!isUnstamped && (
+              <Button variant="outline" size="sm" loading={retryMutation.isPending} onClick={() => void retryPush()}>
+                Retry the push
+              </Button>
+            )}
           </div>
         </GateNotice>
       )}
@@ -198,7 +255,7 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
           <ListState
             variant="empty"
             icon="folder"
-            title={`No projection data yet for ${fiscalYear}`}
+            title={fiscalYear === null ? 'No fiscal year on record yet' : `No projection data yet for ${fiscalYear}`}
             sub="Activate a budget version, log an estimate to complete, or wait for ERP actuals to sync."
           />
         </div>
@@ -255,7 +312,7 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
                     ) : (
                       <div className="flex items-center justify-end gap-2">
                         {money(row.pmoEtc)}
-                        {canEditEtc && (
+                        {canEditEtc && fiscalYear !== null && (
                           <Button variant="ghost" size="sm" onClick={() => openEdit(row)}>
                             {`Edit ${row.category} ETC`}
                           </Button>

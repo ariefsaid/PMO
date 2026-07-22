@@ -34,6 +34,15 @@ export interface BudgetProjectionCellRow {
   pushError: string | null;
 }
 
+/** One fiscal year that actually exists for a project, in the CLIENT'S own calendar (H-4). */
+export interface BudgetFiscalYearRow {
+  /** The ERPNext `Fiscal Year` NAME as stored — '2026' for a calendar client, '2025-2026' for a Jul–Jun
+   *  one. PMO never parses, orders-by-parsing, or synthesizes this: it is the client's own label. */
+  fiscalYear: string;
+  /** True for the year the project's ACTIVE budget version was pushed against — the sensible default. */
+  isActivePush: boolean;
+}
+
 /** One `budget_category_account_map` row, camelCase. */
 export interface CategoryAccountMapRow {
   category: BudgetCategory;
@@ -45,11 +54,15 @@ export interface CategoryAccountMapRow {
  *  error) — only on an actual RPC failure (e.g. cross-org / RLS 42501). */
 export async function fetchBudgetProjection(
   projectId: string,
-  fiscalYear: string,
+  fiscalYear: string | null,
 ): Promise<BudgetProjectionCellRow[]> {
   const { data, error } = await supabase.rpc('get_budget_projection', {
     p_project_id: projectId,
-    p_fiscal_year: fiscalYear,
+    // H-4: `null` means "this project has no fiscal year on record". The empty string is the sentinel
+    // for that: it matches no ERP `Fiscal Year` name, so the FY-scoped figures (actuals, ETC, the push
+    // row) stay honestly empty — while the FY-INDEPENDENT parts still render, which is what keeps the
+    // never-pushed / unstamped-activation alarm reachable on a project that has never synced a year.
+    p_fiscal_year: fiscalYear ?? '',
   });
   if (error) throw toAppError(error);
   return (data ?? []).map((row) => ({
@@ -66,6 +79,22 @@ export async function fetchBudgetProjection(
     pushState: row.push_state ?? null,
     pushError: row.push_error ?? null,
   }));
+}
+
+/**
+ * H-4 — the fiscal years a user may ask for, read from the data that exists (`list_budget_fiscal_years`,
+ * mig 0141).
+ *
+ * PMO does not own the client's fiscal calendar and must never invent it: `fiscal_year` everywhere in
+ * this slice is the ERPNext `Fiscal Year` NAME the client declared ('2025-2026' for a Jul–Jun client),
+ * and every read joins it by EQUALITY. A synthesized calendar year therefore joins nothing and shows a
+ * zeroed money screen. Ordered newest-first by the RPC; an empty list is a legitimate "no fiscal year
+ * on record" state, never a reason to guess one.
+ */
+export async function listBudgetFiscalYears(projectId: string): Promise<BudgetFiscalYearRow[]> {
+  const { data, error } = await supabase.rpc('list_budget_fiscal_years', { p_project_id: projectId });
+  if (error) throw toAppError(error);
+  return (data ?? []).map((row) => ({ fiscalYear: row.fiscal_year, isActivePush: row.is_active_push }));
 }
 
 /**
