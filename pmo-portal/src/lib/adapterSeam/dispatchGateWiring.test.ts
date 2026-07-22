@@ -28,6 +28,11 @@ const INDEX = readFileSync(
 );
 /** The same source with comments stripped — a rule may be DESCRIBED in prose without being inlined. */
 const CODE = INDEX.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+/** AC-TSP-031: the shared code->HTTP-status ladder both of index.ts's failure exits answer through. */
+const STATUS_MAP = readFileSync(
+  resolve(dirname(fileURLToPath(import.meta.url)), '../../../../supabase/functions/adapter-dispatch/dispatchErrorStatus.ts'),
+  'utf8',
+);
 
 describe('WIRE 2: the SI project gate is wired into the dispatch entry point', () => {
   it('index.ts imports AND awaits checkSiProjectGate (the guard is not inert)', () => {
@@ -57,24 +62,28 @@ describe('WIRE 2: the SI project gate is wired into the dispatch entry point', (
 });
 
 describe('WIRE 4: the in-flight-for-record conflict is mapped to 409', () => {
-  it('index.ts imports the classified code from dispatch.ts (never re-spells the string)', () => {
-    expect(INDEX).toMatch(/import \{[^}]*COMMAND_IN_FLIGHT_FOR_RECORD[^}]*\} from '[^']*\/dispatch\.ts'/);
+  // AC-TSP-031 moved the code->status ladder OUT of index.ts into `dispatchErrorStatus.ts`, so both
+  // failure exits (adapter-select pre-flight + dispatch) share ONE map and cannot drift. The oracle is
+  // unchanged — the classified code is still IMPORTED from dispatch.ts, never re-spelled, and still
+  // maps to 409 — only its home moved, so these assertions follow it there.
+  it('the status map imports the classified code from dispatch.ts (never re-spells the string)', () => {
+    expect(STATUS_MAP).toMatch(/import \{[^}]*COMMAND_IN_FLIGHT_FOR_RECORD[^}]*\} from '[^']*\/dispatch\.ts'/);
+    expect(INDEX).toMatch(/import \{[^}]*dispatchErrorStatus[^}]*\} from '\.\/dispatchErrorStatus\.ts'/);
   });
 
   it('a second concurrent create for one PMO record answers 409, not a raw 500', () => {
-    // ⚑ Anchor on `const status =` only — NOT on the error variable's name. P3c renamed it
-    // `appError` -> `budgetAppError`, and the old anchor then matched nothing: `indexOf` returned -1,
-    // the slice chain collapsed to '', and the assertion was checking an empty string. It failed
-    // loudly here, but a `.not.toContain`-shaped assertion in the same position would have passed
-    // VACUOUSLY and reported a guard that no longer exists. So assert the anchor is found first.
-    // Anchor on the mapping's OWN unique content (`external-unreachable` appears only in this
-    // expression), not on `const status =` — there is more than one of those in the file, and the
-    // first belongs to the JWT check.
-    const anchor = CODE.search(/const status =[\s\S]{0,80}'external-unreachable'/);
-    expect(anchor, 'the dispatch-error status mapping in adapter-dispatch/index.ts was renamed or removed').toBeGreaterThan(-1);
-    const statusExpr = CODE.slice(anchor, CODE.indexOf(';', anchor));
-    expect(statusExpr).toContain('COMMAND_IN_FLIGHT_FOR_RECORD');
-    expect(statusExpr).toMatch(/COMMAND_IN_FLIGHT_FOR_RECORD[\s\S]{0,40}409/);
+    // ⚑ Anchor on the mapping's OWN unique content (`external-unreachable` appears only in this
+    // function), and assert the anchor is FOUND first — a `.not.toContain`-shaped assertion against a
+    // collapsed empty slice would pass VACUOUSLY and report a guard that no longer exists.
+    const anchor = STATUS_MAP.search(/export function dispatchErrorStatus[\s\S]{0,200}'external-unreachable'/);
+    expect(anchor, 'the dispatch-error status mapping was renamed or removed').toBeGreaterThan(-1);
+    const fn = STATUS_MAP.slice(anchor, STATUS_MAP.indexOf('\n}', anchor));
+    expect(fn).toContain('COMMAND_IN_FLIGHT_FOR_RECORD');
+    expect(fn).toMatch(/COMMAND_IN_FLIGHT_FOR_RECORD[\s\S]{0,40}409/);
+    // …and BOTH of index.ts's failure exits answer through it (the fork this replaced answered a flat
+    // 400 at adapter-select, so a classified business rejection said "malformed request").
+    expect(CODE).toMatch(/status: dispatchErrorStatus\(appError\.code, 400\)/);
+    expect(CODE).toMatch(/status: dispatchErrorStatus\(budgetAppError\.code, 500\)/);
   });
 });
 
@@ -200,8 +209,8 @@ describe('WIRE P3C: a post-gate budget push failure is recorded durably (HIGH-2)
     expect(dispatchCall, 'the dispatch/ERP-write catch must record with the BEST-classified error (budgetAppError), not the generic one').toBeGreaterThan(-1);
     // The dispatch-catch recording must happen with the reclassified error already computed, and
     // strictly BEFORE the HTTP status/response is built (never after the caller already got an answer).
-    const budgetAppErrorDecl = at('const budgetAppError =');
-    const statusDecl = CODE.indexOf('const status = budgetAppError.code', dispatchCall);
+    const budgetAppErrorDecl = at('const budgetAppError:');
+    const statusDecl = CODE.indexOf('status: dispatchErrorStatus(budgetAppError.code', dispatchCall);
     expect(budgetAppErrorDecl).toBeGreaterThan(-1);
     expect(dispatchCall).toBeGreaterThan(budgetAppErrorDecl);
     expect(statusDecl).toBeGreaterThan(dispatchCall);

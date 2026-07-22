@@ -30,10 +30,21 @@ const TERMINAL_APPLY_REASONS = [
   'procurement-inbound-adopt-no-case-link',
 ] as const;
 
-/** `'skip'` for a terminal, already-surfaced per-document refusal; `'halt'` for everything else. */
-export function erpFeedApplyErrorPolicy(err: unknown): 'skip' | 'halt' {
+/**
+ * The classified never-adopt reason this error carries, or `null` when it is not one of them.
+ *
+ * ⚑ AC-TSP-040: the WEBHOOK ingress needs the reason, not merely the verdict — Frappe RETRIES a failed
+ * webhook, so an un-adoptable document answering 500 becomes a permanent retry storm against the
+ * client's own ERP. The ingress acks it 200 and NAMES the rule that applied, using this same
+ * classification rather than a forked copy of it.
+ */
+export function terminalApplyReason(err: unknown): string | null {
   const code = (err as { code?: unknown } | null | undefined)?.code;
   const message = err instanceof Error ? err.message : '';
-  const terminal = TERMINAL_APPLY_REASONS.some((reason) => code === reason || message.includes(reason));
-  return terminal ? 'skip' : 'halt';
+  return TERMINAL_APPLY_REASONS.find((reason) => code === reason || message.includes(reason)) ?? null;
+}
+
+/** `'skip'` for a terminal, already-surfaced per-document refusal; `'halt'` for everything else. */
+export function erpFeedApplyErrorPolicy(err: unknown): 'skip' | 'halt' {
+  return terminalApplyReason(err) === null ? 'halt' : 'skip';
 }

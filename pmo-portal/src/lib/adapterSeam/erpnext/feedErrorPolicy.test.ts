@@ -7,7 +7,7 @@
 import { describe, it, expect } from 'vitest';
 import { AdapterError } from '../contract';
 import { AppError } from '../../appError';
-import { erpFeedApplyErrorPolicy } from './feedErrorPolicy';
+import { erpFeedApplyErrorPolicy, terminalApplyReason } from './feedErrorPolicy';
 
 describe('erpFeedApplyErrorPolicy (HIGH-A — one Desk-created doc must never wedge the sweep)', () => {
   it('a Desk-created Budget PMO must never adopt is SKIPPED (FR-BUD-140 — expected, terminal, ack-and-skip)', () => {
@@ -32,5 +32,32 @@ describe('erpFeedApplyErrorPolicy (HIGH-A — one Desk-created doc must never we
 
   it('⚑ a generic commit-rejected (ERP refused a real write) HALTS — only the NAMED never-adopt classes skip', () => {
     expect(erpFeedApplyErrorPolicy(new AdapterError('commit-rejected', 'ERPNext rejected the document'))).toBe('halt');
+  });
+});
+
+describe('terminalApplyReason (AC-TSP-040 — the webhook ingress needs the REASON, not just the verdict)', () => {
+  it('names the classified never-adopt reason so the ingress can ACK it and say which rule applied', () => {
+    expect(terminalApplyReason(new AdapterError('commit-rejected', 'native-timesheet-not-adopted'))).toBe('native-timesheet-not-adopted');
+    expect(terminalApplyReason(new AdapterError('commit-rejected', 'native-budget-not-adopted'))).toBe('native-budget-not-adopted');
+    expect(terminalApplyReason(new AppError('adopt requires a PMO case link', 'procurement-inbound-adopt-no-case-link'))).toBe(
+      'procurement-inbound-adopt-no-case-link',
+    );
+  });
+
+  it('is null for every non-terminal failure — the ingress must still surface those as failures', () => {
+    expect(terminalApplyReason(new AppError('connection terminated unexpectedly', '08006'))).toBeNull();
+    expect(terminalApplyReason(new Error('fetch failed'))).toBeNull();
+    expect(terminalApplyReason(undefined)).toBeNull();
+  });
+
+  it('agrees with erpFeedApplyErrorPolicy on every input (one classification, two consumers)', () => {
+    const cases: unknown[] = [
+      new AdapterError('commit-rejected', 'native-timesheet-not-adopted'),
+      new AppError('boom', '08006'),
+      undefined,
+    ];
+    for (const err of cases) {
+      expect(erpFeedApplyErrorPolicy(err)).toBe(terminalApplyReason(err) === null ? 'halt' : 'skip');
+    }
   });
 });

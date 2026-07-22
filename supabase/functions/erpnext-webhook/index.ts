@@ -27,6 +27,7 @@ import { verifyErpWebhookSignature } from '../../../pmo-portal/src/lib/adapterSe
 import { decodeErpWebhookEvent } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/webhookEvent.ts';
 import { applyErpFeedEvent } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/applyFeed.ts';
 import { admitsDocForBindingCompany, companyRefusalReason } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/companyScope.ts';
+import { terminalApplyReason } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/feedErrorPolicy.ts';
 import { createErpFeedDeps, ERPNEXT_TIER, surfaceActionRequired } from '../_shared/erpnextFeedDeps.ts';
 import { createInFlightAnchorProbe } from '../_shared/inFlightAnchorProbe.ts';
 import { DOCTYPE_BODIES } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/doctypeBodies.ts';
@@ -235,6 +236,18 @@ export async function handleErpWebhook(req: Request, deps: ErpWebhookHandlerDeps
       return json({ error: 'CONCURRENT_ADOPT', message: 'a concurrent adopt is reconciling' }, 409);
     }
     const detail = err instanceof Error ? err.message : 'webhook apply failed';
+    // AC-TSP-040 (FR-TSP-082 / FR-BUD-140) — a CLASSIFIED never-adopt refusal is an EXPECTED outcome
+    // for one document ("record it, tell a human, move on"), not a failure of this ingress. Frappe
+    // RETRIES a failed webhook, so answering 500 turns ONE Desk-created Timesheet into a permanent
+    // retry storm against the client's own ERP that reads as an outage. Ack-and-skip — the SAME
+    // posture the sweep takes for this exact class (`erpFeedApplyErrorPolicy` ⇒ 'skip'), from the SAME
+    // classification, so the two lanes can never disagree about what "terminal" means. The operator
+    // surface was already raised by the apply itself; this only decides the HTTP answer.
+    const terminal = terminalApplyReason(err);
+    if (terminal) {
+      console.warn(`[erpnext-webhook] ack-and-skip: org=${matchedOrg.orgId} doctype=${event.doctype} reason=${terminal}`);
+      return json({ ok: true, skipped: terminal });
+    }
     console.error(`[erpnext-webhook] apply failed: org=${matchedOrg.orgId} doctype=${event.doctype} code=${code ?? 'none'} detail=${detail}`);
     return json({ error: 'WEBHOOK_APPLY_FAILED', message: 'the webhook could not be applied' }, 500);
   }

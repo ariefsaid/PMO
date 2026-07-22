@@ -142,8 +142,12 @@ test.describe('AC-TSP-031: a week of hours never crosses a tenant boundary', () 
       expect(String(body.message ?? ''), 'the refusal names the tenancy/authorization failure').toMatch(/cross-org|not-authorized|not authorized|domain/i);
       await assertRefusedBeforeAnyWrite(admin, sheet, erpCountBefore, '(a) cross-org caller');
     } finally {
-      await cleanupOrgB(admin, orgB);
+      // ⚑ ORDER MATTERS: this run's `timesheet_entries` FK-reference org B's project, so org B can only
+      // be torn down AFTER `cleanupTsp` has removed them — otherwise the project delete is silently
+      // FK-blocked and every run leaks an org-B project into the shared DB (which then fails the
+      // seed-invariant pgTAP, `0012_budget_seed_invariant`: every project must have one Active budget).
       await cleanupTsp(admin, seeded);
+      await cleanupOrgB(admin, orgB);
     }
   });
 
@@ -170,8 +174,12 @@ test.describe('AC-TSP-031: a week of hours never crosses a tenant boundary', () 
       // a 4xx that says "malformed request" for a business rule is a different contract to the client.
       expect(res.status, `a cross-org project entry must be refused 422, got ${res.status} ${JSON.stringify(body)}`).toBe(422);
     } finally {
-      await cleanupOrgB(admin, orgB);
+      // ⚑ ORDER MATTERS: this run's `timesheet_entries` FK-reference org B's project, so org B can only
+      // be torn down AFTER `cleanupTsp` has removed them — otherwise the project delete is silently
+      // FK-blocked and every run leaks an org-B project into the shared DB (which then fails the
+      // seed-invariant pgTAP, `0012_budget_seed_invariant`: every project must have one Active budget).
       await cleanupTsp(admin, seeded);
+      await cleanupOrgB(admin, orgB);
     }
   });
 
@@ -202,8 +210,12 @@ test.describe('AC-TSP-031: a week of hours never crosses a tenant boundary', () 
       expect(res.status, `a cross-org employee link must be refused 422, got ${res.status} ${JSON.stringify(body)}`).toBe(422);
     } finally {
       await admin.from('erp_employees').update({ org_id: ORG_ID }).eq('id', seeded.employeeRowId);
-      await cleanupOrgB(admin, orgB);
+      // ⚑ ORDER MATTERS: this run's `timesheet_entries` FK-reference org B's project, so org B can only
+      // be torn down AFTER `cleanupTsp` has removed them — otherwise the project delete is silently
+      // FK-blocked and every run leaks an org-B project into the shared DB (which then fails the
+      // seed-invariant pgTAP, `0012_budget_seed_invariant`: every project must have one Active budget).
       await cleanupTsp(admin, seeded);
+      await cleanupOrgB(admin, orgB);
     }
   });
 });

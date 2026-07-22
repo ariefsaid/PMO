@@ -59,7 +59,7 @@ describe('erpnext/doctypeRegistry', () => {
       // rejected `UpdateAfterSubmitError` — the PI/SI twin, reissue-capable).
       timesheet: { doctype: 'Timesheet', submittable: true, submitOnCreate: true, anchorField: 'note', anchorMutable: false },
       // P3c — Budget (ADR-0059 Posture B). ⚑ The ONLY kind with NO anchor at all AND neverReissue.
-      budget: { doctype: 'Budget', submittable: true, submitOnCreate: true, anchorField: null, neverReissue: true },
+      budget: { doctype: 'Budget', submittable: true, submitOnCreate: true, anchorField: null, neverReissue: true, upsertOnGrain: true },
       // P3b — the Employee MASTER (OQ-TSP-3 ruling, spike §8b/§9). readOnly:true — PMO NEVER writes an
       // ERP Employee; this kind exists ONLY for the inbound adopt (ADR-0059 §5's master-data exception).
       // No anchor (masters are never recovery-probed the way a money doc is) and not submittable
@@ -133,6 +133,10 @@ describe('erpnext/doctypeRegistry', () => {
       submitOnCreate: true,
       anchorField: null,
       neverReissue: true,
+      // FR-BUD-121: ERP itself enforces one live Budget per (company, fiscal_year, project, account),
+      // so a create against an occupied grain UPSERTS the document that is already there (cancel +
+      // create-with-`amended_from`, spike §6) instead of being atomically rejected as a duplicate.
+      upsertOnGrain: true,
     });
   });
 

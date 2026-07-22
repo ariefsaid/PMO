@@ -87,6 +87,19 @@ function recordWithResolvedItemsFallback(record: PmoRecord, ctx: ErpCtx): PmoRec
 async function commitCreate(command: AdapterCommand, deps: ErpAdapterDeps): Promise<CommandResult> {
   const kind = requireKind(command.record);
   const entry = DOCTYPE_REGISTRY[kind];
+  // ⚑ FR-BUD-121 / AC-BUD-031 — THE UPSERT. For a kind whose natural grain ERP itself enforces as
+  // unique (`upsertOnGrain`, today ERP `Budget`), a create against an ALREADY-OCCUPIED grain must edit
+  // the document that is there, not mint a second one: ERPNext rejects the duplicate atomically
+  // (budget-write spike §8), so the plain create fails and ERP goes on enforcing the SUPERSEDED figure
+  // while PMO shows the revision. The target is resolved by the dispatch factory (`ctx.refs.self`) —
+  // the adapter never guesses a PMO-id-to-ERP-name mapping — and with none resolved this is a plain
+  // create, byte-for-byte. `commitEditResolved` re-reads the doc's CURRENT docstatus and routes
+  // through `routeEdit`, so a submitted target takes the spike-frozen cancel + create-with-
+  // `amended_from` revision path (§6: money fields are locked post-submit) and the superseded document
+  // is left as a cancelled tombstone, never a live rival.
+  if (entry.upsertOnGrain && deps.ctx.refs.self) {
+    return commitEditResolved(command, deps, deps.ctx.refs.self);
+  }
   const bodyFns = requireBodyFns(deps, kind);
   const record = recordWithResolvedItemsFallback(command.record, deps.ctx);
   const body = stampAnchor(bodyFns.toBody(record, deps.ctx), command.idempotencyKey, entry.anchorField);
@@ -218,13 +231,23 @@ async function commitAmend(command: AdapterCommand, deps: ErpAdapterDeps, oldExt
  * it — `toBody` never emits the anchor field for PI/PE).
  */
 async function commitUpdateSubmittable(command: AdapterCommand, deps: ErpAdapterDeps): Promise<CommandResult> {
-  const kind = requireKind(command.record);
-  const entry = DOCTYPE_REGISTRY[kind];
-  const bodyFns = requireBodyFns(deps, kind);
   const externalRecordId = command.record.externalRecordId;
   if (typeof externalRecordId !== 'string' || externalRecordId.length === 0) {
     throw new AdapterError('commit-rejected', 'update requires record.externalRecordId (nothing to edit)');
   }
+  return commitEditResolved(command, deps, externalRecordId);
+}
+
+/**
+ * Edit an ALREADY-EXISTING submittable ERP document whose name is already resolved — the shared body of
+ * `commitUpdateSubmittable` (target = `record.externalRecordId`) and of `commitCreate`'s
+ * `upsertOnGrain` branch (target = `ctx.refs.self`, FR-BUD-121 / AC-BUD-031). ONE routing rule for
+ * both, so an upsert can never diverge from an update.
+ */
+async function commitEditResolved(command: AdapterCommand, deps: ErpAdapterDeps, externalRecordId: string): Promise<CommandResult> {
+  const kind = requireKind(command.record);
+  const entry = DOCTYPE_REGISTRY[kind];
+  const bodyFns = requireBodyFns(deps, kind);
   const current = await getDoc(deps.client, entry.doctype, externalRecordId);
   const docstatus = (current as { docstatus?: number | null }).docstatus ?? 0;
   const route = routeEdit(docstatus); // 'update' | 'amend' (routeEdit throws on docstatus 2)

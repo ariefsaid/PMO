@@ -197,6 +197,32 @@ Deno.test('AC-ENA-070: a generic apply failure ⇒ 500 GENERIC (never leaks the 
   assert(body.message === 'the webhook could not be applied', 'the public message must be GENERIC');
 });
 
+// AC-TSP-040 (FR-TSP-082 / FR-BUD-140) — a CLASSIFIED never-adopt refusal is an ACK, not a 500.
+// Frappe RETRIES a failed webhook, so one Desk-created Timesheet answering 500 becomes a permanent
+// retry storm against the client's own ERP — and reads as an outage rather than as the deliberate
+// never-adopt rule. This is the SAME posture the sweep already takes for this exact class
+// (`erpFeedApplyErrorPolicy` ⇒ 'skip'); the ingress must not fork it.
+Deno.test('AC-TSP-040: a never-adopt refusal (native-timesheet-not-adopted) ⇒ 200 ACK, never a retry-storming 500', async () => {
+  const d = deps(async () => {
+    const e = new Error('native-timesheet-not-adopted') as Error & { code?: string };
+    e.code = 'commit-rejected';
+    throw e;
+  });
+  const validSig = await sign(PI_EVENT);
+  const res = await handleErpWebhook(req(PI_EVENT, validSig), d);
+  assert(res.status === 200, `a classified never-adopt refusal must ACK, got ${res.status}`);
+  const body = (await res.json()) as { ok?: boolean; skipped?: string };
+  assert(body.ok === true, 'expected { ok: true }');
+  assert(body.skipped === 'native-timesheet-not-adopted', `expected the classified reason, got ${body.skipped}`);
+});
+
+Deno.test('AC-TSP-040: a Desk-created Budget (native-budget-not-adopted) ⇒ 200 ACK too — same classified class', async () => {
+  const d = deps(async () => { throw new Error('native-budget-not-adopted'); });
+  const validSig = await sign(PI_EVENT);
+  const res = await handleErpWebhook(req(PI_EVENT, validSig), d);
+  assert(res.status === 200, `expected 200, got ${res.status}`);
+});
+
 // ────────────────────────────────────────────────────────────────────────────────────────────────
 // Luna BLOCK 9 — inbound adoption must be gated on the org's ACTUAL per-domain ownership. A valid
 // HMAC proves WHO sent the event, not that the org opted this DOMAIN into external ownership: a

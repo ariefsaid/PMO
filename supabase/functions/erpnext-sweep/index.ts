@@ -104,6 +104,7 @@ import {
   reconcileOrgTimesheetPushes,
   type TimesheetBackstopDeps,
   type TimesheetMirrorCandidateRow,
+  type TimesheetPushSubject,
 } from './timesheetBackstop.ts';
 // ⚑ The ONE derivation of the timesheet key, IMPORTED — never re-implemented here. Two originators with
 // drifted keys means the outbox 4-tuple does not collide and the client is billed a DUPLICATED WEEK of
@@ -419,6 +420,12 @@ interface OrgBinding {
   // `external_org_bindings.version_major` COLUMN (§4.1), never inside `config` (which has no
   // `version` key — `report_filter_shape`/`aging_report_names`/the account defaults live there).
   versionMajor: number | null;
+  /** AC-TSP-022: the moment this org's ERPNext binding was activated. The timesheet backstop's
+   *  `absent` queue is scoped to it — hours approved BEFORE the integration existed are never
+   *  retroactively posted to the client's ledger by a background sweep. OPTIONAL so the existing
+   *  per-pass tests keep their fixtures byte-for-byte; absent/null ⇒ the `absent` queue yields NOTHING,
+   *  which is the fail-safe answer (never a retroactive push). `listEmployingOrgsLive` always sets it. */
+  activatedAt?: string | null;
 }
 
 export interface ErpSweepCycleDeps {
@@ -572,6 +579,7 @@ export async function listEmployingOrgsLive(serviceClient: SupabaseClient): Prom
     config: r.config ?? {},
     // task FIX-6 (Quality MINOR 4): version_major is a top-level column, not a `config` key.
     versionMajor: r.version_major ?? null,
+    activatedAt: r.activated_at,
     ownedDomains: ownedByOrg.get(r.org_id) ?? [],
   }));
 }
@@ -1164,21 +1172,140 @@ async function findTimesheetOutboxRow(
  * work queue, so nothing would ever re-drive it. A read-then-blind-write across a concurrent writer is a
  * lost update, not a state machine. So the update REPEATS the listing's own predicate.
  */
-function parkTimesheetMirrorRow(
+async function parkTimesheetMirrorRow(
   serviceClient: SupabaseClient,
   orgId: string,
-  timesheetId: string,
+  row: TimesheetMirrorCandidateRow,
   pushState: 'held' | 'failed',
   reason: string,
-): PromiseLike<{ error: { message: string; code?: string } | null }> {
-  return serviceClient
+): Promise<{ error: { message: string; code?: string } | null }> {
+  // AC-TSP-022: an `absent` candidate (an approved sheet with NO mirror row) has nothing to
+  // compare-and-set against — its durable state must be CREATED, or the refusal is invisible and the
+  // sheet is re-driven from scratch every tick. A 23505 means the foreground (or another tick) created
+  // the row first: theirs is the newer truth, so leave it exactly as it is.
+  if (row.push_state === MIRROR_ABSENT) {
+    const { error } = await serviceClient
+      .from('timesheet_erp_mirror')
+      .insert({ org_id: orgId, timesheet_id: row.timesheet_id, push_state: pushState, push_error: reason });
+    return { error: error && error.code !== '23505' ? error : null };
+  }
+  return await serviceClient
     .from('timesheet_erp_mirror')
     .update({ push_state: pushState, push_error: reason })
     .eq('org_id', orgId)
-    .eq('timesheet_id', timesheetId)
+    .eq('timesheet_id', row.timesheet_id)
     // the SAME eligibility `listPendingTimesheetPushes` asserted — never a state this pass did not observe
     .in('push_state', ['pending', 'failed'])
     .is('erp_cancelled_at', null);
+}
+
+/** The synthetic candidate state for an APPROVED sheet that has no `timesheet_erp_mirror` row at all. */
+const MIRROR_ABSENT = 'absent';
+
+/** How far back the `absent` queue looks for an approved-but-never-attempted sheet (14 days). See
+ *  `listApprovedSheetsWithoutMirror` for why the scan must be bounded at all. */
+const ABSENT_SHEET_LOOKBACK_MS = 14 * 24 * 60 * 60 * 1000;
+
+/**
+ * Mint the timesheet push's outbox row for an approval whose foreground dispatch never reached the
+ * server, ATTRIBUTED to the sheet's own `approved_by` (AC-TSP-022 / FR-TSP-045).
+ *
+ * The row is byte-identical to the one `adapter-dispatch` would have inserted for the same approval:
+ * the SAME deterministic key, the SAME `create` operation, and the SAME payload shape built from the
+ * SAME server-read gate output (`repositories/index.ts` `pushApproved` + the dispatch's own gate
+ * substitution) — so the digest matches and the two originators reconcile as one command instead of
+ * rejecting each other with `idempotency-key-payload-mismatch`.
+ *
+ * Returns the row to drive, or `null` when a 23505 says a concurrent writer owns this record's
+ * in-flight command (a different key under 0116's one-in-flight index) — the caller then records that,
+ * never guesses.
+ */
+async function mintTimesheetOutboxRow(
+  serviceClient: SupabaseClient,
+  orgId: string,
+  timesheetId: string,
+  idempotencyKey: string,
+  approvedAt: string,
+  subject: TimesheetPushSubject,
+): Promise<OutboxRow | null> {
+  const payload: Record<string, unknown> = {
+    id: timesheetId,
+    erp_doc_kind: 'timesheet',
+    user_id: subject.userId,
+    approved_at: approvedAt,
+    entries: subject.entries,
+  };
+  const payloadDigest = await canonicalCommandDigest({ domain: ERPNEXT_TIMESHEETS_DOMAIN, operation: 'create', record: payload });
+  const { error } = await serviceClient.from('external_command_outbox').insert({
+    org_id: orgId,
+    domain: ERPNEXT_TIMESHEETS_DOMAIN,
+    pmo_record_id: timesheetId,
+    idempotency_key: idempotencyKey,
+    external_tier: ERPNEXT_TIER,
+    operation: 'create',
+    state: 'pending',
+    payload,
+    payload_digest: payloadDigest,
+    // 0108 §C: the RECORDED actor every later re-authorization (`checkOutboxReplayAuthorization`) and
+    // every mirror attribution keys on. Never null here — the caller only mints with a resolved approver.
+    actor_user_id: subject.approvedBy,
+  });
+  // 23505 = the foreground raced us (same 4-tuple ⇒ the read below finds THEIR row and we reconcile to
+  // it) or a different command for this record is already in flight (0116 ⇒ nothing to find, caller
+  // records it). Any other error is a real DB fault and is contained per-row by the caller.
+  if (error && error.code !== '23505') throw new AppError(error.message, error.code);
+  return await findTimesheetOutboxRow(serviceClient, orgId, timesheetId, idempotencyKey);
+}
+
+/**
+ * ⚑ AC-TSP-022 — the `absent` half of the work queue: APPROVED sheets with NO mirror row.
+ *
+ * The mirror is written by `adapter-dispatch` itself, so the very failure this backstop exists for —
+ * the browser dying BEFORE the fetch reaches the server — leaves no mirror row AND no outbox row, i.e.
+ * nothing at all for a mirror-only queue to find. Those weeks were stranded silently: PMO said
+ * Approved, the client's ERP never heard about the hours, and no surface said otherwise.
+ *
+ * ⚑ SCOPED TO THE BINDING'S OWN LIFETIME (`approved_at >= activated_at`). Hours approved BEFORE the org
+ * connected ERPNext are deliberately out of scope: back-filling a client's ledger with historical
+ * payroll costing is a migration decision a human makes, never a side effect of switching the
+ * integration on. An org with no activation stamp is not employing at all (`listEmployingOrgsLive`
+ * already filters those out) — a missing stamp here yields NO candidates, which is the fail-safe answer.
+ */
+async function listApprovedSheetsWithoutMirror(
+  serviceClient: SupabaseClient,
+  org: OrgBinding,
+  limit: number,
+  nowMs: number = Date.now(),
+): Promise<TimesheetMirrorCandidateRow[]> {
+  if (limit <= 0 || !org.activatedAt) return [];
+  // ⚑ BOUNDED LOOKBACK, and not a nicety: a sheet keeps its mirror row forever once it has one, so an
+  // unbounded `approved_at asc` scan fills its whole page with long-settled sheets as the org's history
+  // grows and would never reach a NEW stranded week — the queue would starve itself silently. The
+  // window is orders of magnitude wider than the recovery it serves (the cron ticks hourly, so a
+  // stranded week is normally recovered within the hour); anything older than it is a human's problem,
+  // not something to post to a client's ledger unannounced.
+  const lookbackFloor = new Date(nowMs - ABSENT_SHEET_LOOKBACK_MS).toISOString();
+  const floor = lookbackFloor > org.activatedAt ? lookbackFloor : org.activatedAt;
+  const { data, error } = await serviceClient
+    .from('timesheets')
+    .select('id')
+    .eq('org_id', org.orgId)
+    .eq('status', 'Approved')
+    .gte('approved_at', floor)
+    .order('approved_at', { ascending: true })
+    .limit(limit);
+  if (error) throw new AppError(error.message, error.code);
+  const ids = ((data as Array<{ id: string }> | null) ?? []).map((r) => r.id);
+  if (ids.length === 0) return [];
+
+  const { data: mirrored, error: mirrorErr } = await serviceClient
+    .from('timesheet_erp_mirror')
+    .select('timesheet_id')
+    .eq('org_id', org.orgId)
+    .in('timesheet_id', ids);
+  if (mirrorErr) throw new AppError(mirrorErr.message, mirrorErr.code);
+  const known = new Set(((mirrored as Array<{ timesheet_id: string }> | null) ?? []).map((r) => r.timesheet_id));
+  return ids.filter((id) => !known.has(id)).map((id) => ({ timesheet_id: id, push_state: MIRROR_ABSENT, erp_cancelled_at: null }));
 }
 
 /** The live `TimesheetBackstopDeps` for one org. */
@@ -1205,8 +1332,14 @@ export function timesheetBackstopDepsLive(
         .order('created_at', { ascending: true })
         .limit(limit);
       if (error) throw new AppError(error.message, error.code);
-      return ((data as Array<{ timesheet_id: string; push_state: string; erp_cancelled_at: string | null }> | null) ?? [])
+      const mirrored = ((data as Array<{ timesheet_id: string; push_state: string; erp_cancelled_at: string | null }> | null) ?? [])
         .map((r) => ({ timesheet_id: r.timesheet_id, push_state: r.push_state, erp_cancelled_at: r.erp_cancelled_at }));
+      // …plus the `absent` half: APPROVED sheets that never got a mirror row at all (see
+      // `listApprovedSheetsWithoutMirror` — the browser-died-before-the-fetch case this pass exists
+      // for). Mirror rows come FIRST and the total stays inside one tick budget, so a large backlog of
+      // never-attempted sheets can never starve the rows that already have recorded, retryable state.
+      const absent = await listApprovedSheetsWithoutMirror(serviceClient, org, limit - mirrored.length);
+      return [...mirrored, ...absent];
     },
 
     assertApprovedForPush: async (row) => {
@@ -1241,35 +1374,63 @@ export function timesheetBackstopDepsLive(
         }
         throw new AppError(gate.error.message, code);
       }
-      const gateRow = (gate.data as Array<{ approved_at?: string | null }> | null)?.[0];
+      const gateRow = (gate.data as Array<{ approved_at?: string | null; user_id?: string | null; entries?: unknown }> | null)?.[0];
       const approvedAt = gateRow?.approved_at ?? null;
       if (!approvedAt) {
         // The key's own input. `ts:<id>:null` would be the SAME key for every future approval of this
         // sheet, so only the first would ever reach ERP — fail closed rather than key on a fiction.
         return { ok: false, reason: 'timesheet-push-no-approved-at-witness' };
       }
-      return { ok: true, approvedAt };
+      // The gate's OWN server-read subject — whose week it is, which hours may be posted, and the actor
+      // (`approved_by`) an outbox row minted below is attributed to. Nothing here comes from a payload.
+      return {
+        ok: true,
+        approvedAt,
+        subject: {
+          approvedBy,
+          userId: String(gateRow?.user_id ?? ''),
+          entries: Array.isArray(gateRow?.entries) ? (gateRow.entries as unknown[]) : [],
+        },
+      };
     },
 
     recordGateRefusal: async (row, reason) => {
       // Durable + operator-visible. `failed` (not `held`): a refusal caused by an offboarded approver is
       // resolved by re-activating them or by a privileged user re-pushing, both of which SHOULD let this
       // pass pick the row up again — `held` would exclude it from this queue permanently.
-      const { error } = await parkTimesheetMirrorRow(serviceClient, org.orgId, row.timesheet_id, 'failed', reason);
+      const { error } = await parkTimesheetMirrorRow(serviceClient, org.orgId, row, 'failed', reason);
       if (error) throw new AppError(error.message, error.code);
       await surfaceActionRequired(serviceClient, org.orgId, 'timesheet-push-gate-refused', { timesheetId: row.timesheet_id });
     },
 
-    driveTimesheetPush: async (row: TimesheetMirrorCandidateRow, approvedAt: string) => {
+    driveTimesheetPush: async (row: TimesheetMirrorCandidateRow, approvedAt: string, subject?: TimesheetPushSubject) => {
       const idempotencyKey = timesheetPushKey(row.timesheet_id, approvedAt);
-      const outboxRow = await findTimesheetOutboxRow(serviceClient, org.orgId, row.timesheet_id, idempotencyKey);
+      let outboxRow = await findTimesheetOutboxRow(serviceClient, org.orgId, row.timesheet_id, idempotencyKey);
+      // ⚑ AC-TSP-022 — the foreground dispatch never reached the outbox for this approval (the browser
+      // died before the fetch). MINT the command here, attributed to the sheet's own `approved_by`.
+      //
+      // This is deliberately NOT the budget twin's rule. Budget holds because a version carries no actor
+      // of its own — an outbox row minted for it would be genuinely UNATTRIBUTED (FR-BUD-102's "never
+      // finalize with a NULL actor"). A timesheet always has one: its approver, read SERVER-SIDE by
+      // `approved_timesheet_for_push` (0138) with `p_actor => approved_by`, which re-asserts that
+      // actor's authorization AND offboarding status on every single tick. So the minted row is
+      // attributable and auditable — and an approver who has since been deactivated is REFUSED by that
+      // gate (recorded as a failure, per-row contained), never quietly pushed.
+      //
+      // The key is the SAME deterministic `timesheetPushKey` the Approvals UI derives, so a race with
+      // the user's own push collides on the outbox 4-tuple (23505) and reconciles to the winner instead
+      // of minting a second week of hours.
+      let minted = false;
+      if (!outboxRow && subject?.approvedBy) {
+        outboxRow = await mintTimesheetOutboxRow(serviceClient, org.orgId, row.timesheet_id, idempotencyKey, approvedAt, subject);
+        minted = outboxRow !== null;
+      }
       if (!outboxRow) {
-        // The foreground dispatch never even reached the outbox for this approval (the browser died
-        // before the fetch), so there is no RECORDED actor to reconcile against. Never mint a fresh,
-        // unattributed outbox row here — the same rule the budget twin enforces (FR-BUD-102's "never
-        // finalize with a NULL actor"). Hold for an operator; the Approvals Retry re-dispatches it under
-        // a real, authenticated actor, which is precisely what the sweep cannot synthesize.
-        const { error } = await parkTimesheetMirrorRow(serviceClient, org.orgId, row.timesheet_id, 'held', 'timesheet-push-no-outbox-candidate');
+        // Nothing to drive and nothing mintable: either the gate handed back no actor at all (never
+        // attribute a money-adjacent command to nobody), or a DIFFERENT command for this record is
+        // already in flight and owns the outcome (0116). `failed`, not `held`: both conditions clear
+        // themselves, and `held` would exclude the row from this queue permanently.
+        const { error } = await parkTimesheetMirrorRow(serviceClient, org.orgId, row, 'failed', 'timesheet-push-no-outbox-candidate');
         if (error) throw new AppError(error.message, error.code);
         await surfaceActionRequired(serviceClient, org.orgId, 'timesheet-push-no-outbox-candidate', { timesheetId: row.timesheet_id });
         return;
@@ -1280,8 +1441,11 @@ export function timesheetBackstopDepsLive(
       // `outbox_reconcile_candidates` is the single authority for "may this row be reconciled now"
       // (bounded by state + attempt_count + age); a row absent from it is committed-already,
       // attempt-exhausted, quarantined-not-due, or too old. Not a second door — the SAME door pass 1 uses.
-      if (!eligibleOutboxIds.has(outboxRow.id)) {
-        const { error } = await parkTimesheetMirrorRow(serviceClient, org.orgId, row.timesheet_id, 'held', 'timesheet-push-attempts-exhausted');
+      // A row minted a moment ago is `pending` with zero attempts — the eligibility set was read at the
+      // START of this pass and cannot contain it. Re-reading the whole set per mint would be the same
+      // answer at more cost; what must NOT happen is treating a brand-new command as attempt-exhausted.
+      if (!minted && !eligibleOutboxIds.has(outboxRow.id)) {
+        const { error } = await parkTimesheetMirrorRow(serviceClient, org.orgId, row, 'held', 'timesheet-push-attempts-exhausted');
         if (error) throw new AppError(error.message, error.code);
         await surfaceActionRequired(serviceClient, org.orgId, 'timesheet-push-attempts-exhausted', { timesheetId: row.timesheet_id });
         return;

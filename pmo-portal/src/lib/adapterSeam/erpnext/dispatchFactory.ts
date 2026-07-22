@@ -9,13 +9,14 @@
  */
 import { createErpAdapter, ERPNEXT_TIER, type DoctypeBodyFns, type ErpAdapterDeps } from './adapter.ts';
 import type { ErpDocKind } from './doctypeRegistry.ts';
-import { getDoc, type ErpClientDeps, type ErpRateLimiter } from './client.ts';
+import { getDoc, listDocNamesByFilters, type ErpClientDeps, type ErpRateLimiter } from './client.ts';
 import type { ErpProbeDeps } from './recoveryProbe.ts';
 import { resolveExternalRef, type ExternalRefsLookupClient } from '../refs.ts';
 import { packTimeLogs } from './timeLogPacking.ts';
 import { readProcessGates } from './processGates.ts';
 import type { Adapter, AdapterCommand } from '../contract.ts';
 import { AppError } from '../../appError.ts';
+import { resolveBudgetAccounts, type BudgetLineItem, type CategoryAccountMapRow } from '../../budget/categoryAccountMap.ts';
 
 /** Structural service-role client seam (matches supabase-js): `.from(t).select(c).eq(...)[.eq(...)]
  *  [.order(...).limit(...)][.maybeSingle()]` — every filter-builder is ALSO directly awaitable
@@ -568,14 +569,87 @@ export async function readCategoryAccountMap(
   return Array.isArray(data) ? (data as Array<{ category: string; erp_account: string }>) : [];
 }
 
-/** Resolve the budget push's refs: the ERP `Project` name for the version's project, via the SAME
- *  binding `project_map` the revenue path uses (`resolveErpProjectName` — one definition, so the two can
- *  never disagree about what "the ERP project resolved" means). A miss stays `null` and
- *  `bodies/budget.ts` refuses the push — never a Cost-Center fallback, never an unscoped budget. */
-function resolveBudgetRefs(deps: ErpDispatchFactoryDeps, binding: ExternalOrgBindingRow): { refs: Record<string, string | null> } {
+/**
+ * Resolve the budget push's refs:
+ *
+ *  • `refs.project` — the ERP `Project` name for the version's project, via the SAME binding
+ *    `project_map` the revenue path uses (`resolveErpProjectName` — one definition, so the two can never
+ *    disagree about what "the ERP project resolved" means). A miss stays `null` and `bodies/budget.ts`
+ *    refuses the push — never a Cost-Center fallback, never an unscoped budget.
+ *
+ *  • `refs.self` — ⚑ FR-BUD-121, THE UPSERT TARGET: the EXISTING live ERP `Budget` for this
+ *    (company, fiscal_year, project) grain, if one is already there. ERPNext enforces at most one live
+ *    `Budget` per (company, fiscal_year, project|cost_center, account) and rejects a duplicate
+ *    ATOMICALLY (budget-write spike §8), so a revision dispatched as a plain create is REFUSED — and
+ *    ERP then keeps enforcing the SUPERSEDED figure while PMO shows the revision. Resolving the target
+ *    here (the refs seam, next to `refs.project`) is what lets `adapter.ts` route the create onto the
+ *    spike-frozen revision path (§6: money fields are `allow_on_submit=0`, so a revision is
+ *    cancel + create-with-`amended_from`, never a PUT).
+ *
+ * ⚑ Only `docstatus = 1` (SUBMITTED) is a valid upsert target. A DRAFT rival on the same grain is
+ * somebody's Desk-authored work-in-progress: amending it is invalid and PUT-ing our body onto it would
+ * mangle its child rows (spike §10(g) — a child update without the row's own `name` 404s against a
+ * phantom). We leave it alone and let ERP's own `DuplicateBudgetError` refuse the push with a message
+ * naming the conflict, which is a recorded, operator-actionable failure rather than a silent overwrite.
+ *
+ * ⚑ TWO live Budgets on one grain (only reachable by Desk authoring across disjoint accounts) fail
+ * CLOSED: the adapter never picks one to supersede.
+ */
+async function resolveBudgetRefs(
+  deps: ErpDispatchFactoryDeps,
+  binding: ExternalOrgBindingRow,
+  budgetConfig: Record<string, unknown>,
+): Promise<{ refs: Record<string, string | null> }> {
   if (!isBudgetCommand(deps.command)) return { refs: {} };
-  const record = deps.command.record as { projectId?: string | null };
-  return { refs: { project: resolveErpProjectName(binding.config, record.projectId) } };
+  const record = deps.command.record as { projectId?: string | null; fiscal_year?: unknown; line_items?: unknown };
+  const project = resolveErpProjectName(binding.config, record.projectId);
+  const refs: Record<string, string | null> = { project };
+
+  const company = binding.config?.company;
+  const fiscalYear = record.fiscal_year;
+  // Any of these unresolved ⇒ `budgetToBody` refuses the push anyway (fail-closed, zero ERP calls);
+  // probing the grain with a missing coordinate would ask a question with no meaning.
+  if (!project || typeof company !== 'string' || !company || typeof fiscalYear !== 'string' || !fiscalYear) {
+    return { refs };
+  }
+
+  // ⚑ AC-BUD-011 ORDERING: every PMO-side fail-closed check runs BEFORE this ERP read, so an unmapped
+  // category (or an empty budget) still refuses with ZERO ERP calls. Run the REAL resolution
+  // (`resolveBudgetAccounts` — the same pure function `budgetToBody` uses, never a second copy of the
+  // rule) rather than re-deriving it; identical stance to `resolveTimesheetRefs`'s `packTimeLogs`
+  // pre-flight. An empty result is left for `budgetToBody` to reject with its own exact message.
+  const accounts = resolveBudgetAccounts(
+    (record.line_items as BudgetLineItem[] | undefined) ?? [],
+    (budgetConfig.category_account_map as CategoryAccountMapRow[] | undefined) ?? [],
+  );
+  if (accounts.length === 0) return { refs };
+
+  const existing = await listDocNamesByFilters(
+    {
+      fetchImpl: deps.fetchImpl,
+      apiKey: deps.apiKey,
+      apiSecret: deps.apiSecret,
+      baseUrl: binding.site_url,
+      rateLimiter: deps.rateLimiter,
+    },
+    'Budget',
+    [
+      ['company', '=', company],
+      ['project', '=', project],
+      ['fiscal_year', '=', fiscalYear],
+      ['docstatus', '=', 1],
+    ],
+    2, // 2 is enough to DETECT ambiguity; we never need to enumerate more
+  );
+  if (existing.length > 1) {
+    throw new AppError(
+      `budget push: ${existing.length} live ERPNext Budgets already exist for (${company}, ${fiscalYear}, ${project}) — ` +
+        `an operator must resolve the duplicate before PMO can revise it (${existing.join(', ')})`,
+      'commit-rejected',
+    );
+  }
+  if (existing.length === 1) refs.self = existing[0];
+  return { refs };
 }
 
 export interface ErpDispatchFactoryDeps {
@@ -632,12 +706,15 @@ export async function resolveErpDispatchAdapter(deps: ErpDispatchFactoryDeps): P
   // P3b: the timesheet push's fail-closed pre-flight (employee link, per-entry project, activity type,
   // same-org, daily hours). Gated on the kind, so no other command pays for the extra reads.
   const { refs: timesheetRefs } = await resolveTimesheetRefs(deps, binding);
-  // P3c: the budget push's ERP project + the org's server-resolved category→account map. Both are gated
-  // on the kind, so no other command pays for the extra read or sees a modified `ctx.config`.
-  const { refs: budgetRefs } = resolveBudgetRefs(deps, binding);
+  // P3c: the org's server-resolved category→account map, then the budget push's refs (ERP project +
+  // the FR-BUD-121 upsert target). Both are gated on the kind, so no other command pays for the extra
+  // read or sees a modified `ctx.config`. ⚑ The map is resolved FIRST because the refs pre-flight
+  // validates the line items against it before issuing its ERP grain read (AC-BUD-011: an unmapped
+  // category refuses with zero ERP calls).
   const budgetConfig = isBudgetCommand(deps.command)
     ? { ...binding.config, category_account_map: await readCategoryAccountMap(deps.serviceClient, deps.orgId) }
     : binding.config;
+  const { refs: budgetRefs } = await resolveBudgetRefs(deps, binding, budgetConfig);
 
   const adapterDeps: ErpAdapterDeps = {
     client: {

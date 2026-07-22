@@ -262,17 +262,27 @@ export async function openBudgetTab(page: Page, projectId: string): Promise<void
   await expect(page.getByTestId('budget-loading')).not.toBeVisible({ timeout: 20_000 });
 }
 
-/** The page shows ONE version card at a time — pick the version by its name in the version select. */
+/**
+ * The page shows ONE version card at a time — pick the version by its name in the version select.
+ *
+ * ⚑ ONE definition of "the option for this version", used for BOTH the wait and the selection. A
+ * separate `locator('option', { hasText })` wait explodes on Playwright strict mode once a CLONE of the
+ * same version exists (`"<name> (copy)"` contains `"<name>"`), which is the normal state after a
+ * revision — while the selection itself resolved the FIRST match. The dropdown lists versions in
+ * ascending version order, so the first match is the original, which is the one the user is picking.
+ */
 export async function selectVersion(page: Page, versionName: string): Promise<void> {
   const versionSelect = page.getByLabel('Version');
   await expect(versionSelect).toBeVisible({ timeout: 20_000 });
-  await expect(page.locator('option', { hasText: versionName })).toBeAttached({ timeout: 20_000 });
-  const value = await page.evaluate((name: string) => {
-    const sel = document.getElementById('budget-version-select') as HTMLSelectElement | null;
-    return sel ? (Array.from(sel.options).find((o) => o.text.includes(name))?.value ?? null) : null;
-  }, versionName);
-  expect(value, `version "${versionName}" is not offered in the version select`).not.toBeNull();
-  await versionSelect.selectOption(value!);
+  const optionValue = async (): Promise<string | null> =>
+    page.evaluate((name: string) => {
+      const sel = document.getElementById('budget-version-select') as HTMLSelectElement | null;
+      return sel ? (Array.from(sel.options).find((o) => o.text.includes(name))?.value ?? null) : null;
+    }, versionName);
+  await expect
+    .poll(optionValue, { timeout: 20_000, message: `version "${versionName}" is not offered in the version select` })
+    .not.toBeNull();
+  await versionSelect.selectOption((await optionValue())!);
   await expect(page.getByTestId('version-card')).toContainText(versionName, { timeout: 20_000 });
 }
 

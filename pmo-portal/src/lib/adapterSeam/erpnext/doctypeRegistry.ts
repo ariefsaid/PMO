@@ -70,6 +70,16 @@ export interface DoctypeEntry {
    *  Additive + DEFAULT-ABSENT, so every shipped kind stays byte-for-byte:
    *    `reissueOnInconclusiveAbsence = !(entry.anchorMutable || entry.neverReissue)`. */
   neverReissue?: boolean;
+  /** FR-BUD-121 (P3c): `true` when ERP ITSELF enforces at most one live document per this kind's
+   *  natural grain, so a `create` for a grain that is already occupied must UPSERT the existing
+   *  document instead of minting a second one. ERP `Budget` is the case: its
+   *  (company, fiscal_year, project|cost_center, account) uniqueness is a hard, ATOMIC server-side
+   *  reject (budget-write spike §8), so a revision dispatched as a plain create is REFUSED — and ERP
+   *  then keeps enforcing the SUPERSEDED figure while PMO shows the revision. The upsert TARGET is
+   *  resolved by the dispatch factory into `ctx.refs.self` (never guessed by the adapter); with no
+   *  target resolved, the create stays a plain create. Additive + DEFAULT-ABSENT ⇒ every other kind is
+   *  byte-for-byte. */
+  upsertOnGrain?: boolean;
   /** Assigned per entry by 2.7 (money doc bodies) + slice 3 (party bodies) via `DOCTYPE_BODIES`. */
   toBody: (rec: PmoRecord, ctx: ErpCtx) => unknown;
   /** Assigned per entry by 2.7 + slice 3 via `DOCTYPE_BODIES`. */
@@ -80,7 +90,7 @@ export interface DoctypeEntry {
  *  two-step create->submit (FR-ENA-044); `readOnly` marks a kind PMO never writes (e.g. Customer, OQ-4);
  *  `anchorField` names the per-doctype recovery-probe anchor (ADR-0058 §3, task 6.4 — `null` ⇒ skip the
  *  probe; 'remarks' for PI/PR; 'reference_no' for PE per the DIRECTOR RULING, see test docstring). */
-export const DOCTYPE_REGISTRY: Record<ErpDocKind, Pick<DoctypeEntry, 'doctype' | 'submittable' | 'submitOnCreate' | 'readOnly' | 'anchorField' | 'anchorMutable' | 'neverReissue'>> = {
+export const DOCTYPE_REGISTRY: Record<ErpDocKind, Pick<DoctypeEntry, 'doctype' | 'submittable' | 'submitOnCreate' | 'readOnly' | 'anchorField' | 'anchorMutable' | 'neverReissue' | 'upsertOnGrain'>> = {
   'purchase-request': { doctype: 'Material Request', submittable: true, anchorField: null },
   rfq: { doctype: 'Request for Quotation', submittable: true, anchorField: null },
   quotation: { doctype: 'Supplier Quotation', submittable: true, anchorField: null },
@@ -141,8 +151,10 @@ export const DOCTYPE_REGISTRY: Record<ErpDocKind, Pick<DoctypeEntry, 'doctype' |
   // therefore HELD for an operator, never auto-reissued.
   // submittable/submitOnCreate: `Budget` is submittable (§6) and a DRAFT budget enforces nothing — the
   // native overspend controls are the entire point of this push, so the create must submit. Money fields
-  // are locked post-submit (§6): a revision is cancel+amend, never a PUT (a later slice's concern).
-  budget: { doctype: 'Budget', submittable: true, submitOnCreate: true, anchorField: null, neverReissue: true },
+  // are locked post-submit (§6): a revision is cancel+amend, never a PUT — which is exactly what
+  // `upsertOnGrain` routes a create onto once the dispatch factory resolves the grain's existing live
+  // Budget into `ctx.refs.self` (FR-BUD-121 / AC-BUD-031).
+  budget: { doctype: 'Budget', submittable: true, submitOnCreate: true, anchorField: null, neverReissue: true, upsertOnGrain: true },
 };
 
 /** The generic 3-value ERP docstatus label (task 4.10, FR-ENA-110/111/117). Frappe's `docstatus`

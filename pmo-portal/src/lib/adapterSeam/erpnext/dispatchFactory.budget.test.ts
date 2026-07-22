@@ -166,6 +166,94 @@ describe('P3c dispatch wiring — the budget domain', () => {
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 
+  // ──────────────────────────────────────────────────────────────────────────────────────────────
+  // AC-BUD-031 / FR-BUD-121 — THE UPSERT. ERPNext enforces at most one live `Budget` per
+  // (company, fiscal_year, project, account) and rejects a duplicate ATOMICALLY (budget-write spike
+  // §8), so a revision that is dispatched as a plain create does not merely add a tidy second row:
+  // ERP REFUSES it and keeps enforcing the SUPERSEDED figure while PMO shows the new one.
+  // ──────────────────────────────────────────────────────────────────────────────────────────────
+
+  /** A bench whose (company, FY, project) grain already holds `existing` live Budget name(s). */
+  function erpFetchWithExisting(existing: string[]) {
+    return vi.fn(async (url: string, init?: RequestInit) => {
+      const href = String(url);
+      const isList = (init?.method ?? 'GET') === 'GET' && href.includes('filters=');
+      if (isList) return new Response(JSON.stringify({ data: existing.map((name) => ({ name })) }), { status: 200 });
+      if (init?.method === 'POST') return new Response(JSON.stringify({ name: 'BUDGET-2026-00007-1' }), { status: 200 });
+      if (init?.method === 'PUT') {
+        const body = JSON.parse(String(init.body)) as { docstatus?: number };
+        return new Response(JSON.stringify({ name: href.split('/').pop(), docstatus: body.docstatus }), { status: 200 });
+      }
+      return new Response(
+        JSON.stringify({ name: 'BUDGET-2026-00007-1', docstatus: 1, modified: '2026-07-22 10:00:00', fiscal_year: '2026', amended_from: 'BUDGET-2026-00007' }),
+        { status: 200 },
+      );
+    }) as unknown as typeof fetch;
+  }
+
+  const calls = (f: ReturnType<typeof vi.fn>) =>
+    f.mock.calls.map((c: unknown[]) => ({
+      url: String(c[0]),
+      method: ((c[1] as RequestInit)?.method ?? 'GET') as string,
+      body: (c[1] as RequestInit)?.body ? JSON.parse(String((c[1] as RequestInit).body)) : undefined,
+    }));
+
+  it('AC-BUD-031 a revision whose grain ALREADY holds a live ERP Budget upserts THAT budget — cancel + amended_from, never a second live object', async () => {
+    const fetchImpl = erpFetchWithExisting(['BUDGET-2026-00007']);
+    const { result } = await commitBudget(VERSION_RECORD, { fetchImpl });
+    const issued = calls(fetchImpl as unknown as ReturnType<typeof vi.fn>);
+
+    // 1. the grain is resolved from ERP itself (company + FY + project + live docstatus) …
+    const list = issued.find((c) => c.method === 'GET' && c.url.includes('filters='));
+    expect(list, 'the existing Budget for this grain must be RESOLVED, not assumed absent').toBeDefined();
+    const filters = JSON.parse(decodeURIComponent(new URL(list!.url).searchParams.get('filters')!));
+    expect(filters).toEqual(
+      expect.arrayContaining([
+        ['company', '=', 'PMO Smoke Co'],
+        ['project', '=', 'PROJ-0001'],
+        ['fiscal_year', '=', '2026'],
+        ['docstatus', '=', 1],
+      ]),
+    );
+
+    // 2. … the superseded document is CANCELLED (a tombstone, not a live rival) …
+    const cancel = issued.find((c) => c.method === 'PUT' && c.body?.docstatus === 2);
+    expect(cancel, 'the superseded Budget must be cancelled').toBeDefined();
+    expect(cancel!.url).toContain('BUDGET-2026-00007');
+
+    // 3. … and the replacement carries `amended_from` + the NEW figures, then is submitted.
+    const post = issued.find((c) => c.method === 'POST');
+    expect(post!.body).toMatchObject({
+      amended_from: 'BUDGET-2026-00007',
+      company: 'PMO Smoke Co',
+      fiscal_year: '2026',
+      budget_against: 'Project',
+      project: 'PROJ-0001',
+      accounts: [
+        { account: 'Salary - PSC', budget_amount: '50000.00' },
+        { account: 'Cost of Goods Sold - PSC', budget_amount: '25000.00' },
+      ],
+    });
+    expect(issued.some((c) => c.method === 'PUT' && c.body?.docstatus === 1), 'the replacement is SUBMITTED — a draft enforces nothing').toBe(true);
+    // The mapping follows the replacement (the outbox records THIS name for the Active version).
+    expect(result.externalRecordId).toBe('BUDGET-2026-00007-1');
+  });
+
+  it('AC-BUD-031 a FIRST push (no live Budget for the grain) still plainly creates — no cancel, no amended_from', async () => {
+    const fetchImpl = erpFetchWithExisting([]);
+    await commitBudget(VERSION_RECORD, { fetchImpl });
+    const issued = calls(fetchImpl as unknown as ReturnType<typeof vi.fn>);
+    expect(issued.some((c) => c.method === 'PUT' && c.body?.docstatus === 2), 'nothing to cancel on a first push').toBe(false);
+    expect(issued.find((c) => c.method === 'POST')!.body).not.toHaveProperty('amended_from');
+  });
+
+  it('AC-BUD-031 ⚑ TWO live Budgets for one grain fail CLOSED with no write — the adapter never picks one to overwrite', async () => {
+    const fetchImpl = erpFetchWithExisting(['BUDGET-2026-00007', 'BUDGET-2026-00008']);
+    await expect(commitBudget(VERSION_RECORD, { fetchImpl })).rejects.toMatchObject({ code: 'commit-rejected' });
+    const issued = calls(fetchImpl as unknown as ReturnType<typeof vi.fn>);
+    expect(issued.every((c) => c.method === 'GET'), 'an ambiguous grain issues NO write').toBe(true);
+  });
+
   it('AC-BUD-012 a non-budget command is byte-for-byte unaffected (no map read, no config mutation)', async () => {
     const tables: string[] = [];
     const client = {

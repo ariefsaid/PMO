@@ -44,17 +44,37 @@
  *  equal to the budget twin's — one tick budget, one number to reason about. */
 export const TIMESHEET_BACKSTOP_TICK_LIMIT = 200;
 
-/** One row of the mirror's own work queue. */
+/** One row of the mirror's own work queue.
+ *
+ *  ⚑ `push_state` may be the synthetic `'absent'` (AC-TSP-022): an APPROVED sheet with no mirror row at
+ *  all. That is the very case this pass was written for — "the browser died before the fetch" leaves
+ *  neither a mirror row nor an outbox row — so it must be a candidate, not an invisible hole. The live
+ *  query derives those from `timesheets` itself; everything downstream treats them uniformly. */
 export interface TimesheetMirrorCandidateRow {
   timesheet_id: string;
   push_state: string;
   erp_cancelled_at?: string | null;
 }
 
+/**
+ * The sheet's own server-read push subject, handed back by the gate so a candidate with NO outbox row
+ * can be driven under a REAL, recorded actor (its `approved_by`) rather than held.
+ *
+ * ⚑ Every field is DB truth read by `approved_timesheet_for_push` (0138), never a payload: `userId` is
+ * whose cost the week becomes, `entries` are the hours that may be posted, and `approvedBy` is the
+ * actor the outbox row is attributed to — the one whose CURRENT authorization + offboarding status
+ * that same RPC re-asserts on every tick.
+ */
+export interface TimesheetPushSubject {
+  approvedBy: string;
+  userId: string;
+  entries: unknown[];
+}
+
 /** The re-asserted gate's answer. `ok:false` is a REFUSAL (0138 raised P0001/42501 — not approved, the
  *  approver was offboarded, cross-org); a transport/DB failure THROWS instead and is contained per-row. */
 export type TimesheetGateOutcome =
-  | { ok: true; approvedAt: string }
+  | { ok: true; approvedAt: string; subject?: TimesheetPushSubject }
   | { ok: false; reason: string };
 
 export interface TimesheetBackstopDeps {
@@ -70,8 +90,11 @@ export interface TimesheetBackstopDeps {
   recordGateRefusal(row: TimesheetMirrorCandidateRow, reason: string): Promise<void>;
   /** Drive the still-approved sheet through the SAME dispatch path the foreground push uses, deriving
    *  the SAME deterministic key (`timesheetPushKey`) — so a race with the user's own push collides on
-   *  the outbox 4-tuple (23505) and reconciles to the winner, instead of minting a SECOND ERP Timesheet. */
-  driveTimesheetPush(row: TimesheetMirrorCandidateRow, approvedAt: string): Promise<void>;
+   *  the outbox 4-tuple (23505) and reconciles to the winner, instead of minting a SECOND ERP Timesheet.
+   *  `subject` is the gate's server-read push subject, which lets the live implementation mint an
+   *  ATTRIBUTED outbox row (actor = the sheet's own `approved_by`) when the foreground never reached the
+   *  outbox at all. */
+  driveTimesheetPush(row: TimesheetMirrorCandidateRow, approvedAt: string, subject?: TimesheetPushSubject): Promise<void>;
 }
 
 export interface ReconcileOrgTimesheetPushesResult {
@@ -110,7 +133,7 @@ export async function reconcileOrgTimesheetPushes(
         skipped += 1;
         continue;
       }
-      await deps.driveTimesheetPush(row, gate.approvedAt);
+      await deps.driveTimesheetPush(row, gate.approvedAt, gate.subject);
       driven += 1;
     } catch (err) {
       errors.push({ timesheetId: row.timesheet_id, error: err instanceof Error ? err.message : String(err) });

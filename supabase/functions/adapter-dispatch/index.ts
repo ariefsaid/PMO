@@ -27,7 +27,7 @@
 
 // Deno-native imports (not in pmo-portal/package.json)
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { COMMAND_IN_FLIGHT_FOR_RECORD, dispatchExternallyOwnedWrite } from '../../../pmo-portal/src/lib/adapterSeam/dispatch.ts';
+import { dispatchExternallyOwnedWrite } from '../../../pmo-portal/src/lib/adapterSeam/dispatch.ts';
 import { recordExternalRef as recordExternalRefWrite } from '../../../pmo-portal/src/lib/adapterSeam/refs.ts';
 import { createReferenceAdapter, REFERENCE_DOMAIN } from '../../../pmo-portal/src/lib/adapterSeam/referenceAdapter.ts';
 import { CLICKUP_TASKS_DOMAIN } from '../../../pmo-portal/src/lib/adapterSeam/clickup/adapter.ts';
@@ -64,6 +64,8 @@ import { surfaceActionRequired } from '../_shared/erpnextFeedDeps.ts';
 import { enforceTimesheetApproved, isTimesheetPush, type ApprovedTimesheet } from './approvalGuard.ts';
 // M-2: what a rejected budget push MEANS for the durable mirror state (a 409 is not a failure).
 import { classifyBudgetPushOutcome } from './budgetPushOutcome.ts';
+// AC-TSP-031: the ONE code→HTTP-status map for both failure exits (pre-flight select + dispatch).
+import { dispatchErrorStatus } from './dispatchErrorStatus.ts';
 import { maybeFault, type FaultGate } from './faultSeams.ts';
 import { isRevenueSiSubmitTransition, grantSiSubmitClearance, requiresSiAuthorClaim, claimSiAuthor, releaseSiSubmitClearance } from './sodGuard.ts';
 import { checkErpnextCommandAuthorization, type AuthorizationClient } from './authGuard.ts';
@@ -1012,8 +1014,12 @@ Deno.serve(async (req: Request): Promise<Response> => {
     // runs inside the factory, deliberately BEFORE the outbox claim and any ERP call.
     await recordTimesheetPushFailure(appError);
     await recordBudgetPushFailure(appError); // HIGH-2: an adapter-select-time budget rejection is durable too
+    // AC-TSP-031 — a CLASSIFIED business rejection raised here (the fail-closed ref pre-flight above)
+    // is unprocessable-entity, not "malformed request": the body was fine, the RULE refused it. Same
+    // ladder as the dispatch catch below (`dispatchErrorStatus`), so the two exits cannot drift; an
+    // unclassified failure keeps this exit's own 400.
     return new Response(JSON.stringify({ error: appError.code ?? 'ADAPTER_SELECT_FAILED', message: appError.message }), {
-      status: 400,
+      status: dispatchErrorStatus(appError.code, 400),
       headers,
     });
   }
@@ -1106,7 +1112,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     // above would silently DROP its `.code`/`.unmappedCategories` and fall through to a bare 500. Budget
     // is a money-adjacent surface, so its own classified codes are preserved explicitly here.
     const isBudgetCode = (code: unknown): code is string => code === 'budget-category-unmapped' || code === 'budget-multi-fiscal-year';
-    const budgetAppError =
+    const budgetAppError: AppError =
       isBudgetPushCommand(command) && err instanceof Error && isBudgetCode((err as { code?: unknown }).code)
         ? new AppError(err.message, (err as unknown as { code: string }).code)
         : appError;
@@ -1117,15 +1123,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
     // from "never pushed" and the sweep backstop had nothing to re-drive. Recorded with the BEST-classified
     // error (`budgetAppError`, not the generic `appError`) so the operator surface names the real reason.
     await recordBudgetPushFailure(budgetAppError);
-    const status = budgetAppError.code === 'external-unreachable'
-      ? 502
-      : budgetAppError.code === 'commit-rejected' || isBudgetCode(budgetAppError.code)
-        ? 422
-        : budgetAppError.code === 'command-held' || budgetAppError.code === COMMAND_IN_FLIGHT_FOR_RECORD
-          ? 409
-          : 500;
     return new Response(JSON.stringify({ error: budgetAppError.code ?? 'DISPATCH_FAILED', message: budgetAppError.message }), {
-      status,
+      // AC-TSP-031: the SAME ladder the adapter-select exit uses (unreachable 502 / classified business
+      // rejection 422 / held-or-in-flight 409), with THIS exit's own 500 for an unclassified failure.
+      status: dispatchErrorStatus(budgetAppError.code, 500),
       headers,
     });
   } finally {
