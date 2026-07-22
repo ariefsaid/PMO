@@ -9,6 +9,22 @@ export interface ClickUpTaskStatus {
   status: string;
 }
 
+/**
+ * A ClickUp task's priority sub-object (REST v2 GET). ASYMMETRIC vs. the write shape (OD-INT-9): on a
+ * GET, ClickUp returns `priority` as this OBJECT — `{ id, priority (the label), color, orderindex }`
+ * — or `null` when unset; on a WRITE (create/update body), the same field is the BARE INTEGER
+ * `1|2|3|4`. `mapping.ts` is the only place that knows this (FR-CUA-012 confinement). The `priority`
+ * label is lowercase on the wire (`urgent`/`high`/`normal`/`low`); the inbound map is
+ * case-insensitive so a casing drift on ClickUp's side can never silently drop it to null.
+ */
+export interface ClickUpTaskPriority {
+  id: string;
+  /** The human label, lowercase on the wire (`urgent`/`high`/`normal`/`low`). */
+  priority: string;
+  color: string;
+  orderindex: string;
+}
+
 /** A ClickUp assignee reference (REST v2 `assignees[]` entry). */
 export interface ClickUpAssigneeRef {
   id: number;
@@ -34,6 +50,9 @@ export interface ClickUpTask {
    *  (2026-07-20 live-verified, 7/7 real deliveries) so this is now the WORKER's re-GET cursor, never
    *  read off a webhook payload. */
   date_updated: string;
+  /** The task description (ClickUp `description`, a free-text string). Absent/null when unset. Added
+   *  by OD-INT-9: maps bidirectionally to `tasks.description`. */
+  description?: string | null;
   /** Unix-ms as a string — set when the task was marked done; null otherwise (FR-CUA-030 Finding 6). */
   date_done?: string | null;
   /** The List this task belongs to — only present on a full task GET, never on a webhook payload. The
@@ -41,6 +60,10 @@ export interface ClickUpTask {
    *  payload's `list_id` never exists on a real delivery, so the old payload-driven adopt path was
    *  unreachable dead code). */
   list?: ClickUpTaskList;
+  /** The priority OBJECT on a GET (OD-INT-9) — `{ id, priority, color, orderindex }` where `priority`
+   *  is the label, or `null` when unset. NOTE the asymmetry: the WRITE body uses the bare integer
+   *  `1|2|3|4`, modeled on `ClickUpCreateTaskBody.priority` / `ClickUpUpdateTaskBody.priority`. */
+  priority?: ClickUpTaskPriority | null;
   /** Current archived state. Present on a full task GET, and on sweep reads because they now pass
    *  `archived=true` (read-hygiene fix) — `pageListTasks` filters archived rows out of every returned
    *  change set so one is never mirrored as live. Archiving fires `taskUpdated` with a
@@ -69,6 +92,11 @@ export interface ClickUpCreateTaskBody {
   assignees?: number[];
   start_date?: number;
   due_date?: number;
+  /** The task description (OD-INT-9) — a free-text string, maps to `tasks.description`. */
+  description?: string;
+  /** The priority INTEGER on a write (OD-INT-9): `1`=Urgent, `2`=High, `3`=Normal, `4`=Low. NOTE the
+   *  asymmetry: a GET returns priority as an OBJECT (`ClickUpTaskPriority`); a write takes this integer. */
+  priority?: number;
   /** Parent task id (ClickUp subtask parent) — settable on create to make the task a subtask in the same List. */
   parent?: string | null;
 }
@@ -80,6 +108,10 @@ export interface ClickUpUpdateTaskBody {
   assignees?: { add: number[]; rem: number[] };
   start_date?: number;
   due_date?: number;
+  /** The task description (OD-INT-9) — a free-text string, maps to `tasks.description`. */
+  description?: string;
+  /** The priority INTEGER on a write (OD-INT-9): `1`=Urgent, `2`=High, `3`=Normal, `4`=Low. */
+  priority?: number;
   /** Parent task id — set to re-parent, or `null` to promote to top-level. */
   parent?: string | null;
 }

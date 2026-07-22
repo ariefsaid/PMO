@@ -191,6 +191,9 @@ async function sweepOrg(
           start_date: canonical.start_date ?? null,
           end_date: canonical.end_date ?? null,
           completed_at: (canonical.completed_at as string | null | undefined) ?? null,
+          // OD-INT-9: description + priority are ClickUp-owned native fields — mirror them inbound.
+          description: (canonical.description as string | null | undefined) ?? null,
+          priority: (canonical.priority as string | null | undefined) ?? null,
           source_updated_at: new Date(sourceModMs).toISOString(),
         });
         if (error) throw new AppError(error.message, error.code);

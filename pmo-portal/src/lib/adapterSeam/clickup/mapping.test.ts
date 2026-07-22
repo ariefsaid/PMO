@@ -239,3 +239,151 @@ describe('OD-INT-9 parent sync: inbound ClickUp parent → PMO parent_task_id', 
     expect(record.parent_task_id).toBe('pmo-cross-project-parent'); // mapping is a pure pass-through
   });
 });
+
+// ── OD-INT-9: description + priority mapping (fixed 4-value constant, NOT per-List config). ─────
+
+describe('OD-INT-9 priority + description: outbound PMO → ClickUp', () => {
+  it('OD-INT-9: maps every PMO priority to the fixed ClickUp integer (Urgent=1,High=2,Normal=3,Low=4)', () => {
+    const cases: Array<[string, number]> = [
+      ['Urgent', 1],
+      ['High', 2],
+      ['Normal', 3],
+      ['Low', 4],
+    ];
+    for (const [pmo, clickUpInt] of cases) {
+      const body = pmoTaskToClickUpBody(
+        { id: 'pmo-1', priority: pmo },
+        maps,
+        { mode: 'update' },
+      );
+      expect(body).toEqual({ priority: clickUpInt });
+    }
+  });
+
+  it('OD-INT-9: a null priority OMITS the key entirely (never invents a default integer)', () => {
+    const body = pmoTaskToClickUpBody(
+      { id: 'pmo-1', priority: null },
+      maps,
+      { mode: 'update' },
+    );
+    expect('priority' in body).toBe(false);
+    expect(body).toEqual({});
+  });
+
+  it('OD-INT-9: an unknown priority string OMITS the key (never invents a default)', () => {
+    const body = pmoTaskToClickUpBody(
+      { id: 'pmo-1', priority: 'Bogus' as string },
+      maps,
+      { mode: 'update' },
+    );
+    expect('priority' in body).toBe(false);
+  });
+
+  it('OD-INT-9: description round-trips outbound (a present string is emitted verbatim)', () => {
+    const body = pmoTaskToClickUpBody(
+      { id: 'pmo-1', description: 'Pour the foundation before backfill.' },
+      maps,
+      { mode: 'update' },
+    );
+    expect(body).toEqual({ description: 'Pour the foundation before backfill.' });
+  });
+
+  it('OD-INT-9: a null/empty description is omitted outbound (never writes an empty string)', () => {
+    const bodyNull = pmoTaskToClickUpBody(
+      { id: 'pmo-1', description: null },
+      maps,
+      { mode: 'update' },
+    );
+    expect('description' in bodyNull).toBe(false);
+
+    const bodyEmpty = pmoTaskToClickUpBody(
+      { id: 'pmo-1', description: '' },
+      maps,
+      { mode: 'update' },
+    );
+    expect('description' in bodyEmpty).toBe(false);
+  });
+
+  it('OD-INT-9: outbound emits description + priority ALONGSIDE the existing scalar fields on create', () => {
+    const body = pmoTaskToClickUpBody(
+      {
+        id: 'pmo-1',
+        name: 'Wire the widget',
+        status: 'Done',
+        assignee_id: 'pmo-user-1',
+        description: 'Detailed scope here.',
+        priority: 'High',
+      },
+      maps,
+      { mode: 'create' },
+    );
+    expect(body).toMatchObject({
+      name: 'Wire the widget',
+      status: 'complete',
+      assignees: [111],
+      description: 'Detailed scope here.',
+      priority: 2,
+    });
+  });
+});
+
+describe('OD-INT-9 priority + description: inbound ClickUp → PMO', () => {
+  it('OD-INT-9: a ClickUp priority OBJECT maps to the PMO enum (label → Urgent/High/Normal/Low)', () => {
+    // ClickUp GET returns priority as an OBJECT: { id, priority (the label), color, orderindex }.
+    // The label is lowercase on the wire; the map is case-insensitive so it cannot rot on casing.
+    const cases: Array<[string, string]> = [
+      ['urgent', 'Urgent'],
+      ['high', 'High'],
+      ['normal', 'Normal'],
+      ['low', 'Low'],
+    ];
+    for (const [label, pmo] of cases) {
+      const record = clickUpTaskToPmoRecord(
+        { ...rawTask, priority: { id: 'p-id', priority: label, color: '#ff0f00', orderindex: '1' } },
+        maps,
+      );
+      expect(record.priority).toBe(pmo);
+    }
+  });
+
+  it('OD-INT-9: a Capitalized ClickUp priority label still maps (case-insensitive, defensive)', () => {
+    // We cannot call the live API; the map is case-insensitive so a casing drift on ClickUp's
+    // side never silently drops the priority to null.
+    const record = clickUpTaskToPmoRecord(
+      { ...rawTask, priority: { id: 'p-id', priority: 'High', color: '#ff0f00', orderindex: '2' } },
+      maps,
+    );
+    expect(record.priority).toBe('High');
+  });
+
+  it('OD-INT-9: an absent priority (undefined) maps to null — never invents a default', () => {
+    const record = clickUpTaskToPmoRecord(rawTask, maps); // no priority field on rawTask
+    expect(record.priority).toBeNull();
+  });
+
+  it('OD-INT-9: an explicit null priority maps to null', () => {
+    const record = clickUpTaskToPmoRecord({ ...rawTask, priority: null }, maps);
+    expect(record.priority).toBeNull();
+  });
+
+  it('OD-INT-9: an unknown ClickUp priority label maps to null (never invents a default)', () => {
+    const record = clickUpTaskToPmoRecord(
+      { ...rawTask, priority: { id: 'p-id', priority: 'critical', color: '#000', orderindex: '0' } },
+      maps,
+    );
+    expect(record.priority).toBeNull();
+  });
+
+  it('OD-INT-9: description round-trips inbound (a present string maps to the PMO description)', () => {
+    const record = clickUpTaskToPmoRecord(
+      { ...rawTask, description: 'Pour the foundation before backfill.' },
+      maps,
+    );
+    expect(record.description).toBe('Pour the foundation before backfill.');
+  });
+
+  it('OD-INT-9: an absent description maps to null inbound', () => {
+    const record = clickUpTaskToPmoRecord(rawTask, maps); // no description field
+    expect(record.description).toBeNull();
+  });
+});
