@@ -25,9 +25,9 @@ set local role authenticated;
 set local request.jwt.claims = '{"sub":"01450000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 update tasks set archived_at = now() where id = '01450000-0000-0000-0000-000000000012';
 
-select is((select task_count from get_project_milestones('01450000-0000-0000-0000-000000000001') where id = '01450000-0000-0000-0000-000000000010'), 1, 'AC-CUA-096: archived non-Done task is excluded from milestone task_count');
-select is((select calculated_pct::numeric(10,0) from get_project_milestones('01450000-0000-0000-0000-000000000001') where id = '01450000-0000-0000-0000-000000000010'), 100::numeric, 'AC-CUA-097: archived non-Done task is excluded from calculated_pct');
-select is((select delivery_pct::numeric(10,0) from get_projects_delivery(array['01450000-0000-0000-0000-000000000001'::uuid])), 100::numeric, 'AC-CUA-098: archived non-Done task is excluded from delivery_pct');
+select is((select task_count from get_project_milestones('01450000-0000-0000-0000-000000000001') where id = '01450000-0000-0000-0000-000000000010'), 1, 'AC-CUA-099: archived non-Done task is excluded from milestone task_count');
+select is((select calculated_pct::numeric(10,0) from get_project_milestones('01450000-0000-0000-0000-000000000001') where id = '01450000-0000-0000-0000-000000000010'), 100::numeric, 'AC-CUA-100: archived non-Done task is excluded from calculated_pct');
+select is((select delivery_pct::numeric(10,0) from get_projects_delivery(array['01450000-0000-0000-0000-000000000001'::uuid])), 100::numeric, 'AC-CUA-101: archived non-Done task is excluded from delivery_pct');
 
 -- PMO ownership: manager can set and clear the reversible archive marker.
 select lives_ok($$update tasks set archived_at = now() where id = '01450000-0000-0000-0000-000000000011'$$, 'AC-CUA-099: manager can archive a task while tasks are PMO-owned');

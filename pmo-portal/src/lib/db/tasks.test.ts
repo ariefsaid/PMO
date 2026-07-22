@@ -91,7 +91,7 @@ beforeEach(() => {
 });
 
 describe('task archive writes', () => {
-  it('AC-CUA-096: archives and unarchives through the PMO DAL', async () => {
+  it('AC-CUA-097: archives and unarchives through the PMO DAL', async () => {
     await archiveTask('t1');
     expect(h.calls.update[0]).toEqual({ archived_at: expect.any(String) });
     await unarchiveTask('t1');
@@ -99,7 +99,7 @@ describe('task archive writes', () => {
     expect(ext.dispatch).not.toHaveBeenCalled();
   });
 
-  it('AC-CUA-097: refuses to attempt a PMO archive while tasks are externally owned', async () => {
+  it('AC-CUA-098: refuses to attempt a PMO archive while tasks are externally owned', async () => {
     ext.route = 'external';
     await expect(archiveTask('t1')).rejects.toMatchObject({ code: 'external-owned' });
     await expect(unarchiveTask('t1')).rejects.toMatchObject({ code: 'external-owned' });
