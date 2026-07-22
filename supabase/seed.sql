@@ -2109,3 +2109,24 @@ on conflict (id) do nothing;
 insert into platform_operators (user_id, granted_by) values
   ('00000000-0000-0000-0000-0000000000ff','00000000-0000-0000-0000-0000000000ff')
 on conflict (user_id) do nothing;
+
+-- ─────────────────────────────────────────────────────────────────────────────────────────────────
+-- ⚑ Local-only: the ERPNext webhook secret, in VAULT.
+--
+-- ADR-0061 / #355 / #357 moved per-org secret resolution to VAULT-ONLY: `resolvePerOrgSecret` used to
+-- fall back to `Deno.env.get(webhook_secret_ref)`, and that fallback is gone. The served
+-- `erpnext-webhook` therefore resolves NO employing org when the ref is missing from Vault, and every
+-- inbound event answers 401 — which looks exactly like a bad HMAC and reads as a product defect.
+--
+-- The e2e binding names `webhook_secret_ref = 'DEMO_ERP_WEBHOOK_SECRET'`; this seeds that name with the
+-- value the specs sign with. Seeded HERE (not from a spec) because `create_vault_secret_for_org` is
+-- Admin-gated on `auth.uid()` and a service_role caller gets 42501 — while `seed.sql` runs as
+-- `postgres` on `db reset`, which is exactly the privilege this needs. `seed.sql` is LOCAL ONLY and is
+-- never applied to a cloud project (docs/environments.md).
+do $$
+begin
+  if not exists (select 1 from vault.secrets where name = 'DEMO_ERP_WEBHOOK_SECRET') then
+    perform vault.create_secret('local-e2e-webhook-secret', 'DEMO_ERP_WEBHOOK_SECRET',
+      'ERPNext webhook HMAC secret for the local e2e lane (see supabase/seed.sql)');
+  end if;
+end $$;

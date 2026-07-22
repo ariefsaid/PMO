@@ -101,7 +101,7 @@ export class FakePostgrest {
   }
 
   /**
-   * `supabase.rpc(fn, args)`. Only `replace_erp_snapshot` (migration 0142) is modelled, and it is
+   * `supabase.rpc(fn, args)`. Only `replace_erp_snapshot` (migration 0150) is modelled, and it is
    * modelled ATOMICALLY — the org's prior generation disappears and the new one appears in the SAME
    * step, because that is the whole guarantee the RPC exists to provide. A fake that exposed an
    * intermediate empty state would be modelling the defect, not the fix.

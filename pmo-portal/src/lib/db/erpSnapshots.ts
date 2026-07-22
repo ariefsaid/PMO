@@ -8,7 +8,7 @@ import { AppError } from '@/src/lib/appError';
  * RLS (`org_id = auth_org_id()`) scopes every read — no `org_id` filter is sent by the client. There
  * is NO write path here by design — snapshots are machine-written by the sweep (slice 8), never a
  * client-side writer. The current scope (single as_of) is returned: snapshot-replace publishes exactly
- * one snapshot_id per org, ATOMICALLY (`replace_erp_snapshot`, migration 0142), so every own-org row
+ * one snapshot_id per org, ATOMICALLY (`replace_erp_snapshot`, migration 0150), so every own-org row
  * shares the latest coherent snapshot.
  */
 
@@ -179,7 +179,7 @@ async function newestSnapshotId(table: string): Promise<string | null> {
  * were reading, the rows in hand are a torn mix or a truncated generation — retry ONCE against the new
  * anchor, then fail closed rather than return something that cannot be told apart from the truth.
  *
- * ⚑ AUDIT ROUND 10 — WHAT ATOMICITY CLOSED, AND WHAT IT DID NOT. Migration 0142 makes snapshot-replace
+ * ⚑ AUDIT ROUND 10 — WHAT ATOMICITY CLOSED, AND WHAT IT DID NOT. Migration 0150 makes snapshot-replace
  * ONE statement, so fault (b) no longer produces a torn MIX (two generations can never coexist) and
  * the zero-generation window is gone. It does NOT make this re-assert redundant, because the read is
  * still multi-statement: anchor S1, take page 0, the sweep atomically publishes S2, page 1 for S1

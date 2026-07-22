@@ -1,4 +1,4 @@
--- 0141_get_budget_projection.sql — ERPNext P3c slice 6 (spec §5.7, FR-BUD-151/153, AC-BUD-053).
+-- 0149_get_budget_projection.sql — ERPNext P3c slice 6 (spec §5.7, FR-BUD-151/153, AC-BUD-053).
 --
 -- PMO's FORWARD VIEW, derived ON READ, never stored, NEVER pushed (FR-BUD-160). ⚑ "Projection" here is
 -- PMO's own forward-looking derived view — NOT ADR-0055 §6's "projected into the ERP object" (that means
@@ -85,7 +85,7 @@ as $$
     -- "Enforced by ERPNext" pill. The actuals card two clicks away showed $40,000, because it filters
     -- generations. Both claimed to be ERP truth.
     --
-    -- 0142 makes snapshot-replace ONE statement, so two generations are now unreachable. This CTE is
+    -- 0150 makes snapshot-replace ONE statement, so two generations are now unreachable. This CTE is
     -- deliberately kept ANYWAY: a money aggregate must be correct independently of its writer, and the
     -- previous defect hid precisely because the guarantee lived only on the write side while the
     -- comment claiming it (0101) was false. Belt and braces, and it costs one index-backed row.
@@ -144,7 +144,7 @@ as $$
     -- while the version grid two inches above showed real PMO-recorded spend.
     --
     -- The snapshot is written ORG-WIDE and wholesale on every refresh (actualsSnapshot.ts: one
-    -- snapshot_id, one as_of, prior rows deleted in the SAME STATEMENT since 0142), so the absence of
+    -- snapshot_id, one as_of, prior rows deleted in the SAME STATEMENT since 0150), so the absence of
     -- ANY row for a project-year is exactly "PMO holds no ledger reading about this project-year" —
     -- whatever the cause. That is one epistemic state and it is reported as one. `max(as_of)` doubles
     -- as the provenance the surface renders.

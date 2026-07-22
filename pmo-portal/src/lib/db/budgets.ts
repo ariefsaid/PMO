@@ -226,7 +226,7 @@ export async function activateVersion(versionId: string): Promise<ActivateVersio
   // mirror row at all — and the sweep backstop's work queue IS that mirror, so nothing ever re-drives
   // it. Discarding this made the UI show a plain success while ERPNext kept enforcing the previous
   // budget (or none) forever, with nobody notified. The durable half of the same fix is
-  // `get_budget_projection`'s `'never-pushed'` state (migration 0141) + the retry below.
+  // `get_budget_projection`'s `'never-pushed'` state (migration 0149) + the retry below.
   return { pushState: result.pushState ?? 'failed' };
 }
 

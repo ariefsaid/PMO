@@ -150,7 +150,7 @@ describe('db/erpSnapshots — read-only snapshot DAL (task 7.7)', () => {
   });
 
   // The stale-generation filter. Two `snapshot_id`s in one table is unreachable in production since
-  // migration 0142 made snapshot-replace one statement — but the read does not DEPEND on that: it
+  // migration 0150 made snapshot-replace one statement — but the read does not DEPEND on that: it
   // resolves the newest `snapshot_id` and pins it SERVER-side (`.eq('snapshot_id', anchor)`).
   //
   // ⚑ Audit round 10 (LOW-2): the client-side `latestSnapshotOnly()` these two tests used to exercise
@@ -206,7 +206,7 @@ describe('db/erpSnapshots — read-only snapshot DAL (task 7.7)', () => {
  * of it. The fake even grew a `replaceWith` hook for the purpose that nothing ever called. So the
  * retry, the bound and the error were all assertions-by-comment.
  *
- * Migration 0142 made snapshot-replace ONE statement, which removes the torn MIX and the
+ * Migration 0150 made snapshot-replace ONE statement, which removes the torn MIX and the
  * zero-generation window — but NOT this: the READ is still multi-statement. Anchor S1, take page 0,
  * the sweep atomically publishes S2, ask for page 1 of S1 and get zero rows — an ordinary-looking
  * SHORT PAGE — and a pager without the re-assert stops there and returns a PREFIX of a generation that

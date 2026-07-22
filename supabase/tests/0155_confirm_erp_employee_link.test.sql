@@ -1,5 +1,5 @@
 -- 0155_confirm_erp_employee_link.test.sql
--- AC-TSP-091 — the `confirm_erp_employee_link` RPC (migration 0140): the OQ-TSP-10(C) adopt-then-confirm
+-- AC-TSP-091 — the `confirm_erp_employee_link` RPC (migration 0148): the OQ-TSP-10(C) adopt-then-confirm
 -- link-state machine, DB-side. `erp_employees` + its RLS + the partial-unique confirmed-link index are
 -- ALREADY covered by 0143_erp_employees_rls.test.sql (storage only, no transition logic) — this file
 -- proves ONLY the confirm transition: Admin-only, server-resolved witness columns, org re-assertion
@@ -123,7 +123,7 @@ select is(
 -- edge fn's auth guard is NOT in the path. `auth_role()` reads `profiles.role` with no status filter,
 -- so without `is_active_member()` a just-disabled Admin holding a valid JWT could keep re-pointing
 -- whose hours post against whose costing rate until their token expired. (0128/0129/0130 closed
--- exactly this for the P3a money RPCs; 0140 is P3b's new definer function.)
+-- exactly this for the P3a money RPCs; 0148 is P3b's new definer function.)
 update profiles set status = 'disabled' where id = '01550000-0000-0000-0000-0000000000a1';
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"01550000-0000-0000-0000-0000000000a1","role":"authenticated"}';

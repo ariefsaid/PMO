@@ -5,7 +5,7 @@
  * ERP object" (that means PUSHED; see bodies/budget.ts). Nothing computed here is ever sent to ERP
  * (structural proof: budgetNeverPushesProjection.test.ts, AC-BUD-054).
  *
- * This module is the unit ORACLE; the RPC (mig 0141 get_budget_projection) computes the identical
+ * This module is the unit ORACLE; the RPC (mig 0149 get_budget_projection) computes the identical
  * arithmetic in SQL `numeric` for the real read path — AC-BUD-050 and AC-BUD-053 must agree.
  */
 import { describe, it, expect } from 'vitest';

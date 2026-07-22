@@ -1,4 +1,4 @@
--- 0142_replace_erp_snapshot.sql — audit round 10, HIGH-1: make snapshot-replace ATOMIC.
+-- 0150_replace_erp_snapshot.sql — audit round 10, HIGH-1: make snapshot-replace ATOMIC.
 --
 -- ⚑ THE DEFECT THIS CLOSES AT THE ROOT.
 --
@@ -15,7 +15,7 @@
 --   • `get_budget_projection` summed ERP actuals with no `snapshot_id` predicate at all, so a $40,000
 --     category reported $80,000 — an EAC of $115,000 against a $100,000 budget, a −$15,000 overrun
 --     that does not exist, 1.15 utilization — stamped FRESH by `max(as_of)`, and persistent until the
---     next successful sweep. (0141 now also scopes its own read to one generation: a money aggregate
+--     next successful sweep. (0149 now also scopes its own read to one generation: a money aggregate
 --     must be correct independently of who wrote it. Belt AND braces, deliberately.)
 --   • Between the delete and the insert the org's snapshot was genuinely EMPTY, and the dashboard
 --     rendered "No actuals snapshot yet" — byte-identical to an org that has never run a refresh — for
@@ -172,8 +172,8 @@ grant  execute on function public.replace_erp_snapshot(text, uuid, jsonb) to ser
 comment on table public.erp_actuals_snapshot is
   'ERP GL actuals, GENERATIONAL (one snapshot_id per sweep pass). Published ONLY via '
   'public.replace_erp_snapshot(), which deletes the org''s prior generation and inserts the new one in '
-  'ONE statement — so no reader can observe two generations, or zero mid-replace (0142).';
+  'ONE statement — so no reader can observe two generations, or zero mid-replace (0150).';
 comment on table public.erp_ap_aging_snapshot is
-  'ERP AP aging, GENERATIONAL. Published ONLY via public.replace_erp_snapshot() — atomic replace (0142).';
+  'ERP AP aging, GENERATIONAL. Published ONLY via public.replace_erp_snapshot() — atomic replace (0150).';
 comment on table public.erp_ar_aging_snapshot is
-  'ERP AR aging, GENERATIONAL. Published ONLY via public.replace_erp_snapshot() — atomic replace (0142).';
+  'ERP AR aging, GENERATIONAL. Published ONLY via public.replace_erp_snapshot() — atomic replace (0150).';

@@ -191,7 +191,7 @@ describe('erpnext/agingSnapshot — refreshAging FALLBACK (mirrored-ledger bucke
    * ⚑ HIGH-1 (Luna audit round 10) — the aging half of the non-atomic snapshot-replace. This used to
    * be `await delete()` then `await insert()`, so two overlapping sweep passes could leave TWO
    * generations of AP/AR aging in the table, and a reader landing in between saw NONE. Publishing is
-   * now one `replace_erp_snapshot` statement (0142), and the falsifier is that no direct delete of a
+   * now one `replace_erp_snapshot` statement (0150), and the falsifier is that no direct delete of a
    * snapshot table happens at all — that being the only way to reopen the window.
    */
   it('fallback publishes the scope in ONE atomic replace (no separate delete; single snapshot_id)', async () => {

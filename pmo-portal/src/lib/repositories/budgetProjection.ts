@@ -1,6 +1,6 @@
 /**
  * repositories/budgetProjection.ts (P3c slice 6, FR-BUD-151/153) — the read seam for PMO's forward
- * view (`get_budget_projection`, mig 0141) + the CRUD seam for the category↔account map
+ * view (`get_budget_projection`, mig 0149) + the CRUD seam for the category↔account map
  * (`budget_category_account_map`) + the ETC upsert (`budget_projections`).
  *
  * ⚑ "Projection" here = PMO's own forward-looking derived view — never ADR-0055 §6's "projected into

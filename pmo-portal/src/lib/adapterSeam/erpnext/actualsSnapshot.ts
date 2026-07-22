@@ -3,7 +3,7 @@
  * `erp_gl_entry_mirror` rows into `erp_actuals_snapshot`. PMO may SUM mirrored ledger rows (ERP
  * truth); it may NEVER invent an accounting figure or read `procurement_invoices` (the FR-ENA-162 /
  * ADR-0048 prohibition). Sums are per (project, cost_center, account, fiscal_year); a refresh mints a
- * new `snapshot_id` and publishes it through the ATOMIC `replace_erp_snapshot` RPC (0142) — the prior
+ * new `snapshot_id` and publishes it through the ATOMIC `replace_erp_snapshot` RPC (0150) — the prior
  * generation is removed and the summed rows inserted in ONE statement — stamping
  * `source_report='GL Entry'` + `as_of`.
  *
@@ -23,7 +23,7 @@ import { fetchAllRowsByKeyset } from '../../pagedRead.ts';
  *  ⚑ HIGH-1 (audit round 10): `delete()`/`insert()` are deliberately GONE from this seam. They were
  *  the affordance that made snapshot-replace two round trips, which is what let two generations of the
  *  same money coexist (and a reader land on zero of them). The only way to publish a generation is now
- *  `replace_erp_snapshot`, which does both in ONE statement (migration 0142). */
+ *  `replace_erp_snapshot`, which does both in ONE statement (migration 0150). */
 export interface SnapshotServiceClient {
   from(table: string): SnapshotTable;
   rpc(fn: string, args: Record<string, unknown>): PromiseLike<{ data: unknown; error: { message: string; code?: string } | null }>;
@@ -41,7 +41,7 @@ export interface SnapshotTable {
   select(columns: string): SnapshotSelectBuilder;
 }
 
-/** The one write: `public.replace_erp_snapshot(p_table, p_org_id, p_rows)` (migration 0142). */
+/** The one write: `public.replace_erp_snapshot(p_table, p_org_id, p_rows)` (migration 0150). */
 const REPLACE_SNAPSHOT_RPC = 'replace_erp_snapshot';
 
 /**

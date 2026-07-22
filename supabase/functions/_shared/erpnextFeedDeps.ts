@@ -283,7 +283,7 @@ async function mintMirrorRow(
       // Mint the FULL canonical + the erp_modified stamp — never a half-empty name-only row (the exact
       // party-adopt bug found live 2026-07-14: a half-empty adopted row never engages the per-row
       // staleness guard because erp_modified was NULL). link_state is NEVER auto-confirmed (FR-TSP-092)
-      // — only a Human `confirm_erp_employee_link` (0140) authorizes a push.
+      // — only a Human `confirm_erp_employee_link` (0148) authorizes a push.
       const { error } = await serviceClient.from('erp_employees').insert({
         id,
         org_id: orgId,
@@ -617,7 +617,7 @@ async function employeeFieldPatch(
  * OQ-TSP-10(C) FR-TSP-092: PROPOSE, never confirm. On adopt, an Employee's `work_email` is probed
  * against `profiles.email` for a UNIQUE, exact, case-insensitive match. Zero or multiple hits leave the
  * row `link_state='unlinked'` + surface action-required (the party-adopt ambiguous-match precedent:
- * SURFACE, never auto-resolve) — only a Human `confirm_erp_employee_link` (0140) authorizes a push.
+ * SURFACE, never auto-resolve) — only a Human `confirm_erp_employee_link` (0148) authorizes a push.
  * The update is scoped to `link_state='unlinked'` so it never re-proposes over an already-
  * proposed/confirmed/rejected row (FR-TSP-092.4 stays intact even on a re-apply).
  */

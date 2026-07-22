@@ -17,7 +17,7 @@ Playwright MCP). Screenshots + DOM/`getComputedStyle` measurements, not code rea
 the identical class alive at **category** scope, and worse:
 
 - **C-1** — a genuine zero, "no GL rows", and "no ERP account mapped at all" **all render `$0`**,
-  byte-identical. `get_budget_projection`'s `coalesce(a.actuals_to_date, 0)` (mig 0141) erases the
+  byte-identical. `get_budget_projection`'s `coalesce(a.actuals_to_date, 0)` (mig 0149) erases the
   distinction before the FE can see it. Return NULL for "no mapped actuals"; render `—`. Reserve
   `$0.00` for a real zero.
 - **C-2** — a category the banner *itself* flags as UNMAPPED still prints a confident `$0` actual, a

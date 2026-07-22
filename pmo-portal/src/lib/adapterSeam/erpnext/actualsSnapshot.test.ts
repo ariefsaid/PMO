@@ -29,7 +29,7 @@ interface RecordingClient {
    * none. The refresh used to publish a generation as `await delete()` then `await insert()`, two
    * PostgREST round trips, so two overlapping sweeps could leave TWO generations in the table (the
    * budget RPC then summed both and doubled a category's ERP spend) and a reader landing between them
-   * saw ZERO. The replace is now one `replace_erp_snapshot` statement (0142).
+   * saw ZERO. The replace is now one `replace_erp_snapshot` statement (0150).
    */
   readonly deletedScopes: Record<string, unknown>[];
   /** Every atomic snapshot-replace the refresh asked the database to perform. */

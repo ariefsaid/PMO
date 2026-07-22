@@ -62,7 +62,7 @@ update budget_versions set status = 'Active' where id = '0b3e2222-0000-0000-0000
 -- ⚑ HIGH-1 (audit round 10) — ONE `snapshot_id` FOR THE WHOLE FIXTURE, DELIBERATELY. Every snapshot
 -- row this file seeds used to carry its own `gen_random_uuid()`, which modelled a state production
 -- cannot produce: `erp_actuals_snapshot` is GENERATIONAL, and a sweep pass publishes exactly one
--- `snapshot_id` per org (atomically, since 0142). Seeding a fresh id per row meant no two rows ever
+-- `snapshot_id` per org (atomically, since 0150). Seeding a fresh id per row meant no two rows ever
 -- shared a generation — so the RPC's total blindness to `snapshot_id` (it summed ACROSS generations,
 -- doubling a category's ERP spend) could not be exercised in either direction by any assertion here.
 -- The real two-generation case is owned by erp_snapshot_generation_honesty.test.sql; this file now

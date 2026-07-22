@@ -16,10 +16,10 @@
 -- `await delete()` and THEN `await insert()` — two PostgREST round trips — while the `*/5` sweep cron
 -- fires `net.http_post` fire-and-forget (0102), so ticks overlap by construction. (The 0101 table
 -- comment claiming the two run "in the SAME service-role tx" was simply false; it is corrected by
--- 0142.)
+-- 0150.)
 --
 -- This file pins BOTH halves, because either alone leaves the money wrong for a different reason:
---   §1 THE WRITE — `replace_erp_snapshot` (0142) does the delete + the insert in ONE statement, so no
+--   §1 THE WRITE — `replace_erp_snapshot` (0150) does the delete + the insert in ONE statement, so no
 --      reader can ever observe two generations, and none can observe ZERO generations either (the
 --      round-10 MED-1 window where the dashboard said "No actuals snapshot yet" mid-replace).
 --   §2 THE READ  — `get_budget_projection` scopes its actuals to ONE generation ANYWAY. A money

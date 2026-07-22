@@ -1,4 +1,4 @@
--- 0140_confirm_erp_employee_link.sql (ERPNext P3b, Slice 3 — OQ-TSP-10(C), OPEN: adopt-then-confirm).
+-- 0148_confirm_erp_employee_link.sql (ERPNext P3b, Slice 3 — OQ-TSP-10(C), OPEN: adopt-then-confirm).
 --
 -- The ONE writer of `erp_employees`' link columns (`profile_id`/`link_state`/`linked_by`/`linked_at`).
 -- `erp_employees` (migration 0136) is default-deny for `authenticated` — no INSERT/UPDATE/DELETE policy

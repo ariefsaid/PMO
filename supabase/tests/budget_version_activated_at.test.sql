@@ -20,7 +20,7 @@
 -- function is `grant execute … to authenticated` (reachable directly over PostgREST), so a deactivated
 -- or raw-banned PM/Finance holding an unexpired JWT could archive the Active version, make a version of
 -- their choosing Active (moving every budget KPI) and — new in P3c — TRIGGER A REAL ERPNext Budget push
--- that changes the client's GL overspend controls. Same class as 0128/0129/0130 and 0140. A plain
+-- that changes the client's GL overspend controls. Same class as 0128/0129/0130 and 0148. A plain
 -- conjunct (not 0138's resolved-actor form) is correct here: this RPC has NO service-role caller —
 -- every caller is a user JWT via `budgets.ts`.
 

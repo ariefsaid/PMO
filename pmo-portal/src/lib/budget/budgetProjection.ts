@@ -12,7 +12,7 @@
  *                                                                                 shipped snapshot)
  *   pmoEtc          ← budget_projections.pmo_etc                                (PMO-owned, authored)
  *
- * This module is the unit ORACLE; the RPC (mig 0141 get_budget_projection) computes the SAME arithmetic
+ * This module is the unit ORACLE; the RPC (mig 0149 get_budget_projection) computes the SAME arithmetic
  * in SQL `numeric` for the real read path. Keep them in step: AC-BUD-050/051 and AC-BUD-053 must agree.
  *
  * Money discipline (NFR-BUD-MONEY-001): decimal-string in, decimal-string out; every sum/difference is
