@@ -28,7 +28,7 @@
  * consume it generically.
  */
 import { describe, expect, it } from 'vitest';
-import { DOCTYPE_REGISTRY } from './doctypeRegistry.ts';
+import { DOCTYPE_REGISTRY, reissueOnInconclusiveAbsence } from './doctypeRegistry.ts';
 
 describe('erpnext/doctypeRegistry', () => {
   it('FR-ENA-014 maps every PMO erp_doc_kind to its exact Frappe doctype name + submittable + anchorField', () => {
@@ -58,8 +58,9 @@ describe('erpnext/doctypeRegistry', () => {
       // survives validate+submit+refetch verbatim, is REST-filterable, and a post-submit PUT is
       // rejected `UpdateAfterSubmitError` — the PI/SI twin, reissue-capable).
       timesheet: { doctype: 'Timesheet', submittable: true, submitOnCreate: true, anchorField: 'note', anchorMutable: false },
-      // P3c — Budget (ADR-0059 Posture B). ⚑ The ONLY kind with NO anchor at all AND neverReissue.
-      budget: { doctype: 'Budget', submittable: true, submitOnCreate: true, anchorField: null, neverReissue: true, upsertOnGrain: true },
+      // P3c — Budget (ADR-0059 Posture B). ⚑ The ONLY kind with NO anchor at all; its conclusive probe
+      // is the ERP-enforced GRAIN instead (upsertOnGrain, HIGH-1).
+      budget: { doctype: 'Budget', submittable: true, submitOnCreate: true, anchorField: null, upsertOnGrain: true },
       // P3b — the Employee MASTER (OQ-TSP-3 ruling, spike §8b/§9). readOnly:true — PMO NEVER writes an
       // ERP Employee; this kind exists ONLY for the inbound adopt (ADR-0059 §5's master-data exception).
       // No anchor (masters are never recovery-probed the way a money doc is) and not submittable
@@ -132,7 +133,6 @@ describe('erpnext/doctypeRegistry', () => {
       submittable: true,
       submitOnCreate: true,
       anchorField: null,
-      neverReissue: true,
       // FR-BUD-121: ERP itself enforces one live Budget per (company, fiscal_year, project, account),
       // so a create against an occupied grain UPSERTS the document that is already there (cancel +
       // create-with-`amended_from`, spike §6) instead of being atomically rejected as a duplicate.
@@ -140,35 +140,49 @@ describe('erpnext/doctypeRegistry', () => {
     });
   });
 
-  it('AC-BUD-022 anchor-less ⇒ neverReissue ⇒ reissueOnInconclusiveAbsence is FALSE (held, never reissued)', () => {
+  // ⚑ HIGH-1 (money-safety audit round 5) — `neverReissue` WAS the right answer while the budget push
+  // had no probe of any kind. It is the WRONG answer for the state the FR-BUD-121 upsert can leave
+  // behind. The upsert is `cancel(old) → create(new) → submit(new)`, and if the create fails after the
+  // cancel, ERPNext holds NO live Budget for the grain — every overspend control silently off. Under
+  // `neverReissue` the post-window recovery went straight to `markOutboxHeld`, and (HIGH-2) nothing ever
+  // un-held it: the destructive state was PERMANENT.
+  //
+  // The reissue is not blind, and that is the whole justification. An `upsertOnGrain` kind HAS a
+  // conclusive probe — the dispatch factory's server-derived grain read (`resolveBudgetRefs`), which now
+  // reads `docstatus < 2`, i.e. every document ERP's own duplicate guard counts. It answers "did our
+  // create land?" three ways, each with a safe action: a live occupant ⇒ upsert onto it; a DRAFT
+  // occupant ⇒ named refusal with zero writes; nothing at all ⇒ the create demonstrably did not land, so
+  // re-create. A Budget also posts no GL entry — it installs a control — so an extra revision is not an
+  // extra payment. `anchorMutable` (Payment Entry) is untouched: no grain makes a double-PAY safe.
+  it('AC-BUD-022 an `upsertOnGrain` kind is REISSUE-CAPABLE — its server-derived grain read IS the conclusive probe (HIGH-1)', () => {
     const entry = DOCTYPE_REGISTRY.budget;
-    // Today `anchorField: null` alone means "skip the probe → fresh claim+POST" = REISSUE-CAPABLE.
-    // For a Posture-B budget that is a silently DUPLICATED ERP object — and ERP's own duplicate guard
-    // fires only at the (company, dimension, fiscal_year, account) grain, so a reissue after a genuine
-    // in-flight timeout lands as a 417 the adapter cannot distinguish from a real conflict.
-    // ADR-0059 §4's corollary closes it: the dispatch computes
-    //   reissueOnInconclusiveAbsence = !(anchorMutable || neverReissue)
-    expect(entry.anchorField).toBeNull();
-    expect(entry.neverReissue).toBe(true);
-    expect(!(entry.anchorMutable || entry.neverReissue)).toBe(false);
+    expect(entry.anchorField, 'still no anchor field — the grain read replaces it, it does not add one').toBeNull();
+    expect(entry.upsertOnGrain).toBe(true);
+    expect(reissueOnInconclusiveAbsence(entry)).toBe(true);
   });
 
-  it('AC-BUD-022 `neverReissue` is additive + default-absent — every shipped kind keeps its reissue behaviour byte-for-byte', () => {
+  it('AC-BUD-022 the reissue rule is NOT blanket: a mutable-anchor money doc is still HELD, and an anchor-less kind with no ERP-enforced grain is still HELD', () => {
+    // Payment Entry — a double-pay can never be made safe by any amount of probing.
+    expect(reissueOnInconclusiveAbsence(DOCTYPE_REGISTRY.payment)).toBe(false);
+    expect(reissueOnInconclusiveAbsence(DOCTYPE_REGISTRY['incoming-payment'])).toBe(false);
+    // A hypothetical anchor-less kind WITHOUT an ERP-enforced grain has no probe at all ⇒ still held.
+    expect(reissueOnInconclusiveAbsence({ neverReissue: true })).toBe(false);
+    // Immutable anchor (Purchase Invoice `remarks`) — unchanged, reissue-capable.
+    expect(reissueOnInconclusiveAbsence(DOCTYPE_REGISTRY['purchase-invoice'])).toBe(true);
+  });
+
+  it('AC-BUD-022 every OTHER shipped kind keeps its reissue behaviour byte-for-byte (additive + default-absent)', () => {
     for (const kind of ['purchase-request', 'rfq', 'quotation', 'purchase-order', 'goods-receipt', 'purchase-invoice', 'payment', 'supplier', 'customer', 'sales-invoice', 'incoming-payment', 'timesheet', 'employee'] as const) {
+      expect(DOCTYPE_REGISTRY[kind].upsertOnGrain, `${kind} must not gain upsertOnGrain`).toBeUndefined();
       expect(DOCTYPE_REGISTRY[kind].neverReissue, `${kind} must not gain neverReissue`).toBeUndefined();
+      expect(reissueOnInconclusiveAbsence(DOCTYPE_REGISTRY[kind])).toBe(!DOCTYPE_REGISTRY[kind].anchorMutable);
     }
-    // still reissue-capable (immutable/absent anchor)
-    const pi = DOCTYPE_REGISTRY['purchase-invoice'];
-    expect(!(pi.anchorMutable || pi.neverReissue)).toBe(true);
-    // still HELD (C-1, mutable anchor)
-    const pe = DOCTYPE_REGISTRY.payment;
-    expect(!(pe.anchorMutable || pe.neverReissue)).toBe(false);
   });
 
-  it('AC-BUD-022 budget is the ONLY kind that is both anchor-less and never-reissued (the rule is not blanket)', () => {
-    const anchorlessHeld = Object.entries(DOCTYPE_REGISTRY)
-      .filter(([, e]) => e.anchorField === null && e.neverReissue === true)
+  it('AC-BUD-022 budget is the ONLY kind whose grain ERP itself enforces (so the upsert+reissue rule cannot leak to another doctype)', () => {
+    const grainEnforced = Object.entries(DOCTYPE_REGISTRY)
+      .filter(([, e]) => e.upsertOnGrain === true)
       .map(([kind]) => kind);
-    expect(anchorlessHeld).toEqual(['budget']);
+    expect(grainEnforced).toEqual(['budget']);
   });
 });

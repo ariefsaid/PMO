@@ -8,6 +8,7 @@
 // Verify: cd supabase/functions/erpnext-sweep && deno test ../_shared/erpnextFeedDeps.test.ts
 
 import { createErpFeedDeps } from './erpnextFeedDeps.ts';
+import { terminalApplyReason } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/feedErrorPolicy.ts';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 function assert(cond: boolean, msg: string): void {
@@ -337,13 +338,17 @@ Deno.test('AC-TSP-040 an unmapped native Timesheet mints ZERO rows in timesheets
     threw = err;
   }
   assert(threw !== null, 'AC-TSP-040: minting a native Timesheet must NEVER silently succeed — it must throw a classified error');
+  // ⚑ LOW-2 (audit round 5): the reason must be a real classified `code`, not prose in the message.
+  // `terminalApplyReason` decides an HTTP 200 ACK (AC-TSP-040) and an acked inbound event is dropped
+  // for good, so a message-substring match would let any wrapper that QUOTES this string drop a real
+  // event. The producer therefore carries the reason as the error CODE.
   assert(
-    (threw as { code?: string } | null)?.code === 'commit-rejected',
-    `expected a commit-rejected AdapterError, got ${JSON.stringify(threw)}`,
+    (threw as { code?: string } | null)?.code === 'native-timesheet-not-adopted',
+    `expected code 'native-timesheet-not-adopted', got ${JSON.stringify(threw)}`,
   );
   assert(
-    (threw as { message?: string }).message?.includes('native-timesheet-not-adopted') ?? false,
-    'expected the native-timesheet-not-adopted classification in the error message',
+    terminalApplyReason(threw) === 'native-timesheet-not-adopted',
+    'expected the shared feed policy to classify it terminal off the CODE alone',
   );
 
   for (const forbiddenTable of ['timesheets', 'timesheet_entries', 'timesheet_erp_mirror']) {
@@ -513,10 +518,14 @@ Deno.test('AC-BUD-040 ⚑ an unmapped (Desk-created) Budget mints ZERO rows in b
     threw = err;
   }
   assert(threw !== null, 'AC-BUD-040: adopting a Desk-created Budget must NEVER silently succeed');
-  assert((threw as { code?: string } | null)?.code === 'commit-rejected', `expected a commit-rejected AdapterError, got ${JSON.stringify(threw)}`);
+  // ⚑ LOW-2 (audit round 5) — see the timesheet twin above: the reason is the CODE, never the message.
   assert(
-    (threw as { message?: string }).message?.includes('native-budget-not-adopted') ?? false,
-    'expected the native-budget-not-adopted classification (the sweep skip policy keys on it)',
+    (threw as { code?: string } | null)?.code === 'native-budget-not-adopted',
+    `expected code 'native-budget-not-adopted', got ${JSON.stringify(threw)}`,
+  );
+  assert(
+    terminalApplyReason(threw) === 'native-budget-not-adopted',
+    'expected the shared feed policy to classify it terminal off the CODE alone (the sweep skip policy keys on it)',
   );
 
   for (const forbiddenTable of ['budget_versions', 'budget_line_items', 'budget_version_erp_mirror']) {

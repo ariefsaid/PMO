@@ -12,7 +12,7 @@
  * factories. An un-wired kind fails loud (`commit-rejected`), mirroring the `notWired` read-model
  * writer pattern (task 1.6) — never a silent no-op that could swallow a real write.
  */
-import type { Adapter, AdapterCommand, ChangesSinceWatermark, CommandResult, PmoDomain, PmoRecord } from '../contract.ts';
+import type { Adapter, AdapterCommand, ChangesSinceWatermark, CommandResult, PmoDomain, PmoRecord, SupersededDocumentMarker } from '../contract.ts';
 import { AdapterError } from '../contract.ts';
 import { cancelDoc, createDoc, ErpError, getDoc, submitDoc, updateDoc, withCommitDeadline, type ErpClientDeps } from './client.ts';
 import { DOCTYPE_REGISTRY, type ErpCtx, type ErpDocKind } from './doctypeRegistry.ts';
@@ -47,6 +47,12 @@ export interface ErpAdapterDeps {
    *  the `after-submit-before-mirror` fault seam, wired by the edge fn, task 2.14). Optional — a
    *  production caller that never arms the fault gate can omit it (a true no-op). */
   afterSubmitHook?: () => Promise<void>;
+  /** ⚑ HIGH-1 — fires immediately after an amend's CANCEL succeeds and BEFORE the replacement create
+   *  (the `after-cancel-before-create` fault seam, FR-ENA-003). This is the window in which the
+   *  predecessor is a tombstone and its replacement does not exist yet; for an `upsertOnGrain` kind that
+   *  means ERPNext is enforcing nothing, so the recovery from it has to be provable at the real served
+   *  boundary. Optional — a production caller that never arms the fault gate omits it (a true no-op). */
+  afterCancelHook?: () => Promise<void>;
 }
 
 function requireKind(record: PmoRecord): ErpDocKind {
@@ -193,6 +199,31 @@ async function commitAmend(command: AdapterCommand, deps: ErpAdapterDeps, oldExt
   const bodyFns = requireBodyFns(deps, kind);
   // 1. cancel the old doc (an amend always cancels-then-recreates; the old name becomes a tombstone).
   await cancelDoc(deps.client, entry.doctype, oldExternalRecordId);
+  // ⚑ HIGH-1 (audit round 5) — FROM HERE ON THE PREDECESSOR IS ALREADY A TOMBSTONE. The cancel and the
+  // create cannot be made atomic (Frappe has no cross-document transaction, and creating first is not
+  // available either: the duplicate guard refuses a create while the old doc is still live). So the ONE
+  // thing this window owes the operator is an HONEST STATEMENT of what ERP now holds — for an
+  // `upsertOnGrain` kind (ERP `Budget`) a failure here means the client's overspend control is currently
+  // OFF, which "budget push failed" does not say. The classified code is preserved verbatim so a
+  // transient failure stays RETRYABLE and the outbox's ordinary recovery re-drives it (a fresh grain read
+  // then finds a tombstone, which is inert to the duplicate guard, and plainly re-creates).
+  return await amendFrom(command, deps, oldExternalRecordId, entry, bodyFns).catch((error: unknown) => {
+    throw describeAbandonedAmend(error, oldExternalRecordId, entry);
+  });
+}
+
+/** The post-cancel half of `commitAmend` (create → submit → re-fetch), split out ONLY so the window
+ *  after the cancel has a single catch boundary — no behavior of its own. */
+async function amendFrom(
+  command: AdapterCommand,
+  deps: ErpAdapterDeps,
+  oldExternalRecordId: string,
+  entry: (typeof DOCTYPE_REGISTRY)[ErpDocKind],
+  bodyFns: DoctypeBodyFns,
+): Promise<CommandResult> {
+  // The FR-ENA-003 seam for the window this function IS — deliberately INSIDE the catch boundary
+  // `commitAmend` wraps around it, so an injected failure here is described exactly like a real one.
+  await deps.afterCancelHook?.();
   // 2. create the new doc with amended_from + the anchor stamp (the recovery-probe key, ADR-0058 §3).
   const record = recordWithResolvedItemsFallback(command.record, deps.ctx);
   const newBody = stampAnchor(
@@ -219,6 +250,33 @@ async function commitAmend(command: AdapterCommand, deps: ErpAdapterDeps, oldExt
   const refetched = await getDoc(deps.client, entry.doctype, created.name);
   const canonical: PmoRecord = { ...bodyFns.fromDoc(refetched), id: command.record.id };
   return { externalRecordId: created.name, canonical };
+}
+
+/**
+ * ⚑ HIGH-1 — an amend that lost its replacement AFTER the predecessor was already cancelled.
+ *
+ * Re-raises the SAME error object with its classification, retryability and transport status fully
+ * intact (a transient stays retryable so the outbox recovery owns it; a rejection stays terminal), but
+ * with the message stating what ERPNext now HOLDS. For a kind whose grain ERP itself enforces
+ * (`upsertOnGrain` — `Budget`) that statement is the money fact: the control this push exists to install
+ * is currently ABSENT, which "budget push failed" does not say. Enriching in place rather than wrapping
+ * is deliberate — a wrapper would drop `ErpError`'s `status`/`retryable` and its `instanceof` identity,
+ * which the transport and the outbox both read. `cancelledExternalRecordId` is attached so a programmatic
+ * consumer can name the tombstone without parsing prose. `redactErrorForOutbox` persists the message to
+ * the outbox `last_error`, which is what the push banner renders.
+ */
+function describeAbandonedAmend(error: unknown, oldExternalRecordId: string, entry: (typeof DOCTYPE_REGISTRY)[ErpDocKind]): unknown {
+  if (!(error instanceof Error)) return error;
+  const marked = error as Error & SupersededDocumentMarker;
+  if (marked.cancelledExternalRecordId) return marked; // already described — never garble the message
+  marked.cancelledExternalRecordId = oldExternalRecordId;
+  const enforcement = entry.upsertOnGrain
+    ? ` ⛑ ERPNext is therefore enforcing NO ${entry.doctype.toLowerCase()} for this grain right now.`
+    : '';
+  marked.message =
+    `the superseded ERPNext ${entry.doctype} "${oldExternalRecordId}" is already CANCELLED and its ` +
+    `replacement did not land: ${error.message}.${enforcement}`;
+  return marked;
 }
 
 /**

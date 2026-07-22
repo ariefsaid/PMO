@@ -17,7 +17,12 @@
  *  • `command-held` is real, but it is not `failed`: it is terminal until an operator acts, and the
  *    sweep backstop deliberately excludes `held` rows precisely so it never re-drives something a
  *    human must resolve. Writing `failed` put it back in the automatic queue that cannot help it.
- *    The operator's own Retry (HIGH-D) remains the route out, and `held` banners identically.
+ *    ⚑ THE ROUTE OUT (audit round 5, HIGH-2): the operator's own Retry is NOT it — a retry derives the
+ *    SAME deterministic key, so it re-reads the held row and throws `command-held` again; and a NEW key
+ *    for the same PMO record violates `external_command_outbox_one_inflight_per_record` (`held` is
+ *    inside that partial index) and 409s forever. The route out is the Admin-only, audited
+ *    `release_outbox_hold` RPC (migration 0137 §4), which moves the row `held` → `failed` so the
+ *    ORDINARY bounded recovery — this backstop included — owns it again. `held` banners identically.
  *
  * Kept as a pure, exported decision rather than an inline condition so it is provable in isolation:
  * the same shape as `feedErrorPolicy.ts`, and for the same reason (a money rule buried inside a

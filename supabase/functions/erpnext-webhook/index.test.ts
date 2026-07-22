@@ -203,9 +203,11 @@ Deno.test('AC-ENA-070: a generic apply failure ⇒ 500 GENERIC (never leaks the 
 // never-adopt rule. This is the SAME posture the sweep already takes for this exact class
 // (`erpFeedApplyErrorPolicy` ⇒ 'skip'); the ingress must not fork it.
 Deno.test('AC-TSP-040: a never-adopt refusal (native-timesheet-not-adopted) ⇒ 200 ACK, never a retry-storming 500', async () => {
+  // ⚑ LOW-2 (audit round 5): the producer (`_shared/erpnextFeedDeps.ts`) carries the never-adopt reason
+  // as the error CODE. The ingress must ack on THAT, never on a message that merely quotes it.
   const d = deps(async () => {
-    const e = new Error('native-timesheet-not-adopted') as Error & { code?: string };
-    e.code = 'commit-rejected';
+    const e = new Error('native ERPNext Timesheet "TS-1" is not adopted') as Error & { code?: string };
+    e.code = 'native-timesheet-not-adopted';
     throw e;
   });
   const validSig = await sign(PI_EVENT);
@@ -217,10 +219,29 @@ Deno.test('AC-TSP-040: a never-adopt refusal (native-timesheet-not-adopted) ⇒ 
 });
 
 Deno.test('AC-TSP-040: a Desk-created Budget (native-budget-not-adopted) ⇒ 200 ACK too — same classified class', async () => {
-  const d = deps(async () => { throw new Error('native-budget-not-adopted'); });
+  const d = deps(async () => {
+    const e = new Error('native ERPNext Budget "BUDGET-1" is not adopted') as Error & { code?: string };
+    e.code = 'native-budget-not-adopted';
+    throw e;
+  });
   const validSig = await sign(PI_EVENT);
   const res = await handleErpWebhook(req(PI_EVENT, validSig), d);
   assert(res.status === 200, `expected 200, got ${res.status}`);
+});
+
+// ⚑ LOW-2 (audit round 5) — the silent-drop vector the message-substring match opened: an inbound
+// event whose apply failed TRANSIENTLY, wrapped by an error that QUOTES a never-adopt reason, was
+// acked 200 and therefore dropped for good (the poll is `modified >= cursor` — it is never re-listed).
+// It must 500 so Frappe re-delivers it.
+Deno.test('⚑ LOW-2: a TRANSIENT failure whose message merely QUOTES a never-adopt reason must 500 (re-delivery), never ack', async () => {
+  const d = deps(async () => {
+    const e = new Error('retrying native-budget-not-adopted for BUDGET-00042: connection terminated unexpectedly') as Error & { code?: string };
+    e.code = '08006';
+    throw e;
+  });
+  const validSig = await sign(PI_EVENT);
+  const res = await handleErpWebhook(req(PI_EVENT, validSig), d);
+  assert(res.status === 500, `a transient apply failure must NOT be acked away, got ${res.status}`);
 });
 
 // ────────────────────────────────────────────────────────────────────────────────────────────────

@@ -18,9 +18,11 @@
  * project, account), so a duplicate is only ever visible on the bench — never in PMO.
  */
 import { expect, type Page } from '@playwright/test';
-import type { SupabaseClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
 export const ORG_ID = '00000000-0000-0000-0000-000000000001';
+/** The local seed password every e2e user shares (`supabase/seed.sql`). */
+export const SEED_PASSWORD = 'Passw0rd!dev';
 export const ERPNEXT_SITE_URL = process.env.ERPNEXT_SITE_URL ?? 'http://host.docker.internal:8080';
 export const BENCH_URL = process.env.ERPNEXT_BENCH_URL ?? 'http://localhost:8080';
 export const BENCH_KEY = process.env.ERPNEXT_BENCH_API_KEY ?? '';
@@ -334,4 +336,108 @@ export async function editLineItemAmount(page: Page, category: string, amount: s
   await input.fill(amount);
   await card.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(card.getByRole('button', { name: `Edit line item ${category}` })).toBeVisible({ timeout: 20_000 });
+}
+
+/** Sign in and return the access token (the served `adapter-dispatch` needs a REAL caller JWT). */
+export async function signInAsBud(authUrl: string, anonKey: string, email: string): Promise<string> {
+  const authClient = createClient(authUrl, anonKey);
+  const { data, error } = await authClient.auth.signInWithPassword({ email, password: SEED_PASSWORD });
+  if (error || !data.session) throw new Error(`sign-in failed for ${email}: ${error?.message}`);
+  return data.session.access_token;
+}
+
+/** The DETERMINISTIC budget push key (`src/lib/adapterSeam/erpnext/budgetPushKey.ts`), restated so a
+ *  spec can predict what BOTH originators derive. */
+export function budgetPushKeyFor(versionId: string, activatedAt: string): string {
+  return `bud:${versionId}:${Date.parse(activatedAt)}`;
+}
+
+/** The version's server-stamped activation witness — the key's own input (0139). */
+export async function readActivatedAtBud(admin: SupabaseClient, versionId: string): Promise<string> {
+  const { data, error } = await admin.from('budget_versions').select('activated_at').eq('id', versionId).maybeSingle();
+  if (error) throw new Error(`activated_at read failed: ${error.message}`);
+  const stamp = (data as { activated_at: string | null } | null)?.activated_at;
+  if (!stamp) throw new Error(`version ${versionId} has no activated_at stamp`);
+  return stamp;
+}
+
+/** POST a budget push command at the REAL served `adapter-dispatch` — the SAME command
+ *  `src/lib/db/budgets.ts` sends (`dispatchBudgetPush`), optionally with a named fault seam armed. */
+export async function dispatchBudgetPushRaw(
+  functionsUrl: string,
+  anonKey: string,
+  accessToken: string,
+  versionId: string,
+  idempotencyKey: string,
+  faultSeam?: string,
+): Promise<Response> {
+  const headers: Record<string, string> = {
+    apikey: anonKey,
+    Authorization: `Bearer ${accessToken}`,
+    'Content-Type': 'application/json',
+  };
+  if (faultSeam) headers['x-erpnext-test-fault'] = faultSeam;
+  return fetch(`${functionsUrl}/functions/v1/adapter-dispatch`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      domain: 'budget',
+      operation: 'create',
+      record: { id: versionId, erp_doc_kind: 'budget' },
+      idempotencyKey,
+    }),
+  });
+}
+
+/** Drive the REAL `erpnext-sweep` tick (the budget push's SECOND originator). */
+export async function runSweepBud(functionsUrl: string): Promise<{ status: number; body: unknown }> {
+  const res = await fetch(`${functionsUrl}/functions/v1/erpnext-sweep`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${process.env.ERPNEXT_SWEEP_SECRET ?? 'e2e-erpnext-sweep-secret'}`, 'Content-Type': 'application/json' },
+    body: '{}',
+  });
+  return { status: res.status, body: await res.json() };
+}
+
+/** This version's outbox row, as the recovery machinery sees it. */
+export async function readBudgetOutbox(
+  admin: SupabaseClient,
+  versionId: string,
+): Promise<{ id: string; state: string; last_error: string | null; claim_generation: number } | null> {
+  const { data, error } = await admin
+    .from('external_command_outbox')
+    .select('id, state, last_error, claim_generation')
+    .eq('org_id', ORG_ID)
+    .eq('domain', 'budget')
+    .eq('pmo_record_id', versionId)
+    .maybeSingle();
+  if (error) throw new Error(`budget outbox read failed: ${error.message}`);
+  return data as never;
+}
+
+/** Activate a Draft version through `activate_budget_version` AS A REAL USER. The RPC is
+ *  SECURITY DEFINER and re-asserts `auth.uid()` + role internally, so a service-role client is
+ *  refused 42501 — the activation authority is a person, never the machine. */
+export async function activateVersionAs(
+  authUrl: string,
+  anonKey: string,
+  email: string,
+  versionId: string,
+): Promise<void> {
+  const client = createClient(authUrl, anonKey);
+  const { error: signInErr } = await client.auth.signInWithPassword({ email, password: SEED_PASSWORD });
+  if (signInErr) throw new Error(`sign-in failed for ${email}: ${signInErr.message}`);
+  const { error } = await client.rpc('activate_budget_version', { version_id: versionId });
+  if (error) throw new Error(`activate_budget_version(${versionId}) failed: ${error.message}`);
+}
+
+/** Cancel a submitted bench document (`docstatus: 2`) — the accountant's own Desk action, done over
+ *  the same stock REST surface PMO uses. */
+export async function benchCancel(doctype: string, name: string): Promise<void> {
+  const res = await fetch(`${BENCH_URL}/api/resource/${encodeURIComponent(doctype)}/${encodeURIComponent(name)}`, {
+    method: 'PUT',
+    headers: benchHeaders(),
+    body: JSON.stringify({ docstatus: 2 }),
+  });
+  if (!res.ok) throw new Error(`bench CANCEL ${doctype}/${name} -> ${res.status} ${(await res.text()).slice(0, 400)}`);
 }

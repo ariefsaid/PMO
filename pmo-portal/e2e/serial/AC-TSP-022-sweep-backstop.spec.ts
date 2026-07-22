@@ -125,6 +125,68 @@ test.describe('AC-TSP-022: the sweep backstop — the push\'s second originator'
     }
   });
 
+  // ⚑ MEDIUM-1 (money-safety audit round 5) — THE `absent` ARM. The matrix in this file's header claimed
+  // it, but every other test here operates on a sheet that HAS a mirror row, so the headline case of the
+  // whole backstop — "the browser died BEFORE the fetch reached the server", which leaves NO mirror row
+  // and NO outbox row — was the only one never proven end to end, and it is the only one in which
+  // `mintTimesheetOutboxRow` executes against a real bench at all. It is also the only arm that
+  // exercises the `absent` queue's SQL (⚑ HIGH-3's embedded-resource anti-join), which no fake can prove.
+  test('AC-TSP-022 the `absent` arm: an Approved week with NO mirror row and NO outbox row is MINTED and pushed by the sweep alone', async () => {
+    const admin = createClient(AUTH_URL, SERVICE_KEY);
+    const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const seeded = await seedTsp(admin, suffix);
+    try {
+      const week = await approvedWeek(admin, seeded);
+
+      // Nothing at all exists for this week besides the approval itself — the browser never got a
+      // request out. Assert that precondition rather than assuming it.
+      expect(await readTsMirror(admin, week.timesheetId), 'precondition: no mirror row').toBeNull();
+      const { data: preOutbox } = await admin.from('external_command_outbox').select('id')
+        .eq('org_id', ORG_ID).eq('domain', 'timesheets').eq('pmo_record_id', week.timesheetId);
+      expect(preOutbox ?? [], 'precondition: no outbox row').toHaveLength(0);
+
+      // ── ONLY the sweep runs. No user, no retry, no UI. ──
+      const sweep = await runSweep(FUNCTIONS_URL);
+      expect(sweep.status, `sweep tick failed: ${JSON.stringify(sweep.body)}`).toBe(200);
+
+      const docs = await listErpTimesheetsByAnchor(week.idempotencyKey);
+      expect(
+        docs,
+        `the stranded week must reach the client's ERP — mirror: ${JSON.stringify(await readTsMirror(admin, week.timesheetId))}`,
+      ).toHaveLength(1);
+      expect(docs[0].docstatus, 'submitted — approved hours are committed to costing, not left a draft').toBe(1);
+
+      const mirror = await readTsMirror(admin, week.timesheetId);
+      expect(mirror?.push_state, `the mirror must settle: ${JSON.stringify(mirror)}`).toBe('pushed');
+      expect(mirror?.ts_number, 'the mirror names the real ERP document').toBe(docs[0].name);
+
+      const { data: refRow } = await admin.from('external_refs').select('external_record_id')
+        .eq('org_id', ORG_ID).eq('domain', 'timesheets').eq('pmo_record_id', week.timesheetId).maybeSingle();
+      expect(
+        (refRow as { external_record_id: string } | null)?.external_record_id,
+        'the mapping is recorded, so the sheet is resolvable from PMO afterwards',
+      ).toBe(docs[0].name);
+
+      // The minted command is ATTRIBUTED to the sheet's own approver and carries the deterministic key
+      // both originators derive — that is what makes the foreground and the sweep reconcile as ONE
+      // command instead of rejecting each other on a payload-digest mismatch.
+      const { data: outboxRow } = await admin.from('external_command_outbox')
+        .select('idempotency_key, actor_user_id, state')
+        .eq('org_id', ORG_ID).eq('domain', 'timesheets').eq('pmo_record_id', week.timesheetId).maybeSingle();
+      const minted = outboxRow as { idempotency_key: string; actor_user_id: string | null; state: string } | null;
+      expect(minted?.idempotency_key, 'the SAME key the UI would have derived').toBe(week.idempotencyKey);
+      expect(minted?.actor_user_id, 'the minted command is attributable, never anonymous').toBeTruthy();
+      expect(minted?.state).toBe('confirmed');
+
+      // ── A SECOND tick must not mint a second week of hours. ──
+      expect((await runSweep(FUNCTIONS_URL)).status).toBe(200);
+      expect(await listErpTimesheetsByAnchor(week.idempotencyKey), 'the backstop recovers, it never duplicates').toHaveLength(1);
+      expect((await readTsMirror(admin, week.timesheetId))?.push_state, 'and the settled week stays settled').toBe('pushed');
+    } finally {
+      await cleanupTsp(admin, seeded);
+    }
+  });
+
   test('AC-TSP-022 the backstop NEVER re-drives a settled (`pushed`) or terminal (`held`) sheet — zero ERP writes across two ticks', async () => {
     const admin = createClient(AUTH_URL, SERVICE_KEY);
     const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;

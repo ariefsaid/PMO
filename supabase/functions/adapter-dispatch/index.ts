@@ -27,7 +27,7 @@
 
 // Deno-native imports (not in pmo-portal/package.json)
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { dispatchExternallyOwnedWrite } from '../../../pmo-portal/src/lib/adapterSeam/dispatch.ts';
+import { dispatchExternallyOwnedWrite, redactErrorForOutbox, toDispatchError } from '../../../pmo-portal/src/lib/adapterSeam/dispatch.ts';
 import { recordExternalRef as recordExternalRefWrite } from '../../../pmo-portal/src/lib/adapterSeam/refs.ts';
 import { createReferenceAdapter, REFERENCE_DOMAIN } from '../../../pmo-portal/src/lib/adapterSeam/referenceAdapter.ts';
 import { CLICKUP_TASKS_DOMAIN } from '../../../pmo-portal/src/lib/adapterSeam/clickup/adapter.ts';
@@ -53,12 +53,12 @@ import { resolvePerOrgSecret } from '../_shared/perOrgSecret.ts';
 // silent no-op (adapter.ts's `requireBodyFns`). Slice 3's supplier/customer entries now live in this
 // same shared table (doctypeBodies.ts) rather than a parallel local const — one side table, never two.
 import { DOCTYPE_BODIES } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/doctypeBodies.ts';
-import { DOCTYPE_REGISTRY, type ErpDocKind } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/doctypeRegistry.ts';
+import { DOCTYPE_REGISTRY, reissueOnInconclusiveAbsence, type ErpDocKind } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/doctypeRegistry.ts';
 import { probeErpByAnchorKey, probeErpByPaymentComposite } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/recoveryProbe.ts';
 import { resolveExternalRef } from '../../../pmo-portal/src/lib/adapterSeam/refs.ts';
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
 import type { Adapter, AdapterCommand, PmoRecord } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
-import type { DispatchMoneyOutboxDeps, ExternalRefMapping } from '../../../pmo-portal/src/lib/adapterSeam/dispatch.ts';
+import type { DispatchMoneyOutboxDeps, ExternalRefMapping, SupersededDocumentMarker } from '../../../pmo-portal/src/lib/adapterSeam/dispatch.ts';
 import { getReadModelWriter, markTimesheetPushOutcome } from './readModelWriters.ts';
 import { surfaceActionRequired } from '../_shared/erpnextFeedDeps.ts';
 import { enforceTimesheetApproved, isTimesheetPush, type ApprovedTimesheet } from './approvalGuard.ts';
@@ -220,6 +220,7 @@ async function resolveErpAdapter(ctx: AdapterSelectContext): Promise<Adapter> {
     // submit, between the submit PUT and the post-submit re-fetch — the ONLY tier with a two-step
     // commit (P0/P1 have none, so they never wire this hook).
     afterSubmitHook: () => maybeFault('after-submit-before-mirror', ctx.faultGate),
+    afterCancelHook: () => maybeFault('after-cancel-before-create', ctx.faultGate),
   });
 }
 
@@ -306,11 +307,12 @@ async function resolveErpMoneyOutboxDeps(ctx: AdapterSelectContext): Promise<Dis
     // the mirrored SI's author_user_id lands NULL, silently voiding the approver≠author SoD.
     actorUserId: ctx.userId,
     // C-1 per-kind reissue policy: a mutable-anchor (PE) inconclusive recovery is HELD, never reissued.
-    // ADR-0059 §4 corollary (P3c): an ANCHOR-LESS kind flagged `neverReissue` (ERP `Budget` — the
-    // doctype has no field to stamp a key into at all, so no probe can exist) is likewise HELD, because
-    // "no probe hit" there carries no information whatsoever. Default-absent ⇒ every shipped kind is
-    // byte-for-byte.
-    reissueOnInconclusiveAbsence: !(entry.anchorMutable || entry.neverReissue),
+    // ⚑ HIGH-1: an `upsertOnGrain` kind (ERP `Budget`) has no anchor at ALL, but ERP itself enforces its
+    // natural grain, so the dispatch factory's server-derived grain read is a conclusive probe and a
+    // recovery may reissue — holding instead made the upsert's unenforced-grain window PERMANENT. The
+    // rule lives in ONE place (`reissueOnInconclusiveAbsence`, doctypeRegistry.ts) so the sync dispatch
+    // and the sweep can never disagree about whether a money command may be re-minted.
+    reissueOnInconclusiveAbsence: reissueOnInconclusiveAbsence(entry),
     payload,
     payloadDigest,
     encodeExternalRecordId,
@@ -953,6 +955,14 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const fiscalYear = (command.record as { fiscal_year?: unknown }).fiscal_year;
     if (typeof fiscalYear !== 'string' || fiscalYear === '') return; // the gate never resolved one — recordBudgetGateFailure already owns that rejection
     const versionId = String(command.record.id);
+    // ⚑ HIGH-1 (audit round 5): when THIS attempt cancelled the previous ERP Budget and then failed to
+    // create its replacement, ERPNext is enforcing NOTHING for that project/fiscal year — and a bare
+    // `push_error='external-unreachable'` does not say so. Record the money statement (bounded +
+    // token-scrubbed by the same redactor the outbox uses) under its own named reason, so the operator
+    // surface reports "the control is currently OFF", not merely "the push failed".
+    const superseded = (failure as AppError & SupersededDocumentMarker).cancelledExternalRecordId;
+    const reason = superseded ? 'budget-enforcement-absent' : (failure.code ?? 'DISPATCH_FAILED');
+    const pushError = superseded ? `${reason}: ${redactErrorForOutbox(failure)}` : reason;
     try {
       await serviceClient.from('budget_version_erp_mirror').upsert(
         {
@@ -960,13 +970,13 @@ Deno.serve(async (req: Request): Promise<Response> => {
           budget_version_id: versionId,
           fiscal_year: fiscalYear,
           push_state: outcome.pushState,
-          push_error: failure.code ?? 'DISPATCH_FAILED',
+          push_error: pushError,
         },
         { onConflict: 'org_id,budget_version_id,fiscal_year' },
       );
-      await surfaceActionRequired(serviceClient as never, orgId, 'budget-push-failed', {
+      await surfaceActionRequired(serviceClient as never, orgId, superseded ? 'budget-enforcement-absent' : 'budget-push-failed', {
         versionId,
-        reason: failure.code ?? failure.message,
+        reason: superseded ? pushError : (failure.code ?? failure.message),
       });
     } catch (recordErr) {
       console.error('[adapter-dispatch] failed to record budget push failure:', recordErr);
@@ -1008,7 +1018,13 @@ Deno.serve(async (req: Request): Promise<Response> => {
   } catch (err) {
     // The submit never reaches ERP — end the body-rewrite freeze now rather than in five minutes.
     await releaseSubmitClearance();
-    const appError = err instanceof AppError ? err : new AppError(err instanceof Error ? err.message : 'adapter select failed');
+    // ⚑ LOW-1 (audit round 5): classify with the SAME shared rule as the dispatch exit below. The old
+    // hand-rolled `new AppError(err.message)` dropped a structurally-present `.code`, and adapter select
+    // now legitimately throws one: `resolveBudgetRefs` runs the real `resolveBudgetAccounts` pre-flight
+    // (AC-BUD-011's zero-ERP-calls contract) and raises `BudgetCategoryUnmappedError` — a plain `Error`
+    // subclass with `code = 'budget-category-unmapped'`. Dropping it gave the operator a bare 400 /
+    // ADAPTER_SELECT_FAILED instead of the 422 that NAMES the unmapped categories.
+    const appError = err instanceof AppError ? err : toDispatchError(err);
     // A timesheet push fails MOST often right here: the fail-closed ref pre-flight (employee-unlinked /
     // project-unmapped / activity-type-unconfigured / cross-org-link-rejected / daily-hours-exceed-24)
     // runs inside the factory, deliberately BEFORE the outbox claim and any ERP call.

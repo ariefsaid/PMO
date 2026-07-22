@@ -33,7 +33,6 @@
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
-import { AdapterError } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
 import { findPmoRecordId, recordExternalRef } from '../../../pmo-portal/src/lib/adapterSeam/refs.ts';
 import { ERPNEXT_TIER } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/adapter.ts';
 import { KIND_DOMAIN, KIND_MIRROR_TABLE, type ErpDocKind } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/feedKinds.ts';
@@ -308,7 +307,13 @@ async function mintMirrorRow(
       await surfaceActionRequired(serviceClient, orgId, 'timesheet-native-not-adopted', {
         erpName: String(canonical.id ?? ''),
       });
-      throw new AdapterError('commit-rejected', 'native-timesheet-not-adopted');
+      // ⚑ LOW-2 (audit round 5): the reason is carried as the error CODE, not as prose in the message.
+      // `terminalApplyReason` (feedErrorPolicy.ts) decides an HTTP 200 ACK at the webhook ingress, and an
+      // acked inbound event is dropped FOR GOOD — so the classification must read a deliberate signal.
+      throw new AppError(
+        `native ERPNext Timesheet "${String(canonical.id ?? '')}" is not adopted — PMO owns timesheet entry AND approval (FR-TSP-082)`,
+        'native-timesheet-not-adopted',
+      );
     }
   }
   // P3c FR-BUD-140 (⚑ never adopt — ADR-0059 §5) — a `Budget` doc with no `external_refs` mapping was
@@ -322,7 +327,11 @@ async function mintMirrorRow(
     await surfaceActionRequired(serviceClient, orgId, 'budget-native-not-adopted', {
       erpName: String(canonical.id ?? ''),
     });
-    throw new AdapterError('commit-rejected', 'native-budget-not-adopted');
+    // ⚑ LOW-2 (audit round 5) — the reason is the CODE (see the timesheet twin above).
+    throw new AppError(
+      `native ERPNext Budget "${String(canonical.id ?? '')}" is not adopted — PMO is the SoT for the budget figure (FR-BUD-140)`,
+      'native-budget-not-adopted',
+    );
   }
   // Revenue domain inbound adopt (sales-invoice / incoming-payment) — mint the FULL canonical
   // row + erp_modified stamp (the 0103 lesson: NOT just name/status). Resolve customer_id from

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { dispatchExternallyOwnedWrite } from './dispatch.ts';
+import { dispatchExternallyOwnedWrite, toDispatchError } from './dispatch.ts';
 import { createReferenceAdapter, REFERENCE_DOMAIN } from './referenceAdapter.ts';
 import type { AdapterCommand } from './contract.ts';
 import { AppError } from '../appError.ts';
@@ -199,5 +199,41 @@ describe('AC-CUA-038 delete-aware dispatch: tombstone the read-model, keep the e
       tombstoneReadModel: vi.fn(async () => { order.push('tombstone'); }),
     });
     expect(order).toEqual(['commit', 'readModel', 'ref']);
+  });
+});
+
+/**
+ * ⚑ LOW-1 (audit round 5) — ONE classification of a thrown value for BOTH served-fn exits.
+ *
+ * `adapter-dispatch`'s ADAPTER-SELECT catch built `new AppError(err.message)` by hand, with no `.code`.
+ * That was harmless while adapter select only threw `AppError`s — but `resolveBudgetRefs` now runs the
+ * real `resolveBudgetAccounts` pre-flight INSIDE adapter select (AC-BUD-011's zero-ERP-calls contract),
+ * and that throws `BudgetCategoryUnmappedError`: a plain `Error` SUBCLASS carrying
+ * `code = 'budget-category-unmapped'`. Hand-rolling the conversion dropped the code, so the operator got
+ * a bare 400 / `ADAPTER_SELECT_FAILED` instead of the 422 naming the unmapped categories — the same
+ * class of bug already fixed once in the dispatch exit. Exported so the served fn uses the ONE rule.
+ */
+describe('toDispatchError (LOW-1 — the shared thrown-value classification)', () => {
+  class BudgetCategoryUnmappedErrorFake extends Error {
+    readonly code = 'budget-category-unmapped';
+    constructor(readonly unmappedCategories: string[]) {
+      super(`budget categories have no ERP account mapping: ${unmappedCategories.join(', ')}`);
+      this.name = 'BudgetCategoryUnmappedError';
+    }
+  }
+
+  it('LOW-1 preserves the `.code` of a plain-Error SUBCLASS (BudgetCategoryUnmappedError) — never a bare, code-less AppError', () => {
+    const classified = toDispatchError(new BudgetCategoryUnmappedErrorFake(['Travel', 'Software']));
+    expect(classified).toBeInstanceOf(AppError);
+    expect(classified.code).toBe('budget-category-unmapped');
+    expect(classified.message).toContain('Travel');
+    expect(classified.message).toContain('Software');
+  });
+
+  it('LOW-1 passes an AppError through unchanged and leaves an unclassified throw code-less', () => {
+    const appErr = new AppError('binding is not activated', 'config-rejected');
+    expect(toDispatchError(appErr)).toBe(appErr);
+    expect(toDispatchError(new Error('boom')).code).toBeUndefined();
+    expect(toDispatchError('boom')).toBeInstanceOf(AppError);
   });
 });

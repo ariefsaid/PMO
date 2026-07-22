@@ -52,7 +52,7 @@ import { applyErpFeedEvent } from '../../../pmo-portal/src/lib/adapterSeam/erpne
 // HIGH-A: which per-change apply failure is a terminal ack-and-skip vs. a halt (see feedErrorPolicy.ts).
 import { erpFeedApplyErrorPolicy } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/feedErrorPolicy.ts';
 import { createErpFeedDeps, ERPNEXT_TIER, surfaceActionRequired } from '../_shared/erpnextFeedDeps.ts';
-import { DOCTYPE_REGISTRY, type ErpDocKind } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/doctypeRegistry.ts';
+import { DOCTYPE_REGISTRY, reissueOnInconclusiveAbsence, type ErpDocKind } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/doctypeRegistry.ts';
 import { DOCTYPE_BODIES } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/doctypeBodies.ts';
 // Luna BLOCK 6: each body module declares the list-endpoint fields ITS `fromDoc` reads, next to the
 // mapper — the poll is built from those so the two cannot drift apart.
@@ -1017,9 +1017,24 @@ async function findBudgetOutboxRow(
 function holdBudgetMirrorRow(
   serviceClient: SupabaseClient,
   orgId: string,
-  budgetVersionId: string,
+  row: BudgetMirrorCandidateRow,
   reason: string,
 ): PromiseLike<{ error: { message: string; code?: string } | null }> {
+  const { budget_version_id: budgetVersionId, push_state: pushState } = row;
+  // ⚑ MEDIUM-2: an `absent` candidate (an outbox-only orphan — a dispatch that died between the ERP
+  // commit and the mirror write) has NO row to compare-and-set against, so an update-only hold wrote
+  // zero rows and the refusal was invisible: exactly the stranded-and-unseen outcome this pass exists to
+  // end. Its durable state must be CREATED. A 23505 means the foreground (or another tick) created the
+  // row first — theirs is the newer truth, leave it exactly as it is. (The `timesheet_erp_mirror` twin,
+  // `parkTimesheetMirrorRow`, takes the same shape for the same reason.)
+  if (pushState === BUDGET_MIRROR_ABSENT) {
+    return (async () => {
+      const { error } = await serviceClient
+        .from('budget_version_erp_mirror')
+        .insert({ org_id: orgId, budget_version_id: budgetVersionId, push_state: 'held', push_error: reason });
+      return { error: error && error.code !== '23505' ? error : null };
+    })();
+  }
   return serviceClient
     .from('budget_version_erp_mirror')
     .update({ push_state: 'held', push_error: reason })
@@ -1030,11 +1045,23 @@ function holdBudgetMirrorRow(
     .is('erp_cancelled_at', null);
 }
 
+/** The synthetic candidate state for a budget push whose OUTBOX row exists but whose mirror row does
+ *  not — the crash-between-the-ERP-write-and-the-finalize window (⚑ MEDIUM-2). */
+const BUDGET_MIRROR_ABSENT = 'absent';
+
 /** The live `BudgetBackstopDeps` for one org — the mirror's own work queue (FR-BUD-123, index-served
  *  on `(org_id, push_state)`), the re-asserted version gate (FR-BUD-102), and driving a found
  *  candidate through the EXACT SAME `dispatchMoneyWrite`/`buildReconcileDepsLive` machinery the
  *  outbox-recovery pass (1) already uses — one algorithm, shared. */
-export function budgetBackstopDepsLive(serviceClient: SupabaseClient, org: OrgBinding, eligibleOutboxIds: ReadonlySet<string>): BudgetBackstopDeps {
+export function budgetBackstopDepsLive(
+  serviceClient: SupabaseClient,
+  org: OrgBinding,
+  /** ⚑ MEDIUM-2: the budget-domain rows `outbox_reconcile_candidates` (0131) STILL ADMITS — the id set
+   *  the attempts-exhausted gate already used, plus each row's `pmo_record_id` so the queue can also
+   *  find an outbox-only ORPHAN (a dispatch that died between the ERP commit and the mirror write). */
+  eligibleBudgetCandidates: ReadonlyArray<{ id: string; pmo_record_id: string }>,
+): BudgetBackstopDeps {
+  const eligibleOutboxIds = new Set(eligibleBudgetCandidates.map((c) => c.id));
   return {
     listPendingBudgetPushes: async (orgId, limit) => {
       const { data, error } = await serviceClient
@@ -1046,8 +1073,24 @@ export function budgetBackstopDepsLive(serviceClient: SupabaseClient, org: OrgBi
         .order('created_at', { ascending: true })
         .limit(limit);
       if (error) throw new AppError(error.message, error.code);
-      return ((data as Array<{ budget_version_id: string; push_state: string; erp_cancelled_at: string | null }> | null) ?? [])
+      const mirrored = ((data as Array<{ budget_version_id: string; push_state: string; erp_cancelled_at: string | null }> | null) ?? [])
         .map((r) => ({ budget_version_id: r.budget_version_id, push_state: r.push_state, erp_cancelled_at: r.erp_cancelled_at }));
+      // ⚑ MEDIUM-2 — …plus the OUTBOX-ONLY orphans. Nothing writes a `budget_version_erp_mirror` row
+      // before the dispatch (every mirror writer lives inside `adapter-dispatch`'s finalize), so a
+      // dispatch that died after `adapter.commit` and before `finalize_outbox` left an outbox row
+      // `committing`/`quarantined` with NO mirror row and NO `external_refs` row — invisible to pass 1
+      // (which skips this domain by design) AND to this queue, while ERPNext held a live, submitted
+      // Budget that `get_budget_projection` reported as 'never-pushed' (and, with the FR-BUD-121 upsert,
+      // while the PREVIOUS budget was already a tombstone). This is not a second eligibility door: the
+      // set IS `outbox_reconcile_candidates`, and `reconcileOrgBudgetPushes` still re-reads the version
+      // and refuses anything that is no longer `Active` (FR-BUD-102). A version that already HAS a mirror
+      // row is never double-queued — the mirror row carries the recorded failure history and wins.
+      const known = new Set(mirrored.map((r) => r.budget_version_id));
+      const orphans = eligibleBudgetCandidates
+        .filter((c) => !known.has(c.pmo_record_id))
+        .slice(0, Math.max(limit - mirrored.length, 0))
+        .map((c) => ({ budget_version_id: c.pmo_record_id, push_state: BUDGET_MIRROR_ABSENT, erp_cancelled_at: null }));
+      return [...mirrored, ...orphans];
     },
     readBudgetVersion: async (versionId) => {
       // FR-BUD-102: re-read under SERVICE ROLE (the sweep carries no user JWT) — scoped to this org
@@ -1069,7 +1112,7 @@ export function budgetBackstopDepsLive(serviceClient: SupabaseClient, org: OrgBi
         // the outbox for this activation (e.g. the browser tab died mid-request before the fetch) — so
         // there is no RECORDED actor to reconcile against. Never mint a fresh, unattributed outbox row
         // here; hold for an operator instead (never silently dropped — FR-BUD-123).
-        const { error } = await holdBudgetMirrorRow(serviceClient, org.orgId, row.budget_version_id, 'budget-push-no-outbox-candidate');
+        const { error } = await holdBudgetMirrorRow(serviceClient, org.orgId, row, 'budget-push-no-outbox-candidate');
         if (error) throw new AppError(error.message, error.code);
         await surfaceActionRequired(serviceClient, org.orgId, 'budget-push-no-outbox-candidate', { versionId: row.budget_version_id });
         return;
@@ -1083,7 +1126,17 @@ export function budgetBackstopDepsLive(serviceClient: SupabaseClient, org: OrgBi
       // SAME door the outbox-recovery pass uses. An absent-but-existing row is held for the operator, not
       // silently re-sent (FR-BUD-123: never dropped, never auto-looped past its budget).
       if (!eligibleOutboxIds.has(outboxRow.id)) {
-        const { error } = await holdBudgetMirrorRow(serviceClient, org.orgId, row.budget_version_id, 'budget-push-attempts-exhausted');
+        // ⚑ HIGH-1 (audit round 5, found by the AC-BUD-032 e2e) — NOT-DUE-YET IS NOT ATTEMPTS-EXHAUSTED.
+        // `outbox_reconcile_candidates` answers "may this row be reconciled NOW", and it deliberately
+        // omits two states that are simply not due: a `committing` row inside its 60 s lease and a
+        // `quarantined` row before its visibility window elapses (0131). Both are ABOUT to become
+        // claimable. Parking them `held` — a state this queue excludes — ended the automatic recovery
+        // for good, and it is the ordinary shape of a transient ERP failure on the budget push (the
+        // dispatch marks NOTHING so the row stays reclaimable, and the next cron tick, seconds later,
+        // saw a `failed` mirror plus a not-yet-due outbox row). Leave them for a later tick; the
+        // attempt/age bound itself is untouched for every state that really has run out.
+        if (outboxRow.state === 'committing' || outboxRow.state === 'quarantined') return;
+        const { error } = await holdBudgetMirrorRow(serviceClient, org.orgId, row, 'budget-push-attempts-exhausted');
         if (error) throw new AppError(error.message, error.code);
         await surfaceActionRequired(serviceClient, org.orgId, 'budget-push-attempts-exhausted', { versionId: row.budget_version_id });
         return;
@@ -1103,12 +1156,10 @@ async function reconcileOrgBudgetPushesLive(serviceClient: SupabaseClient, org: 
   try {
     // The SoT eligibility set (0131), fetched ONCE per pass — the backstop may only re-drive a row this
     // RPC still admits. Scoped to the budget domain; any other domain's candidates are irrelevant here.
-    const eligibleOutboxIds = new Set(
-      (await listCandidatesLive(serviceClient)(org.orgId))
-        .filter((c) => c.domain === ERPNEXT_BUDGET_DOMAIN)
-        .map((c) => c.id),
-    );
-    const result = await reconcileOrgBudgetPushes(budgetBackstopDepsLive(serviceClient, org, eligibleOutboxIds), { orgId: org.orgId });
+    const eligibleBudgetCandidates = (await listCandidatesLive(serviceClient)(org.orgId))
+      .filter((c) => c.domain === ERPNEXT_BUDGET_DOMAIN)
+      .map((c) => ({ id: c.id, pmo_record_id: c.pmoRecordId }));
+    const result = await reconcileOrgBudgetPushes(budgetBackstopDepsLive(serviceClient, org, eligibleBudgetCandidates), { orgId: org.orgId });
     // NEW-3: per-row throws are contained so the queue drains, but they are NEVER silent — a row that
     // keeps throwing is a stuck money push and must be visible in the tick's own result.
     for (const e of result.errors) {
@@ -1286,26 +1337,42 @@ async function listApprovedSheetsWithoutMirror(
   // not something to post to a client's ledger unannounced.
   const lookbackFloor = new Date(nowMs - ABSENT_SHEET_LOOKBACK_MS).toISOString();
   const floor = lookbackFloor > org.activatedAt ? lookbackFloor : org.activatedAt;
+  // ⚑ HIGH-3 (audit round 5) — THE ANTI-JOIN IS IN THE QUERY, so `limit` bounds the CANDIDATES FOUND,
+  // not the rows SCANNED. It used to page `timesheets` first and subtract the mirrored ones in JS: a
+  // 120-person org approves ~240 sheets in the trailing 14 days, so the 200-row page filled with
+  // already-mirrored sheets and the `absent` queue came back EMPTY — the backstop silently did nothing
+  // at exactly the volume that makes it matter. `is('timesheet_erp_mirror', null)` on the embedded
+  // resource is PostgREST's anti-join (the 1:1 FK `timesheet_erp_mirror.timesheet_id → timesheets.id`,
+  // 0136 §1): it is part of the WHERE clause, so LIMIT applies to sheets that have no mirror row.
   const { data, error } = await serviceClient
     .from('timesheets')
-    .select('id')
+    .select('id, timesheet_erp_mirror!left(timesheet_id)')
     .eq('org_id', org.orgId)
     .eq('status', 'Approved')
     .gte('approved_at', floor)
+    .is('timesheet_erp_mirror', null)
     .order('approved_at', { ascending: true })
     .limit(limit);
   if (error) throw new AppError(error.message, error.code);
-  const ids = ((data as Array<{ id: string }> | null) ?? []).map((r) => r.id);
-  if (ids.length === 0) return [];
+  return ((data as Array<{ id: string }> | null) ?? []).map((r) => ({
+    timesheet_id: r.id,
+    push_state: MIRROR_ABSENT,
+    erp_cancelled_at: null,
+  }));
+}
 
-  const { data: mirrored, error: mirrorErr } = await serviceClient
-    .from('timesheet_erp_mirror')
-    .select('timesheet_id')
-    .eq('org_id', org.orgId)
-    .in('timesheet_id', ids);
-  if (mirrorErr) throw new AppError(mirrorErr.message, mirrorErr.code);
-  const known = new Set(((mirrored as Array<{ timesheet_id: string }> | null) ?? []).map((r) => r.timesheet_id));
-  return ids.filter((id) => !known.has(id)).map((id) => ({ timesheet_id: id, push_state: MIRROR_ABSENT, erp_cancelled_at: null }));
+/**
+ * ⚑ HIGH-3 — the `absent` queue's own RESERVED share of a tick, so a saturated mirror queue can never
+ * zero it. The absent half used to be handed `limit - mirrored.length`: ONE org-wide misconfiguration
+ * (say every push failing `activity-type-unconfigured`) parks ≥`limit` `failed` mirror rows, which are
+ * re-listed every tick, so the absent budget was 0 PERMANENTLY and a genuinely stranded week could
+ * never be seen again. The header comment reasoned carefully about absent sheets not starving mirror
+ * rows; the converse was unguarded. A reserved floor keeps both halves bounded (total ≤ 1.25×limit)
+ * and neither can be starved by the other.
+ */
+export function absentQueueBudget(limit: number, mirroredCount: number): number {
+  const reserved = Math.ceil(limit * 0.25);
+  return Math.max(limit - mirroredCount, Math.min(reserved, limit));
 }
 
 /** The live `TimesheetBackstopDeps` for one org. */
@@ -1336,9 +1403,11 @@ export function timesheetBackstopDepsLive(
         .map((r) => ({ timesheet_id: r.timesheet_id, push_state: r.push_state, erp_cancelled_at: r.erp_cancelled_at }));
       // …plus the `absent` half: APPROVED sheets that never got a mirror row at all (see
       // `listApprovedSheetsWithoutMirror` — the browser-died-before-the-fetch case this pass exists
-      // for). Mirror rows come FIRST and the total stays inside one tick budget, so a large backlog of
-      // never-attempted sheets can never starve the rows that already have recorded, retryable state.
-      const absent = await listApprovedSheetsWithoutMirror(serviceClient, org, limit - mirrored.length);
+      // for). Mirror rows come FIRST, and each half has a bounded budget NEITHER of which the other can
+      // drive to zero (`absentQueueBudget`, HIGH-3): a large backlog of never-attempted sheets cannot
+      // starve rows that already have recorded retryable state, and — the converse the original design
+      // missed — a saturated `failed` mirror queue cannot blind the stranded-sheet detector.
+      const absent = await listApprovedSheetsWithoutMirror(serviceClient, org, absentQueueBudget(limit, mirrored.length));
       return [...mirrored, ...absent];
     },
 
@@ -1606,11 +1675,12 @@ export async function buildReconcileDepsLive(serviceClient: SupabaseClient, org:
     externalTier: ERPNEXT_TIER,
     operation: rowExtra.operation,
     // C-1 per-kind reissue policy: a mutable-anchor (PE) inconclusive recovery is HELD, never reissued.
-    // ADR-0059 §4 corollary (P3c): an ANCHOR-LESS kind flagged `neverReissue` (ERP `Budget` — the
-    // doctype has no field to stamp a key into at all, so no probe can exist) is likewise HELD, because
-    // "no probe hit" there carries no information whatsoever. Default-absent ⇒ every shipped kind is
-    // byte-for-byte.
-    reissueOnInconclusiveAbsence: !(entry.anchorMutable || entry.neverReissue),
+    // ⚑ HIGH-1: an `upsertOnGrain` kind (ERP `Budget`) has no anchor at ALL, but ERP itself enforces its
+    // natural grain, so the dispatch factory's server-derived grain read is a conclusive probe and a
+    // recovery may reissue — holding instead made the upsert's unenforced-grain window PERMANENT. The
+    // rule lives in ONE place (`reissueOnInconclusiveAbsence`, doctypeRegistry.ts) so the sync dispatch
+    // and the sweep can never disagree about whether a money command may be re-minted.
+    reissueOnInconclusiveAbsence: reissueOnInconclusiveAbsence(entry),
     payloadDigest,
     encodeExternalRecordId,
     // BLOCK 4: one shared builder — the mutable-anchor (Payment Entry) FALLBACK carries the same

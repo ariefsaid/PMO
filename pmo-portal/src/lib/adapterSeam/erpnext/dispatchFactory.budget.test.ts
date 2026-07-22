@@ -173,12 +173,15 @@ describe('P3c dispatch wiring — the budget domain', () => {
   // ERP REFUSES it and keeps enforcing the SUPERSEDED figure while PMO shows the new one.
   // ──────────────────────────────────────────────────────────────────────────────────────────────
 
-  /** A bench whose (company, FY, project) grain already holds `existing` live Budget name(s). */
+  /** A bench whose (company, FY, project) grain already holds `existing` live (submitted) Budget
+   *  name(s). ⚑ HIGH-1: the grain read now asks for `docstatus` too (it must see DRAFT rivals, which
+   *  ERP's duplicate guard counts and a `docstatus = 1` filter was blind to), so the fake answers with
+   *  it — see `dispatchFactory.budgetRecovery.test.ts` for the draft/tombstone arms. */
   function erpFetchWithExisting(existing: string[]) {
     return vi.fn(async (url: string, init?: RequestInit) => {
       const href = String(url);
       const isList = (init?.method ?? 'GET') === 'GET' && href.includes('filters=');
-      if (isList) return new Response(JSON.stringify({ data: existing.map((name) => ({ name })) }), { status: 200 });
+      if (isList) return new Response(JSON.stringify({ data: existing.map((name) => ({ name, docstatus: 1 })) }), { status: 200 });
       if (init?.method === 'POST') return new Response(JSON.stringify({ name: 'BUDGET-2026-00007-1' }), { status: 200 });
       if (init?.method === 'PUT') {
         const body = JSON.parse(String(init.body)) as { docstatus?: number };
@@ -212,7 +215,10 @@ describe('P3c dispatch wiring — the budget domain', () => {
         ['company', '=', 'PMO Smoke Co'],
         ['project', '=', 'PROJ-0001'],
         ['fiscal_year', '=', '2026'],
-        ['docstatus', '=', 1],
+        // ⚑ HIGH-1: `< 2` — every document ERP's own duplicate guard counts, DRAFTS included. A
+        // `= 1` filter could not see a draft rival, so the upsert cancelled the live Budget and only
+        // then discovered ERP would refuse the replacement, leaving the grain enforcing nothing.
+        ['docstatus', '<', 2],
       ]),
     );
 

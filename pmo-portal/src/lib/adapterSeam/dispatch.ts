@@ -3,7 +3,8 @@
  * Relative imports only so the edge-function can import this module directly.
  */
 import { AppError } from '../appError.ts';
-import { Adapter, AdapterCommand, AdapterError, CommandResult, PmoRecord } from './contract.ts';
+import { Adapter, AdapterCommand, AdapterError, CommandResult, PmoRecord, type SupersededDocumentMarker } from './contract.ts';
+export type { SupersededDocumentMarker } from './contract.ts';
 
 export interface ExternalRefMapping {
   pmoRecordId: string;
@@ -175,6 +176,14 @@ function nowMs(money: DispatchMoneyOutboxDeps): number {
   return money.now?.() ?? Date.now();
 }
 
+/** Propagate the marker across an error conversion — dropping it silently downgrades a "your control is
+ *  off" report back into "the push failed". */
+function carrySupersededMarker(from: unknown, to: AppError): AppError {
+  const id = (from as SupersededDocumentMarker | null | undefined)?.cancelledExternalRecordId;
+  if (id) (to as AppError & SupersededDocumentMarker).cancelledExternalRecordId = id;
+  return to;
+}
+
 /** Discriminates a retryable transport failure (never blindly re-POSTed, but the row is left
  *  reclaimable) from a non-retryable rejection (marked `failed` immediately). */
 function isRetryableTransport(error: unknown): boolean {
@@ -304,9 +313,15 @@ async function claimAndCommit(
       return reconcileOutbox(fresh!, deps);
     }
     // Intentional ops signal (non-silent, per the C-1 ruling): a held money command needs a human.
+    // The human's route out is the Admin-only, audited `release_outbox_hold` RPC (migration 0137 §4):
+    // it moves the row `held` → `failed`, which is outside `external_command_outbox_one_inflight_per_
+    // record` and inside the reconcile/backstop queues, so the ordinary bounded recovery re-runs every
+    // gate from scratch. (Audit round 5, HIGH-2: a plain Retry cannot clear a hold — it derives the same
+    // key and lands right back here, and a NEW key for this record 409s on that index forever.)
     console.error(
       `[money-outbox] HELD ${command.domain}/${command.record.id} (idempotencyKey=${command.idempotencyKey}) — ` +
-        'post-window recovery found no ERP doc but the anchor is mutable; not auto-reissued, awaiting operator resolution',
+        'post-window recovery found no ERP doc but the anchor is mutable; not auto-reissued, awaiting operator ' +
+        'resolution (Admin: release_outbox_hold)',
     );
     // A DISTINCT non-retryable code (an AppError passes through toDispatchError unchanged) — never the
     // generic transient 'external-unreachable' (retrying will not help; an operator must resolve it).
@@ -488,7 +503,10 @@ async function reconcileOutbox(row: OutboxRow, deps: DispatchMoneyWriteDeps, com
     }
     case 'held':
       // C-1: a mutable-anchor money doc held for operator resolution (recovery-inconclusive). A retry
-      // must NOT re-drive it — surface the non-retryable held signal until an operator clears it.
+      // must NOT re-drive it — surface the non-retryable held signal until an operator clears it with
+      // the Admin-only, audited `release_outbox_hold` RPC (0137 §4, held → failed). That RPC is the ONLY
+      // way out: this branch makes a same-key retry inert, and 0134's one-in-flight index makes a
+      // NEW-key command for the same PMO record 409 (audit round 5, HIGH-2).
       throw new AppError('payment command held for operator resolution — not auto-reissued (mutable anchor)', 'command-held');
     case 'pending':
     case 'failed': {
@@ -566,7 +584,11 @@ function readThrownCode(error: unknown): string | undefined {
   return typeof candidate === 'string' ? candidate : undefined;
 }
 
-function toDispatchError(error: unknown): AppError {
+/** Exported (LOW-1, audit round 5) so the served `adapter-dispatch` fn's ADAPTER-SELECT exit classifies
+ *  a thrown value with the SAME rule as its dispatch exit — a hand-rolled `new AppError(err.message)`
+ *  there dropped the `.code` of a plain-`Error` subclass (`BudgetCategoryUnmappedError`, thrown from
+ *  `resolveBudgetRefs`'s pre-flight) and turned a precise 422 into a bare, code-less 400. */
+export function toDispatchError(error: unknown): AppError {
   if (isOutboxInFlightConflict(error)) {
     return new AppError(
       'another command for this record is already in flight — wait for it to settle (or resolve it) before dispatching again',
@@ -575,10 +597,18 @@ function toDispatchError(error: unknown): AppError {
   }
   if (error instanceof AppError) return error;
   if (error instanceof AdapterError) {
-    if (error.code === 'external-unreachable') {
+    // ⚑ HIGH-1 (audit round 5) — an ABANDONED-AMEND failure carries a PMO-authored message that states
+    // what the external system NOW HOLDS ("the superseded ERPNext Budget "X" is already CANCELLED and its
+    // replacement did not land … ERPNext is therefore enforcing NO budget for this grain right now").
+    // That sentence is the whole point of the finding: "external system unreachable — try again" does not
+    // tell an operator their overspend control is currently OFF. The generic text exists so a raw ERP
+    // body never reaches a client; this message is ours, so it is kept verbatim and the marker travels
+    // with it (`recordBudgetPushFailure` records the money statement off it).
+    const superseded = (error as AdapterError & SupersededDocumentMarker).cancelledExternalRecordId;
+    if (error.code === 'external-unreachable' && !superseded) {
       return new AppError('external system unreachable — try again', error.code);
     }
-    return new AppError(error.message, error.code);
+    return carrySupersededMarker(error, new AppError(error.message, error.code));
   }
   // ⚑ Preserve a structurally-present string `.code` — the SAME rule `appError.ts:toAppError` applies.
   // Dropping it turned every non-AppError/AdapterError class that carries one (P3c's

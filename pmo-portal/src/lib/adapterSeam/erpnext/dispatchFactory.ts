@@ -9,7 +9,7 @@
  */
 import { createErpAdapter, ERPNEXT_TIER, type DoctypeBodyFns, type ErpAdapterDeps } from './adapter.ts';
 import type { ErpDocKind } from './doctypeRegistry.ts';
-import { getDoc, listDocNamesByFilters, type ErpClientDeps, type ErpRateLimiter } from './client.ts';
+import { getDoc, listDocsByFilters, type ErpClientDeps, type ErpRateLimiter } from './client.ts';
 import type { ErpProbeDeps } from './recoveryProbe.ts';
 import { resolveExternalRef, type ExternalRefsLookupClient } from '../refs.ts';
 import { packTimeLogs } from './timeLogPacking.ts';
@@ -624,7 +624,15 @@ async function resolveBudgetRefs(
   );
   if (accounts.length === 0) return { refs };
 
-  const existing = await listDocNamesByFilters(
+  // ⚑ HIGH-1 (audit round 5) — READ THE WHOLE GRAIN, not just its live occupant: `docstatus < 2` is
+  // every document ERPNext's duplicate guard counts (spike §8 — the guard fires against a DRAFT exactly
+  // as it does against a submitted doc). The old `docstatus = 1` filter was blind to drafts, with two
+  // consequences, both destructive: a Desk-authored draft (or OUR OWN orphan draft, left by a
+  // create-OK/submit-FAIL) made the replacement create CERTAIN to be refused — so the upsert cancelled
+  // the live Budget FIRST and only then discovered it could not replace it, leaving ERPNext enforcing
+  // NOTHING; and the orphan then blocked every future push for the grain with an opaque
+  // `DuplicateBudgetError` no PMO surface explained.
+  const grain = await listDocsByFilters(
     {
       fetchImpl: deps.fetchImpl,
       apiKey: deps.apiKey,
@@ -637,18 +645,47 @@ async function resolveBudgetRefs(
       ['company', '=', company],
       ['project', '=', project],
       ['fiscal_year', '=', fiscalYear],
-      ['docstatus', '=', 1],
+      ['docstatus', '<', 2],
     ],
-    2, // 2 is enough to DETECT ambiguity; we never need to enumerate more
+    ['name', 'docstatus'],
+    5, // a handful is plenty to classify the grain; we never need to enumerate it
   );
-  if (existing.length > 1) {
+  const live = grain.filter((row) => Number(row.docstatus) === 1).map((row) => String(row.name));
+  const drafts = grain.filter((row) => Number(row.docstatus) === 0).map((row) => String(row.name));
+
+  // (iii) Genuine ambiguity — two live Budgets, only reachable by Desk authoring across disjoint
+  // accounts. Fail CLOSED, zero writes: the adapter never picks one to supersede.
+  if (live.length > 1) {
     throw new AppError(
-      `budget push: ${existing.length} live ERPNext Budgets already exist for (${company}, ${fiscalYear}, ${project}) — ` +
-        `an operator must resolve the duplicate before PMO can revise it (${existing.join(', ')})`,
+      `budget push: ${live.length} live ERPNext Budgets already exist for (${company}, ${fiscalYear}, ${project}) — ` +
+        `an operator must resolve the duplicate before PMO can revise it (${live.join(', ')})`,
       'commit-rejected',
     );
   }
-  if (existing.length === 1) refs.self = existing[0];
+
+  // (ii) A DRAFT rival — ours (an orphaned create-OK/submit-FAIL) or somebody's Desk work-in-progress.
+  // Either way ERP WILL refuse our create, so attempting the push is a guaranteed-destructive act: we
+  // would cancel the live Budget and then be unable to replace it. Refuse BEFORE any write, and NAME the
+  // document, because a draft on the grain is a thing a human must resolve (submit it, or delete it) and
+  // an opaque ERP 417 five minutes later tells them nothing. We deliberately do NOT adopt-and-submit it:
+  // `Budget` carries no anchor field of any kind (spike §7), so we cannot PROVE a draft is ours, and
+  // submitting somebody's WIP would enforce THEIR figure while PMO recorded it as our push.
+  if (drafts.length > 0) {
+    throw new AppError(
+      `budget push: ERPNext already holds a DRAFT Budget for (${company}, ${fiscalYear}, ${project}) — ` +
+        `${drafts.join(', ')}. ERPNext refuses a second Budget on this grain while a draft exists, so PMO ` +
+        'cannot revise the budget until an operator submits or deletes that draft.' +
+        (live.length === 0
+          ? ' ⚑ There is currently NO live Budget for this project and fiscal year — ERPNext is enforcing no overspend control on it.'
+          : ''),
+      'budget-draft-rival-on-grain',
+    );
+  }
+
+  // (i) Exactly one live occupant ⇒ THE upsert target. None ⇒ a plain create, which is also how a
+  // post-cancel recovery converges: the cancelled predecessor is a tombstone (docstatus 2), invisible to
+  // this read and inert to ERP's duplicate guard, so re-creating is both safe and correct.
+  if (live.length === 1) refs.self = live[0];
   return { refs };
 }
 
@@ -668,6 +705,9 @@ export interface ErpDispatchFactoryDeps {
    *  mirror` fault seam, wired by the edge fn at task 2.14). Optional — a production caller that
    *  never arms the fault gate can omit it (a true no-op). */
   afterSubmitHook?: () => Promise<void>;
+  /** Threaded straight into `ErpAdapterDeps.afterCancelHook` (⚑ HIGH-1 — the `after-cancel-before-create`
+   *  fault seam). Optional; omitted callers are a true no-op. */
+  afterCancelHook?: () => Promise<void>;
 }
 
 /**
@@ -739,6 +779,7 @@ export async function resolveErpDispatchAdapter(deps: ErpDispatchFactoryDeps): P
       resolvedItems,
     },
     afterSubmitHook: deps.afterSubmitHook,
+    afterCancelHook: deps.afterCancelHook,
   };
   return createErpAdapter(adapterDeps);
 }

@@ -69,17 +69,31 @@ function fakeDb(opts: DbOptions = {}) {
       const eqs: Record<string, unknown> = {};
       let inFilter: { col: string; vals: unknown[] } | null = null;
       let gte: { col: string; val: unknown } | null = null;
+      let lim: number | null = null;
+      const isFilters: Array<{ col: string; val: unknown }> = [];
 
+      // ⚑ HIGH-3 (audit round 5) — this fake MODELS `.limit()` and the embedded-resource anti-join,
+      // because the old fake stubbed `limit: () => builder` (a no-op) and every fixture held ONE sheet,
+      // which made "the page limit is applied BEFORE the anti-join" structurally unobservable. A fake
+      // that cannot express the ordering of the two operations cannot prove the queue works at scale.
       const rowsFor = (): unknown[] => {
         if (table === 'timesheets') {
-          const sheets = opts.approvedSheets ?? [];
-          return sheets
-            .filter((s) => !gte || String(s.approved_at) >= String(gte.val))
-            .map((s) => ({ id: s.id }));
+          const mirroredIds = new Set((opts.mirrorRows ?? []).map((r) => r.timesheet_id));
+          let sheets = (opts.approvedSheets ?? []).filter((s) => !gte || String(s.approved_at) >= String(gte.val));
+          // The ANTI-JOIN, as PostgREST applies it: an `is('timesheet_erp_mirror', null)` filter on the
+          // embedded resource is part of the WHERE clause, so it runs BEFORE the LIMIT.
+          if (isFilters.some((f) => f.col === 'timesheet_erp_mirror' && f.val === null)) {
+            sheets = sheets.filter((s) => !mirroredIds.has(s.id));
+          }
+          sheets = [...sheets].sort((a, b) => String(a.approved_at).localeCompare(String(b.approved_at)));
+          return sheets.slice(0, lim ?? sheets.length).map((s) => ({ id: s.id }));
         }
         if (table === 'timesheet_erp_mirror') {
-          const rows = opts.mirrorRows ?? [];
-          return rows.filter((r) => !inFilter || inFilter.vals.includes(r.timesheet_id));
+          const rows = (opts.mirrorRows ?? []).filter((r) => !inFilter || inFilter.vals.includes(r.timesheet_id));
+          const queueable = inFilter
+            ? rows
+            : rows.filter((r) => ['pending', 'failed'].includes(r.push_state) && r.erp_cancelled_at === null);
+          return queueable.slice(0, lim ?? queueable.length);
         }
         return [];
       };
@@ -88,12 +102,12 @@ function fakeDb(opts: DbOptions = {}) {
       const builder: any = {
         select: () => builder,
         eq: (col: string, val: unknown) => { eqs[col] = val; return builder; },
-        is: () => builder,
+        is: (col: string, val: unknown) => { isFilters.push({ col, val }); return builder; },
         gte: (col: string, val: unknown) => { gte = { col, val }; return builder; },
         in: (col: string, vals: unknown[]) => { inFilter = { col, vals }; return builder; },
         not: () => builder,
         order: () => builder,
-        limit: () => builder,
+        limit: (n: number) => { lim = n; return builder; },
         contains: () => builder,
         maybeSingle: () => {
           if (table === 'timesheets') return Promise.resolve({ data: { approved_by: opts.approvedBy ?? null }, error: null });
@@ -243,4 +257,55 @@ Deno.test('AC-TSP-022: a MIRRORED candidate\'s refusal stays a compare-and-set (
   await deps.recordGateRefusal(candidate('failed'), 'timesheet-not-approved (status Submitted)');
   const parked = writes.find((w) => w.table === 'timesheet_erp_mirror');
   assert(parked?.op === 'update', `a mirrored candidate is updated under its own predicate, got ${parked?.op}`);
+});
+
+// ────────────────────────────────────────────────────────────────────────────────────────────────
+// ⚑ HIGH-3 (audit round 5) — THE BACKSTOP MUST STILL SEE A STRANDED WEEK AT REAL TIMESHEET VOLUME.
+//
+// The `absent` queue applied its page limit BEFORE the anti-join: `.limit(n)` bounded the rows
+// SCANNED, not the candidates FOUND, and the anti-join then ran in JS over that page. A 120-person org
+// approves ~240 sheets in a trailing 14 days, so a 200-row page filled with already-mirrored sheets and
+// `absent` came back EMPTY — the backstop silently did nothing exactly at the scale it matters.
+// Compounding it, the absent half was given `limit - mirrored.length`, so ≥200 stuck `failed` mirror
+// rows (one org-wide misconfiguration) drove its budget to 0 permanently.
+// ────────────────────────────────────────────────────────────────────────────────────────────────
+
+const STRANDED = '11111111-0000-0000-0000-0000000000ff';
+
+/** `count` already-mirrored approved sheets, all approved BEFORE the stranded one (so an
+ *  `approved_at asc` page would be filled entirely by them). */
+function busyOrg(count: number, mirrorState = 'pushed') {
+  const approvedSheets: Array<{ id: string; approved_at: string }> = [];
+  const mirrorRows: Array<{ timesheet_id: string; push_state: string; erp_cancelled_at: string | null }> = [];
+  for (let i = 0; i < count; i++) {
+    const id = `settled-${String(i).padStart(4, '0')}`;
+    approvedSheets.push({ id, approved_at: new Date(Date.now() - (10 * 24 * 60 * 60 * 1000) + i * 1000).toISOString() });
+    mirrorRows.push({ timesheet_id: id, push_state: mirrorState, erp_cancelled_at: null });
+  }
+  // The week that actually needs rescuing: approved most recently, and with NO mirror row.
+  approvedSheets.push({ id: STRANDED, approved_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString() });
+  return { approvedSheets, mirrorRows };
+}
+
+Deno.test('AC-TSP-022 ⚑ HIGH-3: a stranded week is still found when 200 already-mirrored sheets sit ahead of it (the limit bounds CANDIDATES, not rows scanned)', async () => {
+  const { client } = fakeDb(busyOrg(200));
+  const deps = timesheetBackstopDepsLive(client, orgBinding(), new Set());
+  const rows = await deps.listPendingTimesheetPushes(ORG, 200);
+  const absent = rows.filter((r) => r.push_state === 'absent');
+  assert(
+    absent.length === 1 && absent[0].timesheet_id === STRANDED,
+    `the stranded week must be queued even behind a full page of settled sheets, got ${JSON.stringify(rows)}`,
+  );
+});
+
+Deno.test('AC-TSP-022 ⚑ HIGH-3: a mirror-queue backlog at the full tick budget can never drive the `absent` budget to zero', async () => {
+  // Every one of the 200 mirrored sheets is stuck `failed` (the org-wide-misconfiguration case): they
+  // fill the mirror half of the queue on EVERY tick. The absent half must still get slots.
+  const { client } = fakeDb(busyOrg(200, 'failed'));
+  const deps = timesheetBackstopDepsLive(client, orgBinding(), new Set());
+  const rows = await deps.listPendingTimesheetPushes(ORG, 200);
+  assert(
+    rows.some((r) => r.push_state === 'absent' && r.timesheet_id === STRANDED),
+    `a saturated mirror queue must not starve the absent queue, got ${rows.length} rows, absent=${rows.filter((r) => r.push_state === 'absent').length}`,
+  );
 });

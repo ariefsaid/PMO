@@ -21,9 +21,16 @@
  */
 
 /** The classified reasons an inbound apply may terminally refuse ONE document. Matched on the error's
- *  `code` OR its message, because the two never-adopt branches classify as `AdapterError`
- *  (`code:'commit-rejected'`, the reason in the MESSAGE) while the procurement one is an `AppError`
- *  carrying the reason as its `code`. */
+ *  `code` ONLY.
+ *
+ *  ⚑ LOW-2 (audit round 5) — this used to ALSO match a message SUBSTRING, because the two never-adopt
+ *  branches threw an `AdapterError` (`code:'commit-rejected'`) carrying the reason in the MESSAGE. Since
+ *  AC-TSP-040 made a match decide an HTTP **200 ACK** at the webhook ingress, that was a silent-data-loss
+ *  vector: any error whose message merely QUOTED one of these strings — which is exactly what a wrapper
+ *  or a re-throw does ("retrying native-budget-not-adopted…: connection terminated") — was acked, and an
+ *  acked inbound event is dropped FOR GOOD (the poll is `modified >= cursor`, so it is never re-listed).
+ *  All three producers (`_shared/erpnextFeedDeps.ts`) now throw an `AppError` carrying the reason as its
+ *  real `code`, so the classification reads a deliberate signal rather than prose. */
 const TERMINAL_APPLY_REASONS = [
   'native-budget-not-adopted',
   'native-timesheet-not-adopted',
@@ -40,8 +47,7 @@ const TERMINAL_APPLY_REASONS = [
  */
 export function terminalApplyReason(err: unknown): string | null {
   const code = (err as { code?: unknown } | null | undefined)?.code;
-  const message = err instanceof Error ? err.message : '';
-  return TERMINAL_APPLY_REASONS.find((reason) => code === reason || message.includes(reason)) ?? null;
+  return TERMINAL_APPLY_REASONS.find((reason) => code === reason) ?? null;
 }
 
 /** `'skip'` for a terminal, already-surfaced per-document refusal; `'halt'` for everything else. */

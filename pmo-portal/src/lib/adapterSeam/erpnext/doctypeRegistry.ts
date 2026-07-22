@@ -143,19 +143,52 @@ export const DOCTYPE_REGISTRY: Record<ErpDocKind, Pick<DoctypeEntry, 'doctype' |
   // and established there is NO free-text field of any type on `Budget` OR on its `Budget Account` child
   // (§1/§7, exhaustive). There is nowhere to stamp a PMO idempotency key, so the ADR-0058 §3 recovery
   // probe cannot exist for this kind at all.
-  // ⚑ CONSEQUENCE — neverReissue: true (ADR-0059 §4 corollary, FR-BUD-143). With no probe, an
-  // inconclusive post-window recovery cannot tell "the POST never landed" from "the POST landed and we
-  // lost the response". Reissuing would create a SECOND ERP Budget, and ERP's own duplicate guard fires
-  // only at the (company, project|cost_center, fiscal_year, account) grain and rejects ATOMICALLY (§8) —
-  // so the reissue surfaces as a 417 that is indistinguishable from a real operator conflict. The row is
-  // therefore HELD for an operator, never auto-reissued.
+  // ⚑ CONSEQUENCE — the recovery probe for this kind is the ERP-ENFORCED GRAIN, not an anchor
+  // (`upsertOnGrain` below; see `reissueOnInconclusiveAbsence`). The kind originally carried
+  // `neverReissue: true` (ADR-0059 §4 corollary, FR-BUD-143) because with no probe an inconclusive
+  // post-window recovery could not tell "the POST never landed" from "the POST landed and we lost the
+  // response". ⚑ HIGH-1 (money-safety audit round 5) retired that flag for this kind, because holding was
+  // strictly WORSE than reissuing once the upsert existed: the upsert is cancel(old) → create(new), so a
+  // failed create leaves the grain with NO live Budget — every overspend control off — and a HELD row
+  // made that state permanent (nothing un-held it, HIGH-2). The reissue is not blind: the dispatch
+  // factory's server-derived grain read (`resolveBudgetRefs`, `docstatus < 2` — every document ERP's own
+  // duplicate guard counts) is conclusive, and each of its three answers has a safe action (live occupant
+  // ⇒ upsert onto it; DRAFT occupant ⇒ named refusal with zero writes; empty ⇒ the create did not land).
   // submittable/submitOnCreate: `Budget` is submittable (§6) and a DRAFT budget enforces nothing — the
   // native overspend controls are the entire point of this push, so the create must submit. Money fields
   // are locked post-submit (§6): a revision is cancel+amend, never a PUT — which is exactly what
   // `upsertOnGrain` routes a create onto once the dispatch factory resolves the grain's existing live
   // Budget into `ctx.refs.self` (FR-BUD-121 / AC-BUD-031).
-  budget: { doctype: 'Budget', submittable: true, submitOnCreate: true, anchorField: null, neverReissue: true, upsertOnGrain: true },
+  budget: { doctype: 'Budget', submittable: true, submitOnCreate: true, anchorField: null, upsertOnGrain: true },
 };
+
+/**
+ * May a post-window recovery that found NOTHING safely REISSUE (mint a new ERP document) under the same
+ * idempotency key — or must the row be HELD for an operator (ADR-0058 §4 / the C-1 DIRECTOR RULING)?
+ *
+ * ONE definition, consumed by both served functions (`adapter-dispatch`, `erpnext-sweep`) and by the
+ * registry's own tests, so the two dispatch paths can never disagree about whether a money command may
+ * be re-minted. The question is always the same: IS ABSENCE CONCLUSIVE?
+ *
+ *  • `anchorMutable` (Payment Entry `reference_no`, editable by an accountant post-commit) ⇒ NEVER.
+ *    A probe miss cannot distinguish "no document" from "a landed document whose anchor was edited", and
+ *    a blind reissue is a double-pay. No amount of other evidence changes that.
+ *  • `upsertOnGrain` (ERP `Budget`) ⇒ YES. This kind has no anchor at all, but ERP itself enforces at most
+ *    one document per its natural grain, so the dispatch factory's server-derived grain read IS a
+ *    conclusive probe (⚑ HIGH-1: it reads `docstatus < 2`, i.e. drafts too, so a create that landed but
+ *    failed to submit is seen and refused by name rather than mistaken for absence). Holding instead was
+ *    strictly more dangerous: the upsert's cancel-then-create window can leave the grain UNENFORCED, and
+ *    a held row made that permanent.
+ *  • `neverReissue` with no grain ⇒ NEVER (no probe of any kind exists).
+ *  • otherwise (immutable or absent anchor, e.g. Purchase Invoice `remarks`) ⇒ YES, as shipped.
+ */
+export function reissueOnInconclusiveAbsence(
+  entry: Pick<DoctypeEntry, 'anchorMutable' | 'neverReissue' | 'upsertOnGrain'>,
+): boolean {
+  if (entry.anchorMutable) return false;
+  if (entry.upsertOnGrain) return true;
+  return !entry.neverReissue;
+}
 
 /** The generic 3-value ERP docstatus label (task 4.10, FR-ENA-110/111/117). Frappe's `docstatus`
  *  domain is exactly `0|1|2` (R9 §5) — this stays TABLE-AGNOSTIC on purpose: a record-table mirror

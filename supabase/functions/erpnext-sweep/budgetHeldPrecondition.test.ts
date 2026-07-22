@@ -103,7 +103,7 @@ Deno.test('NEW-4: a row the foreground path already PUSHED is never relabelled h
   // Concurrency: listed as `pending`, but by the time the backstop writes, the foreground activation
   // consequence has completed a REAL ERPNext Budget push.
   const mirror: MirrorRow = { org_id: ORG, budget_version_id: VERSION, push_state: 'pushed', erp_cancelled_at: null };
-  const deps = budgetBackstopDepsLive(fakeDb(mirror, null), ORG_BINDING, new Set<string>());
+  const deps = budgetBackstopDepsLive(fakeDb(mirror, null), ORG_BINDING, []);
   await deps.driveBudgetPush(CANDIDATE, ACTIVE_VERSION);
   assert(
     mirror.push_state === 'pushed',
@@ -115,21 +115,21 @@ Deno.test('NEW-4: a row the foreground path already PUSHED is never relabelled h
 
 Deno.test('NEW-4: a row now COMMITTING is never relabelled held (its ERP write may be in flight)', async () => {
   const mirror: MirrorRow = { org_id: ORG, budget_version_id: VERSION, push_state: 'committing', erp_cancelled_at: null };
-  const deps = budgetBackstopDepsLive(fakeDb(mirror, null), ORG_BINDING, new Set<string>());
+  const deps = budgetBackstopDepsLive(fakeDb(mirror, null), ORG_BINDING, []);
   await deps.driveBudgetPush(CANDIDATE, ACTIVE_VERSION);
   assert(mirror.push_state === 'committing', `expected 'committing' to survive, got '${mirror.push_state}'`);
 });
 
 Deno.test('NEW-4: a row an operator CANCELLED in the Desk is never relabelled held (never fight the operator)', async () => {
   const mirror: MirrorRow = { org_id: ORG, budget_version_id: VERSION, push_state: 'pending', erp_cancelled_at: '2026-07-21T00:00:00.000Z' };
-  const deps = budgetBackstopDepsLive(fakeDb(mirror, null), ORG_BINDING, new Set<string>());
+  const deps = budgetBackstopDepsLive(fakeDb(mirror, null), ORG_BINDING, []);
   await deps.driveBudgetPush(CANDIDATE, ACTIVE_VERSION);
   assert(mirror.push_state === 'pending', `expected the tombstoned row untouched, got '${mirror.push_state}'`);
 });
 
 Deno.test('NEW-4: a row STILL pending IS held — the dead end is still recorded, never silently dropped', async () => {
   const mirror: MirrorRow = { org_id: ORG, budget_version_id: VERSION, push_state: 'pending', erp_cancelled_at: null };
-  const deps = budgetBackstopDepsLive(fakeDb(mirror, null), ORG_BINDING, new Set<string>());
+  const deps = budgetBackstopDepsLive(fakeDb(mirror, null), ORG_BINDING, []);
   await deps.driveBudgetPush(CANDIDATE, ACTIVE_VERSION);
   assert(mirror.push_state === 'held', `expected 'held', got '${mirror.push_state}'`);
   assert(mirror.push_error === 'budget-push-no-outbox-candidate', `expected the dead-end reason, got ${JSON.stringify(mirror.push_error)}`);
@@ -142,13 +142,56 @@ Deno.test('NEW-4: the attempts-exhausted branch carries the SAME precondition (a
     state: 'failed', external_record_id: null, canonical: null, claim_generation: 0, payload_digest: null,
   };
   const pushed: MirrorRow = { org_id: ORG, budget_version_id: VERSION, push_state: 'pushed', erp_cancelled_at: null };
-  const depsPushed = budgetBackstopDepsLive(fakeDb(pushed, outbox), ORG_BINDING, new Set<string>());
+  const depsPushed = budgetBackstopDepsLive(fakeDb(pushed, outbox), ORG_BINDING, []);
   await depsPushed.driveBudgetPush(CANDIDATE, ACTIVE_VERSION);
   assert(pushed.push_state === 'pushed', `expected 'pushed' to survive, got '${pushed.push_state}'`);
 
   const pending: MirrorRow = { org_id: ORG, budget_version_id: VERSION, push_state: 'failed', erp_cancelled_at: null };
-  const depsPending = budgetBackstopDepsLive(fakeDb(pending, outbox), ORG_BINDING, new Set<string>());
+  const depsPending = budgetBackstopDepsLive(fakeDb(pending, outbox), ORG_BINDING, []);
   await depsPending.driveBudgetPush(CANDIDATE, ACTIVE_VERSION);
   assert(pending.push_state === 'held', `expected a still-eligible row to be held, got '${pending.push_state}'`);
   assert(pending.push_error === 'budget-push-attempts-exhausted', `expected the exhausted reason, got ${JSON.stringify(pending.push_error)}`);
+});
+
+// ────────────────────────────────────────────────────────────────────────────────────────────────
+// ⚑ NOT-ELIGIBLE-YET IS NOT ATTEMPTS-EXHAUSTED (found by the AC-BUD-032 e2e, audit round 5).
+//
+// `outbox_reconcile_candidates` (0131) answers "may this row be reconciled NOW". A row it omits is
+// either finished with (confirmed), genuinely out of budget (attempt-exhausted / too old) — or simply
+// NOT DUE YET: a `committing` row inside its 60 s lease, or a `quarantined` row before its visibility
+// window elapses. Treating the last group as exhausted parked it `held`, and `held` is excluded from
+// this queue, so the row NEVER came back — while the outbox row itself was about to become claimable.
+//
+// This is the ordinary shape of a transient ERP failure on the budget push: the dispatch marks NOTHING
+// (deliberately — the row must stay reclaimable) and the very next cron tick, seconds later, saw a
+// `failed` mirror row plus a not-yet-due outbox row and terminated the automatic recovery. It is exactly
+// the recovery HIGH-1 depends on.
+// ────────────────────────────────────────────────────────────────────────────────────────────────
+for (const state of ['committing', 'quarantined'] as const) {
+  Deno.test(`⚑ HIGH-1: an outbox row that is merely NOT DUE YET (${state}) is never parked held — a later tick owns it`, async () => {
+    const outbox = {
+      id: 'outbox-1', domain: 'budget', pmo_record_id: VERSION, idempotency_key: 'k',
+      state, external_record_id: null, canonical: null, claim_generation: 0, payload_digest: null,
+    };
+    const mirror: MirrorRow = { org_id: ORG, budget_version_id: VERSION, push_state: 'failed', erp_cancelled_at: null };
+    // The eligibility set is EMPTY — the RPC does not admit a fresh `committing`/not-due `quarantined` row.
+    const deps = budgetBackstopDepsLive(fakeDb(mirror, outbox), ORG_BINDING, []);
+    await deps.driveBudgetPush(CANDIDATE, ACTIVE_VERSION).catch(() => undefined);
+    assert(
+      mirror.push_state === 'failed',
+      `a not-yet-due command must be left for a later tick, got '${mirror.push_state}' — 'held' is excluded from this queue, so it would end the automatic recovery for good`,
+    );
+  });
+}
+
+Deno.test('⚑ HIGH-1: a genuinely attempt-exhausted row (a `failed` command 0131 no longer admits) IS still held — the bound is not weakened', async () => {
+  const outbox = {
+    id: 'outbox-1', domain: 'budget', pmo_record_id: VERSION, idempotency_key: 'k',
+    state: 'failed', external_record_id: null, canonical: null, claim_generation: 0, payload_digest: null,
+  };
+  const mirror: MirrorRow = { org_id: ORG, budget_version_id: VERSION, push_state: 'failed', erp_cancelled_at: null };
+  const deps = budgetBackstopDepsLive(fakeDb(mirror, outbox), ORG_BINDING, []);
+  await deps.driveBudgetPush(CANDIDATE, ACTIVE_VERSION).catch(() => undefined);
+  assert(mirror.push_state === 'held', `expected 'held', got '${mirror.push_state}'`);
+  assert(mirror.push_error === 'budget-push-attempts-exhausted', `expected the exhausted reason, got ${JSON.stringify(mirror.push_error)}`);
 });

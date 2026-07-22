@@ -38,6 +38,11 @@ const BUSINESS_REJECTION_CODES: readonly string[] = [
   // P3c budget push — the gate's own classified refusals
   'budget-category-unmapped',
   'budget-multi-fiscal-year',
+  // ⚑ HIGH-1 (audit round 5): a DRAFT Budget already occupying the (company, fiscal_year, project)
+  // grain. ERPNext's duplicate guard counts it, so the push CANNOT succeed until a human submits or
+  // deletes that draft — a business refusal with a precise remedy, raised inside adapter select (whose
+  // own unclassified fallback is 400, i.e. "malformed request", which this state is not).
+  'budget-draft-rival-on-grain',
 ];
 
 export function isBusinessRejectionCode(code: unknown): code is string {
