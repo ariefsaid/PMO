@@ -15,6 +15,7 @@ import {
   Combobox,
 } from '@/src/components/ui';
 import { useIntegrations } from '@/src/hooks/useIntegrations';
+import { useProjects } from '@/src/hooks/useProjects';
 import { useExternalDomainOwnership } from '@/src/hooks/useExternalDomainOwnership';
 import { useEntityForm } from '@/src/components/ui/useEntityForm';
 import { tierLabel, domainLabel } from './integrationLabels';
@@ -82,11 +83,19 @@ export const IntegrationsView: React.FC = () => {
     disconnect,
     getBinding,
     getHealth,
+    clickupLists = [],
+    isListsError = false,
+    isListsPending = false,
+    projectBindings = [],
+    isBindingsPending = false,
     // OD-INT-6: ERPNext company selection
     erpnextCompanies,
     isCompaniesPending,
     setCompany,
   } = useIntegrations();
+
+  const projectsQuery = useProjects();
+  const projects = projectsQuery?.data ?? [];
 
   // Group employed domains by tier (from external_domain_ownership)
   const { data: ownershipRows = [] } = useExternalDomainOwnership();
@@ -192,6 +201,20 @@ export const IntegrationsView: React.FC = () => {
       console.error('Disconnect failed:', detail);
     }
   };
+
+  const activeClickUpBinding = getBinding('clickup')?.status === 'active';
+  const activeProjectIds = new Set(
+    projects.filter((project) => !project.archived_at).map((project) => project.id),
+  );
+  const clickUpBindings = projectBindings.filter(
+    (binding) => binding.external_tier === 'clickup' && activeProjectIds.has(binding.project_id),
+  );
+  const bindingByProjectId = new Map(clickUpBindings.map((binding) => [binding.project_id, binding]));
+  const boundListIds = new Set(clickUpBindings.map((binding) => binding.external_container_id));
+  const clickUpListById = new Map(clickupLists.map((list) => [list.id, list]));
+  const bindingMapVisible = activeClickUpBinding;
+  const clickUpListsUnavailable = isListsError || isListsPending;
+  const bindingMapDataUnavailable = clickUpListsUnavailable || isBindingsPending;
 
   // Loading state
   if (isPending) {
@@ -375,6 +398,68 @@ export const IntegrationsView: React.FC = () => {
           );
         })}
       </div>
+
+      {bindingMapVisible && (
+        <section className="mt-6" aria-labelledby="clickup-binding-map-title" data-testid="clickup-binding-map">
+          <div className="mb-3 flex items-center gap-2">
+            <Icon name="plug" aria-hidden="true" />
+            <h4 id="clickup-binding-map-title" className="text-sm font-semibold text-foreground">
+              ClickUp binding map
+            </h4>
+          </div>
+          {isListsPending && !isListsError && (
+            <p className="mb-3 text-sm text-muted-foreground" role="status">Loading ClickUp lists…</p>
+          )}
+          {isListsError && (
+            <p className="mb-3 text-sm text-muted-foreground" role="status">
+              ClickUp lists are unavailable right now. PMO project status is shown; ClickUp bindings cannot be determined.
+            </p>
+          )}
+          {!clickUpListsUnavailable && !isBindingsPending && clickUpBindings.length === 0 && (
+            <p className="mb-3 rounded-md border border-border bg-card p-3 text-sm text-muted-foreground" data-testid="clickup-binding-map-empty">
+              No PMO projects are bound to ClickUp yet. Projects remain PMO-native until an admin links them.
+            </p>
+          )}
+          <div className="overflow-x-auto rounded-lg border border-border">
+            <table className="w-full min-w-full text-left text-sm">
+              <caption className="sr-only">PMO projects and their ClickUp List bindings</caption>
+              <thead className="border-b border-border bg-muted/40 text-muted-foreground">
+                <tr>
+                  <th scope="col" className="px-3 py-2 font-medium">PMO project</th>
+                  <th scope="col" className="px-3 py-2 font-medium">ClickUp List</th>
+                  <th scope="col" className="px-3 py-2 font-medium">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {projects.filter((project) => !project.archived_at).map((project) => {
+                  const binding = bindingByProjectId.get(project.id);
+                  const list = binding ? clickUpListById.get(binding.external_container_id) : undefined;
+                  return (
+                    <tr key={project.id}>
+                      <th scope="row" className="px-3 py-2 font-medium text-foreground">{project.name}</th>
+                      <td className="px-3 py-2 text-muted-foreground">{list?.name ?? (binding ? 'List unavailable' : bindingMapDataUnavailable ? 'Unknown' : '—')}</td>
+                      <td className="px-3 py-2 text-muted-foreground">{binding ? 'Bound' : bindingMapDataUnavailable ? 'Unknown' : 'PMO-native'}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          {!clickUpListsUnavailable && !isBindingsPending && (
+            <>
+              <h5 className="mb-2 mt-5 text-sm font-semibold text-foreground">ClickUp Lists PMO does not track</h5>
+              <ul className="rounded-lg border border-border" aria-label="Untracked ClickUp Lists">
+                {clickupLists.filter((list) => !boundListIds.has(list.id)).map((list) => (
+                  <li key={list.id} className="border-b border-border px-3 py-2 text-sm last:border-b-0">
+                    <span className="font-medium text-foreground">{list.name}</span>
+                    <span className="ml-2 text-muted-foreground">({list.space_name}{list.folder_name ? ` / ${list.folder_name}` : ''}) — PMO does not track</span>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+        </section>
+      )}
 
       {/* Employed domains section (existing read-only panel) */}
       {Object.keys(domainsByTier).length > 0 && (

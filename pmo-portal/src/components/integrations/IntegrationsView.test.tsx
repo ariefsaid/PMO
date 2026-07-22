@@ -17,8 +17,13 @@ vi.mock('@/src/hooks/useIntegrations', () => ({
   useIntegrations: vi.fn(),
 }));
 
+vi.mock('@/src/hooks/useProjects', () => ({
+  useProjects: vi.fn(),
+}));
+
 import { useExternalDomainOwnership } from '@/src/hooks/useExternalDomainOwnership';
 import { useIntegrations } from '@/src/hooks/useIntegrations';
+import { useProjects } from '@/src/hooks/useProjects';
 
 const mockBinding: IntegrationBinding = {
   org_id: 'org-1',
@@ -76,6 +81,82 @@ const wrapWithRole = (role: string, ui: React.ReactElement) => {
 };
 
 afterEach(() => { vi.clearAllMocks(); cleanup(); });
+
+const bindingMapIntegrations = (overrides: Record<string, unknown> = {}) => ({
+  bindings: [mockBinding],
+  isPending: false,
+  isError: false,
+  isSuccess: true,
+  error: null,
+  refetch: vi.fn(),
+  connect: { mutateAsync: vi.fn(), isPending: false },
+  disconnect: { mutateAsync: vi.fn(), isPending: false },
+  getBinding: vi.fn((tier: string) => (tier === 'clickup' ? mockBinding : undefined)),
+  getHealth: vi.fn().mockResolvedValue(null),
+  clickupLists: [],
+  isListsPending: false,
+  isListsError: false,
+  projectBindings: [],
+  isBindingsPending: false,
+  ...overrides,
+});
+
+const project = (id: string, name: string, archived_at: string | null = null) => ({
+  id, name, archived_at, org_id: 'org-1', status: 'Active', client_id: null,
+  project_manager_id: null, client: null, pm: null,
+});
+
+describe('Admin ClickUp binding map (AC-IEM-013, AC-IEM-016)', () => {
+  beforeEach(() => {
+    vi.mocked(useExternalDomainOwnership).mockReturnValue(baseExternalDomainReturn as any);
+    vi.mocked(useIntegrations).mockReturnValue(bindingMapIntegrations() as any);
+    vi.mocked(useProjects).mockReturnValue({ data: [], isPending: false, isError: false } as any);
+  });
+
+  it('AC-IEM-013 renders bound and PMO-native projects from the exact binding relation', () => {
+    vi.mocked(useProjects).mockReturnValue({ data: [project('p1', 'Harbor Upgrade'), project('p2', 'Office Fitout')] } as any);
+    vi.mocked(useIntegrations).mockReturnValue(bindingMapIntegrations({
+      projectBindings: [{ id: 'b1', org_id: 'org-1', project_id: 'p1', external_tier: 'clickup', external_container_id: 'l1', config: {}, linked_by: null, linked_at: null, disconnected_at: null }],
+      clickupLists: [{ id: 'l1', name: 'Harbor List', space_name: 'Delivery', folder_name: null }],
+    }) as any);
+    wrapWithRole('Admin', <IntegrationsView />);
+    const map = screen.getByTestId('clickup-binding-map');
+    expect(within(map).getByRole('row', { name: /Harbor Upgrade.*Harbor List.*Bound/i })).toBeInTheDocument();
+    expect(within(map).getByRole('row', { name: /Office Fitout.*PMO-native/i })).toBeInTheDocument();
+  });
+
+  it('AC-IEM-016 shows an untracked ClickUp List alongside both PMO project states', () => {
+    vi.mocked(useProjects).mockReturnValue({ data: [project('p1', 'P1'), project('p2', 'P2')] } as any);
+    vi.mocked(useIntegrations).mockReturnValue(bindingMapIntegrations({
+      projectBindings: [{ id: 'b1', org_id: 'org-1', project_id: 'p1', external_tier: 'clickup', external_container_id: 'l1', config: {}, linked_by: null, linked_at: null, disconnected_at: null }],
+      clickupLists: [
+        { id: 'l1', name: 'L1', space_name: 'Space', folder_name: null },
+        { id: 'l2', name: 'L2', space_name: 'Space', folder_name: 'Folder' },
+      ],
+    }) as any);
+    wrapWithRole('Admin', <IntegrationsView />);
+    expect(screen.getByRole('row', { name: /P1.*L1.*Bound/i })).toBeInTheDocument();
+    expect(screen.getByRole('row', { name: /P2.*PMO-native/i })).toBeInTheDocument();
+    expect(within(screen.getByRole('list', { name: 'Untracked ClickUp Lists' })).getByText(/L2/)).toBeInTheDocument();
+    expect(within(screen.getByRole('list', { name: 'Untracked ClickUp Lists' })).getByText(/PMO does not track/)).toBeInTheDocument();
+  });
+
+  it('renders a neutral empty map when ClickUp is active with zero bindings', () => {
+    vi.mocked(useProjects).mockReturnValue({ data: [project('p1', 'P1')] } as any);
+    wrapWithRole('Admin', <IntegrationsView />);
+    expect(within(screen.getByTestId('integrations-connect-cards')).getByText('Active')).toBeInTheDocument();
+    expect(screen.getByTestId('clickup-binding-map-empty')).toHaveTextContent(/No PMO projects are bound to ClickUp yet/i);
+    expect(screen.getByTestId('clickup-binding-map-empty')).not.toHaveClass('text-destructive');
+  });
+
+  it('keeps the PMO map visible when ClickUp Lists are unavailable', () => {
+    vi.mocked(useProjects).mockReturnValue({ data: [project('p1', 'P1')] } as any);
+    vi.mocked(useIntegrations).mockReturnValue(bindingMapIntegrations({ isListsError: true, listsError: new Error('unavailable') }) as any);
+    wrapWithRole('Admin', <IntegrationsView />);
+    expect(screen.getByRole('row', { name: /P1.*Unknown/i })).toBeInTheDocument();
+    expect(screen.getByText(/ClickUp lists are unavailable/i)).toBeInTheDocument();
+  });
+});
 
 describe('AC-EAS-015 the read-only Integrations view renders both states with no write affordances', () => {
   it('AC-EAS-015 (a) empty ownership ⇒ connect cards render with Not connected status, Employed domains section empty', () => {
