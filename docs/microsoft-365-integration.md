@@ -62,7 +62,7 @@ Legend — **Consent:** U=per-user delegated consent · A=org-admin consent · V
 ### 3.2 Documents (OneDrive / SharePoint)
 | Feature | What | Value | Consent | Effort |
 |---|---|---|---|---|
-| **OneDrive doc linking** (link/reference model) | Attach Graph driveItem refs to `project_documents`; Microsoft stays the permission authority | No file duplication; inherits M365 access control | U | M |
+| **OneDrive doc linking** (link/reference model) — 📄 **[SPEC WRITTEN, not built](specs/m365-onedrive-doc-linking.spec.md)** | Attach Graph driveItem refs to `project_documents`; Microsoft stays the permission authority | No file duplication; inherits M365 access control | U | M |
 | In-app browse/preview via Graph | List/preview SharePoint/OneDrive files inside the project | Seamless, but owns token lifecycle | U | L |
 | ~~Import/copy into Supabase Storage~~ | (Rejected for M365 clients — duplicates their source of truth) | — | — | — |
 
@@ -110,6 +110,12 @@ not per-feature.
    JIT-vs-invite). Small, unblocks everything.
 2. **Phase 1 — OneDrive doc linking (link/reference model).** Highest value, lowest risk, follows
    ADR-0055. First real M365 feature in a client's hands.
+   > **Status 2026-07-22:** the *enabling runtime* (Graph token custody) is BUILT + 4-round
+   > security-hardened + MERGED to `dev`, and the Connect UI is wired — see the M365 entry in
+   > [`docs/backlog.md`](backlog.md) for the live state, TBDs and gotchas. The doc-linking feature
+   > itself is **specified but NOT built**: [`docs/specs/m365-onedrive-doc-linking.spec.md`](specs/m365-onedrive-doc-linking.spec.md).
+   > Its build is gated on one **proven live Microsoft connection** (the runtime has never contacted
+   > Microsoft — all tests mock `fetch`), plus the ADR-0060 live security-auditor pass.
 3. **Phase 2 — Teams outbound notifications** (Adaptive Cards over the existing automations tier).
 4. **Phase 3 — Teams actionable approvals + Teams LLM assistant.** The monetizing pair; needs the
    Teams app package (custom-upload per client until store listing).

@@ -38,12 +38,26 @@ Owner rulings: `decisions.md` **OD-SAR-GATES · OD-SAR-PMO-IS-THE-UI · OD-SAR-D
   contaminated read; concurrent heavy dispatches + sibling agents' MCPs + Docker → OOM risk).
 
 ### ⚑⚑ ADAPTER PROGRAM — P2 ERPNext money core ✅ MERGED to dev (#315 squash `b549d06`, 2026-07-14)
-### ⚑⚑ M365 INTEGRATION (2026-07-17) — Phase-0 + Phase-1 token custody BUILT, 4-round security-hardened, PR #333 → `dev` (NOT merged)
-Branch `claude/microsoft-teams-onedrive-integration-f656rx` (worktree `pmo-backend-ig-audit-c393d3`), **PR #333
-retargeted to `dev`** (the old `feat/m365-integration` collector was a stale no-op — 0 commits ahead of dev —
-and is abandoned; delete it). Vision `docs/microsoft-365-integration.md`; ADR-0058/0059/0060; specs
-`docs/specs/m365-phase0-foundation.spec.md` + `m365-phase1-graph-token-custody.spec.md`; plans
-`docs/plans/2026-07-14-m365-phase0-foundation.md` + `2026-07-15-m365-phase1-token-custody.md`.
+### ⚑⚑ M365 INTEGRATION (2026-07-22) — ✅ MERGED to `dev`; dark code, live connect is the next gate
+**Status in one line: the whole backend + the connect UI are on `dev` and green, but the runtime has NEVER
+talked to Microsoft — nothing is user-visible until an Operator entitles an org AND the edge fn is deployed
+with live secrets.**
+
+**Doc map (every M365 doc, so none orphan — read in this order):**
+| Doc | What it is |
+|---|---|
+| [`docs/microsoft-365-integration.md`](microsoft-365-integration.md) | The vision / capability map. Start here. |
+| [ADR-0058 *(m365 variant)*](adr/0058-microsoft-365-integration-architecture.md) | Integration architecture (auth≠authz, two-switch, Graph-follows-ADR-0055) |
+| [ADR-0059 *(entra variant)*](adr/0059-entra-app-registration-topology.md) | Entra app topology — **Option C**, per-client app in the vendor tenant |
+| [ADR-0060](adr/0060-microsoft-graph-token-custody.md) | The 10 binding token-custody controls + the mandatory live security gate |
+| [Phase-0 spec](specs/m365-phase0-foundation.spec.md) · [plan](plans/2026-07-14-m365-phase0-foundation.md) | SSO + entitlement + the card |
+| [Phase-1 spec](specs/m365-phase1-graph-token-custody.spec.md) · [plan](plans/2026-07-15-m365-phase1-token-custody.md) | The token-custody runtime |
+| [**OneDrive doc-linking spec**](specs/m365-onedrive-doc-linking.spec.md) | ⏸️ **NOT BUILT** — the next feature; 22 ACs, `AC-M365DOC-0xx` |
+| [Security audit record](spikes/2026-07-15-m365-phase1-security-audit.md) | All 4 adversarial rounds, verbatim |
+
+**Shipped (merged to `dev`):** PR **#333** (Phase-0 + Phase-1 custody) · **#337** (connect wiring +
+`connection_status`). Branches/collector deleted. Migrations **`0106–0117`**, pgTAP **`0144–0154`**, edge fn
+`supabase/functions/m365-token-custody/`, FE `pmo-portal/src/lib/m365/` + `components/integrations/`.
 - **✅ Phase-0** — Sign in with Microsoft (`azure` OAuth; auth-only, authz stays invited-`profiles`+RLS),
   provisioning hardening (graceful not-provisioned state), `m365_integration` entitlement (Operator switch,
   default-off) + `M365ConnectionCard` (two-switch gate, disabled stub). Battery green (spec APPROVE ·
@@ -75,13 +89,59 @@ and is abandoned; delete it). Vision `docs/microsoft-365-integration.md`; ADR-00
   `ls supabase/migrations | sed -E 's/^([0-9]{4})_.*/\1/' | sort | uniq -d` before merging any branch that
   adds migrations.** Cross-refs rewritten in M365 files only; non-M365 refs (0064/0070/0075/0076/0079/0080)
   + the 32 `AC-M365-1xx` ids verified untouched; `docs/spikes/` deliberately left as the historical record.
-- **⏸️ Owner-gated (NOT done):** live deploy — KEK (`M365_TOKEN_KEK`), `M365_CLIENT_SECRET`/`_ID`/`_TENANT_ID`
-  (a concrete tenant GUID; `common`/`organizations` unsupported), the allowlisted redirect URI, Entra
-  delegated scopes (`Files.Read`+`offline_access`+`openid`+`profile`) w/ admin consent, and a
-  `security-auditor` pass on the LIVE flow (ADR-0060 mandatory gate). FE Connect-button wiring is deferred to
-  that step (wiring a non-deployed fn = a broken affordance). **Residual (owner-accepted):** the FIRST connect
-  is still phishable within-tenant; TOFU bounds it to one event.
-- **Next:** OneDrive doc-linking UI = a SEPARATE downstream spec consuming this runtime (vision §3.2).
+- **✅ Connect UI wired (#337)** — `M365ConnectionCard` is no longer a stub: Connect → `initiate_connect` →
+  **top-level** redirect to Microsoft consent → callback consumed once + query-param cleared → Disconnect
+  behind a destructive `ConfirmDialog`; the whole `M365ErrorCode` taxonomy mapped to human copy; in-flight
+  guard; **no token/`oid`/raw error ever reaches the DOM**. Client transport `src/lib/m365/connectClient.ts`.
+- **✅ `connection_status` action (#337)** — wiring exposed a real defect: `ms_graph_connections` is RLS-forced
+  with ZERO client policies (by design), so the browser could never learn a connection existed and a connected
+  user was permanently shown "Not connected". Added a **read-only** action reusing the identical gate chain
+  (verifyCallerJwt → RLS-scoped org → real-JWT Admin → entitlement), own-row scoped, **explicit column
+  allowlist** `status, connected_at, last_refresh_at, scopes` — ciphertext/`key_id`/`oid`/tenant are never even
+  *read from the DB*, so a future schema column cannot leak by default. No writes, no RPCs, **no locks** (so it
+  cannot perturb the global lock order).
+
+#### ⏸️ TBD — what is NOT done, in dependency order
+1. **Live deploy + ONE proven connection (OWNER-GATED — the real next gate).** Needs: KEK `M365_TOKEN_KEK`;
+   `M365_CLIENT_SECRET`/`_ID`/`_TENANT_ID` — **a concrete tenant GUID** (`common`/`organizations` are
+   unsupported: the callback asserts `id_token.tid === M365_TENANT_ID`, which a wildcard value can never
+   satisfy); the allowlisted redirect URI; Entra delegated scopes `Files.Read`+`offline_access`+`openid`+
+   `profile` with **admin consent**; then `supabase functions deploy m365-token-custody`.
+   **Director recommendation (2026-07-22):** do NOT use a real client's tenant for the first connect. Use an
+   own tenant — an EMPTY one first (proves the mechanics with nothing to damage), then a client-*like* one
+   (real files/permissions/admin-consent = where the real surprises are). ADR-0059 Option C gives every client
+   its own app registration, so testing in one tenant commits nothing to another.
+2. **`security-auditor` pass on the LIVE flow** — ADR-0060 mandatory gate, distinct from the 4 code rounds.
+3. **OneDrive doc-linking** — [spec written, NOT built](specs/m365-onedrive-doc-linking.spec.md). **Build should
+   follow (1)**: it consumes a runtime that has never spoken to Microsoft, so a wrong assumption there reworks
+   both layers.
+4. Later (vision §3.3+): Teams, Outlook/Calendar, in-app browse/preview, Entra-group→role provisioning.
+
+#### ⚑ GOTCHAS — hard-won, do not rediscover
+- **The runtime has NEVER contacted Microsoft.** Every Phase-1 test mocks `fetch`. 4 security rounds + 1,600
+  pgTAP + 5,400 unit tests prove the custody *model* (encryption, RLS, races, deadlocks, lifecycle deletion) —
+  they prove **nothing** about real consent screens, real token payloads, or Graph behaviour. Expect
+  first-live-connect surprises; that is normal and is exactly what gate (1) buys.
+- **`common`/`organizations` will silently never work** — see TBD-1. Use a concrete tenant GUID.
+- **Tests alone would have shipped every one of the 4 security defects** (two Criticals, a reproduced deadlock,
+  and a wrong "deadlock-free" claim by the Director). They ALL passed the happy-path pgTAP *and* the full
+  verify. Adversarial review is what caught them — budget for it on any security-critical surface.
+- **A green "mergeable" does NOT catch duplicate migration numbers** (git compares filenames). Bit this
+  program **twice**. See backlog track **T1** for the proposed CI gate.
+- **A linked OneDrive doc will be a URL, not a token-mediated stream** — Microsoft stays the permission
+  authority, so a linked row must stay visible even when the connection is stale/revoked (spec §3.4).
+- **Our scope gate permitting a Graph path ≠ Microsoft granting it.** `scopeCoversPath` allows GET under
+  `/me/drive`,`/drives`,`/sites` with `Files.Read`; SharePoint libraries still need admin-consented
+  `Files.Read.All`/`Sites.Read.All` or Microsoft 403s (surfaced as `GRAPH_ERROR`).
+- **Two probes exist and must stay green** — `scripts/m365-{race,deadlock}-probe.sh` are two-session concurrency
+  probes with fail-before/pass-after semantics. pgTAP runs in ONE transaction and **cannot** express these races;
+  if you touch the write-guard, the cascade, or the lock order, run the probes, not just the suite.
+- **⚠️ ADR NUMBER COLLISION (debt, not M365-specific):** three ADRs are numbered **0059**
+  (`entra-app-registration-topology`, `external-admin-connect`, `pmo-sot-with-external-side-mirror`) and two are
+  **0058** (`microsoft-365-integration-architecture`, `erpnext-money-idempotency-outbox`) — same root cause as
+  the migration collisions (parallel agents numbering off stale bases). So a bare "ADR-0059" is **ambiguous**;
+  always cite ADRs by *filename* in M365 docs. NOT renumbered here: 0058 is cited in ~55 files and 0059 in ~21,
+  spanning other programs' work — that is an owner-level call, not a side effect of an M365 doc pass.
 
 ### ⚑ H4 GRANTS HARDENING (2026-07-16) — separate branch `fix/revoke-client-truncate-grants` (off `dev`), NOT pushed/PR'd
 Spun out of the M365 Luna audit. Commits `57957091` (Tier 1) + `246be744` (Tier 2). **Root cause was bigger than

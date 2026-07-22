@@ -1,6 +1,16 @@
 # Microsoft 365 integration — Phase 1 (OneDrive / SharePoint Document **Linking**) — spec
 
-- **Status:** Draft for Director/owner review.
+> **⏸️ NOT BUILT (as of 2026-07-22).** This spec is written and awaiting owner sign-off; **no code exists for
+> it**. Its enabling runtime (Graph token custody) IS built, security-hardened and merged to `dev`.
+> **Build is gated on ONE proven live Microsoft connection** — the runtime has never contacted Microsoft
+> (all tests mock `fetch`), so building this on top first would risk reworking both layers. Live state, TBDs
+> and gotchas: the M365 entry in [`docs/backlog.md`](../backlog.md). Parent: the
+> [vision §3.2](../microsoft-365-integration.md).
+>
+> ⚠️ **Cite ADRs by filename, not number** — three ADRs share the number 0059 and two share 0058 (a
+> known repo-wide collision, see the M365 gotchas in the backlog).
+
+- **Status:** Draft for Director/owner review — **NOT BUILT**.
 - **Controlling ADRs (ACCEPTED, binding):** [ADR-0058](../adr/0058-microsoft-365-integration-architecture.md)
   (integration architecture — Graph data follows the ADR-0055 external-adapter pattern; auth≠authz;
   two-switch entitlement), [ADR-0059](../adr/0059-entra-app-registration-topology.md) (Entra app
