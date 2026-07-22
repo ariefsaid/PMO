@@ -4,6 +4,30 @@
 [`docs/history.md`](history.md) (don't read it for status). Locked owner-decisions are in
 `docs/decisions.md` (OD-* lookup by id). Roadmap framing in `docs/roadmap-spines.md`.
 
+### ⚑ CANDIDATE PROGRAM (2026-07-22) — RIS-parity + CRM-v2 (analysis done, OWNER GRILL PENDING)
+Source: [`docs/reviews/2026-07-22-competitive-refresh-ris-cicle.md`](reviews/2026-07-22-competitive-refresh-ris-cicle.md)
+(four-way comparison: PMO main+dev vs our own RIS-portal-2 vs KANNA-recheck vs Cicle; moat thesis §1).
+**Prereq: land the `dev` integrations program on `main` first** — no new program starts before it ships.
+Then, per the standard series loop (grill → spec → …), the candidate queue:
+- **Batch A — approvals governance (spine 2, RIS parity):** A1 value-threshold **approval limits**
+  (high-value → Executive, Admin-config, server-enforced) [M] · A2 **mandatory rejection comment** +
+  submitter notification (timesheets + procurement; verified absent) [S] · A3 **bulk procurement
+  approve/reject** (timesheets already bulk) [S] · A4 **edit-and-approve** (audited) [S–M].
+- **Batch B — finance depth (spine 4, rides ERPNext P3 read-backs):** B1 **AP aging** (symmetric to
+  P3a AR) [M] · B2 **cash-flow forecast** card (overlaps OD-W5-5 cash-position domain — spec together)
+  [M] · B3 **budget baseline/version comparison** (variance vs original) [M].
+- **Batch C — timesheet ergonomics:** copy-last-week + recent-projects quick-add [S].
+- **Batch D — CRM v2 (spine 5 as the front of the thread, NOT horizontal CRM):** D1 ⭐ **M365
+  email/meeting capture → CRM activities** (rides `dev` Graph token custody; flagship) [M–L] ·
+  D2 **next-action/follow-up reminders** → notification inbox + agent automations [M] · D3 **weighted
+  pipeline forecast** (stage-probability × value; verified absent) [S] · D4 **win/loss reasons +
+  analytics** (verified absent) [S–M] · D5 **tender/bid tracking** on the pipeline lens [M–L] ·
+  D6 **agent CRM assists** (draft follow-ups, account summary; after D1/D2) [S].
+- **Owner decisions needed at grill:** (a) batch order A→B→C→D vs interleaving D3/D4 quick wins;
+  (b) R9 **id-ID/IDR localization** — market call (KANNA + Cicle are both Bahasa-first); (c) confirm
+  deprioritized set: in-house chat/video (Cicle turf — stays parked Big-track), field photos/forms
+  (KANNA turf), offline/native mobile.
+
 ### ⚑⚑ ADAPTER PROGRAM (2026-07-10) — P0 seam SHIPPED to dev; P1 ClickUp in flight
 - **✅ P0 external-adapter seam MERGED to `dev`** (PR #299, `2cbacd5`; ADR-0055): migrations
   `0087–0090` (ownership switch + refs + watermarks + reference read-model w/ RLS write-flip),
