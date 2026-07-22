@@ -187,6 +187,28 @@ Next free number is **0142**.
 
 ## 4. What is still NOT built (filesystem inventory, not plan checkboxes)
 
+> ⚑ **The P3b/P3c plan HEADERS say "NOT STARTED" and are WRONG** — the cores are built. Plan checkboxes
+> and headers have been unreliable in BOTH directions all program. Everything below was verified by
+> reading code/filesystem on 2026-07-22.
+
+### P3b slice 6 — re-verified 2026-07-22 (the earlier "partial" was imprecise)
+- ✅ **6.2 never-adopt** — `native-timesheet-not-adopted` in `_shared/erpnextFeedDeps.ts`.
+- ✅ **6.3 desk-cancel reopen** — AC-TSP-040 + AC-TSP-041 proven in `_shared/erpnextFeedDeps.test.ts`.
+- ❌ **6.4 the TIMESHEET sweep backstop** (FR-TSP-045 → AC-TSP-022). `grep
+  'reconcileOrgTimesheetPushes|timesheetBackstop'` in `erpnext-sweep/` returns NOTHING. Budget got its
+  backstop (P3c slice 5); timesheets never did.
+  **⚑ Why this is a money gap, not missing coverage:** the timesheet push then has exactly ONE
+  originator (the Approvals UI). A push that fails after the browser dies is **stranded with no
+  automatic recovery** — the same class as budget's HIGH-C, which audit round 3 rated HIGH. The
+  operator Retry affordance (`usePushesNeedingAttention`) is a manual path, not a backstop.
+- ❌ **6.5 webhook trust boundary for the new kinds** (FR-TSP-081 → AC-TSP-042, "stale/out-of-order
+  events are no-ops"). No AC-TSP-042 proof exists — only 040 and 041 are present. Spec §1024 assigns it
+  to `erpnext-webhook/index.test.ts` + `_shared/erpnextFeedDeps.test.ts`.
+  **Note:** the staleness guard this AC tests (`readMirrorSourceMod`) was BROKEN by the `.eq('id')`
+  defect until round-1 HIGH-1 fixed it — so this AC may never have been provable, which is likely why
+  it was skipped.
+
+
 Verified by reading the tree, because the plans' own checkboxes were wrong.
 
 **P3b remaining:** slice 5 (partial — `can()` gates were B2's, verify they landed), slice 6 (feed
