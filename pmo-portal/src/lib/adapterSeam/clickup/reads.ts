@@ -228,3 +228,28 @@ export async function clickUpGetByExternalId(
     throw err;
   }
 }
+
+/**
+ * The WORKER's re-GET (OD-INT-11, 2026-07-20): `GET /task/{id}` returning the RAW `ClickUpTask` — not
+ * the mapped canonical `clickUpGetByExternalId` returns — because the worker needs fields the mapping
+ * discards: `list.id` (binding resolution, never the payload's nonexistent `list_id`), `date_updated`
+ * (the source-mod cursor, never on a webhook payload), and `archived`. `null` on a 404 (the task no
+ * longer exists — the caller collapses this to the same tombstone-if-mapped path as a `taskDeleted`).
+ * Interactive lane (`priority: 'interactive'` default omitted ⇒ `'bulk'` is NOT used here — this is a
+ * single-row, latency-sensitive webhook-worker read, not a bulk sweep page).
+ */
+export async function clickUpGetTaskRaw(
+  taskId: string,
+  deps: ClickUpClientDeps,
+): Promise<ClickUpTask | null> {
+  try {
+    return (await clickUpRequest(deps, {
+      method: 'GET',
+      path: `/task/${taskId}`,
+      priority: 'interactive',
+    })) as ClickUpTask;
+  } catch (err) {
+    if (err instanceof ClickUpHttpError && err.status === 404) return null;
+    throw err;
+  }
+}

@@ -83,12 +83,15 @@ describe('external-connect — ClickUp branch', () => {
         // 2026-07-17). We already call this to validate the token — now we also persist the id (the
         // echo-loop guard's actor id, item 4 of the read-hygiene fix).
         clickup('/api/v2/user', () => jsonResponse({ user: { id: 123, username: 'test-user' } })),
+        clickup('/api/v2/team', () => jsonResponse({ teams: [{ id: 'team-123' }] })),
 
+        // Both identities land in ONE atomic patch: clickup_actor_id arms the echo-loop guard,
+        // clickup_team_id lets the webhook worker resolve the org before any ClickUp call.
         supabaseRpc('merge_external_org_binding_config', (call) => {
           const body = call.bodyJson as Record<string, unknown>;
           assertEquals(body.p_org_id, 'org-1');
           assertEquals(body.p_external_tier, 'clickup');
-          assertEquals(body.p_patch, { clickup_actor_id: '123' });
+          assertEquals(body.p_patch, { clickup_actor_id: '123', clickup_team_id: 'team-123' });
           return jsonResponse(null);
         }),
       ],
@@ -121,6 +124,7 @@ describe('external-connect — ClickUp branch', () => {
         supabaseRpc('admin_change_domain_ownership', () => jsonResponse(null)),
 
         clickup('/api/v2/user', () => jsonResponse({ user: { id: 456, username: 'operator-user' } })),
+        clickup('/api/v2/team', () => jsonResponse({ teams: [{ id: 'team-456' }] })),
 
         supabaseRpc('merge_external_org_binding_config', () => jsonResponse(null)),
       ],
@@ -176,11 +180,15 @@ describe('external-connect — ClickUp branch', () => {
         // (the token itself validated fine, res.ok); it only means the echo-loop guard can't be armed
         // for this org until a later reconnect gets a well-formed response.
         clickup('/api/v2/user', () => jsonResponse({ user: {} })),
+        clickup('/api/v2/team', () => jsonResponse({ teams: [{ id: 'team-789' }] })),
+
+        supabaseRpc('merge_external_org_binding_config', () => jsonResponse(null)),
       ],
       async ({ calls }) => {
         const res = await handleConnectRequest(await authed({ tier: 'clickup', credential: { token: 'valid-token' } }));
         assertEquals(res.status, 200);
         assertEquals(rpcCall(calls, 'create_vault_secret_for_org').length, 1);
+        // No client-side read-then-write on the config jsonb — the atomic RPC is the only path.
         assertEquals(restCall(calls, 'external_org_bindings', 'PATCH').length, 0);
       },
     );

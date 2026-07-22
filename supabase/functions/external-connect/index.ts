@@ -135,6 +135,21 @@ async function validateClickUpToken(
   }
 }
 
+async function validateClickUpTeam(token: string, deps: ValidatorDeps): Promise<string> {
+  const res = await deps.fetchImpl('https://api.clickup.com/api/v2/team', {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new AppError('Unable to resolve ClickUp workspace', 'config-rejected');
+  try {
+    const body = (await res.json()) as { teams?: Array<{ id?: number | string }> };
+    const id = body.teams?.[0]?.id;
+    if (id === undefined || id === null || String(id) === '') throw new Error('missing team id');
+    return String(id);
+  } catch {
+    throw new AppError('Unable to resolve ClickUp workspace', 'config-rejected');
+  }
+}
+
 async function validateErpNextCredentials(
   siteUrl: string,
   apiKey: string,
@@ -306,6 +321,7 @@ export async function handleConnectRequest(req: Request): Promise<Response> {
   // 6. Validate credential against external system BEFORE any Vault write
   const validatorDeps = { fetchImpl: fetch };
   let clickUpUserId: string | null = null;
+  let clickUpTeamId: string | null = null;
   try {
     if (tier === 'clickup') {
       const token = credential.token;
@@ -313,6 +329,7 @@ export async function handleConnectRequest(req: Request): Promise<Response> {
         return errorResponse('ClickUp token is required', 'BAD_REQUEST', 400);
       }
       clickUpUserId = await validateClickUpToken(token, validatorDeps);
+      clickUpTeamId = await validateClickUpTeam(token, validatorDeps);
     } else {
       const { siteUrl, apiKey, apiSecret } = credential;
       if (!siteUrl || !apiKey || !apiSecret) {
@@ -376,15 +393,23 @@ export async function handleConnectRequest(req: Request): Promise<Response> {
     // item 4 of the read-hygiene fix). Non-fatal, same stance as the ownership RPC above — the
     // binding is already created; a failure here just means the guard can't be armed yet. The
     // security-definer RPC merges this patch in the database statement, so a concurrent writer
-    // cannot clobber clickup_team_id, statusMap, memberMap, or any future sibling key.
-    if (clickUpUserId !== null) {
+    // cannot clobber statusMap, memberMap, or any future sibling key (that read-then-write race
+    // was a MEDIUM audit finding — never reintroduce a client-side merge here).
+    //
+    // Both identities are persisted in ONE patch: `clickup_actor_id` arms the echo-loop guard, and
+    // `clickup_team_id` is what lets clickup-webhook-worker resolve the org from a delivery's
+    // `team_id` BEFORE it makes any ClickUp call — the fix for the global-token HIGH.
+    const configPatch: Record<string, unknown> = {};
+    if (clickUpUserId !== null) configPatch.clickup_actor_id = clickUpUserId;
+    if (clickUpTeamId !== null) configPatch.clickup_team_id = clickUpTeamId;
+    if (Object.keys(configPatch).length > 0) {
       const { error: configError } = await serviceClient.rpc('merge_external_org_binding_config', {
         p_org_id: profile.org_id,
         p_external_tier: 'clickup',
-        p_patch: { clickup_actor_id: clickUpUserId },
+        p_patch: configPatch,
       });
       if (configError) {
-        console.error('external_org_bindings clickup_actor_id persist failed', configError);
+        console.error('external_org_bindings clickup identity persist failed', configError);
       }
     }
   }
