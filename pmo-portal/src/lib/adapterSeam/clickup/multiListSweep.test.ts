@@ -82,6 +82,19 @@ function makeFakeDeps(overrides: Partial<MultiListSweepDeps> = {}) {
   return { deps, watermarks, unhealthy, minted, updated, archived, mirrorByExternalId, mirrorProjectByPmoId, sourceModByPmoId };
 }
 
+describe('AC-CUA-104: the reconciliation sweep enumerates only bound Lists', () => {
+  it('zero bound Lists performs no ClickUp reads or mirror work', async () => {
+    const fetchImpl = vi.fn(async () => new Response(JSON.stringify({ tasks: [] }), { status: 200 }));
+    const harness = makeFakeDeps({ clientDeps: { fetchImpl: fetchImpl as unknown as typeof fetch, token: 't' } });
+
+    const result = await runMultiListSweep({ ...harness.deps, bindings: [] });
+
+    expect(fetchImpl).not.toHaveBeenCalled();
+    expect(harness.minted).toEqual([]);
+    expect(result).toMatchObject({ applied: 0, archived: 0, perList: [] });
+  });
+});
+
 describe('SEC-HIGH-1: each bound List advances on its OWN watermark, independent of a sibling List', () => {
   it('a 404d List keeps its watermark UNTOUCHED while a healthy sibling List still advances', async () => {
     const fetchImpl = vi.fn(async (url: string) => {
