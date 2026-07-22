@@ -242,15 +242,18 @@ test('renumber FAILS LOUDLY when the reference sweep silently does nothing', () 
     const src = fs.readFileSync(script, 'utf8');
     // Neuter the rewrite (simulates the zsh word-split no-op) while leaving the
     // guard intact.
-    const mutated = src.replace(/^\s*sed -E -i ''.*$/m, '  : # sabotaged rewrite');
+    const mutated = src.replace(/^\s*sed -E "s\/.*$/m, '  : # sabotaged rewrite');
     assert.notEqual(mutated, src, 'mutation did not apply — test would be vacuous');
     fs.writeFileSync(script, mutated);
     git(dir, 'add', '-A');
     git(dir, 'commit', '-qm', 'sabotage');
 
-    const { code, stderr } = runRenumber(dir, '0050', '0052');
-    assert.notEqual(code, 0, 'a no-op sweep MUST fail, not report success');
-    assert.match(stderr, /SURVIVED the sweep/);
+    const { code, stdout, stderr } = runRenumber(dir, '0050', '0052');
+    assert.notEqual(code, 0,
+      `a no-op sweep MUST fail, not report success.\nstdout: ${stdout}\nstderr: ${stderr}`);
+    // Either guard is an acceptable catch: the sweep left references behind, or
+    // it was about to write an empty file back over a real one.
+    assert.match(stderr, /SURVIVED the sweep|refusing to truncate/);
   });
 });
 

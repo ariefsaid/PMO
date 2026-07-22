@@ -128,9 +128,27 @@ git mv "$OLD_FILE" "$NEW_FILE"
 # Boundary (^|[^[:digit:]]) so a 5-digit token like 10050_ is NOT touched. -I
 # skips binaries; -z NUL-separates paths for `read -d ''`.
 echo "renumber-migration: rewriting '${OLD}_' references -> '${NEW}_' ..."
+# In-place edit WITHOUT `sed -i`: the suffix argument is incompatible between BSD
+# sed (`-i ''`, macOS) and GNU sed (`-i`, Linux/CI) — `-i ''` makes GNU sed read an
+# empty script and treat the expression as a filename, so it fails outright. Caught
+# by CI, which runs Linux while this was only ever tested on macOS. Writing through
+# a temp file and `cat`-ing back is portable AND preserves the original file's mode
+# and inode (a `mv` would replace both).
 rewrite_one() {
-  local f="$1"
-  sed -E -i '' "s/(^|[^0-9])${OLD}_${SLUG}/\1${NEW}_${SLUG}/g" "$f"
+  local f="$1" tmp
+  tmp="$(mktemp)"
+  sed -E "s/(^|[^0-9])${OLD}_${SLUG}/\1${NEW}_${SLUG}/g" "$f" > "$tmp"
+  # Never write back an empty result. Every file we touch here is non-empty by
+  # definition (git grep matched content in it), so an empty temp means sed did
+  # not run or produced nothing — and `cat` would then TRUNCATE the original.
+  # Silently emptying a source file while reporting success is the worst possible
+  # outcome for this script; fail instead. (Found by mutation-testing the sweep.)
+  if [ ! -s "$tmp" ]; then
+    rm -f "$tmp"
+    die "rewrite produced EMPTY output for $f — refusing to truncate it"
+  fi
+  cat "$tmp" > "$f"   # `cat >` not `mv`: preserves the original mode and inode
+  rm -f "$tmp"
 }
 while IFS= read -r -d '' f; do
   rewrite_one "$f"
