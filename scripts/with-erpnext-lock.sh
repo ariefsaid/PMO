@@ -12,6 +12,15 @@
 #   scripts/with-db-lock.sh scripts/with-erpnext-lock.sh scripts/serve-functions.sh -- \
 #     npx playwright test e2e/AC-ENA-053-*
 #
+# Cooperative: it only works if ALL agents route ERPNext work through it. The lock
+# is an ADVISORY fcntl.flock (kernel-released on exit; no stale lock). macOS has no
+# flock(1), hence python3 (stdlib fcntl). The flock core lives in
+# scripts/lib/flock-run.sh.
+#
+# ── ACQUISITION ORDER (machine-global, outermost first): db -> erpnext -> test ──
+# This lock sits BETWEEN the db lock (outer) and the test lock (inner). Acquire db
+# first, then this, then test — never the reverse (see scripts/lib/flock-run.sh).
+#
 #   PMO_ERPNEXT_LOCK          override the lock path (default ~/.pmo-erpnext.lock)
 #   PMO_ERPNEXT_LOCK_TIMEOUT  seconds to wait before giving up (default: wait forever)
 set -euo pipefail
@@ -24,31 +33,6 @@ if [ "$#" -eq 0 ]; then
   exit 2
 fi
 
-exec python3 -c '
-import fcntl, os, sys, time, subprocess
-lock_path = sys.argv[1]
-timeout = float(sys.argv[2])
-cmd = sys.argv[3:]
-joined = " ".join(cmd)
-f = open(lock_path, "w")
-t0 = time.time()
-if timeout > 0:
-    while True:
-        try:
-            fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            break
-        except BlockingIOError:
-            if time.time() - t0 > timeout:
-                sys.stderr.write("[erpnext-lock] gave up after %.0fs waiting for %s\n" % (timeout, lock_path))
-                sys.exit(75)  # EX_TEMPFAIL
-            time.sleep(1)
-else:
-    sys.stderr.write("[erpnext-lock] waiting for the shared ERPNext dev bed (%s)...\n" % lock_path)
-    fcntl.flock(f, fcntl.LOCK_EX)  # blocks; kernel releases it when this process exits
-waited = time.time() - t0
-sys.stderr.write("[erpnext-lock] ACQUIRED (waited %.0fs) - running: %s\n" % (waited, joined))
-f.write("pid=%d started=%s\n" % (os.getpid(), time.strftime("%H:%M:%S"))); f.flush()
-rc = subprocess.call(cmd)  # inherits stdio (real stdin), lock held for its whole lifetime
-sys.stderr.write("[erpnext-lock] released (rc=%d)\n" % rc)
-sys.exit(rc)
-' "$LOCK" "$TIMEOUT" "$@"
+DIR="$(cd "$(dirname "$0")" && pwd)"
+exec "$DIR/lib/flock-run.sh" "erpnext-lock" "$LOCK" "$TIMEOUT" "PMO_ERPNEXT_LOCK_HELD" \
+  "the shared ERPNext dev bed" -- "$@"
