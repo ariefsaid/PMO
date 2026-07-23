@@ -129,6 +129,24 @@ begin
     -- seam (a `committed` row whose mirror finalize has not run — Luna f1) AND a bare `pending` (a
     -- queued push still claimable/POSTable while this re-open commits — Luna f2). `failed`/`confirmed`
     -- are terminal ⇒ do not block (a rejected push minted no document).
+    --
+    -- ⚑ WHAT MAKES `failed` SAFE TO ADMIT, AND THE ONE POPULATION IT DOES NOT COVER (Luna round-3
+    -- SHOULD-FIX 5). For a timesheet command written by THIS release, `failed` means the failure
+    -- happened BEFORE or AT the ERP submit — a rejection, which leaves no document. Everything after
+    -- the submit is classified `external-unreachable` and stays non-terminal (`postSubmitUnknown`,
+    -- `erpnext/adapter.ts`), so it is caught by the check above. That invariant is what this arm
+    -- leans on, and it holds only forward.
+    --
+    -- A row written by the PRE-0151 code carries no such guarantee: an ERP submit that succeeded and
+    -- whose read-back failed was marked terminal `failed` with a `ts_number`-less mirror row — i.e.
+    -- indistinguishable HERE from a clean rejection, while ERPNext holds a live Timesheet. This
+    -- migration deliberately ships NO data treatment for that population: their true ERP outcome is
+    -- not knowable from PMO state, and reclassifying historical money rows on a guess is worse than
+    -- naming the gap. THE DISPOSITION IS EXPLICIT: pre-0151 `failed` timesheet rows stay terminal,
+    -- this arm will ADMIT a re-open for them, and an OPERATOR must establish what ERP holds before
+    -- trusting that admit. The census + the operator's action are named in
+    -- `docs/plans/2026-07-23-timesheet-reopen-unpushed.md` §9 ("Pre-0151 residue"); an environment
+    -- that never ran the P3b push before this migration has an empty census and nothing to do.
     if exists (select 1 from public.external_command_outbox o
                  where o.org_id = v_org and o.domain = 'timesheets'
                    and o.pmo_record_id = p_timesheet_id::text

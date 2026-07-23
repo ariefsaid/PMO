@@ -308,3 +308,54 @@ All spike-gated served-fn e2e (AC-TSC-011/041/082) and every ERP-list oracle ass
   intent-branch — all extension points, none migrated away. (F4.)
 - ✅ Authority is the approver population + Admin, never the owner, RPC-enforced + pgTAP-proven (T1/T4, F1).
 - ✅ One migration (`0151`); 0152 unused; 0153/0154 untouched.
+
+## 9. Pre-0151 residue — the one population the precondition cannot judge (Luna round-3 SHOULD-FIX 5)
+
+**The disposition, stated rather than left silent: pre-0151 `failed` timesheet outbox rows stay
+terminal, the re-open arm WILL admit them, and an operator — not this migration — must establish what
+ERP holds. No data migration reclassifies them; see below for why that is the call.**
+
+**Why the arm can admit `failed` at all (forward).** For a command written by this release, `failed`
+means the failure happened before or at the ERP submit — a rejection, which leaves no document.
+Everything after the submit is classified `external-unreachable` and stays non-terminal
+(`postSubmitUnknown`, `pmo-portal/src/lib/adapterSeam/erpnext/adapter.ts`), so the non-terminal check
+in §A catches it. The invariant holds only forward.
+
+**The gap.** A row written by the PRE-0151 code had no such classification: an ERP submit that
+succeeded and whose read-back then failed was marked terminal `failed`, and its mirror row carries no
+`ts_number`. In PMO state that is indistinguishable from a clean rejection, so the re-open predicate
+admits `Approved → Draft` while ERPNext holds a live, submitted Timesheet — and the corrected week
+posts a second one.
+
+**Why no data migration.** PMO cannot tell the two shapes apart from its own state — the distinguishing
+fact lives in ERPNext. A migration that "upgraded" these rows would be guessing about money: mark them
+all non-terminal and every genuinely-rejected week is blocked from re-open with no route out (the
+release RPC does not apply to `failed`); mark them adopted and PMO claims documents that may not exist.
+Reclassifying historical money state on an unverifiable guess is worse than naming the gap, so this
+slice names it.
+
+**The census (run per environment BEFORE relying on the re-open edge).** An environment that never ran
+the P3b timesheet push (migrations `0136`/`0138`) before `0151` has an empty census and nothing to do —
+which is the expected answer wherever the P3b train and `0151` deploy together.
+
+```sql
+-- Pre-0151 terminal-failed timesheet pushes whose ERP outcome PMO cannot prove.
+-- Replace the boundary with the timestamp at which 0151 was applied in THIS environment.
+select o.org_id, o.pmo_record_id as timesheet_id, o.idempotency_key, o.created_at, o.last_error,
+       m.push_state, m.ts_number
+  from public.external_command_outbox o
+  left join public.timesheet_erp_mirror m
+    on m.org_id = o.org_id and m.timesheet_id = o.pmo_record_id::uuid
+ where o.domain = 'timesheets'
+   and o.state  = 'failed'
+   and o.created_at < '<0151-applied-at>'::timestamptz
+   and (m.ts_number is null)
+ order by o.created_at;
+```
+
+**The operator's action for each row returned.** Look the week up in the ERPNext Desk by the sheet's
+employee + week (the push stamps the idempotency key into the Timesheet `note` field, so
+`note like '%ts:<timesheet_id>:%'` finds it directly). Then either: (a) ERP holds a submitted Timesheet
+⇒ do NOT re-open in PMO — the week is Slice B's cancel path, and until Slice B exists the correction is
+an ERPNext-Desk cancel followed by a PMO re-open; or (b) ERP holds nothing ⇒ the row is a true
+rejection and the ordinary re-open is safe.
