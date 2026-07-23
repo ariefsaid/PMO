@@ -33,6 +33,17 @@
   post-submit for an anchorless kind (operator-held instead), or give those kinds a durable ERP recovery
   anchor; recover a `submit` by its persisted `externalRecordId`, never by the transition key.
 
+- **⚑⚑ CROSS-LANE MERGE HAZARD (2026-07-24) — BOTH FU-1a and FU-2 modify `release_outbox_hold`.**
+  Not a migration-NUMBER clash (those are deconflicted: dev=0150, FU-1a=0151/0152/0155(+r7 0156),
+  FU-2=0153/0154). This is a SEMANTIC clash on one shared RPC: FU-1a's `0152` rewrote
+  `release_outbox_hold`'s BODY to also CAS the timesheet mirror `held→failed`; FU-2 changed its SIGNATURE
+  to `release_outbox_hold(..., p_expected_domain text default null)` and body to verify domain. Whichever
+  lane's migration applies LAST re-defines the function and **silently drops the other lane's change**
+  unless reconciled. ⚑ At the SECOND lane's merge to dev: rebase, and hand-merge the function so the final
+  definition carries BOTH the timesheet-mirror release AND the expected-domain param. A pgTAP that asserts
+  a timesheet release still frees the mirror AND a cross-domain release is refused proves the reconciliation.
+  Neither lane is pushed yet, so there is time — do NOT merge the second PR without this reconcile.
+
 ### ⚑⚑⚑ BACKLOG STALENESS AUDIT (2026-07-23) — READ BEFORE ACTING ON ANY OLDER ENTRY
 
 A read-only agent verified 24 long-running entries **against `origin/dev` by CONTENT** (never by branch
