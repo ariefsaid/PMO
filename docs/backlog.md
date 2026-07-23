@@ -17,6 +17,22 @@
   candidates through a finalize-only recovery path, and test both committed-with-mirror and
   committed-without-mirror crashes.
 
+- **⚑ NEW (2026-07-23, Luna FU-1a round-3 BLOCK 1 + SF3/SF4) — anchorless submittable kinds have NO
+  recovery identity, so an unknown post-submit can DOUBLE-COMMIT.** `doctypeRegistry.ts` gives Purchase
+  Order `anchorField: null`. If a PO's POST+submit succeed and the post-submit read is unreachable, the
+  recovery probe finds nothing and `reissueOnInconclusiveAbsence` permits a fresh commit — the adapter
+  creates and submits `PO-2` while `PO-1` is live: **two purchase commitments on the client's ERP**, with
+  PMO's mapping pointing at the second. Related: (SF3) a permanent post-submit MAPPING error (e.g. a
+  non-numeric `grand_total` in the read-back) becomes an endless in-flight recovery loop, because the
+  probe re-runs the same failing mapper; (SF4) Sales Invoice `transition/submit` recovers using the
+  transition's own idempotency key, which is never stamped on the document, so it re-`PUT`s
+  `docstatus=1` against an already-submitted invoice and leaves the mirror at Draft while revenue is
+  posted. Evidence in `docs/reviews/2026-07-23-luna-fu1a-round3.md` findings 1, 3, 4.
+  **PRE-EXISTING (P2/P3a), deliberately NOT fixed in FU-1a** — that slice narrowed its post-submit change
+  to the `timesheets` domain precisely to avoid carrying this. Fix: never auto-reissue an unknown
+  post-submit for an anchorless kind (operator-held instead), or give those kinds a durable ERP recovery
+  anchor; recover a `submit` by its persisted `externalRecordId`, never by the transition key.
+
 ### ⚑⚑⚑ BACKLOG STALENESS AUDIT (2026-07-23) — READ BEFORE ACTING ON ANY OLDER ENTRY
 
 A read-only agent verified 24 long-running entries **against `origin/dev` by CONTENT** (never by branch
