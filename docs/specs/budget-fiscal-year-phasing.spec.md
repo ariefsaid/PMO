@@ -652,6 +652,16 @@ writing year 2's mirror. This round binds the whole chain:
   domain (zero change) and accept `outbox_identity` for the budget domain. The foreground dispatch, the
   served boundary, the sweep reconcile, the sweep backstop, the mirror writer, the `external_refs` writer,
   the create-guard, the inbound feed, and authorization shall all be updated together.
+- **FR-BFY-037 (event-driven — existing ERP mapping continuity)** — When the migration encounters a
+  pre-existing budget-domain mapping under the bare `<budget_version_id>`, it shall retain the existing
+  `budget_version_erp_mirror` row(s) and their recorded `fiscal_year`/ERP pointer, and deterministically
+  update the corresponding `external_refs` and any `external_command_outbox` row(s) in place to
+  `<budget_version_id>:<encoded_fiscal_year>`; it shall not delete, replace, or invent an ERP object or
+  pointer. A row whose fiscal year cannot be recovered unambiguously from PMO-held mirror data shall fail
+  closed before any rewrite and name the row/version. Afterward, re-activation shall resolve the retained
+  mapping and shall never dispatch `create` for a project-year already held by ERPNext. ERPNext is dark
+  outside the local bench today, so the real population is the bench plus demo data; this is blast-radius
+  context, not an exemption.
 - **FR-BFY-038 (event-driven, finding 3)** — When the inbound feed resolves a budget `external_refs` row
   to a year-qualified `pmo_record_id`, it shall **parse the bare `budget_version_id`** out
   (`budgetVersionIdOf(outbox_identity)`) before any `.eq('budget_version_id', …)` lookup, so a Desk cancel
@@ -713,6 +723,14 @@ writing year 2's mirror. This round binds the whole chain:
   `unmapped_categories` / `erp_budget_name` / `fiscal_year` / `pushed_at` / `hold_releasable` /
   `stale_attribution`. The repository shall return an **array**; the page shall render every expected year;
   retry/release shall take a **validated fiscal-year** argument.
+- **FR-BFY-057 (state-driven — stale NULL attribution after date drift)** — While an Active version has
+  NULL line items and a successful mirror records a fiscal year/span, the projection shall compare the
+  project's **current fiscal-year span** with the fiscal-year span represented by that mirror witness. If
+  the current span now covers more years than the recorded single-FY attribution, it shall fail closed:
+  NULL lines shall contribute to no fiscal year, `attribution_known` shall be false for affected categories,
+  and budget-derived values shall be NULL. The surface shall explain that the attribution is stale because
+  project dates changed and name the actionable fix: **phase these lines**. It shall not manufacture a split
+  (ADR-0048/F2).
 
 ### Never fight the operator (finding 7)
 - **FR-BFY-076 (event-driven)** — Before the adapter amends a live (docstatus=1) ERP `Budget` on the
@@ -918,6 +936,14 @@ Produced by `grep -rn "budget_line_items\|budget_version_erp_mirror\|dispatchBud
   `create` for `<vid>:<fy>` is BLOCKED by the mapped-record guard. *(Mutation: if re-key were a NEW INSERT
   leaving the orphan, or skipped, the guard PASSES a duplicate → red.)* (FR-BFY-035)
   *Structurally unable to see: live ERP one-vs-two Budgets — owned by AC-BFY-011/012.*
+- **AC-BFY-031** — A pre-existing mapped ERP Budget remains singular after identity migration and re-activation.
+  **[e2e]** **Given** a budget pushed before this issue, with its real old bare mapping and mirror-derived
+  fiscal year, **When** the migration runs and the same version is re-activated through the real served
+  boundary, **Then** PMO still resolves the SAME ERP Budget and ERP contains exactly one Budget on the
+  project-year grain (not a second Budget under the new identity). *(Mutation: if the old mapping were
+  orphaned or the create guard passed, the ERP-state count or retained pointer assertion fails.)*
+  **Audit-program limit:** this AC cannot see malformed/unrecoverable migration rows or the migration fence;
+  those are owned by AC-BFY-020 and the release runbook. (FR-BFY-037)
 - **AC-BFY-020** — The migration preflight FAILS CLOSED on unrecoverable rows. **[pgTAP]**
   **Given** (a) a bare `external_refs` row whose version has >1 mirror FY, (b) a bare row with no mirror,
   (c) an already-year-qualified row, (d) an outbox key not parseable as `bud:<vid>:<epochMs>`,
@@ -994,6 +1020,16 @@ Produced by `grep -rn "budget_line_items\|budget_version_erp_mirror\|dispatchBud
   X would print `-EAC` → red; an independent oracle recomputes both.)* (FR-BFY-054, 055)
   *Structurally unable to see: the JS oracle — owned by a Vitest twin AC that feeds `attributionKnown:false`
   and asserts variance NULL.*
+- **AC-BFY-032** — A formerly single-FY pushed budget fails closed after the project expands into a second
+  fiscal year. **[pgTAP]** **Given** a real pushed all-NULL single-FY version with a non-NULL mirror span
+  witness, **When** the project's current dates are extended into FY2 and the projection/status RPCs run,
+  **Then** the current span no longer matches the mirror's recorded single-FY attribution, NULL lines
+  contribute to neither FY, affected categories have `attribution_known=false` and NULL variance/utilization,
+  and status explains that the operator must phase these lines. *(Mutation: if projection continued
+  attributing to FY1, FY1 would show the whole budget; if it split into FY2, the fabricated allocation
+  assertion fails.)* **Audit-program limit:** this AC cannot see the live ERP calendar or sweep replay;
+  those are owned by the gate/sweep ACs. (FR-BFY-057, 053, 055)
+
 - **AC-BFY-024** — `on_record` excludes failed/held rows. **[pgTAP]**
   **Given** a year with ONLY a `failed` mirror row (no phased line, no `pushed` row) and a category with
   actuals but no line, **When** `get_budget_projection(p, that year)` runs, **Then** `on_record` is false,
@@ -1091,6 +1127,7 @@ Produced by `grep -rn "budget_line_items\|budget_version_erp_mirror\|dispatchBud
 | AC-BFY-016 | 060, 061 | pgTAP | `supabase/tests/bfy_draft_guard_fiscal_year.test.sql` |
 | AC-BFY-017 | 001; 090; SEC-001 | pgTAP | `supabase/tests/bfy_fiscal_year_rls_and_rpc_security.test.sql` |
 | AC-BFY-018 | 035 | pgTAP | `supabase/tests/bfy_external_refs_rekey.test.sql` |
+| AC-BFY-031 | 037 | e2e | `pmo-portal/e2e/serial/AC-BFY-031-existing-budget-rekey-no-duplicate.spec.ts` |
 | AC-BFY-019 | 053, 080, 055 | served+pgTAP | `supabase/functions/adapter-dispatch/__tests__/bfy_witness_drift.test.ts` |
 | AC-BFY-020 | 035b | pgTAP | `supabase/tests/bfy_migration_preflight.test.sql` |
 | AC-BFY-021 | REV-001 | pgTAP | `supabase/tests/bfy_migration_reversibility.test.sql` |
@@ -1103,6 +1140,7 @@ Produced by `grep -rn "budget_line_items\|budget_version_erp_mirror\|dispatchBud
 | AC-BFY-028 | (C-1 re-assert) | pgTAP | `supabase/tests/bfy_unmapped_category_null.test.sql` |
 | AC-BFY-029 | finding 8 / OQ-BFY-5 | pgTAP | `supabase/tests/bfy_map_edit_reinterprets_history.test.sql` |
 | AC-BFY-030 | 031, 038 | served | `supabase/functions/adapter-dispatch/__tests__/bfy_colon_fy_roundtrip.test.ts` |
+| AC-BFY-032 | 057, 053, 055 | pgTAP | `supabase/tests/bfy_stale_mirror_after_date_drift.test.sql` |
 
 ---
 
@@ -1123,10 +1161,13 @@ Produced by `grep -rn "budget_line_items\|budget_version_erp_mirror\|dispatchBud
    fix; guarded by AC-BFY-010 (mutation-checked, exercises `external_refs` + served replay).
 6. **A `fiscal_year` that becomes an invalid Link later.** Fails closed at next push (FR-BFY-021); guarded
    by AC-BFY-007. *(The projection does not validate — an invalid year matches nothing, honestly.)*
-7. **Stale mirror year after the project's dates change — FIXED.** The push-time span witness (FR-BFY-080,
-   written by the REAL push — finding 9) lets the projection detect drift and stop attributing (FR-BFY-053).
-   Guarded by AC-BFY-019 (served, witness from a real push, not hand-seeded). **Residual risk:** NULL-witness
-   (pre-issue) rows cannot be drift-checked; that population is bench + demo.
+7. **Stale mirror year after the project's dates change — not acceptable; fail closed.** The projection
+   compares the project's CURRENT fiscal-year span with the year/span recorded by the successful mirror
+   witness (FR-BFY-053/057). If dates extend a formerly single-FY project into another fiscal year, NULL
+   lines stop attributing to the stale year; affected budget-derived values are NULL, and the surface says
+   the attribution is stale and to **phase these lines**. No split is manufactured. Guarded by
+   AC-BFY-019/032 (real push witness, then date drift). **Residual risk:** NULL-witness (pre-issue) rows
+   cannot be drift-checked; that population is bench + demo.
 8. **Overlapping Fiscal Years.** `fiscalYearContaining` refuses ambiguity. Carried forward unchanged.
 9. **The projection rewire breaking the generation scoping (HIGH-1).** The rewire touches only `budget_year`
    + `pmo_budget`; `current_snapshot`/`reading`/`actuals` and their `snapshot_id` predicates are untouched.
