@@ -295,5 +295,47 @@ create trigger enforce_budget_identity_rekey_fence
   for each row when (new.domain = 'budget')
   execute function public.enforce_budget_identity_rekey_fence();
 
+-- ════════════════════════════════════════════════════════════════════════════════════════════════
+-- §finalize-fence — record_outbox_ref DERIVES its identity from the LOCKED outbox row (FR-BFY-035, FU-2
+-- BLOCKER 4). The §fence trigger above stops a BARE outbox INSERT during the re-key, but finalization is
+-- NOT an outbox insert — it is `record_outbox_ref` inserting into `external_refs`. An old in-flight
+-- binary that inserted a bare budget outbox row BEFORE this migration, then finalizes AFTER it, would
+-- (with 0096's original body) write a BARE external_refs mapping from its stale caller-supplied
+-- `p_pmo_record_id` — orphaning the qualified mapping the new identity lookup/create-guard reason from,
+-- and leaving a live ERP Budget unreachable by the year-qualified identity.
+--
+-- So the ref's (domain, pmo_record_id) are now taken from the LOCKED outbox row `v` — which 0154 has
+-- already re-keyed to `<vid>:<encoded_fy>` — never from the caller. The mapping therefore always matches
+-- the command it finalizes. This is BYTE-FOR-BYTE for every already-consistent caller
+-- (v.pmo_record_id = p_pmo_record_id, v.domain = p_domain — true for every domain in steady state); only
+-- the deploy-race window is corrected. The fence + row lock + generation/state guard are all retained.
+-- The signature is unchanged (callers/types stay valid); p_domain/p_pmo_record_id become advisory.
+create or replace function public.record_outbox_ref(
+  p_id uuid, p_generation int,
+  p_domain text, p_pmo_record_id text, p_external_tier text, p_external_record_id text
+) returns int
+  language plpgsql security definer set search_path = public as $$
+  declare v public.external_command_outbox;
+  begin
+    select * into v from public.external_command_outbox where id = p_id for update;
+    -- Fence: only the CURRENT generation on a still-`committed` row may write the ref (0 = superseded).
+    if v.id is null or v.claim_generation is distinct from p_generation or v.state <> 'committed' then
+      return 0;
+    end if;
+    -- ⚑ FU-2 BLOCKER 4 — DERIVE (domain, pmo_record_id) from the LOCKED row, NOT the caller. The locked
+    -- row's pmo_record_id is authoritative (0154 re-keyed it); a stale bare p_pmo_record_id from an old
+    -- in-flight finalizer can no longer land a bare mapping after the re-key.
+    insert into public.external_refs (org_id, domain, pmo_record_id, external_tier, external_record_id)
+      values (v.org_id, v.domain, v.pmo_record_id, p_external_tier, p_external_record_id)
+      on conflict (org_id, domain, pmo_record_id)
+        do update set external_record_id = excluded.external_record_id, external_tier = excluded.external_tier;
+    return 1;
+  end; $$;
+
+comment on function public.record_outbox_ref(uuid, int, text, text, text, text) is
+  'FR-BFY-035 (FU-2 BLOCKER 4) — fenced external_refs finalization. Derives (domain, pmo_record_id) from '
+  'the LOCKED outbox row so an old in-flight finalizer cannot write a stale bare mapping after the 0154 '
+  're-key. Proven by supabase/tests/bfy_outbox_ref_rekey_race.test.sql.';
+
 -- Run it once, here, in this migration's own transaction (the fence is held for exactly that window).
 select public.bfy_migration_0154_rekey();
