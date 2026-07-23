@@ -389,3 +389,82 @@ $$;
 revoke all on function public.get_budget_projection(uuid, text) from public;
 grant execute on function public.get_budget_projection(uuid, text) to authenticated;
 revoke execute on function public.get_budget_projection(uuid, text) from anon;
+
+-- ════════════════════════════════════════════════════════════════════════════════════════════════
+-- §3b — list_budget_fiscal_years: the OFFER unions F-B, the FLAG is F-C ∨ F-A (FR-BFY-051, AC-BFY-015).
+--
+-- Two different questions, two different facts, and 0149's own comment already demanded that the
+-- second be byte-identical to `get_budget_projection.budget_year.on_record`:
+--
+--   `observed`       — WHICH years may be asked for. Unions every mirror year (**F-B** — a failed push
+--                      is legitimately inspectable; refusing to offer the year would hide the GL
+--                      actuals that posted against it), the actuals' years, the ETC years, and NOW
+--                      every phased line's year (**F-C**, any version — a prior version's year is
+--                      inspectable too). F-B is right for an OFFER and never for an attribution.
+--   `is_active_push` — the FLAG on the offer: "does the ACTIVE version have a budget ON RECORD for
+--                      this year?" = **F-C ∨ F-A**, character-for-character §3a's `on_record`. The
+--                      selector may offer a year whose budget is unknowable, but it must be able to
+--                      SAY so instead of leaving a bare dash the operator cannot interpret.
+--
+-- The column keeps its name (a mild misnomer now — it means "has a budget on record", not "was
+-- pushed") because renaming it would churn the repository/page for no behavioural gain; the comment
+-- carries the meaning. Reversibility (ADR-0006): re-run 0149's definition.
+-- ════════════════════════════════════════════════════════════════════════════════════════════════
+drop function if exists public.list_budget_fiscal_years(uuid);
+
+create or replace function public.list_budget_fiscal_years(p_project_id uuid)
+returns table (fiscal_year text, is_active_push boolean)
+language sql
+stable
+security invoker
+set search_path = public, pg_temp
+as $$
+  with on_record_fy as (
+    -- ⚑ BYTE-FOR-BYTE §3a's `budget_year.on_record`, split into its two facts. Keep these two EXISTS
+    -- clauses and §3a's identical: a divergence would let the selector offer a year it then refuses to
+    -- explain (or flag one whose budget the grid withholds).
+    select o.fiscal_year
+      from (
+        select li.fiscal_year                                                        -- F-C
+          from public.budget_versions v
+          join public.budget_line_items li on li.budget_version_id = v.id
+         where v.project_id = p_project_id and v.status = 'Active'
+           and li.fiscal_year is not null
+        union
+        select em.fiscal_year                                                        -- F-A
+          from public.budget_version_erp_mirror em
+          join public.budget_versions v on v.id = em.budget_version_id
+         where v.project_id = p_project_id and v.status = 'Active'
+           and em.push_state = 'pushed'
+      ) o
+  ),
+  observed as (
+    select em.fiscal_year                                                            -- F-B (offer only)
+      from public.budget_version_erp_mirror em
+      join public.budget_versions v on v.id = em.budget_version_id
+     where v.project_id = p_project_id
+    union
+    select s.fiscal_year from public.erp_actuals_snapshot s where s.project_id = p_project_id
+    union
+    select bp.fiscal_year from public.budget_projections bp where bp.project_id = p_project_id
+    union
+    -- NEW (F-C): PMO's own phased years, on ANY version. Without this a phased-but-never-pushed
+    -- project could not be navigated to AT ALL — the very projects FR-BUD-152 exists to unblock.
+    select li.fiscal_year
+      from public.budget_versions v
+      join public.budget_line_items li on li.budget_version_id = v.id
+     where v.project_id = p_project_id and li.fiscal_year is not null
+  )
+  select o.fiscal_year,
+         exists (select 1 from on_record_fy r where r.fiscal_year = o.fiscal_year) as is_active_push
+    from observed o
+   -- `erp_actuals_snapshot.fiscal_year` is nullable (0101): a GL row whose fiscal year ERPNext never
+   -- stated cannot be selected by an equality match anyway, so offering it would be an option that
+   -- returns nothing. The empty string is the "no year selected" sentinel and is never an offer.
+   where o.fiscal_year is not null and o.fiscal_year <> ''
+   order by o.fiscal_year desc;
+$$;
+
+revoke all on function public.list_budget_fiscal_years(uuid) from public;
+grant execute on function public.list_budget_fiscal_years(uuid) to authenticated;
+revoke execute on function public.list_budget_fiscal_years(uuid) from anon;
