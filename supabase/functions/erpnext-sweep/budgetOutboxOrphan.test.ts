@@ -23,6 +23,12 @@
 (Deno as unknown as { serve: (...a: unknown[]) => unknown }).serve = () => ({ finished: Promise.resolve() });
 const { budgetBackstopDepsLive } = await import('./index.ts');
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { encodeFiscalYear } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/fiscalYearEncoding.ts';
+
+/** A year-qualified outbox identity `<budget_version_id>:<encoded_fy>` (FR-BFY-032). */
+function qualified(versionId: string, fiscalYear: string): string {
+  return `${versionId}:${encodeFiscalYear(fiscalYear)}`;
+}
 
 function assert(cond: boolean, msg: string): void {
   if (!cond) throw new Error(msg);
@@ -86,14 +92,31 @@ Deno.test('⚑ MEDIUM-2: a budget outbox row with NO mirror row (crashed between
   assert(rows[0].push_state === 'absent', `an outbox-only candidate is queued as 'absent', got ${rows[0].push_state}`);
 });
 
-Deno.test('⚑ MEDIUM-2: a version that ALREADY has a mirror row is never double-queued (the mirror row is the newer truth)', async () => {
-  const { client } = fakeDb([{ budget_version_id: MIRRORED_VERSION, push_state: 'failed', erp_cancelled_at: null }]);
+Deno.test('⚑ BLOCKER 3 (FU-2): the SAME (version, fiscal_year) that already has a mirror row is never double-queued (the mirror row is the newer truth)', async () => {
+  // Dedup is by (budget_version_id, fiscal_year), not version alone. Here the outbox orphan names the
+  // SAME year the mirror already holds, so the mirror row wins and no duplicate 'absent' is queued.
+  const { client } = fakeDb([{ budget_version_id: MIRRORED_VERSION, push_state: 'failed', erp_cancelled_at: null, fiscal_year: '2026' }]);
   const deps = budgetBackstopDepsLive(client, ORG_BINDING, [
-    { id: 'outbox-mirrored', pmo_record_id: MIRRORED_VERSION },
+    { id: 'outbox-mirrored', pmo_record_id: qualified(MIRRORED_VERSION, '2026') },
   ]);
   const rows = await deps.listPendingBudgetPushes(ORG, 200);
   assert(rows.length === 1, `expected exactly one queued row, got ${JSON.stringify(rows)}`);
-  assert(rows[0].push_state === 'failed', `the MIRROR row wins — it carries the recorded failure history, got ${rows[0].push_state}`);
+  assert(rows[0].push_state === 'failed', `the MIRROR row wins for its own year — it carries the recorded failure history, got ${rows[0].push_state}`);
+});
+
+Deno.test('⚑ BLOCKER 3 (FU-2): a crashed FY2027 push is reconciled even when FY2026 already has a mirror row for the SAME version', async () => {
+  // The multi-FY recovery case the version-only dedup silently dropped: FY2026 is mirrored, but FY2027
+  // reached ERP and crashed before its own mirror/external_refs finalize. Suppressing it because a
+  // DIFFERENT year of the same version has a mirror leaves a live ERP Budget PMO reports as never-pushed.
+  const { client } = fakeDb([{ budget_version_id: MIRRORED_VERSION, push_state: 'pushed', erp_cancelled_at: null, fiscal_year: '2026' }]);
+  const deps = budgetBackstopDepsLive(client, ORG_BINDING, [
+    { id: 'outbox-fy2027-orphan', pmo_record_id: qualified(MIRRORED_VERSION, '2027') },
+  ]);
+  const rows = await deps.listPendingBudgetPushes(ORG, 200);
+  const orphan = rows.find((r) => r.push_state === 'absent');
+  assert(!!orphan, `the FY2027 orphan MUST be queued for reconciliation — got ${JSON.stringify(rows)}`);
+  assert(orphan!.budget_version_id === MIRRORED_VERSION, `queued under its version, got ${JSON.stringify(orphan)}`);
+  assert(orphan!.fiscal_year === '2027', `the orphan carries its own year (FY2027), got ${JSON.stringify(orphan)}`);
 });
 
 Deno.test('⚑ MEDIUM-2: only rows 0131 STILL ADMITS are unioned in — an attempt-exhausted outbox row is NOT resurrected by the orphan queue', async () => {

@@ -136,6 +136,14 @@ function fiscalYearOfIdentity(pmoRecordId: string): string | null {
     return null;
   }
 }
+
+/** ⚑ BLOCKER 3 (FU-2) — the orphan dedup key. The budget mirror grain is (budget_version_id ×
+ *  fiscal_year), so an outbox orphan is a duplicate of a mirror row ONLY when BOTH match. A NUL (\u0000)
+ *  delimiter — which neither a UUID nor an ERPNext Fiscal Year name can contain — keeps the
+ *  composite unambiguous. */
+function budgetDedupKey(versionId: string, fiscalYear: string | null | undefined): string {
+  return `${versionId}\u0000${fiscalYear ?? ''}`;
+}
 import { ERPNEXT_BUDGET_DOMAIN, ERPNEXT_TIMESHEETS_DOMAIN } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/adapter.ts';
 // P3b task 6.4 (FR-TSP-045, AC-TSP-022) — the timesheet push's sweep backstop, pure orchestration.
 import {
@@ -1150,13 +1158,26 @@ export function budgetBackstopDepsLive(
       // set IS `outbox_reconcile_candidates`, and `reconcileOrgBudgetPushes` still re-reads the version
       // and refuses anything that is no longer `Active` (FR-BUD-102). A version that already HAS a mirror
       // row is never double-queued — the mirror row carries the recorded failure history and wins.
-      const known = new Set(mirrored.map((r) => r.budget_version_id));
+      // ⚑ BLOCKER 3 (FU-2): dedup by (budget_version_id, fiscal_year), NEVER by version alone. Once the
+      // identity is year-qualified the fiscal year travels with it: a crashed FY2027 push must still be
+      // reconciled even when FY2026 already has a mirror row for the SAME version. A version-only `known`
+      // set silently discarded that orphan (its version had *a* mirror), stranding a live ERP Budget PMO
+      // reports as never-pushed. A pre-fan-out bare orphan (no year on record) keeps version-level
+      // suppression — pre-fan-out there is exactly one year per version, so the two agree.
+      const knownComposite = new Set(mirrored.map((r) => budgetDedupKey(r.budget_version_id, r.fiscal_year)));
+      const knownVersions = new Set(mirrored.map((r) => r.budget_version_id));
       const orphans = eligibleBudgetCandidates
         // ⚑ FR-BFY-032: an outbox row's `pmo_record_id` is now the YEAR-QUALIFIED identity, so the
-        // bare `budget_version_id` (the mirror's FK, and this queue's own key) is PARSED out of it. A
-        // pre-fan-out row carries the bare id and is passed through unchanged.
-        .map((c) => ({ ...c, versionId: bareBudgetVersionId(c.pmo_record_id), year: fiscalYearOfIdentity(c.pmo_record_id) }))
-        .filter((c) => !known.has(c.versionId))
+        // bare `budget_version_id` (the mirror's FK, and this queue's own key) is PARSED out of it, and
+        // the fiscal year is READ from it (falling back to the outbox canonical for a pre-fan-out row).
+        .map((c) => ({
+          ...c,
+          versionId: bareBudgetVersionId(c.pmo_record_id),
+          year: fiscalYearOfIdentity(c.pmo_record_id) ?? c.fiscal_year ?? null,
+        }))
+        // Suppress a QUALIFIED orphan only when THAT exact year has a mirror; a bare orphan (no knowable
+        // year) falls back to version-level suppression.
+        .filter((c) => (c.year ? !knownComposite.has(budgetDedupKey(c.versionId, c.year)) : !knownVersions.has(c.versionId)))
         .slice(0, Math.max(limit - mirrored.length, 0))
         .map((c) => ({
           budget_version_id: c.versionId,
@@ -1166,7 +1187,7 @@ export function budgetBackstopDepsLive(
           // the year the dispatch itself derived); the outbox canonical is the fallback for a
           // pre-fan-out row. Absent ⇒ the hold writes nothing rather than guessing
           // (see `holdBudgetMirrorRow`).
-          fiscal_year: c.year ?? c.fiscal_year ?? null,
+          fiscal_year: c.year,
         }));
       return [...mirrored, ...orphans];
     },
