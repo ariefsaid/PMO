@@ -16,7 +16,9 @@ export interface ExternalRefMapping {
 export interface DispatchExternallyOwnedWriteDeps {
   adapter: Pick<Adapter, 'tier' | 'capabilityMap' | 'commit'>;
   command: AdapterCommand;
-  writeReadModel: (canonical: PmoRecord) => Promise<void>;
+  // ⚑ BLOCKER 2 (FU-2): `options.isReplay` marks a REPLAY convergence (no fresh ERP write) so a
+  // PMO-SoT read-model writer can refuse to override a Desk cancel with a stored canonical.
+  writeReadModel: (canonical: PmoRecord, options?: { isReplay?: boolean }) => Promise<void>;
   recordExternalRef: (mapping: ExternalRefMapping) => Promise<void>;
   /**
    * Delete-aware dispatch (AC-CUA-038, FR-CUA-026, OD-CUA-2): tombstones the mirrored read-model
@@ -279,7 +281,9 @@ async function finalizeOutboxRow(
  */
 async function convergeReadModel(canonical: PmoRecord, deps: DispatchMoneyWriteDeps, isReplay: boolean): Promise<void> {
   try {
-    await deps.writeReadModel(canonical);
+    // ⚑ BLOCKER 2 (FU-2): forward the replay flag so a PMO-SoT writer (budget) never resurrects a
+    // Desk-cancelled document from a stored canonical (no fresh ERP success on a replay).
+    await deps.writeReadModel(canonical, { isReplay });
   } catch (error) {
     if (!isReplay || !isAlreadyMirrored(error)) throw error;
     console.warn(

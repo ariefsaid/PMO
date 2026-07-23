@@ -1205,14 +1205,16 @@ Deno.serve(async (req: Request): Promise<Response> => {
       command,
       // Multi-domain read-model writer registry (task 1.6) — replaces the inline if-chain. An
       // unknown domain throws (no silent skip); ClickUp's `tasks` writer is byte-for-byte moved.
-      writeReadModel: async (canonical: PmoRecord) => {
+      writeReadModel: async (canonical: PmoRecord, options?: { isReplay?: boolean }) => {
         // Fault seam: between commit and mirror (FR-ENA-003) — a no-op unless armed. Runs before
         // the per-domain mirror write; commit has already returned (dispatch.ts's fixed order).
         await maybeFault('after-commit-before-mirror', faultGate);
         // Multi-domain read-model writer registry (task 1.6) — supersedes slice 0's inline
         // if-chain (its ClickUp/reference branches moved byte-for-byte into readModelWriters.ts).
         const writer = getReadModelWriter(command.domain);
-        await writer.upsert({ serviceClient: serviceClient as never, orgId, callerUserId: userId }, canonical, command);
+        // ⚑ BLOCKER 2 (FU-2): thread the replay flag so the budget writer refuses to resurrect a
+        // Desk-cancelled Budget from a stored-canonical replay (no fresh ERP success).
+        await writer.upsert({ serviceClient: serviceClient as never, orgId, callerUserId: userId, isReplay: options?.isReplay ?? false }, canonical, command);
       },
       // Cast: the real supabase-js client's .from().upsert() returns a thenable
       // PostgrestFilterBuilder, not a plain Promise — structurally satisfies

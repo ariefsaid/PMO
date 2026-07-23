@@ -382,8 +382,8 @@ describe('AC-ENA-012 the fencing token closes the lease-expiry overlap (F4)', ()
     // its own stale record is the lost update; writing the winner's confirmed record is the convergence
     // an operator's Retry depends on). Asserted by payload identity, not by call count.
     expect(writeReadModel).toHaveBeenCalledTimes(1);
-    expect(writeReadModel).toHaveBeenCalledWith({ id: 'pmo-1', erp_total: '5.00', erp_status: 'Submitted' });
-    expect(writeReadModel).not.toHaveBeenCalledWith({ id: 'pmo-1', erp_total: '5.00' });   // the stale claimant's own
+    expect(writeReadModel).toHaveBeenCalledWith({ id: 'pmo-1', erp_total: '5.00', erp_status: 'Submitted' }, { isReplay: true });
+    expect(writeReadModel).not.toHaveBeenCalledWith({ id: 'pmo-1', erp_total: '5.00' }, expect.anything());   // the stale claimant's own
     expect(recordExternalRef).not.toHaveBeenCalled();
     expect(result.externalRecordId).toBe('PI-RECLAIMED');
     expect([...fake.rows.values()][0].state).toBe('confirmed');
@@ -411,6 +411,27 @@ describe('AC-ENA-012 confirmed retry — return the stored result, no ERP call, 
     expect(commit).not.toHaveBeenCalled();
     expect(claimSpy).not.toHaveBeenCalled();
     expect(result.externalRecordId).toBe('PI-0001');
+  });
+
+  it('BLOCKER 2 (FU-2): a confirmed retry converges the read-model as a REPLAY (isReplay=true) so a PMO-SoT writer never overrides a Desk cancel from a stored canonical', async () => {
+    const fake = createFakeOutbox();
+    await fake.deps.insertOutboxPending('procurement', 'pmo-1', 'key-1');
+    const id = [...fake.rows.keys()][0];
+    const claimed = await fake.deps.claimOutboxForCommit(id);
+    await fake.deps.markOutboxCommitted(id, 'PI-0001', { id: 'pmo-1' }, claimed!.claimGeneration);
+    await fake.deps.recordOutboxRef(id, claimed!.claimGeneration, { pmoRecordId: 'pmo-1', externalTier: 'erpnext', externalRecordId: 'PI-0001', domain: 'procurement' });
+    await fake.deps.confirmOutbox(id, claimed!.claimGeneration);
+
+    const writeReadModel = vi.fn();
+    await dispatchMoneyWrite({
+      adapter: erpnextAdapter(vi.fn()),
+      command: baseCommand,
+      writeReadModel, recordExternalRef: vi.fn(),
+      money: fake.deps,
+    });
+    // The wire BLOCKER 2 depends on: the confirmed-replay convergence flags itself as a replay, which is
+    // exactly what the budget writer reads to refuse resurrecting a Desk-cancelled Budget.
+    expect(writeReadModel).toHaveBeenCalledWith(expect.anything(), { isReplay: true });
   });
 });
 
@@ -529,7 +550,8 @@ describe('AC-ENA-012 F2 finalization mirrors the adapter\'s REAL canonical, not 
       money: fake.deps,
     });
     // The read-model mirror is written with the adapter's real record (ERP-derived fields), not a stub.
-    expect(writeReadModel).toHaveBeenCalledWith(erpCanonical);
+    // A FRESH commit (isReplay=false): it may supersede a prior Desk cancel (M-1).
+    expect(writeReadModel).toHaveBeenCalledWith(erpCanonical, { isReplay: false });
     expect(result.canonical).toEqual(erpCanonical);
     // ...and the outbox row persisted it, so a later recovery can replay the same record.
     expect([...fake.rows.values()][0].canonical).toEqual(erpCanonical);
@@ -554,7 +576,8 @@ describe('AC-ENA-012 F2 finalization mirrors the adapter\'s REAL canonical, not 
     });
     expect(commit).not.toHaveBeenCalled();
     // The recovery mirrors the REAL persisted canonical — a `{ id: 'pmo-1' }` stub would drop erp_total/status.
-    expect(writeReadModel).toHaveBeenCalledWith(erpCanonical);
+    // A committed→finalize recovery is a REPLAY (isReplay=true): no fresh ERP write happened here.
+    expect(writeReadModel).toHaveBeenCalledWith(erpCanonical, { isReplay: true });
     expect(result.canonical).toEqual(erpCanonical);
   });
 
@@ -630,7 +653,8 @@ describe('NEW-4(b) confirmed retry converges the read-model (the operator\'s Ret
     // the mirror is re-written from the REAL persisted canonical — a `{ id }` stub would blank the
     // ERP-derived fields the screen reads (and, for budget/timesheets, the push_state itself).
     expect(writeReadModel).toHaveBeenCalledTimes(1);
-    expect(writeReadModel).toHaveBeenCalledWith(erpCanonical);
+    // A confirmed retry is a REPLAY (isReplay=true) — the writer must not resurrect a Desk-cancelled row.
+    expect(writeReadModel).toHaveBeenCalledWith(erpCanonical, { isReplay: true });
     // ...and nothing else changes: no second ERP document, no claim, no state churn.
     expect(commit).not.toHaveBeenCalled();
     expect(claimSpy).not.toHaveBeenCalled();
