@@ -14,7 +14,8 @@ and the DoD in `docs/product-expectations.md` are unchanged and binding.
 > earendil-works/pi#6364 — pi itself won't retry these), per-model rung-hopping, a machine-wide NIM
 > concurrency gate, and a token ledger (`~/.pi-usage.jsonl`; `pi-dispatch report [days]`).
 > Tiers: `build` (sonnet–opus band) · `routine` (haiku–sonnet) · `mechanical` (haiku) · `review`
-> (cross-family). **Model slugs live ONLY in the wrapper's ladder table** — never pass raw
+> (cross-family) · `review-money` (**Luna-only, caller passes `--thinking max`; no fallback — failure =
+> escalate, never a weaker reviewer**). **Model slugs live ONLY in the wrapper's ladder table** — never pass raw
 > provider/model in a dispatch; a wrong slug surfaces as 429-no-body and gets misdiagnosed as a rate
 > limit. Verify new slugs with `pi-dispatch smoke <provider> <model>`. The §2 table below remains the
 > capability rationale; the wrapper's ladders are the executable form. This supersedes §2's
