@@ -291,7 +291,32 @@ async function claimAndCommit(
   const isRecoveryReissue = opts.isRecoveryReissue ?? false;
   const token = claimed.claimGeneration;
 
-  const probed = await money.probeByRemarksKey(command.domain, command.idempotencyKey!);
+  // ⚑ Luna round-3 SHOULD-FIX 3 — A DETERMINISTIC RECOVERY FAILURE IS NOT AN UNKNOWN.
+  // The probe re-fetches the ERP doc and maps it through the kind's `fromDoc`, which can fail the same
+  // way every time (a read-back value `mirrorMoney` refuses ⇒ `commit-rejected`). That exception used to
+  // escape here BEFORE any write-back, leaving the claimed row `committing` with nothing recorded — so
+  // every later lease/quarantine cycle re-probed, re-mapped and re-threw, and a posted document could
+  // never reach a confirmed mirror or an operator's attention. A RETRYABLE transport failure is a real
+  // transient unknown and still leaves the row in-flight (untouched, as shipped); a NON-retryable one is
+  // HELD for an operator (the C-1 outcome, with its audited `release_outbox_hold` route out).
+  let probed: { externalRecordId: string; canonical?: PmoRecord } | null;
+  try {
+    probed = await money.probeByRemarksKey(command.domain, command.idempotencyKey!);
+  } catch (error) {
+    if (isRetryableTransport(error)) throw toDispatchError(error);
+    const heldCount = await money.markOutboxHeld(claimed.id, `recovery-probe-failed: ${redactErrorForOutbox(error)}`, token);
+    if (heldCount === 0) {
+      // Fencing loss: a reclaimer superseded this token — the row's CURRENT state is the truth.
+      const fresh = await money.readOutbox(command.domain, command.record.id, command.idempotencyKey!);
+      return reconcileOutbox(fresh!, deps);
+    }
+    console.error(
+      `[money-outbox] HELD ${command.domain}/${command.record.id} (idempotencyKey=${command.idempotencyKey}) — ` +
+        `the recovery probe failed deterministically and would fail identically on every retry ` +
+        `(${redactErrorForOutbox(error)}); awaiting operator resolution (Admin: release_outbox_hold)`,
+    );
+    throw new AppError('money command held for operator resolution — the recovery probe failed deterministically', 'command-held');
+  }
   let externalRecordId: string;
   let canonical: PmoRecord;
   if (probed) {

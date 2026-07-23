@@ -1469,3 +1469,65 @@ describe('Luna r2 BLOCK 2 — an unknown failure after the ERP submit leaves a R
     expect([...fake.rows.values()][0].state).toBe('failed');
   });
 });
+
+/**
+ * ⚑ Luna round-3 SHOULD-FIX 3 — A DETERMINISTIC RECOVERY FAILURE MUST NOT BECOME AN ENDLESS IN-FLIGHT
+ * LOOP.
+ *
+ * The in-flight classification above only converges because the recovery pass can ADOPT the document
+ * it finds. That pass re-fetches the ERP doc and maps it through the kind's `fromDoc`
+ * (`recoveryProbe.ts`), and `fromDoc` can fail DETERMINISTICALLY — a read-back whose money/hours value
+ * does not fit the mirror shape raises `commit-rejected` from `mirrorMoney`. That exception escaped
+ * `claimAndCommit` BEFORE any write-back, so the claimed row was left `committing` and nothing
+ * recorded: the next lease/quarantine cycle re-probed, re-mapped, re-threw, forever. A posted document
+ * that can never reach a confirmed mirror, and no operator signal that it exists.
+ *
+ * A probe failure that is RETRYABLE TRANSPORT (ERP unreachable) is a genuinely transient unknown and
+ * must keep leaving the row in-flight — that is the recovery path working. A NON-retryable one repeats
+ * identically every cycle, so it is HELD for an operator instead (the existing C-1 outcome, with its
+ * audited `release_outbox_hold` route out).
+ */
+describe('Luna r3 SHOULD-FIX 3 — a DETERMINISTIC probe/adoption failure is held for an operator, never looped forever', () => {
+  const command: AdapterCommand = {
+    domain: 'timesheets',
+    operation: 'create',
+    record: { id: 'pmo-ts-sf3', erp_doc_kind: 'timesheet' },
+    idempotencyKey: 'ts:sf3',
+  };
+
+  /** A claimed row whose probe fails with `error` — the state a recovery pass is in when it re-reads
+   *  the document its predecessor submitted. */
+  async function probeFails(error: unknown) {
+    const fake = createFakeOutbox();
+    const commit = vi.fn(async () => ({ externalRecordId: 'TS-NEW', canonical: { id: 'pmo-ts-sf3' } }));
+    const money: DispatchMoneyOutboxDeps = {
+      ...fake.deps,
+      probeByRemarksKey: vi.fn(async () => {
+        throw error;
+      }),
+    };
+    const outcome = await dispatchMoneyWrite({
+      adapter: { tier: 'erpnext', capabilityMap: new Set(['timesheets']), commit },
+      command,
+      writeReadModel: vi.fn(), recordExternalRef: vi.fn(),
+      money,
+    }).then(() => null, (e: unknown) => e);
+    return { fake, commit, outcome };
+  }
+
+  it('AC-TSC-R9: a read-back the mapper cannot map is HELD — not left `committing` to repeat every cycle', async () => {
+    // The real shape: `mirrorMoney` refuses an ERP total it cannot mirror, from inside the probe's
+    // `fromDoc`. Re-running the recovery would fetch the same document and throw the same error.
+    const { fake, commit, outcome } = await probeFails(new AdapterError('commit-rejected', 'invalid decimal value: "not-a-number"'));
+    expect((outcome as AppError).code).toBe('command-held');
+    expect(commit).not.toHaveBeenCalled(); // a deterministic recovery failure NEVER falls through to a fresh POST
+    expect([...fake.rows.values()][0].state).toBe('held');
+  });
+
+  it('AC-TSC-R9: an UNREACHABLE ERP during the probe still leaves the row in-flight (a transient unknown is not a hold)', async () => {
+    const { fake, commit, outcome } = await probeFails(new AdapterError('external-unreachable', 'connection reset'));
+    expect((outcome as AdapterError).code).toBe('external-unreachable');
+    expect(commit).not.toHaveBeenCalled();
+    expect([...fake.rows.values()][0].state).toBe('committing');
+  });
+});
