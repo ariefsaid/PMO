@@ -166,6 +166,85 @@ revoke all on function public.bfy_migration_0154_rekey() from authenticated;
 revoke all on function public.bfy_migration_0154_rekey() from service_role;
 
 -- ════════════════════════════════════════════════════════════════════════════════════════════════
+-- §revert — the STAGED rollback (NFR-BFY-REV-001), honestly bounded.
+--
+-- Defined HERE (with the up-migration) and CALLED by the staged
+-- `supabase/migrations/rollback/0154_budget_identity_year_qualified_down.sql`, which `supabase db
+-- reset` never applies. Two reasons it lives here: a rollback that only exists in an un-applied file
+-- can never be tested before the night someone needs it, and its refusal logic is the part most worth
+-- proving (bfy_migration_reversibility.test.sql).
+--
+-- ⚑ THE BOUNDARY, STATED PLAINLY. One year-qualified identity per version reverts 1:1 — the bare key
+-- can represent it. TWO (a multi-FY fan-out) cannot: `external_refs` is unique on
+-- (org_id, domain, pmo_record_id), so collapsing them would DROP one year's pointer to a live ERP
+-- `Budget` that is still enforcing its own overspend controls. The revert therefore FAILS CLOSED and
+-- NAMES the version. Once a multi-FY push has happened the identity is year-qualified for good.
+create or replace function public.bfy_migration_0154_revert()
+returns void
+language plpgsql
+security invoker
+set search_path = public, pg_temp
+as $$
+declare
+  r_id  record;
+  r_ver record;
+begin
+  perform pg_advisory_xact_lock(hashtext('pmo_budget_identity_rekey'));
+
+  -- (1) shape: everything in the budget domain must be year-qualified `<uuid>:<token>`. A bare or
+  --     unrecognised row means the database is in a state this rollback did not produce and cannot
+  --     reason about — refuse it by name rather than half-revert.
+  for r_id in
+    select 'external_refs'::text as tbl, pmo_record_id from public.external_refs where domain = 'budget'
+    union all
+    select 'external_command_outbox'::text, pmo_record_id from public.external_command_outbox where domain = 'budget'
+  loop
+    if r_id.pmo_record_id !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}:.+$' then
+      raise exception
+        'BFY 0154 rollback: % holds budget pmo_record_id "%" which is not year-qualified — this database is not in the state 0154 leaves behind. Refusing to half-revert.',
+        r_id.tbl, r_id.pmo_record_id;
+    end if;
+  end loop;
+
+  -- (2) the named irreversibility: >1 DISTINCT year-qualified identity for one version.
+  for r_ver in
+    select vid, count(*) as n from (
+      select distinct split_part(pmo_record_id, ':', 1) as vid, pmo_record_id
+        from public.external_refs where domain = 'budget'
+      union
+      select distinct split_part(pmo_record_id, ':', 1), pmo_record_id
+        from public.external_command_outbox where domain = 'budget'
+    ) s group by vid having count(*) > 1
+  loop
+    raise exception
+      'BFY 0154 rollback: budget version % has % year-qualified identities (a multi-FY fan-out). The bare identity is unique per version and can hold only ONE ERP pointer, so this rollback would silently drop a year of a live ERP Budget. Refused — this irreversibility is named in NFR-BFY-REV-001.',
+      r_ver.vid, r_ver.n;
+  end loop;
+
+  -- (3) the 1:1 revert, in place. The uuid is everything before the FIRST ':' (a uuid contains none);
+  --     the epoch is everything after the LAST ':' (the encoded token itself may contain one).
+  update public.external_refs
+     set pmo_record_id = split_part(pmo_record_id, ':', 1)
+   where domain = 'budget';
+
+  update public.external_command_outbox
+     set pmo_record_id   = split_part(pmo_record_id, ':', 1),
+         idempotency_key = 'bud:' || split_part(pmo_record_id, ':', 1) || ':' || regexp_replace(idempotency_key, '^.*:', '')
+   where domain = 'budget';
+end;
+$$;
+
+comment on function public.bfy_migration_0154_revert() is
+  'NFR-BFY-REV-001 — the staged, fail-closed rollback of the budget identity re-key. Single-FY rows '
+  'revert 1:1; a multi-FY fan-out is REFUSED by name (two ERP pointers cannot collapse into one bare '
+  'unique key). Called by supabase/migrations/rollback/0154_budget_identity_year_qualified_down.sql.';
+
+revoke all on function public.bfy_migration_0154_revert() from public;
+revoke all on function public.bfy_migration_0154_revert() from anon;
+revoke all on function public.bfy_migration_0154_revert() from authenticated;
+revoke all on function public.bfy_migration_0154_revert() from service_role;
+
+-- ════════════════════════════════════════════════════════════════════════════════════════════════
 -- §fence — the write-side half of FR-BFY-035a, honoured by OLD AND NEW CODE ALIKE.
 --
 -- The spec asks for "quiescence OR a DB fence honoured by both old and new code". Deploy-time
