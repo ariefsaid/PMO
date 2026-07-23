@@ -56,7 +56,7 @@ import { DOCTYPE_BODIES } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/
 import { DOCTYPE_REGISTRY, reissueOnInconclusiveAbsence, type ErpDocKind } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/doctypeRegistry.ts';
 import { probeErpByAnchorKey, probeErpByPaymentComposite } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/recoveryProbe.ts';
 import { resolveExternalRef } from '../../../pmo-portal/src/lib/adapterSeam/refs.ts';
-import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
+import { AppError, type CommandHeldOutboxMarker } from '../../../pmo-portal/src/lib/appError.ts';
 import type { Adapter, AdapterCommand, PmoRecord } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
 import type { DispatchMoneyOutboxDeps, ExternalRefMapping, SupersededDocumentMarker } from '../../../pmo-portal/src/lib/adapterSeam/dispatch.ts';
 import { getReadModelWriter, markTimesheetPushOutcome } from './readModelWriters.ts';
@@ -930,11 +930,21 @@ Deno.serve(async (req: Request): Promise<Response> => {
   const recordTimesheetPushFailure = async (failure: AppError): Promise<void> => {
     if (!approvedSheet) return;
     try {
+      // ⚑ Luna FU-1a round-6 — thread the EXACT outbox id + fencing token the hold was produced under
+      // (stamped on the `command-held` AppError deep in the dispatch recovery) into the mirror writer,
+      // so `record_timesheet_command_held` fences on that precise row+generation. Only a `command-held`
+      // carries it; every other outcome passes it through as undefined (harmless).
+      const heldMarker = failure as AppError & CommandHeldOutboxMarker;
+      const held =
+        failure.code === 'command-held'
+          ? { outboxId: heldMarker.heldOutboxId, claimGeneration: heldMarker.heldClaimGeneration }
+          : undefined;
       await markTimesheetPushOutcome(
         { serviceClient: serviceClient as never, orgId, callerUserId: userId },
         String(command.record.id),
         approvedSheet.approved_at,
         { code: failure.code, message: failure.message },
+        held,
       );
     } catch (recordErr) {
       console.error('[adapter-dispatch] failed to record timesheet push failure:', recordErr);

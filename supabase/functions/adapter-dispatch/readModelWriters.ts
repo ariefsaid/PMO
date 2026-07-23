@@ -944,6 +944,13 @@ export async function markTimesheetPushOutcome(
   timesheetId: string,
   approvedAt: string,
   outcome: { code?: string; message: string } | null,
+  /** ⚑ Luna FU-1a round-6 — the EXACT outbox row + fencing token this held outcome was produced under
+   *  (threaded from the `command-held` AppError). The RPC fences its mirror write on that precise
+   *  row+generation (a generation-exact CAS), so a concurrent release or a successor approval
+   *  generation cannot make a released outcome land `held`. Absent for every non-held outcome, and a
+   *  missing id makes the RPC's fence fail closed → it records the RELEASED outcome (`failed`), never a
+   *  blind `held`. */
+  held?: { outboxId?: string; claimGeneration?: number },
 ): Promise<void> {
   // ⚑ THE RELEASE-BEFORE-MIRROR RACE (Luna FU-1a round-5 BLOCK, migration 0155). The `command-held`
   // outcome is recorded HERE — later than, and in a separate transaction from, the outbox hold
@@ -961,6 +968,10 @@ export async function markTimesheetPushOutcome(
       p_timesheet_id: timesheetId,
       p_approved_at: approvedAt,
       p_reason: `${outcome.code}: ${outcome.message}`,
+      // The generation-exact fence identity. Null (no id/generation) makes the RPC fence fail closed —
+      // it records the released outcome (`failed`), never a blind `held` (round-6 BLOCK 1/2).
+      p_outbox_id: held?.outboxId ?? null,
+      p_claim_generation: held?.claimGeneration ?? null,
     });
     if (error) throw new AppError(`timesheet_erp_mirror held outcome write failed: ${error.message}`, 'DISPATCH_FAILED');
     return;

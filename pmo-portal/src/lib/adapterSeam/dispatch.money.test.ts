@@ -15,7 +15,7 @@ import {
   type OutboxRow,
 } from './dispatch.ts';
 import { AdapterError, type AdapterCommand, type CommandResult, type PmoRecord } from './contract.ts';
-import { AppError } from '../appError.ts';
+import { AppError, type CommandHeldOutboxMarker } from '../appError.ts';
 import { createErpAdapter } from './erpnext/adapter.ts';
 
 const LEASE_MS = 60_000;
@@ -1522,6 +1522,20 @@ describe('Luna r3 SHOULD-FIX 3 — a DETERMINISTIC probe/adoption failure is hel
     expect((outcome as AppError).code).toBe('command-held');
     expect(commit).not.toHaveBeenCalled(); // a deterministic recovery failure NEVER falls through to a fresh POST
     expect([...fake.rows.values()][0].state).toBe('held');
+  });
+
+  // ⚑ Luna FU-1a round-6 (BLOCK 1/2) — the held error carries the EXACT outbox id + fencing token the
+  // hold was produced under, so the served late mirror writer can record the outcome against THAT
+  // precise row+generation (a generation-exact CAS). Without this identity the recorder falls back to an
+  // `EXISTS` heuristic a concurrent release or a successor approval generation defeats. Drop the
+  // `markCommandHeldOutbox(...)` stamp and these two fields go undefined — the threading breaks silently.
+  it('round-6: a command-held error is stamped with the exact outbox id + claim generation of the hold', async () => {
+    const { fake, outcome } = await probeFails(new AdapterError('commit-rejected', 'invalid decimal value: "not-a-number"'));
+    const held = [...fake.rows.values()][0];
+    const marked = outcome as AppError & CommandHeldOutboxMarker;
+    expect(marked.code).toBe('command-held');
+    expect(marked.heldOutboxId).toBe(held.id);
+    expect(marked.heldClaimGeneration).toBe(held.claimGeneration);
   });
 
   it('AC-TSC-R9: an UNREACHABLE ERP during the probe still leaves the row in-flight (a transient unknown is not a hold)', async () => {

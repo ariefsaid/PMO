@@ -2,7 +2,7 @@
  * Pure orchestration for externally-owned writes (FR-EAS-023/033/034/042).
  * Relative imports only so the edge-function can import this module directly.
  */
-import { AppError } from '../appError.ts';
+import { AppError, type CommandHeldOutboxMarker } from '../appError.ts';
 import { Adapter, AdapterCommand, AdapterError, CommandResult, PmoRecord, type SupersededDocumentMarker } from './contract.ts';
 export type { SupersededDocumentMarker } from './contract.ts';
 
@@ -184,6 +184,19 @@ function carrySupersededMarker(from: unknown, to: AppError): AppError {
   return to;
 }
 
+/** ⚑ Luna FU-1a round-6 — stamp a `command-held` AppError with the EXACT outbox row + fencing token
+ *  the hold was produced under. The served fn's late mirror writer reads this and passes it straight
+ *  into `record_timesheet_command_held`, which fences the mirror write on that precise row+generation
+ *  (a generation-exact CAS). Without the exact identity the recorder falls back to an `EXISTS`
+ *  heuristic a concurrent release or a successor approval generation defeats. Mutates + returns the
+ *  same instance (like `carrySupersededMarker`). */
+function markCommandHeldOutbox(error: AppError, outboxId: string, claimGeneration: number): AppError {
+  const marked = error as AppError & CommandHeldOutboxMarker;
+  marked.heldOutboxId = outboxId;
+  marked.heldClaimGeneration = claimGeneration;
+  return marked;
+}
+
 /** Discriminates a retryable transport failure (never blindly re-POSTed, but the row is left
  *  reclaimable) from a non-retryable rejection (marked `failed` immediately). */
 function isRetryableTransport(error: unknown): boolean {
@@ -315,7 +328,13 @@ async function claimAndCommit(
         `the recovery probe failed deterministically and would fail identically on every retry ` +
         `(${redactErrorForOutbox(error)}); awaiting operator resolution (Admin: release_outbox_hold)`,
     );
-    throw new AppError('money command held for operator resolution — the recovery probe failed deterministically', 'command-held');
+    // The hold is on THIS exact row at THIS token — carry both so the served mirror writer can record
+    // the outcome against the precise row+generation (a generation-exact CAS, round-6 BLOCK 1/2).
+    throw markCommandHeldOutbox(
+      new AppError('money command held for operator resolution — the recovery probe failed deterministically', 'command-held'),
+      claimed.id,
+      token,
+    );
   }
   let externalRecordId: string;
   let canonical: PmoRecord;
@@ -350,7 +369,11 @@ async function claimAndCommit(
     );
     // A DISTINCT non-retryable code (an AppError passes through toDispatchError unchanged) — never the
     // generic transient 'external-unreachable' (retrying will not help; an operator must resolve it).
-    throw new AppError('payment command held for operator resolution — not auto-reissued (mutable anchor)', 'command-held');
+    throw markCommandHeldOutbox(
+      new AppError('payment command held for operator resolution — not auto-reissued (mutable anchor)', 'command-held'),
+      claimed.id,
+      token,
+    );
   } else {
     // FIX 2 (round-9 SHOULD-FIX): a post-window RECOVERY REISSUE mints a NEW ERP money document, so it
     // must re-assert the recorded actor's CURRENT authorization — the SAME rule the synchronous gate +
@@ -376,7 +399,11 @@ async function claimAndCommit(
           `[money-outbox] HELD ${command.domain}/${command.record.id} (idempotencyKey=${command.idempotencyKey}) — ` +
             `recovery reissue blocked: the recorded actor is no longer authorized (${auth.message}); awaiting operator resolution`,
         );
-        throw new AppError('money command held for operator resolution — recovery reissue blocked: actor no longer authorized', 'command-held');
+        throw markCommandHeldOutbox(
+          new AppError('money command held for operator resolution — recovery reissue blocked: actor no longer authorized', 'command-held'),
+          claimed.id,
+          token,
+        );
       }
     }
     // Audit BLOCK 1 — the CLAIM BUDGET, enforced at the POST SITE against real elapsed time (never
@@ -532,7 +559,11 @@ async function reconcileOutbox(row: OutboxRow, deps: DispatchMoneyWriteDeps, com
       // the Admin-only, audited `release_outbox_hold` RPC (0137 §4, held → failed). That RPC is the ONLY
       // way out: this branch makes a same-key retry inert, and 0134's one-in-flight index makes a
       // NEW-key command for the same PMO record 409 (audit round 5, HIGH-2).
-      throw new AppError('payment command held for operator resolution — not auto-reissued (mutable anchor)', 'command-held');
+      throw markCommandHeldOutbox(
+        new AppError('payment command held for operator resolution — not auto-reissued (mutable anchor)', 'command-held'),
+        row.id,
+        row.claimGeneration,
+      );
     case 'pending':
     case 'failed': {
       const claimStartedAtMs = nowMs(money);   // BLOCK 1 — see the quarantined branch above.

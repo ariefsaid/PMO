@@ -22,6 +22,22 @@ export class AppError extends Error {
 }
 
 /**
+ * ⚑ Luna FU-1a round-6 — the marker attached to a `command-held` AppError so the served handler can
+ * record the mirror outcome against the EXACT outbox row + claim generation the hold was produced
+ * under (a GENERATION-EXACT CAS). The hold is decided deep in the dispatch recovery
+ * (`claimAndCommit` → `markOutboxHeld`) where the outbox id + fencing token are known; the mirror
+ * outcome is written LATER, in the served fn's catch, in a separate transaction. Threading the exact
+ * identity here is what lets `record_timesheet_command_held` fence on that precise row+generation
+ * instead of an `EXISTS` heuristic — the heuristic a concurrent release or a successor approval
+ * generation can defeat (the round-6 BLOCKs). Attached via a cast (like `SupersededDocumentMarker`),
+ * so plain `.message`/`.code` consumers are unaffected.
+ */
+export interface CommandHeldOutboxMarker {
+  heldOutboxId?: string;
+  heldClaimGeneration?: number;
+}
+
+/**
  * Reads a structurally-present string `code` from an unknown thrown value.
  * Returns undefined when absent or non-string (e.g. a numeric HTTP status). This is
  * how the seam preserves the Postgres code carried by `ProcurementError` /

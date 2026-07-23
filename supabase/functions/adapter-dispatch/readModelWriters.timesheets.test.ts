@@ -165,6 +165,34 @@ Deno.test('FR-TSP-085 / round-5: a HELD command routes through the fenced RPC, n
   assertEquals(calls.filter((c) => c.method === 'upsert').length, 0, 'a held outcome must NEVER blind-upsert the mirror');
 });
 
+// ⚑ Luna FU-1a round-6 (BLOCK 1/2) — the EXACT outbox id + fencing token the hold was produced under are
+// threaded from the `command-held` AppError into the fenced RPC, so it can compare-and-set the mirror on
+// that precise row+generation. Drop the `held` argument (or stop threading the marker in index.ts) and
+// the RPC gets nulls, its fence fails closed, and a legitimately-held sheet is recorded `failed`.
+Deno.test('round-6: the held recorder threads the exact outbox id + claim generation into the RPC', async () => {
+  const { client, calls } = makeFakeClient();
+  await markTimesheetPushOutcome(
+    CTX(client),
+    'ts-1',
+    '2026-01-12T03:04:05Z',
+    { code: 'command-held', message: 'held for operator' },
+    { outboxId: 'outbox-42', claimGeneration: 7 },
+  );
+  const args = (calls.find((c) => c.method === 'rpc')?.args[0] ?? {}) as Record<string, unknown>;
+  assertEquals(args.p_outbox_id, 'outbox-42', 'the exact outbox row id is threaded to the fence');
+  assertEquals(args.p_claim_generation, 7, 'and the claim generation the hold was produced under');
+});
+
+// A held outcome with NO threaded identity (e.g. an older/unmarked error) must pass NULLs, not omit the
+// params — the RPC then fails closed to the released outcome (`failed`), never a blind `held`.
+Deno.test('round-6: a held outcome with no threaded identity passes null id/generation (fence fails closed)', async () => {
+  const { client, calls } = makeFakeClient();
+  await markTimesheetPushOutcome(CTX(client), 'ts-1', '2026-01-12T03:04:05Z', { code: 'command-held', message: 'held for operator' });
+  const args = (calls.find((c) => c.method === 'rpc')?.args[0] ?? {}) as Record<string, unknown>;
+  assertEquals(args.p_outbox_id, null, 'a missing outbox id is passed as null');
+  assertEquals(args.p_claim_generation, null, 'a missing generation is passed as null');
+});
+
 Deno.test('FR-TSP-056: an EMPTY approved sheet is recorded as pushed with NO ts_number (a success, not a retry)', async () => {
   // A zero-entry / all-zero-hours sheet must not sit in the sweep's retry queue forever, and must not
   // be sent to ERP at all (a Timesheet with an empty time_logs table is a hard 417 MandatoryError).
