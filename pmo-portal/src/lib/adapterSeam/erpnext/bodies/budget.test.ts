@@ -147,3 +147,60 @@ describe('erpnext/bodies/budget — the ERP Budget body (AC-BUD-012)', () => {
     expect([...BUDGET_FROM_DOC_FIELDS]).toEqual(['name', 'modified', 'docstatus', 'amended_from', 'fiscal_year']);
   });
 });
+
+/**
+ * BFY T5 (FR-BFY-030) — pin the `budgetToBody` per-year contract. The push fans out to ONE ERP `Budget`
+ * per phased fiscal year, and `budgetToBody` is called ONCE PER YEAR with that year's `line_items` slice
+ * (the fan-out is the dispatch's job, T13 — NOT this body builder). This pins: (a) a single year's slice
+ * produces EXACTLY ONE body carrying that year's resolved accounts + fiscal_year (no body-level split
+ * into multiple bodies here), and (b) an EMPTY year slice throws (the accounts[] crash guard) so the
+ * fan-out can never produce an empty Budget. Characterization pin of behavior that already holds.
+ */
+describe('BFY T5 (FR-BFY-030): budgetToBody builds exactly one body from a single year\'s slice', () => {
+  it('FR-BFY-030 a single year\'s line_items + resolved accounts produce EXACTLY ONE body (no body-level split)', () => {
+    const yearSlice = {
+      id: 'ver-1',
+      fiscal_year: '2025-2026',
+      line_items: [
+        { category: 'Labor', budgeted_amount: '40000.00' },
+        { category: 'Materials', budgeted_amount: '10000.00' },
+      ],
+    } as unknown as PmoRecord;
+
+    const body = budgetToBody(yearSlice, ctx()) as Record<string, unknown>;
+
+    // one body, not an array — the per-year fan-out is the dispatch's concern (T13), never this builder
+    expect(Array.isArray(body)).toBe(false);
+    expect(body.fiscal_year).toBe('2025-2026');
+    expect(body.accounts).toEqual([
+      { account: 'Salary - PSC', budget_amount: '40000.00' },
+      { account: 'Cost of Goods Sold - PSC', budget_amount: '10000.00' },
+    ]);
+    // exactly the mapped categories of this year's slice — nothing from any other year leaks in
+    expect((body.accounts as unknown[]).length).toBe(2);
+  });
+
+  it('FR-BFY-030 a DIFFERENT year\'s slice with different lines produces its OWN one body (per-call independence)', () => {
+    const nextYear = {
+      id: 'ver-1',
+      fiscal_year: '2026-2027',
+      line_items: [{ category: 'Equipment', budgeted_amount: '7500.00' }],
+    } as unknown as PmoRecord;
+    const body = budgetToBody(nextYear, ctx()) as Record<string, unknown>;
+    expect(body.fiscal_year).toBe('2026-2027');
+    expect(body.accounts).toEqual([{ account: 'Office Maintenance Expenses - PSC', budget_amount: '7500.00' }]);
+  });
+
+  it('FR-BFY-030 an EMPTY year slice (no line items) throws — the fan-out never produces an empty Budget', () => {
+    const emptySlice = { id: 'ver-1', fiscal_year: '2026', line_items: [] } as unknown as PmoRecord;
+    expect(() => budgetToBody(emptySlice, ctx())).toThrow(/no budgeted amount|accounts/i);
+  });
+
+  it('FR-BFY-030 a year slice whose lines are ALL ZERO throws (empty accounts[] crash guard, spike §10(a))', () => {
+    const allZero = {
+      id: 'ver-1', fiscal_year: '2026',
+      line_items: [{ category: 'Labor', budgeted_amount: '0.00' }],
+    } as unknown as PmoRecord;
+    expect(() => budgetToBody(allZero, ctx())).toThrow(/no budgeted amount|accounts/i);
+  });
+});
