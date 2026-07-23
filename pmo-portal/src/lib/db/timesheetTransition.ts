@@ -21,7 +21,9 @@ export const LEGAL_TIMESHEET_TRANSITIONS: Record<string, string[]> = {
   Draft:     ['Submitted'],
   Submitted: ['Approved', 'Rejected'],
   Rejected:  ['Draft'],
-  Approved:  [],
+  // Slice A (FR-TSC-001): `Approved` is no longer terminal — an approver may re-open an Approved
+  // sheet with no confirmed ERP document (the RPC's race-safe precondition gates the live-doc case).
+  Approved:  ['Draft'],
 };
 
 /**
@@ -51,12 +53,16 @@ export function timesheetActions(
   status: TimesheetStatus,
   isOwner: boolean,
   isApprover: boolean,
-): { submit: boolean; approve: boolean; reject: boolean } {
+): { submit: boolean; approve: boolean; reject: boolean; reopen: boolean } {
   const submit = status === 'Draft' && isOwner;
   // SoD: owner can never approve/reject their own sheet (even if they are technically an approver)
   const approve = status === 'Submitted' && isApprover && !isOwner;
   const reject = status === 'Submitted' && isApprover && !isOwner;
-  return { submit, approve, reject };
+  // Slice A (FR-TSC-020/021): an APPROVER (never the owner — SoD) may re-open an Approved sheet.
+  // UX-only: the security-definer RPC re-derives authority AND the race-safe precondition (no live
+  // ERP doc / no in-flight push) server-side. The owner is excluded even if they are an approver.
+  const reopen = status === 'Approved' && isApprover && !isOwner;
+  return { submit, approve, reject, reopen };
 }
 
 // ---------------------------------------------------------------------------
@@ -117,6 +123,22 @@ export async function reopenTimesheet(id: string): Promise<void> {
   if (error) throw new Error(error.message);
 }
 
+/**
+ * Slice A (AC-TSC-012, FR-TSC-060) — re-opens an APPROVED timesheet to Draft. A PURE PMO transition:
+ * it issues ONLY `transition_timesheet(id,'Draft')` and NO adapter/push/repositories call of any kind.
+ * The security-definer RPC enforces the approver-authority + the race-safe precondition (no live ERP
+ * doc, no in-flight push) server-side; org_id is NEVER sent (the RPC re-asserts org from auth context).
+ * A refusal (P0001 reopen-erp-document-held / reopen-push-in-flight) is surfaced to the caller — it is
+ * correct behaviour and Slice B's entry point, not an error to swallow.
+ */
+export async function reopenApprovedTimesheet(id: string): Promise<void> {
+  const { error } = await supabase.rpc('transition_timesheet', {
+    p_timesheet_id: id,
+    p_to: 'Draft',
+  });
+  if (error) throw new Error(error.message);
+}
+
 // ---------------------------------------------------------------------------
 // DAL read — timesheets awaiting approval (AC-903, FR-TS-011)
 // ---------------------------------------------------------------------------
@@ -141,6 +163,49 @@ export async function listTimesheetsAwaitingApproval(
   if (error) throw new Error(error.message);
   // Normalise entry hours to number at the data boundary (mirrors listTimesheets).
   return ((data ?? []) as unknown as TimesheetAwaitingApproval[]).map(sheet => ({
+    ...sheet,
+    entries: sheet.entries.map(e => ({ ...e, hours: Number(e.hours) })),
+  }));
+}
+
+// ---------------------------------------------------------------------------
+// Slice A — re-openable Approved timesheets (AC-TSC-R3 / F5 surface honesty)
+// ---------------------------------------------------------------------------
+
+/** The ERP mirror slice the re-open surface reads (null when the sheet was never pushed). */
+export type ReopenableTimesheetMirror = {
+  ts_number: string | null;
+  push_state: string | null;
+  erp_cancelled_at: string | null;
+};
+
+/** A re-openable Approved timesheet: joined to owner + entries + its ERP mirror (null = un-pushed). */
+export type ReopenableApprovedTimesheet = TimesheetAwaitingApproval & {
+  mirror: ReopenableTimesheetMirror | null;
+};
+
+const REOPENABLE_SELECT =
+  '*, owner:profiles!timesheets_user_id_fkey(full_name), entries:timesheet_entries(*, project:projects(name,code)), mirror:timesheet_erp_mirror!timesheet_erp_mirror_timesheet_id_fkey(ts_number, push_state, erp_cancelled_at)';
+
+/**
+ * Slice A (FR-TSC-060 / F5) — the Approved sheets an approver may consider re-opening: other users'
+ * Approved sheets, joined to their ERP mirror so the surface can tell an UN-PUSHED sheet (re-openable
+ * now) from a PUSHED one (honest "already in ERP — correction path coming" note). `timesheets_select`
+ * RLS (0007 A2 manager-of clause) + `timesheet_erp_mirror_select` RLS (0136) scope both halves; this
+ * fn adds none of its own (RBAC-transparent, matching the other timesheet read hooks). org_id is
+ * NEVER sent.
+ */
+export async function listReopenableApprovedTimesheets(
+  selfId: string,
+): Promise<ReopenableApprovedTimesheet[]> {
+  const { data, error } = await supabase
+    .from('timesheets')
+    .select(REOPENABLE_SELECT)
+    .eq('status', 'Approved')
+    .neq('user_id', selfId)
+    .order('week_start_date', { ascending: false });
+  if (error) throw new Error(error.message);
+  return ((data ?? []) as unknown as ReopenableApprovedTimesheet[]).map(sheet => ({
     ...sheet,
     entries: sheet.entries.map(e => ({ ...e, hours: Number(e.hours) })),
   }));
