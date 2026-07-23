@@ -4,6 +4,66 @@
 [`docs/history.md`](history.md) (don't read it for status). Locked owner-decisions are in
 `docs/decisions.md` (OD-* lookup by id). Roadmap framing in `docs/roadmap-spines.md`.
 
+### ⚑⚑⚑ BACKLOG STALENESS AUDIT (2026-07-23) — READ BEFORE ACTING ON ANY OLDER ENTRY
+
+A read-only agent verified 24 long-running entries **against `origin/dev` by CONTENT** (never by branch
+name — that is exactly how these rotted). **6 entries name branches that no longer exist while their work
+is already on `dev`.** Where an older entry below conflicts with this block, **this block wins.**
+
+**✅ ALREADY DONE — do not rebuild (older text says otherwise):**
+- **ClickUp live smoke + `CLICKUP_API_BASE_URL` seam** — `scripts/clickup-live-smoke.{ts,sh}`; seam at
+  `clickup-live-smoke.ts:19` + `adapter-dispatch/index.ts:170`; ran 2026-07-17
+  (`docs/spikes/2026-07-17-clickup-live-smoke.md`). *(Also stale in `docs/plans/2026-07-10-clickup-adapter.md:740`.)*
+- **agent-chat rate-limit** — mig `0091`, `_shared/requestRateGuard.ts`, wired `agent-chat/index.ts:124`.
+- **S-curve today-position deterministic test** — `sCurve.test.ts:126` (`AC-SC-AXIS-002`), fixed `asOf`.
+- **OpenRouter fallback chain** — `_shared/openRouterModelClient.ts:57-76`. ⚑ It is a **provider** chain
+  (which host serves one model), NOT a model chain — if a model fallback was wanted, that is still owed.
+- **Bulk-import idempotency** — migs `0072`/`0073`, `procurementImportSkip.ts`, pgTAP `0129`/`0130`.
+- **PostHog dashboards** — `scripts/posthog/provision-dashboards.mjs` (PR #303).
+- **H4 grants** (migs `0104`/`0105`) · **#14 supply-chain/CI** (21 `deno.lock`, 18 SHA-pinned actions,
+  `--frozen` gate `ci.yml:132`, PR→dev pgTAP `ci.yml:183`). Only `release-please.yml:17/34` stays unpinned.
+- **`procurement_items` INSERT** — a CLOSED binding ruling (`OD-ENA-ITEMS-INSERT`), never owed work.
+
+**⚠️ STALE BRANCH CLAIMS — branch GONE from the remote, work IS on `dev`:**
+`feat/ops-admin` (⚑ `org_features` is mig **`0070`**, not `0068` as the entry says) · `harden/supply-chain-ci` ·
+`feat/clickup-adapter-p1` · `chore/test-infra-parallelism` · `codex/agent-attachments-track-a` (its
+"REFRESH draft PR #239" instruction points at a long-resolved PR) · `feat/task-model-fields` (exists but
+BEHIND `dev`, content identical).
+
+**🔴 GENUINELY STILL OWED (verified absent, with the search that proved it):**
+- **`error_events` coverage** — only **6 of 22** edge fns wire it; FE has **zero** `from('error_events')`;
+  **no retention/purge**. ⚑ The old entry says "2 fns + FE" — it understates by ~13 functions.
+- **PostHog consent-gate** — no consent state, gate or banner anywhere in `pmo-portal/src`.
+- **interactive-create idempotency** — idempotency exists ONLY on the bulk-import path (`0072`).
+- **telegram-notify dup alerts** — `telegram-notify/index.ts:99` (⚑ not `:86`): the `notified_at` stamp's
+  error is never inspected → a good send + failed stamp re-alerts every tick.
+- **`notifyOwner` swallows errors** — `agent-dispatch/dispatcher.ts:293-306`, bare catch, no structured log.
+- **`enforce_automation_owner_cap` race** — the defect is **`0059:31`** (count-then-insert, no lock). ⚑ The
+  old `0065:69` pointer is the SHARE-ROW-EXCLUSIVE *exemplar*, not the defect — it sends you to the wrong file.
+- **`set_project_contract_value` accepts negative** — `0076_audit_events.sql:212`, no sign check, and no
+  CHECK on the column. ⚑ Same fix as the money `CHECK (>=0)` item — they are ONE task, not two.
+- **`spike-rls.yml`** — actions ARE now SHA-pinned and the key is a masked local ephemeral; only
+  `npm install` → `npm ci` remains. Two of the three original concerns are already closed.
+- **3 runbooks** — prod-deploy / secret-rotation / agent-LLM-outage absent under any name.
+- **credit-race wiring** — ⚑ **2** `check()` sites (`agent-chat/handler.ts:1301`, `:1710`), not 3;
+  `release_credits` has ZERO callers outside generated types.
+- **contacts-inbound** — no `contact` kind in the ERPNext feed registry (zero hits).
+- **`entry_date` week-range** — `0055:70-76` inserts entry dates unbounded by the sheet's week.
+- **`.select('*')` trim** — 31 occurrences across 15 modules.
+- **org-seam pgTAP cross-org SWEEP** — the `stamp_org_id()` trigger landed (`0074`), but ADR-0047's
+  catalog-driven sweep does not exist; coverage is per-feature spot tests only.
+
+**🟡 PARTIAL / needs a ruling:**
+- **agent-persistence stuck `running`** — the `errored` path shipped; missing is a reaper for crash/
+  disconnect rows, and `setRunStatus` (`persistence.ts:279-295`) swallows its own failure.
+- **per-org webhook secret** — ✅ shipped for **ERPNext** (`erpnext-webhook/index.ts:265` + Vault);
+  ⛔ still global for **ClickUp** (`clickup-webhook/index.ts:67`). OD-INT-14 scopes the deferral to ClickUp.
+- **health endpoint checks zero deps** — this is a *written NFR* (NFR-OF-REL-003), not an oversight.
+  Reclassify as a decision, or raise it as a real issue — it is not a bug today.
+- **F4 mobile assistant entry** — ⚑ **OWNER CALL.** The assistant IS reachable on mobile (`AppShell.tsx:262-310`
+  drawer + `Rail.tsx:258-273` toggle + a mobile panel path). No spec defines "F4". If it means *reachable*,
+  it is DONE; if it means a dedicated affordance (FAB / bottom-nav), it is owed.
+
 ### ⚑ ERPNEXT FOLLOW-UPS (2026-07-23) — spec'd, in build; + one PRE-EXISTING defect found in passing
 - **FU-1a — timesheet `Approved → Draft` re-open, UN-PUSHED sheets only.** Branch `feat/timesheet-reopen`,
   migs **0151/0152**. Pure PMO transition, zero ERP I/O. Spec `docs/specs/timesheet-correction-path.spec.md`.
@@ -35,7 +95,14 @@
   per year, or state why not.** Priority: real but not urgent — Admin-only, deliberate, and it corrupts
   reporting truth rather than moving money.
 
-### ⚑⚑⚑ CURRENT FOCUS — P3a Sales/AR write-through (2026-07-15) — built + happy-path green; HARDENING ROUND mid-flight; branch, NOT merged
+### ✅ P3a Sales/AR write-through — **MERGED TO `dev`** (verified by content 2026-07-23; header was stale)
+> ⚑ **CORRECTION.** This block said "HARDENING ROUND mid-flight; branch, NOT merged" while contradicting
+> itself 30 lines down ("✅ P3 COMPLETE … PR #360"). A cold-start agent reading top-down acted on the wrong
+> one. **All of P3a is on `dev`**, and under **migs `0123`–`0135`, NOT the `0104`–`0107` this block claims**
+> (on `dev` those numbers are M365). Every "REMAINING" hardening block is closed: BLOCK 1
+> (`recoveryProbe.ts:125`), BLOCK 6 (`readModelWriters.ts:154`), BLOCK 7 (`salesInvoice.ts:37`,
+> `incomingPayment.ts:44`), BLOCK 8 (`reconcileSiCancelAutoUnlink` live, no longer dead).
+> `origin/feat/erpnext-adapter-p3` is 0 commits ahead of `dev`. Notes retained below for the record.
 **Branch `feat/erpnext-adapter-p3`** (off `dev` @ `b549d06`). **HOLD on the branch — NO PR** (owner: dev
 is moving with parallel agents). Spec + plan SIGNED OFF:
 [`docs/specs/erpnext-adapter-p3a-sales-ar.spec.md`](specs/erpnext-adapter-p3a-sales-ar.spec.md) ·
@@ -114,7 +181,8 @@ Owner rulings: `decisions.md` **OD-SAR-GATES · OD-SAR-PMO-IS-THE-UI · OD-SAR-D
 > ⚠️ Unrelated tests failing on **5s timeouts** are almost certainly another worktree running vitest
 > concurrently — re-run the named failures in isolation before believing them (backlog track **T2**).
 >
-> **Do NOT touch** (other agents' live work as of 2026-07-22): the ERPNext P3 branch, `feat/task-model-fields`,
+> ~~**Do NOT touch**~~ **(SUPERSEDED 2026-07-23 — both are MERGED; `feat/task-model-fields` is BEHIND `dev`
+> with byte-identical content. Treat neither as live work.)** the ERPNext P3 branch, `feat/task-model-fields`,
 > PR #346, and the ~15 `agent-*`/`wf_*` worktrees. M365 owns only `supabase/functions/m365-token-custody/`,
 > `pmo-portal/src/lib/m365/`, `components/integrations/`, migrations `0106–0117`, pgTAP `0144–0154`, and
 > `scripts/m365-*-probe.sh`.
@@ -327,7 +395,8 @@ Historical design and phase details remain in [`docs/plans/2026-07-13-clickup-ad
   serial-only — shared seed org). Battery: spec/quality/Discover APPROVE-W-F → all applied;
   security SHIP-W-F → HIGH-1 (sweep-cron Vault regression) FIXED + cross-family CONFIRMED-SHIP.
   Gates Director-run: verify 4906 · pgTAP 157/1291 · 4× deno · e2e 2/2. **Mocked-only: live
-  ClickUp smoke deferred until a token exists (plan Appendix A; needs CLICKUP_API_BASE_URL seam).**
+  ~~ClickUp smoke deferred until a token exists~~ **✅ DONE 2026-07-23 audit — the smoke RAN 2026-07-17
+  (`docs/spikes/2026-07-17-clickup-live-smoke.md`) and the `CLICKUP_API_BASE_URL` seam is in two places.**
   Activation checklist (owner-gated): 2 Vault secrets (clickup_sweep_url/secret) + fn envs
   (CLICKUP_API_TOKEN/WEBHOOK_SECRET/SWEEP_SECRET, 1P vault-AS items clickup-api-token/-webhook-secret).
   B2B note: per-org webhook secret before >1 employing org shares a deployment (security LOW-1).
@@ -430,7 +499,12 @@ Substrate: glm-5.2 (opus alt) + glm-4.7 (sonnet alt) built; Director security-re
 - **#14 supply-chain/CI — ✅ LANDED ON `dev`** (verified 2026-07-23; entry was stale). Branch
   `harden/supply-chain-ci` **does not exist**; the work is on `dev` by content: **21** `deno.lock` files,
   **10** SHA-pinned Actions and **zero** unpinned `@vN` refs in `ci.yml`. Nothing is owed here.
-- **Remaining Meds (not started):** agent-persistence error handling (stuck `running`) · interactive-create idempotency · `error_events` completeness (2 fns + FE) + retention · S-curve today-position deterministic test · money `CHECK (>=0)` · PostHog consent-gate · agent-chat rate-limit.
+- **Remaining Meds** — ⚑ **3 of these 7 were WRONG (2026-07-23 audit; see the audit block at the top):**
+  ~~agent-chat rate-limit~~ **DONE** (mig `0091`) · ~~S-curve today-position test~~ **DONE**
+  (`sCurve.test.ts:126`) · agent-persistence stuck-`running` **PARTIAL** (the `errored` path shipped; a
+  reaper is what is missing). **Genuinely owed:** interactive-create idempotency · `error_events`
+  completeness (**~15 fns + FE + retention**, not "2 fns") · money `CHECK (>=0)` (= the
+  `set_project_contract_value` item — ONE task) · PostHog consent-gate.
 
 **OWNER-ONLY (not autonomously doable):** execute a **DR restore drill** before client #1 · agent-tier **eval GH secrets** + **credits-enforce** decision (both deliberately deferred per GTM plan) · **MSA→counsel** (Terms/Privacy are template stubs) · automation `pg_cron` GUCs · prod Cloud auth-config verification · **prod deploy** (owner-gated, per-instance — push migs to Cloud, redeploy edge fns incl. `admin-invite-user`, FE→CF Pages, set `VITE_FEATURES_CRM=true`).
 
