@@ -15,7 +15,7 @@
 -- B3) and inside both backstop queues (`outbox_reconcile_candidates`), so the ordinary bounded recovery
 -- resumes and re-runs every gate from scratch. The RPC itself never touches ERP.
 begin;
-select plan(17);
+select plan(19);
 
 -- ── Fixtures ─────────────────────────────────────────────────────────────────────────────────────
 insert into organizations (id, name) values
@@ -149,11 +149,26 @@ select ok(
 
 -- ── G) ACL: the RPC is not callable by anon ──────────────────────────────────────────────────────
 select ok(
-  not has_function_privilege('anon', 'public.release_outbox_hold(uuid, text)', 'execute'),
+  not has_function_privilege('anon', 'public.release_outbox_hold(uuid, text, text)', 'execute'),
   'AC-OBX-060: anon may not execute release_outbox_hold');
 select ok(
-  has_function_privilege('authenticated', 'public.release_outbox_hold(uuid, text)', 'execute'),
+  has_function_privilege('authenticated', 'public.release_outbox_hold(uuid, text, text)', 'execute'),
   'AC-OBX-060: authenticated may execute it (the Admin gate is INSIDE the function — the ADR-0011/0012 pattern)');
+
+-- ── H) FU-2 MEDIUM 6: the OPTIONAL expected-domain guard ──────────────────────────────────────────
+-- A held budget command (f2) and a held timesheet command exist. Releasing the budget row while
+-- EXPECTING 'timesheets' is refused — a colliding held row from another domain can never be cleared by
+-- a caller that names a different domain. And the 2-arg (null-domain) form stays domain-general.
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"01560000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select throws_ok(
+  $$ select release_outbox_hold('01560000-0000-0000-0000-0000000000f2'::uuid, 'wrong domain', 'timesheets') $$,
+  '42501', null,
+  'AC-OBX-060 [FU-2 MEDIUM 6]: releasing a BUDGET held row while expecting timesheets is refused — no cross-domain release');
+select is((select state from external_command_outbox where id = '01560000-0000-0000-0000-0000000000f2'),
+  'held',
+  'AC-OBX-060 [FU-2 MEDIUM 6]: the domain-mismatched attempt left the budget row held — releasing the matching domain is a separate, allowed call');
+reset role;
 
 select * from finish();
 rollback;

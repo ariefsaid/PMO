@@ -5262,7 +5262,7 @@ export type Database = {
       // Admin-only, org-re-asserted, audited; moves `held` → `failed` so the ordinary bounded
       // recovery resumes and re-runs every gate. Never touches the external system.
       release_outbox_hold: {
-        Args: { p_outbox_id: string; p_reason: string }
+        Args: { p_outbox_id: string; p_reason: string; p_expected_domain?: string }
         Returns: undefined
       }
       release_sales_invoice_submit_clearance: {

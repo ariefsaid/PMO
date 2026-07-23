@@ -282,6 +282,11 @@ export async function releaseActiveBudgetPushHold(projectId: string, fiscalYear:
   const { data, error } = await supabase
     .from('external_command_outbox')
     .select('id')
+    // ⚑ FU-2 MEDIUM 6 — scope to the budget domain. Without it a colliding held row from ANOTHER domain
+    // (a random PMO-id collision) could be selected and released by the budget banner. The RPC below
+    // re-verifies the domain server-side (`p_expected_domain`), but the read must be scoped too so it
+    // never even surfaces a non-budget row as "the held command for this project".
+    .eq('domain', 'budget')
     // ⚑ FR-BFY-032 — the held command is keyed on the YEAR-QUALIFIED identity. Two identities are
     // accepted, exactly as `get_budget_push_status.hold_releasable` derives the affordance: the
     // year-qualified one this release introduces, and the LEGACY bare `<vid>`, which by construction
@@ -303,6 +308,8 @@ export async function releaseActiveBudgetPushHold(projectId: string, fiscalYear:
   const { error: rpcError } = await supabase.rpc('release_outbox_hold', {
     p_outbox_id: outboxId,
     p_reason: 'Released from the budget push banner',
+    // ⚑ FU-2 MEDIUM 6 — the server re-verifies the locked row is a budget command before releasing.
+    p_expected_domain: 'budget',
   });
   if (rpcError) throw toAppError(rpcError);
 }

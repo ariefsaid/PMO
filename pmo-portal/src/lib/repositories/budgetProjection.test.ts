@@ -526,12 +526,16 @@ describe('releaseActiveBudgetPushHold (MED-2 — the operator route out of a hel
 
     expect(mockFrom).toHaveBeenCalledWith('external_command_outbox');
     expect(mockEq).toHaveBeenCalledWith('state', 'held');
+    // ⚑ FU-2 MEDIUM 6: the read is scoped to the budget domain so a colliding held row from another
+    // domain is never surfaced as "this project's held command"...
+    expect(mockEq).toHaveBeenCalledWith('domain', 'budget');
     // ⚑ FR-BFY-032: the held row is keyed on the YEAR-QUALIFIED identity. The bare `<vid>` is still
     // accepted because a PRE-fan-out row was written under it — and by construction that row IS this
     // year's (the old dispatcher was single-FY). Releasing "whatever is held for this project" would
     // clear another year's command.
     expect(mockIn).toHaveBeenCalledWith('pmo_record_id', ['ver-active:32303236', 'ver-active']);
-    expect(mockRpc).toHaveBeenCalledWith('release_outbox_hold', expect.objectContaining({ p_outbox_id: 'outbox-held' }));
+    // ...and the RPC re-verifies that domain server-side (defence in depth over RLS/DEFINER).
+    expect(mockRpc).toHaveBeenCalledWith('release_outbox_hold', expect.objectContaining({ p_outbox_id: 'outbox-held', p_expected_domain: 'budget' }));
   });
 
   it('MED-2 records a REASON with the release — clearing a money hold is a human decision with a name on it', async () => {
