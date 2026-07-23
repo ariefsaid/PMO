@@ -35,6 +35,9 @@ export interface ReadModelServiceClient {
     ): Promise<{ error: { message: string; code?: string } | null }>;
     update(patch: unknown): ReadModelEqChain;
   };
+  // Fenced outcome writers (migration 0153): a mirror write that must read the outbox atomically to
+  // avoid a TOCTOU race routes through a security-definer RPC rather than a bare upsert.
+  rpc(fn: string, args: Record<string, unknown>): Promise<{ error: { message: string; code?: string } | null }>;
 }
 export interface ReadModelEqChain {
   eq(column: string, value: string): ReadModelEqChain;
@@ -942,7 +945,27 @@ export async function markTimesheetPushOutcome(
   approvedAt: string,
   outcome: { code?: string; message: string } | null,
 ): Promise<void> {
-  const pushState = outcome === null ? 'pushed' : outcome.code === 'command-held' ? 'held' : 'failed';
+  // ⚑ THE RELEASE-BEFORE-MIRROR RACE (Luna FU-1a round-5 BLOCK, migration 0153). The `command-held`
+  // outcome is recorded HERE — later than, and in a separate transaction from, the outbox hold
+  // (`dispatch.ts` → `mark_outbox_held`). An Admin `release_outbox_hold` can interleave between the two,
+  // find no mirror row to release, and commit the outbox to `failed`; a blind upsert of `held` here would
+  // then RESURRECT the dead end (outbox `failed` + mirror `held`, non-retryable, non-releasable). So the
+  // `command-held` write goes through `record_timesheet_command_held`, which reads the outbox and writes
+  // the mirror in ONE statement: it records `held` ONLY while a `held` timesheet outbox for this record is
+  // still live, and records the RELEASED outcome (`failed`) otherwise. A released generation can never
+  // write `held`. Every OTHER outcome (`pushed` success / classified `failed`) is unaffected by the race
+  // and keeps the direct upsert below.
+  if (outcome !== null && outcome.code === 'command-held') {
+    const { error } = await ctx.serviceClient.rpc('record_timesheet_command_held', {
+      p_org: ctx.orgId,
+      p_timesheet_id: timesheetId,
+      p_approved_at: approvedAt,
+      p_reason: `${outcome.code}: ${outcome.message}`,
+    });
+    if (error) throw new AppError(`timesheet_erp_mirror held outcome write failed: ${error.message}`, 'DISPATCH_FAILED');
+    return;
+  }
+  const pushState = outcome === null ? 'pushed' : 'failed';
   const { error } = await ctx.serviceClient.from('timesheet_erp_mirror').upsert(
     {
       org_id: ctx.orgId,

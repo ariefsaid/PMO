@@ -47,6 +47,10 @@ function makeFakeClient() {
         select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: null, error: null }) }) }),
       };
     },
+    rpc: async (fn: string, args: unknown) => {
+      calls.push({ table: fn, method: 'rpc', args: [args] });
+      return { data: null, error: null };
+    },
   };
   return { client, calls };
 }
@@ -141,11 +145,24 @@ Deno.test('FR-TSP-085: a classified failure is recorded durably as push_state=fa
   assert(String(row.push_error).includes('employee-unlinked'), 'the classified code must be visible to the operator');
 });
 
-Deno.test('FR-TSP-085: a HELD command is recorded as push_state=held (terminal until an operator acts)', async () => {
+// ⚑ THE RELEASE-BEFORE-MIRROR RACE (Luna FU-1a round-5 BLOCK, migration 0153). The `command-held`
+// outcome no longer BLIND-upserts `held`: it routes through the `record_timesheet_command_held` RPC,
+// which reads the outbox and writes the mirror in ONE statement — recording `held` only while a `held`
+// timesheet outbox for this record is still live, and the released outcome (`failed`) otherwise. A late
+// writer whose outbox generation was already released can therefore never resurrect the hold. The RPC
+// carries the fence; here we assert the writer DELEGATES to it (and never blind-upserts `held`).
+Deno.test('FR-TSP-085 / round-5: a HELD command routes through the fenced RPC, never a blind held upsert', async () => {
   const { client, calls } = makeFakeClient();
   await markTimesheetPushOutcome(CTX(client), 'ts-1', '2026-01-12T03:04:05Z', { code: 'command-held', message: 'held for operator' });
-  const row = (calls.find((c) => c.method === 'upsert')?.args[0] ?? {}) as Record<string, unknown>;
-  assertEquals(row.push_state, 'held');
+  const rpcs = calls.filter((c) => c.method === 'rpc');
+  assertEquals(rpcs.length, 1, 'the held outcome delegates to exactly one RPC call');
+  assertEquals(rpcs[0].table, 'record_timesheet_command_held', 'and it is the fenced held recorder');
+  const args = rpcs[0].args[0] as Record<string, unknown>;
+  assertEquals(args.p_org, 'org-1');
+  assertEquals(args.p_timesheet_id, 'ts-1');
+  assertEquals(args.p_approved_at, '2026-01-12T03:04:05Z');
+  assert(String(args.p_reason).includes('command-held'), 'the classified reason is carried to the recorder');
+  assertEquals(calls.filter((c) => c.method === 'upsert').length, 0, 'a held outcome must NEVER blind-upsert the mirror');
 });
 
 Deno.test('FR-TSP-056: an EMPTY approved sheet is recorded as pushed with NO ts_number (a success, not a retry)', async () => {
@@ -188,11 +205,12 @@ Deno.test('NEW-7: the failure recorder never NAMES ts_number — a live ERP docu
   );
 });
 
-Deno.test('NEW-7: a HELD outcome likewise leaves a known ts_number intact', async () => {
+Deno.test('NEW-7: a HELD outcome likewise leaves a known ts_number intact (the fenced RPC never names it)', async () => {
   const { client, calls } = makeFakeClient();
   await markTimesheetPushOutcome(CTX(client), 'ts-1', '2026-01-12T03:04:05Z', { code: 'command-held', message: 'held for operator' });
-  const row = (calls.find((c) => c.method === 'upsert')?.args[0] ?? {}) as Record<string, unknown>;
-  assert(!('ts_number' in row), 'a held outcome learns no document number either — it must not null one out');
+  const args = (calls.find((c) => c.method === 'rpc')?.args[0] ?? {}) as Record<string, unknown>;
+  assert(!('ts_number' in args), 'a held outcome learns no document number either — the recorder never names/nulls it');
+  assert(!('p_ts_number' in args), 'and the fenced RPC takes no ts_number param — a live ERP document number survives a held outcome');
 });
 
 Deno.test('the failure recorder never touches the PMO SoT tables either', async () => {
