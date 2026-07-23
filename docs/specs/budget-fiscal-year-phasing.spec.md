@@ -696,6 +696,16 @@ writing year 2's mirror. This round binds the whole chain:
   unmapped) shall be **HELD** with a named `budget-sweep-gate-held` state and surfaced — **never POSTed**.
   The orphan path shall select the **specific** mirror/plan year and persist enough per-year plan data to
   recover an outbox orphan without guessing, while retaining replay actor authorization.
+>
+> **⚑ DIRECTOR'S RULING 2026-07-23 — "HELD" here names the OUTCOME, not the outbox `held` state.** The
+> build implements it as a named per-candidate refusal (`budget-sweep-gate-held`) that leaves the row
+> untouched and POSTs nothing, rather than transitioning the outbox row to `held`. Accepted, for two
+> reasons it surfaced: `buildReconcileDepsLive` holds no claim, so it cannot make a *fenced* write-back
+> (an unfenced one is the lost-update class this program has already been bitten by); and `held` is
+> operator-terminal, so it would additionally demand an Admin release even after the operator fixed the
+> project's dates — turning a self-healing condition into a support ticket. The money property this
+> requirement exists for — **a stale year/body is never POSTed** — is fully guaranteed, and the recovery
+> self-heals once the underlying state is corrected. The literal state name is not load-bearing.
 
 ### Closing FR-BUD-152 + the attribution fence (F6)
 - **FR-BFY-050 (ubiquitous)** — `get_budget_projection`'s `budget_year.on_record` shall be **F-C ∨ F-A**
@@ -761,6 +771,16 @@ writing year 2's mirror. This round binds the whole chain:
   `budget-unowned-live-occupant` state and an operator-actionable message naming the document and the year.
   Draft rivals (docstatus=0) SHALL remain zero-write (refused with `budget-draft-rival-on-grain`,
   unchanged) — an unowned live occupant is the symmetric refusal for the submitted case.
+>
+> **⚑ DIRECTOR'S RULING 2026-07-23 — the witness is a REVERSE lookup on the document, not a forward
+> lookup on the identity.** The wording above ("a mapping for … the year-qualified `pmo_record_id`") is
+> **wrong as written** and the build was right to refuse it. A revision is a NEW version, therefore a new
+> year-qualified identity — so taken literally, PMO's own prior document reads as *unowned* and this
+> guard fires on the ordinary FR-BUD-121 revision upsert, refusing every legitimate revision.
+> The fact this guard actually needs is **"did PMO create this DOCUMENT?"**, not "does this exact version
+> own it": `exists external_refs(org_id, domain='budget', external_record_id = <the live occupant>)`.
+> That is what distinguishes a **Desk-authored** budget — the thing we must never overwrite — from PMO's
+> own earlier version, which we must be free to amend. Normative reading: the reverse lookup.
 
 ### Writes + the span witness (F7, finding 9)
 - **FR-BFY-060 (event-driven)** — When an OD-BUDGET-3 user creates or updates a line item, the system
