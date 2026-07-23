@@ -49,7 +49,11 @@ import {
 
 const FUNCTIONS_URL = process.env.SUPABASE_FUNCTIONS_URL ?? '';
 const AUTH_URL = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? FUNCTIONS_URL;
-const ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY ?? '';
+// ⚑ BOTH names, mirroring AUTH_URL above. Reading only VITE_ made these three specs SILENTLY
+// SKIP under a runner that exports SUPABASE_ANON_KEY — and a skip is indistinguishable from a
+// pass in the summary line (2026-07-23: the lane reported "15 passed" while three real specs,
+// including this AC's owner, never executed).
+const ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY ?? process.env.SUPABASE_ANON_KEY ?? '';
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
 
 const READY = Boolean(FUNCTIONS_URL && AUTH_URL && ANON_KEY);
