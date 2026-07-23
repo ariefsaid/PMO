@@ -460,7 +460,7 @@ attributed_null as (
 pmo_budget as (
   select li.category,
          sum(li.budgeted_amount)
-           filter (where li.fiscal_year = p_fiscal_year                                  -- phased ⇒ always attributed (F-C)
+           filter (where coalesce(li.fiscal_year = p_fiscal_year, false)                 -- phased ⇒ always attributed (F-C)
                         or (li.fiscal_year is null and exists (select 1 from attributed_null)))
                                                                                          -- NULL ⇒ only via F-A + witness
            as pmo_budget_amount,
@@ -469,7 +469,15 @@ pmo_budget as (
          -- (push not 'pushed', or witness drifted) and there is no phased line to state instead.
          -- A category with NO line on the Active version does not appear here (coalesced to TRUE
          -- downstream — the genuine 'no line in a known year' ⇒ -EAC case).
-         bool_or(li.fiscal_year = p_fiscal_year
+         --
+         -- ⚑ CORRECTED 2026-07-23 (found in build T8, and it is EXACTLY the hole F-D exists to close).
+         -- `li.fiscal_year = p_fiscal_year` is **NULL**, not FALSE, for an un-phased line; `NULL or
+         -- FALSE = NULL`; and `bool_or` IGNORES NULL inputs. So a category whose only line was a
+         -- SUPPRESSED un-phased one aggregated to `attribution_known = NULL`, which the downstream
+         -- `coalesce(…, true)` then read as "nothing was suppressed" — and `-EAC` fired anyway. The
+         -- three-valued logic silently defeated the two-valued fact. `coalesce(…, false)` makes the
+         -- predicate two-valued so the sum and the fact derive from ONE expression.
+         bool_or(coalesce(li.fiscal_year = p_fiscal_year, false)
                  or (li.fiscal_year is null and exists (select 1 from attributed_null))) as attribution_known
     from budget_versions v
     join budget_line_items li on li.budget_version_id = v.id
@@ -478,6 +486,18 @@ pmo_budget as (
    group by li.category
 )
 ```
+> **⚑ DIRECTOR'S RULING 2026-07-23 — the "all lines phased to OTHER years" case.** The formula above
+> also yields `attribution_known = false` for a category whose lines all exist but are phased to a
+> *different* fiscal year. The prose said false meant "only NULL lines, suppressed"; the formula is
+> wider. **Keep the formula.** Reporting `-EAC` there would call a legitimate timing difference — spend
+> landing in FY1 against work budgeted in FY2 — an unbudgeted overspend, which is a false alarm on real
+> money. Failing closed is right.
+> **But `false` is doing two jobs and the surface must not conflate them.** "We cannot attribute this"
+> (suppressed / drifted) and "this category is budgeted in another fiscal year" are different facts, and
+> the second one is fully known and worth stating. The surface shall distinguish them — the latter reads
+> *"budgeted in FY-x"*, never a bare "unavailable". A knowable fact rendered as unknown is its own
+> dishonesty. *(Carried into the Phase C surface work; no change to the SQL predicate.)*
+
 **The variance / utilization rule (finding 2 — the money-honesty invariant one level deeper):**
 ```sql
 case when c.actuals_to_date is null then null                                    -- C-2: actuals unobtainable
