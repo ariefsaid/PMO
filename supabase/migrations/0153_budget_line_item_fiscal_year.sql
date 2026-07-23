@@ -468,3 +468,183 @@ $$;
 revoke all on function public.list_budget_fiscal_years(uuid) from public;
 grant execute on function public.list_budget_fiscal_years(uuid) to authenticated;
 revoke execute on function public.list_budget_fiscal_years(uuid) from anon;
+
+-- ════════════════════════════════════════════════════════════════════════════════════════════════
+-- §3c — get_budget_push_status: ONE ROW PER EXPECTED YEAR (FR-BFY-056, AC-BFY-025). Review finding 6.
+--
+-- ⚑ THE FACT: the expected-year set deliberately includes **F-B rows AS STATUS ROWS**. A `failed` or
+-- `held` year IS something the operator must see — that is the whole purpose of this function.
+-- Attribution is NOT consulted here (that is §3a's job, and the two must not be confused): F-B is the
+-- right fact for "what happened", and never for "what is budgeted".
+--
+-- 0149 took `limit 1` over the mirror ordered by `pushed_at desc`. Once a push fans out per year, that
+-- ordering commonly selects the PUSHED row on a partial failure (it is the one with a `pushed_at`), so
+-- the screen reports "pushed" while ERPNext enforces nothing for the other year — and if the process
+-- died before writing the second year's mirror row, that year vanished entirely. The expected set is
+-- therefore derived from PMO's OWN phased lines (F-C) ∪ the mirror's years, LEFT-JOINed to the mirror,
+-- so an absent year is an EXPLICIT `never-pushed` row rather than a silent omission.
+--
+-- ⚑ EXACTLY-ONE-ROW IS PRESERVED FOR THE "NOTHING TO REPORT" STATES. When the expected set is empty
+-- (no Active version, a cross-org read, a non-employing org, or an Active version with neither mirror
+-- rows nor phased lines) the function still yields exactly one row — carrying 0149's `unrecorded`
+-- inference where it applies, and all-NULLs otherwise. That keeps every shipped consumer and assertion
+-- working unchanged, and it keeps the alarm audible: a project with nothing on record is precisely the
+-- one most likely to have ERPNext enforcing nothing.
+--
+-- Reversibility (ADR-0006): re-run 0149's definition.
+-- ════════════════════════════════════════════════════════════════════════════════════════════════
+
+-- ⚑ THE FISCAL-YEAR TOKEN, SHARED WITH TYPESCRIPT (FR-BFY-031). `hold_releasable` must find the outbox
+-- row the dispatcher created, and from this release onward that row is keyed on the YEAR-QUALIFIED
+-- identity `<budget_version_id>:<encoded_fy>`. The encoding is defined by
+-- `pmo-portal/src/lib/adapterSeam/erpnext/fiscalYearEncoding.ts`: each UTF-8 byte becomes two symbols
+-- (hi nibble, lo nibble) over the 16-symbol alphabet `0123456789TZ.+-:` — chosen because the shipped
+-- served key guard's charset forbids base32/percent-encoding. That is exactly lowercase hex with
+-- `abcdef` mapped to `TZ.+-:`, so it is reproducible here in one expression with no new dependency.
+--
+-- The two implementations are pinned against each other by the documented examples in
+-- bfy_push_status_per_year.test.sql ('2026' → '32303236', 'A:B 2026' → '413T422032303236'); if they
+-- ever drift, that test fails rather than this function silently reporting "no hold to release" on a
+-- wedged money command.
+create or replace function public.budget_fiscal_year_token(p_fiscal_year text)
+returns text
+language sql
+immutable
+security invoker
+set search_path = public, pg_temp
+as $$
+  select translate(encode(convert_to(p_fiscal_year, 'UTF8'), 'hex'), 'abcdef', 'TZ.+-:');
+$$;
+comment on function public.budget_fiscal_year_token(text) is
+  'FR-BFY-031 canonical fiscal-year token — the SQL twin of fiscalYearEncoding.ts encodeFiscalYear(). '
+  'Used to reconstruct the year-qualified outbox identity <budget_version_id>:<token>.';
+revoke all on function public.budget_fiscal_year_token(text) from public;
+grant execute on function public.budget_fiscal_year_token(text) to authenticated;
+revoke execute on function public.budget_fiscal_year_token(text) from anon;
+
+drop function if exists public.get_budget_push_status(uuid);
+
+create or replace function public.get_budget_push_status(p_project_id uuid)
+returns table (
+  push_state          text,
+  push_error          text,
+  unmapped_categories text[],
+  erp_budget_name     text,
+  fiscal_year         text,
+  pushed_at           timestamptz,
+  hold_releasable     boolean,
+  -- ⚑ FR-BFY-056 — WHY did the budget column go blank on this year? `stale_attribution` is §3a's
+  -- suppression, named so the surface can say it: this year had a push that SUCCEEDED, the version
+  -- still has UN-PHASED lines, and the project's dates have since moved off the span that push
+  -- recorded — so those lines now attribute to no year at all. The actionable fix is a PMO action
+  -- ("phase these lines"), not a retry, which is exactly why it is reported beside the push state
+  -- rather than as a push failure.
+  stale_attribution   boolean
+)
+language sql
+stable
+security invoker
+set search_path = public, pg_temp
+as $$
+  with active_version as (
+    select v.id, v.activated_at
+      from public.budget_versions v
+     where v.project_id = p_project_id and v.status = 'Active'
+     limit 1
+  ),
+  proj as (
+    select p.start_date, p.end_date from public.projects p where p.id = p_project_id
+  ),
+  mirror as (
+    select em.fiscal_year, em.push_state, em.push_error, em.unmapped_categories, em.erp_budget_name,
+           em.pushed_at, em.pushed_project_start_date, em.pushed_project_end_date
+      from public.budget_version_erp_mirror em
+      join active_version av on av.id = em.budget_version_id
+  ),
+  phased as (
+    select distinct li.fiscal_year
+      from public.budget_line_items li
+      join active_version av on av.id = li.budget_version_id
+     where li.fiscal_year is not null
+  ),
+  has_unphased as (
+    select exists (
+      select 1 from public.budget_line_items li
+       join active_version av on av.id = li.budget_version_id
+      where li.fiscal_year is null) as v
+  ),
+  -- ⚑ H-C / H-3 (0149) — the INFERENCE for a year with no mirror row. Gated on real domain ownership,
+  -- so a non-employing org — which has no ERP to push to — never sees a push banner at all; and an
+  -- Active version with NO activation stamp gets its own state, because its route out is different
+  -- (Retry cannot help: both `budgetPushKey` and the server gate refuse an unstamped version).
+  owns as (
+    select exists (
+      select 1 from public.projects p
+       where p.id = p_project_id
+         and public.domain_owned_by_tier(p.org_id, 'budget', 'erpnext')) as v
+  ),
+  inferred as (
+    select case when not (select o.v from owns o) then null
+                when (select av.activated_at from active_version av) is null then 'unstamped-activation'
+                else 'never-pushed' end as state
+     where exists (select 1 from active_version)
+  ),
+  expected as (
+    select p.fiscal_year from phased p
+    union
+    select m.fiscal_year from mirror m
+  ),
+  per_year as (
+    select e.fiscal_year,
+           coalesce(m.push_state, (select i.state from inferred i)) as push_state,
+           m.push_error, m.unmapped_categories, m.erp_budget_name, m.pushed_at,
+           -- §3a's drift result, per year: a SUCCESSFUL push whose recorded span no longer matches the
+           -- project's CURRENT dates, on a version that still has un-phased lines to be stranded by it.
+           -- A NULL witness pre-dates this issue and cannot be drift-checked — never reported as stale.
+           coalesce(
+             (select hu.v from has_unphased hu)
+             and m.push_state = 'pushed'
+             and m.pushed_project_start_date is not null
+             and ( m.pushed_project_start_date is distinct from (select pr.start_date from proj pr)
+                or m.pushed_project_end_date   is distinct from (select pr.end_date   from proj pr) ),
+             false) as stale_attribution
+      from expected e
+      left join mirror m on m.fiscal_year = e.fiscal_year
+  )
+  select py.push_state, py.push_error, py.unmapped_categories, py.erp_budget_name,
+         py.fiscal_year, py.pushed_at,
+         -- ⚑ MEDIUM-1, now PER YEAR. Only a genuinely `held` OUTBOX row leaves something to release
+         -- (the sweep also parks the MIRROR at `held` with nothing behind it, and a button whose only
+         -- outcome is an error costs the reader their remaining trust in the screen). Two identities
+         -- are accepted: the year-qualified one this release introduces, and — only on a year that HAS
+         -- a mirror row — the LEGACY bare `<vid>`, which by construction was written by the pre-fan-out
+         -- single-FY dispatcher and therefore names that one year.
+         exists (
+           select 1
+             from public.external_command_outbox o
+             cross join active_version av
+            where o.domain = 'budget' and o.state = 'held'
+              and ( o.pmo_record_id = av.id::text || ':' || public.budget_fiscal_year_token(py.fiscal_year)
+                 or (o.pmo_record_id = av.id::text
+                     and exists (select 1 from mirror m2 where m2.fiscal_year = py.fiscal_year)) )
+         ) as hold_releasable,
+         py.stale_attribution
+    from per_year py
+  union all
+  -- The "nothing to report" row: exactly one, only when no year is expected at all. Carries the
+  -- inference (`never-pushed` / `unstamped-activation`) where it applies and NULLs otherwise, which is
+  -- byte-identical to what 0149 returned for these states.
+  select (select i.state from inferred i), null, null, null, null, null,
+         exists (
+           select 1 from public.external_command_outbox o
+             cross join active_version av
+            where o.domain = 'budget' and o.state = 'held' and o.pmo_record_id = av.id::text
+         ),
+         false
+   where not exists (select 1 from expected)
+   order by 5 nulls last;
+$$;
+
+revoke all on function public.get_budget_push_status(uuid) from public;
+grant execute on function public.get_budget_push_status(uuid) to authenticated;
+revoke execute on function public.get_budget_push_status(uuid) from anon;
