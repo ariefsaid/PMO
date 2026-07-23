@@ -20,6 +20,9 @@ vi.mock('@/src/lib/db/timesheetTransition', () => ({
   submitTimesheet: vi.fn().mockResolvedValue(undefined),
   approveTimesheet: vi.fn().mockResolvedValue(undefined),
   rejectTimesheet: vi.fn().mockResolvedValue(undefined),
+  reopenTimesheet: vi.fn().mockResolvedValue(undefined),
+  reopenApprovedTimesheet: vi.fn().mockResolvedValue(undefined),
+  listReopenableApprovedTimesheets: vi.fn().mockResolvedValue([]),
 }));
 
 vi.mock('@/src/auth/useAuth', () => ({
@@ -54,6 +57,7 @@ import {
   submitTimesheet,
   approveTimesheet,
   rejectTimesheet,
+  reopenApprovedTimesheet,
 } from '@/src/lib/db/timesheetTransition';
 import {
   listPushesNeedingAttention,
@@ -155,6 +159,28 @@ describe('useTimesheetMutations', () => {
     expect(
       rejectCalls.some(c => c.includes('"timesheets-awaiting"') && c.includes('"org-1"')),
     ).toBe(true);
+  });
+
+  // ── SHOULD-FIX 4 (Luna code review) — a successful re-open must clear the surfaces it invalidated.
+  // The re-openable queue is where the button was clicked, and the push-attention queue can still be
+  // offering a Retry for the very week that just went back to Draft (a Retry the server now refuses).
+  // Invalidating only own/awaiting left BOTH on screen until something else happened to refetch them.
+  it('SHOULD-FIX 4: reopenApproved invalidates the re-openable queue AND the push-attention queue (a stale Retry must not survive a re-open)', async () => {
+    const { qc, Wrapper } = makeWrapper();
+    const invalidateSpy = vi.spyOn(qc, 'invalidateQueries');
+
+    const { result } = renderHook(() => useTimesheetMutations(), { wrapper: Wrapper });
+    await act(async () => {
+      await result.current.reopenApproved.mutateAsync({ id: 'ts-reopened' });
+    });
+    expect(reopenApprovedTimesheet).toHaveBeenCalledWith('ts-reopened');
+
+    const keys = invalidateSpy.mock.calls.map(c => JSON.stringify(c[0]));
+    expect(keys.some(k => k.includes('"timesheets-reopenable-approved"') && k.includes('"org-1"'))).toBe(true);
+    expect(keys.some(k => k.includes('"timesheet-pushes-attention"') && k.includes('"org-1"'))).toBe(true);
+    // …and the pre-existing invalidations are kept (the sheet is now the owner's Draft again).
+    expect(keys.some(k => k.includes('"timesheets-awaiting"') && k.includes('"org-1"'))).toBe(true);
+    expect(keys.some(k => k.includes('"timesheets"') && k.includes('"org-1"'))).toBe(true);
   });
 
   it('exposes submit, approve, reject mutations', () => {

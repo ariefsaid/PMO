@@ -3,9 +3,16 @@
  *
  * A report's APPROVED sheet may be re-opened for correction ONLY when ERP holds no document for it.
  * The surface must be HONEST about which is which (never a disabled button with no reason):
- *   • NO mirror (ts_number null) and NOT in-flight  → a "Re-open for correction" button.
- *   • a LIVE ERP doc (mirror.ts_number set)         → "Already pushed to ERP — correction path coming" (NO button).
- *   • a push in flight (mirror.push_state pending/pushing) → "Push in progress" (NO button).
+ *   • NO mirror (ts_number null) and NO in-flight push command → a "Re-open for correction" button.
+ *   • a LIVE ERP doc (mirror.ts_number set)                    → "Already pushed to ERP — correction path coming" (NO button).
+ *   • a NON-TERMINAL push command (external_command_outbox     → "Push in progress" (NO button).
+ *     pending/committing/committed/quarantined/held)
+ *
+ * ⚑ SHOULD-FIX 4 (Luna code review): the in-flight case is classified from the OUTBOX, not the mirror.
+ * The mirror row is written only AFTER the ERP call settles, and the shipped writers only ever write
+ * `pushed`/`failed`/`held` — so the old `mirror.push_state === 'pending'|'pushing'` fixtures were states
+ * NO writer produces, while every real in-flight push arrived here as `mirror: null` and was rendered
+ * as an active button the server would refuse.
  * Clicking re-open invokes the reopen mutation (wired to transition_timesheet(id,'Draft'), proven in
  * the DAL test) and toasts success; a P0001 refusal (reopen-erp-document-held / reopen-push-in-flight)
  * toasts the honest reason. The whole section is gated behind canApproveTimesheets (the policy).
@@ -71,8 +78,14 @@ const renderPage = (role: string = 'Admin') => {
   );
 };
 
-/** A reopenable Approved sheet (the ReopenableApprovedTimesheet shape). */
-function sheet(id: string, owner: string, mirror: Record<string, unknown> | null): Record<string, unknown> {
+/** A reopenable Approved sheet (the ReopenableApprovedTimesheet shape). `pushCommandState` is the
+ *  sheet's non-terminal `external_command_outbox` state, exactly as the DAL reports it. */
+function sheet(
+  id: string,
+  owner: string,
+  mirror: Record<string, unknown> | null,
+  pushCommandState: string | null = null,
+): Record<string, unknown> {
   return {
     id,
     user_id: 'other-user',
@@ -85,6 +98,7 @@ function sheet(id: string, owner: string, mirror: Record<string, unknown> | null
     owner: { full_name: owner },
     entries: [{ id: `${id}-e1`, timesheet_id: id, project_id: 'p1', entry_date: '2026-07-13', hours: 8, notes: null, project: { name: 'Site Alpha', code: 'SA01' } }],
     mirror,
+    pushCommandState,
   };
 }
 
@@ -98,7 +112,7 @@ describe('AC-TSC-R3: Approvals re-open section — surface honesty + the canAppr
     reopenableData.push(
       sheet('ts-unpushed', 'Un-pushed Owner', null),
       sheet('ts-pushed', 'Pushed Owner', { ts_number: 'TS-0001', push_state: 'pushed', erp_cancelled_at: null }),
-      sheet('ts-inflight', 'In-flight Owner', { ts_number: null, push_state: 'pending', erp_cancelled_at: null }),
+      sheet('ts-inflight', 'In-flight Owner', null, 'pending'),
     );
     renderPage('Admin');
 
@@ -139,6 +153,41 @@ describe('AC-TSC-R3: Approvals re-open section — surface honesty + the canAppr
     await user.click(screen.getByRole('button', { name: /re-open for correction/i }));
 
     await waitFor(() => expect(screen.getByText(/already in erp|pushed to erp|cannot be re-opened/i)).toBeInTheDocument());
+  });
+
+  // ── SHOULD-FIX 4: the states the mirror CANNOT show ──────────────────────
+  it.each([
+    ['pending', 'a queued push another worker will claim'],
+    ['committing', 'a POST that may be inside ERPNext right now'],
+    ['committed', 'an ERP document whose mirror finalize has not run'],
+    ['quarantined', 'an unresolved in-flight POST'],
+    ['held', 'an operator-held command'],
+  ])('SHOULD-FIX 4: a sheet with NO mirror but a `%s` push command shows "Push in progress" — never an active re-open button the server will refuse', (state) => {
+    reopenableData.push(sheet(`ts-${state}`, 'In-flight Owner', null, state));
+    renderPage('Admin');
+
+    expect(screen.getByText(/push in progress/i)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /re-open for correction/i })).not.toBeInTheDocument();
+  });
+
+  it('SHOULD-FIX 4: a DESK-CANCELLED ERP document leaves the sheet re-openable — the RPC only refuses on a LIVE document', () => {
+    // migration 0151 §A refuses on `ts_number is not null AND erp_cancelled_at is null`. Once the
+    // accountant has cancelled the ERP Timesheet there is no live document, so the surface must offer
+    // the action rather than a note the server does not agree with.
+    reopenableData.push(sheet('ts-desk-cancelled', 'Cancelled Owner', { ts_number: 'TS-0009', push_state: 'failed', erp_cancelled_at: '2026-07-20T09:00:00Z' }, null));
+    renderPage('Admin');
+
+    expect(screen.getByRole('button', { name: /re-open for correction/i })).toBeInTheDocument();
+    expect(screen.queryByText(/already pushed to erp/i)).not.toBeInTheDocument();
+  });
+
+  it('SHOULD-FIX 4: a `failed` push command still leaves the sheet re-openable — Slice A admits it (a rejected push minted no ERP document)', () => {
+    // `failed` is terminal for the server's precondition, so the DAL reports pushCommandState null for
+    // it; the surface must not invent an obstacle the RPC does not have.
+    reopenableData.push(sheet('ts-failed-push', 'Failed Push Owner', { ts_number: null, push_state: 'failed', erp_cancelled_at: null }, null));
+    renderPage('Admin');
+
+    expect(screen.getByRole('button', { name: /re-open for correction/i })).toBeInTheDocument();
   });
 
   it('AC-TSC-R3: the section is gated behind canApproveTimesheets — absent for a role that cannot approve (Finance)', () => {

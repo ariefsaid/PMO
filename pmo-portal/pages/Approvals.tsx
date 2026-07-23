@@ -332,8 +332,14 @@ function ReopenableApprovedSection() {
       </h2>
       <div className="space-y-1.5">
         {data.map((row) => {
-          const pushed = Boolean(row.mirror?.ts_number);
-          const inFlight = !pushed && (row.mirror?.push_state === 'pending' || row.mirror?.push_state === 'pushing');
+          // The SAME two pieces of evidence the RPC's precondition weighs (migration 0151 §A): a live
+          // mirror document, and a NON-TERMINAL push command. ⚑ SHOULD-FIX 4 (Luna code review): the
+          // in-flight test used to read `mirror.push_state`, but the mirror row is written only AFTER
+          // the ERP call settles — so a queued/committing/committed push arrived here as `mirror: null`
+          // and rendered an ACTIVE button the server would refuse, while the two states it did test for
+          // (`pending`/`pushing`) are written by no shipped writer at all.
+          const pushed = Boolean(row.mirror?.ts_number) && !row.mirror?.erp_cancelled_at;
+          const inFlight = !pushed && row.pushCommandState !== null;
           return (
             <div
               key={row.id}

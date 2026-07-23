@@ -179,9 +179,29 @@ export type ReopenableTimesheetMirror = {
   erp_cancelled_at: string | null;
 };
 
+/**
+ * ⚑ The outbox states that mean "a push command for this sheet is NOT settled" — byte-for-byte the
+ * predicate `transition_timesheet`'s Approved→Draft arm refuses on (migration 0151 §A). `failed` and
+ * `confirmed` are terminal there and so are absent here: Slice A ADMITS a re-open over a rejected push
+ * (it minted no ERP document), and a `confirmed` row has already written its mirror.
+ */
+export const NON_TERMINAL_PUSH_COMMAND_STATES = [
+  'pending', 'committing', 'committed', 'quarantined', 'held',
+] as const;
+
 /** A re-openable Approved timesheet: joined to owner + entries + its ERP mirror (null = un-pushed). */
 export type ReopenableApprovedTimesheet = TimesheetAwaitingApproval & {
   mirror: ReopenableTimesheetMirror | null;
+  /**
+   * The sheet's non-terminal push-command state, or `null` when no push is in flight.
+   *
+   * SHOULD-FIX 4 (Luna code review): the mirror row is written by `adapter-dispatch` AFTER the ERP call
+   * settles, so a genuinely in-flight push (a queued `pending` row, a `committing` POST, a `committed`
+   * row whose mirror finalize has not run) shows up as `mirror: null` — which the surface used to read
+   * as "re-openable" and render an active button the server then refuses. This is the same evidence the
+   * server's own precondition uses, so the surface and the RPC agree.
+   */
+  pushCommandState: string | null;
 };
 
 const REOPENABLE_SELECT =
@@ -205,8 +225,27 @@ export async function listReopenableApprovedTimesheets(
     .neq('user_id', selfId)
     .order('week_start_date', { ascending: false });
   if (error) throw new Error(error.message);
-  return ((data ?? []) as unknown as ReopenableApprovedTimesheet[]).map(sheet => ({
+  const sheets = (data ?? []) as unknown as ReopenableApprovedTimesheet[];
+  if (sheets.length === 0) return [];
+
+  // The in-flight half. `external_command_outbox_select` (0096) already grants an active org member
+  // this read — NO RLS is widened for the surface; org scoping is that policy's, so no org_id is sent.
+  // An error here FAILS the whole query on purpose: a surface that cannot see push state must not
+  // report every sheet as re-openable (that is the exact lie SHOULD-FIX 4 is about).
+  const { data: commands, error: commandError } = await supabase
+    .from('external_command_outbox')
+    .select('pmo_record_id, state')
+    .eq('domain', 'timesheets')
+    .in('pmo_record_id', sheets.map(s => s.id))
+    .in('state', NON_TERMINAL_PUSH_COMMAND_STATES);
+  if (commandError) throw new Error(commandError.message);
+  const stateById = new Map(
+    ((commands ?? []) as Array<{ pmo_record_id: string; state: string }>).map(c => [c.pmo_record_id, c.state]),
+  );
+
+  return sheets.map(sheet => ({
     ...sheet,
     entries: sheet.entries.map(e => ({ ...e, hours: Number(e.hours) })),
+    pushCommandState: stateById.get(sheet.id) ?? null,
   }));
 }

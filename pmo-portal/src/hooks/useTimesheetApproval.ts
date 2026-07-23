@@ -149,11 +149,19 @@ export function useTimesheetMutations() {
   });
 
   // Slice A (AC-TSC-012, FR-TSC-060): re-open an APPROVED sheet to Draft — a pure PMO transition
-  // (no ERP call). Invalidates the awaiting + own keys, and the re-openable queue refreshes via its
-  // own observer. See ReopenableApprovedSection (Approvals.tsx) for the honest error classification.
+  // (no ERP call). See ReopenableApprovedSection (Approvals.tsx) for the honest error classification.
+  //
+  // ⚑ SHOULD-FIX 4 (Luna code review): it must also invalidate the queue it was clicked in AND the
+  // push-attention queue. Invalidating only own/awaiting left the re-opened week sitting in the
+  // "Approved — re-open for correction" list, and left a Retry offered for a week that is now Draft
+  // (a Retry the server will refuse) — both stale until something unrelated happened to refetch them.
   const reopenApproved = useMutation<void, Error, { id: string }>({
     mutationFn: ({ id }) => reopenApprovedTimesheet(id),
-    onSuccess: invalidateBoth,
+    onSuccess: () => {
+      invalidateBoth();
+      queryClient.invalidateQueries({ queryKey: reopenableApprovedKey(orgId, userId) });
+      queryClient.invalidateQueries({ queryKey: pushesAttentionKey(orgId) });
+    },
   });
 
   return { submit, approve, reject, reopen, reopenApproved };
