@@ -1585,6 +1585,19 @@ export function timesheetBackstopDepsLive(
       // START of this pass and cannot contain it. Re-reading the whole set per mint would be the same
       // answer at more cost; what must NOT happen is treating a brand-new command as attempt-exhausted.
       if (!minted && !eligibleOutboxIds.has(outboxRow.id)) {
+        // ⚑ Luna round-3 BLOCK 2 — NOT-DUE-YET IS NOT ATTEMPTS-EXHAUSTED (the budget twin's ⚑ HIGH-1,
+        // applied here). `outbox_reconcile_candidates` deliberately omits two states that are simply not
+        // due: a `committing` row inside its 60 s lease and a `quarantined` row before its visibility
+        // window elapses (0131). Both are ABOUT to become claimable by the stale-claim/recovery pass.
+        // Parking them `held` was terminal in every direction at once: `held` is excluded from THIS
+        // queue, the generic outbox pass skips timesheets, and the outbox row keeps the record's one
+        // in-flight slot (0116) — so the submitted ERP Timesheet is never adopted, the mirror never
+        // converges, and the re-open fence (which refuses on a non-terminal outbox row) refuses the week
+        // forever. And this is the ORDINARY shape of a post-submit unknown, whose whole point is that the
+        // dispatch marks NOTHING so the row stays reclaimable: the next tick, seconds later, sees a
+        // `failed` mirror plus a not-yet-due `committing` row. Leave it; the attempt/age bound is
+        // untouched for every state that really has run out.
+        if (outboxRow.state === 'committing' || outboxRow.state === 'quarantined') return;
         const { error } = await parkTimesheetMirrorRow(serviceClient, org.orgId, row, 'held', 'timesheet-push-attempts-exhausted');
         if (error) throw new AppError(error.message, error.code);
         await surfaceActionRequired(serviceClient, org.orgId, 'timesheet-push-attempts-exhausted', { timesheetId: row.timesheet_id });
