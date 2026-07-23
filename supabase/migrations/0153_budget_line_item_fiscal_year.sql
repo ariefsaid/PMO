@@ -98,3 +98,51 @@ comment on column public.budget_version_erp_mirror.pushed_project_end_date is
   'FR-BFY-080 push-time span witness: projects.end_date exactly as the budget gate read it for THIS '
   'push attempt. NULL is ambiguous by design between "pre-issue push" and "project has no end date"; '
   'the drift check treats a NULL START witness as the pre-issue case and compares both otherwise.';
+
+-- ════════════════════════════════════════════════════════════════════════════════════════════════
+-- §2 — clone_budget_version COPIES fiscal_year (F7, FR-BFY-062/071, AC-BFY-003).
+--
+-- Phasing is authored on a DRAFT, and the shipped UI's only route to a Draft is cloning the Active
+-- version. A clone that drops `fiscal_year` therefore un-phases every revision of a multi-fiscal-year
+-- budget silently — and the next activation's gate REFUSES the push (a multi-FY project with NULL
+-- lines, FR-BFY-010), so the operator's phasing work is destroyed by the ordinary act of revising it.
+--
+-- ⚑ RE-CREATED VERBATIM FROM 0005 apart from the ONE added column. Its security-definer authz — org +
+-- role + the parent-project org guard (audit HIGH-BV-1) — is load-bearing and is reproduced character
+-- for character; dropping any of it would let any authenticated caller clone across orgs. 0005's
+-- authorization deliberately does NOT include `is_active_member()`; that is preserved here rather than
+-- "improved", because widening or narrowing an authz predicate is not this migration's business.
+-- `drop function` first: `create or replace` cannot change a function's signature or ownership cleanly
+-- across re-runs, and dropping keeps the file re-runnable.
+-- ════════════════════════════════════════════════════════════════════════════════════════════════
+drop function if exists public.clone_budget_version(uuid);
+
+create or replace function public.clone_budget_version(version_id uuid)
+  returns uuid language plpgsql security definer set search_path = public as $$
+declare v_project uuid; v_org uuid; v_next int; v_new uuid;
+begin
+  select project_id, org_id into v_project, v_org from budget_versions where id = version_id;
+  if v_project is null then raise exception 'budget version not found' using errcode = 'P0002'; end if;
+  if v_org is distinct from auth_org_id()
+     or auth_role() not in ('Admin','Executive','Project Manager','Finance')
+  then raise exception 'not authorized' using errcode = '42501'; end if;
+  -- Defense-in-depth (audit HIGH-BV-1): the parent project must also be in the caller's org, so a definer
+  -- clone can never read/write across orgs even if a grafted source version slipped past RLS.
+  if (select org_id from public.projects where id = v_project) is distinct from auth_org_id()
+  then raise exception 'not authorized' using errcode = '42501'; end if;
+  select coalesce(max(version),0)+1 into v_next from budget_versions where project_id = v_project;
+  insert into budget_versions (org_id, project_id, version, name, status)
+    select v_org, v_project, v_next, name || ' (copy)', 'Draft'
+    from budget_versions where id = version_id
+    returning id into v_new;
+  -- ⚑ THE ONE CHANGE: `fiscal_year` rides along. `actual_amount` is still reset to 0 (a clone has spent
+  -- nothing yet); a NULL year stays NULL — the clone never INVENTS a year for a line the operator
+  -- deliberately left un-phased (ADR-0048).
+  insert into budget_line_items (org_id, budget_version_id, category, description, budgeted_amount, actual_amount, fiscal_year)
+    select v_org, v_new, category, description, budgeted_amount, 0, fiscal_year
+    from budget_line_items where budget_version_id = version_id;
+  return v_new;
+end; $$;
+revoke all on function public.clone_budget_version(uuid) from public;
+grant execute on function public.clone_budget_version(uuid) to authenticated;
+revoke execute on function public.clone_budget_version(uuid) from anon;
