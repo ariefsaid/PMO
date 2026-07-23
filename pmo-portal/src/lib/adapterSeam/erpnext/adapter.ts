@@ -91,6 +91,27 @@ function recordWithResolvedItemsFallback(record: PmoRecord, ctx: ErpCtx): PmoRec
 }
 
 /**
+ * The kinds whose post-submit unknown may be left IN-FLIGHT (see `postSubmitUnknown`).
+ *
+ * ⚑ Luna round-3 BLOCK 1 — THIS RECLASSIFICATION IS ONLY SAFE WITH A DURABLE RECOVERY IDENTITY.
+ * "In-flight" means the outbox row stays `committing` and a later recovery pass RE-CLAIMS it. That
+ * pass is safe only if it can PROVE what ERP holds, i.e. if the kind has an immutable, REST-filterable
+ * anchor the probe can find the already-submitted document by. `timesheet` has one (`note`,
+ * `anchorMutable:false`). An ANCHORLESS kind (Material Request / RFQ / Supplier Quotation / Purchase
+ * Order / Budget — `anchorField: null`) has none: the probe is skipped and
+ * `reissueOnInconclusiveAbsence` then permits a fresh claim+POST, so the adapter would create and
+ * submit a SECOND purchase commitment beside the live first one. (`sales-invoice` has an anchor, but
+ * its SoD-gated `transition/submit` mints a key it never stamps, so a probe for that key finds
+ * nothing — the same inconclusive-recovery hazard.)
+ *
+ * That anchorless recovery-identity gap is PRE-EXISTING and backlogged with the review's evidence; it
+ * is not this slice's to carry. So the round-2 fix is scoped to the ONE domain this slice owns, and
+ * EVERY other kind keeps its pre-existing behaviour: the post-submit error propagates exactly as
+ * thrown. Widening this set is a money decision — it requires a recovery identity for the kind first.
+ */
+const POST_SUBMIT_UNKNOWN_IS_IN_FLIGHT: ReadonlySet<ErpDocKind> = new Set<ErpDocKind>(['timesheet']);
+
+/**
  * ⚑ AFTER A SUBMIT, "IT FAILED" IS NOT "IT DIDN'T HAPPEN" (Luna round-2 BLOCK 2).
  *
  * Everything that runs after `submitDoc` returns — the FR-ENA-003 `afterSubmitHook` seam, the R9 §5
@@ -112,8 +133,13 @@ function recordWithResolvedItemsFallback(record: PmoRecord, ctx: ErpCtx): PmoRec
  *
  * ⛔ Deliberately NOT applied before/at the submit: a create or a submit that ERP REJECTS leaves no
  * submitted document, so it stays terminal (`commit-rejected`) and is not retried forever.
+ *
+ * ⛔ And deliberately NOT applied to a kind outside `POST_SUBMIT_UNKNOWN_IS_IN_FLIGHT` (Luna round-3
+ * BLOCK 1): without a durable recovery identity the retry is a DUPLICATE, not an adoption, so those
+ * kinds get their error back untouched.
  */
-function postSubmitUnknown(error: unknown, doctype: string, name: string): AdapterError {
+function postSubmitUnknown(error: unknown, kind: ErpDocKind, doctype: string, name: string): unknown {
+  if (!POST_SUBMIT_UNKNOWN_IS_IN_FLIGHT.has(kind)) return error;
   const detail = error instanceof Error ? error.message : String(error);
   return new AdapterError(
     'external-unreachable',
@@ -177,7 +203,7 @@ async function commitCreate(command: AdapterCommand, deps: ErpAdapterDeps): Prom
     const canonical: PmoRecord = { ...bodyFns.fromDoc(refetched), id: command.record.id };
     return { externalRecordId: created.name, canonical };
   } catch (error) {
-    throw postSubmitUnknown(error, entry.doctype, created.name);
+    throw postSubmitUnknown(error, kind, entry.doctype, created.name);
   }
 }
 
@@ -210,7 +236,7 @@ async function commitTransition(command: AdapterCommand, deps: ErpAdapterDeps): 
       const canonical: PmoRecord = { ...bodyFns.fromDoc(refetched), id: command.record.id };
       return { externalRecordId, canonical };
     } catch (error) {
-      throw postSubmitUnknown(error, entry.doctype, externalRecordId);
+      throw postSubmitUnknown(error, kind, entry.doctype, externalRecordId);
     }
   }
 

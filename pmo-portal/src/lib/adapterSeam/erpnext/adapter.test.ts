@@ -9,6 +9,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { AdapterError } from '../contract.ts';
 import { createErpAdapter, ERPNEXT_TIER, type ErpAdapterDeps } from './adapter.ts';
+import { DOCTYPE_REGISTRY, reissueOnInconclusiveAbsence, type ErpDocKind } from './doctypeRegistry.ts';
 
 function jsonResponse(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
@@ -181,6 +182,127 @@ describe('erpnext/adapter — commit() create, submittable kind: two-step create
       .commit({ domain: 'timesheets', operation: 'create', record: { id: 'pmo-ts-3', erp_doc_kind: 'timesheet', entries: [] } })
       .then(() => null, (e: unknown) => e);
     expect((error as AdapterError).code).toBe('commit-rejected');
+  });
+});
+
+/**
+ * ⚑ THE BLAST RADIUS OF THE POST-SUBMIT RECLASSIFICATION IS THE `timesheets` DOMAIN — Luna round-3
+ * BLOCK 1.
+ *
+ * Leaving a post-submit unknown IN-FLIGHT (`external-unreachable` ⇒ the outbox row stays `committing`
+ * ⇒ a later recovery pass re-claims it) is only SAFE for a kind that has a DURABLE RECOVERY IDENTITY:
+ * an immutable, REST-filterable anchor field the probe can find the already-submitted document by.
+ * `timesheet` has one (`note`, `anchorMutable:false` — frozen by the timesheet-fields spike §2/§9).
+ *
+ * An ANCHORLESS kind (`anchorField: null` — Material Request, Request for Quotation, Supplier
+ * Quotation, Purchase Order) has NO such identity: the probe is skipped entirely and
+ * `reissueOnInconclusiveAbsence` then PERMITS a fresh claim+POST. So routing its post-submit unknown
+ * into the retry path means the adapter creates and submits a SECOND purchase commitment while the
+ * first one is still live in ERP. Retryable-on-unknown without a recovery identity is a duplicate.
+ *
+ * That anchorless recovery-identity gap is PRE-EXISTING and is backlogged separately. This slice's
+ * job is not to carry it: every non-`timesheet` kind keeps its PRE-round-3 behaviour, i.e. the
+ * post-submit error propagates EXACTLY as thrown (a plain crash stays a plain crash; an ERP rejection
+ * stays a terminal `commit-rejected`), and none of them is silently promoted to retryable.
+ */
+describe('erpnext/adapter — the post-submit-unknown reclassification is scoped to the timesheets domain', () => {
+  /** Every submittable kind whose create auto-submits AND that a recovery pass may freely re-issue
+   *  because it has NO anchor to probe with — derived from the registry, so a future anchorless kind
+   *  is covered the day it is added rather than the day someone remembers this test. */
+  const anchorlessReissuableKinds = (Object.entries(DOCTYPE_REGISTRY) as Array<[ErpDocKind, (typeof DOCTYPE_REGISTRY)[ErpDocKind]]>)
+    .filter(([, entry]) => entry.submittable && entry.submitOnCreate !== false && entry.anchorField === null && reissueOnInconclusiveAbsence(entry))
+    .map(([kind]) => kind);
+
+  it('names the anchorless, reissue-capable submittables so the set cannot grow unnoticed', () => {
+    expect(anchorlessReissuableKinds).toEqual(['purchase-request', 'rfq', 'quotation', 'purchase-order', 'budget']);
+  });
+
+  it.each(anchorlessReissuableKinds)(
+    'Luna r3 BLOCK 1: a post-submit crash on anchorless "%s" is NOT reclassified retryable (a reissue would duplicate it)',
+    async (kind) => {
+      const crash = new Error('ERPNEXT_TEST_FAULTS: simulated crash at seam \'after-submit-before-mirror\'');
+      const fetchImpl = async (_url: string, init?: RequestInit) => {
+        if (init?.method === 'POST') return jsonResponse(200, { name: 'ERP-DOC-00001' });
+        return jsonResponse(200, { name: 'ERP-DOC-00001', docstatus: 1 });
+      };
+      const deps = baseDeps(fetchImpl, {
+        afterSubmitHook: vi.fn(async () => {
+          throw crash;
+        }),
+        doctypeBodies: { [kind]: { toBody: () => ({}), fromDoc: () => ({ id: 'placeholder' }) } },
+      });
+      const adapter = createErpAdapter(deps);
+      const error = await adapter
+        .commit({ domain: 'procurement', operation: 'create', record: { id: `pmo-${kind}-1`, erp_doc_kind: kind } })
+        .then(() => null, (e: unknown) => e);
+      // Pre-round-3, byte-for-byte: the very error the region threw, untouched.
+      expect(error).toBe(crash);
+    },
+  );
+
+  it.each(anchorlessReissuableKinds)(
+    'Luna r3 BLOCK 1: a failed post-submit RE-FETCH on anchorless "%s" stays a terminal rejection',
+    async (kind) => {
+      const fetchImpl = async (_url: string, init?: RequestInit) => {
+        if (init?.method === 'POST') return jsonResponse(200, { name: 'ERP-DOC-00002' });
+        if (init?.method === 'PUT') return jsonResponse(200, { name: 'ERP-DOC-00002', docstatus: 1 });
+        return jsonResponse(417, { exception: 'ValidationError: nope' });
+      };
+      const deps = baseDeps(fetchImpl, {
+        doctypeBodies: { [kind]: { toBody: () => ({}), fromDoc: () => ({ id: 'placeholder' }) } },
+      });
+      const adapter = createErpAdapter(deps);
+      const error = await adapter
+        .commit({ domain: 'procurement', operation: 'create', record: { id: `pmo-${kind}-2`, erp_doc_kind: kind } })
+        .then(() => null, (e: unknown) => e);
+      expect((error as AdapterError).code).toBe('commit-rejected');
+    },
+  );
+
+  it('Luna r3 BLOCK 1: a post-submit unknown on the SoD-gated Sales Invoice submit transition is not reclassified either', async () => {
+    // `sales-invoice` DOES have an immutable anchor, but the anchor carries the CREATE key — the
+    // separate `transition/submit` mints its own unsurfaced key and stamps nothing, so a probe for it
+    // finds nothing and the recovery re-PUTs an already-submitted invoice. Out of this slice's scope:
+    // it stays exactly as shipped.
+    const crash = new Error('boom');
+    const fetchImpl = async () => jsonResponse(200, { name: 'ACC-SINV-2026-00001', docstatus: 1 });
+    const deps = baseDeps(fetchImpl, {
+      afterSubmitHook: vi.fn(async () => {
+        throw crash;
+      }),
+      doctypeBodies: { 'sales-invoice': { toBody: () => ({}), fromDoc: () => ({ id: 'placeholder' }) } },
+    });
+    const adapter = createErpAdapter(deps);
+    const error = await adapter
+      .commit({
+        domain: 'revenue',
+        operation: 'transition',
+        record: { id: 'pmo-si-1', erp_doc_kind: 'sales-invoice', verb: 'submit', externalRecordId: 'ACC-SINV-2026-00001' },
+      })
+      .then(() => null, (e: unknown) => e);
+    expect(error).toBe(crash);
+  });
+
+  it('Luna r3 BLOCK 1: the timesheet kind KEEPS the in-flight classification on its submit transition', async () => {
+    // The narrowing must not silently delete the round-2 fix it is narrowing.
+    const fetchImpl = async () => jsonResponse(200, { name: 'TS-2026-00099', docstatus: 1 });
+    const deps = baseDeps(fetchImpl, {
+      afterSubmitHook: vi.fn(async () => {
+        throw new Error('boom');
+      }),
+      doctypeBodies: { timesheet: { toBody: () => ({}), fromDoc: () => ({ id: 'placeholder' }) } },
+    });
+    const adapter = createErpAdapter(deps);
+    const error = await adapter
+      .commit({
+        domain: 'timesheets',
+        operation: 'transition',
+        record: { id: 'pmo-ts-9', erp_doc_kind: 'timesheet', verb: 'submit', externalRecordId: 'TS-2026-00099' },
+      })
+      .then(() => null, (e: unknown) => e);
+    expect(error).toBeInstanceOf(AdapterError);
+    expect((error as AdapterError).code).toBe('external-unreachable');
+    expect((error as AdapterError).message).toContain('TS-2026-00099');
   });
 });
 
