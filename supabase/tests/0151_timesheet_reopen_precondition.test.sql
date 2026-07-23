@@ -19,7 +19,7 @@
 -- A REFUSAL is CORRECT behaviour, not a bug — it is the entry point for the deferred Slice B. If there
 -- is any doubt ERP holds a document, this arm REFUSES. Fail closed.
 begin;
-select plan(17);
+select plan(18);
 
 -- ── Fixtures ───────────────────────────────────────────────────────────────
 insert into organizations (id, name) values
@@ -70,46 +70,73 @@ insert into timesheet_erp_mirror (org_id, timesheet_id, ts_number, push_state, e
   ('01512000-0000-0000-0000-000000000001','01512000-0000-0000-0000-000000000010',
    'TS-LIVE-0001','pushed', null);
 
--- (b) a `committed` outbox row with external_record_id set, NO mirror (the after-commit-before-mirror
--- seam — Luna f1: ERP already holds T1 while the mirror finalize has not run).
-insert into external_command_outbox
-  (org_id, domain, pmo_record_id, idempotency_key, external_tier, operation, state, external_record_id) values
-  ('01512000-0000-0000-0000-000000000001','timesheets','01512000-0000-0000-0000-000000000011',
-   'tsc-pc-b','erpnext','create','committed','TS-SEAM-0002');
+-- ⚑ FIXTURES ARE PRODUCED BY THE SHIPPED WRITERS (Luna SHOULD-FIX 5c). These outbox states used to be
+-- hand-INSERTed, which asserts nothing about whether the shipped code can actually produce them (the UI
+-- half of the same finding proved the risk: it classified on two mirror states no writer ever writes).
+-- Every row below is minted by the FENCED guard RPC the dispatch and the sweep both call, then driven
+-- by the SHIPPED state machine: `claim_outbox_for_commit` (the one door into the ERP-POST critical
+-- section), `quarantine_committing`, `mark_outbox_held`, and the two guarded `claim_generation`-fenced
+-- write-backs `markOutboxCommitted` / `markOutboxFailed` issue verbatim.
+create function pg_temp.seed_push_command(p_sheet uuid, p_key text, p_target text) returns void
+  language plpgsql as $fn$
+declare v_id uuid; v_gen int;
+begin
+  select id into v_id from public.insert_timesheet_outbox_pending(
+    p_org := (select org_id from public.timesheets where id = p_sheet),
+    p_domain := 'timesheets', p_record_id := p_sheet::text, p_key := p_key,
+    p_tier := 'erpnext', p_operation := 'create', p_payload := null, p_digest := null, p_actor := null);
+  if p_target = 'pending' then return; end if;
 
--- (c) a bare `pending` outbox row, NO mirror (Luna f2 — a queued push still claimable/POSTable).
-insert into external_command_outbox
-  (org_id, domain, pmo_record_id, idempotency_key, external_tier, operation, state) values
-  ('01512000-0000-0000-0000-000000000001','timesheets','01512000-0000-0000-0000-000000000012',
-   'tsc-pc-c','erpnext','create','pending');
+  select claim_generation into v_gen from public.claim_outbox_for_commit(v_id);
+  if v_gen is null then raise exception 'fixture: the shipped claim refused %', p_key; end if;
+  if p_target = 'committing' then return; end if;
 
--- (d) a `quarantined` outbox row, NO mirror.
-insert into external_command_outbox
-  (org_id, domain, pmo_record_id, idempotency_key, external_tier, operation, state) values
-  ('01512000-0000-0000-0000-000000000001','timesheets','01512000-0000-0000-0000-000000000013',
-   'tsc-pc-d1','erpnext','create','quarantined');
+  if p_target = 'committed' then                      -- deps.markOutboxCommitted (fenced write-back)
+    update public.external_command_outbox
+       set state = 'committed', external_record_id = 'TS-SEAM-' || p_key
+     where id = v_id and claim_generation = v_gen;
+  elsif p_target = 'failed' then                      -- deps.markOutboxFailed (fenced write-back)
+    update public.external_command_outbox
+       set state = 'failed', last_error = 'activity-type-unconfigured'
+     where id = v_id and claim_generation = v_gen;
+  elsif p_target = 'quarantined' then                 -- the F1 stale-committing transition
+    perform public.quarantine_committing(v_id, interval '-1 second', interval '5 minutes');
+  elsif p_target = 'held' then                        -- the C-1 recovery-inconclusive transition
+    perform public.mark_outbox_held(v_id, v_gen, 'recovery-inconclusive');
+  else
+    raise exception 'fixture: unknown target state %', p_target;
+  end if;
+end; $fn$;
 
--- (d) a `held` outbox row, NO mirror.
-insert into external_command_outbox
-  (org_id, domain, pmo_record_id, idempotency_key, external_tier, operation, state) values
-  ('01512000-0000-0000-0000-000000000001','timesheets','01512000-0000-0000-0000-000000000014',
-   'tsc-pc-d2','erpnext','create','held');
+-- (b) `committed`, NO mirror (the after-commit-before-mirror seam — Luna f1: ERP already holds T1 while
+-- the mirror finalize has not run).
+select pg_temp.seed_push_command('01512000-0000-0000-0000-000000000011', 'tsc-pc-b', 'committed');
 
--- (g) a `committing` outbox row, NO mirror — a CLAIMED, IN-FLIGHT POST. The most dangerous state of
--- the five: the worker may be inside the ERPNext call at this instant, so ERP may hold a document that
--- no PMO row records yet. The predicate already lists it; without this fixture a mutation deleting
--- ONLY 'committing' from that list survives every other case here.
-insert into external_command_outbox
-  (org_id, domain, pmo_record_id, idempotency_key, external_tier, operation, state) values
-  ('01512000-0000-0000-0000-000000000001','timesheets','01512000-0000-0000-0000-000000000017',
-   'tsc-pc-g','erpnext','create','committing');
+-- (c) a bare `pending` row, NO mirror (Luna f2 — a queued push still claimable/POSTable).
+select pg_temp.seed_push_command('01512000-0000-0000-0000-000000000012', 'tsc-pc-c', 'pending');
 
--- (e) a `failed` outbox row, NO mirror (push rejected — no doc reached ERP; `failed` is terminal for
--- the inflight index, so it does NOT block the next generation).
-insert into external_command_outbox
-  (org_id, domain, pmo_record_id, idempotency_key, external_tier, operation, state) values
-  ('01512000-0000-0000-0000-000000000001','timesheets','01512000-0000-0000-0000-000000000015',
-   'tsc-pc-e','erpnext','create','failed');
+-- (d) `quarantined`, NO mirror.
+select pg_temp.seed_push_command('01512000-0000-0000-0000-000000000013', 'tsc-pc-d1', 'quarantined');
+
+-- (d) `held`, NO mirror.
+select pg_temp.seed_push_command('01512000-0000-0000-0000-000000000014', 'tsc-pc-d2', 'held');
+
+-- (g) `committing`, NO mirror — a CLAIMED, IN-FLIGHT POST. The most dangerous state of the five: the
+-- worker may be inside the ERPNext call at this instant, so ERP may hold a document that no PMO row
+-- records yet. Without this fixture a mutation deleting ONLY 'committing' from the predicate survives.
+select pg_temp.seed_push_command('01512000-0000-0000-0000-000000000017', 'tsc-pc-g', 'committing');
+
+-- (e) `failed`, NO mirror (push rejected — no doc reached ERP; terminal for the in-flight index, so it
+-- does NOT block the next generation).
+select pg_temp.seed_push_command('01512000-0000-0000-0000-000000000015', 'tsc-pc-e', 'failed');
+
+-- Every seeded state is the one it claims to be — a fixture helper that silently produced the WRONG
+-- state would otherwise make the refusals below prove nothing.
+select is(
+  (select string_agg(state, ',' order by idempotency_key) from public.external_command_outbox
+     where org_id = '01512000-0000-0000-0000-000000000001' and domain = 'timesheets'),
+  'committed,pending,quarantined,held,failed,committing',
+  'AC-TSC-R1 fixtures: the shipped writers produced exactly the six states under test');
 
 -- The re-open caller is always M (the approver). authz passes; the PRECONDITION is what is asserted.
 set local role authenticated;
