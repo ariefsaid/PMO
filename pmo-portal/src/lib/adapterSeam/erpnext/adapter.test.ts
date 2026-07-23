@@ -111,6 +111,77 @@ describe('erpnext/adapter — commit() create, submittable kind: two-step create
     expect(afterSubmitHook).toHaveBeenCalledTimes(1);
     expect(order).toEqual(['submit', 'hook', 'refetch']);
   });
+
+  /**
+   * ⚑ Luna round-2 BLOCK 2 — AN UNKNOWN FAILURE AFTER THE SUBMIT IS NOT PROOF OF "NO ERP DOCUMENT".
+   *
+   * Everything after `submitDoc` returns is read-only (the FR-ENA-003 hook, then the post-submit
+   * re-fetch), and the document is ALREADY SUBMITTED in ERPNext. If an exception from that region
+   * escapes unclassified, `dispatch.ts` classifies it as non-retryable and marks the outbox row
+   * terminal `failed`; the mirror is then written `failed` with no `ts_number`. That is EXACTLY the
+   * state the Slice-A re-open admits — so PMO returns the week to Draft while ERP holds a submitted
+   * Timesheet, and the corrected week posts as a SECOND one. The absence of a document was never
+   * established; only the absence of a successful re-read was.
+   *
+   * So the whole post-submit region is classified `external-unreachable`: the row is left in-flight
+   * (`committing`), becomes reclaimable at lease expiry, and the recovery probe ADOPTS the real
+   * document by its anchor key. That is the same durable state a real process crash leaves.
+   */
+  it('Luna r2 BLOCK 2: an unclassified failure AFTER the submit is retryable-unknown, never a terminal rejection', async () => {
+    const fetchImpl = async (_url: string, init?: RequestInit) => {
+      if (init?.method === 'POST') return jsonResponse(200, { name: 'TS-2026-00042' });
+      if (init?.method === 'PUT') return jsonResponse(200, { name: 'TS-2026-00042', docstatus: 1 });
+      return jsonResponse(200, { name: 'TS-2026-00042', docstatus: 1 });
+    };
+    const deps = baseDeps(fetchImpl, {
+      // The `after-submit-before-mirror` fault seam throws a PLAIN Error — a real crash has no
+      // classified shape, which is precisely why it must not be read as a rejection.
+      afterSubmitHook: vi.fn(async () => {
+        throw new Error('ERPNEXT_TEST_FAULTS: simulated crash at seam \'after-submit-before-mirror\'');
+      }),
+      doctypeBodies: { timesheet: { toBody: (rec) => ({ time_logs: rec.entries }), fromDoc: () => ({ id: 'placeholder' }) } },
+    });
+    const adapter = createErpAdapter(deps);
+    const error = await adapter
+      .commit({ domain: 'timesheets', operation: 'create', record: { id: 'pmo-ts-1', erp_doc_kind: 'timesheet', entries: [] } })
+      .then(() => null, (e: unknown) => e);
+    expect(error).toBeInstanceOf(AdapterError);
+    expect((error as AdapterError).code).toBe('external-unreachable');
+    // The message must name the document that IS in ERP — an operator/recovery pass needs it.
+    expect((error as AdapterError).message).toContain('TS-2026-00042');
+  });
+
+  it('Luna r2 BLOCK 2: a failed post-submit RE-FETCH is unknown too — the submit already happened', async () => {
+    const fetchImpl = async (_url: string, init?: RequestInit) => {
+      if (init?.method === 'POST') return jsonResponse(200, { name: 'TS-2026-00043' });
+      if (init?.method === 'PUT') return jsonResponse(200, { name: 'TS-2026-00043', docstatus: 1 });
+      // The re-fetch is rejected by ERP (a 417 with a classified shape). Read-only, and irrelevant to
+      // whether the submitted document exists — it does.
+      return jsonResponse(417, { exception: 'ValidationError: nope' });
+    };
+    const deps = baseDeps(fetchImpl, {
+      doctypeBodies: { timesheet: { toBody: (rec) => ({ time_logs: rec.entries }), fromDoc: () => ({ id: 'placeholder' }) } },
+    });
+    const adapter = createErpAdapter(deps);
+    const error = await adapter
+      .commit({ domain: 'timesheets', operation: 'create', record: { id: 'pmo-ts-2', erp_doc_kind: 'timesheet', entries: [] } })
+      .then(() => null, (e: unknown) => e);
+    expect((error as AdapterError).code).toBe('external-unreachable');
+  });
+
+  it('Luna r2 BLOCK 2: a rejection BEFORE the submit stays terminal — nothing was submitted to adopt', async () => {
+    // The boundary matters as much as the fix: a create ERP refuses outright leaves no submitted
+    // document, so it must stay a terminal `commit-rejected` and NOT be retried forever.
+    const fetchImpl = async () => jsonResponse(417, { exception: 'ValidationError: mandatory field' });
+    const deps = baseDeps(fetchImpl, {
+      doctypeBodies: { timesheet: { toBody: (rec) => ({ time_logs: rec.entries }), fromDoc: () => ({ id: 'placeholder' }) } },
+    });
+    const adapter = createErpAdapter(deps);
+    const error = await adapter
+      .commit({ domain: 'timesheets', operation: 'create', record: { id: 'pmo-ts-3', erp_doc_kind: 'timesheet', entries: [] } })
+      .then(() => null, (e: unknown) => e);
+    expect((error as AdapterError).code).toBe('commit-rejected');
+  });
 });
 
 describe('erpnext/adapter — commit() create, non-submittable kind: single create, no submit/refetch', () => {
