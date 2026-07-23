@@ -219,3 +219,65 @@ end; $$;
 -- `authenticated` was never needed. ⛔ Do not re-add it.
 revoke all on function insert_timesheet_outbox_pending(uuid,text,text,text,text,text,jsonb,text,uuid) from public, anon, authenticated;
 grant  execute on function insert_timesheet_outbox_pending(uuid,text,text,text,text,text,jsonb,text,uuid) to service_role;
+
+-- ============================================================================
+-- §C — claim_outbox_for_commit: the SAME fence on the CLAIM (Luna code review BLOCK 1).
+--
+-- The insert-side guard (§B) closes the MINT race. It cannot close the RE-DRIVE race, because on that
+-- path there IS no insert: `dispatchMoneyWrite` reads an existing row and goes straight to the claim
+-- (`pmo-portal/src/lib/adapterSeam/dispatch.ts` — the `pending`/`failed` branch). Slice A deliberately
+-- ADMITS a re-open while a `failed` row exists (a rejected push minted no ERP document), and the plan
+-- asserted such a row "is therefore never re-driven" — that is FALSE: both the foreground Retry and the
+-- sweep's mirror queue re-drive it through this claim. With no status check and no lock here, a gate
+-- read that saw `Approved` could claim and POST the ORIGINAL hours after the re-open committed `Draft`;
+-- the corrected week is then pushed as a SECOND Timesheet and the client's project cost double-counts.
+--
+-- So the claim itself enters the fence: for a `timesheets` row it takes the SAME canonical per-sheet
+-- advisory lock and re-reads `timesheets.status` IN THE SAME TRANSACTION as the claiming UPDATE. A
+-- TypeScript-side second read could not do this — the check and the claim must be one critical section.
+-- REFUSAL is a raise (P0001), never a NULL: a NULL means "not claimable now" and sends the caller back
+-- into `reconcileOutbox`, which would re-read the same `failed` row and claim again forever.
+--
+-- Every other domain is byte-for-byte the 0096 behaviour (no lock, no timesheet coupling) — the guard is
+-- keyed off the ROW's own `domain`, so no call site changes and every claim path (foreground dispatch,
+-- retry, sweep backstop, recovery reissue) is covered at once.
+--
+-- Reversibility: re-apply the 0096 body.
+-- ============================================================================
+create or replace function public.claim_outbox_for_commit(
+  p_id uuid, p_lease interval default interval '60 seconds'
+) returns public.external_command_outbox
+  language plpgsql security definer set search_path = public as $$
+  declare
+    v public.external_command_outbox;
+    v_domain text;
+    v_record_id text;
+    v_status timesheet_status;
+  begin
+    select domain, pmo_record_id into v_domain, v_record_id
+      from public.external_command_outbox where id = p_id;
+    if v_domain = 'timesheets' then
+      -- The canonical uuid text — the SAME identity §B stores and the Approved→Draft arm locks on
+      -- (BLOCK 3). `domain` and `pmo_record_id` are immutable for the life of a row, so reading them
+      -- before the lock is safe; everything that can CHANGE is read after it.
+      v_record_id := (v_record_id::uuid)::text;
+      perform pg_advisory_xact_lock(hashtextextended('ts-correct:' || v_record_id, 0));
+      select status into v_status from public.timesheets where id = v_record_id::uuid;
+      if v_status is distinct from 'Approved' then
+        raise exception 'timesheet-no-longer-approved' using errcode = 'P0001';
+      end if;
+    end if;
+    update public.external_command_outbox
+       set state='committing',
+           attempt_count = attempt_count + 1,
+           claim_generation = claim_generation + 1,   -- fencing token (F4): monotonic per claim
+           claimed_at = now(),
+           updated_at = now()
+     where id = p_id
+       and ( state in ('pending','failed')
+             or (state='quarantined' and reconcile_after is not null and reconcile_after < now()) )
+    returning * into v;
+    return v;   -- v.claim_generation is the caller's fencing token; null ⇒ not claimable now
+  end; $$;
+revoke all on function public.claim_outbox_for_commit(uuid, interval) from public;
+grant execute on function public.claim_outbox_for_commit(uuid, interval) to service_role;
