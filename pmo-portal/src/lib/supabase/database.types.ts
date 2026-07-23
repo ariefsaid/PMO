@@ -4470,6 +4470,11 @@ export type Database = {
         Args: never
         Returns: Database["public"]["Enums"]["user_role"]
       }
+      // 0154 migration helpers (the budget identity re-key + its staged rollback). EXECUTE-revoked
+      // from `authenticated`/`anon`; the re-key is callable by `service_role` only, which is how
+      // AC-BFY-031 drives the migration end-to-end. No app code calls either.
+      bfy_migration_0154_rekey: { Args: never; Returns: undefined }
+      bfy_migration_0154_revert: { Args: never; Returns: undefined }
       budget_fiscal_year_token: {
         Args: { p_fiscal_year: string }
         Returns: string
