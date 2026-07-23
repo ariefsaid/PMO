@@ -155,6 +155,22 @@ describe('AC-TSC-R3: Approvals re-open section — surface honesty + the canAppr
     await waitFor(() => expect(screen.getByText(/already in erp|pushed to erp|cannot be re-opened/i)).toBeInTheDocument());
   });
 
+  it('AC-TSC-R5: a HELD-mirror refusal (reopen-push-outcome-unknown) says an operator must resolve it — not a raw error code', async () => {
+    // Migration 0152 §B: the mirror is `held` ⇒ PMO does not know whether ERPNext holds a document for
+    // this week. "Try again shortly" would be a lie (nothing retries a held mirror) and the raw code is
+    // not an instruction — the user needs to know an administrator has to clear it.
+    const user = userEvent.setup();
+    reopenableData.push(sheet('ts-unknown', 'Unknown Owner', null));
+    reopenMutate.mockImplementation((_vars: unknown, opts?: { onError?: (e: unknown) => void }) => {
+      opts?.onError?.(new Error('reopen-push-outcome-unknown'));
+    });
+    renderPage('Admin');
+
+    await user.click(screen.getByRole('button', { name: /re-open for correction/i }));
+
+    await waitFor(() => expect(screen.getByText(/unknown.*administrator|administrator.*resolve/i)).toBeInTheDocument());
+  });
+
   // ── SHOULD-FIX 4: the states the mirror CANNOT show ──────────────────────
   it.each([
     ['pending', 'a queued push another worker will claim'],

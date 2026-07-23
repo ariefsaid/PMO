@@ -314,7 +314,8 @@ function EmployeeLinkConfirmSection() {
  *   • no mirror row            → "Re-open for correction" (the action)
  *   • mirror.ts_number set     → "Already pushed to ERP — correction path coming" (Slice B)
  *   • push in flight           → "Push in progress" (transient; retry later)
- * The RPC's own refusals (`reopen-erp-document-held` / `reopen-push-in-flight`) are classified to the
+ * The RPC's own refusals (`reopen-erp-document-held` / `reopen-push-outcome-unknown` /
+ * `reopen-push-in-flight`) are classified to the
  * same honest wording — the client's read can be stale, so the server always gets the last word.
  */
 function ReopenableApprovedSection() {
@@ -376,6 +377,15 @@ function ReopenableApprovedSection() {
                           // else is surfaced verbatim rather than flattened to "something went wrong".
                           if (msg.includes('reopen-erp-document-held')) {
                             toast('Already in ERP — this week cannot be re-opened yet.', 'error');
+                          } else if (msg.includes('reopen-push-outcome-unknown')) {
+                            // The mirror is `held` (migration 0152 §B): the ERP push SUCCEEDED and its
+                            // read-back failed, so nobody knows whether ERPNext holds a document for
+                            // this week. "Try again shortly" would be false — nothing re-drives a held
+                            // mirror until an Admin releases it.
+                            toast(
+                              'This week’s ERP result is unknown — an administrator must resolve the held push before it can be re-opened.',
+                              'error',
+                            );
                           } else if (msg.includes('reopen-push-in-flight')) {
                             toast('A push is in flight for this week — try again shortly.', 'error');
                           } else {
