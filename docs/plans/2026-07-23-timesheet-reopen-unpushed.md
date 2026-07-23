@@ -62,11 +62,22 @@ structurally unreachable for the un-pushed case:
   'timesheet-no-longer-approved'` **before inserting** → no orphan row, no POST, no loop (the dispatch's
   `insertOutboxPending` catch rethrows non-`23505`). Whichever side wins the lock, the other sees its
   effect: insert-wins ⇒ re-open sees `pending` ⇒ refuses; re-open-wins ⇒ insert sees `Draft` ⇒ raises.
-- **Sweep side (no change):** the sweep already re-checks status per candidate via
-  `assertApprovedForPush` → `approved_timesheet_for_push` (`erpnext-sweep/timesheetBackstop.ts:128`,
-  comment line 130: *"no longer Approved … intended refusal"*). A re-opened (`Draft`) sheet's stale
-  `failed` push is therefore never re-driven. ✓ No retire logic needed in Slice A (the spec's
-  FR-TSC-009 retire-`pending` is deferred — Slice A fails closed on `pending` instead, per F2).
+- **Sweep side — ⛔ THIS PARAGRAPH WAS WRONG. Corrected 2026-07-23 after it produced a money BLOCK.**
+  It read: *"the sweep already re-checks status per candidate … a re-opened (`Draft`) sheet's stale
+  `failed` push is therefore never re-driven. ✓ No retire logic needed in Slice A."*
+  **False, and it was the sentence that authored the defect.** A TypeScript gate READ is not a fence:
+  `dispatchMoneyWrite` skips insertion when a row already exists (`adapterSeam/dispatch.ts:538-556`) and
+  goes straight to `claim_outbox_for_commit`, which had **no status check and no lock**
+  (`0096:132-153`). So a gate read that saw `Approved` could still claim and POST *after* the re-open
+  committed `Draft` — the original hours to ERP, the corrected hours after: a double-count.
+  The sweep's **absent queue** likewise inserted an outbox row directly, bypassing the fenced mint.
+  **Actual fix (Luna BLOCK 1):** `0151 §C` re-creates `claim_outbox_for_commit` so a `domain='timesheets'`
+  row takes the canonical `ts-correct:` advisory lock and re-reads `timesheets.status` **inside the same
+  transaction as the claiming UPDATE**; the sweep's mint now goes through `insert_timesheet_outbox_pending`.
+  The `failed` path is FULLY GUARDED (not failed-closed). Proven by
+  `supabase/tests/0151_timesheet_claim_guard.test.sql` + `0151_timesheet_fence_concurrency.test.sql`.
+  ⚑ **Lesson: a plan's reasoning about a concurrency guarantee is a hypothesis, not a proof.** This one
+  read plausibly, cited real line numbers, and was still wrong.
 
 **`failed` is terminal for `external_command_outbox_one_inflight_per_record`** (0134's non-terminal set is
 `pending,committing,committed,quarantined,held` — `failed` is excluded), so a stale `failed` row never

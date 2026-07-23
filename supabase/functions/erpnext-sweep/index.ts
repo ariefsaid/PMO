@@ -382,12 +382,16 @@ export async function reconcileOrgOutbox(
     //     accepted on attempt 4 is abandoned after two ticks instead of five.
     //   • GATE (latent today, live tomorrow). This pass re-asserts only the actor's authorization; it
     //     never calls `approved_timesheet_for_push`, so NONE of 0138's preconditions are re-checked.
-    //     Unlike budget that is not currently exploitable via status — `transition_timesheet`'s map makes
-    //     `Approved` TERMINAL (`'Approved' -> []`, mig 0007), so an approval cannot be revoked behind a
-    //     frozen payload's back. But that safety belongs to a migration P3b does not own, and the
-    //     correction path that would break it is explicitly ANTICIPATED and OPEN (OQ-TSP-6). The day
-    //     `Approved -> Rejected` lands, a row left here silently posts payroll-costing hours a human
-    //     un-approved. One owner now means that change cannot reintroduce the hole.
+    //     ⚑ THE ANTICIPATED DAY ARRIVED (2026-07-23, mig 0151 — the Slice-A `Approved -> Draft` re-open).
+    //     This comment used to rest on `Approved` being TERMINAL (`'Approved' -> []`, mig 0007), and
+    //     warned: "the day `Approved -> Rejected` lands, a row left here silently posts payroll-costing
+    //     hours a human un-approved." It landed. **That premise is now FALSE and must not be relied on
+    //     again.** The prediction was right, and a Luna money review found the hole it named.
+    //     The safety is now STRUCTURAL rather than conventional: `claim_outbox_for_commit` (re-created in
+    //     0151 §C) takes the canonical `ts-correct:<uuid>` advisory lock and re-reads `timesheets.status`
+    //     INSIDE the claiming UPDATE's transaction for any `domain='timesheets'` row — so no claim path
+    //     (this pass, pass 6, a foreground Retry, a recovery reissue) can post a week that was re-opened,
+    //     whichever queue reaches it. The skip below is now a routing choice, NOT a safety argument.
     // Skipping is safe precisely BECAUSE pass 6 owns it: the row is not dropped, it is reconciled by the
     // one pass that re-asserts the gate first.
     if (candidate.domain === ERPNEXT_TIMESHEETS_DOMAIN) continue;
