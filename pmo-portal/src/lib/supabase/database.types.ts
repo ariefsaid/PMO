@@ -560,6 +560,7 @@ export type Database = {
           budgeted_amount: number
           category: Database["public"]["Enums"]["budget_category"]
           description: string | null
+          fiscal_year: string | null
           id: string
           org_id: string
         }
@@ -569,6 +570,7 @@ export type Database = {
           budgeted_amount?: number
           category: Database["public"]["Enums"]["budget_category"]
           description?: string | null
+          fiscal_year?: string | null
           id?: string
           org_id?: string
         }
@@ -578,6 +580,7 @@ export type Database = {
           budgeted_amount?: number
           category?: Database["public"]["Enums"]["budget_category"]
           description?: string | null
+          fiscal_year?: string | null
           id?: string
           org_id?: string
         }
@@ -674,6 +677,8 @@ export type Database = {
           push_error: string | null
           push_state: string
           pushed_at: string | null
+          pushed_project_end_date: string | null
+          pushed_project_start_date: string | null
           unmapped_categories: string[] | null
         }
         Insert: {
@@ -690,6 +695,8 @@ export type Database = {
           push_error?: string | null
           push_state?: string
           pushed_at?: string | null
+          pushed_project_end_date?: string | null
+          pushed_project_start_date?: string | null
           unmapped_categories?: string[] | null
         }
         Update: {
@@ -706,6 +713,8 @@ export type Database = {
           push_error?: string | null
           push_state?: string
           pushed_at?: string | null
+          pushed_project_end_date?: string | null
+          pushed_project_start_date?: string | null
           unmapped_categories?: string[] | null
         }
         Relationships: [
@@ -772,6 +781,51 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      clickup_webhook_inbox: {
+        Row: {
+          attempts: number
+          event: string
+          history_items: Json
+          id: string
+          last_error: string | null
+          processed_at: string | null
+          raw_body_sha256: string | null
+          received_at: string
+          status: string
+          task_id: string
+          team_id: string | null
+          webhook_id: string | null
+        }
+        Insert: {
+          attempts?: number
+          event: string
+          history_items?: Json
+          id?: string
+          last_error?: string | null
+          processed_at?: string | null
+          raw_body_sha256?: string | null
+          received_at?: string
+          status?: string
+          task_id: string
+          team_id?: string | null
+          webhook_id?: string | null
+        }
+        Update: {
+          attempts?: number
+          event?: string
+          history_items?: Json
+          id?: string
+          last_error?: string | null
+          processed_at?: string | null
+          raw_body_sha256?: string | null
+          received_at?: string
+          status?: string
+          task_id?: string
+          team_id?: string | null
+          webhook_id?: string | null
+        }
+        Relationships: []
       }
       companies: {
         Row: {
@@ -4416,6 +4470,10 @@ export type Database = {
         Args: never
         Returns: Database["public"]["Enums"]["user_role"]
       }
+      budget_fiscal_year_token: {
+        Args: { p_fiscal_year: string }
+        Returns: string
+      }
       capture_vendor_invoice: {
         Args: {
           p_amount?: number
@@ -4487,7 +4545,17 @@ export type Database = {
         Args: { p_si_id: string }
         Returns: undefined
       }
+      cleanup_external_connect_attempt: {
+        Args: {
+          p_actor_id: string
+          p_external_tier: string
+          p_org_id: string
+          p_secret_ref: string
+        }
+        Returns: undefined
+      }
       clickup_sweep_tick: { Args: never; Returns: undefined }
+      clickup_webhook_worker_tick: { Args: never; Returns: undefined }
       clone_budget_version: { Args: { version_id: string }; Returns: string }
       committed_procurement_statuses: { Args: never; Returns: string[] }
       confirm_erp_employee_link: {
@@ -4778,6 +4846,17 @@ export type Database = {
         Returns: boolean
       }
       erpnext_sweep_tick: { Args: never; Returns: undefined }
+      finalize_external_connect: {
+        Args: {
+          p_actor_id: string
+          p_external_tier: string
+          p_kill_switch_enabled: boolean
+          p_org_id: string
+          p_ready: boolean
+          p_secret_ref: string
+        }
+        Returns: string
+      }
       get_budget_projection: {
         Args: { p_fiscal_year: string; p_project_id: string }
         Returns: {
@@ -4787,6 +4866,11 @@ export type Database = {
           // C-1/C-2/NEW-4: `null` = the figure is UNOBTAINABLE (no ERP account mapped, or no ledger
           // reading on record for this project-year at all), never a zero.
           actuals_to_date: number | null
+          // F-D (BFY, mig 0153 §3a): is the budget attribution KNOWN for this category-year? `false`
+          // distinguishes a SUPPRESSED attribution (the category HAS lines PMO cannot place in this
+          // year) from a category that genuinely has no line: the former states NO variance and NO
+          // utilization, the latter states `-EAC`. Non-null by construction (coalesced to `true`).
+          attribution_known: boolean
           category: Database["public"]["Enums"]["budget_category"]
           pmo_budget_amount: number | null
           pmo_etc: number
@@ -4797,16 +4881,24 @@ export type Database = {
       }
       get_budget_push_status: {
         Args: { p_project_id: string }
+        // BFY (mig 0153 §3c): ONE ROW PER EXPECTED FISCAL YEAR (the Active version's phased lines ∪
+        // its mirror years), left-joined to the mirror — so a year whose mirror row was never written
+        // is an explicit `never-pushed` row, never a silent omission. Exactly one all-NULL row when
+        // nothing is on record at all.
         Returns: {
           erp_budget_name: string | null
           fiscal_year: string | null
           // MEDIUM-1 (mig 0141): is there a genuinely `held` outbox command to release? `push_state =
           // 'held'` alone is NOT that — the sweep also parks mirror rows with no held command behind
-          // them. Non-null by construction (`exists(...)`).
+          // them. Non-null by construction (`exists(...)`). Per YEAR since 0153 §3c.
           hold_releasable: boolean
           push_error: string | null
           push_state: string | null
           pushed_at: string | null
+          // FR-BFY-056: this year had a SUCCESSFUL push whose recorded project span no longer matches
+          // the project's CURRENT dates, and the version still has un-phased lines — so those lines
+          // now attribute to no year. The actionable fix is "phase these lines", not a retry.
+          stale_attribution: boolean
           unmapped_categories: string[] | null
         }[]
       }
@@ -4945,6 +5037,19 @@ export type Database = {
       mark_outbox_held: {
         Args: { p_generation: number; p_id: string; p_reason: string }
         Returns: number
+      }
+      merge_external_org_binding_config: {
+        Args: { p_external_tier: string; p_org_id: string; p_patch: Json }
+        Returns: undefined
+      }
+      merge_external_project_binding_config: {
+        Args: {
+          p_container_id: string
+          p_external_tier: string
+          p_org_id: string
+          p_patch: Json
+        }
+        Returns: undefined
       }
       next_procurement_doc_number: {
         Args: { p_org: string; p_prefix: string }
@@ -5086,6 +5191,10 @@ export type Database = {
         }
       }
       pipeline_project_statuses: { Args: never; Returns: string[] }
+      project_domain_externally_owned: {
+        Args: { p_domain: string; p_project_id: string }
+        Returns: boolean
+      }
       quarantine_committing: {
         Args: { p_id: string; p_lease?: string; p_window?: string }
         Returns: {
@@ -5133,14 +5242,31 @@ export type Database = {
         }
         Returns: number
       }
+      recover_external_connect_trap: {
+        Args: {
+          p_actor_id: string
+          p_external_tier: string
+          p_kill_switch_enabled: boolean
+          p_org_id: string
+          p_ready: boolean
+        }
+        Returns: string
+      }
       release_credits: { Args: { p_run_id: string }; Returns: undefined }
       // HIGH-2 / MED-2 (mig 0137 §4) — the operator's route out of a `held` money command:
       // Admin-only, org-re-asserted, audited; moves `held` → `failed` so the ordinary bounded
       // recovery resumes and re-runs every gate. Never touches the external system.
-      release_outbox_hold: { Args: { p_outbox_id: string; p_reason: string }; Returns: undefined }
+      release_outbox_hold: {
+        Args: { p_outbox_id: string; p_reason: string }
+        Returns: undefined
+      }
       release_sales_invoice_submit_clearance: {
         Args: { p_clearance_id: string; p_si_id: string }
         Returns: undefined
+      }
+      replace_erp_snapshot: {
+        Args: { p_org_id: string; p_rows: Json; p_table: string }
+        Returns: number
       }
       reserve_credits: {
         Args: { p_amount: number; p_org_id: string; p_run_id: string }
