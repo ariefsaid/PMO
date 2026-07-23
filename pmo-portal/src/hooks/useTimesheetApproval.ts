@@ -6,7 +6,10 @@ import {
   approveTimesheet,
   rejectTimesheet,
   reopenTimesheet,
+  reopenApprovedTimesheet,
+  listReopenableApprovedTimesheets,
   type TimesheetAwaitingApproval,
+  type ReopenableApprovedTimesheet,
 } from '@/src/lib/db/timesheetTransition';
 import { repositories } from '@/src/lib/repositories';
 import {
@@ -48,6 +51,10 @@ const ownTimesheetsKey = (orgId: string | undefined, userId: string | undefined)
 const awaitingApprovalKey = (orgId: string | undefined, userId: string | undefined) =>
   ['timesheets-awaiting', orgId, userId] as const;
 
+/** Cache key for the Slice-A re-openable Approved queue (AC-TSC-R3). */
+const reopenableApprovedKey = (orgId: string | undefined, userId: string | undefined) =>
+  ['timesheets-reopenable-approved', orgId, userId] as const;
+
 /** Cache key for the P3b Approvals "needs attention" ERP-push surface (FR-TSP-085). */
 const pushesAttentionKey = (orgId: string | undefined) => ['timesheet-pushes-attention', orgId] as const;
 
@@ -71,6 +78,28 @@ export function useTimesheetsAwaitingApproval() {
   return useQuery<TimesheetAwaitingApproval[]>({
     queryKey: awaitingApprovalKey(orgId, userId),
     queryFn: () => listTimesheetsAwaitingApproval(userId!),
+    enabled: Boolean(orgId && userId),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Slice A — re-openable Approved timesheets (AC-TSC-R3 / F5 surface honesty)
+// ---------------------------------------------------------------------------
+
+/**
+ * Returns other users' APPROVED timesheets joined to their ERP mirror, so an approver can see which
+ * are re-openable now (no ERP document) vs pushed/in-flight (honest note, not a disabled button).
+ * Cache key: ['timesheets-reopenable-approved', orgId, userId]. RLS scopes both halves; disabled when
+ * orgId/userId are absent. (FR-TSC-060 / F5.)
+ */
+export function useReopenableApprovedTimesheets() {
+  const { currentUser } = useAuth();
+  const orgId = currentUser?.org_id;
+  const userId = currentUser?.id;
+
+  return useQuery<ReopenableApprovedTimesheet[]>({
+    queryKey: reopenableApprovedKey(orgId, userId),
+    queryFn: () => listReopenableApprovedTimesheets(userId!),
     enabled: Boolean(orgId && userId),
   });
 }
@@ -119,7 +148,15 @@ export function useTimesheetMutations() {
     onSuccess: invalidateBoth,
   });
 
-  return { submit, approve, reject, reopen };
+  // Slice A (AC-TSC-012, FR-TSC-060): re-open an APPROVED sheet to Draft — a pure PMO transition
+  // (no ERP call). Invalidates the awaiting + own keys, and the re-openable queue refreshes via its
+  // own observer. See ReopenableApprovedSection (Approvals.tsx) for the honest error classification.
+  const reopenApproved = useMutation<void, Error, { id: string }>({
+    mutationFn: ({ id }) => reopenApprovedTimesheet(id),
+    onSuccess: invalidateBoth,
+  });
+
+  return { submit, approve, reject, reopen, reopenApproved };
 }
 
 // ---------------------------------------------------------------------------

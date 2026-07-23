@@ -8,6 +8,8 @@ import {
   useTimesheetsAwaitingApproval,
   usePushesNeedingAttention,
   useEmployeeLinkConfirm,
+  useReopenableApprovedTimesheets,
+  useTimesheetMutations,
 } from '@/src/hooks/useTimesheetApproval';
 import { useAuth } from '@/src/auth/useAuth';
 import { ApprovalsQueue } from './timesheets/ApprovalsQueue';
@@ -300,6 +302,95 @@ function EmployeeLinkConfirmSection() {
   );
 }
 
+/**
+ * Slice A (FR-TSC-060, AC-TSC-R3, FENCE 5) — the Approved sheets an approver may re-open for
+ * correction.
+ *
+ * ⚑ SURFACE HONESTY IS THE POINT, not the button. An Approved sheet may return to Draft ONLY while
+ * ERP holds no document for it; the RPC is the authority and it FAILS CLOSED on any doubt. So a row
+ * that cannot be re-opened must say WHY — a disabled control with no reason reads as a dead button
+ * (the I-13 lesson two sections up: a silent affordance is indistinguishable from a broken one).
+ * Hence three distinct renderings, never a greyed-out button:
+ *   • no mirror row            → "Re-open for correction" (the action)
+ *   • mirror.ts_number set     → "Already pushed to ERP — correction path coming" (Slice B)
+ *   • push in flight           → "Push in progress" (transient; retry later)
+ * The RPC's own refusals (`reopen-erp-document-held` / `reopen-push-in-flight`) are classified to the
+ * same honest wording — the client's read can be stale, so the server always gets the last word.
+ */
+function ReopenableApprovedSection() {
+  const { toast } = useToast();
+  const { data, isPending, isError } = useReopenableApprovedTimesheets();
+  const { reopenApproved } = useTimesheetMutations();
+  const [reopeningId, setReopeningId] = useState<string | null>(null);
+
+  if (isPending || isError || !data || data.length === 0) return null;
+
+  return (
+    <section className="mb-4" aria-label="Approved timesheets that can be re-opened for correction">
+      <h2 className="mb-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+        Approved — re-open for correction
+      </h2>
+      <div className="space-y-1.5">
+        {data.map((row) => {
+          const pushed = Boolean(row.mirror?.ts_number);
+          const inFlight = !pushed && (row.mirror?.push_state === 'pending' || row.mirror?.push_state === 'pushing');
+          return (
+            <div
+              key={row.id}
+              className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-card px-3 py-2.5"
+            >
+              <div className="min-w-0">
+                <div className="text-sm font-medium">{row.owner?.full_name ?? 'Unknown'}</div>
+                <div className="mt-0.5 text-[12px] text-muted-foreground">{weekLabel(row.week_start_date)}</div>
+              </div>
+              {pushed ? (
+                <span className="text-[12px] text-muted-foreground">
+                  Already pushed to ERP — correction path coming
+                </span>
+              ) : inFlight ? (
+                <span className="text-[12px] text-muted-foreground">Push in progress</span>
+              ) : (
+                <button
+                  type="button"
+                  className="h-8 rounded-md border border-border px-3 text-[12px] font-medium hover:bg-accent disabled:opacity-50"
+                  disabled={reopeningId === row.id && reopenApproved.isPending}
+                  onClick={() => {
+                    setReopeningId(row.id);
+                    reopenApproved.mutate(
+                      { id: row.id },
+                      {
+                        onSuccess: () => {
+                          setReopeningId(null);
+                          toast(`Re-opened — the week is back in Draft for editing.`, 'success');
+                        },
+                        onError: (err: unknown) => {
+                          setReopeningId(null);
+                          const msg = err instanceof Error ? err.message : String(err);
+                          // The server's fail-closed refusals, said in the user's terms. Anything
+                          // else is surfaced verbatim rather than flattened to "something went wrong".
+                          if (msg.includes('reopen-erp-document-held')) {
+                            toast('Already in ERP — this week cannot be re-opened yet.', 'error');
+                          } else if (msg.includes('reopen-push-in-flight')) {
+                            toast('A push is in flight for this week — try again shortly.', 'error');
+                          } else {
+                            toast(`Could not re-open: ${msg}`, 'error');
+                          }
+                        },
+                      },
+                    );
+                  }}
+                >
+                  Re-open for correction
+                </button>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 const ApprovalsPage: React.FC = () => {
   const may = usePermission();
   const navigate = useNavigate();
@@ -422,6 +513,7 @@ const ApprovalsPage: React.FC = () => {
 
       {canApproveTimesheets && <PushAttentionSection />}
       {canApproveTimesheets && <EmployeeLinkConfirmSection />}
+      {canApproveTimesheets && <ReopenableApprovedSection />}
 
       {hasTabs && !allCaughtUp && (
         <div className="mb-4 min-w-0">
