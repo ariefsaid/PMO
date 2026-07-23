@@ -61,7 +61,7 @@ import type { Adapter, AdapterCommand, PmoRecord } from '../../../pmo-portal/src
 import type { DispatchMoneyOutboxDeps, ExternalRefMapping, SupersededDocumentMarker } from '../../../pmo-portal/src/lib/adapterSeam/dispatch.ts';
 import { getReadModelWriter, markTimesheetPushOutcome } from './readModelWriters.ts';
 import { surfaceActionRequired } from '../_shared/erpnextFeedDeps.ts';
-import { enforceTimesheetApproved, isTimesheetPush, type ApprovedTimesheet } from './approvalGuard.ts';
+import { applyCanonicalTimesheetTruth, enforceTimesheetApproved, isTimesheetPush, type ApprovedTimesheet } from './approvalGuard.ts';
 // M-2: what a rejected budget push MEANS for the durable mirror state (a 409 is not a failure).
 import { classifyBudgetPushOutcome } from './budgetPushOutcome.ts';
 // AC-TSP-031: the ONE code→HTTP-status map for both failure exits (pre-flight select + dispatch).
@@ -710,22 +710,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
       });
     }
     approvedSheet = approved.sheet;
-    // Server truth REPLACES the payload for every field the push is built from — INCLUDING the record's
-    // own id (Luna code review BLOCK 3). `approved_timesheet_for_push(uuid)` casts whatever spelling the
-    // caller sent, but everything downstream of here compares that id as TEXT: the outbox row's
-    // `pmo_record_id`, the `ts-correct:` advisory lock, the one-in-flight partial index and the
-    // external_refs mapping. An uppercase-spelled push was therefore a SEPARATE identity that neither
-    // serialised with nor was visible to an ordinary re-open of the same sheet — PMO could go Draft
-    // while ERP was handed the original hours, and the corrected week would post as a second Timesheet.
-    // The gate's `timesheet_id` is the DB's own canonical uuid text, so adopting it collapses every
-    // spelling to one identity.
-    command.record = {
-      ...command.record,
-      id: approvedSheet.timesheet_id,
-      user_id: approvedSheet.user_id,
-      approved_at: approvedSheet.approved_at,
-      entries: approvedSheet.entries,
-    };
   }
 
   // ── Server-side idempotency-key enforcement (task 6.4, FR-ENA-040, ADR-0058 §4) — at the top of
@@ -752,6 +736,17 @@ Deno.serve(async (req: Request): Promise<Response> => {
       { status: 422, headers },
     );
   }
+
+  // ── THE COMMAND'S IDENTITY IS GATE TRUTH, NOT CALLER INPUT (Luna code review BLOCK 3, round 1 + 2).
+  // Server truth REPLACES the payload for every field the push is built from — the record's own id, the
+  // author, the `approved_at` witness, the entries AND the deterministic idempotency KEY. Everything
+  // downstream compares the id as TEXT (the outbox `pmo_record_id`, the `ts-correct:` advisory lock, the
+  // one-in-flight partial index, external_refs) and reconciles on the key, so a caller-chosen spelling or
+  // a caller-chosen key is a SECOND identity for one approval: the sweep does not collide with it and
+  // mints its own row ⇒ a second ERP Timesheet ⇒ the week's hours counted twice. Placed AFTER the
+  // opaque-key check above so a keyless/short-keyed caller still gets its 422 — the derivation replaces a
+  // valid-shaped key, it does not excuse a missing one. The rationale lives with the helper.
+  if (approvedSheet) applyCanonicalTimesheetTruth(command, approvedSheet);
 
   // service_role client — used for the machine-write helpers (read-model upsert/update + external_refs
   // record) AND, for 'tasks', to resolve the per-request ClickUp binding/mapping at adapter-select time.

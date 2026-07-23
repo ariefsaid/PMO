@@ -6,7 +6,8 @@
 // branch in which an absent/forged payload can stand in for either (ADR-0059 §3.3).
 
 import { assertEquals, assert } from 'jsr:@std/assert';
-import { enforceTimesheetApproved, isTimesheetPush, type ApprovalRpcClient } from './approvalGuard.ts';
+import { applyCanonicalTimesheetTruth, enforceTimesheetApproved, isTimesheetPush, type ApprovalRpcClient } from './approvalGuard.ts';
+import { timesheetPushKey } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/timesheetPushKey.ts';
 
 const push = (over: Record<string, unknown> = {}) =>
   ({ domain: 'timesheets', operation: 'create', record: { id: 'ts-1', erp_doc_kind: 'timesheet', ...over } }) as never;
@@ -122,4 +123,56 @@ Deno.test('Luna BLOCK 3 FAIL CLOSED: a row with no usable timesheet_id is refuse
     assertEquals(result.ok, false, `timesheet_id=${JSON.stringify(timesheet_id)} must not pass the gate`);
     assertEquals(result.message, 'approval-check-failed');
   }
+});
+
+// ============================================================================
+// Luna ROUND-2 BLOCK 3 — the two originators must share ONE ENFORCED key.
+//
+// Round 1 collapsed the record ID to the gate's canonical spelling. The KEY was left alone: the
+// browser derived it from its own argument and the served boundary accepted whatever arrived, so a
+// direct caller could pair a canonical `record.id` with an arbitrary UUID key (`isOpaqueIdempotencyKey`
+// accepts any UUID). The outbox's `unique (org, domain, pmo_record_id, idempotency_key)` then does NOT
+// collide with the sweep's deterministic key, and because `failed` is excluded from the one-in-flight
+// index the sweep mints a SECOND row for the same approval — a second ERP Timesheet, the duplicated
+// week this whole slice exists to prevent.
+//
+// So the key is SERVER-DERIVED from the gate's own truth (`timesheet_id` + `approved_at`) and REPLACES
+// whatever the caller supplied — the same treatment, at the same place, as the record fields.
+// ============================================================================
+
+Deno.test('Luna r2 BLOCK 3: the served boundary derives the key from GATE truth and DISCARDS the caller\'s', () => {
+  const sheet = { ...APPROVED_ROW, timesheet_id: '01514000-0000-0000-0000-0000000000fa' };
+  const command = {
+    domain: 'timesheets',
+    operation: 'create',
+    idempotencyKey: '11111111-2222-4333-8444-555555555555',   // a forged, perfectly UUID-shaped key
+    record: { id: '01514000-0000-0000-0000-0000000000FA', erp_doc_kind: 'timesheet', user_id: 'attacker', entries: [{ hours: '99' }] },
+  } as never as Parameters<typeof applyCanonicalTimesheetTruth>[0];
+
+  applyCanonicalTimesheetTruth(command, sheet);
+
+  assertEquals(command.record.id, '01514000-0000-0000-0000-0000000000fa');
+  assertEquals(command.record.user_id, 'user-1');
+  assertEquals(command.record.entries, APPROVED_ROW.entries);
+  assertEquals(command.record.approved_at, APPROVED_ROW.approved_at);
+  assertEquals(command.idempotencyKey, `ts:01514000-0000-0000-0000-0000000000fa:${APPROVED_ROW.approved_at}`);
+});
+
+Deno.test('Luna r2 BLOCK 3: the derived key is EXACTLY the sweep\'s — one command for one approval', () => {
+  const sheet = { ...APPROVED_ROW, timesheet_id: '01514000-0000-0000-0000-0000000000fa' };
+  const command = { domain: 'timesheets', operation: 'create', record: { id: 'whatever', erp_doc_kind: 'timesheet' } } as never as Parameters<typeof applyCanonicalTimesheetTruth>[0];
+  applyCanonicalTimesheetTruth(command, sheet);
+  assertEquals(command.idempotencyKey, timesheetPushKey(sheet.timesheet_id, sheet.approved_at));
+});
+
+Deno.test('Luna r2 BLOCK 3: the served handler DELEGATES the adoption — it never builds the id/key itself', async () => {
+  // The unit above proves the helper; this proves index.ts actually uses it. index.ts is
+  // integration-only (`Deno.serve` at module top level), so this is a source assertion — the same
+  // technique `timesheetPushKey.test.ts` uses for its confinement property. Without it, deleting the
+  // call site leaves every test above green while the boundary silently accepts a forged key again.
+  const src = await Deno.readTextFile(new URL('./index.ts', import.meta.url));
+  assert(/applyCanonicalTimesheetTruth\(\s*command,\s*approvedSheet\s*\)/.test(src),
+    'index.ts must adopt the gate truth through applyCanonicalTimesheetTruth(command, approvedSheet)');
+  assert(!/command\.record\s*=\s*\{[^}]*approvedSheet\.timesheet_id/s.test(src),
+    'index.ts must not hand-assemble the canonical record — one derivation, in one place');
 });

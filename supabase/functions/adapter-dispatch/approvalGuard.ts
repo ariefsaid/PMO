@@ -16,6 +16,7 @@
 //
 // Extracted as a pure/testable module because index.ts is integration-only (Deno.serve at module top
 // level) — the decision + the RPC seam are unit-provable here (approvalGuard.test.ts).
+import { timesheetPushKey } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/timesheetPushKey.ts';
 
 /** Structural seam for a SECURITY DEFINER RPC invocation under the CALLER's JWT (mirrors
  *  `sodGuard.ts`'s `SodRpcClient`; kept local so this guard is Deno-importable in isolation). */
@@ -97,4 +98,49 @@ export async function enforceTimesheetApproved(
       entries: Array.isArray(row.entries) ? (row.entries as ApprovedTimesheet['entries']) : [],
     },
   };
+}
+
+/** The shape `applyCanonicalTimesheetTruth` rewrites — the served `AdapterCommand`, narrowed to the
+ *  two fields that carry the command's IDENTITY (kept structural so this module stays dependency-free
+ *  and Deno-importable in isolation, the same idiom as `ApprovalRpcClient` above). */
+export interface CanonicalisableTimesheetCommand {
+  record: Record<string, unknown>;
+  idempotencyKey?: string;
+}
+
+/**
+ * ⚑ ONE IDENTITY AND ONE KEY PER APPROVAL (Luna round-2 BLOCK 3) — server truth REPLACES every part of
+ * the command a caller could otherwise choose.
+ *
+ * Round 1 adopted the gate's canonical `timesheet_id` as `record.id`. The KEY was still whatever the
+ * caller sent: `isOpaqueIdempotencyKey` accepts ANY UUID, so a direct authenticated caller could pair a
+ * canonical record id with a random key. The outbox's `unique (org, domain, pmo_record_id,
+ * idempotency_key)` then does not collide with the deterministic key the SWEEP derives — and because
+ * `failed` is excluded from `external_command_outbox_one_inflight_per_record`, the sweep mints a SECOND
+ * outbox row for the SAME approval. Two commands for one approved week = two ERP Timesheets = the
+ * client's project cost double-counts. (The same split arises innocently from an uppercase uuid
+ * spelling: `ts:<UPPER>:…` vs the sweep's `ts:<lower>:…`.)
+ *
+ * So the key is DERIVED here, from the gate's own `(timesheet_id, approved_at)`, exactly as the sweep
+ * derives it — a supplied key is discarded, never trusted and never merely validated. Deriving rather
+ * than rejecting is deliberate: both originators read `approved_at` through PostgREST, so an honest
+ * client's key already equals this one, and derivation additionally cannot be defeated by a rendering
+ * difference a future transport might introduce.
+ *
+ * Mutates in place (the served handler's `command` object is what the dispatch consumes) and returns it
+ * for expression use.
+ */
+export function applyCanonicalTimesheetTruth<T extends CanonicalisableTimesheetCommand>(
+  command: T,
+  sheet: ApprovedTimesheet,
+): T {
+  command.record = {
+    ...command.record,
+    id: sheet.timesheet_id,
+    user_id: sheet.user_id,
+    approved_at: sheet.approved_at,
+    entries: sheet.entries,
+  };
+  command.idempotencyKey = timesheetPushKey(sheet.timesheet_id, sheet.approved_at);
+  return command;
 }
