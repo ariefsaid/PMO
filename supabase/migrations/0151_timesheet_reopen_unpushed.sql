@@ -179,11 +179,21 @@ create function public.insert_timesheet_outbox_pending(
 declare
   v_status timesheet_status;
   v_row    public.external_command_outbox;
+  -- ⚑ ONE IDENTITY PER SHEET (Luna code review BLOCK 3). `p_record_id` arrives as TEXT from a caller
+  -- that may spell the same uuid differently ('…FA' vs '…fa' — `approved_timesheet_for_push(uuid)` casts
+  -- and passes either). Hashing/storing the RAW text made two spellings take DIFFERENT advisory locks
+  -- and write DIFFERENT text-keyed `pmo_record_id`s, so the re-open's in-flight-push predicate could not
+  -- see the push it was racing (and the one-in-flight partial index, also text-keyed, did not catch it):
+  -- PMO goes Draft while ERP is handed the original hours ⇒ the corrected week double-counts. Round-trip
+  -- through `uuid` FIRST, and use ONLY the canonical text below — the lock key, the status read, and the
+  -- persisted row identity. A non-uuid id raises 22P02 here, before any lock or write.
+  v_record_id text := (p_record_id::uuid)::text;
 begin
   -- FENCE 2: serialize the push INSERT against a concurrent re-open (the SAME named lock the
-  -- Approved→Draft arm holds) so the status re-check below observes the re-open's committed effect.
-  perform pg_advisory_xact_lock(hashtextextended('ts-correct:' || p_record_id, 0));
-  select status into v_status from public.timesheets where id = p_record_id::uuid;
+  -- Approved→Draft arm holds, keyed on the SAME canonical uuid text) so the status re-check below
+  -- observes the re-open's committed effect.
+  perform pg_advisory_xact_lock(hashtextextended('ts-correct:' || v_record_id, 0));
+  select status into v_status from public.timesheets where id = v_record_id::uuid;
   if v_status is distinct from 'Approved' then
     raise exception 'timesheet-no-longer-approved' using errcode = 'P0001';
   end if;
@@ -193,7 +203,7 @@ begin
   insert into public.external_command_outbox
     (org_id, domain, pmo_record_id, idempotency_key, external_tier, operation, state,
      payload, payload_digest, actor_user_id)
-  values (p_org, p_domain, p_record_id, p_key, p_tier, p_operation, 'pending',
+  values (p_org, p_domain, v_record_id, p_key, p_tier, p_operation, 'pending',
           p_payload, p_digest, p_actor)
   returning * into v_row;
   return v_row;

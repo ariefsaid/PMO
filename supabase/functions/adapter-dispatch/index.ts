@@ -710,9 +710,18 @@ Deno.serve(async (req: Request): Promise<Response> => {
       });
     }
     approvedSheet = approved.sheet;
-    // Server truth REPLACES the payload for every field the push is built from.
+    // Server truth REPLACES the payload for every field the push is built from — INCLUDING the record's
+    // own id (Luna code review BLOCK 3). `approved_timesheet_for_push(uuid)` casts whatever spelling the
+    // caller sent, but everything downstream of here compares that id as TEXT: the outbox row's
+    // `pmo_record_id`, the `ts-correct:` advisory lock, the one-in-flight partial index and the
+    // external_refs mapping. An uppercase-spelled push was therefore a SEPARATE identity that neither
+    // serialised with nor was visible to an ordinary re-open of the same sheet — PMO could go Draft
+    // while ERP was handed the original hours, and the corrected week would post as a second Timesheet.
+    // The gate's `timesheet_id` is the DB's own canonical uuid text, so adopting it collapses every
+    // spelling to one identity.
     command.record = {
       ...command.record,
+      id: approvedSheet.timesheet_id,
       user_id: approvedSheet.user_id,
       approved_at: approvedSheet.approved_at,
       entries: approvedSheet.entries,

@@ -25,6 +25,15 @@ export interface ApprovalRpcClient {
 
 /** One approved sheet, as read from the DB — the ONLY source the push body is built from. */
 export interface ApprovedTimesheet {
+  /** ⚑ THE CANONICAL SHEET IDENTITY (Luna code review BLOCK 3). Read back from the RPC's `uuid`
+   *  column, so it is PostgREST's canonical (lowercase) spelling regardless of how the caller spelled
+   *  it. The dispatch adopts it as `command.record.id`, which is what keys the outbox row, the
+   *  `ts-correct:` advisory lock, the one-in-flight index and the external_refs mapping — all TEXT
+   *  comparisons. Two spellings of one uuid were therefore two identities: an uppercase-spelled push
+   *  neither serialised with nor was visible to a re-open of the same sheet, so PMO could return the
+   *  week to Draft while ERP was being handed the original hours (the corrected week then posts as a
+   *  SECOND Timesheet — the client's project cost double-counts). */
+  timesheet_id: string;
   user_id: string;
   /** The state stamp the deterministic idempotency key and the mirror's witness are both keyed on. */
   approved_at: string;
@@ -69,8 +78,11 @@ export async function enforceTimesheetApproved(
 
   // A set-returning RPC yields an array. No row (or a row without the state stamp the push is keyed
   // on) means the gate could not establish the precondition — refuse rather than proceed.
+  // A missing/unusable `timesheet_id` is a refusal too: falling back to the caller's own spelling is
+  // exactly the identity split BLOCK 3 describes, so there is no fallback (fail closed).
   const row = Array.isArray(data) ? (data[0] as Record<string, unknown> | undefined) : undefined;
-  if (!row || typeof row.approved_at !== 'string' || !row.approved_at || typeof row.user_id !== 'string') {
+  if (!row || typeof row.approved_at !== 'string' || !row.approved_at || typeof row.user_id !== 'string'
+      || typeof row.timesheet_id !== 'string' || !row.timesheet_id) {
     return REFUSED(422, 'approval-check-failed');
   }
 
@@ -79,6 +91,7 @@ export async function enforceTimesheetApproved(
     status: 200,
     message: '',
     sheet: {
+      timesheet_id: row.timesheet_id,
       user_id: row.user_id,
       approved_at: row.approved_at,
       entries: Array.isArray(row.entries) ? (row.entries as ApprovedTimesheet['entries']) : [],

@@ -90,3 +90,36 @@ Deno.test('FAIL CLOSED: a row missing its approved_at witness is refused (ADR-00
   assertEquals(result.ok, false);
   assertEquals(result.message, 'approval-check-failed');
 });
+
+// ============================================================================
+// Luna code review BLOCK 3 — ONE IDENTITY PER SHEET, taken from the DB.
+//
+// `approved_timesheet_for_push(uuid)` accepts an UPPERCASE canonical uuid (Postgres casts it), so the
+// served boundary could carry an uppercase `record.id` all the way through the dispatch: the outbox
+// row, the external_refs mapping, the one-in-flight index and the advisory lock are all TEXT-keyed, so
+// that push never serialised with — and was invisible to — an ordinary (lowercase) re-open of the same
+// sheet. PMO returns the week to Draft while ERP is handed the original hours ⇒ double-count.
+//
+// The fix is not a regex at the edge: the gate ALREADY reads the row, and its `timesheet_id` column is
+// a `uuid`, i.e. PostgREST serialises it CANONICALLY. So the gate hands the canonical id back with the
+// rest of its server truth, and the dispatch adopts it as the command's identity.
+// ============================================================================
+
+Deno.test('Luna BLOCK 3: the gate hands back the DB\'s CANONICAL timesheet id, not the spelling the caller sent', async () => {
+  const c = client({ data: [{ ...APPROVED_ROW, timesheet_id: '01514000-0000-0000-0000-0000000000fa' }], error: null });
+  const result = await enforceTimesheetApproved(c, '01514000-0000-0000-0000-0000000000FA');
+  assert(result.ok);
+  assertEquals(
+    result.sheet?.timesheet_id,
+    '01514000-0000-0000-0000-0000000000fa',
+    'the command identity must come from the uuid column the DB returned — one spelling per sheet',
+  );
+});
+
+Deno.test('Luna BLOCK 3 FAIL CLOSED: a row with no usable timesheet_id is refused — never fall back to the caller\'s spelling', async () => {
+  for (const timesheet_id of [null, undefined, 42]) {
+    const result = await enforceTimesheetApproved(client({ data: [{ ...APPROVED_ROW, timesheet_id }], error: null }), 'ts-1');
+    assertEquals(result.ok, false, `timesheet_id=${JSON.stringify(timesheet_id)} must not pass the gate`);
+    assertEquals(result.message, 'approval-check-failed');
+  }
+});
