@@ -122,6 +122,35 @@ begin
         r_key.idempotency_key;
     end if;
   end loop;
+
+  -- ── §rekey — IN PLACE, DETERMINISTIC, from data PMO already holds (FR-BFY-035c/037) ────────────
+  -- Nothing is deleted, inserted or re-created: the SAME row keeps its id, its `external_record_id`
+  -- (the ERP `Budget` name) and its `created_at`, and only the identity it is filed under changes.
+  -- The year comes from the version's `budget_version_erp_mirror` row — the preflight above has
+  -- already proven there is EXACTLY ONE distinct fiscal year per version, so the scalar subquery is
+  -- total and unambiguous by construction (it is `min()` over a one-element set, never a choice).
+  update public.external_refs er
+     set pmo_record_id = er.pmo_record_id || ':' || public.budget_fiscal_year_token((
+           select min(m.fiscal_year)
+             from public.budget_version_erp_mirror m
+            where m.budget_version_id = er.pmo_record_id::uuid))
+   where er.domain = 'budget';
+
+  -- The outbox row's identity AND its deterministic key. The key KEEPS ITS ORIGINAL EPOCH
+  -- (`split_part(key,':',3)` of the old `bud:<vid>:<epochMs>` — a uuid contains no ':'): a fresh epoch
+  -- would mint a DIFFERENT command identity, and the whole point is that this is the same command,
+  -- migrated. `bud:<vid>:<token>:<epoch>` is byte-identical to what budgetPushKey.ts now derives.
+  update public.external_command_outbox o
+     set pmo_record_id   = o.pmo_record_id || ':' || y.tok,
+         idempotency_key = 'bud:' || o.pmo_record_id || ':' || y.tok || ':' || split_part(o.idempotency_key, ':', 3)
+    from (select distinct m.budget_version_id, public.budget_fiscal_year_token(m.fiscal_year) as tok
+            from public.budget_version_erp_mirror m) y
+   where o.domain = 'budget'
+     and y.budget_version_id = o.pmo_record_id::uuid;
+
+  -- `budget_version_erp_mirror` is deliberately UNTOUCHED: its FK stays the BARE budget_version_id
+  -- (plan FENCE 5) and its recorded fiscal_year is the fact this migration READS, never rewrites.
+  -- No other domain is touched — every statement above is `domain = 'budget'`.
 end;
 $$;
 
@@ -135,6 +164,51 @@ revoke all on function public.bfy_migration_0154_rekey() from public;
 revoke all on function public.bfy_migration_0154_rekey() from anon;
 revoke all on function public.bfy_migration_0154_rekey() from authenticated;
 revoke all on function public.bfy_migration_0154_rekey() from service_role;
+
+-- ════════════════════════════════════════════════════════════════════════════════════════════════
+-- §fence — the write-side half of FR-BFY-035a, honoured by OLD AND NEW CODE ALIKE.
+--
+-- The spec asks for "quiescence OR a DB fence honoured by both old and new code". Deploy-time
+-- quiescence (release-engineer drains budget dispatch + sweep) is the PRIMARY mechanism and this does
+-- not replace it. But the race it must close is a request already in flight between the ERP commit and
+-- the outbox insert — a window no deploy step can see — and the write path reaches Postgres through
+-- PostgREST, one statement per transaction, so application code CANNOT hold a lock across it.
+--
+-- The only fence a PostgREST-mediated writer can honour is one enforced BY THE DATABASE, on the write
+-- itself. This trigger is exactly the "attempt the advisory lock before any budget outbox insert" the
+-- plan specifies, relocated to the one place both the old and the new binary must pass through.
+--
+-- SHARED, not exclusive: concurrent budget pushes must never fence EACH OTHER (a multi-year fan-out is
+-- several inserts, and two operators may push at once). Only the re-key, which takes the EXCLUSIVE
+-- half, can make this acquisition fail — and while it does, a bare `pmo_record_id` cannot land after
+-- the rewrite. `try`/nowait, so a fenced writer fails fast and retryably instead of queueing behind a
+-- migration. 55P03 = lock_not_available: an honest, retryable classification, not a data error.
+create or replace function public.enforce_budget_identity_rekey_fence()
+returns trigger
+language plpgsql
+security invoker
+set search_path = public, pg_temp
+as $$
+begin
+  if not pg_try_advisory_xact_lock_shared(hashtext('pmo_budget_identity_rekey')) then
+    raise exception
+      'budget dispatch is fenced: the budget identity re-key migration is running. Retry once it completes.'
+      using errcode = '55P03';
+  end if;
+  return new;
+end;
+$$;
+
+comment on function public.enforce_budget_identity_rekey_fence() is
+  'FR-BFY-035a — the DB-side migration fence. Every budget outbox INSERT takes the SHARED half of the '
+  'pmo_budget_identity_rekey advisory lock; bfy_migration_0154_rekey() takes the EXCLUSIVE half for its '
+  'whole transaction, so no in-flight push can land a bare pmo_record_id after the rewrite.';
+
+drop trigger if exists enforce_budget_identity_rekey_fence on public.external_command_outbox;
+create trigger enforce_budget_identity_rekey_fence
+  before insert on public.external_command_outbox
+  for each row when (new.domain = 'budget')
+  execute function public.enforce_budget_identity_rekey_fence();
 
 -- Run it once, here, in this migration's own transaction (the fence is held for exactly that window).
 select public.bfy_migration_0154_rekey();
