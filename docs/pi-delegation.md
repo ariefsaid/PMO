@@ -15,8 +15,8 @@ and the DoD in `docs/product-expectations.md` are unchanged and binding.
 > concurrency gate, and a token ledger (`~/.pi-usage.jsonl`; `pi-dispatch report [days]`).
 > Tiers: `build` (sonnet–opus band) · `routine` (haiku–sonnet) · `mechanical` (haiku) · `review`
 > (cross-family) · `review-money` (**Luna-only at max thinking — baked into the
-> ladder; no fallback — failure = escalate, never a weaker reviewer**) · `multimodal` (vision judgment:
-> minimax → inkling → Luna; Director keeps the final taste lens) · `orchestrate` (GLM-5.2 manager
+> ladder; no fallback — failure = escalate, never a weaker reviewer**) · `multimodal` (vision judgment,
+> quality-first: claude-sonnet → Luna:high, free NIM fallbacks after; Director keeps the final taste lens) · `orchestrate` (GLM-5.2 manager
 > loops, Luna fallback; no claude rung — orchestrate failure escalates to the Director). **Model slugs live ONLY in the wrapper's ladder table** — never pass raw
 > provider/model in a dispatch; a wrong slug surfaces as 429-no-body and gets misdiagnosed as a rate
 > limit. Verify new slugs with `pi-dispatch smoke <provider> <model>`. The §2 table below remains the
