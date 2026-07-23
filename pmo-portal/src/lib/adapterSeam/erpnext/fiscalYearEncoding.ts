@@ -110,3 +110,24 @@ export function budgetVersionIdOf(identity: string): string {
   }
   return vid;
 }
+
+/**
+ * ⚑ FR-BFY-038 (FU-2 review, BLOCKER 1) — the fiscal-year HALF of the same identity. Once the budget
+ * identity is year-qualified, the fiscal year must travel with it through every downstream read, write,
+ * tombstone, amend and dedup: the mirror grain is `(budget_version_id × fiscal_year)`, so reducing the
+ * identity to the bare FK alone would read/mutate EVERY year's row for the version.
+ *
+ * Returns the decoded ERPNext `Fiscal Year` NAME (the value the `budget_version_erp_mirror.fiscal_year`
+ * column holds) for a year-qualified identity, or `null` for a pre-fan-out bare id (which carries no
+ * year). Never throws — a malformed/undecodable trailer yields `null` so a caller falls back to the
+ * bare-FK behaviour rather than crashing the feed.
+ */
+export function fiscalYearOf(identity: string): string | null {
+  const sep = identity.indexOf(':');
+  if (sep < 0) return null;
+  try {
+    return decodeFiscalYear(identity.slice(sep + 1)) || null;
+  } catch {
+    return null;
+  }
+}
