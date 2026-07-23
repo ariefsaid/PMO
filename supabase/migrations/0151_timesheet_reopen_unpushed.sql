@@ -198,5 +198,14 @@ begin
   returning * into v_row;
   return v_row;
 end; $$;
-revoke all on function insert_timesheet_outbox_pending(uuid,text,text,text,text,text,jsonb,text,uuid) from public, anon;
-grant  execute on function insert_timesheet_outbox_pending(uuid,text,text,text,text,text,jsonb,text,uuid) to authenticated, service_role;
+-- ⚑ SECURITY (Luna code review BLOCK 2, 2026-07-23) — MACHINE-ONLY. This is SECURITY DEFINER and takes
+-- p_org / p_payload / p_actor as ARGUMENTS, so any principal that can execute it can mint an outbox row
+-- with a forged org, a forged payload (inflated hours) and a forged actor. The header above says org_id
+-- is "definer-trusted — never the client"; granting `authenticated` made that sentence FALSE, because
+-- every function in `public` is reachable over PostgREST RPC. The status='Approved' re-check does not
+-- help: the attacker's own approved sheet passes it, and the sweep then DRIVES the existing row without
+-- replacing its payload, so the forged hours reach ERPNext.
+-- The only caller is the served boundary's SERVICE-ROLE client (`adapter-dispatch`, moneyOutboxDeps) —
+-- `authenticated` was never needed. ⛔ Do not re-add it.
+revoke all on function insert_timesheet_outbox_pending(uuid,text,text,text,text,text,jsonb,text,uuid) from public, anon, authenticated;
+grant  execute on function insert_timesheet_outbox_pending(uuid,text,text,text,text,text,jsonb,text,uuid) to service_role;
