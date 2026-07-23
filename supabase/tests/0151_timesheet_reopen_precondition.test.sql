@@ -77,23 +77,29 @@ insert into timesheet_erp_mirror (org_id, timesheet_id, ts_number, push_state, e
 -- by the SHIPPED state machine: `claim_outbox_for_commit` (the one door into the ERP-POST critical
 -- section), `quarantine_committing`, `mark_outbox_held`, and the two guarded `claim_generation`-fenced
 -- write-backs `markOutboxCommitted` / `markOutboxFailed` issue verbatim.
-create function pg_temp.seed_push_command(p_sheet uuid, p_key text, p_target text) returns void
+-- `p_label` names the fixture in failure messages; the KEY itself is DERIVED, exactly as both
+-- originators derive it (`ts:<canonical uuid>:<approved_at>`): it carries the sheet's approval
+-- GENERATION, which both fences (0151 §A2) compare against the sheet's current `approved_at` and fail
+-- closed without. A hand-written key would be refused here as a stale generation.
+create function pg_temp.seed_push_command(p_sheet uuid, p_label text, p_target text) returns void
   language plpgsql as $fn$
-declare v_id uuid; v_gen int;
+declare v_id uuid; v_gen int; v_key text;
 begin
+  v_key := 'ts:' || p_sheet::text || ':'
+           || (select approved_at::text from public.timesheets where id = p_sheet);
   select id into v_id from public.insert_timesheet_outbox_pending(
     p_org := (select org_id from public.timesheets where id = p_sheet),
-    p_domain := 'timesheets', p_record_id := p_sheet::text, p_key := p_key,
+    p_domain := 'timesheets', p_record_id := p_sheet::text, p_key := v_key,
     p_tier := 'erpnext', p_operation := 'create', p_payload := null, p_digest := null, p_actor := null);
   if p_target = 'pending' then return; end if;
 
   select claim_generation into v_gen from public.claim_outbox_for_commit(v_id);
-  if v_gen is null then raise exception 'fixture: the shipped claim refused %', p_key; end if;
+  if v_gen is null then raise exception 'fixture: the shipped claim refused %', p_label; end if;
   if p_target = 'committing' then return; end if;
 
   if p_target = 'committed' then                      -- deps.markOutboxCommitted (fenced write-back)
     update public.external_command_outbox
-       set state = 'committed', external_record_id = 'TS-SEAM-' || p_key
+       set state = 'committed', external_record_id = 'TS-SEAM-' || p_label
      where id = v_id and claim_generation = v_gen;
   elsif p_target = 'failed' then                      -- deps.markOutboxFailed (fenced write-back)
     update public.external_command_outbox

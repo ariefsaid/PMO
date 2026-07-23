@@ -163,6 +163,46 @@ grant  execute on function transition_timesheet(uuid, timesheet_status, text) to
 revoke execute on function transition_timesheet(uuid, timesheet_status, text) from anon;
 
 -- ============================================================================
+-- §A2 — timesheet_push_key_witness: THE APPROVAL GENERATION, read off a command's own key.
+--
+-- ⚑ WHY (Luna round-2 BLOCK 1). Every fence above validates `status = 'Approved'`. Status is the WRONG
+-- UNIT OF SAFETY: after one correction cycle the sheet is `Approved` AGAIN — a DIFFERENT generation,
+-- the same status. So a command decided on generation T1 (a sweep pass paused before its insert, a
+-- foreground retry of a T1 `failed` row) passes a status check after T2 has been approved and POSTs the
+-- ORIGINAL hours; T2's corrected hours are then pushed too. Two ERP Timesheets for one week — the exact
+-- double-count this slice exists to prevent, through a door the status check leaves open. It is
+-- reproducible: create a `failed` T1 row, run `Approved → Draft → Submitted → Approved`, and a
+-- status-only claim happily returns `committing`.
+--
+-- `timesheets.approved_at` is the generation witness: retained across `Approved → Draft` (§A's stamp
+-- rule) and REPLACED by the next approval. Every timesheet command already carries it, because the
+-- deterministic idempotency key IS `ts:<canonical uuid>:<approved_at>` (`timesheetPushKey.ts`, derived
+-- server-side at both originators). This function extracts it.
+--
+-- Compared as `timestamptz`, never as text: the key's stamp is whatever rendering its originator read
+-- (`2026-07-19T02:55:21.340995+00:00` via PostgREST, `2026-07-19 02:55:21.340995+00` via SQL) and those
+-- are the SAME INSTANT. A text comparison would refuse honest pushes; the cast compares generations.
+-- Returns NULL for anything it cannot parse (no prefix, no uuid, an unparseable stamp) — the CALLERS
+-- turn that NULL into a refusal, so "no witness" can never read as "witness matches".
+-- ============================================================================
+create or replace function public.timesheet_push_key_witness(p_key text)
+  returns timestamptz language plpgsql immutable set search_path = public as $$
+declare
+  v_stamp text;
+begin
+  v_stamp := substring(p_key from
+    '^ts:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}:(.+)$');
+  if v_stamp is null then return null; end if;
+  return v_stamp::timestamptz;
+exception when others then
+  -- A malformed stamp is NOT an error to propagate — it is simply "no witness", and every caller
+  -- fails closed on that. Raising here would turn a forged key into a 500 instead of a refusal.
+  return null;
+end; $$;
+revoke all     on function public.timesheet_push_key_witness(text) from public, anon, authenticated;
+grant  execute on function public.timesheet_push_key_witness(text) to   service_role;
+
+-- ============================================================================
 -- §B — insert_timesheet_outbox_pending: the FENCE-2 push-side guard.
 -- The timesheet push INSERT acquires the SAME named per-timesheet advisory lock as the Approved→Draft
 -- arm and RE-VERIFIES status='Approved' BEFORE inserting. A re-open that flipped the sheet to Draft
@@ -177,7 +217,9 @@ create function public.insert_timesheet_outbox_pending(
 ) returns public.external_command_outbox
   language plpgsql security definer set search_path = public as $$
 declare
-  v_status timesheet_status;
+  v_status      timesheet_status;
+  v_approved_at timestamptz;
+  v_witness     timestamptz;
   v_row    public.external_command_outbox;
   -- ⚑ ONE IDENTITY PER SHEET (Luna code review BLOCK 3). `p_record_id` arrives as TEXT from a caller
   -- that may spell the same uuid differently ('…FA' vs '…fa' — `approved_timesheet_for_push(uuid)` casts
@@ -193,9 +235,19 @@ begin
   -- Approved→Draft arm holds, keyed on the SAME canonical uuid text) so the status re-check below
   -- observes the re-open's committed effect.
   perform pg_advisory_xact_lock(hashtextextended('ts-correct:' || v_record_id, 0));
-  select status into v_status from public.timesheets where id = v_record_id::uuid;
+  select status, approved_at into v_status, v_approved_at
+    from public.timesheets where id = v_record_id::uuid;
   if v_status is distinct from 'Approved' then
     raise exception 'timesheet-no-longer-approved' using errcode = 'P0001';
+  end if;
+  -- ⚑ THE GENERATION FENCE (Luna round-2 BLOCK 1) — `Approved` alone is not enough. A command decided
+  -- on generation T1 and inserted after T2's approval would post the SUPERSEDED hours alongside the
+  -- corrected ones. This command's own witness (§A2, read from its deterministic key) must be the
+  -- sheet's CURRENT `approved_at`. NULL ⇒ the command cannot prove which generation it belongs to ⇒
+  -- refuse: fail closed, exactly as for a mismatch.
+  v_witness := public.timesheet_push_key_witness(p_key);
+  if v_witness is null or v_witness is distinct from v_approved_at then
+    raise exception 'timesheet-approval-superseded' using errcode = 'P0001';
   end if;
   -- Same insert columns as the generic path (moneyOutboxDeps.ts:insertOutboxPending). state is
   -- 'pending' (the dispatch claims it next). org_id is the explicit, definer-trusted arg — never the
@@ -252,9 +304,13 @@ create or replace function public.claim_outbox_for_commit(
     v public.external_command_outbox;
     v_domain text;
     v_record_id text;
+    v_key text;
     v_status timesheet_status;
+    v_approved_at timestamptz;
+    v_witness timestamptz;
   begin
-    select domain, pmo_record_id into v_domain, v_record_id
+    select domain, pmo_record_id, idempotency_key
+      into v_domain, v_record_id, v_key
       from public.external_command_outbox where id = p_id;
     if v_domain = 'timesheets' then
       -- The canonical uuid text — the SAME identity §B stores and the Approved→Draft arm locks on
@@ -262,9 +318,23 @@ create or replace function public.claim_outbox_for_commit(
       -- before the lock is safe; everything that can CHANGE is read after it.
       v_record_id := (v_record_id::uuid)::text;
       perform pg_advisory_xact_lock(hashtextextended('ts-correct:' || v_record_id, 0));
-      select status into v_status from public.timesheets where id = v_record_id::uuid;
+      select status, approved_at into v_status, v_approved_at
+        from public.timesheets where id = v_record_id::uuid;
       if v_status is distinct from 'Approved' then
         raise exception 'timesheet-no-longer-approved' using errcode = 'P0001';
+      end if;
+      -- ⚑ THE GENERATION FENCE ON THE RE-DRIVE (Luna round-2 BLOCK 1). `Approved` is re-reachable: one
+      -- correction cycle later the sheet is Approved AGAIN, as a DIFFERENT generation. A stale `failed`
+      -- T1 row re-driven then (the foreground Retry, the sweep's mirror queue) would POST the
+      -- SUPERSEDED hours and the corrected week would post as a SECOND ERP Timesheet. So this row's own
+      -- persisted witness — its deterministic key (§A2), the SAME string §B refused to insert without —
+      -- must equal the sheet's CURRENT `approved_at`. NULL ⇒ the row cannot prove its generation ⇒
+      -- REFUSE (fail closed): an old or hand-written row is never given the benefit of the doubt over
+      -- money. The refusal is a raise, never a NULL return — a NULL means "not claimable now" and would
+      -- send the caller back into reconcileOutbox to try this same row forever.
+      v_witness := public.timesheet_push_key_witness(v_key);
+      if v_witness is null or v_witness is distinct from v_approved_at then
+        raise exception 'timesheet-approval-superseded' using errcode = 'P0001';
       end if;
     end if;
     update public.external_command_outbox

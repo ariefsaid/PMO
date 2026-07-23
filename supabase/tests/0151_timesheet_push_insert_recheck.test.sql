@@ -37,7 +37,7 @@ insert into profiles (id, org_id, full_name, email, role, manager_id) values
 insert into timesheets (id, org_id, user_id, week_start_date, status, approved_by, approved_at) values
   ('01513000-0000-0000-0000-000000000010','01513000-0000-0000-0000-000000000001',
    '01513000-0000-0000-0000-0000000000a1','2026-06-01','Approved',
-   '01513000-0000-0000-0000-0000000000a2', now()),   -- (a) insert succeeds + persists pending
+   '01513000-0000-0000-0000-0000000000a2', '2026-06-08 09:00:00+00'),  -- (a) insert succeeds + persists pending
   ('01513000-0000-0000-0000-000000000011','01513000-0000-0000-0000-000000000001',
    '01513000-0000-0000-0000-0000000000a1','2026-06-08','Draft',
    null, null),                                       -- (b) insert raises (no longer Approved)
@@ -46,8 +46,12 @@ insert into timesheets (id, org_id, user_id, week_start_date, status, approved_b
    null, null),                                       -- (c) insert raises (not Approved)
   ('01513000-0000-0000-0000-000000000013','01513000-0000-0000-0000-000000000001',
    '01513000-0000-0000-0000-0000000000a1','2026-06-22','Approved',
-   '01513000-0000-0000-0000-0000000000a2', now());    -- (d) insert then re-open sees the pending row
+   '01513000-0000-0000-0000-0000000000a2', '2026-06-29 09:00:00+00');  -- (d) insert then re-open sees the pending row
 
+-- ⚑ Every timesheet command's key carries its approval GENERATION (`ts:<uuid>:<approved_at>`,
+-- migration 0151 §A2): both fences compare that witness against the sheet's CURRENT `approved_at`
+-- and fail closed without one. So these fixtures use the SHIPPED key derivation — a made-up key
+-- would be refused as a stale generation and the property under test would never be reached.
 -- ── (a) on an Approved sheet the insert SUCCEEDS and persists a pending row ─
 -- (Call as the test runner; the RPC is security definer so caller role is irrelevant to its reads.)
 select lives_ok(
@@ -55,7 +59,7 @@ select lives_ok(
        p_org:='01513000-0000-0000-0000-000000000001'::uuid,
        p_domain:='timesheets',
        p_record_id:='01513000-0000-0000-0000-000000000010',
-       p_key:='ts-ins-a',
+       p_key:='ts:01513000-0000-0000-0000-000000000010:2026-06-08 09:00:00+00',
        p_tier:='erpnext',
        p_operation:='create',
        p_payload:=null, p_digest:=null, p_actor:=null) $$,
@@ -73,7 +77,7 @@ select throws_ok(
        p_org:='01513000-0000-0000-0000-000000000001'::uuid,
        p_domain:='timesheets',
        p_record_id:='01513000-0000-0000-0000-000000000011',
-       p_key:='ts-ins-b',
+       p_key:='ts:01513000-0000-0000-0000-000000000011:2026-06-08 09:00:00+00',
        p_tier:='erpnext',
        p_operation:='create',
        p_payload:=null, p_digest:=null, p_actor:=null) $$,
@@ -92,7 +96,7 @@ select throws_ok(
        p_org:='01513000-0000-0000-0000-000000000001'::uuid,
        p_domain:='timesheets',
        p_record_id:='01513000-0000-0000-0000-000000000012',
-       p_key:='ts-ins-c',
+       p_key:='ts:01513000-0000-0000-0000-000000000012:2026-06-15 09:00:00+00',
        p_tier:='erpnext',
        p_operation:='create',
        p_payload:=null, p_digest:=null, p_actor:=null) $$,
@@ -106,7 +110,7 @@ select lives_ok(
        p_org:='01513000-0000-0000-0000-000000000001'::uuid,
        p_domain:='timesheets',
        p_record_id:='01513000-0000-0000-0000-000000000013',
-       p_key:='ts-ins-d',
+       p_key:='ts:01513000-0000-0000-0000-000000000013:2026-06-29 09:00:00+00',
        p_tier:='erpnext',
        p_operation:='create',
        p_payload:=null, p_digest:=null, p_actor:=null) $$,

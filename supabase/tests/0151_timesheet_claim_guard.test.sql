@@ -38,27 +38,33 @@ insert into profiles (id, org_id, full_name, email, role, manager_id) values
 insert into timesheets (id, org_id, user_id, week_start_date, status, approved_by, approved_at) values
   ('01515000-0000-0000-0000-000000000010','01515000-0000-0000-0000-000000000001',
    '01515000-0000-0000-0000-0000000000a1','2026-06-01','Approved',
-   '01515000-0000-0000-0000-0000000000a2', now()),   -- (a) stays Approved → claimable
+   '01515000-0000-0000-0000-0000000000a2', '2026-06-01 09:00:00+00'),  -- (a) stays Approved → claimable
   ('01515000-0000-0000-0000-000000000011','01515000-0000-0000-0000-000000000001',
    '01515000-0000-0000-0000-0000000000a1','2026-06-08','Approved',
-   '01515000-0000-0000-0000-0000000000a2', now()),   -- (b) re-opened below → claim must refuse
+   '01515000-0000-0000-0000-0000000000a2', '2026-06-08 09:00:00+00'),  -- (b) re-opened below → claim must refuse
   ('01515000-0000-0000-0000-000000000012','01515000-0000-0000-0000-000000000001',
    '01515000-0000-0000-0000-0000000000a1','2026-06-15','Approved',
-   '01515000-0000-0000-0000-0000000000a2', now());   -- (c) the lock-identity probe
+   '01515000-0000-0000-0000-0000000000a2', '2026-06-15 09:00:00+00');  -- (c) the lock-identity probe
 
+-- ⚑ Every timesheet command's key carries its approval GENERATION (`ts:<uuid>:<approved_at>`,
+-- migration 0151 §A2): both fences compare that witness against the sheet's CURRENT `approved_at`
+-- and fail closed without one. So these fixtures use the SHIPPED key derivation — a made-up key
+-- would be refused as a stale generation and the property under test would never be reached.
 -- Both outbox rows are minted by the SHIPPED push-side writer, then driven to `failed` exactly as
 -- `markOutboxFailed` does (the guarded state write the ERP rejection path issues).
 select public.insert_timesheet_outbox_pending(
   p_org:='01515000-0000-0000-0000-000000000001'::uuid, p_domain:='timesheets',
-  p_record_id:='01515000-0000-0000-0000-000000000010', p_key:='ts-claimg-a',
+  p_record_id:='01515000-0000-0000-0000-000000000010',
+  p_key:='ts:01515000-0000-0000-0000-000000000010:2026-06-01 09:00:00+00',
   p_tier:='erpnext', p_operation:='create', p_payload:=null, p_digest:=null, p_actor:=null);
 select public.insert_timesheet_outbox_pending(
   p_org:='01515000-0000-0000-0000-000000000001'::uuid, p_domain:='timesheets',
-  p_record_id:='01515000-0000-0000-0000-000000000011', p_key:='ts-claimg-b',
+  p_record_id:='01515000-0000-0000-0000-000000000011',
+  p_key:='ts:01515000-0000-0000-0000-000000000011:2026-06-08 09:00:00+00',
   p_tier:='erpnext', p_operation:='create', p_payload:=null, p_digest:=null, p_actor:=null);
 update public.external_command_outbox
    set state = 'failed', last_error = 'activity-type-unconfigured'
- where idempotency_key in ('ts-claimg-a','ts-claimg-b');
+ where pmo_record_id in ('01515000-0000-0000-0000-000000000010','01515000-0000-0000-0000-000000000011');
 
 -- (c) the lock-identity probe's row is inserted DIRECTLY, on purpose: a row minted by
 -- `insert_timesheet_outbox_pending` in THIS transaction would already be holding that sheet's
@@ -67,7 +73,7 @@ update public.external_command_outbox
 insert into external_command_outbox
   (org_id, domain, pmo_record_id, idempotency_key, external_tier, operation, state) values
   ('01515000-0000-0000-0000-000000000001','timesheets','01515000-0000-0000-0000-000000000012',
-   'ts-claimg-c','erpnext','create','failed');
+   'ts:01515000-0000-0000-0000-000000000012:2026-06-15 09:00:00+00','erpnext','create','failed');
 
 -- (d) an unrelated domain's row — the generic claim must be untouched by the timesheets guard.
 insert into external_command_outbox
@@ -78,7 +84,7 @@ insert into external_command_outbox
 -- ── (a) an Approved sheet's failed row is still claimable (the retry path is intact) ──
 select is(
   (select state from public.claim_outbox_for_commit(
-     (select id from public.external_command_outbox where idempotency_key = 'ts-claimg-a'))),
+     (select id from public.external_command_outbox where pmo_record_id = '01515000-0000-0000-0000-000000000010'))),
   'committing',
   'AC-TSC-R5(a): a failed row for a still-Approved sheet is claimed as usual (retry/backstop intact)');
 
@@ -93,7 +99,7 @@ select is(
   'AC-TSC-R5(c) baseline: nothing holds that sheet''s lock before the claim');
 select is(
   (select state from public.claim_outbox_for_commit(
-     (select id from public.external_command_outbox where idempotency_key = 'ts-claimg-c'))),
+     (select id from public.external_command_outbox where pmo_record_id = '01515000-0000-0000-0000-000000000012'))),
   'committing',
   'AC-TSC-R5(c) setup: the probe row claims (its sheet is Approved)');
 select is(
@@ -119,15 +125,15 @@ select is(
 
 select throws_ok(
   $$ select public.claim_outbox_for_commit(
-       (select id from public.external_command_outbox where idempotency_key = 'ts-claimg-b')) $$,
+       (select id from public.external_command_outbox where pmo_record_id = '01515000-0000-0000-0000-000000000011')) $$,
   'P0001', 'timesheet-no-longer-approved',
   'AC-TSC-R5(b): the claim on a re-opened sheet REFUSES — the stale failed row can never be re-driven');
 select is(
-  (select state from public.external_command_outbox where idempotency_key = 'ts-claimg-b'),
+  (select state from public.external_command_outbox where pmo_record_id = '01515000-0000-0000-0000-000000000011'),
   'failed',
   'AC-TSC-R5(b): the row is left unclaimed (no committing, no attempt) — nothing is POSTed');
 select is(
-  (select attempt_count from public.external_command_outbox where idempotency_key = 'ts-claimg-b'),
+  (select attempt_count from public.external_command_outbox where pmo_record_id = '01515000-0000-0000-0000-000000000011'),
   0,
   'AC-TSC-R5(b): the refused claim consumed no attempt — the refusal is before the critical section');
 

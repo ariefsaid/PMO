@@ -38,21 +38,25 @@ insert into profiles (id, org_id, full_name, email, role, manager_id) values
 insert into timesheets (id, org_id, user_id, week_start_date, status, approved_by, approved_at) values
   ('01514000-0000-0000-0000-0000000000fa','01514000-0000-0000-0000-000000000001',
    '01514000-0000-0000-0000-0000000000a1','2026-06-01','Approved',
-   '01514000-0000-0000-0000-0000000000a2', now());
+   '01514000-0000-0000-0000-0000000000a2', '2026-06-01 09:00:00+00');
 
+-- ⚑ Every timesheet command's key carries its approval GENERATION (`ts:<uuid>:<approved_at>`,
+-- migration 0151 §A2): both fences compare that witness against the sheet's CURRENT `approved_at`
+-- and fail closed without one. So these fixtures use the SHIPPED key derivation — a made-up key
+-- would be refused as a stale generation and the property under test would never be reached.
 -- ── (a) the SHIPPED push-side writer, handed the UPPERCASE spelling ────────
 select lives_ok(
   $$ select public.insert_timesheet_outbox_pending(
        p_org:='01514000-0000-0000-0000-000000000001'::uuid,
        p_domain:='timesheets',
        p_record_id:='01514000-0000-0000-0000-0000000000FA',
-       p_key:='ts-uuidid-a',
+       p_key:='ts:01514000-0000-0000-0000-0000000000fa:2026-06-01 09:00:00+00',
        p_tier:='erpnext',
        p_operation:='create',
        p_payload:=null, p_digest:=null, p_actor:=null) $$,
   'AC-TSC-R4(a): the push guard accepts an uppercase canonical uuid');
 select is(
-  (select pmo_record_id from public.external_command_outbox where idempotency_key = 'ts-uuidid-a'),
+  (select pmo_record_id from public.external_command_outbox where pmo_record_id = '01514000-0000-0000-0000-0000000000fa'),
   '01514000-0000-0000-0000-0000000000fa',
   'AC-TSC-R4(a): the outbox row is keyed by the CANONICAL uuid text, never the raw spelling');
 
@@ -87,7 +91,7 @@ select throws_ok(
        p_org:='01514000-0000-0000-0000-000000000001'::uuid,
        p_domain:='timesheets',
        p_record_id:='not-a-uuid',
-       p_key:='ts-uuidid-d',
+       p_key:='ts:01514000-0000-0000-0000-0000000000fa:2026-06-01 09:00:00+00',
        p_tier:='erpnext',
        p_operation:='create',
        p_payload:=null, p_digest:=null, p_actor:=null) $$,
