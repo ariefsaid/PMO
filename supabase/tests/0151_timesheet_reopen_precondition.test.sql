@@ -19,7 +19,7 @@
 -- A REFUSAL is CORRECT behaviour, not a bug — it is the entry point for the deferred Slice B. If there
 -- is any doubt ERP holds a document, this arm REFUSES. Fail closed.
 begin;
-select plan(15);
+select plan(17);
 
 -- ── Fixtures ───────────────────────────────────────────────────────────────
 insert into organizations (id, name) values
@@ -58,7 +58,10 @@ insert into timesheets (id, org_id, user_id, week_start_date, status, approved_b
    '01512000-0000-0000-0000-0000000000a2', now()),   -- (e) failed outbox, no mirror → ADMIT
   ('01512000-0000-0000-0000-000000000016','01512000-0000-0000-0000-000000000001',
    '01512000-0000-0000-0000-0000000000a1','2026-07-13','Approved',
-   '01512000-0000-0000-0000-0000000000a2', now());    -- (f) no mirror, no outbox → ADMIT
+   '01512000-0000-0000-0000-0000000000a2', now()),    -- (f) no mirror, no outbox → ADMIT
+  ('01512000-0000-0000-0000-000000000017','01512000-0000-0000-0000-000000000001',
+   '01512000-0000-0000-0000-0000000000a1','2026-07-20','Approved',
+   '01512000-0000-0000-0000-0000000000a2', now());    -- (g) committing outbox, no mirror
 
 -- (a) a LIVE mirror doc (ts_number set, erp_cancelled_at null). Inserted as the test owner (the
 -- service-role writer's stand-in — migration 0136's pattern); the security-definer RPC reads it
@@ -91,6 +94,15 @@ insert into external_command_outbox
   (org_id, domain, pmo_record_id, idempotency_key, external_tier, operation, state) values
   ('01512000-0000-0000-0000-000000000001','timesheets','01512000-0000-0000-0000-000000000014',
    'tsc-pc-d2','erpnext','create','held');
+
+-- (g) a `committing` outbox row, NO mirror — a CLAIMED, IN-FLIGHT POST. The most dangerous state of
+-- the five: the worker may be inside the ERPNext call at this instant, so ERP may hold a document that
+-- no PMO row records yet. The predicate already lists it; without this fixture a mutation deleting
+-- ONLY 'committing' from that list survives every other case here.
+insert into external_command_outbox
+  (org_id, domain, pmo_record_id, idempotency_key, external_tier, operation, state) values
+  ('01512000-0000-0000-0000-000000000001','timesheets','01512000-0000-0000-0000-000000000017',
+   'tsc-pc-g','erpnext','create','committing');
 
 -- (e) a `failed` outbox row, NO mirror (push rejected — no doc reached ERP; `failed` is terminal for
 -- the inflight index, so it does NOT block the next generation).
@@ -193,6 +205,21 @@ select is(
   (select approved_by from timesheets where id = '01512000-0000-0000-0000-000000000016'),
   '01512000-0000-0000-0000-0000000000a2'::uuid,
   'AC-TSC-012: Approved→Draft leaves approved_by as-is (no stamp churn, OD-TS-4-A)');
+
+-- ── (g) a CLAIMED, IN-FLIGHT push (`committing`), no mirror → REFUSES ──
+-- The worker may be inside the ERPNext POST right now, so ERP may already hold a document that no PMO
+-- row records. Refusing is the only honest answer; admitting here is the double-count.
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"01512000-0000-0000-0000-0000000000a2","role":"authenticated"}';
+select throws_ok(
+  $$ select transition_timesheet('01512000-0000-0000-0000-000000000017','Draft') $$,
+  'P0001', 'reopen-push-in-flight',
+  'AC-TSC-R1: a `committing` (claimed, in-flight POST) outbox row REFUSES re-open');
+reset role;
+select is(
+  (select status from timesheets where id = '01512000-0000-0000-0000-000000000017'),
+  'Approved'::timesheet_status,
+  'AC-TSC-R1: the in-flight sheet stays Approved — fail closed, never a silent flip');
 
 select * from finish();
 rollback;
