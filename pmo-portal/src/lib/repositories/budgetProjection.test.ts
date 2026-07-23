@@ -7,19 +7,20 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const { mockRpc, mockFrom, mockSelect, mockEq, mockOrder, mockUpdate, mockDelete, mockInsert, mockUpsert, mockSingle } =
+const { mockRpc, mockFrom, mockSelect, mockEq, mockIn, mockOrder, mockUpdate, mockDelete, mockInsert, mockUpsert, mockSingle } =
   vi.hoisted(() => {
     const mockRpc = vi.fn();
     const mockFrom = vi.fn();
     const mockSelect = vi.fn();
     const mockEq = vi.fn();
+    const mockIn = vi.fn();
     const mockOrder = vi.fn();
     const mockUpdate = vi.fn();
     const mockDelete = vi.fn();
     const mockInsert = vi.fn();
     const mockUpsert = vi.fn();
     const mockSingle = vi.fn();
-    return { mockRpc, mockFrom, mockSelect, mockEq, mockOrder, mockUpdate, mockDelete, mockInsert, mockUpsert, mockSingle };
+    return { mockRpc, mockFrom, mockSelect, mockEq, mockIn, mockOrder, mockUpdate, mockDelete, mockInsert, mockUpsert, mockSingle };
   });
 
 vi.mock('@/src/lib/supabase/client', () => ({
@@ -58,6 +59,7 @@ function makeFromBuilder(resolved: { data: unknown; error: unknown }) {
   const builder: Record<string, unknown> = {};
   builder.select = mockSelect.mockReturnValue(builder);
   builder.eq = mockEq.mockReturnValue(builder);
+  builder.in = mockIn.mockReturnValue(builder);
   builder.order = mockOrder.mockReturnValue(builder);
   builder.update = mockUpdate.mockReturnValue(builder);
   builder.delete = mockDelete.mockReturnValue(builder);
@@ -75,6 +77,7 @@ beforeEach(() => {
   mockFrom.mockReset();
   mockSelect.mockReset();
   mockEq.mockReset();
+  mockIn.mockReset();
   mockOrder.mockReset();
   mockUpdate.mockReset();
   mockDelete.mockReset();
@@ -260,9 +263,42 @@ describe('fetchBudgetPushStatus (C-5)', () => {
                      error: null });
     const status = await fetchBudgetPushStatus('proj-1');
     expect(mockRpc).toHaveBeenCalledWith('get_budget_push_status', { p_project_id: 'proj-1' });
-    expect(status.pushState).toBe('pushed');
-    expect(status.erpBudgetName).toBe('BUDGET-0007');
-    expect(status.fiscalYear).toBe('2025-2026');
+    expect(status).toHaveLength(1);
+    expect(status[0].pushState).toBe('pushed');
+    expect(status[0].erpBudgetName).toBe('BUDGET-0007');
+    expect(status[0].fiscalYear).toBe('2025-2026');
+  });
+
+  // ⚑ AC-BFY-025 / finding 6 — a fan-out is reported PER YEAR. Taking `data[0]` here hid the failed
+  // year behind the pushed one (the RPC orders by `pushed_at`, so the pushed row commonly came first):
+  // the screen said "healthy" while ERPNext enforced NO overspend control for the other year.
+  it('AC-BFY-025 returns EVERY expected year — a failed year is never hidden behind a pushed one', async () => {
+    makeRpcBuilder({
+      data: [
+        { push_state: 'pushed', push_error: null, unmapped_categories: null, erp_budget_name: 'BUDGET-0007',
+          fiscal_year: '2026', pushed_at: '2026-07-01T00:00:00Z', hold_releasable: false, stale_attribution: false },
+        { push_state: 'never-pushed', push_error: null, unmapped_categories: null, erp_budget_name: null,
+          fiscal_year: '2027', pushed_at: null, hold_releasable: false, stale_attribution: false },
+      ],
+      error: null,
+    });
+    const status = await fetchBudgetPushStatus('proj-1');
+    expect(status.map((r) => [r.fiscalYear, r.pushState])).toEqual([['2026', 'pushed'], ['2027', 'never-pushed']]);
+  });
+
+  // ⚑ FR-BFY-056 — the drift flag rides on the row so the surface can say WHY the budget column went
+  // blank ("phase these lines"), instead of leaving a bare dash on a money screen.
+  it('AC-BFY-025 carries stale_attribution per year, failing CLOSED on an older RPC shape', async () => {
+    makeRpcBuilder({
+      data: [
+        { push_state: 'pushed', fiscal_year: '2026', stale_attribution: true },
+        { push_state: 'pushed', fiscal_year: '2027' },
+      ],
+      error: null,
+    });
+    const status = await fetchBudgetPushStatus('proj-1');
+    expect(status[0].staleAttribution).toBe(true);
+    expect(status[1].staleAttribution).toBe(false);
   });
 
   // ⚑ NEW-6 (audit round 4) — `unmapped_categories` was WRITE-ONLY. The dispatch gate persists the NAMES
@@ -274,21 +310,19 @@ describe('fetchBudgetPushStatus (C-5)', () => {
                               unmapped_categories: ['Materials', 'Subcontract'],
                               erp_budget_name: null, fiscal_year: '2026', pushed_at: null }], error: null });
     const status = await fetchBudgetPushStatus('proj-1');
-    expect(status.unmappedCategories).toEqual(['Materials', 'Subcontract']);
-    expect(status.pushError).toBe('budget-category-unmapped'); // the CODE is never replaced by the names
+    expect(status[0].unmappedCategories).toEqual(['Materials', 'Subcontract']);
+    expect(status[0].pushError).toBe('budget-category-unmapped'); // the CODE is never replaced by the names
   });
 
   it('NEW-6 a failure unrelated to the map reports null categories, never a fabricated empty list', async () => {
     makeRpcBuilder({ data: [{ push_state: 'failed', push_error: 'external-unreachable', unmapped_categories: null,
                               erp_budget_name: null, fiscal_year: '2026', pushed_at: null }], error: null });
-    expect((await fetchBudgetPushStatus('proj-1')).unmappedCategories).toBeNull();
+    expect((await fetchBudgetPushStatus('proj-1'))[0].unmappedCategories).toBeNull();
   });
 
-  it('C-5 an org with no ERP tier resolves to an all-null status, never a throw', async () => {
+  it('C-5 an org with no ERP tier resolves to an EMPTY list, never a throw and never a fabricated row', async () => {
     makeRpcBuilder({ data: [], error: null });
-    const status = await fetchBudgetPushStatus('proj-1');
-    expect(status.pushState).toBeNull();
-    expect(status.erpBudgetName).toBeNull();
+    expect(await fetchBudgetPushStatus('proj-1')).toEqual([]);
   });
 
   it('throws an AppError (code preserved) on an RPC error', async () => {
@@ -411,16 +445,17 @@ describe('retryActiveBudgetPush (HIGH-D — the operator-invokable recovery)', (
     (builder as Record<string, unknown>).maybeSingle = () => Promise.resolve({ data: { id: 'ver-active' }, error: null });
     retryBudgetPushMock.mockResolvedValue({ pushState: 'pushed' });
 
-    await expect(retryActiveBudgetPush('proj-1')).resolves.toEqual({ pushState: 'pushed' });
+    await expect(retryActiveBudgetPush('proj-1', '2027')).resolves.toEqual({ pushState: 'pushed' });
     expect(mockFrom).toHaveBeenCalledWith('budget_versions');
     expect(mockEq).toHaveBeenCalledWith('status', 'Active');
-    expect(retryBudgetPushMock).toHaveBeenCalledWith('ver-active');
+    // ⚑ FR-BFY-056: the year travels with the retry, so the operator acts on the row they clicked.
+    expect(retryBudgetPushMock).toHaveBeenCalledWith('ver-active', '2027');
   });
 
   it('refuses (never invents a push) when the project has no Active version at all', async () => {
     const builder = makeFromBuilder({ data: null, error: null });
     (builder as Record<string, unknown>).maybeSingle = () => Promise.resolve({ data: null, error: null });
-    await expect(retryActiveBudgetPush('proj-1')).rejects.toThrow(/no Active budget version/i);
+    await expect(retryActiveBudgetPush('proj-1', '2027')).rejects.toThrow(/no Active budget version/i);
     expect(retryBudgetPushMock).not.toHaveBeenCalled();
   });
 });
@@ -447,31 +482,35 @@ describe('releaseActiveBudgetPushHold (MED-2 — the operator route out of a hel
     heldOutboxBuilder({ id: 'outbox-held' });
     makeRpcBuilder({ data: null, error: null });
 
-    await expect(releaseActiveBudgetPushHold('proj-1')).resolves.toBeUndefined();
+    await expect(releaseActiveBudgetPushHold('proj-1', '2026')).resolves.toBeUndefined();
 
     expect(mockFrom).toHaveBeenCalledWith('external_command_outbox');
     expect(mockEq).toHaveBeenCalledWith('state', 'held');
-    expect(mockEq).toHaveBeenCalledWith('pmo_record_id', 'ver-active');
+    // ⚑ FR-BFY-032: the held row is keyed on the YEAR-QUALIFIED identity. The bare `<vid>` is still
+    // accepted because a PRE-fan-out row was written under it — and by construction that row IS this
+    // year's (the old dispatcher was single-FY). Releasing "whatever is held for this project" would
+    // clear another year's command.
+    expect(mockIn).toHaveBeenCalledWith('pmo_record_id', ['ver-active:32303236', 'ver-active']);
     expect(mockRpc).toHaveBeenCalledWith('release_outbox_hold', expect.objectContaining({ p_outbox_id: 'outbox-held' }));
   });
 
   it('MED-2 records a REASON with the release — clearing a money hold is a human decision with a name on it', async () => {
     heldOutboxBuilder({ id: 'outbox-held' });
     makeRpcBuilder({ data: null, error: null });
-    await releaseActiveBudgetPushHold('proj-1');
+    await releaseActiveBudgetPushHold('proj-1', '2026');
     const reason = (mockRpc.mock.calls[0][1] as { p_reason: string }).p_reason;
     expect(reason.length).toBeGreaterThan(0);
   });
 
   it('MED-2 refuses when there is no held command — never releases something it did not find', async () => {
     heldOutboxBuilder(null);
-    await expect(releaseActiveBudgetPushHold('proj-1')).rejects.toThrow(/no held/i);
+    await expect(releaseActiveBudgetPushHold('proj-1', '2026')).rejects.toThrow(/no held/i);
     expect(mockRpc).not.toHaveBeenCalled();
   });
 
   it('MED-2 surfaces the RPC\'s own refusal (42501 — the Admin gate is server-side)', async () => {
     heldOutboxBuilder({ id: 'outbox-held' });
     makeRpcBuilder({ data: null, error: { message: 'not authorized', code: '42501' } });
-    await expect(releaseActiveBudgetPushHold('proj-1')).rejects.toMatchObject({ code: '42501' });
+    await expect(releaseActiveBudgetPushHold('proj-1', '2026')).rejects.toMatchObject({ code: '42501' });
   });
 });

@@ -479,21 +479,41 @@ describe('activateVersion', () => {
     expect(mockFunctionsInvoke).not.toHaveBeenCalled();
   });
 
-  it('HIGH-D retryBudgetPush re-dispatches the SAME deterministic key (so a fixed category map can finally land)', async () => {
+  it('AC-BFY-009 HIGH-D retryBudgetPush sends NO client key — the server derives one per fiscal year', async () => {
     makeFromBuilder({ data: { activated_at: '2026-07-16T10:00:00Z' }, error: null });
-    mockFunctionsInvoke.mockResolvedValue({ data: { externalRecordId: null, canonical: { id: 'v-1' } }, error: null });
-    await expect(retryBudgetPush('v-1')).resolves.toEqual({ pushState: 'pushed' });
+    mockFunctionsInvoke.mockResolvedValue({
+      data: { externalRecordId: null, canonical: { id: 'v-1' }, years: [{ fiscal_year: '2026', pushed: true }] },
+      error: null,
+    });
+    await expect(retryBudgetPush('v-1', '2026')).resolves.toEqual({ pushState: 'pushed' });
     expect(mockRpc).not.toHaveBeenCalled(); // ⚑ a retry NEVER re-activates — the version is already Active
-    expect(mockFunctionsInvoke).toHaveBeenCalledWith(
-      'adapter-dispatch',
-      expect.objectContaining({
-        body: expect.objectContaining({
-          domain: 'budget',
-          record: { id: 'v-1', erp_doc_kind: 'budget' },
-          idempotencyKey: 'bud:v-1:1784196000000',
-        }),
-      }),
-    );
+    const body = mockFunctionsInvoke.mock.calls[0][1].body;
+    expect(body).toMatchObject({ domain: 'budget', operation: 'create', record: { id: 'v-1', erp_doc_kind: 'budget' } });
+    // ⚑ FR-BFY-031: the client CANNOT mint the key — it does not know the years (the calendar is a
+    // live ERP read only the server-side gate makes). A client key here would key year 2's command on
+    // year 1's string and silently suppress it.
+    expect(body).not.toHaveProperty('idempotencyKey');
+  });
+
+  it('AC-BFY-009 the retry reports the outcome of the YEAR the operator retried, not the fan-out as a whole', async () => {
+    makeFromBuilder({ data: { activated_at: '2026-07-16T10:00:00Z' }, error: null });
+    // The server re-drove both years: FY2026 reconciled to its existing (already confirmed) push,
+    // FY2027 — the one the operator retried — did not land.
+    mockFunctionsInvoke.mockResolvedValue({
+      data: {
+        externalRecordId: null,
+        canonical: { id: 'v-1' },
+        years: [{ fiscal_year: '2026', pushed: true }, { fiscal_year: '2027', pushed: false }],
+      },
+      error: null,
+    });
+    await expect(retryBudgetPush('v-1', '2027')).resolves.toEqual({ pushState: 'failed' });
+    await expect(retryBudgetPush('v-1', '2026')).resolves.toEqual({ pushState: 'pushed' });
+  });
+
+  it('AC-BFY-009 a retry with no fiscal year FAILS CLOSED (a per-year action must name its year)', async () => {
+    await expect(retryBudgetPush('v-1', '')).rejects.toThrow(/fiscal year/i);
+    expect(mockFunctionsInvoke).not.toHaveBeenCalled();
   });
 
   // ── H-3 (Luna audit round 3): the retry must not report a failure it never made durable. ──────
@@ -502,32 +522,31 @@ describe('activateVersion', () => {
     // `budgetPushKey` fails closed client-side, BEFORE any dispatch: no request is made, so no mirror
     // row and no notification exist. Swallowing it into `pushState:'failed'` told the operator the push
     // was attempted and recorded — it was neither, and the banner then had no reachable way out.
-    await expect(retryBudgetPush('v-unstamped')).rejects.toThrow(/activation stamp/i);
+    await expect(retryBudgetPush('v-unstamped', '2026')).rejects.toThrow(/activation stamp/i);
     expect(mockFunctionsInvoke).not.toHaveBeenCalled();
   });
 
   it('HIGH-D a retry that fails again REPORTS the failure instead of throwing (the money invariant holds on the retry path too)', async () => {
     makeFromBuilder({ data: { activated_at: '2026-07-16T10:00:00Z' }, error: null });
     mockFunctionsInvoke.mockResolvedValue({ data: null, error: { message: 'budget-category-unmapped' } });
-    await expect(retryBudgetPush('v-1')).resolves.toEqual({ pushState: 'failed' });
+    await expect(retryBudgetPush('v-1', '2026')).resolves.toEqual({ pushState: 'failed' });
   });
 
-  it('activateVersion dispatches the budget push through the served boundary with a deterministic idempotency key', async () => {
+  it('AC-BFY-009 activateVersion dispatches ONE bare-UUID create and lets the server fan out per fiscal year', async () => {
     makeRpcBuilder({ data: null, error: null });
     makeFromBuilder({ data: { activated_at: '2026-07-16T10:00:00Z' }, error: null });
     mockFunctionsInvoke.mockResolvedValue({ data: { externalRecordId: null, canonical: { id: 'v-draft' } }, error: null });
     await activateVersion('v-draft');
-    expect(mockFunctionsInvoke).toHaveBeenCalledWith(
-      'adapter-dispatch',
-      expect.objectContaining({
-        body: expect.objectContaining({
-          domain: 'budget',
-          operation: 'create',
-          record: { id: 'v-draft', erp_doc_kind: 'budget' },
-          idempotencyKey: 'bud:v-draft:1784196000000',
-        }),
-      }),
-    );
+    expect(mockFunctionsInvoke).toHaveBeenCalledTimes(1);
+    const body = mockFunctionsInvoke.mock.calls[0][1].body;
+    // ⚑ `record.id` is the BARE budget_version_id — the year-qualified identity is derived server-side
+    // (the gate query, the mirror FK and the inbound feed all need the bare UUID, spec §5.1).
+    expect(body).toMatchObject({
+      domain: 'budget',
+      operation: 'create',
+      record: { id: 'v-draft', erp_doc_kind: 'budget' },
+    });
+    expect(body).not.toHaveProperty('idempotencyKey');
   });
 });
 

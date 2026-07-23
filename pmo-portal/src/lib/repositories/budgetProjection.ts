@@ -14,6 +14,7 @@
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError, toAppError } from '@/src/lib/appError';
 import { retryBudgetPush, type ActivateVersionResult } from '@/src/lib/db/budgets';
+import { encodeFiscalYear } from '@/src/lib/adapterSeam/erpnext/fiscalYearEncoding';
 import type { Database } from '@/src/lib/supabase/database.types';
 
 export type BudgetCategory = Database['public']['Enums']['budget_category'];
@@ -83,6 +84,15 @@ export interface BudgetPushStatusRow {
    * `external_command_outbox.state = 'held'`, under the caller's own RLS.
    */
   holdReleasable: boolean;
+  /**
+   * ⚑ FR-BFY-056 — WHY this year's budget column went blank. `true` means a push SUCCEEDED for this
+   * year, the Active version still has un-phased lines, and the project's dates have since moved off
+   * the span that push recorded — so those lines now attribute to NO year (0153 §3a). The fix is a PMO
+   * act ("phase these lines"), not a retry, which is exactly why it is reported beside the push state
+   * rather than as a push failure. Fails CLOSED (`false`) on an older RPC shape: claiming staleness
+   * PMO cannot see would be its own false alarm.
+   */
+  staleAttribution: boolean;
 }
 
 /** One fiscal year that actually exists for a project, in the CLIENT'S own calendar (H-4). */
@@ -133,20 +143,25 @@ export async function fetchBudgetProjection(
 }
 
 /**
- * C-5 — reads the project's ERP push status (`get_budget_push_status`, mig 0141). Fiscal-year
- * INDEPENDENT on purpose: a failed push is a fact about the project's Active version, not about the
- * year the user happens to have selected, and hiding it behind that selection made the alarm's
- * visibility contingent on an unrelated navigation choice.
+ * C-5 + ⚑ FR-BFY-056 (finding 6) — reads the project's ERP push status, ONE ROW PER EXPECTED FISCAL
+ * YEAR. Fiscal-year INDEPENDENT on purpose: a failed push is a fact about the project's Active
+ * version, not about the year the user happens to have selected, and hiding it behind that selection
+ * made the alarm's visibility contingent on an unrelated navigation choice.
+ *
+ * ⚑ IT RETURNS AN ARRAY, and that is the contract. It used to take `data[0]`, which on a fan-out
+ * (FY2026 pushed, FY2027 failed) commonly selected the PUSHED row — the RPC orders by `pushed_at`, and
+ * only the pushed row has one — so the operator saw "Enforced by ERPNext" while ERPNext enforced NO
+ * overspend control for the other year. An aggregate may be derived by a consumer; the per-year list
+ * is what this seam promises.
  *
  * Always resolves (never throws on "nothing to report") — an org with no ERP tier legitimately has no
  * status, and the RPC answers one all-NULL row for it.
  */
-export async function fetchBudgetPushStatus(projectId: string): Promise<BudgetPushStatusRow> {
+export async function fetchBudgetPushStatus(projectId: string): Promise<BudgetPushStatusRow[]> {
   const { data, error } = await supabase.rpc('get_budget_push_status', { p_project_id: projectId });
   if (error) throw toAppError(error);
   // A set-returning RPC yields an array (never `.single()` — a 0-row read would 406, the shipped lesson).
-  const row = Array.isArray(data) ? data[0] : undefined;
-  return {
+  return (Array.isArray(data) ? data : []).map((row) => ({
     pushState: row?.push_state ?? null,
     pushError: row?.push_error ?? null,
     // NEW-6: an absent/empty array normalizes to `null` — "no category names on record" is one state,
@@ -158,7 +173,8 @@ export async function fetchBudgetPushStatus(projectId: string): Promise<BudgetPu
     // Fails CLOSED: an older RPC shape (or a null) withholds the affordance rather than offering a
     // button that can only error.
     holdReleasable: row?.hold_releasable === true,
-  };
+    staleAttribution: row?.stale_attribution === true,
+  }));
 }
 
 /**
@@ -187,8 +203,8 @@ export async function listBudgetFiscalYears(projectId: string): Promise<BudgetFi
  * version is no longer Draft). Resolves the Active version from DB truth rather than trusting anything
  * on screen, then delegates to the ONE push in `db/budgets.ts` (same command, same deterministic key).
  */
-export async function retryActiveBudgetPush(projectId: string): Promise<ActivateVersionResult> {
-  return retryBudgetPush(await activeBudgetVersionId(projectId));
+export async function retryActiveBudgetPush(projectId: string, fiscalYear: string): Promise<ActivateVersionResult> {
+  return retryBudgetPush(await activeBudgetVersionId(projectId), fiscalYear);
 }
 
 /** The project's ACTIVE budget version, from DB truth — never from anything on screen. Throws rather
@@ -226,12 +242,20 @@ async function activeBudgetVersionId(projectId: string): Promise<string> {
  * Admin-only, enforced by the RPC itself (org + Admin + `is_active_member`, re-asserted after the row
  * lock, under SECURITY DEFINER). `can('manage','pushHold')` is the UX half only (ADR-0016).
  */
-export async function releaseActiveBudgetPushHold(projectId: string): Promise<void> {
+export async function releaseActiveBudgetPushHold(projectId: string, fiscalYear: string): Promise<void> {
+  if (!fiscalYear) {
+    throw new AppError('This release needs the fiscal year it is for.', 'commit-rejected');
+  }
   const versionId = await activeBudgetVersionId(projectId);
   const { data, error } = await supabase
     .from('external_command_outbox')
     .select('id')
-    .eq('pmo_record_id', versionId)
+    // ⚑ FR-BFY-032 — the held command is keyed on the YEAR-QUALIFIED identity. Two identities are
+    // accepted, exactly as `get_budget_push_status.hold_releasable` derives the affordance: the
+    // year-qualified one this release introduces, and the LEGACY bare `<vid>`, which by construction
+    // was written by the pre-fan-out single-FY dispatcher and therefore names this one year. Releasing
+    // "whatever is held for this project" would clear a DIFFERENT year's money command.
+    .in('pmo_record_id', [`${versionId}:${encodeFiscalYear(fiscalYear)}`, versionId])
     .eq('state', 'held')
     .order('created_at', { ascending: false })
     .limit(1)

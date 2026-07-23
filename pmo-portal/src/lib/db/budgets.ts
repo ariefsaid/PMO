@@ -1,9 +1,8 @@
 import { supabase } from '@/src/lib/supabase/client';
 import type { Tables } from '@/src/lib/supabase/database.types';
-import { toAppError } from '@/src/lib/appError';
+import { AppError, toAppError } from '@/src/lib/appError';
 import { activateAndPush } from '@/src/lib/budget/budgetPushConsequence';
 import { dispatchDomainCommand } from '@/src/lib/adapterSeam/dispatchClient';
-import { budgetPushKey } from '@/src/lib/adapterSeam/erpnext/budgetPushKey';
 
 // ---------------------------------------------------------------------------
 // Type contract (plan §3 "Type contract used across tasks")
@@ -245,36 +244,82 @@ export async function activateVersion(versionId: string): Promise<ActivateVersio
  *
  * NEVER re-activates: the version is already Active and its activation stamp is the key's own input.
  */
-export async function retryBudgetPush(versionId: string): Promise<ActivateVersionResult> {
-  // ⚑ H-3 (Luna audit round 3): the key is derived BEFORE the try, so a pre-dispatch refusal
-  // PROPAGATES. `budgetPushKey` fails closed on a missing/unparseable `activated_at` — the pre-0139
-  // population, which is Active but unstamped — and that throw happens client-side, before any request:
-  // no mirror row, no notification, nothing recorded anywhere. Reporting `pushState:'failed'` for it
-  // claimed an attempt that never happened and hid the only sentence that explains the state. It now
-  // reaches `classifyMutationError` on the caller's toast, exactly like any other refusal.
-  const idempotencyKey = budgetPushKey(versionId, await readActivatedAt(versionId));
+export async function retryBudgetPush(versionId: string, fiscalYear: string): Promise<ActivateVersionResult> {
+  // ⚑ BFY FR-BFY-056 — a retry is a PER-YEAR act. The operator is looking at one year's failed status
+  // row, so the year is required: a year-less retry could only ever report the fan-out as a whole, and
+  // "the push failed" beside a year that actually pushed is the misattribution finding 6 is about.
+  if (!fiscalYear) {
+    throw new AppError('This retry needs the fiscal year it is for.', 'commit-rejected');
+  }
+  // ⚑ H-3 (Luna audit round 3), PRESERVED across the BFY key move: the activation stamp is re-read
+  // BEFORE the dispatch so an UNSTAMPED version (Active but pre-0139) refuses client-side, before any
+  // request. Nothing durable is written for such a refusal — no mirror row, no notification — so
+  // reporting `pushState:'failed'` would claim an attempt that never happened and hide the only
+  // sentence that explains the state. The stamp is no longer used to MINT a key (the server derives
+  // one per year, FR-BFY-031); it is still the fact that decides whether a push is possible at all.
+  requireActivationStamp(await readActivatedAt(versionId));
   try {
-    await dispatchBudgetPush(versionId, idempotencyKey);
-    return { pushState: 'pushed' };
+    const result = await dispatchBudgetPush(versionId);
+    return { pushState: pushStateForYear(result, fiscalYear) };
   } catch {
     // Same money invariant as activation: a retry whose DISPATCH fails again is reported, never thrown
     // — that durable state (mirror row + notification) is written server-side by the dispatch itself.
+    //
+    // ⚑ On a fan-out the served boundary answers with the FIRST failing year's status, so a rejected
+    // response does not prove THIS year failed (another year's rejection could have produced it). The
+    // report is therefore deliberately CONSERVATIVE — never "pushed" on a rejection — and the screen's
+    // per-year truth comes from `get_budget_push_status`, which the caller re-reads on settle. A
+    // pessimistic toast beside an authoritative per-year banner is safe; an optimistic one is not.
     return { pushState: 'failed' };
   }
 }
 
-/** The ONE budget-push dispatch (activation consequence AND retry) — same domain, same command, same
- *  `activated_at`-derived deterministic key. */
-function dispatchBudgetPush(versionId: string, idempotencyKey: string): Promise<unknown> {
-  return dispatchDomainCommand('budget', 'create', { id: versionId, erp_doc_kind: 'budget' }, { idempotencyKey });
+/** The per-year outcomes the served fan-out reports (FR-BFY-033). Absent for a pre-BFY response. */
+interface BudgetFanOutResult {
+  years?: Array<{ fiscal_year: string; pushed: boolean }>;
 }
 
-/** The activation-consequence push. `budgetPushKey` fails closed (throws `commit-rejected`) on a
- *  missing/unparseable stamp, so an unkeyable push is a push FAILURE, never an activation failure —
- *  `activateAndPush` swallows it into the returned push state (ADR-0059 §3.2). */
+/**
+ * Did THIS fiscal year land? The served boundary attempts every phased year and reports each one, so a
+ * partially-successful fan-out must be read per year — never collapsed into one project-wide verdict.
+ * A response that names no years at all (a single-year push, or an older server) is taken at face
+ * value: it resolved, so the year the operator asked about is the year that pushed.
+ */
+function pushStateForYear(result: unknown, fiscalYear: string): 'pushed' | 'failed' {
+  const years = (result as BudgetFanOutResult | null | undefined)?.years;
+  if (!Array.isArray(years) || years.length === 0) return 'pushed';
+  const row = years.find((y) => y.fiscal_year === fiscalYear);
+  return row?.pushed ? 'pushed' : 'failed';
+}
+
+/**
+ * The ONE budget-push dispatch (activation consequence AND retry).
+ *
+ * ⚑ BFY FR-BFY-031/032 (contract change, OQ-BFY-3): the client sends the BARE `budget_version_id` and
+ * NO idempotency key. Only the server can enumerate the phased fiscal years — they are validated
+ * against the client's live ERPNext `Fiscal Year` doctype, a read only the server-side gate makes — so
+ * only the server can derive the per-year identity `<vid>:<encoded-fy>` and key
+ * `bud:<vid>:<encoded-fy>:<epoch>`. A client-minted key would key every year on one string and
+ * silently suppress all but the first.
+ */
+function dispatchBudgetPush(versionId: string): Promise<unknown> {
+  return dispatchDomainCommand('budget', 'create', { id: versionId, erp_doc_kind: 'budget' });
+}
+
+/** Fails closed on a version with no activation stamp — the deterministic per-year key's own input.
+ *  Inventing one would key a money command on a fiction and could mint a SECOND ERP `Budget`. */
+function requireActivationStamp(activatedAt: string | null): string {
+  if (!activatedAt) {
+    throw new AppError('budget push: the version carries no activation stamp', 'commit-rejected');
+  }
+  return activatedAt;
+}
+
+/** The activation-consequence push. An unstamped version is a push FAILURE, never an activation
+ *  failure — `activateAndPush` swallows it into the returned push state (ADR-0059 §3.2). */
 async function pushActivatedBudget(versionId: string): Promise<unknown> {
-  const activatedAt = await readActivatedAt(versionId);
-  return dispatchBudgetPush(versionId, budgetPushKey(versionId, activatedAt));
+  requireActivationStamp(await readActivatedAt(versionId));
+  return dispatchBudgetPush(versionId);
 }
 
 /**
