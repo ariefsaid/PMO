@@ -7,6 +7,20 @@ else**. The per-issue loop, gates, and checkpoints in `docs/director-playbook.md
 the 1b `grill-with-docs` gate and 1c HTML-mockup gate), the UI cycle in `docs/design-workflow.md`,
 and the DoD in `docs/product-expectations.md` are unchanged and binding.
 
+> **⚑ Dispatch entry point (owner, 2026-07-22): use `pi-dispatch <tier>` — not raw `pi` — for role dispatches.**
+> The wrapper (`~/.local/bin/pi-dispatch`) owns provider/model selection: capability-banded fallback
+> ladders (free-first: NIM → requesty/mistral/ollama-cloud where tier-appropriate → GLM plan → codex
+> OAuth → `claude -p` last resort), retry-with-backoff on NIM `ResourceExhausted`/429 (open pi bug
+> earendil-works/pi#6364 — pi itself won't retry these), per-model rung-hopping, a machine-wide NIM
+> concurrency gate, and a token ledger (`~/.pi-usage.jsonl`; `pi-dispatch report [days]`).
+> Tiers: `build` (sonnet–opus band) · `routine` (haiku–sonnet) · `mechanical` (haiku) · `review`
+> (cross-family). **Model slugs live ONLY in the wrapper's ladder table** — never pass raw
+> provider/model in a dispatch; a wrong slug surfaces as 429-no-body and gets misdiagnosed as a rate
+> limit. Verify new slugs with `pi-dispatch smoke <provider> <model>`. The §2 table below remains the
+> capability rationale; the wrapper's ladders are the executable form. This supersedes §2's
+> OpenRouter-free-model fallback rows — **openrouter is banned** (owner 2026-07-15); requesty,
+> mistral, and ollama-cloud were smoke-tested and admitted 2026-07-22.
+
 ## 1. Division of labor (binding)
 
 | Who | Keeps |
@@ -51,12 +65,16 @@ shipping a free-model security change. Smoke-test any substrate with
 
 ```bash
 cd <issue-worktree>   # ALWAYS dispatch from the issue worktree (one per issue, playbook §6)
-pi --provider zai --model glm-5.1 -p --no-session \
+pi-dispatch build \
   --append-system-prompt .claude/agents/<role>.md \
-  "<self-contained brief>" < /dev/null
+  "<self-contained brief>"
 ```
 
-- **`< /dev/null` is load-bearing** — without it `-p` can block on stdin.
+- **The brief must be the LAST argument** — the wrapper appends `< /dev/null`, picks provider/model
+  from the tier's ladder, retries/falls back, and ledgers tokens. Extra args pass through to pi
+  verbatim (the `claude -p` last-resort rung keeps only `--append-system-prompt`).
+- Raw `pi --provider … --model …` is for diagnostics only (e.g. `pi-dispatch smoke`); if you must
+  use it: **`< /dev/null` is load-bearing** — without it `-p` can block on stdin.
 - **`--append-system-prompt`** injects the role contract. `.claude/agents/*.md` are **tracked**
   (present in every worktree). `.claude/skills/*` are **gitignored** (vendored) — reference them
   by **absolute path from the primary checkout** (e.g.
