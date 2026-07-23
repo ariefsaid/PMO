@@ -226,7 +226,11 @@ with live secrets.**
   always cite ADRs by *filename* in M365 docs. NOT renumbered here: 0058 is cited in ~55 files and 0059 in ~21,
   spanning other programs' work — that is an owner-level call, not a side effect of an M365 doc pass.
 
-### ⚑ H4 GRANTS HARDENING (2026-07-16) — separate branch `fix/revoke-client-truncate-grants` (off `dev`), NOT pushed/PR'd
+### ✅ H4 GRANTS HARDENING — **LANDED ON `dev`** (verified 2026-07-23; header was stale)
+> ⚑ **CORRECTION:** this block said the work sat unmerged on `fix/revoke-client-truncate-grants`. That
+> branch **does not exist** (local or remote). The work IS on `dev` as migrations
+> `0104_revoke_client_truncate_refs_trigger.sql` + `0105_revoke_anon_write_dml.sql`. Verified by content,
+> not by branch name. Nothing is owed here. Original notes retained below for the root-cause record.
 Spun out of the M365 Luna audit. Commits `57957091` (Tier 1) + `246be744` (Tier 2). **Root cause was bigger than
 the finding:** the grants come from Supabase's bootstrap **DEFAULT PRIVILEGES** (`pg_default_acl`), so EVERY new
 table silently inherited `truncate` for `anon`+`authenticated` — `0075` was just where it was visible. Fixed at
@@ -423,7 +427,9 @@ Substrate: glm-5.2 (opus alt) + glm-4.7 (sonnet alt) built; Director security-re
 - **Earlier-audit Meds (not started):** agent-persistence stuck-`running` · interactive-create idempotency · `error_events` completeness + retention · S-curve today-position test · PostHog consent-gate · agent-chat rate-limit.
 
 **Audit fixes OUTSTANDING (after the 3 in-flight Criticals land):**
-- **#14 supply-chain/CI** — DONE on branch `harden/supply-chain-ci` (6 `deno.lock` + version pins + `--frozen` CI gate; 12 Actions SHA-pinned; new pgTAP-on-PR→dev job). NOT merged — **rebase onto reconciled `dev`**, resolve `ci.yml`, merge LAST.
+- **#14 supply-chain/CI — ✅ LANDED ON `dev`** (verified 2026-07-23; entry was stale). Branch
+  `harden/supply-chain-ci` **does not exist**; the work is on `dev` by content: **21** `deno.lock` files,
+  **10** SHA-pinned Actions and **zero** unpinned `@vN` refs in `ci.yml`. Nothing is owed here.
 - **Remaining Meds (not started):** agent-persistence error handling (stuck `running`) · interactive-create idempotency · `error_events` completeness (2 fns + FE) + retention · S-curve today-position deterministic test · money `CHECK (>=0)` · PostHog consent-gate · agent-chat rate-limit.
 
 **OWNER-ONLY (not autonomously doable):** execute a **DR restore drill** before client #1 · agent-tier **eval GH secrets** + **credits-enforce** decision (both deliberately deferred per GTM plan) · **MSA→counsel** (Terms/Privacy are template stubs) · automation `pg_cron` GUCs · prod Cloud auth-config verification · **prod deploy** (owner-gated, per-instance — push migs to Cloud, redeploy edge fns incl. `admin-invite-user`, FE→CF Pages, set `VITE_FEATURES_CRM=true`).
