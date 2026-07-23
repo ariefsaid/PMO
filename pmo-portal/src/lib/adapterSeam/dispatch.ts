@@ -30,6 +30,16 @@ export interface DispatchExternallyOwnedWriteDeps {
    * task 6.4). Absent ⇒ P0/P1 behavior (and every non-erpnext tier) is completely untouched.
    */
   money?: DispatchMoneyOutboxDeps;
+  /**
+   * BFY (FR-BFY-032/036) — optional override for the identity this command is keyed on in
+   * `external_command_outbox.pmo_record_id` AND `external_refs.pmo_record_id`. The budget domain fans
+   * out one command per phased fiscal year under a YEAR-QUALIFIED identity
+   * `<budget_version_id>:<encoded_fy>`, while `command.record.id` stays the bare `budget_version_id`
+   * UUID (the gate query / mirror FK / inbound-feed fact). Defaults to `command.record.id`, so every
+   * non-budget domain is byte-for-byte unchanged. Server-derived at the served boundary — never a
+   * caller-supplied value.
+   */
+  outboxRecordId?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -170,15 +180,6 @@ export const MONEY_COMMIT_CLAIM_BUDGET_MS = 60_000;
 
 export interface DispatchMoneyWriteDeps extends DispatchExternallyOwnedWriteDeps {
   money: DispatchMoneyOutboxDeps;
-  /**
-   * BFY (FR-BFY-036) — optional override for the outbox's `pmo_record_id`. The budget domain fans out
-   * one outbox row per phased fiscal year under a YEAR-QUALIFIED identity `<budget_version_id>:<encoded_fy>`
-   * while `command.record.id` stays the bare budget_version_id UUID (the gate query / mirror FK / feed
-   * lookup fact). When set, `readOutbox`/`insertOutboxPending` (and every reconcile re-read) key on this;
-   * defaults to `command.record.id`, so every non-budget domain is byte-for-byte unchanged. The served
-   * boundary wires `outbox_identity` here (T13); the external_refs identity is a separate concern (T13).
-   */
-  outboxRecordId?: string;
 }
 
 /** The injected clock, or the wall clock. One definition so every elapsed-time decision in this
@@ -243,7 +244,11 @@ async function finalizeOutboxRow(
   isReplay = false,
 ): Promise<number> {
   const refWritten = await deps.money.recordOutboxRef(row.id, claimGeneration, {
-    pmoRecordId: deps.command.record.id,
+    // ⚑ BFY FR-BFY-032: `external_refs` is keyed on the SAME identity as the outbox row — the
+    // year-qualified `<vid>:<encoded-fy>` for a budget fan-out, the bare `record.id` for every other
+    // domain (`outboxRecordId` is undefined there, byte-for-byte). Keying the ref on the bare id while
+    // the outbox is year-qualified would let year 2's push REPOINT year 1's ERP pointer.
+    pmoRecordId: deps.outboxRecordId ?? deps.command.record.id,
     externalTier: deps.adapter.tier,
     externalRecordId: row.externalRecordId!,
     domain: deps.command.domain,

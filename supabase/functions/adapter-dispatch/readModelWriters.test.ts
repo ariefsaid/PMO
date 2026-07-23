@@ -356,7 +356,13 @@ Deno.test({
         erp_modified: '2026-07-20 10:00:00',
         fiscal_year: '2026',
       },
-      { domain: 'budget', operation: 'create', record: { id: 'ver-1', erp_doc_kind: 'budget' } },
+      // FR-BFY-080: the gate puts the project's OWN dates on the command (a non-body field) and the
+      // writer stamps them as the push-time span witness. A `pushed` row without one is a defect.
+      {
+        domain: 'budget',
+        operation: 'create',
+        record: { id: 'ver-1', erp_doc_kind: 'budget', project_start_date: '2026-02-01', project_end_date: '2026-11-30' },
+      },
     );
 
     const upsertCall = calls.find((c) => c.method === 'upsert');
@@ -371,6 +377,9 @@ Deno.test({
     assertEquals(row.push_state, 'pushed');
     assertEquals(row.push_error, null);
     assert(typeof row.pushed_at === 'string', 'the push must be stamped with when it landed');
+    // FR-BFY-080 — the drift check in 0153 §3a is only possible because this row records the span.
+    assertEquals(row.pushed_project_start_date, '2026-02-01');
+    assertEquals(row.pushed_project_end_date, '2026-11-30');
     assertEquals(
       (upsertCall!.args[1] as { onConflict: string }).onConflict,
       'org_id,budget_version_id,fiscal_year',
@@ -399,7 +408,11 @@ Deno.test({
     await getReadModelWriter('budget').upsert(
       { serviceClient: client as never, orgId: 'org-1' },
       { id: 'ver-1', erp_budget_name: 'BUDGET-2026-00002', erp_docstatus: 1, fiscal_year: '2026' },
-      { domain: 'budget', operation: 'create', record: { id: 'ver-1', erp_doc_kind: 'budget' } },
+      {
+        domain: 'budget',
+        operation: 'create',
+        record: { id: 'ver-1', erp_doc_kind: 'budget', project_start_date: '2026-02-01', project_end_date: '2026-11-30' },
+      },
     );
     const row = calls.find((c) => c.method === 'upsert')!.args[0] as Record<string, unknown>;
     assert('erp_cancelled_at' in row, 'the fresh push must WRITE erp_cancelled_at — an upsert only updates the columns it names');

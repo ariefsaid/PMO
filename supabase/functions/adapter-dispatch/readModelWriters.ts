@@ -833,6 +833,18 @@ const budgetWriter: ReadModelWriter = {
     if (typeof fiscalYear !== 'string' || fiscalYear === '') {
       throw new AppError('budget mirror: the pushed budget carries no fiscal year', 'commit-rejected');
     }
+    // ⚑ FR-BFY-080 — THE PUSH-TIME SPAN WITNESS. `get_budget_projection` attributes un-phased (NULL
+    // `fiscal_year`) lines to this year ONLY while the project's CURRENT dates still match the dates
+    // the GATE read when it resolved the year (0153 §3a/§4). Those dates ride on the command as a
+    // NON-body field, stamped from `runBudgetGate`'s own re-read of `projects` — never from a payload
+    // the caller could author. A `pushed` row with a NULL witness is a DEFECT, not a backward-compat
+    // case: the drift check could then never fire and an extended project would keep attributing its
+    // whole un-phased budget to the old year forever.
+    const witnessStart = (command.record as { project_start_date?: unknown }).project_start_date;
+    if (typeof witnessStart !== 'string' || witnessStart === '') {
+      throw new AppError('budget mirror: the pushed budget carries no push-time project span witness', 'commit-rejected');
+    }
+    const witnessEnd = (command.record as { project_end_date?: unknown }).project_end_date;
     const { error } = await ctx.serviceClient.from('budget_version_erp_mirror').upsert(
       {
         org_id: ctx.orgId,
@@ -840,6 +852,8 @@ const budgetWriter: ReadModelWriter = {
         fiscal_year: fiscalYear,
         push_state: 'pushed',
         push_error: null,
+        pushed_project_start_date: witnessStart,
+        pushed_project_end_date: typeof witnessEnd === 'string' && witnessEnd !== '' ? witnessEnd : null,
         erp_budget_name: (canonical.erp_budget_name as string | null | undefined) ?? null,
         erp_docstatus: (canonical.erp_docstatus as number | null | undefined) ?? null,
         erp_modified: (canonical.erp_modified as string | null | undefined) ?? null,

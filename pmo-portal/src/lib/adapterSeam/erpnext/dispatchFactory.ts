@@ -595,7 +595,10 @@ export async function readBudgetLineItems(
   return await fetchAllRowsByKeyset<BudgetLineItem & { id: string }>((afterId, limit) => {
     const q = callerClient
       .from('budget_line_items')
-      .select('id, category, budgeted_amount')
+      // ⚑ BFY (FR-BFY-010/011/030): `fiscal_year` is READ here or the gate can never see a phased
+      // line — it would classify every multi-FY project as un-phased and refuse a budget the operator
+      // has correctly phased. This is the ONE reader `runBudgetGate` is wired to.
+      .select('id, category, budgeted_amount, fiscal_year')
       .eq('budget_version_id', versionId)
       .order('id', { ascending: true });
     return (afterId === null ? q : q.gt('id', afterId))
