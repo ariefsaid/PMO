@@ -163,7 +163,13 @@ comment on function public.bfy_migration_0154_rekey() is
 revoke all on function public.bfy_migration_0154_rekey() from public;
 revoke all on function public.bfy_migration_0154_rekey() from anon;
 revoke all on function public.bfy_migration_0154_rekey() from authenticated;
-revoke all on function public.bfy_migration_0154_rekey() from service_role;
+-- ⚑ service_role MAY run it (and only service_role): AC-BFY-031 drives this migration end-to-end
+-- against the live bench — seed a pre-release BARE mapping from a REAL push, run the re-key, then
+-- re-activate through the served boundary and count the ERP Budgets. That proof is worth more than
+-- the notional privilege: service_role bypasses RLS and can already UPDATE `external_refs` and
+-- `external_command_outbox` directly, so calling the deterministic, preflighted version of the same
+-- rewrite grants it nothing it does not already have. Every USER role stays revoked.
+grant execute on function public.bfy_migration_0154_rekey() to service_role;
 
 -- ════════════════════════════════════════════════════════════════════════════════════════════════
 -- §revert — the STAGED rollback (NFR-BFY-REV-001), honestly bounded.
