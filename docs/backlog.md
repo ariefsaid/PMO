@@ -4,6 +4,19 @@
 [`docs/history.md`](history.md) (don't read it for status). Locked owner-decisions are in
 `docs/decisions.md` (OD-* lookup by id). Roadmap framing in `docs/roadmap-spines.md`.
 
+- **⚑ NEW (2026-07-23, Luna FU-1a round-2 BLOCK 4) — ownerless `committed` timesheet outbox rows.**
+  `outbox_reconcile_candidates` returns `committed` rows with no age limit (`0131:42-50`), but the generic
+  recovery pass skips ALL timesheet candidates (`erpnext-sweep/index.ts:397`), the timesheet queue selects
+  only `pending`/`failed` mirrors (`:1455-1460`), and the absent anti-join excludes any sheet that HAS a
+  mirror (`:1400-1420`). Two crash seams are therefore ownerless: (a) ERP commit → ref/mirror ok →
+  `confirm_outbox` fails (mirror `pushed`, outbox stuck `committed`); (b) commit ok → process dies before
+  the mirror, and the row ages past the 14-day `ABSENT_SHEET_LOOKBACK_MS`. **Does NOT double-post** — the
+  re-open refuses on `committed`, i.e. it fails closed — but a real ERP Timesheet is left unconfirmed and
+  the correction path cannot identify it. **DEFERRED from FU-1a deliberately** (pre-existing P3b
+  convergence gap that Slice A makes visible, not one it causes). Fix: route timesheet `committed`
+  candidates through a finalize-only recovery path, and test both committed-with-mirror and
+  committed-without-mirror crashes.
+
 ### ⚑⚑⚑ BACKLOG STALENESS AUDIT (2026-07-23) — READ BEFORE ACTING ON ANY OLDER ENTRY
 
 A read-only agent verified 24 long-running entries **against `origin/dev` by CONTENT** (never by branch
