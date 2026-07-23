@@ -37,6 +37,8 @@ import { findPmoRecordId, recordExternalRef } from '../../../pmo-portal/src/lib/
 import { ERPNEXT_TIER } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/adapter.ts';
 import { KIND_DOMAIN, KIND_MIRROR_TABLE, type ErpDocKind } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/feedKinds.ts';
 import { deriveSiStatus } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/siStatus.ts';
+// FR-BFY-038: the bare `budget_version_id` parser for a year-qualified budget identity.
+import { budgetVersionIdOf } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/fiscalYearEncoding.ts';
 import { escapeLikePattern } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/client.ts';
 import { reconcileSiCancelAutoUnlink } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/transitionPolicy.ts';
 import type { ErpFeedDeps } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/applyFeed.ts';
@@ -75,6 +77,25 @@ function pmoRecordLookupColumn(kind: ErpDocKind): string {
   return 'id';
 }
 
+/**
+ * ⚑ FR-BFY-038 (review finding 3) — the VALUE half of the same question the column above answers.
+ *
+ * `external_refs.pmo_record_id` for the budget domain is the YEAR-QUALIFIED identity
+ * `<budget_version_id>:<encoded_fiscal_year>` (the outbox/refs grain is per fiscal year since the push
+ * fans out), while `budget_version_erp_mirror.budget_version_id` is — and must stay — a `uuid` (it is
+ * the FK, and the mirror's own grain is `(budget_version_id × fiscal_year)`). Handing the qualified
+ * value straight to `.eq('budget_version_id', …)` is a non-UUID against a uuid column: an ERP-side
+ * CANCEL then errors or matches nothing, the mirror row is never tombstoned, and PMO keeps reporting an
+ * enforced ERP control that no longer exists.
+ *
+ * Only the budget domain is touched, and only when the identity actually carries a year component — a
+ * pre-fan-out bare id passes through unchanged, and every other kind is byte-for-byte.
+ */
+function mirrorLookupValue(kind: ErpDocKind, pmoRecordId: string): string {
+  if (kind !== 'budget' || !pmoRecordId.includes(':')) return pmoRecordId;
+  return budgetVersionIdOf(pmoRecordId);
+}
+
 /** Build the inbound feed apply deps for one (org, kind). `kind` decides the mirror table + domain. */
 export function createErpFeedDeps(serviceClient: SupabaseClient, orgId: string, kind: ErpDocKind): ErpFeedDeps {
   const domain = KIND_DOMAIN[kind];
@@ -85,7 +106,7 @@ export function createErpFeedDeps(serviceClient: SupabaseClient, orgId: string, 
     // ── ApplyChangeDeps ──
     resolvePmoRecordId: (externalRecordId) => findPmoRecordId(serviceClient as never, orgId, domain, externalRecordId),
     readMirrorSourceMod: async (pmoRecordId) => {
-      const { data, error } = await serviceClient.from(table).select('erp_modified').eq('org_id', orgId).eq(lookupColumn, pmoRecordId).maybeSingle();
+      const { data, error } = await serviceClient.from(table).select('erp_modified').eq('org_id', orgId).eq(lookupColumn, mirrorLookupValue(kind, pmoRecordId)).maybeSingle();
       if (error) throw new AppError(error.message, error.code);
       const modified = (data as { erp_modified?: string | null } | null)?.erp_modified ?? null;
       return modified ? Date.parse(modified) : null;
@@ -101,7 +122,7 @@ export function createErpFeedDeps(serviceClient: SupabaseClient, orgId: string, 
         ...(await revenueFieldPatch(serviceClient, orgId, kind, canonical)),
         ...(await employeeFieldPatch(serviceClient, orgId, kind, pmoRecordId, canonical)),
       };
-      const { error } = await (serviceClient.from(table).update(patch).eq('org_id', orgId).eq(lookupColumn, pmoRecordId) as unknown as Promise<{
+      const { error } = await (serviceClient.from(table).update(patch).eq('org_id', orgId).eq(lookupColumn, mirrorLookupValue(kind, pmoRecordId)) as unknown as Promise<{
         error: { message: string; code?: string } | null;
       }>);
       if (error) throw new AppError(error.message, error.code);
@@ -131,7 +152,7 @@ export function createErpFeedDeps(serviceClient: SupabaseClient, orgId: string, 
         claimExternalRef: (mapping) => recordExternalRef(serviceClient as never, { orgId, ...mapping }),
         mintWithId: (canonical, sourceModMs, pmoRecordId) => mintMirrorRow(serviceClient, orgId, kind, canonical, sourceModMs, pmoRecordId),
         mirrorExists: async (pmoRecordId) => {
-          const { data, error } = await serviceClient.from(table).select(lookupColumn).eq('org_id', orgId).eq(lookupColumn, pmoRecordId).maybeSingle();
+          const { data, error } = await serviceClient.from(table).select(lookupColumn).eq('org_id', orgId).eq(lookupColumn, mirrorLookupValue(kind, pmoRecordId)).maybeSingle();
           if (error) throw new AppError(error.message, error.code);
           return data !== null;
         },
@@ -156,7 +177,7 @@ export function createErpFeedDeps(serviceClient: SupabaseClient, orgId: string, 
         // `status='Cancelled'` (db/revenue.ts) — a cancelled SI left `Unpaid` keeps contributing its
         // amount to project revenue and its outstanding to open AR (a wrong money figure on screen).
         ...cancelStatusPatch(kind),
-      }).eq('org_id', orgId).eq(lookupColumn, pmoRecordId) as unknown as Promise<{ error: { message: string; code?: string } | null }>);
+      }).eq('org_id', orgId).eq(lookupColumn, mirrorLookupValue(kind, pmoRecordId)) as unknown as Promise<{ error: { message: string; code?: string } | null }>);
       if (error) throw new AppError(error.message, error.code);
       // P3b FR-TSP-084 — the desk-cancel action-required surface (task 6.3). The push_state='failed'
       // reopen above is silent by itself; an operator needs a prompt that a human cancelled the ERP
@@ -208,7 +229,7 @@ export function createErpFeedDeps(serviceClient: SupabaseClient, orgId: string, 
       const { error } = await (serviceClient.from(table).update({
         erp_amended_from: amendedFrom,
         erp_modified: erpModified,
-      }).eq('org_id', orgId).eq(lookupColumn, pmoRecordId) as unknown as Promise<{ error: { message: string; code?: string } | null }>);
+      }).eq('org_id', orgId).eq(lookupColumn, mirrorLookupValue(kind, pmoRecordId)) as unknown as Promise<{ error: { message: string; code?: string } | null }>);
       if (error) throw new AppError(error.message, error.code);
     },
     recordLineage: async (row: LineageRow) => {

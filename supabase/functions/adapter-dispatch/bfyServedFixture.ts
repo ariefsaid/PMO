@@ -144,11 +144,23 @@ export function servedRoutes(seed: ServedSeed): ServedRoutesResult {
     supabaseSelect('budget_line_items', (call) =>
       jsonResponse(call.url.searchParams.has('id') ? [] : seed.lineItems)),
     supabaseSelect('budget_category_account_map', () => jsonResponse(seed.categoryMap)),
+    // Both directions are asked: `resolveExternalRef` (pmo_record_id → external_record_id, the
+    // create-target guard) and `findPmoRecordId` (external_record_id → pmo_record_id, the FR-BFY-076
+    // ownership witness).
     supabaseSelect('external_refs', (call) => {
-      const filter = call.url.searchParams.get('pmo_record_id') ?? '';
-      const pmoRecordId = filter.startsWith('eq.') ? decodeURIComponent(filter.slice(3)) : filter;
-      const mapped = seed.externalRefs?.[pmoRecordId];
-      return mapped ? objectResponse({ external_record_id: mapped }) : nullObjectResponse();
+      const eq = (p: string) => {
+        const raw = call.url.searchParams.get(p);
+        return raw?.startsWith('eq.') ? decodeURIComponent(raw.slice(3)) : (raw ?? null);
+      };
+      const refs = seed.externalRefs ?? {};
+      const pmoRecordId = eq('pmo_record_id');
+      if (pmoRecordId !== null) {
+        const mapped = refs[pmoRecordId];
+        return mapped ? objectResponse({ external_record_id: mapped }) : nullObjectResponse();
+      }
+      const externalRecordId = eq('external_record_id');
+      const owner = Object.entries(refs).find(([, ext]) => ext === externalRecordId)?.[0];
+      return owner ? objectResponse({ pmo_record_id: owner }) : nullObjectResponse();
     }),
 
     // ── the money outbox ─────────────────────────────────────────────────────────────────────────

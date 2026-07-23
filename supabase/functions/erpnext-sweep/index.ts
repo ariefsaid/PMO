@@ -77,7 +77,20 @@ import { dispatchMoneyWrite, type DispatchMoneyWriteDeps, type ExternalRefMappin
 import type { AdapterCommand, PmoRecord } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
 import { resolveErpCredentials } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/credentials.ts';
 import { erpnextRequest, withProbeBudget, type ErpClientDeps } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/client.ts';
-import { resolveErpDispatchAdapter, withPaymentTypeDiscriminator } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/dispatchFactory.ts';
+import {
+  readBudgetLineItems,
+  readCategoryAccountMap,
+  resolveErpDispatchAdapter,
+  withPaymentTypeDiscriminator,
+} from '../../../pmo-portal/src/lib/adapterSeam/erpnext/dispatchFactory.ts';
+// FR-BFY-075: the sweep re-runs the SAME gate the foreground dispatch runs, never a second copy.
+import {
+  runBudgetGate,
+  type BudgetGateProjectRow,
+  type BudgetGateResult,
+  type BudgetVersionGateRow,
+  type FiscalYearRow,
+} from '../../../pmo-portal/src/lib/budget/budgetGate.ts';
 import { resolvePerOrgSecret } from '../_shared/perOrgSecret.ts';
 import { externalConnectEnabled } from '../_shared/externalConnectEnabled.ts';
 import { canonicalCommandDigest, createDbMoneyOutboxDeps } from '../adapter-dispatch/moneyOutboxDeps.ts';
@@ -99,6 +112,30 @@ import {
   type BudgetBackstopVersionRow,
 } from './budgetBackstop.ts';
 import { budgetPushKey } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/budgetPushKey.ts';
+import { budgetVersionIdOf, decodeFiscalYear, encodeFiscalYear } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/fiscalYearEncoding.ts';
+
+/** FR-BFY-075 — the named state a sweep budget recovery takes when the CURRENT gate would refuse the
+ *  frozen year/body. Surfaced per candidate; the row itself is left untouched (no POST, no state
+ *  change), so the recovery resumes by itself once the operator resolves the cause. */
+const BUDGET_SWEEP_GATE_HELD = 'budget-sweep-gate-held';
+
+/** The bare `budget_version_id` of an outbox identity — the mirror FK / version-read fact (FR-BFY-038).
+ *  A pre-fan-out bare id is returned unchanged. */
+function bareBudgetVersionId(pmoRecordId: string): string {
+  return pmoRecordId.includes(':') ? budgetVersionIdOf(pmoRecordId) : pmoRecordId;
+}
+
+/** The fiscal year a year-qualified outbox identity NAMES, or `null` for a pre-fan-out bare id. It is
+ *  read out of the identity, never derived: the identity is what the dispatch itself resolved. */
+function fiscalYearOfIdentity(pmoRecordId: string): string | null {
+  const sep = pmoRecordId.indexOf(':');
+  if (sep < 0) return null;
+  try {
+    return decodeFiscalYear(pmoRecordId.slice(sep + 1)) || null;
+  } catch {
+    return null;
+  }
+}
 import { ERPNEXT_BUDGET_DOMAIN, ERPNEXT_TIMESHEETS_DOMAIN } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/adapter.ts';
 // P3b task 6.4 (FR-TSP-045, AC-TSP-022) — the timesheet push's sweep backstop, pure orchestration.
 import {
@@ -1115,15 +1152,21 @@ export function budgetBackstopDepsLive(
       // row is never double-queued — the mirror row carries the recorded failure history and wins.
       const known = new Set(mirrored.map((r) => r.budget_version_id));
       const orphans = eligibleBudgetCandidates
-        .filter((c) => !known.has(c.pmo_record_id))
+        // ⚑ FR-BFY-032: an outbox row's `pmo_record_id` is now the YEAR-QUALIFIED identity, so the
+        // bare `budget_version_id` (the mirror's FK, and this queue's own key) is PARSED out of it. A
+        // pre-fan-out row carries the bare id and is passed through unchanged.
+        .map((c) => ({ ...c, versionId: bareBudgetVersionId(c.pmo_record_id), year: fiscalYearOfIdentity(c.pmo_record_id) }))
+        .filter((c) => !known.has(c.versionId))
         .slice(0, Math.max(limit - mirrored.length, 0))
         .map((c) => ({
-          budget_version_id: c.pmo_record_id,
+          budget_version_id: c.versionId,
           push_state: BUDGET_MIRROR_ABSENT,
           erp_cancelled_at: null,
-          // LOW-1: the outbox canonical is the only thing that knows this orphan's grain. Absent ⇒ the
-          // hold writes nothing rather than guessing (see `holdBudgetMirrorRow`).
-          fiscal_year: c.fiscal_year ?? null,
+          // LOW-1: the grain this orphan is about. The year-qualified IDENTITY states it exactly (it is
+          // the year the dispatch itself derived); the outbox canonical is the fallback for a
+          // pre-fan-out row. Absent ⇒ the hold writes nothing rather than guessing
+          // (see `holdBudgetMirrorRow`).
+          fiscal_year: c.year ?? c.fiscal_year ?? null,
         }));
       return [...mirrored, ...orphans];
     },
@@ -1140,8 +1183,17 @@ export function budgetBackstopDepsLive(
       return (data as BudgetBackstopVersionRow | null) ?? null;
     },
     driveBudgetPush: async (row: BudgetMirrorCandidateRow, version: BudgetBackstopVersionRow) => {
-      const idempotencyKey = budgetPushKey(row.budget_version_id, version.activated_at);
-      const outboxRow = await findBudgetOutboxRow(serviceClient, org.orgId, row.budget_version_id, idempotencyKey);
+      // ⚑ FR-BFY-031/032 — the backstop must derive the SAME per-year identity + key the foreground
+      // dispatch derived, or it finds no outbox row at all and parks a perfectly recoverable push as
+      // `budget-push-no-outbox-candidate`. A candidate with no fiscal year on record is a PRE-fan-out
+      // row (its outbox row was written under the bare id and the single-year key) — never a guess: the
+      // legacy shape is used verbatim for it.
+      const encodedFiscalYear = row.fiscal_year ? encodeFiscalYear(row.fiscal_year) : null;
+      const identity = encodedFiscalYear ? `${row.budget_version_id}:${encodedFiscalYear}` : row.budget_version_id;
+      const idempotencyKey = encodedFiscalYear
+        ? budgetPushKey(row.budget_version_id, encodedFiscalYear, version.activated_at)
+        : budgetPushKey(row.budget_version_id, version.activated_at);
+      const outboxRow = await findBudgetOutboxRow(serviceClient, org.orgId, identity, idempotencyKey);
       if (!outboxRow) {
         // FR-BUD-102 ("never finalize with a NULL actor"): the foreground dispatch never even reached
         // the outbox for this activation (e.g. the browser tab died mid-request before the fetch) — so
@@ -1673,6 +1725,28 @@ export async function buildReconcileDepsLive(serviceClient: SupabaseClient, org:
   });
   if (!replayAuth.ok) throw new AppError(replayAuth.message, 'commit-rejected');
 
+  // ⚑ FR-BFY-075 (review finding 5) — RE-RUN THE BUDGET GATE FOR THE FROZEN YEAR, BEFORE ANY POST.
+  //
+  // Everything below reconstructs a command that was frozen when the operator activated the budget —
+  // possibly hours ago. The project's dates, the client's `Fiscal Year` calendar, the version's line
+  // items and the category map can ALL have moved since. Without this the sweep would install an ERP
+  // `Budget` for a year the project no longer occupies (or a figure PMO no longer stands behind), with
+  // no operator present and no gate having agreed to it. It is the SAME `runBudgetGate` the foreground
+  // path runs — not a second copy of the rule — reading the CURRENT truth.
+  //
+  // Read under SERVICE ROLE: the sweep carries no user JWT, and the row's recorded actor was
+  // re-authorized immediately above (0108 §C). Every read is explicitly org-scoped, since service role
+  // bypasses RLS.
+  //
+  // A refusal THROWS with the named `budget-sweep-gate-held` code. `reconcileOrgOutbox` records it as a
+  // per-candidate error and leaves the row EXACTLY as it is — no state change, no ERP call — so the
+  // operator sees it and the recovery resumes by itself the moment the cause is fixed. (It is not
+  // transitioned to the outbox `held` state: this path holds no claim, so it cannot make a fenced
+  // write-back, and a `held` row would additionally need an Admin release even after the operator had
+  // already corrected the dates. The money-critical property — never POST a body the current gate would
+  // reject — is what the throw guarantees.)
+  await assertBudgetSweepGate(serviceClient, org, payload);
+
   const kind = payload.erp_doc_kind;
   const entry = typeof kind === 'string' && kind in DOCTYPE_REGISTRY ? DOCTYPE_REGISTRY[kind as ErpDocKind] : undefined;
   const bodyFns = typeof kind === 'string' ? DOCTYPE_BODIES[kind as ErpDocKind] : undefined;
@@ -1761,5 +1835,95 @@ export async function buildReconcileDepsLive(serviceClient: SupabaseClient, org:
   const recordExternalRef = (mapping: ExternalRefMapping): Promise<void> =>
     recordExternalRefWrite(serviceClient as never, { ...mapping, externalRecordId: encodeExternalRecordId(mapping), orgId: org.orgId });
 
-  return { adapter, command, writeReadModel, recordExternalRef, money };
+  // FR-BFY-032: the outbox row + `external_refs` are keyed on the row's OWN `pmo_record_id` — the
+  // year-qualified `<vid>:<encoded_fy>` for a budget fan-out, the bare record id for every other
+  // domain (where the two are the same string, so this is byte-for-byte).
+  return { adapter, command, writeReadModel, recordExternalRef, money, outboxRecordId: row.pmoRecordId };
+}
+
+/**
+ * FR-BFY-075 — the frozen budget command's gate re-run. A no-op for every other domain.
+ *
+ * Refuses when the CURRENT gate would refuse (unresolvable/ambiguous calendar, a project that no longer
+ * occupies the year, an un-phased line on a now-multi-FY project, an unmapped category) AND when the
+ * gate passes but its plan no longer contains the frozen year — a re-phase moves a year out of the plan
+ * without the gate itself objecting, and POSTing that year would enforce a budget PMO no longer states.
+ */
+async function assertBudgetSweepGate(
+  serviceClient: SupabaseClient,
+  org: OrgBinding,
+  payload: Record<string, unknown>,
+): Promise<void> {
+  if (payload.erp_doc_kind !== 'budget') return;
+  const versionId = String(payload.id ?? '');
+  const frozenYear = typeof payload.fiscal_year === 'string' ? payload.fiscal_year : '';
+  if (!versionId || !frozenYear) {
+    throw new AppError(
+      `erpnext-sweep budget recovery: the frozen command names no version/fiscal year — refusing to POST it (${versionId}/${frozenYear})`,
+      BUDGET_SWEEP_GATE_HELD,
+    );
+  }
+  let plan: BudgetGateResult;
+  try {
+    plan = await runBudgetGate({
+      orgId: org.orgId,
+      versionId,
+      readVersion: async (id) => {
+        const { data, error } = await serviceClient
+          .from('budget_versions')
+          .select('id, org_id, project_id, status, activated_at')
+          .eq('id', id)
+          .eq('org_id', org.orgId)
+          .maybeSingle();
+        if (error) throw new AppError(error.message, error.code);
+        return (data as BudgetVersionGateRow | null) ?? null;
+      },
+      readProject: async (id) => {
+        const { data, error } = await serviceClient
+          .from('projects')
+          .select('id, org_id, start_date, end_date')
+          .eq('id', id)
+          .eq('org_id', org.orgId)
+          .maybeSingle();
+        if (error) throw new AppError(error.message, error.code);
+        return (data as BudgetGateProjectRow | null) ?? null;
+      },
+      readLineItems: (id) => readBudgetLineItems(serviceClient as never, id),
+      readCategoryMap: () => readCategoryAccountMap(serviceClient as never, org.orgId),
+      readFiscalYears: () => readErpFiscalYearsLive(org),
+    });
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : String(err);
+    throw new AppError(
+      `erpnext-sweep budget recovery HELD for fiscal year ${frozenYear}: the push gate would now refuse this budget — ${reason}`,
+      BUDGET_SWEEP_GATE_HELD,
+    );
+  }
+  if (!plan.plan.some((entry) => entry.fiscal_year === frozenYear)) {
+    throw new AppError(
+      `erpnext-sweep budget recovery HELD for fiscal year ${frozenYear}: the active budget no longer phases any line to that year, ` +
+        `so PMO no longer states a budget for it (current plan: ${plan.plan.map((e) => e.fiscal_year).join(', ') || 'none'})`,
+      BUDGET_SWEEP_GATE_HELD,
+    );
+  }
+}
+
+/** The client's OWN fiscal calendar, read live (the same doctype read the foreground gate makes). */
+async function readErpFiscalYearsLive(org: OrgBinding): Promise<FiscalYearRow[]> {
+  const { apiKey, apiSecret } = resolveErpCredentials(org.secretRef, (key) => Deno.env.get(key));
+  const url = new URL('/api/resource/Fiscal Year', org.siteUrl);
+  url.searchParams.set('fields', JSON.stringify(['name', 'year_start_date', 'year_end_date']));
+  url.searchParams.set('limit_page_length', '0');
+  const res = await fetch(url.toString(), {
+    headers: { Authorization: `token ${apiKey}:${apiSecret}`, Accept: 'application/json' },
+  });
+  if (!res.ok) throw new AppError(`could not read the ERPNext fiscal calendar (HTTP ${res.status})`, 'external-unreachable');
+  const body = (await res.json()) as { data?: unknown };
+  const rows = Array.isArray(body.data) ? body.data : [];
+  return rows.filter(
+    (r): r is FiscalYearRow =>
+      typeof (r as FiscalYearRow)?.name === 'string' &&
+      typeof (r as FiscalYearRow)?.year_start_date === 'string' &&
+      typeof (r as FiscalYearRow)?.year_end_date === 'string',
+  );
 }

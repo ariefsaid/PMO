@@ -11,7 +11,7 @@ import { createErpAdapter, ERPNEXT_TIER, type DoctypeBodyFns, type ErpAdapterDep
 import type { ErpDocKind } from './doctypeRegistry.ts';
 import { getDoc, listDocsByFilters, type ErpClientDeps, type ErpRateLimiter } from './client.ts';
 import type { ErpProbeDeps } from './recoveryProbe.ts';
-import { resolveExternalRef, type ExternalRefsLookupClient } from '../refs.ts';
+import { findPmoRecordId, resolveExternalRef, type ExternalRefsLookupClient } from '../refs.ts';
 import { packTimeLogs } from './timeLogPacking.ts';
 import { readProcessGates } from './processGates.ts';
 import type { Adapter, AdapterCommand } from '../contract.ts';
@@ -643,6 +643,8 @@ async function resolveBudgetRefs(
     projectId?: string | null;
     fiscal_year?: unknown;
     line_items?: unknown;
+    /** FR-BFY-032: the year-qualified outbox/external_refs identity, derived at the served boundary. */
+    outbox_identity?: unknown;
   };
   const project = resolveErpProjectName(binding.config, record.projectId);
   const refs: Record<string, string | null> = { project };
@@ -753,10 +755,49 @@ async function resolveBudgetRefs(
     );
   }
 
-  // (i) Exactly one live occupant ⇒ THE upsert target. None ⇒ a plain create, which is also how a
-  // post-cancel recovery converges: the cancelled predecessor is a tombstone (docstatus 2), invisible to
-  // this read and inert to ERP's duplicate guard, so re-creating is both safe and correct.
-  if (live.length === 1) refs.self = live[0];
+  // (i) Exactly one live occupant ⇒ THE upsert target — but ONLY if PMO OWNS it (FR-BFY-076, review
+  // finding 7).
+  //
+  // ⚑ OCCUPANCY IS NOT OWNERSHIP. `refs.self` routes the create onto `commitEditResolved`, which for a
+  // SUBMITTED target is cancel + create-with-`amended_from` — so accepting any live occupant meant a
+  // Budget an accountant authored directly in Desk was CANCELLED and REPLACED with PMO's figures, and
+  // then recorded as PMO's own push. That is the symmetric case to the draft rival below: the draft is
+  // refused because ERP would refuse us; the unowned LIVE document must be refused because ERP would
+  // NOT. Live-bench-verified (frappe 15.96.0/erpnext 15.94.3): both the cancel and the amend return 200.
+  //
+  // The ownership witness is PMO's OWN `external_refs` mapping for this domain and this YEAR-QUALIFIED
+  // identity — the row `record_outbox_ref` writes when PMO creates the document. Judged on the
+  // year-qualified identity, never the bare version id: after the identity re-key a bare row is stale,
+  // and a mapping for a DIFFERENT year says nothing about this one.
+  //
+  // ⚑ `owner` is deliberately NOT the test. It is the ERP user our API credentials authenticate as, and
+  // a client whose accountant shares that user (or a PMO document later touched in Desk) would classify
+  // wrongly in BOTH directions. PMO's own creation record is the only evidence PMO actually holds.
+  if (live.length === 1) {
+    // ⚑ THE WITNESS IS A REVERSE LOOKUP, and it has to be. `external_refs` is keyed on the
+    // year-qualified `<budget_version_id>:<encoded_fy>`, and a REVISION is a NEW version — so asking
+    // "is THIS version-year mapped?" would answer no for PMO's own prior document and refuse every
+    // legitimate revise (the FR-BUD-121 upsert path, the ordinary way a budget changes). The fact that
+    // actually matters is "did PMO create the document that is sitting on the grain", which is exactly
+    // `external_refs(org, 'budget', external_record_id = <that document>)` — version-independent, and
+    // unique by construction (0093's `unique(org_id, domain, external_record_id)`). Reported as a
+    // deviation from the spec's literal "mapping for this year-qualified pmo_record_id" wording.
+    const owner = await findPmoRecordId(
+      deps.serviceClient as unknown as ExternalRefsLookupClient,
+      deps.orgId,
+      'budget',
+      live[0],
+    );
+    if (owner === null) {
+      throw new AppError(
+        `budget push: ERPNext already holds a LIVE Budget for (${company}, ${fiscalYear}, ${project}) — ${live[0]} — ` +
+          'that PMO did not create. PMO will not cancel or amend a Budget it does not own: an operator must ' +
+          'either remove that document or accept it as the authority for this project and fiscal year.',
+        'budget-unowned-live-occupant',
+      );
+    }
+    refs.self = live[0];
+  }
   return { refs };
 }
 

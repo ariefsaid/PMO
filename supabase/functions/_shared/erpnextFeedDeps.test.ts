@@ -774,3 +774,56 @@ for (const [label, kind, mirrorTable, lookupColumn] of [
     );
   });
 }
+
+// ════════════════════════════════════════════════════════════════════════════════════════════════
+// AC-BFY-030 / FR-BFY-038 (review finding 3) — THE INBOUND FEED PARSES THE BARE VERSION ID OUT OF A
+// YEAR-QUALIFIED BUDGET IDENTITY.
+//
+// `external_refs.pmo_record_id` for the budget domain is now `<budget_version_id>:<encoded_fy>`, while
+// `budget_version_erp_mirror.budget_version_id` is (and must stay) a `uuid`. Handing the year-qualified
+// value straight to `.eq('budget_version_id', …)` is a non-UUID against a uuid column: a Desk CANCEL
+// then errors or matches nothing, so the mirror row is never tombstoned and PMO goes on reporting an
+// active, enforced ERP control that no longer exists.
+// ════════════════════════════════════════════════════════════════════════════════════════════════
+Deno.test('AC-BFY-030 FR-BFY-038: the budget feed looks the mirror up by the BARE budget_version_id', async () => {
+  const VERSION_ID = '44444444-4444-4444-8444-444444444444';
+  // '2026' → '32303236' under `encodeFiscalYear` (the SQL twin pins the same example, 0153 §3c).
+  const IDENTITY = `${VERSION_ID}:32303236`;
+
+  const { client, calls } = fakeServiceClient({
+    budget_version_erp_mirror: [{ erp_modified: '2026-07-20 10:00:00' }],
+  });
+  const deps = createErpFeedDeps(client as unknown as SupabaseClient, 'org-1', 'budget');
+
+  await deps.readMirrorSourceMod(IDENTITY);
+  await deps.tombstoneMirror!(IDENTITY, '2026-07-21T00:00:00Z');
+
+  const mirrorReads = calls.filter((c) => c.table === 'budget_version_erp_mirror');
+  assert(mirrorReads.length >= 2, 'both the staleness read and the tombstone hit the mirror');
+  for (const call of mirrorReads) {
+    const filter = call.eq.find(([col]) => col === 'budget_version_id');
+    assert(filter !== undefined, 'the budget mirror is keyed on budget_version_id');
+    assert(
+      filter![1] === VERSION_ID,
+      `the year-qualified identity must be parsed to the bare uuid — got ${String(filter![1])}`,
+    );
+  }
+});
+
+Deno.test('AC-BFY-030 FR-BFY-038: a BARE (pre-fan-out) budget identity still resolves unchanged', async () => {
+  const VERSION_ID = '55555555-5555-4555-8555-555555555555';
+  const { client, calls } = fakeServiceClient({ budget_version_erp_mirror: [{ erp_modified: null }] });
+  const deps = createErpFeedDeps(client as unknown as SupabaseClient, 'org-1', 'budget');
+  await deps.readMirrorSourceMod(VERSION_ID);
+  const filter = calls.find((c) => c.table === 'budget_version_erp_mirror')!.eq.find(([col]) => col === 'budget_version_id');
+  assert(filter![1] === VERSION_ID, 'a bare identity is passed through untouched');
+});
+
+Deno.test('AC-BFY-030 FR-BFY-038: a NON-budget kind is untouched — the timesheet mirror still gets its own id', async () => {
+  const SHEET_ID = '66666666-6666-4666-8666-666666666666';
+  const { client, calls } = fakeServiceClient({ timesheet_erp_mirror: [{ erp_modified: null }] });
+  const deps = createErpFeedDeps(client as unknown as SupabaseClient, 'org-1', 'timesheet');
+  await deps.readMirrorSourceMod(SHEET_ID);
+  const filter = calls.find((c) => c.table === 'timesheet_erp_mirror')!.eq.find(([col]) => col === 'timesheet_id');
+  assert(filter![1] === SHEET_ID, 'every other domain is byte-for-byte');
+});
