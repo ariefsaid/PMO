@@ -177,6 +177,41 @@ export async function fetchBudgetPushStatus(projectId: string): Promise<BudgetPu
   }));
 }
 
+/** Which fiscal years each category is phased to on the project's ACTIVE version (F-C). */
+export type BudgetCategoryFiscalYears = Partial<Record<BudgetCategory, string[]>>;
+
+/**
+ * ⚑ THE DIRECTOR'S RULING (spec §6.2) — the surface must distinguish two facts that both reach it as a
+ * NULL budget.
+ *
+ * `attribution_known = false` is doing two jobs. One is "we CANNOT attribute this" (the category's only
+ * lines are un-phased and their attribution was suppressed — a refused push, or a project whose dates
+ * drifted off the span the push recorded). The other is "this category is budgeted in a DIFFERENT
+ * fiscal year" — spend landing in FY1 against work budgeted in FY2, an ordinary timing difference. The
+ * SQL is right to fail closed for both (a `-EAC` there would be a false overspend alarm on real money),
+ * but the second fact is FULLY KNOWN, and rendering a knowable fact as "unavailable" is its own
+ * dishonesty. This read is how the screen knows it: PMO's OWN phased line items, nothing inferred.
+ *
+ * Un-phased (NULL) lines are deliberately ignored — a NULL year is not a year, and attributing one here
+ * would be exactly the invention ADR-0048 forbids.
+ */
+export async function fetchActiveBudgetCategoryYears(projectId: string): Promise<BudgetCategoryFiscalYears> {
+  const { data, error } = await supabase
+    .from('budget_line_items')
+    // The `!inner` join scopes to the Active version without a second round trip; RLS scopes the org.
+    .select('category, fiscal_year, budget_versions!inner(project_id, status)')
+    .eq('budget_versions.project_id', projectId)
+    .eq('budget_versions.status', 'Active');
+  if (error) throw toAppError(error);
+  const byCategory: BudgetCategoryFiscalYears = {};
+  for (const row of (data ?? []) as Array<{ category: BudgetCategory; fiscal_year: string | null }>) {
+    if (!row.fiscal_year) continue;
+    const years = (byCategory[row.category] ??= []);
+    if (!years.includes(row.fiscal_year)) years.push(row.fiscal_year);
+  }
+  return byCategory;
+}
+
 /**
  * H-4 — the fiscal years a user may ask for, read from the data that exists (`list_budget_fiscal_years`,
  * mig 0141).
@@ -203,7 +238,7 @@ export async function listBudgetFiscalYears(projectId: string): Promise<BudgetFi
  * version is no longer Draft). Resolves the Active version from DB truth rather than trusting anything
  * on screen, then delegates to the ONE push in `db/budgets.ts` (same command, same deterministic key).
  */
-export async function retryActiveBudgetPush(projectId: string, fiscalYear: string): Promise<ActivateVersionResult> {
+export async function retryActiveBudgetPush(projectId: string, fiscalYear: string | null): Promise<ActivateVersionResult> {
   return retryBudgetPush(await activeBudgetVersionId(projectId), fiscalYear);
 }
 
@@ -242,10 +277,7 @@ async function activeBudgetVersionId(projectId: string): Promise<string> {
  * Admin-only, enforced by the RPC itself (org + Admin + `is_active_member`, re-asserted after the row
  * lock, under SECURITY DEFINER). `can('manage','pushHold')` is the UX half only (ADR-0016).
  */
-export async function releaseActiveBudgetPushHold(projectId: string, fiscalYear: string): Promise<void> {
-  if (!fiscalYear) {
-    throw new AppError('This release needs the fiscal year it is for.', 'commit-rejected');
-  }
+export async function releaseActiveBudgetPushHold(projectId: string, fiscalYear: string | null): Promise<void> {
   const versionId = await activeBudgetVersionId(projectId);
   const { data, error } = await supabase
     .from('external_command_outbox')
@@ -255,7 +287,8 @@ export async function releaseActiveBudgetPushHold(projectId: string, fiscalYear:
     // year-qualified one this release introduces, and the LEGACY bare `<vid>`, which by construction
     // was written by the pre-fan-out single-FY dispatcher and therefore names this one year. Releasing
     // "whatever is held for this project" would clear a DIFFERENT year's money command.
-    .in('pmo_record_id', [`${versionId}:${encodeFiscalYear(fiscalYear)}`, versionId])
+    // A year-less status row (nothing on record for any year) can only ever be the legacy bare key.
+    .in('pmo_record_id', fiscalYear ? [`${versionId}:${encodeFiscalYear(fiscalYear)}`, versionId] : [versionId])
     .eq('state', 'held')
     .order('created_at', { ascending: false })
     .limit(1)

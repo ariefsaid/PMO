@@ -35,6 +35,7 @@ vi.mock('@/src/lib/db/budgets', () => ({ retryBudgetPush: retryBudgetPushMock })
 import {
   fetchBudgetProjection,
   fetchBudgetPushStatus,
+  fetchActiveBudgetCategoryYears,
   listBudgetFiscalYears,
   retryActiveBudgetPush,
   releaseActiveBudgetPushHold,
@@ -332,6 +333,45 @@ describe('fetchBudgetPushStatus (C-5)', () => {
 });
 
 // ── H-4 (audit r3) — the fiscal year is the CLIENT'S, read from data that exists ──────────────────
+/**
+ * DIRECTOR'S RULING (spec §6.2) — "we cannot attribute this" and "this category is budgeted in a
+ * DIFFERENT fiscal year" both arrive as `attribution_known = false`, but the second is a KNOWN fact and
+ * must be STATED, not rendered as unavailable. This seam is where the surface learns it: PMO's OWN
+ * phased line items on the Active version (F-C) — never an inference from the mirror or from a push.
+ */
+describe('fetchActiveBudgetCategoryYears (which fiscal year IS this category budgeted in?)', () => {
+  it("groups the ACTIVE version's phased line items by category", async () => {
+    makeFromBuilder({
+      data: [
+        { category: 'Labor', fiscal_year: '2027' },
+        { category: 'Labor', fiscal_year: '2027' },
+        { category: 'Materials', fiscal_year: '2026' },
+      ],
+      error: null,
+    });
+    const years = await fetchActiveBudgetCategoryYears('proj-1');
+    expect(years).toEqual({ Labor: ['2027'], Materials: ['2026'] });
+    expect(mockFrom).toHaveBeenCalledWith('budget_line_items');
+    expect(mockEq).toHaveBeenCalledWith('budget_versions.status', 'Active');
+    expect(mockEq).toHaveBeenCalledWith('budget_versions.project_id', 'proj-1');
+  });
+
+  it('ignores UN-PHASED lines — a NULL year is not a year, and inventing one is exactly what PMO refuses', async () => {
+    makeFromBuilder({ data: [{ category: 'Labor', fiscal_year: null }], error: null });
+    expect(await fetchActiveBudgetCategoryYears('proj-1')).toEqual({});
+  });
+
+  it('resolves empty (never throws) when the project has no Active version', async () => {
+    makeFromBuilder({ data: [], error: null });
+    expect(await fetchActiveBudgetCategoryYears('proj-1')).toEqual({});
+  });
+
+  it('throws an AppError (code preserved) on a read failure', async () => {
+    makeFromBuilder({ data: null, error: { message: 'not authorized', code: '42501' } });
+    await expect(fetchActiveBudgetCategoryYears('proj-1')).rejects.toMatchObject({ code: '42501' });
+  });
+});
+
 describe('listBudgetFiscalYears (H-4)', () => {
   it('H-4 returns the fiscal years actually on record for the project, marking the Active push year', async () => {
     makeRpcBuilder({

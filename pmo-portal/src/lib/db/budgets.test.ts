@@ -511,9 +511,15 @@ describe('activateVersion', () => {
     await expect(retryBudgetPush('v-1', '2026')).resolves.toEqual({ pushState: 'pushed' });
   });
 
-  it('AC-BFY-009 a retry with no fiscal year FAILS CLOSED (a per-year action must name its year)', async () => {
-    await expect(retryBudgetPush('v-1', '')).rejects.toThrow(/fiscal year/i);
-    expect(mockFunctionsInvoke).not.toHaveBeenCalled();
+  it('AC-BFY-009 a YEAR-LESS retry (nothing on record for any year) reports the whole fan-out', async () => {
+    makeFromBuilder({ data: { activated_at: '2026-07-16T10:00:00Z' }, error: null });
+    mockFunctionsInvoke.mockResolvedValue({
+      data: { canonical: { id: 'v-1' }, years: [{ fiscal_year: '2026', pushed: true }, { fiscal_year: '2027', pushed: false }] },
+      error: null,
+    });
+    // Anything less than EVERY year landing is not "pushed" — the project still has a year ERPNext
+    // enforces nothing for.
+    await expect(retryBudgetPush('v-1', null)).resolves.toEqual({ pushState: 'failed' });
   });
 
   // ── H-3 (Luna audit round 3): the retry must not report a failure it never made durable. ──────

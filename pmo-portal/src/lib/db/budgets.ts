@@ -244,13 +244,17 @@ export async function activateVersion(versionId: string): Promise<ActivateVersio
  *
  * NEVER re-activates: the version is already Active and its activation stamp is the key's own input.
  */
-export async function retryBudgetPush(versionId: string, fiscalYear: string): Promise<ActivateVersionResult> {
-  // ⚑ BFY FR-BFY-056 — a retry is a PER-YEAR act. The operator is looking at one year's failed status
-  // row, so the year is required: a year-less retry could only ever report the fan-out as a whole, and
-  // "the push failed" beside a year that actually pushed is the misattribution finding 6 is about.
-  if (!fiscalYear) {
-    throw new AppError('This retry needs the fiscal year it is for.', 'commit-rejected');
-  }
+export async function retryBudgetPush(
+  versionId: string,
+  fiscalYear: string | null,
+): Promise<ActivateVersionResult> {
+  // ⚑ BFY FR-BFY-056 — a retry is a PER-YEAR act whenever there IS a year: the operator is looking at
+  // one year's failed status row, and "the push failed" beside a year that actually pushed is the
+  // misattribution finding 6 is about. `null` is a real, different state, not a missing argument — the
+  // status RPC reports exactly one YEAR-LESS row when the Active version has no phased line and no
+  // mirror row at all (nothing is on record for any year). That row's retry is the whole fan-out, and
+  // withholding it there would leave the never-pushed project — the one most likely to have ERPNext
+  // enforcing nothing — with no route out.
   // ⚑ H-3 (Luna audit round 3), PRESERVED across the BFY key move: the activation stamp is re-read
   // BEFORE the dispatch so an UNSTAMPED version (Active but pre-0139) refuses client-side, before any
   // request. Nothing durable is written for such a refusal — no mirror row, no notification — so
@@ -285,9 +289,12 @@ interface BudgetFanOutResult {
  * A response that names no years at all (a single-year push, or an older server) is taken at face
  * value: it resolved, so the year the operator asked about is the year that pushed.
  */
-function pushStateForYear(result: unknown, fiscalYear: string): 'pushed' | 'failed' {
+function pushStateForYear(result: unknown, fiscalYear: string | null): 'pushed' | 'failed' {
   const years = (result as BudgetFanOutResult | null | undefined)?.years;
   if (!Array.isArray(years) || years.length === 0) return 'pushed';
+  // No year named ⇒ the operator retried a project with nothing on record for any year, so the honest
+  // verdict is the WHOLE fan-out: anything less than every year landing is not "pushed".
+  if (fiscalYear === null) return years.every((y) => y.pushed) ? 'pushed' : 'failed';
   const row = years.find((y) => y.fiscal_year === fiscalYear);
   return row?.pushed ? 'pushed' : 'failed';
 }
