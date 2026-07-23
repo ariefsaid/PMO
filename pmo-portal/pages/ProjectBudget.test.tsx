@@ -28,6 +28,7 @@ const mockDeleteDraft = vi.fn().mockResolvedValue(undefined);
 const mockCreateVersion = vi.fn().mockResolvedValue({ id: 'v-new' });
 const mockCreateLineItem = vi.fn().mockResolvedValue({ id: 'li-new' });
 const mockDeleteLineItem = vi.fn().mockResolvedValue(undefined);
+const mockUpdateLineItem = vi.fn().mockResolvedValue(undefined);
 
 vi.mock('@/src/hooks/useBudget', () => ({
   useProjectBudget: () => budgetState,
@@ -39,7 +40,7 @@ vi.mock('@/src/hooks/useBudget', () => ({
     archive: { mutateAsync: mockArchive, isPending: false },
     deleteDraft: { mutateAsync: mockDeleteDraft, isPending: false },
     createLineItem: { mutateAsync: mockCreateLineItem, isPending: false },
-    updateLineItem: { mutateAsync: vi.fn(), isPending: false },
+    updateLineItem: { mutateAsync: mockUpdateLineItem, isPending: false },
     deleteLineItem: { mutateAsync: mockDeleteLineItem, isPending: false },
   }),
 }));
@@ -606,5 +607,86 @@ describe('ProjectBudget — the Actual column names its own source (C-4)', () =>
     await screen.findByRole('columnheader', { name: /Budgeted/i });
     expect(screen.queryAllByRole('columnheader', { name: /^Actual$/ })).toHaveLength(0);
     expect(screen.getAllByRole('columnheader', { name: /Actual \(PMO recorded\)/i }).length).toBeGreaterThan(0);
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════════════════════════════════
+// AC-BFY-016 (FR-BFY-060/061) — THE PER-LINE FISCAL-YEAR AFFORDANCE, DRAFT ONLY.
+//
+// Phasing is what lets a multi-fiscal-year project reach ERPNext at all (the gate refuses a multi-FY
+// project with any un-phased line), and the ONLY route to a Draft is cloning the Active version — so
+// without this control the capability is unreachable from the product. Draft-only because
+// `enforce_draft_line_item` (0005) rejects the write on any other status: an affordance the DB will
+// refuse is worse than none.
+// ════════════════════════════════════════════════════════════════════════════════════════════════
+describe('ProjectBudget — the per-line fiscal year (AC-BFY-016)', () => {
+  const phasedDraft = {
+    ...draftVersion,
+    line_items: [{ ...draftVersion.line_items[0], fiscal_year: '2026' }],
+  };
+
+  it('AC-BFY-016 a Draft line SHOWS its fiscal year, and un-phased reads as un-phased (never a guessed year)', async () => {
+    versionsState.data = [
+      { ...draftVersion, line_items: [{ ...draftVersion.line_items[0], fiscal_year: null }] },
+    ];
+    renderPage();
+    expect(await screen.findByText(/un-phased/i)).toBeInTheDocument();
+  });
+
+  it('AC-BFY-016 a new Draft line can be phased, and the year is PERSISTED with it', async () => {
+    const user = userEvent.setup();
+    versionsState.data = [draftVersion];
+    renderPage();
+    await user.click(await screen.findByRole('button', { name: /add line item/i }));
+    await user.type(screen.getByLabelText(/line item amount/i), '50000');
+    await user.type(screen.getByLabelText(/line item fiscal year/i), '2027');
+    await user.click(screen.getAllByRole('button', { name: /^save$/i })[0]);
+    await waitFor(() =>
+      expect(mockCreateLineItem).toHaveBeenCalledWith({
+        versionId: 'v-draft',
+        item: expect.objectContaining({ fiscal_year: '2027' }),
+      }),
+    );
+  });
+
+  it('AC-BFY-016 a line left un-phased persists NULL — never an invented year (ADR-0048)', async () => {
+    const user = userEvent.setup();
+    versionsState.data = [draftVersion];
+    renderPage();
+    await user.click(await screen.findByRole('button', { name: /add line item/i }));
+    await user.type(screen.getByLabelText(/line item amount/i), '50000');
+    await user.click(screen.getAllByRole('button', { name: /^save$/i })[0]);
+    await waitFor(() =>
+      expect(mockCreateLineItem).toHaveBeenCalledWith({
+        versionId: 'v-draft',
+        item: expect.objectContaining({ fiscal_year: null }),
+      }),
+    );
+  });
+
+  it('AC-BFY-016 editing an existing Draft line can RE-PHASE it', async () => {
+    const user = userEvent.setup();
+    versionsState.data = [phasedDraft];
+    renderPage();
+    await user.click(await screen.findByRole('button', { name: /edit line item Labor/i }));
+    const field = screen.getByLabelText(/^fiscal year$/i);
+    await user.clear(field);
+    await user.type(field, '2027');
+    await user.click(screen.getByRole('button', { name: /^save$/i }));
+    await waitFor(() =>
+      expect(mockUpdateLineItem).toHaveBeenCalledWith({
+        id: 'li-1',
+        patch: expect.objectContaining({ fiscal_year: '2027' }),
+      }),
+    );
+  });
+
+  it('AC-BFY-016 an ACTIVE version shows its phasing but offers NO affordance (the DB refuses the write)', async () => {
+    versionsState.data = [
+      { ...activeVersion, line_items: [{ ...draftVersion.line_items[0], budget_version_id: 'v-active', fiscal_year: '2026' }] },
+    ];
+    renderPage();
+    expect(await screen.findByText('2026')).toBeInTheDocument();
+    expect(screen.queryByLabelText(/fiscal year/i)).not.toBeInTheDocument();
   });
 });

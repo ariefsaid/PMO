@@ -28,6 +28,15 @@ export interface NewLineItem {
   category: BudgetLineItemRow['category'];
   description: string | null;
   budgeted_amount: number;
+  /**
+   * ⚑ BFY FR-BFY-060 — the ERPNext `Fiscal Year` NAME this line is phased to; `null`/omitted = un-phased.
+   *
+   * Optional and NULL-by-default on purpose: every existing line stays un-phased, and PMO never invents
+   * a year for a line the operator deliberately left alone (ADR-0048). The value is the client's own
+   * label ('2026', '2025-2026', …) and is validated at PUSH time against their live `Fiscal Year`
+   * doctype — never here, because the write path cannot reach another system's calendar (FR-BFY-022).
+   */
+  fiscal_year?: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -93,6 +102,8 @@ export async function createLineItem(
       category: item.category,
       description: item.description,
       budgeted_amount: item.budgeted_amount,
+      // FR-BFY-060: omitted ⇒ the column's own NULL default (un-phased), never a synthesized year.
+      fiscal_year: item.fiscal_year ?? null,
     })
     .select()
     .single();
@@ -107,7 +118,9 @@ export async function createLineItem(
  */
 export async function updateLineItem(
   id: string,
-  patch: Partial<Pick<BudgetLineItemRow, 'category' | 'description' | 'budgeted_amount' | 'actual_amount'>>,
+  // FR-BFY-060/061: `fiscal_year` is an ordinary line-item column here. Re-phasing an Active version
+  // is rejected by `enforce_draft_line_item` (0005) — the DB is the authority, this is the seam.
+  patch: Partial<Pick<BudgetLineItemRow, 'category' | 'description' | 'budgeted_amount' | 'actual_amount' | 'fiscal_year'>>,
 ): Promise<void> {
   const { error } = await supabase
     .from('budget_line_items')
