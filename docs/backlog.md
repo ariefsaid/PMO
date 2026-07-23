@@ -4,6 +4,37 @@
 [`docs/history.md`](history.md) (don't read it for status). Locked owner-decisions are in
 `docs/decisions.md` (OD-* lookup by id). Roadmap framing in `docs/roadmap-spines.md`.
 
+### ⚑ ERPNEXT FOLLOW-UPS (2026-07-23) — spec'd, in build; + one PRE-EXISTING defect found in passing
+- **FU-1a — timesheet `Approved → Draft` re-open, UN-PUSHED sheets only.** Branch `feat/timesheet-reopen`,
+  migs **0151/0152**. Pure PMO transition, zero ERP I/O. Spec `docs/specs/timesheet-correction-path.spec.md`.
+  ⚑ The hard part is the race-safe "no confirmed ERP document" predicate (mirror state AND every
+  non-terminal outbox state, serialized by a named advisory lock) — Luna findings 1+2 apply HERE, not
+  only to the cancel path. Fails closed on any doubt; that refusal is FU-1b's entry point.
+- **FU-1b — the ERP cancel path for PUSHED timesheets. ⛔ DEFERRED, own issue.** The `tsc:` cancel
+  operation: correction intent, operation-aware finalizer, reconcile pass, cancel recovery probe, origin
+  CAS, server-resolved target, intent-bound authority. **Specced in full** (same spec file, 1167 lines);
+  Luna returned **NO SHIP with 9 BLOCKs** — `docs/reviews/2026-07-23-luna-fu1-timesheet-correction-spec.md`.
+  Root cause: the cancel cannot reuse the push machinery — finalizer, backstop, target guard and recovery
+  probe are all create-shaped. Needs machinery P3b never shipped. ⚑ The spec's Approved-terminal sweep
+  found **8 shipped sites** whose safety argument rests on `Approved` being terminal — re-read that
+  before building.
+- **FU-2 — budget fiscal-year / phasing dimension (OQ-BUD-3c) + closes FR-BUD-152.** Branch
+  `feat/budget-fiscal-year`, migs **0153/0154**. Spec `docs/specs/budget-fiscal-year-phasing.spec.md`
+  (1242 lines), Luna NO SHIP r1 (10 BLOCKs + 1) answered by the §1.1 **four-fact fence**: F-A push
+  succeeded · F-B attempt exists · F-C PMO's own phased line · F-D attribution known. **Bare
+  mirror-existence is never a money-attribution test** — the shipped refusal writer stamps a `failed`
+  mirror row with the START FY, so "a mirror row exists" was true for a year PMO explicitly refused.
+- **⚑ PRE-EXISTING MONEY DEFECT (ships TODAY, not introduced by the above) — `budget_category_account_map`
+  has NO fiscal-year history.** `0137:90-91` is unique on (org,category)/(org,erp_account) with no FY or
+  effective-date dimension, and `0149:184-194` joins the **current** map when summing GL actuals per PMO
+  category. **An Admin editing the map silently re-interprets PRIOR years' actuals.** Single-FY today
+  makes it one year per edit; FU-2's phasing makes it N. Ruled a **named non-goal** of FU-2 (spec §2,
+  risk 11, OQ-BFY-5) — a real fix reworks the map subsystem, not a line-item change. Candidates:
+  effective-dated map rows; per-FY map rows; or snapshot the category attribution alongside the actuals
+  in `erp_actuals_snapshot` so a taken reading is immutable. **Must preserve the bijection (FR-BUD-111)
+  per year, or state why not.** Priority: real but not urgent — Admin-only, deliberate, and it corrupts
+  reporting truth rather than moving money.
+
 ### ⚑⚑⚑ CURRENT FOCUS — P3a Sales/AR write-through (2026-07-15) — built + happy-path green; HARDENING ROUND mid-flight; branch, NOT merged
 **Branch `feat/erpnext-adapter-p3`** (off `dev` @ `b549d06`). **HOLD on the branch — NO PR** (owner: dev
 is moving with parallel agents). Spec + plan SIGNED OFF:
