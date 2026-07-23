@@ -1,4 +1,4 @@
--- 0153_fence_timesheet_command_held_mirror.sql — close the release-before-mirror ordering race that
+-- 0155_fence_timesheet_command_held_mirror.sql — close the release-before-mirror ordering race that
 -- the round-4 fix (0152) left open (Luna FU-1a round-5 BLOCK).
 --
 -- ⚑ THE DEFECT (a late, un-fenced mirror write recreates the dead end 0152 closed). The deterministic

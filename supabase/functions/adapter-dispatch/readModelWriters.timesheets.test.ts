@@ -145,7 +145,7 @@ Deno.test('FR-TSP-085: a classified failure is recorded durably as push_state=fa
   assert(String(row.push_error).includes('employee-unlinked'), 'the classified code must be visible to the operator');
 });
 
-// ⚑ THE RELEASE-BEFORE-MIRROR RACE (Luna FU-1a round-5 BLOCK, migration 0153). The `command-held`
+// ⚑ THE RELEASE-BEFORE-MIRROR RACE (Luna FU-1a round-5 BLOCK, migration 0155). The `command-held`
 // outcome no longer BLIND-upserts `held`: it routes through the `record_timesheet_command_held` RPC,
 // which reads the outbox and writes the mirror in ONE statement — recording `held` only while a `held`
 // timesheet outbox for this record is still live, and the released outcome (`failed`) otherwise. A late

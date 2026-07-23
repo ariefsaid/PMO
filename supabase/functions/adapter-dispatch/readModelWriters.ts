@@ -35,7 +35,7 @@ export interface ReadModelServiceClient {
     ): Promise<{ error: { message: string; code?: string } | null }>;
     update(patch: unknown): ReadModelEqChain;
   };
-  // Fenced outcome writers (migration 0153): a mirror write that must read the outbox atomically to
+  // Fenced outcome writers (migration 0155): a mirror write that must read the outbox atomically to
   // avoid a TOCTOU race routes through a security-definer RPC rather than a bare upsert.
   rpc(fn: string, args: Record<string, unknown>): Promise<{ error: { message: string; code?: string } | null }>;
 }
@@ -945,7 +945,7 @@ export async function markTimesheetPushOutcome(
   approvedAt: string,
   outcome: { code?: string; message: string } | null,
 ): Promise<void> {
-  // ⚑ THE RELEASE-BEFORE-MIRROR RACE (Luna FU-1a round-5 BLOCK, migration 0153). The `command-held`
+  // ⚑ THE RELEASE-BEFORE-MIRROR RACE (Luna FU-1a round-5 BLOCK, migration 0155). The `command-held`
   // outcome is recorded HERE — later than, and in a separate transaction from, the outbox hold
   // (`dispatch.ts` → `mark_outbox_held`). An Admin `release_outbox_hold` can interleave between the two,
   // find no mirror row to release, and commit the outbox to `failed`; a blind upsert of `held` here would
