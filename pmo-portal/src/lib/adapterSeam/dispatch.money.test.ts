@@ -1365,3 +1365,75 @@ describe('WIRE 4: the 0116 one-in-flight-per-record violation is a clean, action
     await expect(run()).rejects.not.toMatchObject({ code: 'command-in-flight-for-record' });
   });
 });
+
+/**
+ * BFY T3 (FR-BFY-036) — the generic dispatcher's `outboxRecordId` seam. The budget domain fans out one
+ * outbox row per phased fiscal year under a YEAR-QUALIFIED identity `<vid>:<encoded_fy>` while
+ * `command.record.id` stays the bare budget_version_id UUID (the gate query / mirror FK / feed lookup
+ * fact). `dispatchMoneyWrite` gains an optional `outboxRecordId` that keys readOutbox/insertOutboxPending
+ * (and every reconcile re-read); it defaults to `command.record.id`, so every non-budget domain is
+ * byte-for-byte unchanged. The served boundary wires `outbox_identity` here in T13.
+ */
+describe('BFY T3 (FR-BFY-036): dispatchMoneyWrite keys the outbox on outboxRecordId ?? command.record.id', () => {
+  it('FR-BFY-036 passes outboxRecordId to readOutbox + insertOutboxPending when supplied (budget per-year identity)', async () => {
+    const fake = createFakeOutbox();
+    const readOutbox = vi.spyOn(fake.deps, 'readOutbox');
+    const insertOutboxPending = vi.spyOn(fake.deps, 'insertOutboxPending');
+    const commit = vi.fn(async () => ({ externalRecordId: 'BUD-2026-0001', canonical: { id: 'pmo-1' } }));
+    const yearQualified = '3f1b0c9e-1a2b-4c3d-8e4f-5a6b7c8d9e0f:GEZTM';
+
+    await dispatchMoneyWrite({
+      adapter: erpnextAdapter(commit),
+      command: { ...baseCommand, record: { id: 'pmo-1' } },
+      writeReadModel: vi.fn(), recordExternalRef: vi.fn(),
+      money: fake.deps,
+      outboxRecordId: yearQualified,
+    });
+
+    // the outbox 4-tuple keys on the YEAR-QUALIFIED id, NOT the bare record.id
+    expect(readOutbox).toHaveBeenCalledWith('procurement', yearQualified, baseCommand.idempotencyKey);
+    expect(insertOutboxPending).toHaveBeenCalledWith('procurement', yearQualified, baseCommand.idempotencyKey);
+    const row = [...fake.rows.values()][0];
+    expect(row.pmoRecordId).toBe(yearQualified);
+    expect(row.pmoRecordId).not.toBe('pmo-1');
+  });
+
+  it('FR-BFY-036 defaults to command.record.id when outboxRecordId is absent (every non-budget domain unchanged)', async () => {
+    const fake = createFakeOutbox();
+    const readOutbox = vi.spyOn(fake.deps, 'readOutbox');
+    const insertOutboxPending = vi.spyOn(fake.deps, 'insertOutboxPending');
+    const commit = vi.fn(async () => ({ externalRecordId: 'PI-0001', canonical: { id: 'pmo-1' } }));
+
+    await dispatchMoneyWrite({
+      adapter: erpnextAdapter(commit),
+      command: baseCommand, // record.id = 'pmo-1'
+      writeReadModel: vi.fn(), recordExternalRef: vi.fn(),
+      money: fake.deps,
+      // outboxRecordId OMITTED — every non-budget domain behaves byte-for-byte as before
+    });
+
+    expect(readOutbox).toHaveBeenCalledWith('procurement', 'pmo-1', baseCommand.idempotencyKey);
+    expect(insertOutboxPending).toHaveBeenCalledWith('procurement', 'pmo-1', baseCommand.idempotencyKey);
+    const row = [...fake.rows.values()][0];
+    expect(row.pmoRecordId).toBe('pmo-1');
+  });
+
+  it('FR-BFY-036 NO readOutbox/insertOutboxPending call during a dispatch ever falls back to record.id when outboxRecordId is set', async () => {
+    // A guard against a missed threading site: every call the spy sees must carry the year-qualified id,
+    // never the bare record.id — including any reconcile re-read the happy path happens to make.
+    const fake = createFakeOutbox();
+    const readOutbox = vi.spyOn(fake.deps, 'readOutbox');
+    const insertOutboxPending = vi.spyOn(fake.deps, 'insertOutboxPending');
+    const commit = vi.fn(async () => ({ externalRecordId: 'BUD-2026', canonical: { id: 'pmo-1' } }));
+    await dispatchMoneyWrite({
+      adapter: erpnextAdapter(commit),
+      command: baseCommand,
+      writeReadModel: vi.fn(), recordExternalRef: vi.fn(),
+      money: fake.deps,
+      outboxRecordId: 'vid-x:enc-fy',
+    });
+    expect(readOutbox).toHaveBeenCalled();
+    for (const call of readOutbox.mock.calls) expect(call[1]).toBe('vid-x:enc-fy');
+    for (const call of insertOutboxPending.mock.calls) expect(call[1]).toBe('vid-x:enc-fy');
+  });
+});
