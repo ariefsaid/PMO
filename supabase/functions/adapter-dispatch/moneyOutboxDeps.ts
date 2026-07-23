@@ -178,6 +178,34 @@ export function createDbMoneyOutboxDeps(opts: DbMoneyOutboxDepsOpts): DispatchMo
     },
 
     async insertOutboxPending(domain, pmoRecordId, idempotencyKey) {
+      // Slice A (migration 0151, AC-TSC-R2): the timesheets push INSERT is serialized against a
+      // concurrent re-open and re-verifies status='Approved' server-side via the named-guard RPC, so a
+      // sync push that raced a re-open (the sheet flipped to Draft between the gate read and this
+      // insert) raises BEFORE inserting — no orphan row, no ERP POST, no reconcile loop (dispatch's
+      // insertOutboxPending catch rethrows the non-23505). Every other domain takes the generic insert
+      // byte-for-byte. The RPC adds NO command and NO ERP call — only the named lock + status re-check
+      // around the EXISTING insert (F3).
+      if (domain === 'timesheets') {
+        const { data, error } = await serviceClient.rpc('insert_timesheet_outbox_pending', {
+          p_org: orgId,
+          p_domain: domain,
+          p_record_id: pmoRecordId,
+          p_key: idempotencyKey,
+          p_tier: externalTier,
+          p_operation: operation,
+          p_payload: opts.payload ?? null,
+          p_digest: opts.payloadDigest ?? null,
+          p_actor: opts.actorUserId ?? null,
+        });
+        if (error) {
+          // Preserve the raw pg error code (same shape as the generic insert below) — dispatch.ts's
+          // dispatchMoneyWrite branches on `(error as { code?: string }).code`.
+          const err = new Error(error.message) as Error & { code?: string };
+          err.code = error.code;
+          throw err;
+        }
+        return mapRow(data as OutboxDbRow);
+      }
       const { data, error } = await serviceClient
         .from('external_command_outbox')
         .insert({

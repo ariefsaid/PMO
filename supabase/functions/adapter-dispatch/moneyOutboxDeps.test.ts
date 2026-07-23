@@ -412,3 +412,96 @@ Deno.test('FIX 2: reauthorizeRecoveryReissue is passed through when supplied (sw
   assert(reauthCalled, 'expected the injected reissue re-check to be invoked');
   assertEquals(result, { ok: false, message: 'actor demoted' }, 'the re-check result is passed through unchanged');
 });
+
+// ============================================================================
+// Slice A (migration 0151) — the timesheets push INSERT is serialized against a concurrent re-open
+// and re-verifies status='Approved' server-side via insert_timesheet_outbox_pending (AC-TSC-R2). The
+// dep branches on domain === 'timesheets': that domain routes through the RPC (the FENCE-2 push-side
+// guard); every other domain takes the byte-for-byte generic insert. A sync push that raced a re-open
+// (the sheet flipped to Draft between the gate read and the insert) must raise BEFORE any ERP POST —
+// no orphan row, no wedge, no reconcile loop.
+// ============================================================================
+
+Deno.test('AC-TSC-R2 — insertOutboxPending for the timesheets domain routes through insert_timesheet_outbox_pending (re-verifies Approved server-side), NOT the generic insert', async () => {
+  let rpcCalled: { fn: string; args: Record<string, unknown> } | null = null;
+  let genericInsertCalled = false;
+  const insertedRow: FakeRow = {
+    id: 'outbox-ts-1', org_id: 'org-1', domain: 'timesheets', pmo_record_id: 'ts-1',
+    idempotency_key: 'ts:ts-1:t1', external_tier: 'erpnext', operation: 'create', state: 'pending',
+    external_record_id: null, canonical: null, claim_generation: 0, last_error: null, payload_digest: null,
+  };
+  const client: OutboxServiceClient = {
+    from() {
+      // The timesheets domain must NOT reach the generic .insert() path.
+      genericInsertCalled = true;
+      return {
+        insert() { return { select() { return { async single() { return { data: insertedRow, error: null }; } }; } }; },
+      } as never;
+    },
+    async rpc(fn: string, args: Record<string, unknown>) {
+      rpcCalled = { fn, args };
+      return { data: { ...insertedRow }, error: null };
+    },
+  } as unknown as OutboxServiceClient;
+  const deps = createDbMoneyOutboxDeps({
+    serviceClient: client, orgId: 'org-1', externalTier: 'erpnext', operation: 'create',
+    probeByRemarksKey: async () => null,
+    payload: { week: '2026-30' }, payloadDigest: 'digest-abc', actorUserId: 'user-approver-1',
+  });
+  const row = await deps.insertOutboxPending('timesheets', 'ts-1', 'ts:ts-1:t1');
+
+  assert(rpcCalled !== null, 'timesheets insert MUST route through insert_timesheet_outbox_pending (re-verifies Approved server-side)');
+  assertEquals(rpcCalled!.fn, 'insert_timesheet_outbox_pending', 'the RPC name is the named guard');
+  assertEquals(rpcCalled!.args, {
+    p_org: 'org-1',
+    p_domain: 'timesheets',
+    p_record_id: 'ts-1',
+    p_key: 'ts:ts-1:t1',
+    p_tier: 'erpnext',
+    p_operation: 'create',
+    p_payload: { week: '2026-30' },
+    p_digest: 'digest-abc',
+    p_actor: 'user-approver-1',
+  }, 'the RPC is called with the dep\'s closed-over org/tier/operation + the command\'s key/payload/digest/actor');
+  assert(!genericInsertCalled, 'the timesheets domain must NOT take the generic .insert() path');
+  assertEquals(row.id, 'outbox-ts-1');
+  assertEquals(row.state, 'pending');
+  assertEquals(row.pmoRecordId, 'ts-1');
+});
+
+Deno.test('AC-TSC-R2 — a timesheets insert whose RPC raises (e.g. timesheet-no-longer-approved) preserves error.code, same shape as the generic 23505', async () => {
+  const client: OutboxServiceClient = {
+    from() { throw new Error('timesheets insert must not reach the generic path'); },
+    async rpc() {
+      return { data: null, error: { message: 'timesheet-no-longer-approved', code: 'P0001' } };
+    },
+  } as unknown as OutboxServiceClient;
+  const deps = createDbMoneyOutboxDeps({
+    serviceClient: client, orgId: 'org-1', externalTier: 'erpnext', operation: 'create',
+    probeByRemarksKey: async () => null,
+  });
+  let threw = false;
+  try {
+    await deps.insertOutboxPending('timesheets', 'ts-1', 'ts:ts-1:t1');
+  } catch (err) {
+    threw = true;
+    assertEquals((err as { code?: string }).code, 'P0001', 'the pg error code is preserved so dispatch.ts can branch on it');
+    assertEquals((err as Error).message, 'timesheet-no-longer-approved', 'the server message is preserved');
+  }
+  assert(threw, 'a raising RPC must throw (not silently return)');
+});
+
+Deno.test('AC-TSC-R2 — non-timesheets domains take the generic insert path byte-for-byte (no RPC routing)', async () => {
+  const { client, inserted } = makeFakeClient();
+  let rpcCalled = false;
+  // Wrap only rpc (to detect wrong routing); reuse makeFakeClient's bound from() for the generic path.
+  const wrapped: OutboxServiceClient = {
+    from: (...a: unknown[]) => (client.from as (...b: unknown[]) => unknown)(...a) as never,
+    rpc: async () => { rpcCalled = true; return { data: null, error: null }; },
+  } as unknown as OutboxServiceClient;
+  const deps = createDbMoneyOutboxDeps({ serviceClient: wrapped, orgId: 'org-1', externalTier: 'erpnext', operation: 'create', probeByRemarksKey: async () => null });
+  const row = await deps.insertOutboxPending('procurement', 'pmo-1', 'key-1');
+  assert(!rpcCalled, 'a non-timesheets domain must NOT call the timesheets RPC');
+  assertEquals(row.state, 'pending');
+  assertEquals(inserted.length, 1, 'the generic .insert() path ran once');
+});
