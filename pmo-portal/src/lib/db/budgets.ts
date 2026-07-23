@@ -3,6 +3,7 @@ import type { Tables } from '@/src/lib/supabase/database.types';
 import { AppError, toAppError } from '@/src/lib/appError';
 import { activateAndPush } from '@/src/lib/budget/budgetPushConsequence';
 import { dispatchDomainCommand } from '@/src/lib/adapterSeam/dispatchClient';
+import type { PmoRecord } from '@/src/lib/adapterSeam/contract';
 
 // ---------------------------------------------------------------------------
 // Type contract (plan §3 "Type contract used across tasks")
@@ -276,7 +277,11 @@ export async function retryBudgetPush(
   // one per year, FR-BFY-031); it is still the fact that decides whether a push is possible at all.
   requireActivationStamp(await readActivatedAt(versionId));
   try {
-    const result = await dispatchBudgetPush(versionId);
+    // ⚑ HIGH 5 (FR-BFY-056): the year is a real dispatch TARGET, not merely a display filter. When the
+    // operator retries one year's failed row, the server dispatches ONLY that plan year — never the
+    // whole fan-out (which could re-drive another year that is still recoverable or has a changed
+    // blocker). A `null` year is the year-less whole-fan-out retry (the never-pushed project).
+    const result = await dispatchBudgetPush(versionId, fiscalYear);
     return { pushState: pushStateForYear(result, fiscalYear) };
   } catch {
     // Same money invariant as activation: a retry whose DISPATCH fails again is reported, never thrown
@@ -322,8 +327,12 @@ function pushStateForYear(result: unknown, fiscalYear: string | null): 'pushed' 
  * `bud:<vid>:<encoded-fy>:<epoch>`. A client-minted key would key every year on one string and
  * silently suppress all but the first.
  */
-function dispatchBudgetPush(versionId: string): Promise<unknown> {
-  return dispatchDomainCommand('budget', 'create', { id: versionId, erp_doc_kind: 'budget' });
+function dispatchBudgetPush(versionId: string, targetFiscalYear?: string | null): Promise<unknown> {
+  // ⚑ HIGH 5 (FR-BFY-056): a per-year retry names the ONE fiscal year to dispatch; the server validates
+  // it against the phased plan and drives only that entry. Activation passes no year → the whole fan-out.
+  const record: PmoRecord = { id: versionId, erp_doc_kind: 'budget' };
+  if (targetFiscalYear) record.target_fiscal_year = targetFiscalYear;
+  return dispatchDomainCommand('budget', 'create', record);
 }
 
 /** Fails closed on a version with no activation stamp — the deterministic per-year key's own input.

@@ -488,7 +488,9 @@ describe('activateVersion', () => {
     await expect(retryBudgetPush('v-1', '2026')).resolves.toEqual({ pushState: 'pushed' });
     expect(mockRpc).not.toHaveBeenCalled(); // ⚑ a retry NEVER re-activates — the version is already Active
     const body = mockFunctionsInvoke.mock.calls[0][1].body;
-    expect(body).toMatchObject({ domain: 'budget', operation: 'create', record: { id: 'v-1', erp_doc_kind: 'budget' } });
+    // ⚑ HIGH 5 (FR-BFY-056): the retried year is sent as a real dispatch TARGET, so the server drives
+    // ONLY that plan year — not the whole fan-out.
+    expect(body).toMatchObject({ domain: 'budget', operation: 'create', record: { id: 'v-1', erp_doc_kind: 'budget', target_fiscal_year: '2026' } });
     // ⚑ FR-BFY-031: the client CANNOT mint the key — it does not know the years (the calendar is a
     // live ERP read only the server-side gate makes). A client key here would key year 2's command on
     // year 1's string and silently suppress it.
@@ -520,6 +522,9 @@ describe('activateVersion', () => {
     // Anything less than EVERY year landing is not "pushed" — the project still has a year ERPNext
     // enforces nothing for.
     await expect(retryBudgetPush('v-1', null)).resolves.toEqual({ pushState: 'failed' });
+    // ⚑ HIGH 5 (FR-BFY-056): a year-less retry carries NO target — it is the whole-fan-out op, so the
+    // server must not receive a target year to narrow it.
+    expect(mockFunctionsInvoke.mock.calls[0][1].body.record).not.toHaveProperty('target_fiscal_year');
   });
 
   // ── H-3 (Luna audit round 3): the retry must not report a failure it never made durable. ──────

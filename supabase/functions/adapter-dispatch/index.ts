@@ -817,6 +817,12 @@ Deno.serve(async (req: Request): Promise<Response> => {
     }
 
     const versionId = String(command.record.id);
+    // ⚑ HIGH 5 (FR-BFY-056) — a PER-YEAR retry. The client names the ONE fiscal year the operator is
+    // retrying (`record.target_fiscal_year`); activation sends none and still fans out to every plan
+    // year below. Validated against the gate's plan (the live-ERP-checked calendar), never trusted: a
+    // year that is not a phased plan entry is refused, never silently widened to the whole fan-out.
+    const targetFiscalYearRaw = (command.record as { target_fiscal_year?: unknown }).target_fiscal_year;
+    const targetFiscalYear = typeof targetFiscalYearRaw === 'string' && targetFiscalYearRaw.length > 0 ? targetFiscalYearRaw : null;
     try {
       const gate = await runBudgetGate(buildBudgetGateDeps(callerClient, serviceClient, orgId, versionId));
       // ⚑ BFY FR-BFY-030/031/032/036 — THE FAN-OUT. The gate returns a per-year PLAN; each entry
@@ -835,7 +841,20 @@ Deno.serve(async (req: Request): Promise<Response> => {
       // `projectId` (camelCase) feeds the cross-org pre-flight + ERP-project resolution;
       // `fiscal_year`/`line_items` (snake_case) feed `bodies/budget.ts`'s `budgetToBody`, ONE YEAR AT A
       // TIME (no body-level split — the split is the plan's, and the plan is PMO's own line items).
-      budgetUnits = gate.plan.map((entry) => {
+      // ⚑ HIGH 5 (FR-BFY-056): scope the fan-out to the retried year, if one was named. Fail closed on a
+      // year the plan does not contain — a retry must act on exactly the row the operator clicked.
+      const planEntries = targetFiscalYear === null
+        ? gate.plan
+        : gate.plan.filter((entry) => entry.fiscal_year === targetFiscalYear);
+      if (targetFiscalYear !== null && planEntries.length === 0) {
+        throw new BudgetGateError(
+          'commit-rejected',
+          `budget push: fiscal year "${targetFiscalYear}" is not a phased year of this budget version`,
+          undefined,
+          targetFiscalYear,
+        );
+      }
+      budgetUnits = planEntries.map((entry) => {
         const encodedFiscalYear = encodeFiscalYear(entry.fiscal_year);
         const identity = `${gate.versionId}:${encodedFiscalYear}`;
         return {

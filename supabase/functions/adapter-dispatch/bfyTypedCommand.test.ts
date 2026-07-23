@@ -97,6 +97,61 @@ async function runServed(seed: ServedSeed) {
   });
 }
 
+/** A PER-YEAR retry (FR-BFY-056): the client names the ONE fiscal year the operator is retrying. */
+async function dispatchBudgetTargeted(fiscalYear: string): Promise<Response> {
+  const jwt = await auth.mintJwt({ sub: USER_ID });
+  const req = new Request('http://edge.test/adapter-dispatch', {
+    method: 'POST',
+    headers: { authorization: `Bearer ${jwt}`, 'content-type': 'application/json' },
+    body: JSON.stringify({
+      domain: 'budget',
+      operation: 'create',
+      record: { id: VERSION_ID, erp_doc_kind: 'budget', target_fiscal_year: fiscalYear },
+    }),
+  });
+  return await servedHandler!(req);
+}
+
+async function runServedTargeted(seed: ServedSeed, fiscalYear: string) {
+  const { routes, erpBudgets } = servedRoutes(seed);
+  return await withFetchMock(routes, async ({ calls }) => {
+    const res = await dispatchBudgetTargeted(fiscalYear);
+    return { res, body: await res.json(), calls, erpBudgets };
+  });
+}
+
+describe('HIGH 5 (FR-BFY-056) — a per-year retry dispatches ONLY that plan year', () => {
+  it('HIGH 5: a FY2027 retry attempts ONLY FY2027 — FY2026 is never invoked', async () => {
+    const { res, body, calls, erpBudgets } = await runServedTargeted(twoYearPhasedSeed(), '2027');
+    assertEquals(res.status, 200, JSON.stringify(body));
+
+    // The oracle records EVERY attempted identity (each outbox insert's pmo_record_id).
+    const inserts = outboxInserts(calls);
+    assertEquals(inserts.length, 1, 'a per-year retry writes exactly ONE outbox row (not the whole fan-out)');
+    assertEquals(inserts[0].pmo_record_id, `${VERSION_ID}:${encodeFiscalYear('2027')}`);
+    assert(
+      !inserts.some((i) => i.pmo_record_id === `${VERSION_ID}:${encodeFiscalYear('2026')}`),
+      'a FY2027 retry must NEVER invoke FY2026 (FR-BFY-056: the display-only argument re-drove every year)',
+    );
+    assertEquals(erpBudgets.length, 1);
+    assertEquals(erpBudgets[0].body.fiscal_year, '2027');
+  });
+
+  it('HIGH 5: a retry for a year that is not a phased plan year is refused — never a silent whole fan-out', async () => {
+    const { res, body, calls, erpBudgets } = await runServedTargeted(twoYearPhasedSeed(), '2099');
+    assertEquals(res.status, 422, JSON.stringify(body));
+    assertEquals(outboxInserts(calls).length, 0, 'an out-of-plan retry year touches the outbox not at all');
+    assertEquals(erpBudgets.length, 0, 'and never reaches ERP');
+  });
+
+  it('HIGH 5: activation (no target year) still fans out to EVERY plan year — the whole-version op is unchanged', async () => {
+    const { res, calls } = await runServed(twoYearPhasedSeed());
+    assertEquals(res.status, 200);
+    const identities = outboxInserts(calls).map((i) => i.pmo_record_id);
+    assertEquals(identities, [`${VERSION_ID}:${encodeFiscalYear('2026')}`, `${VERSION_ID}:${encodeFiscalYear('2027')}`]);
+  });
+});
+
 describe('AC-BFY-009 — served budget fan-out: year-qualified identity + per-year key', () => {
   it('AC-BFY-009: a two-year phased plan fans out to one ERP Budget, outbox row and mirror row PER YEAR', async () => {
     const { res, body, calls, erpBudgets } = await runServed(twoYearPhasedSeed());
