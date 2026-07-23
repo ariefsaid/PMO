@@ -36,6 +36,10 @@ pmo-portal/e2e/.auth/
 # Optional Pi project-local generated mirrors — regenerated from .claude/ when .pi exists
 .pi/agents/
 .pi/skills/
+# Pi subagent run artifacts (inputs/outputs/meta/transcripts). Byproducts of a
+# dispatch, regenerable, and they grow fast — 23M in one worktree. Never commit:
+# transcripts capture whatever the agent saw, and this repo is PUBLIC.
+.pi-subagents/
 
 # agent worktrees (transient)
 .claude/worktrees/
