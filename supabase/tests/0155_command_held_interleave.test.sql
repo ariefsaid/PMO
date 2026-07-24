@@ -24,8 +24,16 @@
 -- a row-level `FOR UPDATE` needs the row visible to BOTH sessions (unlike 0151's advisory-lock test,
 -- which locks a hash and needs no row). So the concurrent session both CREATES the fixture (committed,
 -- autocommitted `dblink_exec`) and locks it, and this file DELETES it (also via the second session) at
--- the end. The ids are unique to this file; any leak from a mid-run failure is wiped by the next
--- `supabase db reset` (every run resets first).
+-- the end. The ids are unique to this file.
+--
+-- ⚑ S5 (Luna FU-1a round-8) — AND IT SELF-HEALS, because `rollback` cannot undo a COMMITTED fixture.
+-- If any statement between the insert and the cleanup errors (the `dblink` RPC raises, the connection
+-- drops, the lock wait behaves differently under CI load), those rows SURVIVE for the rest of the
+-- `supabase test db` run — this is the first file in the repo that can leave state behind, and the next
+-- unscoped `count(*)` written anywhere in the suite would inherit a flake with a very confusing
+-- signature. "The next `db reset` wipes it" is true of a full local run and NOT true within one run, and
+-- run-order is not something a future test author will think about. So the cleanup block below is also
+-- run BEFORE the inserts: a leaked previous run is erased by the next one, idempotently.
 begin;
 select plan(4);
 
@@ -39,6 +47,18 @@ select dblink_connect('il', format(
   current_database(), current_user,
   coalesce(host(inet_server_addr()), 'supabase_db_pmo-portal'),
   coalesce(inet_server_port(), 5432)));
+
+-- ⚑ S5: the idempotent PRE-clean — identical to the cleanup at the end of the file. A run that died
+-- mid-file left these rows committed; this erases them before re-creating them, so a leak is at worst
+-- one run long and never becomes a cross-file ghost.
+select dblink_exec('il', $pre$
+  delete from timesheet_erp_mirror     where org_id = '01563000-0000-0000-0000-000000000001';
+  delete from external_command_outbox  where org_id = '01563000-0000-0000-0000-000000000001';
+  delete from timesheets               where org_id = '01563000-0000-0000-0000-000000000001';
+  delete from profiles                 where org_id = '01563000-0000-0000-0000-000000000001';
+  delete from organizations            where id     = '01563000-0000-0000-0000-000000000001';
+  delete from auth.users               where id     = '01563000-0000-0000-0000-0000000000a1';
+$pre$);
 
 -- Fixtures COMMITTED by the second session so both sessions can see + row-lock them. A held timesheet
 -- outbox row is inserted DIRECTLY (state='held', claim_generation=1) — this file tests the recorder's

@@ -177,7 +177,29 @@ export type ReopenableTimesheetMirror = {
   ts_number: string | null;
   push_state: string | null;
   erp_cancelled_at: string | null;
+  /**
+   * ⚑ Luna FU-1a round-8 BLOCK — when PMO lost track of what ERPNext holds for this week (migration
+   * 0157). Deliberately independent of `push_state`: a `command-held` outcome whose hold an Admin has
+   * since RELEASED reads as an ordinary terminal `failed` here, because a release re-queues a command
+   * and establishes nothing about ERP. The server refuses the re-open while this is set, so the surface
+   * must classify on it too or it renders a button that can only fail.
+   */
+  post_submit_unknown_at: string | null;
 };
+
+/**
+ * ⚑ S4 (Luna FU-1a round-8) — the correction window this surface offers, in days.
+ *
+ * The query used to be unbounded: every Approved sheet in the org that isn't the viewer's, forever, with
+ * entries + mirror joined and every id then fed into a PostgREST `in` list. Approved sheets only
+ * accumulate (and Admin/Exec/PM/Finance see all of them), so the page cost grew with the org's whole
+ * history and the `in` list grew with it. A correction window is both the fix and the honest product
+ * statement: this section is for correcting a RECENT week, not for browsing years of approvals.
+ */
+export const REOPENABLE_WINDOW_DAYS = 90;
+
+/** The page bound. Also what bounds the `in` list of the second query, by construction. */
+export const REOPENABLE_PAGE_LIMIT = 100;
 
 /**
  * ⚑ The outbox states that mean "a push command for this sheet is NOT settled" — byte-for-byte the
@@ -205,7 +227,7 @@ export type ReopenableApprovedTimesheet = TimesheetAwaitingApproval & {
 };
 
 const REOPENABLE_SELECT =
-  '*, owner:profiles!timesheets_user_id_fkey(full_name), entries:timesheet_entries(*, project:projects(name,code)), mirror:timesheet_erp_mirror!timesheet_erp_mirror_timesheet_id_fkey(ts_number, push_state, erp_cancelled_at)';
+  '*, owner:profiles!timesheets_user_id_fkey(full_name), entries:timesheet_entries(*, project:projects(name,code)), mirror:timesheet_erp_mirror!timesheet_erp_mirror_timesheet_id_fkey(ts_number, push_state, erp_cancelled_at, post_submit_unknown_at)';
 
 /**
  * Slice A (FR-TSC-060 / F5) — the Approved sheets an approver may consider re-opening: other users'
@@ -218,12 +240,19 @@ const REOPENABLE_SELECT =
 export async function listReopenableApprovedTimesheets(
   selfId: string,
 ): Promise<ReopenableApprovedTimesheet[]> {
+  // ⚑ S4 — BOUNDED. The window is served by `timesheets_org_status_week_idx` (status + week_start_date
+  // DESC), so this is an index range scan rather than a growing seq scan, and the page limit caps both
+  // the payload and the `in` list built from it below. A week older than the window is not offered here;
+  // it is not lost (the RPC still governs), it is simply out of the correction surface's scope.
+  const windowStart = new Date(Date.now() - REOPENABLE_WINDOW_DAYS * 86_400_000).toISOString().slice(0, 10);
   const { data, error } = await supabase
     .from('timesheets')
     .select(REOPENABLE_SELECT)
     .eq('status', 'Approved')
     .neq('user_id', selfId)
-    .order('week_start_date', { ascending: false });
+    .gte('week_start_date', windowStart)
+    .order('week_start_date', { ascending: false })
+    .limit(REOPENABLE_PAGE_LIMIT);
   if (error) throw new Error(error.message);
   const sheets = (data ?? []) as unknown as ReopenableApprovedTimesheet[];
   if (sheets.length === 0) return [];

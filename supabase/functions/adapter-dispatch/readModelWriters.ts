@@ -939,17 +939,40 @@ const timesheetsWriter: ReadModelWriter = {
  * learns a document number, so it must never claim one. A fresh row still gets the column default
  * (NULL); a previously known number survives to be reconciled.
  */
+/**
+ * ⚑ S1 (Luna FU-1a round-8) — the ONE link in the `command-held` chain that had no test.
+ *
+ * `dispatch.ts` stamps a `command-held` AppError with the exact outbox row + claim generation the hold
+ * was produced under; `record_timesheet_command_held` compare-and-sets the mirror on that precise
+ * row+generation. Both ends were covered; the code that reads the marker off the caught error and
+ * decides whether to pass it lived inline in the served handler, where no test could reach it — the
+ * same "the defect lived in the JOIN between them" shape this suite has hit before. It is a pure
+ * decision, so it lives here with the writer it feeds and has its own oracle.
+ *
+ * Returns the identity ONLY for a `command-held`: no other outcome may carry one, because for any other
+ * code the recovery branch did not produce a hold and any marker riding along is stale. A `command-held`
+ * with no marker yields undefined fields (not a guess) — the RPC then fences with nulls and records the
+ * restrictive `held` + the unknown witness (0157 §3, S2).
+ */
+export function heldIdentityFor(
+  failure: { code?: string; heldOutboxId?: string; heldClaimGeneration?: number },
+): { outboxId?: string; claimGeneration?: number } | undefined {
+  if (failure.code !== 'command-held') return undefined;
+  return { outboxId: failure.heldOutboxId, claimGeneration: failure.heldClaimGeneration };
+}
+
 export async function markTimesheetPushOutcome(
   ctx: ReadModelWriterCtx,
   timesheetId: string,
   approvedAt: string,
   outcome: { code?: string; message: string } | null,
   /** ⚑ Luna FU-1a round-6 — the EXACT outbox row + fencing token this held outcome was produced under
-   *  (threaded from the `command-held` AppError). The RPC fences its mirror write on that precise
-   *  row+generation (a generation-exact CAS), so a concurrent release or a successor approval
-   *  generation cannot make a released outcome land `held`. Absent for every non-held outcome, and a
-   *  missing id makes the RPC's fence fail closed → it records the RELEASED outcome (`failed`), never a
-   *  blind `held`. */
+   *  (threaded from the `command-held` AppError; extracted by `heldIdentityFor`). The RPC fences its
+   *  mirror write on that precise row+generation (a generation-exact CAS), so a concurrent release or a
+   *  successor approval generation cannot make a released outcome land `held`. Absent for every
+   *  non-held outcome. ⚑ Round-8 S2: a MISSING id no longer records `failed` — on the mirror fence
+   *  `failed` is the permissive state, so 0157 records the restrictive `held` plus the durable
+   *  unknown-outcome witness and names the lost identity in the reason. */
   held?: { outboxId?: string; claimGeneration?: number },
 ): Promise<void> {
   // ⚑ THE RELEASE-BEFORE-MIRROR RACE (Luna FU-1a round-5 BLOCK, migration 0155). The `command-held`

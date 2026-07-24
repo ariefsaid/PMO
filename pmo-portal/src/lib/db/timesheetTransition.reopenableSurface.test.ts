@@ -22,7 +22,12 @@ vi.mock('@/src/lib/supabase/client', () => ({
   supabase: { from: mockFrom, rpc: mockRpc },
 }));
 
-import { listReopenableApprovedTimesheets, NON_TERMINAL_PUSH_COMMAND_STATES } from './timesheetTransition';
+import {
+  listReopenableApprovedTimesheets,
+  NON_TERMINAL_PUSH_COMMAND_STATES,
+  REOPENABLE_WINDOW_DAYS,
+  REOPENABLE_PAGE_LIMIT,
+} from './timesheetTransition';
 
 interface Call { table: string; filters: Array<{ op: string; args: unknown[] }> }
 
@@ -34,7 +39,7 @@ function fakeSupabase(byTable: Record<string, { data: unknown; error: unknown }>
     calls.push(call);
     const resolved = byTable[table] ?? { data: [], error: null };
     const builder: Record<string, unknown> = {};
-    for (const op of ['select', 'eq', 'neq', 'in', 'order', 'is']) {
+    for (const op of ['select', 'eq', 'neq', 'in', 'order', 'is', 'gte', 'limit']) {
       builder[op] = (...args: unknown[]) => {
         call.filters.push({ op, args });
         return builder;
@@ -123,5 +128,69 @@ describe('SHOULD-FIX 4: listReopenableApprovedTimesheets classifies the real pus
       external_command_outbox: { data: null, error: { message: 'permission denied' } },
     });
     await expect(listReopenableApprovedTimesheets('self-id')).rejects.toThrow('permission denied');
+  });
+});
+
+/**
+ * ⚑ S4 (Luna FU-1a round-8) — THE RE-OPEN SURFACE WAS AN UNBOUNDED, NEVER-SHRINKING QUERY ON A HOT PAGE.
+ *
+ * It selected EVERY Approved timesheet in the org that isn't the viewer's — entries + mirror joined, no
+ * `limit`, no date bound — and then fed every id into `.in('pmo_record_id', ids)`. Approved sheets
+ * accumulate forever and Admin/Exec/PM/Finance see all of them under `timesheets_select`, so at 200 staff
+ * × 5 years this is ~50k rows per Approvals page view plus a PostgREST `in` list long enough to hit URL
+ * limits. The index support is fine (`timesheets_org_status_week_idx` covers status + week_start_date
+ * DESC); what was missing was a bound. A correction window is also the honest UX: nobody re-opens a
+ * two-year-old approved week from this section.
+ */
+describe('S4: the re-openable query is bounded', () => {
+  it('S4: the Approved read is bounded by a correction window AND a page limit — it cannot grow with the org\'s history', async () => {
+    const calls = fakeSupabase({
+      timesheets: { data: [approvedSheet('ts-1')], error: null },
+      external_command_outbox: { data: [], error: null },
+    });
+
+    await listReopenableApprovedTimesheets('self-id');
+
+    const sheets = calls.find((c) => c.table === 'timesheets')!;
+    const gte = sheets.filters.find((f) => f.op === 'gte');
+    expect(gte, 'the Approved read must carry a week_start_date lower bound').toBeDefined();
+    expect(gte!.args[0]).toBe('week_start_date');
+    // The bound is REOPENABLE_WINDOW_DAYS back from today, as a date string the DB column compares on.
+    const expected = new Date(Date.now() - REOPENABLE_WINDOW_DAYS * 86_400_000).toISOString().slice(0, 10);
+    expect(gte!.args[1]).toBe(expected);
+    expect(sheets.filters).toContainEqual({ op: 'limit', args: [REOPENABLE_PAGE_LIMIT] });
+  });
+
+  it('S4: the `in` list the outbox read builds is therefore bounded by construction — it can never exceed one page of ids', async () => {
+    const many = Array.from({ length: REOPENABLE_PAGE_LIMIT }, (_, i) => approvedSheet(`ts-${i}`));
+    const calls = fakeSupabase({
+      timesheets: { data: many, error: null },
+      external_command_outbox: { data: [], error: null },
+    });
+
+    await listReopenableApprovedTimesheets('self-id');
+
+    const inFilter = calls
+      .find((c) => c.table === 'external_command_outbox')!
+      .filters.find((f) => f.op === 'in' && f.args[0] === 'pmo_record_id')!;
+    expect((inFilter.args[1] as string[]).length).toBeLessThanOrEqual(REOPENABLE_PAGE_LIMIT);
+  });
+});
+
+describe('round-8 BLOCK: the surface reads the unknown-ERP-outcome witness', () => {
+  it('round-8: the mirror slice carries `post_submit_unknown_at`, so the surface can say WHY a week cannot be re-opened instead of offering a button the server will refuse', async () => {
+    const calls = fakeSupabase({
+      timesheets: {
+        data: [{ ...approvedSheet('ts-unknown'), mirror: { ts_number: null, push_state: 'failed', erp_cancelled_at: null, post_submit_unknown_at: '2026-07-01T00:00:00Z' } }],
+        error: null,
+      },
+      external_command_outbox: { data: [], error: null },
+    });
+
+    const [row] = await listReopenableApprovedTimesheets('self-id');
+
+    const select = calls.find((c) => c.table === 'timesheets')!.filters.find((f) => f.op === 'select')!;
+    expect(String(select.args[0])).toContain('post_submit_unknown_at');
+    expect(row.mirror?.post_submit_unknown_at).toBe('2026-07-01T00:00:00Z');
   });
 });

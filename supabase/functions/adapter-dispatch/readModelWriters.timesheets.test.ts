@@ -10,7 +10,7 @@
 //     will ever surface a failed push — an un-recorded failure is indistinguishable from a push that
 //     never happened (ADR-0059 §6).
 
-import { getReadModelWriter, markTimesheetPushOutcome } from './readModelWriters.ts';
+import { getReadModelWriter, heldIdentityFor, markTimesheetPushOutcome } from './readModelWriters.ts';
 
 function assertEquals<T>(actual: T, expected: T, msg?: string): void {
   const a = JSON.stringify(actual);
@@ -184,13 +184,48 @@ Deno.test('round-6: the held recorder threads the exact outbox id + claim genera
 });
 
 // A held outcome with NO threaded identity (e.g. an older/unmarked error) must pass NULLs, not omit the
-// params — the RPC then fails closed to the released outcome (`failed`), never a blind `held`.
+// params, so the RPC's fence decides explicitly rather than on a missing argument. ⚑ Round-8 S2: what
+// the RPC then records is the RESTRICTIVE `held` + the durable unknown witness (an unlocatable outbox
+// row is a threading BUG, and on the mirror fence `failed` is the permissive state) — 0157 §3.
 Deno.test('round-6: a held outcome with no threaded identity passes null id/generation (fence fails closed)', async () => {
   const { client, calls } = makeFakeClient();
   await markTimesheetPushOutcome(CTX(client), 'ts-1', '2026-01-12T03:04:05Z', { code: 'command-held', message: 'held for operator' });
   const args = (calls.find((c) => c.method === 'rpc')?.args[0] ?? {}) as Record<string, unknown>;
   assertEquals(args.p_outbox_id, null, 'a missing outbox id is passed as null');
   assertEquals(args.p_claim_generation, null, 'a missing generation is passed as null');
+});
+
+// ⚑ S1 (Luna FU-1a round-8) — THE JOIN BETWEEN THE TWO TESTED ENDS WAS THE ONE UNTESTED LINK.
+// `dispatch.ts` stamps the marker (tested: dispatch.money.test.ts) and the RPC fences on it (tested:
+// the 0155 pgTAP files), but the code that READS the marker off the caught error and decides whether to
+// pass it lived inline in the served handler (`index.ts`), where nothing could reach it. That is exactly
+// the shape of the defect `dispatch.money.test.ts` itself documents: "the defect lived in the JOIN
+// between them". If it regresses, a genuinely-held command records the mirror WITHOUT its identity —
+// and (round-8 S2) that identity is what decides `held` vs a released `failed`. So the decision is a
+// named, exported, pure function with its own oracle.
+Deno.test('S1: heldIdentityFor extracts the outbox identity from a command-held failure', () => {
+  const held = heldIdentityFor({ code: 'command-held', heldOutboxId: 'outbox-42', heldClaimGeneration: 7 });
+  assertEquals(held, { outboxId: 'outbox-42', claimGeneration: 7 }, 'a held failure yields its exact row + fencing token');
+});
+
+Deno.test('S1: heldIdentityFor returns undefined for every OTHER outcome — no other failure may carry a hold identity', () => {
+  // A non-held failure that happens to carry stale marker fields must NOT be treated as a hold: the
+  // identity is only meaningful for the error the recovery branch actually stamped.
+  assertEquals(heldIdentityFor({ code: 'external-unreachable', message: 'boom' } as never), undefined);
+  assertEquals(
+    heldIdentityFor({ code: 'commit-rejected', heldOutboxId: 'outbox-42', heldClaimGeneration: 7 } as never),
+    undefined,
+    'a rejected commit is not a hold, even if a marker rode along',
+  );
+});
+
+Deno.test('S1: a command-held with NO marker yields undefined fields, not a fabricated identity', () => {
+  // The unmarked-hold case: the fence must decide with nulls (round-8 S2 then records the RESTRICTIVE
+  // `held` + the unknown witness), never with a guessed row.
+  assertEquals(heldIdentityFor({ code: 'command-held', message: 'held' } as never), {
+    outboxId: undefined,
+    claimGeneration: undefined,
+  });
 });
 
 Deno.test('FR-TSP-056: an EMPTY approved sheet is recorded as pushed with NO ts_number (a success, not a retry)', async () => {

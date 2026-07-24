@@ -1270,6 +1270,16 @@ async function findTimesheetOutboxRow(
  * moved to `pushed` against a real ERPNext Timesheet — as `held`, and `held` is excluded from this very
  * work queue, so nothing would ever re-drive it. A read-then-blind-write across a concurrent writer is a
  * lost update, not a state machine. So the update REPEATS the listing's own predicate.
+ *
+ * ⚑ Luna FU-1a round-8 BLOCK — a HELD park also records that the ERP OUTCOME IS UNKNOWN. This park is
+ * the second producer of "PMO does not know what ERPNext holds": a command whose attempts ran out may
+ * have run them out AFTER a submit landed (a post-submit unknown is retried as `external-unreachable`,
+ * `erpnext/adapter.ts`), so `held` here carries exactly the doubt the dispatch's own `command-held`
+ * carries. Recording it only as `push_state='held'` leaves the re-open fence resting on a PMO QUEUE
+ * STATE — and that state is precisely what an operator's `release_outbox_hold` clears when they restore
+ * the backstop route. The witness is sticky and first-observed-wins in the DB (migration 0157 §2), so
+ * re-parking on a later tick is idempotent. A `failed` park is NOT an unknown: those reasons
+ * (`timesheet-push-gate-refused`, `timesheet-push-no-outbox-candidate`) all mean nothing was sent.
  */
 async function parkTimesheetMirrorRow(
   serviceClient: SupabaseClient,
@@ -1278,6 +1288,8 @@ async function parkTimesheetMirrorRow(
   pushState: 'held' | 'failed',
   reason: string,
 ): Promise<{ error: { message: string; code?: string } | null }> {
+  const patch: Record<string, unknown> = { push_state: pushState, push_error: reason };
+  if (pushState === 'held') patch.post_submit_unknown_at = new Date().toISOString();
   // AC-TSP-022: an `absent` candidate (an approved sheet with NO mirror row) has nothing to
   // compare-and-set against — its durable state must be CREATED, or the refusal is invisible and the
   // sheet is re-driven from scratch every tick. A 23505 means the foreground (or another tick) created
@@ -1285,12 +1297,12 @@ async function parkTimesheetMirrorRow(
   if (row.push_state === MIRROR_ABSENT) {
     const { error } = await serviceClient
       .from('timesheet_erp_mirror')
-      .insert({ org_id: orgId, timesheet_id: row.timesheet_id, push_state: pushState, push_error: reason });
+      .insert({ org_id: orgId, timesheet_id: row.timesheet_id, ...patch });
     return { error: error && error.code !== '23505' ? error : null };
   }
   return await serviceClient
     .from('timesheet_erp_mirror')
-    .update({ push_state: pushState, push_error: reason })
+    .update(patch)
     .eq('org_id', orgId)
     .eq('timesheet_id', row.timesheet_id)
     // the SAME eligibility `listPendingTimesheetPushes` asserted — never a state this pass did not observe

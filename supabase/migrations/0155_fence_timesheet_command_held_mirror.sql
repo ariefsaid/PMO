@@ -79,8 +79,14 @@ begin
   -- (0134 admits one once the old row is terminal) has a DIFFERENT id and cannot be this row; a reclaim
   -- (`claim_outbox_for_commit`) or a release BUMPS the generation, so the token no longer matches. In
   -- every mismatch the writer records the RELEASED outcome (`failed`) — matching the released outbox, so
-  -- the backstop re-queues the record — and NEVER resurrects the hold. A missing/absent p_outbox_id
-  -- (no id threaded) finds no row ⇒ fails closed to `failed`, never a blind `held`.
+  -- the backstop re-queues the record — and NEVER resurrects the hold.
+  --
+  -- ⛔ THE NEXT SENTENCE WAS FALSE AND IS SUPERSEDED BY 0157 §3 (Luna round-8, S2). It read: "A
+  -- missing/absent p_outbox_id (no id threaded) finds no row ⇒ fails closed to `failed`, never a blind
+  -- `held`." On the MIRROR fence `failed` is the PERMISSIVE state (it is both the backstop's queue and
+  -- the re-open's admit) and `held` is the restrictive one — so a LOST marker RELAXED the fence rather
+  -- than tightening it. 0157 distinguishes a miss on a row that EXISTS (a real release/reclaim ⇒
+  -- `failed`) from a row that cannot be located at all (a threading bug ⇒ `held` + the unknown witness).
   select state, claim_generation
     into v_out_state, v_out_gen
     from public.external_command_outbox

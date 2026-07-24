@@ -22,6 +22,7 @@ import { formatCurrency } from '@/src/lib/format';
 import { PushStateBadge } from '@/src/components/timesheets/PushStateBadge';
 import { EmployeeLinkConfirm } from '@/src/components/timesheets/EmployeeLinkConfirm';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
+import { REOPENABLE_WINDOW_DAYS } from '@/src/lib/db/timesheetTransition';
 import type { TimesheetAwaitingApproval } from '@/src/lib/db/timesheetTransition';
 
 /** `lg` breakpoint — the two-pane triage activates here. */
@@ -310,10 +311,13 @@ function EmployeeLinkConfirmSection() {
  * ERP holds no document for it; the RPC is the authority and it FAILS CLOSED on any doubt. So a row
  * that cannot be re-opened must say WHY — a disabled control with no reason reads as a dead button
  * (the I-13 lesson two sections up: a silent affordance is indistinguishable from a broken one).
- * Hence three distinct renderings, never a greyed-out button:
- *   • no mirror row            → "Re-open for correction" (the action)
- *   • mirror.ts_number set     → "Already pushed to ERP — correction path coming" (Slice B)
- *   • push in flight           → "Push in progress" (transient; retry later)
+ * Hence four distinct renderings, never a greyed-out button:
+ *   • no mirror row                    → "Re-open for correction" (the action)
+ *   • mirror.ts_number set             → "Already pushed to ERP — correction path coming" (Slice B)
+ *   • mirror.post_submit_unknown_at    → "ERP result unknown — an administrator must confirm what
+ *                                        ERPNext holds" (⚑ round-8 BLOCK: NOT visible from push_state,
+ *                                        which reads an ordinary `failed` once a hold is released)
+ *   • push in flight                   → "Push in progress" (transient; retry later)
  * The RPC's own refusals (`reopen-erp-document-held` / `reopen-push-outcome-unknown` /
  * `reopen-push-in-flight`) are classified to the
  * same honest wording — the client's read can be stale, so the server always gets the last word.
@@ -327,9 +331,15 @@ function ReopenableApprovedSection() {
   if (isPending || isError || !data || data.length === 0) return null;
 
   return (
-    <section className="mb-4" aria-label="Approved timesheets that can be re-opened for correction">
+    <section
+      className="mb-4"
+      aria-label={`Approved timesheets from the last ${REOPENABLE_WINDOW_DAYS} days that can be re-opened for correction`}
+    >
+      {/* ⚑ S4 — the list is bounded to a correction window, so the heading says so: a section that
+          silently drops older weeks reads as a bug the first time someone looks for one. */}
       <h2 className="mb-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-        Approved — re-open for correction
+        Approved — re-open for correction{' '}
+        <span className="font-normal normal-case tracking-normal">(last {REOPENABLE_WINDOW_DAYS} days)</span>
       </h2>
       <div className="space-y-1.5">
         {data.map((row) => {
@@ -340,7 +350,12 @@ function ReopenableApprovedSection() {
           // and rendered an ACTIVE button the server would refuse, while the two states it did test for
           // (`pending`/`pushing`) are written by no shipped writer at all.
           const pushed = Boolean(row.mirror?.ts_number) && !row.mirror?.erp_cancelled_at;
-          const inFlight = !pushed && row.pushCommandState !== null;
+          // ⚑ Luna FU-1a round-8 BLOCK — the week whose ERP outcome PMO never learned. Independent of
+          // push_state on purpose: once an Admin releases the hold (to restore the backstop route) this
+          // row reads `failed` like any rejected push, and the server still refuses it. Classifying on
+          // the witness is the only way the surface agrees with the RPC.
+          const outcomeUnknown = !pushed && Boolean(row.mirror?.post_submit_unknown_at);
+          const inFlight = !pushed && !outcomeUnknown && row.pushCommandState !== null;
           return (
             <div
               key={row.id}
@@ -353,6 +368,10 @@ function ReopenableApprovedSection() {
               {pushed ? (
                 <span className="text-[12px] text-muted-foreground">
                   Already pushed to ERP — correction path coming
+                </span>
+              ) : outcomeUnknown ? (
+                <span className="text-[12px] text-muted-foreground">
+                  ERP result unknown — an administrator must confirm what ERPNext holds
                 </span>
               ) : inFlight ? (
                 <span className="text-[12px] text-muted-foreground">Push in progress</span>
@@ -378,12 +397,14 @@ function ReopenableApprovedSection() {
                           if (msg.includes('reopen-erp-document-held')) {
                             toast('Already in ERP — this week cannot be re-opened yet.', 'error');
                           } else if (msg.includes('reopen-push-outcome-unknown')) {
-                            // The mirror is `held` (migration 0152 §B): the ERP push SUCCEEDED and its
-                            // read-back failed, so nobody knows whether ERPNext holds a document for
-                            // this week. "Try again shortly" would be false — nothing re-drives a held
-                            // mirror until an Admin releases it.
+                            // Migrations 0152 §B / 0157 §4: the ERP push SUCCEEDED and its read-back
+                            // failed, so nobody knows whether ERPNext holds a document for this week.
+                            // "Try again shortly" would be false, and so would "an administrator must
+                            // release the held push" (⚑ round-8 BLOCK): a release re-queues the command
+                            // and learns nothing about ERPNext, so it does NOT lift this refusal. The
+                            // only true instruction is that someone must go and establish what ERP holds.
                             toast(
-                              'This week’s ERP result is unknown — an administrator must resolve the held push before it can be re-opened.',
+                              'This week’s ERP result is unknown — an administrator must confirm what ERPNext holds before it can be re-opened.',
                               'error',
                             );
                           } else if (msg.includes('reopen-push-in-flight')) {

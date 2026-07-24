@@ -155,10 +155,12 @@ describe('AC-TSC-R3: Approvals re-open section — surface honesty + the canAppr
     await waitFor(() => expect(screen.getByText(/already in erp|pushed to erp|cannot be re-opened/i)).toBeInTheDocument());
   });
 
-  it('AC-TSC-R5: a HELD-mirror refusal (reopen-push-outcome-unknown) says an operator must resolve it — not a raw error code', async () => {
-    // Migration 0152 §B: the mirror is `held` ⇒ PMO does not know whether ERPNext holds a document for
-    // this week. "Try again shortly" would be a lie (nothing retries a held mirror) and the raw code is
-    // not an instruction — the user needs to know an administrator has to clear it.
+  it('AC-TSC-R5: an unknown-outcome refusal (reopen-push-outcome-unknown) says an administrator must CONFIRM what ERPNext holds — not a raw error code, and not "released"', async () => {
+    // Migrations 0152 §B / 0157 §4: PMO does not know whether ERPNext holds a document for this week.
+    // "Try again shortly" would be a lie (nothing retries it on its own), and — round-8 BLOCK — so would
+    // "an administrator must release the held push": a release re-queues the command and learns NOTHING
+    // about ERPNext, so it does not lift this refusal. The only instruction that is true is that someone
+    // must establish what ERPNext actually holds.
     const user = userEvent.setup();
     reopenableData.push(sheet('ts-unknown', 'Unknown Owner', null));
     reopenMutate.mockImplementation((_vars: unknown, opts?: { onError?: (e: unknown) => void }) => {
@@ -168,7 +170,37 @@ describe('AC-TSC-R3: Approvals re-open section — surface honesty + the canAppr
 
     await user.click(screen.getByRole('button', { name: /re-open for correction/i }));
 
-    await waitFor(() => expect(screen.getByText(/unknown.*administrator|administrator.*resolve/i)).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByText(/administrator must confirm what ERPNext holds/i)).toBeInTheDocument(),
+    );
+  });
+
+  // ⚑ Luna FU-1a round-8 BLOCK — a week whose ERP outcome is UNKNOWN must not be offered as an action.
+  // `post_submit_unknown_at` is set when a submit reached ERPNext and its result could not be read back;
+  // it survives an operator's hold release (which re-queues a command and learns nothing about ERP), so
+  // the server refuses this row until an Admin attests what ERPNext holds. Rendering the button anyway
+  // would be the dead-affordance this whole section exists to avoid — and the state is NOT visible from
+  // push_state, which reads a perfectly ordinary `failed` here.
+  it('AC-TSC-R8: a sheet with an UNKNOWN ERP outcome shows the honest reason and NO re-open button — even though its push_state is the ordinary `failed`', () => {
+    reopenableData.push(
+      sheet('ts-unknown-erp', 'Unknown Outcome Owner', {
+        ts_number: null,
+        push_state: 'failed',
+        erp_cancelled_at: null,
+        post_submit_unknown_at: '2026-07-14T09:00:00Z',
+      }),
+      sheet('ts-plain-failed', 'Rejected Push Owner', {
+        ts_number: null,
+        push_state: 'failed',
+        erp_cancelled_at: null,
+        post_submit_unknown_at: null,
+      }),
+    );
+    renderPage('Admin');
+
+    expect(screen.getByText(/erp result (is )?unknown|administrator must confirm/i)).toBeInTheDocument();
+    // Only the genuinely-rejected push (no unknown on record) keeps its action.
+    expect(screen.getAllByRole('button', { name: /re-open for correction/i })).toHaveLength(1);
   });
 
   // ── SHOULD-FIX 4: the states the mirror CANNOT show ──────────────────────

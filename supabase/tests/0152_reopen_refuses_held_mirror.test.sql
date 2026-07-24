@@ -10,15 +10,26 @@
 -- hold covers the same window only while the outbox is non-terminal; the mirror is an INDEPENDENT
 -- witness, written by an independent writer, and it must fence on its own.
 --
--- Two states are asserted:
+-- ⚑ CORRECTED IN ROUND 8 — CASE (b) USED TO ASSERT THE DEFECT AS INTENDED BEHAVIOUR. It read:
+-- "once released (no live document, a terminal command), the re-open ADMITS per the existing rules",
+-- thirty lines after this file asserts that an unknown ERP outcome "can never be admitted". Both cannot
+-- be true, and the ADMIT was the false one: `release_outbox_hold` re-queues a command, it does not go
+-- and look in ERPNext, so after it PMO knows exactly as much about the ERP document as before — nothing.
+-- Round 8 reproduced the money loss end-to-end (release → re-open → re-approve → a SECOND ERP Timesheet
+-- for the same week, permanently double-counted). Migration 0157 splits the two questions the release
+-- conflated, and case (b) below now asserts what the release really means.
+--
+-- Three states are asserted:
 --   (a) mirror `held` + a TERMINAL (`failed`) outbox row → REFUSES `reopen-push-outcome-unknown`,
 --       and the sheet stays Approved. Without this arm 0151 ADMITS: `failed` is deliberately terminal
 --       (a clean rejection mints no document) and no other predicate looks at the mirror unless a
 --       `ts_number` is set — which is exactly what a failed read-back never learned.
---   (b) after an Admin `release_outbox_hold` (which releases BOTH rows), the ordinary rules apply
---       again: no live document + a terminal outbox ⇒ the re-open ADMITS.
+--   (b) after an Admin `release_outbox_hold` (which releases BOTH rows), the BACKSTOP route is restored
+--       — and the re-open STILL refuses, because the ERP outcome is still unknown (0157).
+--   (c) the fence is not a dead end: an AUDITED Admin attestation that ERPNext holds no Timesheet for
+--       this week resolves the unknown, and only then does the re-open admit.
 begin;
-select plan(7);
+select plan(10);
 
 -- ── Fixtures ────────────────────────────────────────────────────────────────────────────────────
 insert into organizations (id, name) values
@@ -80,14 +91,22 @@ insert into pg_temp.ids values
 -- the RPC calls below run as `authenticated`, which must be able to read the fixture's id table.
 grant select on pg_temp.ids to authenticated;
 
--- Mirrors written exactly as `markTimesheetPushOutcome`'s `command-held` arm writes them: push_state
--- `held`, the classified reason, and NO ts_number (the read-back never learned one — that absence is
--- the whole problem).
+-- (a)'s mirror is written BY HAND, and deliberately: `held` beside a TERMINAL outbox row and with no
+-- `post_submit_unknown_at` is the PRE-0157 residue shape (round 7's CAS makes it unreachable going
+-- forward). Keeping it hand-written is what proves the `push_state='held'` predicate still fences on its
+-- own, independently of the 0157 witness — two independent predicates, each with its own oracle.
 insert into timesheet_erp_mirror (org_id, timesheet_id, push_state, push_error, approved_at_pushed) values
   ('01521000-0000-0000-0000-00000000000a','01521000-0000-0000-0000-000000000010','held',
-   'command-held: the command is held pending operator review', now()),
-  ('01521000-0000-0000-0000-00000000000a','01521000-0000-0000-0000-000000000011','held',
    'command-held: the command is held pending operator review', now());
+
+-- (b)'s mirror is written by the SHIPPED recorder against its own live held command, so it carries
+-- everything the real path carries — including the 0157 unknown-outcome witness.
+select record_timesheet_command_held(
+  '01521000-0000-0000-0000-00000000000a','01521000-0000-0000-0000-000000000011',
+  (select approved_at from timesheets where id = '01521000-0000-0000-0000-000000000011'),
+  'command-held: the command is held pending operator review',
+  (select id from pg_temp.ids where label = 'b'),
+  (select claim_generation from external_command_outbox where id = (select id from pg_temp.ids where label = 'b')));
 
 select is(
   (select string_agg(state, ',' order by pmo_record_id) from external_command_outbox
@@ -109,7 +128,7 @@ select is(
   'Approved'::timesheet_status,
   'AC-TSC-R5(a): the sheet stays Approved — fail closed, never a silent flip');
 
--- ── (b) after the Admin release, the ordinary rules apply again ──────────────────────────────────
+-- ── (b) after the Admin release: the BACKSTOP route is restored, the re-open fence is NOT lifted ──
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"01521000-0000-0000-0000-0000000000a3","role":"authenticated"}';
 select lives_ok(
@@ -124,15 +143,37 @@ select is(
 
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"01521000-0000-0000-0000-0000000000a2","role":"authenticated"}';
+select throws_ok(
+  $$ select transition_timesheet('01521000-0000-0000-0000-000000000011','Draft') $$,
+  'P0001', 'reopen-push-outcome-unknown',
+  'AC-TSC-R5(b): the re-open STILL refuses after the release — a release answers "can the backstop retry this?", never "what does ERPNext hold?" (round-8 BLOCK)');
+reset role;
+
+select is(
+  (select status from timesheets where id = '01521000-0000-0000-0000-000000000011'),
+  'Approved'::timesheet_status,
+  'AC-TSC-R5(b): the released sheet stays Approved — the release must not open the correction path while the ERP outcome is unknown');
+
+-- ── (c) the route out: an AUDITED attestation about the EXTERNAL system, not a re-queue ───────────
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"01521000-0000-0000-0000-0000000000a3","role":"authenticated"}';
+select lives_ok(
+  $$ select attest_timesheet_no_erp_document('01521000-0000-0000-0000-000000000011',
+       'checked the ERPNext Timesheet list for this employee/week: empty') $$,
+  'AC-TSC-R5(c): an Admin attests that ERPNext holds no Timesheet for this week');
+reset role;
+
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"01521000-0000-0000-0000-0000000000a2","role":"authenticated"}';
 select lives_ok(
   $$ select transition_timesheet('01521000-0000-0000-0000-000000000011','Draft') $$,
-  'AC-TSC-R5(b): once released (no live document, a terminal command), the re-open ADMITS per the existing rules');
+  'AC-TSC-R5(c): with the unknown RESOLVED, the re-open admits per the ordinary rules');
 reset role;
 
 select is(
   (select status from timesheets where id = '01521000-0000-0000-0000-000000000011'),
   'Draft'::timesheet_status,
-  'AC-TSC-R5(b): the released sheet actually flips to Draft — the refusal is a fence, not a dead end');
+  'AC-TSC-R5(c): the attested sheet actually flips to Draft — the refusal is a fence, not a dead end');
 
 select * from finish();
 rollback;

@@ -59,7 +59,7 @@ import { resolveExternalRef } from '../../../pmo-portal/src/lib/adapterSeam/refs
 import { AppError, type CommandHeldOutboxMarker } from '../../../pmo-portal/src/lib/appError.ts';
 import type { Adapter, AdapterCommand, PmoRecord } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
 import type { DispatchMoneyOutboxDeps, ExternalRefMapping, SupersededDocumentMarker } from '../../../pmo-portal/src/lib/adapterSeam/dispatch.ts';
-import { getReadModelWriter, markTimesheetPushOutcome } from './readModelWriters.ts';
+import { getReadModelWriter, heldIdentityFor, markTimesheetPushOutcome } from './readModelWriters.ts';
 import { surfaceActionRequired } from '../_shared/erpnextFeedDeps.ts';
 import { applyCanonicalTimesheetTruth, enforceTimesheetApproved, isTimesheetPush, type ApprovedTimesheet } from './approvalGuard.ts';
 // M-2: what a rejected budget push MEANS for the durable mirror state (a 409 is not a failure).
@@ -932,13 +932,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
     try {
       // ⚑ Luna FU-1a round-6 — thread the EXACT outbox id + fencing token the hold was produced under
       // (stamped on the `command-held` AppError deep in the dispatch recovery) into the mirror writer,
-      // so `record_timesheet_command_held` fences on that precise row+generation. Only a `command-held`
-      // carries it; every other outcome passes it through as undefined (harmless).
-      const heldMarker = failure as AppError & CommandHeldOutboxMarker;
-      const held =
-        failure.code === 'command-held'
-          ? { outboxId: heldMarker.heldOutboxId, claimGeneration: heldMarker.heldClaimGeneration }
-          : undefined;
+      // so `record_timesheet_command_held` fences on that precise row+generation. ⚑ S1 (round 8): the
+      // decision itself is `heldIdentityFor`, a tested pure function — this seam used to be the only
+      // untested link between the tested stamp and the tested fence.
+      const held = heldIdentityFor(failure as AppError & CommandHeldOutboxMarker);
       await markTimesheetPushOutcome(
         { serviceClient: serviceClient as never, orgId, callerUserId: userId },
         String(command.record.id),

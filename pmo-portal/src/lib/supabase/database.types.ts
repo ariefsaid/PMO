@@ -4188,6 +4188,7 @@ export type Database = {
           erp_total_hours: number | null
           id: string
           org_id: string
+          post_submit_unknown_at: string | null
           push_error: string | null
           push_state: string
           pushed_at: string | null
@@ -4205,6 +4206,7 @@ export type Database = {
           erp_total_hours?: number | null
           id?: string
           org_id?: string
+          post_submit_unknown_at?: string | null
           push_error?: string | null
           push_state?: string
           pushed_at?: string | null
@@ -4222,6 +4224,7 @@ export type Database = {
           erp_total_hours?: number | null
           id?: string
           org_id?: string
+          post_submit_unknown_at?: string | null
           push_error?: string | null
           push_state?: string
           pushed_at?: string | null

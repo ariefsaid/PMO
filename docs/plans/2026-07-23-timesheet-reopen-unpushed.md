@@ -286,6 +286,9 @@ All spike-gated served-fn e2e (AC-TSC-011/041/082) and every ERP-list oracle ass
 | AC-TSC-012 | FR-TSC-060 (un-pushed re-opens; no ERP call, no intent, no failure) | **pgTAP** (flip) + **Vitest** (DAL issues no ERP I/O) | precondition file (e) + `pmo-portal/src/lib/db/timesheetTransition.reopenApproved.test.ts` |
 | AC-TSC-010 | FR-TSC-010/011, scoped (live doc blocks re-open; sheet stays Approved) | **pgTAP** | `supabase/tests/0151_timesheet_reopen_precondition.test.sql` (a) |
 | AC-TSC-R3 | FENCE 5 UI (re-open for un-pushed; honest note for pushed; gated by `can()`) | **Vitest RTL** | `pmo-portal/pages/__tests__/Approvals.reopen.test.tsx` |
+| AC-TSC-R8 | round-8 BLOCK: a hold release restores the backstop route but NOT the re-open path while the ERP outcome is unknown; the audited attestation is the route out | **pgTAP** | `supabase/tests/0157_reopen_refuses_unknown_erp_outcome.test.sql` (+ `0152_reopen_refuses_held_mirror.test.sql` (b)/(c)) |
+| AC-OBX-066 | the unknown witness is durable: sticky against a silent clear, first-observed-wins, cleared by a learned `ts_number` or the audited attestation | **pgTAP** | `supabase/tests/0157_unknown_witness_lifecycle.test.sql` |
+| AC-OBX-067 | round-8 S2/S3: an unlocatable outbox row records the RESTRICTIVE outcome; an unknown-generation mirror row admits only a CAS-matching writer | **pgTAP** | `supabase/tests/0157_held_recorder_fails_closed.test.sql` |
 
 > The spec's served-fn e2e HTTP-oracle ACs (AC-TSC-007/008-full/009-full/011/032/040/042/052/053/054/070/
 > 080/082/091) are **Slice B**. Slice A's "no ERP call" is structural (the re-open RPC does no ERP I/O),
@@ -315,11 +318,20 @@ All spike-gated served-fn e2e (AC-TSC-011/041/082) and every ERP-list oracle ass
 terminal, the re-open arm WILL admit them, and an operator — not this migration — must establish what
 ERP holds. No data migration reclassifies them; see below for why that is the call.**
 
-**Why the arm can admit `failed` at all (forward).** For a command written by this release, `failed`
-means the failure happened before or at the ERP submit — a rejection, which leaves no document.
-Everything after the submit is classified `external-unreachable` and stays non-terminal
-(`postSubmitUnknown`, `pmo-portal/src/lib/adapterSeam/erpnext/adapter.ts`), so the non-terminal check
-in §A catches it. The invariant holds only forward.
+**⛔ Why the arm can admit `failed` at all (forward) — THIS PARAGRAPH WAS FALSE; corrected by migration
+`0157` (Luna round-8 BLOCK).** It read: *"For a command written by this release, `failed` means the
+failure happened before or at the ERP submit — a rejection, which leaves no document. Everything after
+the submit is classified `external-unreachable` and stays non-terminal, so the non-terminal check in §A
+catches it."* `release_outbox_hold` (0152 §A) is a counterexample **produced by this same slice**: it
+writes terminal `failed` over a *post-submit unknown* while learning nothing about ERP, and the re-open
+then admitted — reproduced end-to-end as a permanent double-count. (`commitCreate`'s
+create-then-submit-rejected window is a second, smaller one: ERP keeps a draft.)
+
+**The corrected statement.** The arm no longer leans on `failed` at all. `push_state`/outbox state answer
+only *"is a retry queued?"*; a separate, durable `timesheet_erp_mirror.post_submit_unknown_at` witness
+answers *"does ERPNext hold a document?"*, is stamped whenever PMO loses track of a submit's outcome, is
+untouched by any release, and is cleared only by learning a real `ts_number` or by the audited
+`attest_timesheet_no_erp_document` RPC. The re-open refuses while it is set.
 
 **The gap.** A row written by the PRE-0151 code had no such classification: an ERP submit that
 succeeded and whose read-back then failed was marked terminal `failed`, and its mirror row carries no

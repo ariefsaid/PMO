@@ -129,3 +129,33 @@ Deno.test('⚑ Luna r3 BLOCK 2: a genuinely attempt-exhausted row (a `failed` co
     `expected the exhausted reason, got ${JSON.stringify(mirror.push_error)}`,
   );
 });
+
+// ⚑ Luna FU-1a round-8 BLOCK — the sweep's HELD park is the second producer of "PMO does not know what
+// ERPNext holds", and it must record that as durably as the dispatch's own recorder does. A command
+// whose attempts ran out may have run them out AFTER a submit landed (a post-submit unknown is retried
+// as `external-unreachable`), so parking `held` without the witness leaves the fence resting on
+// push_state alone — and push_state is exactly what an operator's hold release clears.
+Deno.test('round-8: the attempts-exhausted HELD park also stamps the unknown-ERP-outcome witness', async () => {
+  const mirror: MirrorRow = { org_id: ORG, timesheet_id: SHEET, push_state: 'failed', erp_cancelled_at: null };
+  const deps = timesheetBackstopDepsLive(fakeDb(mirror, 'failed'), ORG_BINDING, new Set());
+  await deps.driveTimesheetPush(CANDIDATE, APPROVED_AT, SUBJECT).catch(() => undefined);
+  assert(
+    typeof mirror.post_submit_unknown_at === 'string' && mirror.post_submit_unknown_at.length > 0,
+    `the held park must record that the ERP outcome is unknown, got ${JSON.stringify(mirror.post_submit_unknown_at)}`,
+  );
+});
+
+// The mirror image: a `failed` park is NOT an unknown. `timesheet-push-no-outbox-candidate` /
+// gate refusals mean nothing was ever sent, so stamping a witness there would fence a week that has no
+// ERP question outstanding — an unknown that is set on ordinary refusals teaches operators to attest
+// reflexively, which is how an attestation stops being evidence.
+Deno.test('round-8: a `failed` park (a gate refusal — nothing was ever sent) does NOT stamp the witness', async () => {
+  const mirror: MirrorRow = { org_id: ORG, timesheet_id: SHEET, push_state: 'failed', erp_cancelled_at: null };
+  const deps = timesheetBackstopDepsLive(fakeDb(mirror, 'failed'), ORG_BINDING, new Set());
+  await deps.recordGateRefusal(CANDIDATE, 'timesheet-push-gate-refused').catch(() => undefined);
+  assert(mirror.push_error === 'timesheet-push-gate-refused', `expected the refusal reason, got ${JSON.stringify(mirror.push_error)}`);
+  assert(
+    mirror.post_submit_unknown_at === undefined,
+    `a refusal park must not claim an unknown ERP outcome, got ${JSON.stringify(mirror.post_submit_unknown_at)}`,
+  );
+});

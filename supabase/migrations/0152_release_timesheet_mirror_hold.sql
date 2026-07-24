@@ -17,6 +17,9 @@
 --      scoped to the released command's OWN record + org, in the same transaction and the same audit
 --      row. `failed` is the only mirror state the backstop re-queues, so the release restores the
 --      recovery route instead of ending it. Non-timesheet domains are untouched.
+--      ⚑ AND THAT IS ALL IT DOES (0157, Luna round-8 BLOCK): a release answers "can the backstop retry
+--      this?" and answers NOTHING about whether ERPNext holds a document. It must therefore NOT open the
+--      re-open path — see §B's corrected notes and migration 0157's durable unknown-outcome witness.
 --   §B the re-open REFUSES while the mirror is `held`. `held` means PMO DOES NOT KNOW whether ERP holds
 --      a document — the precise state this slice must never admit. §A alone would leave the double-count
 --      reachable for the whole window before an Admin acts, and reachable again whenever the two rows
@@ -225,8 +228,16 @@ begin
     -- independent writers and either can be terminal while the other still holds (an operator release,
     -- a fenced-out write-back). An unknown ERP outcome is the one thing this slice must never admit:
     -- re-open + re-approve would post a SECOND ERP Timesheet for a week ERPNext may already hold and the
-    -- client's hours double-count. Fail closed; `release_outbox_hold` (§A above) is the operator's route
-    -- out, and after it the ordinary rules apply again.
+    -- client's hours double-count. Fail closed.
+    --
+    -- ⛔ THE LAST SENTENCE OF THIS PARAGRAPH WAS WRONG AND IS SUPERSEDED BY 0157. It read:
+    -- "`release_outbox_hold` (§A above) is the operator's route out, and after it the ordinary rules
+    -- apply again." A release clears BOTH hold states in one transaction while LEARNING NOTHING ABOUT
+    -- ERP, so "the ordinary rules" then admitted the re-open over a possibly-live ERP document —
+    -- reproduced end-to-end as a permanent double-count (Luna round-8 BLOCK). The real route out is
+    -- 0157's `attest_timesheet_no_erp_document`, and the fence that decides is
+    -- `timesheet_erp_mirror.post_submit_unknown_at`, which no release touches. This predicate stays as
+    -- the independent pre-0157-residue fence; 0157 §4 adds the witness predicate beside it.
     if exists (select 1 from public.timesheet_erp_mirror m
                  where m.timesheet_id = p_timesheet_id and m.push_state = 'held') then
       raise exception 'reopen-push-outcome-unknown' using errcode = 'P0001';
@@ -236,12 +247,14 @@ begin
     -- queued push still claimable/POSTable while this re-open commits — Luna f2). `failed`/`confirmed`
     -- are terminal ⇒ do not block (a rejected push minted no document).
     --
-    -- ⚑ WHAT MAKES `failed` SAFE TO ADMIT, AND THE ONE POPULATION IT DOES NOT COVER (Luna round-3
-    -- SHOULD-FIX 5). For a timesheet command written by THIS release, `failed` means the failure
-    -- happened BEFORE or AT the ERP submit — a rejection, which leaves no document. Everything after
-    -- the submit is classified `external-unreachable` and stays non-terminal (`postSubmitUnknown`,
-    -- `erpnext/adapter.ts`), so it is caught by the check above. That invariant is what this arm
-    -- leans on, and it holds only forward.
+    -- ⛔ THE PARAGRAPH THAT WAS HERE WAS FALSE, AND IT WAS THE ROUND-4 FIX'S OWN PREMISE (Luna round-8
+    -- BLOCK). It claimed: "For a timesheet command written by THIS release, `failed` means the failure
+    -- happened BEFORE or AT the ERP submit — a rejection, which leaves no document." `release_outbox_hold`
+    -- (§A of THIS migration) is a counterexample: it writes `failed` over a POST-SUBMIT UNKNOWN, learning
+    -- nothing about ERP. (`commitCreate`'s create-then-submit-rejected window is a second, smaller one —
+    -- ERP keeps a draft.) 0157 stops this arm leaning on `failed` at all: an independent, durable
+    -- `post_submit_unknown_at` witness answers the ERP question, and this predicate answers only "is a
+    -- retry queued?". See 0157 §4 for the corrected statement in full.
     --
     -- A row written by the PRE-0151 code carries no such guarantee: an ERP submit that succeeded and
     -- whose read-back failed was marked terminal `failed` with a `ts_number`-less mirror row — i.e.
