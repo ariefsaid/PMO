@@ -55,6 +55,45 @@ Owner rulings: `decisions.md` **OD-SAR-GATES · OD-SAR-PMO-IS-THE-UI · OD-SAR-D
   `docs/pi-delegation.md`). ⚑ ONE op on the shared worktree at a time (verify-while-agent-edits = a
   contaminated read; concurrent heavy dispatches + sibling agents' MCPs + Docker → OOM risk).
 
+### ⚑ ERPNext operational-completeness slate — the "PMO is the ONLY UI" gaps (2026-07-24, NOT scheduled)
+**Framing (owner, locked `OD-SAR-PMO-IS-THE-UI`): ERPNext runs HEADLESS — the user never opens it, PMO is
+the sole surface.** That inverts the usual read-vs-write cost logic here: a *read* the user needs isn't a
+"nice enhancement", it's the **only way anyone can see that number at all** (no one can log into ERP to
+check) → mandatory-visibility, and cheap. A *write* the user must do isn't optional either — if ERPNext's
+own form is invisible, PMO must carry the entry surface. Today the adapter **writes** budget / timesheet-hours /
+sales-invoice / payment-entry, but pulls almost **no cost back** — so the headless user is blind to their own
+actuals. Effort S/M/L; priority reframed for headless. **None scheduled — this is the demand-ordered slate
+after P3.** ADR-0055 authority (PMO = operational read-layer + additive enhancement over the ERP SoT).
+
+- **G1 · Project actuals / cost-to-complete pull** — *read, **S**, priority ⭐⭐ (was "nice", headless makes it
+  near-mandatory).* Pull ERPNext's posted per-project cost (costed timesheets, booked PIs, expense claims)
+  into the project view. **Without it the budget-variance feature we just hardened compares plan against a
+  largely PMO-typed `actual_amount` — and no one can open ERP to see the real figure.** Highest value for
+  least risk (read-model, no money-write review). Do this first.
+- **G2 · Expense claims** — *entry+read, **M**, priority ⭐⭐ (headless upgrades this from read to a PMO entry
+  surface — ERP's claim form is invisible).* PMO-side claim capture → write-through → rolled to project cost
+  (completes G1's cost picture). Field/travel-heavy contract orgs live on this.
+- **G3 · AP / subcontractor cost** — *sync+read, **M** (UI mostly exists), priority ⭐.* The ADR-0033
+  procurement case-folder is PMO-native already; the gap is wiring PO/PI/retention to ERP write-through **and
+  reading committed (open PO) + actual (booked PI) cost back** into the project cost view. ~half a project
+  org's spend. Cost-half of G1.
+- **G4 · Cash / collections** — *read, **S**, priority ⭐.* AR aging exists; extend to collected-vs-outstanding
+  + overdue nudges (pull payment status). Headless = the only cash view the user gets.
+- **G5 · Milestone / progress billing + retention** — *write-through, **L**, priority: demand-gated but
+  NON-optional when a client needs it (PMO is the only billing UI).* Progress claims, retention withheld %,
+  milestone-triggered SIs (ERPNext payment schedules); ties CRM contract value → the SI schedule. Highest
+  *segment* value, most expensive to build safely (full money-path adversarial review). **Build when a client
+  who bills on milestones/retention signs — not speculatively.**
+- **G6 · CRM won-deal → Quotation/Sales Order** — *write, **M**, priority ◦.* Won pipeline deal auto-creates
+  the ERP Quotation/SO so a won contract is billable without re-keying (quotation kind already partly wired).
+- **Tier-4, defer until a client asks:** multi-currency billing · tax templates · fixed assets/equipment ·
+  material-to-project stock · change-orders/variations.
+
+**Director's rec:** G1 + G4 (both read-model, S, no money-write review) are the cheapest way to make the
+headless user *see their own money* — do them as a "P3.5 read-model" pair before any new write-through. G2/G3
+complete the cost picture at M effort. G5 stays demand-gated. Sequencing/effort revisited when a real client's
+segment is in front of us.
+
 ### ⚑⚑ ADAPTER PROGRAM — P2 ERPNext money core ✅ MERGED to dev (#315 squash `b549d06`, 2026-07-14)
 ### ⚑⚑ M365 INTEGRATION — RESUME HERE (2026-07-22) — ✅ MERGED to `dev`; dark code, live connect is the next gate
 
