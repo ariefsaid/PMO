@@ -15,7 +15,8 @@ import {
   type OutboxRow,
 } from './dispatch.ts';
 import { AdapterError, type AdapterCommand, type CommandResult, type PmoRecord } from './contract.ts';
-import { AppError } from '../appError.ts';
+import { AppError, type CommandHeldOutboxMarker } from '../appError.ts';
+import { createErpAdapter } from './erpnext/adapter.ts';
 
 const LEASE_MS = 60_000;
 const WINDOW_MS = 5 * 60_000;
@@ -1459,5 +1460,184 @@ describe('BFY T3 (FR-BFY-036): dispatchMoneyWrite keys the outbox on outboxRecor
     expect(readOutbox).toHaveBeenCalled();
     for (const call of readOutbox.mock.calls) expect(call[1]).toBe('vid-x:enc-fy');
     for (const call of insertOutboxPending.mock.calls) expect(call[1]).toBe('vid-x:enc-fy');
+  });
+});
+
+/**
+ * ⚑ Luna round-2 BLOCK 2 + SHOULD-FIX 6 — THE POST-SUBMIT UNKNOWN, DRIVEN THROUGH CLAIM/FINALISATION.
+ *
+ * This is deliberately NOT a stubbed adapter: it wires the REAL ERPNext adapter (over a fake transport)
+ * into the real `dispatchMoneyWrite`, because the defect lived exactly in the JOIN between them — the
+ * adapter threw an unclassified error after the ERP submit, and the dispatch read "not
+ * external-unreachable" as "rejected" and wrote the row terminal `failed` with no ERP document
+ * recorded. For a timesheet that is the state the Slice-A re-open ADMITS, so PMO could return the week
+ * to Draft while ERPNext held the submitted Timesheet, and the corrected week would post as a second
+ * one. Each module's own tests were green throughout.
+ *
+ * The durable state asserted here (`committing`, no failure write-back) is the same one a real process
+ * crash in that window leaves — reclaimable at lease expiry, then adopted by the recovery probe. The
+ * matching half of the property, that a non-terminal row REFUSES the re-open, is owned by
+ * `supabase/tests/0151_timesheet_reopen_precondition.test.sql` case (g).
+ */
+describe('Luna r2 BLOCK 2 — an unknown failure after the ERP submit leaves a RECOVERABLE row, never a terminal failure', () => {
+  const erpFetch = (opts: { failRefetch?: boolean }) =>
+    (async (_url: string, init?: RequestInit) => {
+      const body = (status: number, payload: unknown) =>
+        new Response(JSON.stringify(payload), { status, headers: { 'Content-Type': 'application/json' } });
+      if (init?.method === 'POST') return body(200, { name: 'TS-2026-00042' });
+      if (init?.method === 'PUT') return body(200, { name: 'TS-2026-00042', docstatus: 1 });
+      return opts.failRefetch ? body(417, { exception: 'ValidationError: nope' }) : body(200, { name: 'TS-2026-00042', docstatus: 1 });
+    }) as unknown as typeof fetch;
+
+  const timesheetCommand: AdapterCommand = {
+    domain: 'timesheets',
+    operation: 'create',
+    record: { id: 'pmo-ts-1', erp_doc_kind: 'timesheet', entries: [] },
+    idempotencyKey: 'ts:3f1b0c9e-1a2b-4c3d-8e4f-5a6b7c8d9e0f:2026-07-19T02:55:21.340995+00:00',
+  };
+
+  const driveRealAdapter = async (fake: ReturnType<typeof createFakeOutbox>, deps: Partial<Parameters<typeof createErpAdapter>[0]>) => {
+    const adapter = createErpAdapter({
+      client: { fetchImpl: erpFetch({ failRefetch: false }), apiKey: 'k', apiSecret: 's', baseUrl: 'https://erp.example.com' },
+      doctypeBodies: { timesheet: { toBody: (rec) => ({ time_logs: rec.entries }), fromDoc: () => ({ id: 'placeholder' }) } },
+      ctx: { refs: {}, config: { company: 'PMO Co' } },
+      ...deps,
+    });
+    return dispatchMoneyWrite({
+      adapter: { tier: 'erpnext', capabilityMap: new Set(['timesheets']), commit: adapter.commit },
+      command: timesheetCommand,
+      writeReadModel: vi.fn(), recordExternalRef: vi.fn(),
+      money: fake.deps,
+    }).then((r: CommandResult) => r as unknown, (e: unknown) => e);
+  };
+
+  it('AC-TSC-R8: a crash in the after-submit window leaves the row `committing` — no `failed`, no lost document', async () => {
+    const fake = createFakeOutbox();
+    const markFailed = vi.spyOn(fake.deps, 'markOutboxFailed');
+    const error = await driveRealAdapter(fake, {
+      // The `after-submit-before-mirror` fault seam's own shape: a PLAIN, unclassified Error.
+      afterSubmitHook: async () => { throw new Error('simulated crash at seam after-submit-before-mirror'); },
+    });
+    expect((error as AdapterError).code).toBe('external-unreachable');
+    expect(markFailed).not.toHaveBeenCalled();
+    const row = [...fake.rows.values()][0];
+    expect(row.state).toBe('committing');
+    expect(row.externalRecordId).toBeNull();
+  });
+
+  it('AC-TSC-R8: the reclaimed row ADOPTS the real ERP document instead of POSTing a second one', async () => {
+    const fake = createFakeOutbox();
+    await driveRealAdapter(fake, {
+      afterSubmitHook: async () => { throw new Error('simulated crash at seam after-submit-before-mirror'); },
+    });
+    const row = [...fake.rows.values()][0];
+    // The lease expires (the crashed owner never returns) and the sweep quarantines + reconciles it.
+    fake.backdate(row.id, LEASE_MS + 1);
+    await fake.deps.quarantineCommitting(row.id);
+    fake.elapseWindow(row.id);
+    // The submitted document is discoverable by the command's own anchor key — that is what makes the
+    // in-flight state recoverable rather than a guess.
+    fake.setProbe('timesheets', timesheetCommand.idempotencyKey!, { externalRecordId: 'TS-2026-00042' });
+    const result = await driveRealAdapter(fake, {});
+    expect(result).toMatchObject({ externalRecordId: 'TS-2026-00042' });
+    expect([...fake.rows.values()][0].state).toBe('confirmed');
+  });
+
+  it('AC-TSC-R8: an ERP REJECTION before the submit is still terminal — nothing was submitted to recover', async () => {
+    const fake = createFakeOutbox();
+    const adapter = createErpAdapter({
+      client: {
+        fetchImpl: (async () => new Response(JSON.stringify({ exception: 'ValidationError: mandatory' }), {
+          status: 417, headers: { 'Content-Type': 'application/json' },
+        })) as unknown as typeof fetch,
+        apiKey: 'k', apiSecret: 's', baseUrl: 'https://erp.example.com',
+      },
+      doctypeBodies: { timesheet: { toBody: (rec) => ({ time_logs: rec.entries }), fromDoc: () => ({ id: 'placeholder' }) } },
+      ctx: { refs: {}, config: { company: 'PMO Co' } },
+    });
+    const error = await dispatchMoneyWrite({
+      adapter: { tier: 'erpnext', capabilityMap: new Set(['timesheets']), commit: adapter.commit },
+      command: timesheetCommand,
+      writeReadModel: vi.fn(), recordExternalRef: vi.fn(),
+      money: fake.deps,
+    }).then(() => null, (e: unknown) => e);
+    expect((error as AdapterError).code).toBe('commit-rejected');
+    expect([...fake.rows.values()][0].state).toBe('failed');
+  });
+});
+
+/**
+ * ⚑ Luna round-3 SHOULD-FIX 3 — A DETERMINISTIC RECOVERY FAILURE MUST NOT BECOME AN ENDLESS IN-FLIGHT
+ * LOOP.
+ *
+ * The in-flight classification above only converges because the recovery pass can ADOPT the document
+ * it finds. That pass re-fetches the ERP doc and maps it through the kind's `fromDoc`
+ * (`recoveryProbe.ts`), and `fromDoc` can fail DETERMINISTICALLY — a read-back whose money/hours value
+ * does not fit the mirror shape raises `commit-rejected` from `mirrorMoney`. That exception escaped
+ * `claimAndCommit` BEFORE any write-back, so the claimed row was left `committing` and nothing
+ * recorded: the next lease/quarantine cycle re-probed, re-mapped, re-threw, forever. A posted document
+ * that can never reach a confirmed mirror, and no operator signal that it exists.
+ *
+ * A probe failure that is RETRYABLE TRANSPORT (ERP unreachable) is a genuinely transient unknown and
+ * must keep leaving the row in-flight — that is the recovery path working. A NON-retryable one repeats
+ * identically every cycle, so it is HELD for an operator instead (the existing C-1 outcome, with its
+ * audited `release_outbox_hold` route out).
+ */
+describe('Luna r3 SHOULD-FIX 3 — a DETERMINISTIC probe/adoption failure is held for an operator, never looped forever', () => {
+  const command: AdapterCommand = {
+    domain: 'timesheets',
+    operation: 'create',
+    record: { id: 'pmo-ts-sf3', erp_doc_kind: 'timesheet' },
+    idempotencyKey: 'ts:sf3',
+  };
+
+  /** A claimed row whose probe fails with `error` — the state a recovery pass is in when it re-reads
+   *  the document its predecessor submitted. */
+  async function probeFails(error: unknown) {
+    const fake = createFakeOutbox();
+    const commit = vi.fn(async () => ({ externalRecordId: 'TS-NEW', canonical: { id: 'pmo-ts-sf3' } }));
+    const money: DispatchMoneyOutboxDeps = {
+      ...fake.deps,
+      probeByRemarksKey: vi.fn(async () => {
+        throw error;
+      }),
+    };
+    const outcome = await dispatchMoneyWrite({
+      adapter: { tier: 'erpnext', capabilityMap: new Set(['timesheets']), commit },
+      command,
+      writeReadModel: vi.fn(), recordExternalRef: vi.fn(),
+      money,
+    }).then(() => null, (e: unknown) => e);
+    return { fake, commit, outcome };
+  }
+
+  it('AC-TSC-R9: a read-back the mapper cannot map is HELD — not left `committing` to repeat every cycle', async () => {
+    // The real shape: `mirrorMoney` refuses an ERP total it cannot mirror, from inside the probe's
+    // `fromDoc`. Re-running the recovery would fetch the same document and throw the same error.
+    const { fake, commit, outcome } = await probeFails(new AdapterError('commit-rejected', 'invalid decimal value: "not-a-number"'));
+    expect((outcome as AppError).code).toBe('command-held');
+    expect(commit).not.toHaveBeenCalled(); // a deterministic recovery failure NEVER falls through to a fresh POST
+    expect([...fake.rows.values()][0].state).toBe('held');
+  });
+
+  // ⚑ Luna FU-1a round-6 (BLOCK 1/2) — the held error carries the EXACT outbox id + fencing token the
+  // hold was produced under, so the served late mirror writer can record the outcome against THAT
+  // precise row+generation (a generation-exact CAS). Without this identity the recorder falls back to an
+  // `EXISTS` heuristic a concurrent release or a successor approval generation defeats. Drop the
+  // `markCommandHeldOutbox(...)` stamp and these two fields go undefined — the threading breaks silently.
+  it('round-6: a command-held error is stamped with the exact outbox id + claim generation of the hold', async () => {
+    const { fake, outcome } = await probeFails(new AdapterError('commit-rejected', 'invalid decimal value: "not-a-number"'));
+    const held = [...fake.rows.values()][0];
+    const marked = outcome as AppError & CommandHeldOutboxMarker;
+    expect(marked.code).toBe('command-held');
+    expect(marked.heldOutboxId).toBe(held.id);
+    expect(marked.heldClaimGeneration).toBe(held.claimGeneration);
+  });
+
+  it('AC-TSC-R9: an UNREACHABLE ERP during the probe still leaves the row in-flight (a transient unknown is not a hold)', async () => {
+    const { fake, commit, outcome } = await probeFails(new AdapterError('external-unreachable', 'connection reset'));
+    expect((outcome as AdapterError).code).toBe('external-unreachable');
+    expect(commit).not.toHaveBeenCalled();
+    expect([...fake.rows.values()][0].state).toBe('committing');
   });
 });

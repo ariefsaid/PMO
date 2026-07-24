@@ -128,3 +128,47 @@ describe('describePushError — the sweep park reasons are classified, not gener
     expect(copy.retryable).toBe(true);
   });
 });
+
+/**
+ * ⚑ round-12 MINOR 3 — 0158 persists the HOLD's OWN reason on a `held` timesheet mirror for the first
+ * time (`recovery-probe-failed:` / `recovery-inconclusive-absence:` / `recovery-reissue-unauthorized:`,
+ * `adapterSeam/dispatch.ts:320/351/391`). None was in `CODES`, so the slice's most money-sensitive row
+ * rendered "a reason this screen could not be classified" — AND, because the unknown fallback is
+ * retryable, a Retry whose only possible answer is the outbox's inert `held` branch. A `held` command
+ * is resolved by a person (release or attest what ERPNext holds), never by re-running the same command.
+ */
+describe('describePushError — the recovery hold reasons are classified + NOT retryable (MINOR 3)', () => {
+  it.each([
+    'recovery-probe-failed',
+    'recovery-inconclusive-absence',
+    'recovery-reissue-unauthorized',
+  ])('%s is a sentence, never the bare token, and never the unclassified fallback', (code) => {
+    const copy = describePushError(`${code}: internal adapter detail that must not leak`);
+    expect(copy.message).not.toMatch(RAW_ADAPTER_TOKEN);
+    expect(copy.message, 'never the unclassified fallback').not.toMatch(/could not be classified/i);
+    expect(copy.message.length).toBeGreaterThan(20);
+    expect(copy.message).toMatch(/[.!]$/);
+  });
+
+  it.each([
+    'recovery-probe-failed',
+    'recovery-inconclusive-absence',
+    'recovery-reissue-unauthorized',
+  ])('%s withholds Retry (a held command re-run only lands the inert held branch) and names the human route out', (code) => {
+    const copy = describePushError(code);
+    expect(copy.retryable, 'a held command is resolved by a person, not by retrying').toBe(false);
+    expect(copy.remedy, 'a withheld button must name its route out (C-3)').toBeTruthy();
+    expect(copy.remedy).not.toMatch(RAW_ADAPTER_TOKEN);
+  });
+
+  // The attestation (0159) moves the mirror `held` -> `failed` and leaves this code; it reaches the SAME
+  // attention queue, so it must classify — not read "could not be classified" like the recovery codes
+  // above once did. Retryable: PMO confirmed ERPNext holds nothing, so a fresh push is the way out.
+  it('operator-attested-no-erp-document is a classified, retryable sentence — not the unclassified fallback', () => {
+    const copy = describePushError('operator-attested-no-erp-document: by <uuid> — checked ERPNext');
+    expect(copy.message).not.toMatch(RAW_ADAPTER_TOKEN);
+    expect(copy.message).not.toMatch(/could not be classified/i);
+    expect(copy.message).toMatch(/[.!]$/);
+    expect(copy.retryable).toBe(true);
+  });
+});

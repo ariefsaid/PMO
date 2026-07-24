@@ -4242,6 +4242,7 @@ export type Database = {
           erp_total_hours: number | null
           id: string
           org_id: string
+          post_submit_unknown_at: string | null
           push_error: string | null
           push_state: string
           pushed_at: string | null
@@ -4259,6 +4260,7 @@ export type Database = {
           erp_total_hours?: number | null
           id?: string
           org_id?: string
+          post_submit_unknown_at?: string | null
           push_error?: string | null
           push_state?: string
           pushed_at?: string | null
@@ -4276,6 +4278,7 @@ export type Database = {
           erp_total_hours?: number | null
           id?: string
           org_id?: string
+          post_submit_unknown_at?: string | null
           push_error?: string | null
           push_state?: string
           pushed_at?: string | null
@@ -4442,6 +4445,14 @@ export type Database = {
         Returns: undefined
       }
       agent_dispatch_tick: { Args: never; Returns: undefined }
+      // ⚑ FU-1a round-12 SHOULD-FIX 1/2 (mig 0157 §5 / 0159) — the ONLY human route out of a
+      // post-submit-unknown timesheet push: Admin-only, org-re-asserted, reason-required, audited.
+      // Clears the unknown-outcome witness AND releases a `held` mirror to `failed` so the re-open is
+      // admitted. Never touches the external system.
+      attest_timesheet_no_erp_document: {
+        Args: { p_reason: string; p_timesheet_id: string }
+        Returns: undefined
+      }
       approved_timesheet_for_push: {
         Args: { p_actor?: string; p_timesheet_id: string }
         Returns: {

@@ -66,6 +66,7 @@ const linksState: { data: ProposedLink[]; isPending: boolean; isError: boolean }
 const confirmMutation: MutationState = { mutate: vi.fn(), isPending: false };
 
 vi.mock('@/src/hooks/useTimesheetApproval', () => ({
+  useReopenableApprovedTimesheets: () => ({ data: [], isPending: false, isError: false }),
   useTimesheetsAwaitingApproval: () => queryState,
   useTimesheetMutations: () => ({
     approve: approveMutation,

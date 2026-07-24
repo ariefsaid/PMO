@@ -582,17 +582,26 @@ const timesheet: TimesheetRepository = {
       // client asserts nothing. It throws 42501/P0001 before a command is ever built, and the edge
       // function re-reads it under the caller's JWT before any ERP call.
       const gate = await approvedTimesheetForPush(timesheetId);
+      // ⚑ ONE IDENTITY PER SHEET (Luna r2 BLOCK 3). Every field of this command — INCLUDING the record
+      // id and therefore the key — is the gate's own DB-canonical text, never the caller's argument.
+      // `approved_timesheet_for_push` casts whatever spelling it is given to `uuid` and returns the
+      // canonical one; everything downstream compares that id as TEXT (the outbox `pmo_record_id`, the
+      // `ts-correct:` advisory lock, the one-in-flight index, external_refs). Keying off the raw
+      // argument therefore made one sheet TWO identities — the foreground row keyed `ts:<UPPER>:…`
+      // while the sweep searched `ts:<lower>:…`, so the sweep minted a SECOND command and ERPNext
+      // received the week twice. (The served boundary re-derives both from the same gate, so this is
+      // defence in depth, not the only enforcement point.)
       await dispatchDomainCommand(
         'timesheets',
         'create',
         {
-          id: timesheetId,
+          id: gate.timesheet_id,
           erp_doc_kind: 'timesheet',
           user_id: gate.user_id,
           approved_at: gate.approved_at,
           entries: gate.entries,
         },
-        { idempotencyKey: timesheetPushKey(timesheetId, gate.approved_at) },
+        { idempotencyKey: timesheetPushKey(gate.timesheet_id, gate.approved_at) },
       );
     }),
 };

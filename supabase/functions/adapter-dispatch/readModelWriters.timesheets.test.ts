@@ -10,7 +10,7 @@
 //     will ever surface a failed push — an un-recorded failure is indistinguishable from a push that
 //     never happened (ADR-0059 §6).
 
-import { getReadModelWriter, markTimesheetPushOutcome } from './readModelWriters.ts';
+import { getReadModelWriter, heldIdentityFor, markTimesheetPushOutcome } from './readModelWriters.ts';
 
 function assertEquals<T>(actual: T, expected: T, msg?: string): void {
   const a = JSON.stringify(actual);
@@ -46,6 +46,10 @@ function makeFakeClient() {
         },
         select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: null, error: null }) }) }),
       };
+    },
+    rpc: async (fn: string, args: unknown) => {
+      calls.push({ table: fn, method: 'rpc', args: [args] });
+      return { data: null, error: null };
     },
   };
   return { client, calls };
@@ -141,11 +145,87 @@ Deno.test('FR-TSP-085: a classified failure is recorded durably as push_state=fa
   assert(String(row.push_error).includes('employee-unlinked'), 'the classified code must be visible to the operator');
 });
 
-Deno.test('FR-TSP-085: a HELD command is recorded as push_state=held (terminal until an operator acts)', async () => {
+// ⚑ THE RELEASE-BEFORE-MIRROR RACE (Luna FU-1a round-5 BLOCK, migration 0155). The `command-held`
+// outcome no longer BLIND-upserts `held`: it routes through the `record_timesheet_command_held` RPC,
+// which reads the outbox and writes the mirror in ONE statement — recording `held` only while a `held`
+// timesheet outbox for this record is still live, and the released outcome (`failed`) otherwise. A late
+// writer whose outbox generation was already released can therefore never resurrect the hold. The RPC
+// carries the fence; here we assert the writer DELEGATES to it (and never blind-upserts `held`).
+Deno.test('FR-TSP-085 / round-5: a HELD command routes through the fenced RPC, never a blind held upsert', async () => {
   const { client, calls } = makeFakeClient();
   await markTimesheetPushOutcome(CTX(client), 'ts-1', '2026-01-12T03:04:05Z', { code: 'command-held', message: 'held for operator' });
-  const row = (calls.find((c) => c.method === 'upsert')?.args[0] ?? {}) as Record<string, unknown>;
-  assertEquals(row.push_state, 'held');
+  const rpcs = calls.filter((c) => c.method === 'rpc');
+  assertEquals(rpcs.length, 1, 'the held outcome delegates to exactly one RPC call');
+  assertEquals(rpcs[0].table, 'record_timesheet_command_held', 'and it is the fenced held recorder');
+  const args = rpcs[0].args[0] as Record<string, unknown>;
+  assertEquals(args.p_org, 'org-1');
+  assertEquals(args.p_timesheet_id, 'ts-1');
+  assertEquals(args.p_approved_at, '2026-01-12T03:04:05Z');
+  assert(String(args.p_reason).includes('command-held'), 'the classified reason is carried to the recorder');
+  assertEquals(calls.filter((c) => c.method === 'upsert').length, 0, 'a held outcome must NEVER blind-upsert the mirror');
+});
+
+// ⚑ Luna FU-1a round-6 (BLOCK 1/2) — the EXACT outbox id + fencing token the hold was produced under are
+// threaded from the `command-held` AppError into the fenced RPC, so it can compare-and-set the mirror on
+// that precise row+generation. Drop the `held` argument (or stop threading the marker in index.ts) and
+// the RPC gets nulls, its fence fails closed, and a legitimately-held sheet is recorded `failed`.
+Deno.test('round-6: the held recorder threads the exact outbox id + claim generation into the RPC', async () => {
+  const { client, calls } = makeFakeClient();
+  await markTimesheetPushOutcome(
+    CTX(client),
+    'ts-1',
+    '2026-01-12T03:04:05Z',
+    { code: 'command-held', message: 'held for operator' },
+    { outboxId: 'outbox-42', claimGeneration: 7 },
+  );
+  const args = (calls.find((c) => c.method === 'rpc')?.args[0] ?? {}) as Record<string, unknown>;
+  assertEquals(args.p_outbox_id, 'outbox-42', 'the exact outbox row id is threaded to the fence');
+  assertEquals(args.p_claim_generation, 7, 'and the claim generation the hold was produced under');
+});
+
+// A held outcome with NO threaded identity (e.g. an older/unmarked error) must pass NULLs, not omit the
+// params, so the RPC's fence decides explicitly rather than on a missing argument. ⚑ Round-8 S2: what
+// the RPC then records is the RESTRICTIVE `held` + the durable unknown witness (an unlocatable outbox
+// row is a threading BUG, and on the mirror fence `failed` is the permissive state) — 0157 §3.
+Deno.test('round-6: a held outcome with no threaded identity passes null id/generation (fence fails closed)', async () => {
+  const { client, calls } = makeFakeClient();
+  await markTimesheetPushOutcome(CTX(client), 'ts-1', '2026-01-12T03:04:05Z', { code: 'command-held', message: 'held for operator' });
+  const args = (calls.find((c) => c.method === 'rpc')?.args[0] ?? {}) as Record<string, unknown>;
+  assertEquals(args.p_outbox_id, null, 'a missing outbox id is passed as null');
+  assertEquals(args.p_claim_generation, null, 'a missing generation is passed as null');
+});
+
+// ⚑ S1 (Luna FU-1a round-8) — THE JOIN BETWEEN THE TWO TESTED ENDS WAS THE ONE UNTESTED LINK.
+// `dispatch.ts` stamps the marker (tested: dispatch.money.test.ts) and the RPC fences on it (tested:
+// the 0155 pgTAP files), but the code that READS the marker off the caught error and decides whether to
+// pass it lived inline in the served handler (`index.ts`), where nothing could reach it. That is exactly
+// the shape of the defect `dispatch.money.test.ts` itself documents: "the defect lived in the JOIN
+// between them". If it regresses, a genuinely-held command records the mirror WITHOUT its identity —
+// and (round-8 S2) that identity is what decides `held` vs a released `failed`. So the decision is a
+// named, exported, pure function with its own oracle.
+Deno.test('S1: heldIdentityFor extracts the outbox identity from a command-held failure', () => {
+  const held = heldIdentityFor({ code: 'command-held', heldOutboxId: 'outbox-42', heldClaimGeneration: 7 });
+  assertEquals(held, { outboxId: 'outbox-42', claimGeneration: 7 }, 'a held failure yields its exact row + fencing token');
+});
+
+Deno.test('S1: heldIdentityFor returns undefined for every OTHER outcome — no other failure may carry a hold identity', () => {
+  // A non-held failure that happens to carry stale marker fields must NOT be treated as a hold: the
+  // identity is only meaningful for the error the recovery branch actually stamped.
+  assertEquals(heldIdentityFor({ code: 'external-unreachable', message: 'boom' } as never), undefined);
+  assertEquals(
+    heldIdentityFor({ code: 'commit-rejected', heldOutboxId: 'outbox-42', heldClaimGeneration: 7 } as never),
+    undefined,
+    'a rejected commit is not a hold, even if a marker rode along',
+  );
+});
+
+Deno.test('S1: a command-held with NO marker yields undefined fields, not a fabricated identity', () => {
+  // The unmarked-hold case: the fence must decide with nulls (round-8 S2 then records the RESTRICTIVE
+  // `held` + the unknown witness), never with a guessed row.
+  assertEquals(heldIdentityFor({ code: 'command-held', message: 'held' } as never), {
+    outboxId: undefined,
+    claimGeneration: undefined,
+  });
 });
 
 Deno.test('FR-TSP-056: an EMPTY approved sheet is recorded as pushed with NO ts_number (a success, not a retry)', async () => {
@@ -188,11 +268,12 @@ Deno.test('NEW-7: the failure recorder never NAMES ts_number — a live ERP docu
   );
 });
 
-Deno.test('NEW-7: a HELD outcome likewise leaves a known ts_number intact', async () => {
+Deno.test('NEW-7: a HELD outcome likewise leaves a known ts_number intact (the fenced RPC never names it)', async () => {
   const { client, calls } = makeFakeClient();
   await markTimesheetPushOutcome(CTX(client), 'ts-1', '2026-01-12T03:04:05Z', { code: 'command-held', message: 'held for operator' });
-  const row = (calls.find((c) => c.method === 'upsert')?.args[0] ?? {}) as Record<string, unknown>;
-  assert(!('ts_number' in row), 'a held outcome learns no document number either — it must not null one out');
+  const args = (calls.find((c) => c.method === 'rpc')?.args[0] ?? {}) as Record<string, unknown>;
+  assert(!('ts_number' in args), 'a held outcome learns no document number either — the recorder never names/nulls it');
+  assert(!('p_ts_number' in args), 'and the fenced RPC takes no ts_number param — a live ERP document number survives a held outcome');
 });
 
 Deno.test('the failure recorder never touches the PMO SoT tables either', async () => {

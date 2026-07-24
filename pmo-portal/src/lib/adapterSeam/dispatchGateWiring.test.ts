@@ -28,6 +28,12 @@ const INDEX = readFileSync(
 );
 /** The same source with comments stripped — a rule may be DESCRIBED in prose without being inlined. */
 const CODE = INDEX.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+/** The timesheet approval guard's own source — Luna r2 BLOCK 3 moved the canonical-truth adoption
+ *  (record fields + the deterministic key) out of index.ts and into this shared, unit-tested seam. */
+const GUARD = readFileSync(
+  resolve(dirname(fileURLToPath(import.meta.url)), '../../../../supabase/functions/adapter-dispatch/approvalGuard.ts'),
+  'utf8',
+);
 /** AC-TSP-031: the shared code->HTTP-status ladder both of index.ts's failure exits answer through. */
 const STATUS_MAP = readFileSync(
   resolve(dirname(fileURLToPath(import.meta.url)), '../../../../supabase/functions/adapter-dispatch/dispatchErrorStatus.ts'),
@@ -143,13 +149,29 @@ describe('WIRE P3B: the Approved-only timesheet gate is wired into the dispatch 
   });
 
   it('FR-TSP-014 the DB-read sheet REPLACES the payload for every field the push is built from', () => {
-    const block = CODE.slice(at('await enforceTimesheetApproved('), at('const serviceClient'));
     // FR-TSP-014 / ADR-0059 §3.3: author, witness and hours are server truth, so a forged payload can
-    // decide neither whose cost this becomes nor which hours are posted.
-    expect(block).toMatch(/command\.record = \{/);
-    expect(block).toMatch(/user_id: approvedSheet\.user_id/);
-    expect(block).toMatch(/approved_at: approvedSheet\.approved_at/);
-    expect(block).toMatch(/entries: approvedSheet\.entries/);
+    // decide neither whose cost this becomes nor which hours are posted. Luna r2 BLOCK 3 added the
+    // command's IDENTITY to that list — the record id AND the deterministic idempotency key — and moved
+    // the whole adoption into `applyCanonicalTimesheetTruth` so the two originators cannot drift. The
+    // wiring assertion is therefore "index.ts delegates to it"; the assignment itself is read off the
+    // guard, which is where it now lives (and `approvalGuard.test.ts` owns its behavioural oracle).
+    expect(INDEX).toMatch(/import \{[^}]*applyCanonicalTimesheetTruth[^}]*\} from '\.\/approvalGuard\.ts'/);
+    expect(CODE).toMatch(/applyCanonicalTimesheetTruth\(command, approvedSheet\)/);
+    expect(GUARD).toMatch(/id: sheet\.timesheet_id/);
+    expect(GUARD).toMatch(/user_id: sheet\.user_id/);
+    expect(GUARD).toMatch(/approved_at: sheet\.approved_at/);
+    expect(GUARD).toMatch(/entries: sheet\.entries/);
+    expect(GUARD).toMatch(/command\.idempotencyKey = timesheetPushKey\(sheet\.timesheet_id, sheet\.approved_at\)/);
+  });
+
+  it('FR-TSP-014 the adoption runs BEFORE the service client, the adapter select and the outbox', () => {
+    // A late adoption is no adoption: the outbox row, the advisory lock and the ERP anchor would all be
+    // keyed off caller-chosen values.
+    const adopt = at('applyCanonicalTimesheetTruth(command, approvedSheet)');
+    expect(adopt).toBeGreaterThan(-1);
+    for (const later of ['createClient(supabaseUrl, serviceRoleKey)', 'ADAPTER_REGISTRY[command.domain]', 'dispatchExternallyOwnedWrite(']) {
+      expect(at(later), `${later} must come AFTER the canonical-truth adoption`).toBeGreaterThan(adopt);
+    }
   });
 });
 

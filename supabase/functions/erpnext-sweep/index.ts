@@ -427,12 +427,16 @@ export async function reconcileOrgOutbox(
     //     accepted on attempt 4 is abandoned after two ticks instead of five.
     //   • GATE (latent today, live tomorrow). This pass re-asserts only the actor's authorization; it
     //     never calls `approved_timesheet_for_push`, so NONE of 0138's preconditions are re-checked.
-    //     Unlike budget that is not currently exploitable via status — `transition_timesheet`'s map makes
-    //     `Approved` TERMINAL (`'Approved' -> []`, mig 0007), so an approval cannot be revoked behind a
-    //     frozen payload's back. But that safety belongs to a migration P3b does not own, and the
-    //     correction path that would break it is explicitly ANTICIPATED and OPEN (OQ-TSP-6). The day
-    //     `Approved -> Rejected` lands, a row left here silently posts payroll-costing hours a human
-    //     un-approved. One owner now means that change cannot reintroduce the hole.
+    //     ⚑ THE ANTICIPATED DAY ARRIVED (2026-07-23, mig 0151 — the Slice-A `Approved -> Draft` re-open).
+    //     This comment used to rest on `Approved` being TERMINAL (`'Approved' -> []`, mig 0007), and
+    //     warned: "the day `Approved -> Rejected` lands, a row left here silently posts payroll-costing
+    //     hours a human un-approved." It landed. **That premise is now FALSE and must not be relied on
+    //     again.** The prediction was right, and a Luna money review found the hole it named.
+    //     The safety is now STRUCTURAL rather than conventional: `claim_outbox_for_commit` (re-created in
+    //     0151 §C) takes the canonical `ts-correct:<uuid>` advisory lock and re-reads `timesheets.status`
+    //     INSIDE the claiming UPDATE's transaction for any `domain='timesheets'` row — so no claim path
+    //     (this pass, pass 6, a foreground Retry, a recovery reissue) can post a week that was re-opened,
+    //     whichever queue reaches it. The skip below is now a routing choice, NOT a safety argument.
     // Skipping is safe precisely BECAUSE pass 6 owns it: the row is not dropped, it is reconciled by the
     // one pass that re-asserts the gate first.
     if (candidate.domain === ERPNEXT_TIMESHEETS_DOMAIN) continue;
@@ -1350,6 +1354,16 @@ async function findTimesheetOutboxRow(
  * moved to `pushed` against a real ERPNext Timesheet — as `held`, and `held` is excluded from this very
  * work queue, so nothing would ever re-drive it. A read-then-blind-write across a concurrent writer is a
  * lost update, not a state machine. So the update REPEATS the listing's own predicate.
+ *
+ * ⚑ Luna FU-1a round-8 BLOCK — a HELD park also records that the ERP OUTCOME IS UNKNOWN. This park is
+ * the second producer of "PMO does not know what ERPNext holds": a command whose attempts ran out may
+ * have run them out AFTER a submit landed (a post-submit unknown is retried as `external-unreachable`,
+ * `erpnext/adapter.ts`), so `held` here carries exactly the doubt the dispatch's own `command-held`
+ * carries. Recording it only as `push_state='held'` leaves the re-open fence resting on a PMO QUEUE
+ * STATE — and that state is precisely what an operator's `release_outbox_hold` clears when they restore
+ * the backstop route. The witness is sticky and first-observed-wins in the DB (migration 0157 §2), so
+ * re-parking on a later tick is idempotent. A `failed` park is NOT an unknown: those reasons
+ * (`timesheet-push-gate-refused`, `timesheet-push-no-outbox-candidate`) all mean nothing was sent.
  */
 async function parkTimesheetMirrorRow(
   serviceClient: SupabaseClient,
@@ -1358,6 +1372,8 @@ async function parkTimesheetMirrorRow(
   pushState: 'held' | 'failed',
   reason: string,
 ): Promise<{ error: { message: string; code?: string } | null }> {
+  const patch: Record<string, unknown> = { push_state: pushState, push_error: reason };
+  if (pushState === 'held') patch.post_submit_unknown_at = new Date().toISOString();
   // AC-TSP-022: an `absent` candidate (an approved sheet with NO mirror row) has nothing to
   // compare-and-set against — its durable state must be CREATED, or the refusal is invisible and the
   // sheet is re-driven from scratch every tick. A 23505 means the foreground (or another tick) created
@@ -1365,12 +1381,12 @@ async function parkTimesheetMirrorRow(
   if (row.push_state === MIRROR_ABSENT) {
     const { error } = await serviceClient
       .from('timesheet_erp_mirror')
-      .insert({ org_id: orgId, timesheet_id: row.timesheet_id, push_state: pushState, push_error: reason });
+      .insert({ org_id: orgId, timesheet_id: row.timesheet_id, ...patch });
     return { error: error && error.code !== '23505' ? error : null };
   }
   return await serviceClient
     .from('timesheet_erp_mirror')
-    .update({ push_state: pushState, push_error: reason })
+    .update(patch)
     .eq('org_id', orgId)
     .eq('timesheet_id', row.timesheet_id)
     // the SAME eligibility `listPendingTimesheetPushes` asserted — never a state this pass did not observe
@@ -1395,9 +1411,20 @@ const ABSENT_SHEET_LOOKBACK_MS = 14 * 24 * 60 * 60 * 1000;
  * substitution) — so the digest matches and the two originators reconcile as one command instead of
  * rejecting each other with `idempotency-key-payload-mismatch`.
  *
- * Returns the row to drive, or `null` when a 23505 says a concurrent writer owns this record's
- * in-flight command (a different key under 0116's one-in-flight index) — the caller then records that,
- * never guesses.
+ * ⚑ MINTED THROUGH THE FENCE (Luna code review BLOCK 1, migration 0151 §B). This used to INSERT into
+ * `external_command_outbox` directly, which put the sweep OUTSIDE the per-sheet `ts-correct:` advisory
+ * lock that the re-open (`transition_timesheet` Approved→Draft) and the sync push both honour. That was
+ * live money: the gate read sees the 40-hour sheet `Approved`, the approver re-opens it (the lock is
+ * taken, no outbox row exists yet, PMO commits `Draft`), and the sweep then mints and POSTs the
+ * ORIGINAL hours anyway — the corrected week is pushed later and ERPNext holds BOTH generations (72
+ * hours on the client's project). A second status read here could not close it; the status check and
+ * the INSERT must be one transaction under the lock, which is exactly what the guard RPC is.
+ *
+ * Returns `{ row }` to drive, or `{ row: null, refusal }`:
+ *   • a 23505 says a concurrent writer owns this record's in-flight command (a different key under
+ *     0116's one-in-flight index) — the re-read below finds their row, or nothing to drive;
+ *   • a P0001 says the FENCE refused (`timesheet-no-longer-approved` — the re-open won the lock). The
+ *     reason is handed back so the caller records WHY, and nothing is pushed.
  */
 async function mintTimesheetOutboxRow(
   serviceClient: SupabaseClient,
@@ -1406,7 +1433,7 @@ async function mintTimesheetOutboxRow(
   idempotencyKey: string,
   approvedAt: string,
   subject: TimesheetPushSubject,
-): Promise<OutboxRow | null> {
+): Promise<{ row: OutboxRow | null; refusal: string | null }> {
   const payload: Record<string, unknown> = {
     id: timesheetId,
     erp_doc_kind: 'timesheet',
@@ -1415,25 +1442,27 @@ async function mintTimesheetOutboxRow(
     entries: subject.entries,
   };
   const payloadDigest = await canonicalCommandDigest({ domain: ERPNEXT_TIMESHEETS_DOMAIN, operation: 'create', record: payload });
-  const { error } = await serviceClient.from('external_command_outbox').insert({
-    org_id: orgId,
-    domain: ERPNEXT_TIMESHEETS_DOMAIN,
-    pmo_record_id: timesheetId,
-    idempotency_key: idempotencyKey,
-    external_tier: ERPNEXT_TIER,
-    operation: 'create',
-    state: 'pending',
-    payload,
-    payload_digest: payloadDigest,
+  const { error } = await serviceClient.rpc('insert_timesheet_outbox_pending', {
+    p_org: orgId,
+    p_domain: ERPNEXT_TIMESHEETS_DOMAIN,
+    p_record_id: timesheetId,
+    p_key: idempotencyKey,
+    p_tier: ERPNEXT_TIER,
+    p_operation: 'create',
+    p_payload: payload,
+    p_digest: payloadDigest,
     // 0108 §C: the RECORDED actor every later re-authorization (`checkOutboxReplayAuthorization`) and
     // every mirror attribution keys on. Never null here — the caller only mints with a resolved approver.
-    actor_user_id: subject.approvedBy,
+    p_actor: subject.approvedBy,
   });
+  // P0001 = THE FENCE REFUSED: the sheet is no longer Approved (a re-open committed while this pass was
+  // deciding). Nothing was inserted; the week's old hours must never be posted. Recorded, not pushed.
+  if (error?.code === 'P0001') return { row: null, refusal: error.message };
   // 23505 = the foreground raced us (same 4-tuple ⇒ the read below finds THEIR row and we reconcile to
   // it) or a different command for this record is already in flight (0116 ⇒ nothing to find, caller
   // records it). Any other error is a real DB fault and is contained per-row by the caller.
   if (error && error.code !== '23505') throw new AppError(error.message, error.code);
-  return await findTimesheetOutboxRow(serviceClient, orgId, timesheetId, idempotencyKey);
+  return { row: await findTimesheetOutboxRow(serviceClient, orgId, timesheetId, idempotencyKey), refusal: null };
 }
 
 /**
@@ -1618,18 +1647,28 @@ export function timesheetBackstopDepsLive(
       // the user's own push collides on the outbox 4-tuple (23505) and reconciles to the winner instead
       // of minting a second week of hours.
       let minted = false;
+      let mintRefusal: string | null = null;
       if (!outboxRow && subject?.approvedBy) {
-        outboxRow = await mintTimesheetOutboxRow(serviceClient, org.orgId, row.timesheet_id, idempotencyKey, approvedAt, subject);
+        const mint = await mintTimesheetOutboxRow(serviceClient, org.orgId, row.timesheet_id, idempotencyKey, approvedAt, subject);
+        outboxRow = mint.row;
+        mintRefusal = mint.refusal;
         minted = outboxRow !== null;
       }
       if (!outboxRow) {
-        // Nothing to drive and nothing mintable: either the gate handed back no actor at all (never
-        // attribute a money-adjacent command to nobody), or a DIFFERENT command for this record is
-        // already in flight and owns the outcome (0116). `failed`, not `held`: both conditions clear
+        // Nothing to drive and nothing mintable: the FENCE refused (the sheet was re-opened — Luna
+        // BLOCK 1, and then the reason says exactly that), or the gate handed back no actor at all
+        // (never attribute a money-adjacent command to nobody), or a DIFFERENT command for this record
+        // is already in flight and owns the outcome (0116). `failed`, not `held`: all of those clear
         // themselves, and `held` would exclude the row from this queue permanently.
-        const { error } = await parkTimesheetMirrorRow(serviceClient, org.orgId, row, 'failed', 'timesheet-push-no-outbox-candidate');
+        const reason = mintRefusal ?? 'timesheet-push-no-outbox-candidate';
+        const { error } = await parkTimesheetMirrorRow(serviceClient, org.orgId, row, 'failed', reason);
         if (error) throw new AppError(error.message, error.code);
-        await surfaceActionRequired(serviceClient, org.orgId, 'timesheet-push-no-outbox-candidate', { timesheetId: row.timesheet_id });
+        await surfaceActionRequired(
+          serviceClient,
+          org.orgId,
+          mintRefusal ? 'timesheet-push-gate-refused' : 'timesheet-push-no-outbox-candidate',
+          { timesheetId: row.timesheet_id },
+        );
         return;
       }
       // ⚑ H-1 (the budget twin's audit finding, applied here by construction): re-drive ONLY through
@@ -1642,6 +1681,19 @@ export function timesheetBackstopDepsLive(
       // START of this pass and cannot contain it. Re-reading the whole set per mint would be the same
       // answer at more cost; what must NOT happen is treating a brand-new command as attempt-exhausted.
       if (!minted && !eligibleOutboxIds.has(outboxRow.id)) {
+        // ⚑ Luna round-3 BLOCK 2 — NOT-DUE-YET IS NOT ATTEMPTS-EXHAUSTED (the budget twin's ⚑ HIGH-1,
+        // applied here). `outbox_reconcile_candidates` deliberately omits two states that are simply not
+        // due: a `committing` row inside its 60 s lease and a `quarantined` row before its visibility
+        // window elapses (0131). Both are ABOUT to become claimable by the stale-claim/recovery pass.
+        // Parking them `held` was terminal in every direction at once: `held` is excluded from THIS
+        // queue, the generic outbox pass skips timesheets, and the outbox row keeps the record's one
+        // in-flight slot (0116) — so the submitted ERP Timesheet is never adopted, the mirror never
+        // converges, and the re-open fence (which refuses on a non-terminal outbox row) refuses the week
+        // forever. And this is the ORDINARY shape of a post-submit unknown, whose whole point is that the
+        // dispatch marks NOTHING so the row stays reclaimable: the next tick, seconds later, sees a
+        // `failed` mirror plus a not-yet-due `committing` row. Leave it; the attempt/age bound is
+        // untouched for every state that really has run out.
+        if (outboxRow.state === 'committing' || outboxRow.state === 'quarantined') return;
         const { error } = await parkTimesheetMirrorRow(serviceClient, org.orgId, row, 'held', 'timesheet-push-attempts-exhausted');
         if (error) throw new AppError(error.message, error.code);
         await surfaceActionRequired(serviceClient, org.orgId, 'timesheet-push-attempts-exhausted', { timesheetId: row.timesheet_id });

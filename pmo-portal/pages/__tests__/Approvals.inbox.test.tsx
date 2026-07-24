@@ -36,6 +36,7 @@ vi.mock('@/src/hooks/useProcurements', () => ({
   useProcurements: () => ({ ...procState, refetch: vi.fn() }),
 }));
 vi.mock('@/src/hooks/useTimesheetApproval', () => ({
+  useReopenableApprovedTimesheets: () => ({ data: [], isPending: false, isError: false }),
   useTimesheetsAwaitingApproval: () => ({ ...tsState, refetch: vi.fn() }),
   useTimesheetMutations: () => ({
     approve: { mutate: vi.fn(), isPending: false },

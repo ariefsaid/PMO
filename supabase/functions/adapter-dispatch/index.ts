@@ -60,12 +60,12 @@ import { DOCTYPE_BODIES } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/
 import { DOCTYPE_REGISTRY, reissueOnInconclusiveAbsence, type ErpDocKind } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/doctypeRegistry.ts';
 import { probeErpByAnchorKey, probeErpByPaymentComposite } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/recoveryProbe.ts';
 import { resolveExternalRef } from '../../../pmo-portal/src/lib/adapterSeam/refs.ts';
-import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
+import { AppError, type CommandHeldOutboxMarker } from '../../../pmo-portal/src/lib/appError.ts';
 import type { Adapter, AdapterCommand, PmoRecord } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
 import type { DispatchMoneyOutboxDeps, ExternalRefMapping, SupersededDocumentMarker } from '../../../pmo-portal/src/lib/adapterSeam/dispatch.ts';
-import { getReadModelWriter, markTimesheetPushOutcome } from './readModelWriters.ts';
+import { getReadModelWriter, heldIdentityFor, markTimesheetPushOutcome } from './readModelWriters.ts';
 import { surfaceActionRequired } from '../_shared/erpnextFeedDeps.ts';
-import { enforceTimesheetApproved, isTimesheetPush, type ApprovedTimesheet } from './approvalGuard.ts';
+import { applyCanonicalTimesheetTruth, enforceTimesheetApproved, isTimesheetPush, type ApprovedTimesheet } from './approvalGuard.ts';
 // M-2: what a rejected budget push MEANS for the durable mirror state (a 409 is not a failure).
 import { classifyBudgetPushOutcome } from './budgetPushOutcome.ts';
 // AC-TSP-031: the ONE code→HTTP-status map for both failure exits (pre-flight select + dispatch).
@@ -729,13 +729,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
       });
     }
     approvedSheet = approved.sheet;
-    // Server truth REPLACES the payload for every field the push is built from.
-    command.record = {
-      ...command.record,
-      user_id: approvedSheet.user_id,
-      approved_at: approvedSheet.approved_at,
-      entries: approvedSheet.entries,
-    };
   }
 
   // ── Server-side idempotency-key enforcement (task 6.4, FR-ENA-040, ADR-0058 §4) — at the top of
@@ -771,6 +764,17 @@ Deno.serve(async (req: Request): Promise<Response> => {
       { status: 422, headers },
     );
   }
+
+  // ── THE COMMAND'S IDENTITY IS GATE TRUTH, NOT CALLER INPUT (Luna code review BLOCK 3, round 1 + 2).
+  // Server truth REPLACES the payload for every field the push is built from — the record's own id, the
+  // author, the `approved_at` witness, the entries AND the deterministic idempotency KEY. Everything
+  // downstream compares the id as TEXT (the outbox `pmo_record_id`, the `ts-correct:` advisory lock, the
+  // one-in-flight partial index, external_refs) and reconciles on the key, so a caller-chosen spelling or
+  // a caller-chosen key is a SECOND identity for one approval: the sweep does not collide with it and
+  // mints its own row ⇒ a second ERP Timesheet ⇒ the week's hours counted twice. Placed AFTER the
+  // opaque-key check above so a keyless/short-keyed caller still gets its 422 — the derivation replaces a
+  // valid-shaped key, it does not excuse a missing one. The rationale lives with the helper.
+  if (approvedSheet) applyCanonicalTimesheetTruth(command, approvedSheet);
 
   // service_role client — used for the machine-write helpers (read-model upsert/update + external_refs
   // record) AND, for 'tasks', to resolve the per-request ClickUp binding/mapping at adapter-select time.
@@ -1029,11 +1033,18 @@ Deno.serve(async (req: Request): Promise<Response> => {
   const recordTimesheetPushFailure = async (failure: AppError): Promise<void> => {
     if (!approvedSheet) return;
     try {
+      // ⚑ Luna FU-1a round-6 — thread the EXACT outbox id + fencing token the hold was produced under
+      // (stamped on the `command-held` AppError deep in the dispatch recovery) into the mirror writer,
+      // so `record_timesheet_command_held` fences on that precise row+generation. ⚑ S1 (round 8): the
+      // decision itself is `heldIdentityFor`, a tested pure function — this seam used to be the only
+      // untested link between the tested stamp and the tested fence.
+      const held = heldIdentityFor(failure as AppError & CommandHeldOutboxMarker);
       await markTimesheetPushOutcome(
         { serviceClient: serviceClient as never, orgId, callerUserId: userId },
         String(command.record.id),
         approvedSheet.approved_at,
         { code: failure.code, message: failure.message },
+        held,
       );
     } catch (recordErr) {
       console.error('[adapter-dispatch] failed to record timesheet push failure:', recordErr);
