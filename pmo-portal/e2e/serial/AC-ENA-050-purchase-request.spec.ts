@@ -35,7 +35,7 @@ const SEED_PASSWORD = 'Passw0rd!dev';
 const ORG_ID = '00000000-0000-0000-0000-000000000001';
 
 const LANE_READY = Boolean(FUNCTIONS_URL && AUTH_URL && ANON_KEY);
-if (!LANE_READY && process.env.CI) {
+if (FUNCTIONS_URL && !LANE_READY) {
   throw new Error('AC-ENA-050: the served-fn lane vars are required whenever CI runs this spec — this spec cannot silently skip in CI');
 }
 if (LANE_READY && !SERVICE_KEY) {

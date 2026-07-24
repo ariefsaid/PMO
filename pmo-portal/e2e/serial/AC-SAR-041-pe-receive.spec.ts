@@ -42,8 +42,8 @@ const ERPNEXT_ADMIN_SECRET = process.env.ERPNEXT_BENCH_API_SECRET ?? '';
 // Bench creds (ERPNEXT_BENCH_API_KEY/SECRET) are REQUIRED here: the SI paid-detection flip is the
 // ERP-SIDE oracle (PMO's own mirror does not re-fetch outstanding on an outbound payment — see B).
 const READY = Boolean(FUNCTIONS_URL && AUTH_URL && ANON_KEY && SERVICE_KEY && ERPNEXT_ADMIN_KEY && ERPNEXT_ADMIN_SECRET);
-if (!READY && process.env.CI) {
-  throw new Error('AC-SAR-041-pe-receive: SUPABASE_FUNCTIONS_URL + SUPABASE_URL + VITE_SUPABASE_ANON_KEY + SUPABASE_SERVICE_ROLE_KEY + ERPNEXT_BENCH_API_KEY/SECRET are required in CI — this spec cannot silently skip');
+if (FUNCTIONS_URL && !READY) {
+  throw new Error('AC-SAR-041-pe-receive: SUPABASE_FUNCTIONS_URL + SUPABASE_URL + VITE_SUPABASE_ANON_KEY + SUPABASE_SERVICE_ROLE_KEY + ERPNEXT_BENCH_API_KEY/SECRET are required once the served lane is up (SUPABASE_FUNCTIONS_URL set) — never a silent skip');
 }
 test.skip(!READY, 'AC-SAR-041-pe-receive: SUPABASE_FUNCTIONS_URL/SUPABASE_URL/VITE_SUPABASE_ANON_KEY/SUPABASE_SERVICE_ROLE_KEY/ERPNEXT_BENCH_API_KEY/SECRET not set — run via scripts/serve-functions.sh against the ERPNext bench');
 

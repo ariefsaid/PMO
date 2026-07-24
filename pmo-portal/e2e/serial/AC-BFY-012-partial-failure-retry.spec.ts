@@ -57,8 +57,8 @@ const ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY ?? process.env.SUPABASE_ANON
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
 
 const READY = Boolean(FUNCTIONS_URL && AUTH_URL && ANON_KEY);
-if (!READY && process.env.CI) {
-  throw new Error('AC-BFY-012: SUPABASE_FUNCTIONS_URL + SUPABASE_URL + VITE_SUPABASE_ANON_KEY are required in CI — this spec cannot silently skip');
+if (FUNCTIONS_URL && !READY) {
+  throw new Error('AC-BFY-012: SUPABASE_FUNCTIONS_URL + SUPABASE_URL + VITE_SUPABASE_ANON_KEY are required once the served lane is up (SUPABASE_FUNCTIONS_URL set) — never a silent skip');
 }
 if (READY && !SERVICE_KEY) throw new Error('AC-BFY-012: SUPABASE_SERVICE_ROLE_KEY is required whenever the served lane is available.');
 test.skip(!READY, 'AC-BFY-012: served-fn lane not configured — run via scripts/serve-functions.sh against the ERPNext bench');

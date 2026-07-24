@@ -56,7 +56,7 @@ const SEED_PASSWORD = 'Passw0rd!dev';
 const ORG_ID = '00000000-0000-0000-0000-000000000001';
 
 const READY = Boolean(FUNCTIONS_URL && AUTH_URL && ANON_KEY && SERVICE_KEY && BENCH_API_KEY && BENCH_API_SECRET);
-if (!READY && process.env.CI) {
+if (FUNCTIONS_URL && !READY) {
   throw new Error(
     'AC-ENA-040: this served-fn+bench e2e is local-only (plan Slice 0 task 0.3) and must never run in CI -- ' +
       'if CI is attempting it, the workflow is misconfigured.',

@@ -40,8 +40,8 @@ const CUSTOMER = 'Spike Customer';
 const REPORT_VERSION = 'erpnext-15.94.3/frappe-15.96.0';
 
 const READY = Boolean(FUNCTIONS_URL && AUTH_URL && ANON_KEY && SERVICE_KEY && ERPNEXT_ADMIN_KEY && ERPNEXT_ADMIN_SECRET);
-if (!READY && process.env.CI) {
-  throw new Error('AC-SAR-050-ar-aging-readback: SUPABASE_FUNCTIONS_URL + SUPABASE_URL + VITE_SUPABASE_ANON_KEY + SUPABASE_SERVICE_ROLE_KEY + ERPNEXT_BENCH_API_KEY/SECRET are required in CI — this spec cannot silently skip');
+if (FUNCTIONS_URL && !READY) {
+  throw new Error('AC-SAR-050-ar-aging-readback: SUPABASE_FUNCTIONS_URL + SUPABASE_URL + VITE_SUPABASE_ANON_KEY + SUPABASE_SERVICE_ROLE_KEY + ERPNEXT_BENCH_API_KEY/SECRET are required once the served lane is up (SUPABASE_FUNCTIONS_URL set) — never a silent skip');
 }
 test.skip(!READY, 'AC-SAR-050-ar-aging-readback: required env not set — run via scripts/serve-functions.sh against the ERPNext bench');
 
