@@ -80,6 +80,15 @@ export function deserializeEnvelope(blob: Uint8Array): TokenEnvelope {
   // A valid envelope is IV (12) + ciphertext that carries at least the 16-byte GCM tag. Anything
   // shorter is malformed — reject with a clear error rather than deferring to an opaque decrypt
   // OperationError (security-audit Minor 2, 2026-07-14).
+  // Type guard FIRST (live audit 2026-07-24, LOW-B6): `blob.byteLength` on a string is `undefined`,
+  // and `undefined < 28` is false — so a mis-marshalled value (e.g. the `\x…` string PostgREST
+  // returns for a bytea column) skipped this guard entirely and failed later as an opaque WebCrypto
+  // TypeError. This is the check that should have caught HIGH-A1 at runtime; it must fail LOUD.
+  if (!(blob instanceof Uint8Array)) {
+    throw new Error(
+      `graphTokenCrypto: envelope must be a Uint8Array (got ${typeof blob}) — decode the bytea at the wire seam first`,
+    );
+  }
   if (blob.byteLength < GCM_IV_BYTES + GCM_TAG_BYTES) {
     throw new Error('graphTokenCrypto: envelope blob shorter than IV + GCM tag (malformed)');
   }

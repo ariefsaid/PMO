@@ -41,7 +41,7 @@ insert into public.ms_graph_connections
   (org_id, user_id, entra_tenant_id, entra_user_object_id, scopes, refresh_token_ciphertext, key_id, status)
 values
   ('a1530000-0000-0000-0000-000000000001','a1530000-0000-0000-0000-0000000000a1',
-   '11111111-2222-3333-4444-555555555555', null, array['offline_access'], '\x00'::bytea, 'kek-v1', 'active');
+   '11111111-2222-3333-4444-555555555555', null, array['offline_access'], '\x00000000000000000000000000000000000000000000000000000000'::bytea, 'kek-v1', 'active');
 select is(count(*)::int, 1, 'AC-M365-174 setup: a NULL-oid connection exists')
   from public.ms_graph_connections
  where org_id='a1530000-0000-0000-0000-000000000001' and user_id='a1530000-0000-0000-0000-0000000000a1';
@@ -64,13 +64,13 @@ select is(
 -- guards ONLY entra_user_object_id — a reconnect rotates the refresh token with the SAME oid).
 -- ============================================================================
 select lives_ok(
-  $$update public.ms_graph_connections set refresh_token_ciphertext = '\xaa'::bytea, status = 'active'
+  $$update public.ms_graph_connections set refresh_token_ciphertext = '\xaa000000000000000000000000000000000000000000000000000000'::bytea, status = 'active'
     where org_id='a1530000-0000-0000-0000-000000000001' and user_id='a1530000-0000-0000-0000-0000000000a1'$$,
   'AC-M365-174b: an UNRELATED column update (refresh rotation, same oid) is ALLOWED');
 select is(
   (select refresh_token_ciphertext from public.ms_graph_connections
     where org_id='a1530000-0000-0000-0000-000000000001' and user_id='a1530000-0000-0000-0000-0000000000a1'),
-  '\xaa'::bytea,
+  '\xaa000000000000000000000000000000000000000000000000000000'::bytea,
   'AC-M365-174b: the unrelated update MUTATED refresh_token_ciphertext (trigger did not block it)');
 select is(
   (select entra_user_object_id from public.ms_graph_connections
@@ -114,13 +114,13 @@ select is(
   public.m365_upsert_connection(
     'a1530000-0000-0000-0000-000000000001','a1530000-0000-0000-0000-0000000000a1',
     '11111111-2222-3333-4444-555555555555','oid-tofu-1',array['offline_access'],
-    '\xbb'::bytea,'\xcc'::bytea,now(),'kek-v1',now(),now()) is not null,
+    '\xbb000000000000000000000000000000000000000000000000000000'::bytea,'\xcc000000000000000000000000000000000000000000000000000000'::bytea,now(),'kek-v1',now(),now()) is not null,
   true,
   'AC-M365-174e: a reconnect via m365_upsert_connection with the SAME oid SUCCEEDS (rotates tokens)');
 select is(
   (select refresh_token_ciphertext from public.ms_graph_connections
     where org_id='a1530000-0000-0000-0000-000000000001' and user_id='a1530000-0000-0000-0000-0000000000a1'),
-  '\xbb'::bytea,
+  '\xbb000000000000000000000000000000000000000000000000000000'::bytea,
   'AC-M365-174e: the same-oid reconnect ROTATED refresh_token_ciphertext (0xbb)');
 select is(
   (select entra_user_object_id from public.ms_graph_connections
@@ -138,7 +138,7 @@ select throws_ok(
   $$select public.m365_upsert_connection(
     'a1530000-0000-0000-0000-000000000001','a1530000-0000-0000-0000-0000000000a1',
     '11111111-2222-3333-4444-555555555555','oid-attacker',array['offline_access'],
-    '\xdd'::bytea,'\xee'::bytea,now(),'kek-v1',now(),now())$$,
+    '\xdd000000000000000000000000000000000000000000000000000000'::bytea,'\xee000000000000000000000000000000000000000000000000000000'::bytea,now(),'kek-v1',now(),now())$$,
   '42501', 'identity_rebind_forbidden',
   'AC-M365-174f: m365_upsert_connection with a DIFFERENT oid RAISES 42501 identity_rebind_forbidden (RPC propagates the write-once trigger)');
 select is(

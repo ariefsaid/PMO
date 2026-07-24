@@ -20,7 +20,7 @@ insert into public.ms_graph_connections
   (org_id, user_id, entra_tenant_id, scopes, refresh_token_ciphertext, key_id)
 values
   ('01420000-0000-0000-0000-000000000001','01420000-0000-0000-0000-0000000000a1',
-   'tid-1', array['offline_access','Files.Read'], '\x00'::bytea, 'kek-v1');
+   'tid-1', array['offline_access','Files.Read'], '\x00000000000000000000000000000000000000000000000000000000'::bytea, 'kek-v1');
 
 select is((select relrowsecurity   from pg_class where oid = 'public.ms_graph_connections'::regclass),
           true, 'AC-M365-001 RLS is enabled');
@@ -38,7 +38,7 @@ select throws_ok(
   '42501', null, 'AC-M365-001 authenticated SELECT denied (no grant, no policy)');
 select throws_ok(
   $$ insert into public.ms_graph_connections (org_id,user_id,entra_tenant_id,refresh_token_ciphertext,key_id)
-     values ('01420000-0000-0000-0000-000000000001','01420000-0000-0000-0000-0000000000a1','t','\x00'::bytea,'k') $$,
+     values ('01420000-0000-0000-0000-000000000001','01420000-0000-0000-0000-0000000000a1','t','\x00000000000000000000000000000000000000000000000000000000'::bytea,'k') $$,
   '42501', null, 'AC-M365-001 authenticated INSERT denied');
 select throws_ok(
   $$ update public.ms_graph_connections set status = 'revoked' $$,

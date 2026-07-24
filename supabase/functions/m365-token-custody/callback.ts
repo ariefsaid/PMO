@@ -7,7 +7,7 @@
 import type { HandlerDeps, HandlerResult, M365SupabaseLike } from './types.ts';
 import { M365_IDENTITY_MISMATCH } from './types.ts';
 import { consumePkceState } from './stateStore.ts';
-import { encryptToken, serializeEnvelope, resolveKek, base64UrlDecode } from './crypto.ts';
+import { encryptToken, serializeEnvelope, resolveKek, base64UrlDecode, toByteaParam } from './crypto.ts';
 import { logAudit, recordM365Error } from './audit.ts';
 import { isValidTenant } from '../../../pmo-portal/src/lib/m365/graphPkce.ts';
 
@@ -203,8 +203,8 @@ export async function handleCallback(req: Request, deps: HandlerDeps): Promise<H
     p_entra_tenant_id: claims.tid,
     p_entra_user_object_id: claims.oid,
     p_scopes: pkce.scopes,
-    p_refresh_token_ciphertext: refreshBlob,
-    p_access_token_ciphertext: accessBlob,
+    p_refresh_token_ciphertext: toByteaParam(refreshBlob),
+    p_access_token_ciphertext: toByteaParam(accessBlob),
     p_access_token_expires_at: accessExpiresAt,
     p_key_id: 'kek-v1',
     p_connected_at: nowIso,

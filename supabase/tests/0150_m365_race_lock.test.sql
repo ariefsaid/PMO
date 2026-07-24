@@ -60,7 +60,7 @@ select throws_ok(
   $$ insert into public.ms_graph_connections
        (org_id, user_id, entra_tenant_id, scopes, refresh_token_ciphertext, key_id, status)
        values ('a1500000-0000-0000-0000-000000000001','a1500000-0000-0000-0000-0000000000a1',
-               '11111111-2222-3333-4444-555555555555', array['offline_access'], '\x10'::bytea, 'kek-v1', 'active') $$,
+               '11111111-2222-3333-4444-555555555555', array['offline_access'], '\x10000000000000000000000000000000000000000000000000000000'::bytea, 'kek-v1', 'active') $$,
   '42501', null, 'AC-M365-160 write-guard (locked): INSERT for a DISABLED user is rejected (42501)');
 
 -- (b) re-activate the user but disentitle the org → INSERT rejected.
@@ -71,7 +71,7 @@ select throws_ok(
   $$ insert into public.ms_graph_connections
        (org_id, user_id, entra_tenant_id, scopes, refresh_token_ciphertext, key_id, status)
        values ('a1500000-0000-0000-0000-000000000001','a1500000-0000-0000-0000-0000000000a1',
-               '11111111-2222-3333-4444-555555555555', array['offline_access'], '\x11'::bytea, 'kek-v1', 'active') $$,
+               '11111111-2222-3333-4444-555555555555', array['offline_access'], '\x11000000000000000000000000000000000000000000000000000000'::bytea, 'kek-v1', 'active') $$,
   '42501', null, 'AC-M365-160 write-guard (locked): INSERT for a DISENTITLED org is rejected (42501)');
 
 -- ============================================================================
@@ -83,7 +83,7 @@ select throws_ok(
 insert into public.ms_graph_connections
   (org_id, user_id, entra_tenant_id, scopes, refresh_token_ciphertext, key_id, status)
 values ('a1500000-0000-0000-0000-000000000002','a1500000-0000-0000-0000-0000000000b1',
-        '11111111-2222-3333-4444-555555555555', array['offline_access'], '\x20'::bytea, 'kek-v1', 'active');
+        '11111111-2222-3333-4444-555555555555', array['offline_access'], '\x20000000000000000000000000000000000000000000000000000000'::bytea, 'kek-v1', 'active');
 
 -- Offboard (active→disabled): the transition trigger cleans the connection.
 update public.profiles set status = 'disabled' where id = 'a1500000-0000-0000-0000-0000000000b1';
@@ -97,7 +97,7 @@ alter table public.ms_graph_connections disable trigger m365_connection_write_gu
 insert into public.ms_graph_connections
   (org_id, user_id, entra_tenant_id, scopes, refresh_token_ciphertext, key_id, status)
 values ('a1500000-0000-0000-0000-000000000002','a1500000-0000-0000-0000-0000000000b1',
-        '11111111-2222-3333-4444-555555555555', array['offline_access'], '\x21'::bytea, 'kek-v1', 'active');
+        '11111111-2222-3333-4444-555555555555', array['offline_access'], '\x21000000000000000000000000000000000000000000000000000000'::bytea, 'kek-v1', 'active');
 alter table public.ms_graph_connections enable trigger m365_connection_write_guard;
 select is(
   (select count(*)::int from public.ms_graph_connections where user_id = 'a1500000-0000-0000-0000-0000000000b1'),
@@ -128,7 +128,7 @@ select is(
 insert into public.ms_graph_connections
   (org_id, user_id, entra_tenant_id, scopes, refresh_token_ciphertext, key_id, status)
 values ('a1500000-0000-0000-0000-000000000003','a1500000-0000-0000-0000-0000000000c1',
-        '11111111-2222-3333-4444-555555555555', array['offline_access'], '\x30'::bytea, 'kek-v1', 'active');
+        '11111111-2222-3333-4444-555555555555', array['offline_access'], '\x30000000000000000000000000000000000000000000000000000000'::bytea, 'kek-v1', 'active');
 
 -- Disentitle (true→false): the transition cascade cleans the connection.
 update public.org_features set enabled = false
@@ -142,7 +142,7 @@ alter table public.ms_graph_connections disable trigger m365_connection_write_gu
 insert into public.ms_graph_connections
   (org_id, user_id, entra_tenant_id, scopes, refresh_token_ciphertext, key_id, status)
 values ('a1500000-0000-0000-0000-000000000003','a1500000-0000-0000-0000-0000000000c1',
-        '11111111-2222-3333-4444-555555555555', array['offline_access'], '\x31'::bytea, 'kek-v1', 'active');
+        '11111111-2222-3333-4444-555555555555', array['offline_access'], '\x31000000000000000000000000000000000000000000000000000000'::bytea, 'kek-v1', 'active');
 alter table public.ms_graph_connections enable trigger m365_connection_write_guard;
 select is(
   (select count(*)::int from public.ms_graph_connections where org_id = 'a1500000-0000-0000-0000-000000000003'),
@@ -171,7 +171,7 @@ update public.org_features set enabled = true
 insert into public.ms_graph_connections
   (org_id, user_id, entra_tenant_id, scopes, refresh_token_ciphertext, key_id, status)
 values ('a1500000-0000-0000-0000-000000000003','a1500000-0000-0000-0000-0000000000c1',
-        '11111111-2222-3333-4444-555555555555', array['offline_access'], '\x32'::bytea, 'kek-v1', 'active');
+        '11111111-2222-3333-4444-555555555555', array['offline_access'], '\x32000000000000000000000000000000000000000000000000000000'::bytea, 'kek-v1', 'active');
 update public.org_features set enabled = true
  where org_id = 'a1500000-0000-0000-0000-000000000003' and feature_key = 'm365_integration';
 select is(

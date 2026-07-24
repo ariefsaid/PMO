@@ -3,7 +3,7 @@
 
 import type { HandlerDeps, HandlerResult, ConnectionRow } from './types.ts';
 import { resolveOrgOrResult } from './auth.ts';
-import { decryptToken, deserializeEnvelope, resolveKek } from './crypto.ts';
+import { decryptToken, deserializeEnvelope, resolveKek, fromByteaValue } from './crypto.ts';
 import { logAudit, recordM365Error } from './audit.ts';
 import { isValidTenant } from '../../../pmo-portal/src/lib/m365/graphPkce.ts';
 
@@ -49,7 +49,7 @@ export async function handleDisconnect(deps: HandlerDeps): Promise<HandlerResult
       throw new Error('invalid tenant');
     }
     const kek = resolveKek(env, connection.key_id);
-    const envelope = deserializeEnvelope(connection.refresh_token_ciphertext);
+    const envelope = deserializeEnvelope(fromByteaValue(connection.refresh_token_ciphertext));
     const refreshToken = await decryptToken(envelope.ciphertext, envelope.iv, kek);
     await fetchImpl(`${REVOKE_ENDPOINT}/${connection.entra_tenant_id}/oauth2/v2.0/revoke`, {
       method: 'POST',

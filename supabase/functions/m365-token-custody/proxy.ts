@@ -5,7 +5,7 @@
 
 import type { HandlerDeps, HandlerResult, GraphProxyRequest, ConnectionRow } from './types.ts';
 import { resolveOrgOrResult } from './auth.ts';
-import { decryptToken, deserializeEnvelope, resolveKek } from './crypto.ts';
+import { decryptToken, deserializeEnvelope, resolveKek, fromByteaValue } from './crypto.ts';
 import { refreshAccessToken } from './refresh.ts';
 import { recordM365Error } from './audit.ts';
 
@@ -134,11 +134,11 @@ async function loadFreshAccessToken(connection: ConnectionRow, deps: HandlerDeps
       .single();
     const freshRow = fresh as { access_token_ciphertext: Uint8Array | null; key_id: string } | null;
     if (freshError || !freshRow || !freshRow.access_token_ciphertext) throw new Error('refresh produced no token');
-    const envelope = deserializeEnvelope(freshRow.access_token_ciphertext);
+    const envelope = deserializeEnvelope(fromByteaValue(freshRow.access_token_ciphertext));
     return decryptToken(envelope.ciphertext, envelope.iv, resolveKek(env, freshRow.key_id));
   }
 
-  const envelope = deserializeEnvelope(connection.access_token_ciphertext);
+  const envelope = deserializeEnvelope(fromByteaValue(connection.access_token_ciphertext));
   return decryptToken(envelope.ciphertext, envelope.iv, kek);
 }
 

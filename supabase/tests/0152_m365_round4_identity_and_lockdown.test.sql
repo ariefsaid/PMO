@@ -57,7 +57,7 @@ insert into org_features (org_id, feature_key, enabled, updated_by) values
 select public.m365_upsert_connection(
   'a1520000-0000-0000-0000-000000000001','a1520000-0000-0000-0000-0000000000a1',
   '11111111-2222-3333-4444-555555555555','oid-a',array['offline_access'],
-  '\x01'::bytea,'\x02'::bytea,now(),'kek-v1',now(),now());
+  '\x01000000000000000000000000000000000000000000000000000000'::bytea,'\x02000000000000000000000000000000000000000000000000000000'::bytea,now(),'kek-v1',now(),now());
 select is(count(*)::int, 1, 'AC-M365-167 setup: connA exists for Org A / User A')
   from public.ms_graph_connections
  where org_id = 'a1520000-0000-0000-0000-000000000001' and user_id = 'a1520000-0000-0000-0000-0000000000a1';
@@ -67,12 +67,12 @@ select is(
   public.m365_refresh_connection(
     'a1520000-0000-0000-0000-000000000002','a1520000-0000-0000-0000-0000000000b1',
     (select id from public.ms_graph_connections where org_id='a1520000-0000-0000-0000-000000000001' and user_id='a1520000-0000-0000-0000-0000000000a1'),
-    '\x99'::bytea,'\x99'::bytea,now(),now()),
+    '\x99000000000000000000000000000000000000000000000000000000'::bytea,'\x99000000000000000000000000000000000000000000000000000000'::bytea,now(),now()),
   null::uuid,
   'AC-M365-167 MED-1: m365_refresh_connection with a MISMATCHED (org,user) returns NULL (identity not bound → rejected)');
 select is(
   (select refresh_token_ciphertext from public.ms_graph_connections where org_id='a1520000-0000-0000-0000-000000000001' and user_id='a1520000-0000-0000-0000-0000000000a1'),
-  '\x01'::bytea,
+  '\x01000000000000000000000000000000000000000000000000000000'::bytea,
   'AC-M365-167 MED-1: the mismatched refresh call did NOT mutate connA (refresh_token_ciphertext unchanged)');
 
 -- m365_refresh_connection: MATCHING (Org A / User A, connA.id) → id, mutated.
@@ -80,12 +80,12 @@ select is(
   public.m365_refresh_connection(
     'a1520000-0000-0000-0000-000000000001','a1520000-0000-0000-0000-0000000000a1',
     (select id from public.ms_graph_connections where org_id='a1520000-0000-0000-0000-000000000001' and user_id='a1520000-0000-0000-0000-0000000000a1'),
-    '\x55'::bytea,'\x55'::bytea,now(),now()) is not null,
+    '\x55000000000000000000000000000000000000000000000000000000'::bytea,'\x55000000000000000000000000000000000000000000000000000000'::bytea,now(),now()) is not null,
   true,
   'AC-M365-167 MED-1: the MATCHING refresh call returns the id');
 select is(
   (select refresh_token_ciphertext from public.ms_graph_connections where org_id='a1520000-0000-0000-0000-000000000001' and user_id='a1520000-0000-0000-0000-0000000000a1'),
-  '\x55'::bytea,
+  '\x55000000000000000000000000000000000000000000000000000000'::bytea,
   'AC-M365-167 MED-1: the matching refresh call MUTATED connA (refresh_token_ciphertext = 0x55)');
 
 -- m365_set_connection_status: MISMATCHED → NULL, status still 'active'.
@@ -173,7 +173,7 @@ select is(
 select public.m365_upsert_connection(
   'a1520000-0000-0000-0000-000000000003','a1520000-0000-0000-0000-0000000000c1',
   '11111111-2222-3333-4444-555555555555','oid-c',array['offline_access'],
-  '\x01'::bytea,'\x02'::bytea,now(),'kek-v1',now(),now());
+  '\x01000000000000000000000000000000000000000000000000000000'::bytea,'\x02000000000000000000000000000000000000000000000000000000'::bytea,now(),'kek-v1',now(),now());
 select is(count(*)::int, 1, 'AC-M365-168 MED-2 setup: connC exists for Org C / User C')
   from public.ms_graph_connections where org_id='a1520000-0000-0000-0000-000000000003';
 -- Offboard User C → the SECURITY-DEFINER offboard cascade still deletes connC.

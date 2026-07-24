@@ -5,6 +5,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { handleGraphProxy } from '../../../../../supabase/functions/m365-token-custody/proxy';
 import { scopeCoversPath } from '../../../../../supabase/functions/m365-token-custody/proxy';
+import { fromByteaValue, toByteaParam } from '../../../../../supabase/functions/m365-token-custody/crypto';
 import { mockClient, deps, encryptForTest } from './m365MockDeps';
 import type { ConnectionRow, GraphProxyRequest } from '../../../../../supabase/functions/m365-token-custody/types';
 
@@ -89,8 +90,18 @@ describe('AC-M365-110/111/112/113/114 — handleGraphProxy', () => {
     const update = service.writes.find((w) => w.kind === 'update' && w.table === 'ms_graph_connections');
     expect(update).toBeTruthy();
     expect(update!.payload).toMatchObject({ status: 'active' });
-    expect((update!.payload as Record<string, unknown>).access_token_ciphertext).toBeInstanceOf(Uint8Array);
-    expect((update!.payload as Record<string, unknown>).refresh_token_ciphertext).toBeInstanceOf(Uint8Array);
+    // REGRESSION — HIGH-A1 (2026-07-24): the ROTATED pair must also go through the bytea wire seam.
+    // The original defect was in callback.ts AND refresh.ts; fixing only the first would leave every
+    // token rotation writing an unrecoverable envelope. Postgres hex format, round-tripping exactly.
+    for (const col of ['access_token_ciphertext', 'refresh_token_ciphertext'] as const) {
+      const wire = (update!.payload as Record<string, unknown>)[col];
+      expect(typeof wire).toBe('string');
+      expect(wire as string).toMatch(/^\\x[0-9a-f]+$/);
+      const bytes = fromByteaValue(wire);
+      expect(bytes.byteLength).toBeGreaterThanOrEqual(28);
+      expect(bytes[0]).not.toBe(0x7b);
+      expect(toByteaParam(bytes)).toBe(wire);
+    }
     // Audited as refreshed.
     expect(service.rpc).toHaveBeenCalledWith('audit_m365_event', expect.objectContaining({ p_action: 'm365.token.refreshed' }));
   });

@@ -59,11 +59,11 @@ insert into public.ms_graph_connections
   (org_id, user_id, entra_tenant_id, scopes, refresh_token_ciphertext, access_token_ciphertext, key_id, status)
 values
   ('a1490000-0000-0000-0000-000000000001','a1490000-0000-0000-0000-0000000000a2',
-   '11111111-2222-3333-4444-555555555555', array['offline_access','Files.Read'], '\x01'::bytea, '\x02'::bytea, 'kek-v1', 'active'),
+   '11111111-2222-3333-4444-555555555555', array['offline_access','Files.Read'], '\x01000000000000000000000000000000000000000000000000000000'::bytea, '\x02000000000000000000000000000000000000000000000000000000'::bytea, 'kek-v1', 'active'),
   ('a1490000-0000-0000-0000-000000000002','a1490000-0000-0000-0000-0000000000b1',
-   '11111111-2222-3333-4444-555555555555', array['offline_access','Files.Read'], '\x03'::bytea, '\x04'::bytea, 'kek-v1', 'active'),
+   '11111111-2222-3333-4444-555555555555', array['offline_access','Files.Read'], '\x03000000000000000000000000000000000000000000000000000000'::bytea, '\x04000000000000000000000000000000000000000000000000000000'::bytea, 'kek-v1', 'active'),
   ('a1490000-0000-0000-0000-000000000002','a1490000-0000-0000-0000-0000000000b2',
-   '11111111-2222-3333-4444-555555555555', array['offline_access','Files.Read'], '\x05'::bytea, '\x06'::bytea, 'kek-v1', 'active');
+   '11111111-2222-3333-4444-555555555555', array['offline_access','Files.Read'], '\x05000000000000000000000000000000000000000000000000000000'::bytea, '\x06000000000000000000000000000000000000000000000000000000'::bytea, 'kek-v1', 'active');
 
 -- Pending PKCE states (C1a must purge these on offboard / disentitlement so an in-flight callback
 -- cannot resurrect a connection).
@@ -139,14 +139,14 @@ select throws_ok(
   $$ insert into public.ms_graph_connections
        (org_id, user_id, entra_tenant_id, scopes, refresh_token_ciphertext, key_id, status)
        values ('a1490000-0000-0000-0000-000000000001','a1490000-0000-0000-0000-0000000000a2',
-               '11111111-2222-3333-4444-555555555555', array['offline_access'], '\x10'::bytea, 'kek-v1', 'active') $$,
+               '11111111-2222-3333-4444-555555555555', array['offline_access'], '\x10000000000000000000000000000000000000000000000000000000'::bytea, 'kek-v1', 'active') $$,
   '42501', null, 'C1(b) write-guard: INSERT for a DISABLED user is rejected (42501) — no resurrection');
 
 select throws_ok(
   $$ insert into public.ms_graph_connections
        (org_id, user_id, entra_tenant_id, scopes, refresh_token_ciphertext, key_id, status)
        values ('a1490000-0000-0000-0000-000000000002','a1490000-0000-0000-0000-0000000000b1',
-               '11111111-2222-3333-4444-555555555555', array['offline_access'], '\x11'::bytea, 'kek-v1', 'active') $$,
+               '11111111-2222-3333-4444-555555555555', array['offline_access'], '\x11000000000000000000000000000000000000000000000000000000'::bytea, 'kek-v1', 'active') $$,
   '42501', null, 'C1(b) write-guard: INSERT for a DISENTITLED org is rejected (42501) — no resurrection');
 
 -- ============================================================================
@@ -158,7 +158,7 @@ alter table public.ms_graph_connections disable trigger m365_connection_write_gu
 insert into public.ms_graph_connections
   (org_id, user_id, entra_tenant_id, scopes, refresh_token_ciphertext, key_id, status)
 values ('a1490000-0000-0000-0000-000000000003','a1490000-0000-0000-0000-0000000000c1',
-        '11111111-2222-3333-4444-555555555555', array['offline_access'], '\x20'::bytea, 'kek-v1', 'active');
+        '11111111-2222-3333-4444-555555555555', array['offline_access'], '\x20000000000000000000000000000000000000000000000000000000'::bytea, 'kek-v1', 'active');
 alter table public.ms_graph_connections enable trigger m365_connection_write_guard;
 
 select is(
@@ -200,7 +200,7 @@ reset role;
 insert into public.ms_graph_connections
   (org_id, user_id, entra_tenant_id, scopes, refresh_token_ciphertext, key_id, status)
 values ('a1490000-0000-0000-0000-000000000003','a1490000-0000-0000-0000-0000000000c1',
-        '11111111-2222-3333-4444-555555555555', array['offline_access'], '\x21'::bytea, 'kek-v1', 'active');
+        '11111111-2222-3333-4444-555555555555', array['offline_access'], '\x21000000000000000000000000000000000000000000000000000000'::bytea, 'kek-v1', 'active');
 
 -- Flip the row to disabled WITHOUT firing the UPDATE cascade (suspend only the AFTER UPDATE trigger;
 -- the BEFORE immutability trigger stays — it allows enabled changes).
@@ -251,21 +251,21 @@ select lives_ok(
   $$ insert into public.ms_graph_connections
        (org_id, user_id, entra_tenant_id, scopes, refresh_token_ciphertext, key_id, status)
        values ('a1490000-0000-0000-0000-000000000001','a1490000-0000-0000-0000-0000000000a1',
-               'contoso.onmicrosoft.com', array['offline_access'], '\x30'::bytea, 'kek-v1', 'active') $$,
+               'contoso.onmicrosoft.com', array['offline_access'], '\x30000000000000000000000000000000000000000000000000000000'::bytea, 'kek-v1', 'active') $$,
   'M3: a valid verified-domain tenant passes the CHECK');
 
 select throws_ok(
   $$ insert into public.ms_graph_connections
        (org_id, user_id, entra_tenant_id, scopes, refresh_token_ciphertext, key_id, status)
        values ('a1490000-0000-0000-0000-000000000001','a1490000-0000-0000-0000-0000000000a1',
-               '..', array['offline_access'], '\x31'::bytea, 'kek-v1', 'active') $$,
+               '..', array['offline_access'], '\x31000000000000000000000000000000000000000000000000000000'::bytea, 'kek-v1', 'active') $$,
   '23514', null, 'M3: tenant value ".." rejected by the CHECK (dot-segment)');
 
 select throws_ok(
   $$ insert into public.ms_graph_connections
        (org_id, user_id, entra_tenant_id, scopes, refresh_token_ciphertext, key_id, status)
        values ('a1490000-0000-0000-0000-000000000001','a1490000-0000-0000-0000-0000000000a1',
-               '.', array['offline_access'], '\x32'::bytea, 'kek-v1', 'active') $$,
+               '.', array['offline_access'], '\x32000000000000000000000000000000000000000000000000000000'::bytea, 'kek-v1', 'active') $$,
   '23514', null, 'M3: all-dot tenant value "." rejected by the CHECK');
 
 -- ============================================================================

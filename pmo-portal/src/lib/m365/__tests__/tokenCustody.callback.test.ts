@@ -5,6 +5,7 @@
  */
 import { describe, it, expect, vi } from 'vitest';
 import { handleCallback } from '../../../../../supabase/functions/m365-token-custody/callback';
+import { fromByteaValue, toByteaParam } from '../../../../../supabase/functions/m365-token-custody/crypto';
 import { mockClient, deps } from './m365MockDeps';
 import type { PkceStateRow } from '../../../../../supabase/functions/m365-token-custody/types';
 
@@ -83,8 +84,23 @@ describe('AC-M365-103/104/105 — handleCallback', () => {
       entra_user_object_id: 'user-oid-123',
     });
     const payload = upsert!.payload as Record<string, unknown>;
-    expect(payload.access_token_ciphertext).toBeInstanceOf(Uint8Array);
-    expect(payload.refresh_token_ciphertext).toBeInstanceOf(Uint8Array);
+    // REGRESSION — HIGH-A1 (live security audit 2026-07-24). This assertion previously required a
+    // Uint8Array, which ENCODED THE BUG: supabase-js JSON-encodes RPC args, so a Uint8Array bytea
+    // param serializes to `{"0":12,"1":255,…}` and Postgres stores that literal ASCII. The live row
+    // was 14,709 bytes of printable text starting `{"0"` — genuine AES-GCM output, but wrapped so
+    // the IV could never be recovered, making disconnect silently fail to revoke at Microsoft.
+    // The wire contract is Postgres hex format, and it must round-trip to the exact bytes.
+    for (const col of ['access_token_ciphertext', 'refresh_token_ciphertext'] as const) {
+      const wire = payload[col];
+      expect(typeof wire).toBe('string');
+      expect(wire as string).toMatch(/^\\x[0-9a-f]+$/);
+      const bytes = fromByteaValue(wire);
+      expect(bytes).toBeInstanceOf(Uint8Array);
+      // iv(12) + at least the 16-byte GCM tag; and never a JSON object's opening brace.
+      expect(bytes.byteLength).toBeGreaterThanOrEqual(28);
+      expect(bytes[0]).not.toBe(0x7b);
+      expect(toByteaParam(bytes)).toBe(wire);
+    }
     expect(payload.access_token_expires_at).toBeTruthy();
 
     // Audited via the audit_m365_event RPC (EF7 — NOT log_audit).
