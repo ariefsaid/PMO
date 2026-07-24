@@ -73,6 +73,17 @@ describe('AC-M365-014 — initiateM365Connect transport', () => {
     invoke.mockResolvedValueOnce({ data: null, error: null });
     await expect(initiateM365Connect()).rejects.toMatchObject({ name: 'AppError' });
   });
+
+  it('a HANGING invoke times out → external-unreachable AppError (the connect button never freezes)', async () => {
+    vi.useFakeTimers();
+    invoke.mockReturnValueOnce(new Promise(() => {})); // never settles — Microsoft/edge fn hung
+    const pending = captureThrow(() => initiateM365Connect());
+    await vi.advanceTimersByTimeAsync(30_000);
+    const err = await pending;
+    expect(err).toBeInstanceOf(AppError);
+    expect(err.code).toBe('external-unreachable');
+    vi.useRealTimers();
+  });
 });
 
 describe('AC-M365-015 — M365ErrorCode taxonomy maps to human copy (never a raw code/internal string)', () => {

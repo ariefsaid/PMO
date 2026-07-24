@@ -76,7 +76,8 @@ import { refreshAccountingSnapshots, type OrgAccountingScope } from '../../../pm
 import { dispatchMoneyWrite, type DispatchMoneyWriteDeps, type ExternalRefMapping, type OutboxRow } from '../../../pmo-portal/src/lib/adapterSeam/dispatch.ts';
 import type { AdapterCommand, PmoRecord } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
 import { resolveErpCredentials } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/credentials.ts';
-import { erpnextRequest, withProbeBudget, type ErpClientDeps } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/client.ts';
+import { erpnextRequest, withProbeBudget, ERP_PROBE_TIMEOUT_MS, type ErpClientDeps } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/client.ts';
+import { fetchWithDeadline } from '../_shared/fetchWithDeadline.ts';
 import {
   readBudgetLineItems,
   readCategoryAccountMap,
@@ -2011,9 +2012,20 @@ async function readErpFiscalYearsLive(org: OrgBinding): Promise<FiscalYearRow[]>
   const url = new URL('/api/resource/Fiscal Year', org.siteUrl);
   url.searchParams.set('fields', JSON.stringify(['name', 'year_start_date', 'year_end_date']));
   url.searchParams.set('limit_page_length', '0');
-  const res = await fetch(url.toString(), {
-    headers: { Authorization: `token ${apiKey}:${apiSecret}`, Accept: 'application/json' },
-  });
+  // ⚑ Server-side hang guard (money path) — mirrors the foreground gate's fiscal read: bound this raw
+  // fetch so a slow/down ERPNext can't block the sweep worker forever; a deadline (or network failure)
+  // fails CLOSED as `external-unreachable` (same as a non-2xx).
+  let res: Response;
+  try {
+    res = await fetchWithDeadline(
+      fetch,
+      url.toString(),
+      { headers: { Authorization: `token ${apiKey}:${apiSecret}`, Accept: 'application/json' } },
+      ERP_PROBE_TIMEOUT_MS,
+    );
+  } catch (_err) {
+    throw new AppError('could not read the ERPNext fiscal calendar (unreachable)', 'external-unreachable');
+  }
   if (!res.ok) throw new AppError(`could not read the ERPNext fiscal calendar (HTTP ${res.status})`, 'external-unreachable');
   const body = (await res.json()) as { data?: unknown };
   const rows = Array.isArray(body.data) ? body.data : [];

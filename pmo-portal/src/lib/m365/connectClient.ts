@@ -18,6 +18,7 @@
 // navigates to `authorizeUrl` only).
 import { supabase } from '../supabase/client.ts';
 import { AppError } from '../appError.ts';
+import { invokeWithTimeout } from '../supabase/invokeWithTimeout.ts';
 
 const FN_NAME = 'm365-token-custody';
 
@@ -143,9 +144,11 @@ async function throwClassified(error: unknown): Promise<never> {
  * in the card, not here). Throws `AppError(message, M365ErrorCode)` on any failure.
  */
 export async function initiateM365Connect(): Promise<InitiateConnectResult> {
-  const { data, error } = await supabase.functions.invoke<InitiateConnectResult>(FN_NAME, {
-    body: { action: 'initiate_connect' },
-  });
+  const { data, error } = await invokeWithTimeout(
+    supabase.functions.invoke<InitiateConnectResult>(FN_NAME, {
+      body: { action: 'initiate_connect' },
+    }),
+  );
   if (error) await throwClassified(error);
   if (!data || typeof data.authorizeUrl !== 'string' || !data.authorizeUrl) {
     // No partial redirect: a malformed 2xx is a generic failure, never a blank navigation.
@@ -160,9 +163,11 @@ export async function initiateM365Connect(): Promise<InitiateConnectResult> {
  * (e.g. NOT_CONNECTED if the row is already gone, INTERNAL_ERROR if the delete failed).
  */
 export async function disconnectM365(): Promise<void> {
-  const { error } = await supabase.functions.invoke<DisconnectResult>(FN_NAME, {
-    body: { action: 'disconnect' },
-  });
+  const { error } = await invokeWithTimeout(
+    supabase.functions.invoke<DisconnectResult>(FN_NAME, {
+      body: { action: 'disconnect' },
+    }),
+  );
   if (error) await throwClassified(error);
 }
 
@@ -177,9 +182,11 @@ export async function disconnectM365(): Promise<void> {
  * unparseable response as "connected".
  */
 export async function getM365ConnectionStatus(): Promise<ConnectionStatus> {
-  const { data, error } = await supabase.functions.invoke<ConnectionStatus>(FN_NAME, {
-    body: { action: 'connection_status' },
-  });
+  const { data, error } = await invokeWithTimeout(
+    supabase.functions.invoke<ConnectionStatus>(FN_NAME, {
+      body: { action: 'connection_status' },
+    }),
+  );
   if (error) await throwClassified(error);
   if (!data || typeof data.connected !== 'boolean') {
     throw new AppError(describeM365Error('INTERNAL_ERROR'), 'INTERNAL_ERROR');
