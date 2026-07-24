@@ -1,13 +1,17 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 const h = vi.hoisted(() => ({ invoke: vi.fn() }));
 vi.mock('../supabase/client.ts', () => ({ supabase: { functions: { invoke: h.invoke } } }));
 
-import { dispatchTaskCommand, classifyDispatchError } from './dispatchClient.ts';
+import { dispatchTaskCommand, dispatchDomainCommand, classifyDispatchError } from './dispatchClient.ts';
 import { AppError } from '../appError.ts';
 
 beforeEach(() => {
   h.invoke.mockReset();
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 describe('dispatchTaskCommand — the FE→adapter-dispatch transport (FR-CUA-022/023/024, ADR-0056)', () => {
@@ -84,6 +88,39 @@ describe('dispatchTaskCommand — the FE→adapter-dispatch transport (FR-CUA-02
   it('throws when invoke resolves with no error but also no data', async () => {
     h.invoke.mockResolvedValue({ data: null, error: null });
     await expect(dispatchTaskCommand('create', { id: 't1' })).rejects.toBeInstanceOf(AppError);
+  });
+
+  it('AC-732 a HANGING invoke (served fn reachable, ERP not) times out → external-unreachable AppError, never a frozen mutation', async () => {
+    // The CI-only budget-activate hang root cause: `supabase.functions.invoke` never settles because
+    // the ERPNext bench behind the reachable edge fn is unreachable. Without a bound the confirm
+    // dialog's mutation stays pending forever (both buttons `[disabled]`). The seam must fail fast.
+    vi.useFakeTimers();
+    h.invoke.mockReturnValue(new Promise(() => {})); // NEVER resolves — the hang
+    const pending = dispatchDomainCommand('procurement', 'create', { id: 'po-1' }).catch((e) => e);
+    await vi.advanceTimersByTimeAsync(30_000);
+    const err = await pending;
+    expect(err).toBeInstanceOf(AppError);
+    expect(err.code).toBe('external-unreachable');
+    // Money-safety: a timeout is a FAILURE, never a false success — the raw fetch/host string never leaks.
+    expect(err.message).not.toContain('http');
+  });
+
+  it('honors a caller-supplied timeoutMs override on a hanging dispatch', async () => {
+    vi.useFakeTimers();
+    h.invoke.mockReturnValue(new Promise(() => {}));
+    const pending = dispatchDomainCommand('procurement', 'create', { id: 'po-1' }, { timeoutMs: 5_000 }).catch((e) => e);
+    await vi.advanceTimersByTimeAsync(5_000);
+    const err = await pending;
+    expect(err).toBeInstanceOf(AppError);
+    expect(err.code).toBe('external-unreachable');
+  });
+
+  it('does NOT time out a fast successful push (happy path unchanged)', async () => {
+    vi.useFakeTimers();
+    const canonical = { id: 'po-1', status: 'Submitted' };
+    h.invoke.mockResolvedValue({ data: { externalRecordId: 'erp-1', canonical }, error: null });
+    const result = await dispatchDomainCommand('procurement', 'create', { id: 'po-1' });
+    expect(result).toEqual({ externalRecordId: 'erp-1', canonical });
   });
 });
 

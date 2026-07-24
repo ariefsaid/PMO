@@ -12,6 +12,7 @@
  */
 import { toAppError, AppError } from '@/src/lib/appError';
 import { supabase } from '@/src/lib/supabase/client';
+import { invokeWithTimeout } from '@/src/lib/supabase/invokeWithTimeout';
 import {
   type IntegrationsRepository,
   type IntegrationBinding,
@@ -719,18 +720,22 @@ const integrationsImpl: IntegrationsRepository = {
   },
   connectIntegration: async (orgId: string, credential: ConnectCredential): Promise<ConnectResponse> => {
     return wrap(async () => {
-      const { data, error } = await supabase.functions.invoke('external-connect', {
-        body: { tier: credential.tier, credential: credential.credential },
-      });
+      const { data, error } = await invokeWithTimeout(
+        supabase.functions.invoke<ConnectResponse>('external-connect', {
+          body: { tier: credential.tier, credential: credential.credential },
+        }),
+      );
       if (error) throw error;
       return data as ConnectResponse;
     });
   },
   disconnectIntegration: async (orgId: string, tier: ExternalTier): Promise<DisconnectResponse> => {
     return wrap(async () => {
-      const { data, error } = await supabase.functions.invoke('external-disconnect', {
-        body: { tier },
-      });
+      const { data, error } = await invokeWithTimeout(
+        supabase.functions.invoke<DisconnectResponse>('external-disconnect', {
+          body: { tier },
+        }),
+      );
       if (error) throw error;
       return data as DisconnectResponse;
     });
@@ -775,27 +780,33 @@ const integrationsImpl: IntegrationsRepository = {
   },
   listProjectLists: async (_orgId: string): Promise<ClickUpListItem[]> => {
     return wrap(async () => {
-      const { data, error } = await supabase.functions.invoke('external-lists', {
-        body: { tier: 'clickup' },
-      });
+      const { data, error } = await invokeWithTimeout(
+        supabase.functions.invoke<{ lists: ClickUpListItem[] }>('external-lists', {
+          body: { tier: 'clickup' },
+        }),
+      );
       if (error) throw error;
       return (data as { lists: ClickUpListItem[] }).lists;
     });
   },
   linkProject: async (_orgId: string, input: LinkInput): Promise<LinkResponse> => {
     return wrap(async () => {
-      const { data, error } = await supabase.functions.invoke('external-link', {
-        body: { ...input },
-      });
+      const { data, error } = await invokeWithTimeout(
+        supabase.functions.invoke<LinkResponse>('external-link', {
+          body: { ...input },
+        }),
+      );
       if (error) throw error;
       return data as LinkResponse;
     });
   },
   unlinkProject: async (_orgId: string, input: UnlinkInput): Promise<UnlinkResponse> => {
     return wrap(async () => {
-      const { data, error } = await supabase.functions.invoke('external-unlink', {
-        body: { ...input },
-      });
+      const { data, error } = await invokeWithTimeout(
+        supabase.functions.invoke<UnlinkResponse>('external-unlink', {
+          body: { ...input },
+        }),
+      );
       if (error) throw error;
       return data as UnlinkResponse;
     });
@@ -816,9 +827,11 @@ const integrationsImpl: IntegrationsRepository = {
       if (tier !== 'erpnext') {
         return [];
       }
-      const { data, error } = await supabase.functions.invoke('external-companies', {
-        body: { tier: 'erpnext' },
-      });
+      const { data, error } = await invokeWithTimeout(
+        supabase.functions.invoke<{ companies: { name: string }[] }>('external-companies', {
+          body: { tier: 'erpnext' },
+        }),
+      );
       if (error) throw error;
       return (data as { companies: { name: string }[] }).companies;
     });
@@ -828,9 +841,11 @@ const integrationsImpl: IntegrationsRepository = {
       if (tier !== 'erpnext') {
         throw new Error('Only erpnext tier supports company selection');
       }
-      const { data, error } = await supabase.functions.invoke('external-set-company', {
-        body: { tier: 'erpnext', companyId },
-      });
+      const { data, error } = await invokeWithTimeout(
+        supabase.functions.invoke<{ ok: true; companyId: string }>('external-set-company', {
+          body: { tier: 'erpnext', companyId },
+        }),
+      );
       if (error) throw error;
       return data as { ok: true; companyId: string };
     });
