@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { AccessDenied, Badge, Card, ListState, StatusPill, ViewToggle, useToast } from '@/src/components/ui';
+import { AccessDenied, Badge, Card, ConfirmDialog, ListState, StatusPill, TextArea, ViewToggle, useToast } from '@/src/components/ui';
 import { describePushMutationError } from '@/src/lib/adapterSeam/pushErrorCopy';
 import { usePermission } from '@/src/auth/usePermission';
 import { useProcurements } from '@/src/hooks/useProcurements';
@@ -323,10 +323,42 @@ function EmployeeLinkConfirmSection() {
  * same honest wording — the client's read can be stale, so the server always gets the last word.
  */
 function ReopenableApprovedSection() {
+  const may = usePermission();
   const { toast } = useToast();
   const { data, isPending, isError } = useReopenableApprovedTimesheets();
-  const { reopenApproved } = useTimesheetMutations();
+  const { reopenApproved, attestNoErpDocument } = useTimesheetMutations();
   const [reopeningId, setReopeningId] = useState<string | null>(null);
+  // ⚑ SHOULD-FIX 1 (Luna FU-1a round-12) — the attestation is the ONLY route out of an ERP unknown.
+  // Admin-only on the REAL role (`can()` is UX; the RPC re-asserts org + Admin + active membership).
+  // Reason-required (the RPC demands it), so the confirm is a dialog, not a one-click write.
+  const canAttest = may('manage', 'pushHold');
+  const [attestFor, setAttestFor] = useState<{ id: string; owner: string } | null>(null);
+  const [attestReason, setAttestReason] = useState('');
+
+  const closeAttest = () => {
+    setAttestFor(null);
+    setAttestReason('');
+  };
+
+  const submitAttest = () => {
+    if (!attestFor || attestReason.trim() === '') return;
+    const target = attestFor;
+    attestNoErpDocument.mutate(
+      { id: target.id, reason: attestReason.trim() },
+      {
+        onSuccess: () => {
+          closeAttest();
+          toast('Confirmed — the week is clear to re-open', `${target.owner}: ERPNext holds no document`, 'success');
+        },
+        // I-13: a silent affordance reads as broken, so BOTH outcomes speak. The server's fail-closed
+        // refusals (42501 not-authorized, P0001 nothing-to-attest) are surfaced in the user's terms.
+        onError: (err: unknown) => {
+          const msg = err instanceof Error ? err.message : String(err);
+          toast('Could not confirm the ERP result', msg, 'warning');
+        },
+      },
+    );
+  };
 
   if (isPending || isError || !data || data.length === 0) return null;
 
@@ -358,9 +390,13 @@ function ReopenableApprovedSection() {
           // keeps `push_state = 'held'` as an INDEPENDENT predicate for the pre-0157 residue (a row parked
           // `held` before the witness column existed), so classifying on the witness alone rendered an
           // active button the server could only refuse.
-          const outcomeUnknown =
-            !pushed && (Boolean(row.mirror?.post_submit_unknown_at) || row.mirror?.push_state === 'held');
+          const hasWitness = !pushed && Boolean(row.mirror?.post_submit_unknown_at);
+          const outcomeUnknown = hasWitness || (!pushed && row.mirror?.push_state === 'held');
           const inFlight = !pushed && !outcomeUnknown && row.pushCommandState !== null;
+          // The attestation clears a WITNESS (0157 §5). A pre-0157-residue `held` mirror carries none,
+          // so the RPC would refuse it — offer the affordance ONLY where it can succeed (a real
+          // witness). Those residue rows keep the note; their route out is documented separately.
+          const offerAttest = canAttest && hasWitness;
           return (
             <div
               key={row.id}
@@ -375,9 +411,23 @@ function ReopenableApprovedSection() {
                   Already pushed to ERP — correction path coming
                 </span>
               ) : outcomeUnknown ? (
-                <span className="text-[12px] text-muted-foreground">
-                  ERP result unknown — an administrator must confirm what ERPNext holds
-                </span>
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                  <span className="text-[12px] text-muted-foreground">
+                    ERP result unknown — an administrator must confirm what ERPNext holds
+                  </span>
+                  {offerAttest && (
+                    <button
+                      type="button"
+                      className="h-8 rounded-md border border-border px-3 text-[12px] font-medium hover:bg-accent"
+                      onClick={() => {
+                        setAttestReason('');
+                        setAttestFor({ id: row.id, owner: row.owner?.full_name ?? 'Unknown' });
+                      }}
+                    >
+                      Confirm what ERPNext holds
+                    </button>
+                  )}
+                </div>
               ) : inFlight ? (
                 <span className="text-[12px] text-muted-foreground">Push in progress</span>
               ) : (
@@ -429,6 +479,36 @@ function ReopenableApprovedSection() {
           );
         })}
       </div>
+
+      {/* ⚑ SHOULD-FIX 1 — the attestation confirm. Reason-required (the confirm is gated until the
+          textarea is non-empty, matching the RPC's own P0001 refusal on an empty reason). Nothing
+          writes on a single click (owner rule); the RPC is Admin-only + audited. */}
+      <ConfirmDialog
+        open={attestFor !== null}
+        title="Confirm what ERPNext holds"
+        description={
+          <div className="space-y-3">
+            <p>
+              Certify that you have checked ERPNext and it holds <strong>no Timesheet</strong> for
+              {attestFor ? ` ${attestFor.owner}` : ' this person'}&rsquo;s week. This records an audited
+              attestation and re-opens the week for correction — it does not contact ERPNext.
+            </p>
+            <TextArea
+              label="What did you check in ERPNext?"
+              required
+              value={attestReason}
+              onChange={setAttestReason}
+              placeholder="e.g. Searched Timesheets for this employee and week — none exists."
+            />
+          </div>
+        }
+        confirmLabel="Confirm — no ERP document"
+        cancelLabel="Cancel"
+        loading={attestNoErpDocument.isPending}
+        confirmDisabled={attestReason.trim() === ''}
+        onConfirm={submitAttest}
+        onCancel={closeAttest}
+      />
     </section>
   );
 }

@@ -139,6 +139,25 @@ export async function reopenApprovedTimesheet(id: string): Promise<void> {
   if (error) throw new Error(error.message);
 }
 
+/**
+ * Slice A (AC-TSC-R12, FR-TSC-060 — Luna FU-1a round-12 SHOULD-FIX 1) — the product's route out of a
+ * post-submit ERP unknown. A thin wrapper over the Admin-only, reason-required, audited
+ * `attest_timesheet_no_erp_document` RPC (migrations 0157 §5 / 0159): the Admin certifies "ERPNext
+ * holds no Timesheet for this week", which clears the unknown-outcome witness AND releases the `held`
+ * mirror to `failed`, so the re-open is admitted. It touches NO external system.
+ *
+ * org_id is NEVER sent — the security-definer RPC re-asserts org + Admin + active membership from auth
+ * context (`can('manage','pushHold')` is the UX gate at the call-site; the RPC is the authority,
+ * ADR-0016). A refusal (42501 not-authorized / P0001 nothing-to-attest) is surfaced to the caller.
+ */
+export async function attestTimesheetNoErpDocument(id: string, reason: string): Promise<void> {
+  const { error } = await supabase.rpc('attest_timesheet_no_erp_document', {
+    p_timesheet_id: id,
+    p_reason: reason,
+  });
+  if (error) throw new Error(error.message);
+}
+
 // ---------------------------------------------------------------------------
 // DAL read — timesheets awaiting approval (AC-903, FR-TS-011)
 // ---------------------------------------------------------------------------

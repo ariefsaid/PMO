@@ -18,15 +18,16 @@
  * toasts the honest reason. The whole section is gated behind canApproveTimesheets (the policy).
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { ToastProvider } from '@/src/components/ui';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 
 // ── Hoisted, controllable mocks ─────────────────────────────────────────────
-const { reopenMutate, reopenableData, roleHolder } = vi.hoisted(() => ({
+const { reopenMutate, attestMutate, reopenableData, roleHolder } = vi.hoisted(() => ({
   reopenMutate: vi.fn(),
+  attestMutate: vi.fn(),
   reopenableData: [] as Array<Record<string, unknown>>,
   roleHolder: { role: 'Admin' as string },
 }));
@@ -51,6 +52,7 @@ vi.mock('@/src/hooks/useTimesheetApproval', () => ({
     reject: { mutate: vi.fn(), isPending: false },
     reopen: { mutate: vi.fn(), isPending: false },
     reopenApproved: { mutate: reopenMutate, isPending: false },
+    attestNoErpDocument: { mutate: attestMutate, isPending: false },
   }),
 }));
 
@@ -104,8 +106,19 @@ function sheet(
 
 beforeEach(() => {
   reopenMutate.mockReset();
+  attestMutate.mockReset();
   reopenableData.length = 0;
 });
+
+/** A fenced sheet whose ERP outcome is unknown (the witness is set) — the row the attestation targets. */
+function unknownWitnessSheet(id: string, owner: string): Record<string, unknown> {
+  return sheet(id, owner, {
+    ts_number: null,
+    push_state: 'failed',
+    erp_cancelled_at: null,
+    post_submit_unknown_at: '2026-07-14T09:00:00Z',
+  });
+}
 
 describe('AC-TSC-R3: Approvals re-open section — surface honesty + the canApproveTimesheets gate', () => {
   it('AC-TSC-R3: an un-pushed Approved sheet (no mirror) shows a "Re-open for correction" button; a pushed sheet shows the honest note (NOT a button); an in-flight sheet shows "Push in progress"', () => {
@@ -262,6 +275,70 @@ describe('AC-TSC-R3: Approvals re-open section — surface honesty + the canAppr
     renderPage('Admin');
 
     expect(screen.getByRole('button', { name: /re-open for correction/i })).toBeInTheDocument();
+  });
+
+  // ⚑ Luna FU-1a round-12 SHOULD-FIX 1 — the attestation is the ONLY documented route out of an ERP
+  // unknown, and it had no surface anywhere in the app (a fence whose only key was undocumented `psql`).
+  // The affordance lands beside the release/attention controls, Admin-only (the REAL role), reason-
+  // required, and both outcomes are toasted (the I-13 lesson: a silent affordance reads as broken).
+  describe('AC-TSC-R12: the attestation affordance on a fenced (unknown ERP outcome) row', () => {
+    it('AC-TSC-R12: an ADMIN sees a "Confirm what ERPNext holds" control on a witnessed row; a non-Admin approver (Project Manager) sees only the note', () => {
+      reopenableData.push(unknownWitnessSheet('ts-unknown-erp', 'Unknown Outcome Owner'));
+
+      // Admin — the control is present.
+      const { unmount } = renderPage('Admin');
+      expect(screen.getByRole('button', { name: /confirm what erpnext holds/i })).toBeInTheDocument();
+      unmount();
+
+      // Project Manager can approve timesheets (the section renders) but is NOT Admin — note only.
+      renderPage('Project Manager');
+      expect(screen.getByText(/erp result unknown|administrator must confirm/i)).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /confirm what erpnext holds/i })).not.toBeInTheDocument();
+    });
+
+    it('AC-TSC-R12: the confirm dialog requires a reason — confirm is disabled until one is typed, then the attest mutation is called with it', async () => {
+      const user = userEvent.setup();
+      reopenableData.push(unknownWitnessSheet('ts-unknown-erp', 'Unknown Outcome Owner'));
+      attestMutate.mockImplementation((_vars: unknown, opts?: { onSuccess?: () => void }) => opts?.onSuccess?.());
+      renderPage('Admin');
+
+      await user.click(screen.getByRole('button', { name: /confirm what erpnext holds/i }));
+
+      // The dialog is open with a reason field; the confirm is gated until it is non-empty.
+      const dialog = await screen.findByRole('dialog');
+      const confirmBtn = within(dialog).getByRole('button', { name: /confirm|attest/i });
+      expect(confirmBtn).toBeDisabled();
+
+      await user.type(within(dialog).getByRole('textbox'), 'Checked ERPNext: no Timesheet for this week');
+      expect(confirmBtn).toBeEnabled();
+      await user.click(confirmBtn);
+
+      expect(attestMutate).toHaveBeenCalledWith(
+        { id: 'ts-unknown-erp', reason: 'Checked ERPNext: no Timesheet for this week' },
+        expect.objectContaining({ onSuccess: expect.any(Function), onError: expect.any(Function) }),
+      );
+      await waitFor(() =>
+        expect(screen.getAllByRole('status').some((el) => /confirm|erpnext|re-open|correct/i.test(el.textContent ?? ''))).toBe(true),
+      );
+    });
+
+    it('AC-TSC-R12: the refusal path states the reason — not a generic failure', async () => {
+      const user = userEvent.setup();
+      reopenableData.push(unknownWitnessSheet('ts-unknown-erp', 'Unknown Outcome Owner'));
+      attestMutate.mockImplementation((_vars: unknown, opts?: { onError?: (e: unknown) => void }) =>
+        opts?.onError?.(new Error('not authorized')),
+      );
+      renderPage('Admin');
+
+      await user.click(screen.getByRole('button', { name: /confirm what erpnext holds/i }));
+      const dialog = await screen.findByRole('dialog');
+      await user.type(within(dialog).getByRole('textbox'), 'Checked ERPNext');
+      await user.click(within(dialog).getByRole('button', { name: /confirm|attest/i }));
+
+      await waitFor(() =>
+        expect(screen.getAllByRole('status').some((el) => /not authorized/i.test(el.textContent ?? ''))).toBe(true),
+      );
+    });
   });
 
   it('AC-TSC-R3: the section is gated behind canApproveTimesheets — absent for a role that cannot approve (Finance)', () => {

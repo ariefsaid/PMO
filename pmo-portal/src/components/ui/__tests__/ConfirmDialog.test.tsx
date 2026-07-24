@@ -340,3 +340,24 @@ describe('AC-CONFIRM-010: mobile — bottom-sheet layout (<768px)', () => {
     expect(screen.getByRole('button', { name: 'Cancel' })).toHaveFocus();
   });
 });
+
+// AC-CONFIRM-011 — `confirmDisabled` gates the confirm button so a dialog that hosts a required input
+// (e.g. an attestation reason) cannot be confirmed until the input is valid. Cancel/Esc/scrim are
+// unaffected — the escape hatch is never blocked.
+describe('AC-CONFIRM-011: confirmDisabled', () => {
+  it('AC-CONFIRM-011: confirmDisabled disables the confirm button and blocks onConfirm, but not Cancel', async () => {
+    render(<ConfirmDialog {...baseProps} confirmDisabled />);
+    const confirm = screen.getByRole('button', { name: 'Mark lost' });
+    expect(confirm).toBeDisabled();
+    await userEvent.click(confirm);
+    expect(baseProps.onConfirm).not.toHaveBeenCalled();
+    // The escape hatch still works.
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(baseProps.onCancel).toHaveBeenCalledTimes(1);
+  });
+
+  it('AC-CONFIRM-011: without confirmDisabled the confirm button is enabled (default)', () => {
+    render(<ConfirmDialog {...baseProps} />);
+    expect(screen.getByRole('button', { name: 'Mark lost' })).toBeEnabled();
+  });
+});

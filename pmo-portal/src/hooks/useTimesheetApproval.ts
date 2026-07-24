@@ -7,6 +7,7 @@ import {
   rejectTimesheet,
   reopenTimesheet,
   reopenApprovedTimesheet,
+  attestTimesheetNoErpDocument,
   listReopenableApprovedTimesheets,
   type TimesheetAwaitingApproval,
   type ReopenableApprovedTimesheet,
@@ -164,7 +165,20 @@ export function useTimesheetMutations() {
     },
   });
 
-  return { submit, approve, reject, reopen, reopenApproved };
+  // Slice A (AC-TSC-R12, Luna FU-1a round-12 SHOULD-FIX 1): the ONLY in-product route out of a
+  // post-submit ERP unknown. An Admin certifies "ERPNext holds no Timesheet for this week", which
+  // clears the witness AND releases the held mirror (mig 0159), so the week becomes re-openable. It
+  // invalidates the re-open queue (the row leaves the `outcomeUnknown` state) and the push-attention
+  // queue (the mirror moved held → failed and carries a new classified reason).
+  const attestNoErpDocument = useMutation<void, Error, { id: string; reason: string }>({
+    mutationFn: ({ id, reason }) => attestTimesheetNoErpDocument(id, reason),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: reopenableApprovedKey(orgId, userId) });
+      queryClient.invalidateQueries({ queryKey: pushesAttentionKey(orgId) });
+    },
+  });
+
+  return { submit, approve, reject, reopen, reopenApproved, attestNoErpDocument };
 }
 
 // ---------------------------------------------------------------------------

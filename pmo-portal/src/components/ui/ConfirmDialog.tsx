@@ -24,6 +24,9 @@ export interface ConfirmDialogProps {
   surface?: ConfirmSurface;
   /** confirm in-flight: spinner + disabled (reuses Button loading); blocks Esc/scrim close */
   loading?: boolean;
+  /** Gate the confirm button — for a dialog that hosts a required input (e.g. an attestation reason).
+   *  Cancel/Esc/scrim are NEVER blocked by this: the escape hatch stays open. */
+  confirmDisabled?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
 }
@@ -56,6 +59,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   cancelLabel = 'Cancel',
   tone = 'default',
   loading = false,
+  confirmDisabled = false,
   onConfirm,
   onCancel,
 }) => {
@@ -171,6 +175,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
         <Button
           variant={isDestructive ? 'destructive' : 'primary'}
           loading={loading}
+          disabled={confirmDisabled}
           onClick={onConfirm}
         >
           {confirmLabel}
@@ -225,6 +230,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
         <Button
           variant={isDestructive ? 'destructive' : 'primary'}
           loading={loading}
+          disabled={confirmDisabled}
           className="touch-target h-11 w-full text-[15px]"
           onClick={onConfirm}
         >
