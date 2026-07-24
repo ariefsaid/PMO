@@ -267,6 +267,59 @@ headless user *see their own money* — do them as a "P3.5 read-model" pair befo
 complete the cost picture at M effort. G5 stays demand-gated. Sequencing/effort revisited when a real client's
 segment is in front of us.
 
+### ⚑ CANDIDATE PROGRAM (2026-07-22) — RIS-parity + CRM-v2 (analysis done, GRILLED, NOT scheduled)
+Source: [`docs/reviews/2026-07-22-competitive-refresh-ris-cicle.md`](reviews/2026-07-22-competitive-refresh-ris-cicle.md)
+(four-way comparison: PMO main+dev vs our own RIS-portal-2 vs KANNA-recheck vs Cicle; moat thesis §1).
+**Prereq: land the `dev` integrations program on `main` first** — no new program starts before it ships.
+Then, per the standard series loop (grill → spec → …), the candidate queue:
+- **Batch A — approvals governance (spine 2, RIS parity):** A1 value-threshold **approval limits**
+  (high-value → Executive, Admin-config, server-enforced) [M] · A2 **mandatory rejection comment** +
+  submitter notification (timesheets + procurement; verified absent) [S] · A3 **bulk procurement
+  approve/reject** (timesheets already bulk) [S] · A4 **edit-and-approve** (audited) [S–M].
+- **Batch B — finance depth (spine 4, rides ERPNext P3 read-backs):** B1 **AP aging** (symmetric to
+  P3a AR) [M] · B2 **cash-flow forecast** card (overlaps OD-W5-5 cash-position domain — spec together)
+  [M] · B3 **budget baseline/version comparison** (variance vs original) [M].
+- **Batch C — timesheet ergonomics:** copy-last-week + recent-projects quick-add [S].
+- **Batch D — CRM v2 (spine 5 as the front of the thread, NOT horizontal CRM):** D1 ⭐ **M365
+  email/meeting capture → CRM activities** (rides `dev` Graph token custody; flagship) [M–L] ·
+  D2 **next-action/follow-up reminders** → notification inbox + agent automations [M] · D3 **weighted
+  pipeline forecast** (stage-probability × value; verified absent) [S] · D4 **win/loss reasons +
+  analytics** (verified absent) [S–M] · D5 **tender/bid tracking** on the pipeline lens [M–L] ·
+  D6 **agent CRM assists** (draft follow-ups, account summary; after D1/D2) [S].
+- **✅ GRILLED (owner, 2026-07-22) — locked decisions:**
+  - **[OD-CR-1] Order = quick wins → CRM → remainder:** first the S-effort wins (D3 weighted
+    forecast · D4 win/loss · A2 rejection comments · A3 bulk procurement approve), then **Batch D
+    CRM v2 as the main track**, then A/B remainder + C.
+  - **[OD-CR-2] D1 M365 capture v1 = manual log-to-CRM** (user picks an email/meeting to log
+    against a contact/deal). No background auto-sync in v1; design the data model so auto-sync can
+    ship later as a per-org opt-in flag.
+  - **[OD-CR-3] Localization = FULL id-ID in this program** (i18n framework + full Bahasa
+    translation + IDR first-class). Sequencing (Director): the **i18n seam + locale/currency
+    formatting land EARLY** — before new UI batches build on it (retrofit is the expensive part);
+    translation content lands last.
+  - **[OD-CR-4] Locale model (Director default, revisable at spec grill): per-org default
+    language + per-user override** — fits the org_id seam, covers mixed teams.
+  - **[OD-CR-5] Currency (owner-revised 2026-07-22): start single currency per org, but
+    ARCHITECT FOR MULTI-CURRENCY — fast follow-up is a real need** (even RIS has overseas
+    clients). v1 behavior: org setting picks the currency (IDR/USD/…), all org amounts display in
+    it (`Rp 1.500.000.000`, no decimals for IDR). **v1 architecture MUST carry the multi-currency
+    seam:** a `currency` column on every money table (defaulted to org currency by trigger, like
+    `org_id`), all formatting keyed off the record's currency (never a global constant), and
+    rollup/aggregation code written to group-or-convert by currency — so the fast-follow
+    (per-record currency + FX table for rollups, mixed-currency contracts) is additive, not a
+    migration rewrite. **The ERPNext adapter gets the same seam in v1 (owner directive):** every
+    money doc written through (SI/PE/PO/PI/quotes) sets `currency` EXPLICITLY from the PMO record
+    — never relies on the ERPNext company default — and read-backs (AR/AP aging, actuals) preserve
+    the source doc's currency. v1 still pins org currency == ERPNext company currency at connect
+    (one currency in practice), but with the field threaded end-to-end the fast-follow (per-record
+    currency + FX; ERPNext's native multi-currency + exchange-rate docs) is config, not adapter
+    rework.
+  - **[OD-CR-6] Parked set confirmed parked:** in-house chat/video (Cicle turf — stays Big-track),
+    field photos/forms (KANNA turf), offline/native mobile.
+  - **Resulting sequence:** dev-integrations promote → i18n seam (OD-CR-3) → quick wins
+    (D3·D4·A2·A3) → CRM v2 (D1 manual capture → D2 → D6, D5 own spec) → B1–B3 + A1/A4 + C →
+    Bahasa translation pass.
+
 ### ⚑⚑ ADAPTER PROGRAM — P2 ERPNext money core ✅ MERGED to dev (#315 squash `b549d06`, 2026-07-14)
 ### ⚑⚑ M365 INTEGRATION — RESUME HERE (2026-07-22) — ✅ MERGED to `dev`; dark code, live connect is the next gate
 
