@@ -7,6 +7,7 @@
  */
 import { supabase } from '../supabase/client.ts';
 import { AppError } from '../appError.ts';
+import { invokeWithTimeout } from '../supabase/invokeWithTimeout.ts';
 import type { AdapterOperation, CommandResult, PmoRecord } from './contract.ts';
 
 interface DispatchErrorBody {
@@ -68,6 +69,9 @@ export function classifyDispatchError(
  *  `commit-rejected`/`missing-idempotency-key`). P0 (reference) and P1 (ClickUp tasks) never pass it. */
 export interface DispatchDomainCommandOptions {
   idempotencyKey?: string;
+  /** Override the bounded dispatch timeout (ms). Defaults to `DEFAULT_INVOKE_TIMEOUT_MS`. A hanging/
+   *  unreachable ERP push fails fast as `external-unreachable` rather than freezing the calling UI. */
+  timeoutMs?: number;
 }
 
 /** Shared transport: POST `functions/v1/adapter-dispatch` with `{ domain, operation, record[, idempotencyKey] }`.
@@ -85,7 +89,15 @@ async function invokeDispatch(
     record,
   };
   if (options?.idempotencyKey) body.idempotencyKey = options.idempotencyKey;
-  const { data, error } = await supabase.functions.invoke<CommandResult>('adapter-dispatch', { body });
+  // Bound the invoke: a reachable `adapter-dispatch` fronting a slow/down ERP would otherwise hang
+  // forever, freezing the calling UI (the AC-732 budget-activate confirm dialog). A timeout surfaces
+  // as `external-unreachable` (the synthetic error is shaped like a FunctionsFetchError — no HTTP
+  // Response on `.context` — so `classifyDispatchError` treats it as a network failure, never a
+  // false success). Money-safety: the durable outbox/sweep still owns eventual consistency.
+  const { data, error } = await invokeWithTimeout(
+    supabase.functions.invoke<CommandResult>('adapter-dispatch', { body }),
+    options?.timeoutMs,
+  );
   if (error) {
     const errorBody = await readErrorBody(error);
     const { code, message } = classifyDispatchError(error, errorBody);

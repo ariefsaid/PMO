@@ -16,6 +16,10 @@ import { useAuth } from '@/src/auth/useAuth';
 import { compileCompositionSpec } from '@/src/lib/viewspec/compiler';
 import type { CompositionSpec } from '@/src/lib/viewspec/types';
 
+/** Bound the compose-view request — a model round-trip can be legitimately slow, but must never hang
+ *  the composer on 'loading' forever. Generous enough for a real generation, short enough to recover. */
+const COMPOSE_TIMEOUT_MS = 30_000;
+
 export type AIComposerStatus = 'idle' | 'loading' | 'error';
 
 export interface UseAIComposerResult {
@@ -49,6 +53,11 @@ export function useAIComposer(): UseAIComposerResult {
     setStatus('loading');
     setError(null);
 
+    // Bound the request: a hung compose-view (edge fn reachable, upstream model slow/down) would
+    // otherwise leave the composer stuck on 'loading' forever. AbortController + a timer fail fast;
+    // the catch below maps the AbortError to the same generic "temporarily unavailable" state.
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), COMPOSE_TIMEOUT_MS);
     try {
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
       const url = `${supabaseUrl}/functions/v1/compose-view`;
@@ -65,6 +74,7 @@ export function useAIComposer(): UseAIComposerResult {
           // orgId from currentUser (profiles row), NOT from JWT app_metadata (Recon #4)
           orgId: currentUser?.org_id,
         }),
+        signal: controller.signal,
       });
 
       const body = await res.json();
@@ -94,9 +104,13 @@ export function useAIComposer(): UseAIComposerResult {
       setStatus('idle');
       return spec;
     } catch {
+      // Includes the AbortError thrown when the timeout fires — surfaced as the same generic
+      // "temporarily unavailable" state (no raw error string, no stuck 'loading').
       setError('AI compose is temporarily unavailable. Please try again later.');
       setStatus('error');
       return null;
+    } finally {
+      clearTimeout(timer);
     }
   };
 

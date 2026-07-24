@@ -170,6 +170,33 @@ describe('useAIComposer', () => {
     expect(result.current.error).toMatch(/limit/i);
   });
 
+  it('compose() bounds a hanging request → error state (never stuck on loading forever)', async () => {
+    vi.useFakeTimers();
+    // A hung compose-view that honors the AbortController: it rejects only when the signal aborts.
+    mockFetch.mockImplementation((_url: string, opts: RequestInit) => new Promise((_res, reject) => {
+      opts.signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')));
+    }));
+
+    const { result } = renderHook(() => useAIComposer());
+
+    let composeProm!: Promise<CompositionSpec | null>;
+    act(() => {
+      composeProm = result.current.compose('show projects');
+    });
+    expect(result.current.status).toBe('loading');
+
+    let returned: CompositionSpec | null = null;
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(30_000); // the timeout fires → controller.abort()
+      returned = await composeProm;
+    });
+
+    expect(returned).toBeNull();
+    expect(result.current.status).toBe('error');
+    expect(result.current.error).toMatch(/temporarily unavailable/i);
+    vi.useRealTimers();
+  });
+
   it('compose() sets status to loading immediately then idle on completion', async () => {
     let resolveResponse: (value: unknown) => void;
     const pending = new Promise((res) => { resolveResponse = res; });
