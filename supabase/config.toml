@@ -466,6 +466,19 @@ verify_jwt = false
 [functions.agent-dispatch]
 verify_jwt = false
 
+# ── Edge Function: m365-token-custody ─────────────────────────────────────────
+# verify_jwt = false is REQUIRED, not a preference: `GET /callback` is Microsoft's OAuth
+# redirect — a plain browser navigation carrying NO Authorization header. With the platform
+# gate on, every connection died there with a gateway 401 (`UNAUTHORIZED_NO_AUTH_HEADER`, a
+# code that appears nowhere in our source), AFTER the user had already consented. Found only
+# by deploying live: every test mocks `fetch`, so none of them exercise the gateway.
+# Auth is NOT weakened — the handler verifies the caller JWT itself for every POST action
+# (verifyCallerJwt, ADR-0039/ADR-0060), and the callback's credential is the single-use PKCE
+# state row, not a bearer. Verified live: POST with no auth and POST with a forged bearer both
+# return a typed 401.
+[functions.m365-token-custody]
+verify_jwt = false
+
 # ── Edge Function: admin-invite-user ──────────────────────────────────────────
 # verify_jwt = false: the handler verifies the JWT itself (getUser under a caller-JWT client)
 # to return a typed 401/403 — the service-role key is never exercised for an unauthorized
