@@ -15,6 +15,28 @@ import { login } from '../helpers';
 //     appear in the select, then select it to see its card.
 //   • "Activate" also stages a ConfirmDialog (confirmLabel="Activate version").
 test('AC-732 PM creates a Draft, adds line-items {600000,400000}, activates, project shows formatCurrency(1000000)', async ({ page }) => {
+  // This journey owns the PMO activation + derived-value contract, not the live ERPNext boundary.
+  // Keep the push consequence deterministic so a served, absent, or recently torn-down edge runtime
+  // cannot turn the confirm dialog into an environment-dependent timeout.
+  await page.route('**/functions/v1/adapter-dispatch', async (route) => {
+    const body = route.request().postDataJSON() as {
+      domain?: string;
+      operation?: string;
+      record?: { id?: string; [key: string]: unknown };
+    };
+    expect(body.domain).toBe('budget');
+    expect(body.operation).toBe('create');
+    expect(body.record?.id).toBeTruthy();
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        externalRecordId: `Budget/${body.record?.id}`,
+        canonical: body.record,
+      }),
+    });
+  });
+
   await login(page, 'pm@acme.test');
 
   // Navigate directly to P001's Budget tab

@@ -67,6 +67,11 @@ for one client, architected to scale to millions.
   cross-component breakage (a change to a shared component silently breaks every *other* test that renders
   it; recurring CI-verify-red, 2026-06). The build/Director MUST run the full verify before the phase
   transition; subagent briefs MUST mandate it as their final gate.
+- **Pre-push PR→`main` simulation (binding, owner directive 2026-07-24):** before creating, pushing, or
+  refreshing any PR targeting `main`, run **`scripts/verify-main-pr.sh`** from the repo root. It runs the
+  whole verify gate, Deno boot/unit suites, a fresh local Supabase stack, every pgTAP test, and the complete
+  Playwright/visual portfolio with `CI=true`, then runs the served-function smoke last. Targeted failing-spec
+  reruns and `scripts/e2e-local.sh` are inner-loop tools, never substitutes for this promotion gate.
 - **⛔ NOT DONE UNTIL GREEN — enforced, not advised (2026-07-17).** A task is not complete while any
   test is red. **Never** weaken, skip, delete, or re-implement a test to get green — fix the code; if a
   test is genuinely wrong, say so explicitly and stop. Dispatched agents violated this **5×** (claimed
@@ -176,6 +181,17 @@ SA-key file**. `seed.sql` = local ONLY, **never prod**; never hand-edit a cloud 
 `db reset`/`test db`/e2e corrupt each other); (b) **assume parallel — never work in the shared working tree:**
 each dispatch/agent uses its OWN `git worktree` off `dev` on a **feature branch → PR to `dev`** (copy `.env.local`
 in; worktrees isolate FILES, not the one DB). Worktrees don't remove the DB contention — the lock does.
+
+**⚑ Post-merge cleanup (binding — verify first, delete last).** After GitHub reports the PR merged, fetch the
+intended base and **verify the reported merge commit is reachable from `origin/<base>`**. Capture
+`state,mergeCommit,headRefName,headRefOid` from `gh pr view`; require `git rev-parse <branch>` to equal that
+immutable `headRefOid`, and, if the remote branch exists, require
+`git ls-remote --heads origin refs/heads/<branch>` to report the same OID. Any mismatch means stop and preserve
+the divergent branch. Only then confirm the exact issue worktree is clean, run
+`git worktree remove <exact-path>` (never `--force`) and `git worktree prune`, delete the local feature branch
+with `git branch -d <branch>` (use `-D` only after the exact-tip checks for a verified squash merge), and
+finally delete the still-matching repository-owned remote branch with `git push origin --delete <branch>`.
+Never remove a worktree or branch merely because it looks stale.
 
 **⚑ Chain reset+test as ONE lock hold (binding).** Serializing the two commands *separately* is not enough: a
 sibling worktree's reset landing **between** your `db reset` and your `supabase test db` leaves you testing a

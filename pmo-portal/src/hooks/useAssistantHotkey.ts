@@ -3,7 +3,7 @@
  * Mirrors the CommandPalette ⌘K handler pattern from App.tsx.
  * FR-AP-004: only registered when enabled (FEATURES.agentAssistant).
  */
-import { useEffect } from 'react';
+import { useLayoutEffect } from 'react';
 
 interface UseAssistantHotkeyOptions {
   /** When false (flag off), no listener is registered. */
@@ -12,7 +12,9 @@ interface UseAssistantHotkeyOptions {
 }
 
 export function useAssistantHotkey({ enabled, onToggle }: UseAssistantHotkeyOptions): void {
-  useEffect(() => {
+  // Attach before paint. Once the shell control is visible, the shortcut is
+  // already live; an ordinary effect left a one-frame race in loaded CI runs.
+  useLayoutEffect(() => {
     if (!enabled) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {

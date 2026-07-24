@@ -1,5 +1,10 @@
 import { describe, it, expect, vi } from 'vitest';
-import { breadcrumbForPath, recordLabelForPath, PLACEHOLDER_TITLES } from '../routeMatch';
+import {
+  agentEntityForPath,
+  breadcrumbForPath,
+  recordLabelForPath,
+  PLACEHOLDER_TITLES,
+} from '../routeMatch';
 
 /**
  * Route-derived breadcrumb helper (replaces the tab-backed `deriveBreadcrumb`).
@@ -162,5 +167,46 @@ describe('recordLabelForPath (cached-list label resolution)', () => {
 
   it('returns undefined (never the raw id) for an unresolved detail route — cold deep-link', () => {
     expect(recordLabelForPath('/projects/9f3a-not-cached', lists)).toBeUndefined();
+  });
+});
+
+describe('agentEntityForPath (route context available before a lazy detail page mounts)', () => {
+  const lists = {
+    projects: [{ id: 'p1', name: 'Innovate HQ Fit-Out' }],
+    procurements: [{ id: 'pr1', title: 'Crane hire' }],
+    companies: [{ id: 'co1', name: 'Cascade Port Authority' }],
+    contacts: [{ id: 'ct1', full_name: 'Jane Doe' }],
+  };
+
+  it('AC-AXP-015 resolves all four entity-detail route types from the shell caches', () => {
+    expect(agentEntityForPath('/projects/p1', lists)).toEqual({
+      type: 'project',
+      id: 'p1',
+      label: 'Innovate HQ Fit-Out',
+    });
+    expect(agentEntityForPath('/procurement/pr1', lists)).toEqual({
+      type: 'procurement_case',
+      id: 'pr1',
+      label: 'Crane hire',
+    });
+    expect(agentEntityForPath('/companies/co1', lists)).toEqual({
+      type: 'company',
+      id: 'co1',
+      label: 'Cascade Port Authority',
+    });
+    expect(agentEntityForPath('/contacts/ct1', lists)).toEqual({
+      type: 'contact',
+      id: 'ct1',
+      label: 'Jane Doe',
+    });
+  });
+
+  it('publishes the route identity before cache labels resolve, but never for an index route', () => {
+    expect(agentEntityForPath('/projects', lists)).toBeUndefined();
+    expect(agentEntityForPath('/projects/missing', lists)).toEqual({
+      type: 'project',
+      id: 'missing',
+      label: 'missing',
+    });
   });
 });

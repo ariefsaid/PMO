@@ -144,9 +144,17 @@ Supabase's auth/RLS/storage/pgTAP). Full parallel/serialized-owner operating mod
   which survive). ⚠ This host also runs **other projects' stacks** (e.g. `gordi-mos`) — `docker container
   prune` spares their *running* containers, but **never** `docker volume prune` or `docker system prune
   --volumes` (that destroys other projects' DB data).
-- **Prune merged worktrees promptly.** After a squash-merge, remove the issue worktree
-  (`git worktree remove --force <path>` then `git worktree prune`) — each stale worktree carries a
-  `node_modules`/test-artifact footprint and is another accidental `db reset` surface.
+- **Prune merged worktrees promptly, but verify the merge first.** Require the PR state to be
+  `MERGED` and its reported merge commit to be reachable from the intended remote base. Capture the PR's
+  `headRefOid`; require `git rev-parse <branch>` to equal it and, if the remote branch exists, require
+  `git ls-remote --heads origin refs/heads/<branch>` to report the same OID. Stop and preserve either
+  branch on divergence. Confirm the exact issue worktree is clean, then run
+  `git worktree remove <exact-path>` (never `--force`) and `git worktree prune`. Delete the local branch
+  afterwards with `git branch -d <branch>` (a verified squash merge may require `-D` only after exact-tip
+  verification), recheck the remote tip, and delete the still-matching repository-owned remote branch last
+  with `git push origin --delete <branch>`. Each stale worktree carries a
+  `node_modules`/test-artifact footprint and is another accidental `db reset` surface, but apparent
+  staleness is never authority to discard unverified work.
 
 ## Secrets via 1Password (`op-get.sh`)
 

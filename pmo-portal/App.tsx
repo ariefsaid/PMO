@@ -1,4 +1,4 @@
-import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from '@/src/lib/queryClient';
@@ -21,6 +21,7 @@ import {
   ContextBar,
   CommandPalette,
   modulesForRole,
+  agentEntityForPath,
   breadcrumbForPath,
   recordLabelForPath,
   recordStatusGroupForPath,
@@ -53,6 +54,7 @@ import { useAssistantHotkey } from '@/src/hooks/useAssistantHotkey';
 import { useOwnershipCacheSync } from '@/src/hooks/useOwnershipCacheSync';
 // ADR-0045 §3: live context (route/entity/selection) source for agent runs.
 import { AgentContextProvider } from '@/src/lib/agent/context/AgentContextProvider';
+import { useAgentContext } from '@/src/lib/agent/context/useAgentContext';
 
 // ── Lazy route chunks ──────────────────────────────────────────────────────
 const ExecutiveDashboard = React.lazy(() => import('./pages/ExecutiveDashboard'));
@@ -210,6 +212,30 @@ const ShellChrome: React.FC = () => {
   const { data: companies, isPending: companiesPending } = useCompanies();
   const { data: contacts, isPending: contactsPending } = useContacts();
   const { data: userViewsList, isPending: userViewsPending } = useUserViews();
+  const opportunities = useMemo(
+    () => [...(pipeline?.projects ?? []), ...(lostDeals ?? [])],
+    [pipeline, lostDeals],
+  );
+
+  // The shell already has enough cached record data to render the detail breadcrumb before a lazy
+  // page chunk mounts. Publish that same identity before paint so an immediate Assistant turn made
+  // from the loading shell is grounded; detail pages republish the identical value once mounted.
+  const { setEntity } = useAgentContext();
+  const routeEntity = useMemo(
+    () =>
+      agentEntityForPath(pathname, {
+        projects,
+        opportunities,
+        procurements,
+        companies,
+        contacts,
+      }),
+    [pathname, projects, opportunities, procurements, companies, contacts],
+  );
+  useLayoutEffect(() => {
+    setEntity(routeEntity);
+    return () => setEntity(undefined);
+  }, [routeEntity, setEntity]);
 
   // ⌘K record search: index the three cached lists into Records rows that open
   // the matching detail route. Reads the same caches as the breadcrumb — no new
@@ -242,7 +268,6 @@ const ShellChrome: React.FC = () => {
     // The pipeline partition the resolvers read = open pipeline ∪ lost deals (Blocker 1). A lost
     // deal is absent from both the open-pipeline cache and the active-projects cache, so it must be
     // unioned in here or its crumb resolves to "Projects > Not found".
-    const opportunities = [...(pipeline?.projects ?? []), ...(lostDeals ?? [])];
     const recordLabel = recordLabelForPath(pathname, {
       projects,
       opportunities,
@@ -283,12 +308,11 @@ const ShellChrome: React.FC = () => {
     navigate,
     projects,
     procurements,
-    pipeline,
-    lostDeals,
     incidents,
     companies,
     contacts,
     userViewsList,
+    opportunities,
     projectsPending,
     procurementsPending,
     pipelinePending,
@@ -304,10 +328,9 @@ const ShellChrome: React.FC = () => {
   // null while caches are pending (NavLink URL-based fallback) and resolves on the
   // next render once the pipeline/projects lists settle.
   const railActiveOverride = useMemo<'salesPipeline' | 'projects' | null>(() => {
-    const opportunities = [...(pipeline?.projects ?? []), ...(lostDeals ?? [])];
     const statusGroup = recordStatusGroupForPath(pathname, { projects, opportunities });
     return deriveRailActiveOverride(pathname, statusGroup);
-  }, [pathname, projects, pipeline, lostDeals]);
+  }, [pathname, projects, opportunities]);
 
   // AC-W3-N3: filter Navigate items by the viewer's REAL role so ⌘K matches the rail.
   // A denied role (e.g. Engineer) never sees Sales/Procurement/Companies/Administration.

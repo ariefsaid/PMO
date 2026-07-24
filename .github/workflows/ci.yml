@@ -12,7 +12,6 @@ on:
     paths-ignore:
       - 'docs/**'
       - 'review/**'
-      - 'scripts/**'
       - '.claude/**'
       - '.codex/**'
       - '**/*.md'
@@ -23,7 +22,6 @@ on:
     paths-ignore:
       - 'docs/**'
       - 'review/**'
-      - 'scripts/**'
       - '.claude/**'
       - '.codex/**'
       - '**/*.md'
@@ -90,6 +88,9 @@ jobs:
       - name: Parallel-agent infra tests
         working-directory: .
         run: node --test scripts/parallel-infra.test.mjs
+      - name: CI integration-order test
+        working-directory: .
+        run: node --test scripts/ci-integration-order.test.mjs scripts/deno-inventory.test.mjs
       - run: npm ci
       - name: Supply-chain audit — production deps (blocking)
         # Gate on vulnerabilities in code that SHIPS to users (the production dependency tree).
@@ -145,13 +146,7 @@ jobs:
       # and fails on any import-time throw. Regression guard for the 2026-07-04 agent-chat boot crash.
       - name: Deno boot smoke — edge function entry points load without throwing
         working-directory: .
-        run: |
-          set -e
-          for fn in agent-chat agent-dispatch compose-view admin-invite-user adapter-dispatch clickup-onboard clickup-webhook clickup-webhook-worker clickup-sweep erpnext-onboard erpnext-webhook erpnext-sweep; do
-            echo "── boot-smoke supabase/functions/$fn/index.ts ──"
-            deno run --allow-all --config "supabase/functions/$fn/deno.json" \
-              scripts/deno-boot-smoke.ts "supabase/functions/$fn/index.ts"
-          done
+        run: bash scripts/deno-boot-smoke-edge-fns.sh
 
       # ⚑ RUN THE EDGE-FUNCTION UNIT TESTS. `deno check` is type-only and boot-smoke only proves the
       # module graph loads — NEITHER executes a single assertion. Until this step existed, all ~393
@@ -167,16 +162,7 @@ jobs:
       #     like a broken assertion but is a missing flag.
       - name: Deno unit tests — edge functions + _shared
         working-directory: .
-        run: |
-          set -e
-          for fn in adapter-dispatch erpnext-sweep erpnext-webhook erpnext-onboard clickup-sweep clickup-webhook clickup-onboard agent-chat compose-view external-connect external-disconnect external-companies external-link external-lists external-set-company external-unlink; do
-            if ls supabase/functions/$fn/*.test.ts >/dev/null 2>&1; then
-              echo "── deno test supabase/functions/$fn ──"
-              (cd "supabase/functions/$fn" && deno test . --config deno.json --allow-env --allow-net --allow-read)
-            fi
-          done
-          echo "── deno test supabase/functions/_shared (not reachable from a fn dir) ──"
-          (cd supabase/functions/erpnext-sweep && deno test ../_shared --config deno.json --allow-env --allow-net --allow-read)
+        run: bash scripts/deno-test-edge-fns.sh
 
   pgtap:
     # PR→dev fast-lane addition: pgTAP is cheap (no browser, Supabase stack only, seconds not
@@ -332,10 +318,20 @@ jobs:
             npx playwright install --with-deps chromium
           fi
 
+      # The webServer in playwright.config.ts runs `npm run dev` (Vite dev server on :3000).
+      # reuseExistingServer=false in CI so Playwright owns the lifecycle.
+      - name: E2E tests (Playwright / Chromium)
+        working-directory: pmo-portal
+        run: |
+          npx playwright test --project=chromium --fail-on-flaky-tests
+          npx playwright test --project=serial --workers=1 --fail-on-flaky-tests
+
       # ERPNext P2: prove the served adapter-dispatch lane in CI (the money e2e itself is local-only —
       # it needs the Docker v15 bench + 1Password creds, which are a dev-bed concern, not CI's). The CI
       # gate is the non-ERPNext served-fn smoke (AC-ENA-001 boundary) through real Kong, proving the
       # serve/health-gate recipe holds on an ephemeral runner. Money semantics run locally + via unit tests.
+      # Keep this AFTER the ordinary e2e lane: removing the temporary edge-runtime container leaves
+      # Kong forwarding functions/v1 requests to a vanished upstream until the stack is restarted.
       # Slice-0 fix-round finding 8: reuse the SAME trapped launch/health-gate/cleanup recipe as
       # local dev (scripts/serve-functions.sh) instead of inlining a second, untrapped copy here —
       # a bare `run:` block has no signal trap at all, so a step timeout/cancellation used to leak
@@ -350,13 +346,7 @@ jobs:
           SUPABASE_SECRETS: ${{ secrets.SUPABASE_SECRETS }}
         run: |
           printf '%s\n' "$SUPABASE_SECRETS" > supabase/functions/.env.local
-          scripts/serve-functions.sh -- bash -c 'cd pmo-portal && npx playwright test served-fn-smoke --project=chromium'
-
-      # The webServer in playwright.config.ts runs `npm run dev` (Vite dev server on :3000).
-      # reuseExistingServer=false in CI so Playwright owns the lifecycle.
-      - name: E2E tests (Playwright / Chromium)
-        working-directory: pmo-portal
-        run: npx playwright test
+          scripts/serve-functions.sh -- bash -c 'cd pmo-portal && npx playwright test served-fn-smoke --project=chromium --fail-on-flaky-tests'
 
       - name: Upload Playwright report
         if: failure()
