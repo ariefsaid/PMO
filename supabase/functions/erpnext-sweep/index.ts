@@ -1102,11 +1102,22 @@ function holdBudgetMirrorRow(
       return { error: error && error.code !== '23505' ? error : null };
     })();
   }
+  // ⚑ BLOCK 1 (FU-2 round 2) — A HOLD IS ABOUT ONE YEAR, and the mirror's grain is
+  // `(budget_version_id × fiscal_year)`. Keyed on the version alone this CAS matched every
+  // `pending`/`failed` row of the version, so exhausting FY2027's attempts also stamped FY2026 `held`
+  // with FY2027's reason — and `listPendingBudgetPushes` excludes `held`, so a perfectly recoverable
+  // year left the backstop queue PERMANENTLY (ERPNext then holds no overspend control for it and
+  // nothing will ever install one, while `hold_releasable` is false because its own outbox row is not
+  // `held`). With no year on record there is no grain to hold, so nothing is written at all — the same
+  // posture the `absent`/INSERT branch above already takes, and for the same reason: a guessed year
+  // writes a wrong-year state onto the primary money screen.
+  if (!fiscalYear) return Promise.resolve({ error: null });
   return serviceClient
     .from('budget_version_erp_mirror')
     .update({ push_state: 'held', push_error: reason })
     .eq('org_id', orgId)
     .eq('budget_version_id', budgetVersionId)
+    .eq('fiscal_year', fiscalYear)
     // the SAME eligibility `listPendingBudgetPushes` asserted — never a state this pass did not observe
     .in('push_state', ['pending', 'failed'])
     .is('erp_cancelled_at', null);

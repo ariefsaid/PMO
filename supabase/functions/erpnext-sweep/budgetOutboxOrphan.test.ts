@@ -48,29 +48,78 @@ const ORG_BINDING = {
   versionMajor: 15,
 };
 
-interface Write { table: string; op: string; payload: Record<string, unknown> }
+interface Write { table: string; op: string; payload: Record<string, unknown>; filters: Filters }
+interface Filters { eq: Array<[string, unknown]>; in?: [string, unknown[]]; is?: [string, unknown] }
 
-function fakeDb(mirrorRows: Array<Record<string, unknown>>) {
+/**
+ * ⚑ BLOCK 1 (FU-2 round 2) — THE FAKE USED TO DEFINE `eq: () => builder`, SO NO ASSERTION IN THIS FILE
+ * COULD SEE A MISSING PREDICATE.
+ *
+ * It recorded only the write PAYLOAD and returned every mirror row for every query, which made it
+ * structurally blind to exactly the defect class this module keeps producing: a mutation keyed on
+ * `budget_version_id` alone when the table's grain is `(budget_version_id × fiscal_year)`. A hold meant
+ * for FY2027 then also parked FY2026 — and `listPendingBudgetPushes` excludes `held`, so the other
+ * year's recoverable push left the backstop queue for good.
+ *
+ * So the fake now APPLIES its filters, the way `erpnextFeedDeps.test.ts`'s `statefulBudgetClient` does:
+ * `eq`/`in`/`is` select the mirror rows a query matches, and an `update` MUTATES exactly those rows in
+ * place. Dropping a predicate is therefore observable as a row that changed and should not have.
+ * (`org_id` is exempt — these fixtures model the org via `ORG_BINDING`, not a column.)
+ */
+function fakeDb(
+  mirrorRows: Array<Record<string, unknown>>,
+  opts: { outboxRow?: Record<string, unknown> | null } = {},
+) {
   const writes: Write[] = [];
   const client = {
     from(table: string) {
+      const eq: Array<[string, unknown]> = [];
+      let inVal: [string, unknown[]] | undefined;
+      let isVal: [string, unknown] | undefined;
+      const filters = (): Filters => ({ eq: [...eq], in: inVal, is: isVal });
+      const matchesMirror = (row: Record<string, unknown>): boolean =>
+        eq.every(([c, v]) => c === 'org_id' || row[c] === v)
+        && (!inVal || (inVal[1] as unknown[]).includes(row[inVal[0]]))
+        && (!isVal || row[isVal[0]] === isVal[1]);
+      const rowsFor = (): Array<Record<string, unknown>> =>
+        table === 'budget_version_erp_mirror' ? mirrorRows.filter(matchesMirror) : [];
       // deno-lint-ignore no-explicit-any
       const builder: any = {
         select: () => builder,
-        eq: () => builder,
-        is: () => builder,
-        in: () => builder,
+        eq: (col: string, val: unknown) => { eq.push([col, val]); return builder; },
+        is: (col: string, val: unknown) => { isVal = [col, val]; return builder; },
+        in: (col: string, vals: unknown[]) => { inVal = [col, vals]; return builder; },
         not: () => builder,
         order: () => builder,
-        limit: () => builder,
+        limit: () => Promise.resolve({ data: rowsFor(), error: null }),
         contains: () => builder,
-        maybeSingle: () => Promise.resolve({ data: null, error: null }),
-        single: () => Promise.resolve({ data: null, error: null }),
-        insert: (payload: Record<string, unknown>) => { writes.push({ table, op: 'insert', payload }); return Promise.resolve({ data: null, error: null }); },
-        update: (payload: Record<string, unknown>) => { writes.push({ table, op: 'update', payload }); return builder; },
-        upsert: (payload: Record<string, unknown>) => { writes.push({ table, op: 'upsert', payload }); return Promise.resolve({ data: null, error: null }); },
-        then: (resolve: (v: { data: unknown; error: null }) => unknown) =>
-          Promise.resolve({ data: table === 'budget_version_erp_mirror' ? mirrorRows : [], error: null }).then(resolve),
+        maybeSingle: () => Promise.resolve({
+          data: table === 'external_command_outbox' ? (opts.outboxRow ?? null) : (rowsFor()[0] ?? null),
+          error: null,
+        }),
+        single: () => Promise.resolve({ data: rowsFor()[0] ?? null, error: null }),
+        insert: (payload: Record<string, unknown>) => {
+          writes.push({ table, op: 'insert', payload, filters: filters() });
+          return Promise.resolve({ data: null, error: null });
+        },
+        update: (payload: Record<string, unknown>) => {
+          // The write is recorded when the chain RESOLVES, so its filters are complete.
+          builder.__update = payload;
+          return builder;
+        },
+        upsert: (payload: Record<string, unknown>) => {
+          writes.push({ table, op: 'upsert', payload, filters: filters() });
+          return Promise.resolve({ data: null, error: null });
+        },
+        then: (resolve: (v: { data: unknown; error: null }) => unknown) => {
+          const patch = builder.__update as Record<string, unknown> | undefined;
+          if (patch) {
+            writes.push({ table, op: 'update', payload: patch, filters: filters() });
+            // The mutation the real UPDATE would perform — on exactly the rows its filters match.
+            if (table === 'budget_version_erp_mirror') for (const row of rowsFor()) Object.assign(row, patch);
+          }
+          return Promise.resolve({ data: patch ? null : rowsFor(), error: null }).then(resolve);
+        },
       };
       return builder;
     },
@@ -108,7 +157,11 @@ Deno.test('⚑ BLOCKER 3 (FU-2): a crashed FY2027 push is reconciled even when F
   // The multi-FY recovery case the version-only dedup silently dropped: FY2026 is mirrored, but FY2027
   // reached ERP and crashed before its own mirror/external_refs finalize. Suppressing it because a
   // DIFFERENT year of the same version has a mirror leaves a live ERP Budget PMO reports as never-pushed.
-  const { client } = fakeDb([{ budget_version_id: MIRRORED_VERSION, push_state: 'pushed', erp_cancelled_at: null, fiscal_year: '2026' }]);
+  //
+  // ⚑ FY2026 is `failed`, not `pushed`: now that the fake honours `.in('push_state', …)`, a `pushed`
+  // row is not returned by `listPendingBudgetPushes` at all, so it would populate neither dedup set and
+  // the assertion below would hold even under the version-only dedup it exists to forbid.
+  const { client } = fakeDb([{ budget_version_id: MIRRORED_VERSION, push_state: 'failed', erp_cancelled_at: null, fiscal_year: '2026' }]);
   const deps = budgetBackstopDepsLive(client, ORG_BINDING, [
     { id: 'outbox-fy2027-orphan', pmo_record_id: qualified(MIRRORED_VERSION, '2027') },
   ]);
@@ -192,6 +245,85 @@ Deno.test('⚑ LOW-1: with NO fiscal year knowable, NO mirror row is fabricated 
     !writes.some((w) => w.table === 'budget_version_erp_mirror'),
     `a mirror row with a guessed fiscal year would mis-scope the budget projection — none may be written: ${JSON.stringify(writes)}`,
   );
+});
+
+/**
+ * ⚑ BLOCK 1 (FU-2 round 2) — ONE YEAR'S HOLD MUST NOT PARK EVERY OTHER YEAR OF THE SAME VERSION.
+ *
+ * `budget_version_erp_mirror`'s grain is `(budget_version_id × fiscal_year)`, and a hold is a statement
+ * about ONE year: "this year's push has run out of automatic recovery". Keyed on the version alone, the
+ * compare-and-set matched every `pending`/`failed` row of the version — so exhausting FY2027's attempts
+ * also stamped FY2026 `held` with FY2027's reason. `listPendingBudgetPushes` excludes `held`, so FY2026
+ * left the backstop's work queue permanently: ERPNext holds no overspend control for that year and
+ * nothing will ever install one, while `hold_releasable` is false for it (its own outbox row is not
+ * `held`), so the operator is not offered the Release affordance either.
+ *
+ * Mutation proof: delete `.eq('fiscal_year', fiscalYear)` from `holdBudgetMirrorRow`'s UPDATE and this
+ * test fails on the FY2026 assertions.
+ */
+Deno.test('⚑ BLOCK 1: exhausting FY2027\'s attempts holds ONLY FY2027 — the still-recoverable FY2026 row is untouched', async () => {
+  const fy2026 = { budget_version_id: MIRRORED_VERSION, push_state: 'failed', push_error: 'erp-unreachable', erp_cancelled_at: null, fiscal_year: '2026' };
+  const fy2027 = { budget_version_id: MIRRORED_VERSION, push_state: 'failed', push_error: 'erp-unreachable', erp_cancelled_at: null, fiscal_year: '2027' };
+  // An outbox row EXISTS for FY2027 but 0131 no longer admits it (the eligible set is empty) and it is
+  // neither `committing` nor `quarantined` — the attempts-exhausted branch, verbatim.
+  const { client } = fakeDb([fy2026, fy2027], {
+    outboxRow: {
+      id: 'outbox-fy2027', domain: 'budget', pmo_record_id: qualified(MIRRORED_VERSION, '2027'),
+      idempotency_key: 'k', state: 'failed', external_record_id: null, canonical: null,
+      claim_generation: 1, payload_digest: null,
+    },
+  });
+  const deps = budgetBackstopDepsLive(client, ORG_BINDING, []);
+
+  await deps.driveBudgetPush(
+    { budget_version_id: MIRRORED_VERSION, push_state: 'failed', erp_cancelled_at: null, fiscal_year: '2027' },
+    { id: MIRRORED_VERSION, status: 'Active', activated_at: '2026-07-20T00:00:00.000Z' },
+  );
+
+  assert(fy2027.push_state === 'held', `the exhausted FY2027 row IS held, got ${JSON.stringify(fy2027)}`);
+  assert(fy2027.push_error === 'budget-push-attempts-exhausted', `with its own reason, got ${JSON.stringify(fy2027)}`);
+  assert(
+    fy2026.push_state === 'failed',
+    `BLOCK 1: FY2026 is still recoverable and MUST stay in the backstop queue — 'held' removes it forever. Got ${JSON.stringify(fy2026)}`,
+  );
+  assert(
+    fy2026.push_error === 'erp-unreachable',
+    `BLOCK 1: FY2026 must not carry FY2027's reason. Got ${JSON.stringify(fy2026)}`,
+  );
+});
+
+Deno.test('⚑ BLOCK 1: the no-outbox-candidate hold is year-scoped too — the same CAS, the same grain', async () => {
+  const fy2026 = { budget_version_id: MIRRORED_VERSION, push_state: 'pending', push_error: null as string | null, erp_cancelled_at: null, fiscal_year: '2026' };
+  const fy2027 = { budget_version_id: MIRRORED_VERSION, push_state: 'failed', push_error: null as string | null, erp_cancelled_at: null, fiscal_year: '2027' };
+  const { client } = fakeDb([fy2026, fy2027]); // no outbox row at all ⇒ 'budget-push-no-outbox-candidate'
+  const deps = budgetBackstopDepsLive(client, ORG_BINDING, []);
+
+  await deps.driveBudgetPush(
+    { budget_version_id: MIRRORED_VERSION, push_state: 'failed', erp_cancelled_at: null, fiscal_year: '2027' },
+    { id: MIRRORED_VERSION, status: 'Active', activated_at: '2026-07-20T00:00:00.000Z' },
+  );
+
+  assert(fy2027.push_state === 'held', `FY2027 is held, got ${JSON.stringify(fy2027)}`);
+  assert(fy2026.push_state === 'pending', `BLOCK 1: FY2026's queued push must be untouched, got ${JSON.stringify(fy2026)}`);
+});
+
+/** ⚑ BLOCK 1 — with no knowable year there is no grain to hold, so the UPDATE must not run at all
+ *  (the INSERT branch already takes that posture). A version-wide `held` write is exactly the damage. */
+Deno.test('⚑ BLOCK 1: a candidate with NO fiscal year holds NOTHING — never a version-wide update', async () => {
+  const fy2026 = { budget_version_id: MIRRORED_VERSION, push_state: 'failed', push_error: null as string | null, erp_cancelled_at: null, fiscal_year: '2026' };
+  const { client, writes } = fakeDb([fy2026]);
+  const deps = budgetBackstopDepsLive(client, ORG_BINDING, []);
+
+  await deps.driveBudgetPush(
+    { budget_version_id: MIRRORED_VERSION, push_state: 'failed', erp_cancelled_at: null },
+    { id: MIRRORED_VERSION, status: 'Active', activated_at: '2026-07-20T00:00:00.000Z' },
+  );
+
+  assert(
+    !writes.some((w) => w.table === 'budget_version_erp_mirror'),
+    `no year ⇒ no grain ⇒ no mirror write: ${JSON.stringify(writes)}`,
+  );
+  assert(fy2026.push_state === 'failed', `and FY2026 is untouched, got ${JSON.stringify(fy2026)}`);
 });
 
 /** The orphan queue must CARRY the fiscal year forward from the outbox row that knows it. */
