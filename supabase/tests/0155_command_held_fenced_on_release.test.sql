@@ -73,8 +73,10 @@ select is(
   'held|true',
   'AC-OBX-062: precondition — the mirror row exists `held` from the HOLD itself (0158); the late recorder has not run');
 
--- The Admin releases the still-held outbox (0152 §A) — updates zero mirror rows because none exists,
--- and BUMPS the row's claim_generation (0152 §A) so the stale writer's token no longer matches.
+-- The Admin releases the still-held outbox (0152 §A) — its mirror CAS now finds the `held` row 0158
+-- created and moves it to `failed` (⚑ round-12 MINOR 4: pre-0158 this updated zero rows because none
+-- existed; it now updates exactly one), and BUMPS the row's claim_generation (0152 §A) so the stale
+-- writer's token no longer matches.
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"01550000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 select release_outbox_hold((select id from pg_temp.ids where label = 'race'), 'probe fixed; safe to re-drive');
@@ -97,10 +99,20 @@ select record_timesheet_command_held(
 
 -- ⚑ THE ORACLE: the released generation must NOT resurrect the hold. The mirror ends `failed`, matching
 -- the released outbox — so the backstop re-queues it and re-open behaves by the ordinary rules.
+--
+-- ⚑ round-12 MINOR 4 — IT ALSO ASSERTS WHOSE `failed` THIS IS. Pre-0158 the row did not exist until
+-- this recorder wrote it, so a recorder that did NOTHING left NULL and failed here. 0158 makes the hold
+-- itself create the row and the release above leave it `failed`, so `push_state = 'failed'` alone had
+-- become true whether or not this writer ran at all — the "records `failed` to keep the recovery route
+-- open" half of the property stopped being proven. The recorder's own reason is the discriminator: the
+-- RELEASE writes `hold released by operator <uuid>: …`, this writer writes `… — hold released or
+-- superseded before it could be recorded; …`. (The blind-`held` mutation this file owns from round 5 is
+-- still caught by the state half.)
 select is(
-  (select push_state from timesheet_erp_mirror where timesheet_id = '01550000-0000-0000-0000-0000000000a0'),
-  'failed',
-  'AC-OBX-062: a released generation CANNOT write `held` afterward — the mirror ends `failed`, never `held`, so the dead end never re-forms');
+  (select push_state || '|' || (push_error like '%hold released or superseded%')::text
+     from timesheet_erp_mirror where timesheet_id = '01550000-0000-0000-0000-0000000000a0'),
+  'failed|true',
+  'AC-OBX-062: a released generation CANNOT write `held` afterward — THIS writer records `failed` with the superseded reason, so the dead end never re-forms and the recovery route stays named');
 
 -- ── B) THE CONTROL: the outbox is still held at the right generation → records `held` ──────────────
 select record_timesheet_command_held(
