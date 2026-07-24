@@ -63,7 +63,9 @@ export function describeM365Error(code: string | undefined): string {
     case 'NOT_ENTITLED':
       return "Your organization isn't enabled for the Microsoft 365 integration yet.";
     case 'FORBIDDEN':
-      return 'Only an Administrator can connect Microsoft 365.';
+      // ADR-0058 §3 amendment (2026-07-24): M365 connect is Operator-gated, not org-Admin. Copy
+      // updated (audit LOW-B2) so a rejected org-Admin is told the real reason, not "be an Admin".
+      return 'Connecting Microsoft 365 is restricted to platform operators.';
     case 'UNAUTHORIZED':
       return 'Your session expired. Refresh the page and try again.';
     case 'CONNECTION_STALE':
