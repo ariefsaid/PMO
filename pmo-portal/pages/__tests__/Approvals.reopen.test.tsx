@@ -203,6 +203,32 @@ describe('AC-TSC-R3: Approvals re-open section — surface honesty + the canAppr
     expect(screen.getAllByRole('button', { name: /re-open for correction/i })).toHaveLength(1);
   });
 
+  // ⚑ Luna FU-1a round-10 S3 — the mirror's own `held` state is the SAME refusal, and the surface must
+  // say so. The server refuses a `held` mirror independently of the witness (migration 0157 §4 keeps that
+  // predicate for the pre-0157 residue: a row parked `held` before the witness column existed). Reading
+  // only `post_submit_unknown_at` rendered an ACTIVE button on those rows that the server could only
+  // refuse — this section exists precisely to not do that.
+  it('AC-TSC-R10: a sheet whose MIRROR is `held` (no witness on the row — the pre-0157 residue) shows the honest reason and NO re-open button', () => {
+    reopenableData.push(
+      sheet('ts-held-mirror', 'Held Mirror Owner', {
+        ts_number: null,
+        push_state: 'held',
+        erp_cancelled_at: null,
+        post_submit_unknown_at: null,
+      }),
+      sheet('ts-plain-failed', 'Rejected Push Owner', {
+        ts_number: null,
+        push_state: 'failed',
+        erp_cancelled_at: null,
+        post_submit_unknown_at: null,
+      }),
+    );
+    renderPage('Admin');
+
+    expect(screen.getByText(/administrator must confirm what ERPNext holds/i)).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: /re-open for correction/i })).toHaveLength(1);
+  });
+
   // ── SHOULD-FIX 4: the states the mirror CANNOT show ──────────────────────
   it.each([
     ['pending', 'a queued push another worker will claim'],

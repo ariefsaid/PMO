@@ -62,12 +62,16 @@ select pg_temp.seed_held_command('race',    '01550000-0000-0000-0000-0000000000a
 select pg_temp.seed_held_command('control', '01550000-0000-0000-0000-0000000000b0');
 grant select on pg_temp.ids to authenticated;
 
--- ── A) THE RACE: release runs BEFORE the mirror is ever written ───────────────────────────────────
--- Precondition: no mirror row exists for the race sheet yet.
+-- ── A) THE RACE: release runs BEFORE the mirror OUTCOME is ever recorded ──────────────────────────
+-- Precondition: ⚑ migration 0158 — the hold itself now creates the mirror row `held` + the
+-- unknown-outcome witness (the round-10 BLOCK: a sweep-created hold reaches no recorder at all). What has
+-- NOT run is the late RECORDER, which is what this file is about — so the row carries the HOLD's reason,
+-- not a recorded `command-held` outcome.
 select is(
-  (select count(*)::int from timesheet_erp_mirror where timesheet_id = '01550000-0000-0000-0000-0000000000a0'),
-  0,
-  'AC-OBX-062: precondition — the mirror row does not exist yet (the late writer has not run)');
+  (select push_state || '|' || (push_error like 'recovery-probe-failed%')::text
+     from timesheet_erp_mirror where timesheet_id = '01550000-0000-0000-0000-0000000000a0'),
+  'held|true',
+  'AC-OBX-062: precondition — the mirror row exists `held` from the HOLD itself (0158); the late recorder has not run');
 
 -- The Admin releases the still-held outbox (0152 §A) — updates zero mirror rows because none exists,
 -- and BUMPS the row's claim_generation (0152 §A) so the stale writer's token no longer matches.

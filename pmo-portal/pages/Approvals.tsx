@@ -354,7 +354,12 @@ function ReopenableApprovedSection() {
           // push_state on purpose: once an Admin releases the hold (to restore the backstop route) this
           // row reads `failed` like any rejected push, and the server still refuses it. Classifying on
           // the witness is the only way the surface agrees with the RPC.
-          const outcomeUnknown = !pushed && Boolean(row.mirror?.post_submit_unknown_at);
+          // ⚑ Luna FU-1a round-10 S3 — the mirror's own `held` state is the SAME server refusal. 0157 §4
+          // keeps `push_state = 'held'` as an INDEPENDENT predicate for the pre-0157 residue (a row parked
+          // `held` before the witness column existed), so classifying on the witness alone rendered an
+          // active button the server could only refuse.
+          const outcomeUnknown =
+            !pushed && (Boolean(row.mirror?.post_submit_unknown_at) || row.mirror?.push_state === 'held');
           const inFlight = !pushed && !outcomeUnknown && row.pushCommandState !== null;
           return (
             <div

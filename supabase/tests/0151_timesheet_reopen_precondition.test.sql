@@ -126,6 +126,12 @@ select pg_temp.seed_push_command('01512000-0000-0000-0000-000000000013', 'tsc-pc
 
 -- (d) `held`, NO mirror.
 select pg_temp.seed_push_command('01512000-0000-0000-0000-000000000014', 'tsc-pc-d2', 'held');
+-- ⚑ Migration 0158: `mark_outbox_held` now creates the mirror row + its unknown-outcome witness in the
+-- same transaction as the hold, so this arm would otherwise be fenced by the WITNESS predicate and stop
+-- testing what it exists to test. Deleting the mirror restores the shape this arm owns — a `held` OUTBOX
+-- row with NO mirror at all (also the pre-0158 residue shape) — so the outbox-state predicate is the only
+-- thing that can refuse, and a mutation dropping `'held'` from that `state in (...)` list still fails here.
+delete from timesheet_erp_mirror where timesheet_id = '01512000-0000-0000-0000-000000000014';
 
 -- (g) `committing`, NO mirror — a CLAIMED, IN-FLIGHT POST. The most dangerous state of the five: the
 -- worker may be inside the ERPNext call at this instant, so ERP may hold a document that no PMO row

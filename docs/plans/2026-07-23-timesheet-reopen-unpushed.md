@@ -371,3 +371,30 @@ employee + week (the push stamps the idempotency key into the Timesheet `note` f
 ⇒ do NOT re-open in PMO — the week is Slice B's cancel path, and until Slice B exists the correction is
 an ERPNext-Desk cancel followed by a PMO re-open; or (b) ERP holds nothing ⇒ the row is a true
 rejection and the ordinary re-open is safe.
+
+## 10. ⚑ INTEGRATION HAZARD FOR THE MERGE — `release_outbox_hold` has two in-flight signatures
+_(Luna FU-1a round-10 SHOULD-FIX S4 — observed live on the shared local DB, not a defect of this branch)_
+
+`origin/dev` today carries ONE form of this RPC: `release_outbox_hold(uuid, text)` (`0137:198`). **Two
+unmerged branches each redefine it, with DIFFERENT arities:**
+
+- **this branch** — `0152 §A` keeps the 2-arg form `release_outbox_hold(p_outbox_id uuid, p_reason text)`
+  and adds the timesheet-mirror release arm (the round-4 BLOCK fix: the operator's one action moves BOTH
+  the outbox row and its `held` mirror, so a release restores the backstop route instead of ending it);
+- **the sibling budget branch** (`0153`/`0154`/`0156`) — a 3-arg form
+  `release_outbox_hold(uuid, text, text default null)`.
+
+Postgres keeps BOTH as overloads. A caller that passes two arguments then fails with
+**`42725 function release_outbox_hold(uuid, text) is not unique`** — i.e. **every hold release breaks at
+runtime**, for every domain. Round 10 hit this while reproducing the BLOCK and had to drop one form to
+continue.
+
+**Whichever branch lands SECOND must reconcile the signature in its own migration** — one function, one
+arity — and the surviving definition **must carry `0152 §A`'s timesheets mirror arm**. A 3-arg version
+that drops that arm silently reverts the round-4 fix (the mirror stays `held`, nothing re-drives it, and
+the re-open's dead end re-forms) while every test on this branch still passes, because they call the
+2-arg form. Verify after the merge with:
+
+```sql
+select oid::regprocedure from pg_proc where proname = 'release_outbox_hold';   -- expect exactly ONE row
+```

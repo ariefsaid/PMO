@@ -78,14 +78,23 @@ grant select on pg_temp.ids to authenticated;
 
 -- The mirror rows, written exactly as `markTimesheetPushOutcome` writes them: the `command-held` arm
 -- sets push_state='held' + the classified reason and leaves ts_number/pushed_at alone.
+-- ⚑ Migration 0158: the shipped hold above now CREATES this row itself (`mark_outbox_held` stamps the
+-- unknown-outcome witness where the hold is born), so the recorder's write is an upsert onto that row
+-- rather than a fresh insert. The recorded state is identical; only the row's provenance changed.
 insert into timesheet_erp_mirror (org_id, timesheet_id, push_state, push_error, approved_at_pushed) values
   ('01520000-0000-0000-0000-00000000000a','01520000-0000-0000-0000-000000000010','held',
    'command-held: the command is held pending operator review', now()),
   ('01520000-0000-0000-0000-00000000000a','01520000-0000-0000-0000-000000000011','held',
-   'command-held: the command is held pending operator review', now());
--- Sheet 12's mirror records a REAL ERP document — a release must never re-queue it.
+   'command-held: the command is held pending operator review', now())
+on conflict (timesheet_id) do update
+  set push_state = excluded.push_state, push_error = excluded.push_error,
+      approved_at_pushed = excluded.approved_at_pushed;
+-- Sheet 12's mirror records a REAL ERP document — a release must never re-queue it. (Learning a live
+-- `ts_number` is also the one fact that dissolves the witness, per 0157 §2 rule 1.)
 insert into timesheet_erp_mirror (org_id, timesheet_id, ts_number, push_state, pushed_at) values
-  ('01520000-0000-0000-0000-00000000000a','01520000-0000-0000-0000-000000000012','TS-2026-00042','pushed', now());
+  ('01520000-0000-0000-0000-00000000000a','01520000-0000-0000-0000-000000000012','TS-2026-00042','pushed', now())
+on conflict (timesheet_id) do update
+  set ts_number = excluded.ts_number, push_state = excluded.push_state, pushed_at = excluded.pushed_at;
 
 -- A NON-timesheet held command keyed on the SAME record id as sheet 11 (whose mirror is held). A
 -- release that ignored `domain` would release that mirror; a domain-scoped one cannot.
