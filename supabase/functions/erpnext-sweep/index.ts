@@ -1192,10 +1192,15 @@ export function budgetBackstopDepsLive(
   };
 }
 
-/** The live per-org budget backstop pass (P3c slice 5, AC-BUD-023). Domain-gated (Luna BLOCK 9): an
- *  org that never assigned the `budget` domain to this tier has nothing to reconcile. */
+/** The live per-org budget backstop pass (P3c slice 5, AC-BUD-023). Gated on the ACTIVE ERPNext BINDING,
+ *  not a `domain_externally_owned('budget')` row: budget is Posture B (FR-BUD-006(a)/FR-BUD-010 — it NEVER
+ *  gets an ownership row; employment IS the binding). ⚑ FIX 2026-07-24: this gate previously read
+ *  `ownedDomains.includes('budget')`, which is now ALWAYS false once the forbidden ownership row is gone —
+ *  so the backstop stopped running and a stale `committing` budget row was never quarantined (AC-BUD-032
+ *  regression). Gate on `activatedAt` (the same signal `orgEmploysErpnext` uses); the empty-candidate
+ *  filter below still makes this a no-op for an org with no budget outbox rows. */
 async function reconcileOrgBudgetPushesLive(serviceClient: SupabaseClient, org: OrgBinding): Promise<{ driven: number; error?: string }> {
-  if (!org.ownedDomains.includes(ERPNEXT_BUDGET_DOMAIN)) return { driven: 0 };
+  if (!org.activatedAt) return { driven: 0 };
   try {
     // The SoT eligibility set (0131), fetched ONCE per pass — the backstop may only re-drive a row this
     // RPC still admits. Scoped to the budget domain; any other domain's candidates are irrelevant here.
