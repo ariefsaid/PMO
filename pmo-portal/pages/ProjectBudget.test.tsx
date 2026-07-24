@@ -253,6 +253,26 @@ describe('ProjectBudget Draft version actions', () => {
     resetState();
   });
 
+  /**
+   * ⚑ SHOULD-FIX (FU-2 round 2) — a version with no line items sends NOTHING to ERPNext (the fan-out
+   * has no year to attempt), so the toast must not announce a push. Neither may it cry failure: no
+   * attempt was made and there is nothing to retry.
+   */
+  it('activation of a version with NO lines says nothing was sent — never "ERPNext is enforcing" it', async () => {
+    mockActivate.mockResolvedValueOnce({ pushState: 'nothing-to-push' });
+    budgetState.data = 0;
+    versionsState.data = [draftVersion];
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: /^Activate$/i }));
+    await userEvent.click(screen.getByRole('button', { name: /Activate version/i }));
+    await waitFor(() => expect(screen.getByRole('status')).toBeInTheDocument());
+    expect(screen.getByRole('status')).toHaveTextContent(/activated/i);
+    expect(screen.getByRole('status')).toHaveTextContent(/no budget lines/i);
+    // …and it does NOT tell the operator to retry a push that was never attempted.
+    expect(screen.getByRole('status')).not.toHaveTextContent(/retry/i);
+    resetState();
+  });
+
   it('B5: Delete draft opens a DESTRUCTIVE modal; deleteDraft fires only on Confirm', async () => {
     budgetState.data = 0;
     versionsState.data = [draftVersion];

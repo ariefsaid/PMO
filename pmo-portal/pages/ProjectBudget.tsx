@@ -739,6 +739,16 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId }) => {
               `${c.label}. PMO's budget is active; retry the push from the Budget projection.`,
               'warning',
             );
+          } else if (pushState === 'nothing-to-push') {
+            // ⚑ FU-2 round 2: the version has NO line items, so the fan-out attempted no fiscal year and
+            // created no ERP `Budget`. Announcing a push would be a statement about money that never
+            // moved; announcing a failure would invent an attempt. Nothing was sent — say that, and name
+            // the act that changes it. (The per-year `never-pushed` banner agrees rather than contradicts.)
+            toast(
+              'Version activated — nothing was sent to ERPNext',
+              `${c.label} has no budget lines, so no ERPNext Budget was created. Add lines and activate a new version to enforce one.`,
+              'warning',
+            );
           } else {
             toast('Version activated', c.label, 'success');
           }

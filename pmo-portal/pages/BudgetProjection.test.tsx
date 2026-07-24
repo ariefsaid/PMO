@@ -493,6 +493,22 @@ describe('BudgetProjection — the push-state banner (FR-BUD-123)', () => {
     expect(screen.getByText(/still enforcing the previous budget/i)).toBeInTheDocument();
   });
 
+  /**
+   * ⚑ SHOULD-FIX (FU-2 round 2) — a retry of a version with NO line items attempts no year at all, so
+   * the boundary answers 200 having created no ERP `Budget` and written no mirror row. "ERPNext is now
+   * enforcing the active budget" was a statement about money that had not moved.
+   */
+  it('a retry with nothing to push says so — never "ERPNext is now enforcing the active budget"', async () => {
+    const user = userEvent.setup();
+    retryMock.mockResolvedValue({ pushState: 'nothing-to-push' });
+    pushStatusMock.mockResolvedValue([pushStatus({ pushState: 'never-pushed', fiscalYear: ERP_FISCAL_YEAR })]);
+    renderPage();
+    await user.click(await screen.findByRole('button', { name: /retry the push/i }));
+    await waitFor(() => expect(retryMock).toHaveBeenCalled());
+    expect(await screen.findByText(/no budget lines/i)).toBeInTheDocument();
+    expect(screen.queryByText(/now enforcing the active budget/i)).not.toBeInTheDocument();
+  });
+
   // ── I-6: a 503 is not a gate rejection. "The reason shown above may need fixing first" is false
   //    when nothing above was fixable and the push simply never reached ERPNext.
   it('I-6 a TRANSPORT failure does not tell the operator to fix something above', async () => {

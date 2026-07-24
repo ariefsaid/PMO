@@ -337,6 +337,16 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
             : 'ERPNext is now enforcing the active budget.',
           'success',
         );
+      } else if (next === 'nothing-to-push') {
+        // ⚑ FU-2 round 2 — the active version has NO line items, so the retry attempted no year: no ERP
+        // Budget was created and no mirror row written. Reporting "ERPNext is now enforcing the active
+        // budget" here claimed a push that did not happen, directly contradicting the `never-pushed`
+        // banner beside it. Neither is it a failure — nothing was attempted, so there is nothing to fix.
+        toast(
+          'There was nothing to push',
+          'The active budget version has no budget lines, so no ERPNext Budget was created. Add lines and activate a new version.',
+          'warning',
+        );
       } else {
         // ⚑ I-6 — a transport failure is not a gate rejection. "The reason shown above may need fixing
         // first" was false for a 502/503, where nothing above was fixable and the command never

@@ -527,6 +527,39 @@ describe('activateVersion', () => {
     expect(mockFunctionsInvoke.mock.calls[0][1].body.record).not.toHaveProperty('target_fiscal_year');
   });
 
+  /**
+   * ⚑ SHOULD-FIX (FU-2 round 2) — NOTHING WAS PUSHED, AND THE TOAST SAID "PUSHED".
+   *
+   * A multi-FY version with NO line items produces an EMPTY push plan: the fan-out loop body never
+   * runs, no ERP `Budget` is created, no mirror row is written — and the boundary answers `200` with
+   * `{ years: [] }`. Reading that as success told the operator "ERPNext is now enforcing the active
+   * budget" about a push that did not happen, while the per-year banner underneath said `never-pushed`:
+   * two contradictory statements instead of one honest one.
+   *
+   * An EMPTY `years` array is not an absent one. Absent = a pre-BFY server that did not report years
+   * (taken at face value: it resolved, so the year asked about is the year that pushed). Empty = this
+   * server enumerated the years it attempted and there were NONE.
+   */
+  it('AC-BFY-009 an EMPTY years array is reported as nothing-to-push — never as a push that happened', async () => {
+    makeFromBuilder({ data: { activated_at: '2026-07-16T10:00:00Z' }, error: null });
+    mockFunctionsInvoke.mockResolvedValue({ data: { years: [] }, error: null });
+    await expect(retryBudgetPush('v-1', '2026')).resolves.toEqual({ pushState: 'nothing-to-push' });
+    await expect(retryBudgetPush('v-1', null)).resolves.toEqual({ pushState: 'nothing-to-push' });
+  });
+
+  it('AC-BFY-009 an ABSENT years key is still taken at face value — a pre-BFY server is unaffected', async () => {
+    makeFromBuilder({ data: { activated_at: '2026-07-16T10:00:00Z' }, error: null });
+    mockFunctionsInvoke.mockResolvedValue({ data: { externalRecordId: 'BUDGET-2026-00001', canonical: { id: 'v-1' } }, error: null });
+    await expect(retryBudgetPush('v-1', '2026')).resolves.toEqual({ pushState: 'pushed' });
+  });
+
+  it('AC-BFY-009 activation reports nothing-to-push too — an activated version with no lines pushed nothing', async () => {
+    makeRpcBuilder({ data: null, error: null });
+    makeFromBuilder({ data: { activated_at: '2026-07-16T10:00:00Z' }, error: null });
+    mockFunctionsInvoke.mockResolvedValue({ data: { years: [] }, error: null });
+    await expect(activateVersion('v-draft')).resolves.toEqual({ pushState: 'nothing-to-push' });
+  });
+
   // ── H-3 (Luna audit round 3): the retry must not report a failure it never made durable. ──────
   it('H-3 a retry of an UNSTAMPED version THROWS the reason (nothing durable was written, so "failed" would be a lie)', async () => {
     makeFromBuilder({ data: { activated_at: null }, error: null });

@@ -22,7 +22,15 @@ export type BudgetVersionWithItems = BudgetVersionRow & {
 /** What activating (or retrying the push for) a version did to the ERPNext side (HIGH-C). The PMO
  *  transition itself either succeeded or threw — this only ever describes the push CONSEQUENCE. */
 export interface ActivateVersionResult {
-  pushState: 'pushed' | 'failed';
+  /**
+   * ⚑ `'nothing-to-push'` (FU-2 round 2) is a THIRD outcome, not a flavour of the other two. A version
+   * with no line items produces an EMPTY push plan: the served fan-out attempts no year, creates no ERP
+   * `Budget` and writes no mirror row, then answers `200 { years: [] }`. Reading that as `'pushed'`
+   * announced a push that never happened (the per-year banner underneath simultaneously said
+   * `never-pushed`); reading it as `'failed'` would invent an attempt that was never made. Nothing was
+   * sent because there was nothing to send, and the surface says exactly that.
+   */
+  pushState: 'pushed' | 'failed' | 'nothing-to-push';
 }
 
 export interface NewLineItem {
@@ -224,15 +232,26 @@ async function readActivatedAt(versionId: string): Promise<string | null> {
  * authorization/state-machine rejection), exactly as it did before P3c.
  */
 export async function activateVersion(versionId: string): Promise<ActivateVersionResult> {
+  // ⚑ FU-2 round 2: the dispatch's own RESPONSE is kept, because "the promise resolved" and "a push
+  // happened" are not the same fact — an empty fan-out resolves 200 having sent nothing.
+  // `activateAndPush` owns only the money invariant (a push failure never fails the activation), so the
+  // outcome is refined here rather than teaching that module the budget response shape.
+  let dispatchResult: unknown = null;
   const result = await activateAndPush({
     versionId,
     rpc: async (_fn, args) => {
       const { error } = await supabase.rpc('activate_budget_version', args as { version_id: string });
       return { error };
     },
-    dispatch: (id) => pushActivatedBudget(id),
+    dispatch: async (id) => {
+      dispatchResult = await pushActivatedBudget(id);
+      return dispatchResult;
+    },
   });
   if (!result.activated) throw toAppError(result.error);
+  // The whole fan-out is the unit here (activation names no year), and only a RESOLVED dispatch can be
+  // refined — a rejected one already carries its own `'failed'`.
+  if (result.pushState === 'pushed') return { pushState: pushStateForYear(dispatchResult, null) };
   // ⚑ HIGH-C (Luna re-audit round 2): the push outcome is RETURNED, not discarded. Every writer of
   // `budget_version_erp_mirror` lives INSIDE `adapter-dispatch`, so a dispatch that never REACHES the
   // function (a dropped connection, the tab closed mid-request, a 502 from the platform) leaves no
@@ -307,9 +326,14 @@ interface BudgetFanOutResult {
  * A response that names no years at all (a single-year push, or an older server) is taken at face
  * value: it resolved, so the year the operator asked about is the year that pushed.
  */
-function pushStateForYear(result: unknown, fiscalYear: string | null): 'pushed' | 'failed' {
+function pushStateForYear(result: unknown, fiscalYear: string | null): ActivateVersionResult['pushState'] {
   const years = (result as BudgetFanOutResult | null | undefined)?.years;
-  if (!Array.isArray(years) || years.length === 0) return 'pushed';
+  // A pre-BFY server names no years at all — taken at face value, as before.
+  if (!Array.isArray(years)) return 'pushed';
+  // ⚑ FU-2 round 2: an EMPTY array is a DIFFERENT statement from an absent key. This server enumerated
+  // the years it attempted and there were none (an Active version with no line items ⇒ an empty push
+  // plan), so no ERP `Budget` was created and no mirror row was written. "Pushed" was a lie about money.
+  if (years.length === 0) return 'nothing-to-push';
   // No year named ⇒ the operator retried a project with nothing on record for any year, so the honest
   // verdict is the WHOLE fan-out: anything less than every year landing is not "pushed".
   if (fiscalYear === null) return years.every((y) => y.pushed) ? 'pushed' : 'failed';
