@@ -7,7 +7,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const { mockRpc, mockFrom, mockSelect, mockEq, mockIn, mockOrder, mockUpdate, mockDelete, mockInsert, mockUpsert, mockSingle } =
+const { mockRpc, mockFrom, mockSelect, mockEq, mockIn, mockOrder, mockGt, mockLimit, mockUpdate, mockDelete, mockInsert, mockUpsert, mockSingle } =
   vi.hoisted(() => {
     const mockRpc = vi.fn();
     const mockFrom = vi.fn();
@@ -15,12 +15,14 @@ const { mockRpc, mockFrom, mockSelect, mockEq, mockIn, mockOrder, mockUpdate, mo
     const mockEq = vi.fn();
     const mockIn = vi.fn();
     const mockOrder = vi.fn();
+    const mockGt = vi.fn();
+    const mockLimit = vi.fn();
     const mockUpdate = vi.fn();
     const mockDelete = vi.fn();
     const mockInsert = vi.fn();
     const mockUpsert = vi.fn();
     const mockSingle = vi.fn();
-    return { mockRpc, mockFrom, mockSelect, mockEq, mockIn, mockOrder, mockUpdate, mockDelete, mockInsert, mockUpsert, mockSingle };
+    return { mockRpc, mockFrom, mockSelect, mockEq, mockIn, mockOrder, mockGt, mockLimit, mockUpdate, mockDelete, mockInsert, mockUpsert, mockSingle };
   });
 
 vi.mock('@/src/lib/supabase/client', () => ({
@@ -73,6 +75,51 @@ function makeFromBuilder(resolved: { data: unknown; error: unknown }) {
   return builder;
 }
 
+/**
+ * ⚑ FU-2 round 4, FINDING 2 — A POSTGREST-FAITHFUL FAKE FOR A PAGED READ.
+ *
+ * `makeFromBuilder` above resolves whatever it is handed, which is precisely what a truncation test
+ * cannot use: the real server refuses to return more than `max_rows` (`supabase/config.toml`) and
+ * signals NOTHING when it does — HTTP 200, a SHORT body, `error === null`. So this builder applies that
+ * cap ITSELF, and answers `.gt('id', cursor).limit(n)` the way keyset paging expects. An UNPAGED read
+ * against it gets exactly one capped page (the shipped defect); a paged one walks the whole set.
+ */
+const SERVER_MAX_ROWS = 1000; // supabase/config.toml `max_rows` — pinned by src/lib/pagedRead.config.test.ts
+type PhasingDbRow = { id: string; category: string; fiscal_year: string | null };
+
+function makeKeysetFromBuilder(
+  allRows: PhasingDbRow[],
+  error: { message: string; code?: string } | null = null,
+) {
+  /** One request per page actually issued — what proves the loop ran, and where it resumed. */
+  const requests: Array<{ afterId: string | null; limit: number }> = [];
+  mockFrom.mockImplementation(() => {
+    let afterId: string | null = null;
+    let requested = Number.POSITIVE_INFINITY; // an unpaged read asks for "everything" and is capped
+    const builder: Record<string, unknown> = {};
+    builder.select = mockSelect.mockReturnValue(builder);
+    builder.eq = mockEq.mockReturnValue(builder);
+    builder.order = mockOrder.mockReturnValue(builder);
+    builder.gt = mockGt.mockImplementation((_column: string, value: string) => {
+      afterId = value;
+      return builder;
+    });
+    builder.limit = mockLimit.mockImplementation((n: number) => {
+      requested = n;
+      return builder;
+    });
+    builder.then = (resolve: (v: { data: unknown; error: unknown }) => void, reject?: (e: unknown) => void) => {
+      requests.push({ afterId, limit: requested });
+      if (error) return Promise.resolve({ data: null, error }).then(resolve, reject);
+      const start = afterId === null ? 0 : allRows.findIndex((r) => r.id === afterId) + 1;
+      const data = allRows.slice(start, start + Math.min(requested, SERVER_MAX_ROWS));
+      return Promise.resolve({ data, error: null }).then(resolve, reject);
+    };
+    return builder;
+  });
+  return requests;
+}
+
 beforeEach(() => {
   mockRpc.mockReset();
   mockFrom.mockReset();
@@ -80,6 +127,8 @@ beforeEach(() => {
   mockEq.mockReset();
   mockIn.mockReset();
   mockOrder.mockReset();
+  mockGt.mockReset();
+  mockLimit.mockReset();
   mockUpdate.mockReset();
   mockDelete.mockReset();
   mockInsert.mockReset();
@@ -385,14 +434,11 @@ describe('fetchBudgetPushStatus (C-5)', () => {
  */
 describe('fetchActiveBudgetCategoryPhasing (which fiscal year IS this category budgeted in — and is ANY line un-placeable?)', () => {
   it("groups the ACTIVE version's phased line items by category", async () => {
-    makeFromBuilder({
-      data: [
-        { category: 'Labor', fiscal_year: '2027' },
-        { category: 'Labor', fiscal_year: '2027' },
-        { category: 'Materials', fiscal_year: '2026' },
-      ],
-      error: null,
-    });
+    makeKeysetFromBuilder([
+      { id: 'line-1', category: 'Labor', fiscal_year: '2027' },
+      { id: 'line-2', category: 'Labor', fiscal_year: '2027' },
+      { id: 'line-3', category: 'Materials', fiscal_year: '2026' },
+    ]);
     const phasing = await fetchActiveBudgetCategoryPhasing('proj-1');
     expect(phasing).toEqual({ years: { Labor: ['2027'], Materials: ['2026'] }, unphased: {} });
     expect(mockFrom).toHaveBeenCalledWith('budget_line_items');
@@ -401,7 +447,7 @@ describe('fetchActiveBudgetCategoryPhasing (which fiscal year IS this category b
   });
 
   it('never invents a year for an UN-PHASED line — but RECORDS that the category has one', async () => {
-    makeFromBuilder({ data: [{ category: 'Labor', fiscal_year: null }], error: null });
+    makeKeysetFromBuilder([{ id: 'line-1', category: 'Labor', fiscal_year: null }]);
     expect(await fetchActiveBudgetCategoryPhasing('proj-1')).toEqual({ years: {}, unphased: { Labor: true } });
   });
 
@@ -412,14 +458,11 @@ describe('fetchActiveBudgetCategoryPhasing (which fiscal year IS this category b
    * "a timing difference, not an overspend", a claim PMO does not hold.
    */
   it('carries BOTH facts for a category phased elsewhere WITH an un-phased sibling (the (F,F) cell)', async () => {
-    makeFromBuilder({
-      data: [
-        { category: 'Labor', fiscal_year: '2027' },
-        { category: 'Labor', fiscal_year: null },
-        { category: 'Materials', fiscal_year: '2026' },
-      ],
-      error: null,
-    });
+    makeKeysetFromBuilder([
+      { id: 'line-1', category: 'Labor', fiscal_year: '2027' },
+      { id: 'line-2', category: 'Labor', fiscal_year: null },
+      { id: 'line-3', category: 'Materials', fiscal_year: '2026' },
+    ]);
     expect(await fetchActiveBudgetCategoryPhasing('proj-1')).toEqual({
       years: { Labor: ['2027'], Materials: ['2026'] },
       unphased: { Labor: true },
@@ -427,13 +470,49 @@ describe('fetchActiveBudgetCategoryPhasing (which fiscal year IS this category b
   });
 
   it('resolves empty (never throws) when the project has no Active version', async () => {
-    makeFromBuilder({ data: [], error: null });
+    makeKeysetFromBuilder([]);
     expect(await fetchActiveBudgetCategoryPhasing('proj-1')).toEqual({ years: {}, unphased: {} });
   });
 
   it('throws an AppError (code preserved) on a read failure', async () => {
-    makeFromBuilder({ data: null, error: { message: 'not authorized', code: '42501' } });
+    makeKeysetFromBuilder([], { message: 'not authorized', code: '42501' });
     await expect(fetchActiveBudgetCategoryPhasing('proj-1')).rejects.toMatchObject({ code: '42501' });
+  });
+
+  /**
+   * ⚑ FU-2 round 4, FINDING 2 — SILENT TRUNCATION RE-OPENS THE CLAIM `c3c029f4` CLOSED.
+   *
+   * This read is the fail-open guard's own PRECONDITION: `fullyPlacedElsewhere` treats a MISSING
+   * `unphased` fact as "every line is placed", so a page the server withheld reads as good news. On a
+   * version whose un-phased line sorts past `max_rows`, the surface would state "budgeted in 2027 … a
+   * timing difference, not an overspend" about a category holding money PMO can place in NO year —
+   * exactly the sentence the round-3 fix removed, resurrected by a 200 with a short body.
+   *
+   * The oracle is the FACT, not the loop: the un-phased row lives past the cap, so it arrives only if
+   * the whole set is walked. (The page count is asserted too, so a fix that merely raised a limit is
+   * distinguishable from one that pages.)
+   */
+  it('PAGES the read — an un-phased line past PostgREST max_rows still reaches the surface', async () => {
+    const rows: PhasingDbRow[] = [
+      ...Array.from({ length: SERVER_MAX_ROWS }, (_, i) => ({
+        id: `line-${String(i).padStart(5, '0')}`,
+        category: 'Labor',
+        fiscal_year: '2027',
+      })),
+      // The datum the whole guard turns on, deliberately placed OUTSIDE the first page.
+      { id: `line-${String(SERVER_MAX_ROWS).padStart(5, '0')}`, category: 'Labor', fiscal_year: null },
+    ];
+    const requests = makeKeysetFromBuilder(rows);
+
+    expect(await fetchActiveBudgetCategoryPhasing('proj-1')).toEqual({
+      years: { Labor: ['2027'] },
+      unphased: { Labor: true },
+    });
+    // Two pages, the second RESUMING AFTER the last row of the first (keyset, not offset: a concurrent
+    // insert must not be able to duplicate or skip a line).
+    expect(requests).toHaveLength(2);
+    expect(requests[1].afterId).toBe('line-00999');
+    expect(mockOrder).toHaveBeenCalledWith('id', { ascending: true });
   });
 });
 

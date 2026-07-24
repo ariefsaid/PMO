@@ -13,6 +13,7 @@
  */
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError, toAppError } from '@/src/lib/appError';
+import { fetchAllRowsByKeyset, type PageResult } from '@/src/lib/pagedRead';
 import { retryBudgetPush, type ActivateVersionResult } from '@/src/lib/db/budgets';
 import { encodeFiscalYear } from '@/src/lib/adapterSeam/erpnext/fiscalYearEncoding';
 import type { Database } from '@/src/lib/supabase/database.types';
@@ -220,17 +221,29 @@ export interface ActiveBudgetCategoryPhasing {
  * THAT THEY EXIST is itself a fact, and the one the reason-string ladder cannot decide without: "all of
  * this category is budgeted in 2027, so FY2026 spend is a timing difference and not an overspend" is
  * only true when EVERY line is placed. Dropping these rows made that claim unfalsifiable on screen.
+ *
+ * ⚑ FINDING 2 (FU-2 round 4) — AND IT IS PAGED, for the same reason. Unpaged, this read is silently
+ * capped at PostgREST's `db-max-rows` (200, a short body, `error === null`), and the truncation lands on
+ * the fail-open guard's own PRECONDITION: a missing `unphased` fact reads as "every line is placed", so
+ * a version whose un-phased line sorts past the cap resurrects the exact "not an overspend" claim the
+ * SHOULD-FIX above removed. KEYSET (`readBudgetLineItems`'s loop, the shared `pagedRead` seam) rather
+ * than offset — a duplicated or skipped line here is a wrong claim about money.
  */
 export async function fetchActiveBudgetCategoryPhasing(projectId: string): Promise<ActiveBudgetCategoryPhasing> {
-  const { data, error } = await supabase
-    .from('budget_line_items')
-    // The `!inner` join scopes to the Active version without a second round trip; RLS scopes the org.
-    .select('category, fiscal_year, budget_versions!inner(project_id, status)')
-    .eq('budget_versions.project_id', projectId)
-    .eq('budget_versions.status', 'Active');
-  if (error) throw toAppError(error);
+  type PhasingRow = { id: string; category: BudgetCategory; fiscal_year: string | null };
+  const data = await fetchAllRowsByKeyset<PhasingRow>((afterId, limit) => {
+    const q = supabase
+      .from('budget_line_items')
+      // `id` is SELECTED because it is the cursor; the `!inner` join scopes to the Active version
+      // without a second round trip; RLS scopes the org.
+      .select('id, category, fiscal_year, budget_versions!inner(project_id, status)')
+      .eq('budget_versions.project_id', projectId)
+      .eq('budget_versions.status', 'Active')
+      .order('id', { ascending: true });
+    return (afterId === null ? q : q.gt('id', afterId)).limit(limit) as PromiseLike<PageResult<PhasingRow>>;
+  });
   const phasing: ActiveBudgetCategoryPhasing = { years: {}, unphased: {} };
-  for (const row of (data ?? []) as Array<{ category: BudgetCategory; fiscal_year: string | null }>) {
+  for (const row of data) {
     if (!row.fiscal_year) {
       phasing.unphased[row.category] = true;
       continue;
