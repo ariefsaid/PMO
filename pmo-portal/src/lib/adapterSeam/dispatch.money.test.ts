@@ -382,8 +382,8 @@ describe('AC-ENA-012 the fencing token closes the lease-expiry overlap (F4)', ()
     // its own stale record is the lost update; writing the winner's confirmed record is the convergence
     // an operator's Retry depends on). Asserted by payload identity, not by call count.
     expect(writeReadModel).toHaveBeenCalledTimes(1);
-    expect(writeReadModel).toHaveBeenCalledWith({ id: 'pmo-1', erp_total: '5.00', erp_status: 'Submitted' });
-    expect(writeReadModel).not.toHaveBeenCalledWith({ id: 'pmo-1', erp_total: '5.00' });   // the stale claimant's own
+    expect(writeReadModel).toHaveBeenCalledWith({ id: 'pmo-1', erp_total: '5.00', erp_status: 'Submitted' }, { isReplay: true });
+    expect(writeReadModel).not.toHaveBeenCalledWith({ id: 'pmo-1', erp_total: '5.00' }, expect.anything());   // the stale claimant's own
     expect(recordExternalRef).not.toHaveBeenCalled();
     expect(result.externalRecordId).toBe('PI-RECLAIMED');
     expect([...fake.rows.values()][0].state).toBe('confirmed');
@@ -411,6 +411,27 @@ describe('AC-ENA-012 confirmed retry — return the stored result, no ERP call, 
     expect(commit).not.toHaveBeenCalled();
     expect(claimSpy).not.toHaveBeenCalled();
     expect(result.externalRecordId).toBe('PI-0001');
+  });
+
+  it('BLOCKER 2 (FU-2): a confirmed retry converges the read-model as a REPLAY (isReplay=true) so a PMO-SoT writer never overrides a Desk cancel from a stored canonical', async () => {
+    const fake = createFakeOutbox();
+    await fake.deps.insertOutboxPending('procurement', 'pmo-1', 'key-1');
+    const id = [...fake.rows.keys()][0];
+    const claimed = await fake.deps.claimOutboxForCommit(id);
+    await fake.deps.markOutboxCommitted(id, 'PI-0001', { id: 'pmo-1' }, claimed!.claimGeneration);
+    await fake.deps.recordOutboxRef(id, claimed!.claimGeneration, { pmoRecordId: 'pmo-1', externalTier: 'erpnext', externalRecordId: 'PI-0001', domain: 'procurement' });
+    await fake.deps.confirmOutbox(id, claimed!.claimGeneration);
+
+    const writeReadModel = vi.fn();
+    await dispatchMoneyWrite({
+      adapter: erpnextAdapter(vi.fn()),
+      command: baseCommand,
+      writeReadModel, recordExternalRef: vi.fn(),
+      money: fake.deps,
+    });
+    // The wire BLOCKER 2 depends on: the confirmed-replay convergence flags itself as a replay, which is
+    // exactly what the budget writer reads to refuse resurrecting a Desk-cancelled Budget.
+    expect(writeReadModel).toHaveBeenCalledWith(expect.anything(), { isReplay: true });
   });
 });
 
@@ -529,7 +550,8 @@ describe('AC-ENA-012 F2 finalization mirrors the adapter\'s REAL canonical, not 
       money: fake.deps,
     });
     // The read-model mirror is written with the adapter's real record (ERP-derived fields), not a stub.
-    expect(writeReadModel).toHaveBeenCalledWith(erpCanonical);
+    // A FRESH commit (isReplay=false): it may supersede a prior Desk cancel (M-1).
+    expect(writeReadModel).toHaveBeenCalledWith(erpCanonical, { isReplay: false });
     expect(result.canonical).toEqual(erpCanonical);
     // ...and the outbox row persisted it, so a later recovery can replay the same record.
     expect([...fake.rows.values()][0].canonical).toEqual(erpCanonical);
@@ -554,7 +576,8 @@ describe('AC-ENA-012 F2 finalization mirrors the adapter\'s REAL canonical, not 
     });
     expect(commit).not.toHaveBeenCalled();
     // The recovery mirrors the REAL persisted canonical — a `{ id: 'pmo-1' }` stub would drop erp_total/status.
-    expect(writeReadModel).toHaveBeenCalledWith(erpCanonical);
+    // A committed→finalize recovery is a REPLAY (isReplay=true): no fresh ERP write happened here.
+    expect(writeReadModel).toHaveBeenCalledWith(erpCanonical, { isReplay: true });
     expect(result.canonical).toEqual(erpCanonical);
   });
 
@@ -630,7 +653,8 @@ describe('NEW-4(b) confirmed retry converges the read-model (the operator\'s Ret
     // the mirror is re-written from the REAL persisted canonical — a `{ id }` stub would blank the
     // ERP-derived fields the screen reads (and, for budget/timesheets, the push_state itself).
     expect(writeReadModel).toHaveBeenCalledTimes(1);
-    expect(writeReadModel).toHaveBeenCalledWith(erpCanonical);
+    // A confirmed retry is a REPLAY (isReplay=true) — the writer must not resurrect a Desk-cancelled row.
+    expect(writeReadModel).toHaveBeenCalledWith(erpCanonical, { isReplay: true });
     // ...and nothing else changes: no second ERP document, no claim, no state churn.
     expect(commit).not.toHaveBeenCalled();
     expect(claimSpy).not.toHaveBeenCalled();
@@ -1363,5 +1387,77 @@ describe('WIRE 4: the 0116 one-in-flight-per-record violation is a clean, action
     const noCode = new Error('unrelated failure mentioning external_command_outbox_one_inflight_per_record');
     const { run } = dispatchWithInsertError(noCode);
     await expect(run()).rejects.not.toMatchObject({ code: 'command-in-flight-for-record' });
+  });
+});
+
+/**
+ * BFY T3 (FR-BFY-036) — the generic dispatcher's `outboxRecordId` seam. The budget domain fans out one
+ * outbox row per phased fiscal year under a YEAR-QUALIFIED identity `<vid>:<encoded_fy>` while
+ * `command.record.id` stays the bare budget_version_id UUID (the gate query / mirror FK / feed lookup
+ * fact). `dispatchMoneyWrite` gains an optional `outboxRecordId` that keys readOutbox/insertOutboxPending
+ * (and every reconcile re-read); it defaults to `command.record.id`, so every non-budget domain is
+ * byte-for-byte unchanged. The served boundary wires `outbox_identity` here in T13.
+ */
+describe('BFY T3 (FR-BFY-036): dispatchMoneyWrite keys the outbox on outboxRecordId ?? command.record.id', () => {
+  it('FR-BFY-036 passes outboxRecordId to readOutbox + insertOutboxPending when supplied (budget per-year identity)', async () => {
+    const fake = createFakeOutbox();
+    const readOutbox = vi.spyOn(fake.deps, 'readOutbox');
+    const insertOutboxPending = vi.spyOn(fake.deps, 'insertOutboxPending');
+    const commit = vi.fn(async () => ({ externalRecordId: 'BUD-2026-0001', canonical: { id: 'pmo-1' } }));
+    const yearQualified = '3f1b0c9e-1a2b-4c3d-8e4f-5a6b7c8d9e0f:GEZTM';
+
+    await dispatchMoneyWrite({
+      adapter: erpnextAdapter(commit),
+      command: { ...baseCommand, record: { id: 'pmo-1' } },
+      writeReadModel: vi.fn(), recordExternalRef: vi.fn(),
+      money: fake.deps,
+      outboxRecordId: yearQualified,
+    });
+
+    // the outbox 4-tuple keys on the YEAR-QUALIFIED id, NOT the bare record.id
+    expect(readOutbox).toHaveBeenCalledWith('procurement', yearQualified, baseCommand.idempotencyKey);
+    expect(insertOutboxPending).toHaveBeenCalledWith('procurement', yearQualified, baseCommand.idempotencyKey);
+    const row = [...fake.rows.values()][0];
+    expect(row.pmoRecordId).toBe(yearQualified);
+    expect(row.pmoRecordId).not.toBe('pmo-1');
+  });
+
+  it('FR-BFY-036 defaults to command.record.id when outboxRecordId is absent (every non-budget domain unchanged)', async () => {
+    const fake = createFakeOutbox();
+    const readOutbox = vi.spyOn(fake.deps, 'readOutbox');
+    const insertOutboxPending = vi.spyOn(fake.deps, 'insertOutboxPending');
+    const commit = vi.fn(async () => ({ externalRecordId: 'PI-0001', canonical: { id: 'pmo-1' } }));
+
+    await dispatchMoneyWrite({
+      adapter: erpnextAdapter(commit),
+      command: baseCommand, // record.id = 'pmo-1'
+      writeReadModel: vi.fn(), recordExternalRef: vi.fn(),
+      money: fake.deps,
+      // outboxRecordId OMITTED — every non-budget domain behaves byte-for-byte as before
+    });
+
+    expect(readOutbox).toHaveBeenCalledWith('procurement', 'pmo-1', baseCommand.idempotencyKey);
+    expect(insertOutboxPending).toHaveBeenCalledWith('procurement', 'pmo-1', baseCommand.idempotencyKey);
+    const row = [...fake.rows.values()][0];
+    expect(row.pmoRecordId).toBe('pmo-1');
+  });
+
+  it('FR-BFY-036 NO readOutbox/insertOutboxPending call during a dispatch ever falls back to record.id when outboxRecordId is set', async () => {
+    // A guard against a missed threading site: every call the spy sees must carry the year-qualified id,
+    // never the bare record.id — including any reconcile re-read the happy path happens to make.
+    const fake = createFakeOutbox();
+    const readOutbox = vi.spyOn(fake.deps, 'readOutbox');
+    const insertOutboxPending = vi.spyOn(fake.deps, 'insertOutboxPending');
+    const commit = vi.fn(async () => ({ externalRecordId: 'BUD-2026', canonical: { id: 'pmo-1' } }));
+    await dispatchMoneyWrite({
+      adapter: erpnextAdapter(commit),
+      command: baseCommand,
+      writeReadModel: vi.fn(), recordExternalRef: vi.fn(),
+      money: fake.deps,
+      outboxRecordId: 'vid-x:enc-fy',
+    });
+    expect(readOutbox).toHaveBeenCalled();
+    for (const call of readOutbox.mock.calls) expect(call[1]).toBe('vid-x:enc-fy');
+    for (const call of insertOutboxPending.mock.calls) expect(call[1]).toBe('vid-x:enc-fy');
   });
 });

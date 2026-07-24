@@ -7,19 +7,22 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const { mockRpc, mockFrom, mockSelect, mockEq, mockOrder, mockUpdate, mockDelete, mockInsert, mockUpsert, mockSingle } =
+const { mockRpc, mockFrom, mockSelect, mockEq, mockIn, mockOrder, mockGt, mockLimit, mockUpdate, mockDelete, mockInsert, mockUpsert, mockSingle } =
   vi.hoisted(() => {
     const mockRpc = vi.fn();
     const mockFrom = vi.fn();
     const mockSelect = vi.fn();
     const mockEq = vi.fn();
+    const mockIn = vi.fn();
     const mockOrder = vi.fn();
+    const mockGt = vi.fn();
+    const mockLimit = vi.fn();
     const mockUpdate = vi.fn();
     const mockDelete = vi.fn();
     const mockInsert = vi.fn();
     const mockUpsert = vi.fn();
     const mockSingle = vi.fn();
-    return { mockRpc, mockFrom, mockSelect, mockEq, mockOrder, mockUpdate, mockDelete, mockInsert, mockUpsert, mockSingle };
+    return { mockRpc, mockFrom, mockSelect, mockEq, mockIn, mockOrder, mockGt, mockLimit, mockUpdate, mockDelete, mockInsert, mockUpsert, mockSingle };
   });
 
 vi.mock('@/src/lib/supabase/client', () => ({
@@ -34,6 +37,7 @@ vi.mock('@/src/lib/db/budgets', () => ({ retryBudgetPush: retryBudgetPushMock })
 import {
   fetchBudgetProjection,
   fetchBudgetPushStatus,
+  fetchActiveBudgetCategoryPhasing,
   listBudgetFiscalYears,
   retryActiveBudgetPush,
   releaseActiveBudgetPushHold,
@@ -58,6 +62,7 @@ function makeFromBuilder(resolved: { data: unknown; error: unknown }) {
   const builder: Record<string, unknown> = {};
   builder.select = mockSelect.mockReturnValue(builder);
   builder.eq = mockEq.mockReturnValue(builder);
+  builder.in = mockIn.mockReturnValue(builder);
   builder.order = mockOrder.mockReturnValue(builder);
   builder.update = mockUpdate.mockReturnValue(builder);
   builder.delete = mockDelete.mockReturnValue(builder);
@@ -70,12 +75,60 @@ function makeFromBuilder(resolved: { data: unknown; error: unknown }) {
   return builder;
 }
 
+/**
+ * ⚑ FU-2 round 4, FINDING 2 — A POSTGREST-FAITHFUL FAKE FOR A PAGED READ.
+ *
+ * `makeFromBuilder` above resolves whatever it is handed, which is precisely what a truncation test
+ * cannot use: the real server refuses to return more than `max_rows` (`supabase/config.toml`) and
+ * signals NOTHING when it does — HTTP 200, a SHORT body, `error === null`. So this builder applies that
+ * cap ITSELF, and answers `.gt('id', cursor).limit(n)` the way keyset paging expects. An UNPAGED read
+ * against it gets exactly one capped page (the shipped defect); a paged one walks the whole set.
+ */
+const SERVER_MAX_ROWS = 1000; // supabase/config.toml `max_rows` — pinned by src/lib/pagedRead.config.test.ts
+type PhasingDbRow = { id: string; category: string; fiscal_year: string | null };
+
+function makeKeysetFromBuilder(
+  allRows: PhasingDbRow[],
+  error: { message: string; code?: string } | null = null,
+) {
+  /** One request per page actually issued — what proves the loop ran, and where it resumed. */
+  const requests: Array<{ afterId: string | null; limit: number }> = [];
+  mockFrom.mockImplementation(() => {
+    let afterId: string | null = null;
+    let requested = Number.POSITIVE_INFINITY; // an unpaged read asks for "everything" and is capped
+    const builder: Record<string, unknown> = {};
+    builder.select = mockSelect.mockReturnValue(builder);
+    builder.eq = mockEq.mockReturnValue(builder);
+    builder.order = mockOrder.mockReturnValue(builder);
+    builder.gt = mockGt.mockImplementation((_column: string, value: string) => {
+      afterId = value;
+      return builder;
+    });
+    builder.limit = mockLimit.mockImplementation((n: number) => {
+      requested = n;
+      return builder;
+    });
+    builder.then = (resolve: (v: { data: unknown; error: unknown }) => void, reject?: (e: unknown) => void) => {
+      requests.push({ afterId, limit: requested });
+      if (error) return Promise.resolve({ data: null, error }).then(resolve, reject);
+      const start = afterId === null ? 0 : allRows.findIndex((r) => r.id === afterId) + 1;
+      const data = allRows.slice(start, start + Math.min(requested, SERVER_MAX_ROWS));
+      return Promise.resolve({ data, error: null }).then(resolve, reject);
+    };
+    return builder;
+  });
+  return requests;
+}
+
 beforeEach(() => {
   mockRpc.mockReset();
   mockFrom.mockReset();
   mockSelect.mockReset();
   mockEq.mockReset();
+  mockIn.mockReset();
   mockOrder.mockReset();
+  mockGt.mockReset();
+  mockLimit.mockReset();
   mockUpdate.mockReset();
   mockDelete.mockReset();
   mockInsert.mockReset();
@@ -96,6 +149,7 @@ describe('fetchBudgetProjection (AC-BUD-050/053)', () => {
           projected_final_cost: 75000,
           projected_variance: 25000,
           projected_utilization: 0.75,
+          attribution_known: true,
         },
       ],
       error: null,
@@ -117,6 +171,7 @@ describe('fetchBudgetProjection (AC-BUD-050/053)', () => {
         projectedFinalCost: 75000,
         projectedVariance: 25000,
         projectedUtilization: 0.75,
+        attributionKnown: true,
       },
     ]);
   });
@@ -142,6 +197,48 @@ describe('fetchBudgetProjection (AC-BUD-050/053)', () => {
     const rows = await fetchBudgetProjection('proj-1', '2026');
     expect(rows[0].pmoBudgetAmount).toBeNull();
     expect(rows[0].projectedUtilization).toBeNull();
+  });
+
+  /**
+   * ⚑ BLOCK 2 (FU-2 round 2) — F-D reaches the surface, because the surface must be able to tell "this
+   * category has NO line" (`-EAC` is honest) from "this category has lines PMO cannot place in this
+   * year" (it holds real money and nothing about it may be stated). Both arrive as a NULL amount.
+   */
+  it('F-D: a suppressed attribution is carried to the surface, so a NULL amount can explain itself', async () => {
+    makeRpcBuilder({
+      data: [
+        {
+          category: 'Labor',
+          pmo_budget_amount: null,
+          actuals_to_date: 30000,
+          pmo_etc: 0,
+          projected_final_cost: 30000,
+          projected_variance: null,
+          projected_utilization: null,
+          attribution_known: false,
+        },
+      ],
+      error: null,
+    });
+    expect((await fetchBudgetProjection('proj-1', '2026'))[0].attributionKnown).toBe(false);
+  });
+
+  it('F-D fails OPEN on an older RPC shape — an absent column never invents a suppression', async () => {
+    makeRpcBuilder({
+      data: [
+        {
+          category: 'Labor',
+          pmo_budget_amount: 100000,
+          actuals_to_date: 30000,
+          pmo_etc: 0,
+          projected_final_cost: 30000,
+          projected_variance: 70000,
+          projected_utilization: 0.3,
+        },
+      ],
+      error: null,
+    });
+    expect((await fetchBudgetProjection('proj-1', '2026'))[0].attributionKnown).toBe(true);
   });
 
   // ⚑ C-1/C-2 (rendered Discover pass, 2026-07-22) — NULL is LOAD-BEARING on every money column: it is
@@ -260,9 +357,42 @@ describe('fetchBudgetPushStatus (C-5)', () => {
                      error: null });
     const status = await fetchBudgetPushStatus('proj-1');
     expect(mockRpc).toHaveBeenCalledWith('get_budget_push_status', { p_project_id: 'proj-1' });
-    expect(status.pushState).toBe('pushed');
-    expect(status.erpBudgetName).toBe('BUDGET-0007');
-    expect(status.fiscalYear).toBe('2025-2026');
+    expect(status).toHaveLength(1);
+    expect(status[0].pushState).toBe('pushed');
+    expect(status[0].erpBudgetName).toBe('BUDGET-0007');
+    expect(status[0].fiscalYear).toBe('2025-2026');
+  });
+
+  // ⚑ AC-BFY-025 / finding 6 — a fan-out is reported PER YEAR. Taking `data[0]` here hid the failed
+  // year behind the pushed one (the RPC orders by `pushed_at`, so the pushed row commonly came first):
+  // the screen said "healthy" while ERPNext enforced NO overspend control for the other year.
+  it('AC-BFY-025 returns EVERY expected year — a failed year is never hidden behind a pushed one', async () => {
+    makeRpcBuilder({
+      data: [
+        { push_state: 'pushed', push_error: null, unmapped_categories: null, erp_budget_name: 'BUDGET-0007',
+          fiscal_year: '2026', pushed_at: '2026-07-01T00:00:00Z', hold_releasable: false, stale_attribution: false },
+        { push_state: 'never-pushed', push_error: null, unmapped_categories: null, erp_budget_name: null,
+          fiscal_year: '2027', pushed_at: null, hold_releasable: false, stale_attribution: false },
+      ],
+      error: null,
+    });
+    const status = await fetchBudgetPushStatus('proj-1');
+    expect(status.map((r) => [r.fiscalYear, r.pushState])).toEqual([['2026', 'pushed'], ['2027', 'never-pushed']]);
+  });
+
+  // ⚑ FR-BFY-056 — the drift flag rides on the row so the surface can say WHY the budget column went
+  // blank ("phase these lines"), instead of leaving a bare dash on a money screen.
+  it('AC-BFY-025 carries stale_attribution per year, failing CLOSED on an older RPC shape', async () => {
+    makeRpcBuilder({
+      data: [
+        { push_state: 'pushed', fiscal_year: '2026', stale_attribution: true },
+        { push_state: 'pushed', fiscal_year: '2027' },
+      ],
+      error: null,
+    });
+    const status = await fetchBudgetPushStatus('proj-1');
+    expect(status[0].staleAttribution).toBe(true);
+    expect(status[1].staleAttribution).toBe(false);
   });
 
   // ⚑ NEW-6 (audit round 4) — `unmapped_categories` was WRITE-ONLY. The dispatch gate persists the NAMES
@@ -274,21 +404,19 @@ describe('fetchBudgetPushStatus (C-5)', () => {
                               unmapped_categories: ['Materials', 'Subcontract'],
                               erp_budget_name: null, fiscal_year: '2026', pushed_at: null }], error: null });
     const status = await fetchBudgetPushStatus('proj-1');
-    expect(status.unmappedCategories).toEqual(['Materials', 'Subcontract']);
-    expect(status.pushError).toBe('budget-category-unmapped'); // the CODE is never replaced by the names
+    expect(status[0].unmappedCategories).toEqual(['Materials', 'Subcontract']);
+    expect(status[0].pushError).toBe('budget-category-unmapped'); // the CODE is never replaced by the names
   });
 
   it('NEW-6 a failure unrelated to the map reports null categories, never a fabricated empty list', async () => {
     makeRpcBuilder({ data: [{ push_state: 'failed', push_error: 'external-unreachable', unmapped_categories: null,
                               erp_budget_name: null, fiscal_year: '2026', pushed_at: null }], error: null });
-    expect((await fetchBudgetPushStatus('proj-1')).unmappedCategories).toBeNull();
+    expect((await fetchBudgetPushStatus('proj-1'))[0].unmappedCategories).toBeNull();
   });
 
-  it('C-5 an org with no ERP tier resolves to an all-null status, never a throw', async () => {
+  it('C-5 an org with no ERP tier resolves to an EMPTY list, never a throw and never a fabricated row', async () => {
     makeRpcBuilder({ data: [], error: null });
-    const status = await fetchBudgetPushStatus('proj-1');
-    expect(status.pushState).toBeNull();
-    expect(status.erpBudgetName).toBeNull();
+    expect(await fetchBudgetPushStatus('proj-1')).toEqual([]);
   });
 
   it('throws an AppError (code preserved) on an RPC error', async () => {
@@ -298,6 +426,96 @@ describe('fetchBudgetPushStatus (C-5)', () => {
 });
 
 // ── H-4 (audit r3) — the fiscal year is the CLIENT'S, read from data that exists ──────────────────
+/**
+ * DIRECTOR'S RULING (spec §6.2) — "we cannot attribute this" and "this category is budgeted in a
+ * DIFFERENT fiscal year" both arrive as `attribution_known = false`, but the second is a KNOWN fact and
+ * must be STATED, not rendered as unavailable. This seam is where the surface learns it: PMO's OWN
+ * phased line items on the Active version (F-C) — never an inference from the mirror or from a push.
+ */
+describe('fetchActiveBudgetCategoryPhasing (which fiscal year IS this category budgeted in — and is ANY line un-placeable?)', () => {
+  it("groups the ACTIVE version's phased line items by category", async () => {
+    makeKeysetFromBuilder([
+      { id: 'line-1', category: 'Labor', fiscal_year: '2027' },
+      { id: 'line-2', category: 'Labor', fiscal_year: '2027' },
+      { id: 'line-3', category: 'Materials', fiscal_year: '2026' },
+    ]);
+    const phasing = await fetchActiveBudgetCategoryPhasing('proj-1');
+    expect(phasing).toEqual({ years: { Labor: ['2027'], Materials: ['2026'] }, unphased: {} });
+    expect(mockFrom).toHaveBeenCalledWith('budget_line_items');
+    expect(mockEq).toHaveBeenCalledWith('budget_versions.status', 'Active');
+    expect(mockEq).toHaveBeenCalledWith('budget_versions.project_id', 'proj-1');
+  });
+
+  it('never invents a year for an UN-PHASED line — but RECORDS that the category has one', async () => {
+    makeKeysetFromBuilder([{ id: 'line-1', category: 'Labor', fiscal_year: null }]);
+    expect(await fetchActiveBudgetCategoryPhasing('proj-1')).toEqual({ years: {}, unphased: { Labor: true } });
+  });
+
+  /**
+   * ⚑ SHOULD-FIX 1 (FU-2 round 3) — the datum the reason-string ladder cannot decide without. Dropping
+   * the un-phased row (the shipped `continue`) leaves the surface reading "Labor is budgeted in 2027"
+   * off a category holding $50,000 it cannot place in ANY year — and stating that FY2026 spend on it is
+   * "a timing difference, not an overspend", a claim PMO does not hold.
+   */
+  it('carries BOTH facts for a category phased elsewhere WITH an un-phased sibling (the (F,F) cell)', async () => {
+    makeKeysetFromBuilder([
+      { id: 'line-1', category: 'Labor', fiscal_year: '2027' },
+      { id: 'line-2', category: 'Labor', fiscal_year: null },
+      { id: 'line-3', category: 'Materials', fiscal_year: '2026' },
+    ]);
+    expect(await fetchActiveBudgetCategoryPhasing('proj-1')).toEqual({
+      years: { Labor: ['2027'], Materials: ['2026'] },
+      unphased: { Labor: true },
+    });
+  });
+
+  it('resolves empty (never throws) when the project has no Active version', async () => {
+    makeKeysetFromBuilder([]);
+    expect(await fetchActiveBudgetCategoryPhasing('proj-1')).toEqual({ years: {}, unphased: {} });
+  });
+
+  it('throws an AppError (code preserved) on a read failure', async () => {
+    makeKeysetFromBuilder([], { message: 'not authorized', code: '42501' });
+    await expect(fetchActiveBudgetCategoryPhasing('proj-1')).rejects.toMatchObject({ code: '42501' });
+  });
+
+  /**
+   * ⚑ FU-2 round 4, FINDING 2 — SILENT TRUNCATION RE-OPENS THE CLAIM `c3c029f4` CLOSED.
+   *
+   * This read is the fail-open guard's own PRECONDITION: `fullyPlacedElsewhere` treats a MISSING
+   * `unphased` fact as "every line is placed", so a page the server withheld reads as good news. On a
+   * version whose un-phased line sorts past `max_rows`, the surface would state "budgeted in 2027 … a
+   * timing difference, not an overspend" about a category holding money PMO can place in NO year —
+   * exactly the sentence the round-3 fix removed, resurrected by a 200 with a short body.
+   *
+   * The oracle is the FACT, not the loop: the un-phased row lives past the cap, so it arrives only if
+   * the whole set is walked. (The page count is asserted too, so a fix that merely raised a limit is
+   * distinguishable from one that pages.)
+   */
+  it('PAGES the read — an un-phased line past PostgREST max_rows still reaches the surface', async () => {
+    const rows: PhasingDbRow[] = [
+      ...Array.from({ length: SERVER_MAX_ROWS }, (_, i) => ({
+        id: `line-${String(i).padStart(5, '0')}`,
+        category: 'Labor',
+        fiscal_year: '2027',
+      })),
+      // The datum the whole guard turns on, deliberately placed OUTSIDE the first page.
+      { id: `line-${String(SERVER_MAX_ROWS).padStart(5, '0')}`, category: 'Labor', fiscal_year: null },
+    ];
+    const requests = makeKeysetFromBuilder(rows);
+
+    expect(await fetchActiveBudgetCategoryPhasing('proj-1')).toEqual({
+      years: { Labor: ['2027'] },
+      unphased: { Labor: true },
+    });
+    // Two pages, the second RESUMING AFTER the last row of the first (keyset, not offset: a concurrent
+    // insert must not be able to duplicate or skip a line).
+    expect(requests).toHaveLength(2);
+    expect(requests[1].afterId).toBe('line-00999');
+    expect(mockOrder).toHaveBeenCalledWith('id', { ascending: true });
+  });
+});
+
 describe('listBudgetFiscalYears (H-4)', () => {
   it('H-4 returns the fiscal years actually on record for the project, marking the Active push year', async () => {
     makeRpcBuilder({
@@ -411,16 +629,17 @@ describe('retryActiveBudgetPush (HIGH-D — the operator-invokable recovery)', (
     (builder as Record<string, unknown>).maybeSingle = () => Promise.resolve({ data: { id: 'ver-active' }, error: null });
     retryBudgetPushMock.mockResolvedValue({ pushState: 'pushed' });
 
-    await expect(retryActiveBudgetPush('proj-1')).resolves.toEqual({ pushState: 'pushed' });
+    await expect(retryActiveBudgetPush('proj-1', '2027')).resolves.toEqual({ pushState: 'pushed' });
     expect(mockFrom).toHaveBeenCalledWith('budget_versions');
     expect(mockEq).toHaveBeenCalledWith('status', 'Active');
-    expect(retryBudgetPushMock).toHaveBeenCalledWith('ver-active');
+    // ⚑ FR-BFY-056: the year travels with the retry, so the operator acts on the row they clicked.
+    expect(retryBudgetPushMock).toHaveBeenCalledWith('ver-active', '2027');
   });
 
   it('refuses (never invents a push) when the project has no Active version at all', async () => {
     const builder = makeFromBuilder({ data: null, error: null });
     (builder as Record<string, unknown>).maybeSingle = () => Promise.resolve({ data: null, error: null });
-    await expect(retryActiveBudgetPush('proj-1')).rejects.toThrow(/no Active budget version/i);
+    await expect(retryActiveBudgetPush('proj-1', '2027')).rejects.toThrow(/no Active budget version/i);
     expect(retryBudgetPushMock).not.toHaveBeenCalled();
   });
 });
@@ -447,31 +666,39 @@ describe('releaseActiveBudgetPushHold (MED-2 — the operator route out of a hel
     heldOutboxBuilder({ id: 'outbox-held' });
     makeRpcBuilder({ data: null, error: null });
 
-    await expect(releaseActiveBudgetPushHold('proj-1')).resolves.toBeUndefined();
+    await expect(releaseActiveBudgetPushHold('proj-1', '2026')).resolves.toBeUndefined();
 
     expect(mockFrom).toHaveBeenCalledWith('external_command_outbox');
     expect(mockEq).toHaveBeenCalledWith('state', 'held');
-    expect(mockEq).toHaveBeenCalledWith('pmo_record_id', 'ver-active');
-    expect(mockRpc).toHaveBeenCalledWith('release_outbox_hold', expect.objectContaining({ p_outbox_id: 'outbox-held' }));
+    // ⚑ FU-2 MEDIUM 6: the read is scoped to the budget domain so a colliding held row from another
+    // domain is never surfaced as "this project's held command"...
+    expect(mockEq).toHaveBeenCalledWith('domain', 'budget');
+    // ⚑ FR-BFY-032: the held row is keyed on the YEAR-QUALIFIED identity. The bare `<vid>` is still
+    // accepted because a PRE-fan-out row was written under it — and by construction that row IS this
+    // year's (the old dispatcher was single-FY). Releasing "whatever is held for this project" would
+    // clear another year's command.
+    expect(mockIn).toHaveBeenCalledWith('pmo_record_id', ['ver-active:32303236', 'ver-active']);
+    // ...and the RPC re-verifies that domain server-side (defence in depth over RLS/DEFINER).
+    expect(mockRpc).toHaveBeenCalledWith('release_outbox_hold', expect.objectContaining({ p_outbox_id: 'outbox-held', p_expected_domain: 'budget' }));
   });
 
   it('MED-2 records a REASON with the release — clearing a money hold is a human decision with a name on it', async () => {
     heldOutboxBuilder({ id: 'outbox-held' });
     makeRpcBuilder({ data: null, error: null });
-    await releaseActiveBudgetPushHold('proj-1');
+    await releaseActiveBudgetPushHold('proj-1', '2026');
     const reason = (mockRpc.mock.calls[0][1] as { p_reason: string }).p_reason;
     expect(reason.length).toBeGreaterThan(0);
   });
 
   it('MED-2 refuses when there is no held command — never releases something it did not find', async () => {
     heldOutboxBuilder(null);
-    await expect(releaseActiveBudgetPushHold('proj-1')).rejects.toThrow(/no held/i);
+    await expect(releaseActiveBudgetPushHold('proj-1', '2026')).rejects.toThrow(/no held/i);
     expect(mockRpc).not.toHaveBeenCalled();
   });
 
   it('MED-2 surfaces the RPC\'s own refusal (42501 — the Admin gate is server-side)', async () => {
     heldOutboxBuilder({ id: 'outbox-held' });
     makeRpcBuilder({ data: null, error: { message: 'not authorized', code: '42501' } });
-    await expect(releaseActiveBudgetPushHold('proj-1')).rejects.toMatchObject({ code: '42501' });
+    await expect(releaseActiveBudgetPushHold('proj-1', '2026')).rejects.toMatchObject({ code: '42501' });
   });
 });

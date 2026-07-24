@@ -16,7 +16,9 @@ export interface ExternalRefMapping {
 export interface DispatchExternallyOwnedWriteDeps {
   adapter: Pick<Adapter, 'tier' | 'capabilityMap' | 'commit'>;
   command: AdapterCommand;
-  writeReadModel: (canonical: PmoRecord) => Promise<void>;
+  // ⚑ BLOCKER 2 (FU-2): `options.isReplay` marks a REPLAY convergence (no fresh ERP write) so a
+  // PMO-SoT read-model writer can refuse to override a Desk cancel with a stored canonical.
+  writeReadModel: (canonical: PmoRecord, options?: { isReplay?: boolean }) => Promise<void>;
   recordExternalRef: (mapping: ExternalRefMapping) => Promise<void>;
   /**
    * Delete-aware dispatch (AC-CUA-038, FR-CUA-026, OD-CUA-2): tombstones the mirrored read-model
@@ -30,6 +32,16 @@ export interface DispatchExternallyOwnedWriteDeps {
    * task 6.4). Absent ⇒ P0/P1 behavior (and every non-erpnext tier) is completely untouched.
    */
   money?: DispatchMoneyOutboxDeps;
+  /**
+   * BFY (FR-BFY-032/036) — optional override for the identity this command is keyed on in
+   * `external_command_outbox.pmo_record_id` AND `external_refs.pmo_record_id`. The budget domain fans
+   * out one command per phased fiscal year under a YEAR-QUALIFIED identity
+   * `<budget_version_id>:<encoded_fy>`, while `command.record.id` stays the bare `budget_version_id`
+   * UUID (the gate query / mirror FK / inbound-feed fact). Defaults to `command.record.id`, so every
+   * non-budget domain is byte-for-byte unchanged. Server-derived at the served boundary — never a
+   * caller-supplied value.
+   */
+  outboxRecordId?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -168,7 +180,9 @@ export interface DispatchMoneyOutboxDeps {
  */
 export const MONEY_COMMIT_CLAIM_BUDGET_MS = 60_000;
 
-export type DispatchMoneyWriteDeps = DispatchExternallyOwnedWriteDeps & { money: DispatchMoneyOutboxDeps };
+export interface DispatchMoneyWriteDeps extends DispatchExternallyOwnedWriteDeps {
+  money: DispatchMoneyOutboxDeps;
+}
 
 /** The injected clock, or the wall clock. One definition so every elapsed-time decision in this
  *  module reads the SAME source (audit BLOCK 1). */
@@ -232,7 +246,11 @@ async function finalizeOutboxRow(
   isReplay = false,
 ): Promise<number> {
   const refWritten = await deps.money.recordOutboxRef(row.id, claimGeneration, {
-    pmoRecordId: deps.command.record.id,
+    // ⚑ BFY FR-BFY-032: `external_refs` is keyed on the SAME identity as the outbox row — the
+    // year-qualified `<vid>:<encoded-fy>` for a budget fan-out, the bare `record.id` for every other
+    // domain (`outboxRecordId` is undefined there, byte-for-byte). Keying the ref on the bare id while
+    // the outbox is year-qualified would let year 2's push REPOINT year 1's ERP pointer.
+    pmoRecordId: deps.outboxRecordId ?? deps.command.record.id,
     externalTier: deps.adapter.tier,
     externalRecordId: row.externalRecordId!,
     domain: deps.command.domain,
@@ -263,7 +281,9 @@ async function finalizeOutboxRow(
  */
 async function convergeReadModel(canonical: PmoRecord, deps: DispatchMoneyWriteDeps, isReplay: boolean): Promise<void> {
   try {
-    await deps.writeReadModel(canonical);
+    // ⚑ BLOCKER 2 (FU-2): forward the replay flag so a PMO-SoT writer (budget) never resurrects a
+    // Desk-cancelled document from a stored canonical (no fresh ERP success on a replay).
+    await deps.writeReadModel(canonical, { isReplay });
   } catch (error) {
     if (!isReplay || !isAlreadyMirrored(error)) throw error;
     console.warn(
@@ -290,6 +310,7 @@ async function claimAndCommit(
   const { command, money, adapter } = deps;
   const isRecoveryReissue = opts.isRecoveryReissue ?? false;
   const token = claimed.claimGeneration;
+  const outboxRecordId = deps.outboxRecordId ?? command.record.id;
 
   const probed = await money.probeByRemarksKey(command.domain, command.idempotencyKey!);
   let externalRecordId: string;
@@ -309,7 +330,7 @@ async function claimAndCommit(
       // Fencing loss: another claimant superseded this token before the hold landed — the row's
       // CURRENT state (possibly confirmed) is the truth; reporting command-held here would hand the
       // client a stale outcome (Luna review 2026-07-14, SHOULD-FIX 4).
-      const fresh = await money.readOutbox(command.domain, command.record.id, command.idempotencyKey!);
+      const fresh = await money.readOutbox(command.domain, outboxRecordId, command.idempotencyKey!);
       return reconcileOutbox(fresh!, deps);
     }
     // Intentional ops signal (non-silent, per the C-1 ruling): a held money command needs a human.
@@ -344,7 +365,7 @@ async function claimAndCommit(
         if (heldCount === 0) {
           // Fencing loss: another claimant superseded this token before the hold landed — surface the
           // row's CURRENT (possibly confirmed) state, not this claimant's stale hold.
-          const fresh = await money.readOutbox(command.domain, command.record.id, command.idempotencyKey!);
+          const fresh = await money.readOutbox(command.domain, outboxRecordId, command.idempotencyKey!);
           return reconcileOutbox(fresh!, deps);
         }
         console.error(
@@ -392,7 +413,7 @@ async function claimAndCommit(
           // Fencing loss: superseded before the failure landed — a parallel claimant owns the row's
           // outcome now (possibly a confirmed success). Surface THAT, not this claimant's stale
           // failure (Luna review 2026-07-14, SHOULD-FIX 4).
-          const fresh = await money.readOutbox(command.domain, command.record.id, command.idempotencyKey!);
+          const fresh = await money.readOutbox(command.domain, outboxRecordId, command.idempotencyKey!);
           return reconcileOutbox(fresh!, deps);
         }
       }
@@ -408,14 +429,14 @@ async function claimAndCommit(
   if (committedCount === 0) {
     // F4 — superseded before we could finalize: discard (no finalize, no duplicate mirror) and
     // reconcile off whatever state the reclaimer left behind.
-    const fresh = await money.readOutbox(command.domain, command.record.id, command.idempotencyKey!);
+    const fresh = await money.readOutbox(command.domain, outboxRecordId, command.idempotencyKey!);
     return reconcileOutbox(fresh!, deps);
   }
 
   const finalized = await finalizeOutboxRow({ ...claimed, state: 'committed', externalRecordId, canonical }, token, deps);
   if (finalized === 0) {
     // F3 — superseded between `committed` and the mirror/ref writes: discard and reconcile off current state.
-    const fresh = await money.readOutbox(command.domain, command.record.id, command.idempotencyKey!);
+    const fresh = await money.readOutbox(command.domain, outboxRecordId, command.idempotencyKey!);
     return reconcileOutbox(fresh!, deps);
   }
   return { externalRecordId, canonical };
@@ -429,6 +450,7 @@ const COMMITTING_WAIT_BUDGET_MS = 3_000;
 
 async function reconcileOutbox(row: OutboxRow, deps: DispatchMoneyWriteDeps, committingSince?: number): Promise<CommandResult> {
   const { command, money } = deps;
+  const outboxRecordId = deps.outboxRecordId ?? command.record.id;
   switch (row.state) {
     case 'confirmed': {
       // ⚑ NEW-4(b) (audit round 4, 2026-07-22) — CONVERGE the read-model to the confirmed outcome.
@@ -460,7 +482,7 @@ async function reconcileOutbox(row: OutboxRow, deps: DispatchMoneyWriteDeps, com
       const finalized = await finalizeOutboxRow(row, row.claimGeneration, deps, true);
       if (finalized === 0) {
         // F3 — superseded before the finalize writes landed; reconcile off the current state.
-        const fresh = await money.readOutbox(command.domain, command.record.id, command.idempotencyKey!);
+        const fresh = await money.readOutbox(command.domain, outboxRecordId, command.idempotencyKey!);
         return reconcileOutbox(fresh!, deps);
       }
       return { externalRecordId: row.externalRecordId!, canonical: row.canonical ?? { id: command.record.id } };
@@ -483,7 +505,7 @@ async function reconcileOutbox(row: OutboxRow, deps: DispatchMoneyWriteDeps, com
         throw toDispatchError(new AdapterError('external-unreachable', 'command-committing-in-flight'));
       }
       await money.backoff();
-      const fresh = await money.readOutbox(command.domain, command.record.id, command.idempotencyKey!);
+      const fresh = await money.readOutbox(command.domain, outboxRecordId, command.idempotencyKey!);
       return reconcileOutbox(fresh!, deps, since);
     }
     case 'quarantined': {
@@ -515,7 +537,7 @@ async function reconcileOutbox(row: OutboxRow, deps: DispatchMoneyWriteDeps, com
       if (claimed) return claimAndCommit(claimed, deps, { claimStartedAtMs });
       // lost the race for this row — another caller claimed it first; re-read and reconcile
       // (never POST).
-      const fresh = await money.readOutbox(command.domain, command.record.id, command.idempotencyKey!);
+      const fresh = await money.readOutbox(command.domain, outboxRecordId, command.idempotencyKey!);
       return reconcileOutbox(fresh!, deps);
     }
     /* c8 ignore next 2 -- exhaustive over the 0095 state CHECK constraint */
@@ -535,14 +557,15 @@ export async function dispatchMoneyWrite(deps: DispatchMoneyWriteDeps): Promise<
   if (!command.idempotencyKey) {
     throw toDispatchError(new AdapterError('commit-rejected', 'missing-idempotency-key'));
   }
-  let row = await money.readOutbox(command.domain, command.record.id, command.idempotencyKey);
+  const outboxRecordId = deps.outboxRecordId ?? command.record.id;
+  let row = await money.readOutbox(command.domain, outboxRecordId, command.idempotencyKey);
   if (!row) {
     try {
-      row = await money.insertOutboxPending(command.domain, command.record.id, command.idempotencyKey);
+      row = await money.insertOutboxPending(command.domain, outboxRecordId, command.idempotencyKey);
     } catch (error) {
       const code = (error as { code?: string } | null)?.code;
       if (code !== '23505') throw toDispatchError(error);
-      row = await money.readOutbox(command.domain, command.record.id, command.idempotencyKey);
+      row = await money.readOutbox(command.domain, outboxRecordId, command.idempotencyKey);
       if (!row) throw toDispatchError(error);
     }
   }

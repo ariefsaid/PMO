@@ -172,3 +172,114 @@ describe('deriveProjectionCell — a budget that is not on record for the year s
     expect(cell.projectedVariance).toBe('-12000.00');
   });
 });
+
+/**
+ * AC-BFY-023 (Vitest twin of the pgTAP oracle) — F-D, `attributionKnown`, review finding 2.
+ *
+ * The SQL RPC (0153 §3a) and this module are the SAME arithmetic expressed twice, and they must agree
+ * branch for branch. `supabase/tests/bfy_attribution_known.test.sql` pins the DB half; this pins the
+ * JS half of the identical rule:
+ *
+ *   a NULL `pmoBudgetAmount` has TWO meanings, and collapsing them is a lie about money —
+ *     • the category HAS a budget PMO cannot place in this year (its un-phased lines' push-time span
+ *       witness drifted) ⇒ attribution SUPPRESSED ⇒ state nothing derived from the budget; versus
+ *     • the category genuinely has no line in a year PMO does hold a budget for ⇒ `-EAC`.
+ *
+ * Round 1 printed the second when it meant the first: "$40,000 entirely unbudgeted" for a budget it
+ * had just admitted it could not attribute.
+ */
+describe('deriveProjectionCell — a SUPPRESSED budget attribution states nothing derived from it (AC-BFY-023, F-D)', () => {
+  const suppressed = () =>
+    deriveProjectionCell({
+      category: 'Labor',
+      pmoBudgetAmount: null,
+      // The year IS on record (a successful push happened) — which is exactly what makes the -EAC trap
+      // live. What is unknown is which year the un-phased lines belong to now.
+      budgetYearOnRecord: true,
+      attributionKnown: false,
+      actualsToDate: '40000.00',
+      pmoEtc: '0.00',
+    });
+
+  it('AC-BFY-023 derives NO variance when the attribution is unknown — never -EAC (review finding 2)', () => {
+    expect(suppressed().projectedVariance).toBeNull();
+  });
+
+  it('AC-BFY-023 derives no utilization either — a percentage of a budget PMO cannot place is a fiction', () => {
+    expect(suppressed().projectedUtilization).toBeNull();
+  });
+
+  it('AC-BFY-023 the EAC is still stated — it is actuals + ETC and never depended on the budget', () => {
+    const cell = suppressed();
+    expect(cell.projectedFinalCost).toBe('40000.00');
+    expect(cell.actualsToDate).toBe('40000.00');
+    expect(cell.pmoBudgetAmount).toBeNull();
+  });
+
+  /**
+   * ⚑ BLOCK 2 (FU-2 round 2) — and the AMOUNT is withheld with them. The SQL twin can now produce this
+   * input: a category with one attributed line and one suppressed one sums to a PARTIAL total, and
+   * `0153` nulls it rather than printing $100,000 of a $150,000 budget as a fact. This module must
+   * branch identically, or the "the SQL twin cannot produce that pair" claim in its header becomes the
+   * only thing keeping the two in step.
+   */
+  it('AC-BFY-023 suppression outranks a STATED budget too — a placed amount and an unknown attribution cannot both be true', () => {
+    const cell = deriveProjectionCell({
+      category: 'Labor',
+      pmoBudgetAmount: '100000.00',
+      attributionKnown: false,
+      actualsToDate: '40000.00',
+      pmoEtc: '0.00',
+    });
+    expect(cell.pmoBudgetAmount).toBeNull();
+    expect(cell.projectedVariance).toBeNull();
+    expect(cell.projectedUtilization).toBeNull();
+  });
+
+  it('AC-BFY-023 the withheld amount survives the C-2 branch too — an unobtainable actual never re-states it', () => {
+    const cell = deriveProjectionCell({
+      category: 'Labor',
+      pmoBudgetAmount: '100000.00',
+      attributionKnown: false,
+      actualsToDate: null,
+      pmoEtc: '0.00',
+    });
+    expect(cell.pmoBudgetAmount).toBeNull();
+  });
+
+  it('AC-BFY-023 a KNOWN attribution still states its amount — the guard narrows nothing else', () => {
+    const cell = deriveProjectionCell({
+      category: 'Labor',
+      pmoBudgetAmount: '100000.00',
+      attributionKnown: true,
+      actualsToDate: '40000.00',
+      pmoEtc: '0.00',
+    });
+    expect(cell.pmoBudgetAmount).toBe('100000.00');
+    expect(cell.projectedVariance).toBe('60000.00');
+  });
+
+  it('AC-BFY-023 defaults to KNOWN — a caller that does not model attribution is unaffected (-EAC survives)', () => {
+    const cell = deriveProjectionCell({
+      category: 'Labor',
+      pmoBudgetAmount: null,
+      budgetYearOnRecord: true,
+      actualsToDate: '40000.00',
+      pmoEtc: '0.00',
+    });
+    expect(cell.projectedVariance).toBe('-40000.00');
+  });
+
+  it('AC-BFY-023 an unobtainable ACTUAL still outranks everything (C-2 precedence unchanged)', () => {
+    const cell = deriveProjectionCell({
+      category: 'Labor',
+      pmoBudgetAmount: '100000.00',
+      attributionKnown: false,
+      actualsToDate: null,
+      pmoEtc: '0.00',
+    });
+    expect(cell.projectedFinalCost).toBeNull();
+    expect(cell.projectedVariance).toBeNull();
+    expect(cell.projectedUtilization).toBeNull();
+  });
+});

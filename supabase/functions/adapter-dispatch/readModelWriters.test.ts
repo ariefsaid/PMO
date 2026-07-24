@@ -356,7 +356,13 @@ Deno.test({
         erp_modified: '2026-07-20 10:00:00',
         fiscal_year: '2026',
       },
-      { domain: 'budget', operation: 'create', record: { id: 'ver-1', erp_doc_kind: 'budget' } },
+      // FR-BFY-080: the gate puts the project's OWN dates on the command (a non-body field) and the
+      // writer stamps them as the push-time span witness. A `pushed` row without one is a defect.
+      {
+        domain: 'budget',
+        operation: 'create',
+        record: { id: 'ver-1', erp_doc_kind: 'budget', project_start_date: '2026-02-01', project_end_date: '2026-11-30' },
+      },
     );
 
     const upsertCall = calls.find((c) => c.method === 'upsert');
@@ -371,6 +377,9 @@ Deno.test({
     assertEquals(row.push_state, 'pushed');
     assertEquals(row.push_error, null);
     assert(typeof row.pushed_at === 'string', 'the push must be stamped with when it landed');
+    // FR-BFY-080 — the drift check in 0153 §3a is only possible because this row records the span.
+    assertEquals(row.pushed_project_start_date, '2026-02-01');
+    assertEquals(row.pushed_project_end_date, '2026-11-30');
     assertEquals(
       (upsertCall!.args[1] as { onConflict: string }).onConflict,
       'org_id,budget_version_id,fiscal_year',
@@ -399,11 +408,78 @@ Deno.test({
     await getReadModelWriter('budget').upsert(
       { serviceClient: client as never, orgId: 'org-1' },
       { id: 'ver-1', erp_budget_name: 'BUDGET-2026-00002', erp_docstatus: 1, fiscal_year: '2026' },
-      { domain: 'budget', operation: 'create', record: { id: 'ver-1', erp_doc_kind: 'budget' } },
+      {
+        domain: 'budget',
+        operation: 'create',
+        record: { id: 'ver-1', erp_doc_kind: 'budget', project_start_date: '2026-02-01', project_end_date: '2026-11-30' },
+      },
     );
     const row = calls.find((c) => c.method === 'upsert')!.args[0] as Record<string, unknown>;
     assert('erp_cancelled_at' in row, 'the fresh push must WRITE erp_cancelled_at — an upsert only updates the columns it names');
     assertEquals(row.erp_cancelled_at, null, 'a successful re-push supersedes the cancelled ERP document');
+  },
+});
+
+// ── BLOCKER 2 (Luna FU-2) — a REPLAY must never resurrect a Desk-cancelled Budget. ────────────────
+// M-1 clears the tombstone on a FRESH push (a real ERP commit supersedes the cancel). But a RETRY of an
+// already-`confirmed` outbox row is a REPLAY: `reconcileOutbox` converges the STORED canonical with NO
+// new ERP write. If the accountant cancelled the ERP Budget after the push confirmed (the inbound feed
+// tombstoned the mirror), that stored-canonical replay must NOT flip push_state back to 'pushed' and
+// clear the tombstone — that makes PMO report ERPNext enforcing a Budget the operator cancelled
+// (FR-BUD-142, "never fight the operator"). Only a fresh ERP success may override a Desk cancel.
+const BLOCKER2_CANONICAL = { id: 'ver-1', erp_budget_name: 'BUDGET-1', erp_docstatus: 1, fiscal_year: '2026' };
+const BLOCKER2_COMMAND = {
+  domain: 'budget',
+  operation: 'create' as const,
+  record: { id: 'ver-1', erp_doc_kind: 'budget', project_start_date: '2026-02-01', project_end_date: '2026-11-30' },
+};
+
+Deno.test({
+  name: 'BLOCKER 2: a REPLAY over a Desk-cancelled budget mirror writes NOTHING — no pushed, no tombstone clear',
+  fn: async () => {
+    const { client, calls } = makeFakeClient({ budget_version_erp_mirror: { erp_cancelled_at: '2026-07-22T10:00:00Z' } });
+    await getReadModelWriter('budget').upsert(
+      { serviceClient: client as never, orgId: 'org-1', isReplay: true },
+      BLOCKER2_CANONICAL,
+      BLOCKER2_COMMAND,
+    );
+    const upsertCall = calls.find((c) => c.method === 'upsert' && c.table === 'budget_version_erp_mirror');
+    assert(
+      upsertCall === undefined,
+      'a confirmed-replay must NOT upsert over a Desk-cancelled mirror — that resurrects a cancelled ERP Budget (FR-BUD-142)',
+    );
+  },
+});
+
+Deno.test({
+  name: 'BLOCKER 2: a FRESH push (isReplay false) over a cancelled mirror STILL supersedes it (M-1 preserved)',
+  fn: async () => {
+    const { client, calls } = makeFakeClient({ budget_version_erp_mirror: { erp_cancelled_at: '2026-07-22T10:00:00Z' } });
+    await getReadModelWriter('budget').upsert(
+      { serviceClient: client as never, orgId: 'org-1', isReplay: false },
+      BLOCKER2_CANONICAL,
+      BLOCKER2_COMMAND,
+    );
+    const upsertCall = calls.find((c) => c.method === 'upsert' && c.table === 'budget_version_erp_mirror');
+    assert(upsertCall !== undefined, 'a fresh ERP commit DOES supersede a cancel');
+    const row = upsertCall!.args[0] as Record<string, unknown>;
+    assertEquals(row.push_state, 'pushed');
+    assertEquals(row.erp_cancelled_at, null, 'a fresh push clears the tombstone (M-1)');
+  },
+});
+
+Deno.test({
+  name: 'BLOCKER 2: a REPLAY over a NON-cancelled mirror still converges (the legitimate crash-before-mirror replay)',
+  fn: async () => {
+    const { client, calls } = makeFakeClient({ budget_version_erp_mirror: { erp_cancelled_at: null } });
+    await getReadModelWriter('budget').upsert(
+      { serviceClient: client as never, orgId: 'org-1', isReplay: true },
+      BLOCKER2_CANONICAL,
+      BLOCKER2_COMMAND,
+    );
+    const upsertCall = calls.find((c) => c.method === 'upsert' && c.table === 'budget_version_erp_mirror');
+    assert(upsertCall !== undefined, 'a replay of a mirror that is merely BEHIND (never cancelled) must still catch it up');
+    assertEquals((upsertCall!.args[0] as Record<string, unknown>).push_state, 'pushed');
   },
 });
 

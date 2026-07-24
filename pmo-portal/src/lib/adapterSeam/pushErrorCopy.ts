@@ -69,6 +69,16 @@ const CODES: Record<string, Entry> = {
     retryable: false,
     remedy: 'In ERPNext, submit or delete that draft budget — until then every push is refused as a duplicate.',
   },
+  // FR-BFY-076 (review finding 7) — the SUBMITTED counterpart. The draft rival is refused because
+  // ERPNext would refuse us; this one must be refused because ERPNext would NOT: cancelling and
+  // amending an accountant's own budget is a destructive act on their work, and PMO would then record
+  // the result as its own push.
+  'budget-unowned-live-occupant': {
+    message: 'ERPNext already holds a budget for this project and fiscal year that PMO did not create.',
+    retryable: false,
+    remedy:
+      'Someone authored that budget in ERPNext directly. PMO will not cancel or amend it. In ERPNext, remove it if it is superseded — or leave it in place and stop pushing this project’s budget, since ERPNext is already enforcing one.',
+  },
   'budget-enforcement-absent': {
     // HIGH-1: the previous ERP budget was cancelled and its replacement never landed.
     message: 'ERPNext is currently enforcing no budget at all for this project — the previous one was withdrawn and its replacement never landed.',

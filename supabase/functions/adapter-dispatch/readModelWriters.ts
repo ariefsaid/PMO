@@ -48,6 +48,11 @@ export interface ReadModelWriterCtx {
    *  (approver≠author) is otherwise a no-op when author is null. Undefined on an inbound-adopted path
    *  (no PMO caller) → author_user_id stays null (SoD-exempt). */
   callerUserId?: string;
+  /** ⚑ BLOCKER 2 (FU-2): true when this write is a REPLAY convergence (`reconcileOutbox`/finalize of an
+   *  already-committed or confirmed outbox row) rather than a FRESH ERP commit in this dispatch. A replay
+   *  carries no new ERP-side success, so a PMO-SoT writer must not use it to override a Desk cancel
+   *  (the budget writer's tombstone guard). Undefined ⇒ a fresh write (today's behaviour). */
+  isReplay?: boolean;
 }
 
 export interface ReadModelWriter {
@@ -833,6 +838,38 @@ const budgetWriter: ReadModelWriter = {
     if (typeof fiscalYear !== 'string' || fiscalYear === '') {
       throw new AppError('budget mirror: the pushed budget carries no fiscal year', 'commit-rejected');
     }
+    // ⚑ FR-BFY-080 — THE PUSH-TIME SPAN WITNESS. `get_budget_projection` attributes un-phased (NULL
+    // `fiscal_year`) lines to this year ONLY while the project's CURRENT dates still match the dates
+    // the GATE read when it resolved the year (0153 §3a/§4). Those dates ride on the command as a
+    // NON-body field, stamped from `runBudgetGate`'s own re-read of `projects` — never from a payload
+    // the caller could author. A `pushed` row with a NULL witness is a DEFECT, not a backward-compat
+    // case: the drift check could then never fire and an extended project would keep attributing its
+    // whole un-phased budget to the old year forever.
+    const witnessStart = (command.record as { project_start_date?: unknown }).project_start_date;
+    if (typeof witnessStart !== 'string' || witnessStart === '') {
+      throw new AppError('budget mirror: the pushed budget carries no push-time project span witness', 'commit-rejected');
+    }
+    const witnessEnd = (command.record as { project_end_date?: unknown }).project_end_date;
+    // ⚑ BLOCKER 2 (FU-2) — a REPLAY must never resurrect a Desk-cancelled Budget. A retry of an already-
+    // `confirmed` outbox row converges the STORED canonical (no fresh ERP write). If the accountant
+    // cancelled the ERP Budget after this push confirmed, the inbound feed tombstoned the mirror
+    // (`erp_cancelled_at` set, push_state 'failed'). Overwriting that with 'pushed' + clearing the
+    // tombstone would make PMO report ERPNext enforcing a Budget the operator cancelled (FR-BUD-142).
+    // Only a FRESH push (`isReplay` false — a real ERP commit in THIS dispatch) may supersede a cancel;
+    // a replay leaves the honest Desk-cancel state alone.
+    if (ctx.isReplay) {
+      const { data: existing, error: readError } = await (ctx.serviceClient as unknown as ExternalRefsLookupClient)
+        .from('budget_version_erp_mirror')
+        .select('erp_cancelled_at')
+        .eq('org_id', ctx.orgId)
+        .eq('budget_version_id', String(canonical.id))
+        .eq('fiscal_year', fiscalYear)
+        .maybeSingle();
+      if (readError) throw new AppError(readError.message, readError.code);
+      if ((existing as { erp_cancelled_at?: string | null } | null)?.erp_cancelled_at != null) {
+        return; // the Desk cancel stands — a stored-canonical replay carries no fresh ERP success to override it
+      }
+    }
     const { error } = await ctx.serviceClient.from('budget_version_erp_mirror').upsert(
       {
         org_id: ctx.orgId,
@@ -840,6 +877,8 @@ const budgetWriter: ReadModelWriter = {
         fiscal_year: fiscalYear,
         push_state: 'pushed',
         push_error: null,
+        pushed_project_start_date: witnessStart,
+        pushed_project_end_date: typeof witnessEnd === 'string' && witnessEnd !== '' ? witnessEnd : null,
         erp_budget_name: (canonical.erp_budget_name as string | null | undefined) ?? null,
         erp_docstatus: (canonical.erp_docstatus as number | null | undefined) ?? null,
         erp_modified: (canonical.erp_modified as string | null | undefined) ?? null,

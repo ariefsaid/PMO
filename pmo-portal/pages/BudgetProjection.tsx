@@ -9,10 +9,12 @@ import { formatCurrency, formatDate, parseMoneyInput, pct } from '@/src/lib/form
 import {
   fetchBudgetProjection,
   fetchBudgetPushStatus,
+  fetchActiveBudgetCategoryPhasing,
   listBudgetFiscalYears,
   upsertBudgetProjectionEtc,
   retryActiveBudgetPush,
   releaseActiveBudgetPushHold,
+  type ActiveBudgetCategoryPhasing,
   type BudgetFiscalYearRow,
   type BudgetProjectionCellRow,
   type BudgetPushStatusRow,
@@ -83,6 +85,35 @@ const NO_LEDGER_READING =
  */
 const NO_BUDGET_FOR_YEAR =
   'Not available: the active budget version is not on record as covering this fiscal year, so there is no budget here to compare against.';
+/**
+ * ⚑ THE DIRECTOR'S RULING (spec §6.2) — the FIFTH absence, and the one that is not an absence at all.
+ *
+ * The RPC fails closed (NULL budget, NULL variance, NULL utilization) for a category whose lines are
+ * all phased to a DIFFERENT fiscal year — correctly, because reporting `-EAC` there would call an
+ * ordinary timing difference (spend landing in FY1 against work budgeted in FY2) an unbudgeted
+ * overspend, a false alarm on real money. But that fact is FULLY KNOWN, and rendering a knowable fact
+ * as "unavailable" is its own dishonesty. So this year says what IS true, and names the year to look at.
+ */
+const budgetedInOtherYears = (years: readonly string[]): string =>
+  `Not budgeted in this fiscal year: this category is budgeted in ${years.join(' and ')}. Spend posted here is a timing difference, not an overspend — switch the fiscal year above to compare it against its own budget.`;
+/**
+ * ⚑ FR-BFY-053/057 — the OTHER job `attribution_known = false` does, and it IS an absence. The lines
+ * are un-phased, a push once resolved a single fiscal year for them, and the project's dates have since
+ * moved off the span that push recorded — so PMO can no longer say which year they belong to and
+ * refuses to guess (ADR-0048). The remedy is a PMO act, and it is named.
+ */
+const BUDGET_ATTRIBUTION_STALE =
+  "Not available: this budget's fiscal-year attribution is stale — the project's dates changed after it was pushed, so PMO can no longer say which year these un-phased lines belong to. Phase these lines to their fiscal years to restore the figure.";
+/**
+ * ⚑ BLOCK 2 (FU-2 round 2) — the SIXTH, reachable since F-D became a conjunction (0153 §3a). This
+ * category HAS lines here, some of them attributed to this year, but at least one cannot be placed in
+ * any year at all — so its TOTAL is unknown and the RPC withholds the amount rather than stating the
+ * attributed part as if it were the whole budget. It is neither "budgeted elsewhere" (nothing names
+ * another year) nor "stale" (there may never have been a successful push to drift), and it is emphatically
+ * not "no line for this category" — which is what the reader used to be told about a $150,000 budget.
+ */
+const BUDGET_ATTRIBUTION_PARTIAL =
+  'Not available: some of this category’s budget lines are not phased to a fiscal year and PMO cannot place them in this one, so the category’s total for this year cannot be stated. Phase these lines to their fiscal years to restore the figure.';
 
 const money = (v: number | null, reason: string): React.ReactNode =>
   v === null ? <Unavailable reason={reason} /> : formatCurrency(v);
@@ -151,12 +182,29 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
   // grid having rows. It used to ride on `rows[0]`, which made a project-wide money alarm hostage to
   // both: the moment the projection became honestly year-scoped (C-3), "ERPNext is enforcing nothing"
   // would have gone silent for exactly the projects most likely to be in that state.
+  //
+  // ⚑ AC-BFY-026 / FR-BFY-056 (review finding 6) — it is an ARRAY: ONE ROW PER EXPECTED FISCAL YEAR.
+  // A push now fans out to one ERP `Budget` per phased year, so a partial outcome (FY2026 enforcing,
+  // FY2027 failed) is an ordinary state. Reading a single row hid the failed year behind the pushed
+  // one — the RPC orders by `pushed_at`, and only the pushed row has one — and the operator was told
+  // "Enforced by ERPNext" about a project ERPNext was half-enforcing.
   const pushKey = useMemo(() => ['budget-push-status', projectId] as const, [projectId]);
-  const pushQuery = useQuery<BudgetPushStatusRow>({
+  const pushQuery = useQuery<BudgetPushStatusRow[]>({
     queryKey: pushKey,
     queryFn: () => fetchBudgetPushStatus(projectId),
   });
-  const push = pushQuery.data ?? null;
+  const pushRows = useMemo(() => pushQuery.data ?? [], [pushQuery.data]);
+
+  // ⚑ THE DIRECTOR'S RULING (spec §6.2): which fiscal year is each category ACTUALLY budgeted in? PMO's
+  // own phased line items answer it, and without that answer this screen cannot tell "budgeted in
+  // FY2027" (a known fact) from "we cannot attribute this" (a real unknown) — they arrive identically,
+  // as a NULL budget.
+  const categoryPhasingQuery = useQuery<ActiveBudgetCategoryPhasing>({
+    queryKey: ['budget-category-phasing', projectId],
+    queryFn: () => fetchActiveBudgetCategoryPhasing(projectId),
+  });
+  const categoryPhasing = categoryPhasingQuery.data;
+  const categoryYears = categoryPhasing?.years ?? {};
 
   const etcMutation = useMutation({
     // The fiscal year travels WITH the write: an ETC is only ever authored against a year the client
@@ -210,60 +258,42 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
     }
   };
 
-  // FR-BUD-123: the push-state banner — project-wide (see the `pushQuery` note above).
+  // FR-BUD-123: the push-state banner — now ONE PER EXPECTED FISCAL YEAR (AC-BFY-026).
   //
-  // ⚑ HIGH-C: `'never-pushed'` is in this set. It is what `get_budget_push_status` reports when the
-  // project HAS an Active, activated version and the org has handed the budget domain to ERPNext, yet
-  // no mirror row exists at all — i.e. the push never reached the edge function (dropped connection,
-  // tab closed mid-request, platform 502). Every mirror writer lives inside `adapter-dispatch`, and the
-  // sweep backstop's work queue IS that mirror, so nothing re-drives it and nobody is notified. It used
-  // to render as a NULL push_state, i.e. a completely clean screen.
+  // ⚑ HIGH-C: `'never-pushed'` is in BLOCKED_STATES. It is what `get_budget_push_status` reports when
+  // the project HAS an Active, activated version and the org has handed the budget domain to ERPNext,
+  // yet no mirror row exists for a year it EXPECTS — i.e. the push never reached the edge function
+  // (dropped connection, tab closed mid-request, platform 502), or died before that year's turn in the
+  // fan-out. Every mirror writer lives inside `adapter-dispatch`, and the sweep backstop's work queue IS
+  // that mirror, so nothing re-drives it and nobody is notified. It used to render as a NULL push_state,
+  // i.e. a completely clean screen.
   //
   // ⚑ H-3 (audit round 3): `'unstamped-activation'` joins it. That is an Active version carrying no
-  // `activated_at` — the population mig 0139 created by adding the column nullable — and it was
-  // INVISIBLE, because the alarm above required the stamp. Its consequence is identical (ERPNext
-  // enforces nothing) but its remedy is NOT: the push cannot be re-driven at all, since both
-  // `budgetPushKey` and the server-side budget gate refuse an unstamped version. That refusal is
-  // correct and deliberate — the stamp is the deterministic key's own input, so inventing one would key
-  // a money command on a fiction and could mint a SECOND ERP Budget. So it is banner-ed with its own
-  // cause and its own real route out (activate a fresh version, which records a true activation act),
-  // and NO retry button, rather than a button that can only ever fail.
-  const pushState = push?.pushState ?? null;
-  const isBlocked = pushState !== null && BLOCKED_STATES.has(pushState);
-  const isUnstamped = pushState === 'unstamped-activation';
-  const neverArrived = pushState === 'never-pushed' || isUnstamped;
-  // ⚑ I-5/I-15 — `push_error` is a MACHINE token and is NEVER rendered. One tested translation for both
-  // push surfaces (`pushErrorCopy.ts`), which also decides retryability and transport-vs-rule.
-  const errorCopy = describePushError(push?.pushError ?? null);
-  // NEW-6: the blocking category names, when the failure is a map gap. The repository already
-  // normalizes "none on record" to `null`, so there is exactly one falsy case to test here.
-  //
-  // ⚑ NEW-3 (rendered re-verification) — and ONLY when the failure IS that map gap. `unmapped_categories`
-  // persists on the mirror row across attempts, so after an Admin fixed the map and the next push died
-  // in transport, this banner still rendered the PREVIOUS failure's to-do list ("Map these categories,
-  // then retry") while its own retry toast said "Nothing on this screen needs fixing". Two contradictory
-  // instructions, on screen at once. The names explain one specific cause, so they are shown for that
-  // cause only.
-  const unmappedCategories =
-    errorCopy.code === 'budget-category-unmapped' ? (push?.unmappedCategories ?? null) : null;
+  // `activated_at` — the population mig 0139 created by adding the column nullable. Its consequence is
+  // identical (ERPNext enforces nothing) but its remedy is NOT: the push cannot be re-driven at all,
+  // since both the client pre-check and the server-side budget gate refuse an unstamped version. That
+  // refusal is correct and deliberate — the stamp is the deterministic key's own input, so inventing one
+  // would key a money command on a fiction and could mint a SECOND ERP Budget. So it is banner-ed with
+  // its own cause and its own real route out (activate a fresh version, which records a true activation
+  // act), and NO retry button, rather than a button that can only ever fail.
+  const blockedRows = pushRows.filter((r) => r.pushState !== null && BLOCKED_STATES.has(r.pushState));
+  const quietRows = pushRows.filter((r) => r.pushState !== null && QUIET_STATES[r.pushState] !== undefined);
 
-  // HIGH-D: the recovery affordance. `held`/`failed`/`never-pushed` are all re-drivable — under the
-  // OPERATOR's own JWT, which is the authenticated actor the sweep backstop can never synthesize
-  // (FR-BUD-102). Without it, fixing the blocking cause (mapping the missing category) changed nothing:
-  // the backstop excludes `held`, and re-activating is refused by the Draft-only guard.
+  // HIGH-D: the recovery affordance, PER YEAR. `held`/`failed`/`never-pushed` are all re-drivable —
+  // under the OPERATOR's own JWT, which is the authenticated actor the sweep backstop can never
+  // synthesize (FR-BUD-102). Without it, fixing the blocking cause (mapping the missing category)
+  // changed nothing: the backstop excludes `held`, and re-activating is refused by the Draft-only guard.
   //
-  // ⚑ I-14 — but ONLY where a retry can actually work. `unstamped-activation` already had this
-  // contract right; it now extends to every ERP-side cause (`describePushError().retryable`), because a
-  // button that can only ever fail is worse than no button: it tells the operator the problem is
-  // transient when it is structural.
+  // ⚑ AC-BFY-026: the fiscal year is the mutation's VARIABLE, not a closed-over page-level value, so
+  // the button on FY2027's banner re-drives FY2027 — a project-level action beside a partially-failed
+  // fan-out could only ever act on the wrong year.
   const retryMutation = useMutation({
-    mutationFn: () => retryActiveBudgetPush(projectId),
+    mutationFn: (fiscalYearToRetry: string | null) => retryActiveBudgetPush(projectId, fiscalYearToRetry),
     onSettled: () => {
       void qc.invalidateQueries({ queryKey });
       void qc.invalidateQueries({ queryKey: pushKey });
     },
   });
-  const offerRetry = isBlocked && !isUnstamped && errorCopy.retryable;
 
   /**
    * ⚑ MED-2 (audit round 6) — the release. `release_outbox_hold` (mig 0137 §4) shipped correct and
@@ -276,19 +306,15 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
    */
   const canReleaseHold = may('manage', 'pushHold');
   const releaseMutation = useMutation({
-    mutationFn: () => releaseActiveBudgetPushHold(projectId),
+    mutationFn: (fiscalYearToRelease: string | null) => releaseActiveBudgetPushHold(projectId, fiscalYearToRelease),
     onSettled: () => {
       void qc.invalidateQueries({ queryKey: pushKey });
     },
   });
-  // ⚑ MEDIUM-1 (audit round 7): `pushState === 'held'` is NOT sufficient — the sweep parks mirror rows
-  // at `held` with no held outbox command behind them, and the release then throws. Ask the outbox
-  // (`holdReleasable`), which is the only thing that knows. Those rows keep Retry, their real route out.
-  const offerRelease = pushState === 'held' && push?.holdReleasable === true && canReleaseHold;
 
-  const releaseHold = async () => {
+  const releaseHold = async (row: BudgetPushStatusRow) => {
     try {
-      await releaseMutation.mutateAsync();
+      await releaseMutation.mutateAsync(row.fiscalYear);
       toast(
         'Hold released',
         'The push is queued again — ERPNext is contacted on the next recovery pass, and every check runs afresh.',
@@ -300,18 +326,35 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
     }
   };
 
-  const retryPush = async () => {
+  const retryPush = async (row: BudgetPushStatusRow) => {
+    const copy = describePushError(row.pushError);
     try {
-      const { pushState: next } = await retryMutation.mutateAsync();
+      const { pushState: next } = await retryMutation.mutateAsync(row.fiscalYear);
       if (next === 'pushed') {
-        toast('Budget pushed to ERPNext', 'ERPNext is now enforcing the active budget.', 'success');
+        toast(
+          'Budget pushed to ERPNext',
+          row.fiscalYear
+            ? `ERPNext is now enforcing the active budget for ${row.fiscalYear}.`
+            : 'ERPNext is now enforcing the active budget.',
+          'success',
+        );
+      } else if (next === 'nothing-to-push') {
+        // ⚑ FU-2 round 2 — the active version has NO line items, so the retry attempted no year: no ERP
+        // Budget was created and no mirror row written. Reporting "ERPNext is now enforcing the active
+        // budget" here claimed a push that did not happen, directly contradicting the `never-pushed`
+        // banner beside it. Neither is it a failure — nothing was attempted, so there is nothing to fix.
+        toast(
+          'There was nothing to push',
+          'The active budget version has no budget lines, so no ERPNext Budget was created. Add lines and activate a new version.',
+          'warning',
+        );
       } else {
         // ⚑ I-6 — a transport failure is not a gate rejection. "The reason shown above may need fixing
         // first" was false for a 502/503, where nothing above was fixable and the command never
         // reached ERPNext at all; it sent operators hunting for a cause that was not on the screen.
         toast(
           'The push did not complete',
-          errorCopy.transport
+          copy.transport
             ? 'ERPNext could not be reached. Nothing on this screen needs fixing — try again shortly.'
             : 'The reason shown above may need fixing first.',
           'warning',
@@ -342,7 +385,14 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
     );
   }
 
-  if (yearsQuery.isPending || isPending) {
+  // ⚑ FINDING 3 (FU-2 round 4) — THE PHASING READ IS IN THE GATE, because every reason string on this
+  // grid is a claim and the phasing fact is one of its inputs. Outside the gate there was a real render
+  // window in which the grid painted without it, and an all-phased-elsewhere category was told "some of
+  // this category's budget lines are not phased to a fiscal year" — false of it — before flipping to
+  // "budgeted in 2027". A failed phasing read is deliberately NOT gated on: it is not pending, so the
+  // ladder's fail-OPEN path takes over (say the weaker true thing), rather than wedging the whole money
+  // grid behind an explanatory read.
+  if (yearsQuery.isPending || isPending || categoryPhasingQuery.isPending) {
     return (
       <div className="rounded-lg border border-border bg-card">
         <ListState variant="loading" rows={5} testId="budget-projection-loading" />
@@ -351,7 +401,6 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
   }
 
   const rows = data ?? [];
-  const quiet = pushState !== null ? QUIET_STATES[pushState] : undefined;
 
   // ⚑ HIGH-1 — is the PMO budget knowable for the year on screen? `isActivePush` is the SAME predicate
   // the RPC scopes `pmo_budget_amount` by ("the Active version is on record as covering this year"), so
@@ -359,7 +408,54 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
   // ERP spend posted there is worth looking at — which is exactly why the surface must be able to SAY
   // why the budget half is blank instead of leaving a bare dash.
   const budgetYearOnRecord = fiscalYears.some((y) => y.fiscalYear === fiscalYear && y.isActivePush);
-  const budgetReason = budgetYearOnRecord ? NO_BUDGET_LINE : NO_BUDGET_FOR_YEAR;
+  // ⚑ FR-BFY-053/057 — is THIS year's un-phased attribution stale? The status RPC computes it (0153
+  // §3c) precisely so the screen can say WHY the budget column went blank instead of leaving a dash.
+  const staleForSelectedYear = pushRows.some((r) => r.fiscalYear === fiscalYear && r.staleAttribution);
+
+  /**
+   * ⚑ SHOULD-FIX 1 (FU-2 round 3) — IS THIS CATEGORY FULLY PLACED SOMEWHERE? Only then may the screen
+   * say "budgeted in FY2027, so spend here is not an overspend". A category with a line phased to no
+   * year at all has an unknown TOTAL, so no year can be exonerated on its behalf.
+   *
+   * Fails OPEN, deliberately and in the same direction as the seam: until the phasing read has answered
+   * (or if it answers in an older shape without `unphased`), PMO does not KNOW every line is placed, so
+   * it must not make the claim.
+   */
+  const fullyPlacedElsewhere = (category: BudgetCategory): boolean =>
+    categoryPhasing?.unphased !== undefined && categoryPhasing.unphased[category] !== true;
+
+  /**
+   * ⚑ WHICH ABSENCE IS THIS? (the Director's ruling, spec §6.2.) Five different NULL budgets reach
+   * this screen and they have five different remedies — and one of them is not a remedy at all, because
+   * nothing is wrong. In order of specificity:
+   *   1. the category IS budgeted, in ANOTHER fiscal year, AND EVERY ONE OF ITS LINES IS PLACED → say
+   *      so, and name the year. A knowable fact rendered as "unavailable" is its own dishonesty.
+   *      ⚑ SHOULD-FIX 1: the second half of that condition is load-bearing. `attribution_known = false`
+   *      collapses THREE states, and (nothing here, and something un-placeable) — phased elsewhere WITH
+   *      an un-phased sibling — had no branch: this one won on "elsewhere" alone and told the reader
+   *      that spend on a category holding $50,000 PMO can place in NO year was "a timing difference,
+   *      not an overspend". PMO does not hold that claim; it falls through to 3, which does.
+   *   2. the attribution is STALE (un-phased lines, project dates moved off the pushed span) → say that,
+   *      and name the fix ("phase these lines"). ⚑ SHOULD-FIX 1: `staleForSelectedYear` is a PROJECT-year
+   *      flag answering a PER-category question, so it may only explain a category this year actually
+   *      SUPPRESSED. Tested first, it explained a category with no lines at all — whose `-EAC` is a
+   *      correct, deliberately loud unbudgeted-spend alarm — as "phase these lines" that do not exist.
+   *   3. ⚑ BLOCK 2: the category is PARTLY attributable here — it has lines, some of them in this year,
+   *      but at least one that PMO cannot place at all, so its total is withheld → say that, and name
+   *      the same fix. Without this branch it fell through to 5 and told the reader a category holding
+   *      $150,000 had "no line".
+   *   4. the Active version is not on record as covering this year at all → the shipped HIGH-1 sentence.
+   *   5. it simply has no line for this category → the shipped C-1 sentence.
+   */
+  const budgetReasonFor = (row: BudgetProjectionCellRow): string => {
+    const elsewhere = (categoryYears[row.category] ?? []).filter((y) => y !== fiscalYear);
+    if (elsewhere.length > 0 && fullyPlacedElsewhere(row.category)) return budgetedInOtherYears(elsewhere);
+    // `=== false` (never `!`): the seam maps an older RPC shape to `true`, and an undefined here
+    // must not invent a suppression either — the fail-OPEN direction, as at the seam.
+    if (row.attributionKnown === false && staleForSelectedYear) return BUDGET_ATTRIBUTION_STALE;
+    if (row.attributionKnown === false) return BUDGET_ATTRIBUTION_PARTIAL;
+    return budgetYearOnRecord ? NO_BUDGET_LINE : NO_BUDGET_FOR_YEAR;
+  };
   // ⚑ NEW-4 — the provenance of the actuals column. Project-year-wide (one snapshot per refresh), so
   // any row carries it. `null` = no reading on record, and nothing is dated.
   const actualsAsOf = rows.find((r) => r.actualsAsOf !== null)?.actualsAsOf ?? null;
@@ -398,96 +494,26 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
           from each other AND from "this org has no ERP at all", while `erp_budget_name` (the ERP
           document the push created) was stored and read by nothing. The timesheet `PushStateBadge`
           does exactly the opposite in the same product. A NULL state still renders nothing — that is
-          the one case where silence IS the truth (there is nothing to report). */}
-      {quiet && (
-        <div className="mt-3.5 flex flex-wrap items-center gap-2 rounded-lg border border-border bg-card px-3.5 py-2.5 text-[13px]">
-          <StatusPill variant={quiet.variant}>{quiet.label}</StatusPill>
-          <span className="text-muted-foreground">{quiet.detail}</span>
-          {push?.fiscalYear && <span className="text-muted-foreground">Fiscal year {push.fiscalYear}</span>}
-          {push?.erpBudgetName && (
-            <span className="font-mono text-[12px] text-muted-foreground">{push.erpBudgetName}</span>
-          )}
-        </div>
-      )}
+          the one case where silence IS the truth (there is nothing to report).
+          ⚑ AC-BFY-026: one statement PER YEAR, so a fan-out that half-landed reads as what it is. */}
+      {quietRows.map((row) => (
+        <QuietPushStatus key={`quiet-${row.fiscalYear ?? 'no-year'}`} row={row} />
+      ))}
 
-      {isBlocked && (
-        <GateNotice variant="blocked" className="mt-3.5">
-          <div className="flex flex-wrap items-start justify-between gap-2">
-            <div>
-              {/* ⚑ I-7 — "still enforcing the PREVIOUS budget" is materially WRONG for a push that
-                  never arrived: if this was the first push, ERPNext is enforcing NOTHING, which is a
-                  worse situation, not a milder one. The headline now follows the actual state. */}
-              <b className="font-semibold">
-                {neverArrived
-                  ? 'ERPNext is not enforcing any budget for this project.'
-                  : 'ERPNext is still enforcing the previous budget for this project.'}
-              </b>
-              <div className="mt-1">
-                {isUnstamped
-                  ? 'This budget version has no record of when it was activated, so it cannot be handed to ERPNext. Activate a new version to push the current budget.'
-                  : pushState === 'never-pushed'
-                    ? 'The activated budget never reached ERPNext — it was not recorded as pushed at all, so no budget of any kind was created there.'
-                    : errorCopy.message}
-              </div>
-              {/* ⚑ I-11 — a withheld Retry needs a real route out, and naming the remedy without naming
-                  the CONTROL that performs it is still a dead end. "Clone to revise" is the button on
-                  the version above; activating the clone records a TRUE activation act. */}
-              {isUnstamped && (
-                <div className="mt-1">
-                  Use <b>Clone to revise</b> on the active version above, then activate the clone — that records a real
-                  activation and can be pushed.
-                </div>
-              )}
-              {/* ⚑ NEW-5 — the QUIET states named the year; the BLOCKED branch, the only one that can be
-                  about a year OTHER than the one on screen, did not. On a multi-fiscal-year project the
-                  alarm was therefore unattributable: a failure about 2025-2026 sat over a grid of
-                  2024-2025 with nothing to connect or separate them. Mig 0141 returns the year for
-                  precisely this. Absent (an inferred never-pushed state has no mirror row and so no
-                  year), nothing is said — never a guess. */}
-              {push?.fiscalYear && <div className="mt-1 text-muted-foreground">Fiscal year {push.fiscalYear}</div>}
-              {!isUnstamped && errorCopy.remedy && <div className="mt-1">{errorCopy.remedy}</div>}
-              {/* ⚑ NEW-6 (audit round 4): the actionable half of the failure. The dispatch gate records
-                  WHICH categories have no ERP account (FR-BUD-113 collected the names on purpose), but
-                  nothing read them back — so this banner could only ever show the bare code
-                  `budget-category-unmapped`, telling an Admin that something is broken while withholding
-                  the one fact that makes it fixable. These names ARE the to-do list, so they are marked
-                  up as one: a real <ul> with an accessible name, not a comma-joined sentence. */}
-              {unmappedCategories && (
-                <div className="mt-2">
-                  <p className="text-[13px] font-medium">Map these categories to an ERP account, then retry:</p>
-                  {/* A STABLE accessible name, deliberately not `aria-labelledby` the sentence above:
-                      the list's identity should not change every time that copy is reworded. */}
-                  <ul aria-label="Categories that need an ERP account" className="mt-1 list-disc pl-5 text-[13px]">
-                    {unmappedCategories.map((c) => (
-                      <li key={c}>{c}</li>
-                    ))}
-                  </ul>
-                  {/* ⚑ I-8 — naming the to-do is half the job; the banner must reach the place it is
-                      done. Without this the operator is told what is wrong and left to find the screen. */}
-                  <Link
-                    to={ACCOUNT_MAP_HREF}
-                    className="mt-1.5 inline-block font-medium underline underline-offset-2 hover:no-underline"
-                  >
-                    Open the budget account map
-                  </Link>
-                </div>
-              )}
-            </div>
-            <div className="flex shrink-0 flex-wrap items-center gap-2">
-              {offerRelease && (
-                <Button variant="outline" size="sm" loading={releaseMutation.isPending} onClick={() => void releaseHold()}>
-                  Release the hold
-                </Button>
-              )}
-              {offerRetry && (
-                <Button variant="outline" size="sm" loading={retryMutation.isPending} onClick={() => void retryPush()}>
-                  Retry the push
-                </Button>
-              )}
-            </div>
-          </div>
-        </GateNotice>
-      )}
+      {/* ⚑ AC-BFY-026: one banner PER BLOCKED YEAR. A single banner over a fan-out could name only one
+          year, so the other year's missing overspend control was invisible — and its Retry/Release
+          acted on "the project", i.e. on whichever year the RPC happened to return first. */}
+      {blockedRows.map((row) => (
+        <BlockedPushStatus
+          key={`blocked-${row.fiscalYear ?? 'no-year'}`}
+          row={row}
+          canReleaseHold={canReleaseHold}
+          releasePending={releaseMutation.isPending && releaseMutation.variables === row.fiscalYear}
+          retryPending={retryMutation.isPending && retryMutation.variables === row.fiscalYear}
+          onRelease={() => void releaseHold(row)}
+          onRetry={() => void retryPush(row)}
+        />
+      ))}
 
       {rows.length === 0 ? (
         <div className="mt-3.5">
@@ -561,6 +587,7 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
                   const actualsReason = row.actualsAsOf === null ? NO_LEDGER_READING : NO_ERP_ACCOUNT;
                   // Everything derived is unknowable for the reason its own missing input gives: the
                   // actual first (nothing survives an unknown actual), then the budget.
+                  const budgetReason = budgetReasonFor(row);
                   const derivedReason = row.actualsToDate === null ? actualsReason : budgetReason;
                   return (
                     <tr
@@ -650,6 +677,141 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
         </>
       )}
     </section>
+  );
+};
+
+/**
+ * ⚑ AC-BFY-026 — ONE YEAR'S quiet push statement (`pending` / `pushing` / `pushed`).
+ *
+ * Extracted so a fan-out renders one statement per year rather than one per project. The year is named
+ * whenever the row carries one; absent (the inferred "nothing on record for any year" row), nothing is
+ * said — never a guess.
+ */
+const QuietPushStatus: React.FC<{ row: BudgetPushStatusRow }> = ({ row }) => {
+  const quiet = row.pushState !== null ? QUIET_STATES[row.pushState] : undefined;
+  if (!quiet) return null;
+  return (
+    <div className="mt-3.5 flex flex-wrap items-center gap-2 rounded-lg border border-border bg-card px-3.5 py-2.5 text-[13px]">
+      <StatusPill variant={quiet.variant}>{quiet.label}</StatusPill>
+      <span className="text-muted-foreground">{quiet.detail}</span>
+      {row.fiscalYear && <span className="text-muted-foreground">Fiscal year {row.fiscalYear}</span>}
+      {row.erpBudgetName && <span className="font-mono text-[12px] text-muted-foreground">{row.erpBudgetName}</span>}
+      {/* ⚑ FR-BFY-056 — a year can be PUSHED and still have a stale un-phased attribution (the project
+          dates moved after the push). That is not a push failure, so it does not belong in the blocked
+          banner; but leaving it unsaid is how the budget column goes blank with no explanation. */}
+      {row.staleAttribution && (
+        <span className="text-muted-foreground">
+          The un-phased lines no longer attribute to this year — the project&rsquo;s dates changed after this push.
+          Phase these lines to restore the figure.
+        </span>
+      )}
+    </div>
+  );
+};
+
+/**
+ * ⚑ AC-BFY-026 — ONE YEAR'S blocked push banner, with that year's OWN retry/release.
+ *
+ * Every sentence here is about a single fiscal year: a fan-out can be enforcing FY2026 and enforcing
+ * nothing for FY2027, and a project-level banner could state only one of those.
+ */
+const BlockedPushStatus: React.FC<{
+  row: BudgetPushStatusRow;
+  canReleaseHold: boolean;
+  releasePending: boolean;
+  retryPending: boolean;
+  onRelease: () => void;
+  onRetry: () => void;
+}> = ({ row, canReleaseHold, releasePending, retryPending, onRelease, onRetry }) => {
+  const isUnstamped = row.pushState === 'unstamped-activation';
+  const neverArrived = row.pushState === 'never-pushed' || isUnstamped;
+  // ⚑ I-5/I-15 — `push_error` is a MACHINE token and is NEVER rendered. One tested translation for
+  // both push surfaces (`pushErrorCopy.ts`), which also decides retryability and transport-vs-rule.
+  const errorCopy = describePushError(row.pushError);
+  // NEW-6 / NEW-3: the blocking category names, and ONLY when the failure IS that map gap.
+  // `unmapped_categories` persists on the mirror row across attempts, so after an Admin fixed the map
+  // and the next push died in transport, this banner still rendered the PREVIOUS failure's to-do list
+  // while its own retry toast said "Nothing on this screen needs fixing" — two contradictory
+  // instructions, on screen at once.
+  const unmappedCategories = errorCopy.code === 'budget-category-unmapped' ? (row.unmappedCategories ?? null) : null;
+  // I-14: a retry is offered only where it can actually work. A button that can only ever fail is worse
+  // than no button — it tells the operator the problem is transient when it is structural.
+  const offerRetry = !isUnstamped && errorCopy.retryable;
+  // MEDIUM-1: `held` alone is NOT enough — the sweep also parks MIRROR rows at `held` with no held
+  // outbox command behind them, and the release then throws. Ask the outbox (`holdReleasable`).
+  const offerRelease = row.pushState === 'held' && row.holdReleasable && canReleaseHold;
+  return (
+    <GateNotice variant="blocked" className="mt-3.5">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          {/* ⚑ I-7 — "still enforcing the PREVIOUS budget" is materially WRONG for a push that never
+              arrived: if this was the first push, ERPNext is enforcing NOTHING, which is a worse
+              situation, not a milder one. The headline follows the actual state. */}
+          <b className="font-semibold">
+            {neverArrived
+              ? 'ERPNext is not enforcing any budget for this project.'
+              : 'ERPNext is still enforcing the previous budget for this project.'}
+          </b>
+          <div className="mt-1">
+            {isUnstamped
+              ? 'This budget version has no record of when it was activated, so it cannot be handed to ERPNext. Activate a new version to push the current budget.'
+              : row.pushState === 'never-pushed'
+                ? 'The activated budget never reached ERPNext — it was not recorded as pushed at all, so no budget of any kind was created there.'
+                : errorCopy.message}
+          </div>
+          {/* ⚑ I-11 — a withheld Retry needs a real route out, and naming the remedy without naming the
+              CONTROL that performs it is still a dead end. */}
+          {isUnstamped && (
+            <div className="mt-1">
+              Use <b>Clone to revise</b> on the active version above, then activate the clone — that records a real
+              activation and can be pushed.
+            </div>
+          )}
+          {/* ⚑ NEW-5 — the alarm names the year it is about. On a multi-fiscal-year project it is
+              otherwise unattributable: a failure about 2027 sitting over a grid of 2026 with nothing to
+              connect or separate them. Absent (an inferred never-pushed state has no mirror row and so
+              no year), nothing is said — never a guess. */}
+          {row.fiscalYear && <div className="mt-1 text-muted-foreground">Fiscal year {row.fiscalYear}</div>}
+          {!isUnstamped && errorCopy.remedy && <div className="mt-1">{errorCopy.remedy}</div>}
+          {/* ⚑ NEW-6 (audit round 4): the actionable half of the failure. The dispatch gate records WHICH
+              categories have no ERP account (FR-BUD-113 collected the names on purpose), but nothing read
+              them back — so this banner could only ever show the bare code `budget-category-unmapped`,
+              telling an Admin that something is broken while withholding the one fact that makes it
+              fixable. These names ARE the to-do list, so they are marked up as one. */}
+          {unmappedCategories && (
+            <div className="mt-2">
+              <p className="text-[13px] font-medium">Map these categories to an ERP account, then retry:</p>
+              {/* A STABLE accessible name, deliberately not `aria-labelledby` the sentence above: the
+                  list's identity should not change every time that copy is reworded. */}
+              <ul aria-label="Categories that need an ERP account" className="mt-1 list-disc pl-5 text-[13px]">
+                {unmappedCategories.map((c) => (
+                  <li key={c}>{c}</li>
+                ))}
+              </ul>
+              {/* ⚑ I-8 — naming the to-do is half the job; the banner must reach the place it is done. */}
+              <Link
+                to={ACCOUNT_MAP_HREF}
+                className="mt-1.5 inline-block font-medium underline underline-offset-2 hover:no-underline"
+              >
+                Open the budget account map
+              </Link>
+            </div>
+          )}
+        </div>
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          {offerRelease && (
+            <Button variant="outline" size="sm" loading={releasePending} onClick={onRelease}>
+              Release the hold
+            </Button>
+          )}
+          {offerRetry && (
+            <Button variant="outline" size="sm" loading={retryPending} onClick={onRetry}>
+              Retry the push
+            </Button>
+          )}
+        </div>
+      </div>
+    </GateNotice>
   );
 };
 

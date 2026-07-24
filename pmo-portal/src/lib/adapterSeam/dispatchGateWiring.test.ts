@@ -133,7 +133,7 @@ describe('WIRE P3B: the Approved-only timesheet gate is wired into the dispatch 
     const gate = at('await enforceTimesheetApproved(');
     expect(gate).toBeGreaterThan(-1);
     for (const later of [
-      'createClient(supabaseUrl, serviceRoleKey)', // no machine-write client exists before the refusal
+      'createClient(supabaseUrl, serviceRoleKey,', // no machine-write client exists before the refusal
       'ADAPTER_REGISTRY[command.domain]', // no adapter is selected for an unapproved sheet
       'await resolveErpMoneyOutboxDeps(', // no outbox row, therefore no ERP POST (the CALL, not the decl)
       'dispatchExternallyOwnedWrite(',

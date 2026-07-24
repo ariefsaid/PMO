@@ -24,6 +24,7 @@
  */
 import { resolveExternalRef, type ExternalRefsLookupClient } from '../../../pmo-portal/src/lib/adapterSeam/refs.ts';
 import { DOCTYPE_REGISTRY, type ErpDocKind } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/doctypeRegistry.ts';
+import { decodeFiscalYear } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/fiscalYearEncoding.ts';
 
 /** The structural service-role read seam both guards need: `.from(t).select(c).eq(...)…maybeSingle()`.
  *  Identical to `refs.ts`'s `ExternalRefsLookupClient` (the filter builder is chainable), re-exported
@@ -134,6 +135,14 @@ export async function checkTransitionTargetBinding(
   return OK;
 }
 
+/** The outbox / `external_refs` identity for a command: the server-derived year-qualified
+ *  `outbox_identity` where one is present (the budget fan-out), else the bare `record.id` — every
+ *  other domain is byte-for-byte unchanged (FR-BFY-036). */
+export function outboxIdentityOf(command: GuardCommand): string {
+  const identity = (command.record as { outbox_identity?: unknown }).outbox_identity;
+  return typeof identity === 'string' && identity.length > 0 ? identity : String(command.record.id);
+}
+
 /**
  * BLOCK #4 — a `create` may not target an already-mapped PMO record.
  *
@@ -152,7 +161,13 @@ export async function checkCreateTargetUnmapped(
   const noClientTarget = checkNoClientSuppliedTarget(command);
   if (noClientTarget) return noClientTarget;
 
-  const pmoRecordId = String(command.record.id);
+  // ⚑ BFY FR-BFY-032/035 — the budget domain's `external_refs` identity is YEAR-QUALIFIED
+  // (`<vid>:<encoded-fy>`), while `record.id` stays the bare version UUID. Resolving the bare id here
+  // would ask the wrong question twice over: it finds no mapping for a version whose year IS mapped
+  // (so a duplicate `create` passes the guard and mints a SECOND ERP Budget), and it would block
+  // year 2 the moment year 1 was mapped. The identity is server-derived (`index.ts`'s fan-out), never
+  // caller-supplied.
+  const pmoRecordId = outboxIdentityOf(command);
   const mapped = await resolveExternalRef(client, orgId, command.domain, pmoRecordId);
   if (mapped === null) return OK;
 
@@ -204,8 +219,57 @@ const DETERMINISTIC_KEY_RE = /^[a-z]{1,8}:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0
  * a LIKE metacharacter. This is a shape check, never a length threshold — `'a'.repeat(64)` is
  * rejected exactly like `'1'`.
  */
+/**
+ * BFY FR-BFY-031 — the budget domain's PER-YEAR deterministic key: `bud:<uuid>:<encoded-fy>:<epochMs>`.
+ *
+ * Four segments, not three: the fan-out puts one ERP `Budget` per fiscal year, so the year has to be
+ * IN the key or two years of one activation collide on a single outbox row and only the first ever
+ * reaches ERP. `DETERMINISTIC_KEY_RE` happens to admit SHORT budget keys (its third-segment charset
+ * contains `:`), but its `{4,40}` bound silently rejects a longer client Fiscal Year name — a key the
+ * server itself derived would then be refused at this boundary and the push could never land. So the
+ * shape is matched explicitly, and the encoded year must DECODE to a non-empty name: an empty token
+ * would make every year of a version share one identity, which is the collision this key prevents.
+ */
+const BUDGET_KEY_PREFIX_RE = /^bud:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}):(.+)$/i;
+
+/**
+ * Judge a per-year budget key: `null` when the key does not claim that shape at all (so the caller
+ * falls through to the general rules), otherwise the verdict.
+ *
+ * The encoded year MAY itself contain `:` (the encoding alphabet includes it), so the key is split at
+ * its LAST `:` — the epoch is decimal digits and never contains one. A remainder with NO `:` is the
+ * PRE-BFY single-year key `bud:<uuid>:<epochMs>` and is deliberately left to the general deterministic
+ * rule: those rows exist in the outbox today and a retry of one must still be accepted.
+ */
+function judgeBudgetPerYearKey(key: string): boolean | null {
+  const match = BUDGET_KEY_PREFIX_RE.exec(key);
+  if (!match) return null;
+  const remainder = match[2];
+  const lastColon = remainder.lastIndexOf(':');
+  if (lastColon < 0) return null; // the legacy `bud:<uuid>:<epochMs>` shape
+  const token = remainder.slice(0, lastColon);
+  const epoch = remainder.slice(lastColon + 1);
+  if (!/^[0-9]{4,20}$/.test(epoch)) return false;
+  // ⚑ The year must DECODE to a real name. An empty (or corrupt) token would make every fiscal year of
+  // one version share a single identity — the outbox `unique` would then suppress every year but the
+  // first, and ERPNext would enforce one year's figure while PMO reported all of them.
+  try {
+    return decodeFiscalYear(token).length > 0;
+  } catch {
+    return false;
+  }
+}
+
 export function isOpaqueIdempotencyKey(key: string | undefined | null): boolean {
-  return typeof key === 'string' && (UUID_RE.test(key) || DETERMINISTIC_KEY_RE.test(key));
+  if (typeof key !== 'string') return false;
+  if (UUID_RE.test(key)) return true;
+  // A key that CLAIMS the per-year budget shape is judged by THAT rule alone — the general
+  // deterministic regex would otherwise wave through a `bud:<uuid>::<epoch>` (an empty year token
+  // sits happily inside its third-segment charset), which is precisely the collision the year exists
+  // to prevent.
+  const budgetVerdict = judgeBudgetPerYearKey(key);
+  if (budgetVerdict !== null) return budgetVerdict;
+  return DETERMINISTIC_KEY_RE.test(key);
 }
 
 /** Does THIS command (org+domain+record+idempotency key — the outbox's own unique 4-tuple, 0096)
