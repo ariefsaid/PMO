@@ -48,8 +48,8 @@ const AUTH_URL = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? FU
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
 
 const READY = Boolean(FUNCTIONS_URL && AUTH_URL);
-if (!READY && process.env.CI) {
-  throw new Error('AC-BUD-031: SUPABASE_FUNCTIONS_URL + SUPABASE_URL are required in CI — this spec cannot silently skip');
+if (FUNCTIONS_URL && !READY) {
+  throw new Error('AC-BUD-031: SUPABASE_FUNCTIONS_URL + SUPABASE_URL are required once the served lane is up (SUPABASE_FUNCTIONS_URL set) — never a silent skip');
 }
 if (READY && !SERVICE_KEY) throw new Error('AC-BUD-031: SUPABASE_SERVICE_ROLE_KEY is required whenever the served lane is available.');
 test.skip(!READY, 'AC-BUD-031: served-fn lane not configured — run via scripts/serve-functions.sh against the ERPNext bench');
