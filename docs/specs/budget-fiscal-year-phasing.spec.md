@@ -477,8 +477,17 @@ pmo_budget as (
          -- `coalesce(…, true)` then read as "nothing was suppressed" — and `-EAC` fired anyway. The
          -- three-valued logic silently defeated the two-valued fact. `coalesce(…, false)` makes the
          -- predicate two-valued so the sum and the fact derive from ONE expression.
+         -- ⚑ CORRECTED AGAIN 2026-07-24 (opus round-2 BLOCK 2). `bool_or` ALONE means "TRUE iff AT LEAST
+         -- ONE line is attributed" — so a category holding BOTH an attributed line AND a SUPPRESSED one
+         -- claimed F-D true, and the screen stated $100,000 where PMO held $150,000 (a phased $100k plus
+         -- an un-phased $50k on a refused push). The fence has to hold for the WHOLE category, so the
+         -- `bool_and` conjunct is load-bearing: ANY un-placeable line makes the category unknown. The
+         -- AMOUNT is withheld with the derived figures, so `(amount stated, attribution unknown)` is
+         -- unreachable by construction.
          bool_or(coalesce(li.fiscal_year = p_fiscal_year, false)
-                 or (li.fiscal_year is null and exists (select 1 from attributed_null))) as attribution_known
+                 or (li.fiscal_year is null and exists (select 1 from attributed_null)))
+           and bool_and(li.fiscal_year is not null
+                        or exists (select 1 from attributed_null)) as attribution_known
     from budget_versions v
     join budget_line_items li on li.budget_version_id = v.id
    where v.project_id = p_project_id and v.status = 'Active'
@@ -486,6 +495,16 @@ pmo_budget as (
    group by li.category
 )
 ```
+> **⚑ QUALIFIED 2026-07-24 (opus round-3 SHOULD-FIX 1) — the ruling below holds ONLY when the category is
+> FULLY placed elsewhere.** `attribution_known = false` turned out to collapse THREE states, and one had no
+> branch at all: `(bool_or F, bool_and T)` = every line phased elsewhere → KNOWN, the ruling's case;
+> `(T, F)` = some line un-placeable → UNKNOWN; **`(F, F)` = phased elsewhere AND an un-placeable sibling** —
+> which fell through to the ruling's sentence and claimed *"spend posted here is a timing difference, not an
+> overspend"* about a category with $50,000 PMO cannot place. **A sentence is a claim: say the strongest
+> thing that is TRUE and no more.** The "budgeted in FY-x" sentence is now gated on the category being fully
+> placed elsewhere; the `(F, F)` cell reads as PARTIAL instead. The ruling's substance is unchanged — it is
+> its SCOPE that was too wide.
+>
 > **⚑ DIRECTOR'S RULING 2026-07-23 — the "all lines phased to OTHER years" case.** The formula above
 > also yields `attribution_known = false` for a category whose lines all exist but are phased to a
 > *different* fiscal year. The prose said false meant "only NULL lines, suppressed"; the formula is
