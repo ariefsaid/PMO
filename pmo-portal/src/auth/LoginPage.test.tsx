@@ -107,7 +107,7 @@ describe('LoginPage', () => {
     auth.signInWithOtp.mockResolvedValue({ error: null });
     renderLogin();
     await userEvent.type(screen.getByLabelText(/email/i), 'engineer@acme.test');
-    await userEvent.click(screen.getByRole('button', { name: /send magic link/i }));
+    await userEvent.click(screen.getByRole('button', { name: /email me a magic link/i }));
     await waitFor(() =>
       expect(screen.getByText(/check your email/i)).toBeInTheDocument()
     );
@@ -125,9 +125,9 @@ describe('LoginPage', () => {
     expect(signInBtn.className).not.toMatch(/bg-gray-/);
   });
 
-  it('renders magic-link button as outline/secondary — not primary (AC-AUTH-RESKIN-002)', () => {
+  it('magic-link is a tertiary action — never the primary (AC-AUTH-RESKIN-002)', () => {
     renderLogin();
-    const mlBtn = screen.getByRole('button', { name: /send magic link/i });
+    const mlBtn = screen.getByRole('button', { name: /email me a magic link/i });
     // outline variant uses border-input, NOT bg-primary
     expect(mlBtn.className).not.toMatch(/bg-primary[^-]/);
   });
@@ -145,7 +145,7 @@ describe('LoginPage', () => {
     auth.signInWithOtp.mockResolvedValue({ error: null });
     renderLogin();
     await userEvent.type(screen.getByLabelText(/email/i), 'x@x.test');
-    await userEvent.click(screen.getByRole('button', { name: /send magic link/i }));
+    await userEvent.click(screen.getByRole('button', { name: /email me a magic link/i }));
     await waitFor(() => expect(screen.getByRole('status')).toBeInTheDocument());
   });
 
