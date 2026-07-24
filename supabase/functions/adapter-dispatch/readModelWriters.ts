@@ -35,6 +35,9 @@ export interface ReadModelServiceClient {
     ): Promise<{ error: { message: string; code?: string } | null }>;
     update(patch: unknown): ReadModelEqChain;
   };
+  // Fenced outcome writers (migration 0155): a mirror write that must read the outbox atomically to
+  // avoid a TOCTOU race routes through a security-definer RPC rather than a bare upsert.
+  rpc(fn: string, args: Record<string, unknown>): Promise<{ error: { message: string; code?: string } | null }>;
 }
 export interface ReadModelEqChain {
   eq(column: string, value: string): ReadModelEqChain;
@@ -48,6 +51,11 @@ export interface ReadModelWriterCtx {
    *  (approver≠author) is otherwise a no-op when author is null. Undefined on an inbound-adopted path
    *  (no PMO caller) → author_user_id stays null (SoD-exempt). */
   callerUserId?: string;
+  /** ⚑ BLOCKER 2 (FU-2): true when this write is a REPLAY convergence (`reconcileOutbox`/finalize of an
+   *  already-committed or confirmed outbox row) rather than a FRESH ERP commit in this dispatch. A replay
+   *  carries no new ERP-side success, so a PMO-SoT writer must not use it to override a Desk cancel
+   *  (the budget writer's tombstone guard). Undefined ⇒ a fresh write (today's behaviour). */
+  isReplay?: boolean;
 }
 
 export interface ReadModelWriter {
@@ -833,6 +841,38 @@ const budgetWriter: ReadModelWriter = {
     if (typeof fiscalYear !== 'string' || fiscalYear === '') {
       throw new AppError('budget mirror: the pushed budget carries no fiscal year', 'commit-rejected');
     }
+    // ⚑ FR-BFY-080 — THE PUSH-TIME SPAN WITNESS. `get_budget_projection` attributes un-phased (NULL
+    // `fiscal_year`) lines to this year ONLY while the project's CURRENT dates still match the dates
+    // the GATE read when it resolved the year (0153 §3a/§4). Those dates ride on the command as a
+    // NON-body field, stamped from `runBudgetGate`'s own re-read of `projects` — never from a payload
+    // the caller could author. A `pushed` row with a NULL witness is a DEFECT, not a backward-compat
+    // case: the drift check could then never fire and an extended project would keep attributing its
+    // whole un-phased budget to the old year forever.
+    const witnessStart = (command.record as { project_start_date?: unknown }).project_start_date;
+    if (typeof witnessStart !== 'string' || witnessStart === '') {
+      throw new AppError('budget mirror: the pushed budget carries no push-time project span witness', 'commit-rejected');
+    }
+    const witnessEnd = (command.record as { project_end_date?: unknown }).project_end_date;
+    // ⚑ BLOCKER 2 (FU-2) — a REPLAY must never resurrect a Desk-cancelled Budget. A retry of an already-
+    // `confirmed` outbox row converges the STORED canonical (no fresh ERP write). If the accountant
+    // cancelled the ERP Budget after this push confirmed, the inbound feed tombstoned the mirror
+    // (`erp_cancelled_at` set, push_state 'failed'). Overwriting that with 'pushed' + clearing the
+    // tombstone would make PMO report ERPNext enforcing a Budget the operator cancelled (FR-BUD-142).
+    // Only a FRESH push (`isReplay` false — a real ERP commit in THIS dispatch) may supersede a cancel;
+    // a replay leaves the honest Desk-cancel state alone.
+    if (ctx.isReplay) {
+      const { data: existing, error: readError } = await (ctx.serviceClient as unknown as ExternalRefsLookupClient)
+        .from('budget_version_erp_mirror')
+        .select('erp_cancelled_at')
+        .eq('org_id', ctx.orgId)
+        .eq('budget_version_id', String(canonical.id))
+        .eq('fiscal_year', fiscalYear)
+        .maybeSingle();
+      if (readError) throw new AppError(readError.message, readError.code);
+      if ((existing as { erp_cancelled_at?: string | null } | null)?.erp_cancelled_at != null) {
+        return; // the Desk cancel stands — a stored-canonical replay carries no fresh ERP success to override it
+      }
+    }
     const { error } = await ctx.serviceClient.from('budget_version_erp_mirror').upsert(
       {
         org_id: ctx.orgId,
@@ -840,6 +880,8 @@ const budgetWriter: ReadModelWriter = {
         fiscal_year: fiscalYear,
         push_state: 'pushed',
         push_error: null,
+        pushed_project_start_date: witnessStart,
+        pushed_project_end_date: typeof witnessEnd === 'string' && witnessEnd !== '' ? witnessEnd : null,
         erp_budget_name: (canonical.erp_budget_name as string | null | undefined) ?? null,
         erp_docstatus: (canonical.erp_docstatus as number | null | undefined) ?? null,
         erp_modified: (canonical.erp_modified as string | null | undefined) ?? null,
@@ -936,13 +978,67 @@ const timesheetsWriter: ReadModelWriter = {
  * learns a document number, so it must never claim one. A fresh row still gets the column default
  * (NULL); a previously known number survives to be reconciled.
  */
+/**
+ * ⚑ S1 (Luna FU-1a round-8) — the ONE link in the `command-held` chain that had no test.
+ *
+ * `dispatch.ts` stamps a `command-held` AppError with the exact outbox row + claim generation the hold
+ * was produced under; `record_timesheet_command_held` compare-and-sets the mirror on that precise
+ * row+generation. Both ends were covered; the code that reads the marker off the caught error and
+ * decides whether to pass it lived inline in the served handler, where no test could reach it — the
+ * same "the defect lived in the JOIN between them" shape this suite has hit before. It is a pure
+ * decision, so it lives here with the writer it feeds and has its own oracle.
+ *
+ * Returns the identity ONLY for a `command-held`: no other outcome may carry one, because for any other
+ * code the recovery branch did not produce a hold and any marker riding along is stale. A `command-held`
+ * with no marker yields undefined fields (not a guess) — the RPC then fences with nulls and records the
+ * restrictive `held` + the unknown witness (0157 §3, S2).
+ */
+export function heldIdentityFor(
+  failure: { code?: string; heldOutboxId?: string; heldClaimGeneration?: number },
+): { outboxId?: string; claimGeneration?: number } | undefined {
+  if (failure.code !== 'command-held') return undefined;
+  return { outboxId: failure.heldOutboxId, claimGeneration: failure.heldClaimGeneration };
+}
+
 export async function markTimesheetPushOutcome(
   ctx: ReadModelWriterCtx,
   timesheetId: string,
   approvedAt: string,
   outcome: { code?: string; message: string } | null,
+  /** ⚑ Luna FU-1a round-6 — the EXACT outbox row + fencing token this held outcome was produced under
+   *  (threaded from the `command-held` AppError; extracted by `heldIdentityFor`). The RPC fences its
+   *  mirror write on that precise row+generation (a generation-exact CAS), so a concurrent release or a
+   *  successor approval generation cannot make a released outcome land `held`. Absent for every
+   *  non-held outcome. ⚑ Round-8 S2: a MISSING id no longer records `failed` — on the mirror fence
+   *  `failed` is the permissive state, so 0157 records the restrictive `held` plus the durable
+   *  unknown-outcome witness and names the lost identity in the reason. */
+  held?: { outboxId?: string; claimGeneration?: number },
 ): Promise<void> {
-  const pushState = outcome === null ? 'pushed' : outcome.code === 'command-held' ? 'held' : 'failed';
+  // ⚑ THE RELEASE-BEFORE-MIRROR RACE (Luna FU-1a round-5 BLOCK, migration 0155). The `command-held`
+  // outcome is recorded HERE — later than, and in a separate transaction from, the outbox hold
+  // (`dispatch.ts` → `mark_outbox_held`). An Admin `release_outbox_hold` can interleave between the two,
+  // find no mirror row to release, and commit the outbox to `failed`; a blind upsert of `held` here would
+  // then RESURRECT the dead end (outbox `failed` + mirror `held`, non-retryable, non-releasable). So the
+  // `command-held` write goes through `record_timesheet_command_held`, which reads the outbox and writes
+  // the mirror in ONE statement: it records `held` ONLY while a `held` timesheet outbox for this record is
+  // still live, and records the RELEASED outcome (`failed`) otherwise. A released generation can never
+  // write `held`. Every OTHER outcome (`pushed` success / classified `failed`) is unaffected by the race
+  // and keeps the direct upsert below.
+  if (outcome !== null && outcome.code === 'command-held') {
+    const { error } = await ctx.serviceClient.rpc('record_timesheet_command_held', {
+      p_org: ctx.orgId,
+      p_timesheet_id: timesheetId,
+      p_approved_at: approvedAt,
+      p_reason: `${outcome.code}: ${outcome.message}`,
+      // The generation-exact fence identity. Null (no id/generation) makes the RPC fence fail closed —
+      // it records the released outcome (`failed`), never a blind `held` (round-6 BLOCK 1/2).
+      p_outbox_id: held?.outboxId ?? null,
+      p_claim_generation: held?.claimGeneration ?? null,
+    });
+    if (error) throw new AppError(`timesheet_erp_mirror held outcome write failed: ${error.message}`, 'DISPATCH_FAILED');
+    return;
+  }
+  const pushState = outcome === null ? 'pushed' : 'failed';
   const { error } = await ctx.serviceClient.from('timesheet_erp_mirror').upsert(
     {
       org_id: ctx.orgId,

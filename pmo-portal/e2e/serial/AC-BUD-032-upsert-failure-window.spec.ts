@@ -34,13 +34,11 @@ import {
   benchPost,
   accountAmount,
   activateVersionAs,
-  budgetPushKeyFor,
   cleanupBud,
   dispatchBudgetPushRaw,
   fiscalYearContaining,
   listAllErpBudgets,
   listLiveErpBudgets,
-  readActivatedAtBud,
   readBudgetMirror,
   readBudgetOutbox,
   readErpBudget,
@@ -81,8 +79,9 @@ test.describe('AC-BUD-032: the upsert never leaves a client\'s ERP unenforced AN
       //       so the whole assertion chain runs against the same boundary the app uses.) ──
       const v1 = await seedDraftVersion(admin, seeded, { name: `Budget v1 ${suffix}`, version: 1, lines: [{ category: 'Labor', amount: '50000.00' }] });
       await activateVersionAs(AUTH_URL, ANON_KEY, ACTIVATOR_EMAIL, v1);
-      const v1Key = budgetPushKeyFor(v1, await readActivatedAtBud(admin, v1));
-      const push1 = await dispatchBudgetPushRaw(FUNCTIONS_URL, ANON_KEY, token, v1, v1Key);
+      // ⚑ BFY: the client sends NO key — the server derives one per phased fiscal year from the gate's
+      // plan (FR-BFY-031). This single-FY project therefore still produces exactly one command.
+      const push1 = await dispatchBudgetPushRaw(FUNCTIONS_URL, ANON_KEY, token, v1);
       expect(push1.status, `the first push must land: ${await push1.text()}`).toBe(200);
 
       const liveBefore = await listLiveErpBudgets(seeded.erpProject);
@@ -93,9 +92,7 @@ test.describe('AC-BUD-032: the upsert never leaves a client\'s ERP unenforced AN
       // ── 2. The revision, with ERPNext failing AFTER the cancel and BEFORE the create. ──
       const v2 = await seedDraftVersion(admin, seeded, { name: `Budget v2 ${suffix}`, version: 2, lines: [{ category: 'Labor', amount: '65000.00' }] });
       await activateVersionAs(AUTH_URL, ANON_KEY, ACTIVATOR_EMAIL, v2);
-      const v2Key = budgetPushKeyFor(v2, await readActivatedAtBud(admin, v2));
-
-      const faulted = await dispatchBudgetPushRaw(FUNCTIONS_URL, ANON_KEY, token, v2, v2Key, 'after-cancel-before-create');
+      const faulted = await dispatchBudgetPushRaw(FUNCTIONS_URL, ANON_KEY, token, v2, undefined, 'after-cancel-before-create');
       expect(faulted.status, 'a transient ERP failure is a 502, not a terminal rejection').toBe(502);
 
       // ⚑ ERP-SIDE STATE IN THE WINDOW — this is the state the whole finding is about.
@@ -162,7 +159,7 @@ test.describe('AC-BUD-032: the upsert never leaves a client\'s ERP unenforced AN
       expect(settled?.push_state, `the mirror must settle: ${JSON.stringify(settled)}`).toBe('pushed');
       expect(settled?.erp_budget_name).toBe(restored.name);
       const { data: refRow } = await admin.from('external_refs').select('external_record_id')
-        .eq('org_id', ORG_ID).eq('domain', 'budget').eq('pmo_record_id', v2).maybeSingle();
+        .eq('org_id', ORG_ID).eq('domain', 'budget').like('pmo_record_id', `${v2}%`).maybeSingle();  // BFY: year-qualified identity
       expect((refRow as { external_record_id: string } | null)?.external_record_id).toBe(restored.name);
 
       // …and the recovery converged rather than fanning out: everything else is a tombstone.
@@ -192,7 +189,7 @@ test.describe('AC-BUD-032: the upsert never leaves a client\'s ERP unenforced AN
       const token = await signInAsBud(AUTH_URL, ANON_KEY, ACTIVATOR_EMAIL);
       const v1 = await seedDraftVersion(admin, seeded, { name: `Budget v1 ${suffix}`, version: 1, lines: [{ category: 'Labor', amount: '50000.00' }] });
       await activateVersionAs(AUTH_URL, ANON_KEY, ACTIVATOR_EMAIL, v1);
-      const push1 = await dispatchBudgetPushRaw(FUNCTIONS_URL, ANON_KEY, token, v1, budgetPushKeyFor(v1, await readActivatedAtBud(admin, v1)));
+      const push1 = await dispatchBudgetPushRaw(FUNCTIONS_URL, ANON_KEY, token, v1);
       expect(push1.status, `the first push must land: ${await push1.text()}`).toBe(200);
       const liveName = (await listLiveErpBudgets(seeded.erpProject))[0].name;
       const fiscalYear = (await readErpBudget(liveName)).fiscal_year;
@@ -211,7 +208,7 @@ test.describe('AC-BUD-032: the upsert never leaves a client\'s ERP unenforced AN
       // PMO now tries to push a revision onto that grain.
       const v2 = await seedDraftVersion(admin, seeded, { name: `Budget v2 ${suffix}`, version: 2, lines: [{ category: 'Labor', amount: '65000.00' }] });
       await activateVersionAs(AUTH_URL, ANON_KEY, ACTIVATOR_EMAIL, v2);
-      const res = await dispatchBudgetPushRaw(FUNCTIONS_URL, ANON_KEY, token, v2, budgetPushKeyFor(v2, await readActivatedAtBud(admin, v2)));
+      const res = await dispatchBudgetPushRaw(FUNCTIONS_URL, ANON_KEY, token, v2);
 
       const body = (await res.json()) as { error?: string; message?: string };
       expect(res.status, `a named business refusal is unprocessable-entity, got ${JSON.stringify(body)}`).toBe(422);

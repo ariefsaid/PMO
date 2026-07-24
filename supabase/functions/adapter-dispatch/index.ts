@@ -44,6 +44,10 @@ import {
   type BudgetGateProjectRow,
 } from '../../../pmo-portal/src/lib/budget/budgetGate.ts';
 import { resolveErpCredentials } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/credentials.ts';
+// BFY (FR-BFY-031/032): the canonical fiscal-year encoding + the per-year deterministic key. Both are
+// server-side ONLY — the client cannot derive either (it cannot read the client's Fiscal Year doctype).
+import { encodeFiscalYear } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/fiscalYearEncoding.ts';
+import { budgetPushKey } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/budgetPushKey.ts';
 import { withProbeBudget } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/client.ts';
 import { resolveClickUpCredentialsFromVault } from '../../../pmo-portal/src/lib/adapterSeam/clickup/vaultCredentials.ts';
 import { resolvePerOrgSecret } from '../_shared/perOrgSecret.ts';
@@ -56,12 +60,12 @@ import { DOCTYPE_BODIES } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/
 import { DOCTYPE_REGISTRY, reissueOnInconclusiveAbsence, type ErpDocKind } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/doctypeRegistry.ts';
 import { probeErpByAnchorKey, probeErpByPaymentComposite } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/recoveryProbe.ts';
 import { resolveExternalRef } from '../../../pmo-portal/src/lib/adapterSeam/refs.ts';
-import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
+import { AppError, type CommandHeldOutboxMarker } from '../../../pmo-portal/src/lib/appError.ts';
 import type { Adapter, AdapterCommand, PmoRecord } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
 import type { DispatchMoneyOutboxDeps, ExternalRefMapping, SupersededDocumentMarker } from '../../../pmo-portal/src/lib/adapterSeam/dispatch.ts';
-import { getReadModelWriter, markTimesheetPushOutcome } from './readModelWriters.ts';
+import { getReadModelWriter, heldIdentityFor, markTimesheetPushOutcome } from './readModelWriters.ts';
 import { surfaceActionRequired } from '../_shared/erpnextFeedDeps.ts';
-import { enforceTimesheetApproved, isTimesheetPush, type ApprovedTimesheet } from './approvalGuard.ts';
+import { applyCanonicalTimesheetTruth, enforceTimesheetApproved, isTimesheetPush, type ApprovedTimesheet } from './approvalGuard.ts';
 // M-2: what a rejected budget push MEANS for the durable mirror state (a 409 is not a failure).
 import { classifyBudgetPushOutcome } from './budgetPushOutcome.ts';
 // AC-TSP-031: the ONE code→HTTP-status map for both failure exits (pre-flight select + dispatch).
@@ -87,6 +91,20 @@ function getJwks(supabaseUrl: string): JwksResolver {
   if (!_jwks) _jwks = jwksFromUrl(`${supabaseUrl}/auth/v1/.well-known/jwks.json`);
   return _jwks;
 }
+
+// ── Test hooks (the shipped-handler binding, `scripts/check-edge-fn-test-binding.mjs`) ──────────────
+// The same two seams every other tested edge fn exposes (`external-*`/index.ts). A served test drives
+// the REAL handler, and both `createRemoteJWKSet` and supabase-js's token auto-refresh start
+// background INTERVALS that outlive the request — Deno's op sanitizer then fails the suite for a leak
+// that is an artifact of the harness, not of the code. Neither hook changes any deployed behaviour:
+// `_jwks` is only ever pre-set by a test, and the options below are the defaults for a client that
+// never holds a session anyway.
+export function setTestJwks(resolver: JwksResolver): void {
+  _jwks = resolver;
+}
+export const testSupabaseOptions = {
+  auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false },
+};
 
 /** The adapter-select context: the caller's org, the parsed command, and the service-role client for
  * per-request config lookups (project binding, external_refs resolution). Never used for adapter.commit(). */
@@ -638,6 +656,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
   // status='active' is outside the app-wide is_active_member model — an accepted app-wide posture, not
   // a gap unique to this function.)
   const callerClient = createClient(supabaseUrl, anonKey, {
+    ...testSupabaseOptions,
     global: { headers: { Authorization: `Bearer ${jwt}` } },
   });
 
@@ -710,13 +729,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
       });
     }
     approvedSheet = approved.sheet;
-    // Server truth REPLACES the payload for every field the push is built from.
-    command.record = {
-      ...command.record,
-      user_id: approvedSheet.user_id,
-      approved_at: approvedSheet.approved_at,
-      entries: approvedSheet.entries,
-    };
   }
 
   // ── Server-side idempotency-key enforcement (task 6.4, FR-ENA-040, ADR-0058 §4) — at the top of
@@ -734,7 +746,16 @@ Deno.serve(async (req: Request): Promise<Response> => {
   // therefore matches any ERP document whose anchor merely CONTAINS it, and recovery adopts the wrong
   // document. A UUID-shaped key makes that class unreachable by construction (and cannot carry a LIKE
   // metacharacter). The legitimate client already mints `crypto.randomUUID()`.
-  if (isErpDomain && (command.operation as string) !== 'read' && !isOpaqueIdempotencyKey(command.idempotencyKey)) {
+  //
+  // ⚑ BFY FR-BFY-031 (contract change, OQ-BFY-3): a budget CREATE is exempt from the CLIENT-key
+  // pre-check, because the client cannot mint the key any more. The push fans out to one ERP `Budget`
+  // per phased fiscal year, and the years are only knowable from the client's live `Fiscal Year`
+  // doctype — a read only the gate makes. So the SERVER derives one key per year from the gate's plan
+  // and validates each derived key against this very guard before it can reach the outbox (below).
+  // The exemption is scoped to (budget × create); every other budget operation and every other domain
+  // still requires the caller's key here.
+  const budgetKeyDerivedByServer = command.domain === ERPNEXT_BUDGET_DOMAIN && (command.operation as string) === 'create';
+  if (isErpDomain && !budgetKeyDerivedByServer && (command.operation as string) !== 'read' && !isOpaqueIdempotencyKey(command.idempotencyKey)) {
     return new Response(
       JSON.stringify({
         error: 'commit-rejected',
@@ -744,10 +765,21 @@ Deno.serve(async (req: Request): Promise<Response> => {
     );
   }
 
+  // ── THE COMMAND'S IDENTITY IS GATE TRUTH, NOT CALLER INPUT (Luna code review BLOCK 3, round 1 + 2).
+  // Server truth REPLACES the payload for every field the push is built from — the record's own id, the
+  // author, the `approved_at` witness, the entries AND the deterministic idempotency KEY. Everything
+  // downstream compares the id as TEXT (the outbox `pmo_record_id`, the `ts-correct:` advisory lock, the
+  // one-in-flight partial index, external_refs) and reconciles on the key, so a caller-chosen spelling or
+  // a caller-chosen key is a SECOND identity for one approval: the sweep does not collide with it and
+  // mints its own row ⇒ a second ERP Timesheet ⇒ the week's hours counted twice. Placed AFTER the
+  // opaque-key check above so a keyless/short-keyed caller still gets its 422 — the derivation replaces a
+  // valid-shaped key, it does not excuse a missing one. The rationale lives with the helper.
+  if (approvedSheet) applyCanonicalTimesheetTruth(command, approvedSheet);
+
   // service_role client — used for the machine-write helpers (read-model upsert/update + external_refs
   // record) AND, for 'tasks', to resolve the per-request ClickUp binding/mapping at adapter-select time.
   // Never used for adapter.commit() — org_id never crosses into the adapter (AC-EAS-023).
-  const serviceClient = createClient(supabaseUrl, serviceRoleKey);
+  const serviceClient = createClient(supabaseUrl, serviceRoleKey, testSupabaseOptions);
 
   // ── P3b FR-TSP-056 — an approved sheet with NO chargeable hours is a SKIP, not a push. ERP rejects
   // an empty `time_logs` table outright (417 MandatoryError), so sending it would park a perfectly
@@ -771,6 +803,15 @@ Deno.serve(async (req: Request): Promise<Response> => {
   // year, and the line items — from the DB under the CALLER's own JWT — and resolve the category→account
   // map (FR-BUD-113) BEFORE any ERP call. A non-employing org is a benign no-op (see `orgEmploysErpnext`).
   // On a PASS, server truth (never the payload) REPLACES the fields the push body is built from.
+  /** BFY: one per-year dispatch unit of the gate's push plan (null for every non-budget command). */
+  let budgetUnits: Array<{
+    fiscalYear: string;
+    /** `<budget_version_id>:<encoded_fiscal_year>` — the outbox + external_refs identity. */
+    identity: string;
+    idempotencyKey: string;
+    record: AdapterCommand['record'];
+  }> | null = null;
+
   if (isBudgetPushCommand(command)) {
     if (!(await orgEmploysErpnext(serviceClient, orgId))) {
       return new Response(
@@ -780,12 +821,73 @@ Deno.serve(async (req: Request): Promise<Response> => {
     }
 
     const versionId = String(command.record.id);
+    // ⚑ HIGH 5 (FR-BFY-056) — a PER-YEAR retry. The client names the ONE fiscal year the operator is
+    // retrying (`record.target_fiscal_year`); activation sends none and still fans out to every plan
+    // year below. Validated against the gate's plan (the live-ERP-checked calendar), never trusted: a
+    // year that is not a phased plan entry is refused, never silently widened to the whole fan-out.
+    const targetFiscalYearRaw = (command.record as { target_fiscal_year?: unknown }).target_fiscal_year;
+    const targetFiscalYear = typeof targetFiscalYearRaw === 'string' && targetFiscalYearRaw.length > 0 ? targetFiscalYearRaw : null;
     try {
       const gate = await runBudgetGate(buildBudgetGateDeps(callerClient, serviceClient, orgId, versionId));
-      // Server truth REPLACES the payload for every field the push body is built from (ADR-0059 §3.3) —
-      // `projectId` (camelCase) feeds `dispatchFactory.ts`'s cross-org pre-flight + ERP-project ref
-      // resolution; `fiscal_year`/`line_items` (snake_case) feed `bodies/budget.ts`'s `budgetToBody`.
-      command.record = { ...command.record, projectId: gate.projectId, fiscal_year: gate.fiscalYear, line_items: gate.lineItems };
+      // ⚑ BFY FR-BFY-030/031/032/036 — THE FAN-OUT. The gate returns a per-year PLAN; each entry
+      // becomes one command with:
+      //   • `record.id` UNCHANGED — the bare `budget_version_id` UUID. It is the gate's own query key,
+      //     the mirror's FK, and the inbound feed's lookup; a year in it makes all three wrong.
+      //   • `outbox_identity` = `<vid>:<encoded-fy>` — the SEPARATE, year-qualified identity the outbox
+      //     row and `external_refs` are keyed on, so the outbox unique/one-in-flight indexes (0096/0134)
+      //     and `external_refs` (0088) scope per year: two years can be in flight at once, and a retry
+      //     of year 2 with year 1 terminal is a retry, not a duplicate.
+      //   • `idempotency_key` = `bud:<vid>:<encoded-fy>:<epoch>` — derived HERE, from DB truth, so the
+      //     foreground and the sweep land on the identical string with no shared client state.
+      //   • `project_start_date`/`project_end_date` — the FR-BFY-080 push-time span witness, carried on
+      //     a NON-body field (they are not ERP `Budget` fields) for the mirror writer to stamp.
+      // Server truth REPLACES the payload for every field the push body is built from (ADR-0059 §3.3):
+      // `projectId` (camelCase) feeds the cross-org pre-flight + ERP-project resolution;
+      // `fiscal_year`/`line_items` (snake_case) feed `bodies/budget.ts`'s `budgetToBody`, ONE YEAR AT A
+      // TIME (no body-level split — the split is the plan's, and the plan is PMO's own line items).
+      // ⚑ HIGH 5 (FR-BFY-056): scope the fan-out to the retried year, if one was named. Fail closed on a
+      // year the plan does not contain — a retry must act on exactly the row the operator clicked.
+      const planEntries = targetFiscalYear === null
+        ? gate.plan
+        : gate.plan.filter((entry) => entry.fiscal_year === targetFiscalYear);
+      if (targetFiscalYear !== null && planEntries.length === 0) {
+        throw new BudgetGateError(
+          'commit-rejected',
+          `budget push: fiscal year "${targetFiscalYear}" is not a phased year of this budget version`,
+          undefined,
+          targetFiscalYear,
+        );
+      }
+      budgetUnits = planEntries.map((entry) => {
+        const encodedFiscalYear = encodeFiscalYear(entry.fiscal_year);
+        const identity = `${gate.versionId}:${encodedFiscalYear}`;
+        return {
+          fiscalYear: entry.fiscal_year,
+          identity,
+          idempotencyKey: budgetPushKey(gate.versionId, encodedFiscalYear, gate.activatedAt),
+          record: {
+            ...command.record,
+            projectId: gate.projectId,
+            fiscal_year: entry.fiscal_year,
+            line_items: entry.line_items,
+            outbox_identity: identity,
+            project_start_date: gate.projectStartDate,
+            project_end_date: gate.projectEndDate,
+          } as AdapterCommand['record'],
+        };
+      });
+      // The FINAL server-derived key is validated at the served boundary, never trusted (FR-BFY-031).
+      // An unencodable/unparseable year is refused BEFORE the outbox, exactly like a client key would be.
+      for (const unit of budgetUnits) {
+        if (!isOpaqueIdempotencyKey(unit.idempotencyKey)) {
+          throw new BudgetGateError(
+            'commit-rejected',
+            `budget push: the server-derived idempotency key for fiscal year "${unit.fiscalYear}" is not a valid opaque key`,
+            undefined,
+            unit.fiscalYear,
+          );
+        }
+      }
     } catch (err) {
       const gateErr = err instanceof BudgetGateError ? err : new BudgetGateError('commit-rejected', err instanceof Error ? err.message : 'budget gate failed');
       await recordBudgetGateFailure(serviceClient, orgId, versionId, gateErr);
@@ -834,12 +936,17 @@ Deno.serve(async (req: Request): Promise<Response> => {
         headers,
       });
     }
-    const createTarget = await checkCreateTargetUnmapped(serviceClient as never, orgId, command, command.idempotencyKey);
-    if (!createTarget.ok) {
-      return new Response(JSON.stringify({ error: 'commit-rejected', message: createTarget.message }), {
-        status: createTarget.status,
-        headers,
-      });
+    // ⚑ BFY: for a budget fan-out this guard runs PER YEAR, inside the dispatch loop below, against
+    // that year's own year-qualified identity + server-derived key — running it here on the bare
+    // version id would ask about an identity nothing is ever keyed on.
+    if (!budgetUnits) {
+      const createTarget = await checkCreateTargetUnmapped(serviceClient as never, orgId, command, command.idempotencyKey);
+      if (!createTarget.ok) {
+        return new Response(JSON.stringify({ error: 'commit-rejected', message: createTarget.message }), {
+          status: createTarget.status,
+          headers,
+        });
+      }
     }
   }
 
@@ -926,11 +1033,18 @@ Deno.serve(async (req: Request): Promise<Response> => {
   const recordTimesheetPushFailure = async (failure: AppError): Promise<void> => {
     if (!approvedSheet) return;
     try {
+      // ⚑ Luna FU-1a round-6 — thread the EXACT outbox id + fencing token the hold was produced under
+      // (stamped on the `command-held` AppError deep in the dispatch recovery) into the mirror writer,
+      // so `record_timesheet_command_held` fences on that precise row+generation. ⚑ S1 (round 8): the
+      // decision itself is `heldIdentityFor`, a tested pure function — this seam used to be the only
+      // untested link between the tested stamp and the tested fence.
+      const held = heldIdentityFor(failure as AppError & CommandHeldOutboxMarker);
       await markTimesheetPushOutcome(
         { serviceClient: serviceClient as never, orgId, callerUserId: userId },
         String(command.record.id),
         approvedSheet.approved_at,
         { code: failure.code, message: failure.message },
+        held,
       );
     } catch (recordErr) {
       console.error('[adapter-dispatch] failed to record timesheet push failure:', recordErr);
@@ -973,6 +1087,12 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const reason = superseded ? 'budget-enforcement-absent' : (failure.code ?? 'DISPATCH_FAILED');
     const pushError = superseded ? `${reason}: ${redactErrorForOutbox(failure)}` : reason;
     try {
+      // ⚑ FR-BFY-080: the push-time span witness is stamped on EVERY mirror outcome, failed included.
+      // The gate put the project's own dates on the command; a post-gate failure therefore records the
+      // span it was judged against. (§3a consults the witness only on a `pushed` row — F-A — so this is
+      // provenance for the operator surface, never an attribution input.)
+      const witnessStart = (command.record as { project_start_date?: unknown }).project_start_date;
+      const witnessEnd = (command.record as { project_end_date?: unknown }).project_end_date;
       await serviceClient.from('budget_version_erp_mirror').upsert(
         {
           org_id: orgId,
@@ -980,6 +1100,12 @@ Deno.serve(async (req: Request): Promise<Response> => {
           fiscal_year: fiscalYear,
           push_state: outcome.pushState,
           push_error: pushError,
+          ...(typeof witnessStart === 'string' && witnessStart !== ''
+            ? {
+                pushed_project_start_date: witnessStart,
+                pushed_project_end_date: typeof witnessEnd === 'string' && witnessEnd !== '' ? witnessEnd : null,
+              }
+            : {}),
         },
         { onConflict: 'org_id,budget_version_id,fiscal_year' },
       );
@@ -1013,6 +1139,21 @@ Deno.serve(async (req: Request): Promise<Response> => {
     );
   }
 
+  /**
+   * ⚑ BFY FR-BFY-030/033 — ONE dispatch attempt for the command as it currently stands.
+   *
+   * Extracted (byte-for-byte from the previous inline body) so the budget fan-out can run it ONCE PER
+   * PHASED FISCAL YEAR: adapter select, refs resolution and the outbox all depend on
+   * `command.record.fiscal_year`/`line_items`, so a year is a whole dispatch, not a body variant.
+   * Every other domain runs it exactly once, with `command` untouched — byte-for-byte.
+   *
+   * Returns the terminal outcome rather than a Response so the caller can keep going after a failing
+   * year: a partial fan-out must leave year 1 enforcing and year 2 recorded, never abort year 2's
+   * durable record because year 1 threw (or vice versa).
+   */
+  const runOneDispatch = async (
+    outboxRecordId?: string,
+  ): Promise<{ ok: true; result: unknown } | { ok: false; response: Response }> => {
   let adapter: Adapter;
   let money: DispatchMoneyOutboxDeps | undefined;
   try {
@@ -1043,10 +1184,13 @@ Deno.serve(async (req: Request): Promise<Response> => {
     // is unprocessable-entity, not "malformed request": the body was fine, the RULE refused it. Same
     // ladder as the dispatch catch below (`dispatchErrorStatus`), so the two exits cannot drift; an
     // unclassified failure keeps this exit's own 400.
-    return new Response(JSON.stringify({ error: appError.code ?? 'ADAPTER_SELECT_FAILED', message: appError.message }), {
-      status: dispatchErrorStatus(appError.code, 400),
-      headers,
-    });
+    return {
+      ok: false,
+      response: new Response(JSON.stringify({ error: appError.code ?? 'ADAPTER_SELECT_FAILED', message: appError.message }), {
+        status: dispatchErrorStatus(appError.code, 400),
+        headers,
+      }),
+    };
   }
 
   // Fault-seam-injected wrapper (short-circuit before/at commit, FR-ENA-003): 'unreachable' /
@@ -1072,14 +1216,16 @@ Deno.serve(async (req: Request): Promise<Response> => {
       command,
       // Multi-domain read-model writer registry (task 1.6) — replaces the inline if-chain. An
       // unknown domain throws (no silent skip); ClickUp's `tasks` writer is byte-for-byte moved.
-      writeReadModel: async (canonical: PmoRecord) => {
+      writeReadModel: async (canonical: PmoRecord, options?: { isReplay?: boolean }) => {
         // Fault seam: between commit and mirror (FR-ENA-003) — a no-op unless armed. Runs before
         // the per-domain mirror write; commit has already returned (dispatch.ts's fixed order).
         await maybeFault('after-commit-before-mirror', faultGate);
         // Multi-domain read-model writer registry (task 1.6) — supersedes slice 0's inline
         // if-chain (its ClickUp/reference branches moved byte-for-byte into readModelWriters.ts).
         const writer = getReadModelWriter(command.domain);
-        await writer.upsert({ serviceClient: serviceClient as never, orgId, callerUserId: userId }, canonical, command);
+        // ⚑ BLOCKER 2 (FU-2): thread the replay flag so the budget writer refuses to resurrect a
+        // Desk-cancelled Budget from a stored-canonical replay (no fresh ERP success).
+        await writer.upsert({ serviceClient: serviceClient as never, orgId, callerUserId: userId, isReplay: options?.isReplay ?? false }, canonical, command);
       },
       // Cast: the real supabase-js client's .from().upsert() returns a thenable
       // PostgrestFilterBuilder, not a plain Promise — structurally satisfies
@@ -1114,8 +1260,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
       // The money-idempotency outbox (task 6.4, ADR-0058) — set only for a non-read-only erpnext
       // command (built above); every other tier's `money` stays `undefined` (byte-for-byte).
       money,
+      // BFY FR-BFY-032: the year-qualified identity for the outbox row + `external_refs` (undefined
+      // for every other domain ⇒ `command.record.id`, byte-for-byte).
+      outboxRecordId,
     });
-    return new Response(JSON.stringify(result), { status: 200, headers });
+    return { ok: true, result };
   } catch (err) {
     // Server-side diagnostics only — the client body stays generic/typed. Without this, an
     // external-unreachable's underlying cause (which upstream status? fetch error? which path?)
@@ -1148,10 +1297,71 @@ Deno.serve(async (req: Request): Promise<Response> => {
     // from "never pushed" and the sweep backstop had nothing to re-drive. Recorded with the BEST-classified
     // error (`budgetAppError`, not the generic `appError`) so the operator surface names the real reason.
     await recordBudgetPushFailure(budgetAppError);
-    return new Response(JSON.stringify({ error: budgetAppError.code ?? 'DISPATCH_FAILED', message: budgetAppError.message }), {
-      // AC-TSP-031: the SAME ladder the adapter-select exit uses (unreachable 502 / classified business
-      // rejection 422 / held-or-in-flight 409), with THIS exit's own 500 for an unclassified failure.
-      status: dispatchErrorStatus(budgetAppError.code, 500),
+    return {
+      ok: false,
+      response: new Response(JSON.stringify({ error: budgetAppError.code ?? 'DISPATCH_FAILED', message: budgetAppError.message }), {
+        // AC-TSP-031: the SAME ladder the adapter-select exit uses (unreachable 502 / classified business
+        // rejection 422 / held-or-in-flight 409), with THIS exit's own 500 for an unclassified failure.
+        status: dispatchErrorStatus(budgetAppError.code, 500),
+        headers,
+      }),
+    };
+  }
+  };
+
+  try {
+    // ── 4/5/6, ONCE for every domain — or ONCE PER PHASED FISCAL YEAR for a budget fan-out. ──
+    if (!budgetUnits) {
+      const attempt = await runOneDispatch();
+      return attempt.ok
+        ? new Response(JSON.stringify(attempt.result), { status: 200, headers })
+        : attempt.response;
+    }
+
+    /**
+     * ⚑ BFY FR-BFY-030/033/034 — THE FAN-OUT LOOP.
+     *
+     * EVERY year is attempted, even after one fails. A partial fan-out is a real, expected state (one
+     * year's ERP `Budget` enforcing, another's refused), and the operator's route out is the per-year
+     * status surface — which only exists if every year left a durable record. Aborting on the first
+     * failure would leave the remaining years with no mirror row at all: indistinguishable from
+     * "never attempted", and invisible to the sweep backstop whose work queue IS that mirror.
+     *
+     * The failure of one year is reported (the FIRST one, with its own classified status), never
+     * swallowed; the years that DID push stay pushed — the ERP write already happened and PMO must
+     * not pretend otherwise.
+     */
+    let lastResult: unknown = null;
+    let firstFailure: Response | null = null;
+    const yearOutcomes: Array<{ fiscal_year: string; pushed: boolean }> = [];
+    for (const unit of budgetUnits) {
+      // The per-year command. `record.id` is untouched (the bare version UUID); everything that makes
+      // this year distinct rides on `record` + the server-derived key. `command` is re-bound rather
+      // than copied so the failure writers above (which close over it) name THIS year.
+      command = { ...command, record: unit.record, idempotencyKey: unit.idempotencyKey };
+
+      // BLOCK #4, per year, on the year-qualified identity: a create for a (version, year) ERPNext
+      // already holds must not mint a second Budget for it.
+      const createTarget = await checkCreateTargetUnmapped(serviceClient as never, orgId, command, unit.idempotencyKey);
+      if (!createTarget.ok) {
+        const rejected = new AppError(createTarget.message, 'commit-rejected');
+        await recordBudgetPushFailure(rejected);
+        yearOutcomes.push({ fiscal_year: unit.fiscalYear, pushed: false });
+        firstFailure ??= new Response(
+          JSON.stringify({ error: 'commit-rejected', message: createTarget.message }),
+          { status: createTarget.status, headers },
+        );
+        continue;
+      }
+
+      const attempt = await runOneDispatch(unit.identity);
+      yearOutcomes.push({ fiscal_year: unit.fiscalYear, pushed: attempt.ok });
+      if (attempt.ok) lastResult = attempt.result;
+      else firstFailure ??= attempt.response;
+    }
+    if (firstFailure) return firstFailure;
+    return new Response(JSON.stringify({ ...(lastResult as Record<string, unknown>), years: yearOutcomes }), {
+      status: 200,
       headers,
     });
   } finally {

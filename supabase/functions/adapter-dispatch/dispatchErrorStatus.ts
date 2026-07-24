@@ -43,6 +43,11 @@ const BUSINESS_REJECTION_CODES: readonly string[] = [
   // deletes that draft — a business refusal with a precise remedy, raised inside adapter select (whose
   // own unclassified fallback is 400, i.e. "malformed request", which this state is not).
   'budget-draft-rival-on-grain',
+  // ⚑ FR-BFY-076 (review finding 7): a LIVE (submitted) Budget occupies the grain and PMO holds no
+  // creation witness for it — an accountant authored it in Desk. PMO refuses to cancel-and-amend a
+  // document it does not own. Like the draft rival, this is a business refusal with a precise remedy
+  // (remove it, or accept it as the authority for that project-year), not a malformed request.
+  'budget-unowned-live-occupant',
 ];
 
 export function isBusinessRejectionCode(code: unknown): code is string {

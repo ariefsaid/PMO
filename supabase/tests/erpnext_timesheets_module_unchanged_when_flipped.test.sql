@@ -140,13 +140,19 @@ select lives_ok(
           and week_start_date = '2026-02-02'), 'Approved') $$,
   'AC-TSP-004: the line manager approves U''s sheet on a flipped org (unchanged)');
 
--- The map is unchanged — no re-open path was smuggled in (spec §13 / OQ-TSP-6): Approved -> Draft is illegal.
-select throws_ok(
+-- Slice A (migration 0151) RETIRED the P3b "no re-open path" fence (spec §1: this issue is the thing
+-- that fence deferred; FR-TSC-001): `Approved → Draft` is now a legal, GLOBAL transition — the approver
+-- population may re-open an Approved sheet that has no confirmed ERP document. This is NOT smuggled in
+-- by the integration flip: it is a global map change, so it behaves IDENTICALLY flipped or unflipped —
+-- which is the invariant this test guards (the flip is inert to the approval module). M (the line
+-- manager, ≠ owner) re-opens U's Approved sheet; the sheet has no mirror / outbox row so the
+-- un-pushed admit branch (FR-TSC-060) applies. (The race-safe precondition itself is proven in
+-- 0151_timesheet_reopen_precondition.test.sql.)
+select lives_ok(
   $$ select transition_timesheet(
        (select id from timesheets where user_id = '0aac0000-0000-0000-0000-0000000000a1'
           and week_start_date = '2026-02-02'), 'Draft') $$,
-  'P0001', null,
-  'AC-TSP-004: an illegal Approved->Draft transition still P0001s on a flipped org (no re-open path smuggled in)');
+  'AC-TSP-004 / AC-TSC-021: the approver may re-open an Approved sheet on a flipped org (the Slice-A Approved→Draft edge is global; the flip stays inert)');
 reset role;
 
 select * from finish();

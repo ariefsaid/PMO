@@ -1,9 +1,9 @@
 import { supabase } from '@/src/lib/supabase/client';
 import type { Tables } from '@/src/lib/supabase/database.types';
-import { toAppError } from '@/src/lib/appError';
+import { AppError, toAppError } from '@/src/lib/appError';
 import { activateAndPush } from '@/src/lib/budget/budgetPushConsequence';
 import { dispatchDomainCommand } from '@/src/lib/adapterSeam/dispatchClient';
-import { budgetPushKey } from '@/src/lib/adapterSeam/erpnext/budgetPushKey';
+import type { PmoRecord } from '@/src/lib/adapterSeam/contract';
 
 // ---------------------------------------------------------------------------
 // Type contract (plan §3 "Type contract used across tasks")
@@ -22,13 +22,30 @@ export type BudgetVersionWithItems = BudgetVersionRow & {
 /** What activating (or retrying the push for) a version did to the ERPNext side (HIGH-C). The PMO
  *  transition itself either succeeded or threw — this only ever describes the push CONSEQUENCE. */
 export interface ActivateVersionResult {
-  pushState: 'pushed' | 'failed';
+  /**
+   * ⚑ `'nothing-to-push'` (FU-2 round 2) is a THIRD outcome, not a flavour of the other two. A version
+   * with no line items produces an EMPTY push plan: the served fan-out attempts no year, creates no ERP
+   * `Budget` and writes no mirror row, then answers `200 { years: [] }`. Reading that as `'pushed'`
+   * announced a push that never happened (the per-year banner underneath simultaneously said
+   * `never-pushed`); reading it as `'failed'` would invent an attempt that was never made. Nothing was
+   * sent because there was nothing to send, and the surface says exactly that.
+   */
+  pushState: 'pushed' | 'failed' | 'nothing-to-push';
 }
 
 export interface NewLineItem {
   category: BudgetLineItemRow['category'];
   description: string | null;
   budgeted_amount: number;
+  /**
+   * ⚑ BFY FR-BFY-060 — the ERPNext `Fiscal Year` NAME this line is phased to; `null`/omitted = un-phased.
+   *
+   * Optional and NULL-by-default on purpose: every existing line stays un-phased, and PMO never invents
+   * a year for a line the operator deliberately left alone (ADR-0048). The value is the client's own
+   * label ('2026', '2025-2026', …) and is validated at PUSH time against their live `Fiscal Year`
+   * doctype — never here, because the write path cannot reach another system's calendar (FR-BFY-022).
+   */
+  fiscal_year?: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -94,6 +111,8 @@ export async function createLineItem(
       category: item.category,
       description: item.description,
       budgeted_amount: item.budgeted_amount,
+      // FR-BFY-060: omitted ⇒ the column's own NULL default (un-phased), never a synthesized year.
+      fiscal_year: item.fiscal_year ?? null,
     })
     .select()
     .single();
@@ -108,7 +127,9 @@ export async function createLineItem(
  */
 export async function updateLineItem(
   id: string,
-  patch: Partial<Pick<BudgetLineItemRow, 'category' | 'description' | 'budgeted_amount' | 'actual_amount'>>,
+  // FR-BFY-060/061: `fiscal_year` is an ordinary line-item column here. Re-phasing an Active version
+  // is rejected by `enforce_draft_line_item` (0005) — the DB is the authority, this is the seam.
+  patch: Partial<Pick<BudgetLineItemRow, 'category' | 'description' | 'budgeted_amount' | 'actual_amount' | 'fiscal_year'>>,
 ): Promise<void> {
   const { error } = await supabase
     .from('budget_line_items')
@@ -211,15 +232,26 @@ async function readActivatedAt(versionId: string): Promise<string | null> {
  * authorization/state-machine rejection), exactly as it did before P3c.
  */
 export async function activateVersion(versionId: string): Promise<ActivateVersionResult> {
+  // ⚑ FU-2 round 2: the dispatch's own RESPONSE is kept, because "the promise resolved" and "a push
+  // happened" are not the same fact — an empty fan-out resolves 200 having sent nothing.
+  // `activateAndPush` owns only the money invariant (a push failure never fails the activation), so the
+  // outcome is refined here rather than teaching that module the budget response shape.
+  let dispatchResult: unknown = null;
   const result = await activateAndPush({
     versionId,
     rpc: async (_fn, args) => {
       const { error } = await supabase.rpc('activate_budget_version', args as { version_id: string });
       return { error };
     },
-    dispatch: (id) => pushActivatedBudget(id),
+    dispatch: async (id) => {
+      dispatchResult = await pushActivatedBudget(id);
+      return dispatchResult;
+    },
   });
   if (!result.activated) throw toAppError(result.error);
+  // The whole fan-out is the unit here (activation names no year), and only a RESOLVED dispatch can be
+  // refined — a rejected one already carries its own `'failed'`.
+  if (result.pushState === 'pushed') return { pushState: pushStateForYear(dispatchResult, null) };
   // ⚑ HIGH-C (Luna re-audit round 2): the push outcome is RETURNED, not discarded. Every writer of
   // `budget_version_erp_mirror` lives INSIDE `adapter-dispatch`, so a dispatch that never REACHES the
   // function (a dropped connection, the tab closed mid-request, a 502 from the platform) leaves no
@@ -245,36 +277,102 @@ export async function activateVersion(versionId: string): Promise<ActivateVersio
  *
  * NEVER re-activates: the version is already Active and its activation stamp is the key's own input.
  */
-export async function retryBudgetPush(versionId: string): Promise<ActivateVersionResult> {
-  // ⚑ H-3 (Luna audit round 3): the key is derived BEFORE the try, so a pre-dispatch refusal
-  // PROPAGATES. `budgetPushKey` fails closed on a missing/unparseable `activated_at` — the pre-0139
-  // population, which is Active but unstamped — and that throw happens client-side, before any request:
-  // no mirror row, no notification, nothing recorded anywhere. Reporting `pushState:'failed'` for it
-  // claimed an attempt that never happened and hid the only sentence that explains the state. It now
-  // reaches `classifyMutationError` on the caller's toast, exactly like any other refusal.
-  const idempotencyKey = budgetPushKey(versionId, await readActivatedAt(versionId));
+export async function retryBudgetPush(
+  versionId: string,
+  fiscalYear: string | null,
+): Promise<ActivateVersionResult> {
+  // ⚑ BFY FR-BFY-056 — a retry is a PER-YEAR act whenever there IS a year: the operator is looking at
+  // one year's failed status row, and "the push failed" beside a year that actually pushed is the
+  // misattribution finding 6 is about. `null` is a real, different state, not a missing argument — the
+  // status RPC reports exactly one YEAR-LESS row when the Active version has no phased line and no
+  // mirror row at all (nothing is on record for any year). That row's retry is the whole fan-out, and
+  // withholding it there would leave the never-pushed project — the one most likely to have ERPNext
+  // enforcing nothing — with no route out.
+  // ⚑ H-3 (Luna audit round 3), PRESERVED across the BFY key move: the activation stamp is re-read
+  // BEFORE the dispatch so an UNSTAMPED version (Active but pre-0139) refuses client-side, before any
+  // request. Nothing durable is written for such a refusal — no mirror row, no notification — so
+  // reporting `pushState:'failed'` would claim an attempt that never happened and hide the only
+  // sentence that explains the state. The stamp is no longer used to MINT a key (the server derives
+  // one per year, FR-BFY-031); it is still the fact that decides whether a push is possible at all.
+  requireActivationStamp(await readActivatedAt(versionId));
   try {
-    await dispatchBudgetPush(versionId, idempotencyKey);
-    return { pushState: 'pushed' };
+    // ⚑ HIGH 5 (FR-BFY-056): the year is a real dispatch TARGET, not merely a display filter. When the
+    // operator retries one year's failed row, the server dispatches ONLY that plan year — never the
+    // whole fan-out (which could re-drive another year that is still recoverable or has a changed
+    // blocker). A `null` year is the year-less whole-fan-out retry (the never-pushed project).
+    const result = await dispatchBudgetPush(versionId, fiscalYear);
+    return { pushState: pushStateForYear(result, fiscalYear) };
   } catch {
     // Same money invariant as activation: a retry whose DISPATCH fails again is reported, never thrown
     // — that durable state (mirror row + notification) is written server-side by the dispatch itself.
+    //
+    // ⚑ On a fan-out the served boundary answers with the FIRST failing year's status, so a rejected
+    // response does not prove THIS year failed (another year's rejection could have produced it). The
+    // report is therefore deliberately CONSERVATIVE — never "pushed" on a rejection — and the screen's
+    // per-year truth comes from `get_budget_push_status`, which the caller re-reads on settle. A
+    // pessimistic toast beside an authoritative per-year banner is safe; an optimistic one is not.
     return { pushState: 'failed' };
   }
 }
 
-/** The ONE budget-push dispatch (activation consequence AND retry) — same domain, same command, same
- *  `activated_at`-derived deterministic key. */
-function dispatchBudgetPush(versionId: string, idempotencyKey: string): Promise<unknown> {
-  return dispatchDomainCommand('budget', 'create', { id: versionId, erp_doc_kind: 'budget' }, { idempotencyKey });
+/** The per-year outcomes the served fan-out reports (FR-BFY-033). Absent for a pre-BFY response. */
+interface BudgetFanOutResult {
+  years?: Array<{ fiscal_year: string; pushed: boolean }>;
 }
 
-/** The activation-consequence push. `budgetPushKey` fails closed (throws `commit-rejected`) on a
- *  missing/unparseable stamp, so an unkeyable push is a push FAILURE, never an activation failure —
- *  `activateAndPush` swallows it into the returned push state (ADR-0059 §3.2). */
+/**
+ * Did THIS fiscal year land? The served boundary attempts every phased year and reports each one, so a
+ * partially-successful fan-out must be read per year — never collapsed into one project-wide verdict.
+ * A response that names no years at all (a single-year push, or an older server) is taken at face
+ * value: it resolved, so the year the operator asked about is the year that pushed.
+ */
+function pushStateForYear(result: unknown, fiscalYear: string | null): ActivateVersionResult['pushState'] {
+  const years = (result as BudgetFanOutResult | null | undefined)?.years;
+  // A pre-BFY server names no years at all — taken at face value, as before.
+  if (!Array.isArray(years)) return 'pushed';
+  // ⚑ FU-2 round 2: an EMPTY array is a DIFFERENT statement from an absent key. This server enumerated
+  // the years it attempted and there were none (an Active version with no line items ⇒ an empty push
+  // plan), so no ERP `Budget` was created and no mirror row was written. "Pushed" was a lie about money.
+  if (years.length === 0) return 'nothing-to-push';
+  // No year named ⇒ the operator retried a project with nothing on record for any year, so the honest
+  // verdict is the WHOLE fan-out: anything less than every year landing is not "pushed".
+  if (fiscalYear === null) return years.every((y) => y.pushed) ? 'pushed' : 'failed';
+  const row = years.find((y) => y.fiscal_year === fiscalYear);
+  return row?.pushed ? 'pushed' : 'failed';
+}
+
+/**
+ * The ONE budget-push dispatch (activation consequence AND retry).
+ *
+ * ⚑ BFY FR-BFY-031/032 (contract change, OQ-BFY-3): the client sends the BARE `budget_version_id` and
+ * NO idempotency key. Only the server can enumerate the phased fiscal years — they are validated
+ * against the client's live ERPNext `Fiscal Year` doctype, a read only the server-side gate makes — so
+ * only the server can derive the per-year identity `<vid>:<encoded-fy>` and key
+ * `bud:<vid>:<encoded-fy>:<epoch>`. A client-minted key would key every year on one string and
+ * silently suppress all but the first.
+ */
+function dispatchBudgetPush(versionId: string, targetFiscalYear?: string | null): Promise<unknown> {
+  // ⚑ HIGH 5 (FR-BFY-056): a per-year retry names the ONE fiscal year to dispatch; the server validates
+  // it against the phased plan and drives only that entry. Activation passes no year → the whole fan-out.
+  const record: PmoRecord = { id: versionId, erp_doc_kind: 'budget' };
+  if (targetFiscalYear) record.target_fiscal_year = targetFiscalYear;
+  return dispatchDomainCommand('budget', 'create', record);
+}
+
+/** Fails closed on a version with no activation stamp — the deterministic per-year key's own input.
+ *  Inventing one would key a money command on a fiction and could mint a SECOND ERP `Budget`. */
+function requireActivationStamp(activatedAt: string | null): string {
+  if (!activatedAt) {
+    throw new AppError('budget push: the version carries no activation stamp', 'commit-rejected');
+  }
+  return activatedAt;
+}
+
+/** The activation-consequence push. An unstamped version is a push FAILURE, never an activation
+ *  failure — `activateAndPush` swallows it into the returned push state (ADR-0059 §3.2). */
 async function pushActivatedBudget(versionId: string): Promise<unknown> {
-  const activatedAt = await readActivatedAt(versionId);
-  return dispatchBudgetPush(versionId, budgetPushKey(versionId, activatedAt));
+  requireActivationStamp(await readActivatedAt(versionId));
+  return dispatchBudgetPush(versionId);
 }
 
 /**

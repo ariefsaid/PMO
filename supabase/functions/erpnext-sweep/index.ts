@@ -77,7 +77,20 @@ import { dispatchMoneyWrite, type DispatchMoneyWriteDeps, type ExternalRefMappin
 import type { AdapterCommand, PmoRecord } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
 import { resolveErpCredentials } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/credentials.ts';
 import { erpnextRequest, withProbeBudget, type ErpClientDeps } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/client.ts';
-import { resolveErpDispatchAdapter, withPaymentTypeDiscriminator } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/dispatchFactory.ts';
+import {
+  readBudgetLineItems,
+  readCategoryAccountMap,
+  resolveErpDispatchAdapter,
+  withPaymentTypeDiscriminator,
+} from '../../../pmo-portal/src/lib/adapterSeam/erpnext/dispatchFactory.ts';
+// FR-BFY-075: the sweep re-runs the SAME gate the foreground dispatch runs, never a second copy.
+import {
+  runBudgetGate,
+  type BudgetGateProjectRow,
+  type BudgetGateResult,
+  type BudgetVersionGateRow,
+  type FiscalYearRow,
+} from '../../../pmo-portal/src/lib/budget/budgetGate.ts';
 import { resolvePerOrgSecret } from '../_shared/perOrgSecret.ts';
 import { externalConnectEnabled } from '../_shared/externalConnectEnabled.ts';
 import { canonicalCommandDigest, createDbMoneyOutboxDeps } from '../adapter-dispatch/moneyOutboxDeps.ts';
@@ -99,6 +112,38 @@ import {
   type BudgetBackstopVersionRow,
 } from './budgetBackstop.ts';
 import { budgetPushKey } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/budgetPushKey.ts';
+import { budgetVersionIdOf, decodeFiscalYear, encodeFiscalYear } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/fiscalYearEncoding.ts';
+
+/** FR-BFY-075 — the named state a sweep budget recovery takes when the CURRENT gate would refuse the
+ *  frozen year/body. Surfaced per candidate; the row itself is left untouched (no POST, no state
+ *  change), so the recovery resumes by itself once the operator resolves the cause. */
+const BUDGET_SWEEP_GATE_HELD = 'budget-sweep-gate-held';
+
+/** The bare `budget_version_id` of an outbox identity — the mirror FK / version-read fact (FR-BFY-038).
+ *  A pre-fan-out bare id is returned unchanged. */
+function bareBudgetVersionId(pmoRecordId: string): string {
+  return pmoRecordId.includes(':') ? budgetVersionIdOf(pmoRecordId) : pmoRecordId;
+}
+
+/** The fiscal year a year-qualified outbox identity NAMES, or `null` for a pre-fan-out bare id. It is
+ *  read out of the identity, never derived: the identity is what the dispatch itself resolved. */
+function fiscalYearOfIdentity(pmoRecordId: string): string | null {
+  const sep = pmoRecordId.indexOf(':');
+  if (sep < 0) return null;
+  try {
+    return decodeFiscalYear(pmoRecordId.slice(sep + 1)) || null;
+  } catch {
+    return null;
+  }
+}
+
+/** ⚑ BLOCKER 3 (FU-2) — the orphan dedup key. The budget mirror grain is (budget_version_id ×
+ *  fiscal_year), so an outbox orphan is a duplicate of a mirror row ONLY when BOTH match. A NUL (\u0000)
+ *  delimiter — which neither a UUID nor an ERPNext Fiscal Year name can contain — keeps the
+ *  composite unambiguous. */
+function budgetDedupKey(versionId: string, fiscalYear: string | null | undefined): string {
+  return `${versionId}\u0000${fiscalYear ?? ''}`;
+}
 import { ERPNEXT_BUDGET_DOMAIN, ERPNEXT_TIMESHEETS_DOMAIN } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/adapter.ts';
 // P3b task 6.4 (FR-TSP-045, AC-TSP-022) — the timesheet push's sweep backstop, pure orchestration.
 import {
@@ -390,12 +435,16 @@ export async function reconcileOrgOutbox(
     //     accepted on attempt 4 is abandoned after two ticks instead of five.
     //   • GATE (latent today, live tomorrow). This pass re-asserts only the actor's authorization; it
     //     never calls `approved_timesheet_for_push`, so NONE of 0138's preconditions are re-checked.
-    //     Unlike budget that is not currently exploitable via status — `transition_timesheet`'s map makes
-    //     `Approved` TERMINAL (`'Approved' -> []`, mig 0007), so an approval cannot be revoked behind a
-    //     frozen payload's back. But that safety belongs to a migration P3b does not own, and the
-    //     correction path that would break it is explicitly ANTICIPATED and OPEN (OQ-TSP-6). The day
-    //     `Approved -> Rejected` lands, a row left here silently posts payroll-costing hours a human
-    //     un-approved. One owner now means that change cannot reintroduce the hole.
+    //     ⚑ THE ANTICIPATED DAY ARRIVED (2026-07-23, mig 0151 — the Slice-A `Approved -> Draft` re-open).
+    //     This comment used to rest on `Approved` being TERMINAL (`'Approved' -> []`, mig 0007), and
+    //     warned: "the day `Approved -> Rejected` lands, a row left here silently posts payroll-costing
+    //     hours a human un-approved." It landed. **That premise is now FALSE and must not be relied on
+    //     again.** The prediction was right, and a Luna money review found the hole it named.
+    //     The safety is now STRUCTURAL rather than conventional: `claim_outbox_for_commit` (re-created in
+    //     0151 §C) takes the canonical `ts-correct:<uuid>` advisory lock and re-reads `timesheets.status`
+    //     INSIDE the claiming UPDATE's transaction for any `domain='timesheets'` row — so no claim path
+    //     (this pass, pass 6, a foreground Retry, a recovery reissue) can post a week that was re-opened,
+    //     whichever queue reaches it. The skip below is now a routing choice, NOT a safety argument.
     // Skipping is safe precisely BECAUSE pass 6 owns it: the row is not dropped, it is reconciled by the
     // one pass that re-asserts the gate first.
     if (candidate.domain === ERPNEXT_TIMESHEETS_DOMAIN) continue;
@@ -1065,11 +1114,22 @@ function holdBudgetMirrorRow(
       return { error: error && error.code !== '23505' ? error : null };
     })();
   }
+  // ⚑ BLOCK 1 (FU-2 round 2) — A HOLD IS ABOUT ONE YEAR, and the mirror's grain is
+  // `(budget_version_id × fiscal_year)`. Keyed on the version alone this CAS matched every
+  // `pending`/`failed` row of the version, so exhausting FY2027's attempts also stamped FY2026 `held`
+  // with FY2027's reason — and `listPendingBudgetPushes` excludes `held`, so a perfectly recoverable
+  // year left the backstop queue PERMANENTLY (ERPNext then holds no overspend control for it and
+  // nothing will ever install one, while `hold_releasable` is false because its own outbox row is not
+  // `held`). With no year on record there is no grain to hold, so nothing is written at all — the same
+  // posture the `absent`/INSERT branch above already takes, and for the same reason: a guessed year
+  // writes a wrong-year state onto the primary money screen.
+  if (!fiscalYear) return Promise.resolve({ error: null });
   return serviceClient
     .from('budget_version_erp_mirror')
     .update({ push_state: 'held', push_error: reason })
     .eq('org_id', orgId)
     .eq('budget_version_id', budgetVersionId)
+    .eq('fiscal_year', fiscalYear)
     // the SAME eligibility `listPendingBudgetPushes` asserted — never a state this pass did not observe
     .in('push_state', ['pending', 'failed'])
     .is('erp_cancelled_at', null);
@@ -1121,17 +1181,36 @@ export function budgetBackstopDepsLive(
       // set IS `outbox_reconcile_candidates`, and `reconcileOrgBudgetPushes` still re-reads the version
       // and refuses anything that is no longer `Active` (FR-BUD-102). A version that already HAS a mirror
       // row is never double-queued — the mirror row carries the recorded failure history and wins.
-      const known = new Set(mirrored.map((r) => r.budget_version_id));
+      // ⚑ BLOCKER 3 (FU-2): dedup by (budget_version_id, fiscal_year), NEVER by version alone. Once the
+      // identity is year-qualified the fiscal year travels with it: a crashed FY2027 push must still be
+      // reconciled even when FY2026 already has a mirror row for the SAME version. A version-only `known`
+      // set silently discarded that orphan (its version had *a* mirror), stranding a live ERP Budget PMO
+      // reports as never-pushed. A pre-fan-out bare orphan (no year on record) keeps version-level
+      // suppression — pre-fan-out there is exactly one year per version, so the two agree.
+      const knownComposite = new Set(mirrored.map((r) => budgetDedupKey(r.budget_version_id, r.fiscal_year)));
+      const knownVersions = new Set(mirrored.map((r) => r.budget_version_id));
       const orphans = eligibleBudgetCandidates
-        .filter((c) => !known.has(c.pmo_record_id))
+        // ⚑ FR-BFY-032: an outbox row's `pmo_record_id` is now the YEAR-QUALIFIED identity, so the
+        // bare `budget_version_id` (the mirror's FK, and this queue's own key) is PARSED out of it, and
+        // the fiscal year is READ from it (falling back to the outbox canonical for a pre-fan-out row).
+        .map((c) => ({
+          ...c,
+          versionId: bareBudgetVersionId(c.pmo_record_id),
+          year: fiscalYearOfIdentity(c.pmo_record_id) ?? c.fiscal_year ?? null,
+        }))
+        // Suppress a QUALIFIED orphan only when THAT exact year has a mirror; a bare orphan (no knowable
+        // year) falls back to version-level suppression.
+        .filter((c) => (c.year ? !knownComposite.has(budgetDedupKey(c.versionId, c.year)) : !knownVersions.has(c.versionId)))
         .slice(0, Math.max(limit - mirrored.length, 0))
         .map((c) => ({
-          budget_version_id: c.pmo_record_id,
+          budget_version_id: c.versionId,
           push_state: BUDGET_MIRROR_ABSENT,
           erp_cancelled_at: null,
-          // LOW-1: the outbox canonical is the only thing that knows this orphan's grain. Absent ⇒ the
-          // hold writes nothing rather than guessing (see `holdBudgetMirrorRow`).
-          fiscal_year: c.fiscal_year ?? null,
+          // LOW-1: the grain this orphan is about. The year-qualified IDENTITY states it exactly (it is
+          // the year the dispatch itself derived); the outbox canonical is the fallback for a
+          // pre-fan-out row. Absent ⇒ the hold writes nothing rather than guessing
+          // (see `holdBudgetMirrorRow`).
+          fiscal_year: c.year,
         }));
       return [...mirrored, ...orphans];
     },
@@ -1148,8 +1227,17 @@ export function budgetBackstopDepsLive(
       return (data as BudgetBackstopVersionRow | null) ?? null;
     },
     driveBudgetPush: async (row: BudgetMirrorCandidateRow, version: BudgetBackstopVersionRow) => {
-      const idempotencyKey = budgetPushKey(row.budget_version_id, version.activated_at);
-      const outboxRow = await findBudgetOutboxRow(serviceClient, org.orgId, row.budget_version_id, idempotencyKey);
+      // ⚑ FR-BFY-031/032 — the backstop must derive the SAME per-year identity + key the foreground
+      // dispatch derived, or it finds no outbox row at all and parks a perfectly recoverable push as
+      // `budget-push-no-outbox-candidate`. A candidate with no fiscal year on record is a PRE-fan-out
+      // row (its outbox row was written under the bare id and the single-year key) — never a guess: the
+      // legacy shape is used verbatim for it.
+      const encodedFiscalYear = row.fiscal_year ? encodeFiscalYear(row.fiscal_year) : null;
+      const identity = encodedFiscalYear ? `${row.budget_version_id}:${encodedFiscalYear}` : row.budget_version_id;
+      const idempotencyKey = encodedFiscalYear
+        ? budgetPushKey(row.budget_version_id, encodedFiscalYear, version.activated_at)
+        : budgetPushKey(row.budget_version_id, version.activated_at);
+      const outboxRow = await findBudgetOutboxRow(serviceClient, org.orgId, identity, idempotencyKey);
       if (!outboxRow) {
         // FR-BUD-102 ("never finalize with a NULL actor"): the foreground dispatch never even reached
         // the outbox for this activation (e.g. the browser tab died mid-request before the fetch) — so
@@ -1279,6 +1367,16 @@ async function findTimesheetOutboxRow(
  * moved to `pushed` against a real ERPNext Timesheet — as `held`, and `held` is excluded from this very
  * work queue, so nothing would ever re-drive it. A read-then-blind-write across a concurrent writer is a
  * lost update, not a state machine. So the update REPEATS the listing's own predicate.
+ *
+ * ⚑ Luna FU-1a round-8 BLOCK — a HELD park also records that the ERP OUTCOME IS UNKNOWN. This park is
+ * the second producer of "PMO does not know what ERPNext holds": a command whose attempts ran out may
+ * have run them out AFTER a submit landed (a post-submit unknown is retried as `external-unreachable`,
+ * `erpnext/adapter.ts`), so `held` here carries exactly the doubt the dispatch's own `command-held`
+ * carries. Recording it only as `push_state='held'` leaves the re-open fence resting on a PMO QUEUE
+ * STATE — and that state is precisely what an operator's `release_outbox_hold` clears when they restore
+ * the backstop route. The witness is sticky and first-observed-wins in the DB (migration 0157 §2), so
+ * re-parking on a later tick is idempotent. A `failed` park is NOT an unknown: those reasons
+ * (`timesheet-push-gate-refused`, `timesheet-push-no-outbox-candidate`) all mean nothing was sent.
  */
 async function parkTimesheetMirrorRow(
   serviceClient: SupabaseClient,
@@ -1287,6 +1385,8 @@ async function parkTimesheetMirrorRow(
   pushState: 'held' | 'failed',
   reason: string,
 ): Promise<{ error: { message: string; code?: string } | null }> {
+  const patch: Record<string, unknown> = { push_state: pushState, push_error: reason };
+  if (pushState === 'held') patch.post_submit_unknown_at = new Date().toISOString();
   // AC-TSP-022: an `absent` candidate (an approved sheet with NO mirror row) has nothing to
   // compare-and-set against — its durable state must be CREATED, or the refusal is invisible and the
   // sheet is re-driven from scratch every tick. A 23505 means the foreground (or another tick) created
@@ -1294,12 +1394,12 @@ async function parkTimesheetMirrorRow(
   if (row.push_state === MIRROR_ABSENT) {
     const { error } = await serviceClient
       .from('timesheet_erp_mirror')
-      .insert({ org_id: orgId, timesheet_id: row.timesheet_id, push_state: pushState, push_error: reason });
+      .insert({ org_id: orgId, timesheet_id: row.timesheet_id, ...patch });
     return { error: error && error.code !== '23505' ? error : null };
   }
   return await serviceClient
     .from('timesheet_erp_mirror')
-    .update({ push_state: pushState, push_error: reason })
+    .update(patch)
     .eq('org_id', orgId)
     .eq('timesheet_id', row.timesheet_id)
     // the SAME eligibility `listPendingTimesheetPushes` asserted — never a state this pass did not observe
@@ -1324,9 +1424,20 @@ const ABSENT_SHEET_LOOKBACK_MS = 14 * 24 * 60 * 60 * 1000;
  * substitution) — so the digest matches and the two originators reconcile as one command instead of
  * rejecting each other with `idempotency-key-payload-mismatch`.
  *
- * Returns the row to drive, or `null` when a 23505 says a concurrent writer owns this record's
- * in-flight command (a different key under 0116's one-in-flight index) — the caller then records that,
- * never guesses.
+ * ⚑ MINTED THROUGH THE FENCE (Luna code review BLOCK 1, migration 0151 §B). This used to INSERT into
+ * `external_command_outbox` directly, which put the sweep OUTSIDE the per-sheet `ts-correct:` advisory
+ * lock that the re-open (`transition_timesheet` Approved→Draft) and the sync push both honour. That was
+ * live money: the gate read sees the 40-hour sheet `Approved`, the approver re-opens it (the lock is
+ * taken, no outbox row exists yet, PMO commits `Draft`), and the sweep then mints and POSTs the
+ * ORIGINAL hours anyway — the corrected week is pushed later and ERPNext holds BOTH generations (72
+ * hours on the client's project). A second status read here could not close it; the status check and
+ * the INSERT must be one transaction under the lock, which is exactly what the guard RPC is.
+ *
+ * Returns `{ row }` to drive, or `{ row: null, refusal }`:
+ *   • a 23505 says a concurrent writer owns this record's in-flight command (a different key under
+ *     0116's one-in-flight index) — the re-read below finds their row, or nothing to drive;
+ *   • a P0001 says the FENCE refused (`timesheet-no-longer-approved` — the re-open won the lock). The
+ *     reason is handed back so the caller records WHY, and nothing is pushed.
  */
 async function mintTimesheetOutboxRow(
   serviceClient: SupabaseClient,
@@ -1335,7 +1446,7 @@ async function mintTimesheetOutboxRow(
   idempotencyKey: string,
   approvedAt: string,
   subject: TimesheetPushSubject,
-): Promise<OutboxRow | null> {
+): Promise<{ row: OutboxRow | null; refusal: string | null }> {
   const payload: Record<string, unknown> = {
     id: timesheetId,
     erp_doc_kind: 'timesheet',
@@ -1344,25 +1455,27 @@ async function mintTimesheetOutboxRow(
     entries: subject.entries,
   };
   const payloadDigest = await canonicalCommandDigest({ domain: ERPNEXT_TIMESHEETS_DOMAIN, operation: 'create', record: payload });
-  const { error } = await serviceClient.from('external_command_outbox').insert({
-    org_id: orgId,
-    domain: ERPNEXT_TIMESHEETS_DOMAIN,
-    pmo_record_id: timesheetId,
-    idempotency_key: idempotencyKey,
-    external_tier: ERPNEXT_TIER,
-    operation: 'create',
-    state: 'pending',
-    payload,
-    payload_digest: payloadDigest,
+  const { error } = await serviceClient.rpc('insert_timesheet_outbox_pending', {
+    p_org: orgId,
+    p_domain: ERPNEXT_TIMESHEETS_DOMAIN,
+    p_record_id: timesheetId,
+    p_key: idempotencyKey,
+    p_tier: ERPNEXT_TIER,
+    p_operation: 'create',
+    p_payload: payload,
+    p_digest: payloadDigest,
     // 0108 §C: the RECORDED actor every later re-authorization (`checkOutboxReplayAuthorization`) and
     // every mirror attribution keys on. Never null here — the caller only mints with a resolved approver.
-    actor_user_id: subject.approvedBy,
+    p_actor: subject.approvedBy,
   });
+  // P0001 = THE FENCE REFUSED: the sheet is no longer Approved (a re-open committed while this pass was
+  // deciding). Nothing was inserted; the week's old hours must never be posted. Recorded, not pushed.
+  if (error?.code === 'P0001') return { row: null, refusal: error.message };
   // 23505 = the foreground raced us (same 4-tuple ⇒ the read below finds THEIR row and we reconcile to
   // it) or a different command for this record is already in flight (0116 ⇒ nothing to find, caller
   // records it). Any other error is a real DB fault and is contained per-row by the caller.
   if (error && error.code !== '23505') throw new AppError(error.message, error.code);
-  return await findTimesheetOutboxRow(serviceClient, orgId, timesheetId, idempotencyKey);
+  return { row: await findTimesheetOutboxRow(serviceClient, orgId, timesheetId, idempotencyKey), refusal: null };
 }
 
 /**
@@ -1547,18 +1660,28 @@ export function timesheetBackstopDepsLive(
       // the user's own push collides on the outbox 4-tuple (23505) and reconciles to the winner instead
       // of minting a second week of hours.
       let minted = false;
+      let mintRefusal: string | null = null;
       if (!outboxRow && subject?.approvedBy) {
-        outboxRow = await mintTimesheetOutboxRow(serviceClient, org.orgId, row.timesheet_id, idempotencyKey, approvedAt, subject);
+        const mint = await mintTimesheetOutboxRow(serviceClient, org.orgId, row.timesheet_id, idempotencyKey, approvedAt, subject);
+        outboxRow = mint.row;
+        mintRefusal = mint.refusal;
         minted = outboxRow !== null;
       }
       if (!outboxRow) {
-        // Nothing to drive and nothing mintable: either the gate handed back no actor at all (never
-        // attribute a money-adjacent command to nobody), or a DIFFERENT command for this record is
-        // already in flight and owns the outcome (0116). `failed`, not `held`: both conditions clear
+        // Nothing to drive and nothing mintable: the FENCE refused (the sheet was re-opened — Luna
+        // BLOCK 1, and then the reason says exactly that), or the gate handed back no actor at all
+        // (never attribute a money-adjacent command to nobody), or a DIFFERENT command for this record
+        // is already in flight and owns the outcome (0116). `failed`, not `held`: all of those clear
         // themselves, and `held` would exclude the row from this queue permanently.
-        const { error } = await parkTimesheetMirrorRow(serviceClient, org.orgId, row, 'failed', 'timesheet-push-no-outbox-candidate');
+        const reason = mintRefusal ?? 'timesheet-push-no-outbox-candidate';
+        const { error } = await parkTimesheetMirrorRow(serviceClient, org.orgId, row, 'failed', reason);
         if (error) throw new AppError(error.message, error.code);
-        await surfaceActionRequired(serviceClient, org.orgId, 'timesheet-push-no-outbox-candidate', { timesheetId: row.timesheet_id });
+        await surfaceActionRequired(
+          serviceClient,
+          org.orgId,
+          mintRefusal ? 'timesheet-push-gate-refused' : 'timesheet-push-no-outbox-candidate',
+          { timesheetId: row.timesheet_id },
+        );
         return;
       }
       // ⚑ H-1 (the budget twin's audit finding, applied here by construction): re-drive ONLY through
@@ -1571,6 +1694,19 @@ export function timesheetBackstopDepsLive(
       // START of this pass and cannot contain it. Re-reading the whole set per mint would be the same
       // answer at more cost; what must NOT happen is treating a brand-new command as attempt-exhausted.
       if (!minted && !eligibleOutboxIds.has(outboxRow.id)) {
+        // ⚑ Luna round-3 BLOCK 2 — NOT-DUE-YET IS NOT ATTEMPTS-EXHAUSTED (the budget twin's ⚑ HIGH-1,
+        // applied here). `outbox_reconcile_candidates` deliberately omits two states that are simply not
+        // due: a `committing` row inside its 60 s lease and a `quarantined` row before its visibility
+        // window elapses (0131). Both are ABOUT to become claimable by the stale-claim/recovery pass.
+        // Parking them `held` was terminal in every direction at once: `held` is excluded from THIS
+        // queue, the generic outbox pass skips timesheets, and the outbox row keeps the record's one
+        // in-flight slot (0116) — so the submitted ERP Timesheet is never adopted, the mirror never
+        // converges, and the re-open fence (which refuses on a non-terminal outbox row) refuses the week
+        // forever. And this is the ORDINARY shape of a post-submit unknown, whose whole point is that the
+        // dispatch marks NOTHING so the row stays reclaimable: the next tick, seconds later, sees a
+        // `failed` mirror plus a not-yet-due `committing` row. Leave it; the attempt/age bound is
+        // untouched for every state that really has run out.
+        if (outboxRow.state === 'committing' || outboxRow.state === 'quarantined') return;
         const { error } = await parkTimesheetMirrorRow(serviceClient, org.orgId, row, 'held', 'timesheet-push-attempts-exhausted');
         if (error) throw new AppError(error.message, error.code);
         await surfaceActionRequired(serviceClient, org.orgId, 'timesheet-push-attempts-exhausted', { timesheetId: row.timesheet_id });
@@ -1686,6 +1822,28 @@ export async function buildReconcileDepsLive(serviceClient: SupabaseClient, org:
   });
   if (!replayAuth.ok) throw new AppError(replayAuth.message, 'commit-rejected');
 
+  // ⚑ FR-BFY-075 (review finding 5) — RE-RUN THE BUDGET GATE FOR THE FROZEN YEAR, BEFORE ANY POST.
+  //
+  // Everything below reconstructs a command that was frozen when the operator activated the budget —
+  // possibly hours ago. The project's dates, the client's `Fiscal Year` calendar, the version's line
+  // items and the category map can ALL have moved since. Without this the sweep would install an ERP
+  // `Budget` for a year the project no longer occupies (or a figure PMO no longer stands behind), with
+  // no operator present and no gate having agreed to it. It is the SAME `runBudgetGate` the foreground
+  // path runs — not a second copy of the rule — reading the CURRENT truth.
+  //
+  // Read under SERVICE ROLE: the sweep carries no user JWT, and the row's recorded actor was
+  // re-authorized immediately above (0108 §C). Every read is explicitly org-scoped, since service role
+  // bypasses RLS.
+  //
+  // A refusal THROWS with the named `budget-sweep-gate-held` code. `reconcileOrgOutbox` records it as a
+  // per-candidate error and leaves the row EXACTLY as it is — no state change, no ERP call — so the
+  // operator sees it and the recovery resumes by itself the moment the cause is fixed. (It is not
+  // transitioned to the outbox `held` state: this path holds no claim, so it cannot make a fenced
+  // write-back, and a `held` row would additionally need an Admin release even after the operator had
+  // already corrected the dates. The money-critical property — never POST a body the current gate would
+  // reject — is what the throw guarantees.)
+  await assertBudgetSweepGate(serviceClient, org, payload);
+
   const kind = payload.erp_doc_kind;
   const entry = typeof kind === 'string' && kind in DOCTYPE_REGISTRY ? DOCTYPE_REGISTRY[kind as ErpDocKind] : undefined;
   const bodyFns = typeof kind === 'string' ? DOCTYPE_BODIES[kind as ErpDocKind] : undefined;
@@ -1774,5 +1932,95 @@ export async function buildReconcileDepsLive(serviceClient: SupabaseClient, org:
   const recordExternalRef = (mapping: ExternalRefMapping): Promise<void> =>
     recordExternalRefWrite(serviceClient as never, { ...mapping, externalRecordId: encodeExternalRecordId(mapping), orgId: org.orgId });
 
-  return { adapter, command, writeReadModel, recordExternalRef, money };
+  // FR-BFY-032: the outbox row + `external_refs` are keyed on the row's OWN `pmo_record_id` — the
+  // year-qualified `<vid>:<encoded_fy>` for a budget fan-out, the bare record id for every other
+  // domain (where the two are the same string, so this is byte-for-byte).
+  return { adapter, command, writeReadModel, recordExternalRef, money, outboxRecordId: row.pmoRecordId };
+}
+
+/**
+ * FR-BFY-075 — the frozen budget command's gate re-run. A no-op for every other domain.
+ *
+ * Refuses when the CURRENT gate would refuse (unresolvable/ambiguous calendar, a project that no longer
+ * occupies the year, an un-phased line on a now-multi-FY project, an unmapped category) AND when the
+ * gate passes but its plan no longer contains the frozen year — a re-phase moves a year out of the plan
+ * without the gate itself objecting, and POSTing that year would enforce a budget PMO no longer states.
+ */
+async function assertBudgetSweepGate(
+  serviceClient: SupabaseClient,
+  org: OrgBinding,
+  payload: Record<string, unknown>,
+): Promise<void> {
+  if (payload.erp_doc_kind !== 'budget') return;
+  const versionId = String(payload.id ?? '');
+  const frozenYear = typeof payload.fiscal_year === 'string' ? payload.fiscal_year : '';
+  if (!versionId || !frozenYear) {
+    throw new AppError(
+      `erpnext-sweep budget recovery: the frozen command names no version/fiscal year — refusing to POST it (${versionId}/${frozenYear})`,
+      BUDGET_SWEEP_GATE_HELD,
+    );
+  }
+  let plan: BudgetGateResult;
+  try {
+    plan = await runBudgetGate({
+      orgId: org.orgId,
+      versionId,
+      readVersion: async (id) => {
+        const { data, error } = await serviceClient
+          .from('budget_versions')
+          .select('id, org_id, project_id, status, activated_at')
+          .eq('id', id)
+          .eq('org_id', org.orgId)
+          .maybeSingle();
+        if (error) throw new AppError(error.message, error.code);
+        return (data as BudgetVersionGateRow | null) ?? null;
+      },
+      readProject: async (id) => {
+        const { data, error } = await serviceClient
+          .from('projects')
+          .select('id, org_id, start_date, end_date')
+          .eq('id', id)
+          .eq('org_id', org.orgId)
+          .maybeSingle();
+        if (error) throw new AppError(error.message, error.code);
+        return (data as BudgetGateProjectRow | null) ?? null;
+      },
+      readLineItems: (id) => readBudgetLineItems(serviceClient as never, id),
+      readCategoryMap: () => readCategoryAccountMap(serviceClient as never, org.orgId),
+      readFiscalYears: () => readErpFiscalYearsLive(org),
+    });
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : String(err);
+    throw new AppError(
+      `erpnext-sweep budget recovery HELD for fiscal year ${frozenYear}: the push gate would now refuse this budget — ${reason}`,
+      BUDGET_SWEEP_GATE_HELD,
+    );
+  }
+  if (!plan.plan.some((entry) => entry.fiscal_year === frozenYear)) {
+    throw new AppError(
+      `erpnext-sweep budget recovery HELD for fiscal year ${frozenYear}: the active budget no longer phases any line to that year, ` +
+        `so PMO no longer states a budget for it (current plan: ${plan.plan.map((e) => e.fiscal_year).join(', ') || 'none'})`,
+      BUDGET_SWEEP_GATE_HELD,
+    );
+  }
+}
+
+/** The client's OWN fiscal calendar, read live (the same doctype read the foreground gate makes). */
+async function readErpFiscalYearsLive(org: OrgBinding): Promise<FiscalYearRow[]> {
+  const { apiKey, apiSecret } = resolveErpCredentials(org.secretRef, (key) => Deno.env.get(key));
+  const url = new URL('/api/resource/Fiscal Year', org.siteUrl);
+  url.searchParams.set('fields', JSON.stringify(['name', 'year_start_date', 'year_end_date']));
+  url.searchParams.set('limit_page_length', '0');
+  const res = await fetch(url.toString(), {
+    headers: { Authorization: `token ${apiKey}:${apiSecret}`, Accept: 'application/json' },
+  });
+  if (!res.ok) throw new AppError(`could not read the ERPNext fiscal calendar (HTTP ${res.status})`, 'external-unreachable');
+  const body = (await res.json()) as { data?: unknown };
+  const rows = Array.isArray(body.data) ? body.data : [];
+  return rows.filter(
+    (r): r is FiscalYearRow =>
+      typeof (r as FiscalYearRow)?.name === 'string' &&
+      typeof (r as FiscalYearRow)?.year_start_date === 'string' &&
+      typeof (r as FiscalYearRow)?.year_end_date === 'string',
+  );
 }

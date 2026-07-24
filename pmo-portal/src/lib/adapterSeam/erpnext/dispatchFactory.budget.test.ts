@@ -44,6 +44,14 @@ function serviceClient(mapRows: unknown[] = MAP_ROWS): DispatchServiceClient {
           limit: () => chain,
           maybeSingle: async () => {
             if (table === 'external_org_bindings') return { data: BINDING, error: null };
+            // ⚑ FR-BFY-076 — the OWNERSHIP WITNESS. Every scenario in this file is PMO revising a
+            // budget PMO itself pushed, so `external_refs` holds the creation record for the document on
+            // the grain (a reverse lookup: external_record_id → the version that created it). Without it
+            // the adapter now refuses to amend, which is the point: an UNOWNED live document is a
+            // Desk-authored one (AC-BFY-027 owns that case).
+            if (table === 'external_refs') {
+              return { data: filters.external_record_id ? { pmo_record_id: 'ver-previous' } : null, error: null };
+            }
             return { data: ROWS[`${table}:${filters.id}`] ?? null, error: null };
           },
           // list reads: the org's category→account map

@@ -96,9 +96,11 @@ async function expectSingleLiveBudgetAt(
     .from('budget_versions').select('id').eq('project_id', seeded.projectId).eq('status', 'Active').maybeSingle();
   const activeId = (activeVersion as { id: string } | null)?.id;
   expect(activeId, `${stage}: exactly one PMO version is Active`).toBeTruthy();
+  // ⚑ BFY: the budget mapping is filed under the YEAR-QUALIFIED identity `<versionId>:<encoded_fy>`,
+  // one row per pushed fiscal year (FR-BFY-032). This single-FY project has exactly one.
   const { data: refRow } = await admin
     .from('external_refs').select('external_record_id')
-    .eq('org_id', ORG_ID).eq('domain', 'budget').eq('pmo_record_id', activeId!).maybeSingle();
+    .eq('org_id', ORG_ID).eq('domain', 'budget').like('pmo_record_id', `${activeId!}%`).maybeSingle();
   expect(
     (refRow as { external_record_id: string } | null)?.external_record_id,
     `${stage}: external_refs resolves the Active version to the ONE live ERP Budget`,

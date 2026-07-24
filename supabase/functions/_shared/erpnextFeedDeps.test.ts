@@ -774,3 +774,179 @@ for (const [label, kind, mirrorTable, lookupColumn] of [
     );
   });
 }
+
+// ════════════════════════════════════════════════════════════════════════════════════════════════
+// AC-BFY-030 / FR-BFY-038 (review finding 3) — THE INBOUND FEED PARSES THE BARE VERSION ID OUT OF A
+// YEAR-QUALIFIED BUDGET IDENTITY.
+//
+// `external_refs.pmo_record_id` for the budget domain is now `<budget_version_id>:<encoded_fy>`, while
+// `budget_version_erp_mirror.budget_version_id` is (and must stay) a `uuid`. Handing the year-qualified
+// value straight to `.eq('budget_version_id', …)` is a non-UUID against a uuid column: a Desk CANCEL
+// then errors or matches nothing, so the mirror row is never tombstoned and PMO goes on reporting an
+// active, enforced ERP control that no longer exists.
+// ════════════════════════════════════════════════════════════════════════════════════════════════
+Deno.test('AC-BFY-030 FR-BFY-038: the budget feed looks the mirror up by the BARE budget_version_id', async () => {
+  const VERSION_ID = '44444444-4444-4444-8444-444444444444';
+  // '2026' → '32303236' under `encodeFiscalYear` (the SQL twin pins the same example, 0153 §3c).
+  const IDENTITY = `${VERSION_ID}:32303236`;
+
+  const { client, calls } = fakeServiceClient({
+    budget_version_erp_mirror: [{ erp_modified: '2026-07-20 10:00:00' }],
+  });
+  const deps = createErpFeedDeps(client as unknown as SupabaseClient, 'org-1', 'budget');
+
+  await deps.readMirrorSourceMod(IDENTITY);
+  await deps.tombstoneMirror!(IDENTITY, '2026-07-21T00:00:00Z');
+
+  const mirrorReads = calls.filter((c) => c.table === 'budget_version_erp_mirror');
+  assert(mirrorReads.length >= 2, 'both the staleness read and the tombstone hit the mirror');
+  for (const call of mirrorReads) {
+    const filter = call.eq.find(([col]) => col === 'budget_version_id');
+    assert(filter !== undefined, 'the budget mirror is keyed on budget_version_id');
+    assert(
+      filter![1] === VERSION_ID,
+      `the year-qualified identity must be parsed to the bare uuid — got ${String(filter![1])}`,
+    );
+  }
+});
+
+Deno.test('AC-BFY-030 FR-BFY-038: a BARE (pre-fan-out) budget identity still resolves unchanged', async () => {
+  const VERSION_ID = '55555555-5555-4555-8555-555555555555';
+  const { client, calls } = fakeServiceClient({ budget_version_erp_mirror: [{ erp_modified: null }] });
+  const deps = createErpFeedDeps(client as unknown as SupabaseClient, 'org-1', 'budget');
+  await deps.readMirrorSourceMod(VERSION_ID);
+  const filter = calls.find((c) => c.table === 'budget_version_erp_mirror')!.eq.find(([col]) => col === 'budget_version_id');
+  assert(filter![1] === VERSION_ID, 'a bare identity is passed through untouched');
+});
+
+Deno.test('AC-BFY-030 FR-BFY-038: a NON-budget kind is untouched — the timesheet mirror still gets its own id', async () => {
+  const SHEET_ID = '66666666-6666-4666-8666-666666666666';
+  const { client, calls } = fakeServiceClient({ timesheet_erp_mirror: [{ erp_modified: null }] });
+  const deps = createErpFeedDeps(client as unknown as SupabaseClient, 'org-1', 'timesheet');
+  await deps.readMirrorSourceMod(SHEET_ID);
+  const filter = calls.find((c) => c.table === 'timesheet_erp_mirror')!.eq.find(([col]) => col === 'timesheet_id');
+  assert(filter![1] === SHEET_ID, 'every other domain is byte-for-byte');
+});
+
+// ════════════════════════════════════════════════════════════════════════════════════════════════
+// AC-BFY-030 / FR-BFY-038 (FU-2 review, BLOCKER 1) — THE INBOUND FEED CARRIES THE FISCAL-YEAR GRAIN
+// THROUGH EVERY MIRROR WRITE, so a cancel/amend/update of ONE year never mutates another year's row.
+//
+// Two mirror rows for the SAME version (FY2026 + FY2027) share the bare `budget_version_id`. The old
+// code filtered every mirror read/update/tombstone on `budget_version_id` ALONE — so cancelling FY2027
+// stamped `erp_cancelled_at` on the still-live FY2026 control too (excluding it from the sweep), and a
+// multi-year `maybeSingle()` could reject. This drives the REAL `applyErpFeedEvent` through the REAL
+// `createErpFeedDeps` with two rows present, and asserts only the targeted year is touched — the
+// behavioural oracle, not a one-row filter assertion (the one-row fake at AC-BFY-030 above cannot see it).
+// ════════════════════════════════════════════════════════════════════════════════════════════════
+import { encodeFiscalYear } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/fiscalYearEncoding.ts';
+
+/**
+ * A STATEFUL budget fake: `mirrorRows` are mutated in place by an `update`, and a query's `eq` filters
+ * are actually APPLIED to select which rows match — so a write that forgets the `fiscal_year` predicate
+ * mutates BOTH years (exactly the defect under test). external_refs resolves an ERP name → its qualified
+ * identity; every other table answers empty (no lineage ⇒ not superseded; no recipients ⇒ log-only).
+ */
+function statefulBudgetClient(opts: { identityByName: Record<string, string>; mirrorRows: Array<Record<string, unknown>> }) {
+  const calls: Call[] = [];
+  function makeBuilder(table: string, op: Call['op'], patch?: Record<string, unknown>) {
+    const eq: Array<[string, unknown]> = [];
+    let inVal: [string, unknown[]] | undefined;
+    let isVal: [string, unknown] | undefined;
+    let containsVal: [string, Record<string, unknown>] | undefined;
+    const shape = (): QueryShape => ({ eq, in: inVal, is: isVal, contains: containsVal });
+    function matchMirror(): Array<Record<string, unknown>> {
+      return opts.mirrorRows.filter((row) => eq.every(([c, v]) => c === 'org_id' ? true : row[c] === v));
+    }
+    function rowsFor(): Array<Record<string, unknown>> {
+      if (op !== 'select') return [];
+      if (table === 'external_refs') {
+        const name = eq.find(([c]) => c === 'external_record_id')?.[1] as string | undefined;
+        const identity = name ? opts.identityByName[name] : undefined;
+        return identity ? [{ pmo_record_id: identity }] : [];
+      }
+      if (table === 'budget_version_erp_mirror') return matchMirror();
+      return [];
+    }
+    function applyUpdate(): void {
+      if (op === 'update' && table === 'budget_version_erp_mirror' && patch) {
+        for (const row of matchMirror()) Object.assign(row, patch);
+      }
+    }
+    const builder = {
+      eq(col: string, val: unknown) { eq.push([col, val]); return builder; },
+      in(col: string, vals: unknown[]) { inVal = [col, vals]; return builder; },
+      is(col: string, val: unknown) { isVal = [col, val]; return builder; },
+      contains(col: string, val: Record<string, unknown>) { containsVal = [col, val]; return builder; },
+      limit(_n: number) { calls.push({ table, op, patch, ...shape() }); return Promise.resolve({ data: rowsFor(), error: null }); },
+      maybeSingle() { const r = rowsFor(); calls.push({ table, op, patch, ...shape() }); return Promise.resolve({ data: r[0] ?? null, error: null }); },
+      then(resolve: (v: { data: Array<Record<string, unknown>>; error: null }) => void) {
+        applyUpdate();
+        calls.push({ table, op, patch, ...shape() });
+        resolve({ data: rowsFor(), error: null });
+      },
+    };
+    return builder;
+  }
+  const client = {
+    from(table: string) {
+      return {
+        update: (patch: Record<string, unknown>) => makeBuilder(table, 'update', patch),
+        select: (_cols: string) => makeBuilder(table, 'select'),
+        insert: (payload: Record<string, unknown> | Array<Record<string, unknown>>) => {
+          calls.push({ table, op: 'insert', patch: Array.isArray(payload) ? { rows: payload } : payload, eq: [] });
+          return Promise.resolve({ data: null, error: null });
+        },
+      };
+    },
+  } as unknown as SupabaseClient;
+  return { client, calls };
+}
+
+const BFY_VERSION = '77777777-7777-4777-8777-777777777777';
+const FY2027_NAME = 'BUDGET-PMO-Smoke-Co-2027';
+const FY2027_IDENTITY = `${BFY_VERSION}:${encodeFiscalYear('2027')}`;
+
+Deno.test('AC-BFY-030 BLOCKER 1: a Desk CANCEL of the FY2027 Budget tombstones ONLY the FY2027 mirror row — the live FY2026 control is untouched', async () => {
+  const fy2026 = { budget_version_id: BFY_VERSION, fiscal_year: '2026', push_state: 'pushed', erp_cancelled_at: null as string | null };
+  const fy2027 = { budget_version_id: BFY_VERSION, fiscal_year: '2027', push_state: 'pushed', erp_cancelled_at: null as string | null };
+  const { client } = statefulBudgetClient({ identityByName: { [FY2027_NAME]: FY2027_IDENTITY }, mirrorRows: [fy2026, fy2027] });
+  const deps = createErpFeedDeps(client, 'org-1', 'budget');
+
+  const outcome = await applyErpFeedEvent(
+    { tier: 'erpnext', domain: 'budget' },
+    FY2027_NAME,
+    { id: FY2027_NAME, erp_docstatus: 2 }, // docstatus 2 ⇒ cancel
+    Date.parse('2026-07-21T09:00:00.000Z'),
+    deps,
+  );
+
+  assert(outcome.kind === 'tombstoned', `a mapped cancel is a tombstone, got '${outcome.kind}'`);
+  assert(fy2027.erp_cancelled_at !== null, 'BLOCKER 1: the cancelled FY2027 row MUST be tombstoned');
+  assert(fy2027.push_state === 'failed', 'FR-BUD-142: the cancelled year reopens push_state to failed');
+  assert(fy2026.erp_cancelled_at === null, 'BLOCKER 1: cancelling FY2027 must NOT tombstone the still-live FY2026 control');
+  assert(fy2026.push_state === 'pushed', 'BLOCKER 1: FY2026 push_state must be untouched by a FY2027 cancel');
+});
+
+Deno.test('AC-BFY-030 BLOCKER 1: an AMEND of the FY2027 Budget stamps ONLY the FY2027 mirror row', async () => {
+  const OLD_NAME = FY2027_NAME;
+  const NEW_NAME = `${FY2027_NAME}-1`;
+  const fy2026 = { budget_version_id: BFY_VERSION, fiscal_year: '2026', push_state: 'pushed', erp_amended_from: undefined as string | undefined, erp_modified: '2026-01-01' };
+  const fy2027 = { budget_version_id: BFY_VERSION, fiscal_year: '2027', push_state: 'pushed', erp_amended_from: undefined as string | undefined, erp_modified: '2026-01-01' };
+  // Only the OLD name is mapped (to the FY2027 identity); the NEW name is unmapped ⇒ the amend branch.
+  const { client } = statefulBudgetClient({ identityByName: { [OLD_NAME]: FY2027_IDENTITY }, mirrorRows: [fy2026, fy2027] });
+  const deps = createErpFeedDeps(client, 'org-1', 'budget');
+
+  const outcome = await applyErpFeedEvent(
+    { tier: 'erpnext', domain: 'budget' },
+    NEW_NAME,
+    { id: NEW_NAME, erp_docstatus: 1, erp_amended_from: OLD_NAME },
+    Date.parse('2026-07-22T09:00:00.000Z'),
+    deps,
+  );
+
+  assert(outcome.kind === 'upserted', `an amend converges the successor, got '${outcome.kind}'`);
+  assert(fy2027.erp_amended_from === OLD_NAME, 'BLOCKER 1: the amended FY2027 row MUST record erp_amended_from');
+  assert(fy2026.erp_amended_from === undefined, 'BLOCKER 1: amending FY2027 must NOT stamp the FY2026 row');
+  assert(fy2026.erp_modified === '2026-01-01', 'BLOCKER 1: FY2026 erp_modified must be untouched by a FY2027 amend');
+});

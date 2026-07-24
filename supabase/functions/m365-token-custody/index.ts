@@ -92,6 +92,13 @@ Deno.serve(async (req: Request): Promise<Response> => {
     );
   }
 
+  // Verify the caller JWT BEFORE parsing the body (audit LOW-B5). An unauthenticated caller must
+  // not be able to distinguish `400 invalid JSON` from `401` — authenticate first, then process,
+  // so a malformed body from an anonymous caller returns 401 like every other unauthenticated hit.
+  // No meaningful oracle either way, but the boundary now reads in the correct order.
+  const authed = await authedDeps(req, env);
+  if (authed instanceof Response) return authed;
+
   // POST: parse the {action} body, then route.
   let body: { action?: string };
   try {
@@ -102,10 +109,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
       env.allowedOrigin,
     );
   }
-
-  // Verify the caller JWT once for every authenticated action; build the deps with both clients.
-  const authed = await authedDeps(req, env);
-  if (authed instanceof Response) return authed;
 
   let result: HandlerResult;
   try {

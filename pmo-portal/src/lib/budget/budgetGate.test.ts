@@ -95,9 +95,11 @@ describe('runBudgetGate', () => {
     await expect(runBudgetGate(deps)).rejects.toMatchObject({ code: 'commit-rejected' });
   });
 
-  it('AC-BUD-033 ⚑ a multi-fiscal-year project fails closed — no pro-rata split is invented, no partial budget pushed', async () => {
+  it('AC-BUD-033 ⚑ a multi-FY project with a NULL line fails closed (BFY: budget-multi-fiscal-year-unphased) — no pro-rata split is invented', async () => {
     const deps = makeDeps({ project: { ...DEFAULT_PROJECT, start_date: '2026-06-01', end_date: '2027-03-31' } });
-    await expect(runBudgetGate(deps)).rejects.toMatchObject({ code: 'budget-multi-fiscal-year', fiscalYear: '2026' });
+    // BFY: DEFAULT_LINE_ITEMS carry no fiscal_year (NULL), so a multi-FY span is refused with the
+    // actionable 'unphased' code naming them — never the old flat 'budget-multi-fiscal-year'.
+    await expect(runBudgetGate(deps)).rejects.toMatchObject({ code: 'budget-multi-fiscal-year-unphased', fiscalYear: '2026' });
   });
 
   it('AC-BUD-020 a rejection BEFORE the project/fiscal-year step carries no fiscalYear (nothing to key a durable-failure row on)', async () => {
@@ -114,7 +116,7 @@ describe('runBudgetGate', () => {
   it('AC-BUD-033 an open-ended project (no end date) is single-FY by construction — resolves the start year', async () => {
     const deps = makeDeps({ project: { ...DEFAULT_PROJECT, start_date: '2026-06-01', end_date: null } });
     const result = await runBudgetGate(deps);
-    expect(result.fiscalYear).toBe('2026');
+    expect(result.plan[0].fiscal_year).toBe('2026');
   });
 
   it('AC-BUD-011 ⚑ an unmapped non-zero category is rejected at the boundary, naming every unmapped category', async () => {
@@ -146,17 +148,18 @@ describe('runBudgetGate', () => {
       ],
       map: [{ category: 'Labor', erp_account: '5100 - Direct Costs' }],
     });
-    await expect(runBudgetGate(deps)).resolves.toMatchObject({ fiscalYear: '2026' });
+    await expect(runBudgetGate(deps)).resolves.toMatchObject({ plan: [{ fiscal_year: '2026' }] });
   });
 
-  it('resolves the full gate result (versionId/projectId/fiscalYear/activatedAt/lineItems) for a fully valid command', async () => {
+  it('resolves the full gate result (versionId/projectId/plan/activatedAt/project span) for a fully valid command', async () => {
     const result = await runBudgetGate(makeDeps());
     expect(result).toEqual({
       versionId: 'ver-1',
       projectId: 'proj-1',
-      fiscalYear: '2026',
       activatedAt: '2026-07-16T10:00:00Z',
-      lineItems: DEFAULT_LINE_ITEMS,
+      plan: [{ fiscal_year: '2026', line_items: DEFAULT_LINE_ITEMS }],
+      projectStartDate: '2026-01-01',
+      projectEndDate: '2026-12-31',
     });
   });
 });
@@ -171,22 +174,23 @@ describe('AC-BUD-124 ⚑ OQ-BUD-3b — the fiscal year comes from the CLIENT\'S 
     // ⚑ The behaviour change. Calendar-year derivation refused this project as "multi-fiscal-year".
     // Under the client's real Jul-Jun calendar it sits entirely inside 2025-2026 and MUST push.
     const gate = await runBudgetGate(makeDeps({ project: SPANNING_PROJECT, fiscalYears: JUL_JUN_FISCAL_YEARS }));
-    expect(gate.fiscalYear).toBe('2025-2026');
+    expect(gate.plan[0].fiscal_year).toBe('2025-2026');
   });
 
   it('AC-BUD-124 the SAME project IS refused for a Jan-Dec client — the calendar decides, not the dates', async () => {
-    // The mirror image, so the test above cannot pass by simply never refusing anything.
+    // The mirror image, so the test above cannot pass by simply never refusing anything. BFY: the
+    // default NULL line now makes a multi-FY span refuse with 'budget-multi-fiscal-year-unphased'.
     await expect(
       runBudgetGate(makeDeps({ project: SPANNING_PROJECT, fiscalYears: CALENDAR_FISCAL_YEARS })),
-    ).rejects.toMatchObject({ code: 'budget-multi-fiscal-year' });
+    ).rejects.toMatchObject({ code: 'budget-multi-fiscal-year-unphased' });
   });
 
   it('AC-BUD-124 the returned value is the Fiscal Year NAME (Budget links by name), not a year number', async () => {
     // `fiscal_year` is a Link to Fiscal Year BY NAME (spike §3). '2025' is not a valid Link for this
     // client — it names no Fiscal Year at all, so ERP would reject or mis-link the budget.
     const gate = await runBudgetGate(makeDeps({ project: SPANNING_PROJECT, fiscalYears: JUL_JUN_FISCAL_YEARS }));
-    expect(gate.fiscalYear).not.toBe('2025');
-    expect(JUL_JUN_FISCAL_YEARS.map((fy) => fy.name)).toContain(gate.fiscalYear);
+    expect(gate.plan[0].fiscal_year).not.toBe('2025');
+    expect(JUL_JUN_FISCAL_YEARS.map((fy) => fy.name)).toContain(gate.plan[0].fiscal_year);
   });
 
   it('AC-BUD-124 an unresolvable calendar FAILS CLOSED — it never falls back to the calendar year', async () => {
@@ -229,11 +233,11 @@ describe('AC-BUD-124 ⚑ OQ-BUD-3b — the fiscal year comes from the CLIENT\'S 
       project: { ...DEFAULT_PROJECT, start_date: '2026-06-30', end_date: '2026-06-30' },
       fiscalYears: JUL_JUN_FISCAL_YEARS,
     }));
-    expect(last.fiscalYear).toBe('2025-2026');
+    expect(last.plan[0].fiscal_year).toBe('2025-2026');
     const first = await runBudgetGate(makeDeps({
       project: { ...DEFAULT_PROJECT, start_date: '2026-07-01', end_date: '2026-07-01' },
       fiscalYears: JUL_JUN_FISCAL_YEARS,
     }));
-    expect(first.fiscalYear).toBe('2026-2027');
+    expect(first.plan[0].fiscal_year).toBe('2026-2027');
   });
 });

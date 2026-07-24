@@ -97,6 +97,22 @@ describe('FR-TSP-041 — a flipped org dispatches with the DETERMINISTIC key', (
     expect(timesheetPushKey('ts-1', '2026-01-12T03:04:05.678Z')).toBe('ts:ts-1:2026-01-12T03:04:05.678Z');
   });
 
+  it('FR-TSP-041 the command id AND the key come from the GATE, never from the caller spelling (Luna r2 BLOCK 3)', async () => {
+    // The caller holds an uppercase spelling of the same uuid (a hand-built link, a copied id, a
+    // direct API caller). `approved_timesheet_for_push` casts it to `uuid` and hands back the DB's OWN
+    // canonical text — which is what keys the outbox row, the `ts-correct:` advisory lock, the
+    // one-in-flight index and the external_refs mapping, all TEXT comparisons. Deriving the key (or
+    // the record id) from the RAW argument makes the same sheet TWO identities: the foreground row is
+    // keyed `ts:<UPPER>:…` while the sweep searches `ts:<lower>:…`, so the sweep mints a SECOND
+    // command — a second ERP Timesheet, i.e. the week's hours counted twice.
+    const canonicalId = '3f1b0c9e-1a2b-4c3d-8e4f-5a6b7c8d9e0f';
+    vi.mocked(approvedTimesheetForPush).mockResolvedValue({ ...GATE_ROW, timesheet_id: canonicalId });
+    await repositories.timesheet.pushApproved(canonicalId.toUpperCase());
+    const [, , record, opts] = dispatchSpy.mock.calls[0] as [string, string, Record<string, unknown>, { idempotencyKey: string }];
+    expect(record.id).toBe(canonicalId);
+    expect(opts.idempotencyKey).toBe(`ts:${canonicalId}:${GATE_ROW.approved_at}`);
+  });
+
   it('FR-TSP-010: when the gate REFUSES, nothing is dispatched (the client asserts nothing itself)', async () => {
     vi.mocked(approvedTimesheetForPush).mockRejectedValue(new Error('timesheet-not-approved'));
     await expect(repositories.timesheet.pushApproved('ts-1')).rejects.toThrow();

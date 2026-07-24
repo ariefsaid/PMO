@@ -195,6 +195,30 @@ describe('useBudgetMutations', () => {
     expectBothKeysInvalidated(invalidateSpy);
   });
 
+  // ── AC-BFY-016 (FR-BFY-060) — the fiscal year is part of the line item, on both write paths. ──
+  it('AC-BFY-016 createLineItem carries the line\'s fiscal_year through to the DAL', async () => {
+    const { Wrapper } = makeWrapper();
+    const { result } = renderHook(() => useBudgetMutations('p-1'), { wrapper: Wrapper });
+    const item = { category: 'Labor' as const, description: null, budgeted_amount: 1000, fiscal_year: '2026' };
+    await act(async () => {
+      await result.current.createLineItem.mutateAsync({ versionId: 'v-draft', item });
+    });
+    expect(createLineItem).toHaveBeenCalledWith('v-draft', item);
+  });
+
+  it('AC-BFY-016 updateLineItem can RE-PHASE a line, and can un-phase it back to NULL', async () => {
+    const { Wrapper } = makeWrapper();
+    const { result } = renderHook(() => useBudgetMutations('p-1'), { wrapper: Wrapper });
+    await act(async () => {
+      await result.current.updateLineItem.mutateAsync({ id: 'li-1', patch: { fiscal_year: '2027' } });
+    });
+    expect(updateLineItem).toHaveBeenCalledWith('li-1', { fiscal_year: '2027' });
+    await act(async () => {
+      await result.current.updateLineItem.mutateAsync({ id: 'li-1', patch: { fiscal_year: null } });
+    });
+    expect(updateLineItem).toHaveBeenCalledWith('li-1', { fiscal_year: null });
+  });
+
   it('deleteLineItem calls deleteLineItem(id) and invalidates both keys (T13)', async () => {
     const { qc, Wrapper } = makeWrapper();
     const invalidateSpy = vi.spyOn(qc, 'invalidateQueries');

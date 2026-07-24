@@ -13,7 +13,9 @@
  */
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError, toAppError } from '@/src/lib/appError';
+import { fetchAllRowsByKeyset, type PageResult } from '@/src/lib/pagedRead';
 import { retryBudgetPush, type ActivateVersionResult } from '@/src/lib/db/budgets';
+import { encodeFiscalYear } from '@/src/lib/adapterSeam/erpnext/fiscalYearEncoding';
 import type { Database } from '@/src/lib/supabase/database.types';
 
 export type BudgetCategory = Database['public']['Enums']['budget_category'];
@@ -45,6 +47,15 @@ export interface BudgetProjectionCellRow {
   projectedVariance: number | null;
   /** `null` on a zero/absent budget, or on an unobtainable actual — never 0, never Infinity (AC-BUD-051). */
   projectedUtilization: number | null;
+  /**
+   * ⚑ F-D (FR-BFY-054/055) — can PMO place this category's WHOLE budget in the selected year?
+   *
+   * `false` means at least one of its lines is un-placeable, so the category's total is unknown and the
+   * RPC withholds the amount and everything derived from it (0153 §3a). That is a different absence
+   * from "this category has no line", and the surface must not borrow that sentence for it. Fails OPEN
+   * to `true` on an older RPC shape: claiming a suppression PMO cannot see would be its own false alarm.
+   */
+  attributionKnown: boolean;
 }
 
 /**
@@ -83,6 +94,15 @@ export interface BudgetPushStatusRow {
    * `external_command_outbox.state = 'held'`, under the caller's own RLS.
    */
   holdReleasable: boolean;
+  /**
+   * ⚑ FR-BFY-056 — WHY this year's budget column went blank. `true` means a push SUCCEEDED for this
+   * year, the Active version still has un-phased lines, and the project's dates have since moved off
+   * the span that push recorded — so those lines now attribute to NO year (0153 §3a). The fix is a PMO
+   * act ("phase these lines"), not a retry, which is exactly why it is reported beside the push state
+   * rather than as a push failure. Fails CLOSED (`false`) on an older RPC shape: claiming staleness
+   * PMO cannot see would be its own false alarm.
+   */
+  staleAttribution: boolean;
 }
 
 /** One fiscal year that actually exists for a project, in the CLIENT'S own calendar (H-4). */
@@ -129,24 +149,30 @@ export async function fetchBudgetProjection(
     projectedFinalCost: num(row.projected_final_cost),
     projectedVariance: num(row.projected_variance),
     projectedUtilization: num(row.projected_utilization),
+    attributionKnown: row.attribution_known !== false,
   }));
 }
 
 /**
- * C-5 — reads the project's ERP push status (`get_budget_push_status`, mig 0141). Fiscal-year
- * INDEPENDENT on purpose: a failed push is a fact about the project's Active version, not about the
- * year the user happens to have selected, and hiding it behind that selection made the alarm's
- * visibility contingent on an unrelated navigation choice.
+ * C-5 + ⚑ FR-BFY-056 (finding 6) — reads the project's ERP push status, ONE ROW PER EXPECTED FISCAL
+ * YEAR. Fiscal-year INDEPENDENT on purpose: a failed push is a fact about the project's Active
+ * version, not about the year the user happens to have selected, and hiding it behind that selection
+ * made the alarm's visibility contingent on an unrelated navigation choice.
+ *
+ * ⚑ IT RETURNS AN ARRAY, and that is the contract. It used to take `data[0]`, which on a fan-out
+ * (FY2026 pushed, FY2027 failed) commonly selected the PUSHED row — the RPC orders by `pushed_at`, and
+ * only the pushed row has one — so the operator saw "Enforced by ERPNext" while ERPNext enforced NO
+ * overspend control for the other year. An aggregate may be derived by a consumer; the per-year list
+ * is what this seam promises.
  *
  * Always resolves (never throws on "nothing to report") — an org with no ERP tier legitimately has no
  * status, and the RPC answers one all-NULL row for it.
  */
-export async function fetchBudgetPushStatus(projectId: string): Promise<BudgetPushStatusRow> {
+export async function fetchBudgetPushStatus(projectId: string): Promise<BudgetPushStatusRow[]> {
   const { data, error } = await supabase.rpc('get_budget_push_status', { p_project_id: projectId });
   if (error) throw toAppError(error);
   // A set-returning RPC yields an array (never `.single()` — a 0-row read would 406, the shipped lesson).
-  const row = Array.isArray(data) ? data[0] : undefined;
-  return {
+  return (Array.isArray(data) ? data : []).map((row) => ({
     pushState: row?.push_state ?? null,
     pushError: row?.push_error ?? null,
     // NEW-6: an absent/empty array normalizes to `null` — "no category names on record" is one state,
@@ -158,7 +184,74 @@ export async function fetchBudgetPushStatus(projectId: string): Promise<BudgetPu
     // Fails CLOSED: an older RPC shape (or a null) withholds the affordance rather than offering a
     // button that can only error.
     holdReleasable: row?.hold_releasable === true,
-  };
+    staleAttribution: row?.stale_attribution === true,
+  }));
+}
+
+/** Which fiscal years each category is phased to on the project's ACTIVE version (F-C). */
+export type BudgetCategoryFiscalYears = Partial<Record<BudgetCategory, string[]>>;
+
+/**
+ * How the ACTIVE version's lines are PHASED, per category — both halves of it.
+ *
+ * `years` is what PMO can place; `unphased` marks the categories holding at least one line phased to no
+ * year at all. The second is not decoration: without it, `years` alone reads as "this category is
+ * budgeted in 2027" for a category whose $50,000 sibling belongs to no year PMO can name.
+ */
+export interface ActiveBudgetCategoryPhasing {
+  years: BudgetCategoryFiscalYears;
+  /** `true` iff the category has ≥1 line with no fiscal year — sparse, so absence means "none". */
+  unphased: Partial<Record<BudgetCategory, true>>;
+}
+
+/**
+ * ⚑ THE DIRECTOR'S RULING (spec §6.2) — the surface must distinguish two facts that both reach it as a
+ * NULL budget.
+ *
+ * `attribution_known = false` is doing two jobs. One is "we CANNOT attribute this" (the category's only
+ * lines are un-phased and their attribution was suppressed — a refused push, or a project whose dates
+ * drifted off the span the push recorded). The other is "this category is budgeted in a DIFFERENT
+ * fiscal year" — spend landing in FY1 against work budgeted in FY2, an ordinary timing difference. The
+ * SQL is right to fail closed for both (a `-EAC` there would be a false overspend alarm on real money),
+ * but the second fact is FULLY KNOWN, and rendering a knowable fact as "unavailable" is its own
+ * dishonesty. This read is how the screen knows it: PMO's OWN phased line items, nothing inferred.
+ *
+ * ⚑ SHOULD-FIX 1 (FU-2 round 3) — AND THE UN-PHASED ROWS ARE COUNTED, NOT DROPPED. PMO still refuses to
+ * give them a year (a NULL year is not a year — inventing one is exactly what ADR-0048 forbids), but
+ * THAT THEY EXIST is itself a fact, and the one the reason-string ladder cannot decide without: "all of
+ * this category is budgeted in 2027, so FY2026 spend is a timing difference and not an overspend" is
+ * only true when EVERY line is placed. Dropping these rows made that claim unfalsifiable on screen.
+ *
+ * ⚑ FINDING 2 (FU-2 round 4) — AND IT IS PAGED, for the same reason. Unpaged, this read is silently
+ * capped at PostgREST's `db-max-rows` (HTTP 200, a short body, `error === null`), and the truncation lands on
+ * the fail-open guard's own PRECONDITION: a missing `unphased` fact reads as "every line is placed", so
+ * a version whose un-phased line sorts past the cap resurrects the exact "not an overspend" claim the
+ * SHOULD-FIX above removed. KEYSET (`readBudgetLineItems`'s loop, the shared `pagedRead` seam) rather
+ * than offset — a duplicated or skipped line here is a wrong claim about money.
+ */
+export async function fetchActiveBudgetCategoryPhasing(projectId: string): Promise<ActiveBudgetCategoryPhasing> {
+  type PhasingRow = { id: string; category: BudgetCategory; fiscal_year: string | null };
+  const data = await fetchAllRowsByKeyset<PhasingRow>((afterId, limit) => {
+    const q = supabase
+      .from('budget_line_items')
+      // `id` is SELECTED because it is the cursor; the `!inner` join scopes to the Active version
+      // without a second round trip; RLS scopes the org.
+      .select('id, category, fiscal_year, budget_versions!inner(project_id, status)')
+      .eq('budget_versions.project_id', projectId)
+      .eq('budget_versions.status', 'Active')
+      .order('id', { ascending: true });
+    return (afterId === null ? q : q.gt('id', afterId)).limit(limit) as PromiseLike<PageResult<PhasingRow>>;
+  });
+  const phasing: ActiveBudgetCategoryPhasing = { years: {}, unphased: {} };
+  for (const row of data) {
+    if (!row.fiscal_year) {
+      phasing.unphased[row.category] = true;
+      continue;
+    }
+    const years = (phasing.years[row.category] ??= []);
+    if (!years.includes(row.fiscal_year)) years.push(row.fiscal_year);
+  }
+  return phasing;
 }
 
 /**
@@ -187,8 +280,8 @@ export async function listBudgetFiscalYears(projectId: string): Promise<BudgetFi
  * version is no longer Draft). Resolves the Active version from DB truth rather than trusting anything
  * on screen, then delegates to the ONE push in `db/budgets.ts` (same command, same deterministic key).
  */
-export async function retryActiveBudgetPush(projectId: string): Promise<ActivateVersionResult> {
-  return retryBudgetPush(await activeBudgetVersionId(projectId));
+export async function retryActiveBudgetPush(projectId: string, fiscalYear: string | null): Promise<ActivateVersionResult> {
+  return retryBudgetPush(await activeBudgetVersionId(projectId), fiscalYear);
 }
 
 /** The project's ACTIVE budget version, from DB truth — never from anything on screen. Throws rather
@@ -226,12 +319,23 @@ async function activeBudgetVersionId(projectId: string): Promise<string> {
  * Admin-only, enforced by the RPC itself (org + Admin + `is_active_member`, re-asserted after the row
  * lock, under SECURITY DEFINER). `can('manage','pushHold')` is the UX half only (ADR-0016).
  */
-export async function releaseActiveBudgetPushHold(projectId: string): Promise<void> {
+export async function releaseActiveBudgetPushHold(projectId: string, fiscalYear: string | null): Promise<void> {
   const versionId = await activeBudgetVersionId(projectId);
   const { data, error } = await supabase
     .from('external_command_outbox')
     .select('id')
-    .eq('pmo_record_id', versionId)
+    // ⚑ FU-2 MEDIUM 6 — scope to the budget domain. Without it a colliding held row from ANOTHER domain
+    // (a random PMO-id collision) could be selected and released by the budget banner. The RPC below
+    // re-verifies the domain server-side (`p_expected_domain`), but the read must be scoped too so it
+    // never even surfaces a non-budget row as "the held command for this project".
+    .eq('domain', 'budget')
+    // ⚑ FR-BFY-032 — the held command is keyed on the YEAR-QUALIFIED identity. Two identities are
+    // accepted, exactly as `get_budget_push_status.hold_releasable` derives the affordance: the
+    // year-qualified one this release introduces, and the LEGACY bare `<vid>`, which by construction
+    // was written by the pre-fan-out single-FY dispatcher and therefore names this one year. Releasing
+    // "whatever is held for this project" would clear a DIFFERENT year's money command.
+    // A year-less status row (nothing on record for any year) can only ever be the legacy bare key.
+    .in('pmo_record_id', fiscalYear ? [`${versionId}:${encodeFiscalYear(fiscalYear)}`, versionId] : [versionId])
     .eq('state', 'held')
     .order('created_at', { ascending: false })
     .limit(1)
@@ -246,6 +350,8 @@ export async function releaseActiveBudgetPushHold(projectId: string): Promise<vo
   const { error: rpcError } = await supabase.rpc('release_outbox_hold', {
     p_outbox_id: outboxId,
     p_reason: 'Released from the budget push banner',
+    // ⚑ FU-2 MEDIUM 6 — the server re-verifies the locked row is a budget command before releasing.
+    p_expected_domain: 'budget',
   });
   if (rpcError) throw toAppError(rpcError);
 }
