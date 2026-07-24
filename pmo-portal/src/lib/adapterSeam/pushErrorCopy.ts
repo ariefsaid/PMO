@@ -135,6 +135,35 @@ const CODES: Record<string, Entry> = {
     retryable: false,
     remedy: 'An administrator must release the hold once the underlying condition is resolved.',
   },
+  // ⚑ MINOR 3 (money-safety audit round 12) — the three RECOVERY hold reasons 0158 now persists on a
+  // `held` timesheet mirror for the first time (`adapterSeam/dispatch.ts`). Each means the same money
+  // fact: the submit reached ERPNext and PMO could not establish the outcome, so a machine must not
+  // resolve it. NOT retryable — re-running the same command only lands the outbox's inert `held`
+  // branch; the route out is a person, either releasing the hold or confirming what ERPNext holds.
+  'recovery-probe-failed': {
+    message: 'The push reached ERPNext, but the automatic check of what happened there failed, so PMO cannot tell whether ERPNext recorded these hours.',
+    retryable: false,
+    remedy: 'An administrator must confirm what ERPNext holds for this week, then release the hold — retrying cannot answer that question.',
+  },
+  'recovery-inconclusive-absence': {
+    message: 'The push reached ERPNext and the automatic check could not prove whether a document was created, so PMO is holding rather than sending it a second time.',
+    retryable: false,
+    remedy: 'An administrator must confirm what ERPNext holds for this week, then release the hold — retrying risks a duplicate.',
+  },
+  'recovery-reissue-unauthorized': {
+    message: 'This push is held because the person recorded as its approver is no longer authorised to send it, and PMO will not send it again under anyone else.',
+    retryable: false,
+    remedy: 'Re-activate the approver, or have an administrator resolve the hold — retrying under the same recorded approver is refused.',
+  },
+  // ⚑ round-12 SHOULD-FIX 2 (mirror half) — the attestation moves a `held` mirror to `failed` and leaves
+  // this code. That row lands in the same "needs attention" queue, so it must classify rather than read
+  // "could not be classified" like the recovery codes above once did. Retryable: the whole point of the
+  // attestation is that PMO confirmed ERPNext holds nothing, so the recovery route is restored and a
+  // fresh push is exactly the way the hours reach ERP.
+  'operator-attested-no-erp-document': {
+    message: 'An administrator confirmed ERPNext holds no document for this week, so this push is clear to run again.',
+    retryable: true,
+  },
   'external-unreachable': {
     message: 'ERPNext could not be reached, so the push never arrived.',
     retryable: true,
