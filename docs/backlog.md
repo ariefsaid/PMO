@@ -1042,6 +1042,52 @@ badly each misleads.
   same way, reported "clean". Use `while IFS= read -r f; do … done < filelist` for repo-wide sweeps, and
   always re-grep for the *old* value afterwards to prove the rewrite happened.
 
+### ⚑ PER-USER CREDIT ALLOCATION (owner decision 2026-07-24) — NOT BUILT, needs its own slice
+**The three-layer credit model, settled. The boundary between layers is what keeps revenue safe:**
+
+| # | Layer | Who | Effect on the org total | Status |
+|---|---|---|---|---|
+| 1 | **Grant** credits to the org pool | **Operator** | **increases** it | ✅ built (ADR-0049 §3) |
+| 2 | **Allocate** the pool among users | **org-Admin** | **cannot change** it | ⏸️ **this item** |
+| 3 | **Buy** more credit | org-Admin | increases it | 🔮 deferred (owner: "future feature later") |
+
+**Why layer 2 is safe when layer 3 is not.** ADR-0049 §3 flipped `credits` INSERT from
+`auth_role()='Admin'` → `is_operator()` as an explicit **revenue-hole fix**: any client org-Admin
+could previously mint credits of any amount. Allocation *divides* an amount the Operator already
+granted and can never raise the org total, so it does not reopen that hole. **When layer 3 (buying)
+arrives it MUST go through a payment flow — never a raw `credits` INSERT, and never by relaxing the
+layer-1 RLS.** That relaxation is exactly the defect ADR-0049 closed; do not undo it.
+
+**What must be built (none exists — ADR-0049 §2 explicitly dropped per-user balances):**
+1. A per-user allocation record (org- + `user_id`-scoped), Admin-writable within their own org only.
+2. The invariant **`Σ allocations ≤ org pool balance`**, enforced **in the database** (CHECK/trigger
+   or a security-definer RPC, not FE validation). Concurrent allocations must not oversubscribe the
+   pool — the same TOCTOU class the M365 write-guard hit, so it needs a row lock and a **two-session
+   probe** (pgTAP runs in ONE transaction and cannot express a race).
+3. Metering (`creditRateGuard`) checks the **user's allocation** on top of the org ceiling, without
+   regressing the org-level cap (ADR-0049 §3 changed `check(userId)` → `check(orgId)`).
+4. UI: `AdministrationCredits` gains an Admin allocation surface. Grant stays Operator-only.
+5. FE `can()` gating is **UX only**; RLS is the authority (ADR-0016).
+
+**Do this as a proper slice** — spec → plan → TDD → 3 reviewers. Money path touching RLS + metering,
+the category that earned 4 adversarial rounds on M365 token custody. **2026-07-24 lesson: every M365
+defect passed happy-path pgTAP AND full verify — and three tests actively asserted the bug as the
+contract. Tests alone would have shipped all of them.**
+
+**Operator vs org-Admin surface split (as-built + owner-directed 2026-07-24 — verified in code):**
+| Surface | Operator | org-Admin |
+|---|---|---|
+| Assistant cost / usage | ✅ all orgs | ❌ **hidden — not rendered, not even fetched** (`useUsage`/`useAgentRunStats` gate on `isOperator`) |
+| Features / entitlements | ✅ write (toggles) | ❌ **hidden** (panel gated on `isOperator`; `org_features` SELECT stays widened for `useFeature()`) |
+| Credits | ✅ "Grant credits" | 👁 read-only balance (+ allocation, once built) |
+| M365 connect | ✅ | ❌ (ADR-0058 §3 — vendor owns the Entra app) |
+| ClickUp / ERPNext connect | ✅ | ✅ own org (client supplies the credential) |
+
+The rule that generates the last two rows: **whoever owns the credential owns the activation switch.**
+> ⚠️ **Server-enforcement follow-up (own item):** the Usage/Features hiding above is **UX only** —
+> `org_usage_summary()` remains callable by any org member. If "org-Admin never sees platform cost"
+> must hold against a determined Admin with devtools, the usage RPCs need an `is_operator()` gate.
+
 ### Standing debt
 - **Signed-URL TTL hardening** [Medium, owner-acked on #78] — client can mint long-TTL download URLs; move
   signing to a server/Edge Function with a hard max TTL. Own issue.
