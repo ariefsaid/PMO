@@ -28,6 +28,13 @@ function fakeClient(opts: {
   /** Restrict ownership to specific `${domain}:${tier}` pairs (default: every domain on `erpnext`). */
   ownedPairs?: readonly string[];
   actorId?: string;
+  /**
+   * ⚑ Posture-B `budget` (FR-BUD-010): its employ signal is an ACTIVE ERPNext BINDING, NOT a
+   * `domain_externally_owned('budget')` row — gate (a) resolves `org_has_active_erpnext_binding` for it,
+   * never `domain_owned_by_tier`. Defaults to `true` so a budget test asserting the ROLE half stays about
+   * the role; set `false` to prove the binding gate itself refuses a non-employing org.
+   */
+  hasActiveBinding?: boolean;
 }): AuthorizationClient {
   const actorId = opts.actorId ?? 'user-1';
   return {
@@ -37,6 +44,9 @@ function fakeClient(opts: {
         const pair = `${String(args.p_domain)}:${String(args.p_tier)}`;
         const owned = opts.ownedPairs ? opts.ownedPairs.includes(pair) : args.p_tier === 'erpnext';
         return { data: owned, error: null };
+      }
+      if (fn === 'org_has_active_erpnext_binding') {
+        return { data: opts.hasActiveBinding ?? true, error: null };
       }
       if (fn === 'actor_authorization_state') {
         if (args.p_user_id !== actorId) return { data: { role: null, active: false }, error: null };
@@ -448,6 +458,51 @@ Deno.test('AC-BUD-020 an Engineer may not push a budget, and a budget kind may n
   );
   assertEquals(crossDomain.ok, false);
   assertEquals(crossDomain.status, 422);
+});
+
+// ── AC-BUD-003 / FR-BUD-006(a) / FR-BUD-010 — budget's employ signal is the BINDING, never a flip ──
+// Budget is Posture B (PMO stays SoT). The spec is explicit and twice-stated: no
+// `domain_externally_owned('budget')` row is ever created, and employment is asserted by the ACTIVE
+// ERPNext binding + the push route. So gate (a) for budget resolves `org_has_active_erpnext_binding`
+// (byte-for-byte `orgEmploysErpnext`'s predicate), NEVER `domain_owned_by_tier` — which would read
+// exactly the forbidden row.
+
+Deno.test('AC-BUD-003 a budget push authorizes on the ACTIVE ERPNext BINDING, with NO domain-ownership row (never domain_owned_by_tier)', async () => {
+  let ownershipConsulted = false;
+  const bindingOnly: AuthorizationClient = {
+    rpc: async (fn: string, args: Record<string, unknown>) => {
+      if (fn === 'domain_owned_by_tier') {
+        // ⚑ The whole point: budget must NOT consult the ownership table (the row is forbidden). If it
+        // does, answer false so the guard would 403 — and this flag makes the deviation fail loudly.
+        ownershipConsulted = true;
+        return { data: false, error: null };
+      }
+      if (fn === 'org_has_active_erpnext_binding') return { data: true, error: null };
+      if (fn === 'actor_authorization_state') return { data: { role: 'Finance', active: true }, error: null };
+      return { data: null, error: { code: 'P0001', message: `unknown rpc: ${fn}` } };
+    },
+  };
+  const res = await checkErpnextCommandAuthorization(
+    bindingOnly,
+    'org-1',
+    'user-1',
+    { domain: 'budget', operation: 'create', record: { id: 'ver-1', erp_doc_kind: 'budget' } } as any,
+  );
+  assertEquals(res.ok, true, 'an active binding employs budget — the push is authorized without any ownership row');
+  assertEquals(ownershipConsulted, false, 'budget must NEVER read domain_owned_by_tier (the ownership row is spec-forbidden, FR-BUD-006(a))');
+});
+
+Deno.test('AC-BUD-003 a budget push is REFUSED 403 when the org has NO active ERPNext binding (employment is the binding, FR-BUD-010)', async () => {
+  const res = await checkErpnextCommandAuthorization(
+    fakeClient({ domainOwned: true, role: 'Finance', hasActiveBinding: false }),
+    'org-1',
+    'user-1',
+    { domain: 'budget', operation: 'create', record: { id: 'ver-1', erp_doc_kind: 'budget' } } as any,
+  );
+  assertEquals(res.ok, false, 'no active binding ⇒ the org does not employ ERPNext for budget ⇒ refused');
+  assertEquals(res.status, 403);
+  // ⚑ Even a stray domain-ownership row (domainOwned:true here) must NOT rescue the push — the binding
+  // is the sole signal for budget, so the ownership table is irrelevant to it.
 });
 
 // ── P3b (FR-TSP-011/012) — the `timesheets` domain's role rule is DELIBERATELY not the money one ──

@@ -407,10 +407,24 @@ update budget_versions set status = 'Active'
 -- design, not zero), and one category carries a PMO ETC so the forward-view columns are exercised too.
 -- ============================================================
 
--- The org employs `budget` externally — without this the panel does not mount at all (LOW-2a).
-insert into external_domain_ownership (org_id, external_tier, domain) values
-  ('00000000-0000-0000-0000-000000000001','erpnext','budget')
-on conflict (org_id, external_tier, domain) do nothing;
+-- The org employs ERPNext via an ACTIVE binding — without this the projection panel does not mount at
+-- all (LOW-2a). ⚑ FR-BUD-006(a)/FR-BUD-010: employment is the BINDING, NEVER a
+-- `domain_externally_owned('budget')` flip (budget is Posture B — PMO stays SoT and that row is
+-- forbidden). The FE gate reads `status='active'`; the `get_budget_push_status` / dispatch authGuard
+-- gates read `activated_at is not null` — set both so the seeded surface renders via the spec-faithful
+-- signal.
+--
+-- ⚑ The credential-bearing fields carry the LOCAL-BENCH working values (site_url/secret_ref/version/
+-- webhook + company) — byte-for-byte what every live-bench e2e helper (`_budHelpers`/`_sarHelpers`/…)
+-- upserts. Those helpers snapshot the prior binding and RESTORE it on cleanup, so the seed's resting
+-- values must be the working ones, not placeholders (a fake secret_ref would strand a later lane's push
+-- as "credentials unresolved"). In plain local dev with no bench, the panel still RENDERS (gated on
+-- `status='active'`); only a live push needs the bench, which is present exactly when the e2e run it.
+insert into external_org_bindings (org_id, external_tier, site_url, secret_ref, webhook_secret_ref, version_major, config, status, connected_at, activated_at)
+values
+  ('00000000-0000-0000-0000-000000000001','erpnext','http://host.docker.internal:8080','local-bench','DEMO_ERP_WEBHOOK_SECRET',15,
+   '{"company":"PMO Smoke Co"}'::jsonb,'active', now(), now())
+on conflict (org_id, external_tier) do update set status = 'active', activated_at = now();
 
 -- FR-BUD-111 bijection: PMO category → the client's own ERP account. An UNMAPPED category's actuals are
 -- deliberately NULL ("no account to look at"), never 0 — 'Contingency' is left unmapped on purpose so

@@ -312,12 +312,17 @@ select is(
   'AC-EAC-005 non-member sees 0 bindings'
 );
 
--- Test 29: Service role bypasses RLS (sees all)
+-- Test 29: Service role bypasses RLS (sees BOTH fixture orgs' bindings, unlike a member who sees one).
+-- ⚑ Scoped to THIS test's two fixture orgs so the assertion is about RLS-bypass (4 = org A's 2 + org B's
+-- 2, vs a member's 2 in tests 26/27), not about total seed contents — `supabase/seed.sql` now carries an
+-- active erpnext binding of its own (the spec-faithful budget employ signal, FR-BUD-010), which an
+-- unscoped global count would incidentally include.
 reset role;
 select is(
-  (select count(*) from external_org_bindings)::int,
+  (select count(*) from external_org_bindings
+     where org_id in ('11111111-1111-1111-1111-111111111111','22222222-2222-2222-2222-222222222222'))::int,
   4,
-  'AC-EAC-005 service_role sees all bindings (4 rows)'
+  'AC-EAC-005 service_role bypasses RLS — sees BOTH fixture orgs'' bindings (4 rows)'
 );
 
 -- ============================================================================
