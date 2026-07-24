@@ -20,9 +20,9 @@ import { test, expect } from '@playwright/test';
 
 const FUNCTIONS_URL = process.env.SUPABASE_FUNCTIONS_URL ?? '';
 const READY = Boolean(FUNCTIONS_URL);
-if (!READY && process.env.CI) {
+if (FUNCTIONS_URL && !READY) {
   throw new Error(
-    'erpnext-feed-served-smoke: SUPABASE_FUNCTIONS_URL is required in CI — this spec cannot silently skip',
+    'erpnext-feed-served-smoke: SUPABASE_FUNCTIONS_URL is required once the served lane is up (SUPABASE_FUNCTIONS_URL set) — never a silent skip',
   );
 }
 test.skip(!READY, 'erpnext-feed-served-smoke: SUPABASE_FUNCTIONS_URL not set — run via scripts/serve-functions.sh');
