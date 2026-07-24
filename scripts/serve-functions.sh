@@ -45,21 +45,7 @@ echo "EDGE_JWT_ISSUER=http://127.0.0.1:54321/auth/v1" > "$MERGED_ENV_FILE"
 #     ERPNext paths become active for the e2e run. Absent/other ⇒ inert (fail-closed legacy path).
 #   CLICKUP_WEBHOOK_SECRET   — HMAC key for the clickup-webhook handler; required by any e2e that
 #     posts to the webhook endpoint. Without it the handler 401s every request.
-#   ERPNEXT_TEST_FAULTS_ALLOW_HOST — the host allowlist the seams ALSO require (three-condition
-#     gate: env '1' AND the per-request header AND a host match). It FAILS CLOSED, so an unset
-#     allowlist means no seam can ever arm even with the env var set — that is the point, and it is
-#     why a fault spec that looks "not wired" is usually just this variable missing.
-#   ERPNEXT_TEST_FAULTS      — arms the adapter's fault seams (crash-window specs, e.g. AC-BUD-032).
-#     Set ONLY for a run that wants injected faults; a normal lane must leave it unset or every
-#     other spec in the same served process inherits the seams.
-#   LOCAL_BENCH_KEY/_SECRET  — the ERPNext bench credential pair for the served budget/timesheet e2e
-#     lanes. A binding's `secret_ref` NAMES a pair of function secrets rather than storing a value
-#     (credentials.ts `secretRefEnvPrefix`): secret_ref 'local-bench' resolves LOCAL_BENCH_KEY /
-#     LOCAL_BENCH_SECRET. Without these the served push fails `config-rejected` with "ERPNext
-#     credentials unresolved" even though a Vault row exists — Vault is the admin-connect path and
-#     does not feed this one. (Added 2026-07-23: the FU-2 budget e2e was the first lane to need a
-#     runner-supplied pair rather than a developer's .env.local.)
-for _v in DEMO_ERP_WEBHOOK_SECRET ERPNEXT_SWEEP_SECRET EXTERNAL_CONNECT_ENABLED CLICKUP_WEBHOOK_SECRET LOCAL_BENCH_KEY LOCAL_BENCH_SECRET ERPNEXT_TEST_FAULTS ERPNEXT_TEST_FAULTS_ALLOW_HOST; do
+for _v in DEMO_ERP_WEBHOOK_SECRET ERPNEXT_SWEEP_SECRET EXTERNAL_CONNECT_ENABLED CLICKUP_WEBHOOK_SECRET LOCAL_BENCH_KEY LOCAL_BENCH_SECRET ERPNEXT_TEST_FAULTS ERPNEXT_TEST_FAULTS_ALLOW_HOST E2E_INLINE_KEY E2E_INLINE_SECRET AC_ENA_050_TEST_ONLY_KEY AC_ENA_050_TEST_ONLY_SECRET AC_ENA_051_TEST_ONLY_KEY AC_ENA_051_TEST_ONLY_SECRET ERPNEXT_API_KEY ERPNEXT_API_SECRET; do
   if [ -n "${!_v:-}" ]; then echo "${_v}=${!_v}" >> "$MERGED_ENV_FILE"; fi
 done
 if [ -f supabase/functions/.env.local ]; then
