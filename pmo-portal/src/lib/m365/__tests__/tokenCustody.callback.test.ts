@@ -122,8 +122,27 @@ describe('AC-M365-103/104/105 — handleCallback', () => {
     expect(result.headers?.Location).toContain('m365_error=');
     expect(fetch).not.toHaveBeenCalled(); // no token exchange
     expect(service.writes.some((w) => w.table === 'ms_graph_connections')).toBe(false); // no partial store
-    // An error_event was recorded with the INVALID_STATE code.
-    expect(service.writes.some((w) => w.table === 'error_events')).toBe(true);
+    // REGRESSION — MED-A2 (live security audit, 2026-07-24). This assertion previously required
+    // that an error_event WAS written here, which encoded the vulnerability as the contract: the
+    // callback runs unauthenticated (verify_jwt=false, Microsoft's redirect carries no bearer), so
+    // recording before the state is validated let ANY caller write unbounded rows — proved live
+    // with `context_id = <script>alert(1)</script>`. An unproven state must write NOTHING.
+    expect(service.writes.some((w) => w.table === 'error_events')).toBe(false);
+  });
+
+  it('AC-M365-104 (MED-A2): an unauthenticated caller cannot write an error_event via ?error=', async () => {
+    // The other half of the vector: the Microsoft-denial branch also recorded before validating.
+    const service = mockClient({ m365_pkce_states: [{ data: null, error: { code: 'PGRST116' } }] });
+    const fetch = vi.fn();
+
+    const result = await handleCallback(
+      callbackReq({ error: 'access_denied', state: 'ATTACKER_SUPPLIED' }),
+      deps({ service, fetch }),
+    );
+
+    expect(result.status).toBe(302);
+    expect(fetch).not.toHaveBeenCalled();
+    expect(service.writes.some((w) => w.table === 'error_events')).toBe(false);
   });
 
   it('AC-M365-105: a Microsoft exchange failure records an error_event and stores NOTHING', async () => {

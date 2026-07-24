@@ -37,6 +37,24 @@ export async function handleGraphProxy(
     return { status: 400, body: { error: 'BAD_REQUEST', message: 'method and path required' }, headers };
   }
 
+  // PATH TRAVERSAL (live security audit 2026-07-24, MED-B1). `scopeCoversPath` matched the RAW
+  // string while `new URL()` NORMALIZES it, so `/me/drive/../../beta/me/messages` passed the
+  // OneDrive prefix check and then resolved to `/beta/me/messages` — escaping both the `/v1.0`
+  // prefix and the OneDrive family the consented scopes cover. Reproduced:
+  //   /me/drive/../../beta/me/messages -> https://graph.microsoft.com/v1.0/beta/me/messages
+  //   /drives/../..//evil.example/x    -> https://graph.microsoft.com//evil.example/x
+  // Contained today only because the connection holds Files.Read (Graph 403s mail), but the app's
+  // own defence-in-depth control was defeated and it becomes material the moment scopes broaden.
+  // Reject the ambiguous forms outright — a legitimate Graph path never needs them — and validate
+  // the NORMALIZED pathname below (belt and braces: neither check alone is sufficient).
+  if (!req.path.startsWith('/') || /(\.\.|\/\/|\?|#|\\)/.test(req.path)) {
+    return {
+      status: 400,
+      body: { error: 'BAD_REQUEST', message: 'path must be absolute and free of traversal segments' },
+      headers,
+    };
+  }
+
   // Load the caller's connection (own-row scoped — service_role write path, ADR-0060 §4/AC-M365-133).
   const { data: conn, error: connError } = await serviceClient
     .from('ms_graph_connections')
@@ -91,6 +109,16 @@ export async function handleGraphProxy(
 
   // Call Graph. The decrypted Bearer is used here and never logged/echoed (AC-M365-140).
   const graphUrl = new URL(`${GRAPH_BASE}${req.path}`);
+  // Authoritative check: assert on the NORMALIZED result, not the raw string. Even if a future
+  // edit weakens the input filter above, a request can never leave the pinned origin or the
+  // `/v1.0` prefix the scope gate reasoned about.
+  if (graphUrl.origin !== 'https://graph.microsoft.com' || !graphUrl.pathname.startsWith('/v1.0/')) {
+    return {
+      status: 400,
+      body: { error: 'BAD_REQUEST', message: 'resolved path escapes the allowed Graph surface' },
+      headers,
+    };
+  }
   if (req.query) {
     for (const [k, v] of Object.entries(req.query)) graphUrl.searchParams.set(k, v);
   }

@@ -280,4 +280,32 @@ describe('AC-M365-110/111/112/113/114 — handleGraphProxy', () => {
     const r = await handleGraphProxy(graphReq('/me/drive/root'), deps({ service, caller: callerClient(), userId: 'user-1' }));
     expect(r).toMatchObject({ status: 404, body: { error: 'NOT_CONNECTED' } });
   });
+
+  // REGRESSION — MED-B1 (live security audit, 2026-07-24). `scopeCoversPath` matched the RAW path
+  // while `new URL()` normalizes it, so a `..` segment passed the OneDrive prefix gate and then
+  // resolved somewhere else entirely. Verified before the fix:
+  //   /me/drive/../../beta/me/messages -> https://graph.microsoft.com/v1.0/beta/me/messages
+  //   /drives/../..//evil.example/x    -> https://graph.microsoft.com//evil.example/x
+  // Only the narrow Files.Read consent stopped Graph honouring it. The assertion that matters is
+  // that NO Graph call is made — a rejection that still issued the request would be no fix at all.
+  it.each([
+    ['/me/drive/../../beta/me/messages', 'escapes the /v1.0 prefix into the beta surface'],
+    ['/me/drive/../../../v1.0/users', 'climbs out of the OneDrive family'],
+    ['/drives/../..//evil.example/x', 'double-slash after traversal'],
+    ['/me/drive/root?x=1', 'query smuggled into the path'],
+    ['/me/drive/root#frag', 'fragment smuggled into the path'],
+    ['me/drive/root', 'not absolute'],
+  ])('AC-M365-114 (MED-B1): %s is rejected with NO Graph call (%s)', async (path) => {
+    const conn = await connection({ scopes: ['Files.Read', 'offline_access'] });
+    const service = mockClient({ ms_graph_connections: [{ data: conn, error: null }] });
+    const graphFetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) });
+
+    const result = await handleGraphProxy(
+      { action: 'graph_proxy', method: 'GET', path },
+      deps({ service, caller: callerClient(), userId: 'user-1', fetch: graphFetch }),
+    );
+
+    expect(result).toMatchObject({ status: 400, body: { error: 'BAD_REQUEST' } });
+    expect(graphFetch).not.toHaveBeenCalled();
+  });
 });
