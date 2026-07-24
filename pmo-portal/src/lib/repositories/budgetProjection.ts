@@ -223,7 +223,7 @@ export interface ActiveBudgetCategoryPhasing {
  * only true when EVERY line is placed. Dropping these rows made that claim unfalsifiable on screen.
  *
  * ⚑ FINDING 2 (FU-2 round 4) — AND IT IS PAGED, for the same reason. Unpaged, this read is silently
- * capped at PostgREST's `db-max-rows` (200, a short body, `error === null`), and the truncation lands on
+ * capped at PostgREST's `db-max-rows` (HTTP 200, a short body, `error === null`), and the truncation lands on
  * the fail-open guard's own PRECONDITION: a missing `unphased` fact reads as "every line is placed", so
  * a version whose un-phased line sorts past the cap resurrects the exact "not an overspend" claim the
  * SHOULD-FIX above removed. KEYSET (`readBudgetLineItems`'s loop, the shared `pagedRead` seam) rather
