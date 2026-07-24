@@ -216,6 +216,13 @@ describe('deriveProjectionCell — a SUPPRESSED budget attribution states nothin
     expect(cell.pmoBudgetAmount).toBeNull();
   });
 
+  /**
+   * ⚑ BLOCK 2 (FU-2 round 2) — and the AMOUNT is withheld with them. The SQL twin can now produce this
+   * input: a category with one attributed line and one suppressed one sums to a PARTIAL total, and
+   * `0153` nulls it rather than printing $100,000 of a $150,000 budget as a fact. This module must
+   * branch identically, or the "the SQL twin cannot produce that pair" claim in its header becomes the
+   * only thing keeping the two in step.
+   */
   it('AC-BFY-023 suppression outranks a STATED budget too — a placed amount and an unknown attribution cannot both be true', () => {
     const cell = deriveProjectionCell({
       category: 'Labor',
@@ -224,8 +231,32 @@ describe('deriveProjectionCell — a SUPPRESSED budget attribution states nothin
       actualsToDate: '40000.00',
       pmoEtc: '0.00',
     });
+    expect(cell.pmoBudgetAmount).toBeNull();
     expect(cell.projectedVariance).toBeNull();
     expect(cell.projectedUtilization).toBeNull();
+  });
+
+  it('AC-BFY-023 the withheld amount survives the C-2 branch too — an unobtainable actual never re-states it', () => {
+    const cell = deriveProjectionCell({
+      category: 'Labor',
+      pmoBudgetAmount: '100000.00',
+      attributionKnown: false,
+      actualsToDate: null,
+      pmoEtc: '0.00',
+    });
+    expect(cell.pmoBudgetAmount).toBeNull();
+  });
+
+  it('AC-BFY-023 a KNOWN attribution still states its amount — the guard narrows nothing else', () => {
+    const cell = deriveProjectionCell({
+      category: 'Labor',
+      pmoBudgetAmount: '100000.00',
+      attributionKnown: true,
+      actualsToDate: '40000.00',
+      pmoEtc: '0.00',
+    });
+    expect(cell.pmoBudgetAmount).toBe('100000.00');
+    expect(cell.projectedVariance).toBe('60000.00');
   });
 
   it('AC-BFY-023 defaults to KNOWN — a caller that does not model attribution is unaffected (-EAC survives)', () => {

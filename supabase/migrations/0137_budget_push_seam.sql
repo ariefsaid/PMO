@@ -192,28 +192,19 @@ create trigger budget_projections_stamp_org_id before insert on public.budget_pr
 -- 0140 pattern verbatim). Audited, because clearing a money-command hold is a human decision that must
 -- have a name and a reason attached to it.
 --
--- ⚑ FU-2 MEDIUM 6 — the OPTIONAL expected-domain guard. `p_expected_domain` defaults to NULL, which is
--- byte-for-byte today's behaviour: every existing 2-arg caller (the timesheet lane and the 0156 tests
--- call `release_outbox_hold(id, reason)`) resolves to this same function via the default and is entirely
--- unaffected. When a caller DOES pass a domain (the budget banner passes 'budget'), the RPC verifies the
--- locked row's domain matches before releasing — so a colliding held row from ANOTHER domain (a random
--- PMO-id collision) can never be released through the budget UI. Cross-domain identity safety, enforced
--- at the authority (RLS/DEFINER) boundary, not only in the client's select.
---
 -- Reversibility (ADR-0006, pre-production): `supabase db reset`. Manual reverse:
---   drop function if exists public.release_outbox_hold(uuid, text, text);
+--   drop function if exists public.release_outbox_hold(uuid, text);
 
-create or replace function public.release_outbox_hold(p_outbox_id uuid, p_reason text, p_expected_domain text default null)
+create or replace function public.release_outbox_hold(p_outbox_id uuid, p_reason text)
   returns void
   language plpgsql
   security definer
   set search_path = public
 as $$
 declare
-  v_org    uuid;
-  v_state  text;
-  v_domain text;
-  v_actor  uuid := auth.uid();
+  v_org   uuid;
+  v_state text;
+  v_actor uuid := auth.uid();
 begin
   if v_actor is null then
     raise exception 'not authenticated' using errcode = '42501';
@@ -221,17 +212,10 @@ begin
 
   -- Load + LOCK the row: serializes a concurrent release against a live claimant's own fenced
   -- write-back, so the state check below cannot be read stale.
-  select o.org_id, o.state, o.domain into v_org, v_state, v_domain
+  select o.org_id, o.state into v_org, v_state
     from public.external_command_outbox o where o.id = p_outbox_id for update;
   if v_org is null then
     raise exception 'outbox command not found' using errcode = 'P0002';
-  end if;
-
-  -- ⚑ FU-2 MEDIUM 6: when the caller states which domain it believes it is releasing, the locked row
-  -- MUST be that domain — never release another domain's colliding held command. NULL ⇒ no assertion
-  -- (today's domain-general behaviour, retained for the timesheet lane's 2-arg callers).
-  if p_expected_domain is not null and v_domain is distinct from p_expected_domain then
-    raise exception 'outbox command is domain % — the caller expected %', v_domain, p_expected_domain using errcode = '42501';
   end if;
 
   -- Org + Admin + active-membership re-assertion — MUST STAY (see the header: DEFINER bypasses RLS and
@@ -269,6 +253,6 @@ begin
 end;
 $$;
 
-revoke all     on function public.release_outbox_hold(uuid, text, text) from public;
-grant  execute on function public.release_outbox_hold(uuid, text, text) to   authenticated;
-revoke execute on function public.release_outbox_hold(uuid, text, text) from anon;
+revoke all     on function public.release_outbox_hold(uuid, text) from public;
+grant  execute on function public.release_outbox_hold(uuid, text) to   authenticated;
+revoke execute on function public.release_outbox_hold(uuid, text) from anon;

@@ -119,7 +119,13 @@ function fromCents(cents: number): string {
  */
 export function deriveProjectionCell(input: ProjectionInput): BudgetProjectionCell {
   const etcCents = toCents(input.pmoEtc); // an absent ETC row ⇒ 0, not an error
-  const hasBudget = input.pmoBudgetAmount !== null && input.pmoBudgetAmount !== '';
+  // ⚑ F-D (AC-BFY-023) — a suppressed attribution withholds the AMOUNT ITSELF, not only the figures
+  // derived from it, and it does so BEFORE the C-2 branch below so the pair (amount stated, attribution
+  // unknown) is unreachable on every path. The SQL twin (0153 §3a, BLOCK 2) nulls it for the same
+  // reason: with one un-placeable line in the category, the stated sum is a PARTIAL total, and a
+  // partial total printed as THE budget understates what PMO holds.
+  const attributionUnknown = input.attributionKnown === false;
+  const hasBudget = !attributionUnknown && input.pmoBudgetAmount !== null && input.pmoBudgetAmount !== '';
   const budgetCents = hasBudget ? toCents(input.pmoBudgetAmount) : null;
 
   // ⚑ C-1/C-2 — the honesty branch. With no mapped ERP account there is no account to sum, so the
@@ -148,11 +154,8 @@ export function deriveProjectionCell(input: ProjectionInput): BudgetProjectionCe
   // ⚑ F-D (AC-BFY-023) — the SAME honesty branch one input further left, and it must OUTRANK the
   // `-EAC` signal below: with the budget attribution suppressed, "every cent spent here is unbudgeted"
   // is a confident accusation derived from something PMO has just admitted it cannot place. It also
-  // outranks a stated amount, fail-closed — an amount and an unknown attribution cannot both be true
-  // (the SQL twin cannot produce that pair at all; here the input is caller-supplied, so it is
-  // refused rather than silently preferred).
-  const attributionUnknown = input.attributionKnown === false;
-
+  // outranks a stated amount, fail-closed (`hasBudget` above) — an amount and an unknown attribution
+  // cannot both be true, so the amount is REFUSED rather than silently preferred.
   const varianceCents = budgetCents === null ? -eacCents : budgetCents - eacCents;
   const projectedUtilization =
     attributionUnknown || budgetCents === null || budgetCents === 0 ? null : eacCents / budgetCents;

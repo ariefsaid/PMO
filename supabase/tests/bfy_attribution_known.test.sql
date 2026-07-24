@@ -19,10 +19,16 @@
 -- (The witness is stamped by the mirror writer at the served boundary — T13/AC-BFY-019 owns proving
 -- the WRITER produces it; this file owns proving the READER honours it.)
 --
+-- ⚑ AND THE MIXED CATEGORY (BLOCK 2, FU-2 round 2) — the case `bool_or` alone got WRONG. `Materials`
+-- carries BOTH an attributed line and a suppressible one. Before drift both attribute and the category
+-- states its FULL $100,000; after drift the un-phased half is unplaceable, and a category whose total
+-- PMO can no longer state must say so — never print the attributed half as if it were the whole budget.
+--
 -- Mutation: collapse the two NULL-budget states (drop the `attribution_known` branch) and X prints
 -- -EAC → assertions 6/7 red. Ignore drift and X prints the whole $100,000 in FY2026 → assertion 5 red.
+-- Drop the `bool_and` conjunct and the mixed category prints $80,000 of a $100,000 budget → red.
 begin;
-select plan(10);
+select plan(16);
 
 insert into organizations (id, name) values
   ('0bfb0000-0000-0000-0000-000000000001','BFY attribution Org A');
@@ -40,7 +46,11 @@ insert into projects (id, org_id, name, status, start_date, end_date) values
 insert into budget_versions (id, org_id, project_id, version, name, status) values
   ('0bfb2222-0000-0000-0000-000000000001','0bfb0000-0000-0000-0000-000000000001','0bfb1111-0000-0000-0000-000000000001',1,'Un-phased v1','Draft');
 insert into budget_line_items (org_id, budget_version_id, category, description, budgeted_amount, actual_amount, fiscal_year) values
-  ('0bfb0000-0000-0000-0000-000000000001','0bfb2222-0000-0000-0000-000000000001','Labor','Whole crew',100000.00,0,null);
+  ('0bfb0000-0000-0000-0000-000000000001','0bfb2222-0000-0000-0000-000000000001','Labor','Whole crew',100000.00,0,null),
+  -- ⚑ BLOCK 2 — THE MIXED CATEGORY: one line PHASED to the pushed year, one UN-PHASED. The single-FY
+  -- gate branch explicitly permits this mix (it refuses only a line phased to a DIFFERENT year).
+  ('0bfb0000-0000-0000-0000-000000000001','0bfb2222-0000-0000-0000-000000000001','Materials','Phased steel',80000.00,0,'2026'),
+  ('0bfb0000-0000-0000-0000-000000000001','0bfb2222-0000-0000-0000-000000000001','Materials','Un-phased consumables',20000.00,0,null);
 update budget_versions set status='Active', activated_at=now() where id='0bfb2222-0000-0000-0000-000000000001';
 
 -- A SUCCESSFUL push (F-A) carrying the push-time span witness — the project's dates exactly as the
@@ -51,15 +61,17 @@ insert into budget_version_erp_mirror
   ('0bfb0000-0000-0000-0000-000000000001','0bfb2222-0000-0000-0000-000000000001','2026','pushed','BUDGET-2026-0001',now(),
    date '2025-08-01', date '2026-03-31');
 
--- FY2026 ledger: Labor $40,000 (the category with the un-phased line) and Equipment $9,000 (no line).
+-- FY2026 ledger: Labor $40,000 (the category with the un-phased line), Equipment $9,000 (no line) and
+-- Materials $10,000 (the MIXED category).
 insert into erp_actuals_snapshot (org_id, project_id, account, fiscal_year, debit, credit, net, snapshot_id) values
   ('0bfb0000-0000-0000-0000-000000000001','0bfb1111-0000-0000-0000-000000000001','5100 - Direct Costs - PSC','2026',40000.00,0,40000.00,'0bfb5555-0000-0000-0000-000000000001'),
-  ('0bfb0000-0000-0000-0000-000000000001','0bfb1111-0000-0000-0000-000000000001','5300 - Equipment - PSC','2026',9000.00,0,9000.00,'0bfb5555-0000-0000-0000-000000000001');
+  ('0bfb0000-0000-0000-0000-000000000001','0bfb1111-0000-0000-0000-000000000001','5300 - Equipment - PSC','2026',9000.00,0,9000.00,'0bfb5555-0000-0000-0000-000000000001'),
+  ('0bfb0000-0000-0000-0000-000000000001','0bfb1111-0000-0000-0000-000000000001','5200 - Materials - PSC','2026',10000.00,0,10000.00,'0bfb5555-0000-0000-0000-000000000001');
 
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"0bfb0000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 insert into public.budget_category_account_map (category, erp_account) values
-  ('Labor','5100 - Direct Costs - PSC'), ('Equipment','5300 - Equipment - PSC');
+  ('Labor','5100 - Direct Costs - PSC'), ('Equipment','5300 - Equipment - PSC'), ('Materials','5200 - Materials - PSC');
 set local request.jwt.claims = '{"sub":"0bfb0000-0000-0000-0000-0000000000a2","role":"authenticated"}';
 -- Finance authors an ETC on Equipment, so the -EAC oracle below is not trivially the actual.
 insert into public.budget_projections (project_id, fiscal_year, category, pmo_etc)
@@ -78,6 +90,17 @@ select is(
   (select projected_variance from public.get_budget_projection('0bfb1111-0000-0000-0000-000000000001','2026') where category='Labor'),
   60000.00::numeric,
   'AC-BFY-023 …so its variance is stated in full (100000 − 40000)');
+
+-- ⚑ BLOCK 2 — the MIXED category, before drift: BOTH lines attribute here, so the whole $100,000 is
+-- stated. This is the half the `bool_and` conjunct must NOT break.
+select is(
+  (select pmo_budget_amount from public.get_budget_projection('0bfb1111-0000-0000-0000-000000000001','2026') where category='Materials'),
+  100000.00::numeric,
+  'AC-BFY-023 [mixed, witness match] a phased line PLUS an attributable un-phased one sum to the category''s FULL budget');
+select is(
+  (select attribution_known from public.get_budget_projection('0bfb1111-0000-0000-0000-000000000001','2026') where category='Materials'),
+  true,
+  'AC-BFY-023 [mixed, F-D] …and nothing is suppressed, so the attribution is KNOWN');
 
 -- ── THE DRIFT — one byte: the project is extended into a SECOND fiscal year ──────────────────────
 -- Nothing about the budget or the push changes. What changed is the world: "this project is single-FY"
@@ -109,6 +132,28 @@ select is(
   (select projected_final_cost from public.get_budget_projection('0bfb1111-0000-0000-0000-000000000001','2026') where category='Labor'),
   40000.00::numeric,
   'AC-BFY-023 [X] the EAC is untouched — it never depended on the budget');
+
+-- ⚑ BLOCK 2 [X-mixed] — the MIXED category after drift. $80,000 of its $100,000 is still phased to
+-- FY2026, but the other $20,000 can no longer be placed in ANY year, so PMO cannot state this
+-- category's budget for FY2026 at all. `bool_or` alone answered TRUE here and printed the $80,000 as
+-- if it were the whole budget — a $20,000 understatement stated as fact, with a variance that much too
+-- negative and no unavailability marker anywhere on the screen.
+select is(
+  (select attribution_known from public.get_budget_projection('0bfb1111-0000-0000-0000-000000000001','2026') where category='Materials'),
+  false,
+  'AC-BFY-023 [X-mixed, F-D] ONE unplaceable line makes the CATEGORY''S total unknown — a partly-attributable category is NOT attribution_known (BLOCK 2)');
+select is(
+  (select pmo_budget_amount from public.get_budget_projection('0bfb1111-0000-0000-0000-000000000001','2026') where category='Materials'),
+  null,
+  'AC-BFY-023 [X-mixed] …so the AMOUNT is withheld too — never the attributed $80,000 half printed as the whole $100,000 budget');
+select is(
+  (select projected_variance from public.get_budget_projection('0bfb1111-0000-0000-0000-000000000001','2026') where category='Materials'),
+  null,
+  'AC-BFY-023 [X-mixed] …and no variance is derived from a total PMO cannot state');
+select is(
+  (select projected_final_cost from public.get_budget_projection('0bfb1111-0000-0000-0000-000000000001','2026') where category='Materials'),
+  10000.00::numeric,
+  'AC-BFY-023 [X-mixed] the EAC is untouched — it never depended on the budget');
 
 -- Y — the genuinely-unbudgeted category in the SAME (still on-record) year. `-EAC` must survive: the
 -- fix narrows the claim, it does not delete the alarm. Recomputed by an INDEPENDENT oracle over the

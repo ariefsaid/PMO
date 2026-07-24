@@ -100,6 +100,7 @@ describe('fetchBudgetProjection (AC-BUD-050/053)', () => {
           projected_final_cost: 75000,
           projected_variance: 25000,
           projected_utilization: 0.75,
+          attribution_known: true,
         },
       ],
       error: null,
@@ -121,6 +122,7 @@ describe('fetchBudgetProjection (AC-BUD-050/053)', () => {
         projectedFinalCost: 75000,
         projectedVariance: 25000,
         projectedUtilization: 0.75,
+        attributionKnown: true,
       },
     ]);
   });
@@ -146,6 +148,48 @@ describe('fetchBudgetProjection (AC-BUD-050/053)', () => {
     const rows = await fetchBudgetProjection('proj-1', '2026');
     expect(rows[0].pmoBudgetAmount).toBeNull();
     expect(rows[0].projectedUtilization).toBeNull();
+  });
+
+  /**
+   * ⚑ BLOCK 2 (FU-2 round 2) — F-D reaches the surface, because the surface must be able to tell "this
+   * category has NO line" (`-EAC` is honest) from "this category has lines PMO cannot place in this
+   * year" (it holds real money and nothing about it may be stated). Both arrive as a NULL amount.
+   */
+  it('F-D: a suppressed attribution is carried to the surface, so a NULL amount can explain itself', async () => {
+    makeRpcBuilder({
+      data: [
+        {
+          category: 'Labor',
+          pmo_budget_amount: null,
+          actuals_to_date: 30000,
+          pmo_etc: 0,
+          projected_final_cost: 30000,
+          projected_variance: null,
+          projected_utilization: null,
+          attribution_known: false,
+        },
+      ],
+      error: null,
+    });
+    expect((await fetchBudgetProjection('proj-1', '2026'))[0].attributionKnown).toBe(false);
+  });
+
+  it('F-D fails OPEN on an older RPC shape — an absent column never invents a suppression', async () => {
+    makeRpcBuilder({
+      data: [
+        {
+          category: 'Labor',
+          pmo_budget_amount: 100000,
+          actuals_to_date: 30000,
+          pmo_etc: 0,
+          projected_final_cost: 30000,
+          projected_variance: 70000,
+          projected_utilization: 0.3,
+        },
+      ],
+      error: null,
+    });
+    expect((await fetchBudgetProjection('proj-1', '2026'))[0].attributionKnown).toBe(true);
   });
 
   // ⚑ C-1/C-2 (rendered Discover pass, 2026-07-22) — NULL is LOAD-BEARING on every money column: it is

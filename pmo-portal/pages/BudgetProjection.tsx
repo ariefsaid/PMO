@@ -104,6 +104,16 @@ const budgetedInOtherYears = (years: readonly string[]): string =>
  */
 const BUDGET_ATTRIBUTION_STALE =
   "Not available: this budget's fiscal-year attribution is stale — the project's dates changed after it was pushed, so PMO can no longer say which year these un-phased lines belong to. Phase these lines to their fiscal years to restore the figure.";
+/**
+ * ⚑ BLOCK 2 (FU-2 round 2) — the SIXTH, reachable since F-D became a conjunction (0153 §3a). This
+ * category HAS lines here, some of them attributed to this year, but at least one cannot be placed in
+ * any year at all — so its TOTAL is unknown and the RPC withholds the amount rather than stating the
+ * attributed part as if it were the whole budget. It is neither "budgeted elsewhere" (nothing names
+ * another year) nor "stale" (there may never have been a successful push to drift), and it is emphatically
+ * not "no line for this category" — which is what the reader used to be told about a $150,000 budget.
+ */
+const BUDGET_ATTRIBUTION_PARTIAL =
+  'Not available: some of this category’s budget lines are not phased to a fiscal year and PMO cannot place them in this one, so the category’s total for this year cannot be stated. Phase these lines to their fiscal years to restore the figure.';
 
 const money = (v: number | null, reason: string): React.ReactNode =>
   v === null ? <Unavailable reason={reason} /> : formatCurrency(v);
@@ -385,20 +395,27 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
   const staleForSelectedYear = pushRows.some((r) => r.fiscalYear === fiscalYear && r.staleAttribution);
 
   /**
-   * ⚑ WHICH ABSENCE IS THIS? (the Director's ruling, spec §6.2.) Four different NULL budgets reach
-   * this screen and they have four different remedies — and one of them is not a remedy at all, because
+   * ⚑ WHICH ABSENCE IS THIS? (the Director's ruling, spec §6.2.) Five different NULL budgets reach
+   * this screen and they have five different remedies — and one of them is not a remedy at all, because
    * nothing is wrong. In order of specificity:
    *   1. the category IS budgeted, in ANOTHER fiscal year → say so, and name the year. A knowable fact
    *      rendered as "unavailable" is its own dishonesty.
    *   2. the attribution is STALE (un-phased lines, project dates moved off the pushed span) → say that,
    *      and name the fix ("phase these lines").
-   *   3. the Active version is not on record as covering this year at all → the shipped HIGH-1 sentence.
-   *   4. it simply has no line for this category → the shipped C-1 sentence.
+   *   3. ⚑ BLOCK 2: the category is PARTLY attributable here — it has lines, some of them in this year,
+   *      but at least one that PMO cannot place at all, so its total is withheld → say that, and name
+   *      the same fix. Without this branch it fell through to 5 and told the reader a category holding
+   *      $150,000 had "no line".
+   *   4. the Active version is not on record as covering this year at all → the shipped HIGH-1 sentence.
+   *   5. it simply has no line for this category → the shipped C-1 sentence.
    */
-  const budgetReasonFor = (category: BudgetCategory): string => {
-    const elsewhere = (categoryYears[category] ?? []).filter((y) => y !== fiscalYear);
+  const budgetReasonFor = (row: BudgetProjectionCellRow): string => {
+    const elsewhere = (categoryYears[row.category] ?? []).filter((y) => y !== fiscalYear);
     if (elsewhere.length > 0) return budgetedInOtherYears(elsewhere);
     if (staleForSelectedYear) return BUDGET_ATTRIBUTION_STALE;
+    // `=== false` (never `!`): the seam maps an older RPC shape to `true`, and an undefined here
+    // must not invent a suppression either — the fail-OPEN direction, as at the seam.
+    if (row.attributionKnown === false) return BUDGET_ATTRIBUTION_PARTIAL;
     return budgetYearOnRecord ? NO_BUDGET_LINE : NO_BUDGET_FOR_YEAR;
   };
   // ⚑ NEW-4 — the provenance of the actuals column. Project-year-wide (one snapshot per refresh), so
@@ -532,7 +549,7 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
                   const actualsReason = row.actualsAsOf === null ? NO_LEDGER_READING : NO_ERP_ACCOUNT;
                   // Everything derived is unknowable for the reason its own missing input gives: the
                   // actual first (nothing survives an unknown actual), then the budget.
-                  const budgetReason = budgetReasonFor(row.category);
+                  const budgetReason = budgetReasonFor(row);
                   const derivedReason = row.actualsToDate === null ? actualsReason : budgetReason;
                   return (
                     <tr

@@ -46,6 +46,15 @@ export interface BudgetProjectionCellRow {
   projectedVariance: number | null;
   /** `null` on a zero/absent budget, or on an unobtainable actual — never 0, never Infinity (AC-BUD-051). */
   projectedUtilization: number | null;
+  /**
+   * ⚑ F-D (FR-BFY-054/055) — can PMO place this category's WHOLE budget in the selected year?
+   *
+   * `false` means at least one of its lines is un-placeable, so the category's total is unknown and the
+   * RPC withholds the amount and everything derived from it (0153 §3a). That is a different absence
+   * from "this category has no line", and the surface must not borrow that sentence for it. Fails OPEN
+   * to `true` on an older RPC shape: claiming a suppression PMO cannot see would be its own false alarm.
+   */
+  attributionKnown: boolean;
 }
 
 /**
@@ -139,6 +148,7 @@ export async function fetchBudgetProjection(
     projectedFinalCost: num(row.projected_final_cost),
     projectedVariance: num(row.projected_variance),
     projectedUtilization: num(row.projected_utilization),
+    attributionKnown: row.attribution_known !== false,
   }));
 }
 

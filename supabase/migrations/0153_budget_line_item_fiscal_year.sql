@@ -285,12 +285,32 @@ as $$
     -- on a multi-FY project is exactly the thing the gate refused to allocate, and inventing a year for
     -- it here would re-introduce the refusal-as-attribution defect from the read side.
     --
-    -- `attribution_known` (F-D) is the SAME predicate aggregated with `bool_or`: TRUE iff at least one
-    -- of this category's lines is honestly attributed here. FALSE therefore means "this category HAS a
-    -- budget, and PMO cannot place it in this year" — which is a different statement from "no line",
-    -- and the two must not collapse (see the variance rule below). A category with NO line at all does
-    -- not appear in this CTE, so it arrives downstream as NULL and coalesces to TRUE: nothing was
-    -- suppressed for it, and `-EAC` is the honest answer.
+    -- `attribution_known` (F-D) means "this category's WHOLE budget is placeable in a year PMO can
+    -- name". FALSE therefore means "this category HAS a budget, and PMO cannot place all of it in this
+    -- year" — a different statement from "no line", and the two must not collapse (see the variance
+    -- rule below). A category with NO line at all does not appear in this CTE, so it arrives downstream
+    -- as NULL and coalesces to TRUE: nothing was suppressed for it, and `-EAC` is the honest answer.
+    --
+    -- ⚑ BLOCK 2 (FU-2 round 2) — IT IS A CONJUNCTION, and `bool_or` ALONE WAS THE MONEY DEFECT. Read as
+    -- "at least one line is attributed here", a category with an attributed line AND a suppressed one
+    -- reported F-D = TRUE while the `filter`ed SUM counted only the attributed line. Single-FY project,
+    -- `Labor $100,000 fiscal_year='2026'` + `Labor $50,000` un-phased, push refused: the primary money
+    -- screen STATED $100,000 where PMO holds $150,000, with a variance $50,000 too negative, no
+    -- unavailability marker, and `stale_attribution` false so the FR-BFY-056 explanation never fired.
+    -- The fence was defeated INSIDE one category.
+    --
+    -- So the fact is (something is attributed here) AND (nothing is SUPPRESSED here):
+    --   • `bool_or(…)`  — at least one line lands in this year, else the category makes no claim on it;
+    --   • `bool_and(…)` — every line is either PHASED (so it is knowably elsewhere — an ordinary timing
+    --     difference, not an unknown) or UN-PHASED AND ATTRIBUTABLE (F-A + a matching span witness).
+    --     A line that is neither is un-placeable, and one such line makes the category's TOTAL unknown.
+    -- Both operands are two-valued (`coalesce`/`is not null`/`exists`), so no NULL leaks into the fact.
+    --
+    -- ⚑ THE ALL-PHASED-ELSEWHERE FALSE IS PRESERVED, deliberately (see below): `bool_or` is FALSE there
+    -- and the conjunction cannot resurrect it. Its `bool_and` is TRUE, which is the point — the two
+    -- FALSEs mean different things, and the surface tells them apart by PMO's own phased years
+    -- (`fetchActiveBudgetCategoryYears`): "budgeted in FY2027" is a KNOWN fact and must never render as
+    -- "unavailable", while a partly-suppressed category genuinely is unavailable.
     --
     -- ⚑ A category ALL of whose lines are phased to OTHER years also yields FALSE here, deliberately:
     -- PMO would have to assert "this category is budgeted at nothing in this year" to print `-EAC`, and
@@ -311,6 +331,10 @@ as $$
            bool_or(
              coalesce(li.fiscal_year = p_fiscal_year, false)
              or (li.fiscal_year is null and exists (select 1 from attributed_null))
+           )
+           and bool_and(
+             li.fiscal_year is not null                        -- phased ⇒ knowably in SOME year
+             or exists (select 1 from attributed_null)         -- un-phased ⇒ only if attributable here
            ) as attribution_known
       from public.budget_versions v
       join public.budget_line_items li on li.budget_version_id = v.id
@@ -354,7 +378,13 @@ as $$
       full outer join etc     e on e.category = coalesce(b.category, a.category)
   )
   select c.category,
-         c.pmo_budget_amount,
+         -- ⚑ BLOCK 2 — A SUPPRESSED ATTRIBUTION WITHHOLDS THE AMOUNT ITSELF, not only what is derived
+         -- from it. The `filter`ed sum of a partly-suppressed category is a PARTIAL total, and a partial
+         -- total printed as THE budget is the understatement this block is about ($100,000 shown where
+         -- PMO holds $150,000). The pair (amount stated, attribution unknown) is therefore unreachable —
+         -- which is what `budgetProjection.ts` has always claimed of this RPC.
+         case when coalesce(c.attribution_known, true) = false then null
+              else c.pmo_budget_amount end as pmo_budget_amount,
          -- A category with no line on the Active version was never suppressed — nothing to withhold.
          coalesce(c.attribution_known, true) as attribution_known,
          c.actuals_to_date,

@@ -63,6 +63,8 @@ const ROW = {
   projectedFinalCost: 75000,
   projectedVariance: 25000,
   projectedUtilization: 0.75,
+  // F-D: this category's whole budget is placeable in the selected year (0153 §3a's coalesced default).
+  attributionKnown: true,
 };
 
 const NO_PUSH: BudgetPushStatusRow = {
@@ -951,5 +953,27 @@ describe('BudgetProjection — a NULL budget says WHICH kind of absence it is', 
     renderPage();
     const row = (await screen.findByText('Labor')).closest('tr')!;
     expect(within(row).getAllByTitle(/no line for this category/i).length).toBeGreaterThanOrEqual(1);
+  });
+
+  /**
+   * ⚑ BLOCK 2 (FU-2 round 2) — the FIFTH absence, reachable since `attribution_known` became a
+   * conjunction. A category with an attributed line AND an un-placeable one now answers FALSE with a
+   * NULL amount, and it fits none of the four existing sentences: its lines are not phased elsewhere,
+   * nothing is stale (the push was REFUSED, so there is no pushed row to have drifted), and the version
+   * emphatically DOES have lines for it. Telling the reader "no line for this category" about a
+   * category holding $150,000 would be a fresh dishonesty introduced by the fix itself.
+   */
+  it('states that some lines cannot be placed in this year — never "no line" about a category that HAS lines', async () => {
+    fetchMock.mockResolvedValue([{ ...NO_BUDGET_ROW, attributionKnown: false }]);
+    categoryYearsMock.mockResolvedValue({ Labor: ['2026'] }); // phased HERE — nothing is "elsewhere"
+    pushStatusMock.mockResolvedValue([
+      pushStatus({ pushState: 'failed', pushError: 'budget-category-unmapped', fiscalYear: '2026' }),
+    ]);
+    renderPage();
+    const row = (await screen.findByText('Labor')).closest('tr')!;
+    await waitFor(() =>
+      expect(within(row).getAllByTitle(/not phased to a fiscal year/i).length).toBeGreaterThanOrEqual(1),
+    );
+    expect(within(row).queryAllByTitle(/no line for this category/i)).toHaveLength(0);
   });
 });
