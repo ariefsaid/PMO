@@ -169,7 +169,7 @@ describe('WIRE P3B: the Approved-only timesheet gate is wired into the dispatch 
     // keyed off caller-chosen values.
     const adopt = at('applyCanonicalTimesheetTruth(command, approvedSheet)');
     expect(adopt).toBeGreaterThan(-1);
-    for (const later of ['createClient(supabaseUrl, serviceRoleKey)', 'ADAPTER_REGISTRY[command.domain]', 'dispatchExternallyOwnedWrite(']) {
+    for (const later of ['createClient(supabaseUrl, serviceRoleKey,', 'ADAPTER_REGISTRY[command.domain]', 'dispatchExternallyOwnedWrite(']) {
       expect(at(later), `${later} must come AFTER the canonical-truth adoption`).toBeGreaterThan(adopt);
     }
   });
