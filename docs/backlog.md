@@ -4,32 +4,32 @@
 [`docs/history.md`](history.md) (don't read it for status). Locked owner-decisions are in
 `docs/decisions.md` (OD-* lookup by id). Roadmap framing in `docs/roadmap-spines.md`.
 
-### ⚑⚑⚑ CURRENT FOCUS — P3a Sales/AR write-through (2026-07-15) — built + happy-path green; HARDENING ROUND mid-flight; branch, NOT merged
-**Branch `feat/erpnext-adapter-p3`** (off `dev` @ `b549d06`). **HOLD on the branch — NO PR** (owner: dev
-is moving with parallel agents). Spec + plan SIGNED OFF:
-[`docs/specs/erpnext-adapter-p3a-sales-ar.spec.md`](specs/erpnext-adapter-p3a-sales-ar.spec.md) ·
-[`docs/plans/2026-07-14-erpnext-adapter-p3a-sales-ar.md`](plans/2026-07-14-erpnext-adapter-p3a-sales-ar.md).
-R9 bench spike frozen: [`docs/spikes/2026-07-14-erpnext-si-pe-receive-fields.md`](spikes/2026-07-14-erpnext-si-pe-receive-fields.md).
-Owner rulings: `decisions.md` **OD-SAR-GATES · OD-SAR-PMO-IS-THE-UI · OD-SAR-DRAFT-SUBMIT**.
-- **✅ Built (8 slices) + happy-path proven:** migs `0104–0107`; revenue domain (SI + PE-receive) full
-  write-through through `adapter-dispatch` + the ADR-0058 fenced outbox; **two-person SoD** (SI create
-  leaves an ERP DRAFT → a DIFFERENT approver submits — OD-SAR-DRAFT-SUBMIT); process-gates seam;
-  inbound feed (lifecycle + adopt); AR aging (reuses P2 report path); FE (SalesInvoices/IncomingPayments/
-  RevenueByProject). **Served-fn money e2e: 19/19 GREEN at the live bench** (two-person flow). Gates:
-  verify (5,428) · pgTAP (1,506) · deno (69) green at the happy-path checkpoint.
-- **⚑ HARDENING ROUND IN PROGRESS (re-Luna@max NO SHIP):** the first Luna audit's 8 findings were fixed;
-  a **max-thinking re-audit** ([`docs/reviews/2026-07-15-luna-p3a-reaudit-maxthinking.md`](reviews/2026-07-15-luna-p3a-reaudit-maxthinking.md))
-  found the **dispatch/repo layer has real authz/targeting/reference holes** the happy-path e2e misses
-  (it hand-builds correct commands). **DONE + verified:** BLOCK 2/3/4 (dispatch domain-ownership+role+
-  kind↔domain gate before ERP write — hardens ALL erpnext money writes, incl. a gap P2 shared;
-  repo submit/cancel send verb+externalRecordId; transition targeting bound to the PMO mapping) + BLOCK 5
-  (PE references fail-closed). **REMAINING (resume — task tree + the re-audit doc):** BLOCK 6 (cross-org
-  FK check PRE-flight, before ERP write — nemotron's RED test was org-blind, needs a coherent rewrite),
-  BLOCK 1 (recoveryProbe anchor-key fallback must also filter payment_type/party_type), PE-sweep
-  payment_type disambiguation, BLOCK 7 (siFromDoc/peReceiveFromDoc extract customer/links so inbound
-  adopt doesn't NULL them), BLOCK 8 (wire the dead `reconcileSiCancelAutoUnlink`), SF9 (project-gate-
-  without-ERP-project), SF10 (partial `process_gates` bypass defaults). Then re-run the 2-person e2e +
-  **re-Luna `--thinking max` until SHIP** → hold on branch.
+### ⚑⚑⚑ CURRENT FOCUS — ERPNext integration deploy-readiness (2026-07-24) — CORE merged+green; 3 follow-up branches await owner-gated merge
+**Where it stands, honestly.** The spec'ed ERPNext integration is **built, reviewed, and green** — but
+NOT fully closed: the core is merged, the follow-ups that close spec'ed open questions are on branches.
+Full detail: [`docs/handoffs/2026-07-24-erpnext-deploy-readiness-RESUME.md`](handoffs/2026-07-24-erpnext-deploy-readiness-RESUME.md).
+Deploy-readiness pillars: **SAFE** (live-surface audit = SAFE TO EXPOSE, `docs/security/2026-07-24-erpnext-live-surface-audit.md`)
+· **WORKS** (full shipped e2e **48/48 vs a live throwaway bench**) · **COMPLETE** (spec→coverage, one
+regression closed 2026-07-24).
+- **✅ MERGED to `dev` (the bulk of the spec):** P2 money core (#315) + **P3a Sales/AR · P3b timesheets ·
+  P3c budget** (#338 + #360). Companies/revenue-AR/timesheets/budget domains all write-through the
+  ADR-0058 fenced outbox with two-person SoD; inbound feed + adopt; AR aging; FE surfaces. 11 adversarial
+  audit rounds (`docs/reviews/2026-07-23-p3bc-audit-program.md`). This is the deployable core.
+- **⏳ Built + reviewed SHIP, on branches, NOT merged (these close SPEC'ed open questions):**
+  **FU-1a** `Approved→Draft` timesheet re-open (`feat/timesheet-reopen`, OQ-TSP-6, 45 ahead of dev, 12
+  review rounds) · **FU-2** budget fiscal-year/phasing (`feat/budget-fiscal-year`, OQ-BUD-3c / FR-BUD-152,
+  54 ahead, 4 rounds) · the **AC-BUD-003 feature-gate correction + AC-BUD-032 regression fix**
+  (`test/erpnext-p3c-coverage-gaps`, 9 ahead). ⚑ **Merge prerequisites (settled, not yet applied):**
+  the `release_outbox_hold` reconciliation ([`docs/handoffs/2026-07-24-release-outbox-hold-reconciliation.md`](handoffs/2026-07-24-release-outbox-hold-reconciliation.md))
+  · per-lane migration renumber vs current dev (`0151_m365`) · port the `serve-functions.sh` cred-forward
+  patch to dev · **the owner-gated PR→dev for each**.
+- **⚑ Two items still OWED before "safe" is fully signed:** (1) a **security-auditor pass on this session's
+  budget-gate authz change** (Option-A moved the P3c feature-gate onto the active binding, touching the
+  money-path `authGuard.ts`) — `docs/security/2026-07-24-budget-binding-gate-authz-review.md` is NOT yet
+  written; (2) the audit's **8-item owner/config pre-live checklist** (⚑ TWO secret stores: webhook=Vault,
+  dispatch=env — both provisioned per org). See the RESUME doc.
+- **Future width:** the **ERPNext operational-completeness slate (G1–G6)** below — the headless
+  "PMO-is-the-only-UI" read/cost gaps; none scheduled, demand-ordered after P3.
 - **✅ P3 COMPLETE (2026-07-23).** P3a shipped in #338; **P3b (timesheets) + P3c (budget) are in
   [PR #360](https://github.com/ariefsaid/PMO/pull/360) → `dev`** (branch `feat/erpnext-adapter-p3`,
   head `fabde7c5`, 35 commits). Gates re-run by the Director on the PR head: verify 746 files / 6277
