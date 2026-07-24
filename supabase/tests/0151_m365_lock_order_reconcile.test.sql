@@ -98,7 +98,7 @@ alter table public.ms_graph_connections disable trigger m365_connection_write_gu
 insert into public.ms_graph_connections
   (org_id, user_id, entra_tenant_id, scopes, refresh_token_ciphertext, key_id, status)
 values ('a1510000-0000-0000-0000-000000000001','a1510000-0000-0000-0000-0000000000a1',
-        'foo..bar', array['offline_access'], '\x63'::bytea, 'kek-v1', 'active');
+        'foo..bar', array['offline_access'], '\x63000000000000000000000000000000000000000000000000000000'::bytea, 'kek-v1', 'active');
 alter table public.ms_graph_connections enable trigger m365_connection_write_guard;
 select is(count(*)::int, 1, 'AC-M365-163 setup: the legacy foo..bar row is present (0112-era constraint allowed it)')
   from public.ms_graph_connections where org_id = 'a1510000-0000-0000-0000-000000000001';
@@ -111,7 +111,7 @@ alter table public.ms_graph_connections disable trigger m365_connection_write_gu
 insert into public.ms_graph_connections
   (org_id, user_id, entra_tenant_id, scopes, refresh_token_ciphertext, key_id, status)
 values ('a1510000-0000-0000-0000-000000000001','a1510000-0000-0000-0000-0000000000a4',
-        '.foo', array['offline_access'], '\x64'::bytea, 'kek-v1', 'active');
+        '.foo', array['offline_access'], '\x64000000000000000000000000000000000000000000000000000000'::bytea, 'kek-v1', 'active');
 alter table public.ms_graph_connections enable trigger m365_connection_write_guard;
 
 -- Re-run the EXACT corrected 0113 §5a(ii) preflight (Luna round-4 LOW-4: '^[.]+$' not '^[.]+').
@@ -177,14 +177,14 @@ select throws_ok(
   $$ select public.m365_upsert_connection(
        'a1510000-0000-0000-0000-000000000002','a1510000-0000-0000-0000-0000000000a3',
        '11111111-2222-3333-4444-555555555555','oid-d',array['offline_access'],
-       '\x01'::bytea,'\x02'::bytea,now(),'kek-v1',now(),now()) $$,
+       '\x01000000000000000000000000000000000000000000000000000000'::bytea,'\x02000000000000000000000000000000000000000000000000000000'::bytea,now(),'kek-v1',now(),now()) $$,
   '42501', null, 'AC-M365-164: m365_upsert_connection for a DISABLED user is rejected (42501) via the write-guard');
 
 -- Success: upsert for an active+entitled target creates the connection (the RPC returned an id).
 select public.m365_upsert_connection(
   'a1510000-0000-0000-0000-000000000002','a1510000-0000-0000-0000-0000000000a2',
   '11111111-2222-3333-4444-555555555555','oid-a',array['offline_access'],
-  '\x01'::bytea,'\x02'::bytea,now(),'kek-v1',now(),now());
+  '\x01000000000000000000000000000000000000000000000000000000'::bytea,'\x02000000000000000000000000000000000000000000000000000000'::bytea,now(),'kek-v1',now(),now());
 select is(count(*)::int, 1, 'AC-M365-164: m365_upsert_connection created the connection for an active+entitled target (returned an id)')
   from public.ms_graph_connections
  where org_id = 'a1510000-0000-0000-0000-000000000002' and user_id = 'a1510000-0000-0000-0000-0000000000a2';
@@ -193,7 +193,7 @@ select is(count(*)::int, 1, 'AC-M365-164: m365_upsert_connection created the con
 select ok(
   (select public.m365_refresh_connection(
             'a1510000-0000-0000-0000-000000000002','a1510000-0000-0000-0000-0000000000a2',
-            c.id,'\x11'::bytea,'\x12'::bytea,now(),now())
+            c.id,'\x11000000000000000000000000000000000000000000000000000000'::bytea,'\x12000000000000000000000000000000000000000000000000000000'::bytea,now(),now())
      from public.ms_graph_connections c
     where c.org_id = 'a1510000-0000-0000-0000-000000000002' and c.user_id = 'a1510000-0000-0000-0000-0000000000a2')
   is not null,
@@ -201,7 +201,7 @@ select ok(
 select is(
   public.m365_refresh_connection(
     'a1510000-0000-0000-0000-000000000002','a1510000-0000-0000-0000-0000000000a2',
-    '00000000-0000-0000-0000-000000000000'::uuid,'\x11'::bytea,'\x12'::bytea,now(),now()),
+    '00000000-0000-0000-0000-000000000000'::uuid,'\x11000000000000000000000000000000000000000000000000000000'::bytea,'\x12000000000000000000000000000000000000000000000000000000'::bytea,now(),now()),
   null::uuid,
   'AC-M365-164: m365_refresh_connection returns null for a nonexistent connection (no-row → caller treats as failure)');
 select is(
@@ -222,7 +222,7 @@ select is(
 select public.m365_upsert_connection(
   'a1510000-0000-0000-0000-000000000010','a1510000-0000-0000-0000-0000000000b1',
   '11111111-2222-3333-4444-555555555555','oid-s',array['offline_access'],
-  '\x01'::bytea,'\x02'::bytea,now(),'kek-v1',now(),now());
+  '\x01000000000000000000000000000000000000000000000000000000'::bytea,'\x02000000000000000000000000000000000000000000000000000000'::bytea,now(),'kek-v1',now(),now());
 
 -- Seed the two stale connections by suspending the write-guard (the guard would reject them —
 -- inactive user / not-entitled org — which is precisely why they are stale leftovers).
@@ -230,9 +230,9 @@ alter table public.ms_graph_connections disable trigger m365_connection_write_gu
 insert into public.ms_graph_connections
   (org_id, user_id, entra_tenant_id, scopes, refresh_token_ciphertext, key_id, status)
 values ('a1510000-0000-0000-0000-000000000020','a1510000-0000-0000-0000-0000000000b2',
-        '11111111-2222-3333-4444-555555555555', array['offline_access'], '\x20'::bytea, 'kek-v1', 'active'),
+        '11111111-2222-3333-4444-555555555555', array['offline_access'], '\x20000000000000000000000000000000000000000000000000000000'::bytea, 'kek-v1', 'active'),
        ('a1510000-0000-0000-0000-000000000030','a1510000-0000-0000-0000-0000000000b3',
-        '11111111-2222-3333-4444-555555555555', array['offline_access'], '\x30'::bytea, 'kek-v1', 'active');
+        '11111111-2222-3333-4444-555555555555', array['offline_access'], '\x30000000000000000000000000000000000000000000000000000000'::bytea, 'kek-v1', 'active');
 alter table public.ms_graph_connections enable trigger m365_connection_write_guard;
 
 -- Re-run the EXACT 0115 §4 reconcile scrub.

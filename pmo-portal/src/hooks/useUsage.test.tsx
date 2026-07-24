@@ -35,10 +35,13 @@ beforeEach(() => {
 });
 
 describe('useUsage (AC-USE-001/002)', () => {
-  it('a non-Operator org-Admin calls getOrgUsageSummary (own org only)', async () => {
+  it('a non-Operator org-Admin fetches NOTHING (assistant usage is Operator-only)', async () => {
+    // Owner 2026-07-24: assistant cost/usage is a PLATFORM surface — an org-Admin must not see it
+    // at all, not even their own org's rows. Gating the FETCH (not just the markup) keeps the
+    // numbers out of the network tab. This test is the reason the query is disabled, not hidden.
     const { result } = renderHook(() => useUsage(), { wrapper: wrap(freshClient()) });
-    await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(usage.getOrgUsageSummary).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(result.current.fetchStatus).toBe('idle'));
+    expect(usage.getOrgUsageSummary).not.toHaveBeenCalled();
     expect(usage.getOperatorUsageSummary).not.toHaveBeenCalled();
   });
 
@@ -59,10 +62,10 @@ describe('useUsage (AC-USE-001/002)', () => {
 });
 
 describe('AC-ACD-008 useAgentRunStats', () => {
-  it('a non-Operator org-Admin calls getOrgAgentRunStats (own org only)', async () => {
+  it('a non-Operator org-Admin fetches NOTHING (run stats are Operator-only)', async () => {
     const { result } = renderHook(() => useAgentRunStats(), { wrapper: wrap(freshClient()) });
-    await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(usage.getOrgAgentRunStats).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(result.current.fetchStatus).toBe('idle'));
+    expect(usage.getOrgAgentRunStats).not.toHaveBeenCalled();
     expect(usage.getOperatorAgentRunStats).not.toHaveBeenCalled();
   });
 

@@ -3,11 +3,11 @@
  * AC-M365-130: verifyCallerJwt (ES256 local verify) — valid token returns sub; expired / alg-confusion reject.
  * AC-M365-131: Admin gate — a non-Admin caller is forbidden.
  * AC-M365-132: entitlement gate — an org without m365_integration is not entitled.
- * The authz core is the pure `authorizeAdminEntitled` helper (injected caller client) — no Deno.env.
+ * The authz core is the pure `authorizeOperatorEntitled` helper (injected caller client) — no Deno.env.
  */
 import { describe, it, expect } from 'vitest';
 import { verifyCallerJwt, JwtVerifyError } from '../../auth/verifyCallerJwt';
-import { authorizeAdminEntitled } from '../../../../../supabase/functions/m365-token-custody/auth';
+import { authorizeOperatorEntitled } from '../../../../../supabase/functions/m365-token-custody/auth';
 import { M365HandlerError } from '../../../../../supabase/functions/m365-token-custody/types';
 import { createMockJwks, createMockHs256Jwks, createMockJwt } from './mocks/jwtMocks';
 import { mockClient } from './m365MockDeps';
@@ -44,27 +44,64 @@ describe('AC-M365-130 — verifyCallerJwt (local ES256 verification)', () => {
   });
 });
 
-describe('AC-M365-131/132 — authorizeAdminEntitled (org resolution + Admin + entitlement)', () => {
-  it('AC-M365-130: resolves org_id for an active Admin member under the caller-JWT client', async () => {
+/** A service client that answers the `platform_operators` lookup: row present ⇒ Operator. */
+function operatorService(isOperator: boolean) {
+  return mockClient({
+    platform_operators: [{ data: isOperator ? { user_id: 'user-1' } : null, error: null }],
+  });
+}
+
+describe('AC-M365-131/132 — authorizeOperatorEntitled (org resolution + Operator + entitlement)', () => {
+  // ADR-0058 §3 amendment (2026-07-24): M365 connect is OPERATOR-gated, not org-Admin-gated. The
+  // Entra app registration lives in the vendor tenant (ADR-0059 Option C), so wiring it up is a
+  // platform action. ClickUp/ERPNext stay Admin-or-Operator — the client supplies those creds.
+  it('AC-M365-130: resolves org_id for an Operator under the caller-JWT client', async () => {
     const caller = mockClient({
       profiles: [{ data: { org_id: 'org-123', role: 'Admin' }, error: null }],
       org_features: [{ data: { enabled: true }, error: null }],
     });
-    const result = await authorizeAdminEntitled({ callerClient: caller.client as never, userId: 'user-1' });
+    const service = operatorService(true);
+    const result = await authorizeOperatorEntitled({
+      callerClient: caller.client as never,
+      serviceClient: service.client as never,
+      userId: 'user-1',
+    });
     expect(result).toEqual({ orgId: 'org-123', role: 'Admin' });
-    // org_features was scoped to the resolved org + the m365_integration key (deputy RLS read).
     expect(caller.from).toHaveBeenCalledWith('profiles');
     expect(caller.from).toHaveBeenCalledWith('org_features');
+    // The Operator check MUST be service-side — platform_operators has no caller-readable policy.
+    expect(service.from).toHaveBeenCalledWith('platform_operators');
   });
 
-  it('AC-M365-131: a non-Admin caller is forbidden (real JWT role, not impersonated)', async () => {
+  it('AC-M365-131: an org Admin who is NOT an Operator is forbidden', async () => {
+    // The load-bearing case for the amendment: org-Admin alone no longer grants M365 connect.
+    const caller = mockClient({
+      profiles: [{ data: { org_id: 'org-123', role: 'Admin' }, error: null }],
+    });
+    const service = operatorService(false);
+    await expect(
+      authorizeOperatorEntitled({
+        callerClient: caller.client as never,
+        serviceClient: service.client as never,
+        userId: 'user-1',
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    // The entitlement lookup must NOT happen once the Operator gate fails.
+    expect(caller.from).not.toHaveBeenCalledWith('org_features');
+  });
+
+  it('AC-M365-131: a non-Admin, non-Operator caller is forbidden', async () => {
     const caller = mockClient({
       profiles: [{ data: { org_id: 'org-123', role: 'Project Manager' }, error: null }],
     });
+    const service = operatorService(false);
     await expect(
-      authorizeAdminEntitled({ callerClient: caller.client as never, userId: 'user-1' }),
+      authorizeOperatorEntitled({
+        callerClient: caller.client as never,
+        serviceClient: service.client as never,
+        userId: 'user-1',
+      }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
-    // The entitlement lookup must NOT happen once the Admin gate fails.
     expect(caller.from).not.toHaveBeenCalledWith('org_features');
   });
 
@@ -74,7 +111,11 @@ describe('AC-M365-131/132 — authorizeAdminEntitled (org resolution + Admin + e
       org_features: [{ data: { enabled: false }, error: null }],
     });
     await expect(
-      authorizeAdminEntitled({ callerClient: caller.client as never, userId: 'user-1' }),
+      authorizeOperatorEntitled({
+        callerClient: caller.client as never,
+        serviceClient: operatorService(true).client as never,
+        userId: 'user-1',
+      }),
     ).rejects.toMatchObject({ code: 'NOT_ENTITLED' });
   });
 
@@ -84,14 +125,22 @@ describe('AC-M365-131/132 — authorizeAdminEntitled (org resolution + Admin + e
       org_features: [{ data: null, error: { code: 'PGRST116' } }],
     });
     await expect(
-      authorizeAdminEntitled({ callerClient: caller.client as never, userId: 'user-1' }),
+      authorizeOperatorEntitled({
+        callerClient: caller.client as never,
+        serviceClient: operatorService(true).client as never,
+        userId: 'user-1',
+      }),
     ).rejects.toMatchObject({ code: 'NOT_ENTITLED' });
   });
 
   it('AC-M365-130: an unresolvable profile (no row) yields a typed BAD_REQUEST', async () => {
     const caller = mockClient({ profiles: [{ data: null, error: { code: 'PGRST116' } }] });
     await expect(
-      authorizeAdminEntitled({ callerClient: caller.client as never, userId: 'user-1' }),
+      authorizeOperatorEntitled({
+        callerClient: caller.client as never,
+        serviceClient: operatorService(true).client as never,
+        userId: 'user-1',
+      }),
     ).rejects.toBeInstanceOf(M365HandlerError);
   });
 });

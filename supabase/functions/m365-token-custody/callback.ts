@@ -7,7 +7,7 @@
 import type { HandlerDeps, HandlerResult, M365SupabaseLike } from './types.ts';
 import { M365_IDENTITY_MISMATCH } from './types.ts';
 import { consumePkceState } from './stateStore.ts';
-import { encryptToken, serializeEnvelope, resolveKek, base64UrlDecode } from './crypto.ts';
+import { encryptToken, serializeEnvelope, resolveKek, base64UrlDecode, toByteaParam } from './crypto.ts';
 import { logAudit, recordM365Error } from './audit.ts';
 import { isValidTenant } from '../../../pmo-portal/src/lib/m365/graphPkce.ts';
 
@@ -34,23 +34,41 @@ export async function handleCallback(req: Request, deps: HandlerDeps): Promise<H
   const state = url.searchParams.get('state');
   const msError = url.searchParams.get('error');
 
-  if (msError) {
-    await recordM365Error(serviceClient, {
-      errorCode: 'TOKEN_EXCHANGE_FAILED',
-      contextId: state ?? undefined,
-    });
-    return redirectToFeError(env, 'Connection failed: access denied');
-  }
-
-  if (!code || !state) {
+  // UNAUTHENTICATED WRITE VECTOR (live security audit 2026-07-24, MED-A2). This endpoint runs
+  // with `verify_jwt = false` — Microsoft's redirect carries no Authorization header — so ANY
+  // caller can hit it. Both error-recording sites used to run BEFORE the state was validated,
+  // with the attacker's own `state` written into the unbounded `error_events.context_id`. Proved
+  // live: 8 curls produced 5 rows, including `context_id = <script>alert(1)</script>`. Impact:
+  // unauthenticated row/disk growth on a shared prod Postgres, and — worse — burial of genuine
+  // INVALID_STATE / M365_IDENTITY_MISMATCH security events under attacker noise.
+  //
+  // Fix: record NOTHING until the single-use state row proves the request came from a flow WE
+  // issued. Consuming the state first also makes the msError path single-use, closing a replay
+  // of the denial branch. The lost INVALID_STATE signal is no real loss: an attacker can mint
+  // unlimited INVALID_STATE noise on demand, which is precisely what makes that signal worthless.
+  if (!state) {
     return redirectToFeError(env, 'Missing code or state');
   }
 
   // Single-use, user/org-bound state is the credential on this GET path (no Bearer available).
   const pkce = await consumePkceState(serviceClient, state, nowFn);
   if (!pkce) {
-    await recordM365Error(serviceClient, { errorCode: 'INVALID_STATE', contextId: state });
+    // No error_event: the state was never issued by us (or is already spent/expired), so this is
+    // an unauthenticated caller and MUST NOT be able to write a row.
     return redirectToFeError(env, 'Invalid or expired state. Please try connecting again.');
+  }
+
+  // From here the request is provably ours, so recording is safe.
+  if (msError) {
+    await recordM365Error(serviceClient, {
+      errorCode: 'TOKEN_EXCHANGE_FAILED',
+      contextId: state,
+    });
+    return redirectToFeError(env, 'Connection failed: access denied');
+  }
+
+  if (!code) {
+    return redirectToFeError(env, 'Missing code or state');
   }
 
   // M3 (Luna): re-validate the env tenant BEFORE building the token URL. The host is pinned, so a
@@ -203,8 +221,8 @@ export async function handleCallback(req: Request, deps: HandlerDeps): Promise<H
     p_entra_tenant_id: claims.tid,
     p_entra_user_object_id: claims.oid,
     p_scopes: pkce.scopes,
-    p_refresh_token_ciphertext: refreshBlob,
-    p_access_token_ciphertext: accessBlob,
+    p_refresh_token_ciphertext: toByteaParam(refreshBlob),
+    p_access_token_ciphertext: toByteaParam(accessBlob),
     p_access_token_expires_at: accessExpiresAt,
     p_key_id: 'kek-v1',
     p_connected_at: nowIso,

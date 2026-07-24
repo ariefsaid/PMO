@@ -78,8 +78,8 @@ function networkError(message: string): Error {
 const assignMock = vi.fn();
 
 /** Render the card inside a MemoryRouter; optionally seed the initial URL (for callback params). */
-function renderCard(opts: { isAdmin?: boolean; initialEntry?: string } = {}) {
-  const isAdmin = opts.isAdmin ?? true;
+function renderCard(opts: { isOperator?: boolean; initialEntry?: string } = {}) {
+  const isOperator = opts.isOperator ?? true;
   const initialEntry = opts.initialEntry ?? '/admin/integrations';
   const locationSearch: string[] = [];
   const Probe: React.FC = () => {
@@ -90,10 +90,10 @@ function renderCard(opts: { isAdmin?: boolean; initialEntry?: string } = {}) {
   const utils = render(
     <MemoryRouter initialEntries={[initialEntry]}>
       <Probe />
-      <M365ConnectionCard isAdmin={isAdmin} />
+      <M365ConnectionCard isOperator={isOperator} />
     </MemoryRouter>,
   );
-  return { ...utils, isAdmin, locationSearch };
+  return { ...utils, isOperator, locationSearch };
 }
 
 beforeEach(() => {
@@ -119,14 +119,14 @@ const settleIdle = () => screen.findByRole('button', { name: /connect microsoft 
 describe('AC-M365-012 — activation card visibility (two-switch: entitlement + Admin)', () => {
   it('AC-M365-012: hidden when the org is NOT entitled (and the status fetch never fires)', () => {
     featureState.value = false;
-    const { container } = renderCard({ isAdmin: true });
+    const { container } = renderCard({ isOperator: true });
     expect(container).toBeEmptyDOMElement();
     expect(invoke).not.toHaveBeenCalled();
   });
 
   it('AC-M365-012: hidden when entitled but the viewer is NOT Admin (and the status fetch never fires)', () => {
     featureState.value = true;
-    const { container } = renderCard({ isAdmin: false });
+    const { container } = renderCard({ isOperator: false });
     expect(container).toBeEmptyDOMElement();
     expect(invoke).not.toHaveBeenCalled();
   });
@@ -413,5 +413,42 @@ describe('AC-M365-023 — a failed status fetch renders an honest UNKNOWN state 
     expect(msg.textContent).not.toContain('ENOTFOUND');
     expect(screen.queryByTestId('m365-connected-msg')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /disconnect/i })).not.toBeInTheDocument();
+  });
+});
+
+describe('AC-M365-024 — the status fetch is not permanently disabled by an unmount', () => {
+  // REGRESSION (live run against prod Supabase, 2026-07-24): the card hung forever on
+  // "Checking Microsoft 365 connection status…" while the edge fn returned a healthy 200.
+  //
+  // Cause: `statusFetchedRef` guards against a duplicate fetch but was never released on cleanup,
+  // so the guard is permanent across the component's whole lifetime — not just one mount. React
+  // StrictMode (enabled in index.tsx) mounts → unmounts → remounts every component in dev:
+  //   mount 1  → ref = true, fetch starts
+  //   unmount  → cleanup sets cancelled = true
+  //   mount 2  → ref already true ⇒ returns early, NEVER fetches
+  //   fetch 1 resolves → `if (cancelled) return` ⇒ applyStatus NEVER runs ⇒ phase stays 'loading'
+  //
+  // This asserts the contract the fix restores: after an unmount, a remount MUST fetch again.
+  // A cancelled fetch has to leave the card able to try once more, or the state never resolves.
+  // (Note: jsdom does not reproduce the *hang* — RTL flushes the mocked promise inside the same
+  // act() as the remount, so `cancelled` is never observed. The live browser, with a ~300ms
+  // network call, always loses that race. This test targets the guard directly for that reason.)
+  it('AC-M365-024: a remount re-runs the status fetch instead of being permanently skipped', async () => {
+    featureState.value = true;
+    invoke.mockResolvedValue(STATUS_NOT_CONNECTED);
+
+    const first = renderCard();
+    await settleIdle();
+    expect(invoke).toHaveBeenCalledTimes(1);
+
+    // Unmount + remount — exactly what StrictMode does on every dev mount.
+    first.unmount();
+    renderCard();
+
+    // The remounted card must fetch its own status; if the guard is never released it renders
+    // "Checking…" forever with no request in flight.
+    await settleIdle();
+    expect(invoke).toHaveBeenCalledTimes(2);
+    expect(screen.queryByTestId('m365-loading-msg')).not.toBeInTheDocument();
   });
 });

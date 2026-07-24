@@ -21,17 +21,20 @@ export function corsHeaders(allowedOrigin: string): Record<string, string> {
  * scoped deputy auth, mirrors adapter-dispatch/compose-view). Throws M365HandlerError on any gate
  * failure so the calling handler can map it to a typed result:
  *   - profile missing → BAD_REQUEST (org not resolvable)
- *   - role !== 'Admin' → FORBIDDEN (AC-M365-131 — real JWT role, not impersonated; ADR-0016)
+ *   - caller not a platform Operator → FORBIDDEN (AC-M365-131; ADR-0058 §3 amendment 2026-07-24)
  *   - entitlement off/missing → NOT_ENTITLED (AC-M365-132 — Operator switch, ADR-0049)
  * Returns { orgId, role } on success (AC-M365-130 — org resolution under caller JWT).
  */
-export async function authorizeAdminEntitled(deps: {
+export async function authorizeOperatorEntitled(deps: {
   callerClient: M365SupabaseLike;
+  /** service-role client — `platform_operators` is a platform table with no caller-readable policy,
+   *  so the Operator check MUST run service-side (same pattern as external-connect). */
+  serviceClient: M365SupabaseLike;
   userId: string;
   requiredEntitlement?: string;
 }): Promise<{ orgId: string; role: string }> {
   const entitlement = deps.requiredEntitlement ?? 'm365_integration';
-  const { callerClient, userId } = deps;
+  const { callerClient, serviceClient, userId } = deps;
 
   const { data: profile, error: profileError } = await callerClient
     .from('profiles')
@@ -45,8 +48,20 @@ export async function authorizeAdminEntitled(deps: {
   const orgId = (profile as { org_id: string; role: string }).org_id;
   const role = (profile as { org_id: string; role: string }).role;
 
-  if (role !== 'Admin') {
-    throw new M365HandlerError('FORBIDDEN', 'Admin role required');
+  // Operator gate (ADR-0058 §3 amendment, 2026-07-24). NOT the org-Admin gate the other
+  // integrations use: the Entra app registration lives in the VENDOR tenant (ADR-0059 Option C),
+  // so connecting it is a platform action, not a client opt-in. ClickUp/ERPNext keep the
+  // Admin-or-Operator gate because the client supplies those credentials themselves.
+  // `userId` comes from verifyCallerJwt, so this is the real caller — impersonation cannot
+  // reach it (ADR-0016). Read service-side: `platform_operators` has no caller-readable policy.
+  const { data: operatorRow } = await serviceClient
+    .from('platform_operators')
+    .select('user_id')
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  if (!operatorRow) {
+    throw new M365HandlerError('FORBIDDEN', 'Operator role required');
   }
 
   const { data: feature, error: featureError } = await callerClient
@@ -65,7 +80,7 @@ export async function authorizeAdminEntitled(deps: {
 }
 
 /**
- * Resolve the caller's org via authorizeAdminEntitled, mapping any gate failure to its typed
+ * Resolve the caller's org via authorizeOperatorEntitled, mapping any gate failure to its typed
  * HandlerResult. Shared by initiate_connect / graph_proxy / disconnect (DRY — those three handlers
  * run the identical authorize-or-return-error gate, quality #6). Returns the orgId on success, or a
  * HandlerResult (500 INTERNAL_ERROR if the caller client is missing, or the mapped gate error) for
@@ -76,7 +91,11 @@ export async function resolveOrgOrResult(deps: HandlerDeps): Promise<string | Ha
     return { status: 500, body: { error: 'INTERNAL_ERROR', message: 'caller client missing' } };
   }
   try {
-    const { orgId } = await authorizeAdminEntitled({ callerClient: deps.callerClient, userId: deps.userId });
+    const { orgId } = await authorizeOperatorEntitled({
+      callerClient: deps.callerClient,
+      serviceClient: deps.serviceClient,
+      userId: deps.userId,
+    });
     return orgId;
   } catch (err) {
     if (err instanceof M365HandlerError) return errorResult(err);

@@ -33,7 +33,7 @@ select throws_ok(
   $$ insert into public.ms_graph_connections
        (org_id,user_id,entra_tenant_id,refresh_token_ciphertext,key_id,status)
      values ('01430000-0000-0000-0000-000000000001','01430000-0000-0000-0000-0000000000a1',
-             't','\x00'::bytea,'k','bogus') $$,
+             't','\x00000000000000000000000000000000000000000000000000000000'::bytea,'k','bogus') $$,
   '23514', null, 'AC-M365-002 status CHECK rejects an unknown value');
 
 select * from finish();

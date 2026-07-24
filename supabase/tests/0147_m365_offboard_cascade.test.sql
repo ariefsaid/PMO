@@ -29,9 +29,9 @@ insert into public.ms_graph_connections
   (org_id, user_id, entra_tenant_id, scopes, refresh_token_ciphertext, access_token_ciphertext, key_id, status)
 values
   ('01470000-0000-0000-0000-000000000001','01470000-0000-0000-0000-0000000000a1',
-   'tenant-a', array['offline_access','Files.Read'], '\x01'::bytea, '\x02'::bytea, 'kek-v1', 'active'),
+   'tenant-a', array['offline_access','Files.Read'], '\x01000000000000000000000000000000000000000000000000000000'::bytea, '\x02000000000000000000000000000000000000000000000000000000'::bytea, 'kek-v1', 'active'),
   ('01470000-0000-0000-0000-000000000002','01470000-0000-0000-0000-0000000000b1',
-   'tenant-b', array['offline_access','Files.Read'], '\x03'::bytea, '\x04'::bytea, 'kek-v1', 'active');
+   'tenant-b', array['offline_access','Files.Read'], '\x03000000000000000000000000000000000000000000000000000000'::bytea, '\x04000000000000000000000000000000000000000000000000000000'::bytea, 'kek-v1', 'active');
 
 -- (1) Operator disentitles Org A (m365_integration = false) → cascade deletes Org A's connection only.
 -- Insert operator BEFORE setting role (runs as superuser, bypasses RLS on platform_operators).
@@ -67,7 +67,7 @@ insert into public.ms_graph_connections
   (org_id, user_id, entra_tenant_id, scopes, refresh_token_ciphertext, access_token_ciphertext, key_id, status)
 values
   ('01470000-0000-0000-0000-000000000002','01470000-0000-0000-0000-0000000000b1',
-   'tenant-b', array['offline_access','Files.Read'], '\x05'::bytea, '\x06'::bytea, 'kek-v1', 'active');
+   'tenant-b', array['offline_access','Files.Read'], '\x05000000000000000000000000000000000000000000000000000000'::bytea, '\x06000000000000000000000000000000000000000000000000000000'::bytea, 'kek-v1', 'active');
 
 -- Admin B calls cascade RPC for User B (Admin path, reason='offboard').
 set local role authenticated;

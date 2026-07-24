@@ -131,12 +131,16 @@ describe('AC-M365-150 — connection_status returns the allowed non-sensitive sh
   });
 });
 
-describe('AC-M365-151 — connection_status enforces the SAME gate (Admin + entitlement)', () => {
-  it('AC-M365-151: a non-Admin caller is rejected FORBIDDEN (no row read, same as graph_proxy)', async () => {
+describe('AC-M365-151 — connection_status enforces the SAME gate (Operator + entitlement)', () => {
+  it('AC-M365-151: a non-Operator caller is rejected FORBIDDEN (no row read, same as graph_proxy)', async () => {
+    // ADR-0058 §3 amendment (2026-07-24): even an org Admin is rejected without Operator.
     const row = await fullConnectionRow('active');
-    const service = mockClient({ ms_graph_connections: [{ data: row, error: null }] });
+    const service = mockClient({
+      ms_graph_connections: [{ data: row, error: null }],
+      platform_operators: [{ data: null, error: null }],
+    });
     const memberCaller = mockClient({
-      profiles: [{ data: { org_id: 'org-1', role: 'Member' }, error: null }],
+      profiles: [{ data: { org_id: 'org-1', role: 'Admin' }, error: null }],
       org_features: [{ data: { enabled: true }, error: null }],
     });
 

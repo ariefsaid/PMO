@@ -92,9 +92,11 @@ describe('AC-M365-101/102 — handleInitiateConnect', () => {
     );
   });
 
-  it('AC-M365-102: a non-Admin caller is forbidden (403 FORBIDDEN, no state stored)', async () => {
-    const service = mockClient();
-    const caller = entitledCaller('Project Manager');
+  it('AC-M365-102: a non-Operator caller is forbidden (403 FORBIDDEN, no state stored)', async () => {
+    // ADR-0058 §3 amendment (2026-07-24): the gate is Operator, NOT org-Admin. An org Admin who is
+    // not a platform Operator must be rejected — the Entra app registration is vendor-owned.
+    const service = mockClient({ platform_operators: [{ data: null, error: null }] });
+    const caller = entitledCaller('Admin');
     const result = await handleInitiateConnect(deps({ service, caller, userId: 'user-1' }));
     expect(result).toMatchObject({ status: 403, body: { error: 'FORBIDDEN' } });
     expect(service.writes).toHaveLength(0);

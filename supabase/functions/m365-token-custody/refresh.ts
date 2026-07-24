@@ -4,7 +4,15 @@
 // reuse-detection → revoked (the security event). No Deno.env, no client construction.
 
 import type { ConnectionRow, HandlerDeps } from './types.ts';
-import { decryptToken, encryptToken, deserializeEnvelope, serializeEnvelope, resolveKek } from './crypto.ts';
+import {
+  decryptToken,
+  encryptToken,
+  deserializeEnvelope,
+  serializeEnvelope,
+  resolveKek,
+  toByteaParam,
+  fromByteaValue,
+} from './crypto.ts';
 import { logAudit, recordM365Error } from './audit.ts';
 import { isValidTenant } from '../../../pmo-portal/src/lib/m365/graphPkce.ts';
 
@@ -32,7 +40,7 @@ export async function refreshAccessToken(
   let refreshToken: string;
   try {
     const kek = resolveKek(env, connection.key_id);
-    const envelope = deserializeEnvelope(connection.refresh_token_ciphertext);
+    const envelope = deserializeEnvelope(fromByteaValue(connection.refresh_token_ciphertext));
     refreshToken = await decryptToken(envelope.ciphertext, envelope.iv, kek);
   } catch {
     await recordM365Error(serviceClient, {
@@ -110,8 +118,8 @@ export async function refreshAccessToken(
     p_org_id: connection.org_id,
     p_user_id: connection.user_id,
     p_connection_id: connection.id,
-    p_access_token_ciphertext: accessBlob,
-    p_refresh_token_ciphertext: refreshBlob,
+    p_access_token_ciphertext: toByteaParam(accessBlob),
+    p_refresh_token_ciphertext: toByteaParam(refreshBlob),
     p_access_token_expires_at: accessExpiresAt,
     p_last_refresh_at: nowIso,
   });

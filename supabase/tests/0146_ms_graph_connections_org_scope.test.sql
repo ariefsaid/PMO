@@ -26,13 +26,13 @@ insert into public.ms_graph_connections
   (org_id, user_id, entra_tenant_id, scopes, refresh_token_ciphertext, access_token_ciphertext, key_id, status)
 values
   ('01460000-0000-0000-0000-000000000001','01460000-0000-0000-0000-0000000000a1',
-   'tenant-a', array['offline_access','Files.Read'], '\x01'::bytea, '\x02'::bytea, 'kek-v1', 'active');
+   'tenant-a', array['offline_access','Files.Read'], '\x01000000000000000000000000000000000000000000000000000000'::bytea, '\x02000000000000000000000000000000000000000000000000000000'::bytea, 'kek-v1', 'active');
 
 -- Prove the unique(org_id, user_id) prevents a second row for the same user in the same org.
 select throws_ok(
   $$ insert into public.ms_graph_connections
        (org_id, user_id, entra_tenant_id, refresh_token_ciphertext, key_id)
-     values ('01460000-0000-0000-0000-000000000001','01460000-0000-0000-0000-0000000000a1','t','\x03'::bytea,'k') $$,
+     values ('01460000-0000-0000-0000-000000000001','01460000-0000-0000-0000-0000000000a1','t','\x03000000000000000000000000000000000000000000000000000000'::bytea,'k') $$,
   '23505', null, 'AC-M365-133 unique(org_id,user_id) prevents duplicate connection per user per org');
 
 -- Prove Org B's user gets their own row (different org_id).
@@ -40,7 +40,7 @@ insert into public.ms_graph_connections
   (org_id, user_id, entra_tenant_id, scopes, refresh_token_ciphertext, access_token_ciphertext, key_id, status)
 values
   ('01460000-0000-0000-0000-000000000002','01460000-0000-0000-0000-0000000000b1',
-   'tenant-b', array['offline_access','Files.Read'], '\x03'::bytea, '\x04'::bytea, 'kek-v1', 'active');
+   'tenant-b', array['offline_access','Files.Read'], '\x03000000000000000000000000000000000000000000000000000000'::bytea, '\x04000000000000000000000000000000000000000000000000000000'::bytea, 'kek-v1', 'active');
 
 select is(
   (select count(*)::int from public.ms_graph_connections where org_id = '01460000-0000-0000-0000-000000000001'),
@@ -57,7 +57,7 @@ alter table public.ms_graph_connections disable trigger m365_connection_write_gu
 select throws_ok(
   $$ insert into public.ms_graph_connections
        (org_id, user_id, entra_tenant_id, refresh_token_ciphertext, key_id)
-     values ('00000000-0000-0000-0000-000000000999','01460000-0000-0000-0000-0000000000a1','t','\x05'::bytea,'k') $$,
+     values ('00000000-0000-0000-0000-000000000999','01460000-0000-0000-0000-0000000000a1','t','\x05000000000000000000000000000000000000000000000000000000'::bytea,'k') $$,
   '23503', null, 'AC-M365-133 FK on org_id rejects a non-existent org (org_id seam)');
 alter table public.ms_graph_connections enable trigger m365_connection_write_guard;
 

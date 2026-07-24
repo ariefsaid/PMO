@@ -5,6 +5,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { handleGraphProxy } from '../../../../../supabase/functions/m365-token-custody/proxy';
 import { scopeCoversPath } from '../../../../../supabase/functions/m365-token-custody/proxy';
+import { fromByteaValue, toByteaParam } from '../../../../../supabase/functions/m365-token-custody/crypto';
 import { mockClient, deps, encryptForTest } from './m365MockDeps';
 import type { ConnectionRow, GraphProxyRequest } from '../../../../../supabase/functions/m365-token-custody/types';
 
@@ -89,8 +90,18 @@ describe('AC-M365-110/111/112/113/114 — handleGraphProxy', () => {
     const update = service.writes.find((w) => w.kind === 'update' && w.table === 'ms_graph_connections');
     expect(update).toBeTruthy();
     expect(update!.payload).toMatchObject({ status: 'active' });
-    expect((update!.payload as Record<string, unknown>).access_token_ciphertext).toBeInstanceOf(Uint8Array);
-    expect((update!.payload as Record<string, unknown>).refresh_token_ciphertext).toBeInstanceOf(Uint8Array);
+    // REGRESSION — HIGH-A1 (2026-07-24): the ROTATED pair must also go through the bytea wire seam.
+    // The original defect was in callback.ts AND refresh.ts; fixing only the first would leave every
+    // token rotation writing an unrecoverable envelope. Postgres hex format, round-tripping exactly.
+    for (const col of ['access_token_ciphertext', 'refresh_token_ciphertext'] as const) {
+      const wire = (update!.payload as Record<string, unknown>)[col];
+      expect(typeof wire).toBe('string');
+      expect(wire as string).toMatch(/^\\x[0-9a-f]+$/);
+      const bytes = fromByteaValue(wire);
+      expect(bytes.byteLength).toBeGreaterThanOrEqual(28);
+      expect(bytes[0]).not.toBe(0x7b);
+      expect(toByteaParam(bytes)).toBe(wire);
+    }
     // Audited as refreshed.
     expect(service.rpc).toHaveBeenCalledWith('audit_m365_event', expect.objectContaining({ p_action: 'm365.token.refreshed' }));
   });
@@ -268,5 +279,33 @@ describe('AC-M365-110/111/112/113/114 — handleGraphProxy', () => {
     const service = mockClient({ ms_graph_connections: [{ data: null, error: { code: 'PGRST116' } }] });
     const r = await handleGraphProxy(graphReq('/me/drive/root'), deps({ service, caller: callerClient(), userId: 'user-1' }));
     expect(r).toMatchObject({ status: 404, body: { error: 'NOT_CONNECTED' } });
+  });
+
+  // REGRESSION — MED-B1 (live security audit, 2026-07-24). `scopeCoversPath` matched the RAW path
+  // while `new URL()` normalizes it, so a `..` segment passed the OneDrive prefix gate and then
+  // resolved somewhere else entirely. Verified before the fix:
+  //   /me/drive/../../beta/me/messages -> https://graph.microsoft.com/v1.0/beta/me/messages
+  //   /drives/../..//evil.example/x    -> https://graph.microsoft.com//evil.example/x
+  // Only the narrow Files.Read consent stopped Graph honouring it. The assertion that matters is
+  // that NO Graph call is made — a rejection that still issued the request would be no fix at all.
+  it.each([
+    ['/me/drive/../../beta/me/messages', 'escapes the /v1.0 prefix into the beta surface'],
+    ['/me/drive/../../../v1.0/users', 'climbs out of the OneDrive family'],
+    ['/drives/../..//evil.example/x', 'double-slash after traversal'],
+    ['/me/drive/root?x=1', 'query smuggled into the path'],
+    ['/me/drive/root#frag', 'fragment smuggled into the path'],
+    ['me/drive/root', 'not absolute'],
+  ])('AC-M365-114 (MED-B1): %s is rejected with NO Graph call (%s)', async (path) => {
+    const conn = await connection({ scopes: ['Files.Read', 'offline_access'] });
+    const service = mockClient({ ms_graph_connections: [{ data: conn, error: null }] });
+    const graphFetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) });
+
+    const result = await handleGraphProxy(
+      { action: 'graph_proxy', method: 'GET', path },
+      deps({ service, caller: callerClient(), userId: 'user-1', fetch: graphFetch }),
+    );
+
+    expect(result).toMatchObject({ status: 400, body: { error: 'BAD_REQUEST' } });
+    expect(graphFetch).not.toHaveBeenCalled();
   });
 });

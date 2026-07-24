@@ -18,7 +18,11 @@ export function useUsage(operatorOrgId?: string | null) {
     queryKey: ['usage', orgId, isOperator, operatorOrgId ?? null],
     queryFn: () =>
       isOperator ? repositories.usage.getOperatorUsageSummary(operatorOrgId) : repositories.usage.getOrgUsageSummary(),
-    enabled: Boolean(orgId),
+    // Operator-only (owner 2026-07-24): assistant cost/usage is a PLATFORM surface — an org-Admin
+    // must not see it at all, not even their own org's rows. Gating the FETCH (not just the
+    // markup) keeps the numbers out of the network tab entirely. NOTE: this is UX only —
+    // `org_usage_summary()` is still callable by any org member (see the backlog follow-up).
+    enabled: Boolean(orgId) && isOperator,
   });
 }
 
@@ -39,6 +43,7 @@ export function useAgentRunStats(operatorOrgId?: string | null) {
       isOperator
         ? repositories.usage.getOperatorAgentRunStats(operatorOrgId)
         : repositories.usage.getOrgAgentRunStats(),
-    enabled: Boolean(orgId),
+    // Operator-only, same reasoning as useUsage above.
+    enabled: Boolean(orgId) && isOperator,
   });
 }

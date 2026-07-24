@@ -12,7 +12,11 @@ import {
 } from '@/src/lib/m365/connectClient';
 
 /**
- * M365ConnectionCard — the org-Admin ACTIVATION surface for the Microsoft 365 integration.
+ * M365ConnectionCard — the OPERATOR activation surface for the Microsoft 365 integration.
+ * ADR-0058 §3 amendment (2026-07-24): unlike ClickUp/ERPNext (client supplies the credential ⇒
+ * org-Admin opts in), the Entra app registration lives in the VENDOR tenant (ADR-0059 Option C),
+ * so connecting it is a platform action. An org-Admin who is not an Operator does not see this
+ * card, and the edge fn rejects them independently — the UI gate is UX only (ADR-0016).
  *
  * Phase-1 wiring (FR-M365-101 / FR-M365-150; ADR-0060). The card drives the live token-custody
  * edge function:
@@ -56,7 +60,7 @@ type Phase =
   | 'disconnecting' // disconnect in flight
   | 'error'; // action error banner (initiate failed, etc.)
 
-export const M365ConnectionCard: React.FC<{ isAdmin: boolean }> = ({ isAdmin }) => {
+export const M365ConnectionCard: React.FC<{ isOperator: boolean }> = ({ isOperator }) => {
   const entitled = useFeature('m365_integration');
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -72,7 +76,7 @@ export const M365ConnectionCard: React.FC<{ isAdmin: boolean }> = ({ isAdmin }) 
   // for this session). Suppresses the status fetch on that mount (next load will fetch).
   const optimisticFromCallback = useRef(false);
   // Ensures the status fetch fires at most once per mount (entitlement may load async, so the effect
-  // depends on [entitled, isAdmin] — this ref prevents a double-fetch if either toggles).
+  // depends on [entitled, isOperator] — this ref prevents a double-fetch if either toggles).
   const statusFetchedRef = useRef(false);
 
   // One-shot: consume the callback return (?m365_connected=true | ?m365_error=<msg>) and clean the
@@ -106,7 +110,7 @@ export const M365ConnectionCard: React.FC<{ isAdmin: boolean }> = ({ isAdmin }) 
   useEffect(() => {
     if (statusFetchedRef.current) return;
     if (optimisticFromCallback.current) return;
-    if (!entitled || !isAdmin) return;
+    if (!entitled || !isOperator) return;
     statusFetchedRef.current = true;
     let cancelled = false;
     void (async () => {
@@ -124,9 +128,19 @@ export const M365ConnectionCard: React.FC<{ isAdmin: boolean }> = ({ isAdmin }) 
     })();
     return () => {
       cancelled = true;
+      // Release the once-only guard on cleanup. `statusFetchedRef` survives a StrictMode
+      // unmount/remount (React reuses the same instance and its refs), so WITHOUT this the
+      // sequence is: mount 1 sets the ref and starts the fetch → cleanup sets cancelled →
+      // mount 2 sees the ref and returns early, never fetching → fetch 1 resolves into
+      // `if (cancelled) return`. Both guards fire, applyStatus never runs, and the card is
+      // pinned on 'loading' forever. Observed live 2026-07-24 against prod Supabase: the edge
+      // fn answered 200 every time while the card showed "Checking…" indefinitely.
+      // Releasing it here costs at most one extra status GET on a genuine remount, and is what
+      // lets the remounted effect fetch the state it needs.
+      statusFetchedRef.current = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [entitled, isAdmin]);
+  }, [entitled, isOperator]);
 
   const applyStatus = useCallback((status: ConnectionStatus) => {
     if (!status.connected) {
@@ -193,7 +207,7 @@ export const M365ConnectionCard: React.FC<{ isAdmin: boolean }> = ({ isAdmin }) 
   }, []);
 
   // Two-switch gate — unchanged (AC-M365-012). Hooks above run unconditionally (rules-of-hooks).
-  if (!entitled || !isAdmin) return null;
+  if (!entitled || !isOperator) return null;
 
   const isConnected = phase === 'connected' || phase === 'disconnecting';
   // Connect is offered whenever the user is NOT confirmed connected (idle / connecting / reconnect
