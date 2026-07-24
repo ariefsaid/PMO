@@ -124,4 +124,28 @@ describe('useIncidentMutations', () => {
     });
     expect(incident.delete).toHaveBeenCalledWith('i1');
   });
+
+  it('AC-IN-006 (UI-freeze hardening): a hung repository call rejects with a timeout instead of hanging forever', async () => {
+    vi.useFakeTimers();
+    try {
+      incident.delete.mockReturnValue(new Promise(() => {})); // never resolves
+      const { result } = renderHook(() => useIncidentMutations(), { wrapper: wrap(freshClient()) });
+
+      let caught: unknown;
+      const pending = act(async () => {
+        try {
+          await result.current.remove.mutateAsync('i1');
+        } catch (err) {
+          caught = err;
+        }
+      });
+
+      await vi.advanceTimersByTimeAsync(15_000);
+      await pending;
+
+      expect(caught).toMatchObject({ name: 'AppError', code: 'REQUEST_TIMEOUT' });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

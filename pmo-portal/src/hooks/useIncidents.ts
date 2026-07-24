@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { repositories } from '@/src/lib/repositories';
 import type { IncidentRow, IncidentStatus, IncidentInput } from '@/src/lib/db/incidents';
 import { useAuth } from '@/src/auth/useAuth';
+import { withTimeout, DEFAULT_MUTATION_TIMEOUT_MS } from '@/src/lib/withTimeout';
 
 /**
  * Org-scoped Incidents list over the repository seam (ADR-0017). queryKey includes
@@ -51,6 +52,11 @@ export interface TransitionIncidentArgs {
  * `['incident', …]` family on success, so every list (and any status-filtered variant)
  * plus an open `/incidents/:id` detail page refetch. Errors propagate as `AppError`
  * (code preserved) for the caller to classify via `classifyMutationError`.
+ *
+ * Reference adoption (UI-freeze hardening, `docs/plans/2026-07-24-mutation-timeout-adoption.md`):
+ * each `mutationFn` is raced against `DEFAULT_MUTATION_TIMEOUT_MS` via `withTimeout` so a stalled
+ * request can never leave a confirm dialog's Cancel/Esc disabled forever — it settles as an
+ * ordinary `classifyMutationError`-recognized "Request timed out" failure instead.
  */
 export function useIncidentMutations() {
   const qc = useQueryClient();
@@ -60,23 +66,26 @@ export function useIncidentMutations() {
   };
 
   const create = useMutation({
-    mutationFn: (input: IncidentInput) => repositories.incident.create(input),
+    mutationFn: (input: IncidentInput) =>
+      withTimeout(repositories.incident.create(input), DEFAULT_MUTATION_TIMEOUT_MS),
     onSuccess: invalidate,
   });
 
   const update = useMutation({
-    mutationFn: ({ id, input }: UpdateIncidentArgs) => repositories.incident.update(id, input),
+    mutationFn: ({ id, input }: UpdateIncidentArgs) =>
+      withTimeout(repositories.incident.update(id, input), DEFAULT_MUTATION_TIMEOUT_MS),
     onSuccess: invalidate,
   });
 
   const transition = useMutation({
     mutationFn: ({ id, status }: TransitionIncidentArgs) =>
-      repositories.incident.transition(id, status),
+      withTimeout(repositories.incident.transition(id, status), DEFAULT_MUTATION_TIMEOUT_MS),
     onSuccess: invalidate,
   });
 
   const remove = useMutation({
-    mutationFn: (id: string) => repositories.incident.delete(id),
+    mutationFn: (id: string) =>
+      withTimeout(repositories.incident.delete(id), DEFAULT_MUTATION_TIMEOUT_MS),
     onSuccess: invalidate,
   });
 
