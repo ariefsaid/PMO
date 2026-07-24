@@ -38,9 +38,9 @@ const SEED_PASSWORD = 'Passw0rd!dev';
 const ORG_ID = '00000000-0000-0000-0000-000000000001';
 
 const READY = Boolean(FUNCTIONS_URL && AUTH_URL && ANON_KEY);
-if (!READY && process.env.CI) {
+if (FUNCTIONS_URL && !READY) {
   throw new Error(
-    'served-fn-smoke: SUPABASE_FUNCTIONS_URL + SUPABASE_URL + VITE_SUPABASE_ANON_KEY are required in CI — this spec cannot silently skip',
+    'served-fn-smoke: SUPABASE_FUNCTIONS_URL + SUPABASE_URL + VITE_SUPABASE_ANON_KEY are required once the served lane is up (SUPABASE_FUNCTIONS_URL set) — never a silent skip',
   );
 }
 // Slice-0 fix-round finding 7: whenever serving is POSSIBLE (READY), the cleanup credential is no
