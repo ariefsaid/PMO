@@ -48,7 +48,8 @@ import { resolveErpCredentials } from '../../../pmo-portal/src/lib/adapterSeam/e
 // server-side ONLY — the client cannot derive either (it cannot read the client's Fiscal Year doctype).
 import { encodeFiscalYear } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/fiscalYearEncoding.ts';
 import { budgetPushKey } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/budgetPushKey.ts';
-import { withProbeBudget } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/client.ts';
+import { withProbeBudget, ERP_PROBE_TIMEOUT_MS } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/client.ts';
+import { fetchWithDeadline } from '../_shared/fetchWithDeadline.ts';
 import { resolveClickUpCredentialsFromVault } from '../../../pmo-portal/src/lib/adapterSeam/clickup/vaultCredentials.ts';
 import { resolvePerOrgSecret } from '../_shared/perOrgSecret.ts';
 import { externalConnectEnabled } from '../_shared/externalConnectEnabled.ts';
@@ -532,9 +533,22 @@ async function readErpFiscalYears(serviceClient: SupabaseClient, orgId: string):
   const url = new URL('/api/resource/Fiscal Year', binding.site_url);
   url.searchParams.set('fields', JSON.stringify(['name', 'year_start_date', 'year_end_date']));
   url.searchParams.set('limit_page_length', '0'); // all of them — a client may declare many years
-  const res = await fetch(url.toString(), {
-    headers: { Authorization: `token ${apiKey}:${apiSecret}`, Accept: 'application/json' },
-  });
+  // ⚑ Server-side hang guard (money path): this raw read bypasses the bounded `erpnextRequest` client,
+  // so a slow/down ERPNext would otherwise block the edge worker on this fetch forever. Bound it at the
+  // same probe budget the recovery reads use; a deadline (or any network failure) fails CLOSED as
+  // `external-unreachable`, exactly like a non-2xx — the budget gate then refuses rather than filing
+  // against a guessed calendar, and the sweep backstop re-drives it.
+  let res: Response;
+  try {
+    res = await fetchWithDeadline(
+      fetch,
+      url.toString(),
+      { headers: { Authorization: `token ${apiKey}:${apiSecret}`, Accept: 'application/json' } },
+      ERP_PROBE_TIMEOUT_MS,
+    );
+  } catch (_err) {
+    throw new AppError('could not read the ERPNext fiscal calendar (unreachable)', 'external-unreachable');
+  }
   if (!res.ok) {
     throw new AppError(`could not read the ERPNext fiscal calendar (HTTP ${res.status})`, 'external-unreachable');
   }
