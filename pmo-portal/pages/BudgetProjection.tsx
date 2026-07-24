@@ -385,7 +385,14 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
     );
   }
 
-  if (yearsQuery.isPending || isPending) {
+  // ⚑ FINDING 3 (FU-2 round 4) — THE PHASING READ IS IN THE GATE, because every reason string on this
+  // grid is a claim and the phasing fact is one of its inputs. Outside the gate there was a real render
+  // window in which the grid painted without it, and an all-phased-elsewhere category was told "some of
+  // this category's budget lines are not phased to a fiscal year" — false of it — before flipping to
+  // "budgeted in 2027". A failed phasing read is deliberately NOT gated on: it is not pending, so the
+  // ladder's fail-OPEN path takes over (say the weaker true thing), rather than wedging the whole money
+  // grid behind an explanatory read.
+  if (yearsQuery.isPending || isPending || categoryPhasingQuery.isPending) {
     return (
       <div className="rounded-lg border border-border bg-card">
         <ListState variant="loading" rows={5} testId="budget-projection-loading" />

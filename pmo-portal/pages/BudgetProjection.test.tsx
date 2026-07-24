@@ -5,7 +5,7 @@
  * mocked `useEffectiveRole`.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { MemoryRouter } from 'react-router-dom';
@@ -1056,6 +1056,38 @@ describe('BudgetProjection — a NULL budget says WHICH kind of absence it is', 
       expect(within(row).getAllByTitle(/not phased to a fiscal year/i).length).toBeGreaterThanOrEqual(1),
     );
     expect(within(row).queryAllByTitle(/timing difference, not an overspend/i)).toHaveLength(0);
+  });
+
+  /**
+   * ⚑ FU-2 round 4, FINDING 3 — NO SENTENCE BEFORE ITS INPUTS. `categoryPhasingQuery` sat OUTSIDE the
+   * page's loading gate, so there was a real render window in which the grid was painted and the phasing
+   * fact had not arrived. In it, an all-phased-elsewhere category (`attributionKnown = false`, `elsewhere`
+   * not yet known) fell to "some of this category's budget lines are not phased to a fiscal year" — a
+   * statement that is affirmatively FALSE of it — and then flipped to "budgeted in 2027" when the read
+   * landed. Money is NULL either way; this is sentence honesty, and the rule is the same one: do not
+   * make a claim before you hold its inputs.
+   */
+  it('makes NO claim while the phasing fact is still in flight — never a transient false "not phased"', async () => {
+    fetchMock.mockResolvedValue([{ ...NO_BUDGET_ROW, attributionKnown: false }]);
+    pushStatusMock.mockResolvedValue([pushStatus({ pushState: 'pushed', fiscalYear: '2026' })]);
+    let deliverPhasing!: (v: ReturnType<typeof phasing>) => void;
+    categoryYearsMock.mockReturnValue(new Promise<ReturnType<typeof phasing>>((res) => { deliverPhasing = res; }));
+
+    renderPage();
+    // Every OTHER read has landed and React has flushed (a macrotask boundary past react-query's
+    // microtask notify) — so what follows is an assertion about a SETTLED page, not a race.
+    await waitFor(() => expect(pushStatusMock).toHaveBeenCalled());
+    await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+    expect(screen.getByTestId('budget-projection-loading')).toBeInTheDocument();
+    expect(screen.queryByText('Labor')).not.toBeInTheDocument();
+    expect(screen.queryAllByTitle(/not phased to a fiscal year/i)).toHaveLength(0);
+
+    // …and once the fact arrives, the TRUE sentence is stated.
+    await act(async () => { deliverPhasing(phasing({ Labor: ['2027'] })); });
+    const row = (await screen.findByText('Labor')).closest('tr')!;
+    await waitFor(() =>
+      expect(within(row).getAllByTitle(/budgeted in 2027/i).length).toBeGreaterThanOrEqual(1),
+    );
   });
 
   /**
