@@ -15,7 +15,7 @@
 -- B3) and inside both backstop queues (`outbox_reconcile_candidates`), so the ordinary bounded recovery
 -- resumes and re-runs every gate from scratch. The RPC itself never touches ERP.
 begin;
-select plan(19);
+select plan(20);
 
 -- ── Fixtures ─────────────────────────────────────────────────────────────────────────────────────
 insert into organizations (id, name) values
@@ -169,6 +169,19 @@ select is((select state from external_command_outbox where id = '01560000-0000-0
   'held',
   'AC-OBX-060 [FU-2 MEDIUM 6]: the domain-mismatched attempt left the budget row held — releasing the matching domain is a separate, allowed call');
 reset role;
+
+-- ── I) FU-2 round 2 (SHOULD-FIX): ONE definition, not two ─────────────────────────────────────────
+-- The expected-domain guard used to be added by EDITING shipped `0137`, which a migrated database never
+-- re-runs (`PGRST202` on the Release button). It now lives in NEW migration `0156` — and that migration
+-- must DROP the 2-arg definition first: `create or replace` matches on the argument list, so leaving
+-- `(uuid, text)` beside `(uuid, text, text default null)` makes every 2-arg call in the codebase (the
+-- timesheet lane, and the calls above) ambiguous with `42725`. The catalogue is the oracle.
+select is(
+  (select count(*)::int from pg_proc p
+     join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname = 'release_outbox_hold'),
+  1,
+  'AC-OBX-060 [FU-2 round 2]: exactly ONE release_outbox_hold exists — a co-existing 2-arg overload makes every 2-arg call ambiguous (42725)');
 
 select * from finish();
 rollback;
