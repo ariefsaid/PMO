@@ -23,8 +23,11 @@ insert into auth.users (id, email) values
   ('0bfe0000-0000-0000-0000-0000000000a1','bfy-ps-finance@example.com');
 insert into profiles (id, org_id, full_name, email, role, status) values
   ('0bfe0000-0000-0000-0000-0000000000a1','0bfe0000-0000-0000-0000-000000000001','A Finance','bfy-ps-finance@example.com','Finance','active');
-insert into external_domain_ownership (org_id, domain, external_tier) values
-  ('0bfe0000-0000-0000-0000-000000000001','budget','erpnext');
+-- AC-BUD-003 / FR-BUD-006(a) / FR-BUD-010 (mig 0160): budget employment is an ACTIVE erpnext BINDING,
+-- NEVER an external_domain_ownership('budget') flip (the spec forbids that row). get_budget_push_status
+-- now gates the never-pushed inference on org_has_active_erpnext_binding, so the fixture seeds the binding.
+insert into external_org_bindings (org_id, external_tier, site_url, secret_ref, activated_at) values
+  ('0bfe0000-0000-0000-0000-000000000001','erpnext','https://erp.example.com','secret-ref',now());
 
 insert into projects (id, org_id, name, status, start_date, end_date) values
   ('0bfe1111-0000-0000-0000-000000000001','0bfe0000-0000-0000-0000-000000000001','BFY Partial Fan-out','Ongoing Project',date '2025-08-01',date '2027-03-31');

@@ -116,6 +116,10 @@ export function servedRoutes(seed: ServedSeed): ServedRoutesResult {
         ? jsonResponse([{ id: USER_ID }])
         : objectResponse({ org_id: ORG_ID })),
     supabaseRpc('domain_owned_by_tier', () => jsonResponse(true)),
+    // AC-BUD-003 (mig 0160): budget authorizes on the ACTIVE erpnext binding, not the ownership flip —
+    // authGuard now calls org_has_active_erpnext_binding for BINDING_GATED_DOMAINS. This org is employing
+    // (external_org_bindings mocked active below), so the predicate is true.
+    supabaseRpc('org_has_active_erpnext_binding', () => jsonResponse(true)),
     supabaseRpc('actor_authorization_state', () => jsonResponse({ role: 'Admin', active: true })),
     supabaseSelect('external_org_bindings', () =>
       objectResponse({

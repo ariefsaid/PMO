@@ -1,4 +1,4 @@
-// @e2e-isolation: serial — flips the shared org's external_domain_ownership + org bindings (org-global state).
+// @e2e-isolation: serial — activates the shared org's erpnext binding (org-global state); no domain-ownership flip.
 /**
  * AC-BUD-032 — ⚑ THE BUDGET UPSERT'S FAILURE WINDOW IS RECOVERABLE, AND ITS VICTIM IS TOLD (HIGH-1,
  * money-safety audit round 5; FR-BUD-121, FR-BUD-141, ADR-0058 §4).

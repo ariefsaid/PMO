@@ -129,8 +129,12 @@ set local role postgres;
 -- staged above (it is re-inserted a few assertions below, which restores FY '2026' as on-record).
 delete from budget_version_erp_mirror where budget_version_id = '0b3e2222-0000-0000-0000-000000000001';
 update budget_versions set activated_at = now() where id = '0b3e2222-0000-0000-0000-000000000001';
-insert into external_domain_ownership (org_id, domain, external_tier)
-  values ('0b3e0000-0000-0000-0000-000000000001','budget','erpnext');
+-- ⚑ FR-BUD-010 / AC-BUD-003 (mig 0160): employment is the ACTIVE ERPNext BINDING, NEVER a
+-- `domain_externally_owned('budget')` flip (that row is forbidden — budget is Posture B, PMO SoT). The
+-- `get_budget_push_status` never-pushed inference gates on this exists() — byte-for-byte `orgEmploysErpnext`.
+insert into external_org_bindings (org_id, external_tier, site_url, secret_ref, activated_at)
+  values ('0b3e0000-0000-0000-0000-000000000001','erpnext','https://erp.a.test','erpnext-secret-a', now())
+  on conflict (org_id, external_tier) do update set activated_at = now();
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"0b3e0000-0000-0000-0000-0000000000a2","role":"authenticated"}';
 
@@ -212,10 +216,11 @@ select is(
   'failed',
   'C-5 a failed push stays visible while the user browses a fiscal year it does not cover');
 
--- An org that never handed `budget` to ERPNext has nothing to push, so it is never "never-pushed".
+-- An org with NO active ERPNext binding has nothing to push, so it is never "never-pushed".
 set local role postgres;
 delete from budget_version_erp_mirror where budget_version_id = '0b3e2222-0000-0000-0000-000000000001';
-delete from external_domain_ownership where org_id = '0b3e0000-0000-0000-0000-000000000001' and domain = 'budget';
+update external_org_bindings set activated_at = null
+  where org_id = '0b3e0000-0000-0000-0000-000000000001' and external_tier = 'erpnext';
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"0b3e0000-0000-0000-0000-0000000000a2","role":"authenticated"}';
 select is(
@@ -333,8 +338,9 @@ select is((select count(*)::int from public.list_budget_fiscal_years('0b3e1111-0
 set local role postgres;
 delete from budget_version_erp_mirror where budget_version_id = '0b3e2222-0000-0000-0000-000000000002';
 update budget_versions set activated_at = null where id = '0b3e2222-0000-0000-0000-000000000002';
-insert into external_domain_ownership (org_id, domain, external_tier)
-  values ('0b3e0000-0000-0000-0000-000000000001','budget','erpnext');
+-- Re-activate org A's ERPNext binding (deactivated above) — the employ signal is the binding (mig 0160).
+update external_org_bindings set activated_at = now()
+  where org_id = '0b3e0000-0000-0000-0000-000000000001' and external_tier = 'erpnext';
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"0b3e0000-0000-0000-0000-0000000000a2","role":"authenticated"}';
 

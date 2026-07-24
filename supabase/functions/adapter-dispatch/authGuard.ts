@@ -63,6 +63,19 @@ export function moneyWriteRolesForDomain(domain: string): readonly string[] {
  */
 const ROLE_RULE_DELEGATED_TO_DB_GATE = new Set(['timesheets']);
 
+/**
+ * ⚑ AC-BUD-003 / FR-BUD-006(a) / FR-BUD-010 — the Posture-B domains, whose employ signal for gate (a) is
+ * an ACTIVE ERPNext BINDING, NOT a `domain_externally_owned` flip.
+ *
+ * `budget` is Posture B (ADR-0059): PMO stays SoT and NO `domain_externally_owned('budget')` row is ever
+ * created (the spec forbids it, twice-stated). Employment is asserted by the binding + the push route.
+ * So gate (a) resolves `org_has_active_erpnext_binding` (byte-for-byte `orgEmploysErpnext`'s predicate:
+ * `external_org_bindings` active on the erpnext tier) for these domains, never `domain_owned_by_tier` —
+ * which reads exactly that forbidden row. Every OTHER (Posture-A) domain keeps the tier-scoped ownership
+ * check unchanged. Gate (b)/(c) are identical for all domains.
+ */
+const BINDING_GATED_DOMAINS = new Set(['budget']);
+
 /** Structural client for the two authorization RPCs (`domain_owned_by_tier`,
  *  `actor_authorization_state` — mig 0117). Satisfied by the deputy (caller-JWT) client on the
  *  synchronous path and by the service client on the sweep's recovery path. */
@@ -87,18 +100,29 @@ export async function checkErpnextCommandAuthorization(
   userId: string,
   command: { domain: string; operation: string; record: { erp_doc_kind?: unknown; id: string } },
 ): Promise<AuthorizationResult> {
-  // (a) Domain ownership: the org must have this domain assigned to the ERPNEXT tier SPECIFICALLY.
-  // Round-7 B9: `domain_externally_owned(org, domain)` (0087) ignores `external_tier`, so an org that
-  // had moved `revenue` to another external system while keeping an ERPNext binding still passed here
-  // — this surface would accept + post money for a domain ERPNext no longer owns. The sweep already
-  // scopes its ownership read by tier; this is the one place the tier was dropped.
-  const domainOwned = await client.rpc('domain_owned_by_tier', {
-    p_org_id: orgId,
-    p_domain: command.domain,
-    p_tier: ERPNEXT_TIER,
-  });
-  if (domainOwned.error || domainOwned.data !== true) {
-    return { ok: false, status: 403, message: `org ${orgId} does not own domain "${command.domain}" on the "${ERPNEXT_TIER}" tier` };
+  // (a) Employment on the ERPNEXT tier — the org must actually employ this domain externally.
+  //
+  // ⚑ AC-BUD-003 / FR-BUD-010: a Posture-B domain (`budget`) asserts employment via the ACTIVE BINDING,
+  // NOT a `domain_externally_owned` row (which the spec forbids it from ever creating). Every Posture-A
+  // domain keeps the tier-scoped OWNERSHIP check. See `BINDING_GATED_DOMAINS`.
+  if (BINDING_GATED_DOMAINS.has(command.domain)) {
+    const employed = await client.rpc('org_has_active_erpnext_binding', { p_org_id: orgId });
+    if (employed.error || employed.data !== true) {
+      return { ok: false, status: 403, message: `org ${orgId} has no active "${ERPNEXT_TIER}" binding to employ domain "${command.domain}"` };
+    }
+  } else {
+    // Round-7 B9: `domain_externally_owned(org, domain)` (0087) ignores `external_tier`, so an org that
+    // had moved `revenue` to another external system while keeping an ERPNext binding still passed here
+    // — this surface would accept + post money for a domain ERPNext no longer owns. The sweep already
+    // scopes its ownership read by tier; this is the one place the tier was dropped.
+    const domainOwned = await client.rpc('domain_owned_by_tier', {
+      p_org_id: orgId,
+      p_domain: command.domain,
+      p_tier: ERPNEXT_TIER,
+    });
+    if (domainOwned.error || domainOwned.data !== true) {
+      return { ok: false, status: 403, message: `org ${orgId} does not own domain "${command.domain}" on the "${ERPNEXT_TIER}" tier` };
+    }
   }
 
   // (b) Actor authorization: the actor must be an ACTIVE member of this org, and their CURRENT role

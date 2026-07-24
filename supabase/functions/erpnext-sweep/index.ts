@@ -397,14 +397,6 @@ export async function reconcileOrgOutbox(
   let reconciled = 0;
   const errors: Array<{ id: string; error: string }> = [];
   for (const candidate of candidates) {
-    // The gate runs BEFORE buildDeps so a revoked domain never even resolves ERP credentials/adapter.
-    // `candidate.domain` is the outbox row's own PMO domain, which the dispatch's authGuard already
-    // proved equal to `KIND_DOMAIN[payload.erp_doc_kind]` at insert time — one value, checked here
-    // without a second read of the payload.
-    if (!owned.has(candidate.domain)) {
-      errors.push({ id: candidate.id, error: `domain-not-owned: '${candidate.domain}' is no longer assigned to this tier — held for an operator, NOT reconciled` });
-      continue;
-    }
     // ⚑ NEW-2/NEW-5 (audit r4): the `budget` domain is owned by pass 5 (`reconcileOrgBudgetPushes`)
     // ALONE. Two originators must never both drive one budget row:
     //   • CORRECTNESS — pass 5 re-asserts the version is STILL `Active` with its stamp, from DB truth
@@ -417,7 +409,23 @@ export async function reconcileOrgOutbox(
     //     at 2× per tick, so a genuinely recoverable push is abandoned in half the intended attempts.
     // Skipping is safe precisely BECAUSE pass 5 owns it: the row is not dropped, it is reconciled by the
     // one pass that re-reads the version first.
+    //
+    // ⚑ AC-BUD-003 / FR-BUD-006(a) / FR-BUD-010 — this skip is BEFORE the ownership gate below because
+    // budget is Posture B: it NEVER has a `domain_externally_owned('budget')` row (`owned` never contains
+    // it), and its employment is the ACTIVE binding, asserted where the org is enumerated
+    // (`employingOrgs` filters on `external_org_bindings.activated_at`) and re-asserted by pass 5's own
+    // re-drive through the dispatch's binding-gated authGuard. Running the ownership gate on it would
+    // report a false `domain-not-owned` "held for an operator" alarm on a budget row that is, in fact,
+    // being recovered normally.
     if (candidate.domain === ERPNEXT_BUDGET_DOMAIN) continue;
+    // The gate runs BEFORE buildDeps so a revoked domain never even resolves ERP credentials/adapter.
+    // `candidate.domain` is the outbox row's own PMO domain, which the dispatch's authGuard already
+    // proved equal to `KIND_DOMAIN[payload.erp_doc_kind]` at insert time — one value, checked here
+    // without a second read of the payload.
+    if (!owned.has(candidate.domain)) {
+      errors.push({ id: candidate.id, error: `domain-not-owned: '${candidate.domain}' is no longer assigned to this tier — held for an operator, NOT reconciled` });
+      continue;
+    }
     // ⚑ P3b task 6.4 — the `timesheets` domain is likewise owned by pass 6
     // (`reconcileOrgTimesheetPushes`) ALONE. Two arguments, of different strengths — worth separating,
     // because only one of them is unconditional:
@@ -1272,10 +1280,15 @@ export function budgetBackstopDepsLive(
   };
 }
 
-/** The live per-org budget backstop pass (P3c slice 5, AC-BUD-023). Domain-gated (Luna BLOCK 9): an
- *  org that never assigned the `budget` domain to this tier has nothing to reconcile. */
+/** The live per-org budget backstop pass (P3c slice 5, AC-BUD-023). Gated on the ACTIVE ERPNext BINDING,
+ *  not a `domain_externally_owned('budget')` row: budget is Posture B (FR-BUD-006(a)/FR-BUD-010 — it NEVER
+ *  gets an ownership row; employment IS the binding). ⚑ FIX 2026-07-24: this gate previously read
+ *  `ownedDomains.includes('budget')`, which is now ALWAYS false once the forbidden ownership row is gone —
+ *  so the backstop stopped running and a stale `committing` budget row was never quarantined (AC-BUD-032
+ *  regression). Gate on `activatedAt` (the same signal `orgEmploysErpnext` uses); the empty-candidate
+ *  filter below still makes this a no-op for an org with no budget outbox rows. */
 async function reconcileOrgBudgetPushesLive(serviceClient: SupabaseClient, org: OrgBinding): Promise<{ driven: number; error?: string }> {
-  if (!org.ownedDomains.includes(ERPNEXT_BUDGET_DOMAIN)) return { driven: 0 };
+  if (!org.activatedAt) return { driven: 0 };
   try {
     // The SoT eligibility set (0131), fetched ONCE per pass — the backstop may only re-drive a row this
     // RPC still admits. Scoped to the budget domain; any other domain's candidates are irrelevant here.

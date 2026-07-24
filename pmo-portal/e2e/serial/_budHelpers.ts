@@ -1,5 +1,5 @@
 // @e2e-isolation: serial — shared helpers for the P3c budget served-fn e2e lane.
-// Flips the shared org's external_domain_ownership + org bindings (org-global state).
+// Activates the shared org's erpnext binding (org-global state) — the spec-faithful employ signal.
 /**
  * Shared seed + cleanup for AC-BUD-030/031 (P3c, ADR-0055 §6 + ADR-0059 Posture B).
  *
@@ -7,8 +7,9 @@
  *  - A FRESH ERPNext `Project` + a PMO `projects` row whose start/end dates sit inside ONE ERPNext
  *    `Fiscal Year` (the gate resolves the year from the client's own Fiscal Year doctype and fails
  *    closed on a multi-FY span — FR-BUD-124).
- *  - A pre-activated `external_org_bindings` row carrying `company` + `project_map`.
- *  - The `external_domain_ownership` flip (`domain:'budget'`).
+ *  - A pre-activated `external_org_bindings` row carrying `company` + `project_map`. ⚑ This ACTIVE
+ *    binding is the spec-faithful employ signal (FR-BUD-010); NO `external_domain_ownership('budget')`
+ *    row is ever created (FR-BUD-006(a) — budget is Posture B, PMO stays SoT).
  *  - The Admin-administered `budget_category_account_map` bijection (FR-BUD-111) — PMO's
  *    `budget_category` → the client's own ERP account. Without it the push fails closed.
  *  - A Draft `budget_versions` row + its `budget_line_items`.
@@ -123,20 +124,18 @@ export interface BudSeed {
   /**
    * ⚑ MEDIUM-2 (money-safety audit round 7) — THE ORG-GLOBAL STATE THIS RUN TOUCHED, AS IT WAS FOUND.
    *
-   * `external_org_bindings`, `external_domain_ownership` and `budget_category_account_map` are keyed on
-   * the ORG, not on this run's project, so every budget spec mutates state it shares with the whole
-   * suite AND with `supabase/seed.sql`. Cleanup used to DELETE those rows unconditionally, which meant a
-   * budget spec silently stripped the seeded org's ERPNext tier for every spec that ran after it — and
-   * the symptom is a later spec quietly taking a different branch, not a failure pointing here. (Same
-   * family as the shared-auth-mutation trap that only surfaced at a promote.)
+   * `external_org_bindings` and `budget_category_account_map` are keyed on the ORG, not on this run's
+   * project, so every budget spec mutates state it shares with the whole suite AND with
+   * `supabase/seed.sql`. Cleanup used to DELETE those rows unconditionally, which meant a budget spec
+   * silently stripped the seeded org's ERPNext tier for every spec that ran after it — and the symptom
+   * is a later spec quietly taking a different branch, not a failure pointing here. (Same family as the
+   * shared-auth-mutation trap that only surfaced at a promote.)
    *
    * So the run snapshots what it found and PUTS IT BACK. Only rows this run itself created are deleted.
    */
   prior: {
     /** The org's whole erpnext binding row before this run, or `null` if there was none. */
     binding: Record<string, unknown> | null;
-    /** Did `(org, erpnext, budget)` domain ownership already exist? */
-    ownsBudgetDomain: boolean;
     /** The category→account rows this run overwrites, exactly as they were. */
     categoryMap: Array<{ org_id: string; category: string; erp_account: string }>;
   };
@@ -243,15 +242,10 @@ export async function seedBud(
   );
   if (bindingErr) throw new Error(`seed external_org_bindings failed: ${bindingErr.message}`);
 
-  // Snapshot BEFORE the flip — cleanup restores exactly this.
-  const { data: priorOwnRow } = await admin
-    .from('external_domain_ownership').select('id')
-    .eq('org_id', ORG_ID).eq('external_tier', 'erpnext').eq('domain', 'budget').maybeSingle();
-  const ownsBudgetDomain = Boolean(priorOwnRow);
-  const { error: flipErr } = await admin
-    .from('external_domain_ownership')
-    .upsert({ org_id: ORG_ID, external_tier: 'erpnext', domain: 'budget' }, { onConflict: 'org_id,external_tier,domain' });
-  if (flipErr) throw new Error(`seed external_domain_ownership failed: ${flipErr.message}`);
+  // ⚑ FR-BUD-006(a)/FR-BUD-010 (AC-BUD-003): employment is the ACTIVE binding above — NEVER a
+  // `domain_externally_owned('budget')` flip. Budget is Posture B (PMO stays SoT) and that row is
+  // forbidden from ever being created, so this lane no longer seeds one; the FE panel gate and the
+  // `get_budget_push_status` gate both read the binding (mig 0160), so the feature still renders.
 
   // THE CRUX (FR-BUD-110..113): the Admin-administered category→account bijection.
   const { data: priorMapRows } = await admin
@@ -273,7 +267,6 @@ export async function seedBud(
     versionIds: [],
     prior: {
       binding: priorBinding,
-      ownsBudgetDomain,
       categoryMap: (priorMapRows as Array<{ org_id: string; category: string; erp_account: string }> | null) ?? [],
     },
   };
@@ -390,11 +383,11 @@ export async function cleanupBud(admin: SupabaseClient, seed: BudSeed): Promise<
   await admin.from('projects').delete().eq('id', seed.projectId);
 
   // ── ⚑ MEDIUM-2: ORG-GLOBAL STATE IS RESTORED, NEVER DELETED ─────────────────────────────────────
-  // These three tables are keyed on the ORG, so they are shared with every other spec AND with
+  // These tables are keyed on the ORG, so they are shared with every other spec AND with
   // `supabase/seed.sql`. Deleting them (the previous behaviour) meant one budget spec stripped the
-  // seeded org's ERPNext tier for the rest of the run — after which any surface gated on domain
-  // ownership silently renders its not-employed branch, and the failure surfaces somewhere else
-  // entirely, as flake. Put back exactly what was found; delete only what this run introduced.
+  // seeded org's ERPNext binding for the rest of the run — after which any surface gated on the active
+  // binding silently renders its not-employed branch, and the failure surfaces somewhere else entirely,
+  // as flake. Put back exactly what was found; delete only what this run introduced.
   const priorMap = seed.prior?.categoryMap ?? [];
   const priorCategories = priorMap.map((r) => r.category);
   // Rows this run ADDED (a category with no prior row) go; rows it OVERWROTE are restored verbatim.
@@ -404,10 +397,6 @@ export async function cleanupBud(admin: SupabaseClient, seed: BudSeed): Promise<
   }
   if (priorMap.length > 0) {
     await admin.from('budget_category_account_map').upsert(priorMap, { onConflict: 'org_id,category' });
-  }
-
-  if (!seed.prior?.ownsBudgetDomain) {
-    await admin.from('external_domain_ownership').delete().eq('org_id', ORG_ID).eq('external_tier', 'erpnext').eq('domain', 'budget');
   }
 
   if (seed.prior?.binding) {

@@ -152,6 +152,9 @@ function fakeDb(world: WorldNow) {
     },
     rpc: (fn: string) => {
       if (fn === 'domain_owned_by_tier') return Promise.resolve({ data: true, error: null });
+      // AC-BUD-003 (mig 0160): budget authorizes on the ACTIVE erpnext binding — authGuard calls this RPC
+      // for budget instead of domain_owned_by_tier. This fixture is an employing org (binding mocked above).
+      if (fn === 'org_has_active_erpnext_binding') return Promise.resolve({ data: true, error: null });
       if (fn === 'actor_authorization_state') return Promise.resolve({ data: { role: 'Admin', active: true }, error: null });
       return Promise.resolve({ data: null, error: null });
     },

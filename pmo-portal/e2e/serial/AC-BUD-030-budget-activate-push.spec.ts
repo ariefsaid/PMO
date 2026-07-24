@@ -1,4 +1,4 @@
-// @e2e-isolation: serial — flips the shared org's external_domain_ownership + org bindings (org-global state).
+// @e2e-isolation: serial — activates the shared org's erpnext binding (org-global state); no domain-ownership flip.
 /**
  * AC-BUD-030 — activation pushes the mapped budget WITH ITS OVERSPEND CONTROLS (FR-BUD-120,
  * FR-BUD-114, FR-BUD-130/131, ADR-0055 §6).
