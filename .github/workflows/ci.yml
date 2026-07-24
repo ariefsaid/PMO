@@ -360,3 +360,17 @@ jobs:
           name: playwright-report
           path: pmo-portal/playwright-report/
           retention-days: 7
+
+      # playwright.config.ts redirects `outputDir` to `os.tmpdir()/pmo-portal-test-results` (see
+      # its comment) so local `supabase functions serve`'s file watcher doesn't restart on writes
+      # into the worktree — on this ubuntu-latest runner that resolves to /tmp/pmo-portal-test-results.
+      # This is the per-test dir holding trace.zip + error-context.md for each FAILED spec; the html
+      # report above only links to these, it doesn't always inline them. Upload both so
+      # `npx playwright show-trace` can reconstruct the exact failing DOM/network first-time.
+      - name: Upload Playwright test-results (traces)
+        if: failure()
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        with:
+          name: playwright-test-results
+          path: /tmp/pmo-portal-test-results/
+          retention-days: 7
