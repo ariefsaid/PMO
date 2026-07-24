@@ -42,6 +42,21 @@ const authReasonCode = (message: string): 'invalid_credentials' | 'auth_error' =
 const isEmailNotConfirmed = (message: string) => /email not confirmed/i.test(message);
 const isRateLimited = (message: string) => /for security purposes|rate limit|once every/i.test(message);
 
+/**
+ * The Microsoft logo mark — the four brand-colour squares. Inline so it ships with the bundle
+ * (no network fetch, CSP-safe) and scales with the button text. The colours are Microsoft's fixed
+ * brand palette, not app tokens: a recoloured Microsoft logo is an off-brand logo. Decorative — the
+ * button text is the accessible name, so the SVG is aria-hidden.
+ */
+const MicrosoftLogo: React.FC<{ className?: string }> = ({ className }) => (
+  <svg viewBox="0 0 21 21" className={className} aria-hidden="true" focusable="false">
+    <rect x="1" y="1" width="9" height="9" fill="#F25022" />
+    <rect x="11" y="1" width="9" height="9" fill="#7FBA00" />
+    <rect x="1" y="11" width="9" height="9" fill="#00A4EF" />
+    <rect x="11" y="11" width="9" height="9" fill="#FFB900" />
+  </svg>
+);
+
 const LoginPage: React.FC = () => {
   // Show the demo-login panel in local dev OR a demo build (VITE_DEMO_MODE=true); never real prod.
   const showDemoLogin =
@@ -134,14 +149,26 @@ const LoginPage: React.FC = () => {
     // Tinted ground (secondary/35%) — DESIGN.md neutral: "main scroll area uses secondary at 35%"
     <div className="flex min-h-[100dvh] items-center justify-center bg-secondary/35 px-4 py-8">
       <div className="w-full max-w-sm">
-        {/* App wordmark — overline scale */}
-        <div className="mb-5 text-center">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-            PMO Portal
-          </p>
-          <h1 className="mt-1 text-[22px] font-bold leading-[1.2] tracking-[-0.02em] text-foreground">
+        {/* Brand lockup — mark + wordmark, then heading + subtext. A subtitle reads more
+            considered than a bare heading and sets expectation before the form. */}
+        <div className="mb-6 text-center">
+          <div className="mb-4 inline-flex items-center gap-2">
+            <span
+              aria-hidden="true"
+              className="flex size-8 items-center justify-center rounded-md bg-primary text-[15px] font-bold text-primary-foreground"
+            >
+              P
+            </span>
+            <span className="text-[15px] font-semibold tracking-[-0.01em] text-foreground">
+              PMO Portal
+            </span>
+          </div>
+          <h1 className="text-[24px] font-bold leading-[1.15] tracking-[-0.02em] text-foreground">
             Sign in to your account
           </h1>
+          <p className="mt-1.5 text-[13px] text-muted-foreground">
+            Welcome back. Use your work account or email to continue.
+          </p>
         </div>
 
         {/* Card: border + white surface, no rest shadow (Flat-By-Default Rule) */}
@@ -178,6 +205,30 @@ const LoginPage: React.FC = () => {
               </div>
             ) : (
               <>
+            {/* SSO FIRST — the target audience already lives in Microsoft 365, so the work-account
+                path leads (the enterprise convention: Slack/Notion/Linear all place SSO above the
+                email form). The brand mark makes it read instantly as a real SSO button, not a
+                link. Needs no email typed. */}
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onMicrosoft}
+              disabled={busy}
+              className="w-full justify-center gap-2.5"
+            >
+              <MicrosoftLogo className="size-[18px] shrink-0" />
+              Continue with Microsoft
+            </Button>
+
+            {/* Divider — names the alternative rather than a bare "or" */}
+            <div className="flex items-center gap-3">
+              <span className="h-px flex-1 bg-border" aria-hidden="true" />
+              <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+                or continue with email
+              </span>
+              <span className="h-px flex-1 bg-border" aria-hidden="true" />
+            </div>
+
             <form onSubmit={onSignIn} className="space-y-4" noValidate>
               <AuthInput
                 id="email"
@@ -190,23 +241,24 @@ const LoginPage: React.FC = () => {
                 disabled={busy}
               />
 
-              <AuthInput
-                id="password"
-                label="Password"
-                type="password"
-                autoComplete="current-password"
-                value={password}
-                onChange={setPassword}
-                disabled={busy}
-              />
-
-              <div className="flex justify-end">
-                <Link
-                  to="/reset-password"
-                  className="text-[12px] font-semibold text-primary-text hover:underline"
-                >
-                  Forgot password?
-                </Link>
+              <div className="space-y-1.5">
+                <AuthInput
+                  id="password"
+                  label="Password"
+                  type="password"
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={setPassword}
+                  disabled={busy}
+                />
+                <div className="flex justify-end">
+                  <Link
+                    to="/reset-password"
+                    className="text-[12px] font-semibold text-primary-text hover:underline"
+                  >
+                    Forgot password?
+                  </Link>
+                </div>
               </div>
 
               {/* PRIMARY action — bg-primary, full-width */}
@@ -221,36 +273,19 @@ const LoginPage: React.FC = () => {
               </Button>
             </form>
 
-            {/* Divider */}
-            <div className="flex items-center gap-2">
-              <span className="h-px flex-1 bg-border" aria-hidden="true" />
-              <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-                or
-              </span>
-              <span className="h-px flex-1 bg-border" aria-hidden="true" />
-            </div>
-
-            {/* SECONDARY action — outline, not primary */}
-            <Button
-              type="button"
-              variant="outline"
-              onClick={onMagicLink}
-              disabled={busy || !email}
-              className="w-full"
-            >
-              Send magic link
-            </Button>
-
-            {/* SECONDARY action — Microsoft Entra ID (work/school) SSO; needs no email typed */}
-            <Button
-              type="button"
-              variant="outline"
-              onClick={onMicrosoft}
-              disabled={busy}
-              className="w-full"
-            >
-              Continue with Microsoft
-            </Button>
+            {/* TERTIARY — passwordless magic link. A quiet text button under the form, not a
+                third full-width bar competing with the two real actions above. */}
+            <p className="text-center text-[12.5px] text-muted-foreground">
+              No password?{' '}
+              <button
+                type="button"
+                onClick={onMagicLink}
+                disabled={busy || !email}
+                className="font-semibold text-primary-text hover:underline disabled:cursor-not-allowed disabled:opacity-45"
+              >
+                Email me a magic link
+              </button>
+            </p>
 
             {/* Demo-login panel — local dev OR a demo build (VITE_DEMO_MODE=true); never real prod.
                 Lists all 5 role personas; click any to one-click fill credentials. */}
