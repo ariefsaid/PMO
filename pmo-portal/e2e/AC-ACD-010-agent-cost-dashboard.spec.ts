@@ -62,8 +62,16 @@ test('AC-ACD-010 an Admin opens Administration › Usage and the agent cost pane
   await page.route('**/rest/v1/rpc/org_usage_summary', async (route) => {
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(SUMMARY_ROWS) });
   });
+  // The Usage panel is operator-layer (#297), so as a platform operator it calls the OPERATOR RPC
+  // variants (usage.ts:29/50) — not the org_ ones. Mock those too, or the panel gets real (empty) data.
+  await page.route('**/rest/v1/rpc/operator_agent_run_stats', async (route) => {
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(RUN_STATS_ROWS) });
+  });
+  await page.route('**/rest/v1/rpc/operator_usage_summary', async (route) => {
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(SUMMARY_ROWS) });
+  });
 
-  await login(page, 'admin@acme.test');
+  await login(page, 'operator@pmo.test');
   await page.goto('/administration');
 
   // The Usage section + the mounted cost panel.

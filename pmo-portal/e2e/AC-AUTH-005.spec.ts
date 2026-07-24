@@ -12,7 +12,7 @@ test('magic-link login completes via the local Mailpit inbox', async ({ page }) 
 
   await page.goto('/login');
   await page.getByLabel(/email/i).fill('engineer@acme.test');
-  await page.getByRole('button', { name: /send magic link/i }).click();
+  await page.getByRole('button', { name: /magic link/i }).click();
   await expect(page.getByRole('status')).toContainText(/check your email/i);
 
   // Poll Mailpit for the magic-link email addressed to the engineer.
