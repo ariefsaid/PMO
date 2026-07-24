@@ -155,7 +155,49 @@ export async function fiscalYearContaining(date: string): Promise<string> {
   return match[0].name;
 }
 
-/** Seed the org for a budget e2e. `projectStart`/`projectEnd` must sit inside ONE Fiscal Year. */
+export interface BenchFiscalYear {
+  name: string;
+  year_start_date: string;
+  year_end_date: string;
+}
+
+/** The client's whole `Fiscal Year` calendar, earliest first. */
+export async function listFiscalYears(): Promise<BenchFiscalYear[]> {
+  const fields = encodeURIComponent(JSON.stringify(['name', 'year_start_date', 'year_end_date']));
+  const years = (await benchGet(`/api/resource/Fiscal Year?limit_page_length=0&fields=${fields}`)) as BenchFiscalYear[];
+  return [...years].sort((a, b) => a.year_start_date.localeCompare(b.year_start_date));
+}
+
+/**
+ * TWO CONSECUTIVE `Fiscal Year`s from the client's own calendar (BFY: the multi-FY fixture).
+ *
+ * Consecutive means the second begins the day after the first ends — so a project starting inside the
+ * first and ending inside the second genuinely spans two years with no gap year in between (a gap
+ * would make the "one Budget per phased year" count ambiguous). Throws, never skips: a bench without
+ * two adjacent years is a fixture problem the run must SAY, not quietly pass around.
+ */
+export async function twoAdjacentFiscalYears(): Promise<[BenchFiscalYear, BenchFiscalYear]> {
+  const years = await listFiscalYears();
+  for (let i = 0; i < years.length - 1; i++) {
+    const nextDay = new Date(`${years[i].year_end_date}T00:00:00Z`);
+    nextDay.setUTCDate(nextDay.getUTCDate() + 1);
+    if (nextDay.toISOString().slice(0, 10) === years[i + 1].year_start_date) return [years[i], years[i + 1]];
+  }
+  throw new Error(`the bench has no two CONSECUTIVE Fiscal Years — the multi-FY fixture needs them: ${JSON.stringify(years)}`);
+}
+
+/** Submit a bench document (`docstatus: 1`) — what makes an ERP `Budget` actually enforce. */
+export async function benchSubmit(doctype: string, name: string): Promise<void> {
+  const res = await fetch(`${BENCH_URL}/api/resource/${encodeURIComponent(doctype)}/${encodeURIComponent(name)}`, {
+    method: 'PUT',
+    headers: benchHeaders(),
+    body: JSON.stringify({ docstatus: 1 }),
+  });
+  if (!res.ok) throw new Error(`bench submit ${doctype}/${name} failed: ${res.status} ${await res.text()}`);
+}
+
+/** Seed the org for a budget e2e. `projectStart`/`projectEnd` sit inside ONE Fiscal Year for the P3c
+ *  specs; the BFY multi-FY specs deliberately pass a span that crosses two (see twoAdjacentFiscalYears). */
 export async function seedBud(
   admin: SupabaseClient,
   suffix: string,
@@ -241,7 +283,13 @@ export async function seedBud(
 export async function seedDraftVersion(
   admin: SupabaseClient,
   seed: BudSeed,
-  input: { name: string; version: number; lines: Array<{ category: 'Labor' | 'Materials'; amount: string }> },
+  input: {
+    name: string;
+    version: number;
+    /** `fiscalYear` phases the line to ONE ERPNext `Fiscal Year` (BFY FR-BFY-001). Omitted = un-phased
+     *  (NULL), which is what every pre-BFY line is and stays. */
+    lines: Array<{ category: 'Labor' | 'Materials'; amount: string; fiscalYear?: string }>;
+  },
 ): Promise<string> {
   const versionId = crypto.randomUUID();
   const { error } = await admin.from('budget_versions').insert({
@@ -254,32 +302,84 @@ export async function seedDraftVersion(
   });
   if (error) throw new Error(`seed budget_versions failed: ${error.message}`);
   const { error: lineErr } = await admin.from('budget_line_items').insert(
-    input.lines.map((l) => ({ org_id: ORG_ID, budget_version_id: versionId, category: l.category, budgeted_amount: l.amount })),
+    input.lines.map((l) => ({
+      org_id: ORG_ID,
+      budget_version_id: versionId,
+      category: l.category,
+      budgeted_amount: l.amount,
+      ...(l.fiscalYear ? { fiscal_year: l.fiscalYear } : {}),
+    })),
   );
   if (lineErr) throw new Error(`seed budget_line_items failed: ${lineErr.message}`);
   seed.versionIds.push(versionId);
   return versionId;
 }
 
+export interface BudgetMirrorRow {
+  push_state: string;
+  push_error: string | null;
+  erp_budget_name: string | null;
+  fiscal_year: string;
+  pushed_project_start_date?: string | null;
+  pushed_project_end_date?: string | null;
+}
+
+/** The mirror row for a version — optionally for ONE fiscal year. A multi-FY push writes one row per
+ *  year (grain `(org, budget_version_id, fiscal_year)`), so a caller that omits `fiscalYear` on a
+ *  fanned-out version is asking an ambiguous question and gets a loud PostgREST error, not a guess. */
 export async function readBudgetMirror(
   admin: SupabaseClient,
   versionId: string,
-): Promise<{ push_state: string; push_error: string | null; erp_budget_name: string | null; fiscal_year: string } | null> {
-  const { data, error } = await admin
+  fiscalYear?: string,
+): Promise<BudgetMirrorRow | null> {
+  let q = admin
     .from('budget_version_erp_mirror')
-    .select('push_state, push_error, erp_budget_name, fiscal_year')
+    .select('push_state, push_error, erp_budget_name, fiscal_year, pushed_project_start_date, pushed_project_end_date')
     .eq('org_id', ORG_ID)
-    .eq('budget_version_id', versionId)
-    .maybeSingle();
+    .eq('budget_version_id', versionId);
+  if (fiscalYear) q = q.eq('fiscal_year', fiscalYear);
+  const { data, error } = await q.maybeSingle();
   if (error) throw new Error(`budget mirror read failed: ${error.message}`);
   return data as never;
 }
 
+/** EVERY mirror row for a version, oldest year first — the per-year fan-out, as the surface sees it. */
+export async function readBudgetMirrors(admin: SupabaseClient, versionId: string): Promise<BudgetMirrorRow[]> {
+  const { data, error } = await admin
+    .from('budget_version_erp_mirror')
+    .select('push_state, push_error, erp_budget_name, fiscal_year, pushed_project_start_date, pushed_project_end_date')
+    .eq('org_id', ORG_ID)
+    .eq('budget_version_id', versionId)
+    .order('fiscal_year', { ascending: true });
+  if (error) throw new Error(`budget mirror read failed: ${error.message}`);
+  return (data ?? []) as never;
+}
+
+/** Every budget `external_refs` mapping for a version, whatever year it is filed under. */
+export async function readBudgetRefs(
+  admin: SupabaseClient,
+  versionId: string,
+): Promise<Array<{ pmo_record_id: string; external_record_id: string }>> {
+  const { data, error } = await admin
+    .from('external_refs')
+    .select('pmo_record_id, external_record_id')
+    .eq('org_id', ORG_ID)
+    .eq('domain', 'budget')
+    .like('pmo_record_id', `${versionId}%`)
+    .order('pmo_record_id', { ascending: true });
+  if (error) throw new Error(`budget external_refs read failed: ${error.message}`);
+  return (data ?? []) as never;
+}
+
 export async function cleanupBud(admin: SupabaseClient, seed: BudSeed): Promise<void> {
   for (const versionId of seed.versionIds) {
-    await admin.from('external_command_outbox').delete().eq('org_id', ORG_ID).eq('domain', 'budget').eq('pmo_record_id', versionId);
-    await admin.from('external_refs').delete().eq('org_id', ORG_ID).eq('domain', 'budget').eq('pmo_record_id', versionId);
-    await admin.from('external_ref_lineage').delete().eq('org_id', ORG_ID).eq('domain', 'budget').eq('pmo_record_id', versionId);
+    // ⚑ BFY: `pmo_record_id` is now `<versionId>:<encoded_fy>` — one row PER YEAR. An `.eq(versionId)`
+    // delete (what this used to do) matches NOTHING from this release on, silently leaking a mapping
+    // and an outbox row per run; the next run's create-guard then resolves a stale pointer. `like`
+    // covers both the bare pre-BFY shape and every year-qualified row.
+    await admin.from('external_command_outbox').delete().eq('org_id', ORG_ID).eq('domain', 'budget').like('pmo_record_id', `${versionId}%`);
+    await admin.from('external_refs').delete().eq('org_id', ORG_ID).eq('domain', 'budget').like('pmo_record_id', `${versionId}%`);
+    await admin.from('external_ref_lineage').delete().eq('org_id', ORG_ID).eq('domain', 'budget').like('pmo_record_id', `${versionId}%`);
     await admin.from('budget_version_erp_mirror').delete().eq('budget_version_id', versionId);
     await admin.from('budget_line_items').delete().eq('budget_version_id', versionId);
     await admin.from('budget_versions').delete().eq('id', versionId);
@@ -411,10 +511,31 @@ export async function signInAsBud(authUrl: string, anonKey: string, email: strin
   return data.session.access_token;
 }
 
-/** The DETERMINISTIC budget push key (`src/lib/adapterSeam/erpnext/budgetPushKey.ts`), restated so a
- *  spec can predict what BOTH originators derive. */
-export function budgetPushKeyFor(versionId: string, activatedAt: string): string {
-  return `bud:${versionId}:${Date.parse(activatedAt)}`;
+/**
+ * The canonical fiscal-year token — the e2e twin of
+ * `src/lib/adapterSeam/erpnext/fiscalYearEncoding.ts` `encodeFiscalYear` (BFY FR-BFY-031).
+ *
+ * Each UTF-8 byte becomes two symbols over the 16-symbol alphabet `0123456789TZ.+-:`, which is
+ * exactly lowercase hex with `abcdef` mapped to `TZ.+-:`. Restated here for the same reason
+ * `budgetPushKeyFor` is restated: a spec must be able to PREDICT what the server derives, from the
+ * spec's own arithmetic, rather than reading it back from the thing under test.
+ */
+export function fiscalYearToken(fiscalYear: string): string {
+  const hex = Buffer.from(fiscalYear, 'utf8').toString('hex');
+  return hex.replace(/[a-f]/g, (ch) => 'TZ.+-:'['abcdef'.indexOf(ch)]);
+}
+
+/** The YEAR-QUALIFIED outbox/`external_refs` identity `<budget_version_id>:<encoded_fy>` (FR-BFY-032).
+ *  From the BFY release the budget domain is keyed per fiscal year — the bare version id no longer
+ *  resolves anything. The mirror's FK stays the bare uuid. */
+export function budgetIdentityFor(versionId: string, fiscalYear: string): string {
+  return `${versionId}:${fiscalYearToken(fiscalYear)}`;
+}
+
+/** The DETERMINISTIC per-year budget push key (`src/lib/adapterSeam/erpnext/budgetPushKey.ts`),
+ *  restated so a spec can predict what BOTH originators derive. */
+export function budgetPushKeyFor(versionId: string, fiscalYear: string, activatedAt: string): string {
+  return `bud:${budgetIdentityFor(versionId, fiscalYear)}:${Date.parse(activatedAt)}`;
 }
 
 /** The version's server-stamped activation witness — the key's own input (0139). */
@@ -427,13 +548,19 @@ export async function readActivatedAtBud(admin: SupabaseClient, versionId: strin
 }
 
 /** POST a budget push command at the REAL served `adapter-dispatch` — the SAME command
- *  `src/lib/db/budgets.ts` sends (`dispatchBudgetPush`), optionally with a named fault seam armed. */
+ *  `src/lib/db/budgets.ts` sends (`dispatchBudgetPush`), optionally with a named fault seam armed.
+ *
+ *  ⚑ BFY: the client sends NO idempotency key for a budget create. The push fans out to one ERP
+ *  `Budget` per phased fiscal year, and the years are knowable only from the client's live `Fiscal
+ *  Year` doctype — a read only the server-side gate makes — so the SERVER derives one key per year.
+ *  `idempotencyKey` is retained as an optional argument purely so a spec can prove a stale client key
+ *  changes nothing; the legitimate client omits it. */
 export async function dispatchBudgetPushRaw(
   functionsUrl: string,
   anonKey: string,
   accessToken: string,
   versionId: string,
-  idempotencyKey: string,
+  idempotencyKey?: string,
   faultSeam?: string,
 ): Promise<Response> {
   const headers: Record<string, string> = {
@@ -449,7 +576,7 @@ export async function dispatchBudgetPushRaw(
       domain: 'budget',
       operation: 'create',
       record: { id: versionId, erp_doc_kind: 'budget' },
-      idempotencyKey,
+      ...(idempotencyKey ? { idempotencyKey } : {}),
     }),
   });
 }
@@ -468,14 +595,18 @@ export async function runSweepBud(functionsUrl: string): Promise<{ status: numbe
 export async function readBudgetOutbox(
   admin: SupabaseClient,
   versionId: string,
-): Promise<{ id: string; state: string; last_error: string | null; claim_generation: number } | null> {
-  const { data, error } = await admin
+  fiscalYear?: string,
+): Promise<{ id: string; state: string; last_error: string | null; claim_generation: number; idempotency_key: string; pmo_record_id: string } | null> {
+  // BFY: the outbox is keyed on the YEAR-QUALIFIED identity. Without a year this matches every year's
+  // row for the version — which `maybeSingle()` turns into a loud error on a fanned-out version rather
+  // than silently reporting one year's state as if it were the whole push.
+  let q = admin
     .from('external_command_outbox')
-    .select('id, state, last_error, claim_generation')
+    .select('id, state, last_error, claim_generation, idempotency_key, pmo_record_id')
     .eq('org_id', ORG_ID)
-    .eq('domain', 'budget')
-    .eq('pmo_record_id', versionId)
-    .maybeSingle();
+    .eq('domain', 'budget');
+  q = fiscalYear ? q.eq('pmo_record_id', budgetIdentityFor(versionId, fiscalYear)) : q.like('pmo_record_id', `${versionId}%`);
+  const { data, error } = await q.maybeSingle();
   if (error) throw new Error(`budget outbox read failed: ${error.message}`);
   return data as never;
 }

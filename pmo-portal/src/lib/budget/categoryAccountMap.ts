@@ -36,6 +36,13 @@ export interface BudgetLineItem {
   category: BudgetCategory | string;
   /** `numeric(14,2)` as a decimal string (PostgREST returns numeric as a string). */
   budgeted_amount: string;
+  /**
+   * BFY (FR-BFY-001): the ERPNext `Fiscal Year` NAME this line is phased to; `null`/`undefined`/`''` =
+   * un-phased (attributed to no specific fiscal year by PMO). Validated at PUSH time against the
+   * client's own `Fiscal Year` doctype (`budgetGate.ts`), never at write time. NULL is the default;
+   * every existing row stays NULL on day one (FR-BFY-070).
+   */
+  fiscal_year?: string | null;
 }
 
 /** One row of `budget_category_account_map` (mig 0137) — the org's Admin-administered bijection. */

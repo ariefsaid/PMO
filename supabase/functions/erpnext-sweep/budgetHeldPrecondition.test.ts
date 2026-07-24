@@ -36,9 +36,15 @@ const VERSION = '0b3e2222-0000-0000-0000-000000000001';
 interface MirrorRow extends Record<string, unknown> {
   org_id: string;
   budget_version_id: string;
+  /** ⚑ BLOCK 1 (FU-2 round 2): the mirror's grain is `(budget_version_id × fiscal_year)` and the column
+   *  is `text NOT NULL` (0137 §1), so EVERY mirror-backed candidate carries a year — and the hold is
+   *  scoped by it. The fixtures state it for that reason; the CAS oracle below is unchanged. */
+  fiscal_year: string;
   push_state: string;
   erp_cancelled_at: string | null;
 }
+
+const FY = '2026';
 
 /** Filters as (op, column, value) so the fake can really APPLY them — the point of the test is that
  *  an update whose predicate no longer matches changes NOTHING. */
@@ -96,13 +102,13 @@ const ORG_BINDING = {
   versionMajor: 15,
 };
 
-const CANDIDATE = { budget_version_id: VERSION, push_state: 'pending', erp_cancelled_at: null };
+const CANDIDATE = { budget_version_id: VERSION, push_state: 'pending', erp_cancelled_at: null, fiscal_year: FY };
 const ACTIVE_VERSION = { id: VERSION, status: 'Active', activated_at: '2026-07-20T00:00:00.000Z' };
 
 Deno.test('NEW-4: a row the foreground path already PUSHED is never relabelled held (no-outbox-candidate branch)', async () => {
   // Concurrency: listed as `pending`, but by the time the backstop writes, the foreground activation
   // consequence has completed a REAL ERPNext Budget push.
-  const mirror: MirrorRow = { org_id: ORG, budget_version_id: VERSION, push_state: 'pushed', erp_cancelled_at: null };
+  const mirror: MirrorRow = { org_id: ORG, budget_version_id: VERSION, fiscal_year: FY, push_state: 'pushed', erp_cancelled_at: null };
   const deps = budgetBackstopDepsLive(fakeDb(mirror, null), ORG_BINDING, []);
   await deps.driveBudgetPush(CANDIDATE, ACTIVE_VERSION);
   assert(
@@ -114,21 +120,21 @@ Deno.test('NEW-4: a row the foreground path already PUSHED is never relabelled h
 });
 
 Deno.test('NEW-4: a row now COMMITTING is never relabelled held (its ERP write may be in flight)', async () => {
-  const mirror: MirrorRow = { org_id: ORG, budget_version_id: VERSION, push_state: 'committing', erp_cancelled_at: null };
+  const mirror: MirrorRow = { org_id: ORG, budget_version_id: VERSION, fiscal_year: FY, push_state: 'committing', erp_cancelled_at: null };
   const deps = budgetBackstopDepsLive(fakeDb(mirror, null), ORG_BINDING, []);
   await deps.driveBudgetPush(CANDIDATE, ACTIVE_VERSION);
   assert(mirror.push_state === 'committing', `expected 'committing' to survive, got '${mirror.push_state}'`);
 });
 
 Deno.test('NEW-4: a row an operator CANCELLED in the Desk is never relabelled held (never fight the operator)', async () => {
-  const mirror: MirrorRow = { org_id: ORG, budget_version_id: VERSION, push_state: 'pending', erp_cancelled_at: '2026-07-21T00:00:00.000Z' };
+  const mirror: MirrorRow = { org_id: ORG, budget_version_id: VERSION, fiscal_year: FY, push_state: 'pending', erp_cancelled_at: '2026-07-21T00:00:00.000Z' };
   const deps = budgetBackstopDepsLive(fakeDb(mirror, null), ORG_BINDING, []);
   await deps.driveBudgetPush(CANDIDATE, ACTIVE_VERSION);
   assert(mirror.push_state === 'pending', `expected the tombstoned row untouched, got '${mirror.push_state}'`);
 });
 
 Deno.test('NEW-4: a row STILL pending IS held — the dead end is still recorded, never silently dropped', async () => {
-  const mirror: MirrorRow = { org_id: ORG, budget_version_id: VERSION, push_state: 'pending', erp_cancelled_at: null };
+  const mirror: MirrorRow = { org_id: ORG, budget_version_id: VERSION, fiscal_year: FY, push_state: 'pending', erp_cancelled_at: null };
   const deps = budgetBackstopDepsLive(fakeDb(mirror, null), ORG_BINDING, []);
   await deps.driveBudgetPush(CANDIDATE, ACTIVE_VERSION);
   assert(mirror.push_state === 'held', `expected 'held', got '${mirror.push_state}'`);
@@ -141,12 +147,12 @@ Deno.test('NEW-4: the attempts-exhausted branch carries the SAME precondition (a
     id: 'outbox-1', domain: 'budget', pmo_record_id: VERSION, idempotency_key: 'k',
     state: 'failed', external_record_id: null, canonical: null, claim_generation: 0, payload_digest: null,
   };
-  const pushed: MirrorRow = { org_id: ORG, budget_version_id: VERSION, push_state: 'pushed', erp_cancelled_at: null };
+  const pushed: MirrorRow = { org_id: ORG, budget_version_id: VERSION, fiscal_year: FY, push_state: 'pushed', erp_cancelled_at: null };
   const depsPushed = budgetBackstopDepsLive(fakeDb(pushed, outbox), ORG_BINDING, []);
   await depsPushed.driveBudgetPush(CANDIDATE, ACTIVE_VERSION);
   assert(pushed.push_state === 'pushed', `expected 'pushed' to survive, got '${pushed.push_state}'`);
 
-  const pending: MirrorRow = { org_id: ORG, budget_version_id: VERSION, push_state: 'failed', erp_cancelled_at: null };
+  const pending: MirrorRow = { org_id: ORG, budget_version_id: VERSION, fiscal_year: FY, push_state: 'failed', erp_cancelled_at: null };
   const depsPending = budgetBackstopDepsLive(fakeDb(pending, outbox), ORG_BINDING, []);
   await depsPending.driveBudgetPush(CANDIDATE, ACTIVE_VERSION);
   assert(pending.push_state === 'held', `expected a still-eligible row to be held, got '${pending.push_state}'`);
@@ -173,7 +179,7 @@ for (const state of ['committing', 'quarantined'] as const) {
       id: 'outbox-1', domain: 'budget', pmo_record_id: VERSION, idempotency_key: 'k',
       state, external_record_id: null, canonical: null, claim_generation: 0, payload_digest: null,
     };
-    const mirror: MirrorRow = { org_id: ORG, budget_version_id: VERSION, push_state: 'failed', erp_cancelled_at: null };
+    const mirror: MirrorRow = { org_id: ORG, budget_version_id: VERSION, fiscal_year: FY, push_state: 'failed', erp_cancelled_at: null };
     // The eligibility set is EMPTY — the RPC does not admit a fresh `committing`/not-due `quarantined` row.
     const deps = budgetBackstopDepsLive(fakeDb(mirror, outbox), ORG_BINDING, []);
     await deps.driveBudgetPush(CANDIDATE, ACTIVE_VERSION).catch(() => undefined);
@@ -189,7 +195,7 @@ Deno.test('⚑ HIGH-1: a genuinely attempt-exhausted row (a `failed` command 013
     id: 'outbox-1', domain: 'budget', pmo_record_id: VERSION, idempotency_key: 'k',
     state: 'failed', external_record_id: null, canonical: null, claim_generation: 0, payload_digest: null,
   };
-  const mirror: MirrorRow = { org_id: ORG, budget_version_id: VERSION, push_state: 'failed', erp_cancelled_at: null };
+  const mirror: MirrorRow = { org_id: ORG, budget_version_id: VERSION, fiscal_year: FY, push_state: 'failed', erp_cancelled_at: null };
   const deps = budgetBackstopDepsLive(fakeDb(mirror, outbox), ORG_BINDING, []);
   await deps.driveBudgetPush(CANDIDATE, ACTIVE_VERSION).catch(() => undefined);
   assert(mirror.push_state === 'held', `expected 'held', got '${mirror.push_state}'`);

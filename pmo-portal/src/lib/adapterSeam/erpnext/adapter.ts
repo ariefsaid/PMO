@@ -90,6 +90,64 @@ function recordWithResolvedItemsFallback(record: PmoRecord, ctx: ErpCtx): PmoRec
   return { ...record, items: ctx.resolvedItems };
 }
 
+/**
+ * The kinds whose post-submit unknown may be left IN-FLIGHT (see `postSubmitUnknown`).
+ *
+ * ⚑ Luna round-3 BLOCK 1 — THIS RECLASSIFICATION IS ONLY SAFE WITH A DURABLE RECOVERY IDENTITY.
+ * "In-flight" means the outbox row stays `committing` and a later recovery pass RE-CLAIMS it. That
+ * pass is safe only if it can PROVE what ERP holds, i.e. if the kind has an immutable, REST-filterable
+ * anchor the probe can find the already-submitted document by. `timesheet` has one (`note`,
+ * `anchorMutable:false`). An ANCHORLESS kind (Material Request / RFQ / Supplier Quotation / Purchase
+ * Order / Budget — `anchorField: null`) has none: the probe is skipped and
+ * `reissueOnInconclusiveAbsence` then permits a fresh claim+POST, so the adapter would create and
+ * submit a SECOND purchase commitment beside the live first one. (`sales-invoice` has an anchor, but
+ * its SoD-gated `transition/submit` mints a key it never stamps, so a probe for that key finds
+ * nothing — the same inconclusive-recovery hazard.)
+ *
+ * That anchorless recovery-identity gap is PRE-EXISTING and backlogged with the review's evidence; it
+ * is not this slice's to carry. So the round-2 fix is scoped to the ONE domain this slice owns, and
+ * EVERY other kind keeps its pre-existing behaviour: the post-submit error propagates exactly as
+ * thrown. Widening this set is a money decision — it requires a recovery identity for the kind first.
+ */
+const POST_SUBMIT_UNKNOWN_IS_IN_FLIGHT: ReadonlySet<ErpDocKind> = new Set<ErpDocKind>(['timesheet']);
+
+/**
+ * ⚑ AFTER A SUBMIT, "IT FAILED" IS NOT "IT DIDN'T HAPPEN" (Luna round-2 BLOCK 2).
+ *
+ * Everything that runs after `submitDoc` returns — the FR-ENA-003 `afterSubmitHook` seam, the R9 §5
+ * post-submit re-fetch, the `fromDoc` mapping — is READ-ONLY, and by then ERPNext is holding a
+ * SUBMITTED document. An exception escaping that region unclassified was being read as a rejection:
+ * `dispatch.ts`'s `isRetryableTransport` recognises only `external-unreachable`, so `claimAndCommit`
+ * marked the outbox row terminal `failed` and the mirror was written `failed` with no `ts_number` —
+ * i.e. the shape that means "ERP never heard about this week". For a timesheet that is exactly the
+ * state the Slice-A re-open ADMITS: PMO returns the week to Draft while the ERP Timesheet is live, the
+ * corrected week is approved and pushed, and the client's project cost carries both. What actually
+ * failed was the READ-BACK; nothing established that the document is absent.
+ *
+ * So the region is classified as a retryable TRANSPORT unknown. `claimAndCommit` then marks NOTHING:
+ * the row stays `committing`, becomes reclaimable at lease expiry, and the recovery path probes by the
+ * anchor key and ADOPTS the real document — the same durable state, and the same convergence, a real
+ * process crash in this window produces. The re-open fence also refuses on a non-terminal row, so the
+ * week cannot be re-opened while the outcome is unknown. The ERP name is carried in the message
+ * because it is the one fact an operator or a probe-less recovery needs.
+ *
+ * ⛔ Deliberately NOT applied before/at the submit: a create or a submit that ERP REJECTS leaves no
+ * submitted document, so it stays terminal (`commit-rejected`) and is not retried forever.
+ *
+ * ⛔ And deliberately NOT applied to a kind outside `POST_SUBMIT_UNKNOWN_IS_IN_FLIGHT` (Luna round-3
+ * BLOCK 1): without a durable recovery identity the retry is a DUPLICATE, not an adoption, so those
+ * kinds get their error back untouched.
+ */
+function postSubmitUnknown(error: unknown, kind: ErpDocKind, doctype: string, name: string): unknown {
+  if (!POST_SUBMIT_UNKNOWN_IS_IN_FLIGHT.has(kind)) return error;
+  const detail = error instanceof Error ? error.message : String(error);
+  return new AdapterError(
+    'external-unreachable',
+    `post-submit-unknown: ${doctype} ${name} was SUBMITTED in ERPNext, but the outcome could not be read back ` +
+      `— treat as in-flight, never as absent (${detail})`,
+  );
+}
+
 async function commitCreate(command: AdapterCommand, deps: ErpAdapterDeps): Promise<CommandResult> {
   const kind = requireKind(command.record);
   const entry = DOCTYPE_REGISTRY[kind];
@@ -136,12 +194,17 @@ async function commitCreate(command: AdapterCommand, deps: ErpAdapterDeps): Prom
 
   // R9 two-step (FR-ENA-044): the create-commit window is separate from the submit window.
   await submitDoc(deps.client, entry.doctype, created.name);
-  await deps.afterSubmitHook?.();
-  // The POST/PUT response body carries a stale `status`/`outstanding_amount` (R9 §5 trap) — the
-  // TRUE derived status is only ever visible on a fresh GET after submit.
-  const refetched = await getDoc(deps.client, entry.doctype, created.name);
-  const canonical: PmoRecord = { ...bodyFns.fromDoc(refetched), id: command.record.id };
-  return { externalRecordId: created.name, canonical };
+  // ⚑ PAST THIS LINE THE DOCUMENT IS SUBMITTED (Luna round-2 BLOCK 2) — see `postSubmitUnknown`.
+  try {
+    await deps.afterSubmitHook?.();
+    // The POST/PUT response body carries a stale `status`/`outstanding_amount` (R9 §5 trap) — the
+    // TRUE derived status is only ever visible on a fresh GET after submit.
+    const refetched = await getDoc(deps.client, entry.doctype, created.name);
+    const canonical: PmoRecord = { ...bodyFns.fromDoc(refetched), id: command.record.id };
+    return { externalRecordId: created.name, canonical };
+  } catch (error) {
+    throw postSubmitUnknown(error, kind, entry.doctype, created.name);
+  }
 }
 
 /**
@@ -166,10 +229,15 @@ async function commitTransition(command: AdapterCommand, deps: ErpAdapterDeps): 
 
   if (verb === 'submit') {
     await submitDoc(deps.client, entry.doctype, externalRecordId);
-    await deps.afterSubmitHook?.();
-    const refetched = await getDoc(deps.client, entry.doctype, externalRecordId);
-    const canonical: PmoRecord = { ...bodyFns.fromDoc(refetched), id: command.record.id };
-    return { externalRecordId, canonical };
+    // ⚑ PAST THIS LINE THE DOCUMENT IS SUBMITTED (Luna round-2 BLOCK 2) — see `postSubmitUnknown`.
+    try {
+      await deps.afterSubmitHook?.();
+      const refetched = await getDoc(deps.client, entry.doctype, externalRecordId);
+      const canonical: PmoRecord = { ...bodyFns.fromDoc(refetched), id: command.record.id };
+      return { externalRecordId, canonical };
+    } catch (error) {
+      throw postSubmitUnknown(error, kind, entry.doctype, externalRecordId);
+    }
   }
 
   if (verb === 'cancel') {

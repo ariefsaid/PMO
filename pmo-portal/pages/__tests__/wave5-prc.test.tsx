@@ -45,6 +45,7 @@ vi.mock('@/src/hooks/useProjects', () => ({
   useProjectsMilestoneDates: () => ({ data: [], isPending: false }),
 }));
 vi.mock('@/src/hooks/useTimesheetApproval', () => ({
+  useReopenableApprovedTimesheets: () => ({ data: [], isPending: false, isError: false }),
   useTimesheetsAwaitingApproval: () => ({
     data: [], isPending: false, isError: false, refetch: vi.fn(),
   }),

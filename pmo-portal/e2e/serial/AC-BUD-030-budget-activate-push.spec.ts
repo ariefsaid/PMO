@@ -29,6 +29,7 @@ import {
   LABOR_ACCOUNT,
   MATERIALS_ACCOUNT,
   accountAmount,
+  budgetIdentityFor,
   activateSelectedVersion,
   cleanupBud,
   fiscalYearContaining,
@@ -110,10 +111,14 @@ test.describe('AC-BUD-030: activating a budget version puts it on the client led
       expect(doc.action_if_accumulated_monthly_budget_exceeded).toBe('Warn');
 
       // The mapping + the durable state PMO reports from.
+      // ⚑ BFY: `external_refs` is keyed on `<versionId>:<encoded_fy>` from this release on — one
+      // mapping per pushed fiscal year (FR-BFY-032). A single-FY project has exactly one, and the
+      // identity it is filed under is asserted, not assumed.
       const { data: refRow } = await admin
-        .from('external_refs').select('external_record_id')
-        .eq('org_id', ORG_ID).eq('domain', 'budget').eq('pmo_record_id', versionId).maybeSingle();
+        .from('external_refs').select('pmo_record_id, external_record_id')
+        .eq('org_id', ORG_ID).eq('domain', 'budget').like('pmo_record_id', `${versionId}%`).maybeSingle();
       expect((refRow as { external_record_id: string } | null)?.external_record_id, 'external_refs maps the version to its ERP Budget').toBe(doc.name);
+      expect((refRow as { pmo_record_id: string } | null)?.pmo_record_id, 'and it is filed under the year-qualified identity').toBe(budgetIdentityFor(versionId, expectedFy));
 
       const mirror = await readBudgetMirror(admin, versionId);
       expect(mirror?.push_state, `the side mirror reports the push: ${JSON.stringify(mirror)}`).toBe('pushed');

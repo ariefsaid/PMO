@@ -86,6 +86,13 @@ function resolveApplicableOn(config: Record<string, unknown>): Record<string, 0 
   return out;
 }
 
+/**
+ * BFY (FR-BFY-030) PIN: this builder produces EXACTLY ONE ERP `Budget` body per call, from the
+ * record's `line_items` + `fiscal_year`. The per-year FAN-OUT (one Budget per phased fiscal year) is
+ * the dispatch boundary's job (T13, `adapter-dispatch/index.ts`), which calls this once per year with
+ * that year's slice. This builder never splits a body; an empty `accounts[]` throws (spike §10(a)) so
+ * the fan-out can never mint an empty Budget. Pinned by the `BFY T5` cases in this file.
+ */
 export function budgetToBody(rec: PmoRecord, ctx: ErpCtx): unknown {
   // FR-BUD-013 fail-closed refs: an unresolvable ERP project is never a null/omitted dimension and never
   // a cost_center fallback — an unattributed budget silently mis-scopes the overspend controls.

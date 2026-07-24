@@ -39,6 +39,25 @@ export interface ProjectionInput {
    */
   budgetYearOnRecord?: boolean;
   /**
+   * ⚑ F-D (BFY, FR-BFY-054/055, review finding 2) — is the budget attribution KNOWN for this
+   * CATEGORY in this fiscal year? The SQL twin returns it as `get_budget_projection.attribution_known`
+   * (0153 §3a) and this module must branch on it identically.
+   *
+   * `budgetYearOnRecord` answers a question about the YEAR ("does PMO hold a budget here at all?").
+   * This answers a narrower one about the CATEGORY: PMO holds a budget for the year, and this
+   * category HAS lines, but they cannot be placed in this year — their only lines are un-phased and
+   * the push-time span witness has drifted (the project's dates changed after the push, so "this
+   * project is single-FY" is no longer true and no year may be picked or split — ADR-0048).
+   *
+   * That is a DIFFERENT fact from "this category has no line", and the two must not collapse: the
+   * latter honestly yields `-EAC` ("every cent spent here is unbudgeted"), while the former knows
+   * nothing about the budget and must say so. Round 1 printed the second when it meant the first.
+   *
+   * Defaults to `true`: a caller that does not model attribution is asking about a budget it can
+   * place, and every existing behaviour is unchanged.
+   */
+  attributionKnown?: boolean;
+  /**
    * `erp_actuals_snapshot.net` summed over the category's MAPPED ERP account.
    *
    * ⚑ C-1 (rendered Discover pass, 2026-07-22) — `null` means the figure is **UNOBTAINABLE**: the
@@ -100,7 +119,13 @@ function fromCents(cents: number): string {
  */
 export function deriveProjectionCell(input: ProjectionInput): BudgetProjectionCell {
   const etcCents = toCents(input.pmoEtc); // an absent ETC row ⇒ 0, not an error
-  const hasBudget = input.pmoBudgetAmount !== null && input.pmoBudgetAmount !== '';
+  // ⚑ F-D (AC-BFY-023) — a suppressed attribution withholds the AMOUNT ITSELF, not only the figures
+  // derived from it, and it does so BEFORE the C-2 branch below so the pair (amount stated, attribution
+  // unknown) is unreachable on every path. The SQL twin (0153 §3a, BLOCK 2) nulls it for the same
+  // reason: with one un-placeable line in the category, the stated sum is a PARTIAL total, and a
+  // partial total printed as THE budget understates what PMO holds.
+  const attributionUnknown = input.attributionKnown === false;
+  const hasBudget = !attributionUnknown && input.pmoBudgetAmount !== null && input.pmoBudgetAmount !== '';
   const budgetCents = hasBudget ? toCents(input.pmoBudgetAmount) : null;
 
   // ⚑ C-1/C-2 — the honesty branch. With no mapped ERP account there is no account to sum, so the
@@ -125,16 +150,24 @@ export function deriveProjectionCell(input: ProjectionInput): BudgetProjectionCe
   // unbudgeted", which is only true when PMO has a budget for this year and it simply has no line for
   // this category. With no budget on record for the year, PMO does not know that, so it states nothing.
   const budgetUnknownForYear = budgetCents === null && input.budgetYearOnRecord === false;
+
+  // ⚑ F-D (AC-BFY-023) — the SAME honesty branch one input further left, and it must OUTRANK the
+  // `-EAC` signal below: with the budget attribution suppressed, "every cent spent here is unbudgeted"
+  // is a confident accusation derived from something PMO has just admitted it cannot place. It also
+  // outranks a stated amount, fail-closed (`hasBudget` above) — an amount and an unknown attribution
+  // cannot both be true, so the amount is REFUSED rather than silently preferred.
   const varianceCents = budgetCents === null ? -eacCents : budgetCents - eacCents;
-  const projectedUtilization = budgetCents === null || budgetCents === 0 ? null : eacCents / budgetCents;
+  const projectedUtilization =
+    attributionUnknown || budgetCents === null || budgetCents === 0 ? null : eacCents / budgetCents;
 
   return {
     category: input.category,
     pmoBudgetAmount: hasBudget ? fromCents(budgetCents as number) : null,
     actualsToDate: fromCents(actualsCents),
     pmoEtc: fromCents(etcCents),
+    // EAC is untouched by both guards — it is actuals + ETC and never depended on the budget.
     projectedFinalCost: fromCents(eacCents),
-    projectedVariance: budgetUnknownForYear ? null : fromCents(varianceCents),
+    projectedVariance: attributionUnknown || budgetUnknownForYear ? null : fromCents(varianceCents),
     projectedUtilization,
   };
 }

@@ -48,6 +48,7 @@ function orgBinding() {
 }
 
 interface Write { table: string; op: string; payload: Record<string, unknown> }
+interface RpcCall { fn: string; args: Record<string, unknown> }
 
 interface DbOptions {
   /** `timesheets` rows the approved-sheet query may return: id + approved_at (already status-scoped). */
@@ -58,10 +59,14 @@ interface DbOptions {
   approvedBy?: string | null;
   /** Whether an outbox row already exists for the derived key. */
   existingOutbox?: boolean;
+  /** Luna BLOCK 1: the FENCED mint guard's answer. `undefined` ⇒ it admits (mints); an error ⇒ it
+   *  refuses (e.g. a re-open won the lock and the sheet is no longer Approved). */
+  mintGuardError?: { message: string; code: string };
 }
 
 function fakeDb(opts: DbOptions = {}) {
   const writes: Write[] = [];
+  const rpcCalls: RpcCall[] = [];
   const filters: Record<string, unknown[]> = {};
 
   const client = {
@@ -138,6 +143,18 @@ function fakeDb(opts: DbOptions = {}) {
       return builder;
     },
     rpc: (fn: string, args: Record<string, unknown>) => {
+      rpcCalls.push({ fn, args });
+      // Luna BLOCK 1 — the FENCED mint: `insert_timesheet_outbox_pending` takes the per-sheet
+      // `ts-correct:` advisory lock and re-checks status='Approved' in the SAME transaction as the
+      // INSERT. It either returns the inserted row or RAISES; there is no unguarded write.
+      if (fn === 'insert_timesheet_outbox_pending') {
+        if (opts.mintGuardError) return Promise.resolve({ data: null, error: opts.mintGuardError });
+        opts.existingOutbox = true;
+        return Promise.resolve({
+          data: { id: 'outbox-1', domain: 'timesheets', pmo_record_id: SHEET, idempotency_key: String(args.p_key), state: 'pending', external_record_id: null, canonical: null, claim_generation: 0, payload_digest: null },
+          error: null,
+        });
+      }
       if (fn === 'approved_timesheet_for_push') {
         return Promise.resolve({ data: [{ timesheet_id: args.p_timesheet_id, user_id: AUTHOR, approved_at: APPROVED_AT, entries: ENTRIES }], error: null });
       }
@@ -148,7 +165,7 @@ function fakeDb(opts: DbOptions = {}) {
     },
   } as unknown as SupabaseClient;
 
-  return { client, writes };
+  return { client, writes, rpcCalls };
 }
 
 const candidate = (push_state: string) => ({ timesheet_id: SHEET, push_state, erp_cancelled_at: null });
@@ -210,25 +227,82 @@ Deno.test('AC-TSP-022: the gate hands back the sheet\'s server-read subject (app
 });
 
 Deno.test('AC-TSP-022: with NO outbox row the backstop MINTS one attributed to the approver — never parks it `held`', async () => {
-  const { client, writes } = fakeDb({ approvedBy: APPROVER, existingOutbox: false });
+  const { client, writes, rpcCalls } = fakeDb({ approvedBy: APPROVER, existingOutbox: false });
   const deps = timesheetBackstopDepsLive(client, orgBinding(), new Set());
   // The drive continues into the shared reconcile machinery, which this fake stops at the replay
   // authorization (domain_owned_by_tier ⇒ false). Everything under test has already happened.
   await deps.driveTimesheetPush(candidate('pending'), APPROVED_AT, { approvedBy: APPROVER, userId: AUTHOR, entries: ENTRIES }).catch(() => undefined);
 
-  const mint = writes.find((w) => w.table === 'external_command_outbox' && w.op === 'insert');
+  // ⚑ Luna BLOCK 1 — the mint goes through the FENCED guard, never a raw table insert (see the block
+  // comment below). The properties asserted are unchanged; only the door they go through moved.
+  const mint = rpcCalls.find((c) => c.fn === 'insert_timesheet_outbox_pending');
   assert(mint !== undefined, 'the approved week must be MINTED into the outbox, not stranded');
-  assert(mint!.payload.actor_user_id === APPROVER, `the row is attributed to the approver, got ${String(mint!.payload.actor_user_id)}`);
-  assert(mint!.payload.state === 'pending' && mint!.payload.operation === 'create', 'a fresh create command');
-  assert(mint!.payload.domain === 'timesheets' && mint!.payload.pmo_record_id === SHEET, 'keyed on the sheet');
-  assert(String(mint!.payload.idempotency_key) === `ts:${SHEET}:${APPROVED_AT}`, `the SAME deterministic key the UI derives, got ${String(mint!.payload.idempotency_key)}`);
-  const payload = mint!.payload.payload as Record<string, unknown>;
+  assert(mint!.args.p_actor === APPROVER, `the row is attributed to the approver, got ${String(mint!.args.p_actor)}`);
+  assert(mint!.args.p_operation === 'create', 'a fresh create command');
+  assert(mint!.args.p_domain === 'timesheets' && mint!.args.p_record_id === SHEET, 'keyed on the sheet');
+  assert(String(mint!.args.p_key) === `ts:${SHEET}:${APPROVED_AT}`, `the SAME deterministic key the UI derives, got ${String(mint!.args.p_key)}`);
+  const payload = mint!.args.p_payload as Record<string, unknown>;
   assert(payload.erp_doc_kind === 'timesheet' && payload.user_id === AUTHOR && payload.approved_at === APPROVED_AT, 'the payload is the gate\'s server truth');
   assert(JSON.stringify(payload.entries) === JSON.stringify(ENTRIES), 'the hours pushed are the gate\'s own entries');
-  assert(typeof mint!.payload.payload_digest === 'string' && (mint!.payload.payload_digest as string).length === 64, 'the payload digest binds the key to this payload');
+  assert(typeof mint!.args.p_digest === 'string' && (mint!.args.p_digest as string).length === 64, 'the payload digest binds the key to this payload');
 
   const held = writes.find((w) => w.table === 'timesheet_erp_mirror' && JSON.stringify(w.payload).includes('held'));
   assert(held === undefined, `the sheet must NOT be parked terminal-held: ${JSON.stringify(held)}`);
+});
+
+// ────────────────────────────────────────────────────────────────────────────────────────────────
+// ⚑ LUNA CODE REVIEW BLOCK 1 — THE SWEEP'S ABSENT QUEUE MINTED OUTSIDE THE FENCE.
+//
+// The re-open (`transition_timesheet` Approved→Draft) takes a per-sheet `ts-correct:` advisory lock,
+// re-checks the outbox under it, and refuses if a push is in flight. The sync push honours the same
+// lock via `insert_timesheet_outbox_pending`. The sweep's ABSENT queue did not: it inserted straight
+// into `external_command_outbox`, so this sequence was live money —
+//   1. the sweep's gate read sees the 40-hour sheet `Approved`;
+//   2. the approver re-opens it: the lock is taken, no mirror/outbox row exists, PMO commits `Draft`;
+//   3. the sweep inserts its pending row anyway and POSTs the ORIGINAL 40 hours to ERPNext;
+//   4. the owner corrects the week to 32 and it is approved + pushed again.
+// ERPNext now holds two generations: 72 hours on the client's project.
+//
+// A second status read in TypeScript cannot close it — the check and the INSERT must be one
+// transaction under the same lock. So the sweep mints through the SAME guard RPC, and a refusal
+// (P0001, i.e. the re-open won) is RECORDED, never pushed.
+// ────────────────────────────────────────────────────────────────────────────────────────────────
+
+Deno.test('Luna BLOCK 1: the absent-queue mint goes through the FENCED guard RPC — never a raw outbox insert', async () => {
+  const { client, writes, rpcCalls } = fakeDb({ approvedBy: APPROVER, existingOutbox: false });
+  const deps = timesheetBackstopDepsLive(client, orgBinding(), new Set());
+  await deps.driveTimesheetPush(candidate('absent'), APPROVED_AT, { approvedBy: APPROVER, userId: AUTHOR, entries: ENTRIES }).catch(() => undefined);
+
+  assert(
+    rpcCalls.some((c) => c.fn === 'insert_timesheet_outbox_pending'),
+    'the mint must take the per-sheet lock + re-check Approved in the same transaction as the insert',
+  );
+  const rawInsert = writes.find((w) => w.table === 'external_command_outbox');
+  assert(
+    rawInsert === undefined,
+    `an unfenced insert can post a re-opened week's OLD hours to ERP: ${JSON.stringify(rawInsert)}`,
+  );
+});
+
+Deno.test('Luna BLOCK 1: when the guard REFUSES (a re-open won the lock), nothing is pushed and the refusal is recorded', async () => {
+  const { client, writes, rpcCalls } = fakeDb({
+    approvedBy: APPROVER,
+    existingOutbox: false,
+    mintGuardError: { message: 'timesheet-no-longer-approved', code: 'P0001' },
+  });
+  const deps = timesheetBackstopDepsLive(client, orgBinding(), new Set());
+  await deps.driveTimesheetPush(candidate('absent'), APPROVED_AT, { approvedBy: APPROVER, userId: AUTHOR, entries: ENTRIES }).catch(() => undefined);
+
+  assert(
+    !rpcCalls.some((c) => c.fn === 'domain_owned_by_tier'),
+    'a refused mint must never reach the dispatch/claim machinery — the week was re-opened, its old hours must not be posted',
+  );
+  const parked = writes.find((w) => w.table === 'timesheet_erp_mirror');
+  assert(parked !== undefined, 'the refusal is durable, never a silent drop');
+  assert(
+    JSON.stringify(parked!.payload).includes('timesheet-no-longer-approved'),
+    `the recorded reason must say WHY, not a generic no-candidate: ${JSON.stringify(parked!.payload)}`,
+  );
 });
 
 Deno.test('AC-TSP-022: a sheet with NO recorded approver is never minted — an unattributable command is recorded, not pushed', async () => {

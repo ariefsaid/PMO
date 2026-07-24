@@ -55,12 +55,19 @@ function serviceClient(mirrorBudgetName: string | null = null): DispatchServiceC
           eq: () => chain,
           order: () => chain,
           limit: () => chain,
+            // ⚑ FR-BFY-076 — the OWNERSHIP WITNESS. Every scenario in this file is PMO revising a
+            // budget PMO itself pushed, so `external_refs` holds the creation record for the document on
+            // the grain (a reverse lookup: external_record_id → the version that created it). Without it
+            // the adapter now refuses to amend, which is the point: an UNOWNED live document is a
+            // Desk-authored one (AC-BFY-027 owns that case).
           maybeSingle: async () =>
             table === 'external_org_bindings'
               ? { data: BINDING, error: null }
               : table === 'budget_version_erp_mirror'
                 ? { data: mirrorBudgetName ? { erp_budget_name: mirrorBudgetName } : null, error: null }
-                : { data: { org_id: 'org-1' }, error: null },
+                : table === 'external_refs'
+                  ? { data: { pmo_record_id: 'ver-previous' }, error: null }
+                  : { data: { org_id: 'org-1' }, error: null },
           then: (resolve: (v: { data: unknown; error: null }) => unknown) =>
             resolve({ data: table === 'budget_category_account_map' ? MAP_ROWS : [], error: null }),
         };
