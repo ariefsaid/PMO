@@ -468,7 +468,7 @@ const AdminUsers: React.FC = () => {
           domains they own as SoT; writes are Operator-provisioned via RPC, never in-app. */}
       <div className="mt-6">
         <SectionHeader title="Integrations" />
-        <M365ConnectionCard isAdmin={canManage} />
+        <M365ConnectionCard isOperator={isOperator} />
         <IntegrationsView />
       </div>
 

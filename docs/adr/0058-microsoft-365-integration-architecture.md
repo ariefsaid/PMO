@@ -44,6 +44,32 @@ to use M365 integration — a plan/billing gate) is **Operator**-owned via `org_
 consent, which pieces are on) is **org-Admin**-owned via an org settings surface. The Operator entitles;
 the Admin activates. This pair is built once and reused for M365, ClickUp, and ERPNext.
 
+> **⚑ AMENDMENT 2026-07-24 (owner) — M365 *activation* is OPERATOR-gated, not org-Admin-gated.**
+> The rule above still holds for **ClickUp and ERPNext**: the client supplies their own API
+> credential, so their org-Admin opts in (`external-connect` gates on *Admin-of-org OR Operator*).
+> It does **not** hold for M365. Under [ADR-0059](0059-entra-app-registration-topology.md) Option C
+> the **Entra app registration lives in the vendor tenant** — it is our credential, not the
+> client's — so initiating a Graph token connection is a *platform* action, not a client opt-in.
+> Letting a client org-Admin bind our vendor-owned app registration would hand them control of a
+> credential they do not own.
+>
+> **The rule this establishes:** *whoever owns the credential owns the activation switch.* Client
+> supplies it → org-Admin activates. Vendor owns it → Operator activates. Entitlement stays
+> Operator-owned in both cases, unchanged.
+>
+> **As-built:** `m365-token-custody/auth.ts` (`authorizeOperatorEntitled`) checks
+> `platform_operators` **service-side** — the table has no caller-readable policy — using the
+> `userId` from `verifyCallerJwt`, so impersonation cannot reach it (ADR-0016). The FE card is
+> gated by `useIsOperator()`; that gate is **UX only** — the edge function rejects independently.
+> Coverage: `AC-M365-131` (an org Admin who is *not* an Operator is FORBIDDEN — the load-bearing
+> case), plus `AC-M365-102` / `AC-M365-151` at the initiate and status handlers. Mutation-checked:
+> disabling the gate turns 4 tests red across 3 files.
+>
+> **Scope limit (deliberate):** the org is still resolved from the **caller's own profile**, so an
+> Operator connects **their own org only**. "Operator connects M365 on behalf of client org X"
+> needs an explicit org parameter and a cross-org authorization story — out of scope here, and it
+> must not be added by widening this gate silently.
+
 **4. The agent tier extends to M365 unchanged (RLS-as-ceiling).** A Teams-invoked LLM assistant and
 Teams actionable-approval cards are new *entry points* to the existing agent + RPC layer, not new
 authority. Approvals call the existing server-enforced SoD RPCs (ADR-0019); the Teams bot runs under the
