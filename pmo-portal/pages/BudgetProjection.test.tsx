@@ -950,7 +950,19 @@ describe('BudgetProjection — a NULL budget says WHICH kind of absence it is', 
     fetchMock.mockResolvedValue([NO_BUDGET_ROW]);
   });
 
+  /**
+   * ⚑ FU-2 round 4, FINDING 1 — THE FIXTURE MUST BE THE STATE THE RPC ACTUALLY EMITS. This test
+   * inherited `attributionKnown: true` from `NO_BUDGET_ROW`, a pairing `0153:331-338` NEVER produces for
+   * an all-phased-elsewhere category: `bool_or` (any line lands here) is FALSE and `bool_and` (every line
+   * is placeable) is TRUE, so `attribution_known` is **false**. Handed `true`, branches 2 and 3 are
+   * skipped no matter WHERE branch 1 sits — so the test could not observe branch 1's PRECEDENCE, the one
+   * property it exists to pin. Proven by mutation: demoting branch 1 below the two suppression branches
+   * left 84/84 green while a fully-phased budget was told "some lines are not phased … phase these
+   * lines". With the real pairing, that mutation is red.
+   */
   it('states "budgeted in 2027" for a category whose lines are ALL phased to ANOTHER year — never a bare "unavailable"', async () => {
+    // The (bool_or F, bool_and T) cell: nothing lands in 2026, every line IS placeable ⇒ known = false.
+    fetchMock.mockResolvedValue([{ ...NO_BUDGET_ROW, attributionKnown: false }]);
     categoryYearsMock.mockResolvedValue(phasing({ Labor: ['2027'] })); // every line placed — the claim holds
     pushStatusMock.mockResolvedValue([pushStatus({ pushState: 'pushed', fiscalYear: '2026' })]);
     renderPage();
