@@ -9,12 +9,12 @@ import { formatCurrency, formatDate, parseMoneyInput, pct } from '@/src/lib/form
 import {
   fetchBudgetProjection,
   fetchBudgetPushStatus,
-  fetchActiveBudgetCategoryYears,
+  fetchActiveBudgetCategoryPhasing,
   listBudgetFiscalYears,
   upsertBudgetProjectionEtc,
   retryActiveBudgetPush,
   releaseActiveBudgetPushHold,
-  type BudgetCategoryFiscalYears,
+  type ActiveBudgetCategoryPhasing,
   type BudgetFiscalYearRow,
   type BudgetProjectionCellRow,
   type BudgetPushStatusRow,
@@ -199,11 +199,12 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
   // own phased line items answer it, and without that answer this screen cannot tell "budgeted in
   // FY2027" (a known fact) from "we cannot attribute this" (a real unknown) — they arrive identically,
   // as a NULL budget.
-  const categoryYearsQuery = useQuery<BudgetCategoryFiscalYears>({
-    queryKey: ['budget-category-years', projectId],
-    queryFn: () => fetchActiveBudgetCategoryYears(projectId),
+  const categoryPhasingQuery = useQuery<ActiveBudgetCategoryPhasing>({
+    queryKey: ['budget-category-phasing', projectId],
+    queryFn: () => fetchActiveBudgetCategoryPhasing(projectId),
   });
-  const categoryYears = categoryYearsQuery.data ?? {};
+  const categoryPhasing = categoryPhasingQuery.data;
+  const categoryYears = categoryPhasing?.years ?? {};
 
   const etcMutation = useMutation({
     // The fiscal year travels WITH the write: an ETC is only ever authored against a year the client
@@ -405,13 +406,33 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
   const staleForSelectedYear = pushRows.some((r) => r.fiscalYear === fiscalYear && r.staleAttribution);
 
   /**
+   * ⚑ SHOULD-FIX 1 (FU-2 round 3) — IS THIS CATEGORY FULLY PLACED SOMEWHERE? Only then may the screen
+   * say "budgeted in FY2027, so spend here is not an overspend". A category with a line phased to no
+   * year at all has an unknown TOTAL, so no year can be exonerated on its behalf.
+   *
+   * Fails OPEN, deliberately and in the same direction as the seam: until the phasing read has answered
+   * (or if it answers in an older shape without `unphased`), PMO does not KNOW every line is placed, so
+   * it must not make the claim.
+   */
+  const fullyPlacedElsewhere = (category: BudgetCategory): boolean =>
+    categoryPhasing?.unphased !== undefined && categoryPhasing.unphased[category] !== true;
+
+  /**
    * ⚑ WHICH ABSENCE IS THIS? (the Director's ruling, spec §6.2.) Five different NULL budgets reach
    * this screen and they have five different remedies — and one of them is not a remedy at all, because
    * nothing is wrong. In order of specificity:
-   *   1. the category IS budgeted, in ANOTHER fiscal year → say so, and name the year. A knowable fact
-   *      rendered as "unavailable" is its own dishonesty.
+   *   1. the category IS budgeted, in ANOTHER fiscal year, AND EVERY ONE OF ITS LINES IS PLACED → say
+   *      so, and name the year. A knowable fact rendered as "unavailable" is its own dishonesty.
+   *      ⚑ SHOULD-FIX 1: the second half of that condition is load-bearing. `attribution_known = false`
+   *      collapses THREE states, and (nothing here, and something un-placeable) — phased elsewhere WITH
+   *      an un-phased sibling — had no branch: this one won on "elsewhere" alone and told the reader
+   *      that spend on a category holding $50,000 PMO can place in NO year was "a timing difference,
+   *      not an overspend". PMO does not hold that claim; it falls through to 3, which does.
    *   2. the attribution is STALE (un-phased lines, project dates moved off the pushed span) → say that,
-   *      and name the fix ("phase these lines").
+   *      and name the fix ("phase these lines"). ⚑ SHOULD-FIX 1: `staleForSelectedYear` is a PROJECT-year
+   *      flag answering a PER-category question, so it may only explain a category this year actually
+   *      SUPPRESSED. Tested first, it explained a category with no lines at all — whose `-EAC` is a
+   *      correct, deliberately loud unbudgeted-spend alarm — as "phase these lines" that do not exist.
    *   3. ⚑ BLOCK 2: the category is PARTLY attributable here — it has lines, some of them in this year,
    *      but at least one that PMO cannot place at all, so its total is withheld → say that, and name
    *      the same fix. Without this branch it fell through to 5 and told the reader a category holding
@@ -421,10 +442,10 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
    */
   const budgetReasonFor = (row: BudgetProjectionCellRow): string => {
     const elsewhere = (categoryYears[row.category] ?? []).filter((y) => y !== fiscalYear);
-    if (elsewhere.length > 0) return budgetedInOtherYears(elsewhere);
-    if (staleForSelectedYear) return BUDGET_ATTRIBUTION_STALE;
+    if (elsewhere.length > 0 && fullyPlacedElsewhere(row.category)) return budgetedInOtherYears(elsewhere);
     // `=== false` (never `!`): the seam maps an older RPC shape to `true`, and an undefined here
     // must not invent a suppression either — the fail-OPEN direction, as at the seam.
+    if (row.attributionKnown === false && staleForSelectedYear) return BUDGET_ATTRIBUTION_STALE;
     if (row.attributionKnown === false) return BUDGET_ATTRIBUTION_PARTIAL;
     return budgetYearOnRecord ? NO_BUDGET_LINE : NO_BUDGET_FOR_YEAR;
   };

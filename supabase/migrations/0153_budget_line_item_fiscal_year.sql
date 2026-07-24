@@ -309,7 +309,7 @@ as $$
     -- ⚑ THE ALL-PHASED-ELSEWHERE FALSE IS PRESERVED, deliberately (see below): `bool_or` is FALSE there
     -- and the conjunction cannot resurrect it. Its `bool_and` is TRUE, which is the point — the two
     -- FALSEs mean different things, and the surface tells them apart by PMO's own phased years
-    -- (`fetchActiveBudgetCategoryYears`): "budgeted in FY2027" is a KNOWN fact and must never render as
+    -- (`fetchActiveBudgetCategoryPhasing`): "budgeted in FY2027" is a KNOWN fact and must never render as
     -- "unavailable", while a partly-suppressed category genuinely is unavailable.
     --
     -- ⚑ A category ALL of whose lines are phased to OTHER years also yields FALSE here, deliberately:

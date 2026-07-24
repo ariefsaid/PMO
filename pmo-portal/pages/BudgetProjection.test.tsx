@@ -32,8 +32,15 @@ vi.mock('@/src/lib/repositories/budgetProjection', () => ({
   listBudgetFiscalYears: yearsMock,
   fetchBudgetPushStatus: pushStatusMock,
   releaseActiveBudgetPushHold: releaseHoldMock,
-  fetchActiveBudgetCategoryYears: categoryYearsMock,
+  fetchActiveBudgetCategoryPhasing: categoryYearsMock,
 }));
+
+/** The phasing seam's shape: PMO's own phased years per category, PLUS which categories hold a line
+ *  that is phased to no year at all (SHOULD-FIX 1 — the ladder cannot decide without the second). */
+const phasing = (
+  years: Record<string, string[]>,
+  unphased: Record<string, true> = {},
+) => ({ years, unphased });
 
 let realRole: Role = 'Finance';
 vi.mock('@/src/auth/impersonation', () => ({
@@ -110,7 +117,7 @@ beforeEach(() => {
   releaseHoldMock.mockReset();
   releaseHoldMock.mockResolvedValue(undefined);
   categoryYearsMock.mockReset();
-  categoryYearsMock.mockResolvedValue({});
+  categoryYearsMock.mockResolvedValue(phasing({}));
   realRole = 'Finance';
 });
 
@@ -943,8 +950,8 @@ describe('BudgetProjection — a NULL budget says WHICH kind of absence it is', 
     fetchMock.mockResolvedValue([NO_BUDGET_ROW]);
   });
 
-  it('states "budgeted in 2027" for a category whose lines are phased to ANOTHER year — never a bare "unavailable"', async () => {
-    categoryYearsMock.mockResolvedValue({ Labor: ['2027'] });
+  it('states "budgeted in 2027" for a category whose lines are ALL phased to ANOTHER year — never a bare "unavailable"', async () => {
+    categoryYearsMock.mockResolvedValue(phasing({ Labor: ['2027'] })); // every line placed — the claim holds
     pushStatusMock.mockResolvedValue([pushStatus({ pushState: 'pushed', fiscalYear: '2026' })]);
     renderPage();
     const row = (await screen.findByText('Labor')).closest('tr')!;
@@ -956,15 +963,20 @@ describe('BudgetProjection — a NULL budget says WHICH kind of absence it is', 
   });
 
   it('states the STALE-ATTRIBUTION reason (and the fix) when the attribution genuinely cannot be made', async () => {
-    categoryYearsMock.mockResolvedValue({}); // no phased line anywhere — the lines are un-phased
+    // ⚑ A stale attribution IS a suppressed one: the un-phased lines can be placed in no year, so the
+    // RPC answers `attribution_known = false` for the category (0153 §3a's `bool_and` conjunct). The
+    // row says so — staleness explains a SUPPRESSION, and a category that was not suppressed has
+    // nothing for it to explain (see the drifted-project case below).
+    fetchMock.mockResolvedValue([{ ...NO_BUDGET_ROW, attributionKnown: false }]);
+    categoryYearsMock.mockResolvedValue(phasing({}, { Labor: true })); // no phased line — all un-phased
     pushStatusMock.mockResolvedValue([pushStatus({ pushState: 'pushed', fiscalYear: '2026', staleAttribution: true })]);
     renderPage();
     const row = (await screen.findByText('Labor')).closest('tr')!;
-    await waitFor(() => expect(within(row).getAllByTitle(/phase these lines/i).length).toBeGreaterThanOrEqual(1));
+    await waitFor(() => expect(within(row).getAllByTitle(/attribution is stale/i).length).toBeGreaterThanOrEqual(1));
   });
 
   it('falls back to the shipped "no line for this category" statement when neither applies', async () => {
-    categoryYearsMock.mockResolvedValue({});
+    categoryYearsMock.mockResolvedValue(phasing({}));
     pushStatusMock.mockResolvedValue([pushStatus({ pushState: 'pushed', fiscalYear: '2026' })]);
     renderPage();
     const row = (await screen.findByText('Labor')).closest('tr')!;
@@ -981,7 +993,7 @@ describe('BudgetProjection — a NULL budget says WHICH kind of absence it is', 
    */
   it('states that some lines cannot be placed in this year — never "no line" about a category that HAS lines', async () => {
     fetchMock.mockResolvedValue([{ ...NO_BUDGET_ROW, attributionKnown: false }]);
-    categoryYearsMock.mockResolvedValue({ Labor: ['2026'] }); // phased HERE — nothing is "elsewhere"
+    categoryYearsMock.mockResolvedValue(phasing({ Labor: ['2026'] }, { Labor: true })); // phased HERE + an un-placeable one
     pushStatusMock.mockResolvedValue([
       pushStatus({ pushState: 'failed', pushError: 'budget-category-unmapped', fiscalYear: '2026' }),
     ]);
@@ -991,5 +1003,69 @@ describe('BudgetProjection — a NULL budget says WHICH kind of absence it is', 
       expect(within(row).getAllByTitle(/not phased to a fiscal year/i).length).toBeGreaterThanOrEqual(1),
     );
     expect(within(row).queryAllByTitle(/no line for this category/i)).toHaveLength(0);
+  });
+
+  /**
+   * ⚑ SHOULD-FIX 1 (FU-2 round 3) — THE (F, F) CELL: phased ELSEWHERE **and** un-placeable. Branch 1
+   * wins on "elsewhere" alone, and "elsewhere" is read from PMO's phased lines only — so a category
+   * holding $100,000 in FY2027 **and** $50,000 phased to no year at all was told, about $30,000 of real
+   * FY2026 spend: "budgeted in 2027 … a timing difference, not an overspend". PMO cannot know that: the
+   * $50,000 is placeable in no year, so the spend may well BE an overspend. A sentence is a claim — say
+   * the strongest thing that is TRUE and no more.
+   */
+  it('never claims "budgeted in 2027, not an overspend" while a SIBLING line is un-placeable', async () => {
+    fetchMock.mockResolvedValue([{ ...NO_BUDGET_ROW, attributionKnown: false }]);
+    categoryYearsMock.mockResolvedValue(phasing({ Labor: ['2027'] }, { Labor: true }));
+    pushStatusMock.mockResolvedValue([
+      pushStatus({ pushState: 'failed', pushError: 'budget-multi-fiscal-year-unphased', fiscalYear: '2026' }),
+    ]);
+    renderPage();
+    const row = (await screen.findByText('Labor')).closest('tr')!;
+    await waitFor(() =>
+      expect(within(row).getAllByTitle(/not phased to a fiscal year/i).length).toBeGreaterThanOrEqual(1),
+    );
+    expect(within(row).queryAllByTitle(/timing difference, not an overspend/i)).toHaveLength(0);
+    expect(within(row).queryAllByTitle(/budgeted in 2027/i)).toHaveLength(0);
+  });
+
+  /**
+   * ⚑ SHOULD-FIX 1, the FAIL-OPEN direction. The claim "every line of this category is placed
+   * elsewhere" needs the un-phased fact to be KNOWN. A phasing read that answers in an older shape
+   * (years only — a cached payload from a previous deploy) does not supply it, so PMO must not make the
+   * claim: not-known is not the same as known-none, and the money-honesty rule breaks the tie.
+   */
+  it('withholds the "budgeted in 2027" claim when the un-phased fact is ABSENT, not merely empty', async () => {
+    fetchMock.mockResolvedValue([{ ...NO_BUDGET_ROW, attributionKnown: false }]);
+    categoryYearsMock.mockResolvedValue({ years: { Labor: ['2027'] } }); // no `unphased` key at all
+    pushStatusMock.mockResolvedValue([pushStatus({ pushState: 'pushed', fiscalYear: '2026' })]);
+    renderPage();
+    const row = (await screen.findByText('Labor')).closest('tr')!;
+    await waitFor(() =>
+      expect(within(row).getAllByTitle(/not phased to a fiscal year/i).length).toBeGreaterThanOrEqual(1),
+    );
+    expect(within(row).queryAllByTitle(/timing difference, not an overspend/i)).toHaveLength(0);
+  });
+
+  /**
+   * ⚑ SHOULD-FIX 1, second half — `staleAttribution` is a PROJECT-YEAR flag answering a PER-CATEGORY
+   * question. Tested before `attributionKnown`, it explained a category with NO lines at all — whose
+   * `-EAC` variance is a correct, deliberately loud unbudgeted-spend alarm — as "phase these lines",
+   * about lines that do not exist. A real money alarm explained away as bookkeeping.
+   */
+  it('does not blame STALENESS for a category that has no lines at all, even on a drifted project', async () => {
+    fetchMock.mockResolvedValue([
+      // A no-line category is never suppressed (0153 coalesces its attribution to TRUE) and keeps its
+      // loud -EAC: actuals $40,000 + ETC $35,000 all unbudgeted.
+      { ...NO_BUDGET_ROW, attributionKnown: true, projectedVariance: -75000 },
+    ]);
+    categoryYearsMock.mockResolvedValue(phasing({ Materials: ['2026'] }, { Materials: true }));
+    pushStatusMock.mockResolvedValue([pushStatus({ pushState: 'pushed', fiscalYear: '2026', staleAttribution: true })]);
+    renderPage();
+    const row = (await screen.findByText('Labor')).closest('tr')!;
+    await waitFor(() =>
+      expect(within(row).getAllByTitle(/no line for this category/i).length).toBeGreaterThanOrEqual(1),
+    );
+    expect(within(row).queryAllByTitle(/phase these lines/i)).toHaveLength(0);
+    expect(screen.getByText('-$75,000')).toBeInTheDocument(); // the alarm itself is untouched
   });
 });

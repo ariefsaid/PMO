@@ -35,7 +35,7 @@ vi.mock('@/src/lib/db/budgets', () => ({ retryBudgetPush: retryBudgetPushMock })
 import {
   fetchBudgetProjection,
   fetchBudgetPushStatus,
-  fetchActiveBudgetCategoryYears,
+  fetchActiveBudgetCategoryPhasing,
   listBudgetFiscalYears,
   retryActiveBudgetPush,
   releaseActiveBudgetPushHold,
@@ -383,7 +383,7 @@ describe('fetchBudgetPushStatus (C-5)', () => {
  * must be STATED, not rendered as unavailable. This seam is where the surface learns it: PMO's OWN
  * phased line items on the Active version (F-C) — never an inference from the mirror or from a push.
  */
-describe('fetchActiveBudgetCategoryYears (which fiscal year IS this category budgeted in?)', () => {
+describe('fetchActiveBudgetCategoryPhasing (which fiscal year IS this category budgeted in — and is ANY line un-placeable?)', () => {
   it("groups the ACTIVE version's phased line items by category", async () => {
     makeFromBuilder({
       data: [
@@ -393,26 +393,47 @@ describe('fetchActiveBudgetCategoryYears (which fiscal year IS this category bud
       ],
       error: null,
     });
-    const years = await fetchActiveBudgetCategoryYears('proj-1');
-    expect(years).toEqual({ Labor: ['2027'], Materials: ['2026'] });
+    const phasing = await fetchActiveBudgetCategoryPhasing('proj-1');
+    expect(phasing).toEqual({ years: { Labor: ['2027'], Materials: ['2026'] }, unphased: {} });
     expect(mockFrom).toHaveBeenCalledWith('budget_line_items');
     expect(mockEq).toHaveBeenCalledWith('budget_versions.status', 'Active');
     expect(mockEq).toHaveBeenCalledWith('budget_versions.project_id', 'proj-1');
   });
 
-  it('ignores UN-PHASED lines — a NULL year is not a year, and inventing one is exactly what PMO refuses', async () => {
+  it('never invents a year for an UN-PHASED line — but RECORDS that the category has one', async () => {
     makeFromBuilder({ data: [{ category: 'Labor', fiscal_year: null }], error: null });
-    expect(await fetchActiveBudgetCategoryYears('proj-1')).toEqual({});
+    expect(await fetchActiveBudgetCategoryPhasing('proj-1')).toEqual({ years: {}, unphased: { Labor: true } });
+  });
+
+  /**
+   * ⚑ SHOULD-FIX 1 (FU-2 round 3) — the datum the reason-string ladder cannot decide without. Dropping
+   * the un-phased row (the shipped `continue`) leaves the surface reading "Labor is budgeted in 2027"
+   * off a category holding $50,000 it cannot place in ANY year — and stating that FY2026 spend on it is
+   * "a timing difference, not an overspend", a claim PMO does not hold.
+   */
+  it('carries BOTH facts for a category phased elsewhere WITH an un-phased sibling (the (F,F) cell)', async () => {
+    makeFromBuilder({
+      data: [
+        { category: 'Labor', fiscal_year: '2027' },
+        { category: 'Labor', fiscal_year: null },
+        { category: 'Materials', fiscal_year: '2026' },
+      ],
+      error: null,
+    });
+    expect(await fetchActiveBudgetCategoryPhasing('proj-1')).toEqual({
+      years: { Labor: ['2027'], Materials: ['2026'] },
+      unphased: { Labor: true },
+    });
   });
 
   it('resolves empty (never throws) when the project has no Active version', async () => {
     makeFromBuilder({ data: [], error: null });
-    expect(await fetchActiveBudgetCategoryYears('proj-1')).toEqual({});
+    expect(await fetchActiveBudgetCategoryPhasing('proj-1')).toEqual({ years: {}, unphased: {} });
   });
 
   it('throws an AppError (code preserved) on a read failure', async () => {
     makeFromBuilder({ data: null, error: { message: 'not authorized', code: '42501' } });
-    await expect(fetchActiveBudgetCategoryYears('proj-1')).rejects.toMatchObject({ code: '42501' });
+    await expect(fetchActiveBudgetCategoryPhasing('proj-1')).rejects.toMatchObject({ code: '42501' });
   });
 });
 

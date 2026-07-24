@@ -17,7 +17,7 @@
 -- whose lines are phased to ANOTHER year is ALSO `attribution_known = false`, deliberately — but that
 -- FALSE means something entirely different: the fact is fully KNOWN ("budgeted in FY2027"), PMO just
 -- refuses to print `-EAC` for an ordinary timing difference. The surface tells the two apart from PMO's
--- own phased years (`fetchActiveBudgetCategoryYears`), so the RPC must keep answering FALSE there —
+-- own phased years (`fetchActiveBudgetCategoryPhasing`), so the RPC must keep answering FALSE there —
 -- narrowing F-D must not accidentally turn that into TRUE, and must not suppress a category merely
 -- because a SIBLING line is phased to a different year.
 --
@@ -25,8 +25,20 @@
 -- (b) state the amount anyway when the attribution is unknown → A's amount assertion red; (c) let a
 -- phased-elsewhere line count as "suppressed" → B's Materials goes NULL → red; (d) make the
 -- all-phased-elsewhere case TRUE → B's Subcontractors prints -EAC → red.
+--
+-- ⚑ SHOULD-FIX 1 (FU-2 round 3) — THE THIRD CELL OF THE (bool_or, bool_and) TABLE. F-D collapses THREE
+-- states into one FALSE, and only two of them had a fixture:
+--   (F, T) — every line phased ELSEWHERE                       → project B, Subcontractors
+--   (T, F) — a line here AND an un-placeable one               → project A, Labor
+--   (F, F) — phased ELSEWHERE **and** an un-placeable sibling  → project C, Labor (NEW)
+-- The third is the ordinary shape of the `budget-multi-fiscal-year-unphased` refusal (the PM phased
+-- most lines and missed one), and it appeared in NO fixture at any layer — so the surface was free to
+-- read "elsewhere = 2027" off PMO's phased lines and state "budgeted in 2027, not an overspend" about a
+-- category holding $50,000 it cannot place in ANY year. The RPC withholds every NUMBER correctly here;
+-- what was missing is the DATUM the surface needs to withhold the SENTENCE too — that a sibling line is
+-- un-phased. Project C pins both halves.
 begin;
-select plan(11);
+select plan(16);
 
 insert into organizations (id, name) values
   ('0bfc0000-0000-0000-0000-000000000001','BFY partial-attribution Org A');
@@ -43,11 +55,16 @@ insert into profiles (id, org_id, full_name, email, role, status) values
 insert into projects (id, org_id, name, status, start_date, end_date) values
   ('0bfc1111-0000-0000-0000-000000000001','0bfc0000-0000-0000-0000-000000000001','BFY Partly Attributable','Ongoing Project',date '2025-08-01',date '2026-03-31'),
 -- ── PROJECT B — MULTI fiscal year, every line PHASED, never dispatched ───────────────────────────
-  ('0bfc1111-0000-0000-0000-000000000002','0bfc0000-0000-0000-0000-000000000001','BFY Phased Elsewhere','Ongoing Project',date '2025-08-01',date '2027-03-31');
+  ('0bfc1111-0000-0000-0000-000000000002','0bfc0000-0000-0000-0000-000000000001','BFY Phased Elsewhere','Ongoing Project',date '2025-08-01',date '2027-03-31'),
+-- ── PROJECT C — MULTI fiscal year, a category phased ELSEWHERE with an UN-PLACEABLE sibling ──────
+-- The (F, F) cell: `bool_or` FALSE (nothing lands in FY2026) and `bool_and` FALSE (the un-phased line
+-- is un-placeable — the push was REFUSED, so `attributed_null` is empty).
+  ('0bfc1111-0000-0000-0000-000000000003','0bfc0000-0000-0000-0000-000000000001','BFY Elsewhere And Unplaceable','Ongoing Project',date '2025-08-01',date '2027-03-31');
 
 insert into budget_versions (id, org_id, project_id, version, name, status) values
   ('0bfc2222-0000-0000-0000-000000000001','0bfc0000-0000-0000-0000-000000000001','0bfc1111-0000-0000-0000-000000000001',1,'Mixed v1','Draft'),
-  ('0bfc2222-0000-0000-0000-000000000002','0bfc0000-0000-0000-0000-000000000001','0bfc1111-0000-0000-0000-000000000002',1,'Phased v1','Draft');
+  ('0bfc2222-0000-0000-0000-000000000002','0bfc0000-0000-0000-0000-000000000001','0bfc1111-0000-0000-0000-000000000002',1,'Phased v1','Draft'),
+  ('0bfc2222-0000-0000-0000-000000000003','0bfc0000-0000-0000-0000-000000000001','0bfc1111-0000-0000-0000-000000000003',1,'Elsewhere+unplaceable v1','Draft');
 insert into budget_line_items (org_id, budget_version_id, category, description, budgeted_amount, actual_amount, fiscal_year) values
   -- A: the review's repro, verbatim.
   ('0bfc0000-0000-0000-0000-000000000001','0bfc2222-0000-0000-0000-000000000001','Labor','Phased crew',100000.00,0,'2026'),
@@ -55,21 +72,31 @@ insert into budget_line_items (org_id, budget_version_id, category, description,
   -- B: a category budgeted ENTIRELY in another year, and one budgeted across BOTH years.
   ('0bfc0000-0000-0000-0000-000000000001','0bfc2222-0000-0000-0000-000000000002','Subcontractors','Year-2 subcontract',70000.00,0,'2027'),
   ('0bfc0000-0000-0000-0000-000000000001','0bfc2222-0000-0000-0000-000000000002','Materials','Year-1 steel',60000.00,0,'2026'),
-  ('0bfc0000-0000-0000-0000-000000000001','0bfc2222-0000-0000-0000-000000000002','Materials','Year-2 steel',30000.00,0,'2027');
+  ('0bfc0000-0000-0000-0000-000000000001','0bfc2222-0000-0000-0000-000000000002','Materials','Year-2 steel',30000.00,0,'2027'),
+  -- C: the review's SHOULD-FIX-1 repro, verbatim — Labor phased to 2027 with an un-phased sibling, and
+  -- a Materials line naming 2026 so FY2026 is `on_record` via F-C (the year is real, only Labor's share
+  -- of it is unknowable).
+  ('0bfc0000-0000-0000-0000-000000000001','0bfc2222-0000-0000-0000-000000000003','Labor','Year-2 crew',100000.00,0,'2027'),
+  ('0bfc0000-0000-0000-0000-000000000001','0bfc2222-0000-0000-0000-000000000003','Labor','Un-phased crew',50000.00,0,null),
+  ('0bfc0000-0000-0000-0000-000000000001','0bfc2222-0000-0000-0000-000000000003','Materials','Year-1 steel',60000.00,0,'2026');
 update budget_versions set status = 'Active', activated_at = now()
- where id in ('0bfc2222-0000-0000-0000-000000000001','0bfc2222-0000-0000-0000-000000000002');
+ where id in ('0bfc2222-0000-0000-0000-000000000001','0bfc2222-0000-0000-0000-000000000002','0bfc2222-0000-0000-0000-000000000003');
 
 -- ⚑ THE REFUSAL in the shape production writes it (`recordBudgetGateFailure`): `push_state='failed'`
 -- with the classified code and the year the rejection named. NOTHING was pushed, so there is no F-A
 -- record of which year the un-phased line belongs to — `attributed_null` is empty.
 insert into budget_version_erp_mirror (org_id, budget_version_id, fiscal_year, push_state, push_error) values
-  ('0bfc0000-0000-0000-0000-000000000001','0bfc2222-0000-0000-0000-000000000001','2026','failed','budget-category-unmapped');
+  ('0bfc0000-0000-0000-0000-000000000001','0bfc2222-0000-0000-0000-000000000001','2026','failed','budget-category-unmapped'),
+  -- C's refusal is the multi-FY one: the gate rejected the whole push because a line is un-phased.
+  ('0bfc0000-0000-0000-0000-000000000001','0bfc2222-0000-0000-0000-000000000003','2026','failed','budget-multi-fiscal-year-unphased');
 
 -- FY2026 ledger for both projects (one snapshot generation, as a real sweep pass writes it).
 insert into erp_actuals_snapshot (org_id, project_id, account, fiscal_year, debit, credit, net, snapshot_id) values
   ('0bfc0000-0000-0000-0000-000000000001','0bfc1111-0000-0000-0000-000000000001','5100 - Direct Costs - PSC','2026',30000.00,0,30000.00,'0bfc5555-0000-0000-0000-000000000001'),
   ('0bfc0000-0000-0000-0000-000000000001','0bfc1111-0000-0000-0000-000000000002','5200 - Materials - PSC','2026',20000.00,0,20000.00,'0bfc5555-0000-0000-0000-000000000001'),
-  ('0bfc0000-0000-0000-0000-000000000001','0bfc1111-0000-0000-0000-000000000002','5400 - Subcontract - PSC','2026',5000.00,0,5000.00,'0bfc5555-0000-0000-0000-000000000001');
+  ('0bfc0000-0000-0000-0000-000000000001','0bfc1111-0000-0000-0000-000000000002','5400 - Subcontract - PSC','2026',5000.00,0,5000.00,'0bfc5555-0000-0000-0000-000000000001'),
+  -- C: $30,000 of FY2026 Labor spend against a category PMO cannot fully place — the money at stake.
+  ('0bfc0000-0000-0000-0000-000000000001','0bfc1111-0000-0000-0000-000000000003','5100 - Direct Costs - PSC','2026',30000.00,0,30000.00,'0bfc5555-0000-0000-0000-000000000001');
 
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"0bfc0000-0000-0000-0000-0000000000a1","role":"authenticated"}';
@@ -113,7 +140,7 @@ select is(
   null,
   'AC-BFY-023b [preserved] …and never -EAC: spend landing in FY2026 against FY2027 work is a timing difference, not an overspend');
 -- The surface renders THAT false as "budgeted in 2027" rather than "unavailable", from PMO's own phased
--- years — this row is the datum it reads (`fetchActiveBudgetCategoryYears`; the sentence itself is owned
+-- years — this row is the datum it reads (`fetchActiveBudgetCategoryPhasing`; the sentence itself is owned
 -- by `BudgetProjection.test.tsx`).
 select is(
   (select array_agg(distinct li.fiscal_year order by li.fiscal_year)
@@ -134,6 +161,41 @@ select is(
   (select pmo_budget_amount from public.get_budget_projection('0bfc1111-0000-0000-0000-000000000002','2026') where category='Materials'),
   60000.00::numeric,
   'AC-BFY-023b [no over-suppression] …stating exactly the FY2026 half — the year-scoping is unchanged');
+
+-- ── C — PHASED ELSEWHERE **AND** UN-PLACEABLE: the (F, F) cell (SHOULD-FIX 1) ────────────────────
+select is(
+  (select attribution_known from public.get_budget_projection('0bfc1111-0000-0000-0000-000000000003','2026') where category='Labor'),
+  false,
+  'AC-BFY-023b [SHOULD-FIX 1] a category phased to FY2027 that ALSO holds an un-placeable line is NOT attribution_known for FY2026');
+select is(
+  (select pmo_budget_amount from public.get_budget_projection('0bfc1111-0000-0000-0000-000000000003','2026') where category='Labor'),
+  null,
+  'AC-BFY-023b [SHOULD-FIX 1] …no FY2026 amount: $100,000 belongs to FY2027 and $50,000 belongs to no year PMO can name');
+select is(
+  (select projected_variance from public.get_budget_projection('0bfc1111-0000-0000-0000-000000000003','2026') where category='Labor'),
+  null,
+  'AC-BFY-023b [SHOULD-FIX 1] …and never -EAC on $30,000 of FY2026 spend — the F-D branch precedes the no-line branch');
+-- ⚑ THE TWO DATA THE SURFACE READS, and the reason the sentence was wrong: the phased years alone say
+-- "2027", which the ladder rendered as "budgeted in 2027 — a timing difference, not an overspend". That
+-- claim is only TRUE when every line is placed. The un-phased sibling is the second datum, and
+-- `fetchActiveBudgetCategoryPhasing` must carry it (the sentence itself is owned by
+-- `BudgetProjection.test.tsx`).
+select is(
+  (select array_agg(distinct li.fiscal_year order by li.fiscal_year)
+     from public.budget_line_items li
+     join public.budget_versions v on v.id = li.budget_version_id
+    where v.project_id = '0bfc1111-0000-0000-0000-000000000003' and v.status = 'Active'
+      and li.category = 'Labor' and li.fiscal_year is not null),
+  array['2027']::text[],
+  'AC-BFY-023b [SHOULD-FIX 1] PMO''s phased lines name only 2027 — which alone would read as "budgeted in 2027"');
+select is(
+  (select exists (
+     select 1 from public.budget_line_items li
+      join public.budget_versions v on v.id = li.budget_version_id
+     where v.project_id = '0bfc1111-0000-0000-0000-000000000003' and v.status = 'Active'
+       and li.category = 'Labor' and li.fiscal_year is null)),
+  true,
+  'AC-BFY-023b [SHOULD-FIX 1] …but a SIBLING line is un-phased, so "not an overspend" is a claim PMO does not hold');
 
 select finish();
 rollback;

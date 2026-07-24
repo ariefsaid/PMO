@@ -191,6 +191,19 @@ export async function fetchBudgetPushStatus(projectId: string): Promise<BudgetPu
 export type BudgetCategoryFiscalYears = Partial<Record<BudgetCategory, string[]>>;
 
 /**
+ * How the ACTIVE version's lines are PHASED, per category — both halves of it.
+ *
+ * `years` is what PMO can place; `unphased` marks the categories holding at least one line phased to no
+ * year at all. The second is not decoration: without it, `years` alone reads as "this category is
+ * budgeted in 2027" for a category whose $50,000 sibling belongs to no year PMO can name.
+ */
+export interface ActiveBudgetCategoryPhasing {
+  years: BudgetCategoryFiscalYears;
+  /** `true` iff the category has ≥1 line with no fiscal year — sparse, so absence means "none". */
+  unphased: Partial<Record<BudgetCategory, true>>;
+}
+
+/**
  * ⚑ THE DIRECTOR'S RULING (spec §6.2) — the surface must distinguish two facts that both reach it as a
  * NULL budget.
  *
@@ -202,10 +215,13 @@ export type BudgetCategoryFiscalYears = Partial<Record<BudgetCategory, string[]>
  * but the second fact is FULLY KNOWN, and rendering a knowable fact as "unavailable" is its own
  * dishonesty. This read is how the screen knows it: PMO's OWN phased line items, nothing inferred.
  *
- * Un-phased (NULL) lines are deliberately ignored — a NULL year is not a year, and attributing one here
- * would be exactly the invention ADR-0048 forbids.
+ * ⚑ SHOULD-FIX 1 (FU-2 round 3) — AND THE UN-PHASED ROWS ARE COUNTED, NOT DROPPED. PMO still refuses to
+ * give them a year (a NULL year is not a year — inventing one is exactly what ADR-0048 forbids), but
+ * THAT THEY EXIST is itself a fact, and the one the reason-string ladder cannot decide without: "all of
+ * this category is budgeted in 2027, so FY2026 spend is a timing difference and not an overspend" is
+ * only true when EVERY line is placed. Dropping these rows made that claim unfalsifiable on screen.
  */
-export async function fetchActiveBudgetCategoryYears(projectId: string): Promise<BudgetCategoryFiscalYears> {
+export async function fetchActiveBudgetCategoryPhasing(projectId: string): Promise<ActiveBudgetCategoryPhasing> {
   const { data, error } = await supabase
     .from('budget_line_items')
     // The `!inner` join scopes to the Active version without a second round trip; RLS scopes the org.
@@ -213,13 +229,16 @@ export async function fetchActiveBudgetCategoryYears(projectId: string): Promise
     .eq('budget_versions.project_id', projectId)
     .eq('budget_versions.status', 'Active');
   if (error) throw toAppError(error);
-  const byCategory: BudgetCategoryFiscalYears = {};
+  const phasing: ActiveBudgetCategoryPhasing = { years: {}, unphased: {} };
   for (const row of (data ?? []) as Array<{ category: BudgetCategory; fiscal_year: string | null }>) {
-    if (!row.fiscal_year) continue;
-    const years = (byCategory[row.category] ??= []);
+    if (!row.fiscal_year) {
+      phasing.unphased[row.category] = true;
+      continue;
+    }
+    const years = (phasing.years[row.category] ??= []);
     if (!years.includes(row.fiscal_year)) years.push(row.fiscal_year);
   }
-  return byCategory;
+  return phasing;
 }
 
 /**
