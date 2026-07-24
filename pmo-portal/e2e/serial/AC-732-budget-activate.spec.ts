@@ -85,7 +85,7 @@ test('AC-732 PM creates a Draft, adds line-items {600000,400000}, activates, pro
   await draftCard.getByRole('button', { name: '+ Add line item' }).click();
 
   // Select Materials category for variety
-  await draftCard.getByRole('combobox').selectOption('Materials');
+  await draftCard.getByLabel('Line item category').selectOption('Materials');
   await draftCard.getByPlaceholder('Amount').fill('400000');
   await draftCard.getByRole('button', { name: 'Save' }).click();
 
