@@ -44,6 +44,15 @@
   a timesheet release still frees the mirror AND a cross-domain release is refused proves the reconciliation.
   Neither lane is pushed yet, so there is time — do NOT merge the second PR without this reconcile.
 
+- **⚑ FU-2 follow-up (2026-07-24, from the round-4 review's note 4) — return the absence REASON as an enum
+  from `get_budget_projection`, and delete the separate phasing read from the money path.** Today
+  `BudgetProjection.tsx` derives its "why is this figure absent" sentence from a SECOND query
+  (`fetchActiveBudgetCategoryPhasing`), which forced two fixes: paging it (a silent `max_rows` truncation
+  read as "fully placed elsewhere" and re-opened the "not an overspend" claim) and gating first paint on it
+  (no claim before its inputs). Both dissolve if the RPC that already knows `attribution_known` also returns
+  WHY. Net: one query, no truncation surface, no added latency on the money grid. Not urgent — the shipped
+  behaviour is correct and mutation-proven — but it removes a whole class rather than guarding it.
+
 ### ⚑⚑⚑ BACKLOG STALENESS AUDIT (2026-07-23) — READ BEFORE ACTING ON ANY OLDER ENTRY
 
 A read-only agent verified 24 long-running entries **against `origin/dev` by CONTENT** (never by branch
