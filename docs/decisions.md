@@ -1076,3 +1076,28 @@ is deferred "until two unrelated clients deliberately" exist).
 allow override of per-status resolution (OD-INT-13). The integration-enablement spec also records the
 remaining test-layer corrections for `AC-IEM-004` and `AC-IEM-007`, while per-org webhook secrets remain
 deferred under this single-org decision.
+
+---
+
+## OD-CR-1..6 — RIS-parity + CRM-v2 candidate program (owner grill 2026-07-22)
+
+Candidate program, **not scheduled**. Analysis: [`docs/reviews/2026-07-22-competitive-refresh-ris-cicle.md`](reviews/2026-07-22-competitive-refresh-ris-cicle.md).
+Full decision text (batches A–D + the resulting sequence) lives in the **CANDIDATE PROGRAM** section of
+[`docs/backlog.md`](backlog.md) — indexed here so `OD-CR-*` resolves by id:
+
+- **OD-CR-1** — order = S-effort quick wins (D3 weighted forecast · D4 win/loss · A2 rejection comments ·
+  A3 bulk procurement approve) → Batch D CRM v2 as the main track → A/B remainder + C.
+- **OD-CR-2** — D1 M365 capture v1 = **manual log-to-CRM** (user picks an email/meeting to log against a
+  contact/deal). No background auto-sync in v1; model it so auto-sync ships later as a per-org opt-in flag.
+- **OD-CR-3** — localization = **full id-ID in this program** (i18n framework + Bahasa + IDR first-class).
+  Sequencing: the i18n seam + locale/currency formatting land **early**, translation content lands last.
+- **OD-CR-4** — locale model = **per-org default language + per-user override** (Director default,
+  revisable at the spec grill).
+- **OD-CR-5** — currency = **single currency per org in v1, architected for multi-currency** (owner-revised
+  2026-07-22): `currency` column on every money table (trigger-defaulted like `org_id`), formatting keyed
+  off the record's currency never a global constant, rollups group-or-convert by currency. **The ERPNext
+  adapter carries the same seam in v1:** every money doc written through (SI/PE/PO/PI/quotes) sets
+  `currency` explicitly from the PMO record — never the ERPNext company default — and read-backs preserve
+  the source doc's currency. v1 still pins org currency == ERPNext company currency at connect.
+- **OD-CR-6** — parked set confirmed parked: in-house chat/video (Cicle turf, stays Big-track), field
+  photos/forms (KANNA turf), offline/native mobile.
