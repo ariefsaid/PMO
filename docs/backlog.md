@@ -5,8 +5,14 @@
 `docs/decisions.md` (OD-* lookup by id). Roadmap framing in `docs/roadmap-spines.md`.
 
 ### ⚑⚑⚑ CURRENT FOCUS — v0.8.0 SHIPPED TO PRODUCTION (2026-07-25). Nothing in flight.
-`production` == `main` == `dev` == **`0079bcc9`**, all at **v0.8.0**. No open PRs. The ERPNext
-program is closed, promoted, released and deployed.
+`production` == `main` == **`0079bcc9`**, tagged **v0.8.0**. No open PRs. The ERPNext program is
+closed, promoted, released and deployed.
+
+⚑ **`dev` is 4 commits AHEAD of `main`** — CI-only work that landed after the promote (#393
+`RELEASE_PLEASE_TOKEN`, #392 docs-deadlock fix) plus two docs/chore commits. All non-releasable
+types, so release-please will not cut a tag for them; they ride along with the next promote.
+*(An earlier revision of this line claimed `dev` == `main` == `0079bcc9`. It was wrong — verify with
+`git log --oneline origin/main..origin/dev`, not by recalling what was promoted.)*
 
 **What went live (all verified, not assumed):**
 - **DB** — prod migrated through `0166`; `scripts/db-push-prod.sh --pending` reports "up to date".
