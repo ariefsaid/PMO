@@ -35,7 +35,14 @@ jobs:
         with:
           ref: dev
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
+          # ⚑ NOT GITHUB_TOKEN. GitHub deliberately does not fire `pull_request` workflows for PRs
+          # opened by the default token (its recursion guard), so release-please's PR never got the
+          # `verify`/`integration` checks that branch protection on `main` REQUIRES — leaving every
+          # release permanently unmergeable. Shipping v0.8.0 needed a hand-pushed empty commit to
+          # break that deadlock. A PAT is a different identity, so its PRs trigger checks normally.
+          # Falls back to GITHUB_TOKEN so a fork/secret-less run still produces a (blocked) PR
+          # rather than failing outright.
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
       - name: Back-merge main → dev (release-please version bump + CHANGELOG)
         run: |
           git config user.name 'github-actions[bot]'
