@@ -13,7 +13,8 @@
   (#338 + #360) · **FU-1a** timesheet re-open + **FU-2** budget fiscal-year (#368) · AC-BUD-003
   binding-gate + AC-BUD-032 (#369) · money-path timeouts (#374). Audit history:
   [`docs/reviews/2026-07-23-p3bc-audit-program.md`](reviews/2026-07-23-p3bc-audit-program.md);
-  deploy-readiness detail: [`docs/handoffs/2026-07-24-erpnext-deploy-readiness-RESUME.md`](handoffs/2026-07-24-erpnext-deploy-readiness-RESUME.md).
+  deploy-readiness detail (ARCHIVED — historical, its open items are all closed):
+  [`docs/handoffs/archive/2026-07-24-erpnext-deploy-readiness-RESUME.md`](handoffs/archive/2026-07-24-erpnext-deploy-readiness-RESUME.md).
 - **✅ dev→main promote #370 MERGED** (`538782af`). It was red for a while on the integration gate; the
   root cause was **CI step ORDERING**, not the app: the served-fn smoke lane ran *before* the ordinary
   e2e lane, and `scripts/serve-functions.sh` tears down its edge-runtime container on exit while **Kong
@@ -139,6 +140,13 @@ BEHIND `dev`, content identical).
   in `erp_actuals_snapshot` so a taken reading is immutable. **Must preserve the bijection (FR-BUD-111)
   per year, or state why not.** Priority: real but not urgent — Admin-only, deliberate, and it corrupts
   reporting truth rather than moving money.
+
+### ⚑ DEBT — ADR id collisions break the `grep ADR-00NN` convention (2026-07-25)
+`docs/adr/` has **`0058`×2** (`-erpnext-money-idempotency-outbox`, `-microsoft-365-integration-architecture`)
+and **`0059`×3** (`-entra-app-registration-topology`, `-external-admin-connect`, `-pmo-sot-with-external-side-mirror`).
+`CLAUDE.md` states ADRs are cited by id, so `grep ADR-0059` resolving to three unrelated documents breaks
+the convention that makes them findable. Renumber the duplicates to the next free ids (**0063+**) and
+sweep citations across `docs/` + code comments. Surfaced by the 2026-07-25 docs audit.
 
 ### ⚑ DEBT — un-quarantine AC-IXD-PROC-W5-3 (its restore condition is already met) (2026-07-25)
 `e2e/AC-IXD-PROC-W5-3-approvals-inbox.spec.ts` is skipped with the note *"un-skip when e2e runs
