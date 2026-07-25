@@ -267,8 +267,19 @@ Both halves are one task: the RPC guard gives the good error message, the constr
 SHARE ROW EXCLUSIVE exemplar at `0065:69` shows the intended pattern — note that `0065:69` is the
 *exemplar*, **not** the defect; an older backlog entry pointed there and sent readers to the wrong file.
 
-**FR-HRD-042** (ubiquitous) Interactive record creation shall be idempotent under retry.
-**Evidence:** idempotency exists only on the bulk-import path (`0072`/`0073`).
+**FR-HRD-042** — ~~Interactive record creation shall be idempotent under retry.~~
+**REMOVED FROM THIS SPEC 2026-07-25. Deferred to its own spec.**
+
+**Evidence** (still valid): idempotency exists only on the bulk-import path (`0072`/`0073`).
+
+**Why it was pulled.** The planner correctly refused to plan it: one sentence with no AC, no named
+entity, and no key transport is not a requirement, it is a wish. It needs four decisions first —
+which entities are in scope; whether the key is a client-minted `client_request_id` or a natural key;
+what counts as "a retry"; and whether a duplicate returns the existing row or raises `23505`. That is
+a multi-table schema + RLS + FE-contract change and deserves its own spec and its own review.
+
+Bundling it here would have produced either an invented design or a task nobody could execute.
+Everything else in §4.6 is planned and stays.
 
 **FR-HRD-043** `spike-rls.yml` shall use `npm ci`, not `npm install`.
 
@@ -445,9 +456,21 @@ by whom it is processed, and how to opt out.
 **FR-CON-005** No consent banner shall be added (OD-OBS-2).
 
 **AC-CON-003**
-- **Given** a user who has opted out,
+- **Given** an app build where analytics is genuinely ENABLED (valid `phc_`-shaped key present),
+- **And** a user who has opted out,
 - **When** they navigate and trigger errors,
 - **Then** no network request is made to the PostHog host, and the preference survives a reload.
+- **And (control)** the same journey **without** opting out **does** produce a request to the PostHog
+  host — proving the assertion is capable of failing.
+
+> ⚑ **This AC was rewritten 2026-07-25 because its first form could never fail.** `config.ts:98`
+> disables analytics entirely unless a valid `phc_`-shaped key is present, which is never the case in
+> the e2e environment. So "no request to the PostHog host" passed **before any work was done**, and
+> would have kept passing if the opt-out were deleted entirely. The control assertion is not optional
+> garnish — it is the only thing that distinguishes "opt-out works" from "analytics was never on".
+>
+> This is the same defect class the spec exists to fix, found in the spec itself. Any AC asserting the
+> *absence* of something must be paired with a positive control.
 
 ### 6.1 Existing privacy controls (preserve — do not regress)
 
@@ -477,7 +500,7 @@ making `client.ts` the only permitted importer of `posthog-js` — preserve it).
 | AC-HRD-001 | Unit (Vitest) | telegram drain logic |
 | AC-HRD-030 | CI gate | new script |
 | AC-HRD-031 | Unit / CI gate | — |
-| FR-HRD-040, FR-HRD-041, FR-HRD-042 | Integration (pgTAP) | `supabase/tests/` |
+| FR-HRD-040, FR-HRD-041 | Integration (pgTAP) | `supabase/tests/` |
 | AC-PHG-010 | Unit (Vitest) | analytics |
 | AC-PHG-013 | CI gate | cross-reference tiles ↔ call sites |
 | AC-PHG-030 | Unit (Vitest) | quota script |
@@ -495,3 +518,39 @@ network request leaves the browser, which cannot be proven at a lower layer.
 2. **Telegram drain cadence is hourly.** For money write-through failures, is ~1h acceptable, or
    should the ERP-integration error codes alert faster?
 3. **Retention of 90 days** for `error_events` — confirm, or name a different window.
+
+> Director's working assumptions pending answers: 90-day retention, hourly cadence unchanged.
+> `HEARTBEAT_URL` stays unset until the owner opts into an external monitor; the code path already
+> exists and activates the moment the secret is set.
+
+---
+
+## 9. Amendments after planning (2026-07-25)
+
+The plan (`docs/plans/2026-07-25-observability-analytics.md`) surfaced four defects in this spec.
+Recorded here rather than silently patched, because the *kind* of error matters more than the fix.
+
+1. **AC-CON-003 could never fail.** Rewritten in §6 with a mandatory positive control. **General rule
+   adopted: any AC asserting the absence of a behaviour must be paired with a control proving the
+   assertion can fail.** Applies to every future spec, not just this one.
+
+2. **FR-HRD-042 was unplannable** and has been removed to its own future spec (§4.6).
+
+3. **Nine FRs carried no AC id** — FR-OBS-001/002/003, FR-HRD-010/020/043, FR-PHG-001–004/020/021,
+   FR-CON-001/002/004/005. The plan assigns `PROPOSED` ids that are direct restatements of the FR
+   text with no invented behaviour. **Those ids are hereby ratified**; the plan is authoritative for
+   their wording.
+
+4. **AC-HRD-001's root cause is deeper than §4.2 stated.** The re-alert loop is not merely a discarded
+   UPDATE result: the cooldown itself is derived from `error_events.notified_at`
+   (`telegram-notify/index.ts:57-66`) — *the very column the failing stamp writes*. So a failed stamp
+   both leaves the row unnotified **and** erases the evidence that would have suppressed the re-send.
+   That circularity is why the loop is unbounded rather than merely noisy. The fix is a write-ahead
+   `alert_send_log` recording the send attempt **before** the Telegram call, so cooldown state does
+   not depend on the write that can fail.
+
+**Accepted limitation.** FR-HRD-041's pgTAP cannot prove the race is *closed* — this stack has no
+`dblink`/`pg_background`, so two truly concurrent sessions can't be driven from one test. The test
+asserts the lock is present and the function is `security definer`, and says so in its own header.
+Accepted: `0059` treats the cap as a soft limit. **A test that cannot prove its claim must say so in
+its own text** — the failure mode being avoided is a future reader treating it as proof.
