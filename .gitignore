@@ -36,6 +36,9 @@ pmo-portal/e2e/.auth/
 # Optional Pi project-local generated mirrors — regenerated from .claude/ when .pi exists
 .pi/agents/
 .pi/skills/
+# Pi subagent run artifacts (dispatch input/output/transcript/meta — regenerated per run).
+# Matches at any depth: it materialises inside per-agent worktrees, not the main tree.
+.pi-subagents/
 
 # agent worktrees (transient)
 .claude/worktrees/
