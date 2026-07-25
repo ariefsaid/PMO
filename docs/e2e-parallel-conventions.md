@@ -88,6 +88,28 @@ until the stack restarts** — so any e2e that runs *after* a served lane hangs 
 `scripts/ci-integration-order.test.mjs` now asserts the order in **both** `ci.yml` and
 `verify-main-pr.sh`, so neither can regress silently.
 
+### ⚑ Edge functions are NOT served in either environment by default
+
+`supabase/config.toml` sets `[edge_runtime] enabled = false` — for **CI and local alike**. The only
+thing that serves `functions/v1/*` is `scripts/serve-functions.sh`, which starts its own container
+and exports **`SUPABASE_FUNCTIONS_URL`**. That variable — never `process.env.CI` — is the signal a
+spec must gate on.
+
+Gating on `CI` gets the polarity backwards in both directions, and we have shipped it twice:
+- the bench specs threw *in* CI because they assumed CI had an ERPNext bench (fixed #371/#372);
+- `AC-INV-001` skipped *in* CI and ran locally, where it 503'd on every run — passing CI by absence
+  while being permanently red on a developer machine.
+
+The canonical form (matches the bench specs):
+```ts
+const FUNCTIONS_URL = process.env.SUPABASE_FUNCTIONS_URL ?? '';
+const READY = Boolean(FUNCTIONS_URL && /* whatever else the lane needs */);
+if (FUNCTIONS_URL && !READY) throw new Error('served lane is up but misconfigured — never a silent skip');
+(READY ? test : test.skip)(...)
+```
+Skip when the lane is absent; **throw** when it is present but broken. A spec that mocks
+`functions/v1` via `page.route` needs no gate at all — prefer that.
+
 Targeted failing-spec reruns and `scripts/e2e-local.sh` are inner-loop tools — never a substitute
 for this gate. Environment gotchas the script enforces/documents: node ≥22 (node 18 fails inside
 vitest with a misleading `node:util`/`styleText` error), and `SUPABASE_FUNCTIONS_URL` stays UNSET
