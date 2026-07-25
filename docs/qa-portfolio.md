@@ -73,6 +73,7 @@ the served-function smoke last so its teardown cannot poison ordinary e2e reques
 **Design doc:** `docs/superpowers/specs/2026-07-11-e2e-parallel-isolation-design.md`
 **Plan:** `docs/superpowers/plans/2026-07-11-e2e-parallel-isolation.md`
 **README:** `pmo-portal/e2e/README.md` (pick-your-class table + guard + two-lane run)
+**Conventions checklist (binding, read before authoring a new spec):** `docs/e2e-parallel-conventions.md`
 
 **Note — community-standard alternative for full parallelism:** if the serial lane's runtime becomes
 material, the textbook option is **per-worker `workerIndex` data isolation** (each worker seeds/owns
