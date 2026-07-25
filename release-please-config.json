@@ -2,6 +2,8 @@
   "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
   "bootstrap-sha": "1f6805886dc8e9286ac4047de91c1ad54a70f65e",
   "include-component-in-tag": false,
+  "_comment-bump-minor-pre-major": "ADR-0042: this product is pre-1.0 SemVer. release-please defaults bump-minor-pre-major to FALSE, which sends ANY breaking change (a `!` marker or BREAKING CHANGE footer) straight to 1.0.0 — and 1.0 is a PRODUCT statement (GA), not a technical one. Setting it true keeps breaking changes as MINOR bumps while under 1.0, which is what ADR-0042 already says in prose. Caught 2026-07-25: a `chore(deps)!` react-router 7->8 upgrade would otherwise have tagged v1.0.0.",
+  "bump-minor-pre-major": true,
   "pull-request-title-pattern": "chore: release v${version}",
   "changelog-sections": [
     { "type": "feat", "section": "Features" },
