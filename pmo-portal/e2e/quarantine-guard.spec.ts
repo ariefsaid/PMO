@@ -21,14 +21,16 @@ const __dirname = dirname(__filename);
  * Current quarantined tests (4 total):
  * - AC-IN-001-incidents-crud.spec.ts: 2 tests (feature flag incidents=false)
  * - AC-INC-001-incident-detail.spec.ts: 1 test (feature flag incidents=false)
- * - AC-IXD-PROC-W5-3-approvals-inbox.spec.ts: 1 test (parallel-worker shared-DB race)
+ * - serial/AC-IXD-PROC-W5-3-approvals-inbox.spec.ts: 1 test (moved to the serial lane 2026-07-25;
+ *   its 'parallel-worker race' note was a MISDIAGNOSIS — it fails at --workers=1 too, because it
+ *   asserts a region that only exists in Approvals.tsx's stacked fallback, not the split inbox)
  */
 test('quarantine guard: quarantined e2e specs have documented QUARANTINE markers and tracked count', async () => {
   const e2eDir = __dirname;
   const quarantinedSpecs = [
     'AC-IN-001-incidents-crud.spec.ts',
     'AC-INC-001-incident-detail.spec.ts',
-    'AC-IXD-PROC-W5-3-approvals-inbox.spec.ts',
+    'serial/AC-IXD-PROC-W5-3-approvals-inbox.spec.ts',
   ];
 
   for (const specFile of quarantinedSpecs) {
@@ -46,7 +48,7 @@ test('quarantine guard: quarantined e2e specs have documented QUARANTINE markers
   // This ensures adding/removing a skip is a deliberate, reviewed change
   const acIn001Content = readFileSync(join(e2eDir, 'AC-IN-001-incidents-crud.spec.ts'), 'utf-8');
   const acInc001Content = readFileSync(join(e2eDir, 'AC-INC-001-incident-detail.spec.ts'), 'utf-8');
-  const acIxdContent = readFileSync(join(e2eDir, 'AC-IXD-PROC-W5-3-approvals-inbox.spec.ts'), 'utf-8');
+  const acIxdContent = readFileSync(join(e2eDir, 'serial', 'AC-IXD-PROC-W5-3-approvals-inbox.spec.ts'), 'utf-8');
 
   // Count test.skip calls with QUARANTINE reason strings
   const acIn001Skips = (acIn001Content.match(/test\.skip\(\s*'QUARANTINE:/g) || []).length;

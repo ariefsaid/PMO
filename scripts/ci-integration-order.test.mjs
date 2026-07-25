@@ -20,10 +20,23 @@ test('the ordinary e2e lane runs before the served-function smoke lane', () => {
 });
 
 test('CI and the local promotion gate reject retry-masked flaky Playwright cases', () => {
-  assert.match(
-    workflow,
-    /- name: E2E tests \(Playwright \/ Chromium\)[\s\S]{0,300}playwright test --project=chromium --fail-on-flaky-tests[\s\S]{0,120}playwright test --project=serial --workers=1 --fail-on-flaky-tests/,
-  );
+  // Assert the CONTRACT (every browser lane rejects flakes), not a character-distance window.
+  // The {0,300} form broke merely because a comment was added above the command — a false RED that
+  // says nothing about whether the flag is present. Match each lane's command independently.
+  assert.match(workflow, /playwright test --project=chromium --fail-on-flaky-tests/);
+  assert.match(workflow, /playwright test --project=serial --workers=1 --fail-on-flaky-tests/);
+  // ...and that neither lane's json report is produced with a shell redirect, which would send the
+  // `list` reporter into the file too — hiding the failing test name from the CI log and corrupting
+  // the JSON the skip gate parses (regression, 2026-07-25).
+  // Strip comment lines first — this rule's own explanation above contains the bad form verbatim,
+  // and a check that fails on documentation describing it is a check nobody keeps (3rd time today).
+  const workflowCommands = workflow
+    .split('\n')
+    .filter((l) => !/^\s*#/.test(l))
+    .join('\n');
+  assert.doesNotMatch(workflowCommands, /--reporter=list,json\s*>/);
+  assert.match(workflow, /PLAYWRIGHT_JSON_OUTPUT_NAME=\/tmp\/pw-chromium\.json/);
+  assert.match(workflow, /PLAYWRIGHT_JSON_OUTPUT_NAME=\/tmp\/pw-serial\.json/);
   assert.match(
     workflow,
     /- name: Serve adapter-dispatch \(served-fn lane smoke\)[\s\S]{0,800}playwright test served-fn-smoke --project=chromium --fail-on-flaky-tests/,
