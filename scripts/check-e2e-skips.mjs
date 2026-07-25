@@ -95,7 +95,15 @@ function collectSkipped(report) {
   return out;
 }
 
-const isAllowedIn = (allow, file) => allow.find((a) => file === a.file || file.startsWith(a.file));
+// ⚑ LONGEST match, not the FIRST. Entries legitimately overlap: a lane prefix (`serial/`) and a
+// specific spec inside that lane (`serial/AC-IXD-...`). With `.find()` the lane entry always won, so
+// the specific entry was never marked "used" and the gate reported it STALE — failing itself on a
+// correct allowlist (caught in CI, 2026-07-25). Longest-prefix is order-independent, so nobody has
+// to remember to list specific entries before their lane.
+const isAllowedIn = (allow, file) =>
+  allow
+    .filter((a) => file === a.file || file.startsWith(a.file))
+    .sort((x, y) => y.file.length - x.file.length)[0];
 
 /** Pure core so the self-test can exercise it without touching disk. */
 export function audit(reports, allow = ALLOWED_SKIPS) {
@@ -121,6 +129,14 @@ if (process.argv[2] === '--self-test') {
   const laneAllow = [{ file: 'serial/', reason: 'r', restore: 'x' }];
   const a4 = audit([ran('AC-1.spec.ts'), mk('serial/AC-2.spec.ts')], laneAllow);
   if (a4.stale.length) throw new Error('self-test FAIL: lane entry wrongly stale across reports');
+  // OVERLAP: a lane prefix AND a specific spec inside it, lane listed FIRST. Both must count as used.
+  const overlap = [
+    { file: 'serial/', reason: 'lane', restore: 'x' },
+    { file: 'serial/AC-2.spec.ts', reason: 'specific', restore: 'x' },
+  ];
+  const a5 = audit([mk('serial/AC-2.spec.ts'), mk('serial/AC-9.spec.ts')], overlap);
+  if (a5.stale.length) throw new Error('self-test FAIL: specific entry under a lane prefix wrongly stale');
+  if (a5.unexplained.length) throw new Error('self-test FAIL: lane-covered spec reported unexplained');
   console.log('check-e2e-skips self-test OK');
   process.exit(0);
 }
