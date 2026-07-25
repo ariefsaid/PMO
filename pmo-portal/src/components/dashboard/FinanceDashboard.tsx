@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import { useDashboard, useFinanceBudgetReview } from '@/src/hooks/useDashboard';
 import { useProcurements } from '@/src/hooks/useProcurements';
 import { useActualsSnapshot, useApAgingSnapshot, useArAgingSnapshot } from '@/src/hooks/useErpSnapshots';

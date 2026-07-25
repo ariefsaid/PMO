@@ -18,11 +18,11 @@
  * Layering (NFR-VR-LAYER-002):
  *   Imports: src/lib/viewspec/, src/lib/viewspec/executor, src/hooks/useUserViews,
  *            src/auth/useAuth, src/components/dashboard/, src/components/ui/,
- *            react-router-dom (for navigate in OD-1 CTA and useParams for route).
+ *            react-router (for navigate in OD-1 CTA and useParams for route).
  *   Does NOT import from src/lib/db/* directly.
  */
 import React, { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router';
 import { useUserView } from '@/src/hooks/useUserViews';
 import { useAuth } from '@/src/auth/useAuth';
 import { compileCompositionSpec } from '@/src/lib/viewspec/compiler';

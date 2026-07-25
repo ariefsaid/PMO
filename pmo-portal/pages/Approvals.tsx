@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router';
 import { AccessDenied, Badge, Card, ConfirmDialog, ListState, StatusPill, TextArea, ViewToggle, useToast } from '@/src/components/ui';
 import { describePushMutationError } from '@/src/lib/adapterSeam/pushErrorCopy';
 import { usePermission } from '@/src/auth/usePermission';

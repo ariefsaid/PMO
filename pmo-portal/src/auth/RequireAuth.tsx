@@ -1,5 +1,5 @@
 import React from 'react';
-import { Navigate, Outlet } from 'react-router-dom';
+import { Navigate, Outlet } from 'react-router';
 import { useAuth } from './useAuth';
 import { Button } from '../components/ui/Button';
 import { Card, CardPad } from '../components/ui/Card';

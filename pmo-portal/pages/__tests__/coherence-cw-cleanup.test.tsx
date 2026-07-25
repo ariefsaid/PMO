@@ -58,7 +58,7 @@ describe('CW-DEAL-1: SalesKanbanBoard empty column uses "No projects" noun', () 
 });
 
 // ── Fix 2 & 3: ProcurementDetails sticky decision card + RecordHeader Edit ──
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { MemoryRouter, Route, Routes } from 'react-router';
 
 // ---------------------------------------------------------------------------
 // Hook mocks — minimal, matching the established pattern in sibling test files
@@ -122,7 +122,7 @@ vi.mock('@/src/auth/impersonation', () => ({
   useEffectiveRole: () => ({ effectiveRole: mockEffectiveRole, realRole: mockEffectiveRole }),
 }));
 
-vi.mock('react-router-dom', async (orig) => {
+vi.mock('react-router', async (orig) => {
   const actual = await (orig() as Promise<Record<string, unknown>>);
   return { ...actual, useNavigate: () => vi.fn() };
 });

@@ -15,7 +15,7 @@ import {
   type TimesheetDay,
   type TimesheetGridRow,
 } from '@/src/components/ui';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router';
 import { usePermission } from '@/src/auth/usePermission';
 import { TimesheetStatus } from '../types';
 import { useTimesheets } from '@/src/hooks/useTimesheets';

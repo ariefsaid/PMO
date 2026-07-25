@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ListState, GateNotice, Button, StatusPill, NumberField, useToast } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter } from 'react-router';
 import React from 'react';
 import type { TimesheetWithEntries } from '@/src/lib/db/timesheets';
 import { ToastProvider } from '@/src/components/ui';

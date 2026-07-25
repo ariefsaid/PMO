@@ -1,4 +1,4 @@
-import { matchPath } from 'react-router-dom';
+import { matchPath } from 'react-router';
 import type { IconName } from '@/src/components/ui/icons';
 import type { BreadcrumbPart } from './Breadcrumb';
 import { projectStatusGroup, type ProjectStatusGroup } from '@/src/lib/db/projectTransitions';

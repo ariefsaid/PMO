@@ -8,7 +8,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, act, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { MemoryRouter, Route, Routes } from 'react-router';
 import React from 'react';
 import { axe } from 'jest-axe';
 import type { UserViewRow } from '@/src/lib/db/userViews';
@@ -92,8 +92,8 @@ vi.mock('@/src/components/ui', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/src/components/ui')>();
   return { ...actual, useToast: () => ({ toast: mockToast }) };
 });
-vi.mock('react-router-dom', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('react-router-dom')>();
+vi.mock('react-router', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('react-router')>();
   return { ...actual, useBlocker: mockBlocker };
 });
 // Stub ViewPreview: these tests focus on the builder state machine, not the preview

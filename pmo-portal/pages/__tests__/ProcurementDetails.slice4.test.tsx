@@ -18,7 +18,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import React from 'react';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { MemoryRouter, Route, Routes } from 'react-router';
 
 // ---------------------------------------------------------------------------
 // Mutable hook state
@@ -107,7 +107,7 @@ vi.mock('@/src/auth/impersonation', () => ({
   useEffectiveRole: () => ({ effectiveRole: roleState.effectiveRole, realRole: roleState.realRole }),
 }));
 
-vi.mock('react-router-dom', async (orig) => {
+vi.mock('react-router', async (orig) => {
   const actual = await (orig() as Promise<Record<string, unknown>>);
   return { ...actual, useNavigate: () => vi.fn() };
 });

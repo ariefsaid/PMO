@@ -30,7 +30,7 @@ vi.mock('@/src/hooks/useProcurements', () => ({
   useProcurements: () => procurementsState,
 }));
 
-vi.mock('react-router-dom', () => ({
+vi.mock('react-router', () => ({
   useNavigate: () => vi.fn(),
 }));
 

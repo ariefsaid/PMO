@@ -112,7 +112,7 @@ export default defineConfig({
         // the same named chunk (long-lived browser cache for rarely-changed
         // vendor bundles).
         manualChunks: (id: string) => {
-          if (id.includes('react-router-dom') || id.includes('/react/') || id.includes('/react-dom/')) {
+          if (id.includes('react-router') || id.includes('/react/') || id.includes('/react-dom/')) {
             // React core + router — changes rarely; long-lived browser cache
             return 'vendor-react';
           }

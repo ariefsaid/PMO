@@ -22,7 +22,7 @@ import {
   type ComboboxOption,
 } from '@/src/components/ui';
 import { ProjectIntegrationsCard } from '@/src/components/projects/ProjectIntegrationsCard';
-import { useLocation } from 'react-router-dom';
+import { useLocation } from 'react-router';
 import { usePermission } from '@/src/auth/usePermission';
 import { useAuth } from '@/src/auth/useAuth';
 import { useTasks, useTaskMutations, useAssignableProfiles } from '@/src/hooks/useTasks';

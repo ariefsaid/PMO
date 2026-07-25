@@ -5,7 +5,7 @@
  */
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
-import { MemoryRouter, Route, Routes, useNavigate } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useNavigate } from 'react-router';
 import { it, expect } from 'vitest';
 import { AgentContextProvider } from './AgentContextProvider';
 import { useAgentContext } from './useAgentContext';

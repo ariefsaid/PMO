@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useDashboard, useSalesPipeline } from '@/src/hooks/useDashboard';
 import { KPITile } from '@/src/components/ui/KPITile';

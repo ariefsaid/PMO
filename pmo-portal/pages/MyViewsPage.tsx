@@ -5,7 +5,7 @@
  * I5: "Compose with AI" entry point (FR-AS-014, AC-AS-011/012).
  */
 import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router';
 import {
   ListPage,
   ListState,

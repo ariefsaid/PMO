@@ -10,7 +10,7 @@ import {
   Icon,
   type Column,
 } from '@/src/components/ui';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import { usePermission } from '@/src/auth/usePermission';
 import { useRevenuePerProject } from '@/src/hooks/useRevenue';
 

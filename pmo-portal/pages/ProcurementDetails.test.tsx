@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { MemoryRouter, Route, Routes } from 'react-router';
 
 // Clicks the Confirm button inside the active confirm dialog (the
 // confirm-before-write gate now wraps every mutation). Works for both the
@@ -123,7 +123,7 @@ vi.mock('@/src/auth/impersonation', () => ({
 // gone — back-nav is a plain react-router navigate (AC-NAV-007).
 const navigate = vi.fn();
 const toast = vi.fn();
-vi.mock('react-router-dom', async (orig) => {
+vi.mock('react-router', async (orig) => {
   const actual = await (orig() as Promise<Record<string, unknown>>);
   return { ...actual, useNavigate: () => navigate };
 });

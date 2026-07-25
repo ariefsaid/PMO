@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter } from 'react-router';
 
 const auth = vi.hoisted(() => ({
   getSession: vi.fn(),
@@ -14,8 +14,8 @@ const trackHelpers = vi.hoisted(() => ({
 }));
 
 const navigateSpy = vi.hoisted(() => vi.fn());
-vi.mock('react-router-dom', async (orig) => {
-  const actual = await orig<typeof import('react-router-dom')>();
+vi.mock('react-router', async (orig) => {
+  const actual = await orig<typeof import('react-router')>();
   return { ...actual, useNavigate: () => navigateSpy };
 });
 

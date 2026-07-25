@@ -20,7 +20,7 @@ import {
   type ComboboxOption,
   type RowMenuItem,
 } from '@/src/components/ui';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useIncomingPayments, useSalesInvoices, useRevenueMutations } from '@/src/hooks/useRevenue';

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, act } from '@testing-library/react';
-import { MemoryRouter, Routes, Route, useNavigate } from 'react-router-dom';
+import { MemoryRouter, Routes, Route, useNavigate } from 'react-router';
 import React, { useEffect } from 'react';
 import { ToastProvider } from '@/src/components/ui';
 import ProjectDetail from '../pages/project-detail/ProjectDetail';

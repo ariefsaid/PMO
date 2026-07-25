@@ -22,7 +22,7 @@ import {
 import { ExportButton } from '@/src/components/export';
 import { ImportButton } from '@/src/components/import';
 import { makeContactImportDescriptor } from '@/src/lib/import';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useContacts, useContactMutations } from '@/src/hooks/useContacts';
