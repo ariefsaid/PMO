@@ -4,8 +4,8 @@
 > worktree; renumbered to **0062** against `origin/dev` (0061 = integration-enablement-model is the
 > current ceiling; note dev carries a pre-existing triple-0059 collision, untouched here).
 
-- **Status:** Proposed (Director, eng-planner phase, 2026-07-24). **Owner sign-off required** (changes the
-  write-semantics of every money flow — a spec-level decision).
+- **Status:** ACCEPTED (owner sign-off 2026-07-25). Scope confirmed as ALL FIVE money flows (F1–F5) in
+  one issue; manual retry-push kept; `held` presented distinctly from `failed`.
 - **Date:** 2026-07-24
 - **Deciders:** Director (eng-planner phase); owner at spec sign-off.
 - **Related:** **ADR-0055** (external-system adapters — SoT/enhancement; §4 synchronous write-through — this

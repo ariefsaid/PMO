@@ -1,6 +1,7 @@
 # Spec: Decouple money-write UI from the ERP push (async push status, no UI freeze)
 
-> **Status:** DRAFT — pending owner sign-off. Author: eng-planner. Date: 2026-07-24.
+> **Status:** SIGNED OFF (owner, 2026-07-25) — all §5 open questions resolved; scope is ALL FIVE
+> money flows (F1–F5). Author: eng-planner. Date: 2026-07-24.
 >
 > **Base branch:** `origin/dev` (this spec references ERPNext P2/P3 machinery — `budgets.ts::activateAndPush`,
 > `dispatchDomainCommand`, the `adapter-dispatch` edge fn, the `external_command_outbox`, the `erpnext-sweep`
@@ -321,19 +322,24 @@ forbidden.
 
 ---
 
-## 5. Open questions (for the Director / owner)
+## 5. Open questions — ✅ ALL RESOLVED (owner, 2026-07-25)
 
-1. **ADR number reconciliation.** ✅ RESOLVED (Director, 2026-07-24): the companion ADR is
-   **ADR-0062** (`docs/adr/0062-async-erp-push-ui.md`) — 0061 was the ceiling on `origin/dev` at
-   relocation time.
-2. **Conversion order.** This spec fully specs **F1 (budget activate)** as the reference conversion (it has
-   `get_budget_push_status` + a mirror today). F2–F5 follow the identical pattern — confirm whether they are
-   converted in this same issue or as fast-follow issues (recommend: F1 here, F2–F5 as a tracked fast-follow
-   so each gets its own e2e journey).
-3. **Retry-push scope.** FR-APU-014 specifies a single manual "retry push" affordance. Confirm whether
-   auto-retry (already the sweep's job) makes the manual affordance redundant, or whether the manual retry
-   is wanted for operator confidence (recommend: keep manual retry — it re-enqueues; the sweep is the
-   backstop, the button is the reassurance).
-4. **`held` state semantics.** `get_budget_push_status` exposes `held` (from ADR-0058) — confirm the exact
-   copy/affordance for `held` vs `failed` (e.g. "held" = a policy/approval hold upstream, not an ERP
-   rejection). If `held` is out of P3c scope, collapse it into `failed` for the badge and note it.
+1. **ADR number reconciliation.** ✅ The companion ADR is **ADR-0062**
+   (`docs/adr/0062-async-erp-push-ui.md`) — 0061 was the ceiling on `origin/dev` at relocation time.
+2. **Conversion order.** ✅ **OWNER: all five flows (F1–F5) convert in this issue** — budget activate,
+   sales-invoice submit, payment-entry submit, procurement transition, timesheet submit. NOT an F1-only
+   reference conversion. Implementation consequence: the enqueue-and-return pattern must be factored ONCE
+   (a shared seam) and applied to all five, not copy-pasted; each flow still owns its own e2e journey per
+   ADR-0010. Because a single flawed shared pattern would land on all five money paths simultaneously, the
+   plan MUST gate on: (a) the shared seam reviewed before the five call-sites are rewired, (b) a mutation
+   check proving a broken seam turns the suite red, (c) `security-auditor` on the full five-flow diff.
+3. **Retry-push scope.** ✅ **OWNER: keep the manual "retry push" affordance** (FR-APU-014). The sweep
+   remains the real backstop; the button re-enqueues so an operator has an action instead of waiting on an
+   invisible cron. Must be idempotent — re-enqueuing an already-`pending` command MUST NOT create a second
+   ERP document (dedupe on the outbox key, not on button state).
+4. **`held` state semantics.** ✅ **OWNER: `held` and `failed` are presented DISTINCTLY.**
+   - `held` = waiting on an upstream policy/approval hold. Neutral styling, no error affordance, copy
+     tells the user no action is needed from them. NOT collapsed into `failed`.
+   - `failed` = ERPNext rejected the document. Error styling + the retry affordance + the reason.
+   Rationale (owner): collapsing them tells someone to fix a problem that is not theirs and that retrying
+   cannot resolve.
