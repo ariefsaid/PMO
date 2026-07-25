@@ -24,6 +24,10 @@ export default defineConfig({
   use: {
     baseURL: 'http://localhost:3000',
     trace: 'on-first-retry',
+    // Retained only on failure so local/CI runs stay light; these are the CI diagnostics that let
+    // `npx playwright show-trace`/the report reconstruct a failing spec's DOM without re-running it.
+    screenshot: 'only-on-failure',
+    video: 'retain-on-failure',
     // Pin the browser clock to UTC so the UI's "current week" (derived from the browser's local
     // time) matches the seed's UTC `date_trunc('week', current_date)` week on ANY host timezone.
     // Without this, a host ahead of UTC (e.g. GMT+7, late-UTC-Sunday = local-Monday) computes a
