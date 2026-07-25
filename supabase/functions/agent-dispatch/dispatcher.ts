@@ -206,7 +206,7 @@ function dedupeFilters(automations: AutomationRow[]): TriggerFilter[] {
     const orgId = a.org_id;
     const event = a.trigger_on?.event;
     if (!orgId || !event) continue;
-    const key = `${orgId} ${event}`;
+    const key = `${orgId}\u0000${event}`;
     if (seen.has(key)) continue;
     seen.add(key);
     filters.push({ org_id: orgId, event });
