@@ -88,6 +88,12 @@ for one client, architected to scale to millions.
     (verified: `--no-verify` really does bypass the hook, so this is the only layer that holds).
   - **Mutation-check anything security-critical:** break the rule (e.g. `const allowed = true`) and the
     tests MUST go red. A suite that stays green while the handler is broken is not a suite.
+  - **`scripts/check-e2e-skips.mjs`** (integration job, BOTH lane reports in one call) — a skipped test
+    is not a passing one. Every skip needs a justified allowlist entry + a `restore` path; a **stale**
+    entry fails too. Rationale + the guard-polarity rule: `docs/qa-portfolio.md` "Enforcement".
+  - **No e2e spec may gate on `process.env.CI`** (enforced by `check-e2e-isolation.sh`) — gate on the
+    DEPENDENCY (`SUPABASE_FUNCTIONS_URL`), never the environment. Shipped backwards twice (#371/#372, #386).
+  - Both gates carry `--self-test`s that run in CI's verify job — the gates are themselves gated.
 - **⚑ NEVER regenerate `package-lock.json` on macOS (binding).** `npm install` on darwin/arm64 silently
   PRUNES the wasm32-wasi optional deps (`@emnapi/core`, `@emnapi/runtime`, via `@tailwindcss/oxide-wasm32-wasi`),
   and linux CI then fails `npm ci` with *"Missing: @emnapi/core@… from lock file"*. It happens even with an

@@ -4,80 +4,45 @@
 [`docs/history.md`](history.md) (don't read it for status). Locked owner-decisions are in
 `docs/decisions.md` (OD-* lookup by id). Roadmap framing in `docs/roadmap-spines.md`.
 
-### ⚑⚑⚑ CURRENT FOCUS — ERPNext integration deploy-readiness (2026-07-24) — CORE merged+green; 3 follow-up branches await owner-gated merge
-**Where it stands, honestly.** The spec'ed ERPNext integration is **built, reviewed, and green** — but
-NOT fully closed: the core is merged, the follow-ups that close spec'ed open questions are on branches.
-Full detail: [`docs/handoffs/2026-07-24-erpnext-deploy-readiness-RESUME.md`](handoffs/2026-07-24-erpnext-deploy-readiness-RESUME.md).
-Deploy-readiness pillars: **SAFE** (live-surface audit = SAFE TO EXPOSE, `docs/security/2026-07-24-erpnext-live-surface-audit.md`)
-· **WORKS** (full shipped e2e **48/48 vs a live throwaway bench**) · **COMPLETE** (spec→coverage, one
-regression closed 2026-07-24).
-- **✅ MERGED to `dev` (the bulk of the spec):** P2 money core (#315) + **P3a Sales/AR · P3b timesheets ·
-  P3c budget** (#338 + #360). Companies/revenue-AR/timesheets/budget domains all write-through the
-  ADR-0058 fenced outbox with two-person SoD; inbound feed + adopt; AR aging; FE surfaces. 11 adversarial
-  audit rounds (`docs/reviews/2026-07-23-p3bc-audit-program.md`). This is the deployable core.
-- **⏳ Built + reviewed SHIP, on branches, NOT merged (these close SPEC'ed open questions):**
-  **FU-1a** `Approved→Draft` timesheet re-open (`feat/timesheet-reopen`, OQ-TSP-6, 45 ahead of dev, 12
-  review rounds) · **FU-2** budget fiscal-year/phasing (`feat/budget-fiscal-year`, OQ-BUD-3c / FR-BUD-152,
-  54 ahead, 4 rounds) · the **AC-BUD-003 feature-gate correction + AC-BUD-032 regression fix**
-  (`test/erpnext-p3c-coverage-gaps`, 9 ahead). ⚑ **Merge prerequisites (settled, not yet applied):**
-  the `release_outbox_hold` reconciliation ([`docs/handoffs/2026-07-24-release-outbox-hold-reconciliation.md`](handoffs/2026-07-24-release-outbox-hold-reconciliation.md))
-  · per-lane migration renumber vs current dev (`0151_m365`) · port the `serve-functions.sh` cred-forward
-  patch to dev · **the owner-gated PR→dev for each**.
-- **⚑ Two items still OWED before "safe" is fully signed:** (1) a **security-auditor pass on this session's
-  budget-gate authz change** (Option-A moved the P3c feature-gate onto the active binding, touching the
-  money-path `authGuard.ts`) — `docs/security/2026-07-24-budget-binding-gate-authz-review.md` is NOT yet
-  written; (2) the audit's **8-item owner/config pre-live checklist** (⚑ TWO secret stores: webhook=Vault,
-  dispatch=env — both provisioned per org). See the RESUME doc.
-- **Future width:** the **ERPNext operational-completeness slate (G1–G6)** below — the headless
-  "PMO-is-the-only-UI" read/cost gaps; none scheduled, demand-ordered after P3.
-- **⚑ NEW (2026-07-23, Luna FU-1a round-2 BLOCK 4) — ownerless `committed` timesheet outbox rows.**
-  `outbox_reconcile_candidates` returns `committed` rows with no age limit (`0131:42-50`), but the generic
-  recovery pass skips ALL timesheet candidates (`erpnext-sweep/index.ts:397`), the timesheet queue selects
-  only `pending`/`failed` mirrors (`:1455-1460`), and the absent anti-join excludes any sheet that HAS a
-  mirror (`:1400-1420`). Two crash seams are therefore ownerless: (a) ERP commit → ref/mirror ok →
-  `confirm_outbox` fails (mirror `pushed`, outbox stuck `committed`); (b) commit ok → process dies before
-  the mirror, and the row ages past the 14-day `ABSENT_SHEET_LOOKBACK_MS`. **Does NOT double-post** — the
-  re-open refuses on `committed`, i.e. it fails closed — but a real ERP Timesheet is left unconfirmed and
-  the correction path cannot identify it. **DEFERRED from FU-1a deliberately** (pre-existing P3b
-  convergence gap that Slice A makes visible, not one it causes). Fix: route timesheet `committed`
-  candidates through a finalize-only recovery path, and test both committed-with-mirror and
-  committed-without-mirror crashes.
+### ⚑⚑⚑ CURRENT FOCUS — ERPNext integration is CLOSED and PROMOTED to `main` (2026-07-25)
+**Where it stands, honestly.** The spec'ed ERPNext integration is built, reviewed, green, and now **on
+`main`**. Nothing is held on a branch. `production` is untouched — **185 commits / 68 migrations behind
+`main`**, and a prod promote needs a direct, per-instance owner instruction (see the HARD STOP rule in
+`CLAUDE.md`).
+- **✅ Merged to `dev` then promoted:** P2 money core (#315) · P3a Sales/AR · P3b timesheets · P3c budget
+  (#338 + #360) · **FU-1a** timesheet re-open + **FU-2** budget fiscal-year (#368) · AC-BUD-003
+  binding-gate + AC-BUD-032 (#369) · money-path timeouts (#374). Audit history:
+  [`docs/reviews/2026-07-23-p3bc-audit-program.md`](reviews/2026-07-23-p3bc-audit-program.md);
+  deploy-readiness detail: [`docs/handoffs/2026-07-24-erpnext-deploy-readiness-RESUME.md`](handoffs/2026-07-24-erpnext-deploy-readiness-RESUME.md).
+- **✅ dev→main promote #370 MERGED** (`538782af`). It was red for a while on the integration gate; the
+  root cause was **CI step ORDERING**, not the app: the served-fn smoke lane ran *before* the ordinary
+  e2e lane, and `scripts/serve-functions.sh` tears down its edge-runtime container on exit while **Kong
+  keeps routing `functions/v1/*` to the vanished upstream** — so every later spec touching
+  `functions.invoke` hung. Fixed + order-locked by `scripts/ci-integration-order.test.mjs` (#377).
+- **✅ Post-promote hardening, all merged to `dev`:** e2e parallel conventions (#380) · CI failure
+  diagnostics (#381) · async-push spec + **ADR-0062**, owner-signed-off (#382) · `withTimeout` (#383) ·
+  **react-router 7→8.3.0 + postcss** (#384) · M365 ciphertext de-flake (#385).
+- **✅ Supply chain: `npm audit` reports 0 vulnerabilities across the FULL tree** (was 12). react-router's
+  `GHSA-qwww-vcr4-c8h2` was **fixed by upgrading, not waived** — `scripts/audit-prod.mjs`'s waiver list is
+  empty. Node floor is now **22.22+** (react-router 8 `engines`), enforced by `package.json` `engines`.
+- **⚑ Open:** PR **#386** — the `AC-INV-001` guard-polarity fix plus the two new CI gates (see
+  [`docs/qa-portfolio.md`](qa-portfolio.md) "Enforcement"). Next candidates are the two DEBT/PARKED
+  entries below.
 
-- **⚑ NEW (2026-07-23, Luna FU-1a round-3 BLOCK 1 + SF3/SF4) — anchorless submittable kinds have NO
-  recovery identity, so an unknown post-submit can DOUBLE-COMMIT.** `doctypeRegistry.ts` gives Purchase
-  Order `anchorField: null`. If a PO's POST+submit succeed and the post-submit read is unreachable, the
-  recovery probe finds nothing and `reissueOnInconclusiveAbsence` permits a fresh commit — the adapter
-  creates and submits `PO-2` while `PO-1` is live: **two purchase commitments on the client's ERP**, with
-  PMO's mapping pointing at the second. Related: (SF3) a permanent post-submit MAPPING error (e.g. a
-  non-numeric `grand_total` in the read-back) becomes an endless in-flight recovery loop, because the
-  probe re-runs the same failing mapper; (SF4) Sales Invoice `transition/submit` recovers using the
-  transition's own idempotency key, which is never stamped on the document, so it re-`PUT`s
-  `docstatus=1` against an already-submitted invoice and leaves the mirror at Draft while revenue is
-  posted. Evidence in `docs/reviews/2026-07-23-luna-fu1a-round3.md` findings 1, 3, 4.
-  **PRE-EXISTING (P2/P3a), deliberately NOT fixed in FU-1a** — that slice narrowed its post-submit change
-  to the `timesheets` domain precisely to avoid carrying this. Fix: never auto-reissue an unknown
-  post-submit for an anchorless kind (operator-held instead), or give those kinds a durable ERP recovery
-  anchor; recover a `submit` by its persisted `externalRecordId`, never by the transition key.
-
-- **⚑⚑ CROSS-LANE MERGE HAZARD (2026-07-24) — BOTH FU-1a and FU-2 modify `release_outbox_hold`.**
-  Not a migration-NUMBER clash (those are deconflicted: dev=0150, FU-1a=0151/0152/0155(+r7 0156),
-  FU-2=0153/0154). This is a SEMANTIC clash on one shared RPC: FU-1a's `0152` rewrote
-  `release_outbox_hold`'s BODY to also CAS the timesheet mirror `held→failed`; FU-2 changed its SIGNATURE
-  to `release_outbox_hold(..., p_expected_domain text default null)` and body to verify domain. Whichever
-  lane's migration applies LAST re-defines the function and **silently drops the other lane's change**
-  unless reconciled. ⚑ At the SECOND lane's merge to dev: rebase, and hand-merge the function so the final
-  definition carries BOTH the timesheet-mirror release AND the expected-domain param. A pgTAP that asserts
-  a timesheet release still frees the mirror AND a cross-domain release is refused proves the reconciliation.
-  Neither lane is pushed yet, so there is time — do NOT merge the second PR without this reconcile.
-
-- **⚑ FU-2 follow-up (2026-07-24, from the round-4 review's note 4) — return the absence REASON as an enum
-  from `get_budget_projection`, and delete the separate phasing read from the money path.** Today
-  `BudgetProjection.tsx` derives its "why is this figure absent" sentence from a SECOND query
-  (`fetchActiveBudgetCategoryPhasing`), which forced two fixes: paging it (a silent `max_rows` truncation
-  read as "fully placed elsewhere" and re-opened the "not an overspend" claim) and gating first paint on it
-  (no claim before its inputs). Both dissolve if the RPC that already knows `attribution_known` also returns
-  WHY. Net: one query, no truncation surface, no added latency on the money grid. Not urgent — the shipped
-  behaviour is correct and mutation-proven — but it removes a whole class rather than guarding it.
+**Durable lessons from the 2026-07-24/25 round** (the recurring class: a *silent false signal*, not a
+loud failure — none of these were caught by `verify` or e2e):
+- A guard keyed on `process.env.CI` instead of on the dependency — shipped backwards **twice** (#371/#372,
+  #386). Now blocked by `scripts/check-e2e-isolation.sh`.
+- A **skipped** test reads as a passing one. Now gated by `scripts/check-e2e-skips.mjs`.
+- A test that stays green while the code is deliberately broken (`withTimeout`'s deadline mutated to `0`
+  left all 7 tests passing). Only mutation testing finds this class systematically — PARKED below.
+- A build-config predicate matching a literal package name (`react-router-dom`) that silently stopped
+  matching, dropping the router out of `vendor-react` for the whole v7 era. Now a tested seam
+  (`src/lib/build/vendorChunk.ts`).
+- `package-lock.json` regenerated on macOS PRUNES linux-only optional deps → CI `npm ci` fails. Use
+  `scripts/relock.sh` (container). This one CI *did* catch.
+- ⚑ Verify a merge with `git merge-tree`, not a two-dot `git diff` — a two-dot diff renders the target's
+  newer content as "removals" and reads like a regression that a 3-way merge would never produce.
 
 ### ⚑⚑⚑ BACKLOG STALENESS AUDIT (2026-07-23) — READ BEFORE ACTING ON ANY OLDER ENTRY
 
@@ -227,6 +192,41 @@ Owner rulings: `decisions.md` **OD-SAR-GATES · OD-SAR-PMO-IS-THE-UI · OD-SAR-D
   glm-5.2 (owner directive); **money/security review → Luna `--thinking max`** (owner 2026-07-15,
   `docs/pi-delegation.md`). ⚑ ONE op on the shared worktree at a time (verify-while-agent-edits = a
   contaminated read; concurrent heavy dispatches + sibling agents' MCPs + Docker → OOM risk).
+
+### ⚑ DEBT — un-quarantine AC-IXD-PROC-W5-3 (its restore condition is already met) (2026-07-25)
+`e2e/AC-IXD-PROC-W5-3-approvals-inbox.spec.ts` is skipped with the note *"un-skip when e2e runs
+serially or has per-test fixtures"*. **The serial lane now exists** (`e2e/serial/`, `--workers=1`), so
+that condition has been satisfied for a while and nobody noticed — a skip is invisible in a green tick.
+Surfaced by the new `scripts/check-e2e-skips.mjs` gate on its very first run.
+**Do:** move the spec to `e2e/serial/`, retag `// @e2e-isolation: serial`, confirm it passes at
+`--workers=1`, then **delete its entry from `ALLOWED_SKIPS`** (a stale entry fails the gate, so this
+cannot be left half-done). Convention: [`docs/e2e-parallel-conventions.md`](e2e-parallel-conventions.md);
+enforcement: [`docs/qa-portfolio.md`](qa-portfolio.md).
+
+### ⚑ PARKED — mutation testing (StrykerJS) for the "green test that doesn't bind" class (2026-07-25)
+**Why:** coverage proves a line RAN; it does not prove its behaviour is asserted. 2026-07-25 found a
+`withTimeout` test suite at 100% coverage of the timer line where mutating `setTimeout(…, ms)` →
+`setTimeout(…, 0)` left **all 7 tests green** — the one behaviour the wrapper exists for was untested.
+That class is invisible to `verify`, to e2e, and to review-by-reading. Mutation testing is the only
+mechanism that finds it systematically. (Same family: the eleven ways a green test failed to fail,
+`docs/reviews/2026-07-23-p3bc-audit-program.md`.)
+
+**Shape if adopted** (NOT scheduled — spike first):
+- `@stryker-mutator/core` + `@stryker-mutator/vitest-runner` as devDeps; runs locally (`npx stryker run`)
+  AND in Actions. It is a dev-dependency, not a hosted service.
+- **Nightly `schedule:` only, never per-PR** — it runs the suite once per mutant; even with
+  coverage-based filtering a 6.7k-test suite is hours on a 4-core runner.
+- **Scope to files where a hollow test is dangerous**, not the repo: `src/lib/withTimeout.ts`,
+  `src/lib/supabase/invokeWithTimeout.ts`, `src/lib/budget/budgetGate.ts` + the money classifiers,
+  `src/auth/policy.ts` (`can()`).
+- **Gate on "zero surviving mutants in that set", not a percentage** — a score invites gaming; the set
+  is small enough that every survivor is worth reading.
+- ⚑ **Do NOT enable the hosted Stryker dashboard** (`dashboard.stryker-mutator.io`) — this repo is
+  public and results would leave the org. Local/artifact reporters only.
+
+**Spike first (the real risk):** measure runtime and the *equivalent-mutant* rate on ONE file. Mutants
+that cannot be killed become noise, and a gate people learn to ignore is worse than no gate — the exact
+failure mode this whole class is about.
 
 ### ⚑ ERPNext operational-completeness slate — the "PMO is the ONLY UI" gaps (2026-07-24, NOT scheduled)
 **Framing (owner, locked `OD-SAR-PMO-IS-THE-UI`): ERPNext runs HEADLESS — the user never opens it, PMO is

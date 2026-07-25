@@ -90,7 +90,10 @@ jobs:
         run: node --test scripts/parallel-infra.test.mjs
       - name: CI integration-order test
         working-directory: .
-        run: node --test scripts/ci-integration-order.test.mjs scripts/deno-inventory.test.mjs
+        run: |
+          node --test scripts/ci-integration-order.test.mjs scripts/deno-inventory.test.mjs
+          node scripts/check-e2e-skips.mjs --self-test
+          bash scripts/check-e2e-isolation.sh --self-test
       - run: npm ci
       - name: Supply-chain audit — production deps (blocking)
         # Gate on vulnerabilities in code that SHIPS to users (the production dependency tree).
@@ -328,8 +331,19 @@ jobs:
       - name: E2E tests (Playwright / Chromium)
         working-directory: pmo-portal
         run: |
-          npx playwright test --project=chromium --fail-on-flaky-tests
-          npx playwright test --project=serial --workers=1 --fail-on-flaky-tests
+          npx playwright test --project=chromium --fail-on-flaky-tests --reporter=list,json > /tmp/pw-chromium.json
+          npx playwright test --project=serial --workers=1 --fail-on-flaky-tests --reporter=list,json > /tmp/pw-serial.json
+
+      # ⚑ Green-by-absence gate. A SKIPPED test is not a passing one, and skips are invisible in a
+      # green tick — the last main run skipped 200. AC-INV-001 sat in that 200 for months (its guard
+      # polarity was inverted: it skipped in CI while being permanently 503-red locally, #386).
+      # Every skip must be an explicit, justified allowlist entry with a path back; a STALE entry
+      # fails too, so the list cannot quietly grow to cover everything.
+      - name: E2E skip audit — every skip is explained
+        working-directory: .
+        # BOTH lane reports in ONE invocation — checked separately, a lane-scoped allowlist entry
+        # looks stale in the other lane's report and the gate fails itself.
+        run: node scripts/check-e2e-skips.mjs /tmp/pw-chromium.json /tmp/pw-serial.json
 
       # ERPNext P2: prove the served adapter-dispatch lane in CI (the money e2e itself is local-only —
       # it needs the Docker v15 bench + 1Password creds, which are a dev-bed concern, not CI's). The CI
