@@ -20,7 +20,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import React from 'react';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { MemoryRouter, Route, Routes } from 'react-router';
 
 // ---------------------------------------------------------------------------
 // Stub ProcurementFilesSubsection — it calls useQueryClient() internally.
@@ -109,7 +109,7 @@ vi.mock('@/src/auth/impersonation', () => ({
 
 const navigate = vi.fn();
 const toast = vi.fn();
-vi.mock('react-router-dom', async (orig) => {
+vi.mock('react-router', async (orig) => {
   const actual = await (orig() as Promise<Record<string, unknown>>);
   return { ...actual, useNavigate: () => navigate };
 });

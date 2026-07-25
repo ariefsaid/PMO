@@ -1,5 +1,5 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import { ListState, Icon } from '@/src/components/ui';
 import type { IconName } from '@/src/components/ui';
 

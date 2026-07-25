@@ -1,5 +1,5 @@
 import React from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink } from 'react-router';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { UserRole } from '@/types';
 import { cn } from '@/src/components/ui/cn';

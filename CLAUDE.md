@@ -174,7 +174,9 @@ The app-wide CRUD layer is shipped (`main`); new entity/feature work MUST follow
 - **UI:** build forms with the shared primitives (`EntityFormModal`/`useEntityForm`/`TextField`/`SelectField`/`Combobox`/`FormGrid`/`FieldError`), confirm destructive writes with `ConfirmDialog`, classify errors with `classifyMutationError`. Strictly `DESIGN.md` tokens (root font is 16px → 32px controls). Reference template: the **Companies** slice (`pages/Companies.tsx` + `src/lib/db/companies.ts`).
 
 ## Tech stack & commands (run inside `pmo-portal/`)
-- React 19, Vite 6, TypeScript ~5.8, react-router-dom 7, recharts. Backend: **Supabase** (Postgres + Auth + RLS + Storage).
+- React 19, Vite 8, TypeScript ~5.8, **react-router 8** (⚑ `react-router-dom` was REMOVED in v8 — import
+  everything from `react-router`; `react-router/dom` holds only `HydratedRouter`/`RouterProvider`/`unstable_RSC*`),
+  recharts. Node **22.22+** (react-router 8 `engines`). Backend: **Supabase** (Postgres + Auth + RLS + Storage).
 - `npm run dev` · `npm run build` · `npm run typecheck` (tsc) · `npm test` (Vitest) · `npx playwright test` (e2e).
 - Commit trailer: `Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>`.
 

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter } from 'react-router';
 
 // HOSTING_LOCATION mocked to 'Singapore' so AC-LEG-015 reads naturally.
 const mockConfig = vi.hoisted(() => ({

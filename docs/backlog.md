@@ -228,16 +228,6 @@ Owner rulings: `decisions.md` **OD-SAR-GATES · OD-SAR-PMO-IS-THE-UI · OD-SAR-D
   `docs/pi-delegation.md`). ⚑ ONE op on the shared worktree at a time (verify-while-agent-edits = a
   contaminated read; concurrent heavy dispatches + sibling agents' MCPs + Docker → OOM risk).
 
-### ⚑ SCHEDULED DEBT — react-router v7 → v8 (supply-chain waiver expires 2026-09-01)
-`GHSA-qwww-vcr4-c8h2` (high) covers **all** of react-router 7.x; the only fix is **8.3.0**, a major
-upgrade. It is **not applicable to us** — RSC-mode CSRF, and this app is a Vite SPA on `BrowserRouter`
-with no RSC/framework mode and no router actions — so it is **waived, with justification and an expiry**,
-in `scripts/audit-prod.mjs`. **The waiver hard-fails CI on 2026-09-01.** Before then either do the v8
-migration or re-triage. (npm's own "fix" is a *downgrade* to 7.11.0, i.e. pre-RSC — an option if the
-migration slips, at the cost of 7 minor releases.) The other advisories in that batch were really fixed:
-`brace-expansion` via an `overrides` pin to ^5.0.8 (cleared the whole exceljs→archiver→glob chain, 9 of
-12 findings) and `dompurify` 3.4.11→3.4.12 in the lockfile.
-
 ### ⚑ ERPNext operational-completeness slate — the "PMO is the ONLY UI" gaps (2026-07-24, NOT scheduled)
 **Framing (owner, locked `OD-SAR-PMO-IS-THE-UI`): ERPNext runs HEADLESS — the user never opens it, PMO is
 the sole surface.** That inverts the usual read-vs-write cost logic here: a *read* the user needs isn't a

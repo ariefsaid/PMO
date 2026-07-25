@@ -19,19 +19,10 @@ const APP_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'p
  * @type {Array<{ghsa: string, package: string, reason: string, expires: string}>}
  * `expires` is the date this waiver stops working (UTC, YYYY-MM-DD). Keep them short.
  */
-const WAIVERS = [
-  {
-    ghsa: 'GHSA-qwww-vcr4-c8h2',
-    package: 'react-router',
-    reason:
-      'RSC-mode CSRF: an action can execute before the 400 response. NOT APPLICABLE — this app is a ' +
-      'Vite SPA on BrowserRouter with no RSC mode, no framework mode, and no router actions (grep: no ' +
-      '"createBrowserRouter" action/loader server entry, no @react-router/dev). The advisory covers ALL ' +
-      'of react-router 7.x (fixed only in 8.3.0), so the fix is a v7 -> v8 MAJOR upgrade — scheduled ' +
-      'debt, not a drive-by change inside a CI fix. Tracked in docs/backlog.md.',
-    expires: '2026-09-01',
-  },
-];
+// Empty by design. The bar is: FIX the advisory. A waiver is a last resort for something both
+// unfixable and provably unreachable — and it still expires. GHSA-qwww-vcr4-c8h2 (react-router)
+// was waived here on 2026-07-24 and is now GONE because the v7 -> v8.3.0 upgrade actually shipped.
+const WAIVERS = [];
 
 // npm audit exits non-zero whenever it finds anything, so a throw here is the NORMAL path —
 // the report we want is on the error's stdout. Only a missing/garbled report is a real error.

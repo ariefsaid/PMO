@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router';
 import { Button, Card, Icon } from '@/src/components/ui';
 import { ConfirmDialog } from '@/src/components/ui/ConfirmDialog';
 import { useFeature } from '@/src/auth/useFeature';

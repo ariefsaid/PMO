@@ -9,12 +9,13 @@ set -euo pipefail
 
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 
-# CI pins node-version: 22 (ci.yml). A shell defaulting to an older node fails inside
-# vitest's bundler with an unrelated-looking `node:util` export error — a false RED that
-# costs more to diagnose than this check costs to run.
-node_major="$(node -p 'process.versions.node.split(".")[0]')"
-if [ "$node_major" -lt 22 ]; then
-  echo "[verify-main-pr] node $(node -v) < v22 — CI runs node 22. Switch (e.g. nvm use 22) and re-run." >&2
+# CI pins node-version: 22 (ci.yml) and react-router 8 declares engines >=22.22.0. A shell
+# defaulting to an older node fails inside vitest's bundler with an unrelated-looking `node:util`
+# export error — a false RED that costs more to diagnose than this check costs to run.
+node_ok="$(node -p 'const [a,b]=process.versions.node.split(".").map(Number); a>22||(a===22&&b>=22)')"
+if [ "$node_ok" != "true" ]; then
+  echo "[verify-main-pr] node $(node -v) is below the v22.22.0 floor (react-router 8 engines; CI runs latest 22)." >&2
+  echo "[verify-main-pr] Switch (e.g. nvm install 22 && nvm use 22) and re-run." >&2
   exit 1
 fi
 

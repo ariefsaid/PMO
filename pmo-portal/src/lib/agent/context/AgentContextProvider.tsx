@@ -1,7 +1,7 @@
 /**
  * AgentContextProvider — live-context source for agent runs (ADR-0045 §3).
  *
- * Reads `route` from react-router-dom's useLocation(); exposes an OPT-IN
+ * Reads `route` from react-router's useLocation(); exposes an OPT-IN
  * imperative setEntity/setSelection a host page CAN call when it has a
  * natural "selected entity" (e.g. a project detail page). No page is forced
  * to adopt this in v1 (a repo survey confirms no existing app-wide
@@ -12,7 +12,7 @@
  * location, never writes it, so agent-context can never move the user).
  */
 import React, { useCallback, useLayoutEffect, useRef, useState } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation } from 'react-router';
 import type { RunContext } from '../runtime/port';
 import { AgentContextContext, type AgentContextValue } from './agentContextInternal';
 

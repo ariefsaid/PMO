@@ -43,8 +43,8 @@ vi.mock('@/src/hooks/useProcurementCrud', () => ({
 }));
 
 const mockNavigate = vi.fn();
-vi.mock('react-router-dom', async (orig) => {
-  const real = await orig<typeof import('react-router-dom')>();
+vi.mock('react-router', async (orig) => {
+  const real = await orig<typeof import('react-router')>();
   return {
     ...real,
     useNavigate: () => mockNavigate,

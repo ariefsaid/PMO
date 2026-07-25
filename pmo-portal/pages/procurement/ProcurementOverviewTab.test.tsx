@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter } from 'react-router';
 import type { StatTile } from '@/src/components/ui';
 import type { ProgressionEvent } from '@/src/lib/db/procurementHistory';
 

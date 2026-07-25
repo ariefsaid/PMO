@@ -1,5 +1,5 @@
 import React from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate } from 'react-router';
 import { useFeature } from '@/src/auth/useFeature';
 import { useOrgFeatures } from '@/src/hooks/useOrgFeatures';
 import { isCoreFeature } from '@/src/lib/features';
