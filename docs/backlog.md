@@ -4,46 +4,39 @@
 [`docs/history.md`](history.md) (don't read it for status). Locked owner-decisions are in
 `docs/decisions.md` (OD-* lookup by id). Roadmap framing in `docs/roadmap-spines.md`.
 
-### ⚑⚑⚑ CURRENT FOCUS — ERPNext integration is CLOSED and PROMOTED to `main` (2026-07-25)
-**Where it stands, honestly.** The spec'ed ERPNext integration is built, reviewed, green, and now **on
-`main`**. Nothing is held on a branch. `production` is untouched — **185 commits / 68 migrations behind
-`main`**, and a prod promote needs a direct, per-instance owner instruction (see the HARD STOP rule in
-`CLAUDE.md`).
-- **✅ Merged to `dev` then promoted:** P2 money core (#315) · P3a Sales/AR · P3b timesheets · P3c budget
-  (#338 + #360) · **FU-1a** timesheet re-open + **FU-2** budget fiscal-year (#368) · AC-BUD-003
-  binding-gate + AC-BUD-032 (#369) · money-path timeouts (#374). Audit history:
-  [`docs/reviews/2026-07-23-p3bc-audit-program.md`](reviews/2026-07-23-p3bc-audit-program.md);
-  deploy-readiness detail (ARCHIVED — historical, its open items are all closed):
-  [`docs/handoffs/archive/2026-07-24-erpnext-deploy-readiness-RESUME.md`](handoffs/archive/2026-07-24-erpnext-deploy-readiness-RESUME.md).
-- **✅ dev→main promote #370 MERGED** (`538782af`). It was red for a while on the integration gate; the
-  root cause was **CI step ORDERING**, not the app: the served-fn smoke lane ran *before* the ordinary
-  e2e lane, and `scripts/serve-functions.sh` tears down its edge-runtime container on exit while **Kong
-  keeps routing `functions/v1/*` to the vanished upstream** — so every later spec touching
-  `functions.invoke` hung. Fixed + order-locked by `scripts/ci-integration-order.test.mjs` (#377).
-- **✅ Post-promote hardening, all merged to `dev`:** e2e parallel conventions (#380) · CI failure
-  diagnostics (#381) · async-push spec + **ADR-0062**, owner-signed-off (#382) · `withTimeout` (#383) ·
-  **react-router 7→8.3.0 + postcss** (#384) · M365 ciphertext de-flake (#385).
-- **✅ Supply chain: `npm audit` reports 0 vulnerabilities across the FULL tree** (was 12). react-router's
-  `GHSA-qwww-vcr4-c8h2` was **fixed by upgrading, not waived** — `scripts/audit-prod.mjs`'s waiver list is
-  empty. Node floor is now **22.22+** (react-router 8 `engines`), enforced by `package.json` `engines`.
-- **⚑ Open:** PR **#386** — the `AC-INV-001` guard-polarity fix plus the two new CI gates (see
-  [`docs/qa-portfolio.md`](qa-portfolio.md) "Enforcement"). Next candidates are the two DEBT/PARKED
-  entries below.
+### ⚑⚑⚑ CURRENT FOCUS — v0.8.0 SHIPPED TO PRODUCTION (2026-07-25). Nothing in flight.
+`production` == `main` == `dev` == **`0079bcc9`**, all at **v0.8.0**. No open PRs. The ERPNext
+program is closed, promoted, released and deployed.
 
-**Durable lessons from the 2026-07-24/25 round** (the recurring class: a *silent false signal*, not a
-loud failure — none of these were caught by `verify` or e2e):
-- A guard keyed on `process.env.CI` instead of on the dependency — shipped backwards **twice** (#371/#372,
-  #386). Now blocked by `scripts/check-e2e-isolation.sh`.
-- A **skipped** test reads as a passing one. Now gated by `scripts/check-e2e-skips.mjs`.
-- A test that stays green while the code is deliberately broken (`withTimeout`'s deadline mutated to `0`
-  left all 7 tests passing). Only mutation testing finds this class systematically — PARKED below.
-- A build-config predicate matching a literal package name (`react-router-dom`) that silently stopped
-  matching, dropping the router out of `vendor-react` for the whole v7 era. Now a tested seam
-  (`src/lib/build/vendorChunk.ts`).
-- `package-lock.json` regenerated on macOS PRUNES linux-only optional deps → CI `npm ci` fails. Use
-  `scripts/relock.sh` (container). This one CI *did* catch.
-- ⚑ Verify a merge with `git merge-tree`, not a two-dot `git diff` — a two-dot diff renders the target's
-  newer content as "removals" and reads like a regression that a 3-way merge would never produce.
+**What went live (all verified, not assumed):**
+- **DB** — prod migrated through `0166`; `scripts/db-push-prod.sh --pending` reports "up to date".
+- **Edge functions** — **22/22** deployed from v0.8.0 source. `adapter-dispatch` had been stuck at a
+  **07-13 build for 8 days**, predating the entire P3 money program; `erpnext-*`, `external-*` (7) and
+  `clickup-webhook-worker` had **never been deployed at all**.
+- **FE** — CF Pages serving v0.8.0; confirmed by reading `0.8.0` out of the served bundle, not by a
+  green build badge.
+
+**⚑ A live security defect was found DURING the deploy — by a migration refusing to apply.**
+`0151_m365_ciphertext_envelope_check.sql` failed with `23514`: a real `ms_graph_connections` row held
+an M365 token whose envelope was JSON-stringified ASCII (14,709 bytes starting `{`) instead of raw
+bytes — the HIGH-A1 defect the constraint exists to prevent. It could never be decrypted, so
+`disconnect` would delete the local row and audit `m365.connection.revoked` **while the refresh token
+stayed live at Microsoft for ~90 days**. Owner's own account (`arief@gordi.id`), connected
+2026-07-24 02:20. **Closed:** revoked in Entra → row deleted → constraint applied and now enforcing.
+⚑ The earlier "revoke sessions during implementation" did NOT cover it — Entra only invalidates
+tokens issued *before* the revoke, and this one was minted afterwards. Check timestamps, don't assume.
+
+**Release/versioning:** `v0.8.0` tagged. `bump-minor-pre-major: true` was added first — without it the
+`chore(deps)!: react-router 7→8` commit would have tagged **v1.0.0**, a GA claim off a dependency
+upgrade. Next `fix:` → 0.8.1, next `feat:` → 0.9.0, next `!` → 0.9.0 (not 1.0.0).
+⚑ Only `feat`/`fix`/`deps` are releasable — `ci`/`chore`/`docs` produce **no release PR at all**.
+
+**New tooling shipped this session** (all self-tested in CI — the gates are themselves gated):
+- `scripts/check-e2e-skips.mjs` — a skipped test is not a passing one. Justified allowlist + a
+  `restore` path; a **stale** entry fails too. Enforcement detail: [`docs/qa-portfolio.md`](qa-portfolio.md).
+- `scripts/check-e2e-isolation.sh` — no e2e spec may gate on `process.env.CI`; gate on the DEPENDENCY.
+- `scripts/db-push-prod.sh --pending` — read-only "what would a prod push apply?".
+- `scripts/ci-integration-order.test.mjs` — locks CI step ORDER and the reporter wiring.
 
 ### ✅ Shipped programs — moved to history
 P3a Sales/AR write-through · H4 grants hardening · ClickUp integration + integration enablement ·
@@ -147,6 +140,68 @@ and **`0059`×3** (`-entra-app-registration-topology`, `-external-admin-connect`
 `CLAUDE.md` states ADRs are cited by id, so `grep ADR-0059` resolving to three unrelated documents breaks
 the convention that makes them findable. Renumber the duplicates to the next free ids (**0063+**) and
 sweep citations across `docs/` + code comments. Surfaced by the 2026-07-25 docs audit.
+
+### ⚑ DEBT — ADR-0037 resolves to the wrong document (2026-07-25)
+`DESIGN.md` on `dev` cites **ADR-0037** for the monochrome-calm design language, but `dev`'s `0037`
+slot holds a *different* ADR — the real write-up lives only on the unmerged `redesign/design-system`
+branch. Same class as the `0058`/`0059` collisions fixed in #387: a citation that resolves to the
+wrong document, or to one reachable only on a branch. **Do:** move the write-up onto `dev` at the
+next free ADR number and repoint `DESIGN.md`, or renumber. Until then `redesign/design-system` must
+not be deleted — it is the only copy.
+
+### ⚑⚑ LESSONS — 2026-07-24/25 (read before the next promote or deploy)
+Every defect this session was a **silent false signal**, not a loud failure. None were caught by
+`verify` or e2e. Grouped by what to *do differently*:
+
+**State: never infer it from the wrong source.** I got this wrong four times in one session.
+- A **branch file-diff is not database state.** "68 migration files differ between `production` and
+  `main`" ≠ 68 pending on the cloud. The real answer was on the cloud: `db-push-prod.sh --pending`.
+- **A stale checkout under-reports.** That same tool then said "1 pending" while the working tree was
+  **196 commits behind**; the true number was 16. `git status` before trusting any tool that compares
+  against the tree.
+- **`git fetch` moves refs, not your checkout.** I deployed 8 edge functions from a 196-commit-old
+  tree and would have reported them as shipped. Only a "file not found" on 4 others exposed it.
+- **A two-dot `git diff A B` renders B's newer content as "removals"** and reads like a regression a
+  3-way merge would never produce. Use `git merge-tree --write-tree` to ask what a merge would do.
+  Likewise a squash-merged branch shows commits "not in dev" — verify via PR state + `headRefOid` +
+  merge-commit reachability, never ancestry.
+
+**Gates are code. Writing one is not verifying it.**
+- `check-e2e-skips.mjs` failed twice for its OWN bugs (per-report staleness; then first-match instead
+  of longest-match on overlapping entries) — both found by running it, not by its self-test.
+- My first fix for the docs-only PR deadlock (a second workflow publishing the same check names) was
+  **wrong**: GitHub path filters are OR-based, so a MIXED docs+code PR triggers BOTH, letting a
+  passing stub mask a failing real job. One workflow must own a required check name.
+- **A rule that trips on its own documentation is a rule nobody keeps** — happened 3× (the
+  `process.env.CI` guard, the reporter-redirect guard). Strip comment lines first.
+- **Static checks confirm SHAPE, not BEHAVIOUR.** All three e2e gates passed a spec that could not
+  even import after a `git mv`.
+
+**Tests that don't bind.**
+- `withTimeout`'s deadline mutated to `0` left **all 7 tests green** — the one behaviour it exists for
+  was untested (`Promise.race` against an already-resolved literal always wins). Use a settlement latch.
+- An assertion on a **random** value (`bytes[0] !== 0x7b`, the first byte of a random IV) reddened ~1
+  run in 256 and read as an unrelated regression on whichever branch drew it.
+- A **quarantine note is a hypothesis, not a finding**: AC-IXD-PROC-W5-3 blamed a parallel-worker race
+  for weeks; at `--workers=1` it still failed. Re-verify the reason before trusting it.
+
+**Environment.**
+- ⚑ **This shell is zsh: `for f in $VAR` does NOT word-split.** A 22-item deploy loop ran once with
+  one concatenated argument. Use a literal list or an array.
+- **Never `>/dev/null 2>&1` a command whose failure mode you have not already seen** — I did it twice
+  and both times learned nothing from the failure.
+- `[edge_runtime] enabled = false` in `supabase/config.toml` applies to **CI and local alike**; only
+  `scripts/serve-functions.sh` serves functions (it exports `SUPABASE_FUNCTIONS_URL`, the real signal).
+- **Never regenerate `package-lock.json` on macOS** — it prunes linux-only optional deps and CI
+  `npm ci` fails. Use `scripts/relock.sh` (container).
+
+**Process.**
+- **PR only after the full battery** (owner rule, 2026-07-02). I opened #381/#383/#384 on "verify +
+  e2e green" and review then found a stale-cache-on-timeout bug with a confidentiality payload, a
+  vacuous test, a `set -e` regression I wrote, and a vendor-chunk predicate that had silently
+  mis-chunked the router for the whole v7 era.
+- **Don't spend a promote on `ci:`-only commits** — `integration` runs once per PR→`main`; batch them
+  with the next substantive change instead (it runs anyway).
 
 ### ⚑ DEBT — AC-IXD-PROC-W5-3 is stale against a UI redesign (diagnosis CORRECTED 2026-07-25)
 The spec was `test.fixme`d with the note *"parallel-worker shared-DB race — un-skip when e2e runs
