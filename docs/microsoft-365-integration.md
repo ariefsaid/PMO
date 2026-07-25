@@ -5,8 +5,8 @@
 - **▶ Continuing this work?** Live status + the exact next action are in the M365 entry at the top of
   **[`docs/backlog.md`](backlog.md)** (the read-first status doc); the Phase-0 build detail is in the
   spec/plan below and ADR-0060's Phase-0 follow-ups.
-- **Controlling ADRs:** [ADR-0058](adr/0058-microsoft-365-integration-architecture.md) (integration
-  architecture), [ADR-0059](adr/0059-entra-app-registration-topology.md) (Entra app topology).
+- **Controlling ADRs:** [ADR-0063](adr/0063-microsoft-365-integration-architecture.md) (integration
+  architecture), [ADR-0064](adr/0064-entra-app-registration-topology.md) (Entra app topology).
   **Related:** ADR-0055 (external adapters — the pattern Graph *data* features follow), ADR-0049
   (Operator/entitlements — the two-switch model), ADR-0047 (per-client siloed topology), ADR-0001
   (org_id seam), ADR-0044 (agent automations/notifications), ADR-0056 (ClickUp task adapter).
@@ -30,7 +30,7 @@ stays deferred with pooled topology, ADR-0047) — it is what makes a Teams-nati
 question (siloed one-project-per-client vs pooled many-orgs-per-DB, ADR-0047/ADR-0001). It works the
 same under both. So we can build it now without reopening that decision — the org_id seam and the
 per-client adapter pattern already give it a home. This doc therefore never depends on a pooled-vs-siloed
-resolution; where topology matters, it's isolated to ADR-0059 (app registration) only.
+resolution; where topology matters, it's isolated to ADR-0064 (app registration) only.
 
 ## 2. The two structural primitives everything reuses
 
@@ -126,9 +126,9 @@ not per-feature.
 
 **Decided (owner, 2026-07-14):**
 1. **Entra app topology → Option C** (per-client app in the vendor tenant) as the standing default, with
-   **B** (client-tenant app, no publisher verification) as the escape hatch. ADR-0059.
+   **B** (client-tenant app, no publisher verification) as the escape hatch. ADR-0064.
 2. **Priority frame → delight-first, positioned to drive enterprise adoption** for orgs already in the
-   Teams/Microsoft ecosystem — not a self-serve/PLG motion. ADR-0058.
+   Teams/Microsoft ecosystem — not a self-serve/PLG motion. ADR-0063.
 3. **Graph token lifecycle → server-side custody** (confidential-client refresh-token store, best-practice
    security). ADR-0060.
 4. **Encryption (D1) → app-layer AES-256-GCM** in the edge function, KEK in secrets. ADR-0060 §3.

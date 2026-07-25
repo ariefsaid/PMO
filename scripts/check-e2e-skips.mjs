@@ -66,14 +66,15 @@ const ALLOWED_SKIPS = [
     restore: 'Flip src/lib/features.ts incidents to true.',
   },
 
-  // ⚑ RESTORE CONDITION ALREADY MET — this is debt, not a permanent exemption.
+  // ⚑ Quarantined for a MISDIAGNOSED reason until 2026-07-25; the real cause is now recorded.
   {
-    file: 'AC-IXD-PROC-W5-3-approvals-inbox.spec.ts',
+    file: 'serial/AC-IXD-PROC-W5-3-approvals-inbox.spec.ts',
     reason:
-      'Quarantined for a parallel-worker shared-DB race, with the stated restore condition "un-skip when ' +
-      'e2e runs serially or has per-test fixtures". ⚑ That condition IS NOW SATISFIED — the serial lane ' +
-      '(e2e/serial/, --workers=1) exists. The spec is skipping for a reason that has expired.',
-    restore: 'Move it to e2e/serial/ + retag @e2e-isolation: serial, then DELETE this entry. Tracked in docs/backlog.md.',
+      'Stale against a deliberate UI redesign, NOT flaky: it asserts `region "Timesheets awaiting you"`, ' +
+      'which exists only in Approvals.tsx\'s stacked fallback layout — the app renders the master-detail ' +
+      'split inbox instead. Proven by running it at --workers=1 in the serial lane, where it still fails, ' +
+      'so the original "parallel-worker race" note was wrong.',
+    restore: 'Rewrite the journey steps against the split inbox (QueueGroup + selectedKey + Approval preview) keeping the same goal oracle — the PM approves and the queue count settles — then delete this entry. Tracked in docs/backlog.md.',
   },
 ];
 

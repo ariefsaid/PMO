@@ -177,7 +177,7 @@ import { useFeature } from '@/src/auth/useFeature';
 
 /**
  * M365ConnectionCard — the org-Admin ACTIVATION surface for the Microsoft 365 integration
- * (m365-phase0-foundation, FR-M365-012/013; ADR-0058 two-switch model, ADR-0060 token custody).
+ * (m365-phase0-foundation, FR-M365-012/013; ADR-0063 two-switch model, ADR-0060 token custody).
  *
  * Rendered ONLY when the org is ENTITLED (`useFeature('m365_integration')`, the Operator switch)
  * AND the viewer is an Admin (`isAdmin`, the real-JWT-role gate — ADR-0016; RLS is the real
@@ -418,7 +418,7 @@ Create `supabase/migrations/0105_org_features_add_m365.sql`:
 
 ```sql
 -- 0105_org_features_add_m365.sql — extend the org_features CHECK registry (0070) with the
--- 'm365_integration' entitlement key (ADR-0058 §Decision 3 two-switch; FR-M365-010). Operator-owned
+-- 'm365_integration' entitlement key (ADR-0063 §Decision 3 two-switch; FR-M365-010). Operator-owned
 -- entitlement switch; toggled via the EXISTING operator_toggle_feature RPC (no new RPC). Default-OFF
 -- is an FE concern (FEATURE_ENV_DEFAULT.m365_integration=false) — absence of a row + env default false
 -- keeps the integration hidden until an Operator entitles it. The inline CHECK from 0070 is auto-named

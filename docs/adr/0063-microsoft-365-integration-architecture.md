@@ -1,15 +1,20 @@
-# ADR-0058 — Microsoft 365 integration architecture (auth hybrid · Graph-as-adapter · two-switch entitlement · topology-independent)
+# ADR-0063 — Microsoft 365 integration architecture (auth hybrid · Graph-as-adapter · two-switch entitlement · topology-independent)
 
-- **Status:** Accepted (owner grill 2026-07-14; priority + ADR-0059 topology ratified; token mechanism deferred to Phase 0)
+> ⚑ **Renumbered 0058 → 0063 on 2026-07-25.** It was created on 2026-07-20 at a number already
+> taken, so `grep ADR-0063` resolved to unrelated documents. The ADR that CREATED the number keeps it
+> (first-created wins); this one moved. Older citations of "ADR-0063" in M365/admin-connect context
+> mean THIS document.
+
+- **Status:** Accepted (owner grill 2026-07-14; priority + ADR-0064 topology ratified; token mechanism deferred to Phase 0)
 - **Date:** 2026-07-14
 - **Deciders:** Owner, Director
-- **Related:** ADR-0059 (Entra app-registration topology), ADR-0055 (external-system adapters — the
+- **Related:** ADR-0064 (Entra app-registration topology), ADR-0055 (external-system adapters — the
   Graph-data pattern), ADR-0049 (Operator/entitlements — two-switch model), ADR-0047 (per-client siloed
   topology), ADR-0001 (org_id seam), ADR-0044 (agent automations/notifications), ADR-0036/0040 (agent
   tier), ADR-0016 (FE authz UX-only / RLS-as-ceiling). **Vision:** `docs/microsoft-365-integration.md`.
 - **Scope:** the *shape* of how PMO integrates with Microsoft 365 (Entra ID, Graph: OneDrive/SharePoint,
   Teams, Outlook/Calendar, Planner). NOT the feature roadmap (that's the vision doc) and NOT the app
-  registration topology (ADR-0059).
+  registration topology (ADR-0064).
 
 ## Context
 
@@ -47,7 +52,7 @@ the Admin activates. This pair is built once and reused for M365, ClickUp, and E
 > **⚑ AMENDMENT 2026-07-24 (owner) — M365 *activation* is OPERATOR-gated, not org-Admin-gated.**
 > The rule above still holds for **ClickUp and ERPNext**: the client supplies their own API
 > credential, so their org-Admin opts in (`external-connect` gates on *Admin-of-org OR Operator*).
-> It does **not** hold for M365. Under [ADR-0059](0059-entra-app-registration-topology.md) Option C
+> It does **not** hold for M365. Under [ADR-0064](0064-entra-app-registration-topology.md) Option C
 > the **Entra app registration lives in the vendor tenant** — it is our credential, not the
 > client's — so initiating a Graph token connection is a *platform* action, not a client opt-in.
 > Letting a client org-Admin bind our vendor-owned app registration would hand them control of a
@@ -78,7 +83,7 @@ invoking user's identity/permissions — a "show me all orgs" prompt still hits 
 
 **5. The integration is topology-independent.** Nothing here depends on pooled-vs-siloed (ADR-0047/0001).
 It works identically under both; the only topology-sensitive choice is the Entra app registration, which
-is isolated to **ADR-0059**. Consequently this integration can proceed without reopening ADR-0047.
+is isolated to **ADR-0064**. Consequently this integration can proceed without reopening ADR-0047.
 
 **6. Shared Graph token lifecycle, built once — server-side custody (ADR-0060).** Supabase returns a
 `provider_token` at sign-in but does not refresh it; durable Graph access requires a deliberate token
@@ -97,7 +102,7 @@ Built once; underpins docs, Teams, calendar, and tasks.
 - **Cost / negative:** the token lifecycle and the two-switch settings surface are real Phase-0
   investments before the first user-visible feature. Teams interactive features require a Teams app
   package (custom-upload per client until a store listing exists). Per-client secrets multiply (the
-  vault-`AS` pattern extends — see ADR-0059).
+  vault-`AS` pattern extends — see ADR-0064).
 - **Risk if skipped:** without these invariants, each M365 feature would re-implement token handling and
   entitlement ad hoc, and the SSO "authentication ≠ authorization" line could erode into an accidental
   signup bypass.
@@ -109,7 +114,7 @@ Built once; underpins docs, Teams, calendar, and tasks.
   order (§3 sequencing), enterprise-adoption in *positioning*: the integrations are what make a
   Teams-native org choose and stay on PMO. Not a self-serve/PLG motion (that remains deferred with the
   pooled topology, ADR-0047).
-- **Topology (ratified):** ADR-0059 → Option C default, B escape hatch.
+- **Topology (ratified):** ADR-0064 → Option C default, B escape hatch.
 - **Token lifecycle (ratified):** server-side custody — ADR-0060; encryption = app-layer AES-256-GCM
   (D1), bootstrap = server-side auth-code + PKCE (D2), both owner-confirmed 2026-07-14.
 - **Open:** publisher verification sequencing (needed for C); provisioning model (invite-first vs JIT).
