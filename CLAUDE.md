@@ -88,6 +88,11 @@ for one client, architected to scale to millions.
     (verified: `--no-verify` really does bypass the hook, so this is the only layer that holds).
   - **Mutation-check anything security-critical:** break the rule (e.g. `const allowed = true`) and the
     tests MUST go red. A suite that stays green while the handler is broken is not a suite.
+- **⚑ NEVER regenerate `package-lock.json` on macOS (binding).** `npm install` on darwin/arm64 silently
+  PRUNES the wasm32-wasi optional deps (`@emnapi/core`, `@emnapi/runtime`, via `@tailwindcss/oxide-wasm32-wasi`),
+  and linux CI then fails `npm ci` with *"Missing: @emnapi/core@… from lock file"*. It happens even with an
+  UNCHANGED `package.json` — the lock is not reproducible from a Mac. Use **`scripts/relock.sh`** (regenerates
+  in a `node:22` container, asserts the canary entries survived), then `npm ci` to sync `node_modules`.
 - **Coverage:** ≥80% lines on changed code to merge; tests must assert behavior, not inflate numbers.
 - **Typecheck/lint:** `npm run typecheck` zero errors; ESLint zero errors (CI `--max-warnings=0`). Both block merge.
 - **⛔ HARD STOP — PRODUCTION (binding, owner directive 2026-06-17, RE-ENFORCED 2026-07-14 after a violation):** **NEVER push/deploy/promote to `production` without the owner's EXPLICIT, per-instance, this-message "yes" naming production.** This includes `git push origin main:production`, CF Pages prod, prod DB push (`db-push-prod.sh`), prod reseed, and prod edge-fn deploy. **Do NOT infer prod authorization** from "do it all", "ship it", "make it reachable", a stated deploy plan, or any prior approval — a prior "ship to prod" is **per-instance, never standing**, and ambiguity means STOP and ASK. Reaching `main` is the autonomous ceiling; the `main`→`production` step is ALWAYS a separate, explicit, owner-gated action. *(2026-07-14 incident: read "do it all and on by default" as prod authorization and promoted `main:production` without an explicit prod OK — this is exactly what must not happen; when in doubt, stop at `main` and ask.)*
