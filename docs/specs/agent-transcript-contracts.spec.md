@@ -530,7 +530,7 @@ schema-is-sole-authority proof (NFR-ATC-SEC-001/002) and the context-cannot-wide
       `needs-approval` case) and the `artifact{kind:'widget'}` case (alongside `compose_view`).
 - [ ] `useAssistantPanel.ts`: add an `answerQuestion(optionId?, freeText?)` action mirroring
       `approve`/`deny`'s call-`control`-then-resubscribe shape (FR-ATC-011).
-- [ ] Context provider: source `route` from `react-router-dom`'s location, `entity`/`selection`
+- [ ] Context provider: source `route` from `react-router`'s location, `entity`/`selection`
       from whatever selected-entity state the host page already exposes (eng-plan surveys current
       pages for an existing "selected entity" seam before inventing one); wire into
       `AgentChatRequest.context` on both `createRun` and `followUp` call sites (FR-ATC-015).

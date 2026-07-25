@@ -40,7 +40,7 @@ Administration, the incident register, and document control.
 | Language | TypeScript ~5.8 | `package.json:43` |
 | UI runtime | React 19.1 | `package.json:21-22` |
 | Build/dev | Vite 6 | `package.json:45`, `vite.config.ts` |
-| Routing | react-router-dom 7 (**HashRouter**) | `App.tsx:3,26` |
+| Routing | react-router 8 (**BrowserRouter**) | `App.tsx:3,26` |
 | Charts | recharts 3.1 | `package.json:24`, used in dashboards & details |
 | Styling | **Tailwind via CDN** (`cdn.tailwindcss.com`) + inline config | `index.html:9-21` |
 | Module loading (in `index.html`) | **import-map to `aistudiocdn.com`** for react/router/recharts | `index.html:22-32` |

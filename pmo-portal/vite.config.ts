@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
+import { vendorChunkFor } from './src/lib/build/vendorChunk';
 
 // ADR-0042 §4: inline the product version + the deployed commit sha at build
 // time so a running instance always reports its exact `vX.Y.Z · <sha>`.
@@ -111,24 +112,11 @@ export default defineConfig({
         // Behaviour is identical to the previous object form: each dep maps to
         // the same named chunk (long-lived browser cache for rarely-changed
         // vendor bundles).
-        manualChunks: (id: string) => {
-          if (id.includes('react-router') || id.includes('/react/') || id.includes('/react-dom/')) {
-            // React core + router — changes rarely; long-lived browser cache
-            return 'vendor-react';
-          }
-          if (id.includes('@tanstack/react-query')) {
-            // TanStack Query — data-fetching layer
-            return 'vendor-query';
-          }
-          if (id.includes('@supabase/supabase-js') || id.includes('/supabase-js/')) {
-            // Supabase client — heaviest single dep
-            return 'vendor-supabase';
-          }
-          if (id.includes('recharts')) {
-            // Recharts — chart library, only used in dashboard pages
-            return 'vendor-recharts';
-          }
-        },
+        // Delegated to a TESTED module (src/lib/build/vendorChunk.ts). It used to be an inline
+        // closure here, which is how the react rule came to match the literal 'react-router-dom'
+        // while the router's code actually lives in node_modules/react-router/ — silently dropping
+        // the router out of vendor-react for the whole v7 era, with every test green.
+        manualChunks: vendorChunkFor,
       },
     },
   },

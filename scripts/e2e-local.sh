@@ -23,8 +23,18 @@ REPO="$(cd "$(dirname "$0")/.." && pwd)"
 # Node 22 (repo convention; react-router 8 needs >=22.22.0). Pick the HIGHEST installed v22 rather
 # than a pinned patch — the old hardcoded v22.20.0 silently fell below the engines floor when
 # react-router 8 landed, and CI tracks the latest 22 anyway.
-_n22="$(ls -1 "$HOME/.nvm/versions/node" 2>/dev/null | grep '^v22\.' | sort -V | tail -1)"
+# ⚑ `|| true`: under `set -euo pipefail` a bare assignment is NOT exempt the way the old
+# `[ -d … ] && export …` idiom was, so on a machine with no nvm (or no v22) `grep` exits 1 and the
+# script would die right here, silently, before printing anything.
+_n22="$(ls -1 "$HOME/.nvm/versions/node" 2>/dev/null | grep '^v22\.' | sort -V | tail -1 || true)"
 [ -n "${_n22:-}" ] && export PATH="$HOME/.nvm/versions/node/$_n22/bin:$PATH"
+
+# Selecting the newest v22 is not the same as MEETING the floor — warn loudly rather than fail an
+# hour into an e2e run with a confusing bundler error.
+if ! node -p 'const [a,b]=process.versions.node.split(".").map(Number); a>22||(a===22&&b>=22)' 2>/dev/null | grep -q true; then
+  echo "[e2e-local] WARNING: node $(node -v 2>/dev/null || echo '?') is below the v22.22.0 floor (react-router 8 engines)." >&2
+  echo "[e2e-local] Run 'nvm install 22' — continuing, but failures here may be toolchain, not the app." >&2
+fi
 
 # Re-exec the whole body under the DB lock (serializes shared-stack access). The sentinel prevents
 # infinite recursion once we are already inside the lock.

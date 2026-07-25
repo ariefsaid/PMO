@@ -357,7 +357,8 @@ Rail without a dedicated route, the route can be changed; the builder routes `/v
   via a `ConfirmDialog` (or the `EntityFormModal`'s built-in dirty-discard flow if the builder
   fits in a modal variant). **[OWNER-DECISION OD-VB-8] Whether to use browser `beforeunload`
   in addition to the in-app confirm.** Default: in-app confirm only (Esc / Cancel / navigate
-  away via `useBlocker` from react-router-dom 7); `beforeunload` is a follow-up.
+  away via `useBlocker`); `beforeunload` is a follow-up. ⚑ As-built: `useBlocker` is NOT used —
+  see `pages/ViewBuilderPage.tsx` (it documents why it is unavailable in declarative mode).
 
 - **FR-VB-064** (ubiquitous) The builder page shall expose a "Cancel" or "Discard" affordance
   that navigates back to `/views` (the My Views list) after the dirty-confirm flow.
@@ -420,7 +421,7 @@ Rail without a dedicated route, the route can be changed; the builder routes `/v
 
 - **NFR-VB-LAYER-001** (layering) `<ViewBuilderPage>` and `<MyViewsPage>` shall import from:
   `src/lib/viewspec/` (compiler, registry, types); `src/hooks/useUserViews`; `src/auth/`; 
-  `src/components/ui/`; `src/lib/classifyMutationError`; `react-router-dom`. They shall NOT
+  `src/components/ui/`; `src/lib/classifyMutationError`; `react-router`. They shall NOT
   import from `src/lib/db/*` directly (repository seam — ADR-0017) nor from `src/lib/supabase/client`
   (executor only — ADR-0038).
 
