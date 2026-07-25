@@ -96,9 +96,14 @@ describe('AC-M365-103/104/105 — handleCallback', () => {
       expect(wire as string).toMatch(/^\\x[0-9a-f]+$/);
       const bytes = fromByteaValue(wire);
       expect(bytes).toBeInstanceOf(Uint8Array);
-      // iv(12) + at least the 16-byte GCM tag; and never a JSON object's opening brace.
+      // iv(12) + at least the 16-byte GCM tag; and never a JSON-encoded Uint8Array.
       expect(bytes.byteLength).toBeGreaterThanOrEqual(28);
-      expect(bytes[0]).not.toBe(0x7b);
+      // ⚑ Assert the 5-byte `{"0":` PREFIX, not `bytes[0] !== 0x7b`. bytes[0] is the first byte of a
+      // RANDOM 12-byte IV, so the single-byte form failed whenever the IV happened to start with
+      // `{` — 1-in-256 per ciphertext, twice per run (~0.8% of all CI runs), which read as an
+      // unrelated regression on whatever branch drew it. The prefix check keeps the exact same
+      // intent (the bug it guards writes printable `{"0":12,...}`) at a 256^-5 false-failure rate.
+      expect(new TextDecoder().decode(bytes.subarray(0, 5))).not.toBe('{"0":');
       expect(toByteaParam(bytes)).toBe(wire);
     }
     expect(payload.access_token_expires_at).toBeTruthy();
