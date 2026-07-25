@@ -181,36 +181,41 @@ export const MAILPIT = 'http://127.0.0.1:54324';
 export async function clearMailpit(): Promise<void> {
   const api = await pwRequest.newContext();
   try {
-    await api.delete(`${MAILPIT}/api/v1/messages`);
-  } catch {
-    /* mailbox may already be empty */
+    const response = await api.delete(`${MAILPIT}/api/v1/messages`);
+    expect(response.ok(), `Mailpit clear failed with HTTP ${response.status()}`).toBeTruthy();
+  } finally {
+    await api.dispose();
   }
 }
 
 /** Poll Mailpit for the most recent auth email to `email` and return the first http(s) link in the
  *  body. Does NOT clear the inbox — call clearMailpit() before the trigger action. */
-export async function pollMailpitForAuthLink(email: string, timeout = 15_000): Promise<string> {
+export async function pollMailpitForAuthLink(email: string, timeout = 30_000): Promise<string> {
   const api = await pwRequest.newContext();
   let link: string | null = null;
-  await expect
-    .poll(
-      async () => {
-        const listRes = await api.get(`${MAILPIT}/api/v1/messages`);
-        const list = await listRes.json();
-        const msg = (list.messages ?? []).find((m: { To: { Address: string }[] }) =>
-          m.To?.some((t) => t.Address === email)
-        );
-        if (!msg) return false;
-        const bodyRes = await api.get(`${MAILPIT}/api/v1/message/${msg.ID}`);
-        const body = await bodyRes.json();
-        const text: string = `${body.Text ?? ''}\n${body.HTML ?? ''}`;
-        const match = text.match(/https?:\/\/[^\s"'<>]*(?:verify|token|magiclink|otp|recovery|reset)[^\s"'<>]*/i);
-        link = match ? match[0].replace(/&amp;/g, '&') : null;
-        return Boolean(link);
-      },
-      { timeout, intervals: [500, 1000, 1500] }
-    )
-    .toBeTruthy();
+  try {
+    await expect
+      .poll(
+        async () => {
+          const listRes = await api.get(`${MAILPIT}/api/v1/messages`);
+          const list = await listRes.json();
+          const msg = (list.messages ?? []).find((m: { To: { Address: string }[] }) =>
+            m.To?.some((t) => t.Address === email)
+          );
+          if (!msg) return false;
+          const bodyRes = await api.get(`${MAILPIT}/api/v1/message/${msg.ID}`);
+          const body = await bodyRes.json();
+          const text: string = `${body.Text ?? ''}\n${body.HTML ?? ''}`;
+          const match = text.match(/https?:\/\/[^\s"'<>]*(?:verify|token|magiclink|otp|recovery|reset)[^\s"'<>]*/i);
+          link = match ? match[0].replace(/&amp;/g, '&') : null;
+          return Boolean(link);
+        },
+        { timeout, intervals: [500, 1000, 1500] }
+      )
+      .toBeTruthy();
+  } finally {
+    await api.dispose();
+  }
   return link!;
 }
 

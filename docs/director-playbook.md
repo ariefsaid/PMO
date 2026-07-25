@@ -147,10 +147,30 @@ Each `AC-###` is owned by **one** test at the **lowest sufficient layer**:
 - `release-engineer` runs the **full fresh verification before pushing**: from `pmo-portal/` —
   `typecheck`, `lint:ci`, `test`, `build`, and **`npx playwright test` against a live stack** (start
   Supabase; it's the behavioral guard) + `supabase test db` for DB changes. No push without green e2e.
+- For every PR targeting `main`, those gates are one binding command from the repo root:
+  **`scripts/verify-main-pr.sh`**. Run it before creating, pushing, or refreshing the promotion PR;
+  targeted or failing-spec reruns never substitute for its full `CI=true` portfolio.
 - **Never force-push. Never `git add -A`.** Stage the issue's files explicitly.
 - `release-engineer` opens the PR and **stops**. The **Director** approves & merges within the signed
-  spec (`gh pr merge <n> --squash --delete-branch`), then **immediately syncs**:
-  `git checkout main && git fetch origin && git reset --hard origin/main`, delete the local branch.
+  spec (`gh pr merge <n> --squash`), then performs the ordered cleanup below. Remote branch deletion
+  is deliberately not bundled into the merge command because cleanup starts only after merge proof.
+- **Post-merge cleanup is verify-first, delete-last.** From the primary checkout:
+  1. `git fetch origin <base>`; inspect
+     `gh pr view <n> --json state,mergeCommit,headRefName,headRefOid` and require `state=MERGED`; verify the
+     reported merge OID with
+     `git merge-base --is-ancestor <merge-oid> origin/<base>`.
+  2. Require `git rev-parse <branch>` to equal the PR's immutable `headRefOid`. If the remote head exists,
+     require `git ls-remote --heads origin refs/heads/<branch>` to report that same OID. A different local
+     or remote tip contains post-PR work: stop and preserve it instead of cleaning up.
+  3. Require `git -C <exact-worktree-path> status --short` to be empty. If it is not, stop—there is
+     unique work to preserve.
+  4. Run `git worktree remove <exact-worktree-path>` (never `--force`), then `git worktree prune`.
+  5. Run `git branch -d <branch>`. For a verified squash merge only, if ancestry-safe `-d` refuses,
+     `git branch -D <branch>` is allowed because steps 1–3 proved the exact PR head and worktree state.
+  6. Recheck the remote tip against `headRefOid`; if it still exists and still matches, delete it last with
+     `git push origin --delete <branch>`; fetch/prune and verify that exact ref is gone. Stop on divergence.
+- After cleanup, **immediately sync** the long-lived checkout:
+  `git checkout <base> && git fetch origin && git reset --hard origin/<base>`.
 - **Keep `origin/main` current** — push main promptly. Docs/plans can be committed straight to main
   (then branch) so PR diffs stay scoped to code. (Letting origin/main go stale once caused a squash to
   collapse all history into one commit.)

@@ -59,7 +59,9 @@ export default defineConfig({
   webServer: {
     command: 'npm run dev',
     url: 'http://localhost:3000',
-    reuseExistingServer: true,
+    // The authoritative CI/local-promotion lane must serve this checkout, never
+    // silently attach to port 3000 from another worktree.
+    reuseExistingServer: !process.env.CI,
     timeout: 120_000,
   },
 });

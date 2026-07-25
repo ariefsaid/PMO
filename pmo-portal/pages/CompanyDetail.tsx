@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useLayoutEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   RecordHeader,
@@ -90,7 +90,7 @@ const CompanyDetail: React.FC = () => {
   // (NFR-AXP-SEC-003), never an authorization signal. Placed before any early return
   // (Rules of Hooks) — cleared on unmount/navigate.
   const { setEntity } = useAgentContext();
-  useEffect(() => {
+  useLayoutEffect(() => {
     const loaded = query.data;
     if (!loaded) return;
     setEntity({ type: 'company', id: loaded.id, label: loaded.name });

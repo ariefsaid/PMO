@@ -20,8 +20,9 @@
  * NOT run locally without a dev server + seeded auth. Confirm parse with:
  *   npx playwright test e2e/AC-AR-013-assistant-panel-journey.spec.ts --list
  *
- * Platform note: Linux CI uses Ctrl+J (Control+j) since Meta is not available;
- * Playwright's ControlOrMeta maps to Control on Linux and Meta on macOS/Windows.
+ * Platform note: Linux CI uses Ctrl+J (Control+j) since Meta is not available.
+ * The listener attaches in a layout effect, so a visible shell control is a
+ * deterministic readiness signal for the keyboard journey.
  */
 import { test, expect } from '@playwright/test';
 import { signIn } from './helpers';
@@ -95,14 +96,14 @@ test.describe('AC-AR-013: AssistantPanel journey', () => {
     // ── 1. Authenticate ───────────────────────────────────────────────────────
     await signIn(page, 'admin@acme.test');
 
-    // Ensure the shell + ⌘J hotkey listener are mounted before pressing — the
-    // listener attaches in a useEffect, so pressing too early misses it. The Rail
-    // "Assistant" toggle renders only once the shell is mounted with the flag on.
-    await expect(page.getByRole('button', { name: 'Assistant' })).toBeVisible({ timeout: 10_000 });
+    // The shell control is the readiness signal; useAssistantHotkey attaches
+    // before paint, so its listener is live before this element is visible.
+    const assistantToggle = page.getByRole('button', { name: 'Assistant', exact: true });
+    await expect(assistantToggle).toBeVisible({ timeout: 10_000 });
 
     // ── 2. Open the AssistantPanel via ⌘J / Ctrl+J ───────────────────────────
-    // On Linux CI, ControlOrMeta resolves to Control.
     await page.keyboard.press('Control+j');
+    await expect(assistantToggle).toHaveAttribute('aria-pressed', 'true');
 
     // The complementary landmark should become visible (not inert).
     const panel = page.getByRole('complementary', { name: /agent assistant/i });
@@ -139,6 +140,7 @@ test.describe('AC-AR-013: AssistantPanel journey', () => {
 
     // ── 9. Close the panel via ⌘J / Ctrl+J again ─────────────────────────────
     await page.keyboard.press('Control+j');
+    await expect(assistantToggle).toHaveAttribute('aria-pressed', 'false');
 
     // The panel should become inert / not visible to AT after close.
     // (The DOM node stays mounted — keep-mounted D-A2-6 — but inert.)

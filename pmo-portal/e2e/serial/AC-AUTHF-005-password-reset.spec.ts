@@ -1,7 +1,7 @@
-// @e2e-isolation: self-isolated — resets pm@acme.test password via service-role; afterEach restores seed password.
+// @e2e-isolation: serial — clears shared Mailpit; resets pm password and restores it in afterEach.
 import { test, expect } from '@playwright/test';
 import { createClient, type User } from '@supabase/supabase-js';
-import { clearMailpit, pollMailpitForAuthLink, requireServiceRoleKey } from './helpers';
+import { clearMailpit, pollMailpitForAuthLink, requireServiceRoleKey } from '../helpers';
 
 // AC-AUTHF-005 — password-reset round-trip via local Mailpit (FR-AUTHF-011/015/020/024).
 //
@@ -21,9 +21,14 @@ const SEED_PASSWORD = 'Passw0rd!dev';
 test.afterEach(async () => {
   if (!SERVICE_ROLE_KEY) return;
   const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, { auth: { persistSession: false } });
-  const { data } = await admin.auth.admin.listUsers();
+  const { data, error: listError } = await admin.auth.admin.listUsers();
+  expect(listError).toBeNull();
   const pm = (data?.users as User[] | undefined)?.find((u) => u.email === RESET_EMAIL);
-  if (pm) await admin.auth.admin.updateUserById(pm.id, { password: SEED_PASSWORD });
+  expect(pm, `cleanup could not find ${RESET_EMAIL}`).toBeDefined();
+  const { error: restoreError } = await admin.auth.admin.updateUserById(pm!.id, {
+    password: SEED_PASSWORD,
+  });
+  expect(restoreError).toBeNull();
 });
 
 test.skip(!SERVICE_ROLE_KEY, 'SERVICE_ROLE_KEY not set (local) — skipping');

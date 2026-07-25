@@ -62,13 +62,22 @@ Every Playwright e2e spec declares an isolation class on line 1:
 npm run e2e
 # => playwright test --project=chromium && playwright test --project=serial --workers=1
 ```
-Locally with CI parity (DB lock + `.env.local`): `scripts/e2e-local.sh` from repo root.
+For an inner-loop browser run with a reset DB and CI feature flags:
+`scripts/e2e-local.sh` from repo root.
+
+Before creating, pushing, or refreshing any PR targeting `main`, the authoritative
+full local promotion gate is `scripts/verify-main-pr.sh` from repo root. It runs the
+whole verify + Deno + pgTAP + every Playwright/visual case with `CI=true`, and keeps
+the served-function smoke last so its teardown cannot poison ordinary e2e requests.
 
 **Design doc:** `docs/superpowers/specs/2026-07-11-e2e-parallel-isolation-design.md`
 **Plan:** `docs/superpowers/plans/2026-07-11-e2e-parallel-isolation.md`
 **README:** `pmo-portal/e2e/README.md` (pick-your-class table + guard + two-lane run)
 
-**Note — community-standard alternative for full parallelism:** if the serial lane ever grows, the textbook option is **per-worker `workerIndex` data isolation** (each worker seeds/owns its own org/project/user slice via `testInfo.workerIndex`). This avoids a serial lane entirely but requires seed refactoring; today the 5-spec serial lane is small and stable, so the two-lane contract is the pragmatic choice.
+**Note — community-standard alternative for full parallelism:** if the serial lane's runtime becomes
+material, the textbook option is **per-worker `workerIndex` data isolation** (each worker seeds/owns
+its own org/project/user slice via `testInfo.workerIndex`). That cannot isolate process-global
+dependencies such as Mailpit, so those journeys still need a dedicated serial resource or worker.
 
 ## Defect class → single owner (no double-coverage)
 
