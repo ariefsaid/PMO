@@ -1,10 +1,10 @@
 # Microsoft 365 integration — Phase 0 (shared foundation) — spec
 
 - **Status:** Draft for Director/owner review (authored 2026-07-14, eng-planner).
-- **Controlling ADRs (ACCEPTED, binding):** [ADR-0058](../adr/0058-microsoft-365-integration-architecture.md)
+- **Controlling ADRs (ACCEPTED, binding):** [ADR-0063](../adr/0063-microsoft-365-integration-architecture.md)
   (integration architecture: auth≠authz, Graph-follows-ADR-0055, two-switch entitlement,
   agent-tier-unchanged, topology-independent, shared token lifecycle),
-  [ADR-0059](../adr/0059-entra-app-registration-topology.md) (Entra app topology — Option C default),
+  [ADR-0064](../adr/0064-entra-app-registration-topology.md) (Entra app topology — Option C default),
   [ADR-0060](../adr/0060-microsoft-graph-token-custody.md) (**the ten binding token-custody controls
   encoded below as NFRs**). **Related:** ADR-0049 (two-switch entitlement / `org_features` /
   `operator_toggle_feature`), ADR-0055/0056 (external adapters + watermarks), ADR-0001 (org_id seam),
@@ -24,7 +24,7 @@
 ## 1. Context
 
 Supabase's `azure` provider *authenticates* a Microsoft user (SSO, shipped) but persists/refreshes no
-Graph token (ADR-0058 §6). Durable, offline/background Graph access requires PMO to own the token
+Graph token (ADR-0063 §6). Durable, offline/background Graph access requires PMO to own the token
 lifecycle server-side (ADR-0060 — Option 2, ratified). Before any user-visible M365 feature, three
 invariants must exist so features don't each re-invent them: a **hardened token store**, the
 **two-switch entitlement/config** pair (Operator entitles ⇄ Admin activates, ADR-0049), and a decided
@@ -112,7 +112,7 @@ revoke) are invariants the Phase-0 schema must **not preclude**, verified in Pha
   `org_features` cross-org service-definer exclusion in `0074` (no blanket stamp trigger is attached,
   and none is needed, since there is no authenticated INSERT path).
 
-### 3.2 The two-switch entitlement/config surface (ADR-0049, ADR-0058 §Decision 3)
+### 3.2 The two-switch entitlement/config surface (ADR-0049, ADR-0063 §Decision 3)
 
 - **FR-M365-010 (Ubiquitous — Operator entitlement switch).** The `org_features` CHECK registry shall
   include the feature key `m365_integration`, and the FE feature registry
@@ -140,7 +140,7 @@ revoke) are invariants the Phase-0 schema must **not preclude**, verified in Pha
   Until it is decided, an uninvited Microsoft-authenticated user shall continue to receive the graceful
   **"not provisioned yet"** state (`RequireAuth` `profileErrorKind='not_provisioned'`, the calm
   card + Sign out, no Retry, no auto-created profile — the shipped **AC-MSAUTH-010/011** behavior),
-  never a raw profile error and never a signup bypass (`enable_signup=false`, ADR-0058 §Decision 1).
+  never a raw profile error and never a signup bypass (`enable_signup=false`, ADR-0063 §Decision 1).
 
 ---
 
@@ -263,7 +263,7 @@ Phase 1).
   — the schema supports them; the runtime is Phase 1.
 - **Audit emission** for token issuance/refresh/use/revoke (NFR-M365-008) — the `audit_events` sink
   exists (`0076`); the emit calls live in the Phase-1 edge function.
-- **Publisher verification** (ADR-0059) — a business task, weeks of lead time; not a code deliverable.
-- **Entra app registration / per-client secret provisioning runbook** (ADR-0059 Option C) — ops task,
+- **Publisher verification** (ADR-0064) — a business task, weeks of lead time; not a code deliverable.
+- **Entra app registration / per-client secret provisioning runbook** (ADR-0064 Option C) — ops task,
   tracked in the ADR-0047 provisioning runbook, not this spec.
 - **Any M365 data feature** (docs, Teams, calendar, Planner) — Phases 1–5 of the vision.

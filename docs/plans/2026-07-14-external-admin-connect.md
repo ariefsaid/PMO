@@ -5,7 +5,7 @@
 > for default-ON kill-switch behavior, project-scoped task ownership, and atomic connect.
 
 > **Spec:** `docs/specs/external-admin-connect.spec.md` (signed — 23 `AC-EAC-###`, EARS `FR-EAC-###`/`NFR-EAC-###`).  
-> **ADR:** `docs/adr/0059-external-admin-connect.md` (encodes OD-INT-1..5).  
+> **ADR:** `docs/adr/0065-external-admin-connect.md` (encodes OD-INT-1..5).  
 > **Scope source:** `docs/plans/2026-07-13-clickup-admin-integration-flow.md` §5 (phased D1–D5), §6 (security), §11 (#315 alignment).  
 > **Depends-on ADRs:** ADR-0055 (external adapters/SoT), ADR-0016 (`can()` UX + RLS authority), ADR-0019 (server-enforced privileged writes via security-definer RPC), ADR-0017 (repository seam), ADR-0018 (soft-archive), ADR-0057 (`verifyCallerJwt` local JWKS).  
 > **Builds on (merged):** #315 ERPNext P2 → `supabase/migrations/0096_erpnext_seam_tables.sql` (`external_org_bindings` + `external_command_outbox` + `external_ref_lineage` + 2 SECURITY DEFINER RPCs); `pmo-portal/src/lib/adapterSeam/erpnext/credentials.ts` (credential-resolution seam); `supabase/functions/erpnext-onboard/index.ts` (consumption pattern); Vault precedent mig `0082` + `0094`; `pmo-portal/src/components/integrations/IntegrationsView.tsx` (read-only panel to extend); `pmo-portal/pages/Companies.tsx` + `pmo-portal/src/lib/db/companies.ts` (reference slice — repository seam, form primitives, `can()`/`<CanWrite>`, `ConfirmDialog`); `pmo-portal/src/auth/policy.ts` (where `Entity='integration'` + `Action='manage'` + `can('manage','integration')` get added — Admin-only, Operator via server gate).  

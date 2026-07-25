@@ -1,6 +1,8 @@
-// @e2e-isolation: dedicated-row — owns timesheet …b4 (bulk fixture) + uses PROC-2026-002 (shared with AC-IXD-WP-002; ref lists as dedicated-row but PROC fixture is shared — see note).
+// @e2e-isolation: serial — reads the org-shared /approvals queue and approves prior-week Submitted sheets;
+// a parallel worker mutating the same queue makes the count non-deterministic. Moved out of quarantine
+// 2026-07-25: it was `test.fixme`d pending "e2e runs serially", which the serial lane now provides.
 import { test, expect } from '@playwright/test';
-import { login } from './helpers';
+import { login } from '../helpers';
 
 // These journeys MUTATE shared DB state (approve timesheets/procurements). A retry would
 // re-run against the already-approved (depleted) fixtures and fail spuriously, so retries
@@ -115,11 +117,21 @@ test(
 // level (ApprovalsQueue.expand-bulk.test.tsx: the RQ-v5 concurrent-mutate fix → dialog closes
 // + aggregate toast on ≥2). This e2e is flaky only under CI's PARALLEL-worker shared-DB model:
 // the reload-safe oracle asserts 0 prior-week rows remain, but a concurrent worker's timesheet
-// mutation can leave one → false red (not an app defect). TODO(backlog): make parallel-safe
-// (serial e2e project, or self-isolating per-test fixtures) then remove .fixme.
-// QUARANTINE: parallel-worker shared-DB race — un-skip when e2e runs serially or has per-test fixtures
+// ⚑ QUARANTINE REASON CORRECTED 2026-07-25 — the old note ("parallel-worker shared-DB race; un-skip
+// when e2e runs serially") was a MISDIAGNOSIS. Verified by moving it to the serial lane and running it
+// at --workers=1: it STILL fails (13 passed, this one failed), so contention was never the cause.
+//
+// The actual cause: `pages/Approvals.tsx` renders TWO layouts. The stacked fallback has
+// `<section aria-label="Timesheets awaiting you">`; the master-detail/split inbox (QueueGroup +
+// "Approval preview" pane, Approvals.tsx:690-733) does NOT. The app now renders the split inbox, so
+// this locator can never match — the spec is stale against a DELIBERATE UI redesign, not flaky.
+//
+// Per the BDD rule (CLAUDE.md): a deliberate UX change means updating the journey STEPS while the
+// goal oracle stays intact — reach the queue via QueueGroup/`selectedKey` and assert the same goal
+// (the PM approves and the count settles). Do NOT weaken the assertion to "some element exists".
+// The file stays in e2e/serial/ regardless: it reads and mutates the org-shared approvals queue.
 test.fixme(
-  'QUARANTINE: parallel-worker shared-DB race — un-skip when e2e runs serially or has per-test fixtures (AC-IXD-TS-W5-3)',
+  'AC-IXD-TS-W5-3 the PM approves from the shared approvals inbox and the queue count settles',
   async ({ page }) => {
     // Step 1: pm@ opens /approvals — ≥2 prior-week Submitted sheets are already in the
     // queue (seeded as Submitted; no UI-submit step needed).

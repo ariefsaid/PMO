@@ -1,4 +1,9 @@
-# ADR-0059 — External-system admin-connect layer
+# ADR-0065 — External-system admin-connect layer
+
+> ⚑ **Renumbered 0059 → 0065 on 2026-07-25.** It was created on 2026-07-20 at a number already
+> taken, so `grep ADR-0065` resolved to unrelated documents. The ADR that CREATED the number keeps it
+> (first-created wins); this one moved. Older citations of "ADR-0065" in M365/admin-connect context
+> mean THIS document.
 
 - **Status:** Proposed (eng-planner, Design+Plan phase 2026-07-14)
 - **Date:** 2026-07-14

@@ -1,12 +1,17 @@
-# ADR-0059 — Entra app-registration topology for siloed clients (one-app vs per-client, vendor-tenant vs client-tenant)
+# ADR-0064 — Entra app-registration topology for siloed clients (one-app vs per-client, vendor-tenant vs client-tenant)
+
+> ⚑ **Renumbered 0059 → 0064 on 2026-07-25.** It was created on 2026-07-20 at a number already
+> taken, so `grep ADR-0064` resolved to unrelated documents. The ADR that CREATED the number keeps it
+> (first-created wins); this one moved. Older citations of "ADR-0064" in M365/admin-connect context
+> mean THIS document.
 
 - **Status:** Accepted (owner grill 2026-07-14; owner ratified Option C as standing default, escape hatch B)
 - **Date:** 2026-07-14
 - **Deciders:** Owner, Director
-- **Related:** ADR-0058 (M365 integration architecture), ADR-0047 (per-client siloed topology + vault-`AS`
+- **Related:** ADR-0063 (M365 integration architecture), ADR-0047 (per-client siloed topology + vault-`AS`
   per-client secrets), ADR-0001 (org_id seam). **Vision:** `docs/microsoft-365-integration.md`.
 - **Scope:** how many Microsoft Entra app registrations back "Sign in with Microsoft" (and Graph access)
-  across clients, and in whose tenant they live. NOT the integration architecture (ADR-0058).
+  across clients, and in whose tenant they live. NOT the integration architecture (ADR-0063).
 
 ## Context
 

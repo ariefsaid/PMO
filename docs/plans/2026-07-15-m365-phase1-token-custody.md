@@ -2224,7 +2224,7 @@ The following are **explicitly excluded** from autonomous completion and require
    - `M365_TENANT_ID` — client's Entra tenant ID
    - `M365_REDIRECT_URI` — allowlisted callback URL (must match Entra app registration exactly)
 
-2. **Entra app registration** (Option C per ADR-0059):
+2. **Entra app registration** (Option C per ADR-0064):
    - Register per-client app in `gordi.id` tenant
    - Configure delegated scopes: `Files.Read`, `offline_access` (minimum)
    - Add redirect URI: `https://<project>.supabase.co/functions/v1/m365-token-custody/callback`

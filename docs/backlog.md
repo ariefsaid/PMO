@@ -148,15 +148,25 @@ and **`0059`×3** (`-entra-app-registration-topology`, `-external-admin-connect`
 the convention that makes them findable. Renumber the duplicates to the next free ids (**0063+**) and
 sweep citations across `docs/` + code comments. Surfaced by the 2026-07-25 docs audit.
 
-### ⚑ DEBT — un-quarantine AC-IXD-PROC-W5-3 (its restore condition is already met) (2026-07-25)
-`e2e/AC-IXD-PROC-W5-3-approvals-inbox.spec.ts` is skipped with the note *"un-skip when e2e runs
-serially or has per-test fixtures"*. **The serial lane now exists** (`e2e/serial/`, `--workers=1`), so
-that condition has been satisfied for a while and nobody noticed — a skip is invisible in a green tick.
-Surfaced by the new `scripts/check-e2e-skips.mjs` gate on its very first run.
-**Do:** move the spec to `e2e/serial/`, retag `// @e2e-isolation: serial`, confirm it passes at
-`--workers=1`, then **delete its entry from `ALLOWED_SKIPS`** (a stale entry fails the gate, so this
-cannot be left half-done). Convention: [`docs/e2e-parallel-conventions.md`](e2e-parallel-conventions.md);
-enforcement: [`docs/qa-portfolio.md`](qa-portfolio.md).
+### ⚑ DEBT — AC-IXD-PROC-W5-3 is stale against a UI redesign (diagnosis CORRECTED 2026-07-25)
+The spec was `test.fixme`d with the note *"parallel-worker shared-DB race — un-skip when e2e runs
+serially"*. **That was a misdiagnosis.** I moved it to the serial lane and ran it at `--workers=1`:
+it still fails (13 passed, this one failed), so contention was never the cause.
+
+**Real cause:** `pages/Approvals.tsx` renders **two layouts**. The stacked fallback contains
+`<section aria-label="Timesheets awaiting you">`; the master-detail **split inbox** (`QueueGroup` +
+"Approval preview" pane, `Approvals.tsx:690-733`) does not. The app renders the split inbox, so the
+spec's locator can never match. It is **stale against a deliberate UI change, not flaky.**
+
+**Do:** rewrite the journey steps against the split inbox (`QueueGroup` → `selectedKey` → approve in the
+preview pane) while keeping the **same goal oracle** — the PM approves and the queue count settles.
+Per the BDD rule in `CLAUDE.md`, never weaken the assertion to "an element exists". Then delete its
+entry from `ALLOWED_SKIPS` in `scripts/check-e2e-skips.mjs` (a stale entry fails the gate, so this
+cannot be left half-done). It stays in `e2e/serial/` either way — it mutates the org-shared queue.
+
+⚑ **Lesson worth keeping:** the quarantine note asserted a cause nobody re-tested for weeks. When its
+stated restore condition was finally met, the condition was satisfied and the test still failed. A
+quarantine reason is a hypothesis — re-verify it before trusting it.
 
 ### ⚑ PARKED — mutation testing (StrykerJS) for the "green test that doesn't bind" class (2026-07-25)
 **Why:** coverage proves a line RAN; it does not prove its behaviour is asserted. 2026-07-25 found a
@@ -320,8 +330,8 @@ with live secrets.**
 | Doc | What it is |
 |---|---|
 | [`docs/microsoft-365-integration.md`](microsoft-365-integration.md) | The vision / capability map. Start here. |
-| [ADR-0058 *(m365 variant)*](adr/0058-microsoft-365-integration-architecture.md) | Integration architecture (auth≠authz, two-switch, Graph-follows-ADR-0055) |
-| [ADR-0059 *(entra variant)*](adr/0059-entra-app-registration-topology.md) | Entra app topology — **Option C**, per-client app in the vendor tenant |
+| [ADR-0063](adr/0063-microsoft-365-integration-architecture.md) | Integration architecture (auth≠authz, two-switch, Graph-follows-ADR-0055) |
+| [ADR-0064](adr/0064-entra-app-registration-topology.md) | Entra app topology — **Option C**, per-client app in the vendor tenant |
 | [ADR-0060](adr/0060-microsoft-graph-token-custody.md) | The 10 binding token-custody controls + the mandatory live security gate |
 | [Phase-0 spec](specs/m365-phase0-foundation.spec.md) · [plan](plans/2026-07-14-m365-phase0-foundation.md) | SSO + entitlement + the card |
 | [Phase-1 spec](specs/m365-phase1-graph-token-custody.spec.md) · [plan](plans/2026-07-15-m365-phase1-token-custody.md) | The token-custody runtime |
@@ -810,7 +820,7 @@ contract. Tests alone would have shipped all of them.**
 | Assistant cost / usage | ✅ all orgs | ❌ **hidden — not rendered, not even fetched** (`useUsage`/`useAgentRunStats` gate on `isOperator`) |
 | Features / entitlements | ✅ write (toggles) | ❌ **hidden** (panel gated on `isOperator`; `org_features` SELECT stays widened for `useFeature()`) |
 | Credits | ✅ "Grant credits" | 👁 read-only balance (+ allocation, once built) |
-| M365 connect | ✅ | ❌ (ADR-0058 §3 — vendor owns the Entra app) |
+| M365 connect | ✅ | ❌ (ADR-0063 §3 — vendor owns the Entra app) |
 | ClickUp / ERPNext connect | ✅ | ✅ own org (client supplies the credential) |
 
 The rule that generates the last two rows: **whoever owns the credential owns the activation switch.**
