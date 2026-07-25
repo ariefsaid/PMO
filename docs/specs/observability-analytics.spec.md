@@ -316,6 +316,19 @@ nothing.
 > own rage detection and yields coordinates unbilled — that is the available substitute, and it is
 > enough to answer "where do people rage-click", just not via a trend query.
 
+**Confirmed against the pinned dependency, 2026-07-25.** The claims above were re-checked in
+`node_modules/@posthog/types/dist/posthog-config.d.ts` at the installed `posthog-js@1.396.6` — not
+against the published docs, which disagree on one of them:
+
+| Option | Installed type says | Consequence |
+|---|---|---|
+| `capture_dead_clicks` | `@default undefined` | The **docs claim `true`**. Trusting the docs would capture nothing, since `undefined` defers to remote project config. FR-PHG-003 stands. |
+| `capture_pageleave` | `@default 'if_capture_pageview'` | `$pageleave` is silently off today because `capture_pageview: false`. FR-PHG-004 stands. |
+| `capture_heatmaps` | `@default undefined` | — |
+| `enable_heatmaps` | `@deprecated Use capture_heatmaps instead.` | The current config sets the deprecated name, to `false`. FR-PHG-002 stands. |
+
+All options named in this spec exist in 1.396.6; no upgrade is required.
+
 **Verification requirement:** `$dead_click` properties are assembled by the autocapture property
 extractor and may carry element text. Before enabling on real users, capture one live event and
 confirm `mask_all_text` strips it. Do not assume.
