@@ -10,6 +10,86 @@ Each released section pins the full deploy manifest (app sha · DB migration hig
 edge-function state) so "what's in production" is unambiguous. The DB schema version (migration
 high-water mark) moves independently of the product tag.
 
+## [0.8.0](https://github.com/ariefsaid/PMO/compare/v0.7.2...v0.8.0) (2026-07-25)
+
+
+### ⚠ BREAKING CHANGES
+
+* **deps:** react-router 7 → 8.3.0 + postcss — 0 advisories, waiver removed ([#384](https://github.com/ariefsaid/PMO/issues/384))
+
+### Features
+
+* **admin-connect:** external-system admin self-serve — P1 Vault credentials · P2 Connect/Disconnect · P3 project Link/Unlink · P4 health (flag-off) ([#332](https://github.com/ariefsaid/PMO/issues/332)) ([dea013c](https://github.com/ariefsaid/PMO/commit/dea013cdbb3667af6cfe34ca0bfccc14e6a537ec))
+* **auth:** brand the Microsoft SSO button + restructure the login for a professional hierarchy ([#366](https://github.com/ariefsaid/PMO/issues/366)) ([fa8aa81](https://github.com/ariefsaid/PMO/commit/fa8aa810515128ff0558083ec0b8dc8ede748f76))
+* **clickup:** parent ↔ parent_task_id bidirectional sync + OD-INT-14 single-org scoping ([#345](https://github.com/ariefsaid/PMO/issues/345)) ([7134577](https://github.com/ariefsaid/PMO/commit/7134577a90270fca93ddc3f5e66574023ab1b1f3))
+* **erpnext:** P3 — Sales/AR money write-through (P3a, 9-round audited) + P3b/P3c slice-0 scaffolding ([c7b4ad1](https://github.com/ariefsaid/PMO/commit/c7b4ad16e72c60be33b53b72bbeb8b56251f4a1e))
+* **integrations:** Admin ClickUp binding map — both directions ([#356](https://github.com/ariefsaid/PMO/issues/356)) ([c28d58b](https://github.com/ariefsaid/PMO/commit/c28d58b270e06524548f6c29d678c7f77b0d275e))
+* **integrations:** atomic connect + operator-only trap-state recovery (final IEM slice) ([#357](https://github.com/ariefsaid/PMO/issues/357)) ([81a157f](https://github.com/ariefsaid/PMO/commit/81a157fad99b05f510979bb7c58f07646f6154b7))
+* **lib:** withTimeout — generic mutation-hang safety net + adoption plan ([#383](https://github.com/ariefsaid/PMO/issues/383)) ([3860a34](https://github.com/ariefsaid/PMO/commit/3860a3490d62d493a2c433d1e8f35e54a6616ae7))
+* **m365:** Microsoft 365 integration — Phase 0 (SSO + entitlement) + Phase 1 (Graph token custody, 4-round security-hardened) ([#333](https://github.com/ariefsaid/PMO/issues/333)) ([7261632](https://github.com/ariefsaid/PMO/commit/72616323fc15371e04f60e88e30d08d02beda8c2))
+* **m365:** wire the Connect flow + add a read-only connection_status action ([#337](https://github.com/ariefsaid/PMO/issues/337)) ([e670fbf](https://github.com/ariefsaid/PMO/commit/e670fbf7992efd5ac7f9bdf584c6c42d804eab4e))
+* **p3b/p3c:** timesheet + budget adapter cores, approved-only push gate, activated_at witness ([357f24f](https://github.com/ariefsaid/PMO/commit/357f24fef6a92060c7d2e400bce7257a57a82a53))
+* **p3b:** timesheet sweep backstop (6.4) + AC-TSP-042 (6.5) + both audit-r4 escalations ([790065d](https://github.com/ariefsaid/PMO/commit/790065d993824bf8b4501bf09d8310a604c10b2c))
+* **p3c:** budget sweep backstop + never-adopt, and close both audit HIGHs ([9c49a3e](https://github.com/ariefsaid/PMO/commit/9c49a3e17d1103bcaa2689f85280e599bc5ebaa5))
+* **p3:** ERPNext width — Timesheets (P3b) + Budget (P3c), 11 audit rounds ([3ef8cbe](https://github.com/ariefsaid/PMO/commit/3ef8cbed1799dd9c9adb5626d57ed555a7a0ad2a))
+* **tasks:** PMO archive affordance + exclude archived tasks from delivery rollups ([#352](https://github.com/ariefsaid/PMO/issues/352)) ([0f555e5](https://github.com/ariefsaid/PMO/commit/0f555e562bd4e24d0dfb22982bc66e1820d0cc93))
+* **tasks:** subtask model — rollup exclusion + nested task register (OD-INT-9) ([#340](https://github.com/ariefsaid/PMO/issues/340)) ([05c242d](https://github.com/ariefsaid/PMO/commit/05c242d7ab49ed2727022eeb71ad95af77f80549))
+* **tasks:** task model — description, priority, subtasks, archive (OD-INT-9) ([#339](https://github.com/ariefsaid/PMO/issues/339)) ([80f0ba2](https://github.com/ariefsaid/PMO/commit/80f0ba21dce9d2bfbf74cd53e11f09fa32403de9))
+* **tasks:** wire description + priority end-to-end (they were dead columns) ([#350](https://github.com/ariefsaid/PMO/issues/350)) ([b0c38de](https://github.com/ariefsaid/PMO/commit/b0c38de535cb6e3ef8be5bb7f4fc0fe0f608a63a))
+
+
+### Bug Fixes
+
+* **ci,e2e:** unblock the promote — 2 self-inflicted regressions + 1 ambiguous locator ([#390](https://github.com/ariefsaid/PMO/issues/390)) ([d218f67](https://github.com/ariefsaid/PMO/commit/d218f670e5c9d11ae219ff35cb4814ba21e1a612))
+* **ci:** deterministic PR→main integration gate + the local promotion-simulation convention ([#377](https://github.com/ariefsaid/PMO/issues/377)) ([c374432](https://github.com/ariefsaid/PMO/commit/c374432ebf9c9dfc88e557ea319469367f23c752))
+* **clickup:** an unbound List never leaks tasks into PMO; sweep active bindings only ([#354](https://github.com/ariefsaid/PMO/issues/354)) ([c28e8ed](https://github.com/ariefsaid/PMO/commit/c28e8ed01d1e67116aa5086fb6f00f00dcd5d9b9))
+* **clickup:** per-status resolution with pmo-only outcomes (OD-INT-13) ([#342](https://github.com/ariefsaid/PMO/issues/342)) ([83fed34](https://github.com/ariefsaid/PMO/commit/83fed34dced988ac44af14cb0fa73d1df7b10861))
+* **clickup:** read filters, per-List watermarks, backoff clamp, atomic config merge ([#343](https://github.com/ariefsaid/PMO/issues/343)) ([237009b](https://github.com/ariefsaid/PMO/commit/237009bdc1d243e15a33640a4e3d59c5dfe6a1c7))
+* **clickup:** webhook ingress rewrite — real envelope, per-org credentials, replay guard (OD-INT-11) ([#344](https://github.com/ariefsaid/PMO/issues/344)) ([c6d6196](https://github.com/ariefsaid/PMO/commit/c6d6196d218c289017d3250f4cde53419b923c5d))
+* **docs,e2e:** resolve the ADR id collisions; correct a MISDIAGNOSED e2e quarantine ([#387](https://github.com/ariefsaid/PMO/issues/387)) ([eb9d006](https://github.com/ariefsaid/PMO/commit/eb9d0068f9e0df87f60f0b9303b964b15df02db5))
+* **e2e:** 3 stale selectors/logins for intended merged UI changes ([#373](https://github.com/ariefsaid/PMO/issues/373)) ([47a4b4e](https://github.com/ariefsaid/PMO/commit/47a4b4ef7212f8ead7c7a9773d82c347086e6b15))
+* **e2e:** AC-INV-001 guard polarity — gate on the served lane, not on CI ([#386](https://github.com/ariefsaid/PMO/issues/386)) ([5f58e76](https://github.com/ariefsaid/PMO/commit/5f58e76bd78a7d818f30a82951df64f1b19dd6f5))
+* **e2e:** bench serial guards skip in CI, not throw — unblock dev→main promote ([#371](https://github.com/ariefsaid/PMO/issues/371)) ([b3527f4](https://github.com/ariefsaid/PMO/commit/b3527f469ceb0f06b73bbeb06e3b3b7fb06cb2e2))
+* **e2e:** seed the ERPNext webhook secret into Vault — dev removed the env fallback ([e4eacbf](https://github.com/ariefsaid/PMO/commit/e4eacbf5a797b45fdc45bce0514e894112b884ad))
+* **e2e:** the 2 root served-smoke specs also skip in CI (completes bench-guard fix) ([#372](https://github.com/ariefsaid/PMO/issues/372)) ([d9b9e7b](https://github.com/ariefsaid/PMO/commit/d9b9e7bc7e93e77aff1f337e371a0e0273e79256))
+* **e2e:** widen the timesheet week allocator — an 8-minute wrap made the fix/verify loop self-poisoning ([2c7f586](https://github.com/ariefsaid/PMO/commit/2c7f5867cd080c5b1b89b4a7f8866210cb271e2f))
+* **erpnext-p3a:** close round-4 audit — approver-side SoD, double-POST window, status/rollup integrity ([39a1c88](https://github.com/ariefsaid/PMO/commit/39a1c885e63d8afbd273d3bb6cf89e0cc65b7fd0))
+* **erpnext-p3a:** close round-5/6 — retry duplication, SoD author set, amend convergence, usable UI ([2ee0acd](https://github.com/ariefsaid/PMO/commit/2ee0acd208207e58009d1b10f078b2778a437b05))
+* **erpnext-p3a:** close round-7 cross-family audit — 10 blockers incl. our own fix regressions ([4a2b123](https://github.com/ariefsaid/PMO/commit/4a2b123e9a19f65d7dd2c97a0a2f2610b6616903))
+* **erpnext-p3a:** close round-9 cross-family SHOULD-FIXes before the dev PR ([0a74cce](https://github.com/ariefsaid/PMO/commit/0a74cce9576543d1847f95dea41b8c2529ca5a2b))
+* **erpnext-p3a:** close the re-audit hardening round — SoD, tenancy, and money-mirror integrity ([cd4f597](https://github.com/ariefsaid/PMO/commit/cd4f597222c9fb2e83674222450e49a65d2d504f))
+* **erpnext-p3a:** close the round-3 audit — recovery, adoption, targeting, RLS ([a3b4db1](https://github.com/ariefsaid/PMO/commit/a3b4db14065f29c32e1535d431fd710e535d3f02))
+* **integrations:** client write-routing must be project-aware — split-brain vs the DB gate ([#358](https://github.com/ariefsaid/PMO/issues/358)) ([7e135d4](https://github.com/ariefsaid/PMO/commit/7e135d47f0280be082d642dfed81a6fa2d1b0b04))
+* **m365:** Operator-gate the connect surface + release the StrictMode status guard ([#365](https://github.com/ariefsaid/PMO/issues/365)) ([f69dc97](https://github.com/ariefsaid/PMO/commit/f69dc975bfb45376877a78403384fba5a5042ebf))
+* **money:** Luna BLOCK 1 — anchor collision cross-domain guard ([9ebc071](https://github.com/ariefsaid/PMO/commit/9ebc071323a279744abfaddd9bb3a0cb64cd1578))
+* **money:** Luna BLOCK 5 — map PE-receive camelCase repo input to the snake_case command + populate references ([a86417a](https://github.com/ariefsaid/PMO/commit/a86417abcf2d8c7e9a3f52bb3a6de1191b150bcd))
+* **money:** revenue SI create leaves a DRAFT (submitOnCreate:false) — SoD is real (OD-SAR-DRAFT-SUBMIT) ([08cc3a3](https://github.com/ariefsaid/PMO/commit/08cc3a35e7b6642c1156c923d6e3a4b4fb19729f))
+* **p3:** audit-r3 H-1/H-2 + the owner's graceful-escalation ruling for NaN and company ([305a6f7](https://github.com/ariefsaid/PMO/commit/305a6f72432f9fe86ff5da41346253a66032deb3))
+* **p3b/p3c:** close all 7 round-2 audit findings + a HIGH the audit missed ([692a6e7](https://github.com/ariefsaid/PMO/commit/692a6e7c76e47d54e5c9d803b1991f831f7e322a))
+* **p3b/p3c:** repair two cross-file breakages from the parallel lanes ([a1a486e](https://github.com/ariefsaid/PMO/commit/a1a486e1d09f1351ff406356ace79a620716238f))
+* **p3c:** atomic snapshot-replace — the budget RPC was summing ACROSS generations ([2cd3639](https://github.com/ariefsaid/PMO/commit/2cd36398df9a31d8d63052e1b26e8179d3ac7722))
+* **p3:** close all 5 e2e reds — budget UPSERT, retry storm, 422, backstop mint ([855e22d](https://github.com/ariefsaid/PMO/commit/855e22d87b6b7b47dbfc1196afcf8b252ebdf30b))
+* **p3:** close all round-5 findings + HIGH-1b, a defect that defeated HIGH-1's own recovery ([18dd2ac](https://github.com/ariefsaid/PMO/commit/18dd2accfdbe6d6e1a70afff652479c7ad53c3bc))
+* **p3:** close the last 5 round-3 findings + RUN the edge-fn tests in CI ([c3cd09d](https://github.com/ariefsaid/PMO/commit/c3cd09deccae6ef14be12b558998502e07927982))
+* **p3:** close the max_rows class — the sweep round 8 asked for, in erpSnapshots ([444ed8b](https://github.com/ariefsaid/PMO/commit/444ed8be4a693e9c39b1685e024e3b6d696c6cc9))
+* **p3c:** make the one-generation guarantee TRUE (advisory lock) + full-grain row key ([fabde7c](https://github.com/ariefsaid/PMO/commit/fabde7c5b2d8f34129114a10b57ea6432e7e0606))
+* **p3c:** NEW-1 CRITICAL — "Actuals to date" was structurally 0.00 for every project ([f9b4850](https://github.com/ariefsaid/PMO/commit/f9b485003e905bac5cf65358e13b7ea39b1677c2))
+* **p3c:** refuse overlapping fiscal years instead of silently picking one ([cefaaa3](https://github.com/ariefsaid/PMO/commit/cefaaa31f9a0e552bf9240f2fddcdca178003258))
+* **p3c:** resolve the fiscal year from ERPNext's calendar + stop the seam dropping error codes ([9feb2ea](https://github.com/ariefsaid/PMO/commit/9feb2ea434893da29093d71fe58598902c90ca20))
+* **p3:** delete the unreachable adoption branch + close round 7 ([431efe0](https://github.com/ariefsaid/PMO/commit/431efe05abe6f4e2b354a4ab487e1df3cae9ea09))
+* **p3:** one money-honesty INVARIANT + round-6 HIGH + the 2 rework regressions ([d290837](https://github.com/ariefsaid/PMO/commit/d290837bf8caf99f596e16df1b76e1d6bf75a5b1))
+* **p3:** page every unbounded PostgREST read — the invariant was certifying a truncated sum ([727bba2](https://github.com/ariefsaid/PMO/commit/727bba2f0e14df392a973540ea450d98f4235a6d))
+* **p3:** round 9 — my own paging fix was the defect wearing the fix's clothes ([4606c27](https://github.com/ariefsaid/PMO/commit/4606c27304eb7b640360f10e09bebb9047e60ae2))
+* **security:** brace-expansion bump — surgical, preserving the cross-platform tree ([91a7c9d](https://github.com/ariefsaid/PMO/commit/91a7c9d44ec84d50e2fe8bcd71f5c14c86f13023))
+* **security:** bump brace-expansion 1.1.15→1.1.16 / 2.1.1→2.1.2 (GHSA-3jxr-9vmj-r5cp) ([37f75e9](https://github.com/ariefsaid/PMO/commit/37f75e95612733ed3e33351cc3a26aacefcb560f))
+* **test:** de-flake the M365 ciphertext guard (asserted a random IV byte) ([#385](https://github.com/ariefsaid/PMO/issues/385)) ([06f740e](https://github.com/ariefsaid/PMO/commit/06f740eb0f2a5f6e7edc741375cb7be92741f060))
+* **ui:** rework the P3b/P3c surfaces — the money-honesty class at category scope ([9382700](https://github.com/ariefsaid/PMO/commit/93827008e4ed50259fba302c40d57666f5e42f3d))
+
+
+### Chores
+
+* **deps:** react-router 7 → 8.3.0 + postcss — 0 advisories, waiver removed ([#384](https://github.com/ariefsaid/PMO/issues/384)) ([f8ecfd2](https://github.com/ariefsaid/PMO/commit/f8ecfd2e4c20549c4910bad7e88f0d79549d8047))
+
 ## [0.7.2](https://github.com/ariefsaid/PMO/compare/v0.7.1...v0.7.2) (2026-07-14)
 
 
