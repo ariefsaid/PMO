@@ -49,6 +49,15 @@ check_dir() {
         && grep -qE "$WRITE_SIGNAL" "$f"; then
       echo "  ${tag} spec service-role-writes a SHARED seed project (use dedicated-row or serial): $f" >&2; rc=1
     fi
+    # ⚑ Guard polarity: a spec must gate on whether its DEPENDENCY is present, never on which
+    # environment it is in. We have shipped this backwards twice — the bench specs threw *in* CI
+    # assuming CI had an ERPNext bench (#371/#372), and AC-INV-001 skipped *in* CI while being
+    # permanently 503-red locally (#386). `[edge_runtime] enabled = false` and "no bench" are true
+    # in BOTH places, so `process.env.CI` can never be the right question.
+    # Strip comment lines first — otherwise documenting this very rule trips it.
+    if grep -vE '^\s*(//|\*|/\*)' "$f" | grep -qE "process\\.env\\.CI"; then
+      echo "  gates on process.env.CI — gate on the dependency instead (e.g. SUPABASE_FUNCTIONS_URL): $f" >&2; rc=1
+    fi
   done < <(find "$root/e2e" -name '*.spec.ts' | sort)
   return $rc
 }
@@ -66,6 +75,10 @@ if [[ "${1:-}" == "--self-test" ]]; then
   rm "$tmp/e2e/wrongdir.spec.ts"
   printf '// @e2e-isolation: read-only\nclearMailpit();\n' > "$tmp/e2e/mailpit.spec.ts"
   if check_dir "$tmp" >/dev/null 2>&1; then echo "self-test FAIL: shared Mailpit mutation not caught" >&2; exit 1; fi
+  rm "$tmp/e2e/mailpit.spec.ts"
+  printf '// @e2e-isolation: read-only\nconst SERVED = !process.env.CI;\n' > "$tmp/e2e/cigate.spec.ts"
+  if check_dir "$tmp" >/dev/null 2>&1; then echo "self-test FAIL: process.env.CI gate not caught" >&2; exit 1; fi
+  rm "$tmp/e2e/cigate.spec.ts"
   echo "self-test OK"; exit 0
 fi
 

@@ -1,4 +1,4 @@
-// @e2e-isolation: self-isolated — unique invite email (Date.now()), admin invites Engineer, edge fn called + profiles row created; CI skip (edge runtime disabled).
+// @e2e-isolation: self-isolated — unique invite email (Date.now()), admin invites Engineer, edge fn called + profiles row created; skips unless SUPABASE_FUNCTIONS_URL is set (edge runtime is disabled in config.toml).
 import { test, expect, type Page } from '@playwright/test';
 import { signIn } from './helpers';
 
@@ -46,12 +46,20 @@ async function submitInvite(page: Page, dialog: ReturnType<Page['getByRole']>) {
 // This spec is the ONLY e2e that invokes a REAL edge function (admin-invite-user) rather than
 // mocking the functions/v1 route — its goal oracle #2 (the invited user appears as a live row)
 // needs the invite to actually create the auth user + profile. But this repo disables the local
-// edge runtime (`config.toml [edge_runtime] enabled = false`; CI never serves functions), so the
-// call returns 503. Gate it to the environments that DO serve edge functions; skip where they
-// don't (CI). Follow-up (ops-admin): serve admin-invite-user in CI (enable edge_runtime + SITE_URL)
-// or refactor to mock the response + seed the row — then remove this gate. Never a green-washing
-// skip: the goal oracle is intact, the dependency is simply absent in this environment.
-const EDGE_RUNTIME_SERVED = !process.env.CI;
+// edge runtime (`config.toml [edge_runtime] enabled = false`), so the call returns 503 wherever
+// nothing else serves the functions.
+//
+// ⚑ The guard used to be `!process.env.CI`, which had the polarity BACKWARDS: it assumed local
+// serves edge functions and CI does not. `[edge_runtime] enabled = false` applies to BOTH, so the
+// spec skipped in CI (green by absence) and RAN locally, where it 503'd on every single run — the
+// exact guard-inversion class fixed for the bench specs in #371/#372. Gate on the real signal
+// instead: `SUPABASE_FUNCTIONS_URL`, which `scripts/serve-functions.sh` exports when it has
+// actually started an edge-runtime container (same predicate the bench specs use).
+//
+// Follow-up (ops-admin): serve admin-invite-user in the ordinary lane (enable edge_runtime +
+// SITE_URL) or mock the response + seed the row — then remove this gate. Never a green-washing
+// skip: the goal oracle is intact, the dependency is simply absent unless the served lane is up.
+const EDGE_RUNTIME_SERVED = Boolean(process.env.SUPABASE_FUNCTIONS_URL);
 (EDGE_RUNTIME_SERVED ? test : test.skip)(
   'AC-INV-001: an Admin invites a new user — the admin-invite-user edge fn is called with the email AND the directory shows the new active Engineer row (goal oracle)',
   async ({ page }) => {

@@ -62,7 +62,8 @@ for one client, architected to scale to millions.
 
 ## Quality gates & checkpoints (binding)
 - **Pre-push full verify (binding — run the WHOLE suite, never just touched files):** before opening or
-  pushing ANY PR, run **`npm run verify`** (= `typecheck && lint:ci && test && build`, mirrors CI's `verify`
+  pushing ANY PR, run **`npm run verify`** (= `check:migrations && check:e2e-isolation && check:edge-test-binding &&
+  typecheck && typecheck:edge && lint:ci && test && build` — **8 gates, not 4**; mirrors CI's `verify`
   job) from `pmo-portal/`. Targeted/per-file test runs are for the inner TDD loop only — they MISS
   cross-component breakage (a change to a shared component silently breaks every *other* test that renders
   it; recurring CI-verify-red, 2026-06). The build/Director MUST run the full verify before the phase
@@ -88,6 +89,12 @@ for one client, architected to scale to millions.
     (verified: `--no-verify` really does bypass the hook, so this is the only layer that holds).
   - **Mutation-check anything security-critical:** break the rule (e.g. `const allowed = true`) and the
     tests MUST go red. A suite that stays green while the handler is broken is not a suite.
+  - **`scripts/check-e2e-skips.mjs`** (integration job, BOTH lane reports in one call) — a skipped test
+    is not a passing one. Every skip needs a justified allowlist entry + a `restore` path; a **stale**
+    entry fails too. Rationale + the guard-polarity rule: `docs/qa-portfolio.md` "Enforcement".
+  - **No e2e spec may gate on `process.env.CI`** (enforced by `check-e2e-isolation.sh`) — gate on the
+    DEPENDENCY (`SUPABASE_FUNCTIONS_URL`), never the environment. Shipped backwards twice (#371/#372, #386).
+  - Both gates carry `--self-test`s that run in CI's verify job — the gates are themselves gated.
 - **⚑ NEVER regenerate `package-lock.json` on macOS (binding).** `npm install` on darwin/arm64 silently
   PRUNES the wasm32-wasi optional deps (`@emnapi/core`, `@emnapi/runtime`, via `@tailwindcss/oxide-wasm32-wasi`),
   and linux CI then fails `npm ci` with *"Missing: @emnapi/core@… from lock file"*. It happens even with an
@@ -96,7 +103,7 @@ for one client, architected to scale to millions.
 - **Coverage:** ≥80% lines on changed code to merge; tests must assert behavior, not inflate numbers.
 - **Typecheck/lint:** `npm run typecheck` zero errors; ESLint zero errors (CI `--max-warnings=0`). Both block merge.
 - **⛔ HARD STOP — PRODUCTION (binding, owner directive 2026-06-17, RE-ENFORCED 2026-07-14 after a violation):** **NEVER push/deploy/promote to `production` without the owner's EXPLICIT, per-instance, this-message "yes" naming production.** This includes `git push origin main:production`, CF Pages prod, prod DB push (`db-push-prod.sh`), prod reseed, and prod edge-fn deploy. **Do NOT infer prod authorization** from "do it all", "ship it", "make it reachable", a stated deploy plan, or any prior approval — a prior "ship to prod" is **per-instance, never standing**, and ambiguity means STOP and ASK. Reaching `main` is the autonomous ceiling; the `main`→`production` step is ALWAYS a separate, explicit, owner-gated action. *(2026-07-14 incident: read "do it all and on by default" as prod authorization and promoted `main:production` without an explicit prod OK — this is exactly what must not happen; when in doubt, stop at `main` and ask.)*
-- **Branch flow (binding, owner directive 2026-06-17):** **work lands on `dev` → promoted to `main` (gated). `main` is the ceiling for autonomous work.** A prior "ship to prod" is per-instance, never standing. CI is tiered + resource-lean: PR→`dev` = `verify` only (fast lane); PR→`main` = `verify` + `integration` (pgTAP + e2e + visual gates) so `main` is always clean; push to `main` = `verify` smoke. Push CI is `main`-ONLY (dev/feature are PR-gated → no duplicate verify); `integration` fires once per change (the PR→`main`) and starts Supabase without the CI-unused containers (`studio,realtime,vector`) with Playwright browsers cached. `main`→`production` is a manual, owner-instructed promote only.
+- **Branch flow (binding, owner directive 2026-06-17):** **work lands on `dev` → promoted to `main` (gated). `main` is the ceiling for autonomous work.** A prior "ship to prod" is per-instance, never standing. CI is tiered + resource-lean: PR→`dev` = `verify` + `pgtap` (fast lane; `ci.yml` gates pgtap on `base_ref == 'dev'`); PR→`main` = `verify` + `integration` (pgTAP + e2e + visual gates) so `main` is always clean; push to `main` = `verify` smoke. Push CI is `main`-ONLY (dev/feature are PR-gated → no duplicate verify); `integration` fires once per change (the PR→`main`) and starts Supabase without the CI-unused containers (`studio,realtime,vector`) with Playwright browsers cached. `main`→`production` is a manual, owner-instructed promote only.
 - **Checkpoints:** the **owner** approves spec sign-off + **every production deploy** / irreversible infra (see Branch flow — prod requires a direct, per-instance instruction); the **Director** approves merge-to-`dev` and merge-to-`main` within the signed spec, and escalates anything strategic or out-of-spec.
 - **PRs:** one per issue — *for code*. **Docs-only changes (`docs/**`, `*.md`) push DIRECT to `dev`; no PR, no branch.**
   CI paths-ignores them, so a docs PR gates on nothing and is pure ceremony (a docs PR reports "no checks
@@ -108,6 +115,17 @@ for one client, architected to scale to millions.
   **ADR-0030 portfolio** (`docs/qa-portfolio.md`) — Layer-1 deterministic gate-tests + a rendered Discover
   pass (every finding graduated) before merging UI changes (`/design-review` is the `4-lens`-mode fallback);
   Storybook for the shared component library (from Phase 3).
+
+## Read-before-you-touch (context triggers — do NOT read these by default)
+Durable subsystem gotchas live with their subsystem, not in this file and not in the backlog. Read the
+matching one ONLY when your task touches that surface — that is the whole point, they cost nothing otherwise:
+
+| Touching… | Read first |
+|---|---|
+| Any money flow (budget activate · invoice/payment submit · procurement transition · timesheet push) | [`docs/money-path-primer.md`](docs/money-path-primer.md) — a map of the outbox/sweep/SoD architecture so you don't re-derive it from source |
+| The agent / LLM surface (prompts, tools, evals, the assistant panel) | [`docs/adr/0050-layered-agent-prompt-charter-and-skills.md`](docs/adr/0050-layered-agent-prompt-charter-and-skills.md) + [`docs/adr/0052-agent-eval-harness.md`](docs/adr/0052-agent-eval-harness.md) — ⚑ the deployed model (`deepseek-v4-flash`) is a **weak tool-selector**; prompt steering is unit-tested for text presence but NOT verified against the live model. The eval harness is the real gate. |
+| Authoring or editing any e2e spec | [`docs/e2e-parallel-conventions.md`](docs/e2e-parallel-conventions.md) — isolation classes, the `@e2e-isolation` tag, and the guard-polarity rule |
+| Local/prod Supabase, secrets, or a deploy | [`docs/environments.md`](docs/environments.md) |
 
 The full product charter + per-layer Definition of Done is **`docs/product-expectations.md`** — binding on all agents.
 The Director's detailed orchestration runbook (per-issue loop, delegation, gates, git hygiene, grading rubric) is **`docs/director-playbook.md`**.
@@ -151,7 +169,7 @@ superpowers' planning tier owns planning; do NOT also use gstack's planning tier
 - **Test pyramid (ADR-0010).** Each `AC-###` is owned by **one** test at the **lowest sufficient layer**:
   Unit (Vitest/RTL, mocked) for logic/components/render-empty-error-filter; Integration (**pgTAP**,
   `supabase test db`) for RLS/tenancy/role read+write contracts; E2E (Playwright, **one curated journey
-  per cross-stack `AC-###`** — ~50 today; the original "6–8" was an under-estimate, re-baselined 2026-06-21
+  per cross-stack `AC-###`** — **114 spec files / 148 `test()` cases** as of 2026-07-25 (was "~50"); the original "6–8" was an under-estimate, re-baselined 2026-06-21
   after the charter audit confirmed all are genuine cross-stack journeys, none misplaced) for real
   cross-stack flows only. Coverage is never lost — never push an AC up a layer to satisfy a convention.
 - **AC-id tagging (traceability).** The owning test names its `AC-###` in its title/description so
@@ -177,7 +195,8 @@ The app-wide CRUD layer is shipped (`main`); new entity/feature work MUST follow
 - React 19, Vite 8, TypeScript ~5.8, **react-router 8** (⚑ `react-router-dom` was REMOVED in v8 — import
   everything from `react-router`; `react-router/dom` holds only `HydratedRouter`/`RouterProvider`/`unstable_RSC*`),
   recharts. Node **22.22+** (react-router 8 `engines`). Backend: **Supabase** (Postgres + Auth + RLS + Storage).
-- `npm run dev` · `npm run build` · `npm run typecheck` (tsc) · `npm test` (Vitest) · `npx playwright test` (e2e).
+- `npm run dev` · `npm run build` · `npm run typecheck` (tsc) · `npm test` (Vitest) · **`npm run e2e`** (e2e — ⚑ NOT bare `npx playwright test`, which runs ONLY the `chromium` project and
+  SILENTLY SKIPS the `serial` lane; `npm run e2e` runs both, as CI does).
 - Commit trailer: `Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>`.
 
 ## Supabase environments (binding — full rules + registry: `docs/environments.md`)

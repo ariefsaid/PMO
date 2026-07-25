@@ -55,7 +55,11 @@ Every Playwright e2e spec declares an isolation class on line 1:
 | dedicated-row | `chromium` (workers:4) | Yes — owns a dedicated seed row | Procurement on PROC-2026-006, S-curve on P011 |
 | serial | `serial` (workers:1) | Yes — org-global state | ClickUp webhook, ENT toggle, admin users, budget activate |
 
-**Enforcement:** `scripts/check-e2e-isolation.sh` runs in `npm run verify` and in **all 3 CI jobs** (verify, pgTAP, integration) — fails on missing tag, lane mismatch, `read-only` writes, or non-serial writes to shared seed IDs.
+**Enforcement:** `scripts/check-e2e-isolation.sh` runs in `npm run verify` and in **all 3 CI jobs** (verify, pgTAP, integration) — fails on missing tag, lane mismatch, `read-only` writes, non-serial writes to shared seed IDs, **and any spec that gates on `process.env.CI`** (2026-07-25).
+
+**Why that last rule (the guard-polarity class):** a spec must gate on whether its DEPENDENCY is present, never on which environment it is in. We shipped it backwards twice — the ERPNext bench specs *threw* in CI assuming CI had a bench (#371/#372), and `AC-INV-001` *skipped* in CI while being permanently 503-red locally (#386). `[edge_runtime] enabled = false` and "no bench" are true in **both** places. Gate on the real signal (`SUPABASE_FUNCTIONS_URL`, exported by `scripts/serve-functions.sh`); skip when the lane is absent, **throw** when it is present but misconfigured. Full checklist + canonical form: [`docs/e2e-parallel-conventions.md`](e2e-parallel-conventions.md).
+
+**Green-by-absence gate (2026-07-25):** `scripts/check-e2e-skips.mjs` runs in the integration job over **both** lane reports in one invocation. A skipped test proves nothing, and skips are invisible in a green tick — every skip needs a justified allowlist entry naming the absent dependency **and a `restore` path**; a **stale** entry (nothing skips for it any more) fails too, so the list cannot quietly grow to cover everything. Same self-cleaning shape as `scripts/audit-prod.mjs`'s waiver list. Both gates carry `--self-test`s, which run in CI's verify job — the gates are themselves gated.
 
 **Two-lane run** (from `pmo-portal/`):
 ```bash

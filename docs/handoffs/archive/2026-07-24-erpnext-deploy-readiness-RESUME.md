@@ -1,3 +1,7 @@
+> ⚠ **ARCHIVED 2026-07-25 — SUPERSEDED, do not act on this as current state.**
+> Its premise is resolved: the ERPNext program is merged and promoted to `main` (#370). Kept for the
+> reasoning and defect detail, which exist nowhere else. **Current state lives in [`docs/backlog.md`](../../backlog.md).**
+
 # ⚑ ERPNext deploy-readiness — RESUME HERE (2026-07-24). Read this first.
 
 Goal (owner): "make sure all ERPNext feature & capability AS SPEC'ED is safe and ready to deploy."

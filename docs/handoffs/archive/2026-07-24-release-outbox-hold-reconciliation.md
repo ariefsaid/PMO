@@ -1,3 +1,7 @@
+> ⚠ **ARCHIVED 2026-07-25 — SUPERSEDED, do not act on this as current state.**
+> Its premise is resolved: the ERPNext program is merged and promoted to `main` (#370). Kept for the
+> reasoning and defect detail, which exist nowhere else. **Current state lives in [`docs/backlog.md`](../../backlog.md).**
+
 # `release_outbox_hold` — the two-lane reconciliation (SETTLED 2026-07-24)
 
 **Status: not a design question. The reconciled definition is below — the second lane to merge pastes it
