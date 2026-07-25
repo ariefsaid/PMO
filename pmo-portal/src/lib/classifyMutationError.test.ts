@@ -46,7 +46,7 @@ describe('classifyMutationError (ADR-0017, promoted from ProcurementDetails)', (
   it('REQUEST_TIMEOUT (withTimeout, UI-freeze hardening) → recoverable timeout headline', () => {
     const e = new AppError('The request timed out', 'REQUEST_TIMEOUT');
     expect(classifyMutationError(e)).toEqual({
-      headline: 'Request timed out — try again.',
+      headline: "Request timed out — we couldn't confirm whether it saved.",
       detail: 'The request timed out',
     });
   });

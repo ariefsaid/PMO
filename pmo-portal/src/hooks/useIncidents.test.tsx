@@ -125,7 +125,7 @@ describe('useIncidentMutations', () => {
     expect(incident.delete).toHaveBeenCalledWith('i1');
   });
 
-  it('AC-IN-006 (UI-freeze hardening): a hung repository call rejects with a timeout instead of hanging forever', async () => {
+  it('a hung repository call rejects with a timeout instead of hanging forever (UI-freeze hardening)', async () => {
     vi.useFakeTimers();
     try {
       incident.delete.mockReturnValue(new Promise(() => {})); // never resolves

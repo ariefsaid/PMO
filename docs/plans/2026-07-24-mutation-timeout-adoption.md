@@ -69,7 +69,8 @@ from `src/lib/repositories/index.ts`:
 | `useDocumentMutations` (`src/hooks/useDocuments.ts`) | create/update/transition/delete | Yes | Should adopt |
 | `useMilestoneMutations` (`src/hooks/useMilestones.ts`) | create/update/delete/setTaskMilestone | Yes | Should adopt |
 | `useProjectMutations` (`src/hooks/useProjects.ts`) | create/updateHeader/archive/delete/setContractValue | Yes | Should adopt |
-| `useUserMutations` (`src/hooks/useUsers.ts`) | updateUserRole/assignManager/inviteUser/setUserStatus | Yes (invite goes through an edge fn — `admin-invite-user`) | Should adopt |
+| `useUserMutations` (`src/hooks/useUsers.ts`) | updateUserRole/assignManager/setUserStatus | No | Should adopt |
+| `useUserMutations.inviteUser` | inviteUser | Yes — `admin-invite-user` edge fn | ⛔ **DO NOT WRAP.** `src/lib/db/adminUsers.ts` already uses `invokeWithTimeout` (20s). A 15s outer deadline would pre-empt it and its `external-unreachable` classification could never be reached. |
 | `useRevisionMutations` (`src/hooks/useRevision.ts`) | create revision | Yes | Should adopt |
 | `useTimesheetEntryMutations` (`src/hooks/useTimesheetEntries.ts`) | save week / delete entry | Yes | Should adopt |
 | `useTimesheetApproval`'s `submit`/`reject`/`reopen`/`reopenApproved`/`attestNoErpDocument` (`src/hooks/useTimesheetApproval.ts`) — `approve` EXCLUDED (see §2b) | 5 mutations | Yes | Should adopt |
@@ -80,7 +81,24 @@ from `src/lib/repositories/index.ts`:
 | `pages/AdministrationFeatures.tsx` (`toggleMutation`) | org-feature toggle | Yes | Should adopt |
 | `pages/AdministrationCredits.tsx` (`grantMutation`) | credits grant | Yes | Should adopt |
 
-### 2b. Excluded — routes through the adapter-dispatch path (owned elsewhere, do not touch here)
+#
+### ⚑ Before adopting on a WRITE that is not idempotent
+
+The safety question is **not** only "does this dispatch externally?" — it is **"is a duplicate write
+harmful here?"**. `withTimeout` converts a silent hang into a retry affordance, so any create without
+an idempotency key can now be double-submitted by a user who is told "timed out".
+
+| Target | Duplicate-write harm | Gate before adopting |
+|---|---|---|
+| `AdministrationCredits.grantMutation` | **Credits/billing** — a double grant is money | Needs an idempotency key FIRST |
+| `useProjectMutations.setContractValue` | **Money + ADR-0019 SoD** | Needs idempotency / server-side guard FIRST |
+| `useUsers.inviteUser` | Sends an email; double-invite is user-visible | Already timeout-guarded — do not wrap |
+| Ordinary update/delete/transition (set-by-id) | Idempotent by shape | Safe to adopt |
+
+Pair every adoption with `onSettled: invalidate` (not `onSuccess`) so a timed-out surface resyncs
+against the server rather than continuing to assert its pre-write state.
+
+## 2b. Excluded — routes through the adapter-dispatch path (owned elsewhere, do not touch here)
 
 | Hook (file) | Why excluded |
 |---|---|

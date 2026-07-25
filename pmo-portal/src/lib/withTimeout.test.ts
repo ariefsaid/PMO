@@ -30,12 +30,24 @@ describe('withTimeout (UI-freeze hardening)', () => {
     // Prevent an unhandled-rejection warning while the timer hasn't fired yet.
     result.catch(() => {});
 
+    // ⚑ Use a real settlement LATCH, not `Promise.race([result.then(…), Promise.resolve('pending')])`.
+    // That race is vacuous: the derived `.then()` promise needs one extra microtask, so the
+    // already-resolved literal ALWAYS wins and 'pending' is returned even when `result` has settled.
+    // Mutating `setTimeout(…, ms)` → `setTimeout(…, 0)` left the whole suite green — i.e. the one
+    // behavior this wrapper exists for (firing at the deadline, and NOT before) was untested.
+    let state: 'pending' | 'resolved' | 'rejected' = 'pending';
+    result.then(
+      () => { state = 'resolved'; },
+      () => { state = 'rejected'; },
+    );
+
     await vi.advanceTimersByTimeAsync(4999);
-    // Not yet — the deadline hasn't elapsed.
-    const settledEarly = await Promise.race([result.then(() => 'resolved', () => 'rejected'), Promise.resolve('pending')]);
-    expect(settledEarly).toBe('pending');
+    await Promise.resolve(); // flush microtasks so a premature settlement would be visible
+    expect(state).toBe('pending');
 
     await vi.advanceTimersByTimeAsync(1);
+    await Promise.resolve();
+    expect(state).toBe('rejected');
     await expect(result).rejects.toBeInstanceOf(AppError);
     await expect(result).rejects.toMatchObject({ code: REQUEST_TIMEOUT_CODE });
   });
@@ -54,7 +66,7 @@ describe('withTimeout (UI-freeze hardening)', () => {
       caught = err;
     }
     expect(classifyMutationError(caught)).toEqual({
-      headline: 'Request timed out — try again.',
+      headline: "Request timed out — we couldn't confirm whether it saved.",
       detail: 'The request timed out',
     });
   });

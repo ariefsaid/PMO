@@ -47,7 +47,7 @@ export function classifyMutationError(
     case '23503':
       return { headline: 'Still in use', detail };
     case 'REQUEST_TIMEOUT':
-      return { headline: 'Request timed out — try again.', detail };
+      return { headline: "Request timed out — we couldn't confirm whether it saved.", detail };
     default:
       return { headline: 'Update failed', detail };
   }

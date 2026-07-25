@@ -18,6 +18,12 @@
  * Deliberately NOT an abort mechanism: the underlying promise (e.g. a Supabase client call)
  * keeps running in the background — `withTimeout` only stops the CALLER from waiting on it
  * forever. That is sufficient to unfreeze the UI; it does not cancel the network request.
+ *
+ * ⚑ NEVER wrap a `supabase.functions.invoke(...)` chain in this. That lane has its own
+ * deadline — `src/lib/supabase/invokeWithTimeout.ts` — whose synthetic FunctionsFetchError
+ * shape is load-bearing for classifyDispatchError / classifyM365InvokeError / the repository
+ * `wrap`. Wrapping it again makes this (shorter) deadline pre-empt the inner one, so that
+ * classification can never be reached.
  */
 import { AppError } from './appError';
 

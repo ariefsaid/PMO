@@ -68,25 +68,28 @@ export function useIncidentMutations() {
   const create = useMutation({
     mutationFn: (input: IncidentInput) =>
       withTimeout(repositories.incident.create(input), DEFAULT_MUTATION_TIMEOUT_MS),
-    onSuccess: invalidate,
+    // ⚑ onSettled, NOT onSuccess: on a TIMEOUT the outcome is UNKNOWN, not unchanged — the
+    // server may have committed while the response was lost. Refetching the truth either way
+    // keeps the surface self-correcting; it still never reports the write as succeeded.
+    onSettled: invalidate,
   });
 
   const update = useMutation({
     mutationFn: ({ id, input }: UpdateIncidentArgs) =>
       withTimeout(repositories.incident.update(id, input), DEFAULT_MUTATION_TIMEOUT_MS),
-    onSuccess: invalidate,
+    onSettled: invalidate,
   });
 
   const transition = useMutation({
     mutationFn: ({ id, status }: TransitionIncidentArgs) =>
       withTimeout(repositories.incident.transition(id, status), DEFAULT_MUTATION_TIMEOUT_MS),
-    onSuccess: invalidate,
+    onSettled: invalidate,
   });
 
   const remove = useMutation({
     mutationFn: (id: string) =>
       withTimeout(repositories.incident.delete(id), DEFAULT_MUTATION_TIMEOUT_MS),
-    onSuccess: invalidate,
+    onSettled: invalidate,
   });
 
   return { create, update, transition, remove };
