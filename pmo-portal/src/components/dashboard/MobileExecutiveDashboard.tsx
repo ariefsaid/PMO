@@ -19,7 +19,7 @@
  * longer fork from desktop.
  */
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import { cn } from '@/src/components/ui/cn';
 import { Icon } from '@/src/components/ui/icons';
 import { KPITile } from '@/src/components/ui/KPITile';

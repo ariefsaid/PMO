@@ -5,7 +5,7 @@
   bootstrap = server-side authorization-code + PKCE (§1).
 - **Date:** 2026-07-14
 - **Deciders:** Owner, Director
-- **Related:** ADR-0058 §Decision 6 (this resolves it), ADR-0059 (per-client app → per-client tokens),
+- **Related:** ADR-0063 §Decision 6 (this resolves it), ADR-0064 (per-client app → per-client tokens),
   ADR-0047 (siloed topology → per-client blast-radius; vault-`AS` secrets), ADR-0001 (org_id seam),
   ADR-0049 (forced-RLS append-only-by-omission pattern), ADR-0019 (security-definer RPC boundary),
   ADR-0076/0071 (audit_events / error_events). **Vision:** `docs/microsoft-365-integration.md` §4/§5.
@@ -16,7 +16,7 @@
 ## Context
 
 Supabase's `azure` provider returns a `provider_token` (access token, ~1h) and a
-`provider_refresh_token` at sign-in but **persists/refreshes neither** (ADR-0058 §6). Every Graph *data*
+`provider_refresh_token` at sign-in but **persists/refreshes neither** (ADR-0063 §6). Every Graph *data*
 feature — especially the high-value **offline/background** ones (scheduled Teams alerts, calendar sync,
 milestone webhooks) — needs durable, renewable Graph access when the user is *not* present. That is only
 achievable by PMO owning the token lifecycle **server-side** (Option 2). The owner directed the

@@ -134,7 +134,7 @@ Each `AC-###` is owned by **one** test at the **lowest sufficient layer**:
   loading/empty/error/filter states. Fast, no stack.
 - **Integration (some):** **pgTAP** (`supabase test db`) — RLS/tenancy/role read+write contracts. This
   is the home for "in-org read allowed / cross-org blocked / role gate", NOT e2e.
-- **E2E (one curated journey per cross-stack `AC-###`, ~50 today):** Playwright against the live stack —
+- **E2E (one curated journey per cross-stack `AC-###`; **114 spec files / 148 `test()` cases** as of 2026-07-25):** Playwright against the live stack —
   real cross-stack flows only (login→dashboard, sign-out guard, magic-link, session-persist, one real-data
   smoke per module + per CRUD/RBAC/procure-to-pay journey). *(Re-baselined 2026-06-21 from the original
   "~6–8" under-estimate — the charter audit confirmed all ~50 are genuine cross-stack journeys, none
@@ -143,7 +143,9 @@ Each `AC-###` is owned by **one** test at the **lowest sufficient layer**:
   title/description for `grep` traceability. Adding lower-layer coverage must precede deleting any e2e.
 
 ## 6. Git & release hygiene (hard rules — we got burned here, see §9)
-- One **branch per issue** off an **up-to-date `main`**. Branch names: `feat/`, `chore/`, `test/`, `perf/`.
+- One **branch per issue** off an **up-to-date `dev`** — NOT `main`. Work lands on `dev`; `dev`→`main` is a
+  separate gated promote (`CLAUDE.md` Branch flow). Branching off `main` also means CI verifies the wrong
+  merge commit. Branch names: `feat/`, `chore/`, `test/`, `perf/`.
 - `release-engineer` runs the **full fresh verification before pushing**: from `pmo-portal/` —
   `typecheck`, `lint:ci`, `test`, `build`, and **`npx playwright test` against a live stack** (start
   Supabase; it's the behavioral guard) + `supabase test db` for DB changes. No push without green e2e.
@@ -171,7 +173,8 @@ Each `AC-###` is owned by **one** test at the **lowest sufficient layer**:
      `git push origin --delete <branch>`; fetch/prune and verify that exact ref is gone. Stop on divergence.
 - After cleanup, **immediately sync** the long-lived checkout:
   `git checkout <base> && git fetch origin && git reset --hard origin/<base>`.
-- **Keep `origin/main` current** — push main promptly. Docs/plans can be committed straight to main
+- **Keep `origin/dev` current** — push promptly. Docs-only changes go **direct to `dev`** (never `main`;
+  see `CLAUDE.md` “PRs”). Docs/plans can be committed without a PR
   (then branch) so PR diffs stay scoped to code. (Letting origin/main go stale once caused a squash to
   collapse all history into one commit.)
 - Production deploy / irreversible infra = **owner approval only**.

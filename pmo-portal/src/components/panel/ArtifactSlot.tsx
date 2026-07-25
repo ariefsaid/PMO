@@ -7,7 +7,7 @@
  *
  * Port isolation (NFR-CV-SEC-007): imports only src/lib/viewspec/, src/hooks/useComposeArtifact,
  * src/components/dashboard/HydratedPrimitive, src/components/dashboard/ChartFrame,
- * react-router-dom (for Link), DESIGN.md tokens.
+ * react-router (for Link), DESIGN.md tokens.
  *
  * Design-system rules enforced (graduated from Discover pass 2026-06-30):
  * - Blocker-1 / DESIGN.md Blocker-6: "Saved" text MUST use text-[hsl(var(--success-text))],
@@ -19,7 +19,7 @@
  *   "user can rename on Save" is a real affordance, not just rationale.
  */
 import React, { useCallback, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import { HydratedPrimitive } from '@/src/components/dashboard/HydratedPrimitive';
 import { ChartFrame } from '@/src/components/dashboard/ChartFrame';
 import { executeCompiledQuery } from '@/src/lib/viewspec/executor';

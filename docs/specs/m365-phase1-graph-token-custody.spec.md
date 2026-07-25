@@ -1,10 +1,10 @@
 # Microsoft 365 integration — Phase 1 (Graph Token Custody Runtime) — spec
 
 - **Status:** Draft for Director/owner review.
-- **Controlling ADRs (ACCEPTED, binding):** [ADR-0058](../adr/0058-microsoft-365-integration-architecture.md)
+- **Controlling ADRs (ACCEPTED, binding):** [ADR-0063](../adr/0063-microsoft-365-integration-architecture.md)
   (integration architecture: auth≠authz, Graph-follows-ADR-0055, two-switch entitlement,
   agent-tier-unchanged, topology-independent, shared token lifecycle),
-  [ADR-0059](../adr/0059-entra-app-registration-topology.md) (Entra app topology — Option C default),
+  [ADR-0064](../adr/0064-entra-app-registration-topology.md) (Entra app topology — Option C default),
   [ADR-0060](../adr/0060-microsoft-graph-token-custody.md) (**the ten binding token-custody controls
   encoded below as NFRs**). **Related:** ADR-0049 (two-switch entitlement / `org_features` /
   `operator_toggle_feature`), ADR-0055/0056 (external adapters + watermarks), ADR-0001 (org_id seam),
@@ -582,7 +582,7 @@ live proxy end-to-end.
   `graph_proxy`.
 - **Teams, Outlook/Calendar, Planner** features — Phase 2+.
 - **Entra group → PMO role provisioning** — vision §3.1, later.
-- **Publisher verification** — business task (ADR-0059), weeks of lead time; onboarding uses admin
+- **Publisher verification** — business task (ADR-0064), weeks of lead time; onboarding uses admin
   consent meanwhile.
 - **Per-client Entra app registration runbook** — ops task (ADR-0047 provisioning runbook), not
   code.
@@ -600,7 +600,7 @@ live proxy end-to-end.
 | Dependency | Source | Status | Owner action |
 |---|---|---|---|
 | **KEK (`M365_TOKEN_KEK`)** — 32-byte base64url key for AES-256-GCM | Supabase secrets / vault-`AS` | **Required** | Provision per-project (siloed) or per-tenant (pooled future); store in Supabase Dashboard → Edge Functions → Secrets |
-| **`M365_CLIENT_SECRET`** — the per-client Entra app secret (Option C) | vault-`AS` / Supabase secrets | **Required** | Register per-client app in `gordi.id` (ADR-0059 Option C), add redirect URI, store secret |
+| **`M365_CLIENT_SECRET`** — the per-client Entra app secret (Option C) | vault-`AS` / Supabase secrets | **Required** | Register per-client app in `gordi.id` (ADR-0064 Option C), add redirect URI, store secret |
 | **`M365_CLIENT_ID`** — the per-client Entra app client ID | Supabase secrets / env | **Required** | Same as above |
 | **`M365_TENANT_ID`** — the client's Entra tenant ID (for Option C authorize URL) | Supabase secrets / env | **Required** | Captured during per-client onboarding |
 | **`M365_REDIRECT_URI`** — the allowlisted callback URL (e.g. `https://<project>.supabase.co/functions/v1/m365-token-custody/callback`) | Supabase secrets / env | **Required** | Must match Entra app registration exactly |

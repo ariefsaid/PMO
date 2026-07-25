@@ -43,6 +43,14 @@ describe('classifyMutationError (ADR-0017, promoted from ProcurementDetails)', (
     expect(classifyMutationError(e).headline).toBe("You don't have permission to do that.");
   });
 
+  it('REQUEST_TIMEOUT (withTimeout, UI-freeze hardening) → recoverable timeout headline', () => {
+    const e = new AppError('The request timed out', 'REQUEST_TIMEOUT');
+    expect(classifyMutationError(e)).toEqual({
+      headline: "Request timed out — we couldn't confirm whether it saved.",
+      detail: 'The request timed out',
+    });
+  });
+
   it('unknown code → generic headline, verbatim detail', () => {
     const e = Object.assign(new Error('something broke'), { code: 'XX999' });
     expect(classifyMutationError(e)).toEqual({ headline: 'Update failed', detail: 'something broke' });

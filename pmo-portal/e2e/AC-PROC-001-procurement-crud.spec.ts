@@ -92,7 +92,12 @@ test(
     // total ($2,064). Scope to the line-items section + its table cell so the
     // assertion is unambiguous (the name/total can echo elsewhere on the page).
     const lineItems = page.getByTestId('line-items-section');
-    await expect(lineItems.getByRole('cell', { name: itemDesc })).toBeVisible({
+    // `exact: true` — the row's action cell has the accessible name "Edit <item>", which the default
+    // substring match also selects, making this a strict-mode violation (2 elements). Exact-matching
+    // the NAME cell keeps the oracle identical (the line item is rendered with its own name) while
+    // excluding the Edit-button cell. Do NOT relax to .first(): that would pass even if only the
+    // action cell rendered.
+    await expect(lineItems.getByRole('cell', { name: itemDesc, exact: true })).toBeVisible({
       timeout: 15_000,
     });
     await expect(lineItems.getByText(/\$2,064/).first()).toBeVisible({ timeout: 10_000 });

@@ -11,9 +11,9 @@
 > known repo-wide collision, see the M365 gotchas in the backlog).
 
 - **Status:** Draft for Director/owner review — **NOT BUILT**.
-- **Controlling ADRs (ACCEPTED, binding):** [ADR-0058](../adr/0058-microsoft-365-integration-architecture.md)
+- **Controlling ADRs (ACCEPTED, binding):** [ADR-0063](../adr/0063-microsoft-365-integration-architecture.md)
   (integration architecture — Graph data follows the ADR-0055 external-adapter pattern; auth≠authz;
-  two-switch entitlement), [ADR-0059](../adr/0059-entra-app-registration-topology.md) (Entra app
+  two-switch entitlement), [ADR-0064](../adr/0064-entra-app-registration-topology.md) (Entra app
   topology), [ADR-0060](../adr/0060-microsoft-graph-token-custody.md) (the token-custody runtime this
   feature consumes). **Related:** ADR-0055/0056 (external adapters + watermarks — the shape a Graph
   *data* feature takes), ADR-0017 (repository seam), ADR-0016 (FE authz UX-only / RLS-as-ceiling),
@@ -607,7 +607,7 @@ deny for an unauthorized viewer) is verified by the deferred e2e (AC-M365DOC-050
 - **No change to the document status workflow or SoD.** `transition_document_status` (0017/0025) and the
   approver-≠-author rule are unchanged (FR-M365DOC-043).
 - **No ADR from this spec.** The link/reference model and "Microsoft is the permission authority" are
-  already ratified by vision §3.2 + ADR-0058 (Graph-follows-ADR-0055) + ADR-0055 (external adapters). The
+  already ratified by vision §3.2 + ADR-0063 (Graph-follows-ADR-0055) + ADR-0055 (external adapters). The
   data-model decision (extend `project_documents` vs separate table) is a localized, reversible choice
   justified in FR-M365DOC-001 — not cross-cutting enough to warrant a new ADR.
 
@@ -617,7 +617,7 @@ deny for an unauthorized viewer) is verified by the deferred e2e (AC-M365DOC-050
 
 | Dependency | Source | Status | Owner action |
 |---|---|---|---|
-| **M365 token-custody runtime deployed with live secrets** — `M365_TOKEN_KEK`, `M365_CLIENT_SECRET`, `M365_CLIENT_ID`, `M365_TENANT_ID`, `M365_REDIRECT_URI` in Supabase secrets; `m365-token-custody` edge fn deployed | PR #333 (merged) + deploy | **Required (deploy)** | Deploy the fn to the target project with the per-client Entra app secrets (ADR-0059 Option C). Without live secrets, `graph_proxy` cannot run. |
+| **M365 token-custody runtime deployed with live secrets** — `M365_TOKEN_KEK`, `M365_CLIENT_SECRET`, `M365_CLIENT_ID`, `M365_TENANT_ID`, `M365_REDIRECT_URI` in Supabase secrets; `m365-token-custody` edge fn deployed | PR #333 (merged) + deploy | **Required (deploy)** | Deploy the fn to the target project with the per-client Entra app secrets (ADR-0064 Option C). Without live secrets, `graph_proxy` cannot run. |
 | **One proven `active` Microsoft connection** — an entitled org's Admin has completed Connect and the `ms_graph_connections` row is `status='active'` | PR #337 (merged) + a real Connect | **Required (integration)** | The owner/Director verifies a real Connect round-trip in the target environment before declaring this feature shippable. |
 | **`m365_integration` entitlement on for the org** (Operator switch) + Admin viewer (config switch) | Phase 0 (shipped) | **Required** | Operator toggles `m365_integration`; org Admin signs in. |
 | **Graph scope: `Files.Read` (minimum — personal OneDrive)** | Microsoft Graph permission | **Required** | Already consented by the Phase-1 custody connect (the authorize URL requests `Files.Read offline_access`). Covers `/me/drive/…`. |

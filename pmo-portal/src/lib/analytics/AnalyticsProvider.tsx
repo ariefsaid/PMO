@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation } from 'react-router';
 import { useAuth } from '@/src/auth/useAuth';
 import { getAnalyticsConfig, persistDemoContext } from './config';
 import { analyticsClient } from './client';

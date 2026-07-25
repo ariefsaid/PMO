@@ -12,13 +12,13 @@
 - **Depends-on ADRs:** ADR-0055 (external adapters/SoT), ADR-0016 (`can()` UX-only + RLS authority),
   ADR-0019 (server-enforced privileged writes via security-definer RPC), ADR-0017 (repository seam),
   ADR-0018 (soft-archive), ADR-0057 (`verifyCallerJwt` local JWKS verification). New ADR for this layer:
-  ADR-0059 (`docs/adr/0059-external-admin-connect.md`).
+  ADR-0065 (`docs/adr/0065-external-admin-connect.md`).
 - **Builds on (merged):** #315 ERPNext P2 → `supabase/migrations/0096_erpnext_seam_tables.sql`
   (`external_org_bindings` + `external_command_outbox` + `external_ref_lineage` + 2 SECURITY DEFINER RPCs);
   `pmo-portal/src/lib/adapterSeam/erpnext/credentials.ts` (the credential-resolution SEAM);
   `supabase/functions/erpnext-onboard/index.ts` (consumption pattern); Vault precedent mig `0082` + `0094`;
   `pmo-portal/src/components/integrations/IntegrationsView.tsx` (the read-only panel to extend).
-- **Plan:** `docs/plans/2026-07-14-external-admin-connect.md`. **ADR:** `docs/adr/0059-external-admin-connect.md`.
+- **Plan:** `docs/plans/2026-07-14-external-admin-connect.md`. **ADR:** `docs/adr/0065-external-admin-connect.md`.
 
 ## 1. Overview + job stories
 

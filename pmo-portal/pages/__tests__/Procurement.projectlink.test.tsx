@@ -11,7 +11,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter } from 'react-router';
 import React from 'react';
 import { ProjectNameLink } from '@/src/components/ui/ProjectNameLink';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';

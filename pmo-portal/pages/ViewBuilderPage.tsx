@@ -14,14 +14,14 @@
  *   - Error classification via classifyMutationError (FR-VB-062)
  *
  * Layering (NFR-VB-LAYER-001): imports from src/lib/viewspec/, src/hooks/useUserViews,
- * src/auth/, src/components/ui/, src/lib/classifyMutationError, react-router-dom.
+ * src/auth/, src/components/ui/, src/lib/classifyMutationError, react-router.
  * Does NOT import from src/lib/db/* or src/lib/supabase/client.
  *
  * Test-only escape hatch: __testPanels?: PanelSpec[] — seeds the panel list in RTL tests
  * without requiring modal interaction. Undefined in production usage.
  */
 import React, { useEffect, useRef, useState } from 'react';
-import { useNavigate, useParams, useLocation } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router';
 import {
   ListState,
   ConfirmDialog,

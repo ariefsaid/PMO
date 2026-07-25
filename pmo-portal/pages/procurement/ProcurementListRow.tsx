@@ -10,7 +10,7 @@
  * value, status pill, lifecycle stepper) so the preview list feels like the table.
  */
 import React, { useId, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router';
 import { Button, Icon, ListState, StatusPill, ProjectNameLink } from '@/src/components/ui';
 import { trackProcurementDetailOpened } from '@/src/lib/analytics';
 import { useProcurementDetail } from '@/src/hooks/useProcurementDetail';

@@ -11,7 +11,7 @@
  * authority; `can('transition','procurement')` is the UX-only gate (ADR-0016).
  */
 import React, { useId, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   ApprovalRow,

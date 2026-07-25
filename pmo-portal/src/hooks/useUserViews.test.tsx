@@ -119,4 +119,28 @@ describe('useUserViewMutations', () => {
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ['user_views'] });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ['user_view'] });
   });
+
+  it('UI-freeze hardening: a hung repository call rejects with a timeout instead of hanging forever', async () => {
+    vi.useFakeTimers();
+    try {
+      userView.delete.mockReturnValue(new Promise(() => {})); // never resolves
+      const { result } = renderHook(() => useUserViewMutations(), { wrapper: wrap(freshClient()) });
+
+      let caught: unknown;
+      const pending = act(async () => {
+        try {
+          await result.current.remove.mutateAsync('v1');
+        } catch (err) {
+          caught = err;
+        }
+      });
+
+      await vi.advanceTimersByTimeAsync(15_000);
+      await pending;
+
+      expect(caught).toMatchObject({ name: 'AppError', code: 'REQUEST_TIMEOUT' });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

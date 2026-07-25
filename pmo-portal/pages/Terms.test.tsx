@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter } from 'react-router';
 
 // Fixed config → deterministic assertions (AC-LEG-006/034). Mocked so the page
 // test is independent of env; the real module is proven in legalConfig.test.ts.

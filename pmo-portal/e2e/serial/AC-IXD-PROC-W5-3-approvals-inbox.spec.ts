@@ -1,6 +1,8 @@
-// @e2e-isolation: dedicated-row — owns timesheet …b4 (bulk fixture) + uses PROC-2026-002 (shared with AC-IXD-WP-002; ref lists as dedicated-row but PROC fixture is shared — see note).
+// @e2e-isolation: serial — reads the org-shared /approvals queue and approves prior-week Submitted sheets;
+// a parallel worker mutating the same queue makes the count non-deterministic. Moved out of quarantine
+// 2026-07-25: it was `test.fixme`d pending "e2e runs serially", which the serial lane now provides.
 import { test, expect } from '@playwright/test';
-import { login } from './helpers';
+import { login } from '../helpers';
 
 // These journeys MUTATE shared DB state (approve timesheets/procurements). A retry would
 // re-run against the already-approved (depleted) fixtures and fail spuriously, so retries
@@ -115,11 +117,27 @@ test(
 // level (ApprovalsQueue.expand-bulk.test.tsx: the RQ-v5 concurrent-mutate fix → dialog closes
 // + aggregate toast on ≥2). This e2e is flaky only under CI's PARALLEL-worker shared-DB model:
 // the reload-safe oracle asserts 0 prior-week rows remain, but a concurrent worker's timesheet
-// mutation can leave one → false red (not an app defect). TODO(backlog): make parallel-safe
-// (serial e2e project, or self-isolating per-test fixtures) then remove .fixme.
-// QUARANTINE: parallel-worker shared-DB race — un-skip when e2e runs serially or has per-test fixtures
+// QUARANTINE: stale against a deliberate UI redesign — un-skip when the journey is rewritten against
+// the split inbox. (Format required by e2e/quarantine-guard.spec.ts: a `// QUARANTINE:` marker, an
+// "un-skip when" clause, and a `QUARANTINE:`-prefixed title. Adding or removing a skip must be a
+// deliberate, reviewed change — which is why the guard also pins the total count.)
+//
+// ⚑ REASON CORRECTED 2026-07-25. The previous note claimed a "parallel-worker shared-DB race,
+// un-skip when e2e runs serially". That was a MISDIAGNOSIS: I moved this file to the serial lane and
+// ran it at --workers=1, and it STILL failed (13 passed, this one failed), so contention was never
+// the cause.
+//
+// Actual cause: pages/Approvals.tsx renders TWO layouts. The stacked fallback has
+// `<section aria-label="Timesheets awaiting you">`; the master-detail split inbox (QueueGroup +
+// "Approval preview", Approvals.tsx:690-733) does NOT. The app renders the split inbox, so this
+// locator can never match — it would have failed identically on day one of the quarantine.
+//
+// To un-skip: drive the split inbox (QueueGroup -> selectedKey -> approve in the preview pane) while
+// keeping the SAME goal oracle — the PM approves and the queue count settles. Per the BDD rule in
+// CLAUDE.md, never weaken it to "an element exists". Then delete its ALLOWED_SKIPS entry in
+// scripts/check-e2e-skips.mjs. The file stays in e2e/serial/: it mutates the org-shared queue.
 test.fixme(
-  'QUARANTINE: parallel-worker shared-DB race — un-skip when e2e runs serially or has per-test fixtures (AC-IXD-TS-W5-3)',
+  'QUARANTINE: AC-IXD-TS-W5-3 the PM approves from the shared approvals inbox and the queue count settles — un-skip when rewritten against the split inbox',
   async ({ page }) => {
     // Step 1: pm@ opens /approvals — ≥2 prior-week Submitted sheets are already in the
     // queue (seeded as Submitted; no UI-submit step needed).

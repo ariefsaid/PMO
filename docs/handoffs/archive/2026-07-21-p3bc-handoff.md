@@ -1,3 +1,7 @@
+> ⚠ **ARCHIVED 2026-07-25 — SUPERSEDED, do not act on this as current state.**
+> Its premise is resolved: the ERPNext program is merged and promoted to `main` (#370). Kept for the
+> reasoning and defect detail, which exist nowhere else. **Current state lives in [`docs/backlog.md`](../../backlog.md).**
+
 # ⛔ SUPERSEDED — P3 IS COMPLETE (2026-07-23)
 
 > This was a **resume-here** handoff written mid-flight on 2026-07-21. **The work it describes shipped

@@ -9,6 +9,8 @@
  *   42501 → insufficient privilege / SoD (RLS or RPC role check)
  *   23505 → unique-constraint violation (duplicate)
  *   23503 → foreign-key violation (the row is still referenced — e.g. an in-use company delete)
+ *   REQUEST_TIMEOUT → a `withTimeout`-wrapped mutation hit its deadline (UI-freeze hardening,
+ *                      `withTimeout.ts`'s `REQUEST_TIMEOUT_CODE`) — recoverable, not a crash
  *   else  → generic "Update failed"
  *
  * The code is read structurally (any error exposing a string `.code` — `AppError`,
@@ -44,6 +46,8 @@ export function classifyMutationError(
       return { headline: 'That already exists.', detail };
     case '23503':
       return { headline: 'Still in use', detail };
+    case 'REQUEST_TIMEOUT':
+      return { headline: "Request timed out — we couldn't confirm whether it saved.", detail };
     default:
       return { headline: 'Update failed', detail };
   }

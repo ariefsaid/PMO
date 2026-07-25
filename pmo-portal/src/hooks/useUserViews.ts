@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { repositories } from '@/src/lib/repositories';
 import type { UserViewRow, UserViewInput } from '@/src/lib/db/userViews';
 import { useAuth } from '@/src/auth/useAuth';
+import { withTimeout, DEFAULT_MUTATION_TIMEOUT_MS } from '@/src/lib/withTimeout';
 
 /**
  * Org-scoped saved-views list over the repository seam (ADR-0017, ADR-0036 §6). queryKey
@@ -43,6 +44,11 @@ export interface UpdateUserViewArgs {
  * Each invalidates the `['user_views']` and `['user_view']` query families on success
  * (FR-UV-015) so open lists and record reads refetch. Errors propagate as `AppError`
  * (code preserved) for the caller to classify via `classifyMutationError`.
+ *
+ * Reference adoption (UI-freeze hardening, `docs/plans/2026-07-24-mutation-timeout-adoption.md`):
+ * each `mutationFn` is raced against `DEFAULT_MUTATION_TIMEOUT_MS` via `withTimeout` so a stalled
+ * request can never leave a confirm dialog's Cancel/Esc disabled forever — it settles as an
+ * ordinary `classifyMutationError`-recognized "Request timed out" failure instead.
  */
 export function useUserViewMutations() {
   const qc = useQueryClient();
@@ -52,23 +58,30 @@ export function useUserViewMutations() {
   };
 
   const create = useMutation({
-    mutationFn: (input: UserViewInput) => repositories.userView.create(input),
-    onSuccess: invalidate,
+    mutationFn: (input: UserViewInput) =>
+      withTimeout(repositories.userView.create(input), DEFAULT_MUTATION_TIMEOUT_MS),
+    // ⚑ onSettled, NOT onSuccess: on a TIMEOUT the outcome is UNKNOWN, not unchanged — the
+    // server may have committed while the response was lost. Refetching the truth either way
+    // keeps the surface self-correcting; it still never reports the write as succeeded.
+    onSettled: invalidate,
   });
 
   const update = useMutation({
-    mutationFn: ({ id, input }: UpdateUserViewArgs) => repositories.userView.update(id, input),
-    onSuccess: invalidate,
+    mutationFn: ({ id, input }: UpdateUserViewArgs) =>
+      withTimeout(repositories.userView.update(id, input), DEFAULT_MUTATION_TIMEOUT_MS),
+    onSettled: invalidate,
   });
 
   const archive = useMutation({
-    mutationFn: (id: string) => repositories.userView.archive(id),
-    onSuccess: invalidate,
+    mutationFn: (id: string) =>
+      withTimeout(repositories.userView.archive(id), DEFAULT_MUTATION_TIMEOUT_MS),
+    onSettled: invalidate,
   });
 
   const remove = useMutation({
-    mutationFn: (id: string) => repositories.userView.delete(id),
-    onSuccess: invalidate,
+    mutationFn: (id: string) =>
+      withTimeout(repositories.userView.delete(id), DEFAULT_MUTATION_TIMEOUT_MS),
+    onSettled: invalidate,
   });
 
   return { create, update, archive, remove };

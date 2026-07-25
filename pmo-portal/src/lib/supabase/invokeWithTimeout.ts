@@ -20,6 +20,9 @@
  * a timeout exactly like an unreachable-external push failure — and the durable outbox / sweep backstop
  * still owns eventual consistency. Happy-path behavior is unchanged: a fast success (or a fast returned
  * error) resolves before the timer and passes straight through.
+ *
+ * ⚑ This is the deadline for the edge-function/dispatch lane ONLY. Ordinary PostgREST
+ * mutations use `src/lib/withTimeout.ts` — do not stack the two.
  */
 
 /** A sane default: long enough for a real ERPNext round-trip, short enough to never freeze the UI. */

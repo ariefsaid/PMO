@@ -90,7 +90,10 @@ jobs:
         run: node --test scripts/parallel-infra.test.mjs
       - name: CI integration-order test
         working-directory: .
-        run: node --test scripts/ci-integration-order.test.mjs scripts/deno-inventory.test.mjs
+        run: |
+          node --test scripts/ci-integration-order.test.mjs scripts/deno-inventory.test.mjs
+          node scripts/check-e2e-skips.mjs --self-test
+          bash scripts/check-e2e-isolation.sh --self-test
       - run: npm ci
       - name: Supply-chain audit — production deps (blocking)
         # Gate on vulnerabilities in code that SHIPS to users (the production dependency tree).
@@ -328,8 +331,23 @@ jobs:
       - name: E2E tests (Playwright / Chromium)
         working-directory: pmo-portal
         run: |
-          npx playwright test --project=chromium --fail-on-flaky-tests
-          npx playwright test --project=serial --workers=1 --fail-on-flaky-tests
+          # ⚑ PLAYWRIGHT_JSON_OUTPUT_NAME, never a shell redirect. `--reporter=list,json > file` sends BOTH
+          # reporters to the file: the human-readable output vanishes from the CI log AND the list text
+          # corrupts the JSON the skip gate parses. (Self-inflicted 2026-07-25 — a failing run showed no
+          # failing test name at all.) The env var routes json to a file and leaves list on stdout.
+          PLAYWRIGHT_JSON_OUTPUT_NAME=/tmp/pw-chromium.json npx playwright test --project=chromium --fail-on-flaky-tests --reporter=list,json
+          PLAYWRIGHT_JSON_OUTPUT_NAME=/tmp/pw-serial.json npx playwright test --project=serial --workers=1 --fail-on-flaky-tests --reporter=list,json
+
+      # ⚑ Green-by-absence gate. A SKIPPED test is not a passing one, and skips are invisible in a
+      # green tick — the last main run skipped 200. AC-INV-001 sat in that 200 for months (its guard
+      # polarity was inverted: it skipped in CI while being permanently 503-red locally, #386).
+      # Every skip must be an explicit, justified allowlist entry with a path back; a STALE entry
+      # fails too, so the list cannot quietly grow to cover everything.
+      - name: E2E skip audit — every skip is explained
+        working-directory: .
+        # BOTH lane reports in ONE invocation — checked separately, a lane-scoped allowlist entry
+        # looks stale in the other lane's report and the gate fails itself.
+        run: node scripts/check-e2e-skips.mjs /tmp/pw-chromium.json /tmp/pw-serial.json
 
       # ERPNext P2: prove the served adapter-dispatch lane in CI (the money e2e itself is local-only —
       # it needs the Docker v15 bench + 1Password creds, which are a dev-bed concern, not CI's). The CI
@@ -359,4 +377,18 @@ jobs:
         with:
           name: playwright-report
           path: pmo-portal/playwright-report/
+          retention-days: 7
+
+      # playwright.config.ts redirects `outputDir` to `os.tmpdir()/pmo-portal-test-results` (see
+      # its comment) so local `supabase functions serve`'s file watcher doesn't restart on writes
+      # into the worktree — on this ubuntu-latest runner that resolves to /tmp/pmo-portal-test-results.
+      # This is the per-test dir holding trace.zip + error-context.md for each FAILED spec; the html
+      # report above only links to these, it doesn't always inline them. Upload both so
+      # `npx playwright show-trace` can reconstruct the exact failing DOM/network first-time.
+      - name: Upload Playwright test-results (traces)
+        if: failure()
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        with:
+          name: playwright-test-results
+          path: /tmp/pmo-portal-test-results/
           retention-days: 7
