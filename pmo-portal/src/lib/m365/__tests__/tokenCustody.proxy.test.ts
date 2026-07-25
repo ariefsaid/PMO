@@ -99,7 +99,9 @@ describe('AC-M365-110/111/112/113/114 — handleGraphProxy', () => {
       expect(wire as string).toMatch(/^\\x[0-9a-f]+$/);
       const bytes = fromByteaValue(wire);
       expect(bytes.byteLength).toBeGreaterThanOrEqual(28);
-      expect(bytes[0]).not.toBe(0x7b);
+      // ⚑ Prefix, not `bytes[0] !== 0x7b` — bytes[0] is the first byte of a RANDOM IV, so the
+      // single-byte form reddened ~1 run in 256 per ciphertext. Same guard, same intent, 256^-5.
+      expect(new TextDecoder().decode(bytes.subarray(0, 5))).not.toBe('{"0":');
       expect(toByteaParam(bytes)).toBe(wire);
     }
     // Audited as refreshed.
