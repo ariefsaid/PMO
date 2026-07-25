@@ -116,6 +116,17 @@ for one client, architected to scale to millions.
   pass (every finding graduated) before merging UI changes (`/design-review` is the `4-lens`-mode fallback);
   Storybook for the shared component library (from Phase 3).
 
+## Read-before-you-touch (context triggers — do NOT read these by default)
+Durable subsystem gotchas live with their subsystem, not in this file and not in the backlog. Read the
+matching one ONLY when your task touches that surface — that is the whole point, they cost nothing otherwise:
+
+| Touching… | Read first |
+|---|---|
+| Any money flow (budget activate · invoice/payment submit · procurement transition · timesheet push) | [`docs/money-path-primer.md`](docs/money-path-primer.md) — a map of the outbox/sweep/SoD architecture so you don't re-derive it from source |
+| The agent / LLM surface (prompts, tools, evals, the assistant panel) | [`docs/adr/0050-layered-agent-prompt-charter-and-skills.md`](docs/adr/0050-layered-agent-prompt-charter-and-skills.md) + [`docs/adr/0052-agent-eval-harness.md`](docs/adr/0052-agent-eval-harness.md) — ⚑ the deployed model (`deepseek-v4-flash`) is a **weak tool-selector**; prompt steering is unit-tested for text presence but NOT verified against the live model. The eval harness is the real gate. |
+| Authoring or editing any e2e spec | [`docs/e2e-parallel-conventions.md`](docs/e2e-parallel-conventions.md) — isolation classes, the `@e2e-isolation` tag, and the guard-polarity rule |
+| Local/prod Supabase, secrets, or a deploy | [`docs/environments.md`](docs/environments.md) |
+
 The full product charter + per-layer Definition of Done is **`docs/product-expectations.md`** — binding on all agents.
 The Director's detailed orchestration runbook (per-issue loop, delegation, gates, git hygiene, grading rubric) is **`docs/director-playbook.md`**.
 The UI/UX cycle (Foundation → per-UI-issue loop → human-UX improvement loop; code→UI agent analogs) is **`docs/design-workflow.md`**.
