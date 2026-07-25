@@ -20,8 +20,11 @@
 set -euo pipefail
 
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
-# Node v22 (repo convention); only prepend if that toolchain is present.
-[ -d "$HOME/.nvm/versions/node/v22.20.0/bin" ] && export PATH="$HOME/.nvm/versions/node/v22.20.0/bin:$PATH"
+# Node 22 (repo convention; react-router 8 needs >=22.22.0). Pick the HIGHEST installed v22 rather
+# than a pinned patch — the old hardcoded v22.20.0 silently fell below the engines floor when
+# react-router 8 landed, and CI tracks the latest 22 anyway.
+_n22="$(ls -1 "$HOME/.nvm/versions/node" 2>/dev/null | grep '^v22\.' | sort -V | tail -1)"
+[ -n "${_n22:-}" ] && export PATH="$HOME/.nvm/versions/node/$_n22/bin:$PATH"
 
 # Re-exec the whole body under the DB lock (serializes shared-stack access). The sentinel prevents
 # infinite recursion once we are already inside the lock.
