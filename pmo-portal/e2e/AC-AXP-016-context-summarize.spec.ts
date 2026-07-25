@@ -33,6 +33,17 @@ const SUMMARY_SSE = buildSseBody([
 
 test('AC-AXP-016 summarize this grounds to the viewed project context', async ({ page }) => {
   const postedBodies: Array<{ context?: { entity?: { type?: string; id?: string; label?: string } } }> = [];
+  let releaseProjectLists!: () => void;
+  const projectListsReleased = new Promise<void>((resolve) => {
+    releaseProjectLists = resolve;
+  });
+
+  // Hold the shell's project-list cache unresolved. The first turn must still
+  // carry the route identity; a fast local API must not hide this race.
+  await page.route('**/rest/v1/projects**', async (route) => {
+    await projectListsReleased;
+    await route.continue();
+  });
 
   await page.route('**/functions/v1/agent-chat', async (route) => {
     try {
@@ -49,26 +60,28 @@ test('AC-AXP-016 summarize this grounds to the viewed project context', async ({
     });
   });
 
-  await signIn(page, 'admin@acme.test');
-  await page.goto(`/projects/${PROJECT_ID}`);
-  await expect(page.getByRole('button', { name: 'Assistant' })).toBeVisible({ timeout: 10_000 });
-  await expect(page.getByText(/Innovate Corp/i).first()).toBeVisible({ timeout: 15_000 });
+  try {
+    await signIn(page, 'admin@acme.test');
+    await page.goto(`/projects/${PROJECT_ID}`);
+    await expect(page.getByRole('button', { name: 'Assistant' })).toBeVisible({ timeout: 10_000 });
 
-  await page.getByRole('button', { name: 'Assistant' }).click();
-  const panel = page.getByRole('complementary', { name: /agent assistant/i });
-  await expect(panel).toBeVisible({ timeout: 5_000 });
+    await page.getByRole('button', { name: 'Assistant' }).click();
+    const panel = page.getByRole('complementary', { name: /agent assistant/i });
+    await expect(panel).toBeVisible({ timeout: 5_000 });
 
-  const composer = panel.getByRole('textbox', { name: /ask a question/i });
-  await composer.fill('summarize this');
-  await composer.press('Enter');
+    const composer = panel.getByRole('textbox', { name: /ask a question/i });
+    await composer.fill('summarize this');
+    await composer.press('Enter');
 
-  await expect(panel.getByText(/summary for this project/i)).toBeVisible({ timeout: 15_000 });
+    await expect(panel.getByText(/summary for this project/i)).toBeVisible({ timeout: 15_000 });
 
-  await expect.poll(() => postedBodies.length, { timeout: 15_000 }).toBeGreaterThanOrEqual(1);
-  const entity = postedBodies[0]?.context?.entity;
-  expect(entity).toMatchObject({
-    type: 'project',
-    id: PROJECT_ID,
-  });
-  expect(entity?.label).toMatch(/Innovate Corp/i);
+    await expect.poll(() => postedBodies.length, { timeout: 15_000 }).toBeGreaterThanOrEqual(1);
+    expect(postedBodies[0]?.context?.entity).toEqual({
+      type: 'project',
+      id: PROJECT_ID,
+      label: PROJECT_ID,
+    });
+  } finally {
+    releaseProjectLists();
+  }
 });

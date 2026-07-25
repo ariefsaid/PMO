@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useLayoutEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   RecordHeader,
@@ -285,7 +285,7 @@ const ProcurementDetails: React.FC = () => {
   // discriminated-union narrowing — an early `const data = detailQuery.data` alias
   // would break CFA at the point of use further down (strict-mode TS2339/TS2322).
   const { setEntity } = useAgentContext();
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!detailQuery.data) return;
     setEntity({ type: 'procurement_case', id: detailQuery.data.id, label: detailQuery.data.title });
     return () => setEntity(undefined);

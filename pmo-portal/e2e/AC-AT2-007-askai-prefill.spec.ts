@@ -48,7 +48,18 @@ test('AC-AT2-007 Ask AI opens panel pre-filled, no auto-send', async ({ page }) 
   await expect(page.getByRole('button', { name: 'Assistant' })).toBeVisible({ timeout: 10_000 });
 
   const query = 'show me vendor concentration risk';
-  await page.keyboard.press('Control+k');
+  // The acceptance journey is the real global shortcut. In a loaded headless
+  // browser the first window-level key event can arrive before focus/listener
+  // readiness, so wait on the resulting dialog and reissue only while closed.
+  // Because ⌘K toggles, the visibility guard prevents a retry from closing it.
+  const dialog = page.getByRole('dialog', { name: /command palette/i });
+  await expect(async () => {
+    if (!(await dialog.isVisible())) {
+      await page.keyboard.press('ControlOrMeta+k');
+    }
+    await expect(dialog).toBeVisible({ timeout: 1_000 });
+  }).toPass({ timeout: 15_000 });
+
   const search = page.getByRole('combobox', { name: /search projects/i });
   await search.fill(query);
 
@@ -56,7 +67,7 @@ test('AC-AT2-007 Ask AI opens panel pre-filled, no auto-send', async ({ page }) 
   await expect(askAi).toBeVisible({ timeout: 5_000 });
   await askAi.click();
 
-  await expect(page.getByRole('dialog', { name: /command palette/i })).toHaveCount(0);
+  await expect(dialog).toHaveCount(0);
   const panel = page.getByRole('complementary', { name: /agent assistant/i });
   await expect(panel).toBeVisible({ timeout: 5_000 });
   await expect(panel.getByRole('textbox', { name: /ask a question/i })).toHaveValue(query);

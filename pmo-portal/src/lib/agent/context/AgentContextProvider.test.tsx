@@ -5,7 +5,7 @@
  */
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useNavigate } from 'react-router-dom';
 import { it, expect } from 'vitest';
 import { AgentContextProvider } from './AgentContextProvider';
 import { useAgentContext } from './useAgentContext';
@@ -56,6 +56,81 @@ it('FR-ATC-015 setEntity populates getContext().entity for subsequent reads', ()
   expect(screen.getByTestId('entity').textContent).toBe(
     JSON.stringify({ type: 'project', id: '123', label: 'Alpha' }),
   );
+});
+
+it('FR-ATC-015 an existing getContext reference reads an entity set in the same turn', () => {
+  const ImmediateProbe: React.FC = () => {
+    const { getContext, setEntity } = useAgentContext();
+    const [snapshot, setSnapshot] = React.useState('none');
+
+    return (
+      <>
+        <button
+          data-testid="set-and-read"
+          onClick={() => {
+            setEntity({ type: 'project', id: '123', label: 'Alpha' });
+            setSnapshot(JSON.stringify(getContext().entity ?? 'none'));
+          }}
+        >
+          Set and read
+        </button>
+        <span data-testid="immediate-entity">{snapshot}</span>
+      </>
+    );
+  };
+
+  render(
+    <MemoryRouter initialEntries={['/projects/123']}>
+      <AgentContextProvider>
+        <ImmediateProbe />
+      </AgentContextProvider>
+    </MemoryRouter>,
+  );
+
+  fireEvent.click(screen.getByTestId('set-and-read'));
+
+  expect(screen.getByTestId('immediate-entity').textContent).toBe(
+    JSON.stringify({ type: 'project', id: '123', label: 'Alpha' }),
+  );
+});
+
+it('FR-ATC-015 an existing getContext reference changes only after a route commit', async () => {
+  let readContext: ReturnType<typeof useAgentContext>['getContext'] | undefined;
+  const never = new Promise<never>(() => {});
+
+  const Controls: React.FC = () => {
+    const navigate = useNavigate();
+    readContext = useAgentContext().getContext;
+    return (
+      <button
+        data-testid="navigate-suspended"
+        onClick={() => React.startTransition(() => navigate('/next'))}
+      >
+        Navigate
+      </button>
+    );
+  };
+  const SuspendedRoute: React.FC = () => {
+    throw never;
+  };
+
+  render(
+    <MemoryRouter initialEntries={['/current']}>
+      <AgentContextProvider>
+        <Controls />
+        <React.Suspense fallback={<span>Loading next route</span>}>
+          <Routes>
+            <Route path="/current" element={<span>Current route</span>} />
+            <Route path="/next" element={<SuspendedRoute />} />
+          </Routes>
+        </React.Suspense>
+      </AgentContextProvider>
+    </MemoryRouter>,
+  );
+
+  expect(readContext?.().route).toBe('/current');
+  fireEvent.click(screen.getByTestId('navigate-suspended'));
+  expect(readContext?.().route).toBe('/current');
 });
 
 it('FR-ATC-019 the provider never navigates — it has no router-driving setter', () => {

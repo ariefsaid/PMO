@@ -13,9 +13,14 @@
  * shipped" mechanically impossible: a suite cannot pass CI unless it imports the handler it claims to
  * test, and copied handler/validator logic in a test file is a hard failure.
  *
- * Run: node scripts/check-edge-fn-test-binding.mjs   (from the repo root; wired into the verify lane)
+ * Run: node scripts/check-edge-fn-test-binding.mjs   (paths resolve from this script; wired into verify)
  */
 import { readFileSync, existsSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, resolve } from 'node:path';
+
+const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const repoPath = (file) => resolve(REPO, file);
 
 /** test file -> the shipped handler symbol it must import from ./index.ts */
 const REQUIRED = {
@@ -45,8 +50,8 @@ let failed = false;
 const fail = (file, msg) => { console.error(`✗ ${file}\n    ${msg}`); failed = true; };
 
 for (const [file, symbol] of Object.entries(REQUIRED)) {
-  if (!existsSync(file)) { fail(file, 'expected edge-fn test file is missing'); continue; }
-  const src = readFileSync(file, 'utf8');
+  if (!existsSync(repoPath(file))) { fail(file, 'expected edge-fn test file is missing'); continue; }
+  const src = readFileSync(repoPath(file), 'utf8');
 
   const staticImport = new RegExp(
     `import\\s*\\{[^}]*\\b${symbol}\\b[^}]*\\}\\s*from\\s*['"]\\./index\\.ts['"]`,
@@ -64,8 +69,8 @@ for (const [file, symbol] of Object.entries(REQUIRED)) {
 }
 
 for (const [file, symbol] of Object.entries(SHIPPED)) {
-  if (!existsSync(file)) { fail(file, 'expected edge fn is missing'); continue; }
-  const src = readFileSync(file, 'utf8');
+  if (!existsSync(repoPath(file))) { fail(file, 'expected edge fn is missing'); continue; }
+  const src = readFileSync(repoPath(file), 'utf8');
   if (!new RegExp(`export\\s+(async\\s+)?function\\s+${symbol}\\b`).test(src)) {
     fail(file, `must export the shipped handler: export async function ${symbol}(req: Request)`);
   }

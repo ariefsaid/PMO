@@ -1,7 +1,7 @@
-// @e2e-isolation: self-isolated — creates unique invitee email (Date.now()), cleans up user+profile in finally.
+// @e2e-isolation: serial — clears shared Mailpit; unique invitee is cleaned up in finally.
 import { test, expect } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
-import { clearMailpit, pollMailpitForAuthLink, requireServiceRoleKey } from './helpers';
+import { clearMailpit, pollMailpitForAuthLink, requireServiceRoleKey } from '../helpers';
 
 // AC-AUTHF-020 — invite-acceptance round-trip (FR-AUTHF-030/031/032/034/035). Test setup stands in for
 // GTM item 1a issuance: service-role inviteUserByEmail + user_metadata.invite_pending=true + a profiles
@@ -40,22 +40,26 @@ test(
       throw new Error('inviteUserByEmail did not return a user');
     }
     const userId = inviteData.user.id;
-    // matching profiles row carrying role + org_id (§1.2 handshake)
-    const { error: profileErr } = await admin.from('profiles').insert({
-      id: userId,
-      org_id: orgId,
-      role: 'Project Manager',
-      full_name: 'Invitee Test',
-      email,
-      company_id: null,
-      avatar_url: null,
-      title: null,
-      location: null,
-      skills: [],
-      utilization: null,
-    });
-    expect(profileErr).toBeNull();
+
+    // Cleanup begins as soon as the auth user exists, including profile-setup
+    // failures; otherwise a failed insert strands a shared-state invitee.
     try {
+      // matching profiles row carrying role + org_id (§1.2 handshake)
+      const { error: profileErr } = await admin.from('profiles').insert({
+        id: userId,
+        org_id: orgId,
+        role: 'Project Manager',
+        full_name: 'Invitee Test',
+        email,
+        company_id: null,
+        avatar_url: null,
+        title: null,
+        location: null,
+        skills: [],
+        utilization: null,
+      });
+      expect(profileErr).toBeNull();
+
       // --- Acceptance surface (this issue) ---
       const link = await pollMailpitForAuthLink(email);
       await page.goto(link);
@@ -71,8 +75,10 @@ test(
       await expect(page).not.toHaveURL(/\/update-password/);
     } finally {
       // cleanup the test user + profile (service-role)
-      await admin.from('profiles').delete().eq('id', userId);
-      await admin.auth.admin.deleteUser(userId);
+      const { error: profileDeleteError } = await admin.from('profiles').delete().eq('id', userId);
+      const { error: userDeleteError } = await admin.auth.admin.deleteUser(userId);
+      expect(profileDeleteError).toBeNull();
+      expect(userDeleteError).toBeNull();
     }
   },
 );
