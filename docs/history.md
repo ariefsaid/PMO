@@ -113,3 +113,229 @@ Owner ran `/goal`: *"find as many [JTBD/usability issues] as possible, run workf
   (ADR-0015–0021) is the pattern all new work follows.
 - **`dev` additionally contains (not yet on prod):** Export/Import wizard, Calendar, Procurement attachments, S-Curve, Kanban, Gantt, CRM contacts+activity, whole-app coherence pass — awaiting owner review + promote.
 - **Most recently shipped to prod:** PR #83 CI changed-lines coverage gate. PR #82 at-risk consolidation. PR #80 delivery migration-chain fix. PR #79 delivery-UI redesign. PR #78 document file upload. Full timeline: history.md.
+
+---
+
+## Archived from docs/backlog.md (2026-07-25)
+
+Moved out of the read-first backlog once complete — they were costing every session and every
+subagent brief context for work that had already shipped. Verbatim, not summarised.
+
+### ✅ P3a Sales/AR write-through — **MERGED TO `dev`** (verified by content 2026-07-23; header was stale)
+> ⚑ **CORRECTION.** This block said "HARDENING ROUND mid-flight; branch, NOT merged" while contradicting
+> itself 30 lines down ("✅ P3 COMPLETE … PR #360"). A cold-start agent reading top-down acted on the wrong
+> one. **All of P3a is on `dev`**, and under **migs `0123`–`0135`, NOT the `0104`–`0107` this block claims**
+> (on `dev` those numbers are M365). Every "REMAINING" hardening block is closed: BLOCK 1
+> (`recoveryProbe.ts:125`), BLOCK 6 (`readModelWriters.ts:154`), BLOCK 7 (`salesInvoice.ts:37`,
+> `incomingPayment.ts:44`), BLOCK 8 (`reconcileSiCancelAutoUnlink` live, no longer dead).
+> `origin/feat/erpnext-adapter-p3` is 0 commits ahead of `dev`. Notes retained below for the record.
+**Branch `feat/erpnext-adapter-p3`** (off `dev` @ `b549d06`). **HOLD on the branch — NO PR** (owner: dev
+is moving with parallel agents). Spec + plan SIGNED OFF:
+[`docs/specs/erpnext-adapter-p3a-sales-ar.spec.md`](specs/erpnext-adapter-p3a-sales-ar.spec.md) ·
+[`docs/plans/2026-07-14-erpnext-adapter-p3a-sales-ar.md`](plans/2026-07-14-erpnext-adapter-p3a-sales-ar.md).
+R9 bench spike frozen: [`docs/spikes/2026-07-14-erpnext-si-pe-receive-fields.md`](spikes/2026-07-14-erpnext-si-pe-receive-fields.md).
+Owner rulings: `decisions.md` **OD-SAR-GATES · OD-SAR-PMO-IS-THE-UI · OD-SAR-DRAFT-SUBMIT**.
+- **✅ Built (8 slices) + happy-path proven:** migs `0104–0107`; revenue domain (SI + PE-receive) full
+  write-through through `adapter-dispatch` + the ADR-0058 fenced outbox; **two-person SoD** (SI create
+  leaves an ERP DRAFT → a DIFFERENT approver submits — OD-SAR-DRAFT-SUBMIT); process-gates seam;
+  inbound feed (lifecycle + adopt); AR aging (reuses P2 report path); FE (SalesInvoices/IncomingPayments/
+  RevenueByProject). **Served-fn money e2e: 19/19 GREEN at the live bench** (two-person flow). Gates:
+  verify (5,428) · pgTAP (1,506) · deno (69) green at the happy-path checkpoint.
+- **⚑ HARDENING ROUND IN PROGRESS (re-Luna@max NO SHIP):** the first Luna audit's 8 findings were fixed;
+  a **max-thinking re-audit** ([`docs/reviews/2026-07-15-luna-p3a-reaudit-maxthinking.md`](reviews/2026-07-15-luna-p3a-reaudit-maxthinking.md))
+  found the **dispatch/repo layer has real authz/targeting/reference holes** the happy-path e2e misses
+  (it hand-builds correct commands). **DONE + verified:** BLOCK 2/3/4 (dispatch domain-ownership+role+
+  kind↔domain gate before ERP write — hardens ALL erpnext money writes, incl. a gap P2 shared;
+  repo submit/cancel send verb+externalRecordId; transition targeting bound to the PMO mapping) + BLOCK 5
+  (PE references fail-closed). **REMAINING (resume — task tree + the re-audit doc):** BLOCK 6 (cross-org
+  FK check PRE-flight, before ERP write — nemotron's RED test was org-blind, needs a coherent rewrite),
+  BLOCK 1 (recoveryProbe anchor-key fallback must also filter payment_type/party_type), PE-sweep
+  payment_type disambiguation, BLOCK 7 (siFromDoc/peReceiveFromDoc extract customer/links so inbound
+  adopt doesn't NULL them), BLOCK 8 (wire the dead `reconcileSiCancelAutoUnlink`), SF9 (project-gate-
+  without-ERP-project), SF10 (partial `process_gates` bypass defaults). Then re-run the 2-person e2e +
+  **re-Luna `--thinking max` until SHIP** → hold on branch.
+- **✅ P3 COMPLETE (2026-07-23).** P3a shipped in #338; **P3b (timesheets) + P3c (budget) are in
+  [PR #360](https://github.com/ariefsaid/PMO/pull/360) → `dev`** (branch `feat/erpnext-adapter-p3`,
+  head `fabde7c5`, 35 commits). Gates re-run by the Director on the PR head: verify 746 files / 6277
+  tests, pgTAP 211/2103, deno 447, **e2e serial 54/54 vs a live ERPNext bench**, visual gates 78/78.
+  **11 adversarial audit rounds — 10 NO SHIP, 1 SHIP; ~54 defects, nine of them in fixes made during
+  the review.** Full record + the eleven ways a test failed to fail:
+  `docs/reviews/2026-07-23-p3bc-audit-program.md` (read it before the next money slice).
+  Owner rulings folded in: OQ-BUD-3 (fail closed on multi-FY), OQ-BUD-3b (FY from ERPNext's own
+  `Fiscal Year` doctype), OQ-TSP-5 (per-org timezone first-class + mismatch BLOCKS the flip),
+  OQ-TSP-6 (ship with the correction gap).
+  **⚑ Next issues this spawned, in priority order:** (1) `Approved → Draft` re-open + ERP cancel
+  (OQ-TSP-6 — hit far more often than the budget deferral; mistyped timesheets are routine);
+  (2) the budget fiscal-year/phasing dimension (OQ-BUD-3(c) — 8 of 54 seeded projects span years);
+  (3) **FR-BUD-152 tension needs an owner ruling** — a gate rejection before FY resolution suppresses
+  PMO's OWN budget figure on a year with real GL actuals (PMO-SoT data hidden by external push health).
+  **Carried risks, deliberate:** `service_role` retains direct DML on the snapshot tables (the RPC is
+  the only *production* writer — convention, not structure); the e2e week separator is a random base,
+  safe for `--workers=1` but **not** a parallel CI matrix without deriving it from worker index.
+- **Next: P4** Odoo (ADR-0055 §8) — **demand-gated, not scheduled**: it starts when a real Odoo client
+  signs. There is no P5; P4 is the last defined phase.
+- **Substrate (this program):** build → nemotron-3-ultra (NIM, reliable) or zai/glm-5.2 window; FIXES →
+  glm-5.2 (owner directive); **money/security review → Luna `--thinking max`** (owner 2026-07-15,
+  `docs/pi-delegation.md`). ⚑ ONE op on the shared worktree at a time (verify-while-agent-edits = a
+  contaminated read; concurrent heavy dispatches + sibling agents' MCPs + Docker → OOM risk).
+
+
+### ✅ H4 GRANTS HARDENING — **LANDED ON `dev`** (verified 2026-07-23; header was stale)
+> ⚑ **CORRECTION:** this block said the work sat unmerged on `fix/revoke-client-truncate-grants`. That
+> branch **does not exist** (local or remote). The work IS on `dev` as migrations
+> `0104_revoke_client_truncate_refs_trigger.sql` + `0105_revoke_anon_write_dml.sql`. Verified by content,
+> not by branch name. Nothing is owed here. Original notes retained below for the root-cause record.
+Spun out of the M365 Luna audit. Commits `57957091` (Tier 1) + `246be744` (Tier 2). **Root cause was bigger than
+the finding:** the grants come from Supabase's bootstrap **DEFAULT PRIVILEGES** (`pg_default_acl`), so EVERY new
+table silently inherited `truncate` for `anon`+`authenticated` — `0075` was just where it was visible. Fixed at
+BOTH layers (`ALTER DEFAULT PRIVILEGES` + a catalog sweep over all 65 public tables). Tier 1 = revoke
+`truncate/references/trigger` from both client roles. Tier 2 = revoke `anon` I/U/D (`0109` was the ONLY test
+depending on it — its assertion moved "UPDATE affects 0 rows" → `throws_ok 42501`: same goal-oracle, strictly
+stronger mechanism). ACs `AC-GRANT-007/010/011/012/013`. Gates: pgTAP 166/1471 PASS · verify exit 0. **Accepted
+residual:** a `supabase_admin` default-priv entry can't be revoked (migration runner `postgres` isn't a
+superuser/member) — inert (every public table is created BY `postgres`), and `AC-GRANT-010`'s creator-agnostic
+catalog sweep catches real drift. **✅ MERGED to `dev` as PR #336 (`adf79e48`, owner) — it KEPT `0104`/`0105`
++ test `0142`; M365 renumbered above it to `0106–0117`/`0154` instead.** Branch deleted.
+
+
+### ✅ COMPLETE ON `dev` (2026-07-22) — ClickUp integration + integration enablement
+> **COLD-CONTEXT? START HERE →** [`docs/plans/2026-07-20-clickup-integration-completion.md`](plans/2026-07-20-clickup-integration-completion.md)
+> Current enablement authority: ADR-0061 + [`docs/specs/integration-enablement-model.spec.md`](specs/integration-enablement-model.spec.md).
+> Live-smoke evidence remains in [`docs/spikes/2026-07-17-clickup-live-smoke.md`](spikes/2026-07-17-clickup-live-smoke.md).
+
+The program is merged to `dev` through **PRs #353–#358**. The task feature is complete for every task
+column reachable from the UI without requiring ClickUp: description and priority (#350), subtasks,
+archive and delivery-rollup exclusion (#352), plus project-aware ownership and routing.
+
+`EXTERNAL_CONNECT_ENABLED` is **default-ON**, not a rollout flag. Unset, empty, and unrecognised values
+are enabled; trimmed case-insensitive `false|0|off|no|disabled` disables. It is an operator break-glass
+for ClickUp and ERPNext. Per-org active bindings and Vault credentials are the enablement authority, so
+production's unset variable does not mean the integration is inert and there is no flag-flip step.
+Ownership follows `project_domain_externally_owned` (migration `0146`): mixed ClickUp-owned and PMO-native
+projects are supported. An unbound List cannot leak tasks into PMO; zero active bindings is healthy/inert.
+**Locked decisions: `docs/decisions.md` OD-INT-1..13** (admin self-serve · personal-token/API-key v1 ·
+**Vault-backed `secret_ref`** · one tier-generic layer · sequenced after #315 · **OD-INT-6 ERPNext Company
+selected at ORG level** · **OD-INT-7 project↔List link is PROJECT-SCOPED to the owning active PM** ·
+**OD-INT-13 status map round 3 — pmo-only outcomes with Blocked defaulting to pmo-only**).
+
+**Still open:**
+1. Promote `dev` → `main` (117 commits); only PR→`main` runs integration (pgTAP + full e2e + visual),
+   and this work has only used the verify-only fast lane so far.
+2. Promote `main` → `production`, owner-gated per instance; this is the deployment, not a flag flip.
+3. Correct the owning layer for `AC-IEM-004` and `AC-IEM-007` (specified curated e2e, implemented lower).
+4. Add read-only per-status mapping visibility/override to the binding map (OD-INT-13; auto-derivation is
+   correct, so this is a transparency gap).
+5. Per-org webhook secret remains deliberately deferred for single-org scope (OD-INT-14 / ADR-0047).
+
+Historical design and phase details remain in [`docs/plans/2026-07-13-clickup-admin-integration-flow.md`](plans/2026-07-13-clickup-admin-integration-flow.md); they are not the current completion status.
+
+
+### ✅ Audit HIGHS — ALL 3 MERGED to dev (owner-directed, 2026-07-07, glm-5.2/4.7)
+1. **✅ feature-flag server-enforcement** (#265, mig `0081` + pgTAP `0138`) — `org_feature_enabled()` (non-raising twin of `org_has_feature`) conjoined into the WRITE policies of **24 gated tables** via a DO block mirroring 0063's apply-time append. **Director caught 2 real bugs by serial pgTAP** (both would've shipped silently): glm's `cmd in (lowercase)` filter matched nothing vs UPPERCASE `pg_policies.cmd` → gated NOTHING; + precedence paren-wrap so `(A or B) and F` holds. Full suite 1215 PASS.
+2. **✅ orphaned-Auth-user compensation** (#264) — `admin-invite-user` now `deleteUser(invite.user.id)` on profile-insert failure (best-effort, distinct `PROFILE_CREATE_CLEANUP_FAILED` code).
+3. **✅ e2e blindspots** (#263) — `requireServiceRoleKey()` throws in CI (wired into AC-AUTHF-005/020) + `quarantine-guard.spec.ts` self-validates the 4 quarantined tests' markers + exact count.
+
+**Residuals from the Highs (tracked):** feature-gating the security-definer procurement/timesheet RPCs (they bypass RLS — the direct-PostgREST threat IS closed) · same un-parenthesised-append latent risk in 0063 (empirically proven-safe by the RLS suite) · the crm→companies mapping gates company writes on the CRM feature (confirm companies isn't a cross-feature dependency before enabling crm-off for a client).
+**✅ PROMOTED dev→main→production (2026-07-08, owner-instructed):** the 3 Highs + two other-agent features (#267 agent-read-scope, #268 live-step-trail) shipped to dev, promoted dev→main (#269, `1f68058`, integration lane GREEN), verified main push-CI green, then main→production: prod DB `0080→0081` (feature-flag; via `db-push-prod.sh`), edge fns `admin-invite-user`+`agent-chat` redeployed, FE `main:production` (CF Pages). **`main` == `production` == `1f68058`**; smoke: health 200, DB 0081, pages.dev 200. **Op-lesson: `op-get.sh` (1Password SA token) HUNG mid-deploy (5-min+ timeouts, blocking `db-push-prod.sh`) then RECOVERED on retry — verify prod migration state via `supabase migration list --linked` (auths by access token, not op) when op is flaky; the linked project IS prod (`prwccpsiumjzvnwjlkwq`), a valid `--linked` fallback path once verified.**
+
+**Residuals / deferred (tracked, not blockers):**
+- **Credit-race WIRING (deferred with #15)** — thread `run_id` through the 3 agent-chat `check()` sites + `release_credits` after each turn; decide compose-view's missing run_id (release-by-reservation-id or a TTL reaper). Coupled pair (reserve-without-release leaks holds→org-lockout). Ships when credits are enabled (owner-gated, GTM launches un-enforced).
+- **#18 residual** — `audit_agent_denial` is `authenticated`-callable → a user can inject *own-org, own-actor* denial-audit noise (append-only, low severity, no cross-org forge).
+- **Auditor gaps still open (Meds/Lows):** telegram-notify send-ok+stamp-fail dup alerts (`index.ts:86`) · `notifyOwner` swallows errors untraced · health endpoint checks zero deps · `enforce_automation_owner_cap` racy count-then-insert (SHARE ROW EXCLUSIVE pattern at `0065:69`) · `set_project_contract_value` accepts negative (overlaps money `CHECK(>=0)`; #17 logs but doesn't reject) · `spike-rls.yml` `npm install`+service-role-key (pin+ci or delete) · 3 missing runbooks (prod-deploy/secret-rotation/agent-LLM-outage — doc conversions from `environments.md`).
+- **Earlier-audit Meds (not started):** agent-persistence stuck-`running` · interactive-create idempotency · `error_events` completeness + retention · S-curve today-position test · PostHog consent-gate · agent-chat rate-limit.
+
+**Audit fixes OUTSTANDING (after the 3 in-flight Criticals land):**
+- **#14 supply-chain/CI — ✅ LANDED ON `dev`** (verified 2026-07-23; entry was stale). Branch
+  `harden/supply-chain-ci` **does not exist**; the work is on `dev` by content: **21** `deno.lock` files,
+  **10** SHA-pinned Actions and **zero** unpinned `@vN` refs in `ci.yml`. Nothing is owed here.
+- **Remaining Meds** — ⚑ **3 of these 7 were WRONG (2026-07-23 audit; see the audit block at the top):**
+  ~~agent-chat rate-limit~~ **DONE** (mig `0091`) · ~~S-curve today-position test~~ **DONE**
+  (`sCurve.test.ts:126`) · agent-persistence stuck-`running` **PARTIAL** (the `errored` path shipped; a
+  reaper is what is missing). **Genuinely owed:** interactive-create idempotency · `error_events`
+  completeness (**~15 fns + FE + retention**, not "2 fns") · money `CHECK (>=0)` (= the
+  `set_project_contract_value` item — ONE task) · PostHog consent-gate.
+
+**OWNER-ONLY (not autonomously doable):** execute a **DR restore drill** before client #1 · agent-tier **eval GH secrets** + **credits-enforce** decision (both deliberately deferred per GTM plan) · **MSA→counsel** (Terms/Privacy are template stubs) · automation `pg_cron` GUCs · prod Cloud auth-config verification · **prod deploy** (owner-gated, per-instance — push migs to Cloud, redeploy edge fns incl. `admin-invite-user`, FE→CF Pages, set `VITE_FEATURES_CRM=true`).
+
+**Substrate (owner directive):** implementations run on **pi/GLM** to spare Anthropic quota; Director (Claude) orchestrates + security-reviews every diff. **Routing (owner 2026-07-07): glm-5.2 = opus alt, glm-4.7 = sonnet alt; run one dispatch per model in parallel (GLM caps parallel per-model).** **NEVER OpenRouter.** GLM/zai RECOVERED 2026-07-07 (both 5.2 + 5.1 + 4.7 responding) — the 3 Criticals above are being built on it now. Node v22 required for pi (`export PATH="/Users/ariefsaid/.nvm/versions/node/v22.20.0/bin:$PATH"`). Dispatch: `Bash(run_in_background:true)` + `< /dev/null` + `--append-system-prompt .claude/agents/implementer.md`; brief the agent NOT to touch the shared DB (Director verifies pgTAP serially). **Op lessons:** 600s watchdog kills long *quiet* verifies → run heavy `verify`/pgTAP in the main session; a live pi run collides with `db reset` on the shared stack (serialize by `pgrep`); glm-4.7 hallucinates supabase-js APIs + pgTAP fn names (`table_exists`→`has_table`) — Director must diff+fix; glm agents copy the WRONG (stale) migration body for `create or replace` RPCs (grep ALL defs, use the latest).
+## ▶ GTM / MVP-viability program (owner grill, 2026-07-04 — supersedes scattered GTM notes)
+
+**Decisions of record from the grill (all owner-confirmed):** ADR-0047 (per-client Supabase Cloud
+Pro + CF Pages; VPS = documented exit path; the old cloud project is **reclassified STAGING/DEMO**,
+`docs/environments.md` updated) · ADR-0048 (ERPNext = headless accounting engine under PMO;
+never build accounting; no Odoo; command/query split, single-writer per DocType; accountant
+workspace chunked, AR/AP aging pulled into F1; period-close/e-Faktur stays ERPNext) · glossary:
+**Operator** (platform persona ≠ org Admin), **Organization = client group**, **Entity =
+subsidiary dimension** (never a separate org; intra-group visibility OK for MVP).
+
+**MVP scope (before/at first paying client) — each row ≈ one issue-loop:**
+1. **Ops-Admin surface:** (a) user invite/disable (service-role edge fn + `profiles.status` +
+   email rails); (b) credits → **org-pool grants** (schema tweak; flip `credits` INSERT RLS from
+   role=Admin → **Operator-only** — as-built it lets client Admins self-grant); (c) usage view
+   (`agent_usage` aggregates per org/user + provider-USD vs credits **margin column**; Operator
+   sees **aggregates only, never transcripts** — owner-locked privacy line); (d) Operator
+   mechanism = platform-level grant table, NOT a 6th enum role; (e) `org_features` entitlements
+   build with ownership **flipped from the 2026-06-15 note: Operator-write, org-Admin read-only**.
+2. **Auth floor (non-negotiable):** Resend SMTP · password-reset flow · email confirm + invite
+   emails · redirect allowlist → prod HTTPS only · rotate/kill seed creds · `auto_expose_new_tables=false`.
+   Build together with 1a (same rails). Google OAuth = stretch; SAML = out.
+3. **Observability floor:** uptime ping + public status page (= the SLA answer) · PostHog error
+   tracking (vendor-consolidated; still no Sentry) · one alert webhook consuming the #224 edge-fn
+   errorCodes · 2 PostHog dashboards (org usage; agent cost) · real-browser PostHog spot-check.
+   Explicitly NOT: log aggregation, APM, tracing.
+4. **Legal floor (Indonesia):** MSA/subscription template (lawyer-day, carries manual billing) ·
+   ToS + privacy static pages + footer links incl. wa.me help · pinned data-residency answer.
+   Skip: GDPR self-service, cookie banner, DPA machinery.
+5. **Backup/DR (cloud):** Pro plan per client project · **one restore drill** into a scratch
+   project (documented) · 1-page incident runbook (FE rollback via CF, DB restore, alert path,
+   client-comms line).
+6. **Client onboarding:** provisioning runbook/script (project → migrations → `functions deploy`
+   → secrets → org + first Admin → CF env) — this IS "add org" for the Operator; **white-glove**
+   import (runbook + wizard idempotency fix) · **historical import script**: summary-grade,
+   ≤1yr, terminal-status records with provenance, NO fabricated transition events.
+7. **Entity (subsidiary) dimension** — conditional MVP: build when the first group-of-companies
+   client signs (schema dimension + filters + rollup).
+8. **Support floor:** WhatsApp group per client (response-time line lives in the MSA) · in-app
+   help link · **deputy-as-help-desk** (help corpus = glossary + jtbd.md into assistant context)
+   + per-role walkthrough videos recorded during onboarding. No written manual until a question
+   repeats 3×.
+
+**Deferred follow-up (Director-adjudicated during the build, 2026-07-04):**
+`auto_expose_new_tables=false` (NFR-AUTHF-CONF-006) — cross-family review found flipping it strips
+DML grants on all 44 tables (no migration issues explicit GRANTs), so it needs a dedicated
+per-table GRANT migration + security review, NOT a jam into the auth PR. **Accepted as a tracked
+follow-up issue**, not an auth-floor blocker; the auth email flows are unaffected. `config.toml`
+keeps it commented with the reason; `docs/environments.md` §7.6 carries the blocking-finding note
+for the eventual owner-gated hardening pass.
+
+**CUT from MVP (owner-confirmed):** custom RBAC engine (escape valve = additive read-only
+Viewer role) · Stripe/Midtrans (manual MSA billing) · VPS (exit trigger: >$200/mo Supabase or
+onshore-data contract; sized playbook in ADR-0047) · homegrown accounting (never) · separate
+operator console (<~5 deployments) · shared-project multi-org + org-seam proof (deferred by
+per-client isolation) · SAML · GDPR self-service.
+
+**⚑ BUILD-LOOP AUTHORIZED (owner, 2026-07-04):** autonomous session(s) on `dev`, batteries-A
+goal directive (full SDD/TDD + 3-lens + rendered battery per issue, PR per issue, owner gates
+`dev`→`main`). Build order: auth floor → ops-admin → observability → DR → legal pages →
+onboarding tooling → support floor. **Executor policy: pi+GLM first, parallel where possible;
+Claude subagents + dynamic workflows when pi quota exhausts.** Locked inputs: **domain/brand
+decision DEFERRED until after issues 1–2** — build against env-var seams (`RESEND_API_KEY`,
+sender/site URL as config; wire 1Password + DNS later) · Operator = operator@pmo.test ·
+alerts → **Telegram bot** · uptime/status = **BetterStack** (professional client-facing status
+page > reliability > ease, per owner priority order) · Supabase stays FREE tier as staging/demo;
+Pro billing at first client signing · MSA brief drafted by Director (`docs/legal/`), owner takes
+to counsel.
+
+**Fast-follow (post-first-clients):** **external-system adapters per ADR-0055 (2026-07-10 grill —
+supersedes ADR-0048's `pmo_connector`/F1–F3 plan):** P0 seam (adapter contract, `external_refs`
++ watermarks, pending-push UI state, capability-map config) → **P1 ClickUp adapter, tasks**
+(deliberately BEFORE ERPNext — smallest adapter, proves the SoT/enhancement/read-model machinery,
+distributor-partnership demo) → P2 ERPNext money core (parties, procurement chain, AP commands +
+actuals/AP-AR aging) → P3 ERPNext width (timesheets, budget projection, sales docs = Revenue/AR
+spine 4) → P4 Odoo adapter (when an Odoo client signs). Key rules: external system = SoT for
+capability-map domains; Supabase = read-model + additive-only enhancements; synchronous
+write-through; adapters = PMO-side TS on stock APIs (RIS-portal-2 `api/*.py` = mapping spec +
+future helper-app source, NOT a code port). · credits **pricing decision from 2–4 wks of pilot
+margin data** (launch un-enforced, then price, then enforce) · Google OAuth · PostHog
+product-analytics widening.
+
