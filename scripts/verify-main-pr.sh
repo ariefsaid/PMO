@@ -9,6 +9,15 @@ set -euo pipefail
 
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 
+# CI pins node-version: 22 (ci.yml). A shell defaulting to an older node fails inside
+# vitest's bundler with an unrelated-looking `node:util` export error — a false RED that
+# costs more to diagnose than this check costs to run.
+node_major="$(node -p 'process.versions.node.split(".")[0]')"
+if [ "$node_major" -lt 22 ]; then
+  echo "[verify-main-pr] node $(node -v) < v22 — CI runs node 22. Switch (e.g. nvm use 22) and re-run." >&2
+  exit 1
+fi
+
 # Non-DB gates run before acquiring the machine-global DB lock. verify:locked
 # already serializes the heavy Vitest suite with other worktrees.
 if [ "${_VERIFY_MAIN_PR_DB_LOCKED:-}" != "1" ]; then
