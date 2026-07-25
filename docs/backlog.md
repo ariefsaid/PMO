@@ -76,9 +76,34 @@ is already on `dev`.** Where an older entry below conflicts with this block, **t
 BEHIND `dev`, content identical).
 
 **🔴 GENUINELY STILL OWED (verified absent, with the search that proved it):**
-- **`error_events` coverage** — only **6 of 22** edge fns wire it; FE has **zero** `from('error_events')`;
-  **no retention/purge**. ⚑ The old entry says "2 fns + FE" — it understates by ~13 functions.
-- **PostHog consent-gate** — no consent state, gate or banner anywhere in `pmo-portal/src`.
+- **`error_events` coverage** — only **4 of 22** edge fns PRODUCE events (`agent-dispatch`, `agent-chat`,
+  `compose-view`, `m365-token-custody`); `telegram-notify` consumes them, so 5 touch the table at all.
+  FE has **zero** `from('error_events')` — and cannot have one: the table has FORCE RLS with **zero
+  policies** (`0071_error_events.sql:30-34`), so it is service-role-only by design. Any FE surface needs
+  a policy or an RPC, not just a query. **No retention/purge — it grows unbounded.**
+  ⚑ Re-counted 2026-07-25; the older "6 of 22" and the much older "2 fns + FE" were both wrong.
+  ⚑ The seam to widen is `_shared/errorLog.ts:22-27` — `EdgeFunctionName` is a CLOSED union of only 5
+  function names, so wiring the other 17 is gated on that type.
+  ⚑ **`recordErrorEvent` swallows its own insert failure** (`_shared/errorEvent.ts:39-50`, returns
+  `void`) and 3 of the 4 producers call it un-awaited. A broken error pipeline therefore reports
+  silence — "no errors" and "error recording is down" are indistinguishable.
+- **PostHog consent-gate** — no consent state, gate or banner anywhere in `pmo-portal/src`; `/privacy`
+  (`pages/Privacy.tsx`) does not mention analytics, PostHog or cookies at all. **Owner decision
+  2026-07-25: disclose + in-app opt-out + `respect_dnt: true`, NO banner** (legitimate-interest posture,
+  B2B named account-holders). Replay/autocapture stay **demo-prospect only** — do not enable for real users.
+- **Two analytics tiles can never render data** — `save_failed` is INERT (`useEntityForm.ts:201`, the
+  `if (module && entityType)` guard is never true) and `permission_denied_seen` has **zero call sites**,
+  yet `scripts/posthog/provision-dashboards.mjs` provisions a tile for each. An empty chart reads as
+  "no failures" when it means "not instrumented" — the analytics-layer instance of the silent-false-signal class.
+- **⚑ Raw NUL bytes in 3 source files make them invisible to `grep`** — `agent-dispatch/dispatcher.ts:209`
+  (deployed), `src/lib/adapterSeam/erpnext/agingSnapshot.ts:132`, `src/lib/viewspec/compiler.test.ts:159`.
+  Each is a legitimate NUL-as-delimiter composite key, but written as a literal byte instead of `\u0000`,
+  so `file` reports "data" and **`grep` silently skips the file** (`grep -rn recordErrorEvent
+  supabase/functions/` → 9 hits; `grep -a` → 10). Any grep-based gate over these paths is blind to them.
+  Fix = replace the literal byte with the `\u0000` escape; behaviour is identical.
+  ⚑ **Authoring hazard:** writing that escape *through an editing tool* can itself emit a real NUL — this
+  entry did exactly that and turned `docs/backlog.md` binary while describing the bug. After editing, check
+  `file docs/backlog.md` says "text", not "data". A CI guard for NULs in tracked text files is owed.
 - **interactive-create idempotency** — idempotency exists ONLY on the bulk-import path (`0072`).
 - **telegram-notify dup alerts** — `telegram-notify/index.ts:99` (⚑ not `:86`): the `notified_at` stamp's
   error is never inspected → a good send + failed stamp re-alerts every tick.
