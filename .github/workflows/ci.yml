@@ -98,7 +98,12 @@ jobs:
         # advisory there must not hard-block unrelated shipping — they are audited non-blocking
         # below for visibility. Real build-tooling remediation (e.g. the Vite major bump that
         # patches esbuild GHSA-gv7w-rqvm-qjhr) is scheduled debt, done deliberately.
-        run: npm audit --omit=dev --audit-level=high
+        # Same high/critical bar as `npm audit --omit=dev --audit-level=high`, but an advisory can
+        # be waived only by an explicit, JUSTIFIED, EXPIRING entry in the script. A new advisory is
+        # never waived by default, and an expired waiver fails the build — so "unfixable right now"
+        # cannot silently become "nobody ever looked again".
+        working-directory: .
+        run: node scripts/audit-prod.mjs
       - name: Supply-chain audit — full tree incl. dev tooling (visibility, non-blocking)
         run: npm audit --audit-level=high
         continue-on-error: true
