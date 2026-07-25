@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { dispatchExternallyOwnedWrite } from './dispatch.ts';
+import { dispatchExternallyOwnedWrite, toDispatchError } from './dispatch.ts';
 import { createReferenceAdapter, REFERENCE_DOMAIN } from './referenceAdapter.ts';
 import type { AdapterCommand } from './contract.ts';
 import { AppError } from '../appError.ts';
@@ -103,6 +103,32 @@ describe('AC-EAS-034 external-unreachable ⇒ write fails honestly, read-model u
     ).rejects.toBeInstanceOf(AppError);
     expect(writeReadModel).not.toHaveBeenCalled();
   });
+
+  it('a coded plain Error keeps its .code through the seam (never degraded to a bare 500)', async () => {
+    // ⚑ The seam classifies a thrown value into an AppError. Its `Error` branch used to drop `.code`
+    // entirely, so any error class that is NOT AppError/AdapterError — e.g. P3c's
+    // `BudgetCategoryUnmappedError`, a plain `Error` subclass carrying
+    // `code = 'budget-category-unmapped'` — arrived at the edge fn code-less and fell through the
+    // status mapping to a bare 500. That turns a precise, NON-RETRYABLE, operator-actionable refusal
+    // ("these budget categories have no ERP account") into an opaque server error a client may retry
+    // forever. `appError.ts` already preserves a structural string `.code`; the seam must too.
+    class CodedError extends Error {
+      readonly code = 'budget-category-unmapped';
+    }
+    const throwingAdapter = {
+      tier: createReferenceAdapter('commit-success').tier,
+      capabilityMap: createReferenceAdapter('commit-success').capabilityMap,
+      commit: async () => {
+        throw new CodedError('budget categories have no ERP account mapping: Labour');
+      },
+    };
+    await expect(
+      dispatchExternallyOwnedWrite({
+        adapter: throwingAdapter, command,
+        writeReadModel: vi.fn(), recordExternalRef: vi.fn(),
+      }),
+    ).rejects.toMatchObject({ code: 'budget-category-unmapped' });
+  });
 });
 
 describe('AC-EAS-042 a successful write-through records the external_refs mapping', () => {
@@ -173,5 +199,41 @@ describe('AC-CUA-038 delete-aware dispatch: tombstone the read-model, keep the e
       tombstoneReadModel: vi.fn(async () => { order.push('tombstone'); }),
     });
     expect(order).toEqual(['commit', 'readModel', 'ref']);
+  });
+});
+
+/**
+ * ⚑ LOW-1 (audit round 5) — ONE classification of a thrown value for BOTH served-fn exits.
+ *
+ * `adapter-dispatch`'s ADAPTER-SELECT catch built `new AppError(err.message)` by hand, with no `.code`.
+ * That was harmless while adapter select only threw `AppError`s — but `resolveBudgetRefs` now runs the
+ * real `resolveBudgetAccounts` pre-flight INSIDE adapter select (AC-BUD-011's zero-ERP-calls contract),
+ * and that throws `BudgetCategoryUnmappedError`: a plain `Error` SUBCLASS carrying
+ * `code = 'budget-category-unmapped'`. Hand-rolling the conversion dropped the code, so the operator got
+ * a bare 400 / `ADAPTER_SELECT_FAILED` instead of the 422 naming the unmapped categories — the same
+ * class of bug already fixed once in the dispatch exit. Exported so the served fn uses the ONE rule.
+ */
+describe('toDispatchError (LOW-1 — the shared thrown-value classification)', () => {
+  class BudgetCategoryUnmappedErrorFake extends Error {
+    readonly code = 'budget-category-unmapped';
+    constructor(readonly unmappedCategories: string[]) {
+      super(`budget categories have no ERP account mapping: ${unmappedCategories.join(', ')}`);
+      this.name = 'BudgetCategoryUnmappedError';
+    }
+  }
+
+  it('LOW-1 preserves the `.code` of a plain-Error SUBCLASS (BudgetCategoryUnmappedError) — never a bare, code-less AppError', () => {
+    const classified = toDispatchError(new BudgetCategoryUnmappedErrorFake(['Travel', 'Software']));
+    expect(classified).toBeInstanceOf(AppError);
+    expect(classified.code).toBe('budget-category-unmapped');
+    expect(classified.message).toContain('Travel');
+    expect(classified.message).toContain('Software');
+  });
+
+  it('LOW-1 passes an AppError through unchanged and leaves an unclassified throw code-less', () => {
+    const appErr = new AppError('binding is not activated', 'config-rejected');
+    expect(toDispatchError(appErr)).toBe(appErr);
+    expect(toDispatchError(new Error('boom')).code).toBeUndefined();
+    expect(toDispatchError('boom')).toBeInstanceOf(AppError);
   });
 });

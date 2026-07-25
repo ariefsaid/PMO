@@ -355,6 +355,27 @@ max_frequency = "5s"
 # Use an external OAuth provider. The full list of providers are: `apple`, `azure`, `bitbucket`,
 # `discord`, `facebook`, `github`, `gitlab`, `google`, `keycloak`, `linkedin_oidc`, `notion`, `twitch`,
 # `twitter`, `x`, `slack`, `spotify`, `workos`, `zoom`.
+
+# Microsoft Entra ID ("Sign in with Microsoft") — the LoginPage "Continue with Microsoft" button
+# (signInWithOAuth provider `azure`). LOCAL TEMPLATE ONLY, committed DISABLED: enabling requires the
+# Entra app's client id/secret in the dev env (.env: SUPABASE_AUTH_EXTERNAL_AZURE_CLIENT_ID /
+# SUPABASE_AUTH_EXTERNAL_AZURE_SECRET — never committed, D-AUTHF-2 stance), then
+# `supabase stop && supabase start`. CLOUD is configured in the dashboard (Authentication →
+# Sign In / Providers → Azure) — see docs/environments.md "Microsoft (Entra ID) OAuth provider".
+# redirect_uri pins the LOCALHOST form (not 127.0.0.1): Entra's Web platform only registers
+# plain-http redirect URIs for `localhost`, so the registered URI is
+# http://localhost:54321/auth/v1/callback and GoTrue must present exactly that string.
+# url = multi-tenant `common` endpoint — any org's work/school account may authenticate; org
+# membership/authorization stays enforced app-side (invite/profiles/RLS), not by the tenant.
+[auth.external.azure]
+enabled = false
+client_id = "env(SUPABASE_AUTH_EXTERNAL_AZURE_CLIENT_ID)"
+secret = "env(SUPABASE_AUTH_EXTERNAL_AZURE_SECRET)"
+redirect_uri = "http://localhost:54321/auth/v1/callback"
+url = "https://login.microsoftonline.com/common"
+skip_nonce_check = false
+email_optional = false
+
 [auth.external.apple]
 enabled = false
 client_id = ""
@@ -408,8 +429,9 @@ authorization_url_path = "/oauth/consent"
 allow_dynamic_registration = false
 
 [edge_runtime]
-# Disabled for the backend-foundation issue: no Edge Functions in scope; the local Deno image cannot
-# reach deno.land in this environment and its failed health check tears down the whole stack.
+# `supabase functions serve` self-manages its runtime container on demand (image is local/ECR — zero
+# deno.land reach, spike-verified 2026-07-11). Kept disabled so `supabase start` stays lean; the served-fn
+# e2e lane (`scripts/serve-functions.sh`) brings it up per-run. Do NOT re-enable globally.
 enabled = false
 # Supported request policies: `oneshot`, `per_worker`.
 # `per_worker` (default) — enables hot reload during local development.
@@ -442,6 +464,19 @@ verify_jwt = false
 # verifies the bearer itself (it MUST equal SUPABASE_SERVICE_ROLE_KEY, since this endpoint mints
 # owner JWTs) and returns a typed 401 otherwise (ADR-0044 §2/§3, NFR-AAN-SEC-001).
 [functions.agent-dispatch]
+verify_jwt = false
+
+# ── Edge Function: m365-token-custody ─────────────────────────────────────────
+# verify_jwt = false is REQUIRED, not a preference: `GET /callback` is Microsoft's OAuth
+# redirect — a plain browser navigation carrying NO Authorization header. With the platform
+# gate on, every connection died there with a gateway 401 (`UNAUTHORIZED_NO_AUTH_HEADER`, a
+# code that appears nowhere in our source), AFTER the user had already consented. Found only
+# by deploying live: every test mocks `fetch`, so none of them exercise the gateway.
+# Auth is NOT weakened — the handler verifies the caller JWT itself for every POST action
+# (verifyCallerJwt, ADR-0039/ADR-0060), and the callback's credential is the single-use PKCE
+# state row, not a bearer. Verified live: POST with no auth and POST with a forged bearer both
+# return a typed 401.
+[functions.m365-token-custody]
 verify_jwt = false
 
 # ── Edge Function: admin-invite-user ──────────────────────────────────────────
@@ -480,12 +515,31 @@ verify_jwt = true
 [functions.clickup-onboard]
 verify_jwt = false
 
+# ── Edge Function: erpnext-onboard ─────────────────────────────────────────────
+# verify_jwt = false: an operator onboarding action, not a browser-JWT path (mirrors
+# clickup-onboard). The handler verifies the bearer itself (it MUST equal
+# SUPABASE_SERVICE_ROLE_KEY, constant-time) — the sole trust boundary. Pull-adopts pre-existing
+# ERPNext Supplier/Customer parties into the companies read-model (task 3.9, AC-ENA-041).
+[functions.erpnext-onboard]
+verify_jwt = false
+
 # ── Edge Function: clickup-webhook ─────────────────────────────────────────────
 # verify_jwt = false: a PUBLIC, unauthenticated surface — ClickUp (not a browser) POSTs task
 # webhooks here. The X-Signature HMAC-SHA256 of the raw body (keyed by CLICKUP_WEBHOOK_SECRET) is
 # the SOLE trust boundary (FR-CUA-041, NFR-CUA-SEC-002): an absent/invalid signature ⇒ 401 with no
 # side effect (STRIDE spoofing/tampering). The handler verifies the signature itself before any apply.
 [functions.clickup-webhook]
+verify_jwt = false
+
+# ── Edge Function: clickup-webhook-worker ──────────────────────────────────────
+# verify_jwt = false: invoked by the pg_cron tick (migration 0143) via net.http_post — the caller is
+# Postgres, not a browser/end-user JWT. The handler verifies the bearer itself (it MUST equal
+# CLICKUP_WEBHOOK_WORKER_SECRET, constant-time) — least-privilege, mirrors clickup-sweep's
+# CLICKUP_SWEEP_SECRET pattern. The durable-queue processor (OD-INT-11, 2026-07-20): claims pending
+# clickup_webhook_inbox rows, re-GETs each task, and applies through the existing source-mod-guarded
+# engine. Registered-but-idle per the 0048/0082/0094 precedent until an operator creates the Vault
+# secrets.
+[functions.clickup-webhook-worker]
 verify_jwt = false
 
 # ── Edge Function: clickup-sweep ───────────────────────────────────────────────
@@ -495,6 +549,27 @@ verify_jwt = false
 # reconciliation sweep: the safety net that catches webhook gaps (FR-CUA-045, AC-CUA-043/044).
 # Registered-but-idle per the 0048 precedent until the operator sets the dispatch GUCs.
 [functions.clickup-sweep]
+verify_jwt = false
+
+# ── Edge Function: erpnext-webhook ─────────────────────────────────────────────
+# verify_jwt = false: a PUBLIC, unauthenticated surface — ERPNext (Frappe) POSTs doc webhooks here.
+# The X-Frappe-Webhook-Signature HMAC-SHA256 of the raw body (base64, keyed by the per-org
+# webhook_secret_ref-resolved secret) is the SOLE trust boundary (FR-ENA-082, NFR-ENA-SEC-002,
+# STRIDE spoofing/tampering): an absent/invalid signature ⇒ 401 with no side effect. The handler
+# verifies the signature itself (constant-time) before any apply. Lossy hint (FR-ENA-083) — the
+# erpnext-sweep is the convergence authority.
+[functions.erpnext-webhook]
+verify_jwt = false
+
+# ── Edge Function: erpnext-sweep ───────────────────────────────────────────────
+# verify_jwt = false: invoked by the pg_cron job (migration 0101) via net.http_post — the caller is
+# Postgres, not a browser/end-user JWT. The handler verifies the bearer itself (it MUST equal
+# ERPNEXT_SWEEP_SECRET, constant-time) — least-privilege (mirrors clickup-sweep): the dedicated sweep
+# secret can at worst trigger a tick, never grant DB access. The reconciliation sweep: the convergence
+# authority that catches webhook gaps + runs the ADR-0058 §Consequences outbox recovery pass
+# (FR-ENA-080/081, AC-ENA-071). Registered-but-idle per the 0094 precedent until the operator sets the
+# Vault secrets.
+[functions.erpnext-sweep]
 verify_jwt = false
 
 [analytics]

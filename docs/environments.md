@@ -144,9 +144,17 @@ Supabase's auth/RLS/storage/pgTAP). Full parallel/serialized-owner operating mod
   which survive). ⚠ This host also runs **other projects' stacks** (e.g. `gordi-mos`) — `docker container
   prune` spares their *running* containers, but **never** `docker volume prune` or `docker system prune
   --volumes` (that destroys other projects' DB data).
-- **Prune merged worktrees promptly.** After a squash-merge, remove the issue worktree
-  (`git worktree remove --force <path>` then `git worktree prune`) — each stale worktree carries a
-  `node_modules`/test-artifact footprint and is another accidental `db reset` surface.
+- **Prune merged worktrees promptly, but verify the merge first.** Require the PR state to be
+  `MERGED` and its reported merge commit to be reachable from the intended remote base. Capture the PR's
+  `headRefOid`; require `git rev-parse <branch>` to equal it and, if the remote branch exists, require
+  `git ls-remote --heads origin refs/heads/<branch>` to report the same OID. Stop and preserve either
+  branch on divergence. Confirm the exact issue worktree is clean, then run
+  `git worktree remove <exact-path>` (never `--force`) and `git worktree prune`. Delete the local branch
+  afterwards with `git branch -d <branch>` (a verified squash merge may require `-D` only after exact-tip
+  verification), recheck the remote tip, and delete the still-matching repository-owned remote branch last
+  with `git push origin --delete <branch>`. Each stale worktree carries a
+  `node_modules`/test-artifact footprint and is another accidental `db reset` surface, but apparent
+  staleness is never authority to discard unverified work.
 
 ## Secrets via 1Password (`op-get.sh`)
 
@@ -376,6 +384,48 @@ mechanically. Unit tests for its pure classification logic:
 **Superseded by** the "Observability & alerting" section below — the durable `error_events` table +
 Telegram webhook alert this paragraph used to flag as not-yet-built now exists (observability floor,
 `docs/specs/observability-floor.spec.md` + `docs/plans/2026-07-04-observability-floor.md`).
+
+## ERPNext v15 dev bed (P2)
+
+The ERPNext adapter (ADR-0055 P2 phase, `docs/plans/2026-07-11-erpnext-adapter.md`) needs a real
+ERPNext instance to build/test against — a **second Docker stack**, entirely separate from the
+`supabase_*` local stack. It is the P2 **dev bed only** — never CI (the money e2e it backs is
+local-only, `.github/workflows/ci.yml`'s `integration` job runs the bench-free served-fn smoke
+instead; see task 0.3 of the plan above).
+
+**Stand up** from `~/Coding/frappe-docker-pmo` (a sibling checkout of the upstream
+[`frappe_docker`](https://github.com/frappe/frappe_docker) repo, NOT part of this repo):
+
+```bash
+cd ~/Coding/frappe-docker-pmo
+docker compose -p pmo-erpnext -f pwd.yml up -d
+```
+
+- **Site:** `frontend` at `http://localhost:8080`.
+- **Image:** `frappe/erpnext:v15.94.3` (frappe `15.96.0` / erpnext `15.94.3`) — pinned to keep the
+  P2 contract notes (`docs/spikes/2026-07-11-p2-intake-research.md`) ground-truth-valid; a minor
+  bump needs a re-run of the version-handshake proof (task 2.x, `GET
+  /api/method/frappe.utils.change_log.get_versions`).
+- **Setup-wizard-completed:** company `PMO Smoke Co`, currency IDR, Standard COA — so the full
+  account tree + cost center + warehouse defaults exist (R9 §0 prerequisite for the Payment Entry /
+  Purchase Invoice create flows in slice 6).
+- **Footprint:** ~724 MiB RAM, 9 containers, port 8080 — zero overlap with any `supabase_*` stack
+  (which uses 543xx).
+- **Credentials:** the site admin password + any minted `api_key`/`api_secret` pairs live **ONLY**
+  in `~/Coding/frappe-docker-pmo/PMO-BENCH-NOTES.md` — **never in this repo** (NFR-ENA-SEC-002, the
+  same "no secret value ever enters the DB or the browser" rule that governs `external_org_bindings`
+  in the shipped seam). Do not commit that notes file into any repo; it is a local-machine-only
+  runbook.
+
+**Shared-resource hygiene:** this is the **second** shared Docker resource on this host (the local
+Supabase stack is the first, locked by `scripts/with-db-lock.sh`). Money e2e against this bench must
+hold BOTH locks — `scripts/with-erpnext-lock.sh` (task 0.5) is the dedicated mutex for this stack,
+composed with `with-db-lock.sh` + `scripts/serve-functions.sh`:
+
+```bash
+scripts/with-db-lock.sh scripts/with-erpnext-lock.sh scripts/serve-functions.sh -- \
+  npx playwright test e2e/AC-ENA-053-*
+```
 
 ## Observability & alerting (GTM item 3 — the floor)
 
@@ -648,6 +698,36 @@ The reset/confirm/invite endpoints this issue exposes are the primary abuse surf
 ### 7.7 Provisioning sign-off
 The Operator (glossary) completes 7.1–7.6 as the final step of new-client provisioning (ADR-0047: this *is*
 the "add org" operation's auth step). Recorded against the client's registry row in `## Registry` above.
+
+## Microsoft (Entra ID) OAuth provider — optional, per client
+
+> Companion to the auth runbook above (kept outside the spec-numbered §7.1–7.7 checklist — those numbers
+> are pinned by `docs/specs/auth-production-floor.spec.md`). Enables the LoginPage "Continue with
+> Microsoft" button (Supabase provider `azure`). One **multi-tenant** Entra app registration serves all
+> clients (registered in the vendor tenant; NEVER per-client registrations — the Supabase Azure provider
+> takes exactly one client id). Skip this section entirely for clients not using Microsoft sign-in.
+
+- **Entra app registration (vendor tenant, once):** supported account types = *multiple organizations*
+  (multi-tenant). Redirect URIs (platform **Web**): the cloud callback
+  `https://<project-ref>.supabase.co/auth/v1/callback` + local `http://localhost:54321/auth/v1/callback`
+  (Entra only accepts plain-http for `localhost`; the local stack pins that exact form via
+  `[auth.external.azure] redirect_uri` in `supabase/config.toml`). Client secret expiry (max ~2y) goes in
+  the ops calendar — an expired secret is an app-wide login outage for this method.
+- **Cloud project — dashboard Authentication → Sign In / Providers → Azure:** enable; paste the
+  Application (client) ID + a current client secret (LITERAL values, same stance as SMTP §7.1b); Azure
+  tenant URL = `https://login.microsoftonline.com/common` (multi-tenant). Secret lives in 1Password
+  (vault `AS` pattern); never committed.
+- **Local dev:** `supabase/config.toml` `[auth.external.azure]` is committed **disabled**; to test
+  locally set `SUPABASE_AUTH_EXTERNAL_AZURE_CLIENT_ID` / `SUPABASE_AUTH_EXTERNAL_AZURE_SECRET` in `.env`,
+  flip `enabled = true` (do not commit the flip), `supabase stop && supabase start`.
+- **Authorization is unchanged:** OAuth is an authentication method only — org membership still comes
+  from the invited `profiles` row + RLS; Supabase links the Microsoft identity to the existing user by
+  verified email. `enable_signup = false` (§7.3) keeps uninvited Microsoft users out; a signed-in
+  Microsoft user with no `profiles` row hits the standard profile-error gate, not data.
+- **Unverified-publisher caveat (pre publisher-verification):** until the vendor tenant completes
+  Microsoft publisher verification, client-side *user* consent may show "needs admin approval" under
+  default Entra policies — the client's M365 admin grants org-wide **admin consent** once (standard
+  flow; disclose the "unverified" label upfront).
 
 ## Self-hosted (Docker/VPS) later
 

@@ -34,6 +34,8 @@ import { AgentCostMetrics } from '@/src/components/admin/AgentCostMetrics';
 import { AdministrationCredits } from './AdministrationCredits';
 import { AdministrationFeatures } from './AdministrationFeatures';
 import { IntegrationsView } from '@/src/components/integrations/IntegrationsView';
+import { M365ConnectionCard } from '@/src/components/integrations/M365ConnectionCard';
+import BudgetAccountMap from './admin/BudgetAccountMap';
 
 /**
  * Administration › Users (CRUD+RBAC program, plan §9.10; rbac-visibility §J; ops-admin-surface
@@ -426,7 +428,11 @@ const AdminUsers: React.FC = () => {
         </div>
       )}
 
-      {/* Usage section (ops-admin-surface S5) — aggregates-only, sourced from the usage RPCs. */}
+      {/* Usage section (ops-admin-surface S5) — aggregates-only, sourced from the usage RPCs.
+          OPERATOR-ONLY (owner 2026-07-24): assistant cost/usage is a platform surface. An org-Admin
+          does not see it at all — not even read-only, not even their own org's rows. The hooks are
+          gated too (useUsage/useAgentRunStats `enabled: … && isOperator`) so nothing is fetched. */}
+      {isOperator && (
       <div className="mt-6">
         <SectionHeader title="Usage" />
         {/* Agent cost dashboard (agent-cost-dashboard): cache hit-rate, reasoning share, cost/run
@@ -450,23 +456,38 @@ const AdminUsers: React.FC = () => {
           onRetry={() => void usageQuery.refetch()}
         />
       </div>
+      )}
 
       {/* Credits section (ops-admin-surface S6) — org-pool balance + Operator grant. */}
       <div className="mt-6">
         <AdministrationCredits isOperator={isOperator} orgId={ownOrgId} />
       </div>
 
-      {/* Features section (ops-admin-surface S6) — Operator toggles + org-Admin read-only. */}
+      {/* Features section (ops-admin-surface S6) — OPERATOR-ONLY (owner 2026-07-24). Entitlements
+          are an app/plan surface, so an org-Admin does not see this panel at all — the previous
+          read-only rendering for a non-Operator is no longer reachable from here.
+          NOTE: this hides the ADMIN PANEL, not the data. `org_features` SELECT stays widened to all
+          org members (ADR-0049 §4) because `useFeature()` reads it on every render to resolve
+          hide-vs-show for the rail and routes — narrowing it would dark-screen the whole app. */}
+      {isOperator && (
       <div className="mt-6">
         <SectionHeader title="Features" />
         <AdministrationFeatures isOperator={isOperator} orgId={ownOrgId} />
       </div>
+      )}
 
       {/* Integrations section (FR-EAS-007, OD-2) — read-only: employed external tiers + the
           domains they own as SoT; writes are Operator-provisioned via RPC, never in-app. */}
       <div className="mt-6">
         <SectionHeader title="Integrations" />
+        <M365ConnectionCard isOperator={isOperator} />
         <IntegrationsView />
+      </div>
+
+      {/* P3c (FR-BUD-110..113): the budget category↔ERP account bijection. The component gates its
+          own write affordances via can('manage', 'integration', ctx) — no prop threading needed. */}
+      <div className="mt-6">
+        <BudgetAccountMap />
       </div>
 
       {/* Edit-role modal */}

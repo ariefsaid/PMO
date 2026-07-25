@@ -58,7 +58,7 @@ interface LineItemEditorProps {
   /** Stages a destructive confirm at the page level — does not delete on click. */
   onDeleteLineItem: (id: string) => void;
   /** Routine inline update (OD-UX-1: single-click + toast, no confirm). */
-  onUpdateLineItem: (id: string, patch: Partial<Pick<BudgetLineItemRow, 'category' | 'description' | 'budgeted_amount'>>) => Promise<unknown>;
+  onUpdateLineItem: (id: string, patch: Partial<Pick<BudgetLineItemRow, 'category' | 'description' | 'budgeted_amount' | 'fiscal_year'>>) => Promise<unknown>;
   onSaveSuccess: () => void;
   /** B-0.7: isPending flags from the parent mutation (createLineItem / updateLineItem).
    *  Disables Save while a write is in-flight — prevents double-submit duplication. */
@@ -85,19 +85,31 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
   const [newCategory, setNewCategory] = useState<Enums<'budget_category'>>('Labor');
   const [newDesc, setNewDesc] = useState('');
   const [newAmount, setNewAmount] = useState('');
+  // ⚑ FR-BFY-060 — free TEXT, not a select. The valid values are another system's calendar (the
+  // client's ERPNext `Fiscal Year` names), which the write path cannot reach; the years this project
+  // has already touched are offered as SUGGESTIONS via a datalist, but a year the project is only now
+  // moving into must remain typeable. Validation is push-time, against the live doctype (FR-BFY-021/022).
+  const [newFiscalYear, setNewFiscalYear] = useState('');
 
   // Inline edit state
   const [editingId, setEditingId] = useState<EditingId>(null);
   const [editCategory, setEditCategory] = useState<Enums<'budget_category'>>('Labor');
   const [editDesc, setEditDesc] = useState('');
   const [editAmount, setEditAmount] = useState('');
+  const [editFiscalYear, setEditFiscalYear] = useState('');
   const [editAmountError, setEditAmountError] = useState<string | null>(null);
+  /** The years this project's own lines already name — suggestions, never a constraint. */
+  const knownFiscalYears = useMemo(
+    () => [...new Set(lineItems.map((li) => li.fiscal_year).filter((y): y is string => !!y))].sort(),
+    [lineItems],
+  );
 
   const openEdit = (li: BudgetLineItemRow) => {
     setEditingId(li.id);
     setEditCategory(li.category as Enums<'budget_category'>);
     setEditDesc(li.description ?? '');
     setEditAmount(String(Number(li.budgeted_amount)));
+    setEditFiscalYear(li.fiscal_year ?? '');
     setEditAmountError(null);
   };
 
@@ -124,6 +136,8 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
         category: editCategory,
         description: editDesc || null,
         budgeted_amount: parsed,
+        // An emptied field UN-phases the line (NULL), which is a real, deliberate state — never ''.
+        fiscal_year: editFiscalYear.trim() || null,
       });
       setEditingId(null);
       onSaveSuccess();
@@ -137,10 +151,16 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
     if (!newCategory || amount === null || amount <= 0) return;
     // B-0.6: wrap in try/catch → surface failure via onSaveError (no silent no-op).
     try {
-      await onCreateLineItem({ category: newCategory, description: newDesc || null, budgeted_amount: amount });
+      await onCreateLineItem({
+        category: newCategory,
+        description: newDesc || null,
+        budgeted_amount: amount,
+        fiscal_year: newFiscalYear.trim() || null,
+      });
       setAdding(false);
       setNewDesc('');
       setNewAmount('');
+      setNewFiscalYear('');
     } catch (err) {
       onSaveError?.(err);
     }
@@ -156,8 +176,13 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
           <tr>
             <TH>Category</TH>
             <TH>Description</TH>
+            {/* ⚑ FR-BFY-060: which fiscal year this line belongs to. A multi-fiscal-year project cannot
+                reach ERPNext at all until every line names one (the gate refuses an un-phased line
+                rather than inventing a split), so the column is not an advanced option — it is the
+                control that makes the capability reachable. */}
+            <TH>Fiscal year</TH>
             <TH align="right">Budgeted</TH>
-            <TH align="right">Actual</TH>
+            <TH align="right">Actual (PMO recorded)</TH>
             <th className="border-b border-border bg-card" />
           </tr>
         </thead>
@@ -195,6 +220,29 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
                     onChange={(e) => setEditDesc(e.target.value)}
                     className={`${fieldCls} w-full`}
                   />
+                </td>
+                <td className="px-3 py-2">
+                  <label htmlFor={`edit-fy-${li.id}`} className="sr-only">
+                    Fiscal year
+                  </label>
+                  <input
+                    id={`edit-fy-${li.id}`}
+                    type="text"
+                    aria-label="Fiscal year"
+                    placeholder="Un-phased"
+                    list="budget-fiscal-year-options"
+                    value={editFiscalYear}
+                    onChange={(e) => setEditFiscalYear(e.target.value)}
+                    className={`${fieldCls} w-32`}
+                  />
+                {/* ⚑ A datalist, not a <select>: the valid values are the CLIENT's own ERPNext Fiscal
+                    Year names, which this write path cannot read (FR-BFY-022). The years the project
+                    already uses are offered; a year it is only now moving into stays typeable. */}
+                <datalist id="budget-fiscal-year-options">
+                  {knownFiscalYears.map((y) => (
+                    <option key={y} value={y} />
+                  ))}
+                </datalist>
                 </td>
                 <td className="px-3 py-2 text-right">
                   <div className="flex flex-col items-end gap-0.5">
@@ -268,6 +316,12 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
               <tr key={li.id} className="border-b border-border/70 last:border-b-0">
                 <td className="px-3 py-2">{li.category}</td>
                 <td className="px-3 py-2 text-muted-foreground">{li.description ?? '—'}</td>
+                {/* ⚑ An un-phased line SAYS SO. A blank cell would read as "we forgot"; un-phased is a
+                    real, deliberate state with a consequence (a multi-fiscal-year project cannot push
+                    until it is resolved), so it is stated rather than left empty. */}
+                <td className="px-3 py-2 text-muted-foreground">
+                  {li.fiscal_year ?? <span className="italic">Un-phased</span>}
+                </td>
                 <td className="px-3 py-2 text-right font-medium tabular">
                   {formatCurrency(Number(li.budgeted_amount))}
                 </td>
@@ -322,6 +376,25 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
                   onChange={(e) => setNewDesc(e.target.value)}
                   className={`${fieldCls} w-full`}
                 />
+              </td>
+              <td className="px-3 py-2">
+                <input
+                  type="text"
+                  aria-label="Line item fiscal year"
+                  placeholder="Un-phased"
+                  list="budget-fiscal-year-options"
+                  value={newFiscalYear}
+                  onChange={(e) => setNewFiscalYear(e.target.value)}
+                  className={`${fieldCls} w-32`}
+                />
+                {/* ⚑ A datalist, not a <select>: the valid values are the CLIENT's own ERPNext Fiscal
+                    Year names, which this write path cannot read (FR-BFY-022). The years the project
+                    already uses are offered; a year it is only now moving into stays typeable. */}
+                <datalist id="budget-fiscal-year-options">
+                  {knownFiscalYears.map((y) => (
+                    <option key={y} value={y} />
+                  ))}
+                </datalist>
               </td>
               <td className="px-3 py-2 text-right">
                 <input
@@ -391,7 +464,7 @@ interface VersionCardProps {
   onCreateLineItem: (versionId: string, item: NewLineItem) => Promise<unknown>;
   onDeleteLineItem: (id: string) => void;
   /** Routine inline update — no confirm required (OD-UX-1). */
-  onUpdateLineItem: (id: string, patch: Partial<Pick<BudgetLineItemRow, 'category' | 'description' | 'budgeted_amount'>>) => Promise<unknown>;
+  onUpdateLineItem: (id: string, patch: Partial<Pick<BudgetLineItemRow, 'category' | 'description' | 'budgeted_amount' | 'fiscal_year'>>) => Promise<unknown>;
   onUpdateLineItemSuccess: () => void;
   /** B-0.6/0.7: passed through to LineItemEditor. */
   createIsPending?: boolean;
@@ -498,8 +571,13 @@ const VersionCard: React.FC<VersionCardProps> = ({
                 <tr>
                   <TH>Category</TH>
                   <TH>Description</TH>
+                  {/* FR-BFY-061: an Active/Archived version's phasing is VISIBLE but not editable —
+                      `enforce_draft_line_item` (0005) rejects the write, and re-phasing goes through
+                      clone → edit → activate (OD-BUDGET-5). An affordance the DB refuses is worse
+                      than none. */}
+                  <TH>Fiscal year</TH>
                   <TH align="right">Budgeted</TH>
-                  <TH align="right">Actual</TH>
+                  <TH align="right">Actual (PMO recorded)</TH>
                 </tr>
               </thead>
               <tbody>
@@ -507,6 +585,9 @@ const VersionCard: React.FC<VersionCardProps> = ({
                   <tr key={li.id} className="border-b border-border/70 last:border-b-0">
                     <td className="px-3 py-2">{li.category}</td>
                     <td className="px-3 py-2 text-muted-foreground">{li.description ?? '—'}</td>
+                    <td className="px-3 py-2 text-muted-foreground">
+                      {li.fiscal_year ?? <span className="italic">Un-phased</span>}
+                    </td>
                     <td className="px-3 py-2 text-right font-medium tabular">
                       {formatCurrency(Number(li.budgeted_amount))}
                     </td>
@@ -643,11 +724,36 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId }) => {
           setPendingConfirm(null);
           toast('Budget version created', c.name, 'success');
           break;
-        case 'activate':
-          await mutations.activate.mutateAsync(c.id);
+        case 'activate': {
+          const { pushState } = await mutations.activate.mutateAsync(c.id);
           setPendingConfirm(null);
-          toast('Version activated', c.label, 'success');
+          // ⚑ HIGH-C: PMO's transition succeeded either way (ADR-0059 §3.2 — the ERPNext push is a
+          // CONSEQUENCE of activation, never its precondition), but a push that did not land must be
+          // said out loud. Otherwise ERPNext keeps enforcing the previous budget (or none) while this
+          // screen reports a clean success — and when the dispatch never reached the edge function
+          // there is no mirror row for the sweep backstop to re-drive either. The recovery affordance
+          // is the Budget projection's "Retry the push".
+          if (pushState === 'failed') {
+            toast(
+              'Version activated — but ERPNext was not updated',
+              `${c.label}. PMO's budget is active; retry the push from the Budget projection.`,
+              'warning',
+            );
+          } else if (pushState === 'nothing-to-push') {
+            // ⚑ FU-2 round 2: the version has NO line items, so the fan-out attempted no fiscal year and
+            // created no ERP `Budget`. Announcing a push would be a statement about money that never
+            // moved; announcing a failure would invent an attempt. Nothing was sent — say that, and name
+            // the act that changes it. (The per-year `never-pushed` banner agrees rather than contradicts.)
+            toast(
+              'Version activated — nothing was sent to ERPNext',
+              `${c.label} has no budget lines, so no ERPNext Budget was created. Add lines and activate a new version to enforce one.`,
+              'warning',
+            );
+          } else {
+            toast('Version activated', c.label, 'success');
+          }
           break;
+        }
         case 'clone': {
           const newDraftId = await mutations.cloneVersion.mutateAsync(c.id);
           setPendingConfirm(null);

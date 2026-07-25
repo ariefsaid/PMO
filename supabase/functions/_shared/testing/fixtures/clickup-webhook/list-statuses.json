@@ -1,0 +1,26 @@
+[
+  {
+    "id": "p901811802098_DCnaeiSB",
+    "status": "to do",
+    "orderindex": 0,
+    "color": "#87909e",
+    "type": "open",
+    "status_group": "proj_901811802098"
+  },
+  {
+    "id": "p901811802098_g9uxhsQM",
+    "status": "in progress",
+    "orderindex": 1,
+    "color": "#1090e0",
+    "type": "custom",
+    "status_group": "proj_901811802098"
+  },
+  {
+    "id": "p901811802098_syqLtYOY",
+    "status": "complete",
+    "orderindex": 2,
+    "color": "#008844",
+    "type": "closed",
+    "status_group": "proj_901811802098"
+  }
+]

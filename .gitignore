@@ -57,3 +57,6 @@ id_rsa*
 *.keystore
 **/serviceAccount*.json
 secrets.*
+
+# pi delegation runtime artifacts (transcripts/inputs) — never commit
+.pi-subagents/

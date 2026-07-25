@@ -96,5 +96,19 @@ export async function resolveClickUpDispatchAdapter(deps: ClickUpDispatchFactory
       const clickUpId = memberMap.pmoToClickUp[pmoAssigneeId];
       return clickUpId !== undefined ? [clickUpId] : [];
     },
+    resolveParentExternalId: async (pmoParentTaskId: string) => {
+      const { data, error } = await deps.serviceClient
+        .from('external_refs')
+        .select('external_record_id')
+        .eq('org_id', deps.orgId)
+        .eq('domain', CLICKUP_TASKS_DOMAIN)
+        .eq('pmo_record_id', pmoParentTaskId)
+        .maybeSingle();
+      if (error || !data) {
+        console.warn(`[clickup-dispatch] parent task ${pmoParentTaskId} not yet mirrored to ClickUp (no external_refs row); child will be created flat`);
+        return null;
+      }
+      return (data as { external_record_id: string }).external_record_id;
+    },
   });
 }

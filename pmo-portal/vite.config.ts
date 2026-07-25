@@ -44,7 +44,20 @@ const BASE_TEST_EXCLUDE = [
 // XHR/ProgressEvent) carry a `// @vitest-environment jsdom` docblock, which
 // overrides the project environment per-file, so they run correctly here
 // without a per-file exclude list to maintain.
-const NODE_LOGIC_INCLUDE = ['src/lib/**/*.{test,spec}.ts'];
+//
+// P3c slice 5: `budgetBackstop.test.ts` lives under `supabase/functions/erpnext-sweep/` (outside this
+// config's root) because its production sibling (`budgetBackstop.ts`) is Deno- AND Vitest-importable,
+// like `pmo-portal/src/lib/budget/budgetGate.ts` — it needs an explicit entry since Vitest's `include`
+// globs are resolved relative to `root` and never climb a `../`. Named explicitly (not a `../**`
+// glob) so this does NOT pull in that directory's OTHER, Deno-native tests (`Deno.test`/`jsr:` specifier
+// imports), which would crash immediately under Vitest/node.
+const NODE_LOGIC_INCLUDE = [
+  'src/lib/**/*.{test,spec}.ts',
+  '../supabase/functions/erpnext-sweep/budgetBackstop.test.ts',
+  // P3b task 6.4: `timesheetBackstop.test.ts` is the exact sibling of the entry above — same reason,
+  // same shape (a Deno- AND Vitest-importable pure-orchestration module beside its Deno-native tests).
+  '../supabase/functions/erpnext-sweep/timesheetBackstop.test.ts',
+];
 
 const sharedTestOptions = {
   globals: true,

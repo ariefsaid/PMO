@@ -54,13 +54,14 @@ export async function createPurchaseRequest(
 ): Promise<PurchaseRequestRow> {
   const { data, error } = (await supabase.rpc('create_purchase_request', {
     p_procurement_id: procurementId,
-    p_reference_number: referenceNumber,
-    p_status: status,
-    p_date: date,
-    p_amount: amount,
-    p_import_key: importKey ?? null,
-    p_import_batch_id: importBatchId ?? null,
-    p_imported_at: importedAt ?? null,
+    // Runtime-legal NULLs (permissive capture); typegen encodes required RPC args as non-null.
+    p_reference_number: referenceNumber as string,
+    p_status: status as string,
+    p_date: date as string,
+    p_amount: amount as number,
+    p_import_key: importKey,
+    p_import_batch_id: importBatchId,
+    p_imported_at: importedAt,
   })) as unknown as { data: PurchaseRequestRow; error: RpcErrorLike | null };
   if (error) throwRpc(error);
   return data;
@@ -82,13 +83,14 @@ export async function createRfq(
 ): Promise<RfqRow> {
   const { data, error } = (await supabase.rpc('create_rfq', {
     p_procurement_id: procurementId,
-    p_reference_number: referenceNumber,
-    p_status: status,
-    p_date: date,
-    p_amount: amount,
-    p_import_key: importKey ?? null,
-    p_import_batch_id: importBatchId ?? null,
-    p_imported_at: importedAt ?? null,
+    // Runtime-legal NULLs (permissive capture); typegen encodes required RPC args as non-null.
+    p_reference_number: referenceNumber as string,
+    p_status: status as string,
+    p_date: date as string,
+    p_amount: amount as number,
+    p_import_key: importKey,
+    p_import_batch_id: importBatchId,
+    p_imported_at: importedAt,
   })) as unknown as { data: RfqRow; error: RpcErrorLike | null };
   if (error) throwRpc(error);
   return data;
@@ -110,13 +112,14 @@ export async function createPurchaseOrder(
 ): Promise<PurchaseOrderRow> {
   const { data, error } = (await supabase.rpc('create_purchase_order', {
     p_procurement_id: procurementId,
-    p_reference_number: referenceNumber,
-    p_status: status,
-    p_date: date,
-    p_amount: amount,
-    p_import_key: importKey ?? null,
-    p_import_batch_id: importBatchId ?? null,
-    p_imported_at: importedAt ?? null,
+    // Runtime-legal NULLs (permissive capture); typegen encodes required RPC args as non-null.
+    p_reference_number: referenceNumber as string,
+    p_status: status as string,
+    p_date: date as string,
+    p_amount: amount as number,
+    p_import_key: importKey,
+    p_import_batch_id: importBatchId,
+    p_imported_at: importedAt,
   })) as unknown as { data: PurchaseOrderRow; error: RpcErrorLike | null };
   if (error) throwRpc(error);
   return data;
@@ -140,14 +143,15 @@ export async function createPayment(
 ): Promise<PaymentRow> {
   const { data, error } = (await supabase.rpc('create_payment', {
     p_procurement_id: procurementId,
-    p_invoice_id: invoiceId,
-    p_reference_number: referenceNumber,
-    p_status: status,
-    p_date: date,
-    p_amount: amount,
-    p_import_key: importKey ?? null,
-    p_import_batch_id: importBatchId ?? null,
-    p_imported_at: importedAt ?? null,
+    // Runtime-legal NULLs (permissive capture); typegen encodes required RPC args as non-null.
+    p_invoice_id: invoiceId as string,
+    p_reference_number: referenceNumber as string,
+    p_status: status as string,
+    p_date: date as string,
+    p_amount: amount as number,
+    p_import_key: importKey,
+    p_import_batch_id: importBatchId,
+    p_imported_at: importedAt,
   })) as unknown as { data: PaymentRow; error: RpcErrorLike | null };
   if (error) throwRpc(error);
   return data;

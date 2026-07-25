@@ -57,6 +57,8 @@ vi.mock('@/src/lib/db/tasks', () => ({
   deleteTask: vi.fn(),
   addDependency: vi.fn(),
   removeDependency: vi.fn(),
+  archiveTask: vi.fn(),
+  unarchiveTask: vi.fn(),
 }));
 vi.mock('@/src/lib/db/procurements', () => ({ listProcurements: vi.fn() }));
 vi.mock('@/src/lib/db/procurementLifecycle', () => ({
@@ -160,7 +162,7 @@ beforeEach(() => vi.clearAllMocks());
 describe('repositories object shape (ADR-0017 API seam)', () => {
   it('exposes one repository per entity', () => {
     expect(Object.keys(repositories).sort()).toEqual(
-      ['agentAttachment', 'budget', 'company', 'contact', 'credits', 'document', 'externalDomainOwnership', 'incident', 'milestone', 'operator', 'orgFeature', 'procurement', 'procurementFiles', 'profile', 'project', 'task', 'timesheet', 'usage', 'userView'].sort(),
+      ['agentAttachment', 'budget', 'company', 'contact', 'credits', 'document', 'erpSnapshots', 'externalDomainOwnership', 'incident', 'integrations', 'milestone', 'operator', 'orgFeature', 'procurement', 'procurementFiles', 'profile', 'project', 'revenue', 'task', 'timesheet', 'usage', 'userView'].sort(),
     );
   });
 
@@ -205,7 +207,10 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
       ['assignUserManager', 'inviteUser', 'listOrgProfiles', 'listProjectManagers', 'listUsers', 'setUserStatus', 'updateUserRole'].sort(),
     );
     expect(Object.keys(repositories.task).sort()).toEqual(
-      ['addDependency', 'create', 'delete', 'get', 'list', 'removeDependency', 'update', 'updateStatus'].sort(),
+      // 'archive'/'unarchive' added deliberately with the PMO task-archive affordance (ADR-0018
+      // soft-archive). This list is an exhaustive API-seam contract (ADR-0017) — extending the
+      // repository surface must be an explicit change here, never an accident.
+      ['addDependency', 'archive', 'create', 'delete', 'get', 'list', 'removeDependency', 'unarchive', 'update', 'updateStatus'].sort(),
     );
     expect(Object.keys(repositories.procurement).sort()).toEqual(
       [
@@ -231,7 +236,7 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
       ].sort(),
     );
     expect(Object.keys(repositories.timesheet).sort()).toEqual(
-      ['approve', 'createDraft', 'deleteEntry', 'list', 'listAwaitingApproval', 'reject', 'submit', 'upsertEntries'].sort(),
+      ['approve', 'createDraft', 'deleteEntry', 'list', 'listAwaitingApproval', 'pushApproved', 'reject', 'submit', 'upsertEntries'].sort(),
     );
     expect(Object.keys(repositories.budget).sort()).toEqual(
       ['activateVersion', 'archiveVersion', 'cloneVersion', 'createLineItem', 'createVersion', 'deriveProjectBudget', 'deleteDraftVersion', 'deleteLineItem', 'listVersions', 'updateLineItem'].sort(),
@@ -521,6 +526,21 @@ describe('delegation — methods pass args through and return the DAL result', (
     expect(procLifecycleDal.createInvoice).toHaveBeenCalledWith('pr1', 'Received', '2026-06-07');
   });
 
+  // task FIX-1 (Discover CRITICAL 1 follow-up): createReceipt/createInvoice thread an optional
+  // referenceNumber (+ amount for invoice) through to the DAL when the caller supplies one — the
+  // PMO-owned path a hook needs once it routes through the repository seam instead of calling the
+  // DAL directly. The bare 3-arg shape above stays byte-for-byte; this is additive.
+  it('procurement.createReceipt/createInvoice forward an optional referenceNumber/amount to the DAL when supplied', async () => {
+    vi.mocked(procLifecycleDal.createReceipt).mockResolvedValue({} as never);
+    vi.mocked(procLifecycleDal.createInvoice).mockResolvedValue({} as never);
+
+    await repositories.procurement.createReceipt('pr1', 'Complete', '2026-06-07', 'DN-9');
+    expect(procLifecycleDal.createReceipt).toHaveBeenCalledWith('pr1', 'Complete', '2026-06-07', 'DN-9');
+
+    await repositories.procurement.createInvoice('pr1', 'Received', '2026-06-07', 'BILL-9', 950);
+    expect(procLifecycleDal.createInvoice).toHaveBeenCalledWith('pr1', 'Received', '2026-06-07', 'BILL-9', 950);
+  });
+
   it('procurement CRUD methods (create/header/items/selectQuote/documents) delegate', async () => {
     vi.mocked(procCrudDal.createProcurement).mockResolvedValue({ id: 'pr9' } as never);
     vi.mocked(procCrudDal.updateProcurementHeader).mockResolvedValue(undefined);
@@ -655,7 +675,7 @@ describe('delegation — methods pass args through and return the DAL result', (
     vi.mocked(budgetsDal.deleteLineItem).mockResolvedValue(undefined);
     vi.mocked(budgetsDal.createBudgetVersion).mockResolvedValue({} as never);
     vi.mocked(budgetsDal.cloneVersion).mockResolvedValue('v2');
-    vi.mocked(budgetsDal.activateVersion).mockResolvedValue(undefined);
+    vi.mocked(budgetsDal.activateVersion).mockResolvedValue({ pushState: 'pushed' });
     vi.mocked(budgetsDal.archiveVersion).mockResolvedValue(undefined);
     vi.mocked(budgetsDal.deleteDraftVersion).mockResolvedValue(undefined);
 

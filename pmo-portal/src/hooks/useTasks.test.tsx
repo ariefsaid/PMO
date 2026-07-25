@@ -101,7 +101,7 @@ describe('useTaskMutations', () => {
     await act(async () => {
       await result.current.update.mutateAsync({ id: 't1', patch: { name: 'X' } });
     });
-    expect(task.update).toHaveBeenCalledWith('t1', { name: 'X' });
+    expect(task.update).toHaveBeenCalledWith('t1', { name: 'X' }, 'p1');
   });
 
   it('AC-TASK-005: updateStatus invokes the repository with id + status', async () => {
@@ -109,7 +109,7 @@ describe('useTaskMutations', () => {
     await act(async () => {
       await result.current.updateStatus.mutateAsync({ id: 't1', status: 'Done' });
     });
-    expect(task.updateStatus).toHaveBeenCalledWith('t1', 'Done');
+    expect(task.updateStatus).toHaveBeenCalledWith('t1', 'Done', 'p1');
   });
 
   it('AC-TASK-006: remove invokes the repository delete with the id', async () => {
@@ -117,7 +117,7 @@ describe('useTaskMutations', () => {
     await act(async () => {
       await result.current.remove.mutateAsync('t1');
     });
-    expect(task.delete).toHaveBeenCalledWith('t1');
+    expect(task.delete).toHaveBeenCalledWith('t1', 'p1');
   });
 
   it('AC-TASK-007: addDependency / removeDependency invoke the repository', async () => {

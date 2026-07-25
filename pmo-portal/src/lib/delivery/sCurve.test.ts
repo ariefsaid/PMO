@@ -273,6 +273,7 @@ describe('evenAxisTicks', () => {
 /** Minimal SCurveTask — only the fields buildSCurve reads from a task. */
 const scTask = (over: Partial<SCurveTask> & { milestone_id: string | null }): SCurveTask => ({
   milestone_id: over.milestone_id,
+  parent_task_id: over.parent_task_id ?? null,
   status: over.status ?? 'To Do',
   completed_at: over.completed_at ?? null,
   end_date: over.end_date ?? null,
@@ -435,6 +436,65 @@ describe('buildSCurve — actual series', () => {
     expect(actualPts).toHaveLength(1);
     expect(actualPts[0].date).toBe('2026-05-01');
     expect(actualPts[0].actual).toBe(model.actualToDate);
+  });
+});
+
+// ── OD-INT-9 subtask rollup exclusion ─────────────────────────────────────────
+// Only top-level tasks (parent_task_id IS NULL) participate in the actual series. A Done subtask
+// must NOT add its own step to the curve, and must NOT dilute the parent's per-task numerator
+// (which would otherwise halve the parent's contribution in a 1-parent + 1-subtask milestone).
+describe('OD-INT-9: subtasks never move the S-curve actual series', () => {
+  it('AC-SUB-SC-001: a Done subtask does not contribute its own actual point', () => {
+    // Milestone m1 (weight 100, target 2026-01-31, effective_pct 100). Parent Done at 2026-01-10;
+    // subtask Done at 2026-01-20 (parent_task_id = 'parent').
+    const milestones = [
+      msa({ id: 'm1', target_date: '2026-01-31', weight: 100, effective_pct: 100 }),
+    ];
+    const tasks: SCurveTask[] = [
+      scTask({ milestone_id: 'm1', status: 'Done', completed_at: '2026-01-10T00:00:00Z', parent_task_id: null }),
+      scTask({ milestone_id: 'm1', status: 'Done', completed_at: '2026-01-20T00:00:00Z', parent_task_id: 'parent' }),
+    ];
+    const model = buildSCurve(milestones, '2026-12-31', tasks);
+    const actualPts = model.points.filter((p) => p.actual !== null);
+
+    // No actual point lands on the subtask's completion date (2026-01-20).
+    expect(actualPts.some((p) => p.date === '2026-01-20')).toBe(false);
+  });
+
+  it('AC-SUB-SC-002: the parent contributes the FULL milestone weight, not a diluted half (subtask excluded from the denominator)', () => {
+    // Same milestone (weight 100, one parent + one subtask). If the subtask counted, totalTasksInMs
+    // would be 2 → per-task numerator 50 → parent's point would be 50. With the rule, only the
+    // parent counts → per-task numerator 100 → parent's first point is 100.
+    const milestones = [
+      msa({ id: 'm1', target_date: '2026-01-31', weight: 100, effective_pct: 100 }),
+    ];
+    const tasks: SCurveTask[] = [
+      scTask({ milestone_id: 'm1', status: 'Done', completed_at: '2026-01-10T00:00:00Z', parent_task_id: null }),
+      scTask({ milestone_id: 'm1', status: 'Done', completed_at: '2026-01-20T00:00:00Z', parent_task_id: 'parent' }),
+    ];
+    const model = buildSCurve(milestones, '2026-12-31', tasks);
+    const parentPt = model.points.find((p) => p.date === '2026-01-10' && p.actual !== null);
+
+    expect(parentPt).toBeDefined();
+    expect(parentPt!.actual).toBe(100);
+  });
+
+  it('AC-SUB-SC-003: a milestone whose ONLY task is a subtask falls back to the milestone-level path (no task-level contribution)', () => {
+    // Milestone m1 with effective_pct 100 (RPC-derived, already excludes the subtask). The only
+    // task passed is a subtask → the task-level path must treat the milestone as task-less and
+    // contribute at target_date, NOT at the subtask's completed_at.
+    const milestones = [
+      msa({ id: 'm1', target_date: '2026-01-31', weight: 100, effective_pct: 100 }),
+    ];
+    const tasks: SCurveTask[] = [
+      scTask({ milestone_id: 'm1', status: 'Done', completed_at: '2026-01-10T00:00:00Z', parent_task_id: 'parent' }),
+    ];
+    const model = buildSCurve(milestones, '2026-12-31', tasks);
+    const actualPts = model.points.filter((p) => p.actual !== null);
+
+    // No point at the subtask's date (2026-01-10); the milestone contributes at its target_date instead.
+    expect(actualPts.some((p) => p.date === '2026-01-10')).toBe(false);
+    expect(actualPts.some((p) => p.date === '2026-01-31')).toBe(true);
   });
 });
 

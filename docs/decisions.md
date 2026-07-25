@@ -755,3 +755,349 @@ the same AA token idiom StatusPill established", not a one-off darken.
 style) + `TaskPushBadge.test.tsx` (push-failed → `--status-lost-text`, pushed → `--status-won-text`,
 no raw `text-destructive`/`text-success`). The Layer-1 a11y/visual gate assertion was extended to cover
 the badge. Any new tinted-status text MUST follow the same token or it regresses AA.
+
+## OD-ENA — ERPNext adapter P2 final consolidated fix round (2026-07-13)
+
+Four durable notes graduated from the final quality/spec/Discover fix round on the ERPNext adapter P2
+(branch `feat/erpnext-adapter-p2`).
+
+### OD-ENA-E2E-CLEANUP — The erpnext e2e cleanup deletes `external_domain_ownership`/`external_org_bindings`
+rows for `tier='erpnext'` (ops note)
+
+**Note (operational, not a code change):** the erpnext served-fn e2e suite's cleanup hook deletes its
+own `external_domain_ownership` + `external_org_bindings` rows scoped to `external_tier = 'erpnext'`
+after each run, on the SHARED local Docker DB (`docs/environments.md`'s parallel-agent hygiene). This
+is correct for the suite's own fixtures, but it means a MANUAL flip fixture an engineer seeds by hand
+(e.g. `setDomainOwnership`/a direct row insert for local exploratory testing) on `tier='erpnext'` gets
+silently un-flipped the next time the e2e suite runs on the same DB. **Operational implication:** don't
+rely on a hand-seeded erpnext flip surviving an e2e run on the shared stack — reseed it after, or use a
+dedicated org id the e2e suite doesn't touch.
+
+### OD-ENA-ITEMS-INSERT — `procurement_items` INSERT stays open on a flipped org BY DESIGN (Director ruling, 2026-07-13)
+
+**Decision (binding):** while `procurement` is externally-owned, user-JWT `INSERT` on
+`procurement_items` (the PR line-item table) is **NOT** RLS-denied, unlike the seven record tables'
+native/mirrored fields (FR-ENA-170). This is intentional, not a gap: line items are **drafted PMO-side
+before a PR is pushed** (the requester builds the item list authoring a Purchase Request in the PMO
+UI — `item_code`/`qty`/`rate`/`schedule_date`), and only that drafted set is read at dispatch time to
+build the ERP command body (FR-ENA-110's `{items:[...]}`). The **pushed** state is what the flip
+protects: once a PR/RFQ/PO/etc. is dispatched, the money doctypes' own native/mirrored fields (§7) are
+machine-written-only — `procurement_items` rows already used in a pushed command are not retroactively
+locked, but the record tables that carry the ERP truth are. A blanket `procurement_items` INSERT deny
+would break authoring entirely (no org could ever draft a new PR once flipped), so this is a deliberate
+scope boundary, not an oversight.
+
+**Why:** treating "flipped" as "every table under the `procurement` domain is machine-only" conflates
+the draft-authoring surface with the ERP-truth surface. The spec's own model is: PMO owns
+case-aggregate + draft state, ERP owns the seven money doctypes once submitted (FR-ENA-101).
+
+### OD-ENA-CONTACTS-DEFERRED — Contacts inbound-adopt is NOT wired; companies-domain inbound mints companies only
+
+**Noted, deferred:** the `companies` domain's inbound change-feed (webhook + sweep) mints/updates PMO
+`companies` rows from ERPNext `Supplier`/`Customer` documents, but there is **no `contact` kind in the
+feed registry** — an ERPNext `Contact` document arriving inbound is never adopted into PMO `contacts`.
+This was the reason `_shared/erpnextMirrorDeps.ts` (a contacts-table-writer fork with zero production
+consumers) existed and has now been removed (dead code, task FIX-4) rather than wired in. **Deferred
+to a future issue:** contacts inbound-adopt needs its own doctype-registry entry + ambiguous-match
+resolution (mirroring the companies pull-adopt path) — out of scope for this consolidated round.
+
+### OD-ENA-CREDS-REDACT — M-4 RESOLVED
+
+Credential-resolution failures now return a generic client-safe message and log only the specific configuration names server-side.
+
+### OD-ENA-VAULT-SEAM — secret_ref resolution stays confined to credentials.ts (owner heads-up 2026-07-14)
+
+**Binding coordination note:** the `secret_ref`/`webhook_secret_ref` backend will move from
+function-secret env vars to **Vault** later (admin self-serve). All ref→secret derivation MUST stay
+confined to `erpnext/credentials.ts` (`resolveErpCredentials(secretRef, getEnv)` — the getter is
+injected at every call site) so the swap is a one-function change. Do not derive env names from a
+ref anywhere else; the webhook's `webhook_secret_ref` lookup follows the same single-injected-getter
+rule.
+
+### OD-ENA-SHARED-BINDINGS — external_org_bindings is the shared per-org connection table (owner heads-up 2026-07-14)
+
+`external_org_bindings` (migration 0096, `unique (org_id, external_tier)`, tier-generic columns:
+site_url/secret_ref/webhook_secret_ref/version_major/config/activated_at) is the ONE per-org
+external-connection table for ALL tiers. **ClickUp will adopt it** (post-#315: add a
+`tier='clickup'` row; today P1 ClickUp uses env-based global creds + `external_project_bindings`
+for containers only). New tiers add rows, never new tables.
+
+---
+
+## OD-INT — External-system admin-connect layer (LOCKED 2026-07-14)
+
+The self-serve UI for connecting an external system (ClickUp P1, ERPNext P2/#315) to an org. The sync
+engines already exist (`adapter-dispatch`/`clickup-webhook`/`clickup-sweep`; `erpnext-onboard`/`erpnext-
+sweep`); this is the operator/admin **connection** layer on top. Full scope + phases + #315 alignment:
+`docs/plans/2026-07-13-clickup-admin-integration-flow.md`. Backlog: the "EXTERNAL-SYSTEM ADMIN-CONNECT"
+section. Depends on ADR-0055 (external adapters), ADR-0016/0019 (can()+RLS/RPC authority), ADR-0057
+(`verifyCallerJwt`). Sequenced **after #315 merges**.
+
+### OD-INT-1 — Admin self-serve
+Org **Admin** connects the integration from the app (not operator-only). Platform Operator retains the
+existing service-role CLI path (`clickup-onboard`/`erpnext-onboard`) as the fallback/bulk path.
+
+### OD-INT-2 — Personal token / API-key, v1
+Credential entry is a **paste-a-token** flow: ClickUp **personal API token** (from a Workspace
+owner/admin — user-scoped, sees the whole workspace) · ERPNext **`apiKey:apiSecret`** (Frappe token,
+from a System Manager). ClickUp **OAuth** app is a later UX upgrade, explicitly out of v1.
+
+### OD-INT-3 — Vault-backed `secret_ref` (the enabler for self-serve)
+The secret backend for BOTH tiers is **Supabase Vault**, not function secrets. Admin enters the
+credential once → a role-gated server endpoint calls `vault.create_secret(value, name)` → the DB stores
+only a `secret_ref` (the Vault name) on the binding row; the value is **write-only, never returned**.
+Rationale: function secrets (`supabase secrets set`) can only be set by an operator via CLI/dashboard —
+Vault can be written from a role-gated app endpoint, which is what makes admin self-serve possible.
+Precedent: mig `0082` (automation dispatch), `0094` (ClickUp sweep). Edge fns resolve the per-org
+credential from Vault via `secret_ref` at request time (locked-down security-definer reader).
+
+### OD-INT-4 — One tier-generic layer, not per-tier forks
+Shared across tiers: **`external_org_bindings`** (#315's table: `org_id, external_tier, site URL,
+secret_ref, webhook_secret_ref`) + Vault `secret_ref` + one Connect endpoint + one admin UI card.
+Tier-specific (thin): credential shape, the validation call, and link granularity (ClickUp → **List**
+per project · ERPNext → **Company/module** per org). **Alignment work:** (a) #315 swaps its credential
+resolution from `Deno.env` → a Vault reader (contained — already behind the `credentials.ts` seam);
+(b) ClickUp adopts `external_org_bindings` for the org connection (today it uses
+`external_domain_ownership` + `external_project_bindings` + a single global `CLICKUP_API_TOKEN`).
+
+**Forward-note (2026-07-16, architect + adversarial review — OD-INT-4 STANDS AS WRITTEN).** An
+architecture pass proposed amending the granularity to add an *optional ERPNext **Project** per PMO
+project*. The ADR basis is **accurate** — `docs/adr/0055-*.md:138-140` ownership map literally reads
+`| Projects (header) | PMO, reference pushed down | ERP needs Project as accounting dimension |`, so a
+per-project ERP reference **is** the ADR-endorsed direction. It is **deferred, not rejected** — it is
+**premature**, because the prerequisites do not exist:
+1. **The read-model cannot express it.** `erp_gl_entry_mirror` carries only ERP `project` (text);
+   `erp_payment_ledger_mirror` has none; neither has a PMO `project_id`. `actualsSnapshot.ts` filters
+   only `org_id`/`fiscalYear` → **project-scoped ERP actuals are structurally impossible today**, so the
+   link would deliver nothing it exists for.
+2. **No rename reconciliation.** ERPNext `Project.name` is a *renameable* Frappe PK; storing it as
+   `external_container_id` rots the binding on rename, and no reconciliation exists anywhere.
+3. **Nothing shipped needs it** — procurement stamps `company` (`bodies/materialRequest.ts`), not
+   project; snapshots/aging are org-scoped. Charter is "minimal for 1 client".
+**Phase-2 prerequisites before revisiting:** mirror tables gain a PMO `project_id` (or a join key) ·
+snapshot refresh supports project scope · an ERP Project rename/archive reconciliation design.
+`external_project_bindings` is already tier-generic, so adding it later costs no migration pain.
+
+### OD-INT-5 — Sequenced after #315 merges
+Build on the **merged** `external_org_bindings` foundation, not the unmerged/conflicting `#315` branch.
+The in-flight #315 implementer agent is NOT handed this layer — it finishes ERPNext P2 sync hardening
+and lands #315 as-is (operator-provisioned/function-secret is fine for that scope). It receives only
+two coordination notes: keep the `credentials.ts` resolver seam clean (Vault swap comes later); confirm
+`external_org_bindings` is the shared per-org connection table. The Director orchestrates this layer as
+its own spec → eng-planner plan → PRs afterward (security-auditor mandatory on the token path).
+
+### OD-SAR-GATES — PMO is the flexible layer; process gates are org-config, default permissive (owner ruling 2026-07-14)
+
+**Binding product architecture:** the PMO caters to field reality; the ERP is strict. Chain/process
+gating (require-SO-before-SI, require-BAST-before-SI, require-project-on-SI, procurement chain-entry
+restrictions, …) is **org-level configuration** (`process_gates`), **default OFF/permissive**, flipped
+ON only when an org's accounting demands it — and flipped back when an edge case becomes the norm.
+Doctypes must be representable without their gate being mandatory. First shipped seam: P3a revenue
+gates (inert, default-off). Fast-follow issue: SO + BAST (Indonesian services handover — DN-doctype vs
+document+milestone-acceptance needs its own ruling). **P2 retrofit (backlog): flexible procurement
+chain entry** (direct-to-PO, payment-first) under the same philosophy.
+
+### OD-SAR-PMO-IS-THE-UI — the accountant's UI is PMO; ERPNext is the headless audit/ledger engine (owner ruling 2026-07-14)
+
+Accountants work IN PMO (authoring, corrections — hence SI cancel/amend in-app); the ERPNext bench
+exists for audit and as the ledger engine. **ERP-grade financial reporting belongs on the PMO
+backlog** (a reporting track over the mirrored ledger/read-models), not in the Desk. Sharpens
+ADR-0055 §product-frame and [[product-vision-operational-layer]]; every future money issue assumes
+no user is ever required to open the ERPNext Desk.
+
+### OD-SAR-DRAFT-SUBMIT — revenue SI create leaves a DRAFT; submit is the SoD-gated approver step (owner ruling 2026-07-15)
+
+The signed-off SoD (approver≠author on SI submit, OD-SAR §14) is only real if create and submit are
+SEPARATE actors. The initial build did **atomic create+submit** (spike "two-step insert→submit" →
+docstatus 1 on create), which BYPASSED SoD at create (author submits their own invoice). **Binding
+correction:** a revenue **Sales Invoice** create leaves an ERP **draft (docstatus 0)**; **submit** is
+the separate, SoD-gated transition performed by a DIFFERENT approver (PM drafts → Finance approves +
+submits). Procurement PI/PE stay atomic create+submit (no SoD there). Mirror status: 'Draft' after
+create, 'Unpaid' after the approver submit. Surfaced by the post-Luna e2e re-run (sod-self-approval
+403 on single-user create+submit). Implemented via a registry `submitOnCreate:false` for sales-invoice.
+### OD-INT-6 — ERPNext Company is selected at the ORG level, not per project (owner-approved 2026-07-16)
+**Supersedes plan tasks 3.3 + 3.5's ERPNext-in-the-project-modal.** ERPNext **Company** is a legal
+entity — org-scoped by nature (OD-INT-4), and the shipped ERP code depends on it: `binding.ts`
+activation resolves Company defaults from `external_org_bindings.config.company`,
+`bodies/materialRequest.ts` sends `company: ctx.config.company`, and `ledgerFetch.ts` scopes every
+ledger read by `company`. Therefore Company selection lives in the **org Integrations card** (the P2
+connect surface), NOT the per-project card — the per-project ERPNext UI built in P3 was broken (empty
+combobox, read the wrong table) *and* contradicted OD-INT-4, and was removed.
+**Consequence — an explicit `connected-but-not-activated` state:** credential validated + stored, but
+no Company yet ⇒ the binding is connected and **not activated**; ERP sync must not run. This is a
+**runtime** gate (activation fails without Company), NOT a schema constraint — deliberately, so the
+"connected, pick your Company" UX state remains representable. ⚑ Related hardening: if `config.company`
+is ever absent at sweep time, `ledgerFetch` filters `['company','=',null]` and returns **zero rows
+silently** — it must fail loud instead.
+
+### OD-INT-8 — The cloud ClickUp workspace + local DB are TEST fixtures; do not spam the API (owner 2026-07-20)
+Both the **cloud ClickUp workspace** (token: 1Password `clickup-api` / vault `AS` / field `credential`)
+and the **local Supabase DB** are testing environments — shared, disposable-but-not-abusable.
+- **Mocks are the default.** The fetch-mocked suites test behaviour; the live API is used ONLY to verify
+  a *wire shape* or an end-to-end journey mocks cannot prove (the shapes are `PROVISIONAL` in-source —
+  see `docs/spikes/2026-07-17-clickup-live-smoke.md`).
+- **No polling / no spam.** Call ClickUp only for a verification whose result you are about to read. No
+  polling loops, no warm-up calls, no repeat runs to watch output. Limit is **100 req/min per token**,
+  shared with anything else on that token; `x-ratelimit-remaining` is in every response — respect it.
+- **Always clean up in the same session.** Tasks, lists, and webhook registrations created for a test
+  MUST be deleted afterwards; leave the workspace as found. If a run dies mid-way, the next session's
+  first job is removing the orphans.
+- **Never print the token.** Pipe it straight from `op-get.sh` into the consumer — never echo, never to
+  a file, never in argv (visible in `ps`) or a URL. Reduce responses to key names/counts before printing
+  so workspace content (task titles, emails) never reaches a transcript.
+  `scripts/clickup-live-smoke.sh` is the worked example.
+- **Local DB:** wrap every DB-touching command in `scripts/with-db-lock.sh` (one shared Docker Postgres;
+  concurrent `db reset`/`test db`/e2e corrupt each other).
+
+### OD-INT-7 — Project↔List linking is PROJECT-SCOPED to the owning PM (owner-approved 2026-07-16)
+Applies to **ClickUp only** (ERPNext has no per-project link — OD-INT-4/OD-INT-6).
+- **Org connect/disconnect** (the credential = the trust boundary): **Admin ∨ Operator** only. Unchanged.
+- **Project↔List link/unlink**: **Admin ∨ platform Operator ∨ that project's `projects.project_manager_id`
+  — and that PM's `profiles.status` must be `active`**. Routine project configuration belongs to the PM
+  who owns the project; requiring an Admin per link makes Admin a bottleneck.
+- **Project-scoped, NOT role-scoped.** "Any user with the Project Manager role" would let the PM of
+  project A link project B — a cross-project hole. The server loads the project, requires
+  `project.org_id = caller.org_id`, then applies the rule above. `project_manager_id` is **nullable**
+  (`0001_init_schema.sql:76`) ⇒ when NULL, only Admin/Operator may link.
+- ⚑ **`policy.ts` has NO project-scoped integration primitive.** `can('edit','project')` is an
+  **org-wide** hint (DELIVERY roles), so the FE gate is necessarily looser than the server: a PM of a
+  *different* project sees the control and is rejected **server-side** with 403. This is consistent with
+  ADR-0016 (`can()` is UX-only; the server is the authority). Adding a project-scoped primitive is a
+  possible later refinement, not a correctness requirement.
+
+## OD-INT-9 — PMO task model gains description, priority, subtasks and archive (2026-07-20, owner)
+
+**Decision.** Extend `public.tasks` with four nullable additions, in ONE migration:
+`description text`, `priority` (new nullable enum `task_priority` = `Urgent|High|Normal|Low`),
+`parent_task_id uuid null references tasks(id)` (a real subtask model, owner's call over
+flatten-or-ignore), and `archived_at timestamptz null`.
+
+**Why priority is a PMO enum, not ClickUp's raw 1–4.** ADR-0055 keeps PMO vendor-neutral and the
+codebase already confines vendor vocabulary to `clickup/**` (FR-CUA-012); ERPNext needs the same
+column. The PMO↔ClickUp priority map is a **fixed 4-value constant** in `clickup/mapping.ts`, not
+per-List config — so it cannot rot the way the per-List status map did (see OD-INT-10).
+
+**Subtask rollup rule (binding).** Only tasks with `parent_task_id is null` participate in milestone
+counts, `delivery_pct`, the S-curve and Gantt bars. Subtasks render nested under their parent and do
+not independently move any percentage. Without this rule a parent and its children double-count and
+delivery reporting silently inflates.
+
+**Archive is distinct from tombstone.** `archived_at` mirrors ClickUp archive (a reversible hide);
+`tombstoned_at` stays for upstream deletes. This also lights up the `task.archive` permission that
+`policy.ts:154-159` already declares but nothing implements.
+
+**Applies to:** `description`/`priority`/`archived_at` sync bidirectionally; `parent_task_id` maps to
+ClickUp `parent`. All four are optional in ClickUp (only `name` is required on create).
+
+## OD-INT-10 — one shared status/member map builder; a binding must cover every PMO status (2026-07-20)
+
+**Decision.** `external-link` and `clickup-onboard` MUST build binding config through a single shared
+function. A binding whose `pmoToClickUp` does not cover **all four** PMO `task_status` values is
+rejected at link time, not discovered at first push.
+
+**Why.** The two link paths drifted: `external-link` shipped `statusMap: {}` while `toClickUpStatus`
+throws on unmapped — every outbound write would have failed, and every inbound task would have landed
+as `To Do`, corrupting `delivery_pct` / milestone % / S-curve. The map builder must key on ClickUp
+status **`type`** (`open|custom|closed|done`), not name, and must map all four PMO statuses.
+Evidence: `docs/spikes/2026-07-20-clickup-tasks-divergence.md` §2.1.
+
+## OD-INT-11 — webhook ingress: verify → 200 → enqueue → re-GET (2026-07-20, verified live)
+
+**Decision.** The ClickUp webhook payload is a **delta, not a task**. Ingress MUST: verify `X-Signature`
+(HMAC-SHA256 over the **raw** body) → respond 200 immediately → enqueue `{event, task_id, team_id}` →
+a worker re-`GET`s the task and applies it. Resolve the org/project binding from the **re-GET'd
+`task.list.id`**, never from the payload (there is no `list_id` in it — the current adopt tier is
+unreachable). Subscribe to `taskCreated`/`taskUpdated`/`taskDeleted` only; `taskStatusUpdated` is a
+duplicate delivery of the same change.
+
+**Why 200-first is mandatory:** ClickUp marks a webhook *Failing* if the endpoint errors **or takes
+>7s**, retries 5× then **drops the event permanently**, and *Suspends* at 100 failures with **no
+notification**. Verified envelope + fixtures:
+`supabase/functions/_shared/testing/fixtures/clickup-webhook/`.
+
+## OD-INT-12 — the agent's task-status action routes through adapter-dispatch (2026-07-20, owner)
+
+**Decision.** `agent-chat`'s `update_task_status` must go through `adapter-dispatch` like every other
+task write, rather than writing `tasks.status` directly under the caller's JWT.
+
+**Why.** Under external ownership the column-pin trigger (`0093:97-139`) pins all roles to enhancement
+columns, so the direct write raises a raw `42501` — the assistant would break exactly on the projects
+with the most tasks. Routing keeps the capability and keeps ClickUp authoritative.
+
+---
+
+## OD-INT-13 — status map round 3: pmo-only outcomes with Blocked defaulting to pmo-only (2026-07-21, owner)
+
+**Decision.** The strict pairwise-distinctness rule for PMO→ClickUp status mapping was reverted as
+unshippable. ClickUp ships **three** statuses by default (`to do` / `in progress` / `complete`) — the
+real probed workspace has exactly that — so the rule rejected it and would have forced customers to
+restructure their ClickUp Space before linking, inverting ADR-0055 (the external system owns its
+domain). Distinctness was not even sufficient: `Blocked → complete` passed while being semantically
+wrong.
+
+Every PMO status must still resolve to an explicit recorded outcome, but **"no ClickUp counterpart"**
+is now a valid one:
+
+```
+{ kind: 'clickup', status } | { kind: 'pmo-only' }
+```
+
+- `pmo-only` statuses are never pushed outbound (the task's other fields still sync) and are never
+  overwritten by an inbound sync.
+- **`Blocked` defaults to `pmo-only`** when no distinct ClickUp status is available — it is a PMO
+  management signal (escalation/dependency) with no equivalent in ClickUp's default vocabulary;
+  collapsing it onto `In Progress` destroyed the state in both directions.
+- A collapse is still permitted but only when **explicitly recorded**, never produced silently by
+  auto-derivation. Where a collapse is recorded, inbound must not downgrade the more specific PMO
+  status.
+- Storage is `pmoOnlyStatuses?: string[]` on the existing binding `config` jsonb — optional, so
+  bindings persisted before this change stay valid byte-for-byte. **No migration.**
+- Validation keeps its teeth: a PMO status with no recorded resolution is still rejected at link time.
+- Implemented on `fix/status-map-round3`. A named test asserts the real 3-status List links
+  successfully with `Blocked` resolving `pmo-only`.
+
+## OD-INT-14 — ClickUp sync targets SINGLE-ORG; per-org webhook secret is DEFERRED (2026-07-21, owner goal)
+
+**Decision.** The ClickUp integration is completed for the app's **current single-tenant direction**
+(CLAUDE.md: "single-tenant with a forward-compatible `org_id` seam"; ADR-0047: the multi-org RLS proof
+is deferred "until two unrelated clients deliberately" exist).
+
+**Consequences:**
+- **Per-org webhook secret is NOT built.** `external_org_bindings.webhook_secret_ref` stays an unused
+  column; `clickup-webhook` verifies with the global `CLICKUP_WEBHOOK_SECRET`. This is *correct* for
+  single-org — a global secret is a real control when there is one org. It only becomes a gap at the
+  multi-org boundary, which ADR-0047 defers. Building an org-in-URL callback + per-org secret now would
+  be speculative work against a deferred direction. When the second client lands, this is the first
+  thing the multi-org RLS-seam proof must close (recorded here so it is not forgotten).
+- **The org-resolution paths added for the webhook worker (`team_id` → binding) already work per-org**,
+  so nothing about single-org bakes in a rewrite — the seam stays forward-compatible.
+
+**Remaining for this decision's scope:** the binding-map UI is read-only and does not yet expose or
+allow override of per-status resolution (OD-INT-13). The integration-enablement spec also records the
+remaining test-layer corrections for `AC-IEM-004` and `AC-IEM-007`, while per-org webhook secrets remain
+deferred under this single-org decision.
+
+---
+
+## OD-CR-1..6 — RIS-parity + CRM-v2 candidate program (owner grill 2026-07-22)
+
+Candidate program, **not scheduled**. Analysis: [`docs/reviews/2026-07-22-competitive-refresh-ris-cicle.md`](reviews/2026-07-22-competitive-refresh-ris-cicle.md).
+Full decision text (batches A–D + the resulting sequence) lives in the **CANDIDATE PROGRAM** section of
+[`docs/backlog.md`](backlog.md) — indexed here so `OD-CR-*` resolves by id:
+
+- **OD-CR-1** — order = S-effort quick wins (D3 weighted forecast · D4 win/loss · A2 rejection comments ·
+  A3 bulk procurement approve) → Batch D CRM v2 as the main track → A/B remainder + C.
+- **OD-CR-2** — D1 M365 capture v1 = **manual log-to-CRM** (user picks an email/meeting to log against a
+  contact/deal). No background auto-sync in v1; model it so auto-sync ships later as a per-org opt-in flag.
+- **OD-CR-3** — localization = **full id-ID in this program** (i18n framework + Bahasa + IDR first-class).
+  Sequencing: the i18n seam + locale/currency formatting land **early**, translation content lands last.
+- **OD-CR-4** — locale model = **per-org default language + per-user override** (Director default,
+  revisable at the spec grill).
+- **OD-CR-5** — currency = **single currency per org in v1, architected for multi-currency** (owner-revised
+  2026-07-22): `currency` column on every money table (trigger-defaulted like `org_id`), formatting keyed
+  off the record's currency never a global constant, rollups group-or-convert by currency. **The ERPNext
+  adapter carries the same seam in v1:** every money doc written through (SI/PE/PO/PI/quotes) sets
+  `currency` explicitly from the PMO record — never the ERPNext company default — and read-backs preserve
+  the source doc's currency. v1 still pins org currency == ERPNext company currency at connect.
+- **OD-CR-6** — parked set confirmed parked: in-house chat/video (Cicle turf, stays Big-track), field
+  photos/forms (KANNA turf), offline/native mobile.

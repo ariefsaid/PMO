@@ -147,6 +147,13 @@ export interface TextFieldProps
   helper?: React.ReactNode;
   error?: React.ReactNode;
   fullWidth?: boolean;
+  /**
+   * Visually hide the label (kept as the accessible name via `sr-only`) for an in-row / in-cell
+   * control where a visible caption would be noise — the same escape hatch `SelectField` has always
+   * had. ⚑ I-4: its absence on the number field is why the budget ETC editor was hand-rolled, and the
+   * hand-rolled one shipped with no `aria-invalid`/`aria-describedby` at all.
+   */
+  hideLabel?: boolean;
   /** Render the value in SF Mono (codes/refs). */
   mono?: boolean;
 }
@@ -159,31 +166,65 @@ export const TextField: React.FC<TextFieldProps> = ({
   helper,
   error,
   fullWidth,
+  hideLabel,
   mono,
   className,
   type = 'text',
   ...rest
-}) => (
-  <FieldShell
-    id={rest.id}
-    label={label}
-    required={required}
-    helper={helper}
-    error={error}
-    fullWidth={fullWidth}
-  >
-    {(ctl) => (
-      <input
-        {...rest}
-        {...ctl}
-        type={type}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className={cn(inputBase, error && inputInvalid, mono && 'font-mono', className)}
-      />
-    )}
-  </FieldShell>
-);
+}) => {
+  // Secret fields (`type="password"`) render masked with an eye toggle to reveal. Secrets are
+  // write-only in this app (never rendered back from the server), so the toggle only ever reveals what
+  // the user just typed/pasted — it lets them confirm a pasted API token without the value sitting
+  // legible on screen by default (or in a screen recording / over a shoulder).
+  const isSecret = type === 'password';
+  const [revealed, setRevealed] = React.useState(false);
+  const effectiveType = isSecret && revealed ? 'text' : type;
+
+  return (
+    <FieldShell
+      id={rest.id}
+      label={label}
+      required={required}
+      helper={helper}
+      error={error}
+      fullWidth={fullWidth}
+      hideLabel={hideLabel}
+    >
+      {(ctl) => (
+        <div className={cn('relative', fullWidth && 'w-full')}>
+          <input
+            {...rest}
+            {...ctl}
+            type={effectiveType}
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            className={cn(
+              inputBase,
+              error && inputInvalid,
+              mono && 'font-mono',
+              isSecret && 'pr-8',
+              className,
+            )}
+          />
+          {isSecret && (
+            <button
+              type="button"
+              onClick={() => setRevealed((r) => !r)}
+              // Keep it out of the tab order between fields; it is a progressive affordance, and the
+              // label already announces the field. Reachable via the a11y tree + click.
+              tabIndex={-1}
+              aria-label={revealed ? 'Hide value' : 'Show value'}
+              aria-pressed={revealed}
+              className="absolute inset-y-0 right-0 flex w-8 items-center justify-center text-muted-foreground hover:text-foreground"
+            >
+              <Icon name={revealed ? 'eye-off' : 'eye'} className="size-3.55" aria-hidden="true" />
+            </button>
+          )}
+        </div>
+      )}
+    </FieldShell>
+  );
+};
 
 // ---- NumberField ----------------------------------------------------------
 
@@ -205,6 +246,7 @@ export const NumberField: React.FC<NumberFieldProps> = ({
   helper,
   error,
   fullWidth,
+  hideLabel,
   prefix,
   className,
   ...rest
@@ -216,6 +258,7 @@ export const NumberField: React.FC<NumberFieldProps> = ({
     helper={helper}
     error={error}
     fullWidth={fullWidth}
+    hideLabel={hideLabel}
   >
     {(ctl) => (
       <div className="relative">

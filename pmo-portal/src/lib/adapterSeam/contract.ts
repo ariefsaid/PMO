@@ -38,6 +38,22 @@ export class AdapterError extends Error {
 }
 
 /**
+ * ⚑ HIGH-1 (money-safety audit round 5) — the marker an adapter attaches to a thrown error when THIS
+ * attempt CANCELLED an external document and then failed to create its replacement.
+ *
+ * It is not decoration. For a document whose natural grain the external system itself enforces (an ERP
+ * `Budget`), a revision must be `cancel(old) → create(new)` — the money fields are locked post-submit —
+ * and that pair cannot be made atomic. So the window exists, and in it the CLIENT'S CONTROL IS OFF.
+ * Every layer above has to be able to SAY that, rather than reporting a generic push failure: the
+ * dispatch keeps the adapter's message instead of its own transient text, and the served fn records it
+ * under its own named reason. Lives on the contract because the adapter raises it and the tier-agnostic
+ * dispatch consumes it.
+ */
+export interface SupersededDocumentMarker {
+  cancelledExternalRecordId?: string;
+}
+
+/**
  * A command issued to an adapter. PMO domain language; NEVER carries org_id (FR-EAS-024) — the dispatch
  * binds the org context ABOVE the adapter. This type is the proof surface for AC-EAS-023.
  */
@@ -45,6 +61,27 @@ export interface AdapterCommand {
   domain: PmoDomain;
   operation: AdapterOperation;
   record: PmoRecord;
+  /** Client-generated per non-read-only ERPNext money command (FR-ENA-040). P0/P1 ignore it.
+   *  REQUIRED for non-read-only `erpnext`-tier commands — enforced server-side in adapter-dispatch
+   *  (rejects a missing key as commit-rejected/missing-idempotency-key before the outbox is touched). */
+  idempotencyKey?: string;
+  /**
+   * Luna round-5 BLOCK 10 — the absolute wall-clock instant (ms, `Date.now()` domain) past which this
+   * command's claim on the money-outbox critical section expires, and therefore past which a
+   * NON-IDEMPOTENT external write (a create POST) must be REFUSED rather than issued.
+   *
+   * ARMED by `dispatch.ts` at claim time (`claimStartedAt + MONEY_COMMIT_CLAIM_BUDGET_MS`) — never by a
+   * client — and it is per-ATTEMPT metadata, not command identity: it is deliberately NOT part of the
+   * payload digest and never crosses the FE→edge-fn wire. Absent for every non-money path (P0/P1 and
+   * any commit that did not go through a claim) ⇒ unbounded, byte-for-byte prior behavior.
+   *
+   * WHY it lives on the command rather than in the adapter's construction deps: an ERPNext `commit` is
+   * frequently SEVERAL calls (an amend is `cancel` PUT → `create` POST), so a single budget check
+   * before `adapter.commit` cannot bound the POST that actually mints money. Threading the deadline
+   * with the command lets the ONE chokepoint every non-idempotent create passes through
+   * (`erpnext/client.ts`'s `erpnextRequest`) enforce it — a future doctype or verb cannot forget it.
+   */
+  commitDeadlineAtMs?: number;
 }
 
 /** A page of changes since a watermark cursor — the `list-changes-since-watermark` read result (FR-EAS-021). */

@@ -1,0 +1,112 @@
+# Plan — Integration enablement model
+
+- **Spec:** `docs/specs/integration-enablement-model.spec.md`
+- **ADR:** `docs/adr/0061-integration-enablement-model.md`
+- **Date:** 2026-07-22
+- **Scope:** docs-approved architecture fix only; implementation starts after owner approval.
+- **Existing contracts:** ADR-0055, ADR-0016, ADR-0018, ADR-0047, OD-INT-14, ADR-0059.
+
+## Design
+
+`external_org_bindings` plus `external_domain_ownership` remains the org-local enablement authority. A shared server-side helper reads the kill-switch with the same default everywhere:
+
+```ts
+export function externalExecutionEnabled(getEnv = (name: string) => Deno.env.get(name)) {
+  return getEnv('EXTERNAL_CONNECT_ENABLED') !== 'false';
+}
+```
+
+Only the exact string `false` disables execution; unset and `true` enable it. The helper must be used by all relevant external execution paths, not by the browser. `resolvePerOrgSecret` no longer returns `no-binding` solely because the deployment switch is off; callers first short-circuit on the kill-switch, and otherwise resolve the active binding for the execution org.
+
+Connect uses this order: verify caller and org → validate ClickUp credential → check kill-switch → write Vault secret → invoke one server-side finalize RPC that atomically upserts the active binding and employs `tasks` ownership → run/record the readiness proof → return Active. Because Vault is an external side effect, a finalize failure calls a privileged Vault-delete cleanup path and returns failure; it never reports Active. The final RPC must itself reject if the kill-switch is disabled or readiness has not been recorded. A readiness proof is bounded and deterministic: the per-org resolver returns a credential and the existing ClickUp adapter performs its non-mutating credential/API capability check; it does not claim that a full historical sweep has completed.
+
+Recovery is a separate operator runbook/command path, not a client-side reconnect requirement. It discovers trap-state orgs from employed ClickUp tasks ownership without an active resolver-usable binding, repairs or rotates Vault/binding state, runs the same readiness proof, then retains ownership. If repair fails, it calls the authorized release ownership path first, restoring PMO editability. Every transition is audited with org, actor, tier, effective switch, result, and cleanup outcome.
+
+Task ownership is the one deliberate exception to the org-level ownership record: it is decided by the active project binding. The new migration will add `project_domain_externally_owned(p_project_id uuid, p_domain text)`, which derives the project org and returns true only for an active (`disconnected_at is null`) `external_project_bindings` row for that project, tier `clickup`, and domain `tasks`. It will replace the task-only uses in the `0093` policies and `0140` trigger. `domain_externally_owned(org_id, domain)` is not superseded or overloaded: it remains the org-level predicate for all other existing callers, including reference, companies, procurement, revenue, and org-level discovery.
+
+The implementation must verify this caller inventory before changing the task callers. Executable SQL callers are `0090_external_reference_items.sql`; `0093_clickup_tasks_flip.sql` (task policies and trigger); `0097_companies_contacts_erpnext_flip.sql`; `0098_procurement_items_pr_rfq_sq_flip.sql`; `0099_purchase_orders_receipts_flip.sql`; `0100_invoices_payments_flip.sql`; `0103_companies_feed_ordering_cols.sql`; `0123_sales_incoming_payments_flip.sql`; `0125_sales_invoices_mirror_guard_author.sql`; `0128_sales_ar_active_member_and_inflight_link_guard.sql`; `0129_ap_invoices_payments_active_member.sql`; and `0140_task_model_fields.sql` (task trigger). The definition is in `0087_external_domain_ownership.sql`. Non-executable references/assertions are comments in `0135_tier_scoped_ownership_and_actor_state.sql` and `0137_budget_push_seam.sql`, plus `supabase/tests/erpnext_incoming_payments_flip_rls.test.sql`, `erpnext_sales_invoices_flip_rls.test.sql`, and `tier_ownership_and_actor_state.test.sql`; they remain org-level proofs. `domain_owned_by_tier` in `supabase/functions/adapter-dispatch/authGuard.ts` is already tier-aware and is not a caller of this function.
+
+## Traceability and owning layer
+
+| AC | Owner | Planned proof |
+|---|---|---|
+| AC-IEM-001 | Unit | `supabase/functions/_shared/externalExecutionEnabled.test.ts` |
+| AC-IEM-002 | Unit | `supabase/functions/_shared/perOrgSecret.test.ts` |
+| AC-IEM-003 | pgTAP | `supabase/tests/integration_enablement_model.test.sql` |
+| AC-IEM-004 | Curated E2E | `pmo-portal/e2e/AC-IEM-004-connect-atomic-success.spec.ts` |
+| AC-IEM-005 | Unit | `supabase/functions/external-connect/connect.test.ts` |
+| AC-IEM-006 | pgTAP | `supabase/tests/integration_enablement_model.test.sql` |
+| AC-IEM-007 | Curated E2E | `pmo-portal/e2e/AC-IEM-007-kill-switch-recovery.spec.ts` |
+| AC-IEM-008 | pgTAP | `supabase/tests/integration_enablement_model.test.sql` |
+| AC-IEM-009 | Unit | `supabase/functions/_shared/externalExecutionEnabled.test.ts` plus execution-path tests under `supabase/functions/{adapter-dispatch,clickup-sweep,clickup-webhook-worker,erpnext-onboard,erpnext-sweep,erpnext-webhook}/` |
+| AC-IEM-010 | pgTAP | `supabase/tests/integration_enablement_model.test.sql` |
+| AC-IEM-011 | pgTAP | `supabase/tests/integration_enablement_model.test.sql` |
+| AC-IEM-012 | pgTAP | `supabase/tests/integration_enablement_model.test.sql` |
+| AC-IEM-013 | Unit | `pmo-portal/src/components/integrations/IntegrationsView.test.tsx` |
+| AC-IEM-014 | Unit | `supabase/functions/clickup-webhook-worker/index.test.ts` |
+| AC-IEM-015 | pgTAP | `supabase/tests/integration_enablement_model.test.sql` |
+| AC-IEM-016 | Unit | `pmo-portal/src/components/integrations/IntegrationsView.test.tsx` |
+
+## Implementation tasks (TDD-first, 2–5 minutes each)
+
+### Shared switch and resolver
+
+1. **Write the failing switch tests** *(AC-IEM-001, NFR-IEM-001).* Create `supabase/functions/_shared/externalExecutionEnabled.test.ts` with cases for absent, `true`, `false`, `1`, and `yes`; assert only exact `false` disables. Verify: `cd supabase/functions/_shared && deno test externalExecutionEnabled.test.ts`.
+2. **Add the shared switch helper.** Create `supabase/functions/_shared/externalExecutionEnabled.ts` with the `externalExecutionEnabled(getEnv?)` signature shown above and no network/database imports. Verify: `cd supabase/functions/_shared && deno check externalExecutionEnabled.ts && deno test externalExecutionEnabled.test.ts`.
+3. **Write resolver matrix regressions** *(AC-IEM-002).* Extend `supabase/functions/_shared/perOrgSecret.test.ts` with enabled + active binding, missing binding, inactive binding, Vault miss, and two-org isolation cases; assert the resolver is not disabled by a boolean passed from the deployment switch. Verify: `cd supabase/functions/_shared && deno test perOrgSecret.test.ts`.
+4. **Refactor the resolver contract.** Edit `supabase/functions/_shared/perOrgSecret.ts` so it resolves the active binding for the supplied `orgId`; move kill-switch short-circuiting to callers using `externalExecutionEnabled`. Preserve the discriminated results and fail-closed Vault miss. Verify: `cd supabase/functions/_shared && deno check perOrgSecret.ts && deno test perOrgSecret.test.ts`.
+5. **Write execution-path switch tests** *(AC-IEM-009).* Add cases to the existing Deno tests for `adapter-dispatch`, `clickup-sweep`, `clickup-webhook-worker`, `erpnext-onboard`, `erpnext-sweep`, and `erpnext-webhook` proving explicit false stops credential resolution, external I/O, dispatch, sweep, and inbound application for both `clickup` and `erpnext`; unset remains enabled. Include a regression for `clickup-webhook-worker/index.ts:170`, where `connectEnabled: true` currently bypasses the switch. Verify: `scripts/with-test-lock.sh bash -c 'cd supabase/functions && deno test adapter-dispatch clickup-sweep clickup-webhook-worker erpnext-onboard erpnext-sweep erpnext-webhook'`.
+6. **Wire every execution path uniformly.** Edit `supabase/functions/adapter-dispatch/index.ts`, `clickup-sweep/index.ts`, `clickup-webhook-worker/index.ts`, `erpnext-onboard/index.ts`, `erpnext-sweep/index.ts`, and `erpnext-webhook/index.ts` to call the shared helper before resolver/adapter work; remove the webhook worker's hard-coded `connectEnabled: true` at line 170 and the equivalent `connectEnabled: true` arguments in the ERPNext paths. Preserve OD-INT-14's global webhook verification, but do not let it bypass the execution switch. Verify: `cd supabase/functions && deno check adapter-dispatch/index.ts clickup-sweep/index.ts clickup-webhook-worker/index.ts erpnext-onboard/index.ts erpnext-sweep/index.ts erpnext-webhook/index.ts`.
+
+### Atomic connect
+
+7. **Write failing readiness tests** *(AC-IEM-003, AC-IEM-004).* Extend `supabase/functions/external-connect/connect.test.ts` with: switch false; Vault miss; adapter readiness failure; and successful readiness. Assert ownership RPC is zero calls on each failure and occurs only after readiness on success. Verify: `cd supabase/functions/external-connect && deno test connect.test.ts`.
+8. **Reserve the migration number only after all SQL is designed.** The verified `dev` head is `0145_task_archive_rollup_exclusion.sql`; do not create a guessed migration now. The ownership predicate, task policy/trigger replacement, binding lifecycle guard, finalize RPC, recovery RPC, grants, and reversal statements belong together in one new migration numbered LAST after the SQL design is complete (expected `0146_...sql` only if no sibling lands first). Verify: `ls supabase/migrations | sort -V | tail -1` and `git diff --check`.
+9. **Refactor connect around the boundary.** Edit `supabase/functions/external-connect/index.ts`: perform `externalExecutionEnabled()` before side effects; retain existing JWT/profile/role and ClickUp validation; resolve the org binding through the new readiness helper; call the finalize RPC only after readiness; invoke cleanup on finalize failure; return a failure classification rather than logging ownership failure and returning Active. Do not return Vault values. Verify: `cd supabase/functions/external-connect && deno check index.ts && deno test connect.test.ts`.
+10. **Write client failure tests** *(AC-IEM-005).* Add cases to `pmo-portal/src/components/integrations/IntegrationsView.test.tsx` for disabled, invalid-token, and sync-not-ready responses; assert an actionable error, no Active badge, and no credential text in rendered output. Verify: `cd pmo-portal && npx vitest run src/components/integrations/IntegrationsView.test.tsx`.
+11. **Make the status truthful.** Edit `pmo-portal/src/components/integrations/IntegrationsView.tsx` and its existing integration repository/hook so Active is rendered only from a committed active binding/readiness response, and classified connect failures remain actionable form errors. Do not read server secrets or add a client flag authority. Verify: `cd pmo-portal && npx vitest run src/components/integrations/IntegrationsView.test.tsx`.
+
+### Project binding ownership and unbound sides
+
+12. **Write failing mixed-mode pgTAP tests** *(AC-IEM-010, AC-IEM-011, AC-IEM-012, AC-IEM-015).* Extend `supabase/tests/integration_enablement_model.test.sql` with one employing org, project A with an active ClickUp binding, project B without one, newly created project C without one, and a zero-binding fixture. Assert A is externally owned and B/C are PMO-owned; PMO write-role insert/update/delete succeeds for B/C and is rejected with `42501` for A; unlinking A leaves task rows present and editable; zero bindings leaves the tier Active and enumerates no sync work. Tag every test description with its AC ID. Verify: `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db'` (expected RED before implementation).
+
+13. **Specify the safe migration order in the SQL proof.** Add a schema-contract assertion that the project-aware function exists and task policies/triggers reference it. The implementation migration must create `project_domain_externally_owned` first, then re-create `tasks_insert`, `tasks_update`, `tasks_delete`, `tasks_update_own_status`, `enforce_assignee_status_only`, and `stamp_task_completed_at` to use it; only after those gates exist may it add lifecycle/finalize/recovery RPCs. Existing `external_project_bindings` rows and their `disconnected_at` tombstones are preserved unchanged; no existing project is auto-bound and no new project is auto-bound. Never edit `0093` or `0140` in place: the new migration after `0145` owns all `drop policy`/`create policy` and `create or replace function` changes. Its reversal restores the pre-migration task policies and trigger bodies, drops the new predicate/RPCs, and leaves binding tombstones intact. Verify: `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db'`.
+
+14. **Implement the project-aware ownership migration LAST.** Create `supabase/migrations/0146_project_task_ownership_and_enablement.sql` only after confirming `0145` is still the head; define the function as an org-derived server-side check equivalent to `exists (select 1 from projects p join external_project_bindings b on b.org_id=p.org_id and b.project_id=p.id where p.id=p_project_id and b.external_tier='clickup' and b.disconnected_at is null and p_domain='tasks')`. Preserve `domain_externally_owned(uuid,text)` unchanged for every non-task caller listed in Design, and use the project predicate in both `new.project_id` trigger branches plus each task policy's project check. Include RLS/role-restricted lifecycle behavior so deleting or archiving a project releases its binding; do not create bindings for new projects. Verify: `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db'`.
+
+15. **Write the webhook no-leak regressions before changing resolver code** *(AC-IEM-014, FR-IEM-016, FR-IEM-017).* Add tests to `supabase/functions/clickup-webhook-worker/index.test.ts` that seed one employing org with one bound List, deliver a task from a different List, assert zero task insert/update calls, and assert an unresolvable health/audit signal. Also assert a mapped task still resolves through `external_refs` and a task on a bound List still follows its binding. Verify: `cd supabase/functions/clickup-webhook-worker && deno test index.test.ts` (expected RED before implementation).
+
+16. **Remove the fallback, not merely narrow it.** Edit `supabase/functions/clickup-webhook-worker/index.ts` to delete the entire `external_domain_ownership`/single-org `.maybeSingle()` tier-3 branch in `resolveBindingLive`; after mapped and List-id binding lookup fail, return `null`, and route that result to the existing observable inbox/audit health signal without guessing a project. Verify: `cd supabase/functions/clickup-webhook-worker && deno check index.ts && deno test index.test.ts`.
+
+17. **Write the two-sided binding-map view-model tests** *(AC-IEM-013, AC-IEM-016, FR-IEM-014, FR-IEM-020).* Extend `pmo-portal/src/components/integrations/IntegrationsView.test.tsx` with project P1→L1, unbound P2, and workspace List L2 fixtures; assert P1→L1, P2 as PMO-native, and L2 as an untracked ClickUp List, including the empty binding map. Use the repository response shape and assert no invented binding. Verify: `cd pmo-portal && npx vitest run src/components/integrations/IntegrationsView.test.tsx` (expected RED before implementation).
+
+18. **Add the two-sided binding map.** Update `pmo-portal/src/lib/repositories/types.ts`, `pmo-portal/src/lib/repositories/index.ts`, `pmo-portal/src/components/integrations/IntegrationsView.tsx`, and the existing external-list response path so Admin receives projects plus all workspace Lists and derives rows from active `external_project_bindings` only. Keep `disconnected_at is null`, never expose credentials, and show zero bindings as healthy Active with an empty map. Verify: `cd pmo-portal && npm run typecheck && npx vitest run src/components/integrations/IntegrationsView.test.tsx`.
+
+19. **Release bindings on project deletion/archive** *(AC-IEM-012, FR-IEM-021).* Add the failing pgTAP case first, then implement the lifecycle trigger/RPC in `0146` so deletion or archive soft-releases the active binding and leaves mirrored task rows/tombstones. Assert the map surfaces the List as unbound afterward and no task ownership remains. Verify: `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db'`.
+
+### Trap-state recovery and rollout
+
+20. **Write trapped-org pgTAP proofs** *(AC-IEM-003, AC-IEM-006, AC-IEM-008).* Create `supabase/tests/integration_enablement_model.test.sql` with seeded employed-without-binding and employed-with-vault-miss orgs; assert repair-success retains ownership only after readiness, repair-failure releases ownership, repeat repair is idempotent, and cross-org/non-admin calls are rejected. Tag each test description with its AC ID. Verify: `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db'`.
+21. **Implement the recovery RPC/runbook.** Add the recovery operation to the new post-`0145` migration with org-scoped authorization, an explicit `repair`/`release` result, audit rows, and no hard delete of binding/read-model rows (ADR-0018). Add `docs/runbooks/integration-trap-state-recovery.md` documenting discovery query, kill-switch-on prerequisite, Vault/binding repair, bounded readiness check, release fallback, affected task-write audit, verification query, and rollback. Verify: `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db'` and `git diff --check`.
+22. **Add the atomic success journey** *(AC-IEM-004).* Create `pmo-portal/e2e/AC-IEM-004-connect-atomic-success.spec.ts`; as an org-admin, submit a valid ClickUp credential, assert Active only after the finalize response, and assert a sync request uses the org binding. Mock external HTTP only at the boundary. Verify: `cd pmo-portal && npx playwright test e2e/AC-IEM-004-connect-atomic-success.spec.ts`.
+23. **Add kill-switch restoration journey** *(AC-IEM-007).* Create `pmo-portal/e2e/AC-IEM-007-kill-switch-recovery.spec.ts`; start with an active binding, stop execution, restore execution, and assert sync resumes without a reconnect or credential-entry step. Verify: `cd pmo-portal && npx playwright test e2e/AC-IEM-007-kill-switch-recovery.spec.ts`.
+24. **Run rollout in the safe order.** In `docs/runbooks/integration-trap-state-recovery.md`, record this exact order: deploy migration/RPCs and all function code while `EXTERNAL_CONNECT_ENABLED=false`; inventory orgs with employed ClickUp ownership but missing/unusable org binding or project mapping; restore/rotate Vault and binding state and prove bounded readiness; release ownership for unrepaired orgs through the authorized path, audit affected task writes, and verify PMO editability; run pgTAP and curated E2E; verify one seeded connect→readiness→ownership→sync and mixed-mode/zero-binding org; set the deployed function secret to `true` (default remains true if omitted); monitor audit, unresolved-inbound, binding, and execution-error signals; only then permit self-serve. To roll back, set the switch false, stop new connects, release ownership for any unrepairable org, and revert the migration without deleting binding tombstones. Verify: `git diff --check`.
+25. **Full implementation gate.** From `pmo-portal/`, run the complete suite, not targeted tests: `npm run verify`. Then from the repository root run `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db'` and `git status --short`. No implementation task may be marked complete with a red test.
+
+26. **Verify the final documentation boundary.** Confirm the implementation plan, migration reversal, and recovery runbook all name the same post-`0145` migration, the same project-aware predicate, and the same false-first rollout order; record the AC-to-test ownership table unchanged. Verify: `git diff --check`.
+
+## Owner rulings (2026-07-22 — RESOLVED, build against these)
+
+1. **Sync readiness = valid token + resolvable Vault secret. No extra ClickUp API call.** The existing
+   `GET /user` validation plus a successful `resolvePerOrgSecret` resolution is sufficient proof that
+   sync can run. Rationale: an additional non-mutating call adds latency to the adoption wedge's first
+   impression and can fail for transient reasons unrelated to readiness, turning a healthy connect into
+   a false negative.
+2. **The kill-switch value is passed to the finalize RPC by the edge function**, which already reads
+   `EXTERNAL_CONNECT_ENABLED` and runs under service_role. The RPC therefore **MUST be service-role-only**
+   — it trusts its caller, so the caller must be the only one who can reach it. It must never accept the
+   value from a client-supplied request body. Enforce and prove this with a pgTAP grant/execute test.
+3. **Trap-state recovery is platform-operator-only** (`platform_operators`), not org-Admin. Rationale:
+   recovery can RELEASE domain ownership, which is heavier and less reversible in effect than a normal
+   org-admin disconnect. Follow the established operator-gate pattern (explicit `p_actor_id` + a direct
+   `platform_operators` check — `is_operator()` is security-invoker and misfires under service_role).

@@ -21,7 +21,9 @@ export const LEGAL_TIMESHEET_TRANSITIONS: Record<string, string[]> = {
   Draft:     ['Submitted'],
   Submitted: ['Approved', 'Rejected'],
   Rejected:  ['Draft'],
-  Approved:  [],
+  // Slice A (FR-TSC-001): `Approved` is no longer terminal — an approver may re-open an Approved
+  // sheet with no confirmed ERP document (the RPC's race-safe precondition gates the live-doc case).
+  Approved:  ['Draft'],
 };
 
 /**
@@ -51,12 +53,16 @@ export function timesheetActions(
   status: TimesheetStatus,
   isOwner: boolean,
   isApprover: boolean,
-): { submit: boolean; approve: boolean; reject: boolean } {
+): { submit: boolean; approve: boolean; reject: boolean; reopen: boolean } {
   const submit = status === 'Draft' && isOwner;
   // SoD: owner can never approve/reject their own sheet (even if they are technically an approver)
   const approve = status === 'Submitted' && isApprover && !isOwner;
   const reject = status === 'Submitted' && isApprover && !isOwner;
-  return { submit, approve, reject };
+  // Slice A (FR-TSC-020/021): an APPROVER (never the owner — SoD) may re-open an Approved sheet.
+  // UX-only: the security-definer RPC re-derives authority AND the race-safe precondition (no live
+  // ERP doc / no in-flight push) server-side. The owner is excluded even if they are an approver.
+  const reopen = status === 'Approved' && isApprover && !isOwner;
+  return { submit, approve, reject, reopen };
 }
 
 // ---------------------------------------------------------------------------
@@ -72,7 +78,7 @@ export async function submitTimesheet(id: string): Promise<void> {
   const { error } = await supabase.rpc('transition_timesheet', {
     p_timesheet_id: id,
     p_to: 'Submitted',
-    p_notes: null,
+
   });
   if (error) throw new Error(error.message);
 }
@@ -85,7 +91,7 @@ export async function approveTimesheet(id: string, notes?: string): Promise<void
   const { error } = await supabase.rpc('transition_timesheet', {
     p_timesheet_id: id,
     p_to: 'Approved',
-    p_notes: notes ?? null,
+    p_notes: notes,
   });
   if (error) throw new Error(error.message);
 }
@@ -98,7 +104,8 @@ export async function rejectTimesheet(id: string, notes?: string): Promise<void>
   const { error } = await supabase.rpc('transition_timesheet', {
     p_timesheet_id: id,
     p_to: 'Rejected',
-    p_notes: notes ?? null,
+    // Regenerated RPC arg types encode optionals as `string | undefined` — omit, never null.
+    p_notes: notes,
   });
   if (error) throw new Error(error.message);
 }
@@ -112,7 +119,41 @@ export async function reopenTimesheet(id: string): Promise<void> {
   const { error } = await supabase.rpc('transition_timesheet', {
     p_timesheet_id: id,
     p_to: 'Draft',
-    p_notes: null,
+  });
+  if (error) throw new Error(error.message);
+}
+
+/**
+ * Slice A (AC-TSC-012, FR-TSC-060) — re-opens an APPROVED timesheet to Draft. A PURE PMO transition:
+ * it issues ONLY `transition_timesheet(id,'Draft')` and NO adapter/push/repositories call of any kind.
+ * The security-definer RPC enforces the approver-authority + the race-safe precondition (no live ERP
+ * doc, no in-flight push) server-side; org_id is NEVER sent (the RPC re-asserts org from auth context).
+ * A refusal (P0001 reopen-erp-document-held / reopen-push-in-flight) is surfaced to the caller — it is
+ * correct behaviour and Slice B's entry point, not an error to swallow.
+ */
+export async function reopenApprovedTimesheet(id: string): Promise<void> {
+  const { error } = await supabase.rpc('transition_timesheet', {
+    p_timesheet_id: id,
+    p_to: 'Draft',
+  });
+  if (error) throw new Error(error.message);
+}
+
+/**
+ * Slice A (AC-TSC-R12, FR-TSC-060 — Luna FU-1a round-12 SHOULD-FIX 1) — the product's route out of a
+ * post-submit ERP unknown. A thin wrapper over the Admin-only, reason-required, audited
+ * `attest_timesheet_no_erp_document` RPC (migrations 0157 §5 / 0159): the Admin certifies "ERPNext
+ * holds no Timesheet for this week", which clears the unknown-outcome witness AND releases the `held`
+ * mirror to `failed`, so the re-open is admitted. It touches NO external system.
+ *
+ * org_id is NEVER sent — the security-definer RPC re-asserts org + Admin + active membership from auth
+ * context (`can('manage','pushHold')` is the UX gate at the call-site; the RPC is the authority,
+ * ADR-0016). A refusal (42501 not-authorized / P0001 nothing-to-attest) is surfaced to the caller.
+ */
+export async function attestTimesheetNoErpDocument(id: string, reason: string): Promise<void> {
+  const { error } = await supabase.rpc('attest_timesheet_no_erp_document', {
+    p_timesheet_id: id,
+    p_reason: reason,
   });
   if (error) throw new Error(error.message);
 }
@@ -143,5 +184,116 @@ export async function listTimesheetsAwaitingApproval(
   return ((data ?? []) as unknown as TimesheetAwaitingApproval[]).map(sheet => ({
     ...sheet,
     entries: sheet.entries.map(e => ({ ...e, hours: Number(e.hours) })),
+  }));
+}
+
+// ---------------------------------------------------------------------------
+// Slice A — re-openable Approved timesheets (AC-TSC-R3 / F5 surface honesty)
+// ---------------------------------------------------------------------------
+
+/** The ERP mirror slice the re-open surface reads (null when the sheet was never pushed). */
+export type ReopenableTimesheetMirror = {
+  ts_number: string | null;
+  push_state: string | null;
+  erp_cancelled_at: string | null;
+  /**
+   * ⚑ Luna FU-1a round-8 BLOCK — when PMO lost track of what ERPNext holds for this week (migration
+   * 0157). Deliberately independent of `push_state`: a `command-held` outcome whose hold an Admin has
+   * since RELEASED reads as an ordinary terminal `failed` here, because a release re-queues a command
+   * and establishes nothing about ERP. The server refuses the re-open while this is set, so the surface
+   * must classify on it too or it renders a button that can only fail.
+   */
+  post_submit_unknown_at: string | null;
+};
+
+/**
+ * ⚑ S4 (Luna FU-1a round-8) — the correction window this surface offers, in days.
+ *
+ * The query used to be unbounded: every Approved sheet in the org that isn't the viewer's, forever, with
+ * entries + mirror joined and every id then fed into a PostgREST `in` list. Approved sheets only
+ * accumulate (and Admin/Exec/PM/Finance see all of them), so the page cost grew with the org's whole
+ * history and the `in` list grew with it. A correction window is both the fix and the honest product
+ * statement: this section is for correcting a RECENT week, not for browsing years of approvals.
+ */
+export const REOPENABLE_WINDOW_DAYS = 90;
+
+/** The page bound. Also what bounds the `in` list of the second query, by construction. */
+export const REOPENABLE_PAGE_LIMIT = 100;
+
+/**
+ * ⚑ The outbox states that mean "a push command for this sheet is NOT settled" — byte-for-byte the
+ * predicate `transition_timesheet`'s Approved→Draft arm refuses on (migration 0151 §A). `failed` and
+ * `confirmed` are terminal there and so are absent here: Slice A ADMITS a re-open over a rejected push
+ * (it minted no ERP document), and a `confirmed` row has already written its mirror.
+ */
+export const NON_TERMINAL_PUSH_COMMAND_STATES = [
+  'pending', 'committing', 'committed', 'quarantined', 'held',
+] as const;
+
+/** A re-openable Approved timesheet: joined to owner + entries + its ERP mirror (null = un-pushed). */
+export type ReopenableApprovedTimesheet = TimesheetAwaitingApproval & {
+  mirror: ReopenableTimesheetMirror | null;
+  /**
+   * The sheet's non-terminal push-command state, or `null` when no push is in flight.
+   *
+   * SHOULD-FIX 4 (Luna code review): the mirror row is written by `adapter-dispatch` AFTER the ERP call
+   * settles, so a genuinely in-flight push (a queued `pending` row, a `committing` POST, a `committed`
+   * row whose mirror finalize has not run) shows up as `mirror: null` — which the surface used to read
+   * as "re-openable" and render an active button the server then refuses. This is the same evidence the
+   * server's own precondition uses, so the surface and the RPC agree.
+   */
+  pushCommandState: string | null;
+};
+
+const REOPENABLE_SELECT =
+  '*, owner:profiles!timesheets_user_id_fkey(full_name), entries:timesheet_entries(*, project:projects(name,code)), mirror:timesheet_erp_mirror!timesheet_erp_mirror_timesheet_id_fkey(ts_number, push_state, erp_cancelled_at, post_submit_unknown_at)';
+
+/**
+ * Slice A (FR-TSC-060 / F5) — the Approved sheets an approver may consider re-opening: other users'
+ * Approved sheets, joined to their ERP mirror so the surface can tell an UN-PUSHED sheet (re-openable
+ * now) from a PUSHED one (honest "already in ERP — correction path coming" note). `timesheets_select`
+ * RLS (0007 A2 manager-of clause) + `timesheet_erp_mirror_select` RLS (0136) scope both halves; this
+ * fn adds none of its own (RBAC-transparent, matching the other timesheet read hooks). org_id is
+ * NEVER sent.
+ */
+export async function listReopenableApprovedTimesheets(
+  selfId: string,
+): Promise<ReopenableApprovedTimesheet[]> {
+  // ⚑ S4 — BOUNDED. The window is served by `timesheets_org_status_week_idx` (status + week_start_date
+  // DESC), so this is an index range scan rather than a growing seq scan, and the page limit caps both
+  // the payload and the `in` list built from it below. A week older than the window is not offered here;
+  // it is not lost (the RPC still governs), it is simply out of the correction surface's scope.
+  const windowStart = new Date(Date.now() - REOPENABLE_WINDOW_DAYS * 86_400_000).toISOString().slice(0, 10);
+  const { data, error } = await supabase
+    .from('timesheets')
+    .select(REOPENABLE_SELECT)
+    .eq('status', 'Approved')
+    .neq('user_id', selfId)
+    .gte('week_start_date', windowStart)
+    .order('week_start_date', { ascending: false })
+    .limit(REOPENABLE_PAGE_LIMIT);
+  if (error) throw new Error(error.message);
+  const sheets = (data ?? []) as unknown as ReopenableApprovedTimesheet[];
+  if (sheets.length === 0) return [];
+
+  // The in-flight half. `external_command_outbox_select` (0096) already grants an active org member
+  // this read — NO RLS is widened for the surface; org scoping is that policy's, so no org_id is sent.
+  // An error here FAILS the whole query on purpose: a surface that cannot see push state must not
+  // report every sheet as re-openable (that is the exact lie SHOULD-FIX 4 is about).
+  const { data: commands, error: commandError } = await supabase
+    .from('external_command_outbox')
+    .select('pmo_record_id, state')
+    .eq('domain', 'timesheets')
+    .in('pmo_record_id', sheets.map(s => s.id))
+    .in('state', NON_TERMINAL_PUSH_COMMAND_STATES);
+  if (commandError) throw new Error(commandError.message);
+  const stateById = new Map(
+    ((commands ?? []) as Array<{ pmo_record_id: string; state: string }>).map(c => [c.pmo_record_id, c.state]),
+  );
+
+  return sheets.map(sheet => ({
+    ...sheet,
+    entries: sheet.entries.map(e => ({ ...e, hours: Number(e.hours) })),
+    pushCommandState: stateById.get(sheet.id) ?? null,
   }));
 }

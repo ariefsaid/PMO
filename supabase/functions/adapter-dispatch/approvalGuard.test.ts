@@ -1,0 +1,178 @@
+// P3b FR-TSP-010 — the Approved-only gate, unit-proven at the seam.
+// Verify: cd supabase/functions/adapter-dispatch && deno test --allow-all --config deno.json approvalGuard.test.ts
+//
+// The property under test is NOT "an error code maps to a status" — it is that the gate's verdict and
+// the pushed CONTENT both come from a server-side DB read under the caller's own identity, with no
+// branch in which an absent/forged payload can stand in for either (ADR-0059 §3.3).
+
+import { assertEquals, assert } from 'jsr:@std/assert';
+import { applyCanonicalTimesheetTruth, enforceTimesheetApproved, isTimesheetPush, type ApprovalRpcClient } from './approvalGuard.ts';
+import { timesheetPushKey } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/timesheetPushKey.ts';
+
+const push = (over: Record<string, unknown> = {}) =>
+  ({ domain: 'timesheets', operation: 'create', record: { id: 'ts-1', erp_doc_kind: 'timesheet', ...over } }) as never;
+
+const client = (result: { data: unknown; error: { code?: string; message: string } | null }): ApprovalRpcClient & { calls: unknown[] } => {
+  const calls: unknown[] = [];
+  return {
+    calls,
+    rpc(fn: string, args: Record<string, unknown>) {
+      calls.push({ fn, args });
+      return Promise.resolve(result);
+    },
+  };
+};
+
+const APPROVED_ROW = {
+  timesheet_id: 'ts-1',
+  user_id: 'user-1',
+  approved_at: '2026-01-12T03:04:05Z',
+  entries: [{ project_id: 'p-a', entry_date: '2026-01-05', hours: '7.25', project_org_id: 'org-a' }],
+};
+
+Deno.test('isTimesheetPush: true only for a timesheets-domain timesheet command', () => {
+  assert(isTimesheetPush(push()));
+  assert(!isTimesheetPush({ domain: 'revenue', operation: 'create', record: { id: 'si-1', erp_doc_kind: 'sales-invoice' } } as never));
+  assert(!isTimesheetPush({ domain: 'timesheets', operation: 'create', record: { id: 'x', erp_doc_kind: 'sales-invoice' } } as never));
+  assert(!isTimesheetPush({ domain: 'procurement', operation: 'create', record: { id: 'x', erp_doc_kind: 'timesheet' } } as never));
+});
+
+Deno.test('FR-TSP-010: an Approved sheet passes AND hands back the SERVER-read sheet (author, witness, entries)', async () => {
+  const c = client({ data: [APPROVED_ROW], error: null });
+  const result = await enforceTimesheetApproved(c, 'ts-1');
+  assert(result.ok);
+  assertEquals(result.status, 200);
+  assertEquals(result.sheet?.user_id, 'user-1');
+  assertEquals(result.sheet?.approved_at, '2026-01-12T03:04:05Z');
+  assertEquals(result.sheet?.entries.length, 1);
+  assertEquals(c.calls, [{ fn: 'approved_timesheet_for_push', args: { p_timesheet_id: 'ts-1' } }]);
+});
+
+Deno.test('FR-TSP-010: a non-Approved sheet (P0001) is refused 422 timesheet-not-approved — THE OWNER RULING', async () => {
+  const result = await enforceTimesheetApproved(client({ data: null, error: { code: 'P0001', message: 'timesheet-not-approved (status Submitted)' } }), 'ts-1');
+  assertEquals(result.ok, false);
+  assertEquals(result.status, 422);
+  assertEquals(result.message, 'timesheet-not-approved');
+  assertEquals(result.sheet, undefined);
+});
+
+Deno.test('FR-TSP-011/054: an unauthorized or cross-org caller (42501) is refused 403', async () => {
+  const result = await enforceTimesheetApproved(client({ data: null, error: { code: '42501', message: 'not authorized' } }), 'ts-1');
+  assertEquals(result.ok, false);
+  assertEquals(result.status, 403);
+  assertEquals(result.message, 'not-authorized');
+});
+
+Deno.test('an unknown timesheet (P0002) is refused 404', async () => {
+  const result = await enforceTimesheetApproved(client({ data: null, error: { code: 'P0002', message: 'timesheet not found' } }), 'ts-1');
+  assertEquals(result.status, 404);
+  assertEquals(result.message, 'not-found');
+});
+
+Deno.test('FAIL CLOSED: an unclassified RPC error is refused, never treated as approved', async () => {
+  const result = await enforceTimesheetApproved(client({ data: null, error: { message: 'connection reset' } }), 'ts-1');
+  assertEquals(result.ok, false);
+  assertEquals(result.status, 422);
+  assertEquals(result.message, 'approval-check-failed');
+});
+
+Deno.test('FAIL CLOSED: an EMPTY result set with no error is refused — there is no "absent ⇒ allowed" branch', async () => {
+  // The trap this closes (Luna BLOCK-4's shape): a guard that only inspects `error` treats "no row"
+  // as success and pushes a sheet whose state it never actually read.
+  for (const data of [[], null, undefined]) {
+    const result = await enforceTimesheetApproved(client({ data, error: null }), 'ts-1');
+    assertEquals(result.ok, false, `data=${JSON.stringify(data)} must not pass the gate`);
+    assertEquals(result.message, 'approval-check-failed');
+  }
+});
+
+Deno.test('FAIL CLOSED: a row missing its approved_at witness is refused (ADR-0059 §6 — never a null witness)', async () => {
+  const result = await enforceTimesheetApproved(client({ data: [{ ...APPROVED_ROW, approved_at: null }], error: null }), 'ts-1');
+  assertEquals(result.ok, false);
+  assertEquals(result.message, 'approval-check-failed');
+});
+
+// ============================================================================
+// Luna code review BLOCK 3 — ONE IDENTITY PER SHEET, taken from the DB.
+//
+// `approved_timesheet_for_push(uuid)` accepts an UPPERCASE canonical uuid (Postgres casts it), so the
+// served boundary could carry an uppercase `record.id` all the way through the dispatch: the outbox
+// row, the external_refs mapping, the one-in-flight index and the advisory lock are all TEXT-keyed, so
+// that push never serialised with — and was invisible to — an ordinary (lowercase) re-open of the same
+// sheet. PMO returns the week to Draft while ERP is handed the original hours ⇒ double-count.
+//
+// The fix is not a regex at the edge: the gate ALREADY reads the row, and its `timesheet_id` column is
+// a `uuid`, i.e. PostgREST serialises it CANONICALLY. So the gate hands the canonical id back with the
+// rest of its server truth, and the dispatch adopts it as the command's identity.
+// ============================================================================
+
+Deno.test('Luna BLOCK 3: the gate hands back the DB\'s CANONICAL timesheet id, not the spelling the caller sent', async () => {
+  const c = client({ data: [{ ...APPROVED_ROW, timesheet_id: '01514000-0000-0000-0000-0000000000fa' }], error: null });
+  const result = await enforceTimesheetApproved(c, '01514000-0000-0000-0000-0000000000FA');
+  assert(result.ok);
+  assertEquals(
+    result.sheet?.timesheet_id,
+    '01514000-0000-0000-0000-0000000000fa',
+    'the command identity must come from the uuid column the DB returned — one spelling per sheet',
+  );
+});
+
+Deno.test('Luna BLOCK 3 FAIL CLOSED: a row with no usable timesheet_id is refused — never fall back to the caller\'s spelling', async () => {
+  for (const timesheet_id of [null, undefined, 42]) {
+    const result = await enforceTimesheetApproved(client({ data: [{ ...APPROVED_ROW, timesheet_id }], error: null }), 'ts-1');
+    assertEquals(result.ok, false, `timesheet_id=${JSON.stringify(timesheet_id)} must not pass the gate`);
+    assertEquals(result.message, 'approval-check-failed');
+  }
+});
+
+// ============================================================================
+// Luna ROUND-2 BLOCK 3 — the two originators must share ONE ENFORCED key.
+//
+// Round 1 collapsed the record ID to the gate's canonical spelling. The KEY was left alone: the
+// browser derived it from its own argument and the served boundary accepted whatever arrived, so a
+// direct caller could pair a canonical `record.id` with an arbitrary UUID key (`isOpaqueIdempotencyKey`
+// accepts any UUID). The outbox's `unique (org, domain, pmo_record_id, idempotency_key)` then does NOT
+// collide with the sweep's deterministic key, and because `failed` is excluded from the one-in-flight
+// index the sweep mints a SECOND row for the same approval — a second ERP Timesheet, the duplicated
+// week this whole slice exists to prevent.
+//
+// So the key is SERVER-DERIVED from the gate's own truth (`timesheet_id` + `approved_at`) and REPLACES
+// whatever the caller supplied — the same treatment, at the same place, as the record fields.
+// ============================================================================
+
+Deno.test('Luna r2 BLOCK 3: the served boundary derives the key from GATE truth and DISCARDS the caller\'s', () => {
+  const sheet = { ...APPROVED_ROW, timesheet_id: '01514000-0000-0000-0000-0000000000fa' };
+  const command = {
+    domain: 'timesheets',
+    operation: 'create',
+    idempotencyKey: '11111111-2222-4333-8444-555555555555',   // a forged, perfectly UUID-shaped key
+    record: { id: '01514000-0000-0000-0000-0000000000FA', erp_doc_kind: 'timesheet', user_id: 'attacker', entries: [{ hours: '99' }] },
+  } as never as Parameters<typeof applyCanonicalTimesheetTruth>[0];
+
+  applyCanonicalTimesheetTruth(command, sheet);
+
+  assertEquals(command.record.id, '01514000-0000-0000-0000-0000000000fa');
+  assertEquals(command.record.user_id, 'user-1');
+  assertEquals(command.record.entries, APPROVED_ROW.entries);
+  assertEquals(command.record.approved_at, APPROVED_ROW.approved_at);
+  assertEquals(command.idempotencyKey, `ts:01514000-0000-0000-0000-0000000000fa:${APPROVED_ROW.approved_at}`);
+});
+
+Deno.test('Luna r2 BLOCK 3: the derived key is EXACTLY the sweep\'s — one command for one approval', () => {
+  const sheet = { ...APPROVED_ROW, timesheet_id: '01514000-0000-0000-0000-0000000000fa' };
+  const command = { domain: 'timesheets', operation: 'create', record: { id: 'whatever', erp_doc_kind: 'timesheet' } } as never as Parameters<typeof applyCanonicalTimesheetTruth>[0];
+  applyCanonicalTimesheetTruth(command, sheet);
+  assertEquals(command.idempotencyKey, timesheetPushKey(sheet.timesheet_id, sheet.approved_at));
+});
+
+Deno.test('Luna r2 BLOCK 3: the served handler DELEGATES the adoption — it never builds the id/key itself', async () => {
+  // The unit above proves the helper; this proves index.ts actually uses it. index.ts is
+  // integration-only (`Deno.serve` at module top level), so this is a source assertion — the same
+  // technique `timesheetPushKey.test.ts` uses for its confinement property. Without it, deleting the
+  // call site leaves every test above green while the boundary silently accepts a forged key again.
+  const src = await Deno.readTextFile(new URL('./index.ts', import.meta.url));
+  assert(/applyCanonicalTimesheetTruth\(\s*command,\s*approvedSheet\s*\)/.test(src),
+    'index.ts must adopt the gate truth through applyCanonicalTimesheetTruth(command, approvedSheet)');
+  assert(!/command\.record\s*=\s*\{[^}]*approvedSheet\.timesheet_id/s.test(src),
+    'index.ts must not hand-assemble the canonical record — one derivation, in one place');
+});

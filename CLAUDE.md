@@ -67,12 +67,42 @@ for one client, architected to scale to millions.
   cross-component breakage (a change to a shared component silently breaks every *other* test that renders
   it; recurring CI-verify-red, 2026-06). The build/Director MUST run the full verify before the phase
   transition; subagent briefs MUST mandate it as their final gate.
+- **Pre-push PR→`main` simulation (binding, owner directive 2026-07-24):** before creating, pushing, or
+  refreshing any PR targeting `main`, run **`scripts/verify-main-pr.sh`** from the repo root. It runs the
+  whole verify gate, Deno boot/unit suites, a fresh local Supabase stack, every pgTAP test, and the complete
+  Playwright/visual portfolio with `CI=true`, then runs the served-function smoke last. Targeted failing-spec
+  reruns and `scripts/e2e-local.sh` are inner-loop tools, never substitutes for this promotion gate.
+- **⛔ NOT DONE UNTIL GREEN — enforced, not advised (2026-07-17).** A task is not complete while any
+  test is red. **Never** weaken, skip, delete, or re-implement a test to get green — fix the code; if a
+  test is genuinely wrong, say so explicitly and stop. Dispatched agents violated this **5×** (claimed
+  "DONE, all green" and committed red) and wrote tests that didn't bind to shipped code **3×** — so it
+  is now mechanical, because briefs advise and hooks enforce:
+  - **`.githooks/pre-commit`** (tracked; install once via `scripts/setup-hooks.sh`) — blocks a red
+    commit from ANY actor. Fast + scoped: edge-fn test-binding guard + `deno test` for the *changed*
+    functions only. The full `npm run verify` stays a pre-push/CI concern (a slow hook gets bypassed).
+  - **`scripts/check-edge-fn-test-binding.mjs`** (also a CI step) — an edge-fn test MUST import the
+    SHIPPED handler from `./index.ts`; copied `handle*WithDeps`/validators are a hard failure. Pattern
+    per Supabase's guidance: **import the real handler + mock `globalThis.fetch`; NO dependency
+    injection in production code** (https://supabase.com/docs/guides/functions/unit-test).
+  - **`scripts/agent-git-shim/git`** — prepend to a dispatch's PATH; rejects `git commit --no-verify`
+    (verified: `--no-verify` really does bypass the hook, so this is the only layer that holds).
+  - **Mutation-check anything security-critical:** break the rule (e.g. `const allowed = true`) and the
+    tests MUST go red. A suite that stays green while the handler is broken is not a suite.
+- **⚑ NEVER regenerate `package-lock.json` on macOS (binding).** `npm install` on darwin/arm64 silently
+  PRUNES the wasm32-wasi optional deps (`@emnapi/core`, `@emnapi/runtime`, via `@tailwindcss/oxide-wasm32-wasi`),
+  and linux CI then fails `npm ci` with *"Missing: @emnapi/core@… from lock file"*. It happens even with an
+  UNCHANGED `package.json` — the lock is not reproducible from a Mac. Use **`scripts/relock.sh`** (regenerates
+  in a `node:22` container, asserts the canary entries survived), then `npm ci` to sync `node_modules`.
 - **Coverage:** ≥80% lines on changed code to merge; tests must assert behavior, not inflate numbers.
 - **Typecheck/lint:** `npm run typecheck` zero errors; ESLint zero errors (CI `--max-warnings=0`). Both block merge.
 - **⛔ HARD STOP — PRODUCTION (binding, owner directive 2026-06-17, RE-ENFORCED 2026-07-14 after a violation):** **NEVER push/deploy/promote to `production` without the owner's EXPLICIT, per-instance, this-message "yes" naming production.** This includes `git push origin main:production`, CF Pages prod, prod DB push (`db-push-prod.sh`), prod reseed, and prod edge-fn deploy. **Do NOT infer prod authorization** from "do it all", "ship it", "make it reachable", a stated deploy plan, or any prior approval — a prior "ship to prod" is **per-instance, never standing**, and ambiguity means STOP and ASK. Reaching `main` is the autonomous ceiling; the `main`→`production` step is ALWAYS a separate, explicit, owner-gated action. *(2026-07-14 incident: read "do it all and on by default" as prod authorization and promoted `main:production` without an explicit prod OK — this is exactly what must not happen; when in doubt, stop at `main` and ask.)*
 - **Branch flow (binding, owner directive 2026-06-17):** **work lands on `dev` → promoted to `main` (gated). `main` is the ceiling for autonomous work.** A prior "ship to prod" is per-instance, never standing. CI is tiered + resource-lean: PR→`dev` = `verify` only (fast lane); PR→`main` = `verify` + `integration` (pgTAP + e2e + visual gates) so `main` is always clean; push to `main` = `verify` smoke. Push CI is `main`-ONLY (dev/feature are PR-gated → no duplicate verify); `integration` fires once per change (the PR→`main`) and starts Supabase without the CI-unused containers (`studio,realtime,vector`) with Playwright browsers cached. `main`→`production` is a manual, owner-instructed promote only.
 - **Checkpoints:** the **owner** approves spec sign-off + **every production deploy** / irreversible infra (see Branch flow — prod requires a direct, per-instance instruction); the **Director** approves merge-to-`dev` and merge-to-`main` within the signed spec, and escalates anything strategic or out-of-spec.
-- **PRs:** one per issue. **ADRs:** only for architectural / irreversible / cross-cutting decisions.
+- **PRs:** one per issue — *for code*. **Docs-only changes (`docs/**`, `*.md`) push DIRECT to `dev`; no PR, no branch.**
+  CI paths-ignores them, so a docs PR gates on nothing and is pure ceremony (a docs PR reports "no checks
+  reported"). This matches long-standing practice on `dev`. Exception: a docs change that is genuinely
+  *reviewable content* (a spec/ADR you want the owner to sign off) may still take a PR — that's a review
+  request, not a gate. **ADRs:** only for architectural / irreversible / cross-cutting decisions.
 - **Data/schema:** reversible migrations; RLS on every business table; `org_id` seam enforced.
 - **Design/UI:** `DESIGN.md` (design.md format) is the design-system source of truth; QA per the
   **ADR-0030 portfolio** (`docs/qa-portfolio.md`) — Layer-1 deterministic gate-tests + a rendered Discover
@@ -160,3 +190,28 @@ SA-key file**. `seed.sql` = local ONLY, **never prod**; never hand-edit a cloud 
 `db reset`/`test db`/e2e corrupt each other); (b) **assume parallel — never work in the shared working tree:**
 each dispatch/agent uses its OWN `git worktree` off `dev` on a **feature branch → PR to `dev`** (copy `.env.local`
 in; worktrees isolate FILES, not the one DB). Worktrees don't remove the DB contention — the lock does.
+
+**⚑ Post-merge cleanup (binding — verify first, delete last).** After GitHub reports the PR merged, fetch the
+intended base and **verify the reported merge commit is reachable from `origin/<base>`**. Capture
+`state,mergeCommit,headRefName,headRefOid` from `gh pr view`; require `git rev-parse <branch>` to equal that
+immutable `headRefOid`, and, if the remote branch exists, require
+`git ls-remote --heads origin refs/heads/<branch>` to report the same OID. Any mismatch means stop and preserve
+the divergent branch. Only then confirm the exact issue worktree is clean, run
+`git worktree remove <exact-path>` (never `--force`) and `git worktree prune`, delete the local feature branch
+with `git branch -d <branch>` (use `-D` only after the exact-tip checks for a verified squash merge), and
+finally delete the still-matching repository-owned remote branch with `git push origin --delete <branch>`.
+Never remove a worktree or branch merely because it looks stale.
+
+**⚑ Chain reset+test as ONE lock hold (binding).** Serializing the two commands *separately* is not enough: a
+sibling worktree's reset landing **between** your `db reset` and your `supabase test db` leaves you testing a
+schema you did not migrate — producing **false REDs and false GREENs** alike. Always:
+`scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db'`.
+**Three machine-global locks now exist**, sharing one core (`scripts/lib/flock-run.sh`): `with-db-lock.sh`
+(shared Supabase stack) · `with-erpnext-lock.sh` (ERPNext dev bed) · `with-test-lock.sh` (the heavy vitest
+suite — **on a shared machine run `npm run verify:locked`, not bare `npm run verify`**, so only ONE full suite
+runs at a time; under concurrent runs unrelated tests fail on timeout, and *contention moves while a real
+regression stays put*. Bare `verify` stays lock-free because CI is a single dedicated runner). **When a command needs more
+than one, acquire in this order, outermost first: `erpnext → db → test`.** Each is re-entrancy-safe via its own
+`*_LOCK_HELD` var, so a self-wrapping script under an outer hold does not deadlock. Stack wedged under load
+(`analytics`/`vector` blocking `db reset`)? `scripts/supabase-start-lean.sh`. Migration-number collision?
+`scripts/renumber-migration.sh <old> <new>` (never hand-roll the `git mv` + reference sweep).

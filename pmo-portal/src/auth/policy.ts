@@ -26,7 +26,12 @@ export type Action =
   | 'archive'
   | 'delete'
   | 'transition'
-  | 'editContractValue';
+  | 'editContractValue'
+  | 'submit_sales_invoice'
+  | 'manage_external_bindings'
+  | 'manage'
+  | 'push_timesheet'
+  | 'confirm_employee_link';
 
 export type Entity =
   | 'project'
@@ -49,7 +54,13 @@ export type Entity =
   | 'milestone'
   | 'contact'
   | 'contactActivity'
-  | 'userView';
+  | 'userView'
+  | 'salesInvoice'
+  | 'incomingPayment'
+  | 'externalBinding'
+  | 'integration'
+  | 'employeeLink'
+  | 'pushHold';
 
 export interface PolicyContext {
   /** The REAL JWT role (not the impersonated effectiveRole). */
@@ -62,6 +73,13 @@ export interface PolicyContext {
     assignee_id?: string | null;
     /** Author id — for the document-edit author rule (A-7). */
     author_id?: string | null;
+    /** EVERY user who has built this record's body — the sales-invoice SoD oracle (migration 0113's
+     *  append-only `sales_invoice_authors` set). The `author_id` scalar is last-writer-wins and so is
+     *  only a legacy member of this set, never the whole truth. */
+    author_ids?: string[] | null;
+    /** The sheet's approver (`timesheets.approved_by`) — the P3b `push_timesheet` oracle
+     *  (FR-TSP-011): the sheet's OWN approver may always push it, regardless of role. */
+    approved_by?: string | null;
     [k: string]: unknown;
   };
 }
@@ -74,6 +92,20 @@ const MASTER_DATA: Role[] = ['Admin', 'Executive', 'Project Manager', 'Finance']
 const ARCHIVE_ROLES: Role[] = ['Admin', 'Executive'];
 const MONEY_AUTHORITY: Role[] = ['Admin', 'Executive', 'Finance']; // contract_value-on-won SoD
 const MILESTONE_WRITE: Role[] = ['Admin', 'Project Manager']; // OD-DEL-7: PM+Admin only
+/**
+ * Revenue WRITE set — who may raise a sales invoice, record an incoming receipt, cancel either, or
+ * approve (submit) an invoice (owner ruling, 2026-07-20). Exec and PM keep the revenue surface
+ * VIEW-ONLY.
+ *
+ * The ruling is ENFORCED SERVER-SIDE, and this constant only mirrors it (round-6 re-audit, finding 3):
+ * `supabase/functions/adapter-dispatch/authGuard.ts` (`moneyWriteRolesForDomain('revenue')`) and
+ * migration 0114's `submit_sales_invoice` / `claim_sales_invoice_author` gates carry the SAME two
+ * roles. Before that, the backend admitted Exec/PM and a PM could POST a sales-invoice cancel straight
+ * to the edge function with no revenue affordance anywhere in their UI. The FE may be STRICTER than
+ * the backend; it must never be the ONLY place a ruling lives. PROCUREMENT's ruling is different
+ * (Admin·Exec·PM·Finance) — do not fold the two together.
+ */
+const REVENUE_WRITE: Role[] = ['Admin', 'Finance'];
 
 const has = (set: Role[], role: Role | null): boolean => role != null && set.includes(role);
 
@@ -152,7 +184,7 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
   task: {
     create: allow(DELIVERY),
     edit: allow(DELIVERY),
-    archive: allow(DELIVERY),
+    archive: allow(MASTER_DATA),
     delete: allow(DELIVERY),
   },
   taskStatus: {
@@ -207,6 +239,19 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
   timesheet: {
     create: allow(['Admin', 'Executive', 'Project Manager', 'Engineer']),
     edit: allow(['Admin', 'Executive', 'Project Manager', 'Engineer']),
+    /**
+     * P3b (FR-TSP-011) — the Retry/push affordance for a flipped org's ERP push. UX ONLY: the
+     * enforcement authorities are `approved_timesheet_for_push` (migration 0138) and
+     * `approvalGuard.ts`'s `enforceTimesheetApproved` — the FE may be STRICTER than the DB, never
+     * looser. The rule is deliberately NOT `MONEY_WRITE_ROLES`/`MASTER_DATA` alone: a legitimate
+     * approver is very often an Engineer-role line manager (`profiles.manager_id`), so the sheet's
+     * OWN `approved_by` always passes regardless of role — narrowing this to a money-role set would
+     * break the primary approval path (the exact P3a-pattern-matching trap the plan calls out).
+     */
+    push_timesheet: (role, ctx) => {
+      if (has(MASTER_DATA, role)) return true; // Admin·Executive·Project Manager·Finance
+      return !!ctx.currentUserId && ctx.record?.approved_by === ctx.currentUserId;
+    },
   },
   approval: {
     transition: allow(DELIVERY), // approve others' timesheets; !self enforced at the call-site + RPC
@@ -242,6 +287,71 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     create: allow(ALL),
     edit: allow(ALL),
     archive: allow(ALL),
+  },
+  // Revenue domain — SI submit SoD (OD-SAR-PMO-IS-THE-UI, FR-SAR-195)
+  // UX-only: author cannot submit their own draft; different approver-role user can.
+  // RLS/RPC is the enforcement authority (submit_sales_invoice RPC).
+  salesInvoice: {
+    // Sales Invoices index — Finance, PM, Exec can view (rbac-visibility §D mirror).
+    view: allow(MASTER_DATA),
+    // Raise an invoice = Finance + Admin (owner ruling 2026-07-20). Without this entry the
+    // "New Invoice" affordance rendered for NO role and the whole P3a create path was unreachable.
+    create: allow(REVENUE_WRITE),
+    // Cancel (docstatus 1→2) is modelled as a `transition` — the same write set as create.
+    // NOTE: no `edit` entry on purpose — the page has no update mutation (the row-menu Edit is a
+    // no-op stub), so granting `edit` would surface an affordance that does nothing.
+    transition: allow(REVENUE_WRITE),
+    // Approve/submit an invoice = the revenue write set (Admin + Finance). Migration 0114 gates the
+    // `submit_sales_invoice` RPC on exactly these roles, so offering Exec/PM the affordance would
+    // render a button that 403s.
+    submit_sales_invoice: (role, ctx) => {
+      if (!has(REVENUE_WRITE, role)) return false;
+      if (!ctx.currentUserId) return false;
+      const authorIds = ctx.record?.author_ids ?? null;
+      const authorScalar = ctx.record?.author_id ?? null;
+      // Fail CLOSED on an unattributable invoice — mirrors the RPC's `sod-author-missing`: an invoice
+      // nobody is recorded as having authored is exactly one with no two-person control.
+      if (authorScalar == null && (authorIds == null || authorIds.length === 0)) return false;
+      // NOBODY WHO EVER WROTE THE BODY MAY APPROVE (0113): the oracle is the append-only author SET,
+      // union the legacy scalar. Comparing the scalar alone was last-writer-wins — an earlier writer
+      // whom a co-worker's edit displaced saw an ENABLED Submit that 403'd on click.
+      if (authorScalar === ctx.currentUserId) return false;
+      if (authorIds?.includes(ctx.currentUserId)) return false;
+      return true;
+    },
+  },
+  incomingPayment: {
+    // Incoming Payments index — mirrors the salesInvoice view set (Admin·Exec·PM·Finance);
+    // Engineer has no revenue nav/page. Missing entirely before this entry, which made
+    // /incoming-payments render "You don't have access" for EVERY role incl. Admin.
+    view: allow(MASTER_DATA),
+    // Record a receipt = Finance + Admin (owner ruling 2026-07-20).
+    create: allow(REVENUE_WRITE),
+    // Cancel (docstatus 1→2). No `edit` — the page has no update mutation.
+    transition: allow(REVENUE_WRITE),
+  },
+  // External bindings management — Admin only
+  externalBinding: {
+    manage_external_bindings: allow(ADMIN),
+  },
+  integration: {
+    // Admin self-serve connect/disconnect (UX gate). Server (edge fn + RPC) re-enforces
+    // Admin OR platform Operator. FE is stricter (Admin only).
+    manage: allow(ADMIN),
+  },
+  // P3b (OQ-TSP-10(C) — the owner ruling): the Employee-adopt link is PROPOSE-then-CONFIRM, never
+  // auto-confirmed. Confirming re-points which PMO user a week of ERP hours is attributed to — an
+  // identity decision, Admin-only. UX ONLY: `confirm_erp_employee_link` (migrations 0111/0141) is the
+  // enforcement authority.
+  employeeLink: {
+    confirm_employee_link: allow(ADMIN),
+  },
+  // ⚑ MED-2 (money-safety audit round 6): releasing a `held` ERP command re-opens the door to a MONEY
+  // write — the machine refused to resolve it precisely because a human must. Admin-only, matching
+  // `release_outbox_hold` (mig 0137 §4), which re-asserts org + Admin + active membership itself.
+  // UX ONLY: the RPC is the enforcement authority (ADR-0016).
+  pushHold: {
+    manage: allow(ADMIN),
   },
 };
 

@@ -3,6 +3,7 @@ import {
   provisionBinding,
   pushSeed,
   pullAdopt,
+  MIXED_ONBOARDING_MESSAGE,
   type ProvisioningDeps,
   type PushSeedDeps,
   type PullAdoptDeps,
@@ -160,6 +161,85 @@ describe('FR-CUA-063 / OD-CUA-3 provisionBinding — one List per project + reje
     );
     // Rejected BEFORE persisting a binding (no half-provisioned state).
     expect(upsertBinding).not.toHaveBeenCalled();
+  });
+
+  // Security audit LOW (round 2): for `kind: 'create'`, the List is created BEFORE its statuses are
+  // fetched/validated. A validation failure must not leave an orphan List sitting in the customer's
+  // ClickUp workspace forever — clean it up.
+  describe('orphan-List cleanup when a `create`-mode provisioning is rejected after the List already exists', () => {
+    it('captureMaps rejects (incomplete status map) → the just-created List is DELETEd, and the rejection still propagates', async () => {
+      const { fetchImpl, calls } = mockFetch([
+        { method: 'POST', urlIncludes: '/folder/folder-1/list', json: { id: 'list-new' } },
+        { method: 'DELETE', urlIncludes: '/list/list-new', json: {} },
+      ]);
+      const upsertBinding = vi.fn(async () => undefined);
+      const deps = baseProvisioningDeps({
+        fetchImpl,
+        captureMaps: vi.fn(async () => {
+          throw new Error('ClickUp List cannot represent every PMO task status');
+        }),
+        upsertBinding,
+      });
+
+      await expect(provisionBinding('proj-1', deps)).rejects.toThrow(
+        /cannot represent every PMO task status/i,
+      );
+      expect(upsertBinding).not.toHaveBeenCalled();
+
+      const deleteCall = calls.find((c) => c.init?.method === 'DELETE');
+      expect(deleteCall?.url).toBe(`${DEFAULT_BASE}/list/list-new`);
+    });
+
+    it('the mixed-content rejection also cleans up the just-created List', async () => {
+      const { fetchImpl, calls } = mockFetch([
+        { method: 'POST', urlIncludes: '/folder/folder-1/list', json: { id: 'list-new' } },
+        { method: 'DELETE', urlIncludes: '/list/list-new', json: {} },
+      ]);
+      const deps = baseProvisioningDeps({
+        fetchImpl,
+        countPmoTasks: async () => 3,
+        countListTasks: async () => 5,
+      });
+
+      await expect(provisionBinding('proj-1', deps)).rejects.toThrow(MIXED_ONBOARDING_MESSAGE);
+
+      const deleteCall = calls.find((c) => c.init?.method === 'DELETE');
+      expect(deleteCall?.url).toBe(`${DEFAULT_BASE}/list/list-new`);
+    });
+
+    it('`kind: bind` (an EXISTING List the org already owns) is NEVER deleted on rejection', async () => {
+      const { fetchImpl, calls } = mockFetch([]);
+      const deps = baseProvisioningDeps({
+        fetchImpl,
+        target: { kind: 'bind', listId: 'list-existing' },
+        captureMaps: vi.fn(async () => {
+          throw new Error('ClickUp List cannot represent every PMO task status');
+        }),
+      });
+
+      await expect(provisionBinding('proj-1', deps)).rejects.toThrow();
+      expect(calls.some((c) => c.init?.method === 'DELETE')).toBe(false);
+    });
+
+    it('a DELETE cleanup failure is swallowed (logged) — the ORIGINAL rejection still propagates, never masked', async () => {
+      // No DELETE route registered -> mockFetch throws "unexpected ClickUp request" for the cleanup
+      // call, simulating a network failure during cleanup (fails fast, no retry-loop by construction).
+      const { fetchImpl } = mockFetch([
+        { method: 'POST', urlIncludes: '/folder/folder-1/list', json: { id: 'list-new' } },
+      ]);
+      const deps = baseProvisioningDeps({
+        fetchImpl,
+        captureMaps: vi.fn(async () => {
+          throw new Error('ClickUp List cannot represent every PMO task status');
+        }),
+      });
+
+      // The cleanup DELETE itself fails — the caller still sees the ORIGINAL validation rejection,
+      // not a cleanup error masking it.
+      await expect(provisionBinding('proj-1', deps)).rejects.toThrow(
+        /cannot represent every PMO task status/i,
+      );
+    });
   });
 });
 

@@ -12,6 +12,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import React from 'react';
 import type { Role } from '@/src/auth/AuthContext';
 import { ToastProvider } from '@/src/components/ui';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 
@@ -98,19 +99,22 @@ const seed = [
 // Render with optional hash fragment
 const renderTab = (hash = '') => {
   realRole = 'Project Manager';
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
-    <MemoryRouter initialEntries={[`/projects/p1/tasks${hash}`]}>
-      <Routes>
-        <Route
-          path="/projects/:projectId/tasks"
-          element={
-            <ToastProvider>
-              <TasksTab projectId="p1" />
-            </ToastProvider>
-          }
-        />
-      </Routes>
-    </MemoryRouter>,
+    <QueryClientProvider client={qc}>
+      <MemoryRouter initialEntries={[`/projects/p1/tasks${hash}`]}>
+        <Routes>
+          <Route
+            path="/projects/:projectId/tasks"
+            element={
+              <ToastProvider>
+                <TasksTab projectId="p1" />
+              </ToastProvider>
+            }
+          />
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>,
   );
 };
 

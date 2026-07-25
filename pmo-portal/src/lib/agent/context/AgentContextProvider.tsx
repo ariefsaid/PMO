@@ -11,7 +11,7 @@
  * setter here drives router navigation; the provider only ever READS the
  * location, never writes it, so agent-context can never move the user).
  */
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useLayoutEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import type { RunContext } from '../runtime/port';
 import { AgentContextContext, type AgentContextValue } from './agentContextInternal';
@@ -22,30 +22,38 @@ interface AgentContextProviderProps {
 
 export const AgentContextProvider: React.FC<AgentContextProviderProps> = ({ children }) => {
   const location = useLocation();
-  const [entity, setEntityState] = useState<{ type: string; id: string; label: string } | undefined>(undefined);
-  const [selection, setSelectionState] = useState<unknown>(undefined);
+  const [, setEntityState] = useState<{ type: string; id: string; label: string } | undefined>(undefined);
+  const [, setSelectionState] = useState<unknown>(undefined);
+  const routeRef = useRef(location.pathname);
+  const entityRef = useRef<{ type: string; id: string; label: string } | undefined>(undefined);
+  const selectionRef = useRef<unknown>(undefined);
+  useLayoutEffect(() => {
+    routeRef.current = location.pathname;
+  }, [location.pathname]);
 
   const setEntity = useCallback((next: { type: string; id: string; label: string } | undefined) => {
+    entityRef.current = next;
     setEntityState(next);
   }, []);
   const setSelection = useCallback((next: unknown) => {
+    selectionRef.current = next;
     setSelectionState(next);
   }, []);
 
   // getContext is called imperatively (not a subscribed value) — it always
-  // reads the LATEST route/entity/selection at call time (useAssistantPanel's
-  // send()/openThread() call it right before createRun/followUp).
+  // reads refs holding the LATEST route/entity/selection at call time. Reading
+  // refs is deliberate: callbacks captured before a host page calls setEntity
+  // must not send a stale context on the first immediate Assistant turn.
   const getContext = useCallback((): RunContext => {
-    const ctx: RunContext = { route: location.pathname };
-    if (entity) ctx.entity = entity;
-    if (selection !== undefined) ctx.selection = selection;
+    const ctx: RunContext = { route: routeRef.current };
+    if (entityRef.current) ctx.entity = entityRef.current;
+    if (selectionRef.current !== undefined) ctx.selection = selectionRef.current;
     return ctx;
-  }, [location.pathname, entity, selection]);
+  }, []);
 
-  const value = useMemo<AgentContextValue>(
-    () => ({ getContext, setEntity, setSelection }),
-    [getContext, setEntity, setSelection],
-  );
+  // A fresh value notifies consumers after the state setters above trigger a
+  // provider render; getContext itself stays stable and safe for stale callers.
+  const value: AgentContextValue = { getContext, setEntity, setSelection };
 
   return <AgentContextContext.Provider value={value}>{children}</AgentContextContext.Provider>;
 };

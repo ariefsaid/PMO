@@ -173,6 +173,11 @@ describe('procurement helper — selectedQuotation (PROC-004 selected-quote bind
     import_batch_id: null,
     import_key: null,
     imported_at: null,
+    // P2 — ERPNext mirror columns (migration 0093+)
+    erp_amended_from: null,
+    erp_cancelled_at: null,
+    erp_docstatus: null,
+    erp_modified: null,
     ...over,
   });
 

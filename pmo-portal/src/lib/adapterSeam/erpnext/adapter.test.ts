@@ -1,0 +1,433 @@
+/**
+ * erpnext/adapter.ts — the `tier:'erpnext'`, `capabilityMap:{companies,procurement}` adapter engine
+ * (task 2.12). `commit()` dispatches by `record.erp_doc_kind` through the doctype registry; a
+ * `submittable` kind gets the R9 two-step create->submit->re-fetch (FR-ENA-044); a non-submittable
+ * kind (party) is a single create. The idempotency key is stamped into `remarks` (ADR-0058 §3). No
+ * `erp_doc_kind` is actually wired into `DOCTYPE_BODIES` this slice (slices 3-6 wire real bodies) —
+ * these tests inject their own fake body-fns to prove the ENGINE, not any specific doctype's shape.
+ */
+import { describe, expect, it, vi } from 'vitest';
+import { AdapterError } from '../contract.ts';
+import { createErpAdapter, ERPNEXT_TIER, type ErpAdapterDeps } from './adapter.ts';
+import { DOCTYPE_REGISTRY, reissueOnInconclusiveAbsence, type ErpDocKind } from './doctypeRegistry.ts';
+
+function jsonResponse(status: number, body: unknown): Response {
+  return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
+}
+
+function baseDeps(fetchImpl: (url: string, init?: RequestInit) => Promise<Response>, overrides: Partial<ErpAdapterDeps> = {}): ErpAdapterDeps {
+  return {
+    client: { fetchImpl: vi.fn(fetchImpl) as unknown as typeof fetch, apiKey: 'k', apiSecret: 's', baseUrl: 'https://erp.example.com' },
+    doctypeBodies: {},
+    ctx: { refs: { supplier: 'Spike Supplier' }, config: { company: 'PMO Smoke Co' } },
+    ...overrides,
+  };
+}
+
+describe('erpnext/adapter — capability + tier', () => {
+  it('exposes tier="erpnext" and capabilityMap={companies,procurement,revenue,timesheets,budget}', () => {
+    const adapter = createErpAdapter(baseDeps(async () => jsonResponse(200, {})));
+    expect(adapter.tier).toBe(ERPNEXT_TIER);
+    // P3b adds `timesheets` (ADR-0059 Posture B) — additively; the router reads capabilityMap generically.
+    // P3c adds `budget` (ADR-0055 §6, also Posture B) — likewise additively.
+    expect(adapter.capabilityMap).toEqual(new Set(['companies', 'procurement', 'revenue', 'timesheets', 'budget']));
+  });
+});
+
+describe('erpnext/adapter — commit() create, submittable kind: two-step create->submit->re-fetch', () => {
+  it('FR-ENA-044 POSTs create, PUTs submit, then re-fetches (the stale-status trap) and maps via fromDoc', async () => {
+    const calls: Array<{ method: string; url: string; body?: unknown }> = [];
+    const fetchImpl = async (url: string, init?: RequestInit) => {
+      calls.push({ method: init?.method ?? 'GET', url, body: init?.body ? JSON.parse(init.body as string) : undefined });
+      if (init?.method === 'POST') return jsonResponse(200, { name: 'PUR-ORD-2026-00001', status: 'Draft' });
+      if (init?.method === 'PUT') return jsonResponse(200, { name: 'PUR-ORD-2026-00001', docstatus: 1, status: 'Draft' });
+      // the re-fetch — the ONLY place the true post-submit status is returned (R9 §5 stale-status trap).
+      return jsonResponse(200, { name: 'PUR-ORD-2026-00001', docstatus: 1, status: 'To Receive and Bill', grand_total: 200000 });
+    };
+    const deps = baseDeps(fetchImpl, {
+      doctypeBodies: {
+        'purchase-order': {
+          toBody: (rec) => ({ items: rec.items }),
+          fromDoc: (doc) => ({ id: 'placeholder', status: (doc as { status: string }).status }),
+        },
+      },
+    });
+    const adapter = createErpAdapter(deps);
+    const result = await adapter.commit({
+      domain: 'procurement',
+      operation: 'create',
+      record: { id: 'pmo-po-1', erp_doc_kind: 'purchase-order', items: [{ item_code: 'X', qty: 1 }] },
+    });
+
+    expect(calls.map((c) => c.method)).toEqual(['POST', 'PUT', 'GET']);
+    expect(calls[1].body).toEqual({ docstatus: 1 });
+    expect(result.externalRecordId).toBe('PUR-ORD-2026-00001');
+    // canonical is the RE-FETCHED status, never the stale POST/PUT response body's "Draft".
+    expect(result.canonical).toMatchObject({ id: 'pmo-po-1', status: 'To Receive and Bill' });
+  });
+
+  it('ADR-0058 §3 stamps the idempotencyKey into remarks on the create POST body', async () => {
+    const calls: Array<{ method: string; body?: unknown }> = [];
+    const fetchImpl = async (_url: string, init?: RequestInit) => {
+      calls.push({ method: init?.method ?? 'GET', body: init?.body ? JSON.parse(init.body as string) : undefined });
+      if (init?.method === 'POST') return jsonResponse(200, { name: 'ACC-PINV-2026-00002' });
+      if (init?.method === 'PUT') return jsonResponse(200, { name: 'ACC-PINV-2026-00002', docstatus: 1 });
+      return jsonResponse(200, { name: 'ACC-PINV-2026-00002', docstatus: 1, grand_total: 150000 });
+    };
+    const deps = baseDeps(fetchImpl, {
+      doctypeBodies: {
+        'purchase-invoice': { toBody: (rec) => ({ supplier: 'Spike Supplier', items: rec.items }), fromDoc: () => ({ id: 'placeholder' }) },
+      },
+    });
+    const adapter = createErpAdapter(deps);
+    await adapter.commit({
+      domain: 'procurement',
+      operation: 'create',
+      record: { id: 'pmo-pi-1', erp_doc_kind: 'purchase-invoice', items: [{ item_code: 'X', qty: 1 }] },
+      idempotencyKey: 'idem-key-123',
+    });
+    expect((calls[0].body as { remarks?: string }).remarks).toBe('idem-key-123');
+  });
+
+  it('calls afterSubmitHook right after submit, before the re-fetch (FR-ENA-003 after-submit-before-mirror seam)', async () => {
+    const order: string[] = [];
+    const fetchImpl = async (_url: string, init?: RequestInit) => {
+      if (init?.method === 'POST') return jsonResponse(200, { name: 'PUR-ORD-2026-00001' });
+      if (init?.method === 'PUT') {
+        order.push('submit');
+        return jsonResponse(200, { name: 'PUR-ORD-2026-00001', docstatus: 1 });
+      }
+      order.push('refetch');
+      return jsonResponse(200, { name: 'PUR-ORD-2026-00001', docstatus: 1 });
+    };
+    const afterSubmitHook = vi.fn(async () => {
+      order.push('hook');
+    });
+    const deps = baseDeps(fetchImpl, {
+      afterSubmitHook,
+      doctypeBodies: { 'purchase-order': { toBody: (rec) => ({ items: rec.items }), fromDoc: () => ({ id: 'placeholder' }) } },
+    });
+    const adapter = createErpAdapter(deps);
+    await adapter.commit({ domain: 'procurement', operation: 'create', record: { id: 'pmo-po-2', erp_doc_kind: 'purchase-order', items: [{ item_code: 'X', qty: 1 }] } });
+    expect(afterSubmitHook).toHaveBeenCalledTimes(1);
+    expect(order).toEqual(['submit', 'hook', 'refetch']);
+  });
+
+  /**
+   * ⚑ Luna round-2 BLOCK 2 — AN UNKNOWN FAILURE AFTER THE SUBMIT IS NOT PROOF OF "NO ERP DOCUMENT".
+   *
+   * Everything after `submitDoc` returns is read-only (the FR-ENA-003 hook, then the post-submit
+   * re-fetch), and the document is ALREADY SUBMITTED in ERPNext. If an exception from that region
+   * escapes unclassified, `dispatch.ts` classifies it as non-retryable and marks the outbox row
+   * terminal `failed`; the mirror is then written `failed` with no `ts_number`. That is EXACTLY the
+   * state the Slice-A re-open admits — so PMO returns the week to Draft while ERP holds a submitted
+   * Timesheet, and the corrected week posts as a SECOND one. The absence of a document was never
+   * established; only the absence of a successful re-read was.
+   *
+   * So the whole post-submit region is classified `external-unreachable`: the row is left in-flight
+   * (`committing`), becomes reclaimable at lease expiry, and the recovery probe ADOPTS the real
+   * document by its anchor key. That is the same durable state a real process crash leaves.
+   */
+  it('Luna r2 BLOCK 2: an unclassified failure AFTER the submit is retryable-unknown, never a terminal rejection', async () => {
+    const fetchImpl = async (_url: string, init?: RequestInit) => {
+      if (init?.method === 'POST') return jsonResponse(200, { name: 'TS-2026-00042' });
+      if (init?.method === 'PUT') return jsonResponse(200, { name: 'TS-2026-00042', docstatus: 1 });
+      return jsonResponse(200, { name: 'TS-2026-00042', docstatus: 1 });
+    };
+    const deps = baseDeps(fetchImpl, {
+      // The `after-submit-before-mirror` fault seam throws a PLAIN Error — a real crash has no
+      // classified shape, which is precisely why it must not be read as a rejection.
+      afterSubmitHook: vi.fn(async () => {
+        throw new Error('ERPNEXT_TEST_FAULTS: simulated crash at seam \'after-submit-before-mirror\'');
+      }),
+      doctypeBodies: { timesheet: { toBody: (rec) => ({ time_logs: rec.entries }), fromDoc: () => ({ id: 'placeholder' }) } },
+    });
+    const adapter = createErpAdapter(deps);
+    const error = await adapter
+      .commit({ domain: 'timesheets', operation: 'create', record: { id: 'pmo-ts-1', erp_doc_kind: 'timesheet', entries: [] } })
+      .then(() => null, (e: unknown) => e);
+    expect(error).toBeInstanceOf(AdapterError);
+    expect((error as AdapterError).code).toBe('external-unreachable');
+    // The message must name the document that IS in ERP — an operator/recovery pass needs it.
+    expect((error as AdapterError).message).toContain('TS-2026-00042');
+  });
+
+  it('Luna r2 BLOCK 2: a failed post-submit RE-FETCH is unknown too — the submit already happened', async () => {
+    const fetchImpl = async (_url: string, init?: RequestInit) => {
+      if (init?.method === 'POST') return jsonResponse(200, { name: 'TS-2026-00043' });
+      if (init?.method === 'PUT') return jsonResponse(200, { name: 'TS-2026-00043', docstatus: 1 });
+      // The re-fetch is rejected by ERP (a 417 with a classified shape). Read-only, and irrelevant to
+      // whether the submitted document exists — it does.
+      return jsonResponse(417, { exception: 'ValidationError: nope' });
+    };
+    const deps = baseDeps(fetchImpl, {
+      doctypeBodies: { timesheet: { toBody: (rec) => ({ time_logs: rec.entries }), fromDoc: () => ({ id: 'placeholder' }) } },
+    });
+    const adapter = createErpAdapter(deps);
+    const error = await adapter
+      .commit({ domain: 'timesheets', operation: 'create', record: { id: 'pmo-ts-2', erp_doc_kind: 'timesheet', entries: [] } })
+      .then(() => null, (e: unknown) => e);
+    expect((error as AdapterError).code).toBe('external-unreachable');
+  });
+
+  it('Luna r2 BLOCK 2: a rejection BEFORE the submit stays terminal — nothing was submitted to adopt', async () => {
+    // The boundary matters as much as the fix: a create ERP refuses outright leaves no submitted
+    // document, so it must stay a terminal `commit-rejected` and NOT be retried forever.
+    const fetchImpl = async () => jsonResponse(417, { exception: 'ValidationError: mandatory field' });
+    const deps = baseDeps(fetchImpl, {
+      doctypeBodies: { timesheet: { toBody: (rec) => ({ time_logs: rec.entries }), fromDoc: () => ({ id: 'placeholder' }) } },
+    });
+    const adapter = createErpAdapter(deps);
+    const error = await adapter
+      .commit({ domain: 'timesheets', operation: 'create', record: { id: 'pmo-ts-3', erp_doc_kind: 'timesheet', entries: [] } })
+      .then(() => null, (e: unknown) => e);
+    expect((error as AdapterError).code).toBe('commit-rejected');
+  });
+});
+
+/**
+ * ⚑ THE BLAST RADIUS OF THE POST-SUBMIT RECLASSIFICATION IS THE `timesheets` DOMAIN — Luna round-3
+ * BLOCK 1.
+ *
+ * Leaving a post-submit unknown IN-FLIGHT (`external-unreachable` ⇒ the outbox row stays `committing`
+ * ⇒ a later recovery pass re-claims it) is only SAFE for a kind that has a DURABLE RECOVERY IDENTITY:
+ * an immutable, REST-filterable anchor field the probe can find the already-submitted document by.
+ * `timesheet` has one (`note`, `anchorMutable:false` — frozen by the timesheet-fields spike §2/§9).
+ *
+ * An ANCHORLESS kind (`anchorField: null` — Material Request, Request for Quotation, Supplier
+ * Quotation, Purchase Order) has NO such identity: the probe is skipped entirely and
+ * `reissueOnInconclusiveAbsence` then PERMITS a fresh claim+POST. So routing its post-submit unknown
+ * into the retry path means the adapter creates and submits a SECOND purchase commitment while the
+ * first one is still live in ERP. Retryable-on-unknown without a recovery identity is a duplicate.
+ *
+ * That anchorless recovery-identity gap is PRE-EXISTING and is backlogged separately. This slice's
+ * job is not to carry it: every non-`timesheet` kind keeps its PRE-round-3 behaviour, i.e. the
+ * post-submit error propagates EXACTLY as thrown (a plain crash stays a plain crash; an ERP rejection
+ * stays a terminal `commit-rejected`), and none of them is silently promoted to retryable.
+ */
+describe('erpnext/adapter — the post-submit-unknown reclassification is scoped to the timesheets domain', () => {
+  /** Every submittable kind whose create auto-submits AND that a recovery pass may freely re-issue
+   *  because it has NO anchor to probe with — derived from the registry, so a future anchorless kind
+   *  is covered the day it is added rather than the day someone remembers this test. */
+  const anchorlessReissuableKinds = (Object.entries(DOCTYPE_REGISTRY) as Array<[ErpDocKind, (typeof DOCTYPE_REGISTRY)[ErpDocKind]]>)
+    .filter(([, entry]) => entry.submittable && entry.submitOnCreate !== false && entry.anchorField === null && reissueOnInconclusiveAbsence(entry))
+    .map(([kind]) => kind);
+
+  it('names the anchorless, reissue-capable submittables so the set cannot grow unnoticed', () => {
+    expect(anchorlessReissuableKinds).toEqual(['purchase-request', 'rfq', 'quotation', 'purchase-order', 'budget']);
+  });
+
+  it.each(anchorlessReissuableKinds)(
+    'Luna r3 BLOCK 1: a post-submit crash on anchorless "%s" is NOT reclassified retryable (a reissue would duplicate it)',
+    async (kind) => {
+      const crash = new Error('ERPNEXT_TEST_FAULTS: simulated crash at seam \'after-submit-before-mirror\'');
+      const fetchImpl = async (_url: string, init?: RequestInit) => {
+        if (init?.method === 'POST') return jsonResponse(200, { name: 'ERP-DOC-00001' });
+        return jsonResponse(200, { name: 'ERP-DOC-00001', docstatus: 1 });
+      };
+      const deps = baseDeps(fetchImpl, {
+        afterSubmitHook: vi.fn(async () => {
+          throw crash;
+        }),
+        doctypeBodies: { [kind]: { toBody: () => ({}), fromDoc: () => ({ id: 'placeholder' }) } },
+      });
+      const adapter = createErpAdapter(deps);
+      const error = await adapter
+        .commit({ domain: 'procurement', operation: 'create', record: { id: `pmo-${kind}-1`, erp_doc_kind: kind } })
+        .then(() => null, (e: unknown) => e);
+      // Pre-round-3, byte-for-byte: the very error the region threw, untouched.
+      expect(error).toBe(crash);
+    },
+  );
+
+  it.each(anchorlessReissuableKinds)(
+    'Luna r3 BLOCK 1: a failed post-submit RE-FETCH on anchorless "%s" stays a terminal rejection',
+    async (kind) => {
+      const fetchImpl = async (_url: string, init?: RequestInit) => {
+        if (init?.method === 'POST') return jsonResponse(200, { name: 'ERP-DOC-00002' });
+        if (init?.method === 'PUT') return jsonResponse(200, { name: 'ERP-DOC-00002', docstatus: 1 });
+        return jsonResponse(417, { exception: 'ValidationError: nope' });
+      };
+      const deps = baseDeps(fetchImpl, {
+        doctypeBodies: { [kind]: { toBody: () => ({}), fromDoc: () => ({ id: 'placeholder' }) } },
+      });
+      const adapter = createErpAdapter(deps);
+      const error = await adapter
+        .commit({ domain: 'procurement', operation: 'create', record: { id: `pmo-${kind}-2`, erp_doc_kind: kind } })
+        .then(() => null, (e: unknown) => e);
+      expect((error as AdapterError).code).toBe('commit-rejected');
+    },
+  );
+
+  it('Luna r3 BLOCK 1: a post-submit unknown on the SoD-gated Sales Invoice submit transition is not reclassified either', async () => {
+    // `sales-invoice` DOES have an immutable anchor, but the anchor carries the CREATE key — the
+    // separate `transition/submit` mints its own unsurfaced key and stamps nothing, so a probe for it
+    // finds nothing and the recovery re-PUTs an already-submitted invoice. Out of this slice's scope:
+    // it stays exactly as shipped.
+    const crash = new Error('boom');
+    const fetchImpl = async () => jsonResponse(200, { name: 'ACC-SINV-2026-00001', docstatus: 1 });
+    const deps = baseDeps(fetchImpl, {
+      afterSubmitHook: vi.fn(async () => {
+        throw crash;
+      }),
+      doctypeBodies: { 'sales-invoice': { toBody: () => ({}), fromDoc: () => ({ id: 'placeholder' }) } },
+    });
+    const adapter = createErpAdapter(deps);
+    const error = await adapter
+      .commit({
+        domain: 'revenue',
+        operation: 'transition',
+        record: { id: 'pmo-si-1', erp_doc_kind: 'sales-invoice', verb: 'submit', externalRecordId: 'ACC-SINV-2026-00001' },
+      })
+      .then(() => null, (e: unknown) => e);
+    expect(error).toBe(crash);
+  });
+
+  it('Luna r3 BLOCK 1: the timesheet kind KEEPS the in-flight classification on its submit transition', async () => {
+    // The narrowing must not silently delete the round-2 fix it is narrowing.
+    const fetchImpl = async () => jsonResponse(200, { name: 'TS-2026-00099', docstatus: 1 });
+    const deps = baseDeps(fetchImpl, {
+      afterSubmitHook: vi.fn(async () => {
+        throw new Error('boom');
+      }),
+      doctypeBodies: { timesheet: { toBody: () => ({}), fromDoc: () => ({ id: 'placeholder' }) } },
+    });
+    const adapter = createErpAdapter(deps);
+    const error = await adapter
+      .commit({
+        domain: 'timesheets',
+        operation: 'transition',
+        record: { id: 'pmo-ts-9', erp_doc_kind: 'timesheet', verb: 'submit', externalRecordId: 'TS-2026-00099' },
+      })
+      .then(() => null, (e: unknown) => e);
+    expect(error).toBeInstanceOf(AdapterError);
+    expect((error as AdapterError).code).toBe('external-unreachable');
+    expect((error as AdapterError).message).toContain('TS-2026-00099');
+  });
+});
+
+describe('erpnext/adapter — commit() create, non-submittable kind: single create, no submit/refetch', () => {
+  it('POSTs create only (a party has no docstatus lifecycle)', async () => {
+    const calls: string[] = [];
+    const fetchImpl = async (_url: string, init?: RequestInit) => {
+      calls.push(init?.method ?? 'GET');
+      return jsonResponse(200, { name: 'Spike Supplier' });
+    };
+    const deps = baseDeps(fetchImpl, {
+      doctypeBodies: { supplier: { toBody: (rec) => ({ supplier_name: rec.supplier_name }), fromDoc: (doc) => ({ id: 'placeholder', erp_supplier_name: (doc as { name: string }).name }) } },
+    });
+    const adapter = createErpAdapter(deps);
+    const result = await adapter.commit({ domain: 'companies', operation: 'create', record: { id: 'pmo-c-1', erp_doc_kind: 'supplier', supplier_name: 'Spike Supplier' } });
+    expect(calls).toEqual(['POST']);
+    // The wire-level externalRecordId is the BARE ERP name (AC-ENA-040 live-bench proof: Supplier
+    // autonames by field:supplier_name) — the "<Doctype>:<name>" collision-safe encoding
+    // (partyAdopt.ts's externalIdFor, task 3.2) is applied only at the external_refs WRITE (index.ts's
+    // recordExternalRef wrapper, task 6.4 fix-round), never on the adapter's own return value.
+    expect(result.externalRecordId).toBe('Spike Supplier');
+    expect(result.canonical).toMatchObject({ id: 'pmo-c-1', erp_supplier_name: 'Spike Supplier' });
+  });
+});
+
+describe('erpnext/adapter — commit() update, non-submittable kind (task 3.3, FR-ENA-092): a party has no docstatus, so update is a direct field PUT', () => {
+  it('resolves the target ERP name from ctx.refs.self, PUTs the toBody patch directly (no submit/re-fetch), maps via fromDoc', async () => {
+    const calls: Array<{ method: string; body?: unknown; url: string }> = [];
+    const fetchImpl = async (url: string, init?: RequestInit) => {
+      calls.push({ method: init?.method ?? 'GET', body: init?.body ? JSON.parse(init.body as string) : undefined, url });
+      return jsonResponse(200, { name: 'Spike Supplier', supplier_name: 'Spike Supplier Renamed' });
+    };
+    const deps = baseDeps(fetchImpl, {
+      ctx: { refs: { self: 'Spike Supplier' }, config: {} },
+      doctypeBodies: {
+        supplier: {
+          toBody: (rec) => ({ supplier_name: rec.name }),
+          fromDoc: (doc) => ({ id: 'placeholder', erp_supplier_name: (doc as { supplier_name: string }).supplier_name }),
+        },
+      },
+    });
+    const adapter = createErpAdapter(deps);
+    const result = await adapter.commit({
+      domain: 'companies',
+      operation: 'update',
+      record: { id: 'pmo-co-1', erp_doc_kind: 'supplier', name: 'Spike Supplier Renamed' },
+    });
+    expect(calls).toEqual([{ method: 'PUT', body: { supplier_name: 'Spike Supplier Renamed' }, url: 'https://erp.example.com/api/resource/Supplier/Spike%20Supplier' }]);
+    // Bare ERP name on the wire, consistent with the create path (see that test's comment).
+    expect(result.externalRecordId).toBe('Spike Supplier');
+    expect(result.canonical).toMatchObject({ id: 'pmo-co-1', erp_supplier_name: 'Spike Supplier Renamed' });
+  });
+
+  it('rejects an update with no resolved ctx.refs.self (cannot target an unknown ERP doc)', async () => {
+    const deps = baseDeps(async () => jsonResponse(200, {}), {
+      doctypeBodies: { supplier: { toBody: () => ({}), fromDoc: () => ({ id: 'placeholder' }) } },
+    });
+    const adapter = createErpAdapter(deps);
+    await expect(
+      adapter.commit({ domain: 'companies', operation: 'update', record: { id: 'pmo-co-1', erp_doc_kind: 'supplier' } }),
+    ).rejects.toMatchObject({ code: 'commit-rejected' });
+  });
+});
+
+describe('erpnext/adapter — un-wired kinds/operations fail loud, never a silent no-op', () => {
+  it('rejects a command whose erp_doc_kind has no DOCTYPE_BODIES entry yet', async () => {
+    const adapter = createErpAdapter(baseDeps(async () => jsonResponse(200, {})));
+    await expect(
+      adapter.commit({ domain: 'procurement', operation: 'create', record: { id: 'pmo-1', erp_doc_kind: 'purchase-request' } }),
+    ).rejects.toMatchObject({ code: 'commit-rejected' });
+  });
+
+  it('rejects a record with a missing/unknown erp_doc_kind', async () => {
+    const adapter = createErpAdapter(baseDeps(async () => jsonResponse(200, {})));
+    await expect(adapter.commit({ domain: 'procurement', operation: 'create', record: { id: 'pmo-1' } })).rejects.toBeInstanceOf(AdapterError);
+  });
+
+  it('update on a SUBMITTABLE kind now routes via routeEdit (task 6.3) — a missing externalRecordId is rejected loud (nothing to edit)', async () => {
+    const deps = baseDeps(async () => jsonResponse(200, {}), {
+      doctypeBodies: { 'purchase-order': { toBody: () => ({}), fromDoc: () => ({ id: 'placeholder' }) } },
+    });
+    const adapter = createErpAdapter(deps);
+    await expect(
+      adapter.commit({ domain: 'procurement', operation: 'update', record: { id: 'pmo-1', erp_doc_kind: 'purchase-order' } }),
+    ).rejects.toMatchObject({ code: 'commit-rejected' });
+  });
+
+  it('transition is not yet wired this slice (any kind) — loud throw, never a silent no-op', async () => {
+    const deps = baseDeps(async () => jsonResponse(200, {}), {
+      doctypeBodies: { supplier: { toBody: () => ({}), fromDoc: () => ({ id: 'placeholder' }) } },
+    });
+    const adapter = createErpAdapter(deps);
+    await expect(
+      adapter.commit({ domain: 'companies', operation: 'transition', record: { id: 'pmo-1', erp_doc_kind: 'supplier' } }),
+    ).rejects.toMatchObject({ code: 'commit-rejected' });
+  });
+
+  it('delete is never supported (OQ-8: cancel-only, never delete)', async () => {
+    const adapter = createErpAdapter(baseDeps(async () => jsonResponse(200, {})));
+    await expect(
+      adapter.commit({ domain: 'companies', operation: 'delete', record: { id: 'pmo-1', erp_doc_kind: 'supplier' } }),
+    ).rejects.toMatchObject({ code: 'commit-rejected' });
+  });
+});
+
+describe('erpnext/adapter — reads (listChangesSinceWatermark deferred to slice 8)', () => {
+  it('listChangesSinceWatermark throws loud (not yet wired until the slice-8 modified-poll sweep)', async () => {
+    const adapter = createErpAdapter(baseDeps(async () => jsonResponse(200, {})));
+    await expect(adapter.listChangesSinceWatermark('procurement', null)).rejects.toThrow(/slice 8/);
+  });
+
+  it('getByExternalId resolves a "<Doctype>:<name>"-encoded id via the registry + doctypeBodies.fromDoc', async () => {
+    const fetchImpl = async () => jsonResponse(200, { name: 'Spike Supplier', supplier_name: 'Spike Supplier' });
+    const deps = baseDeps(fetchImpl, {
+      doctypeBodies: { supplier: { toBody: () => ({}), fromDoc: (doc) => ({ id: 'placeholder', erp_supplier_name: (doc as { supplier_name: string }).supplier_name }) } },
+    });
+    const adapter = createErpAdapter(deps);
+    const record = await adapter.getByExternalId('companies', 'Supplier:Spike Supplier');
+    expect(record).toMatchObject({ erp_supplier_name: 'Spike Supplier' });
+  });
+
+  it('getByExternalId returns null for a 404 (not found)', async () => {
+    const fetchImpl = async () => jsonResponse(404, { exc_type: 'DoesNotExistError' });
+    const deps = baseDeps(fetchImpl, { doctypeBodies: { supplier: { toBody: () => ({}), fromDoc: () => ({ id: 'placeholder' }) } } });
+    const adapter = createErpAdapter(deps);
+    await expect(adapter.getByExternalId('companies', 'Supplier:Ghost')).resolves.toBeNull();
+  });
+});

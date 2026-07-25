@@ -31,13 +31,18 @@ select throws_ok(
   '42501', null,
   'AC-OPR-001 Operator INSERT into platform_operators denied (no write policy — append-only-by-omission)');
 
-with upd as (update platform_operators set granted_by = auth.uid() returning user_id)
-select is((select count(*)::int from upd), 0,
-  'AC-OPR-001 Operator UPDATE on platform_operators affects 0 rows (no UPDATE policy)');
+-- Migration 0152 (audit LOW-B3) revoked INSERT/UPDATE/DELETE from authenticated at the GRANT
+-- layer, so a client write is now denied 42501 OUTRIGHT rather than silently affecting 0 rows.
+-- The goal-oracle is unchanged and strengthened: a non-service_role role cannot mutate this table.
+select throws_ok(
+  $$ update platform_operators set granted_by = auth.uid() $$,
+  '42501', null,
+  'AC-OPR-001 Operator UPDATE on platform_operators denied at the grant layer (0152)');
 
-with del as (delete from platform_operators returning user_id)
-select is((select count(*)::int from del), 0,
-  'AC-OPR-001 Operator DELETE on platform_operators affects 0 rows (no DELETE policy)');
+select throws_ok(
+  $$ delete from platform_operators $$,
+  '42501', null,
+  'AC-OPR-001 Operator DELETE on platform_operators denied at the grant layer (0152)');
 
 -- (b)/(c) is_operator() under the Operator JWT returns true; their own SELECT returns exactly 1 row.
 select is(public.is_operator(), true,

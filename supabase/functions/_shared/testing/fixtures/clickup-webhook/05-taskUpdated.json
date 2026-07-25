@@ -1,0 +1,32 @@
+{
+  "signatureHeaderPresent": true,
+  "payload": {
+    "event": "taskUpdated",
+    "history_items": [
+      {
+        "id": "5179799850892346348",
+        "type": 1,
+        "date": "1784536269673",
+        "field": "archived",
+        "parent_id": "901819740362",
+        "data": {},
+        "source": null,
+        "user": {
+          "id": 312760343,
+          "username": "Redacted User",
+          "email": "redacted@example.test",
+          "color": "#595d66",
+          "initials": "AS",
+          "profilePicture": null,
+          "role": 1,
+          "role_subtype": 0
+        },
+        "before": "false",
+        "after": "true"
+      }
+    ],
+    "task_id": "86eybn1n2",
+    "team_id": "90182862715",
+    "webhook_id": "78c63442-b149-45da-9fbd-ac4411540696"
+  }
+}

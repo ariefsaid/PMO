@@ -5,23 +5,53 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // extended to cover both .from() chains AND .rpc() calls.
 // ---------------------------------------------------------------------------
 
-const { mockRpc, mockFrom, mockSelect, mockEq, mockOrder, mockLimit, mockUpdate, mockDelete, mockInsert, mockSingle } =
-  vi.hoisted(() => {
-    const mockRpc = vi.fn();
-    const mockFrom = vi.fn();
-    const mockSelect = vi.fn();
-    const mockEq = vi.fn();
-    const mockOrder = vi.fn();
-    const mockLimit = vi.fn();
-    const mockUpdate = vi.fn();
-    const mockDelete = vi.fn();
-    const mockInsert = vi.fn();
-    const mockSingle = vi.fn();
-    return { mockRpc, mockFrom, mockSelect, mockEq, mockOrder, mockLimit, mockUpdate, mockDelete, mockInsert, mockSingle };
-  });
+const {
+  mockRpc,
+  mockFrom,
+  mockSelect,
+  mockEq,
+  mockOrder,
+  mockLimit,
+  mockUpdate,
+  mockDelete,
+  mockInsert,
+  mockSingle,
+  mockMaybeSingle,
+  mockFunctionsInvoke,
+} = vi.hoisted(() => {
+  const mockRpc = vi.fn();
+  const mockFrom = vi.fn();
+  const mockSelect = vi.fn();
+  const mockEq = vi.fn();
+  const mockOrder = vi.fn();
+  const mockLimit = vi.fn();
+  const mockUpdate = vi.fn();
+  const mockDelete = vi.fn();
+  const mockInsert = vi.fn();
+  const mockSingle = vi.fn();
+  const mockMaybeSingle = vi.fn();
+  const mockFunctionsInvoke = vi.fn();
+  return {
+    mockRpc,
+    mockFrom,
+    mockSelect,
+    mockEq,
+    mockOrder,
+    mockLimit,
+    mockUpdate,
+    mockDelete,
+    mockInsert,
+    mockSingle,
+    mockMaybeSingle,
+    mockFunctionsInvoke,
+  };
+});
 
+// P3c (slice 4): `activateVersion` now also re-reads `activated_at` (`.maybeSingle()`) and dispatches the
+// push consequence (`supabase.functions.invoke`) — both mocked here so the invariant tests below can wire
+// the FULL success/failure paths, not just the RPC half.
 vi.mock('@/src/lib/supabase/client', () => ({
-  supabase: { from: mockFrom, rpc: mockRpc },
+  supabase: { from: mockFrom, rpc: mockRpc, functions: { invoke: mockFunctionsInvoke } },
 }));
 
 import {
@@ -33,6 +63,7 @@ import {
   createBudgetVersion,
   cloneVersion,
   activateVersion,
+  retryBudgetPush,
   archiveVersion,
   deleteDraftVersion,
 } from './budgets';
@@ -67,6 +98,7 @@ function makeFromBuilder(resolved: { data: unknown; error: unknown }) {
   builder.delete = mockDelete.mockReturnValue(builder);
   builder.insert = mockInsert.mockReturnValue(builder);
   builder.single = mockSingle.mockReturnValue(builder);
+  builder.maybeSingle = mockMaybeSingle.mockReturnValue(builder);
   // Make the builder thenable — awaiting it yields resolved
   builder.then = (resolve: (v: typeof resolved) => void, reject?: (e: unknown) => void) =>
     Promise.resolve(resolved).then(resolve, reject);
@@ -86,6 +118,8 @@ beforeEach(() => {
   mockDelete.mockReset();
   mockInsert.mockReset();
   mockSingle.mockReset();
+  mockMaybeSingle.mockReset();
+  mockFunctionsInvoke.mockReset();
 });
 
 // ---------------------------------------------------------------------------
@@ -407,6 +441,8 @@ describe('cloneVersion', () => {
 describe('activateVersion', () => {
   it('activateVersion calls the activate RPC with version_id, no org_id (FR-BV-005)', async () => {
     makeRpcBuilder({ data: null, error: null });
+    makeFromBuilder({ data: { activated_at: '2026-07-16T10:00:00Z' }, error: null });
+    mockFunctionsInvoke.mockResolvedValue({ data: { externalRecordId: null, canonical: { id: 'v-draft' } }, error: null });
     await activateVersion('v-draft');
     expect(mockRpc).toHaveBeenCalledWith('activate_budget_version', { version_id: 'v-draft' });
     expect(JSON.stringify(mockRpc.mock.calls)).not.toContain('org_id');
@@ -415,6 +451,146 @@ describe('activateVersion', () => {
   it('throws on RPC error', async () => {
     makeRpcBuilder({ data: null, error: { message: 'activate error' } });
     await expect(activateVersion('v-draft')).rejects.toThrow('activate error');
+  });
+
+  it('AC-BUD-032 ⚑ the money invariant: activation still succeeds when the ERP push dispatch fails', async () => {
+    makeRpcBuilder({ data: null, error: null });
+    makeFromBuilder({ data: { activated_at: '2026-07-16T10:00:00Z' }, error: null });
+    mockFunctionsInvoke.mockResolvedValue({ data: null, error: { message: 'external-unreachable' } });
+    // Never rejects — the push failure is swallowed into durable server-side state, never re-thrown here.
+    // HIGH-C: but it is REPORTED. A dispatch that never reached the edge function leaves NO mirror row
+    // at all (every mirror writer lives inside `adapter-dispatch`), so the sweep backstop — whose work
+    // queue IS that mirror — is structurally blind to it. Returning `void` made the UI show a plain
+    // success while ERPNext kept enforcing the previous budget indefinitely.
+    await expect(activateVersion('v-draft')).resolves.toEqual({ pushState: 'failed' });
+  });
+
+  it('HIGH-C a SUCCESSFUL push is reported as such', async () => {
+    makeRpcBuilder({ data: null, error: null });
+    makeFromBuilder({ data: { activated_at: '2026-07-16T10:00:00Z' }, error: null });
+    mockFunctionsInvoke.mockResolvedValue({ data: { externalRecordId: 'BUDGET-2026-00001', canonical: { id: 'v-draft' } }, error: null });
+    await expect(activateVersion('v-draft')).resolves.toEqual({ pushState: 'pushed' });
+  });
+
+  it('AC-BUD-032 activation still succeeds when the version carries no activation stamp to key the push on', async () => {
+    makeRpcBuilder({ data: null, error: null });
+    makeFromBuilder({ data: { activated_at: null }, error: null }); // budgetPushKey fails closed on this
+    await expect(activateVersion('v-draft')).resolves.toEqual({ pushState: 'failed' });
+    expect(mockFunctionsInvoke).not.toHaveBeenCalled();
+  });
+
+  it('AC-BFY-009 HIGH-D retryBudgetPush sends NO client key — the server derives one per fiscal year', async () => {
+    makeFromBuilder({ data: { activated_at: '2026-07-16T10:00:00Z' }, error: null });
+    mockFunctionsInvoke.mockResolvedValue({
+      data: { externalRecordId: null, canonical: { id: 'v-1' }, years: [{ fiscal_year: '2026', pushed: true }] },
+      error: null,
+    });
+    await expect(retryBudgetPush('v-1', '2026')).resolves.toEqual({ pushState: 'pushed' });
+    expect(mockRpc).not.toHaveBeenCalled(); // ⚑ a retry NEVER re-activates — the version is already Active
+    const body = mockFunctionsInvoke.mock.calls[0][1].body;
+    // ⚑ HIGH 5 (FR-BFY-056): the retried year is sent as a real dispatch TARGET, so the server drives
+    // ONLY that plan year — not the whole fan-out.
+    expect(body).toMatchObject({ domain: 'budget', operation: 'create', record: { id: 'v-1', erp_doc_kind: 'budget', target_fiscal_year: '2026' } });
+    // ⚑ FR-BFY-031: the client CANNOT mint the key — it does not know the years (the calendar is a
+    // live ERP read only the server-side gate makes). A client key here would key year 2's command on
+    // year 1's string and silently suppress it.
+    expect(body).not.toHaveProperty('idempotencyKey');
+  });
+
+  it('AC-BFY-009 the retry reports the outcome of the YEAR the operator retried, not the fan-out as a whole', async () => {
+    makeFromBuilder({ data: { activated_at: '2026-07-16T10:00:00Z' }, error: null });
+    // The server re-drove both years: FY2026 reconciled to its existing (already confirmed) push,
+    // FY2027 — the one the operator retried — did not land.
+    mockFunctionsInvoke.mockResolvedValue({
+      data: {
+        externalRecordId: null,
+        canonical: { id: 'v-1' },
+        years: [{ fiscal_year: '2026', pushed: true }, { fiscal_year: '2027', pushed: false }],
+      },
+      error: null,
+    });
+    await expect(retryBudgetPush('v-1', '2027')).resolves.toEqual({ pushState: 'failed' });
+    await expect(retryBudgetPush('v-1', '2026')).resolves.toEqual({ pushState: 'pushed' });
+  });
+
+  it('AC-BFY-009 a YEAR-LESS retry (nothing on record for any year) reports the whole fan-out', async () => {
+    makeFromBuilder({ data: { activated_at: '2026-07-16T10:00:00Z' }, error: null });
+    mockFunctionsInvoke.mockResolvedValue({
+      data: { canonical: { id: 'v-1' }, years: [{ fiscal_year: '2026', pushed: true }, { fiscal_year: '2027', pushed: false }] },
+      error: null,
+    });
+    // Anything less than EVERY year landing is not "pushed" — the project still has a year ERPNext
+    // enforces nothing for.
+    await expect(retryBudgetPush('v-1', null)).resolves.toEqual({ pushState: 'failed' });
+    // ⚑ HIGH 5 (FR-BFY-056): a year-less retry carries NO target — it is the whole-fan-out op, so the
+    // server must not receive a target year to narrow it.
+    expect(mockFunctionsInvoke.mock.calls[0][1].body.record).not.toHaveProperty('target_fiscal_year');
+  });
+
+  /**
+   * ⚑ SHOULD-FIX (FU-2 round 2) — NOTHING WAS PUSHED, AND THE TOAST SAID "PUSHED".
+   *
+   * A multi-FY version with NO line items produces an EMPTY push plan: the fan-out loop body never
+   * runs, no ERP `Budget` is created, no mirror row is written — and the boundary answers `200` with
+   * `{ years: [] }`. Reading that as success told the operator "ERPNext is now enforcing the active
+   * budget" about a push that did not happen, while the per-year banner underneath said `never-pushed`:
+   * two contradictory statements instead of one honest one.
+   *
+   * An EMPTY `years` array is not an absent one. Absent = a pre-BFY server that did not report years
+   * (taken at face value: it resolved, so the year asked about is the year that pushed). Empty = this
+   * server enumerated the years it attempted and there were NONE.
+   */
+  it('AC-BFY-009 an EMPTY years array is reported as nothing-to-push — never as a push that happened', async () => {
+    makeFromBuilder({ data: { activated_at: '2026-07-16T10:00:00Z' }, error: null });
+    mockFunctionsInvoke.mockResolvedValue({ data: { years: [] }, error: null });
+    await expect(retryBudgetPush('v-1', '2026')).resolves.toEqual({ pushState: 'nothing-to-push' });
+    await expect(retryBudgetPush('v-1', null)).resolves.toEqual({ pushState: 'nothing-to-push' });
+  });
+
+  it('AC-BFY-009 an ABSENT years key is still taken at face value — a pre-BFY server is unaffected', async () => {
+    makeFromBuilder({ data: { activated_at: '2026-07-16T10:00:00Z' }, error: null });
+    mockFunctionsInvoke.mockResolvedValue({ data: { externalRecordId: 'BUDGET-2026-00001', canonical: { id: 'v-1' } }, error: null });
+    await expect(retryBudgetPush('v-1', '2026')).resolves.toEqual({ pushState: 'pushed' });
+  });
+
+  it('AC-BFY-009 activation reports nothing-to-push too — an activated version with no lines pushed nothing', async () => {
+    makeRpcBuilder({ data: null, error: null });
+    makeFromBuilder({ data: { activated_at: '2026-07-16T10:00:00Z' }, error: null });
+    mockFunctionsInvoke.mockResolvedValue({ data: { years: [] }, error: null });
+    await expect(activateVersion('v-draft')).resolves.toEqual({ pushState: 'nothing-to-push' });
+  });
+
+  // ── H-3 (Luna audit round 3): the retry must not report a failure it never made durable. ──────
+  it('H-3 a retry of an UNSTAMPED version THROWS the reason (nothing durable was written, so "failed" would be a lie)', async () => {
+    makeFromBuilder({ data: { activated_at: null }, error: null });
+    // `budgetPushKey` fails closed client-side, BEFORE any dispatch: no request is made, so no mirror
+    // row and no notification exist. Swallowing it into `pushState:'failed'` told the operator the push
+    // was attempted and recorded — it was neither, and the banner then had no reachable way out.
+    await expect(retryBudgetPush('v-unstamped', '2026')).rejects.toThrow(/activation stamp/i);
+    expect(mockFunctionsInvoke).not.toHaveBeenCalled();
+  });
+
+  it('HIGH-D a retry that fails again REPORTS the failure instead of throwing (the money invariant holds on the retry path too)', async () => {
+    makeFromBuilder({ data: { activated_at: '2026-07-16T10:00:00Z' }, error: null });
+    mockFunctionsInvoke.mockResolvedValue({ data: null, error: { message: 'budget-category-unmapped' } });
+    await expect(retryBudgetPush('v-1', '2026')).resolves.toEqual({ pushState: 'failed' });
+  });
+
+  it('AC-BFY-009 activateVersion dispatches ONE bare-UUID create and lets the server fan out per fiscal year', async () => {
+    makeRpcBuilder({ data: null, error: null });
+    makeFromBuilder({ data: { activated_at: '2026-07-16T10:00:00Z' }, error: null });
+    mockFunctionsInvoke.mockResolvedValue({ data: { externalRecordId: null, canonical: { id: 'v-draft' } }, error: null });
+    await activateVersion('v-draft');
+    expect(mockFunctionsInvoke).toHaveBeenCalledTimes(1);
+    const body = mockFunctionsInvoke.mock.calls[0][1].body;
+    // ⚑ `record.id` is the BARE budget_version_id — the year-qualified identity is derived server-side
+    // (the gate query, the mirror FK and the inbound feed all need the bare UUID, spec §5.1).
+    expect(body).toMatchObject({
+      domain: 'budget',
+      operation: 'create',
+      record: { id: 'v-draft', erp_doc_kind: 'budget' },
+    });
+    expect(body).not.toHaveProperty('idempotencyKey');
   });
 });
 

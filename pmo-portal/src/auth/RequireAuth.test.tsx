@@ -2,19 +2,29 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 
+// Mutable session/profile-error the mocked client returns; reset per test group.
+const state = vi.hoisted(() => ({
+  session: null as unknown,
+  profileError: null as { code?: string; message: string } | null,
+}));
+
+const mockedSignOut = vi.hoisted(() => vi.fn().mockResolvedValue({ error: null }));
+
 vi.mock('@/src/lib/supabase/client', () => ({
   supabase: {
     auth: {
-      getSession: vi.fn().mockResolvedValue({ data: { session: null } }),
+      getSession: vi.fn(() => Promise.resolve({ data: { session: state.session } })),
       onAuthStateChange: vi.fn(() => ({
         data: { subscription: { unsubscribe: vi.fn() } },
       })),
       signInWithPassword: vi.fn(),
       signInWithOtp: vi.fn(),
-      signOut: vi.fn().mockResolvedValue({ error: null }),
+      signOut: mockedSignOut,
     },
     from: vi.fn(() => ({
-      select: () => ({ eq: () => ({ single: vi.fn().mockResolvedValue({ data: null, error: null }) }) }),
+      select: () => ({
+        eq: () => ({ single: vi.fn(() => Promise.resolve({ data: null, error: state.profileError })) }),
+      }),
     })),
   },
 }));
@@ -61,5 +71,47 @@ describe('RequireAuth loading state (AC-AUTH-RESKIN-008)', () => {
     expect(bannedGray).toHaveLength(0);
     expect(bannedPrimaryNNN).toHaveLength(0);
     expect(bannedDark).toHaveLength(0);
+  });
+});
+
+describe('RequireAuth profile-error states (AC-MSAUTH-010/011)', () => {
+  it('AC-MSAUTH-010: a PGRST116 profile-fetch error renders the not-provisioned state — Sign out present, Retry absent', async () => {
+    state.session = { user: { id: 'u-not-provisioned' } };
+    state.profileError = {
+      code: 'PGRST116',
+      message: 'Cannot coerce the result to a single JSON object',
+    };
+    mockedSignOut.mockClear();
+
+    render(tree('/'));
+
+    await waitFor(() =>
+      expect(
+        screen.getByText(/your account isn't set up for this workspace yet/i)
+      ).toBeInTheDocument()
+    );
+    expect(
+      screen.getByText(/ask your administrator to invite you/i)
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /retry/i })).not.toBeInTheDocument();
+    const signOutBtn = screen.getByRole('button', { name: /sign out/i });
+    expect(signOutBtn).toBeInTheDocument();
+    expect(screen.queryByText('PROTECTED HOME')).not.toBeInTheDocument();
+  });
+
+  it('AC-MSAUTH-011: a generic profile-fetch error keeps the existing load-error state — Retry present, no Sign out', async () => {
+    state.session = { user: { id: 'u-load-error' } };
+    state.profileError = { code: '57014', message: 'network timeout' };
+    mockedSignOut.mockClear();
+
+    render(tree('/'));
+
+    await waitFor(() =>
+      expect(screen.getByText('Unable to load your profile.')).toBeInTheDocument()
+    );
+    expect(screen.getByText(/network timeout/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /sign out/i })).not.toBeInTheDocument();
+    expect(screen.queryByText('PROTECTED HOME')).not.toBeInTheDocument();
   });
 });

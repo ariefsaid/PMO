@@ -133,7 +133,8 @@ export async function saveTimesheetWeek(
   deleteIds: string[],
 ): Promise<string> {
   const { data, error } = (await supabase.rpc('save_timesheet_week', {
-    p_timesheet_id: timesheetId,
+    // Runtime-legal explicit NULL (resolve-or-create flow); typegen cannot express a nullable required arg.
+    p_timesheet_id: timesheetId as string,
     p_week_start_date: weekStartDate,
     // The RPC re-targets entries at the resolved sheet id, so timesheet_id in the payload is
     // ignored; send only the cell coordinates + values it reads (project_id/entry_date/hours/notes).

@@ -32,8 +32,13 @@ const PROJECT_ID = '40000000-0000-0000-0000-000000000001';
 async function gotoTasks(page: Page) {
   await page.goto(`/projects/${PROJECT_ID}`);
   await page.getByRole('tab', { name: /tasks/i }).click();
-  // The loading variant renders data-testid="liststate-loading"; wait until it clears.
-  await expect(page.getByTestId('liststate-loading')).not.toBeVisible({ timeout: 20_000 });
+  // Wait on the task surface's own positive readiness oracle. Other independent
+  // project widgets may legitimately render ListState loaders at the same time,
+  // so a page-global `liststate-loading` locator is ambiguous under CI timing.
+  const tasksPanel = page.getByRole('tabpanel', { name: /tasks/i });
+  await expect(
+    tasksPanel.getByRole('tablist', { name: 'Task view', exact: true }),
+  ).toBeVisible({ timeout: 20_000 });
 }
 
 /**

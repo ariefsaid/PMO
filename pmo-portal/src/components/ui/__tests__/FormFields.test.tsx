@@ -295,3 +295,35 @@ describe('FormRow / FormGrid / FormActions: composition', () => {
     expect(screen.getByText('child-a')).toBeInTheDocument();
   });
 });
+
+/**
+ * I-4 (rendered Discover pass, 2026-07-22) — `hideLabel` on the text/number fields.
+ *
+ * `FieldShell` and `SelectField` already had it, for exactly this case: a control inside a table cell,
+ * where a visible caption is noise. `NumberField` did not, so the budget ETC editor was hand-rolled
+ * instead — and shipped with no `aria-invalid` / `aria-describedby` at all. Making the primitive cover
+ * the case is what removes the reason to hand-roll one.
+ */
+describe('NumberField / TextField — hideLabel keeps the accessible name (I-4)', () => {
+  it('NumberField with hideLabel is still named, and its label is visually hidden', () => {
+    render(<NumberField label="Estimate to complete" hideLabel value="10" onChange={() => {}} />);
+    const field = screen.getByLabelText('Estimate to complete');
+    expect(field).toBeInTheDocument();
+    expect(document.querySelector('label')).toHaveClass('sr-only');
+  });
+
+  it('NumberField with hideLabel still wires an error to the field (aria-invalid + describedby)', () => {
+    render(
+      <NumberField label="Estimate to complete" hideLabel value="-5" onChange={() => {}} error="Enter a valid amount" />,
+    );
+    const field = screen.getByLabelText('Estimate to complete');
+    const alert = screen.getByRole('alert');
+    expect(field).toHaveAttribute('aria-invalid', 'true');
+    expect(field.getAttribute('aria-describedby') ?? '').toContain(alert.id);
+  });
+
+  it('TextField with hideLabel is still named', () => {
+    render(<TextField label="Search term" hideLabel value="x" onChange={() => {}} />);
+    expect(screen.getByLabelText('Search term')).toBeInTheDocument();
+  });
+});

@@ -2,6 +2,7 @@ import { matchPath } from 'react-router-dom';
 import type { IconName } from '@/src/components/ui/icons';
 import type { BreadcrumbPart } from './Breadcrumb';
 import { projectStatusGroup, type ProjectStatusGroup } from '@/src/lib/db/projectTransitions';
+import type { RunContext } from '@/src/lib/agent/runtime/port';
 import { UserRole } from '../../../types';
 
 export interface ModuleDef {
@@ -393,6 +394,35 @@ export function recordLabelForPath(
   // I3: user views — resolve view name from the useUserViews() cache (FR-VR-082).
   const viewId = idFrom('/views');
   if (viewId) return lists.userViews?.find((v) => v.id === viewId)?.name;
+
+  return undefined;
+}
+
+/**
+ * Resolves the agent's route entity from the same shell-level caches that make
+ * the breadcrumb visible. This lets an immediate Assistant turn carry context
+ * while the lazy detail-page chunk is still showing its loading fallback.
+ */
+export function agentEntityForPath(
+  pathname: string,
+  lists: RecordLists,
+): RunContext['entity'] {
+  const routes: Array<{ prefix: string; type: string }> = [
+    { prefix: '/projects', type: 'project' },
+    { prefix: '/procurement', type: 'procurement_case' },
+    { prefix: '/companies', type: 'company' },
+    { prefix: '/contacts', type: 'contact' },
+  ];
+
+  for (const route of routes) {
+    if (!pathname.startsWith(`${route.prefix}/`)) continue;
+    const id = pathname.slice(route.prefix.length + 1).split('/')[0];
+    const label = recordLabelForPath(pathname, lists);
+    // The route identity is synchronous and sufficient for server-side
+    // caller-JWT/RLS grounding. Use the opaque id as an invisible temporary
+    // label until the authorized cache supplies the human label.
+    if (id) return { type: route.type, id, label: label ?? id };
+  }
 
   return undefined;
 }

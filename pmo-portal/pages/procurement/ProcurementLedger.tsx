@@ -37,6 +37,8 @@ import type { LedgerRow } from '@/src/lib/db/procurementLedger';
 import type { ProcurementDetail } from '@/src/lib/db/procurementLifecycle';
 import type { ProcurementInvoiceRow } from '@/src/lib/db/procurementLifecycle';
 import { formatCurrency } from '@/src/lib/format';
+import { TaskPushBadge } from '@/src/components/tasks/TaskPushBadge';
+import { IDLE_PENDING_PUSH } from '@/src/lib/adapterSeam/pendingPush';
 
 // ---------------------------------------------------------------------------
 // Date formatting (UTC-safe — consistent with RecordCard's formatDate)
@@ -269,6 +271,10 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
     mutations.createPurchaseOrder.isPending ||
     mutations.createPayment.isPending;
 
+  // Discover CRITICAL 1 (task FIX-1): surfaces the record-creation write's pending-push state
+  // (idle for PMO-owned orgs; existing hook mocks predate this field, hence the fallback).
+  const pendingPush = mutations.pendingPush ?? IDLE_PENDING_PUSH;
+
   return (
     <div data-testid="procurement-ledger">
       {/* Toolbar: card-head + filter chips */}
@@ -319,6 +325,11 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
 
       {/* Capture affordance + note */}
       <CardPad>
+        {pendingPush.status !== 'idle' && (
+          <div className="mb-2.5 flex justify-end">
+            <TaskPushBadge state={pendingPush} />
+          </div>
+        )}
         <LedgerCaptureRow
           status={detail.status}
           existingTypes={existingTypes}

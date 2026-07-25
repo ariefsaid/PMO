@@ -1,9 +1,16 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { AccessDenied, Badge, Card, ListState, StatusPill, ViewToggle } from '@/src/components/ui';
+import { AccessDenied, Badge, Card, ConfirmDialog, ListState, StatusPill, TextArea, ViewToggle, useToast } from '@/src/components/ui';
+import { describePushMutationError } from '@/src/lib/adapterSeam/pushErrorCopy';
 import { usePermission } from '@/src/auth/usePermission';
 import { useProcurements } from '@/src/hooks/useProcurements';
-import { useTimesheetsAwaitingApproval } from '@/src/hooks/useTimesheetApproval';
+import {
+  useTimesheetsAwaitingApproval,
+  usePushesNeedingAttention,
+  useEmployeeLinkConfirm,
+  useReopenableApprovedTimesheets,
+  useTimesheetMutations,
+} from '@/src/hooks/useTimesheetApproval';
 import { useAuth } from '@/src/auth/useAuth';
 import { ApprovalsQueue } from './timesheets/ApprovalsQueue';
 import { TimesheetApprovalPreview } from './timesheets/ApprovalsQueue';
@@ -12,7 +19,10 @@ import { ProcurementApprovalPreview } from './approvals/ProcurementApprovalRow';
 import { pendingProcurementApprovals } from '@/src/lib/selectors/approvals';
 import { workflowVariant } from '@/src/lib/status/statusVariants';
 import { formatCurrency } from '@/src/lib/format';
+import { PushStateBadge } from '@/src/components/timesheets/PushStateBadge';
+import { EmployeeLinkConfirm } from '@/src/components/timesheets/EmployeeLinkConfirm';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
+import { REOPENABLE_WINDOW_DAYS } from '@/src/lib/db/timesheetTransition';
 import type { TimesheetAwaitingApproval } from '@/src/lib/db/timesheetTransition';
 
 /** `lg` breakpoint — the two-pane triage activates here. */
@@ -183,6 +193,326 @@ function QueueGroup({
   );
 }
 
+/**
+ * P3b (FR-TSP-085) — the "needs attention" ERP-push queue. Every `failed`/`held` push visible to the
+ * caller (RLS is the only scoping authority, task 4.x). NOTHING renders when the list is empty — an
+ * unflipped org, or one with no failures, sees no trace of this section (FR-TSP-173).
+ */
+function PushAttentionSection() {
+  const { currentUser } = useAuth();
+  const may = usePermission();
+  const { toast } = useToast();
+  const { data, isPending, isError, retry: retryMutation } = usePushesNeedingAttention();
+  const [retryingId, setRetryingId] = useState<string | null>(null);
+
+  if (isPending || isError || !data || data.length === 0) return null;
+
+  return (
+    <section className="mb-4" aria-label="ERP pushes needing attention">
+      <h2 className="mb-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+        ERP pushes needing attention
+      </h2>
+      <div className="space-y-1.5">
+        {data.map((row) => {
+          const canRetry = may('push_timesheet', 'timesheet', {
+            currentUserId: currentUser?.id,
+            record: { approved_by: row.approved_by },
+          });
+          return (
+            <div
+              key={row.timesheet_id}
+              className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-card px-3 py-2.5"
+            >
+              <div className="min-w-0">
+                <div className="text-sm font-medium">{row.owner_name}</div>
+                <div className="mt-0.5 text-[12px] text-muted-foreground">{weekLabel(row.week_start_date)}</div>
+              </div>
+              <PushStateBadge
+                state={{ push_state: row.push_state, push_error: row.push_error, ts_number: row.ts_number }}
+                canRetry={canRetry}
+                retryLoading={retryingId === row.timesheet_id && retryMutation.isPending}
+                // ⚑ I-13 (rendered Discover pass, 2026-07-22) — this Retry gave ZERO feedback: no
+                // toast, no state change, no console error, while the budget surface's Retry two
+                // screens away toasts both outcomes. A silent retry is indistinguishable from a dead
+                // button, so an operator either gives up or clicks it repeatedly. BOTH outcomes are
+                // now stated, at the call site that knows which row they belong to.
+                onRetry={() => {
+                  setRetryingId(row.timesheet_id);
+                  retryMutation.mutate(
+                    { timesheetId: row.timesheet_id },
+                    {
+                      onSuccess: () =>
+                        toast('Timesheet pushed to ERPNext', `${row.owner_name} · ${weekLabel(row.week_start_date)}`, 'success'),
+                      // ⚑ NEW-2 (rendered re-verification, 2026-07-22) — I-13 gave this Retry a
+                      // voice and gave it the WRONG one. `classifyMutationError` is the generic CRUD
+                      // classifier: it passes the server's message through as `detail`, so the toast
+                      // read "That timesheet could not be pushed — timesheet-not-approved (status
+                      // Submitted)" — a raw adapter token on an operator surface, the precise thing
+                      // `pushErrorCopy` exists to prevent and which the badge two lines above already
+                      // obeys. A push failure is translated by the push vocabulary, on EVERY path.
+                      onError: (err) => {
+                        const copy = describePushMutationError(err);
+                        toast(
+                          'That timesheet could not be pushed',
+                          copy.remedy ? `${copy.message} ${copy.remedy}` : copy.message,
+                          'warning',
+                        );
+                      },
+                      onSettled: () => setRetryingId(null),
+                    },
+                  );
+                }}
+              />
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+/**
+ * P3b (OQ-TSP-10(C) — the owner ruling) — the Employee-adopt-link Admin queue. Renders nothing when
+ * there is no proposed link (the common case for every org that hasn't flipped `timesheets`).
+ */
+function EmployeeLinkConfirmSection() {
+  const may = usePermission();
+  const { links, confirm } = useEmployeeLinkConfirm();
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
+
+  if (links.isPending || links.isError || !links.data || links.data.length === 0) return null;
+
+  return (
+    <section className="mb-4" aria-label="Employee links awaiting confirmation">
+      <h2 className="mb-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+        Employee links awaiting confirmation
+      </h2>
+      <EmployeeLinkConfirm
+        links={links.data}
+        canConfirm={may('confirm_employee_link', 'employeeLink')}
+        confirmingId={confirmingId}
+        onConfirm={(link) => {
+          setConfirmingId(link.id);
+          confirm.mutate(
+            { erpEmployeeId: link.id, profileId: link.profile_id ?? '' },
+            { onSettled: () => setConfirmingId(null) },
+          );
+        }}
+      />
+    </section>
+  );
+}
+
+/**
+ * Slice A (FR-TSC-060, AC-TSC-R3, FENCE 5) — the Approved sheets an approver may re-open for
+ * correction.
+ *
+ * ⚑ SURFACE HONESTY IS THE POINT, not the button. An Approved sheet may return to Draft ONLY while
+ * ERP holds no document for it; the RPC is the authority and it FAILS CLOSED on any doubt. So a row
+ * that cannot be re-opened must say WHY — a disabled control with no reason reads as a dead button
+ * (the I-13 lesson two sections up: a silent affordance is indistinguishable from a broken one).
+ * Hence four distinct renderings, never a greyed-out button:
+ *   • no mirror row                    → "Re-open for correction" (the action)
+ *   • mirror.ts_number set             → "Already pushed to ERP — correction path coming" (Slice B)
+ *   • mirror.post_submit_unknown_at    → "ERP result unknown — an administrator must confirm what
+ *                                        ERPNext holds" (⚑ round-8 BLOCK: NOT visible from push_state,
+ *                                        which reads an ordinary `failed` once a hold is released)
+ *   • push in flight                   → "Push in progress" (transient; retry later)
+ * The RPC's own refusals (`reopen-erp-document-held` / `reopen-push-outcome-unknown` /
+ * `reopen-push-in-flight`) are classified to the
+ * same honest wording — the client's read can be stale, so the server always gets the last word.
+ */
+function ReopenableApprovedSection() {
+  const may = usePermission();
+  const { toast } = useToast();
+  const { data, isPending, isError } = useReopenableApprovedTimesheets();
+  const { reopenApproved, attestNoErpDocument } = useTimesheetMutations();
+  const [reopeningId, setReopeningId] = useState<string | null>(null);
+  // ⚑ SHOULD-FIX 1 (Luna FU-1a round-12) — the attestation is the ONLY route out of an ERP unknown.
+  // Admin-only on the REAL role (`can()` is UX; the RPC re-asserts org + Admin + active membership).
+  // Reason-required (the RPC demands it), so the confirm is a dialog, not a one-click write.
+  const canAttest = may('manage', 'pushHold');
+  const [attestFor, setAttestFor] = useState<{ id: string; owner: string } | null>(null);
+  const [attestReason, setAttestReason] = useState('');
+
+  const closeAttest = () => {
+    setAttestFor(null);
+    setAttestReason('');
+  };
+
+  const submitAttest = () => {
+    if (!attestFor || attestReason.trim() === '') return;
+    const target = attestFor;
+    attestNoErpDocument.mutate(
+      { id: target.id, reason: attestReason.trim() },
+      {
+        onSuccess: () => {
+          closeAttest();
+          toast('Confirmed — the week is clear to re-open', `${target.owner}: ERPNext holds no document`, 'success');
+        },
+        // I-13: a silent affordance reads as broken, so BOTH outcomes speak. The server's fail-closed
+        // refusals (42501 not-authorized, P0001 nothing-to-attest) are surfaced in the user's terms.
+        onError: (err: unknown) => {
+          const msg = err instanceof Error ? err.message : String(err);
+          toast('Could not confirm the ERP result', msg, 'warning');
+        },
+      },
+    );
+  };
+
+  if (isPending || isError || !data || data.length === 0) return null;
+
+  return (
+    <section
+      className="mb-4"
+      aria-label={`Approved timesheets from the last ${REOPENABLE_WINDOW_DAYS} days that can be re-opened for correction`}
+    >
+      {/* ⚑ S4 — the list is bounded to a correction window, so the heading says so: a section that
+          silently drops older weeks reads as a bug the first time someone looks for one. */}
+      <h2 className="mb-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+        Approved — re-open for correction{' '}
+        <span className="font-normal normal-case tracking-normal">(last {REOPENABLE_WINDOW_DAYS} days)</span>
+      </h2>
+      <div className="space-y-1.5">
+        {data.map((row) => {
+          // The SAME two pieces of evidence the RPC's precondition weighs (migration 0151 §A): a live
+          // mirror document, and a NON-TERMINAL push command. ⚑ SHOULD-FIX 4 (Luna code review): the
+          // in-flight test used to read `mirror.push_state`, but the mirror row is written only AFTER
+          // the ERP call settles — so a queued/committing/committed push arrived here as `mirror: null`
+          // and rendered an ACTIVE button the server would refuse, while the two states it did test for
+          // (`pending`/`pushing`) are written by no shipped writer at all.
+          const pushed = Boolean(row.mirror?.ts_number) && !row.mirror?.erp_cancelled_at;
+          // ⚑ Luna FU-1a round-8 BLOCK — the week whose ERP outcome PMO never learned. Independent of
+          // push_state on purpose: once an Admin releases the hold (to restore the backstop route) this
+          // row reads `failed` like any rejected push, and the server still refuses it. Classifying on
+          // the witness is the only way the surface agrees with the RPC.
+          // ⚑ Luna FU-1a round-10 S3 — the mirror's own `held` state is the SAME server refusal. 0157 §4
+          // keeps `push_state = 'held'` as an INDEPENDENT predicate for the pre-0157 residue (a row parked
+          // `held` before the witness column existed), so classifying on the witness alone rendered an
+          // active button the server could only refuse.
+          const hasWitness = !pushed && Boolean(row.mirror?.post_submit_unknown_at);
+          const outcomeUnknown = hasWitness || (!pushed && row.mirror?.push_state === 'held');
+          const inFlight = !pushed && !outcomeUnknown && row.pushCommandState !== null;
+          // The attestation clears a WITNESS (0157 §5). A pre-0157-residue `held` mirror carries none,
+          // so the RPC would refuse it — offer the affordance ONLY where it can succeed (a real
+          // witness). Those residue rows keep the note; their route out is documented separately.
+          const offerAttest = canAttest && hasWitness;
+          return (
+            <div
+              key={row.id}
+              className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-card px-3 py-2.5"
+            >
+              <div className="min-w-0">
+                <div className="text-sm font-medium">{row.owner?.full_name ?? 'Unknown'}</div>
+                <div className="mt-0.5 text-[12px] text-muted-foreground">{weekLabel(row.week_start_date)}</div>
+              </div>
+              {pushed ? (
+                <span className="text-[12px] text-muted-foreground">
+                  Already pushed to ERP — correction path coming
+                </span>
+              ) : outcomeUnknown ? (
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                  <span className="text-[12px] text-muted-foreground">
+                    ERP result unknown — an administrator must confirm what ERPNext holds
+                  </span>
+                  {offerAttest && (
+                    <button
+                      type="button"
+                      className="h-8 rounded-md border border-border px-3 text-[12px] font-medium hover:bg-accent"
+                      onClick={() => {
+                        setAttestReason('');
+                        setAttestFor({ id: row.id, owner: row.owner?.full_name ?? 'Unknown' });
+                      }}
+                    >
+                      Confirm what ERPNext holds
+                    </button>
+                  )}
+                </div>
+              ) : inFlight ? (
+                <span className="text-[12px] text-muted-foreground">Push in progress</span>
+              ) : (
+                <button
+                  type="button"
+                  className="h-8 rounded-md border border-border px-3 text-[12px] font-medium hover:bg-accent disabled:opacity-50"
+                  disabled={reopeningId === row.id && reopenApproved.isPending}
+                  onClick={() => {
+                    setReopeningId(row.id);
+                    reopenApproved.mutate(
+                      { id: row.id },
+                      {
+                        onSuccess: () => {
+                          setReopeningId(null);
+                          toast(`Re-opened — the week is back in Draft for editing.`, 'success');
+                        },
+                        onError: (err: unknown) => {
+                          setReopeningId(null);
+                          const msg = err instanceof Error ? err.message : String(err);
+                          // The server's fail-closed refusals, said in the user's terms. Anything
+                          // else is surfaced verbatim rather than flattened to "something went wrong".
+                          if (msg.includes('reopen-erp-document-held')) {
+                            toast('Already in ERP — this week cannot be re-opened yet.', 'error');
+                          } else if (msg.includes('reopen-push-outcome-unknown')) {
+                            // Migrations 0152 §B / 0157 §4: the ERP push SUCCEEDED and its read-back
+                            // failed, so nobody knows whether ERPNext holds a document for this week.
+                            // "Try again shortly" would be false, and so would "an administrator must
+                            // release the held push" (⚑ round-8 BLOCK): a release re-queues the command
+                            // and learns nothing about ERPNext, so it does NOT lift this refusal. The
+                            // only true instruction is that someone must go and establish what ERP holds.
+                            toast(
+                              'This week’s ERP result is unknown — an administrator must confirm what ERPNext holds before it can be re-opened.',
+                              'error',
+                            );
+                          } else if (msg.includes('reopen-push-in-flight')) {
+                            toast('A push is in flight for this week — try again shortly.', 'error');
+                          } else {
+                            toast(`Could not re-open: ${msg}`, 'error');
+                          }
+                        },
+                      },
+                    );
+                  }}
+                >
+                  Re-open for correction
+                </button>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* ⚑ SHOULD-FIX 1 — the attestation confirm. Reason-required (the confirm is gated until the
+          textarea is non-empty, matching the RPC's own P0001 refusal on an empty reason). Nothing
+          writes on a single click (owner rule); the RPC is Admin-only + audited. */}
+      <ConfirmDialog
+        open={attestFor !== null}
+        title="Confirm what ERPNext holds"
+        description={
+          <div className="space-y-3">
+            <p>
+              Certify that you have checked ERPNext and it holds <strong>no Timesheet</strong> for
+              {attestFor ? ` ${attestFor.owner}` : ' this person'}&rsquo;s week. This records an audited
+              attestation and re-opens the week for correction — it does not contact ERPNext.
+            </p>
+            <TextArea
+              label="What did you check in ERPNext?"
+              required
+              value={attestReason}
+              onChange={setAttestReason}
+              placeholder="e.g. Searched Timesheets for this employee and week — none exists."
+            />
+          </div>
+        }
+        confirmLabel="Confirm — no ERP document"
+        cancelLabel="Cancel"
+        loading={attestNoErpDocument.isPending}
+        confirmDisabled={attestReason.trim() === ''}
+        onConfirm={submitAttest}
+        onCancel={closeAttest}
+      />
+    </section>
+  );
+}
+
 const ApprovalsPage: React.FC = () => {
   const may = usePermission();
   const navigate = useNavigate();
@@ -302,6 +632,10 @@ const ApprovalsPage: React.FC = () => {
           Needs my approval — everything waiting on your decision, across procurement and timesheets.
         </p>
       </div>
+
+      {canApproveTimesheets && <PushAttentionSection />}
+      {canApproveTimesheets && <EmployeeLinkConfirmSection />}
+      {canApproveTimesheets && <ReopenableApprovedSection />}
 
       {hasTabs && !allCaughtUp && (
         <div className="mb-4 min-w-0">

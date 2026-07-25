@@ -28,3 +28,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# pi delegation runtime artifacts — never commit
+.pi-subagents/

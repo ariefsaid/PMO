@@ -21,13 +21,14 @@ const versionsState = {
   refetch: vi.fn(),
 };
 
-const mockActivate = vi.fn().mockResolvedValue(undefined);
+const mockActivate = vi.fn().mockResolvedValue({ pushState: 'pushed' });
 const mockArchive = vi.fn().mockResolvedValue(undefined);
 const mockClone = vi.fn().mockResolvedValue('v-clone');
 const mockDeleteDraft = vi.fn().mockResolvedValue(undefined);
 const mockCreateVersion = vi.fn().mockResolvedValue({ id: 'v-new' });
 const mockCreateLineItem = vi.fn().mockResolvedValue({ id: 'li-new' });
 const mockDeleteLineItem = vi.fn().mockResolvedValue(undefined);
+const mockUpdateLineItem = vi.fn().mockResolvedValue(undefined);
 
 vi.mock('@/src/hooks/useBudget', () => ({
   useProjectBudget: () => budgetState,
@@ -39,7 +40,7 @@ vi.mock('@/src/hooks/useBudget', () => ({
     archive: { mutateAsync: mockArchive, isPending: false },
     deleteDraft: { mutateAsync: mockDeleteDraft, isPending: false },
     createLineItem: { mutateAsync: mockCreateLineItem, isPending: false },
-    updateLineItem: { mutateAsync: vi.fn(), isPending: false },
+    updateLineItem: { mutateAsync: mockUpdateLineItem, isPending: false },
     deleteLineItem: { mutateAsync: mockDeleteLineItem, isPending: false },
   }),
 }));
@@ -231,6 +232,44 @@ describe('ProjectBudget Draft version actions', () => {
     await userEvent.click(screen.getByRole('button', { name: /Activate version/i }));
     expect(mockActivate).toHaveBeenCalledWith('v-draft');
     await waitFor(() => expect(screen.getByRole('status')).toBeInTheDocument());
+    resetState();
+  });
+
+  // ── HIGH-C (Luna re-audit round 2): the push is a CONSEQUENCE of activation, never its precondition
+  //    (ADR-0059 §3.2) — so activation still SUCCEEDS when the push fails. But "swallowed" must mean
+  //    "recorded and surfaced", never "lost": a dispatch that never reached the edge function writes no
+  //    mirror row at all, the sweep backstop's queue IS that mirror, and the user was shown a plain
+  //    success while ERPNext kept enforcing the previous budget.
+  it('HIGH-C activation whose ERP push failed still succeeds, but SAYS SO instead of toasting a clean success', async () => {
+    mockActivate.mockResolvedValueOnce({ pushState: 'failed' });
+    budgetState.data = 0;
+    versionsState.data = [draftVersion];
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: /^Activate$/i }));
+    await userEvent.click(screen.getByRole('button', { name: /Activate version/i }));
+    await waitFor(() => expect(screen.getByRole('status')).toBeInTheDocument());
+    expect(screen.getByRole('status')).toHaveTextContent(/activated/i);
+    expect(screen.getByRole('status')).toHaveTextContent(/ERPNext/i);
+    resetState();
+  });
+
+  /**
+   * ⚑ SHOULD-FIX (FU-2 round 2) — a version with no line items sends NOTHING to ERPNext (the fan-out
+   * has no year to attempt), so the toast must not announce a push. Neither may it cry failure: no
+   * attempt was made and there is nothing to retry.
+   */
+  it('activation of a version with NO lines says nothing was sent — never "ERPNext is enforcing" it', async () => {
+    mockActivate.mockResolvedValueOnce({ pushState: 'nothing-to-push' });
+    budgetState.data = 0;
+    versionsState.data = [draftVersion];
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: /^Activate$/i }));
+    await userEvent.click(screen.getByRole('button', { name: /Activate version/i }));
+    await waitFor(() => expect(screen.getByRole('status')).toBeInTheDocument());
+    expect(screen.getByRole('status')).toHaveTextContent(/activated/i);
+    expect(screen.getByRole('status')).toHaveTextContent(/no budget lines/i);
+    // …and it does NOT tell the operator to retry a push that was never attempted.
+    expect(screen.getByRole('status')).not.toHaveTextContent(/retry/i);
     resetState();
   });
 
@@ -570,5 +609,104 @@ describe('ProjectBudget version selector (budget-dropdown)', () => {
     const selectorBar = getByTestId('version-selector');
     expect(selectorBar.textContent).not.toContain('—'); // em-dash —
     resetState();
+  });
+});
+
+/**
+ * ⚑ C-4 (rendered Discover pass, 2026-07-22) — two columns named "Actual" sat ~100px apart on the
+ * same tab, showing different figures ($1,200,000 here vs $1,150,000 in the projection below), with
+ * nothing on screen saying they came from different places or which governed. They are different
+ * facts: this is what PMO recorded on the budget line; the projection reads the ERP general ledger.
+ */
+describe('ProjectBudget — the Actual column names its own source (C-4)', () => {
+  it('C-4 the version grid column says the figure is PMO-recorded, not the ERP ledger', async () => {
+    budgetState.data = 4700000;
+    versionsState.data = [{ ...activeVersion, line_items: draftVersion.line_items }];
+    renderPage();
+    // the selected version's line-item grid is the surface that carries the column
+    await screen.findByRole('columnheader', { name: /Budgeted/i });
+    expect(screen.queryAllByRole('columnheader', { name: /^Actual$/ })).toHaveLength(0);
+    expect(screen.getAllByRole('columnheader', { name: /Actual \(PMO recorded\)/i }).length).toBeGreaterThan(0);
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════════════════════════════════
+// AC-BFY-016 (FR-BFY-060/061) — THE PER-LINE FISCAL-YEAR AFFORDANCE, DRAFT ONLY.
+//
+// Phasing is what lets a multi-fiscal-year project reach ERPNext at all (the gate refuses a multi-FY
+// project with any un-phased line), and the ONLY route to a Draft is cloning the Active version — so
+// without this control the capability is unreachable from the product. Draft-only because
+// `enforce_draft_line_item` (0005) rejects the write on any other status: an affordance the DB will
+// refuse is worse than none.
+// ════════════════════════════════════════════════════════════════════════════════════════════════
+describe('ProjectBudget — the per-line fiscal year (AC-BFY-016)', () => {
+  const phasedDraft = {
+    ...draftVersion,
+    line_items: [{ ...draftVersion.line_items[0], fiscal_year: '2026' }],
+  };
+
+  it('AC-BFY-016 a Draft line SHOWS its fiscal year, and un-phased reads as un-phased (never a guessed year)', async () => {
+    versionsState.data = [
+      { ...draftVersion, line_items: [{ ...draftVersion.line_items[0], fiscal_year: null }] },
+    ];
+    renderPage();
+    expect(await screen.findByText(/un-phased/i)).toBeInTheDocument();
+  });
+
+  it('AC-BFY-016 a new Draft line can be phased, and the year is PERSISTED with it', async () => {
+    const user = userEvent.setup();
+    versionsState.data = [draftVersion];
+    renderPage();
+    await user.click(await screen.findByRole('button', { name: /add line item/i }));
+    await user.type(screen.getByLabelText(/line item amount/i), '50000');
+    await user.type(screen.getByLabelText(/line item fiscal year/i), '2027');
+    await user.click(screen.getAllByRole('button', { name: /^save$/i })[0]);
+    await waitFor(() =>
+      expect(mockCreateLineItem).toHaveBeenCalledWith({
+        versionId: 'v-draft',
+        item: expect.objectContaining({ fiscal_year: '2027' }),
+      }),
+    );
+  });
+
+  it('AC-BFY-016 a line left un-phased persists NULL — never an invented year (ADR-0048)', async () => {
+    const user = userEvent.setup();
+    versionsState.data = [draftVersion];
+    renderPage();
+    await user.click(await screen.findByRole('button', { name: /add line item/i }));
+    await user.type(screen.getByLabelText(/line item amount/i), '50000');
+    await user.click(screen.getAllByRole('button', { name: /^save$/i })[0]);
+    await waitFor(() =>
+      expect(mockCreateLineItem).toHaveBeenCalledWith({
+        versionId: 'v-draft',
+        item: expect.objectContaining({ fiscal_year: null }),
+      }),
+    );
+  });
+
+  it('AC-BFY-016 editing an existing Draft line can RE-PHASE it', async () => {
+    const user = userEvent.setup();
+    versionsState.data = [phasedDraft];
+    renderPage();
+    await user.click(await screen.findByRole('button', { name: /edit line item Labor/i }));
+    const field = screen.getByLabelText(/^fiscal year$/i);
+    await user.clear(field);
+    await user.type(field, '2027');
+    await user.click(screen.getByRole('button', { name: /^save$/i }));
+    await waitFor(() =>
+      expect(mockUpdateLineItem).toHaveBeenCalledWith({
+        id: 'li-1',
+        patch: expect.objectContaining({ fiscal_year: '2027' }),
+      }),
+    );
+  });
+
+  it('AC-BFY-016 an ACTIVE version shows its phasing but offers NO affordance (the DB refuses the write)', async () => {
+    versionsState.data = [
+      { ...activeVersion, line_items: [{ ...draftVersion.line_items[0], budget_version_id: 'v-active', fiscal_year: '2026' }] },
+    ];
+    renderPage();
+    expect(await screen.findByText('2026')).toBeInTheDocument();
+    expect(screen.queryByLabelText(/fiscal year/i)).not.toBeInTheDocument();
   });
 });

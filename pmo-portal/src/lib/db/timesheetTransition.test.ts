@@ -72,10 +72,11 @@ describe('isLegalTimesheetTransition', () => {
     expect(isLegalTimesheetTransition('Submitted', 'Approved')).toBe(true);
     expect(isLegalTimesheetTransition('Submitted', 'Rejected')).toBe(true);
     expect(isLegalTimesheetTransition('Rejected', 'Draft')).toBe(true);
+    // Slice A (FR-TSC-001): Approved is no longer terminal — an approver may re-open it to Draft.
+    expect(isLegalTimesheetTransition('Approved', 'Draft')).toBe(true);
 
     // Illegal jumps
     expect(isLegalTimesheetTransition('Draft', 'Approved')).toBe(false);
-    expect(isLegalTimesheetTransition('Approved', 'Draft')).toBe(false);
     expect(isLegalTimesheetTransition('Submitted', 'Draft')).toBe(false);
   });
 });
@@ -91,6 +92,7 @@ describe('timesheetActions', () => {
       submit: true,
       approve: false,
       reject: false,
+      reopen: false,
     });
 
     // Owner viewing own Submitted sheet → SoD: no actions
@@ -98,6 +100,7 @@ describe('timesheetActions', () => {
       submit: false,
       approve: false,
       reject: false,
+      reopen: false,
     });
 
     // Approver (non-owner) viewing Submitted sheet → Approve + Reject enabled
@@ -105,6 +108,25 @@ describe('timesheetActions', () => {
       submit: false,
       approve: true,
       reject: true,
+      reopen: false,
+    });
+  });
+
+  it('AC-TSC-020: timesheetActions offers Re-open to an approver (never the owner) of an Approved sheet (Slice A)', () => {
+    // Approver (non-owner) viewing an Approved sheet → Re-open enabled (the owner is excluded — SoD).
+    expect(timesheetActions('Approved', false, true)).toEqual({
+      submit: false,
+      approve: false,
+      reject: false,
+      reopen: true,
+    });
+    // The owner viewing their OWN Approved sheet → no re-open (SoD: an owner never re-opens their own
+    // approved sheet, even if they are also an approver).
+    expect(timesheetActions('Approved', true, true)).toEqual({
+      submit: false,
+      approve: false,
+      reject: false,
+      reopen: false,
     });
   });
 });
@@ -125,7 +147,7 @@ describe('submitTimesheet / approveTimesheet / rejectTimesheet', () => {
     expect(mockRpc).toHaveBeenCalledWith('transition_timesheet', {
       p_timesheet_id: 'ts-id',
       p_to: 'Submitted',
-      p_notes: null,
+      // Regenerated RPC arg types encode optional args as omit-not-null (types regen, P2 assembly).
     });
     expect(JSON.stringify(mockRpc.mock.calls)).not.toContain('org_id');
 
@@ -138,13 +160,13 @@ describe('submitTimesheet / approveTimesheet / rejectTimesheet', () => {
       p_notes: 'looks good',
     });
 
-    // Reject: no notes → null
+    // Reject: no notes → omit (omit-when-undefined)
     makeRpcBuilder({ data: null, error: null });
     await rejectTimesheet('ts-id');
     expect(mockRpc).toHaveBeenCalledWith('transition_timesheet', {
       p_timesheet_id: 'ts-id',
       p_to: 'Rejected',
-      p_notes: null,
+      // Regenerated RPC arg types encode optional args as omit-not-null (types regen, P2 assembly).
     });
   });
 

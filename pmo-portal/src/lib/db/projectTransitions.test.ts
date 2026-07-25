@@ -122,14 +122,13 @@ describe('transitionProject', () => {
       p_contract_date: '2026-03-01',
     });
 
-    // Non-win call: null opts
+    // Non-win call: no opts → omit p_customer_contract_ref / p_contract_date
     makeRpcBuilder({ data: null, error: null });
     await transitionProject('p1', 'PQ Submitted');
+    // Regenerated RPC arg types encode optional args as omit-not-null (types regen, P2 assembly).
     expect(mockRpc).toHaveBeenCalledWith('transition_project', {
       p_id: 'p1',
       p_to: 'PQ Submitted',
-      p_customer_contract_ref: null,
-      p_contract_date: null,
     });
 
     // No org_id in any call

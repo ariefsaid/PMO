@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# A `git` shim for DISPATCHED AGENTS: rejects the hook-bypass flags.
+#
+# Why: pre-commit hooks are the enforcement layer, but `git commit --no-verify` skips them entirely —
+# and this is a documented agent behaviour (agents hitting a blocked commit reach for --no-verify).
+# The hook cannot police that; only something in front of git can. See:
+#   https://pydevtools.com/handbook/how-to/how-to-stop-ai-agents-from-bypassing-pre-commit-hooks/
+#
+# Use in a pi dispatch by prepending this dir to PATH:
+#   PATH="$PWD/scripts/agent-git-shim:$PATH" pi --provider ... "<brief>"
+#
+# Humans keep the escape hatch (don't put this on your interactive PATH) — it exists to hold agents to
+# the rule they've broken repeatedly, not to make a mid-rebase impossible.
+set -uo pipefail
+
+for arg in "$@"; do
+  case "$arg" in
+    --no-verify|-n)
+      cat >&2 <<'MSG'
+✗ blocked: `git commit --no-verify` (hook bypass).
+
+The pre-commit gate is not an obstacle to route around — it is the definition of done.
+If it blocked you, the staged change is RED. Fix the code, or report the blocker.
+Do NOT weaken/skip/delete a test to get green.
+MSG
+      exit 1
+      ;;
+  esac
+done
+
+exec /usr/bin/git "$@"

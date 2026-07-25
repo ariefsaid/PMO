@@ -78,9 +78,9 @@ describe('getWinRate', () => {
     rpc.mockReset();
     rpc.mockResolvedValue({ data: { wins_count: 2, losses_count: 1, wins_value: 8000000, losses_value: 650000, win_rate_count: 0.666667, win_rate_value: 0.924855 }, error: null });
 
-    // no-arg call — sends null/null
+    // no-arg call — omits p_from/p_to (omit-when-undefined; RPC defaults are null)
     await getWinRate();
-    expect(rpc).toHaveBeenCalledWith('get_win_rate', { p_from: null, p_to: null });
+    expect(rpc).toHaveBeenCalledWith('get_win_rate', {});
 
     // error branch
     rpc.mockResolvedValue({ data: null, error: { message: 'wr-error' } });

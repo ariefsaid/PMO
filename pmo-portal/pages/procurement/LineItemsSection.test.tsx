@@ -16,6 +16,9 @@ const items: ProcurementItemRow[] = [
     quantity: 24,
     rate: 86,
     amount: 2064,
+    erp_docstatus: null,
+    erp_line_amount: null,
+    erp_modified: null,
   },
 ];
 

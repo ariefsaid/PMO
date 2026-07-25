@@ -84,8 +84,8 @@ describe('can() — RBAC matrix (ADR-0016, rbac-visibility.md §K)', () => {
     expect(allowedRoles('archive', 'company')).toEqual(['Admin', 'Executive']);
   });
 
-  it('ADR-0016: archive task = Admin·Exec·PM', () => {
-    expect(allowedRoles('archive', 'task')).toEqual(['Admin', 'Executive', 'Project Manager']);
+  it('ADR-0016: archive task = Admin·Exec·PM·Finance', () => {
+    expect(allowedRoles('archive', 'task')).toEqual(['Admin', 'Executive', 'Project Manager', 'Finance']);
   });
 
   // ── delete (hard) ────────────────────────────────────────────────────────
@@ -265,6 +265,106 @@ describe('can() — CRM RBAC (W3-CRM)', () => {
   });
 });
 
+describe('can() — revenue (P3a) reachability + SoD (owner ruling 2026-07-20)', () => {
+  it('P3a: create salesInvoice = Finance + Admin (Exec/PM view-only, Engineer denied)', () => {
+    expect(allowedRoles('create', 'salesInvoice')).toEqual(['Admin', 'Finance']);
+    expect(can('create', 'salesInvoice', { realRole: 'Executive' })).toBe(false);
+    expect(can('create', 'salesInvoice', { realRole: 'Project Manager' })).toBe(false);
+    expect(can('create', 'salesInvoice', { realRole: 'Engineer' })).toBe(false);
+  });
+
+  it('P3a: create incomingPayment = Finance + Admin (Exec/PM view-only, Engineer denied)', () => {
+    expect(allowedRoles('create', 'incomingPayment')).toEqual(['Admin', 'Finance']);
+    expect(can('create', 'incomingPayment', { realRole: 'Executive' })).toBe(false);
+    expect(can('create', 'incomingPayment', { realRole: 'Project Manager' })).toBe(false);
+    expect(can('create', 'incomingPayment', { realRole: 'Engineer' })).toBe(false);
+  });
+
+  it('P3a: view incomingPayment = MASTER_DATA (mirrors salesInvoice view); Engineer denied', () => {
+    expect(allowedRoles('view', 'incomingPayment')).toEqual([
+      'Admin',
+      'Executive',
+      'Project Manager',
+      'Finance',
+    ]);
+    expect(allowedRoles('view', 'incomingPayment')).toEqual(allowedRoles('view', 'salesInvoice'));
+  });
+
+  it('P3a: cancel (transition) a sales invoice / incoming payment = Finance + Admin', () => {
+    expect(allowedRoles('transition', 'salesInvoice')).toEqual(['Admin', 'Finance']);
+    expect(allowedRoles('transition', 'incomingPayment')).toEqual(['Admin', 'Finance']);
+  });
+
+  it('P3a: no `edit` affordance exists for either revenue entity (no update path is implemented)', () => {
+    expect(allowedRoles('edit', 'salesInvoice')).toEqual([]);
+    expect(allowedRoles('edit', 'incomingPayment')).toEqual([]);
+  });
+
+  it('FR-SAR-195: submit_sales_invoice SoD — the revenue write roles, never the author', () => {
+    // Author cannot submit their own draft…
+    expect(
+      can('submit_sales_invoice', 'salesInvoice', {
+        realRole: 'Finance',
+        currentUserId: 'u-1',
+        record: { author_id: 'u-1' },
+      }),
+    ).toBe(false);
+    // …a different revenue writer can. (Exec/PM are NOT submitters: migration 0114 gates the
+    // `submit_sales_invoice` RPC on the owner ruling's Admin+Finance, so offering them the affordance
+    // would render a button that 403s.)
+    expect(
+      allowedRoles('submit_sales_invoice', 'salesInvoice', {
+        currentUserId: 'u-2',
+        record: { author_id: 'u-1' },
+      }),
+    ).toEqual(['Admin', 'Finance']);
+    // Engineer is never a submitter.
+    expect(
+      can('submit_sales_invoice', 'salesInvoice', {
+        realRole: 'Engineer',
+        currentUserId: 'u-2',
+        record: { author_id: 'u-1' },
+      }),
+    ).toBe(false);
+  });
+
+  // ── Round-6 re-audit, NIT 1: the affordance must consult the SAME oracle as the DB.
+  // 0113 moved the SoD oracle from the last-writer-wins `sales_invoices.author_user_id` scalar to the
+  // APPEND-ONLY `sales_invoice_authors` SET. A user who wrote the body earlier but is no longer the
+  // current scalar author therefore still gets an ENABLED "Submit" — which 403s on click. Enforcement
+  // was right; the affordance lied.
+  it('NIT 1: an EARLIER body writer (in the author set, not the current scalar author) gets no Submit affordance', () => {
+    expect(
+      can('submit_sales_invoice', 'salesInvoice', {
+        realRole: 'Finance',
+        currentUserId: 'u-1',
+        // A co-worker's later edit moved the scalar to u-2; u-1 is still in the append-only set.
+        record: { author_id: 'u-2', author_ids: ['u-1', 'u-2'] },
+      }),
+    ).toBe(false);
+  });
+
+  it('NIT 1: a genuine third party (in neither the set nor the scalar) still gets Submit', () => {
+    expect(
+      can('submit_sales_invoice', 'salesInvoice', {
+        realRole: 'Finance',
+        currentUserId: 'u-3',
+        record: { author_id: 'u-2', author_ids: ['u-1', 'u-2'] },
+      }),
+    ).toBe(true);
+  });
+
+  it('NIT 1: an EMPTY author set + null scalar is refused (the DB fails closed on an unattributable invoice)', () => {
+    expect(
+      can('submit_sales_invoice', 'salesInvoice', {
+        realRole: 'Finance',
+        currentUserId: 'u-3',
+        record: { author_id: null, author_ids: [] },
+      }),
+    ).toBe(false);
+  });
+});
+
 describe('can() — deny-by-default safety', () => {
   it('ADR-0016: a null role is always denied (RLS stays the authority; FE never opens on no role)', () => {
     expect(can('create', 'project', { realRole: null })).toBe(false);
@@ -278,5 +378,116 @@ describe('can() — deny-by-default safety', () => {
   it('ADR-0016: an unknown action/entity combination is denied', () => {
     // @ts-expect-error — exercising the runtime deny-by-default for an unmapped pair
     expect(can('create', 'banana', { realRole: 'Admin' })).toBe(false);
+  });
+});
+
+describe('can() — integration entity (AC-EAC-003/004, FR-EAC-004)', () => {
+  it('AC-EAC-003: can(\'manage\', \'integration\') is true for Admin (UX gate)', () => {
+    expect(can('manage', 'integration', { realRole: 'Admin' })).toBe(true);
+  });
+
+  it('AC-EAC-004: can(\'manage\', \'integration\') is false for Project Manager (FE stricter than server)', () => {
+    expect(can('manage', 'integration', { realRole: 'Project Manager' })).toBe(false);
+  });
+
+  it('AC-EAC-004: can(\'manage\', \'integration\') is false for Engineer', () => {
+    expect(can('manage', 'integration', { realRole: 'Engineer' })).toBe(false);
+  });
+
+  it('AC-EAC-004: can(\'manage\', \'integration\') is false for Executive', () => {
+    expect(can('manage', 'integration', { realRole: 'Executive' })).toBe(false);
+  });
+
+  it('AC-EAC-004: can(\'manage\', \'integration\') is false for Finance', () => {
+    expect(can('manage', 'integration', { realRole: 'Finance' })).toBe(false);
+  });
+
+  it('AC-EAC-004: can(\'manage\', \'integration\') is false for Operator (server-gated only)', () => {
+    // Operator is not in the Role type — server gate via is_operator() RPC
+    // FE is stricter than server: only Admin passes can('manage', 'integration')
+    // Test a non-Admin role (Project Manager) to verify the FE gate is correct
+    expect(can('manage', 'integration', { realRole: 'Project Manager' })).toBe(false);
+  });
+});
+
+describe('can() — push_timesheet (P3b FR-TSP-011; UX only — approved_timesheet_for_push (0138) + approvalGuard.ts are the enforcement authority)', () => {
+  it('AC-TSP-051(ux): the sheet\'s own approved_by (an Engineer-role line manager) may push — NOT narrowed to money-write roles', () => {
+    expect(
+      can('push_timesheet', 'timesheet', {
+        realRole: 'Engineer',
+        currentUserId: 'm-1',
+        record: { approved_by: 'm-1' },
+      }),
+    ).toBe(true);
+  });
+
+  it('AC-TSP-051(ux): Admin·Executive·Project Manager·Finance may push ANY approved sheet (not just their own approval)', () => {
+    for (const realRole of ['Admin', 'Executive', 'Project Manager', 'Finance'] as Role[]) {
+      expect(
+        can('push_timesheet', 'timesheet', {
+          realRole,
+          currentUserId: 'someone-else',
+          record: { approved_by: 'm-1' },
+        }),
+      ).toBe(true);
+    }
+  });
+
+  it('AC-TSP-051(ux): an unrelated Engineer bystander (not the approver, not privileged) is denied', () => {
+    expect(
+      can('push_timesheet', 'timesheet', {
+        realRole: 'Engineer',
+        currentUserId: 'bystander-1',
+        record: { approved_by: 'm-1' },
+      }),
+    ).toBe(false);
+  });
+
+  it('AC-TSP-051(ux): with no record context (approved_by unknown) a non-privileged role is denied (fail closed)', () => {
+    expect(can('push_timesheet', 'timesheet', { realRole: 'Engineer', currentUserId: 'm-1' })).toBe(
+      false,
+    );
+  });
+
+  it('AC-TSP-051(ux): a null role is always denied', () => {
+    expect(can('push_timesheet', 'timesheet', { realRole: null })).toBe(false);
+  });
+});
+
+/**
+ * ⚑ MED-2 (money-safety audit round 6) — releasing a `held` money command re-opens the door to an ERP
+ * write, so it carries the same Admin-only gate as the RPC that performs it (`release_outbox_hold`,
+ * mig 0137 §4, which re-asserts org + Admin + active membership under SECURITY DEFINER). UX ONLY: the
+ * RPC is the enforcement authority and the FE is never allowed to be looser than it.
+ */
+describe('can() — manage a held ERP push (MED-2; UX only — release_outbox_hold (0137) is the authority)', () => {
+  it('MED-2 Admin may release a held push', () => {
+    expect(can('manage', 'pushHold', { realRole: 'Admin' })).toBe(true);
+  });
+
+  it('MED-2 every non-Admin role is denied — a hold is cleared by a named human with the authority to', () => {
+    for (const realRole of ['Executive', 'Project Manager', 'Finance', 'Engineer'] as Role[]) {
+      expect(can('manage', 'pushHold', { realRole })).toBe(false);
+    }
+  });
+
+  it('MED-2 a null role is always denied', () => {
+    expect(can('manage', 'pushHold', { realRole: null })).toBe(false);
+  });
+});
+
+describe('can() — confirm_employee_link (P3b OQ-TSP-10(C); UX only — confirm_erp_employee_link (0111/0141) is the enforcement authority)', () => {
+  it('AC-TSP-092(ux): Admin may confirm a proposed Employee link', () => {
+    expect(can('confirm_employee_link', 'employeeLink', { realRole: 'Admin' })).toBe(true);
+  });
+
+  it('AC-TSP-092(ux): every non-Admin role is denied (identity re-pointing is Admin-only)', () => {
+    for (const realRole of ['Executive', 'Project Manager', 'Finance', 'Engineer'] as Role[]) {
+      expect(can('confirm_employee_link', 'employeeLink', { realRole })).toBe(false);
+    }
+  });
+
+  it('AC-TSP-092(ux): a null role is always denied', () => {
+    expect(can('confirm_employee_link', 'employeeLink', { realRole: null })).toBe(false);
   });
 });

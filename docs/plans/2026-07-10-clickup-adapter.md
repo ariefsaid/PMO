@@ -552,6 +552,30 @@ adopt-dedupe paths explicitly before D4 merges.
 
 ## Slice E — Onboarding (provisioning + push-seed + pull-adopt)
 
+> **✅ LANDED on `dev` — in REFACTORED form. The original `feat/clickup-p1-slice-e` branch was verified
+> superseded and deleted (2026-07-22, Director).** Kept here because the *shape* changed and a future
+> reader comparing the plan to the code will otherwise think the plan drifted. What actually happened:
+> - `onboarding.ts` + the `clickup-onboard` edge fn landed and were then **extended** on `dev`
+>   (306/326 lines vs the branch's 283/318).
+> - The binding-resolution logic this slice wrote **inline inside the generic `adapter-dispatch` edge fn**
+>   was **extracted** into the pure `clickup/**` lib as `bindingConfig.ts` + `dispatchFactory.ts`
+>   ("review fix #9"). Rationale documented at those files: **confinement (FR-CUA-012)** — the generic
+>   dispatcher must never see ClickUp vocabulary. The defaults are carried over unchanged
+>   (`defaultPmoStatus: 'To Do'`, empty status/member maps).
+> - The single global `CLICKUP_API_TOKEN` this slice read was superseded by **per-org Vault credentials**
+>   (`_shared/perOrgSecret.ts`, AC-EAC-009/011 flag/binding/vault matrix) — which **retains the global
+>   token as the documented fallback** when the flag is OFF, so no behaviour was dropped.
+>   **(Superseded again 2026-07-22, ADR-0061 slice 3.** The flag is now DEFAULT-ON and purely an
+>   operator break-glass; when it IS engaged, `clickup-sweep` throws *before* credential resolution
+>   (`index.ts` "external integrations are disabled by the operator"), so the global-token fallback is
+>   unreachable in that state — it now only serves an unbound org while the integration is enabled.
+>   Verified 2026-07-22.)
+> - Migration `0091_clickup_tasks_flip.sql` was **renumbered `0093`** and extended on `dev`.
+>
+> Verification before deletion: every file the branch touched exists on `dev`; each branch-only line was
+> inspected and accounted for as *refactored-not-lost* (not inferred from line counts). `dev` is a strict
+> superset. The branch was **local-only** (never pushed, no PR), so this note is the only surviving record.
+
 **Goal:** the two clean onboarding directions (OD-CUA-3: reject the mixed case at provisioning),
 idempotent + resumable via `external_refs`/watermark.
 
@@ -589,6 +613,14 @@ Append: `AC-CUA-053` `pullAdopt(projectId, deps)` on a List with tasks → upser
 ---
 
 ## Slice F — Integrations view P1 rows + display labels + data-locality note
+
+> **✅ LANDED on `dev` as-authored. The original `feat/clickup-p1-slice-f` branch was verified superseded
+> and deleted (2026-07-22, Director).** Unlike Slice E this one landed essentially unchanged:
+> `integrationLabels.ts` is **byte-identical** on `dev`, the locality string matches exactly
+> ("US-hosted SaaS — task-domain data resides with ClickUp"), and
+> `docs/legal/2026-07-10-clickup-data-locality-note.md` is present at the same path. Nothing unique was
+> held by the branch. (It also carried Slice E's B/C-series commits, which landed via the same route.)
+> The branch was **local-only** (never pushed, no PR).
 
 **Goal:** surface ClickUp on the read-only Integrations view with human labels (OD-EAS-LABELS debt) and
 the required US-hosted data-locality note (NFR-CUA-LOCALITY-001).

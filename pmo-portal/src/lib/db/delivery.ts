@@ -6,6 +6,11 @@
  * authoritative server-side derivation; both implement the identical formula (FR-DEL-004..006).
  */
 
+/** Rows eligible for milestone/delivery rollups: top-level and not archived. */
+export function isRollupTask(task: { parent_task_id: string | null; archived_at?: string | null }): boolean {
+  return task.parent_task_id == null && task.archived_at == null;
+}
+
 /** Calculated % = Done/total × 100; null when there are no tasks (FR-DEL-004). */
 export function calculatedPct(done: number, total: number): number | null {
   if (total <= 0) return null;

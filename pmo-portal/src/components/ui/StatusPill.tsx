@@ -34,6 +34,21 @@ interface PillStyle {
   labelColor?: string;
   /** Dot color (token via hsl(var(--x))). */
   dot: string;
+  /**
+   * ⚑ NEW-9 — extra dot classes for a state that is genuinely IN FLIGHT. `progress` rendered
+   * byte-identically to `neutral` (same muted label, same muted dot, nothing else), so the two
+   * differed ONLY by their label string — on the one state that is transient and never self-updates.
+   * ADR-0037's monochrome-calm forbids buying that distinction with hue, so it is bought with SHAPE:
+   * a halo ring around the dot, which reads as "radiating / still happening" while staying in the
+   * same ink.
+   *
+   * ⚑ It is deliberately STATIC. `motion-safe:animate-pulse` was tried first and measured: on the
+   * project Tasks board — where most cards are `In Progress` — the animation storm crashed the page
+   * outright under the AC-MOBILE-OVERFLOW-001 sweep at 390px (`Target page, context or browser has
+   * been closed`, reproducible; the same run passed with the animation removed). A status token is
+   * rendered dozens of times per screen, so it must cost nothing.
+   */
+  dotCls?: string;
 }
 
 const STYLES: Record<StatusVariant, PillStyle> = {
@@ -46,7 +61,11 @@ const STYLES: Record<StatusVariant, PillStyle> = {
   warn: { labelCls: 'text-warning-foreground', dot: 'hsl(var(--warning))' },
   overdue: { labelCls: 'text-warning-foreground', dot: 'hsl(var(--warning))' },
   // grey variants — quiet muted label + muted dot (label carries identity, not color)
-  progress: { labelCls: 'text-muted-foreground', dot: 'hsl(var(--muted-foreground))' },
+  progress: {
+    labelCls: 'text-muted-foreground',
+    dot: 'hsl(var(--muted-foreground))',
+    dotCls: 'outline outline-1 outline-offset-2 outline-current',
+  },
   neutral: { labelCls: 'text-muted-foreground', dot: 'hsl(var(--muted-foreground))' },
   draft: { labelCls: 'text-muted-foreground', dot: 'hsl(var(--muted-foreground))' },
   superseded: { labelCls: 'text-muted-foreground', dot: 'hsl(var(--muted-foreground))' },
@@ -78,7 +97,7 @@ export const StatusPill: React.FC<StatusPillProps> = ({
       <span
         data-pill-dot
         aria-hidden="true"
-        className="size-1.5 shrink-0 rounded-full"
+        className={cn('size-1.5 shrink-0 rounded-full', s.dotCls)}
         style={{ background: s.dot }}
       />
       {children}

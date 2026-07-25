@@ -35,8 +35,13 @@ const WORKFLOW_VARIANT: Record<string, StatusVariant> = {
   // ── Drafts (pre-flight) ─────────────────────────────────────────────────
   Draft: 'draft',
 
-  // ── Done / positive-terminal → green ────────────────────────────────────
+  // ── Sales Invoice statuses ──────────────────────────────────────────────
+  Submitted: 'progress',
+  Unpaid: 'warn',
   Paid: 'won',
+  Cancelled: 'lost',
+
+  // ── Done / positive-terminal → green ────────────────────────────────────
   Approved: 'won',
   Done: 'won',
   Complete: 'won',
@@ -47,8 +52,6 @@ const WORKFLOW_VARIANT: Record<string, StatusVariant> = {
 
   // ── Lost / negative-terminal → red ──────────────────────────────────────
   Rejected: 'lost',
-  Cancelled: 'lost',
-  Canceled: 'lost',
   Failed: 'lost',
   Blocked: 'lost',
   'Loss Tender': 'lost',
@@ -64,7 +67,6 @@ const WORKFLOW_VARIANT: Record<string, StatusVariant> = {
   // ── Open / active / in-progress / pending → neutral grey (FREED BLUE) ────
   // The distinct label carries identity; no in-flight state uses the action-blue.
   Open: 'progress',
-  Submitted: 'progress',
   Investigating: 'progress',
   'In Progress': 'progress',
   'To Do': 'neutral', // not-yet-started → quiet neutral (distinct from in-flight grey by label)
@@ -171,6 +173,23 @@ const BUDGET_VERSION_VARIANT: Record<string, StatusVariant> = {
 /** Budget version status → tinted StatusPill variant. Unknown statuses fall back to `neutral`. */
 export function budgetVersionVariant(status: string): StatusVariant {
   return BUDGET_VERSION_VARIANT[status] ?? 'neutral';
+}
+
+/** Sales Invoice status → tinted StatusPill variant. Unknown statuses fall back to `neutral`. */
+export function salesInvoiceStatusVariant(status: string): StatusVariant {
+  return WORKFLOW_VARIANT[status] ?? 'neutral';
+}
+
+/** Incoming Payment status → tinted StatusPill variant. */
+export function incomingPaymentStatusVariant(status: string): StatusVariant {
+  switch (status) {
+    case 'Scheduled':
+      return 'progress';
+    case 'Paid':
+      return 'won';
+    default:
+      return 'neutral';
+  }
 }
 
 // ───────────────────────────────────────────────────────────────────────────

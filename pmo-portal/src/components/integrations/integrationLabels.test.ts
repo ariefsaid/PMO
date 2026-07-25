@@ -11,6 +11,11 @@ describe('OD-EAS-LABELS the display-label map converts raw slugs to human labels
       expect(tierLabel('unknown_tier')).toBe('unknown_tier');
       expect(tierLabel('')).toBe('');
     });
+
+    // task FIX-3 (Discover IMPORTANT) — the erpnext tier (P2, ADR-0055/0057) was missing from the map.
+    it('tierLabel("erpnext") returns "ERPNext"', () => {
+      expect(tierLabel('erpnext')).toBe('ERPNext');
+    });
   });
 
   describe('domainLabel', () => {
@@ -21,6 +26,15 @@ describe('OD-EAS-LABELS the display-label map converts raw slugs to human labels
     it('domainLabel falls back to raw slug for unknown domains', () => {
       expect(domainLabel('unknown_domain')).toBe('unknown_domain');
       expect(domainLabel('')).toBe('');
+    });
+
+    // task FIX-3 (Discover IMPORTANT) — the two P2 domains (procurement flip + companies flip).
+    it('domainLabel("procurement") returns "Procurement"', () => {
+      expect(domainLabel('procurement')).toBe('Procurement');
+    });
+
+    it('domainLabel("companies") returns "Companies"', () => {
+      expect(domainLabel('companies')).toBe('Companies');
     });
   });
 });

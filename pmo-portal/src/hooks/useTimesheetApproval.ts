@@ -6,8 +6,39 @@ import {
   approveTimesheet,
   rejectTimesheet,
   reopenTimesheet,
+  reopenApprovedTimesheet,
+  attestTimesheetNoErpDocument,
+  listReopenableApprovedTimesheets,
   type TimesheetAwaitingApproval,
+  type ReopenableApprovedTimesheet,
 } from '@/src/lib/db/timesheetTransition';
+import { repositories } from '@/src/lib/repositories';
+import {
+  listPushesNeedingAttention,
+  listProposedEmployeeLinks,
+  confirmEmployeeLink,
+  getPushState,
+  type PushNeedingAttention,
+  type ProposedEmployeeLink,
+  type TimesheetPushState,
+} from '@/src/lib/db/timesheetPush';
+
+/**
+ * P3b (FR-TSP-006, ADR-0059 §3.2): the ERP push is a CONSEQUENCE of approval, dispatched via the
+ * repository seam (ADR-0017) in its OWN try/catch, AFTER `transition_timesheet` has already committed
+ * — never a step inside it. Its failure NEVER fails/rolls back/retry-loops the approval: PMO is the
+ * SoT for the approval decision and must not depend on ERP liveness. The durable failure state lives
+ * server-side in `timesheet_erp_mirror.push_state='failed'` (surfaced to Admins) and the sweep
+ * backstop re-drives it — an approval that "fails" because ERP happens to be down would be a
+ * regression for every client that has flipped `timesheets` to ERPNext.
+ */
+async function pushAfterApprove(timesheetId: string): Promise<void> {
+  try {
+    await repositories.timesheet.pushApproved(timesheetId);
+  } catch {
+    // Swallowed deliberately — see the docstring above. Durable state is written server-side.
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Query key factories — org+user-scoped (mirrors useTimesheets pattern)
@@ -20,6 +51,16 @@ const ownTimesheetsKey = (orgId: string | undefined, userId: string | undefined)
 /** Cache key for timesheets awaiting the signed-in user's approval. */
 const awaitingApprovalKey = (orgId: string | undefined, userId: string | undefined) =>
   ['timesheets-awaiting', orgId, userId] as const;
+
+/** Cache key for the Slice-A re-openable Approved queue (AC-TSC-R3). */
+const reopenableApprovedKey = (orgId: string | undefined, userId: string | undefined) =>
+  ['timesheets-reopenable-approved', orgId, userId] as const;
+
+/** Cache key for the P3b Approvals "needs attention" ERP-push surface (FR-TSP-085). */
+const pushesAttentionKey = (orgId: string | undefined) => ['timesheet-pushes-attention', orgId] as const;
+
+/** Cache key for the P3b proposed Employee→PMO-user link queue (OQ-TSP-10(C)). */
+const proposedLinksKey = (orgId: string | undefined) => ['erp-employee-links-proposed', orgId] as const;
 
 // ---------------------------------------------------------------------------
 // Read hook — timesheets awaiting approval (C1)
@@ -38,6 +79,28 @@ export function useTimesheetsAwaitingApproval() {
   return useQuery<TimesheetAwaitingApproval[]>({
     queryKey: awaitingApprovalKey(orgId, userId),
     queryFn: () => listTimesheetsAwaitingApproval(userId!),
+    enabled: Boolean(orgId && userId),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Slice A — re-openable Approved timesheets (AC-TSC-R3 / F5 surface honesty)
+// ---------------------------------------------------------------------------
+
+/**
+ * Returns other users' APPROVED timesheets joined to their ERP mirror, so an approver can see which
+ * are re-openable now (no ERP document) vs pushed/in-flight (honest note, not a disabled button).
+ * Cache key: ['timesheets-reopenable-approved', orgId, userId]. RLS scopes both halves; disabled when
+ * orgId/userId are absent. (FR-TSC-060 / F5.)
+ */
+export function useReopenableApprovedTimesheets() {
+  const { currentUser } = useAuth();
+  const orgId = currentUser?.org_id;
+  const userId = currentUser?.id;
+
+  return useQuery<ReopenableApprovedTimesheet[]>({
+    queryKey: reopenableApprovedKey(orgId, userId),
+    queryFn: () => listReopenableApprovedTimesheets(userId!),
     enabled: Boolean(orgId && userId),
   });
 }
@@ -69,7 +132,10 @@ export function useTimesheetMutations() {
   });
 
   const approve = useMutation<void, Error, { id: string; notes?: string }>({
-    mutationFn: ({ id, notes }) => approveTimesheet(id, notes),
+    mutationFn: async ({ id, notes }) => {
+      await approveTimesheet(id, notes);
+      await pushAfterApprove(id);
+    },
     onSuccess: invalidateBoth,
   });
 
@@ -83,5 +149,117 @@ export function useTimesheetMutations() {
     onSuccess: invalidateBoth,
   });
 
-  return { submit, approve, reject, reopen };
+  // Slice A (AC-TSC-012, FR-TSC-060): re-open an APPROVED sheet to Draft — a pure PMO transition
+  // (no ERP call). See ReopenableApprovedSection (Approvals.tsx) for the honest error classification.
+  //
+  // ⚑ SHOULD-FIX 4 (Luna code review): it must also invalidate the queue it was clicked in AND the
+  // push-attention queue. Invalidating only own/awaiting left the re-opened week sitting in the
+  // "Approved — re-open for correction" list, and left a Retry offered for a week that is now Draft
+  // (a Retry the server will refuse) — both stale until something unrelated happened to refetch them.
+  const reopenApproved = useMutation<void, Error, { id: string }>({
+    mutationFn: ({ id }) => reopenApprovedTimesheet(id),
+    onSuccess: () => {
+      invalidateBoth();
+      queryClient.invalidateQueries({ queryKey: reopenableApprovedKey(orgId, userId) });
+      queryClient.invalidateQueries({ queryKey: pushesAttentionKey(orgId) });
+    },
+  });
+
+  // Slice A (AC-TSC-R12, Luna FU-1a round-12 SHOULD-FIX 1): the ONLY in-product route out of a
+  // post-submit ERP unknown. An Admin certifies "ERPNext holds no Timesheet for this week", which
+  // clears the witness AND releases the held mirror (mig 0159), so the week becomes re-openable. It
+  // invalidates the re-open queue (the row leaves the `outcomeUnknown` state) and the push-attention
+  // queue (the mirror moved held → failed and carries a new classified reason).
+  const attestNoErpDocument = useMutation<void, Error, { id: string; reason: string }>({
+    mutationFn: ({ id, reason }) => attestTimesheetNoErpDocument(id, reason),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: reopenableApprovedKey(orgId, userId) });
+      queryClient.invalidateQueries({ queryKey: pushesAttentionKey(orgId) });
+    },
+  });
+
+  return { submit, approve, reject, reopen, reopenApproved, attestNoErpDocument };
+}
+
+// ---------------------------------------------------------------------------
+// P3b — the Approvals operator surfaces (FR-TSP-085, OQ-TSP-10(C))
+// ---------------------------------------------------------------------------
+
+/**
+ * The Approvals "needs attention" ERP-push queue (P3b, FR-TSP-085): every `failed`/`held` push
+ * visible to the signed-in user. `timesheet_erp_mirror_select` RLS (migration 0136) is the ONLY
+ * scoping authority — this hook adds none of its own, matching the RBAC-transparent posture every
+ * other timesheet read hook in this file follows.
+ */
+export function usePushesNeedingAttention() {
+  const { currentUser } = useAuth();
+  const orgId = currentUser?.org_id;
+  const queryClient = useQueryClient();
+
+  const query = useQuery<PushNeedingAttention[]>({
+    queryKey: pushesAttentionKey(orgId),
+    queryFn: () => listPushesNeedingAttention(),
+    enabled: Boolean(orgId),
+  });
+
+  // The Retry affordance (`can('push_timesheet', 'timesheet', ctx)` gates it at the call-site) — the
+  // SAME repository seam the approve path uses (ADR-0017), never a bespoke second push mechanism.
+  const retry = useMutation<void, Error, { timesheetId: string }>({
+    mutationFn: ({ timesheetId }) => repositories.timesheet.pushApproved(timesheetId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: pushesAttentionKey(orgId) }),
+  });
+
+  return { ...query, retry };
+}
+
+/**
+ * The Employee-adopt-link Admin queue + its confirm mutation (P3b, OQ-TSP-10(C) — the owner ruling:
+ * adopt-then-CONFIRM, never auto-confirmed). `can('confirm_employee_link', 'employeeLink', ctx)` is
+ * the UX gate at the call-site (ADR-0016); `confirm_erp_employee_link` is the enforcement authority.
+ */
+export function useEmployeeLinkConfirm() {
+  const queryClient = useQueryClient();
+  const { currentUser } = useAuth();
+  const orgId = currentUser?.org_id;
+
+  const links = useQuery<ProposedEmployeeLink[]>({
+    queryKey: proposedLinksKey(orgId),
+    queryFn: () => listProposedEmployeeLinks(),
+    enabled: Boolean(orgId),
+  });
+
+  const confirm = useMutation<void, Error, { erpEmployeeId: string; profileId: string }>({
+    mutationFn: ({ erpEmployeeId, profileId }) => confirmEmployeeLink(erpEmployeeId, profileId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: proposedLinksKey(orgId) });
+      // A confirm may unblock an already-failed push (self-heal, FR-TSP-092) — refresh that queue too.
+      queryClient.invalidateQueries({ queryKey: pushesAttentionKey(orgId) });
+    },
+  });
+
+  return { links, confirm };
+}
+
+
+/**
+ * ⚑ I-16 / I-17 (rendered Discover pass, 2026-07-22) — the sheet OWNER'S view of their own push.
+ *
+ * `getPushState` shipped with ZERO consumers, even though `timesheet_erp_mirror_select` (0136)
+ * DELIBERATELY grants the sheet's owner that read: the capability was built, granted, and never wired
+ * to a surface. So the person whose week it is — the one who has to re-do it if the hours never reach
+ * payroll costing — was the one person who could not find out.
+ *
+ * It also closes I-16: the ONLY other consumer of push state is the Approvals queue, which by
+ * construction lists `failed`/`held` only, so `pending`, `pushing` and `pushed` were unreachable in
+ * the running app. On the owner's own week they are the ordinary case.
+ *
+ * `null` (no mirror row: an unflipped org, or a sheet that has not reached the push path) is a NORMAL
+ * state and renders nothing — the badge is supplementary and never gates the page (FR-TSP-173).
+ */
+export function useOwnTimesheetPushState(timesheetId: string | undefined) {
+  return useQuery<TimesheetPushState | null>({
+    queryKey: ['timesheet-push-state', timesheetId],
+    queryFn: () => getPushState(timesheetId!),
+    enabled: Boolean(timesheetId),
+  });
 }

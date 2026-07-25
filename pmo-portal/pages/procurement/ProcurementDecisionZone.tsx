@@ -33,6 +33,8 @@ import { RecordCaptureForm, RecordCaptureTrigger, type StagedRecord } from './Re
 import { VI_FIELD_TEST_IDS } from './vendorInvoiceTestIds';
 import type { ProcurementStatus, ProcurementDetail } from '@/src/lib/db/procurementLifecycle';
 import type { useProcurementMutations } from '@/src/hooks/useProcurementDetail';
+import { TaskPushBadge } from '@/src/components/tasks/TaskPushBadge';
+import { IDLE_PENDING_PUSH } from '@/src/lib/adapterSeam/pendingPush';
 
 type ActionVariant = 'primary' | 'success' | 'destructive' | 'outline';
 
@@ -327,6 +329,13 @@ export const ProcurementDecisionZone: React.FC<ProcurementDecisionZoneProps> = (
                 />
               )}
             </div>
+          )}
+
+          {/* Discover CRITICAL 1 (task FIX-1): the GR/VI/quotation record-creation push state
+              (idle for PMO-owned orgs; `?? IDLE_PENDING_PUSH` — existing hook mocks predate this
+              field). */}
+          {(mutations.pendingPush ?? IDLE_PENDING_PUSH).status !== 'idle' && (
+            <TaskPushBadge state={mutations.pendingPush ?? IDLE_PENDING_PUSH} />
           )}
 
           {mutationError && (

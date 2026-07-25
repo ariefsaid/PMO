@@ -6,7 +6,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastProvider } from '@/src/components/ui';
 import type { Role } from '@/src/auth/AuthContext';
-import { setTaskOwnership, clearOwnershipCache } from '@/src/lib/adapterSeam/ownershipCache';
+import { setTaskOwnership, setProjectBindings, clearOwnershipCache } from '@/src/lib/adapterSeam/ownershipCache';
 import { AppError } from '@/src/lib/appError';
 
 /**
@@ -107,6 +107,7 @@ const switchToBoard = async () => {
 describe('TasksTab — pending-push badge (AC-CUA-060)', () => {
   it('AC-CUA-060: an externally-owned board status write shows pushing → pushed', async () => {
     setTaskOwnership([{ domain: 'tasks', externalTier: 'clickup' }]);
+    setProjectBindings([{ projectId: 'p1', externalTier: 'clickup' }]);
     renderTab();
     await switchToBoard();
 
@@ -144,6 +145,7 @@ describe('TasksTab — pending-push badge (AC-CUA-060)', () => {
 
   it('AC-CUA-060: a rejected dispatch shows push-failed and the card reverts to the prior status', async () => {
     setTaskOwnership([{ domain: 'tasks', externalTier: 'clickup' }]);
+    setProjectBindings([{ projectId: 'p1', externalTier: 'clickup' }]);
     renderTab();
     await switchToBoard();
 

@@ -6,6 +6,7 @@ import { MemoryRouter } from 'react-router-dom';
 const auth = vi.hoisted(() => ({
   signInWithPassword: vi.fn(),
   signInWithOtp: vi.fn(),
+  signInWithOAuth: vi.fn(),
   resend: vi.fn(),
 }));
 
@@ -45,6 +46,7 @@ vi.mock('@/src/lib/supabase/client', () => ({
       })),
       signInWithPassword: auth.signInWithPassword,
       signInWithOtp: auth.signInWithOtp,
+      signInWithOAuth: auth.signInWithOAuth,
       resend: auth.resend,
       signOut: vi.fn().mockResolvedValue({ error: null }),
     },
@@ -70,6 +72,7 @@ function renderLogin() {
 beforeEach(() => {
   auth.signInWithPassword.mockReset();
   auth.signInWithOtp.mockReset();
+  auth.signInWithOAuth.mockReset();
   auth.resend.mockReset();
   trackHelpers.trackDemoPersonaSelected.mockReset();
   trackHelpers.trackAuthLoginSucceeded.mockReset();
@@ -104,7 +107,7 @@ describe('LoginPage', () => {
     auth.signInWithOtp.mockResolvedValue({ error: null });
     renderLogin();
     await userEvent.type(screen.getByLabelText(/email/i), 'engineer@acme.test');
-    await userEvent.click(screen.getByRole('button', { name: /send magic link/i }));
+    await userEvent.click(screen.getByRole('button', { name: /email me a magic link/i }));
     await waitFor(() =>
       expect(screen.getByText(/check your email/i)).toBeInTheDocument()
     );
@@ -122,9 +125,9 @@ describe('LoginPage', () => {
     expect(signInBtn.className).not.toMatch(/bg-gray-/);
   });
 
-  it('renders magic-link button as outline/secondary — not primary (AC-AUTH-RESKIN-002)', () => {
+  it('magic-link is a tertiary action — never the primary (AC-AUTH-RESKIN-002)', () => {
     renderLogin();
-    const mlBtn = screen.getByRole('button', { name: /send magic link/i });
+    const mlBtn = screen.getByRole('button', { name: /email me a magic link/i });
     // outline variant uses border-input, NOT bg-primary
     expect(mlBtn.className).not.toMatch(/bg-primary[^-]/);
   });
@@ -142,7 +145,7 @@ describe('LoginPage', () => {
     auth.signInWithOtp.mockResolvedValue({ error: null });
     renderLogin();
     await userEvent.type(screen.getByLabelText(/email/i), 'x@x.test');
-    await userEvent.click(screen.getByRole('button', { name: /send magic link/i }));
+    await userEvent.click(screen.getByRole('button', { name: /email me a magic link/i }));
     await waitFor(() => expect(screen.getByRole('status')).toBeInTheDocument());
   });
 
@@ -292,6 +295,48 @@ describe('LoginPage', () => {
       ...trackHelpers.trackAuthLoginFailed.mock.calls,
     ]);
     expect(allCalls).not.toContain('pm@acme.test');
+  });
+
+  // --- Microsoft (Entra ID) OAuth sign-in (AC-MSAUTH-001..003) ---
+
+  it('AC-MSAUTH-001: Continue with Microsoft calls signInWithOAuth with provider azure and an origin-rooted redirectTo', async () => {
+    auth.signInWithOAuth.mockResolvedValueOnce({ data: { provider: 'azure', url: 'https://x' }, error: null });
+    renderLogin();
+    await userEvent.click(screen.getByRole('button', { name: /continue with microsoft/i }));
+    await waitFor(() =>
+      expect(auth.signInWithOAuth).toHaveBeenCalledWith({
+        provider: 'azure',
+        options: {
+          scopes: 'openid profile email',
+          redirectTo: window.location.origin,
+        },
+      })
+    );
+    // Success path: the browser is being redirected to Microsoft — no error banner, no navigate().
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(navigateSpy).not.toHaveBeenCalled();
+  });
+
+  it('AC-MSAUTH-002: a signInWithOAuth error renders the alert banner and tracks auth_login_failed(microsoft)', async () => {
+    auth.signInWithOAuth.mockResolvedValueOnce({
+      data: { provider: 'azure', url: null },
+      error: { message: 'Provider is not enabled' },
+    });
+    renderLogin();
+    await userEvent.click(screen.getByRole('button', { name: /continue with microsoft/i }));
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(/provider is not enabled/i));
+    expect(trackHelpers.trackAuthLoginFailed).toHaveBeenCalledWith('microsoft', 'auth_error');
+    // Recoverable: the form is usable again after the failure.
+    expect(screen.getByRole('button', { name: /continue with microsoft/i })).toBeEnabled();
+  });
+
+  it('AC-MSAUTH-003: Microsoft button is a secondary (outline) action, enabled without an email', () => {
+    renderLogin();
+    const msBtn = screen.getByRole('button', { name: /continue with microsoft/i });
+    // Secondary action: outline variant, NOT bg-primary (Sign in stays the single primary)
+    expect(msBtn.className).not.toMatch(/bg-primary[^-]/);
+    // Unlike the magic-link button, it needs no email typed first
+    expect(msBtn).toBeEnabled();
   });
 
   it('AC-LEG-021: footer has Terms, Privacy, and Help links', () => {

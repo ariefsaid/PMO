@@ -147,6 +147,10 @@ function makeTask(overrides: {
     created_at: '2026-01-01T00:00:00Z',
     tombstoned_at: null,
     source_updated_at: null,
+    description: null,
+    priority: null,
+    parent_task_id: null,
+    archived_at: null,
     assignee: null,
     dependencies: [],
   };

@@ -12,7 +12,6 @@ on:
     paths-ignore:
       - 'docs/**'
       - 'review/**'
-      - 'scripts/**'
       - '.claude/**'
       - '.codex/**'
       - '**/*.md'
@@ -23,7 +22,6 @@ on:
     paths-ignore:
       - 'docs/**'
       - 'review/**'
-      - 'scripts/**'
       - '.claude/**'
       - '.codex/**'
       - '**/*.md'
@@ -82,6 +80,17 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: pmo-portal/package-lock.json
+      # Parallel-agent infra: the flock core behind the three machine-global lock
+      # wrappers, plus the migration renumber sweep. These guard the CI SIGNAL
+      # itself, so a regression here (LOCK_EX -> LOCK_SH, or a sweep that silently
+      # no-ops) must fail the build rather than be discovered later by an agent
+      # chasing a false red. Temp dirs + temp lock paths only — no DB, no network.
+      - name: Parallel-agent infra tests
+        working-directory: .
+        run: node --test scripts/parallel-infra.test.mjs
+      - name: CI integration-order test
+        working-directory: .
+        run: node --test scripts/ci-integration-order.test.mjs scripts/deno-inventory.test.mjs
       - run: npm ci
       - name: Supply-chain audit — production deps (blocking)
         # Gate on vulnerabilities in code that SHIPS to users (the production dependency tree).
@@ -89,7 +98,12 @@ jobs:
         # advisory there must not hard-block unrelated shipping — they are audited non-blocking
         # below for visibility. Real build-tooling remediation (e.g. the Vite major bump that
         # patches esbuild GHSA-gv7w-rqvm-qjhr) is scheduled debt, done deliberately.
-        run: npm audit --omit=dev --audit-level=high
+        # Same high/critical bar as `npm audit --omit=dev --audit-level=high`, but an advisory can
+        # be waived only by an explicit, JUSTIFIED, EXPIRING entry in the script. A new advisory is
+        # never waived by default, and an expired waiver fails the build — so "unfixable right now"
+        # cannot silently become "nobody ever looked again".
+        working-directory: .
+        run: node scripts/audit-prod.mjs
       - name: Supply-chain audit — full tree incl. dev tooling (visibility, non-blocking)
         run: npm audit --audit-level=high
         continue-on-error: true
@@ -123,29 +137,37 @@ jobs:
       # part of the pmo-portal TS project). Each function has its own deno.json import map/deps.
       # --lock + --frozen: each fn's committed deno.lock is checked against its pinned deno.json
       # deps — a floating/uncommitted dependency bump fails CI instead of silently drifting.
+      # Runs the SAME script `npm run verify` runs locally (scripts/deno-typecheck-edge-fns.sh) so the
+      # local gate and CI can never disagree about which functions are typechecked — a real
+      # adapter-dispatch type break was invisible to every local gate until the script existed. The
+      # script DISCOVERS the functions (every dir with a deno.json + index.ts) instead of carrying the
+      # hand-kept list this step used to hold, which had already drifted 10 functions behind.
       - name: Deno typecheck — edge function entry points + _shared
         working-directory: .
-        run: |
-          set -e
-          for fn in agent-chat agent-dispatch compose-view admin-invite-user adapter-dispatch clickup-onboard clickup-webhook clickup-sweep; do
-            echo "── deno check supabase/functions/$fn/index.ts ──"
-            deno check --config "supabase/functions/$fn/deno.json" \
-              --lock "supabase/functions/$fn/deno.lock" --frozen \
-              "supabase/functions/$fn/index.ts"
-          done
+        run: bash scripts/deno-typecheck-edge-fns.sh
       # Boot smoke — `deno check` is type-only and Vitest resolves module-init order differently than
       # the real runtime, so a circular-import TDZ (or any top-level throw) can pass both yet crash the
       # deployed worker at boot (WORKER_ERROR). This imports each entrypoint's graph (Deno.serve stubbed)
       # and fails on any import-time throw. Regression guard for the 2026-07-04 agent-chat boot crash.
       - name: Deno boot smoke — edge function entry points load without throwing
         working-directory: .
-        run: |
-          set -e
-          for fn in agent-chat agent-dispatch compose-view admin-invite-user adapter-dispatch clickup-onboard clickup-webhook clickup-sweep; do
-            echo "── boot-smoke supabase/functions/$fn/index.ts ──"
-            deno run --allow-all --config "supabase/functions/$fn/deno.json" \
-              scripts/deno-boot-smoke.ts "supabase/functions/$fn/index.ts"
-          done
+        run: bash scripts/deno-boot-smoke-edge-fns.sh
+
+      # ⚑ RUN THE EDGE-FUNCTION UNIT TESTS. `deno check` is type-only and boot-smoke only proves the
+      # module graph loads — NEITHER executes a single assertion. Until this step existed, all ~393
+      # edge-fn tests across 44 files were LOCAL-ONLY: every money/mirror oracle built during the P3
+      # audit rounds (outbox eligibility, never-adopt, mirror lookup columns, company scoping, the
+      # approved-only gate) was invisible to CI, so a regression in any of them merged green.
+      #
+      # Two invocation traps this step encodes (both cost real debugging time):
+      #   • `_shared/` is NOT picked up by `deno test` run from a function directory — it must be
+      #     named explicitly, which is why it gets its own line below.
+      #   • the `external-*` functions need `--allow-env --allow-net --allow-read`; without them the
+      #     runner reports `NotCapable: Requires env access` as a TEST FAILURE, which reads exactly
+      #     like a broken assertion but is a missing flag.
+      - name: Deno unit tests — edge functions + _shared
+        working-directory: .
+        run: bash scripts/deno-test-edge-fns.sh
 
   pgtap:
     # PR→dev fast-lane addition: pgTAP is cheap (no browser, Supabase stack only, seconds not
@@ -305,7 +327,31 @@ jobs:
       # reuseExistingServer=false in CI so Playwright owns the lifecycle.
       - name: E2E tests (Playwright / Chromium)
         working-directory: pmo-portal
-        run: npx playwright test
+        run: |
+          npx playwright test --project=chromium --fail-on-flaky-tests
+          npx playwright test --project=serial --workers=1 --fail-on-flaky-tests
+
+      # ERPNext P2: prove the served adapter-dispatch lane in CI (the money e2e itself is local-only —
+      # it needs the Docker v15 bench + 1Password creds, which are a dev-bed concern, not CI's). The CI
+      # gate is the non-ERPNext served-fn smoke (AC-ENA-001 boundary) through real Kong, proving the
+      # serve/health-gate recipe holds on an ephemeral runner. Money semantics run locally + via unit tests.
+      # Keep this AFTER the ordinary e2e lane: removing the temporary edge-runtime container leaves
+      # Kong forwarding functions/v1 requests to a vanished upstream until the stack is restarted.
+      # Slice-0 fix-round finding 8: reuse the SAME trapped launch/health-gate/cleanup recipe as
+      # local dev (scripts/serve-functions.sh) instead of inlining a second, untrapped copy here —
+      # a bare `run:` block has no signal trap at all, so a step timeout/cancellation used to leak
+      # the supabase-go/deno tree + the runtime container on this runner exactly like the local
+      # bug finding 6 fixed. The secrets land in the SAME gitignored path the script already reads
+      # locally (`supabase/functions/.env.local`) rather than an ad hoc /tmp file, so CI and local
+      # dev exercise one code path. SUPABASE_FUNCTIONS_URL/SUPABASE_SERVICE_ROLE_KEY are already
+      # exported (the script sets the former; "Write .env.local for Vite / Playwright" above set
+      # the latter in $GITHUB_ENV) — served-fn-smoke.spec.ts now REQUIRES the latter (finding 7).
+      - name: Serve adapter-dispatch (served-fn lane smoke)
+        env:
+          SUPABASE_SECRETS: ${{ secrets.SUPABASE_SECRETS }}
+        run: |
+          printf '%s\n' "$SUPABASE_SECRETS" > supabase/functions/.env.local
+          scripts/serve-functions.sh -- bash -c 'cd pmo-portal && npx playwright test served-fn-smoke --project=chromium --fail-on-flaky-tests'
 
       - name: Upload Playwright report
         if: failure()

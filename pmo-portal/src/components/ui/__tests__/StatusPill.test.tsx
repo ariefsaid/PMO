@@ -190,3 +190,36 @@ describe('Badge (count)', () => {
     expect(b.className).toContain('text-primary');
   });
 });
+
+/**
+ * ⚑ NEW-9 (rendered re-verification, 2026-07-22) — `progress` was BYTE-IDENTICAL to `neutral`:
+ * measured on the budget push banner, `pending` (neutral) and `pushing` (progress) both rendered
+ * `color: rgb(108,108,117)`, the same dot colour, nothing else — the two states differed only by
+ * their label string. That is a design-system miss on the one state that is genuinely TRANSIENT and
+ * never self-updates. ADR-0037's monochrome-calm forbids buying the distinction with hue, so it is
+ * bought with SHAPE: a halo ring in the same ink.
+ *
+ * ⚑ Motion was tried first and REJECTED on evidence, not taste: `motion-safe:animate-pulse` crashed
+ * the project Tasks board (where most cards are `In Progress`) under the AC-MOBILE-OVERFLOW-001 sweep
+ * at 390px. A token rendered dozens of times per screen must cost nothing.
+ */
+describe('StatusPill — an in-progress state is distinguishable from a resting one (NEW-9)', () => {
+  const dotOf = (variant: 'progress' | 'neutral') => {
+    const { container } = render(<StatusPill variant={variant}>x</StatusPill>);
+    return container.querySelector('[data-pill-dot]') as HTMLElement;
+  };
+
+  it('NEW-9 the progress dot is visually distinct from the neutral dot, not merely differently labelled', () => {
+    expect(dotOf('progress').className).not.toBe(dotOf('neutral').className);
+    expect(dotOf('progress').className).toContain('outline');
+    expect(dotOf('neutral').className).not.toContain('outline');
+  });
+
+  it('NEW-9 the distinction costs nothing to render — no animation on a token drawn dozens of times per screen', () => {
+    expect(dotOf('progress').className).not.toContain('animate');
+  });
+
+  it('NEW-9 the distinction is NOT bought with hue — monochrome-calm still holds (ADR-0037)', () => {
+    expect(dotOf('progress').style.background).toBe(dotOf('neutral').style.background);
+  });
+});

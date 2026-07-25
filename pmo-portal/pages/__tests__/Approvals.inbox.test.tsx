@@ -36,10 +36,24 @@ vi.mock('@/src/hooks/useProcurements', () => ({
   useProcurements: () => ({ ...procState, refetch: vi.fn() }),
 }));
 vi.mock('@/src/hooks/useTimesheetApproval', () => ({
+  useReopenableApprovedTimesheets: () => ({ data: [], isPending: false, isError: false }),
   useTimesheetsAwaitingApproval: () => ({ ...tsState, refetch: vi.fn() }),
   useTimesheetMutations: () => ({
     approve: { mutate: vi.fn(), isPending: false },
     reject: { mutate: vi.fn(), isPending: false },
+  }),
+  // P3b: `PushAttentionSection` renders inside Approvals, so this mock must carry the hook it calls
+  // or the whole page throws on render. Empty + settled = the section renders nothing, which keeps
+  // these role-aware-section assertions about the queues themselves, exactly as they were written.
+  usePushesNeedingAttention: () => ({
+    data: [],
+    isPending: false,
+    isError: false,
+    retry: { mutate: vi.fn(), isPending: false },
+  }),
+  useEmployeeLinkConfirm: () => ({
+    links: { data: [], isPending: false, isError: false },
+    confirm: { mutate: vi.fn(), isPending: false },
   }),
 }));
 vi.mock('@/src/auth/useAuth', () => ({

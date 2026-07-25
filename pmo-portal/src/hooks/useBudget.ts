@@ -15,6 +15,7 @@ import {
   type BudgetVersionRow,
   type BudgetLineItemRow,
   type NewLineItem,
+  type ActivateVersionResult,
 } from '@/src/lib/db/budgets';
 
 // ---------------------------------------------------------------------------
@@ -77,7 +78,7 @@ export function useBudgetMutations(projectId: string) {
     onSuccess: invalidateBoth,
   });
 
-  const activate = useMutation<void, Error, string>({
+  const activate = useMutation<ActivateVersionResult, Error, string>({
     mutationFn: (versionId) => activateVersion(versionId),
     onSuccess: invalidateBoth,
   });

@@ -86,7 +86,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
   let userId: string;
   try {
     const verified = await verifyCallerJwt(token, getJwks(supabaseUrl), {
-      issuer: Deno.env.get('SUPABASE_JWT_ISSUER') ?? `${supabaseUrl}/auth/v1`,
+      issuer: Deno.env.get('EDGE_JWT_ISSUER') ?? `${supabaseUrl}/auth/v1`,
       audience: 'authenticated', // pin at the call site (audit #1) — don't lean on the helper default
       algorithms: ['ES256'],
     });

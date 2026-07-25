@@ -1,5 +1,6 @@
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError } from '@/src/lib/appError';
+import { invokeWithTimeout } from '@/src/lib/supabase/invokeWithTimeout';
 import type { Tables } from '@/src/lib/supabase/database.types';
 
 /**
@@ -77,9 +78,11 @@ export interface InviteUserInput {
  * (the edge fn pins it to the caller's own org); `pOrgId` is the Operator-only override.
  */
 export async function inviteUser(input: InviteUserInput): Promise<void> {
-  const { data, error } = await supabase.functions.invoke<{ error?: string }>('admin-invite-user', {
-    body: { email: input.email, role: input.role, p_org_id: input.pOrgId ?? null },
-  });
+  const { data, error } = await invokeWithTimeout(
+    supabase.functions.invoke<{ error?: string }>('admin-invite-user', {
+      body: { email: input.email, role: input.role, p_org_id: input.pOrgId ?? null },
+    }),
+  );
   if (error) {
     // FunctionsHttpError doesn't parse the JSON body — read our error code off the raw Response
     // when present (context is the Response for FunctionsHttpError), falling back to the
@@ -94,7 +97,8 @@ export async function inviteUser(input: InviteUserInput): Promise<void> {
         // non-JSON body — fall through with no code.
       }
     }
-    throw new AppError(code ?? error.message ?? 'Invite failed', code);
+    const message = (error as { message?: string } | null)?.message;
+    throw new AppError(code ?? message ?? 'Invite failed', code);
   }
   if (data?.error) throw new AppError(data.error, data.error);
 }

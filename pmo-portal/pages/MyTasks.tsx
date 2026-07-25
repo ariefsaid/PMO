@@ -178,7 +178,7 @@ const MyTasks: React.FC = () => {
                         disabled={updateStatus.isPending}
                         onChange={(v) =>
                           updateStatus.mutate(
-                            { id: task.id, status: v as TaskStatus },
+                            { id: task.id, projectId: task.project_id, status: v as TaskStatus },
                             {
                               onError: (err) => {
                                 const { headline, detail } = classifyMutationError(err);

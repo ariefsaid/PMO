@@ -15,6 +15,8 @@ import { Button, Icon, SelectField, useToast } from '@/src/components/ui';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import type { ProcurementInvoiceRow } from '@/src/lib/db/procurementLifecycle';
 import { VI_FIELD_TEST_IDS } from './vendorInvoiceTestIds';
+import { useCommandIntent } from '@/src/hooks/useCommandIntent';
+import type { CommandIntent } from '@/src/lib/repositories/types';
 
 // ---------------------------------------------------------------------------
 // Record-type config
@@ -186,6 +188,8 @@ export interface CreatePRInput {
   status: string | null;
   date: string | null;
   amount: number | null;
+  /** BLOCK 2 (ADR-0058): the capture form's OWN command identity — the SAME on every retry. */
+  intent?: CommandIntent;
 }
 
 export interface CreateRfqInput {
@@ -193,6 +197,7 @@ export interface CreateRfqInput {
   status: string | null;
   date: string | null;
   amount: number | null;
+  intent?: CommandIntent;
 }
 
 export interface CreatePOInput {
@@ -200,6 +205,7 @@ export interface CreatePOInput {
   status: string | null;
   date: string | null;
   amount: number | null;
+  intent?: CommandIntent;
 }
 
 export interface CreatePaymentInput {
@@ -208,6 +214,7 @@ export interface CreatePaymentInput {
   status: string | null;
   date: string | null;
   amount: number | null;
+  intent?: CommandIntent;
 }
 
 export type CreateRecordInput =
@@ -224,6 +231,9 @@ export type CreateRecordInput =
 // ---------------------------------------------------------------------------
 export interface StagedGR {
   kind: 'createGR';
+  /** BLOCK 2 (ADR-0058): the capture form's OWN command identity — carried through the confirm so a
+   *  retry of the same capture reuses it (the committed ERP doc is reconciled, not duplicated). */
+  intent: CommandIntent;
   status: 'Partial' | 'Complete';
   receiptDate: string;
   referenceNumber: string | null;
@@ -231,6 +241,8 @@ export interface StagedGR {
 
 export interface StagedVI {
   kind: 'createVI';
+  /** BLOCK 2 (ADR-0058): see StagedGR.intent. */
+  intent: CommandIntent;
   /** N1: Paid excluded — Mark as Paid is the sole PR→Paid authority. */
   status: 'Received' | 'Scheduled';
   invoiceDate: string;
@@ -285,6 +297,11 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
   // [PD-5]: predecessor FK for payment — optional, defaults to none.
   const [invoiceId, setInvoiceId] = useState<string>('');
   const [submitting, setSubmitting] = useState(false);
+  // BLOCK 2 (MONEY-CRITICAL, ADR-0058): ONE command identity for this capture SESSION. The form is
+  // mounted only while open and stays open on failure, so every retry carries the SAME identity —
+  // a lost response can no longer turn one capture into two submitted ERP documents. A success
+  // unmounts the form (`onClose`), so the next capture mints a fresh one.
+  const intent = useCommandIntent();
 
   const label = KIND_LABEL[kind];
   const statusOptions = STATUS_OPTIONS[kind];
@@ -303,6 +320,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
       if (kind === 'goods_receipt') {
         onStage({
           kind: 'createGR',
+          intent,
           status: status as 'Partial' | 'Complete',
           receiptDate: date,
           referenceNumber: refNum,
@@ -311,6 +329,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
         // N1: status excludes Paid — the select never offers it.
         onStage({
           kind: 'createVI',
+          intent,
           status: status as 'Received' | 'Scheduled',
           invoiceDate: date,
           referenceNumber: refNum,
@@ -335,6 +354,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
           status: statusVal,
           date: dateVal,
           amount: parsedAmount,
+          intent,
         } satisfies CreatePaymentInput;
       } else {
         input = {
@@ -342,6 +362,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
           status: statusVal,
           date: dateVal,
           amount: parsedAmount,
+          intent,
         } satisfies CreatePRInput;
       }
 

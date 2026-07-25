@@ -5,6 +5,17 @@
 -- get ZERO rows on SELECT and are DENIED INSERT/UPDATE/DELETE — RLS enabled+forced with no policy
 -- means default-deny for every ordinary JWT role; only service_role (which bypasses RLS entirely,
 -- proven by the table-owner fixture insert below succeeding) ever reaches this table.
+--
+-- MECHANISM CHANGE (migration 0105_revoke_anon_write_dml.sql, Director-approved Tier-2 hardening):
+-- the GOAL-ORACLE here — "anon cannot mutate agent_dispatch_watermarks" — is UNCHANGED; only the
+-- MECHANISM proving it changed. Pre-0105 the anon UPDATE/DELETE assertions counted 0 rows affected
+-- (RLS row-denial), which DEPENDED on anon holding the UPDATE/DELETE grants so the statement was
+-- executable and RLS was what denied. 0105 revoked anon insert/update/delete on all public base
+-- tables, so those same statements now raise 42501 at the privilege check BEFORE RLS is evaluated.
+-- The assertions therefore switched from "affects 0 rows" to throws_ok 42501 — strictly STRONGER
+-- (anon can no longer even attempt the statement). This is a test STRENGTHENING, not a weakening-
+-- to-pass. (The authenticated assertions are unchanged: authenticated keeps full RLS-gated DML, so
+-- its UPDATE still reaches RLS and affects 0 rows.)
 begin;
 select plan(9);
 
@@ -18,8 +29,9 @@ select is(
   1,
   'sec-LOW-1: table owner (service_role-equivalent, RLS bypass) sees the fixture row');
 
--- ════════════════════════════════════════════════════════════════════════════
--- anon: default-deny on all four operations.
+-- ═══════════════════════════════════════════════════════════════════════════
+-- anon: denied on all four operations (SELECT → RLS default-deny, 0 rows; INSERT/UPDATE/DELETE →
+-- 42501 privilege denial per 0105 — see header).
 -- ════════════════════════════════════════════════════════════════════════════
 set local role anon;
 
@@ -31,32 +43,25 @@ select is(
 select throws_ok(
   $$ insert into agent_dispatch_watermarks (source) values ('0109-anon-insert') $$,
   '42501', null,
-  'sec-LOW-1: anon INSERT denied (default-deny, no INSERT policy)');
+  'sec-LOW-1: anon INSERT denied (0105 revoked anon INSERT grant → 42501 privilege denial precedes RLS)');
 
-with upd as (
-  update agent_dispatch_watermarks set last_seen_at = now()
-    where source = '0109-fixture-source'
-  returning source)
-select is(
-  (select count(*)::int from upd),
-  0,
-  'sec-LOW-1: anon UPDATE affects 0 rows (default-deny, no UPDATE policy — row invisible)');
+select throws_ok(
+  $$ update agent_dispatch_watermarks set last_seen_at = now() where source = '0109-fixture-source' $$,
+  '42501', null,
+  'sec-LOW-1: anon UPDATE denied (0105 revoked anon UPDATE grant → 42501 privilege denial precedes RLS)');
 
-with del as (
-  delete from agent_dispatch_watermarks where source = '0109-fixture-source'
-  returning source)
-select is(
-  (select count(*)::int from del),
-  0,
-  'sec-LOW-1: anon DELETE affects 0 rows (default-deny, no DELETE policy — row invisible)');
+select throws_ok(
+  $$ delete from agent_dispatch_watermarks where source = '0109-fixture-source' $$,
+  '42501', null,
+  'sec-LOW-1: anon DELETE denied (0105 revoked anon DELETE grant → 42501 privilege denial precedes RLS)');
 
 reset role;
 
--- The fixture row must still exist (anon''s UPDATE/DELETE truly no-op''d, not silently succeeded).
+-- The fixture row must still exist (anon''s UPDATE/DELETE were DENIED — 42501 — so they never ran).
 select is(
   (select count(*)::int from agent_dispatch_watermarks where source = '0109-fixture-source'),
   1,
-  'sec-LOW-1: fixture row survives anon''s no-op UPDATE/DELETE attempts');
+  'sec-LOW-1: fixture row survives anon''s denied UPDATE/DELETE attempts');
 
 -- ════════════════════════════════════════════════════════════════════════════
 -- authenticated (an ordinary logged-in user, no special role): same default-deny.

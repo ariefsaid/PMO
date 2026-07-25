@@ -2,6 +2,8 @@ import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDashboard, useFinanceBudgetReview } from '@/src/hooks/useDashboard';
 import { useProcurements } from '@/src/hooks/useProcurements';
+import { useActualsSnapshot, useApAgingSnapshot, useArAgingSnapshot } from '@/src/hooks/useErpSnapshots';
+import { AccountingSnapshotsSection } from './AccountingSnapshotsSection';
 import { KPITile } from '@/src/components/ui/KPITile';
 import { AwaitingApprovalTile } from './AwaitingApprovalTile';
 import { Card, CardHead } from '@/src/components/ui/Card';
@@ -185,6 +187,12 @@ export const FinanceDashboard: React.FC = () => {
   // B-0.3: capture isError/refetch so the budget-review card can surface an error branch instead
   // of rendering the "No project spend yet" empty state on RPC failure (mirror ReadyToPayTable).
   const { data: budgetReview, isPending: budgetPending, isError: budgetError, refetch: refetchBudget } = useFinanceBudgetReview();
+
+  // task FIX-2 (Discover CRITICAL 2, ADR-0048): read-only actuals/AP-AR aging snapshot surface.
+  // Empty by default (the unflipped-org state) — never a fabricated figure.
+  const { data: actuals, isPending: actualsPending, isError: actualsError, refetch: refetchActuals } = useActualsSnapshot();
+  const { data: apAging, isPending: apAgingPending, isError: apAgingError, refetch: refetchApAging } = useApAgingSnapshot();
+  const { data: arAging, isPending: arAgingPending, isError: arAgingError, refetch: refetchArAging } = useArAgingSnapshot();
 
   // N17 client-side sort state. The RPC returns rows already ranked variance-desc (the default);
   // this only re-sorts when the user clicks another column header.
@@ -373,6 +381,23 @@ export const FinanceDashboard: React.FC = () => {
           )}
         </Card>
       </section>
+
+      {/* task FIX-2 (Discover CRITICAL 2): read-only ERP actuals + AP/AR aging snapshots
+          (ADR-0048 ledger-sourced-display — renders mirrored figures as-is, never recomputes). */}
+      <AccountingSnapshotsSection
+        actuals={actuals ?? []}
+        actualsPending={actualsPending}
+        actualsError={actualsError}
+        onRetryActuals={() => refetchActuals()}
+        apAging={apAging ?? []}
+        apAgingPending={apAgingPending}
+        apAgingError={apAgingError}
+        onRetryApAging={() => refetchApAging()}
+        arAging={arAging ?? []}
+        arAgingPending={arAgingPending}
+        arAgingError={arAgingError}
+        onRetryArAging={() => refetchArAging()}
+      />
 
       <DashGrid>
         <Card>

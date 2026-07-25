@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useLayoutEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Tabs, tabId, tabPanelId, ListState, useToast, type TabItem } from '@/src/components/ui';
 import { BackBar } from '@/src/components/shell';
@@ -104,7 +104,9 @@ const ProjectDetail: React.FC = () => {
   // follow-up like "summarize this" grounds to the viewed project — grounding only
   // (NFR-AXP-SEC-003), never an authorization signal. Cleared on unmount/navigate.
   const { setEntity } = useAgentContext();
-  useEffect(() => {
+  // Publish before paint. Combined with AgentContextProvider's ref-backed snapshot,
+  // this closes both sides of the first-turn race: late publication and stale readers.
+  useLayoutEffect(() => {
     if (!project) return;
     setEntity({ type: 'project', id: project.id, label: project.name });
     return () => setEntity(undefined);

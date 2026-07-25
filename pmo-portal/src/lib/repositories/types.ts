@@ -26,6 +26,7 @@ import type {
   DocStatus,
 } from '@/src/lib/db/documents';
 import type { PreparedAgentAttachmentUpload } from '@/src/lib/db/agentAttachments';
+import type { ActivateVersionResult } from '@/src/lib/db/budgets';
 import type { ProfileRow } from '@/src/lib/db/profiles';
 import type { UserRow, UserRole, InviteUserInput, SetUserStatusInput } from '@/src/lib/db/adminUsers';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
@@ -77,6 +78,10 @@ import type {
   ProjectDeliverySummary,
   MilestoneDate,
 } from '@/src/lib/db/milestones';
+import type {
+  SalesInvoiceRow,
+  IncomingPaymentRow,
+} from '@/src/lib/db/revenue';
 import type { ProcPhase, ProcurementFileRow } from '@/src/lib/db/procurementFiles';
 import type { ContactRow, ContactInput } from '@/src/lib/db/contacts';
 import type { CrmActivityRow, CrmActivityInput, CrmActivityPatch } from '@/src/lib/db/crmActivities';
@@ -85,6 +90,22 @@ import type { PageParams } from '@/src/lib/pagination';
 import type { UsageSummaryRow, OperatorUsageSummaryRow, OperatorOrgRow, RunStatsRow, OperatorRunStatsRow } from '@/src/lib/db/usage';
 import type { OrgFeatureKey } from '@/src/lib/features';
 import type { ExternalDomainOwnershipRow } from '@/src/lib/db/externalDomainOwnership';
+import type { ErpActualsSnapshotRow, ErpAgingSnapshotRow } from '@/src/lib/db/erpSnapshots';
+
+/**
+ * The identity of ONE user INTENT to write an externally-owned record (BLOCK 2, ADR-0058).
+ *
+ * `id` is the PMO record id the command mints; `idempotencyKey` is the outbox key. They are minted
+ * TOGETHER, ONCE per form/mutation session (`newCommandIntent()`), and passed VERBATIM on every
+ * attempt — so a human retry after a lost response ("external system unreachable — try again") lands
+ * on the SAME outbox 4-tuple and is reconciled (the committed ERP doc is adopted) instead of opening a
+ * fresh row and POSTing a SECOND money document. Omitting it keeps the legacy per-attempt minting,
+ * which is safe only for a call site that never retries.
+ */
+export interface CommandIntent {
+  id: string;
+  idempotencyKey: string;
+}
 
 export interface ProjectRepository {
   list(
@@ -163,11 +184,15 @@ export interface TaskRepository {
   /** Create a task (org_id stamped by RLS, never sent). */
   create(input: TaskInput): Promise<TaskRow>;
   /** Update structure fields (name/assignee/dates/status) — managers. */
-  update(id: string, patch: TaskPatch): Promise<void>;
+  update(id: string, patch: TaskPatch, projectId?: string): Promise<void>;
   /** Update ONLY the status column — the assignee (Engineer own-task) path. */
-  updateStatus(id: string, status: TaskStatus): Promise<void>;
+  updateStatus(id: string, status: TaskStatus, projectId?: string): Promise<void>;
   /** Hard-delete a task (cascades dependencies). */
-  delete(id: string): Promise<void>;
+  delete(id: string, projectId?: string): Promise<void>;
+  /** PMO-owned reversible soft archive. */
+  archive(id: string, projectId?: string): Promise<void>;
+  /** PMO-owned reversible unarchive. */
+  unarchive(id: string, projectId?: string): Promise<void>;
   /** Add a dependency edge (taskId depends on dependsOnId). */
   addDependency(taskId: string, dependsOnId: string): Promise<void>;
   /** Remove a dependency edge. */
@@ -233,16 +258,31 @@ export interface ProcurementRepository {
     vendorId: string,
     totalAmount: number,
     receivedDate: string,
+    /** BLOCK 2: the per-INTENT command identity — pass the SAME value on every retry (see CommandIntent). */
+    intent?: CommandIntent,
   ): Promise<Tables<'procurement_quotations'>>;
   createReceipt(
     procurementId: string,
     status: 'Partial' | 'Complete',
     receiptDate: string,
+    // task FIX-1 (Discover CRITICAL 1): optional so pre-existing 3-arg call sites/tests keep their
+    // exact byte-for-byte shape; the supplier reference number is only forwarded on the PMO-owned
+    // direct-DAL path — when externally-owned it is mirrored FROM the ERP doc (FR-ENA-114), never
+    // sent as part of the outbound create body.
+    referenceNumber?: string | null,
+    /** BLOCK 2: the per-INTENT command identity — pass the SAME value on every retry (see CommandIntent). */
+    intent?: CommandIntent,
   ): Promise<ProcurementReceiptRow>;
   createInvoice(
     procurementId: string,
     status: 'Received' | 'Scheduled' | 'Paid',
     invoiceDate: string,
+    // task FIX-1 — same rationale as createReceipt's referenceNumber; `amount` is likewise
+    // ERP-computed (`grand_total`) when externally-owned (FR-ENA-115), so it is never sent outbound.
+    referenceNumber?: string | null,
+    amount?: number | null,
+    /** BLOCK 2: the per-INTENT command identity — pass the SAME value on every retry (see CommandIntent). */
+    intent?: CommandIntent,
   ): Promise<ProcurementInvoiceRow>;
   // ── CRUD slice (editing paths) ──
   /** Raise a new PR (Draft); requester stamped from the caller's identity. */
@@ -274,6 +314,8 @@ export interface ProcurementRepository {
     status: string | null,
     date: string | null,
     amount: number | null,
+    /** BLOCK 2: the per-INTENT command identity — pass the SAME value on every retry (see CommandIntent). */
+    intent?: CommandIntent,
   ): Promise<PurchaseRequestRow>;
   /** Create an RFQ record via RPC (mints RFQ#). */
   createRfq(
@@ -282,6 +324,8 @@ export interface ProcurementRepository {
     status: string | null,
     date: string | null,
     amount: number | null,
+    /** BLOCK 2: the per-INTENT command identity — pass the SAME value on every retry (see CommandIntent). */
+    intent?: CommandIntent,
   ): Promise<RfqRow>;
   /** Create a purchase-order record via RPC (mints PO#). */
   createPurchaseOrder(
@@ -290,6 +334,8 @@ export interface ProcurementRepository {
     status: string | null,
     date: string | null,
     amount: number | null,
+    /** BLOCK 2: the per-INTENT command identity — pass the SAME value on every retry (see CommandIntent). */
+    intent?: CommandIntent,
   ): Promise<PurchaseOrderRow>;
   /** Create a payment record via RPC (mints PAY#). invoiceId is nullable (FR-PR-004b). */
   createPayment(
@@ -299,7 +345,44 @@ export interface ProcurementRepository {
     status: string | null,
     date: string | null,
     amount: number | null,
+    /** BLOCK 2: the per-INTENT command identity — pass the SAME value on every retry (see CommandIntent). */
+    intent?: CommandIntent,
   ): Promise<PaymentRow>;
+}
+
+export interface RevenueRepository {
+  /** Create a Sales Invoice (Draft) — mints a PMO id, dispatches when revenue is externally-owned. */
+  createInvoice(input: {
+    customerId: string;
+    projectId?: string | null;
+    items: Array<{ item_code: string; qty: number; rate: number }>;
+  }, intent?: CommandIntent): Promise<{ id: string; si_number: string }>;
+  /** Create an Incoming Payment — mints a PMO id, dispatches when revenue is externally-owned. */
+  createPayment(input: {
+    customerId: string;
+    salesInvoiceId?: string | null;
+    paidAmount: number;
+    receivedAmount?: number;
+    date: string;
+  }, intent?: CommandIntent): Promise<{ id: string; ip_number: string }>;
+  /** Submit a Sales Invoice (docstatus 0→1) — SoD-gated at RPC layer (slice 3). */
+  submitInvoice(siId: string, intent?: CommandIntent): Promise<void>;
+  /** Cancel a Sales Invoice (docstatus 1→2) — mirrors ERP cancel. */
+  cancelInvoice(siId: string, intent?: CommandIntent): Promise<void>;
+  /** Cancel an Incoming Payment (docstatus 1→2) — mirrors ERP cancel. */
+  cancelPayment(ipId: string, intent?: CommandIntent): Promise<void>;
+  /** List sales invoices in the caller's org (RLS scopes org). */
+  listInvoices(params?: { projectId?: string } & PageParams): Promise<SalesInvoiceRow[]>;
+  /** Get a single sales invoice by id. */
+  getInvoice(id: string): Promise<SalesInvoiceRow | null>;
+  /** List incoming payments in the caller's org (RLS scopes org). */
+  listPayments(params?: { customerId?: string } & PageParams): Promise<IncomingPaymentRow[]>;
+  /** Get a single incoming payment by id. */
+  getPayment(id: string): Promise<IncomingPaymentRow | null>;
+  /** Revenue rollup per project — SUM(amount) grouped by project_id. */
+  getRevenueByProject(): Promise<
+    Array<{ project_id: string | null; project_name: string | null; total_amount: number; open_ar: number; invoice_count: number }>
+  >;
 }
 
 export interface TimesheetRepository {
@@ -311,6 +394,9 @@ export interface TimesheetRepository {
   approve(id: string, notes?: string): Promise<void>;
   reject(id: string, notes?: string): Promise<void>;
   listAwaitingApproval(selfId: string): Promise<TimesheetAwaitingApproval[]>;
+  /** P3b (FR-TSP-005/041): push an already-APPROVED sheet to the org's external system. A no-op when
+   *  the org does not employ one for `timesheets` — never a rejection (the approval already committed). */
+  pushApproved(timesheetId: string): Promise<void>;
 }
 
 export interface BudgetRepository {
@@ -324,7 +410,9 @@ export interface BudgetRepository {
   deleteLineItem(id: string): Promise<void>;
   createVersion(projectId: string, name: string): Promise<BudgetVersionRow>;
   cloneVersion(versionId: string): Promise<string>;
-  activateVersion(versionId: string): Promise<void>;
+  /** HIGH-C: returns the ERP push CONSEQUENCE (the PMO transition itself either succeeded or threw).
+   *  Never `void` — a push that failed (or never reached the edge function) must be surfaced. */
+  activateVersion(versionId: string): Promise<ActivateVersionResult>;
   archiveVersion(versionId: string): Promise<void>;
   deleteDraftVersion(versionId: string): Promise<void>;
 }
@@ -435,6 +523,7 @@ export interface Repositories {
   agentAttachment: AgentAttachmentRepository;
   profile: ProfileRepository;
   procurement: ProcurementRepository;
+  revenue: RevenueRepository;
   timesheet: TimesheetRepository;
   budget: BudgetRepository;
   task: TaskRepository;
@@ -448,6 +537,8 @@ export interface Repositories {
   orgFeature: OrgFeatureRepository;
   credits: CreditsRepository;
   externalDomainOwnership: ExternalDomainOwnershipRepository;
+  erpSnapshots: ErpSnapshotsRepository;
+  integrations: IntegrationsRepository;
 }
 
 /**
@@ -481,4 +572,161 @@ export interface CreditsRepository {
  */
 export interface ExternalDomainOwnershipRepository {
   listOwn(): Promise<ExternalDomainOwnershipRow[]>;
+}
+
+/** Read-only accounting snapshot surface (Slice 7, ADR-0048). RLS-scoped; no write path. */
+export interface ErpSnapshotsRepository {
+  actuals(): Promise<ErpActualsSnapshotRow[]>;
+  apAging(): Promise<ErpAgingSnapshotRow[]>;
+  arAging(): Promise<ErpAgingSnapshotRow[]>;
+}
+
+// ============================================================================
+// INTEGRATIONS REPOSITORY (Phase 2, task 2.6)
+// ============================================================================
+
+/** Integration binding status from external_org_bindings. */
+export type IntegrationStatus = 'active' | 'disconnected';
+
+/** The tier of external system. */
+export type ExternalTier = 'clickup' | 'erpnext';
+
+/** Integration binding row (mirrors external_org_bindings). */
+export interface IntegrationBinding {
+  org_id: string;
+  external_tier: ExternalTier;
+  site_url: string;
+  secret_ref: string;
+  status: IntegrationStatus;
+  connected_by: string | null;
+  connected_at: string | null;
+  disconnected_at: string | null;
+  config: Record<string, unknown>;
+}
+
+/** Credential payload for connect. */
+export interface ConnectCredential {
+  tier: ExternalTier;
+  credential: {
+    token?: string;           // ClickUp personal access token
+    apiKey?: string;          // ERPNext API key
+    apiSecret?: string;       // ERPNext API secret
+    siteUrl?: string;         // ERPNext site URL
+  };
+}
+
+/** Response from connect edge function. */
+export interface ConnectResponse {
+  ok: true;
+  binding: {
+    secret_ref: string;
+    status: IntegrationStatus;
+  };
+}
+
+/** Response from disconnect edge function. */
+export interface DisconnectResponse {
+  ok: true;
+}
+
+/** Integration health data (Phase 4). */
+export interface IntegrationHealth {
+  tier: ExternalTier;
+  status: IntegrationStatus;
+  connected_by: string | null;
+  connected_at: string | null;
+  last_sync: string | null;
+  error_count: number;
+}
+
+// ============================================================================
+// PROJECT LINK/UNLINK (Phase 3, tasks 3.2-3.4, 3.6)
+// ============================================================================
+
+/** Direction for ClickUp project link. */
+export type LinkDirection = 'push-seed' | 'pull-adopt';
+
+/** ClickUp list item (from external-lists edge fn). */
+export interface ClickUpListItem {
+  id: string;
+  name: string;
+  space_name: string;
+  folder_name: string | null;
+}
+
+/** Request payload for linking a project to ClickUp. */
+export interface LinkClickUpProjectInput {
+  tier: 'clickup';
+  projectId: string;
+  listId: string;
+  direction: LinkDirection;
+}
+
+/** Request payload for linking ERPNext org to a Company. */
+export interface LinkErpNextOrgInput {
+  tier: 'erpnext';
+  companyId: string;
+}
+
+/** Union of link inputs. */
+export type LinkInput = LinkClickUpProjectInput | LinkErpNextOrgInput;
+
+/** Response from link edge function. */
+export interface LinkResponse {
+  ok: true;
+  binding?: {
+    id: string;
+    direction?: LinkDirection;
+    listId?: string;
+  };
+  companyId?: string;
+}
+
+/** Request payload for unlinking. */
+export interface UnlinkInput {
+  tier: ExternalTier;
+  projectId?: string; // required for ClickUp, not used for ERPNext
+}
+
+/** Response from unlink edge function. */
+export interface UnlinkResponse {
+  ok: true;
+}
+
+/** Project binding row (mirrors external_project_bindings). */
+export interface ProjectBinding {
+  id: string;
+  org_id: string;
+  project_id: string;
+  external_tier: ExternalTier;
+  external_container_id: string;
+  config: Record<string, unknown>;
+  linked_by: string | null;
+  linked_at: string | null;
+  disconnected_at: string | null;
+}
+
+export interface IntegrationsRepository {
+  /** Get the binding status for a specific tier. */
+  getBinding(orgId: string, tier: ExternalTier): Promise<IntegrationBinding | null>;
+  /** List all bindings for the org. */
+  listBindings(orgId: string): Promise<IntegrationBinding[]>;
+  /** Connect an org to an external tier (calls external-connect edge fn). */
+  connectIntegration(orgId: string, credential: ConnectCredential): Promise<ConnectResponse>;
+  /** Disconnect an org from an external tier (calls external-disconnect edge fn). */
+  disconnectIntegration(orgId: string, tier: ExternalTier): Promise<DisconnectResponse>;
+  /** Get health data for a tier (Phase 4). */
+  getIntegrationHealth(orgId: string, tier: ExternalTier): Promise<IntegrationHealth>;
+  /** List ClickUp lists for the org (calls external-lists edge fn). */
+  listProjectLists(orgId: string): Promise<ClickUpListItem[]>;
+  /** Link a project/org to external system (calls external-link edge fn). */
+  linkProject(orgId: string, input: LinkInput): Promise<LinkResponse>;
+  /** Unlink a project/org from external system (calls external-unlink edge fn). */
+  unlinkProject(orgId: string, input: UnlinkInput): Promise<UnlinkResponse>;
+  /** List project bindings for the org (reads external_project_bindings). */
+  listProjectBindings(orgId: string): Promise<ProjectBinding[]>;
+  /** List ERPNext companies for the org (calls external-companies edge fn). */
+  listCompanies(orgId: string, tier: ExternalTier): Promise<Array<{ name: string }>>;
+  /** Set ERPNext company on org binding (calls external-set-company edge fn). */
+  setCompany(orgId: string, tier: ExternalTier, companyId: string): Promise<{ ok: true; companyId: string }>;
 }

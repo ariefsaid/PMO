@@ -4,7 +4,561 @@
 [`docs/history.md`](history.md) (don't read it for status). Locked owner-decisions are in
 `docs/decisions.md` (OD-* lookup by id). Roadmap framing in `docs/roadmap-spines.md`.
 
-### ⚑⚑ ADAPTER PROGRAM (2026-07-10) — P0 seam SHIPPED to dev; P1 ClickUp in flight
+### ⚑⚑⚑ CURRENT FOCUS — ERPNext integration deploy-readiness (2026-07-24) — CORE merged+green; 3 follow-up branches await owner-gated merge
+**Where it stands, honestly.** The spec'ed ERPNext integration is **built, reviewed, and green** — but
+NOT fully closed: the core is merged, the follow-ups that close spec'ed open questions are on branches.
+Full detail: [`docs/handoffs/2026-07-24-erpnext-deploy-readiness-RESUME.md`](handoffs/2026-07-24-erpnext-deploy-readiness-RESUME.md).
+Deploy-readiness pillars: **SAFE** (live-surface audit = SAFE TO EXPOSE, `docs/security/2026-07-24-erpnext-live-surface-audit.md`)
+· **WORKS** (full shipped e2e **48/48 vs a live throwaway bench**) · **COMPLETE** (spec→coverage, one
+regression closed 2026-07-24).
+- **✅ MERGED to `dev` (the bulk of the spec):** P2 money core (#315) + **P3a Sales/AR · P3b timesheets ·
+  P3c budget** (#338 + #360). Companies/revenue-AR/timesheets/budget domains all write-through the
+  ADR-0058 fenced outbox with two-person SoD; inbound feed + adopt; AR aging; FE surfaces. 11 adversarial
+  audit rounds (`docs/reviews/2026-07-23-p3bc-audit-program.md`). This is the deployable core.
+- **⏳ Built + reviewed SHIP, on branches, NOT merged (these close SPEC'ed open questions):**
+  **FU-1a** `Approved→Draft` timesheet re-open (`feat/timesheet-reopen`, OQ-TSP-6, 45 ahead of dev, 12
+  review rounds) · **FU-2** budget fiscal-year/phasing (`feat/budget-fiscal-year`, OQ-BUD-3c / FR-BUD-152,
+  54 ahead, 4 rounds) · the **AC-BUD-003 feature-gate correction + AC-BUD-032 regression fix**
+  (`test/erpnext-p3c-coverage-gaps`, 9 ahead). ⚑ **Merge prerequisites (settled, not yet applied):**
+  the `release_outbox_hold` reconciliation ([`docs/handoffs/2026-07-24-release-outbox-hold-reconciliation.md`](handoffs/2026-07-24-release-outbox-hold-reconciliation.md))
+  · per-lane migration renumber vs current dev (`0151_m365`) · port the `serve-functions.sh` cred-forward
+  patch to dev · **the owner-gated PR→dev for each**.
+- **⚑ Two items still OWED before "safe" is fully signed:** (1) a **security-auditor pass on this session's
+  budget-gate authz change** (Option-A moved the P3c feature-gate onto the active binding, touching the
+  money-path `authGuard.ts`) — `docs/security/2026-07-24-budget-binding-gate-authz-review.md` is NOT yet
+  written; (2) the audit's **8-item owner/config pre-live checklist** (⚑ TWO secret stores: webhook=Vault,
+  dispatch=env — both provisioned per org). See the RESUME doc.
+- **Future width:** the **ERPNext operational-completeness slate (G1–G6)** below — the headless
+  "PMO-is-the-only-UI" read/cost gaps; none scheduled, demand-ordered after P3.
+- **⚑ NEW (2026-07-23, Luna FU-1a round-2 BLOCK 4) — ownerless `committed` timesheet outbox rows.**
+  `outbox_reconcile_candidates` returns `committed` rows with no age limit (`0131:42-50`), but the generic
+  recovery pass skips ALL timesheet candidates (`erpnext-sweep/index.ts:397`), the timesheet queue selects
+  only `pending`/`failed` mirrors (`:1455-1460`), and the absent anti-join excludes any sheet that HAS a
+  mirror (`:1400-1420`). Two crash seams are therefore ownerless: (a) ERP commit → ref/mirror ok →
+  `confirm_outbox` fails (mirror `pushed`, outbox stuck `committed`); (b) commit ok → process dies before
+  the mirror, and the row ages past the 14-day `ABSENT_SHEET_LOOKBACK_MS`. **Does NOT double-post** — the
+  re-open refuses on `committed`, i.e. it fails closed — but a real ERP Timesheet is left unconfirmed and
+  the correction path cannot identify it. **DEFERRED from FU-1a deliberately** (pre-existing P3b
+  convergence gap that Slice A makes visible, not one it causes). Fix: route timesheet `committed`
+  candidates through a finalize-only recovery path, and test both committed-with-mirror and
+  committed-without-mirror crashes.
+
+- **⚑ NEW (2026-07-23, Luna FU-1a round-3 BLOCK 1 + SF3/SF4) — anchorless submittable kinds have NO
+  recovery identity, so an unknown post-submit can DOUBLE-COMMIT.** `doctypeRegistry.ts` gives Purchase
+  Order `anchorField: null`. If a PO's POST+submit succeed and the post-submit read is unreachable, the
+  recovery probe finds nothing and `reissueOnInconclusiveAbsence` permits a fresh commit — the adapter
+  creates and submits `PO-2` while `PO-1` is live: **two purchase commitments on the client's ERP**, with
+  PMO's mapping pointing at the second. Related: (SF3) a permanent post-submit MAPPING error (e.g. a
+  non-numeric `grand_total` in the read-back) becomes an endless in-flight recovery loop, because the
+  probe re-runs the same failing mapper; (SF4) Sales Invoice `transition/submit` recovers using the
+  transition's own idempotency key, which is never stamped on the document, so it re-`PUT`s
+  `docstatus=1` against an already-submitted invoice and leaves the mirror at Draft while revenue is
+  posted. Evidence in `docs/reviews/2026-07-23-luna-fu1a-round3.md` findings 1, 3, 4.
+  **PRE-EXISTING (P2/P3a), deliberately NOT fixed in FU-1a** — that slice narrowed its post-submit change
+  to the `timesheets` domain precisely to avoid carrying this. Fix: never auto-reissue an unknown
+  post-submit for an anchorless kind (operator-held instead), or give those kinds a durable ERP recovery
+  anchor; recover a `submit` by its persisted `externalRecordId`, never by the transition key.
+
+- **⚑⚑ CROSS-LANE MERGE HAZARD (2026-07-24) — BOTH FU-1a and FU-2 modify `release_outbox_hold`.**
+  Not a migration-NUMBER clash (those are deconflicted: dev=0150, FU-1a=0151/0152/0155(+r7 0156),
+  FU-2=0153/0154). This is a SEMANTIC clash on one shared RPC: FU-1a's `0152` rewrote
+  `release_outbox_hold`'s BODY to also CAS the timesheet mirror `held→failed`; FU-2 changed its SIGNATURE
+  to `release_outbox_hold(..., p_expected_domain text default null)` and body to verify domain. Whichever
+  lane's migration applies LAST re-defines the function and **silently drops the other lane's change**
+  unless reconciled. ⚑ At the SECOND lane's merge to dev: rebase, and hand-merge the function so the final
+  definition carries BOTH the timesheet-mirror release AND the expected-domain param. A pgTAP that asserts
+  a timesheet release still frees the mirror AND a cross-domain release is refused proves the reconciliation.
+  Neither lane is pushed yet, so there is time — do NOT merge the second PR without this reconcile.
+
+- **⚑ FU-2 follow-up (2026-07-24, from the round-4 review's note 4) — return the absence REASON as an enum
+  from `get_budget_projection`, and delete the separate phasing read from the money path.** Today
+  `BudgetProjection.tsx` derives its "why is this figure absent" sentence from a SECOND query
+  (`fetchActiveBudgetCategoryPhasing`), which forced two fixes: paging it (a silent `max_rows` truncation
+  read as "fully placed elsewhere" and re-opened the "not an overspend" claim) and gating first paint on it
+  (no claim before its inputs). Both dissolve if the RPC that already knows `attribution_known` also returns
+  WHY. Net: one query, no truncation surface, no added latency on the money grid. Not urgent — the shipped
+  behaviour is correct and mutation-proven — but it removes a whole class rather than guarding it.
+
+### ⚑⚑⚑ BACKLOG STALENESS AUDIT (2026-07-23) — READ BEFORE ACTING ON ANY OLDER ENTRY
+
+A read-only agent verified 24 long-running entries **against `origin/dev` by CONTENT** (never by branch
+name — that is exactly how these rotted). **6 entries name branches that no longer exist while their work
+is already on `dev`.** Where an older entry below conflicts with this block, **this block wins.**
+
+**✅ ALREADY DONE — do not rebuild (older text says otherwise):**
+- **ClickUp live smoke + `CLICKUP_API_BASE_URL` seam** — `scripts/clickup-live-smoke.{ts,sh}`; seam at
+  `clickup-live-smoke.ts:19` + `adapter-dispatch/index.ts:170`; ran 2026-07-17
+  (`docs/spikes/2026-07-17-clickup-live-smoke.md`). *(Also stale in `docs/plans/2026-07-10-clickup-adapter.md:740`.)*
+- **agent-chat rate-limit** — mig `0091`, `_shared/requestRateGuard.ts`, wired `agent-chat/index.ts:124`.
+- **S-curve today-position deterministic test** — `sCurve.test.ts:126` (`AC-SC-AXIS-002`), fixed `asOf`.
+- **OpenRouter fallback chain** — `_shared/openRouterModelClient.ts:57-76`. ⚑ It is a **provider** chain
+  (which host serves one model), NOT a model chain — if a model fallback was wanted, that is still owed.
+- **Bulk-import idempotency** — migs `0072`/`0073`, `procurementImportSkip.ts`, pgTAP `0129`/`0130`.
+- **PostHog dashboards** — `scripts/posthog/provision-dashboards.mjs` (PR #303).
+- **H4 grants** (migs `0104`/`0105`) · **#14 supply-chain/CI** (21 `deno.lock`, 18 SHA-pinned actions,
+  `--frozen` gate `ci.yml:132`, PR→dev pgTAP `ci.yml:183`). Only `release-please.yml:17/34` stays unpinned.
+- **`procurement_items` INSERT** — a CLOSED binding ruling (`OD-ENA-ITEMS-INSERT`), never owed work.
+
+**⚠️ STALE BRANCH CLAIMS — branch GONE from the remote, work IS on `dev`:**
+`feat/ops-admin` (⚑ `org_features` is mig **`0070`**, not `0068` as the entry says) · `harden/supply-chain-ci` ·
+`feat/clickup-adapter-p1` · `chore/test-infra-parallelism` · `codex/agent-attachments-track-a` (its
+"REFRESH draft PR #239" instruction points at a long-resolved PR) · `feat/task-model-fields` (exists but
+BEHIND `dev`, content identical).
+
+**🔴 GENUINELY STILL OWED (verified absent, with the search that proved it):**
+- **`error_events` coverage** — only **6 of 22** edge fns wire it; FE has **zero** `from('error_events')`;
+  **no retention/purge**. ⚑ The old entry says "2 fns + FE" — it understates by ~13 functions.
+- **PostHog consent-gate** — no consent state, gate or banner anywhere in `pmo-portal/src`.
+- **interactive-create idempotency** — idempotency exists ONLY on the bulk-import path (`0072`).
+- **telegram-notify dup alerts** — `telegram-notify/index.ts:99` (⚑ not `:86`): the `notified_at` stamp's
+  error is never inspected → a good send + failed stamp re-alerts every tick.
+- **`notifyOwner` swallows errors** — `agent-dispatch/dispatcher.ts:293-306`, bare catch, no structured log.
+- **`enforce_automation_owner_cap` race** — the defect is **`0059:31`** (count-then-insert, no lock). ⚑ The
+  old `0065:69` pointer is the SHARE-ROW-EXCLUSIVE *exemplar*, not the defect — it sends you to the wrong file.
+- **`set_project_contract_value` accepts negative** — `0076_audit_events.sql:212`, no sign check, and no
+  CHECK on the column. ⚑ Same fix as the money `CHECK (>=0)` item — they are ONE task, not two.
+- **`spike-rls.yml`** — actions ARE now SHA-pinned and the key is a masked local ephemeral; only
+  `npm install` → `npm ci` remains. Two of the three original concerns are already closed.
+- **3 runbooks** — prod-deploy / secret-rotation / agent-LLM-outage absent under any name.
+- **credit-race wiring** — ⚑ **2** `check()` sites (`agent-chat/handler.ts:1301`, `:1710`), not 3;
+  `release_credits` has ZERO callers outside generated types.
+- **contacts-inbound** — no `contact` kind in the ERPNext feed registry (zero hits).
+- **`entry_date` week-range** — `0055:70-76` inserts entry dates unbounded by the sheet's week.
+- **`.select('*')` trim** — 31 occurrences across 15 modules.
+- **org-seam pgTAP cross-org SWEEP** — the `stamp_org_id()` trigger landed (`0074`), but ADR-0047's
+  catalog-driven sweep does not exist; coverage is per-feature spot tests only.
+
+**🟡 PARTIAL / needs a ruling:**
+- **agent-persistence stuck `running`** — the `errored` path shipped; missing is a reaper for crash/
+  disconnect rows, and `setRunStatus` (`persistence.ts:279-295`) swallows its own failure.
+- **per-org webhook secret** — ✅ shipped for **ERPNext** (`erpnext-webhook/index.ts:265` + Vault);
+  ⛔ still global for **ClickUp** (`clickup-webhook/index.ts:67`). OD-INT-14 scopes the deferral to ClickUp.
+- **health endpoint checks zero deps** — this is a *written NFR* (NFR-OF-REL-003), not an oversight.
+  Reclassify as a decision, or raise it as a real issue — it is not a bug today.
+- **F4 mobile assistant entry** — ⚑ **OWNER CALL.** The assistant IS reachable on mobile (`AppShell.tsx:262-310`
+  drawer + `Rail.tsx:258-273` toggle + a mobile panel path). No spec defines "F4". If it means *reachable*,
+  it is DONE; if it means a dedicated affordance (FAB / bottom-nav), it is owed.
+
+### ⚑ ERPNEXT FOLLOW-UPS (2026-07-23) — spec'd, in build; + one PRE-EXISTING defect found in passing
+- **FU-1a — timesheet `Approved → Draft` re-open, UN-PUSHED sheets only.** Branch `feat/timesheet-reopen`,
+  migs **0151/0152**. Pure PMO transition, zero ERP I/O. Spec `docs/specs/timesheet-correction-path.spec.md`.
+  ⚑ The hard part is the race-safe "no confirmed ERP document" predicate (mirror state AND every
+  non-terminal outbox state, serialized by a named advisory lock) — Luna findings 1+2 apply HERE, not
+  only to the cancel path. Fails closed on any doubt; that refusal is FU-1b's entry point.
+- **FU-1b — the ERP cancel path for PUSHED timesheets. ⛔ DEFERRED, own issue.** The `tsc:` cancel
+  operation: correction intent, operation-aware finalizer, reconcile pass, cancel recovery probe, origin
+  CAS, server-resolved target, intent-bound authority. **Specced in full** (same spec file, 1167 lines);
+  Luna returned **NO SHIP with 9 BLOCKs** — `docs/reviews/2026-07-23-luna-fu1-timesheet-correction-spec.md`.
+  Root cause: the cancel cannot reuse the push machinery — finalizer, backstop, target guard and recovery
+  probe are all create-shaped. Needs machinery P3b never shipped. ⚑ The spec's Approved-terminal sweep
+  found **8 shipped sites** whose safety argument rests on `Approved` being terminal — re-read that
+  before building.
+- **FU-2 — budget fiscal-year / phasing dimension (OQ-BUD-3c) + closes FR-BUD-152.** Branch
+  `feat/budget-fiscal-year`, migs **0153/0154**. Spec `docs/specs/budget-fiscal-year-phasing.spec.md`
+  (1242 lines), Luna NO SHIP r1 (10 BLOCKs + 1) answered by the §1.1 **four-fact fence**: F-A push
+  succeeded · F-B attempt exists · F-C PMO's own phased line · F-D attribution known. **Bare
+  mirror-existence is never a money-attribution test** — the shipped refusal writer stamps a `failed`
+  mirror row with the START FY, so "a mirror row exists" was true for a year PMO explicitly refused.
+- **⚑ PRE-EXISTING MONEY DEFECT (ships TODAY, not introduced by the above) — `budget_category_account_map`
+  has NO fiscal-year history.** `0137:90-91` is unique on (org,category)/(org,erp_account) with no FY or
+  effective-date dimension, and `0149:184-194` joins the **current** map when summing GL actuals per PMO
+  category. **An Admin editing the map silently re-interprets PRIOR years' actuals.** Single-FY today
+  makes it one year per edit; FU-2's phasing makes it N. Ruled a **named non-goal** of FU-2 (spec §2,
+  risk 11, OQ-BFY-5) — a real fix reworks the map subsystem, not a line-item change. Candidates:
+  effective-dated map rows; per-FY map rows; or snapshot the category attribution alongside the actuals
+  in `erp_actuals_snapshot` so a taken reading is immutable. **Must preserve the bijection (FR-BUD-111)
+  per year, or state why not.** Priority: real but not urgent — Admin-only, deliberate, and it corrupts
+  reporting truth rather than moving money.
+
+### ✅ P3a Sales/AR write-through — **MERGED TO `dev`** (verified by content 2026-07-23; header was stale)
+> ⚑ **CORRECTION.** This block said "HARDENING ROUND mid-flight; branch, NOT merged" while contradicting
+> itself 30 lines down ("✅ P3 COMPLETE … PR #360"). A cold-start agent reading top-down acted on the wrong
+> one. **All of P3a is on `dev`**, and under **migs `0123`–`0135`, NOT the `0104`–`0107` this block claims**
+> (on `dev` those numbers are M365). Every "REMAINING" hardening block is closed: BLOCK 1
+> (`recoveryProbe.ts:125`), BLOCK 6 (`readModelWriters.ts:154`), BLOCK 7 (`salesInvoice.ts:37`,
+> `incomingPayment.ts:44`), BLOCK 8 (`reconcileSiCancelAutoUnlink` live, no longer dead).
+> `origin/feat/erpnext-adapter-p3` is 0 commits ahead of `dev`. Notes retained below for the record.
+**Branch `feat/erpnext-adapter-p3`** (off `dev` @ `b549d06`). **HOLD on the branch — NO PR** (owner: dev
+is moving with parallel agents). Spec + plan SIGNED OFF:
+[`docs/specs/erpnext-adapter-p3a-sales-ar.spec.md`](specs/erpnext-adapter-p3a-sales-ar.spec.md) ·
+[`docs/plans/2026-07-14-erpnext-adapter-p3a-sales-ar.md`](plans/2026-07-14-erpnext-adapter-p3a-sales-ar.md).
+R9 bench spike frozen: [`docs/spikes/2026-07-14-erpnext-si-pe-receive-fields.md`](spikes/2026-07-14-erpnext-si-pe-receive-fields.md).
+Owner rulings: `decisions.md` **OD-SAR-GATES · OD-SAR-PMO-IS-THE-UI · OD-SAR-DRAFT-SUBMIT**.
+- **✅ Built (8 slices) + happy-path proven:** migs `0104–0107`; revenue domain (SI + PE-receive) full
+  write-through through `adapter-dispatch` + the ADR-0058 fenced outbox; **two-person SoD** (SI create
+  leaves an ERP DRAFT → a DIFFERENT approver submits — OD-SAR-DRAFT-SUBMIT); process-gates seam;
+  inbound feed (lifecycle + adopt); AR aging (reuses P2 report path); FE (SalesInvoices/IncomingPayments/
+  RevenueByProject). **Served-fn money e2e: 19/19 GREEN at the live bench** (two-person flow). Gates:
+  verify (5,428) · pgTAP (1,506) · deno (69) green at the happy-path checkpoint.
+- **⚑ HARDENING ROUND IN PROGRESS (re-Luna@max NO SHIP):** the first Luna audit's 8 findings were fixed;
+  a **max-thinking re-audit** ([`docs/reviews/2026-07-15-luna-p3a-reaudit-maxthinking.md`](reviews/2026-07-15-luna-p3a-reaudit-maxthinking.md))
+  found the **dispatch/repo layer has real authz/targeting/reference holes** the happy-path e2e misses
+  (it hand-builds correct commands). **DONE + verified:** BLOCK 2/3/4 (dispatch domain-ownership+role+
+  kind↔domain gate before ERP write — hardens ALL erpnext money writes, incl. a gap P2 shared;
+  repo submit/cancel send verb+externalRecordId; transition targeting bound to the PMO mapping) + BLOCK 5
+  (PE references fail-closed). **REMAINING (resume — task tree + the re-audit doc):** BLOCK 6 (cross-org
+  FK check PRE-flight, before ERP write — nemotron's RED test was org-blind, needs a coherent rewrite),
+  BLOCK 1 (recoveryProbe anchor-key fallback must also filter payment_type/party_type), PE-sweep
+  payment_type disambiguation, BLOCK 7 (siFromDoc/peReceiveFromDoc extract customer/links so inbound
+  adopt doesn't NULL them), BLOCK 8 (wire the dead `reconcileSiCancelAutoUnlink`), SF9 (project-gate-
+  without-ERP-project), SF10 (partial `process_gates` bypass defaults). Then re-run the 2-person e2e +
+  **re-Luna `--thinking max` until SHIP** → hold on branch.
+- **✅ P3 COMPLETE (2026-07-23).** P3a shipped in #338; **P3b (timesheets) + P3c (budget) are in
+  [PR #360](https://github.com/ariefsaid/PMO/pull/360) → `dev`** (branch `feat/erpnext-adapter-p3`,
+  head `fabde7c5`, 35 commits). Gates re-run by the Director on the PR head: verify 746 files / 6277
+  tests, pgTAP 211/2103, deno 447, **e2e serial 54/54 vs a live ERPNext bench**, visual gates 78/78.
+  **11 adversarial audit rounds — 10 NO SHIP, 1 SHIP; ~54 defects, nine of them in fixes made during
+  the review.** Full record + the eleven ways a test failed to fail:
+  `docs/reviews/2026-07-23-p3bc-audit-program.md` (read it before the next money slice).
+  Owner rulings folded in: OQ-BUD-3 (fail closed on multi-FY), OQ-BUD-3b (FY from ERPNext's own
+  `Fiscal Year` doctype), OQ-TSP-5 (per-org timezone first-class + mismatch BLOCKS the flip),
+  OQ-TSP-6 (ship with the correction gap).
+  **⚑ Next issues this spawned, in priority order:** (1) `Approved → Draft` re-open + ERP cancel
+  (OQ-TSP-6 — hit far more often than the budget deferral; mistyped timesheets are routine);
+  (2) the budget fiscal-year/phasing dimension (OQ-BUD-3(c) — 8 of 54 seeded projects span years);
+  (3) **FR-BUD-152 tension needs an owner ruling** — a gate rejection before FY resolution suppresses
+  PMO's OWN budget figure on a year with real GL actuals (PMO-SoT data hidden by external push health).
+  **Carried risks, deliberate:** `service_role` retains direct DML on the snapshot tables (the RPC is
+  the only *production* writer — convention, not structure); the e2e week separator is a random base,
+  safe for `--workers=1` but **not** a parallel CI matrix without deriving it from worker index.
+- **Next: P4** Odoo (ADR-0055 §8) — **demand-gated, not scheduled**: it starts when a real Odoo client
+  signs. There is no P5; P4 is the last defined phase.
+- **Substrate (this program):** build → nemotron-3-ultra (NIM, reliable) or zai/glm-5.2 window; FIXES →
+  glm-5.2 (owner directive); **money/security review → Luna `--thinking max`** (owner 2026-07-15,
+  `docs/pi-delegation.md`). ⚑ ONE op on the shared worktree at a time (verify-while-agent-edits = a
+  contaminated read; concurrent heavy dispatches + sibling agents' MCPs + Docker → OOM risk).
+
+### ⚑ SCHEDULED DEBT — react-router v7 → v8 (supply-chain waiver expires 2026-09-01)
+`GHSA-qwww-vcr4-c8h2` (high) covers **all** of react-router 7.x; the only fix is **8.3.0**, a major
+upgrade. It is **not applicable to us** — RSC-mode CSRF, and this app is a Vite SPA on `BrowserRouter`
+with no RSC/framework mode and no router actions — so it is **waived, with justification and an expiry**,
+in `scripts/audit-prod.mjs`. **The waiver hard-fails CI on 2026-09-01.** Before then either do the v8
+migration or re-triage. (npm's own "fix" is a *downgrade* to 7.11.0, i.e. pre-RSC — an option if the
+migration slips, at the cost of 7 minor releases.) The other advisories in that batch were really fixed:
+`brace-expansion` via an `overrides` pin to ^5.0.8 (cleared the whole exceljs→archiver→glob chain, 9 of
+12 findings) and `dompurify` 3.4.11→3.4.12 in the lockfile.
+
+### ⚑ ERPNext operational-completeness slate — the "PMO is the ONLY UI" gaps (2026-07-24, NOT scheduled)
+**Framing (owner, locked `OD-SAR-PMO-IS-THE-UI`): ERPNext runs HEADLESS — the user never opens it, PMO is
+the sole surface.** That inverts the usual read-vs-write cost logic here: a *read* the user needs isn't a
+"nice enhancement", it's the **only way anyone can see that number at all** (no one can log into ERP to
+check) → mandatory-visibility, and cheap. A *write* the user must do isn't optional either — if ERPNext's
+own form is invisible, PMO must carry the entry surface. Today the adapter **writes** budget / timesheet-hours /
+sales-invoice / payment-entry, but pulls almost **no cost back** — so the headless user is blind to their own
+actuals. Effort S/M/L; priority reframed for headless. **None scheduled — this is the demand-ordered slate
+after P3.** ADR-0055 authority (PMO = operational read-layer + additive enhancement over the ERP SoT).
+
+- **G1 · Project actuals / cost-to-complete pull** — *read, **S**, priority ⭐⭐ (was "nice", headless makes it
+  near-mandatory).* Pull ERPNext's posted per-project cost (costed timesheets, booked PIs, expense claims)
+  into the project view. **Without it the budget-variance feature we just hardened compares plan against a
+  largely PMO-typed `actual_amount` — and no one can open ERP to see the real figure.** Highest value for
+  least risk (read-model, no money-write review). Do this first.
+- **G2 · Expense claims** — *entry+read, **M**, priority ⭐⭐ (headless upgrades this from read to a PMO entry
+  surface — ERP's claim form is invisible).* PMO-side claim capture → write-through → rolled to project cost
+  (completes G1's cost picture). Field/travel-heavy contract orgs live on this.
+- **G3 · AP / subcontractor cost** — *sync+read, **M** (UI mostly exists), priority ⭐.* The ADR-0033
+  procurement case-folder is PMO-native already; the gap is wiring PO/PI/retention to ERP write-through **and
+  reading committed (open PO) + actual (booked PI) cost back** into the project cost view. ~half a project
+  org's spend. Cost-half of G1.
+- **G4 · Cash / collections** — *read, **S**, priority ⭐.* AR aging exists; extend to collected-vs-outstanding
+  + overdue nudges (pull payment status). Headless = the only cash view the user gets.
+- **G5 · Milestone / progress billing + retention** — *write-through, **L**, priority: demand-gated but
+  NON-optional when a client needs it (PMO is the only billing UI).* Progress claims, retention withheld %,
+  milestone-triggered SIs (ERPNext payment schedules); ties CRM contract value → the SI schedule. Highest
+  *segment* value, most expensive to build safely (full money-path adversarial review). **Build when a client
+  who bills on milestones/retention signs — not speculatively.**
+- **G6 · CRM won-deal → Quotation/Sales Order** — *write, **M**, priority ◦.* Won pipeline deal auto-creates
+  the ERP Quotation/SO so a won contract is billable without re-keying (quotation kind already partly wired).
+- **Tier-4, defer until a client asks:** multi-currency billing · tax templates · fixed assets/equipment ·
+  material-to-project stock · change-orders/variations.
+
+**Director's rec:** G1 + G4 (both read-model, S, no money-write review) are the cheapest way to make the
+headless user *see their own money* — do them as a "P3.5 read-model" pair before any new write-through. G2/G3
+complete the cost picture at M effort. G5 stays demand-gated. Sequencing/effort revisited when a real client's
+segment is in front of us.
+
+### ⚑ CANDIDATE PROGRAM (2026-07-22) — RIS-parity + CRM-v2 (analysis done, GRILLED, NOT scheduled)
+Source: [`docs/reviews/2026-07-22-competitive-refresh-ris-cicle.md`](reviews/2026-07-22-competitive-refresh-ris-cicle.md)
+(four-way comparison: PMO main+dev vs our own RIS-portal-2 vs KANNA-recheck vs Cicle; moat thesis §1).
+**Prereq: land the `dev` integrations program on `main` first** — no new program starts before it ships.
+Then, per the standard series loop (grill → spec → …), the candidate queue:
+- **Batch A — approvals governance (spine 2, RIS parity):** A1 value-threshold **approval limits**
+  (high-value → Executive, Admin-config, server-enforced) [M] · A2 **mandatory rejection comment** +
+  submitter notification (timesheets + procurement; verified absent) [S] · A3 **bulk procurement
+  approve/reject** (timesheets already bulk) [S] · A4 **edit-and-approve** (audited) [S–M].
+- **Batch B — finance depth (spine 4, rides ERPNext P3 read-backs):** B1 **AP aging** (symmetric to
+  P3a AR) [M] · B2 **cash-flow forecast** card (overlaps OD-W5-5 cash-position domain — spec together)
+  [M] · B3 **budget baseline/version comparison** (variance vs original) [M].
+- **Batch C — timesheet ergonomics:** copy-last-week + recent-projects quick-add [S].
+- **Batch D — CRM v2 (spine 5 as the front of the thread, NOT horizontal CRM):** D1 ⭐ **M365
+  email/meeting capture → CRM activities** (rides `dev` Graph token custody; flagship) [M–L] ·
+  D2 **next-action/follow-up reminders** → notification inbox + agent automations [M] · D3 **weighted
+  pipeline forecast** (stage-probability × value; verified absent) [S] · D4 **win/loss reasons +
+  analytics** (verified absent) [S–M] · D5 **tender/bid tracking** on the pipeline lens [M–L] ·
+  D6 **agent CRM assists** (draft follow-ups, account summary; after D1/D2) [S].
+- **✅ GRILLED (owner, 2026-07-22) — locked decisions:**
+  - **[OD-CR-1] Order = quick wins → CRM → remainder:** first the S-effort wins (D3 weighted
+    forecast · D4 win/loss · A2 rejection comments · A3 bulk procurement approve), then **Batch D
+    CRM v2 as the main track**, then A/B remainder + C.
+  - **[OD-CR-2] D1 M365 capture v1 = manual log-to-CRM** (user picks an email/meeting to log
+    against a contact/deal). No background auto-sync in v1; design the data model so auto-sync can
+    ship later as a per-org opt-in flag.
+  - **[OD-CR-3] Localization = FULL id-ID in this program** (i18n framework + full Bahasa
+    translation + IDR first-class). Sequencing (Director): the **i18n seam + locale/currency
+    formatting land EARLY** — before new UI batches build on it (retrofit is the expensive part);
+    translation content lands last.
+  - **[OD-CR-4] Locale model (Director default, revisable at spec grill): per-org default
+    language + per-user override** — fits the org_id seam, covers mixed teams.
+  - **[OD-CR-5] Currency (owner-revised 2026-07-22): start single currency per org, but
+    ARCHITECT FOR MULTI-CURRENCY — fast follow-up is a real need** (even RIS has overseas
+    clients). v1 behavior: org setting picks the currency (IDR/USD/…), all org amounts display in
+    it (`Rp 1.500.000.000`, no decimals for IDR). **v1 architecture MUST carry the multi-currency
+    seam:** a `currency` column on every money table (defaulted to org currency by trigger, like
+    `org_id`), all formatting keyed off the record's currency (never a global constant), and
+    rollup/aggregation code written to group-or-convert by currency — so the fast-follow
+    (per-record currency + FX table for rollups, mixed-currency contracts) is additive, not a
+    migration rewrite. **The ERPNext adapter gets the same seam in v1 (owner directive):** every
+    money doc written through (SI/PE/PO/PI/quotes) sets `currency` EXPLICITLY from the PMO record
+    — never relies on the ERPNext company default — and read-backs (AR/AP aging, actuals) preserve
+    the source doc's currency. v1 still pins org currency == ERPNext company currency at connect
+    (one currency in practice), but with the field threaded end-to-end the fast-follow (per-record
+    currency + FX; ERPNext's native multi-currency + exchange-rate docs) is config, not adapter
+    rework.
+  - **[OD-CR-6] Parked set confirmed parked:** in-house chat/video (Cicle turf — stays Big-track),
+    field photos/forms (KANNA turf), offline/native mobile.
+  - **Resulting sequence:** dev-integrations promote → i18n seam (OD-CR-3) → quick wins
+    (D3·D4·A2·A3) → CRM v2 (D1 manual capture → D2 → D6, D5 own spec) → B1–B3 + A1/A4 + C →
+    Bahasa translation pass.
+
+### ⚑⚑ ADAPTER PROGRAM — P2 ERPNext money core ✅ MERGED to dev (#315 squash `b549d06`, 2026-07-14)
+### ⚑⚑ M365 INTEGRATION — RESUME HERE (2026-07-22) — ✅ MERGED to `dev`; dark code, live connect is the next gate
+
+> **📌 RESUME HERE — cold-start block. A new agent needs nothing but this.**
+>
+> **State:** everything is **merged to `dev`** and green. There is **no in-flight M365 branch or worktree** —
+> nothing half-done to recover. Read the doc-map table below in order.
+>
+> **Your FIRST action depends on whether the owner has provisioned Microsoft yet:**
+> - **NOT provisioned** (the case as of 2026-07-22) → **do NOT start OneDrive doc-linking.** It is specified
+>   but its build is gated on one proven live connection (TBD-1). If you want progress without secrets, the
+>   only genuinely unblocked work is polish/hardening on what exists — check with the owner first.
+> - **Provisioned** → deploy the fn, prove ONE live connect end-to-end, then run the ADR-0060 live
+>   `security-auditor` gate, *then* build doc-linking.
+>
+> **Prove the surface still works before you change anything** (all four; the machine is shared, so wrap DB
+> work in the lock and chain reset+test as ONE hold):
+> ```
+> scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db'   # expect Result: PASS
+> bash scripts/m365-race-probe.sh        # expect: TOCTOU CLOSED in BOTH interleavings
+> bash scripts/m365-deadlock-probe.sh    # expect: legacy REPRODUCED + fixed RESOLVED, both targets
+> cd pmo-portal && npm run verify        # full suite + build
+> ```
+> ⚠️ If the Supabase stack wedges, `supabase stop` then
+> `supabase start -x vector,imgproxy,studio,realtime,logflare,supavisor`.
+> ⚠️ Unrelated tests failing on **5s timeouts** are almost certainly another worktree running vitest
+> concurrently — re-run the named failures in isolation before believing them (backlog track **T2**).
+>
+> ~~**Do NOT touch**~~ **(SUPERSEDED 2026-07-23 — both are MERGED; `feat/task-model-fields` is BEHIND `dev`
+> with byte-identical content. Treat neither as live work.)** the ERPNext P3 branch, `feat/task-model-fields`,
+> PR #346, and the ~15 `agent-*`/`wf_*` worktrees. M365 owns only `supabase/functions/m365-token-custody/`,
+> `pmo-portal/src/lib/m365/`, `components/integrations/`, migrations `0106–0117`, pgTAP `0144–0154`, and
+> `scripts/m365-*-probe.sh`.
+>
+> **Before you touch the write-guard, the cascade, or the lock order:** the two probes are NOT optional and
+> pgTAP cannot replace them (it runs in a single transaction and cannot express a two-session race).
+
+**Status in one line: the whole backend + the connect UI are on `dev` and green, but the runtime has NEVER
+talked to Microsoft — nothing is user-visible until an Operator entitles an org AND the edge fn is deployed
+with live secrets.**
+
+**Doc map (every M365 doc, so none orphan — read in this order):**
+| Doc | What it is |
+|---|---|
+| [`docs/microsoft-365-integration.md`](microsoft-365-integration.md) | The vision / capability map. Start here. |
+| [ADR-0058 *(m365 variant)*](adr/0058-microsoft-365-integration-architecture.md) | Integration architecture (auth≠authz, two-switch, Graph-follows-ADR-0055) |
+| [ADR-0059 *(entra variant)*](adr/0059-entra-app-registration-topology.md) | Entra app topology — **Option C**, per-client app in the vendor tenant |
+| [ADR-0060](adr/0060-microsoft-graph-token-custody.md) | The 10 binding token-custody controls + the mandatory live security gate |
+| [Phase-0 spec](specs/m365-phase0-foundation.spec.md) · [plan](plans/2026-07-14-m365-phase0-foundation.md) | SSO + entitlement + the card |
+| [Phase-1 spec](specs/m365-phase1-graph-token-custody.spec.md) · [plan](plans/2026-07-15-m365-phase1-token-custody.md) | The token-custody runtime |
+| [**OneDrive doc-linking spec**](specs/m365-onedrive-doc-linking.spec.md) | ⏸️ **NOT BUILT** — the next feature; 22 ACs, `AC-M365DOC-0xx` |
+| [Security audit record](spikes/2026-07-15-m365-phase1-security-audit.md) | All 4 adversarial rounds, verbatim |
+
+**Shipped (merged to `dev`):** PR **#333** (Phase-0 + Phase-1 custody) · **#337** (connect wiring +
+`connection_status`). Branches/collector deleted. Migrations **`0106–0117`**, pgTAP **`0144–0154`**, edge fn
+`supabase/functions/m365-token-custody/`, FE `pmo-portal/src/lib/m365/` + `components/integrations/`.
+- **✅ Phase-0** — Sign in with Microsoft (`azure` OAuth; auth-only, authz stays invited-`profiles`+RLS),
+  provisioning hardening (graceful not-provisioned state), `m365_integration` entitlement (Operator switch,
+  default-off) + `M365ConnectionCard` (two-switch gate, disabled stub). Battery green (spec APPROVE ·
+  security SHIP-WITH-FIXES · quality APPROVE-WITH-FIXES → fixes applied).
+- **✅ Phase-1 token-custody runtime** — edge fn `supabase/functions/m365-token-custody/` (ADR-0039 pattern:
+  Node-testable DI handlers + thin `Deno.serve` index): PKCE initiate → callback code-exchange →
+  AES-256-GCM encrypt → store → Graph proxy (server-side decrypt, data-only responses) → refresh rotation +
+  reuse-detection → revoke → audit via the `audit_m365_event` SD wrapper. Store `ms_graph_connections`
+  (RLS forced, zero policies, ciphertext-only) + `m365_pkce_states` (single-use, TTL, swept).
+- **⚑ SECURITY: 4 Luna (gpt-5.6-luna:max) rounds → `SHIP-WITH-FIXES`, all fixes applied.** Full record:
+  `docs/spikes/2026-07-15-m365-phase1-security-audit.md`. R1 BLOCK (Critical: cross-account consent-phishing
+  harvest; cascade wired to nothing) · R2 BLOCK (Critical: **empirically reproduced** MVCC callback/lifecycle
+  race) · R3 BLOCK (**reproduced a real deadlock**, disproving the Director's "deadlock-free" claim; + a
+  regex-escape bug that would have installed NONE of the hardening) · **R4 SHIP-WITH-FIXES** (no High/Critical;
+  disabled-user + disentitled-org bypass rejected LIVE with 42501). Controls: id_token `tid` assertion,
+  **TOFU + enforce-on-reconnect `oid` binding (owner 2026-07-17)** with a write-once DB trigger, a locked
+  write-guard (resurrection structurally impossible), ONE global lock order (profiles→org_features→connection)
+  via SD RPCs with `service_role` direct-DML revoked, offboard/disentitlement cascade + triggers + one-time
+  audited scrub. Probes: `scripts/m365-{race,deadlock}-probe.sh` (two-session, fail-before/pass-after).
+  **⚑ Lesson: every defect across all 4 rounds passed the happy-path pgTAP AND the full verify — tests alone
+  would have shipped all of them.**
+- **⚑ Migrations RENUMBERED TWICE onto dev (2026-07-17):** M365 was cut from a stale base and numbered
+  0096–0107, colliding with dev's ERPNext 0096–0103 → renumbered to 0104–0115. Then the **H4 grants work
+  merged to `dev` (#336)** taking migrations `0104`/`0105` + test `0142` — the exact numbers — so M365 was
+  renumbered AGAIN to **`0106–0117`**, test `0142`→**`0154`** (`0143–0153` were already unique; note
+  `0034/0052/0066` duplicate pgTAP prefixes pre-exist on dev, so test numbers are not ordering-critical —
+  migrations are). **⚠️ Lesson: GitHub reported PR #333 `MERGEABLE`/`CLEAN` the whole time — git only sees
+  different FILENAMES, so a green mergeable status does NOT catch migration-number collisions. Check
+  `ls supabase/migrations | sed -E 's/^([0-9]{4})_.*/\1/' | sort | uniq -d` before merging any branch that
+  adds migrations.** Cross-refs rewritten in M365 files only; non-M365 refs (0064/0070/0075/0076/0079/0080)
+  + the 32 `AC-M365-1xx` ids verified untouched; `docs/spikes/` deliberately left as the historical record.
+- **✅ Connect UI wired (#337)** — `M365ConnectionCard` is no longer a stub: Connect → `initiate_connect` →
+  **top-level** redirect to Microsoft consent → callback consumed once + query-param cleared → Disconnect
+  behind a destructive `ConfirmDialog`; the whole `M365ErrorCode` taxonomy mapped to human copy; in-flight
+  guard; **no token/`oid`/raw error ever reaches the DOM**. Client transport `src/lib/m365/connectClient.ts`.
+- **✅ `connection_status` action (#337)** — wiring exposed a real defect: `ms_graph_connections` is RLS-forced
+  with ZERO client policies (by design), so the browser could never learn a connection existed and a connected
+  user was permanently shown "Not connected". Added a **read-only** action reusing the identical gate chain
+  (verifyCallerJwt → RLS-scoped org → real-JWT Admin → entitlement), own-row scoped, **explicit column
+  allowlist** `status, connected_at, last_refresh_at, scopes` — ciphertext/`key_id`/`oid`/tenant are never even
+  *read from the DB*, so a future schema column cannot leak by default. No writes, no RPCs, **no locks** (so it
+  cannot perturb the global lock order).
+
+#### ⏸️ TBD — what is NOT done, in dependency order
+1. **Live deploy + ONE proven connection (OWNER-GATED — the real next gate).** Needs: KEK `M365_TOKEN_KEK`;
+   `M365_CLIENT_SECRET`/`_ID`/`_TENANT_ID` — **a concrete tenant GUID** (`common`/`organizations` are
+   unsupported: the callback asserts `id_token.tid === M365_TENANT_ID`, which a wildcard value can never
+   satisfy); the allowlisted redirect URI; Entra delegated scopes `Files.Read`+`offline_access`+`openid`+
+   `profile` with **admin consent**; then `supabase functions deploy m365-token-custody`.
+   **Director recommendation (2026-07-22):** do NOT use a real client's tenant for the first connect. Use an
+   own tenant — an EMPTY one first (proves the mechanics with nothing to damage), then a client-*like* one
+   (real files/permissions/admin-consent = where the real surprises are). ADR-0059 Option C gives every client
+   its own app registration, so testing in one tenant commits nothing to another.
+2. **`security-auditor` pass on the LIVE flow** — ADR-0060 mandatory gate, distinct from the 4 code rounds.
+3. **OneDrive doc-linking** — [spec written, NOT built](specs/m365-onedrive-doc-linking.spec.md). **Build should
+   follow (1)**: it consumes a runtime that has never spoken to Microsoft, so a wrong assumption there reworks
+   both layers.
+4. Later (vision §3.3+): Teams, Outlook/Calendar, in-app browse/preview, Entra-group→role provisioning.
+
+#### ⚑ GOTCHAS — hard-won, do not rediscover
+- **The runtime has NEVER contacted Microsoft.** Every Phase-1 test mocks `fetch`. 4 security rounds + 1,600
+  pgTAP + 5,400 unit tests prove the custody *model* (encryption, RLS, races, deadlocks, lifecycle deletion) —
+  they prove **nothing** about real consent screens, real token payloads, or Graph behaviour. Expect
+  first-live-connect surprises; that is normal and is exactly what gate (1) buys.
+- **`common`/`organizations` will silently never work** — see TBD-1. Use a concrete tenant GUID.
+- **Tests alone would have shipped every one of the 4 security defects** (two Criticals, a reproduced deadlock,
+  and a wrong "deadlock-free" claim by the Director). They ALL passed the happy-path pgTAP *and* the full
+  verify. Adversarial review is what caught them — budget for it on any security-critical surface.
+- **A green "mergeable" does NOT catch duplicate migration numbers** (git compares filenames). Bit this
+  program **twice**. See backlog track **T1** for the proposed CI gate.
+- **A linked OneDrive doc will be a URL, not a token-mediated stream** — Microsoft stays the permission
+  authority, so a linked row must stay visible even when the connection is stale/revoked (spec §3.4).
+- **Our scope gate permitting a Graph path ≠ Microsoft granting it.** `scopeCoversPath` allows GET under
+  `/me/drive`,`/drives`,`/sites` with `Files.Read`; SharePoint libraries still need admin-consented
+  `Files.Read.All`/`Sites.Read.All` or Microsoft 403s (surfaced as `GRAPH_ERROR`).
+- **Two probes exist and must stay green** — `scripts/m365-{race,deadlock}-probe.sh` are two-session concurrency
+  probes with fail-before/pass-after semantics. pgTAP runs in ONE transaction and **cannot** express these races;
+  if you touch the write-guard, the cascade, or the lock order, run the probes, not just the suite.
+- **⚠️ ADR NUMBER COLLISION (debt, not M365-specific):** three ADRs are numbered **0059**
+  (`entra-app-registration-topology`, `external-admin-connect`, `pmo-sot-with-external-side-mirror`) and two are
+  **0058** (`microsoft-365-integration-architecture`, `erpnext-money-idempotency-outbox`) — same root cause as
+  the migration collisions (parallel agents numbering off stale bases). So a bare "ADR-0059" is **ambiguous**;
+  always cite ADRs by *filename* in M365 docs. NOT renumbered here: 0058 is cited in ~55 files and 0059 in ~21,
+  spanning other programs' work — that is an owner-level call, not a side effect of an M365 doc pass.
+
+### ✅ H4 GRANTS HARDENING — **LANDED ON `dev`** (verified 2026-07-23; header was stale)
+> ⚑ **CORRECTION:** this block said the work sat unmerged on `fix/revoke-client-truncate-grants`. That
+> branch **does not exist** (local or remote). The work IS on `dev` as migrations
+> `0104_revoke_client_truncate_refs_trigger.sql` + `0105_revoke_anon_write_dml.sql`. Verified by content,
+> not by branch name. Nothing is owed here. Original notes retained below for the root-cause record.
+Spun out of the M365 Luna audit. Commits `57957091` (Tier 1) + `246be744` (Tier 2). **Root cause was bigger than
+the finding:** the grants come from Supabase's bootstrap **DEFAULT PRIVILEGES** (`pg_default_acl`), so EVERY new
+table silently inherited `truncate` for `anon`+`authenticated` — `0075` was just where it was visible. Fixed at
+BOTH layers (`ALTER DEFAULT PRIVILEGES` + a catalog sweep over all 65 public tables). Tier 1 = revoke
+`truncate/references/trigger` from both client roles. Tier 2 = revoke `anon` I/U/D (`0109` was the ONLY test
+depending on it — its assertion moved "UPDATE affects 0 rows" → `throws_ok 42501`: same goal-oracle, strictly
+stronger mechanism). ACs `AC-GRANT-007/010/011/012/013`. Gates: pgTAP 166/1471 PASS · verify exit 0. **Accepted
+residual:** a `supabase_admin` default-priv entry can't be revoked (migration runner `postgres` isn't a
+superuser/member) — inert (every public table is created BY `postgres`), and `AC-GRANT-010`'s creator-agnostic
+catalog sweep catches real drift. **✅ MERGED to `dev` as PR #336 (`adf79e48`, owner) — it KEPT `0104`/`0105`
++ test `0142`; M365 renumbered above it to `0106–0117`/`0154` instead.** Branch deleted.
+
+### ⚑⚑ ADAPTER PROGRAM (2026-07-14) — P2 ERPNext money core MERGING (#315, owner go; CI green)
+- **✅ P2 BUILT + FULL BATTERY CLOSED + POST-OPEN HARDENING** (branch `feat/erpnext-adapter-p2`,
+  migs `0093/0094 + 0096–0103`, 5 edge fns, live-bench-proven): 9 slices (served-fn e2e infra ·
+  fenced money outbox · tier core · parties · MR/RFQ/SQ · PO/GR · PI/PE full AP surface ·
+  aging/actuals · change-feed). Battery: Luna money audit ×2 (build round: double-pay C-1 → PE
+  composite probe + `held`; finalization TOCTOU → fenced RPC; post-open round: 3 BLOCK + 2 SF all
+  fixed — 0097 Internal-exemption bypass, webhook shared-secret ambiguity → 401, future-due aging
+  leftover → `current` invariant, fencing-loss re-read, per-currency aging rows) · quality/spec ·
+  Discover. **Post-open (2026-07-14): EDGE_JWT_ISSUER (SUPABASE_ env prefix platform-rejected —
+  dev's override was dead) · aging parser rewritten for the real per-voucher v15 report ·
+  PostgREST NULL-composite in claim/quarantine RPCs · 3s bounded committing-wait · INBOUND FEED
+  ARMED LIVE (Frappe Webhook + HMAC → full-fidelity party adopt; sweep GL/PLE mirror; field-level
+  inbound re-sync of linked rows deliberately out of P2 scope — lifecycle+adopt only).** Gates:
+  verify 5,325 · pgTAP 166/1,458 · serial battery 21/21 + smokes 16/16 (zero skips, live bench).
+  Residuals (decisions.md `OD-ENA-*`): contacts-inbound deferred · procurement_items INSERT open
+  by design · VendorQuotesTab badge slot · e2e-cleanup un-flips manual fixtures (ops note) ·
+  OD-ENA-VAULT-SEAM + OD-ENA-SHARED-BINDINGS (coordination with the OD-INT admin-connect layer).
+  **Activation checklist (owner-gated):** per-org `external_org_bindings` + secret_ref fn-secrets ·
+  Vault `erpnext_sweep_url/secret` · webhook secret per instance · Frappe Webhook doctype config
+  (local demo of ALL of it ran 2026-07-14 on the owner's machine — 2-way sync verified).
+
+### ⚑⚑ SHIPPED TO PROD — v0.7.0 (2026-07-14, owner-instructed full release)
+`main`→`production` promoted; release-please cut **v0.7.0** (PR #319 admin-merged). Prod state: **DB at
+mig `0095`** (`db-push-prod.sh` applied `0084–0095` — agent_usage cols, external adapter seam, rate-limit,
+ClickUp flip/sweep, is_active_member banned_until; all additive/flag-off), **all 10 edge fns deployed at
+`99df5fc`** (health reports it), **FE `production`=`99df5fc`** (pmo-bfb.pages.dev). Contents = **ADR-0057
+JWT Task 3** (compose-view/adapter-dispatch/agent-chat → local ES256 JWKS caller-JWT verify, dropping
+`auth.getUser`; is_active_member also checks `banned_until`) + analytics #324 + e2e-isolation #317/#326.
+Plan + prod runbook: [`docs/plans/2026-07-12-jwt-signing-keys.md`](plans/2026-07-12-jwt-signing-keys.md).
+- **Deploy gotchas learned (see `deployment.md` memory):** `stamp-edge-fns.sh`/`supabase functions deploy`
+  ship the WORKING-TREE code at the CURRENT `HEAD` — `git reset --hard origin/main` BEFORE deploying (a
+  stale local `main` briefly regressed prod fns this release, corrected). Docker Desktop file-sharing
+  breaks under heavy load → restart Docker if the bundler mount-fails. `db-push-prod` is all-or-nothing
+  sequential — check the `--dry-run` list before confirming.
+- **Pending (owner, none blocking):** (1) valid-token end-to-end smoke = a live-app login → Assistant
+  answers (couldn't mint a prod token safely; reject-path + JWKS(ES256) already green); (2) ClickUp sweep
+  cron `0094` idle until Vault secrets (`clickup_sweep_url`/`clickup_sweep_secret`) + fn env set;
+  (3) PostHog events need `POSTHOG_PROJECT_KEY` in prod.
+
+### ✅ COMPLETE ON `dev` (2026-07-22) — ClickUp integration + integration enablement
+> **COLD-CONTEXT? START HERE →** [`docs/plans/2026-07-20-clickup-integration-completion.md`](plans/2026-07-20-clickup-integration-completion.md)
+> Current enablement authority: ADR-0061 + [`docs/specs/integration-enablement-model.spec.md`](specs/integration-enablement-model.spec.md).
+> Live-smoke evidence remains in [`docs/spikes/2026-07-17-clickup-live-smoke.md`](spikes/2026-07-17-clickup-live-smoke.md).
+
+The program is merged to `dev` through **PRs #353–#358**. The task feature is complete for every task
+column reachable from the UI without requiring ClickUp: description and priority (#350), subtasks,
+archive and delivery-rollup exclusion (#352), plus project-aware ownership and routing.
+
+`EXTERNAL_CONNECT_ENABLED` is **default-ON**, not a rollout flag. Unset, empty, and unrecognised values
+are enabled; trimmed case-insensitive `false|0|off|no|disabled` disables. It is an operator break-glass
+for ClickUp and ERPNext. Per-org active bindings and Vault credentials are the enablement authority, so
+production's unset variable does not mean the integration is inert and there is no flag-flip step.
+Ownership follows `project_domain_externally_owned` (migration `0146`): mixed ClickUp-owned and PMO-native
+projects are supported. An unbound List cannot leak tasks into PMO; zero active bindings is healthy/inert.
+**Locked decisions: `docs/decisions.md` OD-INT-1..13** (admin self-serve · personal-token/API-key v1 ·
+**Vault-backed `secret_ref`** · one tier-generic layer · sequenced after #315 · **OD-INT-6 ERPNext Company
+selected at ORG level** · **OD-INT-7 project↔List link is PROJECT-SCOPED to the owning active PM** ·
+**OD-INT-13 status map round 3 — pmo-only outcomes with Blocked defaulting to pmo-only**).
+
+**Still open:**
+1. Promote `dev` → `main` (117 commits); only PR→`main` runs integration (pgTAP + full e2e + visual),
+   and this work has only used the verify-only fast lane so far.
+2. Promote `main` → `production`, owner-gated per instance; this is the deployment, not a flag flip.
+3. Correct the owning layer for `AC-IEM-004` and `AC-IEM-007` (specified curated e2e, implemented lower).
+4. Add read-only per-status mapping visibility/override to the binding map (OD-INT-13; auto-derivation is
+   correct, so this is a transparency gap).
+5. Per-org webhook secret remains deliberately deferred for single-org scope (OD-INT-14 / ADR-0047).
+
+Historical design and phase details remain in [`docs/plans/2026-07-13-clickup-admin-integration-flow.md`](plans/2026-07-13-clickup-admin-integration-flow.md); they are not the current completion status.
+
+### ⚑ prior program block (2026-07-10) — P0 seam SHIPPED to dev; P1 ClickUp shipped (#307)
 - **✅ P0 external-adapter seam MERGED to `dev`** (PR #299, `2cbacd5`; ADR-0055): migrations
   `0087–0090` (ownership switch + refs + watermarks + reference read-model w/ RLS write-flip),
   `adapterSeam` pure core, `adapter-dispatch` edge fn, read-only Integrations section on
@@ -18,7 +572,8 @@
   serial-only — shared seed org). Battery: spec/quality/Discover APPROVE-W-F → all applied;
   security SHIP-W-F → HIGH-1 (sweep-cron Vault regression) FIXED + cross-family CONFIRMED-SHIP.
   Gates Director-run: verify 4906 · pgTAP 157/1291 · 4× deno · e2e 2/2. **Mocked-only: live
-  ClickUp smoke deferred until a token exists (plan Appendix A; needs CLICKUP_API_BASE_URL seam).**
+  ~~ClickUp smoke deferred until a token exists~~ **✅ DONE 2026-07-23 audit — the smoke RAN 2026-07-17
+  (`docs/spikes/2026-07-17-clickup-live-smoke.md`) and the `CLICKUP_API_BASE_URL` seam is in two places.**
   Activation checklist (owner-gated): 2 Vault secrets (clickup_sweep_url/secret) + fn envs
   (CLICKUP_API_TOKEN/WEBHOOK_SECRET/SWEEP_SECRET, 1P vault-AS items clickup-api-token/-webhook-secret).
   B2B note: per-org webhook secret before >1 employing org shares a deployment (security LOW-1).
@@ -118,8 +673,15 @@ Substrate: glm-5.2 (opus alt) + glm-4.7 (sonnet alt) built; Director security-re
 - **Earlier-audit Meds (not started):** agent-persistence stuck-`running` · interactive-create idempotency · `error_events` completeness + retention · S-curve today-position test · PostHog consent-gate · agent-chat rate-limit.
 
 **Audit fixes OUTSTANDING (after the 3 in-flight Criticals land):**
-- **#14 supply-chain/CI** — DONE on branch `harden/supply-chain-ci` (6 `deno.lock` + version pins + `--frozen` CI gate; 12 Actions SHA-pinned; new pgTAP-on-PR→dev job). NOT merged — **rebase onto reconciled `dev`**, resolve `ci.yml`, merge LAST.
-- **Remaining Meds (not started):** agent-persistence error handling (stuck `running`) · interactive-create idempotency · `error_events` completeness (2 fns + FE) + retention · S-curve today-position deterministic test · money `CHECK (>=0)` · PostHog consent-gate · agent-chat rate-limit.
+- **#14 supply-chain/CI — ✅ LANDED ON `dev`** (verified 2026-07-23; entry was stale). Branch
+  `harden/supply-chain-ci` **does not exist**; the work is on `dev` by content: **21** `deno.lock` files,
+  **10** SHA-pinned Actions and **zero** unpinned `@vN` refs in `ci.yml`. Nothing is owed here.
+- **Remaining Meds** — ⚑ **3 of these 7 were WRONG (2026-07-23 audit; see the audit block at the top):**
+  ~~agent-chat rate-limit~~ **DONE** (mig `0091`) · ~~S-curve today-position test~~ **DONE**
+  (`sCurve.test.ts:126`) · agent-persistence stuck-`running` **PARTIAL** (the `errored` path shipped; a
+  reaper is what is missing). **Genuinely owed:** interactive-create idempotency · `error_events`
+  completeness (**~15 fns + FE + retention**, not "2 fns") · money `CHECK (>=0)` (= the
+  `set_project_contract_value` item — ONE task) · PostHog consent-gate.
 
 **OWNER-ONLY (not autonomously doable):** execute a **DR restore drill** before client #1 · agent-tier **eval GH secrets** + **credits-enforce** decision (both deliberately deferred per GTM plan) · **MSA→counsel** (Terms/Privacy are template stubs) · automation `pg_cron` GUCs · prod Cloud auth-config verification · **prod deploy** (owner-gated, per-instance — push migs to Cloud, redeploy edge fns incl. `admin-invite-user`, FE→CF Pages, set `VITE_FEATURES_CRM=true`).
 
@@ -676,6 +1238,143 @@ Role work via the **pi CLI** (`docs/pi-delegation.md`) or Task subagents.
   header Edit button; "No deals in <stage>" → "No projects" copy leak.
 - **Pre-existing TZ flake** [Low, known]: `src/lib/db/procurementLifecycle.test.ts` AC-803 fails under a behind-UTC TZ
   (e.g. UTC-8 local); passes in CI/UTC. Fix: use UTC-fixed date construction in the test.
+
+### ⚑ TEST + BRANCH INFRA UNDER PARALLEL AGENTS (2026-07-22, Director — evidence from the M365 session)
+**Why this is its own track:** the repo went from a handful of worktrees to **~15 concurrent agent worktrees**
+during one session. Every item below cost real time, produced a *false* signal (a green that lied or a red that
+lied), and **will recur** — they are all consequences of parallelism, not of any one branch. Ordered by how
+badly each misleads.
+
+> **STATUS 2026-07-22 (branch `chore/test-infra-parallelism`).** Shipped: **T1 complete**
+> (`check-migration-collisions.sh` CI gate already existed; **`scripts/renumber-migration.sh`** added —
+> auto-rewrites filename-form refs, **hard-fails if the sweep silently no-ops**, lists bare-form refs for
+> manual review rather than corrupting unrelated 4-digit numbers) · **T2** (**`scripts/with-test-lock.sh`** —
+> a machine-global lock so only one full vitest suite runs at a time; the three lock wrappers now share
+> **`scripts/lib/flock-run.sh`** instead of being three copies, with a documented **`erpnext → db → test`**
+> acquisition order) · **T4** (**`scripts/supabase-start-lean.sh`**) · **T3 mitigation only** — the chained
+> one-hold recipe is now the documented default in CLAUDE.md.
+> Proof: `node --test scripts/parallel-infra.test.mjs` (8 tests), **mutation-checked in both directions** —
+> swapping `LOCK_EX`→`LOCK_SH` makes the serialisation test interleave, and sabotaging the sed sweep makes
+> the renumber guard fail.
+>
+> **STILL OPEN — T3's real fix: give each worktree its OWN database** (per-worktree Supabase port/project id).
+> The lock only *serialises* access to one shared Postgres; it cannot stop schema drift between two agents'
+> resets. That single change retires T3 outright and takes most of T2's pressure with it. Deliberately out of
+> scope here — it is an environment change affecting every agent at once.
+> **T5/T6 stay as written**: they are judgement lessons (verify-by-content-diff; the zsh no-op sweep) — though
+> T6's trap is now encoded in `renumber-migration.sh` rather than left to memory.
+>
+> **Cross-family review (gpt-5.6-luna, `--thinking max`, 2026-07-22) — no Criticals; 3 confirmed defects FIXED:**
+> (a) the sweep matched the bare prefix `NNNN_`, so renumbering migration 0052 would have rewritten **7
+> unrelated `supabase/tests/0052_*.test.sql`** references — prefix reuse in pgTAP is *deliberate and tolerated*.
+> It now matches the full basename `NNNN_<slug>`. (b) `git mv` staged the rename while the `sed` edits stayed
+> **unstaged**, so a plain `git commit` shipped a half-applied renumber; everything is staged now. (c)
+> `supabase-start-lean.sh` was committed non-executable. Both (a) and (b) have regression tests, each
+> mutation-checked. Also: the documented lock order was **flipped to `erpnext → db → test`** to match the live
+> P3c runbooks, which already nest erpnext outermost — a documented order that contradicts real call sites is a
+> deadlock waiting to happen. The infra tests now run in CI's `verify` job.
+>
+> **Accepted / still open from that review:** bare `npm run verify` stays lock-free (CI is a single dedicated
+> runner); **`npm run verify:locked` is the shared-machine entry point**, so the lock is opt-in *by design* and
+> relies on agents following CLAUDE.md · the renumber remote-safety check is prefix-based, so it can
+> false-refuse when another branch holds the same prefix (override `RENUMBER_FORCE=1`) and cannot detect a
+> migration applied only to a local DB · the lock tests use fixed 150/300 ms settle waits, which could flake
+> under extreme load · `with-erpnext-lock.sh` and `supabase-start-lean.sh` have no direct test coverage.
+
+- **T1 — `MERGEABLE`/`CLEAN` does NOT catch migration-number collisions** [High, BURNED US TWICE].
+  Git compares *filenames*, so two branches adding `0104_a.sql` and `0104_b.sql` merge "cleanly" and leave
+  duplicate numeric prefixes in `supabase/migrations/`. Hit twice in one session: M365 vs dev's ERPNext
+  (`0096–0103`), then M365 vs the merged H4 grants work (`0104`/`0105`) — GitHub reported CLEAN throughout
+  **both** times. Detection today is a manual command; it should be a **CI gate on every PR that adds a
+  migration**:
+  `ls supabase/migrations | sed -E 's/^([0-9]{4})_.*/\1/' | sort | uniq -d` → fail if non-empty.
+  (Note pgTAP duplicates are tolerated — `0034/0052/0066` pre-exist — because test files have no ordering
+  semantics. Migrations do. Gate migrations only.)
+  **Bonus fix:** renumbering is currently hand-rolled `git mv` + a cross-reference sweep (comments cite
+  migrations by number, and a stale reference in a *reversibility* note actively misleads a rollback). A
+  `scripts/renumber-migration.sh` would make this safe and repeatable.
+- **T2 — the unit suite is not parallel-safe: 5s timeouts + a shared machine** [High, recurring, produces
+  FALSE REDs]. `npm run verify` is ~5,400 tests with 5s per-test timeouts. When another worktree runs vitest
+  concurrently, **unrelated** tests fail on timeout — observed 4× in one session, a *different* test set each
+  time (`authFloorAnalytics`+`PanelEditorForm`, then `ProjectFormModal`, then `Companies.pushRouting`+
+  `authFloorAnalytics`), **every one passing in isolation**, with run timings blowing out to
+  `environment 1541s / import 1774s`. The tell that it is contention and not a regression: **a real regression
+  fails the same test deterministically; contention moves.** Options: raise the timeout for render-heavy
+  jsdom tests, cap `poolOptions` threads, or (best) a machine-level **test lock** mirroring
+  `scripts/with-db-lock.sh` so only one full suite runs at a time. Until then the rule is: *re-run the named
+  failures in isolation before believing them* — and CI on a clean runner is the authoritative answer.
+- **T3 — the shared local Supabase DB can drift mid-run even under the lock** [High, produces FALSE REDs
+  *and* FALSE GREENs]. `with-db-lock.sh` serialises commands, but a reset in worktree A between worktree B's
+  `db reset` and its `supabase test db` leaves B testing a **different schema than it migrated**. Observed:
+  the grants agent's suite failed against a schema missing its own migration (82 aborted tests) and passed
+  once re-run as a single lock hold. Mitigations: always chain as ONE hold —
+  `scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db'` (make this the documented
+  default everywhere, incl. CLAUDE.md) — and longer-term give each worktree its **own DB** (per-worktree
+  port/project) so agents stop sharing one Postgres at all. That single change would retire T3 outright.
+- **T4 — heavy concurrent runs OOM the machine** [Medium]. A full `verify` + a pi build + other worktrees'
+  vitest exhausted RAM and killed the session mid-build (work was recovered from disk, uncommitted). Related:
+  the Supabase stack's `analytics`/`vector` containers wedge under load and block `db reset`; the reliable
+  recovery is `supabase stop` then
+  `supabase start -x vector,imgproxy,studio,realtime,logflare,supavisor` (worth documenting, or excluding
+  those containers locally by default since CI already skips them).
+- **T5 — stale worktrees/branches accumulate silently** [Medium]. Squash-merges leave branches looking
+  "unmerged", so dead and live work are indistinguishable at a glance; two 12-day-old local-only ClickUp
+  branches sat around until audited (both superseded — see the Slice E/F notes in
+  `docs/plans/2026-07-10-clickup-adapter.md`). **Never delete on appearance:** verify by *content diff* and
+  check each branch-only line, not line counts — line counts would have reached the right answer by luck
+  and would have missed genuinely dropped work. A periodic `git worktree prune` + a "verify-then-delete"
+  checklist would keep this cheap.
+- **T6 — a `sed`/glob loop that silently does nothing** [Low, but it faked a clean result]. In zsh an
+  unquoted file-list variable does not word-split, so `for f in $FILES; sed -i '' … "$f"` passed the whole
+  list as one filename ("File name too long") and changed **nothing** — while the follow-up grep, mangled the
+  same way, reported "clean". Use `while IFS= read -r f; do … done < filelist` for repo-wide sweeps, and
+  always re-grep for the *old* value afterwards to prove the rewrite happened.
+
+### ⚑ PER-USER CREDIT ALLOCATION (owner decision 2026-07-24) — NOT BUILT, needs its own slice
+**The three-layer credit model, settled. The boundary between layers is what keeps revenue safe:**
+
+| # | Layer | Who | Effect on the org total | Status |
+|---|---|---|---|---|
+| 1 | **Grant** credits to the org pool | **Operator** | **increases** it | ✅ built (ADR-0049 §3) |
+| 2 | **Allocate** the pool among users | **org-Admin** | **cannot change** it | ⏸️ **this item** |
+| 3 | **Buy** more credit | org-Admin | increases it | 🔮 deferred (owner: "future feature later") |
+
+**Why layer 2 is safe when layer 3 is not.** ADR-0049 §3 flipped `credits` INSERT from
+`auth_role()='Admin'` → `is_operator()` as an explicit **revenue-hole fix**: any client org-Admin
+could previously mint credits of any amount. Allocation *divides* an amount the Operator already
+granted and can never raise the org total, so it does not reopen that hole. **When layer 3 (buying)
+arrives it MUST go through a payment flow — never a raw `credits` INSERT, and never by relaxing the
+layer-1 RLS.** That relaxation is exactly the defect ADR-0049 closed; do not undo it.
+
+**What must be built (none exists — ADR-0049 §2 explicitly dropped per-user balances):**
+1. A per-user allocation record (org- + `user_id`-scoped), Admin-writable within their own org only.
+2. The invariant **`Σ allocations ≤ org pool balance`**, enforced **in the database** (CHECK/trigger
+   or a security-definer RPC, not FE validation). Concurrent allocations must not oversubscribe the
+   pool — the same TOCTOU class the M365 write-guard hit, so it needs a row lock and a **two-session
+   probe** (pgTAP runs in ONE transaction and cannot express a race).
+3. Metering (`creditRateGuard`) checks the **user's allocation** on top of the org ceiling, without
+   regressing the org-level cap (ADR-0049 §3 changed `check(userId)` → `check(orgId)`).
+4. UI: `AdministrationCredits` gains an Admin allocation surface. Grant stays Operator-only.
+5. FE `can()` gating is **UX only**; RLS is the authority (ADR-0016).
+
+**Do this as a proper slice** — spec → plan → TDD → 3 reviewers. Money path touching RLS + metering,
+the category that earned 4 adversarial rounds on M365 token custody. **2026-07-24 lesson: every M365
+defect passed happy-path pgTAP AND full verify — and three tests actively asserted the bug as the
+contract. Tests alone would have shipped all of them.**
+
+**Operator vs org-Admin surface split (as-built + owner-directed 2026-07-24 — verified in code):**
+| Surface | Operator | org-Admin |
+|---|---|---|
+| Assistant cost / usage | ✅ all orgs | ❌ **hidden — not rendered, not even fetched** (`useUsage`/`useAgentRunStats` gate on `isOperator`) |
+| Features / entitlements | ✅ write (toggles) | ❌ **hidden** (panel gated on `isOperator`; `org_features` SELECT stays widened for `useFeature()`) |
+| Credits | ✅ "Grant credits" | 👁 read-only balance (+ allocation, once built) |
+| M365 connect | ✅ | ❌ (ADR-0058 §3 — vendor owns the Entra app) |
+| ClickUp / ERPNext connect | ✅ | ✅ own org (client supplies the credential) |
+
+The rule that generates the last two rows: **whoever owns the credential owns the activation switch.**
+> ⚠️ **Server-enforcement follow-up (own item):** the Usage/Features hiding above is **UX only** —
+> `org_usage_summary()` remains callable by any org member. If "org-Admin never sees platform cost"
+> must hold against a determined Admin with devtools, the usage RPCs need an `is_operator()` gate.
 
 ### Standing debt
 - **Signed-URL TTL hardening** [Medium, owner-acked on #78] — client can mint long-TTL download URLs; move

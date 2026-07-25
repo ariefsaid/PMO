@@ -58,7 +58,15 @@ vi.mock('@/src/hooks/useTimesheetApproval', () => ({
     reject: { mutate: vi.fn(), isPending: false },
   }),
   useTimesheetsAwaitingApproval: () => ({ data: awaitingState.data, isPending: false, isError: false }),
+  // I-16/I-17: the owner's own ERP push state. Default = no mirror row (an unflipped org).
+  useOwnTimesheetPushState: () => ({ data: ownPushState.data, isPending: false, isError: false }),
 }));
+
+// ⚑ I-16/I-17 (rendered Discover pass) — the sheet OWNER could never see that their own hours failed
+// to reach ERP: `getPushState` had zero consumers though RLS deliberately grants them that read.
+const ownPushState: { data: { push_state: string; push_error: string | null; ts_number: string | null } | null } = {
+  data: null,
+};
 
 // ── timesheet-entry write path mocks (Tasks 14–20 + O1) ─────────────────────
 const saveWeekMutate = vi.fn();
@@ -1017,5 +1025,40 @@ describe('AC-W3-O1: Submit auto-saves valid dirty rows first, then submits', () 
 
     // Submit must now be DISABLED — fix the invalid cell first; never silently submit stale data.
     expect(within(footer).getByRole('button', { name: /submit timesheet/i })).toBeDisabled();
+  });
+});
+
+
+describe('Timesheets — the owner sees their own ERP push state (I-16/I-17)', () => {
+  afterEach(() => {
+    ownPushState.data = null;
+  });
+
+  it('I-17 a FAILED push of the owner\'s own week is visible to them, in plain words', async () => {
+    ownPushState.data = { push_state: 'failed', push_error: 'external-unreachable', ts_number: null };
+    renderPage();
+    expect(await screen.findByText(/ERP push failed/i)).toBeInTheDocument();
+    expect(screen.getByText(/could not be reached/i)).toBeInTheDocument();
+  });
+
+  it('I-16 a PUSHED week names the ERP document — a state that was unreachable in the running app', async () => {
+    ownPushState.data = { push_state: 'pushed', push_error: null, ts_number: 'TS-2026-00042' };
+    renderPage();
+    expect(await screen.findByText(/pushed to ERP/i)).toBeInTheDocument();
+    expect(screen.getByText('TS-2026-00042')).toBeInTheDocument();
+  });
+
+  it('FR-TSP-173 no mirror row renders nothing — the badge never gates the page', async () => {
+    ownPushState.data = null;
+    renderPage();
+    await screen.findByTestId('timesheets-weekly-total');
+    expect(screen.queryByText(/ERP push/i)).not.toBeInTheDocument();
+  });
+
+  it('the owner is never offered a Retry here — the push is re-driven from the approver surface', async () => {
+    ownPushState.data = { push_state: 'failed', push_error: 'external-unreachable', ts_number: null };
+    renderPage();
+    await screen.findByText(/ERP push failed/i);
+    expect(screen.queryByRole('button', { name: /^retry$/i })).not.toBeInTheDocument();
   });
 });

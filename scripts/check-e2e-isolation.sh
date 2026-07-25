@@ -18,6 +18,9 @@ SHARED_IDS='40000000-0000-0000-0000-000000000001|40000000-0000-0000-0000-0000000
 # false-match HTTP clients (api.delete(mailpit)) and array/string methods. UI-driven writes are not
 # statically detectable; the author classifies those (heuristic ceiling — see the design doc).
 WRITE_SIGNAL='requireServiceRoleKey'
+# Mailpit is one process-global inbox. Clearing it is a shared-state write even
+# when the spec does not touch Postgres, so every Mailpit journey is serial.
+MAILPIT_SIGNAL='clearMailpit|api/v1/messages'
 
 check_dir() {
   local root="$1" rc=0 f tag base
@@ -33,6 +36,9 @@ check_dir() {
     fi
     if [[ "$tag" != "serial" && "$base" == e2e/serial/* ]]; then
       echo "  under e2e/serial/ but not tagged serial: $f" >&2; rc=1
+    fi
+    if [[ "$tag" != "serial" ]] && grep -qE "$MAILPIT_SIGNAL" "$f"; then
+      echo "  ${tag} spec mutates the shared Mailpit inbox (use the serial lane): $f" >&2; rc=1
     fi
     # read-only must not do direct DB writes (service-role admin)
     if [[ "$tag" == "read-only" ]] && grep -qE "$WRITE_SIGNAL" "$f"; then
@@ -57,6 +63,9 @@ if [[ "${1:-}" == "--self-test" ]]; then
   rm "$tmp/e2e/bad.spec.ts"
   printf '// @e2e-isolation: serial\n' > "$tmp/e2e/wrongdir.spec.ts"   # serial tag, not in serial/
   if check_dir "$tmp" >/dev/null 2>&1; then echo "self-test FAIL: lane mismatch not caught" >&2; exit 1; fi
+  rm "$tmp/e2e/wrongdir.spec.ts"
+  printf '// @e2e-isolation: read-only\nclearMailpit();\n' > "$tmp/e2e/mailpit.spec.ts"
+  if check_dir "$tmp" >/dev/null 2>&1; then echo "self-test FAIL: shared Mailpit mutation not caught" >&2; exit 1; fi
   echo "self-test OK"; exit 0
 fi
 
