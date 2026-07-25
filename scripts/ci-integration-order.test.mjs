@@ -50,6 +50,25 @@ test('CI and the local promotion gate reject retry-masked flaky Playwright cases
   );
 });
 
+test('pull_request has NO paths-ignore — required checks must always be able to report', () => {
+  // `main` requires `verify` + `integration`, and required contexts are not path-aware. A
+  // paths-ignore on pull_request means a docs-only PR never starts the workflow, the contexts never
+  // report, and the PR is unmergeable forever. Found 2026-07-25 shipping v0.8.0.
+  const pr = workflow.slice(workflow.indexOf('  pull_request:'), workflow.indexOf('jobs:'));
+  assert.doesNotMatch(
+    pr,
+    /paths-ignore:/,
+    'pull_request must not path-ignore: required checks would never report and the PR could never merge',
+  );
+  // And the inverse-filter "stub workflow" fix must not come back either — two workflows publishing
+  // the same check names both fire on a MIXED (docs + code) PR, letting a stub mask a real failure.
+  assert.doesNotMatch(
+    workflow,
+    /ci-path-ignored/,
+    'a second workflow owning the same check names green-washes mixed PRs',
+  );
+});
+
 test('CI and local promotion run shared-state specs after the parallel browser lane', () => {
   const script = readFileSync(new URL('./verify-main-pr.sh', import.meta.url), 'utf8');
   for (const source of [workflow, script]) {

@@ -18,16 +18,21 @@ on:
       - '.gitignore'
       - 'AGENTS.md'
       - 'LICENSE'
+  # ⚑ NO paths-ignore on pull_request — deliberately. `main` requires the `verify` and
+  # `integration` checks, and required contexts are NOT path-aware: protection demands them on
+  # EVERY PR. With a paths-ignore here, a docs-only PR never started the workflow, the contexts
+  # never reported, and the PR was UNMERGEABLE FOREVER with no way to satisfy it.
+  #
+  # The obvious fix — a second workflow with the inverse `paths` filter publishing the same check
+  # names — is WRONG: GitHub path filters are OR-based over changed files, so a MIXED PR (docs +
+  # code) triggers BOTH workflows, yielding two `verify` and two `integration` runs. A passing stub
+  # alongside a failing real job is exactly the green-washing these gates exist to prevent.
+  #
+  # So one workflow owns these names and always runs on a PR. The cost is that a docs-only PR runs
+  # the full suite; that is rare (docs go direct to `dev` per CLAUDE.md) and correctness beats CI
+  # minutes. The `push` trigger below KEEPS its paths-ignore — push has no required checks, so
+  # skipping it there is free.
   pull_request:
-    paths-ignore:
-      - 'docs/**'
-      - 'review/**'
-      - '.claude/**'
-      - '.codex/**'
-      - '**/*.md'
-      - '.gitignore'
-      - 'AGENTS.md'
-      - 'LICENSE'
   workflow_dispatch: {}
 
 # Least privilege: the workflow only reads the repo (checkout + diff); it never writes
