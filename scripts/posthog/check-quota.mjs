@@ -4,13 +4,21 @@
  * Env: POSTHOG_API_KEY (personal, project:read), POSTHOG_PROJECT_ID, optional POSTHOG_HOST,
  * optional QUOTA_THRESHOLD (default 0.8). Feed the key via op-get.sh; never write it to disk.
  */
-import { evaluateQuota } from './quota.mjs';
+import { evaluateQuota, validateQuotaEnv } from './quota.mjs';
 
 const HOST = (process.env.POSTHOG_HOST || 'https://us.i.posthog.com').replace(/\/$/, '');
 const KEY = process.env.POSTHOG_API_KEY;
 const PID = process.env.POSTHOG_PROJECT_ID;
 if (!KEY || !PID) {
   console.error('Missing POSTHOG_API_KEY and/or POSTHOG_PROJECT_ID env.');
+  process.exit(2);
+}
+
+// SECURITY (review round 2 #5): validate BEFORE building the URL the API key travels to — a
+// mis-set HOST/PID must never reach `fetch`.
+const envErrors = validateQuotaEnv(HOST, PID);
+if (envErrors.length > 0) {
+  for (const e of envErrors) console.error(e);
   process.exit(2);
 }
 

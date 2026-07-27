@@ -66,6 +66,22 @@ export const FORBIDDEN_PROPERTY_KEYS = new Set([
   'procurement_title', 'contract_value', 'budget', 'budget_amount', 'token',
   'access_token', 'refresh_token', 'notes', 'note', 'comment', 'comments',
   'file_name', 'file', 'password', 'query', 'search_params',
+  // SECURITY (2026-07-27 review round 2 #6): posthog-js attaches these to EVERY captured event
+  // automatically, straight from `window.location` — independent of whatever properties we pass.
+  // `routeAnalyticsForPath` carefully parameterises our OWN `route` property (`/projects/:id`),
+  // but the SDK's own `$current_url`/`$pathname`/`$initial_current_url` carry the RAW path,
+  // including any record UUID in it (spec §6 forbids raw UUID paths). `$session_entry_url` /
+  // `$session_entry_pathname` are the SAME leak under a DIFFERENT name — posthog-js's
+  // `SessionPropsManager` renames `$current_url`→`$session_entry_url`/`$pathname`→
+  // `$session_entry_pathname` and stamps them once per session onto every event in that
+  // session; an exact-name denylist of only the first 3 keys does not catch these renamed
+  // derivatives (found empirically by this fix's OWN belt-and-suspenders test asserting no raw
+  // UUID anywhere in the captured payload, not just under the 3 originally-named keys). All 5
+  // feed `POSTHOG_PROPERTY_DENYLIST` below, which posthog-js applies to the FULL calculated
+  // property set (its own auto-added properties included) before every send — verified against
+  // the real, unmocked SDK in client.currentUrlLeak.realSdk.test.ts, not just this config.
+  '$current_url', '$pathname', '$initial_current_url',
+  '$session_entry_url', '$session_entry_pathname',
 ]);
 
 // ---------------------------------------------------------------------------
@@ -117,10 +133,16 @@ export function trackSaveFailed(
   operation: string,
   reasonCode: string,
   module: string,
+  /** Set only by `trackBatchSaveFailed` (2026-07-27 review round 2 #2) — an aggregate count for
+   *  a bulk-import commit run, so a per-row loop fires ONE event instead of one per row. */
+  failedCount?: number,
 ): TrackedEvent {
   return {
     event: 'save_failed',
-    properties: { entity_type: entityType, operation, reason_code: reasonCode, module },
+    properties: {
+      entity_type: entityType, operation, reason_code: reasonCode, module,
+      ...(failedCount !== undefined ? { failed_count: failedCount } : {}),
+    },
   };
 }
 

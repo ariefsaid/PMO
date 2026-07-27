@@ -39,11 +39,59 @@ type FrictionClass =
   | 'illegal_transition' | 'permission_denied' | 'duplicate'
   | 'in_use' | 'timeout' | 'override' | 'unclassified';
 
+/**
+ * Known module ids (2026-07-27 review round 2 #3): a closed set, not `string`. `module`/
+ * `operation` typed as plain `string` type-checked `classifyMutationError(err, undefined, {
+ * module: company.name })` — the SAME shape as the `capture_dead_clicks` leak, one authoring
+ * mistake away. Nothing leaks TODAY (no call site passes the third arg yet), which is exactly
+ * why this must be closed before the first caller is wired, not after.
+ */
+export type AnalyticsModule =
+  | 'administration' | 'approvals' | 'auth' | 'budget-account-map' | 'companies' | 'contacts'
+  | 'dashboard' | 'incidents' | 'my-tasks' | 'procurement' | 'projects' | 'reports' | 'sales'
+  | 'settings' | 'timesheets' | 'unknown';
+
+/** Known mutation operations — a genuinely closed, small set (unlike module ids, which grow).
+ *  `'import'` (2026-07-27 #2) marks a `trackBatchSaveFailed` aggregate — never a per-row event. */
+export type ClassifyOperation =
+  | 'create' | 'update' | 'delete' | 'archive' | 'approve' | 'push' | 'classify' | 'import';
+
 export interface ClassifyContext {
   /** Which module the user was in, e.g. 'companies'. Never derived from user input. */
-  module?: string;
-  /** 'create' | 'update' | 'delete' | … Defaults to 'classify'. */
-  operation?: string;
+  module?: AnalyticsModule;
+  /** Defaults to 'classify' when omitted. */
+  operation?: ClassifyOperation;
+  /**
+   * SECURITY (2026-07-27 review round 2 #2): set `true` inside a per-row/per-item LOOP (a bulk
+   * import commit) to skip this call's OWN analytics capture. Looping classifyMutationError
+   * per-row would multiply one user click into thousands of `save_failed` events — PostHog's
+   * free-allowance overage DISCARDS PERMANENTLY, so a large bulk failure can silently exhaust
+   * the month's headroom and flatten every OTHER chart into a false "nobody uses the product"
+   * signal. The classification/headline/detail return value is unaffected — only the analytics
+   * side effect is skipped. Call `trackBatchSaveFailed` ONCE after the loop instead.
+   */
+  suppressCapture?: boolean;
+}
+
+// RUNTIME guards (not just the types above): TS types are erased at runtime and a caller can
+// always bypass them with `as AnalyticsModule` — the enforcement that actually stops a leak is
+// this Set lookup, not the type annotation. The type exists for a good compile-time authoring
+// experience; the Set is what makes the leak unrepresentable.
+const KNOWN_MODULES: ReadonlySet<AnalyticsModule> = new Set([
+  'administration', 'approvals', 'auth', 'budget-account-map', 'companies', 'contacts',
+  'dashboard', 'incidents', 'my-tasks', 'procurement', 'projects', 'reports', 'sales',
+  'settings', 'timesheets', 'unknown',
+]);
+const KNOWN_OPERATIONS: ReadonlySet<ClassifyOperation> = new Set([
+  'create', 'update', 'delete', 'archive', 'approve', 'push', 'classify', 'import',
+]);
+
+function boundModule(module: AnalyticsModule | undefined): AnalyticsModule {
+  return module && KNOWN_MODULES.has(module) ? module : 'unknown';
+}
+
+function boundOperation(operation: ClassifyOperation | undefined): ClassifyOperation {
+  return operation && KNOWN_OPERATIONS.has(operation) ? operation : 'classify';
 }
 
 /**
@@ -109,9 +157,14 @@ export function classifyMutationError(
   // never propagate into the path that is already recovering. Only the stable code + slug
   // leave; never `detail` (which may embed a user-entered value, e.g. a duplicate-key message).
   const classification = classifyCode(code, overrides);
-  safeTrack(() =>
-    trackSaveFailed(classification, context?.operation ?? 'classify', boundReasonCode(code), context?.module ?? 'unknown'),
-  );
+  // SECURITY (review round 2 #2): `suppressCapture` skips ONLY this side effect — a bulk-import
+  // loop calls this per row for its headline/detail but must not multiply one click into
+  // thousands of events; see ClassifyContext.suppressCapture + trackBatchSaveFailed below.
+  if (!context?.suppressCapture) {
+    safeTrack(() =>
+      trackSaveFailed(classification, boundOperation(context?.operation), boundReasonCode(code), boundModule(context?.module)),
+    );
+  }
 
   if (code && overrides && Object.prototype.hasOwnProperty.call(overrides, code)) {
     return { headline: overrides[code], detail };
@@ -143,4 +196,15 @@ function classifyCode(code: string | undefined, overrides?: Record<string, strin
     case 'REQUEST_TIMEOUT': return 'timeout';
     default: return 'unclassified';
   }
+}
+
+/**
+ * Fires ONE aggregate `save_failed` event for a bulk-import commit run (2026-07-27 review round
+ * 2 #2). Call sites that loop `classifyMutationError` per row/record must pass
+ * `{ suppressCapture: true }` on every per-item call, then call this exactly once after the loop
+ * with the total failed count. A no-op when `failedCount` is 0 — a clean run reports nothing.
+ */
+export function trackBatchSaveFailed(module: AnalyticsModule | undefined, failedCount: number): void {
+  if (failedCount <= 0) return;
+  safeTrack(() => trackSaveFailed('batch', 'import', 'other', boundModule(module), failedCount));
 }

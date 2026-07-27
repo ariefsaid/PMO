@@ -11,7 +11,8 @@ import {
   type ParsedSheet,
   type RowValidation,
 } from '@/src/lib/import';
-import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { classifyMutationError, trackBatchSaveFailed } from '@/src/lib/classifyMutationError';
+import type { AnalyticsModule } from '@/src/lib/classifyMutationError';
 
 export type WizardStep = 'upload' | 'mapping' | 'preview' | 'committing' | 'result';
 
@@ -133,17 +134,23 @@ export function useImportWizard<Input>(descriptor: ImportDescriptor<Input>): Use
     const failed: ImportResult['failed'] = [];
     // Sequential, best-effort: a per-row rejection (e.g. 23505 duplicate, 42501 RLS) is
     // captured and the run continues. Nothing rolls back.
+    //
+    // SECURITY (2026-07-27 review round 2 #2): `suppressCapture: true` on every per-row call —
+    // a 10k-row import failing wholesale must NOT multiply one click into ~10k `save_failed`
+    // events (PostHog's free-allowance overage DISCARDS PERMANENTLY). `trackBatchSaveFailed`
+    // below fires ONE aggregate event for the whole run instead.
     for (let i = 0; i < validRows.length; i += 1) {
       const { index, cells } = validRows[i];
       try {
         await descriptor.create(descriptor.toInput(cells));
         created += 1;
       } catch (err) {
-        const { headline } = classifyMutationError(err);
+        const { headline } = classifyMutationError(err, undefined, { suppressCapture: true });
         failed.push({ index, reason: headline });
       }
       setProgress({ done: i + 1, total: validRows.length });
     }
+    trackBatchSaveFailed(descriptor.entity.toLowerCase() as AnalyticsModule, failed.length);
 
     setResult({ created, failed });
     setStep('result');

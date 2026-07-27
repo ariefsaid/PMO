@@ -5,7 +5,7 @@
  * to the org owner and are easy to miss.
  */
 import { describe, it, expect } from 'vitest';
-import { evaluateQuota } from '../../../../scripts/posthog/quota.mjs';
+import { evaluateQuota, validateQuotaEnv } from '../../../../scripts/posthog/quota.mjs';
 
 const payload = {
   quota_limits: [
@@ -36,5 +36,46 @@ describe('evaluateQuota', () => {
     const r = evaluateQuota({ quota_limits: [{ resource: 'events', usage: 5, limit: null }] }, 0.8);
     expect(r.exitCode).toBe(0);
     expect(r.lines).toEqual([]);
+  });
+
+  // SECURITY finding (2026-07-27 review round 2, MEDIUM #1): `payload?.quota_limits ?? []`
+  // treats ANY malformed 200 response (a renamed field, a schema change, an error-shaped 200)
+  // as "zero rows" -> exitCode 0 -> check-quota.mjs prints "all clear". A fail-OPEN alarm is
+  // worse than no alarm: it actively asserts safety it never checked.
+  it('AC-PHG-030 SECURITY: a payload with no quota_limits array does NOT report all-clear', () => {
+    const r = evaluateQuota({ oops: 'the endpoint schema changed' }, 0.8);
+    expect(r.exitCode).not.toBe(0);
+  });
+
+  it('AC-PHG-030 SECURITY: quota_limits present but not an array does NOT report all-clear', () => {
+    const r = evaluateQuota({ quota_limits: 'unexpected-string' }, 0.8);
+    expect(r.exitCode).not.toBe(0);
+  });
+
+  it('AC-PHG-030 SECURITY: a null/undefined payload does NOT report all-clear', () => {
+    expect(evaluateQuota(null, 0.8).exitCode).not.toBe(0);
+    expect(evaluateQuota(undefined, 0.8).exitCode).not.toBe(0);
+  });
+});
+
+describe('validateQuotaEnv (SECURITY, review round 2 #5)', () => {
+  // check-quota.mjs interpolates POSTHOG_HOST/POSTHOG_PROJECT_ID, unvalidated, into the URL it
+  // sends the personal API key's Authorization header to. A mis-set HOST (or a compromised env)
+  // could send the key to an arbitrary/non-https origin; a PID containing `../` could re-point
+  // the authenticated request. Fail closed on either.
+  it('rejects a non-numeric project id (path-injection guard)', () => {
+    expect(validateQuotaEnv('https://us.i.posthog.com', '../../evil').length).toBeGreaterThan(0);
+  });
+
+  it('rejects a project id containing anything but digits', () => {
+    expect(validateQuotaEnv('https://us.i.posthog.com', '465502; rm -rf /').length).toBeGreaterThan(0);
+  });
+
+  it('rejects a non-https host — the API key must never travel over plain http or to a non-URL scheme', () => {
+    expect(validateQuotaEnv('http://us.i.posthog.com', '465502').length).toBeGreaterThan(0);
+  });
+
+  it('a well-formed https host + numeric project id passes validation (no errors)', () => {
+    expect(validateQuotaEnv('https://us.i.posthog.com', '465502')).toEqual([]);
   });
 });

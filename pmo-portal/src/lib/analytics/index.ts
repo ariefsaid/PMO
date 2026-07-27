@@ -93,8 +93,9 @@ export function trackSaveFailed(
   operation: string,
   reasonCode: string,
   module: string,
+  failedCount?: number,
 ): void {
-  const built = buildSaveFailedEvent(entityType, operation, reasonCode, module);
+  const built = buildSaveFailedEvent(entityType, operation, reasonCode, module, failedCount);
   analyticsClient.capture(built.event, built.properties);
 }
 

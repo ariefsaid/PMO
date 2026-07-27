@@ -9,7 +9,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const analytics = vi.hoisted(() => ({ trackSaveFailed: vi.fn() }));
 vi.mock('./analytics', () => analytics);
 
-import { classifyMutationError } from './classifyMutationError';
+import { classifyMutationError, trackBatchSaveFailed } from './classifyMutationError';
+import type { ClassifyContext } from './classifyMutationError';
 
 beforeEach(() => analytics.trackSaveFailed.mockClear());
 
@@ -60,6 +61,66 @@ describe('classifyMutationError friction capture', () => {
     analytics.trackSaveFailed.mockClear();
     classifyMutationError({ code: '503 Service Unavailable for tenant Acme Corp', message: 'x' });
     expect(analytics.trackSaveFailed.mock.calls[0][2]).toBe('other');
+  });
+
+  it('SECURITY (review round 2 #3): `module` is bounded to a known slug — a free-text value ' +
+    '(the same shape as a customer/company name) collapses to "unknown", not passed through', () => {
+    // A future caller bypassing the AnalyticsModule union with a cast (`as AnalyticsModule`) is
+    // exactly the "one authoring mistake away" scenario the review flagged — the guard must be
+    // a RUNTIME check, since TS types are erased and cannot stop this at the call site.
+    classifyMutationError(
+      { code: '23503', message: 'x' },
+      undefined,
+      { module: 'Petronas Carigali Sdn Bhd' as unknown as ClassifyContext['module'], operation: 'delete' },
+    );
+    expect(analytics.trackSaveFailed).toHaveBeenCalledWith('in_use', 'delete', '23503', 'unknown');
+  });
+
+  it('SECURITY (review round 2 #3): `operation` is bounded to a known enum — an unrecognised ' +
+    'value falls back to the default rather than passing free text through', () => {
+    classifyMutationError(
+      { code: '23503', message: 'x' },
+      undefined,
+      { module: 'companies', operation: 'update customer record for Acme Corp' as unknown as ClassifyContext['operation'] },
+    );
+    expect(analytics.trackSaveFailed).toHaveBeenCalledWith('in_use', 'classify', '23503', 'companies');
+  });
+
+  it('SECURITY (review round 2 #3): known module/operation values still pass through unchanged', () => {
+    classifyMutationError({ code: '23503', message: 'x' }, undefined, { module: 'companies', operation: 'delete' });
+    expect(analytics.trackSaveFailed).toHaveBeenCalledWith('in_use', 'delete', '23503', 'companies');
+  });
+
+  // SECURITY (review round 2 #2): a bulk-import loop calling classifyMutationError per row would
+  // multiply ONE user click into thousands of `save_failed` events. PostHog's free-allowance
+  // overage DISCARDS PERMANENTLY, so this can silently exhaust the month's headroom and flatten
+  // every other chart — the exact false "nobody uses the product" signal this program exists to
+  // prevent. Loop call sites must suppress per-row capture and emit ONE aggregate event instead.
+  it('SECURITY (review round 2 #2): `suppressCapture` skips the per-call analytics capture entirely', () => {
+    classifyMutationError({ code: '23505', message: 'x' }, undefined, { suppressCapture: true });
+    expect(analytics.trackSaveFailed).not.toHaveBeenCalled();
+  });
+
+  it('SECURITY (review round 2 #2): suppressCapture does not change the returned headline/detail', () => {
+    const withSuppress = classifyMutationError({ code: '23505', message: 'x' }, undefined, { suppressCapture: true });
+    const without = classifyMutationError({ code: '23505', message: 'x' });
+    expect(withSuppress).toEqual(without);
+  });
+
+  it('SECURITY (review round 2 #2): trackBatchSaveFailed fires EXACTLY ONE event carrying failed_count', () => {
+    trackBatchSaveFailed('companies', 4821);
+    expect(analytics.trackSaveFailed).toHaveBeenCalledTimes(1);
+    expect(analytics.trackSaveFailed).toHaveBeenCalledWith('batch', 'import', 'other', 'companies', 4821);
+  });
+
+  it('SECURITY (review round 2 #2): trackBatchSaveFailed bounds an unrecognised module to "unknown"', () => {
+    trackBatchSaveFailed('Petronas Carigali Sdn Bhd' as unknown as ClassifyContext['module'], 3);
+    expect(analytics.trackSaveFailed).toHaveBeenCalledWith('batch', 'import', 'other', 'unknown', 3);
+  });
+
+  it('SECURITY (review round 2 #2): trackBatchSaveFailed is a no-op when failedCount is 0', () => {
+    trackBatchSaveFailed('companies', 0);
+    expect(analytics.trackSaveFailed).not.toHaveBeenCalled();
   });
 
   it('AC-PHG-010: the return value is unchanged (classification stays a pure function of inputs)', () => {

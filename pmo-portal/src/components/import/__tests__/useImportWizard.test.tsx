@@ -1,8 +1,16 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { useImportWizard } from '../useImportWizard';
 import type { ImportDescriptor } from '@/src/lib/import';
 import { AppError } from '@/src/lib/appError';
+
+// SECURITY (2026-07-27 review round 2 #2): the per-row commit loop must NOT fire one
+// `save_failed` event per failed row (a 10k-row import failing wholesale would multiply one
+// click into ~10k events — PostHog's overage DISCARDS PERMANENTLY). Mock the analytics facade
+// so the test can assert the aggregate-vs-per-row shape directly.
+const analytics = vi.hoisted(() => ({ trackSaveFailed: vi.fn() }));
+vi.mock('@/src/lib/analytics', () => analytics);
+beforeEach(() => analytics.trackSaveFailed.mockClear());
 
 interface Co {
   name: string;
@@ -104,6 +112,57 @@ describe('useImportWizard', () => {
     expect(create).toHaveBeenCalledTimes(2);
     expect(result.current.result?.created).toBe(1);
     expect(result.current.result?.failed.map((f) => f.index)).toEqual([0]);
+  });
+
+  it('SECURITY (review round 2 #2): multiple failed rows fire ONE aggregate save_failed event ' +
+    'with the total failed_count — NOT one event per row', async () => {
+    (parseWorkbook as ReturnType<typeof vi.fn>).mockResolvedValue({
+      headers: ['Company name', 'Type'],
+      rows: [
+        ['First', 'Client'],  // rejects
+        ['Second', 'Vendor'], // rejects
+        ['Third', 'Client'],  // creates
+      ],
+    });
+    const create = vi
+      .fn()
+      .mockRejectedValueOnce(new AppError('boom', '42501'))
+      .mockRejectedValueOnce(new AppError('boom', '23505'))
+      .mockResolvedValueOnce({ id: '3' });
+    const descriptor = makeDescriptor(create);
+
+    const { result } = renderHook(() => useImportWizard(descriptor));
+    await act(async () => {
+      await result.current.selectFile(file());
+    });
+    act(() => result.current.goPreview());
+    await act(async () => {
+      await result.current.commit();
+    });
+
+    await waitFor(() => expect(result.current.step).toBe('result'));
+    expect(result.current.result?.failed).toHaveLength(2);
+    // Exactly ONE analytics call for the whole run, not one per failed row.
+    expect(analytics.trackSaveFailed).toHaveBeenCalledTimes(1);
+    expect(analytics.trackSaveFailed).toHaveBeenCalledWith('batch', 'import', 'other', 'companies', 2);
+  });
+
+  it('SECURITY (review round 2 #2): a clean run (zero failures) fires no aggregate event', async () => {
+    (parseWorkbook as ReturnType<typeof vi.fn>).mockResolvedValue({
+      headers: ['Company name', 'Type'],
+      rows: [['First', 'Client']],
+    });
+    const create = vi.fn().mockResolvedValue({ id: '1' });
+    const { result } = renderHook(() => useImportWizard(makeDescriptor(create)));
+    await act(async () => {
+      await result.current.selectFile(file());
+    });
+    act(() => result.current.goPreview());
+    await act(async () => {
+      await result.current.commit();
+    });
+    await waitFor(() => expect(result.current.step).toBe('result'));
+    expect(analytics.trackSaveFailed).not.toHaveBeenCalled();
   });
 
   it('a parse rejection keeps the wizard on upload with an error and writes nothing', async () => {
