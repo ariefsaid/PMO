@@ -5,6 +5,7 @@
  * the global, mockable in Vitest via vi.stubGlobal, per NFR-OF-TEST-001). Importable
  * in Vitest.
  */
+import { logStructuredError } from '../_shared/errorLog.ts';
 
 export interface ErrorEventRow {
   id: string;
@@ -113,4 +114,125 @@ export async function pingHeartbeat(url: string | undefined): Promise<void> {
     // Swallowed by design (FR-OF-021) — a dead heartbeat URL must never affect the
     // drain's own success/failure or notified_at stamping.
   }
+}
+
+export interface DrainDeps {
+  now: () => Date;
+  cooldownSec: number;
+  livenessIntervalHours: number;
+  selectUnnotified: () => Promise<ErrorEventRow[]>;
+  /** error_code -> ISO timestamp of the last WRITE-AHEAD send record (alert_send_log). */
+  selectLastSentByCode: () => Promise<Record<string, string | undefined>>;
+  /** Write-ahead: MUST resolve before sendTelegram is called (FR-HRD-002). */
+  recordSendAhead: (errorCode: string, atIso: string) => Promise<{ error: unknown }>;
+  sendTelegram: (payload: TelegramPayload) => Promise<{ ok: boolean }>;
+  stampNotified: (ids: string[], atIso: string) => Promise<{ error: unknown }>;
+  readHeartbeat: (job: string) => Promise<{ last_success_at: string } | null>;
+  writeHeartbeat: (job: string, atIso: string, detail: unknown) => Promise<{ error: unknown }>;
+}
+
+export interface DrainResult {
+  sent: number;
+  suppressed: number;
+  stampFailures: number;
+  sendFailures: number;
+  livenessPinged: boolean;
+}
+
+/**
+ * runDrain — the whole drain loop, effects injected (FR-HRD-001/002/010).
+ *
+ * Two invariants this function exists to hold, both of which were broken in index.ts:
+ *   1. The cooldown is derived from alert_send_log (written BEFORE the send), never from
+ *      error_events.notified_at — so a failed stamp can no longer defeat the cooldown and
+ *      re-alert the same group every tick forever.
+ *   2. Every write result is INSPECTED. supabase-js resolves with `error` populated instead of
+ *      throwing, so a discarded result is a silent failure by construction.
+ */
+export async function runDrain(deps: DrainDeps): Promise<DrainResult> {
+  const nowIso = deps.now().toISOString();
+  const result: DrainResult = {
+    sent: 0, suppressed: 0, stampFailures: 0, sendFailures: 0, livenessPinged: false,
+  };
+
+  const rows = await deps.selectUnnotified();
+  const lastSentByCode = await deps.selectLastSentByCode();
+  const groups = groupIntoMessages(rows, lastSentByCode, deps.cooldownSec);
+
+  for (const group of groups) {
+    if (!group.suppressed) {
+      // WRITE-AHEAD (FR-HRD-002): record the send BEFORE performing it, in a table that is not
+      // the one being stamped. A failure here aborts the send — better a delayed alert than an
+      // unbounded re-alert loop.
+      const ahead = await deps.recordSendAhead(group.errorCode, nowIso);
+      if (ahead.error) {
+        logStructuredError({
+          fn: 'telegram-notify',
+          errorCode: 'ALERT_SEND_LOG_WRITE_FAILED',
+          contextId: group.errorCode,
+        });
+        result.sendFailures += 1;
+        continue;
+      }
+      const res = await deps.sendTelegram(buildTelegramPayload(group));
+      if (!res.ok) {
+        result.sendFailures += 1;
+        continue; // leave notified_at NULL — retried next tick (FR-OF-007)
+      }
+      result.sent += 1;
+    } else {
+      result.suppressed += 1;
+    }
+
+    if (group.ids.length > 0) {
+      // FR-HRD-001: the stamp result is INSPECTED, not discarded.
+      const stamp = await deps.stampNotified(group.ids, nowIso);
+      if (stamp.error) {
+        result.stampFailures += 1;
+        logStructuredError({
+          fn: 'telegram-notify',
+          errorCode: 'NOTIFY_STAMP_FAILED',
+          contextId: group.errorCode,
+        });
+      }
+    }
+  }
+
+  // FR-HRD-010 liveness: a quiet tick must still prove the path is alive. If nothing went out and
+  // it has been longer than livenessIntervalHours since the last outbound message, send an
+  // all-clear. Silence in Telegram then means BROKEN, not "no errors".
+  const beat = await deps.readHeartbeat('telegram-notify');
+  const lastOutbound = beat?.last_success_at;
+  if (result.sent === 0 && shouldSendLiveness(nowIso, lastOutbound, deps.livenessIntervalHours)) {
+    const ping = await deps.sendTelegram({
+      text: `*Alert path OK* — drain ran at ${nowIso}, no unnotified errors.`,
+      parse_mode: 'Markdown',
+    });
+    if (ping.ok) result.livenessPinged = true;
+  }
+  if (result.sent > 0 || result.livenessPinged) {
+    const hb = await deps.writeHeartbeat('telegram-notify', nowIso, {
+      sent: result.sent, liveness: result.livenessPinged,
+    });
+    if (hb.error) {
+      logStructuredError({ fn: 'telegram-notify', errorCode: 'HEARTBEAT_WRITE_FAILED' });
+    }
+  }
+
+  return result;
+}
+
+/**
+ * shouldSendLiveness — pure. True when no outbound message has gone out for longer than
+ * `intervalHours` (or ever). Deliberately independent of the cron cadence (AS-2): tightening the
+ * tick from hourly must not change how often the all-clear fires.
+ */
+export function shouldSendLiveness(
+  nowIso: string,
+  lastOutboundIso: string | undefined,
+  intervalHours: number,
+): boolean {
+  if (!lastOutboundIso) return true;
+  const elapsedH = (new Date(nowIso).getTime() - new Date(lastOutboundIso).getTime()) / 3_600_000;
+  return elapsedH >= intervalHours;
 }
