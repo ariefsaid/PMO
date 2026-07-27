@@ -151,6 +151,17 @@ POSTHOG_PROJECT_ID=465502 \
 node scripts/posthog/check-quota.mjs
 ```
 
+A malformed response (a renamed field, a schema change, an error-shaped 200) hard-fails
+(`exitCode 2`, "unrecognised quota payload") rather than being read as zero rows / all-clear — a
+quota alarm that fails open is worse than no alarm. `POSTHOG_HOST`/`POSTHOG_PROJECT_ID` are
+validated (https-only host, numeric-only project id) before the API key is sent anywhere.
+
+**Scheduled run:** `.github/workflows/posthog-quota.yml` (daily + manual dispatch — never a
+per-PR gate). ⚑ **Requires two GitHub repo secrets not yet configured (owner action):**
+`POSTHOG_API_KEY` (personal, `project:read`) and `POSTHOG_PROJECT_ID`. Until both are set, the
+scheduled run fails loudly (the exact "don't fail open" posture above) rather than silently
+reporting nothing was checked.
+
 Error-tracking rate limits and suppression rules (bounding exception ingestion below the 100k/month
 free allowance) are an **owner settings action in PostHog project settings, not code** (FR-PHG-032) —
 not covered by this script.
