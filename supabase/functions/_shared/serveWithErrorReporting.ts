@@ -9,11 +9,16 @@
  * wrapper a build failure.
  *
  * The catch/report logic lives in `wrapWithErrorReporting`, a pure `(req) => Promise<Response>` —
- * `Deno.serve` itself has no Deno global in Vitest, so the wrapper is factored out to stay
- * unit-testable (mirrors the codebase's existing testable-core + thin-Deno.serve-wiring pattern).
+ * `Deno.serve` itself has no Deno global in Vitest (nor in pmo-portal's `tsc`, which type-checks this
+ * file transitively via the vitest import graph), so the wrapper is factored out to stay unit-testable
+ * (mirrors the codebase's existing testable-core + thin-Deno.serve-wiring pattern) and the `Deno`
+ * reference is read off `globalThis` (mirrors errorEventSink.ts / posthogError.ts) rather than the
+ * bare global, so `tsc --noEmit` (no Deno lib) and `deno check` both pass this same source.
  */
 import { reportEdgeError } from './reportEdgeError.ts';
 import type { EdgeFunctionName } from './errorLog.ts';
+
+type DenoServeLike = { serve: (handler: (req: Request) => Response | Promise<Response>) => unknown };
 
 export function wrapWithErrorReporting(
   fn: EdgeFunctionName,
@@ -40,5 +45,6 @@ export function serveWithErrorReporting(
   fn: EdgeFunctionName,
   handler: (req: Request) => Response | Promise<Response>,
 ): void {
-  Deno.serve(wrapWithErrorReporting(fn, handler));
+  const deno = (globalThis as { Deno?: DenoServeLike }).Deno;
+  deno?.serve(wrapWithErrorReporting(fn, handler));
 }

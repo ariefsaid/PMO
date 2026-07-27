@@ -21,7 +21,7 @@ describe('createServiceRoleErrorEventSink', () => {
     const res = await sink.from('error_events').insert({ fn: 'erpnext-sweep', error_code: 'X' });
 
     expect(res.error).toBeNull();
-    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).toBe('https://db.example/rest/v1/error_events');
     expect((init.headers as Record<string, string>).Authorization).toBe('Bearer srk');
     expect(init.body).toBe(JSON.stringify({ fn: 'erpnext-sweep', error_code: 'X' }));
