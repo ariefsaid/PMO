@@ -8,9 +8,12 @@ import { AppError } from '@/src/lib/appError';
 // `save_failed` event per failed row (a 10k-row import failing wholesale would multiply one
 // click into ~10k events — PostHog's overage DISCARDS PERMANENTLY). Mock the analytics facade
 // so the test can assert the aggregate-vs-per-row shape directly.
-const analytics = vi.hoisted(() => ({ trackSaveFailed: vi.fn() }));
+const analytics = vi.hoisted(() => ({ trackSaveFailed: vi.fn(), trackBulkImportFailed: vi.fn() }));
 vi.mock('@/src/lib/analytics', () => analytics);
-beforeEach(() => analytics.trackSaveFailed.mockClear());
+beforeEach(() => {
+  analytics.trackSaveFailed.mockClear();
+  analytics.trackBulkImportFailed.mockClear();
+});
 
 interface Co {
   name: string;
@@ -114,13 +117,14 @@ describe('useImportWizard', () => {
     expect(result.current.result?.failed.map((f) => f.index)).toEqual([0]);
   });
 
-  it('SECURITY (review round 2 #2): multiple failed rows fire ONE aggregate save_failed event ' +
-    'with the total failed_count — NOT one event per row', async () => {
+  it('SECURITY (review round 2 #2, revised per code-quality review #2): multiple failed rows ' +
+    'with DIFFERENT classifications fire ONE bulk_import_failed event PER CLASSIFICATION — never ' +
+    'save_failed, and never a single lump event that discards the reason distribution', async () => {
     (parseWorkbook as ReturnType<typeof vi.fn>).mockResolvedValue({
       headers: ['Company name', 'Type'],
       rows: [
-        ['First', 'Client'],  // rejects
-        ['Second', 'Vendor'], // rejects
+        ['First', 'Client'],  // rejects — 42501 (permission_denied)
+        ['Second', 'Vendor'], // rejects — 23505 (duplicate)
         ['Third', 'Client'],  // creates
       ],
     });
@@ -142,9 +146,11 @@ describe('useImportWizard', () => {
 
     await waitFor(() => expect(result.current.step).toBe('result'));
     expect(result.current.result?.failed).toHaveLength(2);
-    // Exactly ONE analytics call for the whole run, not one per failed row.
-    expect(analytics.trackSaveFailed).toHaveBeenCalledTimes(1);
-    expect(analytics.trackSaveFailed).toHaveBeenCalledWith('batch', 'import', 'other', 'companies', 2);
+    // Never the old event, never a single lump call.
+    expect(analytics.trackSaveFailed).not.toHaveBeenCalled();
+    expect(analytics.trackBulkImportFailed).toHaveBeenCalledTimes(2);
+    expect(analytics.trackBulkImportFailed).toHaveBeenCalledWith('companies', 'permission_denied', 1);
+    expect(analytics.trackBulkImportFailed).toHaveBeenCalledWith('companies', 'duplicate', 1);
   });
 
   it('SECURITY (review round 2 #2): a clean run (zero failures) fires no aggregate event', async () => {
@@ -163,6 +169,7 @@ describe('useImportWizard', () => {
     });
     await waitFor(() => expect(result.current.step).toBe('result'));
     expect(analytics.trackSaveFailed).not.toHaveBeenCalled();
+    expect(analytics.trackBulkImportFailed).not.toHaveBeenCalled();
   });
 
   it('a parse rejection keeps the wizard on upload with an error and writes nothing', async () => {

@@ -56,8 +56,28 @@ jobs:
           val=$(printenv POSTHOG_API_KEY || true)
           if [ -n "$val" ]; then echo "::add-mask::$val"; fi
 
+      # Deliberately still FAILS CLOSED when unconfigured (option (b), 2026-07-28 code-quality
+      # review #6 — a monitoring job that silently reports green/skipped when it isn't actually
+      # configured is exactly the fail-open class item #1 of the SAME review round closed in
+      # evaluateQuota). The distinct summary banners below exist ONLY to stop this from being
+      # "just another red" that gets learned-and-ignored: a missing-secret run and a real quota
+      # breach are visually distinguishable the moment the run summary is opened, without needing
+      # to read the raw log.
       - name: Check PostHog quota
         env:
           POSTHOG_API_KEY: ${{ secrets.POSTHOG_API_KEY }}
           POSTHOG_PROJECT_ID: ${{ secrets.POSTHOG_PROJECT_ID }}
-        run: node scripts/posthog/check-quota.mjs
+        run: |
+          set +e
+          node scripts/posthog/check-quota.mjs
+          code=$?
+          set -e
+          if [ "$code" -eq 2 ] && { [ -z "$POSTHOG_API_KEY" ] || [ -z "$POSTHOG_PROJECT_ID" ]; }; then
+            echo "## :construction: SETUP REQUIRED — not a quota alarm" >> "$GITHUB_STEP_SUMMARY"
+            echo "POSTHOG_API_KEY and/or POSTHOG_PROJECT_ID are not set as repo secrets yet." >> "$GITHUB_STEP_SUMMARY"
+            echo "See docs/analytics-events.md 'Quota safety' for setup steps (owner action)." >> "$GITHUB_STEP_SUMMARY"
+          elif [ "$code" -eq 1 ]; then
+            echo "## :rotating_light: QUOTA ALARM — a PostHog free allowance is at/above 80%" >> "$GITHUB_STEP_SUMMARY"
+            echo "See the job log above for the affected resource(s). Ingestion loss is PERMANENT." >> "$GITHUB_STEP_SUMMARY"
+          fi
+          exit "$code"

@@ -85,7 +85,16 @@ are still dark. Each is the same 3-line addition (`stateId`/`role={realRole}`/`m
 
 | Event | Purpose | Boundary | Safe properties |
 |---|---|---|---|
-| `save_failed` | Reliability / UX friction | `classifyMutationError` (`pmo-portal/src/lib/classifyMutationError.ts`) — the single point where "a classified mutation error was shown to the user" is reliably knowable | `entity_type` (carries the classification slug — `illegal_transition`, `permission_denied`, `duplicate`, `in_use`, `timeout`, `override`, or `unclassified`), `operation`, `reason_code` (the Postgres/PostgREST code, e.g. `42501` — **bounded**, see note below), `module` |
+| `save_failed` | Reliability / UX friction, ONE per user-visible mutation error | `classifyMutationError` (`pmo-portal/src/lib/classifyMutationError.ts`) — the single point where "a classified mutation error was shown to the user" is reliably knowable | `failure_class` (the classification slug — `illegal_transition`, `permission_denied`, `duplicate`, `in_use`, `timeout`, `override`, or `unclassified`; renamed from `entity_type` 2026-07-27 — the property never carried an entity type), `operation`, `reason_code` (the Postgres/PostgREST code, e.g. `42501` — **bounded**, see note below), `module` |
+| `bulk_import_failed` | Reliability / UX friction for a BULK COMMIT RUN (an import wizard or procurement-cycle commit), aggregated PER CLASSIFICATION | `trackBatchSaveFailed` (`classifyMutationError.ts`), called once after a per-row/per-record loop | `module`, `failure_class`, `failed_count` (how many rows/records in THIS run landed in this classification bucket) |
+
+⚑ **`module`/`operation` are constants (`unknown`/`classify`), not yet real dimensions.** No
+current call site threads a real `module`/`operation` into `classifyMutationError`'s context —
+every `save_failed`/`bulk_import_failed` event today carries `module: 'unknown'` (or the bulk
+caller's own module id) and `operation: 'classify'` until callers are threaded to pass real
+values. **Do not break down a PostHog explorer view by `module` or `operation` yet** — you will
+see ~100% `unknown`/`classify` and it is easy to misread that as "nobody uses any other module",
+which is a fact about instrumentation coverage, not product usage.
 
 **`reason_code` is bounded, not passed through (SECURITY finding, 2026-07-27).** `.code` is typed
 `string | undefined` and at least one real path (`src/lib/db/adminUsers.ts:103`) reads it straight
@@ -104,6 +113,17 @@ to `classifyMutationError`, which has 40+ call sites versus 17 entity forms, alr
 `.code`, and is by construction "the errors the user was actually shown" — the friction signal itself.
 The old `useEntityForm` producer was deleted; there is exactly one producer of `save_failed` now.
 
+**`bulk_import_failed` is a DISTINCT event from `save_failed`, not a `failed_count` bolted onto it
+(code-quality review, 2026-07-27).** `save_failed`'s "Save failures by reason" tile counts EVENTS —
+a lump `failed_count` under `save_failed` would make a 5,000-row import failure contribute exactly
+1 to whichever bucket it landed in, indistinguishable from a single real failure, and would discard
+the per-row reason distribution entirely (you could no longer tell whether a wholesale import
+failure was RLS-denied vs duplicate-keyed). `bulk_import_failed` fires ONE event PER NON-ZERO
+CLASSIFICATION BUCKET per commit run instead — at most 7 events (the friction classification has 7
+values), which stays quota-safe *and* keeps the reason distribution answerable. Loop call sites
+(`useImportWizard.commit`, `procurementCycle/commit.ts`'s `commitGroups`) suppress their own
+per-row `save_failed` capture (`{ suppressCapture: true }`) and tally the classification instead.
+
 **`permission_denied_seen` was removed (2026-07-25, ADR-0067)** — it had zero call sites (never wired to
 a UI boundary) yet had a provisioned dashboard tile, which renders a permanently-empty chart that reads
 as a product fact ("nobody hits this") rather than the broken measurement it actually was. Its signal is
@@ -115,6 +135,25 @@ status/reason codes, booleans.
 Forbidden values: raw user-entered strings, raw UUID paths, raw query strings, raw DB rows, names,
 emails, phone numbers, addresses, company/project/procurement names, monetary values, notes, comments,
 file names, file contents, request/response bodies, and auth tokens.
+
+### ⚑ PostHog's built-in path/URL views are empty by design (2026-07-27 SECURITY finding)
+
+posthog-js attaches `$current_url`, `$pathname`, `$initial_current_url`, `$session_entry_url`, and
+`$session_entry_pathname` to **every** captured event automatically, straight from
+`window.location` — independent of whatever properties the app passes. Every one of these carries
+the **raw, unparameterized** path (e.g. `/projects/550e8400-e29b-41d4-a716-446655440000`, not
+`/projects/:projectId`), which is a raw record UUID and forbidden by this doc's own rule above.
+All five are denylisted (`FORBIDDEN_PROPERTY_KEYS` in `src/lib/analytics/events.ts`, verified
+against the real, unmocked SDK in `client.currentUrlLeak.realSdk.test.ts` — not a config-only
+assertion, which is exactly the class of check that missed the earlier `capture_dead_clicks` leak).
+
+**This is a deliberate, real trade-off, not just an implementation detail:** PostHog's built-in
+**Web Analytics** dashboard and the **Paths**/**$pageview**-style explorer views are populated
+FROM these exact properties. With them stripped, those built-in views will read **empty** for
+this project — permanently, by design. Route-level navigation signal is still fully available via
+our own `app_route_viewed` event's `route` property (the parameterized pattern,
+`routeAnalyticsForPath`), and that is the intended replacement — it is just not the same UI
+surface as PostHog's out-of-the-box Web Analytics tab.
 
 ## Demo funnel (FR-PHG-020/021)
 

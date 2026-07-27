@@ -23,6 +23,7 @@ export type AnalyticsEventName =
   | 'coming_soon_clicked'
   | 'form_validation_failed'
   | 'save_failed'
+  | 'bulk_import_failed'
   | 'empty_state_seen'
   | 'agent_panel_opened'
   | 'agent_run_started'
@@ -129,20 +130,39 @@ export function trackFormValidationFailed(
 }
 
 export function trackSaveFailed(
-  entityType: string,
+  /** The friction classification slug (`permission_denied`, `in_use`, …) — renamed from
+   *  `entity_type` (2026-07-27 code-quality review #4): the property never carried an entity
+   *  type, and the series had zero history (the event was inert until this same slice), so the
+   *  rename was free today and unpayable once real data exists under the old name. */
+  failureClass: string,
   operation: string,
   reasonCode: string,
   module: string,
-  /** Set only by `trackBatchSaveFailed` (2026-07-27 review round 2 #2) — an aggregate count for
-   *  a bulk-import commit run, so a per-row loop fires ONE event instead of one per row. */
-  failedCount?: number,
 ): TrackedEvent {
   return {
     event: 'save_failed',
-    properties: {
-      entity_type: entityType, operation, reason_code: reasonCode, module,
-      ...(failedCount !== undefined ? { failed_count: failedCount } : {}),
-    },
+    properties: { failure_class: failureClass, operation, reason_code: reasonCode, module },
+  };
+}
+
+/**
+ * A bulk-import commit run's failures, aggregated PER CLASSIFICATION (2026-07-27 code-quality
+ * review #2 fix). A DISTINCT event from `save_failed` — not the same event with a `failed_count`
+ * bolted on — because `save_failed` counts EVENTS, so a lump aggregate under one event would make
+ * a 5,000-row import failure contribute exactly 1 to whichever `reason_code`/`failure_class`
+ * bucket it landed in, indistinguishable from a single real failure, and would discard the
+ * per-row reason distribution entirely (RLS vs duplicates becomes unanswerable). One
+ * `bulk_import_failed` event per non-zero classification bucket per run (at most 7 —
+ * FrictionClass has 7 members) keeps both quota-safety and the reason distribution.
+ */
+export function trackBulkImportFailed(
+  module: string,
+  failureClass: string,
+  failedCount: number,
+): TrackedEvent {
+  return {
+    event: 'bulk_import_failed',
+    properties: { module, failure_class: failureClass, failed_count: failedCount },
   };
 }
 

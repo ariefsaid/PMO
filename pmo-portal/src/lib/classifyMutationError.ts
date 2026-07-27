@@ -32,29 +32,39 @@
  * the missing prop") would still have produced zero events.
  */
 import { safeTrack } from './analytics/safeTrack';
-import { trackSaveFailed } from './analytics';
+import { trackSaveFailed, trackBulkImportFailed } from './analytics';
 
-/** Stable, PII-free classification slugs for the friction event (ADR-0067). */
-type FrictionClass =
+/** Stable, PII-free classification slugs for the friction event (ADR-0067). Exported so bulk-loop
+ *  call sites can build a per-classification tally for `trackBatchSaveFailed` (2026-07-27
+ *  code-quality review #2) — the same classification `classifyMutationError` already computes,
+ *  now surfaced instead of re-derived. */
+export type FrictionClass =
   | 'illegal_transition' | 'permission_denied' | 'duplicate'
   | 'in_use' | 'timeout' | 'override' | 'unclassified';
 
 /**
- * Known module ids (2026-07-27 review round 2 #3): a closed set, not `string`. `module`/
- * `operation` typed as plain `string` type-checked `classifyMutationError(err, undefined, {
- * module: company.name })` — the SAME shape as the `capture_dead_clicks` leak, one authoring
- * mistake away. Nothing leaks TODAY (no call site passes the third arg yet), which is exactly
- * why this must be closed before the first caller is wired, not after.
+ * Known module ids / operations (2026-07-27 review round 2 #3): SINGLE-SOURCED — each closed set
+ * is declared ONCE as a `const` tuple; the exported TS union and the runtime `Set` both derive
+ * from it. Previously the union and the `Set` were two independent hand-written lists of the same
+ * 16/8 values — in sync today, but a future edit to one and not the other would drift SILENTLY (a
+ * new value type-checks at the call site, then collapses to 'unknown'/'classify' in the payload,
+ * with no error anywhere). Also (review #3): `module`/`operation` typed as plain `string`
+ * type-checked `classifyMutationError(err, undefined, { module: company.name })` — the SAME shape
+ * as the `capture_dead_clicks` leak, one authoring mistake away.
  */
-export type AnalyticsModule =
-  | 'administration' | 'approvals' | 'auth' | 'budget-account-map' | 'companies' | 'contacts'
-  | 'dashboard' | 'incidents' | 'my-tasks' | 'procurement' | 'projects' | 'reports' | 'sales'
-  | 'settings' | 'timesheets' | 'unknown';
+const ANALYTICS_MODULES = [
+  'administration', 'approvals', 'auth', 'budget-account-map', 'companies', 'contacts',
+  'dashboard', 'incidents', 'my-tasks', 'procurement', 'projects', 'reports', 'sales',
+  'settings', 'timesheets', 'unknown',
+] as const;
+export type AnalyticsModule = (typeof ANALYTICS_MODULES)[number];
 
-/** Known mutation operations — a genuinely closed, small set (unlike module ids, which grow).
- *  `'import'` (2026-07-27 #2) marks a `trackBatchSaveFailed` aggregate — never a per-row event. */
-export type ClassifyOperation =
-  | 'create' | 'update' | 'delete' | 'archive' | 'approve' | 'push' | 'classify' | 'import';
+/** `'import'` (2026-07-27 #2) marks a `trackBatchSaveFailed`/`trackBulkImportFailed` aggregate —
+ *  never a per-row event. */
+const CLASSIFY_OPERATIONS = [
+  'create', 'update', 'delete', 'archive', 'approve', 'push', 'classify', 'import',
+] as const;
+export type ClassifyOperation = (typeof CLASSIFY_OPERATIONS)[number];
 
 export interface ClassifyContext {
   /** Which module the user was in, e.g. 'companies'. Never derived from user input. */
@@ -68,7 +78,8 @@ export interface ClassifyContext {
    * free-allowance overage DISCARDS PERMANENTLY, so a large bulk failure can silently exhaust
    * the month's headroom and flatten every OTHER chart into a false "nobody uses the product"
    * signal. The classification/headline/detail return value is unaffected — only the analytics
-   * side effect is skipped. Call `trackBatchSaveFailed` ONCE after the loop instead.
+   * side effect is skipped. Tally `classification` per loop iteration and call
+   * `trackBatchSaveFailed` ONCE after the loop instead.
    */
   suppressCapture?: boolean;
 }
@@ -76,15 +87,10 @@ export interface ClassifyContext {
 // RUNTIME guards (not just the types above): TS types are erased at runtime and a caller can
 // always bypass them with `as AnalyticsModule` — the enforcement that actually stops a leak is
 // this Set lookup, not the type annotation. The type exists for a good compile-time authoring
-// experience; the Set is what makes the leak unrepresentable.
-const KNOWN_MODULES: ReadonlySet<AnalyticsModule> = new Set([
-  'administration', 'approvals', 'auth', 'budget-account-map', 'companies', 'contacts',
-  'dashboard', 'incidents', 'my-tasks', 'procurement', 'projects', 'reports', 'sales',
-  'settings', 'timesheets', 'unknown',
-]);
-const KNOWN_OPERATIONS: ReadonlySet<ClassifyOperation> = new Set([
-  'create', 'update', 'delete', 'archive', 'approve', 'push', 'classify', 'import',
-]);
+// experience; the Set (derived from the SAME array as the type, never re-listed) is what makes
+// the leak unrepresentable.
+const KNOWN_MODULES: ReadonlySet<string> = new Set(ANALYTICS_MODULES);
+const KNOWN_OPERATIONS: ReadonlySet<string> = new Set(CLASSIFY_OPERATIONS);
 
 function boundModule(module: AnalyticsModule | undefined): AnalyticsModule {
   return module && KNOWN_MODULES.has(module) ? module : 'unknown';
@@ -144,7 +150,7 @@ export function classifyMutationError(
   err: unknown,
   overrides?: Record<string, string>,
   context?: ClassifyContext,
-): { headline: string; detail: string } {
+): { headline: string; detail: string; classification: FrictionClass } {
   const detail = err instanceof Error ? err.message : 'An error occurred';
   const code = typeof (err as { code?: unknown })?.code === 'string'
     ? (err as { code: string }).code
@@ -167,22 +173,22 @@ export function classifyMutationError(
   }
 
   if (code && overrides && Object.prototype.hasOwnProperty.call(overrides, code)) {
-    return { headline: overrides[code], detail };
+    return { headline: overrides[code], detail, classification };
   }
 
   switch (code) {
     case 'P0001':
-      return { headline: "That move isn't allowed from the current stage.", detail };
+      return { headline: "That move isn't allowed from the current stage.", detail, classification };
     case '42501':
-      return { headline: "You don't have permission to do that.", detail };
+      return { headline: "You don't have permission to do that.", detail, classification };
     case '23505':
-      return { headline: 'That already exists.', detail };
+      return { headline: 'That already exists.', detail, classification };
     case '23503':
-      return { headline: 'Still in use', detail };
+      return { headline: 'Still in use', detail, classification };
     case 'REQUEST_TIMEOUT':
-      return { headline: "Request timed out — we couldn't confirm whether it saved.", detail };
+      return { headline: "Request timed out — we couldn't confirm whether it saved.", detail, classification };
     default:
-      return { headline: 'Update failed', detail };
+      return { headline: 'Update failed', detail, classification };
   }
 }
 
@@ -199,12 +205,25 @@ function classifyCode(code: string | undefined, overrides?: Record<string, strin
 }
 
 /**
- * Fires ONE aggregate `save_failed` event for a bulk-import commit run (2026-07-27 review round
- * 2 #2). Call sites that loop `classifyMutationError` per row/record must pass
- * `{ suppressCapture: true }` on every per-item call, then call this exactly once after the loop
- * with the total failed count. A no-op when `failedCount` is 0 — a clean run reports nothing.
+ * Fires a bulk-import commit run's failures as a DISTINCT `bulk_import_failed` event, ONE PER
+ * NON-ZERO CLASSIFICATION BUCKET (2026-07-27 code-quality review #2 — the fix that replaced a
+ * single `save_failed` lump). Reusing `save_failed` with a lump `failed_count` was wrong on two
+ * counts: `save_failed`'s "Save failures by reason" tile counts EVENTS, so a 5,000-row import
+ * failure would contribute exactly 1 to whichever bucket it landed in — indistinguishable from a
+ * single real failure — AND the per-row reason distribution would be discarded (RLS vs
+ * duplicates becomes unanswerable). Aggregating per classification instead fires at most 7 events
+ * per run (`FrictionClass` has 7 members) — quota-safe AND distribution-preserving. Call sites
+ * that loop `classifyMutationError` per row/record pass `{ suppressCapture: true }` on every
+ * per-item call, tally each returned `classification`, and call this ONCE after the loop. Buckets
+ * with a zero (or absent) count are skipped; an entirely empty/zero tally is a no-op.
  */
-export function trackBatchSaveFailed(module: AnalyticsModule | undefined, failedCount: number): void {
-  if (failedCount <= 0) return;
-  safeTrack(() => trackSaveFailed('batch', 'import', 'other', boundModule(module), failedCount));
+export function trackBatchSaveFailed(
+  module: AnalyticsModule | undefined,
+  classificationCounts: Partial<Record<FrictionClass, number>>,
+): void {
+  const boundedModule = boundModule(module);
+  for (const [classification, count] of Object.entries(classificationCounts)) {
+    if (!count || count <= 0) continue;
+    safeTrack(() => trackBulkImportFailed(boundedModule, classification, count));
+  }
 }

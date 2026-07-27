@@ -32,6 +32,7 @@ export const EVENT_PRODUCERS: Record<AnalyticsEventName, { producer: string; kin
   coming_soon_clicked:       { producer: 'trackComingSoonClicked',      kind: 'facade' },
   form_validation_failed:    { producer: 'trackFormValidationFailed',   kind: 'facade' },
   save_failed:               { producer: 'trackSaveFailed',            kind: 'facade' },
+  bulk_import_failed:        { producer: 'trackBulkImportFailed',      kind: 'facade' },
   empty_state_seen:          { producer: 'trackEmptyStateSeen',         kind: 'facade' },
   agent_panel_opened:        { producer: 'trackAgentPanelOpened',       kind: 'facade' },
   agent_run_started:         { producer: 'trackAgentRunStarted',        kind: 'facade' },

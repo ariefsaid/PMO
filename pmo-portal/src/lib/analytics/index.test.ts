@@ -19,6 +19,7 @@ import {
   trackAuthLogoutSucceeded,
   trackFormValidationFailed,
   trackSaveFailed,
+  trackBulkImportFailed,
   trackEmptyStateSeen,
   trackSearchUsed,
   trackProjectDetailOpened,
@@ -92,12 +93,21 @@ describe('analytics facade helpers', () => {
   });
 
   it('trackSaveFailed captures the same safe props the builder produces', () => {
-    trackSaveFailed('company', 'update', 'network', 'companies');
+    trackSaveFailed('permission_denied', 'update', 'network', 'companies');
     expect(mockCapture).toHaveBeenCalledWith('save_failed', {
-      entity_type: 'company',
+      failure_class: 'permission_denied',
       operation: 'update',
       reason_code: 'network',
       module: 'companies',
+    });
+  });
+
+  it('trackBulkImportFailed captures the same safe props the builder produces (2026-07-27 code-quality review #2)', () => {
+    trackBulkImportFailed('companies', 'duplicate', 21);
+    expect(mockCapture).toHaveBeenCalledWith('bulk_import_failed', {
+      module: 'companies',
+      failure_class: 'duplicate',
+      failed_count: 21,
     });
   });
 

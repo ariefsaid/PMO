@@ -4,7 +4,7 @@ import type { ValidatedGroup } from '../types';
 
 // SECURITY (2026-07-27 review round 2 #2): a bulk commit run must NOT fire one `save_failed`
 // event per failed case/record — mock the analytics facade to assert the aggregate shape.
-const analytics = vi.hoisted(() => ({ trackSaveFailed: vi.fn() }));
+const analytics = vi.hoisted(() => ({ trackSaveFailed: vi.fn(), trackBulkImportFailed: vi.fn() }));
 vi.mock('@/src/lib/analytics', () => analytics);
 
 // ─── Mock the DB create functions ─────────────────────────────────────────────
@@ -263,21 +263,25 @@ describe('commitGroups — AC-CYCLE-COMMIT-003: single bad record does not abort
 
 // ─── SECURITY (review round 2 #2): one aggregate event per commitGroups() run ──────────────
 
-describe('commitGroups — SECURITY (review round 2 #2): aggregate save_failed, not per-row', () => {
+describe('commitGroups — SECURITY (review round 2 #2, revised per code-quality review #2): ' +
+  'per-classification aggregate bulk_import_failed, never save_failed', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     analytics.trackSaveFailed.mockClear();
+    analytics.trackBulkImportFailed.mockClear();
   });
 
-  it('a header failure AND a record failure across two groups fire EXACTLY ONE aggregate event ' +
-    'carrying the TOTAL failed_count (header + record failures combined)', async () => {
-    // Group A: header create rejects (not a 23505 race) -> whole case fails, no children attempted.
-    // Group B: header succeeds, one record (RFQ) rejects.
+  it('a header failure AND a record failure, with DIFFERENT classifications, across two groups ' +
+    'fire ONE bulk_import_failed event PER CLASSIFICATION — never save_failed, and never a ' +
+    'single lump event that discards the reason distribution', async () => {
+    // Group A: header create rejects with 42501 (permission_denied) -> whole case fails, no
+    // children attempted. Group B: header succeeds, one record (RFQ) rejects with 23503 (in_use)
+    // — a DIFFERENT classification, so the test actually proves per-bucket aggregation.
     vi.mocked(createProcurement)
-      .mockRejectedValueOnce(new Error('header boom'))
+      .mockRejectedValueOnce(Object.assign(new Error('header boom'), { code: '42501' }))
       .mockResolvedValueOnce({ id: 'proc-ok' } as never);
     vi.mocked(createPurchaseRequest).mockResolvedValue({ id: 'pr-1' } as never);
-    vi.mocked(createRfq).mockRejectedValue(new Error('RFQ error'));
+    vi.mocked(createRfq).mockRejectedValue(Object.assign(new Error('RFQ error'), { code: '23503' }));
 
     const groupA: ValidatedGroup = {
       valid: true, groupErrors: [],
@@ -324,9 +328,11 @@ describe('commitGroups — SECURITY (review round 2 #2): aggregate save_failed, 
     expect(result.cases[0].headerStatus).toBe('failed');
     expect(result.failed).toBe(1); // record-level failures only (RFQ)
 
-    // Exactly ONE analytics call for the WHOLE run (1 header failure + 1 record failure = 2).
-    expect(analytics.trackSaveFailed).toHaveBeenCalledTimes(1);
-    expect(analytics.trackSaveFailed).toHaveBeenCalledWith('batch', 'import', 'other', 'procurement', 2);
+    // Never the old event; ONE call PER classification bucket (2 buckets here, 1 each).
+    expect(analytics.trackSaveFailed).not.toHaveBeenCalled();
+    expect(analytics.trackBulkImportFailed).toHaveBeenCalledTimes(2);
+    expect(analytics.trackBulkImportFailed).toHaveBeenCalledWith('procurement', 'permission_denied', 1);
+    expect(analytics.trackBulkImportFailed).toHaveBeenCalledWith('procurement', 'in_use', 1);
   });
 
   it('a fully clean run fires no aggregate event', async () => {
@@ -349,6 +355,7 @@ describe('commitGroups — SECURITY (review round 2 #2): aggregate save_failed, 
 
     await commitGroups([group], { requestedById: REQUESTER, projectLookup, vendorLookup });
     expect(analytics.trackSaveFailed).not.toHaveBeenCalled();
+    expect(analytics.trackBulkImportFailed).not.toHaveBeenCalled();
   });
 });
 

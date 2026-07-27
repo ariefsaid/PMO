@@ -19,6 +19,7 @@
  * existing non-import callers).
  */
 import { classifyMutationError, trackBatchSaveFailed } from '@/src/lib/classifyMutationError';
+import type { FrictionClass } from '@/src/lib/classifyMutationError';
 import { createProcurement } from '@/src/lib/db/procurementCrud';
 import {
   createPurchaseRequest,
@@ -231,6 +232,11 @@ async function createRecord(
 async function commitCase(
   validated: ValidatedGroup,
   { requestedById, projectLookup, vendorLookup, importBatchId, skipLookup }: CommitOptions,
+  // SECURITY (2026-07-27 review round 2 #2, revised per code-quality review #2): a shared tally,
+  // mutated in place across every case/record in this commitGroups() run, so the aggregate fired
+  // once at the end preserves the PER-CLASSIFICATION reason distribution (RLS vs duplicates
+  // stays answerable) instead of one lump total.
+  classificationCounts: Partial<Record<FrictionClass, number>>,
 ): Promise<CommitCaseResult> {
   const { group, rows: validatedRows } = validated;
   const { attrs } = group;
@@ -294,10 +300,11 @@ async function commitCase(
             // SECURITY (2026-07-27 review round 2 #2): suppressCapture — this runs inside commitGroups'
             // per-group/per-record loop; a bulk commit failing wholesale must not fire one
             // save_failed event per case/record (PostHog overage discards permanently). See
-            // trackBatchSaveFailed at the end of commitGroups for the ONE aggregate event.
-            const { headline, detail } = classifyMutationError(err, undefined, {
+            // trackBatchSaveFailed at the end of commitGroups for the per-classification aggregate.
+            const { headline, detail, classification } = classifyMutationError(err, undefined, {
               suppressCapture: true,
             });
+            classificationCounts[classification] = (classificationCounts[classification] ?? 0) + 1;
             return {
               caseRef: group.caseRef,
               headerStatus: 'failed',
@@ -309,10 +316,11 @@ async function commitCase(
           // SECURITY (2026-07-27 review round 2 #2): suppressCapture — this runs inside commitGroups'
           // per-group/per-record loop; a bulk commit failing wholesale must not fire one
           // save_failed event per case/record (PostHog overage discards permanently). See
-          // trackBatchSaveFailed at the end of commitGroups for the ONE aggregate event.
-          const { headline, detail } = classifyMutationError(err, undefined, {
+          // trackBatchSaveFailed at the end of commitGroups for the per-classification aggregate.
+          const { headline, detail, classification } = classifyMutationError(err, undefined, {
             suppressCapture: true,
           });
+          classificationCounts[classification] = (classificationCounts[classification] ?? 0) + 1;
           return {
             caseRef: group.caseRef,
             headerStatus: 'failed',
@@ -334,8 +342,9 @@ async function commitCase(
       // SECURITY (2026-07-27 review round 2 #2): suppressCapture — this runs inside commitGroups'
       // per-group/per-record loop; a bulk commit failing wholesale must not fire one
       // save_failed event per case/record (PostHog overage discards permanently). See
-      // trackBatchSaveFailed at the end of commitGroups for the ONE aggregate event.
-      const { headline, detail } = classifyMutationError(err, undefined, { suppressCapture: true });
+      // trackBatchSaveFailed at the end of commitGroups for the per-classification aggregate.
+      const { headline, detail, classification } = classifyMutationError(err, undefined, { suppressCapture: true });
+      classificationCounts[classification] = (classificationCounts[classification] ?? 0) + 1;
       return {
         caseRef: group.caseRef,
         headerStatus: 'failed',
@@ -439,8 +448,9 @@ async function commitCase(
       // SECURITY (2026-07-27 review round 2 #2): suppressCapture — this runs inside commitGroups'
       // per-group/per-record loop; a bulk commit failing wholesale must not fire one
       // save_failed event per case/record (PostHog overage discards permanently). See
-      // trackBatchSaveFailed at the end of commitGroups for the ONE aggregate event.
-      const { headline, detail } = classifyMutationError(err, undefined, { suppressCapture: true });
+      // trackBatchSaveFailed at the end of commitGroups for the per-classification aggregate.
+      const { headline, detail, classification } = classifyMutationError(err, undefined, { suppressCapture: true });
+      classificationCounts[classification] = (classificationCounts[classification] ?? 0) + 1;
       records.push({
         rowNumber: row.rowNumber,
         type: row.type,
@@ -476,29 +486,36 @@ export async function commitGroups(
   let created = 0;
   let failed = 0;
 
-  let headerFailed = 0;
+  // SECURITY (2026-07-27 review round 2 #2, revised per code-quality review #2): a shared,
+  // per-classification tally, mutated in place by every classifyMutationError call inside
+  // commitCase across this whole run — see trackBatchSaveFailed below for why aggregating per
+  // classification (not one lump total) matters.
+  const classificationCounts: Partial<Record<FrictionClass, number>> = {};
 
   for (const validated of validatedGroups) {
     // Skip invalid groups entirely
     if (!validated.valid) continue;
 
-    const caseResult = await commitCase(validated, options);
+    const caseResult = await commitCase(validated, options, classificationCounts);
     cases.push(caseResult);
-    if (caseResult.headerStatus === 'failed') {
-      headerFailed++;
-    } else if (caseResult.headerStatus === 'created' || caseResult.headerStatus === 'skipped') {
+    if (caseResult.headerStatus === 'created' || caseResult.headerStatus === 'skipped') {
       for (const rec of caseResult.records) {
         if (rec.status === 'created') created++;
         else if (rec.status === 'failed') failed++;
         // 'skipped' counts toward neither — surfaced via the per-case/per-record detail instead.
       }
     }
+    // headerStatus === 'failed' is tallied by classifyMutationError inside commitCase itself
+    // (classificationCounts, above) — no separate counter needed here.
   }
 
-  // SECURITY (2026-07-27 review round 2 #2): ONE aggregate `save_failed` event for the whole
+  // A DISTINCT `bulk_import_failed` event, ONE PER NON-ZERO CLASSIFICATION BUCKET, for the whole
   // commit run — every classifyMutationError call above suppressed its own capture for exactly
-  // this reason (a bulk commit failing wholesale must not multiply one click into N events).
-  trackBatchSaveFailed('procurement', failed + headerFailed);
+  // this reason (a bulk commit failing wholesale must not multiply one click into N events), and
+  // this is NOT `save_failed` with a lump `failed_count` (that would count EVENTS, making a
+  // 5,000-row failure indistinguishable from one real failure and discarding the reason
+  // distribution — see trackBatchSaveFailed's doc comment).
+  trackBatchSaveFailed('procurement', classificationCounts);
 
   return { created, failed, cases };
 }

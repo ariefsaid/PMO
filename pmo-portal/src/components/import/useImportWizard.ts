@@ -12,7 +12,7 @@ import {
   type RowValidation,
 } from '@/src/lib/import';
 import { classifyMutationError, trackBatchSaveFailed } from '@/src/lib/classifyMutationError';
-import type { AnalyticsModule } from '@/src/lib/classifyMutationError';
+import type { AnalyticsModule, FrictionClass } from '@/src/lib/classifyMutationError';
 
 export type WizardStep = 'upload' | 'mapping' | 'preview' | 'committing' | 'result';
 
@@ -132,25 +132,28 @@ export function useImportWizard<Input>(descriptor: ImportDescriptor<Input>): Use
 
     let created = 0;
     const failed: ImportResult['failed'] = [];
+    // SECURITY (2026-07-27 review round 2 #2, revised per code-quality review #2):
+    // `suppressCapture: true` on every per-row call — a 10k-row import failing wholesale must NOT
+    // multiply one click into ~10k events (PostHog's free-allowance overage DISCARDS
+    // PERMANENTLY). Tally PER CLASSIFICATION (not a single lump count) so `trackBatchSaveFailed`
+    // below can preserve the reason distribution (RLS vs duplicates stays answerable) while still
+    // firing at most 7 events for the whole run.
+    const classificationCounts: Partial<Record<FrictionClass, number>> = {};
     // Sequential, best-effort: a per-row rejection (e.g. 23505 duplicate, 42501 RLS) is
     // captured and the run continues. Nothing rolls back.
-    //
-    // SECURITY (2026-07-27 review round 2 #2): `suppressCapture: true` on every per-row call —
-    // a 10k-row import failing wholesale must NOT multiply one click into ~10k `save_failed`
-    // events (PostHog's free-allowance overage DISCARDS PERMANENTLY). `trackBatchSaveFailed`
-    // below fires ONE aggregate event for the whole run instead.
     for (let i = 0; i < validRows.length; i += 1) {
       const { index, cells } = validRows[i];
       try {
         await descriptor.create(descriptor.toInput(cells));
         created += 1;
       } catch (err) {
-        const { headline } = classifyMutationError(err, undefined, { suppressCapture: true });
+        const { headline, classification } = classifyMutationError(err, undefined, { suppressCapture: true });
+        classificationCounts[classification] = (classificationCounts[classification] ?? 0) + 1;
         failed.push({ index, reason: headline });
       }
       setProgress({ done: i + 1, total: validRows.length });
     }
-    trackBatchSaveFailed(descriptor.entity.toLowerCase() as AnalyticsModule, failed.length);
+    trackBatchSaveFailed(descriptor.entity.toLowerCase() as AnalyticsModule, classificationCounts);
 
     setResult({ created, failed });
     setStep('result');

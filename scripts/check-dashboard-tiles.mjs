@@ -16,7 +16,7 @@
  * would not have kept regression-tested).
  */
 import { readFileSync, readdirSync, statSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, resolve, join } from 'node:path';
 
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -145,8 +145,23 @@ function main() {
   console.log(`✓ dashboard tiles all have live call sites (${tileEvents.size} events)`);
 }
 
+/**
+ * BLOCKING (code-quality review): whether this module is being run directly as the CLI entry
+ * point, vs. imported for its pure helpers (checkDashboardTiles.test.ts). A naive
+ * `import.meta.url === 'file://' + argv1` template-string comparison breaks the instant the path
+ * needs percent-encoding (a space becomes `%20` in a real `file://` URL but not in the raw argv
+ * string) — a tree copied to a directory with a space in its name silently never runs `main()`:
+ * no output, exit 0, and `npm run verify` records a PASSING gate that scanned zero tiles. This is
+ * the exact green-by-absence class this file's own three empty-input guards exist to prevent —
+ * they can't fire if `main()` itself never executes. `pathToFileURL` builds the URL the same way
+ * Node does internally, so the comparison is correct for any path Node can actually produce.
+ */
+export function isRunAsMain(importMetaUrl, argv1) {
+  return importMetaUrl === pathToFileURL(argv1).href;
+}
+
 // Only run the CLI when this file is executed directly (`node scripts/check-dashboard-tiles.mjs`)
 // — not when imported for its pure helpers by checkDashboardTiles.test.ts.
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (isRunAsMain(import.meta.url, process.argv[1])) {
   main();
 }

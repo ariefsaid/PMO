@@ -10,7 +10,43 @@
  *      mention in a COMMENT (no real call) satisfied it.
  */
 import { describe, it, expect } from 'vitest';
-import { extractTileEvents, extractRegistry, hasCallSite } from '../../../../scripts/check-dashboard-tiles.mjs';
+import { pathToFileURL } from 'node:url';
+import {
+  extractTileEvents,
+  extractRegistry,
+  hasCallSite,
+  isRunAsMain,
+} from '../../../../scripts/check-dashboard-tiles.mjs';
+
+describe('isRunAsMain — BLOCKING (code-quality review): percent-encoding-safe entrypoint check', () => {
+  // The reviewer copied the tree to a directory WITH A SPACE in its name and ran the script:
+  // no output, exit 0, gate silently scanned nothing. `import.meta.url` percent-encodes a space
+  // as `%20`; a naive `file://${process.argv[1]}` template-string comparison never matches, so
+  // `main()` never runs — the three empty-input guards inside main() can't fire if main() itself
+  // never executes. This is the exact "green-by-absence" failure class this file's own guards
+  // exist to prevent, one line above them.
+  it('a path containing a space still matches (the exact failure the reviewer hit)', () => {
+    const argv1 = '/tmp/my project/scripts/check-dashboard-tiles.mjs';
+    const realImportMetaUrl = pathToFileURL(argv1).href; // what Node ACTUALLY produces
+    expect(isRunAsMain(realImportMetaUrl, argv1)).toBe(true);
+  });
+
+  it('proves the OLD buggy comparison (`file://${argv1}`) would have failed on that same path', () => {
+    const argv1 = '/tmp/my project/scripts/check-dashboard-tiles.mjs';
+    const realImportMetaUrl = pathToFileURL(argv1).href;
+    expect(realImportMetaUrl === `file://${argv1}`).toBe(false);
+  });
+
+  it('a normal path with no special characters still matches', () => {
+    const argv1 = '/repo/scripts/check-dashboard-tiles.mjs';
+    expect(isRunAsMain(pathToFileURL(argv1).href, argv1)).toBe(true);
+  });
+
+  it('a DIFFERENT script being executed does not match (imported-as-a-module case)', () => {
+    const argv1 = '/repo/pmo-portal/node_modules/.bin/vitest';
+    expect(isRunAsMain(pathToFileURL('/repo/scripts/check-dashboard-tiles.mjs').href, argv1)).toBe(false);
+  });
+});
 
 describe('extractTileEvents — quoting coverage (SECURITY #7)', () => {
   it('finds a single-quoted event (the existing, already-covered shape)', () => {

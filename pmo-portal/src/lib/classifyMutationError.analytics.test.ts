@@ -6,13 +6,16 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const analytics = vi.hoisted(() => ({ trackSaveFailed: vi.fn() }));
+const analytics = vi.hoisted(() => ({ trackSaveFailed: vi.fn(), trackBulkImportFailed: vi.fn() }));
 vi.mock('./analytics', () => analytics);
 
 import { classifyMutationError, trackBatchSaveFailed } from './classifyMutationError';
 import type { ClassifyContext } from './classifyMutationError';
 
-beforeEach(() => analytics.trackSaveFailed.mockClear());
+beforeEach(() => {
+  analytics.trackSaveFailed.mockClear();
+  analytics.trackBulkImportFailed.mockClear();
+});
 
 describe('classifyMutationError friction capture', () => {
   it('AC-PHG-010: a PostgREST error captures EXACTLY ONE friction event with the right reason_code', () => {
@@ -95,41 +98,56 @@ describe('classifyMutationError friction capture', () => {
   // multiply ONE user click into thousands of `save_failed` events. PostHog's free-allowance
   // overage DISCARDS PERMANENTLY, so this can silently exhaust the month's headroom and flatten
   // every other chart — the exact false "nobody uses the product" signal this program exists to
-  // prevent. Loop call sites must suppress per-row capture and emit ONE aggregate event instead.
+  // prevent. Loop call sites must suppress per-row capture and emit an aggregate event instead.
   it('SECURITY (review round 2 #2): `suppressCapture` skips the per-call analytics capture entirely', () => {
     classifyMutationError({ code: '23505', message: 'x' }, undefined, { suppressCapture: true });
     expect(analytics.trackSaveFailed).not.toHaveBeenCalled();
   });
 
-  it('SECURITY (review round 2 #2): suppressCapture does not change the returned headline/detail', () => {
+  it('SECURITY (review round 2 #2): suppressCapture does not change the returned headline/detail/classification', () => {
     const withSuppress = classifyMutationError({ code: '23505', message: 'x' }, undefined, { suppressCapture: true });
     const without = classifyMutationError({ code: '23505', message: 'x' });
     expect(withSuppress).toEqual(without);
   });
 
-  it('SECURITY (review round 2 #2): trackBatchSaveFailed fires EXACTLY ONE event carrying failed_count', () => {
-    trackBatchSaveFailed('companies', 4821);
-    expect(analytics.trackSaveFailed).toHaveBeenCalledTimes(1);
-    expect(analytics.trackSaveFailed).toHaveBeenCalledWith('batch', 'import', 'other', 'companies', 4821);
-  });
-
-  it('SECURITY (review round 2 #2): trackBatchSaveFailed bounds an unrecognised module to "unknown"', () => {
-    trackBatchSaveFailed('Petronas Carigali Sdn Bhd' as unknown as ClassifyContext['module'], 3);
-    expect(analytics.trackSaveFailed).toHaveBeenCalledWith('batch', 'import', 'other', 'unknown', 3);
-  });
-
-  it('SECURITY (review round 2 #2): trackBatchSaveFailed is a no-op when failedCount is 0', () => {
-    trackBatchSaveFailed('companies', 0);
-    expect(analytics.trackSaveFailed).not.toHaveBeenCalled();
-  });
-
-  it('AC-PHG-010: the return value is unchanged (classification stays a pure function of inputs)', () => {
-    // A real Error instance, matching every actual call site + the pre-existing
-    // classifyMutationError.test.ts suite: `detail` is only read from `.message`
-    // when `err instanceof Error` (a plain `{ code, message }` object — as used
-    // in the other assertions in this file, which only check the analytics call
-    // args, never `detail` — falls back to the generic detail string).
+  it('AC-PHG-010: the return value exposes `classification` (a bounded FrictionClass), used by ' +
+    'bulk-loop call sites to build a per-classification tally for trackBatchSaveFailed', () => {
     expect(classifyMutationError(Object.assign(new Error('x'), { code: '23503' })))
-      .toEqual({ headline: 'Still in use', detail: 'x' });
+      .toEqual({ headline: 'Still in use', detail: 'x', classification: 'in_use' });
+  });
+});
+
+// SECURITY / code-quality (review round 2 #2): the FIRST fix (a single lump `failed_count` under
+// `save_failed`'s existing `reason_code: 'other'`) mixed two units of measurement — a 5,000-row
+// import failure contributed exactly 1 to the 'other' bucket, indistinguishable from a single
+// unrecognised-code failure, AND discarded the per-row reason distribution (RLS vs duplicates
+// become unanswerable). Fixed properly: a DISTINCT `bulk_import_failed` event, aggregated PER
+// CLASSIFICATION (at most 7 events per run — FrictionClass has 7 members — which stays
+// quota-safe AND preserves the reason distribution).
+describe('trackBatchSaveFailed — per-classification aggregate (review round 2 item 2 fix)', () => {
+  it('fires ONE bulk_import_failed event PER NON-ZERO classification bucket, never save_failed', () => {
+    trackBatchSaveFailed('companies', { permission_denied: 4800, duplicate: 21 });
+    expect(analytics.trackSaveFailed).not.toHaveBeenCalled();
+    expect(analytics.trackBulkImportFailed).toHaveBeenCalledTimes(2);
+    expect(analytics.trackBulkImportFailed).toHaveBeenCalledWith('companies', 'permission_denied', 4800);
+    expect(analytics.trackBulkImportFailed).toHaveBeenCalledWith('companies', 'duplicate', 21);
+  });
+
+  it('skips a zero-count classification bucket (only non-zero buckets fire)', () => {
+    trackBatchSaveFailed('companies', { permission_denied: 5, duplicate: 0 });
+    expect(analytics.trackBulkImportFailed).toHaveBeenCalledTimes(1);
+    expect(analytics.trackBulkImportFailed).toHaveBeenCalledWith('companies', 'permission_denied', 5);
+  });
+
+  it('bounds an unrecognised module to "unknown"', () => {
+    trackBatchSaveFailed('Petronas Carigali Sdn Bhd' as unknown as ClassifyContext['module'], { duplicate: 3 });
+    expect(analytics.trackBulkImportFailed).toHaveBeenCalledWith('unknown', 'duplicate', 3);
+  });
+
+  it('an entirely empty/zero tally is a no-op', () => {
+    trackBatchSaveFailed('companies', {});
+    expect(analytics.trackBulkImportFailed).not.toHaveBeenCalled();
+    trackBatchSaveFailed('companies', { duplicate: 0, in_use: 0 });
+    expect(analytics.trackBulkImportFailed).not.toHaveBeenCalled();
   });
 });

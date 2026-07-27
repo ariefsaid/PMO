@@ -8,6 +8,7 @@ describe('classifyMutationError (ADR-0017, promoted from ProcurementDetails)', (
     expect(classifyMutationError(e)).toEqual({
       headline: "That move isn't allowed from the current stage.",
       detail: 'illegal transition Requested→Approved',
+      classification: 'illegal_transition',
     });
   });
 
@@ -16,6 +17,7 @@ describe('classifyMutationError (ADR-0017, promoted from ProcurementDetails)', (
     expect(classifyMutationError(e)).toEqual({
       headline: "You don't have permission to do that.",
       detail: 'permission denied for transition_procurement',
+      classification: 'permission_denied',
     });
   });
 
@@ -24,6 +26,7 @@ describe('classifyMutationError (ADR-0017, promoted from ProcurementDetails)', (
     expect(classifyMutationError(e)).toEqual({
       headline: 'That already exists.',
       detail: 'duplicate key value violates unique constraint',
+      classification: 'duplicate',
     });
   });
 
@@ -35,6 +38,7 @@ describe('classifyMutationError (ADR-0017, promoted from ProcurementDetails)', (
     expect(classifyMutationError(e)).toEqual({
       headline: 'Still in use',
       detail: 'update or delete on table "companies" violates foreign key constraint',
+      classification: 'in_use',
     });
   });
 
@@ -48,27 +52,36 @@ describe('classifyMutationError (ADR-0017, promoted from ProcurementDetails)', (
     expect(classifyMutationError(e)).toEqual({
       headline: "Request timed out — we couldn't confirm whether it saved.",
       detail: 'The request timed out',
+      classification: 'timeout',
     });
   });
 
   it('unknown code → generic headline, verbatim detail', () => {
     const e = Object.assign(new Error('something broke'), { code: 'XX999' });
-    expect(classifyMutationError(e)).toEqual({ headline: 'Update failed', detail: 'something broke' });
+    expect(classifyMutationError(e)).toEqual({
+      headline: 'Update failed', detail: 'something broke', classification: 'unclassified',
+    });
   });
 
   it('no code → generic headline', () => {
-    expect(classifyMutationError(new Error('boom'))).toEqual({ headline: 'Update failed', detail: 'boom' });
+    expect(classifyMutationError(new Error('boom'))).toEqual({
+      headline: 'Update failed', detail: 'boom', classification: 'unclassified',
+    });
   });
 
   it('non-Error value → generic headline + fallback detail', () => {
-    expect(classifyMutationError('weird')).toEqual({ headline: 'Update failed', detail: 'An error occurred' });
+    expect(classifyMutationError('weird')).toEqual({
+      headline: 'Update failed', detail: 'An error occurred', classification: 'unclassified',
+    });
   });
 
   it('AC-INV: an optional overrides map classifies a caller-specific code (e.g. an edge-fn error code)', () => {
     const e = new AppError('DUPLICATE_EMAIL', 'DUPLICATE_EMAIL');
     expect(
       classifyMutationError(e, { DUPLICATE_EMAIL: 'That person is already in your workspace.' }),
-    ).toEqual({ headline: 'That person is already in your workspace.', detail: 'DUPLICATE_EMAIL' });
+    ).toEqual({
+      headline: 'That person is already in your workspace.', detail: 'DUPLICATE_EMAIL', classification: 'override',
+    });
   });
 
   it('AC-INV: overrides take precedence over the built-in Postgres-code mapping for the same code', () => {
