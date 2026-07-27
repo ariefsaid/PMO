@@ -4,8 +4,49 @@
 [`docs/history.md`](history.md) (don't read it for status). Locked owner-decisions are in
 `docs/decisions.md` (OD-* lookup by id). Roadmap framing in `docs/roadmap-spines.md`.
 
-### ⚑⚑⚑ CURRENT FOCUS — v0.8.0 SHIPPED TO PRODUCTION (2026-07-25). Nothing in flight.
-`production` == `main` == **`0079bcc9`**, tagged **v0.8.0**. No open PRs. The ERPNext program is
+### ⚑⚑⚑ CURRENT FOCUS — PostHog hardening track COMPLETE on `dev` (2026-07-28). Not yet promoted.
+
+**Shipped to `dev`:** #394 (NUL-byte gate), #398 (Slice E — signal config + consent), #399 (Slice F —
+friction, funnel, quota alarm, tile gate). Spec `docs/specs/observability-analytics.spec.md`,
+plan `docs/plans/2026-07-25-observability-analytics.md`, ADRs 0066/0067.
+
+**⛔ TWO OWNER ACTIONS OWED — the second is time-sensitive:**
+1. **Set repo secrets `POSTHOG_API_KEY` (personal API key, `project:read`) + `POSTHOG_PROJECT_ID`.**
+   `.github/workflows/posthog-quota.yml` **fails closed and goes RED daily** until they exist. That
+   posture is deliberate (an alarm that fails silent is worthless) but a daily red trains people to
+   ignore it, which defeats the alarm.
+2. **`docker stop gordi-pre-test`** — an unrelated project's container sat at ~200% CPU for hours,
+   driving load to 250+. It produced phantom ~5000ms test timeouts **three separate times**, each
+   costing an isolation round to disprove. ⚑ Diagnostic rule: a unit test failing at *exactly*
+   ~5000ms is the vitest timeout under contention; one failing in **18ms is real**. Read the
+   duration, not the count — that distinction caught a genuine regression this session that the
+   "it's just load" heuristic would have merged.
+
+**Still owed from the program (PRs 1–4, none started):** alerting hardening (§4.2/4.3/4.4),
+money & concurrency (§4.6), edge `error_events` coverage (§3.1), pipeline self-report + retention
+(§3.2/3.3). ⚑ Migration numbers were **re-allocated 2026-07-27** after #396 took `0168`/`0161` —
+re-read the allocation note at the top of the plan, and re-check `origin/dev` before writing.
+
+**Known limitations, deliberate and documented (do not "fix" without reading why):**
+- `save_failed`'s `module`/`operation` are **constants** (`unknown`/`classify`) until call sites are
+  threaded. No tile breaks down on them; `docs/analytics-events.md` says so. Do not break down by
+  `module` in PostHog's explorer and read ~100% `unknown` as a fact.
+- **`$current_url`/`$pathname` are denylisted** — they carried raw record UUIDs on every event
+  (spec §6 forbids that). Cost: **PostHog's built-in path and web-analytics views are empty by
+  design.** `app_route_viewed` still carries parameterised navigation.
+- The **consent e2e lane first executes in CI at the `dev`→`main` promote** — all e2e lives in the
+  `integration` job, which is `main`-only. Verified locally incl. `CI=true`; expect promote-time
+  CI-env gaps there if any.
+- Session replay + autocapture remain **demo-prospect only** (owner decision OD-OBS-1).
+
+**Open owner question:** the analytics opt-out **fails open** if `localStorage` is evicted (Safari ITP
+clears it ~7d; so does "clear site data"). Both our flag and PostHog's live there. A first-party
+cookie mirror would fix it — a product decision about how durable a consent promise should be.
+
+---
+
+### v0.8.0 IN PRODUCTION (2026-07-25)
+`production` == `main` == **`0079bcc9`**, tagged **v0.8.0**. The ERPNext program is
 closed, promoted, released and deployed.
 
 ⚑ **`dev` is 4 commits AHEAD of `main`** — CI-only work that landed after the promote (#393
@@ -224,6 +265,46 @@ mean 0037 still resolve correctly. Same class as the `0058`/`0059` collisions fi
 those were NOT promoted (deliberate: exploration trail, not current truth; `DESIGN.md` is the in-tree
 source). The branch may now be deleted **if** losing those sketches is acceptable; it is no longer
 load-bearing for any *citation*. Owner call to delete.
+
+### ⚑⚑ LESSONS — 2026-07-27/28, the PostHog track (read before instrumenting anything)
+
+**Seven defects were found. Every one looked correct in the diff; not one would have been caught by
+reading code.** That is the finding, more than any individual bug.
+
+| Defect | What actually found it |
+|---|---|
+| `capture_dead_clicks` sent `$el_text` — real contract values, customer names | loading the **pinned SDK** and capturing a live event |
+| `reason_code` carried external ERP error text into an allowed key | tracing **every producer** of `.code` |
+| Logout wiped PostHog's consent key → capture resumed for opted-out users | reading **SDK source**, not our own |
+| DNT users still hit PostHog (`init` fires remote-config before consent applies) | tracing the **init path** |
+| `AC-CON-003` could never fail | **mutation test** — disable analytics, the control must go red |
+| The consent Playwright project never ran in CI | reading the **`--project=` list**, not the config |
+| The tile gate silently scanned nothing | copying the repo to a **directory with a space** |
+
+**The rules that follow from them:**
+- **Assert emitted output, not configuration.** A test asserting an init option against a *mocked*
+  SDK proves you called a function. The real-SDK version found a live data leak in minutes.
+- **Any AC asserting an ABSENCE needs a positive control** proving the assertion can fail. "No
+  requests to PostHog" passed before any work existed, because analytics was off entirely.
+- **A test that never runs == a test that cannot fail.** Check the CI invocation, not just that the
+  file exists.
+- **A gate that can report green having scanned nothing is worse than no gate.** Guard the empty
+  case, the unreadable case, AND the never-ran case — the tile gate had three empty-input guards
+  sitting *below* an entrypoint check that silently skipped `main()`.
+- **Key-based redaction does not bound values.** `FORBIDDEN_PROPERTY_KEYS` filters *names*; anything
+  inside an allowed key ships verbatim. Bound with an allowlist + shape check; **never truncate** —
+  a truncated customer name is still a customer name.
+- **Make leaks unrepresentable, not merely absent.** `module: string` type-checked with a customer
+  name in it; a union makes that a compile error.
+- **Sweep a fix by MEANING, not by the file list you happen to know.** Three separate instances this
+  session: the ADR-0037 repoint missed 3 page tests, the consent lane missed CI, a widened return
+  type missed a pre-existing exact-shape assertion.
+- **Read the failure DURATION.** ~5000ms = the vitest timeout under machine load. **18ms = real.**
+  A heuristic that has been right four times is exactly when it becomes dangerous.
+- **Never run a second `verify` in a worktree an agent is using** — two vitest runs plus a build
+  contend over `dist/` and produce failures that are artifacts of the interference.
+- **A wrapper's exit code is not the command's.** A harness reported "completed exit 0" for a run
+  that had exited **143 (SIGTERM)**. Check the log body, always.
 
 ### ⚑⚑ LESSONS — 2026-07-24/25 (read before the next promote or deploy)
 Every defect this session was a **silent false signal**, not a loud failure. None were caught by
