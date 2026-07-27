@@ -138,9 +138,27 @@ export const analyticsClient = {
       api_host: config.posthogHost,
       defaults: '2026-01-30',
       capture_pageview: false,
+      // FR-PHG-004: EXPLICIT. Its default is 'if_capture_pageview', so capture_pageview:false had
+      // silently disabled $pageleave too. We keep it off deliberately: "last module before exit"
+      // (FR-PHG-020) is answered by the final app_route_viewed of a session, which we already send,
+      // and $pageleave is a billed event that would add nothing.
+      capture_pageleave: false,
       person_profiles: 'identified_only',
+      // FR-CON-001 (OD-OBS-2): honour Do Not Track. Disclosure + opt-out + DNT, no banner.
+      respect_dnt: true,
       disable_session_recording: !config.replayAndAutocapture,
-      enable_heatmaps: false,
+      // FR-PHG-001/002. `capture_heatmaps`, not the deprecated `enable_heatmaps` (which was also set
+      // to the WRONG value). Heatmaps carry rage- and dead-click COORDINATES and are NOT billed
+      // against the event allowance -- under OD-OBS-1 (no autocapture for real users) this is the
+      // only rage-click signal available at all, since $rageclick is emitted from inside the
+      // autocapture code path and is unreachable with autocapture:false.
+      capture_heatmaps: true,
+      // FR-PHG-003: EXPLICIT. The docs claim a default of true but the SDK type source declares
+      // `@default undefined`, which defers to remote project config -- relying on the documented
+      // default risks capturing nothing.
+      capture_dead_clicks: true,
+      // FR-PHG-001: web vitals yes, network timing no (URLs/payload shapes are a leak surface).
+      capture_performance: { web_vitals: true, network_timing: false },
       enable_recording_console_log: false,
       property_denylist: POSTHOG_PROPERTY_DENYLIST,
       autocapture: config.replayAndAutocapture

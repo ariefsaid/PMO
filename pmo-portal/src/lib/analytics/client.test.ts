@@ -24,6 +24,9 @@ vi.mock('posthog-js', () => ({ default: posthog }));
 
 import { analyticsClient, POSTHOG_PROPERTY_DENYLIST } from './client';
 
+/** Aliases used by the E1/E3 signal-config and opt-out tests below. */
+const initSpy = posthog.init;
+
 const base: AnalyticsConfig = {
   enabled: true,
   demoMode: false,
@@ -67,7 +70,9 @@ describe('analyticsClient', () => {
       api_host: 'https://us.i.posthog.com',
       autocapture: false,
       disable_session_recording: true,
-      enable_heatmaps: false,
+      // FR-PHG-001/002 (Task E2): capture_heatmaps replaces the deprecated (and previously
+      // wrong-valued) enable_heatmaps — heatmaps ARE captured even outside the demo/replay path.
+      capture_heatmaps: true,
     }));
   });
 
@@ -309,5 +314,42 @@ describe('analyticsClient', () => {
         expect(redacted).not.toContain('abcdEFGH1234ijklMNOP5678qrstUVWX');
       });
     });
+  });
+});
+
+const enabledConfig = (): AnalyticsConfig => ({ ...base });
+
+describe('analyticsClient.init — signal config (FR-PHG-001..004, FR-CON-001)', () => {
+  it('AC-PHG-001: enables heatmaps via capture_heatmaps (NOT the deprecated enable_heatmaps)', () => {
+    analyticsClient.__resetForTests();
+    analyticsClient.init(enabledConfig());
+    const opts = initSpy.mock.calls[0][1] as Record<string, unknown>;
+    expect(opts.capture_heatmaps).toBe(true);
+    expect(opts).not.toHaveProperty('enable_heatmaps');
+  });
+
+  it('AC-PHG-001: sets capture_dead_clicks EXPLICITLY (the SDK type declares @default undefined)', () => {
+    analyticsClient.__resetForTests();
+    analyticsClient.init(enabledConfig());
+    expect((initSpy.mock.calls[0][1] as Record<string, unknown>).capture_dead_clicks).toBe(true);
+  });
+
+  it('AC-PHG-001: web vitals on, network timing off', () => {
+    analyticsClient.__resetForTests();
+    analyticsClient.init(enabledConfig());
+    expect((initSpy.mock.calls[0][1] as Record<string, unknown>).capture_performance)
+      .toEqual({ web_vitals: true, network_timing: false });
+  });
+
+  it('AC-PHG-004: sets capture_pageleave EXPLICITLY (its default defers to capture_pageview)', () => {
+    analyticsClient.__resetForTests();
+    analyticsClient.init(enabledConfig());
+    expect((initSpy.mock.calls[0][1] as Record<string, unknown>).capture_pageleave).toBe(false);
+  });
+
+  it('AC-CON-001: sets respect_dnt', () => {
+    analyticsClient.__resetForTests();
+    analyticsClient.init(enabledConfig());
+    expect((initSpy.mock.calls[0][1] as Record<string, unknown>).respect_dnt).toBe(true);
   });
 });
