@@ -36,6 +36,32 @@ describe('classifyMutationError friction capture', () => {
     expect(props.join('|')).not.toMatch(/acme@example\.com/);
   });
 
+  it('SECURITY (2026-07-27 finding): reason_code is BOUNDED — an external system\'s raw error ' +
+    'text (e.g. an ERPNext response body surfaced as `.code` via src/lib/db/adminUsers.ts:103\'s ' +
+    '`new AppError(data.error, data.error)` pattern) never reaches the captured event verbatim; ' +
+    'unrecognised shapes collapse to the literal string "other"', () => {
+    const leaky = 'duplicate key value violates unique constraint — Petronas Carigali Sdn Bhd';
+    classifyMutationError({ code: leaky, message: 'x' });
+    const call = analytics.trackSaveFailed.mock.calls[0];
+    expect(call[2]).toBe('other'); // reason_code is the 3rd positional arg to trackSaveFailed
+    expect(call.join('|')).not.toMatch(/Petronas/);
+  });
+
+  it('SECURITY: a genuine Postgres SQLSTATE we have not special-cased (5 alphanumeric chars) still ' +
+    'passes through — the bound is a real allowlist/shape check, not "always other"', () => {
+    classifyMutationError({ code: '22001', message: 'string data right truncation' });
+    const call = analytics.trackSaveFailed.mock.calls[0];
+    expect(call[2]).toBe('22001');
+  });
+
+  it('SECURITY: an HTTP status code passes through; a free-text HTTP-status-shaped string does not', () => {
+    classifyMutationError({ code: '503', message: 'x' });
+    expect(analytics.trackSaveFailed.mock.calls[0][2]).toBe('503');
+    analytics.trackSaveFailed.mockClear();
+    classifyMutationError({ code: '503 Service Unavailable for tenant Acme Corp', message: 'x' });
+    expect(analytics.trackSaveFailed.mock.calls[0][2]).toBe('other');
+  });
+
   it('AC-PHG-010: the return value is unchanged (classification stays a pure function of inputs)', () => {
     // A real Error instance, matching every actual call site + the pre-existing
     // classifyMutationError.test.ts suite: `detail` is only read from `.message`

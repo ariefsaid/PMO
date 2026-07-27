@@ -46,6 +46,52 @@ export interface ClassifyContext {
   operation?: string;
 }
 
+/**
+ * SECURITY (2026-07-27 finding): `.code` is typed `string | undefined` (`AppError.code`,
+ * `src/lib/appError.ts:16`) — unbounded by construction — and at least one real call site
+ * (`src/lib/db/adminUsers.ts:103`, `new AppError(data.error, data.error)`) reads it straight
+ * from an external/edge-fn response body, which can carry arbitrary text (an ERP error message
+ * routinely embeds the offending record's name/value). A verbatim pass-through into the
+ * `reason_code` analytics property would leak that text under an innocuous-looking key — the
+ * same class of leak `capture_dead_clicks` was for autocapture, arriving through a different
+ * door. `boundReasonCode` closes it: only a reviewed allowlist of known application codes, or a
+ * shape that is structurally too short to hold free text (a genuine Postgres SQLSTATE, an HTTP
+ * status, a PostgREST error code), ever leaves this function verbatim; everything else collapses
+ * to the literal string `'other'`. Truncating instead of bounding was rejected — a truncated
+ * customer name is still a customer name.
+ *
+ * Adding a new custom application error code? It will NOT flow through automatically — add it to
+ * `KNOWN_REASON_CODES` (a deliberate friction point, not an oversight).
+ */
+const KNOWN_REASON_CODES = new Set([
+  // Postgres/PostgREST codes already classified in classifyCode() below.
+  'P0001', '42501', '23505', '23503', 'REQUEST_TIMEOUT',
+  // Custom application-level codes (AppError/InviteError), reviewed 2026-07-27.
+  'BAD_REQUEST', 'DUPLICATE_EMAIL', 'INVITE_UNAUTHORIZED', 'INVALID_ROLE', 'UNKNOWN_ORG',
+  'BINDING_NOT_FOUND', 'REF_NOT_FOUND', 'INTERNAL_ERROR',
+  'activity-type-unconfigured', 'command-held', 'commit-rejected', 'config-rejected',
+  'cross-org-link-rejected', 'employee-unlinked', 'external-owned', 'external-unreachable',
+  'native-budget-not-adopted', 'native-timesheet-not-adopted', 'not-found',
+  'procurement-inbound-adopt-no-case-link', 'project-unmapped', 'revenue-not-enabled',
+  'snapshot-replaced-mid-read',
+]);
+
+/** A genuine Postgres SQLSTATE is exactly 5 alphanumeric characters — too short to hold a name. */
+const SQLSTATE_SHAPE = /^[0-9A-Z]{5}$/;
+/** An HTTP status code — 3 digits, 1xx-5xx. */
+const HTTP_STATUS_SHAPE = /^[1-5][0-9]{2}$/;
+/** PostgREST's own short error codes, e.g. `PGRST116`. */
+const POSTGREST_SHAPE = /^PGRST[0-9]{2,4}$/;
+
+function boundReasonCode(code: string | undefined): string {
+  if (!code) return 'unknown';
+  if (KNOWN_REASON_CODES.has(code)) return code;
+  if (SQLSTATE_SHAPE.test(code) || HTTP_STATUS_SHAPE.test(code) || POSTGREST_SHAPE.test(code)) {
+    return code;
+  }
+  return 'other';
+}
+
 export function classifyMutationError(
   err: unknown,
   overrides?: Record<string, string>,
@@ -64,7 +110,7 @@ export function classifyMutationError(
   // leave; never `detail` (which may embed a user-entered value, e.g. a duplicate-key message).
   const classification = classifyCode(code, overrides);
   safeTrack(() =>
-    trackSaveFailed(classification, context?.operation ?? 'classify', code ?? 'unknown', context?.module ?? 'unknown'),
+    trackSaveFailed(classification, context?.operation ?? 'classify', boundReasonCode(code), context?.module ?? 'unknown'),
   );
 
   if (code && overrides && Object.prototype.hasOwnProperty.call(overrides, code)) {

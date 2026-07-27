@@ -85,7 +85,16 @@ are still dark. Each is the same 3-line addition (`stateId`/`role={realRole}`/`m
 
 | Event | Purpose | Boundary | Safe properties |
 |---|---|---|---|
-| `save_failed` | Reliability / UX friction | `classifyMutationError` (`pmo-portal/src/lib/classifyMutationError.ts`) — the single point where "a classified mutation error was shown to the user" is reliably knowable | `entity_type` (carries the classification slug — `illegal_transition`, `permission_denied`, `duplicate`, `in_use`, `timeout`, `override`, or `unclassified`), `operation`, `reason_code` (the Postgres/PostgREST code, e.g. `42501`), `module` |
+| `save_failed` | Reliability / UX friction | `classifyMutationError` (`pmo-portal/src/lib/classifyMutationError.ts`) — the single point where "a classified mutation error was shown to the user" is reliably knowable | `entity_type` (carries the classification slug — `illegal_transition`, `permission_denied`, `duplicate`, `in_use`, `timeout`, `override`, or `unclassified`), `operation`, `reason_code` (the Postgres/PostgREST code, e.g. `42501` — **bounded**, see note below), `module` |
+
+**`reason_code` is bounded, not passed through (SECURITY finding, 2026-07-27).** `.code` is typed
+`string | undefined` and at least one real path (`src/lib/db/adminUsers.ts:103`) reads it straight
+from an external/edge-fn response body, which can carry arbitrary text. `boundReasonCode` (in
+`classifyMutationError.ts`) only lets a reviewed allowlist of known codes, or a shape structurally
+too short to hold free text (a genuine Postgres SQLSTATE, an HTTP status, a PostgREST error code),
+through verbatim; anything else — including a raw external error message — collapses to the
+literal string `'other'`. A new custom application error code must be added to
+`KNOWN_REASON_CODES` explicitly; it does not flow through by default.
 
 **`save_failed` was previously wired at `useEntityForm.handleSubmit` and was INERT there for two years**:
 no caller ever passed `entityType`, and every form's `onValid` swallows its own error without
