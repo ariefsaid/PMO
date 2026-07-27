@@ -172,13 +172,17 @@ and **`0059`×3** (`-entra-app-registration-topology`, `-external-admin-connect`
 the convention that makes them findable. Renumber the duplicates to the next free ids (**0063+**) and
 sweep citations across `docs/` + code comments. Surfaced by the 2026-07-25 docs audit.
 
-### ⚑ DEBT — ADR-0037 resolves to the wrong document (2026-07-25)
-`DESIGN.md` on `dev` cites **ADR-0037** for the monochrome-calm design language, but `dev`'s `0037`
-slot holds a *different* ADR — the real write-up lives only on the unmerged `redesign/design-system`
-branch. Same class as the `0058`/`0059` collisions fixed in #387: a citation that resolves to the
-wrong document, or to one reachable only on a branch. **Do:** move the write-up onto `dev` at the
-next free ADR number and repoint `DESIGN.md`, or renumber. Until then `redesign/design-system` must
-not be deleted — it is the only copy.
+### ✅ RESOLVED — ADR-0037 mis-cite (fixed 2026-07-27)
+The monochrome-calm write-up landed on `dev` as **ADR-0068** (`docs/adr/0068-monochrome-calm-design-language.md`)
+with a provenance note explaining the id-history, and `DESIGN.md` + the three component comments
+(`StatusPill.tsx`, its test, `NotificationBell.tsx`) repointed to **0068**. `dev`'s `0037`
+(*View-Composition compiler DSL*) is untouched — the viewspec/compiler citations that legitimately
+mean 0037 still resolve correctly. Same class as the `0058`/`0059` collisions fixed in #387.
+⚑ **Branch-deletion caveat:** the `redesign/design-system` branch holds the **exploration artifacts**
+0068 references (the `design-mockups/redesign/{diverge,converge,reskin}/` sketches + 3 port plans) —
+those were NOT promoted (deliberate: exploration trail, not current truth; `DESIGN.md` is the in-tree
+source). The branch may now be deleted **if** losing those sketches is acceptable; it is no longer
+load-bearing for any *citation*. Owner call to delete.
 
 ### ⚑⚑ LESSONS — 2026-07-24/25 (read before the next promote or deploy)
 Every defect this session was a **silent false signal**, not a loud failure. None were caught by
