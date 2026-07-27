@@ -35,6 +35,7 @@ import {
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
 import { externalConnectEnabled } from '../_shared/externalConnectEnabled.ts';
 import { resolvePerOrgSecret } from '../_shared/perOrgSecret.ts';
+import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
 
 interface ConnectBody {
   tier: 'clickup' | 'erpnext';
@@ -453,7 +454,7 @@ export async function handleConnectRequest(req: Request): Promise<Response> {
 
 // Deno.serve entry point (only runs when module is main)
 if (import.meta.main) {
-  Deno.serve(handleConnectRequest);
+  serveWithErrorReporting('external-connect', handleConnectRequest);
 }
 
 // Export validators and SSRF helper for testability

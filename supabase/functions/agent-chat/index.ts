@@ -49,6 +49,7 @@ import {
   jwksFromUrl,
   type JwksResolver,
 } from '../../../pmo-portal/src/lib/auth/verifyCallerJwt.ts';
+import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
 
 // ADR-0057: one cached, rate-limited JWKS resolver, memoized across warm invocations. Built lazily
 // so an empty SUPABASE_URL can't throw a URL error before the handler can return a typed 401/500.
@@ -70,7 +71,7 @@ const corsHeaders = {
   'Access-Control-Expose-Headers': 'x-deploy-version',
 };
 
-Deno.serve(async (req: Request): Promise<Response> => {
+serveWithErrorReporting('agent-chat', async (req: Request): Promise<Response> => {
   // ── CORS preflight ────────────────────────────────────────────────────────
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });

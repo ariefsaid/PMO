@@ -31,6 +31,7 @@ import type {
   GraphProxyRequest,
   M365ErrorResponse,
 } from './types.ts';
+import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
 
 // Minimal ambient Deno shape — avoids depending on lib.d.ts for the env reads (REC-1 import
 // boundary). `Deno.serve` below is the runtime entry API provided by the Deno edge lib.
@@ -68,7 +69,7 @@ function buildEnv(): M365Env {
   };
 }
 
-Deno.serve(async (req: Request): Promise<Response> => {
+serveWithErrorReporting('m365-token-custody', async (req: Request): Promise<Response> => {
   const env = buildEnv();
   const cors = corsHeaders(env.allowedOrigin);
 

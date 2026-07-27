@@ -30,6 +30,7 @@ import {
   type JwksResolver,
 } from '../../../pmo-portal/src/lib/auth/verifyCallerJwt.ts';
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
+import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
 
 interface CompaniesBody {
   tier: 'erpnext';
@@ -321,5 +322,5 @@ export type { ErpCompanyDeps };
 
 // Deno.serve entry point (only runs when module is main)
 if (import.meta.main) {
-  Deno.serve(handleCompaniesRequest);
+  serveWithErrorReporting('external-companies', handleCompaniesRequest);
 }

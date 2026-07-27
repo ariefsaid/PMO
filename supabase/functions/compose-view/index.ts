@@ -37,6 +37,7 @@ import {
   jwksFromUrl,
   type JwksResolver,
 } from '../../../pmo-portal/src/lib/auth/verifyCallerJwt.ts';
+import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
 
 // ADR-0057: one cached, rate-limited JWKS resolver, memoized across warm invocations. Built lazily
 // (not at module load) so an empty SUPABASE_URL can't throw a URL error before the handler can return
@@ -47,7 +48,7 @@ function getJwks(supabaseUrl: string): JwksResolver {
   return _jwks;
 }
 
-Deno.serve(async (req: Request): Promise<Response> => {
+serveWithErrorReporting('compose-view', async (req: Request): Promise<Response> => {
   // AUDIT quick-win (2026-07-07): same origin-narrowing seam as agent-chat/index.ts —
   // set AGENT_ALLOWED_ORIGIN in prod; falls back to SITE_URL, then '' (fail-closed — never '*').
   const corsHeaders = {

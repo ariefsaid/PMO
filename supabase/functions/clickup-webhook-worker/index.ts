@@ -43,6 +43,7 @@ import {
   mapsFromBindingConfig,
   createClickUpMirrorCallbacks,
 } from '../_shared/clickupMirrorDeps.ts';
+import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
@@ -348,7 +349,7 @@ async function markFailedLive(serviceClient: SupabaseClient, id: string, message
 }
 
 if (import.meta.main) {
-  Deno.serve(async (req: Request): Promise<Response> => {
+  serveWithErrorReporting('clickup-webhook-worker', async (req: Request): Promise<Response> => {
     // The DEDICATED worker secret (NOT the master service_role key — least-privilege, mirrors
     // clickup-sweep's CLICKUP_SWEEP_SECRET pattern). The pg_cron tick (migration 0143) presents this
     // same secret from Vault; the master key never crosses into the DB.

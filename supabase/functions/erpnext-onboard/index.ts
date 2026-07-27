@@ -30,12 +30,13 @@ import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
 import type { ErpClientDeps } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/client.ts';
 import type { PartyCandidate, PartyDoctype } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/partyAdopt.ts';
 import type { PmoRecord } from '../../../pmo-portal/src/lib/adapterSeam/contract.ts';
+import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 }
 
-Deno.serve(async (req: Request): Promise<Response> => {
+serveWithErrorReporting('erpnext-onboard', async (req: Request): Promise<Response> => {
   // ── 1. Authorization: the caller (an Operator action) must present the service-role bearer. ──
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
   const authHeader = req.headers.get('Authorization') ?? '';
