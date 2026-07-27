@@ -68,6 +68,7 @@ describe('withTimeout (UI-freeze hardening)', () => {
     expect(classifyMutationError(caught)).toEqual({
       headline: "Request timed out — we couldn't confirm whether it saved.",
       detail: 'The request timed out',
+      classification: 'timeout',
     });
   });
 

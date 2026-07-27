@@ -188,12 +188,32 @@ const SPEC = [
         query: trend([{ event: 'save_failed' }], { breakdown: 'reason_code', display: 'ActionsBarValue' }),
       },
       {
-        name: `${NS} Permission-denied surfaces`,
-        query: trend([{ event: 'permission_denied_seen' }], { breakdown: 'surface', display: 'ActionsBarValue' }),
-      },
-      {
         name: `${NS} Form validation failures by module`,
         query: trend([{ event: 'form_validation_failed' }], { breakdown: 'module', display: 'ActionsBarValue' }),
+      },
+    ],
+  },
+  {
+    dashboard: `${NS} Demo · Prospect Funnel`,
+    description:
+      'Land -> persona selected -> login -> first module opened. Source: demo_persona_selected, ' +
+      'auth_login_succeeded, app_route_viewed, coming_soon_clicked (FR-PHG-020/021).',
+    insights: [
+      {
+        name: `${NS} Demo funnel — persona -> login -> module`,
+        query: funnel(['demo_persona_selected', 'auth_login_succeeded', 'app_route_viewed']),
+      },
+      {
+        name: `${NS} Demo personas chosen`,
+        query: trend([{ event: 'demo_persona_selected' }], { breakdown: 'persona_role', display: 'ActionsBarValue' }),
+      },
+      {
+        name: `${NS} Demo — first modules opened`,
+        query: trend([{ event: 'app_route_viewed' }], { breakdown: 'route', display: 'ActionsBarValue' }),
+      },
+      {
+        name: `${NS} Coming-soon demand by feature`,
+        query: trend([{ event: 'coming_soon_clicked' }], { breakdown: 'feature_id', display: 'ActionsBarValue' }),
       },
     ],
   },

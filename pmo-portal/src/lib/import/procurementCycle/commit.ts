@@ -18,7 +18,8 @@
  * `importBatchId` preserves the legacy create-only behavior exactly (opt-in, never changes
  * existing non-import callers).
  */
-import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { classifyMutationError, trackBatchSaveFailed } from '@/src/lib/classifyMutationError';
+import type { FrictionClass } from '@/src/lib/classifyMutationError';
 import { createProcurement } from '@/src/lib/db/procurementCrud';
 import {
   createPurchaseRequest,
@@ -26,11 +27,7 @@ import {
   createPurchaseOrder,
   createPayment,
 } from '@/src/lib/db/procurementRecords';
-import {
-  createQuotation,
-  createReceipt,
-  createInvoice,
-} from '@/src/lib/db/procurementLifecycle';
+import { createQuotation, createReceipt, createInvoice } from '@/src/lib/db/procurementLifecycle';
 import type { RefLookup } from '@/src/lib/import/refLookup';
 import { refId } from '@/src/lib/import/refLookup';
 import type { ImportSkipLookup, RecordTableName } from '@/src/lib/db/procurementImportSkip';
@@ -96,8 +93,10 @@ function parseRef(raw: string | undefined): string | null {
  *  23505. That is the TOCTOU-safe outcome of a race between two concurrent import runs — treat it
  *  as "already imported → skip", not a failure. */
 function isUniqueViolation(err: unknown): boolean {
-  return typeof (err as { code?: unknown })?.code === 'string'
-    && (err as { code: string }).code === '23505';
+  return (
+    typeof (err as { code?: unknown })?.code === 'string' &&
+    (err as { code: string }).code === '23505'
+  );
 }
 
 // ─── Per-record dispatch ───────────────────────────────────────────────────────
@@ -123,17 +122,44 @@ async function createRecord(
 
   switch (type) {
     case 'PR': {
-      const result = await createPurchaseRequest(procurementId, ref, status, date, amount, importKey, importBatchId, importedAt);
+      const result = await createPurchaseRequest(
+        procurementId,
+        ref,
+        status,
+        date,
+        amount,
+        importKey,
+        importBatchId,
+        importedAt,
+      );
       return { id: result.id };
     }
 
     case 'RFQ': {
-      const result = await createRfq(procurementId, ref, status, date, amount, importKey, importBatchId, importedAt);
+      const result = await createRfq(
+        procurementId,
+        ref,
+        status,
+        date,
+        amount,
+        importKey,
+        importBatchId,
+        importedAt,
+      );
       return { id: result.id };
     }
 
     case 'PO': {
-      const result = await createPurchaseOrder(procurementId, ref, status, date, amount, importKey, importBatchId, importedAt);
+      const result = await createPurchaseOrder(
+        procurementId,
+        ref,
+        status,
+        date,
+        amount,
+        importKey,
+        importBatchId,
+        importedAt,
+      );
       return { id: result.id };
     }
 
@@ -154,13 +180,30 @@ async function createRecord(
 
     case 'GR': {
       const grStatus = (status ?? '') as GrStatus;
-      const result = await createReceipt(procurementId, grStatus, date ?? '', ref, importKey, importBatchId, importedAt);
+      const result = await createReceipt(
+        procurementId,
+        grStatus,
+        date ?? '',
+        ref,
+        importKey,
+        importBatchId,
+        importedAt,
+      );
       return { id: result.id };
     }
 
     case 'VI': {
       const viStatus = (status ?? '') as ViStatus;
-      const result = await createInvoice(procurementId, viStatus, date ?? '', ref, amount, importKey, importBatchId, importedAt);
+      const result = await createInvoice(
+        procurementId,
+        viStatus,
+        date ?? '',
+        ref,
+        amount,
+        importKey,
+        importBatchId,
+        importedAt,
+      );
       return { id: result.id };
     }
 
@@ -189,6 +232,11 @@ async function createRecord(
 async function commitCase(
   validated: ValidatedGroup,
   { requestedById, projectLookup, vendorLookup, importBatchId, skipLookup }: CommitOptions,
+  // SECURITY (2026-07-27 review round 2 #2, revised per code-quality review #2): a shared tally,
+  // mutated in place across every case/record in this commitGroups() run, so the aggregate fired
+  // once at the end preserves the PER-CLASSIFICATION reason distribution (RLS vs duplicates
+  // stays answerable) instead of one lump total.
+  classificationCounts: Partial<Record<FrictionClass, number>>,
 ): Promise<CommitCaseResult> {
   const { group, rows: validatedRows } = validated;
   const { attrs } = group;
@@ -197,9 +245,7 @@ async function commitCase(
   const projectId = attrs.project ? refId(projectLookup, attrs.project) : null;
   // Header vendorId: pick from first Quotation row's vendor if present, else null
   const quotationRow = group.rows.find((r) => r.type === 'Quotation');
-  const vendorId = quotationRow?.vendor
-    ? refId(vendorLookup, quotationRow.vendor)
-    : null;
+  const vendorId = quotationRow?.vendor ? refId(vendorLookup, quotationRow.vendor) : null;
 
   const caseImportKey = importBatchId ? computeCaseImportKey(group) : null;
   const importedAtIso = importBatchId ? new Date().toISOString() : undefined;
@@ -228,8 +274,12 @@ async function commitCase(
       try {
         const header = await createProcurement(
           {
-            title: attrs.title ?? attrs.project ?? group.caseRef, projectId, vendorId,
-            importKey: caseImportKey ?? undefined, importBatchId, importedAt: importedAtIso,
+            title: attrs.title ?? attrs.project ?? group.caseRef,
+            projectId,
+            vendorId,
+            importKey: caseImportKey ?? undefined,
+            importBatchId,
+            importedAt: importedAtIso,
           },
           requestedById,
         );
@@ -247,17 +297,35 @@ async function commitCase(
             headerStatus = 'skipped';
             headerSkipReason = `already imported concurrently (batch ${importBatchId})`;
           } else {
-            const { headline, detail } = classifyMutationError(err);
+            // SECURITY (2026-07-27 review round 2 #2): suppressCapture — this runs inside commitGroups'
+            // per-group/per-record loop; a bulk commit failing wholesale must not fire one
+            // save_failed event per case/record (PostHog overage discards permanently). See
+            // trackBatchSaveFailed at the end of commitGroups for the per-classification aggregate.
+            const { headline, detail, classification } = classifyMutationError(err, undefined, {
+              suppressCapture: true,
+            });
+            classificationCounts[classification] = (classificationCounts[classification] ?? 0) + 1;
             return {
-              caseRef: group.caseRef, headerStatus: 'failed',
-              headerError: `${headline}: ${detail}`, records: [],
+              caseRef: group.caseRef,
+              headerStatus: 'failed',
+              headerError: `${headline}: ${detail}`,
+              records: [],
             };
           }
         } else {
-          const { headline, detail } = classifyMutationError(err);
+          // SECURITY (2026-07-27 review round 2 #2): suppressCapture — this runs inside commitGroups'
+          // per-group/per-record loop; a bulk commit failing wholesale must not fire one
+          // save_failed event per case/record (PostHog overage discards permanently). See
+          // trackBatchSaveFailed at the end of commitGroups for the per-classification aggregate.
+          const { headline, detail, classification } = classifyMutationError(err, undefined, {
+            suppressCapture: true,
+          });
+          classificationCounts[classification] = (classificationCounts[classification] ?? 0) + 1;
           return {
-            caseRef: group.caseRef, headerStatus: 'failed',
-            headerError: `${headline}: ${detail}`, records: [],
+            caseRef: group.caseRef,
+            headerStatus: 'failed',
+            headerError: `${headline}: ${detail}`,
+            records: [],
           };
         }
       }
@@ -271,10 +339,17 @@ async function commitCase(
       procurementId = header.id;
       headerStatus = 'created';
     } catch (err) {
-      const { headline, detail } = classifyMutationError(err);
+      // SECURITY (2026-07-27 review round 2 #2): suppressCapture — this runs inside commitGroups'
+      // per-group/per-record loop; a bulk commit failing wholesale must not fire one
+      // save_failed event per case/record (PostHog overage discards permanently). See
+      // trackBatchSaveFailed at the end of commitGroups for the per-classification aggregate.
+      const { headline, detail, classification } = classifyMutationError(err, undefined, { suppressCapture: true });
+      classificationCounts[classification] = (classificationCounts[classification] ?? 0) + 1;
       return {
-        caseRef: group.caseRef, headerStatus: 'failed',
-        headerError: `${headline}: ${detail}`, records: [],
+        caseRef: group.caseRef,
+        headerStatus: 'failed',
+        headerError: `${headline}: ${detail}`,
+        records: [],
       };
     }
   }
@@ -306,14 +381,22 @@ async function commitCase(
         : null;
       // FR-IDEM-006: a record with the same import_key from an EARLIER batch (under this case)
       // must be skipped, not duplicated. Checked only when the same-batch lookup missed.
-      const collision = table && !existing
-        ? await skipLookup.findCrossBatchCollision(table, recordImportKey, importBatchId, procurementId)
-        : null;
+      const collision =
+        table && !existing
+          ? await skipLookup.findCrossBatchCollision(
+              table,
+              recordImportKey,
+              importBatchId,
+              procurementId,
+            )
+          : null;
       const priorRecord = existing ?? collision;
       if (priorRecord) {
         if (row.type === 'VI') groupInvoiceId = priorRecord.id; // preserve Payment FK settlement on skip
         records.push({
-          rowNumber: row.rowNumber, type: row.type, id: priorRecord.id,
+          rowNumber: row.rowNumber,
+          type: row.type,
+          id: priorRecord.id,
           status: 'skipped',
           skipReason: existing
             ? `already imported (batch ${importBatchId})`
@@ -325,8 +408,13 @@ async function commitCase(
 
     try {
       const { id } = await createRecord(
-        row, procurementId, groupInvoiceId, vendorLookup,
-        recordImportKey ?? undefined, importBatchId, importedAtIso,
+        row,
+        procurementId,
+        groupInvoiceId,
+        vendorLookup,
+        recordImportKey ?? undefined,
+        importBatchId,
+        importedAtIso,
       );
       // If this was a VI, capture its id for subsequent Payment rows
       if (row.type === 'VI') groupInvoiceId = id;
@@ -338,17 +426,31 @@ async function commitCase(
         // The race path only runs in import mode: recordImportKey is only ever set when
         // importBatchId is set (line ~299), so this can't skip a genuinely-reachable case —
         // including importBatchId in the guard just makes that provable to the type checker.
-        const raced = table && recordImportKey && importBatchId
-          ? await skipLookup?.findExistingRecord(table, procurementId, recordImportKey, importBatchId)
-          : null;
+        const raced =
+          table && recordImportKey && importBatchId
+            ? await skipLookup?.findExistingRecord(
+                table,
+                procurementId,
+                recordImportKey,
+                importBatchId,
+              )
+            : null;
         if (raced && row.type === 'VI') groupInvoiceId = raced.id;
         records.push({
-          rowNumber: row.rowNumber, type: row.type, id: raced?.id,
-          status: 'skipped', skipReason: `already imported concurrently (batch ${importBatchId})`,
+          rowNumber: row.rowNumber,
+          type: row.type,
+          id: raced?.id,
+          status: 'skipped',
+          skipReason: `already imported concurrently (batch ${importBatchId})`,
         });
         continue;
       }
-      const { headline, detail } = classifyMutationError(err);
+      // SECURITY (2026-07-27 review round 2 #2): suppressCapture — this runs inside commitGroups'
+      // per-group/per-record loop; a bulk commit failing wholesale must not fire one
+      // save_failed event per case/record (PostHog overage discards permanently). See
+      // trackBatchSaveFailed at the end of commitGroups for the per-classification aggregate.
+      const { headline, detail, classification } = classifyMutationError(err, undefined, { suppressCapture: true });
+      classificationCounts[classification] = (classificationCounts[classification] ?? 0) + 1;
       records.push({
         rowNumber: row.rowNumber,
         type: row.type,
@@ -384,11 +486,17 @@ export async function commitGroups(
   let created = 0;
   let failed = 0;
 
+  // SECURITY (2026-07-27 review round 2 #2, revised per code-quality review #2): a shared,
+  // per-classification tally, mutated in place by every classifyMutationError call inside
+  // commitCase across this whole run — see trackBatchSaveFailed below for why aggregating per
+  // classification (not one lump total) matters.
+  const classificationCounts: Partial<Record<FrictionClass, number>> = {};
+
   for (const validated of validatedGroups) {
     // Skip invalid groups entirely
     if (!validated.valid) continue;
 
-    const caseResult = await commitCase(validated, options);
+    const caseResult = await commitCase(validated, options, classificationCounts);
     cases.push(caseResult);
     if (caseResult.headerStatus === 'created' || caseResult.headerStatus === 'skipped') {
       for (const rec of caseResult.records) {
@@ -397,7 +505,17 @@ export async function commitGroups(
         // 'skipped' counts toward neither — surfaced via the per-case/per-record detail instead.
       }
     }
+    // headerStatus === 'failed' is tallied by classifyMutationError inside commitCase itself
+    // (classificationCounts, above) — no separate counter needed here.
   }
+
+  // A DISTINCT `bulk_import_failed` event, ONE PER NON-ZERO CLASSIFICATION BUCKET, for the whole
+  // commit run — every classifyMutationError call above suppressed its own capture for exactly
+  // this reason (a bulk commit failing wholesale must not multiply one click into N events), and
+  // this is NOT `save_failed` with a lump `failed_count` (that would count EVENTS, making a
+  // 5,000-row failure indistinguishable from one real failure and discarding the reason
+  // distribution — see trackBatchSaveFailed's doc comment).
+  trackBatchSaveFailed('procurement', classificationCounts);
 
   return { created, failed, cases };
 }
