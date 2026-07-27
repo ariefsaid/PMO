@@ -146,6 +146,33 @@ describe('Privacy page', () => {
     expect(screen.getByRole('link', { name: /skip to main content/i })).toHaveAttribute('href', '#main');
   });
 
+  it('AC-CON-004: discloses what analytics is collected, by whom it is processed, and how to opt out', () => {
+    renderPrivacy();
+    const heading = screen.getByRole('heading', { level: 2, name: /Analytics and Cookies/ });
+    const section = heading.closest('section') ?? heading.parentElement!;
+    const text = section.textContent ?? '';
+    expect(text).toMatch(/PostHog/);
+    expect(text).toMatch(/opt out|opt-out/i);
+    expect(text).toMatch(/Do Not Track/i);
+    expect(within(section).getByRole('checkbox', { name: /usage analytics/i })).toBeInTheDocument();
+  });
+
+  it('AC-CON-004 (HIGH fix): does not overclaim record-content immunity, and honestly discloses session replay on the public demo site (security review 2026-07-27)', () => {
+    renderPrivacy();
+    const heading = screen.getByRole('heading', { level: 2, name: /Analytics and Cookies/ });
+    const section = heading.closest('section') ?? heading.parentElement!;
+    const text = section.textContent ?? '';
+    // The corrected claim is scoped to the analytics EVENTS we construct, not an unqualified,
+    // universal "we never send record contents" (which was false while capture_dead_clicks
+    // leaked $el_text, and remains untrue of session replay on the demo site — see below).
+    expect(text).toMatch(/denylist/i);
+    // Session replay is disclosed on its own terms — it is a DIFFERENT feature from the analytics
+    // events described above, only active on the sales-demo site, using sample data.
+    expect(text).toMatch(/session replay|screen recording/i);
+    expect(text).toMatch(/sample data|demonstration|illustrative/i);
+    expect(text).toMatch(/never applies to your (live )?account|not your (live )?account/i);
+  });
+
   it('AC-LEG-035: deterministic render — same config → identical markup', () => {
     const a = renderPrivacy();
     const htmlA = a.container.innerHTML;

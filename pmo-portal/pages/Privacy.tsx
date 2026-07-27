@@ -1,5 +1,6 @@
 import React from 'react';
 import { LegalPageLayout, LegalSection } from '@/src/components/legal/LegalPageLayout';
+import { AnalyticsOptOutToggle } from '@/src/components/legal/AnalyticsOptOutToggle';
 import {
   LEGAL_ENTITY_NAME,
   DOMAIN,
@@ -43,6 +44,28 @@ const Privacy: React.FC = () => (
         data is not used to train models. {LEGAL_ENTITY_NAME} staff do not read the contents of
         Assistant conversations; only aggregates are processed for support and reliability.
       </p>
+    </LegalSection>
+
+    <LegalSection title="Analytics and Cookies">
+      <p className="text-muted-foreground">
+        We collect product-usage analytics to understand which parts of the product are used and
+        where people get stuck. This is processed on our behalf by PostHog. We record page and
+        feature navigation, click/heatmap coordinates (not their content), page-performance
+        measurements, and error diagnostics. The analytics events we construct never carry your
+        record contents — no names, no financial values, no free text, no search terms; a fixed
+        denylist strips those keys before anything leaves your browser, and identifiers are
+        internal account IDs, never your email address.
+      </p>
+      <p className="text-muted-foreground">
+        On our public product-demonstration site — using illustrative sample data, never a live
+        client&rsquo;s records — we additionally record on-screen session replay, including
+        rendered page text, so prospective clients can see the product in action. This never
+        applies to your live account.
+      </p>
+      <p className="text-muted-foreground">
+        We honour your browser&rsquo;s Do Not Track setting. You can also opt out here at any time:
+      </p>
+      <AnalyticsOptOutToggle />
     </LegalSection>
 
     <LegalSection title="Data Location">

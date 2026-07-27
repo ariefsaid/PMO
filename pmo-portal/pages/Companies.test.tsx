@@ -118,7 +118,7 @@ describe('Companies index — rows + filters (AC-CO-001)', () => {
     const vendor = pillEl('Vendor', 'Steelforge Fabrication'); // neutral grey
     const internal = pillEl('Internal', 'Internal Holdings'); // neutral grey
     const clientDot = client.querySelector('[data-pill-dot]') as HTMLElement;
-    // S1 (ADR-0037): status is a quiet DOT + LABEL — NO filled slab. The category
+    // S1 (ADR-0068): status is a quiet DOT + LABEL — NO filled slab. The category
     // family is `violet` for the highlighted kind (Client) + `neutral` for the rest;
     // identity comes from the dot hue + the label word, never a tinted pill.
     expect(client.className).not.toMatch(/\bbg-(violet|primary|secondary)\b/);

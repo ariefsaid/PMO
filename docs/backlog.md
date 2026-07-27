@@ -209,7 +209,14 @@ the wrong doc — was fixed separately in #395, landing the real write-up as 006
 ### ✅ RESOLVED — ADR-0037 mis-cite (fixed 2026-07-27)
 The monochrome-calm write-up landed on `dev` as **ADR-0068** (`docs/adr/0068-monochrome-calm-design-language.md`)
 with a provenance note explaining the id-history, and `DESIGN.md` + the three component comments
-(`StatusPill.tsx`, its test, `NotificationBell.tsx`) repointed to **0068**. `dev`'s `0037`
+(`StatusPill.tsx`, its test, `NotificationBell.tsx`) repointed to **0068**.
+⚑ **#395's repoint was PARTIAL — completed 2026-07-27.** It enumerated *components* and missed three
+page-level tests carrying the same design rule: `pages/Companies.test.tsx:121`,
+`pages/Incidents.test.tsx:160`, `pages/__tests__/Projects.deliveryBudget.test.tsx:121`, each citing
+`S1 (ADR-0037)` for "status is a quiet dot + label, no filled slab" — which is ADR-0068 §43, not the
+compiler DSL. A fix that repoints *some* citations of a mis-cite leaves the same defect behind, so
+**verify a citation sweep by meaning, not by the file list the fix enumerated**: search the rule
+vocabulary (`S1`, `dot`, `slab`, `tint`), not just the component names. `dev`'s `0037`
 (*View-Composition compiler DSL*) is untouched — the viewspec/compiler citations that legitimately
 mean 0037 still resolve correctly. Same class as the `0058`/`0059` collisions fixed in #387.
 ⚑ **Branch-deletion caveat:** the `redesign/design-system` branch holds the **exploration artifacts**
