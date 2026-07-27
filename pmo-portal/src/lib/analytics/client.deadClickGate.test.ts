@@ -66,7 +66,10 @@ describe('capture_dead_clicks gate — the REAL SDK, not a mock (AC-CON-005 SECU
     // The REAL function posthog-js itself uses to decide whether the leaky, element-text-carrying
     // `$dead_click` event ever fires. Not our assumption — the SDK's own logic, on our real config.
     expect(
-      isDeadClicksEnabledForAutocapture(instance!.deadClicksAutocapture as DeadClicksAutocapture),
+      // The `posthog-js` default import types against `dist/`; the pure gating function is only
+      // importable from `lib/src` — same class, compiled twice, so TS sees a nominal mismatch on
+      // a private field. `unknown` first, per the compiler's own suggestion (TS2352).
+      isDeadClicksEnabledForAutocapture(instance!.deadClicksAutocapture as unknown as DeadClicksAutocapture),
     ).toBe(false);
   });
 
@@ -87,7 +90,10 @@ describe('capture_dead_clicks gate — the REAL SDK, not a mock (AC-CON-005 SECU
       ),
     );
     expect(
-      isDeadClicksEnabledForAutocapture(instance!.deadClicksAutocapture as DeadClicksAutocapture),
+      // The `posthog-js` default import types against `dist/`; the pure gating function is only
+      // importable from `lib/src` — same class, compiled twice, so TS sees a nominal mismatch on
+      // a private field. `unknown` first, per the compiler's own suggestion (TS2352).
+      isDeadClicksEnabledForAutocapture(instance!.deadClicksAutocapture as unknown as DeadClicksAutocapture),
     ).toBe(true);
   });
 });
