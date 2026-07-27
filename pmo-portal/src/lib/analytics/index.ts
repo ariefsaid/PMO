@@ -8,7 +8,6 @@
 export { AnalyticsProvider } from './AnalyticsProvider';
 export {
   buildEventProperties,
-  trackPermissionDeniedSeen,
   FORBIDDEN_PROPERTY_KEYS,
 } from './events';
 export type { AnalyticsEventName, SafeProperties, SafeValue, TrackedEvent, AuthMethod, AuthFailureReason, DemoPersonaLabel } from './events';

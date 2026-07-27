@@ -3,7 +3,6 @@ import {
   buildEventProperties,
   trackFormValidationFailed,
   trackSaveFailed,
-  trackPermissionDeniedSeen,
   trackEmptyStateSeen,
 } from './events';
 import type { AuthMethod, AuthFailureReason } from './events';
@@ -89,12 +88,6 @@ describe('analytics event sanitizer', () => {
       entity_type: 'project',
       operation: 'update',
       reason_code: 'network',
-      module: 'projects',
-    });
-    expect(trackPermissionDeniedSeen('project-actions', 'Engineer', 'projects').event).toBe('permission_denied_seen');
-    expect(trackPermissionDeniedSeen('project-actions', 'Engineer', 'projects').properties).toMatchObject({
-      surface: 'project-actions',
-      role: 'Engineer',
       module: 'projects',
     });
     expect(trackEmptyStateSeen('project-list-empty', 'Project Manager', 'projects').event).toBe('empty_state_seen');

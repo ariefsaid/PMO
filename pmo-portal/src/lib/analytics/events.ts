@@ -23,7 +23,6 @@ export type AnalyticsEventName =
   | 'coming_soon_clicked'
   | 'form_validation_failed'
   | 'save_failed'
-  | 'permission_denied_seen'
   | 'empty_state_seen'
   | 'agent_panel_opened'
   | 'agent_run_started'
@@ -122,17 +121,6 @@ export function trackSaveFailed(
   return {
     event: 'save_failed',
     properties: { entity_type: entityType, operation, reason_code: reasonCode, module },
-  };
-}
-
-export function trackPermissionDeniedSeen(
-  surface: string,
-  role: string,
-  module: string,
-): TrackedEvent {
-  return {
-    event: 'permission_denied_seen',
-    properties: { surface, role, module },
   };
 }
 

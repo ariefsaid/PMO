@@ -23,15 +23,49 @@
  * `UNKNOWN_ORG`) can classify them without this shared helper needing to know every caller's
  * vocabulary. An unmatched code (in neither `overrides` nor the built-in map) falls through to
  * the generic "Update failed" headline, same as today.
+ *
+ * FR-PHG-010/011 (ADR-0067): this is also the single friction-instrumentation point. A
+ * `save_failed` analytics event fires from here — not from `useEntityForm` — because this is
+ * the one place where "the user was shown a mutation error" is reliably knowable: dozens of call
+ * sites across `pages/`/`src/` versus 17 entity forms, none of which passed the hook the props its
+ * (now-deleted) `save_failed` branch needed. See ADR-0067 for why the obvious fix ("just pass
+ * the missing prop") would still have produced zero events.
  */
+import { safeTrack } from './analytics/safeTrack';
+import { trackSaveFailed } from './analytics';
+
+/** Stable, PII-free classification slugs for the friction event (ADR-0067). */
+type FrictionClass =
+  | 'illegal_transition' | 'permission_denied' | 'duplicate'
+  | 'in_use' | 'timeout' | 'override' | 'unclassified';
+
+export interface ClassifyContext {
+  /** Which module the user was in, e.g. 'companies'. Never derived from user input. */
+  module?: string;
+  /** 'create' | 'update' | 'delete' | … Defaults to 'classify'. */
+  operation?: string;
+}
+
 export function classifyMutationError(
   err: unknown,
   overrides?: Record<string, string>,
+  context?: ClassifyContext,
 ): { headline: string; detail: string } {
   const detail = err instanceof Error ? err.message : 'An error occurred';
   const code = typeof (err as { code?: unknown })?.code === 'string'
     ? (err as { code: string }).code
     : undefined;
+
+  // FR-PHG-010/011 (ADR-0067): this is the single point where "the user was shown a mutation
+  // error" is knowable. Instrumenting here instead of in the 17 entity forms means a new form
+  // cannot forget to opt in, and errors that never touch a form (import, export, ERP push) are
+  // covered too. safeTrack because this runs INSIDE error handling — an analytics fault must
+  // never propagate into the path that is already recovering. Only the stable code + slug
+  // leave; never `detail` (which may embed a user-entered value, e.g. a duplicate-key message).
+  const classification = classifyCode(code, overrides);
+  safeTrack(() =>
+    trackSaveFailed(classification, context?.operation ?? 'classify', code ?? 'unknown', context?.module ?? 'unknown'),
+  );
 
   if (code && overrides && Object.prototype.hasOwnProperty.call(overrides, code)) {
     return { headline: overrides[code], detail };
@@ -50,5 +84,17 @@ export function classifyMutationError(
       return { headline: "Request timed out — we couldn't confirm whether it saved.", detail };
     default:
       return { headline: 'Update failed', detail };
+  }
+}
+
+function classifyCode(code: string | undefined, overrides?: Record<string, string>): FrictionClass {
+  if (code && overrides && Object.prototype.hasOwnProperty.call(overrides, code)) return 'override';
+  switch (code) {
+    case 'P0001': return 'illegal_transition';
+    case '42501': return 'permission_denied';
+    case '23505': return 'duplicate';
+    case '23503': return 'in_use';
+    case 'REQUEST_TIMEOUT': return 'timeout';
+    default: return 'unclassified';
   }
 }

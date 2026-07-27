@@ -71,7 +71,6 @@ already defined with one (`empty_state_seen`).
 | `search_used` | Discovery behavior | `SearchMini` (`src/components/ui/DataTable.tsx`), debounced 500ms/Enter | `search_surface`, `result_count`, `module` |
 | `coming_soon_clicked` | Demand signal | `VendorQuotesTab` (Attach file) + `ExecutiveDashboard` (Board pack) | `feature_id`, `module` |
 | `form_validation_failed` | UX friction | `useEntityForm.handleSubmit` (validation-fail branch) | `form_id`, `field_count`, `reason_code`, `module` |
-| `save_failed` | Reliability / UX friction | `useEntityForm.handleSubmit` (catch, when `onValid` rejects) — **wired but INERT, see note below** | `entity_type`, `operation`, `reason_code`, `module` |
 | `empty_state_seen` | Adoption / data gaps | `ListState` (`variant="empty"`, on mount) — instrumented on Companies, Projects, Procurement, Incidents, Contacts (the primary directory/list index pages; not every `ListState` empty render — see note) | `state_id`, `role`, `module` |
 
 **`empty_state_seen` coverage note (FIX 1, 2026-07-13):** the shared boundary lives in `ListState.tsx`
@@ -82,21 +81,24 @@ variant="empty"` render in the app: DataTable's own internal "no results match y
 render, and secondary list pages (SalesPipeline, MyTasks, Timesheets/ApprovalsQueue, AdminUsers, etc.)
 are still dark. Each is the same 3-line addition (`stateId`/`role={realRole}`/`module`) as a fast-follow.
 
-**`save_failed` is currently INERT — it does not fire in production today.** Two independent gaps, both
-required to close before it's real: (1) `useEntityForm.handleSubmit`'s catch only fires when the caller
-supplied BOTH `module` AND `entityType` — every existing form was threaded with `module` (for
-`form_validation_failed`) but **no call site passes `entityType`**, so the `if (module && entityType)`
-guard is never true. (2) even with `entityType` threaded, ~10 existing CRUD forms catch their own
-mutation error internally (`try { await onCreate(...) } catch (err) { onError(err) }`) before it would
-ever reach `useEntityForm`'s catch — the rejection never propagates that far. Fast-follow (deferred,
-NOT done in this slice): thread `entityType` into each `useEntityForm` call site, AND migrate each
-form's `onValid` to drop its own `try/catch` so the error actually propagates into the hook.
+### Friction (central) — ADR-0067
 
-### Defined (not yet wired to a UI call site)
+| Event | Purpose | Boundary | Safe properties |
+|---|---|---|---|
+| `save_failed` | Reliability / UX friction | `classifyMutationError` (`pmo-portal/src/lib/classifyMutationError.ts`) — the single point where "a classified mutation error was shown to the user" is reliably knowable | `entity_type` (carries the classification slug — `illegal_transition`, `permission_denied`, `duplicate`, `in_use`, `timeout`, `override`, or `unclassified`), `operation`, `reason_code` (the Postgres/PostgREST code, e.g. `42501`), `module` |
 
-| Event | Purpose | Required safe properties |
-|---|---|---|
-| `permission_denied_seen` | Authz / product friction — **deferred, no UI boundary defined yet** | `surface`, `role`, `module` |
+**`save_failed` was previously wired at `useEntityForm.handleSubmit` and was INERT there for two years**:
+no caller ever passed `entityType`, and every form's `onValid` swallows its own error without
+rethrowing, so the hook's catch never ran. The obvious fix (thread the missing prop) would still have
+produced zero events, since the rejection never reaches the hook. Moved instead (2026-07-25, ADR-0067)
+to `classifyMutationError`, which has 40+ call sites versus 17 entity forms, already extracts the error
+`.code`, and is by construction "the errors the user was actually shown" — the friction signal itself.
+The old `useEntityForm` producer was deleted; there is exactly one producer of `save_failed` now.
+
+**`permission_denied_seen` was removed (2026-07-25, ADR-0067)** — it had zero call sites (never wired to
+a UI boundary) yet had a provisioned dashboard tile, which renders a permanently-empty chart that reads
+as a product fact ("nobody hits this") rather than the broken measurement it actually was. Its signal is
+answerable from the `save_failed` breakdown filtered to `reason_code = 42501`.
 
 Allowed values: enums, route patterns, role names, module ids, safe slugs, bounded counts/durations,
 status/reason codes, booleans.
@@ -104,6 +106,53 @@ status/reason codes, booleans.
 Forbidden values: raw user-entered strings, raw UUID paths, raw query strings, raw DB rows, names,
 emails, phone numbers, addresses, company/project/procurement names, monetary values, notes, comments,
 file names, file contents, request/response bodies, and auth tokens.
+
+## Demo funnel (FR-PHG-020/021)
+
+The prospect-demo funnel — land → persona selected → login → first module opened → last module before
+exit — is answerable end-to-end from existing events, provisioned as `[PMO] Demo · Prospect Funnel`
+(`scripts/posthog/provision-dashboards.mjs`): a `demo_persona_selected → auth_login_succeeded →
+app_route_viewed` funnel, plus breakdowns of `demo_persona_selected` (by `persona_role`),
+`app_route_viewed` (by `route`), and `coming_soon_clicked` (by `feature_id`) — the latter two already
+fired with **no tile** before this slice, i.e. free signal that was being collected and never looked at.
+
+**"Last module before exit" is deliberately not a dashboard tile** — PostHog trends cannot express
+"session-final event" without a HogQL insight, and a wrong tile is worse than none. Run it directly via
+`scripts/posthog/query.mjs`:
+
+```sql
+-- Last module a demo session viewed before exiting (FR-PHG-020)
+SELECT argMax(properties.route, timestamp) AS last_route, count() AS sessions
+FROM events
+WHERE event = 'app_route_viewed' AND properties.demo_audience = 'prospect'
+  AND timestamp > now() - INTERVAL 30 DAY
+GROUP BY $session_id
+```
+
+## Quota safety (FR-PHG-030/031)
+
+Exceeding a PostHog free allowance is **destructive, not billed** — ingestion stops and the excess data
+is lost forever, which would flatten every chart and look indistinguishable from "nobody used the
+product". `scripts/posthog/check-quota.mjs` alarms (non-zero exit) when any resource passes 80% of its
+free allowance, reading `GET /api/projects/:project_id/quota_limits/`:
+
+```bash
+POSTHOG_API_KEY=$(op-get.sh posthog-personal-api AS credential) \
+POSTHOG_PROJECT_ID=465502 \
+node scripts/posthog/check-quota.mjs
+```
+
+Error-tracking rate limits and suppression rules (bounding exception ingestion below the 100k/month
+free allowance) are an **owner settings action in PostHog project settings, not code** (FR-PHG-032) —
+not covered by this script.
+
+## Consent posture (ADR-0067)
+
+Analytics ships on a **disclosure + opt-out** posture, not a blocking consent banner: `respect_dnt:
+true` is passed to `posthog.init` (a user's OS/browser Do Not Track signal suppresses capture
+entirely), the collection is disclosed on `/privacy`, and an in-app opt-out toggle there calls
+`analyticsOptOut()` / `analyticsOptIn()` (`src/lib/analytics/index.ts`), persisted client-side under the
+`pmo.analyticsOptOut` `localStorage` key and checked on every capture via `hasAnalyticsOptedOut()`.
 
 ## Session Replay Privacy
 
@@ -158,11 +207,12 @@ npm run typecheck
 ## Dashboards
 
 Dashboards shipped in #303 (`scripts/posthog/provision-dashboards.mjs`) — dashboards-as-code, idempotent
-(upserted by name), grounded in the typed event catalog above. It provisions three PostHog dashboards
-(`[PMO] Agent · Adoption & Reliability`, `[PMO] Auth · Login Health`, `[PMO] Product · Usage & Friction`)
-covering the funnels/friction breakdowns this doc previously listed as deferred, and force-refreshes every
-provisioned insight (`?refresh=blocking`) after upsert so a freshly-provisioned dashboard never renders
-blank. Run it via `op-get.sh` (never hard-code the personal API key):
+(upserted by name), grounded in the typed event catalog above. It provisions four PostHog dashboards
+(`[PMO] Agent · Adoption & Reliability`, `[PMO] Auth · Login Health`, `[PMO] Product · Usage & Friction`,
+`[PMO] Demo · Prospect Funnel`) covering the funnels/friction breakdowns this doc previously listed as
+deferred, and force-refreshes every provisioned insight (`?refresh=blocking`) after upsert so a
+freshly-provisioned dashboard never renders blank. Run it via `op-get.sh` (never hard-code the personal
+API key):
 
 ```bash
 POSTHOG_API_KEY=$(op-get.sh posthog-personal-api AS credential) \
@@ -172,5 +222,9 @@ node scripts/posthog/provision-dashboards.mjs
 
 For ad-hoc HogQL analysis outside the provisioned dashboards, use `scripts/posthog/query.mjs` (same auth:
 1Password `posthog-personal-api`, project 465502).
+
+`scripts/check-dashboard-tiles.mjs` (wired into `npm run verify`, FR-PHG-013) fails the build if any
+provisioned tile depends on an event with no real call site (see `src/lib/analytics/eventCallSites.ts`)
+— the CI gate that generalises the two friction-event fixes above (ADR-0067).
 
 Do not add PostHog management API tokens or paid Group Analytics beyond what's already provisioned.
