@@ -70,7 +70,10 @@ export async function selectDueSchedules(sb: ServiceClientLike, now: Date): Prom
     };
   };
   const { data, error } = await builder
-    .select('*')
+    // Trimmed from '*' to AutomationRow's 11 fields (drops created_at, updated_at,
+    // last_fired_at — verified unread from returned rows; last_fired_at is a WHERE arg
+    // only in the claim path, not this read).
+    .select('id,kind,owner_id,org_id,prompt,schedule,trigger_on,condition,enabled,archived_at,timeout_s')
     .eq('kind', 'schedule')
     .eq('enabled', true)
     .is('archived_at', null);
@@ -551,7 +554,8 @@ async function selectEnabledTriggers(sb: ServiceClientLike): Promise<AutomationR
     };
   };
   const { data, error } = await builder
-    .select('*')
+    // Trimmed from '*' to AutomationRow's 11 fields (same projection as selectDueSchedules).
+    .select('id,kind,owner_id,org_id,prompt,schedule,trigger_on,condition,enabled,archived_at,timeout_s')
     .eq('kind', 'trigger')
     .eq('enabled', true)
     .is('archived_at', null);

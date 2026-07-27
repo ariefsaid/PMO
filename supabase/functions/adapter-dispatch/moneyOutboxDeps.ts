@@ -167,7 +167,10 @@ export function createDbMoneyOutboxDeps(opts: DbMoneyOutboxDepsOpts): DispatchMo
     async readOutbox(domain, pmoRecordId, idempotencyKey) {
       const { data, error } = await serviceClient
         .from('external_command_outbox')
-        .select('*')
+        // Trimmed from '*' to the 9 columns mapRow consumes (over-fetch dropped payload,
+        // actor_user_id, last_error, attempt_count, external_tier, org_id, operation,
+        // claimed_at, reconcile_after, created_at, updated_at — all unused on this path).
+        .select('id,domain,pmo_record_id,idempotency_key,state,external_record_id,canonical,claim_generation,payload_digest')
         .eq('org_id', orgId)
         .eq('domain', domain)
         .eq('pmo_record_id', pmoRecordId)
@@ -224,7 +227,7 @@ export function createDbMoneyOutboxDeps(opts: DbMoneyOutboxDepsOpts): DispatchMo
           // attribute the author (the request JWT is long gone by then). Omitted when unknown.
           ...(opts.actorUserId ? { actor_user_id: opts.actorUserId } : {}),
         })
-        .select('*')
+        .select('id,domain,pmo_record_id,idempotency_key,state,external_record_id,canonical,claim_generation,payload_digest')
         .single();
       if (error) {
         // Preserve the raw pg error code (23505 = the unique 4-tuple race) — dispatch.ts's

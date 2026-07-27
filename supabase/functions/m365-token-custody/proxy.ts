@@ -56,6 +56,12 @@ export async function handleGraphProxy(
   }
 
   // Load the caller's connection (own-row scoped — service_role write path, ADR-0060 §4/AC-M365-133).
+  // ⚑ Kept wide (`'*'`) deliberately, NOT a missed trim: this is the ONE handler that legitimately
+  // holds the access-token secret. loadFreshAccessToken reads access_token_ciphertext +
+  // access_token_expires_at + key_id, and refreshAccessToken reads refresh_token_ciphertext +
+  // entra_tenant_id + org_id + user_id + scopes. Narrowing here would drop a column the refresh
+  // path depends on and silently break token renewal. The other ms_graph_connections selects
+  // (revoke.ts, disconnect) ARE trimmed — see 0168's review for the secret-surface rationale.
   const { data: conn, error: connError } = await serviceClient
     .from('ms_graph_connections')
     .select('*')
