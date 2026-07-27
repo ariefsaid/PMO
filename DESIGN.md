@@ -1,7 +1,7 @@
 ---
 name: PMO Portal
 description: >
-  The monochrome-calm control surface (ADR-0037). Calm near-mono zinc chrome; PMO
+  The monochrome-calm control surface (ADR-0068). Calm near-mono zinc chrome; PMO
   blue reserved for the ONE primary action + focus ring + active-nav; status as a
   quiet dot/ring + label; content-over-containers. LIGHT default + first-class
   WCAG-AA DARK. Values below are the LIGHT (`:root`) theme; the full light|dark
@@ -49,7 +49,7 @@ colors:
   border: "hsl(240 5% 90.5%)"
   input: "hsl(240 4% 84%)"
 typography:
-  # Inter variable + the cv stylistic sets (ADR-0037) is the single UI family.
+  # Inter variable + the cv stylistic sets (ADR-0068) is the single UI family.
   fontFamily: "Inter, system-ui, -apple-system, Segoe UI, sans-serif"
   cvSets: '"cv02","cv03","cv04","cv11"'
   page-title: { size: "24px", weight: 700, lineHeight: 1.2, letterSpacing: "-0.02em" }
@@ -86,9 +86,9 @@ components:
 
 ## 1. Overview
 
-**Creative North Star: "The Quiet Control Surface" — monochrome-calm (ADR-0037).**
+**Creative North Star: "The Quiet Control Surface" — monochrome-calm (ADR-0068).**
 
-This is the **monochrome-calm** language the owner locked on 2026-07-01 (ADR-0037), ported *in place*
+This is the **monochrome-calm** language the owner locked on 2026-07-01 (ADR-0068), ported *in place*
 onto the existing app (Foundation slices F1 tokens + F2 dark toggle are committed; the surface slices
 follow). It supersedes the prior "calm/dense/light-only shadcn" identity in *look only* — every logic,
 data, chart, and action is unchanged. The mockups in `docs/design-mockups/redesign/reskin/` define the
@@ -103,7 +103,7 @@ project-based business, and it explicitly rejects the "AI SaaS marketing" aesthe
 dark-mode-with-purple-gradients, no neon, no glassmorphism, no oversized hero type, no shadow-heavy
 floating-card soup. *Calm after the 100th use.*
 
-**Key characteristics (locked, ADR-0037 §1):**
+**Key characteristics (locked, ADR-0068 §1):**
 - **Monochrome chrome; colour = meaning.** PMO blue (`--primary`) does all the interactive work and is
   held to primary-action + ring + active-nav; the semantic status palette (success/warning/destructive)
   stays but is quiet (dot/ring + label or a faint tint, never a solid slab behind text). Categorical
@@ -228,7 +228,7 @@ future retune that drops any hue below 4.5:1 fails CI.
 screen: the one primary action + the focus ring + active-nav. If two things are blue and only one is the
 action, one is wrong. Violet/status hues are NOT substitutes for it.
 
-**The Status-As-Dot Rule (ADR-0037).** Status is a **dot/ring + label** (or a faint `/10–/12` tint with
+**The Status-As-Dot Rule (ADR-0068).** Status is a **dot/ring + label** (or a faint `/10–/12` tint with
 an AA `-text` variant) — **never a loud filled slab behind body text.** Solid status fills are reserved
 for the essential status *verb* (the destructive button). Pill text MUST come from the AA `-text` tokens
 (`--status-*-text`, `--destructive-text`, `--success-text`), never the raw dot hue — and status is never
@@ -270,14 +270,14 @@ named as unclassified rather than printed. The same map decides whether a **Retr
 at all: *a button that can only ever fail is worse than no button* — it says the problem is transient
 when it is structural. A withheld affordance always states the remedy that replaces it.
 
-**Content-over-containers (ADR-0037 §1).** Fewer boxes; prefer hairline dividers and whitespace to
+**Content-over-containers (ADR-0068 §1).** Fewer boxes; prefer hairline dividers and whitespace to
 nested card wrappers. Drop a wrapping card where whitespace/dividers suffice; keep a container only where
 the content earns it (a phase/delivery card, a table frame).
 
 ## 3. Typography
 
 **UI font:** Inter variable (opsz 14..32, 400/500/600) + the cv stylistic sets
-(`font-feature-settings: "cv02","cv03","cv04","cv11"`) — the agent-native typographic signature (ADR-0037).
+(`font-feature-settings: "cv02","cv03","cv04","cv11"`) — the agent-native typographic signature (ADR-0068).
 Fallback `system-ui, -apple-system, "Segoe UI", sans-serif`. Root font-size is **16px** (load-bearing:
 rem-based utilities resolve to DESIGN.md sizes — `h-8` = 32px controls). Default body size is 14px,
 line-height 1.45.
@@ -619,7 +619,7 @@ dot+label (never color-only).
 
 ---
 
-## Icons — the `<Icon name=…>` monoline facade (ADR-0037, locked look)
+## Icons — the `<Icon name=…>` monoline facade (ADR-0068, locked look)
 
 The app renders every icon through ONE facade: `<Icon name=…>` (`src/components/ui/icons.tsx`) backed by
 the `ICON_PATHS` registry (`src/components/ui/iconPaths.tsx`). The facade is the locked monoline look:

@@ -7,7 +7,7 @@
  * `ContextBarProps` in the same change, OBS-AAN-001). Mounted behind the
  * `agentAssistant` flag by `ContextBar` (FR-AAN-038).
  *
- * Severity idiom (DESIGN.md "The Status-As-Dot Rule", ADR-0037 monochrome-calm):
+ * Severity idiom (DESIGN.md "The Status-As-Dot Rule", ADR-0068 monochrome-calm):
  * a quiet colored dot + AA-text label — NEVER a loud filled slab. Reuses the same
  * dot+label grammar as `StatusPill`, mapped through a local severity→variant table
  * (notifications' own `info|warning|critical` domain, not `StatusPill`'s workflow

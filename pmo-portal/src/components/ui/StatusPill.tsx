@@ -14,7 +14,7 @@ export type StatusVariant =
   | 'violet';
 
 /**
- * The Quiet-Status Rule (ADR-0037 monochrome-calm): status = a small colored
+ * The Quiet-Status Rule (ADR-0068 monochrome-calm): status = a small colored
  * DOT + a colored LABEL on the surrounding surface — NEVER a loud filled slab.
  * No tinted pill background, no pill chrome (rounded/horizontal padding). The dot
  * carries the hue; the AA `-text` token carries the label color; the word carries
@@ -38,7 +38,7 @@ interface PillStyle {
    * ⚑ NEW-9 — extra dot classes for a state that is genuinely IN FLIGHT. `progress` rendered
    * byte-identically to `neutral` (same muted label, same muted dot, nothing else), so the two
    * differed ONLY by their label string — on the one state that is transient and never self-updates.
-   * ADR-0037's monochrome-calm forbids buying that distinction with hue, so it is bought with SHAPE:
+   * ADR-0068's monochrome-calm forbids buying that distinction with hue, so it is bought with SHAPE:
    * a halo ring around the dot, which reads as "radiating / still happening" while staying in the
    * same ink.
    *
