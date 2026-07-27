@@ -28,7 +28,8 @@ export async function readWatermark(sb: ServiceClientLike, source: string): Prom
       };
     };
   };
-  const { data, error } = await builder.select('*').eq('source', source).maybeSingle();
+  // Trimmed from '*' to match the declared return type {last_seen_id, last_seen_at} — type-honesty.
+  const { data, error } = await builder.select('last_seen_id,last_seen_at').eq('source', source).maybeSingle();
   if (error || !data) return null;
   return { lastSeenId: data.last_seen_id, lastSeenAt: data.last_seen_at };
 }

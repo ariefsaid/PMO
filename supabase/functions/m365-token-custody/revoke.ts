@@ -29,7 +29,11 @@ export async function handleDisconnect(deps: HandlerDeps): Promise<HandlerResult
 
   const { data: conn, error } = await serviceClient
     .from('ms_graph_connections')
-    .select('*')
+    // SECURITY: trim to the 4 columns the disconnect path consumes (entra_tenant_id, key_id,
+    // refresh_token_ciphertext, id). '*'' over-fetched access_token_ciphertext,
+    // access_token_expires_at, refresh_token_expires_at, entra_user_object_id — OAuth secrets
+    // this handler has no business touching (the HIGH-A1 defect class: minimize secret surface).
+    .select('id,entra_tenant_id,key_id,refresh_token_ciphertext')
     .eq('org_id', orgId)
     .eq('user_id', userId)
     .single();

@@ -58,7 +58,9 @@ export async function consumePkceState(
     .from('m365_pkce_states')
     .delete()
     .eq('state', state)
-    .select('*')
+    // Trimmed to the 5 columns consumePkceState returns (drops id, created_at). The PKCE
+    // code_verifier is the OAuth anti-replay secret — scoping it here is defense-in-depth.
+    .select('expires_at,code_verifier,scopes,org_id,user_id')
     .maybeSingle();
 
   if (error || !data) return null;
