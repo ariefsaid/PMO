@@ -13,11 +13,8 @@
  * (the sole gate, verify_jwt=false). An anonymous direct POST is rejected 401.
  */
 import { createClient } from '@supabase/supabase-js';
-import {
-  groupIntoMessages,
-  buildTelegramPayload,
-  pingHeartbeat,
-} from './logic.ts';
+import { runDrain, pingHeartbeat } from './logic.ts';
+import type { ErrorEventRow } from './logic.ts';
 import { logStructuredError } from '../_shared/errorLog.ts';
 import { constantTimeBearerEquals } from '../_shared/constantTimeBearerEquals.ts';
 
@@ -49,59 +46,67 @@ Deno.serve(async (req: Request): Promise<Response> => {
   const heartbeatUrl = Deno.env.get('HEARTBEAT_URL') ?? undefined;
 
   try {
-    const { data: unnotified } = await serviceClient
-      .from('error_events')
-      .select('id, error_code, fn, context_id, org_id, created_at')
-      .is('notified_at', null);
-
-    const { data: lastNotifiedRows } = await serviceClient
-      .from('error_events')
-      .select('error_code, notified_at')
-      .not('notified_at', 'is', null);
-
-    const lastNotifiedByCode: Record<string, string | undefined> = {};
-    for (const row of (lastNotifiedRows ?? []) as { error_code: string; notified_at: string }[]) {
-      const current = lastNotifiedByCode[row.error_code];
-      if (!current || row.notified_at > current) lastNotifiedByCode[row.error_code] = row.notified_at;
-    }
-
-    const rows = (unnotified ?? []) as {
-      id: string; error_code: string; fn: string; context_id: string | null; org_id: string | null; created_at: string;
-    }[];
-    const groups = groupIntoMessages(rows, lastNotifiedByCode, cooldownSec);
-
-    if (!botToken || !chatId) {
-      logStructuredError({ fn: 'telegram-notify', errorCode: 'TELEGRAM_SECRET_MISSING' });
-      // Leave notified_at NULL for everything — retried next tick once secrets are wired.
-      await pingHeartbeat(heartbeatUrl);
-      return new Response(JSON.stringify({ ok: true, skipped: 'secrets unset' }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      });
-    }
-
-    for (const group of groups) {
-      if (!group.suppressed) {
-        const payload = buildTelegramPayload(group);
+    const drain = await runDrain({
+      now: () => new Date(),
+      cooldownSec,
+      livenessIntervalHours: Number(Deno.env.get('LIVENESS_INTERVAL_HOURS') ?? '24'),
+      selectUnnotified: async () => {
+        const { data } = await serviceClient
+          .from('error_events')
+          .select('id, error_code, fn, context_id, org_id, created_at')
+          .is('notified_at', null);
+        return (data ?? []) as ErrorEventRow[];
+      },
+      selectLastSentByCode: async () => {
+        const { data } = await serviceClient
+          .from('alert_send_log')
+          .select('error_code, last_sent_at');
+        const out: Record<string, string | undefined> = {};
+        for (const r of (data ?? []) as { error_code: string; last_sent_at: string }[]) {
+          out[r.error_code] = r.last_sent_at;
+        }
+        return out;
+      },
+      // Wrapped in an explicit async function (not a bare arrow returning the builder): the
+      // supabase-js query builder is PromiseLike, not a real Promise (missing catch/finally/
+      // Symbol.toStringTag), which deno check correctly rejects against DrainDeps's
+      // Promise<{ error }> signature.
+      recordSendAhead: async (errorCode, atIso) =>
+        await serviceClient.from('alert_send_log').upsert(
+          { error_code: errorCode, last_sent_at: atIso },
+          { onConflict: 'error_code' },
+        ),
+      sendTelegram: async (payload) => {
+        if (!botToken || !chatId) {
+          logStructuredError({ fn: 'telegram-notify', errorCode: 'TELEGRAM_SECRET_MISSING' });
+          return { ok: false };
+        }
         const res = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ ...payload, chat_id: chatId }),
         });
-        if (!res.ok) {
-          // Non-2xx: leave notified_at NULL for this group — retried next tick (FR-OF-007).
-          continue;
-        }
-      }
-      // Sent OR intentionally suppressed within cooldown: stamp notified_at for exactly
-      // this group's ids (Fix 1 — groupIntoMessages is the source of truth, no re-filter).
-      if (group.ids.length > 0) {
-        await serviceClient.from('error_events').update({ notified_at: new Date().toISOString() }).in('id', group.ids);
-      }
-    }
+        return { ok: res.ok };
+      },
+      stampNotified: async (ids, atIso) =>
+        await serviceClient.from('error_events').update({ notified_at: atIso }).in('id', ids),
+      readHeartbeat: async (job) => {
+        const { data } = await serviceClient
+          .from('ops_job_heartbeats')
+          .select('last_success_at')
+          .eq('job_name', job)
+          .maybeSingle();
+        return (data as { last_success_at: string } | null) ?? null;
+      },
+      writeHeartbeat: async (job, atIso, detail) =>
+        await serviceClient.from('ops_job_heartbeats').upsert(
+          { job_name: job, last_success_at: atIso, last_detail: detail },
+          { onConflict: 'job_name' },
+        ),
+    });
 
     await pingHeartbeat(heartbeatUrl);
-    return new Response(JSON.stringify({ ok: true }), {
+    return new Response(JSON.stringify({ ok: true, ...drain }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' },
     });
