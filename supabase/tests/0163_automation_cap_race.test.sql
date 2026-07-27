@@ -5,12 +5,24 @@
 -- here if an exact cap ever matters"). The SHARE ROW EXCLUSIVE exemplar at 0065_admin_set_user_status.sql:69
 -- shows the intended pattern -- note 0065:69 is the EXEMPLAR, not the defect.
 --
--- Assertion 1 is anchored to BOTH the statement and its ORDER (lock before count), not just the
--- phrase "for update" — a regex over just the phrase passes when the lock is taken AFTER the count
--- (the race stays fully open) or when the phrase appears only inside a comment. Assertion 3 onward is
+-- Assertion 1 is anchored to BOTH the statement and its ORDER (lock before count), with `--`
+-- comments stripped first, not just the bare phrase "for update" — a regex over just the phrase
+-- passes when the lock is taken AFTER the count (the race stays fully open) or when the phrase
+-- appears only inside a comment (proven by mutation: an earlier version of this assertion, without
+-- the comment-strip, stayed green when the real `for update` was deleted from the code and the exact
+-- matching text was planted in a `--` comment next to the now-unlocked SELECT). Assertion 3 onward is
 -- the real proof: a genuine second session (`dblink`) holds the SAME profiles-row lock this trigger
 -- takes, and a concurrent INSERT is asserted to actually BLOCK on it (55P03 under a short
 -- lock_timeout) — proving the serialization, not just the lock statement's presence.
+--
+-- ⚑ SCOPE NOTE on assertion 4 (the block proof) specifically: `agent_automations.owner_id references
+-- profiles(id)` already takes an implicit `FOR KEY SHARE` on the referenced row for every INSERT (FK
+-- enforcement), and `FOR KEY SHARE` DOES conflict with another session's `FOR UPDATE` — so assertion
+-- 4 blocks even if the trigger's OWN explicit lock were removed (confirmed by mutation). `FOR KEY
+-- SHARE` does NOT conflict with itself, though, so it cannot by itself serialize two concurrent
+-- automation INSERTs against EACH OTHER — only the trigger's own `FOR UPDATE` does that. Assertion 4
+-- proves the guarded path contends with an externally-held lock on the right row; assertion 1 (now
+-- comment-immune) is what proves the trigger's OWN code is the thing taking a `FOR UPDATE`.
 --
 -- ⚑ VISIBILITY (mirrors 0155_command_held_interleave's own note): pgTAP's own txn never commits
 -- (begin…rollback), so a second connection cannot SEE a row this session merely INSERTed — a
@@ -60,11 +72,15 @@ select dblink_exec('cap', $fx$
 $fx$);
 
 -- 1. The cap trigger locks the owner's profiles row BEFORE counting — anchored to statement AND
--- order, so "lock after count" and "the phrase inside a comment only" both still fail this.
+-- order, so "lock after count" fails this. `pg_get_functiondef` returns the raw stored source,
+-- COMMENTS INCLUDED, so a bare match() over it can be fooled by planting the matching text in a
+-- `--` comment while the real code has no lock (proven by mutation while drafting this file — an
+-- earlier version without the strip below stayed green under exactly that mutation). Strip `--`
+-- line comments first so only the real statements can satisfy the pattern.
 select matches(
-  pg_get_functiondef('public.enforce_automation_owner_cap()'::regprocedure),
+  regexp_replace(pg_get_functiondef('public.enforce_automation_owner_cap()'::regprocedure), '--[^\n]*', '', 'g'),
   'from public\.profiles where id = new\.owner_id for update(.|\n)*count\(\*\)',
-  'FR-HRD-041 the cap trigger locks the owner row BEFORE counting (no bare count-then-insert, no reordering)');
+  'FR-HRD-041 the cap trigger locks the owner row BEFORE counting, in REAL code not a comment (no bare count-then-insert, no reordering, no comment-only decoy)');
 
 select is(
   (select prosecdef from pg_proc where oid = 'public.enforce_automation_owner_cap()'::regprocedure),
