@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 // The opt-out tests below use `window.localStorage` (DOM global absent in the `node` test
 // project — perf/test-speed split); see src/lib/analytics/config.test.ts for the same pattern.
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AnalyticsConfig } from './config';
 
 /** Type for PostHog's captured network request object */
@@ -33,6 +33,7 @@ import { analyticsClient, POSTHOG_PROPERTY_DENYLIST } from './client';
 const initSpy = posthog.init;
 const captureSpy = posthog.capture;
 const optOutSpy = posthog.opt_out_capturing;
+const optInSpy = posthog.opt_in_capturing;
 
 const base: AnalyticsConfig = {
   enabled: true,
@@ -335,10 +336,14 @@ describe('analyticsClient.init — signal config (FR-PHG-001..004, FR-CON-001)',
     expect(opts).not.toHaveProperty('enable_heatmaps');
   });
 
-  it('AC-PHG-001: sets capture_dead_clicks EXPLICITLY (the SDK type declares @default undefined)', () => {
+  it('AC-CON-005 (SECURITY): capture_dead_clicks is EXPLICITLY false — the autocapture-gated ' +
+    '$dead_click event carries raw $el_text/$elements_chain/attr__title (real capture confirmed ' +
+    '"MYR 4,250,000.00" and a contract counterparty name); none of our redaction controls apply to ' +
+    'it, since the SDK emits it directly (see client.deadClickGate.test.ts for the real-SDK gate check)',
+  () => {
     analyticsClient.__resetForTests();
     analyticsClient.init(enabledConfig());
-    expect((initSpy.mock.calls[0][1] as Record<string, unknown>).capture_dead_clicks).toBe(true);
+    expect((initSpy.mock.calls[0][1] as Record<string, unknown>).capture_dead_clicks).toBe(false);
   });
 
   it('AC-PHG-001: web vitals on, network timing off', () => {
@@ -390,6 +395,96 @@ describe('analytics opt-out (FR-CON-002/003)', () => {
     analyticsClient.init(enabledConfig());
     analyticsClient.optIn();
     expect(analyticsClient.hasOptedOut()).toBe(false);
+    expect(initSpy).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('analytics opt-out survives logout (CRITICAL fix — reset() used to silently re-enable capture)', () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+    analyticsClient.__resetForTests();
+    initSpy.mockClear();
+    optOutSpy.mockClear();
+    posthog.reset.mockClear();
+    posthog.capture.mockClear();
+    posthog.captureException.mockClear();
+    posthog.identify.mockClear();
+    posthog.register.mockClear();
+  });
+
+  it('AC-CON-003: reset() (logout) re-asserts opt_out_capturing for an opted-out user — posthog.reset() deletes the SDK\'s own consent key, which would otherwise silently read PENDING/allowed again', () => {
+    analyticsClient.init(enabledConfig());
+    analyticsClient.optOut();
+    optOutSpy.mockClear(); // the call from optOut() itself — we want to see reset() call it AGAIN
+    analyticsClient.reset();
+    expect(posthog.reset).toHaveBeenCalledTimes(1);
+    expect(optOutSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('reset() does not spuriously call opt_out_capturing for a user who never opted out', () => {
+    analyticsClient.init(enabledConfig());
+    analyticsClient.reset();
+    expect(optOutSpy).not.toHaveBeenCalled();
+  });
+
+  it('AC-CON-003: capture/captureException/identify/register are all no-ops for an opted-out browser even while `initialized` is still true — belt-and-braces: a privacy promise must not depend on SDK-internal consent state surviving reset()', () => {
+    analyticsClient.init(enabledConfig());
+    analyticsClient.optOut(); // sets OUR flag; does not by itself flip the module-level `initialized` bit
+    analyticsClient.capture('app_route_viewed', {});
+    analyticsClient.captureException({ name: 'TypeError', message: 'boom' });
+    analyticsClient.identify({ userId: 'u1', role: 'Project Manager', orgId: 'o1' });
+    analyticsClient.register({ environment: 'test' });
+    expect(posthog.capture).not.toHaveBeenCalled();
+    expect(posthog.captureException).not.toHaveBeenCalled();
+    expect(posthog.identify).not.toHaveBeenCalled();
+    expect(posthog.register).not.toHaveBeenCalled();
+  });
+});
+
+describe('opting back in across a reload (MEDIUM fix — the SDK\'s own opt-out survives a fresh init())', () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+    analyticsClient.__resetForTests();
+    initSpy.mockClear();
+    optInSpy.mockClear();
+  });
+
+  it('AC-CON-002: opting in after a reload (init already ran and skipped this session) re-asserts posthog.opt_in_capturing without a billed event', () => {
+    window.localStorage.setItem('pmo.analyticsOptOut', 'true');
+    analyticsClient.init(enabledConfig()); // skipped — our flag is set
+    analyticsClient.optIn();
+    expect(initSpy).toHaveBeenCalledTimes(1);
+    expect(optInSpy).toHaveBeenCalledWith({ captureEventName: false });
+  });
+
+  it('AC-CON-002: opting in while already initialized also skips the billed $opt_in event', () => {
+    analyticsClient.init(enabledConfig());
+    analyticsClient.optOut();
+    analyticsClient.optIn();
+    expect(optInSpy).toHaveBeenCalledWith({ captureEventName: false });
+  });
+});
+
+describe('Do Not Track (MEDIUM fix, FR-CON-001) — init() must not fire at all, not just suppress capture after', () => {
+  const originalDNT = Object.getOwnPropertyDescriptor(navigator, 'doNotTrack');
+
+  afterEach(() => {
+    if (originalDNT) Object.defineProperty(navigator, 'doNotTrack', originalDNT);
+  });
+
+  it('AC-CON-001: init() never calls posthog.init when navigator.doNotTrack is "1"', () => {
+    Object.defineProperty(navigator, 'doNotTrack', { value: '1', configurable: true });
+    analyticsClient.__resetForTests();
+    initSpy.mockClear();
+    analyticsClient.init(enabledConfig());
+    expect(initSpy).not.toHaveBeenCalled();
+  });
+
+  it('a browser reporting no DNT preference still initialises normally', () => {
+    Object.defineProperty(navigator, 'doNotTrack', { value: undefined, configurable: true });
+    analyticsClient.__resetForTests();
+    initSpy.mockClear();
+    analyticsClient.init(enabledConfig());
     expect(initSpy).toHaveBeenCalledTimes(1);
   });
 });
