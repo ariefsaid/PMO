@@ -84,15 +84,23 @@ BEHIND `dev`, content identical).
   ⚑ Re-counted 2026-07-25; the older "6 of 22" and the much older "2 fns + FE" were both wrong.
   ⚑ The seam to widen is `_shared/errorLog.ts:22-27` — `EdgeFunctionName` is a CLOSED union of only 5
   function names, so wiring the other 17 is gated on that type.
-  ⚑ **`recordErrorEvent` swallows its own insert failure** (`_shared/errorEvent.ts:39-50`, returns
-  `void`) and 3 of the 4 producers call it un-awaited. A broken error pipeline therefore reports
-  silence — "no errors" and "error recording is down" are indistinguishable.
+  ⚑ **`recordErrorEvent` swallows its own insert failure** (`_shared/errorEvent.ts:37-50`, returns
+  `void`) and 3 of the 4 producers call it un-awaited. ⚑ **Re-verified 2026-07-27:** the insert's
+  catch now logs `console.error('[errorEvent] ERROR_EVENT_INSERT_FAILED', …)` (`errorEvent.ts:40-49`),
+  so it is **no longer fully silent** — but the failure still does not reach the *caller* (returns
+  `void`), so 3 of 4 producers fire-and-forget a result they can never observe. The defect stands;
+  the older "no errors and error-recording-down are indistinguishable" framing overstated the silence
+  (the log is there now) — read it as "a broken pipeline surfaces to *server logs only*, never to the
+  caller or the alert drain."
 - **PostHog consent-gate** — no consent state, gate or banner anywhere in `pmo-portal/src`; `/privacy`
   (`pages/Privacy.tsx`) does not mention analytics, PostHog or cookies at all. **Owner decision
   2026-07-25: disclose + in-app opt-out + `respect_dnt: true`, NO banner** (legitimate-interest posture,
   B2B named account-holders). Replay/autocapture stay **demo-prospect only** — do not enable for real users.
-- **Two analytics tiles can never render data** — `save_failed` is INERT (`useEntityForm.ts:201`, the
-  `if (module && entityType)` guard is never true) and `permission_denied_seen` has **zero call sites**,
+- **Two analytics tiles can never render data** — `save_failed` is INERT
+  (`pmo-portal/src/components/ui/useEntityForm.ts:201` — ⚑ file moved from `hooks/` to `components/ui/`
+  in PR #324; line number unchanged; the `if (module && entityType)` guard is never true because both
+  real callers `ProjectIntegrationsCard.tsx:77` and `IntegrationsView.tsx:128` pass neither) and
+  `permission_denied_seen` has **zero call sites**,
   yet `scripts/posthog/provision-dashboards.mjs` provisions a tile for each. An empty chart reads as
   "no failures" when it means "not instrumented" — the analytics-layer instance of the silent-false-signal class.
 - **⚑ Raw NUL bytes in 3 source files make them invisible to `grep`** — `agent-dispatch/dispatcher.ts:209`
@@ -107,7 +115,7 @@ BEHIND `dev`, content identical).
 - **interactive-create idempotency** — idempotency exists ONLY on the bulk-import path (`0072`).
 - **telegram-notify dup alerts** — `telegram-notify/index.ts:99` (⚑ not `:86`): the `notified_at` stamp's
   error is never inspected → a good send + failed stamp re-alerts every tick.
-- **`notifyOwner` swallows errors** — `agent-dispatch/dispatcher.ts:293-306`, bare catch, no structured log.
+- **`notifyOwner` swallows errors** — `agent-dispatch/dispatcher.ts:293-305`, bare catch, no structured log.
 - **`enforce_automation_owner_cap` race** — the defect is **`0059:31`** (count-then-insert, no lock). ⚑ The
   old `0065:69` pointer is the SHARE-ROW-EXCLUSIVE *exemplar*, not the defect — it sends you to the wrong file.
 - **`set_project_contract_value` accepts negative** — `0076_audit_events.sql:212`, no sign check, and no
@@ -119,7 +127,11 @@ BEHIND `dev`, content identical).
   `release_credits` has ZERO callers outside generated types.
 - **contacts-inbound** — no `contact` kind in the ERPNext feed registry (zero hits).
 - **`entry_date` week-range** — `0055:70-76` inserts entry dates unbounded by the sheet's week.
-- **`.select('*')` trim** — 31 occurrences across 15 modules.
+- **`.select('*')` trim** — ⚑ **Re-counted 2026-07-27; the old "31 / 15 modules" was a scope mix-up.**
+  Actual: **8 occurrences across 3 modules** in `supabase/functions/` (`adapter-dispatch`,
+  `agent-dispatch`, `m365-token-custody`) and **32 occurrences across 15 files** in `pmo-portal/src/`
+  (mostly `src/lib/db/*`). The earlier number described the portal, not the edge fns. Both are real
+  trim candidates — over-fetching is over-fetching — but cite the right count per location.
 - **org-seam pgTAP cross-org SWEEP** — the `stamp_org_id()` trigger landed (`0074`), but ADR-0047's
   catalog-driven sweep does not exist; coverage is per-feature spot tests only.
 
@@ -165,12 +177,13 @@ BEHIND `dev`, content identical).
   per year, or state why not.** Priority: real but not urgent — Admin-only, deliberate, and it corrupts
   reporting truth rather than moving money.
 
-### ⚑ DEBT — ADR id collisions break the `grep ADR-00NN` convention (2026-07-25)
-`docs/adr/` has **`0058`×2** (`-erpnext-money-idempotency-outbox`, `-microsoft-365-integration-architecture`)
-and **`0059`×3** (`-entra-app-registration-topology`, `-external-admin-connect`, `-pmo-sot-with-external-side-mirror`).
-`CLAUDE.md` states ADRs are cited by id, so `grep ADR-0059` resolving to three unrelated documents breaks
-the convention that makes them findable. Renumber the duplicates to the next free ids (**0063+**) and
-sweep citations across `docs/` + code comments. Surfaced by the 2026-07-25 docs audit.
+### ✅ RESOLVED — ADR id collisions 0058/0059 (fixed by #387, 2026-07-25)
+The `0058`×2 and `0059`×3 collisions were fixed in **PR #387**: the duplicate M365/external docs were
+renumbered to **0063** (`microsoft-365-integration-architecture`), **0064** (`entra-app-registration-topology`),
+**0065** (`external-admin-connect`), each carrying a redirect note. `0058` (`erpnext-money-idempotency-outbox`)
+and `0059` (`pmo-sot-with-external-side-mirror`) kept their ids. Verified 2026-07-27: `ls docs/adr/0058*`
+and `0059*` each return exactly ONE file. (The ADR-0037 mis-cite — same class, a citation resolving to
+the wrong doc — was fixed separately in #395, landing the real write-up as 0068.)
 
 ### ⚑ DEBT — ADR-0037 resolves to the wrong document (2026-07-25)
 `DESIGN.md` on `dev` cites **ADR-0037** for the monochrome-calm design language, but `dev`'s `0037`
