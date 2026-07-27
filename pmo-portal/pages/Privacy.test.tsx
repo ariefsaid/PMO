@@ -146,6 +146,17 @@ describe('Privacy page', () => {
     expect(screen.getByRole('link', { name: /skip to main content/i })).toHaveAttribute('href', '#main');
   });
 
+  it('AC-CON-004: discloses what analytics is collected, by whom it is processed, and how to opt out', () => {
+    renderPrivacy();
+    const heading = screen.getByRole('heading', { level: 2, name: /Analytics and Cookies/ });
+    const section = heading.closest('section') ?? heading.parentElement!;
+    const text = section.textContent ?? '';
+    expect(text).toMatch(/PostHog/);
+    expect(text).toMatch(/opt out|opt-out/i);
+    expect(text).toMatch(/Do Not Track/i);
+    expect(within(section).getByRole('checkbox', { name: /usage analytics/i })).toBeInTheDocument();
+  });
+
   it('AC-LEG-035: deterministic render — same config → identical markup', () => {
     const a = renderPrivacy();
     const htmlA = a.container.innerHTML;
