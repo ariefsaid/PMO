@@ -14,9 +14,15 @@
  */
 import { createClient } from '@supabase/supabase-js';
 import { runDrain, pingHeartbeat } from './logic.ts';
-import type { ErrorEventRow } from './logic.ts';
+import type { ErrorEventRow, SendLogEntry } from './logic.ts';
 import { logStructuredError } from '../_shared/errorLog.ts';
 import { constantTimeBearerEquals } from '../_shared/constantTimeBearerEquals.ts';
+
+// M4 (perf, 2026-07-28 review): caps the unnotified-rows query so one error storm cannot load the
+// whole error_events table into the worker every 2-minute tick. Served by error_events_unnotified_idx
+// (migration 0167); the oldest rows are pulled first (ORDER BY created_at asc) so a persistent storm
+// still drains in FIFO order rather than starving old, still-unnotified rows.
+const UNNOTIFIED_BATCH_LIMIT = 500;
 
 Deno.serve(async (req: Request): Promise<Response> => {
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
@@ -50,20 +56,29 @@ Deno.serve(async (req: Request): Promise<Response> => {
       now: () => new Date(),
       cooldownSec,
       livenessIntervalHours: Number(Deno.env.get('LIVENESS_INTERVAL_HOURS') ?? '24'),
+      // C1 (2026-07-28 review): checked ONCE, up front — runDrain stops before any write-ahead or
+      // select at all when this is false, so a missing/misconfigured secret can never burn a
+      // write-ahead per group only to find out every send fails.
+      secretsConfigured: Boolean(botToken) && Boolean(chatId),
       selectUnnotified: async () => {
+        // M4 (perf, 2026-07-28 review): bounded by UNNOTIFIED_BATCH_LIMIT and served by the
+        // error_events_unnotified_idx partial index (migration 0167) — a storm can no longer load
+        // the whole table into the worker every 2 minutes.
         const { data } = await serviceClient
           .from('error_events')
           .select('id, error_code, fn, context_id, org_id, created_at')
-          .is('notified_at', null);
+          .is('notified_at', null)
+          .order('created_at', { ascending: true })
+          .limit(UNNOTIFIED_BATCH_LIMIT);
         return (data ?? []) as ErrorEventRow[];
       },
       selectLastSentByCode: async () => {
         const { data } = await serviceClient
           .from('alert_send_log')
-          .select('error_code, last_sent_at');
-        const out: Record<string, string | undefined> = {};
-        for (const r of (data ?? []) as { error_code: string; last_sent_at: string }[]) {
-          out[r.error_code] = r.last_sent_at;
+          .select('error_code, last_sent_at, delivered_at');
+        const out: Record<string, SendLogEntry> = {};
+        for (const r of (data ?? []) as { error_code: string; last_sent_at: string; delivered_at: string | null }[]) {
+          out[r.error_code] = { lastSentAt: r.last_sent_at, deliveredAt: r.delivered_at };
         }
         return out;
       },
@@ -73,14 +88,13 @@ Deno.serve(async (req: Request): Promise<Response> => {
       // Promise<{ error }> signature.
       recordSendAhead: async (errorCode, atIso) =>
         await serviceClient.from('alert_send_log').upsert(
-          { error_code: errorCode, last_sent_at: atIso },
+          { error_code: errorCode, last_sent_at: atIso, delivered_at: null },
           { onConflict: 'error_code' },
         ),
+      // C1: written ONLY after sendTelegram resolves ok — never before, never on a failed send.
+      markDelivered: async (errorCode, atIso) =>
+        await serviceClient.from('alert_send_log').update({ delivered_at: atIso }).eq('error_code', errorCode),
       sendTelegram: async (payload) => {
-        if (!botToken || !chatId) {
-          logStructuredError({ fn: 'telegram-notify', errorCode: 'TELEGRAM_SECRET_MISSING' });
-          return { ok: false };
-        }
         const res = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -93,16 +107,24 @@ Deno.serve(async (req: Request): Promise<Response> => {
       readHeartbeat: async (job) => {
         const { data } = await serviceClient
           .from('ops_job_heartbeats')
-          .select('last_success_at')
+          .select('last_run_at, last_outbound_at')
           .eq('job_name', job)
           .maybeSingle();
-        return (data as { last_success_at: string } | null) ?? null;
+        const beat = data as { last_run_at: string; last_outbound_at: string | null } | null;
+        return beat ? { lastRunAt: beat.last_run_at, lastOutboundAt: beat.last_outbound_at } : null;
       },
-      writeHeartbeat: async (job, atIso, detail) =>
+      // I2: write-ahead the OUTBOUND intent before the liveness ping is sent.
+      recordLivenessAhead: async (job, atIso) =>
         await serviceClient.from('ops_job_heartbeats').upsert(
-          { job_name: job, last_success_at: atIso, last_detail: detail },
+          { job_name: job, last_run_at: atIso, last_outbound_at: atIso },
           { onConflict: 'job_name' },
         ),
+      // I4: the unconditional run signal — called once at the end of every completed tick.
+      writeHeartbeat: async (job, runAtIso, outboundAtIso, detail) => {
+        const patch: Record<string, unknown> = { job_name: job, last_run_at: runAtIso, last_detail: detail };
+        if (outboundAtIso) patch.last_outbound_at = outboundAtIso;
+        return await serviceClient.from('ops_job_heartbeats').upsert(patch, { onConflict: 'job_name' });
+      },
     });
 
     await pingHeartbeat(heartbeatUrl);
