@@ -55,10 +55,7 @@ function redactExceptionText(text: string): string {
 
   // 3. JSON-shaped forbidden key: "key": value (redact the key name AND the value).
   for (const key of FORBIDDEN_PROPERTY_KEYS) {
-    out = out.replace(
-      new RegExp(`"${key}"\\s*:\\s*(?:"[^"]*"|[^\\s,}]+)`, 'gi'),
-      '[redacted]',
-    );
+    out = out.replace(new RegExp(`"${key}"\\s*:\\s*(?:"[^"]*"|[^\\s,}]+)`, 'gi'), '[redacted]');
   }
 
   // Existing key=value / key:value shape (no quotes).
@@ -93,11 +90,16 @@ function redactExceptionProperties(
     properties.$exception_message = redactExceptionText(properties.$exception_message);
   }
   if (typeof properties.$exception_stack_trace_raw === 'string') {
-    properties.$exception_stack_trace_raw = redactExceptionText(properties.$exception_stack_trace_raw);
+    properties.$exception_stack_trace_raw = redactExceptionText(
+      properties.$exception_stack_trace_raw,
+    );
   }
   if (Array.isArray(properties.$exception_list)) {
     properties.$exception_list = (properties.$exception_list as Array<Record<string, unknown>>).map(
-      (entry) => (typeof entry?.value === 'string' ? { ...entry, value: redactExceptionText(entry.value) } : entry),
+      (entry) =>
+        typeof entry?.value === 'string'
+          ? { ...entry, value: redactExceptionText(entry.value) }
+          : entry,
     );
   }
   if (Array.isArray(properties.$exception_values)) {
@@ -127,59 +129,113 @@ const redactUrl = (request: Record<string, unknown>) => {
   delete request.responseHeaders;
   delete request.requestBody;
   delete request.responseBody;
-  return request as Parameters<NonNullable<NonNullable<import('@posthog/types').SessionRecordingOptions['maskCapturedNetworkRequestFn']>>>[0];
+  return request as Parameters<
+    NonNullable<
+      NonNullable<import('@posthog/types').SessionRecordingOptions['maskCapturedNetworkRequestFn']>
+    >
+  >[0];
 };
+
+/**
+ * FR-CON-002/003 (OD-OBS-2, ADR-0067). The preference is OURS, in localStorage — not the SDK's
+ * internal opt-out cookie. That matters: posthog-js's own opt-out still permits its remote-config
+ * fetch, so "no network request to the PostHog host" (AC-CON-003) is only true if we never call
+ * `posthog.init` at all. `posthog.opt_out_capturing()` is still called so the CURRENT session stops
+ * immediately, before any reload.
+ */
+const OPT_OUT_STORAGE_KEY = 'pmo.analyticsOptOut';
+
+function readOptOut(): boolean {
+  try {
+    return globalThis.localStorage?.getItem(OPT_OUT_STORAGE_KEY) === 'true';
+  } catch {
+    return false; // storage blocked (private mode / embedded) — default is opt-IN per OD-OBS-2
+  }
+}
+
+function doInit(config: AnalyticsConfig): void {
+  activeConfig = config;
+  if (!config.enabled || initialized || !config.posthogKey || readOptOut()) return;
+  posthog.init(config.posthogKey, {
+    api_host: config.posthogHost,
+    defaults: '2026-01-30',
+    capture_pageview: false,
+    // FR-PHG-004: EXPLICIT. Its default is 'if_capture_pageview', so capture_pageview:false had
+    // silently disabled $pageleave too. We keep it off deliberately: "last module before exit"
+    // (FR-PHG-020) is answered by the final app_route_viewed of a session, which we already send,
+    // and $pageleave is a billed event that would add nothing.
+    capture_pageleave: false,
+    person_profiles: 'identified_only',
+    // FR-CON-001 (OD-OBS-2): honour Do Not Track. Disclosure + opt-out + DNT, no banner.
+    respect_dnt: true,
+    disable_session_recording: !config.replayAndAutocapture,
+    // FR-PHG-001/002. `capture_heatmaps`, not the deprecated `enable_heatmaps` (which was also set
+    // to the WRONG value). Heatmaps carry rage- and dead-click COORDINATES and are NOT billed
+    // against the event allowance -- under OD-OBS-1 (no autocapture for real users) this is the
+    // only rage-click signal available at all, since $rageclick is emitted from inside the
+    // autocapture code path and is unreachable with autocapture:false.
+    capture_heatmaps: true,
+    // FR-PHG-003: EXPLICIT. The docs claim a default of true but the SDK type source declares
+    // `@default undefined`, which defers to remote project config -- relying on the documented
+    // default risks capturing nothing.
+    capture_dead_clicks: true,
+    // FR-PHG-001: web vitals yes, network timing no (URLs/payload shapes are a leak surface).
+    capture_performance: { web_vitals: true, network_timing: false },
+    enable_recording_console_log: false,
+    property_denylist: POSTHOG_PROPERTY_DENYLIST,
+    autocapture: config.replayAndAutocapture
+      ? {
+          dom_event_allowlist: ['click'],
+          element_allowlist: ['a', 'button'],
+          capture_copied_text: false,
+          element_attribute_ignorelist: ['aria-label', 'data-sensitive'],
+        }
+      : false,
+    session_recording: {
+      maskAllInputs: true,
+      maskTextSelector: '.ph-mask,[data-ph-mask="true"]',
+      blockSelector: '.ph-no-capture,[data-ph-no-capture="true"]',
+      recordHeaders: false,
+      recordBody: false,
+      maskCapturedNetworkRequestFn: redactUrl,
+    },
+    before_send: redactExceptionProperties,
+  });
+  initialized = true;
+}
 
 export const analyticsClient = {
   init(config: AnalyticsConfig) {
-    activeConfig = config;
-    if (!config.enabled || initialized || !config.posthogKey) return;
-    posthog.init(config.posthogKey, {
-      api_host: config.posthogHost,
-      defaults: '2026-01-30',
-      capture_pageview: false,
-      // FR-PHG-004: EXPLICIT. Its default is 'if_capture_pageview', so capture_pageview:false had
-      // silently disabled $pageleave too. We keep it off deliberately: "last module before exit"
-      // (FR-PHG-020) is answered by the final app_route_viewed of a session, which we already send,
-      // and $pageleave is a billed event that would add nothing.
-      capture_pageleave: false,
-      person_profiles: 'identified_only',
-      // FR-CON-001 (OD-OBS-2): honour Do Not Track. Disclosure + opt-out + DNT, no banner.
-      respect_dnt: true,
-      disable_session_recording: !config.replayAndAutocapture,
-      // FR-PHG-001/002. `capture_heatmaps`, not the deprecated `enable_heatmaps` (which was also set
-      // to the WRONG value). Heatmaps carry rage- and dead-click COORDINATES and are NOT billed
-      // against the event allowance -- under OD-OBS-1 (no autocapture for real users) this is the
-      // only rage-click signal available at all, since $rageclick is emitted from inside the
-      // autocapture code path and is unreachable with autocapture:false.
-      capture_heatmaps: true,
-      // FR-PHG-003: EXPLICIT. The docs claim a default of true but the SDK type source declares
-      // `@default undefined`, which defers to remote project config -- relying on the documented
-      // default risks capturing nothing.
-      capture_dead_clicks: true,
-      // FR-PHG-001: web vitals yes, network timing no (URLs/payload shapes are a leak surface).
-      capture_performance: { web_vitals: true, network_timing: false },
-      enable_recording_console_log: false,
-      property_denylist: POSTHOG_PROPERTY_DENYLIST,
-      autocapture: config.replayAndAutocapture
-        ? {
-            dom_event_allowlist: ['click'],
-            element_allowlist: ['a', 'button'],
-            capture_copied_text: false,
-            element_attribute_ignorelist: ['aria-label', 'data-sensitive'],
-          }
-        : false,
-      session_recording: {
-        maskAllInputs: true,
-        maskTextSelector: '.ph-mask,[data-ph-mask="true"]',
-        blockSelector: '.ph-no-capture,[data-ph-no-capture="true"]',
-        recordHeaders: false,
-        recordBody: false,
-        maskCapturedNetworkRequestFn: redactUrl,
-      },
-      before_send: redactExceptionProperties,
-    });
-    initialized = true;
+    doInit(config);
+  },
+
+  /** FR-CON-002: has this browser opted out of analytics? Survives reloads. */
+  hasOptedOut(): boolean {
+    return readOptOut();
+  },
+
+  /** FR-CON-003: stop capture now AND on every future session. */
+  optOut() {
+    try {
+      globalThis.localStorage?.setItem(OPT_OUT_STORAGE_KEY, 'true');
+    } catch {
+      /* storage blocked — the in-session opt-out below still applies */
+    }
+    if (initialized) posthog.opt_out_capturing();
+  },
+
+  /** FR-CON-002: opt back in; initialise if the opt-out had suppressed init. */
+  optIn() {
+    try {
+      globalThis.localStorage?.removeItem(OPT_OUT_STORAGE_KEY);
+    } catch {
+      /* storage blocked */
+    }
+    if (initialized) {
+      posthog.opt_in_capturing();
+      return;
+    }
+    if (activeConfig) doInit(activeConfig);
   },
 
   capture(event: AnalyticsEventName, properties: SafeProperties = {}) {

@@ -215,3 +215,9 @@ export function trackAgentComposeViewSaved(runId: string): void {
   const built = buildAgentComposeViewSavedEvent(runId);
   analyticsClient.capture(built.event, built.properties);
 }
+
+// ── Consent (FR-CON-002/003, ADR-0067) ───────────────────────────────────
+/** FR-CON-002/003 — the in-app analytics opt-out (see /privacy). */
+export function analyticsOptOut(): void { analyticsClient.optOut(); }
+export function analyticsOptIn(): void { analyticsClient.optIn(); }
+export function hasAnalyticsOptedOut(): boolean { return analyticsClient.hasOptedOut(); }

@@ -1,3 +1,6 @@
+// @vitest-environment jsdom
+// The opt-out tests below use `window.localStorage` (DOM global absent in the `node` test
+// project — perf/test-speed split); see src/lib/analytics/config.test.ts for the same pattern.
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AnalyticsConfig } from './config';
 
@@ -18,6 +21,8 @@ const posthog = vi.hoisted(() => ({
   register: vi.fn(),
   reset: vi.fn(),
   captureException: vi.fn(),
+  opt_out_capturing: vi.fn(),
+  opt_in_capturing: vi.fn(),
 }));
 
 vi.mock('posthog-js', () => ({ default: posthog }));
@@ -26,6 +31,8 @@ import { analyticsClient, POSTHOG_PROPERTY_DENYLIST } from './client';
 
 /** Aliases used by the E1/E3 signal-config and opt-out tests below. */
 const initSpy = posthog.init;
+const captureSpy = posthog.capture;
+const optOutSpy = posthog.opt_out_capturing;
 
 const base: AnalyticsConfig = {
   enabled: true,
@@ -351,5 +358,38 @@ describe('analyticsClient.init — signal config (FR-PHG-001..004, FR-CON-001)',
     analyticsClient.__resetForTests();
     analyticsClient.init(enabledConfig());
     expect((initSpy.mock.calls[0][1] as Record<string, unknown>).respect_dnt).toBe(true);
+  });
+});
+
+describe('analytics opt-out (FR-CON-002/003)', () => {
+  beforeEach(() => { window.localStorage.clear(); analyticsClient.__resetForTests(); initSpy.mockClear(); });
+
+  it('AC-CON-002: opting out persists the preference', () => {
+    analyticsClient.init(enabledConfig());
+    analyticsClient.optOut();
+    expect(analyticsClient.hasOptedOut()).toBe(true);
+    expect(window.localStorage.getItem('pmo.analyticsOptOut')).toBe('true');
+  });
+
+  it('AC-CON-003: opting out calls posthog.opt_out_capturing (stops the CURRENT session)', () => {
+    analyticsClient.init(enabledConfig());
+    analyticsClient.optOut();
+    expect(optOutSpy).toHaveBeenCalled();
+  });
+
+  it('AC-CON-003: a persisted opt-out means init NEVER calls posthog.init on the next session', () => {
+    window.localStorage.setItem('pmo.analyticsOptOut', 'true');
+    analyticsClient.init(enabledConfig());
+    expect(initSpy).not.toHaveBeenCalled();
+    analyticsClient.capture('app_route_viewed', {});
+    expect(captureSpy).not.toHaveBeenCalled();
+  });
+
+  it('AC-CON-002: opting back in clears the preference and initialises', () => {
+    window.localStorage.setItem('pmo.analyticsOptOut', 'true');
+    analyticsClient.init(enabledConfig());
+    analyticsClient.optIn();
+    expect(analyticsClient.hasOptedOut()).toBe(false);
+    expect(initSpy).toHaveBeenCalledTimes(1);
   });
 });
