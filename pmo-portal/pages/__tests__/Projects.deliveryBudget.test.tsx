@@ -118,7 +118,7 @@ describe('Projects delivery progress + budget used', () => {
     expect(screen.getByText('53%')).toBeInTheDocument();
     expect(screen.getByText('No phases yet')).toBeInTheDocument();
 
-    // Freed-Blue Status Rule (CW-2) + S1 (ADR-0037): on-hand "Ongoing Project" is the
+    // Freed-Blue Status Rule (CW-2) + S1 (ADR-0068): on-hand "Ongoing Project" is the
     // neutral grey `progress` treatment — a muted dot + muted label, NO tint slab and
     // NOT the action-blue (the LABEL carries identity).
     const ongoingStatus = screen.getByText('Ongoing Project').closest('span');
