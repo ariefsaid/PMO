@@ -291,20 +291,39 @@ function genId(): string {
 /**
  * Insert an owner notification via the MINTED owner client (RLS pins owner_id/org_id via DEFAULT —
  * never sent). Used for the fail-quiet-but-visible warning paths (condition-unevaluable §4;
- * over-credit §6). Swallowed on error — a notify failure must not abort the tick.
+ * over-credit §6).
+ *
+ * FR-HRD-020: a notify failure must not abort the tick, but it must NOT be silent either. Both
+ * supabase-js failure modes are handled — the resolve-with-`error` shape (the ordinary one, which
+ * the previous bare `catch {}` could never see) and a thrown rejection. Returns whether the
+ * notification landed; never throws.
  */
-async function notifyOwner(
+export async function notifyOwner(
   mintedClient: unknown,
   severity: 'info' | 'warning' | 'critical',
   title: string,
   body: string | null,
   metadata: Record<string, unknown> | null,
-): Promise<void> {
+): Promise<boolean> {
   try {
     const sb = mintedClient as { from: (t: string) => { insert: (r: Record<string, unknown>) => Promise<{ error: unknown }> } };
-    await sb.from('notifications').insert({ severity, title, body, metadata });
-  } catch {
-    // never surface — notify is best-effort.
+    const { error } = await sb.from('notifications').insert({ severity, title, body, metadata });
+    if (error) {
+      logStructuredError({
+        fn: 'agent-dispatch',
+        errorCode: 'NOTIFY_INSERT_FAILED',
+        contextId: (error as { code?: string }).code,
+      });
+      return false;
+    }
+    return true;
+  } catch (err) {
+    logStructuredError({
+      fn: 'agent-dispatch',
+      errorCode: 'NOTIFY_INSERT_FAILED',
+      contextId: err instanceof Error ? err.name : 'unknown',
+    });
+    return false;
   }
 }
 
