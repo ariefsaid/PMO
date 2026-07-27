@@ -41,4 +41,34 @@ describe('notifyOwner', () => {
     const client = { from: () => ({ insert: async () => ({ error: null }) }) };
     await expect(notifyOwner(client, 'info', 't', null, null)).resolves.toBe(true);
   });
+
+  // I5 (2026-07-28 review): contextId was spent on the raw Postgres error code / err.name instead
+  // of the correlation id the field is documented for (errorLog.ts: "an optional correlation id
+  // (runId / automationId / etc.)") — so the structured log line could never say WHICH automation
+  // failed to notify. The caller now supplies the correlation id explicitly.
+  it('I5: a RESOLVED-error failure logs the CALLER-SUPPLIED correlation id, not the PG error code', async () => {
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const client = { from: () => ({ insert: async () => ({ error: { code: '42501' } }) }) };
+
+    await notifyOwner(client, 'warning', 'title', 'body', { automation_id: 'auto-A' }, 'auto-A');
+
+    expect(errSpy).toHaveBeenCalledWith(
+      '[agent-dispatch] NOTIFY_INSERT_FAILED',
+      expect.objectContaining({ contextId: 'auto-A' }),
+    );
+    errSpy.mockRestore();
+  });
+
+  it('I5: a THROWN failure ALSO logs the caller-supplied correlation id, not err.name', async () => {
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const client = { from: () => ({ insert: async () => { throw new Error('connection refused'); } }) };
+
+    await notifyOwner(client, 'warning', 't', null, null, 'auto-B');
+
+    expect(errSpy).toHaveBeenCalledWith(
+      '[agent-dispatch] NOTIFY_INSERT_FAILED',
+      expect.objectContaining({ contextId: 'auto-B' }),
+    );
+    errSpy.mockRestore();
+  });
 });
