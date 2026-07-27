@@ -123,15 +123,36 @@ BEHIND `dev`, content identical).
 - **`spike-rls.yml`** — actions ARE now SHA-pinned and the key is a masked local ephemeral; only
   `npm install` → `npm ci` remains. Two of the three original concerns are already closed.
 - **3 runbooks** — prod-deploy / secret-rotation / agent-LLM-outage absent under any name.
-- **credit-race wiring** — ⚑ **2** `check()` sites (`agent-chat/handler.ts:1301`, `:1710`), not 3;
-  `release_credits` has ZERO callers outside generated types.
-- **contacts-inbound** — no `contact` kind in the ERPNext feed registry (zero hits).
-- **`entry_date` week-range** — `0055:70-76` inserts entry dates unbounded by the sheet's week.
+- **credit-race wiring — NOT a small defect; DEFERRED Director-scoped work (re-verified 2026-07-27).**
+  ⚑ **2** `check()` sites (`agent-chat/handler.ts:1301`, `:1710`), not 3; `release_credits` has ZERO
+  callers outside generated types. But this is the **deliberately-deferred half of the audit-CRITICAL
+  race fix** (PR #257 / `#15` below), not an oversight: `creditRateGuard.ts:77-79` + the `RESERVE_UNIT`
+  comment explicitly defer call-site wiring to the Director with a documented residual-overspend
+  tradeoff. The reserve path EXISTS (`reserve_credits` under `pg_advisory_xact_lock`, mig `0077`,
+  pgTAP `0134`) and `check(orgId, runId?)` accepts a runId — the missing piece is threading runIds
+  at the 2 call-sites + calling `release_credits(runId)` after the model turn lands. That changes
+  agent/LLM credit behavior (`AGENT_CREDITS_ENFORCED` is OFF today) and is a Director decision,
+  not a wiring tick. Don't pick this up as "small debt."
+- **contacts-inbound — NOT a defect; UNBUILT FEATURE (re-verified 2026-07-27).** There is no `contact`
+  kind in the ERPNext feed registry (`doctypeRegistry.ts`: 14 kinds; the only party kinds are
+  `supplier` + `customer`) because **inbound contact sync was never specced**. `feedKinds.ts` routes
+  money/company kinds only. Adding `contact` means a new mirror table + adoption path + ADR — that's
+  a feature (spine-5 CRM territory, see the candidate program's D-batch), not a fix. Reclassify:
+  this is a demand-gated feature, not owed debt.
+- **`entry_date` week-range — addressed in PR #396 (2026-07-27).** `0055:70-76` inserted entry
+  dates unbounded by the sheet's week. Fixed in migration **0168**: a `v_bad_date` preflight in
+  `save_timesheet_week` rejects any `entry_date` outside `[p_week_start_date, +6]` (errcode 23514,
+  before any write). pgTAP **0161** proves red→green + atomicity. 3-reviewed (security SHIP,
+  spec/code-quality APPROVE-WITH-FIXES→fixed).
 - **`.select('*')` trim** — ⚑ **Re-counted 2026-07-27; the old "31 / 15 modules" was a scope mix-up.**
   Actual: **8 occurrences across 3 modules** in `supabase/functions/` (`adapter-dispatch`,
   `agent-dispatch`, `m365-token-custody`) and **32 occurrences across 15 files** in `pmo-portal/src/`
   (mostly `src/lib/db/*`). The earlier number described the portal, not the edge fns. Both are real
   trim candidates — over-fetching is over-fetching — but cite the right count per location.
+  ⚑ **Status 2026-07-27:** the **8 edge-fn sites** are addressed in **PR #397** — 7 trimmed to
+  explicit column lists, **1 left wide by design** (`proxy.ts:61`, the Graph proxy legitimately
+  holds the access-token secret; documented in-code). The **32 portal sites** in `pmo-portal/src/`
+  remain a separate, larger sweep — not started.
 - **org-seam pgTAP cross-org SWEEP** — the `stamp_org_id()` trigger landed (`0074`), but ADR-0047's
   catalog-driven sweep does not exist; coverage is per-feature spot tests only.
 
