@@ -29,6 +29,18 @@
 -- and a future GRANT or a rewrite of the `procurements` SELECT policy would silently open it. 0110
 -- makes the guarantee local and explicit. The structural assertion below is therefore the one that
 -- genuinely goes RED without 0110; the behavioural ones are regression guards.
+--
+-- ⚑⚑ 0174 (FR-CPS-030) revoked table INSERT on `procurement_invoices` from `authenticated` outright,
+-- leaving create_procurement_invoice as the only client write path. That puts this table in exactly
+-- the position the header describes for `payments`: an INSERT denial would now prove the GRANT, not
+-- the POLICY, and both surface as 42501 — the DENY assertion below would have gone on passing while
+-- proving nothing, and the ALLOW assertion would have failed for a reason unrelated to 0110. Rather
+-- than delete either (which would lose the only behavioural proof of the INSERT conjunct), the
+-- behavioural section RE-GRANTS INSERT inside this transaction, so the policy is exercised
+-- independently of the privilege check that now masks it. The grant is DDL inside `begin … rollback`
+-- and is undone by the closing rollback; it is revoked again explicitly the moment the section ends.
+-- Same device as supabase/tests/0166_project_create_sod.test.sql. The DENY's message is now asserted
+-- verbatim for the same reason.
 begin;
 select plan(7);
 
@@ -58,6 +70,10 @@ insert into procurement_invoices (id, org_id, procurement_id, vi_number, invoice
 -- ════════════════════════════════════════════════════════════════════════════
 -- DENY — the disabled member cannot WRITE. This is the hole 0110 closes.
 -- ════════════════════════════════════════════════════════════════════════════
+-- See the ⚑⚑ note in the header: without this re-grant the INSERT assertions below would be answered
+-- by 0174's revoke instead of by 0110's policy.
+grant insert on public.procurement_invoices to authenticated;
+
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"01100000-0000-0000-0000-0000000000a2","role":"authenticated"}';
 
@@ -65,8 +81,8 @@ select throws_ok(
   $$insert into procurement_invoices (org_id, procurement_id, vi_number, invoice_date, status)
     values ('01100000-0000-0000-0000-000000000001','01100000-0000-0000-0000-0000000d0001','VI-B10-EVIL','2026-07-02','Received')$$,
   '42501',
-  null,
-  'Luna B10-AP disabled member cannot INSERT a procurement_invoice (is_active_member conjunct)');
+  'new row violates row-level security policy for table "procurement_invoices"',
+  'Luna B10-AP disabled member cannot INSERT a procurement_invoice (is_active_member conjunct, NOT the grant)');
 
 -- DELETE is granted to `authenticated` too, so the gap was reachable both ways. A disabled user
 -- destroying an AP invoice is the more damaging half.
@@ -98,6 +114,12 @@ select lives_ok(
   $$insert into procurement_invoices (org_id, procurement_id, vi_number, invoice_date, status)
     values ('01100000-0000-0000-0000-000000000001','01100000-0000-0000-0000-0000000d0001','VI-B10-OK','2026-07-02','Received')$$,
   'Luna B10-AP ACTIVE Finance member can still INSERT a procurement_invoice (0110 did not break writes)');
+
+-- Close the window opened for the behavioural section: from here on the catalog is back to what 0174
+-- leaves behind, so nothing downstream can accidentally rely on the temporary grant. (The closing
+-- rollback would undo it anyway; this makes the scope explicit rather than implicit.)
+reset role;
+revoke insert on public.procurement_invoices from authenticated;
 
 select * from finish();
 rollback;

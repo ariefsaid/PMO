@@ -62,7 +62,11 @@ select results_eq(
 );
 
 -- AC-DOC-060: Issued parent also superseded — set up a second parent/child pair
--- Rev C: Issued parent
+-- Rev C: Issued parent. Seeded AS TABLE OWNER, like every other fixture in this file: 0174's
+-- project_documents_origination_guard rejects a client-role INSERT that is not at the origination
+-- status, and this row's `Issued` state is pure fixture (the thing under test is the auto-Supersede
+-- on the parent, not how the parent got to Issued). The role is restored immediately below.
+reset role;
 insert into project_documents (id, org_id, project_id, code, category, title, revision, status, author_id) values
   ('00660000-0000-0000-0000-000000000040','00000000-0000-0000-0000-000000000001',
    '00660000-0000-0000-0000-000000000020','DWG-SUP2','Drawing','Slab Detail','C','Issued',
@@ -76,6 +80,7 @@ insert into project_documents (id, org_id, project_id, code, category, title, re
    '00660000-0000-0000-0000-000000000040');
 
 -- Issue + Approve Rev D → Issued parent Rev C must also auto-Supersede
+set local role authenticated;
 set local request.jwt.claims = '{"sub":"00660000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 select lives_ok(
   $$ select transition_document_status('00660000-0000-0000-0000-000000000041','Issued') $$,
