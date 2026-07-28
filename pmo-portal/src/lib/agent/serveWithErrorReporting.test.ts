@@ -7,7 +7,10 @@
  * (e.g. external-companies' handleCompaniesRequest).
  */
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { wrapWithErrorReporting } from '../../../../supabase/functions/_shared/serveWithErrorReporting';
+import {
+  wrapWithErrorReporting,
+  serveWithErrorReporting,
+} from '../../../../supabase/functions/_shared/serveWithErrorReporting';
 import { __resetSinkForTests } from '../../../../supabase/functions/_shared/reportEdgeError';
 
 afterEach(() => {
@@ -54,5 +57,13 @@ describe('wrapWithErrorReporting', () => {
 
     const serialized = spy.mock.calls.map((c) => JSON.stringify(c)).join('\n');
     expect(serialized).not.toContain('super secret token abc123');
+  });
+});
+
+describe('serveWithErrorReporting — the missing-Deno case (review round: no `Deno` -> no server, no error, no log is the exact green-by-absence class this PR exists to kill)', () => {
+  it('throws LOUDLY when Deno is absent, instead of a silent `deno?.serve(...)` no-op — safe here: no shipped edge fn or Vitest suite calls serveWithErrorReporting outside a real Deno runtime', () => {
+    // `Deno` is genuinely undefined under Vitest/Node — this exercises the real absent-global path,
+    // not a stub.
+    expect(() => serveWithErrorReporting('health', () => new Response('ok'))).toThrow(/Deno/);
   });
 });
