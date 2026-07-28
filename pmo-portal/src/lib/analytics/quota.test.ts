@@ -7,49 +7,82 @@
 import { describe, it, expect } from 'vitest';
 import { evaluateQuota, validateQuotaEnv } from '../../../../scripts/posthog/quota.mjs';
 
+/**
+ * ⚑ THIS FIXTURE IS A REAL RESPONSE, captured live from
+ * `GET https://us.i.posthog.com/api/projects/465502/quota_limits/` on 2026-07-28.
+ *
+ * The previous fixture invented a `{ quota_limits: [{ resource, usage, limit }] }` array. The API
+ * returns no such field — it returns `limited`, an OBJECT KEYED BY RESOURCE NAME. Every one of the
+ * 8 tests here (including the 3 security ones) passed against that invented shape, because the
+ * fixture and the parser were written from the same misunderstanding. A test can only catch a
+ * misreading of an external contract if its fixture comes from the contract, not from the code.
+ *
+ * Only the parser's fail-closed guard — added by a security review for an unrelated reason — kept
+ * this from reporting "✓ all quotas below threshold" forever against a response it never parsed.
+ */
 const payload = {
-  quota_limits: [
-    { resource: 'events', usage: 810_000, limit: 1_000_000 },
-    { resource: 'recordings', usage: 100, limit: 5_000 },
-    { resource: 'exceptions', usage: 100_000, limit: 100_000 },
-  ],
+  limited: {
+    events: { limited: false, usage: 238, limit: 1_000_000 },
+    exceptions: { limited: false, usage: 13, limit: 100_000 },
+    recordings: { limited: false, usage: 25, limit: 5_000 },
+    survey_responses: { limited: false, usage: 0, limit: 1_500 },
+    ai_credits: { limited: false, usage: 32, limit: 500 },
+    // Real resources come back with null usage AND null limit — must not divide, must not alarm.
+    api_queries_read_bytes: { limited: false, usage: null, limit: null },
+    workflow_push: { limited: false, usage: null, limit: null },
+  },
+  code_usage_billing_active: false,
 };
 
 describe('evaluateQuota', () => {
-  it('AC-PHG-030: a resource at >=80% exits non-zero and names resource, usage and limit', () => {
+  it('AC-PHG-030: the REAL live payload shape parses, and a healthy project exits zero', () => {
     const r = evaluateQuota(payload, 0.8);
-    expect(r.exitCode).toBe(1);
-    expect(r.lines.join('\n')).toMatch(/events.*810000.*1000000/);
-    expect(r.lines.join('\n')).toMatch(/exceptions.*100000.*100000/);
-  });
-
-  it('AC-PHG-030: a resource below the threshold is not reported as a breach', () => {
-    expect(evaluateQuota(payload, 0.8).lines.join('\n')).not.toMatch(/recordings/);
-  });
-
-  it('AC-PHG-030: all clear exits zero', () => {
-    const r = evaluateQuota({ quota_limits: [{ resource: 'events', usage: 1, limit: 1_000_000 }] }, 0.8);
-    expect(r.exitCode).toBe(0);
-  });
-
-  it('AC-PHG-030: a resource with no limit (unlimited) is skipped, not divided by zero', () => {
-    const r = evaluateQuota({ quota_limits: [{ resource: 'events', usage: 5, limit: null }] }, 0.8);
     expect(r.exitCode).toBe(0);
     expect(r.lines).toEqual([]);
   });
 
-  // SECURITY finding (2026-07-27 review round 2, MEDIUM #1): `payload?.quota_limits ?? []`
-  // treats ANY malformed 200 response (a renamed field, a schema change, an error-shaped 200)
-  // as "zero rows" -> exitCode 0 -> check-quota.mjs prints "all clear". A fail-OPEN alarm is
-  // worse than no alarm: it actively asserts safety it never checked.
-  it('AC-PHG-030 SECURITY: a payload with no quota_limits array does NOT report all-clear', () => {
-    const r = evaluateQuota({ oops: 'the endpoint schema changed' }, 0.8);
-    expect(r.exitCode).not.toBe(0);
+  it('AC-PHG-030: a resource at >=80% exits non-zero and names resource, usage and limit', () => {
+    const hot = { ...payload, limited: { ...payload.limited, events: { limited: false, usage: 810_000, limit: 1_000_000 } } };
+    const r = evaluateQuota(hot, 0.8);
+    expect(r.exitCode).toBe(1);
+    expect(r.lines.join('\n')).toMatch(/events.*810000.*1000000/);
   });
 
-  it('AC-PHG-030 SECURITY: quota_limits present but not an array does NOT report all-clear', () => {
-    const r = evaluateQuota({ quota_limits: 'unexpected-string' }, 0.8);
-    expect(r.exitCode).not.toBe(0);
+  it('AC-PHG-030: a resource below the threshold is not reported as a breach', () => {
+    const hot = { ...payload, limited: { ...payload.limited, events: { limited: false, usage: 810_000, limit: 1_000_000 } } };
+    expect(evaluateQuota(hot, 0.8).lines.join('\n')).not.toMatch(/recordings/);
+  });
+
+  // `limited: true` means PostHog has ALREADY stopped ingesting and the excess is being discarded
+  // permanently. That is the emergency this alarm exists for, and it must fire regardless of ratio.
+  it('AC-PHG-030: a resource already flagged limited:true is a breach even below the threshold', () => {
+    const stopped = { ...payload, limited: { ...payload.limited, events: { limited: true, usage: 1, limit: 1_000_000 } } };
+    const r = evaluateQuota(stopped, 0.8);
+    expect(r.exitCode).toBe(1);
+    expect(r.lines.join('\n')).toMatch(/events/);
+  });
+
+  it('AC-PHG-030: null usage/limit is skipped, never divided and never alarmed', () => {
+    const r = evaluateQuota({ limited: { api_queries_read_bytes: { limited: false, usage: null, limit: null } } }, 0.8);
+    expect(r.exitCode).toBe(0);
+    expect(r.lines).toEqual([]);
+  });
+
+  // SECURITY (2026-07-27 review round 2, MEDIUM #1): a malformed 200 must NOT read as "all clear".
+  // A fail-OPEN alarm is worse than no alarm: it actively asserts safety it never checked.
+  it('AC-PHG-030 SECURITY: a payload with no limited object does NOT report all-clear', () => {
+    expect(evaluateQuota({ oops: 'the endpoint schema changed' }, 0.8).exitCode).not.toBe(0);
+  });
+
+  it('AC-PHG-030 SECURITY: limited present but not an object does NOT report all-clear', () => {
+    expect(evaluateQuota({ limited: 'unexpected-string' }, 0.8).exitCode).not.toBe(0);
+    expect(evaluateQuota({ limited: [] }, 0.8).exitCode).not.toBe(0);
+  });
+
+  // The "scanned nothing" class: an empty resource map means we checked zero allowances. Reporting
+  // green off that is the same defect as a gate that passes having scanned no files.
+  it('AC-PHG-030 SECURITY: an EMPTY limited object does NOT report all-clear', () => {
+    expect(evaluateQuota({ limited: {} }, 0.8).exitCode).not.toBe(0);
   });
 
   it('AC-PHG-030 SECURITY: a null/undefined payload does NOT report all-clear', () => {
