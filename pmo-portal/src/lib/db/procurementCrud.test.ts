@@ -86,8 +86,14 @@ describe('AC-PROC-001 createProcurement (New PR header → Draft, requester stam
     expect(insert.title).toBe('Welding consumables');
     expect(insert.project_id).toBe('proj1');
     expect(insert.requested_by_id).toBe('user-uid-1');
-    // status defaults to Draft on the server, but the DAL may set it explicitly to Draft.
-    expect(insert.status === undefined || insert.status === 'Draft').toBe(true);
+    // `status` must NOT be sent. Migration 0174 revoked the table-wide INSERT grant on
+    // `procurements` and re-granted a narrower column list that omits `status`, so naming the column
+    // is a hard 42501 at the privilege check — every PR create would fail in production. The column
+    // default is 'Draft' (the sole origination status), so omitting it is also behaviourally
+    // identical. This assertion used to read `status === undefined || status === 'Draft'`, which
+    // both branches satisfied and which would have let a refactor re-adding `status: 'Draft'` ship
+    // green.
+    expect(insert.status).toBeUndefined();
     // org_id is NEVER sent (RLS stamps it from auth_org_id()).
     expect(JSON.stringify(h.calls.insert)).not.toContain('org_id');
     expect(h.calls.single).toBe(1);

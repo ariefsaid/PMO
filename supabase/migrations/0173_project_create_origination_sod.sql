@@ -60,12 +60,21 @@
 -- does nothing else — no delete, no quarantine, no blocked apply. That is option (a), the spec's
 -- recommended default while OD-PCS-1 is open.
 --
--- Reversibility (ADR-0006): `supabase db reset`. Manual reverse:
---   drop trigger projects_origination_guard on public.projects;
---   drop trigger projects_audit_insert     on public.projects;
---   drop function public.assert_project_origination_insert();
---   drop function public.audit_project_insert();
---   grant insert on public.projects to authenticated;   -- restores the blanket grant
+-- Reversibility (ADR-0006). ⚑ NOT `supabase db reset` — v0.8.0 is in production and a reset there is
+-- destructive and local-only. The manual reverse, statement for statement:
+--   drop trigger if exists projects_origination_guard on public.projects;
+--   drop trigger if exists projects_audit_insert     on public.projects;
+--   drop function if exists public.assert_project_origination_insert();
+--   drop function if exists public.audit_project_insert();
+--   -- ⚑ THIS ONE RESTORES THE VULNERABLE STATE. The blanket INSERT grant is the hole §3 closes: it
+--   -- re-exposes decided_at / customer_contract_ref / contract_date to a client INSERT, which is
+--   -- exactly how a PM could forge a won project with an arbitrary contract value and no audit row.
+--   -- Reverse only with that understood, and only together with the trigger drop above (the trigger
+--   -- is the second layer; dropping the trigger alone leaves the grant layer, and vice versa).
+--   grant insert on public.projects to authenticated;
+-- ⚑ 0175 supersedes §2a's body (it delegates to the shared public.actor_bypasses_rls() helper instead
+-- of carrying the inline pg_roles lookup below). Reversing this file does NOT restore that inline
+-- copy — reverse 0175 first if that is what you want.
 
 -- ============================================================================
 -- 1. AC-PCS-020 — apply-time visibility for pre-existing violations. WARN ONLY (OD-PCS-1 option a).

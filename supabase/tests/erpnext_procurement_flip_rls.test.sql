@@ -144,19 +144,30 @@ select lives_ok(
   'rfqs service-role mirror write lives_ok');
 
 -- ── procurement_quotations: §7 (Finding 8 — is_selected preserved) ──
+-- ⚑ GATE MOVED (migration 0175, the UPDATE half of the create-path SoD class). `authenticated` no
+-- longer holds ANY update grant on this table, so all three statements below are now stopped at the
+-- privilege check rather than by 0098's native-mirror guard. The messages are asserted from here on:
+-- a bare `'42501', null` would go green for the wrong reason and hide a regression in either gate.
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"00970000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 select throws_ok(
   $$ update procurement_quotations set total_amount = 999 where id = '00970000-0000-0000-0000-000000000150' $$,
-  '42501', null,
+  '42501', 'permission denied for table procurement_quotations',
   'procurement_quotations user native UPDATE to total_amount denied while procurement externally-owned');
 select throws_ok(
   $$ update procurement_quotations set vq_number = 'HACKED' where id = '00970000-0000-0000-0000-000000000150' $$,
-  '42501', null,
+  '42501', 'permission denied for table procurement_quotations',
   'procurement_quotations user native UPDATE to vq_number denied while procurement externally-owned');
-select lives_ok(
+-- Finding 8's INTENT (the PMO enhancement is not taken away by the flip) is unchanged and still
+-- proven — but at the surviving layer: select_procurement_quote is postgres-owned and carries no flip
+-- guard, so is_selected still moves while flipped. That proof lives in
+-- supabase/tests/0168_update_path_sod_class.test.sql §E, which also asserts the denial below.
+-- What is gone here is the DIRECT table write, which had no caller and skipped the RPC's stage gate,
+-- role gate and single-transaction header sync.
+select throws_ok(
   $$ update procurement_quotations set is_selected = true where id = '00970000-0000-0000-0000-000000000150' $$,
-  'procurement_quotations PMO enhancement is_selected stays user-writable while flipped');
+  '42501', 'permission denied for table procurement_quotations',
+  'procurement_quotations is_selected is RPC-only (0175); the enhancement stays reachable while flipped via select_procurement_quote — 0168 §E');
 -- H-2 (audit): a user-JWT INSERT of a quotation is DENIED while flipped (quotations are ERP-sourced —
 -- the FE-routing-only reliance was a direct-RPC/INSERT bypass hole). service_role mirror INSERT is exempt.
 select throws_ok(
@@ -167,6 +178,10 @@ select throws_ok(
 
 reset role;
 set local request.jwt.claims = '{"role":"service_role"}';
+-- Setup, not an assertion: the partial-unique proof below needs an ALREADY-selected quote on this
+-- case. The user-JWT `set is_selected = true` above used to leave one behind; since 0175 it is denied,
+-- so the mirror writer's own (service-role) path establishes the precondition explicitly.
+update procurement_quotations set is_selected = true where id = '00970000-0000-0000-0000-000000000150';
 select throws_ok(
   $$ insert into procurement_quotations (org_id, procurement_id, vendor_id, total_amount, is_selected)
      values ('00970000-0000-0000-0000-000000000001','00970000-0000-0000-0000-000000000010','00970000-0000-0000-0000-000000000140',77,true) $$,

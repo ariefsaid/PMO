@@ -221,6 +221,16 @@ select is(
 -- dangerous columns are granted on both paths, so narrowing INSERT to match UPDATE would change
 -- nothing. The defect is that the create_procurement_* / select_procurement_quote definer RPCs were
 -- not the ONLY granted path. Table INSERT is revoked from `authenticated` outright.
+--
+-- ⚑ SCOPE OF THIS FILE (correction). What follows proves the INSERT half ONLY. When 0174 shipped,
+-- the 0010/0075 column-level UPDATE grant still covered exactly the dangerous columns, so the "ONLY
+-- granted path" claim above was false for UPDATE — a PM could reach every one of these forged states
+-- in two requests. The UPDATE half is closed by 0175 and proven by
+-- supabase/tests/0168_update_path_sod_class.test.sql, which asserts the whole-privilege state for
+-- both commands. Read the two files as one proof; neither is sufficient alone.
+-- ⚑ And even together they cover INSERT + UPDATE, NOT delete: `authenticated` still holds DELETE on
+-- all three tables. Deliberately open; see 0175's "STILL OPEN — DELETE" block, 0168 §J and
+-- docs/backlog.md.
 -- ════════════════════════════════════════════════════════════════════════════════════════════════
 select is(
   (select count(*)::int from information_schema.table_privileges

@@ -1,8 +1,26 @@
-# Spec — close the create-path SoD hole across the whole class (slice 2)
+# Spec — close the create-path SoD hole across the whole class (slices 2 + 3)
 
 **Status:** drafted 2026-07-28 (Director), owner instructed "fix all of them"
 **Slice 1:** `docs/specs/project-create-sod.spec.md` (`projects` only) — implemented separately
 **Relates to:** ADR-0019 (server-enforced SoD), ADR-0020, ADR-0027
+
+> ⚑ **CORRECTION, 2026-07-29 — this spec was wrong about the scope of the fix, and slice 3 exists to
+> repair that.** Everything below was written as an **INSERT-path** spec, because the class was
+> characterised as "SoD is enforced on the UPDATE path, the INSERT path is left open". For
+> `procurement_invoices` / `procurement_receipts` / `procurement_quotations` and for `timesheets` that
+> premise was false: the UPDATE path was **not** enforcing either. `0010` narrowed those three child
+> tables' UPDATE grant to a column list that still contained exactly the dangerous columns
+> (`.status`, `.status`, `.is_selected`), `0075` re-mirrored that list verbatim, and
+> `timesheets_update_own` pins only org/owner/`Draft` — it never constrained `approved_by` /
+> `approved_at`. So after slice 2 (`0174`) **every forgery §2 enumerates was still reachable in two
+> requests instead of one**, verified live against the local DB.
+>
+> **Slice 3 = `0175_update_path_sod_class.sql`**, proven by
+> `supabase/tests/0168_update_path_sod_class.test.sql`: it revokes the client UPDATE grant on the
+> three child tables entirely (no re-grant — the caller survey found no client UPDATE at all),
+> narrows `timesheets` UPDATE to the columns that do have callers, and adds the `approved_at` branch
+> `0174`'s create guard was missing. Read §5–§6 below as **slice 2's** acceptance criteria; slice 3's
+> live in the `0168` test file.
 
 ---
 
@@ -59,6 +77,16 @@ security-definer RPCs are **not the only granted path**. Probes forged `amount=8
 + `erp_docstatus=1`, a `gr_number` driving 3-way match, and a pre-selected quote that never passed
 `select_procurement_quote`'s stage+role gate.
 
+⚑ **And this paragraph then drew the wrong conclusion.** Having correctly observed that the dangerous
+columns are granted on **both** paths, the fix (FR-CPS-030, `0174`) revoked **INSERT only** — leaving
+the other half of the very asymmetry it had just described. Re-verified live at `0174`, as a plain
+Project Manager: `update procurement_invoices set status='Paid'` → `UPDATE 1`;
+`update procurement_receipts set status='Complete'` → `UPDATE 1`;
+`update procurement_quotations set is_selected=true, total_amount=1` → `UPDATE 1`. Closed by slice 3
+(`0175`), which revokes UPDATE on all three with **no** re-grant — the caller survey (FE DAL, edge
+functions, e2e helpers, importers) found **zero** client UPDATEs; every writer is either a definer RPC
+or the service-role read-model writer.
+
 The RLS `WITH CHECK` carries `NOT domain_externally_owned(...)` and a mirror guard, but
 `external_domain_ownership` is **empty**, so both are **currently no-ops**. A guard that is inert
 until an unrelated table is populated is not a control.
@@ -68,6 +96,15 @@ until an unrelated table is populated is not a control.
 `timesheets_insert` constrains only `user_id`. An Engineer inserted their own sheet already
 `status='Approved', approved_by=self`, defeating a check commented *"even an Admin can never approve
 their own timesheet… Do not reorder."*
+
+⚑ **"Correctly pins" was too generous.** `timesheets_update_own` pins org/owner/`Draft` and nothing
+else, and the grant was table-wide, so an Engineer could `update timesheets set approved_by=<self>,
+approved_at=now()` on their **own Draft sheet** — verified live at `0174` → `UPDATE 1`. Because
+`transition_timesheet`'s `Draft → Submitted` branch deliberately leaves `approved_by`/`approved_at`
+as-is, the forged approver **survived into `Submitted`** and was visible to
+`approved_timesheet_for_push`. `0174`'s own trigger message ("the approver is stamped only by
+`transition_timesheet`") was therefore false until slice 3 (`0175`) withheld both columns from the
+UPDATE grant and added the missing `approved_at` branch to the create guard.
 
 **Materiality is bounded, and the bound was verified:** `timesheet_entries_write` requires the parent
 sheet be `Draft`, so the forged sheet **cannot carry hours**; and there is no DELETE policy on
@@ -98,10 +135,23 @@ catalog, not assumed.**
 - **FR-CPS-020** — The system shall reject any INSERT into `project_documents` whose `status` is not
   the origination status.
 - **FR-CPS-030** — The system shall withhold INSERT privilege on `procurement_invoices`,
-  `procurement_receipts` and `procurement_quotations` from `authenticated`, leaving the existing
-  `create_procurement_*` / `select_procurement_quote` definer RPCs as the only write path.
+  `procurement_receipts` and `procurement_quotations` from `authenticated`.
+- **FR-CPS-031** *(slice 3, `0175`)* — The system shall **also** withhold UPDATE privilege on those
+  three tables from `authenticated` and `anon`, with no re-grant, leaving the existing
+  `create_procurement_*` / `select_procurement_quote` definer RPCs as the only client **INSERT and
+  UPDATE** path. *(This is the sentence FR-CPS-030 claimed and did not deliver.)*
+  ⚑ **STILL OPEN — DELETE.** Not "the only *write* path": `authenticated` retains a table DELETE
+  grant (`0075`) plus a permissive DELETE policy on each of the three, so a plain Project Manager can
+  `delete from procurement_invoices` a **Paid** invoice — verified live at `0175`. `timesheets` is
+  closed by RLS (no DELETE policy → `DELETE 0`). Left open deliberately: the right shape is an
+  ADR-0018 / ADR-0019 decision (soft-archive vs Admin-only destructive delete vs definer RPC), not a
+  grant tweak inside an UPDATE-path slice. Current state pinned by `0168` §J; tracked in
+  `docs/backlog.md`.
 - **FR-CPS-040** — The system shall reject any INSERT into `timesheets` whose `status` is not `Draft`
-  or which supplies a non-NULL `approved_by`.
+  or which supplies a non-NULL `approved_by` or `approved_at`.
+- **FR-CPS-041** *(slice 3, `0175`)* — The system shall withhold UPDATE privilege on
+  `timesheets.approved_by` and `timesheets.approved_at` from `authenticated`, re-granting UPDATE only
+  on `id, org_id, user_id, week_start_date, status, submitted_at` (the columns with real callers).
 - **FR-CPS-050** — `supabase/tests/0163_*.test.sql` shall not leave `dblink` installed in `public`
   with EXECUTE to `anon`. **A test shall not permanently mutate the shared database.**
 - **FR-CPS-060** — Every INSERT into `procurements`, `project_documents` and `timesheets` shall write

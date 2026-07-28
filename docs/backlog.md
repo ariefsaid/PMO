@@ -311,6 +311,39 @@ BEHIND `dev`, content identical).
   per year, or state why not.** Priority: real but not urgent — Admin-only, deliberate, and it corrupts
   reporting truth rather than moving money.
 
+### ⚑ OPEN (security) — procure-to-pay child rows are client-DELETE-able (found 2026-07-29, slice 3 of the create-path SoD class)
+Branch `fix/project-create-sod`, migration **0175** (`0175_update_path_sod_class.sql`), pinned by
+`supabase/tests/0168_update_path_sod_class.test.sql` §J. **Not a regression — pre-existing, and live
+in production today.**
+
+`0173`/`0174` (slices 1+2) closed the create-path SoD hole on INSERT and claimed the
+`create_procurement_*` / `select_procurement_quote` definer RPCs were "the ONLY write path". They were
+not: the 0010/0075 column-UPDATE grant still covered exactly the dangerous columns, so a plain PM
+reached every forged state in **two** requests. `0175` closes that UPDATE half. What remains open is
+**DELETE**. Verified live at `0175`, as a plain Project Manager:
+
+```
+delete from procurement_invoices   where id = <a Paid invoice>     -> DELETE 1
+delete from procurement_receipts   where id = <a Complete receipt> -> DELETE 1
+delete from procurement_quotations where id = <the selected quote> -> DELETE 1
+delete from timesheets             where id = <an Approved sheet>  -> DELETE 0   (closed — no DELETE policy)
+```
+
+Cause: `0075` grants table DELETE to `authenticated` on all three, and each carries a permissive
+DELETE policy (`procurement_invoices_delete`, `procurement_receipts_delete`, and the `FOR ALL`
+`procurement_quotations_write`). Impact: a 4-role insider can erase a paid vendor invoice or the
+goods receipt driving a 3-way match, and **there is no `audit_events` row for it** — `0076`'s AFTER
+DELETE audit convention was never wired to these three tables (unlike the create path `0173`/`0174`
+added). Reach: no FE caller uses it (**no `.delete()` on any of the three in `pmo-portal/src` or
+`pmo-portal/pages`**), so revoking looks free — but the right shape is an **ADR-0018/ADR-0019
+decision**: soft-archive (`archived_at`) vs Admin-only destructive delete vs a definer RPC with an
+audit write. That is a design call, not a grant tweak to smuggle into an UPDATE-path slice, so it was
+deliberately left open rather than half-fixed.
+
+**Whoever closes it must rewrite `0168` §J** (which asserts the current, vulnerable state on purpose)
+and the "INSERT and UPDATE" qualifier in `0175`'s header, `0174` §5, `0167`'s scope note and
+`docs/specs/create-path-sod-class.spec.md` FR-CPS-031.
+
 ### ✅ RESOLVED — ADR id collisions 0058/0059 (fixed by #387, 2026-07-25)
 The `0058`×2 and `0059`×3 collisions were fixed in **PR #387**: the duplicate M365/external docs were
 renumbered to **0063** (`microsoft-365-integration-architecture`), **0064** (`entra-app-registration-topology`),

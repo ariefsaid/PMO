@@ -3,7 +3,7 @@
 -- The SoD check (v_uid = v_owner) is ordered BEFORE the role/manager check inside the RPC,
 -- so Admin break-glass cannot defeat separation of duties (OD-TS-4-D, FR-TS-005).
 begin;
-select plan(2);
+select plan(3);
 
 -- Fixtures: one org, one Admin user who owns a Submitted timesheet + an Engineer who owns a Draft.
 insert into organizations (id, name) values
@@ -46,11 +46,22 @@ reset role;
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"00250000-0000-0000-0000-0000000000a2","role":"authenticated"}';
 
+-- ⚑ SPLIT (migration 0175). This was ONE statement naming BOTH `status` and `approved_by`. 0175
+-- withholds the UPDATE grant on approved_by, so the combined statement now dies at the privilege
+-- check — and the WITH CHECK it was written to prove would never have run. Same errcode, different
+-- gate: exactly the false-green this suite has shipped before. Each gate now has its own assertion,
+-- each asserting its own message.
 select throws_ok(
-  $$ update timesheets set status = 'Approved', approved_by = '00250000-0000-0000-0000-0000000000a2'
+  $$ update timesheets set status = 'Approved'
        where id = '00250000-0000-0000-0000-000000000011' $$,
-  '42501', null,
-  'MED-TS-2: owner cannot self-approve via a direct UPDATE (RPC-bypass blocked by WITH CHECK)');
+  '42501', 'new row violates row-level security policy for table "timesheets"',
+  'MED-TS-2: owner cannot self-approve via a direct UPDATE (RPC-bypass blocked by timesheets_update_own''s WITH CHECK)');
+
+select throws_ok(
+  $$ update timesheets set approved_by = '00250000-0000-0000-0000-0000000000a2'
+       where id = '00250000-0000-0000-0000-000000000011' $$,
+  '42501', 'permission denied for table timesheets',
+  'MED-TS-2: and the approver column itself is not client-writable at all (0175 withholds the grant)');
 
 reset role;
 select * from finish();

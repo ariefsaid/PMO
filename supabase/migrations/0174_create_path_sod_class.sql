@@ -25,9 +25,20 @@
 --     the create_procurement_* / select_procurement_quote definer RPCs were not the ONLY granted
 --     path. A PM forged a Paid invoice (amount 888888, erp_docstatus 1), a Complete goods receipt
 --     driving 3-way match, and a pre-selected quotation that never passed select_procurement_quote.
+--     ⚑ CORRECTION (0175): this file closed only the INSERT half of that, so all three forgeries
+--     stayed reachable in TWO requests instead of one, via the 0010/0075 column-UPDATE grant that
+--     covered exactly `.status` / `.status` / `.is_selected`. 0175_update_path_sod_class.sql revokes
+--     the UPDATE grant as well; only after it is the "ONLY granted path" claim true.
 --     The RLS `NOT domain_externally_owned(...)` guard those policies carry is inert —
 --     external_domain_ownership is empty — and a guard that is a no-op until an unrelated table is
 --     populated is not a control.
+--     ⚑ CORRECTION (0175): the timesheet grants were symmetric but BOTH were too wide. An Engineer
+--     could `update timesheets set approved_by=<self>, approved_at=now()` on their own Draft sheet
+--     (timesheets_update_own permits it — it pins only org/owner/Draft), and transition_timesheet
+--     Draft->Submitted does NOT clear those columns, so the forged approver survived into Submitted.
+--     §4's message below ("the approver is stamped only by transition_timesheet") only became true
+--     with 0175, which withholds approved_by/approved_at from the UPDATE grant and adds the missing
+--     approved_at branch to §4's guard.
 --   • timesheets         (MEDIUM, variant B) — grants are SYMMETRIC here; the POLICIES differ.
 --     timesheets_update_own pins status='Draft' in both USING and WITH CHECK; timesheets_insert
 --     constrains only user_id. An Engineer inserted their own sheet at status='Approved',
@@ -92,22 +103,31 @@
 -- (OD-PCS-1, still open from slice 1). Verifying the PRODUCTION catalog for the dblink item is an
 -- owner-run check; the test-side fix is in supabase/tests/0163_automation_cap_race.test.sql.
 --
--- Reversibility (ADR-0006): `supabase db reset`. Manual reverse:
---   drop trigger procurements_origination_guard      on public.procurements;
---   drop trigger procurements_audit_insert           on public.procurements;
---   drop trigger project_documents_origination_guard on public.project_documents;
---   drop trigger project_documents_audit_insert      on public.project_documents;
---   drop trigger timesheets_origination_guard        on public.timesheets;
---   drop trigger timesheets_audit_insert             on public.timesheets;
---   drop function public.assert_procurement_origination_insert();
---   drop function public.assert_project_document_origination_insert();
---   drop function public.assert_timesheet_origination_insert();
---   drop function public.audit_procurement_insert();
---   drop function public.audit_project_document_insert();
---   drop function public.audit_timesheet_insert();
---   drop function public.actor_bypasses_rls();
+-- Reversibility (ADR-0006). ⚑ NOT `supabase db reset` — v0.8.0 is in production and a reset there is
+-- destructive and local-only. The manual reverse, statement for statement:
+--   drop trigger if exists procurements_origination_guard      on public.procurements;
+--   drop trigger if exists procurements_audit_insert           on public.procurements;
+--   drop trigger if exists project_documents_origination_guard on public.project_documents;
+--   drop trigger if exists project_documents_audit_insert      on public.project_documents;
+--   drop trigger if exists timesheets_origination_guard        on public.timesheets;
+--   drop trigger if exists timesheets_audit_insert             on public.timesheets;
+--   drop function if exists public.assert_procurement_origination_insert();
+--   drop function if exists public.assert_project_document_origination_insert();
+--   drop function if exists public.assert_timesheet_origination_insert();
+--   drop function if exists public.audit_procurement_insert();
+--   drop function if exists public.audit_project_document_insert();
+--   drop function if exists public.audit_timesheet_insert();
+--   -- ⚑ actor_bypasses_rls() is SHARED: 0175 makes 0173's projects guard call it too, so dropping it
+--   -- here breaks that guard as well. Drop it only after reversing 0175 (or not at all — it is inert
+--   -- once nothing calls it).
+--   drop function if exists public.actor_bypasses_rls();
+--   -- ⚑ THESE RESTORE THE VULNERABLE STATE. The blanket INSERT grants are the hole §2b/§5 close: they
+--   -- re-open the forged Paid procurement / Paid invoice / Complete goods receipt / pre-selected
+--   -- quotation described above. Reverse only with that understood.
 --   grant insert on public.procurements, public.procurement_invoices, public.procurement_receipts,
---                   public.procurement_quotations to authenticated;   -- restores the blanket grants
+--                   public.procurement_quotations to authenticated;
+-- ⚑ 0175 supersedes §0's search_path and §4's assert_timesheet_origination_insert() body. Reversing
+-- this file does not undo 0175 — reverse 0175 first if that is the intent.
 
 -- ============================================================================
 -- 0. The trust boundary, named once. 0173 inlined this lookup; four more copies would make the
@@ -390,8 +410,17 @@ create trigger timesheets_audit_insert
   for each row execute function public.audit_timesheet_insert();
 
 -- ============================================================================
--- 5. procurement_invoices / _receipts / _quotations (FR-CPS-030) — leave the definer RPCs as the ONLY
--- write path.
+-- 5. procurement_invoices / _receipts / _quotations (FR-CPS-030) — close the client INSERT path.
+--
+-- ⚑ CORRECTION. This section originally claimed it left "the definer RPCs as the ONLY write path".
+-- It did not: it closed INSERT only, while 0010/0075's column-level UPDATE grant — covering exactly
+-- `.status` / `.status` / `.is_selected` — stayed live, so every forgery in the header was still
+-- reachable in two requests. 0175_update_path_sod_class.sql revokes UPDATE too, and from 0175 on the
+-- RPCs are the only client INSERT and UPDATE path (asserted directly, not inferred, in
+-- supabase/tests/0168_update_path_sod_class.test.sql §A). ⚑ NOT the only write path even then:
+-- `authenticated` still holds DELETE on all three (0075 grant + a permissive DELETE policy each), so
+-- a PM can delete a Paid invoice. Deliberately left open — see 0175's "STILL OPEN — DELETE" block
+-- and docs/backlog.md.
 --
 -- No trigger guard and no re-grant: after the revoke there is no client INSERT path left to guard.
 -- create_procurement_invoice / _receipt / _quotation and select_procurement_quote are SECURITY DEFINER
