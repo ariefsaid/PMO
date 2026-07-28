@@ -31,10 +31,22 @@ export async function reportEdgeError(
   if (cachedSink === undefined) cachedSink = createServiceRoleErrorEventSink();
   const sink = supabase ?? cachedSink;
   if (!sink) {
+    // FR-OBS-010: a missing sink is a DEPLOY-CONFIG failure, and it must be countable on a surface
+    // other than the one that is missing.
     logStructuredError({ fn: ctx.fn, errorCode: 'ERROR_EVENT_SINK_UNAVAILABLE' });
     return;
   }
-  await recordErrorEvent(sink, ctx);
+
+  const written = await recordErrorEvent(sink, ctx);
+  if (!written.ok) {
+    // FR-OBS-010: the pipeline reports its OWN failure to PostHog. Without this, "no rows in
+    // error_events" is ambiguous between a healthy quiet system and a dead recorder.
+    logStructuredError({
+      fn: ctx.fn,
+      errorCode: 'ERROR_EVENT_INSERT_FAILED',
+      contextId: written.code,
+    });
+  }
 }
 
 /** @internal test seam — clears the memoized sink between tests. */

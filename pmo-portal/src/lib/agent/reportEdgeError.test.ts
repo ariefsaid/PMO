@@ -1,16 +1,22 @@
 /**
  * Tests for `_shared/reportEdgeError.ts` — the ONE call every edge function makes when
- * something fails (ADR-0066). Fans one failure into a structured console line and an
- * error_events row.
+ * something fails (ADR-0066). Fans one failure into a structured console line, PostHog Error
+ * Tracking, and an error_events row.
+ *
+ * FR-OBS-010 / AC-OBS-010 — when the error_events INSERT fails, the failure must produce a
+ * COUNTABLE signal outside the pipeline that is failing. Before this task it produced only a
+ * console line inside the very function whose logs nobody aggregates.
  */
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import {
-  reportEdgeError,
-  __resetSinkForTests,
-} from '../../../../supabase/functions/_shared/reportEdgeError';
+
+const posthog = vi.hoisted(() => ({ capturePosthogException: vi.fn(async () => {}) }));
+vi.mock('../../../../supabase/functions/_shared/posthogError', () => posthog);
+
+import { reportEdgeError, __resetSinkForTests } from '../../../../supabase/functions/_shared/reportEdgeError';
 
 afterEach(() => {
   __resetSinkForTests();
+  posthog.capturePosthogException.mockClear();
   vi.restoreAllMocks();
 });
 
@@ -58,5 +64,31 @@ describe('reportEdgeError', () => {
       '[health] ERROR_EVENT_SINK_UNAVAILABLE',
       expect.objectContaining({ errorCode: 'ERROR_EVENT_SINK_UNAVAILABLE' }),
     );
+  });
+
+  it('AC-OBS-010: an unwritable error_events emits ERROR_EVENT_INSERT_FAILED to PostHog, not just console', async () => {
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const unwritable = { from: () => ({ insert: async () => ({ error: { code: '42501' } }) }) };
+
+    await reportEdgeError({ fn: 'erpnext-sweep', errorCode: 'ERP_PUSH_FAILED' }, unwritable as never);
+
+    // The ORIGINAL error still reaches the triage surface...
+    expect(posthog.capturePosthogException).toHaveBeenCalledWith(
+      expect.objectContaining({ fn: 'erpnext-sweep', errorCode: 'ERP_PUSH_FAILED' }),
+    );
+    // ...AND the pipeline's own failure is separately countable.
+    expect(posthog.capturePosthogException).toHaveBeenCalledWith(
+      expect.objectContaining({ fn: 'erpnext-sweep', errorCode: 'ERROR_EVENT_INSERT_FAILED' }),
+    );
+    errSpy.mockRestore();
+  });
+
+  it('AC-OBS-010: an absent sink is REPORTED (ERROR_EVENT_SINK_UNAVAILABLE), never silently skipped', async () => {
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    await reportEdgeError({ fn: 'health', errorCode: 'X' }); // no injected client, no Deno env
+    expect(posthog.capturePosthogException).toHaveBeenCalledWith(
+      expect.objectContaining({ errorCode: 'ERROR_EVENT_SINK_UNAVAILABLE' }),
+    );
+    errSpy.mockRestore();
   });
 });
