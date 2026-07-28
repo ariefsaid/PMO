@@ -40,9 +40,13 @@ set local role authenticated;
 set local request.jwt.claims = '{"sub":"c0000000-0000-0000-0000-0000000000c1","role":"authenticated"}';
 
 -- AC-ORGSTAMP-001: projects insert WITHOUT org_id succeeds (no RLS rejection) — the seam fix.
+-- (0173: the fixture status is 'Leads', an ORIGINATION status. An authenticated client may no longer
+-- create a project directly at a past-origination status — that is the project-create SoD, proven by
+-- 0166_project_create_sod.test.sql. The status is incidental here; the oracle below is the stamped
+-- org_id, and it is unchanged. AC-ORGSTAMP-004 already used 'Leads' for the same reason of neutrality.)
 select lives_ok(
   $$ insert into projects (id, name, status)
-     values ('c1111111-0000-0000-0000-000000000001','Org C Project','Ongoing Project') $$,
+     values ('c1111111-0000-0000-0000-000000000001','Org C Project','Leads') $$,
   'AC-ORGSTAMP-001: non-seed-org user inserts a project WITHOUT org_id (trigger stamps their org)');
 
 -- AC-ORGSTAMP-002: the stamped org_id is Org C, not the seed-org column default.
@@ -95,9 +99,10 @@ select is(
   'AC-ORGSTAMP-005: seed-org user cannot read Org C''s stamped project (SELECT isolation)');
 
 -- AC-ORGSTAMP-006: seed-org PM inserts WITHOUT org_id — still lands in the seed org (no behavior change).
+-- ('Leads' for the 0173 reason noted at AC-ORGSTAMP-001; the org_id oracle below is unchanged.)
 select lives_ok(
   $$ insert into projects (id, name, status)
-     values ('50000000-0000-0000-0000-000000000051','Seed Project','Ongoing Project') $$,
+     values ('50000000-0000-0000-0000-000000000051','Seed Project','Leads') $$,
   'AC-ORGSTAMP-006: seed-org user insert WITHOUT org_id succeeds');
 select is(
   (select org_id from projects where id = '50000000-0000-0000-0000-000000000051'),

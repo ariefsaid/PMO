@@ -130,8 +130,13 @@ select is((select count(*)::int from audit_events where action = 'project.delete
 -- ══════════════════════════════════════════════════════════════════════════════════════════════
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"a133a000-0000-0000-0000-0000000000a1","role":"authenticated"}';
-select is((select count(*)::int from audit_events), 5,
-  'AC-AUDIT-006 Org-A Admin reads all 5 own-org audit rows');
+-- 7, not 5: 0173 added an AFTER INSERT audit trigger on projects (FR-PCS-003 — a project create is
+-- now on the audit trail, closing the "forged win leaves no record" half of the project-create SoD
+-- defect). This file's Org-A fixture creates TWO projects (P1 value-set, P2 delete), so the five
+-- rows the (a) section writes are joined by two 'project.create' rows. The oracle is unchanged:
+-- an own-org Admin reads EVERY own-org audit row, and AC-AUDIT-007/008 below still read ZERO.
+select is((select count(*)::int from audit_events), 7,
+  'AC-AUDIT-006 Org-A Admin reads all 7 own-org audit rows (5 from section (a) + 2 project.create)');
 
 set local request.jwt.claims = '{"sub":"a133a000-0000-0000-0000-0000000000a2","role":"authenticated"}';
 select is((select count(*)::int from audit_events), 0,
