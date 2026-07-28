@@ -82,6 +82,18 @@ Postgres alone.
 **FR-OBS-001** (ubiquitous) The system shall record an `error_events` row for every unhandled or
 explicitly-caught operational failure in every deployed edge function.
 
+> **Status: PARTIAL (amended 2026-07-28, spec-reviewer pass).** `serveWithErrorReporting` (ADR-0066)
+> closes the *unhandled-throw* half for all 22/22 deployed functions. It does **not** close the
+> *explicitly-caught* half: a handler that catches its own error and returns a `Response` — rather
+> than re-throwing — produces no `error_events` row and no PostHog `$exception`. Verified:
+> `clickup-sweep/index.ts`'s `MISCONFIGURED`/`OWNERSHIP_READ_FAILED` 500s and its per-org `catch` that
+> logs then returns HTTP 200 `{ok:true}`; `erpnext-sweep/index.ts`'s `MISCONFIGURED`. Only 1 call site
+> outside `_shared` (`agent-chat`) calls `reportEdgeError` directly. This is the largest remaining
+> blind spot (ADR-0066's Non-coverage section) and is precisely the deploy-misconfiguration class
+> behind v0.8.0's 8-day-stale-deploy incident (§1.1) that motivated this spec. Wiring
+> `reportEdgeError` into handled-error return paths is a deferred item in `docs/backlog.md`, not
+> implemented as part of this spec's shipped program.
+
 **FR-OBS-002** (ubiquitous) The `EdgeFunctionName` union in `_shared/errorLog.ts:22-27` shall
 enumerate **all** deployed edge functions, not a subset.
 
@@ -201,6 +213,24 @@ shall be bounded regardless of stamp-write success.
 - **Then** the failure is logged with a distinct code, and the next tick does **not** re-send the
   same group unboundedly.
 
+**FR-HRD-011** *(ratified 2026-07-28)* (ubiquitous) `alert_send_log` and `ops_job_heartbeats` — the
+write-ahead and liveness tables the FR-HRD-001/FR-HRD-010 fixes introduced — shall remain
+service-role-only: RLS enabled and forced, zero policies, `authenticated` denied all access, with
+`service_role` retaining exactly the grants it needs. Mirrors the `error_events` posture (FR-OBS-030).
+
+**AC-HRD-011**
+- **Given** `alert_send_log` and `ops_job_heartbeats`,
+- **When** a pgTAP test inspects their RLS state and grants,
+- **Then** both tables have RLS enabled and forced with zero policies, an `authenticated` JWT is
+  denied SELECT/INSERT/UPDATE on both, and `service_role` retains its required grants.
+
+> Not the same claim as FR-HRD-002. FR-HRD-002 ("repeated alerts are bounded") is proven at the Unit
+> layer, folded into `AC-HRD-001` (`pmo-portal/src/lib/agent/telegramDrain.test.ts`, "SAME group is
+> not re-sent"). `0160_alert_ops_tables_lockdown.test.sql` proves a different thing — table lockdown
+> — and was originally mis-tagged `AC-HRD-002` in the implementation plan before this reconciliation;
+> it is retagged `AC-HRD-011` in both the test and here, rather than repurposing the never-ratified
+> plan id.
+
 ### 4.3 Alerting must prove itself alive
 
 **FR-HRD-010** (ubiquitous) The alert path shall have a liveness signal that distinguishes "no errors
@@ -241,10 +271,18 @@ The delimiter intent is sound. The encoding is not: `file(1)` reports `data`, an
 skips the file**. Demonstrated: `grep -rn "recordErrorEvent" supabase/functions/` returns 9 hits;
 `grep -an` returns 10. Every grep-based gate over these paths is blind to them.
 
-**AC-HRD-030**
+**AC-HRD-030** *(wording corrected 2026-07-28 — see below)*
 - **Given** a tracked text file containing a NUL byte,
 - **When** CI runs,
-- **Then** the build fails naming the file and line.
+- **Then** the build fails naming the file.
+
+> **Correction (2026-07-28):** this AC originally said "naming the file **and line**." The shipped
+> gate, `scripts/check-nul-bytes.sh`, names only the file — its scan is a single batched
+> `perl -0777` whole-file slurp (see the script's own header comment), and a whole-file slurp has no
+> line cursor to report. This was a **deliberate** performance choice, not an oversight: a per-file
+> line-aware scan was measured at ~57s over the tracked tree versus ~0.44s for the batched slurp
+> (`docs/backlog.md`'s NUL-byte entry records the same two numbers). Do not "fix" the script to add
+> line numbers without re-confirming that tradeoff still holds.
 
 **AC-HRD-031**
 - **Given** the three files above after the fix,
@@ -302,12 +340,17 @@ unknown-unknown net for them:
 
 | Signal | Config | Event | Billed? |
 |---|---|---|---|
-| Heatmaps, incl. **rage- and dead-click coordinates** | `capture_heatmaps: true` | `$$heatmap` | **No** — does not count against the event allowance |
-| Dead clicks | `capture_dead_clicks: true` | `$dead_click` | Yes |
+| Heatmaps, incl. **rage- and dead-click coordinates** (the only dead-click signal in use — see the row below) | `capture_heatmaps: true` | `$$heatmap` | **No** — does not count against the event allowance |
+| Dead clicks (separate, autocapture-gated SDK producer) | `capture_dead_clicks: false` — **shipped disabled, reversing this table's original `true`; see §9 amendment 5** | `$dead_click` | N/A — not captured |
 | Web vitals | `capture_performance: { web_vitals: true, network_timing: false }` | `$web_vitals` | Yes, samplable |
 
-**FR-PHG-001** The client shall enable heatmaps, dead-click capture, and web-vitals capture for all
-users, with `network_timing` off.
+**FR-PHG-001** *(amended 2026-07-27/28, see §9 amendment 5 — `AC-CON-005`)* The client shall enable
+heatmaps (including their always-on, coordinate-only dead-click detector, `{x, y, target_fixed,
+type}`, folded into `$$heatmap`) and web-vitals capture for all users, with `network_timing` off.
+The SDK's separate, autocapture-gated `capture_dead_clicks` producer (the `$dead_click` event) shall
+remain **disabled** — it carries raw rendered element text (`$el_text`/`$elements_chain`/
+`attr__title`), a leak surface none of the app's controls (`before_send`, `property_denylist`,
+`buildEventProperties`) reach.
 
 **FR-PHG-002** The client shall use `capture_heatmaps`, not the deprecated `enable_heatmaps`.
 **Evidence:** `client.ts:143` currently sets `enable_heatmaps: false`, which is both deprecated and
@@ -498,13 +541,15 @@ making `client.ts` the only permitted importer of `posthog-js` — preserve it).
 | AC-OBS-010, AC-OBS-011 | Unit (Vitest) | `pmo-portal/src/lib/agent/errorEvent.test.ts` |
 | AC-OBS-020, AC-OBS-021 | Integration (pgTAP) | `supabase/tests/` |
 | AC-HRD-001 | Unit (Vitest) | telegram drain logic |
-| AC-HRD-030 | CI gate | new script |
+| AC-HRD-011 | Integration (pgTAP) | `supabase/tests/0160_alert_ops_tables_lockdown.test.sql` |
+| AC-HRD-030 | CI gate | `scripts/check-nul-bytes.sh` |
 | AC-HRD-031 | Unit / CI gate | — |
 | FR-HRD-040, FR-HRD-041 | Integration (pgTAP) | `supabase/tests/` |
 | AC-PHG-010 | Unit (Vitest) | analytics |
 | AC-PHG-013 | CI gate | cross-reference tiles ↔ call sites |
 | AC-PHG-030 | Unit (Vitest) | quota script |
 | AC-CON-003 | E2E (Playwright) | one curated journey — genuinely cross-stack |
+| AC-CON-005 | Unit (Vitest) | `pmo-portal/src/lib/analytics/client.test.ts`, `client.deadClickGate.test.ts` (real-SDK regression guard) |
 
 Per ADR-0010 each AC has exactly one owning layer. Only AC-CON-003 warrants e2e: it asserts that no
 network request leaves the browser, which cannot be proven at a lower layer.
@@ -525,10 +570,15 @@ network request leaves the browser, which cannot be proven at a lower layer.
 
 ---
 
-## 9. Amendments after planning (2026-07-25)
+## 9. Amendments after planning (2026-07-25; extended 2026-07-28)
 
-The plan (`docs/plans/2026-07-25-observability-analytics.md`) surfaced four defects in this spec.
-Recorded here rather than silently patched, because the *kind* of error matters more than the fix.
+The plan (`docs/plans/2026-07-25-observability-analytics.md`) surfaced four defects in this spec at
+planning time (items 1–4 below). A later spec-reviewer pass (2026-07-28), run after all 11 PRs had
+already shipped, found two more defects that a review at Design+Plan time could not have caught — one
+where the implementation diverged from the spec without an amendment (item 5), and one where the spec
+itself asserted a capability absence that the shipped code disproved (the superseded paragraph at the
+end). Recorded here rather than silently patched, because the *kind* of error matters more than the
+fix.
 
 1. **AC-CON-003 could never fail.** Rewritten in §6 with a mandatory positive control. **General rule
    adopted: any AC asserting the absence of a behaviour must be paired with a control proving the
@@ -549,8 +599,41 @@ Recorded here rather than silently patched, because the *kind* of error matters 
    `alert_send_log` recording the send attempt **before** the Telegram call, so cooldown state does
    not depend on the write that can fail.
 
-**Accepted limitation.** FR-HRD-041's pgTAP cannot prove the race is *closed* — this stack has no
-`dblink`/`pg_background`, so two truly concurrent sessions can't be driven from one test. The test
-asserts the lock is present and the function is `security definer`, and says so in its own header.
-Accepted: `0059` treats the cap as a soft limit. **A test that cannot prove its claim must say so in
-its own text** — the failure mode being avoided is a future reader treating it as proof.
+5. **FR-PHG-001 was inverted by the implementation — correctly — with no spec amendment until now
+   (2026-07-27→28, spec-reviewer pass).** The original FR-PHG-001 and this table said
+   `capture_dead_clicks: true`. Building it, a capture against the **real** SDK (not a mock —
+   `client.deadClickGate.test.ts`'s own header explains why a mocked assertion could never have
+   caught this) showed that `capture_dead_clicks: true` enables a *separate*, autocapture-gated
+   `$dead_click` producer carrying `$el_text` / `$elements_chain` / `attr__title` — the raw rendered
+   text of the clicked element. Two live captures during the build returned **"MYR 4,250,000.00"**
+   and **"Approve contract for Petronas Carigali"**. None of the app's existing controls reach it:
+   `before_send` only touches `$exception_*` fields, `property_denylist` is exact-key matching (these
+   keys are not denylisted), and `buildEventProperties` never runs — the SDK emits `$dead_click`
+   directly, bypassing the app's facade entirely. Shipped as `capture_dead_clicks: false`
+   (`client.ts:212`). **This does not lose the signal FR-PHG-001 actually wanted**: heatmaps run
+   their own, unconditional, coordinate-only dead-click detector (`{x, y, target_fixed, type}`, no
+   element text, folded into `$$heatmap`) — §5.1's first row. FR-PHG-001 and §5.1's table are
+   restated above to require the heatmap-based detector only, with the autocapture-gated producer
+   disabled. **`AC-CON-005`** (`client.test.ts:339`, `client.deadClickGate.test.ts:57`) is hereby
+   **ratified** as the id covering this: `capture_dead_clicks` is explicitly `false`, proven against
+   the real, unmocked SDK's own gating function rather than a mock that could never have caught the
+   leak. Traceability: §7.
+
+**Superseded 2026-07-28 (spec-reviewer pass) — the paragraph below asserted a capability absence that
+was false; replaced with what the shipped test actually proves.** FR-HRD-041's pgTAP,
+`supabase/tests/0163_automation_cap_race.test.sql`, uses `dblink` to drive a genuine **second**
+Postgres session that holds the same `profiles`-row lock the cap trigger takes, and asserts a
+concurrent `agent_automations` INSERT actually **blocks** on it (`55P03` under a short
+`lock_timeout`) — a real two-session interleaving, not merely a structural inference that the lock
+statement is present. The original draft of this test (`0162`, in the implementation plan's task B3)
+carried the limitation this paragraph used to describe, and even cited
+`supabase/tests/0151_timesheet_fence_concurrency.test.sql` as evidence `dblink` wasn't available —
+while `0151` itself already used `dblink`. That citation was wrong twice over: `dblink` was already
+enabled in this stack, and the file named as proof it wasn't was itself proof that it was. **A "known
+limitation" note asserting an absent capability is worse than no note at all: nobody re-checks it, so
+the real proof never gets written** — the same principle ADR-0066 states about undocumented blind
+spots ("a net whose blind spots are undocumented gets trusted beyond its reach") applies here to a
+*false* claim of no coverage, not just an undocumented gap. This is the second time this exact error
+class has appeared in this program (the first was the plan's `0151`-citing paragraph above). Treat any
+future "this stack lacks X" claim as unverified until re-checked against the current tree — never
+carried forward from a previous draft.

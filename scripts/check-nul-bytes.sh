@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
-# Fail when a tracked TEXT file contains a literal NUL byte (0x00).
+# AC-HRD-030 / AC-HRD-031 (observability-analytics.spec.md §4.5): fail when a tracked TEXT file
+# contains a literal NUL byte (0x00). AC-HRD-030 says CI fails "naming the file" (corrected
+# 2026-07-28 from "the file and line" — this scan is a whole-file slurp with no line cursor, a
+# deliberate perf tradeoff, see below); AC-HRD-031 says the fixed files report as text again with
+# behaviour unchanged.
 #
 # A raw NUL byte silently turns a text file "binary" to grep: `grep -rn PATTERN dir/` skips the
 # file with NO warning (only `grep -ran` sees it), so a grep-based gate/audit over that path is

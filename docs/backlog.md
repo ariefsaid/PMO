@@ -78,12 +78,20 @@ AFTER DELETE, not INSERT. Bypasses ADR-0019 money SoD entirely. The client-side 
 `src/lib/db/projects.ts:122-128` calls itself "defence in depth"; there is no server-side authority
 behind it. Needs a BEFORE INSERT trigger restricting status to origination + nulling the win fields.
 
-**Deferred, recorded, not done:** FR-OBS-003 (79 free-text `console.error` → enum sweep — error
-*reporting* is now universal, error *coding* is not) · FR-HRD-042 (interactive-create idempotency,
-pulled to its own spec as unplannable) · the automation cap is still bypassable by un-archiving
-(BEFORE INSERT only) · `changed-lines-coverage.mjs` diffs `-- pmo-portal/` only, so the ≥80% DoD is
-**unenforceable for every `supabase/**` change** · `telegramNotify.test.ts`'s AC-OF-005 reimplements
-the branch it tests and should migrate onto `runDrain`.
+**Deferred, recorded, not done:** **FR-OBS-001 is PARTIAL, not closed** — `serveWithErrorReporting`
+(ADR-0066) only reports errors that **throw** out of a handler; every deliberately-caught failure
+that `return`s an error response produces **zero** `error_events` and zero PostHog `$exception`.
+Verified: `clickup-sweep`'s `MISCONFIGURED`/`OWNERSHIP_READ_FAILED` 500s and its per-org `catch` that
+`console.error`s and lets the function return HTTP 200 `{ok:true}`; `erpnext-sweep`'s `MISCONFIGURED`.
+Exactly **1** call site outside `_shared` (`agent-chat`) calls `reportEdgeError` directly, against
+dozens of `console.error` calls that return rather than throw — precisely the deploy-misconfiguration
+class behind v0.8.0's 8-day-stale-deploy incident that motivated this spec. **New deferred item:**
+wire `reportEdgeError` into handled-error return paths (not implemented here). · FR-OBS-003 (79
+free-text `console.error` → enum sweep — error *coding* is not done either) · FR-HRD-042
+(interactive-create idempotency, pulled to its own spec as unplannable) · the automation cap is still
+bypassable by un-archiving (BEFORE INSERT only) · `changed-lines-coverage.mjs` diffs `-- pmo-portal/`
+only, so the ≥80% DoD is **unenforceable for every `supabase/**` change** · `telegramNotify.test.ts`'s
+AC-OF-005 reimplements the branch it tests and should migrate onto `runDrain`.
 
 **Known limitations, deliberate and documented (do not "fix" without reading why):**
 - `save_failed`'s `module`/`operation` are **constants** (`unknown`/`classify`) until call sites are
@@ -175,13 +183,22 @@ is already on `dev`.** Where an older entry below conflicts with this block, **t
 BEHIND `dev`, content identical).
 
 **🔴 GENUINELY STILL OWED (verified absent, with the search that proved it):**
-- ~~**`error_events` coverage** — only 4 of 22 edge fns produce events~~ ✅ **CLOSED #402/#403** —
-  **22/22** now route through the `serveWithErrorReporting` choke point (ADR-0066), enforced by
+- ~~**`error_events` coverage** — only 4 of 22 edge fns produce events~~ ✅ **CLOSED #402/#403 for
+  the wiring gap; FR-OBS-001 is still PARTIAL, see below** — **22/22** functions now route through
+  the `serveWithErrorReporting` choke point (ADR-0066), enforced by
   `scripts/check-edge-fn-error-reporting.mjs`, and a failed insert now reaches PostHog rather than
   dying in a function log (#403). 90-day retention purge with heartbeat proof-of-run.
-  ⚑ **Still open:** FR-OBS-003 — the 79 free-text `console.error` calls are NOT yet an enum. Error
-  *reporting* is universal; error *coding* is not. Blind spots (streaming, module-init, missing
-  `Deno`) are documented in the module header and ADR-0066 — read them before trusting the net.
+  🔴 **Reporting is NOT universal — the choke point only catches THROWN errors.** A deliberately-caught
+  failure that `return`s an error response (e.g. `clickup-sweep`'s `MISCONFIGURED`/
+  `OWNERSHIP_READ_FAILED` 500s, and its per-org `catch` that logs then returns HTTP 200 `{ok:true}`;
+  `erpnext-sweep`'s `MISCONFIGURED`) produces **zero** `error_events` and zero PostHog `$exception`.
+  Only 1 non-`_shared` call site (`agent-chat`) calls `reportEdgeError` directly. This is the largest
+  remaining blind spot — larger than the three already named in ADR-0066 — and is not yet closed;
+  wiring `reportEdgeError` into handled-error return paths is a new deferred item (see CURRENT FOCUS).
+  ⚑ **Also still open:** FR-OBS-003 — the 79 free-text `console.error` calls are NOT yet an enum.
+  Error *coding* is not done. All four blind spots (streaming, module-init, missing `Deno`, and
+  handled-and-returned errors) are documented in the module header and ADR-0066 — read them before
+  trusting the net.
 - ~~**PostHog consent-gate**~~ ✅ **CLOSED #398** — disclose + in-app opt-out + `respect_dnt`, no banner
   (OD-OBS-2). ⚑ Two non-obvious defects were found and fixed: logging out wiped PostHog's consent key
   and silently resumed capture, and DNT users still hit the remote-config endpoint because only

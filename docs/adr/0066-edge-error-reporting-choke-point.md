@@ -92,6 +92,20 @@ produces a countable signal on a surface outside the pipeline it is reporting on
 **Non-coverage (review round 2026-07-28 — a net whose blind spots are undocumented gets trusted
 beyond its reach, which is worse than no net, because it stops people looking):**
 
+- **Deliberately-caught failures that `return` an error response are NOT covered — the largest blind
+  spot of the four, and the one this ADR itself omitted until a spec-reviewer pass caught it.** The
+  wrapper only sees a throw; if a handler catches its own error and constructs a `Response` (e.g.
+  `return json({ error: 'MISCONFIGURED' }, 500)`) rather than re-throwing, nothing reaches
+  `reportEdgeError` — the "obvious fix" language in Context ("hand-edit every catch") was never
+  actually addressed by this wrapper, only the *unhandled*-throw half of it was. Verified:
+  `clickup-sweep/index.ts`'s `MISCONFIGURED` and `OWNERSHIP_READ_FAILED` 500s, and its per-org sweep
+  `catch` that `console.error`s the failure and still lets the function return HTTP 200 `{ok:true}`;
+  `erpnext-sweep/index.ts`'s `MISCONFIGURED`. Exactly 1 call site outside `_shared` (`agent-chat`)
+  calls `reportEdgeError` directly, against dozens of `console.error` calls elsewhere that return
+  rather than throw. This is precisely the deploy-misconfiguration class behind v0.8.0's 8-day-stale
+  -deploy incident cited in Context — a misconfigured function that returns a clean error response
+  instead of crashing is invisible to this net. Tracked as a deferred item in `docs/backlog.md`;
+  FR-OBS-001 is amended to PARTIAL status in the spec until this is closed.
 - **Post-response / streaming failures are NOT covered.** The wrapper only sees what the handler
   RETURNS; a streaming handler (`new Response(stream, ...)`) has already returned by the time the
   stream's `start()` runs, so a throw inside `start()` happens after the wrapper's catch has

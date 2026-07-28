@@ -1,14 +1,17 @@
 -- 0160_alert_ops_tables_lockdown.test.sql
--- AC-HRD-011 [pgTAP, PROPOSED]: alert_send_log and ops_job_heartbeats are service-role-only —
--- RLS enabled + forced, ZERO policies, an authenticated JWT is denied SELECT/INSERT/UPDATE, AND
--- service_role retains the grants it needs (so a future over-broad `revoke` cannot leave this test
--- green while actually locking service_role out too). Mirrors the error_events posture (0071) and
--- the m365 lockdown pattern (0154).
+-- AC-HRD-011 [pgTAP, RATIFIED 2026-07-28 — FR-HRD-011, observability-analytics.spec.md §4.2]:
+-- alert_send_log and ops_job_heartbeats are service-role-only — RLS enabled + forced, ZERO
+-- policies, an authenticated JWT is denied SELECT/INSERT/UPDATE, AND service_role retains the
+-- grants it needs (so a future over-broad `revoke` cannot leave this test green while actually
+-- locking service_role out too). Mirrors the error_events posture (0071) and the m365 lockdown
+-- pattern (0154).
 --
 -- Re-tagged from AC-HRD-002 (2026-07-28 review): this file proves TABLE LOCKDOWN, not FR-HRD-002's
 -- "repeated alerts are bounded" behaviour — that bound is proven at the Unit layer
 -- (pmo-portal/src/lib/agent/telegramDrain.test.ts, the "SAME group is not re-sent" test, currently
--- tagged AC-HRD-001 alongside the write-ahead invariant it shares a mechanism with).
+-- tagged AC-HRD-001 alongside the write-ahead invariant it shares a mechanism with). AC-HRD-002 was
+-- never ratified in the spec itself (only PROPOSED in the plan) — nothing to rename there, so this
+-- file's own tag (AC-HRD-011) is what got ratified instead.
 begin;
 select plan(19);
 
