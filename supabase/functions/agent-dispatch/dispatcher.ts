@@ -291,20 +291,39 @@ function genId(): string {
 /**
  * Insert an owner notification via the MINTED owner client (RLS pins owner_id/org_id via DEFAULT —
  * never sent). Used for the fail-quiet-but-visible warning paths (condition-unevaluable §4;
- * over-credit §6). Swallowed on error — a notify failure must not abort the tick.
+ * over-credit §6).
+ *
+ * FR-HRD-020: a notify failure must not abort the tick, but it must NOT be silent either. Both
+ * supabase-js failure modes are handled — the resolve-with-`error` shape (the ordinary one, which
+ * the previous bare `catch {}` could never see) and a thrown rejection. Returns whether the
+ * notification landed; never throws — the caller decides what to do with a `false` (I5, 2026-07-28
+ * review: it now feeds `recordErrorEvent` so the failure ALSO reaches the Telegram alert path, not
+ * just the edge-function console log).
+ *
+ * `contextId` is the CALLER-SUPPLIED correlation id (e.g. `automation.id`) — errorLog.ts documents
+ * this field as "an optional correlation id (runId / automationId / etc.)". It previously carried
+ * the raw Postgres error code / `err.name` instead, which meant the structured log line could never
+ * say WHICH automation's notification failed (I5).
  */
-async function notifyOwner(
+export async function notifyOwner(
   mintedClient: unknown,
   severity: 'info' | 'warning' | 'critical',
   title: string,
   body: string | null,
   metadata: Record<string, unknown> | null,
-): Promise<void> {
+  contextId?: string,
+): Promise<boolean> {
   try {
     const sb = mintedClient as { from: (t: string) => { insert: (r: Record<string, unknown>) => Promise<{ error: unknown }> } };
-    await sb.from('notifications').insert({ severity, title, body, metadata });
+    const { error } = await sb.from('notifications').insert({ severity, title, body, metadata });
+    if (error) {
+      logStructuredError({ fn: 'agent-dispatch', errorCode: 'NOTIFY_INSERT_FAILED', contextId });
+      return false;
+    }
+    return true;
   } catch {
-    // never surface — notify is best-effort.
+    logStructuredError({ fn: 'agent-dispatch', errorCode: 'NOTIFY_INSERT_FAILED', contextId });
+    return false;
   }
 }
 
@@ -435,10 +454,23 @@ export async function runDispatchTick(deps: RunDispatchTickDeps): Promise<void> 
       // Deferred unevaluable-condition warning (the mint is already audited above, so this notify is
       // never the first minted-client write). No fire follows.
       if (conditionWarning !== null) {
-        await notifyOwner(minted.client, 'warning', 'Automation condition could not be evaluated', conditionWarning, {
-          source: 'automation',
-          automation_id: automation.id,
-        });
+        const notified = await notifyOwner(
+          minted.client, 'warning', 'Automation condition could not be evaluated', conditionWarning,
+          { source: 'automation', automation_id: automation.id },
+          automation.id,
+        );
+        // I5 (2026-07-28 review): a notify failure was previously visible ONLY in the edge-function
+        // console log. Threading it through recordErrorEvent lands it in error_events, which IS the
+        // Telegram alert path (0071/telegram-notify) — the owner is told via the channel this whole
+        // path exists to guarantee, not left to whoever next reads Supabase function logs.
+        if (!notified) {
+          void recordErrorEvent(deps.serviceClient as never, {
+            fn: 'agent-dispatch',
+            errorCode: 'NOTIFY_INSERT_FAILED',
+            contextId: automation.id,
+            orgId: automation.org_id,
+          });
+        }
         continue;
       }
 
@@ -447,13 +479,22 @@ export async function runDispatchTick(deps: RunDispatchTickDeps): Promise<void> 
       // BEFORE any fire. Over ⇒ warning notification, no fire, no agent_runs row reaches 'running'. ──
       const credit = await rateGuard.check(automation.org_id, minted.client);
       if (credit.exceeded) {
-        await notifyOwner(
+        const notified = await notifyOwner(
           minted.client,
           'warning',
           `Automation skipped — out of credits`,
           `Automation ${automation.id} did not run because the balance was exceeded.`,
           { source: 'automation', automation_id: automation.id },
+          automation.id,
         );
+        if (!notified) {
+          void recordErrorEvent(deps.serviceClient as never, {
+            fn: 'agent-dispatch',
+            errorCode: 'NOTIFY_INSERT_FAILED',
+            contextId: automation.id,
+            orgId: automation.org_id,
+          });
+        }
         continue; // no fire, no last_fired_at stamp.
       }
 
