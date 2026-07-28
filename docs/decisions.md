@@ -1101,3 +1101,41 @@ Full decision text (batches A–D + the resulting sequence) lives in the **CANDI
   the source doc's currency. v1 still pins org currency == ERPNext company currency at connect.
 - **OD-CR-6** — parked set confirmed parked: in-house chat/video (Cicle turf, stays Big-track), field
   photos/forms (KANNA turf), offline/native mobile.
+
+---
+
+## OD-CON-3 — the `/privacy` consent surface is THREE-STATE, not boolean (Discover-pass fix, 2026-07-28)
+
+**Decision.** `hasAnalyticsOptedOut()`/the opt-out checkbox is not enough to answer "is this browser's
+usage actually being sent" — a rendered Discover pass found the control could show **unchecked**
+("sending") on a browser with Do Not Track set, directly beneath the sentence "We honour your
+browser's Do Not Track setting," while the SDK-init guard (`doInit`, `client.ts`) had in fact never
+called `posthog.init` at all. The checkbox was answering a different, narrower question than the one
+next to it.
+
+**The surface now resolves one of four states** (`getConsentState`, `client.ts`, exported via
+`src/lib/analytics/index.ts`), in the SAME priority order the SDK-init guard itself checks, so the UI
+can never show a state the guard disagrees with:
+1. `disabled` — this deployment has no valid PostHog key / analytics off entirely. Nothing sends
+   regardless of DNT or the stored preference.
+2. `dnt` — the browser's Do Not Track signal is on. This OVERRIDES a not-yet-opted-out stored
+   preference — nothing the user does in this browser turns analytics back on while DNT is set.
+3. `opted-out` — the user explicitly opted out (and neither of the above already suppressed it).
+4. `active` — analytics is genuinely running: enabled, no DNT, not opted out.
+
+`disabled` and `dnt` render the checkbox checked (accurately reflecting "not sending") but
+non-interactive (`aria-disabled`, `tabIndex=-1`) with copy explaining WHY — toggling in either state
+would be a no-op against what's actually happening, and pretending otherwise would repeat the same
+false-affordance class of bug. Only `opted-out`/`active` are interactive.
+
+**Consequences:** any future consent-adjacent UI (a settings page, an admin view of a user's
+tracking status, etc.) must call `getConsentState`, not `hasAnalyticsOptedOut()` alone, or it will
+reintroduce the same "the box says one thing, the SDK does another" defect.
+
+**Also fixed in the same pass (Discover, IMPORTANT-4/5/7):** the visible label sentence is now the
+control's accessible name (`Checkbox`'s new `labelledBy` prop) and its click target — see the
+Checkbox `labelledBy` note in `DESIGN.md` §Inputs/Fields; Inter is now self-hosted
+(`public/fonts/`, `index.css` `@font-face`) so `/privacy` makes zero requests to Google Fonts,
+closing the last uncontrolled third-party contact on the consent page itself (`AC-CON-012`); and
+dark `--input` was raised 30%→42% L to clear WCAG 1.4.11's 3:1 non-text floor as a standalone
+control boundary (`AC-A11Y-CHECKBOX-001`) — see `DESIGN.md`'s Accessibility posture section.

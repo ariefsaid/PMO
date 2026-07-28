@@ -169,6 +169,32 @@ function isDoNotTrack(): boolean {
 }
 
 /**
+ * FR-CON-002/003/AC-CON-011 (ADR-0067 addendum, 2026-07-28): the consent surface on `/privacy` is
+ * THREE-STATE, not boolean — `hasAnalyticsOptedOut()` alone answers only "did the user explicitly
+ * check the box", which is a different question from "is this browser's usage actually being sent".
+ * `getConsentState` answers the second question, in the SAME priority order `doInit`'s own guard
+ * checks (config.enabled, then DNT, then the stored opt-out) — so the UI can never show a state the
+ * SDK-init guard disagrees with:
+ *   - 'disabled'   — this deployment has no valid PostHog key / analytics turned off entirely.
+ *                    Nothing would send regardless of DNT or the stored preference.
+ *   - 'dnt'        — the browser's Do Not Track signal is on. `doInit` never calls `posthog.init` in
+ *                    this case (FR-CON-001) — this OVERRIDES a not-yet-opted-out preference; nothing
+ *                    the user does in this browser can turn analytics back on while DNT is set.
+ *   - 'opted-out'  — the user explicitly opted out (and neither of the above already suppressed it).
+ *   - 'active'     — analytics is genuinely running: enabled, no DNT, not opted out.
+ * Pure function of its inputs (config + the two ambient reads) — no dependency on `activeConfig`/
+ * `initialized`, so it works correctly even before `AnalyticsProvider`'s own `init()` effect has run.
+ */
+export type ConsentState = 'disabled' | 'dnt' | 'opted-out' | 'active';
+
+export function getConsentState(config: AnalyticsConfig): ConsentState {
+  if (!config.enabled) return 'disabled';
+  if (isDoNotTrack()) return 'dnt';
+  if (readOptOut()) return 'opted-out';
+  return 'active';
+}
+
+/**
  * The `posthog.init` options object, pulled into its own pure function so a test can assert against
  * the EXACT object we ship instead of a hand-copied duplicate that could silently drift from
  * production. @internal exported ONLY so client.deadClickGate.test.ts can init the REAL SDK with it.

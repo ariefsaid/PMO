@@ -39,4 +39,16 @@ describe('Checkbox (custom 16px, role=checkbox)', () => {
     await userEvent.click(box);
     expect(onChange).not.toHaveBeenCalled();
   });
+
+  it('AC-CON-010: a `labelledBy` id takes over the accessible name via aria-labelledby, NOT a duplicate aria-label', () => {
+    render(
+      <>
+        <span id="my-visible-label">The full visible sentence</span>
+        <Checkbox checked={false} onChange={() => {}} label="short fallback" labelledBy="my-visible-label" />
+      </>,
+    );
+    const box = screen.getByRole('checkbox', { name: 'The full visible sentence' });
+    expect(box).toHaveAttribute('aria-labelledby', 'my-visible-label');
+    expect(box).not.toHaveAttribute('aria-label');
+  });
 });

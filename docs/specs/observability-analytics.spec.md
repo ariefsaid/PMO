@@ -637,3 +637,66 @@ spots ("a net whose blind spots are undocumented gets trusted beyond its reach")
 class has appeared in this program (the first was the plan's `0151`-citing paragraph above). Treat any
 future "this stack lacks X" claim as unverified until re-checked against the current tree — never
 carried forward from a previous draft.
+
+---
+
+## 10. ⚑ NEW SECTION (ui-implementer, 2026-07-28) — `/privacy` Discover-pass fixes: AC-CON-010/011/012
+
+> **Added by the `fix/consent-surface` ui-implementer dispatch.** Another agent may be concurrently
+> editing this file for a different item — this section is appended, self-contained, and does not
+> modify anything above. If a merge conflict surfaces here, keep both additions; they are additive.
+
+A rendered Discover pass over `/privacy` (the consent surface §6 specifies) found four defects, three
+of them truthfulness problems: the page told the user something the code did not do. Fixes ratified
+below; full narrative in `docs/decisions.md` `OD-CON-3`.
+
+**AC-CON-010** (unit, Vitest — `src/components/legal/AnalyticsOptOutToggle.test.tsx`)
+- **Given** the analytics opt-out control on `/privacy`,
+- **When** a user clicks the visible label sentence (not just the 16px box),
+- **Then** the control toggles exactly once — the label text IS the hit target, per every checkbox
+  convention, not an unassociated sibling `<span>`.
+- **And** the control's accessible name is the visible sentence itself (via `aria-labelledby`), never
+  a separately-worded `aria-label` that duplicates the same words a screen reader would then read
+  again as ordinary page content.
+
+**AC-CON-011** (unit, Vitest — `src/lib/analytics/client.test.ts` for `getConsentState`;
+`AnalyticsOptOutToggle.test.tsx` for the rendered three states)
+- **Given** a browser with Do Not Track set (or a deployment with analytics not enabled at all),
+- **When** `/privacy` renders the opt-out control,
+- **Then** the control shows the accurate "not collecting" state and explains WHY (DNT vs.
+  deployment-disabled vs. an explicit opt-out are three distinct, correctly-labelled states — not a
+  boolean that can contradict the DNT disclosure sentence directly above it).
+- Supersedes the implicit assumption in §6 that `hasAnalyticsOptedOut()` alone answers "is this
+  browser's usage being sent" — it does not; `getConsentState` (client.ts) is now the single source
+  of truth, checked in the same priority order `doInit`'s own guard uses.
+
+**AC-CON-012** (e2e, Playwright — `e2e/AC-CON-012-no-third-party-on-consent-page.spec.ts`)
+- **Given** a browser that has opted out of analytics (or simply loads the page at all),
+- **When** it loads `/privacy`,
+- **Then** it contacts ZERO third-party origins — not just PostHog (AC-CON-003's scope), but ANY
+  undisclosed third party. Closes a real leak: Inter was loaded from
+  `fonts.googleapis.com`/`fonts.gstatic.com` on every page, including `/privacy` itself, before any
+  consent choice, and even for a fully opted-out session (the opt-out only ever gated PostHog, never
+  the font fetch). Fixed by self-hosting Inter (`public/fonts/`, `index.css` `@font-face`); the
+  `<link>`s are removed from `index.html`.
+- **Positive control (required — the same rule §9 amendment 1 states):** the same test file proves
+  (a) its own request-listener actually captures a real injected cross-origin request, and (b) an
+  opted-IN session on the same 'consent' Playwright lane DOES attempt a third-party (PostHog)
+  request — so "zero third-party requests" is never trivially true because nothing loaded at all.
+
+**AC-A11Y-CHECKBOX-001** (unit, Vitest token-math — `src/components/ui/__tests__/checkboxBorderContrast.test.ts`)
+**+ AC-VISUAL-CHECKBOX-001** (e2e, rendered computed-style — `e2e/AC-VISUAL-CHECKBOX-001-dark-contrast.spec.ts`)
+- Dark `--input` (the `Checkbox` primitive's unchecked-state border, its ONLY visual indication)
+  measured 2.13:1 against dark `--background` — below WCAG 1.4.11's 3:1 non-text floor. Raised to
+  `240 4% 42%` (~3.36:1). Two layers because a token-math test cannot catch a Tailwind-cascade
+  regression that a real render would — see `DESIGN.md`'s Accessibility posture section.
+
+### Traceability addendum (extends §7)
+
+| AC | Owning layer | Location |
+|---|---|---|
+| AC-CON-010 | Unit (Vitest) | `pmo-portal/src/components/legal/AnalyticsOptOutToggle.test.tsx` |
+| AC-CON-011 | Unit (Vitest) | `pmo-portal/src/lib/analytics/client.test.ts`, `AnalyticsOptOutToggle.test.tsx` |
+| AC-CON-012 | E2E (Playwright) | `pmo-portal/e2e/AC-CON-012-no-third-party-on-consent-page.spec.ts` |
+| AC-A11Y-CHECKBOX-001 | Unit (Vitest) | `pmo-portal/src/components/ui/__tests__/checkboxBorderContrast.test.ts` |
+| AC-VISUAL-CHECKBOX-001 | E2E (Playwright) | `pmo-portal/e2e/AC-VISUAL-CHECKBOX-001-dark-contrast.spec.ts` |
