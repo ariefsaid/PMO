@@ -28,11 +28,22 @@ export function wrapWithErrorReporting(
     try {
       return await handler(req);
     } catch (err) {
-      await reportEdgeError({
-        fn,
-        errorCode: 'UNHANDLED_EDGE_ERROR',
-        contextId: err instanceof Error ? err.name : 'unknown',
-      });
+      try {
+        // The reporter must never cost the caller its response. recordErrorEvent /
+        // errorEventSink.insert / capturePosthogException all self-swallow already, but
+        // reportEdgeError's OWN machinery does not (e.g. createServiceRoleErrorEventSink's
+        // Deno.env.get, or console.error itself, throwing) — without this catch, THAT throw
+        // would reject this promise and the caller would lose its stable 500 (review round
+        // 2026-07-28).
+        await reportEdgeError({
+          fn,
+          errorCode: 'UNHANDLED_EDGE_ERROR',
+          contextId: err instanceof Error ? err.name : 'unknown',
+        });
+      } catch {
+        // Deliberately swallowed — see the comment above. There is no further surface to report
+        // a reporter-failure-while-already-reporting-a-failure to; the 500 below is what matters.
+      }
       return new Response(JSON.stringify({ error: 'INTERNAL_ERROR' }), {
         status: 500,
         headers: { 'Content-Type': 'application/json' },
