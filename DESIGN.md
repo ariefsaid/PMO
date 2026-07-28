@@ -467,8 +467,14 @@ The numbered-circle `node` variant is retired; the `inline` pip (9px dots in tab
 ### Overlays
 - **Popover menu:** `popover` bg, `border`, `lg` radius, overlay shadow, 5px padding; 32px items, `accent`
   hover, `danger` items in `destructive-text`, hairline separator.
-- **Modal dialog — error + focus rules (locked 2026-07-28, OD-FORM-A11Y).** Three rules, binding on every
-  dialog, not just `EntityFormModal`:
+- **Modal dialog — error + focus rules (locked 2026-07-28, OD-FORM-A11Y).** Three rules. ⚑ **Rules 1 and 2
+  are already TRUE of every dialog** — they live inside `EntityFormModal` and every consumer inherits them
+  with no opt-in. **Rule 3 is a rule, not yet a fact:** it needs the consumer to pass `submitError`, and
+  only **2 of 18** consumers do (`pages/Companies.tsx`, `pages/Contacts.tsx`). The other 16 still show a
+  rejected save the old way. Do not read rule 3 as describing the app as it stands — the rollout is
+  tracked in `docs/backlog.md`. (Caught by the step-7 acceptance pass, 2026-07-28: this section
+  originally read "binding on every dialog", which was true of 1+2 and false of 3. A design-system rule
+  stated as universal without a rollout tracker reads as a completed fact to the next person.)
   1. **Blur-surfaced errors must never drive focus; only submit-surfaced ones do.** Validation-on-blur plus
      "focus the first invalid field" composes into a keyboard trap (WCAG 2.1.2) — the user can never leave
      the field. Focusing the first invalid field on **submit** is correct and stays.
