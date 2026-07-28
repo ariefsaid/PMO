@@ -67,7 +67,9 @@ describe('withTimeout (UI-freeze hardening)', () => {
     }
     expect(classifyMutationError(caught)).toEqual({
       headline: "Request timed out — we couldn't confirm whether it saved.",
+      // App-authored message (AC-ERR-002): already human copy, so it passes through as-is.
       detail: 'The request timed out',
+      rawDetail: 'The request timed out',
       classification: 'timeout',
     });
   });

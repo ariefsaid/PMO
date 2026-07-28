@@ -116,10 +116,13 @@ describe('EntityFormModal: disabled submit while invalid + loading', () => {
 });
 
 describe('EntityFormModal: error summary with focus-move', () => {
-  it('renders an error summary (role="alert") listing the field errors when errorSummary is given', () => {
+  it('renders an error summary (role="alert") listing the field errors AFTER a submit attempt', async () => {
+    // AC-A11Y-FORM-001: the summary is a post-submit verdict — it is not rendered before the
+    // user has tried to save (a blur-surfaced error shows inline on the field, not as a banner).
     render(
       <EntityFormModal
         {...baseProps}
+        onSubmit={(e: React.FormEvent) => e.preventDefault()}
         errorSummary={[
           { fieldId: 'f-name', message: 'Opportunity name is required' },
           { fieldId: 'f-client', message: 'Select a client company' },
@@ -128,6 +131,8 @@ describe('EntityFormModal: error summary with focus-move', () => {
         <TextField id="f-name" label="Name" value="" onChange={() => {}} error="Opportunity name is required" />
       </EntityFormModal>,
     );
+    expect(screen.queryByRole('alert', { name: 'Form errors' })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Create deal' }));
     const summary = screen.getByRole('alert', { name: 'Form errors' });
     expect(summary).toHaveTextContent('Fix 2 fields');
     expect(summary).toHaveTextContent('Opportunity name is required');
@@ -233,12 +238,15 @@ describe('EntityFormModal: error summary anchor focus-move', () => {
     render(
       <EntityFormModal
         {...baseProps}
+        onSubmit={(e: React.FormEvent) => e.preventDefault()}
         errorSummary={[{ fieldId: 'f-client', message: 'Select a client company' }]}
       >
         <TextField id="f-name" label="Name" value="" onChange={() => {}} />
         <TextField id="f-client" label="Client" value="" onChange={() => {}} />
       </EntityFormModal>,
     );
+    // The summary only exists after a submit attempt (AC-A11Y-FORM-001).
+    await userEvent.click(screen.getByRole('button', { name: 'Create deal' }));
     const link = screen.getByRole('link', { name: 'Select a client company' });
     await userEvent.click(link);
     expect(screen.getByLabelText('Client')).toHaveFocus();

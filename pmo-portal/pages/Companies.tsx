@@ -18,6 +18,7 @@ import {
   useToast,
   Button,
   Icon,
+  type SubmitError,
   type Column,
   type RowMenuItem,
 } from '@/src/components/ui';
@@ -412,6 +413,12 @@ const CompanyFormModal: React.FC<CompanyFormModalProps> = ({
   const nameField = form.fieldProps('name');
   const typeField = form.fieldProps('type');
 
+  // AC-ERR-001: a rejected save gets PERSISTENT in-dialog evidence, not only the corner
+  // toast (which auto-dismisses, leaving the modal indistinguishable from a pristine form
+  // with data in it). `suppressCapture` because the page's `onError` classifies the same
+  // rejection for the toast and owns the single `save_failed` event.
+  const [saveError, setSaveError] = useState<SubmitError | null>(null);
+
   const errorSummary = form.errors.name
     ? [{ fieldId: nameField.id, message: form.errors.name }]
     : undefined;
@@ -424,6 +431,12 @@ const CompanyFormModal: React.FC<CompanyFormModalProps> = ({
         if (isEdit && company) await onUpdate(company.id, input);
         else await onCreate(input);
       } catch (err) {
+        const { headline, detail } = classifyMutationError(err, undefined, {
+          module: 'companies',
+          operation: isEdit ? 'update' : 'create',
+          suppressCapture: true,
+        });
+        setSaveError({ headline, detail });
         onError(err);
       }
     });
@@ -441,6 +454,7 @@ const CompanyFormModal: React.FC<CompanyFormModalProps> = ({
       dirty={form.isDirty}
       submitDisabled={!form.isComplete}
       errorSummary={errorSummary}
+      submitError={saveError}
     >
       {pendingPush.status !== 'idle' && (
         <div className="mb-3.5 flex justify-end">

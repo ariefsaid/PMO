@@ -113,7 +113,14 @@ describe('classifyMutationError friction capture', () => {
   it('AC-PHG-010: the return value exposes `classification` (a bounded FrictionClass), used by ' +
     'bulk-loop call sites to build a per-classification tally for trackBatchSaveFailed', () => {
     expect(classifyMutationError(Object.assign(new Error('x'), { code: '23503' })))
-      .toEqual({ headline: 'Still in use', detail: 'x', classification: 'in_use' });
+      .toEqual({
+        headline: 'Still in use',
+        // AC-ERR-002: `detail` is the mapped product copy; the verbatim backend text is
+        // carried separately as `rawDetail` (diagnostics), never rendered to a user.
+        detail: 'Another record still refers to this one. Remove or reassign those references first, or archive it instead.',
+        rawDetail: 'x',
+        classification: 'in_use',
+      });
   });
 });
 

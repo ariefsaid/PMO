@@ -10,8 +10,8 @@ import { ConfirmDialog } from './ConfirmDialog';
 // EntityFormModal — the create / focused-edit composite (crud-components §2.2).
 // Portal + scrim + focus-trap (reusing the ConfirmDialog machinery), a header
 // (title + subtitle + ghost close icon-button), a scrollable form-body slot, a
-// sticky FormActions footer, and an optional top error summary that moves focus
-// to the first invalid field. Confirms before discarding a dirty form.
+// sticky FormActions footer, and a post-submit error summary that moves focus to
+// the first invalid field. Confirms before discarding a dirty form.
 //
 // Token-pure: white `popover` surface, 1px `border`, `rounded-lg`, the verbatim
 // *Overlay* shadow, the desaturated near-black scrim (No-Pure-Black-Shadow).
@@ -19,13 +19,55 @@ import { ConfirmDialog } from './ConfirmDialog';
 // a11y: `role="dialog"` + `aria-modal` + `aria-labelledby`/`aria-describedby`;
 // focus moves in on open, restores to the trigger on close; Esc + scrim close
 // (blocked while loading); the error summary is `role="alert"`; the body is a
-// real <form> so Enter submits.
+// real <form> so Enter submits; the app background goes `inert` while open.
+//
+// ⚑ Two WCAG Level A rules this component now encodes (2026-07-28 Discover pass,
+//   graduated in `EntityFormModal.focus.test.tsx` + docs/decisions.md OD-FORM-A11Y):
+//   1. BLUR-surfaced errors must NEVER move focus — only SUBMIT-surfaced ones do.
+//      `useEntityForm` surfaces a field error on blur, so focusing "the first invalid
+//      field whenever a summary is present" made every required field a keyboard trap
+//      (WCAG 2.1.2): Tab → blur → error → refocus → back where you started.
+//   2. A rejected SAVE gets a persistent in-dialog error region and its focus back
+//      inside the dialog — a corner toast that self-dismisses is not evidence, and
+//      focus left on <body> tabs into the background behind the dialog.
 // ---------------------------------------------------------------------------
 
 export interface ErrorSummaryItem {
   /** id of the invalid field's control (anchor + focus target). */
   fieldId: string;
   message: string;
+}
+
+/** A rejected mutation, already classified for humans (see `classifyMutationError`). */
+export interface SubmitError {
+  headline: string;
+  detail?: string;
+}
+
+// ── Background inert (AC-A11Y-MODAL-001) ────────────────────────────────────
+// `aria-modal="true"` is ADVISORY: it does not remove the background from the tab
+// order, so focus that starts OUTSIDE the dialog (e.g. dumped on <body> by a failed
+// save) walks straight into the app behind the scrim. `inert` on the app-shell root
+// is the platform-native fix — it removes the background from the tab order AND the
+// a11y tree AND blocks pointer events in one attribute. The refcount keeps two
+// stacked dialogs from un-inerting the background when only the inner one closes.
+// Scoped to the shell root (not <body>'s children) so the toast host and other
+// body-level portals stay announceable.
+const APP_SHELL_SELECTOR = '[data-app-shell="root"]';
+let backgroundInertRefs = 0;
+
+function acquireBackgroundInert(): () => void {
+  const shell = document.querySelector<HTMLElement>(APP_SHELL_SELECTOR);
+  if (!shell) return () => {};
+  if (backgroundInertRefs === 0) shell.setAttribute('inert', '');
+  backgroundInertRefs += 1;
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    backgroundInertRefs = Math.max(0, backgroundInertRefs - 1);
+    if (backgroundInertRefs === 0) shell.removeAttribute('inert');
+  };
 }
 
 export interface EntityFormModalProps {
@@ -44,8 +86,25 @@ export interface EntityFormModalProps {
   loading?: boolean;
   /** Dirty => Cancel/Esc/scrim asks to confirm discard. */
   dirty?: boolean;
-  /** When non-empty, renders the top error summary + moves focus to the first item. */
+  /**
+   * The dialog-level error summary. Rendered — and allowed to move focus to its first item —
+   * only ONCE THE USER HAS TRIED TO SUBMIT. A summary is a "you cannot save yet" verdict, so
+   * before a save is attempted there is no verdict to report: `useEntityForm` surfaces a field
+   * error on BLUR, and pairing that with a summary meant tabbing out of an empty required field
+   * both scolded the user prematurely (the same message twice: inline AND in the banner) and,
+   * because the banner moved focus, trapped them there (WCAG 2.1.2). Inline `error` on the field
+   * itself is the correct pre-submit feedback and is unaffected.
+   */
   errorSummary?: ErrorSummaryItem[];
+  /**
+   * A REJECTED SAVE (mutation failure) — distinct from `errorSummary`'s per-field
+   * validation. Renders a persistent in-dialog error region and returns focus to it, so
+   * the failure survives the toast's auto-dismiss and the keyboard user is not stranded
+   * on <body>. The modal clears it when the user submits again, so a consumer never has
+   * to; pass a FRESH object per failure (`classifyMutationError` returns one) — an
+   * identical object reference is treated as "nothing new happened".
+   */
+  submitError?: SubmitError | null;
   /** Max-width preset: 'sm' single-entity (520px) | 'lg' with line-items (640px). */
   width?: 'sm' | 'lg';
   children: React.ReactNode;
@@ -63,6 +122,7 @@ export const EntityFormModal: React.FC<EntityFormModalProps> = ({
   loading = false,
   dirty = false,
   errorSummary,
+  submitError,
   width = 'sm',
   children,
 }) => {
@@ -73,10 +133,21 @@ export const EntityFormModal: React.FC<EntityFormModalProps> = ({
 
   const dialogRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLElement | null>(null);
+  const saveErrorRef = useRef<HTMLDivElement>(null);
 
   const [confirmDiscard, setConfirmDiscard] = useState(false);
+  // Bumped on every submit attempt. The ONLY thing allowed to move focus to an invalid
+  // field (see the header note: blur-surfaced errors must not).
+  const [submitSeq, setSubmitSeq] = useState(0);
+  const handledSubmitSeq = useRef(0);
+  // The rejected-save error currently on screen. Mirrored from the `submitError` prop so
+  // the modal can clear it itself the moment a new submit starts.
+  const [visibleSaveError, setVisibleSaveError] = useState<SubmitError | null>(null);
 
   const hasSummary = !!errorSummary && errorSummary.length > 0;
+  // The summary is a post-submit verdict (see the `errorSummary` prop doc): before the user has
+  // tried to save, the field's own inline error is the whole story.
+  const showSummary = hasSummary && submitSeq > 0;
 
   // Intercept a close request: while loading => ignore; dirty => confirm; else close.
   const requestClose = useCallback(() => {
@@ -97,6 +168,15 @@ export const EntityFormModal: React.FC<EntityFormModalProps> = ({
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
   }, [open, confirmDiscard, requestClose]);
+
+  // AC-A11Y-MODAL-001: background inert while open. DECLARED BEFORE the focus effect on
+  // purpose — React runs cleanups in declaration order, so the background is un-inerted
+  // BEFORE the focus-restore cleanup below tries to focus the trigger (focusing an inert
+  // element is a silent no-op).
+  useEffect(() => {
+    if (!open) return;
+    return acquireBackgroundInert();
+  }, [open]);
 
   // Focus: capture the trigger, move focus into the dialog on open, restore on close.
   // C-1: prefer the first FORM FIELD (input/select/textarea) over buttons so the close
@@ -124,13 +204,42 @@ export const EntityFormModal: React.FC<EntityFormModalProps> = ({
     };
   }, [open]);
 
-  // Move focus to the first invalid field when an error summary appears.
+  // AC-A11Y-FORM-001: move focus to the first invalid field ONLY for a SUBMIT-surfaced
+  // summary. `submitSeq` is bumped in the form's submit handler and the validation state
+  // lands in the same React batch, so the first render after a submit is the one that
+  // both changes `submitSeq` and carries the summary. The generation is consumed either
+  // way, so a LATER blur-surfaced summary can never inherit a stale "please focus" flag.
   useEffect(() => {
+    if (submitSeq === handledSubmitSeq.current) return;
+    handledSubmitSeq.current = submitSeq;
     if (hasSummary && errorSummary) {
-      const first = document.getElementById(errorSummary[0].fieldId);
-      first?.focus();
+      document.getElementById(errorSummary[0].fieldId)?.focus();
     }
-  }, [hasSummary, errorSummary]);
+  }, [submitSeq, hasSummary, errorSummary]);
+
+  // Wrap the consumer's submit: open a new focus generation and retire the previous
+  // save failure (the user is retrying — the old outcome is no longer the current one).
+  const handleFormSubmit = useCallback(
+    (e: React.FormEvent) => {
+      setSubmitSeq((n) => n + 1);
+      setVisibleSaveError(null);
+      onSubmit(e);
+    },
+    [onSubmit],
+  );
+
+  // AC-ERR-001: a rejected save becomes persistent in-dialog evidence, and takes focus
+  // back off <body> into the dialog. The region itself is the focus target (not the
+  // submit button): it is what the user needs to read, and focusing a button risks an
+  // accidental re-submit on the next Enter/Space.
+  useEffect(() => {
+    if (!submitError) return;
+    setVisibleSaveError(submitError);
+  }, [submitError]);
+
+  useEffect(() => {
+    if (visibleSaveError) saveErrorRef.current?.focus();
+  }, [visibleSaveError]);
 
   // Focus trap within the dialog. Suspended while the discard ConfirmDialog is
   // open — that dialog runs its own trap and owns the focus cycle, so the form
@@ -209,9 +318,34 @@ export const EntityFormModal: React.FC<EntityFormModalProps> = ({
           </div>
 
           {/* Body (the form) */}
-          <form onSubmit={onSubmit} className="flex min-h-0 flex-1 flex-col">
+          <form onSubmit={handleFormSubmit} className="flex min-h-0 flex-1 flex-col">
             <div className="min-h-0 flex-1 overflow-y-auto px-[18px] py-4">
-              {hasSummary && (
+              {visibleSaveError && (
+                <div
+                  ref={saveErrorRef}
+                  data-testid="entity-modal-save-error"
+                  role="alert"
+                  aria-label="Save failed"
+                  // Focus target for the rejected save — not in the Tab order, so it is
+                  // reached deliberately (on failure) and never sits between fields.
+                  tabIndex={-1}
+                  className="mb-4 flex gap-2.5 rounded-md border border-destructive/30 bg-destructive/[0.07] px-3.5 py-3 outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <Icon name="alert" className="mt-px size-[17px] shrink-0 text-destructive" />
+                  <div className="min-w-0">
+                    <div className="text-[13px] font-semibold text-destructive-text">
+                      {visibleSaveError.headline}
+                    </div>
+                    {visibleSaveError.detail && (
+                      <p className="text-[12.5px] text-muted-foreground">{visibleSaveError.detail}</p>
+                    )}
+                    <p className="text-[12.5px] text-muted-foreground">
+                      Nothing was saved — your entries are still here.
+                    </p>
+                  </div>
+                </div>
+              )}
+              {showSummary && (
                 <div
                   id={summaryId}
                   role="alert"

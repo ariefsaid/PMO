@@ -446,6 +446,20 @@ The numbered-circle `node` variant is retired; the `inline` pip (9px dots in tab
 ### Overlays
 - **Popover menu:** `popover` bg, `border`, `lg` radius, overlay shadow, 5px padding; 32px items, `accent`
   hover, `danger` items in `destructive-text`, hairline separator.
+- **Modal dialog — error + focus rules (locked 2026-07-28, OD-FORM-A11Y).** Three rules, binding on every
+  dialog, not just `EntityFormModal`:
+  1. **Blur-surfaced errors must never drive focus; only submit-surfaced ones do.** Validation-on-blur plus
+     "focus the first invalid field" composes into a keyboard trap (WCAG 2.1.2) — the user can never leave
+     the field. Focusing the first invalid field on **submit** is correct and stays.
+  2. **The error summary is a post-submit verdict.** Before a save is attempted, the field's own inline
+     error is the whole story — a top banner restating it is premature and duplicated.
+  3. **A mutation failure inside a dialog gets a persistent in-dialog error region, not only a transient
+     corner toast.** Tokens: `border-destructive/30` + `bg-destructive/[0.07]` surface, `alert` icon in
+     `text-destructive`, headline in `text-destructive-text`, body in `muted-foreground`; `role="alert"`,
+     `tabIndex={-1}`, and focus returns to the region (never to the submit button — that risks an
+     accidental re-submit). It states that nothing was saved and that the entries are intact.
+  Plus: while a modal dialog is open the app background (`[data-app-shell="root"]`) is `inert` —
+  `aria-modal` alone does not remove it from the tab order.
 - **Toast:** `popover` bg, `border` + 3px left accent stripe (`primary`, or `success` for ok), bottom-
   right, slide-in (`.toast-anim`).
 - **Tooltip (`.tooltip-surface`):** a DESIGN.md-sanctioned literal dark surface (`hsl(240 10% 8%)`),

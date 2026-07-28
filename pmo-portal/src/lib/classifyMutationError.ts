@@ -1,8 +1,18 @@
 /**
  * Classifies a mutation/transition error into a human toast headline by its preserved
- * Postgres/PostgREST code, keeping the verbatim message as the secondary detail (the
- * silent-no-op fix). Promoted from `pages/ProcurementDetails.tsx` to a shared lib (ADR-0017)
- * so every CRUD mutation can surface a classified, recoverable failure instead of a generic one.
+ * Postgres/PostgREST code. Promoted from `pages/ProcurementDetails.tsx` to a shared lib
+ * (ADR-0017) so every CRUD mutation can surface a classified, recoverable failure instead of
+ * a generic one.
+ *
+ * AC-ERR-002 (2026-07-28 Discover pass): `detail` is PRODUCT COPY, not a debug channel. It
+ * used to be the verbatim backend message, which put text like
+ * `new row violates row-level security policy for table "companies"` on the product surface —
+ * internal table names and RLS mechanics, shown to an end user who can do nothing with them.
+ * The families Postgres writes ITSELF (42501/23505/23503) are now mapped to human sentences;
+ * the families WE write (P0001 `RAISE EXCEPTION`, REQUEST_TIMEOUT, `AppError`, `overrides`)
+ * are already human copy and pass through unchanged — replacing those with a generic sentence
+ * would destroy the only specific information the user has. The verbatim text is always
+ * returned as `rawDetail` and logged to the console in DEV: diagnostics, never UI.
  *
  * Code mapping:
  *   P0001 → illegal state/stage transition (RAISE EXCEPTION in a state-machine RPC)
@@ -80,6 +90,10 @@ export interface ClassifyContext {
    * signal. The classification/headline/detail return value is unaffected — only the analytics
    * side effect is skipped. Tally `classification` per loop iteration and call
    * `trackBatchSaveFailed` ONCE after the loop instead.
+   *
+   * Also set it when a SECOND call site will classify the SAME error and fire the event — e.g. a
+   * form modal classifying a rejection for its in-dialog error region (AC-ERR-001) while the page
+   * classifies the same rejection for its toast. One user-visible failure, one `save_failed`.
    */
   suppressCapture?: boolean;
 }
@@ -146,15 +160,43 @@ function boundReasonCode(code: string | undefined): string {
   return 'other';
 }
 
+/**
+ * AC-ERR-002: the human replacement for a message Postgres wrote about its own internals.
+ * Only the constraint families whose text is MACHINE-generated are listed — see the module
+ * docstring for why app-authored messages are deliberately absent.
+ */
+const POSTGRES_GENERATED_DETAIL: Record<string, string> = {
+  '42501': 'Your role does not allow this change. Ask an administrator if you think it should.',
+  '23505': 'Another record already uses one of these values. Change it and try again.',
+  '23503': 'Another record still refers to this one. Remove or reassign those references first, or archive it instead.',
+};
+
+export interface ClassifiedMutationError {
+  /** The primary, human headline. */
+  headline: string;
+  /** USER-FACING secondary line — safe product copy (AC-ERR-002). */
+  detail: string;
+  /** The verbatim backend message. Diagnostics only — never render it to an end user. */
+  rawDetail: string;
+  classification: FrictionClass;
+}
+
 export function classifyMutationError(
   err: unknown,
   overrides?: Record<string, string>,
   context?: ClassifyContext,
-): { headline: string; detail: string; classification: FrictionClass } {
-  const detail = err instanceof Error ? err.message : 'An error occurred';
+): ClassifiedMutationError {
+  const rawDetail = err instanceof Error ? err.message : 'An error occurred';
   const code = typeof (err as { code?: unknown })?.code === 'string'
     ? (err as { code: string }).code
     : undefined;
+  const detail = (code && POSTGRES_GENERATED_DETAIL[code]) || rawDetail;
+
+  if (import.meta.env.DEV) {
+    // The dev-only affordance for the raw text (AC-ERR-002): table/constraint names and RLS
+    // mechanics are for whoever is debugging, and the console is where they look.
+    console.debug('[mutation-error]', code ?? '(no code)', rawDetail);
+  }
 
   // FR-PHG-010/011 (ADR-0067): this is the single point where "the user was shown a mutation
   // error" is knowable. Instrumenting here instead of in the 17 entity forms means a new form
@@ -173,22 +215,22 @@ export function classifyMutationError(
   }
 
   if (code && overrides && Object.prototype.hasOwnProperty.call(overrides, code)) {
-    return { headline: overrides[code], detail, classification };
+    return { headline: overrides[code], detail, rawDetail, classification };
   }
 
   switch (code) {
     case 'P0001':
-      return { headline: "That move isn't allowed from the current stage.", detail, classification };
+      return { headline: "That move isn't allowed from the current stage.", detail, rawDetail, classification };
     case '42501':
-      return { headline: "You don't have permission to do that.", detail, classification };
+      return { headline: "You don't have permission to do that.", detail, rawDetail, classification };
     case '23505':
-      return { headline: 'That already exists.', detail, classification };
+      return { headline: 'That already exists.', detail, rawDetail, classification };
     case '23503':
-      return { headline: 'Still in use', detail, classification };
+      return { headline: 'Still in use', detail, rawDetail, classification };
     case 'REQUEST_TIMEOUT':
-      return { headline: "Request timed out — we couldn't confirm whether it saved.", detail, classification };
+      return { headline: "Request timed out — we couldn't confirm whether it saved.", detail, rawDetail, classification };
     default:
-      return { headline: 'Update failed', detail, classification };
+      return { headline: 'Update failed', detail, rawDetail, classification };
   }
 }
 
