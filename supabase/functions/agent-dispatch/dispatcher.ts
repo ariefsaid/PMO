@@ -78,7 +78,17 @@ export async function selectDueSchedules(sb: ServiceClientLike, now: Date): Prom
     .eq('enabled', true)
     .is('archived_at', null);
 
-  if (error || !data) return [];
+  // I-COLPROJ (2026-07-28 review): a real query error must be DISTINGUISHABLE from "nothing is due
+  // right now" — the two were previously coalesced (`error || !data`), so a query failure (a drifted
+  // column list raising 42703, a connectivity blip, an RLS/grant regression) silently looked
+  // IDENTICAL to the empty case, forever: every scheduled automation would just stop firing with no
+  // log line anywhere to diagnose it from. Fail-safe behavior is unchanged (still returns []) — only
+  // the visibility changes.
+  if (error) {
+    logStructuredError({ fn: 'agent-dispatch', errorCode: 'SELECT_DUE_SCHEDULES_FAILED' });
+    return [];
+  }
+  if (!data) return [];
   return data.filter((row) => row.schedule && cronMatches(row.schedule, now));
 }
 
@@ -600,7 +610,14 @@ async function selectEnabledTriggers(sb: ServiceClientLike): Promise<AutomationR
     .eq('kind', 'trigger')
     .eq('enabled', true)
     .is('archived_at', null);
-  if (error || !data) return [];
+  // I-COLPROJ (2026-07-28 review): same fix as selectDueSchedules — a real query error must be
+  // DISTINGUISHABLE from "no trigger automations enabled", or every trigger automation silently
+  // stops firing with nothing to diagnose it from. Fail-safe unchanged (still returns []).
+  if (error) {
+    logStructuredError({ fn: 'agent-dispatch', errorCode: 'SELECT_ENABLED_TRIGGERS_FAILED' });
+    return [];
+  }
+  if (!data) return [];
   return data;
 }
 
