@@ -477,6 +477,26 @@ cannot be left half-done). It stays in `e2e/serial/` either way — it mutates t
 stated restore condition was finally met, the condition was satisfied and the test still failed. A
 quarantine reason is a hypothesis — re-verify it before trusting it.
 
+### ⚑ OPEN QUESTION (owner) — was dropping bulk-approve from the main approvals view a regression? (2026-07-27)
+The approvals-screen redesign (`Approvals.tsx` master-detail split inbox, large screen) renders
+timesheets **one-at-a-time** in the preview pane — there is **no "select several → Approve All"**
+affordance on the primary view. The bulk-approve UI (Select toggle + per-row checkboxes + "Approve N")
+now lives **only on the small-screen stacked fallback** (`ApprovalsQueue`, shown when `!isLargeScreen`).
+The bulk *behavior* is still proven at the unit level (`ApprovalsQueue.expand-bulk.test.tsx`, 8 tests).
+
+**The question for the owner:** was dropping bulk-approve from the main view **deliberate** (a manager
+approves one sheet at a time anyway), or an **accidental regression** in the redesign (the layout work
+focused on the two-pane triage and the bulk affordance fell out unnoticed)? Approving a whole week's
+timesheets one at a time is a real PM annoyance if it was unintentional.
+
+**Decision taken 2026-07-27 (option 1):** keep bulk-approve covered end-to-end by having the e2e
+(`AC-IXD-TS-W5-3`) drive the **stacked fallback layout** (small viewport) — the feature still exists
+there, so the test finds it and keeps the goal-oracle intact. This does NOT close the regression
+question; it keeps coverage while the question stays open. **If the owner later rules this was an
+accidental regression**, the follow-up is a UI task: restore a bulk affordance to the split inbox
+(e.g. a "Select" toggle over the Timesheets `QueueGroup` + an "Approve N" control in the preview),
+at which point the e2e can be re-pointed at the primary view. Logged here so it is not lost.
+
 ### ⚑ PARKED — mutation testing (StrykerJS) for the "green test that doesn't bind" class (2026-07-25)
 **Why:** coverage proves a line RAN; it does not prove its behaviour is asserted. 2026-07-25 found a
 `withTimeout` test suite at 100% coverage of the timer line where mutating `setTimeout(…, ms)` →
