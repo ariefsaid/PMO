@@ -28,6 +28,7 @@ import { authorizeInvite, InviteError } from '../../../pmo-portal/src/lib/invite
 import type { InviteSupabaseLike } from '../../../pmo-portal/src/lib/invite/inviteHandler.ts';
 import { logStructuredError } from '../_shared/errorLog.ts';
 import { checkRequestRate } from '../_shared/requestRateGuard.ts';
+import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
 
 function json(body: unknown, status: number, corsHeaders: Record<string, string>): Response {
   return new Response(JSON.stringify(body), {
@@ -36,7 +37,7 @@ function json(body: unknown, status: number, corsHeaders: Record<string, string>
   });
 }
 
-Deno.serve(async (req: Request): Promise<Response> => {
+serveWithErrorReporting('admin-invite-user', async (req: Request): Promise<Response> => {
   const corsHeaders = {
     // L5 (security review): fail-closed to SITE_URL when AGENT_ALLOWED_ORIGIN is unset (the loose
     // `*` default let a misconfigured prod silently accept any origin). Auth is Bearer-token so

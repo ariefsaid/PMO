@@ -89,6 +89,26 @@ produces a countable signal on a surface outside the pipeline it is reporting on
   top-level. That is exactly today's behaviour; the 6 `import.meta.main`-guarded functions keep
   their guard, so `scripts/check-edge-fn-test-binding.mjs` stays satisfiable.
 
+**Non-coverage (review round 2026-07-28 — a net whose blind spots are undocumented gets trusted
+beyond its reach, which is worse than no net, because it stops people looking):**
+
+- **Post-response / streaming failures are NOT covered.** The wrapper only sees what the handler
+  RETURNS; a streaming handler (`new Response(stream, ...)`) has already returned by the time the
+  stream's `start()` runs, so a throw inside `start()` happens after the wrapper's catch has
+  already exited and can never be seen. **Rule: a streaming handler must report inside its own
+  stream.** `agent-chat/sseStream.ts`'s `drainSseStream(events, controller, onStreamError)` is the
+  one shipped example — its own `catch` around the generator drain calls `reportEdgeError` with
+  `UNHANDLED_STREAM_ERROR` directly, because `wrapWithErrorReporting` structurally cannot.
+- **Module top-level init is NOT covered** — a throw during import (the exact TDZ class that
+  crashed a deployed worker, `049d1e2`, cited in Context above) happens before
+  `serveWithErrorReporting` is even called. Covered instead by
+  `scripts/deno-boot-smoke-edge-fns.sh` (imports every entrypoint with `Deno.serve` stubbed, fails
+  the build on any import-time throw) — a *different* gate, not this wrapper.
+- **`Deno` absent at call time used to be silently uncovered** (`deno?.serve(...)` — no server, no
+  thrown error, no log line: the exact green-by-absence class this whole ADR exists to kill).
+  Closed 2026-07-28: `serveWithErrorReporting` now throws when `Deno` is absent, converting a
+  silent no-op into a loud crash.
+
 **Explicitly not decided here**
 
 - Replacing the 79 free-text `console.error` calls with enum codes (FR-OBS-003) is a follow-on

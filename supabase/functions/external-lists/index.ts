@@ -29,6 +29,7 @@ import {
   type JwksResolver,
 } from '../../../pmo-portal/src/lib/auth/verifyCallerJwt.ts';
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
+import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
 
 interface ListsBody {
   tier: 'clickup';
@@ -323,7 +324,7 @@ export async function handleListsRequest(req: Request): Promise<Response> {
 
 // Deno.serve entry point (only runs when module is main)
 if (import.meta.main) {
-  Deno.serve(handleListsRequest);
+  serveWithErrorReporting('external-lists', handleListsRequest);
 }
 
 // Export for unit testing (Deno test imports this module)

@@ -56,6 +56,7 @@ import {
   mapsFromBindingConfig,
   createClickUpMirrorCallbacks,
 } from '../_shared/clickupMirrorDeps.ts';
+import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
 
 // Shared across invocations of this isolate — the token bucket's budget is real only if it persists
 // across requests (NFR-CUA-PERF-003). Bulk lane: onboarding yields to interactive writes.
@@ -129,7 +130,7 @@ async function captureMaps(
   return { statusMap, memberMap };
 }
 
-Deno.serve(async (req: Request): Promise<Response> => {
+serveWithErrorReporting('clickup-onboard', async (req: Request): Promise<Response> => {
   // ── 1. Authorization: the caller (an Operator action) must present the service-role bearer. ──
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
   const authHeader = req.headers.get('Authorization') ?? '';

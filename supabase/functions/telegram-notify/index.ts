@@ -17,6 +17,7 @@ import { runDrain, pingHeartbeat } from './logic.ts';
 import type { ErrorEventRow, SendLogEntry } from './logic.ts';
 import { logStructuredError } from '../_shared/errorLog.ts';
 import { constantTimeBearerEquals } from '../_shared/constantTimeBearerEquals.ts';
+import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
 
 // M4 (perf, 2026-07-28 review): caps the unnotified-rows query so one error storm cannot load the
 // whole error_events table into the worker every 2-minute tick. Served by error_events_unnotified_idx
@@ -24,7 +25,7 @@ import { constantTimeBearerEquals } from '../_shared/constantTimeBearerEquals.ts
 // still drains in FIFO order rather than starving old, still-unnotified rows.
 const UNNOTIFIED_BATCH_LIMIT = 500;
 
-Deno.serve(async (req: Request): Promise<Response> => {
+serveWithErrorReporting('telegram-notify', async (req: Request): Promise<Response> => {
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
   const dispatchSecret = Deno.env.get('TELEGRAM_NOTIFY_SECRET') ?? '';
   const authHeader = req.headers.get('Authorization') ?? '';

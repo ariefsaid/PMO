@@ -26,6 +26,7 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { verifyClickUpSignature } from '../../../pmo-portal/src/lib/adapterSeam/clickup/signature.ts';
 import { parseWebhookEnvelope, type ClickUpWebhookPayload } from '../../../pmo-portal/src/lib/adapterSeam/clickup/types.ts';
+import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
 
 // 256 KiB body cap (review fix #7b): reject an oversized payload BEFORE req.text() so a huge body
 // can't exhaust the isolate. ClickUp task webhooks are small JSON (<2 KB typical); 256 KiB is a
@@ -125,7 +126,7 @@ function enqueueLive(serviceClient: SupabaseClient): ClickUpWebhookHandlerDeps['
 }
 
 if (import.meta.main) {
-  Deno.serve(async (req: Request): Promise<Response> => {
+  serveWithErrorReporting('clickup-webhook', async (req: Request): Promise<Response> => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
     if (!supabaseUrl || !serviceRoleKey) {

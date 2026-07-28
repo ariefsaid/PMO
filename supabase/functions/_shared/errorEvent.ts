@@ -4,7 +4,16 @@
  * ALREADY-INJECTED service-role client (deputy invariant by construction — never
  * constructs a client itself, mirrors usage.ts/creditRateGuard.ts). Swallows its
  * own failure so the caller's real error path is never perturbed (FR-OF-002).
+ *
+ * CONTEXT_ID_MAX_LEN (review round 2026-07-28): `contextId` is unbounded text on the wire. Safe
+ * TODAY only because every call site passes a hardcoded literal (`err.name`, `err instanceof Error
+ * ? err.name : 'unknown'`) — that is a CONVENTION, not a structural guarantee, and this file is the
+ * one funnel every producer's insert goes through (both the legacy direct callers and the
+ * reportEdgeError choke point via errorEventSink). One `err.name = someUpstreamResponseText` away
+ * from the leak class this program has closed twice this week already. Truncated here, once, so it
+ * is structurally safe rather than conventionally safe.
  */
+const CONTEXT_ID_MAX_LEN = 64;
 export interface ErrorEventSupabaseLike {
   from(table: 'error_events'): {
     insert(row: {
@@ -31,7 +40,7 @@ export async function recordErrorEvent(
     fn: ctx.fn,
     error_code: ctx.errorCode,
   };
-  if (ctx.contextId !== undefined) row.context_id = ctx.contextId;
+  if (ctx.contextId !== undefined) row.context_id = ctx.contextId.slice(0, CONTEXT_ID_MAX_LEN);
   if (ctx.orgId !== undefined) row.org_id = ctx.orgId;
 
   try {
