@@ -28,6 +28,10 @@
 -- (the win path still succeeds and still captures the win artifacts); the missing transition audit is
 -- a separate, pre-existing gap and is NOT asserted here, because asserting its absence would enshrine
 -- it and asserting its presence would fail for a reason this slice does not own.
+-- ⚑ RESOLVED by 0176 §3 (slice 4): transition_project now writes a `project.transition` audit row
+-- carrying from/to, the actor, and the contract_value that rode into Won. It is asserted in
+-- supabase/tests/0169_create_path_sod_residuals.test.sql §D (AC-RES-031), which owns it — this file's
+-- assertions are deliberately left as they were, so 0166 keeps proving only what slice 1 owns.
 begin;
 select plan(19);
 
@@ -133,8 +137,12 @@ select throws_ok(
 
 -- ════════════════════════════════════════════════════════════════════════════════════════════════
 -- AC-PCS-003 — NO OVER-BLOCKING: a legitimate origination create, WITH a contract value, still
--- succeeds. contract_value at INSERT is the opportunity value; the SoD is about the WON value, which
--- transition_project + set_project_contract_value own. A reject-everything guard fails here.
+-- succeeds. contract_value at INSERT is the opportunity value, and every legitimate create sends it.
+-- ⚑ CORRECTION (0176): the original wording here — "the SoD is about the WON value, which
+-- transition_project + set_project_contract_value own" — was FALSE. transition_project never reads
+-- contract_value, so the origination value rides into Won unre-approved. That residual is STILL OPEN
+-- and is pinned by 0169 AC-RES-032; this assertion is unchanged, because "a legitimate create with a
+-- value still succeeds" is true either way and a reject-everything guard must still fail here.
 -- ════════════════════════════════════════════════════════════════════════════════════════════════
 select lives_ok(
   $$ insert into public.projects (id, org_id, name, status, contract_value, client_id, project_manager_id)

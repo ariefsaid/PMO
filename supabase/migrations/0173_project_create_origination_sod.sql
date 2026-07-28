@@ -26,6 +26,20 @@
 -- the WON value, which transition_project + set_project_contract_value own. Blocking it would break
 -- every legitimate create for no security gain.
 --
+-- ⚑ CORRECTION (0176) — THE SENTENCE ABOVE IS FALSE AND THE MONEY SoD IS STILL OPEN. transition_project
+--   (0008 A4/A5) NEVER reads, requires or re-validates contract_value on any branch; verified by
+--   reading it and by probe at 0175: a PM inserts 'Leads' at contract_value 99999999, runs three legal
+--   transitions, and lands 'Won, Pending KoM | 99999999.00' ALONE. set_project_contract_value's
+--   Admin/Executive/Finance gate (0014) binds only once the project is ALREADY on-hand, so the value
+--   rides in under the pre-win branch and is never re-approved. Leaving contract_value insertable is
+--   still the right call (every legitimate create sends it) — what was wrong was the CLAIM that
+--   something downstream owns it. 0176 adds the missing detection control (transition_project now
+--   writes an audit row carrying the value that rode into Won) and leaves the SoD itself OPEN,
+--   deliberately: closing it is a product decision (gate the pipeline->Won edge on
+--   Admin/Executive/Finance, or require re-approval of the value on win). See 0176 §3,
+--   supabase/tests/0169_create_path_sod_residuals.test.sql AC-RES-032 (which PINS the current,
+--   vulnerable behaviour), and docs/backlog.md.
+--
 -- ── SCOPE: WHO IS ENFORCED ──────────────────────────────────────────────────────────────────────
 -- The trigger enforces on roles that are SUBJECT to RLS (authenticated, anon) and exempts roles that
 -- already BYPASS it (postgres, service_role, supabase_admin — `pg_roles.rolbypassrls`). It therefore

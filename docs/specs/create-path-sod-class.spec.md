@@ -1,8 +1,18 @@
-# Spec — close the create-path SoD hole across the whole class (slices 2 + 3)
+# Spec — close the create-path SoD hole across the whole class (slices 2 + 3 + 4)
 
 **Status:** drafted 2026-07-28 (Director), owner instructed "fix all of them"
 **Slice 1:** `docs/specs/project-create-sod.spec.md` (`projects` only) — implemented separately
-**Relates to:** ADR-0019 (server-enforced SoD), ADR-0020, ADR-0027
+**Relates to:** ADR-0019 (server-enforced SoD), ADR-0020, ADR-0027, **ADR-0069** (`actor_bypasses_rls()`)
+
+> ⚑ **SECOND CORRECTION, 2026-07-29 — the class was declared closed TWICE and was not closed either
+> time. Slice 4 (`0176`) is §8 below.** Both earlier sweeps looked for a *shape* (asymmetric grants;
+> then asymmetric policies) rather than for the *rule*, and so missed five more instances plus a
+> logic defect in every guard shipped so far. **The sweep that finds this class is: for every rule a
+> transition RPC enforces, ask "what else can put the row into that state?"** A blanket grant
+> (`sales_invoices`), a guard on the wrong column (`project_documents.author_id`), a state the RPC
+> never validates (`projects.contract_value`), an untouched table (`budget_versions`) and an **RPC
+> parameter** (`create_procurement_invoice(p_status)`) are all answers — and none of them is a grant
+> asymmetry.
 
 > ⚑ **CORRECTION, 2026-07-29 — this spec was wrong about the scope of the fix, and slice 3 exists to
 > repair that.** Everything below was written as an **INSERT-path** spec, because the class was
@@ -230,3 +240,124 @@ phrase in a SQL **comment**. Strip comments where matching on source.
 | FR-CPS-050 | AC-CPS-050 | pgTAP / reset+test |
 | FR-CPS-060 | AC-CPS-060 | pgTAP |
 | NFR-CPS-002 | AC-CPS-012, 021, 031, 041, 070 | pgTAP |
+| FR-RES-010/011/012 | AC-RES-010..019 | pgTAP (`0169`) |
+| FR-RES-020/021 | AC-RES-020..025 | pgTAP (`0169`) |
+| FR-RES-030 | AC-RES-030, 031 | pgTAP (`0169`) |
+| FR-RES-040 | AC-RES-040, 041, 042 | pgTAP (`0169`) |
+| FR-RES-050 | AC-RES-050, 051, 052 | pgTAP (`0169`) |
+| FR-RES-060 | AC-RES-060, 070, 071 | pgTAP (`0169`) |
+
+---
+
+## 8. Slice 4 — the residuals (`0176_create_path_sod_residuals.sql`, proven by `supabase/tests/0169_create_path_sod_residuals.test.sql`)
+
+Found by a three-reviewer battery run **after** slice 3 declared the class closed. Every item was
+verified by a live probe against the local DB at `0175` before a line was written.
+
+### 8.1 Findings
+
+- **`sales_invoices` — CRITICAL, the SoD was defeated end-to-end.** `0123` granted `authenticated` a
+  blanket `select, insert, update, delete` and relied on the per-command **flip** policies as "the
+  real gate". They gate nothing for an org that is not flipped — i.e. every org today
+  (`external_domain_ownership` is empty) — and the `0123`/`0125` mirror guard only fires *while*
+  flipped. Two distinct forgeries:
+  1. a **Project Manager** (not even an AR role) inserted `status='Paid'`, `amount=777777`,
+     `si_number='SI-FORGED-001'`, `erp_docstatus=1` in **one statement**, with **zero** audit rows;
+  2. the **SoD itself**: `submit_sales_invoice` / `grant_sales_invoice_submit_clearance` read exactly
+     two sources — `sales_invoices.author_user_id` and the append-only `sales_invoice_authors` set —
+     and both are written only inside `claim_sales_invoice_author` and the service-role mirror
+     writer. Writing the invoice **body** through the direct table path bypassed both, so the person
+     who chose the number **cleared their own submit**. The row-lock / clearance / fencing-token
+     machinery of `0132`+`0133` was all downstream of an oracle a client could simply write.
+- **`project_documents` — HIGH, the guard protected the wrong column.** `0174` checked `status`;
+  **`author_id`** is the SoD subject of `transition_document_status` and was freely insertable. A PM
+  inserts a `Draft` naming a colleague as author, then `Issued` → `Approved`: **self-approval in
+  three statements**, and `0174`'s audit detail did not even record `author_id`. `procurements` has
+  had the right control since `0051` (column default + restrictive INSERT policy + removal from the
+  UPDATE grant); all three parts are mirrored.
+- **`projects` — HIGH, the money SoD is STILL OPEN and `0173` said otherwise.** See the correction
+  block in `docs/specs/project-create-sod.spec.md` §3. `0176` fixes the false claim and adds the
+  missing detection control; **closing the defect is an owner decision** (FR-RES-030).
+- **`budget_versions` — MEDIUM, same class, untouched.** `insert … values (…,'Active', now())`
+  bypassed `activate_budget_version`'s role gate, its `is_active_member()` conjunct, its Draft-only
+  legality rule and its archive-the-previous-Active invariant. Bounded by
+  `budget_versions_one_active_idx` (a second Active hits 23505), so the reachable outcome is "the
+  first Active version on a project is created ungated" — which still moves every budget KPI.
+- **`create_procurement_invoice(p_status)` — MEDIUM, the protected end state was a PARAMETER.** Now
+  that slices 2+3 made the definer RPCs the sole client write path, their parameters are the whole
+  remaining surface. It minted a `Paid` invoice for an arbitrary amount on request. The rule already
+  existed as a TypeScript comment (`RecordCaptureForm.tsx` N1: *"Paid is NOT offered here — Mark as
+  Paid is the sole PR→Paid authority"*) in front of a public RPC.
+- **Three-valued logic — MINOR but real, in EVERY guard shipped so far.** `new.status not in (…)` and
+  `new.status <> 'Draft'` evaluate to **NULL** for an explicit `status => NULL`, and `if NULL then`
+  does not fire, so every guard **fell through** and the NOT NULL constraint caught the insert
+  instead: the wrong error, and all four guards open **silently** the moment any migration relaxes one
+  of those NOT NULLs. Same family as `NaN >= 0` being TRUE in Postgres.
+
+### 8.2 Requirements (EARS)
+
+- **FR-RES-010** — The system shall withhold INSERT privilege on `sales_invoices.status`,
+  `.si_number`, `.author_user_id` and every `erp_*` column from `authenticated`, re-granting INSERT
+  only on the body columns.
+- **FR-RES-011** — The system shall withhold UPDATE privilege on `sales_invoices` from
+  `authenticated` and `anon` entirely, with no re-grant.
+- **FR-RES-012** — The system shall reject any INSERT into `sales_invoices` that is not an
+  origination row, and shall write an `audit_events` row for every insert.
+- **FR-RES-020** — The system shall reject any INSERT into `project_documents` whose `author_id` is
+  not the calling user, defaulting `author_id` to the caller when it is omitted.
+- **FR-RES-021** — The system shall withhold UPDATE privilege on `project_documents.author_id` from
+  `authenticated`, and shall record `author_id` in the create audit detail.
+- **FR-RES-030** — `transition_project` shall write an `audit_events` row naming the actor, the from
+  and to states, and the `contract_value` in force at the transition.
+  ⚑ **STILL OPEN:** the money SoD itself. `transition_project` does not validate `contract_value`, so
+  an originator can win their own deal at their own value. Closing it is an owner decision between
+  (a) gating the pipeline→Won edge on Admin/Executive/Finance and (b) requiring re-approval of the
+  value on win (which needs a `contract_value` authorship trail that does not exist). Current
+  behaviour PINNED by AC-RES-032.
+- **FR-RES-040** — The system shall reject any INSERT into `budget_versions` whose `status` is not
+  `Draft` or which supplies a non-NULL `activated_at`, and shall withhold INSERT privilege on
+  `activated_at` from `authenticated`.
+- **FR-RES-050** — `create_procurement_invoice` shall reject any `p_status` that is not an
+  origination status (`Received`, `Scheduled`).
+- **FR-RES-060** — Every create-path guard shall treat a NULL `status` as a violation of the
+  origination rule (explicit `is null` / `is distinct from`), not fall through to a constraint.
+- **NFR-RES-001** — Every denial shall assert **message text**, not errcode alone, and every revoke
+  shall be paired with a proof that the legitimate path still works.
+
+### 8.3 Acceptance criteria — all pgTAP, in `supabase/tests/0169_create_path_sod_residuals.test.sql`
+
+`AC-RES-010`..`019` (sales_invoices grants, both probed forgeries, the fail-closed submit, the create
+audit, the service-role mirror control, **and AC-RES-019 pinning the STILL-OPEN DELETE**) ·
+`AC-RES-020`..`025` (foreign/NULL author denied; both DAL insert shapes still work; the default stamps
+the caller; `author_id` out of the UPDATE grant; the real SoD still fires) · `AC-RES-030`/`031` (the
+win path still works; the transition is audited) · **`AC-RES-032` pins the STILL-OPEN money SoD** ·
+`AC-RES-040`..`042` (budget_versions guard + grant + createBudgetVersion/activate/archive controls) ·
+`AC-RES-050`..`052` (Paid rejected; Received/Scheduled + `capture_vendor_invoice` still work) ·
+**`AC-RES-053` pins the STILL-OPEN goods-receipt self-attestation** · `AC-RES-060` (NULL status on all
+six guarded tables) · `AC-RES-070`/`071` (the trigger layer behind the revokes; the ADR-0069 boundary).
+
+**Mutation evidence (binding requirement, performed):** 22 mutations applied to the live schema,
+**22 killed, 0 survived** — including four MESSAGE-only mutations (same errcode, generic text) and
+five deliberate OVER-BLOCKING mutations (full revoke of the SI INSERT; revoke of `budget_versions`
+UPDATE; revoke of the `project_documents` metadata UPDATE; constraining the invoice RPC to `Received`
+alone; making the SI guard enforce on BYPASSRLS roles).
+
+### 8.4 Explicitly out of scope for slice 4 (all reported, none silently dropped)
+
+- **The `projects` money SoD** (FR-RES-030 ⚑) and **DELETE on `sales_invoices`** — both pinned, both
+  owner decisions, both in `docs/backlog.md`.
+- **`create_procurement_receipt`'s requester carve-out** — an Engineer who raised the request can
+  record their own `Complete` goods receipt. NOT the same defect (`Partial`/`Complete` are both
+  origination values, so no status constraint touches it) and the carve-out is a **ratified**
+  contract asserted on purpose by `supabase/tests/0055_authz_hardening.test.sql` AC-AUTHZ-007.
+  Pinned by AC-RES-053.
+- **`incoming_payments`** — the AR twin of `sales_invoices` carries the identical blanket grants
+  (`insert/update/delete` to `authenticated`, `status` ∈ `Scheduled|Paid`, `erp_*` feed columns) and
+  the same inert flip guard. It is **not** this class: there is no transition RPC and no SoD rule to
+  bypass, so it is a mirror-integrity question (`0123`'s flip design), not a create-path SoD one.
+  Reported to the Director, deliberately not fixed here.
+- **`budget_versions` DELETE** — found while auditing the DELETE path for this slice: a plain PM can
+  delete the **Active** version (there is no DELETE guard, contrary to `budgets.ts:392`'s comment), and
+  the parent's `on delete cascade` **bypasses** `enforce_draft_line_item`. Verified live. Same
+  DELETE-path family as the two items above; `docs/backlog.md` groups all three as one slice.
+- **The `is_active_member()` gap across 17 RPCs** — a different class, tracked separately.

@@ -311,6 +311,77 @@ BEHIND `dev`, content identical).
   per year, or state why not.** Priority: real but not urgent — Admin-only, deliberate, and it corrupts
   reporting truth rather than moving money.
 
+### ⚑ OPEN (security) — the create-path SoD class, slice 4 residuals (found 2026-07-29, `0176`)
+Branch `fix/project-create-sod`, migration **0176** (`0176_create_path_sod_residuals.sql`), pinned by
+`supabase/tests/0169_create_path_sod_residuals.test.sql`. Spec §8 of
+`docs/specs/create-path-sod-class.spec.md`. **None is a regression — all pre-existing and live in
+production today.** Slice 4 CLOSED: `sales_invoices` (the SoD was defeated end-to-end — a PM forged a
+Paid 777777 invoice in one statement, and the body-writer could clear their own submit because
+`author_user_id` / `sales_invoice_authors` were client-writable), `project_documents.author_id` (the
+guard was on the wrong column; self-approval in three statements), `budget_versions` (ungated first
+Active version), `create_procurement_invoice(p_status)` (minted `Paid` on request), the missing
+`transition_project` audit row, and a three-valued-logic fall-through in **every** guard shipped so
+far. **What is left open, deliberately, with a pinning assertion each:**
+
+1. **`projects` — the money SoD itself (HIGH).** `0173`'s header claimed `contract_value` at INSERT was
+   safe because "transition_project + set_project_contract_value own the WON value". **False, and now
+   corrected in place in `0173`, `0166` and the slice-1 spec.** `transition_project` never reads,
+   requires or re-validates `contract_value` on any branch; `set_project_contract_value`'s
+   Admin/Exec/Finance gate binds only once the project is *already* on-hand. Verified live:
+   ```
+   insert projects (…, 'Leads', contract_value 99999999)           -> INSERT 1   (a plain PM)
+   transition_project('PQ Submitted') / ('Quotation Submitted')    -> ok
+   transition_project('Won, Pending KoM','CPO-1','2026-03-02')     -> ok
+   => 'Won, Pending KoM | 99999999.00', reached ALONE
+   ```
+   `0176` adds the **detection** control (`transition_project` now writes a `project.transition` audit
+   row carrying the value that rode into Won — it wrote *no* audit row at all before). **Closing it is
+   an owner decision between two valid shapes:** (a) gate the pipeline→Won edge on
+   Admin/Executive/Finance — a true two-person rule, but it removes "win the deal" from the Project
+   Manager role that owns the pipeline, and changes `policy.ts`, the Won affordance and the e2e
+   journeys with it; or (b) require re-approval of the value on win — which needs a `contract_value`
+   authorship trail (who set it, when) that does not exist today, plus a backfill and an FE surface.
+   Pinned by `0169` **AC-RES-032**.
+2. **`sales_invoices` is client-DELETE-able (MEDIUM).** Identical shape to the procure-to-pay item
+   below: `0123` grants table DELETE to `authenticated` plus a permissive DELETE policy, so a PM can
+   erase a mirror row — a **Paid** invoice included — with no audit row (`delete … where id = <a Paid
+   invoice>` → `DELETE 1`, verified live). No FE caller uses it (`_sarHelpers.ts` deletes with the
+   service-role `admin` client), so revoking looks free — but the right shape is the same
+   ADR-0018/ADR-0019 decision. **Close it together with the procure-to-pay item below, as one slice.**
+   Pinned by `0169` **AC-RES-019**.
+3. **Goods-receipt self-attestation (MEDIUM).** `create_procurement_receipt` is role-gated to
+   Admin OR PM OR **the requester**, so the Engineer who raised the request records their own
+   `Complete` delivery — an input to the 3-way match. NOT the same defect as the invoice one
+   (`Partial`/`Complete` are both origination values), and the carve-out is a **ratified** contract
+   asserted on purpose by `supabase/tests/0055_authz_hardening.test.sql` **AC-AUTHZ-007**. Narrowing it
+   is a product decision. Pinned by `0169` **AC-RES-053**.
+4. **`budget_versions` — an ACTIVE version is client-DELETE-able, and the FK cascade defeats the
+   line-item guard (MEDIUM-HIGH, newly found while auditing the DELETE path for slice 4).** `0075`
+   grants table DELETE to `authenticated` and `budget_versions_write` is `FOR ALL`, so a plain PM can
+   delete the **Active** version. `budgets.ts:392` documents the opposite — *"RLS gates the write + DB
+   trigger blocks non-Draft (OD-BUDGET-C)"* — **there is no such trigger on `budget_versions`** (only
+   `stamp_org_id` and, as of `0176`, the INSERT origination guard). Worse, `enforce_draft_line_item`
+   (`0005`, BEFORE INSERT OR UPDATE OR DELETE on `budget_line_items`, *"line-items can only change
+   while the owning version is Draft"*) is **bypassed by the parent's `on delete cascade`**. Verified
+   live:
+   ```
+   -- Draft -> add a 500000 Labor line -> activate  (the real lifecycle)
+   delete from budget_line_items where budget_version_id = <Active>  -> ERROR: line-items can only
+                                                                        change while the owning
+                                                                        version is Draft
+   delete from budget_versions   where id = <Active, WITH line items> -> DELETE 1, 0 rows left
+   ```
+   Impact: the Active budget of a project is erasable in one request, with **no audit row**, zeroing
+   `get_project_budget` / `get_budget_projection` / margin / at-risk / S-curve — and the ERPNext budget
+   the last push installed stays enforcing figures PMO no longer holds. Same DELETE-path family as
+   items 2 and 5; **close them as one slice.** Not pinned by a test.
+5. **`incoming_payments` — same blanket grants, different class (MEDIUM).** The AR twin of
+   `sales_invoices`: `insert/update/delete` to `authenticated`, `status` ∈ `Scheduled|Paid`, `erp_*`
+   feed columns, and the same inert flip guard (`external_domain_ownership` is empty). A PM can insert
+   a `Paid` receipt against a customer invoice. It is **not** the create-path SoD class — there is no
+   transition RPC and no SoD rule being bypassed — so it is a mirror-integrity question (`0123`'s flip
+   design) and was deliberately left out of slice 4 rather than smuggled in. **Not pinned by a test.**
+
 ### ⚑ OPEN (security) — procure-to-pay child rows are client-DELETE-able (found 2026-07-29, slice 3 of the create-path SoD class)
 Branch `fix/project-create-sod`, migration **0175** (`0175_update_path_sod_class.sql`), pinned by
 `supabase/tests/0168_update_path_sod_class.test.sql` §J. **Not a regression — pre-existing, and live

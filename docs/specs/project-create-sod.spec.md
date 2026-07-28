@@ -89,6 +89,19 @@ already-agreed rule to the layer that can enforce it. `contract_value` must rema
 INSERT (it is the opportunity value); the SoD is about the **won** value, which the state machine
 owns.
 
+> ⚑ **CORRECTION, 2026-07-29 (slice 4, `0176`) — the last clause is FALSE.** The state machine does
+> **not** own the won value: `transition_project` never reads, requires or re-validates
+> `contract_value` on any branch, and `set_project_contract_value`'s Admin/Executive/Finance gate
+> binds only once the project is *already* on-hand. Verified live: a PM inserts `Leads` at
+> `contract_value = 99999999`, runs three legal transitions, and lands
+> `Won, Pending KoM | 99999999.00` **alone**. Keeping `contract_value` insertable is still correct
+> (every legitimate create sends it); what was wrong is the claim that anything downstream re-approves
+> it. **The money SoD on `projects` is therefore STILL OPEN** — `0176` adds the missing detection
+> control (`transition_project` now writes a `project.transition` audit row carrying the value that
+> rode into Won) and leaves closing it to an owner decision: gate the pipeline→Won edge on
+> Admin/Executive/Finance, or require re-approval of the value on win. Current behaviour is PINNED by
+> `supabase/tests/0169_create_path_sod_residuals.test.sql` AC-RES-032; tracked in `docs/backlog.md`.
+
 ---
 
 ## 4. Requirements (EARS)
