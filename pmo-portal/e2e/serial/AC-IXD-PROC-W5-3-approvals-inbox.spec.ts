@@ -132,7 +132,7 @@ test(
 // is restored to the split inbox, this test can be re-pointed at the primary view (drop the
 // setViewportSize) — the goal-oracle carries over unchanged.
 test(
-  'AC-IXD-TS-W5-3 the PM bulk-approves ≥2 timesheets from the approvals inbox and the queue count settles',
+  'AC-IXD-TS-W5-3 the PM bulk-approves ≥2 timesheets from the STACKED (<1024px) approvals inbox and the queue count settles',
   async ({ page }) => {
     // Step 1: pm@ opens /approvals — ≥2 prior-week Submitted sheets are already in the
     // queue (seeded as Submitted; no UI-submit step needed).
