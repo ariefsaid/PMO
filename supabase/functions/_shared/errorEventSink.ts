@@ -11,8 +11,21 @@
  * that as a visible degradation (ERROR_EVENT_SINK_UNAVAILABLE), never a silent skip.
  * Deno-only: in Vitest `Deno` is undefined, so this returns null and stays offline unless a test
  * explicitly supplies env + a stubbed fetch.
+ *
+ * CORRELATED-FAILURE HAZARD (review round, 2026-07-28): the sink is a plain `fetch` with no
+ * deadline, and `reportEdgeError` / `serveWithErrorReporting` both await it before returning a
+ * response — so this is slowest exactly when errors spike (DB degrades -> error rate rises ->
+ * every FAILING request now also blocks on the DB). Bounded via `fetchWithDeadline` (the repo's
+ * existing server-side hang guard, `erpnext-sweep`/`adapter-dispatch`'s pattern for the same class
+ * of raw un-bounded fetch); a deadline degrades to the SAME `{ error: { code } }` shape a non-2xx
+ * or thrown network error already produces (the existing `catch` below, unchanged).
  */
 import type { ErrorEventSupabaseLike } from './errorEvent.ts';
+import { fetchWithDeadline } from './fetchWithDeadline.ts';
+
+/** Bounds the error_events insert POST. Short — this write must never itself become the reason a
+ *  failing request's own response is slow (see CORRELATED-FAILURE HAZARD above). */
+const ERROR_EVENT_SINK_TIMEOUT_MS = 2_000;
 
 export function createServiceRoleErrorEventSink(
   env?: { url?: string; serviceRoleKey?: string },
@@ -29,16 +42,21 @@ export function createServiceRoleErrorEventSink(
       return {
         async insert(row) {
           try {
-            const res = await fetch(endpoint, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                apikey: key,
-                Authorization: `Bearer ${key}`,
-                Prefer: 'return=minimal',
+            const res = await fetchWithDeadline(
+              fetch,
+              endpoint,
+              {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  apikey: key,
+                  Authorization: `Bearer ${key}`,
+                  Prefer: 'return=minimal',
+                },
+                body: JSON.stringify(row),
               },
-              body: JSON.stringify(row),
-            });
+              ERROR_EVENT_SINK_TIMEOUT_MS,
+            );
             if (!res.ok) return { error: { code: String(res.status) } };
             return { error: null };
           } catch (err) {

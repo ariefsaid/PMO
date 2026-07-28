@@ -6,7 +6,24 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { createServiceRoleErrorEventSink } from '../../../../supabase/functions/_shared/errorEventSink';
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.useRealTimers();
+});
+
+/** A fetch that never settles until its AbortSignal fires — models a hung PostgREST (correlated
+ *  failure: the DB is slowest exactly when errors spike). Mirrors fetchWithDeadline.test.ts's
+ *  hangingFetch fixture. */
+function hangingFetch() {
+  return vi.fn((_input: RequestInfo | URL, init?: RequestInit) =>
+    new Promise<Response>((_resolve, reject) => {
+      const signal = init?.signal;
+      if (!signal) return; // no deadline wired -> would hang forever (the RED state)
+      if (signal.aborted) reject(signal.reason ?? new Error('aborted'));
+      signal.addEventListener('abort', () => reject(signal.reason ?? new Error('aborted')));
+    }),
+  );
+}
 
 describe('createServiceRoleErrorEventSink', () => {
   it('AC-OBS-001: returns null when the service-role env is absent (caller must report, not skip)', () => {
@@ -32,5 +49,18 @@ describe('createServiceRoleErrorEventSink', () => {
     const sink = createServiceRoleErrorEventSink({ url: 'https://db.example', serviceRoleKey: 'srk' })!;
     expect(await sink.from('error_events').insert({ fn: 'health', error_code: 'X' }))
       .toEqual({ error: { code: '403' } });
+  });
+
+  it('a hung PostgREST call is bounded by a deadline — resolves FetchDeadlineError, never hangs the caller (correlated-failure hazard: the DB is slowest exactly when errors spike)', async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal('fetch', hangingFetch());
+
+    const sink = createServiceRoleErrorEventSink({ url: 'https://db.example', serviceRoleKey: 'srk' })!;
+    const resultPromise = sink.from('error_events').insert({ fn: 'erpnext-sweep', error_code: 'X' });
+
+    await vi.advanceTimersByTimeAsync(10_000);
+    const result = await resultPromise;
+
+    expect(result).toEqual({ error: { code: 'FetchDeadlineError' } });
   });
 });
