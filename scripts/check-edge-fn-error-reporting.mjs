@@ -24,7 +24,12 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, resolve } from 'node:path';
 
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const FUNCTIONS = resolve(REPO, 'supabase/functions');
+// Override seam for the CLI-level test suite ONLY (checkEdgeFnErrorReporting.test.ts spawns this
+// script against a throwaway temp directory to prove the empty-input / unreadable-file guards
+// below actually fire, rather than trusting the pure helpers alone). Unset in every real run.
+const FUNCTIONS = process.env.EDGE_FN_ERROR_REPORTING_FUNCTIONS_DIR
+  ? resolve(process.env.EDGE_FN_ERROR_REPORTING_FUNCTIONS_DIR)
+  : resolve(REPO, 'supabase/functions');
 
 /** Every deployed edge-function directory (has an index.ts, name does not start with `_`). */
 export function deployedFunctionDirs(functionsDir) {
