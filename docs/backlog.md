@@ -6,7 +6,7 @@
 
 ### ⚑⚑⚑ CURRENT FOCUS — the WHOLE observability+analytics program is COMPLETE on `dev` (2026-07-28). Not promoted.
 
-**All 7 PRs shipped to `dev`. Zero open PRs.** Spec `docs/specs/observability-analytics.spec.md`,
+**All 11 PRs shipped to `dev`. Zero open PRs.** Spec `docs/specs/observability-analytics.spec.md`,
 plan `docs/plans/2026-07-25-observability-analytics.md`, ADRs 0066/0067.
 
 | PR | Slice | What it closed |
@@ -18,6 +18,17 @@ plan `docs/plans/2026-07-25-observability-analytics.md`, ADRs 0066/0067.
 | #401 | B — money & concurrency | rejects negatives **and `NaN`**; automation-cap race closed with a real 2-session `dblink` proof |
 | #402 | C — edge coverage | **4 → 22** functions reporting through one choke point |
 | #403 | D — self-report + retention | a failed `error_events` insert now reaches PostHog; 90-day purge with proof-of-run |
+| #404 | quota parser | the alarm parsed `quota_limits` (an ARRAY); the API returns `limited` (an OBJECT). **It could never have worked** |
+| #406 | spike deletion | `spike/agent-native-rls/` + its lane removed; supersedes FR-HRD-043 |
+| #407 | vitest timeout 5s→15s | the default was a **contention** detector, not a hang detector |
+| #408 | quota row validation | #404's fix still reported all-clear having checked nothing — found by the retrospective battery |
+
+⚑ **#404 and #406 shipped WITHOUT a review battery** (Director judged them low-risk, merged on CI
+alone). The retrospective battery run afterwards found a **Critical in #404** — both reviewers
+independently. Verdicts: skipping it on **#404 was NOT defensible**, on **#406 it was**. The correct
+trigger is not "does this touch the DB" but **"does this parse untrusted external data into a
+privileged sink"** — #404 parsed a third-party HTTP response into CI stdout, which is a command
+interpreter. See the lessons block below.
 
 **⛔ OWNER ACTIONS OWED:**
 1. ✅ **DONE 2026-07-28 — repo secrets `POSTHOG_API_KEY` + `POSTHOG_PROJECT_ID` are set** (piped from
@@ -29,21 +40,26 @@ plan `docs/plans/2026-07-25-observability-analytics.md`, ADRs 0066/0067.
    `HTTP 404: not found on the default branch`. So the alarm has never run and **is not protecting
    anything until `dev` is promoted.** Setting the secrets early means it works on its first real run
    rather than failing closed; there was no daily red to avoid.
-   ⚑ **Still unproven:** secret *presence* says nothing about key *validity* or *scope*. The first
-   scheduled run after promotion is the first real test. It fails closed (exit 2 on non-2xx), which is
-   the correct direction.
-   🔑 **Scope caveat — worth a follow-up.** `scripts/posthog/provision-dashboards.mjs:11` documents the
-   SAME `POSTHOG_API_KEY` as needing **`dashboard:write` + `insight:write`** (and confirms the `phx_…`
-   prefix). The quota check needs only `project:read`. So CI now holds a **write-capable** credential
-   to do a read-only job; if leaked it could rewrite/delete dashboards and read analytics data.
-   **Cheap fix: mint a second PostHog personal key scoped `project:read` for CI, keep the
-   write-capable one in 1Password for local provisioning.**
+   ✅ **Key VALIDATED live 2026-07-28** — `project:read` alone is sufficient for `/quota_limits/`
+   (previously documented but never called). Live result: `✓ 14 PostHog allowance(s) checked`.
+   Usage is nowhere near any ceiling: events 238/1M, exceptions 13/100k, recordings 25/5k,
+   AI credits 32/500 (highest at 6.4%).
+   ✅ **Least privilege DONE** — the secret was repointed to a dedicated `project:read`-scoped key
+   (1Password item **`posthog-pmo-api`**, vault `AS`, field `credential`). The write-capable
+   `posthog-personal-api` stays in 1Password for local `provision-dashboards.mjs` runs, which need
+   `dashboard:write` + `insight:write`. ⚑ Don't export the CI key in a shell and then run
+   `provision-dashboards.mjs`/`query.mjs` — they will fail on scope.
    *Transport is sound:* repo is PUBLIC but there is **no `pull_request_target`** anywhere in
    `.github/workflows/` (so fork PRs never receive secrets), triggers are `schedule`+`workflow_dispatch`
    only (not fork-reachable), `permissions: contents: read`, an explicit `::add-mask::` on top of
    GitHub's automatic masking, and `ariefsaid` is the only collaborator.
-2. **`docker stop gordi-pre-test`** — another project's container at ~200% CPU produced phantom
-   ~5000ms test timeouts **three times**, each costing an isolation round to disprove.
+2. ✅ **DONE 2026-07-28 — `gordi-pre-test` stopped.** It was a Postgres 17 container for the *gordi*
+   project running a **22-hour COGS aggregation with `SET statement_timeout=0`** — the timeout had been
+   deliberately disabled after a 300s cancellation, and the query never finished. ~100–200% CPU
+   (one full core), idle load 253 → **4** once stopped. It produced phantom ~5000ms test timeouts
+   **three times**, each costing an isolation round to disprove.
+   ⚑ It was **not** the sole cause: a full `npm run verify` alone drives this 10-core machine to
+   load ~140, which is why #407 (timeout 5s→15s) was still needed.
 3. ✅ **DONE 2026-07-28 (owner-approved) — `spike/agent-native-rls/` + `.github/workflows/spike-rls.yml`
    DELETED** (10 files, ~1,970 lines). It was retained only for ADR-0036's §8 SSO UX check, and **§8 was
    closed 2026-07-03** — so it was being kept for a check on an abandoned path. This **supersedes
@@ -68,23 +84,6 @@ pulled to its own spec as unplannable) · the automation cap is still bypassable
 (BEFORE INSERT only) · `changed-lines-coverage.mjs` diffs `-- pmo-portal/` only, so the ≥80% DoD is
 **unenforceable for every `supabase/**` change** · `telegramNotify.test.ts`'s AC-OF-005 reimplements
 the branch it tests and should migrate onto `runDrain`.
-
-**⛔ TWO OWNER ACTIONS OWED — the second is time-sensitive:**
-1. **Set repo secrets `POSTHOG_API_KEY` (personal API key, `project:read`) + `POSTHOG_PROJECT_ID`.**
-   `.github/workflows/posthog-quota.yml` **fails closed and goes RED daily** until they exist. That
-   posture is deliberate (an alarm that fails silent is worthless) but a daily red trains people to
-   ignore it, which defeats the alarm.
-2. **`docker stop gordi-pre-test`** — an unrelated project's container sat at ~200% CPU for hours,
-   driving load to 250+. It produced phantom ~5000ms test timeouts **three separate times**, each
-   costing an isolation round to disprove. ⚑ Diagnostic rule: a unit test failing at *exactly*
-   ~5000ms is the vitest timeout under contention; one failing in **18ms is real**. Read the
-   duration, not the count — that distinction caught a genuine regression this session that the
-   "it's just load" heuristic would have merged.
-
-**Still owed from the program (PRs 1–4, none started):** alerting hardening (§4.2/4.3/4.4),
-money & concurrency (§4.6), edge `error_events` coverage (§3.1), pipeline self-report + retention
-(§3.2/3.3). ⚑ Migration numbers were **re-allocated 2026-07-27** after #396 took `0168`/`0161` —
-re-read the allocation note at the top of the plan, and re-check `origin/dev` before writing.
 
 **Known limitations, deliberate and documented (do not "fix" without reading why):**
 - `save_failed`'s `module`/`operation` are **constants** (`unknown`/`classify`) until call sites are
@@ -176,50 +175,46 @@ is already on `dev`.** Where an older entry below conflicts with this block, **t
 BEHIND `dev`, content identical).
 
 **🔴 GENUINELY STILL OWED (verified absent, with the search that proved it):**
-- **`error_events` coverage** — only **4 of 22** edge fns PRODUCE events (`agent-dispatch`, `agent-chat`,
-  `compose-view`, `m365-token-custody`); `telegram-notify` consumes them, so 5 touch the table at all.
-  FE has **zero** `from('error_events')` — and cannot have one: the table has FORCE RLS with **zero
-  policies** (`0071_error_events.sql:30-34`), so it is service-role-only by design. Any FE surface needs
-  a policy or an RPC, not just a query. **No retention/purge — it grows unbounded.**
-  ⚑ Re-counted 2026-07-25; the older "6 of 22" and the much older "2 fns + FE" were both wrong.
-  ⚑ The seam to widen is `_shared/errorLog.ts:22-27` — `EdgeFunctionName` is a CLOSED union of only 5
-  function names, so wiring the other 17 is gated on that type.
-  ⚑ **`recordErrorEvent` swallows its own insert failure** (`_shared/errorEvent.ts:37-50`, returns
-  `void`) and 3 of the 4 producers call it un-awaited. ⚑ **Re-verified 2026-07-27:** the insert's
-  catch now logs `console.error('[errorEvent] ERROR_EVENT_INSERT_FAILED', …)` (`errorEvent.ts:40-49`),
-  so it is **no longer fully silent** — but the failure still does not reach the *caller* (returns
-  `void`), so 3 of 4 producers fire-and-forget a result they can never observe. The defect stands;
-  the older "no errors and error-recording-down are indistinguishable" framing overstated the silence
-  (the log is there now) — read it as "a broken pipeline surfaces to *server logs only*, never to the
-  caller or the alert drain."
-- **PostHog consent-gate** — no consent state, gate or banner anywhere in `pmo-portal/src`; `/privacy`
-  (`pages/Privacy.tsx`) does not mention analytics, PostHog or cookies at all. **Owner decision
-  2026-07-25: disclose + in-app opt-out + `respect_dnt: true`, NO banner** (legitimate-interest posture,
-  B2B named account-holders). Replay/autocapture stay **demo-prospect only** — do not enable for real users.
-- **Two analytics tiles can never render data** — `save_failed` is INERT
-  (`pmo-portal/src/components/ui/useEntityForm.ts:201` — ⚑ file moved from `hooks/` to `components/ui/`
-  in PR #324; line number unchanged; the `if (module && entityType)` guard is never true because both
-  real callers `ProjectIntegrationsCard.tsx:77` and `IntegrationsView.tsx:128` pass neither) and
-  `permission_denied_seen` has **zero call sites**,
-  yet `scripts/posthog/provision-dashboards.mjs` provisions a tile for each. An empty chart reads as
-  "no failures" when it means "not instrumented" — the analytics-layer instance of the silent-false-signal class.
-- **⚑ Raw NUL bytes in 3 source files make them invisible to `grep`** — `agent-dispatch/dispatcher.ts:209`
-  (deployed), `src/lib/adapterSeam/erpnext/agingSnapshot.ts:132`, `src/lib/viewspec/compiler.test.ts:159`.
-  Each is a legitimate NUL-as-delimiter composite key, but written as a literal byte instead of `\u0000`,
-  so `file` reports "data" and **`grep` silently skips the file** (`grep -rn recordErrorEvent
-  supabase/functions/` → 9 hits; `grep -a` → 10). Any grep-based gate over these paths is blind to them.
-  Fix = replace the literal byte with the `\u0000` escape; behaviour is identical.
-  ⚑ **Authoring hazard:** writing that escape *through an editing tool* can itself emit a real NUL — this
-  entry did exactly that and turned `docs/backlog.md` binary while describing the bug. After editing, check
-  `file docs/backlog.md` says "text", not "data". A CI guard for NULs in tracked text files is owed.
+- ~~**`error_events` coverage** — only 4 of 22 edge fns produce events~~ ✅ **CLOSED #402/#403** —
+  **22/22** now route through the `serveWithErrorReporting` choke point (ADR-0066), enforced by
+  `scripts/check-edge-fn-error-reporting.mjs`, and a failed insert now reaches PostHog rather than
+  dying in a function log (#403). 90-day retention purge with heartbeat proof-of-run.
+  ⚑ **Still open:** FR-OBS-003 — the 79 free-text `console.error` calls are NOT yet an enum. Error
+  *reporting* is universal; error *coding* is not. Blind spots (streaming, module-init, missing
+  `Deno`) are documented in the module header and ADR-0066 — read them before trusting the net.
+- ~~**PostHog consent-gate**~~ ✅ **CLOSED #398** — disclose + in-app opt-out + `respect_dnt`, no banner
+  (OD-OBS-2). ⚑ Two non-obvious defects were found and fixed: logging out wiped PostHog's consent key
+  and silently resumed capture, and DNT users still hit the remote-config endpoint because only
+  `capture` was gated, not `init`. ⚑ **Open owner question:** the opt-out **fails open** if
+  `localStorage` is evicted (Safari ITP ~7d) — a first-party cookie mirror would fix it.
+- ~~**Two analytics tiles can never render data**~~ ✅ **CLOSED #399** — `save_failed` now fires from
+  `classifyMutationError` (~161 call sites, the single point where "the user was shown an error" is
+  knowable) rather than the inert `useEntityForm` path; `permission_denied_seen` and its tile removed.
+  `scripts/check-dashboard-tiles.mjs` now fails CI on any tile whose event has no call site.
+  ⚑ `module`/`operation` are still CONSTANTS until callers are threaded — do not break down on them.
+- ~~**Raw NUL bytes in 3 source files make them invisible to `grep`**~~ ✅ **CLOSED #394** — all three
+  replaced with the `\u0000` escape, plus `scripts/check-nul-bytes.sh` wired into `verify` + 3 CI jobs
+  (0.44s, after a review cut it from 57s). ⚑ The gate initially reported **green over an empty file
+  list** — a gate that can scan nothing is worse than none; now guarded and self-tested.
+  ⚑ **Authoring hazard remains real:** writing that escape *through an editing tool* can emit a real
+  NUL. It happened 4× in one session — to me twice, to an implementer, and to the harness. The CI
+  gate is what makes the class self-detecting; `file docs/backlog.md` should say "text", not "data".
 - **interactive-create idempotency** — idempotency exists ONLY on the bulk-import path (`0072`).
-- **telegram-notify dup alerts** — `telegram-notify/index.ts:99` (⚑ not `:86`): the `notified_at` stamp's
-  error is never inspected → a good send + failed stamp re-alerts every tick.
-- **`notifyOwner` swallows errors** — `agent-dispatch/dispatcher.ts:293-305`, bare catch, no structured log.
-- **`enforce_automation_owner_cap` race** — the defect is **`0059:31`** (count-then-insert, no lock). ⚑ The
-  old `0065:69` pointer is the SHARE-ROW-EXCLUSIVE *exemplar*, not the defect — it sends you to the wrong file.
-- **`set_project_contract_value` accepts negative** — `0076_audit_events.sql:212`, no sign check, and no
-  CHECK on the column. ⚑ Same fix as the money `CHECK (>=0)` item — they are ONE task, not two.
+- ~~**telegram-notify dup alerts**~~ ✅ **CLOSED #400** — write-ahead `alert_send_log`. ⚑ The root cause was
+  deeper than "the stamp result is discarded": the cooldown derived from `error_events.notified_at`, the
+  very column the failing stamp writes, so a failure erased the evidence that would have suppressed the
+  resend. The first fix then traded spam for silent LOSS (a failed send still stamped rows notified) —
+  closed by gating the stamp on a `delivered_at` witness.
+- ~~**`notifyOwner` swallows errors**~~ ✅ **CLOSED #400** — it was *doubly* silent (a bare catch AND an
+  un-destructured resolve-with-`error`, supabase-js's ordinary failure mode). Failures now reach
+  `error_events`, and therefore Telegram, rather than a console line nobody reads.
+- ~~**`enforce_automation_owner_cap` race**~~ ✅ **CLOSED #401** — per-owner `FOR UPDATE` + `SECURITY DEFINER`,
+  proven by a real two-session `dblink` test (`55P03` under a short `lock_timeout`). ⚑ Still bypassable by
+  UN-ARCHIVING (the trigger is BEFORE INSERT only) — that half is open.
+- ~~**`set_project_contract_value` accepts negative**~~ ✅ **CLOSED #401** — RPC guard + column CHECK.
+  ⚑ `>= 0` alone was NOT enough: **`NaN >= 0` is TRUE in Postgres** and PostgREST coerces `"NaN"` from a
+  quoted string, poisoning `sum()` org-wide. Shipped as `>= 0 and < 'Infinity'::numeric`.
+  🔴 **The INSERT-side gap is still OPEN and live in prod** — see the CURRENT FOCUS block.
 - ~~**`spike-rls.yml`** — only `npm install` → `npm ci` remains.~~ ✅ **CLOSED BY DELETION 2026-07-28** —
   the workflow and `spike/agent-native-rls/` no longer exist (owner-approved; ADR-0036 §8, its only
   reason to exist, closed 2026-07-03). Do not go looking for this file.
@@ -326,87 +321,109 @@ those were NOT promoted (deliberate: exploration trail, not current truth; `DESI
 source). The branch may now be deleted **if** losing those sketches is acceptable; it is no longer
 load-bearing for any *citation*. Owner call to delete.
 
-### ⚑⚑ LESSONS — 2026-07-28, the observability slices A–D (read before hardening anything)
+### ⚑⚑ LESSONS — 2026-07-27/28, the observability + analytics program (read before building any check)
 
-**Every one of these four PRs passed its own tests and a first read, and every one had a defect that
-only an adversarial pass found.** The pattern is not carelessness — it is that *the failure modes of a
-fix are invisible from inside the fix*.
+**Eleven PRs. Every one passed its own tests and a first read. Every one had a defect only an
+adversarial pass found — and three of them were introduced BY the fix for the previous one.**
+That is the finding, more than any individual bug. Organised by what to *do*, not by which PR found it.
 
-- **A fix can trade one failure mode for a worse one.** PR-1's write-ahead log correctly bounded alert
-  *spam* — and introduced alert *loss*: a failed send still recorded the attempt, so the next tick
-  suppressed the rows **and stamped them notified**. Production's own config (Telegram secrets unset)
-  was the trigger. **When you fix an "X happens too often" bug, ask what happens when X now never happens.**
-- **The fix for an unbounded loop introduced an unbounded loop.** PR-1's new liveness ping was
-  unbounded when *its own* heartbeat write failed — ~720 messages/day at the real cadence.
-- **`NaN >= 0` is TRUE in Postgres.** A non-negative CHECK is the one predicate that cannot exclude
-  `NaN`, and PostgREST coerces `{"p_value":"NaN"}` from a quoted string. `sum()` then poisons every
-  org-wide money figure and emits a JSON **string** where the types declare `number`. Use
-  `>= 0 and < 'Infinity'::numeric`. **State the invariant you mean, not the one that reads well.**
-- **⚑ A fix can silently DISARM a neighbouring gate.** PR-3 replaced every `Deno.serve(` with
-  `serveWithErrorReporting(`; `check-edge-fn-test-binding.mjs` matched on `Deno.serve(` and so stopped
-  matching anything, while still reporting green. **When you change the shape a gate matches on, check
-  what else matches on that shape.** Every gate here is a regex over source.
-- **Two of four "proofs" didn't bind, found by mutation-testing against a live DB.** Deleting an entire
-  RPC guard left its test 4/4 green (the CHECK raised the *same* error code and the test passed `null`
-  for the message); re-opening the race left its test green (a regex over `pg_get_functiondef` matched
-  the phrase in a **comment**). **Assert the message, anchor the order, strip comments.**
-- **A "known limitation" note can be false.** Both slices carried "this stack has no `dblink`" —
-  it does, and `0151_timesheet_fence_concurrency.test.sql` already uses it. The claim came from the
-  plan, which cited that very file as evidence. **A note asserting an absent capability is worse than
-  no note: nobody re-checks it, and the real proof never gets written.**
-- **A safety net whose blind spots are undocumented gets trusted beyond its reach.** `agent-chat`
-  streams its response, so a throw after headers are sent produced a truncated SSE and **zero**
-  `error_events` — in the highest-traffic function. Blind spots now in the module header AND ADR-0066.
-- **The error path must not become the outage.** The reporting sink had no deadline and blocked the
-  response — and it is slowest exactly when errors spike (DB degrades → error rate rises → every
-  failing request now also waits on the DB).
-- **A multi-slice plan's later snippets are hostages to the earlier slices' reviews.** PR-1's review
-  changed `ops_job_heartbeats`' shape; PR-4's plan text still referenced the old column. The
-  implementer caught it. **Re-read the plan against reality at each slice boundary.**
-- **Squash-merge breaks stacked branches.** Rebasing PR-4 replayed PR-3's individual commits against a
-  `dev` that already held their squashed equivalent. Cherry-pick the stacked branch's *own* commits.
-- ⚑ **Read the failure DURATION.** ~5000ms = the vitest timeout under machine load; **18ms is REAL**. A
-  heuristic right four times running nearly merged a genuine regression on the fifth.
+#### 1. A test only counts if you know what would make it fail
 
-### ⚑⚑ LESSONS — 2026-07-27/28, the PostHog track (read before instrumenting anything)
-
-**Seven defects were found. Every one looked correct in the diff; not one would have been caught by
-reading code.** That is the finding, more than any individual bug.
-
-| Defect | What actually found it |
-|---|---|
-| `capture_dead_clicks` sent `$el_text` — real contract values, customer names | loading the **pinned SDK** and capturing a live event |
-| `reason_code` carried external ERP error text into an allowed key | tracing **every producer** of `.code` |
-| Logout wiped PostHog's consent key → capture resumed for opted-out users | reading **SDK source**, not our own |
-| DNT users still hit PostHog (`init` fires remote-config before consent applies) | tracing the **init path** |
-| `AC-CON-003` could never fail | **mutation test** — disable analytics, the control must go red |
-| The consent Playwright project never ran in CI | reading the **`--project=` list**, not the config |
-| The tile gate silently scanned nothing | copying the repo to a **directory with a space** |
-
-**The rules that follow from them:**
 - **Assert emitted output, not configuration.** A test asserting an init option against a *mocked*
   SDK proves you called a function. The real-SDK version found a live data leak in minutes.
-- **Any AC asserting an ABSENCE needs a positive control** proving the assertion can fail. "No
-  requests to PostHog" passed before any work existed, because analytics was off entirely.
-- **A test that never runs == a test that cannot fail.** Check the CI invocation, not just that the
-  file exists.
-- **A gate that can report green having scanned nothing is worse than no gate.** Guard the empty
-  case, the unreadable case, AND the never-ran case — the tile gate had three empty-input guards
-  sitting *below* an entrypoint check that silently skipped `main()`.
-- **Key-based redaction does not bound values.** `FORBIDDEN_PROPERTY_KEYS` filters *names*; anything
+- **A fixture for an external contract must be captured FROM the contract.** The quota alarm parsed
+  `quota_limits` (an array); the API returns `limited` (a resource-keyed object). **Eight tests,
+  three of them security tests, passed** — the fixture had been invented from the same misreading as
+  the parser. One of those tests literally asserted *"a payload with no `quota_limits` array does not
+  report all-clear"*, i.e. it certified the real API response as malformed.
+- **Any AC asserting an ABSENCE needs a positive control** proving it can fail. "No requests to
+  PostHog" passed before any work existed, because analytics was off entirely.
+- **A test that never runs == a test that cannot fail.** The consent Playwright project was absent
+  from `ci.yml`'s explicit `--project=` list. Check the invocation, not just that the file exists.
+- **A red test can be red for the WRONG reason.** A drain test failed because its mock reset
+  heartbeat state between ticks, not because the cooldown was broken. Diagnose before "fixing".
+- **Mutation-test the proof, not just the code.** Two of four pgTAP "proofs" didn't bind: deleting an
+  entire RPC guard left its test 4/4 green (the CHECK raised the *same* errcode and the test passed
+  `null` for the message), and re-opening a race left its test green (the regex matched the phrase in
+  a **comment**). Assert the message, anchor the order, strip comments.
+
+#### 2. A gate that can silently not run is worse than no gate
+
+- **Guard the empty case, the unreadable case, AND the never-ran case.** The tile gate had three
+  empty-input guards sitting *below* an entrypoint check that skipped `main()` entirely on any path
+  needing percent-encoding (`file://${argv1}` vs `pathToFileURL`). Found by copying the repo into a
+  directory with a space in the name.
+- ⚑ **A fix can silently DISARM a neighbouring gate.** Replacing every `Deno.serve(` with
+  `serveWithErrorReporting(` made `check-edge-fn-test-binding.mjs` — which matched on that string —
+  match nothing, while still reporting green. **When you change the shape a gate matches on, check
+  what else matches on that shape.** Every gate here is a regex over source.
+- **Count what you actually evaluated, not what was present.** `entries.length === 0` failed closed
+  ("we checked zero allowances") while *every row skipped* reached the identical state unguarded.
+
+#### 3. Fail-open is the default failure mode; hunt it deliberately
+
+- **`NaN >= 0` is TRUE in Postgres** — a non-negative CHECK is the one predicate that cannot exclude
+  `NaN`, and PostgREST coerces `{"p_value":"NaN"}` from a quoted string. It poisons `sum()` org-wide
+  and emits a JSON *string* where the types declare `number`. Use `>= 0 and < 'Infinity'::numeric`.
+- **`Number('abc')` is NaN and `ratio >= NaN` is always false** — the JS analogue. One typo in
+  `QUOTA_THRESHOLD` silently disabled an alarm forever.
+- **A fix can trade one failure mode for a worse one.** The write-ahead log correctly bounded alert
+  *spam* and introduced alert *loss*: a failed send still recorded the attempt, so the next tick
+  suppressed the rows **and stamped them notified**. Production's own unset-secrets state was the
+  trigger. **Fixing "X happens too often"? Ask what happens when X now never happens.**
+- **The fix for an unbounded loop introduced an unbounded loop** — a liveness ping unbounded when its
+  own heartbeat write failed (~720 messages/day at the real cadence).
+- **Distinguish "breach" from "could not check".** A network blip exiting 1 rendered as a
+  PERMANENT-DATA-LOSS banner; that is how an operator learns to ignore the banner.
+
+#### 4. Bounding untrusted data
+
+- **Key-based redaction does not bound VALUES.** `FORBIDDEN_PROPERTY_KEYS` filters *names*; anything
   inside an allowed key ships verbatim. Bound with an allowlist + shape check; **never truncate** —
   a truncated customer name is still a customer name.
-- **Make leaks unrepresentable, not merely absent.** `module: string` type-checked with a customer
+- **Make the leak unrepresentable, not merely absent.** `module: string` type-checked with a customer
   name in it; a union makes that a compile error.
-- **Sweep a fix by MEANING, not by the file list you happen to know.** Three separate instances this
-  session: the ADR-0037 repoint missed 3 page tests, the consent lane missed CI, a widened return
-  type missed a pre-existing exact-shape assertion.
-- **Read the failure DURATION.** ~5000ms = the vitest timeout under machine load. **18ms = real.**
-  A heuristic that has been right four times is exactly when it becomes dangerous.
-- **Never run a second `verify` in a worktree an agent is using** — two vitest runs plus a build
-  contend over `dist/` and produce failures that are artifacts of the interference.
-- **A wrapper's exit code is not the command's.** A harness reported "completed exit 0" for a run
-  that had exited **143 (SIGTERM)**. Check the log body, always.
+- **Third-party response data reaching CI stdout is a privileged sink.** GitHub Actions parses
+  workflow commands from every output line; a newline-bearing resource name emitted live
+  `::add-mask::` (which redacts the rest of the job log — anti-forensics against the alarm's own
+  evidence), `::error::` and `::stop-commands::`.
+- **A control believed stronger than it is, is its own defect.** A host check validated only the
+  *scheme* while its docblock claimed it stopped "sending the key to an arbitrary origin";
+  `https://evil.com`, the userinfo trick, an IDN homograph and a host carrying its own path all passed.
+- **An undocumented blind spot gets trusted beyond its reach.** `agent-chat` streams its response, so
+  a throw after headers gave a truncated SSE and ZERO `error_events` — in the highest-traffic function.
+
+#### 5. Process
+
+- ⚑ **Review-battery trigger is NOT "does this touch the DB".** It is **"does this parse untrusted
+  external data into a privileged sink"**. #404 was skipped on a low-risk judgement and the
+  retrospective battery found a Critical that two reviewers identified independently.
+  **A self-assessment of risk is the weakest evidence available.**
+- ⚑ **Read the failure DURATION.** ~5000ms = the vitest timeout under machine load; **18ms is REAL**.
+  A heuristic right four times running nearly merged a genuine regression on the fifth.
+- **A wrapper's exit code is not the command's.** A harness reported "completed exit 0" for a run that
+  had exited **143 (SIGTERM)**. Check the log body, always.
+- **Never run a second `verify` in a worktree an agent is using** — contending vitest runs fabricate
+  failures that are artifacts of the interference.
+- **Sweep a fix by MEANING, not by the file list you know.** Three instances: an ADR citation repoint
+  missed 3 page tests, the consent lane missed CI, a widened return type missed a pre-existing
+  exact-shape assertion.
+- **A multi-slice plan's later snippets are hostages to the earlier slices' reviews** — PR-1's review
+  changed a schema and PR-4's plan text still named the old column. Re-read the plan against reality
+  at each slice boundary.
+- **Squash-merge breaks stacked rebases** — cherry-pick the stacked branch's OWN commits.
+- **A "known limitation" note can be FALSE.** "No `dblink` in this stack" — it is there, and
+  `0151_timesheet_fence_concurrency.test.sql` already uses it; the claim came from the plan, which
+  cited that very file as evidence. **A note asserting an absent capability is worse than no note:
+  nobody re-checks it, and the real proof never gets written.**
+
+#### 6. Open, deliberately unproven
+
+- **The vitest 15s timeout (#407) is corroborated, not demonstrated.** Three deliberate experiments
+  failed to reproduce a >5s sample *passing* under the new limit. What IS established: inflation of
+  2.4–9.6× under real suite contention, three observed failures above 5s (5046 / 5255 / 5593ms), and
+  arithmetic — a test measured at 5255ms fails a 5000ms limit and passes a 15000ms one.
+  **Falsification: if any test ever exceeds 15s, the diagnosis is wrong — revert, do not raise again.**
 
 ### ⚑⚑ LESSONS — 2026-07-24/25 (read before the next promote or deploy)
 Every defect this session was a **silent false signal**, not a loud failure. None were caught by
