@@ -4,11 +4,46 @@
 [`docs/history.md`](history.md) (don't read it for status). Locked owner-decisions are in
 `docs/decisions.md` (OD-* lookup by id). Roadmap framing in `docs/roadmap-spines.md`.
 
-### ⚑⚑⚑ CURRENT FOCUS — PostHog hardening track COMPLETE on `dev` (2026-07-28). Not yet promoted.
+### ⚑⚑⚑ CURRENT FOCUS — the WHOLE observability+analytics program is COMPLETE on `dev` (2026-07-28). Not promoted.
 
-**Shipped to `dev`:** #394 (NUL-byte gate), #398 (Slice E — signal config + consent), #399 (Slice F —
-friction, funnel, quota alarm, tile gate). Spec `docs/specs/observability-analytics.spec.md`,
+**All 7 PRs shipped to `dev`. Zero open PRs.** Spec `docs/specs/observability-analytics.spec.md`,
 plan `docs/plans/2026-07-25-observability-analytics.md`, ADRs 0066/0067.
+
+| PR | Slice | What it closed |
+|---|---|---|
+| #394 | NUL-byte gate | 3 source files were invisible to `grep`; one was deployed |
+| #398 | E — signal config + consent | heatmaps/web-vitals on, opt-out + DNT, honest disclosure |
+| #399 | F — friction, funnel, quota, tile gate | `save_failed` was inert; 2 tiles could never render |
+| #400 | A — alerting | write-ahead `alert_send_log` — bounds the re-alert loop **without dropping alerts** |
+| #401 | B — money & concurrency | rejects negatives **and `NaN`**; automation-cap race closed with a real 2-session `dblink` proof |
+| #402 | C — edge coverage | **4 → 22** functions reporting through one choke point |
+| #403 | D — self-report + retention | a failed `error_events` insert now reaches PostHog; 90-day purge with proof-of-run |
+
+**⛔ OWNER ACTIONS OWED:**
+1. **Set repo secrets `POSTHOG_API_KEY` (`project:read`) + `POSTHOG_PROJECT_ID`** — `posthog-quota.yml`
+   **fails closed and goes RED daily** until they exist.
+2. **`docker stop gordi-pre-test`** — another project's container at ~200% CPU produced phantom
+   ~5000ms test timeouts **three times**, each costing an isolation round to disprove.
+3. **Decide:** delete `spike/agent-native-rls/`? `docs/adr/0036:163` retains it ONLY for a §8 SSO check
+   whose sidecar path was retired. If final, deleting it satisfies FR-HRD-043 by removing ~1,240 lines
+   instead of adding a lockfile.
+4. **AS-1/AS-2 unconfirmed assumptions now shipped:** `error_events` retention = **90 days**; Telegram
+   drain cadence stays **hourly**. Both one-value changes.
+
+**🔴 Filed from this program, NOT fixed (live in production now):** `authenticated` holds **INSERT** on
+`projects.contract_value` (UPDATE is correctly withheld). A Project Manager can create a project already
+in a won status with an arbitrary contract value, a forged `decided_at` and a forged
+`customer_contract_ref` — **no `audit_events` row**, because `log_audit` is wired to the RPC and to
+AFTER DELETE, not INSERT. Bypasses ADR-0019 money SoD entirely. The client-side guard at
+`src/lib/db/projects.ts:122-128` calls itself "defence in depth"; there is no server-side authority
+behind it. Needs a BEFORE INSERT trigger restricting status to origination + nulling the win fields.
+
+**Deferred, recorded, not done:** FR-OBS-003 (79 free-text `console.error` → enum sweep — error
+*reporting* is now universal, error *coding* is not) · FR-HRD-042 (interactive-create idempotency,
+pulled to its own spec as unplannable) · the automation cap is still bypassable by un-archiving
+(BEFORE INSERT only) · `changed-lines-coverage.mjs` diffs `-- pmo-portal/` only, so the ≥80% DoD is
+**unenforceable for every `supabase/**` change** · `telegramNotify.test.ts`'s AC-OF-005 reimplements
+the branch it tests and should migrate onto `runDrain`.
 
 **⛔ TWO OWNER ACTIONS OWED — the second is time-sensitive:**
 1. **Set repo secrets `POSTHOG_API_KEY` (personal API key, `project:read`) + `POSTHOG_PROJECT_ID`.**
@@ -265,6 +300,48 @@ mean 0037 still resolve correctly. Same class as the `0058`/`0059` collisions fi
 those were NOT promoted (deliberate: exploration trail, not current truth; `DESIGN.md` is the in-tree
 source). The branch may now be deleted **if** losing those sketches is acceptable; it is no longer
 load-bearing for any *citation*. Owner call to delete.
+
+### ⚑⚑ LESSONS — 2026-07-28, the observability slices A–D (read before hardening anything)
+
+**Every one of these four PRs passed its own tests and a first read, and every one had a defect that
+only an adversarial pass found.** The pattern is not carelessness — it is that *the failure modes of a
+fix are invisible from inside the fix*.
+
+- **A fix can trade one failure mode for a worse one.** PR-1's write-ahead log correctly bounded alert
+  *spam* — and introduced alert *loss*: a failed send still recorded the attempt, so the next tick
+  suppressed the rows **and stamped them notified**. Production's own config (Telegram secrets unset)
+  was the trigger. **When you fix an "X happens too often" bug, ask what happens when X now never happens.**
+- **The fix for an unbounded loop introduced an unbounded loop.** PR-1's new liveness ping was
+  unbounded when *its own* heartbeat write failed — ~720 messages/day at the real cadence.
+- **`NaN >= 0` is TRUE in Postgres.** A non-negative CHECK is the one predicate that cannot exclude
+  `NaN`, and PostgREST coerces `{"p_value":"NaN"}` from a quoted string. `sum()` then poisons every
+  org-wide money figure and emits a JSON **string** where the types declare `number`. Use
+  `>= 0 and < 'Infinity'::numeric`. **State the invariant you mean, not the one that reads well.**
+- **⚑ A fix can silently DISARM a neighbouring gate.** PR-3 replaced every `Deno.serve(` with
+  `serveWithErrorReporting(`; `check-edge-fn-test-binding.mjs` matched on `Deno.serve(` and so stopped
+  matching anything, while still reporting green. **When you change the shape a gate matches on, check
+  what else matches on that shape.** Every gate here is a regex over source.
+- **Two of four "proofs" didn't bind, found by mutation-testing against a live DB.** Deleting an entire
+  RPC guard left its test 4/4 green (the CHECK raised the *same* error code and the test passed `null`
+  for the message); re-opening the race left its test green (a regex over `pg_get_functiondef` matched
+  the phrase in a **comment**). **Assert the message, anchor the order, strip comments.**
+- **A "known limitation" note can be false.** Both slices carried "this stack has no `dblink`" —
+  it does, and `0151_timesheet_fence_concurrency.test.sql` already uses it. The claim came from the
+  plan, which cited that very file as evidence. **A note asserting an absent capability is worse than
+  no note: nobody re-checks it, and the real proof never gets written.**
+- **A safety net whose blind spots are undocumented gets trusted beyond its reach.** `agent-chat`
+  streams its response, so a throw after headers are sent produced a truncated SSE and **zero**
+  `error_events` — in the highest-traffic function. Blind spots now in the module header AND ADR-0066.
+- **The error path must not become the outage.** The reporting sink had no deadline and blocked the
+  response — and it is slowest exactly when errors spike (DB degrades → error rate rises → every
+  failing request now also waits on the DB).
+- **A multi-slice plan's later snippets are hostages to the earlier slices' reviews.** PR-1's review
+  changed `ops_job_heartbeats`' shape; PR-4's plan text still referenced the old column. The
+  implementer caught it. **Re-read the plan against reality at each slice boundary.**
+- **Squash-merge breaks stacked branches.** Rebasing PR-4 replayed PR-3's individual commits against a
+  `dev` that already held their squashed equivalent. Cherry-pick the stacked branch's *own* commits.
+- ⚑ **Read the failure DURATION.** ~5000ms = the vitest timeout under machine load; **18ms is REAL**. A
+  heuristic right four times running nearly merged a genuine regression on the fifth.
 
 ### ⚑⚑ LESSONS — 2026-07-27/28, the PostHog track (read before instrumenting anything)
 
