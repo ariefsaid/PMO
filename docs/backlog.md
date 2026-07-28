@@ -44,9 +44,13 @@ plan `docs/plans/2026-07-25-observability-analytics.md`, ADRs 0066/0067.
    GitHub's automatic masking, and `ariefsaid` is the only collaborator.
 2. **`docker stop gordi-pre-test`** — another project's container at ~200% CPU produced phantom
    ~5000ms test timeouts **three times**, each costing an isolation round to disprove.
-3. **Decide:** delete `spike/agent-native-rls/`? `docs/adr/0036:163` retains it ONLY for a §8 SSO check
-   whose sidecar path was retired. If final, deleting it satisfies FR-HRD-043 by removing ~1,240 lines
-   instead of adding a lockfile.
+3. ✅ **DONE 2026-07-28 (owner-approved) — `spike/agent-native-rls/` + `.github/workflows/spike-rls.yml`
+   DELETED** (10 files, ~1,970 lines). It was retained only for ADR-0036's §8 SSO UX check, and **§8 was
+   closed 2026-07-03** — so it was being kept for a check on an abandoned path. This **supersedes
+   FR-HRD-043** (`spike-rls.yml` shall use `npm ci`): the requirement is satisfied by deletion rather
+   than by the lockfile #401 committed — the lane no longer exists to install anything.
+   ⚑ ADR-0036 §4–§7 shipped and are unaffected; the spike's three claims are recorded in the ADR and
+   need no re-run. Recover from git history if §8 is ever revived.
 4. **AS-1/AS-2 unconfirmed assumptions now shipped:** `error_events` retention = **90 days**; Telegram
    drain cadence stays **hourly**. Both one-value changes.
 
@@ -216,8 +220,9 @@ BEHIND `dev`, content identical).
   old `0065:69` pointer is the SHARE-ROW-EXCLUSIVE *exemplar*, not the defect — it sends you to the wrong file.
 - **`set_project_contract_value` accepts negative** — `0076_audit_events.sql:212`, no sign check, and no
   CHECK on the column. ⚑ Same fix as the money `CHECK (>=0)` item — they are ONE task, not two.
-- **`spike-rls.yml`** — actions ARE now SHA-pinned and the key is a masked local ephemeral; only
-  `npm install` → `npm ci` remains. Two of the three original concerns are already closed.
+- ~~**`spike-rls.yml`** — only `npm install` → `npm ci` remains.~~ ✅ **CLOSED BY DELETION 2026-07-28** —
+  the workflow and `spike/agent-native-rls/` no longer exist (owner-approved; ADR-0036 §8, its only
+  reason to exist, closed 2026-07-03). Do not go looking for this file.
 - **3 runbooks** — prod-deploy / secret-rotation / agent-LLM-outage absent under any name.
 - **credit-race wiring — NOT a small defect; DEFERRED Director-scoped work (re-verified 2026-07-27).**
   ⚑ **2** `check()` sites (`agent-chat/handler.ts:1301`, `:1710`), not 3; `release_credits` has ZERO

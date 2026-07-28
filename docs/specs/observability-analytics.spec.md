@@ -281,7 +281,7 @@ a multi-table schema + RLS + FE-contract change and deserves its own spec and it
 Bundling it here would have produced either an invented design or a task nobody could execute.
 Everything else in §4.6 is planned and stays.
 
-**FR-HRD-043** `spike-rls.yml` shall use `npm ci`, not `npm install`.
+**FR-HRD-043** ~~`spike-rls.yml` shall use `npm ci`, not `npm install`.~~ **SUPERSEDED 2026-07-28:** the spike and its workflow were deleted outright (owner-approved) — ADR-0036's §8, the only reason the lane was retained, closed 2026-07-03. The requirement is satisfied by removal; there is no longer a lane to install anything.
 
 ### 4.7 Each fix must fail before it passes
 
