@@ -66,16 +66,9 @@ const ALLOWED_SKIPS = [
     restore: 'Flip src/lib/features.ts incidents to true.',
   },
 
-  // ⚑ Quarantined for a MISDIAGNOSED reason until 2026-07-25; the real cause is now recorded.
-  {
-    file: 'serial/AC-IXD-PROC-W5-3-approvals-inbox.spec.ts',
-    reason:
-      'Stale against a deliberate UI redesign, NOT flaky: it asserts `region "Timesheets awaiting you"`, ' +
-      'which exists only in Approvals.tsx\'s stacked fallback layout — the app renders the master-detail ' +
-      'split inbox instead. Proven by running it at --workers=1 in the serial lane, where it still fails, ' +
-      'so the original "parallel-worker race" note was wrong.',
-    restore: 'Rewrite the journey steps against the split inbox (QueueGroup + selectedKey + Approval preview) keeping the same goal oracle — the PM approves and the queue count settles — then delete this entry. Tracked in docs/backlog.md.',
-  },
+  // serial/AC-IXD-PROC-W5-3-approvals-inbox.spec.ts was un-quarantined 2026-07-27: its
+  // AC-IXD-TS-W5-3 test now runs (drives the stacked fallback at a small viewport). The entry
+  // was REMOVED — a skip allowlist entry for a test that runs again is STALE and fails this gate.
 ];
 
 /** Walk the playwright JSON suite tree and collect every spec that did not actually run. */

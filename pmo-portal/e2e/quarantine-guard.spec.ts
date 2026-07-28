@@ -18,19 +18,19 @@ const __dirname = dirname(__filename);
  * When a feature is re-enabled, updating/removing the QUARANTINE marker will fail this test,
  * forcing the developer to also un-skip the corresponding tests — preventing silent rot.
  *
- * Current quarantined tests (4 total):
+ * Current quarantined tests (3 total):
  * - AC-IN-001-incidents-crud.spec.ts: 2 tests (feature flag incidents=false)
  * - AC-INC-001-incident-detail.spec.ts: 1 test (feature flag incidents=false)
- * - serial/AC-IXD-PROC-W5-3-approvals-inbox.spec.ts: 1 test (moved to the serial lane 2026-07-25;
- *   its 'parallel-worker race' note was a MISDIAGNOSIS — it fails at --workers=1 too, because it
- *   asserts a region that only exists in Approvals.tsx's stacked fallback, not the split inbox)
+ *
+ * serial/AC-IXD-PROC-W5-3-approvals-inbox.spec.ts was UN-QUARANTINED 2026-07-27: its
+ * AC-IXD-TS-W5-3 test now drives the stacked fallback (small viewport) so the bulk-approve
+ * journey stays covered end-to-end. See the spec's header note + docs/backlog.md open question.
  */
 test('quarantine guard: quarantined e2e specs have documented QUARANTINE markers and tracked count', async () => {
   const e2eDir = __dirname;
   const quarantinedSpecs = [
     'AC-IN-001-incidents-crud.spec.ts',
     'AC-INC-001-incident-detail.spec.ts',
-    'serial/AC-IXD-PROC-W5-3-approvals-inbox.spec.ts',
   ];
 
   for (const specFile of quarantinedSpecs) {
@@ -48,18 +48,16 @@ test('quarantine guard: quarantined e2e specs have documented QUARANTINE markers
   // This ensures adding/removing a skip is a deliberate, reviewed change
   const acIn001Content = readFileSync(join(e2eDir, 'AC-IN-001-incidents-crud.spec.ts'), 'utf-8');
   const acInc001Content = readFileSync(join(e2eDir, 'AC-INC-001-incident-detail.spec.ts'), 'utf-8');
-  const acIxdContent = readFileSync(join(e2eDir, 'serial', 'AC-IXD-PROC-W5-3-approvals-inbox.spec.ts'), 'utf-8');
 
   // Count test.skip calls with QUARANTINE reason strings
   const acIn001Skips = (acIn001Content.match(/test\.skip\(\s*'QUARANTINE:/g) || []).length;
   const acInc001Skips = (acInc001Content.match(/test\.skip\(\s*'QUARANTINE:/g) || []).length;
-  const acIxdFixmes = (acIxdContent.match(/test\.fixme\(\s*'QUARANTINE:/g) || []).length;
 
-  // Expected: 2 skips in AC-IN-001, 1 skip in AC-INC-001, 1 fixme in AC-IXD = 4 total
+  // Expected: 2 skips in AC-IN-001, 1 skip in AC-INC-001 = 3 total
+  // (serial/AC-IXD-PROC-W5-3-approvals-inbox.spec.ts was un-quarantined 2026-07-27.)
   expect(acIn001Skips).toBe(2);
   expect(acInc001Skips).toBe(1);
-  expect(acIxdFixmes).toBe(1);
 
-  const totalQuarantined = acIn001Skips + acInc001Skips + acIxdFixmes;
-  expect(totalQuarantined).toBe(4);
+  const totalQuarantined = acIn001Skips + acInc001Skips;
+  expect(totalQuarantined).toBe(3);
 });
