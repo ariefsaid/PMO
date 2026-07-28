@@ -5,7 +5,7 @@
  * to the org owner and are easy to miss.
  */
 import { describe, it, expect } from 'vitest';
-import { evaluateQuota, validateQuotaEnv } from '../../../../scripts/posthog/quota.mjs';
+import { evaluateQuota, validateQuotaEnv, validateThreshold } from '../../../../scripts/posthog/quota.mjs';
 
 /**
  * ⚑ THIS FIXTURE IS A REAL RESPONSE, captured live from
@@ -62,10 +62,72 @@ describe('evaluateQuota', () => {
     expect(r.lines.join('\n')).toMatch(/events/);
   });
 
+  // Mixed payload: one evaluable resource + one all-null. The all-null one must be skipped, but the
+  // run must still count as "something was checked". (The previous version asserted a SINGLE all-null
+  // resource exits 0 — which codified the fail-open hole below rather than testing the skip.)
   it('AC-PHG-030: null usage/limit is skipped, never divided and never alarmed', () => {
-    const r = evaluateQuota({ limited: { api_queries_read_bytes: { limited: false, usage: null, limit: null } } }, 0.8);
+    const r = evaluateQuota(
+      {
+        limited: {
+          events: { limited: false, usage: 1, limit: 1_000_000 },
+          api_queries_read_bytes: { limited: false, usage: null, limit: null },
+        },
+      },
+      0.8,
+    );
     expect(r.exitCode).toBe(0);
     expect(r.lines).toEqual([]);
+    expect(r.evaluated).toBe(1); // the null resource must NOT count as an allowance checked
+  });
+
+  // ── The fail-open hole both reviewers found independently (2026-07-28) ──────────────────────
+  // The container guard checked that `limited` is a non-empty object, but every ROW could be
+  // silently skipped and still reach exitCode 0. All four of these printed
+  // "✓ all quotas below threshold" against the previous parser.
+  describe('SECURITY: a check that did not happen must never report all-clear', () => {
+    it('a resource->boolean map does NOT report all-clear (recordings is genuinely limited)', () => {
+      // The most plausible drift, given the field is literally named `limited`.
+      const r = evaluateQuota({ limited: { events: false, recordings: true } }, 0.8);
+      expect(r.exitCode).not.toBe(0);
+    });
+
+    it('rows that are not objects fail closed, naming the resource', () => {
+      const r = evaluateQuota({ limited: { events: 'over', recordings: 42 } }, 0.8);
+      expect(r.exitCode).toBe(2);
+      expect(r.lines.join('\n')).toMatch(/events/);
+    });
+
+    it('rows missing usage/limit keys entirely do NOT report all-clear', () => {
+      expect(evaluateQuota({ limited: { events: { limited: false } } }, 0.8).exitCode).not.toBe(0);
+    });
+
+    it('every resource all-null does NOT report all-clear — nothing was evaluated', () => {
+      const r = evaluateQuota(
+        { limited: { a: { limited: false, usage: null, limit: null }, b: { limited: false, usage: null, limit: null } } },
+        0.8,
+      );
+      expect(r.exitCode).toBe(2);
+      expect(r.lines.join('\n')).toMatch(/nothing was actually checked/i);
+    });
+
+    it('a truthy non-boolean `limited` still alarms (serialiser drift must not slip past)', () => {
+      expect(evaluateQuota({ limited: { events: { limited: 'true', usage: 1, limit: 1_000_000 } } }, 0.8).exitCode).toBe(1);
+      expect(evaluateQuota({ limited: { events: { limited: 1, usage: 1, limit: 1_000_000 } } }, 0.8).exitCode).toBe(1);
+    });
+  });
+
+  // MEDIUM-1: resource names are third-party object KEYS interpolated into CI stderr, and GitHub
+  // Actions parses workflow commands from every output line. A newline-bearing key emitted live
+  // ::add-mask:: / ::error:: / ::stop-commands:: in a probe.
+  it('SECURITY: a hostile resource name cannot inject CI workflow commands', () => {
+    const hostile = 'events\n::add-mask::dev\n::error title=pwned::injected\n::stop-commands::x1';
+    const r = evaluateQuota({ limited: { [hostile]: { limited: true, usage: 1, limit: 10 } } }, 0.8);
+    expect(r.exitCode).toBe(1);
+    const out = r.lines.join('\n');
+    // The words survive (letters/hyphens are legal) and that is FINE — plain text in a log line is
+    // harmless. What must not survive is the SYNTAX: a newline followed by '::'.
+    expect(out).not.toMatch(/\n/);   // single line — nothing can start a new command line
+    expect(out).not.toMatch(/::/);    // no workflow-command delimiter survives at all
   });
 
   // SECURITY (2026-07-27 review round 2, MEDIUM #1): a malformed 200 must NOT read as "all clear".
@@ -110,5 +172,44 @@ describe('validateQuotaEnv (SECURITY, review round 2 #5)', () => {
 
   it('a well-formed https host + numeric project id passes validation (no errors)', () => {
     expect(validateQuotaEnv('https://us.i.posthog.com', '465502')).toEqual([]);
+  });
+});
+
+describe('validateThreshold (SECURITY, 2026-07-28 review MEDIUM-4)', () => {
+  // Number('abc') is NaN, and `ratio >= NaN` is ALWAYS false — a typo silently disabled the alarm.
+  // The direct JS analogue of the `NaN >= 0` Postgres trap from #401.
+  it('rejects a non-numeric threshold — the NaN path silently disabled the alarm', () => {
+    expect(validateThreshold('abc').length).toBeGreaterThan(0);
+  });
+  it("rejects an empty string (Number('') is 0, which alarms on everything)", () => {
+    expect(validateThreshold('').length).toBeGreaterThan(0);
+  });
+  it('rejects out-of-range thresholds', () => {
+    expect(validateThreshold('5').length).toBeGreaterThan(0);
+    expect(validateThreshold('0').length).toBeGreaterThan(0);
+    expect(validateThreshold('-0.5').length).toBeGreaterThan(0);
+  });
+  it('accepts a real fraction', () => {
+    expect(validateThreshold('0.8')).toEqual([]);
+    expect(validateThreshold('1')).toEqual([]);
+  });
+});
+
+describe('validateQuotaEnv host allowlist (SECURITY, 2026-07-28 review MEDIUM-2)', () => {
+  // The scheme-only check claimed to stop "sending the key to an arbitrary origin". It did not.
+  it.each([
+    ['https://evil.com', 'a plain wrong origin'],
+    ['https://us.i.posthog.com@evil.com', 'the userinfo trick'],
+    ['https://us.i.p\u043esthog.com', 'a Cyrillic-o IDN homograph'],
+    ['https://us.i.posthog.com#', 'a fragment that truncates the path'],
+    ['https://us.i.posthog.com/api/projects/9/quota_limits/?x=', 'a host carrying its own path (PID bypass)'],
+    ['http://us.i.posthog.com', 'plain http'],
+  ])('rejects %s (%s)', (host) => {
+    expect(validateQuotaEnv(host, '465502').length).toBeGreaterThan(0);
+  });
+
+  it('accepts the real PostHog origins', () => {
+    expect(validateQuotaEnv('https://us.i.posthog.com', '465502')).toEqual([]);
+    expect(validateQuotaEnv('https://eu.i.posthog.com', '465502')).toEqual([]);
   });
 });
