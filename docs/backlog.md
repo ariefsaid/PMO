@@ -20,8 +20,28 @@ plan `docs/plans/2026-07-25-observability-analytics.md`, ADRs 0066/0067.
 | #403 | D — self-report + retention | a failed `error_events` insert now reaches PostHog; 90-day purge with proof-of-run |
 
 **⛔ OWNER ACTIONS OWED:**
-1. **Set repo secrets `POSTHOG_API_KEY` (`project:read`) + `POSTHOG_PROJECT_ID`** — `posthog-quota.yml`
-   **fails closed and goes RED daily** until they exist.
+1. ✅ **DONE 2026-07-28 — repo secrets `POSTHOG_API_KEY` + `POSTHOG_PROJECT_ID` are set** (piped from
+   1Password vault `AS` item `posthog-personal-api` straight into `gh secret set`; the value was never
+   read or displayed). Verified by `gh secret list`, not by an exit code.
+   ⚑ **CORRECTION to an earlier claim in this file: the workflow does NOT "go red daily until they
+   exist".** `.github/workflows/posthog-quota.yml` is only on `dev`, and GitHub fires `schedule:` and
+   `workflow_dispatch` **exclusively from the DEFAULT branch** (`main`) — `gh workflow run` returns
+   `HTTP 404: not found on the default branch`. So the alarm has never run and **is not protecting
+   anything until `dev` is promoted.** Setting the secrets early means it works on its first real run
+   rather than failing closed; there was no daily red to avoid.
+   ⚑ **Still unproven:** secret *presence* says nothing about key *validity* or *scope*. The first
+   scheduled run after promotion is the first real test. It fails closed (exit 2 on non-2xx), which is
+   the correct direction.
+   🔑 **Scope caveat — worth a follow-up.** `scripts/posthog/provision-dashboards.mjs:11` documents the
+   SAME `POSTHOG_API_KEY` as needing **`dashboard:write` + `insight:write`** (and confirms the `phx_…`
+   prefix). The quota check needs only `project:read`. So CI now holds a **write-capable** credential
+   to do a read-only job; if leaked it could rewrite/delete dashboards and read analytics data.
+   **Cheap fix: mint a second PostHog personal key scoped `project:read` for CI, keep the
+   write-capable one in 1Password for local provisioning.**
+   *Transport is sound:* repo is PUBLIC but there is **no `pull_request_target`** anywhere in
+   `.github/workflows/` (so fork PRs never receive secrets), triggers are `schedule`+`workflow_dispatch`
+   only (not fork-reachable), `permissions: contents: read`, an explicit `::add-mask::` on top of
+   GitHub's automatic masking, and `ariefsaid` is the only collaborator.
 2. **`docker stop gordi-pre-test`** — another project's container at ~200% CPU produced phantom
    ~5000ms test timeouts **three times**, each costing an isolation round to disprove.
 3. **Decide:** delete `spike/agent-native-rls/`? `docs/adr/0036:163` retains it ONLY for a §8 SSO check
