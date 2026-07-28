@@ -27,7 +27,7 @@ const posthog = vi.hoisted(() => ({
 
 vi.mock('posthog-js', () => ({ default: posthog }));
 
-import { analyticsClient, POSTHOG_PROPERTY_DENYLIST } from './client';
+import { analyticsClient, POSTHOG_PROPERTY_DENYLIST, getConsentState } from './client';
 
 /** Aliases used by the E1/E3 signal-config and opt-out tests below. */
 const initSpy = posthog.init;
@@ -486,5 +486,40 @@ describe('Do Not Track (MEDIUM fix, FR-CON-001) — init() must not fire at all,
     initSpy.mockClear();
     analyticsClient.init(enabledConfig());
     expect(initSpy).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('AC-CON-011: getConsentState — the three-state (+active) consent surface reflects the ACTUAL reason analytics is or is not running, mirroring doInit\'s own guard order exactly', () => {
+  const originalDNT = Object.getOwnPropertyDescriptor(navigator, 'doNotTrack');
+
+  beforeEach(() => {
+    window.localStorage.clear();
+  });
+
+  afterEach(() => {
+    if (originalDNT) Object.defineProperty(navigator, 'doNotTrack', originalDNT);
+    else delete (navigator as { doNotTrack?: string }).doNotTrack;
+  });
+
+  it('"disabled": the deployment has no valid PostHog key / analytics off — wins over everything else', () => {
+    Object.defineProperty(navigator, 'doNotTrack', { value: '1', configurable: true });
+    window.localStorage.setItem('pmo.analyticsOptOut', 'true');
+    expect(getConsentState({ ...base, enabled: false })).toBe('disabled');
+  });
+
+  it('"dnt": deployment enabled, browser DNT is set, user has NOT explicitly opted out', () => {
+    Object.defineProperty(navigator, 'doNotTrack', { value: '1', configurable: true });
+    expect(getConsentState({ ...base, enabled: true })).toBe('dnt');
+  });
+
+  it('"opted-out": deployment enabled, no DNT, user explicitly opted out', () => {
+    Object.defineProperty(navigator, 'doNotTrack', { value: undefined, configurable: true });
+    window.localStorage.setItem('pmo.analyticsOptOut', 'true');
+    expect(getConsentState({ ...base, enabled: true })).toBe('opted-out');
+  });
+
+  it('"active": deployment enabled, no DNT, not opted out — analytics is genuinely running', () => {
+    Object.defineProperty(navigator, 'doNotTrack', { value: undefined, configurable: true });
+    expect(getConsentState({ ...base, enabled: true })).toBe('active');
   });
 });

@@ -496,6 +496,28 @@ Every defect this session was a **silent false signal**, not a loud failure. Non
 - **Don't spend a promote on `ci:`-only commits** — `integration` runs once per PR→`main`; batch them
   with the next substantive change instead (it runs anyway).
 
+### ⚑ DEBT — AC-ERR-001 (persistent in-dialog save error) is wired on 2 of 18 forms (2026-07-28)
+The 2026-07-28 Discover pass found that a rejected save left **no persistent evidence** — the only
+feedback was a toast that auto-dismisses after 4s, ~700px from the dialog the user is looking at, after
+which the modal is indistinguishable from a pristine form with data in it. Focus was also dumped to
+`<body>`, outside the dialog. Both are fixed **in the primitive** and every consumer inherits them:
+the keyboard trap (blur no longer drives focus) and background `inert`.
+
+**But the persistent error region needs an opt-in** — the consumer must pass `submitError` and catch its
+own mutation rejection (~3 lines: state + `classifyMutationError(…, {suppressCapture:true})` in the
+existing catch + the prop). Wired today: `pages/Companies.tsx`, `pages/Contacts.tsx`. **Not wired (16):**
+`IncomingPayments` · `SalesInvoices` · `CompanyDetail` · `ContactDetail` · `AdministrationCredits` ·
+`AdminUsers` · `project-detail/MilestoneFormModal` · `project-detail/tabs/DocumentsTab` ·
+`project-detail/tabs/TasksTab` · `admin/BudgetAccountMap` · `procurement/NewProcurementModal` ·
+`NewRevisionModal` · `projects/ProjectIntegrationsCard` · `integrations/IntegrationsView` ·
+`builder/PanelEditorForm` · `import/ImportWizard`.
+
+⚑ **Why this is written down rather than left implicit:** `DESIGN.md` §Overlays originally stated all
+three modal rules as "binding on every dialog". That was true of two and false of the third, and the
+step-7 acceptance pass caught it. **A design-system rule stated as universal, with no rollout tracker,
+reads to the next person as a completed fact** — the same shape as an AC whose title claims more than
+its test proves. `DESIGN.md` now names the 2-of-18 scope and points here.
+
 ### ⚑ DEBT — AC-IXD-PROC-W5-3 is stale against a UI redesign (diagnosis CORRECTED 2026-07-25)
 The spec was `test.fixme`d with the note *"parallel-worker shared-DB race — un-skip when e2e runs
 serially"*. **That was a misdiagnosis.** I moved it to the serial lane and ran it at `--workers=1`:

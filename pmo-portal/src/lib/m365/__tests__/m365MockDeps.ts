@@ -39,6 +39,31 @@ export interface RecordedWrite {
   eqs: Array<[string, unknown]>;
 }
 
+/**
+ * Project `row` down to exactly the columns named in `cols` (comma-separated) — the same shape
+ * PostgREST returns for an explicit `.select('a,b,c')`. `cols` undefined/empty/'*' means "everything"
+ * (both are legitimate `.select()` forms). Throws if a requested column is absent from the stubbed
+ * row, simulating PostgREST's `42703 column does not exist` — a stub that "honours" the projection
+ * but never fails on a wrong column list would be worthless (the whole point of this helper).
+ */
+function projectColumns<T>(row: T, cols: string | undefined): T {
+  if (row == null || typeof row !== 'object') return row;
+  const trimmed = (cols ?? '').trim();
+  if (trimmed === '' || trimmed === '*') return row;
+  const keys = trimmed.split(',').map((c) => c.trim()).filter(Boolean);
+  const projected: Record<string, unknown> = {};
+  for (const k of keys) {
+    if (!(k in (row as Record<string, unknown>))) {
+      throw new Error(
+        `m365 mock: column "${k}" requested by .select('${cols}') is not present on the stubbed row ` +
+          `(simulates PostgREST 42703 — the column list and the fixture have drifted apart).`,
+      );
+    }
+    projected[k] = (row as Record<string, unknown>)[k];
+  }
+  return projected as T;
+}
+
 export interface MockClient {
   client: { from: ReturnType<typeof vi.fn>; rpc: ReturnType<typeof vi.fn> };
   from: ReturnType<typeof vi.fn>;
@@ -77,6 +102,10 @@ export function mockClient(seeded: Record<string, unknown[]> = {}): MockClient {
     let payload: unknown;
     const eqs: Array<[string, unknown]> = [];
     let recorded = false;
+    // The column list of the LAST `.select(cols)` call in this chain (AC-COLPROJ-M365) — applied to
+    // whatever `next()` resolves so a `.select('a,b')` that omits/misnames a column the consumer
+    // reads is caught here, the same way PostgREST's real projection would drop/42703 it.
+    let selectCols: string | undefined;
     const record = () => {
       if (recorded) return;
       recorded = true;
@@ -85,7 +114,13 @@ export function mockClient(seeded: Record<string, unknown[]> = {}): MockClient {
     const next = () => {
       const list = queues[table] ?? [];
       if (list.length) {
-        const resp = list.shift();
+        const resp = list.shift() as { data?: unknown; error?: unknown } | null | undefined;
+        if (resp && typeof resp === 'object' && 'data' in resp) {
+          const projected = Array.isArray(resp.data)
+            ? resp.data.map((r) => projectColumns(r, selectCols))
+            : projectColumns(resp.data, selectCols);
+          return Promise.resolve({ ...resp, data: projected });
+        }
         return Promise.resolve(resp);
       }
       // Default terminal response when nothing is queued. For writes that callers inspect via
@@ -94,7 +129,7 @@ export function mockClient(seeded: Record<string, unknown[]> = {}): MockClient {
       // a zero-row write or a guard rejection seed an explicit queued response.
       if (kind === 'update' || kind === 'delete') {
         const idEq = eqs.find(([c]) => c === 'id');
-        return Promise.resolve({ data: idEq ? { id: idEq[1] } : { id: 'ok' }, error: null });
+        return Promise.resolve({ data: projectColumns(idEq ? { id: idEq[1] } : { id: 'ok' }, selectCols), error: null });
       }
       // `platform_operators` defaults to "the caller IS an Operator" (ADR-0058 §3 amendment,
       // 2026-07-24: M365 connect is Operator-gated). Every handler test in this suite models an
@@ -104,7 +139,7 @@ export function mockClient(seeded: Record<string, unknown[]> = {}): MockClient {
       // tokenCustody.auth.test.ts, which owns the gate's own coverage).
       if (table === 'platform_operators') {
         const userEq = eqs.find(([c]) => c === 'user_id');
-        return Promise.resolve({ data: { user_id: userEq ? userEq[1] : 'user-1' }, error: null });
+        return Promise.resolve({ data: projectColumns({ user_id: userEq ? userEq[1] : 'user-1' }, selectCols), error: null });
       }
       return Promise.resolve({ data: null, error: null });
     };
@@ -125,7 +160,7 @@ export function mockClient(seeded: Record<string, unknown[]> = {}): MockClient {
     // `service.writes.some(w => w.table === X)` honest: a READ does not count as a store — e.g. the
     // callback's TOFU identity-binding SELECT on ms_graph_connections must not trip the "no
     // connection stored" assertions on the disabled/disentitled rejection paths.
-    select: () => { return self; },
+    select: (cols?: string) => { selectCols = cols; return self; },
       delete: () => { forbidDirectConnWrite(); kind = 'delete'; return self; },
       insert: (p: unknown) => { forbidDirectConnWrite(); kind = 'insert'; payload = p; return self; },
       update: (p: unknown) => { forbidDirectConnWrite(); kind = 'update'; payload = p; return self; },

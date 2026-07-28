@@ -19,6 +19,15 @@ jobs:
         with:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
+          # ⚑ THIS is the step that opens the release PR, so THIS is the step that needs a
+          # non-default identity. GitHub deliberately does not fire `pull_request` workflows for
+          # PRs opened by GITHUB_TOKEN (its recursion guard), so the release PR never got the
+          # `verify`/`integration` checks branch protection on `main` REQUIRES — leaving every
+          # release unmergeable except via `gh pr merge --admin`, i.e. bypassing branch protection.
+          # #393 added the PAT to the back-merge job's checkout instead, which opens no PR at all;
+          # the deadlock stayed live and merely looked fixed (review round 2026-07-28).
+          # Falls back to GITHUB_TOKEN so a secret-less run still produces a (blocked) PR.
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
 
   # After release-please cuts a release on `main` (bumping .release-please-manifest.json +
   # package.json version + CHANGELOG), carry that bump back to `dev`. Without this, `dev` drifts

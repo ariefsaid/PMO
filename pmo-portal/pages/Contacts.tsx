@@ -16,6 +16,7 @@ import {
   useToast,
   Button,
   Icon,
+  type SubmitError,
   type Column,
   type RowMenuItem,
 } from '@/src/components/ui';
@@ -369,6 +370,12 @@ const ContactFormModal: React.FC<ContactFormModalProps> = ({
   const phoneField = form.fieldProps('phone');
   const notesField = form.fieldProps('notes');
 
+  // AC-ERR-001: a rejected save gets PERSISTENT in-dialog evidence, not only the corner
+  // toast (which auto-dismisses, leaving the modal indistinguishable from a pristine form
+  // with data in it). `suppressCapture` because the page's `onError` classifies the same
+  // rejection for the toast and owns the single `save_failed` event.
+  const [saveError, setSaveError] = useState<SubmitError | null>(null);
+
   const errorSummary = [
     form.errors.full_name ? { fieldId: nameField.id, message: form.errors.full_name } : null,
     form.errors.company_id ? { fieldId: companyField.id, message: form.errors.company_id } : null,
@@ -389,6 +396,12 @@ const ContactFormModal: React.FC<ContactFormModalProps> = ({
         if (isEdit && contact) await onUpdate(contact.id, input);
         else await onCreate(input);
       } catch (err) {
+        const { headline, detail } = classifyMutationError(err, undefined, {
+          module: 'contacts',
+          operation: isEdit ? 'update' : 'create',
+          suppressCapture: true,
+        });
+        setSaveError({ headline, detail });
         onError(err);
       }
     });
@@ -406,6 +419,7 @@ const ContactFormModal: React.FC<ContactFormModalProps> = ({
       dirty={form.isDirty}
       submitDisabled={!form.isComplete}
       errorSummary={errorSummary.length ? errorSummary : undefined}
+      submitError={saveError}
     >
       <FormSection legend="Identity">
         <FormGrid>

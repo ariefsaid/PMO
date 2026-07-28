@@ -13,6 +13,31 @@ function assert(cond: boolean, msg: string): void {
   if (!cond) throw new Error(msg);
 }
 
+/**
+ * Project `row` down to exactly the columns named in `cols` (comma-separated) — mirrors PostgREST's
+ * real `.select('a,b,c')` projection. `cols` undefined/empty/'*' means "everything" (both legitimate
+ * `.select()` forms). Throws when a requested column is absent from the stub row, simulating
+ * PostgREST's `42703 column does not exist` — a fake that "honours" the projection but never fails on
+ * a wrong column list would be worthless (this is the whole point of the fake).
+ */
+function projectColumns<T>(row: T, cols: string | undefined): T {
+  if (row == null || typeof row !== 'object') return row;
+  const trimmed = (cols ?? '').trim();
+  if (trimmed === '' || trimmed === '*') return row;
+  const keys = trimmed.split(',').map((c) => c.trim()).filter(Boolean);
+  const projected: Record<string, unknown> = {};
+  for (const k of keys) {
+    if (!(k in (row as Record<string, unknown>))) {
+      throw new Error(
+        `fake: column "${k}" requested by .select('${cols}') is not present on the stubbed row ` +
+          `(simulates PostgREST 42703 — the column list and the fixture have drifted apart).`,
+      );
+    }
+    projected[k] = (row as Record<string, unknown>)[k];
+  }
+  return projected as T;
+}
+
 interface FakeRow {
   id: string;
   org_id: string;
@@ -42,7 +67,7 @@ function makeFakeClient(seed: FakeRow[] = []) {
     from(table: string) {
       assertEquals(table, 'external_command_outbox');
       return {
-        select(_cols: string) {
+        select(cols: string) {
           let filters: Record<string, string> = {};
           const chain = {
             eq(col: string, val: string) {
@@ -53,10 +78,10 @@ function makeFakeClient(seed: FakeRow[] = []) {
               const match = [...rows.values()].find((r) =>
                 Object.entries(filters).every(([k, v]) => String((r as unknown as Record<string, unknown>)[k]) === v),
               );
-              return { data: match ?? null, error: null };
+              return { data: match ? projectColumns(match, cols) : null, error: null };
             },
             then(resolve: (v: { data: unknown; error: null }) => void) {
-              resolve({ data: [...rows.values()], error: null });
+              resolve({ data: [...rows.values()].map((r) => projectColumns(r, cols)), error: null });
             },
           };
           return chain as never;
@@ -72,7 +97,7 @@ function makeFakeClient(seed: FakeRow[] = []) {
               existing.idempotency_key === r.idempotency_key,
           );
           return {
-            select(_cols: string) {
+            select(cols: string) {
               return {
                 async single() {
                   if (dup) {
@@ -95,7 +120,7 @@ function makeFakeClient(seed: FakeRow[] = []) {
                     payload_digest: (r.payload_digest as string | null | undefined) ?? null,
                   };
                   rows.set(id, full);
-                  return { data: full, error: null };
+                  return { data: projectColumns(full, cols), error: null };
                 },
               };
             },
@@ -108,12 +133,12 @@ function makeFakeClient(seed: FakeRow[] = []) {
               filters = { ...filters, [col]: val };
               return chain;
             },
-            async select(_cols: string) {
+            async select(cols: string) {
               const matches = [...rows.values()].filter((r) =>
                 Object.entries(filters).every(([k, v]) => String((r as unknown as Record<string, unknown>)[k]) === v),
               );
               for (const m of matches) Object.assign(m, patch);
-              return { data: matches.map((m) => ({ id: m.id })), error: null };
+              return { data: matches.map((m) => projectColumns({ id: m.id }, cols)), error: null };
             },
           };
           return chain as never;
@@ -174,7 +199,7 @@ Deno.test('readOutbox: null when no row for the 4-tuple; maps a found row to cam
     {
       id: 'outbox-1', org_id: 'org-1', domain: 'procurement', pmo_record_id: 'pmo-1', idempotency_key: 'key-1',
       external_tier: 'erpnext', operation: 'create', state: 'pending', external_record_id: null, canonical: null,
-      claim_generation: 0, last_error: null,
+      claim_generation: 0, last_error: null, payload_digest: null,
     },
   ]);
   const deps = createDbMoneyOutboxDeps({ serviceClient: client, orgId: 'org-1', externalTier: 'erpnext', operation: 'create', probeByRemarksKey: async () => null });

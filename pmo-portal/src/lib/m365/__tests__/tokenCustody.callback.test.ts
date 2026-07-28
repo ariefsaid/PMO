@@ -223,7 +223,12 @@ describe('AC-M365-103/104/105 — handleCallback', () => {
   });
 
   it('AC-M365-104: a Microsoft redirect with ?error= aborts before any token exchange', async () => {
-    const service = mockClient();
+    // AC-COLPROJ-M365: a real PKCE row must be seeded — an empty mock previously "passed" this test
+    // only because the fake ignored consumePkceState's column projection and returned a bare `{id}`
+    // stub, which the real code's `row.expires_at` read then coerced to a truthy-but-garbage pkce
+    // object (Invalid Date comparisons are never true). Now that the fake honours the projection, the
+    // fixture must actually look like the row consumePkceState reads.
+    const service = mockClient({ m365_pkce_states: [{ data: pkceRow(), error: null }] });
     const fetch = vi.fn();
     const result = await handleCallback(
       callbackReq({ error: 'access_denied', state: 'state-xyz' }),

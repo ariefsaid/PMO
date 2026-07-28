@@ -96,6 +96,7 @@ export {
   EntityFormModal,
   type EntityFormModalProps,
   type ErrorSummaryItem,
+  type SubmitError,
 } from './EntityFormModal';
 export {
   useEntityForm,

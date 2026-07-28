@@ -896,7 +896,9 @@ describe('Confirm severity + error-code classified toast (P1/P2, sub-task b)', (
     await waitFor(() =>
       expect(toast).toHaveBeenCalledWith(
         "You don't have permission to do that.",
-        expect.stringContaining('permission denied'),
+        // AC-ERR-002: the SoD-specific copy, not Postgres's own "permission denied for
+        // transition_procurement" — an internal function name is not product copy.
+        'Your role does not allow this change. Ask an administrator if you think it should.',
         'warning',
       ),
     );

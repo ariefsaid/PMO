@@ -1101,3 +1101,109 @@ Full decision text (batches A–D + the resulting sequence) lives in the **CANDI
   the source doc's currency. v1 still pins org currency == ERPNext company currency at connect.
 - **OD-CR-6** — parked set confirmed parked: in-house chat/video (Cicle turf, stays Big-track), field
   photos/forms (KANNA turf), offline/native mobile.
+
+---
+
+## OD-FORM-A11Y — Entity-form focus + rejected-save evidence (graduated from the 2026-07-28 Discover pass)
+
+The rendered Discover pass (ADR-0030 step 6) over `EntityFormModal` — the shared primitive behind every
+entity form — found two **WCAG Level A** defects and one product-copy defect. All three are pre-existing;
+they shipped because no rendered pass had ever been run over these forms. Recorded here because there is
+no `crud-components` spec in `docs/specs/` to own the new AC ids (the design doc is
+`docs/design/crud-components.md`, which is not an AC register).
+
+### OD-FORM-A11Y-1 — blur-surfaced errors must NEVER drive focus; only submit-surfaced ones do
+`useEntityForm` surfaces a field error on **blur**. `EntityFormModal` moved focus to the first invalid
+field whenever an error summary was present. The two composed into a keyboard trap (WCAG 2.1.2): Tab →
+blur → error surfaces → summary appears → focus yanked back to the field you just left. On Contacts it was
+**unescapable** — the next required field (`company_id`) trapped identically, so a keyboard-only user could
+never reach Cancel or Save. **The intent (focus the first invalid field on SUBMIT) is correct and is
+retained**; the rule is that only a submit-surfaced summary may move focus. Implemented as a submit
+generation counter inside the modal (`submitSeq`), so no consumer has to opt in and no future form can
+forget to.
+Owning tests: `src/components/ui/__tests__/EntityFormModal.focus.test.tsx` (`AC-A11Y-FORM-001`) +
+`e2e/AC-A11Y-FORM-002-form-keyboard-path.spec.ts` (`AC-A11Y-FORM-002`, the Contacts pair).
+
+### OD-FORM-A11Y-2 — the error summary is a POST-SUBMIT verdict
+Corollary, decided at the rendered check: "Fix 2 fields before saving" appeared on the first Tab-out,
+before any save attempt, restating the same messages already shown inline on the fields. A summary is a
+"you cannot save yet" verdict; before a save is attempted there is no verdict. The summary now renders only
+after a submit attempt. **Inline field errors still appear on blur** — the pre-submit feedback is unchanged
+and stays adjacent to the field it is about.
+
+### OD-FORM-A11Y-3 — a mutation failure inside a dialog gets a PERSISTENT in-dialog error region
+On a rejected save the only feedback was a toast ~700px away that self-dismissed after ~4s, after which the
+modal was indistinguishable from a pristine form with data in it — a user who glanced away could not tell
+whether the write landed. Worse, `document.activeElement` was left on `BODY` and Tab then walked *behind*
+the dialog. Now: a persistent `role="alert"` region inside the dialog (headline + human detail + "Nothing
+was saved — your entries are still here"), focus returned to that region (not to the submit button — that
+risks an accidental re-submit on the next Enter), and the modal clears it when the user submits again.
+**The toast is kept**: it is the app-wide convention for mutation failures on non-modal surfaces
+(archive/delete), and the dialog region is additive — the persistent authority, not a replacement. The
+duplication while both are on screen is accepted for now; unifying it is an app-wide call for the
+design-architect, not a two-form change.
+Owning tests: `EntityFormModal.focus.test.tsx` (`AC-ERR-001`) +
+`e2e/AC-A11Y-MODAL-001-focus-containment.spec.ts` (`AC-A11Y-MODAL-001`, driven with an intercepted 403).
+
+### OD-FORM-A11Y-4 — the background goes `inert` while a modal dialog is open (chosen over Tab re-entry)
+`aria-modal="true"` is **advisory**: it does not remove the background from the tab order, and the modal's
+own trap only wraps at the first/last focusable — so focus that starts *outside* the dialog escapes
+entirely. Two fixes were available; `inert` on the app-shell root (`[data-app-shell="root"]`, set by
+`AppShell`) was chosen over a Tab re-entry handler because it is the platform-native modal semantic and
+fixes the whole class in one attribute — tab order, the a11y tree **and** pointer events — whereas a
+re-entry handler only patches the keyboard symptom and leaves the background readable by a screen reader
+and clickable by mouse. It is refcounted (stacked dialogs) and scoped to the shell root, so the toast host
+and other body-level portals stay announceable. `aria-hidden` is deliberately NOT also applied: `inert`
+already removes the subtree from the a11y tree, and doubling up is a known AT-confusion source.
+
+### OD-FORM-A11Y-5 — raw Postgres text is not product copy (`AC-ERR-002`)
+`classifyMutationError`'s `detail` was the verbatim backend message, so users read
+`new row violates row-level security policy for table "companies"` — internal table names and RLS
+mechanics. The families **Postgres writes itself** (42501 / 23505 / 23503) are now mapped to human
+sentences. The families **we** write (P0001 `RAISE EXCEPTION`, `REQUEST_TIMEOUT`, `AppError`, `overrides`)
+pass through unchanged — they are already human copy and replacing them would destroy the only specific
+information the user has. The verbatim text is always returned as `rawDetail` and logged to the console in
+DEV: diagnostics, never UI. Owning test: `src/lib/classifyMutationError.test.ts` (`AC-ERR-002`).
+
+| AC id | Owning layer | File |
+|---|---|---|
+| `AC-A11Y-FORM-001` | Unit (Vitest/RTL) | `src/components/ui/__tests__/EntityFormModal.focus.test.tsx` |
+| `AC-A11Y-FORM-002` | E2E (Playwright) | `e2e/AC-A11Y-FORM-002-form-keyboard-path.spec.ts` |
+| `AC-ERR-001` | Unit (Vitest/RTL) | `src/components/ui/__tests__/EntityFormModal.focus.test.tsx` |
+| `AC-A11Y-MODAL-001` | E2E (Playwright) | `e2e/AC-A11Y-MODAL-001-focus-containment.spec.ts` |
+| `AC-ERR-002` | Unit (Vitest) | `src/lib/classifyMutationError.test.ts` |
+## OD-CON-3 — the `/privacy` consent surface is THREE-STATE, not boolean (Discover-pass fix, 2026-07-28)
+
+**Decision.** `hasAnalyticsOptedOut()`/the opt-out checkbox is not enough to answer "is this browser's
+usage actually being sent" — a rendered Discover pass found the control could show **unchecked**
+("sending") on a browser with Do Not Track set, directly beneath the sentence "We honour your
+browser's Do Not Track setting," while the SDK-init guard (`doInit`, `client.ts`) had in fact never
+called `posthog.init` at all. The checkbox was answering a different, narrower question than the one
+next to it.
+
+**The surface now resolves one of four states** (`getConsentState`, `client.ts`, exported via
+`src/lib/analytics/index.ts`), in the SAME priority order the SDK-init guard itself checks, so the UI
+can never show a state the guard disagrees with:
+1. `disabled` — this deployment has no valid PostHog key / analytics off entirely. Nothing sends
+   regardless of DNT or the stored preference.
+2. `dnt` — the browser's Do Not Track signal is on. This OVERRIDES a not-yet-opted-out stored
+   preference — nothing the user does in this browser turns analytics back on while DNT is set.
+3. `opted-out` — the user explicitly opted out (and neither of the above already suppressed it).
+4. `active` — analytics is genuinely running: enabled, no DNT, not opted out.
+
+`disabled` and `dnt` render the checkbox checked (accurately reflecting "not sending") but
+non-interactive (`aria-disabled`, `tabIndex=-1`) with copy explaining WHY — toggling in either state
+would be a no-op against what's actually happening, and pretending otherwise would repeat the same
+false-affordance class of bug. Only `opted-out`/`active` are interactive.
+
+**Consequences:** any future consent-adjacent UI (a settings page, an admin view of a user's
+tracking status, etc.) must call `getConsentState`, not `hasAnalyticsOptedOut()` alone, or it will
+reintroduce the same "the box says one thing, the SDK does another" defect.
+
+**Also fixed in the same pass (Discover, IMPORTANT-4/5/7):** the visible label sentence is now the
+control's accessible name (`Checkbox`'s new `labelledBy` prop) and its click target — see the
+Checkbox `labelledBy` note in `DESIGN.md` §Inputs/Fields; Inter is now self-hosted
+(`public/fonts/`, `index.css` `@font-face`) so `/privacy` makes zero requests to Google Fonts,
+closing the last uncontrolled third-party contact on the consent page itself (`AC-CON-012`); and
+dark `--input` was raised 30%→42% L to clear WCAG 1.4.11's 3:1 non-text floor as a standalone
+control boundary (`AC-A11Y-CHECKBOX-001`) — see `DESIGN.md`'s Accessibility posture section.

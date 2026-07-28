@@ -6,8 +6,22 @@ export interface CheckboxProps {
   /** true | false | 'mixed' (indeterminate, e.g. a partial select-all). */
   checked: boolean | 'mixed';
   onChange: (next: boolean) => void;
-  /** Accessible name (required — the box is icon-only). */
+  /**
+   * Accessible name (required — the box is icon-only) — used as a fallback `aria-label`
+   * when `labelledBy` is not given.
+   */
   label: string;
+  /**
+   * Id of an element that already renders the control's visible label text. When given,
+   * this WINS over `label`: the box is named via `aria-labelledby` instead of a duplicate
+   * `aria-label`, so a screen reader announces the visible text exactly once instead of the
+   * name and then the same words again read as page content (the bug this option fixes —
+   * see `AnalyticsOptOutToggle`). NOTE (DESIGN.md): this component ships NO visible-label
+   * click target of its own — it is a 16px icon-only box. A consumer that renders adjacent
+   * label text MUST wire its own click handler on that text (and pass `labelledBy` here) to
+   * get conventional checkbox-label hit-target behavior; it does not come for free.
+   */
+  labelledBy?: string;
   disabled?: boolean;
   className?: string;
 }
@@ -22,6 +36,7 @@ export const Checkbox: React.FC<CheckboxProps> = ({
   checked,
   onChange,
   label,
+  labelledBy,
   disabled = false,
   className,
 }) => {
@@ -39,7 +54,8 @@ export const Checkbox: React.FC<CheckboxProps> = ({
     <span
       role="checkbox"
       aria-checked={ariaChecked}
-      aria-label={label}
+      aria-label={labelledBy ? undefined : label}
+      aria-labelledby={labelledBy}
       aria-disabled={disabled || undefined}
       tabIndex={disabled ? -1 : 0}
       onClick={toggle}
