@@ -14,6 +14,12 @@
 // ⚑ Pass EVERY lane's report to ONE invocation. Checked per-report, the `serial/` entry looks
 // stale in the chromium report (and vice versa) and the gate would fail itself.
 import { readFileSync } from 'node:fs';
+import { pathToFileURL } from 'node:url';
+
+// ⚑ pathToFileURL, NOT `file://${process.argv[1]}` — the hand-built form silently fails to match
+// for any path needing percent-encoding (a directory with a space), so main() never runs and the
+// gate reports success having scanned nothing. That exact bug shipped in the tile gate (#399).
+const isRunAsMain = import.meta.url === pathToFileURL(process.argv[1] ?? '').href;
 
 /**
  * Specs allowed to skip, keyed by the spec FILE **as the Playwright JSON reporter emits it** —
@@ -22,7 +28,7 @@ import { readFileSync } from 'node:fs';
  * `restore` must say what would make it run again — a skip with no path back is a deleted test.
  * @type {Array<{file: string, reason: string, restore: string}>}
  */
-const ALLOWED_SKIPS = [
+export const ALLOWED_SKIPS = [
   // ── Served lane absent: config.toml sets [edge_runtime] enabled = false in CI *and* local, so
   // nothing serves functions/v1 unless scripts/serve-functions.sh is running (it exports
   // SUPABASE_FUNCTIONS_URL). These run in the served lane and skip everywhere else.
@@ -47,12 +53,18 @@ const ALLOWED_SKIPS = [
     restore: 'Runs whenever SUPABASE_FUNCTIONS_URL is set. Permanent fix: serve admin-invite-user in the ordinary lane, or page.route-mock it and seed the row.',
   },
 
-  // ── Whole lane: ERPNext bench specs. A live Docker bench is a dev-bed concern, not CI's.
-  {
-    file: 'serial/',
+  // ── ERPNext bench specs. A live Docker bench is a dev-bed concern, not CI's.
+  // ⚑ These are the BENCH prefixes, NOT a blanket `serial/`. The blanket covered all 41 specs in
+  // the lane while its own reason only justified the 32 bench ones — so a skip in any of the other
+  // 9 (AC-732, AC-AU-001, AC-AUTH-005, AC-AUTHF-*, AC-CUA-*, AC-ENT-005, AC-IXD-PROC-W5-3) was
+  // silently absorbed and reported "explained". That made #405's un-quarantine unverifiable: with
+  // its specific allowlist entry deleted, nothing was left asserting AC-IXD-TS-W5-3 still RUNS —
+  // a future `test.fixme` on it would have been invisible to every gate (demonstrated, 2026-07-28).
+  ...['AC-BFY-', 'AC-BUD-', 'AC-ENA-', 'AC-SAR-', 'AC-TSP-'].map((prefix) => ({
+    file: `serial/${prefix}`,
     reason: 'ERPNext bench specs — need a live Docker ERPNext bench.',
     restore: 'Run locally against the throwaway bench (scripts/e2e-local.sh with the bench up).',
-  },
+  })),
 
   // ── Feature-flag quarantine: the incidents module is OFF. Code/DAL/RLS are preserved.
   {
@@ -107,7 +119,7 @@ export function audit(reports, allow = ALLOWED_SKIPS) {
   return { skipped, unexplained, stale, used };
 }
 
-if (process.argv[2] === '--self-test') {
+if (isRunAsMain && process.argv[2] === '--self-test') {
   const mk = (file) => ({ suites: [{ file, specs: [{ file, title: 't', tests: [{ status: 'skipped' }] }] }] });
   const ran = (file) => ({ suites: [{ file, specs: [{ file, title: 't', tests: [{ status: 'expected' }] }] }] });
   const allow = [{ file: 'ok.spec.ts', reason: 'r', restore: 'x' }];
@@ -134,25 +146,29 @@ if (process.argv[2] === '--self-test') {
   process.exit(0);
 }
 
-const reportPaths = process.argv.slice(2);
-if (reportPaths.length === 0) {
-  console.error('usage: check-e2e-skips.mjs <report.json> [more.json ...]  |  --self-test');
-  process.exit(2);
-}
-const reports = reportPaths.map((p) => JSON.parse(readFileSync(p, 'utf8')));
-const { skipped, unexplained, stale: staleEntries } = audit(reports);
+// Importing this module (the self-test, or any harness exercising `audit`) must not run the CLI
+// and must not process.exit — the pure core is only testable if importing it is side-effect free.
+if (isRunAsMain) {
+  const reportPaths = process.argv.slice(2);
+  if (reportPaths.length === 0) {
+    console.error('usage: check-e2e-skips.mjs <report.json> [more.json ...]  |  --self-test');
+    process.exit(2);
+  }
+  const reports = reportPaths.map((p) => JSON.parse(readFileSync(p, 'utf8')));
+  const { skipped, unexplained, stale: staleEntries } = audit(reports);
 
-for (const s of unexplained) {
-  console.error(`✗ UNEXPLAINED SKIP  ${s.file}\n    ${s.title}`);
-  console.error('    A skipped test proves nothing. Either make it run, or add a justified entry with a `restore` path.');
-}
-for (const a of staleEntries) {
-  console.error(`✗ STALE ALLOWLIST ENTRY  ${a.file} — nothing skipped for it. Delete the entry.`);
-}
-for (const a of ALLOWED_SKIPS.filter((x) => !staleEntries.includes(x))) {
-  console.log(`· allowed skip: ${a.file} — ${a.reason}`);
-}
+  for (const s of unexplained) {
+    console.error(`✗ UNEXPLAINED SKIP  ${s.file}\n    ${s.title}`);
+    console.error('    A skipped test proves nothing. Either make it run, or add a justified entry with a `restore` path.');
+  }
+  for (const a of staleEntries) {
+    console.error(`✗ STALE ALLOWLIST ENTRY  ${a.file} — nothing skipped for it. Delete the entry.`);
+  }
+  for (const a of ALLOWED_SKIPS.filter((x) => !staleEntries.includes(x))) {
+    console.log(`· allowed skip: ${a.file} — ${a.reason}`);
+  }
 
-console.log(`check-e2e-skips: ${skipped.length} skipped, ${unexplained.length} unexplained, ${staleEntries.length} stale.`);
-if (unexplained.length || staleEntries.length) process.exit(1);
-console.log('check-e2e-skips: OK — every skip is explained and every entry is live.');
+  console.log(`check-e2e-skips: ${skipped.length} skipped, ${unexplained.length} unexplained, ${staleEntries.length} stale.`);
+  if (unexplained.length || staleEntries.length) process.exit(1);
+  console.log('check-e2e-skips: OK — every skip is explained and every entry is live.');
+}

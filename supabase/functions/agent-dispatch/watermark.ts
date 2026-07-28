@@ -30,7 +30,18 @@ export async function readWatermark(sb: ServiceClientLike, source: string): Prom
   };
   // Trimmed from '*' to match the declared return type {last_seen_id, last_seen_at} — type-honesty.
   const { data, error } = await builder.select('last_seen_id,last_seen_at').eq('source', source).maybeSingle();
-  if (error || !data) return null;
+  // I-COLPROJ (2026-07-28 review): a real query error must be DISTINGUISHABLE from "no watermark row
+  // yet" (the ordinary first-tick-for-this-source case) — they were previously coalesced (`error ||
+  // !data`). Silently returning null on a REAL error is indistinguishable from "start from scratch",
+  // so the next successful read passes a null cursor to select_trigger_events, which then re-selects
+  // the ENTIRE event history — mass duplicate automation fires. Fail-safe is unchanged (still
+  // returns null so the caller degrades to "no cursor" rather than throwing mid-tick); only the
+  // visibility changes.
+  if (error) {
+    logStructuredError({ fn: 'agent-dispatch', errorCode: 'WATERMARK_READ_FAILED', contextId: source });
+    return null;
+  }
+  if (!data) return null;
   return { lastSeenId: data.last_seen_id, lastSeenAt: data.last_seen_at };
 }
 
