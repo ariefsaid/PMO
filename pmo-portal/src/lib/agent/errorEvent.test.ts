@@ -52,6 +52,22 @@ describe('recordErrorEvent', () => {
     });
   });
 
+  it('review round (2026-07-28): a contextId longer than 64 chars is TRUNCATED before it reaches error_events — structurally safe, not conventionally safe (every err.name today is a literal, but one `err.name = erpResponseText` away from the leak class closed twice this week)', async () => {
+    const insertSpy = vi.fn(() => Promise.resolve({ error: null }));
+    const supabase = { from: () => ({ insert: insertSpy }) };
+    const longContextId = 'x'.repeat(200);
+
+    await recordErrorEvent(supabase as never, {
+      fn: 'erpnext-sweep',
+      errorCode: 'ERP_PUSH_FAILED',
+      contextId: longContextId,
+    });
+
+    const call = (insertSpy.mock.calls[0] as unknown as [{ context_id?: string }])[0];
+    expect(call.context_id).toBe('x'.repeat(64));
+    expect(call.context_id?.length).toBe(64);
+  });
+
   it('AC-OF-003: an insert that RESOLVES with a Postgres error object also swallows (does not throw)', async () => {
     const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     const supabase = { from: () => ({ insert: () => Promise.resolve({ error: { code: '42501' } }) }) };

@@ -59,7 +59,11 @@ export function checkFunctionSource(name, src) {
       `serveWithErrorReporting must be called with the function's OWN name '${name}' (a copy-pasted name misattributes every error)`,
     );
   }
-  if (/(^|[^.\w])Deno\.serve\s*\(/m.test(src)) {
+  // review round (2026-07-28): the `[^.\w]` guard (needed so our OWN `deno?.serve(` inside
+  // serveWithErrorReporting.ts doesn't false-positive) also excluded a `.` immediately before
+  // `Deno` — which is exactly what precedes `Deno` in `globalThis.Deno.serve(`, the one evasion a
+  // future author would plausibly reach for. Explicit alternation catches that shape too.
+  if (/(^|[^.\w])Deno\.serve\s*\(/m.test(src) || /globalThis\.Deno\.serve\s*\(/.test(src)) {
     failures.push('bare Deno.serve( bypasses the error-reporting wrapper -- use serveWithErrorReporting');
   }
   return failures;

@@ -72,6 +72,15 @@ describe('checkFunctionSource — the gate CAN go red', () => {
     expect(failures.some((f) => /bare Deno\.serve/.test(f))).toBe(true);
   });
 
+  it('review round: flags globalThis.Deno.serve( too — the one evasion a future author would plausibly reach for', () => {
+    const src = `
+      serveWithErrorReporting('erpnext-sweep', handler);
+      globalThis.Deno.serve(handler2);
+    `;
+    const failures = checkFunctionSource('erpnext-sweep', src);
+    expect(failures.some((f) => /bare Deno\.serve/.test(f))).toBe(true);
+  });
+
   it('flags a copy-pasted function name (misattributes every error)', () => {
     const src = `serveWithErrorReporting('erpnext-onboard', async (req) => new Response('ok'));`;
     const failures = checkFunctionSource('erpnext-sweep', src);
