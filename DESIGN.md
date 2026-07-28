@@ -207,7 +207,19 @@ future retune that drops any hue below 4.5:1 fails CI.
 | Token | Light | Dark | Role |
 |---|---|---|---|
 | `--border` | `240 5% 90.5%` | `240 5% 16%` | the single hairline divider/outline |
-| `--input` | `240 4% 84%` | `240 4% 30%` | field stroke (a hairline-strong) |
+| `--input` | `240 4% 84%` | `240 4% 42%` (was `240 4% 30%`) | field stroke (a hairline-strong) |
+
+> **Dark `--input` bumped 30%→42% L (2026-07-28, AC-A11Y-CHECKBOX-001, Discover-pass).** The raw
+> reskin-ported value measured **2.13:1** against dark `--background` — below WCAG 1.4.11's 3:1
+> non-text-contrast floor for a UI-component boundary — when used as a control's ONLY visual
+> indication (e.g. the unchecked `Checkbox`, whose 1.5px border with no fill is the sole cue a
+> control exists there). 42% clears **~3.36:1** with headroom (verified against the real rendered
+> page: `e2e/AC-VISUAL-CHECKBOX-001-dark-contrast.spec.ts`; token math:
+> `src/components/ui/__tests__/checkboxBorderContrast.test.ts`). This is a general `--input` bump,
+> not a checkbox-only patch — **any other bordered control that relies on `border-input` alone in
+> dark theme (with no fill/icon backing it) likely inherited the same sub-AA boundary**; audit
+> before assuming a border-only dark control is visible. (WCAG 1.4.11 exempts `disabled` controls —
+> the `Checkbox`'s `disabled` state is intentionally dimmed via `opacity-45` and is out of scope.)
 
 ### Geometry + motion (theme-independent; redeclared in `.dark` for full parity)
 `--radius: 0.5rem` · `--rail-w: 224px` · `--header-h: 56px` · `--ds-ease: 120ms cubic-bezier(0.16, 1, 0.3, 1)`
@@ -378,7 +390,16 @@ status text apply them as `hsl(var(--token))`. See §6 for the verified contrast
 - `background` fill, 1px `input` border, `lg` radius, 32px tall, `0 10px` padding. Placeholder =
   `muted-foreground`. Focus = global ring.
 - **Checkbox:** 16px, 1.5px `input` border, 4px radius; checked → `primary` fill + `primary` border +
-  white check. Exposed with `role="checkbox"` + `aria-checked` + `tabindex`.
+  white check. Exposed with `role="checkbox"` + `aria-checked` + `tabindex`. Takes an accessible name
+  (`label`, required) OR — preferred whenever a visible label sentence sits next to it — a
+  `labelledBy` id pointing at that visible text, so the accessible name and the on-screen copy are
+  ONE source of truth instead of a duplicated `aria-label` a screen reader announces twice (once as
+  the name, again as adjacent page prose). **⚑ The primitive itself ships NO visible-label click
+  target** — it is a 16px icon-only hit area; every conventional checkbox lets you click the LABEL
+  TEXT to toggle, and this one does not do that for free. A consumer rendering adjacent label text
+  MUST wire its own click handler on that text (see `AnalyticsOptOutToggle`, which also guards
+  against double-toggling when the click lands on the box itself, which already has its own
+  handler) — this will bite the next consumer that assumes label-click parity comes standard.
 - **Validation contract (Coherence Wave):** `EntityFormModal`/`useEntityForm` validate **on blur / on
   submit**, never on mount — no eager "Fix N fields" banner on an untouched form.
 
@@ -622,6 +643,18 @@ tokens (same H/S family, darkened L) — see the "Avatar categorical solids" tab
 **Status dots** are graphical (≥3:1) and always paired with a text label (WCAG-exempt); light
 success-dot 3.92 / warn-dot 3.17 / neutral-dot 4.22 on canvas; dark dots already clear 3:1 at the vivid
 hues (success 8.75 / warn 11.01 / neutral 3.12).
+
+**Standalone-control boundaries — CLOSED (2026-07-28 Discover-pass → fixed same day).** A control
+whose ONLY visual indication is its `border-input` outline (no fill, no icon, no adjacent text
+until it's checked) must clear WCAG 1.4.11's 3:1 non-text floor against the surface it actually
+renders on. Dark `--input` (`240 4% 30%`) measured **2.13:1** on dark `--background` — an empty
+outline that was, in practice, invisible. Fixed by raising dark `--input` to `240 4% 42%` (see the
+"Lines / fields" table above) — a token-level fix, so **any other bordered-only control in dark
+theme likely inherited the same gap**; don't assume a border-only control is visible in dark just
+because it renders in light. (WCAG 1.4.11 exempts `disabled` controls — a dimmed/`opacity-45`
+control is a different, exempt case, not covered by this note.) Deterministic gates:
+`checkboxBorderContrast.test.ts` (token math, `AC-A11Y-CHECKBOX-001`) +
+`AC-VISUAL-CHECKBOX-001-dark-contrast.spec.ts` (rendered computed-style, e2e).
 
 **Focus:** single source of truth — global `:focus-visible` = `2px solid hsl(var(--ring))` at 2px offset.
 **Semantics:** `aria-current="page"` on active nav, `role="tablist"/"tab"/"aria-selected"` on segmented

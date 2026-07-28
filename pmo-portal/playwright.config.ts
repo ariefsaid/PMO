@@ -48,9 +48,10 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'] },
       dependencies: ['setup'],
       // Exclude the setup file AND the serial lane — the serial project owns e2e/serial/**.
-      // AC-CON-003-* specs run against their own dev server (port 3100, see webServer below) and
-      // are excluded here too so they are never also picked up against port 3000.
-      testIgnore: [/auth\.setup\.ts/, /e2e\/serial\//, /AC-CON-003-/],
+      // AC-CON-003-*/AC-CON-012-*/AC-VISUAL-CHECKBOX-001-* specs run against their own dev
+      // server (port 3100, see webServer below) and are excluded here too so they are never
+      // also picked up against port 3000.
+      testIgnore: [/auth\.setup\.ts/, /e2e\/serial\//, /AC-CON-003-/, /AC-CON-012-/, /AC-VISUAL-CHECKBOX-001-/],
     },
     {
       // @e2e-isolation: serial lane — org-global specs. Run in a SECOND invocation at --workers=1
@@ -62,13 +63,14 @@ export default defineConfig({
       fullyParallel: false,
     },
     {
-      // AC-CON-003 runs against a SECOND dev server with analytics actually ENABLED. Without it the
-      // spec is vacuous: getAnalyticsConfig() disables analytics whenever VITE_POSTHOG_KEY is not a
-      // valid phc_ key, which it never is in e2e — so "no request to the PostHog host" would pass
-      // before any of this work existed. See docs/plans/2026-07-25-observability-analytics.md D6.
+      // AC-CON-003/AC-CON-012 run against a SECOND dev server with analytics actually ENABLED.
+      // Without it the specs are vacuous: getAnalyticsConfig() disables analytics whenever
+      // VITE_POSTHOG_KEY is not a valid phc_ key, which it never is in e2e — so "no request to
+      // the PostHog host" / "no third-party request" would pass before any of this work existed.
+      // See docs/plans/2026-07-25-observability-analytics.md D6.
       name: 'consent',
       use: { ...devices['Desktop Chrome'], baseURL: 'http://localhost:3100' },
-      testMatch: /AC-CON-003-.*\.spec\.ts/,
+      testMatch: /AC-CON-(003|012)-.*\.spec\.ts|AC-VISUAL-CHECKBOX-001-.*\.spec\.ts/,
       fullyParallel: false,
     },
   ],
