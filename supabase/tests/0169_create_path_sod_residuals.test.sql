@@ -44,7 +44,7 @@
 -- activate_budget_version, create_procurement_invoice / capture_vendor_invoice, transition_project's
 -- win path, and transition_document_status' real SoD.
 begin;
-select plan(69);
+select plan(70);
 
 -- ════════════════════════════════════════════════════════════════════════════════════════════════
 -- Fixtures (as postgres — a BYPASSRLS authority, exempt from the origination guards by design).
@@ -235,18 +235,22 @@ select is(
   1,
   'AC-RES-017 the mirror create is audited too — a create is a create, whoever makes it');
 
--- ⚑ STILL OPEN — DELETE. `authenticated` keeps a table DELETE grant (0123) plus a permissive DELETE
---   policy, so a plain PM can erase a mirror row (a Paid invoice included) with NO audit row. Left
---   open DELIBERATELY: the right shape is an ADR-0018/ADR-0019 decision (soft-archive vs Admin-only
---   destructive delete vs a definer RPC + audit), exactly as 0175 left the procure-to-pay child
---   tables. This assertion PINS the current, vulnerable state so closing it is a test-visible act.
---   Tracked in docs/backlog.md.
+-- DELETE — ⚑ CLOSED BY SLICE 5 (0177). This assertion is the REWRITE the pin below demanded.
+--   It used to be `lives_ok(delete from sales_invoices …)` titled "AC-RES-019 STILL OPEN (pinned, not
+--   fixed): a PM can DELETE a sales-invoice mirror row", asserting the vulnerable state on purpose.
+--   0177 revoked DELETE from authenticated/anon on sales_invoices (and on incoming_payments and the
+--   three procure-to-pay child tables) with no re-grant, and added an AFTER DELETE audit. The full
+--   behaviour — the denial, the surviving sales_invoice_authors cascade child (which IS the submit-SoD
+--   oracle), the service-role no-over-blocking control and the audit detail — is asserted in
+--   supabase/tests/0170_delete_path_sod_and_project_money_sod.test.sql AC-DPS-020..025.
 set local role authenticated;
 set local request.jwt.claims =
   '{"sub":"01690000-0000-0000-0000-0000000000a1","role":"authenticated"}';
-select lives_ok(
+select throws_ok(
   $$ delete from public.sales_invoices where id = '01690000-0000-0000-0000-0000000000e3' $$,
-  'AC-RES-019 STILL OPEN (pinned, not fixed): a PM can DELETE a sales-invoice mirror row — see docs/backlog.md');
+  '42501',
+  'permission denied for table sales_invoices',
+  'AC-RES-019 CLOSED (0177): a PM can no longer DELETE a sales-invoice mirror row — denied at the privilege check');
 
 -- ════════════════════════════════════════════════════════════════════════════════════════════════
 -- C. project_documents — the guard was on the wrong column. `author_id` is the SoD subject.
@@ -378,14 +382,18 @@ select is(
   '01690000-0000-0000-0000-0000000000a1/Negotiation/Won, Pending KoM/400000.00/CPO-RES-1',
   'AC-RES-031 the audit row names the actor, both states, the contract_value that rode into Won, and the win artifact');
 
--- ⚑ STILL OPEN — the projects money SoD itself. 0173's header claimed contract_value at INSERT was
---   safe because "the SoD is about the WON value, which transition_project + set_project_contract_value
---   own". transition_project never reads, requires or re-validates contract_value (verified by reading
---   it AND by the probe replayed below), and set_project_contract_value's Admin/Exec/Finance gate binds
---   only once the project is ALREADY on-hand — so the value rides in. 0176 corrects the false claim and
---   adds the audit row above (the detection control); CLOSING it is a product decision (gate the
---   pipeline->Won edge on Admin/Exec/Finance, or require re-approval of the value on win) and is
---   deliberately NOT taken here. This assertion PINS the current, vulnerable state.
+-- The projects money SoD — ⚑ CLOSED BY SLICE 5 (0177). This block is the REWRITE the pin demanded.
+--   It used to be four `lives_ok` calls titled "AC-RES-032 STILL OPEN (pinned, not fixed)" walking the
+--   exploit all the way to `Won, Pending KoM | 99999999.00`, asserting the vulnerable state on purpose
+--   because 0176 could add only the detection control and the fix was an owner decision.
+--   ⚑ THE OWNER RULED (2026-07-29): approver != author, on the money — record who last set
+--   `contract_value` and refuse the win when the winner IS that person, unless they hold a role
+--   already trusted with the value (Admin / Executive / Finance, set_project_contract_value's own
+--   on-hand gate). Both alternatives 0176 named were rejected: gating pipeline->Won on
+--   Admin/Exec/Finance takes "win the deal" away from the role that owns the pipeline, and a blanket
+--   re-approval taxes every win. The full behaviour — the exploit refused, a PM winning a colleague's
+--   value, Finance winning their own, a zero-value deal, the fail-closed NULL witness and the whole
+--   legitimate journey — is asserted in 0170 AC-PMS-010..021.
 set local role authenticated;
 set local request.jwt.claims =
   '{"sub":"01690000-0000-0000-0000-0000000000a1","role":"authenticated"}';
@@ -393,31 +401,46 @@ select lives_ok(
   $$ insert into public.projects (id, org_id, name, status, contract_value)
        values ('01690000-0000-0000-0000-0000000000b3','01690000-0000-0000-0000-000000000001',
                'RES Self-won deal','Leads', 99999999) $$,
-  'AC-RES-032 STILL OPEN (pinned, not fixed): a PM originates a Lead at contract_value 99999999');
+  'AC-RES-032 a PM may still ORIGINATE a Lead at contract_value 99999999 — the opportunity value is theirs to propose');
 select lives_ok(
   $$ select transition_project('01690000-0000-0000-0000-0000000000b3'::uuid,'PQ Submitted'::project_status) $$,
-  'AC-RES-032 STILL OPEN (pinned): …moves it up the pipeline alone…');
+  'AC-RES-032 …and still move it up the pipeline alone (the rule binds on the money, not on the pipeline)…');
 select lives_ok(
   $$ select transition_project('01690000-0000-0000-0000-0000000000b3'::uuid,'Quotation Submitted'::project_status) $$,
-  'AC-RES-032 STILL OPEN (pinned): …alone…');
-select lives_ok(
+  'AC-RES-032 …alone…');
+select throws_ok(
   $$ select transition_project('01690000-0000-0000-0000-0000000000b3'::uuid,
        'Won, Pending KoM'::project_status, 'CPO-RES-2', '2026-03-02'::date) $$,
-  'AC-RES-032 STILL OPEN (pinned): …and wins it alone — no second person ever touched the value');
+  '42501',
+  'you set this deal''s contract value, so you cannot also win it: the contract value must be approved by someone other than the person who set it (Admin, Executive or Finance) — ask them to set the value, or to win the deal',
+  'AC-RES-032 CLOSED (0177): …but they can no longer WIN it alone — approver != author, on the money');
 
 reset role;
 select is(
   (select status::text || ' | ' || contract_value::text
      from public.projects where id = '01690000-0000-0000-0000-0000000000b3'),
-  'Won, Pending KoM | 99999999.00',
-  'AC-RES-032 STILL OPEN (pinned, not fixed): the money SoD on projects — see docs/backlog.md and 0176 §3');
+  'Quotation Submitted | 99999999.00',
+  'AC-RES-032 CLOSED (0177): the self-set 99999999 never reached Won — see 0170 AC-PMS-013..021');
 
+-- ⚑ REWRITTEN with the pin above. This used to assert that the audit row for b3's Won transition
+--   carried 99999999 — the DETECTION control 0176 added over an elevation it could not prevent. There
+--   is no such row any more, because there is no such elevation: 0177 PREVENTS it. What is asserted
+--   instead is that the refusal left the trail clean — no forged Won on the audit trail — while the
+--   legitimate transitions the PM IS allowed to make are still recorded. (The positive proof that a
+--   real win is audited, with the value AND now the value's author, lives at AC-RES-031 above for b2
+--   and at 0170 AC-PMS-015.)
 select is(
-  (select (detail ->> 'contract_value')::numeric from public.audit_events
+  (select count(*)::int from public.audit_events
      where action = 'project.transition' and entity_id = '01690000-0000-0000-0000-0000000000b3'
        and detail ->> 'to' = 'Won, Pending KoM'),
-  99999999.00::numeric,
-  'AC-RES-031 …but the elevation is now RECORDED: the audit row carries the value that rode into Won');
+  0,
+  'AC-RES-031 the REFUSED win wrote no transition audit row — a denial is not a half-recorded elevation');
+
+select is(
+  (select array_agg(detail ->> 'to' order by created_at) from public.audit_events
+     where action = 'project.transition' and entity_id = '01690000-0000-0000-0000-0000000000b3'),
+  array['PQ Submitted','Quotation Submitted'],
+  'AC-RES-031 …and the two transitions the PM IS allowed to make are still on the trail');
 
 -- ════════════════════════════════════════════════════════════════════════════════════════════════
 -- E. budget_versions — the same class, untouched by slices 1-3.

@@ -96,11 +96,45 @@ owns.
 > `contract_value = 99999999`, runs three legal transitions, and lands
 > `Won, Pending KoM | 99999999.00` **alone**. Keeping `contract_value` insertable is still correct
 > (every legitimate create sends it); what was wrong is the claim that anything downstream re-approves
-> it. **The money SoD on `projects` is therefore STILL OPEN** — `0176` adds the missing detection
-> control (`transition_project` now writes a `project.transition` audit row carrying the value that
-> rode into Won) and leaves closing it to an owner decision: gate the pipeline→Won edge on
-> Admin/Executive/Finance, or require re-approval of the value on win. Current behaviour is PINNED by
-> `supabase/tests/0169_create_path_sod_residuals.test.sql` AC-RES-032; tracked in `docs/backlog.md`.
+> it. `0176` added the missing detection control (`transition_project` now writes a
+> `project.transition` audit row carrying the value that rode into Won).
+>
+> ✅ **RESOLVED, 2026-07-29 (slice 5, `0177`) — DECIDED AND CLOSED. This block previously ended "the
+> money SoD on `projects` is therefore STILL OPEN … pending an owner decision"; it is no longer open.**
+>
+> **The ruling: approver ≠ author, on the money.** `0177` §B records who last set `contract_value`
+> (`contract_value_set_by` / `contract_value_set_at` — witness columns, trigger-stamped on INSERT and
+> on any write of the column, withheld from the client INSERT **and** UPDATE grants) and refuses the
+> pipeline→Won transition when the winner is that person, unless they hold a role already trusted with
+> the value on an on-hand project (Admin / Executive / Finance — `set_project_contract_value`'s own
+> gate). It is exactly ADR-0019's existing requester≠approver / approver≠payer shape applied to the
+> contract value, and it costs **one extra act, by one other person, only on deals where one person did
+> everything.**
+>
+> **Why the two options this block used to name were both rejected.** (a) *Gate pipeline→Won on
+> Admin/Executive/Finance* removes "win the deal" from the Project Manager role that owns the
+> pipeline — a product regression dressed as a security fix, and one people would work around.
+> (b) *Blanket re-approval of the value on win* taxes every win, including the overwhelming majority
+> where nothing is suspicious. The chosen rule fires only when the same person both set a non-zero
+> value and is trying to win it.
+>
+> **Two deliberate bounds, both asserted:** the rule applies only when `contract_value > 0` (the column
+> is `NOT NULL DEFAULT 0`, so a deal created without a value needs no second person), and the carve-out
+> is the **on-hand** role set, not the pre-win one — a PM is trusted to *propose* a value, not to ratify
+> their own proposal at the moment it becomes revenue.
+>
+> **NULL fails CLOSED, and that is why there are two columns.** A NULL `contract_value_set_at` means no
+> witness was ever taken (a pre-`0177` row — un-backfillable, because no record of who set those values
+> exists anywhere) and the win is refused for a non-Admin/Exec/Finance caller, with its own message
+> naming the remedy; `0177` WARNs with the affected count at migration time. A NULL
+> `contract_value_set_by` **with** a non-NULL timestamp means a server-side authority set it
+> (`auth.uid()` is NULL for service_role / postgres / the importer / `seed.sql`) — by construction not
+> the calling user, so the win is allowed. Collapsing the two into one column would have forced a choice
+> between blocking every seeded row and failing open on every legacy row.
+>
+> Proven by `supabase/tests/0170_delete_path_sod_and_project_money_sod.test.sql` **AC-PMS-010..021**
+> (24/24 mutations killed); `0169` **AC-RES-032**, which pinned the vulnerable behaviour on purpose, is
+> rewritten to assert the refusal. Full rationale: `docs/specs/create-path-sod-class.spec.md` §9.4.
 
 ---
 

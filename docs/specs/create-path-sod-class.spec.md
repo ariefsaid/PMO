@@ -361,3 +361,200 @@ alone; making the SI guard enforce on BYPASSRLS roles).
   the parent's `on delete cascade` **bypasses** `enforce_draft_line_item`. Verified live. Same
   DELETE-path family as the two items above; `docs/backlog.md` groups all three as one slice.
 - **The `is_active_member()` gap across 17 RPCs** — a different class, tracked separately.
+
+---
+
+## 9. Slice 5 — the DELETE path and the `projects` money SoD (`0177_delete_path_sod_and_project_money_sod.sql`, proven by `supabase/tests/0170_delete_path_sod_and_project_money_sod.test.sql`)
+
+**Status:** implemented 2026-07-29. Owner-approved (both parts) before a line was written.
+This is the **third and last** of the three write paths. Every finding below was re-verified by a live
+probe against the local DB **at `0176`** before any code changed; every probe is replayed as an
+assertion in `0170`.
+
+### 9.1 Why there is a slice 5
+
+`0175` and `0176` each wrote *"STILL OPEN — DELETE"* into their own headers and **pinned the
+vulnerable state in pgTAP** (`0168` §J `AC-UPS-080`, `0169` `AC-RES-019`) rather than fixing it,
+because the shape was an ADR-0018/ADR-0019 decision. `0176` did the same for the `projects` money SoD
+(`AC-RES-032`), because closing it was a product decision. Those pins were written so that closing the
+defects would have to be a **deliberate, test-visible act**. This slice is that act, and it rewrites
+all of them.
+
+⚑ **The new lesson, and the reason DELETE is not just "one more grant to revoke":**
+**a guard on a child table is not a guard if a parent delete cascades.**
+
+### 9.2 Findings, each with its live probe at `0176`
+
+- **`budget_versions` — MEDIUM-HIGH, and the sharpest instance in the whole class.** The child guard
+  works and the parent walks around it:
+  ```
+  delete from budget_line_items where <owning version is Active> -> ERROR: line-items can only change
+                                                                     while the owning version is Draft
+  delete from budget_versions   where <that Active version>      -> DELETE 1
+  => line items left: 0.   audit rows: 0.
+  ```
+  `budget_line_items_budget_version_id_fkey` and `budget_version_erp_mirror_budget_version_id_fkey`
+  are both `ON DELETE CASCADE`, so a plain PM zeroed the Active budget, every KPI over it
+  (`get_project_budget` / `get_budget_projection` / margin / at-risk / S-curve) and the ADR-0059
+  budget-push witness, in **one request with no audit row** — while ERPNext kept enforcing a budget PMO
+  no longer held. ⚑ `pmo-portal/src/lib/db/budgets.ts:392` documented *"DB trigger blocks non-Draft
+  (OD-BUDGET-C)"*; **that trigger did not exist.** The comment is corrected in the same commit.
+- **`sales_invoices` / `incoming_payments` / `procurement_invoices` / `procurement_receipts` /
+  `procurement_quotations` — MEDIUM, all five.** Each holds a table DELETE grant to `authenticated`
+  plus a permissive DELETE policy. Probed as a plain PM: `DELETE 1` on a **Paid** sales invoice, a
+  **Paid** incoming payment, a **Paid** vendor invoice, a **Complete** goods receipt (a 3-way-match
+  input) and the **selected** quotation — **0 audit rows for any of them** (`0076`'s AFTER DELETE audit
+  convention was wired only to `companies` and `projects`).
+  Two cascade families ride on those parents: `sales_invoice_authors` +
+  `sales_invoice_submit_authorizations` (which **are** the `submit_sales_invoice` SoD oracle that
+  `0176` §1 had just made client-unwritable) and the `procurement_*_files_delete_admin_only` file
+  tables (`0058`) whose Admin-only DELETE policy a non-Admin could reach through the parent.
+- **`projects` — HIGH, the money SoD.** Re-probed at `0176`, unchanged from `0175`:
+  ```
+  insert projects (…, 'Leads', contract_value 99999999)          -> INSERT 1  (a plain PM)
+  transition_project('PQ Submitted') / ('Quotation Submitted')   -> ok
+  transition_project('Won, Pending KoM','CPO-1','2026-03-02')    -> ok
+  => 'Won, Pending KoM | 99999999.00', reached ALONE
+  ```
+
+### 9.3 `incoming_payments` — slice 4's judgement, re-judged
+
+Slice 4 excluded it as "not this class: no transition RPC, so no SoD rule to bypass — it is
+mirror-integrity". **Slice 5 re-examined that and agrees, and acts on the half that IS in scope.**
+There is no `transition_incoming_payment`, no approval, no requester/approver pair: a client-inserted
+`Paid` receipt is a **false mirror row**, not a defeated approval, and the right fix is `0123`'s flip
+design plus the `sales_invoices` treatment from `0176` §1 — a slice with its own caller survey.
+What **is** in scope here is the destructive delete: erasing a Paid payment with no audit row is the
+same act as erasing a Paid invoice, and it is closed identically. The INSERT/UPDATE half is recorded in
+`docs/backlog.md` as still open rather than left un-pinned.
+
+### 9.4 The owner's ruling on the money SoD, and why the two shapes `0176` named were both rejected
+
+- ✗ **Gate the pipeline→Won edge on Admin/Executive/Finance.** Removes "win the deal" from the Project
+  Manager role that owns the pipeline. A product regression dressed as a security fix; people work
+  around it.
+- ✗ **Blanket re-approval of the value on win.** Taxes every win, including the overwhelming majority
+  where nothing is suspicious.
+- ✓ **Approver ≠ author, on the money.** Exactly ADR-0019's existing shape (requester≠approver,
+  approver≠payer) applied to `contract_value`: record who last set it, and refuse the win when the
+  actor winning the deal **is** that person — unless they hold a role already trusted with the value
+  on an on-hand project (Admin / Executive / Finance, i.e. `set_project_contract_value`'s own gate).
+
+Two deliberate bounds, both asserted:
+1. **`contract_value > 0`.** The rule is about money. The column is `NOT NULL DEFAULT 0` and
+   `ProjectFormModal` sends `parseMoneyInput(values.value) ?? 0`, so a deal created without a value
+   carries 0 and needs no second person. (NaN cannot reach the branch — `projects_contract_value_nonneg`
+   (`0169`) rejects it — and if it ever did, `'NaN'::numeric > 0` is TRUE in Postgres, so the guard
+   would fire. Fail closed either way.)
+2. **The carve-out is the ON-HAND gate (Admin/Executive/Finance), not the pre-win one
+   (Admin/Executive/Project Manager).** A PM is trusted to *propose* a value; they are not trusted to
+   ratify their own proposal at the moment it becomes revenue.
+
+**NULL handling — fail closed, and why there are two columns.** `contract_value_set_at` NULL means
+*no witness was ever taken* (a pre-`0177` row; there is no record anywhere of who set those values, so
+a backfill is impossible) → the win is **refused** for a non-Admin/Exec/Finance caller, with its own
+message naming the remedy. `contract_value_set_by` NULL **with** a non-NULL `contract_value_set_at`
+means *a server-side authority set it* (`auth.uid()` is NULL for service_role / postgres / the
+importer / `seed.sql`) — which is by construction not the calling user, so the two-person rule is
+already satisfied and the win is **allowed**. Collapsing the two into one column would have forced a
+choice between blocking every seeded row and failing open on every legacy row. Every clause in the
+guard is written **total** (`is distinct from`, an explicit `is null` branch) — a NULL-valued condition
+does not fire an `if`, which is §8.1's three-valued-logic defect exactly.
+
+### 9.5 Why this breaks no caller (verified by reading every one, 2026-07-29)
+
+- **`budget_versions`** — `deleteDraftVersion` (`src/lib/db/budgets.ts:394`) is the only client delete,
+  and the only affordance reaching it (`ProjectBudget.tsx` `VersionCard`) renders on `Draft` only.
+  `archiveVersion` is an UPDATE (untouched — the guard is DELETE-only). `_budHelpers.ts` (378/381/383)
+  tears down versions *and* the parent project through the service-role `admin` client → exempt.
+- **The five mirror tables** — `grep -n '\.delete()' src/lib/db/*.ts src/lib/repositories/*.ts` returns
+  16 call sites and **not one** is any of these five. Edge functions never delete (`readModelWriters.ts`,
+  `adapter-dispatch/index.ts`, `erpnext-sweep/index.ts`, `_shared/erpnextFeedDeps.ts` — the mirror
+  writers upsert) and hold `service_role` anyway. Every e2e delete uses the service-role `admin` client
+  (`_sarHelpers.ts` 208-209, `AC-SAR-071` 207-208, `AC-ENA-013` 107, `AC-ENA-023` 104, `AC-ENA-023b` 103).
+  The importer only inserts. `service_role` retains DELETE on all five (asserted).
+- **`projects` witness columns** — `projects` carries **no table-level INSERT/UPDATE grant** (only the
+  column lists from `0008` A6 / `0014`), so a newly added column is withheld by construction. The
+  explicit revoke in `0177` §B1 states the intent; `0170` `AC-PMS-010` is the enforcement.
+
+### 9.6 The `ON DELETE CASCADE` enumeration (binding, from the live catalog)
+
+62 `ON DELETE CASCADE` FKs in `public`, each cross-referenced against its child's delete-time guards
+(BEFORE/AFTER DELETE triggers and DELETE/ALL RLS policies). **Two families have a child control a
+parent delete could bypass; everything else is a child with no delete-time control of its own.**
+
+| child | parent | child's delete-time control | reachable before `0177`? |
+|---|---|---|---|
+| `budget_line_items` | `budget_versions` | `budget_line_items_draft_guard` (BEFORE DELETE) | **YES — the defect.** Closed by §A1 |
+| `budget_version_erp_mirror` | `budget_versions` | none | yes (silent loss of the push witness). Closed by §A1 |
+| `sales_invoice_authors` | `sales_invoices` | none (client-unwritable by `0176`) | **YES** — the submit-SoD oracle. Closed by §A2 |
+| `sales_invoice_submit_authorizations` | `sales_invoices` | none | **YES** — the clearance record. Closed by §A2 |
+| `procurement_invoice_files` | `procurement_invoices` | `*_delete_admin_only` (RESTRICTIVE) | **YES** — a non-Admin reached it via the parent. Closed by §A4 |
+| `procurement_receipt_files` | `procurement_receipts` | `*_delete_admin_only` | **YES.** Closed by §A4 |
+| `procurement_quotation_files` | `procurement_quotations` | `*_delete_admin_only` | **YES.** Closed by §A4 |
+| `budget_versions` | `projects` | `budget_versions_delete_guard` (new, §A1) | **NO — and deliberately so.** `projects_delete_admin_only` (`0052`) already requires Admin, and §A1's Admin carve-out is exactly what keeps that shipped capability working. Asserted by `AC-DPS-015` |
+| `procurement_items` | `procurements` | `procurement_items_draft_only_del` (RESTRICTIVE) | **NO** — `procurements` has **no DELETE policy at all**, so a client DELETE matches 0 rows. Verified in the catalog |
+| `procurement_invoices` / `receipts` / `quotations` / `payments` / `purchase_orders` / `purchase_requests` / `rfqs` / `procurement_status_events` | `procurements` | various | **NO**, same reason |
+| `timesheet_entries`, `timesheet_erp_mirror` | `timesheets` | `timesheet_entries_write` (parent-Draft) | **NO** — `timesheets` has no DELETE policy (`0168` `AC-UPS-081`) |
+| `project_documents` | `projects` | `project_documents_delete_admin_only` | **NO** — the parent is Admin-only too; no escalation |
+| `payment_files`, `purchase_order_files`, `purchase_request_files`, `rfq_files` | their `*` parents | `*_delete_admin_only` | **NO** — those parents cascade only from `procurements`, which is undeletable by a client |
+| the remaining ~35 (`agent_*`, `erp_*`, `external_*`, `m365_*`, `ms_graph_*`, `org_features`, `platform_operators`, `profiles`, `tasks`, `task_dependencies`, `crm_activities`, `budget_projections`, `budget_category_account_map`, `external_reference_items`, `project_milestones`) | mostly `organizations` / `profiles` / `projects` | none, or a plain `*_write` | no child-guard to bypass |
+
+### 9.7 Requirements (EARS)
+
+- **FR-DPS-010** — The system shall reject any DELETE of a `budget_versions` row whose `status` is not
+  `Draft`, unless the caller is an Admin, and shall write an `audit_events` row for every delete.
+- **FR-DPS-020** — The system shall withhold DELETE privilege on `sales_invoices`,
+  `incoming_payments`, `procurement_invoices`, `procurement_receipts` and `procurement_quotations`
+  from `authenticated` and `anon`, with no re-grant, and shall write an `audit_events` row for every
+  delete on each.
+- **FR-PMS-010** — The system shall record, on every write of `projects.contract_value`, the user who
+  wrote it and when (`contract_value_set_by`, `contract_value_set_at`), and shall withhold both
+  columns from the client INSERT and UPDATE grants.
+- **FR-PMS-020** — `transition_project` shall reject a pipeline→`Won, Pending KoM` transition when
+  `contract_value > 0`, the caller is not Admin/Executive/Finance, and either the caller is the
+  recorded author of the value **or** no author was ever recorded (fail closed). The message shall
+  name the rule and the remedy.
+- **FR-PMS-021** — `transition_project`'s audit row shall carry the witness alongside the value.
+- **NFR-DPS-001** — Every denial shall assert **message text**, not errcode alone, and every revoke
+  shall be paired with a proof that the legitimate path still works.
+
+### 9.8 Acceptance criteria — all pgTAP, in `supabase/tests/0170_delete_path_sod_and_project_money_sod.test.sql` (62 assertions)
+
+`AC-DPS-010`..`016` (Active and Archived deletes refused naming the cascade; the child guard still
+fires directly; the line item survives; `deleteDraftVersion` and `archiveVersion` still work; the
+delete is audited; an Admin's direct delete **and** their project hard-delete both cascade through and
+are both audited; the ADR-0069 BYPASSRLS boundary, proven in both directions) ·
+`AC-DPS-020`..`025` (grant topology at table **and** column level; `service_role` keeps all five; the
+five probed forgeries denied by message; the rows survive; both cascade children survive; the
+service-role mirror writer still deletes all five; all five deletes audited, with the detail) ·
+`AC-PMS-010`..`021` (witness columns withheld while `contract_value` stays insertable; the witness
+stamped on INSERT and by `set_project_contract_value`; an unrelated header UPDATE does **not** re-stamp;
+**the exploit refused**; a PM winning a colleague's value; Finance winning their own; a zero-value deal;
+the fail-closed NULL witness **and** the Admin re-route; a server-seeded row still winnable; the
+same-figure ratification re-stamping; the whole legitimate journey end to end; the three pre-existing
+`transition_project` gates intact).
+
+**Mutation evidence (binding requirement, performed): 24 mutations applied to the live schema, 24
+killed, 0 survived** — including three MESSAGE-ONLY mutations (same errcode, generic or borrowed text),
+one DETAIL-ONLY mutation, five OVER-BLOCKING mutations (Draft-only for everyone; every delete refused;
+revoking DELETE from `service_role`; dropping the `contract_value > 0` bound; dropping the
+Admin/Exec/Finance carve-out), one FAIL-OPEN-on-NULL mutation (the three-valued-logic trap) and two
+ADR-0069-boundary mutations. Each was killed by a **distinct, relevant** assertion, and a clean run
+after every inverse proved the campaign itself was not measuring leftover damage.
+
+⚑ **A defect the controls found in this slice's own first draft:** the witness trigger initially
+stamped only when `contract_value` actually *changed*. The ratifier's natural act is to **confirm** the
+originator's figure — the same number — which is not a change, so the witness was not re-stamped and
+the legitimate two-person path **deadlocked**. Caught by `AC-PMS-020`, not by any security assertion.
+The trigger now takes its precision from `update OF contract_value` (only `set_project_contract_value`
+can target that column) rather than from a value comparison.
+
+### 9.9 Explicitly out of scope for slice 5 (all reported, none silently dropped)
+
+- **`incoming_payments` INSERT/UPDATE** — §9.3; a mirror-integrity slice, tracked in `docs/backlog.md`.
+- **`create_procurement_receipt`'s requester carve-out** — a **ratified** contract (`AC-AUTHZ-007`),
+  pinned by `0169` `AC-RES-053`. A product decision.
+- **The `is_active_member()` gap across 17 RPCs** — a different class, tracked separately.
+- **Backfilling the `contract_value` witness** — impossible (no record exists). `0177` WARNs with the
+  affected count; the disposition is an owner call, alongside OD-PCS-1.

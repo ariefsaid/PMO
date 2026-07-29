@@ -311,109 +311,79 @@ BEHIND `dev`, content identical).
   per year, or state why not.** Priority: real but not urgent — Admin-only, deliberate, and it corrupts
   reporting truth rather than moving money.
 
-### ⚑ OPEN (security) — the create-path SoD class, slice 4 residuals (found 2026-07-29, `0176`)
-Branch `fix/project-create-sod`, migration **0176** (`0176_create_path_sod_residuals.sql`), pinned by
-`supabase/tests/0169_create_path_sod_residuals.test.sql`. Spec §8 of
-`docs/specs/create-path-sod-class.spec.md`. **None is a regression — all pre-existing and live in
-production today.** Slice 4 CLOSED: `sales_invoices` (the SoD was defeated end-to-end — a PM forged a
-Paid 777777 invoice in one statement, and the body-writer could clear their own submit because
-`author_user_id` / `sales_invoice_authors` were client-writable), `project_documents.author_id` (the
-guard was on the wrong column; self-approval in three statements), `budget_versions` (ungated first
-Active version), `create_procurement_invoice(p_status)` (minted `Paid` on request), the missing
-`transition_project` audit row, and a three-valued-logic fall-through in **every** guard shipped so
-far. **What is left open, deliberately, with a pinning assertion each:**
+### ✅ RESOLVED — the create-path SoD class, slices 1–5 (`0173`–`0177`, 2026-07-29)
+Branch `fix/project-create-sod` / PR #411. Spec `docs/specs/create-path-sod-class.spec.md` (§8 = slice
+4, §9 = slice 5). **Nothing here was a regression — every item was pre-existing and live in production.**
 
-1. **`projects` — the money SoD itself (HIGH).** `0173`'s header claimed `contract_value` at INSERT was
-   safe because "transition_project + set_project_contract_value own the WON value". **False, and now
-   corrected in place in `0173`, `0166` and the slice-1 spec.** `transition_project` never reads,
-   requires or re-validates `contract_value` on any branch; `set_project_contract_value`'s
-   Admin/Exec/Finance gate binds only once the project is *already* on-hand. Verified live:
-   ```
-   insert projects (…, 'Leads', contract_value 99999999)           -> INSERT 1   (a plain PM)
-   transition_project('PQ Submitted') / ('Quotation Submitted')    -> ok
-   transition_project('Won, Pending KoM','CPO-1','2026-03-02')     -> ok
-   => 'Won, Pending KoM | 99999999.00', reached ALONE
-   ```
-   `0176` adds the **detection** control (`transition_project` now writes a `project.transition` audit
-   row carrying the value that rode into Won — it wrote *no* audit row at all before). **Closing it is
-   an owner decision between two valid shapes:** (a) gate the pipeline→Won edge on
-   Admin/Executive/Finance — a true two-person rule, but it removes "win the deal" from the Project
-   Manager role that owns the pipeline, and changes `policy.ts`, the Won affordance and the e2e
-   journeys with it; or (b) require re-approval of the value on win — which needs a `contract_value`
-   authorship trail (who set it, when) that does not exist today, plus a backfill and an FE surface.
-   Pinned by `0169` **AC-RES-032**.
-2. **`sales_invoices` is client-DELETE-able (MEDIUM).** Identical shape to the procure-to-pay item
-   below: `0123` grants table DELETE to `authenticated` plus a permissive DELETE policy, so a PM can
-   erase a mirror row — a **Paid** invoice included — with no audit row (`delete … where id = <a Paid
-   invoice>` → `DELETE 1`, verified live). No FE caller uses it (`_sarHelpers.ts` deletes with the
-   service-role `admin` client), so revoking looks free — but the right shape is the same
-   ADR-0018/ADR-0019 decision. **Close it together with the procure-to-pay item below, as one slice.**
-   Pinned by `0169` **AC-RES-019**.
-3. **Goods-receipt self-attestation (MEDIUM).** `create_procurement_receipt` is role-gated to
-   Admin OR PM OR **the requester**, so the Engineer who raised the request records their own
-   `Complete` delivery — an input to the 3-way match. NOT the same defect as the invoice one
-   (`Partial`/`Complete` are both origination values), and the carve-out is a **ratified** contract
-   asserted on purpose by `supabase/tests/0055_authz_hardening.test.sql` **AC-AUTHZ-007**. Narrowing it
-   is a product decision. Pinned by `0169` **AC-RES-053**.
-4. **`budget_versions` — an ACTIVE version is client-DELETE-able, and the FK cascade defeats the
-   line-item guard (MEDIUM-HIGH, newly found while auditing the DELETE path for slice 4).** `0075`
-   grants table DELETE to `authenticated` and `budget_versions_write` is `FOR ALL`, so a plain PM can
-   delete the **Active** version. `budgets.ts:392` documents the opposite — *"RLS gates the write + DB
-   trigger blocks non-Draft (OD-BUDGET-C)"* — **there is no such trigger on `budget_versions`** (only
-   `stamp_org_id` and, as of `0176`, the INSERT origination guard). Worse, `enforce_draft_line_item`
-   (`0005`, BEFORE INSERT OR UPDATE OR DELETE on `budget_line_items`, *"line-items can only change
-   while the owning version is Draft"*) is **bypassed by the parent's `on delete cascade`**. Verified
-   live:
-   ```
-   -- Draft -> add a 500000 Labor line -> activate  (the real lifecycle)
-   delete from budget_line_items where budget_version_id = <Active>  -> ERROR: line-items can only
-                                                                        change while the owning
-                                                                        version is Draft
-   delete from budget_versions   where id = <Active, WITH line items> -> DELETE 1, 0 rows left
-   ```
-   Impact: the Active budget of a project is erasable in one request, with **no audit row**, zeroing
-   `get_project_budget` / `get_budget_projection` / margin / at-risk / S-curve — and the ERPNext budget
-   the last push installed stays enforcing figures PMO no longer holds. Same DELETE-path family as
-   items 2 and 5; **close them as one slice.** Not pinned by a test.
-5. **`incoming_payments` — same blanket grants, different class (MEDIUM).** The AR twin of
-   `sales_invoices`: `insert/update/delete` to `authenticated`, `status` ∈ `Scheduled|Paid`, `erp_*`
-   feed columns, and the same inert flip guard (`external_domain_ownership` is empty). A PM can insert
-   a `Paid` receipt against a customer invoice. It is **not** the create-path SoD class — there is no
-   transition RPC and no SoD rule being bypassed — so it is a mirror-integrity question (`0123`'s flip
-   design) and was deliberately left out of slice 4 rather than smuggled in. **Not pinned by a test.**
+The class: **SoD is enforced on the TRANSITION, so the attacker never transitions — they put the row
+into (or out of) the protected state by a path the transition does not own.** There are exactly THREE
+such paths and all three are now closed:
 
-### ⚑ OPEN (security) — procure-to-pay child rows are client-DELETE-able (found 2026-07-29, slice 3 of the create-path SoD class)
-Branch `fix/project-create-sod`, migration **0175** (`0175_update_path_sod_class.sql`), pinned by
-`supabase/tests/0168_update_path_sod_class.test.sql` §J. **Not a regression — pre-existing, and live
-in production today.**
+| slice | migration | path | proof |
+|---|---|---|---|
+| 1 | `0173` | INSERT on `projects` | `0166` |
+| 2 | `0174` | INSERT on five more tables | `0167` |
+| 3 | `0175` | UPDATE | `0168` |
+| 4 | `0176` | the residuals (blanket grant / wrong column / RPC parameter / NULL fall-through) | `0169` |
+| **5** | **`0177`** | **DELETE + the `projects` money SoD** | **`0170`** (62 assertions, 24/24 mutations killed) |
 
-`0173`/`0174` (slices 1+2) closed the create-path SoD hole on INSERT and claimed the
-`create_procurement_*` / `select_procurement_quote` definer RPCs were "the ONLY write path". They were
-not: the 0010/0075 column-UPDATE grant still covered exactly the dangerous columns, so a plain PM
-reached every forged state in **two** requests. `0175` closes that UPDATE half. What remains open is
-**DELETE**. Verified live at `0175`, as a plain Project Manager:
+**Slice 5 closed:**
+- **`budget_versions` DELETE — the cascade (was MEDIUM-HIGH).** A plain PM deleted the **Active**
+  version and `budget_line_items_budget_version_id_fkey` (`ON DELETE CASCADE`) took every line item
+  with it, **straight past `budget_line_items_draft_guard`**, with 0 audit rows. `budgets.ts:392`
+  documented a trigger that **did not exist**; `0177` §A1 creates it (non-Draft = **Admin-only**, the
+  ADR-0019 shape, which also keeps an Admin's project hard-delete cascading correctly) plus a
+  `budget_version.delete` audit row, and the DAL comment is corrected.
+- **`sales_invoices` / `incoming_payments` / `procurement_invoices` / `procurement_receipts` /
+  `procurement_quotations` DELETE (was MEDIUM).** All five had a table DELETE grant to `authenticated`;
+  a PM erased a Paid invoice, a Paid payment, a Paid vendor invoice, a Complete goods receipt and the
+  selected quotation, all with 0 audit rows. `0177` revokes DELETE from `authenticated`/`anon` with no
+  re-grant (the caller survey found zero client deletes; the service-role mirror writer keeps its
+  grant) and adds an AFTER DELETE audit to each. That also closes two cascade families:
+  `sales_invoice_authors` + `sales_invoice_submit_authorizations` (the submit-SoD oracle) and the
+  `procurement_*_files_delete_admin_only` file tables.
+- **`projects` — the money SoD (was HIGH).** ⚑ **Owner ruling, 2026-07-29: approver ≠ author, on the
+  money.** Both shapes `0176` named were rejected — gating pipeline→Won on Admin/Exec/Finance removes
+  "win the deal" from the role that owns the pipeline (a product regression), and a blanket re-approval
+  taxes every win. Instead `0177` §B adds `contract_value_set_by` / `contract_value_set_at` (witness
+  columns, trigger-stamped, withheld from the client INSERT **and** UPDATE grants) and refuses the win
+  when the winner is the person who last set a non-zero `contract_value`, unless they are
+  Admin/Executive/Finance (`set_project_contract_value`'s own on-hand gate). A **NULL** witness
+  timestamp (pre-`0177` rows — not backfillable) **fails CLOSED**; a NULL *actor* with a non-NULL
+  timestamp means a server-side authority set it and is allowed, which is what keeps every seeded /
+  imported / service-role row winnable.
 
-```
-delete from procurement_invoices   where id = <a Paid invoice>     -> DELETE 1
-delete from procurement_receipts   where id = <a Complete receipt> -> DELETE 1
-delete from procurement_quotations where id = <the selected quote> -> DELETE 1
-delete from timesheets             where id = <an Approved sheet>  -> DELETE 0   (closed — no DELETE policy)
-```
+The pins that asserted the vulnerable state were rewritten, as they were written to be: `0168`
+**AC-UPS-080**, `0169` **AC-RES-019** + **AC-RES-032** (+ its companion audit assertion), and the
+`lives_ok` DELETE probe in `ap_invoices_payments_offboarded_rls.test.sql` (which now re-grants DELETE
+inside its own transaction, the same device that file already uses for INSERT, so it keeps proving
+`0110`'s POLICY rather than `0177`'s grant).
 
-Cause: `0075` grants table DELETE to `authenticated` on all three, and each carries a permissive
-DELETE policy (`procurement_invoices_delete`, `procurement_receipts_delete`, and the `FOR ALL`
-`procurement_quotations_write`). Impact: a 4-role insider can erase a paid vendor invoice or the
-goods receipt driving a 3-way match, and **there is no `audit_events` row for it** — `0076`'s AFTER
-DELETE audit convention was never wired to these three tables (unlike the create path `0173`/`0174`
-added). Reach: no FE caller uses it (**no `.delete()` on any of the three in `pmo-portal/src` or
-`pmo-portal/pages`**), so revoking looks free — but the right shape is an **ADR-0018/ADR-0019
-decision**: soft-archive (`archived_at`) vs Admin-only destructive delete vs a definer RPC with an
-audit write. That is a design call, not a grant tweak to smuggle into an UPDATE-path slice, so it was
-deliberately left open rather than half-fixed.
+**⚑ STILL OPEN, deliberately, and NOT closed by slice 5:**
 
-**Whoever closes it must rewrite `0168` §J** (which asserts the current, vulnerable state on purpose)
-and the "INSERT and UPDATE" qualifier in `0175`'s header, `0174` §5, `0167`'s scope note and
-`docs/specs/create-path-sod-class.spec.md` FR-CPS-031.
+1. **Goods-receipt self-attestation (MEDIUM, a ratified contract).** `create_procurement_receipt` is
+   role-gated to Admin OR PM OR **the requester**, so the Engineer who raised the request records their
+   own `Complete` delivery — an input to the 3-way match. NOT this class (`Partial`/`Complete` are both
+   origination values) and the carve-out is asserted **on purpose** by
+   `supabase/tests/0055_authz_hardening.test.sql` **AC-AUTHZ-007**. Narrowing it is a product decision.
+   Pinned by `0169` **AC-RES-053**.
+2. **`incoming_payments` INSERT/UPDATE — mirror integrity, not SoD (MEDIUM).** Slice 4 judged this a
+   different class and **slice 5 re-judged it and agrees**: `incoming_payments` has no transition RPC,
+   so there is no SoD rule to bypass — a client-inserted `Paid` receipt is a *false mirror row*, not a
+   defeated approval. Slice 5 closed only its **destructive-delete** half (which IS this slice's
+   subject: erasing a Paid payment with no audit). The remaining blanket `insert`/`update` grant, the
+   `Scheduled|Paid` status set and the client-writable `erp_*` feed columns are `0123`'s flip-design
+   question and need their own slice — the fix is almost certainly the `sales_invoices` treatment from
+   `0176` §1 (narrow the INSERT re-grant to body columns, revoke UPDATE, add an origination guard and a
+   create audit), but that is a mirror-integrity slice with its own caller survey. **Not pinned by a
+   test.**
+3. **The `is_active_member()` gap across 17 RPCs.** A different class, tracked separately; explicitly
+   out of scope for slices 1–5.
+4. **`contract_value` witness backfill.** Pre-`0177` rows keep NULL witnesses and are fail-closed for a
+   non-Admin/Exec/Finance winner. `0177` raises a WARNING with the affected count at migration time.
+   Disposition (leave them to be re-set one by one, or run a one-off attribution) is an owner call —
+   **it must be decided before the prod deploy**, together with OD-PCS-1 (slice 1's retro-remediation
+   question, still open).
 
 ### ✅ RESOLVED — ADR id collisions 0058/0059 (fixed by #387, 2026-07-25)
 The `0058`×2 and `0059`×3 collisions were fixed in **PR #387**: the duplicate M365/external docs were

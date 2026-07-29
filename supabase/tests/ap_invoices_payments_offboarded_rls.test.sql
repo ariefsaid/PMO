@@ -71,8 +71,12 @@ insert into procurement_invoices (id, org_id, procurement_id, vi_number, invoice
 -- DENY — the disabled member cannot WRITE. This is the hole 0110 closes.
 -- ════════════════════════════════════════════════════════════════════════════
 -- See the ⚑⚑ note in the header: without this re-grant the INSERT assertions below would be answered
--- by 0174's revoke instead of by 0110's policy.
-grant insert on public.procurement_invoices to authenticated;
+-- by 0174's revoke instead of by 0110's policy. ⚑ 0177 does the SAME thing to DELETE (it revokes the
+-- table DELETE grant from `authenticated` outright — the create-path SoD class's third write path), so
+-- the DELETE assertion below needs the identical device for the identical reason: without it the
+-- denial would prove the GRANT, and this file's only behavioural proof of 0110's DELETE conjunct
+-- would be lost. Both grants are revoked again the moment the section ends.
+grant insert, delete on public.procurement_invoices to authenticated;
 
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"01100000-0000-0000-0000-0000000000a2","role":"authenticated"}';
@@ -84,8 +88,9 @@ select throws_ok(
   'new row violates row-level security policy for table "procurement_invoices"',
   'Luna B10-AP disabled member cannot INSERT a procurement_invoice (is_active_member conjunct, NOT the grant)');
 
--- DELETE is granted to `authenticated` too, so the gap was reachable both ways. A disabled user
--- destroying an AP invoice is the more damaging half.
+-- DELETE was granted to `authenticated` too, so the gap was reachable both ways. A disabled user
+-- destroying an AP invoice is the more damaging half. (0177 has since revoked that grant outright;
+-- the grant is re-opened above for this section so the assertion still exercises 0110's POLICY.)
 select lives_ok(
   $$delete from procurement_invoices where id = '01100000-0000-0000-0000-0000000e0001'$$,
   'Luna B10-AP disabled member DELETE executes without error…');
@@ -116,10 +121,10 @@ select lives_ok(
   'Luna B10-AP ACTIVE Finance member can still INSERT a procurement_invoice (0110 did not break writes)');
 
 -- Close the window opened for the behavioural section: from here on the catalog is back to what 0174
--- leaves behind, so nothing downstream can accidentally rely on the temporary grant. (The closing
--- rollback would undo it anyway; this makes the scope explicit rather than implicit.)
+-- and 0177 leave behind, so nothing downstream can accidentally rely on the temporary grants. (The
+-- closing rollback would undo them anyway; this makes the scope explicit rather than implicit.)
 reset role;
-revoke insert on public.procurement_invoices from authenticated;
+revoke insert, delete on public.procurement_invoices from authenticated;
 
 select * from finish();
 rollback;

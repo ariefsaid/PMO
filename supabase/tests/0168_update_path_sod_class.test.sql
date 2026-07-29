@@ -406,23 +406,23 @@ select throws_ok(
 reset role;
 
 -- ════════════════════════════════════════════════════════════════════════════════════════════════
--- J. ⚑ STILL OPEN — DELETE. 0174 / 0167 / the spec all claim the definer RPCs are "the ONLY write
---    path" for the three child tables. After this slice that is true for INSERT and UPDATE and FALSE
---    for DELETE: `authenticated` keeps 0075's table DELETE grant and each table has a permissive
---    DELETE policy, so a plain PM can delete a Paid invoice. Verified live at 0175.
+-- J. DELETE — ⚑ CLOSED BY SLICE 5 (0177). This assertion is the REWRITE the pin below demanded.
 --
---    These two assertions pin the CURRENT state rather than the desired one, on purpose: the residual
---    is now a fact this suite states out loud, and whoever closes it (an ADR-0018/0019 decision —
---    soft-archive vs Admin-only destructive delete vs a definer RPC — not a grant tweak inside an
---    UPDATE-path slice) MUST come here and rewrite them. Silence would have been the alternative, and
---    silence is how the UPDATE half survived two slices. Tracked in docs/backlog.md.
+--    It used to read "AC-UPS-080 STILL OPEN: authenticated retains DELETE on all three child tables"
+--    and asserted the count 3, pinning the VULNERABLE state on purpose so that closing it would have
+--    to be a deliberate, test-visible act. 0177 revoked DELETE on all three (and on sales_invoices +
+--    incoming_payments) with no re-grant, so the claim 0174/0167/the spec all made — that the
+--    `create_procurement_*` definer RPCs are the ONLY client write path — is now true for all three
+--    of INSERT, UPDATE and DELETE. The denial behaviour, the no-over-blocking controls (the
+--    service-role mirror writer keeps its grant) and the new delete audit live in
+--    supabase/tests/0170_delete_path_sod_and_project_money_sod.test.sql AC-DPS-020..025.
 -- ════════════════════════════════════════════════════════════════════════════════════════════════
 select is(
   (select count(*)::int from information_schema.table_privileges
      where table_schema = 'public' and grantee = 'authenticated' and privilege_type = 'DELETE'
        and table_name in ('procurement_invoices','procurement_receipts','procurement_quotations')),
-  3,
-  'AC-UPS-080 STILL OPEN: authenticated retains DELETE on all three child tables — the "ONLY write path" claim covers INSERT+UPDATE only');
+  0,
+  'AC-UPS-080 CLOSED (0177): authenticated holds NO DELETE on the three child tables either — the definer RPCs are now the only client write path on ALL THREE of INSERT, UPDATE and DELETE');
 
 set local role authenticated;
 set local request.jwt.claims =
