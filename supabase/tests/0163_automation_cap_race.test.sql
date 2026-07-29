@@ -36,6 +36,19 @@
 -- this file's cleanup runs AFTER this session's own `rollback` (see the note down there for why), and
 -- `create extension` inside the transaction would itself be rolled back, leaving `dblink_exec`
 -- undefined exactly when cleanup needs it.
+--
+-- ⚑ FR-CPS-050 (docs/specs/create-path-sod-class.spec.md): because that create is OUTSIDE the
+-- transaction, it is the one piece of this file that the closing `rollback` does NOT undo — and it
+-- was leaking. On the shared dev DB `dblink` ended up permanently installed in `public` with EXECUTE
+-- to `anon` and `authenticated`, created by no migration. A test must not permanently mutate the
+-- shared database, so this file now DROPS the extension at the very end, after the post-rollback
+-- cleanup. The drop is unconditional, so a run also heals a leak left by an earlier aborted one.
+-- Proven by supabase/tests/0167 (AC-CPS-050), which is numbered above this file so pg_prove runs it
+-- after — and which fails loudly if the leak ever returns.
+--
+-- (Stripping the anon/authenticated EXECUTE grants here as extra insurance was tried and reverted:
+-- `revoke ... on function dblink_connect_u` raises 42501 for the non-superuser `postgres` role this
+-- suite runs as, which aborts the transaction before `plan()`. The end-of-file drop is the whole fix.)
 create extension if not exists dblink;
 
 begin;
@@ -171,3 +184,9 @@ select dblink_exec('cap', $cl$
                                               '01630000-0000-0000-0000-0000000000a2');
 $cl$);
 select dblink_disconnect('cap');
+
+-- FR-CPS-050: undo the one mutation this file makes outside its transaction. Unconditional, so a DB
+-- that already carries a leak from a pre-fix run is healed by the next suite run. Nothing else in the
+-- suite uses dblink after this point (0151/0155 create their own copies INSIDE their transactions,
+-- and both sort before this file), and no migration installs it.
+drop extension if exists dblink;

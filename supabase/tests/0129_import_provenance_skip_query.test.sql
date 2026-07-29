@@ -78,12 +78,17 @@ select is(
 -- post-0072. Its call into create_procurement_invoice is 5 positional args; the 3 new trailing
 -- provenance params must resolve from their defaults for this to keep working.
 -- Received -> Vendor Invoiced requires role Finance (migration 0038's legal-map role gate).
-set local role authenticated;
-set local request.jwt.claims = '{"sub":"01290000-0000-0000-0000-0000000000a2","role":"authenticated"}';
-
+--
+-- ⚑ The 'Received' fixture is seeded AS TABLE OWNER (like the other fixtures in this file): 0174's
+-- procurements_origination_guard + column-INSERT revoke stop a client role from creating a
+-- procurement past 'Draft'. The stage is pure fixture here — capture_vendor_invoice needs a Received
+-- case to act on; how that case reached Received is not what this assertion proves.
 insert into procurements (id, org_id, title, status, requested_by_id) values
   ('01290000-0000-0000-0000-000000000012','01290000-0000-0000-0000-000000000001',
    'Cap-VI Case','Received','01290000-0000-0000-0000-0000000000a2');
+
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"01290000-0000-0000-0000-0000000000a2","role":"authenticated"}';
 
 select is(
   (select status from capture_vendor_invoice(

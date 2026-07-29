@@ -86,26 +86,29 @@ select lives_ok(
        where id = '00450000-0000-0000-0000-000000000011' $$,
   'MED-SoD: direct UPDATE of a non-revoked column (total_value) on a Draft still works for a 4-role user');
 
--- ── Test (vi): direct UPDATE of child vq_number → denied (minter-only) ──
+-- ── Tests (vi)–(viii): direct UPDATE of the child doc-number columns → denied ──
+-- ⚑ SCOPE WIDENED (migration 0175): these were "minter-only COLUMN" denials (0010 withheld
+-- vq_number/gr_number/vi_number from the re-granted list). 0175 revoked the whole UPDATE grant on all
+-- three child tables, so the denial is now table-wide — the doc-number columns are still denied, and
+-- so is every other column. The message is asserted from here on so the assertion states which gate
+-- it is proving instead of accepting any 42501.
 select throws_ok(
   $$ update procurement_quotations set vq_number = 'VQ-FORGED'
        where id = '00450000-0000-0000-0000-0000000000c1' $$,
-  '42501', null,
-  'MED-SoD: direct UPDATE procurement_quotations.vq_number is denied (minter-only column)');
+  '42501', 'permission denied for table procurement_quotations',
+  'MED-SoD: direct UPDATE procurement_quotations.vq_number is denied (no client UPDATE grant at all since 0175)');
 
--- ── Test (vii): direct UPDATE of child gr_number → denied (minter-only) ──
 select throws_ok(
   $$ update procurement_receipts set gr_number = 'GR-FORGED'
        where id = '00450000-0000-0000-0000-0000000000c2' $$,
-  '42501', null,
-  'MED-SoD: direct UPDATE procurement_receipts.gr_number is denied (minter-only column)');
+  '42501', 'permission denied for table procurement_receipts',
+  'MED-SoD: direct UPDATE procurement_receipts.gr_number is denied (no client UPDATE grant at all since 0175)');
 
--- ── Test (viii): direct UPDATE of child vi_number → denied (minter-only) ──
 select throws_ok(
   $$ update procurement_invoices set vi_number = 'VI-FORGED'
        where id = '00450000-0000-0000-0000-0000000000c3' $$,
-  '42501', null,
-  'MED-SoD: direct UPDATE procurement_invoices.vi_number is denied (minter-only column)');
+  '42501', 'permission denied for table procurement_invoices',
+  'MED-SoD: direct UPDATE procurement_invoices.vi_number is denied (no client UPDATE grant at all since 0175)');
 
 reset role;
 select * from finish();

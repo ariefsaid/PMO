@@ -389,7 +389,18 @@ export async function archiveVersion(versionId: string): Promise<void> {
 
 /**
  * Hard-deletes a Draft version (cascade FK removes its line-items).
- * org_id NEVER sent — RLS gates the write + DB trigger blocks non-Draft (OD-BUDGET-C).
+ * org_id NEVER sent — RLS gates the write.
+ *
+ * ⚑ This docstring used to claim "DB trigger blocks non-Draft (OD-BUDGET-C)". **That trigger did not
+ * exist.** Until migration 0177 any of the four write-roles could delete the *Active* version, and
+ * because `budget_line_items_budget_version_id_fkey` is `ON DELETE CASCADE` every line item went with
+ * it — straight past `budget_line_items_draft_guard`, which refuses to touch a line item whose owning
+ * version is not Draft. Verified live as a plain Project Manager, with zero `audit_events` rows.
+ * `0177_delete_path_sod_and_project_money_sod.sql` §A1 creates the trigger the comment described:
+ * a non-Draft version is now **Admin-only** to delete (ADR-0019's destructive-delete shape, which also
+ * keeps an Admin's project hard-delete cascading correctly), and every delete writes a
+ * `budget_version.delete` audit row. A non-Admin attempt raises 42501 naming the cascade, so the
+ * `classifyMutationError` toast surfaces it — it is not a silent no-op.
  */
 export async function deleteDraftVersion(versionId: string): Promise<void> {
   const { error } = await supabase

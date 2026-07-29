@@ -43,7 +43,17 @@ function throwWrite(error: PostgrestErrorLike): never {
  * crud-components §9.1): a sales `Leads` opportunity or an `Internal Project`. An
  * on-hand/won project is reached ONLY via the `transition_project` win path — never
  * created directly — so the state-machine seam stays intact. Used by the create form
- * options and guarded again here (defence in depth) before any insert.
+ * options and re-checked in `createProject` before any insert.
+ *
+ * WHERE THE RULE IS ENFORCED (migration 0173, docs/specs/project-create-sod.spec.md): in the
+ * DATABASE — a BEFORE INSERT trigger on `public.projects` rejects a non-origination status, and
+ * `authenticated` holds no INSERT privilege on `decided_at`/`customer_contract_ref`/
+ * `contract_date`. That is the authority. Until 0173 this docstring claimed the TypeScript check
+ * below was "defence in depth"; it was not — the DB had no guard at all, so a check running in the
+ * browser in front of a public PostgREST endpoint was the ONLY defence, and one `curl` bypassed it
+ * (a PM could create a project already won, at any contract value, with a forged decision date, and
+ * no audit row). The check below is now what it always should have been: a UX fast-path that fails
+ * before the round trip and with a better sentence than the backend's, never the enforcement layer.
  */
 export const PROJECT_ORIGINATION_STATUSES: readonly ProjectStatus[] = [
   'Leads',
@@ -114,10 +124,12 @@ export async function listProjects(
  * Create a new opportunity (AC-PRJ-003). org_id is NEVER sent — the column default +
  * the `projects_write` WITH CHECK (org_id = auth_org_id() AND role in the 4 write-roles)
  * are the authority. The origination status is constrained to Leads / Internal Project
- * (an on-hand/won project is reached only via `transition_project`); a non-origination
- * status is rejected here BEFORE any insert (defence in depth — the state machine, not a
- * direct create, owns the win). Returns the new row. Throws an `AppError` (code preserved,
- * e.g. `42501` when a non-write-role is denied) on failure.
+ * (an on-hand/won project is reached only via `transition_project`); the check below is a
+ * UX fast-path that fails before the round trip with a better sentence than the backend's —
+ * the ENFORCEMENT is migration 0173's BEFORE INSERT trigger + the narrowed column-level
+ * INSERT grant, which also stop the same request made outside this function. See the
+ * PROJECT_ORIGINATION_STATUSES docstring. Returns the new row. Throws an `AppError` (code
+ * preserved, e.g. `42501` when a non-write-role is denied) on failure.
  */
 export async function createProject(input: CreateProjectInput): Promise<ProjectRow> {
   if (!PROJECT_ORIGINATION_STATUSES.includes(input.status)) {

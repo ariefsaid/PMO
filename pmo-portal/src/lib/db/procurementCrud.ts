@@ -69,6 +69,10 @@ export interface NewProcurementInput {
  * and the requester widening RLS (migration 0015) keys off this exact id. ANY
  * member (incl. Engineer) may raise (procurements_insert: org_id = auth_org_id()).
  * org_id is NEVER sent — the column default + RLS WITH CHECK are the authority.
+ * `status` is NOT sent either: migration 0174 withholds INSERT on it from
+ * `authenticated` (naming it would be denied at the privilege check), and the
+ * column default is 'Draft' — the sole origination status — so the landing state
+ * is unchanged. Every later state is reached only via transition_procurement.
  */
 export async function createProcurement(
   input: NewProcurementInput,
@@ -78,7 +82,6 @@ export async function createProcurement(
     .from('procurements')
     .insert({
       title: input.title,
-      status: 'Draft',
       requested_by_id: requestedById,
       project_id: input.projectId,
       vendor_id: input.vendorId,

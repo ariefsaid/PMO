@@ -42,13 +42,15 @@ select is(
   (select count(*)::int from projects where id = 'e1111111-0000-0000-0000-000000000001'), 1,
   'AC-EXPOSE-002: authenticated can still SELECT projects post-lockdown');
 
--- AC-EXPOSE-003: authenticated (PM, own org) can still INSERT a procurement — proves the table-level
--- INSERT grant survived the lockdown for a table that was NEVER narrowed by a prior migration.
+-- AC-EXPOSE-003: authenticated (PM, own org) can still INSERT a procurement — proves the INSERT grant
+-- survived the lockdown. `status` is no longer named: 0174/FR-CPS-011 narrowed the grant to the
+-- origination columns and withholds it, so naming it would make this control fail for a reason that
+-- has nothing to do with the auto-expose lockdown. The column default is 'Draft'.
 select lives_ok(
-  $$ insert into procurements (id, org_id, title, project_id, requested_by_id, status, total_value)
+  $$ insert into procurements (id, org_id, title, project_id, requested_by_id, total_value)
      values ('e2222222-0000-0000-0000-000000000002','00000000-0000-0000-0000-000000000001',
              'Lockdown Procurement','e1111111-0000-0000-0000-000000000001',
-             'e0000000-0000-0000-0000-0000000000e1','Draft', 100) $$,
+             'e0000000-0000-0000-0000-0000000000e1', 100) $$,
   'AC-EXPOSE-003: authenticated can still INSERT procurements post-lockdown (RLS still applies)');
 
 -- AC-EXPOSE-004: authenticated (PM) can still UPDATE that procurement's title.

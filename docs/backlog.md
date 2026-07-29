@@ -346,6 +346,80 @@ BEHIND `dev`, content identical).
   per year, or state why not.** Priority: real but not urgent — Admin-only, deliberate, and it corrupts
   reporting truth rather than moving money.
 
+### ✅ RESOLVED — the create-path SoD class, slices 1–5 (`0173`–`0177`, 2026-07-29)
+Branch `fix/project-create-sod` / PR #411. Spec `docs/specs/create-path-sod-class.spec.md` (§8 = slice
+4, §9 = slice 5). **Nothing here was a regression — every item was pre-existing and live in production.**
+
+The class: **SoD is enforced on the TRANSITION, so the attacker never transitions — they put the row
+into (or out of) the protected state by a path the transition does not own.** There are exactly THREE
+such paths and all three are now closed:
+
+| slice | migration | path | proof |
+|---|---|---|---|
+| 1 | `0173` | INSERT on `projects` | `0166` |
+| 2 | `0174` | INSERT on five more tables | `0167` |
+| 3 | `0175` | UPDATE | `0168` |
+| 4 | `0176` | the residuals (blanket grant / wrong column / RPC parameter / NULL fall-through) | `0169` |
+| **5** | **`0177`** | **DELETE + the `projects` money SoD** | **`0170`** (62 assertions, 24/24 mutations killed) |
+
+**Slice 5 closed:**
+- **`budget_versions` DELETE — the cascade (was MEDIUM-HIGH).** A plain PM deleted the **Active**
+  version and `budget_line_items_budget_version_id_fkey` (`ON DELETE CASCADE`) took every line item
+  with it, **straight past `budget_line_items_draft_guard`**, with 0 audit rows. `budgets.ts:392`
+  documented a trigger that **did not exist**; `0177` §A1 creates it (non-Draft = **Admin-only**, the
+  ADR-0019 shape, which also keeps an Admin's project hard-delete cascading correctly) plus a
+  `budget_version.delete` audit row, and the DAL comment is corrected.
+- **`sales_invoices` / `incoming_payments` / `procurement_invoices` / `procurement_receipts` /
+  `procurement_quotations` DELETE (was MEDIUM).** All five had a table DELETE grant to `authenticated`;
+  a PM erased a Paid invoice, a Paid payment, a Paid vendor invoice, a Complete goods receipt and the
+  selected quotation, all with 0 audit rows. `0177` revokes DELETE from `authenticated`/`anon` with no
+  re-grant (the caller survey found zero client deletes; the service-role mirror writer keeps its
+  grant) and adds an AFTER DELETE audit to each. That also closes two cascade families:
+  `sales_invoice_authors` + `sales_invoice_submit_authorizations` (the submit-SoD oracle) and the
+  `procurement_*_files_delete_admin_only` file tables.
+- **`projects` — the money SoD (was HIGH).** ⚑ **Owner ruling, 2026-07-29: approver ≠ author, on the
+  money.** Both shapes `0176` named were rejected — gating pipeline→Won on Admin/Exec/Finance removes
+  "win the deal" from the role that owns the pipeline (a product regression), and a blanket re-approval
+  taxes every win. Instead `0177` §B adds `contract_value_set_by` / `contract_value_set_at` (witness
+  columns, trigger-stamped, withheld from the client INSERT **and** UPDATE grants) and refuses the win
+  when the winner is the person who last set a non-zero `contract_value`, unless they are
+  Admin/Executive/Finance (`set_project_contract_value`'s own on-hand gate). A **NULL** witness
+  timestamp (pre-`0177` rows — not backfillable) **fails CLOSED**; a NULL *actor* with a non-NULL
+  timestamp means a server-side authority set it and is allowed, which is what keeps every seeded /
+  imported / service-role row winnable.
+
+The pins that asserted the vulnerable state were rewritten, as they were written to be: `0168`
+**AC-UPS-080**, `0169` **AC-RES-019** + **AC-RES-032** (+ its companion audit assertion), and the
+`lives_ok` DELETE probe in `ap_invoices_payments_offboarded_rls.test.sql` (which now re-grants DELETE
+inside its own transaction, the same device that file already uses for INSERT, so it keeps proving
+`0110`'s POLICY rather than `0177`'s grant).
+
+**⚑ STILL OPEN, deliberately, and NOT closed by slice 5:**
+
+1. **Goods-receipt self-attestation (MEDIUM, a ratified contract).** `create_procurement_receipt` is
+   role-gated to Admin OR PM OR **the requester**, so the Engineer who raised the request records their
+   own `Complete` delivery — an input to the 3-way match. NOT this class (`Partial`/`Complete` are both
+   origination values) and the carve-out is asserted **on purpose** by
+   `supabase/tests/0055_authz_hardening.test.sql` **AC-AUTHZ-007**. Narrowing it is a product decision.
+   Pinned by `0169` **AC-RES-053**.
+2. **`incoming_payments` INSERT/UPDATE — mirror integrity, not SoD (MEDIUM).** Slice 4 judged this a
+   different class and **slice 5 re-judged it and agrees**: `incoming_payments` has no transition RPC,
+   so there is no SoD rule to bypass — a client-inserted `Paid` receipt is a *false mirror row*, not a
+   defeated approval. Slice 5 closed only its **destructive-delete** half (which IS this slice's
+   subject: erasing a Paid payment with no audit). The remaining blanket `insert`/`update` grant, the
+   `Scheduled|Paid` status set and the client-writable `erp_*` feed columns are `0123`'s flip-design
+   question and need their own slice — the fix is almost certainly the `sales_invoices` treatment from
+   `0176` §1 (narrow the INSERT re-grant to body columns, revoke UPDATE, add an origination guard and a
+   create audit), but that is a mirror-integrity slice with its own caller survey. **Not pinned by a
+   test.**
+3. **The `is_active_member()` gap across 17 RPCs.** A different class, tracked separately; explicitly
+   out of scope for slices 1–5.
+4. **`contract_value` witness backfill.** Pre-`0177` rows keep NULL witnesses and are fail-closed for a
+   non-Admin/Exec/Finance winner. `0177` raises a WARNING with the affected count at migration time.
+   Disposition (leave them to be re-set one by one, or run a one-off attribution) is an owner call —
+   **it must be decided before the prod deploy**, together with OD-PCS-1 (slice 1's retro-remediation
+   question, still open).
+
 ### ✅ RESOLVED — ADR id collisions 0058/0059 (fixed by #387, 2026-07-25)
 The `0058`×2 and `0059`×3 collisions were fixed in **PR #387**: the duplicate M365/external docs were
 renumbered to **0063** (`microsoft-365-integration-architecture`), **0064** (`entra-app-registration-topology`),
