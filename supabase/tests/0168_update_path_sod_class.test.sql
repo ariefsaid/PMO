@@ -33,7 +33,7 @@
 -- and select_procurement_quote — including under an ERPNext domain flip, where ADR-0055's PMO
 -- enhancement (`procurement_quotations.is_selected`) must stay reachable.
 begin;
-select plan(41);
+select plan(42);
 
 -- ════════════════════════════════════════════════════════════════════════════════════════════════
 -- Fixtures (as postgres — a BYPASSRLS authority, exempt from the origination guards by design).
@@ -428,15 +428,21 @@ set local role authenticated;
 set local request.jwt.claims =
   '{"sub":"01680000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 
--- The one half of the residual that IS closed, and closed by RLS rather than by a grant: timesheets
--- has no DELETE policy, so the delete matches 0 rows instead of raising. Asserted so a future
--- migration that adds a DELETE policy cannot quietly open a destructive path on approved timesheets.
-with d as (
-  delete from public.timesheets where id = '01680000-0000-0000-0000-0000000000f1' returning id)
+-- ⚑ REWRITTEN BY 0178. This used to assert `DELETE 0` and note that timesheets is closed "by RLS
+--   rather than by a grant" — i.e. by POLICY ABSENCE ALONE, which is one `create policy … for delete`
+--   away from re-opening a destructive path on approved timesheets, with this assertion still green
+--   (it would then delete 1 row and fail — but only if the fixture row were still there to delete).
+--   0178 §8 revokes the latent grant as well, so the closure now rests on two independent layers and
+--   the outcome is a NAMED denial instead of a silent no-op.
+select throws_ok(
+  $$ delete from public.timesheets where id = '01680000-0000-0000-0000-0000000000f1' $$,
+  '42501', 'permission denied for table timesheets',
+  'AC-UPS-081 a client DELETE on timesheets is refused AT THE GRANT (0178) — it was previously a silent DELETE 0 resting on policy absence alone');
+
 select is(
-  (select count(*)::int from d),
-  0,
-  'AC-UPS-081 timesheets has NO delete policy — a client DELETE matches zero rows (this half is closed)');
+  (select count(*)::int from public.timesheets where id = '01680000-0000-0000-0000-0000000000f1'),
+  1,
+  'AC-UPS-081 …and the timesheet survived');
 
 reset role;
 select * from finish();

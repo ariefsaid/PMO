@@ -159,9 +159,14 @@ select lives_ok(
   'AC-DPS-012 CONTROL deleteDraftVersion still works: a PM can delete a DRAFT version');
 
 -- archiveVersion does a direct `update … set status = ''Archived''` — this guard is DELETE-only.
+-- ⚑ 0178 RE-SCOPED THIS PIN. It stays green and it stays a CONTROL, but it is no longer "the UPDATE
+--   path is untouched": `Active -> Archived` is now the ONLY status edit a client may make. The two
+--   edits this assertion used to bless by omission — `-> Active`, and the `Active -> Draft -> edit the
+--   line items -> Active` ROUND TRIP that voided budget_line_items_draft_guard entirely — are denied
+--   by 0178 §1 and asserted in 0171 §A. Read this line as "archiveVersion still works", nothing wider.
 select lives_ok(
   $$ update public.budget_versions set status = 'Archived' where id = '01700000-0000-0000-0000-0000000000f1' $$,
-  'AC-DPS-012 CONTROL archiveVersion''s direct UPDATE is untouched (the guard is DELETE-only)');
+  'AC-DPS-012 CONTROL archiveVersion''s direct UPDATE still works (0178 §1 narrowed the UPDATE path to exactly this one transition)');
 -- put it back for the Admin control below
 reset role;
 update public.budget_versions set status = 'Active' where id = '01700000-0000-0000-0000-0000000000f1';
@@ -209,15 +214,27 @@ select ok(
 set local role authenticated;
 set local request.jwt.claims =
   '{"sub":"01700000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+-- ⚑ 0178: was `throws_ok(…,'42501',null,…)` — a bare errcode, in the very file whose header says
+--   "Every denial asserts the errcode AND the exact message. A bare throws_ok(sql,'42501',null) goes
+--   green for the WRONG reason the moment another 42501 gate moves in front of the one under test."
+--   It did exactly that. The message is now asserted.
 select throws_ok(
   $$ delete from public.budget_versions where id = '01700000-0000-0000-0000-0000000000f3' $$,
-  '42501', null,
-  'AC-DPS-016 …and the SAME statement is still refused for an RLS-subject PM (the exemption is not a hole)');
+  '42501',
+  'budget_versions."DPS Archived" is Archived and only an Admin may delete a budget version that is not a Draft: deleting it CASCADES to its line items past budget_line_items_draft_guard, and to the ERPNext budget-push mirror — archive it instead',
+  'AC-DPS-016 …and the SAME statement is still refused for an RLS-subject PM, by the SAME rule (the exemption is not a hole)');
 reset role;
--- postgres IS a BYPASSRLS authority: the same non-Draft row it just refused deletes here.
+-- A BYPASSRLS authority is exempt: the same non-Draft row it just refused deletes here.
+-- ⚑ 0178: the claims MUST be cleared first. `set local request.jwt.claims` survives `reset role` to
+--   the end of the transaction, so without this line auth.uid() is still the PM above and
+--   is_unattributed_authority() (0178 §0) correctly reports "this statement HAS an actor" — the
+--   genuine authority condition is "no actor AND an RLS-bypassing role", which is what makes the
+--   guard fire on a client-initiated CASCADE. This is the same claims-leak footgun this file already
+--   documents at AC-PMS-019; before 0178 the assertion passed for a partly-wrong reason.
+set local request.jwt.claims = '';
 select lives_ok(
   $$ delete from public.budget_versions where id = '01700000-0000-0000-0000-0000000000f3' $$,
-  'AC-DPS-016 CONTROL a BYPASSRLS authority (postgres) deletes the same Archived version — the exemption is real');
+  'AC-DPS-016 CONTROL an UNATTRIBUTED BYPASSRLS authority (postgres, no JWT actor) deletes the same Archived version — the exemption is real');
 
 -- ════════════════════════════════════════════════════════════════════════════════════════════════
 -- B. The five mirror tables — GRANT TOPOLOGY. The precise oracle: a behavioural throws_ok can be
@@ -233,14 +250,23 @@ select is(
   0,
   'AC-DPS-020 no client role holds DELETE on any of the five mirror tables (0168 AC-UPS-080 and 0169 AC-RES-019 pinned the opposite on purpose — this is the rewrite)');
 
+-- ⚑ 0178 REPLACED A DEAD ASSERTION. This read
+--     count(*) from information_schema.column_privileges where privilege_type = 'DELETE'
+--   which returns 0 FOREVER: DELETE is a table-level privilege in Postgres and is never recorded per
+--   column (the live catalog's column_privileges holds only INSERT / REFERENCES / SELECT / UPDATE).
+--   The assertion could not fail, so it proved nothing — the same family as the prosrc-matches-a-
+--   comment defect at AC-PMS-021 below. The replacement reads pg_class.relacl directly, which is
+--   where a DELETE grant ('d') actually lives, and it WILL fail if any client role regains it.
 select is(
-  (select count(*)::int from information_schema.column_privileges
-     where table_schema = 'public' and privilege_type = 'DELETE'
-       and grantee in ('authenticated','anon')
-       and table_name in ('sales_invoices','incoming_payments','procurement_invoices',
-                          'procurement_receipts','procurement_quotations')),
-  0,
-  'AC-DPS-020 and no COLUMN-level DELETE re-grant slipped in either (a table revoke is not reduced by, nor does it imply, a column grant)');
+  (select coalesce(array_agg(distinct c.relname order by c.relname), array[]::name[])
+     from pg_class c, aclexplode(c.relacl) a
+    where c.relnamespace = 'public'::regnamespace
+      and c.relname in ('sales_invoices','incoming_payments','procurement_invoices',
+                        'procurement_receipts','procurement_quotations')
+      and a.privilege_type = 'DELETE'
+      and a.grantee::regrole::text in ('authenticated','anon')),
+  array[]::name[],
+  'AC-DPS-020 and pg_class.relacl — where a DELETE grant actually lives — carries no DELETE for authenticated/anon on any of the five');
 
 select is(
   (select count(*)::int from information_schema.table_privileges
@@ -407,7 +433,7 @@ select throws_ok(
   $$ select transition_project('01700000-0000-0000-0000-0000000000b3'::uuid,
        'Won, Pending KoM'::project_status, 'CPO-DPS-1', '2026-03-02'::date) $$,
   '42501',
-  'you set this deal''s contract value, so you cannot also win it: the value must be confirmed by someone else — ask an Admin, an Executive or another Project Manager to re-set it, or ask an Admin or Executive to win the deal',
+  'this deal''s contract value was not set by anyone senior to you, so you cannot win it: it must be confirmed by your supervisor or by someone who outranks you, through set_project_contract_value (which records who set it) — or ask them to win the deal',
   'AC-PMS-013 THE EXPLOIT: the PM who set contract_value 99999999 cannot also win the deal (0169 AC-RES-032 pinned this succeeding)');
 
 reset role;
@@ -416,18 +442,25 @@ select is(
   'Quotation Submitted',
   'AC-PMS-013 …and the deal did NOT move to Won');
 
--- ── CONTROL 1: a colleague set the value → the SAME PM can win it ──────────────────────────────
+-- ── CONTROL 1: someone SENIOR set the value → the SAME PM can win it ───────────────────────────
+-- ⚑ REWRITTEN BY 0178 (ADR-0070). This control used to have a PEER Project Manager (a2) ratify the
+--   value, and asserted "a PM can still win a deal whose value SOMEONE ELSE set". Under 0177's
+--   "any second person" rule that passed; under ADR-0070 it is exactly the case the owner ruled
+--   OUT — ADR-0019 §1 reserves a WON project's contract value to {Admin, Executive, Finance}, so
+--   letting a PM ratify a peer's number achieved in two steps what ADR-0019 forbids in one. The
+--   ratifier is now FINANCE (a4), who outranks a Project Manager. The peer-PM case is asserted as a
+--   DENIAL in 0171 §G's truth table, where it belongs.
 set local role authenticated;
 set local request.jwt.claims =
-  '{"sub":"01700000-0000-0000-0000-0000000000a2","role":"authenticated"}';
+  '{"sub":"01700000-0000-0000-0000-0000000000a4","role":"authenticated"}';
 select lives_ok(
   $$ select set_project_contract_value('01700000-0000-0000-0000-0000000000b3'::uuid, 500000) $$,
-  'AC-PMS-014 CONTROL a colleague re-sets the value through the SoD-scoped RPC');
+  'AC-PMS-014 CONTROL a FINANCE user (who outranks a PM) re-sets the value through the SoD-scoped RPC');
 reset role;
 select is(
   (select contract_value_set_by::text from public.projects where id = '01700000-0000-0000-0000-0000000000b3'),
-  '01700000-0000-0000-0000-0000000000a2',
-  'AC-PMS-014 …which re-stamps the witness to the colleague (set_project_contract_value populates it truthfully)');
+  '01700000-0000-0000-0000-0000000000a4',
+  'AC-PMS-014 …which re-stamps the witness to that senior user (set_project_contract_value populates it truthfully)');
 
 set local role authenticated;
 set local request.jwt.claims =
@@ -435,19 +468,19 @@ set local request.jwt.claims =
 select lives_ok(
   $$ select transition_project('01700000-0000-0000-0000-0000000000b3'::uuid,
        'Won, Pending KoM'::project_status, 'CPO-DPS-1', '2026-03-02'::date) $$,
-  'AC-PMS-014 CONTROL and NOW the PM wins it — a PM can still win a deal whose value someone else set');
+  'AC-PMS-014 CONTROL and NOW the PM wins it — a PM can still win a deal whose value someone SENIOR TO THEM set');
 reset role;
 select is(
   (select status::text || ' | ' || contract_value::text from public.projects where id = '01700000-0000-0000-0000-0000000000b3'),
   'Won, Pending KoM | 500000.00',
-  'AC-PMS-014 …at the colleague''s value, not the self-set 99999999');
+  'AC-PMS-014 …at the ratified value, not the self-set 99999999');
 
 select is(
   (select (detail ->> 'contract_value') || '/' || (detail ->> 'contract_value_set_by')
      from public.audit_events
     where action = 'project.transition' and entity_id = '01700000-0000-0000-0000-0000000000b3'
       and detail ->> 'to' = 'Won, Pending KoM'),
-  '500000.00/01700000-0000-0000-0000-0000000000a2',
+  '500000.00/01700000-0000-0000-0000-0000000000a4',
   'AC-PMS-015 the transition audit now answers BOTH questions in one read: who set the value, and who turned it into revenue');
 
 -- ── CONTROL 2: a role already trusted with the value may win its own ───────────────────────────
@@ -461,7 +494,7 @@ select lives_ok(
      select transition_project('01700000-0000-0000-0000-0000000000b4'::uuid,'Quotation Submitted'::project_status);
      select transition_project('01700000-0000-0000-0000-0000000000b4'::uuid,
        'Won, Pending KoM'::project_status, 'CPO-DPS-2', '2026-03-02'::date) $$,
-  'AC-PMS-016 CONTROL a FINANCE user may win their OWN self-set value — the carve-out is set_project_contract_value''s own on-hand gate');
+  'AC-PMS-016 CONTROL a FINANCE user may win their OWN self-set value — RE-JUSTIFIED under ADR-0070: not by an enumerated carve-out, but because Finance HOLDS won-value authority by rank (ADR-0019 §1), so no second person is required of them at all');
 reset role;
 
 -- ── CONTROL 3: no money at stake → no second person required ───────────────────────────────────
@@ -492,7 +525,7 @@ select throws_ok(
   $$ select transition_project('01700000-0000-0000-0000-0000000000b6'::uuid,
        'Won, Pending KoM'::project_status, 'CPO-DPS-4', '2026-03-02'::date) $$,
   '42501',
-  'this deal''s contract value has no recorded author, so a Project Manager cannot win it: ask an Admin, an Executive or another Project Manager to re-set the value through set_project_contract_value (which records who set it), or ask an Admin or Executive to win the deal',
+  'this deal''s contract value has no recorded author, so you cannot win it: the value must be set by your supervisor or by someone who outranks you, through set_project_contract_value (which records who set it) — or ask them to win the deal',
   'AC-PMS-018 FAIL-CLOSED a row with NO witness at all (a pre-0177 row) is refused for a PM, with its OWN message — `v_set_by = auth.uid()` would have been NULL and fallen through, which is 0176 §6''s exact defect');
 reset role;
 
@@ -583,15 +616,49 @@ select is(
   'AC-PMS-020 …and lands on Ongoing Project');
 
 -- ── The pre-existing SoD proofs this slice must not have broken ────────────────────────────────
-select ok(
-  (select prosrc like '%coarse role gate MUST stay%' from pg_proc where proname = 'transition_project'),
-  'AC-PMS-021 transition_project still carries the coarse role gate (the money branch was INSERTED, not substituted)');
-select ok(
-  (select prosrc like '%org re-assertion MUST stay%' from pg_proc where proname = 'transition_project'),
-  'AC-PMS-021 …and the cross-org re-assertion');
-select ok(
-  (select prosrc like '%illegal transition%' from pg_proc where proname = 'transition_project'),
-  'AC-PMS-021 …and the transition-map legality check');
+-- ⚑ 0178 REPLACED THREE DEAD ASSERTIONS, and this is the THIRD time this trap has shipped here.
+--   These read `prosrc like '%coarse role gate MUST stay%'` / `'%org re-assertion MUST stay%'`.
+--   BOTH strings live in transition_project ONLY as `--` SQL COMMENTS. A reviewer deleted the entire
+--   role-gate `if` block, kept the comment, re-ran, and got 62/62 GREEN: the assertions this slice
+--   wrote to protect its own edit proved the presence of a COMMENT, not of a guard.
+--   (Verified: `regexp_replace(prosrc,'--[^\n]*','','g') like '%coarse role gate MUST stay%'` is FALSE.)
+--   The brief that produced this file said "strip comments where matching on source". The durable fix
+--   is not to strip better — it is to STOP MATCHING ON SOURCE. All three now assert BEHAVIOUR: the
+--   gate is proven by a caller it must refuse, which no comment can satisfy.
+--   (Wider coverage of the role gate also lives in 0027_project_transition_authz.test.sql; these stay
+--   in-file so this suite remains self-contained about the edit it made.)
+insert into auth.users (id, email) values ('01700000-0000-0000-0000-0000000000a5','dps-engineer@example.com');
+insert into profiles (id, org_id, full_name, email, role, status) values
+  ('01700000-0000-0000-0000-0000000000a5','01700000-0000-0000-0000-000000000001','DPS Engineer','dps-engineer@example.com','Engineer','active');
+insert into organizations (id, name) values ('01700000-0000-0000-0000-000000000002','DPS Other Org');
+insert into auth.users (id, email) values ('01700000-0000-0000-0000-0000000000a6','dps-outsider@example.com');
+insert into profiles (id, org_id, full_name, email, role, status) values
+  ('01700000-0000-0000-0000-0000000000a6','01700000-0000-0000-0000-000000000002','DPS Outsider','dps-outsider@example.com','Admin','active');
+insert into projects (id, org_id, name, status) values
+  ('01700000-0000-0000-0000-0000000000b9','01700000-0000-0000-0000-000000000001','DPS Gate probe','Leads');
+
+set local role authenticated;
+set local request.jwt.claims =
+  '{"sub":"01700000-0000-0000-0000-0000000000a5","role":"authenticated"}';
+select throws_ok(
+  $$ select transition_project('01700000-0000-0000-0000-0000000000b9'::uuid,'PQ Submitted'::project_status) $$,
+  '42501', 'not authorized',
+  'AC-PMS-021 transition_project still REFUSES a role outside the coarse gate (an Engineer) — the money branch was INSERTED, not substituted');
+
+set local request.jwt.claims =
+  '{"sub":"01700000-0000-0000-0000-0000000000a6","role":"authenticated"}';
+select throws_ok(
+  $$ select transition_project('01700000-0000-0000-0000-0000000000b9'::uuid,'PQ Submitted'::project_status) $$,
+  '42501', 'not authorized',
+  'AC-PMS-021 …and still REFUSES an Admin of ANOTHER org — the cross-org re-assertion is live (a definer bypasses RLS, so only this check stands between orgs)');
+
+set local request.jwt.claims =
+  '{"sub":"01700000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select throws_ok(
+  $$ select transition_project('01700000-0000-0000-0000-0000000000b9'::uuid,'Ongoing Project'::project_status) $$,
+  'P0001', 'illegal transition Leads -> Ongoing Project',
+  'AC-PMS-021 …and still REFUSES an off-map transition — the transition-map legality check is live');
+reset role;
 
 select * from finish();
 rollback;

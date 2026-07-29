@@ -362,9 +362,11 @@ create trigger procurement_quotations_audit_delete
 -- `contract_value` today has exactly two writers: the origination INSERT (still granted — it is the
 -- opportunity value and every legitimate create sends it) and `set_project_contract_value` (0014),
 -- because 0014 removed the column from the UPDATE grant. Both are covered by one BEFORE trigger.
+-- ⚑ `if not exists` on both: this series claims re-runnability in every header, and a bare
+--   `add column` breaks it on the second apply. (0178 adds the covering index this FK needs.)
 alter table public.projects
-  add column contract_value_set_by uuid references public.profiles(id),
-  add column contract_value_set_at timestamptz;
+  add column if not exists contract_value_set_by uuid references public.profiles(id),
+  add column if not exists contract_value_set_at timestamptz;
 
 comment on column public.projects.contract_value_set_by is
   'WITNESS, never an input: the user who last set contract_value, stamped by '
@@ -420,8 +422,12 @@ revoke insert (contract_value_set_by, contract_value_set_at),
 do $$
 declare v_n bigint;
 begin
+  -- ⚑ `contract_value_set_at is null` is the point of the WARN — without it the predicate counts
+  --   EVERY priced pipeline row, including the ones the trigger above has just witnessed, and the
+  --   message ("with NO witness") would be false for most of them.
   select count(*) into v_n from public.projects
    where contract_value > 0
+     and contract_value_set_at is null
      and status::text in ('Leads','PQ Submitted','Quotation Submitted','Tender Submitted','Negotiation','Loss Tender');
   if v_n > 0 then
     raise warning '0177: % pre-existing pipeline project(s) carry contract_value > 0 with NO contract_value witness. Until an Admin/Executive/Finance user re-sets the value via set_project_contract_value (which stamps the witness), only an Admin/Executive/Finance user can win them. This is deliberate: a NULL witness fails CLOSED.', v_n;

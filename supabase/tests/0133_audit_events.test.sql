@@ -137,8 +137,12 @@ set local request.jwt.claims = '{"sub":"a133a000-0000-0000-0000-0000000000a1","r
 -- the five rows the (a) section writes are joined by two 'project.create' rows and one
 -- 'project_document.create' row. The oracle is unchanged: an own-org Admin reads EVERY own-org audit
 -- row, and AC-AUDIT-007/008 below still read ZERO.
-select is((select count(*)::int from audit_events), 8,
-  'AC-AUDIT-006 Org-A Admin reads all 8 own-org audit rows (5 from section (a) + 2 project.create + 1 project_document.create)');
+-- ⚑ 9, not 8 (0178): project_documents UPDATEs are now audited too, and AC-AUDIT-003's
+--   transition_document_status(D1,'Issued') is an update — so the Draft->Issued move writes a
+--   'project_document.update' row alongside the 'document.transition' one. That is the point of the
+--   new trigger: before it, an approved document's body could be rewritten with no trace at all.
+select is((select count(*)::int from audit_events), 9,
+  'AC-AUDIT-006 Org-A Admin reads all 9 own-org audit rows (5 from section (a) + 2 project.create + 1 project_document.create + 1 project_document.update)');
 
 set local request.jwt.claims = '{"sub":"a133a000-0000-0000-0000-0000000000a2","role":"authenticated"}';
 select is((select count(*)::int from audit_events), 0,

@@ -412,8 +412,8 @@ select throws_ok(
   $$ select transition_project('01690000-0000-0000-0000-0000000000b3'::uuid,
        'Won, Pending KoM'::project_status, 'CPO-RES-2', '2026-03-02'::date) $$,
   '42501',
-  'you set this deal''s contract value, so you cannot also win it: the value must be confirmed by someone else — ask an Admin, an Executive or another Project Manager to re-set it, or ask an Admin or Executive to win the deal',
-  'AC-RES-032 CLOSED (0177): …but they can no longer WIN it alone — approver != author, on the money');
+  'this deal''s contract value was not set by anyone senior to you, so you cannot win it: it must be confirmed by your supervisor or by someone who outranks you, through set_project_contract_value (which records who set it) — or ask them to win the deal',
+  'AC-RES-032 CLOSED (0177, RULE REPLACED BY 0178/ADR-0070): …but they can no longer WIN it alone. The rule is no longer "any second person" — the value must be set by the winner''s line manager or by someone who outranks them (0171 §G pins the full truth table)');
 
 reset role;
 select is(
