@@ -667,6 +667,37 @@ accidental regression**, the follow-up is a UI task: restore a bulk affordance t
 (e.g. a "Select" toggle over the Timesheets `QueueGroup` + an "Approve N" control in the preview),
 at which point the e2e can be re-pointed at the primary view. Logged here so it is not lost.
 
+### ⚑ OPEN QUESTION (owner) — the approvals queue and the approval AUTHORITY disagree about "awaiting you" (2026-07-29)
+**Filed, not fixed — this is a product decision about which side is right, not a bug fix.**
+
+`listTimesheetsAwaitingApproval` (`src/lib/db/timesheetTransition.ts:173-181`) selects **every**
+`Submitted` timesheet in the org except the viewer's own — no manager filter at all; RLS-visibility is
+the only scoping. `transition_timesheet`'s approve arm (`supabase/migrations/0164_...sql:303-328`)
+authorises the **assigned line manager EXCLUSIVELY** (Admin/Exec fallback only when `manager_id` is
+null). So a privileged viewer is shown a row, a Select checkbox and an **Approve** button for a week
+the server will **always** refuse.
+
+**Observed end-to-end (2026-07-29, full serial lane):** AC-AU-001 re-pointed Tomas Beck's
+`manager_id` from Diego (pm@) to Mara (exec@). pm@'s queue still listed Tomas's week as "awaiting
+you"; the bulk approve raised `42501 not authorized` on it; `ApprovalsQueue.commitBulk`
+(`pages/timesheets/ApprovalsQueue.tsx:323-343`) folded that into a **"Partially approved — 1 approved,
+1 failed (separation of duties or stale)"** warning toast, closed the dialog, and left the row in the
+queue. The PM has no way to tell from that message that the row is *permanently* un-approvable by him,
+not transiently stale.
+
+**The question:** which side is authoritative for "awaiting you"?
+- **(a) The RPC is right** → the queue should filter to weeks the viewer can actually approve
+  (`manager_id = auth.uid()`, plus the null-manager Admin/Exec fallback). A PM then sees only his own
+  reports. Risk: an author whose manager is inactive/unset drops off every queue — needs a
+  deliberate "unassigned" lane.
+- **(b) The queue is right** (org-wide visibility is intentional for privileged roles) → then the
+  affordance must be honest: no checkbox/Approve on rows the viewer cannot approve, and the error
+  copy must name the real reason ("Mara Lindqvist is the line manager for this week"), not the
+  ambiguous "separation of duties or stale".
+
+**Not blocking anything today:** `AC-IXD-TS-W5-3` now seeds and asserts only weeks it owns
+(authors line-managed by pm@), so the acceptance layer no longer depends on the answer.
+
 ### ⚑ PARKED — mutation testing (StrykerJS) for the "green test that doesn't bind" class (2026-07-25)
 **Why:** coverage proves a line RAN; it does not prove its behaviour is asserted. 2026-07-25 found a
 `withTimeout` test suite at 100% coverage of the timer line where mutating `setTimeout(…, ms)` →
