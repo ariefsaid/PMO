@@ -412,7 +412,7 @@ select throws_ok(
   $$ select transition_project('01690000-0000-0000-0000-0000000000b3'::uuid,
        'Won, Pending KoM'::project_status, 'CPO-RES-2', '2026-03-02'::date) $$,
   '42501',
-  'you set this deal''s contract value, so you cannot also win it: the contract value must be approved by someone other than the person who set it (Admin, Executive or Finance) — ask them to set the value, or to win the deal',
+  'you set this deal''s contract value, so you cannot also win it: the value must be confirmed by someone else — ask an Admin, an Executive or another Project Manager to re-set it, or ask an Admin or Executive to win the deal',
   'AC-RES-032 CLOSED (0177): …but they can no longer WIN it alone — approver != author, on the money');
 
 reset role;

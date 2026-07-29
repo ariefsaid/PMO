@@ -407,7 +407,7 @@ select throws_ok(
   $$ select transition_project('01700000-0000-0000-0000-0000000000b3'::uuid,
        'Won, Pending KoM'::project_status, 'CPO-DPS-1', '2026-03-02'::date) $$,
   '42501',
-  'you set this deal''s contract value, so you cannot also win it: the contract value must be approved by someone other than the person who set it (Admin, Executive or Finance) — ask them to set the value, or to win the deal',
+  'you set this deal''s contract value, so you cannot also win it: the value must be confirmed by someone else — ask an Admin, an Executive or another Project Manager to re-set it, or ask an Admin or Executive to win the deal',
   'AC-PMS-013 THE EXPLOIT: the PM who set contract_value 99999999 cannot also win the deal (0169 AC-RES-032 pinned this succeeding)');
 
 reset role;
@@ -492,7 +492,7 @@ select throws_ok(
   $$ select transition_project('01700000-0000-0000-0000-0000000000b6'::uuid,
        'Won, Pending KoM'::project_status, 'CPO-DPS-4', '2026-03-02'::date) $$,
   '42501',
-  'this deal''s contract value has no recorded author, so winning it requires Admin, Executive or Finance: the value must be re-set through set_project_contract_value (which records who set it) before a Project Manager can win the deal',
+  'this deal''s contract value has no recorded author, so a Project Manager cannot win it: ask an Admin, an Executive or another Project Manager to re-set the value through set_project_contract_value (which records who set it), or ask an Admin or Executive to win the deal',
   'AC-PMS-018 FAIL-CLOSED a row with NO witness at all (a pre-0177 row) is refused for a PM, with its OWN message — `v_set_by = auth.uid()` would have been NULL and fallen through, which is 0176 §6''s exact defect');
 reset role;
 

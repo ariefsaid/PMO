@@ -502,11 +502,11 @@ begin
     then
       if v_set_at is null then
         raise exception
-          'this deal''s contract value has no recorded author, so winning it requires Admin, Executive or Finance: the value must be re-set through set_project_contract_value (which records who set it) before a Project Manager can win the deal'
+          'this deal''s contract value has no recorded author, so a Project Manager cannot win it: ask an Admin, an Executive or another Project Manager to re-set the value through set_project_contract_value (which records who set it), or ask an Admin or Executive to win the deal'
           using errcode = '42501';
       else
         raise exception
-          'you set this deal''s contract value, so you cannot also win it: the contract value must be approved by someone other than the person who set it (Admin, Executive or Finance) — ask them to set the value, or to win the deal'
+          'you set this deal''s contract value, so you cannot also win it: the value must be confirmed by someone else — ask an Admin, an Executive or another Project Manager to re-set it, or ask an Admin or Executive to win the deal'
           using errcode = '42501';
       end if;
     end if;
