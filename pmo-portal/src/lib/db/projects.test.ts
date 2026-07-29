@@ -115,7 +115,18 @@ describe('listProjects', () => {
     makeBuilder({ data: rows, error: null });
     const result = await listProjects();
     expect(mockFrom).toHaveBeenCalledWith('projects');
-    expect(mockSelect).toHaveBeenCalledWith('*, client:companies(name), pm:profiles(full_name)');
+    // ⚑ The `profiles` embed MUST name its constraint — `projects` has had two FKs to `profiles`
+    // since 0177 (`project_manager_id` and the money-SoD witness `contract_value_set_by`), and
+    // PostgREST errors on an ambiguous embed rather than picking one.
+    //
+    // Note what this assertion is and is not. It pins the STRING, against a MOCKED client — so it
+    // stayed green for the entire time that string was a guaranteed runtime error, and 19 e2e
+    // specs were red. It cannot validate the embed against a real schema; nothing at this layer
+    // can. The real guard is supabase/tests/postgrest_embed_ambiguity_guard.test.sql, which fails
+    // the moment a new FK makes any embed ambiguous. This line only stops a silent revert.
+    expect(mockSelect).toHaveBeenCalledWith(
+      '*, client:companies(name), pm:profiles!projects_project_manager_id_fkey(full_name)',
+    );
     expect(result[0].client?.name).toBe('Innovate Corp');
     expect(result[0].pm?.full_name).toBe('Alice Manager');
   });
