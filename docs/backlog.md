@@ -111,6 +111,41 @@ cookie mirror would fix it — a product decision about how durable a consent pr
 
 ---
 
+### ⚑ AGENT re-query-loop regression — FIX BUILT on `fix/agent-requery-loop` (2026-07-28), owner-gated deploy
+
+**Symptom (found in prod agent transcripts):** "Which of my projects are behind schedule?" answered
+cleanly on Jul 8 (`run f4b8609d`), but on Jul 16 (`run ebe98163`) it dumped raw tables into the chat,
+re-queried data it already had 8×, hit `MAX_TOOL_ROUNDS`, and returned **no answer** ("reached step
+limit"). Spec: [`docs/specs/agent-requery-loop-regression.spec.md`](specs/agent-requery-loop-regression.spec.md).
+
+**Root cause:** PR #293 (Jul 10) token-budget compaction. Its marker told the weak `deepseek-v4-flash`
+*"Re-run the tool if you still need this data"* — and the 24k trigger fired MID-TURN, compacting the very
+rows needed to synthesize. The model obeyed, re-queried, and exhausted its step budget.
+
+**Fix (built, verified — `npm run verify` green, agent-chat + _shared Deno tests green, boot-smoke OK):**
+1. Compaction marker no longer invites re-run — states "already retrieved, do NOT call again", carries
+   tool name + rowCount (`_shared/transcriptCompaction.ts`). `triggerChars` 24k→80k, `recentMessages`
+   6→12 so a single analytical turn stays intact (env-tunable via `AGENT_COMPACTION_*`).
+2. Forced tools-disabled synthesis round on non-malformed step-cap exhaustion — guarantees a final
+   answer, never a bare dead-end (`agent-chat/handler.ts`; AC-RQL-010). Malformed exhaustion unchanged.
+3. `as:"table"` prompt-steered to final-presentation only, not intermediate reads (`prompt.ts`) —
+   **eval-gated per ADR-0052, NOT unit text-presence** (still owed: run the eval).
+**Owner action owed:** review + approve PR to `dev`; deploy is agent-surface + owner-gated. Run the
+ADR-0052 eval for AC-RQL-020/021 (prompt-steer effect on the live model) before trusting fix #3.
+
+### ⚑ RESEARCH-FIRST — agent harness: vendor vs build (owner-requested 2026-07-28, NOT yet spec'd)
+
+The re-query fix exposed how much agent-loop plumbing we hand-roll. Web-checked: only ~300–400 of the
+~4,600 `agent-chat` lines are commodity (tool loop, SSE stream, model-client port); the rest is our moat
+(RLS deputy reads, SoD approvals, typed widgets, credits, tenancy, audit) that **no framework provides**.
+**Owner steer:** lock-in-averse — do NOT default to Vercel AI SDK; evaluate **LangChain/LangGraph and
+the `pi` substrate as the harness**, with battery inclusion (guardrails, evals). Since the commodity core
+is small, "build the missing bits as our own features" is on the table too. **Research FIRST (vendor vs
+build, lock-in, Deno/Supabase-Edge fit, guardrails libs, migration cost) BEFORE writing a spec.** Keep
+this fully decoupled from the re-query fix above (that ships on its own). No ADR yet — research → recommend → owner picks.
+
+---
+
 ### v0.8.0 IN PRODUCTION (2026-07-25)
 `production` == `main` == **`0079bcc9`**, tagged **v0.8.0**. The ERPNext program is
 closed, promoted, released and deployed.

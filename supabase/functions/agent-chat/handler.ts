@@ -1115,6 +1115,43 @@ async function* runToolLoop(opts: RunToolLoopOptions): AsyncGenerator<AgentEvent
       yield statusEvent('errored', { error: 'MALFORMED_TOOL_CALL' });
       return;
     }
+    // FR-RQL-010/011: cap reached on a NON-malformed run means the model kept calling tools and
+    // never gave a final answer (the prod re-query-loop failure). Force ONE tools-disabled synthesis
+    // call so the user gets an answer from the data already gathered — never a bare "reached step
+    // limit" dead-end. A failure here degrades to the old step-limit completion (no worse than before),
+    // NOT an errored run (inner try/catch — the outer catch would UPSTREAM_ERROR the whole turn).
+    try {
+      const _s0 = Date.now();
+      const synthResp = await deps.modelClient.create({
+        model: deps.model,
+        max_tokens: 2048,
+        temperature: 0.8,
+        messages: [
+          ...compactTranscript(messages, deps.compaction ?? DEFAULT_COMPACTION),
+          {
+            role: 'user',
+            content:
+              'You have reached the tool-call limit. Do not request any more tools. Give your best final answer now, using only the data already gathered above.',
+          },
+        ],
+        tools: [], // disable tools — the model MUST answer with text
+      });
+      if (deps.usage) {
+        await recordUsage({ supabase: deps.usage.supabase, runId: persist ? runId : null }, synthResp, deps.usageAction ?? 'chat', Date.now() - _s0);
+      }
+      // Read ONLY the text content — never dispatch synthResp.message.tool_calls. Tools were disabled
+      // (tools:[]), so a compliant model returns none; but even a non-compliant one cannot mutate state
+      // here — the tool-dispatch machinery lives inside the loop we have already exited (SoD-safe).
+      // content may be truncated (finish_reason 'length') given the 2048-token cap after 8 rounds of
+      // gathered data; a partial final answer still beats the bare step-limit dead-end this replaces.
+      if (synthResp.message.content) {
+        yield emit('assistant', { text: synthResp.message.content });
+      }
+    } catch (err) {
+      // Server-side log only (never echoed to the client — NFR-AR-SEC-005); include the error to make
+      // a prod synthesis failure diagnosable.
+      console.error('[agent-chat] SYNTHESIS_FAILED', { errorCode: 'SYNTHESIS_FAILED' }, err);
+    }
     yield statusEvent('completed', {}, 'reached step limit');
   } catch {
     // ── Upstream error → scrub, never echo raw error (AC-AR-005, NFR-AR-SEC-005)

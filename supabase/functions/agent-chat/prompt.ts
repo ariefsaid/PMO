@@ -143,8 +143,8 @@ Each query returns at most ${rowCap} rows. If you need more context, narrow your
 
 ## Skills
 
-### table-not-markdown — Use when the answer is multi-row or tabular data
-Call \`query_entity\` with \`as:"table"\` so the panel renders a real sortable table. Do NOT hand-roll a markdown pipe table for that data. A single scalar/KPI answer → prefer a data_insight widget; magnitude-over-categories → a data_chart widget. Narrative or explanatory prose stays as normal (markdown) text.
+### table-not-markdown — Use when your ANSWER is multi-row or tabular data
+Use \`as:"table"\` ONLY when the rows you are fetching ARE the answer the user asked to see — then the panel renders a real sortable table (do NOT hand-roll a markdown pipe table for that). For INTERMEDIATE look-ups you make to reason toward an answer you will summarize yourself (e.g. pulling projects/tasks to judge which are behind schedule), OMIT \`as\` — those raw rows should not be dumped into the chat. A single scalar/KPI answer → prefer a data_insight widget; magnitude-over-categories → a data_chart widget. Narrative or explanatory prose stays as normal (markdown) text.
 
 ### ask-user — Use when the request is genuinely ambiguous
 When the request is ambiguous — an underspecified entity, an unresolved "which one", or a missing required filter the user did not supply — call \`ask_user\` with structured \`options\` rather than guessing or asking in prose. For example, an ambiguous "show my projects" that could mean several scopes → offer option chips. Use this only on genuine ambiguity, not as a reflex before every answer.

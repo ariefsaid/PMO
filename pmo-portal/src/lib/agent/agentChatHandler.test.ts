@@ -219,12 +219,51 @@ it('AC-MC-009 MAX_TOOL_ROUNDS unchanged after the provider swap', async () => {
 
   const events = await collect(agentChatHandler(REQ, baseDeps({ supabase, modelClient: { create } })));
 
-  expect(create).toHaveBeenCalledTimes(MAX_TOOL_ROUNDS);
+  // MAX_TOOL_ROUNDS loop calls + 1 tools-disabled synthesis call (FR-RQL-010) on non-malformed exhaustion.
+  expect(create).toHaveBeenCalledTimes(MAX_TOOL_ROUNDS + 1);
   expect(events.at(-1)).toMatchObject({
     type: 'status',
     payload: { status: 'completed' },
     text: expect.stringMatching(/step limit/i),
   });
+});
+
+it('AC-RQL-010 forced synthesis: exhausting the loop still emits a final answer before the step-limit status', async () => {
+  // The model calls a tool every round and never gives a final answer (the prod re-query-loop shape).
+  // On the tools-disabled synthesis call (finish_reason 'stop'), it returns real text.
+  let calls = 0;
+  const create = vi.fn().mockImplementation((params: { tools?: unknown[] }) => {
+    calls += 1;
+    // The forced synthesis call is the one with tools disabled ([]).
+    if (Array.isArray(params.tools) && params.tools.length === 0) {
+      return Promise.resolve({
+        finish_reason: 'stop',
+        message: { role: 'assistant', content: 'Based on the data gathered, 2 projects are behind schedule.' },
+        usage: {},
+        model: 'deepseek/deepseek-v4-flash',
+      });
+    }
+    return Promise.resolve({
+      finish_reason: 'tool_calls',
+      message: { role: 'assistant', content: null, tool_calls: [{ id: `tu${calls}`, type: 'function', function: { name: 'query_entity', arguments: JSON.stringify({ entity: 'projects' }) } }] },
+      usage: {},
+      model: 'deepseek/deepseek-v4-flash',
+    });
+  });
+  const supabase = mockOrgAnd(() => ({ data: [], error: null }));
+
+  const events = await collect(agentChatHandler(REQ, baseDeps({ supabase, modelClient: { create } })));
+
+  // The synthesis call happened with tools disabled.
+  expect(create).toHaveBeenCalledTimes(MAX_TOOL_ROUNDS + 1);
+  expect(create.mock.calls.at(-1)![0]).toMatchObject({ tools: [] });
+  // A real assistant answer is emitted BEFORE the terminal step-limit status (never a bare dead-end).
+  const answer = events.find((e) => e.type === 'assistant' && e.text?.includes('behind schedule'));
+  expect(answer).toBeDefined();
+  const answerIdx = events.indexOf(answer!);
+  const terminalIdx = events.length - 1; // the terminal completed status is always the last event
+  expect(answerIdx).toBeLessThan(terminalIdx);
+  expect(events.at(-1)).toMatchObject({ type: 'status', payload: { status: 'completed' }, text: expect.stringMatching(/step limit/i) });
 });
 
 // ── #5: parallel reads / serial writes ───────────────────────────────────────
@@ -524,7 +563,7 @@ it('malformed tool arguments (main loop) → error tool_result appended, run rec
   expect(events.find((e) => e.type === 'tool')).toBeDefined();
 });
 
-it('malformed tool arguments that never recover exhaust the loop with a distinct MALFORMED_TOOL_CALL error', async () => {
+it('AC-RQL-011 malformed tool arguments that never recover exhaust the loop with a distinct MALFORMED_TOOL_CALL error (no forced synthesis)', async () => {
   const create = vi.fn().mockResolvedValue({
     finish_reason: 'tool_calls',
     message: {
@@ -576,7 +615,8 @@ it('a malformed round healed by later missing-toolCall rounds exhausts as the ge
 
   const events = await collect(agentChatHandler(REQ, baseDeps({ modelClient: { create } })));
 
-  expect(create).toHaveBeenCalledTimes(MAX_TOOL_ROUNDS);
+  // Non-malformed exhaustion (the malformed flag was reset) → +1 tools-disabled synthesis call (FR-RQL-010).
+  expect(create).toHaveBeenCalledTimes(MAX_TOOL_ROUNDS + 1);
   expect(events.find((e) => (e.payload as { error?: string })?.error === 'MALFORMED_TOOL_CALL')).toBeUndefined();
   expect(events.at(-1)).toMatchObject({
     type: 'status',
