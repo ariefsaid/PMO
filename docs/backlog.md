@@ -318,6 +318,36 @@ killed (incl. USING-only, WITH-CHECK-only, and a message-only mutation).
   Admin's own row, and permissive policies OR. Probed live at `0178`: an Admin's
   `update profiles set role='Engineer' where id=<self>` returned `UPDATE 1`. The ADR is corrected.
 
+**Part B — `0180_rpc_active_member_gate.sql`: `is_active_member()` on the privileged RPCs.** Spec
+`docs/specs/active-member-write-gate.spec.md`. A **disabled** user with a live JWT was read-blocked by
+RLS and still wrote money through the definer RPCs (probed: `select count(*) from procurements` → 0,
+`create_procurement_invoice(…,'Paid',…,424242)` → succeeds). `0178` closed two; this closes the
+remaining **fifteen**, one assertion each — the defect IS inconsistent application, so a sampled proof
+would have reproduced the gap. Mechanism: `assert_is_active_member(p_actor uuid default null)` over a
+new `is_active_member(uuid)` overload; **no argument = user-JWT-only, an argument = this RPC has a
+service_role caller.** Only two have one (`external-connect` → `create_vault_secret_for_org`,
+`external-disconnect` → `admin_change_domain_ownership`); a plain conjunct on either would have broken
+the integration **in production and closed**. Proof: `0173_rpc_active_member_gate.test.sql`, 61
+assertions, 8 mutations run, all killed.
+
+⚑ **Completeness is a catalog query, not a list.** `0173` asserts that the sweep (`prosecdef` + granted
+to `authenticated` + writes + no `is_active_member` in the body) returns **zero** rows, so a future
+definer write-RPC that forgets the gate fails CI instead of being appended to a list nobody re-runs.
+⚑ **Scope, stated in the migration header:** this closes the *write surface* for a disabled account.
+It does **not** shorten an already-issued JWT's life. **Offboarding is not "solved" by this file** —
+token lifetime is a separate auth-side decision.
+
+**⛔ Still open after Part B (found in passing, deliberately not fixed here):**
+- `approved_timesheet_for_push` — the precedent this slice followed — checks the resolved actor's
+  `profiles.status` and applies `is_active_member()` **only when there is a JWT**, so its `p_actor`
+  (service-role sweep) path never gets `0095`'s `banned_until` check. A raw-banned approver's sheet can
+  still be pushed by the backstop. One-line fix: use `is_active_member(coalesce(auth.uid(), p_actor))`.
+  Not touched here because it is outside the fifteen and changing the sweep's gate deserves its own
+  caller analysis.
+- `0178` closed `transition_project` / `set_project_contract_value` with a bare `'not authorized'`
+  message, so an offboarded user's money-path refusal is still indistinguishable from a role denial
+  (FR-AMG-004). The fifteen carry the distinguishing message; those two do not.
+
 **⛔ FE follow-up owed (found, not fixed — out of this slice's scope):** `pages/AdminUsers.tsx` renders
 the role and manager controls for **every** row including the acting Admin's own. Post-`0179` an Admin
 who changes their own role there gets a 42501 toast instead of a disabled control. RLS is the
@@ -393,7 +423,8 @@ inside its own transaction, the same device that file already uses for INSERT, s
 3. **The `is_active_member()` gap.** A different class, tracked separately; out of scope for slices 1–6.
    ⚑ It is **fifteen**, not seventeen — `0178` §5 already closed `transition_project` and
    `set_project_contract_value`. Re-derive from the live catalog, never from this number.
-   **BUILT on `fix/authz-hierarchy` (`0180`), unpushed, NO review battery.**
+   **Guard BUILT on `fix/authz-hierarchy` (`0180`); see the in-flight section above for its review state.**
+
 ⚑ **SLICE 6 (`0178`) exists because all three reviewers returned NO SHIP on `0173`–`0177`.** Each of
 the five earlier slices closed the write path it had in hand and declared the class closed. The
 completeness test is **per-table × {INSERT, UPDATE, DELETE, RPC-parameter}** — not per-slice — and
