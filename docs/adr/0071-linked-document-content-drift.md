@@ -1,4 +1,4 @@
-# ADR-0069 — Linked Microsoft 365 documents: content drift is detected, not prevented
+# ADR-0071 — Linked Microsoft 365 documents: content drift is detected, not prevented
 
 - **Status:** Accepted (owner grill 2026-07-29)
 - **Date:** 2026-07-29
