@@ -292,6 +292,38 @@ BEHIND `dev`, content identical).
   per year, or state why not.** Priority: real but not urgent — Admin-only, deliberate, and it corrupts
   reporting truth rather than moving money.
 
+### ⚑ IN FLIGHT — the authorization-hierarchy slice (`fix/authz-hierarchy`, 2026-07-29).
+
+Two independent migrations off `dev` @ `eb39fc0c`, deliberately separate so either can be reverted alone.
+
+**Part A — `0179_profiles_hierarchy_write.sql`: ADR-0070's profile-editing rule.** Owner ruling
+2026-07-29: *you may edit a profile only if you outrank its owner, and may only assign a role below
+your own*, plus one carve-out (an Admin may edit a **peer** Admin, never themselves).
+`profiles_admin_write` (`FOR ALL`, Admin-only) is split into `profiles_admin_insert` +
+`profiles_admin_delete` (byte-for-byte the old predicate — the ruling widens *editing* only; ADR-0019
+keeps destructive delete Admin-only) and `profiles_hierarchy_update`, which carries the rule in **both
+`USING` and `WITH CHECK`** via `may_administer_profile(actor_role, subject_role)`.
+Proof: `supabase/tests/0172_profiles_hierarchy_write.test.sql`, 53 assertions, 6 mutations run and all
+killed (incl. USING-only, WITH-CHECK-only, and a message-only mutation).
+
+⚑ **Two things a reader should not skim past:**
+- **It is not "outranks" alone.** `role_rank` is a strict total order, so a literal reading would hand
+  Finance authority over PMs and a PM authority over Engineers — contradicting the owner's own matrix
+  ("Finance / PM / Engineer → nobody"). The predicate is a conjunction with an **authority floor**
+  (`holds_profile_admin_authority` = Executive rank and above). A PM who can write a peer's
+  `manager_id` can re-point ADR-0070's line-management limb, i.e. the money SoD's approval line.
+- **"Never themselves" is a NARROWING, and ADR-0070 described the prior state wrongly.** The ADR said
+  self-edits of `role`/`manager_id` were already barred for everyone "via the `profiles_update_self`
+  pin". True for every role **except Admin**: `profiles_admin_write` was `FOR ALL` and matched the
+  Admin's own row, and permissive policies OR. Probed live at `0178`: an Admin's
+  `update profiles set role='Engineer' where id=<self>` returned `UPDATE 1`. The ADR is corrected.
+
+**⛔ FE follow-up owed (found, not fixed — out of this slice's scope):** `pages/AdminUsers.tsx` renders
+the role and manager controls for **every** row including the acting Admin's own. Post-`0179` an Admin
+who changes their own role there gets a 42501 toast instead of a disabled control. RLS is the
+authority and it is correct; the UX is now wrong. Fix = hide/disable those two controls on the
+caller's own row (`can()` is UX-only, ADR-0016).
+
 ### ✅ RESOLVED — the create-path SoD class, slices 1–6 (`0173`–`0178`, 2026-07-29) — ON `main`
 Branch `fix/project-create-sod` / PR #411. Spec `docs/specs/create-path-sod-class.spec.md` (§8 = slice
 4, §9 = slice 5). **Nothing here was a regression — every item was pre-existing and live in production.**
