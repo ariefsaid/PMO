@@ -31,7 +31,11 @@ export type OpportunityRow = Pick<
 const SELECT =
   'id, name, code, status, client_id, project_manager_id, contract_value, ' +
   'customer_contract_ref, contract_date, decided_at, ' +
-  'client:companies(name), pm:profiles(full_name)';
+  // ⚑ Constraint-qualified: `projects` has TWO FKs to `profiles` since 0177 added
+  // `contract_value_set_by` next to `project_manager_id`, and PostgREST rejects an ambiguous
+  // embed. This is the PRE-WIN fallback path, so leaving it unqualified broke the canonical
+  // detail route for every pipeline record while the active-list query looked fine.
+  'client:companies(name), pm:profiles!projects_project_manager_id_fkey(full_name)';
 
 /** Fetch one opportunity by id, or null when absent / not visible to the caller. */
 export async function getOpportunity(id: string): Promise<OpportunityRow | null> {

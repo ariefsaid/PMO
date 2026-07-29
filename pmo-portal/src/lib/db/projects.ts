@@ -25,7 +25,20 @@ export type ProjectWithRefs = ProjectRow & {
   pm: { full_name: string } | null;
 };
 
-const SELECT = '*, client:companies(name), pm:profiles(full_name)';
+// ⚑ The `profiles` embed MUST name its constraint. `projects` has had TWO foreign keys to
+// `profiles` since 0177 added `contract_value_set_by` (the money-SoD witness) alongside
+// `project_manager_id`, and PostgREST refuses an ambiguous embed rather than guessing — so the
+// unqualified `pm:profiles(full_name)` this used to be turned EVERY projects query into an error.
+// Not a slow page: "Couldn't load projects". 19 e2e specs went red across projects, tasks,
+// timesheets, documents, kanban and the pipeline, because they all list projects somewhere.
+//
+// ADDING A FOREIGN KEY IS A BREAKING CHANGE TO EVERY UNQUALIFIED EMBED OF ITS TARGET. Nothing
+// below e2e can catch it: unit tests mock the Supabase client so the embed string is never
+// resolved against a real schema, and pgTAP tests SQL rather than PostgREST. `companies` is
+// still safe to leave unqualified — `projects` has exactly one FK to it — and the guard in
+// supabase/tests asserts that stays true.
+const SELECT =
+  '*, client:companies(name), pm:profiles!projects_project_manager_id_fkey(full_name)';
 
 /** Shape of a PostgREST/Postgres error we surface (only the fields we read). */
 interface PostgrestErrorLike {
