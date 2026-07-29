@@ -711,19 +711,47 @@ Then, per the standard series loop (grill → spec → …), the candidate queue
     Bahasa translation pass.
 
 ### ⚑⚑ ADAPTER PROGRAM — P2 ERPNext money core ✅ MERGED to dev (#315 squash `b549d06`, 2026-07-14)
-### ⚑⚑ M365 INTEGRATION — RESUME HERE (2026-07-22) — ✅ MERGED to `dev`; dark code, live connect is the next gate
+### ⚑⚑ M365 INTEGRATION — RESUME HERE (updated 2026-07-29) — ✅ MERGED to `dev`; **connect leg PROVEN live, `graph_proxy` NEVER proven**
 
 > **📌 RESUME HERE — cold-start block. A new agent needs nothing but this.**
 >
 > **State:** everything is **merged to `dev`** and green. There is **no in-flight M365 branch or worktree** —
 > nothing half-done to recover. Read the doc-map table below in order.
 >
-> **Your FIRST action depends on whether the owner has provisioned Microsoft yet:**
-> - **NOT provisioned** (the case as of 2026-07-22) → **do NOT start OneDrive doc-linking.** It is specified
->   but its build is gated on one proven live connection (TBD-1). If you want progress without secrets, the
->   only genuinely unblocked work is polish/hardening on what exists — check with the owner first.
-> - **Provisioned** → deploy the fn, prove ONE live connect end-to-end, then run the ADR-0060 live
->   `security-auditor` gate, *then* build doc-linking.
+> **⚑ CORRECTION 2026-07-29 — this entry said "the runtime has NEVER contacted Microsoft". That is FALSE.**
+> Microsoft **is provisioned** and a **real live connect completed on 2026-07-24 02:20** (owner's own
+> account, `arief@gordi.id`): real consent, real code exchange, a real `ms_graph_connections` row holding
+> genuine AES-GCM ciphertext. The ADR-0060 **live `security-auditor` gate also ran** on 2026-07-24 and
+> found **HIGH-A1** — evidence is the header of `supabase/migrations/0151_m365_ciphertext_envelope_check.sql`.
+>
+> **Split the runtime into two legs — they have very different status:**
+>
+> | Leg | Status | Evidence |
+> |---|---|---|
+> | **Connect** (consent → code exchange → encrypt → store) | ✅ **proven against real Microsoft** | the 2026-07-24 02:20 row |
+> | **Live security-auditor gate** (ADR-0060, old TBD-2) | ✅ **ran; found HIGH-A1; closed** | `0151` header |
+> | **Use** (decrypt → Graph call, i.e. `graph_proxy`) | ❌ **never once succeeded** | see below |
+>
+> **Why the use leg is still unproven:** the one live token we ever held was **structurally undecryptable**.
+> `#333` shipped `callback.ts` passing a raw `Uint8Array` as a `bytea` RPC arg; supabase-js JSON-encodes RPC
+> args, so it was stored as the ASCII of `{"0":12,…}` and `deserializeEnvelope` read `{"0":123,"1` as the IV.
+> The row was revoked in Entra and **deleted**, not re-minted. `#365` (2026-07-24 11:23, ~9h later) landed the
+> fix — `toByteaParam`/`fromByteaValue` in `crypto.ts` plus `0151`'s CHECK constraints as a loud backstop —
+> **but that fix has only ever run against mocked `fetch`.** No post-fix reconnect exists in git or docs.
+> ⚑ This was a **real defect in merged code, not a stale deploy** — check the commit dates before re-diagnosing.
+>
+> **HIGH-A1 class re-check (2026-07-29, owner-requested): CONTAINED — exactly one site, and it is fixed.**
+> `bytea` appears in the whole schema only as the params of `m365_upsert_connection` / `m365_refresh_connection`
+> (`0115`). Every other `Uint8Array` in `supabase/functions/` is local (hashing, random bytes, stream chunks,
+> blob reads) and never crosses a supabase-js RPC boundary. There is no second instance to find.
+>
+> **Your FIRST action:**
+> 1. Verify what is actually **deployed** — `supabase functions list` — and confirm `m365-token-custody` is at
+>    or past `#365` (and ideally `#397`). A deploy predating `#365` will reproduce HIGH-A1 on the next connect.
+> 2. Re-run **Connect once** (secrets and admin consent are already provisioned — no new Entra setup) and make
+>    **one `graph_proxy` GET against `/me/drive`**. Record it as a spike doc. That closes the use leg.
+> 3. *Then* build OneDrive doc-linking. Its browse step **is** `graph_proxy` — the one path the live run
+>    never reached — so building first risks reworking both layers, which is what its gate was written to avoid.
 >
 > **Prove the surface still works before you change anything** (all four; the machine is shared, so wrap DB
 > work in the lock and chain reset+test as ONE hold):
@@ -747,9 +775,9 @@ Then, per the standard series loop (grill → spec → …), the candidate queue
 > **Before you touch the write-guard, the cascade, or the lock order:** the two probes are NOT optional and
 > pgTAP cannot replace them (it runs in a single transaction and cannot express a two-session race).
 
-**Status in one line: the whole backend + the connect UI are on `dev` and green, but the runtime has NEVER
-talked to Microsoft — nothing is user-visible until an Operator entitles an org AND the edge fn is deployed
-with live secrets.**
+**Status in one line: the whole backend + the connect UI are on `dev` and green, and the CONNECT leg is proven
+against real Microsoft (2026-07-24) — but `graph_proxy` has never decrypted a real token, so no Graph data has
+ever reached PMO, and nothing is user-visible until an Operator entitles an org on a deployment at or past `#365`.**
 
 **Doc map (every M365 doc, so none orphan — read in this order):**
 | Doc | What it is |
@@ -809,27 +837,39 @@ with live secrets.**
   *read from the DB*, so a future schema column cannot leak by default. No writes, no RPCs, **no locks** (so it
   cannot perturb the global lock order).
 
+#### ✅ CLOSED 2026-07-24 — was TBD-1/TBD-2, kept for provenance
+- **Live deploy + ONE proven connection** — DONE. Microsoft is provisioned (KEK, `M365_CLIENT_SECRET`/`_ID`/
+  `_TENANT_ID` as a concrete tenant GUID, allowlisted redirect URI, delegated scopes with admin consent) and a
+  real connect completed **2026-07-24 02:20** on the owner's own tenant — which is exactly what the standing
+  Director recommendation asked for (never a client's tenant first). Re-connecting needs **no new Entra setup**.
+- **`security-auditor` pass on the LIVE flow** — DONE 2026-07-24, ADR-0060 gate. It **found HIGH-A1** (the
+  mis-marshalled `bytea` envelope), which was then fixed in `#365`. The gate paid for itself on its first run.
+
 #### ⏸️ TBD — what is NOT done, in dependency order
-1. **Live deploy + ONE proven connection (OWNER-GATED — the real next gate).** Needs: KEK `M365_TOKEN_KEK`;
-   `M365_CLIENT_SECRET`/`_ID`/`_TENANT_ID` — **a concrete tenant GUID** (`common`/`organizations` are
-   unsupported: the callback asserts `id_token.tid === M365_TENANT_ID`, which a wildcard value can never
-   satisfy); the allowlisted redirect URI; Entra delegated scopes `Files.Read`+`offline_access`+`openid`+
-   `profile` with **admin consent**; then `supabase functions deploy m365-token-custody`.
-   **Director recommendation (2026-07-22):** do NOT use a real client's tenant for the first connect. Use an
-   own tenant — an EMPTY one first (proves the mechanics with nothing to damage), then a client-*like* one
-   (real files/permissions/admin-consent = where the real surprises are). ADR-0059 Option C gives every client
-   its own app registration, so testing in one tenant commits nothing to another.
-2. **`security-auditor` pass on the LIVE flow** — ADR-0060 mandatory gate, distinct from the 4 code rounds.
+1. **Confirm the DEPLOYED `m365-token-custody` is at or past `#365`** (`supabase functions list`). Anything
+   older still contains HIGH-A1 and will corrupt the next connect. Cheap, and it must precede (2).
+2. **ONE post-fix reconnect + ONE `graph_proxy` GET against `/me/drive`** — the real remaining gate. The connect
+   leg is proven; the **use** leg (decrypt → Graph) has never once succeeded, because the only live token we
+   ever held was undecryptable and was deleted rather than re-minted. Record it as a spike doc.
 3. **OneDrive doc-linking** — [spec written, NOT built](specs/m365-onedrive-doc-linking.spec.md). **Build should
-   follow (1)**: it consumes a runtime that has never spoken to Microsoft, so a wrong assumption there reworks
-   both layers.
-4. Later (vision §3.3+): Teams, Outlook/Calendar, in-app browse/preview, Entra-group→role provisioning.
+   follow (2)**: its browse step *is* `graph_proxy`, the one path the live run never reached, so a wrong
+   assumption there reworks both layers.
+4. **An M365 e2e is OWED.** `docs/specs/m365-phase0-foundation.spec.md` §5 deliberately shipped no Phase-0 e2e
+   and promised the Operator-entitles → Admin-sees-card → connect journey would "graduate to one e2e in Phase 1
+   when the live connect ships". Live connect shipped 2026-07-24; `pmo-portal/e2e/` still contains **no M365
+   spec**. Not doc rot — a real coverage debt.
+5. Later (vision §3.3+): Teams, Outlook/Calendar, in-app browse/preview, Entra-group→role provisioning.
 
 #### ⚑ GOTCHAS — hard-won, do not rediscover
-- **The runtime has NEVER contacted Microsoft.** Every Phase-1 test mocks `fetch`. 4 security rounds + 1,600
-  pgTAP + 5,400 unit tests prove the custody *model* (encryption, RLS, races, deadlocks, lifecycle deletion) —
-  they prove **nothing** about real consent screens, real token payloads, or Graph behaviour. Expect
-  first-live-connect surprises; that is normal and is exactly what gate (1) buys.
+- **The runtime HAS contacted Microsoft — but only on the connect leg** (2026-07-24; see the correction at the
+  top of this entry). Every Phase-1 test still mocks `fetch`, and `graph_proxy` has **never** decrypted a real
+  token. 4 security rounds + 1,600 pgTAP + 5,400 unit tests prove the custody *model* (encryption, RLS, races,
+  deadlocks, lifecycle deletion); they prove **nothing** about real Graph responses. Expect surprises on the
+  first real `graph_proxy` call — that is exactly what gate (2) buys.
+- **A green suite shipped HIGH-A1 to a live tenant.** The mis-marshalled `bytea` passed 4 adversarial security
+  rounds, the full pgTAP suite and the full verify — because every test mocked the boundary where it broke.
+  It was caught by a **migration refusing to apply** against real data. Corollary: a constraint that fails loud
+  on production data is worth more than another test against a mock.
 - **`common`/`organizations` will silently never work** — see TBD-1. Use a concrete tenant GUID.
 - **Tests alone would have shipped every one of the 4 security defects** (two Criticals, a reproduced deadlock,
   and a wrong "deadlock-free" claim by the Director). They ALL passed the happy-path pgTAP *and* the full

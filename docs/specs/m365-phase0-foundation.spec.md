@@ -218,6 +218,11 @@ outcome to assert, so no curated Playwright journey is owned here (ADR-0010: e2e
 cross-stack journeys). The Operator-entitles → Admin-sees-card → connect journey **graduates to one
 e2e in Phase 1** when the live connect ships.
 
+> **⚑ THE CONDITION HAS BEEN MET — AND THE E2E IS OWED (flagged 2026-07-29).** The live connect shipped
+> **2026-07-24**, and `#337` retired the stub (`AC-M365-013` now asserts an *enabled* Connect button). But
+> `pmo-portal/e2e/` still contains **no M365 spec**, so the journey promised above never graduated. This is a
+> real coverage debt, not stale prose — tracked as TBD-4 in the M365 entry of [`docs/backlog.md`](../backlog.md).
+
 ---
 
 ## 6. Flagged Phase-0 sub-decisions (owner/Director — do NOT decide in-plan)

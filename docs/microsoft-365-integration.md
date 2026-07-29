@@ -110,12 +110,15 @@ not per-feature.
    JIT-vs-invite). Small, unblocks everything.
 2. **Phase 1 — OneDrive doc linking (link/reference model).** Highest value, lowest risk, follows
    ADR-0055. First real M365 feature in a client's hands.
-   > **Status 2026-07-22:** the *enabling runtime* (Graph token custody) is BUILT + 4-round
+   > **Status 2026-07-29:** the *enabling runtime* (Graph token custody) is BUILT + 4-round
    > security-hardened + MERGED to `dev`, and the Connect UI is wired — see the M365 entry in
    > [`docs/backlog.md`](backlog.md) for the live state, TBDs and gotchas. The doc-linking feature
    > itself is **specified but NOT built**: [`docs/specs/m365-onedrive-doc-linking.spec.md`](specs/m365-onedrive-doc-linking.spec.md).
-   > Its build is gated on one **proven live Microsoft connection** (the runtime has never contacted
-   > Microsoft — all tests mock `fetch`), plus the ADR-0060 live security-auditor pass.
+   > **Both original gates are CLOSED:** a real live Microsoft connection completed **2026-07-24**, and the
+   > ADR-0060 live security-auditor pass ran the same day (finding HIGH-A1, fixed in `#365`). **One narrower
+   > gate remains:** that connect proved only the *connect* leg — `graph_proxy` has still never decrypted a
+   > real token, and doc-linking's browse step *is* `graph_proxy`. Needed: one post-fix reconnect + one
+   > `graph_proxy` GET.
 3. **Phase 2 — Teams outbound notifications** (Adaptive Cards over the existing automations tier).
 4. **Phase 3 — Teams actionable approvals + Teams LLM assistant.** The monetizing pair; needs the
    Teams app package (custom-upload per client until store listing).

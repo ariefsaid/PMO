@@ -140,3 +140,12 @@ _Avoid_: pmo_connector (legacy name).
 (an ERP, ClickUp). PMO runs fully standalone without any (all domains PMO-owned); employing
 one flips the domains in its capability map to externally-owned. (Decided 2026-07-10.)
 _Avoid_: ERP tier (too narrow).
+
+**Graph connection** — an org's standing authorization for PMO to act on Microsoft 365 on a user's
+behalf. It has **two independent legs**, and a claim about one says nothing about the other:
+the **connect leg** (the org grants consent and PMO takes custody of the authorization) and the
+**use leg** (PMO actually exercises that authorization to read Microsoft data). A connection can be
+established and yet unusable. (Clarified 2026-07-29 after "a proven live connection" was read as
+covering both legs when only the connect leg had ever run — four documents went stale on the
+ambiguity, and a feature was nearly built on the unproven leg.)
+_Avoid_: "live connection" unqualified — always name the leg.
