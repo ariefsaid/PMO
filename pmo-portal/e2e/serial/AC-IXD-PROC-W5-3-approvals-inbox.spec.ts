@@ -1,8 +1,19 @@
-// @e2e-isolation: serial — reads the org-shared /approvals queue and approves prior-week Submitted sheets;
-// a parallel worker mutating the same queue makes the count non-deterministic. Moved out of quarantine
-// 2026-07-25: it was `test.fixme`d pending "e2e runs serially", which the serial lane now provides.
+// @e2e-isolation: serial — drives the ORG-SHARED /approvals queue (approving a timesheet/procurement
+// is a shared-state write), so a parallel worker mutating that queue would make it non-deterministic.
+//
+// ⚑ `serial` BUYS NO EXCLUSIVE DATA OWNERSHIP. It guarantees only that no OTHER worker writes
+// CONCURRENTLY. Every other spec in this lane runs BEFORE this one against the same seed and may
+// leave any shared fixture in any state — confusing "no concurrent writer" with "sole owner of the
+// data" is how this file broke (2026-07-29): AC-AU-001 re-assigns Tomas Beck's line manager to exec@
+// and never restores it, after which `transition_timesheet` (whose approve arm authorises the
+// assigned line manager EXCLUSIVELY) refuses pm@ on Tomas's seeded prior-week sheet, so it sits in
+// pm@'s queue for the rest of the lane. What this spec actually needs is (a) no concurrent writer —
+// hence serial — and (b) TIMESHEETS IT OWNS: the bulk-approve journey below seeds its own authors,
+// on its own dedicated week, via the service-role client, and scopes every oracle to those rows.
+// Un-quarantined 2026-07-25 (it was `test.fixme`d pending "e2e runs serially", which this lane gives).
 import { test, expect } from '@playwright/test';
-import { login } from '../helpers';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { login, requireServiceRoleKey, SEED_PASSWORD } from '../helpers';
 
 // These journeys MUTATE shared DB state (approve timesheets/procurements). A retry would
 // re-run against the already-approved (depleted) fixtures and fail spuriously, so retries
@@ -21,18 +32,10 @@ test.describe.configure({ retries: 0 });
 // Seed assumptions (clean `npx supabase db reset`):
 //   PROC-2026-002 (id …003): Requested, $22,500, requested_by = Tomas Beck
 //     (engineer@acme.test / a4). pm@acme.test (Diego / a2) is an approver (PM role).
-//   timesheets …001 (Tomas/a4): Draft — current-week sheet for engineer@.
-//   timesheets …002 (Diego/a2): Draft — pm@'s OWN sheet; SoD excludes from queue.
-//   timesheets …004 (Tomas/a4): prior-week Submitted — approvable by pm@ (manager).
-//   Grace/b1 (ts-approve-eng@) + Heidi/b2 (ts-approve-mgr@): dedicated AC-911 actors;
-//     not disturbed by these tests.
-//   b4 (wave5-bulkeng@, no auth.users — never logs in): DEDICATED bulk-approve fixture.
-//     Prior-week timesheet (…b4) seeded as Submitted, manager_id = pm@.
-//   Together …004 + …b4 guarantee ≥2 Submitted sheets in pm@'s queue on any clean reset.
-//
-// AC-IXD-TS-W5-3 seed-name-robustness: no person name is asserted anywhere in the test.
-// The journey is driven STRUCTURALLY (Select All → count ≥2 → approve → empty sentinel),
-// so renaming a seed profile can never break this spec.
+//   ⚑ The timesheet journey below assumes NOTHING about seeded timesheets — it brings its own
+//     (see the fixture block). The seeded sheets (…004 Tomas/a4, …b4 Wave5 BulkEng) are
+//     deliberately no longer load-bearing: whether pm@ may approve them depends on the author's
+//     `profiles.manager_id`, which another spec in this lane rewrites and never restores.
 // ---------------------------------------------------------------------------
 
 // ── AC-IXD-PROC-W5-3 ────────────────────────────────────────────────────────
@@ -85,61 +88,204 @@ test(
   },
 );
 
+// ---------------------------------------------------------------------------
+// AC-IXD-TS-W5-3 fixture — the timesheets this journey OWNS.
+//
+// The PM needs ≥2 Submitted weeks he is genuinely AUTHORISED to approve. Both halves of that
+// sentence are fixture state some other spec in this lane can take away before this one runs:
+//   · `status` — anything that approves/rejects/re-opens a shared seeded sheet;
+//   · the AUTHOR's `profiles.manager_id` — `transition_timesheet`'s approve arm authorises the
+//     assigned line manager EXCLUSIVELY, and AC-AU-001 re-points a seed author's manager (and
+//     restores only the role, not the manager).
+// So this journey seeds its OWN authors (run-scoped, deleted afterwards) whose line manager is pm@,
+// on a Monday nothing else in the suite uses, and asserts only on that week's rows. A third party's
+// sheet — in any week, in any state — is then irrelevant BY CONSTRUCTION rather than by hope.
+// ---------------------------------------------------------------------------
+
+/** Diego Salvatierra (pm@acme.test) — the approver whose queue this journey drives. */
+const PM_ID = '00000000-0000-0000-0000-0000000000a2';
+const ORG_ID = '00000000-0000-0000-0000-000000000001';
+/** A seeded Ongoing project — REFERENCED, never mutated, so the seeded weeks carry real hours. */
+const ENTRY_PROJECT_ID = '41000000-0000-0000-0000-000000000001';
+/** Every author this spec has ever created carries this email prefix — the leftover sweep keys on it. */
+const AUTHOR_EMAIL_PREFIX = 'ac-ixd-ts-w53-';
+/** ≥2 is the whole point of BULK approve (the RQ-v5 concurrent-mutate bug needed ≥2 to reproduce). */
+const OWN_SHEETS = 2;
+
+const SERVICE_KEY = requireServiceRoleKey() ?? '';
+const SERVICE_URL = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? '';
+if (SERVICE_KEY && !SERVICE_URL) {
+  throw new Error(
+    'AC-IXD-TS-W5-3: SUPABASE_URL (or VITE_SUPABASE_URL) must be exported alongside SUPABASE_SERVICE_ROLE_KEY — never a silent skip',
+  );
+}
+/** Gate on the DEPENDENCY this fixture needs (the service-role client), never on the environment. */
+const READY = Boolean(SERVICE_KEY && SERVICE_URL);
+
+/**
+ * A Monday NOTHING else in the suite uses: 20 weeks before the current one.
+ *
+ * `seed.sql` seeds the current and the prior week (relative to Postgres `current_date`); the ERPNext
+ * lane allocates far-FUTURE weeks (`_tspHelpers.runWeek`, 2027+). 20 weeks back clears both by a
+ * margin no host/DB timezone skew can close, and `week_is_monday` (migration 0001) demands a Monday.
+ * The week is CHOSEN by the test and written to the DB, then read back out of the DOM, so — unlike
+ * the previous "prior ISO week computed in the browser clock" — no clock agreement is required.
+ */
+function ownedWeekStart(): string {
+  const now = new Date();
+  const mondayUtc = Date.UTC(
+    now.getUTCFullYear(),
+    now.getUTCMonth(),
+    now.getUTCDate() - ((now.getUTCDay() + 6) % 7),
+  );
+  return new Date(mondayUtc - 20 * 7 * 86_400_000).toISOString().slice(0, 10);
+}
+
+/** The ISO date `offset` days into `weekStart`. */
+function dayOf(weekStart: string, offset: number): string {
+  return new Date(Date.parse(`${weekStart}T00:00:00.000Z`) + offset * 86_400_000).toISOString().slice(0, 10);
+}
+
+interface OwnedWeek {
+  weekStart: string;
+  userIds: string[];
+  timesheetIds: string[];
+}
+
+/**
+ * Delete every author this spec has ever created, and their weeks.
+ *
+ * Runs BEFORE seeding as well as after: a run that died between seed and cleanup would otherwise
+ * leave Submitted rows on the owned week and re-couple the oracle to somebody else's leftovers —
+ * the exact failure mode this fixture exists to end.
+ */
+async function sweepOwnAuthors(client: SupabaseClient): Promise<void> {
+  const { data } = await client.from('profiles').select('id').like('email', `${AUTHOR_EMAIL_PREFIX}%`);
+  for (const row of (data ?? []) as Array<{ id: string }>) {
+    const { data: sheets } = await client.from('timesheets').select('id').eq('user_id', row.id);
+    for (const sheet of (sheets ?? []) as Array<{ id: string }>) {
+      // Best-effort: on an org flipped to ERPNext the push side-tables would FK-block the delete.
+      await client.from('external_command_outbox').delete().eq('domain', 'timesheets').eq('pmo_record_id', sheet.id);
+      await client.from('external_refs').delete().eq('domain', 'timesheets').eq('pmo_record_id', sheet.id);
+      await client.from('external_ref_lineage').delete().eq('domain', 'timesheets').eq('pmo_record_id', sheet.id);
+      await client.from('timesheet_erp_mirror').delete().eq('timesheet_id', sheet.id);
+      await client.from('timesheets').delete().eq('id', sheet.id); // entries cascade
+    }
+    await client.from('profiles').delete().eq('id', row.id);
+    await client.auth.admin.deleteUser(row.id).catch(() => undefined);
+  }
+}
+
+/** Seed `count` authors line-managed by pm@, each with one Submitted week of real hours. */
+async function seedOwnedSubmittedWeeks(client: SupabaseClient, count: number): Promise<OwnedWeek> {
+  const weekStart = ownedWeekStart();
+  const suffix = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+  const seeded: OwnedWeek = { weekStart, userIds: [], timesheetIds: [] };
+
+  for (let i = 0; i < count; i++) {
+    const email = `${AUTHOR_EMAIL_PREFIX}${i}-${suffix}@acme.test`;
+    const { data: created, error: userErr } = await client.auth.admin.createUser({
+      email,
+      password: SEED_PASSWORD,
+      email_confirm: true,
+    });
+    if (userErr || !created.user) throw new Error(`AC-IXD-TS-W5-3 seed author failed: ${userErr?.message}`);
+    seeded.userIds.push(created.user.id);
+
+    // manager_id = pm@ is what AUTHORISES the approve (transition_timesheet, migration 0164).
+    const { error: profileErr } = await client.from('profiles').upsert(
+      {
+        id: created.user.id,
+        org_id: ORG_ID,
+        email,
+        full_name: `W5-3 Bulk Author ${i + 1}`,
+        role: 'Engineer',
+        title: 'Field Engineer',
+        manager_id: PM_ID,
+        status: 'active',
+      },
+      { onConflict: 'id' },
+    );
+    if (profileErr) throw new Error(`AC-IXD-TS-W5-3 seed profile failed: ${profileErr.message}`);
+
+    const timesheetId = crypto.randomUUID();
+    const { error: sheetErr } = await client.from('timesheets').insert({
+      id: timesheetId,
+      org_id: ORG_ID,
+      user_id: created.user.id,
+      week_start_date: weekStart,
+      status: 'Submitted',
+      submitted_at: new Date().toISOString(),
+    });
+    if (sheetErr) throw new Error(`AC-IXD-TS-W5-3 seed timesheet failed: ${sheetErr.message}`);
+    seeded.timesheetIds.push(timesheetId);
+
+    const { error: entryErr } = await client.from('timesheet_entries').insert([
+      { org_id: ORG_ID, timesheet_id: timesheetId, project_id: ENTRY_PROJECT_ID, entry_date: dayOf(weekStart, 0), hours: 8, notes: 'Site works' },
+      { org_id: ORG_ID, timesheet_id: timesheetId, project_id: ENTRY_PROJECT_ID, entry_date: dayOf(weekStart, 1), hours: 6, notes: 'Commissioning' },
+    ]);
+    if (entryErr) throw new Error(`AC-IXD-TS-W5-3 seed entries failed: ${entryErr.message}`);
+  }
+
+  return seeded;
+}
+
+let admin: SupabaseClient | null = null;
+let owned: OwnedWeek | null = null;
+
+// The shared local stack is left EXACTLY as found — the next spec in the lane inherits the seed,
+// not this journey's authors. (The absence of that discipline is what broke this file.)
+test.afterEach(async () => {
+  if (!admin || !owned) return;
+  await sweepOwnAuthors(admin);
+  owned = null;
+});
+
 // ── AC-IXD-TS-W5-3 ──────────────────────────────────────────────────────────
-// Given: a PM opens /approvals where ≥2 Submitted prior-week sheets are in the queue.
-//        The seed guarantees ≥2 prior-week fixtures: Wave5 BulkEng (b4) and Tomas
-//        Beck/Engineer (a4).  Both have manager_id = pm@ (a2) and are seeded as
-//        Submitted for the prior ISO week — no UI-submit step needed.
-// When:  pm@ enters Select mode, selects every PRIOR-WEEK approvable row (≥2 count),
-//        clicks "Approve N", and confirms the dialog.
-// Then:  (a) the confirm dialog CLOSES, (b) a success/aggregate toast matching
-//        /timesheets? approved/i appears, (c) the prior-week approved rows leave the
-//        queue after a fresh server re-fetch (reload-safe).
+// Given: a PM whose approval queue holds ≥2 Submitted weeks he is authorised to approve
+//        (the fixture above: two run-scoped authors line-managed by pm@, on the week this
+//        spec owns — no seeded sheet, and no other spec's leftovers, are involved).
+// When:  pm@ enters Select mode, selects every row of that owned week, clicks "Approve N",
+//        and confirms the dialog.
+// Then:  (a) the confirm dialog CLOSES, (b) the toolbar label and the dialog name the same N,
+//        (c) those weeks are gone from the queue after a fresh server re-fetch (reload-safe), and
+//        (d) server-side every one of them is Approved BY THIS PM.
 //
-// Goal-oracle: "a PM can bulk-approve ≥2 timesheets in one confirm from the inbox" —
-// the REAL multi-row journey the bug (RQ v5 concurrent-mutate callbacks dropped) broke.
+// Goal-oracle: "a PM bulk-approves ≥2 timesheets in one confirm from the inbox and they are really,
+// durably approved" — the REAL multi-row journey the bug (RQ v5 concurrent-mutate callbacks dropped)
+// broke. UNCHANGED by the 2026-07-29 fix: only the DATA the journey acts on, and the PRECISION of the
+// row locator ("any row that happens to share a week-start" → "the rows this test approved"), moved.
+// Oracle (d) is NEW and is a strengthening, not a relaxation: `commitBulk` closes the dialog and
+// folds a PARTIAL failure into a warning toast, so "the dialog closed" never proved on its own that
+// every selected week was actually approved.
 //
-// Seed-name-robustness (binding): NO person-name string assertion anywhere in this test.
-// The journey targets rows by their [data-week-start] attribute (prior ISO week Monday,
-// YYYY-MM-DD), computed dynamically in the browser's UTC clock (same TZ pin as the seed
-// `date_trunc('week', current_date)`).  Renaming a seed profile can NEVER break this spec.
+// Seed-name-robustness (binding): NO seed person-name is asserted anywhere. Rows are targeted
+// structurally, by the `[data-week-start]` of the week this spec owns (ApprovalsQueue.tsx).
 //
-// Parallel-isolation: selecting ONLY prior-week rows avoids races with other specs that
-// submit current-week sheets (e.g. AC-911 submits Grace/b1's current-week Draft).
-// pm@ (Project Manager role) sees all org timesheets via RLS, but only the prior-week
-// seeded fixtures are selectable here, so pm@'s attempt to approve Grace's sheet (whose
-// manager is Heidi/b2, not pm@) is not triggered and AC-911 is not disturbed.
-//
-// Isolation: seeded sheets (b4 + a4 prior-week) are untouched by other specs (AC-TSE-021
-// uses a4's CURRENT-week Draft on a future empty week; AC-911 uses Grace/b1 + Heidi/b2;
-// AC-IXD-TS-001 uses ts-colocated-eng@/b3).
-// UN-QUARANTINED 2026-07-27. The bulk-approve BEHAVIOR is proven at the UNIT level
-// (ApprovalsQueue.expand-bulk.test.tsx: the RQ-v5 concurrent-mutate fix → dialog closes
-// + aggregate toast on ≥2). This e2e was `test.fixme`d because its selectors target the STACKED
-// fallback layout (`<section aria-label="Timesheets awaiting you">`), but the default viewport
-// renders the master-detail split inbox, which has no such region — so the locators could never
-// match (a misdiagnosed "parallel-worker race" was the original note; corrected 2026-07-25).
-//
-// Resolution (owner decision 2026-07-27, option 1): the bulk-approve UI still EXISTS — it lives
-// in the stacked fallback that renders below the `lg` breakpoint (`min-width: 1024px`,
-// Approvals.tsx TRIAGE_QUERY). The redesign DROPPED bulk-approve from the primary (large-screen)
-// split inbox; whether that was deliberate or an accidental regression is an OPEN QUESTION
-// (docs/backlog.md). To keep the cross-stack bulk-approve journey covered end-to-end while that
-// question stays open, this test sets a SMALL VIEWPORT so the fallback renders, and drives the
-// real Select → checkboxes → "Approve N" → ConfirmDialog path. The goal-oracle is UNCHANGED:
-// the PM bulk-approves ≥2 prior-week sheets and the queue count settles (reload-safe). Per the
-// BDD rule, no assertion was weakened. If the open question is later ruled a regression and bulk
-// is restored to the split inbox, this test can be re-pointed at the primary view (drop the
-// setViewportSize) — the goal-oracle carries over unchanged.
+// Viewport (owner decision 2026-07-27, option 1): bulk-approve lives ONLY in the stacked fallback
+// that renders below the `lg` breakpoint (1024px, Approvals.tsx TRIAGE_QUERY). The redesign dropped
+// bulk from the primary split inbox; whether that was deliberate is an OPEN QUESTION
+// (docs/backlog.md). Until it is answered this test drives the real Select → checkboxes →
+// "Approve N" → ConfirmDialog path at a small viewport. If bulk is restored to the split inbox,
+// drop the setViewportSize — the goal-oracle carries over unchanged.
 test(
   'AC-IXD-TS-W5-3 the PM bulk-approves ≥2 timesheets from the STACKED (<1024px) approvals inbox and the queue count settles',
   async ({ page }) => {
-    // Step 1: pm@ opens /approvals — ≥2 prior-week Submitted sheets are already in the
-    // queue (seeded as Submitted; no UI-submit step needed).
+    test.skip(
+      !READY,
+      'AC-IXD-TS-W5-3: needs the service-role client (SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY) to seed the weeks it owns',
+    );
+
+    // Arrange: this journey's OWN Submitted weeks (see the fixture block above).
+    admin = createClient(SERVICE_URL, SERVICE_KEY);
+    await sweepOwnAuthors(admin);
+    owned = await seedOwnedSubmittedWeeks(admin, OWN_SHEETS);
+    const weekStart = owned.weekStart;
+
+    // Step 1: pm@ opens /approvals — his queue holds the ≥2 Submitted weeks seeded above.
     await login(page, 'pm@acme.test');
     // Force the stacked fallback (ApprovalsQueue) by going BELOW the lg breakpoint (1024px).
     // The split inbox renders at ≥1024px and has NO bulk-approve affordance; the fallback has it.
-    // See the header note + docs/backlog.md open question.
     await page.setViewportSize({ width: 800, height: 1000 });
     // CW-6: a PM sees both modules as deep-linkable scope tabs; this test exercises the
     // timesheet queue, so it deep-links straight to that scope.
@@ -149,28 +295,11 @@ test(
     const tsSection = page.getByRole('region', { name: /timesheets awaiting you/i });
     await expect(tsSection).toBeVisible({ timeout: 15_000 });
 
-    // The Select button is only shown when there are approvable rows — its presence
-    // confirms at least one Submitted sheet is in the queue.  We assert ≥2 structurally
-    // below (via the "Approve N" label after selecting all prior-week rows).
+    // The Select button is only shown when there are approvable rows — its presence confirms at
+    // least one Submitted sheet is in the queue. The exact owned count is asserted structurally
+    // below (and again via the "Approve N" label).
     const selectBtn = tsSection.getByRole('button', { name: /^select$/i });
     await expect(selectBtn).toBeVisible({ timeout: 15_000 });
-
-    // Compute the prior ISO-week Monday (YYYY-MM-DD) in the browser's UTC clock.
-    // This matches the seed's `(date_trunc('week', current_date) - interval '7 days')::date`
-    // because Playwright pins timezoneId: 'UTC' in playwright.config.ts.
-    const priorWeekStart: string = await page.evaluate(() => {
-      const today = new Date();
-      const dow = today.getDay(); // 0=Sun … 6=Sat
-      const daysSinceMonday = dow === 0 ? 6 : dow - 1;
-      const thisMonday = new Date(today);
-      thisMonday.setDate(today.getDate() - daysSinceMonday);
-      const lastMonday = new Date(thisMonday);
-      lastMonday.setDate(thisMonday.getDate() - 7);
-      const y = lastMonday.getFullYear();
-      const m = String(lastMonday.getMonth() + 1).padStart(2, '0');
-      const d = String(lastMonday.getDate()).padStart(2, '0');
-      return `${y}-${m}-${d}`;
-    });
 
     // Enter Select mode.
     await selectBtn.click();
@@ -179,32 +308,29 @@ test(
     const bulkGroup = page.getByRole('group', { name: /bulk approve/i });
     await expect(bulkGroup).toBeVisible({ timeout: 5_000 });
 
-    // Select ONLY the prior-week dedicated fixtures (isolation-safe: excludes any
-    // current-week sheets submitted by other concurrent tests like AC-911/Grace).
-    // Each row wraps its checkbox in a [data-week-start] container (ApprovalsQueue.tsx).
-    const priorWeekRows = tsSection.locator(`[data-week-start="${priorWeekStart}"]`);
-    const priorWeekCheckboxes = priorWeekRows.getByRole('checkbox');
-    const priorCount = await priorWeekCheckboxes.count();
+    // Select every row of the week this test OWNS. Each row wraps its checkbox in a
+    // [data-week-start] container (ApprovalsQueue.tsx), and on the owned week those are exactly the
+    // OWN_SHEETS rows seeded above — nobody else ever writes this week.
+    const ownRows = tsSection.locator(`[data-week-start="${weekStart}"]`);
+    const ownCheckboxes = ownRows.getByRole('checkbox');
+    await expect(ownCheckboxes).toHaveCount(OWN_SHEETS, { timeout: 15_000 });
+    const ownCount = await ownCheckboxes.count();
+    expect(ownCount, 'BULK approve means ≥2 rows in one confirm').toBeGreaterThanOrEqual(2);
 
-    // Both prior-week fixtures (b4 Wave5 BulkEng + a4 Tomas Beck) must be present.
-    // This is the structural ≥2 assertion — no hardcoded person names.
-    expect(priorCount).toBeGreaterThanOrEqual(2);
-
-    // Click each prior-week checkbox (equivalent to "select all approvable" for the
-    // dedicated fixtures — exercises the real multi-row concurrent-approve path).
-    for (let i = 0; i < priorCount; i++) {
-      await priorWeekCheckboxes.nth(i).click();
+    for (let i = 0; i < ownCount; i++) {
+      await ownCheckboxes.nth(i).click();
     }
 
-    // "Approve N" (N = priorCount ≥ 2) button becomes enabled.
+    // "Approve N" (N = ownCount ≥ 2) button becomes enabled.
     const approveNBtn = bulkGroup.getByRole('button', { name: /^approve \d+$/i });
     await expect(approveNBtn).toBeVisible({ timeout: 5_000 });
     await expect(approveNBtn).toBeEnabled();
 
-    // Capture N from the button label and assert it equals the prior-week count.
+    // Capture N from the button label and assert it counts exactly the rows selected.
     const approveLabel = (await approveNBtn.textContent()) ?? '';
     const nMatch = approveLabel.match(/approve (\d+)/i);
-    const n = nMatch ? parseInt(nMatch[1], 10) : priorCount;
+    const n = nMatch ? parseInt(nMatch[1], 10) : ownCount;
+    expect(n).toBe(ownCount);
     expect(n).toBeGreaterThanOrEqual(2);
 
     // Click "Approve N" → stages the bulk ConfirmDialog.
@@ -225,27 +351,38 @@ test(
     // Goal oracle (a): the confirm dialog CLOSES (was stuck indefinitely with the RQ v5 bug).
     await expect(bulkDialog).not.toBeVisible({ timeout: 20_000 });
 
-    // (Goal oracle (b) — the transient "N timesheets approved" toast — is asserted at the
-    // UNIT level [ApprovalsQueue.expand-bulk test], not here: on slow CI runners the toast
-    // auto-dismisses before the dialog-close wait above resolves, making an e2e toast check
-    // racy. The durable oracles a [dialog closed] + c [rows gone after reload] below prove
-    // the bulk approve succeeded server-side.)
+    // (The transient "N timesheets approved" toast is asserted at the UNIT level
+    // [ApprovalsQueue.expand-bulk test], not here: on slow CI runners it auto-dismisses before the
+    // dialog-close wait above resolves, making an e2e toast check racy. Oracles (c) + (d) below
+    // prove the bulk approve succeeded server-side.)
 
-    // Goal oracle (c) — reload-safe: navigate away and back to force a fresh server query —
-    // approved prior-week rows MUST NOT reappear (tests real server persistence, not optimistic UI).
+    // Goal oracle (c) — reload-safe: navigate away and back to force a fresh server query — the
+    // approved weeks MUST NOT reappear (tests real server persistence, not optimistic UI).
     await page.goto('/');
     await page.goto('/approvals?scope=timesheets');
 
     // Wait for the section to re-render from fresh data.
     await expect(tsSection).toBeVisible({ timeout: 15_000 });
 
-    // The prior-week rows are gone.  The structural oracle is the absence of any
-    // [data-week-start] row for the prior week — no person names asserted.
     // Cross-check: the inbox settled (not loading) confirms this is not a pending-mask.
     await expect(page.getByTestId('approvals-loading')).not.toBeVisible({ timeout: 5_000 });
-    await expect(tsSection.locator(`[data-week-start="${priorWeekStart}"]`)).toHaveCount(0, { timeout: 15_000 });
+    await expect(tsSection.locator(`[data-week-start="${weekStart}"]`)).toHaveCount(0, { timeout: 15_000 });
+
+    // Goal oracle (d) — server truth: every week the PM selected is Approved, BY HIM.
+    const { data: after, error: readErr } = await admin
+      .from('timesheets')
+      .select('id, status, approved_by')
+      .in('id', owned.timesheetIds);
+    expect(readErr, 'the post-state read must succeed').toBeNull();
+    const rows = (after ?? []) as Array<{ id: string; status: string; approved_by: string | null }>;
+    expect(rows).toHaveLength(OWN_SHEETS);
+    for (const row of rows) {
+      expect(row.status, `timesheet ${row.id} is Approved server-side`).toBe('Approved');
+      expect(row.approved_by, `timesheet ${row.id} is approved BY the PM who confirmed`).toBe(PM_ID);
+    }
   },
 );
+
 
 // ── AC-IXD-PROC-W5-3-role (thin gating coverage) ───────────────────────────
 // ADR-0010: role-gating logic is well unit-tested (Approvals.test.tsx).  This thin

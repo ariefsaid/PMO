@@ -17,8 +17,16 @@ import { login } from '../helpers';
  * Roles: admin@acme.test (full management), exec@acme.test (read-only), engineer@acme.test (gate).
  * Seed (supabase/seed.sql): Erin Adebayo (Admin) / Mara Lindqvist (Exec) / Diego Salvatierra (PM) /
  *   Priya Ramanathan (Finance) / Tomas Beck (Engineer); Tomas→Diego manager chain. The journey
- *   edits Tomas (Engineer) so it never collides with another slice's fixtures, and restores his
- *   role at the end to keep the seed reusable.
+ *   edits Tomas (Engineer) so it never collides with another slice's fixtures, and restores BOTH
+ *   his role AND his line manager at the end to keep the seed reusable.
+ *
+ * ⚑ RESTORE THE MANAGER, NOT JUST THE ROLE (2026-07-29). This spec used to restore only the role
+ *   and leave `Tomas → Mara`. `transition_timesheet` authorises the assigned line manager
+ *   EXCLUSIVELY, so from that moment on pm@ could no longer approve Tomas's seeded week: the row
+ *   sat in pm@'s /approvals queue for the rest of the serial lane and took AC-IXD-TS-W5-3 down
+ *   with it — green in isolation, red only in the full lane, i.e. only at a dev→main promote.
+ *   Every mutation this journey makes to a SHARED seed row must be restored, and the restore must
+ *   be ASSERTED (a silent restore failure re-arms the leak invisibly).
  *
  * RBAC authority: docs/design/rbac-visibility.md §J + the profiles_admin_write RLS policy (0002).
  */
@@ -47,6 +55,8 @@ test(
   async ({ page }) => {
     const engineerEmail = 'engineer@acme.test'; // Tomas Beck
     const newManager = 'Mara Lindqvist'; // exec@acme.test, a valid manager candidate
+    // The seeded chain this journey must hand back intact (see the ⚑ note in the file header).
+    const seedManager = 'Diego Salvatierra'; // pm@acme.test — Tomas's line manager in seed.sql
 
     await login(page, 'admin@acme.test');
     await page.goto('/administration');
@@ -96,7 +106,7 @@ test(
     await expect(mgrDialog).not.toBeVisible({ timeout: 15_000 });
     await expect(userRow(page, engineerEmail).getByText(newManager)).toBeVisible({ timeout: 15_000 });
 
-    // ── Restore Dave's role to Engineer so the seed stays reusable ──
+    // ── Restore Tomas's role to Engineer so the seed stays reusable ──
     await openRowMenu(page, userRow(page, engineerEmail));
     await page.getByRole('menuitem', { name: /edit role/i }).click();
     const restoreDialog = page.getByRole('dialog');
@@ -106,6 +116,22 @@ test(
     await expect(
       userRow(page, engineerEmail).getByRole('cell', { name: 'Engineer', exact: true }),
     ).toBeVisible({ timeout: 15_000 });
+
+    // ── Restore Tomas's LINE MANAGER to Diego Salvatierra, through the same UI ──
+    // Not cosmetic: the seeded Tomas→Diego chain is what makes pm@ the approver of Tomas's week
+    // (transition_timesheet's approve arm is line-manager-exclusive). Leaving it pointed at Mara
+    // silently disarms every downstream approval fixture. Asserted, not merely attempted.
+    await openRowMenu(page, userRow(page, engineerEmail));
+    await page.getByRole('menuitem', { name: /change manager/i }).click();
+    const mgrRestoreDialog = page.getByRole('dialog');
+    await expect(mgrRestoreDialog).toBeVisible({ timeout: 8_000 });
+    await mgrRestoreDialog.getByRole('combobox', { name: /manager/i }).click();
+    const restoreListbox = page.getByRole('listbox');
+    await expect(restoreListbox).toBeVisible({ timeout: 8_000 });
+    await restoreListbox.getByText(seedManager, { exact: true }).click();
+    await mgrRestoreDialog.getByRole('button', { name: /save manager/i }).click();
+    await expect(mgrRestoreDialog).not.toBeVisible({ timeout: 15_000 });
+    await expect(userRow(page, engineerEmail).getByText(seedManager)).toBeVisible({ timeout: 15_000 });
   },
 );
 
