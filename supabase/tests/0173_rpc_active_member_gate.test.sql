@@ -39,7 +39,7 @@
 -- (in which the exploit succeeds) cannot silently poison the no-over-blocking control that follows it.
 
 begin;
-select plan(61);
+select plan(64);
 
 -- ════════════════════════════════════════════════════════════════════════════════════════════════
 -- Fixtures (as postgres — BYPASSRLS, exempt from the origination guards by design).
@@ -366,6 +366,33 @@ set local request.jwt.claims = '{"sub":"01730000-0000-0000-0000-000000000fff","r
 select is(public.is_active_member()::text || '/' || public.is_active_member(null)::text,
   'false/false', 'FR-AMG-003 both forms FAIL CLOSED for an unresolvable actor (unknown uuid / NULL)');
 
+-- ⚑ PAST-BAN CASE. An EXPIRED ban (banned_until in the past) must NOT lock a user out — the purpose
+--   of the ban is temporary suspension, and once it expires the member is active again.
+insert into auth.users (id, email, banned_until) values
+  ('01730000-0000-0000-0000-0000000000d8','amg-pm-banned-past@example.com', now() - interval '1 day');
+insert into profiles (id, org_id, full_name, email, role, status) values
+  ('01730000-0000-0000-0000-0000000000d8','01730000-0000-0000-0000-000000000001','AMG PM Banned Past','amg-pm-banned-past@example.com','Project Manager','active');
+set local request.jwt.claims = '{"sub":"01730000-0000-0000-0000-0000000000d8","role":"authenticated"}';
+select is(public.is_active_member()::text || '/' || public.is_active_member('01730000-0000-0000-0000-0000000000d8')::text,
+  'true/true', 'FR-AMG-002 the two is_active_member forms agree for a PAST-BANNED member (true) — an expired ban does not lock out');
+
+-- ═══════════════════════════════════════════════════════════════════════════════════════════════
+-- SECTION 6½ — AC-AMG-007. The revoke on the new functions. EXECUTE is revoked from authenticated/anon
+--   so they cannot be used as a cross-org "is this uuid an active user" oracle. A later re-grant would
+--   be silent without this assertion.
+-- ═══════════════════════════════════════════════════════════════════════════════════════════════
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"01730000-0000-0000-0000-0000000000c1","role":"authenticated"}';
+select throws_ok(
+  $$ select public.is_active_member('01730000-0000-0000-0000-0000000000c1') $$,
+  '42501', null,
+  'AC-AMG-007 authenticated cannot execute public.is_active_member(uuid) — cross-org oracle is blocked');
+select throws_ok(
+  $$ select public.assert_is_active_member('01730000-0000-0000-0000-0000000000c1') $$,
+  '42501', null,
+  'AC-AMG-007 authenticated cannot execute public.assert_is_active_member(uuid) — cross-org oracle is blocked');
+reset role;
+
 -- ════════════════════════════════════════════════════════════════════════════════════════════════
 -- SECTION 7 — COMPLETENESS, DERIVED FROM THE LIVE CATALOG RATHER THAN FROM A LIST.
 --
@@ -376,16 +403,18 @@ select is(public.is_active_member()::text || '/' || public.is_active_member(null
 --
 --   If this fires: either add `assert_is_active_member()` (or `(p_actor)` if the function has a
 --   service_role caller — do the caller analysis, do not guess), or, if the function genuinely must
---   not carry it, say so IN ITS BODY in a comment containing the string `is_active_member` and record
---   why in docs/backlog.md. Silence is not an option the query offers.
+--   not carry it, add its `proname` to the allow-list below (uncomment and edit the `not in (...)` clause)
+--   and record why in docs/backlog.md. A comment escape hatch is NOT accepted — it would invite false
+--   negatives.
 -- ════════════════════════════════════════════════════════════════════════════════════════════════
 select is(
   (select coalesce(string_agg(p.proname, ', ' order by p.proname), '')
      from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'public' and p.prosecdef
       and has_function_privilege('authenticated', p.oid, 'EXECUTE')
-      and pg_get_functiondef(p.oid) not ilike '%is_active_member%'
-      and pg_get_functiondef(p.oid) ~* '(insert into|update public|delete from)'),
+      and pg_get_functiondef(p.oid) not ilike '%assert_is_active_member(%'
+      and pg_get_functiondef(p.oid) not ilike '%is_active_member()%'
+      and pg_get_functiondef(p.oid) ~* '(insert\s+into|update\s+(public\.)?[a-z_]|delete\s+from|merge\s+into)'),
   '',
   'AC-AMG-001 completeness: NO security-definer write RPC granted to authenticated is missing the active-member gate');
 
