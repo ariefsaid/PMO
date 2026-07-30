@@ -348,11 +348,24 @@ token lifetime is a separate auth-side decision.
   message, so an offboarded user's money-path refusal is still indistinguishable from a role denial
   (FR-AMG-004). The fifteen carry the distinguishing message; those two do not.
 
-**⛔ FE follow-up owed (found, not fixed — out of this slice's scope):** `pages/AdminUsers.tsx` renders
-the role and manager controls for **every** row including the acting Admin's own. Post-`0179` an Admin
-who changes their own role there gets a 42501 toast instead of a disabled control. RLS is the
-authority and it is correct; the UX is now wrong. Fix = hide/disable those two controls on the
-caller's own row (`can()` is UX-only, ADR-0016).
+**⛔ FE follow-up owed (found, not fixed — out of this slice's scope):**
+
+1. **`pages/AdminUsers.tsx` self-edit controls still render active.** Post-`0179` an Admin who changes
+   their own role or manager there gets a 42501 toast instead of a disabled control. RLS is the
+   authority and it is correct; the UX is now wrong. Fix = hide/disable those two controls on the
+   caller's own row (`can()` is UX-only, ADR-0016). Owner ruled 2026-07-30: a SEPARATE LATER ISSUE.
+
+2. **No FE surface for 0179's Executive widening at all.** `pmo-portal/src/auth/policy.ts:235` is still
+   `user: { edit: allow(ADMIN) }`, so the DB rule (Executives may edit Finance/PM/Engineer) is live
+   but no Executive can exercise it. Owner ruled 2026-07-30: a SEPARATE LATER ISSUE. ⚑ The role
+   `<select>` in the edit form offers ALL FIVE ROLES regardless of actor rank, so it will need
+   rank-filtering when this issue is picked up.
+
+3. **`profiles.status` edit control is also missing from FE (Admin-only, 0182 column allow-list).**
+   Owner ruled 2026-07-30 that this is correct (status stays Admin-only), separate from the Executive
+   widening issue.
+
+**Note:** 0181/0182 shipped in this branch.
 
 ### ✅ RESOLVED — the create-path SoD class, slices 1–6 (`0173`–`0178`, 2026-07-29) — ON `main`
 Branch `fix/project-create-sod` / PR #411. Spec `docs/specs/create-path-sod-class.spec.md` (§8 = slice
