@@ -90,8 +90,18 @@ the Admin activates. This pair is built once and reused for M365, ClickUp, and E
 > account in the vendor tenant is rejected by that assertion and nothing is stored. Operator-gated
 > connect and client-tenant connection cannot both hold.
 >
-> ⚑ **The 2026-07-24 live connect therefore proved the discarded model.** It succeeded only because the
-> tenant secret pointed at the vendor's own tenant (`gordi.id`). It is not evidence for the model below.
+> ⚑ **Which tenant a test connects is incidental — do not read it as a design signal (owner, 2026-07-30).**
+> The vendor tenant (`gordi`) is the natural place to test mechanics: it is idle, owner-controlled, and it
+> is where the app registrations live. A client tenant (`RIS`) is the natural place to test the real
+> shape. Both are legitimate test targets and both have been used. The 2026-07-24 connect proved the
+> connect *mechanics*, and that still stands.
+>
+> **What it could not prove is the separation, because the code does not express one.** The
+> operator/client split has been the standing intention throughout; the shipped gate collapses both into
+> `platform_operators`, so there is no client-side path to exercise in any tenant. That is a **code
+> defect against a standing requirement** — not a decision this ADR is reversing, and not something a
+> test target can fix. **The code must express the operator/client split regardless of which tenant any
+> given connection happens to use.**
 >
 > **How the gate came to sit on the data path:** a DRY refactor ("quality #6") put `initiate_connect`,
 > `graph_proxy`, `disconnect` and `connection_status` behind one shared `resolveOrgOrResult` →

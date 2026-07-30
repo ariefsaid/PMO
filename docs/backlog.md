@@ -881,9 +881,9 @@ Then, per the standard series loop (grill → spec → …), the candidate queue
 > pgTAP cannot replace them (it runs in a single transaction and cannot express a two-session race).
 
 **Status in one line: the whole backend + the connect UI are on `dev` and green, and a real Microsoft connect
-completed 2026-07-24 — but it connected the VENDOR's tenant under an Operator gate, which the 2026-07-30 owner
-ruling discards, and `graph_proxy` has never decrypted a real token. So no Graph data has ever reached PMO, and
-the one live proof we hold is proof of the wrong model.**
+completed 2026-07-24 proving the connect mechanics — but `graph_proxy` has never decrypted a real token, so no
+Graph data has ever reached PMO, and the code still collapses operator and client into one role, so there is no
+client-side path to exercise in any tenant.**
 
 > **⚑⚑ OWNER RULING 2026-07-30 — the connection belongs to the CLIENT's Microsoft 365, and client users make it.**
 > Full reasoning: the second amendment in [ADR-0063 §3](adr/0063-microsoft-365-integration-architecture.md).
@@ -959,18 +959,24 @@ the one live proof we hold is proof of the wrong model.**
 #### ✅ CLOSED 2026-07-24 — was TBD-2, kept for provenance
 - **`security-auditor` pass on the LIVE flow** — DONE 2026-07-24, ADR-0060 gate. It **found HIGH-A1** (the
   mis-marshalled `bytea` envelope), which was then fixed in `#365`. The gate paid for itself on its first run.
-- **Live deploy + ONE proven connection** — the *mechanics* were exercised (a real connect completed 2026-07-24
-  02:20 and Microsoft is provisioned: KEK, client secret/id, a concrete tenant GUID, allowlisted redirect URI).
-  ⚠️ **But it connected the VENDOR's tenant under the Operator gate, which the 2026-07-30 ruling discards — so
-  it does NOT satisfy the gate any more.** Re-opened as TBD-3 below.
+- **Live deploy + ONE proven connection** — the connect *mechanics* are proven and remain proven: a real connect
+  completed 2026-07-24 02:20 and Microsoft is provisioned (KEK, client secret/id, a concrete tenant GUID,
+  allowlisted redirect URI). ⚑ **Do not read the test tenant as a design signal (owner, 2026-07-30):** the vendor
+  tenant (`gordi`) is the natural place to test mechanics — idle, owner-controlled, and where the app
+  registrations live — and a client tenant (`RIS`) is the natural place to test the real shape. Both are
+  legitimate and both have been used. What remains open is *not* the tenant choice: it is `graph_proxy` (never
+  exercised) and the operator/client separation the **code** does not yet express. See TBD-2/TBD-3.
 
 #### ⏸️ TBD — what is NOT done, in dependency order
 1. **Confirm the DEPLOYED `m365-token-custody` is at or past `#365`** (`supabase functions list`). Anything
    older still contains HIGH-A1 and will corrupt the next connect. Cheap, and it must precede everything.
-2. **De-gate `graph_proxy` + `initiate_connect` from Operator to "member of an entitled org"** (2026-07-30
-   ruling, ADR-0063 §3 second amendment). Blocks TBD-3: a client PM cannot connect or browse today. Requires a
-   `security-auditor` pass — it widens an audited boundary — and `AC-M365-131` must be **re-specified**, not
-   deleted (it currently asserts the old rule). Mutation-check: a disentitled org or non-member still rejected.
+2. **⭐ Make the code express the operator/client split** — the standing intention throughout, which the shipped
+   gate does not implement (owner, 2026-07-30). `graph_proxy` + `initiate_connect` de-gate from Operator to
+   "member of an entitled org"; Operator keeps entitlement. **This is the priority item and it is independent of
+   which tenant anything connects to** — today there is no client-side path to exercise in *any* tenant, so it
+   blocks TBD-3. Requires a `security-auditor` pass (it widens an audited boundary) and `AC-M365-131` must be
+   **re-specified**, not deleted (it asserts the old rule). Mutation-check: a disentitled org or a non-member is
+   still rejected. Reasoning: ADR-0063 §3, second amendment.
 3. **Add the SharePoint scopes, get client tenant admin consent, then ONE reconnect as a NON-Operator user +
    ONE `graph_proxy` GET against a real SharePoint library.** The real remaining gate. Three parts, all needed:
    - `M365_PHASE1_SCOPES` (`initiate.ts:17`) gains `Sites.Read.All` + `Files.Read.All`. `Files.Read` alone
@@ -978,8 +984,9 @@ the one live proof we hold is proof of the wrong model.**
      at Microsoft rather than at our door (the confusing kind).
    - Those are delegated permissions **requiring tenant admin consent**; a PM cannot grant them. One-time, per
      client tenant. This is the price of SharePoint-primary (owner 2026-07-29), not an implementation detail.
-   - The connect must be by a **non-Operator** user against a client-like tenant. An Operator connect re-proves
-     the discarded model. Record it as a spike doc.
+   - The connect must be made by a **non-Operator** user — that is the path no run has ever exercised, and it
+     only becomes possible after TBD-2. Which tenant it runs in is the owner's call per test (`gordi` for
+     mechanics, `RIS` for the real shape); the *actor* is what matters here, not the tenant. Record it as a spike doc.
    - **While you are there, also `GET …/versions` on a real item** — ADR-0071 §9 needs to know whether Graph
      exposes a browser-openable URL per version or only version *content*. Answer it before the data model is fixed.
 4. **M365 document linking** — [spec written, NOT built](specs/m365-onedrive-doc-linking.spec.md), and now
