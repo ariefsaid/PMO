@@ -96,4 +96,12 @@ supabase start -x studio,realtime,vector || restore_rc=$?
 if [ "$served_rc" -ne 0 ]; then exit "$served_rc"; fi
 if [ "$restore_rc" -ne 0 ]; then exit "$restore_rc"; fi
 
+# Stamp the exact commit these gates passed against. `.claude/hooks/pre-pr-main-gate.sh`
+# refuses `gh pr create --base main` unless this stamp matches HEAD, which turns AGENTS.md's
+# "binding" from a sentence someone has to remember into something the tool enforces.
+# Per-worktree on purpose (--git-dir, not --git-common-dir): you verified THIS tree's HEAD.
+# Written last, so a partial run never counts as a pass.
+git rev-parse HEAD > "$(git rev-parse --git-dir)/verify-main-pr-ok"
+
 echo "[verify-main-pr] all local PR-to-main gates passed"
+echo "[verify-main-pr] stamped $(git rev-parse --short HEAD) — gh pr create --base main is now unblocked for this commit"
