@@ -403,7 +403,7 @@ reset role;
 --
 --   If this fires: either add `assert_is_active_member()` (or `(p_actor)` if the function has a
 --   service_role caller — do the caller analysis, do not guess), or, if the function genuinely must
---   not carry it, add its `proname` to the allow-list below (uncomment and edit the `not in (...)` clause)
+--   not carry it, add its `proname` to the allow-list in the query below (the `array[]::text[]` line)
 --   and record why in docs/backlog.md. A comment escape hatch is NOT accepted — it would invite false
 --   negatives.
 -- ════════════════════════════════════════════════════════════════════════════════════════════════
@@ -414,7 +414,13 @@ select is(
       and has_function_privilege('authenticated', p.oid, 'EXECUTE')
       and pg_get_functiondef(p.oid) not ilike '%assert_is_active_member(%'
       and pg_get_functiondef(p.oid) not ilike '%is_active_member()%'
-      and pg_get_functiondef(p.oid) ~* '(insert\s+into|update\s+(public\.)?[a-z_]|delete\s+from|merge\s+into)'),
+      and pg_get_functiondef(p.oid) ~* '(insert\s+into|update\s+(public\.)?[a-z_]|delete\s+from|merge\s+into)'
+      -- ⚑ ALLOW-LIST — the ONLY reviewable exemption, NOT a comment on the function body. To exempt a
+      --   function add its proname to the array; an empty array means NO exemptions. Every entry MUST
+      --   carry a recorded reason in docs/backlog.md and be removed again when the gate returns. (The
+      --   old form — `ilike '%is_active_member%'` — was silenceable by a body comment; the parenthesised
+      --   match above plus this list replaced it so an exemption is a visible, reviewable edit.)
+      and p.proname <> all (array[]::text[])),
   '',
   'AC-AMG-001 completeness: NO security-definer write RPC granted to authenticated is missing the active-member gate');
 
