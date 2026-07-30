@@ -75,6 +75,68 @@ the Admin activates. This pair is built once and reused for M365, ClickUp, and E
 > needs an explicit org parameter and a cross-org authorization story — out of scope here, and it
 > must not be added by widening this gate silently.
 
+> **⚑⚑ AMENDMENT 2026-07-30 (owner) — the amendment above is CORRECTED. The connection belongs to the
+> CLIENT's Microsoft 365, and client users make it. Operator-gating the *use* of a connection was wrong.**
+>
+> The 2026-07-24 amendment reasoned correctly about credential ownership and then applied it to the
+> wrong switch. Owning the app registration governs **whether the app exists and which orgs are
+> entitled**. It does not govern **who may authorize that app to act inside their own tenant** — that
+> was always the client's act. A client admin *consents to* our vendor-owned app; they never own it,
+> so nothing is handed over. ADR-0064 Option C is unaffected.
+>
+> **The two models are mutually exclusive, so this is forced, not a preference.** `callback.ts:123`
+> asserts `id_token.tid === env.m365TenantId`. Point that secret at a client's tenant — which is what
+> "connect to the client's Microsoft 365" means — and an Operator can never complete a connect: an
+> account in the vendor tenant is rejected by that assertion and nothing is stored. Operator-gated
+> connect and client-tenant connection cannot both hold.
+>
+> ⚑ **The 2026-07-24 live connect therefore proved the discarded model.** It succeeded only because the
+> tenant secret pointed at the vendor's own tenant (`gordi.id`). It is not evidence for the model below.
+>
+> **How the gate came to sit on the data path:** a DRY refactor ("quality #6") put `initiate_connect`,
+> `graph_proxy`, `disconnect` and `connection_status` behind one shared `resolveOrgOrResult` →
+> `authorizeOperatorEntitled` gate (`auth.ts:89`). An **activation** gate thereby landed on a **data
+> access** path, and the authorization question for that path was never asked separately. A shared
+> helper is the right shape; sharing a gate between two different authorization questions is not.
+> **Rule:** an activation gate and a data-access gate may share code, never a single decision.
+>
+> **The four layers, with four different owners:**
+>
+> | Layer | Owner | Act | Enforced by |
+> |---|---|---|---|
+> | Entitlement | **Operator** (vendor) | this org may use M365 | `org_features` / `operator_toggle_feature` — unchanged |
+> | Tenant consent | **client's Microsoft admin** | this app may act in our tenant | Microsoft / Entra |
+> | Personal connection | **any client user who browses** | grant their own delegated token | PMO gate + Microsoft |
+> | Project ↔ library binding | **client Project Manager** | which library this project uses | `can('edit','project')`, bounded by that user's own SharePoint access |
+>
+> **Consequences of the split:**
+> - **`graph_proxy` de-gates from Operator to "member of an entitled org".** `initiate_connect` follows.
+>   `graph_proxy` already loads `.eq('user_id', userId)` from the verified caller JWT (`proxy.ts:69`), so
+>   every user browses with **their own** Microsoft token — the correct per-user permission model is
+>   already plumbed; only the gate blocked it. Entitlement, disentitlement cascade, and the Operator
+>   ownership of `org_features` are untouched.
+> - **No approval step for the project↔library binding, deliberately.** A PM can only bind a library
+>   their own Microsoft account can already read; Microsoft is the authority. An approval gate would be
+>   ceremony over authority PMO does not hold. Audit the binding to `audit_events` instead.
+> - **Tenant admin consent is now on the onboarding critical path — a direct cost of SharePoint-primary
+>   (owner, 2026-07-29).** `Sites.Read.All` and `Files.Read.All` are delegated permissions that require
+>   tenant admin consent; a PM cannot grant them. Every client onboarding gains a one-time step needing
+>   their IT department. `Files.Read` alone avoids it and reaches no SharePoint at all — so this is the
+>   price of the SharePoint decision, not an implementation detail.
+> - **Per-org tenant id becomes a seam.** One global `M365_TENANT_ID` is adequate while each client has
+>   its own deployment (ADR-0047 siloed) and breaks under pooled. Keep the env var as the default and
+>   have the `tid` assertion prefer the org's recorded tenant where one exists — a small seam now
+>   instead of a security-critical rewrite later. Consistent with §5 (topology independence).
+> - **The proof reconnect changes.** It must run against a client-like tenant as a **non-Operator**
+>   user, after admin consent, with the SharePoint scopes. An Operator connect re-proves the discarded
+>   model. (Backlog M365 entry, TBD.)
+>
+> **This is a change to a shipped, security-audited authorization boundary.** It widens who may reach a
+> Graph token path, so it requires its own `security-auditor` pass — `AC-M365-131` currently asserts the
+> *old* rule (an org Admin who is not an Operator is FORBIDDEN) and must be re-specified rather than
+> quietly deleted. Mutation-check the replacement: a disabled entitlement or a non-member must still be
+> rejected.
+
 **4. The agent tier extends to M365 unchanged (RLS-as-ceiling).** A Teams-invoked LLM assistant and
 Teams actionable-approval cards are new *entry points* to the existing agent + RPC layer, not new
 authority. Approvals call the existing server-enforced SoD RPCs (ADR-0019); the Teams bot runs under the
