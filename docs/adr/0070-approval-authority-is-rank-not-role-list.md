@@ -109,9 +109,11 @@ and `0178`'s `role_outranks`. Proven by `supabase/tests/0172_profiles_hierarchy_
 Enforced in **both `USING` and `WITH CHECK`** — `USING` governs whose profile you may touch,
 `WITH CHECK` governs what you may set it to. Checking only one leaves the other open, which is the
 USING/WITH-CHECK asymmetry this program has already had to repair twice. The two mutations that catch
-each side are `AC-PHW-030` (WITH-CHECK-only ⇒ an Executive demotes an Admin, because `Finance` *is* a
-role an Executive may assign — the illegal part is the **subject**) and `AC-PHW-021` (USING-only ⇒ an
-Executive promotes a Project Manager to Executive); both were run and both killed their mutant.
+each side are `AC-PHW-031` (USING-only ⇒ an Executive demotes an Admin, because `Finance` *is* a
+role an Executive may assign — the illegal part is the **subject**, caught by the persisted-value
+read-back) and `AC-PHW-021` (WITH-CHECK-only ⇒ an Executive promotes a Project Manager to Executive,
+caught by a `throws_ok`); both were run and both killed their mutant. ⚑ A `lives_ok` proves nothing about a
+USING denial: an RLS USING denial is a SILENT 0-row no-op, so only the persisted-value read-back can catch it.
 
 ⚑ **The rule is a conjunction, not just "outranks".** `role_rank` is a strict total order, so
 `Finance > Project Manager > Engineer` — a literal "may edit whoever you outrank" would hand Finance

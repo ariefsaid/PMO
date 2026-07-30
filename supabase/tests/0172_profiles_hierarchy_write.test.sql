@@ -16,9 +16,9 @@
 --   leaves the other open, and that asymmetry is a defect this program has already had to repair
 --   twice. The two mutations that catch it are named at each site:
 --     • drop the rank test from WITH CHECK -> AC-PHW-021 (an Executive promotes a PM to Executive) goes green-to-red;
---     • drop the rank test from USING      -> AC-PHW-030 (an Executive DEMOTES an Admin to Finance) goes green-to-red.
---   AC-PHW-030 is the one a WITH-CHECK-only policy would let through, because 'Finance' IS a role an
---   Executive may assign — the illegal part is the SUBJECT, not the target role.
+--     • drop the rank test from USING      -> AC-PHW-031 (the Admin is still an Admin after an Executive demotes them) goes green-to-red.
+--   AC-PHW-030 is a `lives_ok` and an RLS USING denial is a SILENT 0-row no-op, so it can NEVER kill a
+--   USING mutation — only the persisted-value read-back (AC-PHW-031) can.
 --
 -- ⚑ NO SOURCE-TEXT ASSERTIONS. 0170's AC-PMS-021 asserted `prosrc like '%…MUST stay%'` and matched a
 --   `--` COMMENT: deleting the whole guard left it green. Everything here is behaviour — an UPDATE is

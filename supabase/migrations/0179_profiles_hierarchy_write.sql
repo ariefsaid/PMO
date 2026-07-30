@@ -16,11 +16,14 @@
 -- `USING` governs WHOSE profile you may touch (the pre-image); `WITH CHECK` governs WHAT YOU MAY SET
 -- IT TO (the post-image). They are different questions and both have to be asked:
 --   • WITH CHECK alone -> an Executive could DEMOTE an Admin, because 'Finance' is a role an Executive
---     may legitimately assign; the illegal part is the SUBJECT, not the target role. (0172 AC-PHW-030.)
+--     may legitimately assign; the illegal part is the SUBJECT, not the target role. (0172 AC-PHW-031.)
 --   • USING alone      -> an Executive could PROMOTE a Project Manager to Executive, because a PM is
 --     someone an Executive may legitimately edit. (0172 AC-PHW-021.)
 -- This USING/WITH-CHECK asymmetry is a class this program has already had to repair twice, so both
 -- clauses here are the SAME expression and the test names the mutation that catches each side.
+-- ⚑ A `lives_ok` proves nothing about a USING denial: an RLS USING denial is a SILENT 0-row no-op,
+--   so only the persisted-value read-back (the AC-PHW-031 check) can catch it. AC-PHW-030's `lives_ok`
+--   verifies the UPDATE raises no error, which is exactly what USING does — it blocks invisibly.
 --
 -- ── WHY THERE IS AN AUTHORITY FLOOR AND NOT JUST "OUTRANKS" ─────────────────────────────────────
 -- Read literally, "you may edit a profile only if you outrank its owner" would hand Finance authority
