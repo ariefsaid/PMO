@@ -187,15 +187,24 @@ A change is not done until each of these has been observed to turn tests **red**
 
 ---
 
-## 5. Open questions
+## 5. Decisions and open questions
 
-- **OQ-1 (owner).** Should browsing be open to **any** active member (FR-M365SEP-008), or restricted to the
-  delivery roles (`Admin` / `Executive` / `Project Manager`)? **Recommendation: any active member.** Microsoft
-  bounds what each person can see, so a PMO restriction adds no real authority — but it would reduce how many
-  people are prompted to connect an account. A defensible product answer either way; it changes only
-  FR-M365SEP-008 and AC-M365SEP-001.
-- **OQ-2 (Director).** Name and code for the membership rejection: a new `DISABLED_MEMBER` in `M365ErrorCode`,
-  or reuse `FORBIDDEN` with a distinct message? **Recommendation: a new code** — `describeM365Error` maps codes
-  to human copy, and "your access has been disabled" is different guidance from "you don't have permission".
+- **✅ OQ-1 — DECIDED (owner, 2026-07-30): any active member.** Browsing and connecting are open to every
+  active member of an entitled org, irrespective of PMO role. Microsoft bounds what each person can see, so a
+  PMO role restriction would add no authority PMO holds. FR-M365SEP-008 stands as written.
+- **✅ OQ-2 — DECIDED (owner, 2026-07-30): a new error code.** `DISABLED_MEMBER` joins `M365ErrorCode` with
+  status 403, and `describeM365Error` gains copy to the effect that the user's access has been disabled —
+  distinct guidance from "you don't have permission" and from "your organization is not entitled".
+- **⚠️ OQ-4 — NEW, found while planning (owner call).** **The connection card has nowhere to live for a
+  non-Admin.** It is rendered only from `pages/AdminUsers.tsx:483` on the `/administration` route, whose own
+  header states that every non-Admin, non-Operator role sees an Admin-only gate. There is **no personal
+  settings/profile route in the app at all** (`App.tsx:99-142`). So FR-M365SEP-008 and FR-M365SEP-013 cannot be
+  satisfied by changing the gate alone — a PM would pass the new authorization and still never see the card.
+  The card is in substance already **per-user** (`connection_status` is own-row scoped); it only looked
+  org-level because only Operators could use it.
+  **Recommendation: one new `/integrations` route open to any active member, rendering the card, plus one nav
+  entry.** No settings framework, no tab shell — one page, one card, extended later if a second personal
+  integration appears. Alternatives: keep it on `/administration` and accept that only Admins can connect
+  (which reverses OQ-1), or build a general personal-settings surface (larger, and not needed yet).
 - **OQ-3 (deferred, recorded in ADR-0063).** Per-org `M365_TENANT_ID`. Not needed while each client has its own
   deployment; explicitly out of scope here so this change stays small.
