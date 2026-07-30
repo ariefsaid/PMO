@@ -128,6 +128,16 @@ a peer's `manager_id` can re-point this ADR's own line-management limb.
 | Executive | Finance, Project Manager, Engineer | Finance, Project Manager, Engineer — **not** Executive |
 | everyone else | nobody | nobody |
 
+⚑ **Scope of the ruling — editing only (owner rulings, 2026-07-30).** The rank widening above reaches
+`profiles_hierarchy_update` (the UPDATE path) and nothing else, by explicit owner confirmation on
+2026-07-30 — not by implementer default: **INSERT and DELETE on `profiles` stay Admin-only.** A single
+`FOR ALL` policy cannot carry two rules, so `profiles_admin_insert`/`profiles_admin_delete` keep the
+pre-`0179` Admin-only predicate byte-for-byte, and ADR-0019 keeps destructive delete Admin-only
+regardless. The owner's second ruling of the same date: **`profiles.status` is Admin-only** — changeable
+only through `admin_set_user_status`, and enforced at the column level by `0182`'s UPDATE allow-list on
+`public.profiles` (every column is client-writable *except* `id`, `org_id`, `created_at` and `status`),
+so the Executive widening here can touch a subordinate's `role`/`manager_id` but never their status.
+
 **The one carve-out: Admin may edit a peer Admin** (owner ruling, 2026-07-29). Strict outranking alone
 would mean *nobody* can edit an Admin's profile, since Admin does not outrank Admin — so an Admin
 could never be demoted in-app. Offboarding is unaffected either way (`admin_set_user_status` is a
