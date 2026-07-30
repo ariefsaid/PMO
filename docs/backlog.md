@@ -980,11 +980,11 @@ the one live proof we hold is proof of the wrong model.**
      client tenant. This is the price of SharePoint-primary (owner 2026-07-29), not an implementation detail.
    - The connect must be by a **non-Operator** user against a client-like tenant. An Operator connect re-proves
      the discarded model. Record it as a spike doc.
-   - **While you are there, also `GET …/versions` on a real item** — ADR-0069 §9 needs to know whether Graph
+   - **While you are there, also `GET …/versions` on a real item** — ADR-0071 §9 needs to know whether Graph
      exposes a browser-openable URL per version or only version *content*. Answer it before the data model is fixed.
 4. **M365 document linking** — [spec written, NOT built](specs/m365-onedrive-doc-linking.spec.md), and now
    **materially out of date**: it is OneDrive-only, drift-free, and assumes an Admin/PM can call `graph_proxy`.
-   Needs a revision for SharePoint-primary + site/library browse + the ADR-0069 drift model + version pinning +
+   Needs a revision for SharePoint-primary + site/library browse + the ADR-0071 drift model + version pinning +
    the project↔library binding. **Build follows (3)**: its browse step *is* `graph_proxy`, the one path no live
    run has ever reached.
 5. **An M365 e2e is OWED.** `docs/specs/m365-phase0-foundation.spec.md` §5 deliberately shipped no Phase-0 e2e
