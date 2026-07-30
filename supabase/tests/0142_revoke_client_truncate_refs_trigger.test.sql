@@ -96,13 +96,24 @@ select is(
 -- profiles (select/insert/update/delete). Proves 0104 only stripped the three indefensible
 -- privileges, not the DML the app genuinely uses.
 -- ════════════════════════════════════════════════════════════════════════════════════════════════
+-- ⚑ AMENDED BY 0182 (owner ruling 2026-07-30), and this is a MECHANISM change, not a weakening.
+-- The GOAL of this positive control is unchanged: prove 0104/0105 were SURGICAL — `authenticated`
+-- still holds the RLS-gated DML the app genuinely uses. What changed underneath it is that UPDATE on
+-- `profiles` is no longer table-wide: 0182 revoked it and re-granted an explicit 11-column allow-list,
+-- so `profiles.status` and `org_id` are writable ONLY through `admin_set_user_status` (see 0175).
+-- `has_table_privilege(...,'UPDATE')` is FALSE once only column grants remain, so asserting it would
+-- now be asserting the defect 0182 removed. The goal is therefore re-expressed against the columns the
+-- app actually writes — `role` (src/lib/db/adminUsers.ts:51) and `manager_id` (:61) — which is a
+-- STRICTLY STRONGER statement of "surgical" than the table-wide flag was: it names the writes that
+-- must survive instead of accepting any UPDATE at all. 0175 owns the matching negative controls.
 select is(
   (has_table_privilege('authenticated', 'public.profiles', 'SELECT')
    and has_table_privilege('authenticated', 'public.profiles', 'INSERT')
-   and has_table_privilege('authenticated', 'public.profiles', 'UPDATE')
-   and has_table_privilege('authenticated', 'public.profiles', 'DELETE')),
+   and has_table_privilege('authenticated', 'public.profiles', 'DELETE')
+   and has_column_privilege('authenticated', 'public.profiles', 'role', 'UPDATE')
+   and has_column_privilege('authenticated', 'public.profiles', 'manager_id', 'UPDATE')),
   true,
-  'AC-GRANT-009 authenticated keeps full DML on profiles (revoke was surgical)');
+  'AC-GRANT-009 authenticated keeps the DML the app uses on profiles (revoke was surgical): SELECT/INSERT/DELETE table-wide, UPDATE on role + manager_id');
 
 -- ════════════════════════════════════════════════════════════════════════════════════════════════
 -- Tier 2 (migration 0105) — authoritative CURRENT-STATE backstop: NO public base table grants
