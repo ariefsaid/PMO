@@ -18,6 +18,11 @@
 --                                                 managers itself (and for any X, in fact)
 --   §3  transition_project self-authored win   -> a winner who set their OWN value is refused at the
 --                                                 transition, independent of may_approve_work_of
+-- ⚑ §E ISOLATES layer 3: it temporarily disables layers 1 (redefines may_approve_work_of to return
+--   TRUE) and 2 (the CHECK, already dropped in §C) WITHIN this transaction and asserts the
+--   self-authored win is STILL refused — proving §3 carries its own weight. The Director confirmed
+--   that WITHOUT §E a mutation of the §3 conjunct (or v_set_by is not distinct from auth.uid() ->
+--   or false) left ok=17 notok=0: layer 3 was entirely unproven. §E is what makes that mutation RED.
 --
 -- ⚑ WHY THE CHECK IS DROPPED MID-TEST. The exploit REQUIRES a self-managing profile (manager_id =
 --   id), and §2's CHECK now forbids that state for every writer. To prove §1 and §3 against the
@@ -33,7 +38,7 @@
 
 begin;
 create extension if not exists pgtap;
-select plan(17);
+select plan(19);
 
 -- ── Fixtures (inserted as table owner, RLS bypassed) ────────────────────────────────────────────
 insert into organizations (id, name) values
@@ -160,6 +165,48 @@ select is(
   (select public.may_approve_work_of('01740000-0000-0000-0000-0000000000a1',null)),
   false,
   'AC-MSB-041 may_approve_work_of(X, NULL) fails closed — a NULL author matches no profile (carried from 0171)');
+
+-- ════════════════════════════════════════════════════════════════════════════════════════════════
+-- §E — ISOLATE LAYER 3 (the transition_project self-backstop). 0181 is defence in depth; this proves
+-- layer 3 is not redundant by DISABLING layers 1 and 2 within this transaction and asserting the
+-- self-authored win is STILL refused. Without this section, mutating ONLY the §3 conjunct
+-- (or v_set_by is not distinct from auth.uid()  ->  or false) left ok=17 notok=0: the §1 self-guard
+-- inside may_approve_work_of still caught the self case, so layer 3 carried ZERO proven weight.
+--   · layer 2 (profiles_manager_not_self CHECK) — dropped in §C, still dropped here (re-dropped
+--     idempotently for self-documentation). The self-managing fixture (a3.manager_id = a3) is in place.
+--   · layer 1 (may_approve_work_of self-guard) — TEMPORARILY redefined to return TRUE, simulating the
+--     pre-0181 body (which had no approver<>author guard, so may_approve_work_of(X,X) was TRUE for a
+--     self-managing X). Rolls back with this transaction; §D above already ran against the real body.
+-- With both gone, the win-gate's `v_set_by is not distinct from auth.uid()` conjunct (0181 §3) is the
+-- SOLE remaining refusal. b1 is still Quotation Submitted, self-witnessed by a3, from §C.
+-- ════════════════════════════════════════════════════════════════════════════════════════════════
+alter table public.profiles drop constraint if exists profiles_manager_not_self;
+
+-- ⚑ STUB: layer 1 simulated as GONE. Same signature as the real function so the CREATE OR REPLACE
+-- replaces it in place; rolls back at the end of this transaction (§D has already run against the
+-- real body, so no earlier assertion is affected). A literal `select true` is the strongest
+-- simulation — it makes may_approve_work_of approve EVERYTHING, including (X, X).
+create or replace function public.may_approve_work_of(p_approver_id uuid, p_author_id uuid)
+  returns boolean language sql stable security definer set search_path = pg_catalog, public as $$
+  select true  -- §E isolation stub: layer 1 (the self-guard) is GONE for this section only
+$$;
+
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"01740000-0000-0000-0000-0000000000a3","role":"authenticated"}';
+-- ⚑ pgTAP matches errmsg EXACTLY. With layers 1+2 gone, the refusal can ONLY be the §3 conjunct; the
+-- message is the win-gate's 'senior' branch (the self-authored case falls to the else, NOT 0183's
+-- offboarded-witness elsif, because a3 is an ACTIVE member — 0183 only retargets the message for an
+-- inactive witness, it does not change which conjunct fires for the self case).
+select throws_ok(
+  $$ select transition_project('01740000-0000-0000-0000-0000000000b1'::uuid,
+       'Won, Pending KoM'::project_status, 'CPO-MSB-L3', '2026-03-02'::date) $$,
+  '42501', 'this deal''s contract value was not set by anyone senior to you, so you cannot win it: it must be confirmed by your supervisor or by someone who outranks you, through set_project_contract_value (which records who set it) — or ask them to win the deal',
+  'AC-MSB-050 layer 3 ISOLATED: with layers 1+2 disabled, the self-authored win is STILL refused — the transition_project backstop carries its own weight (mutating its conjunct now goes RED)');
+reset role;
+select is(
+  (select status::text from public.projects where id = '01740000-0000-0000-0000-0000000000b1'),
+  'Quotation Submitted',
+  'AC-MSB-051 …the exploit deal did NOT move to Won — layer 3 alone holds the self-authored win (the goal-oracle)');
 
 select * from finish();
 rollback;
