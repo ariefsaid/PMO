@@ -111,15 +111,16 @@
 --
 -- ── REVERSIBILITY (ADR-0006) ────────────────────────────────────────────────────────────────────
 -- ⚑ NOT `supabase db reset` — v0.8.0 is in production. The manual reverse (⚑ RESTORES A STATE IN
--- WHICH AN OFFBOARDED ACCOUNT CAN CREATE VENDOR INVOICES AND PAYMENTS): re-apply each function's
--- previous body — 0100 (create_payment), 0176 §5 (create_procurement_invoice), 0005/0022
--- (create_procurement_quotation/_receipt, create_purchase_order/_request, create_rfq,
--- transition_procurement, select_procurement_quote), 0005 (clone_budget_version), 0168
--- (save_timesheet_week), 0017/0025 (transition_document_status), 0161 (transition_timesheet),
--- 0129/0130 (admin_change_domain_ownership, create_vault_secret_for_org) — then
---   drop function if exists public.assert_is_active_member(uuid);
---   drop function if exists public.is_active_member(uuid);
--- and drop the three policy comments in §3.
+-- WHICH AN OFFBOARDED ACCOUNT CAN CREATE VENDOR INVOICES AND PAYMENTS):
+--   For each of the fifteen functions in §2, re-apply its definition from this file with its single
+--   inserted `perform public.assert_is_active_member(...)` line (and its comment) removed, then
+--     drop function if exists public.assert_is_active_member(uuid);
+--     drop function if exists public.is_active_member(uuid);
+--   and drop the three policy comments in §3.
+--   ⚑ The numbered-list form was removed because it cannot be maintained: tracking migration numbers
+--   across edits produces stale references. Following a stale header would revert SoD rules and
+--   validations that have since been tightened (0178's payment origination gate, 0172's timesheet
+--   entry_date bound, 0164's unknown-witness stamping, 0153's fiscal_year clone).
 
 -- ════════════════════════════════════════════════════════════════════════════════════════════════
 -- §1 — THE RESOLVED-ACTOR FORM OF THE GATE.
