@@ -31,7 +31,10 @@
 --   • `admin_set_user_status` is SECURITY DEFINER (runs as its owner): column grants do not bind a
 --     definer at all, so offboarding is unaffected — asserted by 0175.
 --   • The only edge-function profile write is an INSERT by `serviceClient` (service_role) in
---     admin-invite-user — service_role bypasses every grant, and this file touches UPDATE only.
+--     admin-invite-user — service_role is BYPASSRLS (not privilege-exempt), and it works here because
+--     0080 grants it `all on all tables in schema public` and this file does not name it as a revokee;
+--     this file touches UPDATE only. (Saying it "bypasses every grant" would be FALSE and would license
+--     a future `revoke ... from authenticated, anon, service_role` believing it harmless.)
 --   • profiles_update_self's legitimate self-edits (full_name, email, avatar_url, title, location,
 --     skills, …) are all in the allow-list; the policy still pins org_id/role/manager_id via WITH
 --     CHECK, so the column grant widens nothing — it is the SECOND layer (RLS remains the first).
@@ -44,10 +47,14 @@
 --   file (it restores a VULNERABLE state — every column client-writable again):
 --     revoke update (full_name, email, avatar_url, title, location, skills, utilization,
 --                    company_id, role, manager_id, updated_at) on public.profiles from authenticated;
---     grant update on public.profiles to authenticated, anon;
---   i.e. drop the column list this file granted and restore 0075's table-wide grant. ⚑ Do NOT
---   reverse by naming a migration number: 0075's grant is the one being modified here, and a later
---   migration may touch profiles grants again — edit the current file's text, as above.
+--     grant update on public.profiles to authenticated;
+--   i.e. drop the column list this file granted and restore 0075's table-wide grant to `authenticated`.
+--   ⚑ `anon` is deliberately NOT re-granted here: it never held UPDATE on profiles (0105 revoked anon
+--   write DML on every public base table — see line ~38 above), so the original restore list's `, anon`
+--   was wrong. (This file's own revoke still names `anon` for defence-in-depth — that is a no-op today
+--   and correctly so; the reverse direction restores only what `authenticated` lost.)
+--   ⚑ Do NOT reverse by naming a migration number: 0075's grant is the one being modified here, and a
+--   later migration may touch profiles grants again — edit the current file's text, as above.
 
 -- ════════════════════════════════════════════════════════════════════════════════════════════════
 -- Revoke the table-wide UPDATE (the source of the hole), then re-grant the explicit allow-list.

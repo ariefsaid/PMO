@@ -12,8 +12,12 @@
 --     longer auto-grants any of the three to anon/authenticated, so a brand-new table cannot inherit
 --     them. This is the root-cause guard (without it the next migration's table would re-open H4).
 -- The spot checks (AC-GRANT-001..006) name security-critical tables explicitly for grep-ability, and
--- AC-GRANT-009 is a positive control proving the revoke was SURGICAL (authenticated keeps the
--- RLS-gated DML the app genuinely uses — only the three indefensible privileges went).
+-- AC-GRANT-009 is a positive control proving the revoke was SURGICAL: authenticated keeps the DML the
+-- app genuinely uses. ⚑ AMENDED BY 0182 — UPDATE on profiles is now an explicit column allow-list (not
+-- table-wide), so AC-GRANT-009 asserts SELECT/INSERT/DELETE table-wide PLUS UPDATE on the role /
+-- manager_id columns the app writes. The matching NEGATIVE controls (status/org_id/id/created_at
+-- withheld) are owned by AC-PSA-030..033 in 0175 — and those (not this assertion) detect a table-wide
+-- re-grant. (The strength of this amendment is corrected in the block below — it is WEAKER, not stronger.)
 --
 -- SCOPE NOTE: Tier 2 (revoking anon write DML) is now DONE in migration 0105_revoke_anon_write_dml.sql
 -- (Director-approved) and asserted below as AC-GRANT-010..013. 0109_agent_dispatch_watermarks
@@ -92,9 +96,11 @@ select is(
   'AC-GRANT-008 postgres public table DEFAULT PRIVILEGES grant NO truncate/references/trigger to anon or authenticated (migration-table root cause closed)');
 
 -- ════════════════════════════════════════════════════════════════════════════════════════════════
--- Positive control — the revoke was SURGICAL: authenticated still has the full RLS-gated DML on
--- profiles (select/insert/update/delete). Proves 0104 only stripped the three indefensible
--- privileges, not the DML the app genuinely uses.
+-- Positive control — the revoke was SURGICAL: authenticated keeps the DML the app genuinely uses on
+-- profiles. ⚑ AMENDED BY 0182: UPDATE is no longer table-wide (it is an 11-column allow-list), so
+-- SELECT/INSERT/DELETE are asserted table-wide and UPDATE is asserted on the two columns the app
+-- writes (role, manager_id). The withheld columns (status, org_id, id, created_at) are the NEGATIVE
+-- controls owned by AC-PSA-030..033 in 0175 — those, not this assertion, detect a table-wide re-grant.
 -- ════════════════════════════════════════════════════════════════════════════════════════════════
 -- ⚑ AMENDED BY 0182 (owner ruling 2026-07-30), and this is a MECHANISM change, not a weakening.
 -- The GOAL of this positive control is unchanged: prove 0104/0105 were SURGICAL — `authenticated`
@@ -103,9 +109,15 @@ select is(
 -- so `profiles.status` and `org_id` are writable ONLY through `admin_set_user_status` (see 0175).
 -- `has_table_privilege(...,'UPDATE')` is FALSE once only column grants remain, so asserting it would
 -- now be asserting the defect 0182 removed. The goal is therefore re-expressed against the columns the
--- app actually writes — `role` (src/lib/db/adminUsers.ts:51) and `manager_id` (:61) — which is a
--- STRICTLY STRONGER statement of "surgical" than the table-wide flag was: it names the writes that
--- must survive instead of accepting any UPDATE at all. 0175 owns the matching negative controls.
+-- app actually writes — `role` (src/lib/db/adminUsers.ts:51) and `manager_id` (:61). ⚑ CORRECTION:
+-- this amendment is logically WEAKER than the table-wide flag it replaced, not stronger.
+-- `has_column_privilege(col, UPDATE)` returns TRUE under a TABLE-LEVEL grant too, so the old
+-- table-wide assertion implies this one (old ⟹ new) but NOT vice versa: a re-grant of table-wide
+-- UPDATE would leave AC-GRANT-009 GREEN (role/manager_id columns still TRUE) while re-opening
+-- status/org_id/id/created_at to the client. The assertion that DETECTS a table-wide re-grant is
+-- AC-PSA-030 in 0175 (`has_column_privilege(...,'status','UPDATE') is FALSE` — a table-wide grant
+-- flips it to TRUE and fails there). The mechanism change here is legitimate (the app's real writes
+-- are column-scoped); the "STRICTLY STRONGER" claim was not, and AC-PSA-030 is the backstop.
 select is(
   (has_table_privilege('authenticated', 'public.profiles', 'SELECT')
    and has_table_privilege('authenticated', 'public.profiles', 'INSERT')
