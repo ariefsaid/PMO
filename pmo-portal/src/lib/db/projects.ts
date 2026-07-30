@@ -25,7 +25,20 @@ export type ProjectWithRefs = ProjectRow & {
   pm: { full_name: string } | null;
 };
 
-const SELECT = '*, client:companies(name), pm:profiles(full_name)';
+// ⚑ The `profiles` embed MUST name its constraint. `projects` has had TWO foreign keys to
+// `profiles` since 0177 added `contract_value_set_by` (the money-SoD witness) alongside
+// `project_manager_id`, and PostgREST refuses an ambiguous embed rather than guessing — so the
+// unqualified `pm:profiles(full_name)` this used to be turned EVERY projects query into an error.
+// Not a slow page: "Couldn't load projects". 19 e2e specs went red across projects, tasks,
+// timesheets, documents, kanban and the pipeline, because they all list projects somewhere.
+//
+// ADDING A FOREIGN KEY IS A BREAKING CHANGE TO EVERY UNQUALIFIED EMBED OF ITS TARGET. Nothing
+// below e2e can catch it: unit tests mock the Supabase client so the embed string is never
+// resolved against a real schema, and pgTAP tests SQL rather than PostgREST. `companies` is
+// still safe to leave unqualified — `projects` has exactly one FK to it — and the guard in
+// supabase/tests asserts that stays true.
+const SELECT =
+  '*, client:companies(name), pm:profiles!projects_project_manager_id_fkey(full_name)';
 
 /** Shape of a PostgREST/Postgres error we surface (only the fields we read). */
 interface PostgrestErrorLike {
@@ -43,7 +56,17 @@ function throwWrite(error: PostgrestErrorLike): never {
  * crud-components §9.1): a sales `Leads` opportunity or an `Internal Project`. An
  * on-hand/won project is reached ONLY via the `transition_project` win path — never
  * created directly — so the state-machine seam stays intact. Used by the create form
- * options and guarded again here (defence in depth) before any insert.
+ * options and re-checked in `createProject` before any insert.
+ *
+ * WHERE THE RULE IS ENFORCED (migration 0173, docs/specs/project-create-sod.spec.md): in the
+ * DATABASE — a BEFORE INSERT trigger on `public.projects` rejects a non-origination status, and
+ * `authenticated` holds no INSERT privilege on `decided_at`/`customer_contract_ref`/
+ * `contract_date`. That is the authority. Until 0173 this docstring claimed the TypeScript check
+ * below was "defence in depth"; it was not — the DB had no guard at all, so a check running in the
+ * browser in front of a public PostgREST endpoint was the ONLY defence, and one `curl` bypassed it
+ * (a PM could create a project already won, at any contract value, with a forged decision date, and
+ * no audit row). The check below is now what it always should have been: a UX fast-path that fails
+ * before the round trip and with a better sentence than the backend's, never the enforcement layer.
  */
 export const PROJECT_ORIGINATION_STATUSES: readonly ProjectStatus[] = [
   'Leads',
@@ -114,10 +137,12 @@ export async function listProjects(
  * Create a new opportunity (AC-PRJ-003). org_id is NEVER sent — the column default +
  * the `projects_write` WITH CHECK (org_id = auth_org_id() AND role in the 4 write-roles)
  * are the authority. The origination status is constrained to Leads / Internal Project
- * (an on-hand/won project is reached only via `transition_project`); a non-origination
- * status is rejected here BEFORE any insert (defence in depth — the state machine, not a
- * direct create, owns the win). Returns the new row. Throws an `AppError` (code preserved,
- * e.g. `42501` when a non-write-role is denied) on failure.
+ * (an on-hand/won project is reached only via `transition_project`); the check below is a
+ * UX fast-path that fails before the round trip with a better sentence than the backend's —
+ * the ENFORCEMENT is migration 0173's BEFORE INSERT trigger + the narrowed column-level
+ * INSERT grant, which also stop the same request made outside this function. See the
+ * PROJECT_ORIGINATION_STATUSES docstring. Returns the new row. Throws an `AppError` (code
+ * preserved, e.g. `42501` when a non-write-role is denied) on failure.
  */
 export async function createProject(input: CreateProjectInput): Promise<ProjectRow> {
   if (!PROJECT_ORIGINATION_STATUSES.includes(input.status)) {

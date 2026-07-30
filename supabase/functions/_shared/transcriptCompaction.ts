@@ -32,13 +32,20 @@ export interface CompactionOptions {
 }
 
 /**
- * Defaults tuned for the deepseek-v4-flash agent (~4 chars/token): trigger ~6k tokens of transcript,
- * keep the last ~3 turns (6 messages) intact, compact any older tool body over ~200 tokens. Deploy-
+ * Defaults tuned for the deepseek-v4-flash agent (~4 chars/token): trigger ~20k tokens of transcript,
+ * keep the last ~6 turns (12 messages) intact, compact any older tool body over ~200 tokens. Deploy-
  * tunable via AGENT_COMPACTION_* (compactionOptionsFromEnv).
+ *
+ * FR-RQL-003: `triggerChars` was raised 24k→80k and `recentMessages` 6→12 after a prod regression
+ * (agent-requery-loop): a single cross-entity analytical turn (projects+milestones+tasks ≈ 8 reads,
+ * ~50k chars) tripped the old 24k trigger MID-TURN, compacting the very rows the model still needed to
+ * synthesize its answer. It then re-queried the compacted data, burned MAX_TOOL_ROUNDS, and hit the
+ * step limit with NO answer. 80k (~20k tokens, well within deepseek's context) keeps a normal analytical
+ * turn intact; compaction still guards genuinely long multi-turn conversations.
  */
 export const DEFAULT_COMPACTION: CompactionOptions = {
-  triggerChars: 24_000,
-  recentMessages: 6,
+  triggerChars: 80_000,
+  recentMessages: 12,
   maxToolResultChars: 800,
 };
 
@@ -52,11 +59,35 @@ export function estimateTranscriptChars(messages: ModelMessage[]): number {
   return total;
 }
 
-/** The valid-JSON marker that replaces an old tool result's body. */
-function compactedMarker(originalChars: number): string {
+/**
+ * Best-effort rowCount from a query_entity tool-result body, so the compaction marker can retain
+ * provenance (FR-RQL-002) without the model needing to re-query. Non-JSON / non-object → undefined.
+ */
+function toolRowCount(content: string): number | undefined {
+  try {
+    const p = JSON.parse(content) as { rowCount?: unknown; rows?: unknown };
+    if (p && typeof p === 'object') {
+      if (typeof p.rowCount === 'number') return p.rowCount;
+      if (Array.isArray(p.rows)) return p.rows.length;
+    }
+  } catch {
+    /* not JSON — no rowCount to retain */
+  }
+  return undefined;
+}
+
+/**
+ * The valid-JSON marker that replaces an old tool result's body.
+ * FR-RQL-001/002: the note must NOT invite the model to re-run the tool (that instruction drove a
+ * step-limit re-query loop on the weak deepseek model); instead it states the data was already
+ * retrieved and carries the tool name + rowCount so the model references it rather than re-fetching.
+ */
+function compactedMarker(originalChars: number, toolName?: string, rowCount?: number): string {
   return JSON.stringify({
     _compacted: true,
-    note: 'Older tool result omitted to save context. Re-run the tool if you still need this data.',
+    note: 'This result was already retrieved earlier in this conversation and used. Do NOT call the tool again for it — answer from the transcript above.',
+    ...(toolName ? { tool: toolName } : {}),
+    ...(typeof rowCount === 'number' ? { rowCount } : {}),
     chars_omitted: originalChars,
   });
 }
@@ -82,7 +113,7 @@ export function compactTranscript(
     if (m.role !== 'tool') return m; // only compact tool results (the heavy raw rows)
     if (!m.content || m.content.length <= opts.maxToolResultChars) return m;
     changed = true;
-    return { ...m, content: compactedMarker(m.content.length) };
+    return { ...m, content: compactedMarker(m.content.length, m.name, toolRowCount(m.content)) };
   });
   return changed ? out : messages;
 }

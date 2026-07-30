@@ -71,7 +71,6 @@ already defined with one (`empty_state_seen`).
 | `search_used` | Discovery behavior | `SearchMini` (`src/components/ui/DataTable.tsx`), debounced 500ms/Enter | `search_surface`, `result_count`, `module` |
 | `coming_soon_clicked` | Demand signal | `VendorQuotesTab` (Attach file) + `ExecutiveDashboard` (Board pack) | `feature_id`, `module` |
 | `form_validation_failed` | UX friction | `useEntityForm.handleSubmit` (validation-fail branch) | `form_id`, `field_count`, `reason_code`, `module` |
-| `save_failed` | Reliability / UX friction | `useEntityForm.handleSubmit` (catch, when `onValid` rejects) — **wired but INERT, see note below** | `entity_type`, `operation`, `reason_code`, `module` |
 | `empty_state_seen` | Adoption / data gaps | `ListState` (`variant="empty"`, on mount) — instrumented on Companies, Projects, Procurement, Incidents, Contacts (the primary directory/list index pages; not every `ListState` empty render — see note) | `state_id`, `role`, `module` |
 
 **`empty_state_seen` coverage note (FIX 1, 2026-07-13):** the shared boundary lives in `ListState.tsx`
@@ -82,21 +81,53 @@ variant="empty"` render in the app: DataTable's own internal "no results match y
 render, and secondary list pages (SalesPipeline, MyTasks, Timesheets/ApprovalsQueue, AdminUsers, etc.)
 are still dark. Each is the same 3-line addition (`stateId`/`role={realRole}`/`module`) as a fast-follow.
 
-**`save_failed` is currently INERT — it does not fire in production today.** Two independent gaps, both
-required to close before it's real: (1) `useEntityForm.handleSubmit`'s catch only fires when the caller
-supplied BOTH `module` AND `entityType` — every existing form was threaded with `module` (for
-`form_validation_failed`) but **no call site passes `entityType`**, so the `if (module && entityType)`
-guard is never true. (2) even with `entityType` threaded, ~10 existing CRUD forms catch their own
-mutation error internally (`try { await onCreate(...) } catch (err) { onError(err) }`) before it would
-ever reach `useEntityForm`'s catch — the rejection never propagates that far. Fast-follow (deferred,
-NOT done in this slice): thread `entityType` into each `useEntityForm` call site, AND migrate each
-form's `onValid` to drop its own `try/catch` so the error actually propagates into the hook.
+### Friction (central) — ADR-0067
 
-### Defined (not yet wired to a UI call site)
+| Event | Purpose | Boundary | Safe properties |
+|---|---|---|---|
+| `save_failed` | Reliability / UX friction, ONE per user-visible mutation error | `classifyMutationError` (`pmo-portal/src/lib/classifyMutationError.ts`) — the single point where "a classified mutation error was shown to the user" is reliably knowable | `failure_class` (the classification slug — `illegal_transition`, `permission_denied`, `duplicate`, `in_use`, `timeout`, `override`, or `unclassified`; renamed from `entity_type` 2026-07-27 — the property never carried an entity type), `operation`, `reason_code` (the Postgres/PostgREST code, e.g. `42501` — **bounded**, see note below), `module` |
+| `bulk_import_failed` | Reliability / UX friction for a BULK COMMIT RUN (an import wizard or procurement-cycle commit), aggregated PER CLASSIFICATION | `trackBatchSaveFailed` (`classifyMutationError.ts`), called once after a per-row/per-record loop | `module`, `failure_class`, `failed_count` (how many rows/records in THIS run landed in this classification bucket) |
 
-| Event | Purpose | Required safe properties |
-|---|---|---|
-| `permission_denied_seen` | Authz / product friction — **deferred, no UI boundary defined yet** | `surface`, `role`, `module` |
+⚑ **`module`/`operation` are constants (`unknown`/`classify`), not yet real dimensions.** No
+current call site threads a real `module`/`operation` into `classifyMutationError`'s context —
+every `save_failed`/`bulk_import_failed` event today carries `module: 'unknown'` (or the bulk
+caller's own module id) and `operation: 'classify'` until callers are threaded to pass real
+values. **Do not break down a PostHog explorer view by `module` or `operation` yet** — you will
+see ~100% `unknown`/`classify` and it is easy to misread that as "nobody uses any other module",
+which is a fact about instrumentation coverage, not product usage.
+
+**`reason_code` is bounded, not passed through (SECURITY finding, 2026-07-27).** `.code` is typed
+`string | undefined` and at least one real path (`src/lib/db/adminUsers.ts:103`) reads it straight
+from an external/edge-fn response body, which can carry arbitrary text. `boundReasonCode` (in
+`classifyMutationError.ts`) only lets a reviewed allowlist of known codes, or a shape structurally
+too short to hold free text (a genuine Postgres SQLSTATE, an HTTP status, a PostgREST error code),
+through verbatim; anything else — including a raw external error message — collapses to the
+literal string `'other'`. A new custom application error code must be added to
+`KNOWN_REASON_CODES` explicitly; it does not flow through by default.
+
+**`save_failed` was previously wired at `useEntityForm.handleSubmit` and was INERT there for two years**:
+no caller ever passed `entityType`, and every form's `onValid` swallows its own error without
+rethrowing, so the hook's catch never ran. The obvious fix (thread the missing prop) would still have
+produced zero events, since the rejection never reaches the hook. Moved instead (2026-07-25, ADR-0067)
+to `classifyMutationError`, which has 40+ call sites versus 17 entity forms, already extracts the error
+`.code`, and is by construction "the errors the user was actually shown" — the friction signal itself.
+The old `useEntityForm` producer was deleted; there is exactly one producer of `save_failed` now.
+
+**`bulk_import_failed` is a DISTINCT event from `save_failed`, not a `failed_count` bolted onto it
+(code-quality review, 2026-07-27).** `save_failed`'s "Save failures by reason" tile counts EVENTS —
+a lump `failed_count` under `save_failed` would make a 5,000-row import failure contribute exactly
+1 to whichever bucket it landed in, indistinguishable from a single real failure, and would discard
+the per-row reason distribution entirely (you could no longer tell whether a wholesale import
+failure was RLS-denied vs duplicate-keyed). `bulk_import_failed` fires ONE event PER NON-ZERO
+CLASSIFICATION BUCKET per commit run instead — at most 7 events (the friction classification has 7
+values), which stays quota-safe *and* keeps the reason distribution answerable. Loop call sites
+(`useImportWizard.commit`, `procurementCycle/commit.ts`'s `commitGroups`) suppress their own
+per-row `save_failed` capture (`{ suppressCapture: true }`) and tally the classification instead.
+
+**`permission_denied_seen` was removed (2026-07-25, ADR-0067)** — it had zero call sites (never wired to
+a UI boundary) yet had a provisioned dashboard tile, which renders a permanently-empty chart that reads
+as a product fact ("nobody hits this") rather than the broken measurement it actually was. Its signal is
+answerable from the `save_failed` breakdown filtered to `reason_code = 42501`.
 
 Allowed values: enums, route patterns, role names, module ids, safe slugs, bounded counts/durations,
 status/reason codes, booleans.
@@ -104,6 +135,83 @@ status/reason codes, booleans.
 Forbidden values: raw user-entered strings, raw UUID paths, raw query strings, raw DB rows, names,
 emails, phone numbers, addresses, company/project/procurement names, monetary values, notes, comments,
 file names, file contents, request/response bodies, and auth tokens.
+
+### ⚑ PostHog's built-in path/URL views are empty by design (2026-07-27 SECURITY finding)
+
+posthog-js attaches `$current_url`, `$pathname`, `$initial_current_url`, `$session_entry_url`, and
+`$session_entry_pathname` to **every** captured event automatically, straight from
+`window.location` — independent of whatever properties the app passes. Every one of these carries
+the **raw, unparameterized** path (e.g. `/projects/550e8400-e29b-41d4-a716-446655440000`, not
+`/projects/:projectId`), which is a raw record UUID and forbidden by this doc's own rule above.
+All five are denylisted (`FORBIDDEN_PROPERTY_KEYS` in `src/lib/analytics/events.ts`, verified
+against the real, unmocked SDK in `client.currentUrlLeak.realSdk.test.ts` — not a config-only
+assertion, which is exactly the class of check that missed the earlier `capture_dead_clicks` leak).
+
+**This is a deliberate, real trade-off, not just an implementation detail:** PostHog's built-in
+**Web Analytics** dashboard and the **Paths**/**$pageview**-style explorer views are populated
+FROM these exact properties. With them stripped, those built-in views will read **empty** for
+this project — permanently, by design. Route-level navigation signal is still fully available via
+our own `app_route_viewed` event's `route` property (the parameterized pattern,
+`routeAnalyticsForPath`), and that is the intended replacement — it is just not the same UI
+surface as PostHog's out-of-the-box Web Analytics tab.
+
+## Demo funnel (FR-PHG-020/021)
+
+The prospect-demo funnel — land → persona selected → login → first module opened → last module before
+exit — is answerable end-to-end from existing events, provisioned as `[PMO] Demo · Prospect Funnel`
+(`scripts/posthog/provision-dashboards.mjs`): a `demo_persona_selected → auth_login_succeeded →
+app_route_viewed` funnel, plus breakdowns of `demo_persona_selected` (by `persona_role`),
+`app_route_viewed` (by `route`), and `coming_soon_clicked` (by `feature_id`) — the latter two already
+fired with **no tile** before this slice, i.e. free signal that was being collected and never looked at.
+
+**"Last module before exit" is deliberately not a dashboard tile** — PostHog trends cannot express
+"session-final event" without a HogQL insight, and a wrong tile is worse than none. Run it directly via
+`scripts/posthog/query.mjs`:
+
+```sql
+-- Last module a demo session viewed before exiting (FR-PHG-020)
+SELECT argMax(properties.route, timestamp) AS last_route, count() AS sessions
+FROM events
+WHERE event = 'app_route_viewed' AND properties.demo_audience = 'prospect'
+  AND timestamp > now() - INTERVAL 30 DAY
+GROUP BY $session_id
+```
+
+## Quota safety (FR-PHG-030/031)
+
+Exceeding a PostHog free allowance is **destructive, not billed** — ingestion stops and the excess data
+is lost forever, which would flatten every chart and look indistinguishable from "nobody used the
+product". `scripts/posthog/check-quota.mjs` alarms (non-zero exit) when any resource passes 80% of its
+free allowance, reading `GET /api/projects/:project_id/quota_limits/`:
+
+```bash
+POSTHOG_API_KEY=$(op-get.sh posthog-personal-api AS credential) \
+POSTHOG_PROJECT_ID=465502 \
+node scripts/posthog/check-quota.mjs
+```
+
+A malformed response (a renamed field, a schema change, an error-shaped 200) hard-fails
+(`exitCode 2`, "unrecognised quota payload") rather than being read as zero rows / all-clear — a
+quota alarm that fails open is worse than no alarm. `POSTHOG_HOST`/`POSTHOG_PROJECT_ID` are
+validated (https-only host, numeric-only project id) before the API key is sent anywhere.
+
+**Scheduled run:** `.github/workflows/posthog-quota.yml` (daily + manual dispatch — never a
+per-PR gate). ⚑ **Requires two GitHub repo secrets not yet configured (owner action):**
+`POSTHOG_API_KEY` (personal, `project:read`) and `POSTHOG_PROJECT_ID`. Until both are set, the
+scheduled run fails loudly (the exact "don't fail open" posture above) rather than silently
+reporting nothing was checked.
+
+Error-tracking rate limits and suppression rules (bounding exception ingestion below the 100k/month
+free allowance) are an **owner settings action in PostHog project settings, not code** (FR-PHG-032) —
+not covered by this script.
+
+## Consent posture (ADR-0067)
+
+Analytics ships on a **disclosure + opt-out** posture, not a blocking consent banner: `respect_dnt:
+true` is passed to `posthog.init` (a user's OS/browser Do Not Track signal suppresses capture
+entirely), the collection is disclosed on `/privacy`, and an in-app opt-out toggle there calls
+`analyticsOptOut()` / `analyticsOptIn()` (`src/lib/analytics/index.ts`), persisted client-side under the
+`pmo.analyticsOptOut` `localStorage` key and checked on every capture via `hasAnalyticsOptedOut()`.
 
 ## Session Replay Privacy
 
@@ -158,11 +266,12 @@ npm run typecheck
 ## Dashboards
 
 Dashboards shipped in #303 (`scripts/posthog/provision-dashboards.mjs`) — dashboards-as-code, idempotent
-(upserted by name), grounded in the typed event catalog above. It provisions three PostHog dashboards
-(`[PMO] Agent · Adoption & Reliability`, `[PMO] Auth · Login Health`, `[PMO] Product · Usage & Friction`)
-covering the funnels/friction breakdowns this doc previously listed as deferred, and force-refreshes every
-provisioned insight (`?refresh=blocking`) after upsert so a freshly-provisioned dashboard never renders
-blank. Run it via `op-get.sh` (never hard-code the personal API key):
+(upserted by name), grounded in the typed event catalog above. It provisions four PostHog dashboards
+(`[PMO] Agent · Adoption & Reliability`, `[PMO] Auth · Login Health`, `[PMO] Product · Usage & Friction`,
+`[PMO] Demo · Prospect Funnel`) covering the funnels/friction breakdowns this doc previously listed as
+deferred, and force-refreshes every provisioned insight (`?refresh=blocking`) after upsert so a
+freshly-provisioned dashboard never renders blank. Run it via `op-get.sh` (never hard-code the personal
+API key):
 
 ```bash
 POSTHOG_API_KEY=$(op-get.sh posthog-personal-api AS credential) \
@@ -172,5 +281,9 @@ node scripts/posthog/provision-dashboards.mjs
 
 For ad-hoc HogQL analysis outside the provisioned dashboards, use `scripts/posthog/query.mjs` (same auth:
 1Password `posthog-personal-api`, project 465502).
+
+`scripts/check-dashboard-tiles.mjs` (wired into `npm run verify`, FR-PHG-013) fails the build if any
+provisioned tile depends on an event with no real call site (see `src/lib/analytics/eventCallSites.ts`)
+— the CI gate that generalises the two friction-event fixes above (ADR-0067).
 
 Do not add PostHog management API tokens or paid Group Analytics beyond what's already provisioned.

@@ -7,6 +7,14 @@
 --
 -- Proves: user-JWT UPDATE of author_user_id on a flipped org → 42501; service_role UPDATE succeeds.
 -- Namespaced UUIDs (1103-prefix, valid hex), begin/rollback, finish().
+--
+-- ⚑ ORACLE STRENGTHENED (0176, slice 4 of the create-path SoD class). Assertion (1) asserted the
+-- errcode ALONE and named the mirror guard as the blocker. The mirror guard only ever fired WHILE
+-- FLIPPED — and `external_domain_ownership` is empty for every org today, so on a normal org an
+-- authenticated user could re-point author_user_id freely, and could also SET it at INSERT. 0176
+-- revokes the client UPDATE on sales_invoices entirely and withholds author_user_id from the INSERT
+-- re-grant, so the column is unwritable by any client, flipped or not. The message is asserted here
+-- so this cannot silently become a test of some other gate.
 
 begin;
 select plan(3);
@@ -46,8 +54,9 @@ set local request.jwt.claims = '{"sub":"11030000-0000-0000-0000-0000000000a1","r
 
 select throws_ok(
   $$ update sales_invoices set author_user_id = '11030000-0000-0000-0000-0000000000a2' where id = '11030000-0000-0000-0000-0000000000e1' $$,
-  '42501', null,
-  'Luna BLOCK 3: user-JWT UPDATE of author_user_id denied on a flipped org (pinned by the native mirror guard)');
+  '42501',
+  'permission denied for table sales_invoices',
+  'Luna BLOCK 3: user-JWT UPDATE of author_user_id denied — no client UPDATE grant exists at all (0176), flipped or not');
 
 -- author_user_id unchanged after the denied update
 select is(

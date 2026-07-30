@@ -28,18 +28,26 @@ insert into profiles (id, org_id, full_name, email, role) values
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"01020000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 
+-- ⚑ None of the three inserts below names `status` any more (0174/FR-CPS-011 withholds INSERT on it
+--    from `authenticated`, so naming it would raise 42501 at the PRIVILEGE check and proof 1 would
+--    pass for the wrong reason — the trap this suite has hit twice). The column default is 'Draft';
+--    the status was always incidental here, the requester is what is under test. Proof 1's message is
+--    now asserted verbatim for the same reason: a bare '42501' cannot tell an RLS denial from a
+--    permission denial.
+--
 -- 1. Mass-assignment attempt: insert a PR claiming the VICTIM as requester => must be REJECTED (42501).
 --    Pre-fix (bypass) this insert SUCCEEDS; the restrictive procurements_insert_self_requester blocks it.
 select throws_ok(
-  $$ insert into procurements (org_id, title, status, requested_by_id)
-     values ('01020000-0000-0000-0000-000000000001','Impersonated PR','Requested',
+  $$ insert into procurements (org_id, title, requested_by_id)
+     values ('01020000-0000-0000-0000-000000000001','Impersonated PR',
              '01020000-0000-0000-0000-0000000000a2') $$,
-  '42501', null,
-  'RED-3: non-admin cannot insert a procurement with requested_by_id != self (42501)');
+  '42501',
+  'new row violates row-level security policy "procurements_insert_self_requester" for table "procurements"',
+  'RED-3: non-admin cannot insert a procurement with requested_by_id != self (RLS, not a grant)');
 
 -- 2. Omitting requested_by_id => the column DEFAULT auth.uid() self-stamps the attacker as requester.
-insert into procurements (id, org_id, title, status)
-  values ('01020000-0000-0000-0000-000000000010','01020000-0000-0000-0000-000000000001','My Own PR','Requested');
+insert into procurements (id, org_id, title)
+  values ('01020000-0000-0000-0000-000000000010','01020000-0000-0000-0000-000000000001','My Own PR');
 select is(
   (select requested_by_id from procurements where id = '01020000-0000-0000-0000-000000000010'),
   '01020000-0000-0000-0000-0000000000a1'::uuid,
@@ -47,8 +55,8 @@ select is(
 
 -- 3. Supplying requested_by_id = self is explicitly allowed (no false positive on the legit path).
 select lives_ok(
-  $$ insert into procurements (id, org_id, title, status, requested_by_id)
-     values ('01020000-0000-0000-0000-000000000011','01020000-0000-0000-0000-000000000001','Explicit-self PR','Requested',
+  $$ insert into procurements (id, org_id, title, requested_by_id)
+     values ('01020000-0000-0000-0000-000000000011','01020000-0000-0000-0000-000000000001','Explicit-self PR',
              '01020000-0000-0000-0000-0000000000a1') $$,
   'RED-3: supplying requested_by_id = self is allowed (legit path preserved)');
 

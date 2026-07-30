@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import test from 'node:test';
 
 const workflow = readFileSync(new URL('../.github/workflows/ci.yml', import.meta.url), 'utf8');
@@ -47,6 +47,42 @@ test('CI and the local promotion gate reject retry-masked flaky Playwright cases
     script.match(/--fail-on-flaky-tests/g)?.length,
     3,
     'parallel, serial, and served local Playwright lanes must all reject flakes',
+  );
+});
+
+test('pull_request has NO paths-ignore — required checks must always be able to report', () => {
+  // `main` requires `verify` + `integration`, and required contexts are not path-aware. A
+  // paths-ignore on pull_request means a docs-only PR never starts the workflow, the contexts never
+  // report, and the PR is unmergeable forever. Found 2026-07-25 shipping v0.8.0.
+  // ⚑ Bound-check BEFORE slicing. `indexOf('jobs:')` takes the FIRST occurrence anywhere in the
+  // file, so a prose comment containing "jobs:" above the trigger block inverts the bounds and
+  // `slice(start > end)` yields '' — on which doesNotMatch passes vacuously. Demonstrated green
+  // against a live `paths-ignore` regression during the 2026-07-28 ownership review.
+  const prIdx = workflow.indexOf('\n  pull_request:');
+  const jobsIdx = workflow.indexOf('\njobs:');
+  assert.ok(prIdx !== -1, 'pull_request trigger not found — this gate would have scanned nothing');
+  assert.ok(jobsIdx > prIdx, 'jobs: precedes pull_request — slice bounds inverted, gate is vacuous');
+  const pr = workflow.slice(prIdx, jobsIdx);
+  assert.doesNotMatch(
+    pr,
+    /paths-ignore:/,
+    'pull_request must not path-ignore: required checks would never report and the PR could never merge',
+  );
+  // And the inverse-filter "stub workflow" fix must not come back either — two workflows publishing
+  // the same check names both fire on a MIXED (docs + code) PR, letting a stub mask a real failure.
+  // ⚑ Assert the INVARIANT (exactly one workflow owns these job names), not the name of the one
+  // file we happened to delete. The previous form grepped ci.yml for 'ci-path-ignored' — a string
+  // that lives in a SEPARATE file, so it could never fire; re-creating the stub left it green.
+  const workflowDir = new URL('../.github/workflows/', import.meta.url);
+  const workflowFiles = readdirSync(workflowDir).filter((f) => /\.ya?ml$/.test(f));
+  assert.ok(workflowFiles.length > 0, 'no workflow files found — this gate would have scanned nothing');
+  const owners = workflowFiles.filter((f) =>
+    /^ {2}(verify|integration):/m.test(readFileSync(new URL(f, workflowDir), 'utf8')),
+  );
+  assert.deepEqual(
+    owners,
+    ['ci.yml'],
+    `only ci.yml may publish the required 'verify'/'integration' checks; found: ${owners.join(', ')}`,
   );
 });
 

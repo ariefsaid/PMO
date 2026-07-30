@@ -51,9 +51,12 @@ insert into external_domain_ownership (org_id, external_tier, domain) values
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"00990000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 
+-- ⚑ GATE MOVED (migration 0175): `authenticated` holds no update grant on procurement_invoices at
+-- all now, so this is stopped at the privilege check rather than by 0100's native-mirror guard. The
+-- message is asserted so the assertion cannot go green for a third, unrelated 42501.
 select throws_ok(
   $$ update procurement_invoices set status = 'Paid' where id = '00990000-0000-0000-0000-0000000000e1' $$,
-  '42501', null,
+  '42501', 'permission denied for table procurement_invoices',
   'AC-ENA-072 procurement_invoices: user-JWT native-field UPDATE (status) denied while procurement is externally-owned');
 select throws_ok(
   $$ insert into procurement_invoices (org_id, procurement_id, vi_number, invoice_date, status)
@@ -114,7 +117,7 @@ select is((select count(*)::int from payments where id = '00990000-0000-0000-000
 set local request.jwt.claims = '{"sub":"00990000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 select throws_ok(
   $$ update procurement_invoices set amount = 1 where id = '00990000-0000-0000-0000-0000000000e1' $$,
-  '42501', null,
+  '42501', 'permission denied for table procurement_invoices',
   'AC-ENA-072 cross-table: user-JWT write to procurement_invoices.amount (native mirror) denied while flipped');
 select throws_ok(
   $$ update purchase_orders set po_number = 'HACKED' where id = '00990000-0000-0000-0000-0000000000d1' $$,
@@ -139,9 +142,17 @@ select lives_ok(
 
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"00990000-0000-0000-0000-0000000000a1","role":"authenticated"}';
-select lives_ok(
+-- ⚑ CONTRACT NARROWED (migration 0175). This used to assert that a user could write the PMO
+-- enhancement `is_selected` DIRECTLY while flipped. ADR-0055 / FR-ENA-130 Finding 8's intent — the
+-- flip must not take the enhancement away — is unchanged and still proven, at the surviving layer:
+-- select_procurement_quote is postgres-owned, carries no flip guard, and 0098's mirror guard pins only
+-- the ERP-owned columns, so is_selected still moves while flipped
+-- (supabase/tests/0168_update_path_sod_class.test.sql §E). The direct table write had no caller and
+-- skipped the RPC's stage gate, role gate and single-transaction header sync, so it is now denied.
+select throws_ok(
   $$ update procurement_quotations set is_selected = true where id = '00990000-0000-0000-0000-0000000000a2' $$,
-  'AC-ENA-072 cross-table: user write to the PMO enhancement procurement_quotations.is_selected still succeeds while flipped');
+  '42501', 'permission denied for table procurement_quotations',
+  'AC-ENA-072 cross-table: the PMO enhancement procurement_quotations.is_selected is RPC-only (0175) — still reachable while flipped via select_procurement_quote, 0168 §E');
 select lives_ok(
   $$ update companies set archived_at = now() where id = '00990000-0000-0000-0000-0000000000f1' $$,
   'AC-ENA-072 cross-table: user write to the PMO enhancement companies.archived_at still succeeds while flipped');

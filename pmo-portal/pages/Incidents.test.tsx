@@ -157,7 +157,7 @@ describe('Incidents index — rows + badges + filters (AC-IN-001)', () => {
 
   it('AC-IN-001: each severity renders a DISTINCT dot + label (Low/High/Critical differentiated)', () => {
     renderPage();
-    // S1 (ADR-0037): status is a quiet dot + label, no tint slab — severity is
+    // S1 (ADR-0068): status is a quiet dot + label, no tint slab — severity is
     // differentiated by the DOT hue (+ the label), so measure the dot background.
     const dotBg = (label: string, rowType: string) => {
       const row = screen.getByText(rowType).closest('tr')!;

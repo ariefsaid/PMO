@@ -6,13 +6,14 @@
  */
 import { buildHealthResponse } from './health.ts';
 import { DEPLOY_VERSION } from '../_shared/version.ts';
+import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, HEAD',
 };
 
-Deno.serve((req: Request): Response => {
+serveWithErrorReporting('health', (req: Request): Response => {
   if (req.method !== 'GET' && req.method !== 'HEAD') {
     return new Response(JSON.stringify({ error: 'METHOD_NOT_ALLOWED' }), {
       status: 405,

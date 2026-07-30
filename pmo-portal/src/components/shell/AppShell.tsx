@@ -163,6 +163,11 @@ export const AppShell: React.FC<AppShellProps> = ({
 
   return (
     <div
+      // AC-A11Y-MODAL-001: the handle EntityFormModal/`inert`s while a modal dialog is
+      // open, so the skip link + rail + header + main cannot be tabbed into behind the
+      // scrim (`aria-modal` alone is advisory). The toast host lives OUTSIDE this shell
+      // and stays announceable.
+      data-app-shell="root"
       className="grid h-[100dvh] w-screen overflow-hidden"
       style={{
         // minmax(0, 1fr) (not bare 1fr): a `1fr` track defaults to a min-content

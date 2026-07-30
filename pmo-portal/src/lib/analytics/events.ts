@@ -23,7 +23,7 @@ export type AnalyticsEventName =
   | 'coming_soon_clicked'
   | 'form_validation_failed'
   | 'save_failed'
-  | 'permission_denied_seen'
+  | 'bulk_import_failed'
   | 'empty_state_seen'
   | 'agent_panel_opened'
   | 'agent_run_started'
@@ -67,6 +67,22 @@ export const FORBIDDEN_PROPERTY_KEYS = new Set([
   'procurement_title', 'contract_value', 'budget', 'budget_amount', 'token',
   'access_token', 'refresh_token', 'notes', 'note', 'comment', 'comments',
   'file_name', 'file', 'password', 'query', 'search_params',
+  // SECURITY (2026-07-27 review round 2 #6): posthog-js attaches these to EVERY captured event
+  // automatically, straight from `window.location` — independent of whatever properties we pass.
+  // `routeAnalyticsForPath` carefully parameterises our OWN `route` property (`/projects/:id`),
+  // but the SDK's own `$current_url`/`$pathname`/`$initial_current_url` carry the RAW path,
+  // including any record UUID in it (spec §6 forbids raw UUID paths). `$session_entry_url` /
+  // `$session_entry_pathname` are the SAME leak under a DIFFERENT name — posthog-js's
+  // `SessionPropsManager` renames `$current_url`→`$session_entry_url`/`$pathname`→
+  // `$session_entry_pathname` and stamps them once per session onto every event in that
+  // session; an exact-name denylist of only the first 3 keys does not catch these renamed
+  // derivatives (found empirically by this fix's OWN belt-and-suspenders test asserting no raw
+  // UUID anywhere in the captured payload, not just under the 3 originally-named keys). All 5
+  // feed `POSTHOG_PROPERTY_DENYLIST` below, which posthog-js applies to the FULL calculated
+  // property set (its own auto-added properties included) before every send — verified against
+  // the real, unmocked SDK in client.currentUrlLeak.realSdk.test.ts, not just this config.
+  '$current_url', '$pathname', '$initial_current_url',
+  '$session_entry_url', '$session_entry_pathname',
 ]);
 
 // ---------------------------------------------------------------------------
@@ -114,25 +130,39 @@ export function trackFormValidationFailed(
 }
 
 export function trackSaveFailed(
-  entityType: string,
+  /** The friction classification slug (`permission_denied`, `in_use`, …) — renamed from
+   *  `entity_type` (2026-07-27 code-quality review #4): the property never carried an entity
+   *  type, and the series had zero history (the event was inert until this same slice), so the
+   *  rename was free today and unpayable once real data exists under the old name. */
+  failureClass: string,
   operation: string,
   reasonCode: string,
   module: string,
 ): TrackedEvent {
   return {
     event: 'save_failed',
-    properties: { entity_type: entityType, operation, reason_code: reasonCode, module },
+    properties: { failure_class: failureClass, operation, reason_code: reasonCode, module },
   };
 }
 
-export function trackPermissionDeniedSeen(
-  surface: string,
-  role: string,
+/**
+ * A bulk-import commit run's failures, aggregated PER CLASSIFICATION (2026-07-27 code-quality
+ * review #2 fix). A DISTINCT event from `save_failed` — not the same event with a `failed_count`
+ * bolted on — because `save_failed` counts EVENTS, so a lump aggregate under one event would make
+ * a 5,000-row import failure contribute exactly 1 to whichever `reason_code`/`failure_class`
+ * bucket it landed in, indistinguishable from a single real failure, and would discard the
+ * per-row reason distribution entirely (RLS vs duplicates becomes unanswerable). One
+ * `bulk_import_failed` event per non-zero classification bucket per run (at most 7 —
+ * FrictionClass has 7 members) keeps both quota-safety and the reason distribution.
+ */
+export function trackBulkImportFailed(
   module: string,
+  failureClass: string,
+  failedCount: number,
 ): TrackedEvent {
   return {
-    event: 'permission_denied_seen',
-    properties: { surface, role, module },
+    event: 'bulk_import_failed',
+    properties: { module, failure_class: failureClass, failed_count: failedCount },
   };
 }
 

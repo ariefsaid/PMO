@@ -12,7 +12,7 @@ describe('StatusPill', () => {
   });
 
   /**
-   * ADR-0037 (S1): the slab is gone. Status is now a quiet dot + label on the
+   * ADR-0068 (S1): the slab is gone. Status is now a quiet dot + label on the
    * surrounding surface — NO filled tint background, NO pill chrome (rounded-full /
    * horizontal padding). Assert the new (non-slab) treatment positively.
    */
@@ -196,7 +196,7 @@ describe('Badge (count)', () => {
  * measured on the budget push banner, `pending` (neutral) and `pushing` (progress) both rendered
  * `color: rgb(108,108,117)`, the same dot colour, nothing else — the two states differed only by
  * their label string. That is a design-system miss on the one state that is genuinely TRANSIENT and
- * never self-updates. ADR-0037's monochrome-calm forbids buying the distinction with hue, so it is
+ * never self-updates. ADR-0068's monochrome-calm forbids buying the distinction with hue, so it is
  * bought with SHAPE: a halo ring in the same ink.
  *
  * ⚑ Motion was tried first and REJECTED on evidence, not taste: `motion-safe:animate-pulse` crashed
@@ -219,7 +219,7 @@ describe('StatusPill — an in-progress state is distinguishable from a resting 
     expect(dotOf('progress').className).not.toContain('animate');
   });
 
-  it('NEW-9 the distinction is NOT bought with hue — monochrome-calm still holds (ADR-0037)', () => {
+  it('NEW-9 the distinction is NOT bought with hue — monochrome-calm still holds (ADR-0068)', () => {
     expect(dotOf('progress').style.background).toBe(dotOf('neutral').style.background);
   });
 });

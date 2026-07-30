@@ -86,9 +86,12 @@ select lives_ok(
 
 -- ── procurement_receipts (org A, flipped) ─────────────────────────────────────────────────────────
 set local request.jwt.claims = '{"sub":"00980000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+-- ⚑ GATE MOVED (migration 0175): `authenticated` holds no update grant on procurement_receipts at
+-- all now, so this is stopped at the privilege check rather than by 0099's native-mirror guard. The
+-- message is asserted so the assertion cannot go green for a third, unrelated 42501.
 select throws_ok(
   $$ update procurement_receipts set status = 'Complete' where id = '00980000-0000-0000-0000-0000000000e1' $$,
-  '42501', null,
+  '42501', 'permission denied for table procurement_receipts',
   'AC-ENA-052 procurement_receipts: user-JWT native-field UPDATE (status) denied while flipped');
 select throws_ok(
   $$ insert into procurement_receipts (org_id, procurement_id, gr_number, status)

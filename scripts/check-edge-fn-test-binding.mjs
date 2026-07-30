@@ -68,14 +68,29 @@ for (const [file, symbol] of Object.entries(REQUIRED)) {
   }
 }
 
+/**
+ * True when `src` contains a serve call — `Deno.serve(` OR `serveWithErrorReporting(` — that is
+ * NOT guarded by `if (import.meta.main)`. Exported/pure so a unit test can prove this directly.
+ *
+ * SILENT-VACUOUSNESS (review round, 2026-07-28): the original check matched ONLY `Deno\.serve\s*\(`.
+ * C8 routed the 6 protected files through `serveWithErrorReporting(...)` instead — after that
+ * change none of them contain a literal `Deno.serve(` any more, so the original regex's condition
+ * could never be true again: it silently stopped enforcing the very guard it exists to protect
+ * (a fix that disarms a NEIGHBOURING gate — a fix to the shape a gate matches on, without checking
+ * what else matches on that shape). Widened to catch either serve call.
+ */
+export function hasUnguardedServeCall(src) {
+  return /(Deno\.serve|serveWithErrorReporting)\s*\(/.test(src) && !/if\s*\(\s*import\.meta\.main\s*\)/.test(src);
+}
+
 for (const [file, symbol] of Object.entries(SHIPPED)) {
   if (!existsSync(repoPath(file))) { fail(file, 'expected edge fn is missing'); continue; }
   const src = readFileSync(repoPath(file), 'utf8');
   if (!new RegExp(`export\\s+(async\\s+)?function\\s+${symbol}\\b`).test(src)) {
     fail(file, `must export the shipped handler: export async function ${symbol}(req: Request)`);
   }
-  if (/Deno\.serve\s*\(/.test(src) && !/if\s*\(\s*import\.meta\.main\s*\)/.test(src)) {
-    fail(file, 'Deno.serve must be guarded by `if (import.meta.main)` — otherwise importing it in a test starts an HTTP server');
+  if (hasUnguardedServeCall(src)) {
+    fail(file, 'the serve call (Deno.serve or serveWithErrorReporting) must be guarded by `if (import.meta.main)` — otherwise importing it in a test starts an HTTP server');
   }
 }
 

@@ -1,9 +1,8 @@
 /**
- * errorLog — the ONE structured-error-logging choke point for every edge function
- * (agent-chat, compose-view, agent-dispatch, admin-invite-user, telegram-notify).
- * Observability hardening (spike 2026-07-04, harden #1): every error/failure path
- * must log a STRUCTURED line carrying an error CODE + an optional context id, and
- * NEVER a secret value or prompt/PII text.
+ * errorLog — the ONE structured-error-logging choke point for every deployed edge function
+ * (see EDGE_FUNCTION_NAMES). Observability hardening (spike 2026-07-04, harden #1): every
+ * error/failure path must log a STRUCTURED line carrying an error CODE + an optional context id,
+ * and NEVER a secret value or prompt/PII text.
  *
  * Test-safe: takes a plain object; its own logic uses no Deno globals — importable in
  * Vitest (mirrors modelResolution.ts / usage.ts's ADR-0039 decision-7 pattern). It ALSO
@@ -19,12 +18,37 @@
  */
 import { capturePosthogException } from './posthogError.ts';
 
-export type EdgeFunctionName =
-  | 'agent-chat'
-  | 'compose-view'
-  | 'agent-dispatch'
-  | 'admin-invite-user'
-  | 'telegram-notify';
+/**
+ * Every deployed edge function. Derived union (FR-OBS-002) — kept in lockstep with the actual
+ * supabase/functions/<name>/index.ts listing by pmo-portal/src/lib/agent/edgeFunctionNames.test.ts.
+ * Add the name here in the SAME commit that adds the function directory.
+ */
+export const EDGE_FUNCTION_NAMES = [
+  'adapter-dispatch',
+  'admin-invite-user',
+  'agent-chat',
+  'agent-dispatch',
+  'clickup-onboard',
+  'clickup-sweep',
+  'clickup-webhook',
+  'clickup-webhook-worker',
+  'compose-view',
+  'erpnext-onboard',
+  'erpnext-sweep',
+  'erpnext-webhook',
+  'external-companies',
+  'external-connect',
+  'external-disconnect',
+  'external-link',
+  'external-lists',
+  'external-set-company',
+  'external-unlink',
+  'health',
+  'm365-token-custody',
+  'telegram-notify',
+] as const;
+
+export type EdgeFunctionName = (typeof EDGE_FUNCTION_NAMES)[number];
 
 export interface StructuredErrorContext {
   /** Which edge function emitted this log line. */

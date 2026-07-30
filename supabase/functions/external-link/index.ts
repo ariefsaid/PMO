@@ -53,6 +53,7 @@ import {
   buildClickUpMemberMap,
   type ClickUpMemberMap,
 } from '../../../pmo-portal/src/lib/adapterSeam/clickup/memberMap.ts';
+import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
 
 interface LinkBody {
   tier: 'clickup' | 'erpnext';
@@ -710,5 +711,5 @@ export type { ClickUpDeps, ErpNextDeps };
 
 // Deno.serve entry point (only runs when module is main)
 if (import.meta.main) {
-  Deno.serve(handleLinkRequest);
+  serveWithErrorReporting('external-link', handleLinkRequest);
 }

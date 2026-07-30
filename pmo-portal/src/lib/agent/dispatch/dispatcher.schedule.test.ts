@@ -3,7 +3,7 @@
  * (AC-AAN-021). [REC-1]: logic lives in supabase/functions/agent-dispatch/*, tests live here per
  * the repo's existing handler-unit-test convention (no Vitest project rooted in supabase/).
  */
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { cronMatches } from '../../../../../supabase/functions/agent-dispatch/cron';
 import { selectDueSchedules } from '../../../../../supabase/functions/agent-dispatch/dispatcher';
 
@@ -51,5 +51,49 @@ describe('selectDueSchedules', () => {
     expect(eqKindMock).toHaveBeenCalledWith('kind', 'schedule');
     expect(eqEnabledMock).toHaveBeenCalledWith('enabled', true);
     expect(isMock).toHaveBeenCalledWith('archived_at', null);
+  });
+
+  // I-COLPROJ (2026-07-28 review): the query's `error` case was previously coalesced with the
+  // legitimate "no due schedules" case (`if (error || !data) return []`) — a real query failure (a
+  // 42703 from a drifted column list, a connectivity blip, an RLS/grant regression) silently looked
+  // IDENTICAL to "nothing is due right now", forever, with no log line to diagnose it from. Every
+  // scheduled automation would simply stop firing and nothing would ever say why.
+  describe('a real query error is now DISTINGUISHABLE from the legitimate empty case', () => {
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it('logs SELECT_DUE_SCHEDULES_FAILED (not silent) when the query errors, and still fails safe (returns [])', async () => {
+      const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const isMock = vi.fn().mockResolvedValue({ data: null, error: { code: '42703', message: 'column "trigger_on" does not exist' } });
+      const eqEnabledMock = vi.fn().mockReturnValue({ is: isMock });
+      const eqKindMock = vi.fn().mockReturnValue({ eq: eqEnabledMock });
+      const selectMock = vi.fn().mockReturnValue({ eq: eqKindMock });
+      const fromMock = vi.fn().mockReturnValue({ select: selectMock });
+      const serviceClient = { from: fromMock };
+
+      const due = await selectDueSchedules(serviceClient as never, new Date('2026-07-06T08:00:00Z'));
+
+      expect(due).toEqual([]); // fail-safe: no automation fires on an unreadable query
+      expect(errSpy).toHaveBeenCalledWith(
+        '[agent-dispatch] SELECT_DUE_SCHEDULES_FAILED',
+        expect.objectContaining({ errorCode: 'SELECT_DUE_SCHEDULES_FAILED' }),
+      );
+    });
+
+    it('logs NOTHING when the query legitimately returns zero due schedules (no error, empty data)', async () => {
+      const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const isMock = vi.fn().mockResolvedValue({ data: [], error: null });
+      const eqEnabledMock = vi.fn().mockReturnValue({ is: isMock });
+      const eqKindMock = vi.fn().mockReturnValue({ eq: eqEnabledMock });
+      const selectMock = vi.fn().mockReturnValue({ eq: eqKindMock });
+      const fromMock = vi.fn().mockReturnValue({ select: selectMock });
+      const serviceClient = { from: fromMock };
+
+      const due = await selectDueSchedules(serviceClient as never, new Date('2026-07-06T08:00:00Z'));
+
+      expect(due).toEqual([]);
+      expect(errSpy).not.toHaveBeenCalled();
+    });
   });
 });

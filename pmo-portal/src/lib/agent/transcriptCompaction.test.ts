@@ -40,7 +40,29 @@ describe('compactTranscript', () => {
     expect(out).toBe(msgs); // same reference — untouched
   });
 
-  it('compacts an OLD oversized tool result but keeps the recency window verbatim', () => {
+  it('AC-RQL-003: a representative single analytical turn stays uncompacted under the new defaults', () => {
+    // The prod regression: an 8-read cross-entity turn (~50k chars) tripped the OLD 24k trigger
+    // MID-TURN, compacting the very rows the model needed to synthesize → re-query loop → step limit.
+    // Guard the PRIMARY fix (triggerChars 24k→80k): a normal analytical turn must survive intact.
+    const read = (id: string): ModelMessage[] => [
+      { role: 'assistant', content: null, tool_calls: [{ id, type: 'function', function: { name: 'query_entity', arguments: '{}' } }] },
+      toolMsg(bigRows(200), id), // ~10k chars of raw rows per read
+    ];
+    const msgs: ModelMessage[] = [
+      { role: 'system', content: 'system prompt' },
+      { role: 'user', content: 'which of my projects are behind schedule?' },
+      ...read('projects'), ...read('milestones'), ...read('tasks'), ...read('tasks2'), ...read('projects2'),
+    ];
+    const size = estimateTranscriptChars(msgs);
+    // Big enough that the OLD 24k default WOULD have compacted mid-turn (the regression)…
+    expect(size).toBeGreaterThan(24_000);
+    // …but under the new trigger, so the turn's rows survive for synthesis.
+    expect(size).toBeLessThan(DEFAULT_COMPACTION.triggerChars);
+    const out = compactTranscript(msgs, DEFAULT_COMPACTION);
+    expect(out).toBe(msgs); // untouched — nothing compacted
+  });
+
+  it('AC-RQL-001 compacts an OLD oversized tool result (no re-run wording) but keeps the recency window verbatim', () => {
     const old = toolMsg(bigRows(200), 'old'); // large, old
     const recent = toolMsg(bigRows(200), 'recent'); // large, but within recency window
     const msgs: ModelMessage[] = [
@@ -63,11 +85,36 @@ describe('compactTranscript', () => {
     const parsed = JSON.parse(compacted.content as string);
     expect(parsed._compacted).toBe(true);
     expect(parsed.chars_omitted).toBe((old.content as string).length);
+    // FR-RQL-001: the marker must NOT invite re-running the tool (the old "Re-run the tool if you
+    // still need this data" drove the prod step-limit re-query loop). It states the data was already
+    // retrieved and explicitly prohibits re-calling.
+    expect(parsed.note).not.toMatch(/re-?run the tool/i);
+    expect(parsed.note).toMatch(/already retrieved/i);
+    expect(parsed.note).toMatch(/do not call the tool again/i);
+    // FR-RQL-002: provenance retained so the model references it rather than re-querying.
+    expect(parsed.tool).toBe('query_entity');
     // The RECENT tool result (within the last 2 messages) is kept verbatim.
     expect(out[6]).toBe(recent);
     // User/assistant text preserved.
     expect(out[1]).toBe(msgs[1]);
     expect(out[4]).toBe(msgs[4]);
+  });
+
+  it('AC-RQL-002 retains rowCount + tool name from a query_entity result body in the marker', () => {
+    // Realistic query_entity result shape: { rowCount, rows: [...] }.
+    const body = JSON.stringify({ rowCount: 17, rows: Array.from({ length: 17 }, (_v, i) => ({ id: i, name: `P${i}`, status: 'Ongoing Project', end_date: '2026-06-30' })) });
+    const msgs: ModelMessage[] = [
+      { role: 'system', content: 'system prompt' },
+      { role: 'assistant', content: null, tool_calls: [{ id: 'q', type: 'function', function: { name: 'query_entity', arguments: '{"entity":"projects"}' } }] },
+      { role: 'tool', tool_call_id: 'q', name: 'query_entity', content: body },
+      { role: 'user', content: 'a' },
+      { role: 'user', content: 'b' },
+    ];
+    const out = compactTranscript(msgs, { triggerChars: 100, recentMessages: 2, maxToolResultChars: 100 });
+    const parsed = JSON.parse(out[2].content as string);
+    expect(parsed._compacted).toBe(true);
+    expect(parsed.rowCount).toBe(17);
+    expect(parsed.tool).toBe('query_entity');
   });
 
   it('never removes messages or changes tool_call_ids (API pairing invariant)', () => {

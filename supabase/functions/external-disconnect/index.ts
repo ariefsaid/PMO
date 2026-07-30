@@ -31,6 +31,7 @@ import {
   type JwksResolver,
 } from '../../../pmo-portal/src/lib/auth/verifyCallerJwt.ts';
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
+import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
 
 interface DisconnectBody {
   tier: 'clickup' | 'erpnext';
@@ -64,7 +65,7 @@ function errorResponse(message: string, code: string, status: number): Response 
   return json({ error: code, message }, status);
 }
 
-Deno.serve(async (req: Request): Promise<Response> => {
+serveWithErrorReporting('external-disconnect', async (req: Request): Promise<Response> => {
   const corsHeaders = {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',

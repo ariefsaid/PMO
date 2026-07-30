@@ -27,9 +27,23 @@ under exactly one milestone. The delivery hierarchy is two levels only: mileston
 
 **Document** — a controlled record in a project's document register (drawing, specification,
 report, contract …). Carries a category, a revision mark, and a lifecycle status with
-separation-of-duties approval (approver ≠ author). A document may carry **one file**; the
-file may change only while the document is Draft — once issued, content changes require a
-new revision (decided 2026-06-12).
+separation-of-duties approval (approver ≠ author). A document carries **at most one source**:
+either a **file** PMO holds, or a **link** to a single item in the client's Microsoft 365
+(a SharePoint library, or OneDrive) — never both, and possibly neither (a register entry with
+no content yet). The content-freeze rule is the same for both — once issued, content changes
+require a new revision — but it is honoured differently: PMO *prevents* a held file from
+changing after issue, whereas a linked item's content lives at Microsoft and can change at any
+time, so PMO *detects* the change and requires a new revision to restore an approved state
+(see **Content drift**). (One-source rule decided 2026-06-12; linking decided 2026-07-29.)
+
+**Content drift** — a linked document's content has changed at Microsoft since PMO last
+recorded it. Detected, never prevented — PMO does not own the bytes. A drifted document
+**keeps whatever status it had**: an approval stays a true statement about the content that
+was approved, and does not become false because the source moved on. Drift is marked wherever
+the document appears, not only on its own page, so that "no mark" never has to be read as
+"not checked". Resolving drift is an explicit act — the user creates a new revision from the
+current file, which then walks the normal lifecycle. Distinct from a *name* change at
+Microsoft, which is cosmetic and is not drift. (Decided 2026-07-29.)
 
 **Revision** — a successive issue of the same document (Rev A → Rev B …). Each revision is
 its own register entry and walks the full lifecycle itself. A revision is always created
@@ -140,3 +154,12 @@ _Avoid_: pmo_connector (legacy name).
 (an ERP, ClickUp). PMO runs fully standalone without any (all domains PMO-owned); employing
 one flips the domains in its capability map to externally-owned. (Decided 2026-07-10.)
 _Avoid_: ERP tier (too narrow).
+
+**Graph connection** — an org's standing authorization for PMO to act on Microsoft 365 on a user's
+behalf. It has **two independent legs**, and a claim about one says nothing about the other:
+the **connect leg** (the org grants consent and PMO takes custody of the authorization) and the
+**use leg** (PMO actually exercises that authorization to read Microsoft data). A connection can be
+established and yet unusable. (Clarified 2026-07-29 after "a proven live connection" was read as
+covering both legs when only the connect leg had ever run — four documents went stale on the
+ambiguity, and a feature was nearly built on the unproven leg.)
+_Avoid_: "live connection" unqualified — always name the leg.

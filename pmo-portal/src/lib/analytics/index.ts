@@ -8,7 +8,6 @@
 export { AnalyticsProvider } from './AnalyticsProvider';
 export {
   buildEventProperties,
-  trackPermissionDeniedSeen,
   FORBIDDEN_PROPERTY_KEYS,
 } from './events';
 export type { AnalyticsEventName, SafeProperties, SafeValue, TrackedEvent, AuthMethod, AuthFailureReason, DemoPersonaLabel } from './events';
@@ -44,6 +43,7 @@ import {
   // collision. Components must import the wrapper (this file), never the builder.
   trackFormValidationFailed as buildFormValidationFailedEvent,
   trackSaveFailed as buildSaveFailedEvent,
+  trackBulkImportFailed as buildBulkImportFailedEvent,
   trackEmptyStateSeen as buildEmptyStateSeenEvent,
 } from './events';
 
@@ -90,12 +90,17 @@ export function trackFormValidationFailed(
 }
 
 export function trackSaveFailed(
-  entityType: string,
+  failureClass: string,
   operation: string,
   reasonCode: string,
   module: string,
 ): void {
-  const built = buildSaveFailedEvent(entityType, operation, reasonCode, module);
+  const built = buildSaveFailedEvent(failureClass, operation, reasonCode, module);
+  analyticsClient.capture(built.event, built.properties);
+}
+
+export function trackBulkImportFailed(module: string, failureClass: string, failedCount: number): void {
+  const built = buildBulkImportFailedEvent(module, failureClass, failedCount);
   analyticsClient.capture(built.event, built.properties);
 }
 
@@ -215,3 +220,12 @@ export function trackAgentComposeViewSaved(runId: string): void {
   const built = buildAgentComposeViewSavedEvent(runId);
   analyticsClient.capture(built.event, built.properties);
 }
+
+// ── Consent (FR-CON-002/003, ADR-0067) ───────────────────────────────────
+/** FR-CON-002/003 — the in-app analytics opt-out (see /privacy). */
+export function analyticsOptOut(): void { analyticsClient.optOut(); }
+export function analyticsOptIn(): void { analyticsClient.optIn(); }
+export function hasAnalyticsOptedOut(): boolean { return analyticsClient.hasOptedOut(); }
+/** AC-CON-011 — the three-state (+active) consent surface; see `client.ts`'s `getConsentState` doc. */
+export { getConsentState } from './client';
+export type { ConsentState } from './client';

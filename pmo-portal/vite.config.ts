@@ -64,6 +64,22 @@ const sharedTestOptions = {
   globals: true,
   setupFiles: ['./test/setup.ts'],
   css: false,
+  // ── Timeout: 5s (vitest's default) was a CONTENTION detector, not a hang detector ────────
+  // Measured 2026-07-28 on a 10-core dev machine. Isolated baselines: AC-AUTHF-036 = 951ms,
+  // AC-A11Y-001 (operator/desktop axe scan) = 580ms. Under a full-suite run the SAME tests
+  // took 5046ms and 5593ms — a 5-9x slowdown — and failed. They pass 6/6 in isolation.
+  //
+  // Cause: vitest forks one worker per core, and this suite's jsdom + axe-core + RTL renders
+  // are all CPU-bound, so the run oversubscribes the machine and starves its own workers. CI
+  // never sees it (dedicated runner), so the false reds land only on developers — who then
+  // learn to re-run, which is how a REAL failure eventually gets waved through.
+  //
+  // 5s over a ~1s test is only 5x headroom, so it measures machine load rather than
+  // correctness. A genuine hang (unresolved promise, infinite loop) never completes at ANY
+  // timeout, so 15s loses no hang-detection while removing the false-red class.
+  // ⚑ This is NOT a performance budget. If a test legitimately approaches 15s, fix the test.
+  testTimeout: 15_000,
+  hookTimeout: 15_000,
   // AUDIT-M17 (2026-07-04 audit): clear mock call history between tests globally — no more
   // relying on per-file afterEach discipline for call-count assertions. (Implementations set
   // via mockReturnValue/mockImplementation are preserved; this clears calls/results only.)

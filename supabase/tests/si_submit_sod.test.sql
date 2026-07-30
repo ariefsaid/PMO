@@ -84,21 +84,27 @@ select throws_ok(
   '42501', null,
   'AC-SAR-073: non-approver-role user (C, Engineer) submit denied (42501)');
 
--- ── Draft authoring is ungated by SoD: verify SoD does NOT block author edits
--- However, the native mirror guard DOES block user edits when revenue is externally owned.
--- This test verifies the SoD check is not the blocker (the mirror guard is a separate mechanism).
+-- ── Draft authoring is ungated by SoD: verify SoD does NOT block author edits.
+-- ⚑ ORACLE STRENGTHENED (0176, slice 4 of the create-path SoD class). This asserted the errcode alone
+-- and named the mirror guard as the blocker. It is no longer the blocker: 0176 revoked the client
+-- UPDATE on sales_invoices outright, because a DIRECT body rewrite never reaches
+-- claim_sales_invoice_author — so the rewriter was never added to the author set and could then clear
+-- their own submit (probed live). A body edit now goes through the adapter (service-role) only.
+-- The assertion's INTENT survives verbatim — the SoD check is still not what blocks an author edit —
+-- and the message is now asserted so a future gate moving in front of this one fails loudly.
 set local request.jwt.claims = '{"sub":"11050000-0000-0000-0000-0000000001a1","role":"authenticated"}';
 
 select throws_ok(
   $$ update sales_invoices set amount = 1500.00 where id = '11050000-0000-0000-0000-0000000001f1' $$,
-  '42501', null,
-  'AC-SAR-073: author edit blocked by native mirror guard (not SoD) when revenue externally owned');
+  '42501',
+  'permission denied for table sales_invoices',
+  'AC-SAR-073: author edit blocked by the privilege check (not by SoD) — no client UPDATE grant exists (0176)');
 
--- Amount unchanged due to mirror guard
+-- Amount unchanged
 select is(
   (select amount from sales_invoices where id = '11050000-0000-0000-0000-0000000001f1'),
   1000.00,
-  'AC-SAR-073: amount unchanged after mirror guard rejection');
+  'AC-SAR-073: amount unchanged after the rejected direct edit');
 
 -- ── Non-revenue org: RPC should deny (org guard)
 reset role;

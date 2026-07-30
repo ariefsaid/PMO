@@ -8,34 +8,36 @@ describe('classifyMutationError (ADR-0017, promoted from ProcurementDetails)', (
     expect(classifyMutationError(e)).toEqual({
       headline: "That move isn't allowed from the current stage.",
       detail: 'illegal transition Requested→Approved',
+      rawDetail: 'illegal transition Requested→Approved',
+      classification: 'illegal_transition',
     });
   });
 
   it('42501 → not-permitted / SoD headline', () => {
     const e = Object.assign(new Error('permission denied for transition_procurement'), { code: '42501' });
-    expect(classifyMutationError(e)).toEqual({
-      headline: "You don't have permission to do that.",
-      detail: 'permission denied for transition_procurement',
-    });
+    const out = classifyMutationError(e);
+    expect(out.headline).toBe("You don't have permission to do that.");
+    expect(out.classification).toBe('permission_denied');
+    expect(out.rawDetail).toBe('permission denied for transition_procurement');
   });
 
   it('23505 → duplicate headline', () => {
     const e = Object.assign(new Error('duplicate key value violates unique constraint'), { code: '23505' });
-    expect(classifyMutationError(e)).toEqual({
-      headline: 'That already exists.',
-      detail: 'duplicate key value violates unique constraint',
-    });
+    const out = classifyMutationError(e);
+    expect(out.headline).toBe('That already exists.');
+    expect(out.classification).toBe('duplicate');
+    expect(out.rawDetail).toBe('duplicate key value violates unique constraint');
   });
 
-  it('23503 → still-in-use headline, verbatim FK message as detail (in-use delete)', () => {
+  it('23503 → still-in-use headline (in-use delete)', () => {
     const e = Object.assign(
       new Error('update or delete on table "companies" violates foreign key constraint'),
       { code: '23503' },
     );
-    expect(classifyMutationError(e)).toEqual({
-      headline: 'Still in use',
-      detail: 'update or delete on table "companies" violates foreign key constraint',
-    });
+    const out = classifyMutationError(e);
+    expect(out.headline).toBe('Still in use');
+    expect(out.classification).toBe('in_use');
+    expect(out.rawDetail).toBe('update or delete on table "companies" violates foreign key constraint');
   });
 
   it('reads the code carried by an AppError instance', () => {
@@ -48,27 +50,40 @@ describe('classifyMutationError (ADR-0017, promoted from ProcurementDetails)', (
     expect(classifyMutationError(e)).toEqual({
       headline: "Request timed out — we couldn't confirm whether it saved.",
       detail: 'The request timed out',
+      rawDetail: 'The request timed out',
+      classification: 'timeout',
     });
   });
 
   it('unknown code → generic headline, verbatim detail', () => {
     const e = Object.assign(new Error('something broke'), { code: 'XX999' });
-    expect(classifyMutationError(e)).toEqual({ headline: 'Update failed', detail: 'something broke' });
+    expect(classifyMutationError(e)).toEqual({
+      headline: 'Update failed', detail: 'something broke', rawDetail: 'something broke',
+      classification: 'unclassified',
+    });
   });
 
   it('no code → generic headline', () => {
-    expect(classifyMutationError(new Error('boom'))).toEqual({ headline: 'Update failed', detail: 'boom' });
+    expect(classifyMutationError(new Error('boom'))).toEqual({
+      headline: 'Update failed', detail: 'boom', rawDetail: 'boom', classification: 'unclassified',
+    });
   });
 
   it('non-Error value → generic headline + fallback detail', () => {
-    expect(classifyMutationError('weird')).toEqual({ headline: 'Update failed', detail: 'An error occurred' });
+    expect(classifyMutationError('weird')).toEqual({
+      headline: 'Update failed', detail: 'An error occurred', rawDetail: 'An error occurred',
+      classification: 'unclassified',
+    });
   });
 
   it('AC-INV: an optional overrides map classifies a caller-specific code (e.g. an edge-fn error code)', () => {
     const e = new AppError('DUPLICATE_EMAIL', 'DUPLICATE_EMAIL');
     expect(
       classifyMutationError(e, { DUPLICATE_EMAIL: 'That person is already in your workspace.' }),
-    ).toEqual({ headline: 'That person is already in your workspace.', detail: 'DUPLICATE_EMAIL' });
+    ).toEqual({
+      headline: 'That person is already in your workspace.', detail: 'DUPLICATE_EMAIL',
+      rawDetail: 'DUPLICATE_EMAIL', classification: 'override',
+    });
   });
 
   it('AC-INV: overrides take precedence over the built-in Postgres-code mapping for the same code', () => {
@@ -79,5 +94,39 @@ describe('classifyMutationError (ADR-0017, promoted from ProcurementDetails)', (
   it('AC-INV: an unmatched code falls through to the generic headline even with overrides present', () => {
     const e = Object.assign(new Error('boom'), { code: 'UNKNOWN_ONE' });
     expect(classifyMutationError(e, { DUPLICATE_EMAIL: 'x' }).headline).toBe('Update failed');
+  });
+});
+
+/**
+ * AC-ERR-002 (graduated from the 2026-07-28 Discover pass): the toast/dialog `detail` is
+ * PRODUCT COPY. Postgres writes its own messages for the constraint families below and they
+ * name internal tables + RLS mechanics — never an end user's business. The verbatim text is
+ * still returned as `rawDetail` (diagnostics), it is just not what the UI is handed.
+ */
+describe('AC-ERR-002: user-facing detail never leaks raw Postgres text', () => {
+  const POSTGRES_GENERATED: Array<[string, string]> = [
+    ['42501', 'new row violates row-level security policy for table "companies"'],
+    ['23505', 'duplicate key value violates unique constraint "companies_name_key"'],
+    ['23503', 'update or delete on table "companies" violates foreign key constraint "projects_company_id_fkey" on table "projects"'],
+  ];
+
+  it.each(POSTGRES_GENERATED)(
+    'AC-ERR-002: %s → a mapped human detail, with no table name / RLS mechanics in it',
+    (code, message) => {
+      const { detail, rawDetail } = classifyMutationError(Object.assign(new Error(message), { code }));
+      expect(detail).not.toBe(message);
+      expect(detail).not.toMatch(/row-level security|violates|constraint|table "/i);
+      // A real sentence for a human, not a code.
+      expect(detail.length).toBeGreaterThan(20);
+      // …and the verbatim text is still available for diagnostics.
+      expect(rawDetail).toBe(message);
+    },
+  );
+
+  it('AC-ERR-002: an app-authored message (our own RAISE EXCEPTION / AppError) is passed through', () => {
+    // P0001 messages are written BY US in the transition RPCs and are already human copy —
+    // replacing them with a generic sentence would destroy the only specific information.
+    const e = Object.assign(new Error('A procurement can only be paid after it is invoiced.'), { code: 'P0001' });
+    expect(classifyMutationError(e).detail).toBe('A procurement can only be paid after it is invoiced.');
   });
 });

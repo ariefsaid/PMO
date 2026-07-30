@@ -11,20 +11,15 @@ import { describe, it, expect, vi } from 'vitest';
 import { recordErrorEvent } from '../../../../supabase/functions/_shared/errorEvent';
 
 describe('recordErrorEvent', () => {
-  it('AC-OF-003: swallows an insert rejection, logs ERROR_EVENT_INSERT_FAILED, never throws', async () => {
+  it('AC-OBS-011: an insert rejection resolves to a FAILURE indicator (not void), never throws', async () => {
     const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     const rejectingSupabase = {
-      from: () => ({
-        insert: () => Promise.reject(new Error('connection refused')),
-      }),
+      from: () => ({ insert: () => Promise.reject(new Error('connection refused')) }),
     };
 
     await expect(
-      recordErrorEvent(rejectingSupabase as never, {
-        fn: 'agent-chat',
-        errorCode: 'MISSING_OPENROUTER_API_KEY',
-      }),
-    ).resolves.toBeUndefined();
+      recordErrorEvent(rejectingSupabase as never, { fn: 'agent-chat', errorCode: 'MISSING_OPENROUTER_API_KEY' }),
+    ).resolves.toEqual({ ok: false, code: 'Error' });
 
     expect(errSpy).toHaveBeenCalledWith(
       '[errorEvent] ERROR_EVENT_INSERT_FAILED',
@@ -33,16 +28,15 @@ describe('recordErrorEvent', () => {
     errSpy.mockRestore();
   });
 
-  it('AC-OF-003: inserts {fn, error_code, context_id, org_id} on the happy path', async () => {
+  it('AC-OBS-011: the happy path resolves to a SUCCESS indicator and inserts the row', async () => {
     const insertSpy = vi.fn(() => Promise.resolve({ error: null }));
     const supabase = { from: () => ({ insert: insertSpy }) };
 
-    await recordErrorEvent(supabase as never, {
-      fn: 'agent-dispatch',
-      errorCode: 'DISPATCH_TICK_FAILED',
-      contextId: 'run_abc',
-      orgId: 'org_1',
-    });
+    await expect(
+      recordErrorEvent(supabase as never, {
+        fn: 'agent-dispatch', errorCode: 'DISPATCH_TICK_FAILED', contextId: 'run_abc', orgId: 'org_1',
+      }),
+    ).resolves.toEqual({ ok: true });
 
     expect(insertSpy).toHaveBeenCalledWith({
       fn: 'agent-dispatch',
@@ -52,13 +46,29 @@ describe('recordErrorEvent', () => {
     });
   });
 
-  it('AC-OF-003: an insert that RESOLVES with a Postgres error object also swallows (does not throw)', async () => {
+  it('review round (2026-07-28): a contextId longer than 64 chars is TRUNCATED before it reaches error_events — structurally safe, not conventionally safe (every err.name today is a literal, but one `err.name = erpResponseText` away from the leak class closed twice this week)', async () => {
+    const insertSpy = vi.fn(() => Promise.resolve({ error: null }));
+    const supabase = { from: () => ({ insert: insertSpy }) };
+    const longContextId = 'x'.repeat(200);
+
+    await recordErrorEvent(supabase as never, {
+      fn: 'erpnext-sweep',
+      errorCode: 'ERP_PUSH_FAILED',
+      contextId: longContextId,
+    });
+
+    const call = (insertSpy.mock.calls[0] as unknown as [{ context_id?: string }])[0];
+    expect(call.context_id).toBe('x'.repeat(64));
+    expect(call.context_id?.length).toBe(64);
+  });
+
+  it('AC-OBS-011: a resolve-with-Postgres-error ALSO reports failure (the swallow cannot return)', async () => {
     const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     const supabase = { from: () => ({ insert: () => Promise.resolve({ error: { code: '42501' } }) }) };
 
     await expect(
       recordErrorEvent(supabase as never, { fn: 'compose-view', errorCode: 'MISSING_OPENROUTER_API_KEY' }),
-    ).resolves.toBeUndefined();
+    ).resolves.toEqual({ ok: false, code: '42501' });
     expect(errSpy).toHaveBeenCalledWith(
       '[errorEvent] ERROR_EVENT_INSERT_FAILED',
       expect.objectContaining({ errorCode: 'ERROR_EVENT_INSERT_FAILED', code: '42501' }),

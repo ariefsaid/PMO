@@ -37,6 +37,7 @@ import type { ApplyOutcome } from '../../../pmo-portal/src/lib/adapterSeam/apply
 import { resolvePerOrgSecret } from '../_shared/perOrgSecret.ts';
 import { externalConnectEnabled } from '../_shared/externalConnectEnabled.ts';
 import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
+import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
 
 // 256 KiB body cap: reject an oversized payload so a huge body can't exhaust the isolate (mirrors
 // clickup-webhook's review fix #7b).
@@ -379,7 +380,7 @@ async function applyEventLive(
   return applyErpFeedEvent({ tier: ERPNEXT_TIER, domain: event.domain! }, event.externalRecordId, canonical, Date.parse(event.modified), feedDeps);
 }
 
-Deno.serve(async (req: Request): Promise<Response> => {
+serveWithErrorReporting('erpnext-webhook', async (req: Request): Promise<Response> => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'content-type' } });
   }

@@ -37,25 +37,40 @@ insert into external_domain_ownership (org_id, external_tier, domain) values
   ('005a0000-0000-0000-0000-000000000001','erpnext','revenue');
 
 -- ── AC-SAR-061 SI: user-JWT native write DENIED while flipped ───────────────────────────────────
+-- ⚑ ORACLE STRENGTHENED (0176, slice 4 of the create-path SoD class). These three asserted the
+-- errcode ALONE (`'42501', null`), so they would have stayed green for the WRONG reason once another
+-- 42501 gate moved in front of the mirror guard — which is exactly what happened: 0176 revoked the
+-- client INSERT (narrow re-grant) and the client UPDATE (no re-grant) on sales_invoices, because a
+-- direct table write let a PM forge a Paid invoice AND let the body-writer clear their own submit by
+-- setting `author_user_id` themselves (probed live). So the denial now comes from the PRIVILEGE
+-- CHECK, not from the flip.
+-- The AC-SAR-061 INTENT ("native writes are machine-only") is not weakened — it is now unconditional
+-- rather than conditional on the flip, and the FLIP-SPECIFIC half of the contract (service_role may
+-- still write everything while flipped) is asserted immediately below and is untouched. The message
+-- is asserted here so the next gate to move in front of this one fails loudly instead of silently.
+-- See supabase/tests/0169_create_path_sod_residuals.test.sql §A/§B.
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"005a0000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 
 select throws_ok(
   $$ update sales_invoices set amount = 600 where id = '005a0000-0000-0000-0000-0000000000e1' $$,
-  '42501', null,
-  'AC-SAR-061 SI: user-JWT native-field UPDATE (amount) denied while revenue is externally-owned');
+  '42501',
+  'permission denied for table sales_invoices',
+  'AC-SAR-061 SI: user-JWT native-field UPDATE (amount) denied — no client UPDATE grant exists (0176)');
 
 select throws_ok(
   $$ insert into sales_invoices (org_id, si_number, reference_number, invoice_date, amount, status)
        values ('005a0000-0000-0000-0000-000000000001','SI-002','REF-002','2026-07-15',250.00,'Unpaid') $$,
-  '42501', null,
-  'AC-SAR-061 SI: user-JWT raw INSERT denied while flipped');
+  '42501',
+  'permission denied for table sales_invoices',
+  'AC-SAR-061 SI: user-JWT raw INSERT denied — si_number/status are withheld from the INSERT grant (0176)');
 
 -- project_id is machine-only — user UPDATE of project_id must be denied while flipped
 select throws_ok(
   $$ update sales_invoices set project_id = '00000000-0000-0000-0000-000000000000' where id = '005a0000-0000-0000-0000-0000000000e1' $$,
-  '42501', null,
-  'AC-SAR-061 SI: user-JWT UPDATE of project_id (machine-only field) denied while flipped');
+  '42501',
+  'permission denied for table sales_invoices',
+  'AC-SAR-061 SI: user-JWT UPDATE of project_id (machine-only field) denied');
 
 -- service-role UPDATE of native + ALL erp_* mirror columns succeeds
 reset role;

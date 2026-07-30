@@ -38,6 +38,7 @@ import {
   mapsFromBindingConfig,
   createClickUpMirrorCallbacks,
 } from '../_shared/clickupMirrorDeps.ts';
+import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
 
 // Shared across invocations of this isolate (NFR-CUA-PERF-003). Bulk lane: the sweep yields to any
 // in-flight interactive write.
@@ -261,7 +262,7 @@ async function resolveOrgClickUpToken(
   return globalToken;
 }
 
-Deno.serve(async (req: Request): Promise<Response> => {
+serveWithErrorReporting('clickup-sweep', async (req: Request): Promise<Response> => {
   // ── 1. Authorization: the caller (the pg_cron job) must present the DEDICATED sweep secret (NOT the
   //    master service_role key — least-privilege, mirroring 0082's AGENT_DISPATCH_SECRET). The cron
   //    presents this same secret from the Vault `clickup_sweep_secret`; the master key never crosses

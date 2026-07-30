@@ -91,12 +91,14 @@ describe('MyTasks — status mutation error handling (W2-2)', () => {
     // Change status to trigger mutation
     fireEvent.change(selects[0], { target: { value: 'Done' } });
 
-    // The toast surfaces classifyMutationError's exact 42501 headline + the underlying message
-    // as detail — not a generic "Update failed" or an unasserted non-empty string.
+    // The toast surfaces classifyMutationError's exact 42501 headline + its SoD-specific
+    // detail — not a generic "Update failed" or an unasserted non-empty string. AC-ERR-002:
+    // the detail is product copy, so Postgres's own "permission denied for table tasks"
+    // (an internal table name) must NOT be what the user reads.
     await waitFor(() => {
       expect(toastSpy).toHaveBeenCalledWith(
         "You don't have permission to do that.",
-        'permission denied for table tasks',
+        'Your role does not allow this change. Ask an administrator if you think it should.',
         'warning',
       );
     });

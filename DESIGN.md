@@ -1,7 +1,7 @@
 ---
 name: PMO Portal
 description: >
-  The monochrome-calm control surface (ADR-0037). Calm near-mono zinc chrome; PMO
+  The monochrome-calm control surface (ADR-0068). Calm near-mono zinc chrome; PMO
   blue reserved for the ONE primary action + focus ring + active-nav; status as a
   quiet dot/ring + label; content-over-containers. LIGHT default + first-class
   WCAG-AA DARK. Values below are the LIGHT (`:root`) theme; the full light|dark
@@ -49,7 +49,7 @@ colors:
   border: "hsl(240 5% 90.5%)"
   input: "hsl(240 4% 84%)"
 typography:
-  # Inter variable + the cv stylistic sets (ADR-0037) is the single UI family.
+  # Inter variable + the cv stylistic sets (ADR-0068) is the single UI family.
   fontFamily: "Inter, system-ui, -apple-system, Segoe UI, sans-serif"
   cvSets: '"cv02","cv03","cv04","cv11"'
   page-title: { size: "24px", weight: 700, lineHeight: 1.2, letterSpacing: "-0.02em" }
@@ -86,9 +86,9 @@ components:
 
 ## 1. Overview
 
-**Creative North Star: "The Quiet Control Surface" — monochrome-calm (ADR-0037).**
+**Creative North Star: "The Quiet Control Surface" — monochrome-calm (ADR-0068).**
 
-This is the **monochrome-calm** language the owner locked on 2026-07-01 (ADR-0037), ported *in place*
+This is the **monochrome-calm** language the owner locked on 2026-07-01 (ADR-0068), ported *in place*
 onto the existing app (Foundation slices F1 tokens + F2 dark toggle are committed; the surface slices
 follow). It supersedes the prior "calm/dense/light-only shadcn" identity in *look only* — every logic,
 data, chart, and action is unchanged. The mockups in `docs/design-mockups/redesign/reskin/` define the
@@ -103,7 +103,7 @@ project-based business, and it explicitly rejects the "AI SaaS marketing" aesthe
 dark-mode-with-purple-gradients, no neon, no glassmorphism, no oversized hero type, no shadow-heavy
 floating-card soup. *Calm after the 100th use.*
 
-**Key characteristics (locked, ADR-0037 §1):**
+**Key characteristics (locked, ADR-0068 §1):**
 - **Monochrome chrome; colour = meaning.** PMO blue (`--primary`) does all the interactive work and is
   held to primary-action + ring + active-nav; the semantic status palette (success/warning/destructive)
   stays but is quiet (dot/ring + label or a faint tint, never a solid slab behind text). Categorical
@@ -207,7 +207,19 @@ future retune that drops any hue below 4.5:1 fails CI.
 | Token | Light | Dark | Role |
 |---|---|---|---|
 | `--border` | `240 5% 90.5%` | `240 5% 16%` | the single hairline divider/outline |
-| `--input` | `240 4% 84%` | `240 4% 30%` | field stroke (a hairline-strong) |
+| `--input` | `240 4% 84%` | `240 4% 42%` (was `240 4% 30%`) | field stroke (a hairline-strong) |
+
+> **Dark `--input` bumped 30%→42% L (2026-07-28, AC-A11Y-CHECKBOX-001, Discover-pass).** The raw
+> reskin-ported value measured **2.13:1** against dark `--background` — below WCAG 1.4.11's 3:1
+> non-text-contrast floor for a UI-component boundary — when used as a control's ONLY visual
+> indication (e.g. the unchecked `Checkbox`, whose 1.5px border with no fill is the sole cue a
+> control exists there). 42% clears **~3.36:1** with headroom (verified against the real rendered
+> page: `e2e/AC-VISUAL-CHECKBOX-001-dark-contrast.spec.ts`; token math:
+> `src/components/ui/__tests__/checkboxBorderContrast.test.ts`). This is a general `--input` bump,
+> not a checkbox-only patch — **any other bordered control that relies on `border-input` alone in
+> dark theme (with no fill/icon backing it) likely inherited the same sub-AA boundary**; audit
+> before assuming a border-only dark control is visible. (WCAG 1.4.11 exempts `disabled` controls —
+> the `Checkbox`'s `disabled` state is intentionally dimmed via `opacity-45` and is out of scope.)
 
 ### Geometry + motion (theme-independent; redeclared in `.dark` for full parity)
 `--radius: 0.5rem` · `--rail-w: 224px` · `--header-h: 56px` · `--ds-ease: 120ms cubic-bezier(0.16, 1, 0.3, 1)`
@@ -228,7 +240,7 @@ future retune that drops any hue below 4.5:1 fails CI.
 screen: the one primary action + the focus ring + active-nav. If two things are blue and only one is the
 action, one is wrong. Violet/status hues are NOT substitutes for it.
 
-**The Status-As-Dot Rule (ADR-0037).** Status is a **dot/ring + label** (or a faint `/10–/12` tint with
+**The Status-As-Dot Rule (ADR-0068).** Status is a **dot/ring + label** (or a faint `/10–/12` tint with
 an AA `-text` variant) — **never a loud filled slab behind body text.** Solid status fills are reserved
 for the essential status *verb* (the destructive button). Pill text MUST come from the AA `-text` tokens
 (`--status-*-text`, `--destructive-text`, `--success-text`), never the raw dot hue — and status is never
@@ -270,14 +282,14 @@ named as unclassified rather than printed. The same map decides whether a **Retr
 at all: *a button that can only ever fail is worse than no button* — it says the problem is transient
 when it is structural. A withheld affordance always states the remedy that replaces it.
 
-**Content-over-containers (ADR-0037 §1).** Fewer boxes; prefer hairline dividers and whitespace to
+**Content-over-containers (ADR-0068 §1).** Fewer boxes; prefer hairline dividers and whitespace to
 nested card wrappers. Drop a wrapping card where whitespace/dividers suffice; keep a container only where
 the content earns it (a phase/delivery card, a table frame).
 
 ## 3. Typography
 
 **UI font:** Inter variable (opsz 14..32, 400/500/600) + the cv stylistic sets
-(`font-feature-settings: "cv02","cv03","cv04","cv11"`) — the agent-native typographic signature (ADR-0037).
+(`font-feature-settings: "cv02","cv03","cv04","cv11"`) — the agent-native typographic signature (ADR-0068).
 Fallback `system-ui, -apple-system, "Segoe UI", sans-serif`. Root font-size is **16px** (load-bearing:
 rem-based utilities resolve to DESIGN.md sizes — `h-8` = 32px controls). Default body size is 14px,
 line-height 1.45.
@@ -378,7 +390,16 @@ status text apply them as `hsl(var(--token))`. See §6 for the verified contrast
 - `background` fill, 1px `input` border, `lg` radius, 32px tall, `0 10px` padding. Placeholder =
   `muted-foreground`. Focus = global ring.
 - **Checkbox:** 16px, 1.5px `input` border, 4px radius; checked → `primary` fill + `primary` border +
-  white check. Exposed with `role="checkbox"` + `aria-checked` + `tabindex`.
+  white check. Exposed with `role="checkbox"` + `aria-checked` + `tabindex`. Takes an accessible name
+  (`label`, required) OR — preferred whenever a visible label sentence sits next to it — a
+  `labelledBy` id pointing at that visible text, so the accessible name and the on-screen copy are
+  ONE source of truth instead of a duplicated `aria-label` a screen reader announces twice (once as
+  the name, again as adjacent page prose). **⚑ The primitive itself ships NO visible-label click
+  target** — it is a 16px icon-only hit area; every conventional checkbox lets you click the LABEL
+  TEXT to toggle, and this one does not do that for free. A consumer rendering adjacent label text
+  MUST wire its own click handler on that text (see `AnalyticsOptOutToggle`, which also guards
+  against double-toggling when the click lands on the box itself, which already has its own
+  handler) — this will bite the next consumer that assumes label-click parity comes standard.
 - **Validation contract (Coherence Wave):** `EntityFormModal`/`useEntityForm` validate **on blur / on
   submit**, never on mount — no eager "Fix N fields" banner on an untouched form.
 
@@ -446,6 +467,26 @@ The numbered-circle `node` variant is retired; the `inline` pip (9px dots in tab
 ### Overlays
 - **Popover menu:** `popover` bg, `border`, `lg` radius, overlay shadow, 5px padding; 32px items, `accent`
   hover, `danger` items in `destructive-text`, hairline separator.
+- **Modal dialog — error + focus rules (locked 2026-07-28, OD-FORM-A11Y).** Three rules. ⚑ **Rules 1 and 2
+  are already TRUE of every dialog** — they live inside `EntityFormModal` and every consumer inherits them
+  with no opt-in. **Rule 3 is a rule, not yet a fact:** it needs the consumer to pass `submitError`, and
+  only **2 of 18** consumers do (`pages/Companies.tsx`, `pages/Contacts.tsx`). The other 16 still show a
+  rejected save the old way. Do not read rule 3 as describing the app as it stands — the rollout is
+  tracked in `docs/backlog.md`. (Caught by the step-7 acceptance pass, 2026-07-28: this section
+  originally read "binding on every dialog", which was true of 1+2 and false of 3. A design-system rule
+  stated as universal without a rollout tracker reads as a completed fact to the next person.)
+  1. **Blur-surfaced errors must never drive focus; only submit-surfaced ones do.** Validation-on-blur plus
+     "focus the first invalid field" composes into a keyboard trap (WCAG 2.1.2) — the user can never leave
+     the field. Focusing the first invalid field on **submit** is correct and stays.
+  2. **The error summary is a post-submit verdict.** Before a save is attempted, the field's own inline
+     error is the whole story — a top banner restating it is premature and duplicated.
+  3. **A mutation failure inside a dialog gets a persistent in-dialog error region, not only a transient
+     corner toast.** Tokens: `border-destructive/30` + `bg-destructive/[0.07]` surface, `alert` icon in
+     `text-destructive`, headline in `text-destructive-text`, body in `muted-foreground`; `role="alert"`,
+     `tabIndex={-1}`, and focus returns to the region (never to the submit button — that risks an
+     accidental re-submit). It states that nothing was saved and that the entries are intact.
+  Plus: while a modal dialog is open the app background (`[data-app-shell="root"]`) is `inert` —
+  `aria-modal` alone does not remove it from the tab order.
 - **Toast:** `popover` bg, `border` + 3px left accent stripe (`primary`, or `success` for ok), bottom-
   right, slide-in (`.toast-anim`).
 - **Tooltip (`.tooltip-surface`):** a DESIGN.md-sanctioned literal dark surface (`hsl(240 10% 8%)`),
@@ -609,6 +650,18 @@ tokens (same H/S family, darkened L) — see the "Avatar categorical solids" tab
 success-dot 3.92 / warn-dot 3.17 / neutral-dot 4.22 on canvas; dark dots already clear 3:1 at the vivid
 hues (success 8.75 / warn 11.01 / neutral 3.12).
 
+**Standalone-control boundaries — CLOSED (2026-07-28 Discover-pass → fixed same day).** A control
+whose ONLY visual indication is its `border-input` outline (no fill, no icon, no adjacent text
+until it's checked) must clear WCAG 1.4.11's 3:1 non-text floor against the surface it actually
+renders on. Dark `--input` (`240 4% 30%`) measured **2.13:1** on dark `--background` — an empty
+outline that was, in practice, invisible. Fixed by raising dark `--input` to `240 4% 42%` (see the
+"Lines / fields" table above) — a token-level fix, so **any other bordered-only control in dark
+theme likely inherited the same gap**; don't assume a border-only control is visible in dark just
+because it renders in light. (WCAG 1.4.11 exempts `disabled` controls — a dimmed/`opacity-45`
+control is a different, exempt case, not covered by this note.) Deterministic gates:
+`checkboxBorderContrast.test.ts` (token math, `AC-A11Y-CHECKBOX-001`) +
+`AC-VISUAL-CHECKBOX-001-dark-contrast.spec.ts` (rendered computed-style, e2e).
+
 **Focus:** single source of truth — global `:focus-visible` = `2px solid hsl(var(--ring))` at 2px offset.
 **Semantics:** `aria-current="page"` on active nav, `role="tablist"/"tab"/"aria-selected"` on segmented
 filters, `role="checkbox"/"aria-checked"/tabindex` on custom checkboxes, `aria-label` on icon-only
@@ -619,7 +672,7 @@ dot+label (never color-only).
 
 ---
 
-## Icons — the `<Icon name=…>` monoline facade (ADR-0037, locked look)
+## Icons — the `<Icon name=…>` monoline facade (ADR-0068, locked look)
 
 The app renders every icon through ONE facade: `<Icon name=…>` (`src/components/ui/icons.tsx`) backed by
 the `ICON_PATHS` registry (`src/components/ui/iconPaths.tsx`). The facade is the locked monoline look:

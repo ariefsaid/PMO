@@ -2,6 +2,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { makeRefLookup } from '@/src/lib/import/refLookup';
 import type { ValidatedGroup } from '../types';
 
+// SECURITY (2026-07-27 review round 2 #2): a bulk commit run must NOT fire one `save_failed`
+// event per failed case/record — mock the analytics facade to assert the aggregate shape.
+const analytics = vi.hoisted(() => ({ trackSaveFailed: vi.fn(), trackBulkImportFailed: vi.fn() }));
+vi.mock('@/src/lib/analytics', () => analytics);
+
 // ─── Mock the DB create functions ─────────────────────────────────────────────
 
 vi.mock('@/src/lib/db/procurementCrud', () => ({
@@ -253,6 +258,104 @@ describe('commitGroups — AC-CYCLE-COMMIT-003: single bad record does not abort
     expect(records.find((r) => r.type === 'PR')?.status).toBe('created');
     expect(records.find((r) => r.type === 'RFQ')?.status).toBe('failed');
     expect(records.find((r) => r.type === 'PO')?.status).toBe('created');
+  });
+});
+
+// ─── SECURITY (review round 2 #2): one aggregate event per commitGroups() run ──────────────
+
+describe('commitGroups — SECURITY (review round 2 #2, revised per code-quality review #2): ' +
+  'per-classification aggregate bulk_import_failed, never save_failed', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    analytics.trackSaveFailed.mockClear();
+    analytics.trackBulkImportFailed.mockClear();
+  });
+
+  it('a header failure AND a record failure, with DIFFERENT classifications, across two groups ' +
+    'fire ONE bulk_import_failed event PER CLASSIFICATION — never save_failed, and never a ' +
+    'single lump event that discards the reason distribution', async () => {
+    // Group A: header create rejects with 42501 (permission_denied) -> whole case fails, no
+    // children attempted. Group B: header succeeds, one record (RFQ) rejects with 23503 (in_use)
+    // — a DIFFERENT classification, so the test actually proves per-bucket aggregation.
+    vi.mocked(createProcurement)
+      .mockRejectedValueOnce(Object.assign(new Error('header boom'), { code: '42501' }))
+      .mockResolvedValueOnce({ id: 'proc-ok' } as never);
+    vi.mocked(createPurchaseRequest).mockResolvedValue({ id: 'pr-1' } as never);
+    vi.mocked(createRfq).mockRejectedValue(Object.assign(new Error('RFQ error'), { code: '23503' }));
+
+    const groupA: ValidatedGroup = {
+      valid: true, groupErrors: [],
+      group: {
+        caseRef: 'CASE-A', attrs: { title: 'Case A', project: undefined, caseStatus: undefined },
+        rows: [{
+          caseRef: 'CASE-A', type: 'PR', title: 'Case A', project: undefined,
+          caseStatus: undefined, vendor: undefined, externalRef: 'A-EXT',
+          status: 'Approved', date: '2025-01-01', amount: '1000', rowNumber: 1,
+        }],
+        errors: [],
+      },
+      rows: [{ rowNumber: 1, valid: true, errors: [] }],
+    };
+    const groupB: ValidatedGroup = {
+      valid: true, groupErrors: [],
+      group: {
+        caseRef: 'CASE-B', attrs: { title: 'Case B', project: undefined, caseStatus: undefined },
+        rows: [
+          {
+            caseRef: 'CASE-B', type: 'PR', title: 'Case B', project: undefined,
+            caseStatus: undefined, vendor: undefined, externalRef: 'B-PR',
+            status: 'Approved', date: '2025-01-01', amount: '1000', rowNumber: 1,
+          },
+          {
+            caseRef: 'CASE-B', type: 'RFQ', title: undefined, project: undefined,
+            caseStatus: undefined, vendor: undefined, externalRef: 'B-RFQ',
+            status: null as unknown as string, date: null as unknown as string,
+            amount: null as unknown as string, rowNumber: 2,
+          },
+        ],
+        errors: [],
+      },
+      rows: [
+        { rowNumber: 1, valid: true, errors: [] },
+        { rowNumber: 2, valid: true, errors: [] },
+      ],
+    };
+
+    const result = await commitGroups([groupA, groupB], {
+      requestedById: REQUESTER, projectLookup, vendorLookup,
+    });
+
+    expect(result.cases[0].headerStatus).toBe('failed');
+    expect(result.failed).toBe(1); // record-level failures only (RFQ)
+
+    // Never the old event; ONE call PER classification bucket (2 buckets here, 1 each).
+    expect(analytics.trackSaveFailed).not.toHaveBeenCalled();
+    expect(analytics.trackBulkImportFailed).toHaveBeenCalledTimes(2);
+    expect(analytics.trackBulkImportFailed).toHaveBeenCalledWith('procurement', 'permission_denied', 1);
+    expect(analytics.trackBulkImportFailed).toHaveBeenCalledWith('procurement', 'in_use', 1);
+  });
+
+  it('a fully clean run fires no aggregate event', async () => {
+    vi.mocked(createProcurement).mockResolvedValue({ id: 'proc-clean' } as never);
+    vi.mocked(createPurchaseRequest).mockResolvedValue({ id: 'pr-clean' } as never);
+
+    const group: ValidatedGroup = {
+      valid: true, groupErrors: [],
+      group: {
+        caseRef: 'CASE-CLEAN', attrs: { title: 'Clean', project: undefined, caseStatus: undefined },
+        rows: [{
+          caseRef: 'CASE-CLEAN', type: 'PR', title: 'Clean', project: undefined,
+          caseStatus: undefined, vendor: undefined, externalRef: 'C-EXT',
+          status: 'Approved', date: '2025-01-01', amount: '1000', rowNumber: 1,
+        }],
+        errors: [],
+      },
+      rows: [{ rowNumber: 1, valid: true, errors: [] }],
+    };
+
+    await commitGroups([group], { requestedById: REQUESTER, projectLookup, vendorLookup });
+    expect(analytics.trackSaveFailed).not.toHaveBeenCalled();
+    expect(analytics.trackBulkImportFailed).not.toHaveBeenCalled();
   });
 });
 

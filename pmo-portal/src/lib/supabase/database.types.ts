@@ -3410,6 +3410,8 @@ export type Database = {
           code: string | null
           contract_date: string | null
           contract_value: number
+          contract_value_set_at: string | null
+          contract_value_set_by: string | null
           created_at: string
           customer_contract_ref: string | null
           decided_at: string | null
@@ -3433,6 +3435,8 @@ export type Database = {
           code?: string | null
           contract_date?: string | null
           contract_value?: number
+          contract_value_set_at?: string | null
+          contract_value_set_by?: string | null
           created_at?: string
           customer_contract_ref?: string | null
           decided_at?: string | null
@@ -3456,6 +3460,8 @@ export type Database = {
           code?: string | null
           contract_date?: string | null
           contract_value?: number
+          contract_value_set_at?: string | null
+          contract_value_set_by?: string | null
           created_at?: string
           customer_contract_ref?: string | null
           decided_at?: string | null
@@ -3478,6 +3484,13 @@ export type Database = {
             columns: ["client_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "projects_contract_value_set_by_fkey"
+            columns: ["contract_value_set_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
           {

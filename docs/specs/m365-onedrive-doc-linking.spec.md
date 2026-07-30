@@ -1,11 +1,16 @@
 # Microsoft 365 integration — Phase 1 (OneDrive / SharePoint Document **Linking**) — spec
 
-> **⏸️ NOT BUILT (as of 2026-07-22).** This spec is written and awaiting owner sign-off; **no code exists for
-> it**. Its enabling runtime (Graph token custody) IS built, security-hardened and merged to `dev`.
-> **Build is gated on ONE proven live Microsoft connection** — the runtime has never contacted Microsoft
-> (all tests mock `fetch`), so building this on top first would risk reworking both layers. Live state, TBDs
-> and gotchas: the M365 entry in [`docs/backlog.md`](../backlog.md). Parent: the
-> [vision §3.2](../microsoft-365-integration.md).
+> **⏸️ NOT BUILT (re-checked 2026-07-29).** This spec is written and awaiting owner sign-off; **no code exists
+> for it**. Its enabling runtime (Graph token custody) IS built, security-hardened and merged to `dev`.
+>
+> **⚑ The gate has NARROWED, not closed.** This header used to say "the runtime has never contacted
+> Microsoft" — that is **false**: a real live connect completed **2026-07-24 02:20**, and the ADR-0060 live
+> `security-auditor` gate ran the same day (it found HIGH-A1, fixed in `#365`). But that proved only the
+> **connect** leg. **`graph_proxy` has never decrypted a real token** — the one live token we held was
+> structurally undecryptable and the row was deleted, not re-minted. **This feature's browse step *is*
+> `graph_proxy`**, so the remaining gate is precise: one post-fix reconnect + one `graph_proxy` GET against
+> `/me/drive`. Building before that still risks reworking both layers. Live state, TBDs and gotchas: the M365
+> entry in [`docs/backlog.md`](../backlog.md). Parent: the [vision §3.2](../microsoft-365-integration.md).
 >
 > ⚠️ **Cite ADRs by filename, not number** — three ADRs share the number 0059 and two share 0058 (a
 > known repo-wide collision, see the M365 gotchas in the backlog).

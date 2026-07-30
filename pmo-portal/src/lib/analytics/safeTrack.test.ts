@@ -26,19 +26,26 @@ describe('safeTrack', () => {
     expect(() => safeTrack(fn)).not.toThrow();
   });
 
-  it('logs the swallowed error via console.debug (not silent)', () => {
-    const debugSpy = vi.spyOn(console, 'debug').mockImplementation(() => {});
+  // SECURITY finding (2026-07-27 review round 2, LOW #4): `buildEventProperties` THROWS on a
+  // forbidden key in dev/test — that throw is the loud dev-time PII tripwire. Swallowing it as a
+  // `console.debug` inside safeTrack turns a loud guard into a whisper nobody notices in test
+  // output. `console.error` (never rethrown — NFR-APH-REL-001/AC-APH-017 above is unconditional:
+  // analytics must NEVER propagate into the real state transition, in ANY environment, so a
+  // literal rethrow-in-dev is not an option) keeps the guard from going silent without breaking
+  // that invariant.
+  it('AC-APH-017 / SECURITY #4: logs the swallowed error via console.error (loud, never rethrown)', () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     const err = new Error('posthog boom');
     const fn = vi.fn(() => {
       throw err;
     });
     safeTrack(fn);
-    expect(debugSpy).toHaveBeenCalledWith('[analytics] agent event failed', err);
+    expect(errorSpy).toHaveBeenCalledWith('[analytics] tracking call failed', err);
   });
 
   it('does not log when the function succeeds', () => {
-    const debugSpy = vi.spyOn(console, 'debug').mockImplementation(() => {});
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     safeTrack(() => {});
-    expect(debugSpy).not.toHaveBeenCalled();
+    expect(errorSpy).not.toHaveBeenCalled();
   });
 });

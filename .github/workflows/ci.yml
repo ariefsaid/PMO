@@ -18,16 +18,21 @@ on:
       - '.gitignore'
       - 'AGENTS.md'
       - 'LICENSE'
+  # ⚑ NO paths-ignore on pull_request — deliberately. `main` requires the `verify` and
+  # `integration` checks, and required contexts are NOT path-aware: protection demands them on
+  # EVERY PR. With a paths-ignore here, a docs-only PR never started the workflow, the contexts
+  # never reported, and the PR was UNMERGEABLE FOREVER with no way to satisfy it.
+  #
+  # The obvious fix — a second workflow with the inverse `paths` filter publishing the same check
+  # names — is WRONG: GitHub path filters are OR-based over changed files, so a MIXED PR (docs +
+  # code) triggers BOTH workflows, yielding two `verify` and two `integration` runs. A passing stub
+  # alongside a failing real job is exactly the green-washing these gates exist to prevent.
+  #
+  # So one workflow owns these names and always runs on a PR. The cost is that a docs-only PR runs
+  # the full suite; that is rare (docs go direct to `dev` per CLAUDE.md) and correctness beats CI
+  # minutes. The `push` trigger below KEEPS its paths-ignore — push has no required checks, so
+  # skipping it there is free.
   pull_request:
-    paths-ignore:
-      - 'docs/**'
-      - 'review/**'
-      - '.claude/**'
-      - '.codex/**'
-      - '**/*.md'
-      - '.gitignore'
-      - 'AGENTS.md'
-      - 'LICENSE'
   workflow_dispatch: {}
 
 # Least privilege: the workflow only reads the repo (checkout + diff); it never writes
@@ -75,6 +80,9 @@ jobs:
       - name: E2E isolation-tag check
         working-directory: .
         run: bash scripts/check-e2e-isolation.sh
+      - name: NUL byte check (tracked text files)
+        working-directory: .
+        run: bash scripts/check-nul-bytes.sh .
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: 22
@@ -94,6 +102,7 @@ jobs:
           node --test scripts/ci-integration-order.test.mjs scripts/deno-inventory.test.mjs
           node scripts/check-e2e-skips.mjs --self-test
           bash scripts/check-e2e-isolation.sh --self-test
+          bash scripts/check-nul-bytes.sh --self-test
       - run: npm ci
       - name: Supply-chain audit — production deps (blocking)
         # Gate on vulnerabilities in code that SHIPS to users (the production dependency tree).
@@ -194,6 +203,9 @@ jobs:
       - name: E2E isolation-tag check
         working-directory: .
         run: bash scripts/check-e2e-isolation.sh
+      - name: NUL byte check (tracked text files)
+        working-directory: .
+        run: bash scripts/check-nul-bytes.sh .
 
       - uses: supabase/setup-cli@3c2f5e2ae34c34e428e8e206e2c4d21fa2d20fbf # v2.1.1
         with:
@@ -240,6 +252,9 @@ jobs:
       - name: E2E isolation-tag check
         working-directory: .
         run: bash scripts/check-e2e-isolation.sh
+      - name: NUL byte check (tracked text files)
+        working-directory: .
+        run: bash scripts/check-nul-bytes.sh .
 
       - uses: supabase/setup-cli@3c2f5e2ae34c34e428e8e206e2c4d21fa2d20fbf # v2.1.1
         with:
@@ -315,7 +330,8 @@ jobs:
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('pmo-portal/package-lock.json') }}
-      # Install only Chromium (the single project in playwright.config.ts): browsers on a
+      # Install only Chromium: every project (chromium, serial, consent) in playwright.config.ts
+      # runs devices['Desktop Chrome'], so one browser download covers all three. Browsers on a
       # cache miss, system deps always.
       - name: Install Playwright (browsers on cache miss; system deps always)
         working-directory: pmo-portal
@@ -326,8 +342,12 @@ jobs:
             npx playwright install --with-deps chromium
           fi
 
-      # The webServer in playwright.config.ts runs `npm run dev` (Vite dev server on :3000).
-      # reuseExistingServer=false in CI so Playwright owns the lifecycle.
+      # playwright.config.ts's `webServer` is now an ARRAY of two Vite dev servers: the ordinary
+      # one (`npm run dev`, :3000, analytics disabled) and a second, analytics-ENABLED one (:3100,
+      # the `consent` project's lane, D6 in docs/plans/2026-07-25-observability-analytics.md — a
+      # dev server with a real key was the only way to make AC-CON-003 non-vacuous). Both are
+      # started for every project invocation below since `webServer` is a top-level config, not
+      # per-project. reuseExistingServer=false in CI so Playwright owns the lifecycle for both.
       - name: E2E tests (Playwright / Chromium)
         working-directory: pmo-portal
         run: |
@@ -337,6 +357,7 @@ jobs:
           # failing test name at all.) The env var routes json to a file and leaves list on stdout.
           PLAYWRIGHT_JSON_OUTPUT_NAME=/tmp/pw-chromium.json npx playwright test --project=chromium --fail-on-flaky-tests --reporter=list,json
           PLAYWRIGHT_JSON_OUTPUT_NAME=/tmp/pw-serial.json npx playwright test --project=serial --workers=1 --fail-on-flaky-tests --reporter=list,json
+          PLAYWRIGHT_JSON_OUTPUT_NAME=/tmp/pw-consent.json npx playwright test --project=consent --fail-on-flaky-tests --reporter=list,json
 
       # ⚑ Green-by-absence gate. A SKIPPED test is not a passing one, and skips are invisible in a
       # green tick — the last main run skipped 200. AC-INV-001 sat in that 200 for months (its guard
@@ -345,9 +366,9 @@ jobs:
       # fails too, so the list cannot quietly grow to cover everything.
       - name: E2E skip audit — every skip is explained
         working-directory: .
-        # BOTH lane reports in ONE invocation — checked separately, a lane-scoped allowlist entry
-        # looks stale in the other lane's report and the gate fails itself.
-        run: node scripts/check-e2e-skips.mjs /tmp/pw-chromium.json /tmp/pw-serial.json
+        # ALL THREE lane reports in ONE invocation — checked separately, a lane-scoped allowlist
+        # entry looks stale in another lane's report and the gate fails itself.
+        run: node scripts/check-e2e-skips.mjs /tmp/pw-chromium.json /tmp/pw-serial.json /tmp/pw-consent.json
 
       # ERPNext P2: prove the served adapter-dispatch lane in CI (the money e2e itself is local-only —
       # it needs the Docker v15 bench + 1Password creds, which are a dev-bed concern, not CI's). The CI

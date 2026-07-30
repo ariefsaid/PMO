@@ -1,0 +1,83 @@
+# PostHog quota alarm — FR-PHG-030/031, ADR-0067.
+#
+# Why this exists: exceeding a PostHog free allowance is DESTRUCTIVE, not billed — ingestion
+# stops and the excess is lost forever. A mid-month quota stop flattens every chart into a false
+# "nobody uses the product" signal, which is the exact thing this whole observability program
+# exists to prevent. PostHog's own 80%/100% emails go only to the org owner and are easy to miss.
+#
+# Triggers are `schedule` (daily) + `workflow_dispatch` (manual) — NEVER push/PR: this is a
+# standing alert on live PostHog account state, not a per-change gate (mirrors agent-evals.yml's
+# non-merge-blocking pattern). A red run fails THIS job (signal/alert), not any PR.
+#
+# ⚑ REQUIRES two repo secrets that are NOT yet configured (owner action, not code):
+#   POSTHOG_API_KEY      a personal API key, project:read scope (source: 1Password vault AS,
+#                         item `posthog-personal-api`, field `credential` — same one
+#                         provision-dashboards.mjs already documents using)
+#   POSTHOG_PROJECT_ID    the numeric project id (465502 for the current demo project)
+# Until both are set, this workflow will FAIL LOUDLY on schedule (check-quota.mjs's own
+# "Missing POSTHOG_API_KEY and/or POSTHOG_PROJECT_ID env" exit(2)) — a deliberate choice: a
+# monitoring job that silently reports green when it isn't actually configured is the exact
+# fail-open failure class item #1 of this same review round just closed in evaluateQuota. Add
+# the secrets via GitHub repo Settings -> Secrets and variables -> Actions.
+name: posthog-quota
+
+on:
+  schedule:
+    # Daily at 07:00 UTC — owner-adjustable. A non-merge-blocking regression signal.
+    - cron: '0 7 * * *'
+  workflow_dispatch: {}
+
+# Least privilege: the workflow only reads the repo + calls the PostHog read-only quota
+# endpoint; it never writes contents, issues, PRs, or packages.
+permissions:
+  contents: read
+
+# One run at a time — avoid overlapping nightly + manual dispatch cost.
+concurrency:
+  group: posthog-quota
+  cancel-in-progress: false
+
+jobs:
+  check-quota:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 22
+
+      # Mask the key so it never appears in logs even if something echoes it (GH auto-masks
+      # registered secrets; this is defence in depth, matching agent-evals.yml's pattern).
+      - name: Mask PostHog secrets
+        env:
+          POSTHOG_API_KEY: ${{ secrets.POSTHOG_API_KEY }}
+        run: |
+          val=$(printenv POSTHOG_API_KEY || true)
+          if [ -n "$val" ]; then echo "::add-mask::$val"; fi
+
+      # Deliberately still FAILS CLOSED when unconfigured (option (b), 2026-07-28 code-quality
+      # review #6 — a monitoring job that silently reports green/skipped when it isn't actually
+      # configured is exactly the fail-open class item #1 of the SAME review round closed in
+      # evaluateQuota). The distinct summary banners below exist ONLY to stop this from being
+      # "just another red" that gets learned-and-ignored: a missing-secret run and a real quota
+      # breach are visually distinguishable the moment the run summary is opened, without needing
+      # to read the raw log.
+      - name: Check PostHog quota
+        env:
+          POSTHOG_API_KEY: ${{ secrets.POSTHOG_API_KEY }}
+          POSTHOG_PROJECT_ID: ${{ secrets.POSTHOG_PROJECT_ID }}
+        run: |
+          set +e
+          node scripts/posthog/check-quota.mjs
+          code=$?
+          set -e
+          if [ "$code" -eq 2 ] && { [ -z "$POSTHOG_API_KEY" ] || [ -z "$POSTHOG_PROJECT_ID" ]; }; then
+            echo "## :construction: SETUP REQUIRED — not a quota alarm" >> "$GITHUB_STEP_SUMMARY"
+            echo "POSTHOG_API_KEY and/or POSTHOG_PROJECT_ID are not set as repo secrets yet." >> "$GITHUB_STEP_SUMMARY"
+            echo "See docs/analytics-events.md 'Quota safety' for setup steps (owner action)." >> "$GITHUB_STEP_SUMMARY"
+          elif [ "$code" -eq 1 ]; then
+            echo "## :rotating_light: QUOTA ALARM — a PostHog free allowance is at/above 80%" >> "$GITHUB_STEP_SUMMARY"
+            echo "See the job log above for the affected resource(s). Ingestion loss is PERMANENT." >> "$GITHUB_STEP_SUMMARY"
+          fi
+          exit "$code"

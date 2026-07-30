@@ -157,6 +157,7 @@ import {
 // drifted keys means the outbox 4-tuple does not collide and the client is billed a DUPLICATED WEEK of
 // hours. (This is why the key was moved out of `repositories/index.ts`, which no edge fn can load.)
 import { timesheetPushKey } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/timesheetPushKey.ts';
+import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
 
 export { createInFlightAnchorProbe, type InFlightAnchorProbe };
 
@@ -1748,7 +1749,7 @@ async function reconcileOrgTimesheetPushesLive(serviceClient: SupabaseClient, or
   }
 }
 
-Deno.serve(async (req: Request): Promise<Response> => {
+serveWithErrorReporting('erpnext-sweep', async (req: Request): Promise<Response> => {
   // ── 1. Authorization: the caller (the pg_cron job) must present the DEDICATED sweep secret (NOT the
   //    master service_role key — least-privilege, mirroring clickup-sweep). The cron presents this same
   //    secret from the Vault `erpnext_sweep_secret`; the master key never crosses into the DB. ──

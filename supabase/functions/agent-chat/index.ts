@@ -26,6 +26,7 @@
 // Deno-native imports (not in pmo-portal/package.json)
 import { createClient } from '@supabase/supabase-js';
 import { agentChatHandler } from './handler.ts';
+import { drainSseStream } from './sseStream.ts';
 import { loadJournaledWrites, loadMaxSeq } from './persistence.ts';
 import { createAttachmentResolver } from './attachments.ts';
 import { createCreditRateGuard } from '../_shared/creditRateGuard.ts';
@@ -36,7 +37,7 @@ import { resolveDefaultModel } from '../_shared/modelResolution.ts';
 import { DEPLOY_VERSION } from '../_shared/version.ts';
 import { logStructuredError } from '../_shared/errorLog.ts';
 import { recordErrorEvent } from '../_shared/errorEvent.ts';
-import { encodeSse } from '../../../pmo-portal/src/lib/agent/runtime/transport.ts';
+import { reportEdgeError } from '../_shared/reportEdgeError.ts';
 import type { AgentChatRequest } from '../../../pmo-portal/src/lib/agent/runtime/transport.ts';
 import {
   AGENT_MASTER_DATA_ROLES,
@@ -49,6 +50,7 @@ import {
   jwksFromUrl,
   type JwksResolver,
 } from '../../../pmo-portal/src/lib/auth/verifyCallerJwt.ts';
+import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
 
 // ADR-0057: one cached, rate-limited JWKS resolver, memoized across warm invocations. Built lazily
 // so an empty SUPABASE_URL can't throw a URL error before the handler can return a typed 401/500.
@@ -70,7 +72,7 @@ const corsHeaders = {
   'Access-Control-Expose-Headers': 'x-deploy-version',
 };
 
-Deno.serve(async (req: Request): Promise<Response> => {
+serveWithErrorReporting('agent-chat', async (req: Request): Promise<Response> => {
   // ── CORS preflight ────────────────────────────────────────────────────────
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -258,12 +260,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
   // ── 6. Pipe agentChatHandler events into SSE ReadableStream (D1/ADR-0042) ─
   const stream = new ReadableStream({
     async start(controller) {
-      const enc = new TextEncoder();
-      // FR-AGP-016: client-disconnect continuation — an enqueue error (dropped socket) is
-      // swallowed so the `for await` loop below keeps draining the generator to completion
-      // server-side (persisting the remaining journal/heartbeat/terminal-status writes) rather
-      // than breaking early and leaving the run's durable-resume state incomplete.
-      let socketLive = true;
       // Built as its own explicitly-typed variable (rather than an inline object literal in the
       // call expression below): deno check's structural assignability recursion (TS2589
       // "excessively deep") is triggered by inferring+widening this large literal (6+
@@ -317,23 +313,21 @@ Deno.serve(async (req: Request): Promise<Response> => {
             }
           : undefined,
       };
-      try {
-        for await (const ev of agentChatHandler(body, deps)) {
-          if (!socketLive) continue; // keep draining for persistence; stop trying to enqueue
-          try {
-            controller.enqueue(enc.encode(encodeSse(ev)));
-          } catch {
-            // Dropped socket — stop enqueueing but keep the loop (and persistence) running.
-            socketLive = false;
-          }
-        }
-      } finally {
-        try {
-          controller.close();
-        } catch {
-          // Already closed/errored (e.g. socket dropped) — nothing further to do.
-        }
-      }
+      // FR-AGP-016 client-disconnect continuation + the finally-close are inside drainSseStream
+      // (extracted, review round 2026-07-28 — a streaming handler must report inside its own
+      // stream: a throw here happens AFTER this 200 response has already gone out, so
+      // wrapWithErrorReporting's outer try/catch can never see it. onStreamError is the ONLY
+      // remaining surface — the HTTP response itself can no longer change.)
+      await drainSseStream(agentChatHandler(body, deps), controller, (err) =>
+        reportEdgeError(
+          {
+            fn: 'agent-chat',
+            errorCode: 'UNHANDLED_STREAM_ERROR',
+            contextId: err instanceof Error ? err.name : 'unknown',
+          },
+          verifierClient as never,
+        ),
+      );
     },
   });
 

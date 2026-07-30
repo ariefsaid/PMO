@@ -3,7 +3,7 @@ import {
   buildEventProperties,
   trackFormValidationFailed,
   trackSaveFailed,
-  trackPermissionDeniedSeen,
+  trackBulkImportFailed,
   trackEmptyStateSeen,
 } from './events';
 import type { AuthMethod, AuthFailureReason } from './events';
@@ -11,7 +11,7 @@ import type { AuthMethod, AuthFailureReason } from './events';
 describe('analytics event sanitizer', () => {
   it('AC-PH-014: blocks forbidden property keys in dev/test', () => {
     expect(() => buildEventProperties('save_failed', {
-      entity_type: 'project',
+      failure_class: 'project',
       operation: 'update',
       reason_code: 'network',
       module: 'projects',
@@ -29,7 +29,7 @@ describe('analytics event sanitizer', () => {
 
   it('AC-PH-014: drops forbidden keys silently in production', () => {
     const result = buildEventProperties('save_failed', {
-      entity_type: 'project',
+      failure_class: 'project',
       operation: 'update',
       reason_code: 'network',
       module: 'projects',
@@ -37,7 +37,7 @@ describe('analytics event sanitizer', () => {
     }, true);
     expect(result).not.toHaveProperty('email');
     expect(result).toMatchObject({
-      entity_type: 'project',
+      failure_class: 'project',
       operation: 'update',
       reason_code: 'network',
       module: 'projects',
@@ -46,23 +46,23 @@ describe('analytics event sanitizer', () => {
 
   it('AC-PH-014: blocks unsafe nested object values in dev/test', () => {
     expect(() => buildEventProperties('save_failed', {
-      entity_type: 'project',
+      failure_class: 'project',
       details: { raw: 'object' } as unknown as string,
     }, false)).toThrow(/unsafe analytics value/i);
   });
 
   it('AC-PH-014: drops unsafe nested values silently in production', () => {
     const result = buildEventProperties('save_failed', {
-      entity_type: 'project',
+      failure_class: 'project',
       details: { raw: 'object' } as unknown as string,
     }, true);
     expect(result).not.toHaveProperty('details');
-    expect(result).toMatchObject({ entity_type: 'project' });
+    expect(result).toMatchObject({ failure_class: 'project' });
   });
 
   it('AC-PH-014: allows safe values through', () => {
     const result = buildEventProperties('save_failed', {
-      entity_type: 'project',
+      failure_class: 'project',
       operation: 'update',
       reason_code: 'network',
       module: 'projects',
@@ -70,7 +70,7 @@ describe('analytics event sanitizer', () => {
       is_retry: true,
     }, false);
     expect(result).toEqual({
-      entity_type: 'project',
+      failure_class: 'project',
       operation: 'update',
       reason_code: 'network',
       module: 'projects',
@@ -84,17 +84,11 @@ describe('analytics event sanitizer', () => {
       event: 'form_validation_failed',
       properties: { form_id: 'project-form', field_count: 2, reason_code: 'required', module: 'projects' },
     });
-    expect(trackSaveFailed('project', 'update', 'network', 'projects').event).toBe('save_failed');
-    expect(trackSaveFailed('project', 'update', 'network', 'projects').properties).toMatchObject({
-      entity_type: 'project',
+    expect(trackSaveFailed('permission_denied', 'update', 'network', 'projects').event).toBe('save_failed');
+    expect(trackSaveFailed('permission_denied', 'update', 'network', 'projects').properties).toMatchObject({
+      failure_class: 'permission_denied',
       operation: 'update',
       reason_code: 'network',
-      module: 'projects',
-    });
-    expect(trackPermissionDeniedSeen('project-actions', 'Engineer', 'projects').event).toBe('permission_denied_seen');
-    expect(trackPermissionDeniedSeen('project-actions', 'Engineer', 'projects').properties).toMatchObject({
-      surface: 'project-actions',
-      role: 'Engineer',
       module: 'projects',
     });
     expect(trackEmptyStateSeen('project-list-empty', 'Project Manager', 'projects').event).toBe('empty_state_seen');
@@ -102,6 +96,16 @@ describe('analytics event sanitizer', () => {
       state_id: 'project-list-empty',
       role: 'Project Manager',
       module: 'projects',
+    });
+  });
+
+  // 2026-07-27 code-quality review #2: `bulk_import_failed` is a DISTINCT event from `save_failed`
+  // (never a lump `failed_count` bolted onto save_failed's existing shape — that mixed two units
+  // of measurement, see classifyMutationError.ts's trackBatchSaveFailed doc comment).
+  it('AC-PH-013: trackBulkImportFailed emits a distinct event with module/failure_class/failed_count', () => {
+    expect(trackBulkImportFailed('companies', 'permission_denied', 4800)).toEqual({
+      event: 'bulk_import_failed',
+      properties: { module: 'companies', failure_class: 'permission_denied', failed_count: 4800 },
     });
   });
 });
