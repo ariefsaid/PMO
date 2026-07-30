@@ -405,9 +405,11 @@ citation sweep by MEANING, not by the file list the fix enumerated** — search 
 
 ⚑ **Why `0069` happened at all, and why it cannot recur:** `scripts/check-adr-collisions.sh` existed
 and worked — it just **was never reachable**. It runs inside `npm run verify`, which runs on PRs, and
-docs-only changes push **direct to `dev` with no PR**. An ADR is docs. Now closed by
+docs-only changes push **direct to `dev` with no PR**. An ADR is docs. Closed by
 `.claude/hooks/pre-push-collision-gate.sh`, which runs both collision gates before any push landing on
-`dev`. Both gates also now **fail closed on a zero-file scan** — `check-migration-collisions.sh` used
+`dev`. ⚑ **That hook was written on 2026-07-29 but sat on an UNPUSHED branch for several hours** — so
+this very entry asserted a control that was not in the tree. Caught by running the hook before a push
+and getting `No such file or directory`. Landed separately; **a doc claiming a guard is not a guard**. Both gates also now **fail closed on a zero-file scan** — `check-migration-collisions.sh` used
 to print `OK (0 files)` and exit 0 on an empty directory.
 
 **Branch-deletion caveat (still open, owner call):** `redesign/design-system` holds the exploration
