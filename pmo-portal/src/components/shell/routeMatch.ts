@@ -157,6 +157,10 @@ export const PLACEHOLDER_TITLES: Record<string, string> = {
   // /views index (OD-4, I4) now ships as MyViewsPage but is not a rail module, so its breadcrumb
   // must resolve here — otherwise it falls through to the "Not found" label (owner report 2026-07-14).
   '/views': 'My Views',
+  // M365 connection-model (D2): the personal-connect surface. Not a rail MODULE (no detail route,
+  // no ⌘K record drill) but it HAS a rail entry, so register the title here so the breadcrumb
+  // resolves "Integrations" on direct deep-link rather than falling through to "Not found".
+  '/integrations': 'Integrations',
 };
 
 /**

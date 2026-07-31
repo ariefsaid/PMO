@@ -63,6 +63,14 @@ export function describeM365Error(code: string | undefined): string {
   switch (code) {
     case 'NOT_ENTITLED':
       return "Your organization isn't enabled for the Microsoft 365 integration yet.";
+    // Connection-model (2026-07-30): the membership-status rejection and the org-approval rejection
+    // are their OWN outcomes, distinct from an entitlement rejection (NFR-M365SEP-006). A disabled
+    // member must NOT be told the org is not entitled; a user whose org hasn't approved the app must
+    // NOT be told either of the other two.
+    case 'DISABLED_MEMBER':
+      return 'Your account access has been disabled. Please contact your administrator.';
+    case 'ORG_APPROVAL_REQUIRED':
+      return "Your organization hasn't approved the PMO Portal app yet. Ask your administrator to approve it in Microsoft 365.";
     case 'FORBIDDEN':
       // ADR-0058 §3 amendment (2026-07-24): M365 connect is Operator-gated, not org-Admin. Copy
       // updated (audit LOW-B2) so a rejected org-Admin is told the real reason, not "be an Admin".

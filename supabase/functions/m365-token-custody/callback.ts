@@ -342,16 +342,20 @@ async function rejectIdentityMismatch(
   return redirectToFeError(env, 'Connection failed: identity mismatch. Please contact your administrator.');
 }
 
-function redirectToFeError(env: { siteUrl: string }, message: string): HandlerResult {
+// Exported so the route-target test (AC-M365SEP-018) can derive each redirect target from the
+// helpers themselves rather than re-typing the path — the test then resolves the path against the
+// app's real route table. This is the §1.3 guard: a redirect to a route that does not exist
+// (`/admin/integrations` never did) must fail the test, not silently land on Not Found in prod.
+export function redirectToFeError(env: { siteUrl: string }, message: string): HandlerResult {
   return {
     status: 302,
-    headers: { Location: `${env.siteUrl}/admin/integrations?m365_error=${encodeURIComponent(message)}` },
+    headers: { Location: `${env.siteUrl}/integrations?m365_error=${encodeURIComponent(message)}` },
   };
 }
 
-function redirectToFeSuccess(env: { siteUrl: string }): HandlerResult {
+export function redirectToFeSuccess(env: { siteUrl: string }): HandlerResult {
   return {
     status: 302,
-    headers: { Location: `${env.siteUrl}/admin/integrations?m365_connected=true` },
+    headers: { Location: `${env.siteUrl}/integrations?m365_connected=true` },
   };
 }

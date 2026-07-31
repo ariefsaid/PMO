@@ -34,7 +34,6 @@ import { AgentCostMetrics } from '@/src/components/admin/AgentCostMetrics';
 import { AdministrationCredits } from './AdministrationCredits';
 import { AdministrationFeatures } from './AdministrationFeatures';
 import { IntegrationsView } from '@/src/components/integrations/IntegrationsView';
-import { M365ConnectionCard } from '@/src/components/integrations/M365ConnectionCard';
 import BudgetAccountMap from './admin/BudgetAccountMap';
 
 /**
@@ -477,10 +476,11 @@ const AdminUsers: React.FC = () => {
       )}
 
       {/* Integrations section (FR-EAS-007, OD-2) — read-only: employed external tiers + the
-          domains they own as SoT; writes are Operator-provisioned via RPC, never in-app. */}
+          domains they own as SoT; writes are Operator-provisioned via RPC, never in-app.
+          The M365 personal-connect card moved to /integrations (m365-operator-client-separation
+          D2) so any active member can reach it — one home, not two, or they drift. */}
       <div className="mt-6">
         <SectionHeader title="Integrations" />
-        <M365ConnectionCard isOperator={isOperator} />
         <IntegrationsView />
       </div>
 

@@ -311,3 +311,58 @@ describe('AC-M365-110/111/112/113/114 — handleGraphProxy', () => {
     expect(graphFetch).not.toHaveBeenCalled();
   });
 });
+
+describe("AC-M365SEP-009 — graph_proxy reads only the CALLER'S connection (own-row scoping)", () => {
+  // NFR-M365SEP-004: every action resolves the connection by the caller's OWN user_id from the
+  // verified JWT — no caller acts through another user's connection. proxy.ts:69 already filters
+  // `.eq('org_id', orgId).eq('user_id', userId)`. This test exists so a FUTURE refactor that widens
+  // the lookup (drops the user_id filter) fails loudly — the mock returns the queued row regardless
+  // of filters, so the row choice alone can't prove the filter was applied; the `selects` assertion
+  // is what makes the filter load-bearing.
+  it("AC-M365SEP-009: with two connections in the same org, the caller's row is read — scoped by user_id, never the other user's", async () => {
+    // Two active connections in the SAME org (org-1): the caller (user-1) and a colleague (user-2).
+    const callerConn = await connection({
+      id: 'conn-caller',
+      user_id: 'user-1',
+      access_token_ciphertext: await encryptForTest('CALLER-TOKEN'),
+    });
+    // The colleague's connection — its token must NEVER be read or sent to Graph.
+    const otherConn = await connection({
+      id: 'conn-other',
+      user_id: 'user-2',
+      access_token_ciphertext: await encryptForTest('OTHER-TOKEN'),
+    });
+    void otherConn;
+
+    // The service client returns the CALLER's row for the lookup. (The mock returns the queued row
+    // regardless of the eq filters applied, so this alone can't prove the filter ran — see below.)
+    const service = mockClient({ ms_graph_connections: [{ data: callerConn, error: null }] });
+    const graphFetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ value: ['doc'] }) });
+
+    const result = await handleGraphProxy(
+      graphReq('/me/drive/root/children'),
+      deps({ service, caller: callerClient(), userId: 'user-1', fetch: graphFetch }),
+    );
+
+    expect(result.status).toBe(200);
+
+    // 1. LOAD-BEARING: the connection lookup was scoped to BOTH org_id AND the caller's user_id.
+    //    Drop `.eq('user_id', userId)` from proxy.ts and this fails — exactly the widening refactor
+    //    this test exists to catch. The lookup is NEVER scoped to the other user.
+    const connSelect = service.selects.find((s) => s.table === 'ms_graph_connections');
+    expect(connSelect, 'graph_proxy must SELECT ms_graph_connections').toBeTruthy();
+    expect(connSelect!.eqs).toEqual(
+      expect.arrayContaining([
+        ['org_id', 'org-1'],
+        ['user_id', 'user-1'],
+      ]),
+    );
+    expect(connSelect!.eqs).not.toEqual(expect.arrayContaining([['user_id', 'user-2']]));
+
+    // 2. Graph was called with the CALLER's decrypted token — the colleague's token never reached
+    //    Microsoft.
+    const authHeader = (graphFetch.mock.calls[0]![1] as { headers: Record<string, string> }).headers
+      .Authorization;
+    expect(authHeader).toBe('Bearer CALLER-TOKEN');
+  });
+});

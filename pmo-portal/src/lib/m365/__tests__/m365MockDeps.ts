@@ -40,6 +40,22 @@ export interface RecordedWrite {
 }
 
 /**
+ * A recorded pure-read (SELECT) chain — the table, the `.select(cols)` projection, and the `.eq()`
+ * filters applied, in call order. Recorded separately from `writes` (a read is NOT a mutation), so
+ * a test can prove a lookup was scoped — e.g. graph_proxy's connection read MUST carry
+ * `.eq('user_id', caller)` (NFR-M365SEP-004 / AC-M365SEP-009 own-row scoping). Without this, a future
+ * refactor that drops the `.eq('user_id', …)` filter leaves every test green (the mock returns the
+ * queued row regardless of filters) — the filter is load-bearing only if a test asserts on it.
+ */
+export interface RecordedSelect {
+  table: string;
+  /** The `.select(cols)` projection ('*' / '' / undefined = all columns). */
+  cols?: string;
+  /** The `.eq(column, value)` filters applied, in call order. */
+  eqs: Array<[string, unknown]>;
+}
+
+/**
  * Project `row` down to exactly the columns named in `cols` (comma-separated) — the same shape
  * PostgREST returns for an explicit `.select('a,b,c')`. `cols` undefined/empty/'*' means "everything"
  * (both are legitimate `.select()` forms). Throws if a requested column is absent from the stubbed
@@ -69,6 +85,8 @@ export interface MockClient {
   from: ReturnType<typeof vi.fn>;
   rpc: ReturnType<typeof vi.fn>;
   writes: RecordedWrite[];
+  /** Every pure-read (SELECT) chain, with its `.eq()` filters — for own-row-scoping proofs. */
+  selects: RecordedSelect[];
   /** Queue the next terminal response for `.from(table)` calls (FIFO). */
   push(table: string, resp: unknown): void;
 }
@@ -90,6 +108,7 @@ export function mockClient(seeded: Record<string, unknown[]> = {}): MockClient {
   const queues: Record<string, unknown[]> = {};
   for (const [t, rs] of Object.entries(seeded)) queues[t] = [...rs];
   const writes: RecordedWrite[] = [];
+  const selects: RecordedSelect[] = [];
 
   // The ONLY sanctioned mutation path for ms_graph_connections is the lock-order RPC (a direct
   // `.from('ms_graph_connections').<write>` would lock the child tuple before the parents and
@@ -110,6 +129,7 @@ export function mockClient(seeded: Record<string, unknown[]> = {}): MockClient {
       if (recorded) return;
       recorded = true;
       if (kind) writes.push({ table, kind, payload, eqs: [...eqs] });
+      else selects.push({ table, cols: selectCols, eqs: [...eqs] });
     };
     const next = () => {
       const list = queues[table] ?? [];
@@ -255,6 +275,7 @@ export function mockClient(seeded: Record<string, unknown[]> = {}): MockClient {
     from,
     rpc,
     writes,
+    selects,
     push: (t: string, resp: unknown) => {
       (queues[t] ??= []).push(resp);
     },

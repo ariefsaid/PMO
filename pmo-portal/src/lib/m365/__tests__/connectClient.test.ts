@@ -89,6 +89,8 @@ describe('AC-M365-014 — initiateM365Connect transport', () => {
 describe('AC-M365-015 — M365ErrorCode taxonomy maps to human copy (never a raw code/internal string)', () => {
   const cases: Array<{ code: string; status: number }> = [
     { code: 'NOT_ENTITLED', status: 403 },
+    { code: 'DISABLED_MEMBER', status: 403 },
+    { code: 'ORG_APPROVAL_REQUIRED', status: 403 },
     { code: 'FORBIDDEN', status: 403 },
     { code: 'UNAUTHORIZED', status: 401 },
     { code: 'CONNECTION_STALE', status: 409 },
@@ -244,7 +246,7 @@ describe('AC-M365-022 (transport) — getM365ConnectionStatus', () => {
 
 describe('describeM365Error — no M365ErrorCode leaks its raw string into the human copy', () => {
   const allCodes = [
-    'NOT_ENTITLED', 'FORBIDDEN', 'UNAUTHORIZED', 'CONNECTION_STALE', 'CONNECTION_REVOKED',
+    'NOT_ENTITLED', 'DISABLED_MEMBER', 'ORG_APPROVAL_REQUIRED', 'FORBIDDEN', 'UNAUTHORIZED', 'CONNECTION_STALE', 'CONNECTION_REVOKED',
     'NOT_CONNECTED', 'TOKEN_EXCHANGE_FAILED', 'INVALID_STATE', 'SCOPE_INSUFFICIENT',
     'BAD_REQUEST', 'GRAPH_ERROR', 'INTERNAL_ERROR',
   ];
@@ -256,4 +258,51 @@ describe('describeM365Error — no M365ErrorCode leaks its raw string into the h
       expect(copy).not.toContain('_');
     });
   }
+});
+
+describe('AC-M365SEP-019 — disabled-member / org-approval / entitlement copy is distinct + leak-free', () => {
+  // NFR-M365SEP-006: a membership-status rejection, an entitlement rejection, and an org-approval
+  // rejection are THREE distinguishable outcomes with distinct human copy. NFR-M365SEP-007/019:
+  // no token, oid, tenant id, or raw Microsoft error reaches the user.
+  const EVERY_CODE = [
+    'NOT_ENTITLED', 'DISABLED_MEMBER', 'ORG_APPROVAL_REQUIRED', 'FORBIDDEN', 'UNAUTHORIZED',
+    'CONNECTION_STALE', 'CONNECTION_REVOKED', 'NOT_CONNECTED', 'TOKEN_EXCHANGE_FAILED',
+    'INVALID_STATE', 'SCOPE_INSUFFICIENT', 'BAD_REQUEST', 'GRAPH_ERROR', 'INTERNAL_ERROR',
+  ];
+
+  it('AC-M365SEP-019: DISABLED_MEMBER, ORG_APPROVAL_REQUIRED and NOT_ENTITLED are three distinct messages', () => {
+    const disabled = describeM365Error('DISABLED_MEMBER');
+    const approval = describeM365Error('ORG_APPROVAL_REQUIRED');
+    const entitled = describeM365Error('NOT_ENTITLED');
+    // Three mutually-distinct strings — none may collapse into another.
+    expect(new Set([disabled, approval, entitled])).toHaveLength(3);
+  });
+
+  it.each(EVERY_CODE)(
+    'AC-M365SEP-019: %s copy leaks no token / oid / tenant id / raw Microsoft error',
+    (code) => {
+      const copy = describeM365Error(code);
+      // No secret material or Microsoft-internal identifier may appear in user-facing copy.
+      expect(copy).not.toMatch(/token|oid|tenant|bearer|code_verifier|invalid_grant/i);
+      expect(copy.length).toBeGreaterThan(10);
+    },
+  );
+
+  it('AC-M365SEP-019: a DISABLED_MEMBER rejection is told their access is disabled (NOT that the org is not entitled)', () => {
+    const copy = describeM365Error('DISABLED_MEMBER');
+    expect(copy.toLowerCase()).toMatch(/disabled/);
+    // The disabled-member copy must NOT reuse the entitlement message — a disabled user told "your
+    // org isn't enabled" would be a false statement about the org (NFR-M365SEP-006).
+    expect(copy).not.toBe(describeM365Error('NOT_ENTITLED'));
+    expect(copy).not.toContain("isn't enabled");
+  });
+
+  it('AC-M365SEP-019: an ORG_APPROVAL_REQUIRED rejection tells the user to ask their administrator to approve the app', () => {
+    const copy = describeM365Error('ORG_APPROVAL_REQUIRED');
+    expect(copy.toLowerCase()).toMatch(/administrator/);
+    expect(copy.toLowerCase()).toMatch(/approve/);
+    // Distinct from the other two outcomes.
+    expect(copy).not.toBe(describeM365Error('NOT_ENTITLED'));
+    expect(copy).not.toBe(describeM365Error('DISABLED_MEMBER'));
+  });
 });
