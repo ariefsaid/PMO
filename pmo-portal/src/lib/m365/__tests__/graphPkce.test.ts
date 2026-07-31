@@ -6,7 +6,12 @@
  * is the held Phase-1 edge function, which alone holds the client secret).
  */
 import { describe, it, expect } from 'vitest';
-import { generateCodeVerifier, codeChallengeS256, buildAuthorizeUrl } from '../graphPkce';
+import {
+  generateCodeVerifier,
+  codeChallengeS256,
+  buildAuthorizeUrl,
+  buildAdminConsentUrl,
+} from '../graphPkce';
 
 // RFC 7636 §4.1 unreserved charset: ALPHA / DIGIT / "-" / "." / "_" / "~"
 const UNRESERVED_CHARSET_RE = /^[A-Za-z0-9\-._~]+$/;
@@ -122,5 +127,67 @@ describe('buildAuthorizeUrl', () => {
       buildAuthorizeUrl({ ...baseParams, tenant: 'common/oauth2/v2.0/authorize?client_id=evil&x=' }),
     ).toThrow(/invalid tenant/i);
     expect(() => buildAuthorizeUrl({ ...baseParams, tenant: '../../evil' })).toThrow(/invalid tenant/i);
+  });
+});
+
+/**
+ * AC-M365SEP-013 (the URL builder half) — buildAdminConsentUrl constructs Microsoft's admin-consent
+ * endpoint for step 2 (the client admin approves the app for the org). It MIRRORS buildAuthorizeUrl:
+ * the same pinned login.microsoftonline.com host, the same validateTenant guard, client_id +
+ * redirect_uri + state. It carries NO PKCE (no code_challenge, no response_type=code) — admin consent
+ * grants permissions; it exchanges no code (spec §1.5, FR-M365SEP-006). The path is the v2.0
+ * adminconsent endpoint.
+ */
+describe('buildAdminConsentUrl (step 2 — org approval)', () => {
+  const baseParams = {
+    tenant: 'contoso-tenant-id',
+    clientId: 'client-abc-123',
+    redirectUri: 'https://app.example.com/functions/v1/m365-token-custody/callback',
+    state: 'opaque-csrf-state-value',
+  };
+
+  it('AC-M365SEP-013: the admin-consent URL is pinned to login.microsoftonline.com with the {tenant}/v2.0/adminconsent path', () => {
+    const url = new URL(buildAdminConsentUrl(baseParams));
+    expect(url.origin).toBe('https://login.microsoftonline.com');
+    expect(url.pathname).toBe('/contoso-tenant-id/v2.0/adminconsent');
+  });
+
+  it('AC-M365SEP-013: includes client_id, redirect_uri, and state', () => {
+    const url = new URL(buildAdminConsentUrl(baseParams));
+    expect(url.searchParams.get('client_id')).toBe('client-abc-123');
+    expect(url.searchParams.get('redirect_uri')).toBe(
+      'https://app.example.com/functions/v1/m365-token-custody/callback',
+    );
+    expect(url.searchParams.get('state')).toBe('opaque-csrf-state-value');
+  });
+
+  it('AC-M365SEP-013: carries NO PKCE — admin consent grants permissions, it exchanges no code', () => {
+    const url = new URL(buildAdminConsentUrl(baseParams));
+    expect(url.searchParams.get('response_type')).toBeNull();
+    expect(url.searchParams.get('code_challenge')).toBeNull();
+    expect(url.searchParams.get('code_challenge_method')).toBeNull();
+    expect(url.searchParams.get('scope')).toBeNull();
+  });
+
+  it('AC-M365SEP-013: accepts the valid tenant forms (GUID, common/organizations/consumers, verified domain)', () => {
+    for (const tenant of [
+      '11111111-2222-3333-4444-555555555555',
+      'common',
+      'organizations',
+      'consumers',
+      'contoso.onmicrosoft.com',
+    ]) {
+      const url = new URL(buildAdminConsentUrl({ ...baseParams, tenant }));
+      expect(url.origin).toBe('https://login.microsoftonline.com');
+      expect(url.pathname).toBe(`/${tenant}/v2.0/adminconsent`);
+    }
+  });
+
+  it('AC-M365SEP-013: rejects a tenant that could smuggle path/query segments (mirrors buildAuthorizeUrl)', () => {
+    expect(() =>
+      buildAdminConsentUrl({ ...baseParams, tenant: 'common/v2.0/adminconsent?client_id=evil&x=' }),
+    ).toThrow(/invalid tenant/i);
+    expect(() => buildAdminConsentUrl({ ...baseParams, tenant: '../../evil' })).toThrow(/invalid tenant/i);
+    expect(() => buildAdminConsentUrl({ ...baseParams, tenant: '.' })).toThrow(/invalid tenant/i);
   });
 });

@@ -33,6 +33,12 @@ export async function handleCallback(req: Request, deps: HandlerDeps): Promise<H
   const code = url.searchParams.get('code');
   const state = url.searchParams.get('state');
   const msError = url.searchParams.get('error');
+  // FR-M365SEP-008 / AC-M365SEP-015: Microsoft's "admin consent required" signal (AADSTS65001 — the
+  // canonical "the user or administrator has not consented to use the application" code) rides in
+  // ?error_description when a user tries to connect before the org admin has approved the app. Read
+  // it here so the msError branch can map it onto the ORG_APPROVAL_REQUIRED copy. The raw value
+  // NEVER reaches the user (AC-M365SEP-019) — only the reviewed message is surfaced.
+  const msErrorDescription = url.searchParams.get('error_description');
 
   // UNAUTHENTICATED WRITE VECTOR (live security audit 2026-07-24, MED-A2). This endpoint runs
   // with `verify_jwt = false` — Microsoft's redirect carries no Authorization header — so ANY
@@ -60,11 +66,28 @@ export async function handleCallback(req: Request, deps: HandlerDeps): Promise<H
 
   // From here the request is provably ours, so recording is safe.
   if (msError) {
+    // AC-M365SEP-015 / FR-M365SEP-008: map Microsoft's admin-consent-required signal onto the
+    // ORG_APPROVAL_REQUIRED copy. AADSTS65001 is the documented "user or administrator has not
+    // consented to use the application" code — exactly the scenario where the org admin has not
+    // yet approved the app (step 2). The user is told to ask their administrator to approve it,
+    // distinguishable from a plain permission denial (access_denied with no consent signal) and
+    // from an entitlement error (NFR-M365SEP-006). Mirrors the FE describeM365Error('ORG_APPROVAL_
+    // REQUIRED') copy verbatim so the two paths never drift. The raw Microsoft description / AADSTS
+    // code is NEVER surfaced (AC-M365SEP-019).
+    const needsAdminConsent =
+      msError === 'consent_required' || /AADSTS65001/i.test(msErrorDescription ?? '');
+    const message = needsAdminConsent
+      ? "Your organization hasn't approved the PMO Portal app yet. Ask your administrator to approve it in Microsoft 365."
+      : 'Connection failed: access denied';
     await recordM365Error(serviceClient, {
-      errorCode: 'TOKEN_EXCHANGE_FAILED',
+      errorCode: needsAdminConsent ? 'ORG_APPROVAL_REQUIRED' : 'TOKEN_EXCHANGE_FAILED',
       contextId: state,
     });
-    return redirectToFeError(env, 'Connection failed: access denied');
+    return redirectToFeError(
+      env,
+      message,
+      needsAdminConsent ? 'ORG_APPROVAL_REQUIRED' : undefined,
+    );
   }
 
   if (!code) {
@@ -346,10 +369,16 @@ async function rejectIdentityMismatch(
 // helpers themselves rather than re-typing the path — the test then resolves the path against the
 // app's real route table. This is the §1.3 guard: a redirect to a route that does not exist
 // (`/admin/integrations` never did) must fail the test, not silently land on Not Found in prod.
-export function redirectToFeError(env: { siteUrl: string }, message: string): HandlerResult {
+export function redirectToFeError(
+  env: { siteUrl: string },
+  message: string,
+  errorCode?: string,
+): HandlerResult {
+  const params = new URLSearchParams({ m365_error: message });
+  if (errorCode) params.set('m365_error_code', errorCode);
   return {
     status: 302,
-    headers: { Location: `${env.siteUrl}/integrations?m365_error=${encodeURIComponent(message)}` },
+    headers: { Location: `${env.siteUrl}/integrations?${params.toString()}` },
   };
 }
 

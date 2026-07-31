@@ -103,6 +103,7 @@ const SalesDetailRedirect: React.FC = () => {
  * redirect to `/admin/integrations`, which does not exist, so every completed connect landed on
  * Not Found (m365-operator-client-separation spec §1.3).
  */
+// eslint-disable-next-line react-refresh/only-export-components -- route data is shared with route-table tests
 export const appRouteConfig: RouteObject[] = [
   { path: '/', element: <ExecutiveDashboard /> },
   { path: '/projects', element: <Projects /> },

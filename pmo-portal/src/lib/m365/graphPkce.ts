@@ -103,3 +103,31 @@ export function buildAuthorizeUrl(params: AuthorizeUrlParams): string {
   url.searchParams.set('code_challenge_method', 'S256');
   return url.toString();
 }
+
+export interface AdminConsentUrlParams {
+  tenant: string;
+  clientId: string;
+  redirectUri: string;
+  state: string;
+}
+
+/**
+ * Build the Microsoft identity platform v2.0 admin-consent URL for step 2 — the client admin
+ * approves the PMO app for their whole organisation (spec §1.1, FR-M365SEP-005/006).
+ *
+ * MIRRORS buildAuthorizeUrl: the same pinned login.microsoftonline.com host, the same
+ * {@link validateTenant} guard (defense-in-depth — the tenant is interpolated into the URL path),
+ * client_id + redirect_uri + state carried through. It carries **NO PKCE** (no code_challenge,
+ * no response_type=code, no scope): admin consent GRANTS permissions, it exchanges no code, so
+ * there is no verifier to bind (spec §1.5). The tenant + client_id come ONLY from server-side env
+ * — never caller input — so approve and connect can never disagree about which app is being
+ * approved (FR-M365SEP-006, enforced in the handler that calls this).
+ */
+export function buildAdminConsentUrl(params: AdminConsentUrlParams): string {
+  validateTenant(params.tenant);
+  const url = new URL(`${AUTHORIZE_BASE}/${encodeURIComponent(params.tenant)}/v2.0/adminconsent`);
+  url.searchParams.set('client_id', params.clientId);
+  url.searchParams.set('redirect_uri', params.redirectUri);
+  url.searchParams.set('state', params.state);
+  return url.toString();
+}

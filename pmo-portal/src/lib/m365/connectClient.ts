@@ -28,6 +28,11 @@ export interface InitiateConnectResult {
   state: string;
 }
 
+/** initiate_org_approval success body (orgApproval.ts → { adminConsentUrl }). */
+export interface InitiateOrgApprovalResult {
+  adminConsentUrl: string;
+}
+
 /** disconnect success body (revoke.ts → { status: 200, body: { success: true } }). */
 interface DisconnectResult {
   success: boolean;
@@ -159,6 +164,28 @@ export async function initiateM365Connect(): Promise<InitiateConnectResult> {
   );
   if (error) await throwClassified(error);
   if (!data || typeof data.authorizeUrl !== 'string' || !data.authorizeUrl) {
+    // No partial redirect: a malformed 2xx is a generic failure, never a blank navigation.
+    throw new AppError(describeM365Error('INTERNAL_ERROR'), 'INTERNAL_ERROR');
+  }
+  return data;
+}
+
+/**
+ * POST `action: 'initiate_org_approval'` → `{ adminConsentUrl }` (step 2 — the client admin
+ * approves the PMO app for the org, FR-M365SEP-005). On success the FE performs a TOP-LEVEL
+ * redirect to `adminConsentUrl` (Microsoft's admin-consent page must be user-visible, never in an
+ * iframe). The edge fn builds the URL from the configured tenant + client id only (FR-M365SEP-006) —
+ * the FE sends NO tenant/clientId. Throws `AppError(message, M365ErrorCode)` on any failure
+ * (FORBIDDEN if the caller is neither Admin-of-org nor Operator, AC-M365SEP-014).
+ */
+export async function initiateM365OrgApproval(): Promise<InitiateOrgApprovalResult> {
+  const { data, error } = await invokeWithTimeout(
+    supabase.functions.invoke<InitiateOrgApprovalResult>(FN_NAME, {
+      body: { action: 'initiate_org_approval' },
+    }),
+  );
+  if (error) await throwClassified(error);
+  if (!data || typeof data.adminConsentUrl !== 'string' || !data.adminConsentUrl) {
     // No partial redirect: a malformed 2xx is a generic failure, never a blank navigation.
     throw new AppError(describeM365Error('INTERNAL_ERROR'), 'INTERNAL_ERROR');
   }

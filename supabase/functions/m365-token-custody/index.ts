@@ -23,6 +23,7 @@ import { handleCallback } from './callback.ts';
 import { handleGraphProxy } from './proxy.ts';
 import { handleDisconnect } from './revoke.ts';
 import { handleConnectionStatus } from './status.ts';
+import { handleInitiateOrgApproval } from './orgApproval.ts';
 import { corsHeaders } from './auth.ts';
 import type {
   HandlerDeps,
@@ -135,6 +136,12 @@ serveWithErrorReporting('m365-token-custody', async (req: Request): Promise<Resp
         break;
       case 'connection_status':
         result = await handleConnectionStatus(authed);
+        break;
+      case 'initiate_org_approval':
+        // Step 2 — the client admin approves the PMO app for the org. Returns Microsoft's
+        // admin-consent URL; persists nothing. Uses the Admin-of-org OR Operator gate
+        // (FR-M365SEP-004), NOT the data-access gate (NFR-M365SEP-001).
+        result = await handleInitiateOrgApproval(authed);
         break;
       default:
         result = {

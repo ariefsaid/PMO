@@ -280,6 +280,23 @@ describe('AC-M365-018 — callback ?m365_error=<msg> renders the error + clears 
   });
 });
 
+describe('AC-M365SEP-015 — callback approval-required code uses reviewed copy', () => {
+  it('AC-M365SEP-015: maps ORG_APPROVAL_REQUIRED to administrator approval copy and clears both callback params', () => {
+    featureState.value = true;
+    const { locationSearch } = renderCard({
+      initialEntry: '/integrations?m365_error=ORG_APPROVAL_REQUIRED&m365_error_code=ORG_APPROVAL_REQUIRED',
+    });
+
+    const banner = screen.getByRole('alert');
+    expect(banner).toHaveTextContent(/ask your administrator to approve/i);
+    expect(banner).not.toHaveTextContent('ORG_APPROVAL_REQUIRED');
+    const last = locationSearch[locationSearch.length - 1];
+    expect(last).not.toContain('m365_error');
+    expect(last).not.toContain('m365_error_code');
+    expect(invoke).not.toHaveBeenCalled();
+  });
+});
+
 describe('AC-M365-019 — Disconnect confirms first, then calls the fn', () => {
   it('AC-M365-019: confirming the destructive dialog calls disconnect and returns the card to idle', async () => {
     featureState.value = true;

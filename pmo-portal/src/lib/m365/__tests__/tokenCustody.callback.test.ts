@@ -239,6 +239,45 @@ describe('AC-M365-103/104/105 — handleCallback', () => {
     expect(fetch).not.toHaveBeenCalled();
   });
 
+  it('AC-M365SEP-015: a Microsoft admin-consent-required error surfaces the org-approval copy (distinct from access-denied)', async () => {
+    // FR-M365SEP-008 / spec §1.5: a user who tries to connect (step 3) before the org admin has
+    // approved the app (step 2) is told so BY MICROSOFT — its redirect carries the consent-required
+    // signal (AADSTS65001 — "the user or administrator has not consented to use the application") in
+    // ?error_description. The callback maps it onto the ORG_APPROVAL_REQUIRED copy: the user is told
+    // to ask their administrator to approve the application — distinguishable from a plain permission
+    // denial (access_denied with no consent signal) and from an entitlement error (NFR-M365SEP-006).
+    // The raw Microsoft description / AADSTS code NEVER reaches the user (AC-M365SEP-019).
+    const service = mockClient({ m365_pkce_states: [{ data: pkceRow(), error: null }] });
+    const fetch = vi.fn();
+    const result = await handleCallback(
+      callbackReq({
+        error: 'access_denied',
+        error_description:
+          'AADSTS65001: The user or administrator has not consented to use the application with ID \'pmo-portal\'.',
+        state: 'state-xyz',
+      }),
+      deps({ service, fetch }),
+    );
+    expect(result.status).toBe(302);
+    const location = decodeURIComponent(result.headers?.Location ?? '');
+    // The callback maps the reviewed outcome onto the stable wire code consumed by describeM365Error.
+    expect(location).toContain('m365_error_code=ORG_APPROVAL_REQUIRED');
+    const errorEvent = service.writes.find((w) => w.table === 'error_events');
+    expect(errorEvent?.payload).toMatchObject({ error_code: 'ORG_APPROVAL_REQUIRED' });
+    // The user is told to ask their administrator to approve the application.
+    expect(location).toMatch(/administrator/i);
+    expect(location).toMatch(/approve/i);
+    // Distinct from the generic permission denial (the non-consent access_denied path below).
+    expect(location).not.toMatch(/access denied/i);
+    // Distinct from an entitlement error.
+    expect(location).not.toMatch(/isn't enabled/i);
+    // No raw Microsoft error / AADSTS code leaks into the user-facing message (AC-M365SEP-019).
+    expect(location).not.toMatch(/AADSTS65001/i);
+    expect(location).not.toMatch(/consented to use the application/i);
+    // No token exchange happened (the consent-required path aborts like every ?error= path).
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
   it('AC-M365-103 (C1c): a disabled user (pre-check) is rejected before the upsert — error_event, no token material, FE error redirect', async () => {
     // The user was offboarded after initiate but before callback. The pre-check surfaces a clear
     // CONNECTION_NOT_ALLOWED; the authoritative write-guard (0103) would also reject the upsert.

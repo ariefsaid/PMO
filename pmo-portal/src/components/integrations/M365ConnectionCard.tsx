@@ -8,6 +8,7 @@ import {
   initiateM365Connect,
   disconnectM365,
   getM365ConnectionStatus,
+  describeM365Error,
   type ConnectionStatus,
 } from '@/src/lib/m365/connectClient';
 
@@ -88,19 +89,24 @@ export const M365ConnectionCard: React.FC = () => {
   useEffect(() => {
     const connected = searchParams.get('m365_connected');
     const m365Error = searchParams.get('m365_error');
+    const m365ErrorCode = searchParams.get('m365_error_code');
     if (connected === 'true') {
       setPhase('connected');
       setErrorText(null);
       optimisticFromCallback.current = true;
     } else if (m365Error) {
       setPhase('error');
-      setErrorText(decodeURIComponent(m365Error));
+      // Callback redirects may carry a stable wire code so the reviewed FE taxonomy remains the
+      // source of copy (rather than displaying a server-authored code). Legacy redirects carry
+      // only the already-reviewed message in m365_error.
+      setErrorText(m365ErrorCode ? describeM365Error(m365ErrorCode) : decodeURIComponent(m365Error));
       optimisticFromCallback.current = true;
     }
-    if (connected === 'true' || m365Error) {
+    if (connected === 'true' || m365Error || m365ErrorCode) {
       const next = new URLSearchParams(searchParams);
       next.delete('m365_connected');
       next.delete('m365_error');
+      next.delete('m365_error_code');
       setSearchParams(next, { replace: true });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
