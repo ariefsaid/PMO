@@ -28,6 +28,11 @@ on:
       - 'scripts/vendor-skills.sh'
   workflow_dispatch: {}
 
+# Least privilege, like every other workflow here. Without this block the job inherited the
+# repo-wide default, which was `write` (public repo — a read-only token is all a checker needs).
+permissions:
+  contents: read
+
 concurrency:
   group: agent-surfaces-${{ github.ref }}
   cancel-in-progress: true
