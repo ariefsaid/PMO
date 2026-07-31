@@ -398,20 +398,29 @@ reset role;
 --
 -- ⚑ This is the assertion that makes the proof self-maintaining, and it is the 0178 lesson ("the
 --   completeness test is not per-slice") expressed as a query. The fifteen above are a snapshot; THIS
---   is the rule. A future `security definer` function that writes, is granted to `authenticated`, and
---   forgets the gate fails HERE — instead of being appended to a list nobody re-runs.
+--   is the rule. A future `security definer` function that writes, is granted directly to anon OR
+--   authenticated, and forgets the gate fails HERE — instead of being appended to a list nobody re-runs.
+--   The direct pg_proc.proacl inspection is intentional: has_function_privilege() alone can hide an
+--   explicit grant behind role inheritance, which is the hosted-Supabase failure mode.
 --
 --   If this fires: either add `assert_is_active_member()` (or `(p_actor)` if the function has a
 --   service_role caller — do the caller analysis, do not guess), or, if the function genuinely must
 --   not carry it, add its `proname` to the allow-list in the query below (the `array[]::text[]` line)
 --   and record why in docs/backlog.md. A comment escape hatch is NOT accepted — it would invite false
---   negatives.
+--   negatives. The dedicated 0178 ACL proof adds the hosted anon regression fixture and names all
+--   offending functions.
 -- ════════════════════════════════════════════════════════════════════════════════════════════════
 select is(
   (select coalesce(string_agg(p.proname, ', ' order by p.proname), '')
      from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'public' and p.prosecdef
-      and has_function_privilege('authenticated', p.oid, 'EXECUTE')
+      and exists (
+        select 1
+          from aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a
+          left join pg_roles grantee on grantee.oid = a.grantee
+         where (a.grantee = 0 or grantee.rolname in ('anon', 'authenticated'))
+           and a.privilege_type = 'EXECUTE'
+      )
       and pg_get_functiondef(p.oid) not ilike '%assert_is_active_member(%'
       and pg_get_functiondef(p.oid) not ilike '%is_active_member()%'
       and pg_get_functiondef(p.oid) ~* '(insert\s+into|update\s+(public\.)?[a-z_]|delete\s+from|merge\s+into)'
