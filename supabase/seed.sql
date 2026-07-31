@@ -265,6 +265,34 @@ values
    650000,0,0,null,null)
 on conflict (id) do nothing;
 
+-- Contract-value witness fixtures (ADR-0070; migrations 0177, 0181, and 0183).
+-- The witness exists so the money SoD can answer who authored a value before a Project Manager
+-- turns that value into revenue: a senior/line-manager witness makes the happy path legal, while
+-- 0181 refuses a PM who authored the value themselves and 0183 requires a human witness to remain
+-- active. Seeding runs as postgres without a JWT, so the 0177 INSERT trigger records auth.uid()
+-- as NULL. The witness columns therefore cannot be supplied in the INSERT column list: that same
+-- trigger overwrites them. This separate UPDATE targets only the witness columns; because the trigger
+-- is `UPDATE OF contract_value`, leaving contract_value out of the SET list means it does not fire
+-- and does not clobber the fixture attribution.
+--
+-- DEFAULT: Mara (a1, Executive) witnesses every priced project. She outranks Diego (a2, Project
+-- Manager), so may_approve_work_of(a1, a2) passes and the demo exercises the legitimate happy path.
+-- SP-2408 (Meridian East Wing Solar Scoping, the low-value Leads deal) is the ONE intentional
+-- exception: it is self-witnessed by its own PM, Diego (a2). Winning it as Diego must fail with
+-- 0181's self-authored refusal; winning it as Mara, Priya, or Erin is the accountable-role path.
+-- This deliberately makes the SoD reproducible instead of leaving it as an abstract control.
+-- DO NOT 'fix' the seeded NULL/self-witness cases — they are intentional fixtures.
+update projects
+set contract_value_set_by = case
+      when code = 'SP-2408' then '00000000-0000-0000-0000-0000000000a2'::uuid -- Diego, deliberate self-witness
+      else '00000000-0000-0000-0000-0000000000a1'::uuid                         -- Mara, default witness
+    end,
+    contract_value_set_at = coalesce(
+      (start_date - 1)::timestamptz,
+      '2026-01-15T09:00:00Z'::timestamptz
+    )
+where contract_value > 0;
+
 -- Win/loss backfill: contract refs + decided_at
 update projects set
   customer_contract_ref = 'MSW-PO-2501', contract_date = '2025-08-15',
