@@ -92,11 +92,28 @@ describe('AC-M365-101/102 — handleInitiateConnect', () => {
     );
   });
 
+  it('AC-M365SEP-020: repeated initiation is rate-limited before another PKCE state is stored', async () => {
+    const service = mockClient();
+    service.rpc
+      .mockImplementationOnce(() => Promise.resolve({ data: { state: 'active', org_id: 'org-1', role: 'Admin' }, error: null }))
+      .mockImplementationOnce(() => Promise.resolve({ data: false, error: null }));
+    const caller = entitledCaller('Admin');
+
+    const result = await handleInitiateConnect(deps({ service, caller, userId: 'user-1' }));
+
+    expect(result).toMatchObject({ status: 429, body: { error: 'RATE_LIMITED' } });
+    expect(service.writes).toHaveLength(0);
+    expect(service.rpc).toHaveBeenCalledWith('rate_limit_hit', expect.objectContaining({
+      p_key: 'm365-token-custody:initiate_connect:user-1',
+    }));
+  });
+
   it('AC-M365SEP-003: a disabled member is rejected DISABLED_MEMBER before any state is stored', async () => {
     // The data-access gate asserts active membership EXPLICITLY (NFR-M365SEP-002). A caller whose
     // profiles.status is not 'active' is told their access is disabled — distinct from NOT_ENTITLED
     // (which would be a false statement about an entitled org) and from the removed Operator gate.
     const service = mockClient();
+    service.rpc.mockImplementationOnce(() => Promise.resolve({ data: { state: 'disabled', org_id: 'org-1', role: 'Admin' }, error: null }));
     const caller = mockClient({
       profiles: [{ data: { org_id: 'org-1', role: 'Admin', status: 'disabled' }, error: null }],
       org_features: [{ data: { enabled: true }, error: null }],

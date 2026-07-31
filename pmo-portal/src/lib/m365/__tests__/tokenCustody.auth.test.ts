@@ -95,6 +95,21 @@ describe('AC-M365SEP-001/003/005/006/007/011 — authorizeMemberEntitled (active
     ).rejects.toMatchObject({ code: 'NOT_ENTITLED' });
   });
 
+  it('AC-M365SEP-004: a raw-banned member is rejected BANNED_MEMBER by the service-side state read', async () => {
+    const caller = mockClient({
+      org_features: [{ data: { enabled: true }, error: null }],
+    });
+    const service = mockClient();
+    service.rpc.mockImplementationOnce(() => Promise.resolve({
+      data: { state: 'banned', org_id: 'org-1', role: 'Admin' }, error: null,
+    }));
+
+    await expect(
+      authorizeMemberEntitled({ callerClient: caller.client as never, serviceClient: service.client as never, userId: 'user-1' }),
+    ).rejects.toMatchObject({ code: 'BANNED_MEMBER' });
+    expect(caller.from).not.toHaveBeenCalledWith('org_features');
+  });
+
   it('AC-M365SEP-003: an INACTIVE member is rejected DISABLED_MEMBER — explicitly NOT NOT_ENTITLED (NFR-M365SEP-002)', async () => {
     // The load-bearing case for NFR-M365SEP-002: a disabled caller reads their own profile fine
     // (profiles_select has no status predicate, 0002_rls.sql:32), so the rejection MUST come from

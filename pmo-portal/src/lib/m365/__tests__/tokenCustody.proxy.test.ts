@@ -200,6 +200,10 @@ describe('AC-M365-110/111/112/113/114 — handleGraphProxy', () => {
     expect(scopeCoversPath(['Files.Read'], 'GET', '/me/driveEvil')).toBe(false);
     // The exact root ('/me/drive') is still allowed.
     expect(scopeCoversPath(['Files.Read'], 'GET', '/me/drive')).toBe(true);
+    // The scope helper itself normalizes against the pinned Graph URL; it must not reason about
+    // the raw prefix for encoded traversal/separators.
+    expect(scopeCoversPath(['Files.Read'], 'GET', '/me/drive/%2e%2e/%2e%2e/shares/secret')).toBe(false);
+    expect(scopeCoversPath(['Files.Read'], 'GET', '/me/drive/%2Fshares/secret')).toBe(false);
   });
 
   it('AC-M365-114 (LOW-5): a Files.Read-only connection POSTing to OneDrive is rejected SCOPE_INSUFFICIENT (no Graph call)', async () => {
@@ -296,6 +300,9 @@ describe('AC-M365-110/111/112/113/114 — handleGraphProxy', () => {
     ['/drives/../..//evil.example/x', 'double-slash after traversal'],
     ['/me/drive/root?x=1', 'query smuggled into the path'],
     ['/me/drive/root#frag', 'fragment smuggled into the path'],
+    ['/me/drive/%2e%2e/%2e%2e/shares/secret', 'encoded dot-segments escape the scoped family'],
+    ['/me/drive/%2f%2fshares/secret', 'encoded separators are rejected'],
+    ['/me/drive/%2E%2e/%2Fshares/secret', 'mixed-case encoded traversal is rejected'],
     ['me/drive/root', 'not absolute'],
   ])('AC-M365-114 (MED-B1): %s is rejected with NO Graph call (%s)', async (path) => {
     const conn = await connection({ scopes: ['Files.Read', 'offline_access'] });
@@ -304,6 +311,20 @@ describe('AC-M365-110/111/112/113/114 — handleGraphProxy', () => {
 
     const result = await handleGraphProxy(
       { action: 'graph_proxy', method: 'GET', path },
+      deps({ service, caller: callerClient(), userId: 'user-1', fetch: graphFetch }),
+    );
+
+    expect(result).toMatchObject({ status: 400, body: { error: 'BAD_REQUEST' } });
+    expect(graphFetch).not.toHaveBeenCalled();
+  });
+
+  it('AC-M365-114 (MED-B1): an unsupported runtime method is rejected before scope evaluation or Graph', async () => {
+    const conn = await connection({ scopes: ['Files.Read', 'offline_access'] });
+    const service = mockClient({ ms_graph_connections: [{ data: conn, error: null }] });
+    const graphFetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) });
+
+    const result = await handleGraphProxy(
+      { action: 'graph_proxy', method: 'TRACE' as never, path: '/me/drive/root' },
       deps({ service, caller: callerClient(), userId: 'user-1', fetch: graphFetch }),
     );
 

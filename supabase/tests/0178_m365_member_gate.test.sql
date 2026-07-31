@@ -18,7 +18,7 @@
 --   Operator-only ENTITLEMENT authority (step 1) — two gates, never one decision (NFR-M365SEP-001).
 begin;
 create extension if not exists pgtap;
-select plan(11);
+select plan(23);
 
 -- ── Fixtures (inserted as table owner, RLS bypassed) ────────────────────────────────────────────
 insert into organizations (id, name) values
@@ -30,6 +30,7 @@ insert into organizations (id, name) values
 insert into auth.users (id, email, banned_until) values
   ('01780000-0000-0000-0000-0000000000a1','m365sep-banned@example.com', now() + interval '1 day'),
   ('01780000-0000-0000-0000-0000000000a2','m365sep-control@example.com', null),
+  ('01780000-0000-0000-0000-0000000000a3','m365sep-disabled@example.com', null),
   ('01780000-0000-0000-0000-0000000000b1','m365sep-conn-a@example.com', null),
   ('01780000-0000-0000-0000-0000000000b2','m365sep-conn-b@example.com', null),
   ('01780000-0000-0000-0000-0000000000c1','m365sep-pm@example.com', null);
@@ -37,6 +38,7 @@ insert into auth.users (id, email, banned_until) values
 insert into profiles (id, org_id, full_name, email, role, status) values
   ('01780000-0000-0000-0000-0000000000a1','01780000-0000-0000-0000-000000000001','Banned','m365sep-banned@example.com','Project Manager','active'),
   ('01780000-0000-0000-0000-0000000000a2','01780000-0000-0000-0000-000000000001','Control','m365sep-control@example.com','Project Manager','active'),
+  ('01780000-0000-0000-0000-0000000000a3','01780000-0000-0000-0000-000000000001','Disabled','m365sep-disabled@example.com','Project Manager','disabled'),
   ('01780000-0000-0000-0000-0000000000b1','01780000-0000-0000-0000-000000000001','Conn A','m365sep-conn-a@example.com','Admin','active'),
   ('01780000-0000-0000-0000-0000000000b2','01780000-0000-0000-0000-000000000002','Conn B','m365sep-conn-b@example.com','Admin','active'),
   ('01780000-0000-0000-0000-0000000000c1','01780000-0000-0000-0000-000000000001','PM','m365sep-pm@example.com','Project Manager','active');
@@ -58,6 +60,27 @@ select is(
   (select count(*)::int from public.org_features where feature_key = 'm365_integration'),
   0,
   'AC-M365SEP-004 a banned caller''s org_features read returns NO row — org_features_select conjoins is_active_member(), so the entitlement row is hidden');
+reset role;
+
+-- AC-M365SEP-003/004 — RLS hides both disabled and banned profiles, so a caller-JWT-only mock
+-- cannot prove their distinct state. The service-side membership read is deliberately the only
+-- privileged classifier and must still distinguish the two states without relaxing profiles_select.
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"01780000-0000-0000-0000-0000000000a3","role":"authenticated"}';
+select is((select count(*)::int from public.profiles where id = '01780000-0000-0000-0000-0000000000a3'), 0,
+  'AC-M365SEP-003 disabled caller reads NO profile row under real profiles_select RLS');
+set local request.jwt.claims = '{"sub":"01780000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select is((select count(*)::int from public.profiles where id = '01780000-0000-0000-0000-0000000000a1'), 0,
+  'AC-M365SEP-004 banned caller reads NO profile row under real profiles_select RLS');
+reset role;
+
+set local role service_role;
+select is((public.m365_membership_state('01780000-0000-0000-0000-0000000000a3')->>'state'), 'disabled',
+  'AC-M365SEP-003 service-side membership read classifies a disabled member distinctly');
+select is((public.m365_membership_state('01780000-0000-0000-0000-0000000000a1')->>'state'), 'banned',
+  'AC-M365SEP-004 service-side membership read classifies a raw-banned member distinctly');
+select is((public.m365_membership_state('01780000-0000-0000-0000-0000000000a2')->>'state'), 'active',
+  'AC-M365SEP-003/004 service-side membership read preserves the active control state');
 reset role;
 
 -- Control: the SAME org, an active never-banned member reads the entitled row. Proves it is the
@@ -132,6 +155,48 @@ select is(
   (select count(*)::int from public.org_features where org_id = '01780000-0000-0000-0000-000000000001' and feature_key = 'm365_integration'),
   1,
   'AC-M365SEP-010 no extra m365_integration row — entitlement authority is untouched by the step-3 data-access de-gate');
+
+-- AC-M365-165 / FIX-2 — a direct auth.users ban transition must revoke both the pending OAuth
+-- credential and the already-stored connection, even while profiles.status remains active.
+insert into public.m365_pkce_states (org_id, user_id, code_verifier, state, scopes, expires_at)
+values ('01780000-0000-0000-0000-000000000001', '01780000-0000-0000-0000-0000000000a2',
+        'verifier-ban-regression', 'state-ban-regression', array['Files.Read'], now() + interval '10 minutes');
+insert into public.ms_graph_connections
+  (org_id, user_id, entra_tenant_id, scopes, refresh_token_ciphertext, key_id, status)
+values ('01780000-0000-0000-0000-000000000001', '01780000-0000-0000-0000-0000000000a2',
+        'tenant-ban-regression', array['Files.Read'], '\x01000000000000000000000000000000000000000000000000000000'::bytea, 'kek-v1', 'active');
+select is((select count(*)::int from public.m365_pkce_states where state = 'state-ban-regression'), 1,
+  'AC-M365-165 setup: an active member has an outstanding PKCE state before the raw ban');
+select is((select count(*)::int from public.ms_graph_connections where user_id = '01780000-0000-0000-0000-0000000000a2'), 1,
+  'AC-M365-165 setup: an active member has a connection before the raw ban');
+update auth.users set banned_until = now() + interval '1 day'
+ where id = '01780000-0000-0000-0000-0000000000a2';
+select is((select count(*)::int from public.m365_pkce_states where state = 'state-ban-regression'), 0,
+  'AC-M365-165 direct auth.users ban deletes pending PKCE state');
+select is((select count(*)::int from public.ms_graph_connections where user_id = '01780000-0000-0000-0000-0000000000a2'), 0,
+  'AC-M365-165 direct auth.users ban deletes the connection');
+select throws_ok(
+  $$ select public.m365_upsert_connection(
+       '01780000-0000-0000-0000-000000000001','01780000-0000-0000-0000-0000000000a2',
+       'tenant-ban-regression','oid-ban',array['Files.Read'],
+       '\x01000000000000000000000000000000000000000000000000000000'::bytea,
+       '\x02000000000000000000000000000000000000000000000000000000'::bytea,now(),'kek-v1',now(),now()) $$,
+  '42501', null,
+  'AC-M365-165 banned_until is enforced by the connection write guard even when profiles.status remains active');
+
+-- AC-M365-166 / FIX-5 — the transient state table has a durable per-user cap even if the
+-- fail-open request limiter is unavailable.
+insert into public.m365_pkce_states (org_id, user_id, code_verifier, state, scopes, expires_at)
+select '01780000-0000-0000-0000-000000000001', '01780000-0000-0000-0000-0000000000a1',
+       'cap-verifier-' || n, 'cap-state-' || n, array['Files.Read'], now() + interval '10 minutes'
+  from generate_series(1, 5) as n;
+select is((select count(*)::int from public.m365_pkce_states where user_id = '01780000-0000-0000-0000-0000000000a1'), 5,
+  'AC-M365-166 five outstanding PKCE states are allowed for one user');
+select throws_ok(
+  $$ insert into public.m365_pkce_states (org_id, user_id, code_verifier, state, scopes, expires_at)
+     values ('01780000-0000-0000-0000-000000000001','01780000-0000-0000-0000-0000000000a1','cap-overflow','cap-overflow',array['Files.Read'],now()+interval '10 minutes') $$,
+  'P0001', 'm365_pkce_state_limit',
+  'AC-M365-166 the sixth outstanding PKCE state is rejected by the per-user cap');
 
 select * from finish();
 rollback;

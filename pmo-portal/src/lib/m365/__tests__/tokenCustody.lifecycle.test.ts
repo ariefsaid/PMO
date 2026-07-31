@@ -70,6 +70,7 @@ describe('AC-M365-120 — handleDisconnect', () => {
     const result = await handleDisconnect(deps({ service, caller: callerClient(), userId: 'user-1', fetch }));
     expect(result).toMatchObject({ status: 404, body: { error: 'NOT_CONNECTED' } });
     expect(fetch).not.toHaveBeenCalled();
-    expect(service.rpc).not.toHaveBeenCalled();
+    expect(service.rpc).toHaveBeenCalledTimes(1);
+    expect(service.rpc).toHaveBeenCalledWith('m365_membership_state', { p_user_id: 'user-1' });
   });
 });

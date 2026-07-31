@@ -21,6 +21,7 @@ import { appRouteConfig } from '@/App';
 import {
   redirectToFeError,
   redirectToFeSuccess,
+  redirectToFeOrgApprovalSuccess,
 } from '../../../../../supabase/functions/m365-token-custody/callback';
 import type { HandlerResult } from '../../../../../supabase/functions/m365-token-custody/types';
 
@@ -33,6 +34,7 @@ function callbackRedirectPaths(): string[] {
   const results: HandlerResult[] = [
     redirectToFeError({ siteUrl: '' }, 'sample connection error'),
     redirectToFeSuccess({ siteUrl: '' }),
+    redirectToFeOrgApprovalSuccess({ siteUrl: '' }),
   ];
   return results.map((r) => new URL(r.headers?.Location ?? '/', 'http://test.local').pathname);
 }

@@ -38,6 +38,37 @@ function pkceRow(overrides: Partial<PkceStateRow> = {}): PkceStateRow {
 }
 
 describe('AC-M365-103/104/105 — handleCallback', () => {
+  it('AC-M365SEP-016: an admin-consent return with opaque state and no code is acknowledged without consuming state or exchanging tokens', async () => {
+    const service = mockClient({
+      m365_pkce_states: [{ data: null, error: { code: 'PGRST116' } }],
+    });
+    const fetch = vi.fn();
+
+    const result = await handleCallback(
+      callbackReq({ admin_consent: 'True', state: 'opaque-admin-state' }),
+      deps({ service, fetch }),
+    );
+
+    expect(result.status).toBe(302);
+    expect(result.headers?.Location).toContain('m365_org_approved=true');
+    expect(result.headers?.Location).not.toContain('Invalid+or+expired');
+    expect(service.writes.some((w) => w.table === 'm365_pkce_states')).toBe(false);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('AC-M365SEP-016: an admin-consent error uses reviewed approval-required copy without consuming state', async () => {
+    const service = mockClient();
+    const result = await handleCallback(
+      callbackReq({ admin_consent: 'True', state: 'opaque-admin-state', error: 'access_denied' }),
+      deps({ service, fetch: vi.fn() }),
+    );
+
+    expect(result.status).toBe(302);
+    expect(result.headers?.Location).toContain('m365_error_code=ORG_APPROVAL_REQUIRED');
+    expect(new URL(result.headers?.Location ?? 'https://invalid').searchParams.get('m365_error')).toContain("hasn't approved");
+    expect(service.writes).toHaveLength(0);
+  });
+
   it('AC-M365-103: valid state+code → exchanges, encrypts BOTH tokens, upserts an active connection, audits, redirects', async () => {
     const service = mockClient({
       m365_pkce_states: [{ data: pkceRow(), error: null }],
@@ -286,6 +317,7 @@ describe('AC-M365-103/104/105 — handleCallback', () => {
       profiles: [{ data: { status: 'disabled' }, error: null }],
       org_features: [{ data: { enabled: true }, error: null }],
     });
+    service.rpc.mockImplementationOnce(() => Promise.resolve({ data: { state: 'disabled', org_id: 'org-1', role: 'Admin' }, error: null }));
     const fetch = fetchOk({
       access_token: 'ACCESS', refresh_token: 'REFRESH', expires_in: 3600,
       id_token: mintIdToken({ tid: 'test-tenant-id', oid: 'user-oid-123' }),

@@ -220,6 +220,12 @@ export function mockClient(seeded: Record<string, unknown[]> = {}): MockClient {
   };
 
   const rpc = vi.fn((fn: string, args?: Record<string, unknown>) => {
+    if (fn === 'm365_membership_state' && args) {
+      return Promise.resolve({
+        data: { state: 'active', org_id: 'org-1', role: 'Admin' },
+        error: null,
+      });
+    }
     if (fn === 'm365_upsert_connection' && args) {
       writes.push({
         table: 'ms_graph_connections', kind: 'upsert', eqs: [],

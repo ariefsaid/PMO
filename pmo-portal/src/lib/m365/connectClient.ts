@@ -74,6 +74,8 @@ export function describeM365Error(code: string | undefined): string {
     // NOT be told either of the other two.
     case 'DISABLED_MEMBER':
       return 'Your account access has been disabled. Please contact your administrator.';
+    case 'BANNED_MEMBER':
+      return 'Your account is suspended. Please contact your administrator.';
     case 'ORG_APPROVAL_REQUIRED':
       return "Your organization hasn't approved the PMO Portal app yet. Ask your administrator to approve it in Microsoft 365.";
     case 'FORBIDDEN':

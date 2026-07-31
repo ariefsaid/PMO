@@ -246,7 +246,7 @@ describe('AC-M365-022 (transport) — getM365ConnectionStatus', () => {
 
 describe('describeM365Error — no M365ErrorCode leaks its raw string into the human copy', () => {
   const allCodes = [
-    'NOT_ENTITLED', 'DISABLED_MEMBER', 'ORG_APPROVAL_REQUIRED', 'FORBIDDEN', 'UNAUTHORIZED', 'CONNECTION_STALE', 'CONNECTION_REVOKED',
+    'NOT_ENTITLED', 'DISABLED_MEMBER', 'BANNED_MEMBER', 'ORG_APPROVAL_REQUIRED', 'FORBIDDEN', 'UNAUTHORIZED', 'CONNECTION_STALE', 'CONNECTION_REVOKED',
     'NOT_CONNECTED', 'TOKEN_EXCHANGE_FAILED', 'INVALID_STATE', 'SCOPE_INSUFFICIENT',
     'BAD_REQUEST', 'GRAPH_ERROR', 'INTERNAL_ERROR',
   ];
@@ -265,17 +265,18 @@ describe('AC-M365SEP-019 — disabled-member / org-approval / entitlement copy i
   // rejection are THREE distinguishable outcomes with distinct human copy. NFR-M365SEP-007/019:
   // no token, oid, tenant id, or raw Microsoft error reaches the user.
   const EVERY_CODE = [
-    'NOT_ENTITLED', 'DISABLED_MEMBER', 'ORG_APPROVAL_REQUIRED', 'FORBIDDEN', 'UNAUTHORIZED',
+    'NOT_ENTITLED', 'DISABLED_MEMBER', 'BANNED_MEMBER', 'ORG_APPROVAL_REQUIRED', 'FORBIDDEN', 'UNAUTHORIZED',
     'CONNECTION_STALE', 'CONNECTION_REVOKED', 'NOT_CONNECTED', 'TOKEN_EXCHANGE_FAILED',
     'INVALID_STATE', 'SCOPE_INSUFFICIENT', 'BAD_REQUEST', 'GRAPH_ERROR', 'INTERNAL_ERROR',
   ];
 
-  it('AC-M365SEP-019: DISABLED_MEMBER, ORG_APPROVAL_REQUIRED and NOT_ENTITLED are three distinct messages', () => {
+  it('AC-M365SEP-019: DISABLED_MEMBER, BANNED_MEMBER, ORG_APPROVAL_REQUIRED and NOT_ENTITLED are distinct messages', () => {
     const disabled = describeM365Error('DISABLED_MEMBER');
+    const banned = describeM365Error('BANNED_MEMBER');
     const approval = describeM365Error('ORG_APPROVAL_REQUIRED');
     const entitled = describeM365Error('NOT_ENTITLED');
     // Three mutually-distinct strings — none may collapse into another.
-    expect(new Set([disabled, approval, entitled])).toHaveLength(3);
+    expect(new Set([disabled, banned, approval, entitled])).toHaveLength(4);
   });
 
   it.each(EVERY_CODE)(

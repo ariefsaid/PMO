@@ -139,6 +139,7 @@ describe('AC-M365-151 — connection_status enforces the SAME data-access gate (
     const service = mockClient({
       ms_graph_connections: [{ data: row, error: null }],
     });
+    service.rpc.mockImplementationOnce(() => Promise.resolve({ data: { state: 'disabled', org_id: 'org-1', role: 'Admin' }, error: null }));
     const memberCaller = mockClient({
       profiles: [{ data: { org_id: 'org-1', role: 'Admin', status: 'disabled' }, error: null }],
       org_features: [{ data: { enabled: true }, error: null }],
@@ -151,7 +152,7 @@ describe('AC-M365-151 — connection_status enforces the SAME data-access gate (
     expect(service.from).not.toHaveBeenCalledWith('ms_graph_connections');
     // And nothing was written (read-only — no audit, no mutation).
     expect(service.writes).toHaveLength(0);
-    expect(service.rpc).not.toHaveBeenCalled();
+    expect(service.rpc).toHaveBeenCalledWith('m365_membership_state', { p_user_id: 'user-1' });
     assertNoSecret(JSON.stringify(result.body), 'DISABLED_MEMBER body');
   });
 
@@ -168,7 +169,7 @@ describe('AC-M365-151 — connection_status enforces the SAME data-access gate (
     expect(result).toMatchObject({ status: 403, body: { error: 'NOT_ENTITLED' } });
     expect(service.from).not.toHaveBeenCalledWith('ms_graph_connections');
     expect(service.writes).toHaveLength(0);
-    expect(service.rpc).not.toHaveBeenCalled();
+    expect(service.rpc).toHaveBeenCalledWith('m365_membership_state', { p_user_id: 'user-1' });
   });
 });
 
@@ -197,9 +198,10 @@ describe('AC-M365-152 — connection_status leaks NO ciphertext / key_id / oid /
     // Exactly one read of the connection table (the SELECT).
     const connReads = service.from.mock.calls.filter((c) => c[0] === 'ms_graph_connections');
     expect(connReads).toHaveLength(1);
-    // Read-only: NO mutations recorded (insert/update/upsert/delete) on any table, and NO RPCs
-    // (no audit_m365_event, no m365_*_connection lock-order RPC — a status read takes no locks).
+    // Read-only: NO mutations recorded (insert/update/upsert/delete) on any table. The one
+    // service-side membership RPC is a read and is required to classify RLS-hidden members.
     expect(service.writes).toHaveLength(0);
-    expect(service.rpc).not.toHaveBeenCalled();
+    expect(service.rpc).toHaveBeenCalledTimes(1);
+    expect(service.rpc).toHaveBeenCalledWith('m365_membership_state', { p_user_id: 'user-1' });
   });
 });

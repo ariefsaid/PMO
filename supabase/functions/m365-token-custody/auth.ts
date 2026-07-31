@@ -41,30 +41,81 @@ export function corsHeaders(allowedOrigin: string): Record<string, string> {
  * is a SEPARATE decision owned by `org_features_write` RLS + `operator_toggle_feature`; the two may
  * share code but never one decision (NFR-M365SEP-001).
  */
+export type M365MembershipState = 'missing' | 'active' | 'disabled' | 'banned';
+
+export interface M365Membership {
+  state: M365MembershipState;
+  orgId: string | null;
+  role: string | null;
+}
+
+/**
+ * Read membership state through the service-side actor-aware RPC. The caller-JWT profiles read
+ * cannot classify disabled or raw-banned members because profiles_select is intentionally conjoined
+ * with is_active_member() by 0063. This RPC is service-role-only and returns no secrets.
+ */
+export async function readM365MembershipState(
+  serviceClient: M365SupabaseLike,
+  userId: string,
+): Promise<M365Membership> {
+  const { data, error } = await serviceClient.rpc('m365_membership_state', { p_user_id: userId });
+  if (error || !data || typeof data !== 'object') {
+    return { state: 'missing', orgId: null, role: null };
+  }
+  const row = data as { state?: unknown; org_id?: unknown; role?: unknown };
+  const state = row.state;
+  if (state !== 'active' && state !== 'disabled' && state !== 'banned' && state !== 'missing') {
+    return { state: 'missing', orgId: null, role: null };
+  }
+  return {
+    state,
+    orgId: typeof row.org_id === 'string' ? row.org_id : null,
+    role: typeof row.role === 'string' ? row.role : null,
+  };
+}
+
 export async function authorizeMemberEntitled(deps: {
   callerClient: M365SupabaseLike;
+  serviceClient?: M365SupabaseLike;
   userId: string;
   requiredEntitlement?: string;
 }): Promise<{ orgId: string; role: string }> {
   const entitlement = deps.requiredEntitlement ?? 'm365_integration';
   const { callerClient, userId } = deps;
 
-  const { data: profile, error: profileError } = await callerClient
-    .from('profiles')
-    .select('org_id, role, status')
-    .eq('id', userId)
-    .single();
+  // Production always supplies serviceClient. The caller-only fallback preserves the pure helper's
+  // legacy unit seam; resolveOrgOrResult below never takes this branch.
+  let orgId: string;
+  let role: string;
+  if (deps.serviceClient) {
+    const membership = await readM365MembershipState(deps.serviceClient, userId);
+    if (membership.state === 'missing' || !membership.orgId || !membership.role) {
+      throw new M365HandlerError('BAD_REQUEST', 'org not resolvable for caller');
+    }
+    if (membership.state === 'disabled') {
+      throw new M365HandlerError('DISABLED_MEMBER', 'account access has been disabled');
+    }
+    if (membership.state === 'banned') {
+      throw new M365HandlerError('BANNED_MEMBER', 'account access is suspended');
+    }
+    orgId = membership.orgId;
+    role = membership.role;
+  } else {
+    const { data: profile, error: profileError } = await callerClient
+      .from('profiles')
+      .select('org_id, role, status')
+      .eq('id', userId)
+      .single();
 
-  if (profileError || !profile) {
-    throw new M365HandlerError('BAD_REQUEST', 'org not resolvable for caller');
-  }
-  const { org_id: orgId, role, status } = profile as { org_id: string; role: string; status: string };
-
-  // EXPLICIT active-member assertion (NFR-M365SEP-002). NOT inherited from org_features' RLS:
-  // profiles_select (0002_rls.sql:32) carries no status predicate, so a disabled caller reads this
-  // row fine. banned_until is covered at the DB layer (AC-M365SEP-004, pgTAP).
-  if (status !== 'active') {
-    throw new M365HandlerError('DISABLED_MEMBER', 'account access has been disabled');
+    if (profileError || !profile) {
+      throw new M365HandlerError('BAD_REQUEST', 'org not resolvable for caller');
+    }
+    const profileRow = profile as { org_id: string; role: string; status: string };
+    if (profileRow.status !== 'active') {
+      throw new M365HandlerError('DISABLED_MEMBER', 'account access has been disabled');
+    }
+    orgId = profileRow.org_id;
+    role = profileRow.role;
   }
 
   const { data: feature, error: featureError } = await callerClient
@@ -101,6 +152,7 @@ export async function resolveOrgOrResult(deps: HandlerDeps): Promise<string | Ha
   try {
     const { orgId } = await authorizeMemberEntitled({
       callerClient: deps.callerClient,
+      serviceClient: deps.serviceClient,
       userId: deps.userId,
     });
     return orgId;

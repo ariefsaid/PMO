@@ -6,6 +6,7 @@ import type { HandlerDeps, HandlerResult, InitiateConnectResponse } from './type
 import { resolveOrgOrResult } from './auth.ts';
 import { storePkceState } from './stateStore.ts';
 import { generateCodeVerifier, codeChallengeS256, buildAuthorizeUrl } from './pkce.ts';
+import { checkRequestRate } from '../_shared/requestRateGuard.ts';
 
 /**
  * Scopes for Phase-1 OneDrive + SharePoint document-library linking. `openid` + `profile` make
@@ -31,6 +32,22 @@ export async function handleInitiateConnect(deps: HandlerDeps): Promise<HandlerR
   const resolved = await resolveOrgOrResult(deps);
   if (typeof resolved !== 'string') return resolved;
   const orgId = resolved;
+
+  // Bound abandoned OAuth starts with the shared request-rate guard. The database migration also
+  // caps live rows per user, so a limiter outage cannot turn this transient table into an unbounded
+  // store. This is an availability throttle, not the authorization boundary.
+  const rate = await checkRequestRate(serviceClient as never, {
+    key: `m365-token-custody:initiate_connect:${deps.userId}`,
+    limit: 5,
+    windowSecs: 10 * 60,
+  });
+  if (rate.exceeded) {
+    return {
+      status: 429,
+      body: { error: 'RATE_LIMITED', message: 'too many connection attempts' },
+      headers: { 'Retry-After': String(rate.retryAfterSeconds) },
+    };
+  }
 
   // PKCE (RFC 7636): verifier + S256 challenge + 128-bit state token.
   const codeVerifier = generateCodeVerifier();
