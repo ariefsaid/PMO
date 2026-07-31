@@ -8,13 +8,15 @@ import { storePkceState } from './stateStore.ts';
 import { generateCodeVerifier, codeChallengeS256, buildAuthorizeUrl } from './pkce.ts';
 
 /**
- * Scopes for Phase-1 OneDrive doc linking. `openid` + `profile` make Microsoft return an
- * `id_token` in the token response — the callback asserts that id_token's `tid` against
- * `env.m365TenantId` BEFORE storing anything, binding the issued tokens to the expected tenant
- * (HIGH-1 consent-phishing / OAuth-code-injection mitigation). `offline_access` yields a durable
- * refresh token; `Files.Read` is the OneDrive read scope (ADR-0060 §1/§5).
+ * Scopes for Phase-1 OneDrive + SharePoint document-library linking. `openid` + `profile` make
+ * Microsoft return an `id_token` in the token response — the callback asserts that id_token's
+ * `tid` against `env.m365TenantId` BEFORE storing anything, binding the issued tokens to the
+ * expected tenant (HIGH-1 consent-phishing / OAuth-code-injection mitigation). `offline_access`
+ * yields a durable refresh token; `Files.Read` is the OneDrive read scope. `Files.Read.All` +
+ * `Sites.Read.All` reach a SharePoint document LIBRARY — `Files.Read` alone cannot (it covers
+ * only the signed-in user's OneDrive, not shared sites). All three are read scopes (ADR-0060 §1/§5).
  */
-export const M365_PHASE1_SCOPES = ['Files.Read', 'offline_access', 'openid', 'profile'];
+export const M365_PHASE1_SCOPES = ['Files.Read', 'Files.Read.All', 'Sites.Read.All', 'offline_access', 'openid', 'profile'];
 
 /**
  * AC-M365-101/102: authorize (Admin + entitled) → generate PKCE → store state (single-use, 10-min

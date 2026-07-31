@@ -5,8 +5,8 @@
  * the seeded ciphertext blobs are real (the no-leak assertion scans for the real plaintext markers).
  *
  *   AC-M365-150 — returns the allowed shape for an active / stale / revoked / absent connection.
- *   AC-M365-151 — enforces the SAME gate as the other user-initiated actions (non-Admin →
- *                 FORBIDDEN, unentitled → NOT_ENTITLED) — no relaxation.
+ *   AC-M365-151 — enforces the SAME data-access gate as the other user-initiated actions
+ *                 (disabled member → DISABLED_MEMBER, unentitled → NOT_ENTITLED) — no relaxation.
  *   AC-M365-152 — the response body leaks NO ciphertext / key_id / entra oid / entra tenant /
  *                 expiry — scanned for the forbidden KEYS and the seeded secret VALUES (mirrors
  *                 tokenCustody.secrets.test.ts), AND the read is read-only (no writes / no RPCs).
@@ -22,7 +22,7 @@ import type { ConnectionStatusResponse } from '../../../../../supabase/functions
 
 function callerClient() {
   return mockClient({
-    profiles: [{ data: { org_id: 'org-1', role: 'Admin' }, error: null }],
+    profiles: [{ data: { org_id: 'org-1', role: 'Admin', status: 'active' }, error: null }],
     org_features: [{ data: { enabled: true }, error: null }],
   });
 }
@@ -131,35 +131,35 @@ describe('AC-M365-150 — connection_status returns the allowed non-sensitive sh
   });
 });
 
-describe('AC-M365-151 — connection_status enforces the SAME gate (Operator + entitlement)', () => {
-  it('AC-M365-151: a non-Operator caller is rejected FORBIDDEN (no row read, same as graph_proxy)', async () => {
-    // ADR-0058 §3 amendment (2026-07-24): even an org Admin is rejected without Operator.
+describe('AC-M365-151 — connection_status enforces the SAME data-access gate (member + entitlement)', () => {
+  it('AC-M365SEP-003: a disabled member is rejected DISABLED_MEMBER (no row read, same as graph_proxy)', async () => {
+    // The data-access gate asserts active membership explicitly (NFR-M365SEP-002). A disabled
+    // caller is rejected before the connection row is ever read — distinct from NOT_ENTITLED.
     const row = await fullConnectionRow('active');
     const service = mockClient({
       ms_graph_connections: [{ data: row, error: null }],
-      platform_operators: [{ data: null, error: null }],
     });
     const memberCaller = mockClient({
-      profiles: [{ data: { org_id: 'org-1', role: 'Admin' }, error: null }],
+      profiles: [{ data: { org_id: 'org-1', role: 'Admin', status: 'disabled' }, error: null }],
       org_features: [{ data: { enabled: true }, error: null }],
     });
 
     const result = await handleConnectionStatus(deps({ service, caller: memberCaller, userId: 'user-1' }));
 
-    expect(result).toMatchObject({ status: 403, body: { error: 'FORBIDDEN' } });
+    expect(result).toMatchObject({ status: 403, body: { error: 'DISABLED_MEMBER' } });
     // The connection row was NEVER read (the gate rejected before the SELECT).
     expect(service.from).not.toHaveBeenCalledWith('ms_graph_connections');
     // And nothing was written (read-only — no audit, no mutation).
     expect(service.writes).toHaveLength(0);
     expect(service.rpc).not.toHaveBeenCalled();
-    assertNoSecret(JSON.stringify(result.body), 'FORBIDDEN body');
+    assertNoSecret(JSON.stringify(result.body), 'DISABLED_MEMBER body');
   });
 
   it('AC-M365-151: an unentitled caller is rejected NOT_ENTITLED (no row read)', async () => {
     const row = await fullConnectionRow('active');
     const service = mockClient({ ms_graph_connections: [{ data: row, error: null }] });
     const unentitledCaller = mockClient({
-      profiles: [{ data: { org_id: 'org-1', role: 'Admin' }, error: null }],
+      profiles: [{ data: { org_id: 'org-1', role: 'Admin', status: 'active' }, error: null }],
       org_features: [{ data: { enabled: false }, error: null }],
     });
 

@@ -11,7 +11,7 @@ const REVOKE_URL = 'https://login.microsoftonline.com/test-tenant-id/oauth2/v2.0
 
 function callerClient() {
   return mockClient({
-    profiles: [{ data: { org_id: 'org-1', role: 'Admin' }, error: null }],
+    profiles: [{ data: { org_id: 'org-1', role: 'Admin', status: 'active' }, error: null }],
     org_features: [{ data: { enabled: true }, error: null }],
   });
 }
