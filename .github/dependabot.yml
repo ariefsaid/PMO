@@ -1,0 +1,14 @@
+# Unfreeze the SHA-pinned action versions: pinning stops supply-chain rot but also
+# freezes past security fixes — something has to move the pins. github-actions only;
+# npm is deliberately excluded (scripts/audit-prod.mjs is the blocking gate for
+# shipping deps, and npm bump PRs would just churn CI on lockfile paths).
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    target-branch: "dev" # branch flow: work lands on dev, promoted to main
+    schedule:
+      interval: "weekly"
+    groups:
+      actions:
+        patterns: ["*"] # one weekly PR, not one per action

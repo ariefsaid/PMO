@@ -9,20 +9,18 @@ and the DoD in `docs/product-expectations.md` are unchanged and binding.
 
 > **⚑ Dispatch entry point (owner, 2026-07-22): use `pi-dispatch <tier>` — not raw `pi` — for role dispatches.**
 > The wrapper (`~/.local/bin/pi-dispatch`) owns provider/model selection: capability-banded fallback
-> ladders (free-first: NIM → requesty/mistral/ollama-cloud where tier-appropriate → GLM plan → codex
-> OAuth → `claude -p` last resort), retry-with-backoff on NIM `ResourceExhausted`/429 (open pi bug
-> earendil-works/pi#6364 — pi itself won't retry these), per-model rung-hopping, a machine-wide NIM
-> concurrency gate, and a token ledger (`~/.pi-usage.jsonl`; `pi-dispatch report [days]`).
+> ladders (**z.ai GLM → codex OAuth → `claude -p` last resort**), per-model rung-hopping, and a token
+> ledger (`~/.pi-usage.jsonl`; `pi-dispatch report [days]`).
 > Tiers: `build` (sonnet–opus band) · `routine` (haiku–sonnet) · `mechanical` (haiku) · `review`
 > (cross-family) · `review-money` (**Luna-only at max thinking — baked into the
 > ladder; no fallback — failure = escalate, never a weaker reviewer**) · `multimodal` (vision judgment,
-> quality-first: claude-sonnet → Luna:high, free NIM fallbacks after; Director keeps the final taste lens) · `orchestrate` (GLM-5.2 manager
+> quality-first: claude-sonnet → Luna:high; Director keeps the final taste lens) · `orchestrate` (GLM-5.2 manager
 > loops, Luna fallback; no claude rung — orchestrate failure escalates to the Director). **Model slugs live ONLY in the wrapper's ladder table** — never pass raw
 > provider/model in a dispatch; a wrong slug surfaces as 429-no-body and gets misdiagnosed as a rate
 > limit. Verify new slugs with `pi-dispatch smoke <provider> <model>`. The §2 table below remains the
-> capability rationale; the wrapper's ladders are the executable form. This supersedes §2's
-> OpenRouter-free-model fallback rows — **openrouter is banned** (owner 2026-07-15); requesty,
-> mistral, and ollama-cloud were smoke-tested and admitted 2026-07-22.
+> capability rationale; the wrapper's ladders are the executable form. **Every free non-z.ai provider
+> is now out** (owner 2026-07-30): NIM/`nvidia`, requesty, mistral and ollama-cloud are removed from
+> every ladder, and openrouter stays banned (owner 2026-07-15). See the ruling box in §2 for why.
 
 ## 1. Division of labor (binding)
 
@@ -39,17 +37,32 @@ or merge — the release-engineer flow and the Director merge gate (playbook §6
 
 Replaces playbook §3's opus/sonnet/haiku mapping when running the trial:
 
+> ## ⛔ OWNER RULING 2026-07-30 — **NIM IS REMOVED. z.ai IS THE pi SUBSTRATE.**
+> Every `nvidia` (NIM) rung is gone from every ladder, along with the free non-z.ai spares
+> (`requesty`, `mistral`, `ollama`). **`openrouter` remains banned** (owner 2026-07-15). What is left:
+> **z.ai GLM → `openai-codex` Luna → `claude -p` (last resort)**. This supersedes the 2026-07-11/12
+> cascade that put `nvidia` ahead of `zai`, and the 2026-07-22 "free-first" ordering.
+>
+> **Why, from the run that caused it.** A `build` dispatch landed on `nvidia|z-ai/glm-5.2` and burned
+> **98 minutes producing nothing** — completions arrived 1.5–5 minutes apart, it was still probing the
+> environment for `psql` at minute 98, then died on `Request timed out`. The identical brief on
+> `zai|glm-5.2` did **40 turns in 5 minutes**, ~40× the throughput. The wrapper had ALREADY recorded
+> this on the `orchestrate` tier — *"NIM glm-5.2 excluded: >120s/completion reads as a hang in agentic
+> loops"* — and still shipped NIM as rung 1 of `build`. **A lesson learned on one tier has to be
+> applied to every tier**, which is why NIM is removed rather than demoted: a rung that is wrong for
+> agentic loops will keep being selected by whichever tier forgot to exclude it.
+>
+> **When z.ai caps (5-hour window), the ladder falls to Luna, then `claude -p`. That is the intended
+> behaviour — it is not a reason to re-add a free rung.** Free-but-unusable is not cheaper than paid:
+> the 98-minute run cost nothing in tokens and two hours of the owner's clock.
+
 | Substrate | Use for | Analog |
 |---|---|---|
-| `nvidia` / `glm-5.2` | **Second in the cascade (owner, 2026-07-12): the substrate order is `zai` → `nvidia` → Anthropic subagents** — when zai is capped, TRY nvidia (it may 429-fail fast on agentic loops per the constraint note below; that costs little — per-task commits make every death resumable), and only then fall back to Anthropic. Smoke-tested OK 2026-07-11. | opus |
-| `nvidia` / `deepseek-ai/deepseek-v4-pro` | **Cross-family reviewer/alternate builder on NIM** (owner roster 2026-07-11) — use as the different-family review lens vs GLM builds, replacing most codex usage. Smoke-tested OK (note the namespaced id). | opus reviewer |
-| `nvidia` / `nemotron-3-ultra` | Second NIM review/audit lens; alternate builder for routine slices. Smoke-tested OK 2026-07-11. | opus/sonnet |
-| `nvidia` / `minimax-m3` | ⚠️ **Registered but UNUSABLE via pi as of 2026-07-11 — returns empty text on every probe** (both `minimax-m3` and `minimaxai/` ids). Do not dispatch to it until the pi-side parsing/config is fixed. | — |
-> **⚑ NIM constraints (owner, 2026-07-11; hardened same day):** free tier ≈ **40 requests/min TOTAL across all NIM models**, and pi treats a 429 as FATAL (no retry/backoff). **Empirical: even ONE pi agent's tool loop exceeds 40 RPM during fast read sequences — three consecutive runs died (2 concurrent, then 1 solo).** Until pi's NIM provider config gains retry-on-429/an RPM throttle, NIM is for **one-shot / few-call dispatches only** (single-file generations, judgments, smoke probes) — NOT agentic build loops. Build loops: Anthropic subagents or `zai`-window GLM. **Reduce `openai-codex` (gpt-5.6-luna) usage:** reserve it for the highest-stakes adversarial reviews (money/security); other one-shot review lenses can use NIM DeepSeek/Nemotron.
-| `zai` / `glm-5.2` | **The opus-grade default (owner, 2026-07-04: currently better than 5.1 across the board).** Planning, specs, complex or security-sensitive slices (schema, RLS, RPC), manager-grade judgment, AND implementation slices (trialed-good as builder 2026-06-16 — first-pass-correct, no §6 tendencies). **Fallback route since 2026-07-11 — prefer `nvidia`/`glm-5.2` above.** | opus |
-| `zai` / `glm-5.1` | Secondary/alternate to 5.2 (rate-limit relief, or as the different-model reviewer in GLM-only degraded mode) | opus fallback |
-| `zai` / `glm-4.7` | Routine implementation, mechanical edits, QA runs, mockup builds | sonnet/haiku |
-|  `openai-codex` / `gpt-5.6-luna` (owner-directed 2026-07-11; supersedes `gpt-5.4`) | ALL reviews and audits — spec-review, code-quality, plan review, security. Deliberately **cross-family** vs the GLM builders. **⚑ money/security audits run at `--thinking max` (owner 2026-07-15)** — always pass `pi --provider openai-codex --model gpt-5.6-luna --thinking max` for a money/security review | opus reviewers |
+| `zai` / `glm-5.2` | **THE DEFAULT for all build work.** Planning, specs, complex or security-sensitive slices (schema, RLS, RPC), manager-grade judgment, and implementation slices (trialed-good as builder 2026-06-16 — first-pass-correct). First rung of `build`, `routine` (as the step-up from 4.7) and `orchestrate`. | opus |
+| `zai` / `glm-5.1` | Secondary/alternate to 5.2 (rate-limit relief, or as the different-model reviewer in GLM-only degraded mode). Not on any ladder — Director picks it explicitly. | opus fallback |
+| `zai` / `glm-4.7` | Routine implementation, mechanical edits, QA runs, mockup builds. First rung of `routine` and `mechanical`. | sonnet/haiku |
+|  `openai-codex` / `gpt-5.6-luna` (owner-directed 2026-07-11; supersedes `gpt-5.4`) | ALL reviews and audits — spec-review, code-quality, plan review, security. Deliberately **cross-family** vs the GLM builders. **⚑ money/security audits run at `--thinking max` (owner 2026-07-15)**; the `review-money` tier bakes that in and has **no fallback by design**. | opus reviewers |
+| `claude` / `sonnet`·`haiku` | Last-resort rung only (`claude -p`, sanctioned plan entry) when both z.ai and codex are down. Spends the Claude quota the whole trial exists to protect — if the work is high-stakes and both primaries are capped, prefer to **wait for the reset**. | — |
 
 > **⚑ GLM-only degraded mode (gpt-5.4/openai-codex UNAVAILABLE, observed 2026-06-16).** When the
 > cross-family reviewer is down, route reviews to a **different GLM model than the builder** (e.g. build
@@ -57,17 +70,19 @@ Replaces playbook §3's opus/sonnet/haiku mapping when running the trial:
 > intended cross-family check. Acceptable for low-risk/presentational slices; for **security/RLS/RPC or
 > money-path** changes, escalate to the Director's own review or wait for cross-family, don't ship on a
 > same-family-only sign-off.
-| `openrouter` / `nvidia/nemotron-3-ultra-550b-a55b:free` · `nex-agi/nex-n2-pro:free` | **Tertiary fallback only** — when BOTH z.ai and codex are rate-limited. Free, so no quota cost; keeps the loop moving instead of stalling for the reset | spare tire |
-
-**Fallback (owner rule):** z.ai API limit → use `gpt-5.6-luna`; OpenAI limit → use GLM. **When BOTH are
-rate-limited at once** (the 5-hour windows can overlap — observed 2026-06-12), drop to the
-**OpenRouter free models** (`openrouter` provider, both smoke-tested OK): Nemotron 3 Ultra for the
-heavier slice, NEX N2 Pro as its alternate. They're free — no quota — but unproven on this codebase,
-so treat their output as lower-trust: keep them to routine/mechanical/throwaway work, **never the
-sole author of a security/schema/RLS slice**, and the Director re-verifies harder (gates + read the
-diff). If the work is high-stakes and both primaries are down, prefer to **wait for the reset** over
-shipping a free-model security change. Smoke-test any substrate with
+**Fallback (owner rule, as of 2026-07-30):** z.ai capped → `gpt-5.6-luna`; codex capped too → `claude -p`
+(the last-resort rung, which spends the quota this trial protects). **There is no free tier below that
+any more** — NIM, requesty, mistral, ollama and openrouter are all out. When both primaries are down on
+high-stakes work, **wait for the reset**; that was already the rule for security/schema/RLS slices, and
+the 98-minute NIM run is the evidence that a free-but-slow substrate is not a cheaper option.
+Smoke-test any substrate with
 `pi --provider <p> --model <m> -p --no-session --no-tools "Reply with exactly: OK" < /dev/null`.
+
+**⚑ Brief the environment, don't make the agent discover it.** The 98-minute run spent most of its life
+finding out there is no host `psql`. Every build brief should state, up front: `docker exec -i
+supabase_db_pmo-portal psql -U postgres -d postgres` is how you reach the DB; there is **no `timeout`**
+on macOS; `supabase` runs from the repo root; wrap DB commands in `scripts/with-db-lock.sh`; pgTAP is
+not resident between `supabase test db` runs. Discovery is the most expensive thing a slow rung does.
 
 ## 3. Invocation pattern
 

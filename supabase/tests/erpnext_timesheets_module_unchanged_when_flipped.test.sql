@@ -66,10 +66,16 @@ select is(
      from pg_policies where schemaname = 'public' and tablename = 'timesheet_entries'),
   'timesheet_entries_select,timesheet_entries_write',
   'AC-TSP-004: timesheet_entries RLS policy names unchanged on a flipped org');
+-- ⚑ The expected set changed at 0179 and the ORACLE IS UNWEAKENED. `profiles_admin_write` (FOR ALL)
+-- was split into `profiles_admin_insert` + `profiles_admin_delete` (both byte-for-byte the old
+-- Admin-only predicate) + `profiles_hierarchy_update` (ADR-0070's rank rule) — a local authorization
+-- change with no ERP input: none of the three reads `external_domain_ownership`, calls an adapter or
+-- touches the outbox, so flipping the org still changes nothing about them. Any policy NOT in this
+-- list — an ERP-driven one included — still fails this assertion, which is the AC's goal.
 select is(
   (select string_agg(policyname, ',' order by policyname)
      from pg_policies where schemaname = 'public' and tablename = 'profiles'),
-  'profiles_admin_write,profiles_select,profiles_update_self',
+  'profiles_admin_delete,profiles_admin_insert,profiles_hierarchy_update,profiles_select,profiles_update_self',
   'AC-TSP-004: profiles RLS policy names unchanged on a flipped org');
 
 -- ⚑ These two assert the trigger NAME SET, not a count (changed 0172). A count answers "how many

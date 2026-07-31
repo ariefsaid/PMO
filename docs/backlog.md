@@ -4,114 +4,55 @@
 [`docs/history.md`](history.md) (don't read it for status). Locked owner-decisions are in
 `docs/decisions.md` (OD-* lookup by id). Roadmap framing in `docs/roadmap-spines.md`.
 
-### ⚑⚑⚑ CURRENT FOCUS — the WHOLE observability+analytics program is COMPLETE on `dev` (2026-07-28). Not promoted.
+### ⚑⚑⚑ CURRENT FOCUS — three programs PROMOTED to `main` (2026-07-29). Production NOT touched.
 
-**All 11 PRs shipped to `dev`. Zero open PRs.** Spec `docs/specs/observability-analytics.spec.md`,
-plan `docs/plans/2026-07-25-observability-analytics.md`, ADRs 0066/0067.
+**`main` = `3a6171c2` (merge of #412). `main..dev` = 0, zero file diff — verified, not assumed.**
+Production is still `v0.8.0` and needs a **direct, per-instance owner instruction naming production**.
 
-| PR | Slice | What it closed |
-|---|---|---|
-| #394 | NUL-byte gate | 3 source files were invisible to `grep`; one was deployed |
-| #398 | E — signal config + consent | heatmaps/web-vitals on, opt-out + DNT, honest disclosure |
-| #399 | F — friction, funnel, quota, tile gate | `save_failed` was inert; 2 tiles could never render |
-| #400 | A — alerting | write-ahead `alert_send_log` — bounds the re-alert loop **without dropping alerts** |
-| #401 | B — money & concurrency | rejects negatives **and `NaN`**; automation-cap race closed with a real 2-session `dblink` proof |
-| #402 | C — edge coverage | **4 → 22** functions reporting through one choke point |
-| #403 | D — self-report + retention | a failed `error_events` insert now reaches PostHog; 90-day purge with proof-of-run |
-| #404 | quota parser | the alarm parsed `quota_limits` (an ARRAY); the API returns `limited` (an OBJECT). **It could never have worked** |
-| #406 | spike deletion | `spike/agent-native-rls/` + its lane removed; supersedes FR-HRD-043 |
-| #407 | vitest timeout 5s→15s | the default was a **contention** detector, not a hang detector |
-| #408 | quota row validation | #404's fix still reported all-clear having checked nothing — found by the retrospective battery |
+| program | what reached `main` |
+|---|---|
+| **Observability + analytics** (#394, #398–#408) | consent gate (opt-out/DNT/disclosure), friction instrumentation, edge error-reporting across 22 fns, alerting with a write-ahead log, retention. Spec `docs/specs/observability-analytics.spec.md`, ADRs 0066/0067 |
+| **Skipped-workflow remediation** (#409) | the four per-issue-loop steps that had never run on the 11 observability PRs. Found a **WCAG 2.1.2 Level A keyboard trap in every entity form** and an undisclosed Google-Fonts call on `/privacy` |
+| **Create-path SoD class** (#411, `0173`–`0178`) | closed on **INSERT, UPDATE, DELETE and the RPC-parameter variant** across six tables. Approval authority is now **rank + line management** (ADR-0070), not hardcoded role lists |
+| plus | #413 (the ambiguous PostgREST embed), #414 (`serial` ≠ data ownership) |
 
-⚑ **#404 and #406 shipped WITHOUT a review battery** (Director judged them low-risk, merged on CI
-alone). The retrospective battery run afterwards found a **Critical in #404** — both reviewers
-independently. Verdicts: skipping it on **#404 was NOT defensible**, on **#406 it was**. The correct
-trigger is not "does this touch the DB" but **"does this parse untrusted external data into a
-privileged sink"** — #404 parsed a third-party HTTP response into CI stdout, which is a command
-interpreter. See the lessons block below.
+**✅ The PostHog quota alarm can now actually run.** `schedule:`/`workflow_dispatch` fire **only from
+the default branch**; `posthog-quota.yml` sat inert on `dev` for its whole life. It is on `main` now
+(verified with `git ls-tree -r origin/main`). Secrets were already set — dedicated `project:read` key,
+1Password `posthog-pmo-api` (vault `AS`). First real run will be its first run ever; check it.
 
-**⛔ OWNER ACTIONS OWED:**
-1. ✅ **DONE 2026-07-28 — repo secrets `POSTHOG_API_KEY` + `POSTHOG_PROJECT_ID` are set** (piped from
-   1Password vault `AS` item `posthog-personal-api` straight into `gh secret set`; the value was never
-   read or displayed). Verified by `gh secret list`, not by an exit code.
-   ⚑ **CORRECTION to an earlier claim in this file: the workflow does NOT "go red daily until they
-   exist".** `.github/workflows/posthog-quota.yml` is only on `dev`, and GitHub fires `schedule:` and
-   `workflow_dispatch` **exclusively from the DEFAULT branch** (`main`) — `gh workflow run` returns
-   `HTTP 404: not found on the default branch`. So the alarm has never run and **is not protecting
-   anything until `dev` is promoted.** Setting the secrets early means it works on its first real run
-   rather than failing closed; there was no daily red to avoid.
-   ✅ **Key VALIDATED live 2026-07-28** — `project:read` alone is sufficient for `/quota_limits/`
-   (previously documented but never called). Live result: `✓ 14 PostHog allowance(s) checked`.
-   Usage is nowhere near any ceiling: events 238/1M, exceptions 13/100k, recordings 25/5k,
-   AI credits 32/500 (highest at 6.4%).
-   ✅ **Least privilege DONE** — the secret was repointed to a dedicated `project:read`-scoped key
-   (1Password item **`posthog-pmo-api`**, vault `AS`, field `credential`). The write-capable
-   `posthog-personal-api` stays in 1Password for local `provision-dashboards.mjs` runs, which need
-   `dashboard:write` + `insight:write`. ⚑ Don't export the CI key in a shell and then run
-   `provision-dashboards.mjs`/`query.mjs` — they will fail on scope.
-   *Transport is sound:* repo is PUBLIC but there is **no `pull_request_target`** anywhere in
-   `.github/workflows/` (so fork PRs never receive secrets), triggers are `schedule`+`workflow_dispatch`
-   only (not fork-reachable), `permissions: contents: read`, an explicit `::add-mask::` on top of
-   GitHub's automatic masking, and `ariefsaid` is the only collaborator.
-2. ✅ **DONE 2026-07-28 — `gordi-pre-test` stopped.** It was a Postgres 17 container for the *gordi*
-   project running a **22-hour COGS aggregation with `SET statement_timeout=0`** — the timeout had been
-   deliberately disabled after a 300s cancellation, and the query never finished. ~100–200% CPU
-   (one full core), idle load 253 → **4** once stopped. It produced phantom ~5000ms test timeouts
-   **three times**, each costing an isolation round to disprove.
-   ⚑ It was **not** the sole cause: a full `npm run verify` alone drives this 10-core machine to
-   load ~140, which is why #407 (timeout 5s→15s) was still needed.
-3. ✅ **DONE 2026-07-28 (owner-approved) — `spike/agent-native-rls/` + `.github/workflows/spike-rls.yml`
-   DELETED** (10 files, ~1,970 lines). It was retained only for ADR-0036's §8 SSO UX check, and **§8 was
-   closed 2026-07-03** — so it was being kept for a check on an abandoned path. This **supersedes
-   FR-HRD-043** (`spike-rls.yml` shall use `npm ci`): the requirement is satisfied by deletion rather
-   than by the lockfile #401 committed — the lane no longer exists to install anything.
-   ⚑ ADR-0036 §4–§7 shipped and are unaffected; the spike's three claims are recorded in the ADR and
-   need no re-run. Recover from git history if §8 is ever revived.
-4. **AS-1/AS-2 unconfirmed assumptions now shipped:** `error_events` retention = **90 days**; Telegram
-   drain cadence stays **hourly**. Both one-value changes.
+**⛔ OWNER DECISIONS STILL OPEN**
+1. **Production deploy** — the earlier blocker is GONE (prod is demo-only, nothing in flight to
+   grandfather, so the `contract_value` witness failing closed on legacy rows costs nothing). Clean
+   call whenever you want it. Migrations `0173`–`0178` would apply.
+2. **Goods-receipt self-attestation** — an Engineer who raised a PR can create their own `Complete`
+   goods receipt. **Not a bug: a ratified contract** (`AC-AUTHZ-007`, widened deliberately in `0015`).
+   Narrowing it is a product decision about whether receipt-of-goods needs a second pair of eyes.
+3. **`incoming_payments` INSERT/UPDATE** — blanket grant, client-writable `erp_*`, inert flip guard.
+   Judged *mirror-integrity*, not SoD (no transition RPC to bypass), so only its DELETE half was
+   closed. Close the rest as its own slice, or accept and file.
+4. **Analytics opt-out fails open** if `localStorage` is evicted (Safari ITP ~7d, "clear site data").
+   A first-party cookie mirror would fix it — a product decision about how durable a consent promise is.
 
-**🔴 Filed from this program, NOT fixed (live in production now):** `authenticated` holds **INSERT** on
-`projects.contract_value` (UPDATE is correctly withheld). A Project Manager can create a project already
-in a won status with an arbitrary contract value, a forged `decided_at` and a forged
-`customer_contract_ref` — **no `audit_events` row**, because `log_audit` is wired to the RPC and to
-AFTER DELETE, not INSERT. Bypasses ADR-0019 money SoD entirely. The client-side guard at
-`src/lib/db/projects.ts:122-128` calls itself "defence in depth"; there is no server-side authority
-behind it. Needs a BEFORE INSERT trigger restricting status to origination + nulling the win fields.
+**NOT on `main`, deliberately — `fix/authz-hierarchy` (`0179`/`0180`), unpushed, NO review battery.**
+`0179` = the owner's profile-edit rule (outrank to edit, assign below your own, Admin may edit a peer
+Admin). `0180` = `is_active_member()` on the 15 privileged RPCs — today a **disabled user with a live
+JWT is read-blocked but still writes vendor money**. It is built and locally green (277 pgTAP files /
+3091 assertions, `verify` exit 0) but has had **zero** spec/quality/security review. It does not ship
+until it gets one.
 
-**Deferred, recorded, not done:** **FR-OBS-001 is PARTIAL, not closed** — `serveWithErrorReporting`
-(ADR-0066) only reports errors that **throw** out of a handler; every deliberately-caught failure
-that `return`s an error response produces **zero** `error_events` and zero PostHog `$exception`.
-Verified: `clickup-sweep`'s `MISCONFIGURED`/`OWNERSHIP_READ_FAILED` 500s and its per-org `catch` that
-`console.error`s and lets the function return HTTP 200 `{ok:true}`; `erpnext-sweep`'s `MISCONFIGURED`.
-Exactly **1** call site outside `_shared` (`agent-chat`) calls `reportEdgeError` directly, against
-dozens of `console.error` calls that return rather than throw — precisely the deploy-misconfiguration
-class behind v0.8.0's 8-day-stale-deploy incident that motivated this spec. **New deferred item:**
-wire `reportEdgeError` into handled-error return paths (not implemented here). · FR-OBS-003 (79
-free-text `console.error` → enum sweep — error *coding* is not done either) · FR-HRD-042
-(interactive-create idempotency, pulled to its own spec as unplannable) · the automation cap is still
-bypassable by un-archiving (BEFORE INSERT only) · `changed-lines-coverage.mjs` diffs `-- pmo-portal/`
-only, so the ≥80% DoD is **unenforceable for every `supabase/**` change** · `telegramNotify.test.ts`'s
-AC-OF-005 reimplements the branch it tests and should migrate onto `runDrain`.
-
-**Known limitations, deliberate and documented (do not "fix" without reading why):**
-- `save_failed`'s `module`/`operation` are **constants** (`unknown`/`classify`) until call sites are
-  threaded. No tile breaks down on them; `docs/analytics-events.md` says so. Do not break down by
-  `module` in PostHog's explorer and read ~100% `unknown` as a fact.
-- **`$current_url`/`$pathname` are denylisted** — they carried raw record UUIDs on every event
-  (spec §6 forbids that). Cost: **PostHog's built-in path and web-analytics views are empty by
-  design.** `app_route_viewed` still carries parameterised navigation.
-- The **consent e2e lane first executes in CI at the `dev`→`main` promote** — all e2e lives in the
-  `integration` job, which is `main`-only. Verified locally incl. `CI=true`; expect promote-time
-  CI-env gaps there if any.
-- Session replay + autocapture remain **demo-prospect only** (owner decision OD-OBS-1).
-
-**Open owner question:** the analytics opt-out **fails open** if `localStorage` is evicted (Safari ITP
-clears it ~7d; so does "clear site data"). Both our flag and PostHog's live there. A first-party
-cookie mirror would fix it — a product decision about how durable a consent promise should be.
-
+**⚑ Two operational traps found during the promote, both still live:**
+- **Retry-hostile fixtures.** `AC-816` / `AC-911` / `AC-CONFIRM-001` walk a **one-shot fixture
+  forward** (Draft→Paid). A retry therefore starts from the *consumed* state and can never pass, so on
+  a loaded runner one slow first attempt becomes three reds with no recovery. `retries: 2` does not
+  help. Fix is fixture restore in `afterEach`, or `retries: 0` on those files.
+- **Docs-only pushes starve the promote.** They go direct to `dev` with no PR, and each one retriggers
+  the promote PR's ~10-minute `integration` lane. #412 was retriggered **three times** this way and
+  merged two heads past the one first reported green. Nothing broke, but a promote can be starved
+  indefinitely.
 ---
 
-### ⚑ AGENT re-query-loop regression — FIX BUILT on `fix/agent-requery-loop` (2026-07-28), owner-gated deploy
+### ⚑ AGENT re-query-loop regression — ✅ MERGED (#410) and now ON `main`; edge-fn DEPLOY still owner-gated
 
 **Symptom (found in prod agent transcripts):** "Which of my projects are behind schedule?" answered
 cleanly on Jul 8 (`run f4b8609d`), but on Jul 16 (`run ebe98163`) it dumped raw tables into the chat,
@@ -196,6 +137,11 @@ the 3 audit HIGHs. All merged to `dev` and promoted; full detail in
 A read-only agent verified 24 long-running entries **against `origin/dev` by CONTENT** (never by branch
 name — that is exactly how these rotted). **6 entries name branches that no longer exist while their work
 is already on `dev`.** Where an older entry below conflicts with this block, **this block wins.**
+
+⚑ **This audit is dated 2026-07-23. Three programs have shipped to `main` since** (observability,
+workflow remediation, the SoD class — see CURRENT FOCUS). It is still the authority over anything
+*older* than it, but the CURRENT FOCUS block is the authority over it. **Re-verify by content before
+acting on any entry here, exactly as this audit itself did** — that is the whole lesson.
 
 **✅ ALREADY DONE — do not rebuild (older text says otherwise):**
 - **ClickUp live smoke + `CLICKUP_API_BASE_URL` seam** — `scripts/clickup-live-smoke.{ts,sh}`; seam at
@@ -346,7 +292,82 @@ BEHIND `dev`, content identical).
   per year, or state why not.** Priority: real but not urgent — Admin-only, deliberate, and it corrupts
   reporting truth rather than moving money.
 
-### ✅ RESOLVED — the create-path SoD class, slices 1–5 (`0173`–`0177`, 2026-07-29)
+### ⚑ IN FLIGHT — the authorization-hierarchy slice (`fix/authz-hierarchy`, 2026-07-29).
+
+Two independent migrations off `dev` @ `eb39fc0c`, deliberately separate so either can be reverted alone.
+
+**Part A — `0179_profiles_hierarchy_write.sql`: ADR-0070's profile-editing rule.** Owner ruling
+2026-07-29: *you may edit a profile only if you outrank its owner, and may only assign a role below
+your own*, plus one carve-out (an Admin may edit a **peer** Admin, never themselves).
+`profiles_admin_write` (`FOR ALL`, Admin-only) is split into `profiles_admin_insert` +
+`profiles_admin_delete` (byte-for-byte the old predicate — the ruling widens *editing* only; ADR-0019
+keeps destructive delete Admin-only) and `profiles_hierarchy_update`, which carries the rule in **both
+`USING` and `WITH CHECK`** via `may_administer_profile(actor_role, subject_role)`.
+Proof: `supabase/tests/0172_profiles_hierarchy_write.test.sql`, 53 assertions, 6 mutations run and all
+killed (incl. USING-only, WITH-CHECK-only, and a message-only mutation).
+
+⚑ **Two things a reader should not skim past:**
+- **It is not "outranks" alone.** `role_rank` is a strict total order, so a literal reading would hand
+  Finance authority over PMs and a PM authority over Engineers — contradicting the owner's own matrix
+  ("Finance / PM / Engineer → nobody"). The predicate is a conjunction with an **authority floor**
+  (`holds_profile_admin_authority` = Executive rank and above). A PM who can write a peer's
+  `manager_id` can re-point ADR-0070's line-management limb, i.e. the money SoD's approval line.
+- **"Never themselves" is a NARROWING, and ADR-0070 described the prior state wrongly.** The ADR said
+  self-edits of `role`/`manager_id` were already barred for everyone "via the `profiles_update_self`
+  pin". True for every role **except Admin**: `profiles_admin_write` was `FOR ALL` and matched the
+  Admin's own row, and permissive policies OR. Probed live at `0178`: an Admin's
+  `update profiles set role='Engineer' where id=<self>` returned `UPDATE 1`. The ADR is corrected.
+
+**Part B — `0180_rpc_active_member_gate.sql`: `is_active_member()` on the privileged RPCs.** Spec
+`docs/specs/active-member-write-gate.spec.md`. A **disabled** user with a live JWT was read-blocked by
+RLS and still wrote money through the definer RPCs (probed: `select count(*) from procurements` → 0,
+`create_procurement_invoice(…,'Paid',…,424242)` → succeeds). `0178` closed two; this closes the
+remaining **fifteen**, one assertion each — the defect IS inconsistent application, so a sampled proof
+would have reproduced the gap. Mechanism: `assert_is_active_member(p_actor uuid default null)` over a
+new `is_active_member(uuid)` overload; **no argument = user-JWT-only, an argument = this RPC has a
+service_role caller.** Only two have one (`external-connect` → `create_vault_secret_for_org`,
+`external-disconnect` → `admin_change_domain_ownership`); a plain conjunct on either would have broken
+the integration **in production and closed**. Proof: `0173_rpc_active_member_gate.test.sql`, 61
+assertions, 8 mutations run, all killed.
+
+⚑ **Completeness is a catalog query, not a list.** `0173` asserts that the sweep (`prosecdef` + granted
+to `authenticated` + writes + no `is_active_member` in the body) returns **zero** rows, so a future
+definer write-RPC that forgets the gate fails CI instead of being appended to a list nobody re-runs.
+⚑ **Scope, stated in the migration header:** this closes the *write surface* for a disabled account.
+It does **not** shorten an already-issued JWT's life. **Offboarding is not "solved" by this file** —
+token lifetime is a separate auth-side decision.
+
+**⛔ Still open after Part B (found in passing, deliberately not fixed here):**
+- `approved_timesheet_for_push` — the precedent this slice followed — checks the resolved actor's
+  `profiles.status` and applies `is_active_member()` **only when there is a JWT**, so its `p_actor`
+  (service-role sweep) path never gets `0095`'s `banned_until` check. A raw-banned approver's sheet can
+  still be pushed by the backstop. One-line fix: use `is_active_member(coalesce(auth.uid(), p_actor))`.
+  Not touched here because it is outside the fifteen and changing the sweep's gate deserves its own
+  caller analysis.
+- `0178` closed `transition_project` / `set_project_contract_value` with a bare `'not authorized'`
+  message, so an offboarded user's money-path refusal is still indistinguishable from a role denial
+  (FR-AMG-004). The fifteen carry the distinguishing message; those two do not.
+
+**⛔ FE follow-up owed (found, not fixed — out of this slice's scope):**
+
+1. **`pages/AdminUsers.tsx` self-edit controls still render active.** Post-`0179` an Admin who changes
+   their own role or manager there gets a 42501 toast instead of a disabled control. RLS is the
+   authority and it is correct; the UX is now wrong. Fix = hide/disable those two controls on the
+   caller's own row (`can()` is UX-only, ADR-0016). Owner ruled 2026-07-30: a SEPARATE LATER ISSUE.
+
+2. **No FE surface for 0179's Executive widening at all.** `pmo-portal/src/auth/policy.ts:235` is still
+   `user: { edit: allow(ADMIN) }`, so the DB rule (Executives may edit Finance/PM/Engineer) is live
+   but no Executive can exercise it. Owner ruled 2026-07-30: a SEPARATE LATER ISSUE. ⚑ The role
+   `<select>` in the edit form offers ALL FIVE ROLES regardless of actor rank, so it will need
+   rank-filtering when this issue is picked up.
+
+3. **`profiles.status` edit control is also missing from FE (Admin-only, 0182 column allow-list).**
+   Owner ruled 2026-07-30 that this is correct (status stays Admin-only), separate from the Executive
+   widening issue.
+
+**Note:** 0181/0182 shipped in this branch.
+
+### ✅ RESOLVED — the create-path SoD class, slices 1–6 (`0173`–`0178`, 2026-07-29) — ON `main`
 Branch `fix/project-create-sod` / PR #411. Spec `docs/specs/create-path-sod-class.spec.md` (§8 = slice
 4, §9 = slice 5). **Nothing here was a regression — every item was pre-existing and live in production.**
 
@@ -412,40 +433,120 @@ inside its own transaction, the same device that file already uses for INSERT, s
    `0176` §1 (narrow the INSERT re-grant to body columns, revoke UPDATE, add an origination guard and a
    create audit), but that is a mirror-integrity slice with its own caller survey. **Not pinned by a
    test.**
-3. **The `is_active_member()` gap across 17 RPCs.** A different class, tracked separately; explicitly
-   out of scope for slices 1–5.
+3. **The `is_active_member()` gap.** A different class, tracked separately; out of scope for slices 1–6.
+   ⚑ It is **fifteen**, not seventeen — `0178` §5 already closed `transition_project` and
+   `set_project_contract_value`. Re-derive from the live catalog, never from this number.
+   **Guard BUILT on `fix/authz-hierarchy` (`0180`); see the in-flight section above for its review state.**
+
+⚑ **SLICE 6 (`0178`) exists because all three reviewers returned NO SHIP on `0173`–`0177`.** Each of
+the five earlier slices closed the write path it had in hand and declared the class closed. The
+completeness test is **per-table × {INSERT, UPDATE, DELETE, RPC-parameter}** — not per-slice — and
+`0178` carries that matrix. What it caught: `budget_versions` UPDATE wide open (a PM archived all 17
+Active versions in one statement, and the `Active→Draft→edit→Active` round trip voided
+`budget_line_items_draft_guard` entirely); `create_payment`/`_purchase_order`/`_purchase_request`/`_rfq`
+accepting the protected end state as a **parameter** (a PM minted `PAY-…| Paid | 888888.00` on a *Draft*
+purchase request, bypassing a Finance-only approver≠payer gate with a real server-sequence number);
+`incoming_payments` INSERT/UPDATE; an Approved document's body rewritable by its own author; and the
+money SoD's "second person" being satisfiable by two **offboarded** accounts.
+
+⚑ **Two of the defects were PROOF defects, not guard defects** — worse, because they read as coverage:
+`AC-PMS-021` asserted `prosrc like '%…MUST stay%'`, which matched a **SQL comment** (delete the whole
+guard, keep the comment, 62/62 green — the third occurrence of that trap here); and `0177`'s DELETE
+guard was itself **cascade-blind**, because an `ON DELETE CASCADE` runs as the referenced table's
+owner, so `actor_bypasses_rls()` returned true and the guard exited before evaluating anything. Its own
+headline lesson was not implemented by its own fix.
+
 4. **`contract_value` witness backfill.** Pre-`0177` rows keep NULL witnesses and are fail-closed for a
    non-Admin/Exec/Finance winner. `0177` raises a WARNING with the affected count at migration time.
    Disposition (leave them to be re-set one by one, or run a one-off attribution) is an owner call —
    **it must be decided before the prod deploy**, together with OD-PCS-1 (slice 1's retro-remediation
    question, still open).
 
-### ✅ RESOLVED — ADR id collisions 0058/0059 (fixed by #387, 2026-07-25)
-The `0058`×2 and `0059`×3 collisions were fixed in **PR #387**: the duplicate M365/external docs were
-renumbered to **0063** (`microsoft-365-integration-architecture`), **0064** (`entra-app-registration-topology`),
-**0065** (`external-admin-connect`), each carrying a redirect note. `0058` (`erpnext-money-idempotency-outbox`)
-and `0059` (`pmo-sot-with-external-side-mirror`) kept their ids. Verified 2026-07-27: `ls docs/adr/0058*`
-and `0059*` each return exactly ONE file. (The ADR-0037 mis-cite — same class, a citation resolving to
-the wrong doc — was fixed separately in #395, landing the real write-up as 0068.)
+### ✅ RESOLVED — the ADR-id collision class (0058/0059 · 0037 · 0069) — now GATED
 
-### ✅ RESOLVED — ADR-0037 mis-cite (fixed 2026-07-27)
-The monochrome-calm write-up landed on `dev` as **ADR-0068** (`docs/adr/0068-monochrome-calm-design-language.md`)
-with a provenance note explaining the id-history, and `DESIGN.md` + the three component comments
-(`StatusPill.tsx`, its test, `NotificationBell.tsx`) repointed to **0068**.
-⚑ **#395's repoint was PARTIAL — completed 2026-07-27.** It enumerated *components* and missed three
-page-level tests carrying the same design rule: `pages/Companies.test.tsx:121`,
-`pages/Incidents.test.tsx:160`, `pages/__tests__/Projects.deliveryBudget.test.tsx:121`, each citing
-`S1 (ADR-0037)` for "status is a quiet dot + label, no filled slab" — which is ADR-0068 §43, not the
-compiler DSL. A fix that repoints *some* citations of a mis-cite leaves the same defect behind, so
-**verify a citation sweep by meaning, not by the file list the fix enumerated**: search the rule
-vocabulary (`S1`, `dot`, `slab`, `tint`), not just the component names. `dev`'s `0037`
-(*View-Composition compiler DSL*) is untouched — the viewspec/compiler citations that legitimately
-mean 0037 still resolve correctly. Same class as the `0058`/`0059` collisions fixed in #387.
-⚑ **Branch-deletion caveat:** the `redesign/design-system` branch holds the **exploration artifacts**
-0068 references (the `design-mockups/redesign/{diverge,converge,reskin}/` sketches + 3 port plans) —
-those were NOT promoted (deliberate: exploration trail, not current truth; `DESIGN.md` is the in-tree
-source). The branch may now be deleted **if** losing those sketches is acceptable; it is no longer
-load-bearing for any *citation*. Owner call to delete.
+**Three separate collisions, one class: an ADR number is a citation target, and two documents under
+one number make every reference ambiguous with nothing erroring to tell you.**
+
+| collision | resolution |
+|---|---|
+| `0058`×2, `0059`×3 | #387 renumbered the duplicate M365/external docs to **0063/0064/0065**, each with a redirect note. Verified: `ls docs/adr/0058*` and `0059*` each return exactly one file |
+| `0037` mis-cite | the monochrome-calm write-up landed as **ADR-0068** with a provenance note; `DESIGN.md`, `StatusPill.tsx`, its test and `NotificationBell.tsx` repointed. `0037` (*View-Composition compiler DSL*) is untouched and its viewspec citations still resolve correctly |
+| `0069`×2 | #413 renumbered the M365 drift ADR to **0071**, chosen by citation cost: **22** references point at the trust-boundary `0069`, **zero** at the M365 one. `0070` was left free for the already-cited approval-authority ADR |
+
+⚑ **#395's repoint was PARTIAL** — it enumerated *components* and missed three page-level tests
+citing the same rule (`Companies.test.tsx`, `Incidents.test.tsx`, `Projects.deliveryBudget.test.tsx`,
+each `S1 (ADR-0037)` for "status is a quiet dot + label, no filled slab" = ADR-0068 §43). **Verify a
+citation sweep by MEANING, not by the file list the fix enumerated** — search the rule vocabulary
+(`S1`, `dot`, `slab`, `tint`), not the component names.
+
+⚑ **Why `0069` happened at all, and why it cannot recur:** `scripts/check-adr-collisions.sh` existed
+and worked — it just **was never reachable**. It runs inside `npm run verify`, which runs on PRs, and
+docs-only changes push **direct to `dev` with no PR**. An ADR is docs. Closed by
+`.claude/hooks/pre-push-collision-gate.sh`, which runs both collision gates before any push landing on
+`dev`. ⚑ **That hook was written on 2026-07-29 but sat on an UNPUSHED branch for several hours** — so
+this very entry asserted a control that was not in the tree. Caught by running the hook before a push
+and getting `No such file or directory`. Landed separately; **a doc claiming a guard is not a guard**. Both gates also now **fail closed on a zero-file scan** — `check-migration-collisions.sh` used
+to print `OK (0 files)` and exit 0 on an empty directory.
+
+**Branch-deletion caveat (still open, owner call):** `redesign/design-system` holds the exploration
+artifacts ADR-0068 references (`design-mockups/redesign/{diverge,converge,reskin}/` + 3 port plans),
+deliberately not promoted. Deletable **if** losing those sketches is acceptable; no citation depends
+on it.
+
+
+### ⚑⚑ LESSONS — 2026-07-29, the promote (read before adding a foreign key or an e2e spec)
+
+**Adding a foreign key is a BREAKING CHANGE to every unqualified PostgREST embed of its target.**
+`0177` added `projects.contract_value_set_by -> profiles(id)` next to the existing
+`project_manager_id`. Two FKs between the same pair of tables means PostgREST **refuses** an
+unqualified embed rather than guessing, so every query written `pm:profiles(full_name)` returned an
+*error*, not rows. The UI showed "Couldn't load projects". **19 e2e specs went red** — projects, tasks,
+timesheets, documents, kanban, calendar, command palette, pipeline — because they all land on a screen
+that lists or resolves a project.
+
+*Nothing below e2e can catch it.* Unit tests **mock** the Supabase client, so the embed string is
+never resolved against a real schema — `projects.test.ts` asserted that exact string and was **green
+the entire time it was a guaranteed runtime error**. pgTAP tests SQL, not PostgREST. e2e does not run
+on PR→`dev`. The `0177` reviewers asked whether the new FK needed an *index*; none of us asked what it
+did to existing embeds. Guard: `supabase/tests/postgrest_embed_ambiguity_guard.test.sql` pins the exact
+set of multi-FK table pairs, so a new one fails the test and forces a look at that target's embeds.
+
+**Sweep by MEANING, not by the pattern that worked first.** The first sweep grepped `.select('...(`
+and **missed the second call site** — `opportunity.ts` builds its select by string concatenation
+across lines, so the pattern could not match. That is why fixing one file turned `AC-401` green while
+`AC-PRJ-001` stayed red. Third recorded instance of this exact correction.
+
+**`serial` prevents a CONCURRENT writer. It does not make you the sole owner of the data.**
+`AC-IXD-TS-W5-3` passed alone and failed in the full lane: `AC-AU-001` runs earlier, re-points Tomas
+Beck's `manager_id` from Diego to Mara, and restores his **role** but never his **manager** — while its
+own header documents the `Tomas → Diego` chain as something the suite relies on. `transition_timesheet`
+is line-manager-**exclusive**, so the bulk approve hit `42501` on that row, and `commitBulk` folds a
+partial failure into a "Partially approved" toast and closes the dialog anyway. **The dialog-close and
+label oracles both passed while only ONE of two sheets actually approved** — the test asserted a claim
+it had not earned. Fix: the spec owns its own fixtures, and a new oracle checks every selected sheet is
+`Approved` server-side.
+
+**Retry-hostile fixtures turn one slow attempt into three unrecoverable reds.** `AC-816`/`AC-911`/
+`AC-CONFIRM-001` walk a one-shot fixture forward, so a retry begins from the *consumed* state
+(`Expected "Draft", Received "Requested"`) and can never pass. `retries: 2` does not rescue them.
+
+**Distinguishing load from coupling — the test that settled it:** run the lane twice on identical
+code. **Disjoint failure sets ⇒ load. A deterministic wrong value ⇒ coupling.** The embed bug resolved
+to the same wrong element `34×` every run; the chromium reds moved around and were always "right value
+arriving late". This Mac was at load **58–120 on 10 cores**, with three ERPNext containers
+crash-looping for **two days** (their redis dependency had exited). Stopping them took load to 3.5.
+⚑ Check `docker ps --filter status=restarting` before trusting any timing-sensitive local result.
+
+**A gate that only runs on PRs is blind to the change type most likely to need it.** Both collision
+gates live in `npm run verify`, which runs on PRs — and docs-only changes push **direct to `dev` with
+no PR**. An ADR is docs. Result: two live `ADR-0069` files on `dev`. Closed by a pre-push hook
+(`.claude/hooks/pre-push-collision-gate.sh`), alongside one that refuses `gh pr create --base main`
+unless `scripts/verify-main-pr.sh` has passed against the current HEAD.
+
+**Skipping the local promote gate cost an hour of CI and produced no diagnosis.** AGENTS.md has
+required `scripts/verify-main-pr.sh` before any PR targeting `main` since 2026-07-24. It was skipped;
+`integration` then hit its 30-minute cap **twice**, killing Playwright before it printed a single
+error. The same failures reproduced locally in **32 seconds** with full error text.
 
 ### ⚑⚑ LESSONS — 2026-07-27/28, the observability + analytics program (read before building any check)
 

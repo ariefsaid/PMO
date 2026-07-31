@@ -117,6 +117,36 @@ never errcode alone.
 
 ---
 
+## 4.1 Implemented — `0180`, and three corrections to §1/§2 above
+
+Migration `supabase/migrations/0180_rpc_active_member_gate.sql`; proof
+`supabase/tests/0173_rpc_active_member_gate.test.sql` (61 assertions, 8 mutations run, all killed).
+The mechanism is `public.assert_is_active_member(p_actor uuid default null)` over a new
+`public.is_active_member(uuid)` overload: **no argument** at a call site declares "user JWT only",
+**an argument** declares "this RPC has a service_role caller". Neither is granted to
+`authenticated`/`anon` — they are called only from definer bodies.
+
+Three things in the sections above were wrong or imprecise, found by reading the live catalog:
+
+1. **It is fifteen, not seventeen.** `transition_project` and `set_project_contract_value` were closed
+   by `0178` §5 before this slice began; §1.1's list of 17 predates it. The fifteen were re-derived
+   from the catalog, and `0173` **asserts that the same catalog query now returns zero rows** — so
+   completeness is a rule, not a list, and a future definer write-RPC that forgets the gate fails CI.
+2. **`procurement_receipts_insert` never carried `is_active_member()` at all** — `0063`'s sweep
+   predates it. §1.2 describes the three policies as carrying a now-dead conjunct; for goods receipts
+   there was **no active-member control on any layer**, RLS or RPC, until `0180`. Worse than the spec
+   said, not better.
+3. **`procurement_quotations_write` is not wholly dead.** It is `FOR ALL`, so its `USING` is still
+   evaluated for `SELECT`; only its write arms are unreachable. Its read contribution is strictly
+   narrower than `procurement_quotations_select`, so it widens nothing. The annotation says exactly
+   this rather than calling the policy dead.
+
+⚑ **The `approved_timesheet_for_push` precedent was followed but not copied.** That function checks
+the resolved actor's `profiles.status` and applies `is_active_member()` **only when there is a JWT** —
+so its `p_actor` path never gets `0095`'s `banned_until` check. `0180` carries the whole rule on both
+paths (`AC-AMG-005` pins it: a raw-banned Admin passed as `p_actor_id` is refused). `approved_timesheet_for_push`
+itself is **not** changed by this slice and still has that narrower shape — see `docs/backlog.md`.
+
 ## 5. Out of scope
 
 - The `projects` money SoD and the DELETE path — sibling slices, in flight.

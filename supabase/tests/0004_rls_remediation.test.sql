@@ -3,7 +3,7 @@ begin;
 -- HIGH-1: self role-escalation blocked (profiles_update_self cannot change role/org_id; Admin still can).
 -- HIGH-2: child-row cross-org parent pollution blocked for all 7 child write policies (SQLSTATE 42501).
 -- LOW-1: auth_role() reads profiles.role (no unsigned JWT claim fast-path) — exercised via the role gate.
-select plan(18);
+select plan(19);
 
 -- ── Fixtures (inserted as table owner, bypassing RLS) ──────────────────────────────────────────────
 insert into organizations (id, name) values
@@ -54,11 +54,35 @@ select throws_ok(
   '42501', null,
   'HIGH-1: a non-Admin self-update cannot escalate role');
 
--- A non-Admin self-update that changes org_id is rejected by the with check.
+-- ⚑ FIX 3(a): name the expected errmsg explicitly. Before 0182 this raised "new row violates
+-- row-level security policy" (profiles_update_self's org_id pin, WITH CHECK). After 0182 the COLUMN
+-- grant refuses org_id at parse/rewrite time, BEFORE RLS is ever reached, raising "permission denied
+-- for table profiles" — so the assertion used to pass for a DIFFERENT reason and the RLS org_id pin (the
+-- tenancy seam on the table that defines tenancy) was asserted by nothing. This assertion now honestly
+-- proves the COLUMN denial (0182's surface); the sibling below proves the RLS pin underneath it.
 select throws_ok(
   $$ update profiles set org_id = 'bbbbbbbb-0000-0000-0000-000000000002' where id = auth.uid() $$,
-  '42501', null,
-  'HIGH-1: a non-Admin self-update cannot change org_id');
+  '42501', 'permission denied for table profiles',
+  'HIGH-1: a non-Admin self-update cannot change org_id — 0182 column grant refuses org_id before RLS');
+
+-- ⚑ SIBLING: prove the RLS org_id pin (profiles_update_self WITH CHECK) at a layer the column grant
+-- CANNOT pre-empt. Temporarily grant the org_id column so the column denial is bypassed, then the
+-- self-change is STILL refused — now by RLS, with the RLS message. Scoped (grant then revoke) so the
+-- net grant state is unchanged for the rest of the file. (Before 0182 this was the SAME statement as
+-- above; 0182 inserted the column layer above it, so the pin needs its own reachable layer now.)
+reset role;
+grant update (org_id) on public.profiles to authenticated;
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"a0000000-0000-0000-0000-0000000000a2","role":"authenticated"}';
+select throws_ok(
+  $$ update profiles set org_id = 'bbbbbbbb-0000-0000-0000-000000000002' where id = auth.uid() $$,
+  '42501', 'new row violates row-level security policy for table "profiles"',
+  'HIGH-1: the RLS org_id pin still holds under the column grant — once the column denial is bypassed, profiles_update_self WITH CHECK refuses the self-org_id-change (the tenancy seam, proven independently of 0182)');
+reset role;
+revoke update (org_id) on public.profiles from authenticated;
+-- Restore the caller context the following LOW-TS-3 assertion expects (it runs as authenticated).
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"a0000000-0000-0000-0000-0000000000a2","role":"authenticated"}';
 
 -- LOW-TS-3: a non-Admin self-update that re-routes its own approval line (manager_id) is rejected.
 -- profiles_update_self pins manager_id to the persisted value; only profiles_admin_write may change it.

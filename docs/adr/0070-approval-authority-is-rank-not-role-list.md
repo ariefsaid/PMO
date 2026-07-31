@@ -54,9 +54,10 @@ An actor may approve another actor's work when **either** holds:
 `profiles.manager_id` becomes an authorisation input, so who may write it decides whether the rule
 holds. Verified against the live catalog: the `profiles_update_self` policy pins **both `manager_id`
 and `role`** to their current values, so **a user cannot change their own supervisor or their own
-role**. Only `profiles_admin_write` — Admin, same org, `is_active_member()` — can. Nobody can
-self-grant approval authority. An Admin can set it arbitrarily, but an Admin already outranks
-everyone, so no escalation is available that they did not already have.
+role**. Only the profile-administration policy — same org, `is_active_member()`, and rank authority
+over the subject (`profiles_hierarchy_update`, migration `0179`; `profiles_admin_write` before it) —
+can. Nobody can self-grant approval authority. An Admin can set it for others arbitrarily, but an
+Admin already outranks everyone, so no escalation is available that they did not already have.
 
 ⚑ **This is a precondition, not a side note.** If a future change lets a user edit their own
 `manager_id`, every SoD rule built on this ADR silently becomes self-serve. Any migration touching
@@ -97,15 +98,45 @@ no special cases.
 > **You may edit a profile only if you outrank the person whose profile it is, and you may only
 > assign a role below your own.**
 
+**Implemented** by migration `supabase/migrations/0179_profiles_hierarchy_write.sql`, which splits the
+old `profiles_admin_write` (`FOR ALL`, Admin-only) into `profiles_admin_insert` +
+`profiles_admin_delete` (both byte-for-byte the old Admin-only predicate — the ruling widens *editing*
+only) and `profiles_hierarchy_update`, which carries the rule via
+`public.may_administer_profile(actor_role, subject_role)` over `public.holds_profile_admin_authority`
+and `0178`'s `role_outranks`. Proven by `supabase/tests/0172_profiles_hierarchy_write.test.sql`
+(`AC-PHW-001` … `AC-PHW-102`).
+
 Enforced in **both `USING` and `WITH CHECK`** — `USING` governs whose profile you may touch,
 `WITH CHECK` governs what you may set it to. Checking only one leaves the other open, which is the
-USING/WITH-CHECK asymmetry this program has already had to repair twice.
+USING/WITH-CHECK asymmetry this program has already had to repair twice. The two mutations that catch
+each side are `AC-PHW-031` (USING-only ⇒ an Executive demotes an Admin, because `Finance` *is* a
+role an Executive may assign — the illegal part is the **subject**, caught by the persisted-value
+read-back) and `AC-PHW-021` (WITH-CHECK-only ⇒ an Executive promotes a Project Manager to Executive,
+caught by a `throws_ok`); both were run and both killed their mutant. ⚑ A `lives_ok` proves nothing about a
+USING denial: an RLS USING denial is a SILENT 0-row no-op, so only the persisted-value read-back can catch it.
+
+⚑ **The rule is a conjunction, not just "outranks".** `role_rank` is a strict total order, so
+`Finance > Project Manager > Engineer` — a literal "may edit whoever you outrank" would hand Finance
+authority over PMs and a PM authority over Engineers, contradicting row 3 of the table below. The
+implementation therefore requires an **authority floor** (`holds_profile_admin_authority`: Executive
+rank and above) *and* outranking. Dropping the floor is not a convenience widening: a PM who can write
+a peer's `manager_id` can re-point this ADR's own line-management limb.
 
 | actor | may edit the profile of | may assign role |
 |---|---|---|
 | Admin | anyone, **including other Admins** (never themselves) | any, including Executive |
 | Executive | Finance, Project Manager, Engineer | Finance, Project Manager, Engineer — **not** Executive |
 | everyone else | nobody | nobody |
+
+⚑ **Scope of the ruling — editing only (owner rulings, 2026-07-30).** The rank widening above reaches
+`profiles_hierarchy_update` (the UPDATE path) and nothing else, by explicit owner confirmation on
+2026-07-30 — not by implementer default: **INSERT and DELETE on `profiles` stay Admin-only.** A single
+`FOR ALL` policy cannot carry two rules, so `profiles_admin_insert`/`profiles_admin_delete` keep the
+pre-`0179` Admin-only predicate byte-for-byte, and ADR-0019 keeps destructive delete Admin-only
+regardless. The owner's second ruling of the same date: **`profiles.status` is Admin-only** — changeable
+only through `admin_set_user_status`, and enforced at the column level by `0182`'s UPDATE allow-list on
+`public.profiles` (every column is client-writable *except* `id`, `org_id`, `created_at` and `status`),
+so the Executive widening here can touch a subordinate's `role`/`manager_id` but never their status.
 
 **The one carve-out: Admin may edit a peer Admin** (owner ruling, 2026-07-29). Strict outranking alone
 would mean *nobody* can edit an Admin's profile, since Admin does not outrank Admin — so an Admin
@@ -117,8 +148,18 @@ The carve-out is deliberately **not** generalised to "equal rank may edit equal 
 one Executive edit another (explicitly ruled out) and let one Project Manager assign supervisors for
 their peers (which would quietly undo the money SoD this ADR exists to support). Admin is the top of
 the order and already holds every authority the carve-out could confer, so it grants nothing new —
-it only removes a lockout. Self-edits of `role` and `manager_id` remain barred for everyone,
-Admin included, via the `profiles_update_self` pin.
+it only removes a lockout.
+
+⚑ **Correction (2026-07-29, found while implementing `0179`).** An earlier revision of this section
+said self-edits of `role` and `manager_id` "remain barred for everyone, Admin included, via the
+`profiles_update_self` pin". **That was true of every role except Admin.** `profiles_admin_write` was
+`FOR ALL` and matched the Admin's *own* row, and permissive policies OR — so it satisfied the write on
+its own, past the pin. Probed live at `0178`: an Admin's `update profiles set role='Engineer' where
+id = <self>` returned `UPDATE 1`. "Never themselves" is therefore a **narrowing** that `0179` adds
+(`id is distinct from auth.uid()` in both clauses of `profiles_hierarchy_update`), not a restatement
+of existing behaviour. Everything else the Admin could do — INSERT, DELETE, editing anyone else, and
+editing their own *non-pinned* fields through `profiles_update_self` — is preserved and asserted as a
+control (`AC-PHW-062`/`073`/`074`).
 
 Consequences that need no special-casing: "only Admin assigns Executive" is simply Executive not
 outranking Executive; an Executive cannot make themselves the supervisor of an Admin or a peer
