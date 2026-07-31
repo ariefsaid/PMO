@@ -10,6 +10,29 @@ Each released section pins the full deploy manifest (app sha · DB migration hig
 edge-function state) so "what's in production" is unambiguous. The DB schema version (migration
 high-water mark) moves independently of the product tag.
 
+## [0.9.0](https://github.com/ariefsaid/PMO/compare/v0.8.0...v0.9.0) (2026-07-31)
+
+
+### Features
+
+* **analytics:** friction instrumentation, demo funnel, quota alarm, tile gate ([#399](https://github.com/ariefsaid/PMO/issues/399)) ([fee361a](https://github.com/ariefsaid/PMO/commit/fee361a6617bca8ee0b85be3007ce86a82e65a08))
+* **analytics:** PostHog signal config + consent (opt-out, DNT, disclosure) ([#398](https://github.com/ariefsaid/PMO/issues/398)) ([b1c8f1a](https://github.com/ariefsaid/PMO/commit/b1c8f1a3d17654fd6cc2fd0afd80f8cae5f62547))
+* **obs:** pipeline self-report + error_events retention ([#403](https://github.com/ariefsaid/PMO/issues/403)) ([a844d99](https://github.com/ariefsaid/PMO/commit/a844d9916fd5d4fc01c82d371a652ca7d3d11e48))
+
+
+### Bug Fixes
+
+* **agent:** stop the compaction re-query loop that hit the step limit with no answer ([#410](https://github.com/ariefsaid/PMO/issues/410)) ([5cb134c](https://github.com/ariefsaid/PMO/commit/5cb134cbb1a70bbc0767de3e6e0fbba7b7b02c99))
+* **alerting:** write-ahead alert log — bound the re-alert loop without dropping alerts ([#400](https://github.com/ariefsaid/PMO/issues/400)) ([8c9f637](https://github.com/ariefsaid/PMO/commit/8c9f63702a683ec55ab3dcb961b81aa7d674ad21))
+* **ci:** NUL bytes make three source files invisible to grep ([#394](https://github.com/ariefsaid/PMO/issues/394)) ([5f9fb7e](https://github.com/ariefsaid/PMO/commit/5f9fb7e8e03b15fda76b75dcc5c3f697f9db8a2a))
+* **docs:** resolve ADR-0037 mis-cite — land monochrome-calm design ADR as 0068 ([#395](https://github.com/ariefsaid/PMO/issues/395)) ([782caa2](https://github.com/ariefsaid/PMO/commit/782caa20fe19b3825302431cbd7c7beab7f56489))
+* **e2e:** un-quarantine AC-IXD-TS-W5-3 — drive the stacked fallback (small viewport) ([#405](https://github.com/ariefsaid/PMO/issues/405)) ([cb79f6e](https://github.com/ariefsaid/PMO/commit/cb79f6e04ee7679ae7644e2ea75a655dd5ab0141))
+* **posthog:** quota alarm parsed a payload shape the API never returns ([#404](https://github.com/ariefsaid/PMO/issues/404)) ([d6c1164](https://github.com/ariefsaid/PMO/commit/d6c1164bfb4a29a90b1d1b36d9261305f1a5ba6f))
+* **posthog:** quota alarm still reported all-clear having checked nothing ([#408](https://github.com/ariefsaid/PMO/issues/408)) ([9ed8411](https://github.com/ariefsaid/PMO/commit/9ed84118240cc8e331426760d1d7701e4fbe6cdd))
+* **security:** close the create-path SoD class — INSERT and UPDATE, six tables ([#411](https://github.com/ariefsaid/PMO/issues/411)) ([eb39fc0](https://github.com/ariefsaid/PMO/commit/eb39fc0cb352d70ca76691b5758c85408e92289b))
+* the ambiguous PostgREST embed that took 19 e2e specs down, + the ADR collision ([#413](https://github.com/ariefsaid/PMO/issues/413)) ([b978c04](https://github.com/ariefsaid/PMO/commit/b978c040d946c61e63666dac9faa4b8c6eb891c6))
+* the workflow steps that were skipped, and the ten defects they found ([#409](https://github.com/ariefsaid/PMO/issues/409)) ([311caba](https://github.com/ariefsaid/PMO/commit/311caba50679ef4b684fb1d54407407ee3f4dd99))
+
 ## [0.8.0](https://github.com/ariefsaid/PMO/compare/v0.7.2...v0.8.0) (2026-07-25)
 
 
