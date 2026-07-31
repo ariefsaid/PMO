@@ -71,6 +71,14 @@ export interface InitiateConnectResponse {
   state: string;
 }
 
+export interface InitiateOrgApprovalRequest {
+  action: 'initiate_org_approval';
+}
+
+export interface InitiateOrgApprovalResponse {
+  adminConsentUrl: string;
+}
+
 export interface GraphProxyRequest {
   action: 'graph_proxy';
   method: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
@@ -107,6 +115,7 @@ export interface ConnectionStatusResponse {
 
 export type M365Request =
   | InitiateConnectRequest
+  | InitiateOrgApprovalRequest
   | GraphProxyRequest
   | DisconnectRequest
   | ConnectionStatusRequest;

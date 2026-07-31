@@ -14,7 +14,7 @@ const ACCESS_TOKEN_REFRESH_BUFFER_MS = 30_000; // refresh if the access token ex
 
 /**
  * AC-M365-110/111/112/113/114. Flow:
- *   1. authorize (Admin + entitled) → orgId.
+ *   1. authorize (active member + entitled) → orgId.
  *   2. load the caller's connection; reject NOT_CONNECTED / CONNECTION_STALE / CONNECTION_REVOKED.
  *   3. enforce scope↔path (AC-M365-114): a Files.Read-only connection may only hit OneDrive paths;
  *      write methods need a Files.ReadWrite* scope. Hoisted before decrypt/refresh (quality #2).

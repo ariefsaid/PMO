@@ -151,11 +151,10 @@ export function mockClient(seeded: Record<string, unknown[]> = {}): MockClient {
         const idEq = eqs.find(([c]) => c === 'id');
         return Promise.resolve({ data: projectColumns(idEq ? { id: idEq[1] } : { id: 'ok' }, selectCols), error: null });
       }
-      // `platform_operators` defaults to "the caller IS an Operator" (ADR-0058 §3 amendment,
-      // 2026-07-24: M365 connect is Operator-gated). Every handler test in this suite models an
-      // AUTHORIZED caller and asserts handler behaviour, not the gate — before the amendment that
-      // meant role='Admin', which the profiles seed already supplies. A test that needs the gate to
-      // REJECT seeds `platform_operators: [{ data: null, error: null }]` explicitly (see
+      // `platform_operators` defaults to an authorized activation actor. Every handler test in
+      // this suite models an AUTHORIZED caller and asserts handler behaviour, not the activation
+      // gate. A test that needs the activation gate to REJECT seeds
+      // `platform_operators: [{ data: null, error: null }]` explicitly (see
       // tokenCustody.auth.test.ts, which owns the gate's own coverage).
       if (table === 'platform_operators') {
         const userEq = eqs.find(([c]) => c === 'user_id');

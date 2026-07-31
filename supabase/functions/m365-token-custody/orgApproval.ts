@@ -7,8 +7,10 @@
 // A pure function taking INJECTED deps (ADR-0039): caller-JWT client, service client, resolved env.
 // No Deno.env, no client construction. Importable in Vitest with the Supabase clients mocked.
 
-import type { HandlerDeps, HandlerResult, M365SupabaseLike } from './types.ts';
+import type { HandlerDeps, HandlerResult } from './types.ts';
 import { M365HandlerError, errorResult } from './types.ts';
+import { isAdminOrOperator } from '../_shared/adminOrOperator.ts';
+import { newOpaqueStateToken } from '../_shared/opaqueStateToken.ts';
 import { buildAdminConsentUrl } from './pkce.ts';
 
 /**
@@ -32,40 +34,31 @@ import { buildAdminConsentUrl } from './pkce.ts';
  * (NFR-M365SEP-001).
  */
 async function authorizeAdminOrOperator(deps: {
-  callerClient: M365SupabaseLike | undefined;
-  serviceClient: M365SupabaseLike;
+  callerClient: HandlerDeps['callerClient'];
+  serviceClient: HandlerDeps['serviceClient'];
   userId: string;
 }): Promise<void> {
-  const { callerClient, serviceClient, userId } = deps;
-  if (!callerClient) {
+  if (!deps.callerClient) {
     throw new M365HandlerError('FORBIDDEN', 'caller client missing');
   }
 
-  // Caller's real role from `profiles` under the caller JWT (ADR-0065 precedent).
-  const { data: profile, error: profileError } = await callerClient
+  // Read the caller's role through the caller JWT, then share only the activation predicate with
+  // external-connect. This remains separate from the M365 member data-access decision.
+  const { data: profile, error: profileError } = await deps.callerClient
     .from('profiles')
     .select('org_id, role')
-    .eq('id', userId)
+    .eq('id', deps.userId)
     .single();
   if (profileError || !profile) {
     throw new M365HandlerError('FORBIDDEN', 'Admin or Operator role required');
   }
-  const role = (profile as { role?: string }).role;
 
-  // Admin-of-org passes (the first arm of the OR).
-  if (role === 'Admin') return;
-
-  // Otherwise the caller must be a platform Operator — service-side table check (ADR-0065
-  // precedent; `is_operator()` RPC is null under service_role, so a direct check on the verified
-  // userId is the reliable path).
-  const { data: operator, error: operatorError } = await serviceClient
-    .from('platform_operators')
-    .select('user_id')
-    .eq('user_id', userId)
-    .maybeSingle();
-  if (operatorError || !operator) {
-    throw new M365HandlerError('FORBIDDEN', 'Admin or Operator role required');
-  }
+  const allowed = await isAdminOrOperator({
+    profile,
+    operatorClient: deps.serviceClient,
+    userId: deps.userId,
+  });
+  if (!allowed) throw new M365HandlerError('FORBIDDEN', 'Admin or Operator role required');
 }
 
 /**
@@ -105,16 +98,4 @@ export async function handleInitiateOrgApproval(deps: HandlerDeps): Promise<Hand
   });
 
   return { status: 200, body: { adminConsentUrl } };
-}
-
-/**
- * 128-bit URL-safe opaque token for the admin-consent `state` param. NOT a CSRF token (step 2 stores
- * nothing, so it cannot be validated) — it only round-trips through Microsoft's redirect. Entropy is
- * crypto-sourced (Web Crypto getRandomValues); no clock dependency.
- */
-function newOpaqueStateToken(): string {
-  const bytes = globalThis.crypto.getRandomValues(new Uint8Array(32));
-  let binary = '';
-  for (const b of bytes) binary += String.fromCharCode(b);
-  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '').slice(0, 43);
 }

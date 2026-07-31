@@ -156,7 +156,7 @@ export async function handleCallback(req: Request, deps: HandlerDeps): Promise<H
   // connection: a foreign tenant's id_token is rejected here and nothing is stored.
   //
   // NOTE: env.m365TenantId MUST be a concrete tenant GUID for Phase-1 Option C single-tenant
-  // (ADR-0059). 'common'/'organizations' is unsupported here — the assertion correctly rejects the
+  // (ADR-0064). 'common'/'organizations' is unsupported here — the assertion correctly rejects the
   // foreign tid those flows would issue. The REAL token tid is stored as entra_tenant_id (not the
   // env value) and the oid as entra_user_object_id (also fixes spec Minor: oid was never populated,
   // FR-M365-110).

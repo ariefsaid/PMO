@@ -1,7 +1,7 @@
 /**
  * AC-M365-101/102/142 — PKCE state store + initiate_connect.
  * AC-M365-101: storePkceState inserts the single-use row; initiate_connect returns the authorize URL.
- * AC-M365-102: initiate_connect denies non-Admin / non-entitled callers.
+ * AC-M365-102: initiate_connect denies inactive / non-entitled callers.
  * AC-M365-104: consumePkceState returns null for a missing state (replay/expiry → no token exchange).
  * AC-M365-142: consumePkceState is single-use (deletes the row).
  */
@@ -111,7 +111,7 @@ describe('AC-M365-101/102 — handleInitiateConnect', () => {
   it('AC-M365SEP-003: a disabled member is rejected DISABLED_MEMBER before any state is stored', async () => {
     // The data-access gate asserts active membership EXPLICITLY (NFR-M365SEP-002). A caller whose
     // profiles.status is not 'active' is told their access is disabled — distinct from NOT_ENTITLED
-    // (which would be a false statement about an entitled org) and from the removed Operator gate.
+    // (which would be a false statement about an entitled org) and from the retired role gate.
     const service = mockClient();
     service.rpc.mockImplementationOnce(() => Promise.resolve({ data: { state: 'disabled', org_id: 'org-1', role: 'Admin' }, error: null }));
     const caller = mockClient({

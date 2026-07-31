@@ -9,13 +9,17 @@ vi.mock('@/src/auth/usePermission', () => ({
   usePermission: () => () => canApprove.value,
 }));
 
-// The card's only transport. Mocked so no live supabase client is constructed.
-vi.mock('@/src/lib/m365/connectClient', () => ({
-  initiateM365OrgApproval: vi.fn(),
-}));
+// Mock only the card transport while retaining the real error-copy mapping used by the edge
+// transport. This keeps the UI assertion tied to the wire-code mapping rather than a frozen string.
+vi.mock('@/src/lib/m365/connectClient', async () => {
+  const actual = await vi.importActual<typeof import('@/src/lib/m365/connectClient')>(
+    '@/src/lib/m365/connectClient',
+  );
+  return { ...actual, initiateM365OrgApproval: vi.fn() };
+});
 
 import { M365OrgApprovalCard } from '../M365OrgApprovalCard';
-import { initiateM365OrgApproval } from '@/src/lib/m365/connectClient';
+import { describeM365Error, initiateM365OrgApproval } from '@/src/lib/m365/connectClient';
 
 const assignMock = vi.fn();
 
@@ -70,7 +74,7 @@ describe('FR-M365SEP-005 — Approve calls initiate_org_approval and top-level-n
     // does NOT navigate.
     const { AppError } = await import('@/src/lib/appError');
     vi.mocked(initiateM365OrgApproval).mockRejectedValueOnce(
-      new AppError('Connecting Microsoft 365 is restricted to platform operators.', 'FORBIDDEN'),
+      new AppError(describeM365Error('FORBIDDEN'), 'FORBIDDEN'),
     );
 
     render(<M365OrgApprovalCard />);
@@ -80,7 +84,7 @@ describe('FR-M365SEP-005 — Approve calls initiate_org_approval and top-level-n
       expect(screen.getByTestId('m365-org-approval-error')).toBeInTheDocument(),
     );
     expect(screen.getByTestId('m365-org-approval-error')).toHaveTextContent(
-      /restricted to platform operators/i,
+      describeM365Error('FORBIDDEN'),
     );
     // No navigation happened on failure.
     expect(assignMock).not.toHaveBeenCalled();

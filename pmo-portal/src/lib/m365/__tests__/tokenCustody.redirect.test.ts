@@ -30,36 +30,43 @@ import type { HandlerResult } from '../../../../../supabase/functions/m365-token
  * keeps the Location relative so `new URL(..., origin)` yields just the app path. Adding a helper
  * here is intentional: a new redirect path is a new contract this test must cover.
  */
-function callbackRedirectPaths(): string[] {
+function callbackRedirectPaths(): URL[] {
   const results: HandlerResult[] = [
     redirectToFeError({ siteUrl: '' }, 'sample connection error'),
     redirectToFeSuccess({ siteUrl: '' }),
     redirectToFeOrgApprovalSuccess({ siteUrl: '' }),
   ];
-  return results.map((r) => new URL(r.headers?.Location ?? '/', 'http://test.local').pathname);
+  expect(results).toHaveLength(3);
+  return results.map((result) => {
+    const location = result.headers?.Location;
+    expect(location, 'every callback redirect must include a Location header').toEqual(expect.any(String));
+    return new URL(location as string, 'http://test.local');
+  });
 }
 
 describe('AC-M365SEP-018 — every callback redirect target resolves to a real route (not the catch-all)', () => {
-  // Sanity check the test is actually exercising the helpers (guards against a future refactor
-  // that silently no-ops them — an empty target list would make every assertion vacuously true).
-  it('the callback emits at least one redirect target', () => {
-    expect(callbackRedirectPaths().length).toBeGreaterThan(0);
+  it('AC-M365SEP-018: emits exactly the error, connection-success, and approval-success targets', () => {
+    const targets = callbackRedirectPaths();
+
+    expect(targets).toHaveLength(3);
+    expect(targets.some((target) => target.searchParams.has('m365_error'))).toBe(true);
+    expect(targets.some((target) => target.searchParams.get('m365_connected') === 'true')).toBe(true);
+    expect(targets.some((target) => target.searchParams.get('m365_org_approved') === 'true')).toBe(true);
   });
 
   it('AC-M365SEP-018: no redirect target falls through to the `*` catch-all', () => {
     const targets = callbackRedirectPaths();
-    expect(targets.length).toBeGreaterThan(0);
 
-    for (const pathname of targets) {
-      const matches = matchRoutes(appRouteConfig, pathname);
+    for (const target of targets) {
+      const matches = matchRoutes(appRouteConfig, target.pathname);
       const leaf = matches?.[matches.length - 1]?.route;
       // The target must match a concrete route…
-      expect(leaf, `redirect target ${pathname} matched no route in the real route table`).toBeTruthy();
+      expect(leaf, `redirect target ${target.pathname} matched no route in the real route table`).toBeTruthy();
       // …and that route must NOT be the `*` catch-all (the §1.3 defect: a target the app does not
       // serve silently 404s in prod while every lower test stays green).
       expect(
         leaf!.path,
-        `redirect target ${pathname} fell through to the \`*\` catch-all — the app does not serve this route`,
+        `redirect target ${target.pathname} fell through to the \`*\` catch-all — the app does not serve this route`,
       ).not.toBe('*');
     }
   });

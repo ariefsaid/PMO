@@ -1,5 +1,5 @@
-// pkce.ts — re-export of Phase-0 graphPkce (RFC 7636 PKCE + Microsoft authorize/admin-consent URL
-// construction). Pure + Deno-global-free; imported cross-tree (ADR-0060 §1 D2). MUST NOT be edited.
+// pkce.ts — re-export of the shared graphPkce module (RFC 7636 PKCE + Microsoft authorize/admin-
+// consent URL construction). Pure + Deno-global-free; imported cross-tree (ADR-0060 §1 D2).
 export {
   generateCodeVerifier,
   codeChallengeS256,

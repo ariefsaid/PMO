@@ -19,7 +19,7 @@ import {
  * (FR-M365SEP-011/016), irrespective of PMO role — what a caller sees is bounded by their own
  * Microsoft permissions, which Microsoft enforces. The card's only FE gate is the entitlement; the
  * edge fn's data-access gate (`authorizeMemberEntitled`) is the enforcement authority (ADR-0016 —
- * FE authz is UX-only). The Entra app registration still lives in the VENDOR tenant (ADR-0059).
+ * FE authz is UX-only). The Entra app registration still lives in the VENDOR tenant (ADR-0064).
  *
  * Phase-1 wiring (FR-M365-101 / FR-M365-150; ADR-0060). The card drives the live token-custody
  * edge function:

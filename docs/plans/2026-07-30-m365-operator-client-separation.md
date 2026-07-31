@@ -272,13 +272,14 @@ so it belongs with backlog TBD-3. Including it would make this change look block
 
 | AC | Owning layer | Where |
 |---|---|---|
-| AC-M365SEP-001, 002, 003, 005, 006, 007, 011, 012 | Unit | `src/lib/m365/__tests__/tokenCustody.auth.test.ts` |
-| AC-M365SEP-003 | Unit | same — **plus mutation check 2** |
+| AC-M365SEP-001, 003, 005, 006, 007, 011, 012 | Unit | `src/lib/m365/__tests__/tokenCustody.auth.test.ts` |
+| AC-M365SEP-002 | Unit | `src/lib/m365/__tests__/tokenCustody.proxy.test.ts` (the `NOT_CONNECTED` case) |
+| AC-M365SEP-003 | Unit | `tokenCustody.auth.test.ts` — **plus mutation check 2** |
 | AC-M365SEP-009 | Unit | `tokenCustody.proxy.test.ts` |
 | AC-M365SEP-013, 014 | Unit | `tokenCustody.orgApproval.test.ts` |
 | AC-M365SEP-015, 019 | Unit | `connectClient.test.ts` |
 | AC-M365SEP-016 | Unit (RTL) | `components/integrations/__tests__/M365ConnectionCard.test.tsx` |
 | AC-M365SEP-017 | Unit (RTL) | `components/integrations/IntegrationsView.test.tsx` |
 | AC-M365SEP-018 | Unit | `src/lib/m365/__tests__/tokenCustody.redirect.test.ts` |
-| AC-M365SEP-004, 008, 010 | pgTAP | `supabase/tests/0169_m365_member_gate.sql` |
+| AC-M365SEP-004, 008, 010 | pgTAP | `supabase/tests/0178_m365_member_gate.test.sql` |
 | AC-M365SEP-020 | E2E | deferred to backlog TBD-3 |

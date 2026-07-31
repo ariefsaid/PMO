@@ -281,7 +281,7 @@ describe('AC-M365-110/111/112/113/114 — handleGraphProxy', () => {
     expect(r2).toMatchObject({ status: 410, body: { error: 'CONNECTION_REVOKED' } });
   });
 
-  it('AC-M365-110: no connection → NOT_CONNECTED', async () => {
+  it('AC-M365SEP-002 / AC-M365-110: an active entitled member with no connection receives NOT_CONNECTED', async () => {
     const service = mockClient({ ms_graph_connections: [{ data: null, error: { code: 'PGRST116' } }] });
     const r = await handleGraphProxy(graphReq('/me/drive/root'), deps({ service, caller: callerClient(), userId: 'user-1' }));
     expect(r).toMatchObject({ status: 404, body: { error: 'NOT_CONNECTED' } });
@@ -333,30 +333,18 @@ describe('AC-M365-110/111/112/113/114 — handleGraphProxy', () => {
   });
 });
 
-describe("AC-M365SEP-009 — graph_proxy reads only the CALLER'S connection (own-row scoping)", () => {
+describe('AC-M365SEP-009 — graph_proxy applies caller filters to the connection lookup (query shape)', () => {
   // NFR-M365SEP-004: every action resolves the connection by the caller's OWN user_id from the
   // verified JWT — no caller acts through another user's connection. proxy.ts:69 already filters
-  // `.eq('org_id', orgId).eq('user_id', userId)`. This test exists so a FUTURE refactor that widens
-  // the lookup (drops the user_id filter) fails loudly — the mock returns the queued row regardless
-  // of filters, so the row choice alone can't prove the filter was applied; the `selects` assertion
-  // is what makes the filter load-bearing.
-  it("AC-M365SEP-009: with two connections in the same org, the caller's row is read — scoped by user_id, never the other user's", async () => {
-    // Two active connections in the SAME org (org-1): the caller (user-1) and a colleague (user-2).
+  // `.eq('org_id', orgId).eq('user_id', userId)`. This test intentionally asserts query shape only;
+  // the mock is not filter-aware, so it does not claim to prove row selection among competing rows.
+  it("AC-M365SEP-009: the graph_proxy connection lookup is scoped to the caller's org and user_id", async () => {
     const callerConn = await connection({
       id: 'conn-caller',
       user_id: 'user-1',
       access_token_ciphertext: await encryptForTest('CALLER-TOKEN'),
     });
-    // The colleague's connection — its token must NEVER be read or sent to Graph.
-    const otherConn = await connection({
-      id: 'conn-other',
-      user_id: 'user-2',
-      access_token_ciphertext: await encryptForTest('OTHER-TOKEN'),
-    });
-    void otherConn;
 
-    // The service client returns the CALLER's row for the lookup. (The mock returns the queued row
-    // regardless of the eq filters applied, so this alone can't prove the filter ran — see below.)
     const service = mockClient({ ms_graph_connections: [{ data: callerConn, error: null }] });
     const graphFetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ value: ['doc'] }) });
 
@@ -380,8 +368,7 @@ describe("AC-M365SEP-009 — graph_proxy reads only the CALLER'S connection (own
     );
     expect(connSelect!.eqs).not.toEqual(expect.arrayContaining([['user_id', 'user-2']]));
 
-    // 2. Graph was called with the CALLER's decrypted token — the colleague's token never reached
-    //    Microsoft.
+    // 2. Graph was called with the caller's decrypted token.
     const authHeader = (graphFetch.mock.calls[0]![1] as { headers: Record<string, string> }).headers
       .Authorization;
     expect(authHeader).toBe('Bearer CALLER-TOKEN');

@@ -7,9 +7,9 @@
  * `graphTokenCrypto.ts`: pure logic lives here, a future edge function imports it cross-tree).
  * Deliberately does NOT use `node:crypto`.
  *
- * Scope: parameter/URL construction ONLY. The token EXCHANGE (POSTing `code` + `code_verifier` to
- * Microsoft with the confidential-client secret) is the held Phase-1 exchange edge function — this
- * module reads no secret and makes no network call.
+ * Scope: parameter/URL construction ONLY, including the admin-consent URL builder. The token
+ * EXCHANGE (POSTing `code` + `code_verifier` to Microsoft with the confidential-client secret) is
+ * the held Phase-1 exchange edge function — this module reads no secret and makes no network call.
  */
 
 const VERIFIER_BYTES = 64; // → 86 base64url chars after encoding, within the RFC 7636 43-128 range

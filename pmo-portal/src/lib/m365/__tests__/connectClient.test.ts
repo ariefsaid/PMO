@@ -11,6 +11,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   initiateM365Connect,
+  initiateM365OrgApproval,
   disconnectM365,
   getM365ConnectionStatus,
   describeM365Error,
@@ -83,6 +84,45 @@ describe('AC-M365-014 — initiateM365Connect transport', () => {
     expect(err).toBeInstanceOf(AppError);
     expect(err.code).toBe('external-unreachable');
     vi.useRealTimers();
+  });
+});
+
+describe('AC-M365SEP-014 — initiateM365OrgApproval transport', () => {
+  it('AC-M365SEP-014: POSTs action:initiate_org_approval and returns the admin-consent URL', async () => {
+    invoke.mockResolvedValueOnce({
+      data: { adminConsentUrl: 'https://login.microsoftonline.com/tenant/v2.0/adminconsent?...' },
+      error: null,
+    });
+
+    const result = await initiateM365OrgApproval();
+
+    expect(invoke).toHaveBeenCalledTimes(1);
+    expect(invoke).toHaveBeenCalledWith('m365-token-custody', {
+      body: { action: 'initiate_org_approval' },
+    });
+    expect(result.adminConsentUrl).toContain('/adminconsent');
+  });
+
+  it('AC-M365SEP-014: maps a FORBIDDEN response through the reviewed transport copy', async () => {
+    invoke.mockResolvedValueOnce({
+      data: null,
+      error: httpError({ error: 'FORBIDDEN', message: 'raw authorization detail' }),
+    });
+
+    const thrown = await captureThrow(() => initiateM365OrgApproval());
+
+    expect(thrown.code).toBe('FORBIDDEN');
+    expect(thrown.message).toBe(describeM365Error('FORBIDDEN'));
+    expect(thrown.message).not.toContain('raw authorization detail');
+  });
+
+  it('AC-M365SEP-014: rejects a malformed 2xx response without navigating', async () => {
+    invoke.mockResolvedValueOnce({ data: { adminConsentUrl: 42 }, error: null });
+
+    const thrown = await captureThrow(() => initiateM365OrgApproval());
+
+    expect(thrown.code).toBe('INTERNAL_ERROR');
+    expect(thrown.message).toBe(describeM365Error('INTERNAL_ERROR'));
   });
 });
 
