@@ -13,8 +13,16 @@
 - **Scope:** the three-step model below — who may do what, on which surface — plus one shipped defect the
   exploration uncovered (§1.3). It does **not** change what Graph paths are permitted, how tokens are
   encrypted or stored, the tenant assertion, the lock order, or the cascade.
+- **⚑ IN scope, amended 2026-07-31:** the **SharePoint scope additions** (`Sites.Read.All`,
+  `Files.Read.All` on `M365_PHASE1_SCOPES`). They were originally listed as out of scope here while the
+  build brief asked for them — the owner's step 4 is "add the SharePoint permissions", so the spec was
+  wrong, not the code. Spec review correctly flagged the contradiction (as an apparent NFR-M365SEP-003
+  violation). **Consequence, and why this is not a free amendment:** broadening the requested scopes
+  broadens what a stored token can authorize, so `scopeCoversPath` (`proxy.ts:199`) becomes load-bearing in
+  a way it was not before. The security audit found it bypassable by percent-encoded traversal
+  (`/me/drive/%2e%2e/…`) — tracked as FIX 4. **Adding scopes and hardening that gate are one change, not two.**
 - **Out of scope (deliberate):** per-org `M365_TENANT_ID` (an ADR-0063 seam, needed only under pooled
-  topology); the SharePoint scope additions (backlog TBD-3); the project↔library binding and drift model
+  topology); the project↔library binding and drift model
   ([ADR-0071](../adr/0071-linked-document-content-drift.md)).
 
 ---
@@ -69,16 +77,44 @@ it proves the card's behaviour on a path the application does not serve. This is
 — *a green suite proves the model it mocks, not the boundary where it breaks* — and it must be fixed before
 the next live connect or that run will appear broken for the wrong reason.
 
-### 1.4 ⚑ Today's protection against a disabled user is ACCIDENTAL
+### 1.4 ⚑ CORRECTED 2026-07-31 — the original claim here was FALSE
 
-Nothing in `authorizeOperatorEntitled` checks membership status. It survives only because it reads
-`org_features` through the **caller-JWT client**, and `org_features_select` is
-`using (org_id = auth_org_id() and public.is_active_member())`
-([`0070_org_features.sql:32`](../../supabase/migrations/0070_org_features.sql:32)). `profiles_select` has
-**no** status predicate ([`0002_rls.sql:32`](../../supabase/migrations/0002_rls.sql:32)), so a disabled
-caller reads their own profile fine. Two consequences, both requirements below: the rejection is mislabeled
-`NOT_ENTITLED` (a false statement about the org), and moving that read to the service client — exactly what
-was done for `platform_operators` — would silently un-protect disabled users with every test still green.
+> **What this section said, and why it was wrong.** It claimed `profiles_select` has **no** status
+> predicate — citing [`0002_rls.sql:32`](../../supabase/migrations/0002_rls.sql:32) — and concluded that a
+> disabled caller reads their own profile fine, so the protection against them was *accidental*. That was
+> the load-bearing premise of this spec, and the security audit disproved it.
+>
+> **`0063_is_active_member_conjunction.sql` is a schema-wide sweep** that appends
+> `and public.is_active_member()` to **every** policy in `public` (bar three tables). Verified against the
+> applied catalog:
+>
+> ```
+> profiles_select | ((org_id = auth_org_id()) AND is_active_member())
+> ```
+>
+> **The error was method, not typo:** the original definition in `0002` was read and treated as current,
+> without checking whether a later migration had rewritten it. The authority for a policy is the applied
+> catalog, never the migration that first created it. Same class as the ADR mis-citations this repo has
+> already been bitten by — *first definition found ≠ current truth*.
+
+**What is actually true.** A disabled or banned caller reads **no profile row at all**, so
+`authorizeMemberEntitled` fails at step (a) and returns `BAD_REQUEST` ("org not resolvable"). The explicit
+`status !== 'active'` branch is therefore **unreachable in production**, and `DISABLED_MEMBER` can never be
+emitted. The protection is real, deliberate and arguably stronger than what this spec added on top — it just
+does not produce the error taxonomy NFR-M365SEP-005 promises.
+
+**The unit test does not disprove this, and that is the lesson.** Deleting the `status` check turns a test
+red, which was taken as proof the requirement was implemented. It is not: the test's mock returns a profile
+row regardless of RLS, so it models a world where `profiles_select` is permissive. **It proved the test
+binds to the code, not that the behaviour is real.** A requirement whose enforcement depends on RLS must be
+proven at a layer where RLS actually runs (pgTAP) — a mock-backed unit test can only ever prove the shape of
+the code above it.
+
+**What this changes downstream.** NFR-M365SEP-002 (explicit active-membership) still stands as a
+*requirement*, but satisfying it needs a **service-side membership-state read keyed to the verified user id**
+returning exists/disabled/banned distinctly — not a caller-RLS profile read, which cannot distinguish
+"disabled" from "absent". That also carries the `banned_until` case, which the caller-side check never
+covered (`auth.users.banned_until` is invisible to a `profiles` read). Tracked as FIX 3 in the fix round.
 
 ### 1.5 Why step 2 stores no state
 
