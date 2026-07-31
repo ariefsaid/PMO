@@ -25,14 +25,16 @@ import {
  * edge function:
  *   - Connect → POST `initiate_connect` → top-level redirect to Microsoft's authorize URL (the
  *     consent page MUST be user-visible — not a fetch). Microsoft → edge fn callback → 302 back to
- *     `/integrations?m365_connected=true` (success) or `?m365_error=<msg>` (failure).
+ *     `/integrations?m365_connected=true` (success), `?m365_org_approved=true` (organisation
+ *     approval), or `?m365_error=<msg>` (failure).
  *   - On mount (fresh page load, no callback param) the card POSTs `connection_status` and renders
  *     the REAL state — Connected / Needs reconnect (stale) / Revoked / Not connected (AC-M365-022).
  *     A failed status fetch renders an honest UNKNOWN state — NEVER a false "Connected" (AC-M365-023).
  *   - Disconnect opens a destructive `ConfirmDialog`, then POSTs `disconnect` (best-effort Microsoft
  *     revoke + local delete + audit, all server-side).
  *
- * Source-of-truth split: the callback query-param (?m365_connected=true | ?m365_error=<msg>) is the
+ * Source-of-truth split: the callback query-param (?m365_connected=true | ?m365_org_approved=true |
+ * ?m365_error=<msg>) is the
  * immediate post-redirect signal (shown first, for the redirect-return UX, and the URL is cleaned);
  * the fetched status is the source of truth ON LOAD (a fresh page load with no param). When a
  * callback param drove the immediate state, the status fetch is SKIPPED for that mount — the
@@ -56,6 +58,7 @@ type Phase =
   | 'loading' // initial status fetch in progress (no callback param)
   | 'idle' // known not-connected (status absent)
   | 'connected' // known active connection
+  | 'org-approved' // the organisation approved the app; this user still needs to connect personally
   | 'reconnect' // known stale — needs reconnect
   | 'revoked' // known revoked
   | 'unknown' // status fetch failed — truth not confirmable (NEVER a false "Connected")
@@ -83,28 +86,34 @@ export const M365ConnectionCard: React.FC = () => {
   // depends on [entitled] — this ref prevents a double-fetch if it toggles).
   const statusFetchedRef = useRef(false);
 
-  // One-shot: consume the callback return (?m365_connected=true | ?m365_error=<msg>) and clean the
+  // One-shot: consume the callback return (?m365_connected=true | ?m365_org_approved=true |
+  // ?m365_error=<msg>) and clean the
   // param so a refresh doesn't re-trigger the banner. Runs once on mount — intentionally NOT
   // reactive to searchParams (a param arriving mid-session would re-fire a stale banner).
   useEffect(() => {
     const connected = searchParams.get('m365_connected');
+    const orgApproved = searchParams.get('m365_org_approved');
     const m365Error = searchParams.get('m365_error');
     const m365ErrorCode = searchParams.get('m365_error_code');
     if (connected === 'true') {
       setPhase('connected');
       setErrorText(null);
       optimisticFromCallback.current = true;
+    } else if (orgApproved === 'true') {
+      setPhase('org-approved');
+      setErrorText(null);
+      optimisticFromCallback.current = true;
     } else if (m365Error) {
       setPhase('error');
-      // Callback redirects may carry a stable wire code so the reviewed FE taxonomy remains the
-      // source of copy (rather than displaying a server-authored code). Legacy redirects carry
-      // only the already-reviewed message in m365_error.
-      setErrorText(m365ErrorCode ? describeM365Error(m365ErrorCode) : decodeURIComponent(m365Error));
+      // Always use the reviewed FE taxonomy. The callback's message is untrusted transport data
+      // and must never reach the DOM, even for legacy redirects without a stable error code.
+      setErrorText(describeM365Error(m365ErrorCode ?? undefined));
       optimisticFromCallback.current = true;
     }
-    if (connected === 'true' || m365Error || m365ErrorCode) {
+    if (connected === 'true' || orgApproved === 'true' || m365Error || m365ErrorCode) {
       const next = new URLSearchParams(searchParams);
       next.delete('m365_connected');
+      next.delete('m365_org_approved');
       next.delete('m365_error');
       next.delete('m365_error_code');
       setSearchParams(next, { replace: true });
@@ -224,7 +233,7 @@ export const M365ConnectionCard: React.FC = () => {
   // / revoked / error). It is withheld while the truth is still loading or unknown — we do not offer
   // an action on an unconfirmed state.
   const showConnect =
-    phase === 'idle' || phase === 'connecting' || phase === 'reconnect' || phase === 'revoked' || phase === 'error';
+    phase === 'idle' || phase === 'connecting' || phase === 'org-approved' || phase === 'reconnect' || phase === 'revoked' || phase === 'error';
   const showDisconnect = isConnected;
 
   return (
@@ -242,6 +251,17 @@ export const M365ConnectionCard: React.FC = () => {
           <Icon name="check" className="size-3.5 shrink-0 text-success-text" aria-hidden="true" />
           <span>
             Connected{connectedAt ? ` since ${formatDate(connectedAt)}` : ''}. You can disconnect any time.
+          </span>
+        </p>
+      ) : phase === 'org-approved' ? (
+        <p
+          className="mt-2 flex items-center gap-1.5 text-sm text-muted-foreground"
+          data-testid="m365-org-approved-msg"
+          role="status"
+        >
+          <Icon name="check" className="size-3.5 shrink-0 text-success-text" aria-hidden="true" />
+          <span>
+            Your organization has approved the PMO Portal app in Microsoft 365. Connect your individual Microsoft 365 account to continue.
           </span>
         </p>
       ) : phase === 'reconnect' ? (

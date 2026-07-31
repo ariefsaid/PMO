@@ -1,6 +1,29 @@
-// @e2e-isolation: read-only — pure navigation + assertions. No DB writes, no shared-user mutation.
-import { test, expect } from '@playwright/test';
+// @e2e-isolation: read-only — entitlement is a route-scoped fixture; no DB writes, no shared-user mutation.
+import { test, expect, type Page } from '@playwright/test';
 import { login } from './helpers';
+
+/**
+ * The seed intentionally leaves m365_integration disabled. Make this spec's own read fixture
+ * entitled without mutating the shared org row: route the authenticated org_features read and add
+ * only the feature this page needs. The page/context teardown removes the route after each test.
+ */
+async function useEntitledM365Fixture(page: Page) {
+  await page.route('**/rest/v1/org_features*', async (route) => {
+    const response = await route.fetch();
+    if (!response.ok()) {
+      await route.fulfill({ response });
+      return;
+    }
+    const rows = (await response.json()) as Array<{ feature_key?: string; enabled?: boolean }>;
+    await route.fulfill({
+      response,
+      json: [
+        ...rows.filter((row) => row.feature_key !== 'm365_integration'),
+        { feature_key: 'm365_integration', enabled: true },
+      ],
+    });
+  });
+}
 
 // AC-M365SEP-018 — the Microsoft callback's redirect targets resolve to REAL pages.
 //
@@ -37,19 +60,57 @@ test('AC-M365SEP-018: /integrations resolves for a non-Admin member (not Not Fou
 });
 
 // Every parameter Microsoft can hand back. Each previously would have — or in the approval case
-// did — land the user somewhere broken.
-for (const [param, label] of [
-  ['m365_connected=true', 'personal connect success'],
-  ['m365_error=connection_failed', 'personal connect failure'],
-  ['m365_org_approved=true', 'organisation approval success'],
+// did — land the user somewhere broken. The assertions stay on the callback result, not merely on
+// the route existing, so a stale/unknown card state cannot satisfy this journey.
+for (const { param, label, confirmation, raw } of [
+  {
+    param: 'm365_connected=true',
+    label: 'personal connect success',
+    confirmation: 'connected',
+    raw: undefined,
+  },
+  {
+    param: 'm365_error=connection_failed',
+    label: 'personal connect failure',
+    confirmation: 'reviewed error',
+    raw: undefined,
+  },
+  {
+    param: 'm365_org_approved=true',
+    label: 'organisation approval success',
+    confirmation: 'organisation approval',
+    raw: undefined,
+  },
+  {
+    param: 'm365_error=some_random_backend_string',
+    label: 'reviewed arbitrary error',
+    confirmation: 'reviewed error',
+    raw: 'some_random_backend_string',
+  },
 ] as const) {
   test(`AC-M365SEP-018: callback return ?${param} resolves on a real page (${label})`, async ({
     page,
   }) => {
+    await useEntitledM365Fixture(page);
     await login(page, PM);
     await page.goto(`/integrations?${param}`);
 
     await expect(page.getByText('Page not found')).toHaveCount(0);
+    await expect(page).toHaveURL(/\/integrations$/);
+
+    if (confirmation === 'connected') {
+      await expect(page.getByTestId('m365-connected-msg')).toContainText(
+        /connected.*disconnect any time/i,
+      );
+    } else if (confirmation === 'organisation approval') {
+      const approval = page.getByTestId('m365-org-approved-msg');
+      await expect(approval).toContainText(/organization has approved/i);
+      await expect(approval).toContainText(/connect your (own|individual) microsoft 365 account/i);
+      await expect(approval).not.toContainText(/your account is connected/i);
+    } else {
+      await expect(page.getByRole('alert')).toContainText(/could not be connected.*try again/i);
+      if (raw) await expect(page.locator('body')).not.toContainText(raw);
+    }
 
     // No secret may reach the DOM on any callback path (NFR-M365SEP-007). These are the exact
     // shapes the token-custody spec forbids: a bearer token, a Microsoft object id, a tenant GUID.

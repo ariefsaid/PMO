@@ -14,7 +14,8 @@
  *   AC-M365-016 — repeat-clicks do not fire a second initiate (in-flight guard).
  *   AC-M365-017 — callback ?m365_connected=true renders the connected state and the param is
  *                 cleared from the URL (no re-trigger on refresh).
- *   AC-M365-018 — callback ?m365_error=<msg> renders the error state and the param is cleared.
+ *   AC-M365-018 — callback ?m365_error=<msg> renders reviewed error copy and the param is cleared.
+ *   AC-M365SEP-018 — callback ?m365_org_approved=true renders org approval and clears the param.
  *   AC-M365-019 — Disconnect opens a destructive confirm; confirming calls disconnect and returns
  *                 the card to idle.
  *   AC-M365-020 — cancelling the confirm calls nothing.
@@ -53,6 +54,7 @@ vi.mock('@/src/lib/supabase/client', () => ({
 }));
 
 import { M365ConnectionCard } from '../M365ConnectionCard';
+import { describeM365Error } from '@/src/lib/m365/connectClient';
 
 /** A not-connected connection_status response (the honest default for a fresh load). */
 const STATUS_NOT_CONNECTED = {
@@ -263,20 +265,37 @@ describe('AC-M365-017 — callback ?m365_connected=true renders connected state 
   });
 });
 
-describe('AC-M365-018 — callback ?m365_error=<msg> renders the error + clears the param', () => {
-  it('AC-M365-018: shows the server-authored error banner and removes the param', () => {
+describe('AC-M365-018 — callback ?m365_error=<msg> renders reviewed copy + clears the param', () => {
+  it('AC-M365-018: shows generic reviewed copy for an arbitrary backend string, never the raw value', () => {
     featureState.value = true;
-    const msg = encodeURIComponent('Connection failed: identity mismatch. Please contact your administrator.');
-    const { locationSearch } = renderCard({ initialEntry: `/integrations?m365_error=${msg}` });
+    const rawBackendString = 'some_random_backend_string';
+    const { locationSearch } = renderCard({ initialEntry: `/integrations?m365_error=${rawBackendString}` });
 
     const banner = screen.getByRole('alert');
-    expect(banner).toHaveTextContent('Connection failed: identity mismatch');
+    expect(banner).toHaveTextContent(describeM365Error(undefined));
+    expect(banner).not.toHaveTextContent(rawBackendString);
+    expect(document.body).not.toHaveTextContent(rawBackendString);
     // Connect stays available for retry.
     expect(screen.getByRole('button', { name: /connect microsoft 365/i })).not.toBeDisabled();
     // Status fetch skipped (callback param drove the immediate state) — no invoke.
     expect(invoke).not.toHaveBeenCalled();
     const last = locationSearch[locationSearch.length - 1];
     expect(last).not.toContain('m365_error');
+  });
+});
+
+describe('AC-M365SEP-018 — callback ?m365_org_approved=true renders organisation approval + clears the param', () => {
+  it('AC-M365SEP-018: shows the organisation approval confirmation without claiming personal connection', () => {
+    featureState.value = true;
+    const { locationSearch } = renderCard({ initialEntry: '/integrations?m365_org_approved=true' });
+
+    const confirmation = screen.getByTestId('m365-org-approved-msg');
+    expect(confirmation).toHaveTextContent(/organization has approved/i);
+    expect(confirmation).toHaveTextContent(/connect your (own|individual) microsoft 365 account/i);
+    expect(confirmation).not.toHaveTextContent(/connected since|your account is connected/i);
+    expect(invoke).not.toHaveBeenCalled();
+    const last = locationSearch[locationSearch.length - 1];
+    expect(last).not.toContain('m365_org_approved');
   });
 });
 
