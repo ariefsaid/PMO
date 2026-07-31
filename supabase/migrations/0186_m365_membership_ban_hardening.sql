@@ -1,4 +1,4 @@
--- 0185_m365_membership_ban_hardening.sql — close the raw-ban gap on M365 callback writes and
+-- 0186_m365_membership_ban_hardening.sql — close the raw-ban gap on M365 callback writes and
 -- classify membership states without weakening profiles_select.
 --
 -- The caller-JWT profiles read is intentionally hidden for disabled/banned users by 0063. The
