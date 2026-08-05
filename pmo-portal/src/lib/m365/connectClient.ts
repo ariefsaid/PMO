@@ -1,13 +1,12 @@
 // connectClient.ts — the FE transport for the m365-token-custody edge function (Phase-1 wiring,
-// ADR-0060). Mirrors adapterSeam/dispatchClient.ts: browser-only `supabase` singleton,
-// `functions.invoke('m365-token-custody', { body })`, FunctionsHttpError `.context` body read,
-// and an AppError carrying the stable M365ErrorCode as `code` so the UI can classify uniformly.
+// ADR-0063; token-custody controls remain in ADR-0060). Mirrors adapterSeam/dispatchClient.ts:
+// browser-only `supabase` singleton, `functions.invoke('m365-token-custody', { body })`,
+// FunctionsHttpError `.context` body read, and an AppError carrying the stable M365ErrorCode as
+// `code` so the UI can classify uniformly.
 //
 // The edge fn is the ONLY server-side authority over `ms_graph_connections` (RLS forced, zero
-// client policy). This module issues exactly three actions: `initiate_connect` (returns the
-// Microsoft authorize URL — the FE then top-level-redirects), `disconnect` (revokes + deletes
-// server-side), and `connection_status` (the non-sensitive metadata read — the FE's source of
-// truth for the connection card on a fresh page load).
+// client policy). This module issues `initiate_connect`, `initiate_org_approval`, `disconnect`,
+// and `connection_status`; redirecting actions return only their server-built URL.
 //
 // NFR-M365-101/108 (binding): no token, `oid`, `code_verifier`, or raw internal error string is
 // ever surfaced. The edge fn returns only `{ authorizeUrl, state }` (initiate) / `{ success }`
@@ -26,6 +25,11 @@ const FN_NAME = 'm365-token-custody';
 export interface InitiateConnectResult {
   authorizeUrl: string;
   state: string;
+}
+
+/** initiate_org_approval success body (orgApproval.ts → { adminConsentUrl }). */
+export interface InitiateOrgApprovalResult {
+  adminConsentUrl: string;
 }
 
 /** disconnect success body (revoke.ts → { status: 200, body: { success: true } }). */
@@ -63,10 +67,18 @@ export function describeM365Error(code: string | undefined): string {
   switch (code) {
     case 'NOT_ENTITLED':
       return "Your organization isn't enabled for the Microsoft 365 integration yet.";
+    // Connection-model (2026-07-30): the membership-status rejection and the org-approval rejection
+    // are their OWN outcomes, distinct from an entitlement rejection (NFR-M365SEP-006). A disabled
+    // member must NOT be told the org is not entitled; a user whose org hasn't approved the app must
+    // NOT be told either of the other two.
+    case 'DISABLED_MEMBER':
+      return 'Your account access has been disabled. Please contact your administrator.';
+    case 'BANNED_MEMBER':
+      return 'Your account is suspended. Please contact your administrator.';
+    case 'ORG_APPROVAL_REQUIRED':
+      return "Your organization hasn't approved the PMO Portal app yet. Ask your administrator to approve it in Microsoft 365.";
     case 'FORBIDDEN':
-      // ADR-0058 §3 amendment (2026-07-24): M365 connect is Operator-gated, not org-Admin. Copy
-      // updated (audit LOW-B2) so a rejected org-Admin is told the real reason, not "be an Admin".
-      return 'Connecting Microsoft 365 is restricted to platform operators.';
+      return 'Approving the PMO Portal app in Microsoft 365 is restricted to organization administrators and platform operators.';
     case 'UNAUTHORIZED':
       return 'Your session expired. Refresh the page and try again.';
     case 'CONNECTION_STALE':
@@ -151,6 +163,29 @@ export async function initiateM365Connect(): Promise<InitiateConnectResult> {
   );
   if (error) await throwClassified(error);
   if (!data || typeof data.authorizeUrl !== 'string' || !data.authorizeUrl) {
+    // No partial redirect: a malformed 2xx is a generic failure, never a blank navigation.
+    throw new AppError(describeM365Error('INTERNAL_ERROR'), 'INTERNAL_ERROR');
+  }
+  return data;
+}
+
+/**
+ * POST `action: 'initiate_org_approval'` → `{ adminConsentUrl }` (step 2 — the client admin
+ * approves the PMO app for the org, FR-M365SEP-005). On success the FE performs a TOP-LEVEL
+ * redirect to `adminConsentUrl` (Microsoft's admin-consent page must be user-visible, never in an
+ * iframe). The edge fn builds the URL from the configured tenant + client id only (FR-M365SEP-006) —
+ * the FE sends NO tenant/clientId. Throws `AppError(message, M365ErrorCode)` on any failure
+ * (FORBIDDEN if the caller is neither an organization administrator nor platform operator,
+ * AC-M365SEP-014).
+ */
+export async function initiateM365OrgApproval(): Promise<InitiateOrgApprovalResult> {
+  const { data, error } = await invokeWithTimeout(
+    supabase.functions.invoke<InitiateOrgApprovalResult>(FN_NAME, {
+      body: { action: 'initiate_org_approval' },
+    }),
+  );
+  if (error) await throwClassified(error);
+  if (!data || typeof data.adminConsentUrl !== 'string' || !data.adminConsentUrl) {
     // No partial redirect: a malformed 2xx is a generic failure, never a blank navigation.
     throw new AppError(describeM365Error('INTERNAL_ERROR'), 'INTERNAL_ERROR');
   }

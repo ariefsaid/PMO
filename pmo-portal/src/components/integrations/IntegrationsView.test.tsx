@@ -21,6 +21,13 @@ vi.mock('@/src/hooks/useProjects', () => ({
   useProjects: vi.fn(),
 }));
 
+// M365OrgApprovalCard (rendered on this surface) imports connectClient, which imports the browser
+// supabase singleton. Mock the transport so the REAL card renders (exercising its Admin gate) without
+// a live supabase client. Existing tests never touch this — they don't drive an M365 action.
+vi.mock('@/src/lib/m365/connectClient', () => ({
+  initiateM365OrgApproval: vi.fn(),
+}));
+
 import { useExternalDomainOwnership } from '@/src/hooks/useExternalDomainOwnership';
 import { useIntegrations } from '@/src/hooks/useIntegrations';
 import { useProjects } from '@/src/hooks/useProjects';
@@ -791,5 +798,47 @@ describe('OD-INT-6 ERPNext Company selection (org-level)', () => {
     wrapWithRole('Engineer', <IntegrationsView />);
     await waitFor(() => expect(screen.getByText('ERPNext')).toBeInTheDocument());
     expect(screen.queryByRole('button', { name: /^Select Company$/i })).not.toBeInTheDocument();
+  });
+});
+
+// ============================================================================
+// AC-M365SEP-017 — M365 organisation approval (step 2) on the admin integrations surface.
+// The affordance renders BESIDE ClickUp and ERPNext for an org Admin. It is its OWN block, NOT a
+// TIERS entry (M365 has no external_org_bindings row / health probe / SoT domains). The FE gate is
+// Admin-only; the edge fn re-enforces Admin-of-org OR Operator (ADR-0016 — FE authz is UX-only).
+// ============================================================================
+describe('AC-M365SEP-017 — M365 organisation approval on the admin surface', () => {
+  beforeEach(() => {
+    vi.mocked(useExternalDomainOwnership).mockReturnValue(baseExternalDomainReturn as any);
+    vi.mocked(useIntegrations).mockReturnValue(bindingMapIntegrations() as any);
+    vi.mocked(useProjects).mockReturnValue({ data: [], isPending: false, isError: false } as any);
+  });
+
+  it('AC-M365SEP-017: renders the M365 organisation-approval affordance for an org Admin, beside ClickUp and ERPNext', async () => {
+    wrapWithRole('Admin', <IntegrationsView />);
+
+    // The admin integrations surface renders the M365 org-approval block ALONGSIDE the tier cards
+    // — it sits on the same surface, not a parallel one (FR-M365SEP-009).
+    expect(await screen.findByTestId('m365-org-approval')).toBeInTheDocument();
+    expect(screen.getByText('ClickUp')).toBeInTheDocument();
+    expect(screen.getByText('ERPNext')).toBeInTheDocument();
+
+    // The affordance is a labelled action button visible to an Admin.
+    expect(
+      screen.getByRole('button', { name: /approve in microsoft 365/i }),
+    ).toBeInTheDocument();
+    // It is NOT a TIERS entry — no data-tier attribute, no credential Connect form. M365 is its own
+    // block (a mutation here guards against someone forcing it into the TIERS array).
+    const m365Card = screen.getByTestId('m365-org-approval');
+    expect(m365Card.getAttribute('data-tier')).toBeNull();
+  });
+
+  it('AC-M365SEP-017: the M365 organisation-approval affordance is NOT rendered for a non-Admin (FE Admin-only; edge re-enforces)', async () => {
+    wrapWithRole('Engineer', <IntegrationsView />);
+    await waitFor(() => expect(screen.getByText('ClickUp')).toBeInTheDocument());
+
+    // A non-Admin sees the tier cards (read-only) but NOT the M365 org-approval block.
+    expect(screen.queryByTestId('m365-org-approval')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /approve in microsoft 365/i })).not.toBeInTheDocument();
   });
 });

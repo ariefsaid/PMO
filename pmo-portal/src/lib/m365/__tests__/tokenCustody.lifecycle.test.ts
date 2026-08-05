@@ -11,7 +11,7 @@ const REVOKE_URL = 'https://login.microsoftonline.com/test-tenant-id/oauth2/v2.0
 
 function callerClient() {
   return mockClient({
-    profiles: [{ data: { org_id: 'org-1', role: 'Admin' }, error: null }],
+    profiles: [{ data: { org_id: 'org-1', role: 'Admin', status: 'active' }, error: null }],
     org_features: [{ data: { enabled: true }, error: null }],
   });
 }
@@ -70,6 +70,7 @@ describe('AC-M365-120 — handleDisconnect', () => {
     const result = await handleDisconnect(deps({ service, caller: callerClient(), userId: 'user-1', fetch }));
     expect(result).toMatchObject({ status: 404, body: { error: 'NOT_CONNECTED' } });
     expect(fetch).not.toHaveBeenCalled();
-    expect(service.rpc).not.toHaveBeenCalled();
+    expect(service.rpc).toHaveBeenCalledTimes(1);
+    expect(service.rpc).toHaveBeenCalledWith('m365_membership_state', { p_user_id: 'user-1' });
   });
 });

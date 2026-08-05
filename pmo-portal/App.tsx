@@ -1,5 +1,5 @@
 import React, { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router';
+import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate, useParams, useRoutes, type RouteObject } from 'react-router';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from '@/src/lib/queryClient';
 import { LoadingFallback } from './components/LoadingFallback';
@@ -72,6 +72,7 @@ const ContactDetailPage = React.lazy(() => import('./pages/ContactDetail'));
 const IncidentsPage = React.lazy(() => import('./pages/Incidents'));
 const IncidentDetailPage = React.lazy(() => import('./pages/IncidentDetail'));
 const AdminUsersPage = React.lazy(() => import('./pages/AdminUsers'));
+const IntegrationsPage = React.lazy(() => import('./pages/Integrations'));
 const PlaceholderPage = React.lazy(() => import('./pages/PlaceholderPage'));
 const MyTasksPage = React.lazy(() => import('./pages/MyTasks'));
 const NotFoundPage = React.lazy(() => import('./pages/NotFound'));
@@ -93,78 +94,71 @@ const SalesDetailRedirect: React.FC = () => {
   return <Navigate to={`/projects/${opportunityId}`} replace />;
 };
 
+/**
+ * The application's route table as DATA (NFR-M365SEP-008). `AppRoutes` renders this config via
+ * `useRoutes`, so the array is the single source of truth shared by the running app AND by tests
+ * that must prove a redirect target resolves to a real route — never the `*` catch-all. Asserting
+ * against THIS array (not a hand-written list of paths, not a router a test invented) is what
+ * catches a redirect to a route the application does not serve: the token-custody callback used to
+ * redirect to `/admin/integrations`, which does not exist, so every completed connect landed on
+ * Not Found (m365-operator-client-separation spec §1.3).
+ */
+// eslint-disable-next-line react-refresh/only-export-components -- route data is shared with route-table tests
+export const appRouteConfig: RouteObject[] = [
+  { path: '/', element: <ExecutiveDashboard /> },
+  { path: '/projects', element: <Projects /> },
+  // B-9 (AC-W2-IA-004): /projects/:id/:tab? — all five tabs are deep-linkable symmetrically
+  //   (budget is just another :tab value). Both routes render ProjectDetail; the component reads
+  //   :tab and defaults to 'overview'. A backward-compat alias keeps old /budget links working.
+  { path: '/projects/:projectId/:tab', element: <ProjectDetail /> },
+  { path: '/projects/:projectId', element: <ProjectDetail /> },
+  { path: '/sales', element: <SalesPipeline /> },
+  // Model B: the canonical detail route is /projects/:id; /sales/:id redirects there.
+  { path: '/sales/:opportunityId', element: <SalesDetailRedirect /> },
+  { path: '/procurement', element: <ProcurementPage /> },
+  // Tabbed record shell (mirrors /projects/:id/:tab). The bare /procurement/:id keeps working
+  //   (defaults to the Overview tab); :tab deep-links a panel.
+  { path: '/procurement/:procurementId', element: <ProcurementDetails /> },
+  { path: '/procurement/:procurementId/:tab', element: <ProcurementDetails /> },
+  { path: '/timesheets', element: <TimesheetsPage /> },
+  { path: '/approvals', element: <ApprovalsPage /> },
+  { path: '/companies', element: <CompaniesPage /> },
+  // CW-4b: /companies/:id — the routable Company record page (retires the drawer-as-record).
+  { path: '/companies/:companyId', element: <CompanyDetailPage /> },
+  { path: '/contacts', element: <ContactsPage /> },
+  // CW-4b: /contacts/:id — the routable Contact record page (retires the drawer-as-record).
+  { path: '/contacts/:contactId', element: <ContactDetailPage /> },
+  // Incidents is hidden behind the interim `incidents` UI feature flag (UI-hide-first):
+  //   FeatureRoute renders the page when enabled, else redirects deep-links to home instead of
+  //   404. CW-4a: /incidents/:id is the routable detail page when the module is on.
+  { path: '/incidents', element: <FeatureRoute feature="incidents" element={<IncidentsPage />} /> },
+  { path: '/incidents/:incidentId', element: <FeatureRoute feature="incidents" element={<IncidentDetailPage />} /> },
+  // B-1 (AC-W2-IXD-001/002): My Tasks — IC-scoped own-assigned cross-project task list.
+  { path: '/my-tasks', element: <MyTasksPage /> },
+  { path: '/reports', element: <PlaceholderPage title="Reports" /> },
+  { path: '/administration', element: <AdminUsersPage /> },
+  // Finance section.
+  { path: '/sales-invoices', element: <SalesInvoicesPage /> },
+  { path: '/incoming-payments', element: <IncomingPaymentsPage /> },
+  { path: '/revenue-by-project', element: <RevenueByProjectPage /> },
+  // M365 connection-model (D2): the personal-connect surface any active member of an entitled
+  //   org can reach. This is the route the token-custody callback redirects to (Phase A) —
+  //   AC-M365SEP-018 asserts it resolves here so the callback never falls through to the catch-all.
+  { path: '/integrations', element: <IntegrationsPage /> },
+  // I4: My Views list (/views) — before /:viewId to avoid wildcard collision.
+  { path: '/views', element: <FeatureRoute feature="user_views" element={<MyViewsPage />} /> },
+  // I4: Create builder — literal 'new' before /:viewId param.
+  { path: '/views/new', element: <FeatureRoute feature="user_views" element={<ViewBuilderPage mode="create" />} /> },
+  // I4: Edit builder — /:viewId/edit is more specific than /:viewId alone.
+  { path: '/views/:viewId/edit', element: <FeatureRoute feature="user_views" element={<ViewBuilderPage mode="edit" />} /> },
+  // I3: User-view renderer: /views/:viewId. Declared after /views/new and /views/:viewId/edit to
+  //   avoid wildcard collision.
+  { path: '/views/:viewId', element: <FeatureRoute feature="user_views" element={<UserViewRenderer />} /> },
+  { path: '*', element: <NotFoundPage /> },
+];
+
 export const AppRoutes: React.FC = () => (
-  <Suspense fallback={<LoadingFallback />}>
-    <Routes>
-      <Route path="/" element={<ExecutiveDashboard />} />
-      <Route path="/projects" element={<Projects />} />
-      {/* B-9 (AC-W2-IA-004): /projects/:id/:tab? — all five tabs are now deep-linkable
-          symmetrically. The old /projects/:id/budget special-case is subsumed by this
-          (budget is just another :tab value). Both routes render ProjectDetail; the
-          component reads :tab from params and defaults to 'overview' for unknown values.
-          A backward-compat alias keeps old /budget links working. */}
-      <Route path="/projects/:projectId/:tab" element={<ProjectDetail />} />
-      <Route path="/projects/:projectId" element={<ProjectDetail />} />
-      <Route path="/sales" element={<SalesPipeline />} />
-      {/* Model B: the canonical detail route is /projects/:id; /sales/:id redirects there. */}
-      <Route path="/sales/:opportunityId" element={<SalesDetailRedirect />} />
-      <Route path="/procurement" element={<ProcurementPage />} />
-      {/* Tabbed record shell (mirrors /projects/:id/:tab). The bare /procurement/:id
-          keeps working (defaults to the Overview tab); :tab deep-links a panel. */}
-      <Route path="/procurement/:procurementId" element={<ProcurementDetails />} />
-      <Route path="/procurement/:procurementId/:tab" element={<ProcurementDetails />} />
-      <Route path="/timesheets" element={<TimesheetsPage />} />
-      <Route path="/approvals" element={<ApprovalsPage />} />
-      <Route path="/companies" element={<CompaniesPage />} />
-      {/* CW-4b: /companies/:id — the routable Company record page (retires the drawer-as-record). */}
-      <Route path="/companies/:companyId" element={<CompanyDetailPage />} />
-      <Route path="/contacts" element={<ContactsPage />} />
-      {/* CW-4b: /contacts/:id — the routable Contact record page (retires the drawer-as-record). */}
-      <Route path="/contacts/:contactId" element={<ContactDetailPage />} />
-      {/* Incidents is hidden behind the interim `incidents` UI feature flag (UI-hide-first):
-          <FeatureRoute> renders the page when enabled, else redirects deep-links to home
-          instead of 404. Flip the flag in src/lib/features.ts to re-enable. CW-4a: /incidents/:id
-          is the routable Incident detail page (fixes the dead-end) when the module is on. */}
-      <Route path="/incidents" element={<FeatureRoute feature="incidents" element={<IncidentsPage />} />} />
-      <Route
-        path="/incidents/:incidentId"
-        element={<FeatureRoute feature="incidents" element={<IncidentDetailPage />} />}
-      />
-      {/* /work-orders removed (owner decision — the route, not just the nav). */}
-      {/* /tasks removed — real Tasks CRUD lives in the project Tasks tab. */}
-      {/* B-1 (AC-W2-IXD-001/002): My Tasks — IC-scoped own-assigned cross-project task list. */}
-      <Route path="/my-tasks" element={<MyTasksPage />} />
-      <Route path="/reports" element={<PlaceholderPage title="Reports" />} />
-      <Route path="/administration" element={<AdminUsersPage />} />
-      {/* Finance section */}
-      <Route path="/sales-invoices" element={<SalesInvoicesPage />} />
-      <Route path="/incoming-payments" element={<IncomingPaymentsPage />} />
-      <Route path="/revenue-by-project" element={<RevenueByProjectPage />} />
-      {/* I4: My Views list (/views) — before /:viewId to avoid wildcard collision */}
-      <Route
-        path="/views"
-        element={<FeatureRoute feature="user_views" element={<MyViewsPage />} />}
-      />
-      {/* I4: Create builder — literal 'new' before /:viewId param */}
-      <Route
-        path="/views/new"
-        element={<FeatureRoute feature="user_views" element={<ViewBuilderPage mode="create" />} />}
-      />
-      {/* I4: Edit builder — /:viewId/edit is more specific than /:viewId alone */}
-      <Route
-        path="/views/:viewId/edit"
-        element={<FeatureRoute feature="user_views" element={<ViewBuilderPage mode="edit" />} />}
-      />
-      {/* I3: User-view renderer: /views/:viewId (I3, FR-VR-050, FR-VR-051).
-          FeatureRoute redirects to / when FEATURES.userViews is false.
-          Declared after /views/new and /views/:viewId/edit to avoid wildcard collision. */}
-      <Route
-        path="/views/:viewId"
-        element={<FeatureRoute feature="user_views" element={<UserViewRenderer />} />}
-      />
-      <Route path="*" element={<NotFoundPage />} />
-    </Routes>
-  </Suspense>
+  <Suspense fallback={<LoadingFallback />}>{useRoutes(appRouteConfig)}</Suspense>
 );
 
 // ── Shell chrome (inside the workspace provider + AgentRuntimeProvider) ───────

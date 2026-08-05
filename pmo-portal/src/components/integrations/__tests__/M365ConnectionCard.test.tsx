@@ -1,8 +1,9 @@
 /**
  * M365ConnectionCard — Phase-1 FE wiring of the token-custody edge function.
  *
- *   AC-M365-012 — the two-switch gate (entitlement + Admin) still hides the card AND suppresses
- *                 the status fetch (no edge-fn call when the card is hidden). (unchanged)
+ *   AC-M365SEP-016 — the entitlement gate (the only FE gate) hides the card AND suppresses
+ *                    the status fetch (no edge-fn call when the card is hidden). PMO role is no
+ *                    longer a gate (FR-M365SEP-011); an entitled active member always sees it.
  *   AC-M365-013 — the Phase-0 HELD "available soon" stub is RETIRED; the card now shows an
  *                 ENABLED Connect action over a "Not connected" state. (oracle evolved with the
  *                 deliberate Phase-0 → Phase-1 transition — not a weakening; the assertion is just
@@ -13,7 +14,8 @@
  *   AC-M365-016 — repeat-clicks do not fire a second initiate (in-flight guard).
  *   AC-M365-017 — callback ?m365_connected=true renders the connected state and the param is
  *                 cleared from the URL (no re-trigger on refresh).
- *   AC-M365-018 — callback ?m365_error=<msg> renders the error state and the param is cleared.
+ *   AC-M365-018 — callback ?m365_error=<msg> renders reviewed error copy and the param is cleared.
+ *   AC-M365SEP-018 — callback ?m365_org_approved=true renders org approval and clears the param.
  *   AC-M365-019 — Disconnect opens a destructive confirm; confirming calls disconnect and returns
  *                 the card to idle.
  *   AC-M365-020 — cancelling the confirm calls nothing.
@@ -52,6 +54,7 @@ vi.mock('@/src/lib/supabase/client', () => ({
 }));
 
 import { M365ConnectionCard } from '../M365ConnectionCard';
+import { describeM365Error } from '@/src/lib/m365/connectClient';
 
 /** A not-connected connection_status response (the honest default for a fresh load). */
 const STATUS_NOT_CONNECTED = {
@@ -78,9 +81,8 @@ function networkError(message: string): Error {
 const assignMock = vi.fn();
 
 /** Render the card inside a MemoryRouter; optionally seed the initial URL (for callback params). */
-function renderCard(opts: { isOperator?: boolean; initialEntry?: string } = {}) {
-  const isOperator = opts.isOperator ?? true;
-  const initialEntry = opts.initialEntry ?? '/admin/integrations';
+function renderCard(opts: { initialEntry?: string } = {}) {
+  const initialEntry = opts.initialEntry ?? '/integrations';
   const locationSearch: string[] = [];
   const Probe: React.FC = () => {
     const loc = useLocation();
@@ -90,10 +92,10 @@ function renderCard(opts: { isOperator?: boolean; initialEntry?: string } = {}) 
   const utils = render(
     <MemoryRouter initialEntries={[initialEntry]}>
       <Probe />
-      <M365ConnectionCard isOperator={isOperator} />
+      <M365ConnectionCard />
     </MemoryRouter>,
   );
-  return { ...utils, isOperator, locationSearch };
+  return { ...utils, locationSearch };
 }
 
 beforeEach(() => {
@@ -116,25 +118,41 @@ beforeEach(() => {
 /** Wait for the card to settle into the idle baseline (Connect button present), post status fetch. */
 const settleIdle = () => screen.findByRole('button', { name: /connect microsoft 365/i });
 
-describe('AC-M365-012 — activation card visibility (two-switch: entitlement + Admin)', () => {
+describe('AC-M365SEP-016 / AC-M365-012 — card visibility (entitlement gate only)', () => {
+  // RE-SPECIFIED (FR-M365SEP-011/016, 2026-07-30): the card used to be hidden from non-Admin
+  // entitled members (the old "two-switch: entitlement + Admin" gate). That rule is reversed —
+  // any active member of an entitled org may connect. The Admin-gate cases are replaced by the
+  // AC-M365SEP-016 block below (an entitled member sees the card); what stays here is the
+  // entitlement gate itself, which still hides the card and suppresses the status fetch.
   it('AC-M365-012: hidden when the org is NOT entitled (and the status fetch never fires)', () => {
     featureState.value = false;
-    const { container } = renderCard({ isOperator: true });
+    const { container } = renderCard();
     expect(container).toBeEmptyDOMElement();
     expect(invoke).not.toHaveBeenCalled();
   });
+});
 
-  it('AC-M365-012: hidden when entitled but the viewer is NOT Admin (and the status fetch never fires)', () => {
+/**
+ * AC-M365SEP-016 — the personal connect surface is reachable by ANY active member of an entitled
+ * org, not only an Admin/Operator (FR-M365SEP-011/016). The card's only FE gate is the entitlement;
+ * PMO role is no longer a gate (what a caller sees is bounded by their own Microsoft permissions,
+ * which Microsoft enforces). Rendered WITHOUT the legacy isOperator prop so a reintroduced Admin
+ * guard (mutation check 3) hides the card and fails this test.
+ */
+describe('AC-M365SEP-016 — an entitled active member sees the card with Connect enabled (no Admin gate)', () => {
+  it('AC-M365SEP-016: an entitled member (any role) renders the card with an enabled Connect button', async () => {
     featureState.value = true;
-    const { container } = renderCard({ isOperator: false });
-    expect(container).toBeEmptyDOMElement();
-    expect(invoke).not.toHaveBeenCalled();
-  });
-
-  it('AC-M365-012: rendered when entitled AND Admin', async () => {
-    featureState.value = true;
-    renderCard();
+    // Render the card directly (no isOperator prop) — the personal-connect contract.
+    render(
+      <MemoryRouter initialEntries={['/integrations']}>
+        <M365ConnectionCard />
+      </MemoryRouter>,
+    );
     expect(screen.getByTestId('m365-connection-card')).toBeInTheDocument();
+    const btn = await settleIdle();
+    expect(btn).not.toBeDisabled();
+    // The status fetch DID fire (entitled member's card is live, not hidden).
+    expect(invoke).toHaveBeenCalledWith('m365-token-custody', { body: { action: 'connection_status' } });
   });
 });
 
@@ -232,7 +250,7 @@ describe('AC-M365-016 — repeat-clicks do not fire a second initiate (in-flight
 describe('AC-M365-017 — callback ?m365_connected=true renders connected state + clears the param', () => {
   it('AC-M365-017: shows Connected + Disconnect, and the param is removed from the URL', () => {
     featureState.value = true;
-    const { locationSearch } = renderCard({ initialEntry: '/admin/integrations?m365_connected=true' });
+    const { locationSearch } = renderCard({ initialEntry: '/integrations?m365_connected=true' });
 
     expect(screen.getByTestId('m365-connected-msg')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /disconnect/i })).toBeInTheDocument();
@@ -247,14 +265,16 @@ describe('AC-M365-017 — callback ?m365_connected=true renders connected state 
   });
 });
 
-describe('AC-M365-018 — callback ?m365_error=<msg> renders the error + clears the param', () => {
-  it('AC-M365-018: shows the server-authored error banner and removes the param', () => {
+describe('AC-M365-018 — callback ?m365_error=<msg> renders reviewed copy + clears the param', () => {
+  it('AC-M365-018: shows generic reviewed copy for an arbitrary backend string, never the raw value', () => {
     featureState.value = true;
-    const msg = encodeURIComponent('Connection failed: identity mismatch. Please contact your administrator.');
-    const { locationSearch } = renderCard({ initialEntry: `/admin/integrations?m365_error=${msg}` });
+    const rawBackendString = 'some_random_backend_string';
+    const { locationSearch } = renderCard({ initialEntry: `/integrations?m365_error=${rawBackendString}` });
 
     const banner = screen.getByRole('alert');
-    expect(banner).toHaveTextContent('Connection failed: identity mismatch');
+    expect(banner).toHaveTextContent(describeM365Error(undefined));
+    expect(banner).not.toHaveTextContent(rawBackendString);
+    expect(document.body).not.toHaveTextContent(rawBackendString);
     // Connect stays available for retry.
     expect(screen.getByRole('button', { name: /connect microsoft 365/i })).not.toBeDisabled();
     // Status fetch skipped (callback param drove the immediate state) — no invoke.
@@ -264,11 +284,43 @@ describe('AC-M365-018 — callback ?m365_error=<msg> renders the error + clears 
   });
 });
 
+describe('AC-M365SEP-018 — callback ?m365_org_approved=true renders organisation approval + clears the param', () => {
+  it('AC-M365SEP-018: shows the organisation approval confirmation without claiming personal connection', () => {
+    featureState.value = true;
+    const { locationSearch } = renderCard({ initialEntry: '/integrations?m365_org_approved=true' });
+
+    const confirmation = screen.getByTestId('m365-org-approved-msg');
+    expect(confirmation).toHaveTextContent(/organization has approved/i);
+    expect(confirmation).toHaveTextContent(/connect your (own|individual) microsoft 365 account/i);
+    expect(confirmation).not.toHaveTextContent(/connected since|your account is connected/i);
+    expect(invoke).not.toHaveBeenCalled();
+    const last = locationSearch[locationSearch.length - 1];
+    expect(last).not.toContain('m365_org_approved');
+  });
+});
+
+describe('AC-M365SEP-015 — callback approval-required code uses reviewed copy', () => {
+  it('AC-M365SEP-015: maps ORG_APPROVAL_REQUIRED to administrator approval copy and clears both callback params', () => {
+    featureState.value = true;
+    const { locationSearch } = renderCard({
+      initialEntry: '/integrations?m365_error=ORG_APPROVAL_REQUIRED&m365_error_code=ORG_APPROVAL_REQUIRED',
+    });
+
+    const banner = screen.getByRole('alert');
+    expect(banner).toHaveTextContent(/ask your administrator to approve/i);
+    expect(banner).not.toHaveTextContent('ORG_APPROVAL_REQUIRED');
+    const last = locationSearch[locationSearch.length - 1];
+    expect(last).not.toContain('m365_error');
+    expect(last).not.toContain('m365_error_code');
+    expect(invoke).not.toHaveBeenCalled();
+  });
+});
+
 describe('AC-M365-019 — Disconnect confirms first, then calls the fn', () => {
   it('AC-M365-019: confirming the destructive dialog calls disconnect and returns the card to idle', async () => {
     featureState.value = true;
     invoke.mockResolvedValueOnce({ data: { success: true }, error: null });
-    renderCard({ initialEntry: '/admin/integrations?m365_connected=true' });
+    renderCard({ initialEntry: '/integrations?m365_connected=true' });
 
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: /disconnect/i }));
@@ -292,7 +344,7 @@ describe('AC-M365-019 — Disconnect confirms first, then calls the fn', () => {
 describe('AC-M365-020 — cancelling the Disconnect confirm does nothing', () => {
   it('AC-M365-020: cancel closes the dialog and never calls the edge fn', async () => {
     featureState.value = true;
-    renderCard({ initialEntry: '/admin/integrations?m365_connected=true' });
+    renderCard({ initialEntry: '/integrations?m365_connected=true' });
 
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: /disconnect/i }));
@@ -317,7 +369,7 @@ describe('AC-M365-021 — no token / oid / raw internal string leaks into the DO
       error: null,
     });
 
-    const { container } = renderCard({ initialEntry: '/admin/integrations?m365_connected=true' });
+    const { container } = renderCard({ initialEntry: '/integrations?m365_connected=true' });
     // `container` now reflects the callback-driven connected render (status fetch skipped).
     expect(container.textContent).not.toContain(secretState);
     expect(container.textContent).not.toContain('oid');

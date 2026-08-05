@@ -25,7 +25,7 @@ function assertNoSecret(s: string, where: string) {
 
 function callerClient() {
   return mockClient({
-    profiles: [{ data: { org_id: 'org-1', role: 'Admin' }, error: null }],
+    profiles: [{ data: { org_id: 'org-1', role: 'Admin', status: 'active' }, error: null }],
     org_features: [{ data: { enabled: true }, error: null }],
   });
 }
@@ -80,7 +80,7 @@ describe('AC-M365-140 — secrets hygiene', () => {
     }
   });
 
-  it('AC-M365-140: typed error responses (FORBIDDEN / SCOPE_INSUFFICIENT / NOT_CONNECTED) carry no token material', async () => {
+  it('AC-M365-140: typed error responses (DISABLED_MEMBER / SCOPE_INSUFFICIENT / NOT_CONNECTED) carry no token material', async () => {
     const conn: ConnectionRow = {
       id: 'conn-1', org_id: 'org-1', user_id: 'user-1', entra_tenant_id: 'test-tenant-id',
       entra_user_object_id: null,
@@ -92,15 +92,15 @@ describe('AC-M365-140 — secrets hygiene', () => {
       connected_at: new Date().toISOString(), last_refresh_at: null, updated_at: new Date().toISOString(),
     };
 
-    // non-Admin → FORBIDDEN
+    // disabled member → DISABLED_MEMBER (the data-access gate rejects before the connection load)
     const forbidCaller = mockClient({
-      profiles: [{ data: { org_id: 'org-1', role: 'Member' }, error: null }],
+      profiles: [{ data: { org_id: 'org-1', role: 'Member', status: 'disabled' }, error: null }],
     });
     const r1 = await handleGraphProxy(
       { action: 'graph_proxy', method: 'GET', path: '/me/drive/root' },
       deps({ service: mockClient({ ms_graph_connections: [{ data: conn, error: null }] }), caller: forbidCaller, userId: 'user-1' }),
     );
-    assertNoSecret(JSON.stringify(r1.body), 'FORBIDDEN body');
+    assertNoSecret(JSON.stringify(r1.body), 'DISABLED_MEMBER body');
 
     // scope mismatch → SCOPE_INSUFFICIENT
     const r2 = await handleGraphProxy(

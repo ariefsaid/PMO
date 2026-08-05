@@ -11,7 +11,7 @@ import type { ConnectionRow } from '../../../../../supabase/functions/m365-token
 
 function callerClient() {
   return mockClient({
-    profiles: [{ data: { org_id: 'org-1', role: 'Admin' }, error: null }],
+    profiles: [{ data: { org_id: 'org-1', role: 'Admin', status: 'active' }, error: null }],
     org_features: [{ data: { enabled: true }, error: null }],
   });
 }

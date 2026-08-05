@@ -1,7 +1,7 @@
 /**
  * AC-M365-101/102/142 — PKCE state store + initiate_connect.
  * AC-M365-101: storePkceState inserts the single-use row; initiate_connect returns the authorize URL.
- * AC-M365-102: initiate_connect denies non-Admin / non-entitled callers.
+ * AC-M365-102: initiate_connect denies inactive / non-entitled callers.
  * AC-M365-104: consumePkceState returns null for a missing state (replay/expiry → no token exchange).
  * AC-M365-142: consumePkceState is single-use (deletes the row).
  */
@@ -16,7 +16,7 @@ import { mockClient, deps } from './m365MockDeps';
 
 function entitledCaller(role = 'Admin') {
   return mockClient({
-    profiles: [{ data: { org_id: 'org-1', role }, error: null }],
+    profiles: [{ data: { org_id: 'org-1', role, status: 'active' }, error: null }],
     org_features: [{ data: { enabled: true }, error: null }],
   });
 }
@@ -85,27 +85,48 @@ describe('AC-M365-101/102 — handleInitiateConnect', () => {
     expect(body.authorizeUrl).toMatch(/^https:\/\/login\.microsoftonline\.com\/test-tenant-id\/oauth2\/v2\.0\/authorize/);
     expect(body.authorizeUrl).toContain('response_type=code');
     expect(body.authorizeUrl).toContain('code_challenge_method=S256');
-    expect(body.authorizeUrl).toContain('scope=Files.Read+offline_access+openid+profile');
+    expect(body.authorizeUrl).toContain('scope=Files.Read+Files.Read.All+Sites.Read.All+offline_access+openid+profile');
     // The single-use state row was written for this org+user.
     expect(service.writes).toContainEqual(
       expect.objectContaining({ table: 'm365_pkce_states', kind: 'insert' }),
     );
   });
 
-  it('AC-M365-102: a non-Operator caller is forbidden (403 FORBIDDEN, no state stored)', async () => {
-    // ADR-0058 §3 amendment (2026-07-24): the gate is Operator, NOT org-Admin. An org Admin who is
-    // not a platform Operator must be rejected — the Entra app registration is vendor-owned.
-    const service = mockClient({ platform_operators: [{ data: null, error: null }] });
+  it('AC-M365SEP-020: repeated initiation is rate-limited before another PKCE state is stored', async () => {
+    const service = mockClient();
+    service.rpc
+      .mockImplementationOnce(() => Promise.resolve({ data: { state: 'active', org_id: 'org-1', role: 'Admin' }, error: null }))
+      .mockImplementationOnce(() => Promise.resolve({ data: false, error: null }));
     const caller = entitledCaller('Admin');
+
     const result = await handleInitiateConnect(deps({ service, caller, userId: 'user-1' }));
-    expect(result).toMatchObject({ status: 403, body: { error: 'FORBIDDEN' } });
+
+    expect(result).toMatchObject({ status: 429, body: { error: 'RATE_LIMITED' } });
+    expect(service.writes).toHaveLength(0);
+    expect(service.rpc).toHaveBeenCalledWith('rate_limit_hit', expect.objectContaining({
+      p_key: 'm365-token-custody:initiate_connect:user-1',
+    }));
+  });
+
+  it('AC-M365SEP-003: a disabled member is rejected DISABLED_MEMBER before any state is stored', async () => {
+    // The data-access gate asserts active membership EXPLICITLY (NFR-M365SEP-002). A caller whose
+    // profiles.status is not 'active' is told their access is disabled — distinct from NOT_ENTITLED
+    // (which would be a false statement about an entitled org) and from the retired role gate.
+    const service = mockClient();
+    service.rpc.mockImplementationOnce(() => Promise.resolve({ data: { state: 'disabled', org_id: 'org-1', role: 'Admin' }, error: null }));
+    const caller = mockClient({
+      profiles: [{ data: { org_id: 'org-1', role: 'Admin', status: 'disabled' }, error: null }],
+      org_features: [{ data: { enabled: true }, error: null }],
+    });
+    const result = await handleInitiateConnect(deps({ service, caller, userId: 'user-1' }));
+    expect(result).toMatchObject({ status: 403, body: { error: 'DISABLED_MEMBER' } });
     expect(service.writes).toHaveLength(0);
   });
 
   it('AC-M365-102: an org without the entitlement is rejected (403 NOT_ENTITLED, no state stored)', async () => {
     const service = mockClient();
     const caller = mockClient({
-      profiles: [{ data: { org_id: 'org-1', role: 'Admin' }, error: null }],
+      profiles: [{ data: { org_id: 'org-1', role: 'Admin', status: 'active' }, error: null }],
       org_features: [{ data: { enabled: false }, error: null }],
     });
     const result = await handleInitiateConnect(deps({ service, caller, userId: 'user-1' }));

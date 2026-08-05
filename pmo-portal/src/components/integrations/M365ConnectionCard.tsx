@@ -8,38 +8,44 @@ import {
   initiateM365Connect,
   disconnectM365,
   getM365ConnectionStatus,
+  describeM365Error,
   type ConnectionStatus,
 } from '@/src/lib/m365/connectClient';
 
 /**
- * M365ConnectionCard — the OPERATOR activation surface for the Microsoft 365 integration.
- * ADR-0058 §3 amendment (2026-07-24): unlike ClickUp/ERPNext (client supplies the credential ⇒
- * org-Admin opts in), the Entra app registration lives in the VENDOR tenant (ADR-0059 Option C),
- * so connecting it is a platform action. An org-Admin who is not an Operator does not see this
- * card, and the edge fn rejects them independently — the UI gate is UX only (ADR-0016).
+ * M365ConnectionCard — the PERSONAL connect surface for the Microsoft 365 integration.
+ * Connection-model amendment (2026-07-30, ADR-0063 §3 / spec m365-operator-client-separation): any
+ * ACTIVE MEMBER of an entitled org may connect their own Microsoft account and browse through it
+ * (FR-M365SEP-011/016), irrespective of PMO role — what a caller sees is bounded by their own
+ * Microsoft permissions, which Microsoft enforces. The card's only FE gate is the entitlement; the
+ * edge fn's data-access gate (`authorizeMemberEntitled`) is the enforcement authority (ADR-0016 —
+ * FE authz is UX-only). The Entra app registration still lives in the VENDOR tenant (ADR-0064).
  *
  * Phase-1 wiring (FR-M365-101 / FR-M365-150; ADR-0060). The card drives the live token-custody
  * edge function:
  *   - Connect → POST `initiate_connect` → top-level redirect to Microsoft's authorize URL (the
  *     consent page MUST be user-visible — not a fetch). Microsoft → edge fn callback → 302 back to
- *     `/admin/integrations?m365_connected=true` (success) or `?m365_error=<msg>` (failure).
+ *     `/integrations?m365_connected=true` (success), `?m365_org_approved=true` (organisation
+ *     approval), or `?m365_error=<msg>` (failure).
  *   - On mount (fresh page load, no callback param) the card POSTs `connection_status` and renders
  *     the REAL state — Connected / Needs reconnect (stale) / Revoked / Not connected (AC-M365-022).
  *     A failed status fetch renders an honest UNKNOWN state — NEVER a false "Connected" (AC-M365-023).
  *   - Disconnect opens a destructive `ConfirmDialog`, then POSTs `disconnect` (best-effort Microsoft
  *     revoke + local delete + audit, all server-side).
  *
- * Source-of-truth split: the callback query-param (?m365_connected=true | ?m365_error=<msg>) is the
+ * Source-of-truth split: the callback query-param (?m365_connected=true | ?m365_org_approved=true |
+ * ?m365_error=<msg>) is the
  * immediate post-redirect signal (shown first, for the redirect-return UX, and the URL is cleaned);
  * the fetched status is the source of truth ON LOAD (a fresh page load with no param). When a
  * callback param drove the immediate state, the status fetch is SKIPPED for that mount — the
  * redirect is already a server-side signal (the callback endpoint set the param after storing the
  * row); the next page load will fetch.
  *
- * The two-switch gate (entitlement `useFeature('m365_integration')` + real-JWT-role `isAdmin`) is
- * UNCHANGED (AC-M365-012, ADR-0058 two-switch model, ADR-0016 FE-authz-UX-only — RLS + the edge
- * fn's own Admin/entitlement assertion are the enforcement authority). The FE may be stricter;
- * never looser. The status fetch is guarded by the same gate and never fires when the card is hidden.
+ * The FE gate is the entitlement alone (`useFeature('m365_integration')`) — AC-M365SEP-016. PMO
+ * role is no longer a gate (FR-M365SEP-011). ADR-0016 (FE authz is UX-only): RLS + the edge fn's
+ * data-access gate (`authorizeMemberEntitled`) are the enforcement authority. The FE may be
+ * stricter; never looser. The status fetch is guarded by the entitlement gate and never fires
+ * when the card is hidden.
  *
  * NFR-M365-101/108 (binding — no secret leakage): the edge fn returns only `{ authorizeUrl, state }`
  * / `{ success }` / `{ connected, status, connected_at, last_refresh_at, scopes }`. The `state` is a
@@ -52,6 +58,7 @@ type Phase =
   | 'loading' // initial status fetch in progress (no callback param)
   | 'idle' // known not-connected (status absent)
   | 'connected' // known active connection
+  | 'org-approved' // the organisation approved the app; this user still needs to connect personally
   | 'reconnect' // known stale — needs reconnect
   | 'revoked' // known revoked
   | 'unknown' // status fetch failed — truth not confirmable (NEVER a false "Connected")
@@ -60,7 +67,7 @@ type Phase =
   | 'disconnecting' // disconnect in flight
   | 'error'; // action error banner (initiate failed, etc.)
 
-export const M365ConnectionCard: React.FC<{ isOperator: boolean }> = ({ isOperator }) => {
+export const M365ConnectionCard: React.FC = () => {
   const entitled = useFeature('m365_integration');
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -76,28 +83,39 @@ export const M365ConnectionCard: React.FC<{ isOperator: boolean }> = ({ isOperat
   // for this session). Suppresses the status fetch on that mount (next load will fetch).
   const optimisticFromCallback = useRef(false);
   // Ensures the status fetch fires at most once per mount (entitlement may load async, so the effect
-  // depends on [entitled, isOperator] — this ref prevents a double-fetch if either toggles).
+  // depends on [entitled] — this ref prevents a double-fetch if it toggles).
   const statusFetchedRef = useRef(false);
 
-  // One-shot: consume the callback return (?m365_connected=true | ?m365_error=<msg>) and clean the
+  // One-shot: consume the callback return (?m365_connected=true | ?m365_org_approved=true |
+  // ?m365_error=<msg>) and clean the
   // param so a refresh doesn't re-trigger the banner. Runs once on mount — intentionally NOT
   // reactive to searchParams (a param arriving mid-session would re-fire a stale banner).
   useEffect(() => {
     const connected = searchParams.get('m365_connected');
+    const orgApproved = searchParams.get('m365_org_approved');
     const m365Error = searchParams.get('m365_error');
+    const m365ErrorCode = searchParams.get('m365_error_code');
     if (connected === 'true') {
       setPhase('connected');
       setErrorText(null);
       optimisticFromCallback.current = true;
+    } else if (orgApproved === 'true') {
+      setPhase('org-approved');
+      setErrorText(null);
+      optimisticFromCallback.current = true;
     } else if (m365Error) {
       setPhase('error');
-      setErrorText(decodeURIComponent(m365Error));
+      // Always use the reviewed FE taxonomy. The callback's message is untrusted transport data
+      // and must never reach the DOM, even for legacy redirects without a stable error code.
+      setErrorText(describeM365Error(m365ErrorCode ?? undefined));
       optimisticFromCallback.current = true;
     }
-    if (connected === 'true' || m365Error) {
+    if (connected === 'true' || orgApproved === 'true' || m365Error || m365ErrorCode) {
       const next = new URLSearchParams(searchParams);
       next.delete('m365_connected');
+      next.delete('m365_org_approved');
       next.delete('m365_error');
+      next.delete('m365_error_code');
       setSearchParams(next, { replace: true });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -110,7 +128,7 @@ export const M365ConnectionCard: React.FC<{ isOperator: boolean }> = ({ isOperat
   useEffect(() => {
     if (statusFetchedRef.current) return;
     if (optimisticFromCallback.current) return;
-    if (!entitled || !isOperator) return;
+    if (!entitled) return;
     statusFetchedRef.current = true;
     let cancelled = false;
     void (async () => {
@@ -140,7 +158,7 @@ export const M365ConnectionCard: React.FC<{ isOperator: boolean }> = ({ isOperat
       statusFetchedRef.current = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [entitled, isOperator]);
+  }, [entitled]);
 
   const applyStatus = useCallback((status: ConnectionStatus) => {
     if (!status.connected) {
@@ -206,15 +224,16 @@ export const M365ConnectionCard: React.FC<{ isOperator: boolean }> = ({ isOperat
     }
   }, []);
 
-  // Two-switch gate — unchanged (AC-M365-012). Hooks above run unconditionally (rules-of-hooks).
-  if (!entitled || !isOperator) return null;
+  // Entitlement gate — the only FE gate (AC-M365SEP-016). Hooks above run unconditionally
+  // (rules-of-hooks). PMO role is no longer a gate (FR-M365SEP-011).
+  if (!entitled) return null;
 
   const isConnected = phase === 'connected' || phase === 'disconnecting';
   // Connect is offered whenever the user is NOT confirmed connected (idle / connecting / reconnect
   // / revoked / error). It is withheld while the truth is still loading or unknown — we do not offer
   // an action on an unconfirmed state.
   const showConnect =
-    phase === 'idle' || phase === 'connecting' || phase === 'reconnect' || phase === 'revoked' || phase === 'error';
+    phase === 'idle' || phase === 'connecting' || phase === 'org-approved' || phase === 'reconnect' || phase === 'revoked' || phase === 'error';
   const showDisconnect = isConnected;
 
   return (
@@ -232,6 +251,17 @@ export const M365ConnectionCard: React.FC<{ isOperator: boolean }> = ({ isOperat
           <Icon name="check" className="size-3.5 shrink-0 text-success-text" aria-hidden="true" />
           <span>
             Connected{connectedAt ? ` since ${formatDate(connectedAt)}` : ''}. You can disconnect any time.
+          </span>
+        </p>
+      ) : phase === 'org-approved' ? (
+        <p
+          className="mt-2 flex items-center gap-1.5 text-sm text-muted-foreground"
+          data-testid="m365-org-approved-msg"
+          role="status"
+        >
+          <Icon name="check" className="size-3.5 shrink-0 text-success-text" aria-hidden="true" />
+          <span>
+            Your organization has approved the PMO Portal app in Microsoft 365. Connect your individual Microsoft 365 account to continue.
           </span>
         </p>
       ) : phase === 'reconnect' ? (

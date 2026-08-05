@@ -40,6 +40,22 @@ export interface RecordedWrite {
 }
 
 /**
+ * A recorded pure-read (SELECT) chain — the table, the `.select(cols)` projection, and the `.eq()`
+ * filters applied, in call order. Recorded separately from `writes` (a read is NOT a mutation), so
+ * a test can prove a lookup was scoped — e.g. graph_proxy's connection read MUST carry
+ * `.eq('user_id', caller)` (NFR-M365SEP-004 / AC-M365SEP-009 own-row scoping). Without this, a future
+ * refactor that drops the `.eq('user_id', …)` filter leaves every test green (the mock returns the
+ * queued row regardless of filters) — the filter is load-bearing only if a test asserts on it.
+ */
+export interface RecordedSelect {
+  table: string;
+  /** The `.select(cols)` projection ('*' / '' / undefined = all columns). */
+  cols?: string;
+  /** The `.eq(column, value)` filters applied, in call order. */
+  eqs: Array<[string, unknown]>;
+}
+
+/**
  * Project `row` down to exactly the columns named in `cols` (comma-separated) — the same shape
  * PostgREST returns for an explicit `.select('a,b,c')`. `cols` undefined/empty/'*' means "everything"
  * (both are legitimate `.select()` forms). Throws if a requested column is absent from the stubbed
@@ -69,6 +85,8 @@ export interface MockClient {
   from: ReturnType<typeof vi.fn>;
   rpc: ReturnType<typeof vi.fn>;
   writes: RecordedWrite[];
+  /** Every pure-read (SELECT) chain, with its `.eq()` filters — for own-row-scoping proofs. */
+  selects: RecordedSelect[];
   /** Queue the next terminal response for `.from(table)` calls (FIFO). */
   push(table: string, resp: unknown): void;
 }
@@ -90,6 +108,7 @@ export function mockClient(seeded: Record<string, unknown[]> = {}): MockClient {
   const queues: Record<string, unknown[]> = {};
   for (const [t, rs] of Object.entries(seeded)) queues[t] = [...rs];
   const writes: RecordedWrite[] = [];
+  const selects: RecordedSelect[] = [];
 
   // The ONLY sanctioned mutation path for ms_graph_connections is the lock-order RPC (a direct
   // `.from('ms_graph_connections').<write>` would lock the child tuple before the parents and
@@ -110,6 +129,7 @@ export function mockClient(seeded: Record<string, unknown[]> = {}): MockClient {
       if (recorded) return;
       recorded = true;
       if (kind) writes.push({ table, kind, payload, eqs: [...eqs] });
+      else selects.push({ table, cols: selectCols, eqs: [...eqs] });
     };
     const next = () => {
       const list = queues[table] ?? [];
@@ -131,11 +151,10 @@ export function mockClient(seeded: Record<string, unknown[]> = {}): MockClient {
         const idEq = eqs.find(([c]) => c === 'id');
         return Promise.resolve({ data: projectColumns(idEq ? { id: idEq[1] } : { id: 'ok' }, selectCols), error: null });
       }
-      // `platform_operators` defaults to "the caller IS an Operator" (ADR-0058 §3 amendment,
-      // 2026-07-24: M365 connect is Operator-gated). Every handler test in this suite models an
-      // AUTHORIZED caller and asserts handler behaviour, not the gate — before the amendment that
-      // meant role='Admin', which the profiles seed already supplies. A test that needs the gate to
-      // REJECT seeds `platform_operators: [{ data: null, error: null }]` explicitly (see
+      // `platform_operators` defaults to an authorized activation actor. Every handler test in
+      // this suite models an AUTHORIZED caller and asserts handler behaviour, not the activation
+      // gate. A test that needs the activation gate to REJECT seeds
+      // `platform_operators: [{ data: null, error: null }]` explicitly (see
       // tokenCustody.auth.test.ts, which owns the gate's own coverage).
       if (table === 'platform_operators') {
         const userEq = eqs.find(([c]) => c === 'user_id');
@@ -200,6 +219,12 @@ export function mockClient(seeded: Record<string, unknown[]> = {}): MockClient {
   };
 
   const rpc = vi.fn((fn: string, args?: Record<string, unknown>) => {
+    if (fn === 'm365_membership_state' && args) {
+      return Promise.resolve({
+        data: { state: 'active', org_id: 'org-1', role: 'Admin' },
+        error: null,
+      });
+    }
     if (fn === 'm365_upsert_connection' && args) {
       writes.push({
         table: 'ms_graph_connections', kind: 'upsert', eqs: [],
@@ -255,6 +280,7 @@ export function mockClient(seeded: Record<string, unknown[]> = {}): MockClient {
     from,
     rpc,
     writes,
+    selects,
     push: (t: string, resp: unknown) => {
       (queues[t] ??= []).push(resp);
     },

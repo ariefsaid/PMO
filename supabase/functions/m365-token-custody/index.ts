@@ -7,8 +7,10 @@
 //     import graph), and
 //   - constructs the real Supabase clients + builds the HandlerDeps object, then calls a handler.
 //
-// Routing (AC-M365-101/103/110/120): OPTIONS preflight → GET /callback (the Microsoft redirect,
-// no Bearer; the single-use state row is the credential) → POST with {action} in the body.
+// Routing (AC-M365-101/103/110/120/150/SEP-013): OPTIONS preflight → GET /callback (the Microsoft
+// redirect, no Bearer; the single-use state row is the credential) → POST with {action} in the body.
+// POST actions include initiate_connect, initiate_org_approval, graph_proxy, disconnect, and
+// connection_status.
 
 import { createClient } from '@supabase/supabase-js';
 import {
@@ -23,6 +25,7 @@ import { handleCallback } from './callback.ts';
 import { handleGraphProxy } from './proxy.ts';
 import { handleDisconnect } from './revoke.ts';
 import { handleConnectionStatus } from './status.ts';
+import { handleInitiateOrgApproval } from './orgApproval.ts';
 import { corsHeaders } from './auth.ts';
 import type {
   HandlerDeps,
@@ -30,6 +33,7 @@ import type {
   M365Env,
   GraphProxyRequest,
   M365ErrorResponse,
+  M365Request,
 } from './types.ts';
 import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
 
@@ -101,9 +105,11 @@ serveWithErrorReporting('m365-token-custody', async (req: Request): Promise<Resp
   if (authed instanceof Response) return authed;
 
   // POST: parse the {action} body, then route.
-  let body: { action?: string };
+  let body: Omit<Partial<M365Request>, 'action'> & {
+    action?: M365Request['action'] | 'refresh';
+  };
   try {
-    body = (await req.json()) as { action?: string };
+    body = (await req.json()) as Partial<M365Request>;
   } catch {
     return toResponse(
       { status: 400, body: { error: 'BAD_REQUEST', message: 'invalid JSON body' } satisfies M365ErrorResponse },
@@ -135,6 +141,12 @@ serveWithErrorReporting('m365-token-custody', async (req: Request): Promise<Resp
         break;
       case 'connection_status':
         result = await handleConnectionStatus(authed);
+        break;
+      case 'initiate_org_approval':
+        // Step 2 — the client admin approves the PMO app for the org. Returns Microsoft's
+        // admin-consent URL; persists nothing. Uses the activation gate, separate from the
+        // member data-access gate (NFR-M365SEP-001).
+        result = await handleInitiateOrgApproval(authed);
         break;
       default:
         result = {
