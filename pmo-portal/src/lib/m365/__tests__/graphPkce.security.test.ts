@@ -71,7 +71,7 @@ describe('AC-M365-141 — tenant pinning (graphPkce.buildAuthorizeUrl)', () => {
   it('AC-M365-141: the authorize URL host is always login.microsoftonline.com and uses the env redirect URI (never caller-supplied)', async () => {
     const service = mockClient();
     const caller = mockClient({
-      profiles: [{ data: { org_id: 'org-1', role: 'Admin' }, error: null }],
+      profiles: [{ data: { org_id: 'org-1', role: 'Admin', status: 'active' }, error: null }],
       org_features: [{ data: { enabled: true }, error: null }],
     });
     const result = await handleInitiateConnect(deps({ service, caller, userId: 'user-1' }));
@@ -100,7 +100,7 @@ describe('AC-M365-142 — CSRF state single-use', () => {
   it('AC-M365-142: the state token minted by initiate is URL-safe (no path/query metacharacters)', async () => {
     const service = mockClient();
     const caller = mockClient({
-      profiles: [{ data: { org_id: 'org-1', role: 'Admin' }, error: null }],
+      profiles: [{ data: { org_id: 'org-1', role: 'Admin', status: 'active' }, error: null }],
       org_features: [{ data: { enabled: true }, error: null }],
     });
     const result = await handleInitiateConnect(deps({ service, caller, userId: 'user-1' }));

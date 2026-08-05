@@ -71,6 +71,14 @@ export interface InitiateConnectResponse {
   state: string;
 }
 
+export interface InitiateOrgApprovalRequest {
+  action: 'initiate_org_approval';
+}
+
+export interface InitiateOrgApprovalResponse {
+  adminConsentUrl: string;
+}
+
 export interface GraphProxyRequest {
   action: 'graph_proxy';
   method: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
@@ -107,6 +115,7 @@ export interface ConnectionStatusResponse {
 
 export type M365Request =
   | InitiateConnectRequest
+  | InitiateOrgApprovalRequest
   | GraphProxyRequest
   | DisconnectRequest
   | ConnectionStatusRequest;
@@ -122,6 +131,9 @@ export type M365ErrorCode =
   | 'UNAUTHORIZED'
   | 'FORBIDDEN'
   | 'NOT_ENTITLED'
+  | 'DISABLED_MEMBER'
+  | 'BANNED_MEMBER'
+  | 'ORG_APPROVAL_REQUIRED'
   | 'BAD_REQUEST'
   | 'INVALID_STATE'
   | 'TOKEN_EXCHANGE_FAILED'
@@ -136,6 +148,9 @@ export const ERROR_STATUS: Record<M365ErrorCode, number> = {
   UNAUTHORIZED: 401,
   FORBIDDEN: 403,
   NOT_ENTITLED: 403,
+  DISABLED_MEMBER: 403,
+  BANNED_MEMBER: 403,
+  ORG_APPROVAL_REQUIRED: 403,
   BAD_REQUEST: 400,
   INVALID_STATE: 400,
   TOKEN_EXCHANGE_FAILED: 502,

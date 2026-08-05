@@ -14,8 +14,8 @@
 //
 // Hard constraints honored (do NOT regress — see the audit record's round-4 closure):
 //   - SAME authorization as every other user-initiated action: verified caller JWT → org resolution
-//     under the caller's JWT (RLS-gated) → real-JWT Admin role → m365_integration entitlement. An
-//     unentitled or non-Admin caller gets the SAME typed rejection (FORBIDDEN / NOT_ENTITLED) the
+//     under the caller's JWT (RLS-gated) → active membership → m365_integration entitlement. An
+//     unentitled or inactive caller gets the SAME typed rejection (FORBIDDEN / NOT_ENTITLED) the
 //     other actions give — via the shared `resolveOrgOrResult` gate (auth.ts). No new gate.
 //   - Own-row scoped: `org_id = <resolved org>` AND `user_id = <verified sub>`. Never another
 //     user's, never cross-org.
@@ -34,7 +34,7 @@ const STATUS_COLUMNS = 'status, connected_at, last_refresh_at, scopes';
 
 /**
  * AC-M365-150/151/152. Flow:
- *   1. authorize (Admin + entitled) via the shared gate → orgId (AC-M365-151: same typed
+ *   1. authorize (active member + entitled) via the shared gate → orgId (AC-M365-151: same typed
  *      rejection as the other actions on any gate failure).
  *   2. read ONLY the caller's own row, selecting ONLY the non-sensitive metadata columns
  *      (AC-M365-152: no ciphertext / key_id / oid / tenant is ever read or returned).

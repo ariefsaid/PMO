@@ -4,42 +4,43 @@
 [`docs/history.md`](history.md) (don't read it for status). Locked owner-decisions are in
 `docs/decisions.md` (OD-* lookup by id). Roadmap framing in `docs/roadmap-spines.md`.
 
-### ⚑⚑⚑ CURRENT FOCUS — three programs PROMOTED to `main` (2026-07-29). Production NOT touched.
+### ⚑⚑⚑ CURRENT FOCUS — v0.9.0 IN PRODUCTION (2026-07-31); M365 connection-model rebuild active on `dev`
 
-**`main` = `3a6171c2` (merge of #412). `main..dev` = 0, zero file diff — verified, not assumed.**
-Production is still `v0.8.0` and needs a **direct, per-instance owner instruction naming production**.
+**`production` = `cd368302` = tag `v0.9.0` (promoted 2026-07-31). `main` = `3892b05c` = v0.9.0 +
+`0185` (#425). `dev` is 2 ahead of `main`: #427 (contract-value witness seed fixtures) and #428
+(M365 three-step connection model, 2026-08-05) — verified via `git log origin/main..origin/dev`.**
 
-| program | what reached `main` |
-|---|---|
-| **Observability + analytics** (#394, #398–#408) | consent gate (opt-out/DNT/disclosure), friction instrumentation, edge error-reporting across 22 fns, alerting with a write-ahead log, retention. Spec `docs/specs/observability-analytics.spec.md`, ADRs 0066/0067 |
-| **Skipped-workflow remediation** (#409) | the four per-issue-loop steps that had never run on the 11 observability PRs. Found a **WCAG 2.1.2 Level A keyboard trap in every entity form** and an undisclosed Google-Fonts call on `/privacy` |
-| **Create-path SoD class** (#411, `0173`–`0178`) | closed on **INSERT, UPDATE, DELETE and the RPC-parameter variant** across six tables. Approval authority is now **rank + line management** (ADR-0070), not hardcoded role lists |
-| plus | #413 (the ambiguous PostgREST embed), #414 (`serial` ≠ data ownership) |
+**What v0.9.0 carried to prod** (beyond v0.8.0): the three 07-29 promoted programs — observability +
+analytics (#394, #398–#408; ADRs 0066/0067), skipped-workflow remediation (#409), create-path SoD
+class (#411, `0173`–`0178`, ADR-0070) — plus the authorization-hierarchy round (#418/#421,
+`0179`–`0184`: rank-gated profile edits, `is_active_member()` on 15 privileged RPCs, three money-SoD
+bypasses closed) and #413/#414.
 
-**✅ The PostHog quota alarm can now actually run.** `schedule:`/`workflow_dispatch` fire **only from
-the default branch**; `posthog-quota.yml` sat inert on `dev` for its whole life. It is on `main` now
-(verified with `git ls-tree -r origin/main`). Secrets were already set — dedicated `project:read` key,
-1Password `posthog-pmo-api` (vault `AS`). First real run will be its first run ever; check it.
+**`0185` (#425) — the anon-executable-definer close, ON `main` AND applied+verified ON PROD.**
+Hosted Supabase grants EXECUTE to `anon`/`authenticated` on every `public` function; local Docker
+does not — so `0173`'s completeness sweep was green in CI and false in prod: 23 SECURITY DEFINER
+*writers* were unauthenticated-callable. Revoked; prod sweep now 0, 49/49 client RPCs intact.
+⚑ Lesson: a proof that only runs against a DB whose grant defaults differ from prod certifies nothing.
+
+**✅ PostHog quota alarm is LIVE and running.** Daily `schedule` runs on `main` since 2026-07-30,
+green every day through 2026-08-04 (verified `gh run list --workflow=posthog-quota.yml`; 8–15s runs =
+the check really executes, and it exits(2) loudly if secrets are missing).
+
+**Active work: M365 program.** Owner ruling 2026-07-30: the connection belongs to the **client's**
+Microsoft 365 and client users make it (see the M365 section below). #428 landed the three-step
+model on `dev` — operator entitles → client admin approves → each user connects. Next: promote
+`dev`→`main` when the slice is review-complete; live deploy stays owner-gated.
 
 **⛔ OWNER DECISIONS STILL OPEN**
-1. **Production deploy** — the earlier blocker is GONE (prod is demo-only, nothing in flight to
-   grandfather, so the `contract_value` witness failing closed on legacy rows costs nothing). Clean
-   call whenever you want it. Migrations `0173`–`0178` would apply.
-2. **Goods-receipt self-attestation** — an Engineer who raised a PR can create their own `Complete`
+1. **Goods-receipt self-attestation** — an Engineer who raised a PR can create their own `Complete`
    goods receipt. **Not a bug: a ratified contract** (`AC-AUTHZ-007`, widened deliberately in `0015`).
    Narrowing it is a product decision about whether receipt-of-goods needs a second pair of eyes.
-3. **`incoming_payments` INSERT/UPDATE** — blanket grant, client-writable `erp_*`, inert flip guard.
+2. **`incoming_payments` INSERT/UPDATE** — blanket grant, client-writable `erp_*`, inert flip guard.
    Judged *mirror-integrity*, not SoD (no transition RPC to bypass), so only its DELETE half was
    closed. Close the rest as its own slice, or accept and file.
-4. **Analytics opt-out fails open** if `localStorage` is evicted (Safari ITP ~7d, "clear site data").
+3. **Analytics opt-out fails open** if `localStorage` is evicted (Safari ITP ~7d, "clear site data").
    A first-party cookie mirror would fix it — a product decision about how durable a consent promise is.
-
-**NOT on `main`, deliberately — `fix/authz-hierarchy` (`0179`/`0180`), unpushed, NO review battery.**
-`0179` = the owner's profile-edit rule (outrank to edit, assign below your own, Admin may edit a peer
-Admin). `0180` = `is_active_member()` on the 15 privileged RPCs — today a **disabled user with a live
-JWT is read-blocked but still writes vendor money**. It is built and locally green (277 pgTAP files /
-3091 assertions, `verify` exit 0) but has had **zero** spec/quality/security review. It does not ship
-until it gets one.
+4. **Agent harness research** (vendor vs build, section below) — owner-requested 2026-07-28, not started.
 
 **⚑ Two operational traps found during the promote, both still live:**
 - **Retry-hostile fixtures.** `AC-816` / `AC-911` / `AC-CONFIRM-001` walk a **one-shot fixture

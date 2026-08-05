@@ -22,6 +22,7 @@ import { tierLabel, domainLabel } from './integrationLabels';
 import { CanWrite } from '@/src/auth/usePermission';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import type { ExternalTier, IntegrationHealth } from '@/src/lib/repositories/types';
+import { M365OrgApprovalCard } from './M365OrgApprovalCard';
 
 const TIERS: ExternalTier[] = ['clickup', 'erpnext'];
 
@@ -241,6 +242,12 @@ export const IntegrationsView: React.FC = () => {
       )}
       {/* Connect/Disconnect cards for each tier */}
       <div className="flex flex-col gap-3.5" data-testid="integrations-connect-cards">
+        {/* M365 organisation approval (step 2) — its OWN block on this admin surface, NOT a TIERS
+            entry (⚠️ do NOT add 'm365' to TIERS). M365 has no external_org_bindings row, no health
+            probe, and no source-of-truth domains; forcing it into that array would hand it a
+            credential-and-health model it does not have. The card self-gates Admin-only on the FE;
+            the edge fn re-enforces Admin-of-org OR Operator (FR-M365SEP-004/009). */}
+        <M365OrgApprovalCard />
         {TIERS.map((tier) => {
           const binding = getBinding(tier);
           const isConnected = binding?.status === 'active';

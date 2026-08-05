@@ -1,7 +1,7 @@
 -- 0152_platform_operators_revoke_client_writes.sql
 -- Live security audit 2026-07-24, LOW-B3. `public.platform_operators` is the authorization
--- AUTHORITY for the M365 Operator gate (ADR-0058 §3 amendment: authorizeOperatorEntitled reads it
--- service-side to decide who may connect Microsoft 365) — and, per ADR-0049, for every Operator RPC.
+-- AUTHORITY for M365 activation/admin-connect Operator checks (ADR-0063/0065) — and, per ADR-0049,
+-- for every Operator RPC. The M365 member data-access gate does not consult this table.
 -- Migration 0075 granted `authenticated` (and `anon`) DELETE/INSERT/UPDATE on it. Those writes are
 -- denied TODAY only because the table is `force row level security` with a SELECT policy and NO
 -- write policy — but that is one permissive policy (or one SECURITY DEFINER helper that touches the

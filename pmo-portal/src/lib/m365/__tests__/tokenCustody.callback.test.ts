@@ -38,6 +38,37 @@ function pkceRow(overrides: Partial<PkceStateRow> = {}): PkceStateRow {
 }
 
 describe('AC-M365-103/104/105 — handleCallback', () => {
+  it('AC-M365SEP-016: an admin-consent return with opaque state and no code is acknowledged without consuming state or exchanging tokens', async () => {
+    const service = mockClient({
+      m365_pkce_states: [{ data: null, error: { code: 'PGRST116' } }],
+    });
+    const fetch = vi.fn();
+
+    const result = await handleCallback(
+      callbackReq({ admin_consent: 'True', state: 'opaque-admin-state' }),
+      deps({ service, fetch }),
+    );
+
+    expect(result.status).toBe(302);
+    expect(result.headers?.Location).toContain('m365_org_approved=true');
+    expect(result.headers?.Location).not.toContain('Invalid+or+expired');
+    expect(service.writes.some((w) => w.table === 'm365_pkce_states')).toBe(false);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('AC-M365SEP-016: an admin-consent error uses reviewed approval-required copy without consuming state', async () => {
+    const service = mockClient();
+    const result = await handleCallback(
+      callbackReq({ admin_consent: 'True', state: 'opaque-admin-state', error: 'access_denied' }),
+      deps({ service, fetch: vi.fn() }),
+    );
+
+    expect(result.status).toBe(302);
+    expect(result.headers?.Location).toContain('m365_error_code=ORG_APPROVAL_REQUIRED');
+    expect(new URL(result.headers?.Location ?? 'https://invalid').searchParams.get('m365_error')).toContain("hasn't approved");
+    expect(service.writes).toHaveLength(0);
+  });
+
   it('AC-M365-103: valid state+code → exchanges, encrypts BOTH tokens, upserts an active connection, audits, redirects', async () => {
     const service = mockClient({
       m365_pkce_states: [{ data: pkceRow(), error: null }],
@@ -239,6 +270,45 @@ describe('AC-M365-103/104/105 — handleCallback', () => {
     expect(fetch).not.toHaveBeenCalled();
   });
 
+  it('AC-M365SEP-015: a Microsoft admin-consent-required error surfaces the org-approval copy (distinct from access-denied)', async () => {
+    // FR-M365SEP-008 / spec §1.5: a user who tries to connect (step 3) before the org admin has
+    // approved the app (step 2) is told so BY MICROSOFT — its redirect carries the consent-required
+    // signal (AADSTS65001 — "the user or administrator has not consented to use the application") in
+    // ?error_description. The callback maps it onto the ORG_APPROVAL_REQUIRED copy: the user is told
+    // to ask their administrator to approve the application — distinguishable from a plain permission
+    // denial (access_denied with no consent signal) and from an entitlement error (NFR-M365SEP-006).
+    // The raw Microsoft description / AADSTS code NEVER reaches the user (AC-M365SEP-019).
+    const service = mockClient({ m365_pkce_states: [{ data: pkceRow(), error: null }] });
+    const fetch = vi.fn();
+    const result = await handleCallback(
+      callbackReq({
+        error: 'access_denied',
+        error_description:
+          'AADSTS65001: The user or administrator has not consented to use the application with ID \'pmo-portal\'.',
+        state: 'state-xyz',
+      }),
+      deps({ service, fetch }),
+    );
+    expect(result.status).toBe(302);
+    const location = decodeURIComponent(result.headers?.Location ?? '');
+    // The callback maps the reviewed outcome onto the stable wire code consumed by describeM365Error.
+    expect(location).toContain('m365_error_code=ORG_APPROVAL_REQUIRED');
+    const errorEvent = service.writes.find((w) => w.table === 'error_events');
+    expect(errorEvent?.payload).toMatchObject({ error_code: 'ORG_APPROVAL_REQUIRED' });
+    // The user is told to ask their administrator to approve the application.
+    expect(location).toMatch(/administrator/i);
+    expect(location).toMatch(/approve/i);
+    // Distinct from the generic permission denial (the non-consent access_denied path below).
+    expect(location).not.toMatch(/access denied/i);
+    // Distinct from an entitlement error.
+    expect(location).not.toMatch(/isn't enabled/i);
+    // No raw Microsoft error / AADSTS code leaks into the user-facing message (AC-M365SEP-019).
+    expect(location).not.toMatch(/AADSTS65001/i);
+    expect(location).not.toMatch(/consented to use the application/i);
+    // No token exchange happened (the consent-required path aborts like every ?error= path).
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
   it('AC-M365-103 (C1c): a disabled user (pre-check) is rejected before the upsert — error_event, no token material, FE error redirect', async () => {
     // The user was offboarded after initiate but before callback. The pre-check surfaces a clear
     // CONNECTION_NOT_ALLOWED; the authoritative write-guard (0103) would also reject the upsert.
@@ -247,6 +317,7 @@ describe('AC-M365-103/104/105 — handleCallback', () => {
       profiles: [{ data: { status: 'disabled' }, error: null }],
       org_features: [{ data: { enabled: true }, error: null }],
     });
+    service.rpc.mockImplementationOnce(() => Promise.resolve({ data: { state: 'disabled', org_id: 'org-1', role: 'Admin' }, error: null }));
     const fetch = fetchOk({
       access_token: 'ACCESS', refresh_token: 'REFRESH', expires_in: 3600,
       id_token: mintIdToken({ tid: 'test-tenant-id', oid: 'user-oid-123' }),

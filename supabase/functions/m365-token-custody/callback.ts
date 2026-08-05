@@ -9,6 +9,7 @@ import { M365_IDENTITY_MISMATCH } from './types.ts';
 import { consumePkceState } from './stateStore.ts';
 import { encryptToken, serializeEnvelope, resolveKek, base64UrlDecode, toByteaParam } from './crypto.ts';
 import { logAudit, recordM365Error } from './audit.ts';
+import { readM365MembershipState } from './auth.ts';
 import { isValidTenant } from '../../../pmo-portal/src/lib/m365/graphPkce.ts';
 
 const TOKEN_ENDPOINT = 'https://login.microsoftonline.com';
@@ -33,6 +34,28 @@ export async function handleCallback(req: Request, deps: HandlerDeps): Promise<H
   const code = url.searchParams.get('code');
   const state = url.searchParams.get('state');
   const msError = url.searchParams.get('error');
+  // FR-M365SEP-008 / AC-M365SEP-015: Microsoft's "admin consent required" signal (AADSTS65001 — the
+  // canonical "the user or administrator has not consented to use the application" code) rides in
+  // ?error_description when a user tries to connect before the org admin has approved the app. Read
+  // it here so the msError branch can map it onto the ORG_APPROVAL_REQUIRED copy. The raw value
+  // NEVER reaches the user (AC-M365SEP-019) — only the reviewed message is surfaced.
+  const msErrorDescription = url.searchParams.get('error_description');
+  const isAdminConsentReturn = !code && url.searchParams.has('admin_consent');
+
+  // Microsoft admin-consent returns to the configured callback with an opaque, deliberately
+  // unpersisted state and no authorization code. It is NOT a PKCE callback: consuming state here
+  // would turn a successful tenant-wide approval into INVALID_STATE, and there is no token or DB
+  // write to perform. Keep this branch ahead of every state read (NFR-M365SEP-005).
+  if (isAdminConsentReturn) {
+    if (msError) {
+      return redirectToFeError(
+        env,
+        "Your organization hasn't approved the PMO Portal app yet. Ask your administrator to approve it in Microsoft 365.",
+        'ORG_APPROVAL_REQUIRED',
+      );
+    }
+    return redirectToFeOrgApprovalSuccess(env);
+  }
 
   // UNAUTHENTICATED WRITE VECTOR (live security audit 2026-07-24, MED-A2). This endpoint runs
   // with `verify_jwt = false` — Microsoft's redirect carries no Authorization header — so ANY
@@ -60,11 +83,28 @@ export async function handleCallback(req: Request, deps: HandlerDeps): Promise<H
 
   // From here the request is provably ours, so recording is safe.
   if (msError) {
+    // AC-M365SEP-015 / FR-M365SEP-008: map Microsoft's admin-consent-required signal onto the
+    // ORG_APPROVAL_REQUIRED copy. AADSTS65001 is the documented "user or administrator has not
+    // consented to use the application" code — exactly the scenario where the org admin has not
+    // yet approved the app (step 2). The user is told to ask their administrator to approve it,
+    // distinguishable from a plain permission denial (access_denied with no consent signal) and
+    // from an entitlement error (NFR-M365SEP-006). Mirrors the FE describeM365Error('ORG_APPROVAL_
+    // REQUIRED') copy verbatim so the two paths never drift. The raw Microsoft description / AADSTS
+    // code is NEVER surfaced (AC-M365SEP-019).
+    const needsAdminConsent =
+      msError === 'consent_required' || /AADSTS65001/i.test(msErrorDescription ?? '');
+    const message = needsAdminConsent
+      ? "Your organization hasn't approved the PMO Portal app yet. Ask your administrator to approve it in Microsoft 365."
+      : 'Connection failed: access denied';
     await recordM365Error(serviceClient, {
-      errorCode: 'TOKEN_EXCHANGE_FAILED',
+      errorCode: needsAdminConsent ? 'ORG_APPROVAL_REQUIRED' : 'TOKEN_EXCHANGE_FAILED',
       contextId: state,
     });
-    return redirectToFeError(env, 'Connection failed: access denied');
+    return redirectToFeError(
+      env,
+      message,
+      needsAdminConsent ? 'ORG_APPROVAL_REQUIRED' : undefined,
+    );
   }
 
   if (!code) {
@@ -116,7 +156,7 @@ export async function handleCallback(req: Request, deps: HandlerDeps): Promise<H
   // connection: a foreign tenant's id_token is rejected here and nothing is stored.
   //
   // NOTE: env.m365TenantId MUST be a concrete tenant GUID for Phase-1 Option C single-tenant
-  // (ADR-0059). 'common'/'organizations' is unsupported here — the assertion correctly rejects the
+  // (ADR-0064). 'common'/'organizations' is unsupported here — the assertion correctly rejects the
   // foreign tid those flows would issue. The REAL token tid is stored as entra_tenant_id (not the
   // env value) and the oid as entra_user_object_id (also fixes spec Minor: oid was never populated,
   // FR-M365-110).
@@ -175,19 +215,16 @@ export async function handleCallback(req: Request, deps: HandlerDeps): Promise<H
   }
 
   // C1(c) (Luna): the BEFORE INSERT OR UPDATE trigger (0113) is the AUTHORITY that makes token
-  // resurrection structurally impossible — if the user was disabled or the org disentitled between
-  // initiate and callback, the upsert is REJECTED with errcode 42501. This best-effort pre-check
-  // gives a CLEARER error_event + user message before the encrypt/upsert round-trip; it is
-  // TOCTOU by nature, so the upsertError branch below remains the authoritative backstop. No
-  // client JWT is available on this GET path, so the reads go through the service client (RLS-free
-  // but exact — the trigger re-checks authoritatively at write time).
-  const { data: profRow } = await serviceClient.from('profiles').select('status')
-    .eq('id', pkce.userId).maybeSingle();
+  // resurrection structurally impossible — if the user was disabled or banned, or the org was
+  // disentitled between initiate and callback, the upsert is REJECTED with errcode 42501. This
+  // best-effort pre-check uses the actor-aware service-side membership read, which is necessary
+  // because profiles_select intentionally hides disabled and banned callers under real RLS. It is
+  // TOCTOU by nature, so the upsertError branch below remains the authoritative backstop.
+  const membership = await readM365MembershipState(serviceClient, pkce.userId);
   const { data: featRow } = await serviceClient.from('org_features').select('enabled')
     .eq('org_id', pkce.orgId).eq('feature_key', 'm365_integration').maybeSingle();
-  const profileActive = (profRow as { status?: string } | null)?.status === 'active';
   const entitled = (featRow as { enabled?: boolean } | null)?.enabled === true;
-  if (!profileActive || !entitled) {
+  if (membership.state !== 'active' || membership.orgId !== pkce.orgId || !entitled) {
     await recordM365Error(serviceClient, {
       errorCode: 'CONNECTION_NOT_ALLOWED',
       contextId: state,
@@ -342,16 +379,33 @@ async function rejectIdentityMismatch(
   return redirectToFeError(env, 'Connection failed: identity mismatch. Please contact your administrator.');
 }
 
-function redirectToFeError(env: { siteUrl: string }, message: string): HandlerResult {
+// Exported so the route-target test (AC-M365SEP-018) can derive each redirect target from the
+// helpers themselves rather than re-typing the path — the test then resolves the path against the
+// app's real route table. This is the §1.3 guard: a redirect to a route that does not exist
+// (`/admin/integrations` never did) must fail the test, not silently land on Not Found in prod.
+export function redirectToFeError(
+  env: { siteUrl: string },
+  message: string,
+  errorCode?: string,
+): HandlerResult {
+  const params = new URLSearchParams({ m365_error: message });
+  if (errorCode) params.set('m365_error_code', errorCode);
   return {
     status: 302,
-    headers: { Location: `${env.siteUrl}/admin/integrations?m365_error=${encodeURIComponent(message)}` },
+    headers: { Location: `${env.siteUrl}/integrations?${params.toString()}` },
   };
 }
 
-function redirectToFeSuccess(env: { siteUrl: string }): HandlerResult {
+export function redirectToFeSuccess(env: { siteUrl: string }): HandlerResult {
   return {
     status: 302,
-    headers: { Location: `${env.siteUrl}/admin/integrations?m365_connected=true` },
+    headers: { Location: `${env.siteUrl}/integrations?m365_connected=true` },
+  };
+}
+
+export function redirectToFeOrgApprovalSuccess(env: { siteUrl: string }): HandlerResult {
+  return {
+    status: 302,
+    headers: { Location: `${env.siteUrl}/integrations?m365_org_approved=true` },
   };
 }

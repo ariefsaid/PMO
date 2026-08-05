@@ -11,7 +11,7 @@ const REVOKE_ENDPOINT = 'https://login.microsoftonline.com';
 
 /**
  * AC-M365-120: explicit disconnect. Flow:
- *   1. authorize (Admin + entitled) → orgId.
+ *   1. authorize (active member + entitled) → orgId.
  *   2. load the caller's connection; NOT_CONNECTED if none.
  *   3. best-effort POST the refresh token to Microsoft's revoke endpoint (failures ignored — the
  *      local delete is the source of truth; Microsoft revocation is eventual regardless).

@@ -13,7 +13,7 @@ const TOKEN_URL = 'https://login.microsoftonline.com/test-tenant-id/oauth2/v2.0/
 
 function callerClient() {
   return mockClient({
-    profiles: [{ data: { org_id: 'org-1', role: 'Admin' }, error: null }],
+    profiles: [{ data: { org_id: 'org-1', role: 'Admin', status: 'active' }, error: null }],
     org_features: [{ data: { enabled: true }, error: null }],
   });
 }
@@ -200,6 +200,10 @@ describe('AC-M365-110/111/112/113/114 — handleGraphProxy', () => {
     expect(scopeCoversPath(['Files.Read'], 'GET', '/me/driveEvil')).toBe(false);
     // The exact root ('/me/drive') is still allowed.
     expect(scopeCoversPath(['Files.Read'], 'GET', '/me/drive')).toBe(true);
+    // The scope helper itself normalizes against the pinned Graph URL; it must not reason about
+    // the raw prefix for encoded traversal/separators.
+    expect(scopeCoversPath(['Files.Read'], 'GET', '/me/drive/%2e%2e/%2e%2e/shares/secret')).toBe(false);
+    expect(scopeCoversPath(['Files.Read'], 'GET', '/me/drive/%2Fshares/secret')).toBe(false);
   });
 
   it('AC-M365-114 (LOW-5): a Files.Read-only connection POSTing to OneDrive is rejected SCOPE_INSUFFICIENT (no Graph call)', async () => {
@@ -277,7 +281,7 @@ describe('AC-M365-110/111/112/113/114 — handleGraphProxy', () => {
     expect(r2).toMatchObject({ status: 410, body: { error: 'CONNECTION_REVOKED' } });
   });
 
-  it('AC-M365-110: no connection → NOT_CONNECTED', async () => {
+  it('AC-M365SEP-002 / AC-M365-110: an active entitled member with no connection receives NOT_CONNECTED', async () => {
     const service = mockClient({ ms_graph_connections: [{ data: null, error: { code: 'PGRST116' } }] });
     const r = await handleGraphProxy(graphReq('/me/drive/root'), deps({ service, caller: callerClient(), userId: 'user-1' }));
     expect(r).toMatchObject({ status: 404, body: { error: 'NOT_CONNECTED' } });
@@ -296,6 +300,9 @@ describe('AC-M365-110/111/112/113/114 — handleGraphProxy', () => {
     ['/drives/../..//evil.example/x', 'double-slash after traversal'],
     ['/me/drive/root?x=1', 'query smuggled into the path'],
     ['/me/drive/root#frag', 'fragment smuggled into the path'],
+    ['/me/drive/%2e%2e/%2e%2e/shares/secret', 'encoded dot-segments escape the scoped family'],
+    ['/me/drive/%2f%2fshares/secret', 'encoded separators are rejected'],
+    ['/me/drive/%2E%2e/%2Fshares/secret', 'mixed-case encoded traversal is rejected'],
     ['me/drive/root', 'not absolute'],
   ])('AC-M365-114 (MED-B1): %s is rejected with NO Graph call (%s)', async (path) => {
     const conn = await connection({ scopes: ['Files.Read', 'offline_access'] });
@@ -309,5 +316,61 @@ describe('AC-M365-110/111/112/113/114 — handleGraphProxy', () => {
 
     expect(result).toMatchObject({ status: 400, body: { error: 'BAD_REQUEST' } });
     expect(graphFetch).not.toHaveBeenCalled();
+  });
+
+  it('AC-M365-114 (MED-B1): an unsupported runtime method is rejected before scope evaluation or Graph', async () => {
+    const conn = await connection({ scopes: ['Files.Read', 'offline_access'] });
+    const service = mockClient({ ms_graph_connections: [{ data: conn, error: null }] });
+    const graphFetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) });
+
+    const result = await handleGraphProxy(
+      { action: 'graph_proxy', method: 'TRACE' as never, path: '/me/drive/root' },
+      deps({ service, caller: callerClient(), userId: 'user-1', fetch: graphFetch }),
+    );
+
+    expect(result).toMatchObject({ status: 400, body: { error: 'BAD_REQUEST' } });
+    expect(graphFetch).not.toHaveBeenCalled();
+  });
+});
+
+describe('AC-M365SEP-009 — graph_proxy applies caller filters to the connection lookup (query shape)', () => {
+  // NFR-M365SEP-004: every action resolves the connection by the caller's OWN user_id from the
+  // verified JWT — no caller acts through another user's connection. proxy.ts:69 already filters
+  // `.eq('org_id', orgId).eq('user_id', userId)`. This test intentionally asserts query shape only;
+  // the mock is not filter-aware, so it does not claim to prove row selection among competing rows.
+  it("AC-M365SEP-009: the graph_proxy connection lookup is scoped to the caller's org and user_id", async () => {
+    const callerConn = await connection({
+      id: 'conn-caller',
+      user_id: 'user-1',
+      access_token_ciphertext: await encryptForTest('CALLER-TOKEN'),
+    });
+
+    const service = mockClient({ ms_graph_connections: [{ data: callerConn, error: null }] });
+    const graphFetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ value: ['doc'] }) });
+
+    const result = await handleGraphProxy(
+      graphReq('/me/drive/root/children'),
+      deps({ service, caller: callerClient(), userId: 'user-1', fetch: graphFetch }),
+    );
+
+    expect(result.status).toBe(200);
+
+    // 1. LOAD-BEARING: the connection lookup was scoped to BOTH org_id AND the caller's user_id.
+    //    Drop `.eq('user_id', userId)` from proxy.ts and this fails — exactly the widening refactor
+    //    this test exists to catch. The lookup is NEVER scoped to the other user.
+    const connSelect = service.selects.find((s) => s.table === 'ms_graph_connections');
+    expect(connSelect, 'graph_proxy must SELECT ms_graph_connections').toBeTruthy();
+    expect(connSelect!.eqs).toEqual(
+      expect.arrayContaining([
+        ['org_id', 'org-1'],
+        ['user_id', 'user-1'],
+      ]),
+    );
+    expect(connSelect!.eqs).not.toEqual(expect.arrayContaining([['user_id', 'user-2']]));
+
+    // 2. Graph was called with the caller's decrypted token.
+    const authHeader = (graphFetch.mock.calls[0]![1] as { headers: Record<string, string> }).headers
+      .Authorization;
+    expect(authHeader).toBe('Bearer CALLER-TOKEN');
   });
 });

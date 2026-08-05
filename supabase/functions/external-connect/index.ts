@@ -3,12 +3,12 @@
  *
  * Admin self-serve org-level connect for ClickUp / ERPNext.
  * Runs under the CALLER JWT (verified locally via verifyCallerJwt, ADR-0057),
- * then re-enforces Admin/Operator gate BEFORE any Vault write or binding insert.
+ * then re-enforces the Admin/Operator activation gate BEFORE any Vault write or binding insert.
  *
  * Flow:
  * 1. Verify caller JWT locally (ES256, JWKS) → get `sub` (user id)
  * 2. Load profile (role, org_id) via service-role client
- * 3. Role gate: Admin of the org OR platform Operator (direct platform_operators check)
+ * 3. Activation gate: Admin of the org OR platform Operator
  * 4. Validate credential against external system (injected fetch for testability)
  *    - ClickUp: GET /api/v2/user with Bearer token
  *    - ERPNext: GET /api/resource/User/<apiKey> with token apiKey:apiSecret
@@ -36,6 +36,7 @@ import { AppError } from '../../../pmo-portal/src/lib/appError.ts';
 import { externalConnectEnabled } from '../_shared/externalConnectEnabled.ts';
 import { resolvePerOrgSecret } from '../_shared/perOrgSecret.ts';
 import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
+import { isAdminOrOperator, type AdminOrOperatorClient } from '../_shared/adminOrOperator.ts';
 
 interface ConnectBody {
   tier: 'clickup' | 'erpnext';
@@ -294,17 +295,13 @@ export async function handleConnectRequest(req: Request): Promise<Response> {
     return errorResponse('Profile not found', 'FORBIDDEN', 403);
   }
 
-  // 4. Role gate: Admin of this org OR platform Operator
-  //    REPLACED: is_operator() RPC call (uses auth.uid() which is null under service_role)
-  //    WITH: direct platform_operators table check on the verified userId
-  const { data: isOperator } = await serviceClient
-    .from('platform_operators')
-    .select('user_id')
-    .eq('user_id', userId)
-    .maybeSingle();
-
-  const isAdmin = profile.role === 'Admin';
-  if (!isAdmin && !isOperator) {
+  // 4. Activation gate: Admin of this org OR platform Operator. The shared predicate is only
+  // this activation decision; it is not the M365 member data-access gate.
+  if (!(await isAdminOrOperator({
+    profile,
+    operatorClient: serviceClient as unknown as AdminOrOperatorClient,
+    userId,
+  }))) {
     return errorResponse('Admin or Operator role required', 'FORBIDDEN', 403);
   }
 

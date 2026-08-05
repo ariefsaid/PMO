@@ -14,7 +14,7 @@ const ACCESS_TOKEN_REFRESH_BUFFER_MS = 30_000; // refresh if the access token ex
 
 /**
  * AC-M365-110/111/112/113/114. Flow:
- *   1. authorize (Admin + entitled) → orgId.
+ *   1. authorize (active member + entitled) → orgId.
  *   2. load the caller's connection; reject NOT_CONNECTED / CONNECTION_STALE / CONNECTION_REVOKED.
  *   3. enforce scope↔path (AC-M365-114): a Files.Read-only connection may only hit OneDrive paths;
  *      write methods need a Files.ReadWrite* scope. Hoisted before decrypt/refresh (quality #2).
@@ -35,6 +35,15 @@ export async function handleGraphProxy(
 
   if (!req.path || !req.method) {
     return { status: 400, body: { error: 'BAD_REQUEST', message: 'method and path required' }, headers };
+  }
+  const method = normalizeGraphMethod(req.method);
+  const normalizedPath = normalizeGraphRequestPath(req.path);
+  if (!method || !normalizedPath) {
+    return {
+      status: 400,
+      body: { error: 'BAD_REQUEST', message: 'method and path must be valid Graph requests' },
+      headers,
+    };
   }
 
   // PATH TRAVERSAL (live security audit 2026-07-24, MED-B1). `scopeCoversPath` matched the RAW
@@ -83,7 +92,7 @@ export async function handleGraphProxy(
 
   // Scope↔path enforcement (AC-M365-114). Hoisted BEFORE decrypt/refresh (quality #2) so a
   // scope-insufficient request needlessly decrypts nothing and burns no Microsoft refresh round-trip.
-  if (!scopeCoversPath(connection.scopes, req.method, req.path)) {
+  if (!scopeCoversPath(connection.scopes, method, normalizedPath)) {
     return {
       status: 403,
       body: { error: 'SCOPE_INSUFFICIENT', message: 'requested Graph path requires additional consent' },
@@ -114,7 +123,7 @@ export async function handleGraphProxy(
   }
 
   // Call Graph. The decrypted Bearer is used here and never logged/echoed (AC-M365-140).
-  const graphUrl = new URL(`${GRAPH_BASE}${req.path}`);
+  const graphUrl = new URL(`${GRAPH_BASE}${normalizedPath}`);
   // Authoritative check: assert on the NORMALIZED result, not the raw string. Even if a future
   // edit weakens the input filter above, a request can never leave the pinned origin or the
   // `/v1.0` prefix the scope gate reasoned about.
@@ -130,7 +139,7 @@ export async function handleGraphProxy(
   }
   const fetchImpl = deps.fetch ?? fetch;
   const graphRes = await fetchImpl(graphUrl.toString(), {
-    method: req.method,
+    method,
     headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
     body: req.body !== undefined ? JSON.stringify(req.body) : undefined,
   });
@@ -176,7 +185,39 @@ async function loadFreshAccessToken(connection: ConnectionRow, deps: HandlerDeps
   return decryptToken(envelope.ciphertext, envelope.iv, kek);
 }
 
+const GRAPH_METHODS = new Set(['GET', 'POST', 'PATCH', 'PUT', 'DELETE']);
 const WRITE_METHODS = new Set(['POST', 'PATCH', 'PUT', 'DELETE']);
+const ENCODED_UNSAFE_PATH = /%2e|%2f|%5c/i;
+
+function normalizeGraphMethod(method: unknown): GraphProxyRequest['method'] | null {
+  if (typeof method !== 'string') return null;
+  const upper = method.toUpperCase();
+  return GRAPH_METHODS.has(upper) ? upper as GraphProxyRequest['method'] : null;
+}
+
+/**
+ * Resolve the request against the pinned Graph origin before scope evaluation. Percent-encoded dot
+ * segments and separators are rejected rather than decoded: accepting either would make the raw
+ * scope prefix disagree with the URL that receives the Bearer token.
+ */
+function normalizeGraphRequestPath(path: unknown): string | null {
+  if (typeof path !== 'string' || !path.startsWith('/') || /(?:\.\.|\/\/|\?|#|\\)/.test(path)) return null;
+  if (ENCODED_UNSAFE_PATH.test(path)) return null;
+  return normalizePathForScope(path);
+}
+
+function normalizePathForScope(path: string): string | null {
+  if (ENCODED_UNSAFE_PATH.test(path)) return null;
+  try {
+    const graphUrl = new URL(`${GRAPH_BASE}${path}`);
+    if (graphUrl.origin !== 'https://graph.microsoft.com' || !graphUrl.pathname.startsWith('/v1.0/')) return null;
+    const normalized = graphUrl.pathname.slice('/v1.0'.length);
+    if (/(?:\.\.|\/\/|\?|#|\\)/.test(normalized) || ENCODED_UNSAFE_PATH.test(normalized)) return null;
+    return normalized;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * OneDrive path family match. Uses trailing-slash prefixes (LOW-5) so a lookalike like
@@ -197,8 +238,11 @@ function isOneDrivePath(path: string): boolean {
  * code). Conservative by design.
  */
 export function scopeCoversPath(scopes: string[], method: string, path: string): boolean {
-  if (!isOneDrivePath(path)) return false;
-  if (WRITE_METHODS.has(method.toUpperCase())) {
+  const normalizedPath = normalizePathForScope(path);
+  if (!normalizedPath || !isOneDrivePath(normalizedPath)) return false;
+  const normalizedMethod = normalizeGraphMethod(method);
+  if (!normalizedMethod) return false;
+  if (WRITE_METHODS.has(normalizedMethod)) {
     return scopes.some((s) => s === 'Files.ReadWrite' || s === 'Files.ReadWrite.All');
   }
   return scopes.some(
