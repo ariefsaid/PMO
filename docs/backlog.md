@@ -6,9 +6,17 @@
 
 ### ⚑⚑⚑ CURRENT FOCUS — v0.9.0 IN PRODUCTION (2026-07-31); M365 connection-model rebuild active on `dev`
 
-**`production` = `cd368302` = tag `v0.9.0` (promoted 2026-07-31). `main` = `3892b05c` = v0.9.0 +
-`0185` (#425). `dev` is 2 ahead of `main`: #427 (contract-value witness seed fixtures) and #428
-(M365 three-step connection model, 2026-08-05) — verified via `git log origin/main..origin/dev`.**
+**`production` = `cd368302` = tag `v0.9.0` (promoted 2026-07-31). `main` = promoted 2026-08-06
+(#431: #427 witness fixtures, #428 M365 three-step model, #430 dep bumps, backlog refresh). `dev`
+ahead of `main` with the 2026-08-06 round: public-repo hygiene docs, #434 (Matt-skills port +
+overlay convention), #435 (SSSF stamp) — verify with `git log origin/main..origin/dev`, never
+this paragraph.**
+
+**Dev-tooling (2026-08-06): SSSF stamped (#435).** `adws/` ADW scripts orchestrate bounded pi
+phases (zai GLM + codex-OAuth roster per `docs/pi-delegation.md`; openrouter/fireworks swapped
+out); demos green. **Trial pending: one small loop-shaped issue through an ADW end-to-end, then
+owner decides SOP / iterate / drop.** Operating skill: `/sssf` (vendored). Follow-up candidate:
+wire `claude -p` as an opt-in `coding_agent` (upstream stubs it until v2) — Director work, on hold.
 
 **What v0.9.0 carried to prod** (beyond v0.8.0): the three 07-29 promoted programs — observability +
 analytics (#394, #398–#408; ADRs 0066/0067), skipped-workflow remediation (#409), create-path SoD
