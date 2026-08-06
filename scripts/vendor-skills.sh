@@ -30,15 +30,30 @@ echo "==> harden spec-miner: read-only + Write (drop Bash)"
 sed -i.bak 's/^allowed-tools:.*/allowed-tools: Read, Grep, Glob, Write/' "$DEST/spec-miner/SKILL.md"
 rm -f "$DEST/spec-miner/SKILL.md.bak"
 
-echo "==> mattpocock/skills (grill-with-docs only — stress-test a plan against the project's domain docs)"
+echo "==> mattpocock/skills — full engineering + productivity sets"
+# Vetted 2026-07-31 (MOS) and RE-VETTED 2026-08-06 at HEAD — RE-VET ON EVERY RE-VENDOR: eng+prod
+# skills are prompt-only .md + a harmless per-skill codex `agents/openai.yaml`; executables as of
+# 2026-08-06 are diagnosing-bugs/scripts/hitl-loop.template.sh and wizard/template.sh (both benign
+# interactive human-in-the-loop templates — no net/eval/telemetry; wizard writes .env/gh secrets
+# only when a HUMAN runs a generated wizard). New since the first vet: wizard, wait-what,
+# to-questionnaire, writing-for-agents (renamed from writing-great-skills).
+# We vendor ONLY engineering/ + productivity/ (skip deprecated/in-progress/personal/misc).
 git clone --depth 1 --filter=blob:none --sparse https://github.com/mattpocock/skills.git "$TMP/mp"
-git -C "$TMP/mp" sparse-checkout set skills/engineering/grill-with-docs
-rm -rf "${DEST:?}/grill-with-docs"
-cp -R "$TMP/mp/skills/engineering/grill-with-docs" "$DEST/grill-with-docs"
-# caveat: retarget the glossary output. ADRs already land in docs/adr/ (matches this repo);
-# the root CONTEXT.md glossary -> docs/glossary.md (do NOT use docs/decisions.md — that's locked OD-* decisions, not a glossary).
-sed -i.bak 's#CONTEXT\.md#docs/glossary.md#g' "$DEST/grill-with-docs/SKILL.md"
-rm -f "$DEST/grill-with-docs/SKILL.md.bak"
+git -C "$TMP/mp" sparse-checkout set skills/engineering skills/productivity
+for cat in engineering productivity; do
+  for d in "$TMP/mp/skills/$cat"/*/; do            # */ matches dirs only → category README.md skipped
+    s="$(basename "$d")"
+    rm -rf "${DEST:?}/$s"
+    cp -R "$d" "$DEST/$s"
+  done
+done
+# caveat (kept from the grill-with-docs-only era): retarget the glossary output. ADRs already land in
+# docs/adr/ (matches this repo); the root CONTEXT.md glossary -> docs/glossary.md (do NOT use
+# docs/decisions.md — that's locked OD-* decisions, not a glossary). Upstream refactored: the
+# glossary logic now lives in domain-modeling (grill-with-docs merely composes /grilling +
+# /domain-modeling), so the sed targets domain-modeling; docs/agents/domain.md states the mapping.
+sed -i.bak 's#CONTEXT\.md#docs/glossary.md#g' "$DEST/domain-modeling/SKILL.md"
+rm -f "$DEST/domain-modeling/SKILL.md.bak"
 
 # --- UI/UX design skills (vetted SAFE-with-caveats; see docs/design-workflow.md) ---
 echo "==> impeccable (pbakaus/impeccable) — design/critique/extract; phone-home DISABLED"
@@ -97,8 +112,31 @@ else
   echo "    !! skill-creator plugin not found. Install: claude plugin install skill-creator@claude-plugins-official --scope project"
 fi
 
+# --- Project overrides (OVERLAY, not replace) — ported from the MOS convention 2026-08-06 ---
+# Our upgraded files (git-tracked in THIS repo under .claude/skill-overrides/) are OVERLAID on top of
+# the pristine vendored skill — our SKILL.md wins while upstream SIBLINGS (tests.md, agents/…) are
+# KEPT. Before overlaying, snapshot the pristine upstream to .claude/skill-original/<name>/
+# (gitignored) so `diff .claude/skill-original/<s>/SKILL.md .claude/skill-overrides/<s>/SKILL.md`
+# shows exactly our delta, and a re-vendor reveals upstream drift. Edit skills ONLY in
+# skill-overrides/ — edits in .claude/skills/ are destroyed by the next run (docs/agents/skills.md).
+OVERRIDES="$ROOT/.claude/skill-overrides"
+ORIGINAL="$ROOT/.claude/skill-original"
+if [ -d "$OVERRIDES" ]; then
+  for d in "$OVERRIDES"/*/; do
+    [ -d "$d" ] || continue
+    s="$(basename "$d")"
+    if [ -d "$DEST/$s" ]; then
+      mkdir -p "$ORIGINAL"; rm -rf "${ORIGINAL:?}/$s"; cp -R "$DEST/$s" "$ORIGINAL/$s"   # snapshot pristine
+    fi
+    echo "==> override (overlay): $s — our files win, upstream siblings kept"
+    mkdir -p "$DEST/$s"
+    cp -R "$d". "$DEST/$s/"                                                              # overlay contents
+  done
+fi
+
 echo
-echo "Vendored: careful freeze guard cso design-review design-consultation feature-forge spec-miner grill-with-docs agent-browser skill-creator impeccable taste ui-ux-pro-max design-system ui-styling"
+echo "Vendored: careful freeze guard cso design-review design-consultation feature-forge spec-miner agent-browser skill-creator impeccable taste ui-ux-pro-max design-system ui-styling + mattpocock full eng+prod set"
+echo "Project overrides applied from .claude/skill-overrides/ ($(ls "$OVERRIDES" 2>/dev/null | tr '\n' ' '))"
 echo "==> mirror generated skill surfaces (.agents/skills, and .pi/skills if project .pi exists)"
 node "$ROOT/scripts/sync-agent-surfaces.mjs" --write --skills-only
 echo "superpowers (plugin) — install once with:"

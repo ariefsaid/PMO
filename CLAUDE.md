@@ -34,7 +34,7 @@ B2B multi-tenancy without a rewrite.
 - `docs/specs/` `docs/plans/` `docs/adr/` — specs, implementation plans, architecture decisions.
 - `pmo-portal/e2e/` — Playwright acceptance tests (the BDD layer).
 - `supabase/migrations/` — Postgres schema + RLS policies.
-- `.claude/agents/`, `.claude/skills/` — the role agents and vendored spec skills (skills gitignored, via `scripts/vendor-skills.sh`).
+- `.claude/agents/`, `.claude/skills/` — the role agents and vendored skills (skills gitignored, via `scripts/vendor-skills.sh`). **Edit skills ONLY in `.claude/skill-overrides/<name>/` (tracked)** — the vendor script overlays them; edits in `.claude/skills/` are destroyed on re-vendor. Config the skills read: `docs/agents/{issue-tracker,triage-labels,domain,skills}.md`.
 
 ## Operating model: Owner → Director → role agents
 The **owner** talks to the **Director** (Opus 4.8, the main session). The Director runs an
@@ -177,6 +177,10 @@ ui-implementer (sonnet; opus for hard slices) · design-reviewer (opus).
 | UI build (to tokens + design-plan) | ui-implementer (ui-ux-pro-max, taste) |
 | Visual design review (render + screenshot audit) | design-reviewer (design-review, impeccable, taste) |
 | Browser QA · security · ship/deploy/monitor | gstack (`/qa`, `/cso`, `/ship`, `/land-and-deploy`, `/canary`) |
+| Multi-session fuzzy efforts → decision-ticket map | wayfinder (mattpocock set; maps live on GitHub issues, `docs/agents/issue-tracker.md`) |
+| Skill routing ("which skill fits?") | ask-matt (override — main flow = the per-issue loop) |
+| Conversation→spec synthesis (no interview) | to-spec (override; feature-forge keeps the interview workshop) |
+| Ticket decomposition · inbound triage · cross-session handoff · throwaway spikes | to-tickets · triage (`docs/agents/triage-labels.md`) · handoff · prototype (mattpocock set) |
 
 superpowers' planning tier owns planning; do NOT also use gstack's planning tier. spec-miner's
 `Bash` tool was stripped (read-only). gstack telemetry stays `off`.
