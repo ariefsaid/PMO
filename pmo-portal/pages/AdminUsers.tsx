@@ -267,7 +267,14 @@ const AdminUsers: React.FC = () => {
 
   const rowMenu = (u: UserRow): RowMenuItem[] => {
     const items: RowMenuItem[] = [];
-    if (canManage) {
+    // 0179 (profiles_hierarchy_write): the write RLS denies an Admin editing their OWN
+    // role or manager_id. Gate the two self-edit affordances off on the caller's own row
+    // (UX-only per ADR-0016 — `can()` may be stricter than RLS; RLS stays the authority) so
+    // the action surfaces as an omitted control, not a 42501 toast. Disable/Re-enable are
+    // governed by a separate RPC lockout guard and stay available on the own-row. The page
+    // convention for an unavailable action is to omit it (RowMenuItem has no disabled field).
+    const isSelf = !!currentUser?.id && currentUser.id === u.id;
+    if (canManage && !isSelf) {
       items.push(
         { label: 'Edit role', onClick: () => setEditTarget({ mode: 'role', user: u }) },
         { label: 'Change manager', onClick: () => setEditTarget({ mode: 'manager', user: u }) },
