@@ -358,10 +358,10 @@ token lifetime is a separate auth-side decision.
 
 **⛔ FE follow-up owed (found, not fixed — out of this slice's scope):**
 
-1. **`pages/AdminUsers.tsx` self-edit controls still render active.** Post-`0179` an Admin who changes
-   their own role or manager there gets a 42501 toast instead of a disabled control. RLS is the
-   authority and it is correct; the UX is now wrong. Fix = hide/disable those two controls on the
-   caller's own row (`can()` is UX-only, ADR-0016). Owner ruled 2026-07-30: a SEPARATE LATER ISSUE.
+1. ~~**`pages/AdminUsers.tsx` self-edit controls still render active.**~~ **✅ FIXED 2026-08-06 — the
+   SSSF trial issue.** The own-row 'Edit role'/'Change manager' menu items are omitted (`isSelf`
+   guard in `rowMenu`; UX-only per ADR-0016, RLS stays the authority; Disable/Re-enable unaffected).
+   Owned test: `pages/__tests__/AdminUsers.selfedit.test.tsx` (mutation-checked + rendered-verified).
 
 2. **No FE surface for 0179's Executive widening at all.** `pmo-portal/src/auth/policy.ts:235` is still
    `user: { edit: allow(ADMIN) }`, so the DB rule (Executives may edit Finance/PM/Engineer) is live
@@ -1369,17 +1369,16 @@ GRANT migration (see the "Deferred follow-up" note above).
   session** (this container has `[edge_runtime] enabled=false` + no `deno.land`/API key). Not automatable here.
 - **`release-please` automation** [Low, ADR-0042 adoption]: GitHub Action on `main` to maintain
   `CHANGELOG.md` + compute the next `vX.Y.Z` from Conventional Commits, so the version is never hand-argued.
-- **`VITE_APP_VERSION` in-app surfacing** [Low, ADR-0042 adoption]: inline the version at build, show it
-  next to `<EnvBadge>` (`vX.Y.Z · <sha>`) so a running instance reports exactly what it is.
+- ~~**`VITE_APP_VERSION` in-app surfacing**~~ — **DONE** (verified 2026-08-06: `__APP_VERSION__` via
+  `vite.config.ts`, `AppVersion.tsx` renders `vX.Y.Z · <sha>`; stale-ledger sweep).
 
 ### Deferred-debt ledger from the 2026-06-14 `dev` burst (fold in before promote where noted)
 - **Procurement attachments — 2 LOW pgTAP regression assertions** [Low, security-acked on #94]: add (a) an explicit
   `org_id=B` override-insert test (caller in org A supplies `org_id=B` → expect `42501` from WITH CHECK) and (b) an
   anon-read=0 assertion on the three `procurement_*_files` metadata tables. Code is provably safe (stamp-trigger guard
   mirrors 0015 + force-RLS); these only pin the regression. **Migration 0028 is unshipped to prod — fold in before promote.**
-- **Projects xlsx Export opt-in** [Low]: the Export button was wired to Companies/Incidents/Procurement/SalesPipeline but
-  **deliberately skipped on `pages/Projects.tsx`** (collision-avoidance with the Calendar/Kanban view-mode stream). Add the
-  one-line `<ExportButton entity=…>` to the Projects toolbar now that those merged.
+- ~~**Projects xlsx Export opt-in**~~ — **DONE** (verified 2026-08-06: `pages/Projects.tsx:560` renders
+  `<ExportButton entity="Projects">`; stale-ledger sweep).
 - ~~**B-MIN-1 noun consistency**~~ — **RESOLVED by CW-1** (one noun "Project" + one create-verb, coherence wave).
 - **Detail-page metric-tile strip clips a tile @390** [Low, pre-existing]: project/procurement detail metric tiles render
   as a horizontal-scroll strip with the right-edge tile cut (no page overflow, no content loss). Pre-existing; surfaced by
@@ -1392,9 +1391,10 @@ GRANT migration (see the "Deferred follow-up" note above).
 - **Kanban status-dot color reuse** [Minor]: Won + Close Out share the green status dot (disambiguated by label) — assign
   distinct DESIGN.md status tokens.
 - **Coherence wave minor follow-up** [Low]: two residuals to land in a follow-up PR — sticky action zone + procurement
-  header Edit button; "No deals in <stage>" → "No projects" copy leak.
-- **Pre-existing TZ flake** [Low, known]: `src/lib/db/procurementLifecycle.test.ts` AC-803 fails under a behind-UTC TZ
-  (e.g. UTC-8 local); passes in CI/UTC. Fix: use UTC-fixed date construction in the test.
+  header Edit button. *(The "No deals in <stage>" copy leak is DONE — `coherence-cw-cleanup.test.tsx` pins it;
+  verified 2026-08-06.)*
+- ~~**Pre-existing TZ flake**~~ — **DONE** (verified 2026-08-06: AC-803 uses `Date.UTC` construction;
+  stale-ledger sweep).
 
 ### ⚑ TEST + BRANCH INFRA UNDER PARALLEL AGENTS (2026-07-22, Director — evidence from the M365 session)
 **Why this is its own track:** the repo went from a handful of worktrees to **~15 concurrent agent worktrees**
