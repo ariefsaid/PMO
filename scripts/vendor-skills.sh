@@ -55,6 +55,17 @@ done
 sed -i.bak 's#CONTEXT\.md#docs/glossary.md#g' "$DEST/domain-modeling/SKILL.md"
 rm -f "$DEST/domain-modeling/SKILL.md.bak"
 
+echo "==> disler/super-simple-software-factory — the sssf orchestrator skill (ADW factory)"
+# Vetted 2026-08-06 — RE-VET ON EVERY RE-VENDOR: scripts/{install,make_adw,make_config}.py are
+# local file-stampers (no network); apps/visualizer is a bun/Vue app serving localhost only.
+# The factory itself is STAMPED into the repo (adws/, tracked) — this vendors the operating
+# skill (/sssf routing, cookbooks, the visualizer). PMO adaptations live in the stamped files,
+# not skill overrides: the roster (adws/adw_sssf_config/sssf.config.yaml) runs zai + openai-codex
+# per docs/pi-delegation.md §2 — openrouter/fireworks (upstream's defaults) are banned here.
+git clone --depth 1 https://github.com/disler/super-simple-software-factory.git "$TMP/sssf"
+rm -rf "${DEST:?}/sssf"
+cp -R "$TMP/sssf/.claude/skills/sssf" "$DEST/sssf"
+
 # --- UI/UX design skills (vetted SAFE-with-caveats; see docs/design-workflow.md) ---
 echo "==> impeccable (pbakaus/impeccable) — design/critique/extract; phone-home DISABLED"
 git clone --depth 1 https://github.com/pbakaus/impeccable.git "$TMP/impeccable"
@@ -135,7 +146,7 @@ if [ -d "$OVERRIDES" ]; then
 fi
 
 echo
-echo "Vendored: careful freeze guard cso design-review design-consultation feature-forge spec-miner agent-browser skill-creator impeccable taste ui-ux-pro-max design-system ui-styling + mattpocock full eng+prod set"
+echo "Vendored: careful freeze guard cso design-review design-consultation feature-forge spec-miner agent-browser skill-creator impeccable taste ui-ux-pro-max design-system ui-styling sssf + mattpocock full eng+prod set"
 echo "Project overrides applied from .claude/skill-overrides/ ($(ls "$OVERRIDES" 2>/dev/null | tr '\n' ' '))"
 echo "==> mirror generated skill surfaces (.agents/skills, and .pi/skills if project .pi exists)"
 node "$ROOT/scripts/sync-agent-surfaces.mjs" --write --skills-only
