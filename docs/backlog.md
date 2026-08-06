@@ -31,15 +31,14 @@ Microsoft 365 and client users make it (see the M365 section below). #428 landed
 model on `dev` — operator entitles → client admin approves → each user connects. Next: promote
 `dev`→`main` when the slice is review-complete; live deploy stays owner-gated.
 
-**⛔ OWNER DECISIONS STILL OPEN**
-1. **Goods-receipt self-attestation** — an Engineer who raised a PR can create their own `Complete`
-   goods receipt. **Not a bug: a ratified contract** (`AC-AUTHZ-007`, widened deliberately in `0015`).
-   Narrowing it is a product decision about whether receipt-of-goods needs a second pair of eyes.
-2. **`incoming_payments` INSERT/UPDATE** — blanket grant, client-writable `erp_*`, inert flip guard.
-   Judged *mirror-integrity*, not SoD (no transition RPC to bypass), so only its DELETE half was
-   closed. Close the rest as its own slice, or accept and file.
-3. **Analytics opt-out fails open** if `localStorage` is evicted (Safari ITP ~7d, "clear site data").
-   A first-party cookie mirror would fix it — a product decision about how durable a consent promise is.
+**⛔ OWNER DECISIONS STILL OPEN** *(per the public-repo rule in CLAUDE.md, open items are neutral
+stubs here; full detail is held privately by the Director and restored to this doc when each ships)*
+1. **Procurement receipt workflow width** — product decision on whether receipt recording needs a
+   second attestation step. A deliberate, test-pinned contract today, not a defect.
+2. **`incoming_payments` mirror-integrity slice** — a follow-up hardening slice with its own caller
+   survey, or accept-and-file. Deliberately excluded from the SoD class (different class).
+3. **Analytics opt-out durability** — product decision on how durable the consent promise must be
+   across browser-storage eviction.
 4. **Agent harness research** (vendor vs build, section below) — owner-requested 2026-07-28, not started.
 
 **⚑ Two operational traps found during the promote, both still live:**
@@ -184,8 +183,8 @@ BEHIND `dev`, content identical).
 - ~~**PostHog consent-gate**~~ ✅ **CLOSED #398** — disclose + in-app opt-out + `respect_dnt`, no banner
   (OD-OBS-2). ⚑ Two non-obvious defects were found and fixed: logging out wiped PostHog's consent key
   and silently resumed capture, and DNT users still hit the remote-config endpoint because only
-  `capture` was gated, not `init`. ⚑ **Open owner question:** the opt-out **fails open** if
-  `localStorage` is evicted (Safari ITP ~7d) — a first-party cookie mirror would fix it.
+  `capture` was gated, not `init`. ⚑ **Open owner question** on opt-out durability across
+  storage eviction — see OWNER DECISIONS at the head (detail held privately).
 - ~~**Two analytics tiles can never render data**~~ ✅ **CLOSED #399** — `save_failed` now fires from
   `classifyMutationError` (~161 call sites, the single point where "the user was shown an error" is
   knowable) rather than the inert `useEntityForm` path; `permission_denied_seen` and its tile removed.
@@ -418,22 +417,13 @@ inside its own transaction, the same device that file already uses for INSERT, s
 
 **⚑ STILL OPEN, deliberately, and NOT closed by slice 5:**
 
-1. **Goods-receipt self-attestation (MEDIUM, a ratified contract).** `create_procurement_receipt` is
-   role-gated to Admin OR PM OR **the requester**, so the Engineer who raised the request records their
-   own `Complete` delivery — an input to the 3-way match. NOT this class (`Partial`/`Complete` are both
-   origination values) and the carve-out is asserted **on purpose** by
-   `supabase/tests/0055_authz_hardening.test.sql` **AC-AUTHZ-007**. Narrowing it is a product decision.
-   Pinned by `0169` **AC-RES-053**.
-2. **`incoming_payments` INSERT/UPDATE — mirror integrity, not SoD (MEDIUM).** Slice 4 judged this a
-   different class and **slice 5 re-judged it and agrees**: `incoming_payments` has no transition RPC,
-   so there is no SoD rule to bypass — a client-inserted `Paid` receipt is a *false mirror row*, not a
-   defeated approval. Slice 5 closed only its **destructive-delete** half (which IS this slice's
-   subject: erasing a Paid payment with no audit). The remaining blanket `insert`/`update` grant, the
-   `Scheduled|Paid` status set and the client-writable `erp_*` feed columns are `0123`'s flip-design
-   question and need their own slice — the fix is almost certainly the `sales_invoices` treatment from
-   `0176` §1 (narrow the INSERT re-grant to body columns, revoke UPDATE, add an origination guard and a
-   create audit), but that is a mirror-integrity slice with its own caller survey. **Not pinned by a
-   test.**
+1. **Procurement receipt workflow width (a ratified contract).** A deliberate, test-pinned
+   authorization contract whose narrowing is a product decision — see OWNER DECISIONS at the head.
+   Detail held privately per the public-repo rule in CLAUDE.md.
+2. **`incoming_payments` mirror-integrity slice.** Slice 4 judged this a different class and
+   **slice 5 re-judged it and agrees** — it is mirror integrity, not SoD. Slice 5 closed its
+   destructive-delete half (this slice's subject); the remainder needs its own slice with its own
+   caller survey. Detail held privately per the public-repo rule in CLAUDE.md.
 3. **The `is_active_member()` gap.** A different class, tracked separately; out of scope for slices 1–6.
    ⚑ It is **fifteen**, not seventeen — `0178` §5 already closed `transition_project` and
    `set_project_contract_value`. Re-derive from the live catalog, never from this number.

@@ -1,5 +1,26 @@
 # PMO Portal — project instructions
 
+> ## ⚠️ THIS REPO IS PUBLIC
+>
+> `github.com/ariefsaid/PMO` is **world-readable**. Every commit, issue, PR, and comment is
+> published permanently — indexed by search engines and scrapers; deleting later does not
+> un-publish (history, forks, caches survive).
+>
+> **Never write into any tracked file, issue, PR, or comment:**
+> - **Unpatched security weaknesses** — no "X has no auth check", no missing-control checklists.
+>   The window between writing and fixing is exactly when it is useful to an attacker. A weakness
+>   may be described publicly only **after** its fix has shipped.
+> - **PII** — names, personal emails, phones, account-shape enumeration hints.
+> - **Secrets or their coordinates** — keys, vault/item names, env-var names, internal hostnames,
+>   tenant IDs.
+>
+> **Where open-weakness detail goes instead:** a GitHub **private security advisory**
+> (`Security → Advisories`), or the Director's private memory
+> (`public-repo-hygiene-open-items` holds the current set). In-repo docs carry only a **neutral
+> stub** that names no path and no missing control; restore the detail to the docs when the fix
+> ships. Before filing anything touching security, auth, infra, or people:
+> `gh repo view --json visibility` and act on what it says.
+
 Production SaaS for **contract- & project-based organizations** (NOT industry-specific — the
 prototype's oil & gas framing is being generalized out). Built from an AI-Studio React/Vite
 prototype. Tenancy is **single-tenant with a forward-compatible `org_id` seam** so it can scale to
