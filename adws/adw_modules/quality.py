@@ -135,42 +135,49 @@ def _run(spec: QualityCheckSpec, run) -> QualityCheckResult:
 # ── Blocks ────────────────────────────────────────────────────────────────────
 # Replace every argv below. See the banner at the top of this file.
 
+# PMO wiring: app commands run from pmo-portal/ (CLAUDE.md). The vitest suite is heavy and the
+# machine is shared, so `test` goes through scripts/with-test-lock.sh — one full suite at a time;
+# the timeout covers waiting on the lock. These are the inner-loop gates; the full 8-gate
+# `npm run verify:locked` stays the Director's pre-PR concern, not a per-fix-loop cost.
+
 def test(run) -> QualityCheckResult:
     """Run the project's test suite. The highest-value block to wire up first."""
     return _run(QualityCheckSpec(
         name="test",
-        area="backend",
+        area="frontend",
         operation="build",
-        argv=_placeholder("test"),        # e.g. ["bun", "test"] or ["uv", "run", "pytest", "-q"]
-        timeout_seconds=600,
+        argv=["scripts/with-test-lock.sh", "bash", "-c", "cd pmo-portal && npm test"],
+        timeout_seconds=1200,
     ), run)
 
 
 def lint(run) -> QualityCheckResult:
     return _run(QualityCheckSpec(
         name="lint",
-        area="backend",
+        area="frontend",
         operation="lint",
-        argv=_placeholder("lint"),        # e.g. ["bun", "x", "oxlint@1.36.0", "src"]
+        argv=["bash", "-c", "cd pmo-portal && npm run lint:ci"],
+        timeout_seconds=300,
     ), run)
 
 
 def typecheck(run) -> QualityCheckResult:
     return _run(QualityCheckSpec(
         name="typecheck",
-        area="backend",
+        area="frontend",
         operation="typecheck",
-        argv=_placeholder("typecheck"),   # e.g. ["bun", "x", "tsc", "--noEmit"]
+        argv=["bash", "-c", "cd pmo-portal && npm run typecheck"],
+        timeout_seconds=300,
     ), run)
 
 
 def build(run) -> QualityCheckResult:
-    output_dir = _check_dir(run, "build") / "bundle"
     return _run(QualityCheckSpec(
         name="build",
-        area="backend",
+        area="frontend",
         operation="build",
-        argv=_placeholder("build"),       # e.g. ["bun", "build", "src/index.ts", "--outdir", str(output_dir)]
+        argv=["bash", "-c", "cd pmo-portal && npm run build"],
+        timeout_seconds=600,
     ), run)
 
 
