@@ -39,7 +39,8 @@ a signed brief; unsigned/ad-hoc issues keep the classic per-issue checkpoints.
 | Issue shape | Executor |
 |---|---|
 | Bounded code slice, testable by the suite | **SSSF ADW — default chain `adws/adw_simple_sdlc.py`** (plan → build → test-fix ×3 → cross-family review-revise ×2 → retest → commit → document). Run per `/sssf` + `docs/pi-delegation.md` substrate rules. |
-| UI/visual, money-path, RLS/RPC/security, or migration work | **Director-dispatched per-issue loop** (`pi-dispatch` per `docs/pi-delegation.md`) — the rendered taste lens, `review-money`, and DB-lock discipline can't ride the text-only ADW. |
+| Bounded FE/UI slice | **Same chain, FE roster:** `adw_simple_sdlc.py --builder fe_builder --reviewer fe_reviewer`. fe_builder builds to `ui-implementer.md` (DESIGN.md tokens, agent-browser rendered self-check); fe_reviewer audits rendered DOM/a11y to `design-reviewer.md`, saving screenshots to the run's `context_handoff/screenshots/`. **The Director's pixel/taste lens on those screenshots is still the exit gate** — text models judge the a11y tree, not pixels. |
+| Money-path, RLS/RPC/security, or migration work | **Director-dispatched per-issue loop** (`pi-dispatch` per `docs/pi-delegation.md`) — `review-money` (Luna-max, no fallback) and DB-lock discipline can't ride the ADW. |
 | Foggy / multi-issue / decision-shaped | `/wayfinder` first; what exits enters the loop as ordinary issues. |
 | Throwaway question | `/prototype`, bridged by `/handoff`. |
 
@@ -55,8 +56,10 @@ UI family's exact skill commands (`ui-ux-pro-max`, `taste`, `agent-browser`). De
 
 - **pi dispatches** — the Director appends the contract (`--append-system-prompt`, pi-delegation §3).
   A brief without its role contract is malformed.
-- **ADW agents** — each roster system prompt's first instruction is "read your role contract"
-  (planner→eng-planner, builder→implementer, reviewer→spec-reviewer).
+- **ADW agents** — the runner **appends each agent's contract to its system prompt mechanically**
+  (`contract:` in `sssf.config.yaml`, injected by `adw_modules/agents.py` — not an instruction the
+  model may skip). planner→eng-planner, builder→implementer, reviewer→spec-reviewer,
+  fe_builder→ui-implementer, fe_reviewer→design-reviewer.
 - **Claude Director sessions** — superpowers plugin + hooks (ponytail) + CLAUDE.md; the vendored
   overrides (`docs/agents/skills.md`) carry the same disciplines to substrates that can't load plugins.
 

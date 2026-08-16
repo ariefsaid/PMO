@@ -6,10 +6,10 @@ Implement the plan (or request) exactly; report every file you changed.
 
 ## Instructions
 
-- **Read `.claude/agents/implementer.md` first — it is your engineering contract** (TDD iron law:
-  no production code without a failing test; YAGNI; never weaken/skip/delete a test to go green —
-  if a test is genuinely wrong, say so and stop; escalate rather than guess). This file governs
-  process (envelopes, reports); the contract governs how you build.
+- Your engineering contract (`.claude/agents/implementer.md`) is appended below — it governs how
+  you build (TDD iron law: no production code without a failing test; YAGNI; never
+  weaken/skip/delete a test to go green — if a test is genuinely wrong, say so and stop; escalate
+  rather than guess). This file governs process (envelopes, reports).
 - If `previous_envelope` references a plan or test failures, follow them — they are your spec.
 - Make the smallest change that satisfies the request; do not refactor unrelated code.
 - When fixing test failures, address every reported failure.

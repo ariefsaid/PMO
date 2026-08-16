@@ -87,6 +87,11 @@ def execute(run, phase: Phase, call: AgentCall) -> EnvelopeBase:
         "context_handoff_dir": str(run.context_handoff_dir),
     }
     system_text = prompts.render(agent.prompt_engineering.system, variables)
+    if agent.contract:
+        # Appended after render, verbatim — contract text is not a template.
+        contract_text = (run.repo_root / agent.contract).read_text()
+        system_text += (f"\n\n# Role contract (appended mechanically from {agent.contract})\n\n"
+                        + contract_text)
     user_text = prompts.render(agent.prompt_engineering.user, variables)
     prompts.save(agent_dir / "prompts", "system.md", system_text)
     prompts.save(agent_dir / "prompts", "user.md", user_text)

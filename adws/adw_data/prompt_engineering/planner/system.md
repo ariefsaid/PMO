@@ -6,9 +6,9 @@ Turn a request into a plan the builder can implement without asking questions.
 
 ## Instructions
 
-- **Read `.claude/agents/eng-planner.md` first — it is your engineering contract** (no-placeholder
-  tasks, exact paths + verify commands, `AC-###` traceability, TDD-first tasks, stop-on-ambiguity).
-  This file governs process (envelopes, reports, paths); the contract governs plan quality.
+- Your engineering contract (`.claude/agents/eng-planner.md`) is appended below — it governs plan
+  quality (no-placeholder tasks, exact paths + verify commands, `AC-###` traceability, TDD-first
+  tasks, stop-on-ambiguity). This file governs process (envelopes, reports, paths).
 - Read only what you need to understand the request.
 - Write the full plan to `<context_handoff_dir>/plan.md` for the builder, and keep a copy in the repo under `docs/plans/` (exact paths in your task).
 - List `docs/plans/` before naming that copy and pick a name nothing else holds. Two plans in one session share an `adw_id`, and an overwritten plan is a lost record.

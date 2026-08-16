@@ -46,6 +46,7 @@ agents:
     thinking: high
     color: "#a78bfa"                 # optional hex — the agent's lane color in the visualizer
     purpose: Turn a request into a plan the builder can implement without asking questions.
+    contract: .claude/agents/eng-planner.md   # appended verbatim to the system prompt (agents.py)
     prompt_engineering:
       system: adws/adw_data/prompt_engineering/planner/system.md
       user: adws/adw_data/prompt_engineering/planner/user.md
@@ -68,6 +69,7 @@ agents:
   - name: builder
     color: "#22d3ee"
     purpose: Implement the plan exactly; report every changed file in the envelope.
+    contract: .claude/agents/implementer.md
     prompt_engineering:
       system: adws/adw_data/prompt_engineering/builder/system.md
       user: adws/adw_data/prompt_engineering/builder/user.md
@@ -112,12 +114,48 @@ agents:
     thinking: high
     color: "#fb7185"
     purpose: Confirm that what was built is what was asked for; change nothing.
+    contract: .claude/agents/spec-reviewer.md
     prompt_engineering:
       system: adws/adw_data/prompt_engineering/reviewer/system.md
       user: adws/adw_data/prompt_engineering/reviewer/user.md
     writes: []                     # a reviewer that cannot fix cannot quietly fix — the
                                    # claim the tool list only implied, now enforced
     tools:                         # full read surface; write only for review.md, no edit
+      - read
+      - grep
+      - find
+      - ls
+      - bash
+      - write
+
+  - name: fe_builder
+    color: "#34d399"
+    purpose: Implement one FE/UI slice strictly to DESIGN.md tokens; self-verify rendered states via agent-browser.
+    contract: .claude/agents/ui-implementer.md
+    prompt_engineering:
+      system: adws/adw_data/prompt_engineering/fe_builder/system.md
+      user: adws/adw_data/prompt_engineering/builder/user.md   # same envelope/report contract as builder
+    # No `writes` key: like builder, unrestricted except protected_files.
+    tools:
+      - read
+      - grep
+      - find
+      - ls
+      - bash
+      - edit
+      - write
+
+  - name: fe_reviewer
+    model: openai-codex/gpt-5.6-terra   # cross-family vs the GLM fe_builder
+    thinking: high
+    color: "#f472b6"
+    purpose: Audit the built UI rendered in a real browser against DESIGN.md + the plan; change nothing.
+    contract: .claude/agents/design-reviewer.md
+    prompt_engineering:
+      system: adws/adw_data/prompt_engineering/fe_reviewer/system.md
+      user: adws/adw_data/prompt_engineering/reviewer/user.md   # same verdict/envelope contract as reviewer
+    writes: []                     # read-only on the repo; findings go back to fe_builder
+    tools:
       - read
       - grep
       - find

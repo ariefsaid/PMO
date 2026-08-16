@@ -309,6 +309,10 @@ class AgentConfig(BaseModel):
     color: str = ""                 # hex swatch for this agent's lane in the UI
     purpose: str = ""
     prompt_engineering: PromptEngineering
+    # Repo-relative path to a role contract (.claude/agents/*.md) appended
+    # VERBATIM to the rendered system prompt — mechanical injection, so the
+    # discipline does not depend on the model obeying a "read this file" line.
+    contract: str = ""
     harness_engineering: list[str] = Field(default_factory=list)
     tools: Optional[list[str]] = None    # allowlist; None = all tools usable
     # What this agent may MODIFY in the repo, enforced in code after every call

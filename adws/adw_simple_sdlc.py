@@ -49,7 +49,6 @@ from adw_modules.data_types import (AgentCall, BuildOutput, ChangeCapture,
                                     DocumentOutput, PhaseParams, PlanOutput,
                                     ReviewOutput)
 
-REQUIRED_AGENTS = ["planner", "builder", "reviewer", "documenter"]
 MAX_FIX_LOOPS = 3
 MAX_REVISION_LOOPS = 2
 
@@ -58,9 +57,12 @@ DOCUMENT_NOTES = ("Read diff_path in full before writing. Document only what the
                   "describes.")
 
 
-def main(prompt: str, config: str = "adws/adw_sssf_config/sssf.config.yaml", adw_id: str | None = None) -> int:
+def main(prompt: str, config: str = "adws/adw_sssf_config/sssf.config.yaml", adw_id: str | None = None,
+         builder: str = "builder", reviewer: str = "reviewer") -> int:
+    # builder/reviewer are roster names — swap in fe_builder/fe_reviewer for a UI slice;
+    # the chain is otherwise identical.
     cfg = agents.load_config(config)
-    agents.validate(cfg, REQUIRED_AGENTS)
+    agents.validate(cfg, ["planner", builder, reviewer, "documenter"])
     run = session.ensure(cfg, adw_id)
     baseline = git_helper.rev("HEAD")     # pinned before this run commits anything
 
@@ -88,7 +90,7 @@ def main(prompt: str, config: str = "adws/adw_sssf_config/sssf.config.yaml", adw
                                description="Put the spec on record before any code exists to blur it")) as ph:
         commit(ph, plan)
 
-    with run.phase(PhaseParams(name="build", kind="agent", owner="builder",
+    with run.phase(PhaseParams(name="build", kind="agent", owner=builder,
                                description="Implement the plan exactly")) as ph:
         build = ph.call(AgentCall(output_type=BuildOutput, prompt=prompt, previous=plan,
                                   gates=[gates.diff_matches_claims]))
@@ -104,7 +106,7 @@ def main(prompt: str, config: str = "adws/adw_sssf_config/sssf.config.yaml", adw
         if test.passed:
             break
 
-        with run.phase(PhaseParams(name=f"fix_{i}", kind="agent", owner="builder", retries=1,
+        with run.phase(PhaseParams(name=f"fix_{i}", kind="agent", owner=builder, retries=1,
                                    description="Repair what the suite reported, from its "
                                                "verbatim output")) as ph:
             build = ph.call(AgentCall(output_type=BuildOutput, prompt=prompt,
@@ -114,7 +116,7 @@ def main(prompt: str, config: str = "adws/adw_sssf_config/sssf.config.yaml", adw
     review = None
     revised = False
     for i in range(1, MAX_REVISION_LOOPS + 1):
-        with run.phase(PhaseParams(name=f"review_{i}", kind="agent", owner="reviewer",
+        with run.phase(PhaseParams(name=f"review_{i}", kind="agent", owner=reviewer,
                                    description="Confirm the build matches the plan")) as ph:
             review = ph.call(AgentCall(output_type=ReviewOutput, prompt=prompt, previous=build,
                                        gates=[gates.artifacts_exist, gates.verdict_consistent]))
@@ -122,7 +124,7 @@ def main(prompt: str, config: str = "adws/adw_sssf_config/sssf.config.yaml", adw
         if review.approved or i == MAX_REVISION_LOOPS:
             break
 
-        with run.phase(PhaseParams(name=f"revise_{i}", kind="agent", owner="builder", retries=1,
+        with run.phase(PhaseParams(name=f"revise_{i}", kind="agent", owner=builder, retries=1,
                                    description="Close the reviewer's blocking findings")) as ph:
             build = ph.call(AgentCall(output_type=BuildOutput, prompt=prompt, previous=review,
                                       gates=[gates.diff_matches_claims]))
@@ -179,5 +181,10 @@ if __name__ == "__main__":
     parser.add_argument("prompt", help="inline text or a path to a prompt file")
     parser.add_argument("--config", default="adws/adw_sssf_config/sssf.config.yaml")
     parser.add_argument("--adw-id", default=None, help="join or pin an existing session")
+    parser.add_argument("--builder", default="builder",
+                        help="roster agent for build/fix/revise phases (e.g. fe_builder for a UI slice)")
+    parser.add_argument("--reviewer", default="reviewer",
+                        help="roster agent for review phases (e.g. fe_reviewer for a UI slice)")
     args = parser.parse_args()
-    sys.exit(main(utils.resolve_prompt(args.prompt), args.config, args.adw_id))
+    sys.exit(main(utils.resolve_prompt(args.prompt), args.config, args.adw_id,
+                  args.builder, args.reviewer))
