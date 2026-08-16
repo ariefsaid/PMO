@@ -14,7 +14,7 @@ and the DoD in `docs/product-expectations.md` are unchanged and binding.
 > Tiers: `build` (sonnet–opus band) · `routine` (haiku–sonnet) · `mechanical` (haiku) · `review`
 > (cross-family) · `review-money` (**Luna-only at max thinking — baked into the
 > ladder; no fallback — failure = escalate, never a weaker reviewer**) · `multimodal` (vision judgment,
-> quality-first: claude-sonnet → Luna:high; Director keeps the final taste lens) · `orchestrate` (GLM-5.2 manager
+> quality-first: claude-sonnet → Luna:high; Director keeps the final taste lens) · `orchestrate` (GLM-5.3 manager
 > loops, Luna fallback; no claude rung — orchestrate failure escalates to the Director). **Model slugs live ONLY in the wrapper's ladder table** — never pass raw
 > provider/model in a dispatch; a wrong slug surfaces as 429-no-body and gets misdiagnosed as a rate
 > limit. Verify new slugs with `pi-dispatch smoke <provider> <model>`. The §2 table below remains the
@@ -55,18 +55,25 @@ Replaces playbook §3's opus/sonnet/haiku mapping when running the trial:
 > **When z.ai caps (5-hour window), the ladder falls to Luna, then `claude -p`. That is the intended
 > behaviour — it is not a reason to re-add a free rung.** Free-but-unusable is not cheaper than paid:
 > the 98-minute run cost nothing in tokens and two hours of the owner's clock.
+>
+> **⚑ NIM model pin (owner 2026-08-15).** NIM stays off every ladder. *If* NIM is ever invoked
+> explicitly, the only sanctioned model is **`deepseek-ai/deepseek-v4-flash-0731`** — note the `v4`;
+> the bare `deepseek-ai/deepseek-v4-flash` slug is **gone from the live NIM catalog** and would have
+> surfaced as 429-no-body (the exact misdiagnosis §2's slug-discipline note warns about). Verified
+> against `GET https://integrate.api.nvidia.com/v1/models` and `pi-dispatch smoke` on 2026-08-15;
+> `~/.pi/agent/models.json` is pinned to that one entry.
 
 | Substrate | Use for | Analog |
 |---|---|---|
-| `zai` / `glm-5.2` | **THE DEFAULT for all build work.** Planning, specs, complex or security-sensitive slices (schema, RLS, RPC), manager-grade judgment, and implementation slices (trialed-good as builder 2026-06-16 — first-pass-correct). First rung of `build`, `routine` (as the step-up from 4.7) and `orchestrate`. | opus |
-| `zai` / `glm-5.1` | Secondary/alternate to 5.2 (rate-limit relief, or as the different-model reviewer in GLM-only degraded mode). Not on any ladder — Director picks it explicitly. | opus fallback |
+| `zai` / `glm-5.3` | **THE DEFAULT for all build work** (owner 2026-08-15, supersedes `glm-5.2`). Planning, specs, complex or security-sensitive slices (schema, RLS, RPC), manager-grade judgment, and implementation slices (the 5.2 line was trialed-good as builder 2026-06-16 — first-pass-correct). First rung of `build`, `routine` (as the step-up from 4.7) and `orchestrate`. | opus |
+| `zai` / `glm-5.2`, `glm-5.1` | Secondary/alternate to 5.3 (rate-limit relief, or as the different-model reviewer in GLM-only degraded mode). Not on any ladder — Director picks one explicitly. | opus fallback |
 | `zai` / `glm-4.7` | Routine implementation, mechanical edits, QA runs, mockup builds. First rung of `routine` and `mechanical`. | sonnet/haiku |
 |  `openai-codex` / `gpt-5.6-luna` (owner-directed 2026-07-11; supersedes `gpt-5.4`) | ALL reviews and audits — spec-review, code-quality, plan review, security. Deliberately **cross-family** vs the GLM builders. **⚑ money/security audits run at `--thinking max` (owner 2026-07-15)**; the `review-money` tier bakes that in and has **no fallback by design**. | opus reviewers |
 | `claude` / `sonnet`·`haiku` | Last-resort rung only (`claude -p`, sanctioned plan entry) when both z.ai and codex are down. Spends the Claude quota the whole trial exists to protect — if the work is high-stakes and both primaries are capped, prefer to **wait for the reset**. | — |
 
 > **⚑ GLM-only degraded mode (gpt-5.4/openai-codex UNAVAILABLE, observed 2026-06-16).** When the
 > cross-family reviewer is down, route reviews to a **different GLM model than the builder** (e.g. build
-> `glm-5.2` → review `glm-5.1`). This gives *some* independence but is **same-family** — weaker than the
+> `glm-5.3` → review `glm-5.1`). This gives *some* independence but is **same-family** — weaker than the
 > intended cross-family check. Acceptable for low-risk/presentational slices; for **security/RLS/RPC or
 > money-path** changes, escalate to the Director's own review or wait for cross-family, don't ship on a
 > same-family-only sign-off.

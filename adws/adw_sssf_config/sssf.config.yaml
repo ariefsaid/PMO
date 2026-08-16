@@ -6,7 +6,7 @@
 # stubbed until v2), so there is no claude fallback rung here — if both substrates are down, wait.
 defaults:
   coding_agent: pi
-  model: zai/glm-5.2               # provider/id — a bare pattern is ambiguous across providers
+  model: zai/glm-5.3               # provider/id — a bare pattern is ambiguous across providers
   thinking: medium                 # off | minimal | low | medium | high | xhigh | max
   harness_engineering: []          # pi extensions loaded into the harness (-e)
   # Roster-wide allowlist; any agent may override with its own list.
@@ -42,7 +42,7 @@ observability:
 
 agents:
   - name: planner
-    model: zai/glm-5.2
+    model: zai/glm-5.3
     thinking: high
     color: "#a78bfa"                 # optional hex — the agent's lane color in the visualizer
     purpose: Turn a request into a plan the builder can implement without asking questions.
@@ -52,7 +52,7 @@ agents:
     harness_engineering:
       - adws/adw_data/harness_engineering/subagents.ts    # registers the four subagent_* tools below
     writes:                        # the plan is the only thing it may leave in the repo
-      - specs/
+      - docs/plans/                # PMO's plan home (CLAUDE.md conventions), not upstream's specs/
     tools:                         # full recon + write for plan.md; no edit — the planner never touches repo files
       - read
       - grep
