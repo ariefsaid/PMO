@@ -68,6 +68,10 @@ run `scripts/sync-agent-surfaces.mjs --write`, done once.
 - Archive `adws/adw_data/` out of a worktree **before** `git worktree remove` — the trace is the
   owner's review surface (`docs/reviews/2026-08-06-sssf-trial-record.md`).
 - Substrate ladder, briefs-as-files, background-dispatch mechanics: `docs/pi-delegation.md`.
+- **Substrate rulings land in TWO places:** the `pi-dispatch` ladders (`~/.local/bin/pi-dispatch`)
+  AND `adws/adw_sssf_config/sssf.config.yaml` — the ADW calls raw `pi` with pinned models (its own
+  tracer/ledger; no fallback by design — both substrates down = wait). Neither tool supersedes the
+  other: ADW = executor dispatch, pi-dispatch = Director dispatch (see routing table).
 - QA portfolio, BDD authoring rule, NOT-DONE-UNTIL-GREEN, DB locks: CLAUDE.md.
 - Planner plans land in `docs/plans/` (config `writes:` re-aimed 2026-08-16, trial iterate item 1);
   the reviewer phase requirement (iterate item 2) is satisfied by using `adw_simple_sdlc` as the
