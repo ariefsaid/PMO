@@ -47,6 +47,22 @@ Either way the Director still runs the binding gates itself before ship: `npm ru
 mutation checks, rendered verification, `verify-main-pr.sh` at promotes. The ADW's green is the
 factory's inner loop, not the phase gate.
 
+## Skill wiring (why nobody should have to re-ask for a skill per brief)
+
+The **role contract is the skill carrier.** `.claude/agents/*.md` (tracked, in every worktree)
+encode each role's disciplines inline — TDD iron law, no-placeholder plans, review lenses, and the
+UI family's exact skill commands (`ui-ux-pro-max`, `taste`, `agent-browser`). Delivery per surface:
+
+- **pi dispatches** — the Director appends the contract (`--append-system-prompt`, pi-delegation §3).
+  A brief without its role contract is malformed.
+- **ADW agents** — each roster system prompt's first instruction is "read your role contract"
+  (planner→eng-planner, builder→implementer, reviewer→spec-reviewer).
+- **Claude Director sessions** — superpowers plugin + hooks (ponytail) + CLAUDE.md; the vendored
+  overrides (`docs/agents/skills.md`) carry the same disciplines to substrates that can't load plugins.
+
+If a discipline has to be repeated in briefs, it belongs in the contract — edit `.claude/agents/`,
+run `scripts/sync-agent-surfaces.mjs --write`, done once.
+
 ## Non-negotiables carried over (nothing here weakens them)
 
 - Archive `adws/adw_data/` out of a worktree **before** `git worktree remove` — the trace is the
