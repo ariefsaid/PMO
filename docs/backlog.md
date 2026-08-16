@@ -14,9 +14,11 @@ this paragraph.**
 
 **Dev-tooling (2026-08-06): SSSF stamped (#435).** `adws/` ADW scripts orchestrate bounded pi
 phases (zai GLM + codex-OAuth roster per `docs/pi-delegation.md`; openrouter/fireworks swapped
-out); demos green. **Trial pending: one small loop-shaped issue through an ADW end-to-end, then
-owner decides SOP / iterate / drop.** Operating skill: `/sssf` (vendored). Follow-up candidate:
-wire `claude -p` as an opt-in `coding_agent` (upstream stubs it until v2) — Director work, on hold.
+out); demos green. **Trial done (#436) → owner adopted "iterate" 2026-08-16:** iterate items landed
+(planner → `docs/plans/`; default chain = `adw_simple_sdlc.py` with its review+fix loops) and the
+consolidated operating model is **`docs/factory-workflow.md`** (milestone-brief checkpoints — owner
+signs front, reviews at milestone boundaries). Operating skill: `/sssf` (vendored). Follow-up
+candidate: wire `claude -p` as an opt-in `coding_agent` (upstream stubs it until v2) — on hold.
 
 **What v0.9.0 carried to prod** (beyond v0.8.0): the three 07-29 promoted programs — observability +
 analytics (#394, #398–#408; ADRs 0066/0067), skipped-workflow remediation (#409), create-path SoD

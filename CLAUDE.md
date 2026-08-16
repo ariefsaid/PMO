@@ -40,7 +40,9 @@ B2B multi-tenancy without a rewrite.
 The **owner** talks to the **Director** (Opus 4.8, the main session). The Director runs an
 **issue-driven loop**, spawns the right role agent per phase, and takes each issue end-to-end.
 Build **one issue at a time**. Keep tool approvals **ON**; pause for owner approval at issue
-boundaries and before any push / merge / deploy.
+boundaries and before any push / merge / deploy. **Exception (owner 2026-08-16): inside a signed
+milestone brief the Director chains issues without per-issue pauses and the owner reviews at
+milestone boundaries — `docs/factory-workflow.md`.** `main` stays the ceiling either way.
 > **⚑ Current executor (trial, 2026-06-12):** role-agent work is dispatched to the **pi CLI**
 > (GLM/codex substrates), not Claude subagents — to spare the Claude quota. The roster + models below are
 > the *contract* (and the Claude fallback); **`docs/pi-delegation.md` is how work is actually dispatched
