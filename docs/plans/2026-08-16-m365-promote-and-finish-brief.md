@@ -1,6 +1,6 @@
 # Milestone brief — M365 promote-and-finish
 
-**Status: DRAFT — awaiting owner signature.** First brief under the `docs/factory-workflow.md`
+**Status: SIGNED (owner, 2026-08-16).** First brief under the `docs/factory-workflow.md`
 model: once signed, the Director chains issues inside each milestone without per-issue pauses;
 the owner reviews at milestone boundaries. `main` stays the autonomous ceiling; **nothing in this
 brief authorizes any deploy or production action — those remain per-instance owner instructions.**
@@ -89,4 +89,4 @@ Owner: sign this brief → review at each milestone boundary (M1 additionally ne
 actions and per-test tenant calls — flagged when reached) → M4 promote review. Director:
 everything else, at `main` ceiling.
 
-**Owner signature:** *(pending)*
+**Owner signature:** signed — owner, 2026-08-16 (in-session reply "signed").
