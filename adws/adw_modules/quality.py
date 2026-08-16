@@ -181,20 +181,50 @@ def build(run) -> QualityCheckResult:
     ), run)
 
 
-def run_tests(run) -> QualityResult:
-    """The test suite alone, as a QualityResult — the deterministic test phase.
+def pgtap(run) -> QualityCheckResult:
+    """RLS/tenancy/role contracts. reset+test chained inside ONE db-lock hold —
+    separate holds let a sibling worktree's reset land in between and produce
+    false REDs and false GREENs alike (CLAUDE.md, pi-delegation §8)."""
+    return _run(QualityCheckSpec(
+        name="pgtap",
+        area="db",
+        operation="test",
+        argv=["scripts/with-db-lock.sh", "bash", "-c",
+              "supabase db reset && supabase test db"],
+        timeout_seconds=1800,
+    ), run)
 
-    This is what replaces a `tester` agent once the command is written down. An
-    agent rediscovering the runner on every run costs a fortune to learn what a
-    subprocess already knows; the repair loop is unchanged, because a failure
-    still reaches the builder through `as_envelope` below.
+
+def _touches_db(run) -> bool:
+    """Did this run change anything under supabase/? Uncommitted-only is enough:
+    the chain commits code only after this gate goes green."""
+    listing = subprocess.run(
+        ["bash", "-c", "git diff --name-only HEAD; git ls-files --others --exclude-standard"],
+        cwd=run.repo_root, capture_output=True, text=True).stdout
+    return any(line.startswith("supabase/") for line in listing.splitlines())
+
+
+def run_tests(run) -> QualityResult:
+    """The deterministic test phase: typecheck + lint always, then the suite,
+    then pgTAP when the run touched supabase/. Cheap blocks run first and a
+    failure skips the heavy ones — fast feedback rounds; the loop's final
+    passing round necessarily ran everything.
+
+    This is what replaces a `tester` agent once the commands are written down.
+    An agent rediscovering the runner on every run costs a fortune to learn what
+    a subprocess already knows; the repair loop is unchanged, because failures
+    still reach the builder through `as_envelope` below.
     """
-    check = test(run)
-    failures = ([] if check.passed else
-                [f"{check.name}: `{check.command}` exited {check.returncode}\n"
-                 f"{check.output_tail}".rstrip()])
-    return QualityResult(passed=check.passed, checks=[check], failures=failures,
-                         artifacts=[check.output_artifact])
+    checks = [typecheck(run), lint(run)]
+    if all(check.passed for check in checks):
+        checks.append(test(run))
+    if all(check.passed for check in checks) and _touches_db(run):
+        checks.append(pgtap(run))
+    failures = [f"{check.name}: `{check.command}` exited {check.returncode}\n"
+                f"{check.output_tail}".rstrip()
+                for check in checks if not check.passed]
+    return QualityResult(passed=not failures, checks=checks, failures=failures,
+                         artifacts=[check.output_artifact for check in checks])
 
 
 def as_envelope(result: QualityResult, what: str) -> VerifyOutput:

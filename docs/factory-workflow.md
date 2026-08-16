@@ -38,9 +38,9 @@ a signed brief; unsigned/ad-hoc issues keep the classic per-issue checkpoints.
 
 | Issue shape | Executor |
 |---|---|
-| Bounded code slice, testable by the suite | **SSSF ADW — default chain `adws/adw_simple_sdlc.py`** (plan → build → test-fix ×3 → cross-family review-revise ×2 → retest → commit → document). Run per `/sssf` + `docs/pi-delegation.md` substrate rules. |
+| Bounded code slice — incl. ordinary schema/migration work | **SSSF ADW — default chain `adws/adw_simple_sdlc.py`** (plan → build → gate-fix ×3 → cross-family review-revise ×2 → retest → commit → document). The gate = typecheck + lint + vitest, **+ pgTAP under one db-lock hold when the run touches `supabase/`** (`adw_modules/quality.py`). Run per `/sssf` + `docs/pi-delegation.md` substrate rules. |
 | Bounded FE/UI slice | **Same chain, FE roster:** `adw_simple_sdlc.py --builder fe_builder --reviewer fe_reviewer`. fe_builder builds to `ui-implementer.md` (DESIGN.md tokens, agent-browser rendered self-check); fe_reviewer audits rendered DOM/a11y to `design-reviewer.md`, saving screenshots to the run's `context_handoff/screenshots/`. **The Director's pixel/taste lens on those screenshots is still the exit gate** — text models judge the a11y tree, not pixels. |
-| Money-path, RLS/RPC/security, or migration work | **Director-dispatched per-issue loop** (`pi-dispatch` per `docs/pi-delegation.md`) — `review-money` (Luna-max, no fallback) and DB-lock discipline can't ride the ADW. |
+| Money-path, SoD, auth/token-custody — anything `review-money`-tier | **Director-dispatched per-issue loop** (`pi-dispatch` per `docs/pi-delegation.md`) — Luna-max review with no fallback, mutation-checks-against-neighbours, prod-parity judgment. On this class green gates themselves have been the repeat offender; the exit is adversarial, not mechanical. |
 | Foggy / multi-issue / decision-shaped | `/wayfinder` first; what exits enters the loop as ordinary issues. |
 | Throwaway question | `/prototype`, bridged by `/handoff`. |
 
