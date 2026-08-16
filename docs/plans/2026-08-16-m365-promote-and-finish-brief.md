@@ -29,13 +29,21 @@ before M1.
 1. Scope slice: `M365_PHASE1_SCOPES` gains `Sites.Read.All` + `Files.Read.All` (delegated,
    admin-consent class) — small code change, Director-dispatched with security review (custody
    surface).
-2. Owner actions (wizard-guided): tenant admin consent; choice of tenant per test (`gordi` =
-   mechanics, `RIS` = real shape — owner's call per run).
-3. ONE reconnect as a **non-Operator** member + ONE `graph_proxy` GET against a real SharePoint
-   library + `GET …/versions` on a real item (answers ADR-0071 §9's data-model question).
-**AC-M1:** a spike doc records the real, data-only 200s and the versions answer; no secrets/tenant
-GUIDs in the doc. *The first real Graph response is expected to surprise — that is what this
-milestone buys before any doc-linking code exists.*
+2. Owner actions (wizard-guided): **CLIENT-tenant** admin consent, per the two-tenant topology
+   (app registered vendor-side per ADR-0064; consent + users live in the customer tenant — the
+   owner-confirmed model, 2026-08-16). Vendor-on-vendor runs may be used mid-milestone for
+   mechanics but do not satisfy the AC.
+3. ONE reconnect as a **non-Operator user in the client tenant** + ONE `graph_proxy` GET against
+   that tenant's real SharePoint library + `GET …/versions` on a real item (answers ADR-0071 §9's
+   data-model question).
+**AC-M1:** a spike doc records the real, data-only 200s **from the cross-tenant shape** (vendor
+app · client consent · client user) and the versions answer; no secrets/tenant GUIDs in the doc.
+*The first real Graph response is expected to surprise — that is what this milestone buys before
+any doc-linking code exists.*
+**Known risk:** cross-tenant consent to a vendor-tenant app requires **publisher verification**
+(weeks of lead time historically). If blocked, the ADR-0064 **Option B escape hatch** (app
+registered in the client's own tenant, no verification needed) is the sanctioned fallback — an
+owner call at that gate, not a Director improvisation.
 
 ### M2 — Doc-linking spec revision (owner-heavy front)
 Revise `docs/specs/m365-onedrive-doc-linking.spec.md` to SharePoint-primary: site/library browse,
