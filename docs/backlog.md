@@ -920,6 +920,18 @@ Then, per the standard series loop (grill → spec → …), the candidate queue
 ### ⚑⚑ ADAPTER PROGRAM — P2 ERPNext money core ✅ MERGED to dev (#315 squash `b549d06`, 2026-07-14)
 ### ⚑⚑ M365 INTEGRATION — RESUME HERE (updated 2026-07-29) — ✅ MERGED to `dev`; **connect leg PROVEN live, `graph_proxy` NEVER proven**
 
+> **✅ M0 baseline verify (2026-08-16, milestone brief `docs/plans/2026-08-16-m365-promote-and-finish-brief.md` — SIGNED):**
+> pgTAP chain PASS (locked, zero parse errors) · full verify 8/8 green · race probe TOCTOU CLOSED in
+> BOTH interleavings · deadlock probe legacy REPRODUCED + fixed RESOLVED on BOTH targets. ⚑ Both
+> probe fixtures were updated for the `0151` envelope CHECK (the old 1-byte `\x01` placeholder
+> ciphertexts are now rejected *by design* — that was fixture rot, not a regression; the failing
+> interleaving died at the CHECK, not the guard). Deployed `m365-token-custody` = **v5 @ 2026-07-31
+> (post-#365, PRE-#428)** — the live fn still enforces the old operator gate and migrations
+> `0152`/`0186` are not on the cloud DB, so **M1's live run requires an owner-gated deploy first**.
+> #428's security-battery record located: PR #428 body (3 lenses; security at max thinking,
+> SHIP-WITH-FIXES → all fixes applied). Note **#428 CLOSED TBD-2 below** (operator/client split,
+> `AC-M365-131` re-specified as `AC-M365SEP-012`) — the TBD list predates it.
+
 > **📌 RESUME HERE — cold-start block. A new agent needs nothing but this.**
 >
 > **State:** everything is **merged to `dev`** and green. There is **no in-flight M365 branch or worktree** —
