@@ -36,8 +36,10 @@ before M1.
 3. ONE reconnect as a **non-Operator user in the client tenant** + ONE `graph_proxy` GET against
    that tenant's real SharePoint library + `GET …/versions` on a real item (answers ADR-0071 §9's
    data-model question).
-**AC-M1:** a spike doc records the real, data-only 200s **from the cross-tenant shape** (vendor
-app · client consent · client user) and the versions answer; no secrets/tenant GUIDs in the doc.
+**AC-M1 (amended by owner 2026-08-18 — Gordi-only):** a spike doc records the real, data-only 200s
+from the **vendor tenant** (Gordi as both publisher and first tenant) and the versions answer; no
+secrets/tenant GUIDs in the doc. The cross-tenant proof (client consent + client user) moves OUT of
+this milestone to actual client onboarding — first client tenant will be RIS, gated then, not here.
 *The first real Graph response is expected to surprise — that is what this milestone buys before
 any doc-linking code exists.*
 **Known risk:** cross-tenant consent to a vendor-tenant app requires **publisher verification**
