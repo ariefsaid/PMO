@@ -35,6 +35,11 @@ Every map and ticket is an issue, so it has a **name** — its title. In everyth
 > without ceremony**. When torn between the two, it is a `DD-` with the reasoning written down — never a
 > question that stalls the work. Full statement: `docs/factory-workflow.md` § Decision rights.
 
+> **Park, don't ask.** An owner-class question surfacing mid-drive becomes a `wayfinder:owner` ticket
+> with enough context to answer cold — it does not stop the session. Keep working everything that does
+> not depend on it; parked tickets become the next grill session's batch.
+> Cadence: `docs/factory-workflow.md` § The drive loop.
+
 ## The Map
 
 The map is a single issue on this repo's issue tracker, labelled `wayfinder:map` — the canonical artifact. Its tickets are child issues of the map.

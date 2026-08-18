@@ -40,6 +40,11 @@ The session is done when the frontier is empty: every branch of the design tree 
 > without ceremony**. When torn between the two, it is a `DD-` with the reasoning written down — never a
 > question that stalls the work. Full statement: `docs/factory-workflow.md` § Decision rights.
 
+### Drain the whole owner frontier, not one ticket
+
+In a grill session, batch **every** open unblocked owner-resolved question into the rounds — the
+owner's attention is the scarce input. Cadence: `docs/factory-workflow.md` § The drive loop.
+
 ### What this changes about a round
 
 Sort the frontier **by resolver before you ask anything**. A round then has two parts, decisions first:

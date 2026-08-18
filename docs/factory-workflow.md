@@ -57,6 +57,35 @@ A DD that turns out to be commercial, irreversible, or a scope-versus-time trade
 escalate it and re-file it as an OD. When in doubt between the two, it is a DD with the reasoning
 written down — not a question that stalls the work.
 
+## The drive loop — batch the owner, then run (owner directive 2026-08-18)
+
+The milestone brief assumes scope can be enumerated up front. Foggy work can't be, so the boundaries
+are **event-driven** instead: unblock a batch, drive until blocked, batch again.
+
+**Every session is one of two kinds.** Open by asking which:
+
+```bash
+# the owner frontier — open, unblocked, owner-resolved tickets
+gh issue list --state open --label wayfinder:ticket --label wayfinder:owner \
+  --json number,title,body --jq '.[] | select((.body|test("Blocked-by")|not)) | "#\(.number)  \(.title)"'
+```
+
+- **Non-empty → GRILL session.** Drain the **whole** owner frontier in one sitting, batched into
+  rounds per `/grilling`. Not one ticket — all of them. The owner's attention is the scarce input;
+  spending it one question at a time is the waste this loop exists to remove.
+- **Empty → DRIVE session.** Work everything else: Explore/Plan agents, factory ADWs, Director
+  dispatches, per § Executor routing. Chain issues without pausing.
+
+**⚑ The rule that makes it work: park, don't ask.** Hitting an owner-class question mid-drive does
+**not** stop the drive. File it as a `wayfinder:owner` ticket carrying enough context to answer cold,
+then **keep driving everything that doesn't depend on it**. Return to the owner only when the drivable
+work is exhausted, or when the parked question blocks everything left. A drive session that ends after
+twenty minutes with one question has failed at this — there is nearly always work that doesn't depend
+on the answer.
+
+Parked questions accumulate as the next grill session's frontier. No new artifact: the ticket *is* the
+parking slot, and the query above *is* the batch.
+
 ## Milestone brief (the sign-off artifact)
 
 A section in the anchoring GitHub issue (or `docs/plans/`), signed by an explicit owner reply:
