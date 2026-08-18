@@ -281,6 +281,25 @@ describe('AC-M365-110/111/112/113/114 — handleGraphProxy', () => {
     expect(r2).toMatchObject({ status: 410, body: { error: 'CONNECTION_REVOKED' } });
   });
 
+  it('AC-M365-140 (opacity): a Graph failure returns GRAPH_ERROR with NO upstream status/code/message leaked to the client', async () => {
+    const conn = await connection();
+    const service = mockClient({ ms_graph_connections: [{ data: conn, error: null }] });
+    const graphFetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 400,
+      headers: { get: () => 'req-id-123' },
+      json: async () => ({ error: { code: 'BadRequest', message: 'Tenant does not have a SPO license.' } }),
+    });
+
+    const result = await handleGraphProxy(
+      graphReq('/me/drive'),
+      deps({ service, caller: callerClient(), userId: 'user-1', fetch: graphFetch }),
+    );
+
+    expect(result.status).toBe(502);
+    expect(result.body).toEqual({ error: 'GRAPH_ERROR', message: 'Graph API request failed' });
+  });
+
   it('AC-M365SEP-002 / AC-M365-110: an active entitled member with no connection receives NOT_CONNECTED', async () => {
     const service = mockClient({ ms_graph_connections: [{ data: null, error: { code: 'PGRST116' } }] });
     const r = await handleGraphProxy(graphReq('/me/drive/root'), deps({ service, caller: callerClient(), userId: 'user-1' }));
