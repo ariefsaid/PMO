@@ -145,17 +145,17 @@ export async function handleGraphProxy(
   });
 
   if (!graphRes.ok) {
-    // TEMPORARY diagnostic (issue #445, first live use-leg failure 2026-08-18): capture Graph's
-    // status, request-id and error code — server-side log + (temporarily) the client message. The
-    // upstream code/status are not token material. The fix slice restores the opaque client
-    // envelope; the structured server-side log stays as the permanent #445 remedy.
+    // #445 permanent remedy: Graph's status/code/message/request-id go to the STRUCTURED SERVER
+    // LOG ONLY — the 2026-08-18 live investigation was undiagnosable without them (the code alone
+    // said 'BadRequest'; the message named the real condition, a missing SPO license). The client
+    // envelope stays OPAQUE by design (AC-M365-140 adjacent — no upstream detail to the browser);
+    // the opacity is pinned by the AC-M365-140 test in tokenCustody.proxy.test.ts. Truncated;
+    // contains no token material.
     let upstreamCode = '';
     let upstreamMessage = '';
     try {
       const errBody = (await graphRes.json()) as { error?: { code?: string; message?: string } };
       upstreamCode = String(errBody?.error?.code ?? '');
-      // Graph's human message names the actual condition (e.g. a missing SPO license) that the
-      // generic code hides. Truncated; contains no token material.
       upstreamMessage = String(errBody?.error?.message ?? '').slice(0, 200);
     } catch { /* non-JSON upstream body */ }
     console.error('[m365-token-custody] graph_proxy upstream failure', {
@@ -167,14 +167,7 @@ export async function handleGraphProxy(
       path: normalizedPath,
     });
     await recordM365Error(serviceClient, { errorCode: 'GRAPH_ERROR', contextId: connection.id, orgId });
-    return {
-      status: 502,
-      body: {
-        error: 'GRAPH_ERROR',
-        message: `Graph API request failed (upstream ${graphRes.status}${upstreamCode ? ` ${upstreamCode}` : ''}${upstreamMessage ? `: ${upstreamMessage}` : ''})`,
-      },
-      headers,
-    };
+    return { status: 502, body: { error: 'GRAPH_ERROR', message: 'Graph API request failed' }, headers };
   }
 
   const data = await graphRes.json();
