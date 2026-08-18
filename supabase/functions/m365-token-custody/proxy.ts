@@ -150,13 +150,18 @@ export async function handleGraphProxy(
     // upstream code/status are not token material. The fix slice restores the opaque client
     // envelope; the structured server-side log stays as the permanent #445 remedy.
     let upstreamCode = '';
+    let upstreamMessage = '';
     try {
-      const errBody = (await graphRes.json()) as { error?: { code?: string } };
+      const errBody = (await graphRes.json()) as { error?: { code?: string; message?: string } };
       upstreamCode = String(errBody?.error?.code ?? '');
+      // Graph's human message names the actual condition (e.g. a missing SPO license) that the
+      // generic code hides. Truncated; contains no token material.
+      upstreamMessage = String(errBody?.error?.message ?? '').slice(0, 200);
     } catch { /* non-JSON upstream body */ }
     console.error('[m365-token-custody] graph_proxy upstream failure', {
       status: graphRes.status,
       upstreamCode,
+      upstreamMessage,
       requestId: graphRes.headers.get('request-id') ?? '',
       connectionId: connection.id,
       path: normalizedPath,
@@ -166,7 +171,7 @@ export async function handleGraphProxy(
       status: 502,
       body: {
         error: 'GRAPH_ERROR',
-        message: `Graph API request failed (upstream ${graphRes.status}${upstreamCode ? ` ${upstreamCode}` : ''})`,
+        message: `Graph API request failed (upstream ${graphRes.status}${upstreamCode ? ` ${upstreamCode}` : ''}${upstreamMessage ? `: ${upstreamMessage}` : ''})`,
       },
       headers,
     };
