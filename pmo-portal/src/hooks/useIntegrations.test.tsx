@@ -219,4 +219,31 @@ describe('useIntegrations', () => {
     expect(result.current.projectBindings).toHaveLength(1);
     expect(result.current.projectBindings[0].id).toBe('binding-1');
   });
+
+  // --- Issue #449: gate the ClickUp lists fetch on the ACTIVE org binding ---
+
+  it('AC-449-1: does not fetch ClickUp lists when the org ClickUp binding is disconnected', async () => {
+    integrations.listBindings.mockResolvedValue([{ ...mockBinding, status: 'disconnected' }]);
+
+    const client = freshClient();
+    const { result } = renderHook(() => useIntegrations(), { wrapper: wrap(client) });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    // Flush one cycle so a wrongly-enabled query would have fired by now (the red state).
+    await act(async () => { await Promise.resolve(); });
+
+    expect(integrations.listProjectLists).not.toHaveBeenCalled();
+  });
+
+  it('AC-449-1: does not fetch ClickUp lists when the org has no bindings at all', async () => {
+    integrations.listBindings.mockResolvedValue([]);
+
+    const client = freshClient();
+    const { result } = renderHook(() => useIntegrations(), { wrapper: wrap(client) });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    await act(async () => { await Promise.resolve(); });
+
+    expect(integrations.listProjectLists).not.toHaveBeenCalled();
+  });
 });

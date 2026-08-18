@@ -464,4 +464,54 @@ describe('ProjectIntegrationsCard', () => {
       await waitFor(() => expect(screen.getByRole('alertdialog')).toBeInTheDocument());
     });
   });
+
+  describe('Issue #449: disconnected org never shows an integration error; transport text never reaches the DOM', () => {
+    const transportError = new Error('Failed to send a request to the Edge Function: fetch failed');
+
+    it("AC-449-2: unlinked project + disconnected org + stale lists error renders the quiet Not connected state, never an error card", async () => {
+      vi.mocked(useIntegrations).mockReturnValue({
+        ...baseMockReturn,
+        getBinding: vi.fn(() => undefined), // org ClickUp NOT active
+        projectBindings: [],                // project not linked
+        isListsError: true,                 // a late/stale lists failure must not hijack the card
+        listsError: transportError,
+        refetchLists: vi.fn(),
+      } as any);
+
+      wrapWithRole('Admin', <ProjectIntegrationsCard projectId="proj-1" />);
+
+      await waitFor(() => expect(screen.getByText('ClickUp')).toBeInTheDocument());
+
+      // Quiet state
+      expect(screen.getByText('Not connected')).toBeInTheDocument();
+      // No integration-error UI of any kind
+      expect(screen.queryByText('Failed to load lists')).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /Retry/i })).not.toBeInTheDocument();
+      expect(screen.queryByText(/Edge Function/i)).not.toBeInTheDocument();
+      // Not connected ⇒ no Link affordance
+      expect(screen.queryByRole('button', { name: /^Link to ClickUp$/i })).not.toBeInTheDocument();
+    });
+
+    it('AC-449-3: lists failure on a connected org shows human copy, never the raw transport message', async () => {
+      vi.mocked(useIntegrations).mockReturnValue({
+        ...baseMockReturn,
+        getBinding: vi.fn((tier: string) => (tier === 'clickup' ? mockClickUpBinding : undefined)),
+        projectBindings: [],
+        isListsError: true,
+        listsError: transportError,
+        refetchLists: vi.fn(),
+      } as any);
+
+      wrapWithRole('Admin', <ProjectIntegrationsCard projectId="proj-1" />);
+
+      await waitFor(() => expect(screen.getByText('Failed to load lists')).toBeInTheDocument());
+      // Human copy in the app's established "Couldn't …" voice
+      expect(screen.getByText(/Couldn't reach ClickUp/i)).toBeInTheDocument();
+      // Raw transport string never reaches the DOM
+      expect(screen.queryByText(/Edge Function/i)).not.toBeInTheDocument();
+      expect(screen.queryByText(/Failed to send a request/i)).not.toBeInTheDocument();
+      // Retry affordance is preserved
+      expect(screen.getByRole('button', { name: /Retry/i })).toBeInTheDocument();
+    });
+  });
 });
