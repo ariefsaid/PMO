@@ -49,10 +49,14 @@ export function useIntegrations() {
   };
 
   // Query: list ClickUp lists for the org
+  // AC-449-1 (issue #449): gate on the ACTIVE org ClickUp binding — the external-lists edge fn
+  // needs the org credential, so invoking it while no binding is active always fails and used
+  // to poison every project page's integration card with a transport error. While bindings are
+  // still loading the gate is closed; it opens the moment the binding resolves 'active'.
   const { data: clickupLists = [], isPending: isListsPending, isError: isListsError, error: listsError, refetch: refetchLists } = useQuery<ClickUpListItem[]>({
     queryKey: ['integrations', 'clickup-lists', orgId],
     queryFn: () => repositories.integrations.listProjectLists(orgId!),
-    enabled: Boolean(orgId),
+    enabled: Boolean(orgId) && getBinding('clickup')?.status === 'active',
   });
 
   // Query: list ERPNext companies for the org (OD-INT-6)
