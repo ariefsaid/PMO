@@ -26,6 +26,14 @@ before M1.
 **AC-M0:** a dated note in the backlog M365 section recording all four results + the deploy state.
 
 ### M1 — Live use-leg proof (Director drives; owner in the loop by nature)
+
+> **STATUS 2026-08-18 — PARKED ON TENANT LICENSING (owner: "wait until RIS").** The live probes ran
+> and proved the custody chain end to end, including the first live auto-refresh; Graph accepts our
+> token. The vendor tenant has **no SharePoint Online license**, so a data-200 is impossible there —
+> `docs/spikes/2026-08-18-m365-use-leg-live-probe.md` is the record. AC-M1's data-200 closes at the
+> first SPO-licensed tenant (RIS). M2 proceeds with flagged assumptions; M3's build waits for the
+> live Graph shapes per the original build-follows-proof gate; M4's e2e (connect journey, no SPO
+> dependency) can proceed.
 1. Scope slice: `M365_PHASE1_SCOPES` gains `Sites.Read.All` + `Files.Read.All` (delegated,
    admin-consent class) — small code change, Director-dispatched with security review (custody
    surface).

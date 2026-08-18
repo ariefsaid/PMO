@@ -935,6 +935,19 @@ Then, per the standard series loop (grill → spec → …), the candidate queue
 > in #428) — the TBD list predates it. **M1 remaining = live proof only:** owner-gated deploy →
 > RIS admin consent (unverified app, offline-trust model, owner 2026-08-16) → RIS non-Operator user
 > connect → real `graph_proxy` + `…/versions` GETs → spike doc.
+>
+> **✅✅ 2026-08-18 — USE LEG EXERCISED LIVE; M1 PARKED ON TENANT LICENSING (owner: wait for RIS).**
+> Fn #428-state deployed (v6→v9) + `0186` pushed; FE promoted `main→production` (`868ab117` — the
+> #428 `/integrations` route fixed the post-connect 404); a fresh vendor-tenant connect + the
+> **first-ever real `graph_proxy` calls** ran. Verdict (`docs/spikes/2026-08-18-m365-use-leg-live-probe.md`):
+> **custody chain CORRECT end to end — incl. the first live auto-refresh + rotation — and Graph
+> accepts our token; the vendor tenant has no SharePoint Online license**, so every SPO path is
+> `400 "Tenant does not have a SPO license"`. No code defect. #445 closed (#446/#447/#448):
+> structured upstream logging permanent, client envelope opaque again, pinned by a new AC-M365-140
+> opacity test. AC-M1 data-200 closes at the first SPO-licensed tenant. Product finding graduated
+> to the M2 spec: doc-linking needs a legible "no SharePoint on your Microsoft plan" state.
+> ⚑ Release-please note: merging the release PR is part of every promote SOP (v0.10.0 PR #432
+> deliberately HELD for the M4 promote, owner 2026-08-18).
 
 > **📌 RESUME HERE — cold-start block. A new agent needs nothing but this.**
 >
