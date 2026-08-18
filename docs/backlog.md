@@ -930,7 +930,11 @@ Then, per the standard series loop (grill → spec → …), the candidate queue
 > `0152`/`0186` are not on the cloud DB, so **M1's live run requires an owner-gated deploy first**.
 > #428's security-battery record located: PR #428 body (3 lenses; security at max thinking,
 > SHIP-WITH-FIXES → all fixes applied). Note **#428 CLOSED TBD-2 below** (operator/client split,
-> `AC-M365-131` re-specified as `AC-M365SEP-012`) — the TBD list predates it.
+> `AC-M365-131` re-specified as `AC-M365SEP-012`) **and TBD-3's scope slice** (`M365_PHASE1_SCOPES`
+> already carries `Files.Read.All` + `Sites.Read.All` — verified by content in `initiate.ts`, landed
+> in #428) — the TBD list predates it. **M1 remaining = live proof only:** owner-gated deploy →
+> RIS admin consent (unverified app, offline-trust model, owner 2026-08-16) → RIS non-Operator user
+> connect → real `graph_proxy` + `…/versions` GETs → spike doc.
 
 > **📌 RESUME HERE — cold-start block. A new agent needs nothing but this.**
 >
