@@ -1,4 +1,18 @@
-# Owner Decisions Log
+# Decisions Log — owner (`OD-`) and Director (`DD-`)
+
+> **Two prefixes, one file (2026-08-18).** `OD-` = **owner-locked**; changing one needs the owner.
+> `DD-` = **Director decision** — binding on agents exactly like an OD until revised, but **the owner
+> may revisit any `DD-` at any time without ceremony.** Decision rights (which questions are the
+> owner's at all) live in [`docs/factory-workflow.md`](factory-workflow.md) § Decision rights.
+>
+> **Historical note — Director calls filed under `OD-`.** The `DD-` prefix did not exist before
+> 2026-08-18, so several Director-made rulings carry `OD-` ids. They are **not renamed** (specs cite
+> those ids), but they are listed here so the owner can find what was decided *for* them:
+> `OD-PROC-7` · `OD-TS-4` · `OD-PR` (all "Director-ratified, mode A", 2026-06-04) ·
+> `OD-W5-C2-*` · `OD-W5-C3-*` · `OD-W4-*` (all "Director-adopted", 2026-06-10) ·
+> `OD-ENA-ITEMS-INSERT` (Director ruling, 2026-07-13) · `OD-CR-4` (Director default, 2026-07-22 —
+> **promoted to owner-settled 2026-08-18 by OD-CR-9**) · the ADR-0033 prefix extension
+> (Director-ratified, 2026-06-19). Treat every one of these as revisitable on request.
 
 Durable record of resolved `[OWNER-DECISION]` (OD) items — the business-rule answers that unblock
 write features. Each entry is locked by the owner in conversation, recorded here, then consumed by the

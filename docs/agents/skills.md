@@ -29,7 +29,20 @@ That is our exact delta. After a re-vendor the same diff shows upstream drift. T
 exists for skills vendored at the last run — a fresh override diffs only after the next
 `vendor-skills.sh`.
 
-**Overridden today:** `implement`, `tdd`, `to-spec`, `code-review`, `handoff`, `ask-matt`.
+**Overridden today:** `implement`, `tdd`, `to-spec`, `code-review`, `handoff`, `ask-matt`,
+`wayfinder`, `grilling`, `prototype`, `to-tickets`.
+
+**Why the last four (2026-08-18).** Upstream models **two actors** — human and agent — so every
+decision defaults to the human. This repo runs **three**: owner, Director, factory. The overrides
+inject the decision-rights test (`docs/factory-workflow.md` § Decision rights) so only genuinely-owner
+questions reach the owner, and add the executor axis (`owner` / `director` / `factory`) to wayfinder
+tickets and `/to-tickets` output. `ask-matt` was refreshed at the same time — it predated the SSSF
+adoption by ten days and had no factory on its map at all.
+
+⚑ These five were copied into `.claude/skills/` by hand so they took effect immediately without a
+network re-vendor (which forces a re-vet of the mattpocock set). The next `vendor-skills.sh` run
+reapplies them from `skill-overrides/` as normal, and only then do they gain a `skill-original/`
+snapshot to diff against.
 
 ## Ownership boundaries (collisions resolved by CLAUDE.md's table)
 

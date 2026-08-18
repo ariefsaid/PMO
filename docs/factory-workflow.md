@@ -25,6 +25,38 @@ milestone sign-off             (SSSF ADW or pi-dispatch)
   Promotion gates unchanged: Director merges to `dev`/`main` within the signed scope; **`main` is
   the autonomous ceiling; production stays per-instance owner-gated** (CLAUDE.md).
 
+## Decision rights — who decides what (owner directive 2026-08-18)
+
+The three systems above have **three actors**, not two. Upstream skills (the Matt Pocock set) model
+only *human* and *agent*, so every decision defaults to the human. That is wrong here and produces
+grill sessions where half the questions are the Director's own calls wearing owner clothes.
+
+**Escalate to the owner only when the question is:**
+
+1. **Commercial** — market, price, packaging, sales model, what a customer will pay or accept.
+2. **Irreversible and outside a signed brief** — production, data destruction, public commitments.
+3. **A scope-versus-time trade that changes what ships** — "do we delay the milestone for this".
+4. **A fact only the owner holds** — client relationships, partner terms, their own preferences.
+
+**Everything else the Director decides**, states in a line or two with the reasoning, and proceeds.
+Silence is assent; the owner overrides by saying so. Architecture, schema shape, library choice,
+test strategy, ticket structure, sequencing *within* a signed scope — Director. The binding gates in
+CLAUDE.md are unchanged: `main` is the autonomous ceiling, production is per-instance owner-gated.
+
+### Recording them: `OD-` vs `DD-`
+
+`docs/decisions.md` records both, under **distinct prefixes**, so the owner can scan for what is
+theirs:
+
+- **`OD-…`** — owner-locked. Changing one needs the owner.
+- **`DD-…`** — Director decision. Binding on agents exactly like an OD until revised, but **the
+  owner may revisit any DD at any time without ceremony** — that is the point of the separate
+  prefix. A DD records the reasoning precisely so it can be re-opened cheaply.
+
+A DD that turns out to be commercial, irreversible, or a scope-versus-time trade was mis-classified:
+escalate it and re-file it as an OD. When in doubt between the two, it is a DD with the reasoning
+written down — not a question that stalls the work.
+
 ## Milestone brief (the sign-off artifact)
 
 A section in the anchoring GitHub issue (or `docs/plans/`), signed by an explicit owner reply:
