@@ -41,6 +41,13 @@ Microsoft 365 and client users make it (see the M365 section below). #428 landed
 model on `dev` — operator entitles → client admin approves → each user connects. Next: promote
 `dev`→`main` when the slice is review-complete; live deploy stays owner-gated.
 
+**⚑ Route map (2026-08-18): the product's destination is now charted.** GitHub #459 — *PMO as a
+product: the route from RIS to a reseller-fed SaaS* — holds the destination, three milestones
+(first client live · standalone SaaS · reseller-fed) and the decisions from a full grill. Child maps:
+#450 (milestone 1) · #439 (milestone 2). It revises the RIS-parity sequence below and adds two slices
+in front of go-live: **first-class tasks** and a **meeting module**. Read the map for *why*; this
+file stays the live status doc.
+
 **⛔ OWNER DECISIONS STILL OPEN** *(per the public-repo rule in CLAUDE.md, open items are neutral
 stubs here; full detail is held privately by the Director and restored to this doc when each ships)*
 1. **Procurement receipt workflow width** — product decision on whether receipt recording needs a
@@ -864,10 +871,16 @@ headless user *see their own money* — do them as a "P3.5 read-model" pair befo
 complete the cost picture at M effort. G5 stays demand-gated. Sequencing/effort revisited when a real client's
 segment is in front of us.
 
-### ⚑ CANDIDATE PROGRAM (2026-07-22) — RIS-parity + CRM-v2 (analysis done, GRILLED, NOT scheduled)
+### ⚑ RIS-parity + CRM-v2 — NOW SEQUENCED under the route map (2026-08-18)
+> **No longer a candidate.** The wayfinder route map (GitHub #459, charted 2026-08-18) places this
+> program inside milestone 1 (first client live). The batches and the OD-CR-* decisions below stand;
+> the **sequence at the bottom of this section was revised** — read that, not the July one.
 Source: [`docs/reviews/2026-07-22-competitive-refresh-ris-cicle.md`](reviews/2026-07-22-competitive-refresh-ris-cicle.md)
 (four-way comparison: PMO main+dev vs our own RIS-portal-2 vs KANNA-recheck vs Cicle; moat thesis §1).
-**Prereq: land the `dev` integrations program on `main` first** — no new program starts before it ships.
+**Prereq (SATISFIED 2026-08-18):** the integrations program had to land on `main` first. It was
+blocked in a three-way loop — parity waited on integrations, integrations' M365 acceptance was parked
+waiting on the client's tenant licence, and the day-1 feature cut waited on parity. Owner obtained
+client M365 admin access, so the chain runs as designed.
 Then, per the standard series loop (grill → spec → …), the candidate queue:
 - **Batch A — approvals governance (spine 2, RIS parity):** A1 value-threshold **approval limits**
   (high-value → Executive, Admin-config, server-enforced) [M] · A2 **mandatory rejection comment** +
@@ -913,9 +926,33 @@ Then, per the standard series loop (grill → spec → …), the candidate queue
     rework.
   - **[OD-CR-6] Parked set confirmed parked:** in-house chat/video (Cicle turf — stays Big-track),
     field photos/forms (KANNA turf), offline/native mobile.
-  - **Resulting sequence:** dev-integrations promote → i18n seam (OD-CR-3) → quick wins
-    (D3·D4·A2·A3) → CRM v2 (D1 manual capture → D2 → D6, D5 own spec) → B1–B3 + A1/A4 + C →
-    Bahasa translation pass.
+  - **[OD-CR-7 … OD-CR-12] Amendments (owner grill 2026-08-18, route map #459).** The July
+    decisions stand except where noted:
+    - **[OD-CR-7] Bahasa is a market precondition and the first client goes live in Indonesian.**
+      This is what pulls localization in front of go-live rather than leaving it mid-program.
+    - **[OD-CR-8] The multi-currency seam (OD-CR-5) rides WITH the i18n seam**, before go-live —
+      the last moment the money tables carry no client data.
+    - **[OD-CR-9] OD-CR-4 is promoted from a Director default to a settled decision**, and widened:
+      **language, number format and timezone** are all org-default-with-per-user-override, surfaced
+      on the profile settings page. Number format derives from language with an explicit override.
+    - **[OD-CR-10] No date-format setting.** US `MM/DD/YYYY` is ruled out entirely; `dd/mm/yyyy` for
+      humans, ISO 8601 `yyyy-mm-dd` for machine surfaces (exports, filenames, API, logs).
+    - **[OD-CR-11] Display follows locale; money input is masked, not parsed.** No app-wide
+      punctuation convention — a translated UI with foreign number formatting reads as half-done.
+      Choosing a convention does not fix input ambiguity, it relocates it to whoever types the other
+      one. ⚑ `parseMoneyInput`/`formatCurrency` in `pmo-portal/src/lib/format.ts` assume one locale
+      today and must become locale-aware in the SAME change as the masked input, since that helper is
+      deliberately the single parse behind both validation and persistence. Detail: #468.
+    - **[OD-CR-12] OD-CR-6 amended: PWA un-parks** (installable + offline READS; no offline writes).
+      Native mobile, in-house chat, field photos/forms stay parked.
+  - **Resulting sequence (REVISED 2026-08-18 — supersedes the July order):**
+    **i18n + currency seam (#468) → first-class tasks (#462) → meeting module (#463) → Bahasa
+    translation pass → RIS go-live**, with the quick wins (D3·D4·A2·A3) running alongside. Then
+    CRM v2 (D1 manual capture → D2 → D6, D5 own spec) → B1–B3 + A1/A4 + C.
+    Two new first-class records — **Contract and Work Order** (#471) — enter via the same map.
+    Rationale for the two new slices in front of go-live: meetings are a day-1 client requirement,
+    first-class tasks are their prerequisite, and the owner accepted a later go-live for a better
+    product.
 
 ### ⚑⚑ ADAPTER PROGRAM — P2 ERPNext money core ✅ MERGED to dev (#315 squash `b549d06`, 2026-07-14)
 ### ⚑⚑ M365 INTEGRATION — RESUME HERE (updated 2026-07-29) — ✅ MERGED to `dev`; **connect leg PROVEN live, `graph_proxy` NEVER proven**
