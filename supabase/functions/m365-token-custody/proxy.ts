@@ -145,8 +145,31 @@ export async function handleGraphProxy(
   });
 
   if (!graphRes.ok) {
+    // TEMPORARY diagnostic (issue #445, first live use-leg failure 2026-08-18): capture Graph's
+    // status, request-id and error code — server-side log + (temporarily) the client message. The
+    // upstream code/status are not token material. The fix slice restores the opaque client
+    // envelope; the structured server-side log stays as the permanent #445 remedy.
+    let upstreamCode = '';
+    try {
+      const errBody = (await graphRes.json()) as { error?: { code?: string } };
+      upstreamCode = String(errBody?.error?.code ?? '');
+    } catch { /* non-JSON upstream body */ }
+    console.error('[m365-token-custody] graph_proxy upstream failure', {
+      status: graphRes.status,
+      upstreamCode,
+      requestId: graphRes.headers.get('request-id') ?? '',
+      connectionId: connection.id,
+      path: normalizedPath,
+    });
     await recordM365Error(serviceClient, { errorCode: 'GRAPH_ERROR', contextId: connection.id, orgId });
-    return { status: 502, body: { error: 'GRAPH_ERROR', message: 'Graph API request failed' }, headers };
+    return {
+      status: 502,
+      body: {
+        error: 'GRAPH_ERROR',
+        message: `Graph API request failed (upstream ${graphRes.status}${upstreamCode ? ` ${upstreamCode}` : ''})`,
+      },
+      headers,
+    };
   }
 
   const data = await graphRes.json();
