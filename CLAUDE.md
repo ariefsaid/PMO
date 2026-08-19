@@ -38,11 +38,14 @@ B2B multi-tenancy without a rewrite.
 
 ## Operating model: Owner → Director → role agents
 The **owner** talks to the **Director** (Opus 4.8, the main session). The Director runs an
-**issue-driven loop**, spawns the right role agent per phase, and takes each issue end-to-end.
-Build **one issue at a time**. Keep tool approvals **ON**; pause for owner approval at issue
-boundaries and before any push / merge / deploy. **Exception (owner 2026-08-16): inside a signed
-milestone brief the Director chains issues without per-issue pauses and the owner reviews at
-milestone boundaries — `docs/factory-workflow.md`.** `main` stays the ceiling either way.
+**issue-driven loop** and takes each issue end-to-end — but **does not run the build itself by
+default.** ⛔ **Pick the executor before starting any build** (`docs/factory-workflow.md` § Executor
+routing): a bounded code or FE slice → an **SSSF ADW** (`adws/adw_simple_sdlc.py`), chained with **no
+owner pause between issues**; **money-path / SoD / auth / token-custody** → Director-dispatched per
+issue. Reaching for `implementer` on a slice the factory should run is the standing mistake — it
+spends an owner checkpoint that the routing removed. Keep tool approvals **ON**; pause for owner
+approval before any push / merge / deploy, and at **milestone** boundaries — not at issue boundaries
+inside a signed brief. `main` stays the ceiling either way.
 > **⚑ Current executor (trial, 2026-06-12):** role-agent work is dispatched to the **pi CLI**
 > (GLM/codex substrates), not Claude subagents — to spare the Claude quota. The roster + models below are
 > the *contract* (and the Claude fallback); **`docs/pi-delegation.md` is how work is actually dispatched
@@ -59,8 +62,11 @@ stays intact in-repo, flip the mode to revert):
    mode this step is instead the owner-approved static HTML mockup round, `docs/design-workflow.md` §1a.)*
 2. **Spec (SDD)** — `spec-miner` (existing code) / `feature-forge` (new behavior) → `docs/specs/*.spec.md`.
 3. **Design+Plan** — `eng-planner` → `docs/plans/YYYY-MM-DD-<feature>.md` (+ ADRs).
-4. **Build (TDD)** — `implementer` / `ui-implementer` (red-green-refactor; no prod code without a failing
-   test). **Deterministic correctness becomes Layer-1 CI gate-tests** — chart-position, money, dates/TZ,
+4. **Build (TDD)** — **executor per the routing above, decided before you start**: ADW by default
+   (`--builder fe_builder --reviewer fe_reviewer` for UI); Director-dispatched only for the
+   money/SoD/auth tier. `implementer` / `ui-implementer` name the **role contract handed to the
+   executor** — they are not a decision to build it yourself (red-green-refactor; no prod code
+   without a failing test). **Deterministic correctness becomes Layer-1 CI gate-tests** — chart-position, money, dates/TZ,
    derived values, `axe-core` a11y, Playwright visual-regression — not human review (ADR-0030 §C).
 5. **Review — 3 reviewers, always** — `spec-reviewer`, `code-quality-reviewer`, **and** `security-auditor`
    (OWASP/STRIDE on auth + RLS + `org_id` tenancy; right-sized per model-tiering). All three run on every code
@@ -145,6 +151,7 @@ matching one ONLY when your task touches that surface — that is the whole poin
 
 | Touching… | Read first |
 |---|---|
+| About to start ANY build — or to decide who runs it | [`docs/factory-workflow.md`](docs/factory-workflow.md) § Executor routing — **the ADW is the default and issues chain without owner pauses**; per-issue Director dispatch is the money/auth exception, not the reverse |
 | Any money flow (budget activate · invoice/payment submit · procurement transition · timesheet push) | [`docs/money-path-primer.md`](docs/money-path-primer.md) — a map of the outbox/sweep/SoD architecture so you don't re-derive it from source |
 | The agent / LLM surface (prompts, tools, evals, the assistant panel) | [`docs/adr/0050-layered-agent-prompt-charter-and-skills.md`](docs/adr/0050-layered-agent-prompt-charter-and-skills.md) + [`docs/adr/0052-agent-eval-harness.md`](docs/adr/0052-agent-eval-harness.md) — ⚑ the deployed model (`deepseek-v4-flash`) is a **weak tool-selector**; prompt steering is unit-tested for text presence but NOT verified against the live model. The eval harness is the real gate. |
 | Authoring or editing any e2e spec | [`docs/e2e-parallel-conventions.md`](docs/e2e-parallel-conventions.md) — isolation classes, the `@e2e-isolation` tag, and the guard-polarity rule |
