@@ -81,20 +81,42 @@ ERP"), reconciling on the external answer — semantics unchanged underneath.
 
 ### 5. Ownership map (ERPNext capability map)
 
-| PMO domain | Owner when ERPNext employed | Notes |
-|---|---|---|
-| Accounting (GL, AP/AR, payments, invoices) | **ERP** | always; PMO has no ledger (ADR-0048 stands) |
-| Procurement chain (PR/RFQ/PO/GR/Invoice/Payment) | **ERP** | 1:1 native match; PMO is the UI over it |
-| Companies/Contacts (Customer/Supplier/Contact) | **ERP** | party master; created via synchronous command |
-| Sales money documents (Quotation, Sales Order, Sales Invoice) | **ERP** | = spine 4 Revenue/AR lands as commands |
-| Timesheets | **ERP** | native + costing; PMO weekly-grid UX is the surface; approve = command |
-| Budgets | **ERP object + PMO versions** | see §6 |
-| Projects (header) | **PMO**, reference pushed down | ERP needs Project as accounting dimension; PMO pipeline semantics richer |
-| Tasks + Milestones | **PMO** — or **ClickUp** when employed (§7) | milestone model is a deliberate PMO deviation |
-| CRM pipeline + activities | **PMO** | pipeline record *is* the project record (one entity opportunity→delivery); ERPNext Lead/Opportunity convert-and-die model is lossy |
-| Incidents | **PMO** | HSE/project ≠ helpdesk Issue |
-| Documents register | **PMO** (Supabase Storage) | reference/link pushed down to ERP records |
-| Agent tier, user views, credits, org/users | **PMO/platform** | by construction |
+| PMO domain | Owner when ERPNext employed | Notes | Live standalone → ERPNext crossing |
+|---|---|---|---|
+| Accounting (GL) | **ERP** | always; PMO has no ledger (ADR-0048 stands) | **n/a** — PMO never held the ledger; nothing is demoted or backfilled |
+| Procurement chain (PR/RFQ/PO/GR/Invoice/Payment) | **ERP** | 1:1 native match; PMO is the UI over it | **Posture B** — PMO ran the process; retain PMO SoT and side-mirror the outcome |
+| Companies/Contacts (Customer/Supplier/Contact) | **ERP** | party master; created via synchronous command | **Posture A + adopt** — reference/master-data exception; use the ordinary party-adopt route |
+| Sales money documents (Quotation, Sales Order, Sales Invoice) | **ERP** | = spine 4 Revenue/AR lands as commands | **Posture B** — PMO ran the process; retain PMO SoT and side-mirror |
+| Timesheets | **ERP** | native + costing; PMO weekly-grid UX is the surface; approve = command | **Posture B** — PMO entry/approval remains SoT; side-mirror the approved result |
+| Budgets | **ERP object + PMO versions** | see §6 | **Posture B** — PMO version/approval process remains SoT; side-mirror the approved result |
+| Projects (header) | **PMO**, reference pushed down | ERP needs Project as accounting dimension; PMO pipeline semantics richer | **PMO remains owner / no ERP crossing** |
+| Tasks + Milestones | **PMO** — or **ClickUp** when employed (§7) | milestone model is a deliberate PMO deviation | **PMO remains owner / no ERP crossing** |
+| CRM pipeline + activities | **PMO** | pipeline record *is* the project record (one entity opportunity→delivery); ERPNext Lead/Opportunity convert-and-die model is lossy | **PMO remains owner / no ERP crossing** |
+| Incidents | **PMO** | HSE/project ≠ helpdesk Issue | **PMO remains owner / no ERP crossing** |
+| Documents register | **PMO** (Supabase Storage) | reference/link pushed down to ERP records | **PMO remains owner / no ERP crossing** |
+| Agent tier, user views, credits, org/users | **PMO/platform** | by construction | **PMO remains owner / no ERP crossing** |
+
+### 5A. Addendum — live standalone → connected crossing
+
+A client that is already live on standalone PMO does **not** flip its process domains when ERPNext
+arrives. Procurement, sales invoices, payments, timesheets and budgets remain PMO-SoT under
+**ADR-0059 §1 Posture B** and are side-mirrored; no live PMO row is demoted to a read-model. Party
+master is the **Posture A + adopt** exception, while accounting/GL is n/a because PMO never held it.
+
+**Epoch rule (DD-XING-2).** Each relevant domain has two record classes split by the organization's
+PMO go-live date, carried by one nullable `organizations.pmo_epoch_at` (described here; to be built
+later). Before the epoch, external history is a Posture-A, read-only read-model: visible in PMO but
+never adopted or editable as a PMO process record. From the epoch onward, records are PMO-SoT under
+Posture B and side-mirrored. This reconciles, without weakening, ADR-0059 §5's never-adopt rule:
+pre-epoch history is read, not adopted.
+
+**Catch-up (DD-XING-3).** Before running catch-up, every Posture-B kind's state stamp must be audited
+to change whenever pushable content changes, with a mutation proof. The weak-stamp OQ-BUD-2 instance
+recorded in `0137_budget_push_seam.sql` shows why this is a precondition: it inverts idempotency by
+silently suppressing a needed write instead of preventing a duplicate. Once that precondition holds,
+connection catch-up is the ordinary Posture-B push over PMO records whose side-mirror row is missing,
+not bespoke backfill machinery. Under ADR-0059 §4, the key is derived, not minted, so reruns derive the
+same key and cannot duplicate an external write.
 
 **Money principle:** money that has **happened or is committed** (invoices, payments, POs,
 actuals, GL) is externally-owned, always. Planning artifacts wrap native objects as
@@ -141,11 +163,8 @@ entry wedge.
   by this ADR. Its core stands: ERPNext as the accounting engine, no homegrown ledger, no-Odoo-
   default rationale, v1 side-by-side, per-client instances, ledger-sourced display rule (PMO
   never recomputes externally-read figures).
-- Read-model tables need RLS write policies restricted to the sync service role for
-  externally-owned domains (per the client's `external_domain_ownership` config) — a
-  per-domain, reversible flip.
-- Flipping a domain to externally-owned for an *existing* client requires a backfill/promote
-  runbook (push existing Supabase rows into the external system, then flip ownership).
+- **Corrected by §5A / ADR-0059:** ~~Read-model tables need RLS write policies restricted to the sync service role for externally-owned domains (per the client's `external_domain_ownership` config) — a per-domain, reversible flip.~~ Posture-A read-model/RLS flips remain externally owned, and reversal leaves PMO holding stale ex-read-model rows; this is not an unqualified reversible crossing. Posture B is reversible: `drop table <side_mirror>` loses zero PMO data (ADR-0059 §3 invariant 7).
+- **Corrected by §5A / ADR-0059:** ~~Flipping a domain to externally-owned for an *existing* client requires a backfill/promote runbook (push existing Supabase rows into the external system, then flip ownership).~~ For a live crossing, process domains take Posture B. After the state-stamp precondition, catch-up is the ordinary push over missing side-mirror rows, never a push-then-flip/promote route. Party-master adoption and pre-epoch read-only history remain distinct from that process-domain catch-up.
 - Per-client secrets grow again (ERP API token, ClickUp token) — 1Password vault-`AS` pattern.
 - The agent tier and all pgTAP/RLS proofs keep working unchanged: reads (incl. agent reads)
   always hit Supabase; only the write path of externally-owned domains changes.
