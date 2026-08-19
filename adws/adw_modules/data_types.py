@@ -130,8 +130,12 @@ class DocumentOutput(EnvelopeBase):
 
 # ── Deterministic quality blocks ─────────────────────────────────────────────
 
-QualityArea = Literal["frontend", "backend"]
-QualityOperation = Literal["lint", "typecheck", "build"]
+# ⚑ These MUST cover every value quality.py actually constructs. The pgtap block
+# builds area="db" / operation="test"; omitting either crashes pydantic validation
+# BEFORE the gate can report — so the first run whose diff touches supabase/ dies
+# with a literal_error instead of a test result (#469, hit live on the #489 run).
+QualityArea = Literal["frontend", "backend", "db"]
+QualityOperation = Literal["lint", "typecheck", "build", "test"]
 
 
 class QualityCheckSpec(BaseModel):

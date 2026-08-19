@@ -69,6 +69,23 @@ if quality:
     check("exit 127 raises rather than returning a verdict",
           "ToolchainUnavailable(" in src and "c.returncode == 127" in src, True)
 
+# ── #469: the quality Literals must cover every spec quality.py constructs ───────
+# A mismatch crashes pydantic BEFORE the gate reports, so the run dies with a
+# literal_error instead of a test result. Parse both files rather than importing,
+# so this guard needs none of the ADW's runtime dependencies.
+dt = (ROOT / "adws/adw_modules/data_types.py").read_text()
+ql = (ROOT / "adws/adw_modules/quality.py").read_text()
+for field, literal_name in (("area", "QualityArea"), ("operation", "QualityOperation")):
+    m = re.search(rf"^{literal_name} = Literal\[([^\]]*)\]", dt, re.M)
+    if not m:
+        FAILURES.append(f"{literal_name}: not found — renamed?")
+        continue
+    allowed = set(re.findall(r'"([^"]+)"', m.group(1)))
+    used = set(re.findall(rf'{field}="([^"]+)"', ql))
+    missing = used - allowed
+    check(f"{literal_name} covers every {field} quality.py constructs "
+          f"(allowed={sorted(allowed)}, used={sorted(used)})", missing, set())
+
 if FAILURES:
     for line in FAILURES:
         print(f"✗ {line}", file=sys.stderr)
