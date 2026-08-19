@@ -1318,3 +1318,82 @@ eventually push into ERPNext, they must already carry whatever ERPNext will requ
 references, tax fields, account codes, naming series, currency. Discovering a missing required field
 after months of live client data is expensive and possibly unrecoverable. **The transition is designed
 before go-live and built after.**
+
+## DD-I18N-1..6 — the locale and formatting seam, fully specified (Director, 2026-08-19)
+
+Resolves the wayfinder ticket [Locale and formatting seam](https://github.com/ariefsaid/PMO/issues/468),
+first in milestone 1's build sequence. These are **`DD-`**: library choice, schema shape, migration order
+and test strategy are Director calls inside the owner-settled frame (`OD-CR-3`/`OD-CR-4`/`OD-CR-5` and the
+2026-08-18 ruling that Bahasa is a market precondition). Revisable by the owner at any time.
+
+Every ruling below is grounded in a count taken from the tree — and **two of the counts changed the
+answer**, which is the reason to write them down: `parseMoneyInput` has **6 call sites in 5 files**, while
+**~45 sites in ~28 files** format numbers or dates with a hardcoded locale outside `src/lib/format.ts`,
+and **48 unit test files plus 11 e2e specs** assert `$`-prefixed en-US output today. The display side is
+the big job, not the parser.
+
+**[DD-I18N-1] react-i18next, for message strings ONLY. `Intl` keeps money, dates and numbers.**
+No `i18next-icu`, no formatting plugins — `src/lib/format.ts` stays the single formatting source and **the
+money path acquires no plugin dependency**. Pluralization via `Intl.PluralRules`, and it barely matters:
+Bahasa has no grammatical plural, so the two English forms are the whole requirement.
+*Rejected `Intl` + a hand-rolled catalogue* (~40 lines, and the right call at 100 strings): at ~800–1200
+strings across 197 `.tsx` files handed to an outside translator, key extraction, a missing-key report and a
+fallback policy are the actual work, and `i18next-parser` supplies them as a CI gate. *Rejected Lingui*
+despite a smaller runtime and source-text-as-key macros — it needs a babel/swc macro inside the Vite build,
+a version-coupling risk against Vite 8 / React 19 that buys nothing a convention cannot. **The bundle
+argument does not survive the dependency list:** this PWA already ships recharts and posthog eagerly and
+lazy-loads exceljs, so a ~15kB gz runtime is noise. Bundle was the wrong axis; tooling was the right one.
+
+**[DD-I18N-2] Preferences are columns, and NULL means inherit.** `organizations`:
+`default_locale text not null default 'en'` · `default_number_locale text` (NULL = derive from language) ·
+`default_timezone text not null default 'Asia/Jakarta'`. `profiles`: `locale` · `number_locale` ·
+`timezone`, **all nullable**. A preferences table buys a join, an RLS policy and a row-exists branch for
+three fixed 1:1 values. The nullability answers "reset to org default" vs "happens to match it": reset
+writes NULL, an explicit choice writes the value — so a user who picks English while the org is English
+**stays** English when the org flips to `id`, which is the entire point of an override and which a
+copy-the-default-down-at-insert design silently breaks. **Binding on the build:** resolution lives in one
+`resolveLocale(profile, org)` helper, never as scattered `?? org.x` at call sites.
+
+**[DD-I18N-3] The masked money input replaces every money field in ONE pass**, and `parseMoneyInput`
+becomes locale-aware in the same commit. Six call sites (`ProjectFormModal`, `BudgetProjection`,
+`ProjectBudget`, `VendorQuotesTab`, `LineItemsSection`) — the "large diff" premise was wrong, so the trade
+never arises. **Guard-rail:** a masked field makes it tempting to let the component hold the number and
+drop the parse. Do not. `parseMoneyInput` stays the single parse behind both validation and persistence
+(the Wave 3 invariant documented in the helper); the component owns display grouping, the parse stays the
+boundary. `pages/project-detail/ProjectDetailHeader.tsx:67` already hand-rolls grouping via
+`toLocaleString('en-US')` — extract that, don't rewrite it.
+
+**[DD-I18N-4] Exports need no change, and that is the ruling.** `src/lib/export/toWorkbookBuffer.ts`
+already writes **typed cells** — real numbers with `numFmt '#,##0.##'`, real dates with `'yyyy-mm-dd'`.
+Excel format codes are locale-independent in the file and rendered in the **reader's** locale, so one
+identical file shows `1.234.567` to an Indonesian recipient and `1,234,567` to an American. No punctuation
+is stored, so there is no punctuation decision to get wrong. **CSV is neutral always** (`.` decimal, no
+grouping, ISO dates) — a locale-formatted CSV is exactly the thousandfold corruption this work exists to
+prevent, since Indonesian `1.234` parsed as en-US is `1.234` with no error raised. API payloads, logs and
+filenames stay ISO 8601 and raw numbers; screen and print are the only locale-formatted surfaces.
+**Standing prohibition:** no export value passes through `formatCurrency`, `formatDate` or `t()`.
+
+**[DD-I18N-5] Catalogues are JSON in the repo; a missing key renders English and fails CI.**
+Feature-namespaced keys at `public/locales/{en,id}/<ns>.json`, generated by `i18next-parser`. **No TMS** —
+Crowdin/Lokalise for two languages is a subscription and an integration in place of editing a JSON file;
+revisit at language three. A missing key renders **the English source string** — never the raw key, never
+a visible marker, because a client must not be shown `project.header.title`. And a missing key **fails
+CI** via the parser's completeness check. Those two only work as a pair: the forgiving runtime is
+affordable *because* the gate makes gaps unshippable. Who translates is resourcing, not product, and does
+not gate the seam — it ships with `en` complete and `id` partial.
+
+**[DD-I18N-6] The proof.** (1) Round-trip per locale over a value table, including the named live risk —
+`'1.234'` is **1234** under `id-ID` and **1.234** under `en-US`: one string, two correct answers, a factor
+of a thousand apart. (2) A **mutation check** on the money path (mandatory): break the separator handling
+and the money tests must go red. (3) Catalogue completeness as a CI gate — missing *and* orphaned keys.
+(4) One curated Playwright journey: switch language, assert money and a date in Indonesian convention.
+(5) An export guard asserting a *number* reaches `cell.value`.
+**⚑ The largest risk in the build:** the 48 unit files and 11 e2e specs asserting en-US output must each
+pin an **explicit** locale, not inherit the runner's or the browser's. Left implicit they either go red for
+the wrong reason or — worse — stay green while proving nothing, because the runner happens to default to
+`en-US` here and in CI. That is a suite certifying a locale nobody chose. Not optional cleanup.
+
+**Graduated build work:** the ~45 hardcoded-locale display sites are a separate, mechanical issue
+([#477](https://github.com/ariefsaid/PMO/issues/477)) — folded into the seam's diff they make a change
+that touches the money parser unreviewable. Shape 3 of that sweep (bare `toLocaleDateString()`) is already
+a latent bug independent of i18n: two users in one org see different date formats today.
