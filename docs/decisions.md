@@ -1651,3 +1651,37 @@ stable `/tasks/:id` deep link; an org-wide task browser is out. **5 —** `times
 **stays `not null`** — a project-less task cannot be timed. Time is costed and pushed to ERPNext where
 project is the accounting dimension; relaxing it would drag this migration into the money path for a
 rare case. Attach the task to a project first: a legible workflow, not a workaround.
+
+## DD-IMP-1 — budget import descriptor (Director, 2026-08-19)
+
+Resolves #473 → build #495. Effort S, and the last day-1 dataset without an importer.
+
+**Fields.** Version header: project (ref), name, fiscal year. Line items: `category`, `description`,
+`budgeted_amount`. `version` and `status` are derived, never supplied.
+
+⛔ **`actual_amount` is NOT importable.** It sits on `budget_line_items` and an importer would
+naturally include it. Actuals come from the ERP read-model; a spreadsheet writing them produces a
+figure **PMO computed rather than read**, breaking the ledger-sourced display rule (ADR-0048/0055) —
+silently, because the number looks correct.
+
+**Shape.** One row = one line item, parent version resolved by reference and **matched-or-created** as
+Draft on `(project, fiscal_year)`; requiring a manual pre-step per project defeats a bulk importer at
+the one moment it runs at volume. A **fiscal-year column per row** is required, not optional: budget
+identity is year-qualified (`0154`), so the year cannot be implicit — and a wizard-level
+"one year at a time" mode could not express the multi-year plan a real budget sheet is.
+Re-run safety uses the **shipped** import provenance (`0072`); a descriptor-local dedupe scheme is how
+two mechanisms end up disagreeing.
+
+**Draft-only is achieved by omission** — `budget_versions.status` defaults to `'Draft'`, so the
+descriptor simply does not expose it. **Activation is reachable only via `activate_budget_version`,
+never an import**; bulk-creating activated budgets routes around the approval path, the class this
+repo has already paid for four times. Precedent one descriptor over: `projectDescriptor` constrains
+status because "a won/on-hand status is reachable only via the transition RPC, never an import." Test
+it and **mutation-check it** — adding `status` to the descriptor must turn a test red.
+
+⚑ **Sequencing correction.** The ticket instructs the descriptor to set `currency` explicitly. **There
+is no `currency` column to set** — the only ones in the schema are on the ERP snapshot read-models
+(`0101`, `0150`); `OD-CR-5` is ruled and unbuilt (also under `DD-XING-4`). So #495 is **blocked on
+#478**. Both are pre-go-live and seeding runs once, so building the importer first means building it
+twice, the second pass touching a money-shaped path for no gain. This does not make the importer less
+day-1 — it orders two day-1 items that were being treated as independent.
