@@ -186,10 +186,15 @@ agents:
       system: adws/adw_data/prompt_engineering/documenter/system.md
       user: adws/adw_data/prompt_engineering/documenter/user.md
     writes:                        # documentation only — "document only" is a rule now,
-      - app_docs/                  # not a line in a prompt the model may drift from.
-      - docs/                      # Markdown anywhere, because docs live next to the
-      - "**/*.md"                  # code they describe as often as in a docs folder.
-      - "*.md"
+      - docs/                      # not a line in a prompt the model may drift from.
+      - "**/*.md"                  # Markdown anywhere, because docs live next to the
+      - "*.md"                     # code they describe as often as in a docs folder.
+    # ⚑ `app_docs/` removed 2026-08-20 (#500). It is not a tracked convention in this
+    # repo, so every successful run left a new top-level directory holding a
+    # hash-prefixed file that had to be relocated by hand — three times in one day.
+    # `docs/reviews/` is the existing ledger for run write-ups; the documenter's
+    # prompt names it. Same fix the planner got in the 2026-08-16 iterate round,
+    # when its `writes:` was re-aimed at `docs/plans/`.
     tools:                         # reads the diff and the code; writes/edits documentation only
       - read
       - grep

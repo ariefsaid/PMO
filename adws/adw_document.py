@@ -29,7 +29,7 @@ from adw_modules.data_types import (AgentCall, ChangeCapture, DocumentOutput,
 REQUIRED_AGENTS = ["documenter"]
 
 DOCUMENT_NOTES = ("Read diff_path in full before writing. Document only what the "
-                  "diff shows, then copy the write-up into app_docs/ as your task "
+                  "diff shows, then copy the write-up into docs/reviews/ as your task "
                   "describes.")
 
 
