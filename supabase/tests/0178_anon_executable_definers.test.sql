@@ -63,6 +63,7 @@ insert into client_callable_rpc_names (proname) values
   ('operator_agent_run_stats'),
   ('operator_grant_credits'),
   ('operator_set_domain_ownership'),
+  ('operator_set_org_lifecycle_state'),
   ('operator_list_orgs'),
   ('operator_toggle_feature'),
   ('operator_usage_summary'),
@@ -101,8 +102,8 @@ select is(
      join pg_namespace n on n.oid = p.pronamespace
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'),
-  49,
-  'AC-ACL-002 all 49 retained client-callable RPC names still have a public function');
+  50,
+  'AC-ACL-002 all 50 retained client-callable RPC names still have a public function');
 
 select is(
   (select count(*)::int
@@ -111,8 +112,8 @@ select is(
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'
       and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
-  49,
-  'AC-ACL-003 all 49 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
+  50,
+  'AC-ACL-003 all 50 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
 
 -- The production sweep: direct role ACL entries are the oracle. `distinct` prevents one function
 -- granted to both roles from being named twice. The empty allow-list is intentional here: migration
