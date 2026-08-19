@@ -1397,3 +1397,92 @@ the wrong reason or — worse — stay green while proving nothing, because the 
 ([#477](https://github.com/ariefsaid/PMO/issues/477)) — folded into the seam's diff they make a change
 that touches the money parser unreviewable. Shape 3 of that sweep (bare `toLocaleDateString()`) is already
 a latent bug independent of i18n: two users in one org see different date formats today.
+
+## DD-XING-1..6 — the standalone → connected crossing is Posture B, not a flip-and-backfill (Director, 2026-08-19)
+
+Resolves the wayfinder ticket [Standalone → connected](https://github.com/ariefsaid/PMO/issues/475).
+RIS goes live on PMO standalone with ERPNext as an immediate follow (`OD-ERP-1`/`OD-ERP-2`), so PMO is
+the only system for a period, writing real projects, budgets, invoices and payments. **`DD-`** —
+revisable by the owner at any time.
+
+**Two premise corrections first.** ADR-0055 is *not* unaware of the crossing: its Consequences say
+*"Flipping a domain to externally-owned for an existing client requires a backfill/promote runbook
+(push existing Supabase rows into the external system, then flip ownership)"* and call the flip *"a
+per-domain, reversible flip."* The gap is **named but undesigned** — and the named answer is *the more
+expensive of the two now available*, because it was written before ADR-0059 existed, when Posture A was
+the only posture. ADR-0059 §7 also already amended ADR-0055 §5's ownership map once (adding a posture
+column), which is why the crossing rule belongs in that same table.
+
+**[DD-XING-1] For a client crossing while live, the process domains do not flip — they take ADR-0059
+Posture B (PMO-SoT + external side-mirror).** ADR-0059 §2's rule sorts them unchanged: Posture B iff PMO
+owns a process whose outcome the external system must record. Procurement chain, sales invoices,
+payments, timesheets and budgets are **B** (PMO ran the SoD, approvals and outbox). Party master
+(Companies/Contacts) is **A with adopt** — ADR-0059 §5 explicitly exempts reference/master data, and the
+party-adopt path ships. Accounting/GL is **A natively**; PMO never held it, so nothing crosses.
+Three properties make this right rather than merely cheap: (a) Posture B leaves PMO tables *"unflipped,
+user-writable, untouched"*, so the opening problem — records that cannot become a read-model because
+they are the only copy — **stops existing** instead of being worked around; (b) invariant 7 makes the
+crossing reversible by `drop table <side_mirror>` with zero PMO data loss, so a disconnecting client
+keeps working; (c) **no new ownership state machine is needed** — `external_domain_ownership` (`0087`)
+is stateless (presence = owned, no "crossing in progress"), and a Posture-B domain gets no row at all
+(`0137`: *"POSTURE B — PMO IS SoT. There is deliberately NO RLS FLIP here."*). Under Posture A that
+stateless switch would have needed an intermediate state to hold a half-finished backfill.
+⚑ **Reversibility is a Posture-B property only.** A Posture-A reversal *"leaves PMO holding stale
+ex-read-model rows"*, so ADR-0055's unqualified "reversible" overstates Posture A and gets corrected.
+
+**[DD-XING-2] The epoch boundary — one date reconciles "never adopt" with showing pre-go-live history.**
+Posture B invariant 5 forbids adopting an inbound external document with no `external_refs` mapping
+(adoption *"would mint a PMO record that never passed PMO's process"*), yet RIS's January-2025 history
+loads natively into ERPNext (`OD-SEED-3`) and must be visible in PMO. A domain therefore holds **two
+record classes**, split by whether PMO's process ever ran: **before the org's PMO go-live**, history is a
+Posture-A **read-only read-model** — surfaced through the shipped snapshot read-models, never adopted,
+never editable in PMO; **from go-live onward**, records are PMO-SoT, Posture B, side-mirrored. Invariant
+5 stands unweakened: nothing pre-epoch is *adopted*, it is *read*. One nullable
+`organizations.pmo_epoch_at` carries it — the only genuinely new concept the crossing needs.
+
+**[DD-XING-3] The catch-up is the ordinary Posture-B push run over records with no side-mirror row. No
+backfill machinery, no second implementation of the money path.** It is safely re-runnable **by
+construction**: an ADR-0059 §4 key is *derived, not minted* (`'<prefix>:' || <pmo_record_id> || ':' ||
+<state_stamp>`), so a re-run derives the same key, the outbox single-use constraint (`0134`) rejects the
+duplicate, and no invoice is written twice. `external_refs` needs nothing new —
+`unique (org_id, domain, pmo_record_id)` already carries the linkage, and `0093` added the
+reverse-direction constraint for adopt-mode dedupe.
+**⛔ Prerequisite, not optional: audit every Posture-B kind's state stamp before any crossing**
+([#479](https://github.com/ariefsaid/PMO/issues/479)). `0137` documents a live failure of exactly this
+(OQ-BUD-2): `budget_versions` has no `activated_at`, so re-activating a rolled-back version derives a key
+**identical to the original push** ⇒ 23505 ⇒ *silently suppressed* ⇒ ERP enforces the wrong version. A
+weak stamp inverts the guarantee — instead of preventing a duplicate it **suppresses a needed write with
+no error anywhere** — and a catch-up over months of accumulated records is the workload that turns one
+weak stamp into plural silent data loss.
+
+**[DD-XING-4] What a record must carry is far less than feared — except two things, and both are missing
+today.** Most of the ERPNext requirement list is **org-level config set at connect, not per-record
+data**: account codes are a mapping table (`budget_category_account_map` already ships as an org-scoped
+Admin-only bijection), naming series and tax templates are connect-time settings, company is a constant.
+None needs to exist at go-live. Two are genuinely per-record and absent:
+(1) **currency — ruled but not built.** `OD-CR-5` requires `currency` on every money table; the only
+`currency` columns in the schema are on the two ERP snapshot read-models (`0101`, `0150`). It rides with
+the i18n/currency seam (`DD-I18N-*`) — but a four-week-old ruling is still unimplemented, so the seam's
+plan must be checked to actually land it.
+(2) **⛔ tax — absent entirely, and this is the go-live blocker.** No tax column exists anywhere.
+`sales_invoices` (`0123`) carries `amount numeric(14,2)` — no currency, no rate, no tax amount, no line
+items — and its insert policy (`not domain_externally_owned(org,'revenue')`) means **a standalone org
+authors invoices natively into it**, which is what RIS does from go-live until ERPNext lands. An
+Indonesian invoice carries PPN and an ERPNext Sales Invoice requires a tax treatment; a single
+undifferentiated `amount` **cannot be reconstructed** into one, because whether it is tax-inclusive or
+tax-exclusive is recorded nowhere and no later inference recovers it. Cheap now, unrecoverable after the
+first real invoice — the one item on the crossing with a deadline rather than an ordering
+([#478](https://github.com/ariefsaid/PMO/issues/478)).
+
+**[DD-XING-5] Prove the crossing against the ERPNext dev bed before go-live**
+([#481](https://github.com/ariefsaid/PMO/issues/481)), driven from seed data, over a deliberate *gap*
+(seed, skip the push, then catch up — a dry-run against already-pushed records proves nothing).
+Assertions: every seeded record pushes to a valid ERPNext document; a re-run writes nothing; a pre-epoch
+ERPNext document mints no PMO process record; `drop table` on the side mirror loses no PMO data.
+⚑ **Director-dispatched, never factory** — a backfill that writes invoices is money-shaped.
+
+**[DD-XING-6] An addendum to ADR-0055 §5, no new ADR**
+([#480](https://github.com/ariefsaid/PMO/issues/480)). ADR-0059 holds the mechanism and ADR-0055 §5's map
+is where a reader asks "what happens to domain X"; a third ADR restating both is ceremony. The addendum
+adds the crossing column, the epoch rule, the catch-up rule with its state-stamp precondition, and the
+reversibility correction.
