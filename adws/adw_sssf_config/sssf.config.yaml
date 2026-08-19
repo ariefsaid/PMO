@@ -41,13 +41,14 @@ observability:
   poll_ms: 500                     # visualizer live-poll cadence
 
 agents:
-  # ⚑ Roster note (owner 2026-08-19): builders are codex `luna`, reviewers codex `terra`.
-  # This DROPS the cross-family property the previous roster had (GLM builds → codex reviews).
-  # terra reviewing luna is same-family review: shared training lineage means shared blind spots,
-  # so the reviewer is less likely to catch what the builder got wrong for family reasons. Keep the
-  # Director's own gates (verify:locked, mutation checks, rendered pass) as the real exit — they are
-  # now carrying more weight than they were. Revert lever: set builder/fe_builder back to
-  # `zai/glm-5.3` (or drop their `model:` keys to inherit the global default).
+  # ⚑ Roster note (owner 2026-08-19). Direction of build/review flipped, cross-family PRESERVED:
+  #   planner glm-5.3 · builder + fe_builder codex luna · reviewer glm-5.3 · fe_reviewer codex terra
+  # The code path is cross-family by construction (codex builds → GLM reviews), which is the property
+  # that makes review worth running: a same-lineage reviewer shares the builder's blind spots.
+  # ⚑ fe_reviewer is the ONE deliberate exception and must NOT be "harmonised" to GLM: it audits
+  # rendered output, and GLM is not multimodal. Same-family there is the price of a reviewer that can
+  # see. (The Director's pixel/taste pass on the run's screenshots remains the exit gate regardless —
+  # docs/factory-workflow.md § Executor routing.)
 
   - name: planner
     model: zai/glm-5.3
@@ -119,7 +120,7 @@ agents:
   # phase over adw_modules/quality.py. See SKILL.md hard rule 8.
 
   - name: reviewer
-    model: openai-codex/gpt-5.6-terra   # owner 2026-08-19: terra reviews luna (SAME family — see note below)
+    model: zai/glm-5.3                  # owner 2026-08-19: GLM reviews the codex builder — cross-family on the code path
     thinking: high
     color: "#fb7185"
     purpose: Confirm that what was built is what was asked for; change nothing.
@@ -156,7 +157,7 @@ agents:
       - write
 
   - name: fe_reviewer
-    model: openai-codex/gpt-5.6-terra   # owner 2026-08-19: terra reviews luna (supersedes 2026-08-16 luna ruling)
+    model: openai-codex/gpt-5.6-terra   # owner 2026-08-19: MUST stay codex — GLM is not multimodal and this reviewer looks at renders
     thinking: high
     color: "#f472b6"
     purpose: Audit the built UI rendered in a real browser against DESIGN.md + the plan; change nothing.
