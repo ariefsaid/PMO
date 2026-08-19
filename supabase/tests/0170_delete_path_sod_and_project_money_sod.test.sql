@@ -77,9 +77,9 @@ update budget_versions set status = 'Archived'                       where id = 
 update budget_versions set status = 'Active',   activated_at = now() where id = '01700000-0000-0000-0000-0000000000f4';
 
 -- The five mirror rows, each in a terminal / decision-bearing state.
-insert into sales_invoices (id, org_id, project_id, customer_id, si_number, invoice_date, amount,
+insert into sales_invoices (tax_treatment, tax_amount, id, org_id, project_id, customer_id, si_number, invoice_date, amount,
                             erp_outstanding_amount, status, erp_docstatus, author_user_id) values
-  ('01700000-0000-0000-0000-0000000000d1','01700000-0000-0000-0000-000000000001',
+  ('exclusive', 0, '01700000-0000-0000-0000-0000000000d1','01700000-0000-0000-0000-000000000001',
    '01700000-0000-0000-0000-0000000000b1','01700000-0000-0000-0000-0000000000c1',
    'SI-DPS-001','2026-03-02',500.00,0.00,'Paid',1,'01700000-0000-0000-0000-0000000000a2');
 

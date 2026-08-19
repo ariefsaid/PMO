@@ -33,13 +33,13 @@ insert into companies (id, org_id, name, type) values
   ('11080000-0000-0000-0000-0000000002c1','11080000-0000-0000-0000-000000000201','B6 Customer','Client');
 
 -- SI #1: author_user_id NULL — the row the SoD cannot reason about.
-insert into sales_invoices (id, org_id, customer_id, si_number, invoice_date, amount, status, author_user_id)
-values ('11080000-0000-0000-0000-0000000002f1','11080000-0000-0000-0000-000000000201',
+insert into sales_invoices (tax_treatment, tax_amount, id, org_id, customer_id, si_number, invoice_date, amount, status, author_user_id)
+values ('exclusive', 0, '11080000-0000-0000-0000-0000000002f1','11080000-0000-0000-0000-000000000201',
         '11080000-0000-0000-0000-0000000002c1','B6-SI-NULL-AUTHOR','2026-07-16',1000.00,'Draft', null);
 
 -- SI #2: authored by A — the control (0105's proven behaviour must be intact).
-insert into sales_invoices (id, org_id, customer_id, si_number, invoice_date, amount, status, author_user_id)
-values ('11080000-0000-0000-0000-0000000002f2','11080000-0000-0000-0000-000000000201',
+insert into sales_invoices (tax_treatment, tax_amount, id, org_id, customer_id, si_number, invoice_date, amount, status, author_user_id)
+values ('exclusive', 0, '11080000-0000-0000-0000-0000000002f2','11080000-0000-0000-0000-000000000201',
         '11080000-0000-0000-0000-0000000002c1','B6-SI-AUTHORED','2026-07-16',2000.00,'Draft',
         '11080000-0000-0000-0000-0000000002a1');
 

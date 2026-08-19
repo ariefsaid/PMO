@@ -86,8 +86,8 @@ insert into procurements (id, org_id, title, status, requested_by_id, approved_b
   ('01710000-0000-0000-0000-0000000000d8','01710000-0000-0000-0000-000000000001','SCC invoiced case','Vendor Invoiced',
    '01710000-0000-0000-0000-0000000000a1','01710000-0000-0000-0000-0000000000a2','01710000-0000-0000-0000-0000000000c2',1000);
 
-insert into sales_invoices (id, org_id, project_id, customer_id, si_number, invoice_date, amount, status) values
-  ('01710000-0000-0000-0000-0000000000d1','01710000-0000-0000-0000-000000000001','01710000-0000-0000-0000-0000000000b1',
+insert into sales_invoices (tax_treatment, tax_amount, id, org_id, project_id, customer_id, si_number, invoice_date, amount, status) values
+  ('exclusive', 0, '01710000-0000-0000-0000-0000000000d1','01710000-0000-0000-0000-000000000001','01710000-0000-0000-0000-0000000000b1',
    '01710000-0000-0000-0000-0000000000c1','SI-SCC-001','2026-03-02',500.00,'Paid');
 
 insert into incoming_payments (id, org_id, customer_id, sales_invoice_id, ip_number, date, amount, status) values
@@ -292,7 +292,9 @@ select is(
      from information_schema.column_privileges
     where table_schema = 'public' and table_name = 'incoming_payments'
       and grantee in ('authenticated','anon') and privilege_type in ('INSERT','UPDATE')),
-  'INSERT:amount,INSERT:created_at,INSERT:customer_id,INSERT:date,INSERT:id,INSERT:org_id,INSERT:reference_number,INSERT:sales_invoice_id',
+  -- #478 (0187): `currency` joined the BODY set (granted explicitly because this table's INSERT grant
+  -- is column-level). status / ip_number / erp_* stay withheld and UPDATE still gets nothing.
+  'INSERT:amount,INSERT:created_at,INSERT:currency,INSERT:customer_id,INSERT:date,INSERT:id,INSERT:org_id,INSERT:reference_number,INSERT:sales_invoice_id',
   'AC-SCC-030 the re-granted INSERT is the BODY only — no status, no ip_number, no erp_* feed column — and UPDATE gets no re-grant at all (mirrors 0176 §1 on sales_invoices)');
 
 set local role authenticated;

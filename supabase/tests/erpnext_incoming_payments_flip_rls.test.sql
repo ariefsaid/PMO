@@ -18,8 +18,8 @@ insert into profiles (id, org_id, full_name, email, role, status) values
 -- Seed: customer + SI (parent) + incoming_payment in Org A (owner insert pre-flip)
 insert into companies (id, org_id, name, type) values
   ('005a0000-0000-0000-0000-0000000000f1','005a0000-0000-0000-0000-000000000001','PE Customer','Client');
-insert into sales_invoices (id, org_id, customer_id, si_number, invoice_date, amount, erp_outstanding_amount, status, erp_docstatus, erp_modified, erp_amended_from, erp_cancelled_at, created_at)
-values ('005a0000-0000-0000-0000-0000000000e1','005a0000-0000-0000-0000-000000000001',
+insert into sales_invoices (tax_treatment, tax_amount, id, org_id, customer_id, si_number, invoice_date, amount, erp_outstanding_amount, status, erp_docstatus, erp_modified, erp_amended_from, erp_cancelled_at, created_at)
+values ('exclusive', 0, '005a0000-0000-0000-0000-0000000000e1','005a0000-0000-0000-0000-000000000001',
   '005a0000-0000-0000-0000-0000000000f1','SI-PE-001','2026-07-14',500.00,500.00,'Unpaid',0,'2026-07-14 09:00:00',null,null,'2026-07-14 09:00:00');
 insert into incoming_payments (id, org_id, customer_id, sales_invoice_id, ip_number, reference_number,
   date, amount, status, erp_docstatus, erp_modified, erp_amended_from, erp_cancelled_at, created_at)

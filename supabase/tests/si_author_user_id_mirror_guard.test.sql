@@ -33,8 +33,8 @@ insert into companies (id, org_id, name, type) values
   ('11030000-0000-0000-0000-0000000000f1','11030000-0000-0000-0000-000000000001','B3 Customer','Client');
 
 -- A sales_invoice authored by user A (owner insert for setup)
-insert into sales_invoices (id, org_id, customer_id, si_number, invoice_date, amount, status, author_user_id)
-values (
+insert into sales_invoices (tax_treatment, tax_amount, id, org_id, customer_id, si_number, invoice_date, amount, status, author_user_id)
+values ('exclusive', 0, 
   '11030000-0000-0000-0000-0000000000e1',
   '11030000-0000-0000-0000-000000000001',
   '11030000-0000-0000-0000-0000000000f1',

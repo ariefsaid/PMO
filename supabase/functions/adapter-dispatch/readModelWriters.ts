@@ -604,6 +604,12 @@ async function upsertSalesInvoiceMirror(ctx: ReadModelWriterCtx, canonical: PmoR
     invoice_date: (canonical.invoice_date as string | null | undefined) ?? null,
     amount: canonical.amount ?? null,
     erp_outstanding_amount: outstanding,
+    // #478 (0188): `tax_treatment` says whether THIS ROW's `amount` includes `tax_amount`. This writer
+    // sets `amount` from ERPNext's `grand_total`, which includes taxes BY DEFINITION — so 'inclusive'
+    // here is a FACT about the figure just written, not a guess about how the ERP doc was keyed in.
+    // It rides with `amount` deliberately: if a natively-authored 'exclusive' row is ever mirrored,
+    // its amount becomes the grand total and the marker must follow it, or the row starts lying.
+    tax_treatment: 'inclusive',
     status: deriveSiStatus(outstanding, docstatus),
     erp_docstatus: docstatus ?? null,
     erp_modified: (canonical.erp_modified as string | null | undefined) ?? null,
@@ -611,6 +617,16 @@ async function upsertSalesInvoiceMirror(ctx: ReadModelWriterCtx, canonical: PmoR
     // stamp erp_cancelled_at on a cancel tombstone (docstatus 2)
     erp_cancelled_at: docstatus === 2 ? new Date().toISOString() : null,
   };
+  // #478: `currency`, `tax_amount` and `tax_template` are OMITTED rather than written as null when the
+  // canonical does not carry them (the `authorPatch` discipline already used below). `currency` and
+  // `tax_amount` are NOT NULL columns — writing null would fail the write outright — and nulling a
+  // recorded tax template on a status-sync tick would silently erase a fact ERP still holds.
+  const siCurrency = (canonical.currency as string | null | undefined) ?? null;
+  if (siCurrency !== null) patch.currency = siCurrency;
+  const siTaxAmount = (canonical.tax_amount as string | null | undefined) ?? null;
+  if (siTaxAmount !== null) patch.tax_amount = siTaxAmount;
+  const siTaxTemplate = (canonical.tax_template as string | null | undefined) ?? null;
+  if (siTaxTemplate !== null) patch.tax_template = siTaxTemplate;
   if (command.operation === 'create') {
     const record = command.record as { projectId?: string; customerId?: string };
     // Luna SF7 + BLOCK #11: cross-org FK guard — verify each non-null link belongs to ctx.orgId BEFORE
@@ -632,6 +648,10 @@ async function upsertSalesInvoiceMirror(ctx: ReadModelWriterCtx, canonical: PmoR
       customer_id: customerId,
       author_user_id: ctx.callerUserId ?? null,
       ...patch,
+      // NOT NULL with no DB default (0188), so the create branch must always state it. ERPNext returns
+      // `total_taxes_and_charges` on every Sales Invoice (0 when the doc carries no taxes), and
+      // SI_FROM_DOC_FIELDS requests it — '0.00' is the untaxed-document case, never "unknown".
+      tax_amount: siTaxAmount ?? '0.00',
     });
     if (error) throw new AppError(error.message, error.code);
     // 0113: the creator joins the append-only authorship SET (the submit SoD's real oracle).
