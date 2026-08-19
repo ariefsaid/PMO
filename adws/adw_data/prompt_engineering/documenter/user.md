@@ -39,10 +39,10 @@ Respond with ONLY valid JSON matching `DocumentOutput` — no prose before or af
   "summary": "<one sentence describing what you documented>",
   "document_path": "docs/reviews/<adw_id>_<slug>.md",
   "documented_files": ["src/server.ts"],
-  "artifacts": ["<context_handoff_dir>/document.md", "app_docs/<adw_id>_<slug>.md"],
+  "artifacts": ["<context_handoff_dir>/document.md", "docs/reviews/<adw_id>_<slug>.md"],
   "commit_message": "<imperative one-line git subject for committing THIS WRITE-UP, not the change it describes — e.g. 'Document the /health endpoint'>",
   "notes_for_next_agent": "<anything the diff left unexplained>"
 }
 ```
 
-`document_path` and the `app_docs/` entry in `artifacts` are the path you ACTUALLY wrote, `_v2` suffix and all. Gates open these files — a name you meant to use fails them.
+`document_path` and the `docs/reviews/` entry in `artifacts` are the path you ACTUALLY wrote, `_v2` suffix and all. Gates open these files — a name you meant to use fails them.
