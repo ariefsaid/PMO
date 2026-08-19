@@ -1633,21 +1633,21 @@ architecture and therefore a Director call — converting it rather than letting
 IT will host the registration is a client-relationship fact, discovered in the ceremony, escalated then.
 
 **[DD-TASK-1..5] First-class tasks** (#462; authorization detail stays private per the public-repo
-rule). **1 —** v1 references are **project and meeting only**, not mutually exclusive, with an
+rule). **[DD-TASK-1]** v1 references are **project and meeting only**, not mutually exclusive, with an
 invariant that a task and its meeting cannot name different projects (mirror
 `check_tasks_parent_same_project`, `0140`). Every extra nullable parent multiplies the policy-branch
-matrix, which is the delicate part. **2 —** ⚑ `meeting_id` does **not** land in the same migration:
+matrix, which is the delicate part. **[DD-TASK-2]** ⚑ `meeting_id` does **not** land in the same migration:
 nullable `project_id` is the dangerous change and ships **alone**, so it is reviewed on its own diff
 with only pgTAP as its consumer. New oracles are written **first, red**, because their job is to fail
 if the authorization surface is got wrong — written afterwards they get written to match whatever
 shipped. The write surface is reconciled **atomically** (the bug is the disagreement *between* its
 parts, so a partial change is the failure mode, not progress). The trigger failures share **one root
 cause** — external-ownership resolved via the task's project rather than its own org — so fix the root,
-not four symptoms. Mutation-test the **neighbours**, per the July lesson. **3 —** `OD-2`
+not four symptoms. Mutation-test the **neighbours**, per the July lesson. **[DD-TASK-3]** `OD-2`
 (`requiredFilter: 'project_id'`) is **repealed** and replaced by a **row cap + explicit ordering**, not
 an alternative required filter: `OD-2`'s purpose was boundedness, and RLS already supplies the security
-bound. **4 —** v1 surfaces are **"My tasks"** (assignee-scoped, reaches project-less tasks free) plus a
-stable `/tasks/:id` deep link; an org-wide task browser is out. **5 —** `timesheet_entries.project_id`
+bound. **[DD-TASK-4]** v1 surfaces are **"My tasks"** (assignee-scoped, reaches project-less tasks free) plus a
+stable `/tasks/:id` deep link; an org-wide task browser is out. **[DD-TASK-5]** `timesheet_entries.project_id`
 **stays `not null`** — a project-less task cannot be timed. Time is costed and pushed to ERPNext where
 project is the accounting dimension; relaxing it would drag this migration into the money path for a
 rare case. Attach the task to a project first: a legible workflow, not a workaround.
