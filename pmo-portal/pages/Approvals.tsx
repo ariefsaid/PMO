@@ -18,7 +18,7 @@ import { ProcurementApprovalSection } from './approvals/ProcurementApprovalSecti
 import { ProcurementApprovalPreview } from './approvals/ProcurementApprovalRow';
 import { pendingProcurementApprovals } from '@/src/lib/selectors/approvals';
 import { workflowVariant } from '@/src/lib/status/statusVariants';
-import { formatCurrency } from '@/src/lib/format';
+import { formatCurrency, formatMonthDay } from '@/src/lib/format';
 import { PushStateBadge } from '@/src/components/timesheets/PushStateBadge';
 import { EmployeeLinkConfirm } from '@/src/components/timesheets/EmployeeLinkConfirm';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
@@ -55,7 +55,7 @@ function useIsLargeScreen(): boolean {
 function weekLabel(weekStart: string): string {
   const [y, m, d] = weekStart.split('-').map(Number);
   const dt = new Date(y, (m ?? 1) - 1, d ?? 1);
-  return `Week of ${dt.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`;
+  return `Week of ${formatMonthDay(dt)}`;
 }
 
 function sumHours(sheet: TimesheetAwaitingApproval): number {

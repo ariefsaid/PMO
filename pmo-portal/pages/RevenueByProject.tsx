@@ -13,6 +13,7 @@ import {
 import { useNavigate } from 'react-router';
 import { usePermission } from '@/src/auth/usePermission';
 import { useRevenuePerProject } from '@/src/hooks/useRevenue';
+import { formatCurrencyAuto, formatCurrencyCents, formatNumber } from '@/src/lib/format';
 
 const RevenueByProject: React.FC = () => {
   const may = usePermission();
@@ -89,7 +90,7 @@ const RevenueByProject: React.FC = () => {
       align: 'num',
       cell: (row) => (
         <span className="tabular text-right font-mono text-[13px]">
-          ${row.total_amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+          {formatCurrencyCents(row.total_amount)}
         </span>
       ),
       exportValue: (row) => row.total_amount.toString(),
@@ -100,7 +101,7 @@ const RevenueByProject: React.FC = () => {
       align: 'num',
       cell: (row) => (
         <span className="tabular text-right font-mono text-[13px]">
-          ${row.open_ar.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+          {formatCurrencyCents(row.open_ar)}
         </span>
       ),
       exportValue: (row) => row.open_ar.toString(),
@@ -135,7 +136,7 @@ const RevenueByProject: React.FC = () => {
       <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-4 mb-6">
         <KPITile
           label="Total Revenue"
-          value={`$${totalRevenue.toLocaleString(undefined, { minimumFractionDigits: 0 })}`}
+          value={formatCurrencyAuto(totalRevenue)}
           icon="dollar"
           tone="blue"
           loading={isPending}
@@ -143,7 +144,7 @@ const RevenueByProject: React.FC = () => {
         />
         <KPITile
           label="Open AR"
-          value={`$${totalOpenAR.toLocaleString(undefined, { minimumFractionDigits: 0 })}`}
+          value={formatCurrencyAuto(totalOpenAR)}
           icon="dollar"
           tone="amber"
           loading={isPending}
@@ -151,7 +152,7 @@ const RevenueByProject: React.FC = () => {
         />
         <KPITile
           label="Total Invoices"
-          value={totalInvoices.toLocaleString()}
+          value={formatNumber(totalInvoices)}
           icon="file"
           tone="violet"
           loading={isPending}
@@ -159,7 +160,7 @@ const RevenueByProject: React.FC = () => {
         />
         <KPITile
           label="Projects"
-          value={all.filter((r) => r.project_id).length.toLocaleString()}
+          value={formatNumber(all.filter((r) => r.project_id).length)}
           icon="pipe"
           tone="green"
           loading={isPending}

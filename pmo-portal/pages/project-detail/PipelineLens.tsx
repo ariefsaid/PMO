@@ -17,7 +17,7 @@ import {
 import { useSalesPipeline } from '@/src/hooks/useDashboard';
 import { useAuth } from '@/src/auth/useAuth';
 import { usePermission } from '@/src/auth/usePermission';
-import { formatCurrency } from '@/src/lib/format';
+import { formatCurrency, formatDateNumeric } from '@/src/lib/format';
 import {
   transitionProject,
   LEGAL_PROJECT_TRANSITIONS,
@@ -162,7 +162,7 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project }) => {
     { label: 'Owner', value: project.pm?.full_name ?? 'Not set' },
     {
       label: 'Decision',
-      value: project.decided_at ? new Date(project.decided_at).toLocaleDateString() : 'Pending',
+      value: project.decided_at ? formatDateNumeric(new Date(project.decided_at)) : 'Pending',
     },
   ];
 

@@ -1,5 +1,5 @@
 import React from 'react';
-import { pct } from '@/src/lib/format';
+import { pct, formatDayMonth } from '@/src/lib/format';
 import { StatusPill } from '@/src/components/ui';
 
 export type MilestonePhaseHeaderProps = {
@@ -19,7 +19,7 @@ export type MilestonePhaseHeaderProps = {
 
 const formatTargetDate = (value: string | null) =>
   value
-    ? `Target ${new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short' }).format(new Date(`${value}T00:00:00`))}`
+    ? `Target ${formatDayMonth(new Date(`${value}T00:00:00`))}`
     : null;
 
 export const MilestonePhaseHeader: React.FC<MilestonePhaseHeaderProps> = ({

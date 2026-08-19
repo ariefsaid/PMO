@@ -64,6 +64,7 @@ function formatThousands(raw: string): string {
   const cleaned = raw.replace(/[^0-9.]/g, '');
   if (cleaned === '') return '';
   const [intPart, ...rest] = cleaned.split('.');
+  // eslint-disable-next-line no-restricted-syntax -- masked money INPUT, not display; owned by the #468 locale seam (excluded from the #477 sweep)
   const grouped = intPart ? Number(intPart).toLocaleString('en-US') : '';
   // Keep at most one decimal portion; "" intPart with a lone "." stays as ".".
   return rest.length ? `${grouped}.${rest.join('')}` : grouped;

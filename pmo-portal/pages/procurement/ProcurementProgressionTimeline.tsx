@@ -21,6 +21,7 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router';
 import type { ProgressionEvent } from '@/src/lib/db/procurementHistory';
+import { formatDateUtc } from '@/src/lib/format';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -33,13 +34,7 @@ const DEFAULT_CAP = 6;
 // Date formatting — UTC-safe (avoids a 1-day shift in behind-UTC zones)
 // ---------------------------------------------------------------------------
 function formatEventTime(iso: string): string {
-  const d = new Date(iso);
-  return d.toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    timeZone: 'UTC',
-  });
+  return formatDateUtc(new Date(iso));
 }
 
 export interface ProcurementProgressionTimelineProps {

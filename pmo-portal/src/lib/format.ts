@@ -96,3 +96,156 @@ export function formatCompactCurrency(value: number): string {
   }
   return formatCurrency(value);
 }
+
+// ── #477 locale-drift sweep: named formatters for every display shape the app renders ──────
+// Each export reproduces byte-identically what previously lived as a hardcoded/implicit-locale
+// call at a call site. The locale seam (#468) will make these org/user-aware in ONE file.
+
+// Money — cents-exact ERP amounts (numeric(14,2)): "$1,234.50".
+const currencyCentsFormatter = new Intl.NumberFormat('en-US', {
+  style: 'currency',
+  currency: 'USD',
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+export function formatCurrencyCents(value: number): string {
+  return currencyCentsFormatter.format(value);
+}
+
+// Money — default-fraction values (KPI tiles): "$1,234" / "$1,234.5" / "$1,234.56" (0–3 dp, no padding).
+// Uses `style: 'currency'` rather than welding a `$`, so a negative renders "-$1,234.5" exactly like
+// formatCurrencyCents/Fine. The welded form put the sign INSIDE the symbol ("$-1,234.5"), which left two
+// money values on one screen disagreeing about where the minus goes (#477 review). Positives are
+// byte-identical to the welded form — min 0 / max 3 reproduces the plain NumberFormat default range.
+const numberDefaultFormatter = new Intl.NumberFormat('en-US');
+const currencyAutoFormatter = new Intl.NumberFormat('en-US', {
+  style: 'currency',
+  currency: 'USD',
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 3,
+});
+export function formatCurrencyAuto(value: number): string {
+  return currencyAutoFormatter.format(value);
+}
+
+// Money — fine-grained agent/provider costs (sub-$1): "$0.0123" (2–4 dp).
+// Was duplicated verbatim in AdministrationUsage + AgentCostMetrics.
+const currencyFineFormatter = new Intl.NumberFormat('en-US', {
+  style: 'currency',
+  currency: 'USD',
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 4,
+});
+export function formatCurrencyFine(value: number): string {
+  return currencyFineFormatter.format(value);
+}
+
+// Plain grouped number (counts, tokens): "1,234,567". Replaces bare n.toLocaleString().
+export function formatNumber(value: number): string {
+  return numberDefaultFormatter.format(value);
+}
+
+// Number with at most 2 fraction digits (credits balance): "1,234.57".
+const numberMax2Formatter = new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 });
+export function formatNumberMax2(value: number): string {
+  return numberMax2Formatter.format(value);
+}
+
+// ── Date display variants (all Date-in; construction stays at call sites) ──────────────────
+
+/** "Jun 14" — short month + day. */
+const monthDayFormatter = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' });
+export function formatMonthDay(d: Date): string {
+  return monthDayFormatter.format(d);
+}
+
+/** "Sun" — short weekday (timesheet grid columns). */
+const weekdayFormatter = new Intl.DateTimeFormat('en-US', { weekday: 'short' });
+export function formatWeekday(d: Date): string {
+  return weekdayFormatter.format(d);
+}
+
+/** "Jun 14, 2026" — Date-input twin of formatDate(iso) (same parts, local zone; shares its formatter). */
+export function formatFullDate(d: Date): string {
+  return dateFormatter.format(d);
+}
+
+/** "Jun 14, 2026, 03:45 PM" — last-sync style (hour '2-digit' is zero-padded). */
+const dateTimeFormatter = new Intl.DateTimeFormat('en-US', {
+  month: 'short',
+  day: 'numeric',
+  year: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+});
+export function formatDateTime(d: Date): string {
+  return dateTimeFormatter.format(d);
+}
+
+/** "6/14/2026" — numeric M/D/YYYY; byte-identical to bare toLocaleDateString() in en-US. */
+const dateNumericFormatter = new Intl.DateTimeFormat('en-US', {
+  month: 'numeric',
+  day: 'numeric',
+  year: 'numeric',
+});
+export function formatDateNumeric(d: Date): string {
+  return dateNumericFormatter.format(d);
+}
+
+/** "June 2026" — long month + year (calendar header). */
+const monthYearFormatter = new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' });
+export function formatMonthYear(d: Date): string {
+  return monthYearFormatter.format(d);
+}
+
+/** "Sun, Jun 14" — calendar agenda day heading. */
+const weekdayMonthDayFormatter = new Intl.DateTimeFormat('en-US', {
+  weekday: 'short',
+  month: 'short',
+  day: 'numeric',
+});
+export function formatWeekdayMonthDay(d: Date): string {
+  return weekdayMonthDayFormatter.format(d);
+}
+
+/** UTC "Jun 14, 2026" — zone-stable business dates (a 23:00Z instant must not drift a day). */
+const utcDateFormatter = new Intl.DateTimeFormat('en-US', {
+  year: 'numeric',
+  month: 'short',
+  day: 'numeric',
+  timeZone: 'UTC',
+});
+export function formatDateUtc(d: Date): string {
+  return utcDateFormatter.format(d);
+}
+
+/** en-GB "14 Jun" — milestone target chips. */
+const dayMonthFormatter = new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short' });
+export function formatDayMonth(d: Date): string {
+  return dayMonthFormatter.format(d);
+}
+
+/** UTC "Jun 26" — monthly chart axis ticks. */
+const utcMonthYearFormatter = new Intl.DateTimeFormat('en-US', {
+  month: 'short',
+  year: '2-digit',
+  timeZone: 'UTC',
+});
+export function formatUtcMonthYear(d: Date): string {
+  return utcMonthYearFormatter.format(d);
+}
+
+/** UTC "15 Mar '25" — S-curve axis: en-GB day-month + quoted 2-digit year (AC-SC-AXIS-004/005).
+ *  formatToParts + manual join so the apostrophe is explicit; stays Intl (not date-fns format)
+ *  because date-fns is LOCAL-tz and would drift the day in behind-UTC zones. */
+const utcDayMonthYearFormatter = new Intl.DateTimeFormat('en-GB', {
+  day: '2-digit',
+  month: 'short',
+  year: '2-digit',
+  timeZone: 'UTC',
+});
+export function formatUtcDayMonthYear(d: Date): string {
+  const parts = utcDayMonthYearFormatter.formatToParts(d);
+  const find = (t: string) => parts.find((p) => p.type === t)?.value ?? '';
+  return `${find('day')} ${find('month')} '${find('year')}`;
+}
