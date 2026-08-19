@@ -86,6 +86,22 @@ on the answer.
 Parked questions accumulate as the next grill session's frontier. No new artifact: the ticket *is* the
 parking slot, and the query above *is* the batch.
 
+**⚑ But distinguish two kinds of parked, or the frontier lies to you.**
+
+| Waiting on | What to do |
+|---|---|
+| **The owner's attention** — they can answer whenever they next sit down | Leave it **open** and `wayfinder:owner`. This is the frontier's whole purpose. |
+| **An external event** — a third-party conversation, a client's IT, a vendor reply | **Close it**, with the ruling and the agenda intact in a comment, and reopen when the event happens. |
+
+An external-event ticket left open reports as a pending owner question in every frontier query, so
+every drive session re-surfaces it and asks about something the owner has already ruled "do not wait"
+on. That is worse than noise — it makes the owner frontier untrustworthy, which is the one signal the
+drive loop uses to decide what kind of session it is. Closing it costs nothing: the ticket is not
+deleted, its brief survives, and reopening is one command.
+
+Recorded because it happened twice in one session (2026-08-19, the reseller ticket) **after** the
+"do not wait" ruling was already on the ticket.
+
 ## Milestone brief (the sign-off artifact)
 
 A section in the anchoring GitHub issue (or `docs/plans/`), signed by an explicit owner reply:
