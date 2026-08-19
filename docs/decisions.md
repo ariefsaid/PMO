@@ -1577,3 +1577,77 @@ convenient argument that reports are blocked on ERPNext is **false**: in standal
 `sales_invoices` and the procurement chain natively, so AR and AP aging are computable at go-live. A
 report *builder* remains out of scope. Whether RIS needs a named report at day-1 is a client fact only
 the owner holds and is parked, blocking nothing.
+
+## DD-TEN-1 · DD-OPS-1 · DD-ORG-4 · DD-ENTRA-1 · DD-TASK-1..5 (Director, 2026-08-19, second batch)
+
+Resolves #461, #442, #443, #452, #462. All `DD-`.
+
+**[DD-TEN-1] The cross-org isolation proof must run against PRODUCTION-PARITY GRANTS, be adversarial,
+enumerate its denominator, and become a standing gate** (#461 → build #490). ⛔ The grant requirement
+is the decision: `0173`'s sweep was green in CI and false in prod because hosted Supabase grants
+`EXECUTE` to `anon`/`authenticated` on every `public` function and local Docker does not (23 definer
+writers unauthenticated-callable; closed by `0185`). This proof is that shape with the blast radius
+multiplied — a grant difference would certify tenant isolation that does not hold, for every tenant at
+once. Pass bar: no cross-org read/write **reachable** by any authenticated principal (not "policies
+present"); **mutation-verified** — delete an `org_id = auth_org_id()` predicate and the tests go red;
+**enumerated** — every org-scoped table, definer, edge function and storage bucket proven or explicitly
+excepted. Surface order by risk, not by ease: **edge functions first** (run as `service_role`, bypass
+RLS, invisible to pgTAP), then definers (must take org from the JWT, never a caller parameter), storage,
+the agent surface (has a natural attacker in prompt injection), the view compiler, and tables **last** —
+the instinct to start where the tests already are is backwards. Standing, not one-time: a guard that
+fails the build when a new org-scoped surface has no proof. **Disqualifying outcome:** if that guard
+cannot be written, shared multi-tenancy is ruled out — the failure mode is silent cross-tenant
+disclosure and "we were careful" is not a control. Fallback ladder: schema-per-tenant (Director), then
+minimum price / thinner margin (owner, parked *then*).
+
+**[DD-OPS-1] No operator console. A boundary rule, a runbook, and a named revisit trigger** (#442 →
+#491). The only routine operator power (feature toggles) **already has a UI**; everything else is rare,
+and one of them was just ruled not to get a UI (`DD-ORG-1`) — building a console now would contradict
+that within the same batch. "Scattered" is a **discoverability** problem: one runbook page solves it at
+~1% of the cost. Boundary: **operator = cross-org, platform-level, rare → guarded RPC + runbook;
+org-admin = within-org, routine → UI.** Revisit when orgs exceed a handful, i.e. when shared
+multi-tenancy lands.
+
+**[DD-ORG-4] Shared deployment: RIS `live`, Gordi `live`, Demo `demo`. No vendor org. The cleanup that
+matters is PII** (#443 → #492, states ride with #489). ⚑ **Gordi is `live`** — the temptation is `test`
+because it is ours and it is the isolation-proof subject, but it holds real data and a guard treating
+it as disposable is wrong in the one direction that cannot be undone. Owner-controlled means a failure
+costs us, not that the data is expendable. The demo org **keeps** staff membership: demo data is
+hand-maintained and impersonation is view-only (ADR-0016), so "reach it only by impersonation" sounds
+cleaner and does not work — bound the membership instead. The real exposure is not layout: the demo org
+is **shown to prospects** and has accumulated whatever was convenient to type, so auditing it for real
+names/emails/phones is the item with a real-world consequence. Also flagged: the shared project is
+described as staging/demo in one place and as production for the first client in another; the lifecycle
+backfill is where that ambiguity stops being harmless.
+
+**[DD-ENTRA-1] RIS gets Option B — the Entra app registered in the client's own tenant** (#452 → #494).
+ADR-0064 defaulted to Option C on the economics of doing publisher verification once; that premise is
+gone (owner, 2026-08-16). Without verification, C and A both show the unverified-publisher warning and
+some tenant policies block unverified apps outright — discovered with the client's admin mid-ceremony,
+the worst possible moment. B needs no verification, shows no warning, cannot be consent-phished
+cross-tenant (automatic tenant lock, matching the deployment's `tid` binding), and their admin is
+already in the room. Cost accepted: registration lives in their tenant, so secret rotation is
+coordinated with their IT. Revisit C **only** if publisher verification ever happens. ⚑ This had sat as
+"owner ruling needed" since 2026-08-18; under the same day's decision-rights directive it is
+architecture and therefore a Director call — converting it rather than letting it block. Whether their
+IT will host the registration is a client-relationship fact, discovered in the ceremony, escalated then.
+
+**[DD-TASK-1..5] First-class tasks** (#462; authorization detail stays private per the public-repo
+rule). **1 —** v1 references are **project and meeting only**, not mutually exclusive, with an
+invariant that a task and its meeting cannot name different projects (mirror
+`check_tasks_parent_same_project`, `0140`). Every extra nullable parent multiplies the policy-branch
+matrix, which is the delicate part. **2 —** ⚑ `meeting_id` does **not** land in the same migration:
+nullable `project_id` is the dangerous change and ships **alone**, so it is reviewed on its own diff
+with only pgTAP as its consumer. New oracles are written **first, red**, because their job is to fail
+if the authorization surface is got wrong — written afterwards they get written to match whatever
+shipped. The write surface is reconciled **atomically** (the bug is the disagreement *between* its
+parts, so a partial change is the failure mode, not progress). The trigger failures share **one root
+cause** — external-ownership resolved via the task's project rather than its own org — so fix the root,
+not four symptoms. Mutation-test the **neighbours**, per the July lesson. **3 —** `OD-2`
+(`requiredFilter: 'project_id'`) is **repealed** and replaced by a **row cap + explicit ordering**, not
+an alternative required filter: `OD-2`'s purpose was boundedness, and RLS already supplies the security
+bound. **4 —** v1 surfaces are **"My tasks"** (assignee-scoped, reaches project-less tasks free) plus a
+stable `/tasks/:id` deep link; an org-wide task browser is out. **5 —** `timesheet_entries.project_id`
+**stays `not null`** — a project-less task cannot be timed. Time is costed and pushed to ERPNext where
+project is the accounting dimension; relaxing it would drag this migration into the money path for a
+rare case. Attach the task to a project first: a legible workflow, not a workaround.
