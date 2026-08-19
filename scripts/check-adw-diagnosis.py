@@ -45,6 +45,9 @@ if agents:
     check("429 is classified", classify(real_429) is not None, True)
     check("reset time surfaced", "22:34:44" in hint(real_429), True)
     check("401 is classified", classify("401 invalid_api_key") is not None, True)
+    # Transport was named in #482 and missed on the first pass; observed live.
+    check("fetch failed is classified", classify('{"errorMessage":"fetch failed"}') is not None, True)
+    check("529 overloaded is classified", classify("529 Overloaded") is not None, True)
     # Polarity: a real parse problem must KEEP its parse error, or this guard has
     # traded one misdiagnosis for another.
     check("valid output is not a substrate failure",

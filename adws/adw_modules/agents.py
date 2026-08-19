@@ -290,6 +290,14 @@ _SUBSTRATE_SIGNS = (
     ("insufficient_quota", "quota exhausted"),
     ("401", "authentication rejected"),
     ("invalid_api_key", "authentication rejected"),
+    # Transport. Named in #482 as one of the three classes and missed on the first
+    # pass — observed live on run 0eb50919 (planner, repeated `fetch failed`).
+    ("fetch failed", "transport failure reaching the substrate"),
+    ("ECONNRESET", "transport failure reaching the substrate"),
+    ("ETIMEDOUT", "transport failure reaching the substrate"),
+    ("socket hang up", "transport failure reaching the substrate"),
+    ("529", "substrate overloaded"),
+    ("Overloaded", "substrate overloaded"),
 )
 
 
