@@ -6,7 +6,7 @@
 # stubbed until v2), so there is no claude fallback rung here — if both substrates are down, wait.
 defaults:
   coding_agent: pi
-  model: zai/glm-5.3               # provider/id — a bare pattern is ambiguous across providers
+  model: openai-codex/gpt-5.6-terra # provider/id — a bare pattern is ambiguous across providers
   thinking: medium                 # off | minimal | low | medium | high | xhigh | max
   harness_engineering: []          # pi extensions loaded into the harness (-e)
   # Roster-wide allowlist; any agent may override with its own list.
@@ -41,17 +41,21 @@ observability:
   poll_ms: 500                     # visualizer live-poll cadence
 
 agents:
-  # ⚑ Roster note (owner 2026-08-19). Direction of build/review flipped, cross-family PRESERVED:
-  #   planner glm-5.3 · builder + fe_builder codex luna · reviewer glm-5.3 · fe_reviewer codex terra
-  # The code path is cross-family by construction (codex builds → GLM reviews), which is the property
-  # that makes review worth running: a same-lineage reviewer shares the builder's blind spots.
-  # ⚑ fe_reviewer is the ONE deliberate exception and must NOT be "harmonised" to GLM: it audits
-  # rendered output, and GLM is not multimodal. Same-family there is the price of a reviewer that can
-  # see. (The Director's pixel/taste pass on the run's screenshots remains the exit gate regardless —
-  # docs/factory-workflow.md § Executor routing.)
+  # ⚑ Roster note (owner 2026-08-19, superseding the earlier same-day rosters). ALL-CODEX:
+  #   planner terra · builder + fe_builder luna · reviewer + fe_reviewer terra · documenter luna
+  # Owner ruled same-family acceptable, with the model varied across the build/review boundary
+  # (terra plans and reviews, luna builds). Trigger: the z.ai GLM quota hit its 5-hour cap mid-run and
+  # took BOTH GLM slots — and the planner runs first, so no chain could start at all.
+  # ⚑ What this costs, stated so it is not rediscovered: review is now same-lineage, so the reviewer
+  # shares more of the builder's blind spots than a cross-family pair would. The Director's own gates
+  # (verify:locked, mutation checks, rendered pass) carry that weight — they are the real exit, not
+  # the ADW's green (docs/factory-workflow.md § Executor routing).
+  # ⚑ The GLOBAL default above is codex too: left on zai, any agent without an explicit `model:` would
+  # silently route to the exhausted substrate. builder/fe_builder were exactly that case once already.
+  # Revert lever: set planner/reviewer (and the global default) back to `zai/glm-5.3`.
 
   - name: planner
-    model: zai/glm-5.3
+    model: openai-codex/gpt-5.6-terra   # owner 2026-08-19: planner
     thinking: high
     color: "#a78bfa"                 # optional hex — the agent's lane color in the visualizer
     purpose: Turn a request into a plan the builder can implement without asking questions.
@@ -120,7 +124,7 @@ agents:
   # phase over adw_modules/quality.py. See SKILL.md hard rule 8.
 
   - name: reviewer
-    model: zai/glm-5.3                  # owner 2026-08-19: GLM reviews the codex builder — cross-family on the code path
+    model: openai-codex/gpt-5.6-terra   # owner 2026-08-19: terra reviews luna
     thinking: high
     color: "#fb7185"
     purpose: Confirm that what was built is what was asked for; change nothing.
