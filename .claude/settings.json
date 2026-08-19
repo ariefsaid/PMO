@@ -34,6 +34,18 @@
           }
         ]
       }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$(git rev-parse --show-toplevel)/.claude/hooks/session-frontier.sh\"",
+            "timeout": 15,
+            "statusMessage": "Frontier check\u2026"
+          }
+        ]
+      }
     ]
   }
 }
