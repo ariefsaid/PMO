@@ -945,14 +945,34 @@ Then, per the standard series loop (grill → spec → …), the candidate queue
       deliberately the single parse behind both validation and persistence. Detail: #468.
     - **[OD-CR-12] OD-CR-6 amended: PWA un-parks** (installable + offline READS; no offline writes).
       Native mobile, in-house chat, field photos/forms stay parked.
-  - **Resulting sequence (REVISED 2026-08-18 — supersedes the July order):**
-    **i18n + currency seam (#468) → first-class tasks (#462) → meeting module (#463) → Bahasa
-    translation pass → RIS go-live**, with the quick wins (D3·D4·A2·A3) running alongside. Then
-    CRM v2 (D1 manual capture → D2 → D6, D5 own spec) → B1–B3 + A1/A4 + C.
-    Two new first-class records — **Contract and Work Order** (#471) — enter via the same map.
-    Rationale for the two new slices in front of go-live: meetings are a day-1 client requirement,
-    first-class tasks are their prerequisite, and the owner accepted a later go-live for a better
-    product.
+  - **[OD-WO-1..3 · OD-LS-1 · OD-CR-13] Owner grill 2026-08-19 (route map #459 + delivery map #450).**
+    - **[OD-WO-1] A project IS the client's commitment; contract is 1:1 with project; NO separate
+      Contract record is built.** The project row already carries `contract_value`,
+      `customer_contract_ref`, `contract_date` — enrich it, don't shadow it. No migration; the
+      SoD-gated `contract_value` setter stays put.
+    - **[OD-WO-2] A Work Order is the client's PO for a scoped activity within that commitment —
+      REVENUE side, not procurement.** The commitment is a ceiling; work orders draw down against
+      it, and **maximising that drawdown is a core part of the PM's job**, so
+      `sum(work_orders) / project.contract_value` is a first-class number the app shows. Billing
+      hangs off the work order. Procurement/cost surface untouched.
+    - **[OD-WO-3] Sub-projects PARKED, not killed** (#470) — revisit trigger: **RIS is live**. Flat
+      projects plus the commitment/work-order model express what a package needs; a project tree
+      would cost every query, RLS policy and rollup permanently.
+    - **[OD-LS-1] RIS day-1 cut** (#453) = the locked sequence, nothing added silently. The quick
+      wins (D3·D4·A2·A3) run **alongside and are NOT go-live gates**. **No committed go-live date** —
+      gated on the sequence completing. Nothing else was named day-one beyond meetings + Indonesian.
+  - **Resulting sequence (REVISED 2026-08-19 — supersedes the 2026-08-18 order):**
+    **i18n + currency seam (#468) → first-class tasks (#462) → meeting module (#463) → work orders
+    (#471) → Bahasa translation pass → RIS go-live**, with the quick wins (D3·D4·A2·A3) running
+    alongside and gating nothing. Then CRM v2 (D1 manual capture → D2 → D6, D5 own spec) →
+    B1–B3 + A1/A4 + C.
+    **[OD-CR-13] Work orders join the day-1 cut, positioned after meetings** — the PM manages by the
+    drawdown number, so shipping without it means RIS tracks their core metric in Excel beside the
+    app; landing it before the translation pass also means it is translated once, not twice. Largest
+    slip in the sequence to date, taken as an explicit owner call. Contract is no longer a slice
+    (OD-WO-1). Rationale for the slices in front of go-live: meetings and work orders are day-1
+    client requirements, first-class tasks are the meeting prerequisite, and the owner accepted a
+    later go-live for a better product.
 
 ### ⚑⚑ ADAPTER PROGRAM — P2 ERPNext money core ✅ MERGED to dev (#315 squash `b549d06`, 2026-07-14)
 ### ⚑⚑ M365 INTEGRATION — RESUME HERE (updated 2026-07-29) — ✅ MERGED to `dev`; **connect leg PROVEN live, `graph_proxy` NEVER proven**

@@ -1221,3 +1221,53 @@ Checkbox `labelledBy` note in `DESIGN.md` §Inputs/Fields; Inter is now self-hos
 closing the last uncontrolled third-party contact on the consent page itself (`AC-CON-012`); and
 dark `--input` was raised 30%→42% L to clear WCAG 1.4.11's 3:1 non-text floor as a standalone
 control boundary (`AC-A11Y-CHECKBOX-001`) — see `DESIGN.md`'s Accessibility posture section.
+
+## OD-WO-1..3 · OD-LS-1 · OD-CR-13 — the commitment/work-order model and the RIS day-1 cut (owner grill, 2026-08-19)
+
+Resolved the owner frontier of the route map (#459) and the RIS delivery map (#450): the sub-projects
+ticket (#470), the launch-scope ticket (#453), and a narrowing of the reseller task (#464).
+
+**[OD-WO-1] A project IS the client's commitment; contract is 1:1 with project; there is NO separate
+Contract record.** The project row already carries `contract_value`, `customer_contract_ref` and
+`contract_date` — enrich it rather than building a second entity that shadows it. This supersedes the
+open half of #471 ("is a contract 1:1 with a project, or does one contract carry several projects?"):
+it is 1:1, without exception in this business. The SoD-gated setter on `contract_value` stays where it
+is; no data migration is required, which is the point.
+
+**[OD-WO-2] A Work Order is a REVENUE-side scope grant — the client's PO for a scoped activity within
+the committed project value.** It is not procurement. The commitment is a ceiling and work orders draw
+down against it; **maximising that drawdown is a core part of the PM's job**, so
+`sum(work_orders) / project.contract_value` is a first-class number the app must show, not a report
+someone assembles. Consequences: the existing procurement/cost surface is untouched; billing hangs off
+the work order, not off the project directly; the "drawdown and utilisation" question in #471 resolves
+to work-order totals rather than to an ERP read-back.
+
+**[OD-WO-3] Sub-projects / multi-package project structure is PARKED, not killed — revisit trigger is
+RIS being live.** Flat projects plus the commitment/work-order model above express what a package needs
+without a hierarchy, and a project tree would cost us in every query, RLS policy and rollup permanently.
+Recorded in the route map's *Not yet specified* with the trigger, so it stops resurfacing unresolved as
+it has since June.
+
+**[OD-LS-1] RIS day-1 cut = the locked sequence and nothing added silently.** The quick wins
+(D3 weighted forecast · D4 win/loss · A2 rejection comments · A3 bulk procurement approve) run alongside
+but are **not go-live gates** — they ship if they land before the Bahasa pass and go-live does not wait.
+**No committed go-live date exists**; go-live is gated on the sequence completing, per the owner's
+standing acceptance of a later date for a better product. Beyond meetings and Indonesian, the client
+named nothing else as day-one.
+
+**[OD-CR-13] The sequence is amended to carry Work Order before go-live**, positioned after the meeting
+module:
+
+> i18n + currency seam (#468) → first-class tasks (#462) → meeting module (#463) → **work orders (#471)**
+> → Bahasa translation pass → RIS go-live
+
+Rationale: the PM manages by the drawdown number, so shipping without work orders means RIS tracks their
+core metric in Excel beside the app. Landing it before the translation pass also means it is translated
+once rather than twice. This is the largest slip in the sequence to date and was taken as an explicit
+owner call.
+
+**Reseller arm (#464) narrowed, not resolved.** The partner conversation is scheduled without a date and
+nothing waits on it. Of everything that ticket asks, **only "what do they need in order to demo" can
+create product scope** (a self-driven sandbox org, Indonesian sample data); commission shape, who
+invoices, collateral and what would make them decline are commercial and gate no build. Support already
+sits with us. Pricing (#466) stays blocked on it.
