@@ -4,7 +4,40 @@
 [`docs/history.md`](history.md) (don't read it for status). Locked owner-decisions are in
 `docs/decisions.md` (OD-* lookup by id). Roadmap framing in `docs/roadmap-spines.md`.
 
-### ⚑⚑⚑ CURRENT FOCUS — v0.9.0 IN PRODUCTION (2026-07-31); M365 connection-model rebuild active on `dev`
+### ⚑⚑⚑ CURRENT FOCUS (2026-08-19) — the wayfinding frontier is DRAINED; a 14-issue build queue is open
+
+**Read `git log origin/main..origin/dev` for the real state, never a paragraph here.** As of this
+edit `dev` is 52 commits ahead of `main`, and `main`→`production` remains a separate, explicit,
+per-instance owner-gated action.
+
+**What changed on 2026-08-18/19.** Three wayfinder maps (#439 multi-org, #450 RIS go-live, #459 the
+product route) had their **entire director frontier resolved** — every decision ticket across all
+three is closed. The rulings are in `docs/decisions.md` under `DD-` prefixes: `DD-I18N-1..6`
+(locale seam) · `DD-XING-1..6` (standalone→connected crossing) · `DD-ORG-1..4` · `DD-DEPLOY-1` ·
+`DD-RPT-1` · `DD-TEN-1` · `DD-OPS-1..5` · `DD-ENTRA-1` · `DD-TASK-1..5` · `DD-IMP-1` · `DD-WO-1..6` ·
+`DD-MTG-1..5` · `DD-FMT-1`.
+
+**⛔ The go-live blocker is #478 — currency + tax.** No PMO-owned money table carries a `currency`
+column (`OD-CR-5` was ruled 2026-07-22 and never built), and there is **no tax field anywhere**.
+`sales_invoices` holds a single `amount` scalar, and in standalone mode users author invoices
+straight into it — so an invoice raised before this ships **cannot be reconstructed** into an
+ERPNext one, because whether the figure is tax-inclusive or tax-exclusive is recorded nowhere. It
+also gates the budget importer (#495) and work orders (#498).
+
+**Shipped 2026-08-19:** #477 (locale drift sweep — ~45 hardcoded-locale sites routed through
+`format.ts`, plus an ESLint guard, mutation-verified) and the ADR-0055 crossing addendum (#480).
+
+**Open build queue:** #478 #479 #484 #485 #486 #488 #489 #490 #491 #492 #493 #494 #495 #498 #499.
+**Owner-parked (blocking nothing):** #487 (day-1 reports) · #496 (what a real RIS client PO looks
+like) · #497 (ERPNext SLA, partner role, data locality, e-Faktur) · #466 (pricing, behind the
+parked reseller conversation).
+
+**Executor routing is binding** — `docs/factory-workflow.md` § Executor routing. Bounded slices run
+on the SSSF ADW; money/SoD/auth **and anything under `adws/`** are Director-dispatched.
+
+---
+
+### v0.9.0 IN PRODUCTION (2026-07-31); M365 connection-model rebuild active on `dev`
 
 **`production` = `cd368302` = tag `v0.9.0` (promoted 2026-07-31). `main` = promoted 2026-08-06
 (#431: #427 witness fixtures, #428 M365 three-step model, #430 dep bumps, backlog refresh). `dev`
