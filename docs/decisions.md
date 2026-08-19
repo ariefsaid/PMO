@@ -1540,6 +1540,13 @@ offboard, which already does it right. Offboard + reinvite preserves authorship 
 profile stays in org A) and costs only identity continuity across orgs — which is correct, since the
 user **was a different principal in each org**. This decision removes scope; the only build is making
 `profiles.org_id` immutable so nobody later writes the obvious-looking `update`.
+**Enforced by `supabase/migrations/0190_profiles_org_id_immutable.sql`** (trigger
+`profiles_org_id_immutable`, proof `supabase/tests/profiles_org_id_immutable.test.sql`): an `UPDATE`
+that changes `org_id` raises `23514` naming this decision and pointing at offboard + reinvite;
+`INSERT` still sets it freely. ⛔ It binds **every** role including `service_role` and the table
+owner — an integrity invariant, not an authorization rule, so there is deliberately no exemption
+hook. It is `AFTER`, not `BEFORE`, so the RLS `org_id` pin underneath stays independently
+observable.
 
 **[DD-ORG-3] Org lifecycle marker `live`/`demo`/`test`, with a DEFAULT-DENY destructive guard, `live`
 terminal, enforced at two layers** (#460 → build #489). ⛔ The polarity is the decision. Written the
