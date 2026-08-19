@@ -39,6 +39,7 @@ import {
 import { useAuth } from '@/src/auth/useAuth';
 import { workflowVariant } from '@/src/lib/status/statusVariants';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { formatFullDate, formatMonthDay, formatWeekday } from '@/src/lib/format';
 
 // ── Date helpers (preserved verbatim — week logic unchanged) ─────────────────
 const getWeekStartDate = (date: Date): Date => {
@@ -149,7 +150,7 @@ const TimesheetsPage: React.FC = () => {
       weekDates.map((d) => {
         const dow = d.getDay();
         return {
-          label: d.toLocaleDateString(undefined, { weekday: 'short' }),
+          label: formatWeekday(d),
           dateNum: String(d.getDate()),
           weekend: dow === 0 || dow === 6,
         };
@@ -423,14 +424,7 @@ const TimesheetsPage: React.FC = () => {
     setCurrentDate(next);
   };
 
-  const weekRangeLabel = `${weekStartDate.toLocaleDateString(undefined, {
-    month: 'short',
-    day: 'numeric',
-  })} – ${weekDates[6].toLocaleDateString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  })}`;
+  const weekRangeLabel = `${formatMonthDay(weekStartDate)} – ${formatFullDate(weekDates[6])}`;
 
   // Submit affordance (FR-TS-004): only the owner of a Draft sheet for this week.
   const isOwner = currentTimesheet?.user_id === signedInUserId;
@@ -591,7 +585,7 @@ const TimesheetsPage: React.FC = () => {
             <Icon name="back" />
           </Button>
           <span className="px-2 text-[13px] font-medium tabular text-muted-foreground">
-            Week of {weekStartDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+            Week of {formatMonthDay(weekStartDate)}
           </span>
           <Button variant="outline" size="icon" aria-label="Next week" onClick={() => stepWeek(1)}>
             <Icon name="chev" />

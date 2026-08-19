@@ -1,5 +1,10 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { formatCurrency, parseMoneyInput, pct, formatDate, formatRelativeTime } from './format';
+import {
+  formatCurrency, parseMoneyInput, pct, formatDate, formatRelativeTime,
+  formatCurrencyAuto, formatCurrencyCents, formatCurrencyFine, formatNumber, formatNumberMax2,
+  formatDateNumeric, formatDateUtc, formatDateTime, formatDayMonth, formatFullDate, formatMonthDay,
+  formatMonthYear, formatUtcDayMonthYear, formatUtcMonthYear, formatWeekday, formatWeekdayMonthDay,
+} from './format';
 
 describe('formatCurrency', () => {
   it('formats USD with no fraction digits (AC-410)', () => {
@@ -88,5 +93,92 @@ describe('formatRelativeTime — human relative timestamps for the notifications
     expect(formatRelativeTime(null)).toBe('—');
     expect(formatRelativeTime(undefined)).toBe('—');
     expect(formatRelativeTime('not-a-date')).toBe('—');
+  });
+});
+
+// ── #477 locale-drift sweep: byte-identical named variants for every swept call-site shape ──
+
+describe('formatCurrencyCents — ERP money, always 2 dp (#477)', () => {
+  it('pads to cents and groups: $1,234.50', () => {
+    expect(formatCurrencyCents(1234.5)).toBe('$1,234.50');
+    expect(formatCurrencyCents(0)).toBe('$0.00');
+    expect(formatCurrencyCents(2500)).toBe('$2,500.00');
+  });
+  it('byte-identical to the swept welded-$ min-2dp form on numeric(14,2) data', () => {
+    expect(`$${(1234.5).toLocaleString('en-US', { minimumFractionDigits: 2 })}`).toBe(
+      formatCurrencyCents(1234.5),
+    );
+  });
+});
+
+describe('formatCurrencyAuto — default-fraction KPI money (#477)', () => {
+  it('renders 0–3 fraction digits with no padding: $1,234 / $1,234.5 / $1,234.56', () => {
+    expect(formatCurrencyAuto(1234)).toBe('$1,234');
+    expect(formatCurrencyAuto(1234.5)).toBe('$1,234.5');
+    expect(formatCurrencyAuto(1234.56)).toBe('$1,234.56');
+    expect(formatCurrencyAuto(1234567.89)).toBe('$1,234,567.89');
+  });
+});
+
+describe('formatCurrencyFine — sub-$1 agent/provider costs (#477)', () => {
+  it('keeps 2–4 fraction digits: $0.50 / $0.0123 / $12.3456', () => {
+    expect(formatCurrencyFine(0.5)).toBe('$0.50');
+    expect(formatCurrencyFine(0.0123)).toBe('$0.0123');
+    expect(formatCurrencyFine(12.3456)).toBe('$12.3456');
+  });
+});
+
+describe('formatNumber — plain grouped counts (#477)', () => {
+  it('groups thousands like bare toLocaleString in en-US', () => {
+    expect(formatNumber(1234567)).toBe('1,234,567');
+    expect(formatNumber(42)).toBe('42');
+  });
+});
+
+describe('formatNumberMax2 — credits balance (#477)', () => {
+  it('shows at most 2 fraction digits: 1,234 / 1,234.5 / 1,234.57', () => {
+    expect(formatNumberMax2(1234)).toBe('1,234');
+    expect(formatNumberMax2(1234.5)).toBe('1,234.5');
+    expect(formatNumberMax2(1234.567)).toBe('1,234.57');
+  });
+});
+
+describe('#477 date variants — all deterministic, TZ-stable (local or UTC-pinned construction)', () => {
+  it('formatMonthDay: "Jun 14" / "Jul 4" (no padding)', () => {
+    expect(formatMonthDay(new Date(2026, 5, 14))).toBe('Jun 14');
+    expect(formatMonthDay(new Date(2026, 6, 4))).toBe('Jul 4');
+  });
+  it('formatWeekday: "Sun" (2026-06-14 is a Sunday)', () => {
+    expect(formatWeekday(new Date(2026, 5, 14))).toBe('Sun');
+  });
+  it('formatFullDate: "Jun 14, 2026" — same parts as formatDate(iso)', () => {
+    expect(formatFullDate(new Date(2026, 5, 14))).toBe('Jun 14, 2026');
+  });
+  it('formatDateTime: "Jun 14, 2026, 03:45 PM" / midnight "12:00 AM" (hour is 2-digit)', () => {
+    expect(formatDateTime(new Date(2026, 5, 14, 15, 45))).toBe('Jun 14, 2026, 03:45 PM');
+    expect(formatDateTime(new Date(2026, 5, 14, 0, 0))).toBe('Jun 14, 2026, 12:00 AM');
+  });
+  it('formatDateNumeric: "6/14/2026" / "7/4/2026" — byte-identical to bare toLocaleDateString in en-US', () => {
+    expect(formatDateNumeric(new Date(2026, 5, 14))).toBe('6/14/2026');
+    expect(formatDateNumeric(new Date(2026, 6, 4))).toBe('7/4/2026');
+  });
+  it('formatMonthYear: "June 2026"', () => {
+    expect(formatMonthYear(new Date(2026, 5, 1))).toBe('June 2026');
+  });
+  it('formatWeekdayMonthDay: "Sun, Jun 14"', () => {
+    expect(formatWeekdayMonthDay(new Date(2026, 5, 14))).toBe('Sun, Jun 14');
+  });
+  it('formatDateUtc: zone-stable — a 23:00Z instant is Jun 14 in UTC even where local says Jun 15', () => {
+    expect(formatDateUtc(new Date(Date.UTC(2026, 5, 14, 23, 0)))).toBe('Jun 14, 2026');
+  });
+  it('formatDayMonth: en-GB "14 Jun"', () => {
+    expect(formatDayMonth(new Date(2026, 5, 14))).toBe('14 Jun');
+  });
+  it('formatUtcMonthYear: "Jun 26"', () => {
+    expect(formatUtcMonthYear(new Date(Date.UTC(2026, 5, 14)))).toBe('Jun 26');
+  });
+  it("formatUtcDayMonthYear: \"15 Mar '25\" / \"31 Dec '26\" (quoted 2-digit year, UTC-stable)", () => {
+    expect(formatUtcDayMonthYear(new Date(Date.UTC(2025, 2, 15)))).toBe("15 Mar '25");
+    expect(formatUtcDayMonthYear(new Date(Date.UTC(2026, 11, 31)))).toBe("31 Dec '26");
   });
 });

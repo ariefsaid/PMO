@@ -11,6 +11,7 @@ import {
 } from '@/src/lib/calendar/monthMatrix';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import type { MilestoneDate } from '@/src/lib/db/milestones';
+import { formatWeekdayMonthDay } from '@/src/lib/format';
 
 type CalEventKind = 'start' | 'end' | 'milestone';
 
@@ -265,11 +266,7 @@ const ProjectCalendarView: React.FC<ProjectCalendarViewProps> = ({
       >
         {days.map((iso) => {
           const date = parseLocalDate(iso);
-          const heading = new Intl.DateTimeFormat('en-US', {
-            weekday: 'short',
-            month: 'short',
-            day: 'numeric',
-          }).format(date);
+          const heading = formatWeekdayMonthDay(date);
           return (
             <div key={iso} className="border-b border-border p-3 last:border-b-0">
               <div className="mb-1.5 text-[13px] font-semibold">{heading}</div>

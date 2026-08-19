@@ -10,7 +10,7 @@ import { useIsDesktop } from '@/src/components/ui/useIsDesktop';
 import { usePermission } from '@/src/auth/usePermission';
 import { useMilestones, useMilestoneMutations } from '@/src/hooks/useMilestones';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { pct } from '@/src/lib/format';
+import { pct, formatDayMonth } from '@/src/lib/format';
 import type { MilestoneWithProgress, MilestoneInput, MilestonePatch } from '@/src/lib/db/milestones';
 import { MilestonePhaseHeader } from '@/src/components/milestones/MilestonePhaseHeader';
 import MilestoneFormModal from './MilestoneFormModal';
@@ -276,7 +276,7 @@ const MilestoneMobileRow: React.FC<MilestoneMobileRowProps> = ({
 }) => {
   const weightShare = totalWeight > 0 ? Math.round((milestone.weight / totalWeight) * 100) : null;
   const targetLabel = milestone.target_date
-    ? `Target ${new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short' }).format(new Date(`${milestone.target_date}T00:00:00`))}`
+    ? `Target ${formatDayMonth(new Date(`${milestone.target_date}T00:00:00`))}`
     : null;
   const overdue = isOverdueMilestone(milestone);
 

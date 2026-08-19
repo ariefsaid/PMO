@@ -21,6 +21,7 @@ import { useEntityForm } from '@/src/components/ui/useEntityForm';
 import { tierLabel, domainLabel } from './integrationLabels';
 import { CanWrite } from '@/src/auth/usePermission';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { formatDate, formatDateTime } from '@/src/lib/format';
 import type { ExternalTier, IntegrationHealth } from '@/src/lib/repositories/types';
 import { M365OrgApprovalCard } from './M365OrgApprovalCard';
 
@@ -297,11 +298,7 @@ export const IntegrationsView: React.FC = () => {
                     Connected:{' '}
                     <span className="font-medium text-foreground">
                       {binding.connected_at
-                        ? new Date(binding.connected_at).toLocaleDateString(undefined, {
-                            month: 'short',
-                            day: 'numeric',
-                            year: 'numeric',
-                          })
+                        ? formatDate(binding.connected_at)
                         : '—'}
                     </span>
                   </span>
@@ -310,11 +307,7 @@ export const IntegrationsView: React.FC = () => {
                       {' '}|{' '}
                       Disconnected:{' '}
                       <span className="font-medium text-foreground">
-                        {new Date(binding.disconnected_at).toLocaleDateString(undefined, {
-                          month: 'short',
-                          day: 'numeric',
-                          year: 'numeric',
-                        })}
+                        {formatDate(binding.disconnected_at)}
                       </span>
                     </>
                   )}
@@ -329,13 +322,7 @@ export const IntegrationsView: React.FC = () => {
                     Last sync:{' '}
                     <span className="font-medium text-foreground">
                       {health.last_sync
-                        ? new Date(health.last_sync).toLocaleDateString(undefined, {
-                            month: 'short',
-                            day: 'numeric',
-                            year: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })
+                        ? formatDateTime(new Date(health.last_sync))
                         : '—'}
                     </span>
                   </span>

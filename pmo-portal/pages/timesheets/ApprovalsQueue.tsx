@@ -21,6 +21,7 @@ import { timesheetActions } from '@/src/lib/db/timesheetTransition';
 import type { TimesheetAwaitingApproval } from '@/src/lib/db/timesheetTransition';
 import { workflowVariant } from '@/src/lib/status/statusVariants';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { formatMonthDay, formatWeekday } from '@/src/lib/format';
 
 /** Sum a sheet's entry hours (entries are number-normalised at the DAL boundary). */
 function sumHours(sheet: TimesheetAwaitingApproval): number {
@@ -30,7 +31,7 @@ function sumHours(sheet: TimesheetAwaitingApproval): number {
 function weekLabel(weekStart: string): string {
   const [y, m, d] = weekStart.split('-').map(Number);
   const dt = new Date(y, (m ?? 1) - 1, d ?? 1);
-  return `Week of ${dt.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`;
+  return `Week of ${formatMonthDay(dt)}`;
 }
 
 function isoDate(d: Date): string {
@@ -53,7 +54,7 @@ function buildGrid(sheet: TimesheetAwaitingApproval): { days: TimesheetDay[]; ro
   const days: TimesheetDay[] = weekDates.map((dt) => {
     const dow = dt.getDay();
     return {
-      label: dt.toLocaleDateString(undefined, { weekday: 'short' }),
+      label: formatWeekday(dt),
       dateNum: String(dt.getDate()),
       weekend: dow === 0 || dow === 6,
     };

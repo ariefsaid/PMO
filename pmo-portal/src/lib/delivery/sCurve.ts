@@ -1,5 +1,6 @@
 import { parseISO } from 'date-fns';
 import type { MilestoneWithProgress } from '@/src/lib/db/milestones';
+import { formatUtcDayMonthYear } from '../format';
 
 /**
  * Pure S-curve math for the project Delivery lens (FR-SC-002/003, FR-SCA-008..011).
@@ -113,22 +114,11 @@ const daysBetween = (a: string, b: string): number =>
  * Exported so the component (axis + tooltip) can use it and tests can assert the
  * day- and year-disambiguation properties directly (AC-SC-AXIS-004/005).
  */
-const axisDateFmt = new Intl.DateTimeFormat('en-GB', {
-  day: '2-digit',
-  month: 'short',
-  year: '2-digit',
-  timeZone: 'UTC',
-});
-
 export const formatSCurveAxisDate = (epochMs: number): string => {
-  // Left on Intl (not date-fns `format`) intentionally: date-fns `format` is LOCAL-tz, which would
-  // drift the day in behind-UTC zones. Reproducing this UTC-locale output would require the
-  // separate `date-fns-tz` package (`formatInTimeZone`) — not worth a second dependency for a
-  // display formatter that is already correct + UTC-stable. (ADR-0030 §F: buy the engine where it
-  // kills a bug class; don't add deps chasing purity.) Parsing/arithmetic above IS date-fns-backed.
-  const parts = axisDateFmt.formatToParts(new Date(epochMs));
-  const find = (t: string) => parts.find((p) => p.type === t)?.value ?? '';
-  return `${find('day')} ${find('month')} '${find('year')}`;
+  // UTC + en-GB + quoted 2-digit year now live in format.ts (formatUtcDayMonthYear, #477) so the
+  // locale seam (#468) can make it locale-aware in one file. Kept as Intl there (not date-fns
+  // format) — date-fns is LOCAL-tz and would drift the day in behind-UTC zones (AC-SC-AXIS-004/005).
+  return formatUtcDayMonthYear(new Date(epochMs));
 };
 
 /**

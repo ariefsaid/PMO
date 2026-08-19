@@ -67,6 +67,37 @@ export default tseslint.config(
       }],
     },
   },
+  // ── locale drift guard (#477): display formatting lives ONLY in src/lib/format.ts ──
+  // toLocaleString / toLocaleDateString / new Intl.* hardcode or imply a locale and bypass the
+  // single formatting seam (#468). Exempt: format.ts itself (the seam), the export path (typed
+  // cells, DD-I18N-4 — a formatted string in a spreadsheet cell corrupts data), and tests.
+  // ProjectDetailHeader.tsx:67 (masked money input, owned by #468) carries a line-scoped disable.
+  {
+    files: ['**/*.{ts,tsx}'],
+    ignores: [
+      'src/lib/format.ts',
+      'src/lib/export/**',
+      'e2e/**',
+      '**/__tests__/**',
+      '**/*.test.*',
+      '**/*.spec.*',
+    ],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: 'MemberExpression[property.name=/^toLocale(String|DateString|TimeString)$/]',
+          message:
+            'Locale-sensitive display formatting bypasses src/lib/format.ts (single formatting seam, #468/#477). Import a formatter from src/lib/format instead.',
+        },
+        {
+          selector: "NewExpression[callee.object.name='Intl']",
+          message:
+            'Construct Intl formatters only in src/lib/format.ts (single formatting seam, #468/#477). Import a formatter from src/lib/format instead.',
+        },
+      ],
+    },
+  },
   {
     files: ['**/*.{ts,tsx}'],
     extends: [js.configs.recommended, ...tseslint.configs.recommended],

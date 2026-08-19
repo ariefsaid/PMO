@@ -36,7 +36,7 @@ import { useProcurementRecordMutations } from '@/src/hooks/useProcurementRecords
 import type { LedgerRow } from '@/src/lib/db/procurementLedger';
 import type { ProcurementDetail } from '@/src/lib/db/procurementLifecycle';
 import type { ProcurementInvoiceRow } from '@/src/lib/db/procurementLifecycle';
-import { formatCurrency } from '@/src/lib/format';
+import { formatCurrency, formatDateUtc } from '@/src/lib/format';
 import { TaskPushBadge } from '@/src/components/tasks/TaskPushBadge';
 import { IDLE_PENDING_PUSH } from '@/src/lib/adapterSeam/pendingPush';
 
@@ -48,12 +48,7 @@ function formatBusinessDate(iso: string): string {
   // iso can be either a date string (YYYY-MM-DD) or a full datetime
   const datePart = iso.slice(0, 10);
   const [y, m, d] = datePart.split('-').map(Number);
-  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    timeZone: 'UTC',
-  });
+  return formatDateUtc(new Date(Date.UTC(y, m - 1, d)));
 }
 
 // ---------------------------------------------------------------------------

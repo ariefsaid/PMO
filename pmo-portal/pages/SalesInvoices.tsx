@@ -27,6 +27,7 @@ import { useSalesInvoices, useRevenueMutations } from '@/src/hooks/useRevenue';
 import { useClientCompanyOptions, useProjectOptions } from '@/src/hooks/useFkOptions';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { trackFilterApplied } from '@/src/lib/analytics';
+import { formatCurrencyCents, formatDateNumeric } from '@/src/lib/format';
 import type { SalesInvoiceRow, SalesInvoiceStatus } from '@/src/lib/db/revenue';
 import { deriveArDueDate } from '@/src/lib/repositories/revenueDisplay';
 import { salesInvoiceStatusVariant } from '@/src/lib/status/statusVariants';
@@ -173,7 +174,7 @@ const SalesInvoices: React.FC = () => {
       align: 'num',
       cell: (inv) => (
         <span className="tabular text-right font-mono text-[13px]">
-          {inv.amount != null ? `$${inv.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}` : '—'}
+          {inv.amount != null ? formatCurrencyCents(inv.amount) : '—'}
         </span>
       ),
       exportValue: (inv) => inv.amount?.toString() ?? '',
@@ -184,9 +185,7 @@ const SalesInvoices: React.FC = () => {
       align: 'num',
       cell: (inv) => (
         <span className="tabular text-right font-mono text-[13px]">
-          {inv.erp_outstanding_amount != null
-            ? `$${inv.erp_outstanding_amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}`
-            : '—'}
+          {inv.erp_outstanding_amount != null ? formatCurrencyCents(inv.erp_outstanding_amount) : '—'}
         </span>
       ),
       exportValue: (inv) => inv.erp_outstanding_amount?.toString() ?? '',
@@ -194,7 +193,7 @@ const SalesInvoices: React.FC = () => {
     {
       key: 'invoice_date',
       header: 'Date',
-      cell: (inv) => (inv.invoice_date ? new Date(inv.invoice_date).toLocaleDateString() : '—'),
+      cell: (inv) => (inv.invoice_date ? formatDateNumeric(new Date(inv.invoice_date)) : '—'),
       exportValue: (inv) => inv.invoice_date ?? '',
     },
     {
@@ -202,7 +201,7 @@ const SalesInvoices: React.FC = () => {
       header: 'Due Date',
       cell: (inv) => {
         const due = deriveArDueDate(inv.invoice_date, inv.erp_payment_terms_days, inv.erp_due_date);
-        return due ? new Date(due).toLocaleDateString() : '—';
+        return due ? formatDateNumeric(new Date(due)) : '—';
       },
       exportValue: (inv) => deriveArDueDate(inv.invoice_date, inv.erp_payment_terms_days, inv.erp_due_date) ?? '',
     },
