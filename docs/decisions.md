@@ -1506,3 +1506,74 @@ negatives change.
 suite was green with the inconsistency in it.** It was only visible reading the siblings *against each
 other*. When a change introduces a family of near-identical helpers, review the family, not the
 members.
+
+## DD-ORG-1..3 · DD-DEPLOY-1 · DD-RPT-1 — multi-org operations batch (Director, 2026-08-19)
+
+Resolves five wayfinder tickets on the multi-org map (#439): #440, #441, #444, #460, #465. All `DD-`
+— revisitable by the owner at any time.
+
+**[DD-ORG-1] Org creation is a guarded security-definer RPC, Operator-only, invoked by script — no
+UI** (#440 → build #484). The tenancy ruling decides it: unrelated paying clients get their own
+Supabase project, so only RIS + Gordi + Demo share a deployment and org creation happens **~3 times
+in a deployment's life** — less often than a schema migration. A UI for that is a surface to build,
+secure, test and maintain for nothing. Revisit only if shared multi-tenancy arrives (gated on the
+isolation proof, #461). The RPC mirrors the shipped `operator_set_domain_ownership`
+(`0087`) — do not invent a new authz shape. It must create the org **and** its companions atomically:
+the first Admin membership (an org nobody can administer is not created), the locale defaults
+(`DD-I18N-2`), and `pmo_epoch_at` (`DD-XING-2` — free at creation, guesswork to reconstruct after an
+ERP arrives). ⚑ That growing companion list is the actual reason to build it: every hand-written
+`insert` is a chance to miss one. Interim operator SQL stays acceptable but must be written down in
+`docs/environments.md` and set the same rows.
+
+**[DD-ORG-2] A user in the wrong org is handled by offboard + reinvite. Reassignment is ruled out —
+on tenancy-integrity grounds, not UX** (#441 → guard #485). The ticket frames it as a policy choice;
+it is not. `profiles.org_id` is the tenancy anchor, so mutating it retroactively rewrites which org
+every record that user ever authored belongs to. Three things break together: historical rows in org
+A become authored by a profile in org B (a cross-tenancy reference no RLS policy anticipates); it
+lands squarely on the **known-weak SoD surface** — the recorded root cause of the create-path class is
+that SoD asks who set a value and never validates that person's *current* standing, and a cross-org
+move is that defect with a new trigger, introduced deliberately into the money path; and it would
+**silently carry org-scoped integration connections across the boundary**, since offboard
+cascade-deletes them by design and a bare `update` has no such step. That last point inverts the
+ticket's own question: the cascade is not something a move should *mirror*, it is a reason to prefer
+offboard, which already does it right. Offboard + reinvite preserves authorship integrity (the old
+profile stays in org A) and costs only identity continuity across orgs — which is correct, since the
+user **was a different principal in each org**. This decision removes scope; the only build is making
+`profiles.org_id` immutable so nobody later writes the obvious-looking `update`.
+
+**[DD-ORG-3] Org lifecycle marker `live`/`demo`/`test`, with a DEFAULT-DENY destructive guard, `live`
+terminal, enforced at two layers** (#460 → build #489). ⛔ The polarity is the decision. Written the
+obvious way ("refuse when state = `live`") it fails open on exactly the rows that matter most:
+**every org that exists today has no marker**, so NULL-is-destroyable would leave the real client
+unprotected on day one — the precise scenario the ticket was raised about — and any state added later
+(`archived`, `suspended`) would silently become destroyable. So: refuse **unless** the state is
+explicitly in a destroyable allowlist (`demo`, `test`); `NULL`, unrecognised, and `live` are all
+protected. This repo has shipped inverted guards twice. **`live` → anything is refused outright** —
+demoting a live org is not maintenance, it is removing protection from real client data, and it is the
+move that would immediately precede a destructive command. Two layers (DB function = authority,
+script check = fail-fast ergonomics) because defence in depth needs a test per layer. Scope is
+org-**wholesale** operations; per-record deletes stay with RLS + soft-archive (ADR-0018).
+
+**[DD-DEPLOY-1] Expand-then-contract is the rule; the observed failure gets a mechanical guard;
+version handshake rejected** (#444 → build #486). The ticket offers deploy-order SOP, version
+handshake, or coupled promote. **No fixed order is safe in both directions** — a function redirecting
+to a new route needs the frontend first, a frontend calling a new function needs the function first —
+which is why "deploy in the documented order" did not save us. So the rule is expand-then-contract:
+every cross-boundary change ships with both sides tolerating old *and* new before a later promote
+removes the old, which makes **order irrelevant** — the only property that survives a deploy done
+wrong under pressure. A version handshake adds a permanent runtime coupling and a new failure mode to
+solve a release-discipline problem: rejected. Discipline that lives only in a doc is what just failed,
+so the observed case gets `scripts/check-redirect-targets.mjs` (edge-function redirect targets must
+resolve to real frontend routes), running in CI on PR→`main` — the gate immediately before the owner
+is asked to authorize a production promote. A coupled promote script adds **no safety** over this and
+should never be mistaken for the safety mechanism.
+
+**[DD-RPT-1] `/reports` leaves the navigation now; the fixed report set is not day-1** (#465 → build
+#488, owner question parked at #487). A nav entry leading to a placeholder advertises an unfinished
+product to exactly the audience a demo is meant to persuade, and it is a one-line fix. The report set
+is deferred on **sequence**, not data: the locked go-live order (i18n → tasks → meetings → work orders
+→ Bahasa → go-live) does not contain reports. ⚑ Worth recording because it cuts the other way — the
+convenient argument that reports are blocked on ERPNext is **false**: in standalone mode PMO owns
+`sales_invoices` and the procurement chain natively, so AR and AP aging are computable at go-live. A
+report *builder* remains out of scope. Whether RIS needs a named report at day-1 is a client fact only
+the owner holds and is parked, blocking nothing.
