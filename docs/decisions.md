@@ -1271,3 +1271,50 @@ nothing waits on it. Of everything that ticket asks, **only "what do they need i
 create product scope** (a self-driven sandbox org, Indonesian sample data); commission shape, who
 invoices, collateral and what would make them decline are commercial and gate no build. Support already
 sits with us. Pricing (#466) stays blocked on it.
+
+## OD-SEED-1..3 · OD-ERP-1..2 — RIS seeding, and ERPNext as an immediate follow (owner grill, 2026-08-19)
+
+Second half of the same grill. Resolved the RIS data ticket (#455) and surfaced an unclaimed delivery
+dependency plus a gap in the integration architecture.
+
+**[OD-SEED-1] Source is spreadsheets only.** Everything RIS runs on today is Excel. The earlier
+ERPNext-based portal never went live and is not treated as an authoritative source.
+
+**[OD-SEED-2] Path is the shipped import wizard (ADR-0027), self-service — not one-time scripts.** It is
+generic over a per-entity `ImportDescriptor`: xlsx in, columns auto-mapped, every row validated
+client-side with zero writes, one explicit confirm, rows created through the entity's real create
+repository so RLS stamps `org_id` and the role gate holds. Companies, Contacts, Projects and Procurement
+already ship live Import buttons; **budgets are the one day-1 dataset with no descriptor** (#473). Scripts
+only where an entity has no create path. **One named owner at RIS** prepares every sheet — split
+ownership across departments is how a migration stalls.
+
+**[OD-SEED-3] Scope is from January 2025, and money history lands in ERPNext, not PMO.** RIS has been
+active only since 2025 at low transaction volume, so January 2025 captures everything since they
+digitized. Invoices, payments and purchases go into **ERPNext** (the system of record) via its **native
+Data Import**, never through our adapter and never into PMO. PMO surfaces them through the adapter
+read-models that already ship (AR aging, actuals). This reconciles the owner's full-history requirement
+with the rule that nothing writes governed money records around PMO's SoD and outbox path: the history is
+complete, and no record bypasses anything. All transaction types, not a subset — at this volume,
+selecting which kinds to bring costs more deliberation than bringing everything.
+
+**[OD-ERP-1] ERPNext is NOT a go-live gate. RIS goes live on PMO standalone; ERPNext follows
+immediately, with a two-way historical sync.** ADR-0055 already provides that PMO runs fully standalone
+with every domain PMO-owned, so this is a supported topology rather than a compromise. The day-1 sequence
+was already carrying i18n, tasks, meetings, work orders and a translation pass; adding a second system's
+provisioning and a historical load to it would put the go-live out of reach.
+
+**[OD-ERP-2] We self-host ERPNext for RIS, alongside their PMO deployment.** Not the distribution partner
+(despite ERPNext hosting being their business), not RIS. Today no hosted ERPNext exists anywhere — only
+the local Docker dev bed (`docs/environments.md` §ERPNext v15 dev bed). Provisioning, company setup,
+credentials and the historical load are charted in #474.
+
+**⚑ Consequence — an architecture gap, not just plumbing (#475).** Between go-live and ERPNext landing,
+PMO is the only system and writes real projects, budgets, invoices and payments. At connect, the domains
+ERPNext natively owns flip from PMO-owned to externally-owned — but the PMO rows already there are the
+*only* copy, so they cannot simply become a read-model. **ADR-0055 has no account of a client crossing
+between standalone and connected while live**, which is precisely what RIS will do and what any standalone
+client adopting an ERP later would do. The part that binds *before* go-live: if PMO records must
+eventually push into ERPNext, they must already carry whatever ERPNext will require — customer
+references, tax fields, account codes, naming series, currency. Discovering a missing required field
+after months of live client data is expensive and possibly unrecoverable. **The transition is designed
+before go-live and built after.**

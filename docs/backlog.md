@@ -973,6 +973,23 @@ Then, per the standard series loop (grill → spec → …), the candidate queue
     (OD-WO-1). Rationale for the slices in front of go-live: meetings and work orders are day-1
     client requirements, first-class tasks are the meeting prerequisite, and the owner accepted a
     later go-live for a better product.
+  - **[OD-SEED-1..3 · OD-ERP-1..2] RIS seeding + ERPNext timing (owner grill 2026-08-19, #455).**
+    - **[OD-SEED-1/2] Spreadsheets only, through the shipped import wizard (ADR-0027)** — not
+      one-time scripts. Companies/Contacts/Projects/Procurement already have live Import buttons;
+      **budgets are the one missing descriptor (#473)**. One named owner at RIS prepares every sheet.
+    - **[OD-SEED-3] From January 2025 (company active since 2025, low volume). Money history goes
+      into ERPNext, NOT PMO** — loaded via ERPNext's native Data Import, surfaced in PMO through the
+      existing adapter read-models. Full history without anything writing around the SoD/outbox path.
+    - **[OD-ERP-1] ERPNext is an immediate FOLLOW, not a go-live gate** — RIS goes live on PMO
+      standalone (a topology ADR-0055 already supports), then ERPNext lands with a two-way historical
+      sync.
+    - **[OD-ERP-2] We self-host ERPNext for RIS**, beside their PMO deployment — not the distribution
+      partner, not RIS. No hosted ERPNext exists today, only the local dev bed (#474).
+    - **⚑ Architecture gap surfaced (#475):** ADR-0055 models a client as either employing an external
+      system or not — it has **no account of crossing between the two while live**, which is exactly
+      what RIS does. The PMO rows written standalone are the only copy and cannot just become a
+      read-model. **Designed BEFORE go-live** because it constrains what shipped records must carry
+      (customer refs, tax fields, account codes, currency) to be migratable at all; built after.
 
 ### ⚑⚑ ADAPTER PROGRAM — P2 ERPNext money core ✅ MERGED to dev (#315 squash `b549d06`, 2026-07-14)
 ### ⚑⚑ M365 INTEGRATION — RESUME HERE (updated 2026-07-29) — ✅ MERGED to `dev`; **connect leg PROVEN live, `graph_proxy` NEVER proven**
