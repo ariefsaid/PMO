@@ -70,3 +70,6 @@ __pycache__/
 *.pyc
 # the SSSF env sample is documentation, not a secret — un-ignore it from the `.env.*` guard above
 !.env.sample
+brief-*.md
+adw*.log
+verify*.log
