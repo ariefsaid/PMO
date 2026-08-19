@@ -417,6 +417,21 @@ async function mintMirrorRow(
         invoice_date: (canonical as { invoice_date?: string | null }).invoice_date ?? null,
         amount: (canonical as { amount?: string | number | null }).amount ?? null,
         erp_outstanding_amount: erpOutstanding ?? null,
+        // #478 (0187/0188). `amount` above is ERPNext's `grand_total`, which includes taxes by
+        // definition, so 'inclusive' is a fact about the figure being written, not a guess.
+        // `tax_amount` is NOT NULL with no DB default: ERPNext states `total_taxes_and_charges` on
+        // every Sales Invoice (0 when untaxed) and siFromDoc maps it, so '0.00' here is the untaxed
+        // document, never "unknown". `currency` and `tax_template` are omitted when absent —
+        // `currency` is NOT NULL and its BEFORE-INSERT trigger fills it from the org's
+        // default_currency, which v1 pins to the ERPNext company currency at Connect (DD-OPS-3).
+        tax_treatment: 'inclusive',
+        tax_amount: (canonical as { tax_amount?: string | number | null }).tax_amount ?? '0.00',
+        ...((canonical as { currency?: string | null }).currency
+          ? { currency: (canonical as { currency?: string | null }).currency }
+          : {}),
+        ...((canonical as { tax_template?: string | null }).tax_template
+          ? { tax_template: (canonical as { tax_template?: string | null }).tax_template }
+          : {}),
         status: deriveSiStatus(erpOutstanding == null ? null : String(erpOutstanding), docstatus),
         erp_docstatus: docstatus,
         erp_modified: erpModifiedIso,

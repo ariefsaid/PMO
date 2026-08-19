@@ -39,6 +39,16 @@ export function siFromDoc(doc: unknown): PmoRecord {
     reference_number: (d.po_no as string | null) ?? null, // customer PO/bill ref (AR-aging row, #6)
     amount: mirrorMoney(d.grand_total),
     erp_outstanding_amount: mirrorMoney(d.outstanding_amount),
+    // #478 / OD-CR-5: read-backs PRESERVE the source doc's currency — never the ERPNext company
+    // default and never a PMO constant.
+    currency: (d.currency as string | null) ?? null,
+    // #478 / DD-XING-4: the header tax facts. `total_taxes_and_charges` is ERP's own total tax and is
+    // mirrored VERBATIM (ADR-0048 — PMO reads money, never recomputes it); `taxes_and_charges` is the
+    // Sales Taxes and Charges TEMPLATE name. The per-rate breakdown lives on the `taxes` CHILD table,
+    // which the list endpoint cannot return, so `tax_rate` is deliberately NOT derived here — a
+    // computed rate would be a PMO-invented figure that rounds differently from the authored one.
+    tax_amount: mirrorMoney(d.total_taxes_and_charges),
+    tax_template: (d.taxes_and_charges as string | null) ?? null,
     erp_docstatus: (d.docstatus as number | null) ?? null,
     erp_modified: (d.modified as string | null) ?? null,
     erp_amended_from: (d.amended_from as string | null) ?? null,
@@ -50,4 +60,4 @@ export function siFromDoc(doc: unknown): PmoRecord {
  * `fields=[…]` request from this, so an adopted/updated mirror row is never written with NULLs for
  * data the ERP doc carries. Co-located with the mapper so the two cannot drift apart.
  */
-export const SI_FROM_DOC_FIELDS = ['name', 'modified', 'docstatus', 'amended_from', 'customer', 'posting_date', 'po_no', 'grand_total', 'outstanding_amount'] as const;
+export const SI_FROM_DOC_FIELDS = ['name', 'modified', 'docstatus', 'amended_from', 'customer', 'posting_date', 'po_no', 'grand_total', 'outstanding_amount', 'currency', 'total_taxes_and_charges', 'taxes_and_charges'] as const;

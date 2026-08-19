@@ -50,8 +50,8 @@ insert into companies (id, org_id, name, type) values
   ('11130000-0000-0000-0000-0000000001f1','11130000-0000-0000-0000-000000000101','Author-Set Customer','Client');
 
 -- A authors a 1,000,000 draft. The read-model writer stamps BOTH the scalar and the set.
-insert into sales_invoices (id, org_id, customer_id, si_number, invoice_date, amount, status, author_user_id)
-values ('11130000-0000-0000-0000-0000000001e1','11130000-0000-0000-0000-000000000101',
+insert into sales_invoices (tax_treatment, tax_amount, id, org_id, customer_id, si_number, invoice_date, amount, status, author_user_id)
+values ('exclusive', 0, '11130000-0000-0000-0000-0000000001e1','11130000-0000-0000-0000-000000000101',
         '11130000-0000-0000-0000-0000000001f1','SET-SI-001','2026-07-20',1000000.00,'Draft',
         '11130000-0000-0000-0000-0000000001a1');
 insert into sales_invoice_authors (org_id, sales_invoice_id, user_id) values
@@ -123,8 +123,8 @@ select lives_ok(
 -- ════════════════════════════════════════════════════════════════════════════
 reset role;
 set local request.jwt.claims = '{"role":"service_role"}';
-insert into sales_invoices (id, org_id, customer_id, si_number, invoice_date, amount, status, author_user_id)
-values ('11130000-0000-0000-0000-0000000001e2','11130000-0000-0000-0000-000000000101',
+insert into sales_invoices (tax_treatment, tax_amount, id, org_id, customer_id, si_number, invoice_date, amount, status, author_user_id)
+values ('exclusive', 0, '11130000-0000-0000-0000-0000000001e2','11130000-0000-0000-0000-000000000101',
         '11130000-0000-0000-0000-0000000001f1','SET-SI-002','2026-07-20',500.00,'Draft', null);
 
 set local role authenticated;

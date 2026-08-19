@@ -605,6 +605,7 @@ export type Database = {
         Row: {
           category: Database["public"]["Enums"]["budget_category"]
           created_at: string
+          currency: string
           fiscal_year: string
           id: string
           note: string | null
@@ -617,6 +618,7 @@ export type Database = {
         Insert: {
           category: Database["public"]["Enums"]["budget_category"]
           created_at?: string
+          currency?: string
           fiscal_year: string
           id?: string
           note?: string | null
@@ -629,6 +631,7 @@ export type Database = {
         Update: {
           category?: Database["public"]["Enums"]["budget_category"]
           created_at?: string
+          currency?: string
           fiscal_year?: string
           id?: string
           note?: string | null
@@ -738,6 +741,7 @@ export type Database = {
         Row: {
           activated_at: string | null
           created_at: string
+          currency: string
           id: string
           name: string
           org_id: string
@@ -748,6 +752,7 @@ export type Database = {
         Insert: {
           activated_at?: string | null
           created_at?: string
+          currency?: string
           id?: string
           name: string
           org_id?: string
@@ -758,6 +763,7 @@ export type Database = {
         Update: {
           activated_at?: string | null
           created_at?: string
+          currency?: string
           id?: string
           name?: string
           org_id?: string
@@ -1997,6 +2003,7 @@ export type Database = {
         Row: {
           amount: number | null
           created_at: string
+          currency: string
           customer_id: string | null
           date: string | null
           erp_amended_from: string | null
@@ -2013,6 +2020,7 @@ export type Database = {
         Insert: {
           amount?: number | null
           created_at?: string
+          currency?: string
           customer_id?: string | null
           date?: string | null
           erp_amended_from?: string | null
@@ -2029,6 +2037,7 @@ export type Database = {
         Update: {
           amount?: number | null
           created_at?: string
+          currency?: string
           customer_id?: string | null
           date?: string | null
           erp_amended_from?: string | null
@@ -2269,16 +2278,19 @@ export type Database = {
       organizations: {
         Row: {
           created_at: string
+          default_currency: string
           id: string
           name: string
         }
         Insert: {
           created_at?: string
+          default_currency?: string
           id?: string
           name: string
         }
         Update: {
           created_at?: string
+          default_currency?: string
           id?: string
           name?: string
         }
@@ -2343,6 +2355,7 @@ export type Database = {
         Row: {
           amount: number | null
           created_at: string
+          currency: string
           date: string | null
           erp_amended_from: string | null
           erp_cancelled_at: string | null
@@ -2362,6 +2375,7 @@ export type Database = {
         Insert: {
           amount?: number | null
           created_at?: string
+          currency?: string
           date?: string | null
           erp_amended_from?: string | null
           erp_cancelled_at?: string | null
@@ -2381,6 +2395,7 @@ export type Database = {
         Update: {
           amount?: number | null
           created_at?: string
+          currency?: string
           date?: string | null
           erp_amended_from?: string | null
           erp_cancelled_at?: string | null
@@ -2616,6 +2631,7 @@ export type Database = {
         Row: {
           amount: number | null
           created_at: string
+          currency: string
           erp_amended_from: string | null
           erp_cancelled_at: string | null
           erp_docstatus: number | null
@@ -2636,6 +2652,7 @@ export type Database = {
         Insert: {
           amount?: number | null
           created_at?: string
+          currency?: string
           erp_amended_from?: string | null
           erp_cancelled_at?: string | null
           erp_docstatus?: number | null
@@ -2656,6 +2673,7 @@ export type Database = {
         Update: {
           amount?: number | null
           created_at?: string
+          currency?: string
           erp_amended_from?: string | null
           erp_cancelled_at?: string | null
           erp_docstatus?: number | null
@@ -2811,6 +2829,7 @@ export type Database = {
       }
       procurement_quotations: {
         Row: {
+          currency: string
           erp_amended_from: string | null
           erp_cancelled_at: string | null
           erp_docstatus: number | null
@@ -2832,6 +2851,7 @@ export type Database = {
           vq_number: string | null
         }
         Insert: {
+          currency?: string
           erp_amended_from?: string | null
           erp_cancelled_at?: string | null
           erp_docstatus?: number | null
@@ -2853,6 +2873,7 @@ export type Database = {
           vq_number?: string | null
         }
         Update: {
+          currency?: string
           erp_amended_from?: string | null
           erp_cancelled_at?: string | null
           erp_docstatus?: number | null
@@ -3099,6 +3120,7 @@ export type Database = {
           approved_by_id: string | null
           code: string | null
           created_at: string
+          currency: string
           id: string
           import_batch_id: string | null
           import_key: string | null
@@ -3121,6 +3143,7 @@ export type Database = {
           approved_by_id?: string | null
           code?: string | null
           created_at?: string
+          currency?: string
           id?: string
           import_batch_id?: string | null
           import_key?: string | null
@@ -3143,6 +3166,7 @@ export type Database = {
           approved_by_id?: string | null
           code?: string | null
           created_at?: string
+          currency?: string
           id?: string
           import_batch_id?: string | null
           import_key?: string | null
@@ -3413,6 +3437,7 @@ export type Database = {
           contract_value_set_at: string | null
           contract_value_set_by: string | null
           created_at: string
+          currency: string
           customer_contract_ref: string | null
           decided_at: string | null
           end_date: string | null
@@ -3438,6 +3463,7 @@ export type Database = {
           contract_value_set_at?: string | null
           contract_value_set_by?: string | null
           created_at?: string
+          currency?: string
           customer_contract_ref?: string | null
           decided_at?: string | null
           end_date?: string | null
@@ -3463,6 +3489,7 @@ export type Database = {
           contract_value_set_at?: string | null
           contract_value_set_by?: string | null
           created_at?: string
+          currency?: string
           customer_contract_ref?: string | null
           decided_at?: string | null
           end_date?: string | null
@@ -3568,6 +3595,7 @@ export type Database = {
         Row: {
           amount: number | null
           created_at: string
+          currency: string
           date: string | null
           erp_amended_from: string | null
           erp_cancelled_at: string | null
@@ -3586,6 +3614,7 @@ export type Database = {
         Insert: {
           amount?: number | null
           created_at?: string
+          currency?: string
           date?: string | null
           erp_amended_from?: string | null
           erp_cancelled_at?: string | null
@@ -3604,6 +3633,7 @@ export type Database = {
         Update: {
           amount?: number | null
           created_at?: string
+          currency?: string
           date?: string | null
           erp_amended_from?: string | null
           erp_cancelled_at?: string | null
@@ -3695,6 +3725,7 @@ export type Database = {
         Row: {
           amount: number | null
           created_at: string
+          currency: string
           date: string | null
           erp_amended_from: string | null
           erp_cancelled_at: string | null
@@ -3713,6 +3744,7 @@ export type Database = {
         Insert: {
           amount?: number | null
           created_at?: string
+          currency?: string
           date?: string | null
           erp_amended_from?: string | null
           erp_cancelled_at?: string | null
@@ -3731,6 +3763,7 @@ export type Database = {
         Update: {
           amount?: number | null
           created_at?: string
+          currency?: string
           date?: string | null
           erp_amended_from?: string | null
           erp_cancelled_at?: string | null
@@ -3840,6 +3873,7 @@ export type Database = {
         Row: {
           amount: number | null
           created_at: string
+          currency: string
           date: string | null
           erp_amended_from: string | null
           erp_cancelled_at: string | null
@@ -3858,6 +3892,7 @@ export type Database = {
         Insert: {
           amount?: number | null
           created_at?: string
+          currency?: string
           date?: string | null
           erp_amended_from?: string | null
           erp_cancelled_at?: string | null
@@ -3876,6 +3911,7 @@ export type Database = {
         Update: {
           amount?: number | null
           created_at?: string
+          currency?: string
           date?: string | null
           erp_amended_from?: string | null
           erp_cancelled_at?: string | null
@@ -3988,6 +4024,7 @@ export type Database = {
           amount: number | null
           author_user_id: string | null
           created_at: string
+          currency: string
           customer_id: string | null
           erp_amended_from: string | null
           erp_cancelled_at: string | null
@@ -4001,11 +4038,16 @@ export type Database = {
           reference_number: string | null
           si_number: string | null
           status: string
+          tax_amount: number
+          tax_rate: number | null
+          tax_template: string | null
+          tax_treatment: string
         }
         Insert: {
           amount?: number | null
           author_user_id?: string | null
           created_at?: string
+          currency?: string
           customer_id?: string | null
           erp_amended_from?: string | null
           erp_cancelled_at?: string | null
@@ -4019,11 +4061,16 @@ export type Database = {
           reference_number?: string | null
           si_number?: string | null
           status?: string
+          tax_amount: number
+          tax_rate?: number | null
+          tax_template?: string | null
+          tax_treatment: string
         }
         Update: {
           amount?: number | null
           author_user_id?: string | null
           created_at?: string
+          currency?: string
           customer_id?: string | null
           erp_amended_from?: string | null
           erp_cancelled_at?: string | null
@@ -4037,6 +4084,10 @@ export type Database = {
           reference_number?: string | null
           si_number?: string | null
           status?: string
+          tax_amount?: number
+          tax_rate?: number | null
+          tax_template?: string | null
+          tax_treatment?: string
         }
         Relationships: [
           {
@@ -4515,6 +4566,7 @@ export type Database = {
         Returns: {
           amount: number | null
           created_at: string
+          currency: string
           erp_amended_from: string | null
           erp_cancelled_at: string | null
           erp_docstatus: number | null
@@ -4610,6 +4662,7 @@ export type Database = {
         Returns: {
           amount: number | null
           created_at: string
+          currency: string
           date: string | null
           erp_amended_from: string | null
           erp_cancelled_at: string | null
@@ -4647,6 +4700,7 @@ export type Database = {
         Returns: {
           amount: number | null
           created_at: string
+          currency: string
           erp_amended_from: string | null
           erp_cancelled_at: string | null
           erp_docstatus: number | null
@@ -4682,6 +4736,7 @@ export type Database = {
           p_vendor_id: string
         }
         Returns: {
+          currency: string
           erp_amended_from: string | null
           erp_cancelled_at: string | null
           erp_docstatus: number | null
@@ -4758,6 +4813,7 @@ export type Database = {
         Returns: {
           amount: number | null
           created_at: string
+          currency: string
           date: string | null
           erp_amended_from: string | null
           erp_cancelled_at: string | null
@@ -4794,6 +4850,7 @@ export type Database = {
         Returns: {
           amount: number | null
           created_at: string
+          currency: string
           date: string | null
           erp_amended_from: string | null
           erp_cancelled_at: string | null
@@ -4830,6 +4887,7 @@ export type Database = {
         Returns: {
           amount: number | null
           created_at: string
+          currency: string
           date: string | null
           erp_amended_from: string | null
           erp_cancelled_at: string | null
@@ -4976,6 +5034,7 @@ export type Database = {
           amount: number | null
           author_user_id: string | null
           created_at: string
+          currency: string
           customer_id: string | null
           erp_amended_from: string | null
           erp_cancelled_at: string | null
@@ -4989,6 +5048,10 @@ export type Database = {
           reference_number: string | null
           si_number: string | null
           status: string
+          tax_amount: number
+          tax_rate: number | null
+          tax_template: string | null
+          tax_treatment: string
         }
         SetofOptions: {
           from: "*"
@@ -5339,6 +5402,7 @@ export type Database = {
           amount: number | null
           author_user_id: string | null
           created_at: string
+          currency: string
           customer_id: string | null
           erp_amended_from: string | null
           erp_cancelled_at: string | null
@@ -5352,6 +5416,10 @@ export type Database = {
           reference_number: string | null
           si_number: string | null
           status: string
+          tax_amount: number
+          tax_rate: number | null
+          tax_template: string | null
+          tax_treatment: string
         }
         SetofOptions: {
           from: "*"

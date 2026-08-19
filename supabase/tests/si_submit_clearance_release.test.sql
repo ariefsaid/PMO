@@ -68,8 +68,8 @@ insert into external_org_bindings (org_id, external_tier, site_url, secret_ref, 
 insert into companies (id, org_id, name, type) values
   ('11140000-0000-0000-0000-0000000001c1','11140000-0000-0000-0000-000000000101','Clearance Customer','Client');
 
-insert into sales_invoices (id, org_id, customer_id, si_number, invoice_date, amount, status, author_user_id, erp_docstatus)
-values ('11140000-0000-0000-0000-0000000001b1','11140000-0000-0000-0000-000000000101',
+insert into sales_invoices (tax_treatment, tax_amount, id, org_id, customer_id, si_number, invoice_date, amount, status, author_user_id, erp_docstatus)
+values ('exclusive', 0, '11140000-0000-0000-0000-0000000001b1','11140000-0000-0000-0000-000000000101',
         '11140000-0000-0000-0000-0000000001c1','CLR-SI-001','2026-07-20',1000.00,'Draft',
         '11140000-0000-0000-0000-0000000001a1', 0);
 insert into sales_invoice_authors (org_id, sales_invoice_id, user_id) values

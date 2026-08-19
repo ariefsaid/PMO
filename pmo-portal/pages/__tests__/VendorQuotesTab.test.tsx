@@ -44,6 +44,7 @@ const makeQuote = (overrides: Partial<QuotationRow> = {}): QuotationRow => ({
   procurement_id: 'proc-1',
   vendor_id: 'v-1',
   total_amount: 148000,
+  currency: 'USD', // #478 (0187): every PMO-owned money row carries an ISO-4217 currency
   vq_number: 'VQ-2026-0001',
   is_selected: false,
   reference: 'APX-Q-101',

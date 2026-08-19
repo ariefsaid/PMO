@@ -4,7 +4,7 @@
  * sent to ERPNext and the canonical PMO shapes returned from ERP docs.
  */
 import { describe, expect, it } from 'vitest';
-import { siToBody, siFromDoc } from './bodies/salesInvoice.ts';
+import { siToBody, siFromDoc, SI_FROM_DOC_FIELDS } from './bodies/salesInvoice.ts';
 import { peReceiveToBody, peReceiveFromDoc } from './bodies/incomingPayment.ts';
 import type { ErpCtx } from './doctypeRegistry.ts';
 
@@ -86,6 +86,36 @@ describe('erpnext/bodies — Sales Invoice (AC-SAR-030: SI money shape)', () => 
       erp_modified: '2026-07-14 10:00:00.000000',
       erp_amended_from: null,
     });
+  });
+
+  it('#478 siFromDoc mirrors the doc currency and the header tax facts (never a PMO constant)', () => {
+    const canonical = siFromDoc({
+      name: 'ACC-SINV-2026-00003',
+      posting_date: '2026-08-19',
+      grand_total: 111000,
+      outstanding_amount: 111000,
+      currency: 'IDR',
+      total_taxes_and_charges: 11000,
+      taxes_and_charges: 'Indonesia PPN 11% - RIS',
+      docstatus: 1,
+      modified: '2026-08-19 10:00:00.000000',
+      amended_from: null,
+    });
+    expect(canonical).toMatchObject({
+      currency: 'IDR',
+      tax_amount: '11000.00',
+      tax_template: 'Indonesia PPN 11% - RIS',
+    });
+    // tax_rate is deliberately NOT derived: the per-rate breakdown is on the `taxes` CHILD table and a
+    // computed rate would be a PMO-invented money figure (ADR-0048).
+    expect(canonical.tax_rate).toBeUndefined();
+  });
+
+  it('#478 SI_FROM_DOC_FIELDS requests every field siFromDoc reads — the sweep cannot silently null the tax facts', () => {
+    expect([...SI_FROM_DOC_FIELDS]).toEqual([
+      'name', 'modified', 'docstatus', 'amended_from', 'customer', 'posting_date', 'po_no',
+      'grand_total', 'outstanding_amount', 'currency', 'total_taxes_and_charges', 'taxes_and_charges',
+    ]);
   });
 
   it('Luna BLOCK A3: siFromDoc carries the ERP customer name so an inbound-adopted SI resolves customer_id (not NULL)', () => {

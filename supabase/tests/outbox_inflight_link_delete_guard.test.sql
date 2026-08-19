@@ -22,8 +22,8 @@ insert into projects (id, org_id, name, status, project_manager_id) values
   ('01191000-0000-0000-0000-0000000b0002','01191000-0000-0000-0000-000000000001','B11 Unreferenced','Internal Project','01191000-0000-0000-0000-0000000000a1');
 insert into companies (id, org_id, name, type) values
   ('01191000-0000-0000-0000-0000000c0001','01191000-0000-0000-0000-000000000001','B11 Customer','Client');
-insert into sales_invoices (id, org_id, customer_id, si_number, amount) values
-  ('01191000-0000-0000-0000-0000000e0001','01191000-0000-0000-0000-000000000001','01191000-0000-0000-0000-0000000c0001','ACC-SINV-B11-0001',9000.00);
+insert into sales_invoices (tax_treatment, tax_amount, id, org_id, customer_id, si_number, amount) values
+  ('exclusive', 0, '01191000-0000-0000-0000-0000000e0001','01191000-0000-0000-0000-000000000001','01191000-0000-0000-0000-0000000c0001','ACC-SINV-B11-0001',9000.00);
 
 -- An IN-FLIGHT sales-invoice create: the ERP POST may already have minted the document, and the
 -- mirror insert (which needs project_id + customer_id to resolve) has not landed yet.

@@ -43,8 +43,8 @@ insert into companies (id, org_id, name, type) values
 
 -- A draft authored by X — so neither A nor D is blocked by the SoD self-approval rule; the ONLY thing
 -- that can deny D is the active-member gate under test.
-insert into sales_invoices (id, org_id, customer_id, si_number, invoice_date, amount, status, author_user_id)
-values (
+insert into sales_invoices (tax_treatment, tax_amount, id, org_id, customer_id, si_number, invoice_date, amount, status, author_user_id)
+values ('exclusive', 0, 
   '11120000-0000-0000-0000-0000000001e1',
   '11120000-0000-0000-0000-000000000101',
   '11120000-0000-0000-0000-0000000001f1',
