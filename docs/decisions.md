@@ -1852,3 +1852,66 @@ Templates unchanged: a meeting flagged as a template, copied on create. No templ
 **Carry into the plan** the two spike findings that enlarge the estimate: the scoped-CSS seam must
 override **heading scale** (BlockNote's own scale is not ours), and the surface needs an explicit
 mobile-overflow proof under `AC-MOBILE-OVERFLOW-001`.
+
+## DD-RIS-1..4 · DD-OPS-6..8 — RIS provisioning and the go-live ops contract (Director, 2026-08-19)
+
+Resolves #454 and #457. Both are shaped by #451: RIS runs on the **shared deployment**, so their
+production *is* our shared project and every promote and outage is client-affecting by construction.
+
+**[DD-RIS-1] ⛔ The destructive guard lands BEFORE the RIS org exists.** #451's own resolution says the
+shared project stops being resettable the moment real data lands, and that the rule is "only
+enforceable with a machine-checkable marker". Order: **#489 ships** → existing orgs backfilled (Demo
+`demo`, Gordi `live`) → **then** the RIS org, stamped **`live` at creation**. Stamping at creation
+matters because `DD-ORG-3` made the guard default-deny: an unmarked org is already protected, so
+creating RIS unmarked is *safe* but leaves the real client's protection resting on a default instead of
+a decision — and `live` is terminal, so creation is the only moment it is free.
+
+**[DD-RIS-2] We create the org and exactly one Admin; RIS invites everyone else.** Operator creates the
+org plus its non-optional companions (`DD-ORG-1`): first Admin = the org's own named data owner
+(`OD-SEED-2`, the same person who prepares every import sheet — splitting those two roles is how a
+migration stalls); locale defaults `id` / Indonesian number format / `Asia/Jakarta` (`DD-I18N-2`);
+`pmo_epoch_at` = the go-live date (`DD-XING-2`). **Their Admin invites the rest** — we do not decide who
+at the client gets which role, it is their org chart. It also makes their first interaction *using* the
+product rather than watching us configure it, and exercises the invite path they will use forever on
+day one while we are watching.
+
+**[DD-RIS-3] RIS test accounts in the demo org are OFFBOARDED, not moved** (`DD-ORG-2`). Fresh profiles
+in the RIS org; their demo-org history stays in the demo org, because it was demo activity, not real
+work, and must not follow them into the client's data. ⚑ This is simultaneously a **#492** finding: a
+real RIS person's name and email in a **prospect-facing** demo org is exactly the PII exposure that
+issue exists to remove. Do both together.
+
+**[DD-RIS-4] The runbook lives with the operator runbook (#491), not as a separate artifact** — an
+operator following one procedure should not have to know a second document exists. End-to-end order:
+guard → backfill → create RIS `live` with companions → invite the Admin → Admin invites the team →
+offboard the demo duplicates → verify. ⚑ The verification people skip: **prove the destructive guard
+refuses a wipe of the real RIS org, before the data goes in.** A guard never observed refusing is not a
+guard. *Parked (owner):* who at RIS is the Admin and who else is invited — the runbook is written
+against roles, names filled in at execution.
+
+**[DD-OPS-6] Promote policy: no unannounced promotes once RIS is live.** `main`→`production` stays
+separate, explicit and per-instance owner-gated — unchanged. What changes: promote in a **stated
+window**, announced beforehand (not because deploys are risky, but because a client surprised by a
+change stops trusting the product even when the change is good), and **never during their
+close/billing crunch**, when approvals and invoicing cluster and a regression costs most. `dev`→`main`
+is unchanged and stays the Director's within-scope call. ⚑ A promote now also hits the demo org and
+Gordi — one deployment, three orgs — so **check the demo org after every promote**; it is the surface a
+prospect sees.
+
+**[DD-OPS-7] Monitoring: reuse the floor; treat ANY deployment alert as client-affecting.** BetterStack
++ Telegram + PostHog, not a per-client monitoring story for one client on a shared project.
+⚑ **Deliberately do NOT split "demo down" from "client down"** — they share a deployment, so a per-org
+alerting split is a fiction that delays response while someone works out whose problem it is. One
+deployment, one alarm. The genuinely new item is a **quota alarm on the shared project**: shared limits
+mean demo activity or a runaway job can degrade the client. (Constraint: scheduled workflows fire only
+from the default branch, so it cannot run until the workflow reaches `main`.)
+
+**[DD-OPS-8] Support loop: one named channel, triaged by us, filed WITHOUT their PII.** RIS cannot file
+issues here — public repo, and they are a client. One inbound channel only (two means an issue lands on
+the one nobody watches); we triage into GitHub issues with the existing labels. ⛔ **A client-reported
+issue is filed without their data** — no personal names, emails, invoice or project numbers, no
+screenshots of real records. Describe the *defect*, not the *record it happened to*. This is the
+public-repo rule applied to the one input stream that arrives **pre-loaded with client PII**, which is
+what makes it easy to get wrong. Acknowledge and resolve **into the channel** — a client should not
+have to read a public tracker to learn whether their problem is fixed. The contractual
+availability/support commitment stays pooled at #497.
