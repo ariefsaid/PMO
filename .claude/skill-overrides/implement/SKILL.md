@@ -4,6 +4,17 @@ description: "Implement one piece of work from a spec or set of tickets, test-fi
 disable-model-invocation: true
 ---
 
+> ⛔ **Route before you build (#476).** If you are the Director and this is a **bounded build ticket**,
+> the executor is the **SSSF ADW**, not you: `uv run adws/adw_simple_sdlc.py <brief.md>`
+> (`--builder fe_builder --reviewer fe_reviewer` for UI). Loading this skill is not a decision to
+> hand-build. Exemptions, each of which must be *stated*: money-path / SoD / auth / token-custody ·
+> anything under `adws/` (agents are barred by `protected_files`, #482) · foggy or multi-issue (use
+> `/wayfinder`) · research or design producing a decision rather than a diff.
+> Full table: `docs/factory-workflow.md` § Executor routing.
+>
+> If you are a **pi agent or a dispatched builder**, this exemption check has already happened —
+> proceed with the loop below.
+
 Implement the work described in the spec or tickets — **exactly** what is asked, nothing more (YAGNI). Build one task to done before starting the next. This is loop step 4 (Build) of CLAUDE.md's per-issue loop; the spec (`docs/specs/*.spec.md`) and plan (`docs/plans/*.md`) are the contract.
 
 ## Iron law (TDD)
