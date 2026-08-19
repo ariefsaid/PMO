@@ -573,6 +573,10 @@ TRUNCATE budget_line_items, budget_versions, companies, contacts, crm_activities
 -- then re-run scripts/db-seed-prod.sh
 ```
 
+## Operator runbook
+
+See [`docs/operator-runbook.md`](operator-runbook.md) for the inventory of rare cross-organization/platform acts and the RIS provisioning sequence. Keep this document as the environment and deployment reference.
+
 ## Provisioning an Operator (per client) — ADR-0049 / FR-OPR-003
 
 The **Operator** is a platform-level grant (the vendor operating PMO), NOT a 6th `user_role`. It
