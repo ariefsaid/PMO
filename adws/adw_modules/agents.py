@@ -10,6 +10,7 @@ disposes.
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Optional
 
@@ -269,6 +270,50 @@ def _extract_json(text: str) -> dict:
     return json.loads(candidate[start:end + 1])
 
 
+class SubstrateUnavailable(RuntimeError):
+    """The model never answered — quota, auth or transport — as opposed to
+    answering badly.
+
+    Kept distinct because the two demand opposite responses. A malformed envelope
+    is worth a correction round; a terminal 429 is worth waiting or switching
+    substrate, and no amount of re-prompting will fix it. Reported as a parse
+    failure (the shape it wears downstream) it sends the operator to debug prompts
+    and schemas instead (#482, observed twice on 2026-08-19).
+    """
+
+
+# Terminal substrate conditions, matched against the raw transcript. Deliberately
+# narrow: a false positive here would mask a real parse bug.
+_SUBSTRATE_SIGNS = (
+    ("429", "quota or rate limit reached"),
+    ("Usage limit reached", "usage limit reached"),
+    ("insufficient_quota", "quota exhausted"),
+    ("401", "authentication rejected"),
+    ("invalid_api_key", "authentication rejected"),
+)
+
+
+def _substrate_failure(raw: str) -> str | None:
+    """Name the terminal substrate condition in `raw`, or None.
+
+    Only consulted once every parse attempt has already failed, so the question
+    is no longer 'is this valid?' but 'why is there nothing to parse?'. A
+    transcript carrying a 429 or an auth rejection answers that; anything else
+    stays a parse problem and keeps the original error.
+    """
+    for needle, label in _SUBSTRATE_SIGNS:
+        if needle in (raw or ""):
+            return label
+    return None
+
+
+def _reset_hint(raw: str) -> str:
+    """Surface a reset time when the payload carries one — it turns 'the factory
+    is broken' into 'the factory resumes at 22:34'."""
+    match = re.search(r"reset at ([0-9]{4}-[0-9]{2}-[0-9]{2}[ T][0-9:]{5,8})", raw or "")
+    return f" Resets at {match.group(1)}." if match else ""
+
+
 def _parse_with_retries(run, phase: Phase, call: AgentCall, result, send):
     """Parse the final response against the declared output type; on failure,
     continue the SAME session with a correction (bounded)."""
@@ -280,6 +325,14 @@ def _parse_with_retries(run, phase: Phase, call: AgentCall, result, send):
             _persist_envelope(run, phase, phase.params.owner, call, None, attempt,
                               valid=False, raw=result.text)
             if attempt > JSON_FIX_ATTEMPTS:
+                cause = _substrate_failure(getattr(result, "raw", "") or result.text or "")
+                if cause:
+                    raw = getattr(result, "raw", "") or result.text or ""
+                    raise SubstrateUnavailable(
+                        f"{phase.params.owner} never answered — {cause}."
+                        f"{_reset_hint(raw)} This is a substrate failure, not a "
+                        f"malformed response: retrying the prompt cannot help. "
+                        f"Wait for the window or switch substrate.") from error
                 raise RuntimeError(
                     f"{phase.params.owner} never produced valid "
                     f"{call.output_type.__name__} JSON: {error}") from error

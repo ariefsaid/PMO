@@ -195,13 +195,43 @@ def pgtap(run) -> QualityCheckResult:
     ), run)
 
 
-def _touches_db(run) -> bool:
-    """Did this run change anything under supabase/? Uncommitted-only is enough:
-    the chain commits code only after this gate goes green."""
+def _changed_paths(run) -> list[str]:
+    """Paths this run touched. Uncommitted-only is enough: the chain commits code
+    only after this gate goes green."""
     listing = subprocess.run(
         ["bash", "-c", "git diff --name-only HEAD; git ls-files --others --exclude-standard"],
         cwd=run.repo_root, capture_output=True, text=True).stdout
-    return any(line.startswith("supabase/") for line in listing.splitlines())
+    return [line for line in listing.splitlines() if line]
+
+
+def _touches_db(run) -> bool:
+    """Did this run change anything under supabase/?"""
+    return any(path.startswith("supabase/") for path in _changed_paths(run))
+
+
+# Suffixes and filenames whose change means the JS toolchain has something to say.
+_JS_SUFFIXES = (".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".json", ".css")
+_JS_FILENAMES = ("package.json", "package-lock.json", "tsconfig.json", "eslint.config.js",
+                 "vite.config.ts", "vitest.config.ts")
+
+
+def _touches_js(run) -> bool:
+    """Does the JS gate have anything to check? A docs-only or SQL-only slice does
+    not, and running typecheck/lint/vitest against it is pure cost — worse, in a
+    worktree with no node_modules the tools are absent and their exit 127 used to
+    reach the builder as if the DIFF were broken (#493)."""
+    paths = _changed_paths(run)
+    return any(p.endswith(_JS_SUFFIXES) or p.rsplit("/", 1)[-1] in _JS_FILENAMES
+               for p in paths)
+
+
+class ToolchainUnavailable(RuntimeError):
+    """A gate command did not RUN — as opposed to running and finding problems.
+
+    Exit 127 is 'command not found'. Handing that to a builder asks it to repair
+    something it cannot see, and it will either invent changes or loop until the
+    round budget is gone (#493: three fix rounds burned on a correct diff).
+    """
 
 
 def run_tests(run) -> QualityResult:
@@ -215,11 +245,26 @@ def run_tests(run) -> QualityResult:
     a subprocess already knows; the repair loop is unchanged, because failures
     still reach the builder through `as_envelope` below.
     """
-    checks = [typecheck(run), lint(run)]
-    if all(check.passed for check in checks):
-        checks.append(test(run))
+    checks = []
+    if _touches_js(run):
+        checks.extend([typecheck(run), lint(run)])
+        if all(check.passed for check in checks):
+            checks.append(test(run))
     if all(check.passed for check in checks) and _touches_db(run):
         checks.append(pgtap(run))
+
+    # A tool that did not RUN is an environment fault, not a verdict on the diff.
+    # Raise instead of returning a failure envelope: the fix loop cannot help, and
+    # sending it there burns rounds repairing code that was never broken (#493).
+    absent = [c for c in checks if c.returncode == 127]
+    if absent:
+        raise ToolchainUnavailable(
+            "gate command(s) did not run (exit 127 — command not found): "
+            + "; ".join(f"{c.name}: `{c.command}`" for c in absent)
+            + ". This is an environment fault (commonly: no node_modules in this "
+              "worktree), not a problem with the diff. Install the toolchain or "
+              "narrow the gate; do not send this to the builder.")
+
     failures = [f"{check.name}: `{check.command}` exited {check.returncode}\n"
                 f"{check.output_tail}".rstrip()
                 for check in checks if not check.passed]
