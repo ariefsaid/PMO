@@ -140,7 +140,20 @@ Ruling something out of scope is a scoping act, not a step on the route. When a 
 
 ## Invocation
 
-Two modes. Either way, **never resolve more than one ticket per session** — with the exception of research tickets.
+Two modes: **chart** a new map, or **work** an existing one.
+
+> **PMO override — the one-ticket-per-session cap is replaced.** Upstream caps a session at one ticket
+> because it assumes a human answers every question, so their attention is the bottleneck. Here the
+> bottleneck depends on the resolver, so the cap is per *kind*, not per session:
+>
+> | Ticket kind | How many per session |
+> |---|---|
+> | `wayfinder:owner` | **All of them**, batched into `/grilling` rounds. Draining the frontier in one sitting is the point — the owner's attention is spent once, not once per ticket. |
+> | `wayfinder:director` | **As many as context allows.** Chain them, recording a `DD-` each. Stop when context degrades, not at an arbitrary count. |
+> | `wayfinder:factory` | **As many as dispatch allows** — they run elsewhere. |
+> | `research` | Unlimited (upstream already exempts these) — fire them in parallel as subagents. |
+>
+> Cadence and the park-don't-ask rule: `docs/factory-workflow.md` § The drive loop.
 
 ### Chart the map
 
@@ -155,12 +168,29 @@ User invokes with a loose idea.
 
 ### Work through the map
 
-User invokes with a map (URL or number). A ticket is **optional** — without one, you pick the next decision, not the user.
+User invokes with a map (URL or number). A ticket is **optional** — without one, you pick the next
+decision, not the user. **Which *kind* of session it is is also not the user's to state** — the frontier
+answers that. They should never need to say "grill session" or name the sibling maps.
+
+0. **Decide the session kind first, before choosing any ticket.** Query the owner frontier **across every
+   map**, not only the one named — a parent map's children share one frontier, and the owner's tickets are
+   usually spread over them:
+
+   ```bash
+   gh issue list --state open --label wayfinder:ticket --label wayfinder:owner --limit 60 \
+     --json number,title,body \
+     --jq '.[] | select((.body|test("Blocked-by")|not)) | "#\(.number)  \(.title)"'
+   ```
+
+   **Non-empty → GRILL session:** take *all* of them into `/grilling` rounds and drain the batch. Do not
+   pick one and stop. **Empty → DRIVE session:** work `director` tickets, chaining as many as context
+   allows, and dispatch `factory` ones. If the user named a single ticket, honour that instead.
 
 1. Load the **map** — the low-res view, not every ticket body.
-2. Choose the ticket. If the user named one, use it. Otherwise take the first frontier ticket in order. **Claim it**: assign it to yourself before any work.
+2. **Claim before any work**: assign to yourself. In a grill session claim the whole owner batch up
+   front, so a concurrent session skips them.
 3. Resolve it — **zoom as needed**: fetch the full body of any related or closed ticket on demand; invoke the skills the `## Notes` block names. If in doubt, use `/grilling` and `/domain-modeling`.
-4. Record the resolution: post the answer as a **resolution comment**, **close** the issue, and **append a context pointer** to the map's Decisions-so-far.
+4. Record the resolution: post the answer as a **resolution comment**, **close** the issue, and **append a context pointer** to the map's Decisions-so-far. Durable decisions also go to `docs/decisions.md` — `OD-` if the owner settled it, `DD-` if you did.
 5. Add newly-surfaced tickets (create-then-wire); graduate any fog the answer has made specifiable, clearing each graduated patch from **Not yet specified** so it lives only as its new ticket. If the answer reveals a ticket — this one or another — sits beyond the destination, **rule it out of scope** rather than resolving it on the route. If the decision invalidates other parts of the map, update or delete those tickets.
 
 The user may run unblocked tickets in parallel, so expect other sessions to be editing the tracker concurrently.

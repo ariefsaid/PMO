@@ -70,6 +70,9 @@ directions, then fold what you learned back into the issue thread.
   a **resolver label** — `wayfinder:owner` · `wayfinder:director` · `wayfinder:factory` — set by the
   decision-rights test above. A charting session that puts twenty questions to the owner has mis-sorted
   its frontier. Frontier = any open ticket whose blockers are closed — a work queue, not a human's memory.
+  **Invocation is just `/wayfinder <map>`** — the skill queries the owner frontier across *all* maps and
+  decides for itself whether this is a grill session (drain every owner ticket) or a drive session (chain
+  director tickets). The owner should never have to say which kind it is, or name the sibling maps.
 - **`/triage`** — inbound issues get the five canonical labels (`docs/agents/triage-labels.md`)
   before they enter the loop. **Public-repo rule applies to every label and comment** (CLAUDE.md
   banner).
