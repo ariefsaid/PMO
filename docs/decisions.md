@@ -1800,3 +1800,55 @@ cannot even log in to look**, and no partner escalation path. That absence is wh
 buys. Commit to an explicit business-hours WIB window. ⚑ Breakeven against managed hosting is ~2–3
 self-hosted instances — revisit `OD-ERP-2` the moment a second appears. ⛔ The demo org does not share
 a MariaDB with a paying client's books.
+
+## DD-MTG-1..5 — the meeting module (Director, 2026-08-19)
+
+Resolves #463, the last decision ticket on the frontier. Depends on #462 shipping first.
+
+**[DD-MTG-1] One typed block in v1: the action item.** Not Decision, not Risk, not Attendee mention.
+Each typed block costs a schema, a renderer, a slash item, a backing table **and a sync contract** —
+and the sync contract is the expensive part. Action item earns it because a task already exists as a
+first-class entity with consumers outside the meeting; Decision and Risk have no backing table, no
+outside consumer, and nobody has asked. **The durable test, so this is not re-argued per block: a
+block earns being *typed* only when something OUTSIDE its meeting must query, assign or filter it —
+otherwise it is formatting.** Attendee mention fails it twice: attendees are already a first-class
+field, so a mention would be a second, drifting copy. Nothing is lost by waiting — notes are JSON, so
+a block can become typed later without a migration penalty.
+
+**[DD-MTG-2] The row is SoT; the block stores the task id and nothing else. There is no sync.**
+The spike was explicit that it proved none of this, and this is the decision it was run to inform.
+Block-authoritative breaks the point (a task edited in the task list would be silently overwritten by
+the document); two-way sync is a distributed-systems problem with paste, undo and offline all
+producing conflicts. Storing only the reference **removes** the problem rather than managing it, and
+every awkward case answers itself: a task edited elsewhere is reflected immediately (it was never a
+copy); **deleting the block removes the reference and never deletes the task** — deleting assigned
+work must not be a side effect of tidying a note; a task deleted elsewhere renders a **tombstone**,
+never a crash or a silent vanish; paste yields two references and **no write** (a paste that silently
+creates a task is worse than one that doesn't); undo after `/action` leaves the task, which is legal
+under `DD-TASK-1` and surfaces in "My tasks" — untidy, never lossy. ⚑ `tasks.meeting_id` is the second
+nullable parent and needs its **own** migration after nullable `project_id` lands alone (`DD-TASK-2`).
+
+**[DD-MTG-3] Attendees are staff, contacts, or a free-typed name** — a `meeting_attendees` join with
+three mutually-exclusive nullable columns, exactly one set (explicit columns, not polymorphic — same
+ruling as `DD-TASK-1`). ⚑ The free-text shape is not a shortcut: notes are taken **live, during a
+meeting**, and forcing every attendee to be an existing row means stopping mid-meeting to create a CRM
+contact for someone who attended once. The reliable outcome of that friction is that attendees stop
+being recorded at all. Promote to a contact later, when someone cares.
+
+**[DD-MTG-4] One optional `project_id`. NO separate contact field** — a deliberate deviation from the
+charter's "project and contact both optional", flagged rather than slipped in. A meeting's contact
+**is** an attendee, so a separate `contact_id` is a second copy of the same fact that drifts the first
+time someone edits one and not the other. CRM filtering survives: "every meeting with Acme" resolves
+through attendees → contacts → company, a join needed anyway. Revisit only if a real case appears
+where the counterparty did not attend.
+
+**[DD-MTG-5] Reverse-chronological list, project filter, and search over notes as the primary find
+mechanism** — people look for "the meeting about X sometime last week". ⚑ Concrete consequence:
+BlockNote notes are JSON and Postgres FTS cannot search that directly, so **maintain a plain-text
+projection alongside the JSON** and index it. Cheap designed in now; a migration over live client
+notes if bolted on later — and this client treats meetings as day-one, so the notes will exist.
+Templates unchanged: a meeting flagged as a template, copied on create. No template engine.
+
+**Carry into the plan** the two spike findings that enlarge the estimate: the scoped-CSS seam must
+override **heading scale** (BlockNote's own scale is not ours), and the surface needs an explicit
+mobile-overflow proof under `AC-MOBILE-OVERFLOW-001`.
