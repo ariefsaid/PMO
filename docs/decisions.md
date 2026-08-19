@@ -1685,3 +1685,118 @@ is no `currency` column to set** — the only ones in the schema are on the ERP 
 #478**. Both are pre-go-live and seeding runs once, so building the importer first means building it
 twice, the second pass touching a money-shaped path for no gain. This does not make the importer less
 day-1 — it orders two day-1 items that were being treated as independent.
+
+## DD-WO-1..6 — the Work Order record (Director, 2026-08-19)
+
+Resolves #471 → build #498 (blocked on #478); owner ground-truth parked at #496. Every precedent cited
+was verified against the tree.
+
+**[DD-WO-1] One table, no children, `project_id NOT NULL`.** A work order with no commitment has no
+ceiling to draw against — deliberately unlike tasks, where nullable was the point. No `client_id`
+(derive from `projects.client_id`), no line items in v1, no `contracts` table (`OD-WO-1`). Mint
+`wo_number` with the **existing** `next_procurement_doc_number(org, prefix)` at prefix `'WO'` —
+already atomic per-(org, prefix, day) and already revoked from `authenticated`; the
+procurement-flavoured name is cosmetic. Do not write a second minter.
+
+**[DD-WO-2] Drawdown is a DERIVED sum (`security invoker`), and over-ceiling is allowed, warned and
+ATTRIBUTED.** Copy `get_project_budget` (`0005:15`), which carries an explicit "do NOT add security
+definer" comment. Not a stored balance: `projects.spent` was added in `0001:79` marked
+`-- DEFERRED: stored vs derived`, is still unmaintained, and the UI derives instead — stored rollups
+rot in this schema. **Not a hard cap**, and the reason is about people: `contract_value` is
+Exec/Finance-gated once a project is won (`0014`), so a cap would stop a PM **recording a real client
+PO** until someone a role away raised the ceiling — a control that blocks recording reality. Instead
+the issue RPC computes the sum under the parent lock and, on exceed, requires an explicit
+`p_over_commit_ack` it **refuses to default** (fail closed), stamping who acknowledged. Without it
+there is no record anywhere of who chose to over-commit. Committed = `Issued + Closed`; **Draft
+excluded** or the PM's headline number is polluted by drafts.
+
+**[DD-WO-3] `Draft → Issued → Closed` + `Cancelled`; SoD on issue.** Deliberately NOT states: worked,
+delivered, invoiced, paid — paid-ness already has an oracle on the invoice
+(`sales_invoices.erp_outstanding_amount`), and a second copy would disagree. SoD copies the shipped
+`projects` pattern: `set_work_order_value` as sole writer, witness ≠ caller, **fail closed on NULL
+witness**, witness must be an **active** member (reuse `0180`/`0183` — witness=winner, offboarded and
+demoted are the three recorded variants), origination guard on INSERT. ⚑ Two mechanical traps:
+**revoke the table UPDATE grant and re-grant the column list minus `order_value`** (a column-level
+REVOKE on top of a table grant is a **silent no-op**), and **add `work_orders` explicitly to
+`0171_sod_class_completeness.test.sql`** — that test names its tables, so a new money table is not
+automatically in the denominator.
+
+**[DD-WO-4] `sales_invoices.work_order_id`, nullable in schema, required by the UI path.** Nullable is
+**forced**: the table doubles as the machine-written mirror when revenue flips externally-owned, so an
+adopted ERP-originated invoice has no PMO work order and `not null` would break adoption; pre-epoch
+history has none either. Constrained by a same-project trigger (precedent
+`check_tasks_parent_same_project`, `0140`). ⚑ **Mandatory paired edit:** add it to
+`sales_invoices_native_mirror_guard` (`0123:117`), which enumerates every native field — omitting it
+leaves the column user-writable while revenue is externally owned, the exact "closed one path, left
+the other open" shape that produced SoD slices 2–6.
+
+**[DD-WO-5] Posture B at the ERPNext crossing, and post-issue value edits are FORBIDDEN.** ADR-0059
+§2's test answers B on all four counts, including "never adopt" — a natively-created ERPNext Sales
+Order never passed the issue gate. ⚑ Two collisions needing an addendum line, not a redesign:
+ADR-0055 §5 lists Sales Order as ERP-owned, so **a builder pattern-matching that row will build
+Posture A** — §5A must state that PMO owns the client's *inbound* PO, for which ERPNext has no native
+record, and the ERPNext Sales Order is its mirror; and **no `salesOrder.ts` body builder exists**
+(verified against `src/lib/adapterSeam/erpnext/bodies/`) — new work, not reuse. **Forbidding
+post-issue value edits** is the ruling that removes the weak-stamp class: otherwise `issued_at` stops
+moving when pushable content moves, a re-push derives an identical key, and the write is **silently
+suppressed** leaving ERPNext holding the wrong value (the OQ-BUD-2 failure, `0137`/#479). An amended
+PO is Cancel + re-issue — which is also how ERPNext amends.
+
+**[DD-WO-6] Out of v1:** the push itself · `tasks.work_order_id` (**must not ride along** — `tasks.
+project_id` is still `not null`, so #462 hasn't landed) · change orders as a distinct record ·
+retention/advances/milestone billing · its own Delivered/Invoiced/Paid status · any procurement link.
+**Reusing `purchase_orders` would be wrong**: it is a child of a procurement case and an *outbound*
+vendor order; authorization routes through the procurement parent, its ERP posture is the opposite
+direction, and the drawdown sum would **silently mix our vendor commitments with the client's grants**
+— the worst defect available here. The similarity is that both are called "PO".
+
+## DD-OPS-2..5 — self-hosting ERPNext for RIS (Director, 2026-08-19)
+
+Resolves #474 → build #499; commercial questions parked at #497.
+
+**[DD-OPS-2] One VPS in Jakarta, `compose.yaml` (not `pwd.yml`), image pinned to `v15.94.3`.**
+⛔ The dev bed **cannot be promoted** — it runs `pwd.yml` (`docs/environments.md:401`), which upstream
+labels a disposable non-production demo. Floor: 4 vCPU / 8 GB / 80 GB for ≤25 users (9 long-running
+containers). ~$55–70/mo all-in. Hetzner at ~$9 is the tempting option to refuse: 180–250 ms to Jakarta
+plus cross-border transfer of a client's financial records to save ~$45. Frappe Cloud is ruled out by
+`OD-ERP-2` and has no Indonesia region. **Pin to the tag the adapter contract was proven against** —
+a minor bump invalidates the version-handshake proof. ⚑ **IP-allowlisting is unavailable**: the sweep
+dials `site_url` outbound from Edge Functions (`erpnext-sweep/index.ts:605-636`), which have no stable
+egress IP, so token + TLS + rate-limiting **are** the whole perimeter.
+
+**[DD-OPS-3] We do everything mechanical; RIS owns accounting judgment.** Us: host, stack, TLS, DNS,
+backups, monitoring, site, API user + token, Connect binding, naming series, account map,
+`pmo_epoch_at`, and **execution** of the import. RIS (same single named owner as `OD-SEED-2`): chart of
+accounts (**their codes win**; ERPNext's bundled Indonesian COA is community-contributed and rough — a
+template at most), fiscal-year convention, **PPN templates**, real historical document numbers, the
+sheets. ⚑ The PPN encoding is an accountant's call: 12% on an 11/12 DPP gives an effective 11%, and
+**two ERPNext encodings of that print different invoices**. The partner has nothing on the critical
+path. ⚑ **Connect waits for the currency seam** — `OD-CR-5` pins org currency to the ERPNext company
+currency at connect and there is no PMO-side currency column to pin against yet.
+
+**[DD-OPS-4] Rehearse the historical load on a clone, then run it ONCE.** After go-live, before
+Connect, with `pmo_epoch_at` set **first** so the load reads as pre-epoch Posture-A history and is
+never adopted (`DD-XING-2`). Prerequisites: company/IDR/abbr frozen · the **final** COA (renumbering
+after GL entries orphans the ledger and the account-map bijection) · **Fiscal Years covering 2025 and
+2026** · cost centers and a `Project` on every document · tax templates · naming series. ⚑ The
+fiscal-year prerequisite fails **silently**: a GL row whose fiscal year ERPNext never stated is stored
+but selectable under no year the UI can offer — money in the database, invisible in PMO, no error
+anywhere. One shot matters because submitted ERPNext documents are **immutable** (reversal is
+Cancel + Amend, leaving cancelled documents in the ledger permanently) and native Data Import is **not
+idempotent** — the derived-key protection covers the *adapter* path only, so a re-run doubles the GL.
+
+**[DD-OPS-5] Nightly logical dump offsite, rehearsed restore, RPO 24h stated not assumed.**
+`bench backup --with-files` to a different provider/region, encrypted, key in 1Password, never on the
+box; provider snapshots as the fast path but **not** a substitute. **Restore rehearsal before go-live,
+then quarterly** — an untested backup is not a backup. Skip PITR at this volume. ⚑ **Do not use
+Frappe's built-in S3 Backup Settings doctype** — present in v15, removed from its usual place in v16;
+cron + `bench backup` + rclone survives the upgrade.
+
+**What self-hosting signs us up for**, recorded because it was chosen over the partner hosting it:
+~2–4 h/month steady state; **one major upgrade inside this client relationship** (v15 EOL end-2027)
+which also invalidates the pinned version-handshake proof, so the adapter battery re-runs with it; and
+the real cost — **someone answers when it is down**, on RIS's books, with ERPNext headless so **RIS
+cannot even log in to look**, and no partner escalation path. That absence is what the ~$50/mo saving
+buys. Commit to an explicit business-hours WIB window. ⚑ Breakeven against managed hosting is ~2–3
+self-hosted instances — revisit `OD-ERP-2` the moment a second appears. ⛔ The demo org does not share
+a MariaDB with a paying client's books.
