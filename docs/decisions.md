@@ -1915,3 +1915,57 @@ public-repo rule applied to the one input stream that arrives **pre-loaded with 
 what makes it easy to get wrong. Acknowledge and resolve **into the channel** — a client should not
 have to read a public tracker to learn whether their problem is fixed. The contractual
 availability/support commitment stays pooled at #497.
+
+## DD-CUR-1..5 — implementation rulings from the currency + tax build (Director, 2026-08-19)
+
+Settled while building #478 (`a0f48957`). Recorded because a future agent would otherwise re-derive
+them — or, worse, "fix" them.
+
+**[DD-CUR-1] `currency` goes on money *document* tables only — 12 of them — not on everything with a
+`numeric` column.** Enumerated from the live schema, not from the issue body. Deliberately excluded,
+each with the reason in the migration header:
+
+- **Child line tables** (`procurement_items`, `budget_line_items`) — currency belongs to the header,
+  which is ERPNext's own model. A per-line column that nothing keeps equal to its parent *invents* a
+  "USD line under an IDR document" ambiguity that does not exist today.
+- **Platform AI billing** (`agent_usage.cost`, `credits.amount`, `credit_reservations.amount`) — USD,
+  and never an ERP document. Stamping org currency would **re-denominate a USD credit grant as IDR**.
+- **ERP read-models** (`erp_*_snapshot`, `erp_gl_entry_mirror`, `timesheet_erp_mirror`) — machine-written.
+- Non-money numerics (`timesheet_entries.hours`, milestone weights, win probability).
+
+**[DD-CUR-2] ⚑ The stamping trigger is named `<tbl>_zz_stamp_currency` because BEFORE triggers fire in
+NAME ORDER.** It must run *after* `<tbl>_stamp_org_id`, or a non-seed-org insert resolves its currency
+against the **seed** org. Anyone renaming these triggers alphabetically-tidier will reintroduce that
+silently. The default is `'XXX'` — ISO-4217's own "no currency" — with the trigger overriding
+null-or-`'XXX'` and a CHECK forbidding `'XXX'` from surviving, so an unstamped row cannot persist.
+
+**[DD-CUR-3] `tax_treatment` is TEXT with a CHECK, not a boolean, and has NO DEFAULT.** A boolean lets
+an omitted or falsy value silently become `'exclusive'` — which is exactly the silent-wrong-answer this
+whole issue exists to prevent. Text with no default makes omission a hard `23502`/`23514`. A "plausible"
+default was mutation-tested: adding `default 'exclusive'` turns four assertions red, by design.
+
+**[DD-CUR-4] ⚑ Column-level INSERT grants invert the usual trap.** Several money tables carry
+**column-level** INSERT grants, so a newly added column is **not insertable unless explicitly granted** —
+the opposite of the familiar "a column REVOKE cannot subtract from a table grant" failure. `currency` is
+granted INSERT (never UPDATE) on the five such tables. `DD-IMP-1`'s import descriptor must state it
+explicitly or imports will fail on a column nobody remembers exists.
+**One honest exception, documented in `0187` §4:** `budget_projections` holds *table-level* INSERT/UPDATE,
+so its `currency` **is** client-updatable and a column REVOKE there would be a silent no-op. Fixing it
+means revoking the table grant and re-granting the column list minus `currency` (the `DD-WO-3` mechanic).
+Not done: it is a PMO-authored forward estimate that mints no ERP document. Flagged rather than hidden.
+
+**[DD-CUR-5] Mirror guards are pinned, but NOT by re-creating triggers.** `0189` adds the new columns to
+the **six** `*_native_mirror_guard` functions that enumerate their fields. `purchase_requests`/`rfqs` are
+deliberately untouched — their guards are **blanket denials**, so enumerating fields there would *weaken*
+them. ⚑ And no trigger is dropped-and-recreated: live trigger names are **not uniform**
+(`procurement_quotations_zz_native_mirror_guard` vs `..._trg`), so `0125`'s drop-and-recreate habit would
+leave a **duplicate trigger under a new name**.
+
+**Still owed, both flagged not fixed:** `siToBody` does not yet send `currency` explicitly, which
+`OD-CR-5` requires on the push side (its contract is spike-frozen and unverifiable without a live bench);
+and `database.types.ts` is stale on `dev` by ~215 lines unrelated to this change, so only the
+currency/tax hunks were applied to keep the diff reviewable.
+
+**Vendor invoices need the same treatment** — `procurement_invoices.amount` (added in `0040`) carries the
+identical ambiguity. Scoped out deliberately because it needs a definer-RPC signature change with
+PostgREST overload risk and multiple callers. **#505**, same deadline class as #478.
