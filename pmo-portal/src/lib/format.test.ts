@@ -120,6 +120,23 @@ describe('formatCurrencyAuto — default-fraction KPI money (#477)', () => {
   });
 });
 
+describe('#477 review — money formatters agree on where a negative sign goes', () => {
+  // Regression for the review finding: formatCurrencyAuto welded a `$` and rendered "$-1,234.5",
+  // while its siblings used Intl currency style and rendered "-$1,234.50". Two money values on one
+  // screen (RevenueByProject KPI tiles vs its table cells) disagreed. Negative money is reachable —
+  // open AR goes negative on an overpayment/credit.
+  it('all three put the minus BEFORE the symbol', () => {
+    expect(formatCurrencyAuto(-1234.5)).toBe('-$1,234.5');
+    expect(formatCurrencyCents(-1234.5)).toBe('-$1,234.50');
+    expect(formatCurrencyFine(-0.0123)).toBe('-$0.0123');
+  });
+  it('formatCurrencyAuto stays byte-identical to the welded form for POSITIVES', () => {
+    for (const v of [0, 1234, 1234.5, 1234.56, 1234.567, 1234567.89]) {
+      expect(formatCurrencyAuto(v)).toBe(`$${v.toLocaleString('en-US')}`);
+    }
+  });
+});
+
 describe('formatCurrencyFine — sub-$1 agent/provider costs (#477)', () => {
   it('keeps 2–4 fraction digits: $0.50 / $0.0123 / $12.3456', () => {
     expect(formatCurrencyFine(0.5)).toBe('$0.50');

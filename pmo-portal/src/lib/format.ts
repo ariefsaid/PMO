@@ -113,9 +113,19 @@ export function formatCurrencyCents(value: number): string {
 }
 
 // Money — default-fraction values (KPI tiles): "$1,234" / "$1,234.5" / "$1,234.56" (0–3 dp, no padding).
+// Uses `style: 'currency'` rather than welding a `$`, so a negative renders "-$1,234.5" exactly like
+// formatCurrencyCents/Fine. The welded form put the sign INSIDE the symbol ("$-1,234.5"), which left two
+// money values on one screen disagreeing about where the minus goes (#477 review). Positives are
+// byte-identical to the welded form — min 0 / max 3 reproduces the plain NumberFormat default range.
 const numberDefaultFormatter = new Intl.NumberFormat('en-US');
+const currencyAutoFormatter = new Intl.NumberFormat('en-US', {
+  style: 'currency',
+  currency: 'USD',
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 3,
+});
 export function formatCurrencyAuto(value: number): string {
-  return `$${numberDefaultFormatter.format(value)}`;
+  return currencyAutoFormatter.format(value);
 }
 
 // Money — fine-grained agent/provider costs (sub-$1): "$0.0123" (2–4 dp).

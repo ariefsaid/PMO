@@ -1486,3 +1486,23 @@ ERPNext document mints no PMO process record; `drop table` on the side mirror lo
 is where a reader asks "what happens to domain X"; a third ADR restating both is ceremony. The addendum
 adds the crossing column, the epoch rule, the catch-up rule with its state-stamp precondition, and the
 reversibility correction.
+
+## DD-FMT-1 — negative money renders `-$1,234.50`, not `$-1,234.50` (Director, 2026-08-19)
+
+Surfaced by the #477 review (`docs/reviews/2026-08-19-477-locale-drift-sweep.md`). The swept money
+formatters disagreed with each other: `formatCurrencyCents`/`formatCurrencyFine` used `Intl`
+`style: 'currency'` and rendered `-$1,234.50`, while `formatCurrencyAuto` welded a `$` onto a plain
+number and rendered `$-1,234.5`. `RevenueByProject` renders **both on one screen** — KPI tiles and
+table cells — so a negative open AR (reachable on an overpayment or a credit note) showed the minus
+in two different places.
+
+**Ruling: all money uses `style: 'currency'`; the sign goes before the symbol.** The old welded form
+put the sign inside the symbol, which is non-standard, and consistency between sibling formatters
+matters more than preserving it. `formatCurrencyAuto` keeps `min 0 / max 3` fraction digits so every
+**positive** stays byte-identical to the welded output — verified across the range — and only
+negatives change.
+
+⚑ The lesson generalises past this fix: **each formatter was correct read on its own, and the full
+suite was green with the inconsistency in it.** It was only visible reading the siblings *against each
+other*. When a change introduces a family of near-identical helpers, review the family, not the
+members.
