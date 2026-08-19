@@ -143,6 +143,14 @@ test('shared Deno scripts discover the complete current function and test invent
   assert.match(unit, /inventory is empty/);
 });
 
+test('AC-RDR-006: CI wires the redirect-target guard and its self-test', () => {
+  assert.equal(packageJson.scripts['check:redirect-targets'], 'node ../scripts/check-redirect-targets.mjs');
+  assert.match(packageJson.scripts.verify, /check:redirect-targets/);
+  const verifyJob = workflow.slice(workflow.indexOf('  verify:'), workflow.indexOf('  integration:'));
+  assert.match(verifyJob, /node scripts\/check-redirect-targets\.mjs --self-test/);
+  assert.match(verifyJob, /node scripts\/check-redirect-targets\.mjs\s*\n/);
+});
+
 test('the full verify gate enforces edge-function test binding', () => {
   assert.match(packageJson.scripts.verify, /check:edge-test-binding/);
   assert.equal(

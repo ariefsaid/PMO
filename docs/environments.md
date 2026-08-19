@@ -551,6 +551,14 @@ scripts/db-seed-prod.sh            # 2. demo data (typed 'prod-seed') — demo-d
 git push origin main:production    # 3. FE: Cloudflare builds the production branch
 git tag -a vX.Y.Z <sha> -m "…" && git push origin vX.Y.Z   # 4. tag the release
 ```
+
+### Cross-boundary frontend/edge-function changes (DD-DEPLOY-1)
+
+Use **expand-then-contract**: add and deploy a new frontend route before any edge function redirects to it;
+keep the old contract accepted until the frontend that stopped using it is live; remove the old contract only in
+a later promote. No fixed deploy order is safe in both directions, which is why ordering alone was rejected in
+favor of expand-then-contract compatibility.
+
 **`seed.sql` conflict gotcha (binding):** the seed's inserts are `on conflict (id) do nothing`, which does
 **not** catch a `(org_id, code)` unique-key collision. If prod already holds demo data from an **older
 seed with a different id scheme** (real incident 2026-06-16: prod had `d0…`-id projects, current seed uses
