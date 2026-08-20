@@ -2336,6 +2336,9 @@ export type Database = {
         Row: {
           created_at: string
           default_currency: string
+          default_locale: string
+          default_number_locale: string | null
+          default_timezone: string
           id: string
           lifecycle_state: string | null
           name: string
@@ -2343,6 +2346,9 @@ export type Database = {
         Insert: {
           created_at?: string
           default_currency?: string
+          default_locale?: string
+          default_number_locale?: string | null
+          default_timezone?: string
           id?: string
           lifecycle_state?: string | null
           name: string
@@ -2350,6 +2356,9 @@ export type Database = {
         Update: {
           created_at?: string
           default_currency?: string
+          default_locale?: string
+          default_number_locale?: string | null
+          default_timezone?: string
           id?: string
           lifecycle_state?: string | null
           name?: string
@@ -3302,12 +3311,15 @@ export type Database = {
           email: string
           full_name: string
           id: string
+          locale: string | null
           location: string | null
           manager_id: string | null
+          number_locale: string | null
           org_id: string
           role: Database["public"]["Enums"]["user_role"]
           skills: string[]
           status: Database["public"]["Enums"]["profile_status"]
+          timezone: string | null
           title: string | null
           updated_at: string
           utilization: number | null
@@ -3319,12 +3331,15 @@ export type Database = {
           email: string
           full_name: string
           id: string
+          locale?: string | null
           location?: string | null
           manager_id?: string | null
+          number_locale?: string | null
           org_id?: string
           role?: Database["public"]["Enums"]["user_role"]
           skills?: string[]
           status?: Database["public"]["Enums"]["profile_status"]
+          timezone?: string | null
           title?: string | null
           updated_at?: string
           utilization?: number | null
@@ -3336,12 +3351,15 @@ export type Database = {
           email?: string
           full_name?: string
           id?: string
+          locale?: string | null
           location?: string | null
           manager_id?: string | null
+          number_locale?: string | null
           org_id?: string
           role?: Database["public"]["Enums"]["user_role"]
           skills?: string[]
           status?: Database["public"]["Enums"]["profile_status"]
+          timezone?: string | null
           title?: string | null
           updated_at?: string
           utilization?: number | null
@@ -5462,6 +5480,9 @@ export type Database = {
           p_admin_full_name: string
           p_admin_user_id: string
           p_default_currency: string
+          p_default_locale: string
+          p_default_number_locale: string
+          p_default_timezone: string
           p_name: string
         }
         Returns: string
@@ -5740,7 +5761,12 @@ export type Database = {
         Returns: undefined
       }
       set_work_order_value: {
-        Args: { p_id: string; p_value: number }
+        Args: {
+          p_id: string
+          p_tax_amount?: number
+          p_tax_treatment?: string
+          p_value: number
+        }
         Returns: undefined
       }
       si_submit_clearance_ttl: { Args: never; Returns: string }

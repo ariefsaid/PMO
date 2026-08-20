@@ -188,6 +188,8 @@ describe('AnalyticsProvider', () => {
         status: 'active',
         created_at: '',
         updated_at: '',
+        // #468: nullable preference columns (0198) — a profile that has stated none.
+        locale: null, number_locale: null, timezone: null,
       },
       role: 'Project Manager',
     });
@@ -228,6 +230,8 @@ describe('AnalyticsProvider', () => {
       status: 'active' as const,
       created_at: '',
       updated_at: '',
+      // #468: nullable preference columns (0198) — a profile that has stated none.
+      locale: null, number_locale: null, timezone: null,
     };
 
     const { rerender } = render(
@@ -325,6 +329,8 @@ describe('AnalyticsProvider', () => {
       status: 'active' as const,
       created_at: '',
       updated_at: '',
+      // #468: nullable preference columns (0198) — a profile that has stated none.
+      locale: null, number_locale: null, timezone: null,
     };
     rerender(
       <AuthContext.Provider value={makeAuthCtx({ currentUser: profile, role: 'Project Manager' })}>
@@ -362,6 +368,8 @@ describe('AnalyticsProvider', () => {
           status: 'active',
           created_at: '',
           updated_at: '',
+          // #468: nullable preference columns (0198) — a profile that has stated none.
+          locale: null, number_locale: null, timezone: null,
         },
         role: 'Project Manager',
       }),

@@ -19,6 +19,10 @@
 --   AC-ORG-012  atomicity: a call that fails mid-way leaves NO org row and NO profile row behind.
 --   AC-ORG-013  the EXECUTE surface — `authenticated` holds it, `anon` does not (0185's default-
 --               privilege revoke means the explicit grant is the only thing that makes it callable).
+--   AC-L10N-004 (owned here, minted for #468; see docs/specs/i18n-framework.spec.md): a missing/
+--               blank default_locale or default_timezone is a hard error (P0001), never a silent
+--               'en'/'Asia/Jakarta'; an explicit number_locale of NULL is the legal derive choice;
+--               a stated call persists the STATED locale defaults (DD-RIS-2).
 --
 -- ⚑ pgTAP runs as the superuser migration role, which BYPASSES both RLS and grants. The authz
 -- assertions therefore run under `set local role authenticated` + a JWT claim, and the GRANT
@@ -31,7 +35,7 @@
 --
 -- Reversibility (ADR-0006): no schema changes (fixtures inside begin/rollback); re-run is a no-op.
 begin;
-select plan(17);
+select plan(22);
 
 -- ── Fixtures. All inserted BEFORE any request.jwt.claims is set, so auth_org_id() is null and
 -- `profiles_stamp_org_id` is a no-op on them (it must not silently rewrite a fixture's org).
@@ -59,9 +63,9 @@ select ok(not has_table_privilege('authenticated','public.organizations','INSERT
   'AC-ORG-007 authenticated holds NO INSERT on organizations (the RPC is the sole write path)');
 select ok(not has_table_privilege('anon','public.organizations','INSERT'),
   'AC-ORG-007 anon holds NO INSERT on organizations');
-select ok(has_function_privilege('authenticated','public.operator_create_org(text,uuid,text,text)','EXECUTE'),
+select ok(has_function_privilege('authenticated','public.operator_create_org(text,uuid,text,text,text,text,text)','EXECUTE'),
   'AC-ORG-013 authenticated may EXECUTE operator_create_org (explicit grant, 0087 shape)');
-select ok(not has_function_privilege('anon','public.operator_create_org(text,uuid,text,text)','EXECUTE'),
+select ok(not has_function_privilege('anon','public.operator_create_org(text,uuid,text,text,text,text,text)','EXECUTE'),
   'AC-ORG-013 anon may NOT EXECUTE operator_create_org');
 
 -- ════════════════════════════════════════════════════════════════════════════════════════════════
@@ -70,13 +74,13 @@ select ok(not has_function_privilege('anon','public.operator_create_org(text,uui
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"04840000-0000-0000-0000-0000000000a2","role":"authenticated"}';
 select throws_ok(
-  $$ select operator_create_org('AC-ORG New Org','04840000-0000-0000-0000-0000000000b1','New Admin','IDR') $$,
+  $$ select operator_create_org('AC-ORG New Org','04840000-0000-0000-0000-0000000000b1','New Admin','IDR','id',null,'Asia/Jakarta') $$,
   '42501', null,
   'AC-ORG-001 a non-Operator (active org Admin) calling operator_create_org gets 42501');
 
 set local request.jwt.claims = '{"sub":"04840000-0000-0000-0000-0000000000a3","role":"authenticated"}';
 select throws_ok(
-  $$ select operator_create_org('AC-ORG New Org','04840000-0000-0000-0000-0000000000b1','New Admin','IDR') $$,
+  $$ select operator_create_org('AC-ORG New Org','04840000-0000-0000-0000-0000000000b1','New Admin','IDR','id',null,'Asia/Jakarta') $$,
   '42501', null,
   'AC-ORG-002 a DISABLED Operator gets 42501 (active-member standing is checked, not just the grant)');
 
@@ -85,7 +89,7 @@ select throws_ok(
 -- ════════════════════════════════════════════════════════════════════════════════════════════════
 set local request.jwt.claims = '{"sub":"04840000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 select lives_ok(
-  $$ select operator_create_org('AC-ORG New Org','04840000-0000-0000-0000-0000000000b1','New Admin','IDR') $$,
+  $$ select operator_create_org('AC-ORG New Org','04840000-0000-0000-0000-0000000000b1','New Admin','IDR','id',null,'Asia/Jakarta') $$,
   'AC-ORG-003 an Operator creates the org');
 
 -- Assertions read as the migration role: `organizations_select` scopes an authenticated read to the
@@ -111,19 +115,19 @@ set local role authenticated;
 set local request.jwt.claims = '{"sub":"04840000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 
 select throws_ok(
-  $$ select operator_create_org('ac-org new org','04840000-0000-0000-0000-0000000000b2','Second Admin','IDR') $$,
+  $$ select operator_create_org('ac-org new org','04840000-0000-0000-0000-0000000000b2','Second Admin','IDR','id',null,'Asia/Jakarta') $$,
   '23505', null,
   'AC-ORG-008 a duplicate org name (case-insensitive) is refused');
 select throws_ok(
-  $$ select operator_create_org('AC-ORG Ghost Org','04840000-0000-0000-0000-0000000000ff','Ghost','IDR') $$,
+  $$ select operator_create_org('AC-ORG Ghost Org','04840000-0000-0000-0000-0000000000ff','Ghost','IDR','id',null,'Asia/Jakarta') $$,
   '23503', null,
   'AC-ORG-009 an unknown admin user id is refused');
 select throws_ok(
-  $$ select operator_create_org('AC-ORG Currencyless','04840000-0000-0000-0000-0000000000b2','Second Admin',null) $$,
+  $$ select operator_create_org('AC-ORG Currencyless','04840000-0000-0000-0000-0000000000b2','Second Admin',null,'id',null,'Asia/Jakarta') $$,
   'P0001', null,
   'AC-ORG-010 a missing default_currency is a hard error, never a silent USD');
 select throws_ok(
-  $$ select operator_create_org('AC-ORG Reassign','04840000-0000-0000-0000-0000000000a2','Existing Member','IDR') $$,
+  $$ select operator_create_org('AC-ORG Reassign','04840000-0000-0000-0000-0000000000a2','Existing Member','IDR','id',null,'Asia/Jakarta') $$,
   '23505', null,
   'AC-ORG-011 a user who already has a profile cannot be the first Admin (DD-ORG-2)');
 
@@ -131,7 +135,7 @@ select throws_ok(
 -- organizations CHECK mid-statement; nothing may survive it. Both inserts share the caller's
 -- transaction by construction (plpgsql), so the observable contract is "nothing half-lands".
 select throws_ok(
-  $$ select operator_create_org('AC-ORG Atomic','04840000-0000-0000-0000-0000000000b2','Second Admin','idr') $$,
+  $$ select operator_create_org('AC-ORG Atomic','04840000-0000-0000-0000-0000000000b2','Second Admin','idr','id',null,'Asia/Jakarta') $$,
   '23514', null,
   'AC-ORG-012 a malformed currency aborts the create');
 reset role;
@@ -140,6 +144,33 @@ select is(
   + (select count(*)::int from profiles where id = '04840000-0000-0000-0000-0000000000b2'),
   0,
   'AC-ORG-012 a failed create leaves NO org row and NO profile row behind');
+
+-- ════════════════════════════════════════════════════════════════════════════════════════════════
+-- AC-L10N-004 (#468, FR-L10N-005) — the locale companions are REQUIRED, no defaults. Appended AFTER
+-- AC-ORG-012 deliberately: this block's lives_ok creates b2's profile, and AC-ORG-011/012 both
+-- require b2 to have none (012 asserts the absence on read-back), so it must run last.
+-- ════════════════════════════════════════════════════════════════════════════════════════════════
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"04840000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select throws_ok(
+  $$ select operator_create_org('AC-L10N Org','04840000-0000-0000-0000-0000000000b2','Second Admin','IDR',null,'id','Asia/Jakarta') $$,
+  'P0001', null,
+  'AC-L10N-004 a missing default_locale is a hard error, never a silent en');
+select throws_ok(
+  $$ select operator_create_org('AC-L10N Org','04840000-0000-0000-0000-0000000000b2','Second Admin','IDR','id',null,null) $$,
+  'P0001', null,
+  'AC-L10N-004 a missing default_timezone is a hard error, never a silent default');
+select throws_ok(
+  $$ select operator_create_org('AC-L10N Org','04840000-0000-0000-0000-0000000000b2','Second Admin','IDR','id','','Asia/Jakarta') $$,
+  'P0001', null,
+  'AC-L10N-004 a blank default_number_locale is refused (explicit NULL is the legal derive choice)');
+select lives_ok(
+  $$ select operator_create_org('AC-L10N Stated Org','04840000-0000-0000-0000-0000000000b2','L10N Admin','IDR','id',null,'Asia/Jakarta') $$,
+  'AC-L10N-004 companion: an explicit number_locale of NULL is accepted (derive)');
+reset role;
+select is((select default_locale || '|' || coalesce(default_number_locale,'<null>') || '|' || default_timezone
+             from organizations where name = 'AC-L10N Stated Org'), 'id|<null>|Asia/Jakarta',
+  'AC-L10N-004 companion: the org carries the STATED locale defaults (DD-RIS-2: id / Indonesian / Asia/Jakarta)');
 
 select finish();
 rollback;
