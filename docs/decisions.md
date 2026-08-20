@@ -2170,3 +2170,36 @@ Idempotency lives on the line items, scoped to `budget_version_id`; that scoping
 lets a post-activation re-import land its lines in a fresh Draft rather than silently producing an
 empty one. Pinned by `AC-BIMP-007` in the pgTAP file: restore `import_batch_id` to the child index
 and both the re-run oracle and the per-parent oracle go red.
+
+## DD-BIMP-6..8 — the three gaps the planner refused to invent (Director, 2026-08-20)
+
+The #495 planner stopped before writing a plan and named three behaviours the brief left undefined.
+All three were real, and one of them (`OQ-BIMP-2`) is a fact about the schema I asserted wrongly.
+Recorded rather than answered in a brief, because a build agent should be able to read the rule
+without reading the dispatch that produced it.
+
+**[DD-BIMP-6] The descriptor has NO `Version name` field.** A created version is named `Imported`.
+The optional-name shape generated four sub-questions — empty-cell fallback, whitespace-only,
+conflicting names across rows of one project, and whether an incoming name overwrites an existing
+Draft's — for a value whose only job is to be recognisable in a version dropdown, which `Imported`
+does. One fewer column in the operator's sheet is worth more than a label they can edit afterwards.
+⚑ If a sheet-supplied name is ever wanted, it arrives **required, first-row-wins** — optional is what
+produced the four questions.
+
+**[DD-BIMP-7] When a project has several Drafts, the import attaches to the HIGHEST `version` one —
+because that is what the app already does.** The schema permits multiple Drafts (`0001` constrains
+`unique (project_id, version)` and uniqueness only for `status = 'Active'`), which the brief missed.
+`pages/ProjectBudget.tsx`'s selector already resolves `explicit pick → Active → highest Draft →
+highest Archived → first`, so "the highest Draft" is *the version the operator is looking at* when
+they click Import. Inventing a second rule — reject, or lowest — would make the importer disagree
+with the screen it was launched from. Harm if it is ever wrong is bounded and visible: the projection
+reads only the **Active** version (`0149`/`0153`), so a misfiled line changes no money figure until
+somebody activates it, and it is on screen before then.
+
+**[DD-BIMP-8] `ImportResult` gains `skipped`, and the wizard reports it.** The generic contract has
+only `created`/`failed` (`src/lib/import/types.ts`), and `useImportWizard` counts every resolved
+`create()` as created — so a re-run that correctly writes nothing would report "42 created". That is
+the silent-false-signal class this repo has paid for repeatedly, and it defeats the one thing the
+feature exists to demonstrate. A descriptor signals a no-op by resolving to the exported
+`IMPORT_SKIPPED` sentinel; the wizard counts it separately and the result screen says so. Additive:
+no existing descriptor returns it, so every current importer's counts are unchanged.

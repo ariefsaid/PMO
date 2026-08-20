@@ -53,6 +53,14 @@ covers the descriptor half, plus the one amendment `DD-BIMP-3` makes to `0195`'s
   supplied, else a deterministic fingerprint of the row's content — the `0072` shape verbatim. ⚑ Two
   byte-identical lines in one sheet with no `Reference` therefore collapse to one; that is the cost
   of a content fingerprint and the `Reference` column is the way out.
+- **FR-BIMP-012** — *Ubiquitous.* The sheet shall carry **no version-name column**; a version the
+  import creates is named `Imported` (`DD-BIMP-6`).
+- **FR-BIMP-013** — *While a project has more than one `Draft` version.* The import shall attach to
+  the **highest `version`** Draft — the same version `pages/ProjectBudget.tsx` resolves to on screen
+  (`DD-BIMP-7`).
+- **FR-BIMP-014** — *Event-driven.* When a row is skipped as already-imported, the import shall
+  report it as **skipped** — neither created nor failed — via the `IMPORT_SKIPPED` sentinel and a new
+  `ImportResult.skipped` count (`DD-BIMP-8`).
 - **FR-BIMP-008** — *While a project's latest version is not `Draft`.* The import shall **never
   attach** a line item to an Active or Archived version; it creates a new `Draft` (FR-BIMP-002) and
   attaches there. `enforce_draft_line_item` (`0005`) is the DB backstop on INSERT/UPDATE/DELETE, so
@@ -83,6 +91,12 @@ covers the descriptor half, plus the one amendment `DD-BIMP-3` makes to `0195`'s
   set, is not `'XXX'`, and equals the org's `default_currency`.
 - **AC-BIMP-009** — *Given* a sheet with an invalid row, *when* validation runs, *then* no write has
   occurred to either budget table.
+- **AC-BIMP-010** — *Given* a project with two `Draft` versions, *when* a sheet naming it is
+  imported, *then* the line items attach to the **higher-numbered** Draft and the lower one is
+  untouched.
+- **AC-BIMP-011** — *Given* a sheet imported once, *when* it is imported again, *then* the result
+  reports `skipped` equal to the row count and `created` **zero** — not "created" for rows that
+  wrote nothing.
 
 ## 4. Traceability
 
@@ -94,6 +108,7 @@ covers the descriptor half, plus the one amendment `DD-BIMP-3` makes to `0195`'s
 | AC-BIMP-006 | Integration (pgTAP) | the partial unique index — the DB is the authority for the *race* |
 | AC-BIMP-008 | Integration (pgTAP) | `stamp_currency` on a provenance-carrying insert |
 | AC-BIMP-009 | Unit (Vitest) | wizard validation path |
+| AC-BIMP-010/011 | Unit (Vitest) | descriptor tests · `useImportWizard` result |
 
 ## 5. Traps this work will hit
 
