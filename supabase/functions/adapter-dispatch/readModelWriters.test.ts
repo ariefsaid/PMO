@@ -361,7 +361,7 @@ Deno.test({
       {
         domain: 'budget',
         operation: 'create',
-        record: { id: 'ver-1', erp_doc_kind: 'budget', project_start_date: '2026-02-01', project_end_date: '2026-11-30' },
+        record: { id: 'ver-1', erp_doc_kind: 'budget', project_start_date: '2026-02-01', project_end_date: '2026-11-30', activated_at: '2026-07-20T09:00:00.000Z' },
       },
     );
 
@@ -379,6 +379,10 @@ Deno.test({
     assert(typeof row.pushed_at === 'string', 'the push must be stamped with when it landed');
     // FR-BFY-080 — the drift check in 0153 §3a is only possible because this row records the span.
     assertEquals(row.pushed_project_start_date, '2026-02-01');
+    // #479 (ADR-0059 §6): the mirror records WHICH activation the ERP Budget corresponds to. Without
+    // it, a version rolled back and re-activated pushes under a new key while the mirror cannot say
+    // which of the two the live ERP document came from. Remove the stamp and this goes red.
+    assertEquals(row.activated_at_witness, '2026-07-20T09:00:00.000Z');
     assertEquals(row.pushed_project_end_date, '2026-11-30');
     assertEquals(
       (upsertCall!.args[1] as { onConflict: string }).onConflict,
@@ -411,7 +415,7 @@ Deno.test({
       {
         domain: 'budget',
         operation: 'create',
-        record: { id: 'ver-1', erp_doc_kind: 'budget', project_start_date: '2026-02-01', project_end_date: '2026-11-30' },
+        record: { id: 'ver-1', erp_doc_kind: 'budget', project_start_date: '2026-02-01', project_end_date: '2026-11-30', activated_at: '2026-07-20T09:00:00.000Z' },
       },
     );
     const row = calls.find((c) => c.method === 'upsert')!.args[0] as Record<string, unknown>;
@@ -431,7 +435,7 @@ const BLOCKER2_CANONICAL = { id: 'ver-1', erp_budget_name: 'BUDGET-1', erp_docst
 const BLOCKER2_COMMAND = {
   domain: 'budget',
   operation: 'create' as const,
-  record: { id: 'ver-1', erp_doc_kind: 'budget', project_start_date: '2026-02-01', project_end_date: '2026-11-30' },
+  record: { id: 'ver-1', erp_doc_kind: 'budget', project_start_date: '2026-02-01', project_end_date: '2026-11-30', activated_at: '2026-07-20T09:00:00.000Z' },
 };
 
 Deno.test({
