@@ -53,8 +53,14 @@ select is(
 select is(
   (select string_agg(column_name, ',' order by column_name)
      from information_schema.columns where table_schema = 'public' and table_name = 'profiles'),
-  'avatar_url,company_id,created_at,email,full_name,id,location,manager_id,org_id,role,skills,status,title,updated_at,utilization',
-  'AC-TSP-004: profiles column set unchanged on a flipped org');
+  -- ⚑ RE-BASELINED at 0198, and the ORACLE IS UNWEAKENED — the same treatment 0179 got below, for
+  -- the same reason. `locale`/`number_locale`/`timezone` are a LOCAL user preference (FR-L10N-002):
+  -- nothing reads `external_domain_ownership`, no adapter, no outbox, so flipping the org still
+  -- changes nothing about them. Any column NOT in this list — an ERP-driven one included — still
+  -- fails this assertion, which is the AC's goal. The list is the oracle; growing it deliberately is
+  -- not the same as loosening it, and a `like`/count check would have been the weakening.
+  'avatar_url,company_id,created_at,email,full_name,id,locale,location,manager_id,number_locale,org_id,role,skills,status,timezone,title,updated_at,utilization',
+  'AC-TSP-004: profiles column set unchanged on a flipped org (0198 preference columns included)');
 
 select is(
   (select string_agg(policyname, ',' order by policyname)
@@ -75,8 +81,10 @@ select is(
 select is(
   (select string_agg(policyname, ',' order by policyname)
      from pg_policies where schemaname = 'public' and tablename = 'profiles'),
-  'profiles_admin_delete,profiles_admin_insert,profiles_hierarchy_update,profiles_select,profiles_update_self',
-  'AC-TSP-004: profiles RLS policy names unchanged on a flipped org');
+  -- 0198 adds `profiles_locale_self_only` — a RESTRICTIVE policy narrowing who may write the three
+  -- preference columns. Local authorization again: no ERP input, so the flip-inertness claim holds.
+  'profiles_admin_delete,profiles_admin_insert,profiles_hierarchy_update,profiles_locale_self_only,profiles_select,profiles_update_self',
+  'AC-TSP-004: profiles RLS policy names unchanged on a flipped org (0198 restrictive policy included)');
 
 -- ⚑ These two assert the trigger NAME SET, not a count (changed 0172). A count answers "how many
 -- triggers exist", which is not the question — the question is "did the integration attach anything to
