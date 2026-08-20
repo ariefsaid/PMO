@@ -580,6 +580,9 @@ export type Database = {
           description: string | null
           fiscal_year: string | null
           id: string
+          import_batch_id: string | null
+          import_key: string | null
+          imported_at: string | null
           org_id: string
         }
         Insert: {
@@ -590,6 +593,9 @@ export type Database = {
           description?: string | null
           fiscal_year?: string | null
           id?: string
+          import_batch_id?: string | null
+          import_key?: string | null
+          imported_at?: string | null
           org_id?: string
         }
         Update: {
@@ -600,6 +606,9 @@ export type Database = {
           description?: string | null
           fiscal_year?: string | null
           id?: string
+          import_batch_id?: string | null
+          import_key?: string | null
+          imported_at?: string | null
           org_id?: string
         }
         Relationships: [
@@ -761,6 +770,9 @@ export type Database = {
           created_at: string
           currency: string
           id: string
+          import_batch_id: string | null
+          import_key: string | null
+          imported_at: string | null
           name: string
           org_id: string
           project_id: string
@@ -772,6 +784,9 @@ export type Database = {
           created_at?: string
           currency?: string
           id?: string
+          import_batch_id?: string | null
+          import_key?: string | null
+          imported_at?: string | null
           name: string
           org_id?: string
           project_id: string
@@ -783,6 +798,9 @@ export type Database = {
           created_at?: string
           currency?: string
           id?: string
+          import_batch_id?: string | null
+          import_key?: string | null
+          imported_at?: string | null
           name?: string
           org_id?: string
           project_id?: string
@@ -2319,18 +2337,21 @@ export type Database = {
           created_at: string
           default_currency: string
           id: string
+          lifecycle_state: string | null
           name: string
         }
         Insert: {
           created_at?: string
           default_currency?: string
           id?: string
+          lifecycle_state?: string | null
           name: string
         }
         Update: {
           created_at?: string
           default_currency?: string
           id?: string
+          lifecycle_state?: string | null
           name?: string
         }
         Relationships: []
@@ -4081,6 +4102,7 @@ export type Database = {
           tax_rate: number | null
           tax_template: string | null
           tax_treatment: string
+          work_order_id: string | null
         }
         Insert: {
           amount?: number | null
@@ -4104,6 +4126,7 @@ export type Database = {
           tax_rate?: number | null
           tax_template?: string | null
           tax_treatment: string
+          work_order_id?: string | null
         }
         Update: {
           amount?: number | null
@@ -4127,6 +4150,7 @@ export type Database = {
           tax_rate?: number | null
           tax_template?: string | null
           tax_treatment?: string
+          work_order_id?: string | null
         }
         Relationships: [
           {
@@ -4141,6 +4165,13 @@ export type Database = {
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_invoices_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_orders"
             referencedColumns: ["id"]
           },
         ]
@@ -4507,6 +4538,129 @@ export type Database = {
           },
         ]
       }
+      work_orders: {
+        Row: {
+          cancelled_at: string | null
+          client_po_number: string | null
+          closed_at: string | null
+          created_at: string
+          currency: string
+          description: string | null
+          end_date: string | null
+          id: string
+          issued_at: string | null
+          issued_by: string | null
+          order_date: string | null
+          order_value: number
+          order_value_set_at: string | null
+          order_value_set_by: string | null
+          org_id: string
+          over_commit_ack_at: string | null
+          over_commit_ack_by: string | null
+          project_id: string
+          start_date: string | null
+          status: Database["public"]["Enums"]["work_order_status"]
+          tax_amount: number
+          tax_rate: number | null
+          tax_template: string | null
+          tax_treatment: string
+          title: string
+          wo_number: string | null
+        }
+        Insert: {
+          cancelled_at?: string | null
+          client_po_number?: string | null
+          closed_at?: string | null
+          created_at?: string
+          currency?: string
+          description?: string | null
+          end_date?: string | null
+          id?: string
+          issued_at?: string | null
+          issued_by?: string | null
+          order_date?: string | null
+          order_value?: number
+          order_value_set_at?: string | null
+          order_value_set_by?: string | null
+          org_id?: string
+          over_commit_ack_at?: string | null
+          over_commit_ack_by?: string | null
+          project_id: string
+          start_date?: string | null
+          status?: Database["public"]["Enums"]["work_order_status"]
+          tax_amount: number
+          tax_rate?: number | null
+          tax_template?: string | null
+          tax_treatment: string
+          title: string
+          wo_number?: string | null
+        }
+        Update: {
+          cancelled_at?: string | null
+          client_po_number?: string | null
+          closed_at?: string | null
+          created_at?: string
+          currency?: string
+          description?: string | null
+          end_date?: string | null
+          id?: string
+          issued_at?: string | null
+          issued_by?: string | null
+          order_date?: string | null
+          order_value?: number
+          order_value_set_at?: string | null
+          order_value_set_by?: string | null
+          org_id?: string
+          over_commit_ack_at?: string | null
+          over_commit_ack_by?: string | null
+          project_id?: string
+          start_date?: string | null
+          status?: Database["public"]["Enums"]["work_order_status"]
+          tax_amount?: number
+          tax_rate?: number | null
+          tax_template?: string | null
+          tax_treatment?: string
+          title?: string
+          wo_number?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "work_orders_issued_by_fkey"
+            columns: ["issued_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_orders_order_value_set_by_fkey"
+            columns: ["order_value_set_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_orders_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_orders_over_commit_ack_by_fkey"
+            columns: ["over_commit_ack_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_orders_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -4562,6 +4716,7 @@ export type Database = {
         Args: { p_actor?: string }
         Returns: undefined
       }
+      assert_org_destroyable: { Args: { p_org_id: string }; Returns: undefined }
       attest_timesheet_no_erp_document: {
         Args: { p_reason: string; p_timesheet_id: string }
         Returns: undefined
@@ -5012,6 +5167,15 @@ export type Database = {
       get_finance_budget_review: { Args: never; Returns: Json }
       get_process_gates: { Args: { p_org: string }; Returns: Json }
       get_project_budget: { Args: { p_project_id: string }; Returns: number }
+      get_project_drawdown: {
+        Args: { p_project_id: string }
+        Returns: {
+          ceiling: number
+          committed: number
+          currency: string
+          draft: number
+        }[]
+      }
       get_project_milestones: {
         Args: { p_project_id: string }
         Returns: {
@@ -5071,6 +5235,7 @@ export type Database = {
           tax_rate: number | null
           tax_template: string | null
           tax_treatment: string
+          work_order_id: string | null
         }
         SetofOptions: {
           from: "*"
@@ -5251,6 +5416,15 @@ export type Database = {
           runs: number
         }[]
       }
+      operator_create_org: {
+        Args: {
+          p_admin_full_name: string
+          p_admin_user_id: string
+          p_default_currency: string
+          p_name: string
+        }
+        Returns: string
+      }
       operator_grant_credits: {
         Args: { p_amount: number; p_note: string; p_org_id: string }
         Returns: undefined
@@ -5270,6 +5444,10 @@ export type Database = {
           p_org_id: string
           p_tier: string
         }
+        Returns: undefined
+      }
+      operator_set_org_lifecycle_state: {
+        Args: { p_lifecycle_state: string; p_org_id: string }
         Returns: undefined
       }
       operator_toggle_feature: {
@@ -5513,6 +5691,10 @@ export type Database = {
         Args: { p_id: string; p_value: number }
         Returns: undefined
       }
+      set_work_order_value: {
+        Args: { p_id: string; p_value: number }
+        Returns: undefined
+      }
       si_submit_clearance_ttl: { Args: never; Returns: string }
       submit_sales_invoice: {
         Args: { p_si_id: string }
@@ -5538,6 +5720,7 @@ export type Database = {
           tax_rate: number | null
           tax_template: string | null
           tax_treatment: string
+          work_order_id: string | null
         }
         SetofOptions: {
           from: "*"
@@ -5581,6 +5764,14 @@ export type Database = {
           p_notes?: string
           p_timesheet_id: string
           p_to: Database["public"]["Enums"]["timesheet_status"]
+        }
+        Returns: undefined
+      }
+      transition_work_order: {
+        Args: {
+          p_id: string
+          p_over_commit_ack?: boolean
+          p_to: Database["public"]["Enums"]["work_order_status"]
         }
         Returns: undefined
       }
@@ -5642,6 +5833,7 @@ export type Database = {
         | "Finance"
         | "Engineer"
         | "Admin"
+      work_order_status: "Draft" | "Issued" | "Closed" | "Cancelled"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -5833,6 +6025,7 @@ export const Constants = {
         "Engineer",
         "Admin",
       ],
+      work_order_status: ["Draft", "Issued", "Closed", "Cancelled"],
     },
   },
 } as const
