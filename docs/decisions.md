@@ -2052,3 +2052,36 @@ silently drops whatever was added since.
 retained-definer count was cited as 50 against a list of 51 and as "23 writers" against a record of 18.
 **A claim about the tree, written once, does not stay true — and a brief is exactly where a stale one
 does the most damage**, because the agent has been told not to second-guess it.
+
+## DD-EVID-1 — a task notification's "exit code" is the WRAPPER's, not the command's (Director, 2026-08-20)
+
+Caught by the #498 build agent, and it invalidates a reading I had been relying on all session.
+
+A background shell task reported **"completed (exit code 0)"** for a `verify` run that had actually
+failed with two red tests. The zero was the **wrapper shell's** status, not `npm run verify`'s. Any
+pipeline, any trailing `echo`, any `| tail` — and the wrapper exits 0 regardless of what happened
+inside.
+
+**The rule: never read a completion notification's exit code as the command's verdict.** Append an
+explicit marker and read that:
+
+```bash
+npm run verify:locked > verify.log 2>&1; echo "VERIFY_EXIT=$?"
+```
+
+`VERIFY_EXIT=` is the only trustworthy reading. Same for `supabase test db` — grep `Result: PASS`,
+not the task status.
+
+⚑ **Compounding hazard, same incident.** That failing run's two failures (`AssistantPanel`,
+`Administration.a11y`) were **contention, not regression** — 1994ms/17673ms in files that take
+38–47s, while another worktree ran concurrently; both passed in isolation and the clean re-run was
+6994/6994. So the two failure modes point opposite ways and must not be conflated:
+
+| Signal | Means |
+|---|---|
+| Notification says exit 0 | says **nothing** — check the marker |
+| Red test, duration ≈ the file's normal runtime | likely real |
+| Red test, duration wildly short or long vs normal | likely **contention** — re-run in isolation before believing it |
+
+The recorded rule stands and now has a second leg: **read the failure DURATION**, and read the
+marker, never the wrapper.
