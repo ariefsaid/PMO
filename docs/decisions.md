@@ -1447,6 +1447,14 @@ construction**: an ADR-0059 §4 key is *derived, not minted* (`'<prefix>:' || <p
 duplicate, and no invoice is written twice. `external_refs` needs nothing new —
 `unique (org_id, domain, pmo_record_id)` already carries the linkage, and `0093` added the
 reverse-direction constraint for adopt-mode dedupe.
+⚑ **CORRECTION 2026-08-20 — the headline example below is STALE and was already fixed.**
+`budget_versions.activated_at` **exists**: `0139_budget_version_activated_at.sql:55` adds it and
+`:98` sets it on activation, owner-ratified 2026-07-20. So OQ-BUD-2's specific instance is closed;
+what remains is the *general* audit of every Posture-B kind's stamp, which still stands. Both #479
+and this record asserted the column was missing — found by an investigation agent asked to falsify
+premises rather than implement them. The lesson is the same one that keeps recurring: **a claim about
+the tree, written once, does not stay true.**
+
 **⛔ Prerequisite, not optional: audit every Posture-B kind's state stamp before any crossing**
 ([#479](https://github.com/ariefsaid/PMO/issues/479)). `0137` documents a live failure of exactly this
 (OQ-BUD-2): `budget_versions` has no `activated_at`, so re-activating a rolled-back version derives a key
