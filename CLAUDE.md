@@ -91,9 +91,9 @@ for one client, architected to scale to millions.
 
 ## Quality gates & checkpoints (binding)
 - **Pre-push full verify (binding — run the WHOLE suite, never just touched files):** before opening or
-  pushing ANY PR, run **`npm run verify`** (= `check:migrations && check:e2e-isolation && check:edge-test-binding &&
-  typecheck && typecheck:edge && lint:ci && test && build` — **8 gates, not 4**; mirrors CI's `verify`
-  job) from `pmo-portal/`. Targeted/per-file test runs are for the inner TDD loop only — they MISS
+  pushing ANY PR, run **`npm run verify`** — **13 gates** as of 2026-08-20, and the list grows, so
+  ⚑ **read `pmo-portal/package.json`'s `verify` script rather than trusting a count written here**
+  (this line said "8 gates" long after it was 13). Mirrors CI's `verify` job from `pmo-portal/`. Targeted/per-file test runs are for the inner TDD loop only — they MISS
   cross-component breakage (a change to a shared component silently breaks every *other* test that renders
   it; recurring CI-verify-red, 2026-06). The build/Director MUST run the full verify before the phase
   transition; subagent briefs MUST mandate it as their final gate.
