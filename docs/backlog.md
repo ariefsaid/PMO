@@ -27,8 +27,23 @@ also gates the budget importer (#495) and work orders (#498).
 **Shipped 2026-08-19:** #477 (locale drift sweep — ~45 hardcoded-locale sites routed through
 `format.ts`, plus an ESLint guard, mutation-verified) and the ADR-0055 crossing addendum (#480).
 
-**Open build queue:** #479 Posture-B stamp audit (steps 1–7 drivable; **step 8 is owner-class** — a
-backfill posting months of payroll costing into a client ledger) · #481 (blocked on #474+#479).
+**Open build queue:** #525 first-class tasks (spec'd, blast radius confirmed) · #526 meeting module
+(spec'd; blocked on #525) · **the i18n framework + Bahasa content pass** (spec'd, needs the dependency
+ruling in #527) · #481 (blocked on #474 + #523).
+
+**⚑ GO-LIVE STEP 1 IS NOW ACTUALLY DONE** (`0198` + #529). It was not before, and the status board
+said it was: `0187` shipped `organizations.default_currency` and a `currency` column on twelve money
+tables, and **not one line of frontend code read any of it** — `formatCurrency(value)` took no
+currency and USD was welded into `format.ts` in four places. A column with no consumer reads as
+"shipped" on a checklist and renders an IDR invoice as dollars. ~111 call sites now take the source
+that is actually right: the record's own, the org default for aggregates, the parent's for leaves,
+and `PLATFORM_CURRENCY` for AI billing.
+
+⛔ **What remains of step 1 is the i18n FRAMEWORK, which does not exist at all** — no `react-i18next`,
+no translation layer. Measured: **~1,940 call sites / ~1,170 distinct strings**, multi-week, and
+non-engineering work that is unblocked from step 2 onward. Leaving it in slot 6 serialises it behind
+work it does not depend on; the recommendation in `docs/specs/i18n-framework.spec.md` is to start it
+in parallel from step 2.
 
 **⚑ Shipped 2026-08-20, the tax-basis trio — and each one's review battery found something the build
 did not.** #495 budget importer · #505 vendor-invoice tax (`0196`) · #513 contract-value tax (`0197`).
