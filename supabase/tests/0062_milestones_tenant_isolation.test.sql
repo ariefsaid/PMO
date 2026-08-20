@@ -23,15 +23,15 @@ insert into companies (id, org_id, name, type) values
   ('00620000-0000-0000-0000-000000000010','00000000-0000-0000-0000-000000000001','TI Client A','Client'),
   ('00620000-0000-0000-0000-000000000011','00620000-0000-0000-0000-000000000002','TI Client B','Client');
 
-insert into projects (id, org_id, code, name, status, client_id, project_manager_id, contract_value) values
+insert into projects (id, org_id, code, name, status, client_id, project_manager_id, contract_value, tax_treatment, tax_amount) values
   ('00620000-0000-0000-0000-000000000020','00000000-0000-0000-0000-000000000001',
    'TI-A-001','TI Project A','Ongoing Project',
    '00620000-0000-0000-0000-000000000010',
-   '00620000-0000-0000-0000-0000000000a1',500000),
+   '00620000-0000-0000-0000-0000000000a1',500000,'exclusive',0),
   ('00620000-0000-0000-0000-000000000021','00620000-0000-0000-0000-000000000002',
    'TI-B-001','TI Project B','Ongoing Project',
    '00620000-0000-0000-0000-000000000011',
-   '00620000-0000-0000-0000-0000000000b1',500000);
+   '00620000-0000-0000-0000-0000000000b1',500000,'exclusive',0);
 
 -- One milestone in each org (inserted as owner, bypassing RLS).
 insert into project_milestones (id, org_id, project_id, name) values

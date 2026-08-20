@@ -26,20 +26,20 @@ insert into profiles (id, org_id, full_name, email, role) values
 -- P-ON2: Ongoing Project, contract_value = 3,000,000 — no POs (spent=0)
 -- P-ON3: Ongoing Project, contract_value = 2,000,000 — no POs (spent=0)
 insert into projects (id, org_id, code, name, status, project_manager_id,
-                      contract_value, budget, spent)
+                      contract_value, budget, spent, tax_treatment, tax_amount)
 values
   ('34000000-0000-0000-0000-000000000001', '00340000-0000-0000-0000-000000000001',
    'ON001', 'On-Hand Project 1', 'Ongoing Project',
    '00340000-0000-0000-0000-0000000000a1',
-   5000000, 4700000, 0),
+   5000000, 4700000, 0, 'exclusive', 0),
   ('34000000-0000-0000-0000-000000000002', '00340000-0000-0000-0000-000000000001',
    'ON002', 'On-Hand Project 2', 'Ongoing Project',
    '00340000-0000-0000-0000-0000000000a1',
-   3000000, 2000000, 0),
+   3000000, 2000000, 0, 'exclusive', 0),
   ('34000000-0000-0000-0000-000000000003', '00340000-0000-0000-0000-000000000001',
    'ON003', 'On-Hand Project 3', 'Ongoing Project',
    '00340000-0000-0000-0000-0000000000a1',
-   2000000, 2000000, 0);
+   2000000, 2000000, 0, 'exclusive', 0);
 
 -- ── Committed procurements on P-ON1 (total 405,000) ──────────────────────────
 -- Ordered PO = 85,000; Paid PO = 320,000

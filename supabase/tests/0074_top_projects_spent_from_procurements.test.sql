@@ -25,11 +25,11 @@ insert into profiles (id, org_id, full_name, email, role) values
 -- AT_RISK_PROJECT: Ongoing Project with committed_spend/budget > 0.9.
 --   budget=100,000, Ordered PO=95,000 → 95% = at risk.
 -- NOT_AT_RISK_PROJECT: Ongoing Project with no POs → 0% committed → not at risk.
-insert into projects (id, org_id, name, status, contract_value, budget, spent) values
+insert into projects (id, org_id, name, status, contract_value, tax_treatment, tax_amount, budget, spent) values
   ('00740000-0000-0000-0000-000000000d01','00740000-0000-0000-0000-000000000001',
-   'PAID_PROJECT','Ongoing Project',5000000,10000000,0),
+   'PAID_PROJECT','Ongoing Project',5000000,'exclusive',0,10000000,0),
   ('00740000-0000-0000-0000-000000000d02','00740000-0000-0000-0000-000000000001',
-   'AT_RISK_PROJECT','Ongoing Project',200000,100000,0);
+   'AT_RISK_PROJECT','Ongoing Project',200000,'exclusive',0,100000,0);
 
 -- ── Procurements ──────────────────────────────────────────────────────────────
 -- PAID_PROJECT: one Paid PO of $3,700,000 (committed).

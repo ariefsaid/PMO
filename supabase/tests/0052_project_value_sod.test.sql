@@ -33,11 +33,11 @@ insert into profiles (id, org_id, full_name, email, role) values
   ('00520000-0000-0000-0000-0000000000b1','00520000-0000-0000-0000-000000000002','PV Exec B','pv-exec-b@example.com','Executive');
 
 -- A PRE-WIN opportunity (Negotiation) and a WON/on-hand project (Ongoing Project), both org-A.
-insert into projects (id, org_id, code, name, status, project_manager_id, contract_value) values
+insert into projects (id, org_id, code, name, status, project_manager_id, contract_value, tax_treatment, tax_amount) values
   ('00520000-0000-0000-0000-000000000010','00000000-0000-0000-0000-000000000001',
-   'PV-PRE','Pre-win Opportunity','Negotiation','00520000-0000-0000-0000-0000000000a1',500000),
+   'PV-PRE','Pre-win Opportunity','Negotiation','00520000-0000-0000-0000-0000000000a1',500000,'exclusive',0),
   ('00520000-0000-0000-0000-000000000020','00000000-0000-0000-0000-000000000001',
-   'PV-WON','Won Project','Ongoing Project','00520000-0000-0000-0000-0000000000a1',2000000);
+   'PV-WON','Won Project','Ongoing Project','00520000-0000-0000-0000-0000000000a1',2000000,'exclusive',0);
 
 -- ════════════════════════════════════════════════════════════════════════════
 -- AC-PRJ-101: PRE-WIN — a PM (delivery role) CAN set the value via the RPC.
@@ -46,7 +46,7 @@ set local role authenticated;
 set local request.jwt.claims = '{"sub":"00520000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 
 select lives_ok(
-  $$ select set_project_contract_value('00520000-0000-0000-0000-000000000010', 650000) $$,
+  $$ select set_project_contract_value('00520000-0000-0000-0000-000000000010', 650000, p_tax_treatment => 'exclusive', p_tax_amount => 0) $$,
   'AC-PRJ-101: a PM CAN set contract_value on a PRE-WIN project via the RPC');
 
 -- AC-PRJ-105: but a DIRECT update of contract_value by the same PM is denied (RPC-only column, 0014).
@@ -58,7 +58,7 @@ select throws_ok(
 
 -- AC-PRJ-102: on the WON project, the PM is REJECTED by the RPC (SoD — money authority only).
 select throws_ok(
-  $$ select set_project_contract_value('00520000-0000-0000-0000-000000000020', 2500000) $$,
+  $$ select set_project_contract_value('00520000-0000-0000-0000-000000000020', 2500000, p_tax_treatment => 'exclusive', p_tax_amount => 0) $$,
   '42501', null,
   'AC-PRJ-102: a PM is REJECTED setting contract_value on a WON/on-hand project (SoD, 42501)');
 
@@ -83,12 +83,12 @@ set local role authenticated;
 set local request.jwt.claims = '{"sub":"00520000-0000-0000-0000-0000000000a2","role":"authenticated"}';
 
 select lives_ok(
-  $$ select set_project_contract_value('00520000-0000-0000-0000-000000000020', 2300000) $$,
+  $$ select set_project_contract_value('00520000-0000-0000-0000-000000000020', 2300000, p_tax_treatment => 'exclusive', p_tax_amount => 0) $$,
   'AC-PRJ-103: an EXECUTIVE CAN set contract_value on a WON project via the RPC');
 
 -- AC-PRJ-107: the RPC raises P0002 for an unknown project id.
 select throws_ok(
-  $$ select set_project_contract_value('00520000-0000-0000-0000-0000000000ff', 1) $$,
+  $$ select set_project_contract_value('00520000-0000-0000-0000-0000000000ff', 1, p_tax_treatment => 'exclusive', p_tax_amount => 0) $$,
   'P0002', null,
   'AC-PRJ-107: set_project_contract_value raises P0002 for an unknown project id');
 
@@ -106,7 +106,7 @@ set local role authenticated;
 set local request.jwt.claims = '{"sub":"00520000-0000-0000-0000-0000000000a3","role":"authenticated"}';
 
 select lives_ok(
-  $$ select set_project_contract_value('00520000-0000-0000-0000-000000000020', 2450000) $$,
+  $$ select set_project_contract_value('00520000-0000-0000-0000-000000000020', 2450000, p_tax_treatment => 'exclusive', p_tax_amount => 0) $$,
   'AC-PRJ-104: FINANCE CAN set contract_value on a WON project via the RPC');
 
 reset role;
@@ -124,7 +124,7 @@ set local request.jwt.claims = '{"sub":"00520000-0000-0000-0000-0000000000b1","r
 
 -- The RPC's internal org re-assertion (v_org <> auth_org_id()) denies it → 42501.
 select throws_ok(
-  $$ select set_project_contract_value('00520000-0000-0000-0000-000000000020', 1) $$,
+  $$ select set_project_contract_value('00520000-0000-0000-0000-000000000020', 1, p_tax_treatment => 'exclusive', p_tax_amount => 0) $$,
   '42501', null,
   'AC-PRJ-106: a cross-org (org-B) Executive cannot change an org-A project value (org re-assertion, 42501)');
 

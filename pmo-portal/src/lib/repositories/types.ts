@@ -16,6 +16,7 @@ import type {
   ProjectWithRefs,
   CreateProjectInput,
   ProjectHeaderInput,
+  SetProjectContractValueInput,
 } from '@/src/lib/db/projects';
 import type { OpportunityRow } from '@/src/lib/db/opportunity';
 import type { TransitionProjectOpts, ProjectStatus } from '@/src/lib/db/projectTransitions';
@@ -123,8 +124,15 @@ export interface ProjectRepository {
   archive(id: string): Promise<void>;
   /** Hard-delete a project (Admin-only in the FE gate); rejects 23503 if referenced. */
   delete(id: string): Promise<void>;
-  /** Set contract_value through the SoD-scoped RPC (ADR-0019); rejects 42501 on SoD denial. */
-  setContractValue(id: string, value: number): Promise<void>;
+  /**
+   * Set contract_value through the SoD-scoped RPC (ADR-0019); rejects 42501 on SoD denial.
+   *
+   * #513: ONE object param, and `taxTreatment`/`taxAmount` are REQUIRED members of
+   * `SetProjectContractValueInput` — mirroring 0197's P0001 gate, so a caller that omits either
+   * fails to compile rather than failing at the RPC. Positional was no longer expressible:
+   * TypeScript forbids a required parameter after an optional one.
+   */
+  setContractValue(input: SetProjectContractValueInput): Promise<void>;
 }
 
 export interface CompanyRepository {

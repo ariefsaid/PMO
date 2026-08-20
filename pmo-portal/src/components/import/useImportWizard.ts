@@ -61,8 +61,9 @@ export function useImportWizard<Input>(descriptor: ImportDescriptor<Input>): Use
   const [result, setResult] = useState<ImportResult | null>(null);
 
   const validation = useMemo<RowValidation[]>(
-    () => (parsed ? validateRows(parsed.rows, descriptor.fields, mapping) : []),
-    [parsed, descriptor.fields, mapping],
+    () =>
+      parsed ? validateRows(parsed.rows, descriptor.fields, mapping, descriptor.validateRow) : [],
+    [parsed, descriptor.fields, descriptor.validateRow, mapping],
   );
 
   const allRequiredMapped = useMemo(

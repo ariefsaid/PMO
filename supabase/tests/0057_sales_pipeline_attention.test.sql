@@ -21,12 +21,12 @@ insert into profiles (id, org_id, full_name, email, role) values
 
 -- Org A: one Tender Submitted project with a known PM and a stale last_update
 insert into projects (id, org_id, code, name, status, project_manager_id,
-                      contract_value, budget, spent)
+                      contract_value, budget, spent, tax_treatment, tax_amount)
 values
   ('57000000-0000-0000-0000-000000000001', '00570000-0000-0000-0000-000000000001',
    'PA001', 'Test Pipeline Deal', 'Tender Submitted',
    '00570000-0000-0000-0000-0000000000a2',
-   1200000, 0, 0);
+   1200000, 0, 0, 'exclusive', 0);
 
 -- Set a stale last_update so the attention aging logic has a parseable timestamptz
 update projects set last_update = now() - interval '45 days'

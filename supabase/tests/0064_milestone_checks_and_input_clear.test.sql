@@ -15,11 +15,11 @@ insert into profiles (id, org_id, full_name, email, role) values
 insert into companies (id, org_id, name, type) values
   ('00640000-0000-0000-0000-000000000010','00000000-0000-0000-0000-000000000001','CHK Client','Client');
 
-insert into projects (id, org_id, code, name, status, client_id, project_manager_id, contract_value) values
+insert into projects (id, org_id, code, name, status, client_id, project_manager_id, contract_value, tax_treatment, tax_amount) values
   ('00640000-0000-0000-0000-000000000020','00000000-0000-0000-0000-000000000001',
    'CHK-001','CHK Test Project','Ongoing Project',
    '00640000-0000-0000-0000-000000000010',
-   '00640000-0000-0000-0000-0000000000a1',100000);
+   '00640000-0000-0000-0000-0000000000a1',100000,'exclusive',0);
 
 -- Milestone M with 5 tasks (2 Done → calculated_pct = 40), input_pct = 75 initially.
 insert into project_milestones (id, org_id, project_id, name, input_pct) values

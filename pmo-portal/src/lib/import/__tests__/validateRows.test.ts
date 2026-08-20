@@ -27,4 +27,32 @@ describe('validateRows', () => {
     expect(result[0].valid).toBe(false);
     expect(result[0].errors.type).toBeTruthy();
   });
+
+  // ── #513: cross-field rules, run at PREVIEW with zero writes ──
+  describe('#513 validateRow (cross-field rules)', () => {
+    const crossField = (cells: Record<string, string>) =>
+      cells.name === 'Acme Corp' ? { type: 'Acme may not be a Client.' } : {};
+
+    it('#513: a descriptor validateRow error invalidates the row and lands on its field', () => {
+      const result = validateRows([['Acme Corp', 'Client']], fields, mapping, crossField);
+      expect(result[0].valid).toBe(false);
+      expect(result[0].errors.type).toBe('Acme may not be a Client.');
+    });
+
+    it('#513: rows the cross-field rule clears stay valid', () => {
+      const result = validateRows([['Other Corp', 'Client']], fields, mapping, crossField);
+      expect(result[0].valid).toBe(true);
+    });
+
+    it("#513: a cell's OWN error wins over a cross-field message about the same cell", () => {
+      // "Partner" is not in the Type enum. The user needs to hear that, not a sentence about how
+      // this cell relates to another one.
+      const result = validateRows([['Acme Corp', 'Partner']], fields, mapping, crossField);
+      expect(result[0].errors.type).toMatch(/one of/i);
+    });
+
+    it('#513: omitting validateRow leaves behaviour exactly as before', () => {
+      expect(validateRows([['Acme Corp', 'Client']], fields, mapping)[0].valid).toBe(true);
+    });
+  });
 });

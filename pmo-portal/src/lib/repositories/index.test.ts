@@ -309,8 +309,51 @@ describe('delegation — methods pass args through and return the DAL result', (
 
   it('project.setContractValue delegates to setProjectContractValue (SoD RPC)', async () => {
     vi.mocked(projectsDal.setProjectContractValue).mockResolvedValue(undefined);
-    await repositories.project.setContractValue('p1', 5140000);
-    expect(projectsDal.setProjectContractValue).toHaveBeenCalledWith('p1', 5140000);
+    await repositories.project.setContractValue({
+      id: 'p1',
+      value: 5140000,
+      taxTreatment: 'exclusive',
+      taxAmount: 565400,
+    });
+    expect(projectsDal.setProjectContractValue).toHaveBeenCalledWith({
+      id: 'p1',
+      value: 5140000,
+      taxTreatment: 'exclusive',
+      taxAmount: 565400,
+    });
+  });
+
+  // #513: the seam must carry the basis THROUGH, not just the value — a repository that dropped
+  // `taxTreatment`/`taxAmount` would leave the RPC to reject the write with P0001 in front of a user.
+  it('#513: project.setContractValue threads all four tax params to the DAL unchanged', async () => {
+    vi.mocked(projectsDal.setProjectContractValue).mockResolvedValue(undefined);
+    const input = {
+      id: 'p1',
+      value: 5140000,
+      taxTreatment: 'inclusive' as const,
+      taxAmount: 509_000,
+      taxRate: 11,
+      taxTemplate: 'PPN 11% - RIS',
+    };
+    await repositories.project.setContractValue(input);
+    expect(projectsDal.setProjectContractValue).toHaveBeenCalledWith(input);
+  });
+
+  it('#513: project.create threads the contract-value tax columns to the DAL unchanged', async () => {
+    vi.mocked(projectsDal.createProject).mockResolvedValue({ id: 'new' } as never);
+    const input = {
+      name: 'Harborside Terminal',
+      status: 'Leads' as const,
+      client_id: 'c2',
+      project_manager_id: null,
+      contract_value: 4820000,
+      tax_treatment: 'exclusive' as const,
+      tax_amount: 530200,
+      start_date: null,
+      end_date: null,
+    };
+    await repositories.project.create(input);
+    expect(projectsDal.createProject).toHaveBeenCalledWith(input);
   });
 
   it('company.listClients delegates to listClientCompanies', async () => {

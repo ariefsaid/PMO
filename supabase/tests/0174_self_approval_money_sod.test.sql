@@ -88,7 +88,7 @@ select is(
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"01740000-0000-0000-0000-0000000000a2","role":"authenticated"}';
 select lives_ok(
-  $$ select set_project_contract_value('01740000-0000-0000-0000-0000000000b2'::uuid, 5000000) $$,
+  $$ select set_project_contract_value('01740000-0000-0000-0000-0000000000b2'::uuid, 5000000, p_tax_treatment => 'exclusive', p_tax_amount => 0) $$,
   'AC-MSB-011 the line manager (Exec) sets the value on the report''s deal — witnessed as the manager');
 set local request.jwt.claims = '{"sub":"01740000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 select lives_ok(
@@ -126,7 +126,7 @@ select is(
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"01740000-0000-0000-0000-0000000000a3","role":"authenticated"}';
 select lives_ok(
-  $$ select set_project_contract_value('01740000-0000-0000-0000-0000000000b1'::uuid, 99000000) $$,
+  $$ select set_project_contract_value('01740000-0000-0000-0000-0000000000b1'::uuid, 99000000, p_tax_treatment => 'exclusive', p_tax_amount => 0) $$,
   'AC-MSB-022 the self-managing PM sets their OWN value (PM holds pipeline-value authority) — the witness trigger stamps v_set_by = the PM');
 -- ⚑ pgTAP matches errmsg EXACTLY (verified), so this is the verbatim message from transition_project's money-SoD 'senior' branch.
 -- The 'senior' branch fires (not the 'no recorded author' branch) because set_project_contract_value stamped a non-NULL witness.
