@@ -478,6 +478,24 @@ export type Database = {
           },
         ]
       }
+      alert_send_log: {
+        Row: {
+          delivered_at: string | null
+          error_code: string
+          last_sent_at: string
+        }
+        Insert: {
+          delivered_at?: string | null
+          error_code: string
+          last_sent_at: string
+        }
+        Update: {
+          delivered_at?: string | null
+          error_code?: string
+          last_sent_at?: string
+        }
+        Relationships: []
+      }
       audit_events: {
         Row: {
           action: string
@@ -2235,6 +2253,27 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      ops_job_heartbeats: {
+        Row: {
+          job_name: string
+          last_detail: Json | null
+          last_outbound_at: string | null
+          last_run_at: string
+        }
+        Insert: {
+          job_name: string
+          last_detail?: Json | null
+          last_outbound_at?: string | null
+          last_run_at: string
+        }
+        Update: {
+          job_name?: string
+          last_detail?: Json | null
+          last_outbound_at?: string | null
+          last_run_at?: string
+        }
+        Relationships: []
       }
       org_features: {
         Row: {
@@ -4490,6 +4529,7 @@ export type Database = {
         Args: { p_org_id: string; p_user_id: string }
         Returns: Json
       }
+      actor_bypasses_rls: { Args: never; Returns: boolean }
       admin_change_domain_ownership: {
         Args: {
           p_action: string
@@ -4509,14 +4549,6 @@ export type Database = {
         Returns: undefined
       }
       agent_dispatch_tick: { Args: never; Returns: undefined }
-      // ⚑ FU-1a round-12 SHOULD-FIX 1/2 (mig 0157 §5 / 0159) — the ONLY human route out of a
-      // post-submit-unknown timesheet push: Admin-only, org-re-asserted, reason-required, audited.
-      // Clears the unknown-outcome witness AND releases a `held` mirror to `failed` so the re-open is
-      // admitted. Never touches the external system.
-      attest_timesheet_no_erp_document: {
-        Args: { p_reason: string; p_timesheet_id: string }
-        Returns: undefined
-      }
       approved_timesheet_for_push: {
         Args: { p_actor?: string; p_timesheet_id: string }
         Returns: {
@@ -4525,6 +4557,14 @@ export type Database = {
           timesheet_id: string
           user_id: string
         }[]
+      }
+      assert_is_active_member: {
+        Args: { p_actor?: string }
+        Returns: undefined
+      }
+      attest_timesheet_no_erp_document: {
+        Args: { p_reason: string; p_timesheet_id: string }
+        Returns: undefined
       }
       audit_agent_denial: {
         Args: { p_detail?: Json; p_reason: string }
@@ -4545,9 +4585,6 @@ export type Database = {
         Args: never
         Returns: Database["public"]["Enums"]["user_role"]
       }
-      // 0154 migration helpers (the budget identity re-key + its staged rollback). EXECUTE-revoked
-      // from `authenticated`/`anon`; the re-key is callable by `service_role` only, which is how
-      // AC-BFY-031 drives the migration end-to-end. No app code calls either.
       bfy_migration_0154_rekey: { Args: never; Returns: undefined }
       bfy_migration_0154_revert: { Args: never; Returns: undefined }
       budget_fiscal_year_token: {
@@ -4947,46 +4984,28 @@ export type Database = {
       get_budget_projection: {
         Args: { p_fiscal_year: string; p_project_id: string }
         Returns: {
-          // NEW-4: WHEN the ERP ledger was last read for this (project, fiscal_year). `null` = never
-          // read, which is why `actuals_to_date` is null on every category of such a year.
-          actuals_as_of: string | null
-          // C-1/C-2/NEW-4: `null` = the figure is UNOBTAINABLE (no ERP account mapped, or no ledger
-          // reading on record for this project-year at all), never a zero.
-          actuals_to_date: number | null
-          // F-D (BFY, mig 0153 §3a): is the budget attribution KNOWN for this category-year? `false`
-          // distinguishes a SUPPRESSED attribution (the category HAS lines PMO cannot place in this
-          // year) from a category that genuinely has no line: the former states NO variance and NO
-          // utilization, the latter states `-EAC`. Non-null by construction (coalesced to `true`).
+          actuals_as_of: string
+          actuals_to_date: number
           attribution_known: boolean
           category: Database["public"]["Enums"]["budget_category"]
-          pmo_budget_amount: number | null
+          pmo_budget_amount: number
           pmo_etc: number
-          projected_final_cost: number | null
-          projected_utilization: number | null
-          projected_variance: number | null
+          projected_final_cost: number
+          projected_utilization: number
+          projected_variance: number
         }[]
       }
       get_budget_push_status: {
         Args: { p_project_id: string }
-        // BFY (mig 0153 §3c): ONE ROW PER EXPECTED FISCAL YEAR (the Active version's phased lines ∪
-        // its mirror years), left-joined to the mirror — so a year whose mirror row was never written
-        // is an explicit `never-pushed` row, never a silent omission. Exactly one all-NULL row when
-        // nothing is on record at all.
         Returns: {
-          erp_budget_name: string | null
-          fiscal_year: string | null
-          // MEDIUM-1 (mig 0141): is there a genuinely `held` outbox command to release? `push_state =
-          // 'held'` alone is NOT that — the sweep also parks mirror rows with no held command behind
-          // them. Non-null by construction (`exists(...)`). Per YEAR since 0153 §3c.
+          erp_budget_name: string
+          fiscal_year: string
           hold_releasable: boolean
-          push_error: string | null
-          push_state: string | null
-          pushed_at: string | null
-          // FR-BFY-056: this year had a SUCCESSFUL push whose recorded project span no longer matches
-          // the project's CURRENT dates, and the version still has un-phased lines — so those lines
-          // now attribute to no year. The actionable fix is "phase these lines", not a retry.
+          push_error: string
+          push_state: string
+          pushed_at: string
           stale_attribution: boolean
-          unmapped_categories: string[] | null
+          unmapped_categories: string[]
         }[]
       }
       get_executive_dashboard: { Args: never; Returns: Json }
@@ -5060,8 +5079,64 @@ export type Database = {
           isSetofReturn: false
         }
       }
-      is_active_member: { Args: never; Returns: boolean }
+      holds_pipeline_value_authority: {
+        Args: { p_role: Database["public"]["Enums"]["user_role"] }
+        Returns: boolean
+      }
+      holds_profile_admin_authority: {
+        Args: { p_role: Database["public"]["Enums"]["user_role"] }
+        Returns: boolean
+      }
+      holds_won_value_authority: {
+        Args: { p_role: Database["public"]["Enums"]["user_role"] }
+        Returns: boolean
+      }
+      insert_timesheet_outbox_pending: {
+        Args: {
+          p_actor: string
+          p_digest: string
+          p_domain: string
+          p_key: string
+          p_operation: string
+          p_org: string
+          p_payload: Json
+          p_record_id: string
+          p_tier: string
+        }
+        Returns: {
+          actor_user_id: string | null
+          attempt_count: number
+          canonical: Json | null
+          claim_generation: number
+          claimed_at: string | null
+          created_at: string
+          domain: string
+          external_record_id: string | null
+          external_tier: string
+          id: string
+          idempotency_key: string
+          last_error: string | null
+          operation: string
+          org_id: string
+          payload: Json | null
+          payload_digest: string | null
+          pmo_record_id: string
+          reconcile_after: string | null
+          state: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "external_command_outbox"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      is_active_member:
+        | { Args: never; Returns: boolean }
+        | { Args: { p_user_id: string }; Returns: boolean }
       is_operator: { Args: never; Returns: boolean }
+      is_unattributed_authority: { Args: never; Returns: boolean }
       list_budget_fiscal_years: {
         Args: { p_project_id: string }
         Returns: {
@@ -5087,6 +5162,7 @@ export type Database = {
         Args: { p_org_id: string; p_reason: string; p_user_id: string }
         Returns: undefined
       }
+      m365_membership_state: { Args: { p_user_id: string }; Returns: Json }
       m365_pkce_sweep_tick: { Args: never; Returns: undefined }
       m365_refresh_connection: {
         Args: {
@@ -5129,6 +5205,17 @@ export type Database = {
       mark_outbox_held: {
         Args: { p_generation: number; p_id: string; p_reason: string }
         Returns: number
+      }
+      may_administer_profile: {
+        Args: {
+          p_actor_role: Database["public"]["Enums"]["user_role"]
+          p_subject_role: Database["public"]["Enums"]["user_role"]
+        }
+        Returns: boolean
+      }
+      may_approve_work_of: {
+        Args: { p_approver_id: string; p_author_id: string }
+        Returns: boolean
       }
       merge_external_org_binding_config: {
         Args: { p_external_tier: string; p_org_id: string; p_patch: Json }
@@ -5196,7 +5283,7 @@ export type Database = {
           cached_tokens: number
           completion_tokens: number
           cost: number
-          margin_usd: number | null
+          margin_usd: number
           month: string
           org_id: string
           owner_id: string
@@ -5226,6 +5313,10 @@ export type Database = {
         Args: { p_key: string; p_org_id: string }
         Returns: boolean
       }
+      org_has_active_erpnext_binding: {
+        Args: { p_org_id: string }
+        Returns: boolean
+      }
       org_has_feature: {
         Args: { p_key: string; p_org_id: string }
         Returns: boolean
@@ -5241,7 +5332,7 @@ export type Database = {
           cached_tokens: number
           completion_tokens: number
           cost: number
-          margin_usd: number | null
+          margin_usd: number
           month: string
           owner_id: string
           prompt_tokens: number
@@ -5286,6 +5377,10 @@ export type Database = {
       project_domain_externally_owned: {
         Args: { p_domain: string; p_project_id: string }
         Returns: boolean
+      }
+      purge_error_events: {
+        Args: { p_retention_days?: number }
+        Returns: number
       }
       quarantine_committing: {
         Args: { p_id: string; p_lease?: string; p_window?: string }
@@ -5334,6 +5429,17 @@ export type Database = {
         }
         Returns: number
       }
+      record_timesheet_command_held: {
+        Args: {
+          p_approved_at: string
+          p_claim_generation: number
+          p_org: string
+          p_outbox_id: string
+          p_reason: string
+          p_timesheet_id: string
+        }
+        Returns: string
+      }
       recover_external_connect_trap: {
         Args: {
           p_actor_id: string
@@ -5345,11 +5451,12 @@ export type Database = {
         Returns: string
       }
       release_credits: { Args: { p_run_id: string }; Returns: undefined }
-      // HIGH-2 / MED-2 (mig 0137 §4) — the operator's route out of a `held` money command:
-      // Admin-only, org-re-asserted, audited; moves `held` → `failed` so the ordinary bounded
-      // recovery resumes and re-runs every gate. Never touches the external system.
       release_outbox_hold: {
-        Args: { p_outbox_id: string; p_reason: string; p_expected_domain?: string }
+        Args: {
+          p_expected_domain?: string
+          p_outbox_id: string
+          p_reason: string
+        }
         Returns: undefined
       }
       release_sales_invoice_submit_clearance: {
@@ -5363,6 +5470,17 @@ export type Database = {
       reserve_credits: {
         Args: { p_amount: number; p_org_id: string; p_run_id: string }
         Returns: string
+      }
+      role_outranks: {
+        Args: {
+          p_approver: Database["public"]["Enums"]["user_role"]
+          p_author: Database["public"]["Enums"]["user_role"]
+        }
+        Returns: boolean
+      }
+      role_rank: {
+        Args: { p_role: Database["public"]["Enums"]["user_role"] }
+        Returns: number
       }
       save_timesheet_week: {
         Args: {
@@ -5433,6 +5551,7 @@ export type Database = {
         Returns: string
       }
       telegram_notify_tick: { Args: never; Returns: undefined }
+      timesheet_push_key_witness: { Args: { p_key: string }; Returns: string }
       transition_document_status: {
         Args: {
           p_doc_id: string
