@@ -1,4 +1,4 @@
--- operator_create_org.test.sql — proof for 0191_operator_create_org.sql (#484, DD-ORG-1 / DD-RIS-2).
+-- operator_create_org.test.sql — proof for 0192_operator_create_org.sql (#484, DD-ORG-1 / DD-RIS-2).
 --
 -- AC ids owned here (minted for #484; the namespace was free before this file):
 --   AC-ORG-001  a non-Operator calling operator_create_org gets 42501.

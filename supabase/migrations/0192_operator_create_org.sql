@@ -1,4 +1,4 @@
--- 0191_operator_create_org.sql — operator_create_org(): ONE auditable path that creates an org AND
+-- 0192_operator_create_org.sql — operator_create_org(): ONE auditable path that creates an org AND
 -- its required companion rows atomically (#484, DD-ORG-1 / DD-RIS-2). Operator surface, no UI.
 --
 -- WHY IT EXISTS AT ALL. Org creation happens ~3× in a deployment's life (DD-ORG-1), so the cost that

@@ -659,7 +659,7 @@ Admin commit together or not at all.
 be set by hand immediately after creation, and moved INTO the RPC by the migration that adds them:
 locale defaults (#468) · `pmo_epoch_at` (`DD-XING-2` — free at creation, guesswork afterwards) ·
 `lifecycle_state` (#489 — `live` is terminal, so creation is the only moment stamping it is free).
-The current list is kept in the header of `supabase/migrations/0191_operator_create_org.sql`.
+The current list is kept in the header of `supabase/migrations/0192_operator_create_org.sql`.
 Proof: `supabase/tests/operator_create_org.test.sql` (`AC-ORG-001..013`).
 
 ## Production auth configuration (per-client Supabase Cloud project — owner-gated)

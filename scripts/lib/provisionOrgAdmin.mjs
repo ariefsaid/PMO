@@ -8,7 +8,7 @@
  * that fn's edge endpoint instead of printing the manual command.
  *
  * ⚑ BOOTSTRAP ONLY. On a deployment that already has a platform Operator, the canonical path is the
- * guarded RPC `operator_create_org` (0191, DD-ORG-1 / #484) — it creates the org AND its companion
+ * guarded RPC `operator_create_org` (0192, DD-ORG-1 / #484) — it creates the org AND its companion
  * rows (first Admin membership, operating currency) in one transaction, which the raw insert below
  * does not. This script survives because `operator_create_org` needs a live Operator and a brand-new
  * Supabase project has none, so it cannot create the FIRST org. Do not extend the insert below with
