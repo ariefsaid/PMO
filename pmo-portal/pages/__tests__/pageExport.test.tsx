@@ -13,6 +13,10 @@ import { ToastProvider } from '@/src/components/ui';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 
 // ── Stub the export seam so no real serialization/download happens in tests ──
+// FR-L10N-020: this tree reads useOrgCurrency (org-denominated aggregates). Pinned here rather
+// than left to a real query. ⚑ At LINE-START — inside a neighbouring vi.mock it parses as a
+// syntax error and hides every real error beneath it.
+vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/components/export/useExport', () => ({
   useExport: () => ({ exportXlsx: vi.fn(), busy: false }),
 }));
@@ -85,7 +89,7 @@ vi.mock('@/src/hooks/useProcurements', () => ({
         title: 'Widgets',
         code: 'PR-001',
         status: 'Draft',
-        total_value: 5000,
+        total_value: 5000, currency: 'USD',
         created_at: '2026-01-01T00:00:00Z',
         project: { name: 'Project A' },
         requested_by: { full_name: 'Alice', id: 'u1' },
@@ -115,7 +119,7 @@ vi.mock('@/src/hooks/useDashboard', () => ({
           name: 'Deal 1',
           client_name: 'Client A',
           status: 'Qualified',
-          contract_value: 10000,
+          contract_value: 10000, currency: 'USD',
           win_probability: 0.5,
         },
       ],
@@ -134,7 +138,7 @@ vi.mock('@/src/hooks/useProjects', () => ({
   useProjects: () => ({
     data: [
       { id: 'p1', name: 'Alpha Build', code: 'PRJ-001', status: 'Ongoing Project',
-        client_id: 'c1', project_manager_id: 'u1', contract_value: 1_000_000,
+        client_id: 'c1', project_manager_id: 'u1', contract_value: 1_000_000, currency: 'USD',
         budget: 900_000, spent: 500_000, end_date: null, client: { name: 'Acme' },
         pm: { full_name: 'Alice PM' }, customer_contract_ref: null,
         contract_date: null, decided_at: null },

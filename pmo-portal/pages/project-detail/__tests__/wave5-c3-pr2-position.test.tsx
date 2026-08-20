@@ -144,6 +144,7 @@ const onHandRow: ProjectWithRefs = {
   client_id: 'c2',
   project_manager_id: 'u-alice',
   contract_value: 5_000_000,
+  currency: 'USD',
   budget: 4_700_000,
   spent: 2_100_000,
   start_date: '2026-01-01',

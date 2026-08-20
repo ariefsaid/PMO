@@ -56,6 +56,7 @@ vi.mock('@/src/lib/db/opportunity', () => ({
       client_id: 'c1',
       project_manager_id: 'u-pm',
       contract_value: 500000,
+      currency: 'USD',
       start_date: null,
       end_date: null,
       contract_date: null,

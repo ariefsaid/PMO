@@ -17,6 +17,7 @@ import { Button, Icon, StatusPill } from '@/src/components/ui';
 import { cn } from '@/src/components/ui/cn';
 import type { RefLookup } from '@/src/lib/import';
 import type { CycleRow, ValidatedGroup, ValidatedRow } from '@/src/lib/import/procurementCycle/types';
+import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { formatCurrency } from '@/src/lib/format';
 import {
   useProcurementCycleImport,
@@ -371,6 +372,10 @@ function CyclePreviewStep({ wiz }: { wiz: Wiz }) {
 
 /** A single case with its records (expandable). */
 function CaseCard({ vg, globalExpand }: { vg: ValidatedGroup; globalExpand: boolean | null }) {
+  // FR-L10N-020: an import PREVIEW row is a spreadsheet cell, not a stored record — there is no
+  // per-row currency to read, and nothing is persisted yet. The org default is what the rows will
+  // land in, so it is what the preview shows.
+  const orgCurrency = useOrgCurrency();
   const [localExpanded, setLocalExpanded] = useState(true);
   // Global override wins when set; otherwise use local state.
   const expanded = globalExpand !== null ? globalExpand : localExpanded;
@@ -435,7 +440,7 @@ function CaseCard({ vg, globalExpand }: { vg: ValidatedGroup; globalExpand: bool
       {expanded && rows.length > 0 && (
         <div className="border-t border-border">
           {rows.map((row) => (
-            <RecordRow key={row.rowNumber} row={row} source={sourceByRow.get(row.rowNumber)} />
+            <RecordRow key={row.rowNumber} row={row} source={sourceByRow.get(row.rowNumber)} currency={orgCurrency} />
           ))}
         </div>
       )}
@@ -444,7 +449,7 @@ function CaseCard({ vg, globalExpand }: { vg: ValidatedGroup; globalExpand: bool
 }
 
 /** A single record row within a case card — shows what's being imported (type, ref, amount, date). */
-function RecordRow({ row, source }: { row: ValidatedRow; source: CycleRow | undefined }) {
+function RecordRow({ row, source, currency }: { row: ValidatedRow; source: CycleRow | undefined; currency: string }) {
   // ValidatedRow carries rowNumber + valid + errors; the human-meaningful fields (what TYPE of
   // record, its ref/amount/date) live on the joined source CycleRow so the user can review what
   // they're about to import — not just a bare row number.
@@ -470,7 +475,7 @@ function RecordRow({ row, source }: { row: ValidatedRow; source: CycleRow | unde
             <span className="tabular-nums text-muted-foreground">
               {Number.isNaN(Number(amount))
                 ? amount
-                : formatCurrency(Number(amount))}
+                : formatCurrency(Number(amount), currency)}
             </span>
           )}
           {date && <span className="text-muted-foreground">{date}</span>}

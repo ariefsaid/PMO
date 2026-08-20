@@ -22,6 +22,10 @@ const detailState = {
   refetch: vi.fn(),
 };
 
+// FR-L10N-020: this tree reads useOrgCurrency (org-denominated aggregates). Pinned here rather
+// than left to a real query. ⚑ At LINE-START — inside a neighbouring vi.mock it parses as a
+// syntax error and hides every real error beneath it.
+vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/hooks/useProcurementRecords', () => ({
   useProcurementRecordMutations: () => ({
     createPurchaseRequest: { mutateAsync: vi.fn(), isPending: false },
@@ -101,7 +105,7 @@ const baseProcurement = {
   code: 'PROC-001',
   title: 'Steel Beams',
   status: 'Requested' as const,
-  total_value: 25000,
+  total_value: 25000, currency: 'USD',
   pr_number: 'PR-001',
   po_number: null,
   vq_number: null,

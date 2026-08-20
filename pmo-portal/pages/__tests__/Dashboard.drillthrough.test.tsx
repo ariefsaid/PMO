@@ -17,7 +17,7 @@ import React from 'react';
 
 const dash = {
   active_projects: 4,
-  total_contract_value: 8_000_000,
+  total_contract_value: 8_000_000, currency: 'USD',
   on_hand_margin: 0.25,
   on_hand_value: 6_000_000,
   pipeline_weighted_value: 800_000,
@@ -27,16 +27,20 @@ const dash = {
   projects_by_status: [],
   procurements_by_status: [{ status: 'Paid', count: 2 }],
   top_projects: [
-    { id: 'p1', name: 'Alpha', client_name: 'Acme', contract_value: 5_000_000, budget: 4_000_000, spent: 3_000_000, status: 'Ongoing Project' },
-    { id: 'p2', name: 'Beta', client_name: 'Beta Co', contract_value: 3_000_000, budget: 2_000_000, spent: 1_000_000, status: 'Ongoing Project' },
+    { id: 'p1', name: 'Alpha', client_name: 'Acme', contract_value: 5_000_000, currency: 'USD', budget: 4_000_000, spent: 3_000_000, status: 'Ongoing Project' },
+    { id: 'p2', name: 'Beta', client_name: 'Beta Co', contract_value: 3_000_000, currency: 'USD', budget: 2_000_000, spent: 1_000_000, status: 'Ongoing Project' },
   ],
 };
 
 const procurements = [
-  { id: 'pr1', status: 'Vendor Invoiced', total_value: 250_000, requested_by_id: 'u1' },
-  { id: 'pr2', status: 'Paid', total_value: 999_999, requested_by_id: 'u1' },
+  { id: 'pr1', status: 'Vendor Invoiced', total_value: 250_000, currency: 'USD', requested_by_id: 'u1' },
+  { id: 'pr2', status: 'Paid', total_value: 999_999, currency: 'USD', requested_by_id: 'u1' },
 ];
 
+// FR-L10N-020: this tree reads useOrgCurrency (org-denominated aggregates). Pinned here rather
+// than left to a real query. ⚑ At LINE-START — inside a neighbouring vi.mock it parses as a
+// syntax error and hides every real error beneath it.
+vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/hooks/useDashboard', () => ({
   useDashboard: () => ({ data: dash, isPending: false, isError: false, refetch: vi.fn() }),
   useFinanceBudgetReview: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
@@ -190,8 +194,8 @@ describe('AC-IXD-DASH-W5-C2A — Finance dashboard KPI drills', () => {
 // ── PM dashboard ─────────────────────────────────────────────────────────────
 
 const mine = [
-  { id: 'p1', name: 'My Project A', contract_value: 4_000_000, budget: 3_000_000, spent: 1_000_000, status: 'Ongoing Project', project_manager_id: 'pm-1', client: { name: 'Acme' }, pm: null },
-  { id: 'p2', name: 'My Project B', contract_value: 2_000_000, budget: 1_000_000, spent: 980_000, status: 'Won, Pending KoM', project_manager_id: 'pm-1', client: { name: 'Beta' }, pm: null },
+  { id: 'p1', name: 'My Project A', contract_value: 4_000_000, currency: 'USD', budget: 3_000_000, spent: 1_000_000, status: 'Ongoing Project', project_manager_id: 'pm-1', client: { name: 'Acme' }, pm: null },
+  { id: 'p2', name: 'My Project B', contract_value: 2_000_000, currency: 'USD', budget: 1_000_000, spent: 980_000, status: 'Won, Pending KoM', project_manager_id: 'pm-1', client: { name: 'Beta' }, pm: null },
 ];
 
 vi.mock('@/src/hooks/useProjects', () => ({

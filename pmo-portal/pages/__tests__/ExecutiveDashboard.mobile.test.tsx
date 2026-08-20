@@ -21,7 +21,7 @@ import { ToastProvider } from '@/src/components/ui/Toast';
 // ── Data fixtures ─────────────────────────────────────────────────────────────
 const populated = {
   active_projects: 18,
-  total_contract_value: 23050000,
+  total_contract_value: 23050000, currency: 'USD',
   on_hand_margin: 0.224,
   on_hand_value: 26650000,
   pipeline_weighted_value: 8400000,
@@ -36,7 +36,7 @@ const populated = {
   top_projects: [
     {
       id: 'p1', name: 'Alpha Project', client_name: 'ACME',
-      contract_value: 5000000, budget: 4700000, spent: 2100000, status: 'Ongoing Project',
+      contract_value: 5000000, currency: 'USD', budget: 4700000, spent: 2100000, status: 'Ongoing Project',
     },
   ],
 };
@@ -54,6 +54,10 @@ const dashState: {
   refetch: ReturnType<typeof vi.fn>;
 } = { data: populated, isPending: false, isError: false, refetch: vi.fn() };
 
+// FR-L10N-020: this tree reads useOrgCurrency (org-denominated aggregates). Pinned here rather
+// than left to a real query. ⚑ At LINE-START — inside a neighbouring vi.mock it parses as a
+// syntax error and hides every real error beneath it.
+vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/hooks/useDashboard', () => ({
   useDashboard: () => dashState,
   useWinRate: () => ({ data: winRateOracle, isPending: false, isError: false }),

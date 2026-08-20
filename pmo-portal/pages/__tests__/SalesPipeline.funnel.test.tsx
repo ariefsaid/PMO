@@ -23,17 +23,17 @@ const { pipelineState, lostState } = vi.hoisted(() => ({
   pipelineState: {
     data: {
       stages: [
-        { status: 'Leads', count: 1, total_value: 200000, win_probability: 0.1, weighted_value: 20000 },
-        { status: 'PQ Submitted', count: 1, total_value: 500000, win_probability: 0.25, weighted_value: 125000 },
-        { status: 'Quotation Submitted', count: 0, total_value: 0, win_probability: 0.4, weighted_value: 0 },
-        { status: 'Tender Submitted', count: 1, total_value: 1200000, win_probability: 0.5, weighted_value: 600000 },
-        { status: 'Negotiation', count: 1, total_value: 900000, win_probability: 0.75, weighted_value: 675000 },
+        { status: 'Leads', count: 1, total_value: 200000, currency: 'USD', win_probability: 0.1, weighted_value: 20000 },
+        { status: 'PQ Submitted', count: 1, total_value: 500000, currency: 'USD', win_probability: 0.25, weighted_value: 125000 },
+        { status: 'Quotation Submitted', count: 0, total_value: 0, currency: 'USD', win_probability: 0.4, weighted_value: 0 },
+        { status: 'Tender Submitted', count: 1, total_value: 1200000, currency: 'USD', win_probability: 0.5, weighted_value: 600000 },
+        { status: 'Negotiation', count: 1, total_value: 900000, currency: 'USD', win_probability: 0.75, weighted_value: 675000 },
       ],
       projects: [
-        { id: 'p1', name: 'Leads Project Alpha', client_name: 'Alpha Corp', status: 'Leads', contract_value: 200000, win_probability: 0.1 },
-        { id: 'p2', name: 'Tender Project Beta', client_name: 'Beta Ltd', status: 'Tender Submitted', contract_value: 1200000, win_probability: 0.5 },
-        { id: 'p3', name: 'Negotiation Project Gamma', client_name: 'Gamma Inc', status: 'Negotiation', contract_value: 900000, win_probability: 0.75 },
-        { id: 'p4', name: 'PQ Project Delta', client_name: 'Delta Co', status: 'PQ Submitted', contract_value: 500000, win_probability: 0.25 },
+        { id: 'p1', name: 'Leads Project Alpha', client_name: 'Alpha Corp', status: 'Leads', contract_value: 200000, currency: 'USD', win_probability: 0.1 },
+        { id: 'p2', name: 'Tender Project Beta', client_name: 'Beta Ltd', status: 'Tender Submitted', contract_value: 1200000, currency: 'USD', win_probability: 0.5 },
+        { id: 'p3', name: 'Negotiation Project Gamma', client_name: 'Gamma Inc', status: 'Negotiation', contract_value: 900000, currency: 'USD', win_probability: 0.75 },
+        { id: 'p4', name: 'PQ Project Delta', client_name: 'Delta Co', status: 'PQ Submitted', contract_value: 500000, currency: 'USD', win_probability: 0.25 },
       ],
     },
     isPending: false,
@@ -43,6 +43,10 @@ const { pipelineState, lostState } = vi.hoisted(() => ({
   lostState: { data: [] as unknown[] },
 }));
 
+// FR-L10N-020: this tree reads useOrgCurrency (org-denominated aggregates). Pinned here rather
+// than left to a real query. ⚑ At LINE-START — inside a neighbouring vi.mock it parses as a
+// syntax error and hides every real error beneath it.
+vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/hooks/useDashboard', () => ({
   useSalesPipeline: () => pipelineState,
   useLostDeals: () => lostState,
@@ -79,20 +83,20 @@ const renderPage = () =>
   );
 
 const seedProjects = [
-  { id: 'p1', name: 'Leads Project Alpha', client_name: 'Alpha Corp', status: 'Leads', contract_value: 200000, win_probability: 0.1 },
-  { id: 'p2', name: 'Tender Project Beta', client_name: 'Beta Ltd', status: 'Tender Submitted', contract_value: 1200000, win_probability: 0.5 },
-  { id: 'p3', name: 'Negotiation Project Gamma', client_name: 'Gamma Inc', status: 'Negotiation', contract_value: 900000, win_probability: 0.75 },
-  { id: 'p4', name: 'PQ Project Delta', client_name: 'Delta Co', status: 'PQ Submitted', contract_value: 500000, win_probability: 0.25 },
+  { id: 'p1', name: 'Leads Project Alpha', client_name: 'Alpha Corp', status: 'Leads', contract_value: 200000, currency: 'USD', win_probability: 0.1 },
+  { id: 'p2', name: 'Tender Project Beta', client_name: 'Beta Ltd', status: 'Tender Submitted', contract_value: 1200000, currency: 'USD', win_probability: 0.5 },
+  { id: 'p3', name: 'Negotiation Project Gamma', client_name: 'Gamma Inc', status: 'Negotiation', contract_value: 900000, currency: 'USD', win_probability: 0.75 },
+  { id: 'p4', name: 'PQ Project Delta', client_name: 'Delta Co', status: 'PQ Submitted', contract_value: 500000, currency: 'USD', win_probability: 0.25 },
 ];
 
 beforeEach(() => {
   pipelineState.data = {
     stages: [
-      { status: 'Leads', count: 1, total_value: 200000, win_probability: 0.1, weighted_value: 20000 },
-      { status: 'PQ Submitted', count: 1, total_value: 500000, win_probability: 0.25, weighted_value: 125000 },
-      { status: 'Quotation Submitted', count: 0, total_value: 0, win_probability: 0.4, weighted_value: 0 },
-      { status: 'Tender Submitted', count: 1, total_value: 1200000, win_probability: 0.5, weighted_value: 600000 },
-      { status: 'Negotiation', count: 1, total_value: 900000, win_probability: 0.75, weighted_value: 675000 },
+      { status: 'Leads', count: 1, total_value: 200000, currency: 'USD', win_probability: 0.1, weighted_value: 20000 },
+      { status: 'PQ Submitted', count: 1, total_value: 500000, currency: 'USD', win_probability: 0.25, weighted_value: 125000 },
+      { status: 'Quotation Submitted', count: 0, total_value: 0, currency: 'USD', win_probability: 0.4, weighted_value: 0 },
+      { status: 'Tender Submitted', count: 1, total_value: 1200000, currency: 'USD', win_probability: 0.5, weighted_value: 600000 },
+      { status: 'Negotiation', count: 1, total_value: 900000, currency: 'USD', win_probability: 0.75, weighted_value: 675000 },
     ],
     projects: seedProjects,
   };

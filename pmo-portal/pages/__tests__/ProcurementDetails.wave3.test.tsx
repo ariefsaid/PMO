@@ -32,6 +32,10 @@ const mockCreateQuotation = vi.fn().mockResolvedValue({ id: 'q-new' });
 
 // The per-phase file sub-section has its own unit test + needs a QueryClient;
 // stub it here so the page tests stay focused on the lifecycle behavior.
+// FR-L10N-020: this tree reads useOrgCurrency (org-denominated aggregates). Pinned here rather
+// than left to a real query. ⚑ At LINE-START — inside a neighbouring vi.mock it parses as a
+// syntax error and hides every real error beneath it.
+vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/hooks/useProcurementRecords', () => ({
   useProcurementRecordMutations: () => ({
     createPurchaseRequest: { mutateAsync: vi.fn(), isPending: false },
@@ -126,7 +130,7 @@ const baseProcurement = {
   code: 'PROC-2026-W3',
   title: 'Network Switches',
   status: 'Draft' as const,
-  total_value: 0,
+  total_value: 0, currency: 'USD',
   pr_number: 'PR-2606090001',
   po_number: null,
   vq_number: null,
@@ -153,7 +157,7 @@ const baseProcurement = {
 const receivedProcurement = {
   ...baseProcurement,
   status: 'Received' as const,
-  total_value: 50000,
+  total_value: 50000, currency: 'USD',
   approved_by_id: 'u-pm',
   approved_by: { full_name: 'PM User' },
   receipts: [
@@ -173,7 +177,7 @@ const receivedProcurement = {
 const vendorInvoicedProcurement = {
   ...baseProcurement,
   status: 'Vendor Invoiced' as const,
-  total_value: 50000,
+  total_value: 50000, currency: 'USD',
   approved_by_id: 'u-pm',
   approved_by: { full_name: 'PM User' },
 };
@@ -241,7 +245,7 @@ describe('AC-W3-D10: Draft PR with zero line items gates Submit Request', () => 
   });
 
   it('AC-W3-D10: a Draft PR with NO line items shows the add-line-items gate message and no enabled Submit Request button', () => {
-    detailState.data = { ...baseProcurement, items: [], total_value: 0 };
+    detailState.data = { ...baseProcurement, items: [], total_value: 0, currency: 'USD' };
     detailState.isPending = false;
     detailState.isError = false;
     renderPage();
@@ -260,7 +264,7 @@ describe('AC-W3-D10: Draft PR with zero line items gates Submit Request', () => 
   it('AC-W3-D10: a Draft PR with ≥1 line item (total > 0) shows an enabled Submit Request', () => {
     detailState.data = {
       ...baseProcurement,
-      total_value: 500,
+      total_value: 500, currency: 'USD',
       items: [
         {
           id: 'it1',
@@ -291,7 +295,7 @@ describe('AC-W3-D10: Draft PR with zero line items gates Submit Request', () => 
     // blocked — the gate is `items.length === 0`, not `total_value > 0`.
     detailState.data = {
       ...baseProcurement,
-      total_value: 0,
+      total_value: 0, currency: 'USD',
       items: [
         { id: 'it0', org_id: 'org-1', procurement_id: 'proc-w3', name: 'No-charge sample',
           description: null, quantity: 1, rate: 0, amount: 0 },
@@ -310,7 +314,7 @@ describe('AC-W3-D10: Draft PR with zero line items gates Submit Request', () => 
       ...baseProcurement,
       status: 'Requested' as const,
       items: [],
-      total_value: 0,
+      total_value: 0, currency: 'USD',
     };
     detailState.isPending = false;
     detailState.isError = false;

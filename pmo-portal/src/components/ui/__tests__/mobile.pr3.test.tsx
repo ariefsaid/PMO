@@ -30,6 +30,10 @@ import { KanbanStageIndicator } from '../KanbanStageIndicator';
 import SalesKanbanBoard from '@/components/SalesKanbanBoard';
 import type { PipelineProject } from '@/src/lib/db/dashboard';
 
+// FR-L10N-020: SalesKanbanBoard reads useOrgCurrency for its column totals and deal cards
+// (get_sales_pipeline returns no per-row currency). Pinned here. ⚑ LINE-START on purpose.
+vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
+
 // ─── Tabs ──────────────────────────────────────────────────────────────────
 
 const TAB_ITEMS: TabItem[] = [

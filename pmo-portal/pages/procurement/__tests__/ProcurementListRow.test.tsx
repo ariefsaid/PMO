@@ -30,6 +30,7 @@ const makeRow = (over: Partial<ProcurementWithRefs> = {}): ProcurementWithRefs =
     title: 'Crane Hire',
     status: 'Requested',
     total_value: 25000,
+    currency: 'USD',
     created_at: '2026-06-01T00:00:00Z',
     project_id: 'project-xyz',
     requested_by_id: 'u1',

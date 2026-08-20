@@ -5,14 +5,14 @@ import { formatCurrency } from '@/src/lib/format';
 import { FinanceDashboard } from './FinanceDashboard';
 
 const dash = {
-  active_projects: 2, total_contract_value: 8_000_000,
+  active_projects: 2, total_contract_value: 8_000_000, currency: 'USD',
   on_hand_margin: 0.25, on_hand_value: 6_000_000,
   pipeline_weighted_value: 800_000, pipeline_projected_margin: 0.2, pipeline_total_value: 2_000_000,
   projects_at_risk: 1,
   projects_by_status: [], procurements_by_status: [{ status: 'Paid', count: 2 }, { status: 'Vendor Invoiced', count: 1 }],
   top_projects: [
-    { id: 'p1', name: 'Alpha', client_name: 'Acme', contract_value: 5_000_000, budget: 4_000_000, spent: 3_000_000, status: 'Ongoing Project' },
-    { id: 'p2', name: 'Beta', client_name: 'Beta Co', contract_value: 3_000_000, budget: 2_000_000, spent: 1_000_000, status: 'Ongoing Project' },
+    { id: 'p1', name: 'Alpha', client_name: 'Acme', contract_value: 5_000_000, currency: 'USD', budget: 4_000_000, spent: 3_000_000, status: 'Ongoing Project' },
+    { id: 'p2', name: 'Beta', client_name: 'Beta Co', contract_value: 3_000_000, currency: 'USD', budget: 2_000_000, spent: 1_000_000, status: 'Ongoing Project' },
   ],
 };
 
@@ -20,10 +20,10 @@ const iso = (daysAgo: number) => new Date(Date.now() - daysAgo * 864e5).toISOStr
 
 const procurements = [
   // pr1: real vendor_invoiced_at ~10 days old; updated_at today (proxy would read 0 — proves the column wins).
-  { id: 'pr1', status: 'Vendor Invoiced', total_value: 250_000, vendor_invoiced_at: iso(10), updated_at: iso(0) },
+  { id: 'pr1', status: 'Vendor Invoiced', total_value: 250_000, currency: 'USD', vendor_invoiced_at: iso(10), updated_at: iso(0) },
   // pr2: null vendor_invoiced_at (legacy/edge) → falls back to updated_at ~3 days old.
-  { id: 'pr2', status: 'Vendor Invoiced', total_value: 150_000, vendor_invoiced_at: null, updated_at: iso(3) },
-  { id: 'pr3', status: 'Paid', total_value: 999_999, vendor_invoiced_at: null, updated_at: iso(0) },
+  { id: 'pr2', status: 'Vendor Invoiced', total_value: 150_000, currency: 'USD', vendor_invoiced_at: null, updated_at: iso(3) },
+  { id: 'pr3', status: 'Paid', total_value: 999_999, currency: 'USD', vendor_invoiced_at: null, updated_at: iso(0) },
 ];
 
 // N17 budget review now comes from the get_finance_budget_review RPC (committed basis, ranked).
@@ -97,7 +97,7 @@ describe('FinanceDashboard (real — exec RPC + procurements)', () => {
   });
   it('shows total project spend (Σ top_projects.spent)', () => {
     renderPane();
-    expect(screen.getByTestId('kpi-spend')).toHaveTextContent(formatCurrency(4_000_000));
+    expect(screen.getByTestId('kpi-spend')).toHaveTextContent(formatCurrency(4_000_000, 'USD'));
   });
   it('shows on-hand margin', () => {
     renderPane();
@@ -106,7 +106,7 @@ describe('FinanceDashboard (real — exec RPC + procurements)', () => {
   it('computes outstanding invoices as Σ value of Vendor Invoiced procurements (real, not 0.4 fabrication)', () => {
     renderPane();
     // 250k + 150k = 400k; the Paid one is excluded
-    expect(screen.getByTestId('kpi-outstanding')).toHaveTextContent(formatCurrency(400_000));
+    expect(screen.getByTestId('kpi-outstanding')).toHaveTextContent(formatCurrency(400_000, 'USD'));
   });
 });
 

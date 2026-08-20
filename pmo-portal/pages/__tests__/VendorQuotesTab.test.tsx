@@ -100,6 +100,7 @@ const defaultProps = {
   addBusy: false,
   selectBusy: false,
   procurementId: 'proc-1',
+  currency: 'USD',
   canManageFiles: false,
   currentUserId: 'u-alice',
   vendorMap: testVendorMap,
@@ -330,6 +331,22 @@ describe('AC-VQ-007: VendorQuotesTab — Add quotation affordance', () => {
       />,
     );
     expect(screen.queryByRole('button', { name: /add quotation/i })).not.toBeInTheDocument();
+  });
+});
+
+describe('FR-L10N-020: currency-aware rendering (not a blind $)', () => {
+  it("quote amounts render in the QUOTE's own currency", () => {
+    const eurQuote = makeQuote({ id: 'q-eur', total_amount: 148000, currency: 'EUR' });
+    render(<VendorQuotesTab {...defaultProps} quotations={[eurQuote]} />);
+    expect(screen.getAllByText('€148,000').length).toBeGreaterThanOrEqual(1);
+    expect(screen.queryByText('$148,000')).not.toBeInTheDocument();
+  });
+
+  it("the new-quotation form's amount prefix follows the PROCUREMENT's currency, not a hardcoded $", async () => {
+    render(<VendorQuotesTab {...defaultProps} quotations={[]} canAdd currency="EUR" />);
+    await userEvent.click(screen.getByRole('button', { name: /add quotation/i }));
+    expect(screen.getByText('€')).toBeInTheDocument();
+    expect(screen.queryByText('$')).not.toBeInTheDocument();
   });
 });
 

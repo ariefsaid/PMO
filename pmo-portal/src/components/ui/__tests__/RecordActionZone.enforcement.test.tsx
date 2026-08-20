@@ -45,6 +45,10 @@ const { procDetailState, procMutations } = vi.hoisted(() => ({
   },
 }));
 
+// FR-L10N-020: this tree reads useOrgCurrency (org-denominated aggregates). Pinned here rather
+// than left to a real query. ⚑ At LINE-START — inside a neighbouring vi.mock it parses as a
+// syntax error and hides every real error beneath it.
+vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/hooks/useProcurementDetail', () => ({
   useProcurementDetail: () => procDetailState,
   useProcurementMutations: () => procMutations,
@@ -86,6 +90,7 @@ const procRecord = {
   pr_number: 'PR-001',
   status: 'Draft',
   total_value: '5000',
+  currency: 'USD',
   project_id: 'p1',
   project: { name: 'HQ Fit-Out' },
   vendor_id: null,
@@ -217,7 +222,7 @@ const { pipelineMock, pipelineTransitionMock } = vi.hoisted(() => ({
           id: 'd1',
           name: 'Acme Deal',
           status: 'Tender Submitted',
-          contract_value: 1000000,
+          contract_value: 1000000, currency: 'USD',
           win_probability: 0.5,
         },
       ],
@@ -243,7 +248,7 @@ const pipelineProject = {
   status: 'Tender Submitted',
   client_id: 'c1',
   project_manager_id: 'u1',
-  contract_value: 1000000,
+  contract_value: 1000000, currency: 'USD',
   budget: 0,
   spent: 0,
   start_date: null,

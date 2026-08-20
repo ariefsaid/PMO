@@ -174,7 +174,7 @@ const SalesInvoices: React.FC = () => {
       align: 'num',
       cell: (inv) => (
         <span className="tabular text-right font-mono text-[13px]">
-          {inv.amount != null ? formatCurrencyCents(inv.amount) : '—'}
+          {inv.amount != null ? formatCurrencyCents(inv.amount, inv.currency) : '—'}
         </span>
       ),
       exportValue: (inv) => inv.amount?.toString() ?? '',
@@ -185,7 +185,7 @@ const SalesInvoices: React.FC = () => {
       align: 'num',
       cell: (inv) => (
         <span className="tabular text-right font-mono text-[13px]">
-          {inv.erp_outstanding_amount != null ? formatCurrencyCents(inv.erp_outstanding_amount) : '—'}
+          {inv.erp_outstanding_amount != null ? formatCurrencyCents(inv.erp_outstanding_amount, inv.currency) : '—'}
         </span>
       ),
       exportValue: (inv) => inv.erp_outstanding_amount?.toString() ?? '',

@@ -49,6 +49,7 @@ function renderSection(props: Partial<React.ComponentProps<typeof LineItemsSecti
         onUpdate={onUpdate}
         onDelete={onDelete}
         onError={onError}
+        currency={props.currency ?? 'USD'}
       />
     </ToastProvider>,
   );
@@ -168,6 +169,7 @@ describe('AC-W3-NUM-002 LineItemsSection — quantity/rate numeric validation', 
           onUpdate={onUpdate}
           onDelete={vi.fn()}
           onError={vi.fn()}
+          currency="USD"
         />
       </ToastProvider>,
     );
@@ -191,6 +193,7 @@ describe('AC-W3-NUM-002 LineItemsSection — quantity/rate numeric validation', 
           onUpdate={onUpdate}
           onDelete={vi.fn()}
           onError={vi.fn()}
+          currency="USD"
         />
       </ToastProvider>,
     );

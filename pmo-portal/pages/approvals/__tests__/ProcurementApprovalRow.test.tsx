@@ -23,7 +23,7 @@ const { transitionMutate, navigateMock, detailData, detailState } = vi.hoisted((
     title: 'Inverter Units',
     code: 'PR-260001',
     status: 'Requested' as const,
-    total_value: 50000,
+    total_value: 50000, currency: 'USD',
     project_id: 'proj-001',
     project: { name: 'Solar Alpha', code: 'PRJ-001' },
     vendor: { name: 'SunVolt Modules Co.' },
@@ -41,6 +41,10 @@ const { transitionMutate, navigateMock, detailData, detailState } = vi.hoisted((
   return { transitionMutate, navigateMock, detailData, detailState };
 });
 
+// FR-L10N-020: this tree reads useOrgCurrency (org-denominated aggregates). Pinned here rather
+// than left to a real query. ⚑ At LINE-START — inside a neighbouring vi.mock it parses as a
+// syntax error and hides every real error beneath it.
+vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u-pm', org_id: 'org-1' } }),
 }));
@@ -79,7 +83,7 @@ const ROW = {
   title: 'Inverter Units',
   code: 'PR-260001',
   status: 'Requested',
-  total_value: 50000,
+  total_value: 50000, currency: 'USD',
   created_at: new Date(Date.now() - 2 * 86_400_000).toISOString(),
   project_id: 'proj-001',
   project: { name: 'Solar Alpha', code: 'PRJ-001' },

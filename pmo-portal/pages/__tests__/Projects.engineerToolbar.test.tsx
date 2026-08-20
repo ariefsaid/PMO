@@ -37,6 +37,10 @@ const { projectsState, myTasksState } = vi.hoisted(() => ({
   myTasksState: { data: [] as Array<Record<string, unknown>> },
 }));
 
+// FR-L10N-020: this tree reads useOrgCurrency (org-denominated aggregates). Pinned here rather
+// than left to a real query. ⚑ At LINE-START — inside a neighbouring vi.mock it parses as a
+// syntax error and hides every real error beneath it.
+vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('../../components/ProjectStatusControl', () => ({
   default: () => null,
 }));
@@ -83,7 +87,7 @@ const sampleProjects = [
     status: 'Ongoing',
     project_manager_id: 'pm-1',
     client_id: 'c1',
-    contract_value: 100_000,
+    contract_value: 100_000, currency: 'USD',
     budget: 80_000,
     spent: 40_000,
     customer_contract_ref: null,

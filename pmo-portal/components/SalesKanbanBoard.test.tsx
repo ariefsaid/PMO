@@ -12,10 +12,10 @@ import { formatCurrency } from '@/src/lib/format';
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 
 const projects: PipelineProject[] = [
-  { id: 'q1', name: 'Quotation Deal Alpha', client_name: 'Acme', status: 'Quotation Submitted', contract_value: 500_000, currency: 'USD', win_probability: 0.4 },
-  { id: 't1', name: 'Tender Deal Bravo', client_name: null, status: 'Tender Submitted', contract_value: 1_200_000, currency: 'USD', win_probability: 0.5 },
-  { id: 'w1', name: 'Won Deal Charlie', client_name: 'Globex', status: 'Won, Pending KoM', contract_value: 2_000_000, currency: 'USD', win_probability: 1 },
-  { id: 'l1', name: 'Lost Deal Delta', client_name: 'Initech', status: 'Loss Tender', contract_value: 700_000, currency: 'USD', win_probability: 0 },
+  { id: 'q1', name: 'Quotation Deal Alpha', client_name: 'Acme', status: 'Quotation Submitted', contract_value: 500_000, win_probability: 0.4 },
+  { id: 't1', name: 'Tender Deal Bravo', client_name: null, status: 'Tender Submitted', contract_value: 1_200_000, win_probability: 0.5 },
+  { id: 'w1', name: 'Won Deal Charlie', client_name: 'Globex', status: 'Won, Pending KoM', contract_value: 2_000_000, win_probability: 1 },
+  { id: 'l1', name: 'Lost Deal Delta', client_name: 'Initech', status: 'Loss Tender', contract_value: 700_000, win_probability: 0 },
 ];
 
 describe('SalesKanbanBoard (AC-SP-204 / AC-IXD-PROJ-007)', () => {

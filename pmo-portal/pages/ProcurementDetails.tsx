@@ -444,7 +444,7 @@ const ProcurementDetails: React.FC = () => {
   // The shared money/context line the kept financial confirms restate.
   const moneyContext = (
     <>
-      <b>{formatCurrency(Number(p.total_value))}</b>
+      <b>{formatCurrency(Number(p.total_value), p.currency)}</b>
       {p.project?.name ? <> on <ProjectNameLink projectId={p.project_id} name={p.project.name} /></> : null}
       {p.requested_by?.full_name ? <>, requested by <i>{p.requested_by.full_name}</i></> : null}
     </>
@@ -604,7 +604,7 @@ const ProcurementDetails: React.FC = () => {
     // PR value — always shown (every procurement has a total_value)
     {
       label: 'PR value',
-      value: formatCurrency(Number(p.total_value)),
+      value: formatCurrency(Number(p.total_value), p.currency),
       sub: p.project?.name ?? undefined,
     },
     // Selected quote — only when a quote is committed (Quote Selected onward).
@@ -613,7 +613,7 @@ const ProcurementDetails: React.FC = () => {
     selectedQuote
       ? {
           label: 'Selected quote',
-          value: formatCurrency(Number(selectedQuote.total_amount)),
+          value: formatCurrency(Number(selectedQuote.total_amount), selectedQuote.currency),
           sub: (
             <CompanyNameLink
               companyId={p.vendor_id}
@@ -629,9 +629,15 @@ const ProcurementDetails: React.FC = () => {
     p.purchase_orders && p.purchase_orders.length > 0
       ? {
           label: 'PO committed',
-          // Use the PO record's amount if available, else fall back to total_value.
+          // Use the PO record's amount if available, else fall back to total_value —
+          // and its currency alongside it (PO ?? parent PR, FR-L10N-020).
           value: formatCurrency(
-            Number((p.purchase_orders[0] as { amount?: number | null }).amount ?? p.total_value),
+            Number(
+              (p.purchase_orders[0] as { amount?: number | null; currency?: string | null }).amount ??
+                p.total_value,
+            ),
+            (p.purchase_orders[0] as { amount?: number | null; currency?: string | null }).currency ??
+              p.currency,
           ),
           sub: p.vendor?.name ? (
             // PRD-1 (AC-JR-W3B-E1)
@@ -860,6 +866,7 @@ const ProcurementDetails: React.FC = () => {
             projectName={p.project?.name ?? null}
             totalValue={Number(p.total_value)}
             status={p.status}
+            currency={p.currency}
           />
         )}
 
@@ -881,6 +888,7 @@ const ProcurementDetails: React.FC = () => {
               await crud.deleteItem.mutateAsync(id);
               toast('Line item removed', undefined, 'success');
             }}
+            currency={p.currency}
           />
         )}
 
@@ -914,6 +922,7 @@ const ProcurementDetails: React.FC = () => {
             addBusy={mutations.createQuotation.isPending}
             selectBusy={crud.selectQuote.isPending}
             procurementId={p.id}
+            currency={p.currency}
             canManageFiles={canManageFiles}
             currentUserId={currentUserId}
             vendorMap={vendorMap}

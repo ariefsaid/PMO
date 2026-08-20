@@ -22,6 +22,10 @@ import type { ProjectWithRefs } from '@/src/lib/db/projects';
 const { transitionProject } = vi.hoisted(() => ({
   transitionProject: vi.fn().mockResolvedValue(undefined),
 }));
+// FR-L10N-020: this tree reads useOrgCurrency (org-denominated aggregates). Pinned here rather
+// than left to a real query. ⚑ At LINE-START — inside a neighbouring vi.mock it parses as a
+// syntax error and hides every real error beneath it.
+vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/lib/db/projectTransitions', async (orig) => {
   const actual = await (orig() as Promise<Record<string, unknown>>);
   return { ...actual, transitionProject };
@@ -31,7 +35,7 @@ const pipelineState = {
   data: {
     stages: [],
     projects: [
-      { id: 'd1', name: 'Acme Tender Bid', status: 'Tender Submitted', contract_value: 1200000, win_probability: 0.5 },
+      { id: 'd1', name: 'Acme Tender Bid', status: 'Tender Submitted', contract_value: 1200000, currency: 'USD', win_probability: 0.5 },
     ] as Array<Record<string, unknown>>,
   },
 };
@@ -53,7 +57,7 @@ const dealRow = {
   status: 'Tender Submitted',
   client_id: 'c1',
   project_manager_id: 'u-alice',
-  contract_value: 1200000,
+  contract_value: 1200000, currency: 'USD',
   budget: 0,
   spent: 0,
   start_date: null,

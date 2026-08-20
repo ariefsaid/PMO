@@ -27,6 +27,10 @@ import { ToastProvider } from '../../../components/ui';
 const { pipelineTrans } = vi.hoisted(() => ({
   pipelineTrans: vi.fn().mockResolvedValue(undefined),
 }));
+// FR-L10N-020: this tree reads useOrgCurrency (org-denominated aggregates). Pinned here rather
+// than left to a real query. ⚑ At LINE-START — inside a neighbouring vi.mock it parses as a
+// syntax error and hides every real error beneath it.
+vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/lib/db/projectTransitions', async (orig) => {
   const actual = await (orig() as Promise<Record<string, unknown>>);
   return { ...actual, transitionProject: pipelineTrans };
@@ -35,7 +39,7 @@ vi.mock('@/src/hooks/useDashboard', () => ({
   useSalesPipeline: () => ({
     data: {
       stages: [],
-      projects: [{ id: 'd1', name: 'Acme Deal', status: 'Tender Submitted', contract_value: 500000, win_probability: 0.5 }],
+      projects: [{ id: 'd1', name: 'Acme Deal', status: 'Tender Submitted', contract_value: 500000, currency: 'USD', win_probability: 0.5 }],
     },
   }),
 }));
@@ -54,7 +58,7 @@ const project = {
   status: 'Tender Submitted',
   client_id: 'c1',
   project_manager_id: 'u1',
-  contract_value: 500000,
+  contract_value: 500000, currency: 'USD',
   budget: 0,
   spent: 0,
   start_date: null,

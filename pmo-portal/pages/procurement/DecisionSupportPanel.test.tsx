@@ -281,6 +281,17 @@ describe('AC-RB-004 — Available = Budget − Committed − Reserved', () => {
     expect(neg.textContent).toMatch(/-?\$200/);
     expect(neg.className).toMatch(/destructive/);
   });
+
+  it('FR-L10N-020: every figure renders in the passed-in currency, not USD', () => {
+    budgetState.data = 1000;
+    committedState.data = 300;
+    reservedState.data = 200;
+    renderPanel({ projectId: 'p1', totalValue: 0, projectName: 'X', status: 'Requested', currency: 'EUR' });
+    const availableLabel = screen.getByText(/^available$/i);
+    const availableTile = availableLabel.closest('[data-testid="stat-tile"]') as HTMLElement;
+    expect(within(availableTile).getByText(/€500\b/)).toBeInTheDocument();
+    expect(within(availableTile).queryByText(/\$/)).not.toBeInTheDocument();
+  });
 });
 
 describe('AC-RB-005 — Reserved tile shows other-reserved, never "encumbered"', () => {

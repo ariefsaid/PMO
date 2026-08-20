@@ -15,6 +15,10 @@ import type { Role } from '@/src/auth/AuthContext';
  * Two-sided: PM (authorized) sees the board; Engineer (denied) sees the denied region + Back.
  */
 const { navigate } = vi.hoisted(() => ({ navigate: vi.fn() }));
+// FR-L10N-020: this tree reads useOrgCurrency (org-denominated aggregates). Pinned here rather
+// than left to a real query. ⚑ At LINE-START — inside a neighbouring vi.mock it parses as a
+// syntax error and hides every real error beneath it.
+vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('react-router', async (orig) => {
   const actual = await (orig() as Promise<Record<string, unknown>>);
   return { ...actual, useNavigate: () => navigate };
@@ -22,7 +26,7 @@ vi.mock('react-router', async (orig) => {
 
 const { pipelineState, lostState } = vi.hoisted(() => ({
   pipelineState: {
-    data: { stages: [], projects: [{ id: 'o1', name: 'Acme Tender', status: 'Tender Submitted', client_name: 'Acme', contract_value: 1000, win_probability: 0.5 }] },
+    data: { stages: [], projects: [{ id: 'o1', name: 'Acme Tender', status: 'Tender Submitted', client_name: 'Acme', contract_value: 1000, currency: 'USD', win_probability: 0.5 }] },
     isPending: false,
     isError: false,
     refetch: vi.fn(),

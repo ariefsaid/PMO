@@ -31,6 +31,10 @@ const { projectsState, myTasksState, deliverySummaryState } = vi.hoisted(() => (
   },
 }));
 
+// FR-L10N-020: this tree reads useOrgCurrency (org-denominated aggregates). Pinned here rather
+// than left to a real query. ⚑ At LINE-START — inside a neighbouring vi.mock it parses as a
+// syntax error and hides every real error beneath it.
+vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('../../components/ProjectStatusControl', () => ({
   default: () => null,
 }));
@@ -74,7 +78,7 @@ const fixtures = [
     status: 'Ongoing Project',
     project_manager_id: 'pm-1',
     client_id: 'c1',
-    contract_value: 100_000,
+    contract_value: 100_000, currency: 'USD',
     budget: 80_000,
     spent: 40_000,   // 50% of budget — NOT at risk
     customer_contract_ref: null,
@@ -88,7 +92,7 @@ const fixtures = [
     status: 'Ongoing Project',
     project_manager_id: 'pm-1',
     client_id: 'c1',
-    contract_value: 200_000,
+    contract_value: 200_000, currency: 'USD',
     budget: 100_000,
     spent: 95_000,   // 95% of budget — AT RISK
     customer_contract_ref: null,
@@ -102,7 +106,7 @@ const fixtures = [
     status: 'Ongoing Project',
     project_manager_id: 'pm-1',
     client_id: 'c1',
-    contract_value: 150_000,
+    contract_value: 150_000, currency: 'USD',
     budget: 100_000,
     spent: 90_000,   // exactly 90% of budget — AT RISK (>= 0.9)
     customer_contract_ref: null,
@@ -116,7 +120,7 @@ const fixtures = [
     status: 'Close Out',  // completed — NOT shown in at-risk (active only)
     project_manager_id: 'pm-1',
     client_id: 'c1',
-    contract_value: 100_000,
+    contract_value: 100_000, currency: 'USD',
     budget: 50_000,
     spent: 49_000,   // 98% but not active
     customer_contract_ref: null,

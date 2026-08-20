@@ -212,7 +212,7 @@ const SalesPipeline: React.FC = () => {
       header: 'Weighted',
       align: 'num',
       cell: (r) => (
-        <span className="text-muted-foreground">{formatCurrency(weightedValue(r))}</span>
+        <span className="text-muted-foreground">{formatCurrency(weightedValue(r), orgCurrency)}</span>
       ),
       exportValue: (r) => weightedValue(r),
     },

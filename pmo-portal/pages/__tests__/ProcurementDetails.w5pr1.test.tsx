@@ -33,6 +33,10 @@ const detailState = {
 
 // The per-phase file sub-section has its own unit test + needs a QueryClient;
 // stub it here so the page tests stay focused on the lifecycle behavior.
+// FR-L10N-020: this tree reads useOrgCurrency (org-denominated aggregates). Pinned here rather
+// than left to a real query. ⚑ At LINE-START — inside a neighbouring vi.mock it parses as a
+// syntax error and hides every real error beneath it.
+vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/hooks/useProcurementRecords', () => ({
   useProcurementRecordMutations: () => ({
     createPurchaseRequest: { mutateAsync: vi.fn(), isPending: false },
@@ -114,7 +118,7 @@ const base = {
   code: 'PROC-2026-001',
   title: 'Workstations for HQ',
   status: 'Requested' as const,
-  total_value: 50000,
+  total_value: 50000, currency: 'USD',
   pr_number: 'PR-2606040001',
   po_number: null,
   vq_number: null,
@@ -149,6 +153,7 @@ const base = {
       procurement_id: 'proc-001',
       vendor_id: 'v-1',
       total_amount: 48000,
+      currency: 'USD',
       vq_number: 'VQ-001',
       is_selected: false,
       reference: 'REF-001',
