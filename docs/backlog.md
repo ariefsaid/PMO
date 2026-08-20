@@ -27,7 +27,14 @@ also gates the budget importer (#495) and work orders (#498).
 **Shipped 2026-08-19:** #477 (locale drift sweep — ~45 hardcoded-locale sites routed through
 `format.ts`, plus an ESLint guard, mutation-verified) and the ADR-0055 crossing addendum (#480).
 
-**Open build queue:** #478 #479 #484 #485 #486 #488 #489 #490 #491 #492 #493 #494 #495 #498 #499.
+**Open build queue (2026-08-20 close):** #495 (descriptor half only — provenance merged, and it now
+has `docs/specs/budget-import.spec.md`) · #505 vendor-invoice tax (`DD-VI-1..2` settled) · #513
+drawdown-vs-`contract_value` tax keying · #479 Posture-B stamp audit (headline already shipped —
+re-scoped) · #481 (blocked on #474+#479).
+
+**Shipped 2026-08-19/20:** #477 · #478 (go-live blocker) · #480 · #482 · #484 · #485 · #486 · #488 ·
+#489 · #491 · #493 · #494 · #498 work_orders · #500 · #501 · #504 · #508 · #510 · #511 · #515–#517.
+Plus the entire wayfinder decision layer across all three maps.
 **Owner-parked (blocking nothing):** #487 (day-1 reports) · #496 (what a real RIS client PO looks
 like) · #497 (ERPNext SLA, partner role, data locality, e-Faktur) · #466 (pricing, behind the
 parked reseller conversation).
