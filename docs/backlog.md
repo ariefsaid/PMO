@@ -27,10 +27,25 @@ also gates the budget importer (#495) and work orders (#498).
 **Shipped 2026-08-19:** #477 (locale drift sweep — ~45 hardcoded-locale sites routed through
 `format.ts`, plus an ESLint guard, mutation-verified) and the ADR-0055 crossing addendum (#480).
 
-**Open build queue (2026-08-20 close):** #495 (descriptor half only — provenance merged, and it now
-has `docs/specs/budget-import.spec.md`) · #505 vendor-invoice tax (`DD-VI-1..2` settled) · #513
-drawdown-vs-`contract_value` tax keying · #479 Posture-B stamp audit (headline already shipped —
+**Open build queue:** #505 vendor-invoice tax (`DD-VI-1..2` settled) · #513 drawdown-vs-
+`contract_value` tax keying (**ruled** — option 1, mirror `0188` on `projects`; only the backfill
+value waits on the owner, parked as #518) · #479 Posture-B stamp audit (headline already shipped —
 re-scoped) · #481 (blocked on #474+#479).
+
+**⚑ #495 closed 2026-08-20 (`8837f691`, PR #519) — and three of its spec's premises were false
+against `dev`.** Recorded as `DD-BIMP-1..8`; the one that mattered: `0072`'s idempotency key
+includes `import_batch_id` and the wizard mints a fresh uuid per mount, so **a re-import in a new
+session misses the skip entirely** — the only cross-batch layer there is a dry-run *report*. An
+importer built to that shape passes its own tests and duplicates every budget on run two. Budgets
+are re-keyed on `import_key` alone; **the procurement path still carries the batch-scoped key**, and
+re-keying it is its own decision with its own backfill question. Two further finds: `database.types.ts`
+was stale by `0193`/`0195`, and every importer's wizard has been titled *"Import companies"* since
+the first fast-follow — caught by rendering, not by any test.
+
+**⚑ Both pi substrates were rate-capped mid-session (2026-08-20).** codex exhausted, GLM at its
+5-hour cap. The ADW planner produced a correct *refusal* and then could not even emit it — the
+`PlanOutput` schema has no `blocked` status, so a legitimate "I will not invent this" costs three
+retries and dies as a JSON parse error. #495 was finished Director-dispatched instead of waiting.
 
 **Shipped 2026-08-19/20:** #477 · #478 (go-live blocker) · #480 · #482 · #484 · #485 · #486 · #488 ·
 #489 · #491 · #493 · #494 · #498 work_orders · #500 · #501 · #504 · #508 · #510 · #511 · #515–#517.
