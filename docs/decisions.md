@@ -1996,3 +1996,28 @@ currency/tax hunks were applied to keep the diff reviewable.
 **Vendor invoices need the same treatment** — `procurement_invoices.amount` (added in `0040`) carries the
 identical ambiguity. Scoped out deliberately because it needs a definer-RPC signature change with
 PostgREST overload risk and multiple callers. **#505**, same deadline class as #478.
+
+## DD-VI-1..2 — vendor-invoice tax: the two questions #505 could not settle (Director, 2026-08-20)
+
+Surfaced by the #505 investigation, which correctly refused to guess them.
+
+**[DD-VI-1] A vendor invoice with NO amount carries NO tax marker — enforced by a PAIRED check, not
+by making the marker unconditional.** `procurement_invoices.amount` is nullable (`0040:27`) and the
+shipped importer explicitly allows amount-less VI rows
+(`src/lib/import/procurementCycle/validate.ts:138-143`). A `NOT NULL tax_treatment` would therefore
+demand a tax treatment for a figure that does not exist, and would break a shipped path. The honest
+constraint is `(amount is null) = (tax_amount is null)`: **either you have a figure and its
+treatment, or you have neither.** A marker without an amount is not conservative, it is noise — and
+noise in a money column is how the next person mis-reads it.
+
+**[DD-VI-2] An import row with no tax column is REJECTED, not defaulted.** `0188` forbids a DB
+default; it does not forbid an importer-side ruling, and the investigation was right that this was
+open. Ruling: reject. Applying an org-wide default at import is exactly the silent-wrong-value this
+whole class exists to prevent — and it would be applied to *historical* rows, where nobody is
+watching. The cost of rejecting is low by construction: the wizard validates **client-side with zero
+writes** (`OD-SEED-2`), so a rejected sheet is a message, not a cleanup. RIS adds a tax column before
+import, and the answer gets stated per invoice, which is the point.
+
+⚑ Carried from the investigation: **do not copy `0188`'s last line.** It ends with
+`grant insert (...) on public.sales_invoices to authenticated`; `procurement_invoices` does not have
+the same grant shape, and importing that step unexamined would widen a surface nobody asked to widen.
