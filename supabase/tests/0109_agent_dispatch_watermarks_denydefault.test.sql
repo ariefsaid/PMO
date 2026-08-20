@@ -14,8 +14,17 @@
 -- tables, so those same statements now raise 42501 at the privilege check BEFORE RLS is evaluated.
 -- The assertions therefore switched from "affects 0 rows" to throws_ok 42501 — strictly STRONGER
 -- (anon can no longer even attempt the statement). This is a test STRENGTHENING, not a weakening-
--- to-pass. (The authenticated assertions are unchanged: authenticated keeps full RLS-gated DML, so
--- its UPDATE still reaches RLS and affects 0 rows.)
+-- to-pass.
+--
+-- SECOND MECHANISM CHANGE (migration 0193_dead_authenticated_write_grants.sql, #511) — the same move,
+-- now for the `authenticated` half, and for the same reason. The parenthetical that used to end this
+-- header ("the authenticated assertions are unchanged: authenticated keeps full RLS-gated DML, so its
+-- UPDATE still reaches RLS and affects 0 rows") described exactly the residue #511 swept: this table
+-- has RLS forced and NO policy of any kind, so `authenticated`'s INSERT/UPDATE/DELETE from 0075's
+-- blanket grant could never succeed. 0193 revoked them, so the authenticated UPDATE — previously
+-- asserted as "affects 0 rows" — is now refused at 42501 before RLS. GOAL-ORACLE unchanged
+-- ("authenticated cannot mutate agent_dispatch_watermarks"); the barrier proving it is now the
+-- privilege check rather than RLS alone. The fixture-survival assertion is untouched.
 begin;
 select plan(9);
 
@@ -84,16 +93,12 @@ select is(
 select throws_ok(
   $$ insert into agent_dispatch_watermarks (source) values ('0109-auth-insert') $$,
   '42501', null,
-  'sec-LOW-1: authenticated (even Admin) INSERT denied (default-deny, no INSERT policy)');
+  'sec-LOW-1: authenticated (even Admin) INSERT denied (0193 revoked the dead INSERT grant; no INSERT policy either)');
 
-with upd as (
-  update agent_dispatch_watermarks set last_seen_at = now()
-    where source = '0109-fixture-source'
-  returning source)
-select is(
-  (select count(*)::int from upd),
-  0,
-  'sec-LOW-1: authenticated (even Admin) UPDATE affects 0 rows (default-deny — row invisible)');
+select throws_ok(
+  $$ update agent_dispatch_watermarks set last_seen_at = now() where source = '0109-fixture-source' $$,
+  '42501', null,
+  'sec-LOW-1: authenticated (even Admin) UPDATE denied (0193 revoked the dead UPDATE grant; no UPDATE policy either)');
 
 reset role;
 
