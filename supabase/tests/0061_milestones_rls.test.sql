@@ -22,11 +22,11 @@ insert into profiles (id, org_id, full_name, email, role) values
 insert into companies (id, org_id, name, type) values
   ('00610000-0000-0000-0000-000000000010','00000000-0000-0000-0000-000000000001','MS Client','Client');
 
-insert into projects (id, org_id, code, name, status, client_id, project_manager_id, contract_value) values
+insert into projects (id, org_id, code, name, status, client_id, project_manager_id, contract_value, tax_treatment, tax_amount) values
   ('00610000-0000-0000-0000-000000000020','00000000-0000-0000-0000-000000000001',
    'MS-001','MS Test Project','Ongoing Project',
    '00610000-0000-0000-0000-000000000010',
-   '00610000-0000-0000-0000-0000000000a1',1000000);
+   '00610000-0000-0000-0000-0000000000a1',1000000,'exclusive',0);
 
 -- Seed a milestone as owner (bypasses RLS) for read/update tests.
 insert into project_milestones (id, org_id, project_id, name, sort_order) values

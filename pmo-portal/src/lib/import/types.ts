@@ -27,6 +27,20 @@ export interface ImportDescriptor<Input> {
   /** Display name + sheet-name match ("Companies"). */
   entity: string;
   fields: ImportField<Input>[];
+  /**
+   * OPTIONAL cross-field row rule, run after every per-cell `validate` (#513).
+   *
+   * Some constraints are not properties of one cell: 0197's
+   * `check (contract_value = 0 or (tax_treatment is not null and tax_amount is not null))` is a
+   * relationship BETWEEN cells, so no `FieldValidate` can see it. Returns a sparse map keyed by
+   * `field.key`, merged into the row's errors — key it to the field the user must fix so the
+   * preview shows the message on that column.
+   *
+   * ⛔ This runs at PREVIEW, where the row is rejected with ZERO writes. The DB would reject it
+   * too, but only after the commit had started writing the rest of the sheet; preview being the
+   * oracle is the importer's whole contract.
+   */
+  validateRow?: (cells: Record<string, string>) => Partial<Record<string, string>>;
   /** Mapped cells → the entity's create `Input` (trims, casts; emits NO org_id). */
   toInput: (cells: Record<string, string>) => Input;
   /** The entity's existing create repository fn. RLS stamps org_id + gates the role. */

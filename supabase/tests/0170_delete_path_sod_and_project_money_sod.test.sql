@@ -394,8 +394,8 @@ select is(
 set local role authenticated;
 set local request.jwt.claims =
   '{"sub":"01700000-0000-0000-0000-0000000000a1","role":"authenticated"}';
-insert into public.projects (id, org_id, name, status, contract_value) values
-  ('01700000-0000-0000-0000-0000000000b3','01700000-0000-0000-0000-000000000001','DPS Self-set deal','Leads',99999999);
+insert into public.projects (id, org_id, name, status, contract_value, tax_treatment, tax_amount) values
+  ('01700000-0000-0000-0000-0000000000b3','01700000-0000-0000-0000-000000000001','DPS Self-set deal','Leads',99999999,'exclusive',0);
 reset role;
 
 select is(
@@ -454,7 +454,7 @@ set local role authenticated;
 set local request.jwt.claims =
   '{"sub":"01700000-0000-0000-0000-0000000000a4","role":"authenticated"}';
 select lives_ok(
-  $$ select set_project_contract_value('01700000-0000-0000-0000-0000000000b3'::uuid, 500000) $$,
+  $$ select set_project_contract_value('01700000-0000-0000-0000-0000000000b3'::uuid, 500000, p_tax_treatment => 'exclusive', p_tax_amount => 0) $$,
   'AC-PMS-014 CONTROL a FINANCE user (who outranks a PM) re-sets the value through the SoD-scoped RPC');
 reset role;
 select is(
@@ -487,8 +487,8 @@ select is(
 set local role authenticated;
 set local request.jwt.claims =
   '{"sub":"01700000-0000-0000-0000-0000000000a4","role":"authenticated"}';
-insert into public.projects (id, org_id, name, status, contract_value) values
-  ('01700000-0000-0000-0000-0000000000b4','01700000-0000-0000-0000-000000000001','DPS Finance deal','Leads',88888);
+insert into public.projects (id, org_id, name, status, contract_value, tax_treatment, tax_amount) values
+  ('01700000-0000-0000-0000-0000000000b4','01700000-0000-0000-0000-000000000001','DPS Finance deal','Leads',88888,'exclusive',0);
 select lives_ok(
   $$ select transition_project('01700000-0000-0000-0000-0000000000b4'::uuid,'PQ Submitted'::project_status);
      select transition_project('01700000-0000-0000-0000-0000000000b4'::uuid,'Quotation Submitted'::project_status);
@@ -513,8 +513,8 @@ reset role;
 
 -- ── FAIL-CLOSED on a NULL witness (the pre-0177 rows that cannot be backfilled) ─────────────────
 -- The witness is forced NULL as the table owner to reproduce exactly what a legacy row looks like.
-insert into public.projects (id, org_id, name, status, contract_value) values
-  ('01700000-0000-0000-0000-0000000000b6','01700000-0000-0000-0000-000000000001','DPS Legacy deal','Negotiation',700000);
+insert into public.projects (id, org_id, name, status, contract_value, tax_treatment, tax_amount) values
+  ('01700000-0000-0000-0000-0000000000b6','01700000-0000-0000-0000-000000000001','DPS Legacy deal','Negotiation',700000,'exclusive',0);
 update public.projects set contract_value_set_by = null, contract_value_set_at = null
   where id = '01700000-0000-0000-0000-0000000000b6';
 
@@ -552,8 +552,8 @@ select ok(
 --   would make this control pass for the wrong reason. Clear the claims so auth.uid() is genuinely
 --   NULL — the real service-role / seed.sql / importer condition.
 set local request.jwt.claims = '';
-insert into public.projects (id, org_id, name, status, contract_value) values
-  ('01700000-0000-0000-0000-0000000000b7','01700000-0000-0000-0000-000000000001','DPS Seeded deal','Negotiation',400000);
+insert into public.projects (id, org_id, name, status, contract_value, tax_treatment, tax_amount) values
+  ('01700000-0000-0000-0000-0000000000b7','01700000-0000-0000-0000-000000000001','DPS Seeded deal','Negotiation',400000,'exclusive',0);
 select ok(
   (select contract_value_set_by is null and contract_value_set_at is not null
      from public.projects where id = '01700000-0000-0000-0000-0000000000b7'),
@@ -575,8 +575,8 @@ reset role;
 set local role authenticated;
 set local request.jwt.claims =
   '{"sub":"01700000-0000-0000-0000-0000000000a1","role":"authenticated"}';
-insert into public.projects (id, org_id, name, status, contract_value) values
-  ('01700000-0000-0000-0000-0000000000b8','01700000-0000-0000-0000-000000000001','DPS Full journey','Leads',250000);
+insert into public.projects (id, org_id, name, status, contract_value, tax_treatment, tax_amount) values
+  ('01700000-0000-0000-0000-0000000000b8','01700000-0000-0000-0000-000000000001','DPS Full journey','Leads',250000,'exclusive',0);
 select lives_ok(
   $$ select transition_project('01700000-0000-0000-0000-0000000000b8'::uuid,'PQ Submitted'::project_status);
      select transition_project('01700000-0000-0000-0000-0000000000b8'::uuid,'Quotation Submitted'::project_status);
@@ -593,7 +593,7 @@ set local request.jwt.claims =
 --   value actually CHANGED, so this call was a no-op and the legitimate two-person path DEADLOCKED —
 --   this control is what caught it. Setting the value to what it already holds is still authorship.
 select lives_ok(
-  $$ select set_project_contract_value('01700000-0000-0000-0000-0000000000b8'::uuid, 250000) $$,
+  $$ select set_project_contract_value('01700000-0000-0000-0000-0000000000b8'::uuid, 250000, p_tax_treatment => 'exclusive', p_tax_amount => 0) $$,
   'AC-PMS-020 CONTROL an Admin ratifies the value at the SAME figure — the ONE extra act the rule asks for');
 reset role;
 select is(

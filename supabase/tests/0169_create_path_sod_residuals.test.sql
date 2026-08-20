@@ -72,8 +72,8 @@ insert into projects (id, org_id, name, status) values
   ('01690000-0000-0000-0000-0000000000b1','01690000-0000-0000-0000-000000000001','RES Project','Internal Project');
 
 -- A pipeline deal for the transition-audit assertions (section E).
-insert into projects (id, org_id, name, status, contract_value) values
-  ('01690000-0000-0000-0000-0000000000b2','01690000-0000-0000-0000-000000000001','RES Pipeline Deal','Negotiation',400000);
+insert into projects (id, org_id, name, status, contract_value, tax_treatment, tax_amount) values
+  ('01690000-0000-0000-0000-0000000000b2','01690000-0000-0000-0000-000000000001','RES Pipeline Deal','Negotiation',400000,'exclusive',0);
 
 -- An existing SI mirror row (as the service-role writer would have landed it) — the UPDATE/DELETE
 -- forgery targets in section B.
@@ -410,9 +410,9 @@ set local role authenticated;
 set local request.jwt.claims =
   '{"sub":"01690000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 select lives_ok(
-  $$ insert into public.projects (id, org_id, name, status, contract_value)
+  $$ insert into public.projects (id, org_id, name, status, contract_value, tax_treatment, tax_amount)
        values ('01690000-0000-0000-0000-0000000000b3','01690000-0000-0000-0000-000000000001',
-               'RES Self-won deal','Leads', 99999999) $$,
+               'RES Self-won deal','Leads', 99999999, 'exclusive', 0) $$,
   'AC-RES-032 a PM may still ORIGINATE a Lead at contract_value 99999999 — the opportunity value is theirs to propose');
 select lives_ok(
   $$ select transition_project('01690000-0000-0000-0000-0000000000b3'::uuid,'PQ Submitted'::project_status) $$,

@@ -3524,6 +3524,10 @@ export type Database = {
           spent: number
           start_date: string | null
           status: Database["public"]["Enums"]["project_status"]
+          tax_amount: number | null
+          tax_rate: number | null
+          tax_template: string | null
+          tax_treatment: string | null
         }
         Insert: {
           archived_at?: string | null
@@ -3550,6 +3554,10 @@ export type Database = {
           spent?: number
           start_date?: string | null
           status?: Database["public"]["Enums"]["project_status"]
+          tax_amount?: number | null
+          tax_rate?: number | null
+          tax_template?: string | null
+          tax_treatment?: string | null
         }
         Update: {
           archived_at?: string | null
@@ -3576,6 +3584,10 @@ export type Database = {
           spent?: number
           start_date?: string | null
           status?: Database["public"]["Enums"]["project_status"]
+          tax_amount?: number | null
+          tax_rate?: number | null
+          tax_template?: string | null
+          tax_treatment?: string | null
         }
         Relationships: [
           {
@@ -5198,6 +5210,7 @@ export type Database = {
       get_project_drawdown: {
         Args: { p_project_id: string }
         Returns: {
+          basis: string
           ceiling: number
           committed: number
           currency: string
@@ -5716,7 +5729,14 @@ export type Database = {
         }[]
       }
       set_project_contract_value: {
-        Args: { p_id: string; p_value: number }
+        Args: {
+          p_id: string
+          p_tax_amount?: number
+          p_tax_rate?: number
+          p_tax_template?: string
+          p_tax_treatment?: string
+          p_value: number
+        }
         Returns: undefined
       }
       set_work_order_value: {

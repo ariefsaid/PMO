@@ -62,13 +62,13 @@ insert into profiles (id, org_id, full_name, email, role, status, manager_id) va
 -- P2 = the drawdown playground (ceiling exactly 1000.00).
 -- P3 = a foreign-currency project, for the currency pin.
 -- P9 = cross-org.
-insert into projects (id, org_id, name, status, contract_value) values
-  ('01930000-0000-0000-0000-0000000000c1','01930000-0000-0000-0000-000000000001','WO SoD Project','Ongoing Project',1000000),
-  ('01930000-0000-0000-0000-0000000000c2','01930000-0000-0000-0000-000000000001','WO Ceiling Project','Ongoing Project',1000),
-  ('01930000-0000-0000-0000-0000000000c3','01930000-0000-0000-0000-000000000001','WO Currency Project','Ongoing Project',5000),
-  ('01930000-0000-0000-0000-0000000000c4','01930000-0000-0000-0000-000000000001','WO Ceiling Project 2','Ongoing Project',1000),
-  ('01930000-0000-0000-0000-0000000000c8','01930000-0000-0000-0000-000000000003','WO Flip Project','Ongoing Project',5000),
-  ('01930000-0000-0000-0000-0000000000c9','01930000-0000-0000-0000-000000000002','WO XOrg Project','Ongoing Project',5000);
+insert into projects (id, org_id, name, status, contract_value, tax_treatment, tax_amount) values
+  ('01930000-0000-0000-0000-0000000000c1','01930000-0000-0000-0000-000000000001','WO SoD Project','Ongoing Project',1000000,'exclusive',0),
+  ('01930000-0000-0000-0000-0000000000c2','01930000-0000-0000-0000-000000000001','WO Ceiling Project','Ongoing Project',1000,'exclusive',0),
+  ('01930000-0000-0000-0000-0000000000c3','01930000-0000-0000-0000-000000000001','WO Currency Project','Ongoing Project',5000,'exclusive',0),
+  ('01930000-0000-0000-0000-0000000000c4','01930000-0000-0000-0000-000000000001','WO Ceiling Project 2','Ongoing Project',1000,'exclusive',0),
+  ('01930000-0000-0000-0000-0000000000c8','01930000-0000-0000-0000-000000000003','WO Flip Project','Ongoing Project',5000,'exclusive',0),
+  ('01930000-0000-0000-0000-0000000000c9','01930000-0000-0000-0000-000000000002','WO XOrg Project','Ongoing Project',5000,'exclusive',0);
 
 insert into companies (id, org_id, name, type) values
   ('01930000-0000-0000-0000-0000000000f1','01930000-0000-0000-0000-000000000001','WO Client','Client');

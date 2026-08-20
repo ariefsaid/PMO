@@ -47,6 +47,16 @@ function renderModal(onSubmit = vi.fn().mockResolvedValue(undefined)) {
   return { onSubmit };
 }
 
+/**
+ * #513: a non-zero estimated value must state its tax basis before Create is enabled (migration
+ * 0197). The journey therefore gained a step — the GOAL each test asserts (the parsed number that
+ * reaches `onSubmit`) is unchanged; only the steps to reach it are.
+ */
+async function stateTaxBasis() {
+  await userEvent.selectOptions(screen.getByLabelText(/tax treatment/i), 'exclusive');
+  await userEvent.type(screen.getByLabelText(/tax amount/i), '0');
+}
+
 /** Fill the required fields (name + client) so value is the only gating factor. */
 async function fillRequired() {
   await userEvent.type(screen.getByLabelText(/project name/i), 'Test Project');
@@ -103,6 +113,7 @@ describe('AC-W3-NUM-001 ProjectFormModal — estimated value numeric validation'
     const { onSubmit } = renderModal();
     await fillRequired();
     await userEvent.type(screen.getByLabelText(/estimated value/i), '1500');
+    await stateTaxBasis();
     await userEvent.click(screen.getByRole('button', { name: /^Create project$/i }));
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
     expect(onSubmit.mock.calls[0][0]).toMatchObject({ contract_value: 1500 });
@@ -115,6 +126,7 @@ describe('AC-W3-NUM-001 ProjectFormModal — estimated value numeric validation'
     const { onSubmit } = renderModal();
     await fillRequired();
     await userEvent.type(screen.getByLabelText(/estimated value/i), '1e5');
+    await stateTaxBasis();
     await userEvent.click(screen.getByRole('button', { name: /^Create project$/i }));
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
     expect(onSubmit.mock.calls[0][0]).toMatchObject({ contract_value: 100000 });
@@ -124,6 +136,7 @@ describe('AC-W3-NUM-001 ProjectFormModal — estimated value numeric validation'
     const { onSubmit } = renderModal();
     await fillRequired();
     await userEvent.type(screen.getByLabelText(/estimated value/i), '4,820,000');
+    await stateTaxBasis();
     await userEvent.click(screen.getByRole('button', { name: /^Create project$/i }));
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
     expect(onSubmit.mock.calls[0][0]).toMatchObject({ contract_value: 4820000 });

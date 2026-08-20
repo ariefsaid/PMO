@@ -29,9 +29,9 @@ insert into profiles (id, org_id, full_name, email, role) values
 -- status = 'Ongoing Project' → included in active_committed CTE + top_projects.
 -- committed_spend / derived_budget = 95,000 / 100,000 = 95% ≥ 0.9 → AT RISK.
 -- With the bug (stored budget=0) the budget>0 guard EXCLUDES this project → count 0.
-insert into projects (id, org_id, name, status, contract_value, budget, spent) values
+insert into projects (id, org_id, name, status, contract_value, tax_treatment, tax_amount, budget, spent) values
   ('00750000-0000-0000-0000-000000000d01', '00750000-0000-0000-0000-000000000001',
-   'DERIVED_AT_RISK', 'Ongoing Project', 200000, 0, 0);
+   'DERIVED_AT_RISK', 'Ongoing Project', 200000, 'exclusive', 0, 0, 0);
 
 -- Budget version: insert as 'Draft' first (the enforce_draft_line_item trigger blocks inserts
 -- when the version is non-Draft), add line-items, then activate to 'Active'.

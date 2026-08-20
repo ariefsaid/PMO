@@ -257,7 +257,7 @@ const project: ProjectRepository = {
   updateHeader: (id, input) => wrap(() => updateProjectHeader(id, input)),
   archive: (id) => wrap(() => archiveProject(id)),
   delete: (id) => wrap(() => deleteProject(id)),
-  setContractValue: (id, value) => wrap(() => setProjectContractValue(id, value)),
+  setContractValue: (input) => wrap(() => setProjectContractValue(input)),
 };
 
 // BLOCK 2 (MONEY-CRITICAL): `newCommandIntent()` lives in ./commandIntent (a leaf module) and is

@@ -202,6 +202,16 @@ describe('ProjectDetailHeader — Edit + Archive affordances (gating)', () => {
   });
 });
 
+/**
+ * #513: a contract value may not be restated without restating its tax basis (migration 0197's RPC
+ * demands it on EVERY set). The journey therefore gained a step — the GOAL these tests assert (the
+ * value reaching the SoD RPC behind an audit confirm) is unchanged; only the steps to reach it are.
+ */
+async function stateTaxBasis() {
+  await userEvent.selectOptions(screen.getByLabelText(/tax treatment/i), 'exclusive');
+  await userEvent.type(screen.getByLabelText(/tax amount/i), '565400');
+}
+
 // ── AC-PRJ-006 contract_value SoD (ADR-0019) ─────────────────────────────────
 describe('ProjectDetailHeader — contract_value SoD treatment', () => {
   // Model B (ADR-0020, AC-IXD-PROJ-004): a pre-win (pipeline) deal renders the PipelineLens,
@@ -235,6 +245,7 @@ describe('ProjectDetailHeader — contract_value SoD treatment', () => {
     const input = screen.getByRole('textbox', { name: /Contract value/i });
     await userEvent.clear(input);
     await userEvent.type(input, '5140000');
+    await stateTaxBasis();
     await userEvent.click(screen.getByRole('button', { name: /^Save$/i }));
     // Audit confirm appears; the RPC is NOT called until confirmed.
     expect(projectMutations.setContractValue.mutateAsync).not.toHaveBeenCalled();
@@ -242,8 +253,49 @@ describe('ProjectDetailHeader — contract_value SoD treatment', () => {
     expect(confirm).toHaveTextContent(/segregation of duties/i);
     await userEvent.click(within(confirm).getByRole('button', { name: /record/i }));
     await waitFor(() =>
-      expect(projectMutations.setContractValue.mutateAsync).toHaveBeenCalledWith({ id: 'p1', value: 5140000 }),
+      expect(projectMutations.setContractValue.mutateAsync).toHaveBeenCalledWith({
+        id: 'p1',
+        value: 5140000,
+        taxTreatment: 'exclusive',
+        taxAmount: 565400,
+      }),
     );
+  });
+
+  // ── #513: the ceiling may not be restated without restating what it means ──
+  it('#513: Save is blocked until the tax treatment is chosen, and the reason is on screen', async () => {
+    renderHeader('Finance', onHand);
+    await userEvent.click(screen.getByRole('button', { name: /Edit contract value/i }));
+    await userEvent.type(screen.getByLabelText(/tax amount/i), '565400');
+    // A value is present and the tax amount is stated, but nobody has said what the value MEANS.
+    expect(screen.getByRole('button', { name: /^Save$/i })).toBeDisabled();
+    expect(screen.getByTestId('contract-tax-required-hint')).toBeInTheDocument();
+    await userEvent.selectOptions(screen.getByLabelText(/tax treatment/i), 'exclusive');
+    expect(screen.getByRole('button', { name: /^Save$/i })).toBeEnabled();
+    expect(screen.queryByTestId('contract-tax-required-hint')).not.toBeInTheDocument();
+  });
+
+  it('#513: the treatment select opens with NOTHING chosen — never the backfilled value', async () => {
+    // 0197 backfilled every existing row to 'exclusive' to keep the arithmetic inert. Pre-selecting
+    // from the row would re-assert a marker no human ever stated — the defect, not the fix.
+    renderHeader('Finance', onHand);
+    await userEvent.click(screen.getByRole('button', { name: /Edit contract value/i }));
+    expect((screen.getByLabelText(/tax treatment/i) as HTMLSelectElement).value).toBe('');
+    expect(screen.getByRole('button', { name: /^Save$/i })).toBeDisabled();
+  });
+
+  it('#513: the SoD confirm names the basis the new value is stated on, not just the number', async () => {
+    renderHeader('Finance', onHand);
+    await userEvent.click(screen.getByRole('button', { name: /Edit contract value/i }));
+    const input = screen.getByRole('textbox', { name: /Contract value/i });
+    await userEvent.clear(input);
+    await userEvent.type(input, '5140000');
+    await userEvent.selectOptions(screen.getByLabelText(/tax treatment/i), 'inclusive');
+    await userEvent.type(screen.getByLabelText(/tax amount/i), '509000');
+    await userEvent.click(screen.getByRole('button', { name: /^Save$/i }));
+    const confirm = await screen.findByRole('dialog');
+    expect(confirm).toHaveTextContent(/inclusive/i);
+    expect(confirm).toHaveTextContent(/509,000/);
   });
 
   it('polish#4: the inline editor shows formatted thousands ($5,000,000) on open, not the raw number', async () => {
@@ -271,6 +323,7 @@ describe('ProjectDetailHeader — contract_value SoD treatment', () => {
     const input = screen.getByRole('textbox', { name: /Contract value/i });
     await userEvent.clear(input);
     await userEvent.type(input, '99');
+    await stateTaxBasis();
     await userEvent.click(screen.getByRole('button', { name: /^Save$/i }));
     const confirm = await screen.findByRole('dialog');
     await userEvent.click(within(confirm).getByRole('button', { name: /record/i }));

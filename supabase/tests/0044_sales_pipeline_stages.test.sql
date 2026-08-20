@@ -30,36 +30,36 @@ insert into pipeline_stage_config (org_id, status, win_probability) values
 
 -- ── Pipeline projects ─────────────────────────────────────────────────────────
 insert into projects (id, org_id, code, name, status, project_manager_id,
-                      contract_value, budget, spent)
+                      contract_value, budget, spent, tax_treatment, tax_amount)
 values
   -- Three Tender Submitted: 1,200,000 + 950,000 + 1,000,000 = 3,150,000
   ('44000000-0000-0000-0000-000000000001', '00440000-0000-0000-0000-000000000001',
    'TS001', 'Tender Project Alpha', 'Tender Submitted',
    '00440000-0000-0000-0000-0000000000a1',
-   1200000, 0, 0),
+   1200000, 0, 0, 'exclusive', 0),
   ('44000000-0000-0000-0000-000000000002', '00440000-0000-0000-0000-000000000001',
    'TS002', 'Tender Project Beta', 'Tender Submitted',
    '00440000-0000-0000-0000-0000000000a1',
-   950000, 0, 0),
+   950000, 0, 0, 'exclusive', 0),
   ('44000000-0000-0000-0000-000000000003', '00440000-0000-0000-0000-000000000001',
    'TS003', 'Tender Project Gamma', 'Tender Submitted',
    '00440000-0000-0000-0000-0000000000a1',
-   1000000, 0, 0),
+   1000000, 0, 0, 'exclusive', 0),
   -- One PQ Submitted: 800,000
   ('44000000-0000-0000-0000-000000000004', '00440000-0000-0000-0000-000000000001',
    'PQ001', 'PQ Project Delta', 'PQ Submitted',
    '00440000-0000-0000-0000-0000000000a1',
-   800000, 0, 0),
+   800000, 0, 0, 'exclusive', 0),
   -- One Ongoing Project — must NOT appear in pipeline stages
   ('44000000-0000-0000-0000-000000000005', '00440000-0000-0000-0000-000000000001',
    'ON001', 'Ongoing Project Epsilon', 'Ongoing Project',
    '00440000-0000-0000-0000-0000000000a1',
-   5000000, 4000000, 0),
+   5000000, 4000000, 0, 'exclusive', 0),
   -- One Loss Tender — must NOT appear in pipeline stages
   ('44000000-0000-0000-0000-000000000006', '00440000-0000-0000-0000-000000000001',
    'LT001', 'Lost Bid Zeta', 'Loss Tender',
    '00440000-0000-0000-0000-0000000000a1',
-   600000, 0, 0);
+   600000, 0, 0, 'exclusive', 0);
 
 -- ── Authenticate as the test-org Executive ────────────────────────────────────
 set local role authenticated;

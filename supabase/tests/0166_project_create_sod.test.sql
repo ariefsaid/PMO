@@ -55,9 +55,9 @@ insert into companies (id, org_id, name, type) values
 -- A pre-win pipeline project for the AC-PCS-007 regression control. Inserted as postgres (a
 -- BYPASSRLS server-side authority) — 'Negotiation' is not an origination status, so this row also
 -- exercises the exemption the header describes.
-insert into projects (id, org_id, name, status, client_id, contract_value) values
+insert into projects (id, org_id, name, status, client_id, contract_value, tax_treatment, tax_amount) values
   ('01660000-0000-0000-0000-0000000000b9','01660000-0000-0000-0000-000000000001',
-   'PCS Pipeline Deal','Negotiation','01660000-0000-0000-0000-0000000000c1', 400000);
+   'PCS Pipeline Deal','Negotiation','01660000-0000-0000-0000-0000000000c1', 400000, 'exclusive', 0);
 
 -- ════════════════════════════════════════════════════════════════════════════════════════════════
 -- AC-PCS-006 (FR-PCS-004) — the GRANT layer: `authenticated` holds no INSERT privilege on the three
@@ -145,9 +145,9 @@ select throws_ok(
 -- value still succeeds" is true either way and a reject-everything guard must still fail here.
 -- ════════════════════════════════════════════════════════════════════════════════════════════════
 select lives_ok(
-  $$ insert into public.projects (id, org_id, name, status, contract_value, client_id, project_manager_id)
+  $$ insert into public.projects (id, org_id, name, status, contract_value, tax_treatment, tax_amount, client_id, project_manager_id)
        values ('01660000-0000-0000-0000-0000000000b1','01660000-0000-0000-0000-000000000001',
-               'PCS Legitimate Lead','Leads', 250000.00,
+               'PCS Legitimate Lead','Leads', 250000.00, 'exclusive', 0,
                '01660000-0000-0000-0000-0000000000c1','01660000-0000-0000-0000-0000000000a1') $$,
   'AC-PCS-003 a legitimate Leads create WITH a contract_value still succeeds');
 

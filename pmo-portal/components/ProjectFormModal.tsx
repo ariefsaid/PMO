@@ -12,6 +12,12 @@ import {
 } from '@/src/components/ui';
 import { useClientCompanies, useProjectManagers } from '@/src/hooks/useProjects';
 import { parseMoneyInput } from '@/src/lib/format';
+import {
+  TAX_TREATMENT_OPTIONS,
+  TAX_TREATMENT_PLACEHOLDER,
+  CONTRACT_TAX_REQUIRED_HINT,
+  parseTaxFacts,
+} from '@/src/lib/taxTreatment';
 import { projectIconColor } from './projects';
 import {
   PROJECT_ORIGINATION_STATUSES,
@@ -62,8 +68,29 @@ interface FormValues {
   pmId: string | null;
   status: ProjectStatus;
   value: string;
+  /**
+   * #513: the basis the estimated value is stated on. ⛔ Starts EMPTY and gets no default — a
+   * defaulted marker is a WRONG value indistinguishable from a deliberate one, which is the defect
+   * migration 0197 exists to remove. Required only when the value is non-zero (see
+   * `needsTaxBasis`): a project originated at 0 states nothing and is asked nothing, exactly as the
+   * DB CHECK is written.
+   */
+  taxTreatment: string;
+  taxAmount: string;
   startDate: string;
   endDate: string;
+}
+
+/**
+ * Does an entered estimated value oblige the user to state its tax basis? Mirrors 0197's
+ * `check (contract_value = 0 or (tax_treatment is not null and tax_amount is not null))` — blank
+ * and 0 are exempt, everything else is not. Unparseable input is NOT treated as needing a basis:
+ * `moneyError` already blocks the submit with a format error, and demanding a tax treatment on top
+ * of "that isn't a number" is noise.
+ */
+function needsTaxBasis(valueRaw: string): boolean {
+  const n = parseMoneyInput(valueRaw);
+  return n !== null && n > 0;
 }
 
 const ORIGINATION_OPTIONS = PROJECT_ORIGINATION_STATUSES.map((s) => ({ value: s, label: s }));
@@ -123,6 +150,8 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
       pmId: initial?.project_manager_id ?? null,
       status: 'Leads',
       value: '',
+      taxTreatment: '',
+      taxAmount: '',
       startDate: initial?.start_date ?? '',
       endDate: initial?.end_date ?? '',
     },
@@ -143,6 +172,16 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
   const codeField = form.fieldProps('code');
   const statusField = form.fieldProps('status');
   const valueField = form.fieldProps('value');
+  const taxTreatmentField = form.fieldProps('taxTreatment');
+  const taxAmountField = form.fieldProps('taxAmount');
+
+  // #513: the ONE predicate — Create stays disabled AND `handleSubmit` refuses while a non-zero
+  // value has no stated basis, so the button state and the guard can never disagree. Never applies
+  // in editHeader mode: that form does not write `contract_value` at all (SoD → the detail-header
+  // RPC), so it has no basis to state.
+  const taxRequired = !isEdit && needsTaxBasis(form.values.value);
+  const parsedTax = parseTaxFacts(form.values.taxTreatment, form.values.taxAmount);
+  const taxIncomplete = taxRequired && parsedTax === null;
   const startField = form.fieldProps('startDate');
   const endField = form.fieldProps('endDate');
 
@@ -195,15 +234,33 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
           };
           await onSave(initial.id, input);
         } else if (onSubmit) {
-          const input: CreateProjectInput = {
+          const base = {
             name: values.name.trim(),
             status: values.status,
             client_id: values.clientId,
             project_manager_id: values.pmId,
-            contract_value: parseMoneyInput(values.value) ?? 0,
             start_date: values.startDate || null,
             end_date: values.endDate || null,
           };
+          const contractValue = parseMoneyInput(values.value) ?? 0;
+          // #513: the basis travels WITH the value or the value is 0. `CreateProjectInput` is a
+          // union on exactly this rule, so the branch below is not defensive style — it is the only
+          // shape that compiles, and a non-zero value with no basis cannot be built here.
+          let input: CreateProjectInput;
+          if (contractValue > 0) {
+            const tax = parseTaxFacts(values.taxTreatment, values.taxAmount);
+            // Unreachable through the UI (Create is disabled) — but submitting without the basis
+            // would surface the CHECK violation AFTER the user pressed Create.
+            if (!tax) return;
+            input = {
+              ...base,
+              contract_value: contractValue,
+              tax_treatment: tax.taxTreatment,
+              tax_amount: tax.taxAmount,
+            };
+          } else {
+            input = { ...base, contract_value: 0 };
+          }
           await onSubmit(input);
         }
       } catch (err) {
@@ -224,7 +281,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
       onClose={onClose}
       loading={form.isSubmitting}
       dirty={form.isDirty}
-      submitDisabled={!form.isComplete}
+      submitDisabled={!form.isComplete || taxIncomplete}
       errorSummary={errorSummary.length ? errorSummary : undefined}
     >
       <FormSection legend="Project">
@@ -309,6 +366,44 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
                 placeholder="0"
                 helper="Estimate, pre-win. Editable by Admin, Executive, and PM."
               />
+              {/* #513: asked ONLY once a non-zero value is entered — a project originated at 0
+                  states nothing and is asked nothing (migration 0197's conditional CHECK). No
+                  pre-selected treatment: the select starts empty and Create stays disabled, with
+                  the hint below saying why. Options/placeholder/parse are single-sourced in
+                  src/lib/taxTreatment.ts, shared with the vendor-invoice forms. */}
+              {taxRequired && (
+                <>
+                  <SelectField
+                    id={taxTreatmentField.id}
+                    label="Tax treatment"
+                    required
+                    value={taxTreatmentField.value}
+                    onChange={taxTreatmentField.onChange}
+                    placeholder={TAX_TREATMENT_PLACEHOLDER}
+                    options={TAX_TREATMENT_OPTIONS}
+                    data-testid="project-tax-treatment"
+                  />
+                  <NumberField
+                    id={taxAmountField.id}
+                    label="Tax amount"
+                    required
+                    prefix="$"
+                    value={taxAmountField.value}
+                    onChange={taxAmountField.onChange}
+                    onBlur={taxAmountField.onBlur}
+                    placeholder="0"
+                    data-testid="project-tax-amount"
+                  />
+                  {taxIncomplete && (
+                    <p
+                      data-testid="project-tax-required-hint"
+                      className="col-span-full text-[12px] text-muted-foreground"
+                    >
+                      {CONTRACT_TAX_REQUIRED_HINT}
+                    </p>
+                  )}
+                </>
+              )}
             </>
           )}
         </FormGrid>

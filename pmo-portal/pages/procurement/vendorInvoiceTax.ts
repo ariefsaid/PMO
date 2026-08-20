@@ -4,69 +4,44 @@
  *
  * `VIInlineCapture` (ProcurementDecisionZone.tsx) and `RecordCaptureForm kind="vendor_invoice"`
  * (RecordCaptureForm.tsx) both render the tax treatment + tax amount controls. The OPTIONS and the
- * PARSE/VALIDATE rule live here so the two paths cannot silently diverge — the same reason the
- * `vi-*` testids are single-sourced in vendorInvoiceTestIds.ts.
+ * PARSE/VALIDATE rule live in `@/src/lib/taxTreatment` and are re-exported here — #513 gave
+ * `projects.contract_value` the same four columns and the same two-value domain, so the generic
+ * half moved to a domain-neutral module rather than being copied a second time. This module keeps
+ * the vendor-invoice-SPECIFIC half: the invoice-worded required hint, and the flipped-org rules
+ * (`taxIsPmoAuthored` / `ERP_AUTHORED_TAX`) that only exist because the procurement domain can be
+ * ERP-owned. The re-exports keep both entry points' imports (and their tests) unchanged.
  *
  * ⛔ There is deliberately NO default treatment exported from this module. `tax_treatment` is NOT
  * NULL with no DB default precisely because a defaulted marker is a WRONG value indistinguishable
  * from a deliberate one — the user must choose, so the select starts empty and submit stays blocked.
  */
 import type { TaxTreatment } from '@/src/lib/db/procurementLifecycle';
-import { parseMoneyInput } from '@/src/lib/format';
+import { parseTaxFacts, type ParsedTaxFacts } from '@/src/lib/taxTreatment';
 import { routeDomainWrite } from '@/src/lib/adapterSeam/ownershipCache';
 
-/**
- * The two-value domain, phrased as the question the user is actually answering. The DB CHECK is
- * `tax_treatment in ('inclusive','exclusive')` — these values are that domain verbatim.
- */
-export const TAX_TREATMENT_OPTIONS: { value: TaxTreatment; label: string }[] = [
-  { value: 'inclusive', label: 'Inclusive — the amount already includes tax' },
-  { value: 'exclusive', label: 'Exclusive — tax is on top of the amount' },
-];
-
-/** Placeholder for the empty (nothing-chosen-yet) state of the treatment select. */
-export const TAX_TREATMENT_PLACEHOLDER = '— choose —';
+export { TAX_TREATMENT_OPTIONS, TAX_TREATMENT_PLACEHOLDER } from '@/src/lib/taxTreatment';
 
 /**
  * #505 code-quality follow-up: the "why is submit blocked" hint, shown by both entry points when
  * `parseVendorInvoiceTax(...) === null`. Was a duplicated string literal (kept aligned only by a
  * "⚠ KEEP IN SYNC" code comment) in `VIInlineCapture` (ProcurementDecisionZone.tsx) and
  * `RecordCaptureForm kind="vendor_invoice"` — single-sourced here for the same reason as
- * TAX_TREATMENT_OPTIONS/PLACEHOLDER above, and the `vi-*` testids in vendorInvoiceTestIds.ts.
+ * TAX_TREATMENT_OPTIONS/PLACEHOLDER, and the `vi-*` testids in vendorInvoiceTestIds.ts.
  */
 export const VI_TAX_REQUIRED_HINT =
   'State the tax treatment and the tax amount to record this invoice — enter 0 if there is no ' +
   'tax. Whether the amount already includes tax cannot be worked out afterwards.';
 
 /** The parsed, RPC-ready tax facts. */
-export interface ParsedVendorInvoiceTax {
-  taxTreatment: TaxTreatment;
-  taxAmount: number;
-}
+export type ParsedVendorInvoiceTax = ParsedTaxFacts;
 
 /**
- * Parses the two raw form values, returning null when the form is NOT yet submittable.
- *
- * Rejects: an unchosen (or out-of-domain) treatment; a blank, non-numeric, negative or non-finite
- * tax amount. `0` is explicitly VALID — it is the "no tax on this invoice" answer, and 0 never
- * means "unknown" (0196's column comment). Callers use `parseVendorInvoiceTax(...) === null` as the
- * submit-disabled predicate AND as the guard at submit time, so the two can never disagree.
- *
- * The amount goes through `parseMoneyInput` — "the single parse used for BOTH validation and
- * persistence" (format.ts) — rather than a local `Number()` parse, so this field can never diverge
- * from every other money field in the app (the #468 locale defect is fixed once, in format.ts, not
- * re-introduced here).
+ * Parses the two raw vendor-invoice form values, returning null when the form is NOT yet
+ * submittable. The rule itself lives in `parseTaxFacts` (see it for why `0` is valid and why the
+ * amount goes through `parseMoneyInput` rather than a local `Number()` parse); this alias keeps
+ * the vendor-invoice call sites reading in their own domain's words.
  */
-export function parseVendorInvoiceTax(
-  treatmentRaw: string,
-  amountRaw: string,
-): ParsedVendorInvoiceTax | null {
-  const treatment = TAX_TREATMENT_OPTIONS.find((o) => o.value === treatmentRaw)?.value;
-  if (!treatment) return null;
-  const taxAmount = parseMoneyInput(amountRaw);
-  if (taxAmount === null || taxAmount < 0) return null;
-  return { taxTreatment: treatment, taxAmount };
-}
+export const parseVendorInvoiceTax = parseTaxFacts;
 
 /**
  * Is the tax treatment PMO's to ask for on this org?
@@ -102,3 +77,6 @@ export const ERP_AUTHORED_TAX: ParsedVendorInvoiceTax = {
   taxTreatment: 'inclusive',
   taxAmount: 0,
 };
+
+/** Re-exported so call sites that annotate a treatment do not reach across into the DAL module. */
+export type { TaxTreatment };

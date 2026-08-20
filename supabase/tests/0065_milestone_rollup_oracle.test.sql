@@ -16,16 +16,16 @@ insert into profiles (id, org_id, full_name, email, role) values
 insert into companies (id, org_id, name, type) values
   ('00650000-0000-0000-0000-000000000010','00000000-0000-0000-0000-000000000001','RO Client','Client');
 
-insert into projects (id, org_id, code, name, status, client_id, project_manager_id, budget, contract_value) values
+insert into projects (id, org_id, code, name, status, client_id, project_manager_id, budget, contract_value, tax_treatment, tax_amount) values
   ('00650000-0000-0000-0000-000000000020','00000000-0000-0000-0000-000000000001',
    'RO-001','Rollup Test Project','Ongoing Project',
    '00650000-0000-0000-0000-000000000010',
-   '00650000-0000-0000-0000-0000000000a1',100000,100000),
+   '00650000-0000-0000-0000-0000000000a1',100000,100000,'exclusive',0),
   -- empty project (no milestones) for the summary-row check
   ('00650000-0000-0000-0000-000000000021','00000000-0000-0000-0000-000000000001',
    'RO-002','Empty Project','Ongoing Project',
    '00650000-0000-0000-0000-000000000010',
-   '00650000-0000-0000-0000-0000000000a1',100000,100000);
+   '00650000-0000-0000-0000-0000000000a1',100000,100000,'exclusive',0);
 
 -- Migration 0033 derives budget from Active budget-version line-items (not stored p.budget).
 -- Add Active version for Empty Project (00000021, budget=100,000) so the no-milestones budget

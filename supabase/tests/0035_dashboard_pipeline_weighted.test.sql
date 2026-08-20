@@ -28,26 +28,26 @@ insert into pipeline_stage_config (org_id, status, win_probability) values
 
 -- ── Pipeline projects ─────────────────────────────────────────────────────────
 insert into projects (id, org_id, code, name, status, project_manager_id,
-                      contract_value, budget, spent)
+                      contract_value, budget, spent, tax_treatment, tax_amount)
 values
   -- Three Tender Submitted: 1,200,000 + 950,000 + 1,000,000 = 3,150,000 × 0.500 = 1,575,000
   ('35000000-0000-0000-0000-000000000001', '00350000-0000-0000-0000-000000000001',
    'TS001', 'Pipeline Deal Alpha', 'Tender Submitted',
    '00350000-0000-0000-0000-0000000000a1',
-   1200000, 0, 0),
+   1200000, 0, 0, 'exclusive', 0),
   ('35000000-0000-0000-0000-000000000002', '00350000-0000-0000-0000-000000000001',
    'TS002', 'Pipeline Deal Beta', 'Tender Submitted',
    '00350000-0000-0000-0000-0000000000a1',
-   950000, 0, 0),
+   950000, 0, 0, 'exclusive', 0),
   ('35000000-0000-0000-0000-000000000003', '00350000-0000-0000-0000-000000000001',
    'TS003', 'Pipeline Deal Gamma', 'Tender Submitted',
    '00350000-0000-0000-0000-0000000000a1',
-   1000000, 0, 0),
+   1000000, 0, 0, 'exclusive', 0),
   -- One PQ Submitted: 800,000 × 0.250 = 200,000
   ('35000000-0000-0000-0000-000000000004', '00350000-0000-0000-0000-000000000001',
    'PQ001', 'Pipeline Deal Delta', 'PQ Submitted',
    '00350000-0000-0000-0000-0000000000a1',
-   800000, 0, 0);
+   800000, 0, 0, 'exclusive', 0);
 
 -- ── Authenticate as the test-org Executive ────────────────────────────────────
 set local role authenticated;

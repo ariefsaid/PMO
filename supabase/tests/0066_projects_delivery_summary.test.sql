@@ -21,13 +21,13 @@ insert into companies (id, org_id, name, type) values
   ('00660000-0000-0000-0000-000000000010','00000000-0000-0000-0000-000000000001','Summary Client A','Client'),
   ('00660000-0000-0000-0000-000000000011','00660000-0000-0000-0000-000000000002','Summary Client B','Client');
 
-insert into projects (id, org_id, code, name, status, client_id, project_manager_id, budget, contract_value) values
+insert into projects (id, org_id, code, name, status, client_id, project_manager_id, budget, contract_value, tax_treatment, tax_amount) values
   ('00660000-0000-0000-0000-000000000020','00000000-0000-0000-0000-000000000001',
    'SUM-001','Summary Project A','Ongoing Project',
-   '00660000-0000-0000-0000-000000000010','00660000-0000-0000-0000-0000000000a1',900000,1200000),
+   '00660000-0000-0000-0000-000000000010','00660000-0000-0000-0000-0000000000a1',900000,1200000,'exclusive',0),
   ('00660000-0000-0000-0000-000000000021','00660000-0000-0000-0000-000000000002',
    'SUM-002','Summary Project B','Ongoing Project',
-   '00660000-0000-0000-0000-000000000011','00660000-0000-0000-0000-0000000000b1',700000,900000);
+   '00660000-0000-0000-0000-000000000011','00660000-0000-0000-0000-0000000000b1',700000,900000,'exclusive',0);
 
 -- Migration 0033 derives budget from Active budget-version line-items (not stored p.budget).
 -- Add Active version for Summary Project A (budget=900,000) so get_projects_delivery returns

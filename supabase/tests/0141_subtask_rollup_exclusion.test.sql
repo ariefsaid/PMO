@@ -31,16 +31,16 @@ insert into profiles (id, org_id, full_name, email, role) values
 insert into companies (id, org_id, name, type) values
   ('01550000-0000-0000-0000-000000000010','00000000-0000-0000-0000-000000000001','Sub Client','Client');
 
-insert into projects (id, org_id, code, name, status, client_id, project_manager_id, budget, contract_value) values
+insert into projects (id, org_id, code, name, status, client_id, project_manager_id, budget, contract_value, tax_treatment, tax_amount) values
   ('01550000-0000-0000-0000-000000000020','00000000-0000-0000-0000-000000000001',
    'SUB-001','Subtask Rollup Project','Ongoing Project',
    '01550000-0000-0000-0000-000000000010',
-   '01550000-0000-0000-0000-0000000000a1',100000,100000),
+   '01550000-0000-0000-0000-0000000000a1',100000,100000,'exclusive',0),
   -- SUB-002: a clean single-milestone project dedicated to the project-level delivery_pct proof.
   ('01550000-0000-0000-0000-000000000021','00000000-0000-0000-0000-000000000001',
    'SUB-002','Single-Milestone Subtask Project','Ongoing Project',
    '01550000-0000-0000-0000-000000000010',
-   '01550000-0000-0000-0000-0000000000a1',100000,100000);
+   '01550000-0000-0000-0000-0000000000a1',100000,100000,'exclusive',0);
 
 -- SUB-002's single milestone (weight 10) — the unambiguous project-level delivery_pct proof.
 insert into project_milestones (id, org_id, project_id, name, weight, sort_order) values

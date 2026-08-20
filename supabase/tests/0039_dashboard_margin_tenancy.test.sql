@@ -19,16 +19,16 @@ insert into profiles (id, org_id, full_name, email, role) values
 -- Org A: two Ongoing Projects — contract_value = 4,000,000 + 6,000,000 = 10,000,000
 -- spent = 0 via procurement basis (no POs); on_hand_margin = (10M - 0) / 10M = 1.0
 insert into projects (id, org_id, code, name, status, project_manager_id,
-                      contract_value, budget, spent)
+                      contract_value, budget, spent, tax_treatment, tax_amount)
 values
   ('39000000-0000-0000-0000-000000000001', '00390000-0000-0000-0000-000000000001',
    'A001', 'Org A Project 1', 'Ongoing Project',
    '00390000-0000-0000-0000-0000000000a1',
-   4000000, 3500000, 0),
+   4000000, 3500000, 0, 'exclusive', 0),
   ('39000000-0000-0000-0000-000000000002', '00390000-0000-0000-0000-000000000001',
    'A002', 'Org A Project 2', 'Ongoing Project',
    '00390000-0000-0000-0000-0000000000a1',
-   6000000, 5000000, 0);
+   6000000, 5000000, 0, 'exclusive', 0);
 
 -- ── Org B (the adversarial org — massive project that must NOT bleed into org A) ─
 insert into organizations (id, name) values
@@ -43,12 +43,12 @@ insert into profiles (id, org_id, full_name, email, role) values
 
 -- Org B has one enormous Ongoing Project — if tenancy leaks, org A KPIs would blow up
 insert into projects (id, org_id, code, name, status, project_manager_id,
-                      contract_value, budget, spent)
+                      contract_value, budget, spent, tax_treatment, tax_amount)
 values
   ('39000000-0000-0000-0000-000000000009', '00390000-0000-0000-0000-000000000002',
    'B001', 'Org B Mega Project', 'Ongoing Project',
    '00390000-0000-0000-0000-0000000000b1',
-   99000000, 50000000, 0);
+   99000000, 50000000, 0, 'exclusive', 0);
 
 -- ── Authenticate as Org A Executive ──────────────────────────────────────────
 set local role authenticated;

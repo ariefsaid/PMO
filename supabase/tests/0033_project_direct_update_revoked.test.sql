@@ -20,9 +20,9 @@ insert into profiles (id, org_id, full_name, email, role) values
   ('00330000-0000-0000-0000-0000000000a2','00330000-0000-0000-0000-000000000001',
    'PR Revoke PM','pr-revoke-pm@example.com','Project Manager');
 
-insert into projects (id, org_id, code, name, status, project_manager_id, contract_value) values
+insert into projects (id, org_id, code, name, status, project_manager_id, contract_value, tax_treatment, tax_amount) values
   ('00330000-0000-0000-0000-000000000010','00330000-0000-0000-0000-000000000001',
-   'PR-001','PR Revoke Project','Negotiation','00330000-0000-0000-0000-0000000000a2',500000);
+   'PR-001','PR Revoke Project','Negotiation','00330000-0000-0000-0000-0000000000a2',500000,'exclusive',0);
 
 -- Act as the in-org PM (a 4-role insider; passes projects_write's role gate).
 set local role authenticated;

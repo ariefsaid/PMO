@@ -1,5 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { listProjects, type ProjectWithRefs, type CreateProjectInput, type ProjectHeaderInput } from '@/src/lib/db/projects';
+import {
+  listProjects,
+  type ProjectWithRefs,
+  type CreateProjectInput,
+  type ProjectHeaderInput,
+  type SetProjectContractValueInput,
+} from '@/src/lib/db/projects';
 import { listClientCompanies, type CompanyRow } from '@/src/lib/db/companies';
 import { listProjectManagers, type ProfileRow } from '@/src/lib/db/profiles';
 import { repositories } from '@/src/lib/repositories';
@@ -62,10 +68,12 @@ export interface UpdateProjectHeaderArgs {
   input: ProjectHeaderInput;
 }
 
-export interface SetContractValueArgs {
-  id: string;
-  value: number;
-}
+/**
+ * #513: the mutation arg IS the DAL input — `taxTreatment`/`taxAmount` are required, so a caller
+ * that omits the basis fails to compile. Re-exported as an alias rather than re-declared: a second
+ * shape here is a second thing that can drift from 0197's P0001 gate.
+ */
+export type SetContractValueArgs = SetProjectContractValueInput;
 
 /**
  * Project CRUD mutations over the repository seam (ADR-0017): create a new opportunity,
@@ -111,8 +119,7 @@ export function useProjectMutations() {
   });
 
   const setContractValue = useMutation({
-    mutationFn: ({ id, value }: SetContractValueArgs) =>
-      repositories.project.setContractValue(id, value),
+    mutationFn: (args: SetContractValueArgs) => repositories.project.setContractValue(args),
     onSuccess: invalidate,
   });
 

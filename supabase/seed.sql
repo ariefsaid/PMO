@@ -178,91 +178,94 @@ update profiles set manager_id = '00000000-0000-0000-0000-0000000000a2'
 -- UUID prefix 40000000-... (existing e2e fixtures preserved: P001-P004, P011-P013)
 -- SV-2310 replaces the old P010 code; New solar projects use 41000000-... namespace
 
+-- #513: contract_value now states its own tax basis (0197). 'exclusive' + 0 is the arithmetically
+-- INERT pair — net equals gross — so every seeded drawdown renders exactly the figure it did before,
+-- and no fixture silently encodes a tax posture nobody chose.
 insert into projects
   (id, code, name, status, client_id, project_manager_id,
-   contract_value, budget, spent, start_date, end_date)
+   contract_value, tax_treatment, tax_amount, budget, spent, start_date, end_date)
 values
   -- ── Delivery (on-hand) projects ──────────────────────────────────────────────
   -- SP-2401: healthy, ~50% delivery
   ('41000000-0000-0000-0000-000000000001','SP-2401',
    'Meridian Steelworks 4.2 MW Rooftop PV',   'Ongoing Project',
    'c0000000-0000-0000-0000-000000000002','00000000-0000-0000-0000-0000000000a2',
-   5250000,4500000,0,'2025-09-01','2026-06-30'),
+   5250000,'exclusive',0,4500000,0,'2025-09-01','2026-06-30'),
   -- SP-2402: at-risk (committed spend > budget), ~80% delivery but behind schedule
   --   original end was 2026-04-30; overrunning — extended to 2026-07-31
   ('41000000-0000-0000-0000-000000000002','SP-2402',
    'Cascade Foods 6.0 MW Ground-Mount PV',    'Ongoing Project',
    'c0000000-0000-0000-0000-000000000003','00000000-0000-0000-0000-0000000000a2',
-   7800000,6900000,0,'2025-06-01','2026-07-31'),
+   7800000,'exclusive',0,6900000,0,'2025-06-01','2026-07-31'),
   -- SP-2403: Close Out — 100% complete
   ('41000000-0000-0000-0000-000000000003','SP-2403',
    'Atlas Chemicals 2.8 MW Carport PV',       'Close Out',
    'c0000000-0000-0000-0000-000000000004','00000000-0000-0000-0000-0000000000a2',
-   3600000,3000000,0,'2025-03-01','2025-12-15'),
+   3600000,'exclusive',0,3000000,0,'2025-03-01','2025-12-15'),
   -- SP-2404: Won, Pending KoM — recently won, ~20% delivery
   ('41000000-0000-0000-0000-000000000004','SP-2404',
    'Harbor Logistics 5.5 MW Rooftop PV',      'Won, Pending KoM',
    'c0000000-0000-0000-0000-000000000005','00000000-0000-0000-0000-0000000000a2',
-   6400000,5800000,0,'2026-05-01','2027-02-28'),
+   6400000,'exclusive',0,5800000,0,'2026-05-01','2027-02-28'),
   -- ── Pipeline projects ─────────────────────────────────────────────────────────
   -- SP-2405: Negotiation stage
   ('41000000-0000-0000-0000-000000000005','SP-2405',
    'Northgate Mills 3.5 MW Rooftop PV',       'Negotiation',
    'c0000000-0000-0000-0000-000000000006','00000000-0000-0000-0000-0000000000a2',
-   4100000,0,0,null,null),
+   4100000,'exclusive',0,0,0,null,null),
   -- SP-2406: Tender Submitted
   ('41000000-0000-0000-0000-000000000006','SP-2406',
    'Riverside Plastics 2.1 MW Carport PV',    'Tender Submitted',
    'c0000000-0000-0000-0000-000000000007','00000000-0000-0000-0000-0000000000a2',
-   2900000,0,0,null,null),
+   2900000,'exclusive',0,0,0,null,null),
   -- SP-2407: PQ Submitted
   ('41000000-0000-0000-0000-000000000007','SP-2407',
    'Cascade Foods Phase 2 — 4.0 MW Extension','PQ Submitted',
    'c0000000-0000-0000-0000-000000000003','00000000-0000-0000-0000-0000000000a2',
-   4800000,0,0,null,null),
+   4800000,'exclusive',0,0,0,null,null),
   -- SP-2408: Leads
   ('41000000-0000-0000-0000-000000000008','SP-2408',
    'Meridian East Wing Solar Scoping',        'Leads',
    'c0000000-0000-0000-0000-000000000002','00000000-0000-0000-0000-0000000000a2',
-   1800000,0,0,null,null),
+   1800000,'exclusive',0,0,0,null,null),
   -- SP-2409: Loss Tender (win-rate denominator)
   ('41000000-0000-0000-0000-000000000009','SP-2409',
    'Harbor Cold Store Bid — Lost',            'Loss Tender',
    'c0000000-0000-0000-0000-000000000005','00000000-0000-0000-0000-0000000000a2',
-   3200000,0,0,null,null),
+   3200000,'exclusive',0,0,0,null,null),
   -- ── e2e isolation fixtures (UNCHANGED — only budgets added below) ─────────────
   -- P011 used exclusively by AC-SP drilldown spec
   ('40000000-0000-0000-0000-000000000011','P011','Highfield Bridge Survey','Tender Submitted',
    'c0000000-0000-0000-0000-000000000002','00000000-0000-0000-0000-0000000000a2',
-   950000,0,0,null,null),
+   950000,'exclusive',0,0,0,null,null),
   -- P012 used exclusively by AC-1011 win-a-deal e2e
   ('40000000-0000-0000-0000-000000000012','P012','Eastgate Depot Upgrade','Tender Submitted',
    'c0000000-0000-0000-0000-000000000002','00000000-0000-0000-0000-0000000000a2',
-   1000000,0,0,null,null),
+   1000000,'exclusive',0,0,0,null,null),
   -- P013 used exclusively by AC-DEL-022 delivery-milestones e2e (zero milestones intentional)
   ('40000000-0000-0000-0000-000000000013','P013','Seabridge Terminal Delivery','Ongoing Project',
    'c0000000-0000-0000-0000-000000000002','00000000-0000-0000-0000-0000000000a2',
-   2000000,2000000,0,null,null),
+   2000000,'exclusive',0,2000000,0,null,null),
   -- P002 Tender Submitted (stale last_update for AC-1117 / pipeline attention)
   ('40000000-0000-0000-0000-000000000002','P002','Northwind ERP Rollout','Tender Submitted',
    'c0000000-0000-0000-0000-000000000003','00000000-0000-0000-0000-0000000000a2',
-   1200000,0,0,null,null),
+   1200000,'exclusive',0,0,0,null,null),
   -- SV-2310 PQ Submitted (pipeline fixture for AC-IXD-WP-001/002 procurement specs)
   ('40000000-0000-0000-0000-000000000003','SV-2310','Riverside Plastics Phase 2 Scoping','PQ Submitted',
    'c0000000-0000-0000-0000-000000000002','00000000-0000-0000-0000-0000000000a2',
-   800000,0,0,null,null),
+   800000,'exclusive',0,0,0,null,null),
   -- P001 Ongoing (timesheet / task fixture for e2e)
   ('40000000-0000-0000-0000-000000000001','P001','Innovate Corp HQ Fit-Out','Ongoing Project',
    'c0000000-0000-0000-0000-000000000002','00000000-0000-0000-0000-0000000000a2',
-   5000000,4700000,2100000,'2026-01-06','2026-12-18'),
+   5000000,'exclusive',0,4700000,2100000,'2026-01-06','2026-12-18'),
   -- P003 Ongoing (additional on-hand fixture for margin)
   ('40000000-0000-0000-0000-000000000004','P003','Acme Internal Platform','Ongoing Project',
    'c0000000-0000-0000-0000-000000000002','00000000-0000-0000-0000-0000000000a2',
-   3000000,2000000,1900000,'2026-02-01','2026-11-30'),
+   3000000,'exclusive',0,2000000,1900000,'2026-02-01','2026-11-30'),
   -- P004 Loss Tender (win-rate denominator)
   ('40000000-0000-0000-0000-000000000005','P004','Coastal Depot Bid','Loss Tender',
    'c0000000-0000-0000-0000-000000000003','00000000-0000-0000-0000-0000000000a2',
-   650000,0,0,null,null)
+   650000,'exclusive',0,0,0,null,null)
 on conflict (id) do nothing;
 
 -- Contract-value witness fixtures (ADR-0070; migrations 0177, 0181, and 0183).

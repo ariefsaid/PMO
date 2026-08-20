@@ -25,10 +25,10 @@ insert into profiles (id, org_id, full_name, email, role) values
    'AW011 PM','aw011-pm@example.com','Project Manager');
 
 -- A WON/on-hand project — this is the status where SoD is strictest.
-insert into projects (id, org_id, code, name, status, project_manager_id, contract_value) values
+insert into projects (id, org_id, code, name, status, project_manager_id, contract_value, tax_treatment, tax_amount) values
   ('00ad0011-0000-0000-0000-000000000010','00ad0011-0000-0000-0000-000000000001',
    'AW011-001','AW011 Won Project','Ongoing Project',
-   '00ad0011-0000-0000-0000-0000000000a1', 1000000);
+   '00ad0011-0000-0000-0000-0000000000a1', 1000000, 'exclusive', 0);
 
 -- ── AC-AW-011: direct UPDATE of contract_value by a PM → 42501 (RPC-only column) ──
 -- Migration 0014 removed contract_value from the direct-UPDATE column grant; the
