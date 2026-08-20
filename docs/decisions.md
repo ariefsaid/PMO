@@ -2021,3 +2021,34 @@ import, and the answer gets stated per invoice, which is the point.
 ⚑ Carried from the investigation: **do not copy `0188`'s last line.** It ends with
 `grant insert (...) on public.sales_invoices to authenticated`; `procurement_invoices` does not have
 the same grant shape, and importing that step unexamined would widen a surface nobody asked to widen.
+
+## DD-BRIEF-1 — cite where a definition LIVES, not where it was introduced (Director, 2026-08-20)
+
+Five briefs on 2026-08-19/20 asserted something about the tree that was false. One class dominates and
+it is mechanical, so it is worth a rule rather than more care.
+
+**The failure.** I briefed #498 to add `work_order_id` to `sales_invoices_native_mirror_guard`
+"(~`0123:117`)". `0123` *introduced* that function. It has since been **replaced twice** — `0125`
+added `author_user_id`, `0189` added `currency` and the four tax columns. With `create or replace`,
+**the last redefinition is the live one**, and `0189`'s body enumerates 22 columns.
+
+Had the agent copied `0123`'s body as instructed, it would have **silently unpinned six columns** —
+leaving them user-writable while revenue is externally owned. That is the exact "closed the path in
+hand, left the other one open" shape behind SoD slices 2–6. The agent checked instead, copied from
+`0189`, and said so.
+
+**The rule.** Before citing a `file:line` for a function, policy, trigger or grant in a brief:
+
+```
+grep -ln '<name>' supabase/migrations/*.sql     # every migration that touches it
+```
+
+and cite the **highest-numbered** one. A first-introduction reference is right about history and
+wrong about the tree — and for anything created with `create or replace`, wrong in the direction that
+silently drops whatever was added since.
+
+⚑ The same rule caught the sibling errors: `budget_versions.activated_at` was reported missing when
+`0139` had added it; `npm run verify` was documented as 8 gates when `package.json` chained 13; the
+retained-definer count was cited as 50 against a list of 51 and as "23 writers" against a record of 18.
+**A claim about the tree, written once, does not stay true — and a brief is exactly where a stale one
+does the most damage**, because the agent has been told not to second-guess it.
