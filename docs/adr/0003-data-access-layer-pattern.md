@@ -16,6 +16,15 @@ Introduce `src/lib/db/*` — **one typed module per aggregate** (`projects`, `pr
 `timesheets`, `tasks`, `companies`, `profiles`, `documents`, `incidents`, `dashboard`). Rules:
 - Only `src/lib/supabase/client.ts` imports supabase-js; **no component imports it directly.**
 - Row types come from `database.types.ts` (`supabase gen types typescript`); typecheck fails on drift.
+  - ⚑ **That guarantee does NOT hold for `Functions` return types.** Postgres `RETURNS TABLE` carries
+    no nullability information, so the generator emits **every** column of a set-returning function as
+    non-null — including ones the function genuinely returns null for. The type then *prevents* the
+    null check the code needs, and the failure is silent: `Intl.NumberFormat().format(null)` yields
+    `0`, so a missing money figure renders as a plausible zero rather than an error. Seen live in #508.
+    Where null is reachable, override at the DAL seam with the reason recorded (see the
+    `WithNullableUsage<>` override in `src/lib/db/usage.ts`) — **never** edit a fixture to satisfy a
+    wrong type, which deletes the test for a real behaviour. Audit of the remaining RPC-derived row
+    types: #510.
 - Relationship resolution happens in **SQL joins/views**, never client `.find()` (kills `F-7`).
 - The **`org_id` tenancy seam** lives in `src/lib/db/_tenant.ts`; the client never sets `org_id` on write.
 - State-machine transitions and KPI aggregates go through Postgres RPC/views called from these modules
