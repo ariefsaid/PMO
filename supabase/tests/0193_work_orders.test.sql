@@ -154,9 +154,9 @@ select is(
   (select array_agg(column_name::text order by column_name) from information_schema.column_privileges
      where table_schema = 'public' and table_name = 'work_orders'
        and grantee = 'authenticated' and privilege_type = 'UPDATE'),
-  array['client_po_number','description','end_date','order_date','start_date','tax_amount',
-        'tax_rate','tax_template','tax_treatment','title'],
-  'AC-WO-012 the UPDATE grant is the body list MINUS order_value (and minus status / currency / wo_number / every stamp) — that omission IS the SoD control');
+  array['client_po_number','description','end_date','order_date','start_date',
+        'tax_rate','tax_template','title'],
+  'AC-WO-012 the UPDATE grant is the body list MINUS order_value, tax_treatment and tax_amount (and minus status / currency / wo_number / every stamp) — that omission IS the SoD control, now covering the tax basis too (§5)');
 
 select is(has_column_privilege('authenticated','public.work_orders','order_value','UPDATE'), false,
   'AC-WO-012 …stated directly: authenticated may NOT UPDATE order_value, so set_work_order_value is the only remaining writer');
@@ -299,7 +299,7 @@ reset role;
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"01930000-0000-0000-0000-0000000000a3","role":"authenticated"}';
 select lives_ok(
-  $$ select set_work_order_value('01930000-0000-0000-0000-0000000000d2', 100) $$,
+  $$ select set_work_order_value('01930000-0000-0000-0000-0000000000d2', 100, p_tax_treatment => 'exclusive', p_tax_amount => 0) $$,
   'AC-WO-032 CONTROL a peer Project Manager MAY set a work order''s value — the gate is on issuing, not on authoring');
 reset role;
 set local role authenticated;
@@ -315,7 +315,7 @@ reset role;
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"01930000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 select lives_ok(
-  $$ select set_work_order_value('01930000-0000-0000-0000-0000000000d3', 100) $$,
+  $$ select set_work_order_value('01930000-0000-0000-0000-0000000000d3', 100, p_tax_treatment => 'exclusive', p_tax_amount => 0) $$,
   'AC-WO-034 CONTROL the issuer''s LINE MANAGER sets the value…');
 reset role;
 set local role authenticated;
@@ -347,7 +347,7 @@ select ok(
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"01930000-0000-0000-0000-0000000000a4","role":"authenticated"}';
 select lives_ok(
-  $$ select set_work_order_value('01930000-0000-0000-0000-0000000000d4', 100) $$,
+  $$ select set_work_order_value('01930000-0000-0000-0000-0000000000d4', 100, p_tax_treatment => 'exclusive', p_tax_amount => 0) $$,
   'AC-WO-037 CONTROL Finance (who outranks a PM) sets the value…');
 reset role;
 set local role authenticated;
@@ -361,7 +361,7 @@ reset role;
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"01930000-0000-0000-0000-0000000000a5","role":"authenticated"}';
 select lives_ok(
-  $$ select set_work_order_value('01930000-0000-0000-0000-0000000000d5', 100) $$,
+  $$ select set_work_order_value('01930000-0000-0000-0000-0000000000d5', 100, p_tax_treatment => 'exclusive', p_tax_amount => 0) $$,
   'AC-WO-038 a Finance member sets the value while still active…');
 reset role;
 update profiles set status = 'disabled' where id = '01930000-0000-0000-0000-0000000000a5';
@@ -416,7 +416,7 @@ reset role;
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"01930000-0000-0000-0000-0000000000a6","role":"authenticated"}';
 select throws_ok(
-  $$ select set_work_order_value('01930000-0000-0000-0000-0000000000d1', 50) $$,
+  $$ select set_work_order_value('01930000-0000-0000-0000-0000000000d1', 50, p_tax_treatment => 'exclusive', p_tax_amount => 0) $$,
   '42501',
   'not authorized to set the work order value',
   'AC-WO-044 an Engineer cannot author a work order''s value');
@@ -435,7 +435,7 @@ select throws_ok(
   'your account is not an active member of this organisation, so it cannot write — an offboarded or suspended account is refused even while its session token is still valid',
   'AC-WO-046 the OFFBOARDED account cannot transition a work order at all — auth_role() reads profiles.role with NO status filter, so without assert_is_active_member a disabled account still passes the role gate (probed live on projects at 0177)');
 select throws_ok(
-  $$ select set_work_order_value('01930000-0000-0000-0000-0000000000d1', 50) $$,
+  $$ select set_work_order_value('01930000-0000-0000-0000-0000000000d1', 50, p_tax_treatment => 'exclusive', p_tax_amount => 0) $$,
   '42501',
   'your account is not an active member of this organisation, so it cannot write — an offboarded or suspended account is refused even while its session token is still valid',
   'AC-WO-047 …and cannot author a value either');
@@ -572,7 +572,7 @@ select is(has_function_privilege('anon','public.get_project_drawdown(uuid)','EXE
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"01930000-0000-0000-0000-0000000000a4","role":"authenticated"}';
 select throws_ok(
-  $$ select set_work_order_value('01930000-0000-0000-0000-0000000000d3', 250) $$,
+  $$ select set_work_order_value('01930000-0000-0000-0000-0000000000d3', 250, p_tax_treatment => 'exclusive', p_tax_amount => 0) $$,
   '42501',
   'the value of a work order that is Issued can no longer be changed: `issued_at` is the stamp an ERPNext push derives its idempotency key from, so a changed value under an unchanged stamp would be silently discarded there — cancel this work order and issue a replacement',
   'AC-WO-070 THE OQ-BUD-2 CLASS, KILLED AT SOURCE: the SOLE writer of order_value refuses once the work order is Issued. An amended PO is Cancel + re-issue — which is how ERPNext amends too.');
@@ -658,14 +658,14 @@ select throws_ok(
   'AC-WO-090 the definer RPC re-asserts the org INTERNALLY — definer rights bypass RLS, so this is the only thing standing between an authenticated caller and another org''s work orders');
 
 select throws_ok(
-  $$ select set_work_order_value('01930000-0000-0000-0000-0000000000d1', 1) $$,
+  $$ select set_work_order_value('01930000-0000-0000-0000-0000000000d1', 1, p_tax_treatment => 'exclusive', p_tax_amount => 0) $$,
   '42501', 'not authorized',
   'AC-WO-091 …and so does the value setter');
 reset role;
 
 select is(has_function_privilege('anon','public.transition_work_order(uuid, public.work_order_status, boolean)','EXECUTE'), false,
   'AC-WO-092 anon holds no EXECUTE on transition_work_order');
-select is(has_function_privilege('anon','public.set_work_order_value(uuid, numeric)','EXECUTE'), false,
+select is(has_function_privilege('anon','public.set_work_order_value(uuid, numeric, text, numeric)','EXECUTE'), false,
   'AC-WO-093 anon holds no EXECUTE on set_work_order_value');
 
 -- ⚑ THE PREMISE THIS SLICE RESTS ON. The minter is an internal-only helper: a direct PostgREST call

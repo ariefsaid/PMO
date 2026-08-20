@@ -6,7 +6,7 @@ import {
   type TaxTreatment,
 } from '@/src/lib/db/projects';
 import { parseMoneyInput } from '@/src/lib/format';
-import { TAX_TREATMENT_OPTIONS } from '@/src/lib/taxTreatment';
+import { TAX_TREATMENT_OPTIONS, parseTaxFacts } from '@/src/lib/taxTreatment';
 import type { ImportDescriptor } from './types';
 import { makeRefLookup, refValidate, refId } from './refLookup';
 
@@ -126,20 +126,30 @@ export function makeProjectImportDescriptor(
         end_date: cells.end_date?.trim() || null,
       };
       const value = parsedMoney(cells.contract_value);
-      const taxAmount = parsedMoney(cells.tax_amount);
-      const treatment = cells.tax_treatment?.trim() as TaxTreatment | undefined;
-      // The branch is not defensive style — `CreateProjectInput` is a union on exactly this rule,
-      // so a valued row with no basis does not compile. `validateRow` has already rejected such a
-      // row at preview; this is what makes that unreachable rather than merely unlikely.
-      if (value !== null && value > 0 && taxAmount !== null && treatment) {
-        return {
-          ...base,
-          contract_value: value,
-          tax_treatment: treatment,
-          tax_amount: taxAmount,
-        };
+      if (value === null || value <= 0) return { ...base, contract_value: 0 };
+      // ⚑ ONE predicate, shared with `validateRow` above — `parseTaxFacts` returns the pair or null.
+      // A bare `trim() as TaxTreatment` cast used to live here, which let 'Inclusive' or 'unknown'
+      // through truthy to die on the DB's domain CHECK: the wrong error, from the wrong layer.
+      const tax = parseTaxFacts(cells.tax_treatment ?? '', cells.tax_amount ?? '');
+      if (!tax) {
+        // ⛔ NOT a fall-through to `contract_value: 0`, which is what this did before. A sheet cell
+        // reading 1,000,000 becoming a project worth ZERO is a silent, plausible-looking data loss —
+        // exactly the class this issue exists to remove. `validateRow` makes this unreachable today,
+        // but that is a two-module invariant: if the wizard ever stops calling it, this must fail
+        // loudly rather than quietly import every contract at nothing.
+        throw new Error(
+          'a row with a contract value reached toInput with no tax basis — validateRow should have '
+          + 'refused it at preview',
+        );
       }
-      return { ...base, contract_value: 0 };
+      // `CreateProjectInput` is a union on exactly this rule, so a valued row with no basis does not
+      // compile either.
+      return {
+        ...base,
+        contract_value: value,
+        tax_treatment: tax.taxTreatment,
+        tax_amount: tax.taxAmount,
+      };
     },
     create: (input) => repositories.project.create(input),
   };

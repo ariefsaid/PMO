@@ -990,7 +990,7 @@ set local role authenticated;
 set local request.jwt.claims =
   '{"sub":"01710000-0000-0000-0000-0000000000a4","role":"authenticated"}';
 select lives_ok(
-  $$ select set_work_order_value('01710000-0000-0000-0000-0000000000e9', 100) $$,
+  $$ select set_work_order_value('01710000-0000-0000-0000-0000000000e9', 100, p_tax_treatment => 'exclusive', p_tax_amount => 0) $$,
   'AC-SCC-095 CONTROL Finance (who outranks a PM) may author the value…');
 reset role;
 set local role authenticated;

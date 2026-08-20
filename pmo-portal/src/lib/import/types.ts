@@ -40,7 +40,10 @@ export interface ImportDescriptor<Input> {
    * too, but only after the commit had started writing the rest of the sheet; preview being the
    * oracle is the importer's whole contract.
    */
-  validateRow?: (cells: Record<string, string>) => Partial<Record<string, string>>;
+  //  ⚑ Keyed to `keyof Input`, not `string`. The wizard renders an error only via `errors[field.key]`,
+  //  so a typo'd key would mark the row INVALID with no message on any column — an unfixable row from
+  //  the user's side, and invisible from here.
+  validateRow?: (cells: Record<string, string>) => Partial<Record<keyof Input & string, string>>;
   /** Mapped cells → the entity's create `Input` (trims, casts; emits NO org_id). */
   toInput: (cells: Record<string, string>) => Input;
   /** The entity's existing create repository fn. RLS stamps org_id + gates the role. */

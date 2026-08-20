@@ -1,5 +1,5 @@
 -- project_contract_value_tax.test.sql — 0197_project_contract_value_tax.sql (#513).
--- Owns AC-CVT-001..018; `grep -r AC-CVT-` finds exactly this file.
+-- Owns AC-CVT-001..025; `grep -r AC-CVT-` finds exactly this file.
 --
 -- The defect this proves closed: `get_project_drawdown` summed `work_orders.order_value` — which
 -- carries a tax_treatment — against a `contract_value` that carried none. The two sides could be
@@ -11,15 +11,18 @@
 -- design is that over-commitment is ALLOWED but must be acknowledged by name. A control that
 -- silently never fires is worse than one that fires wrongly: nobody is ever asked.
 begin;
-select plan(18);
+select plan(25);
 
 insert into organizations (id, name, default_currency) values
   ('05130000-0000-0000-0000-000000000001','#513 Tax Org','IDR');
 insert into auth.users (id, email) values
-  ('05130000-0000-0000-0000-0000000000a1','cvt-exec@example.com');
+  ('05130000-0000-0000-0000-0000000000a1','cvt-exec@example.com'),
+  ('05130000-0000-0000-0000-0000000000a2','cvt-pm@example.com');
 insert into profiles (id, org_id, full_name, email, role, status) values
   ('05130000-0000-0000-0000-0000000000a1','05130000-0000-0000-0000-000000000001',
-   'CVT Exec','cvt-exec@example.com','Executive','active');
+   'CVT Exec','cvt-exec@example.com','Executive','active'),
+  ('05130000-0000-0000-0000-0000000000a2','05130000-0000-0000-0000-000000000001',
+   'CVT PM','cvt-pm@example.com','Project Manager','active');
 
 -- ── §A — the constraint is tied to the VALUE, not to the row. ───────────────────────────────────
 -- A project at 0 states nothing and claims nothing, so it owes no basis. This is the whole reason
@@ -201,7 +204,7 @@ select throws_ok(
   $$ select transition_work_order('05130000-0000-0000-0000-000000000fa4'::uuid,
        'Issued'::work_order_status) $$,
   'P0001',
-  null,
+  'issuing this work order would commit 10200.00 against a contract ceiling of 10000.00 (already committed: 9500.00): this is allowed, but it must be acknowledged explicitly — re-issue with the over-commitment acknowledgement so the decision is recorded against your name',
   'AC-CVT-017 the over-commit gate REFUSES an issue that exceeds the ceiling ONLY once both sides '
   'are net — 10,200 of 10,000. The raw comparison read 10,200 of 11,100, let it through, and asked '
   'nobody (DD-WO-2). De-normalise the GATE alone and this is the assertion that goes red');
@@ -212,6 +215,97 @@ select lives_ok(
   'AC-CVT-018 …and the explicit acknowledgement still lets it through — DD-WO-2 permits '
   'over-commitment, it just insists somebody owns the decision');
 
+-- ⚑ THE POSITIVE PATH — the RPC must actually WRITE the basis, and nothing proved it did.
+-- Every other assertion here passes `'exclusive', 0` into a fixture already inserted as
+-- `'exclusive', 0`, so before and after were identical BY CONSTRUCTION: deleting the four tax
+-- columns from §2's UPDATE left the whole suite green. Caught by the code-quality review, and it is
+-- the same dead-oracle shape as §E's fixture. `…fc1` starts INCLUSIVE/1,100 and is restated
+-- EXCLUSIVE/500, so both columns must move and the ceiling must move with them.
+select lives_ok(
+  $$ select set_project_contract_value('05130000-0000-0000-0000-000000000fc1'::uuid, 12000::numeric,
+       p_tax_treatment => 'exclusive', p_tax_amount => 500) $$,
+  'AC-CVT-019 CONTROL an Executive restates the value and its basis together');
+
+select is(
+  (select tax_treatment || ':' || tax_amount::text from projects
+    where id = '05130000-0000-0000-0000-000000000fc1'),
+  'exclusive:500.00',
+  'AC-CVT-020 the RPC WROTE the basis — delete the tax columns from §2''s UPDATE and this is the '
+  'one assertion that notices');
+
+select is(
+  (select ceiling from get_project_drawdown('05130000-0000-0000-0000-000000000fc1')),
+  12000::numeric,
+  'AC-CVT-021 …and the ceiling followed it: 12,000 exclusive is already net. Had the treatment stayed '
+  'INCLUSIVE behind the new value, this would read 10,900 — plausible, wrong, and unrecoverable');
+
 reset role;
+
+-- ⚑ `tax_rate`/`tax_template` are PRESERVED on a set that does not mention them. Writing them
+-- unconditionally would silently erase a recorded ERPNext template on the first value edit.
+update projects set tax_rate = 11.000, tax_template = 'PPN 11% - RIS'
+  where id = '05130000-0000-0000-0000-000000000fc1';
+set local role authenticated;
+set local request.jwt.claims =
+  '{"sub":"05130000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select lives_ok(
+  $$ select set_project_contract_value('05130000-0000-0000-0000-000000000fc1'::uuid, 13000::numeric,
+       p_tax_treatment => 'exclusive', p_tax_amount => 600) $$,
+  'AC-CVT-022 CONTROL a set that mentions no rate or template');
+reset role;
+select is(
+  (select coalesce(tax_rate::text,'-') || ':' || coalesce(tax_template,'-') from projects
+    where id = '05130000-0000-0000-0000-000000000fc1'),
+  '11.000:PPN 11% - RIS',
+  'AC-CVT-023 the rate and template SURVIVED — they are descriptive, no gate reads them, and '
+  'clearing them on every value edit would erase a fact ERPNext still holds');
+
+-- ⛔ §5's ATTACK, run as the attacker. A PM re-keys a DRAFT work order's tax basis after the
+-- Executive set its value, zeroing the drawdown so the issue passes the over-commit gate with no
+-- acknowledgement.
+--
+-- ⚑ A FRESH Draft row, and that detail is the test. The first version of this assertion reused
+-- `…fa4`, which AC-CVT-018 had just ISSUED — so the post-issue content freeze raised 42501 whatever
+-- the grants said, and re-granting the columns left the suite GREEN. The mutation battery caught it;
+-- reading the assertion would not have. Third dead oracle of this shape in one session.
+insert into work_orders (id, org_id, project_id, title, order_value, currency, tax_treatment, tax_amount, status)
+values ('05130000-0000-0000-0000-000000000fa6','05130000-0000-0000-0000-000000000001',
+        '05130000-0000-0000-0000-000000000fc3','WO still draft', 700, 'IDR', 'exclusive', 0, 'Draft');
+
+set local role authenticated;
+set local request.jwt.claims =
+  '{"sub":"05130000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select throws_ok(
+  $$ update work_orders set tax_treatment = 'inclusive', tax_amount = 700
+      where id = '05130000-0000-0000-0000-000000000fa6' $$,
+  '42501',
+  null,
+  'AC-CVT-024 a client cannot re-key a work order''s tax basis directly — the basis travels with the '
+  'value through set_work_order_value, or the over-commit control can be zeroed by a PATCH');
+
+reset role;
+
+-- ⚑ LAYER (b), tested on its own. §5 closes the attack twice: the grant (AC-CVT-024) and the
+-- witness. This asserts the SECOND — that re-keying the basis by ANY route re-stamps the witness the
+-- issue SoD asks about. It runs as the table OWNER precisely because that route bypasses the grant:
+-- if a future migration re-grants the columns, or a definer writer reaches them, this is the layer
+-- still standing. Narrow the trigger back to `order_value` alone and this goes red while
+-- AC-CVT-024 stays green — which is what "a test per layer" means.
+-- ⚑ The oracle is `order_value_set_BY`, not `_set_at`: `now()` is the TRANSACTION timestamp and is
+-- constant inside a pgTAP test, so a `_set_at` comparison can never move and would be a third dead
+-- assertion. The row was inserted by the owner (auth.uid() NULL); a claim is set so the trigger has
+-- a different identity to stamp, without switching role — the grant is not what is under test here.
+set local request.jwt.claims =
+  '{"sub":"05130000-0000-0000-0000-0000000000a2","role":"authenticated"}';
+update work_orders set tax_amount = 123
+ where id = '05130000-0000-0000-0000-000000000fa6';
+reset request.jwt.claims;
+select is(
+  (select order_value_set_by from work_orders
+    where id = '05130000-0000-0000-0000-000000000fa6'),
+  '05130000-0000-0000-0000-0000000000a2'::uuid,
+  'AC-CVT-025 changing the tax basis RE-STAMPS the value witness — whoever last moved any part of '
+  'the figure the drawdown computes from is the person the issue SoD asks about');
+
 select * from finish();
 rollback;

@@ -219,12 +219,18 @@ begin
     end if;
   end if;
 
+  -- ⚑ `tax_rate`/`tax_template` are PRESERVED when omitted, not cleared. The "restating the value
+  -- restates the basis" rule is about `tax_treatment`/`tax_amount` — the two the drawdown computes
+  -- from. Rate and template are descriptive (this migration's own §1: "not recorded ≠ 0%", and the
+  -- template is connect-time org config), no gate reads them, and no FE surface collects them yet —
+  -- so writing them unconditionally would have silently erased a recorded ERPNext template on the
+  -- first value edit. Pass a value to change one; pass nothing and it stands.
   update public.projects
     set contract_value = p_value,
         tax_treatment  = btrim(p_tax_treatment),
         tax_amount     = p_tax_amount,
-        tax_rate       = p_tax_rate,
-        tax_template   = p_tax_template,
+        tax_rate       = coalesce(p_tax_rate, tax_rate),
+        tax_template   = coalesce(p_tax_template, tax_template),
         last_update    = now()
   where id = p_id;
 
@@ -493,3 +499,171 @@ end; $$;
 -- ⚑ No grants are re-issued for `transition_work_order`: `create or replace` keeps the function's
 -- identity and therefore its ACL. Only §2's `set_project_contract_value` was DROPPED, and only that
 -- one needed its grants restated.
+
+-- ════════════════════════════════════════════════════════════════════════════════════════════════
+-- §5 — CLOSING WHAT §3/§4 OPENED ON `work_orders`. Raised by the #513 security audit, which built
+-- the attack and ran it end to end rather than describing it.
+--
+-- ⛔ THE DEFECT, and it is this migration's own doing. Until §4, `work_orders.tax_amount` was an
+-- inert descriptive column: nothing computed with it. §4 promoted it to a live input to the
+-- over-commit control — and nothing was protecting it. `0193:486` grants `authenticated` UPDATE on
+-- `tax_treatment`/`tax_amount`, the witness trigger (`0193:280`) fires `before insert or update OF
+-- order_value` only, and the post-issue content freeze applies only once the row has left Draft. So:
+--
+--   1. A Draft work order is valued at 50,000. The PM's manager sets it through
+--      `set_work_order_value` — the money SoD is genuinely satisfied, and the witness names the
+--      Executive.
+--   2. The PM sends ONE PostgREST PATCH on the still-Draft row:
+--      `tax_treatment = 'inclusive', tax_amount = 50000`. Granted, RLS-allowed, not frozen, and the
+--      witness is NOT re-stamped — `order_value_set_by` still names the Executive.
+--   3. `transition_work_order(..., 'Issued')` computes `v_net = 50000 - 50000 = 0`, sees no
+--      over-commitment, and issues with `over_commit_ack_by` NULL.
+--
+-- `get_project_drawdown` then reports `committed = 0` — the 50,000 commitment is invisible on the
+-- exact screen meant to reveal it, and the post-issue freeze makes that permanent. It is the header's
+-- own thesis realised through a different door: the control silently never fires and nobody is ever
+-- asked. And it needs no extreme lever — `tax_amount = 45,000` on an inclusive 50,000 order looks
+-- unremarkable and buys the same headroom, repeatable per work order.
+--
+-- ⚑ THE GENERAL LESSON, recorded because it will recur: promoting a descriptive column into a
+-- CONTROL INPUT changes its threat model. Whatever was protecting it as a description — here,
+-- nothing — has to be re-examined at the moment of promotion, not assumed to carry over. §1 already
+-- reasoned this out for `projects` ("a basis a client could re-key behind that RPC's back would move
+-- the money without the witness the SoD depends on") and simply failed to apply its own rule one
+-- table over.
+--
+-- Both layers are closed, because defence in depth needs a test PER LAYER:
+--   (a) the basis travels WITH the value through the one witnessed writer, and
+--   (b) re-keying the basis by any other route re-stamps the witness and re-arms the SoD.
+-- ════════════════════════════════════════════════════════════════════════════════════════════════
+
+-- (a) The basis leaves the client UPDATE grant. `tax_rate`/`tax_template` STAY — they are
+-- descriptive, no gate reads them, and revoking them would be scope, not security.
+-- ⚑ A column-level REVOKE cannot subtract from a table-level grant (a silent no-op — 0187 §4's
+-- exception documents that trap). `0193:469` revoked ALL from authenticated and re-granted a column
+-- list, so this table is genuinely column-level and the re-grant below is the whole story.
+revoke update on public.work_orders from authenticated, anon;
+grant update (client_po_number, title, description,
+              tax_rate, tax_template,
+              order_date, start_date, end_date)
+  on public.work_orders to authenticated;
+
+-- The basis now moves through `set_work_order_value`, alongside the figure it describes. Every gate
+-- below is 0193 §7's verbatim — the value-range checks, the lock, the org re-assertion,
+-- `assert_is_active_member()`, the rank gate and DD-WO-5's Draft freeze — with the tax params added
+-- and required. The DROP names 0193's exact 2-arg identity.
+drop function if exists public.set_work_order_value(uuid, numeric);
+
+create or replace function public.set_work_order_value(
+  p_id uuid, p_value numeric,
+  p_tax_treatment text default null, p_tax_amount numeric default null)
+  returns void language plpgsql security definer set search_path = public as $$
+declare
+  v_org    uuid;
+  v_status public.work_order_status;
+  v_old    numeric;
+  v_role   user_role := auth_role();
+begin
+  -- Reject an invalid value here for the human-readable message; the column CHECK is the authority
+  -- for every writer. NULL is distinguished from out-of-range so the diagnosis is useful.
+  if p_value is null then
+    raise exception 'work order value is required' using errcode = '23502';
+  end if;
+  if not (p_value >= 0 and p_value < 'Infinity'::numeric) then
+    raise exception 'work order value must be a non-negative number' using errcode = '23514';
+  end if;
+
+  -- ⚑ #513 §5: the basis gate. Tests the VALUE, not just presence — '' and ' inclusive ' are neither
+  -- null nor in-domain, and a presence-only check would send them to the column CHECK to die on an
+  -- error that names a constraint rather than the thing the caller must fix.
+  if p_tax_treatment is null or btrim(p_tax_treatment) not in ('inclusive','exclusive')
+     or p_tax_amount is null then
+    raise exception
+      'a work order value must state its tax treatment: p_tax_treatment must be ''inclusive'' or ''exclusive'' (does the value already include the tax?) and p_tax_amount must be given (0 when there is no tax). The drawdown is computed from both, so a value without its basis cannot be measured against the contract ceiling'
+      using errcode = 'P0001';
+  end if;
+
+  -- Load + lock (serializes concurrent value edits on the SAME work order). P0002 if absent.
+  select org_id, status, order_value into v_org, v_status, v_old
+    from public.work_orders where id = p_id for update;
+  if v_status is null then
+    raise exception 'work order not found' using errcode = 'P0002';
+  end if;
+
+  -- SECURITY: this org re-assertion MUST stay — removing it leaks cross-org writes.
+  if v_org is distinct from auth_org_id() then
+    raise exception 'not authorized' using errcode = '42501';
+  end if;
+
+  -- SECURITY: this active-membership gate MUST stay. auth_role() reads profiles.role with NO status
+  -- filter, so without it an offboarded account can author the very value the issue SoD then treats
+  -- as a legitimate second person.
+  perform public.assert_is_active_member();
+
+  -- SECURITY: this role gate MUST stay. Expressed as RANK, never a list of literals (ADR-0070).
+  if not public.holds_pipeline_value_authority(v_role) then
+    raise exception 'not authorized to set the work order value' using errcode = '42501';
+  end if;
+
+  -- ⚑ DD-WO-5. The value is frozen the moment the work order leaves Draft. §4's trigger is the
+  -- unexemptable backstop; this branch exists so the caller gets the RULE rather than a trigger's
+  -- generic body-freeze message.
+  if v_status is distinct from 'Draft' then
+    raise exception
+      'the value of a work order that is % can no longer be changed: `issued_at` is the stamp an ERPNext push derives its idempotency key from, so a changed value under an unchanged stamp would be silently discarded there — cancel this work order and issue a replacement',
+      v_status
+      using errcode = '42501';
+  end if;
+
+  update public.work_orders
+    set order_value   = p_value,
+        tax_treatment = btrim(p_tax_treatment),
+        tax_amount    = p_tax_amount
+  where id = p_id;
+
+  perform public.log_audit('work_order.value.set', v_org, auth.uid(), p_id,
+                           jsonb_build_object('from', v_old, 'to', p_value,
+                                              'tax_treatment', btrim(p_tax_treatment),
+                                              'tax_amount', p_tax_amount));
+end; $$;
+
+revoke all     on function public.set_work_order_value(uuid, numeric, text, numeric) from public;
+grant  execute on function public.set_work_order_value(uuid, numeric, text, numeric) to   authenticated;
+revoke execute on function public.set_work_order_value(uuid, numeric, text, numeric) from anon;
+
+-- (b) The witness re-arms on the BASIS too, not just the value. This is the layer that holds if a
+-- future migration re-grants the columns, or a definer writer reaches them another way: whoever
+-- last moved any part of the figure the drawdown computes from is the person the issue SoD asks
+-- about. `create or replace` on the trigger is not possible — the column list is part of the
+-- trigger, not the function — so it is dropped and recreated under THE SAME NAME (0125's incident:
+-- a recreate under a new name leaves two triggers and a changed firing order).
+drop trigger if exists work_orders_stamp_value_witness on public.work_orders;
+create trigger work_orders_stamp_value_witness
+  before insert or update of order_value, tax_treatment, tax_amount on public.work_orders
+  for each row execute function public.stamp_work_order_value_witness();
+
+-- ════════════════════════════════════════════════════════════════════════════════════════════════
+-- §6 — an inclusive row's tax cannot exceed the figure it is part of.
+--
+-- `*_tax_amount_nonneg` bounds tax against zero and Infinity but never against the value it is a
+-- COMPONENT of, so `contract_value = 1000, 'inclusive', tax_amount = 9000` yields a ceiling of
+-- **-8,000**. For an inclusive row that is arithmetically impossible in the real world; permitting
+-- it is what gave §5's attack its unbounded form, and independently it lets an honest typo invert a
+-- ceiling. This narrows §5 rather than closing it — a sub-value lie still works, which is why §5
+-- closes the write path itself.
+-- ════════════════════════════════════════════════════════════════════════════════════════════════
+alter table public.projects
+  add constraint projects_inclusive_tax_within_value
+  check (tax_treatment is distinct from 'inclusive' or tax_amount <= contract_value);
+
+alter table public.work_orders
+  add constraint work_orders_inclusive_tax_within_value
+  check (tax_treatment is distinct from 'inclusive' or tax_amount <= order_value);
+
+-- ⚑ §3's DROP took `get_project_drawdown`'s COMMENT with it, not just its ACL — and 0178's roster
+-- note leans on that comment as the sign telling the next reader not to flip it to definer.
+comment on function public.get_project_drawdown(uuid) is
+  'SECURITY INVOKER on purpose (0193 §6, restated after 0197 §3''s drop): the caller''s own RLS is '
+  'the tenancy boundary, so a cross-org caller gets zero rows rather than a fabricated zero. Do NOT '
+  'add security definer — it is deliberately absent from 0178''s retained-definer roster so that a '
+  'flip would be visible.';

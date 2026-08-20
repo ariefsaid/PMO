@@ -249,9 +249,15 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
           let input: CreateProjectInput;
           if (contractValue > 0) {
             const tax = parseTaxFacts(values.taxTreatment, values.taxAmount);
-            // Unreachable through the UI (Create is disabled) — but submitting without the basis
-            // would surface the CHECK violation AFTER the user pressed Create.
-            if (!tax) return;
+            // Unreachable through the UI (Create is disabled, and this shares `parseTaxFacts` with
+            // the predicate that disables it) — but a bare `return` would make a future regression a
+            // DEAD BUTTON with no message. Unreachable code that fails loudly costs nothing.
+            if (!tax) {
+              throw new Error(
+                'a contract value cannot be created without its tax treatment — the submit guard and '
+                + 'this check share one predicate, so reaching here means they have diverged',
+              );
+            }
             input = {
               ...base,
               contract_value: contractValue,

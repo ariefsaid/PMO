@@ -27,8 +27,10 @@ export function validateRows<Input>(
     }
     if (validateRow) {
       const cells = rowToCells(row, fields, mapping);
+      // `Object.entries` widens the value to `{}` for a Partial<Record<K, string>>, so the message
+      // is narrowed back rather than asserted — the KEY type is the part that had to be tightened.
       for (const [key, message] of Object.entries(validateRow(cells))) {
-        if (message && !errors[key]) errors[key] = message;
+        if (typeof message === 'string' && message && !errors[key]) errors[key] = message;
       }
     }
     return { index, errors, valid: Object.keys(errors).length === 0 };

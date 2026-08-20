@@ -50,7 +50,11 @@ export interface ParsedTaxFacts {
  * is not re-introduced here).
  */
 export function parseTaxFacts(treatmentRaw: string, amountRaw: string): ParsedTaxFacts | null {
-  const treatment = TAX_TREATMENT_OPTIONS.find((o) => o.value === treatmentRaw)?.value;
+  // ⚑ TRIMMED, because everything else on this path is: the importer trims, the RPCs `btrim`, and
+  // the DB CHECK is exact. An untrimmed match here made `' exclusive '` acceptable to the importer
+  // and the RPC but not to this predicate — three postures for one domain value, in the module whose
+  // whole job is that there is only one.
+  const treatment = TAX_TREATMENT_OPTIONS.find((o) => o.value === treatmentRaw.trim())?.value;
   if (!treatment) return null;
   const taxAmount = parseMoneyInput(amountRaw);
   if (taxAmount === null || taxAmount < 0) return null;
