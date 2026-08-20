@@ -19,8 +19,11 @@ import { useImportWizard, type WizardStep } from './useImportWizard';
  * `onClose(didImport=true)` refetches the list.
  */
 
-const STEP_TITLE: Record<WizardStep, string> = {
-  upload: 'Import companies',
+// ⚑ The upload step's title is a FUNCTION of the descriptor, not a constant. It read
+// 'Import companies' for every importer — wrong since the first fast-follow shipped, and invisible
+// while each page had exactly one. #495 puts two on the Projects toolbar, where clicking
+// "Import budgets" and being met with "Import companies" is unmissable.
+const STEP_TITLE: Record<Exclude<WizardStep, 'upload'>, string> = {
   mapping: 'Match columns',
   preview: 'Review before importing',
   committing: 'Importing…',
@@ -126,7 +129,9 @@ export function ImportWizard<Input>({ descriptor, onClose }: ImportWizardProps<I
         <div className="flex items-center gap-2.5 border-b border-border px-[18px] py-4">
           <div className="min-w-0 flex-1">
             <h2 id={titleId} className="text-[16px] font-bold tracking-[-0.01em] text-popover-foreground">
-              {STEP_TITLE[wiz.step]}
+              {wiz.step === 'upload'
+                ? `Import ${descriptor.entity.toLowerCase()}`
+                : STEP_TITLE[wiz.step]}
             </h2>
             <p id={subId} className="mt-px text-[12.5px] text-muted-foreground">
               {STEP_SUBTITLE[wiz.step]}
