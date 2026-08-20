@@ -300,6 +300,46 @@ describe('AC-M365-110/111/112/113/114 — handleGraphProxy', () => {
     expect(result.body).toEqual({ error: 'GRAPH_ERROR', message: 'Graph API request failed' });
   });
 
+  it('AC-M365-141 (#445): a Graph failure records status, upstream code/message and request-id to the SERVER LOG', async () => {
+    // The opacity test above pins what the CLIENT must not see. This pins the other half:
+    // that the detail reaches the server log at all. Without it, `proxy.ts`'s console.error
+    // block could be deleted entirely and the suite would stay green — the 2026-08-18 live
+    // investigation was undiagnosable precisely because this detail was absent.
+    const conn = await connection();
+    const service = mockClient({ ms_graph_connections: [{ data: conn, error: null }] });
+    const graphFetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 400,
+      headers: { get: () => 'req-id-123' },
+      json: async () => ({ error: { code: 'BadRequest', message: 'Tenant does not have a SPO license.' } }),
+    });
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    try {
+      await handleGraphProxy(
+        graphReq('/me/drive'),
+        deps({ service, caller: callerClient(), userId: 'user-1', fetch: graphFetch }),
+      );
+
+      const call = logged.mock.calls.find(([msg]) => String(msg).includes('graph_proxy upstream failure'));
+      expect(call, 'no structured graph_proxy failure log was emitted').toBeDefined();
+
+      const detail = call![1] as Record<string, unknown>;
+      expect(detail.status).toBe(400);
+      expect(detail.upstreamCode).toBe('BadRequest');
+      // The real condition — the code alone said only 'BadRequest'.
+      expect(detail.upstreamMessage).toContain('SPO license');
+      expect(detail.requestId).toBe('req-id-123');
+
+      // And the log must stay free of token material, which is why it is safe to emit at all.
+      const serialised = JSON.stringify(detail);
+      expect(serialised).not.toContain(conn.access_token_ciphertext ?? '__no_ciphertext__');
+      expect(serialised.toLowerCase()).not.toContain('bearer ');
+    } finally {
+      logged.mockRestore();
+    }
+  });
+
   it('AC-M365SEP-002 / AC-M365-110: an active entitled member with no connection receives NOT_CONNECTED', async () => {
     const service = mockClient({ ms_graph_connections: [{ data: null, error: { code: 'PGRST116' } }] });
     const r = await handleGraphProxy(graphReq('/me/drive/root'), deps({ service, caller: callerClient(), userId: 'user-1' }));
