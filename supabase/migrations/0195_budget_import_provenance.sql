@@ -34,6 +34,15 @@ alter table public.budget_line_items
 -- The procurement path deliberately keeps its batch-scoped key — changing a shipped importer that
 -- already has live data is a separate decision, not a drive-by.
 
+-- ⚑ DD-BIMP-5 — the DESCRIPTOR leaves budget_versions.import_key NULL, and the header index below
+-- therefore constrains nothing it writes. That is deliberate, not an oversight. A version's identity
+-- is "this project's open Draft", not a row in a sheet: key it and the SECOND legitimate import for
+-- a project — after the first was activated — is blocked forever by a row that is no longer Draft.
+-- Idempotency lives on the LINE ITEMS, scoped to budget_version_id, which is exactly what lets a
+-- post-activation re-import land its lines in a fresh Draft instead of silently producing an empty
+-- one. The header column + index stay for symmetry with 0072/0073 and to guard the day some other
+-- writer does key a version; `where import_key is not null` means they cost the descriptor nothing.
+
 -- Header: one imported version per org/key.
 create unique index budget_versions_import_key_uidx
   on public.budget_versions (org_id, import_key)

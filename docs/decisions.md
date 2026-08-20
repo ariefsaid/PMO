@@ -2156,3 +2156,17 @@ index turns exactly that assertion red — verified, not assumed. The old test a
 ⚑ **The procurement path keeps its batch-scoped key.** It is a shipped importer with live data;
 re-keying it is its own decision with its own backfill question, not a drive-by. That asymmetry is
 deliberate and is why `0195` carries the argument in its header rather than pointing at `0072`.
+
+**[DD-BIMP-4] The budget `<ImportButton>` goes on the Projects list page, not a "budgets page".**
+There is no budgets list route — budget lives at `/projects/:id/budget`, a tab (`appRouteConfig`).
+The sheet is cross-project by construction (its first column is a project ref), so a per-project tab
+is the wrong host, and building a list page to hold a button is building a page to hold a button.
+`ImportButton` gains a `label` prop, because two buttons both reading "Import" is not a toolbar.
+
+**[DD-BIMP-5] Budget versions carry provenance stamps but NO `import_key`.** A version's identity is
+"this project's open `Draft`", not a row in a sheet. Key it and the second legitimate import for a
+project — after the first was activated — is blocked forever by a row that is no longer `Draft`.
+Idempotency lives on the line items, scoped to `budget_version_id`; that scoping is precisely what
+lets a post-activation re-import land its lines in a fresh Draft rather than silently producing an
+empty one. Pinned by `AC-BIMP-007` in the pgTAP file: restore `import_batch_id` to the child index
+and both the re-run oracle and the per-parent oracle go red.

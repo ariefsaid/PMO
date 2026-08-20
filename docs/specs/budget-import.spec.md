@@ -41,11 +41,18 @@ covers the descriptor half, plus the one amendment `DD-BIMP-3` makes to `0195`'s
   header states that hand-carrying a currency from the client is the thing `OD-CR-5` exists to
   prevent. *(`DD-BIMP-2`.)*
 - **FR-BIMP-007** — *Event-driven.* When the same sheet is imported again — **in any later session,
-  under any batch id** — the import shall create **no new rows**, via two layers: the wizard's skip
-  query keyed on `import_key` (org-scoped by RLS for versions, parent-scoped for line items), and a
-  partial unique index on the **same** key as the TOCTOU backstop. *(`DD-BIMP-3` — the shipped
-  `0072`/`0195` key includes `import_batch_id` and therefore does **not** survive a new session; see
-  §6.)*
+  under any batch id** — the import shall create **no new rows**, via two layers on the **line
+  items**: a skip query keyed on `(budget_version_id, import_key)`, and the partial unique index on
+  the same key as the TOCTOU backstop. *(`DD-BIMP-3` — the shipped `0072` key includes
+  `import_batch_id` and therefore does not survive a new session; see §6.)*
+- **FR-BIMP-010** — *Ubiquitous.* Budget **versions** shall carry `import_batch_id`/`imported_at` but
+  **no `import_key`**. A version's identity is "this project's open `Draft`", not a sheet row; keying
+  it would permanently block the second legitimate import for a project once the first was activated.
+  Match-or-create resolves the version by `(project_id, status = 'Draft')`. *(`DD-BIMP-5`.)*
+- **FR-BIMP-011** — *Ubiquitous.* A line item's `import_key` shall be the row's `Reference` cell when
+  supplied, else a deterministic fingerprint of the row's content — the `0072` shape verbatim. ⚑ Two
+  byte-identical lines in one sheet with no `Reference` therefore collapse to one; that is the cost
+  of a content fingerprint and the `Reference` column is the way out.
 - **FR-BIMP-008** — *While a project's latest version is not `Draft`.* The import shall **never
   attach** a line item to an Active or Archived version; it creates a new `Draft` (FR-BIMP-002) and
   attaches there. `enforce_draft_line_item` (`0005`) is the DB backstop on INSERT/UPDATE/DELETE, so
@@ -69,9 +76,9 @@ covers the descriptor half, plus the one amendment `DD-BIMP-3` makes to `0195`'s
   `budget_line_items` are unchanged.
 - **AC-BIMP-006** — *Given* two concurrent imports of the same sheet, *when* both commit, *then* the
   database rejects the duplicate (unique violation) rather than admitting both.
-- **AC-BIMP-007** — *Given* a project whose only version is **Active**, *when* a sheet naming it is
-  imported, *then* a new `Draft` version is created and the line items land there — an Active version
-  is never appended to.
+- **AC-BIMP-007** — *Given* a project whose only version is **Active**, *when* the same sheet is
+  imported again, *then* a new `Draft` version is created and the line items land **in it** — an
+  Active version is never appended to, and the new Draft is never left empty by a stale skip.
 - **AC-BIMP-008** — *Given* any imported version row, *when* it is read back, *then* `currency` is
   set, is not `'XXX'`, and equals the org's `default_currency`.
 - **AC-BIMP-009** — *Given* a sheet with an invalid row, *when* validation runs, *then* no write has
@@ -83,6 +90,7 @@ covers the descriptor half, plus the one amendment `DD-BIMP-3` makes to `0195`'s
 |---|---|---|
 | AC-BIMP-001/002/003/004/007 | Unit (Vitest) | descriptor tests |
 | AC-BIMP-005 | Unit (Vitest) | the skip query, exercised across two batch ids |
+| AC-BIMP-006/007 (schema half) | Integration (pgTAP) | `supabase/tests/0195_budget_import_provenance.test.sql` |
 | AC-BIMP-006 | Integration (pgTAP) | the partial unique index — the DB is the authority for the *race* |
 | AC-BIMP-008 | Integration (pgTAP) | `stamp_currency` on a provenance-carrying insert |
 | AC-BIMP-009 | Unit (Vitest) | wizard validation path |
