@@ -108,8 +108,12 @@ select is(
   -- fields a native author must state, and both migrations had to grant them explicitly because this
   -- table's INSERT grant is column-level (0176). The withheld set is UNCHANGED: status, si_number,
   -- author_user_id and every erp_* column are still absent.
+  -- #498 (0193): `work_order_id` joined the BODY set — which scope grant this invoice bills against.
+  -- Granted explicitly for the same reason as the five above: this table's INSERT grant is
+  -- column-level (0176), so a new column is not insertable unless named. The withheld set is
+  -- UNCHANGED: status, si_number, author_user_id and every erp_* column are still absent.
   array['amount','created_at','currency','customer_id','id','invoice_date','org_id','project_id',
-        'reference_number','tax_amount','tax_rate','tax_template','tax_treatment'],
+        'reference_number','tax_amount','tax_rate','tax_template','tax_treatment','work_order_id'],
   'AC-RES-010 the INSERT re-grant is exactly the body columns — status / si_number / author_user_id / erp_* are withheld');
 
 select is(
