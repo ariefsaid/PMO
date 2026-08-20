@@ -13,8 +13,16 @@
 import React, { useState } from 'react';
 import { Button, Icon, SelectField, useToast } from '@/src/components/ui';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import type { ProcurementInvoiceRow } from '@/src/lib/db/procurementLifecycle';
+import type { ProcurementInvoiceRow, TaxTreatment } from '@/src/lib/db/procurementLifecycle';
 import { VI_FIELD_TEST_IDS } from './vendorInvoiceTestIds';
+import {
+  TAX_TREATMENT_OPTIONS,
+  TAX_TREATMENT_PLACEHOLDER,
+  VI_TAX_REQUIRED_HINT,
+  parseVendorInvoiceTax,
+  taxIsPmoAuthored,
+  ERP_AUTHORED_TAX,
+} from './vendorInvoiceTax';
 import { useCommandIntent } from '@/src/hooks/useCommandIntent';
 import type { CommandIntent } from '@/src/lib/repositories/types';
 
@@ -248,6 +256,11 @@ export interface StagedVI {
   invoiceDate: string;
   referenceNumber: string | null;
   amount: number | null;
+  /** #505: REQUIRED — the staged payload carries the tax facts through the confirm to the RPC.
+   *  Non-optional on purpose: a staged VI that reaches the confirm dialog without them would fail
+   *  at commit with P0001 after the user has already confirmed. */
+  taxTreatment: TaxTreatment;
+  taxAmount: number;
 }
 
 export type StagedRecord = StagedGR | StagedVI;
@@ -294,6 +307,10 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
   const [status, setStatus] = useState(cfg.defaultStatus);
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [amountStr, setAmountStr] = useState('');
+  // #505: vendor-invoice tax facts. NO initial treatment — '' is "not answered yet", never a value
+  // (see vendorInvoiceTax.ts). Unused by every other kind.
+  const [taxTreatmentStr, setTaxTreatmentStr] = useState('');
+  const [taxAmountStr, setTaxAmountStr] = useState('');
   // [PD-5]: predecessor FK for payment — optional, defaults to none.
   const [invoiceId, setInvoiceId] = useState<string>('');
   const [submitting, setSubmitting] = useState(false);
@@ -306,6 +323,19 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
   const label = KIND_LABEL[kind];
   const statusOptions = STATUS_OPTIONS[kind];
   const formId = `record-capture-${kind}`;
+  const isVendorInvoice = kind === 'vendor_invoice';
+  // #505: the ONE predicate — null ⇒ incomplete tax facts ⇒ Save VI disabled AND submit refuses.
+  // Non-VI kinds have no tax fields, so they are never gated by it.
+  // ⛔ On a FLIPPED org the ERP computes the tax and owns the answer, so PMO does not ask — see
+  // `taxIsPmoAuthored`. Asking and discarding is worse than not asking, and that is what an earlier
+  // round of #505 did on this exact path.
+  const pmoAuthorsTax = isVendorInvoice && taxIsPmoAuthored();
+  const parsedTax = !isVendorInvoice
+    ? null
+    : pmoAuthorsTax
+      ? parseVendorInvoiceTax(taxTreatmentStr, taxAmountStr)
+      : ERP_AUTHORED_TAX;
+  const taxIncomplete = isVendorInvoice && parsedTax === null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -326,6 +356,9 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
           referenceNumber: refNum,
         });
       } else {
+        // #505: refuse to stage without the tax facts. Unreachable through the UI (Save VI is
+        // disabled), but staging an incomplete VI would surface P0001 AFTER the user confirmed.
+        if (!parsedTax) return;
         // N1: status excludes Paid — the select never offers it.
         onStage({
           kind: 'createVI',
@@ -334,6 +367,8 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
           invoiceDate: date,
           referenceNumber: refNum,
           amount: parsedAmount,
+          taxTreatment: parsedTax.taxTreatment,
+          taxAmount: parsedTax.taxAmount,
         });
       }
       return;
@@ -466,6 +501,51 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
         </div>
       )}
 
+      {/* #505: vendor-invoice tax facts — BOTH required, and the treatment has no pre-selected
+          option. `amount` above is ambiguous without a treatment marker and no later inference
+          recovers it (migration 0196). Hidden entirely on a flipped org, where the ERP owns the
+          answer (`taxIsPmoAuthored`). The copy + testids are single-sourced in vendorInvoiceTax.ts /
+          vendorInvoiceTestIds.ts, so the two entry points cannot drift. */}
+      {pmoAuthorsTax && (
+        <div className="flex flex-wrap gap-3">
+          <div className="min-w-[180px] flex-1">
+            <SelectField
+              id={`${formId}-tax-treatment`}
+              label="Tax treatment"
+              value={taxTreatmentStr}
+              onChange={setTaxTreatmentStr}
+              placeholder={TAX_TREATMENT_PLACEHOLDER}
+              options={TAX_TREATMENT_OPTIONS}
+              data-testid={VI_FIELD_TEST_IDS.taxTreatment}
+            />
+          </div>
+          <div className="flex min-w-[140px] flex-1 flex-col gap-1">
+            <label
+              htmlFor={`${formId}-tax-amount`}
+              className="text-[12px] font-semibold text-muted-foreground"
+            >
+              Tax amount
+            </label>
+            <input
+              id={`${formId}-tax-amount`}
+              type="text"
+              inputMode="decimal"
+              value={taxAmountStr}
+              onChange={(e) => setTaxAmountStr(e.target.value)}
+              placeholder="0.00"
+              data-testid={VI_FIELD_TEST_IDS.taxAmount}
+              className="h-8 w-full rounded-md border border-input bg-background px-2.5 text-[13.5px] tabular-nums outline-none placeholder:text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+            />
+          </div>
+        </div>
+      )}
+
+      {taxIncomplete && (
+        <p data-testid={VI_FIELD_TEST_IDS.taxRequiredHint} className="text-[12px] text-muted-foreground">
+          {VI_TAX_REQUIRED_HINT}
+        </p>
+      )}
+
       {/* [PD-5]: predecessor FK for payment — optional inline-select */}
       {cfg.showInvoiceFk && (
         <SelectField
@@ -486,6 +566,8 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
           variant="primary"
           size="sm"
           loading={isBusy}
+          // #505: a VI cannot be saved until its tax treatment + tax amount are stated.
+          disabled={taxIncomplete}
           data-testid={cfg.saveTestId}
         >
           {cfg.saveLabel}

@@ -416,18 +416,36 @@ const procurement: ProcurementRepository = {
             ? createReceipt(procurementId, status, receiptDate, referenceNumber)
             : createReceipt(procurementId, status, receiptDate),
         ),
-  createInvoice: (procurementId, status, invoiceDate, referenceNumber, amount, intent) =>
+  // #505: ONE object param (see ProcurementRepository.createInvoice). The old `referenceNumber !==
+  // undefined || amount !== undefined` arity dance is gone with the positional signature — the DAL
+  // now receives the caller's input verbatim, so an absent optional stays absent by construction.
+  createInvoice: (input, intent) =>
     routeDomainWrite('procurement') === 'external'
       ? dispatchCreate(
           'procurement',
-          { procurementId, status, invoiceDate, erp_doc_kind: 'purchase-invoice' },
+          {
+            procurementId: input.procurementId,
+            status: input.status,
+            invoiceDate: input.invoiceDate,
+            // ⛔ #505 — THE TAX FACTS ARE DELIBERATELY NOT FORWARDED, and this is a correction of
+            // what an earlier round of this change did. They WERE sent here, with a comment claiming
+            // it stopped the flipped-org path "recording an amount with no marker". Nothing consumed
+            // them: `piToBody` sends `{supplier, items}` only, so the round trip was user states
+            // *exclusive / 11,000* → ERPNext receives no taxes → `grand_total` = net → the mirror
+            // writes `amount` = net with `tax_treatment = 'inclusive'`. Internally consistent,
+            // confidently wrong, unrecoverable — this issue's own defect, on the other branch of the
+            // same `if`.
+            //
+            // On a flipped org the ERP computes the tax from its own template and OWNS the answer;
+            // `upsertInvoiceMirror` writes 'inclusive' as a fact about the grand_total it just set.
+            // So the form does not ask (see `taxIsPmoAuthored`), and nothing is forwarded. Letting a
+            // user CHOOSE the ERPNext tax template on this path is a real feature, tracked
+            // separately — it is not this omission.
+            erp_doc_kind: 'purchase-invoice',
+          },
           intent,
         ).then((res) => res.canonical as unknown as ProcurementInvoiceRow)
-      : wrap(() =>
-          referenceNumber !== undefined || amount !== undefined
-            ? createInvoice(procurementId, status, invoiceDate, referenceNumber, amount)
-            : createInvoice(procurementId, status, invoiceDate),
-        ),
+      : wrap(() => createInvoice(input)),
   create: (input, requestedById) => wrap(() => createProcurement(input, requestedById)),
   updateHeader: (id, patch) => wrap(() => updateProcurementHeader(id, patch)),
   createItem: (procurementId, input) => wrap(() => createProcurementItem(procurementId, input)),

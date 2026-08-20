@@ -22,6 +22,8 @@ import {
   type ProcurementStatus,
   type ProcurementReceiptRow,
   type ProcurementInvoiceRow,
+  type CreateInvoiceInput,
+  type CaptureVendorInvoiceInput,
 } from '@/src/lib/db/procurementLifecycle';
 import type { Tables } from '@/src/lib/supabase/database.types';
 import type { CommandIntent } from '@/src/lib/repositories/types';
@@ -128,13 +130,20 @@ export function useProcurementMutations(id: string) {
     },
   });
 
+  // #505: `taxTreatment` + `taxAmount` are REQUIRED mutation variables (the mirror of 0196's NOT NULL
+  // columns) — a call site that omits either does not compile. `procurementId` is supplied here from
+  // the hook's own `id`, so it is Omit-ed from the caller's variables. Also Omit-ed: `importKey` /
+  // `importBatchId` / `importedAt` — import provenance the historical-import path stamps server-side
+  // (procurementCycle/commit.ts); the UI mutation has no business setting them (code-quality follow-up).
   const createInvoice = useMutation<
     ProcurementInvoiceRow,
     ProcurementError,
-    { status: 'Received' | 'Scheduled' | 'Paid'; invoiceDate: string; referenceNumber?: string | null; amount?: number | null; intent?: CommandIntent }
+    Omit<CreateInvoiceInput, 'procurementId' | 'importKey' | 'importBatchId' | 'importedAt'> & {
+      intent?: CommandIntent;
+    }
   >({
-    mutationFn: ({ status, invoiceDate, referenceNumber, amount, intent }) =>
-      repositories.procurement.createInvoice(id, status, invoiceDate, referenceNumber, amount, intent),
+    mutationFn: ({ intent, ...input }) =>
+      repositories.procurement.createInvoice({ ...input, procurementId: id }, intent),
     onMutate: () => {
       if (isExternal()) setPendingPush(beginPush(IDLE_PENDING_PUSH));
     },
@@ -154,16 +163,9 @@ export function useProcurementMutations(id: string) {
   const captureVendorInvoice = useMutation<
     ProcurementInvoiceRow,
     ProcurementError,
-    {
-      status: 'Received' | 'Scheduled';
-      invoiceDate: string;
-      referenceNumber?: string | null;
-      amount?: number | null;
-      notes?: string | null;
-    }
+    Omit<CaptureVendorInvoiceInput, 'procurementId'>
   >({
-    mutationFn: ({ status, invoiceDate, referenceNumber, amount, notes }) =>
-      dalCaptureVendorInvoice(id, status, invoiceDate, referenceNumber, amount, notes),
+    mutationFn: (input) => dalCaptureVendorInvoice({ ...input, procurementId: id }),
     onSuccess: invalidateDetail,
   });
 

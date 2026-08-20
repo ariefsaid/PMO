@@ -33,8 +33,8 @@ insert into procurements (id, org_id, title, status, vendor_id) values
   ('00990000-0000-0000-0000-0000000000c2','00990000-0000-0000-0000-000000000002','Org B case','Ordered',null);
 insert into purchase_orders (id, org_id, procurement_id, po_number, reference_number, status, date, amount) values
   ('00990000-0000-0000-0000-0000000000d1','00990000-0000-0000-0000-000000000001','00990000-0000-0000-0000-0000000000c1','PUR-ORD-M1','REF-M1','Draft','2026-07-11',500);
-insert into procurement_invoices (id, org_id, procurement_id, vi_number, invoice_date, status, reference_number, amount, po_id) values
-  ('00990000-0000-0000-0000-0000000000e1','00990000-0000-0000-0000-000000000001','00990000-0000-0000-0000-0000000000c1','VI-M1','2026-07-12','Received','BILL-M1',500,'00990000-0000-0000-0000-0000000000d1');
+insert into procurement_invoices (id, org_id, procurement_id, vi_number, invoice_date, status, reference_number, amount, po_id, tax_treatment, tax_amount) values
+  ('00990000-0000-0000-0000-0000000000e1','00990000-0000-0000-0000-000000000001','00990000-0000-0000-0000-0000000000c1','VI-M1','2026-07-12','Received','BILL-M1',500,'00990000-0000-0000-0000-0000000000d1', 'exclusive', 0);
 insert into procurement_quotations (id, org_id, procurement_id, vendor_id, total_amount, received_date, vq_number, is_selected) values
   ('00990000-0000-0000-0000-0000000000a2','00990000-0000-0000-0000-000000000001','00990000-0000-0000-0000-0000000000c1','00990000-0000-0000-0000-0000000000f1',500,'2026-07-10','VQ-M1',false);
 insert into payments (id, org_id, procurement_id, invoice_id, pay_number, status, date, amount) values
@@ -59,8 +59,8 @@ select throws_ok(
   '42501', 'permission denied for table procurement_invoices',
   'AC-ENA-072 procurement_invoices: user-JWT native-field UPDATE (status) denied while procurement is externally-owned');
 select throws_ok(
-  $$ insert into procurement_invoices (org_id, procurement_id, vi_number, invoice_date, status)
-       values ('00990000-0000-0000-0000-000000000001','00990000-0000-0000-0000-0000000000c1','VI-M2','2026-07-12','Received') $$,
+  $$ insert into procurement_invoices (org_id, procurement_id, vi_number, invoice_date, status, tax_treatment, tax_amount)
+       values ('00990000-0000-0000-0000-000000000001','00990000-0000-0000-0000-0000000000c1','VI-M2','2026-07-12','Received', 'exclusive', 0) $$,
   '42501', null,
   'AC-ENA-072 procurement_invoices: user-JWT raw INSERT denied while flipped');
 select throws_ok(
@@ -163,7 +163,8 @@ select is(
 -- ── Org B (not flipped): both create RPCs still succeed byte-for-byte ──────────────────────────────
 set local request.jwt.claims = '{"sub":"00990000-0000-0000-0000-0000000000b1","role":"authenticated"}';
 select lives_ok(
-  $$ select create_procurement_invoice('00990000-0000-0000-0000-0000000000c2','Received'::procurement_invoice_status,'2026-07-12','BILL-B',300) $$,
+  $$ select create_procurement_invoice('00990000-0000-0000-0000-0000000000c2','Received'::procurement_invoice_status,'2026-07-12','BILL-B',300,
+     p_tax_treatment => 'exclusive', p_tax_amount => 0) $$,
   'AC-ENA-072 procurement_invoices: org-B (not flipped) create_procurement_invoice RPC still succeeds (byte-for-byte)');
 select lives_ok(
   $$ select create_payment('00990000-0000-0000-0000-0000000000c2',null,'REF-B','Scheduled','2026-07-13',300) $$,

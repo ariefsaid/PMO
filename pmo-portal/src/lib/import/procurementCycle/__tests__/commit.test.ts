@@ -30,6 +30,9 @@ import { commitGroups } from '../commit';
 import { createProcurement } from '@/src/lib/db/procurementCrud';
 import { createPurchaseRequest, createRfq, createPurchaseOrder, createPayment } from '@/src/lib/db/procurementRecords';
 import { createInvoice } from '@/src/lib/db/procurementLifecycle';
+import { groupRows } from '../group';
+import { validateGroups } from '../validate';
+import type { CycleRow } from '../types';
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -60,7 +63,9 @@ describe('commitGroups — AC-CYCLE-COMMIT-001: VI+Payment settlement FK', () =>
           {
             caseRef: 'CASE-MC', type: 'VI', title: 'Legacy Invoice', project: 'Solar EPC',
             caseStatus: undefined, vendor: undefined, externalRef: 'EXT-001',
-            status: 'Received', date: '2025-01-15', amount: '5000', rowNumber: 1,
+            status: 'Received', date: '2025-01-15', amount: '5000',
+            // #505: validate.ts guarantees a committed VI row carries both.
+            taxTreatment: 'inclusive', taxAmount: '500', rowNumber: 1,
           },
           {
             caseRef: 'CASE-MC', type: 'Payment', title: undefined, project: undefined,
@@ -86,16 +91,19 @@ describe('commitGroups — AC-CYCLE-COMMIT-001: VI+Payment settlement FK', () =>
     expect(result.failed).toBe(0);
 
     // createInvoice called for VI row
-    expect(createInvoice).toHaveBeenCalledWith(
-      'proc-1',
-      'Received',
-      '2025-01-15',
-      'EXT-001',
-      5000,
-      undefined,
-      undefined,
-      undefined,
-    );
+    expect(createInvoice).toHaveBeenCalledWith({
+      procurementId: 'proc-1',
+      status: 'Received',
+      invoiceDate: '2025-01-15',
+      referenceNumber: 'EXT-001',
+      amount: 5000,
+      // #505: the sheet's tax facts reach the RPC — parsed, not defaulted.
+      taxTreatment: 'inclusive',
+      taxAmount: 500,
+      importKey: undefined,
+      importBatchId: undefined,
+      importedAt: undefined,
+    });
 
     // createPayment called with invoiceId = 'inv-1' (the VI created in this group)
     expect(createPayment).toHaveBeenCalledWith(
@@ -392,6 +400,10 @@ describe('commitGroups — AC-CYCLE-COMMIT-004: canonical creation order', () =>
             caseRef: 'CASE-ORDER', type: 'VI', title: undefined, project: undefined,
             caseStatus: undefined, vendor: undefined, externalRef: null as unknown as string,
             status: 'Received', date: '2025-03-15', amount: '500', rowNumber: 2,
+            // #505: a VI row states its tax treatment. validateGroups refuses one that does not, and
+            // commitGroups now THROWS rather than coercing — `Number('')` is 0, which would have made
+            // a blank cell a confident "no tax" on a money row.
+            taxTreatment: 'exclusive', taxAmount: '0',
           },
           {
             caseRef: 'CASE-ORDER', type: 'PR', title: 'Order Test', project: undefined,
@@ -514,7 +526,7 @@ describe('commitGroups — AC-IDEM-004a: header skip does NOT skip its still-mis
           { caseRef: 'CASE-CRASH', type: 'PR', title: 'Crashed Case', project: undefined, caseStatus: undefined, vendor: undefined, externalRef: 'PR-1', status: 'Approved', date: '2025-01-01', amount: '100', rowNumber: 1 },
           { caseRef: 'CASE-CRASH', type: 'RFQ', title: undefined, project: undefined, caseStatus: undefined, vendor: undefined, externalRef: 'RFQ-1', status: null as unknown as string, date: null as unknown as string, amount: null as unknown as string, rowNumber: 2 },
           { caseRef: 'CASE-CRASH', type: 'PO', title: undefined, project: undefined, caseStatus: undefined, vendor: undefined, externalRef: 'PO-1', status: 'Ordered', date: '2025-02-01', amount: '900', rowNumber: 3 },
-          { caseRef: 'CASE-CRASH', type: 'VI', title: undefined, project: undefined, caseStatus: undefined, vendor: undefined, externalRef: 'VI-1', status: 'Received', date: '2025-03-01', amount: '900', rowNumber: 4 },
+          { caseRef: 'CASE-CRASH', type: 'VI', title: undefined, project: undefined, caseStatus: undefined, vendor: undefined, externalRef: 'VI-1', status: 'Received', date: '2025-03-01', amount: '900', rowNumber: 4, taxTreatment: 'exclusive', taxAmount: '0' },
           { caseRef: 'CASE-CRASH', type: 'Payment', title: undefined, project: undefined, caseStatus: undefined, vendor: undefined, externalRef: 'PAY-1', status: 'Paid', date: '2025-04-01', amount: '900', rowNumber: 5 },
         ],
         errors: [],
@@ -724,5 +736,200 @@ describe('commitGroups — A4: a 23505 unique-violation on insert is treated as 
     );
     expect(result.cases[0].records[0].id).toBe('raced-po-id');
     expect(result.cases[0].records[0].status).toBe('skipped');
+  });
+});
+
+
+// ─── #505: a VI row missing its tax facts NEVER reaches the RPC ───────────────────────────────
+// The end-to-end oracle for "reported at preview, zero writes": drive the REAL group→validate
+// pipeline (not a hand-built ValidatedGroup) and assert createInvoice was never called. A P0001
+// from the RPC would also stop the write, but only after the case header had already been created.
+
+describe('commitGroups — #505: a VI row with no tax treatment is rejected before any write', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  const viRow = (overrides: Partial<CycleRow>): CycleRow => ({
+    caseRef: 'CASE-505', type: 'VI', title: 'Legacy Invoice', project: 'Solar EPC',
+    caseStatus: undefined, vendor: undefined, externalRef: 'EXT-505',
+    status: 'Received', date: '2025-01-15', amount: '5000', rowNumber: 1,
+    ...overrides,
+  });
+
+  const commitFromSheet = async (rows: CycleRow[]) => {
+    vi.mocked(createProcurement).mockResolvedValue({ id: 'proc-505' } as never);
+    vi.mocked(createInvoice).mockResolvedValue({ id: 'inv-505' } as never);
+    const { groups } = groupRows(rows);
+    const validated = validateGroups(groups, { projectLookup, vendorLookup });
+    return commitGroups(validated.filter((g) => g.valid), {
+      requestedById: REQUESTER, projectLookup, vendorLookup,
+    });
+  };
+
+  it('#505: no tax treatment on the sheet ⇒ createInvoice is never called', async () => {
+    await commitFromSheet([viRow({ taxTreatment: undefined, taxAmount: '500' })]);
+    expect(createInvoice).not.toHaveBeenCalled();
+  });
+
+  it('#505: no tax amount on the sheet ⇒ createInvoice is never called', async () => {
+    await commitFromSheet([viRow({ taxTreatment: 'inclusive', taxAmount: undefined })]);
+    expect(createInvoice).not.toHaveBeenCalled();
+  });
+
+  it('#505: with both stated the row commits, and taxAmount "0" arrives as the number 0', async () => {
+    await commitFromSheet([viRow({ taxTreatment: 'exclusive', taxAmount: '0' })]);
+    expect(createInvoice).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(createInvoice).mock.calls[0][0]).toMatchObject({
+      taxTreatment: 'exclusive',
+      taxAmount: 0,
+    });
+  });
+
+  // The three cases above all use SINGLE-ROW groups: the invalid VI row is the group's only row,
+  // so `anyRowValid` is false and validateGroups filters the WHOLE group before commit ever runs —
+  // that proves nothing about PER-ROW filtering inside commitCase, which is what protects a real
+  // mixed sheet (a valid PR/PO/GR row sharing a case with a broken VI row). This case puts a VALID
+  // PR row in the SAME group as the invalid VI row: `anyRowValid` is true (the PR row), so the
+  // group as a whole is `valid: true` and reaches commitCase — proving per-row filtering, not
+  // group-level rejection, is what keeps the bad VI row from ever reaching createInvoice.
+  it('#505: a valid PR row commits even when the VI row beside it (same case) has no tax treatment, and createInvoice is never called', async () => {
+    vi.mocked(createProcurement).mockResolvedValue({ id: 'proc-mix' } as never);
+    vi.mocked(createPurchaseRequest).mockResolvedValue({ id: 'pr-mix' } as never);
+
+    const prRow: CycleRow = {
+      caseRef: 'CASE-505-MIX', type: 'PR', title: 'Legacy Invoice', project: 'Solar EPC',
+      caseStatus: undefined, vendor: undefined, externalRef: 'PR-505',
+      status: 'Open', date: '2025-01-10', amount: '1000', rowNumber: 1,
+    };
+    const invalidViRow: CycleRow = {
+      ...viRow({ taxTreatment: undefined, taxAmount: '500' }),
+      caseRef: 'CASE-505-MIX',
+      rowNumber: 2,
+    };
+
+    const { groups } = groupRows([prRow, invalidViRow]);
+    const validated = validateGroups(groups, { projectLookup, vendorLookup });
+    // Confirms the fixture actually exercises the per-row path, not group-level rejection.
+    expect(validated).toHaveLength(1);
+    expect(validated[0].valid).toBe(true);
+
+    const result = await commitGroups(validated.filter((g) => g.valid), {
+      requestedById: REQUESTER, projectLookup, vendorLookup,
+    });
+
+    expect(result.cases[0].headerStatus).toBe('created');
+    expect(result.created).toBe(1);
+    expect(createPurchaseRequest).toHaveBeenCalledTimes(1);
+    expect(createInvoice).not.toHaveBeenCalled();
+    // The stronger, filtering-specific assertions: with per-row filtering intact, the invalid VI
+    // row is never even ATTEMPTED — it produces no record at all (not a 'failed' one). Asserting
+    // only `createInvoice` was never called is not enough to prove filtering ran, because the
+    // commit-time guard (tested separately below) would ALSO stop createInvoice from firing if the
+    // invalid row were mistakenly let through the filter and attempted — that would just show up
+    // as a 'failed' record instead. `records` having exactly the one PR record, and `failed` at 0,
+    // is what distinguishes "never attempted" (filtering) from "attempted and caught" (the guard).
+    expect(result.failed).toBe(0);
+    expect(result.cases[0].records).toEqual([
+      expect.objectContaining({ rowNumber: 1, type: 'PR', status: 'created' }),
+    ]);
+  });
+});
+
+// ─── #505: the throw guard at commit-time is the last line of defense ────────────────────────
+// validateGroups is SUPPOSED to refuse a tax-less VI row before commit ever runs (the describe
+// block above proves that). This block proves the OTHER half: if a validation regression ever let
+// one through anyway (hand-built here, bypassing validateGroups entirely — exactly what a future
+// bug in validateRowFields would look like from commit.ts's point of view), commit.ts's own guard
+// (~line 206) must catch it and report the row `failed` with a loud message, not coerce `Number('')`
+// into a confident `0` and silently write a wrong tax figure.
+describe('commitGroups — #505: the tax-less-VI-at-commit guard', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('reports a VI row as failed, carrying the guard message, when it reaches commit with no tax treatment', async () => {
+    vi.mocked(createProcurement).mockResolvedValue({ id: 'proc-guard' } as never);
+
+    const group: ValidatedGroup = {
+      valid: true,
+      groupErrors: [],
+      group: {
+        caseRef: 'CASE-GUARD',
+        attrs: { title: 'Legacy Invoice', project: undefined, caseStatus: undefined },
+        rows: [
+          {
+            caseRef: 'CASE-GUARD', type: 'VI', title: 'Legacy Invoice', project: undefined,
+            caseStatus: undefined, vendor: undefined, externalRef: 'EXT-GUARD',
+            status: 'Received', date: '2025-01-15', amount: '5000',
+            // Hand-built as though validateGroups had (wrongly) let this through: no tax treatment,
+            // no tax amount — the exact shape a validation regression would produce.
+            taxTreatment: undefined, taxAmount: undefined, rowNumber: 1,
+          },
+        ],
+        errors: [],
+      },
+      // Marked valid: true by hand — simulating the validation bug this guard exists to catch.
+      rows: [{ rowNumber: 1, valid: true, errors: [] }],
+    };
+
+    const result = await commitGroups([group], {
+      requestedById: REQUESTER, projectLookup, vendorLookup,
+    });
+
+    expect(createInvoice).not.toHaveBeenCalled();
+    expect(result.failed).toBe(1);
+    expect(result.cases[0].records).toEqual([
+      expect.objectContaining({
+        rowNumber: 1,
+        type: 'VI',
+        status: 'failed',
+        error: expect.stringContaining(
+          'a VI row reached commit with no tax treatment or amount',
+        ),
+      }),
+    ]);
+  });
+
+  // Code-quality follow-up (#505 review): the guard used to check only for EMPTINESS (`!taxTreatment`),
+  // so an out-of-domain-but-non-empty value like 'Inclusive' (wrong case) or 'invalid' slipped past it
+  // and reached the RPC to die on the DB's 23514 — the wrong, less actionable error. Same hand-built
+  // bypass-validateGroups shape as above, but with a non-empty, out-of-domain treatment string.
+  it('reports a VI row as failed, carrying the guard message, when its tax treatment is non-empty but out of domain', async () => {
+    vi.mocked(createProcurement).mockResolvedValue({ id: 'proc-guard-2' } as never);
+
+    const group: ValidatedGroup = {
+      valid: true,
+      groupErrors: [],
+      group: {
+        caseRef: 'CASE-GUARD-2',
+        attrs: { title: 'Legacy Invoice', project: undefined, caseStatus: undefined },
+        rows: [
+          {
+            caseRef: 'CASE-GUARD-2', type: 'VI', title: 'Legacy Invoice', project: undefined,
+            caseStatus: undefined, vendor: undefined, externalRef: 'EXT-GUARD-2',
+            status: 'Received', date: '2025-01-15', amount: '5000',
+            // Non-empty but NOT in VI_TAX_TREATMENT ('inclusive' | 'exclusive') — an emptiness-only
+            // guard would wrongly let this through.
+            taxTreatment: 'Inclusive', taxAmount: '500', rowNumber: 1,
+          },
+        ],
+        errors: [],
+      },
+      rows: [{ rowNumber: 1, valid: true, errors: [] }],
+    };
+
+    const result = await commitGroups([group], {
+      requestedById: REQUESTER, projectLookup, vendorLookup,
+    });
+
+    expect(createInvoice).not.toHaveBeenCalled();
+    expect(result.failed).toBe(1);
+    expect(result.cases[0].records).toEqual([
+      expect.objectContaining({
+        rowNumber: 1,
+        type: 'VI',
+        status: 'failed',
+        error: expect.stringContaining(
+          'a VI row reached commit with no tax treatment or amount',
+        ),
+      }),
+    ]);
   });
 });

@@ -527,8 +527,15 @@ describe('delegation — methods pass args through and return the DAL result', (
     await repositories.procurement.createReceipt('pr1', 'Complete', '2026-06-07');
     expect(procLifecycleDal.createReceipt).toHaveBeenCalledWith('pr1', 'Complete', '2026-06-07');
 
-    await repositories.procurement.createInvoice('pr1', 'Received', '2026-06-07');
-    expect(procLifecycleDal.createInvoice).toHaveBeenCalledWith('pr1', 'Received', '2026-06-07');
+    // #505: ONE object param, and the DAL receives it verbatim (no arity dance any more).
+    await repositories.procurement.createInvoice({
+      procurementId: 'pr1', status: 'Received', invoiceDate: '2026-06-07',
+      taxTreatment: 'exclusive', taxAmount: 0,
+    });
+    expect(procLifecycleDal.createInvoice).toHaveBeenCalledWith({
+      procurementId: 'pr1', status: 'Received', invoiceDate: '2026-06-07',
+      taxTreatment: 'exclusive', taxAmount: 0,
+    });
   });
 
   // task FIX-1 (Discover CRITICAL 1 follow-up): createReceipt/createInvoice thread an optional
@@ -542,8 +549,17 @@ describe('delegation — methods pass args through and return the DAL result', (
     await repositories.procurement.createReceipt('pr1', 'Complete', '2026-06-07', 'DN-9');
     expect(procLifecycleDal.createReceipt).toHaveBeenCalledWith('pr1', 'Complete', '2026-06-07', 'DN-9');
 
-    await repositories.procurement.createInvoice('pr1', 'Received', '2026-06-07', 'BILL-9', 950);
-    expect(procLifecycleDal.createInvoice).toHaveBeenCalledWith('pr1', 'Received', '2026-06-07', 'BILL-9', 950);
+    await repositories.procurement.createInvoice({
+      procurementId: 'pr1', status: 'Received', invoiceDate: '2026-06-07',
+      referenceNumber: 'BILL-9', amount: 950,
+      // #505: the tax facts thread through the seam to the DAL alongside the optionals.
+      taxTreatment: 'inclusive', taxAmount: 94.14, taxRate: 11,
+    });
+    expect(procLifecycleDal.createInvoice).toHaveBeenCalledWith({
+      procurementId: 'pr1', status: 'Received', invoiceDate: '2026-06-07',
+      referenceNumber: 'BILL-9', amount: 950,
+      taxTreatment: 'inclusive', taxAmount: 94.14, taxRate: 11,
+    });
   });
 
   it('procurement CRUD methods (create/header/items/selectQuote/documents) delegate', async () => {

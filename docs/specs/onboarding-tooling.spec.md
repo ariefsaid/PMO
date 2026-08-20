@@ -464,6 +464,8 @@ templates into a freshly-provisioned client org:
 | `date` | yes | Business date (ADR-0033). |
 | `amount` | per type | Final amount (per-record; this is the existing per-record `amount`, distinct from the case-level `total_value` above). |
 | `vendor` | Quotation/VI | Resolved to a `companies` row (type=Vendor; created if absent). |
+| `tax_treatment` | VI | `inclusive` or `exclusive` — whether `amount` already includes tax (#505, migration 0196). `tax_treatment` is NOT NULL with **no default**; the script **rejects** a VI row missing it (per-row error, not inserted) rather than guessing. Cannot be inferred from the total afterwards. |
+| `tax_amount` | VI | The tax amount, ≥ 0 (enter `0` when the invoice carries no tax — `0` is a valid, deliberate answer, not "unknown"). Also NOT NULL with no default; the script rejects a VI row missing it the same way as `tax_treatment`. |
 
 ### Functional requirements (EARS)
 

@@ -251,9 +251,9 @@ set local request.jwt.claims =
   '{"sub":"01670000-0000-0000-0000-0000000000a2","role":"authenticated"}';
 
 select throws_ok(
-  $$ insert into public.procurement_invoices (org_id, procurement_id, status, amount, erp_docstatus, vi_number)
+  $$ insert into public.procurement_invoices (org_id, procurement_id, status, amount, erp_docstatus, vi_number, tax_treatment, tax_amount)
        values ('01670000-0000-0000-0000-000000000001','01670000-0000-0000-0000-0000000000d1',
-               'Paid', 888888, 1, 'VI-FORGED') $$,
+               'Paid', 888888, 1, 'VI-FORGED', 'exclusive', 0) $$,
   '42501',
   'permission denied for table procurement_invoices',
   'AC-CPS-030 a PM forging a Paid invoice straight into the table is denied');
@@ -292,7 +292,8 @@ set local request.jwt.claims =
 
 select lives_ok(
   $$ select create_procurement_invoice('01670000-0000-0000-0000-0000000000d1'::uuid,
-       'Received'::procurement_invoice_status, current_date, null, 1000::numeric) $$,
+       'Received'::procurement_invoice_status, current_date, null, 1000::numeric,
+       p_tax_treatment => 'exclusive', p_tax_amount => 0) $$,
   'AC-CPS-031 create_procurement_invoice still succeeds end to end (the sanctioned write path)');
 
 select lives_ok(

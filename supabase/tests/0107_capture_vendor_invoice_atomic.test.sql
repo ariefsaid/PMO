@@ -77,7 +77,8 @@ set local request.jwt.claims = '{"sub":"01050000-0000-0000-0000-0000000000f1","r
 
 select lives_ok(
   $$ select capture_vendor_invoice('01050000-0000-0000-0000-0000000000c1',
-       'Received'::procurement_invoice_status, current_date, 'INV-OK', 950, 'captured') $$,
+       'Received'::procurement_invoice_status, current_date, 'INV-OK', 950, 'captured',
+       p_tax_treatment => 'exclusive', p_tax_amount => 0) $$,
   'harden #2: Finance captures the VI atomically (transition + invoice + event)');
 
 reset role;

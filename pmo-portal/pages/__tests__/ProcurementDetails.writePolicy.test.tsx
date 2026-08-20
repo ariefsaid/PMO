@@ -223,8 +223,12 @@ describe('AC-IXD-WP-003: routine forward procurement steps are single-click (no 
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(screen.queryByRole('alertdialog')).toBeNull();
 
-    // The inline capture is now visible — submit it to commit the advance.
+    // The inline capture is now visible — fill it and submit to commit the advance. #505 added the
+    // tax treatment + tax amount as required capture fields (a deliberate UX change); the goal
+    // oracle below is unchanged.
     expect(screen.getByTestId('vi-inline-capture')).toBeInTheDocument();
+    await userEvent.selectOptions(screen.getByTestId('vi-tax-treatment-select'), 'inclusive');
+    await userEvent.type(screen.getByTestId('vi-tax-amount-input'), '0');
     await userEvent.click(screen.getByTestId('btn-submit-vi-capture'));
 
     // Goal oracle unchanged: submitting the inline capture commits the Received→Vendor Invoiced

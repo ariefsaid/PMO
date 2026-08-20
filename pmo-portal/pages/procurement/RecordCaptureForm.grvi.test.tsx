@@ -98,6 +98,10 @@ describe('RecordCaptureForm — Vendor Invoice kind', () => {
     const { onCreate } = renderForm({ kind: 'vendor_invoice', onStage });
     await userEvent.type(screen.getByTestId('vi-ref-input'), 'INV-7');
     await userEvent.type(screen.getByTestId('vi-amount-input'), '1,250.50');
+    // #505: the tax facts are now part of recording a vendor invoice — a deliberate step added to
+    // the journey, not a workaround. The GOAL oracle below is unchanged.
+    await userEvent.selectOptions(screen.getByTestId('vi-tax-treatment-select'), 'inclusive');
+    await userEvent.type(screen.getByTestId('vi-tax-amount-input'), '123.95');
     await userEvent.click(screen.getByTestId('btn-save-vi'));
 
     expect(onCreate).not.toHaveBeenCalled();
@@ -107,8 +111,69 @@ describe('RecordCaptureForm — Vendor Invoice kind', () => {
         status: 'Received',
         referenceNumber: 'INV-7',
         amount: 1250.5,
+        taxTreatment: 'inclusive',
+        taxAmount: 123.95,
       }),
     );
+  });
+
+  // ── #505: the tax facts gate the save ──────────────────────────────────────────────────────
+  it('#505: the tax-treatment select renders with NOTHING pre-selected — the user must choose', () => {
+    renderForm({ kind: 'vendor_invoice' });
+    const select = screen.getByTestId('vi-tax-treatment-select') as HTMLSelectElement;
+    expect(select.value).toBe('');
+    expect(Array.from(select.options).map((o) => o.value)).toEqual(['', 'inclusive', 'exclusive']);
+  });
+
+  it('#505: Save VI is blocked until a tax treatment is chosen, and staging never fires', async () => {
+    const onStage = vi.fn();
+    renderForm({ kind: 'vendor_invoice', onStage });
+    await userEvent.type(screen.getByTestId('vi-tax-amount-input'), '0');
+    expect(screen.getByTestId('btn-save-vi')).toBeDisabled();
+    expect(screen.getByTestId('vi-tax-required-hint')).toBeInTheDocument();
+
+    await userEvent.click(screen.getByTestId('btn-save-vi'));
+    expect(onStage).not.toHaveBeenCalled();
+
+    await userEvent.selectOptions(screen.getByTestId('vi-tax-treatment-select'), 'exclusive');
+    expect(screen.getByTestId('btn-save-vi')).toBeEnabled();
+    await userEvent.click(screen.getByTestId('btn-save-vi'));
+    // 0 is a REAL answer ("no tax on this invoice"), so it stages as the number 0.
+    expect(onStage).toHaveBeenCalledWith(
+      expect.objectContaining({ taxTreatment: 'exclusive', taxAmount: 0 }),
+    );
+  });
+
+  it('#505: a blank tax amount also blocks the save — blank never means 0', async () => {
+    renderForm({ kind: 'vendor_invoice' });
+    await userEvent.selectOptions(screen.getByTestId('vi-tax-treatment-select'), 'inclusive');
+    expect(screen.getByTestId('btn-save-vi')).toBeDisabled();
+  });
+
+  it('#505: a GOODS RECEIPT form renders no tax fields and its save is never gated by them', () => {
+    renderForm({ kind: 'goods_receipt' });
+    expect(screen.queryByTestId('vi-tax-treatment-select')).not.toBeInTheDocument();
+    expect(screen.getByTestId('btn-save-gr')).toBeEnabled();
+  });
+
+  // ⛔ #505 — on a FLIPPED (ERPNext-owned) org the ERP computes the tax and owns the answer, so PMO
+  // must not ask. An earlier round of this change DID ask and forwarded the answer on the outbound
+  // command, where nothing consumed it: the user could state exclusive/11,000 and get back a row
+  // saying inclusive/0. Asking for a fact and discarding it is worse than not asking, and this is
+  // the assertion that keeps the controls off that path.
+  it('#505: a flipped org renders NO tax fields and does not gate save on them', async () => {
+    const ownership = await import('@/src/lib/adapterSeam/ownershipCache');
+    const spy = vi.spyOn(ownership, 'routeDomainWrite').mockReturnValue('external');
+    try {
+      renderForm({ kind: 'vendor_invoice', onStage: vi.fn() });
+      expect(screen.queryByTestId('vi-tax-treatment-select')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('vi-tax-amount-input')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('vi-tax-required-hint')).not.toBeInTheDocument();
+      // and save is NOT blocked by the fields that are not there
+      expect(screen.getByTestId('btn-save-vi')).toBeEnabled();
+    } finally {
+      spy.mockRestore();
+    }
   });
 });
 

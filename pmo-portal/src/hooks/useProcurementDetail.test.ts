@@ -152,10 +152,23 @@ describe('useProcurementMutations', () => {
       await result.current.createInvoice.mutateAsync({
         status: 'Received',
         invoiceDate: '2026-06-04',
+        // #505: required mutation variables — omitting either is a compile error, not a P0001.
+        taxTreatment: 'inclusive',
+        taxAmount: 1100,
       });
     });
 
-    expect(procurement.createInvoice).toHaveBeenCalledWith('proc-1', 'Received', '2026-06-04', undefined, undefined, undefined);
+    // The hook supplies procurementId from its own `id`; the tax facts thread through untouched.
+    expect(procurement.createInvoice).toHaveBeenCalledWith(
+      {
+        procurementId: 'proc-1',
+        status: 'Received',
+        invoiceDate: '2026-06-04',
+        taxTreatment: 'inclusive',
+        taxAmount: 1100,
+      },
+      undefined,
+    );
     const calls = invalidateSpy.mock.calls.map((c) => JSON.stringify(c[0]));
     expect(
       calls.some((c) => c.includes('"procurement"') && c.includes('"org-1"')),
@@ -196,13 +209,25 @@ describe('useProcurementMutations', () => {
         referenceNumber: 'INV-9',
         amount: 950,
         notes: 'captured',
+        taxTreatment: 'exclusive',
+        taxAmount: 0,
       });
     });
 
     // The whole VI capture goes through the ONE atomic RPC (transition + invoice + event),
     // never the two separate transition + createInvoice writes, and never the repository seam
     // (task FIX-1's import comment — the case aggregate stays PMO-derived, FR-ENA-101/073).
-    expect(captureVendorInvoice).toHaveBeenCalledWith('proc-1', 'Received', '2026-06-04', 'INV-9', 950, 'captured');
+    expect(captureVendorInvoice).toHaveBeenCalledWith({
+      procurementId: 'proc-1',
+      status: 'Received',
+      invoiceDate: '2026-06-04',
+      referenceNumber: 'INV-9',
+      amount: 950,
+      notes: 'captured',
+      // #505: 0 is a real answer ("no tax"), so it must arrive as 0 — never be dropped en route.
+      taxTreatment: 'exclusive',
+      taxAmount: 0,
+    });
     expect(procurement.transition).not.toHaveBeenCalled();
     expect(procurement.createInvoice).not.toHaveBeenCalled();
     const calls = invalidateSpy.mock.calls.map((c) => JSON.stringify(c[0]));

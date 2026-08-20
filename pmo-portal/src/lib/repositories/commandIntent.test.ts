@@ -105,8 +105,13 @@ describe('BLOCK 2 — a retry under the SAME intent reuses the outbox 4-tuple (n
   it('procurement.createInvoice (Purchase Invoice) reuses the caller-supplied intent', async () => {
     const intent = newCommandIntent();
 
-    await repositories.procurement.createInvoice('proc-1', 'Received', '2026-07-20', null, null, intent);
-    await repositories.procurement.createInvoice('proc-1', 'Received', '2026-07-20', null, null, intent);
+    const input = {
+      procurementId: 'proc-1', status: 'Received' as const, invoiceDate: '2026-07-20',
+      referenceNumber: null, amount: null,
+      taxTreatment: 'inclusive' as const, taxAmount: 0,
+    };
+    await repositories.procurement.createInvoice(input, intent);
+    await repositories.procurement.createInvoice(input, intent);
 
     expect(callIdentity(0)).toEqual({ id: intent.id, idempotencyKey: intent.idempotencyKey });
     expect(callIdentity(1)).toEqual(callIdentity(0));

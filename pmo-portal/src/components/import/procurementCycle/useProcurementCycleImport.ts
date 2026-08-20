@@ -30,7 +30,7 @@ import type {
 
 export type CycleWizardStep = 'upload' | 'mapping' | 'preview' | 'committing' | 'result';
 
-/** The fixed 10-column contract for the procurement-cycle sheet. */
+/** The fixed 12-column contract for the procurement-cycle sheet. */
 export interface CycleField {
   key: keyof CycleRow & string;
   label: string;
@@ -48,6 +48,10 @@ export const CYCLE_FIELDS: CycleField[] = [
   { key: 'status', label: 'status', required: false },
   { key: 'date', label: 'date', required: false },
   { key: 'amount', label: 'amount', required: false },
+  // #505: VI-row columns. `required: false` is about the MAPPING step (a sheet with no VI rows
+  // needs neither column); a VI ROW missing either is INVALID at preview — validate.ts owns that.
+  { key: 'taxTreatment', label: 'tax_treatment', required: false },
+  { key: 'taxAmount', label: 'tax_amount', required: false },
 ];
 
 /** field.key → header column index (null = unmapped). */
@@ -143,6 +147,8 @@ function rowToCycleRow(
     status: cell('status'),
     date: cell('date'),
     amount: cell('amount'),
+    taxTreatment: cell('taxTreatment'),
+    taxAmount: cell('taxAmount'),
     rowNumber,
   };
 }

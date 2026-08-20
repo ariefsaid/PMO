@@ -872,7 +872,8 @@ set local request.jwt.claims =
   '{"sub":"01710000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 select lives_ok(
   $$ select create_procurement_invoice('01710000-0000-0000-0000-0000000000d3'::uuid,
-       'Received'::procurement_invoice_status, '2026-03-02'::date, 'VI-REF', 42) $$,
+       'Received'::procurement_invoice_status, '2026-03-02'::date, 'VI-REF', 42,
+       p_tax_treatment => 'exclusive', p_tax_amount => 0) $$,
   'AC-SCC-084 CONTROL create_procurement_invoice still works end to end (0176 §5''s gate is untouched)');
 
 -- ⚑ FR-RES-060 required every create-path guard to be NULL-TOTAL and this branch was never asserted.

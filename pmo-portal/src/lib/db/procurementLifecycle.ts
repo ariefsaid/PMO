@@ -10,6 +10,19 @@ export type ProcurementReceiptRow = Tables<'procurement_receipts'>;
 export type ProcurementInvoiceRow = Tables<'procurement_invoices'>;
 export type ProcurementStatus = ProcurementRow['status'];
 
+/**
+ * #505 (0196): does a recorded invoice `amount` ALREADY include its tax, or not?
+ *
+ * The one fact about an invoice that no later inference recovers — a total with no marker cannot be
+ * disambiguated by any means afterwards. The DB column is `text` NOT NULL with no default and a
+ * two-value CHECK, for the reason 0196 states: a boolean's falsy default silently writes a WRONG
+ * value indistinguishable from a deliberate one. This union is the TypeScript mirror of that domain.
+ *
+ * Shared with the `sales_invoices` / `work_orders` tax columns (#478, 0187/0188), which carry the
+ * identical two-value domain — deliberately ONE type, not a second copy per table.
+ */
+export type TaxTreatment = 'inclusive' | 'exclusive';
+
 // ---------------------------------------------------------------------------
 // Error contract — preserve the Postgres/PostgREST error.code through the DAL
 // ---------------------------------------------------------------------------
@@ -265,29 +278,64 @@ export async function createReceipt(
 }
 
 /**
+ * The tax facts every vendor-invoice write must carry (#505, migration 0196).
+ *
+ * `taxTreatment` and `taxAmount` are REQUIRED members — that is the whole point of this interface.
+ * The DB columns are NOT NULL with no default and the RPC raises P0001 when either is omitted, so
+ * the type system here MIRRORS THE NOT NULL CONSTRAINT: forgetting one is a `tsc` failure at the
+ * call site rather than a runtime P0001 in front of a user. It is the reason `createInvoice` and
+ * `captureVendorInvoice` take a single object instead of the positional lists they used to —
+ * TypeScript forbids a required parameter after an optional one, and appending them as OPTIONAL
+ * trailing params would have re-created exactly the omission this issue exists to make impossible.
+ *
+ * ⛔ Never give `taxTreatment` a default, a fallback, or a `?? 'inclusive'` anywhere on this path. A
+ * silently-wrong marker is indistinguishable from a deliberate one, which is the defect itself.
+ */
+interface VendorInvoiceTaxInput {
+  /** Does `amount` already include `taxAmount`? Not inferable later — the caller must state it. */
+  taxTreatment: TaxTreatment;
+  /** Total input tax in the invoice's currency. 0 means "no tax"; it never means "unknown". */
+  taxAmount: number;
+  /** Authored tax percentage (e.g. 11 for PPN 11%). null/undefined = not recorded — never 0%. */
+  taxRate?: number | null;
+  /** ERPNext "Purchase Taxes and Charges Template" name; absent for a standalone org. */
+  taxTemplate?: string | null;
+}
+
+/** Input for {@link createInvoice}. See {@link VendorInvoiceTaxInput} for why this is an object. */
+export interface CreateInvoiceInput extends VendorInvoiceTaxInput {
+  procurementId: string;
+  status: 'Received' | 'Scheduled' | 'Paid';
+  invoiceDate: string;
+  /** Supplier's invoice number (AC-PR-LEDGER-017). */
+  referenceNumber?: string | null;
+  /** Invoice total (AC-PR-LEDGER-017). Read WITH `taxTreatment` — alone it is ambiguous. */
+  amount?: number | null;
+  importKey?: string;
+  importBatchId?: string;
+  importedAt?: string;
+}
+
+/**
  * Creates a vendor-invoice record via the security-definer RPC (AC-816, FR-PROC-011/016).
  * org_id is NEVER sent; mints VI# server-side.
- * `referenceNumber` = supplier's invoice number; `amount` = invoice total (AC-PR-LEDGER-017).
  */
-export async function createInvoice(
-  procurementId: string,
-  status: 'Received' | 'Scheduled' | 'Paid',
-  invoiceDate: string,
-  referenceNumber?: string | null,
-  amount?: number | null,
-  importKey?: string,
-  importBatchId?: string,
-  importedAt?: string,
-): Promise<ProcurementInvoiceRow> {
+export async function createInvoice(input: CreateInvoiceInput): Promise<ProcurementInvoiceRow> {
   const { data, error } = (await supabase.rpc('create_procurement_invoice', {
-    p_procurement_id: procurementId,
-    p_status: status,
-    p_invoice_date: invoiceDate,
-    p_reference_number: referenceNumber ?? undefined,
-    p_amount: amount ?? undefined,
-    p_import_key: importKey,
-    p_import_batch_id: importBatchId,
-    p_imported_at: importedAt,
+    p_procurement_id: input.procurementId,
+    p_status: input.status,
+    p_invoice_date: input.invoiceDate,
+    p_reference_number: input.referenceNumber ?? undefined,
+    p_amount: input.amount ?? undefined,
+    p_import_key: input.importKey,
+    p_import_batch_id: input.importBatchId,
+    p_imported_at: input.importedAt,
+    // #505: sent unconditionally — `taxTreatment`/`taxAmount` are required by the type, so there is
+    // no `?? undefined` to fall through to the RPC's P0001 gate.
+    p_tax_treatment: input.taxTreatment,
+    p_tax_amount: input.taxAmount,
+    p_tax_rate: input.taxRate ?? undefined,
+    p_tax_template: input.taxTemplate ?? undefined,
   })) as unknown as { data: ProcurementInvoiceRow; error: RpcErrorLike | null };
   if (error) throwRpc(error);
   return data;
@@ -301,21 +349,33 @@ export async function createInvoice(
  * bypassed). org_id is NEVER sent. Throws (with the RPC error.code) on any failure — the form stays
  * open so the user can retry.
  */
+/** Input for {@link captureVendorInvoice}. See {@link VendorInvoiceTaxInput} for why this is an object. */
+export interface CaptureVendorInvoiceInput extends VendorInvoiceTaxInput {
+  procurementId: string;
+  /** N1: Paid excluded — "Mark as Paid" is the sole PR→Paid authority. */
+  status: 'Received' | 'Scheduled';
+  invoiceDate: string;
+  referenceNumber?: string | null;
+  amount?: number | null;
+  /** Transition note, logged on the status event by the inner transition_procurement call. */
+  notes?: string | null;
+}
+
 export async function captureVendorInvoice(
-  procurementId: string,
-  status: 'Received' | 'Scheduled',
-  invoiceDate: string,
-  referenceNumber?: string | null,
-  amount?: number | null,
-  notes?: string | null,
+  input: CaptureVendorInvoiceInput,
 ): Promise<ProcurementInvoiceRow> {
   const { data, error } = (await supabase.rpc('capture_vendor_invoice', {
-    p_procurement_id: procurementId,
-    p_status: status,
-    p_invoice_date: invoiceDate,
-    p_reference_number: referenceNumber ?? undefined,
-    p_amount: amount ?? undefined,
-    p_notes: notes ?? undefined,
+    p_procurement_id: input.procurementId,
+    p_status: input.status,
+    p_invoice_date: input.invoiceDate,
+    p_reference_number: input.referenceNumber ?? undefined,
+    p_amount: input.amount ?? undefined,
+    p_notes: input.notes ?? undefined,
+    // #505: see createInvoice — the RPC forwards these BY NAME to create_procurement_invoice.
+    p_tax_treatment: input.taxTreatment,
+    p_tax_amount: input.taxAmount,
+    p_tax_rate: input.taxRate ?? undefined,
+    p_tax_template: input.taxTemplate ?? undefined,
   })) as unknown as { data: ProcurementInvoiceRow; error: RpcErrorLike | null };
   if (error) throwRpc(error);
   return data;

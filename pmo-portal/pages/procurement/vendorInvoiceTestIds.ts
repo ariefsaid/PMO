@@ -10,7 +10,8 @@
  *   • the ledger `RecordCaptureForm kind="vendor_invoice"` (RecordCaptureForm.tsx)
  *     — the "Record vendor invoice" card; uses the onStage/onCreate form-submit path.
  *
- * Both render the SAME four optional/required VI fields (ref, amount, status, date)
+ * Both render the SAME VI fields (ref, amount, status, date, and — since #505 — tax treatment +
+ * tax amount)
  * and historically duplicated these testid string-literals — a drift trap (a field
  * change had to be made in both places with matching ids). Single-sourcing them here
  * removes that trap while each caller keeps its own DOM shell + submit behavior.
@@ -25,4 +26,13 @@ export const VI_FIELD_TEST_IDS = {
   amount: 'vi-amount-input',
   status: 'vi-status-select',
   date: 'vi-date-input',
+  // #505 (0196): the two REQUIRED tax fields. `taxTreatment` deliberately has NO pre-selected
+  // option — a default would write a plausible-looking wrong marker that no later inference can
+  // distinguish from a deliberate one, which is the defect the issue exists to remove.
+  taxTreatment: 'vi-tax-treatment-select',
+  taxAmount: 'vi-tax-amount-input',
+  // #505 code-quality follow-up: the "why is submit blocked" hint shown by both entry points when
+  // the tax facts are incomplete. Was a duplicated string literal in each file (a "⚠ KEEP IN SYNC"
+  // comment, not an enforced contract) — single-sourced here for the same reason as the fields above.
+  taxRequiredHint: 'vi-tax-required-hint',
 } as const;

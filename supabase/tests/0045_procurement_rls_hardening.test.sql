@@ -46,9 +46,9 @@ insert into procurement_receipts (id, org_id, procurement_id, status, gr_number)
    '00450000-0000-0000-0000-000000000010','Complete','GR-260605-0001');
 
 -- A child invoice for the vi_number lock test.
-insert into procurement_invoices (id, org_id, procurement_id, status, vi_number) values
+insert into procurement_invoices (id, org_id, procurement_id, status, vi_number, tax_treatment, tax_amount) values
   ('00450000-0000-0000-0000-0000000000c3','00450000-0000-0000-0000-000000000001',
-   '00450000-0000-0000-0000-000000000010','Received','VI-260605-0001');
+   '00450000-0000-0000-0000-000000000010','Received','VI-260605-0001', 'exclusive', 0);
 
 -- Act as the in-org Finance Fin X (a 4-role insider; passes procurements_update's role gate).
 set local role authenticated;

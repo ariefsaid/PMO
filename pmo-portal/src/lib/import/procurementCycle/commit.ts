@@ -28,6 +28,7 @@ import {
   createPayment,
 } from '@/src/lib/db/procurementRecords';
 import { createQuotation, createReceipt, createInvoice } from '@/src/lib/db/procurementLifecycle';
+import type { TaxTreatment } from '@/src/lib/db/procurementLifecycle';
 import type { RefLookup } from '@/src/lib/import/refLookup';
 import { refId } from '@/src/lib/import/refLookup';
 import type { ImportSkipLookup, RecordTableName } from '@/src/lib/db/procurementImportSkip';
@@ -41,7 +42,7 @@ import type {
   CommitResult,
 } from './types';
 import { CYCLE_ORDER } from './types';
-import { GR_STATUS, VI_STATUS } from './validate';
+import { GR_STATUS, VI_STATUS, VI_TAX_TREATMENT } from './validate';
 
 type GrStatus = (typeof GR_STATUS)[number];
 type ViStatus = (typeof VI_STATUS)[number];
@@ -97,6 +98,15 @@ function isUniqueViolation(err: unknown): boolean {
     typeof (err as { code?: unknown })?.code === 'string' &&
     (err as { code: string }).code === '23505'
   );
+}
+
+/** #505 code-quality follow-up: the commit-time guard on a VI row's tax treatment was checking
+ *  only for EMPTINESS, not DOMAIN — `'Inclusive'` (wrong case) or any other non-empty garbage
+ *  passed the guard and died on the DB's 23514 instead of the loud, specific guard error below.
+ *  Checks membership in `VI_TAX_TREATMENT` (validate.ts's own domain, not a re-declared one) and
+ *  narrows via a type predicate so the call site needs no `as TaxTreatment` cast. */
+function isTaxTreatment(value: string): value is TaxTreatment {
+  return (VI_TAX_TREATMENT as readonly string[]).includes(value);
 }
 
 // ─── Per-record dispatch ───────────────────────────────────────────────────────
@@ -194,16 +204,36 @@ async function createRecord(
 
     case 'VI': {
       const viStatus = (status ?? '') as ViStatus;
-      const result = await createInvoice(
+      // #505: validateGroups already REJECTED any VI row whose tax treatment/amount is missing or
+      // out of domain, so a row reaching here carries both. ⚑ But it is asserted rather than
+      // coerced, because the coercions are not safe ones: `Number('')` is **0**, not NaN, so a blank
+      // cell would have become a confident "no tax" on a money row — the exact silent-wrong-figure
+      // class this whole issue exists to remove — and `'' as TaxTreatment` would reach the RPC as a
+      // non-NULL empty string, slipping past its NULL gate to die on the domain CHECK with the wrong
+      // error. A validation regression must surface here as a loud per-row failure (the commit loop
+      // records and continues), never as a plausible number.
+      const taxTreatmentRaw = (row.taxTreatment ?? '').trim();
+      const taxAmountRaw = (row.taxAmount ?? '').trim();
+      // #505 code-quality follow-up: domain-checked via `isTaxTreatment`, not just emptiness — an
+      // out-of-domain value (e.g. 'Inclusive', wrong case) must fail HERE with this specific
+      // message, not reach the RPC and die on the DB's 23514 with a less actionable error.
+      if (!isTaxTreatment(taxTreatmentRaw) || !taxAmountRaw) {
+        throw new Error(
+          'a VI row reached commit with no tax treatment or amount — validateGroups should have refused it',
+        );
+      }
+      const result = await createInvoice({
         procurementId,
-        viStatus,
-        date ?? '',
-        ref,
+        status: viStatus,
+        invoiceDate: date ?? '',
+        referenceNumber: ref,
         amount,
+        taxTreatment: taxTreatmentRaw,
+        taxAmount: Number(taxAmountRaw),
         importKey,
         importBatchId,
         importedAt,
-      );
+      });
       return { id: result.id };
     }
 

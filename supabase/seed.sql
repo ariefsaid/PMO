@@ -1025,11 +1025,13 @@ insert into procurement_receipts (id, procurement_id, gr_number, receipt_date, s
   ('61000000-0000-0000-0000-000000003010','61000000-0000-0000-0000-000000000010','GR-2507050001','2025-07-05','Complete')
 on conflict (id) do nothing;
 
-insert into procurement_invoices (id, procurement_id, vi_number, invoice_date, status) values
-  ('61000000-0000-0000-0000-000000004001','61000000-0000-0000-0000-000000000001','VI-2511200001','2025-11-20','Paid'),
-  ('61000000-0000-0000-0000-000000004005','61000000-0000-0000-0000-000000000005','VI-2512010001','2025-12-01','Paid'),
-  ('61000000-0000-0000-0000-000000004009','61000000-0000-0000-0000-000000000009','VI-2506150001','2025-06-15','Paid'),
-  ('61000000-0000-0000-0000-000000004010','61000000-0000-0000-0000-000000000010','VI-2507100001','2025-07-10','Paid')
+-- #505: tax_treatment/tax_amount are NOT NULL with no default — seeded rows state them like any
+-- other author would. 'inclusive' + 0 keeps these fixtures arithmetically identical to before.
+insert into procurement_invoices (id, procurement_id, vi_number, invoice_date, status, tax_treatment, tax_amount) values
+  ('61000000-0000-0000-0000-000000004001','61000000-0000-0000-0000-000000000001','VI-2511200001','2025-11-20','Paid','inclusive',0),
+  ('61000000-0000-0000-0000-000000004005','61000000-0000-0000-0000-000000000005','VI-2512010001','2025-12-01','Paid','inclusive',0),
+  ('61000000-0000-0000-0000-000000004009','61000000-0000-0000-0000-000000000009','VI-2506150001','2025-06-15','Paid','inclusive',0),
+  ('61000000-0000-0000-0000-000000004010','61000000-0000-0000-0000-000000000010','VI-2507100001','2025-07-10','Paid','inclusive',0)
 on conflict (id) do nothing;
 
 -- ── doc-numbers + approvers (static fixture strings) ─────────────────────────
@@ -1156,8 +1158,8 @@ insert into procurement_quotations (procurement_id, vendor_id, reference, total_
   ('60000000-0000-0000-0000-000000000008','c0000000-0000-0000-0000-000000000010','RMS-PAY-08',30000,'2026-02-23',true,'VQ-2602240001');
 insert into procurement_receipts (procurement_id, gr_number, receipt_date, status) values
   ('60000000-0000-0000-0000-000000000008','GR-2602240001','2026-02-24','Complete');
-insert into procurement_invoices (procurement_id, vi_number, invoice_date, status) values
-  ('60000000-0000-0000-0000-000000000008','VI-2602240001','2026-02-24','Received');
+insert into procurement_invoices (procurement_id, vi_number, invoice_date, status, tax_treatment, tax_amount) values
+  ('60000000-0000-0000-0000-000000000008','VI-2602240001','2026-02-24','Received','inclusive',0);
 
 update procurements set pr_number='PR-2512010001', po_number='PO-2512010001',
   approved_by_id='00000000-0000-0000-0000-0000000000a3'
@@ -1165,8 +1167,8 @@ update procurements set pr_number='PR-2512010001', po_number='PO-2512010001',
 
 insert into procurement_quotations (procurement_id, vendor_id, reference, total_amount, received_date, is_selected, vq_number) values
   ('60000000-0000-0000-0000-000000000005','c0000000-0000-0000-0000-000000000011','CCE-FURN-01',320000,'2025-11-25',true,'VQ-2512010001');
-insert into procurement_invoices (procurement_id, vi_number, invoice_date, status) values
-  ('60000000-0000-0000-0000-000000000005','VI-2512010001','2025-12-15','Paid');
+insert into procurement_invoices (procurement_id, vi_number, invoice_date, status, tax_treatment, tax_amount) values
+  ('60000000-0000-0000-0000-000000000005','VI-2512010001','2025-12-15','Paid','inclusive',0);
 
 
 -- ============================================================
