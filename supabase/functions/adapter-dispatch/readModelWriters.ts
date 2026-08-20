@@ -869,8 +869,12 @@ const revenueWriter: ReadModelWriter = {
  * figure (OD-BUDGET-1), the push is one-way, and this code runs as SERVICE ROLE — RLS would not stop it
  * if it tried. The mirror's whole value is that `drop table` reverses P3c with zero PMO data loss.
  *
- * `activated_at_witness` (ADR-0059 §6) is NOT written here: it must be resolved from DB truth by the
- * push gate, never from a command payload, so it stays null until that gate lands.
+ * `activated_at_witness` (ADR-0059 §6) IS written here (#479). It must be resolved from DB truth by
+ * the push gate, never authored by a caller — and it is: `runBudgetGate` server-reads
+ * `budget_versions.activated_at`, the idempotency key is derived from that same value, and it rides
+ * the command as a NON-body field exactly like the FR-BFY-080 span witness. ⚑ The comment here
+ * previously said it "stays null until that gate lands"; the gate landed with `0139` and this stayed
+ * unwritten for three migrations, which is what issue #479 was filed about.
  */
 const budgetWriter: ReadModelWriter = {
   async upsert(ctx, canonical, command) {
@@ -896,6 +900,20 @@ const budgetWriter: ReadModelWriter = {
       throw new AppError('budget mirror: the pushed budget carries no push-time project span witness', 'commit-rejected');
     }
     const witnessEnd = (command.record as { project_end_date?: unknown }).project_end_date;
+    // ⚑ #479 — THE ADR-0059 §6 STATE-STAMP WITNESS (docs/adr/0059…:192-193 requires "a server-resolved
+    // witness of the state stamp the push was keyed on"). Without it there was no record of WHICH
+    // activation the ERP `Budget` corresponds to: a version rolled back and re-activated pushes under
+    // a new key, but the mirror could not say which of the two the live ERP document came from.
+    //
+    // Same NON-body provenance as the span witness above, and the same failure posture: a `pushed` row
+    // with no witness is a DEFECT, not a backward-compat case, so this fails loudly rather than
+    // writing NULL. `0139`'s H-3 rows (Active before `0139`, `activated_at` NULL forever) never reach
+    // here — `runBudgetGate` refuses them at `budgetGate.ts:290` with `unstamped-activation`, which is
+    // deliberate: `0139` rejects backfilling a fabricated stamp, and forging one would forge the key.
+    const witnessActivatedAt = (command.record as { activated_at?: unknown }).activated_at;
+    if (typeof witnessActivatedAt !== 'string' || witnessActivatedAt === '') {
+      throw new AppError('budget mirror: the pushed budget carries no activation witness', 'commit-rejected');
+    }
     // ⚑ BLOCKER 2 (FU-2) — a REPLAY must never resurrect a Desk-cancelled Budget. A retry of an already-
     // `confirmed` outbox row converges the STORED canonical (no fresh ERP write). If the accountant
     // cancelled the ERP Budget after this push confirmed, the inbound feed tombstoned the mirror
@@ -925,6 +943,18 @@ const budgetWriter: ReadModelWriter = {
         push_error: null,
         pushed_project_start_date: witnessStart,
         pushed_project_end_date: typeof witnessEnd === 'string' && witnessEnd !== '' ? witnessEnd : null,
+        // ⚑ Stamped UNCONDITIONALLY, and the timesheet twin's monotonicity fence
+        // (`0164:231-236`, `excluded.approved_at_pushed >= existing`) is deliberately NOT copied.
+        // That fence exists because `record_timesheet_command_held` is reachable from several
+        // outcome paths that can interleave. This branch is a FRESH push only — `ctx.isReplay` has
+        // already returned above for a stored-canonical replay — and a fresh push carries the
+        // activation the gate read moments earlier under the key it derived from it. The residual
+        // is a genuine one and worth naming: two dispatches for two activations of the same version
+        // could still complete out of order, leaving the older witness last. Closing it needs the
+        // upsert to become a definer RPC with a conditional `where`, which is the twin's shape and
+        // a bigger change than this issue; the span witness beside it has carried the identical
+        // exposure since FR-BFY-080 shipped.
+        activated_at_witness: witnessActivatedAt,
         erp_budget_name: (canonical.erp_budget_name as string | null | undefined) ?? null,
         erp_docstatus: (canonical.erp_docstatus as number | null | undefined) ?? null,
         erp_modified: (canonical.erp_modified as string | null | undefined) ?? null,
