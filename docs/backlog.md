@@ -32,6 +32,22 @@ also gates the budget importer (#495) and work orders (#498).
 like) · #497 (ERPNext SLA, partner role, data locality, e-Faktur) · #466 (pricing, behind the
 parked reseller conversation).
 
+**⏸ POOLED OWNER QUESTIONS — parked, blocking nothing.** These are facts only the owner holds
+(commercial terms, client relationships, or a client's own data). They are **closed on the tracker**
+so they stop re-surfacing on the session frontier; the full question and its context live in the
+linked issue and are intact. **Reopen when the answer arrives.**
+
+| Question | Reopen when |
+|---|---|
+| [#496](https://github.com/ariefsaid/PMO/issues/496) — what a real RIS client PO looks like (line items? PPN inclusive or exclusive?) | one real PO is to hand; it settles four design questions at once |
+| [#497](https://github.com/ariefsaid/PMO/issues/497) — ERPNext SLA, partner role, data locality, e-Faktur | before committing anything to RIS in writing |
+| [#487](https://github.com/ariefsaid/PMO/issues/487) — which reports RIS needs, and whether any is day-1 | if a named report turns out to be a day-1 requirement |
+| [#466](https://github.com/ariefsaid/PMO/issues/466) — pricing numbers and what each band buys | after the reseller conversation happens |
+| [#456](https://github.com/ariefsaid/PMO/issues/456) — RIS Microsoft tenant consent ceremony | when their tenant admin is available; steps are pre-written (#494) |
+
+None of these blocks a build. Everything downstream of them is either shipped or has a stated
+default recorded as a `DD-`.
+
 **Executor routing is binding** — `docs/factory-workflow.md` § Executor routing. Bounded slices run
 on the SSSF ADW; money/SoD/auth **and anything under `adws/`** are Director-dispatched.
 
