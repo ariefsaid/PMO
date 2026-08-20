@@ -23,6 +23,9 @@ export interface ImportButtonProps<Input> {
   descriptor: ImportDescriptor<Input>;
   /** Called when the wizard closes after at least one row was created (drives a list refetch). */
   onImported?: () => void;
+  /** Button text. Defaults to `Import`; set it when a page carries more than one importer, because
+   *  two buttons both reading "Import" is not a toolbar (DD-BIMP-4). */
+  label?: string;
   className?: string;
 }
 
@@ -30,6 +33,7 @@ export function ImportButton<Input>({
   entity,
   descriptor,
   onImported,
+  label = 'Import',
   className,
 }: ImportButtonProps<Input>) {
   const may = usePermission();
@@ -42,7 +46,7 @@ export function ImportButton<Input>({
     <>
       <Button variant="outline" onClick={() => setOpen(true)} className={className}>
         <Icon name="upload" />
-        Import
+        {label}
       </Button>
       {open && (
         <ImportWizard

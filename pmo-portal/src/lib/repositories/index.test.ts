@@ -109,6 +109,10 @@ vi.mock('@/src/lib/db/budgets', () => ({
   archiveVersion: vi.fn(),
   deleteDraftVersion: vi.fn(),
 }));
+vi.mock('@/src/lib/db/budgetImportSkip', () => ({
+  findImportTargetDraft: vi.fn(),
+  findImportedLine: vi.fn(),
+}));
 vi.mock('@/src/lib/db/incidents', () => ({
   listIncidents: vi.fn(),
   getIncident: vi.fn(),
@@ -153,6 +157,7 @@ import * as procRecordsDal from '@/src/lib/db/procurementRecords';
 import * as timesheetsDal from '@/src/lib/db/timesheets';
 import * as tsTransitionDal from '@/src/lib/db/timesheetTransition';
 import * as budgetsDal from '@/src/lib/db/budgets';
+import * as budgetImportSkipDal from '@/src/lib/db/budgetImportSkip';
 import * as tasksDal from '@/src/lib/db/tasks';
 import * as incidentsDal from '@/src/lib/db/incidents';
 import * as milestonesDal from '@/src/lib/db/milestones';
@@ -239,7 +244,7 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
       ['approve', 'createDraft', 'deleteEntry', 'list', 'listAwaitingApproval', 'pushApproved', 'reject', 'submit', 'upsertEntries'].sort(),
     );
     expect(Object.keys(repositories.budget).sort()).toEqual(
-      ['activateVersion', 'archiveVersion', 'cloneVersion', 'createLineItem', 'createVersion', 'deriveProjectBudget', 'deleteDraftVersion', 'deleteLineItem', 'listVersions', 'updateLineItem'].sort(),
+      ['activateVersion', 'archiveVersion', 'cloneVersion', 'createLineItem', 'createVersion', 'deriveProjectBudget', 'deleteDraftVersion', 'deleteLineItem', 'findImportTargetDraft', 'findImportedLine', 'listVersions', 'updateLineItem'].sort(),
     );
     expect(Object.keys(repositories.incident).sort()).toEqual(
       ['create', 'delete', 'get', 'list', 'transition', 'update'].sort(),
@@ -678,6 +683,8 @@ describe('delegation — methods pass args through and return the DAL result', (
     vi.mocked(budgetsDal.activateVersion).mockResolvedValue({ pushState: 'pushed' });
     vi.mocked(budgetsDal.archiveVersion).mockResolvedValue(undefined);
     vi.mocked(budgetsDal.deleteDraftVersion).mockResolvedValue(undefined);
+    vi.mocked(budgetImportSkipDal.findImportTargetDraft).mockResolvedValue(null);
+    vi.mocked(budgetImportSkipDal.findImportedLine).mockResolvedValue(null);
 
     await repositories.budget.deriveProjectBudget('p1');
     expect(budgetsDal.deriveProjectBudget).toHaveBeenCalledWith('p1');
@@ -687,7 +694,19 @@ describe('delegation — methods pass args through and return the DAL result', (
 
     const item = { category: 'Labour', description: null, budgeted_amount: 5 } as never;
     await repositories.budget.createLineItem('v1', item);
-    expect(budgetsDal.createLineItem).toHaveBeenCalledWith('v1', item);
+    expect(budgetsDal.createLineItem).toHaveBeenCalledWith('v1', item, undefined);
+
+    // #495 — the import path threads provenance through the same seam; every other caller omits it
+    // and the three columns stay NULL, which is what keeps them out of the partial unique indexes.
+    const prov = { importBatchId: 'b1', importedAt: '2026-08-20T00:00:00.000Z', importKey: 'k1' };
+    await repositories.budget.createLineItem('v1', item, prov);
+    expect(budgetsDal.createLineItem).toHaveBeenLastCalledWith('v1', item, prov);
+
+    await repositories.budget.findImportTargetDraft('p1');
+    expect(budgetImportSkipDal.findImportTargetDraft).toHaveBeenCalledWith('p1');
+
+    await repositories.budget.findImportedLine('v1', 'k1');
+    expect(budgetImportSkipDal.findImportedLine).toHaveBeenCalledWith('v1', 'k1');
 
     await repositories.budget.updateLineItem('li1', { budgeted_amount: 9 } as never);
     expect(budgetsDal.updateLineItem).toHaveBeenCalledWith('li1', { budgeted_amount: 9 });
@@ -696,7 +715,7 @@ describe('delegation — methods pass args through and return the DAL result', (
     expect(budgetsDal.deleteLineItem).toHaveBeenCalledWith('li1');
 
     await repositories.budget.createVersion('p1', 'v2');
-    expect(budgetsDal.createBudgetVersion).toHaveBeenCalledWith('p1', 'v2');
+    expect(budgetsDal.createBudgetVersion).toHaveBeenCalledWith('p1', 'v2', undefined);
 
     await repositories.budget.cloneVersion('v1');
     expect(budgetsDal.cloneVersion).toHaveBeenCalledWith('v1');

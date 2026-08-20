@@ -373,6 +373,9 @@ function ResultStep<Input>({ wiz, descriptor }: { wiz: Wiz<Input>; descriptor: I
     <div className="flex flex-col gap-3">
       <p className="text-[13px] text-foreground" data-testid="import-result-summary">
         <b className="font-semibold">{r.created} created</b>
+        {/* DD-BIMP-8: skipped rows are shown, never folded into `created` — a re-run that writes
+            nothing must not claim it wrote something. */}
+        {r.skipped > 0 && <>, {r.skipped} already imported</>}
         {r.failed.length > 0 && <>, {r.failed.length} failed</>}.
       </p>
       {r.failed.length > 0 && (

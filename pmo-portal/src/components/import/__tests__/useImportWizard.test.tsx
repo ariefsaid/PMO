@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { useImportWizard } from '../useImportWizard';
 import type { ImportDescriptor } from '@/src/lib/import';
+import { IMPORT_SKIPPED } from '@/src/lib/import/types';
 import { AppError } from '@/src/lib/appError';
 
 // SECURITY (2026-07-27 review round 2 #2): the per-row commit loop must NOT fire one
@@ -86,6 +87,33 @@ describe('useImportWizard', () => {
     expect(result.current.result?.created).toBe(1);
     expect(result.current.result?.failed).toHaveLength(1);
     expect(result.current.result?.failed[0].index).toBe(2); // the "Dup Co" row index
+  });
+
+  it('AC-BIMP-011: rows the descriptor SKIPS are counted apart from created, never as created', async () => {
+    (parseWorkbook as ReturnType<typeof vi.fn>).mockResolvedValue({
+      headers: ['Company name', 'Type'],
+      rows: [
+        ['Already', 'Client'], // descriptor recognises it as imported → IMPORT_SKIPPED
+        ['Fresh', 'Vendor'], // genuinely new → created
+      ],
+    });
+    const create = vi
+      .fn()
+      .mockResolvedValueOnce(IMPORT_SKIPPED)
+      .mockResolvedValueOnce({ id: '2' });
+    const { result } = renderHook(() => useImportWizard(makeDescriptor(create)));
+    await act(async () => {
+      await result.current.selectFile(file());
+    });
+    act(() => result.current.goPreview());
+    await act(async () => {
+      await result.current.commit();
+    });
+    await waitFor(() => expect(result.current.step).toBe('result'));
+    // The whole point: a re-run that writes nothing must not report that it wrote something.
+    expect(result.current.result?.created).toBe(1);
+    expect(result.current.result?.skipped).toBe(1);
+    expect(result.current.result?.failed).toHaveLength(0);
   });
 
   it('AC-IMP-005b: a per-row create rejection does not abort the run — later valid rows still create', async () => {

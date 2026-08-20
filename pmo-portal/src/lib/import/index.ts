@@ -1,5 +1,6 @@
 export {
   ImportParseError,
+  IMPORT_SKIPPED,
   MAX_IMPORT_ROWS,
   type FieldValidate,
   type ImportField,
@@ -17,3 +18,9 @@ export { companyImportDescriptor } from './companyDescriptor';
 export { makeContactImportDescriptor } from './contactDescriptor';
 export { makeProjectImportDescriptor } from './projectDescriptor';
 export { makeProcurementImportDescriptor } from './procurementDescriptor';
+export {
+  makeBudgetImportDescriptor,
+  computeBudgetLineImportKey,
+  BUDGET_CATEGORIES,
+  type BudgetImportInput,
+} from './budgetDescriptor';

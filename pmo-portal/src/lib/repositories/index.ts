@@ -153,6 +153,7 @@ import {
   archiveVersion,
   deleteDraftVersion,
 } from '@/src/lib/db/budgets';
+import { findImportTargetDraft, findImportedLine } from '@/src/lib/db/budgetImportSkip';
 import {
   listIncidents,
   getIncident,
@@ -610,10 +611,14 @@ const timesheet: TimesheetRepository = {
 const budget: BudgetRepository = {
   deriveProjectBudget: (projectId) => wrap(() => deriveProjectBudget(projectId)),
   listVersions: (projectId) => wrap(() => listBudgetVersions(projectId)),
-  createLineItem: (versionId, item) => wrap(() => createLineItem(versionId, item)),
+  createLineItem: (versionId, item, provenance) =>
+    wrap(() => createLineItem(versionId, item, provenance)),
   updateLineItem: (id, patch) => wrap(() => updateLineItem(id, patch)),
   deleteLineItem: (id) => wrap(() => deleteLineItem(id)),
-  createVersion: (projectId, name) => wrap(() => createBudgetVersion(projectId, name)),
+  createVersion: (projectId, name, provenance) =>
+    wrap(() => createBudgetVersion(projectId, name, provenance)),
+  findImportTargetDraft: (projectId) => wrap(() => findImportTargetDraft(projectId)),
+  findImportedLine: (versionId, importKey) => wrap(() => findImportedLine(versionId, importKey)),
   cloneVersion: (versionId) => wrap(() => cloneVersion(versionId)),
   activateVersion: (versionId) => wrap(() => activateVersion(versionId)),
   archiveVersion: (versionId) => wrap(() => archiveVersion(versionId)),
