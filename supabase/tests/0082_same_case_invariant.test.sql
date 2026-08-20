@@ -55,9 +55,9 @@ insert into purchase_orders (id, org_id, procurement_id, po_number, status) valu
   ('00820000-0000-0000-0000-000000000040','00820000-0000-0000-0000-000000000001',
    '00820000-0000-0000-0000-000000000010','PO-SEC-001','Issued');
 
-insert into procurement_invoices (id, org_id, procurement_id, status, invoice_date) values
+insert into procurement_invoices (id, org_id, procurement_id, status, invoice_date, tax_treatment, tax_amount) values
   ('00820000-0000-0000-0000-000000000050','00820000-0000-0000-0000-000000000001',
-   '00820000-0000-0000-0000-000000000010','Received','2026-06-19');
+   '00820000-0000-0000-0000-000000000010','Received','2026-06-19', 'exclusive', 0);
 
 -- Org B: predecessor records under Case B1 (cross-org attack targets)
 insert into rfqs (id, org_id, procurement_id, rfq_number, status) values
@@ -68,9 +68,9 @@ insert into purchase_orders (id, org_id, procurement_id, po_number, status) valu
   ('00820000-0000-0000-0000-000000000041','00820000-0000-0000-0000-000000000002',
    '00820000-0000-0000-0000-000000000020','PO-SEC-B01','Issued');
 
-insert into procurement_invoices (id, org_id, procurement_id, status, invoice_date) values
+insert into procurement_invoices (id, org_id, procurement_id, status, invoice_date, tax_treatment, tax_amount) values
   ('00820000-0000-0000-0000-000000000051','00820000-0000-0000-0000-000000000002',
-   '00820000-0000-0000-0000-000000000020','Received','2026-06-19');
+   '00820000-0000-0000-0000-000000000020','Received','2026-06-19', 'exclusive', 0);
 
 -- Org A: Case A2 predecessor records (cross-CASE attack targets — same org, different case)
 insert into rfqs (id, org_id, procurement_id, rfq_number, status) values
@@ -81,9 +81,9 @@ insert into purchase_orders (id, org_id, procurement_id, po_number, status) valu
   ('00820000-0000-0000-0000-000000000042','00820000-0000-0000-0000-000000000001',
    '00820000-0000-0000-0000-000000000011','PO-SEC-A2','Issued');
 
-insert into procurement_invoices (id, org_id, procurement_id, status, invoice_date) values
+insert into procurement_invoices (id, org_id, procurement_id, status, invoice_date, tax_treatment, tax_amount) values
   ('00820000-0000-0000-0000-000000000052','00820000-0000-0000-0000-000000000001',
-   '00820000-0000-0000-0000-000000000011','Received','2026-06-19');
+   '00820000-0000-0000-0000-000000000011','Received','2026-06-19', 'exclusive', 0);
 
 -- ── AC-PR-SEC-001: create_payment with cross-case invoice_id → 42501 ──────────
 -- Org-A PM calls create_payment(Case A1, invoice from Case B1) — cross-org.
@@ -131,11 +131,12 @@ select throws_ok(
 -- ── AC-PR-SEC-003: direct insert procurement_invoices.po_id → cross-case PO → 42501 ─
 
 select throws_ok(
-  $$ insert into procurement_invoices (org_id, procurement_id, status, invoice_date, po_id) values
+  $$ insert into procurement_invoices (org_id, procurement_id, status, invoice_date, po_id, tax_treatment, tax_amount) values
        ('00820000-0000-0000-0000-000000000001',
         '00820000-0000-0000-0000-000000000010',  -- Case A1
         'Received', '2026-06-19',
-        '00820000-0000-0000-0000-000000000042')  -- PO from Case A2 (cross-case, same org)
+        '00820000-0000-0000-0000-000000000042',  -- PO from Case A2 (cross-case, same org)
+        'exclusive', 0)
   $$,
   '42501', null,
   'AC-PR-SEC-003: insert procurement_invoices with cross-case po_id → 42501');
@@ -185,11 +186,12 @@ select lives_ok(
 -- ── AC-PR-SEC-007: same-case procurement_invoices.po_id → lives_ok ───────────
 
 select lives_ok(
-  $$ insert into procurement_invoices (org_id, procurement_id, status, invoice_date, po_id) values
+  $$ insert into procurement_invoices (org_id, procurement_id, status, invoice_date, po_id, tax_treatment, tax_amount) values
        ('00820000-0000-0000-0000-000000000001',
         '00820000-0000-0000-0000-000000000010',  -- Case A1
         'Received', '2026-06-19',
-        '00820000-0000-0000-0000-000000000040')  -- PO from SAME Case A1
+        '00820000-0000-0000-0000-000000000040',  -- PO from SAME Case A1
+        'exclusive', 0)
   $$,
   'AC-PR-SEC-007: insert procurement_invoices with same-case po_id succeeds (regression AC-PR-030)');
 

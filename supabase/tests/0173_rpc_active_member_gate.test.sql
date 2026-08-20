@@ -240,7 +240,8 @@ select lives_ok($$ select clone_budget_version('01730000-0000-0000-0000-00000000
   'AC-AMG-002 clone_budget_version still works for an active member');
 select lives_ok($$ select create_payment('01730000-0000-0000-0000-000000000302', null, 'AMG-PAY-OK','Scheduled','2026-03-02',100) $$,
   'AC-AMG-002 create_payment still works for an active member');
-select lives_ok($$ select create_procurement_invoice('01730000-0000-0000-0000-000000000302','Received','2026-03-02','AMG-VI-OK',100) $$,
+select lives_ok($$ select create_procurement_invoice('01730000-0000-0000-0000-000000000302','Received','2026-03-02','AMG-VI-OK',100,
+  p_tax_treatment => 'exclusive', p_tax_amount => 0) $$,
   'AC-AMG-002 create_procurement_invoice still works for an active member');
 select lives_ok($$ select create_procurement_quotation('01730000-0000-0000-0000-000000000302','01730000-0000-0000-0000-0000000000b1',100,'2026-03-02') $$,
   'AC-AMG-002 create_procurement_quotation still works for an active member');

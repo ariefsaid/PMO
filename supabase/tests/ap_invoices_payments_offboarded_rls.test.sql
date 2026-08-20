@@ -64,8 +64,8 @@ insert into profiles (id, org_id, full_name, email, role, status) values
 
 insert into procurements (id, org_id, title) values
   ('01100000-0000-0000-0000-0000000d0001','01100000-0000-0000-0000-000000000001','B10 AP Procurement');
-insert into procurement_invoices (id, org_id, procurement_id, vi_number, invoice_date, status) values
-  ('01100000-0000-0000-0000-0000000e0001','01100000-0000-0000-0000-000000000001','01100000-0000-0000-0000-0000000d0001','VI-B10-0001','2026-07-01','Received');
+insert into procurement_invoices (id, org_id, procurement_id, vi_number, invoice_date, status, tax_treatment, tax_amount) values
+  ('01100000-0000-0000-0000-0000000e0001','01100000-0000-0000-0000-000000000001','01100000-0000-0000-0000-0000000d0001','VI-B10-0001','2026-07-01','Received', 'exclusive', 0);
 
 -- ════════════════════════════════════════════════════════════════════════════
 -- DENY — the disabled member cannot WRITE. This is the hole 0110 closes.
@@ -82,8 +82,8 @@ set local role authenticated;
 set local request.jwt.claims = '{"sub":"01100000-0000-0000-0000-0000000000a2","role":"authenticated"}';
 
 select throws_ok(
-  $$insert into procurement_invoices (org_id, procurement_id, vi_number, invoice_date, status)
-    values ('01100000-0000-0000-0000-000000000001','01100000-0000-0000-0000-0000000d0001','VI-B10-EVIL','2026-07-02','Received')$$,
+  $$insert into procurement_invoices (org_id, procurement_id, vi_number, invoice_date, status, tax_treatment, tax_amount)
+    values ('01100000-0000-0000-0000-000000000001','01100000-0000-0000-0000-0000000d0001','VI-B10-EVIL','2026-07-02','Received', 'exclusive', 0)$$,
   '42501',
   'new row violates row-level security policy for table "procurement_invoices"',
   'Luna B10-AP disabled member cannot INSERT a procurement_invoice (is_active_member conjunct, NOT the grant)');
@@ -116,8 +116,8 @@ set local request.jwt.claims = '{"sub":"01100000-0000-0000-0000-0000000000a1","r
 select is((select count(*)::int from procurement_invoices), 1,
   'Luna B10-AP ACTIVE member still reads the procurement_invoice');
 select lives_ok(
-  $$insert into procurement_invoices (org_id, procurement_id, vi_number, invoice_date, status)
-    values ('01100000-0000-0000-0000-000000000001','01100000-0000-0000-0000-0000000d0001','VI-B10-OK','2026-07-02','Received')$$,
+  $$insert into procurement_invoices (org_id, procurement_id, vi_number, invoice_date, status, tax_treatment, tax_amount)
+    values ('01100000-0000-0000-0000-000000000001','01100000-0000-0000-0000-0000000d0001','VI-B10-OK','2026-07-02','Received', 'exclusive', 0)$$,
   'Luna B10-AP ACTIVE Finance member can still INSERT a procurement_invoice (0110 did not break writes)');
 
 -- Close the window opened for the behavioural section: from here on the catalog is back to what 0174

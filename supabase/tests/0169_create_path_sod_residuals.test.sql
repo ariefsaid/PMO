@@ -557,12 +557,14 @@ set local request.jwt.claims =
 
 select lives_ok(
   $$ select create_procurement_invoice('01690000-0000-0000-0000-0000000000d1'::uuid,
-       'Received'::procurement_invoice_status, '2026-03-02'::date, 'BILL-OK', 1000::numeric) $$,
+       'Received'::procurement_invoice_status, '2026-03-02'::date, 'BILL-OK', 1000::numeric,
+       p_tax_treatment => 'exclusive', p_tax_amount => 0) $$,
   'AC-RES-051 CONTROL create_procurement_invoice still records a Received invoice end to end');
 
 select lives_ok(
   $$ select create_procurement_invoice('01690000-0000-0000-0000-0000000000d1'::uuid,
-       'Scheduled'::procurement_invoice_status, '2026-03-02'::date, 'BILL-OK-2', 1000::numeric) $$,
+       'Scheduled'::procurement_invoice_status, '2026-03-02'::date, 'BILL-OK-2', 1000::numeric,
+       p_tax_treatment => 'exclusive', p_tax_amount => 0) $$,
   'AC-RES-051 CONTROL Scheduled is an origination status too (RecordCaptureForm offers exactly these two)');
 
 reset role;
@@ -582,7 +584,8 @@ set local request.jwt.claims =
   '{"sub":"01690000-0000-0000-0000-0000000000a4","role":"authenticated"}';
 select lives_ok(
   $$ select capture_vendor_invoice('01690000-0000-0000-0000-0000000000d2'::uuid,
-       'Received'::procurement_invoice_status, '2026-03-02'::date, 'CAP-OK', 700::numeric, null) $$,
+       'Received'::procurement_invoice_status, '2026-03-02'::date, 'CAP-OK', 700::numeric, null,
+       p_tax_treatment => 'exclusive', p_tax_amount => 0) $$,
   'AC-RES-052 CONTROL capture_vendor_invoice (transition + invoice + event, one txn) still succeeds');
 
 -- ⚑ STILL OPEN — the goods-receipt self-attestation. create_procurement_receipt is role-gated to

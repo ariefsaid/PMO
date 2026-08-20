@@ -93,7 +93,8 @@ set local request.jwt.claims = '{"sub":"01290000-0000-0000-0000-0000000000a2","r
 select is(
   (select status from capture_vendor_invoice(
     '01290000-0000-0000-0000-000000000012'::uuid, 'Received'::procurement_invoice_status,
-    '2026-07-04'::date, 'VI-TEST-001', 1234.56, null))::text,
+    '2026-07-04'::date, 'VI-TEST-001', 1234.56, null,
+    p_tax_treatment => 'exclusive', p_tax_amount => 0))::text,
   'Received',
   'capture_vendor_invoice still succeeds post-0072 (5-positional-arg call site into the extended create_procurement_invoice)');
 

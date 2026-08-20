@@ -96,9 +96,9 @@ insert into procurements (id, org_id, title, status, requested_by_id, vendor_id)
   ('01700000-0000-0000-0000-0000000000d3','01700000-0000-0000-0000-000000000001','DPS case','Paid',
    '01700000-0000-0000-0000-0000000000a1','01700000-0000-0000-0000-0000000000c2');
 
-insert into procurement_invoices (id, org_id, procurement_id, status, invoice_date, vi_number, amount) values
+insert into procurement_invoices (id, org_id, procurement_id, status, invoice_date, vi_number, amount, tax_treatment, tax_amount) values
   ('01700000-0000-0000-0000-0000000000d4','01700000-0000-0000-0000-000000000001','01700000-0000-0000-0000-0000000000d3',
-   'Paid','2026-03-02','VI-DPS-001',9999.00);
+   'Paid','2026-03-02','VI-DPS-001',9999.00, 'exclusive', 0);
 insert into procurement_receipts (id, org_id, procurement_id, status, receipt_date, gr_number) values
   ('01700000-0000-0000-0000-0000000000d5','01700000-0000-0000-0000-000000000001','01700000-0000-0000-0000-0000000000d3',
    'Complete','2026-03-02','GR-DPS-001');
