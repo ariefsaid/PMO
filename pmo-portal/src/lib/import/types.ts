@@ -50,8 +50,22 @@ export interface RowValidation {
 
 export interface ImportResult {
   created: number;
+  /**
+   * Rows a descriptor recognised as ALREADY imported and deliberately wrote nothing for
+   * (`IMPORT_SKIPPED`). Counted apart from `created` because a re-run that reports "42 created"
+   * having written nothing is a false signal about the one thing an idempotent importer exists to
+   * demonstrate (DD-BIMP-8). Descriptors that never return the sentinel always see 0 here.
+   */
+  skipped: number;
   failed: { index: number; reason: string }[];
 }
+
+/**
+ * A descriptor's `create` resolves to THIS when the row was already imported and nothing was
+ * written. A sentinel rather than a `{ skipped: true }` shape: `create` returns `unknown`, and any
+ * object literal could collide with a real created row: a unique symbol cannot.
+ */
+export const IMPORT_SKIPPED: unique symbol = Symbol('import.skipped');
 
 /** Parse-time rejection: bad file, empty sheet, or over the row cap. Carries a typed `code`. */
 export class ImportParseError extends Error {

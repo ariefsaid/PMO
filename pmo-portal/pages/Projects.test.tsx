@@ -112,7 +112,10 @@ describe('Projects index — kanban view (AC-PK-008)', () => {
     const exportBtn = screen.getByRole('button', { name: /export/i });
     expect(exportBtn).toBeInTheDocument();
     expect(exportBtn).not.toBeDisabled();
-    expect(screen.getByRole('button', { name: /import/i })).toBeInTheDocument();
+    // #495: this page now carries TWO importers — projects and budget lines (DD-BIMP-4). Naming
+    // each exactly is the point: a /import/i regex matched both and asserted neither.
+    expect(screen.getByRole('button', { name: 'Import' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Import budgets' })).toBeInTheDocument();
   });
 
   it('AC-PK-008: the view toggle offers a Board option; selecting it renders the kanban board', async () => {

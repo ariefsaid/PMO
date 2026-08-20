@@ -2115,3 +2115,91 @@ to exceed the ceiling *on this occasion*. Pinned by `AC-WO-051/052/053`.
 ⚑ Also recorded, because it is the kind of thing a later reader would "tidy": `get_project_drawdown`
 is deliberately **absent** from `0178`'s client-callable list. It is `security invoker`, and listing an
 invoker function there blinds the sweep if someone later flips it to definer.
+
+## DD-BIMP-1..3 — three false premises in the budget-import spec (Director, 2026-08-20)
+
+`docs/specs/budget-import.spec.md` was written to close #495's planning gap and shipped three
+confident claims that the schema on `dev` contradicts. Recorded individually because each would have
+produced a different defect, and because all three are the same failure: **the spec cited the ticket
+and the rulings, never the migration that defines the thing** (`DD-BRIEF-1`).
+
+**[DD-BIMP-1] The match key is the project, not `(project, fiscal_year)`.** `budget_versions` has no
+`fiscal_year` column — `0153` put `fiscal_year` on `budget_line_items`, nullable and deliberately
+un-backfilled, because the value is *ERPNext's* calendar name and PMO may not invent one. Keying
+match-or-create on a column that does not exist would have been caught at compile time; keying it on
+the line-item column would have matched NULL against NULL on every legacy row, which would not.
+
+**[DD-BIMP-2] The import supplies no `currency`.** `DD-IMP-1` §5 and `OD-CR-5` predate `0187`, which
+shipped the currency seam as a BEFORE-INSERT trigger filling `currency` from
+`organizations.default_currency`. `0187`'s own header names a client hand-carrying a currency as the
+thing the trigger exists to prevent — the same argument as `org_id`. A per-row `Currency` column is a
+real multi-currency feature for the day a cross-currency sheet exists, not this ticket.
+
+**[DD-BIMP-3] The idempotency key excludes `import_batch_id`.** This is the one that mattered.
+`0072`'s index and skip query are keyed on `(import_key, import_batch_id)`, and
+`useProcurementCycleImport` mints `crypto.randomUUID()` per mount — so a re-import **in a new
+session** misses the skip and inserts duplicates. The only cross-batch layer that exists today is
+`findCrossBatchCollision`, which produces a dry-run *report*, not a skip. The spec asserted the
+opposite ("the skip query… is what makes a re-run a no-op") and would have yielded an importer that
+passes its own tests and duplicates every budget on the second run — a green suite that cannot fail.
+
+`0195` is amended in place (on `dev` only, never `main`, never prod; `supabase db reset` is this
+phase's rollback per ADR-0006) to key on `import_key` alone: `(org_id, import_key)` on
+`budget_versions`, `(budget_version_id, import_key)` on `budget_line_items`. Still two layers, not
+three — the DB is now the authority for the **re-run** as well as the race.
+
+⚑ **Pinned, and mutation-checked**: `supabase/tests/0195_budget_import_provenance.test.sql` asserts a
+duplicate `import_key` is rejected under a *different* batch id. Restoring `import_batch_id` to the
+index turns exactly that assertion red — verified, not assumed. The old test asserted only
+`has_index` on a name, which would have survived the wrong key silently.
+
+⚑ **The procurement path keeps its batch-scoped key.** It is a shipped importer with live data;
+re-keying it is its own decision with its own backfill question, not a drive-by. That asymmetry is
+deliberate and is why `0195` carries the argument in its header rather than pointing at `0072`.
+
+**[DD-BIMP-4] The budget `<ImportButton>` goes on the Projects list page, not a "budgets page".**
+There is no budgets list route — budget lives at `/projects/:id/budget`, a tab (`appRouteConfig`).
+The sheet is cross-project by construction (its first column is a project ref), so a per-project tab
+is the wrong host, and building a list page to hold a button is building a page to hold a button.
+`ImportButton` gains a `label` prop, because two buttons both reading "Import" is not a toolbar.
+
+**[DD-BIMP-5] Budget versions carry provenance stamps but NO `import_key`.** A version's identity is
+"this project's open `Draft`", not a row in a sheet. Key it and the second legitimate import for a
+project — after the first was activated — is blocked forever by a row that is no longer `Draft`.
+Idempotency lives on the line items, scoped to `budget_version_id`; that scoping is precisely what
+lets a post-activation re-import land its lines in a fresh Draft rather than silently producing an
+empty one. Pinned by `AC-BIMP-007` in the pgTAP file: restore `import_batch_id` to the child index
+and both the re-run oracle and the per-parent oracle go red.
+
+## DD-BIMP-6..8 — the three gaps the planner refused to invent (Director, 2026-08-20)
+
+The #495 planner stopped before writing a plan and named three behaviours the brief left undefined.
+All three were real, and one of them (`OQ-BIMP-2`) is a fact about the schema I asserted wrongly.
+Recorded rather than answered in a brief, because a build agent should be able to read the rule
+without reading the dispatch that produced it.
+
+**[DD-BIMP-6] The descriptor has NO `Version name` field.** A created version is named `Imported`.
+The optional-name shape generated four sub-questions — empty-cell fallback, whitespace-only,
+conflicting names across rows of one project, and whether an incoming name overwrites an existing
+Draft's — for a value whose only job is to be recognisable in a version dropdown, which `Imported`
+does. One fewer column in the operator's sheet is worth more than a label they can edit afterwards.
+⚑ If a sheet-supplied name is ever wanted, it arrives **required, first-row-wins** — optional is what
+produced the four questions.
+
+**[DD-BIMP-7] When a project has several Drafts, the import attaches to the HIGHEST `version` one —
+because that is what the app already does.** The schema permits multiple Drafts (`0001` constrains
+`unique (project_id, version)` and uniqueness only for `status = 'Active'`), which the brief missed.
+`pages/ProjectBudget.tsx`'s selector already resolves `explicit pick → Active → highest Draft →
+highest Archived → first`, so "the highest Draft" is *the version the operator is looking at* when
+they click Import. Inventing a second rule — reject, or lowest — would make the importer disagree
+with the screen it was launched from. Harm if it is ever wrong is bounded and visible: the projection
+reads only the **Active** version (`0149`/`0153`), so a misfiled line changes no money figure until
+somebody activates it, and it is on screen before then.
+
+**[DD-BIMP-8] `ImportResult` gains `skipped`, and the wizard reports it.** The generic contract has
+only `created`/`failed` (`src/lib/import/types.ts`), and `useImportWizard` counts every resolved
+`create()` as created — so a re-run that correctly writes nothing would report "42 created". That is
+the silent-false-signal class this repo has paid for repeatedly, and it defeats the one thing the
+feature exists to demonstrate. A descriptor signals a no-op by resolving to the exported
+`IMPORT_SKIPPED` sentinel; the wizard counts it separately and the result screen says so. Additive:
+no existing descriptor returns it, so every current importer's counts are unchanged.

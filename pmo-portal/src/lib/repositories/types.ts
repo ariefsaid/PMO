@@ -63,6 +63,7 @@ import type {
   BudgetVersionWithItems,
   BudgetLineItemRow,
   NewLineItem,
+  ImportProvenance,
 } from '@/src/lib/db/budgets';
 import type { TaskRow, TaskWithRefs, TaskInput, TaskPatch, TaskStatus } from '@/src/lib/db/tasks';
 import type {
@@ -402,13 +403,24 @@ export interface TimesheetRepository {
 export interface BudgetRepository {
   deriveProjectBudget(projectId: string): Promise<number>;
   listVersions(projectId: string): Promise<BudgetVersionWithItems[]>;
-  createLineItem(versionId: string, item: NewLineItem): Promise<BudgetLineItemRow>;
+  createLineItem(
+    versionId: string,
+    item: NewLineItem,
+    provenance?: ImportProvenance,
+  ): Promise<BudgetLineItemRow>;
   updateLineItem(
     id: string,
     patch: Partial<Pick<BudgetLineItemRow, 'category' | 'description' | 'budgeted_amount' | 'actual_amount'>>,
   ): Promise<void>;
   deleteLineItem(id: string): Promise<void>;
-  createVersion(projectId: string, name: string): Promise<BudgetVersionRow>;
+  createVersion(
+    projectId: string,
+    name: string,
+    provenance?: ImportProvenance,
+  ): Promise<BudgetVersionRow>;
+  /** #495 import probes — see `src/lib/db/budgetImportSkip.ts` for why each is scoped as it is. */
+  findImportTargetDraft(projectId: string): Promise<{ id: string } | null>;
+  findImportedLine(versionId: string, importKey: string): Promise<{ id: string } | null>;
   cloneVersion(versionId: string): Promise<string>;
   /** HIGH-C: returns the ERP push CONSEQUENCE (the PMO transition itself either succeeded or threw).
    *  Never `void` — a push that failed (or never reached the edge function) must be surfaced. */

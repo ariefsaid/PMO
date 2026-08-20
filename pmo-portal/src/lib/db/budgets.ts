@@ -48,6 +48,22 @@ export interface NewLineItem {
   fiscal_year?: string | null;
 }
 
+/**
+ * Import provenance stamps (0195). Supplied ONLY by the bulk-import path; every other caller omits
+ * the argument and the three columns stay NULL, which is what keeps them out of the partial unique
+ * indexes and leaves every existing write path byte-identical.
+ *
+ * ⚑ `importKey` is optional on purpose (DD-BIMP-5): a VERSION carries the batch stamps but no key,
+ * because a version's identity is "this project's open Draft", not a row in a sheet — key it and the
+ * second legitimate import for a project, after the first was activated, is blocked forever by a row
+ * that is no longer Draft. The line items carry the key.
+ */
+export interface ImportProvenance {
+  importBatchId: string;
+  importedAt: string;
+  importKey?: string | null;
+}
+
 // ---------------------------------------------------------------------------
 // Phase B — reads
 // ---------------------------------------------------------------------------
@@ -103,6 +119,7 @@ export async function listBudgetVersions(projectId: string): Promise<BudgetVersi
 export async function createLineItem(
   versionId: string,
   item: NewLineItem,
+  provenance?: ImportProvenance,
 ): Promise<BudgetLineItemRow> {
   const { data, error } = await supabase
     .from('budget_line_items')
@@ -113,6 +130,16 @@ export async function createLineItem(
       budgeted_amount: item.budgeted_amount,
       // FR-BFY-060: omitted ⇒ the column's own NULL default (un-phased), never a synthesized year.
       fiscal_year: item.fiscal_year ?? null,
+      // ⚑ `actual_amount` is DELIBERATELY absent and must stay absent (FR-BIMP-005): actuals are
+      // READ from the ERP read-model, and a value written here would be a figure PMO computed
+      // rather than read (ADR-0048/0055) — wrong in a way that still renders.
+      ...(provenance
+        ? {
+            import_batch_id: provenance.importBatchId,
+            imported_at: provenance.importedAt,
+            import_key: provenance.importKey ?? null,
+          }
+        : {}),
     })
     .select()
     .single();
@@ -161,6 +188,7 @@ export async function deleteLineItem(id: string): Promise<void> {
 export async function createBudgetVersion(
   projectId: string,
   name: string,
+  provenance?: ImportProvenance,
 ): Promise<BudgetVersionRow> {
   // Step 1: read current max version for this project
   const { data: maxData, error: maxError } = await supabase
@@ -182,6 +210,16 @@ export async function createBudgetVersion(
       version: nextVersion,
       name,
       status: 'Draft',
+      // ⚑ `currency` is DELIBERATELY absent (FR-BIMP-006 / DD-BIMP-2): 0187's `stamp_currency`
+      // BEFORE-INSERT trigger resolves it from `organizations.default_currency`. A client
+      // hand-carrying a currency is the thing that seam exists to prevent, exactly as with org_id.
+      ...(provenance
+        ? {
+            import_batch_id: provenance.importBatchId,
+            imported_at: provenance.importedAt,
+            import_key: provenance.importKey ?? null,
+          }
+        : {}),
     })
     .select()
     .single();

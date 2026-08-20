@@ -5,6 +5,7 @@ import {
   rowToCells,
   validateRows,
   ImportParseError,
+  IMPORT_SKIPPED,
   type ImportDescriptor,
   type ImportResult,
   type Mapping,
@@ -131,6 +132,7 @@ export function useImportWizard<Input>(descriptor: ImportDescriptor<Input>): Use
     setProgress({ done: 0, total: validRows.length });
 
     let created = 0;
+    let skipped = 0;
     const failed: ImportResult['failed'] = [];
     // SECURITY (2026-07-27 review round 2 #2, revised per code-quality review #2):
     // `suppressCapture: true` on every per-row call — a 10k-row import failing wholesale must NOT
@@ -144,8 +146,11 @@ export function useImportWizard<Input>(descriptor: ImportDescriptor<Input>): Use
     for (let i = 0; i < validRows.length; i += 1) {
       const { index, cells } = validRows[i];
       try {
-        await descriptor.create(descriptor.toInput(cells));
-        created += 1;
+        // DD-BIMP-8: a descriptor signals "already imported, wrote nothing" with the sentinel.
+        // Counting it as created would make an idempotent re-run report rows it did not write.
+        const outcome = await descriptor.create(descriptor.toInput(cells));
+        if (outcome === IMPORT_SKIPPED) skipped += 1;
+        else created += 1;
       } catch (err) {
         const { headline, classification } = classifyMutationError(err, undefined, { suppressCapture: true });
         classificationCounts[classification] = (classificationCounts[classification] ?? 0) + 1;
@@ -155,7 +160,7 @@ export function useImportWizard<Input>(descriptor: ImportDescriptor<Input>): Use
     }
     trackBatchSaveFailed(descriptor.entity.toLowerCase() as AnalyticsModule, classificationCounts);
 
-    setResult({ created, failed });
+    setResult({ created, skipped, failed });
     setStep('result');
   }, [parsed, validation, descriptor, mapping]);
 
