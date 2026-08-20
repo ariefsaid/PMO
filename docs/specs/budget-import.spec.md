@@ -70,7 +70,8 @@ the one day-1 dataset with no descriptor.
 | AC | Owning layer | Location |
 |---|---|---|
 | AC-BIMP-001/002/003/004/007/008 | Unit (Vitest) | descriptor tests |
-| AC-BIMP-005/006 | Integration (pgTAP) | the partial unique index — the DB is the authority |
+| AC-BIMP-005 | Unit (Vitest) | the wizard's **skip query** — see the correction below |
+| AC-BIMP-006 | Integration (pgTAP) | the partial unique index — the DB is the authority for the *race* |
 | AC-BIMP-009 | Unit (Vitest) | wizard validation path |
 
 ## 5. Traps this work will hit
@@ -80,5 +81,16 @@ the one day-1 dataset with no descriptor.
   verify the budget tables permit the insert the descriptor performs before assuming.
 - ⚑ **Do not add a descriptor-local dedupe scheme.** `FR-BIMP-007` is a DB constraint on purpose —
   two idempotency mechanisms is how they end up disagreeing.
+⚑ **Correction (2026-08-20), after reading `0195` and `0072` rather than assuming.** The unique index
+is on `(org_id, import_key, import_batch_id)` — it includes the **batch**. So it does *not*, by itself,
+stop a re-import under a new batch id. That is how `0072` works too, and it is deliberate: the
+**skip query** (application-side, keyed on org + import_key) is what makes a re-run a no-op, and the
+index is the **TOCTOU backstop for concurrent inserts within one batch**.
+
+So `FR-BIMP-007`'s "enforced in the database" is precise only about the *race*. Both layers are
+required and they answer different questions — a descriptor that relied on the index alone would let
+a second import through, and one that relied on the skip query alone would be racy. Stating this
+because getting it wrong is invisible until two people import at once.
+
 - ⚑ **Mutation checks required:** add `status` to the descriptor → AC-BIMP-003 must go red; drop the
   partial unique index → AC-BIMP-005/006 must go red.
