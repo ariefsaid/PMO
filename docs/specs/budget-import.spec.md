@@ -36,8 +36,10 @@ the one day-1 dataset with no descriptor.
 - **FR-BIMP-006** — *Ubiquitous.* The import shall set `currency` explicitly on every row it creates,
   never inheriting a global constant (`OD-CR-5`).
 - **FR-BIMP-007** — *Event-driven.* When the same sheet is imported again, the import shall create
-  **no new rows** — enforced in the **database** by a partial unique index on the import key, not by
-  an application-side check (the `0072` pattern, which is TOCTOU-safe).
+  **no new rows**, via the `0072` pattern's **two layers**: the wizard's skip query (keyed on org +
+  `import_key`) makes the re-run a no-op, and a partial unique index on
+  `(org_id, import_key, import_batch_id)` is the TOCTOU backstop for concurrent inserts **within one
+  batch**. Neither layer alone is sufficient — see §5.
 - **FR-BIMP-008** — *While a version is not `Draft`.* The import shall **refuse** the row rather than
   attaching a line item to an Active or Archived version.
 - **FR-BIMP-009** — *Ubiquitous.* Validation shall occur client-side with **zero writes** before any
@@ -81,7 +83,7 @@ the one day-1 dataset with no descriptor.
   verify the budget tables permit the insert the descriptor performs before assuming.
 - ⚑ **Do not add a descriptor-local dedupe scheme.** `FR-BIMP-007` is a DB constraint on purpose —
   two idempotency mechanisms is how they end up disagreeing.
-⚑ **Correction (2026-08-20), after reading `0195` and `0072` rather than assuming.** The unique index
+- ⚑ **Correction (2026-08-20), after reading `0195` and `0072` rather than assuming.** The unique index
 is on `(org_id, import_key, import_batch_id)` — it includes the **batch**. So it does *not*, by itself,
 stop a re-import under a new batch id. That is how `0072` works too, and it is deliberate: the
 **skip query** (application-side, keyed on org + import_key) is what makes a re-run a no-op, and the
@@ -92,5 +94,8 @@ required and they answer different questions — a descriptor that relied on the
 a second import through, and one that relied on the skip query alone would be racy. Stating this
 because getting it wrong is invisible until two people import at once.
 
-- ⚑ **Mutation checks required:** add `status` to the descriptor → AC-BIMP-003 must go red; drop the
-  partial unique index → AC-BIMP-005/006 must go red.
+- ⚑ **Mutation checks required**, and note they target **different layers**:
+  add `status` to the descriptor → `AC-BIMP-003` red · drop the partial unique index →
+  **`AC-BIMP-006`** red (the race) · disable the skip query → **`AC-BIMP-005`** red (the re-run).
+  Dropping the index will **not** redden `AC-BIMP-005`, and expecting it to is the misreading this
+  spec previously encoded.
