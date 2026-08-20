@@ -155,16 +155,28 @@ select throws_ok(
 reset role;
 
 -- ════════════════════════════════════════════════════════════════════════════
--- AC-AUC-009: no UPDATE/DELETE on credits is permitted (append-only), for any role. (UNCHANGED)
+-- AC-AUC-009: no UPDATE/DELETE on credits is permitted (append-only), for any role. (GOAL UNCHANGED)
+--
+-- ⚑ MECHANISM CHANGE (migration 0193_dead_authenticated_write_grants.sql, #511) — a STRENGTHENING,
+-- not a weakening-to-pass, and the same move 0105 made on 0109. The GOAL-ORACLE is untouched:
+-- "an Admin cannot mutate or destroy a credits ledger row, and the row is unchanged afterwards"
+-- (the survival assertion below is the oracle and is unedited). What changed is WHY the attempt
+-- fails. Before 0193 these two statements were EXECUTABLE — `authenticated` held table-level
+-- UPDATE/DELETE from 0075's blanket grant — and RLS denied them at the row level, so they ran and
+-- matched zero rows: lives_ok. 0193 revoked those dead grants (credits has an INSERT policy only),
+-- so the privilege check now rejects the statement at 42501 BEFORE RLS is reached. An attempt that
+-- cannot be made is strictly stronger than one that is made and matches nothing.
 -- ════════════════════════════════════════════════════════════════════════════
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"00950000-0000-0000-0000-0000000000a3","role":"authenticated"}';
-select lives_ok(
+select throws_ok(
   $$ update credits set amount = 200 where id = '00950000-0000-0000-0000-000000000040' $$,
-  'AC-AUC-009 Admin (Dana) UPDATE statement runs but matches zero rows (no UPDATE policy)');
-select lives_ok(
+  '42501', null,
+  'AC-AUC-009 Admin (Dana) UPDATE on credits is denied at the privilege check (0193 revoked the dead UPDATE grant; no UPDATE policy either)');
+select throws_ok(
   $$ delete from credits where id = '00950000-0000-0000-0000-000000000040' $$,
-  'AC-AUC-009 Admin (Dana) DELETE statement runs but matches zero rows (no DELETE policy)');
+  '42501', null,
+  'AC-AUC-009 Admin (Dana) DELETE on credits is denied at the privilege check (0193 revoked the dead DELETE grant; no DELETE policy either)');
 reset role;
 select is(
   (select amount from credits where id = '00950000-0000-0000-0000-000000000040'),

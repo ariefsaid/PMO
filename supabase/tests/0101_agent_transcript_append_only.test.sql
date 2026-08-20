@@ -37,8 +37,9 @@ insert into notifications (id, owner_id, title, severity) values
 
 -- ════════════════════════════════════════════════════════════════════════════
 -- AC-AAN-030/031/032: the owner DELETE policies on the transcript tables are GONE.
--- With FORCE RLS and no DELETE policy, a DELETE affects zero rows (default-deny) — the
--- audit-bearing row survives. We assert both: the policy is absent AND the row is not deleted.
+-- Two independent barriers now stand: no DELETE policy under FORCE RLS, AND (since 0193) no DELETE
+-- grant to `authenticated` at all, so the statement is refused at the privilege check. We assert
+-- all of it: the policy is absent, the DELETE is refused, and the row is not deleted.
 -- ════════════════════════════════════════════════════════════════════════════
 select is(
   (select count(*)::int from pg_policies where tablename = 'agent_events' and cmd = 'DELETE'),
@@ -58,19 +59,32 @@ select is(
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"01010000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 
--- The owner's DELETE of their own audit event is a no-op (no policy → zero rows), not a destructive
--- delete. lives_ok because RLS makes it a silent 0-row DELETE (USING is absent), not an error.
-select lives_ok(
+-- The owner's DELETE of their own audit-bearing row cannot destroy it.
+--
+-- ⚑ MECHANISM CHANGE (migration 0193_dead_authenticated_write_grants.sql, #511) — a STRENGTHENING,
+-- not a weakening-to-pass; the same move 0105 made on 0109's anon assertions. The GOAL-ORACLE of
+-- AC-AAN-030/031/032 is untouched: the owner cannot destroy a transcript/audit row, and the
+-- mint-audit event still exists afterwards (that survival assertion, below, is the oracle and is
+-- unedited). What changed is WHY the DELETE fails. Before 0193 these statements were EXECUTABLE —
+-- `authenticated` held table-level DELETE on all three tables from 0075's blanket grant — and RLS
+-- denied them at the row level, so each ran as a silent 0-row DELETE: lives_ok. 0193 revoked those
+-- dead grants (none of the three has, or should have, a DELETE policy), so the privilege check now
+-- rejects the statement at 42501 BEFORE RLS is reached. A delete that cannot be attempted is
+-- strictly stronger than one that is attempted and matches nothing.
+select throws_ok(
   $$ delete from agent_events where id = '01010000-0000-0000-0000-000000000030' $$,
-  'AC-AAN-030: owner DELETE on their own agent_events row is a 0-row no-op (no DELETE policy)');
+  '42501', null,
+  'AC-AAN-030: owner DELETE on their own agent_events row is denied at the privilege check (0193 revoked the dead DELETE grant; no DELETE policy either)');
 
-select lives_ok(
+select throws_ok(
   $$ delete from agent_runs where id = '01010000-0000-0000-0000-000000000020' $$,
-  'AC-AAN-031: owner DELETE on their own agent_runs row is a 0-row no-op (no DELETE policy)');
+  '42501', null,
+  'AC-AAN-031: owner DELETE on their own agent_runs row is denied at the privilege check (0193 revoked the dead DELETE grant; no DELETE policy either)');
 
-select lives_ok(
+select throws_ok(
   $$ delete from agent_threads where id = '01010000-0000-0000-0000-000000000010' $$,
-  'AC-AAN-032: owner DELETE on their own agent_threads row is a 0-row no-op (no DELETE policy)');
+  '42501', null,
+  'AC-AAN-032: owner DELETE on their own agent_threads row is denied at the privilege check (0193 revoked the dead DELETE grant; no DELETE policy either)');
 
 reset role;
 
