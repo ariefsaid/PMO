@@ -2203,3 +2203,29 @@ the silent-false-signal class this repo has paid for repeatedly, and it defeats 
 feature exists to demonstrate. A descriptor signals a no-op by resolving to the exported
 `IMPORT_SKIPPED` sentinel; the wizard counts it separately and the result screen says so. Additive:
 no existing descriptor returns it, so every current importer's counts are unchanged.
+
+## DD-PB-1 — the budget account-map gap is recorded, not fixed (Director, 2026-08-20)
+
+Surfaced by #479's Posture-B state-stamp audit (`docs/reviews/2026-08-20-posture-b-state-stamps.md`).
+
+**The gap.** The pushed budget `accounts[]` is built from `budget_category_account_map` (Admin-writable
+`FOR ALL`, `0137:129-133`) and the overspend `action_if_*` fields from binding config
+(`bodies/budget.ts:26-46`). Neither is in the ADR-0059 §4 derived key, and **neither has any
+originator**. An Admin re-mapping a category after a push leaves ERPNext enforcing the old account,
+with nothing to detect it and nothing to re-drive it.
+
+**The ruling: record it, do not build it.** A fix means re-pushing an ERP `Budget` because a
+configuration row changed — a money write, triggered by something that is not a money action, with no
+owner ruling behind it. `0137:129-133` makes that map Admin-only *precisely because* it is accounting
+config: the person who edits it is exercising an accounting judgement, and deciding that their edit
+should silently re-enforce a budget in someone's ERP is not a decision the build has standing to make.
+
+⚑ **And the failure class is not the one #479 was filed about**, which is why it needed separating
+rather than absorbing. #479 is about a needed write being **suppressed** (a weak stamp derives a
+duplicate key ⇒ 23505 ⇒ silence). This is **no write ever being attempted**. Same silence, opposite
+mechanism — and conflating them would have produced a "fix" for the wrong shape.
+
+**What would settle it:** an owner ruling on whether an account-map edit is a re-push trigger at all.
+If it is, the map needs an originator column and the key needs to include the mapping's version; if it
+is not, the honest answer is a surfaced warning that the ERP holds a stale mapping, and no automatic
+write. Both are real designs; neither is a detail.
