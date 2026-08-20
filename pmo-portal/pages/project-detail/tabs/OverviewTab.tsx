@@ -28,9 +28,9 @@ export interface OverviewTabProps {
 }
 
 /** Currency with a true minus glyph (U+2212) for negatives (matches header treatment). */
-function signedCurrency(value: number): string {
-  if (value < 0) return `−${formatCurrency(Math.abs(value))}`;
-  return formatCurrency(value);
+function signedCurrency(value: number, currency: string): string {
+  if (value < 0) return `−${formatCurrency(Math.abs(value), currency)}`;
+  return formatCurrency(value, currency);
 }
 
 /**
@@ -75,11 +75,11 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, setT
   const spendPctTile = activeBudget > 0 ? Math.round((committed / activeBudget) * 100) : 0;
   const financeTiles: StatTile[] = showFinanceSummary
     ? [
-        { label: 'Contract', value: formatCurrency(contract) },
-        { label: 'Committed', value: formatCurrency(committed) },
+        { label: 'Contract', value: formatCurrency(contract, project.currency) },
+        { label: 'Committed', value: formatCurrency(committed, project.currency) },
         // AC-MONEY-01: "Actual" = committed-PO basis, not dead projects.spent column.
-        { label: 'Actual', value: formatCurrency(committed) },
-        { label: 'On-hand margin', value: signedCurrency(margin), tone: margin < 0 ? 'neg' : 'pos' },
+        { label: 'Actual', value: formatCurrency(committed, project.currency) },
+        { label: 'On-hand margin', value: signedCurrency(margin, project.currency), tone: margin < 0 ? 'neg' : 'pos' },
         { label: 'Spend', value: `${spendPctTile}%` },
       ]
     : [];
@@ -127,7 +127,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, setT
               <span className="flex items-center gap-2.5">
                 <span className="text-[12.5px] font-semibold text-muted-foreground">Contract value</span>
                 <span className="text-[15px] font-bold tabular tracking-[-0.01em]">
-                  {formatCurrency(contract)}
+                  {formatCurrency(contract, project.currency)}
                 </span>
                 {isOnHand && (
                   <span className="inline-flex items-center gap-1.5 rounded-full bg-secondary px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">
@@ -161,8 +161,8 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, setT
           ) : (
             <CardPad className="flex flex-col gap-3">
               <div className="text-[12px] text-muted-foreground">
-                <span className="font-semibold tabular text-foreground">{formatCurrency(committed)}</span> of{' '}
-                <span className="font-semibold tabular text-foreground">{formatCurrency(activeBudget)}</span>{' '}
+                <span className="font-semibold tabular text-foreground">{formatCurrency(committed, project.currency)}</span> of{' '}
+                <span className="font-semibold tabular text-foreground">{formatCurrency(activeBudget, project.currency)}</span>{' '}
                 budget committed
               </div>
               <ProgressBar
@@ -226,7 +226,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, setT
               {/* Committed total */}
               <div className="text-[12px] text-muted-foreground">
                 <span className="font-semibold tabular text-foreground text-[14px]">
-                  {formatCurrency(procSummary.committedTotal)}
+                  {formatCurrency(procSummary.committedTotal, project.currency)}
                 </span>{' '}
                 committed across {procSummary.count} {procSummary.count === 1 ? 'request' : 'requests'}
               </div>
@@ -255,7 +255,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, setT
                           </div>
                         </div>
                         <span className="shrink-0 text-[13px] font-semibold tabular text-foreground">
-                          {formatCurrency(Number(pr.total_value))}
+                          {formatCurrency(Number(pr.total_value), project.currency)}
                         </span>
                       </button>
                     </li>
@@ -301,11 +301,11 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, setT
               <dl className="grid grid-cols-2 gap-x-4 gap-y-2">
                 <div>
                   <dt className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">Active budget</dt>
-                  <dd className="mt-0.5 text-[15px] font-bold tabular">{formatCurrency(snapshot.activeTotal)}</dd>
+                  <dd className="mt-0.5 text-[15px] font-bold tabular">{formatCurrency(snapshot.activeTotal, project.currency)}</dd>
                 </div>
                 <div>
                   <dt className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">Actual spent</dt>
-                  <dd className="mt-0.5 text-[15px] font-bold tabular">{formatCurrency(snapshot.spent)}</dd>
+                  <dd className="mt-0.5 text-[15px] font-bold tabular">{formatCurrency(snapshot.spent, project.currency)}</dd>
                 </div>
                 <div className="col-span-2">
                   <dt className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">Variance</dt>
@@ -315,7 +315,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, setT
                   >
                     {/* AC-W2-9-02: variance = spent - budget (positive = over-budget, destructive).
                         Mirror FinanceDashboard VarianceCell: +$X when over, show abs when under. */}
-                    {snapshot.variance > 0 ? '+' : ''}{formatCurrency(snapshot.variance)}
+                    {snapshot.variance > 0 ? '+' : ''}{formatCurrency(snapshot.variance, project.currency)}
                   </dd>
                 </div>
               </dl>
@@ -335,7 +335,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, setT
                       maxHours={snapshot.activeTotal}
                       // Budget figures are money — currency-format them (reusing
                       // the Budget tab's formatter) so they never render "2000000h".
-                      formatValue={formatCurrency}
+                      formatValue={(v) => formatCurrency(v, project.currency)}
                     />
                   ))}
                 </div>

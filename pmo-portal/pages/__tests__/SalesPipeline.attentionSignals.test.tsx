@@ -51,7 +51,7 @@ const openProjectRecent = {
   name: 'Northwind ERP Rollout',
   client_name: 'Northwind',
   status: 'Tender Submitted',
-  contract_value: 1_200_000,
+  contract_value: 1_200_000, currency: 'USD',
   win_probability: 0.5,
   last_update: daysAgo(3), // 3 days ago — NOT stale
   pm_name: 'Alice Manager',
@@ -63,7 +63,7 @@ const openProjectStale = {
   name: 'Eastgate Depot Upgrade',
   client_name: 'Eastgate',
   status: 'Negotiation',
-  contract_value: 2_000_000,
+  contract_value: 2_000_000, currency: 'USD',
   win_probability: 0.7,
   last_update: daysAgo(40), // 40 days ago — STALE (>= 30 days)
   pm_name: 'Carol Owner',
@@ -75,7 +75,7 @@ const openProjectNoData = {
   name: 'Bare Opportunity',
   client_name: 'Bare Co',
   status: 'Leads',
-  contract_value: 100_000,
+  contract_value: 100_000, currency: 'USD',
   win_probability: 0.1,
   // NO last_update, NO pm_name
 };
@@ -85,7 +85,7 @@ const lostProjectRecent = {
   name: 'Coastal Depot Bid',
   client_name: 'Coastal',
   status: 'Loss Tender',
-  contract_value: 950_000,
+  contract_value: 950_000, currency: 'USD',
   win_probability: 0,
   last_update: daysAgo(5), // 5 days ago — NOT stale
   pm_name: 'Alice PM',
@@ -96,7 +96,7 @@ const lostProjectStale = {
   name: 'Stale Northern Tender',
   client_name: 'Northern Co',
   status: 'Loss Tender',
-  contract_value: 600_000,
+  contract_value: 600_000, currency: 'USD',
   win_probability: 0,
   last_update: daysAgo(35), // 35 days ago — STALE (>= 30 days)
   pm_name: 'Bob Manager',
@@ -104,6 +104,10 @@ const lostProjectStale = {
 
 // ── Mocks ───────────────────────────────────────────────────────────────────
 
+// FR-L10N-020: this tree reads useOrgCurrency (org-denominated aggregates). Pinned here rather
+// than left to a real query. ⚑ At LINE-START — inside a neighbouring vi.mock it parses as a
+// syntax error and hides every real error beneath it.
+vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('react-router', async (orig) => {
   const actual = await (orig() as Promise<Record<string, unknown>>);
   return { ...actual, useNavigate: () => vi.fn() };
@@ -283,7 +287,7 @@ describe('AC-IXD-PIPE-W5-C5 — Pipeline table attention signals (N14)', () => {
           name: 'High Win Deal',
           client_name: 'Acme',
           status: 'Negotiation',
-          contract_value: 1_000_000,
+          contract_value: 1_000_000, currency: 'USD',
           win_probability: 0.92, // 92% — above the 90% utilization at-risk threshold
           last_update: daysAgo(2),
           pm_name: 'Alice',

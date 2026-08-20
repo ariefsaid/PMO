@@ -30,6 +30,10 @@ const { procState, detailState } = vi.hoisted(() => ({
   },
 }));
 
+// FR-L10N-020: this tree reads useOrgCurrency (org-denominated aggregates). Pinned here rather
+// than left to a real query. ⚑ At LINE-START — inside a neighbouring vi.mock it parses as a
+// syntax error and hides every real error beneath it.
+vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/hooks/useFkOptions', () => ({
   useProjectOptions: () => ({ data: [] }),
   useVendorOptions: () => ({ data: [] }),
@@ -77,7 +81,7 @@ const PROC_ROW = {
   code: 'PR-0001',
   title: 'Steel Beams Supply',
   status: 'Requested',
-  total_value: 50000,
+  total_value: 50000, currency: 'USD',
   created_at: '2026-06-01T00:00:00Z',
   requested_by_id: 'u1',
   project: { name: 'Tower Build', code: 'TB-01' },

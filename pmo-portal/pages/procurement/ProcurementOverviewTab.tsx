@@ -41,6 +41,8 @@ export interface ProcurementOverviewTabProps {
   totalValue: number;
   /** The case's current status — drives the Budget signal's per-stage math + visibility. */
   status: ProcurementStatus;
+  /** The procurement's own ISO-4217 currency (FR-L10N-020), threaded to the Budget signal. */
+  currency: string;
 }
 
 export const ProcurementOverviewTab: React.FC<ProcurementOverviewTabProps> = ({
@@ -51,6 +53,7 @@ export const ProcurementOverviewTab: React.FC<ProcurementOverviewTabProps> = ({
   projectName,
   totalValue,
   status,
+  currency,
 }) => (
   <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
     {/* ── ov-main (left 2/3) ─────────────────────────────────────────────── */}
@@ -65,6 +68,7 @@ export const ProcurementOverviewTab: React.FC<ProcurementOverviewTabProps> = ({
         totalValue={totalValue}
         projectName={projectName ?? null}
         status={status}
+        currency={currency}
       />
 
       {/* Detail <dl> — the Field grammar (overline dt + dd). 2-col on desktop,

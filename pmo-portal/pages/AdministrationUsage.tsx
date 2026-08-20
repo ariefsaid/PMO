@@ -1,7 +1,7 @@
 import React from 'react';
 import { DataTable, ListState, type Column } from '@/src/components/ui';
 import type { UsageSummaryRow, OperatorUsageSummaryRow } from '@/src/lib/db/usage';
-import { formatCurrencyFine, formatNumber } from '@/src/lib/format';
+import { PLATFORM_CURRENCY, formatCurrencyFine, formatNumber } from '@/src/lib/format';
 
 /**
  * Administration › Usage section (ops-admin-surface S5, FR-USE-002/003/004/006). Sourced ONLY
@@ -88,14 +88,14 @@ export const AdministrationUsage: React.FC<AdministrationUsageProps> = ({
             // renders $0.00 — a real-looking zero for "unknown". Guard both, as margin does below.
             cell: (r: UsageRow) =>
               'provider_cost_usd' in r && r.provider_cost_usd !== null
-                ? formatCurrencyFine(r.provider_cost_usd)
+                ? formatCurrencyFine(r.provider_cost_usd, PLATFORM_CURRENCY)
                 : '—',
           } as Column<UsageRow>,
         ]
       : []),
-    { key: 'cost', header: 'Credits spent', cell: (r) => formatCurrencyFine(r.cost) },
+    { key: 'cost', header: 'Credits spent', cell: (r) => formatCurrencyFine(r.cost, PLATFORM_CURRENCY) },
     ...(hasMargin
-      ? [{ key: 'margin', header: 'Margin', cell: (r: UsageRow) => (r.margin_usd === null ? '—' : formatCurrencyFine(r.margin_usd)) } as Column<UsageRow>]
+      ? [{ key: 'margin', header: 'Margin', cell: (r: UsageRow) => (r.margin_usd === null ? '—' : formatCurrencyFine(r.margin_usd, PLATFORM_CURRENCY)) } as Column<UsageRow>]
       : []),
   ];
 

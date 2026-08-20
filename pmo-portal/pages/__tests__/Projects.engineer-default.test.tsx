@@ -28,6 +28,10 @@ const { projectsState, myTasksState } = vi.hoisted(() => ({
 }));
 
 // Stub the ProjectStatusControl — B-11 is about filter defaults, not status transitions.
+// FR-L10N-020: this tree reads useOrgCurrency (org-denominated aggregates). Pinned here rather
+// than left to a real query. ⚑ At LINE-START — inside a neighbouring vi.mock it parses as a
+// syntax error and hides every real error beneath it.
+vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('../../components/ProjectStatusControl', () => ({
   default: () => null,
 }));
@@ -96,7 +100,7 @@ beforeEach(() => {
       status: 'Ongoing',
       project_manager_id: 'pm-1',
       client_id: 'c1',
-      contract_value: 100000,
+      contract_value: 100000, currency: 'USD',
       spent: 40000,
       customer_contract_ref: null,
       client: { id: 'c1', name: 'Northwind' },
@@ -109,7 +113,7 @@ beforeEach(() => {
       status: 'Ongoing',
       project_manager_id: 'pm-1',
       client_id: 'c1',
-      contract_value: 50000,
+      contract_value: 50000, currency: 'USD',
       spent: 10000,
       customer_contract_ref: null,
       client: { id: 'c1', name: 'Northwind' },

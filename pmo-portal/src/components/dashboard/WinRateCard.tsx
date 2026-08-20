@@ -63,7 +63,7 @@ const PERIOD_OPTIONS: ViewOption<PeriodKey>[] = [
  * dot + text (color-not-only). Zero closed deals shows an honest empty message
  * rather than a fabricated 0%.
  */
-export const WinRateCard: React.FC = () => {
+export const WinRateCard: React.FC<{ currency: string }> = ({ currency }) => {
   const [mode, setMode] = useState<'count' | 'value'>('count');
   const [period, setPeriod] = useState<PeriodKey>('all');
   const range = useMemo(() => buildWinRateRange(period), [period]);
@@ -75,7 +75,7 @@ export const WinRateCard: React.FC = () => {
   const rate = wr ? (mode === 'count' ? wr.win_rate_count : wr.win_rate_value) : null;
   const wonPct = total > 0 ? Math.round((wins / total) * 100) : 0;
 
-  const fmt = (n: number) => (mode === 'count' ? String(n) : formatCurrency(n));
+  const fmt = (n: number) => (mode === 'count' ? String(n) : formatCurrency(n, currency));
 
   return (
     <section aria-label="Win rate" className="rounded-lg border border-border bg-card p-4">

@@ -57,12 +57,12 @@ import { DecisionSupportPanel } from './DecisionSupportPanel';
 // AC-IXD-PROC-W5-2 tests stay visible without restating it; AC-RB tests pass an
 // explicit status to exercise the per-stage math / visibility boundary.
 function renderPanel(
-  props: Omit<React.ComponentProps<typeof DecisionSupportPanel>, 'status'> &
-    Partial<Pick<React.ComponentProps<typeof DecisionSupportPanel>, 'status'>>,
+  props: Omit<React.ComponentProps<typeof DecisionSupportPanel>, 'status' | 'currency'> &
+    Partial<Pick<React.ComponentProps<typeof DecisionSupportPanel>, 'status' | 'currency'>>,
 ) {
   return render(
     <MemoryRouter>
-      <DecisionSupportPanel status="Requested" {...props} />
+      <DecisionSupportPanel status="Requested" currency="USD" {...props} />
     </MemoryRouter>,
   );
 }
@@ -280,6 +280,17 @@ describe('AC-RB-004 — Available = Budget − Committed − Reserved', () => {
     const neg = tileValue(/^available$/i);
     expect(neg.textContent).toMatch(/-?\$200/);
     expect(neg.className).toMatch(/destructive/);
+  });
+
+  it('FR-L10N-020: every figure renders in the passed-in currency, not USD', () => {
+    budgetState.data = 1000;
+    committedState.data = 300;
+    reservedState.data = 200;
+    renderPanel({ projectId: 'p1', totalValue: 0, projectName: 'X', status: 'Requested', currency: 'EUR' });
+    const availableLabel = screen.getByText(/^available$/i);
+    const availableTile = availableLabel.closest('[data-testid="stat-tile"]') as HTMLElement;
+    expect(within(availableTile).getByText(/€500\b/)).toBeInTheDocument();
+    expect(within(availableTile).queryByText(/\$/)).not.toBeInTheDocument();
   });
 });
 

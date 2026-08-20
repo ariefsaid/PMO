@@ -25,6 +25,12 @@ vi.mock('@/src/lib/import/procurementCycle/commit', () => ({
 }));
 import { commitGroups } from '@/src/lib/import/procurementCycle/commit';
 
+// 3. useOrgCurrency — the preview's org-default currency (FR-L10N-020). Stubbed so the
+// wizard doesn't need an AuthProvider/QueryClientProvider in these unit tests. Mutable
+// so FR-L10N-020 tests can exercise a non-USD org currency.
+const orgCurrencyState = { value: 'USD' };
+vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => orgCurrencyState.value }));
+
 // ── Now import the component under test ──────────────────────────────────────
 import { ProcurementCycleImportWizard } from '../procurementCycle/ProcurementCycleImportWizard';
 import { makeRefLookup } from '@/src/lib/import';
@@ -124,6 +130,7 @@ async function driveToPreview(user: ReturnType<typeof userEvent.setup>) {
 describe('ProcurementCycleImportWizard', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    orgCurrencyState.value = 'USD';
   });
 
   // ── Upload step ──────────────────────────────────────────────────────────
@@ -396,6 +403,15 @@ describe('ProcurementCycleImportWizard', () => {
     expect(screen.queryByText(/\$5000/)).not.toBeInTheDocument();
     // Multiple elements may match — just confirm at least one "$5,000" is present
     expect(screen.getAllByText(/\$5,000/).length).toBeGreaterThan(0);
+  });
+
+  it('FR-L10N-020: preview amounts follow the ORG currency, not a hardcoded USD', async () => {
+    orgCurrencyState.value = 'EUR';
+    const user = userEvent.setup();
+    renderWizard();
+    await driveToPreview(user);
+    expect(screen.getAllByText(/€5,000/).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/\$5,000/)).not.toBeInTheDocument();
   });
 
   // ── D11: committing step shows progress ──────────────────────────────────

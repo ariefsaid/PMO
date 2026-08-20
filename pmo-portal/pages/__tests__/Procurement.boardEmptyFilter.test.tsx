@@ -19,7 +19,7 @@ const { procState, viewState } = vi.hoisted(() => ({
         title: 'Crane hire',
         code: 'PR-001',
         status: 'Requested',
-        total_value: 5000,
+        total_value: 5000, currency: 'USD',
         created_at: '2026-06-01T00:00:00Z',
         project: { name: 'Harbour', code: 'H001' },
         requested_by_id: 'u1',
@@ -34,6 +34,10 @@ const { procState, viewState } = vi.hoisted(() => ({
   viewState: { view: 'board' as const, setView: vi.fn() },
 }));
 
+// FR-L10N-020: this tree reads useOrgCurrency (org-denominated aggregates). Pinned here rather
+// than left to a real query. ⚑ At LINE-START — inside a neighbouring vi.mock it parses as a
+// syntax error and hides every real error beneath it.
+vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' }, role: 'Project Manager' }),
 }));

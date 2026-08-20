@@ -20,6 +20,8 @@ export interface ProjectedMarginBarsProps {
   projectedMargin: number;
   /** Per-stage weighted breakdown from useSalesPipeline(). */
   stages: PipelineStage[];
+  /** Org operating currency (pipeline stages are RPC-shaped, no per-row currency) — FR-L10N-020. */
+  currency: string;
 }
 
 /**
@@ -28,7 +30,7 @@ export interface ProjectedMarginBarsProps {
  * payload, bars from `useSalesPipeline().stages` with Won/Lost terminal stages
  * excluded. Each bar direct-labels its weighted value and carries an aria label.
  */
-export const ProjectedMarginBars: React.FC<ProjectedMarginBarsProps> = ({ projectedMargin, stages }) => {
+export const ProjectedMarginBars: React.FC<ProjectedMarginBarsProps> = ({ projectedMargin, stages, currency }) => {
   const open = useMemo(
     () => stages.filter((s) => OPEN_STATUSES.has(s.status as string)),
     [stages],
@@ -61,7 +63,7 @@ export const ProjectedMarginBars: React.FC<ProjectedMarginBarsProps> = ({ projec
               <span className="w-[88px] shrink-0 text-[12px] text-muted-foreground">{s.status}</span>
               <span
                 role="progressbar"
-                aria-label={`${s.status}: ${formatCurrency(s.weighted_value)} weighted`}
+                aria-label={`${s.status}: ${formatCurrency(s.weighted_value, currency)} weighted`}
                 aria-valuenow={s.weighted_value}
                 aria-valuemin={0}
                 aria-valuemax={max}
@@ -73,7 +75,7 @@ export const ProjectedMarginBars: React.FC<ProjectedMarginBarsProps> = ({ projec
                 />
               </span>
               <span className="w-[68px] shrink-0 text-right text-xs font-semibold tabular">
-                {formatCurrency(s.weighted_value)}
+                {formatCurrency(s.weighted_value, currency)}
               </span>
             </Link>
           );

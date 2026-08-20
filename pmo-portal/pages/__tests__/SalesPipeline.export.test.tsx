@@ -18,6 +18,10 @@ import { ImpersonationProvider } from '@/src/auth/impersonation';
 
 // useExport is the only seam the button calls; stub it so no real download fires.
 const exportXlsx = vi.fn();
+// FR-L10N-020: this tree reads useOrgCurrency (org-denominated aggregates). Pinned here rather
+// than left to a real query. ⚑ At LINE-START — inside a neighbouring vi.mock it parses as a
+// syntax error and hides every real error beneath it.
+vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/components/export/useExport', () => ({
   useExport: () => ({ exportXlsx, busy: false }),
 }));
@@ -48,7 +52,7 @@ vi.mock('@/src/hooks/useDashboard', () => ({
           name: 'Deal 1',
           client_name: 'Client A',
           status: 'Qualified',
-          contract_value: 10000,
+          contract_value: 10000, currency: 'USD',
           win_probability: 0.5,
         },
       ],

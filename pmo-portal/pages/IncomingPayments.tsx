@@ -79,7 +79,7 @@ function openInvoiceOptions(
       label: inv.si_number ?? inv.id,
       sub:
         inv.erp_outstanding_amount != null
-          ? `${formatCurrencyCents(inv.erp_outstanding_amount)} outstanding`
+          ? `${formatCurrencyCents(inv.erp_outstanding_amount, inv.currency)} outstanding`
           : undefined,
     }));
 }
@@ -185,7 +185,7 @@ const IncomingPayments: React.FC = () => {
       align: 'num',
       cell: (p) => (
         <span className="tabular text-right font-mono text-[13px]">
-          {p.amount != null ? formatCurrencyCents(p.amount) : '—'}
+          {p.amount != null ? formatCurrencyCents(p.amount, p.currency) : '—'}
         </span>
       ),
       exportValue: (p) => p.amount?.toString() ?? '',

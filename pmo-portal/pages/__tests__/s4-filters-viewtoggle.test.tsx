@@ -34,10 +34,14 @@ const { roleBox, projectMutations, deliverySummaryState } = vi.hoisted(() => ({
   },
 }));
 
+// FR-L10N-020: this tree reads useOrgCurrency (org-denominated aggregates). Pinned here rather
+// than left to a real query. ⚑ At LINE-START — inside a neighbouring vi.mock it parses as a
+// syntax error and hides every real error beneath it.
+vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/hooks/useProjects', () => ({
   useProjects: () => ({
     data: [{ id: 'p1', name: 'Alpha Project', code: 'PRJ-001', status: 'Ongoing Project',
-      client_id: 'c1', project_manager_id: 'u-alice', contract_value: 1000000, budget: 900000,
+      client_id: 'c1', project_manager_id: 'u-alice', contract_value: 1000000, currency: 'USD', budget: 900000,
       spent: 500000, end_date: '2026-12-31', client: { name: 'Client A' },
       pm: { full_name: 'Alice Manager' }, customer_contract_ref: null,
       contract_date: null, decided_at: null }] as unknown as ProjectWithRefs[],
@@ -74,7 +78,7 @@ vi.mock('react-router', async (orig) => {
 // ── Procurement page stubs ───────────────────────────────────────────────────
 const procState = {
   data: [{ id: 'pc1', code: 'PROC-001', title: 'Workstations', status: 'Open',
-    total_value: 10000, project_id: 'p1', requested_by_id: 'u-alice',
+    total_value: 10000, currency: 'USD', project_id: 'p1', requested_by_id: 'u-alice',
     vendor_id: null, created_at: '2026-01-01T00:00:00Z',
     project: { name: 'Alpha Project', code: 'PRJ-001' },
     vendor: null, requested_by: { full_name: 'Alice Manager' } }],

@@ -55,6 +55,9 @@ export interface DecisionSupportPanelProps {
   projectName: string | null | undefined;
   /** The case's current status — drives per-stage math + the visibility boundary. */
   status: ProcurementStatus;
+  /** The procurement's own ISO-4217 currency (FR-L10N-020) — every figure here derives
+   *  from `totalValue`/the project's budget rollups, which share this record's currency. */
+  currency: string;
 }
 
 export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
@@ -62,6 +65,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
   totalValue,
   projectName,
   status,
+  currency,
 }) => {
   // Hooks must be called unconditionally; all are no-ops (enabled:false) when
   // projectId is falsy, so the early returns below are safe.
@@ -155,21 +159,21 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
   const afterPct = budgetAmount > 0 ? (afterRequest / budgetAmount) * 100 : 0;
 
   const tiles = [
-    { label: 'This request', value: formatCurrency(totalValue) },
+    { label: 'This request', value: formatCurrency(totalValue, currency) },
     {
       label: 'Reserved',
-      value: formatCurrency(otherReserved),
+      value: formatCurrency(otherReserved, currency),
       sub: 'approved, not yet ordered',
     },
     {
       label: 'Available',
-      value: formatCurrency(available),
+      value: formatCurrency(available, currency),
       tone: available < 0 ? ('neg' as const) : undefined,
     },
-    { label: 'Project budget', value: formatCurrency(budgetAmount) },
+    { label: 'Project budget', value: formatCurrency(budgetAmount, currency) },
     {
       label: 'After this request',
-      value: formatCurrency(afterRequest),
+      value: formatCurrency(afterRequest, currency),
       // I4 (design-review): afterPct is headroom remaining (afterRequest/budget),
       // NOT utilization — labelled "% headroom remaining" for honest spend control.
       sub: `${afterPct.toFixed(1)}% headroom remaining`,
@@ -198,7 +202,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
             sub={
               <>
                 This request exceeds available budget by{' '}
-                <strong className="tabular">{formatCurrency(overAvailableAmount)}</strong>. Approval
+                <strong className="tabular">{formatCurrency(overAvailableAmount, currency)}</strong>. Approval
                 is still permitted — this is an advisory only.
               </>
             }
@@ -214,7 +218,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
             sub={
               <>
                 This project is over budget by{' '}
-                <strong className="tabular">{formatCurrency(-available)}</strong> across committed
+                <strong className="tabular">{formatCurrency(-available, currency)}</strong> across committed
                 and reserved demand. This is an advisory only.
               </>
             }

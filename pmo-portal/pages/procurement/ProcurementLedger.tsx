@@ -117,7 +117,7 @@ const STATIC_COLUMNS: Column<LedgerRow>[] = [
     align: 'num',
     cell: (row) =>
       row.amount != null ? (
-        <span className="tabular-nums">{formatCurrency(row.amount)}</span>
+        <span className="tabular-nums">{formatCurrency(row.amount, row.currency)}</span>
       ) : (
         <span className="text-[12px] text-muted-foreground">—</span>
       ),

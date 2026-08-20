@@ -16,6 +16,10 @@ import type { ProjectWithRefs } from '@/src/lib/db/projects';
 const { transitionProject } = vi.hoisted(() => ({
   transitionProject: vi.fn().mockResolvedValue(undefined),
 }));
+// FR-L10N-020: this component reads useOrgCurrency for its ACROSS-record aggregates. Pinned here
+// rather than left to a real query. ⚑ At LINE-START on purpose — inserted inside a neighbouring
+// vi.mock call it parses as a syntax error and hides every real error beneath it.
+vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/lib/db/projectTransitions', async (orig) => {
   const actual = await (orig() as Promise<Record<string, unknown>>);
   return { ...actual, transitionProject };
@@ -31,7 +35,7 @@ const pipelineState = {
         id: 'd1',
         name: 'Acme Tender Bid',
         status: 'Tender Submitted',
-        contract_value: CONTRACT_VALUE,
+        contract_value: CONTRACT_VALUE, currency: 'USD',
         win_probability: 0.5,
       },
     ] as Array<Record<string, unknown>>,
@@ -55,7 +59,7 @@ const dealRow = {
   status: 'Tender Submitted',
   client_id: 'c1',
   project_manager_id: 'u-alice',
-  contract_value: CONTRACT_VALUE,
+  contract_value: CONTRACT_VALUE, currency: 'USD',
   budget: 0,
   spent: 0,
   start_date: null,
@@ -91,7 +95,7 @@ describe('PipelineLens — mark-won shows the booked value (AC-IXD-DASH-005)', (
     // "Booking $1,200,000 to contract value on win" — the money is shown before confirming.
     // The phrase spans inline elements (the amount is bolded), so assert the wrapper carries the
     // full sentence (textContent stitches the inline <strong>) and that the amount is the bolded run.
-    const formatted = formatCurrency(CONTRACT_VALUE);
+    const formatted = formatCurrency(CONTRACT_VALUE, 'USD');
     const bookingLine = screen.getByText(
       (content) => /^Booking\b/.test(content.trim()),
       { selector: 'div' },

@@ -5,6 +5,12 @@ import SalesKanbanBoard from './SalesKanbanBoard';
 import type { PipelineProject } from '@/src/lib/db/dashboard';
 import { formatCurrency } from '@/src/lib/format';
 
+// FR-L10N-020: the board reads useOrgCurrency for its per-column totals (and for the deal cards,
+// because get_sales_pipeline() returns no per-row currency). Pinned rather than left to a real
+// query. ⚑ At LINE-START on purpose — inserted inside a neighbouring vi.mock call it parses as a
+// syntax error and hides every real error beneath it.
+vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
+
 const projects: PipelineProject[] = [
   { id: 'q1', name: 'Quotation Deal Alpha', client_name: 'Acme', status: 'Quotation Submitted', contract_value: 500_000, win_probability: 0.4 },
   { id: 't1', name: 'Tender Deal Bravo', client_name: null, status: 'Tender Submitted', contract_value: 1_200_000, win_probability: 0.5 },
@@ -46,9 +52,9 @@ describe('SalesKanbanBoard (AC-SP-204 / AC-IXD-PROJ-007)', () => {
     const card = screen.getByText('Quotation Deal Alpha').closest('[role="button"]')!;
     const c = within(card as HTMLElement);
     expect(c.getByText('Acme')).toBeInTheDocument();
-    expect(c.getByText(formatCurrency(500_000))).toBeInTheDocument();
+    expect(c.getByText(formatCurrency(500_000, 'USD'))).toBeInTheDocument();
     // weighted = 500000 * 0.4 = 200000 (rendered "$200,000 wtd")
-    expect(c.getByText((t) => t.includes(formatCurrency(200_000)))).toBeInTheDocument();
+    expect(c.getByText((t) => t.includes(formatCurrency(200_000, 'USD')))).toBeInTheDocument();
     // win% from the RPC (40%), not a hard-coded legacy value
     expect(c.getByText('40%')).toBeInTheDocument();
   });
@@ -99,7 +105,7 @@ describe('SalesKanbanBoard (AC-SP-204 / AC-IXD-PROJ-007)', () => {
     // weighted for Tender = 1,200,000 * 0.5 = 600,000 — surfaced both in the
     // column totals AND the single card's weighted chip.
     expect(
-      within(tender).getAllByText((t) => t.includes(formatCurrency(600_000))).length,
+      within(tender).getAllByText((t) => t.includes(formatCurrency(600_000, 'USD'))).length,
     ).toBeGreaterThan(0);
   });
 });

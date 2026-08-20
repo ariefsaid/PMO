@@ -27,6 +27,10 @@ import { MemoryRouter, Route, Routes } from 'react-router';
 // Page-level tests focus on lifecycle/UX behavior; the subsection has its own
 // unit tests. This matches the pattern in all sibling ProcurementDetails test files.
 // ---------------------------------------------------------------------------
+// FR-L10N-020: this tree reads useOrgCurrency (org-denominated aggregates). Pinned here rather
+// than left to a real query. ⚑ At LINE-START — inside a neighbouring vi.mock it parses as a
+// syntax error and hides every real error beneath it.
+vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/hooks/useProcurementRecords', () => ({
   useProcurementRecordMutations: () => ({
     createPurchaseRequest: { mutateAsync: vi.fn(), isPending: false },
@@ -145,7 +149,7 @@ const draftByAlice = {
   code: 'PROC-2026-S6-001',
   title: 'Office Supplies',
   status: 'Draft' as const,
-  total_value: 500,
+  total_value: 500, currency: 'USD',
   pr_number: 'PR-2606130001',
   po_number: null,
   vq_number: null,

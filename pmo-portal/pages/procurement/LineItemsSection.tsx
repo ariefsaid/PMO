@@ -64,6 +64,9 @@ export interface LineItemsSectionProps {
   onError: (err: unknown) => void;
   /** Mutation in-flight flags from the hook (disables the relevant control). */
   busy?: boolean;
+  /** The owning procurement's ISO-4217 currency (FR-L10N-020) — line items carry no
+   *  currency of their own, so every rate/total here takes the parent's. */
+  currency: string;
 }
 
 /** Cell input — the small 30px `li-inp` shell from the mockup. */
@@ -92,6 +95,7 @@ export const LineItemsSection: React.FC<LineItemsSectionProps> = ({
   onDelete,
   onError,
   busy,
+  currency,
 }) => {
   const [draft, setDraft] = useState<ItemDraft>(EMPTY_DRAFT);
   const [addErrors, setAddErrors] = useState<LineItemErrors>({});
@@ -249,7 +253,7 @@ export const LineItemsSection: React.FC<LineItemsSectionProps> = ({
                       </div>
                     </td>
                     <td className="px-3 py-2 text-right tabular font-medium">
-                      {formatCurrency(num(editDraft.quantity) * num(editDraft.rate))}
+                      {formatCurrency(num(editDraft.quantity) * num(editDraft.rate), currency)}
                     </td>
                     <td className="px-3 py-2">
                       <div className="flex items-center justify-center gap-1">
@@ -273,9 +277,9 @@ export const LineItemsSection: React.FC<LineItemsSectionProps> = ({
                 <tr key={it.id} className="border-b border-border/70">
                   <td className="px-3 py-2.5 font-medium">{it.name}</td>
                   <td className="px-3 py-2.5 text-right tabular">{Number(it.quantity)}</td>
-                  <td className="px-3 py-2.5 text-right tabular">{formatCurrency(Number(it.rate))}</td>
+                  <td className="px-3 py-2.5 text-right tabular">{formatCurrency(Number(it.rate), currency)}</td>
                   <td className="px-3 py-2.5 text-right tabular font-medium">
-                    {formatCurrency(Number(it.amount ?? 0))}
+                    {formatCurrency(Number(it.amount ?? 0), currency)}
                   </td>
                   {editable && (
                     <td className="px-3 py-2.5">
@@ -347,7 +351,7 @@ export const LineItemsSection: React.FC<LineItemsSectionProps> = ({
                 </td>
                 <td className="px-3 py-2 text-right tabular text-muted-foreground">
                   {draft.quantity && draft.rate
-                    ? formatCurrency(num(draft.quantity) * num(draft.rate))
+                    ? formatCurrency(num(draft.quantity) * num(draft.rate), currency)
                     : '—'}
                 </td>
                 <td className="px-3 py-2 text-center">
@@ -373,7 +377,7 @@ export const LineItemsSection: React.FC<LineItemsSectionProps> = ({
         <span className="flex-1" />
         <span className="text-[12.5px] font-medium text-muted-foreground">Estimated total</span>
         <span className="text-[16px] font-bold tabular tracking-[-0.01em]">
-          {formatCurrency(total)}
+          {formatCurrency(total, currency)}
         </span>
       </CardPad>
 

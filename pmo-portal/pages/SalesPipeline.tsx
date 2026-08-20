@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import {
   Button,
   Funnel,
@@ -51,6 +52,10 @@ type DealScope = 'Open' | 'Lost' | 'Needs attention';
 const DEAL_SCOPES: DealScope[] = ['Open', 'Lost', 'Needs attention'];
 
 const SalesPipeline: React.FC = () => {
+  // FR-L10N-020: this page shows STAGE AGGREGATES, which sum across deals and so carry no record
+  // currency of their own. `get_sales_pipeline()` returns no currency column either, so the org
+  // default is the honest denomination here — see DealCard's note in SalesKanbanBoard.
+  const orgCurrency = useOrgCurrency();
   const may = usePermission();
   // A-4 (rbac-visibility §C): Sales Pipeline view = Admin·Exec·PM·Finance; Engineer = ○ (no
   // nav, no page). The rail hides it but the ROUTE does not — so an Engineer reaching /sales
@@ -147,8 +152,9 @@ const SalesPipeline: React.FC = () => {
       name: col.title,
       dotColor: col.dotColor,
       prob: s ? formatPercent(s.win_probability) : undefined,
-      value: formatCurrency(s?.total_value ?? 0),
-      weighted: `${formatCurrency(weighted)} weighted`,
+      // FR-L10N-020: a STAGE total sums across deals, so it has no record currency — org default.
+      value: formatCurrency(s?.total_value ?? 0, orgCurrency),
+      weighted: `${formatCurrency(weighted, orgCurrency)} weighted`,
       barPct: maxWeighted > 0 ? (weighted / maxWeighted) * 100 : 0,
     };
   });
@@ -196,7 +202,9 @@ const SalesPipeline: React.FC = () => {
       key: 'value',
       header: 'Value',
       align: 'num',
-      cell: (r) => formatCurrency(r.contract_value),
+      // Per-ROW here, unlike the stage totals above — but `get_sales_pipeline()` returns no
+      // currency column, so the org default stands in. See DealCard's note in SalesKanbanBoard.
+      cell: (r) => formatCurrency(r.contract_value, orgCurrency),
       exportValue: (r) => r.contract_value,
     },
     {
@@ -204,7 +212,7 @@ const SalesPipeline: React.FC = () => {
       header: 'Weighted',
       align: 'num',
       cell: (r) => (
-        <span className="text-muted-foreground">{formatCurrency(weightedValue(r))}</span>
+        <span className="text-muted-foreground">{formatCurrency(weightedValue(r), orgCurrency)}</span>
       ),
       exportValue: (r) => weightedValue(r),
     },
@@ -375,7 +383,7 @@ const SalesPipeline: React.FC = () => {
               <div className="mt-2 flex items-center gap-1.5 px-1 text-[12.5px] text-muted-foreground">
                 <span>Weighted pipeline forecast</span>
                 <span data-testid="pipeline-weighted-total" className="font-bold tabular text-foreground">
-                  {formatCurrency(totalWeighted)}
+                  {formatCurrency(totalWeighted, orgCurrency)}
                 </span>
               </div>
             </section>

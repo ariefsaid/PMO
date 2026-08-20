@@ -29,7 +29,7 @@ const tenDaysAgo = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString()
 
 const dash = {
   active_projects: 3,
-  total_contract_value: 10_000_000,
+  total_contract_value: 10_000_000, currency: 'USD',
   on_hand_margin: 0.22,
   on_hand_value: 7_000_000,
   pipeline_weighted_value: 1_000_000,
@@ -43,18 +43,18 @@ const dash = {
   ],
   top_projects: [
     // Alpha: 10% OVER budget (spent=1100 vs budget=1000) → variance = +100,000 → should be first
-    { id: 'p1', name: 'Alpha', client_name: 'Acme', contract_value: 5_000_000, budget: 1_000_000, spent: 1_100_000, status: 'Ongoing Project' },
+    { id: 'p1', name: 'Alpha', client_name: 'Acme', contract_value: 5_000_000, currency: 'USD', budget: 1_000_000, spent: 1_100_000, status: 'Ongoing Project' },
     // Beta: $400k LEFT under budget (spent=600 vs budget=1000) → variance = -400,000 → last (after filter)
-    { id: 'p2', name: 'Beta', client_name: 'Beta Co', contract_value: 3_000_000, budget: 1_000_000, spent: 600_000, status: 'Ongoing Project' },
+    { id: 'p2', name: 'Beta', client_name: 'Beta Co', contract_value: 3_000_000, currency: 'USD', budget: 1_000_000, spent: 600_000, status: 'Ongoing Project' },
     // Gamma: $50k over (spent=250 vs budget=200) → variance = +50,000 → middle
-    { id: 'p3', name: 'Gamma', client_name: 'Gamma Ltd', contract_value: 2_000_000, budget: 200_000, spent: 250_000, status: 'Ongoing Project' },
+    { id: 'p3', name: 'Gamma', client_name: 'Gamma Ltd', contract_value: 2_000_000, currency: 'USD', budget: 200_000, spent: 250_000, status: 'Ongoing Project' },
     // ZeroBudget: budget=0, Tender Submitted → should be EXCLUDED from budget-review (I2 fix)
-    { id: 'p4', name: 'ZeroBudget Tender', client_name: 'Tender Co', contract_value: 1_000_000, budget: 0, spent: 0, status: 'Tender Submitted' },
+    { id: 'p4', name: 'ZeroBudget Tender', client_name: 'Tender Co', contract_value: 1_000_000, currency: 'USD', budget: 0, spent: 0, status: 'Tender Submitted' },
   ],
 };
 
 const makePR = (overrides: Record<string, unknown>) => ({
-  id: 'pr-x', status: 'Draft', total_value: 0, title: 'Default',
+  id: 'pr-x', status: 'Draft', total_value: 0, currency: 'USD', title: 'Default',
   code: 'DF-001', requested_by_id: 'u1', requested_by: { full_name: 'Alice' },
   project: null, created_at: threeDaysAgo, updated_at: threeDaysAgo,
   org_id: 'org-1', vendor_id: null, approved_by_id: null, approval_notes: null,
@@ -63,10 +63,10 @@ const makePR = (overrides: Record<string, unknown>) => ({
 });
 
 const procurements = [
-  makePR({ id: 'vi-1', status: 'Vendor Invoiced', total_value: 250_000, title: 'Scaffolding Invoice', code: 'VI-001', updated_at: threeDaysAgo }),
-  makePR({ id: 'vi-2', status: 'Vendor Invoiced', total_value: 80_000, title: 'Electrical Works Invoice', code: 'VI-002', requested_by: { full_name: 'Bob' }, project: { name: 'Beta' }, updated_at: tenDaysAgo }),
-  makePR({ id: 'paid-1', status: 'Paid', total_value: 999_999, title: 'Paid Invoice', code: 'PD-001', requested_by: { full_name: 'Carol' } }),
-  makePR({ id: 'draft-1', status: 'Draft', total_value: 5_000, title: 'Draft Request', code: 'DR-001', requested_by_id: 'u2', requested_by: { full_name: 'Dave' } }),
+  makePR({ id: 'vi-1', status: 'Vendor Invoiced', total_value: 250_000, currency: 'USD', title: 'Scaffolding Invoice', code: 'VI-001', updated_at: threeDaysAgo }),
+  makePR({ id: 'vi-2', status: 'Vendor Invoiced', total_value: 80_000, currency: 'USD', title: 'Electrical Works Invoice', code: 'VI-002', requested_by: { full_name: 'Bob' }, project: { name: 'Beta' }, updated_at: tenDaysAgo }),
+  makePR({ id: 'paid-1', status: 'Paid', total_value: 999_999, currency: 'USD', title: 'Paid Invoice', code: 'PD-001', requested_by: { full_name: 'Carol' } }),
+  makePR({ id: 'draft-1', status: 'Draft', total_value: 5_000, currency: 'USD', title: 'Draft Request', code: 'DR-001', requested_by_id: 'u2', requested_by: { full_name: 'Dave' } }),
 ];
 
 // N17 now reads get_finance_budget_review (committed basis, budget>0 + variance-desc applied
@@ -116,6 +116,11 @@ vi.mock('@/src/hooks/useProcurementCrud', () => ({
   useCreateProcurement: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
 
+// FR-L10N-020: dashboard aggregates are org-denominated (the RPC rows carry no currency of their
+// own), so the component reads useOrgCurrency and the test pins it rather than leaving it to a
+// real query. ⛑ At line-start on purpose — an earlier automated insert landed it INSIDE the
+// vi.mock call below, which parses as a syntax error rather than a wrong value.
+vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/hooks/useProcurementView', () => ({
   useProcurementView: () => ['table', vi.fn()] as ['table', () => void],
 }));
@@ -343,7 +348,7 @@ describe('AC-FIN-DEBT — N16 age column header is "Invoiced" (real vendor_invoi
         <ReadyToPayTable
           procurements={[
             // @ts-expect-error minimal shape for test
-            { id: 'vi-1', status: 'Vendor Invoiced', total_value: 100_000, title: 'Test Invoice',
+            { id: 'vi-1', status: 'Vendor Invoiced', total_value: 100_000, currency: 'USD', title: 'Test Invoice',
               code: 'VI-T', vendor_invoiced_at: tenDaysAgo, updated_at: threeDaysAgo, project: null, requested_by: { full_name: 'Alice' } },
           ]}
           isPending={false}
@@ -366,7 +371,7 @@ describe('AC-FIN-DEBT — N16 age column header is "Invoiced" (real vendor_invoi
         <ReadyToPayTable
           procurements={[
             // @ts-expect-error minimal shape for test
-            { id: 'vi-1', status: 'Vendor Invoiced', total_value: 100_000, title: 'Test Invoice',
+            { id: 'vi-1', status: 'Vendor Invoiced', total_value: 100_000, currency: 'USD', title: 'Test Invoice',
               code: 'VI-T', vendor_invoiced_at: tenDaysAgo, updated_at: threeDaysAgo, project: null, requested_by: { full_name: 'Alice' } },
           ]}
           isPending={false}
@@ -388,10 +393,10 @@ describe('AC-FIN-DEBT — N16 age column header is "Invoiced" (real vendor_invoi
         <ReadyToPayTable
           procurements={[
             // @ts-expect-error minimal shape for test — vi-1 has a real stamp, vi-2 is null (legacy)
-            { id: 'vi-1', status: 'Vendor Invoiced', total_value: 100_000, title: 'Stamped Invoice',
+            { id: 'vi-1', status: 'Vendor Invoiced', total_value: 100_000, currency: 'USD', title: 'Stamped Invoice',
               code: 'VI-T1', vendor_invoiced_at: tenDaysAgo, updated_at: threeDaysAgo, project: null, requested_by: { full_name: 'Alice' } },
             // @ts-expect-error minimal shape for test
-            { id: 'vi-2', status: 'Vendor Invoiced', total_value: 50_000, title: 'Legacy Invoice',
+            { id: 'vi-2', status: 'Vendor Invoiced', total_value: 50_000, currency: 'USD', title: 'Legacy Invoice',
               code: 'VI-T2', vendor_invoiced_at: null, updated_at: threeDaysAgo, project: null, requested_by: { full_name: 'Bob' } },
           ]}
           isPending={false}

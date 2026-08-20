@@ -123,7 +123,7 @@ const ProjectKanbanCard: React.FC<ProjectKanbanCardProps> = ({ project, onActiva
       }
       body={
         <div className="text-[12px] font-bold tabular">
-          {formatCurrency(project.contract_value)}
+          {formatCurrency(project.contract_value, project.currency)}
         </div>
       }
       foot={

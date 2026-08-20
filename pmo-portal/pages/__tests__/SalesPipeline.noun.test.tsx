@@ -20,7 +20,7 @@ const { pipelineState, lostState } = vi.hoisted(() => ({
         {
           status: 'Tender Submitted',
           count: 1,
-          total_value: 1200000,
+          total_value: 1200000, currency: 'USD',
           win_probability: 0.5,
           weighted_value: 600000,
         },
@@ -31,7 +31,7 @@ const { pipelineState, lostState } = vi.hoisted(() => ({
           name: 'Northwind Rollout',
           client_name: 'Northwind',
           status: 'Tender Submitted',
-          contract_value: 1200000,
+          contract_value: 1200000, currency: 'USD',
           win_probability: 0.5,
         },
       ],
@@ -43,6 +43,10 @@ const { pipelineState, lostState } = vi.hoisted(() => ({
   lostState: { data: [] as unknown[] },
 }));
 
+// FR-L10N-020: this tree reads useOrgCurrency (org-denominated aggregates). Pinned here rather
+// than left to a real query. ⚑ At LINE-START — inside a neighbouring vi.mock it parses as a
+// syntax error and hides every real error beneath it.
+vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/hooks/useDashboard', () => ({
   useSalesPipeline: () => pipelineState,
   useLostDeals: () => lostState,
@@ -84,7 +88,7 @@ beforeEach(() => {
       {
         status: 'Tender Submitted',
         count: 1,
-        total_value: 1200000,
+        total_value: 1200000, currency: 'USD',
         win_probability: 0.5,
         weighted_value: 600000,
       },
@@ -95,7 +99,7 @@ beforeEach(() => {
         name: 'Northwind Rollout',
         client_name: 'Northwind',
         status: 'Tender Submitted',
-        contract_value: 1200000,
+        contract_value: 1200000, currency: 'USD',
         win_probability: 0.5,
       },
     ],

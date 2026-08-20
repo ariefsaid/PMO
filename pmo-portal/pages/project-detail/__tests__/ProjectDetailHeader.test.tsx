@@ -46,6 +46,7 @@ const onHand = {
   client_id: 'c2',
   project_manager_id: 'u-alice',
   contract_value: 5000000,
+  currency: 'USD',
   budget: 4700000,
   spent: 2100000,
   start_date: '2026-01-01',

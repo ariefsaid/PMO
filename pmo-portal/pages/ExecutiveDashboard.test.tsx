@@ -83,6 +83,8 @@ vi.mock('@/src/hooks/useTimesheetApproval', () => ({
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' }, role: 'Executive' }),
 }));
+// FR-L10N-020: exec-dashboard KPI aggregates are org-denominated (RPC rows carry no currency).
+vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 
 const renderPage = () =>
   render(
@@ -154,7 +156,7 @@ describe('ExecutiveDashboard dual-lens tiles (AC-1114 / FR-SPD-012)', () => {
     renderPage();
     // Revenue-on-hand tile carries the on-hand value + realized-margin % as its `vs` sub.
     expect(screen.getByTestId('kpi-on-hand-margin')).toHaveTextContent('94.9%');
-    expect(screen.getByTestId('kpi-pipeline-weighted-value')).toHaveTextContent(formatCurrency(800000));
+    expect(screen.getByTestId('kpi-pipeline-weighted-value')).toHaveTextContent(formatCurrency(800000, 'USD'));
     // Pipeline forecast-margin tile shows ONLY the weighted pipeline projected margin (20.0%) —
     // the dual on-hand↔weighted toggle was removed (AC-IXD-DASH-002: one metric name = one number).
     expect(screen.getByTestId('kpi-pipeline-projected-margin')).toHaveTextContent('20.0%');

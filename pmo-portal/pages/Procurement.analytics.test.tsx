@@ -13,6 +13,10 @@ const analytics = vi.hoisted(() => ({
   trackProcurementDetailOpened: vi.fn(),
   trackEmptyStateSeen: vi.fn(),
 }));
+// FR-L10N-020: this tree reads useOrgCurrency (org-denominated aggregates). Pinned here rather
+// than left to a real query. ⚑ At LINE-START — inside a neighbouring vi.mock it parses as a
+// syntax error and hides every real error beneath it.
+vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/lib/analytics', () => ({
   trackFilterApplied: analytics.trackFilterApplied,
   trackSearchUsed: analytics.trackSearchUsed,
@@ -26,7 +30,7 @@ const seed = [
     code: 'PROC-2026-004',
     title: 'Workstations & AV',
     status: 'Vendor Quoted',
-    total_value: 150000,
+    total_value: 150000, currency: 'USD',
     project_id: 'pr1',
     requested_by_id: 'u-alice',
     vendor_id: null,

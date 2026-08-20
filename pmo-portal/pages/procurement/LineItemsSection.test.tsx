@@ -36,6 +36,7 @@ function renderSection(props: Partial<React.ComponentProps<typeof LineItemsSecti
         onUpdate={onUpdate}
         onDelete={onDelete}
         onError={onError}
+        currency={props.currency ?? 'USD'}
       />
     </ToastProvider>,
   );
@@ -51,6 +52,12 @@ describe('AC-PROC-003 LineItemsSection (editable line-items table)', () => {
     // Line total + footer total both render the formatted amount (USD, no fraction digits).
     expect(screen.getAllByText(/\$2,064/).length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText('Estimated total')).toBeInTheDocument();
+  });
+
+  it('FR-L10N-020: rows and the footer total render in the PROCUREMENT currency, not USD', () => {
+    renderSection({ currency: 'EUR' });
+    expect(screen.getAllByText(/€2,064/).length).toBeGreaterThanOrEqual(1);
+    expect(screen.queryByText(/\$2,064/)).not.toBeInTheDocument();
   });
 
   it('AC-PROC-003: empty state teaches when there are no items (editable)', () => {

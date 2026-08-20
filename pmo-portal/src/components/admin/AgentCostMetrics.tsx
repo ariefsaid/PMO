@@ -8,7 +8,7 @@ import { ChartFrame, type ChartState } from '@/src/components/dashboard/ChartFra
 import { usePrefersReducedMotion } from '@/src/components/dashboard/usePrefersReducedMotion';
 import { tooltipContentStyle, tooltipLabelStyle, axisTickStyle } from '@/src/components/dashboard/chartChrome';
 import { chartTheme } from '@/src/components/ui/chartTheme';
-import { formatCurrencyFine, formatUtcMonthYear } from '@/src/lib/format';
+import { PLATFORM_CURRENCY, formatCurrencyFine, formatUtcMonthYear } from '@/src/lib/format';
 
 /**
  * Agent cost dashboard — presentational panel (ops-admin surface, agent-cost-dashboard
@@ -91,11 +91,11 @@ function deriveKpis(
   const costP50 =
     totalRuns === 0
       ? DASH
-      : formatCurrencyFine(runStatsRows.reduce((sum, r) => sum + r.p50_cost * r.runs, 0) / totalRuns);
+      : formatCurrencyFine(runStatsRows.reduce((sum, r) => sum + r.p50_cost * r.runs, 0) / totalRuns, PLATFORM_CURRENCY);
   const costP95 =
     runStatsRows.length === 0
       ? DASH
-      : formatCurrencyFine(Math.max(...runStatsRows.map((r) => r.p95_cost)));
+      : formatCurrencyFine(Math.max(...runStatsRows.map((r) => r.p95_cost)), PLATFORM_CURRENCY);
   const latencyP95 =
     runStatsRows.length === 0
       ? DASH

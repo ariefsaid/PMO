@@ -33,6 +33,10 @@ const { projState, tsState, deliverySummaryState } = vi.hoisted(() => ({
   },
 }));
 
+// FR-L10N-020: this tree reads useOrgCurrency (org-denominated aggregates). Pinned here rather
+// than left to a real query. ⚑ At LINE-START — inside a neighbouring vi.mock it parses as a
+// syntax error and hides every real error beneath it.
+vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/hooks/useProjects', () => ({
   useProjects: () => projState,
   useClientCompanies: () => ({ data: [] }),
@@ -97,28 +101,28 @@ import { ToastProvider } from '@/src/components/ui';
  */
 const pmFixtures = [
   {
-    id: 'p1', name: 'Safe Project', contract_value: 2_000_000,
+    id: 'p1', name: 'Safe Project', contract_value: 2_000_000, currency: 'USD',
     budget: 1_000_000, spent: 100_000, status: 'Ongoing Project',
     project_manager_id: 'pm-1', client: { name: 'Alpha' }, pm: null,
   },
   {
-    id: 'p2', name: 'High Burn Project', contract_value: 1_500_000,
+    id: 'p2', name: 'High Burn Project', contract_value: 1_500_000, currency: 'USD',
     budget: 1_000_000, spent: 950_000, status: 'Ongoing Project',
     project_manager_id: 'pm-1', client: { name: 'Beta' }, pm: null,
   },
   {
-    id: 'p3', name: 'At Threshold Project', contract_value: 1_200_000,
+    id: 'p3', name: 'At Threshold Project', contract_value: 1_200_000, currency: 'USD',
     budget: 1_000_000, spent: 900_000, status: 'Ongoing Project',
     project_manager_id: 'pm-1', client: { name: 'Gamma' }, pm: null,
   },
   {
-    id: 'p4', name: 'Completed High Burn', contract_value: 800_000,
+    id: 'p4', name: 'Completed High Burn', contract_value: 800_000, currency: 'USD',
     budget: 500_000, spent: 490_000, status: 'Close Out',
     project_manager_id: 'pm-1', client: null, pm: null,
   },
 ];
 const otherUser = {
-  id: 'p9', name: 'Other PM Project', contract_value: 500_000,
+  id: 'p9', name: 'Other PM Project', contract_value: 500_000, currency: 'USD',
   budget: 300_000, spent: 0, status: 'Ongoing Project',
   project_manager_id: 'pm-other', client: null, pm: null,
 };
@@ -190,28 +194,28 @@ const projectListFixtures = [
   {
     id: 'pl1', name: 'Steady Alpha', code: 'A-001', status: 'Ongoing Project',
     project_manager_id: 'pm-1', client_id: 'c1',
-    contract_value: 500_000, budget: 400_000, spent: 100_000, // 25% budget — SAFE
+    contract_value: 500_000, currency: 'USD', budget: 400_000, spent: 100_000, // 25% budget — SAFE
     customer_contract_ref: null,
     client: { id: 'c1', name: 'Acme' }, pm: { id: 'pm-1', full_name: 'Alice PM' },
   },
   {
     id: 'pl2', name: 'Burning Beta', code: 'B-002', status: 'Ongoing Project',
     project_manager_id: 'pm-1', client_id: 'c1',
-    contract_value: 800_000, budget: 500_000, spent: 475_000, // 95% budget — AT RISK
+    contract_value: 800_000, currency: 'USD', budget: 500_000, spent: 475_000, // 95% budget — AT RISK
     customer_contract_ref: null,
     client: { id: 'c1', name: 'Acme' }, pm: { id: 'pm-1', full_name: 'Alice PM' },
   },
   {
     id: 'pl3', name: 'Gamma Gate', code: 'G-003', status: 'Ongoing Project',
     project_manager_id: 'pm-1', client_id: 'c1',
-    contract_value: 600_000, budget: 300_000, spent: 150_000, // 50% budget — SAFE
+    contract_value: 600_000, currency: 'USD', budget: 300_000, spent: 150_000, // 50% budget — SAFE
     customer_contract_ref: null,
     client: { id: 'c1', name: 'Acme' }, pm: { id: 'pm-1', full_name: 'Alice PM' },
   },
   {
     id: 'pl4', name: 'Delta Deep', code: 'D-004', status: 'Ongoing Project',
     project_manager_id: 'pm-1', client_id: 'c1',
-    contract_value: 700_000, budget: 600_000, spent: 555_000, // ~92.5% budget — AT RISK
+    contract_value: 700_000, currency: 'USD', budget: 600_000, spent: 555_000, // ~92.5% budget — AT RISK
     customer_contract_ref: null,
     client: { id: 'c1', name: 'Acme' }, pm: { id: 'pm-1', full_name: 'Alice PM' },
   },

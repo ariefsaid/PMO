@@ -1,16 +1,20 @@
 import { parseISO, formatDistanceToNow } from 'date-fns';
 
-// Single source of truth for currency formatting (F-6). USD, no fraction digits —
-// preserves the prototype's prior output. Multi-currency deferred (NFR-I18N-001, OD-1).
-const currencyFormatter = new Intl.NumberFormat('en-US', {
-  style: 'currency',
-  currency: 'USD',
-  minimumFractionDigits: 0,
-  maximumFractionDigits: 0,
-});
+// Currency formatters are keyed by record currency; locale remains en-US until the locale slice.
+export const PLATFORM_CURRENCY = 'USD';
+const currencyFormatterCache = new Map<string, Intl.NumberFormat>();
+function currencyFormatterFor(shape: string, currency: string, opts: Intl.NumberFormatOptions) {
+  const key = `${shape}|${currency}`;
+  let formatter = currencyFormatterCache.get(key);
+  if (!formatter) {
+    formatter = new Intl.NumberFormat('en-US', { ...opts, style: 'currency', currency });
+    currencyFormatterCache.set(key, formatter);
+  }
+  return formatter;
+}
 
-export function formatCurrency(value: number): string {
-  return currencyFormatter.format(value);
+export function formatCurrency(value: number, currency: string): string {
+  return currencyFormatterFor('whole', currency, { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(value);
 }
 
 /**
@@ -79,37 +83,32 @@ export function formatRelativeTime(iso: string | null | undefined): string {
   return formatDistanceToNow(parsed, { addSuffix: true });
 }
 
-/** Compact currency: $1.5M / $200.0K / $500 — for space-constrained surfaces.
- *  AC-W2-9-01: compact on magnitude (Math.abs) then re-apply sign so negatives
- *  compact too: -$2.5M not -$2,500,000.
- *  C4 boundary fix: values that would display as "$1000.0K" are rolled to "$1.0M"
- *  so the M tier begins at values that round to ≥ 1000 at 1-decimal-place K display. */
-export function formatCompactCurrency(value: number): string {
-  const abs = Math.abs(value);
-  const sign = value < 0 ? '-' : '';
-  if (abs >= 1_000_000) return `${sign}$${(abs / 1_000_000).toFixed(1)}M`;
-  if (abs >= 1_000) {
-    const kDisplay = (abs / 1_000).toFixed(1);
-    // If the K display would roll to "1000.0" or beyond, use the M tier instead
-    if (parseFloat(kDisplay) >= 1_000) return `${sign}$${(abs / 1_000_000).toFixed(1)}M`;
-    return `${sign}$${kDisplay}K`;
-  }
-  return formatCurrency(value);
+/** Compact currency: "$1.5M" / "$200.0K" / "$500" — space-constrained surfaces (FR-L10N-022:
+ *  no welded $, no hand-coded K/M tiers — Intl supplies the compact unit, so id-ID renders its
+ *  own under the locale slice). Byte-identical to the old hand-tiered output for USD, incl. the
+ *  C4 999_950→$1.0M roll and negative compaction (Intl places the sign: -$2.5M).
+ *  AC-W2-9-01: compact on magnitude (Math.abs) — negatives compact too, and sub-1K values fall
+ *  through to formatCurrency ("$500", not "$500.0"). */
+export function formatCompactCurrency(value: number, currency: string): string {
+  if (Math.abs(value) < 1_000) return formatCurrency(value, currency);
+  return currencyFormatterFor('compact', currency, { notation: 'compact', maximumFractionDigits: 1 }).format(value);
+}
+
+/** The currency's display glyph for input adornments (FR-L10N-020 — a hardcoded `$` prefix is
+ *  the same weld formatCurrency had). Codes without a native symbol (IDR) honestly show the code. */
+export function currencySymbol(currency: string): string {
+  const parts = new Intl.NumberFormat('en-US', { style: 'currency', currency }).formatToParts(1);
+  const literal = parts.find((p) => p.type === 'currency')?.value ?? currency;
+  return literal.trim() || currency;
 }
 
 // ── #477 locale-drift sweep: named formatters for every display shape the app renders ──────
 // Each export reproduces byte-identically what previously lived as a hardcoded/implicit-locale
 // call at a call site. The locale seam (#468) will make these org/user-aware in ONE file.
 
-// Money — cents-exact ERP amounts (numeric(14,2)): "$1,234.50".
-const currencyCentsFormatter = new Intl.NumberFormat('en-US', {
-  style: 'currency',
-  currency: 'USD',
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-});
-export function formatCurrencyCents(value: number): string {
-  return currencyCentsFormatter.format(value);
+// Money — cents-exact ERP amounts (numeric(14,2)): "$1,234.50" (FR-L10N-020: record currency).
+export function formatCurrencyCents(value: number, currency: string): string {
+  return currencyFormatterFor('cents', currency, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
 }
 
 // Money — default-fraction values (KPI tiles): "$1,234" / "$1,234.5" / "$1,234.56" (0–3 dp, no padding).
@@ -117,30 +116,18 @@ export function formatCurrencyCents(value: number): string {
 // formatCurrencyCents/Fine. The welded form put the sign INSIDE the symbol ("$-1,234.5"), which left two
 // money values on one screen disagreeing about where the minus goes (#477 review). Positives are
 // byte-identical to the welded form — min 0 / max 3 reproduces the plain NumberFormat default range.
-const numberDefaultFormatter = new Intl.NumberFormat('en-US');
-const currencyAutoFormatter = new Intl.NumberFormat('en-US', {
-  style: 'currency',
-  currency: 'USD',
-  minimumFractionDigits: 0,
-  maximumFractionDigits: 3,
-});
-export function formatCurrencyAuto(value: number): string {
-  return currencyAutoFormatter.format(value);
+export function formatCurrencyAuto(value: number, currency: string): string {
+  return currencyFormatterFor('auto', currency, { minimumFractionDigits: 0, maximumFractionDigits: 3 }).format(value);
 }
 
-// Money — fine-grained agent/provider costs (sub-$1): "$0.0123" (2–4 dp).
+// Money — fine-grained agent/provider costs (sub-$1): "$0.0123" (2–4 dp, record currency).
 // Was duplicated verbatim in AdministrationUsage + AgentCostMetrics.
-const currencyFineFormatter = new Intl.NumberFormat('en-US', {
-  style: 'currency',
-  currency: 'USD',
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 4,
-});
-export function formatCurrencyFine(value: number): string {
-  return currencyFineFormatter.format(value);
+export function formatCurrencyFine(value: number, currency: string): string {
+  return currencyFormatterFor('fine', currency, { minimumFractionDigits: 2, maximumFractionDigits: 4 }).format(value);
 }
 
 // Plain grouped number (counts, tokens): "1,234,567". Replaces bare n.toLocaleString().
+const numberDefaultFormatter = new Intl.NumberFormat('en-US');
 export function formatNumber(value: number): string {
   return numberDefaultFormatter.format(value);
 }

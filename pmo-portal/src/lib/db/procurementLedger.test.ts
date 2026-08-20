@@ -620,3 +620,66 @@ describe('AC-PR-LEDGER-020: same-day records with mixed date/timestamp keys sort
     expect(rows[1].type).toBe('PR');
   });
 });
+
+// ---------------------------------------------------------------------------
+// FR-L10N-020 (OD-CR-5): every ledger row carries the SOURCE RECORD's currency
+// ---------------------------------------------------------------------------
+
+describe('FR-L10N-020: LedgerRow.currency — each source record stamps its own currency', () => {
+  it('PR / Quote / PO / Invoice / Payment rows carry their own record currency (IDR document)', () => {
+    const pr: PRRow & { currency: string } = {
+      id: 'pr-1', org_id: 'org-1', procurement_id: 'proc-1',
+      pr_number: 'PR-001', reference_number: null,
+      status: 'Approved', date: '2026-04-28', amount: 100000, created_at: '2026-04-28T08:00:00Z',
+      currency: 'IDR',
+    };
+    const vq: QuotRow & { currency: string } = {
+      id: 'vq-1', org_id: 'org-1', procurement_id: 'proc-1',
+      vq_number: 'VQ-001', vendor_id: 'v-1',
+      total_amount: 98000, received_date: '2026-05-04', is_selected: true, reference: null,
+      currency: 'EUR',
+    };
+    const po: PORow & { currency: string } = {
+      id: 'po-1', org_id: 'org-1', procurement_id: 'proc-1',
+      po_number: 'PO-001', reference_number: null,
+      status: 'Issued', date: '2026-05-06', amount: 98000, created_at: '2026-05-06T08:00:00Z',
+      currency: 'EUR',
+    };
+    const vi: VIRow & { currency: string } = {
+      id: 'vi-1', org_id: 'org-1', procurement_id: 'proc-1',
+      vi_number: 'VI-001', status: 'Received',
+      invoice_date: '2026-05-12', created_at: '2026-05-12T08:00:00Z', po_id: null,
+      reference_number: null, amount: 98000,
+      currency: 'EUR',
+    };
+    const pay: PayRow & { currency: string } = {
+      id: 'pay-1', org_id: 'org-1', procurement_id: 'proc-1',
+      pay_number: 'PAY-001', reference_number: null,
+      status: 'Cleared', date: '2026-05-14', amount: 98000,
+      invoice_id: null, created_at: '2026-05-14T08:00:00Z',
+      currency: 'EUR',
+    };
+    const rows = buildLedgerRows(makeDetail({
+      purchase_requests: [pr], quotations: [vq], purchase_orders: [po], invoices: [vi], payments: [pay],
+    }));
+    const byType = Object.fromEntries(rows.map((r) => [r.type, r]));
+    // per-record honest — even when they differ from each other
+    expect(byType.PR.currency).toBe('IDR');
+    expect(byType.Quote.currency).toBe('EUR');
+    expect(byType.PO.currency).toBe('EUR');
+    expect(byType.Invoice.currency).toBe('EUR');
+    expect(byType.Payment.currency).toBe('EUR');
+  });
+
+  it('GR rows take the parent procurement\'s currency — procurement_receipts carries none (not a 0187 money table)', () => {
+    const gr: GRRow = {
+      id: 'gr-1', org_id: 'org-1', procurement_id: 'proc-1',
+      gr_number: 'GR-001', status: 'Complete',
+      receipt_date: '2026-05-11', created_at: '2026-05-11T08:00:00Z', po_id: null,
+      reference_number: null,
+    };
+    const rows = buildLedgerRows(makeDetail({ receipts: [gr], currency: 'IDR' }));
+    expect(rows).toHaveLength(1);
+    expect(rows[0].currency).toBe('IDR');
+  });
+});

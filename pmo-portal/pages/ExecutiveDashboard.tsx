@@ -9,6 +9,7 @@ import { Icon } from '@/src/components/ui/icons';
 import { ListState } from '@/src/components/ui/ListState';
 import { Tooltip } from '@/src/components/ui/Tooltip';
 import { formatCurrency } from '@/src/lib/format';
+import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import type { Tables } from '@/src/lib/supabase/database.types';
 import { WinRateCard } from '@/src/components/dashboard/WinRateCard';
 import { BvACard } from '@/src/components/dashboard/BvACard';
@@ -42,6 +43,8 @@ const ExecutiveDashboard: React.FC = () => {
   // component. The same predicate as AwaitingApprovalTile (H7 — single source).
   const { currentUser } = useAuth();
   const selfId = currentUser?.id;
+  // Org-denominated RPC aggregates (no money row of their own) — useOrgCurrency, not a record currency.
+  const orgCurrency = useOrgCurrency();
   const { data: procurements, isError: procError } = useProcurements();
   const { data: timesheets, isError: tsError } = useTimesheetsAwaitingApproval();
   const canApproveProc = can('transition', 'procurement', { realRole });
@@ -119,12 +122,12 @@ const ExecutiveDashboard: React.FC = () => {
               {data.top_projects.length === 0 ? (
                 <ListState variant="empty" icon="folder" title="No active projects yet" />
               ) : (
-                <BvACard projects={data.top_projects} />
+                <BvACard projects={data.top_projects} currency={orgCurrency} />
               )}
             </div>
           </Card>
 
-          <WinRateCard />
+          <WinRateCard currency={orgCurrency} />
         </DashGrid>
 
         <DashGrid>
@@ -154,7 +157,7 @@ const ExecutiveDashboard: React.FC = () => {
               ) : !pipeline || pipeline.stages.length === 0 ? (
                 <ListState variant="empty" icon="pipe" title="No open pipeline" />
               ) : (
-                <ProjectedMarginBars projectedMargin={data.pipeline_projected_margin} stages={pipeline.stages} />
+                <ProjectedMarginBars projectedMargin={data.pipeline_projected_margin} stages={pipeline.stages} currency={orgCurrency} />
               )}
             </div>
           </Card>
@@ -221,11 +224,11 @@ const ExecutiveDashboard: React.FC = () => {
               The tile shows `on_hand_value` — a REVENUE figure (can exceed total contract value),
               NOT a margin $ (SP-7 honesty). The true realized margin RATIO rides as the `vs` sub. */}
           <KPITile testId="kpi-on-hand-margin" tone="green" icon="dollar" label="Revenue on hand"
-            value={formatCurrency(data.on_hand_value)} vs={`${onHandPct} realized`}
+            value={formatCurrency(data.on_hand_value, orgCurrency)} vs={`${onHandPct} realized`}
             help="Booked revenue on active + closed-out contracts. The realized margin to date is the % shown below." />
           {/* AC-IXD-DASH-W5-C2A: Pipeline (weighted) → /sales (the pipeline IS the weighted-value view) */}
           <KPITile testId="kpi-pipeline-weighted-value" tone="violet" icon="pipe" label="Pipeline (weighted)"
-            value={formatCurrency(data.pipeline_weighted_value)} vs={`of ${formatCurrency(data.pipeline_total_value)} gross`}
+            value={formatCurrency(data.pipeline_weighted_value, orgCurrency)} vs={`of ${formatCurrency(data.pipeline_total_value, orgCurrency)} gross`}
             to="/sales"
             linkLabel="Open the sales pipeline"
             help="Sum of (project value × stage win-probability) across all open stages." />
@@ -249,13 +252,13 @@ const ExecutiveDashboard: React.FC = () => {
               vs copy corrected from "active + closed-out" to "active" — the RPC total_contract_value
               is Ongoing-project only; the drill destination matches the data (honesty fix). */}
           <KPITile testId="kpi-total-contract-value" tone="amber" icon="grid" label="Total contract value"
-            value={formatCurrency(data.total_contract_value)} vs="active projects"
+            value={formatCurrency(data.total_contract_value, orgCurrency)} vs="active projects"
             to="/projects?filter=Ongoing"
             linkLabel="Open active projects to see total contract value"
             help="Total contract value across the active portfolio." />
           {/* AC-IXD-DASH-W5-C2A: Total project spend → /projects?filter=Ongoing */}
           <KPITile testId="kpi-total-spend" tone="red" icon="cart" label="Total project spend"
-            value={formatCurrency(data.top_projects.reduce((s, p) => s + (p.spent || 0), 0))}
+            value={formatCurrency(data.top_projects.reduce((s, p) => s + (p.spent || 0), 0), orgCurrency)}
             vs="actual to date"
             to="/projects?filter=Ongoing"
             linkLabel="Open active projects to see spend breakdown"

@@ -17,23 +17,27 @@ import type { TaskWithRefs } from '../db/tasks';
 
 describe('C4: formatCompactCurrency — $1M boundary (no "$1000.0K")', () => {
   it('999_950 (divides to 999.95, .toFixed(1)="1000.0") rolls to $1.0M', () => {
-    expect(formatCompactCurrency(999_950)).toBe('$1.0M');
+    expect(formatCompactCurrency(999_950, 'USD')).toBe('$1.0M');
   });
 
   it('1_000_000 is $1.0M', () => {
-    expect(formatCompactCurrency(1_000_000)).toBe('$1.0M');
+    expect(formatCompactCurrency(1_000_000, 'USD')).toBe('$1.0M');
   });
 
   it('999_900 (999.9K, does not round to 1000.0) stays in K tier', () => {
-    expect(formatCompactCurrency(999_900)).toBe('$999.9K');
+    expect(formatCompactCurrency(999_900, 'USD')).toBe('$999.9K');
   });
 
   it('999_400 stays in K tier (999.4K)', () => {
-    expect(formatCompactCurrency(999_400)).toBe('$999.4K');
+    expect(formatCompactCurrency(999_400, 'USD')).toBe('$999.4K');
   });
 
   it('negative boundary: -999_950 rolls to -$1.0M', () => {
-    expect(formatCompactCurrency(-999_950)).toBe('-$1.0M');
+    expect(formatCompactCurrency(-999_950, 'USD')).toBe('-$1.0M');
+  });
+
+  it('FR-L10N-022 (AC-L10N-022): IDR compact has no welded $ — symbol follows the record currency', () => {
+    expect(formatCompactCurrency(2500000, 'IDR')).toBe('IDR\u00A02.5M');
   });
 });
 

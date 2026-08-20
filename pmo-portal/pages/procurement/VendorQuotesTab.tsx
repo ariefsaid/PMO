@@ -14,7 +14,7 @@ import {
 } from '@/src/components/ui';
 import { useVendorOptions } from '@/src/hooks/useFkOptions';
 import { trackComingSoonClicked } from '@/src/lib/analytics';
-import { formatCurrency, formatDate, parseMoneyInput } from '@/src/lib/format';
+import { currencySymbol, formatCurrency, formatDate, parseMoneyInput } from '@/src/lib/format';
 import type { Tables } from '@/src/lib/supabase/database.types';
 import { ProcurementFilesSubsection } from './ProcurementFilesSubsection';
 import { useCommandIntentMap } from '@/src/hooks/useCommandIntent';
@@ -65,6 +65,9 @@ export interface VendorQuotesTabProps {
   selectBusy?: boolean;
   /** The owning procurement id — threaded to each quotation's file sub-section. */
   procurementId: string;
+  /** The owning procurement's ISO-4217 currency (FR-L10N-020) — the new-quotation
+   *  form has no quote row of its own yet, so it takes the parent's. */
+  currency: string;
   /** Whether file upload/archive affordances show on each quotation row (UX gate). */
   canManageFiles: boolean;
   /** Current user id stamped onto new file rows. */
@@ -124,6 +127,7 @@ export const VendorQuotesTab: React.FC<VendorQuotesTabProps> = ({
   canManageFiles,
   currentUserId,
   vendorMap = {},
+  currency,
 }) => {
   const [adding, setAdding] = useState(false);
   const [vendorId, setVendorId] = useState<string | null>(null);
@@ -292,7 +296,7 @@ export const VendorQuotesTab: React.FC<VendorQuotesTabProps> = ({
                   {/* Amount column */}
                   <div className="px-3 py-2.5 text-right">
                     <span className="text-[13.5px] font-semibold tabular-nums">
-                      {formatCurrency(Number(q.total_amount))}
+                      {formatCurrency(Number(q.total_amount), q.currency)}
                     </span>
                   </div>
 
@@ -357,7 +361,7 @@ export const VendorQuotesTab: React.FC<VendorQuotesTabProps> = ({
                       Amount
                     </dt>
                     <dd className="text-[13.5px] font-semibold tabular-nums">
-                      {formatCurrency(Number(q.total_amount))}
+                      {formatCurrency(Number(q.total_amount), q.currency)}
                     </dd>
                   </div>
                   <div className="flex justify-between items-center">
@@ -409,7 +413,7 @@ export const VendorQuotesTab: React.FC<VendorQuotesTabProps> = ({
               <NumberField
                 label="Quoted total"
                 required
-                prefix="$"
+                prefix={currencySymbol(currency)}
                 value={total}
                 onChange={(v) => {
                   setTotal(v);

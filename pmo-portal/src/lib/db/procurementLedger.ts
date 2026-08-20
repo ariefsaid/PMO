@@ -73,6 +73,12 @@ export interface LedgerRow {
   financial: boolean;
   /** The underlying record's UUID (for keying, file-subsection phase+parentId). */
   recordId: string;
+  /**
+   * The SOURCE RECORD's own ISO-4217 currency (migration 0187, FR-L10N-020) — never a global
+   * constant. GR rows come from `procurement_receipts`, which is NOT a 0187 money table and
+   * carries no currency, so they stamp the parent procurement's (their amount is null anyway).
+   */
+  currency: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -125,6 +131,7 @@ function makeRow(
   externalRef: string | null,
   amount: number | null | undefined,
   status: string,
+  currency: string,
   files?: EmbeddedFileRow[],
 ): LedgerRow {
   const businessDate = date ?? createdAt;
@@ -143,6 +150,7 @@ function makeRow(
     fileCount,
     financial: isFinancial(type),
     recordId,
+    currency,
   };
 }
 
@@ -171,6 +179,7 @@ export function buildLedgerRows(detail: ProcurementDetail): LedgerRow[] {
         pr.reference_number,
         pr.amount,
         pr.status,
+        pr.currency,
         (pr as unknown as { files?: EmbeddedFileRow[] }).files,
       ),
     );
@@ -188,6 +197,7 @@ export function buildLedgerRows(detail: ProcurementDetail): LedgerRow[] {
         rfq.reference_number,
         rfq.amount,
         rfq.status,
+        rfq.currency,
         (rfq as unknown as { files?: EmbeddedFileRow[] }).files,
       ),
     );
@@ -208,6 +218,7 @@ export function buildLedgerRows(detail: ProcurementDetail): LedgerRow[] {
         vq.reference ?? null,  // supplier's own quote reference (e.g. "SVX-Q-2501-01")
         vq.total_amount,
         vqStatus,
+        vq.currency,
         (vq as unknown as { files?: EmbeddedFileRow[] }).files,
       ),
     );
@@ -225,6 +236,7 @@ export function buildLedgerRows(detail: ProcurementDetail): LedgerRow[] {
         po.reference_number,
         po.amount,
         po.status,
+        po.currency,
         (po as unknown as { files?: EmbeddedFileRow[] }).files,
       ),
     );
@@ -243,6 +255,7 @@ export function buildLedgerRows(detail: ProcurementDetail): LedgerRow[] {
         gr.reference_number ?? null,   // supplier delivery-note (e.g. "DN-44120")
         null,                          // GRs are non-financial — no amount
         gr.status,
+        detail.currency,               // procurement_receipts is not a 0187 money table — parent's currency
         (gr as unknown as { files?: EmbeddedFileRow[] }).files,
       ),
     );
@@ -261,6 +274,7 @@ export function buildLedgerRows(detail: ProcurementDetail): LedgerRow[] {
         vi.reference_number ?? null,   // supplier invoice number (e.g. "INV-SF-2291")
         vi.amount ?? null,             // invoice total (migration 0040)
         vi.status,
+        vi.currency,
         (vi as unknown as { files?: EmbeddedFileRow[] }).files,
       ),
     );
@@ -278,6 +292,7 @@ export function buildLedgerRows(detail: ProcurementDetail): LedgerRow[] {
         pay.reference_number,
         pay.amount,
         pay.status,
+        pay.currency,
         (pay as unknown as { files?: EmbeddedFileRow[] }).files,
       ),
     );

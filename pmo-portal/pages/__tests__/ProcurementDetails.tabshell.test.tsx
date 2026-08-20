@@ -14,6 +14,10 @@ const detailState = {
   refetch: vi.fn(),
 };
 
+// FR-L10N-020: this tree reads useOrgCurrency (org-denominated aggregates). Pinned here rather
+// than left to a real query. ⚑ At LINE-START — inside a neighbouring vi.mock it parses as a
+// syntax error and hides every real error beneath it.
+vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/hooks/useProcurementRecords', () => ({
   useProcurementRecordMutations: () => ({
     createPurchaseRequest: { mutateAsync: vi.fn(), isPending: false },
@@ -99,7 +103,7 @@ const orderedProcurement = {
   code: 'PROC-2026-001',
   title: 'Workstations for HQ',
   status: 'Ordered' as const,
-  total_value: 50000,
+  total_value: 50000, currency: 'USD',
   pr_number: 'PR-2601100001',
   po_number: 'PO-2601100001',
   vq_number: null,
@@ -120,7 +124,7 @@ const orderedProcurement = {
     { id: 'it1', org_id: 'org-1', procurement_id: 'proc-001', name: 'Desk', description: null, quantity: 2, rate: 100, amount: 200 },
   ],
   quotations: [
-    { id: 'q-1', procurement_id: 'proc-001', vendor_id: 'v-1', total_amount: 48000, vq_number: 'VQ-2601100001', is_selected: true, reference: 'VQ-2601100001', received_date: '2026-01-10', org_id: 'org-1', created_at: '2026-01-10T00:00:00Z' },
+    { id: 'q-1', procurement_id: 'proc-001', vendor_id: 'v-1', total_amount: 48000, currency: 'USD', vq_number: 'VQ-2601100001', is_selected: true, reference: 'VQ-2601100001', received_date: '2026-01-10', org_id: 'org-1', created_at: '2026-01-10T00:00:00Z' },
   ],
   receipts: [],
   invoices: [],

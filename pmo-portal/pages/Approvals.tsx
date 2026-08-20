@@ -96,7 +96,7 @@ function QueueButton({
         </div>
         <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[12px] text-muted-foreground">
           <span>{row.project?.name ?? 'No project linked'}</span>
-          <span className="tabular font-medium text-foreground">{formatCurrency(row.total_value)}</span>
+          <span className="tabular font-medium text-foreground">{formatCurrency(row.total_value, row.currency)}</span>
         </div>
       </button>
     );

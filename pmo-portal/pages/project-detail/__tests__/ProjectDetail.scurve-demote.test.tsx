@@ -122,6 +122,7 @@ const deliveryRow: ProjectWithRefs = {
   client_id: 'c1',
   project_manager_id: 'u-pm',
   contract_value: 3000000,
+  currency: 'USD',
   budget: 2800000,
   spent: 1000000,
   start_date: '2026-01-01',

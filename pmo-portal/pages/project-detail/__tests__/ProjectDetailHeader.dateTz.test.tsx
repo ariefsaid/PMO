@@ -52,6 +52,7 @@ const project: ProjectWithRefs = {
   code: 'TZ-001',
   status: 'Ongoing Project',
   contract_value: 1_000_000,
+  currency: 'USD',
   budget: 900_000,
   spent: 0,
   start_date: '2026-06-14',

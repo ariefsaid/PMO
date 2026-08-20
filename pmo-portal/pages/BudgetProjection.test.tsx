@@ -46,6 +46,7 @@ let realRole: Role = 'Finance';
 vi.mock('@/src/auth/impersonation', () => ({
   useEffectiveRole: () => ({ realRole, effectiveRole: realRole }),
 }));
+vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 
 import BudgetProjection from './BudgetProjection';
 
