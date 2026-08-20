@@ -83,7 +83,13 @@ export const AdministrationUsage: React.FC<AdministrationUsageProps> = ({
           {
             key: 'providerCost',
             header: 'Provider cost',
-            cell: (r: UsageRow) => ('provider_cost_usd' in r ? formatCurrencyFine(r.provider_cost_usd) : '—'),
+            // `in` tests key presence (the org row lacks this column entirely); it does NOT test null.
+            // The RPC returns null when provider pricing is unconfigured, and formatting null
+            // renders $0.00 — a real-looking zero for "unknown". Guard both, as margin does below.
+            cell: (r: UsageRow) =>
+              'provider_cost_usd' in r && r.provider_cost_usd !== null
+                ? formatCurrencyFine(r.provider_cost_usd)
+                : '—',
           } as Column<UsageRow>,
         ]
       : []),

@@ -40,6 +40,25 @@ const operatorRow: OperatorUsageSummaryRow = {
   margin_usd: null,
 };
 
+describe('AdministrationUsage — a null provider cost renders as unknown, not zero', () => {
+  /**
+   * Regression for a defect the `database.types.ts` resync exposed. The cell guarded on
+   * `'provider_cost_usd' in r` — key PRESENCE — which does not test null. The RPC returns null
+   * when provider pricing is unconfigured, and formatting null yields "$0.00": a real-looking
+   * zero standing in for "unknown", on a money column.
+   *
+   * The generated types hid this by declaring the column non-null — Postgres `RETURNS TABLE`
+   * carries no nullability, so the generator over-promises for every set-returning function.
+   */
+  it('shows an em-dash, never $0.00, when provider_cost_usd is null', () => {
+    const nullCost = { ...operatorRow, provider_cost_usd: null } as OperatorUsageSummaryRow;
+    render(<AdministrationUsage rows={[nullCost]} isPending={false} isError={false} onRetry={vi.fn()} />);
+    expect(screen.getByRole('columnheader', { name: /provider cost/i })).toBeInTheDocument();
+    expect(screen.queryByText('$0.00')).not.toBeInTheDocument();
+    expect(screen.getAllByText('—').length).toBeGreaterThan(0);
+  });
+});
+
 describe('AdministrationUsage — Provider-cost column is Operator-only (AC-USE-007)', () => {
   it('does not render a Provider-cost column for org-Admin rows (org_usage_summary has no provider_cost_usd)', () => {
     render(<AdministrationUsage rows={[orgAdminRow]} isPending={false} isError={false} onRetry={vi.fn()} />);
