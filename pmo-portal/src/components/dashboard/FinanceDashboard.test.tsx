@@ -58,6 +58,11 @@ vi.mock('@/src/auth/impersonation', () => ({
 vi.mock('@/src/hooks/useTimesheetApproval', () => ({
   useTimesheetsAwaitingApproval: () => ({ data: [] }),
 }));
+// FR-L10N-020: dashboard aggregates are org-denominated (the RPC rows carry no currency of their
+// own), so the component reads useOrgCurrency and the test pins it rather than leaving it to a real
+// query. ⚑ This mock sits at line-start on purpose — an earlier automated insert landed it INSIDE
+// the vi.mock call below, which parses as a syntax error rather than a wrong value.
+vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'fin-1', org_id: 'org-1' }, role: 'Finance' }),
 }));

@@ -29,7 +29,7 @@ describe('WinRateCard (AC-1117 — preserve win-rate logic, re-skin chrome)', ()
   beforeEach(() => { lastRange = null; oracle = populatedOracle; });
 
   it('AC-1117: defaults to count basis (66.7%) and toggles to value (92.5%)', () => {
-    render(<WinRateCard />);
+    render(<WinRateCard currency="USD" />);
     expect(screen.getByTestId('kpi-win-rate')).toHaveTextContent('66.7%');
     fireEvent.click(screen.getByTestId('win-rate-toggle-value'));
     expect(screen.getByTestId('kpi-win-rate')).toHaveTextContent('92.5%');
@@ -38,14 +38,14 @@ describe('WinRateCard (AC-1117 — preserve win-rate logic, re-skin chrome)', ()
   });
 
   it('AC-1117: changing the period re-queries with a new range key', () => {
-    render(<WinRateCard />);
+    render(<WinRateCard currency="USD" />);
     const initial = lastRange?.key;
     fireEvent.click(screen.getByTestId('win-rate-period-q'));
     expect(lastRange?.key).not.toBe(initial);
   });
 
   it('announces the rate politely and groups the basis + frame segs for a11y', () => {
-    render(<WinRateCard />);
+    render(<WinRateCard currency="USD" />);
     expect(screen.getByTestId('kpi-win-rate')).toHaveAttribute('aria-live', 'polite');
     // W2-10: WinRateCard uses semantics="toggle" (no tabpanel) → role="group" + aria-pressed
     expect(screen.getByRole('group', { name: /Win-rate basis/i })).toBeInTheDocument();
@@ -53,7 +53,7 @@ describe('WinRateCard (AC-1117 — preserve win-rate logic, re-skin chrome)', ()
   });
 
   it('renders a basis-aware won/closed readout and a Won/Lost dot+text legend', () => {
-    render(<WinRateCard />);
+    render(<WinRateCard currency="USD" />);
     expect(screen.getByText(/2 won of 3 closed/i)).toBeInTheDocument();
     expect(screen.getByText('Won')).toBeInTheDocument();
     expect(screen.getByText('Lost')).toBeInTheDocument();
@@ -61,7 +61,7 @@ describe('WinRateCard (AC-1117 — preserve win-rate logic, re-skin chrome)', ()
 
   it('shows an empty message (not a fabricated 0%) when there are no closed projects', () => {
     oracle = zeroOracle;
-    render(<WinRateCard />);
+    render(<WinRateCard currency="USD" />);
     expect(screen.getByText(/No closed projects in this window/i)).toBeInTheDocument();
     expect(screen.queryByTestId('kpi-win-rate')).toBeNull();
   });

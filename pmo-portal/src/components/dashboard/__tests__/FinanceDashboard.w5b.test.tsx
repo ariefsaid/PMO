@@ -116,6 +116,11 @@ vi.mock('@/src/hooks/useProcurementCrud', () => ({
   useCreateProcurement: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
 
+// FR-L10N-020: dashboard aggregates are org-denominated (the RPC rows carry no currency of their
+// own), so the component reads useOrgCurrency and the test pins it rather than leaving it to a
+// real query. ⛑ At line-start on purpose — an earlier automated insert landed it INSIDE the
+// vi.mock call below, which parses as a syntax error rather than a wrong value.
+vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/hooks/useProcurementView', () => ({
   useProcurementView: () => ['table', vi.fn()] as ['table', () => void],
 }));

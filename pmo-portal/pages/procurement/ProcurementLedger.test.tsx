@@ -130,6 +130,7 @@ const SAMPLE_ROWS: LedgerRow[] = [
     fileCount: 0,
     financial: true,
     recordId: 'pay-1',
+    currency: 'USD',
   },
   {
     id: 'vi-1',
@@ -145,6 +146,7 @@ const SAMPLE_ROWS: LedgerRow[] = [
     fileCount: 0,
     financial: true,
     recordId: 'vi-1',
+    currency: 'USD',
   },
   {
     id: 'gr-1',
@@ -160,6 +162,7 @@ const SAMPLE_ROWS: LedgerRow[] = [
     fileCount: 1,
     financial: false,
     recordId: 'gr-1',
+    currency: 'USD',
   },
   {
     id: 'rfq-1',
@@ -175,6 +178,7 @@ const SAMPLE_ROWS: LedgerRow[] = [
     fileCount: 0,
     financial: false,
     recordId: 'rfq-1',
+    currency: 'USD',
   },
 ];
 
@@ -327,6 +331,7 @@ describe('AC-PR-LEDGER-018: file column — prop-driven, no fetch on mount', () 
       fileCount: 1,
       financial: false,
       recordId: 'gr-1',
+    currency: 'USD',
     };
 
     wrap(<ProcurementLedger {...BASE_PROPS} rows={[rowWithFile]} />);
@@ -354,6 +359,7 @@ describe('AC-PR-LEDGER-018: file column — prop-driven, no fetch on mount', () 
       fileCount: 0,
       financial: true,
       recordId: 'po-1',
+    currency: 'USD',
     };
 
     wrap(<ProcurementLedger {...BASE_PROPS} canWrite rows={[rowNoFile]} />);
@@ -376,6 +382,7 @@ describe('AC-PR-LEDGER-018: file column — prop-driven, no fetch on mount', () 
       fileCount: 0,
       financial: true,
       recordId: 'po-1',
+    currency: 'USD',
     };
 
     wrap(<ProcurementLedger {...BASE_PROPS} canWrite={false} rows={[rowNoFile]} />);
@@ -399,6 +406,7 @@ describe('AC-PR-LEDGER-018: file column — prop-driven, no fetch on mount', () 
       fileCount: 3,
       financial: true,
       recordId: 'vq-1',
+    currency: 'USD',
     };
 
     wrap(<ProcurementLedger {...BASE_PROPS} rows={[rowMultiFile]} />);

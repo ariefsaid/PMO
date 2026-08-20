@@ -4,6 +4,7 @@ import { DataTable, type Column } from '@/src/components/ui/DataTable';
 import { ListState } from '@/src/components/ui/ListState';
 import { AccountingSnapshotProvenance } from '@/src/components/AccountingSnapshotProvenance';
 import { formatCurrency } from '@/src/lib/format';
+import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import type { ErpActualsSnapshotRow, ErpAgingSnapshotRow } from '@/src/lib/db/erpSnapshots';
 
 /**
@@ -36,7 +37,7 @@ export interface AccountingSnapshotsSectionProps {
   onRetryArAging?: () => void;
 }
 
-const AGING_COLUMNS: Column<ErpAgingSnapshotRow>[] = [
+const agingColumns = (orgCurrency: string): Column<ErpAgingSnapshotRow>[] => [
   {
     key: 'party',
     header: 'Party',
@@ -46,41 +47,41 @@ const AGING_COLUMNS: Column<ErpAgingSnapshotRow>[] = [
     key: 'current',
     header: 'Current',
     align: 'num',
-    cell: (r) => <span>{formatCurrency(r.current ?? 0)}</span>,
+    cell: (r) => <span>{formatCurrency(r.current ?? 0, r.currency ?? orgCurrency)}</span>,
   },
   {
     key: 'b0_30',
     header: '0–30',
     align: 'num',
-    cell: (r) => <span>{formatCurrency(r.bucket0to30 ?? 0)}</span>,
+    cell: (r) => <span>{formatCurrency(r.bucket0to30 ?? 0, r.currency ?? orgCurrency)}</span>,
   },
   {
     key: 'b31_60',
     header: '31–60',
     align: 'num',
-    cell: (r) => <span>{formatCurrency(r.bucket31to60 ?? 0)}</span>,
+    cell: (r) => <span>{formatCurrency(r.bucket31to60 ?? 0, r.currency ?? orgCurrency)}</span>,
   },
   {
     key: 'b61_90',
     header: '61–90',
     align: 'num',
-    cell: (r) => <span>{formatCurrency(r.bucket61to90 ?? 0)}</span>,
+    cell: (r) => <span>{formatCurrency(r.bucket61to90 ?? 0, r.currency ?? orgCurrency)}</span>,
   },
   {
     key: 'b90plus',
     header: '90+',
     align: 'num',
-    cell: (r) => <span>{formatCurrency(r.bucketOver90 ?? 0)}</span>,
+    cell: (r) => <span>{formatCurrency(r.bucketOver90 ?? 0, r.currency ?? orgCurrency)}</span>,
   },
   {
     key: 'total',
     header: 'Total outstanding',
     align: 'num',
-    cell: (r) => <span className="font-semibold">{formatCurrency(r.totalOutstanding ?? 0)}</span>,
+    cell: (r) => <span className="font-semibold">{formatCurrency(r.totalOutstanding ?? 0, r.currency ?? orgCurrency)}</span>,
   },
 ];
 
-const ACTUALS_COLUMNS: Column<ErpActualsSnapshotRow>[] = [
+const actualsColumns = (orgCurrency: string): Column<ErpActualsSnapshotRow>[] => [
   {
     key: 'account',
     header: 'Account',
@@ -100,7 +101,7 @@ const ACTUALS_COLUMNS: Column<ErpActualsSnapshotRow>[] = [
     key: 'net',
     header: 'Net',
     align: 'num',
-    cell: (r) => <span className="font-semibold">{formatCurrency(r.net ?? 0)}</span>,
+    cell: (r) => <span className="font-semibold">{formatCurrency(r.net ?? 0, orgCurrency)}</span>,
   },
 ];
 
@@ -168,7 +169,12 @@ export const AccountingSnapshotsSection: React.FC<AccountingSnapshotsSectionProp
   arAgingPending,
   arAgingError,
   onRetryArAging,
-}) => (
+}) => {
+  // FR-L10N-020 (D6): aging rows carry the ERP document's OWN currency (nullable) — use it when
+  // present and fall back to the org's. Actuals rows (ErpActualsSnapshotRow) carry no currency
+  // field at all — those figures are org-denominated.
+  const orgCurrency = useOrgCurrency();
+  return (
   <section aria-label="Accounting snapshots" className="flex flex-col gap-4">
     <SnapshotBlock<ErpActualsSnapshotRow>
       title="Actuals (ERP ledger)"
@@ -177,7 +183,7 @@ export const AccountingSnapshotsSection: React.FC<AccountingSnapshotsSectionProp
       pending={actualsPending}
       isError={actualsError}
       onRetry={onRetryActuals}
-      columns={ACTUALS_COLUMNS}
+      columns={actualsColumns(orgCurrency)}
       // ⚑ Audit round 11 (NEW-2): the key must carry the WHOLE grain. `erp_actuals_snapshot` is keyed
       // by (project, cost_centre, account, fiscal_year); this omitted project and fiscal year, so two
       // projects — or a project and the UNATTRIBUTED bucket — on one account+FY collided into one React
@@ -192,7 +198,7 @@ export const AccountingSnapshotsSection: React.FC<AccountingSnapshotsSectionProp
       pending={apAgingPending}
       isError={apAgingError}
       onRetry={onRetryApAging}
-      columns={AGING_COLUMNS}
+      columns={agingColumns(orgCurrency)}
       rowKey={(r) => r.snapshotId + (r.party ?? '')}
       reportVersion={apAging[0]?.reportVersion}
     />
@@ -203,11 +209,12 @@ export const AccountingSnapshotsSection: React.FC<AccountingSnapshotsSectionProp
       pending={arAgingPending}
       isError={arAgingError}
       onRetry={onRetryArAging}
-      columns={AGING_COLUMNS}
+      columns={agingColumns(orgCurrency)}
       rowKey={(r) => r.snapshotId + (r.party ?? '')}
       reportVersion={arAging[0]?.reportVersion}
     />
   </section>
-);
+  );
+};
 
 AccountingSnapshotsSection.displayName = 'AccountingSnapshotsSection';

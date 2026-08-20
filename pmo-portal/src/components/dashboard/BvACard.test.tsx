@@ -14,7 +14,7 @@ const projects: TopProject[] = [
 const renderCard = (p = projects) =>
   render(
     <MemoryRouter>
-      <BvACard projects={p} />
+      <BvACard projects={p} currency="USD" />
     </MemoryRouter>,
   );
 
@@ -23,7 +23,7 @@ describe('BvACard (Exec — real top_projects)', () => {
     renderCard();
     expect(screen.getByText('Innovate HQ')).toBeInTheDocument();
     expect(
-      screen.getByText(`${formatCurrency(2_100_000)} / ${formatCurrency(5_000_000)}`),
+      screen.getByText(`${formatCurrency(2_100_000, 'USD')} / ${formatCurrency(5_000_000, 'USD')}`),
     ).toBeInTheDocument();
   });
 

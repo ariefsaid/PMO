@@ -24,6 +24,7 @@ import { cn } from '@/src/components/ui/cn';
 import { Icon } from '@/src/components/ui/icons';
 import { KPITile } from '@/src/components/ui/KPITile';
 import { formatCurrency } from '@/src/lib/format';
+import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import type { ExecutiveDashboard } from '@/src/lib/db/dashboard';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -139,14 +140,14 @@ const AtRiskBlock: React.FC<{
 
         <Link
           to="/projects?filter=Ongoing"
-          aria-label={`Open spend breakdown · ${formatCurrency(totalSpend)} spent to date`}
+          aria-label={`Open spend breakdown · ${formatCurrency(totalSpend, orgCurrency)} spent to date`}
           className="touch-target flex-1 rounded-[6px] border border-border p-[9px_10px] text-inherit no-underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
         >
           <span className="block text-[11px] font-semibold uppercase tracking-[0.04em] text-muted-foreground">
             Total project spend
           </span>
           <span className="tabular mt-[3px] block text-[17px] font-bold">
-            {formatCurrency(totalSpend)}
+            {formatCurrency(totalSpend, orgCurrency)}
           </span>
           <span className="mt-1 block text-[11px] font-semibold text-primary">
             Breakdown →
@@ -221,6 +222,7 @@ const ContractBook: React.FC<{
   activeContractValue: number;
   activeProjects: number;
 }> = ({ onHandValue, onHandMargin, activeContractValue, activeProjects }) => {
+  const orgCurrency = useOrgCurrency();
   const marginPct = `${(onHandMargin * 100).toFixed(1)}%`;
 
   return (
@@ -232,7 +234,7 @@ const ContractBook: React.FC<{
         tone="green"
         icon="dollar"
         label="Revenue on hand"
-        value={formatCurrency(onHandValue)}
+        value={formatCurrency(onHandValue, orgCurrency)}
         vs={`Booked across active + closed-out contracts · ${marginPct} margin realized`}
       />
 
@@ -246,7 +248,7 @@ const ContractBook: React.FC<{
         tone="amber"
         icon="grid"
         label="Total contract value"
-        value={formatCurrency(activeContractValue)}
+        value={formatCurrency(activeContractValue, orgCurrency)}
         vs={`Signed value of the ${activeProjects} projects still in delivery`}
       />
     </div>
@@ -268,6 +270,7 @@ export const MobileExecutiveDashboard: React.FC<MobileExecutiveDashboardProps> =
   approvalError,
   belowFold,
 }) => {
+  const orgCurrency = useOrgCurrency();
   const totalSpend = data.top_projects.reduce((s, p) => s + (p.spent || 0), 0);
 
   return (

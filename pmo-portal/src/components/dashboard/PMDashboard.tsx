@@ -9,6 +9,7 @@ import { Card, CardHead } from '@/src/components/ui/Card';
 import { StatusPill } from '@/src/components/ui/StatusPill';
 import { ListState } from '@/src/components/ui/ListState';
 import { formatCurrency } from '@/src/lib/format';
+import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { BvACard } from './BvACard';
 import { DashPageHead, DashGrid } from './layout';
 import type { TopProject } from '@/src/lib/db/dashboard';
@@ -29,6 +30,8 @@ import { pillVariantForProjectStatus } from '@/components/projects';
 export const PMDashboard: React.FC = () => {
   const { currentUser } = useAuth();
   const { data: projects, isPending, isError, refetch } = useProjects();
+  // Cross-project aggregate (TopProject-shaped) — org-denominated (FR-L10N-020).
+  const orgCurrency = useOrgCurrency();
 
   const mine = useMemo(
     () => (projects ?? []).filter((p) => p.project_manager_id === currentUser?.id),
@@ -64,7 +67,7 @@ export const PMDashboard: React.FC = () => {
           help="Projects where you are the assigned project manager." />
         {/* AC-IXD-DASH-W5-C2A: My contract value → /projects?filter=My+Projects */}
         <KPITile testId="kpi-my-contract-value" tone="green" icon="dollar" label="My contract value"
-          value={formatCurrency(contractValue)} loading={isPending} error={isError}
+          value={formatCurrency(contractValue, orgCurrency)} loading={isPending} error={isError}
           to="/projects?filter=My+Projects"
           linkLabel="Open my projects to see contract value"
           help="Total contract value across your projects." />

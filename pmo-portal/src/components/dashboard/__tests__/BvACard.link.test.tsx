@@ -29,7 +29,7 @@ const projects: TopProject[] = [
 const renderCard = () =>
   render(
     <MemoryRouter>
-      <BvACard projects={projects} />
+      <BvACard projects={projects} currency="USD" />
     </MemoryRouter>,
   );
 

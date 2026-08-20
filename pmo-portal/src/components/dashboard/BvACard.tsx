@@ -9,6 +9,8 @@ import { AT_RISK_THRESHOLD } from '@/src/lib/dashboardConstants';
 
 export interface BvACardProps {
   projects: TopProject[];
+  /** Org operating currency (the top-projects RPC carries no per-row currency) — FR-L10N-020. */
+  currency: string;
 }
 
 /**
@@ -21,7 +23,7 @@ export interface BvACardProps {
  * committed aggregate is a deferred backend slice (plan Open Q1), so we render
  * the real Actual/Contract bar only — never a fabricated committed value.
  */
-export const BvACard: React.FC<BvACardProps> = ({ projects }) => (
+export const BvACard: React.FC<BvACardProps> = ({ projects, currency }) => (
   <div role="group" aria-label="Budget vs actual by project" className="flex flex-col">
     {projects.map((p, i) => {
       const contract = p.contract_value || 0;
@@ -51,7 +53,7 @@ export const BvACard: React.FC<BvACardProps> = ({ projects }) => (
             </Link>
             {atRisk && <StatusPill variant="warn">At risk</StatusPill>}
             <span className="ml-auto shrink-0 text-[12px] tabular text-muted-foreground">
-              {formatCurrency(p.spent)} / {formatCurrency(contract)}
+              {formatCurrency(p.spent, currency)} / {formatCurrency(contract, currency)}
             </span>
             {/* D-2 (AC-JR-W3B-04): decorative trailing chevron removed — it was a false
                 affordance implying the row is clickable while only the name Link above is
