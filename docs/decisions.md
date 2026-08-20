@@ -2115,3 +2115,44 @@ to exceed the ceiling *on this occasion*. Pinned by `AC-WO-051/052/053`.
 ⚑ Also recorded, because it is the kind of thing a later reader would "tidy": `get_project_drawdown`
 is deliberately **absent** from `0178`'s client-callable list. It is `security invoker`, and listing an
 invoker function there blinds the sweep if someone later flips it to definer.
+
+## DD-BIMP-1..3 — three false premises in the budget-import spec (Director, 2026-08-20)
+
+`docs/specs/budget-import.spec.md` was written to close #495's planning gap and shipped three
+confident claims that the schema on `dev` contradicts. Recorded individually because each would have
+produced a different defect, and because all three are the same failure: **the spec cited the ticket
+and the rulings, never the migration that defines the thing** (`DD-BRIEF-1`).
+
+**[DD-BIMP-1] The match key is the project, not `(project, fiscal_year)`.** `budget_versions` has no
+`fiscal_year` column — `0153` put `fiscal_year` on `budget_line_items`, nullable and deliberately
+un-backfilled, because the value is *ERPNext's* calendar name and PMO may not invent one. Keying
+match-or-create on a column that does not exist would have been caught at compile time; keying it on
+the line-item column would have matched NULL against NULL on every legacy row, which would not.
+
+**[DD-BIMP-2] The import supplies no `currency`.** `DD-IMP-1` §5 and `OD-CR-5` predate `0187`, which
+shipped the currency seam as a BEFORE-INSERT trigger filling `currency` from
+`organizations.default_currency`. `0187`'s own header names a client hand-carrying a currency as the
+thing the trigger exists to prevent — the same argument as `org_id`. A per-row `Currency` column is a
+real multi-currency feature for the day a cross-currency sheet exists, not this ticket.
+
+**[DD-BIMP-3] The idempotency key excludes `import_batch_id`.** This is the one that mattered.
+`0072`'s index and skip query are keyed on `(import_key, import_batch_id)`, and
+`useProcurementCycleImport` mints `crypto.randomUUID()` per mount — so a re-import **in a new
+session** misses the skip and inserts duplicates. The only cross-batch layer that exists today is
+`findCrossBatchCollision`, which produces a dry-run *report*, not a skip. The spec asserted the
+opposite ("the skip query… is what makes a re-run a no-op") and would have yielded an importer that
+passes its own tests and duplicates every budget on the second run — a green suite that cannot fail.
+
+`0195` is amended in place (on `dev` only, never `main`, never prod; `supabase db reset` is this
+phase's rollback per ADR-0006) to key on `import_key` alone: `(org_id, import_key)` on
+`budget_versions`, `(budget_version_id, import_key)` on `budget_line_items`. Still two layers, not
+three — the DB is now the authority for the **re-run** as well as the race.
+
+⚑ **Pinned, and mutation-checked**: `supabase/tests/0195_budget_import_provenance.test.sql` asserts a
+duplicate `import_key` is rejected under a *different* batch id. Restoring `import_batch_id` to the
+index turns exactly that assertion red — verified, not assumed. The old test asserted only
+`has_index` on a name, which would have survived the wrong key silently.
+
+⚑ **The procurement path keeps its batch-scoped key.** It is a shipped importer with live data;
+re-keying it is its own decision with its own backfill question, not a drive-by. That asymmetry is
+deliberate and is why `0195` carries the argument in its header rather than pointing at `0072`.
