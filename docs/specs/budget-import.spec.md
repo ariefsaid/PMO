@@ -81,7 +81,7 @@ the one day-1 dataset with no descriptor.
 - ⚑ **`DD-CUR-4`** — several money tables carry **column-level INSERT grants**, so a new column is
   *not* insertable unless explicitly granted. `0187` granted `insert (currency)` on those tables;
   verify the budget tables permit the insert the descriptor performs before assuming.
-- ⚑ **Do not add a descriptor-local dedupe scheme.** `FR-BIMP-007` is a DB constraint on purpose —
+- ⚑ **Do not add a THIRD dedupe mechanism.** `FR-BIMP-007`'s two layers are the shipped `0072` pattern —
   two idempotency mechanisms is how they end up disagreeing.
 - ⚑ **Correction (2026-08-20), after reading `0195` and `0072` rather than assuming.** The unique index
 is on `(org_id, import_key, import_batch_id)` — it includes the **batch**. So it does *not*, by itself,
