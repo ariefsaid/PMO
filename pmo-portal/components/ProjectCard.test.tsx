@@ -19,6 +19,10 @@ const render = (ui: ReactElement) =>
 
 // ADR-0016: ProjectStatusControl now gates on the REAL JWT role via usePermission,
 // so the mock supplies realRole (equal to effectiveRole — no impersonation here).
+// FR-L10N-020: this component reads useOrgCurrency for its ACROSS-record aggregates. Pinned here
+// rather than left to a real query. ⚑ At LINE-START on purpose — inserted inside a neighbouring
+// vi.mock call it parses as a syntax error and hides every real error beneath it.
+vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/auth/impersonation', () => ({
   useEffectiveRole: () => ({ effectiveRole: 'Project Manager', realRole: 'Project Manager' }),
 }));
@@ -33,7 +37,7 @@ const base = {
   status: 'Ongoing Project',
   client_id: 'c2',
   project_manager_id: 'u-alice',
-  contract_value: 5000000,
+  contract_value: 5000000, currency: 'USD',
   budget: 4700000,
   spent: 2100000,
   end_date: '2026-12-18',

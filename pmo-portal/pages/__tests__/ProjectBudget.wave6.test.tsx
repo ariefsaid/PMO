@@ -50,6 +50,7 @@ vi.mock('@/src/hooks/useBudget', () => ({
   }),
 }));
 
+vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' }, role: 'Project Manager' }),
 }));
@@ -85,6 +86,7 @@ const draftVersionWithItems = {
   version: 2,
   project_id: 'p-1',
   org_id: 'org-1',
+  currency: 'USD',
   created_at: '2026-01-01T00:00:00Z',
   line_items: [
     {

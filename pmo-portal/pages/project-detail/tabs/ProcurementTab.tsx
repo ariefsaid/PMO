@@ -74,7 +74,7 @@ const ProcurementTab: React.FC<ProcurementTabProps> = ({ projectId }) => {
       key: 'value',
       header: 'Value',
       align: 'num',
-      cell: (r) => formatCurrency(r.total_value),
+      cell: (r) => formatCurrency(r.total_value, r.currency),
     },
     {
       key: 'lifecycle',

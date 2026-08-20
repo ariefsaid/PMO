@@ -57,9 +57,9 @@ export interface ProjectDetailHeaderProps {
 }
 
 /** Currency with a true minus glyph (U+2212) for negatives (number rigor). */
-function signedCurrency(value: number): string {
-  if (value < 0) return `−${formatCurrency(Math.abs(value))}`;
-  return formatCurrency(value);
+function signedCurrency(value: number, currency: string): string {
+  if (value < 0) return `−${formatCurrency(Math.abs(value), currency)}`;
+  return formatCurrency(value, currency);
 }
 
 /**
@@ -160,17 +160,17 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
     .join(' ');
 
   const tiles: StatTile[] = [
-    { label: 'Contract', value: formatCurrency(contract) },
-    { label: 'Committed', value: formatCurrency(committed) },
+    { label: 'Contract', value: formatCurrency(contract, project.currency) },
+    { label: 'Committed', value: formatCurrency(committed, project.currency) },
     // AC-MONEY-01: "Actual" = committed-PO basis (Ordered..Paid), matching Committed.
     // Both tiles intentionally show the same number — they are the same realized-spend
     // basis (OD-BUDGET-2). "Committed" is the canonical label per glossary §Committed;
     // "Actual" is the human label per the original finance-strip design. The dead
     // projects.spent column (always 0) is NOT used here.
-    { label: 'Actual', value: formatCurrency(committed) },
+    { label: 'Actual', value: formatCurrency(committed, project.currency) },
     {
       label: 'On-hand margin',
-      value: signedCurrency(margin),
+      value: signedCurrency(margin, project.currency),
       tone: margin < 0 ? 'neg' : 'pos',
     },
     { label: 'Spend', value: `${spendPct}%` },
@@ -218,7 +218,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   const commitValue = async (next: PendingContractValue) => {
     try {
       await setContractValue.mutateAsync({ id: project.id, ...next });
-      toast('Contract value updated', formatCurrency(next.value), 'success');
+      toast('Contract value updated', formatCurrency(next.value, project.currency), 'success');
       setValueEditing(false);
       setValueDraft('');
       setTaxTreatmentDraft('');
@@ -352,7 +352,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
         <span className="flex items-center gap-2.5">
           <span className="text-[12.5px] font-semibold text-muted-foreground">Contract value</span>
           <span className="text-[15px] font-bold tabular tracking-[-0.01em]">
-            {formatCurrency(contract)}
+            {formatCurrency(contract, project.currency)}
           </span>
           {canEditValue && isFinanceForward ? (
             <Button variant="outline" size="sm" onClick={beginValueEdit} aria-label="Edit contract value">
@@ -442,10 +442,10 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
           pendingValue !== null ? (
             <>
               You are changing the contract value of a won project from{' '}
-              <b className="tabular text-foreground">{formatCurrency(contract)}</b> to{' '}
-              <b className="tabular text-foreground">{formatCurrency(pendingValue.value)}</b>,
+              <b className="tabular text-foreground">{formatCurrency(contract, project.currency)}</b> to{' '}
+              <b className="tabular text-foreground">{formatCurrency(pendingValue.value, project.currency)}</b>,
               stated as <b className="text-foreground">{pendingValue.taxTreatment}</b> of{' '}
-              <b className="tabular text-foreground">{formatCurrency(pendingValue.taxAmount)}</b>{' '}
+              <b className="tabular text-foreground">{formatCurrency(pendingValue.taxAmount, project.currency)}</b>{' '}
               tax.
               <GateNotice variant="blocked" className="mt-3">
                 Changing the contract value on a won project is a segregation of duties action and

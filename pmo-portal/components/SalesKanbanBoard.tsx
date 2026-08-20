@@ -1,6 +1,7 @@
 import React from 'react';
 import { Kanban, KanbanColumn, KanbanStageIndicator, StatusPill, Badge } from '@/src/components/ui';
 import { useKanbanMobileScroll } from '@/src/components/kanban/useKanbanMobileScroll';
+import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { formatCurrency } from '@/src/lib/format';
 import type { PipelineProject } from '@/src/lib/db/dashboard';
 import ProjectCardShell from './ProjectCardShell';
@@ -30,7 +31,13 @@ const DealCard: React.FC<{
   project: PipelineProject;
   selected: boolean;
   onActivate: () => void;
-}> = ({ project, selected, onActivate }) => {
+  /** ⚑ FR-L10N-020, and an honest limitation rather than a choice: `get_sales_pipeline()` (0020)
+   *  returns no `currency` column, so a pipeline card cannot use the project's OWN currency the way
+   *  `ProjectCard` does — it takes the org default, threaded from the board. Adding `currency` to
+   *  that RPC's projection is what would make this per-record; until then a foreign-currency deal
+   *  renders in the org's denomination on this surface. Recorded rather than hidden. */
+  currency: string;
+}> = ({ project, selected, onActivate, currency }) => {
   const initial = (project.client_name ?? project.name).trim().charAt(0).toUpperCase() || '•';
   return (
     <ProjectCardShell
@@ -46,10 +53,10 @@ const DealCard: React.FC<{
         <div className="flex items-baseline justify-between gap-2">
           <div className="flex items-baseline gap-2">
             <span className="text-[15px] font-bold tabular">
-              {formatCurrency(project.contract_value)}
+              {formatCurrency(project.contract_value, currency)}
             </span>
             <span className="text-[11px] text-muted-foreground tabular">
-              {formatCurrency(weightedValue(project))} wtd
+              {formatCurrency(weightedValue(project), currency)} wtd
             </span>
           </div>
           <Badge className="min-w-0 px-1.5">{formatPercent(project.win_probability)}</Badge>
@@ -60,11 +67,15 @@ const DealCard: React.FC<{
   );
 };
 
-/** Two-figure column totals node (gross + weighted), tabular. */
-const ColumnTotals: React.FC<{ gross: number; weighted: number }> = ({ gross, weighted }) => (
+/** Two-figure column totals node (gross + weighted), tabular.
+ *  ⚑ FR-L10N-020: a COLUMN TOTAL sums across projects, so it has no single record currency of its
+ *  own — it is denominated in the org default, threaded from the board rather than read here.
+ *  A total that mixed currencies would be arithmetic nobody can defend and it would still render;
+ *  that is a separate multi-currency problem (OD-CR-5), and this prop is where it will surface. */
+const ColumnTotals: React.FC<{ gross: number; weighted: number; currency: string }> = ({ gross, weighted, currency }) => (
   <>
-    <span className="text-[13px] font-bold tabular">{formatCurrency(gross)}</span>
-    <span className="text-[11px] text-muted-foreground tabular">{formatCurrency(weighted)} wtd</span>
+    <span className="text-[13px] font-bold tabular">{formatCurrency(gross, currency)}</span>
+    <span className="text-[11px] text-muted-foreground tabular">{formatCurrency(weighted, currency)} wtd</span>
   </>
 );
 
@@ -87,6 +98,9 @@ const ColumnTotals: React.FC<{ gross: number; weighted: number }> = ({ gross, we
  *     which spreads it onto the actual `.kanban-scroll` element (was the Defect-1 bug).
  */
 const SalesKanbanBoard: React.FC<SalesKanbanBoardProps> = ({ projects, onOpen, selectedId }) => {
+  // FR-L10N-020: the per-CARD figures use each project's own currency; the per-COLUMN totals sum
+  // across projects and so have none, and take the org default.
+  const orgCurrency = useOrgCurrency();
   const byColumn = (col: SalesColumn) => projects.filter((p) => col.statuses.includes(p.status));
   const { activeStageIndex, scrollWrapRef, colRefs, onScroll, handleStageClick } =
     useKanbanMobileScroll();
@@ -127,7 +141,7 @@ const SalesKanbanBoard: React.FC<SalesKanbanBoardProps> = ({ projects, onOpen, s
                 title={col.title}
                 dotColor={col.dotColor}
                 count={colProjects.length}
-                totals={!col.terminal ? <ColumnTotals gross={gross} weighted={weighted} /> : undefined}
+                totals={!col.terminal ? <ColumnTotals gross={gross} weighted={weighted} currency={orgCurrency} /> : undefined}
                 emptyMessage={`No projects in ${col.title}`}
               >
                 {colProjects.map((p) => (
@@ -136,6 +150,7 @@ const SalesKanbanBoard: React.FC<SalesKanbanBoardProps> = ({ projects, onOpen, s
                     project={p}
                     selected={p.id === selectedId}
                     onActivate={() => onOpen(p)}
+                    currency={orgCurrency}
                   />
                 ))}
               </KanbanColumn>

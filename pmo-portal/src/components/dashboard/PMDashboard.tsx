@@ -93,7 +93,7 @@ export const PMDashboard: React.FC = () => {
               <ListState variant="empty" icon="folder" title="No projects assigned to you yet"
                 sub="Projects you manage will appear here." />
             ) : (
-              <BvACard projects={bvaProjects} />
+              <BvACard projects={bvaProjects} currency={orgCurrency} />
             )}
           </div>
         </Card>

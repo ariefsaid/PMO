@@ -57,12 +57,12 @@ import { DecisionSupportPanel } from './DecisionSupportPanel';
 // AC-IXD-PROC-W5-2 tests stay visible without restating it; AC-RB tests pass an
 // explicit status to exercise the per-stage math / visibility boundary.
 function renderPanel(
-  props: Omit<React.ComponentProps<typeof DecisionSupportPanel>, 'status'> &
-    Partial<Pick<React.ComponentProps<typeof DecisionSupportPanel>, 'status'>>,
+  props: Omit<React.ComponentProps<typeof DecisionSupportPanel>, 'status' | 'currency'> &
+    Partial<Pick<React.ComponentProps<typeof DecisionSupportPanel>, 'status' | 'currency'>>,
 ) {
   return render(
     <MemoryRouter>
-      <DecisionSupportPanel status="Requested" {...props} />
+      <DecisionSupportPanel status="Requested" currency="USD" {...props} />
     </MemoryRouter>,
   );
 }

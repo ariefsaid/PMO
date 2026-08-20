@@ -10,15 +10,15 @@ import type { ProjectWithRefs } from '@/src/lib/db/projects';
 
 const seed = [
   { id: 'p1', name: 'Innovate Corp HQ Fit-Out', code: 'PRJ-001', status: 'Ongoing Project',
-    client_id: 'c2', project_manager_id: 'u-alice', contract_value: 5000000, budget: 4700000,
+    client_id: 'c2', project_manager_id: 'u-alice', contract_value: 5000000, currency: 'USD', budget: 4700000,
     spent: 2100000, end_date: '2026-12-18', client: { name: 'Innovate Corp' }, pm: { full_name: 'Alice Manager' },
     customer_contract_ref: null, contract_date: null, decided_at: null },
   { id: 'p2', name: 'Northwind ERP Rollout', code: 'PRJ-002', status: 'Tender Submitted',
-    client_id: 'c3', project_manager_id: 'u-alice', contract_value: 1200000, budget: 0, spent: 0,
+    client_id: 'c3', project_manager_id: 'u-alice', contract_value: 1200000, currency: 'USD', budget: 0, spent: 0,
     end_date: '2026-12-31', client: { name: 'Northwind Manufacturing' }, pm: { full_name: 'Alice Manager' },
     customer_contract_ref: null, contract_date: null, decided_at: null },
   { id: 'p3', name: 'Regional Services Program', code: 'PRJ-003', status: 'PQ Submitted',
-    client_id: 'c2', project_manager_id: 'u-alice', contract_value: 800000, budget: 0, spent: 0,
+    client_id: 'c2', project_manager_id: 'u-alice', contract_value: 800000, currency: 'USD', budget: 0, spent: 0,
     end_date: '2026-12-31', client: { name: 'Innovate Corp' }, pm: { full_name: 'Alice Manager' },
     customer_contract_ref: null, contract_date: null, decided_at: null },
 ];
@@ -27,7 +27,7 @@ const seed = [
 const seedWithWon = [
   ...seed,
   { id: 'p4', name: 'Won Deal', code: 'PRJ-004', status: 'Won, Pending KoM',
-    client_id: 'c2', project_manager_id: 'u-alice', contract_value: 2000000, budget: 0, spent: 0,
+    client_id: 'c2', project_manager_id: 'u-alice', contract_value: 2000000, currency: 'USD', budget: 0, spent: 0,
     end_date: '2026-12-31', client: { name: 'Innovate Corp' }, pm: { full_name: 'Alice Manager' },
     customer_contract_ref: 'CPO-2026-999', contract_date: '2026-01-15', decided_at: '2026-01-15T00:00:00Z' },
 ];
@@ -49,6 +49,10 @@ const { roleBox, projectMutations, deliverySummaryState } = vi.hoisted(() => ({
     p3: { deliveryPct: null, committedSpend: 0, budget: 0 },
   },
 }));
+// FR-L10N-020: this component reads useOrgCurrency for its ACROSS-record aggregates. Pinned here
+// rather than left to a real query. ⚑ At LINE-START on purpose — inserted inside a neighbouring
+// vi.mock call it parses as a syntax error and hides every real error beneath it.
+vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/hooks/useProjects', () => ({
   useProjects: () => projectsState,
   useClientCompanies: () => ({ data: [{ id: 'c2', name: 'Innovate Corp', type: 'Client' }] }),

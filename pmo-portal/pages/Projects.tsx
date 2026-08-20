@@ -370,7 +370,9 @@ const Projects: React.FC = () => {
       header: 'Contract',
       align: 'num',
       exportValue: (p) => p.contract_value,
-      cell: (p) => formatCurrency(p.contract_value),
+      // FR-L10N-020: each row is one project, so the currency is that project's own (0187's
+      // per-record column) — an org default would be wrong the moment two currencies coexist.
+      cell: (p) => formatCurrency(p.contract_value, p.currency),
     },
     {
       key: 'actual',
@@ -384,7 +386,7 @@ const Projects: React.FC = () => {
         if (deliveryPending || actualSpend == null) {
           return <span className="text-[12px] text-muted-foreground">…</span>;
         }
-        return <span className="text-muted-foreground">{formatCurrency(actualSpend)}</span>;
+        return <span className="text-muted-foreground">{formatCurrency(actualSpend, p.currency)}</span>;
       },
     },
     {
@@ -427,7 +429,7 @@ const Projects: React.FC = () => {
           <div className="flex flex-col gap-0.5">
             <ProgressBar value={budgetUsedPct} showValue compact aria-label={`Budget used ${budgetUsedPct}%`} />
             <div className="text-[11px] text-muted-foreground">
-              {`${formatCompactCurrency(summary.committedSpend)} of ${formatCompactCurrency(summary.budget)} budget`}
+              {`${formatCompactCurrency(summary.committedSpend, p.currency)} of ${formatCompactCurrency(summary.budget, p.currency)} budget`}
             </div>
           </div>
         );

@@ -3,6 +3,7 @@ import { Link } from 'react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ListState, GateNotice, Button, StatusPill, NumberField, useToast } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
+import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { describePushError } from '@/src/lib/adapterSeam/pushErrorCopy';
 import { formatCurrency, formatDate, parseMoneyInput, pct } from '@/src/lib/format';
@@ -115,8 +116,8 @@ const BUDGET_ATTRIBUTION_STALE =
 const BUDGET_ATTRIBUTION_PARTIAL =
   'Not available: some of this category’s budget lines are not phased to a fiscal year and PMO cannot place them in this one, so the category’s total for this year cannot be stated. Phase these lines to their fiscal years to restore the figure.';
 
-const money = (v: number | null, reason: string): React.ReactNode =>
-  v === null ? <Unavailable reason={reason} /> : formatCurrency(v);
+const money = (v: number | null, reason: string, currency: string): React.ReactNode =>
+  v === null ? <Unavailable reason={reason} /> : formatCurrency(v, currency);
 
 // ── C-5: every push state gets its own statement. A state that renders nothing is a defect, not a
 // default — silence is indistinguishable from absence (DESIGN.md §Data & States).
@@ -145,6 +146,9 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
   const canEditEtc = may('edit', 'budgetLine');
   const { toast } = useToast();
   const qc = useQueryClient();
+  // ⛔ The RPC (fetchBudgetProjection) has no currency column — these figures are the org-wide
+  // forward view, so they take the org's operating currency, not a per-row record currency.
+  const orgCurrency = useOrgCurrency();
 
   // ⚑ H-4 (Luna audit round 3): the fiscal year is READ, never synthesized. `fiscal_year` on both
   // `erp_actuals_snapshot` and `budget_version_erp_mirror` carries the ERPNext `Fiscal Year` NAME the
@@ -598,8 +602,8 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
                         {labelFor(row.category)}
                       </td>
                       {/* I-1: `tabular-nums` on every comparable figure (DESIGN.md §3, mandatory). */}
-                      <Cell label="Budget (PMO)">{money(row.pmoBudgetAmount, budgetReason)}</Cell>
-                      <Cell label="Actuals to date (ERP ledger)">{money(row.actualsToDate, actualsReason)}</Cell>
+                      <Cell label="Budget (PMO)">{money(row.pmoBudgetAmount, budgetReason, orgCurrency)}</Cell>
+                      <Cell label="Actuals to date (ERP ledger)">{money(row.actualsToDate, actualsReason, orgCurrency)}</Cell>
                       <Cell label="ETC (PMO)">
                         {editingCategory === row.category ? (
                           <div className="flex flex-col items-end gap-1">
@@ -655,12 +659,12 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
                                 Edit
                               </Button>
                             )}
-                            {formatCurrency(row.pmoEtc)}
+                            {formatCurrency(row.pmoEtc, orgCurrency)}
                           </span>
                         )}
                       </Cell>
-                      <Cell label="Projected final">{money(row.projectedFinalCost, derivedReason)}</Cell>
-                      <Cell label="Variance">{money(row.projectedVariance, derivedReason)}</Cell>
+                      <Cell label="Projected final">{money(row.projectedFinalCost, derivedReason, orgCurrency)}</Cell>
+                      <Cell label="Variance">{money(row.projectedVariance, derivedReason, orgCurrency)}</Cell>
                       <Cell label="Utilization">
                         {row.projectedUtilization === null ? (
                           <Unavailable reason={derivedReason} />

@@ -40,7 +40,7 @@ const PrCard: React.FC<{
     <div className="mt-0.5 truncate font-mono text-[11px] text-muted-foreground">
       {pr.code ?? pr.id.slice(0, 8)}
     </div>
-    <div className="mt-2 text-[15px] font-bold tabular">{formatCurrency(pr.total_value)}</div>
+    <div className="mt-2 text-[15px] font-bold tabular">{formatCurrency(pr.total_value, pr.currency)}</div>
     <div className="mt-2.5 flex items-center gap-2 border-t border-border/70 pt-2">
       <Initial name={pr.requested_by?.full_name} />
       {/* C-PR-2/E-2: render project as INERT text (not a Link) so the card has
@@ -79,6 +79,9 @@ const ProcurementBoard: React.FC<ProcurementBoardProps> = ({ procurements, onOpe
       {PR_STAGES.map((stage, i) => {
         const items = byStage[i];
         const total = items.reduce((sum, p) => sum + p.total_value, 0);
+        // The board doesn't currency-convert; the column total is only ever meaningful when
+        // every card in the stage shares a currency, so it takes the first row's (FR-L10N-020).
+        const stageCurrency = items[0]?.currency ?? 'USD';
         return (
           <div key={stage.key} data-testid={`prstage-${stage.key}`} className="flex min-w-0 flex-col">
             <KanbanColumn
@@ -91,7 +94,7 @@ const ProcurementBoard: React.FC<ProcurementBoardProps> = ({ procurements, onOpe
               count={items.length}
               totals={
                 items.length > 0 ? (
-                  <span className="text-[13px] font-bold tabular">{formatCurrency(total)}</span>
+                  <span className="text-[13px] font-bold tabular">{formatCurrency(total, stageCurrency)}</span>
                 ) : undefined
               }
               emptyMessage={`No requests at ${stage.full}`}

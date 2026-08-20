@@ -43,6 +43,7 @@ const draftVersion: BudgetVersionWithItems = {
   version: 1,
   name: 'Budget v1',
   status: 'Draft',
+  currency: 'USD',
   created_at: '2026-01-01',
   total: 100_000,
   line_items: [
@@ -63,6 +64,7 @@ vi.mock('@/src/hooks/useBudget', () => ({
   useBudgetVersions: () => ({ data: [draftVersion], isPending: false, isError: false, refetch: vi.fn() }),
   useBudgetMutations: () => mutations,
 }));
+vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' }, role: 'Project Manager' }),
 }));

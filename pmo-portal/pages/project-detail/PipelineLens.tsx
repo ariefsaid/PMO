@@ -99,6 +99,10 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project }) => {
   const isTerminal = projectStatusGroup(liveStatus as never) !== 'pipeline';
 
   const value = project.contract_value ?? cached?.contract_value ?? 0;
+  // FR-L10N-020: this lens shows ONE project's own money, so it uses that project's currency —
+  // ProjectWithRefs carries the column (0187). No org fallback: a per-record figure rendered in the
+  // org's denomination is the silent wrong number this seam exists to remove.
+  const currency = project.currency;
   const winProb = cached?.win_probability ?? 0;
   const weighted = cached ? weightedValue(cached) : 0;
 
@@ -156,9 +160,9 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project }) => {
   };
 
   const stats: StatTile[] = [
-    { label: 'Value', value: formatCurrency(value) },
+    { label: 'Value', value: formatCurrency(value, currency) },
     { label: 'Win probability', value: formatPercent(winProb) },
-    { label: 'Weighted', value: formatCurrency(weighted) },
+    { label: 'Weighted', value: formatCurrency(weighted, currency) },
     { label: 'Owner', value: project.pm?.full_name ?? 'Not set' },
     {
       label: 'Decision',
@@ -251,7 +255,7 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project }) => {
                 {/* Confirm against the money (AC-IXD-DASH-005): restate the value being booked to
                     contract value on win, above the capture inputs. */}
                 <div className="text-[13px] text-foreground">
-                  Booking <strong className="font-semibold tabular">{formatCurrency(value)}</strong>{' '}
+                  Booking <strong className="font-semibold tabular">{formatCurrency(value, currency)}</strong>{' '}
                   to contract value on win
                 </div>
                 <div className="flex flex-col gap-1">

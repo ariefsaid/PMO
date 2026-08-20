@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import {
   ListPage,
   ListState,
@@ -16,6 +17,9 @@ import { useRevenuePerProject } from '@/src/hooks/useRevenue';
 import { formatCurrencyAuto, formatCurrencyCents, formatNumber } from '@/src/lib/format';
 
 const RevenueByProject: React.FC = () => {
+  // FR-L10N-020: every figure here is an AGGREGATE — per-project revenue sums and org-wide KPI
+  // totals — so none carries a record currency. The org default is the honest denomination.
+  const orgCurrency = useOrgCurrency();
   const may = usePermission();
   const navigate = useNavigate();
   const { data, isPending, isError } = useRevenuePerProject();
@@ -90,7 +94,7 @@ const RevenueByProject: React.FC = () => {
       align: 'num',
       cell: (row) => (
         <span className="tabular text-right font-mono text-[13px]">
-          {formatCurrencyCents(row.total_amount)}
+          {formatCurrencyCents(row.total_amount, orgCurrency)}
         </span>
       ),
       exportValue: (row) => row.total_amount.toString(),
@@ -101,7 +105,7 @@ const RevenueByProject: React.FC = () => {
       align: 'num',
       cell: (row) => (
         <span className="tabular text-right font-mono text-[13px]">
-          {formatCurrencyCents(row.open_ar)}
+          {formatCurrencyCents(row.open_ar, orgCurrency)}
         </span>
       ),
       exportValue: (row) => row.open_ar.toString(),
@@ -136,7 +140,7 @@ const RevenueByProject: React.FC = () => {
       <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-4 mb-6">
         <KPITile
           label="Total Revenue"
-          value={formatCurrencyAuto(totalRevenue)}
+          value={formatCurrencyAuto(totalRevenue, orgCurrency)}
           icon="dollar"
           tone="blue"
           loading={isPending}
@@ -144,7 +148,7 @@ const RevenueByProject: React.FC = () => {
         />
         <KPITile
           label="Open AR"
-          value={formatCurrencyAuto(totalOpenAR)}
+          value={formatCurrencyAuto(totalOpenAR, orgCurrency)}
           icon="dollar"
           tone="amber"
           loading={isPending}

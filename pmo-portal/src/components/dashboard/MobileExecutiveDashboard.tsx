@@ -76,7 +76,12 @@ const AtRiskBlock: React.FC<{
   atRisk: number;
   activeProjects: number;
   totalSpend: number;
-}> = ({ atRisk, activeProjects, totalSpend }) => {
+  /** FR-L10N-020: `totalSpend` is a dashboard AGGREGATE — the RPC row carries no currency of its own,
+   *  so it is denominated in the org default and threaded from the parent rather than re-read here.
+   *  A leaf that called the hook itself would work today and diverge the moment one is rendered for
+   *  a different org. */
+  currency: string;
+}> = ({ atRisk, activeProjects, totalSpend, currency }) => {
   const isAtRisk = atRisk > 0;
 
   return (
@@ -140,14 +145,14 @@ const AtRiskBlock: React.FC<{
 
         <Link
           to="/projects?filter=Ongoing"
-          aria-label={`Open spend breakdown · ${formatCurrency(totalSpend, orgCurrency)} spent to date`}
+          aria-label={`Open spend breakdown · ${formatCurrency(totalSpend, currency)} spent to date`}
           className="touch-target flex-1 rounded-[6px] border border-border p-[9px_10px] text-inherit no-underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
         >
           <span className="block text-[11px] font-semibold uppercase tracking-[0.04em] text-muted-foreground">
             Total project spend
           </span>
           <span className="tabular mt-[3px] block text-[17px] font-bold">
-            {formatCurrency(totalSpend, orgCurrency)}
+            {formatCurrency(totalSpend, currency)}
           </span>
           <span className="mt-1 block text-[11px] font-semibold text-primary">
             Breakdown →
@@ -282,6 +287,7 @@ export const MobileExecutiveDashboard: React.FC<MobileExecutiveDashboardProps> =
           atRisk={data.projects_at_risk}
           activeProjects={data.active_projects}
           totalSpend={totalSpend}
+          currency={orgCurrency}
         />
       </section>
 

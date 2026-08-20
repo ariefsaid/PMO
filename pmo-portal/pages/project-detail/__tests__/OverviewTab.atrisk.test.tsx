@@ -18,6 +18,7 @@ const baseProject = {
   code: 'A001',
   status: 'Ongoing Project',
   contract_value: 1_000_000,
+  currency: 'USD',
   budget: 900_000,
   spent: 400_000,
   start_date: '2026-01-01',
