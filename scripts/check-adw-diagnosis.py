@@ -86,6 +86,20 @@ for field, literal_name in (("area", "QualityArea"), ("operation", "QualityOpera
     check(f"{literal_name} covers every {field} quality.py constructs "
           f"(allowed={sorted(allowed)}, used={sorted(used)})", missing, set())
 
+# ── #504: a failed run must not strand work silently ─────────────────────────────
+sdlc = (ROOT / "adws/adw_simple_sdlc.py").read_text()
+check("failed run announces stranded work",
+      "UNREVIEWED WORK IS ON DISK" in sdlc and "if not verified:" in sdlc, True)
+check("the announcement is driven by a real diff, not a guess",
+      "git diff --stat HEAD" in sdlc, True)
+# note() runs _clip(), which collapses newlines and truncates, so a multi-line file list
+# would arrive as an unreadable stub. Assert the POSITIVE — that it writes to stdout —
+# rather than grepping for the absence of "console.note", which matches the comment
+# explaining why it is not used. (That false positive cost a round.)
+_block = sdlc.split("if not verified:")[1][:2000]
+check("the announcement writes to stdout, where the run log captures it",
+      "print(" in _block and "flush=True" in _block, True)
+
 if FAILURES:
     for line in FAILURES:
         print(f"✗ {line}", file=sys.stderr)

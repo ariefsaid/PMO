@@ -42,6 +42,7 @@ pinned before the first commit phase and printed in the request phase.
 """
 
 import argparse
+import subprocess
 import sys
 
 from adw_modules import agents, changes, gates, git_helper, quality, session, utils
@@ -171,6 +172,27 @@ def main(prompt: str, config: str = "adws/adw_sssf_config/sssf.config.yaml", adw
         with run.phase(PhaseParams(name="commit_docs", kind="code", owner="git",
                                    description="Ship the write-up in its own commit, beside the code it describes")) as ph:
             commit(ph, document)
+
+    if not verified:
+        # #504: the work does not vanish quietly. A failed run leaves a complete diff
+        # on disk, and three runs on 2026-08-19 proved it can be perfectly good — one
+        # later passed the whole gate untouched. It survived only because someone
+        # thought to look in the worktree, and the worktree gets deleted at cleanup.
+        # Nobody should have to think to look.
+        stranded = subprocess.run(
+            ["bash", "-c", "git diff --stat HEAD; git ls-files --others --exclude-standard"],
+            cwd=run.repo_root, capture_output=True, text=True).stdout.strip()
+        if stranded:
+            # Written straight to stdout, NOT through console.note(): note() runs _clip(),
+            # which collapses all whitespace onto one line and truncates at MAX_LINE — a
+            # multi-line file list would arrive as an unreadable stub. stdout is where the
+            # run log captures it and where an operator actually looks.
+            print(
+                f"\n⚠️  UNREVIEWED WORK IS ON DISK at {run.repo_root} — it is NOT committed.\n"
+                f"    The run stopped before the code could be landed, which is NOT the same as\n"
+                f"    the code being wrong. Inspect it before removing this worktree.\n\n"
+                f"{stranded}\n",
+                flush=True)
 
     return run.finish(accepted=verified,
                       reason="the suite or the review never came back clean")
