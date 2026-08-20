@@ -20,6 +20,16 @@
 -- PostgREST: reserve_credits, claim_sales_invoice_author, confirm_erp_employee_link,
 -- operator_set_domain_ownership, admin_change_domain_ownership, create_vault_secret_for_org, and
 -- release_credits. Dynamic service-client seams are intentionally not client-callable.
+--
+-- ⚑ AMENDED BY 0191 (#484): `operator_create_org` joins the retained set, and the counts move 49 -> 50.
+-- This is a DECLARATION, not a relaxation — the sweep's polarity is unchanged, and an UNDECLARED
+-- SECURITY DEFINER writer granted to a client role still fails AC-ACL-004 by name. (It caught
+-- operator_create_org on its first run, which is what the guard is for.) The function belongs in the
+-- set for the same reason operator_set_domain_ownership and operator_toggle_feature do: it is invoked
+-- through PostgREST under an OPERATOR's authenticated JWT, so `authenticated` EXECUTE is the intended
+-- surface, and its own body gates on is_active_member() + is_operator() with pgTAP proof in
+-- supabase/tests/operator_create_org.test.sql (AC-ORG-001/002). Anything added here without that
+-- pairing IS a relaxation.
 
 begin;
 create extension if not exists pgtap;
@@ -61,6 +71,7 @@ insert into client_callable_rpc_names (proname) values
   ('admin_change_domain_ownership'),
   ('list_budget_fiscal_years'),
   ('operator_agent_run_stats'),
+  ('operator_create_org'),
   ('operator_grant_credits'),
   ('operator_set_domain_ownership'),
   ('operator_set_org_lifecycle_state'),

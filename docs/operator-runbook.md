@@ -55,12 +55,12 @@ For each power, **Does** says what it changes or reads, **Invoke** says the supp
 - **Who may:** An active platform Operator only; the RPC validates the target organization.
 - **Audited today:** **Not currently audited** for this direct RPC. The separate integration path below has its own audit events and is not interchangeable with this entry point.
 
-### Organization creation — forthcoming
+### Organization creation
 
-- **Does:** Will create an organization with the companion records defined by the product contract.
-- **Invoke:** Via `operator_create_org` (#484); **not yet shipped**. There is no current invocation. No interim or hand-written organization-creation SQL belongs in this runbook.
-- **Who may:** Not available until #484 ships.
-- **Audited today:** Not shipped; therefore no audit record exists today.
+- **Does:** Creates an organization and its companion records in one transaction — the organization row, its operating currency, and the organization's first Admin membership. The Admin's email is read from the authentication record rather than supplied, so the two cannot diverge. Companion values whose columns are not built yet (locale defaults, the ERP epoch boundary, the lifecycle state) are still set by hand immediately afterwards; the current list is kept in the migration header.
+- **Invoke:** Call `operator_create_org(p_name, p_admin_user_id, p_admin_full_name, p_default_currency)` through the authenticated guarded RPC path. The first Admin's authentication record must already exist and must not already have a profile — a person who already has one belongs to an organization, and the answer to a wrong organization is offboard and reinvite, never a move. Full procedure: [`docs/environments.md`](environments.md) § "Creating an org (Operator)". There is no UI, and no hand-written organization-creation SQL belongs in this runbook.
+- **Who may:** An active platform Operator only; the server re-checks both the Operator grant and the caller's active standing. ⚑ It therefore cannot create the very first organization on a brand-new deployment, which has no Operator yet — that case stays with the provisioning script.
+- **Audited today:** **Not currently audited**, the same as the other direct Operator RPCs on this page.
 
 ### Organization lifecycle — forthcoming
 
