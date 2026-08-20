@@ -24,6 +24,17 @@
 -- ⚑ AMENDED BY 0192 (#484): `operator_create_org` joins the retained set. With
 -- `operator_set_org_lifecycle_state` (0191, #489) the retained count is 51.
 --
+-- ⚑ AMENDED BY 0193 (#498): `set_work_order_value` and `transition_work_order` join the retained set,
+-- taking the count to 53. Both are SECURITY DEFINER writers invoked through PostgREST under a normal
+-- member's authenticated JWT, so `authenticated` EXECUTE is the intended surface, and both gate their
+-- own bodies on the org re-assertion + assert_is_active_member() + a role threshold, with the pgTAP
+-- pairing this file's header demands in supabase/tests/0193_work_orders.test.sql (AC-WO-031/039/041/
+-- 044/046/047/090/091/095). ⚑ `get_project_drawdown` is deliberately NOT listed: it is SECURITY
+-- INVOKER by design (DD-WO-2), and adding it here would mean the sweep no longer notices if someone
+-- later converts it to definer — the exact silencing this allow-list must never buy.
+-- ⚑ THE COUNT WAS RE-DERIVED BY HAND (52 -> 53 is not the arithmetic: 51 + 2 = 53), per the merge
+-- hazard below.
+--
 -- ⚑ MERGE HAZARD, learned the hard way here: the list and its CARDINALITY live in this one file.
 -- Two branches each adding one name merge cleanly in the LIST (different lines) while the count
 -- line is a real conflict that resolves to one side — leaving a list of 51 asserted as 50. That is
@@ -97,11 +108,13 @@ insert into client_callable_rpc_names (proname) values
   ('save_timesheet_week'),
   ('select_procurement_quote'),
   ('set_project_contract_value'),
+  ('set_work_order_value'),
   ('submit_sales_invoice'),
   ('transition_document_status'),
   ('transition_procurement'),
   ('transition_project'),
-  ('transition_timesheet');
+  ('transition_timesheet'),
+  ('transition_work_order');
 
 select ok(
   not exists (
@@ -123,8 +136,8 @@ select is(
      join pg_namespace n on n.oid = p.pronamespace
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'),
-  51,
-  'AC-ACL-002 all 51 retained client-callable RPC names still have a public function');
+  53,
+  'AC-ACL-002 all 53 retained client-callable RPC names still have a public function');
 
 select is(
   (select count(*)::int
@@ -133,8 +146,8 @@ select is(
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'
       and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
-  51,
-  'AC-ACL-003 all 51 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
+  53,
+  'AC-ACL-003 all 53 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
 
 -- The production sweep: direct role ACL entries are the oracle. `distinct` prevents one function
 -- granted to both roles from being named twice. The empty allow-list is intentional here: migration

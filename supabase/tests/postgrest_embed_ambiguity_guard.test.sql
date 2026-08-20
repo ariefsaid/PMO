@@ -44,7 +44,13 @@ select set_eq(
             ('procurements -> profiles'),
             ('projects -> profiles'),
             ('task_dependencies -> tasks'),
-            ('timesheets -> profiles') $$,
+            ('timesheets -> profiles'),
+            -- 0193 (#498): work_orders carries THREE person columns — order_value_set_by (the SoD
+            -- witness), issued_by, and over_commit_ack_by. Checked before adding: nothing in the DAL
+            -- embeds profiles from work_orders (the table has no client code yet), so there is no
+            -- unqualified embed to break. Whatever ships first MUST use
+            -- `alias:profiles!work_orders_<column>_fkey(...)`.
+            ('work_orders -> profiles') $$,
   'AC-EMBED-001 the set of multi-FK table pairs is EXACTLY the known set — a new pair here means '
   'every unqualified PostgREST embed of that target is now a runtime error (0177 shipped one, and '
   'it took 19 e2e specs down). Before updating this list: grep the DAL for embeds of the target '
