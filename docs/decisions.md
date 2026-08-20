@@ -1686,6 +1686,18 @@ repo has already paid for four times. Precedent one descriptor over: `projectDes
 status because "a won/on-hand status is reachable only via the transition RPC, never an import." Test
 it and **mutation-check it** — adding `status` to the descriptor must turn a test red.
 
+⚑ **AMENDED 2026-08-20 — the effort estimate was wrong, and so was one of its premises.** `DD-IMP-1`
+said "the work is a descriptor plus wiring an `<ImportButton>`" and called it effort **S**, on the
+assumption that the shipped import provenance (`0072`) was generic. **It is not.** `0072` adds
+`import_batch_id`/`imported_at`/`import_key` **per table** and covers only the procurement chain
+(`procurements`, `purchase_requests`, `rfqs`, `procurement_quotations`, `procurement_receipts`,
+`procurement_invoices`, `purchase_orders`, `payments`) — **no budget coverage at all**. So #495 is
+**migration + descriptor**, not descriptor alone: the budget tables need the same three columns and
+the DB-enforced partial unique index. A dispatched builder found this by refusing a brief that told it
+to use provenance that did not exist while also forbidding a local dedupe scheme — it could satisfy
+neither, and escalating was correct. The general lesson: **"reuse the shipped X" is a claim about the
+tree, and it needs checking before it goes into a brief.**
+
 ⚑ **Sequencing correction.** The ticket instructs the descriptor to set `currency` explicitly. **There
 is no `currency` column to set** — the only ones in the schema are on the ERP snapshot read-models
 (`0101`, `0150`); `OD-CR-5` is ruled and unbuilt (also under `DD-XING-4`). So #495 is **blocked on
