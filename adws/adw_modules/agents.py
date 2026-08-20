@@ -66,10 +66,15 @@ def validate(cfg: SSSFConfig, required: list[str]) -> None:
                            ("user", agent.prompt_engineering.user)):
             if not Path(ref).is_file():
                 problems.append(f"agent {name!r}: {label} prompt not found: {ref}")
-        try:
-            agent_pi.resolve_model(agent.model)
-        except ValueError as e:
-            problems.append(f"agent {name!r}: {e}")
+        # Every RUNG is resolved, not just rung 1. A ladder exists to be used on the
+        # worst day; discovering a typo in rung 3 at that moment — mid-chain, with
+        # the primary already dead — is the failure the ladder was added to prevent.
+        for position, pattern in enumerate([agent.model, *agent.fallbacks]):
+            try:
+                agent_pi.resolve_model(pattern)
+            except ValueError as e:
+                where = "model" if position == 0 else f"fallbacks[{position - 1}]"
+                problems.append(f"agent {name!r}: {where}: {e}")
     if problems:
         raise SystemExit("config validation failed:\n- " + "\n- ".join(problems))
 
@@ -115,14 +120,57 @@ def execute(run, phase: Phase, call: AgentCall) -> EnvelopeBase:
     latest: agent_pi.PiResult | None = None
     spent = UsageBreakdown()
 
+    # Rung 1 is `model`; `fallbacks` follow IN ORDER. `active_model`/`active_session`
+    # are what the CURRENT rung is using — once a rung answers, every later send in
+    # this phase (parse retries, gate corrections) stays on it, because those
+    # corrections only make sense inside the session that produced the response.
+    ladder = [agent.model, *agent.fallbacks]
+    active = {"model": agent.model, "session": session_id, "rung": 0}
+
     def send(prompt_text: str) -> agent_pi.PiResult:
+        nonlocal latest
+        # A rung is only abandoned when it answered with NOTHING and named a
+        # provider error — a capped quota, a rejected key, an outage. A rung that
+        # produced text owns the phase, wrong answers included: hopping on a bad
+        # answer would silently re-roll the dice on a different substrate and hide
+        # the real failure, which is the opposite of what this is for.
+        for index in range(active["rung"], len(ladder)):
+            model = ladder[index]
+            # Each rung gets its OWN pi session: a session file carries the
+            # previous provider's turns, and replaying those into another
+            # provider's context is not a resume, it is a different conversation.
+            session = session_id if index == 0 else f"{session_id}-r{index}"
+            result = _send_once(prompt_text, model, session)
+            answered = bool(result.text.strip())
+            if answered or not result.provider_error or index == len(ladder) - 1:
+                if not answered and result.provider_error:
+                    # Last rung, still nothing. Surface the PROVIDER's words —
+                    # the caller would otherwise report a JSON parse error for
+                    # what is an outage, which is exactly the 2026-08-20 misread.
+                    run.console.retry(agent.name, index + 1, len(ladder),
+                                      f"substrate exhausted: {result.provider_error}")
+                active["rung"] = index
+                active["model"] = model
+                active["session"] = session
+                return result
+            run.tracer.event(EventRecord(
+                adw_id=run.adw_id, phase_id=phase.phase_id, type="substrate_fallback",
+                name=agent.name,
+                payload={"from": model, "to": ladder[index + 1],
+                         "provider_error": result.provider_error, "rung": index}))
+            run.console.retry(agent.name, index + 1, len(ladder),
+                              f"{model} did not answer ({result.provider_error}) — "
+                              f"falling back to {ladder[index + 1]}")
+        raise RuntimeError(f"{agent.name}: no substrate on the ladder answered ({ladder})")
+
+    def _send_once(prompt_text: str, model: str, session: str) -> agent_pi.PiResult:
         nonlocal latest
         request = PiRequest(
             prompt=prompt_text,
             system_prompt=system_text,
-            model=agent.model,
+            model=model,
             thinking=agent.thinking,
-            session_id=session_id,
+            session_id=session,
             # absolute: these are read by the pi subprocess, which runs in repo_root
             session_dir=str((agent_dir / "pi_sessions").resolve()),
             raw_output_path=str((agent_dir / "raw_output.jsonl").resolve()),
@@ -135,7 +183,7 @@ def execute(run, phase: Phase, call: AgentCall) -> EnvelopeBase:
             on_event=_event_forwarder(run, phase, agent.name),
             on_spawn=lambda pid: run.tracer.process_start(
                 run.adw_id, "agent", agent.name, pid,
-                f"{agent.coding_agent} {agent.name} {agent.model}"),
+                f"{agent.coding_agent} {agent.name} {model}"),
             on_exit=lambda pid: run.tracer.process_end(run.adw_id, pid))
         run.add_usage(result.tokens, result.cost)
         spent.merge(result.usage)

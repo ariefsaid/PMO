@@ -4,9 +4,16 @@
 # openai-codex (OAuth) as the cross-family lane — openrouter is banned, fireworks/NIM/requesty are out.
 # `claude -p` stays the last-resort rung of pi-dispatch only: SSSF v1 is pi-only (claude_code is
 # stubbed until v2), so there is no claude fallback rung here — if both substrates are down, wait.
+# ⚑ Owner 2026-08-20: BUILDERS RUN ON BITDEER DeepSeek-V4-Flash (`bitdeer/deepseek-ai/DeepSeek-V4-Flash`,
+# registered in ~/.pi/agent/models.json, docs/pi-delegation.md §2a). Plan on GLM/terra → build on
+# deepseek-flash → review on GLM/luna/terra by availability. Side effect worth having: the build/review
+# boundary is CROSS-FAMILY again (deepseek vs codex), which the all-codex roster had given up.
 defaults:
   coding_agent: pi
   model: openai-codex/gpt-5.6-terra # provider/id — a bare pattern is ambiguous across providers
+  # Roster-wide ladder, so an agent added later is never single-substrate by accident. Any agent may
+  # override with its own `fallbacks:`; every one below does.
+  fallbacks: [zai/glm-5.3, bitdeer/deepseek-ai/DeepSeek-V4-Flash]
   thinking: medium                 # off | minimal | low | medium | high | xhigh | max
   harness_engineering: []          # pi extensions loaded into the harness (-e)
   # Roster-wide allowlist; any agent may override with its own list.
@@ -53,9 +60,20 @@ agents:
   # ⚑ The GLOBAL default above is codex too: left on zai, any agent without an explicit `model:` would
   # silently route to the exhausted substrate. builder/fe_builder were exactly that case once already.
   # Revert lever: set planner/reviewer (and the global default) back to `zai/glm-5.3`.
+  # ⚑ SUPERSEDED FOR BUILDERS (owner 2026-08-20): builder + fe_builder moved off luna to
+  # bitdeer/deepseek-ai/DeepSeek-V4-Flash. Planner/reviewers stay codex. This restores the
+  # cross-family review the 2026-08-19 all-codex roster knowingly gave up, and costs ~1/70th
+  # of luna per build token ($0.042/$0.084 per 1M vs luna's rates).
+  # ⚑ What this bets: DeepSeek-V4-Flash is a 13B-active MoE. Its agentic tool-use is strong on
+  # paper (it beats V4-Pro on agentic coding benchmarks) and it passed a live read/bash/write
+  # loop here, but it has NOT yet run a full ADW chain in this repo. The reviewer + the
+  # Director's own gates (verify:locked, mutation checks, rendered pass) are what catch a weak
+  # builder — do not soften them on the strength of a cheap builder. Revert lever: set builder
+  # and fe_builder back to `openai-codex/gpt-5.6-luna`.
 
   - name: planner
-    model: openai-codex/gpt-5.6-terra   # owner 2026-08-19: planner
+    model: zai/glm-5.3   # owner 2026-08-20: GLM plans, codex is the escalation
+    fallbacks: [openai-codex/gpt-5.6-terra, openai-codex/gpt-5.6-luna]   # owner 2026-08-20: plan on GLM, escalate to codex
     thinking: high
     color: "#a78bfa"                 # optional hex — the agent's lane color in the visualizer
     purpose: Turn a request into a plan the builder can implement without asking questions.
@@ -80,7 +98,8 @@ agents:
       - subagent_remove
 
   - name: builder
-    model: openai-codex/gpt-5.6-luna    # owner 2026-08-19: codex builders
+    model: bitdeer/deepseek-ai/DeepSeek-V4-Flash   # owner 2026-08-20: deepseek-flash builds; GLM reviews
+    fallbacks: [openai-codex/gpt-5.6-luna, zai/glm-5.3]   # owner 2026-08-20: deepseek builds; GLM is LAST so a GLM build rarely meets a GLM review
     color: "#22d3ee"
     purpose: Implement the plan exactly; report every changed file in the envelope.
     contract: .claude/agents/implementer.md
@@ -99,6 +118,8 @@ agents:
       - write
 
   - name: scout
+    model: zai/glm-4.7   # recon is cheap work — 2026-08-20, was inheriting the global default
+    fallbacks: [bitdeer/deepseek-ai/DeepSeek-V4-Flash, zai/glm-5.3]   # any rung that answers is fine
     color: "#fbbf24"
     purpose: Find and report where things live; change nothing.
     prompt_engineering:
@@ -124,7 +145,8 @@ agents:
   # phase over adw_modules/quality.py. See SKILL.md hard rule 8.
 
   - name: reviewer
-    model: openai-codex/gpt-5.6-terra   # owner 2026-08-19: terra reviews luna
+    model: zai/glm-5.3   # owner 2026-08-20: GLM reviews (the builder is deepseek, so this is cross-family)
+    fallbacks: [openai-codex/gpt-5.6-luna, openai-codex/gpt-5.6-terra]   # owner 2026-08-20: GLM reviews the deepseek builder — cross-family again
     thinking: high
     color: "#fb7185"
     purpose: Confirm that what was built is what was asked for; change nothing.
@@ -143,7 +165,10 @@ agents:
       - write
 
   - name: fe_builder
-    model: openai-codex/gpt-5.6-luna    # owner 2026-08-19: codex builders
+    model: bitdeer/deepseek-ai/DeepSeek-V4-Flash   # owner 2026-08-20: deepseek-flash builds. TEXT-ONLY —
+    fallbacks: [openai-codex/gpt-5.6-luna, zai/glm-5.3]   # same ladder as builder; TEXT-ONLY either way — fe_reviewer owns the pixels
+                                                 # its self-check is the a11y tree / DOM via agent-browser
+                                                 # (pi-delegation §3a); pixel judgment stays with fe_reviewer
     color: "#34d399"
     purpose: Implement one FE/UI slice strictly to DESIGN.md tokens; self-verify rendered states via agent-browser.
     contract: .claude/agents/ui-implementer.md
@@ -162,6 +187,7 @@ agents:
 
   - name: fe_reviewer
     model: openai-codex/gpt-5.6-terra   # owner 2026-08-19: MUST stay codex — GLM is not multimodal and this reviewer looks at renders
+    fallbacks: [openai-codex/gpt-5.6-luna]   # NO GLM RUNG: this reviewer LOOKS AT RENDERS and GLM is not multimodal — capability, not availability
     thinking: high
     color: "#f472b6"
     purpose: Audit the built UI rendered in a real browser against DESIGN.md + the plan; change nothing.
@@ -180,6 +206,7 @@ agents:
 
   - name: documenter
     model: openai-codex/gpt-5.6-luna    # codex OAuth
+    fallbacks: [bitdeer/deepseek-ai/DeepSeek-V4-Flash, zai/glm-5.3]   # prose, not judgement
     color: "#e879f9"
     purpose: Write up the change that was just made, from the diff; document only.
     prompt_engineering:

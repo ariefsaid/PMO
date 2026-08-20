@@ -126,6 +126,22 @@ Either way the Director still runs the binding gates itself before ship: `npm ru
 mutation checks, rendered verification, `verify-main-pr.sh` at promotes. The ADW's green is the
 factory's inner loop, not the phase gate.
 
+## ⛔ Run the factory in a CLEAN tree (learned the hard way, 2026-08-20)
+
+`adw_simple_sdlc.py` commits **the whole working tree** at each of its three commit phases — it does
+not stage a subset, and it has no notion of "my files". Launch a run while unrelated work is
+uncommitted and that work is swept into the ADW's own commit under the ADW's own message.
+
+It happened here on a one-file ladder smoke test: the plan-phase commit carried **41 files and 1,330
+insertions** of in-flight `#505` work under the title *"Add ladder smoke plan"*. Cleaning that commit
+up then discarded the swept work from the tree (recovered from the reflog, but only because it had
+been committed at all — had the run failed *before* its first commit phase, nothing would have been
+recoverable).
+
+**So:** commit or stash first, or run the factory in its own `git worktree`. And when you do clean up
+after a run, `git show --stat <sha>` and **read it** before any `reset --hard` — the swept files are
+invisible from the commit's title, which is the whole trap.
+
 ## Skill wiring (why nobody should have to re-ask for a skill per brief)
 
 The **role contract is the skill carrier.** `.claude/agents/*.md` (tracked, in every worktree)

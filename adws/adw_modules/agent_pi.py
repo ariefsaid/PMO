@@ -271,6 +271,11 @@ def run(request: PiRequest, on_event: Optional[Callable[[dict], None]] = None,
                     # Occupancy is read off the last VALID assistant turn, the
                     # way pi does it — an aborted or errored turn reports usage
                     # you can't trust, so it must not overwrite a good reading.
+                    if message.get("stopReason") == "error" and message.get("errorMessage"):
+                        # Kept so the caller can tell a dead substrate from a bad
+                        # answer (PiResult.provider_error). Last one wins: a retried
+                        # turn's failure is the one that ended the run.
+                        result.provider_error = str(message.get("errorMessage"))
                     if turn and message.get("stopReason") not in ("aborted", "error"):
                         result.context_tokens = turn
                     result.cost += (usage.get("cost", {}) or {}).get("total", 0.0) or 0.0

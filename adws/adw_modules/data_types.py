@@ -309,6 +309,19 @@ class AgentConfig(BaseModel):
     name: str
     coding_agent: Literal["pi", "claude_code"] = "pi"
     model: str = "google/gemini-3.6-flash"
+    # Substrate ladder. `model` is rung 1; these are tried IN ORDER when a rung
+    # answers with nothing at all — a capped quota, an auth failure, a provider
+    # outage. Not a quality ladder and not a retry: a rung that ANSWERS owns the
+    # phase, wrong answers included, and its own parse/gate retries stay in its
+    # session.
+    #
+    # ⚑ Why this exists (2026-08-20). Every rung was a single model, so when both
+    # z.ai and codex hit their caps within an hour the planner made three
+    # identical zero-token calls and the chain died with "never produced valid
+    # PlanOutput JSON: no JSON object found" — a substrate outage wearing a
+    # schema error's clothes. The wrapper (`pi-dispatch`) has had ladders since
+    # 2026-07-30; the factory did not, and that asymmetry is what burned the run.
+    fallbacks: list[str] = Field(default_factory=list)
     thinking: str = "medium"        # off | minimal | low | medium | high | xhigh | max
     color: str = ""                 # hex swatch for this agent's lane in the UI
     purpose: str = ""
@@ -333,6 +346,7 @@ class AgentConfig(BaseModel):
 class ConfigDefaults(BaseModel):
     coding_agent: Literal["pi", "claude_code"] = "pi"
     model: str = "google/gemini-3.6-flash"
+    fallbacks: list[str] = Field(default_factory=list)
     thinking: str = "medium"
     color: str = ""
     harness_engineering: list[str] = Field(default_factory=list)
@@ -443,6 +457,12 @@ class UsageBreakdown(BaseModel):
 
 class PiResult(BaseModel):
     text: str = ""
+    # The provider's own failure text, when a turn ended with stopReason "error"
+    # (a capped quota, a rejected key, an outage). Distinguishes "this substrate
+    # did not answer" from "the model answered badly" — only the first is worth
+    # trying another rung for, and conflating them is how a real model failure
+    # would get masked by a silent hop to a different substrate.
+    provider_error: str = ""
     returncode: int = 0
     session_id: str = ""
     tokens: int = 0
