@@ -20,6 +20,26 @@
 -- PostgREST: reserve_credits, claim_sales_invoice_author, confirm_erp_employee_link,
 -- operator_set_domain_ownership, admin_change_domain_ownership, create_vault_secret_for_org, and
 -- release_credits. Dynamic service-client seams are intentionally not client-callable.
+--
+-- ⚑ AMENDED BY 0192 (#484): `operator_create_org` joins the retained set. With
+-- `operator_set_org_lifecycle_state` (0191, #489) the retained count is 51.
+--
+-- ⚑ MERGE HAZARD, learned the hard way here: the list and its CARDINALITY live in this one file.
+-- Two branches each adding one name merge cleanly in the LIST (different lines) while the count
+-- line is a real conflict that resolves to one side — leaving a list of 51 asserted as 50. That is
+-- exactly what happened rebasing #484 onto #489. If you add a name, re-derive the count by hand
+-- after any rebase; a clean `git rebase` is NOT evidence the number is right.
+--
+-- The count is deliberately HARDCODED and must stay so. Deriving it from the list would make any
+-- addition self-approving and the guard toothless — catching an UNDECLARED definer is its whole job.
+-- This is a DECLARATION, not a relaxation — the sweep's polarity is unchanged, and an UNDECLARED
+-- SECURITY DEFINER writer granted to a client role still fails AC-ACL-004 by name. (It caught
+-- operator_create_org on its first run, which is what the guard is for.) The function belongs in the
+-- set for the same reason operator_set_domain_ownership and operator_toggle_feature do: it is invoked
+-- through PostgREST under an OPERATOR's authenticated JWT, so `authenticated` EXECUTE is the intended
+-- surface, and its own body gates on is_active_member() + is_operator() with pgTAP proof in
+-- supabase/tests/operator_create_org.test.sql (AC-ORG-001/002). Anything added here without that
+-- pairing IS a relaxation.
 
 begin;
 create extension if not exists pgtap;
@@ -61,6 +81,7 @@ insert into client_callable_rpc_names (proname) values
   ('admin_change_domain_ownership'),
   ('list_budget_fiscal_years'),
   ('operator_agent_run_stats'),
+  ('operator_create_org'),
   ('operator_grant_credits'),
   ('operator_set_domain_ownership'),
   ('operator_set_org_lifecycle_state'),
@@ -102,8 +123,8 @@ select is(
      join pg_namespace n on n.oid = p.pronamespace
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'),
-  50,
-  'AC-ACL-002 all 50 retained client-callable RPC names still have a public function');
+  51,
+  'AC-ACL-002 all 51 retained client-callable RPC names still have a public function');
 
 select is(
   (select count(*)::int
@@ -112,8 +133,8 @@ select is(
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'
       and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
-  50,
-  'AC-ACL-003 all 50 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
+  51,
+  'AC-ACL-003 all 51 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
 
 -- The production sweep: direct role ACL entries are the oracle. `distinct` prevents one function
 -- granted to both roles from being named twice. The empty allow-list is intentional here: migration

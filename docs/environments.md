@@ -611,6 +611,57 @@ insert into platform_operators (user_id) values ('<same uuid>');
 server-side by the security-definer RPCs (`admin_set_user_status`, `operator_grant_credits`,
 `operator_toggle_feature`, `operator_usage_summary`, `operator_list_orgs`).
 
+## Creating an org (Operator) — `operator_create_org`, DD-ORG-1 / #484
+
+**There is no UI and no hand-written `insert into organizations`.** Org creation happens ~3× in a
+deployment's life, and the list of companion rows a new org must carry keeps growing, so it lives in
+ONE guarded RPC instead of in an operator's memory. `authenticated` holds **no INSERT on
+`organizations`** — this RPC is the only write path.
+
+```
+operator_create_org(p_name text, p_admin_user_id uuid, p_admin_full_name text, p_default_currency text)
+  -> uuid   -- the new org id
+```
+
+It creates, **in one transaction**: the `organizations` row · its `default_currency` (ISO-4217
+alpha-3, **required** — omitting it is a hard error, never a silent `USD`) · the org's **first Admin
+membership** (a `profiles` row, role `Admin`, status `active`). The Admin's email is read from
+`auth.users`, never passed in, so `profiles.email` cannot diverge from GoTrue on day one.
+
+**Prerequisites**
+
+1. A live platform Operator on the target deployment (previous section). ⚑ **This RPC cannot
+   bootstrap the FIRST org in a brand-new project** — there is no Operator yet. Use the provisioning
+   path (`scripts/provision-client.sh`) for that; use this RPC on a deployment that already has one.
+2. The first Admin's **auth user must exist already**, and must have **no profile yet** (a user who
+   already has one belongs to an org, and DD-ORG-2 forbids moving them — offboard + reinvite
+   instead). Create it with the Auth Admin API / `supabase auth-admin invite`, then take its uuid.
+
+**Invoke** — as the Operator, through the authenticated PostgREST RPC path:
+
+```bash
+curl -sS -X POST "$SUPABASE_URL/rest/v1/rpc/operator_create_org" \
+  -H "apikey: $SUPABASE_ANON_KEY" \
+  -H "Authorization: Bearer <the OPERATOR's access token>" \
+  -H 'Content-Type: application/json' \
+  -d '{"p_name":"<Org display name>",
+       "p_admin_user_id":"<the auth.users uuid from step 2>",
+       "p_admin_full_name":"<the Admin's name>",
+       "p_default_currency":"<ISO-4217, e.g. IDR>"}'
+```
+
+**Errors are loud on purpose:** `42501` not an active Operator · `23503` unknown admin user ·
+`23505` org name already taken, or that user already has a profile · `P0001` a required argument was
+blank · `23514` a malformed currency. Every one of them leaves **nothing** behind — the org and its
+Admin commit together or not at all.
+
+**⛔ Still manual until their columns ship.** The RPC sets every companion that EXISTS; the rest must
+be set by hand immediately after creation, and moved INTO the RPC by the migration that adds them:
+locale defaults (#468) · `pmo_epoch_at` (`DD-XING-2` — free at creation, guesswork afterwards) ·
+`lifecycle_state` (#489 — `live` is terminal, so creation is the only moment stamping it is free).
+The current list is kept in the header of `supabase/migrations/0192_operator_create_org.sql`.
+Proof: `supabase/tests/operator_create_org.test.sql` (`AC-ORG-001..013`).
+
 ## Production auth configuration (per-client Supabase Cloud project — owner-gated)
 
 > Binding source: `docs/specs/auth-production-floor.spec.md` §7 (NFR-AUTHF-CONF-001…008). This is a

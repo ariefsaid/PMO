@@ -7,6 +7,13 @@
  * service-role Postgres write); v2 (once the ops-admin invite fn ships, MVP item 1a) will call
  * that fn's edge endpoint instead of printing the manual command.
  *
+ * ⚑ BOOTSTRAP ONLY. On a deployment that already has a platform Operator, the canonical path is the
+ * guarded RPC `operator_create_org` (0192, DD-ORG-1 / #484) — it creates the org AND its companion
+ * rows (first Admin membership, operating currency) in one transaction, which the raw insert below
+ * does not. This script survives because `operator_create_org` needs a live Operator and a brand-new
+ * Supabase project has none, so it cannot create the FIRST org. Do not extend the insert below with
+ * more companion columns; extend the RPC. Procedure: docs/environments.md § "Creating an org (Operator)".
+ *
  * SCHEMA NOTE (verified against supabase/migrations/0001_init_schema.sql before writing this):
  * `organizations` has NO `slug` column — only `id`, `name`, `created_at`. The idempotency
  * dedup check below therefore keys on `name` (the client-slug argument IS the org's display
