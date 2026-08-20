@@ -2085,3 +2085,33 @@ not the task status.
 
 The recorded rule stands and now has a second leg: **read the failure DURATION**, and read the
 marker, never the wrapper.
+
+## DD-WO-7..10 — implementation rulings from the work_orders build (Director, 2026-08-20)
+
+Argued in `0193`'s header by the build agent; recorded here so they are durable and revisiting one is
+a visible edit rather than a quiet drift.
+
+**[DD-WO-7] Both null-witness shapes fail closed** — a deliberate deviation from `transition_project`,
+which permits a non-NULL `_set_at` beside a NULL `_set_by` (server-side authority, pinned by
+`0170 AC-PMS-019`). `projects` had un-backfillable legacy rows and a live importer; `work_orders` has
+**neither**, so permitting the same shape would be a hole **created** rather than inherited. Pinned by
+`AC-WO-041`, so reverting it turns a test red.
+
+**[DD-WO-8] The post-issue freeze covers the WHOLE body, with no `actor_bypasses_rls()` exemption.**
+Every frozen column is pushable content, so freezing only `order_value` would leave the state stamp
+able to drift under it — the OQ-BUD-2 class. ⚑ And the exemption is refused on purpose: **a definer
+RPC runs as the owner**, so exempting the owner would exempt precisely the writer the freeze exists to
+stop. Pinned by `AC-WO-072/073/074/075`.
+
+**[DD-WO-9] A work order's currency is pinned to its project's.** A drawdown that sums mixed
+currencies against one ceiling is arithmetic nobody can defend, and the failure would be silent —
+the number still renders. Pinned by `AC-WO-005`.
+
+**[DD-WO-10] An over-commit acknowledgement is REFUSED when there is nothing to acknowledge.** Not
+ignored — refused. A client that always sends `ack: true` is then **visibly broken** rather than
+quietly sloppy, and the acknowledgement keeps meaning what `DD-WO-2` says it means: a person decided
+to exceed the ceiling *on this occasion*. Pinned by `AC-WO-051/052/053`.
+
+⚑ Also recorded, because it is the kind of thing a later reader would "tidy": `get_project_drawdown`
+is deliberately **absent** from `0178`'s client-callable list. It is `security invoker`, and listing an
+invoker function there blinds the sweep if someone later flips it to definer.
