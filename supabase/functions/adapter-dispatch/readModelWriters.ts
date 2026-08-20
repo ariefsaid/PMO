@@ -389,6 +389,13 @@ async function upsertInvoiceMirror(ctx: ReadModelWriterCtx, canonical: PmoRecord
     reference_number: (canonical.reference_number as string | null | undefined) ?? null,
     amount: canonical.amount ?? null,
     erp_outstanding_amount: outstanding,
+    // #505 (0196): `tax_treatment` says whether THIS ROW's `amount` includes `tax_amount`. This
+    // writer sets `amount` from ERPNext's `grand_total`, which includes taxes BY DEFINITION — so
+    // 'inclusive' here is a FACT about the figure just written, not a guess about how the ERP doc
+    // was keyed in. It rides with `amount` deliberately: if a natively-authored 'exclusive' row is
+    // ever mirrored, its amount becomes the grand total and the marker must follow it, or the row
+    // starts lying. Clause-for-clause the same as upsertSalesInvoiceMirror's (0188 / #478).
+    tax_treatment: 'inclusive',
     status: derivePiStatus(outstanding),
     erp_docstatus: docstatus ?? null,
     erp_modified: (canonical.erp_modified as string | null | undefined) ?? null,
@@ -397,11 +404,27 @@ async function upsertInvoiceMirror(ctx: ReadModelWriterCtx, canonical: PmoRecord
     // (a fresh create, a draft update, or an amended docstatus-1 new doc are not cancelled).
     erp_cancelled_at: docstatus === 2 ? new Date().toISOString() : null,
   };
+  // #505: `tax_amount` and `tax_template` are OMITTED rather than written as null when the canonical
+  // does not carry them (the same `authorPatch` discipline the SI writer uses). `tax_amount` is a
+  // NOT NULL column — writing null would fail the write outright — and nulling a recorded tax
+  // template on a status-sync tick would silently erase a fact ERP still holds.
+  const piTaxAmount = (canonical.tax_amount as string | null | undefined) ?? null;
+  if (piTaxAmount !== null) patch.tax_amount = piTaxAmount;
+  const piTaxTemplate = (canonical.tax_template as string | null | undefined) ?? null;
+  if (piTaxTemplate !== null) patch.tax_template = piTaxTemplate;
   if (command.operation === 'create') {
     const record = command.record as { procurementId?: string };
     if (!record.procurementId) throw new AppError('procurementId is required to mirror a created purchase invoice', 'BAD_REQUEST');
     await requireOwnOrgLink(ctx, 'procurements', record.procurementId);   // B10
-    const { error } = await ctx.serviceClient.from('procurement_invoices').insert({ id: canonical.id, org_id: ctx.orgId, procurement_id: record.procurementId, ...patch });
+    const { error } = await ctx.serviceClient.from('procurement_invoices').insert({
+      id: canonical.id, org_id: ctx.orgId, procurement_id: record.procurementId,
+      ...patch,
+      // NOT NULL with no DB default (0196), so the create branch must always state it. ERPNext
+      // returns `total_taxes_and_charges` on every Purchase Invoice (0 when the doc carries no
+      // taxes), and PI_FROM_DOC_FIELDS requests it — '0.00' is the untaxed-document case, never
+      // "unknown".
+      tax_amount: piTaxAmount ?? '0.00',
+    });
     if (error) throw new AppError(error.message, error.code);
     return;
   }

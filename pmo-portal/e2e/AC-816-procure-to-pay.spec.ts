@@ -101,6 +101,11 @@ test('AC-816 full procure-to-pay happy path: Draft→Requested→Approved→Orde
   // PR→Paid authority); record the invoice as Scheduled-for-payment + its date.
   await page.getByTestId('vi-status-select').selectOption('Scheduled');
   await page.getByTestId('vi-date-input').fill('2026-06-09');
+  // #505 (0196): a vendor invoice must state whether its amount already includes tax, and how much
+  // tax that is — neither is recoverable from the total afterwards, so the submit is blocked until
+  // both are answered. A deliberate added step in the journey, not a workaround.
+  await page.getByTestId('vi-tax-treatment-select').selectOption('exclusive');
+  await page.getByTestId('vi-tax-amount-input').fill('0');
   await page.getByTestId('btn-submit-vi-capture').click();
 
   // The transition + VI-create fire together → status Vendor Invoiced + VI# in the document trail.

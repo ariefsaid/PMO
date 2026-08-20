@@ -26,6 +26,7 @@ import {
   getProcurementDetail,
   createReceipt,
   createInvoice,
+  captureVendorInvoice,
   createQuotation,
   ProcurementError,
 } from './procurementLifecycle';
@@ -313,20 +314,112 @@ describe('createInvoice', () => {
     };
     makeRpcBuilder({ data: invoiceRow, error: null });
 
-    const result = await createInvoice('proc-1', 'Received', '2026-06-04');
+    const result = await createInvoice({
+      procurementId: 'proc-1',
+      status: 'Received',
+      invoiceDate: '2026-06-04',
+      taxTreatment: 'exclusive',
+      taxAmount: 0,
+    });
 
     expect(mockRpc).toHaveBeenCalledWith('create_procurement_invoice', {
       p_procurement_id: 'proc-1',
       p_status: 'Received',
       p_invoice_date: '2026-06-04',
+      // #505: the two REQUIRED tax params always travel — no `?? undefined`, so the RPC's P0001
+      // gate is never the thing that discovers a missing treatment.
+      p_tax_treatment: 'exclusive',
+      p_tax_amount: 0,
       // Optional args omitted (omit-when-undefined; RPC defaults are null).
     });
     expect(result).toMatchObject({ id: 'invoice-1', vi_number: 'VI-2606040001' });
   });
 
+  // #505 (0196): tax_amount is NOT NULL with no default and 0 is a LEGITIMATE value ("no tax"), so
+  // it must reach the RPC as 0 — never be dropped by a falsy check into the P0001 gate.
+  it('#505 (DAL): createInvoice sends taxAmount 0 as 0, and forwards taxRate/taxTemplate when given', async () => {
+    makeRpcBuilder({ data: { id: 'invoice-2' }, error: null });
+
+    await createInvoice({
+      procurementId: 'proc-1',
+      status: 'Scheduled',
+      invoiceDate: '2026-06-04',
+      referenceNumber: 'INV-9',
+      amount: 111000,
+      taxTreatment: 'inclusive',
+      taxAmount: 11000,
+      taxRate: 11,
+      taxTemplate: 'Indonesia PPN 11% - RIS',
+    });
+    expect(mockRpc).toHaveBeenCalledWith('create_procurement_invoice', {
+      p_procurement_id: 'proc-1',
+      p_status: 'Scheduled',
+      p_invoice_date: '2026-06-04',
+      p_reference_number: 'INV-9',
+      p_amount: 111000,
+      p_tax_treatment: 'inclusive',
+      p_tax_amount: 11000,
+      p_tax_rate: 11,
+      p_tax_template: 'Indonesia PPN 11% - RIS',
+    });
+
+    mockRpc.mockClear();
+    makeRpcBuilder({ data: { id: 'invoice-3' }, error: null });
+    await createInvoice({
+      procurementId: 'proc-1',
+      status: 'Received',
+      invoiceDate: '2026-06-04',
+      taxTreatment: 'exclusive',
+      taxAmount: 0,
+    });
+    const args = mockRpc.mock.calls[0][1] as Record<string, unknown>;
+    expect(args.p_tax_amount).toBe(0);
+    expect('p_tax_amount' in args).toBe(true);
+  });
+
   it('AC-816 (DAL): createInvoice throws on RPC error', async () => {
     makeRpcBuilder({ data: null, error: { message: 'invoice error' } });
-    await expect(createInvoice('proc-1', 'Received', '2026-06-04')).rejects.toThrow('invoice error');
+    await expect(
+      createInvoice({
+        procurementId: 'proc-1',
+        status: 'Received',
+        invoiceDate: '2026-06-04',
+        taxTreatment: 'inclusive',
+        taxAmount: 0,
+      }),
+    ).rejects.toThrow('invoice error');
+  });
+});
+
+// #505: captureVendorInvoice is the SECOND path that creates a vendor invoice (the atomic
+// transition+create RPC). It carries the same four tax params or it would be the hole the migration
+// closes on the create path and leaves open here.
+describe('captureVendorInvoice', () => {
+  it('#505 (DAL): captureVendorInvoice forwards the tax params to rpc("capture_vendor_invoice")', async () => {
+    makeRpcBuilder({ data: { id: 'invoice-vi-1' }, error: null });
+
+    const result = await captureVendorInvoice({
+      procurementId: 'proc-1',
+      status: 'Received',
+      invoiceDate: '2026-06-04',
+      referenceNumber: 'INV-9',
+      amount: 950,
+      notes: 'captured',
+      taxTreatment: 'inclusive',
+      taxAmount: 94.14,
+    });
+
+    expect(mockRpc).toHaveBeenCalledWith('capture_vendor_invoice', {
+      p_procurement_id: 'proc-1',
+      p_status: 'Received',
+      p_invoice_date: '2026-06-04',
+      p_reference_number: 'INV-9',
+      p_amount: 950,
+      p_notes: 'captured',
+      p_tax_treatment: 'inclusive',
+      p_tax_amount: 94.14,
+    });
+    expect(result).toMatchObject({ id: 'invoice-vi-1' });
   });
 });
 

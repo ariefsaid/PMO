@@ -181,7 +181,10 @@ export async function main(argv, { promptConfirmFn = promptConfirm } = {}) {
     const cycleRows = raw.map((r, i) => ({
       caseRef: r.case_ref, type: r.type, project: r.project_code, title: r.title,
       caseStatus: r.terminal_status, vendor: r.vendor, externalRef: r.reference_number,
-      status: r.status, date: r.date, amount: r.amount, rowNumber: i + 2,
+      status: r.status, date: r.date, amount: r.amount,
+      // #505: VI rows must carry both, or buildRecordInsert rejects the row (no default — see there).
+      taxTreatment: r.tax_treatment, taxAmount: r.tax_amount,
+      rowNumber: i + 2,
     }));
     const { groups } = groupRows(cycleRows);
 

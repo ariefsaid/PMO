@@ -7,7 +7,7 @@
 import { describe, expect, it } from 'vitest';
 import type { PmoRecord } from '../../contract.ts';
 import type { ErpCtx } from '../doctypeRegistry.ts';
-import { piToBody, piFromDoc } from './purchaseInvoice.ts';
+import { piToBody, piFromDoc, PI_FROM_DOC_FIELDS } from './purchaseInvoice.ts';
 import { peToBody, peFromDoc } from './paymentEntry.ts';
 import { poToBody, poFromDoc } from './purchaseOrder.ts';
 import { grToBody, grFromDoc } from './goodsReceipt.ts';
@@ -136,6 +136,40 @@ describe('erpnext/bodies — fromDoc canonical mapping (decimal-string money, he
       erp_outstanding_amount: '0.00',
       erp_docstatus: 1,
     });
+  });
+
+  // #505: the PI mirror of siFromDoc's #478 tax half. Without these the PI mirror can only ever
+  // fall back to '0.00' for tax_amount — a silently WRONG figure on any taxed ERP document.
+  it('#505: piFromDoc mirrors the header tax facts verbatim (total_taxes_and_charges / taxes_and_charges)', () => {
+    const canonical = piFromDoc({
+      name: 'ACC-PINV-2026-00505',
+      posting_date: '2026-08-20',
+      bill_no: 'INV-9',
+      grand_total: 111000,
+      outstanding_amount: 111000,
+      total_taxes_and_charges: 11000,
+      taxes_and_charges: 'Indonesia PPN 11% - RIS',
+      docstatus: 1,
+      modified: '2026-08-20 10:00:00.000000',
+      amended_from: null,
+    });
+    // Mirrored VERBATIM — ADR-0048: PMO reads money, never recomputes it. `tax_rate` is deliberately
+    // NOT derived: the per-rate breakdown lives on the `taxes` CHILD table the list endpoint cannot
+    // return, and a computed rate would be a PMO-invented figure.
+    expect(canonical).toMatchObject({
+      tax_amount: '11000.00',
+      tax_template: 'Indonesia PPN 11% - RIS',
+    });
+    expect(canonical.tax_rate).toBeUndefined();
+  });
+
+  it('#505: PI_FROM_DOC_FIELDS requests every field piFromDoc reads, including the tax ones', () => {
+    // The sweep builds its `fields=[…]` from this list. A field the mapper reads but the list does
+    // not request comes back undefined — an adopted mirror row silently written with the wrong
+    // figure (tax_amount would fall back to '0.00' on a taxed document).
+    for (const field of ['grand_total', 'outstanding_amount', 'total_taxes_and_charges', 'taxes_and_charges']) {
+      expect(PI_FROM_DOC_FIELDS as readonly string[]).toContain(field);
+    }
   });
 
   it('peFromDoc maps paid_amount -> amount exactly; absent optional -> null', () => {

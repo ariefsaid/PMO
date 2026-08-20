@@ -12,7 +12,8 @@
  *   purchase_requests / rfqs / purchase_orders (0035): reference_number, status, date, amount
  *   procurement_quotations (0001):                     vendor_id NOT NULL, total_amount, received_date, reference
  *   procurement_receipts (0006 + 0040):                status (enum) NOT NULL, receipt_date, gr_number, reference_number
- *   procurement_invoices (0006 + 0040):                status (enum) NOT NULL, invoice_date, vi_number, reference_number, amount
+ *   procurement_invoices (0006 + 0040 + 0196):         status (enum) NOT NULL, invoice_date, vi_number, reference_number, amount,
+ *                                                      tax_treatment NOT NULL (no default), tax_amount NOT NULL (no default)
  *   payments (0035):                                   invoice_id, reference_number, status, date, amount
  */
 
@@ -114,7 +115,27 @@ export function buildRecordInsert(row, procurementId, vendorMap, prov) {
         },
       };
 
-    case 'VI':
+    case 'VI': {
+      // #505 (migration 0196): `tax_treatment` and `tax_amount` are NOT NULL with NO DEFAULT. This
+      // builder writes procurement_invoices DIRECTLY with the service role, bypassing
+      // create_procurement_invoice and its P0001 gate — so the gate is restated here, or the insert
+      // fails with a bare 23502 that names a column and not a fix.
+      //
+      // ⛔ Deliberately NO `?? 'inclusive'` fallback, unlike `status ?? 'Received'` above. A status
+      // default is a guess about a LIFECYCLE stage that later evidence corrects; a tax-treatment
+      // default is a guess about MONEY that nothing ever corrects — an amount silently recorded
+      // under the wrong marker is indistinguishable from a deliberate one forever. Throwing rejects
+      // the one row (import-historical.mjs catches per row and continues); guessing corrupts it.
+      const taxTreatment = toRefOrNull(row.taxTreatment);
+      if (taxTreatment !== 'inclusive' && taxTreatment !== 'exclusive') {
+        throw new Error(
+          'VI row needs tax_treatment = "inclusive" or "exclusive" (does the amount already include the tax?). It cannot be inferred from the total afterwards.',
+        );
+      }
+      const taxAmount = toNumberOrNull(row.taxAmount);
+      if (taxAmount === null || !Number.isFinite(taxAmount) || taxAmount < 0) {
+        throw new Error('VI row needs a tax_amount ≥ 0 (enter 0 when the invoice carries no tax).');
+      }
       return {
         table,
         payload: {
@@ -123,9 +144,12 @@ export function buildRecordInsert(row, procurementId, vendorMap, prov) {
           invoice_date: toDateOrNull(row.date),
           reference_number: ref,
           amount: toNumberOrNull(row.amount),
+          tax_treatment: taxTreatment,
+          tax_amount: taxAmount,
           ...provenance,
         },
       };
+    }
 
     case 'Payment':
       return {

@@ -125,6 +125,78 @@ Deno.test({
   },
 });
 
+// ============================================================================
+// #505 (0196) — the PI mirror must carry the tax facts, exactly as the SI mirror does for #478.
+// `tax_treatment` and `tax_amount` are NOT NULL with no DB default, so a create that omits them
+// fails outright (23502); and a status-sync update must never write null over a recorded figure.
+// ============================================================================
+
+Deno.test({
+  name: '#505 — a created PI mirror carries tax_amount, tax_template and tax_treatment=inclusive (amount IS the ERP grand_total)',
+  fn: async () => {
+    const { client, calls } = makeFakeClient();
+    const writer = getReadModelWriter('procurement');
+    await writer.upsert(
+      { serviceClient: client as never, orgId: 'org-1' },
+      {
+        id: 'pmo-pi-505-1', vi_number: 'ACC-PINV-2026-00505', invoice_date: '2026-08-20',
+        reference_number: 'BILL-505', amount: '111000.00', erp_outstanding_amount: '111000.00',
+        erp_docstatus: 1, erp_modified: '2026-08-20 10:00:00.000000',
+        tax_amount: '11000.00', tax_template: 'Indonesia PPN 11% - RIS',
+      },
+      { domain: 'procurement', operation: 'create', record: { id: 'pmo-pi-505-1', procurementId: 'proc-1', erp_doc_kind: 'purchase-invoice' } },
+    );
+    const insertCall = calls.find((c) => c.method === 'insert' && c.table === 'procurement_invoices');
+    assert(insertCall !== undefined, 'expected an insert into procurement_invoices');
+    const row = insertCall!.args[0] as Record<string, unknown>;
+    assertEquals(row.tax_amount, '11000.00');
+    assertEquals(row.tax_template, 'Indonesia PPN 11% - RIS');
+    assertEquals(row.tax_treatment, 'inclusive', 'amount is the ERP grand_total, which includes taxes by definition');
+  },
+});
+
+Deno.test({
+  name: '#505 — a PI create with no ERP tax total still states tax_amount (0.00 = untaxed document, never unknown)',
+  fn: async () => {
+    const { client, calls } = makeFakeClient();
+    const writer = getReadModelWriter('procurement');
+    await writer.upsert(
+      { serviceClient: client as never, orgId: 'org-1' },
+      {
+        id: 'pmo-pi-505-2', vi_number: 'ACC-PINV-2026-00506', invoice_date: '2026-08-20',
+        amount: '5000.00', erp_outstanding_amount: '5000.00', erp_docstatus: 0,
+        erp_modified: '2026-08-20 10:00:00.000000',
+      },
+      { domain: 'procurement', operation: 'create', record: { id: 'pmo-pi-505-2', procurementId: 'proc-1', erp_doc_kind: 'purchase-invoice' } },
+    );
+    const row = (calls.find((c) => c.method === 'insert' && c.table === 'procurement_invoices'))!.args[0] as Record<string, unknown>;
+    assertEquals(row.tax_amount, '0.00', 'tax_amount is NOT NULL with no DB default — the create branch must always state it');
+    assertEquals(row.tax_treatment, 'inclusive');
+    assert(!('tax_template' in row), 'an absent template must be omitted, not written as null');
+  },
+});
+
+Deno.test({
+  name: '#505 — a PI status-sync UPDATE omits tax_amount/tax_template when the canonical does not carry them (never null over a recorded fact)',
+  fn: async () => {
+    const { client, calls } = makeFakeClient();
+    const writer = getReadModelWriter('procurement');
+    await writer.upsert(
+      { serviceClient: client as never, orgId: 'org-1' },
+      {
+        id: 'pmo-pi-505-3', vi_number: 'ACC-PINV-2026-00507', invoice_date: '2026-08-20',
+        amount: '5000.00', erp_outstanding_amount: '0.00', erp_docstatus: 1,
+        erp_modified: '2026-08-20 11:00:00.000000',
+      },
+      { domain: 'procurement', operation: 'transition', record: { id: 'pmo-pi-505-3', erp_doc_kind: 'purchase-invoice', externalRecordId: 'ACC-PINV-2026-00507', verb: 'submit' } },
+    );
+    const patch = (calls.find((c) => c.method === 'update' && c.table === 'procurement_invoices'))!.args[0] as Record<string, unknown>;
+    assert(!('tax_amount' in patch), 'tax_amount is NOT NULL — an absent value must be omitted, not written as null');
+    assert(!('tax_template' in patch), 'nulling a recorded template on a status tick would erase a fact ERP still holds');
+    assertEquals(patch.tax_treatment, 'inclusive', 'the marker rides with amount, which this patch sets from grand_total');
+  },
+});
+
 Deno.test({
   name: "READ_MODEL_WRITERS['procurement'].upsert (kind purchase-invoice) derives status Paid when erp_outstanding_amount is exactly 0",
   fn: async () => {

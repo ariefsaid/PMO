@@ -39,6 +39,14 @@ export interface CycleRow {
   date: string | undefined;
   /** Monetary amount string (expected numeric ≥ 0). */
   amount: string | undefined;
+  /**
+   * #505 (VI rows only, REQUIRED there): does `amount` already include the tax ('inclusive') or not
+   * ('exclusive')? A VI row missing it is INVALID at preview — it never reaches the RPC. There is no
+   * default: an assumed marker is a wrong figure no later inference can distinguish from a real one.
+   */
+  taxTreatment?: string | undefined;
+  /** #505 (VI rows only, REQUIRED there): total input tax, numeric ≥ 0. "0" means no tax. */
+  taxAmount?: string | undefined;
   /** 1-based source sheet row number (for user-facing error messages). */
   rowNumber: number;
 }

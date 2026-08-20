@@ -40,7 +40,8 @@ parse/lazy-exceljs seam as ADR-0024/0027; new grouping + ordered-commit logic on
 1. **One sheet, `type` column, case-grouped.** Columns: `case_ref` (sheet-local grouping label —
    never persisted as a number), `type` ∈ {PR,RFQ,Quotation,PO,GR,VI,Payment}, case attributes
    (`project`, `title`, `case_status`), `external_ref`, and the record's own `status`/`date`/`amount`
-   (+ `vendor` for Quotation). Every `type` is optional per case.
+   (+ `vendor` for Quotation; + `tax_treatment`/`tax_amount` for VI — both required, NOT NULL with
+   no default, #505/migration 0196). Every `type` is optional per case.
 
 2. **Case synthesized per group; first row wins.** Rows sharing a `case_ref` form one case. The case
    header is created once from the group's case attributes (first non-empty row wins), via the existing

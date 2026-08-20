@@ -80,6 +80,24 @@ function validateEnum(raw: string | undefined, allowed: readonly string[], label
 
 export const GR_STATUS = ['Partial', 'Complete'] as const;
 export const VI_STATUS = ['Received', 'Scheduled', 'Paid'] as const;
+/** #505: the `tax_treatment` domain, verbatim from migration 0196's CHECK constraint. */
+export const VI_TAX_TREATMENT = ['inclusive', 'exclusive'] as const;
+
+/**
+ * #505: the REQUIRED tax amount on a VI row. Separate from `validateRequiredAmount` because the
+ * user-facing label differs and because `0` must read as legitimate ("no tax"), not as a missing
+ * value. Rejects NaN/Infinity for the same reason 0196's CHECK carries an upper bound: Postgres
+ * orders numeric NaN above every ordinary value, so `>= 0` alone would admit it.
+ */
+function validateTaxAmount(raw: string | undefined): string | null {
+  if (!raw?.trim()) {
+    return 'Tax amount is required for a VI row (enter 0 when there is no tax).';
+  }
+  const n = Number(raw.trim());
+  if (!Number.isFinite(n)) return 'Tax amount must be a number.';
+  if (n < 0) return 'Tax amount must be ≥ 0.';
+  return null;
+}
 
 /**
  * Validates a single CycleRow's type-specific fields. Returns list of error strings
@@ -135,13 +153,20 @@ function validateRowFields(
     }
 
     case 'VI': {
-      // Required: status (Received|Scheduled|Paid), date; optional: amount
+      // Required: status (Received|Scheduled|Paid), date, tax treatment, tax amount; optional: amount
       const statusErr = validateEnum(row.status, VI_STATUS, 'Status');
       if (statusErr) errors.push(statusErr);
       const dateErr = validateDate(row.date, 'Date');
       if (dateErr) errors.push(dateErr);
       const amtErr = validateOptionalAmount(row.amount);
       if (amtErr) errors.push(amtErr);
+      // #505: a VI row with no tax treatment is INVALID HERE — at preview, with zero writes. The
+      // RPC would reject it too (P0001), but only after the commit had already started writing the
+      // rest of the case; the sheet's whole contract is that preview is the oracle.
+      const treatmentErr = validateEnum(row.taxTreatment, VI_TAX_TREATMENT, 'Tax treatment');
+      if (treatmentErr) errors.push(treatmentErr);
+      const taxAmtErr = validateTaxAmount(row.taxAmount);
+      if (taxAmtErr) errors.push(taxAmtErr);
       break;
     }
 

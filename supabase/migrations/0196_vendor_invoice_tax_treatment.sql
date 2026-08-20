@@ -39,6 +39,15 @@
 -- migration can inherit it. Said plainly rather than dressed up: the honest alternative would be a
 -- nullable column, and that is precisely the ambiguity this migration exists to abolish.
 --
+-- ⛔ DEPLOY PRECONDITION, not a code change — raised by the #505 security audit and left here
+-- because a header is where the next deployer looks. The "6 rows, all seed/demo" count above is
+-- LOCAL. Before applying this migration to ANY other environment, count and INSPECT
+-- `procurement_invoices` there: for a row whose `amount` really did include PPN, the backfill makes
+-- the reconstructed net wrong by the tax rate, and `'inclusive' + 0` is well-formed and
+-- indistinguishable from a deliberate answer — this issue's own defect, applied retroactively. If
+-- any row is author-entered rather than demo, restate it from source or split the backfill into a
+-- reviewed explicit UPDATE. As of 2026-08-20 prod carries no such rows.
+--
 -- ── Reversibility (pre-production, ADR-0006): `supabase db reset`. Manual reverse, in order:
 --   -- re-run 0189 §4's procurement_invoices_native_mirror_guard body verbatim (without the tax lines);
 --   drop function if exists public.capture_vendor_invoice(uuid, procurement_invoice_status, date, text, numeric, text, text, numeric, numeric, text);
@@ -74,9 +83,21 @@ alter table public.procurement_invoices
 -- `'NaN'::numeric >= 0` is TRUE and PostgREST coerces the JSON string "NaN" straight into the
 -- column. The upper bound is what actually rejects NaN (NaN < 'Infinity' is FALSE). Same
 -- construction and same reason as 0169_contract_value_nonneg and 0188.
+-- ⚑ NOT a copy of 0188's `>= 0`, and the difference is deliberate. A PURCHASE invoice can legitimately
+-- be a RETURN or debit note (`is_return = 1`), whose `total_taxes_and_charges` is NEGATIVE — and the
+-- sweep requests every Purchase Invoice, so those documents already mirror here today (`amount` carries
+-- no non-negative check). A flat `>= 0` would have made every such document die on 23514 inside the
+-- mirror writer and silently stop being tracked: a constraint added to improve honesty, quietly
+-- deleting records. Sales invoices have no equivalent case, which is why 0188 could be simpler.
+--
+-- So the rule is SIGN PARITY, not non-negativity: a negative tax is legal only on a negative-amount
+-- document. A native author entering -100 tax on a 1000 invoice is still refused. Both bounds stay
+-- finite because Postgres orders numeric NaN above every ordinary value, so `>= 0` alone never
+-- rejected NaN — the upper bound is what does (0169's lesson, 0188's construction).
 alter table public.procurement_invoices
-  add constraint procurement_invoices_tax_amount_nonneg
-  check (tax_amount >= 0 and tax_amount < 'Infinity'::numeric);
+  add constraint procurement_invoices_tax_amount_bounds
+  check (tax_amount > '-Infinity'::numeric and tax_amount < 'Infinity'::numeric
+         and (tax_amount >= 0 or amount < 0));
 
 alter table public.procurement_invoices
   add constraint procurement_invoices_tax_rate_pct
@@ -151,7 +172,13 @@ begin
       using errcode = 'P0001';
   end if;
   -- ⚑ #505: the tax gate. Same construction and same reason as the status gate above.
-  if p_tax_treatment is null or p_tax_amount is null then
+  -- ⚑ The gate tests the VALUE, not just its presence. PostgREST turns an ABSENT json field into NULL
+  -- but an EMPTY form field into '', and a padded ' inclusive ' is neither null nor empty — all three
+  -- would otherwise slip past a presence check and die on the domain CHECK, with a 23514 naming a
+  -- constraint instead of the thing the caller must fix. The gate exists precisely to give the right
+  -- error, so it has to test the same thing the column does.
+  if p_tax_treatment is null or btrim(p_tax_treatment) not in ('inclusive','exclusive')
+     or p_tax_amount is null then
     raise exception
       'a vendor invoice must state its tax treatment: p_tax_treatment must be ''inclusive'' or ''exclusive'' (does the amount already include the tax?) and p_tax_amount must be given (0 when there is no tax). Neither can be inferred from the total afterwards'
       using errcode = 'P0001';

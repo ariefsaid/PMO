@@ -54,6 +54,9 @@ describe('validateGroups — AC-CYCLE-VAL-001: Model-C VI+Payment-only case is v
         status: 'Received',
         date: '2025-01-15',
         amount: '5000',
+        // #505: a VI row must state its tax treatment + tax amount to be valid.
+        taxTreatment: 'inclusive',
+        taxAmount: '500',
         rowNumber: 1,
       }),
       row({
@@ -409,5 +412,76 @@ describe('validateGroups — AC-CYCLE-VAL-012: optional dates validated on non-b
     const [result] = validateGroups([group], { projectLookup, vendorLookup: vendorLookupOk });
     expect(result.rows[0].valid).toBe(false);
     expect(result.rows[0].errors.join(' ')).toMatch(/date/i);
+  });
+});
+
+
+// ─── #505: a VI row must state its tax treatment + tax amount, or it is INVALID AT PREVIEW ───
+// The RPC would reject it too (P0001), but only mid-commit, after the rest of the case had already
+// been written. Preview is this sheet's oracle: an invalid row produces ZERO writes.
+
+describe('validateGroups — #505: VI tax treatment + tax amount are required', () => {
+  const viRow = (overrides: Partial<CycleRow>): CycleRow =>
+    row({
+      caseRef: 'CASE-TAX',
+      type: 'VI',
+      title: 'Vendor Invoice',
+      status: 'Received',
+      date: '2025-01-15',
+      amount: '5000',
+      taxTreatment: 'inclusive',
+      taxAmount: '500',
+      rowNumber: 1,
+      ...overrides,
+    });
+
+  const validateRow = (r: CycleRow) =>
+    validateGroups([makeGroup([r])], { projectLookup, vendorLookup: vendorLookupOk })[0].rows[0];
+
+  it('#505: a VI row with NO tax treatment is invalid (no default is assumed for it)', () => {
+    const result = validateRow(viRow({ taxTreatment: undefined }));
+    expect(result.valid).toBe(false);
+    expect(result.errors.join(' ')).toMatch(/Tax treatment is required/i);
+  });
+
+  it('#505: a VI row with an out-of-domain tax treatment is invalid', () => {
+    const result = validateRow(viRow({ taxTreatment: 'sometimes' }));
+    expect(result.valid).toBe(false);
+    expect(result.errors.join(' ')).toMatch(/inclusive, exclusive/);
+  });
+
+  it('#505: a VI row with NO tax amount is invalid — blank never means 0', () => {
+    const result = validateRow(viRow({ taxAmount: undefined }));
+    expect(result.valid).toBe(false);
+    expect(result.errors.join(' ')).toMatch(/Tax amount is required/i);
+  });
+
+  it('#505: a VI row with a NEGATIVE or non-numeric tax amount is invalid', () => {
+    expect(validateRow(viRow({ taxAmount: '-1' })).errors.join(' ')).toMatch(/Tax amount must be ≥ 0/);
+    expect(validateRow(viRow({ taxAmount: 'abc' })).errors.join(' ')).toMatch(/Tax amount must be a number/);
+    // NaN sorts ABOVE every ordinary numeric in Postgres, so a bare `>= 0` would admit it — the
+    // same trap 0196's `< 'Infinity'` upper bound closes at the DB.
+    expect(validateRow(viRow({ taxAmount: 'NaN' })).errors.join(' ')).toMatch(/Tax amount must be a number/);
+  });
+
+  it('#505: taxAmount "0" is VALID — it means "no tax on this invoice", never "unknown"', () => {
+    const result = validateRow(viRow({ taxAmount: '0', taxTreatment: 'exclusive' }));
+    expect(result.valid).toBe(true);
+    expect(result.errors).toHaveLength(0);
+  });
+
+  it('#505: the tax columns are NOT required on a non-VI row', () => {
+    const result = validateRow(
+      row({
+        caseRef: 'CASE-TAX',
+        type: 'PO',
+        title: 'A PO',
+        status: 'Ordered',
+        date: '2025-01-15',
+        amount: '5000',
+        rowNumber: 1,
+      }),
+    );
+    expect(result.valid).toBe(true);
   });
 });

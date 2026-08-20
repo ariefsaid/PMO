@@ -1028,14 +1028,29 @@ describe('VI creation panel (D3, AC-816 UI support)', () => {
     detailState.data = { ...baseProcurement, status: 'Vendor Invoiced', requested_by_id: 'u-other', receipts: [], invoices: [] };
     renderPage();
     await userEvent.click(screen.getByTestId('btn-create-vi'));
+    // #505: stating the tax treatment + amount is now part of recording a vendor invoice.
+    await userEvent.selectOptions(screen.getByTestId('vi-tax-treatment-select'), 'inclusive');
+    await userEvent.type(screen.getByTestId('vi-tax-amount-input'), '450');
     await userEvent.click(screen.getByTestId('btn-save-vi'));
     expect(mockCreateInvoice).not.toHaveBeenCalled();
     await confirmInDialog(/save vi/i);
     await waitFor(() =>
       expect(mockCreateInvoice).toHaveBeenCalledWith(
-        expect.objectContaining({ status: 'Received' })
+        // #505: the staged tax facts survive the confirm hop and reach the mutation.
+        expect.objectContaining({ status: 'Received', taxTreatment: 'inclusive', taxAmount: 450 })
       )
     );
+  });
+
+  it('#505: the VI form cannot be saved until a tax treatment is chosen', async () => {
+    detailState.data = { ...baseProcurement, status: 'Vendor Invoiced', requested_by_id: 'u-other', receipts: [], invoices: [] };
+    renderPage();
+    await userEvent.click(screen.getByTestId('btn-create-vi'));
+    await userEvent.type(screen.getByTestId('vi-tax-amount-input'), '0');
+    expect(screen.getByTestId('btn-save-vi')).toBeDisabled();
+    await userEvent.click(screen.getByTestId('btn-save-vi'));
+    // No confirm dialog, no write: the incomplete invoice never leaves the form.
+    expect(mockCreateInvoice).not.toHaveBeenCalled();
   });
 
   it('cancelling VI form hides the form', async () => {

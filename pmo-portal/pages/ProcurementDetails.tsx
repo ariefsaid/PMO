@@ -34,7 +34,10 @@ import { LineItemsSection } from './procurement/LineItemsSection';
 import { VendorQuotesTab } from './procurement/VendorQuotesTab';
 import { ProcurementHeaderEdit } from './procurement/ProcurementHeaderEdit';
 import { ProcurementLedger } from './procurement/ProcurementLedger';
-import { ProcurementDecisionZone } from './procurement/ProcurementDecisionZone';
+import {
+  ProcurementDecisionZone,
+  type VendorInvoiceCapture,
+} from './procurement/ProcurementDecisionZone';
 import { buildLedgerRows } from '@/src/lib/db/procurementLedger';
 import { buildProgressionTimeline } from '@/src/lib/db/procurementHistory';
 import {
@@ -42,6 +45,7 @@ import {
   canCancel,
   type ProcurementStatus,
   type ProcurementDetail,
+  type TaxTreatment,
 } from '@/src/lib/db/procurementLifecycle';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import type { CommandIntent } from '@/src/lib/repositories/types';
@@ -114,6 +118,10 @@ type PendingConfirm =
       invoiceDate: string;
       referenceNumber: string | null;
       amount: number | null;
+      /** #505: REQUIRED — staged from the capture form and carried verbatim through the confirm to
+       *  the RPC, so the confirmed write can never be the one that discovers they are missing. */
+      taxTreatment: TaxTreatment;
+      taxAmount: number;
       /** BLOCK 2 (ADR-0058): see the createGR variant. */
       intent: CommandIntent;
     };
@@ -532,6 +540,9 @@ const ProcurementDetails: React.FC = () => {
           invoiceDate: pendingConfirm.invoiceDate,
           referenceNumber: pendingConfirm.referenceNumber,
           amount: pendingConfirm.amount,
+          // #505: forwarded from the staged capture — required by the mutation's type.
+          taxTreatment: pendingConfirm.taxTreatment,
+          taxAmount: pendingConfirm.taxAmount,
           intent: pendingConfirm.intent,
         });
         setShowCreateVI(false);
@@ -554,19 +565,13 @@ const ProcurementDetails: React.FC = () => {
   // no invoice (or vice versa) — it is all-or-nothing. Exactly ONE toast: a combined success, or the
   // classified failure. On FAILURE the inline panel STAYS OPEN so the user can correct + retry
   // without hunting for the recovery after-form; only a success closes it.
-  const submitVICapture = async (
-    viStatus: 'Received' | 'Scheduled',
-    invoiceDate: string,
-    referenceNumber: string | null,
-    amount: number | null,
-  ) => {
+  const submitVICapture = async (capture: VendorInvoiceCapture) => {
     setMutationError(null);
     try {
       await mutations.captureVendorInvoice.mutateAsync({
-        status: viStatus,
-        invoiceDate,
-        referenceNumber,
-        amount,
+        // #505: `capture` is `CaptureVendorInvoiceInput` minus procurementId/notes, so the tax facts
+        // travel through by construction — there is no field list here to forget to update.
+        ...capture,
         notes: notesInput || undefined,
       });
       setNotesInput('');

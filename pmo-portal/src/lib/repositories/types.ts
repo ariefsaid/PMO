@@ -35,6 +35,7 @@ import type {
   ProcurementStatus,
   ProcurementReceiptRow,
   ProcurementInvoiceRow,
+  CreateInvoiceInput,
 } from '@/src/lib/db/procurementLifecycle';
 import type {
   PurchaseRequestRow,
@@ -274,14 +275,18 @@ export interface ProcurementRepository {
     /** BLOCK 2: the per-INTENT command identity — pass the SAME value on every retry (see CommandIntent). */
     intent?: CommandIntent,
   ): Promise<ProcurementReceiptRow>;
+  /**
+   * #505: a SINGLE object param, not the old positional list. `taxTreatment`/`taxAmount` are
+   * REQUIRED members of `CreateInvoiceInput`, mirroring the NOT NULL columns 0196 added — a caller
+   * that omits either fails to compile instead of failing at the RPC with P0001. Positional was no
+   * longer expressible: TypeScript forbids a required parameter after an optional one.
+   *
+   * task FIX-1 — `referenceNumber`/`amount` stay optional and are ERP-computed (`grand_total`) when
+   * externally-owned (FR-ENA-115), so they are never sent outbound. The tax fields ARE forwarded on
+   * the external-dispatch record: they are user-stated facts about the invoice, not ERP-derived.
+   */
   createInvoice(
-    procurementId: string,
-    status: 'Received' | 'Scheduled' | 'Paid',
-    invoiceDate: string,
-    // task FIX-1 — same rationale as createReceipt's referenceNumber; `amount` is likewise
-    // ERP-computed (`grand_total`) when externally-owned (FR-ENA-115), so it is never sent outbound.
-    referenceNumber?: string | null,
-    amount?: number | null,
+    input: CreateInvoiceInput,
     /** BLOCK 2: the per-INTENT command identity — pass the SAME value on every retry (see CommandIntent). */
     intent?: CommandIntent,
   ): Promise<ProcurementInvoiceRow>;

@@ -1,7 +1,7 @@
 /**
  * vendorInvoiceTestIds — single-source contract (refactor: vi-capture-dedup).
  *
- * The four `vi-*` field testids are consumed by BOTH vendor-invoice capture
+ * The `vi-*` field testids are consumed by BOTH vendor-invoice capture
  * entry points (the transition-coupled `VIInlineCapture` in
  * ProcurementDecisionZone.tsx AND the ledger `RecordCaptureForm kind="vendor_invoice"`).
  * They were previously duplicated string-literals in each file (a drift trap: a
@@ -18,6 +18,11 @@ describe('VI_FIELD_TEST_IDS — single-sourced vendor-invoice field testids', ()
       amount: 'vi-amount-input',
       status: 'vi-status-select',
       date: 'vi-date-input',
+      // #505 (0196): the two REQUIRED tax fields, rendered by both entry points.
+      taxTreatment: 'vi-tax-treatment-select',
+      taxAmount: 'vi-tax-amount-input',
+      // #505 code-quality follow-up: the shared "why is submit blocked" hint testid.
+      taxRequiredHint: 'vi-tax-required-hint',
     });
   });
 });

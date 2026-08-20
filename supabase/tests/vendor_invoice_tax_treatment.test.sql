@@ -1,5 +1,5 @@
 -- vendor_invoice_tax_treatment.test.sql — 0196_vendor_invoice_tax_treatment.sql (#505).
--- Owns AC-VTAX-001..018; `grep -r AC-VTAX-` finds exactly this file.
+-- Owns AC-VTAX-001..025; `grep -r AC-VTAX-` finds exactly this file.
 --
 -- The migration under test exists so a vendor invoice can no longer be recorded in a state from
 -- which an input-PPN treatment cannot be reconstructed. The irrecoverable fact is `tax_treatment` —
@@ -13,7 +13,7 @@
 -- the treatment enters through the definer RPC. §F is therefore the real front door, and it is
 -- tested as such.
 begin;
-select plan(20);
+select plan(25);
 
 insert into organizations (id, name, default_currency) values
   ('05050000-0000-0000-0000-000000000001','#505 VI Tax Org','IDR');
@@ -139,19 +139,25 @@ select throws_ok(
 
 -- ── §D — grants. THE DIVERGENCE FROM 0188: this table has no client write grant at all, and the new
 --    columns must not become the exception that re-opens the door 0174/0175 shut. ─────────────────
+-- ⚑ `has_*_privilege`, NOT information_schema. Those views only expose grants where the current role
+-- is grantor or grantee, so on hosted Supabase a grant made by `supabase_admin` is INVISIBLE to
+-- `postgres` and the assertion would pass while the door stood open. That is not hypothetical: it is
+-- exactly how 0173's completeness sweep was green in CI and false in production. `has_*_privilege`
+-- is grantor-independent and answers the question actually being asked.
 select is(
-  (select count(*) from information_schema.column_privileges
-    where table_schema = 'public' and table_name = 'procurement_invoices'
-      and grantee = 'authenticated' and privilege_type in ('INSERT','UPDATE')),
-  0::bigint,
-  'AC-VTAX-013 authenticated holds NO column INSERT/UPDATE on procurement_invoices — the four tax '
+  (select bool_or(has_column_privilege('authenticated', 'public.procurement_invoices', column_name, 'INSERT')
+                  or has_column_privilege('authenticated', 'public.procurement_invoices', column_name, 'UPDATE'))
+     from information_schema.columns
+    where table_schema = 'public' and table_name = 'procurement_invoices'),
+  false,
+  'AC-VTAX-013 authenticated may INSERT or UPDATE NO column of procurement_invoices — the four tax '
   'columns did not re-open the door 0174/0175 closed');
 
 select is(
-  (select count(*) from information_schema.table_privileges
-    where table_schema = 'public' and table_name = 'procurement_invoices'
-      and grantee = 'authenticated' and privilege_type in ('INSERT','UPDATE','DELETE')),
-  0::bigint,
+  (select has_table_privilege('authenticated', 'public.procurement_invoices', 'INSERT')
+       or has_table_privilege('authenticated', 'public.procurement_invoices', 'UPDATE')
+       or has_table_privilege('authenticated', 'public.procurement_invoices', 'DELETE')),
+  false,
   'AC-VTAX-014 authenticated holds no table-level INSERT/UPDATE/DELETE either — the definer RPC is '
   'the sole client write path, which is why the RPC carries the tax gate (§F)');
 
@@ -167,6 +173,19 @@ select throws_ok(
   'a vendor invoice must state its tax treatment: p_tax_treatment must be ''inclusive'' or ''exclusive'' (does the amount already include the tax?) and p_tax_amount must be given (0 when there is no tax). Neither can be inferred from the total afterwards',
   'AC-VTAX-015 the RPC refuses an invoice with no stated treatment, and the message NAMES the '
   'omission — not a bare 23502 from the column, which is the wrong error (0176 §6''s class)');
+
+-- ⚑ THE EMPTY STRING. PostgREST turns an absent json field into NULL but an empty FORM field into
+-- '', which is not null — so a gate written as `is null` alone lets it through to die on the domain
+-- CHECK with a 23514 naming a constraint instead of the field. Drop the `btrim(...) = ''` clause
+-- from 0196 §2 and this one assertion goes red while AC-VTAX-015 stays green.
+select throws_ok(
+  $$ select create_procurement_invoice('05050000-0000-0000-0000-0000000000d1'::uuid,
+       'Received'::procurement_invoice_status, '2026-03-02'::date, 'VI-EMPTY-TAX', 1000::numeric,
+       p_tax_treatment => '', p_tax_amount => 0) $$,
+  'P0001',
+  'a vendor invoice must state its tax treatment: p_tax_treatment must be ''inclusive'' or ''exclusive'' (does the amount already include the tax?) and p_tax_amount must be given (0 when there is no tax). Neither can be inferred from the total afterwards',
+  'AC-VTAX-021 an EMPTY treatment is refused by the same gate, not by the domain CHECK — the caller '
+  'is told what to fix, not which constraint they hit');
 
 -- ⚑ ORDERING. A bad status must still report the STATUS problem: the tax gate is deliberately the
 -- LAST gate, so a caller fixing one error at a time is never sent to the wrong field. Restore the
@@ -222,6 +241,41 @@ select throws_ok(
   'procurement_invoices native fields are read-only while procurement is externally-owned',
   'AC-VTAX-020 the mirror guard pins tax_amount too');
 
+select throws_ok(
+  $$ update procurement_invoices set tax_rate = 5
+      where id = '05050000-0000-0000-0000-00000000e002' $$,
+  '42501',
+  'procurement_invoices native fields are read-only while procurement is externally-owned',
+  'AC-VTAX-022 the mirror guard pins tax_rate');
+
+select throws_ok(
+  $$ update procurement_invoices set tax_template = 'PPN 11%'
+      where id = '05050000-0000-0000-0000-00000000e002' $$,
+  '42501',
+  'procurement_invoices native fields are read-only while procurement is externally-owned',
+  'AC-VTAX-023 the mirror guard pins tax_template — all FOUR added lines have an oracle, so the '
+  'comment above is true of the whole paired edit and not just half of it');
+
 reset request.jwt.claims;
+
+-- ── §G — the ERP RETURN case. A purchase RETURN / debit note carries a NEGATIVE
+--    total_taxes_and_charges, and the sweep mirrors every Purchase Invoice. A flat `tax_amount >= 0`
+--    would make each such document die on 23514 inside the mirror writer and silently stop being
+--    tracked — a constraint added for honesty, quietly deleting records. Sign parity is the rule.
+select lives_ok(
+  $$ insert into procurement_invoices (org_id, procurement_id, status, invoice_date, amount, tax_treatment, tax_amount)
+     values ('05050000-0000-0000-0000-000000000001','05050000-0000-0000-0000-0000000000d1',
+             'Received','2026-03-02', -1110, 'inclusive', -110) $$,
+  'AC-VTAX-024 a RETURN mirrors: negative tax is legal on a negative-amount document');
+
+select throws_ok(
+  $$ insert into procurement_invoices (org_id, procurement_id, status, invoice_date, amount, tax_treatment, tax_amount)
+     values ('05050000-0000-0000-0000-000000000001','05050000-0000-0000-0000-0000000000d1',
+             'Received','2026-03-02', 1000, 'exclusive', -110) $$,
+  '23514',
+  null,
+  'AC-VTAX-025 but negative tax on a POSITIVE invoice is still refused — the return case widened the '
+  'bound by exactly one shape, not into a hole');
+
 select * from finish();
 rollback;

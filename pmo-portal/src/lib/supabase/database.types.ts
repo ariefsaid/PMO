@@ -2707,6 +2707,10 @@ export type Database = {
           procurement_id: string
           reference_number: string | null
           status: Database["public"]["Enums"]["procurement_invoice_status"]
+          tax_amount: number
+          tax_rate: number | null
+          tax_template: string | null
+          tax_treatment: string
           vi_number: string | null
         }
         Insert: {
@@ -2728,6 +2732,10 @@ export type Database = {
           procurement_id: string
           reference_number?: string | null
           status: Database["public"]["Enums"]["procurement_invoice_status"]
+          tax_amount: number
+          tax_rate?: number | null
+          tax_template?: string | null
+          tax_treatment: string
           vi_number?: string | null
         }
         Update: {
@@ -2749,6 +2757,10 @@ export type Database = {
           procurement_id?: string
           reference_number?: string | null
           status?: Database["public"]["Enums"]["procurement_invoice_status"]
+          tax_amount?: number
+          tax_rate?: number | null
+          tax_template?: string | null
+          tax_treatment?: string
           vi_number?: string | null
         }
         Relationships: [
@@ -4754,6 +4766,10 @@ export type Database = {
           p_procurement_id: string
           p_reference_number?: string
           p_status: Database["public"]["Enums"]["procurement_invoice_status"]
+          p_tax_amount?: number
+          p_tax_rate?: number
+          p_tax_template?: string
+          p_tax_treatment?: string
         }
         Returns: {
           amount: number | null
@@ -4774,6 +4790,10 @@ export type Database = {
           procurement_id: string
           reference_number: string | null
           status: Database["public"]["Enums"]["procurement_invoice_status"]
+          tax_amount: number
+          tax_rate: number | null
+          tax_template: string | null
+          tax_treatment: string
           vi_number: string | null
         }
         SetofOptions: {
@@ -4888,6 +4908,10 @@ export type Database = {
           p_procurement_id: string
           p_reference_number?: string
           p_status: Database["public"]["Enums"]["procurement_invoice_status"]
+          p_tax_amount?: number
+          p_tax_rate?: number
+          p_tax_template?: string
+          p_tax_treatment?: string
         }
         Returns: {
           amount: number | null
@@ -4908,6 +4932,10 @@ export type Database = {
           procurement_id: string
           reference_number: string | null
           status: Database["public"]["Enums"]["procurement_invoice_status"]
+          tax_amount: number
+          tax_rate: number | null
+          tax_template: string | null
+          tax_treatment: string
           vi_number: string | null
         }
         SetofOptions: {
