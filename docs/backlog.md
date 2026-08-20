@@ -27,10 +27,31 @@ also gates the budget importer (#495) and work orders (#498).
 **Shipped 2026-08-19:** #477 (locale drift sweep — ~45 hardcoded-locale sites routed through
 `format.ts`, plus an ESLint guard, mutation-verified) and the ADR-0055 crossing addendum (#480).
 
-**Open build queue:** #505 vendor-invoice tax (`DD-VI-1..2` settled) · #513 drawdown-vs-
-`contract_value` tax keying (**ruled** — option 1, mirror `0188` on `projects`; only the backfill
-value waits on the owner, parked as #518) · #479 Posture-B stamp audit (headline already shipped —
-re-scoped) · #481 (blocked on #474+#479).
+**Open build queue:** #479 Posture-B stamp audit (steps 1–7 drivable; **step 8 is owner-class** — a
+backfill posting months of payroll costing into a client ledger) · #481 (blocked on #474+#479).
+
+**⚑ Shipped 2026-08-20, the tax-basis trio — and each one's review battery found something the build
+did not.** #495 budget importer · #505 vendor-invoice tax (`0196`) · #513 contract-value tax (`0197`).
+Read `docs/decisions.md` `DD-BIMP-1..8` before touching the import layer.
+
+⛔ **The finding worth carrying forward** (#513's security audit, which BUILT the attack rather than
+describing it): `0197` §4 promoted `work_orders.tax_amount` from an inert descriptive column into a
+live input to the over-commit control — and nothing was protecting it. `authenticated` held UPDATE on
+it, the value witness fired on `order_value` only, and the content freeze applies only after Draft. A
+PM could re-key a Draft order to `inclusive/50,000` after their manager set its 50,000 value, issue it
+with **no acknowledgement**, and the drawdown would report `committed = 0` — the commitment invisible
+on the exact screen meant to reveal it, permanently, because the post-issue freeze then locks it.
+
+**The general rule this produced:** *promoting a descriptive column into a control input changes its
+threat model.* Whatever was protecting it as a description has to be re-examined at the moment of
+promotion. `0197` §1 had already reasoned this out for `projects` and failed to apply its own rule one
+table over. Closed at both layers (grant + witness) because defence in depth needs a test per layer.
+
+⚑ **Mutation checks caught FIVE dead oracles across the three issues** — tests that would have stayed
+green while the feature was broken. Two were mine on #513: a fixture that over-committed under *both*
+the old and new arithmetic, and an attack assertion that was really testing the post-issue freeze
+because its row had already been issued. Reading the assertions would not have caught either. **A
+money-path test without a mutation run behind it is not evidence.**
 
 **⚑ #495 closed 2026-08-20 (`8837f691`, PR #519) — and three of its spec's premises were false
 against `dev`.** Recorded as `DD-BIMP-1..8`; the one that mattered: `0072`'s idempotency key
