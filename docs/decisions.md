@@ -2327,7 +2327,17 @@ These were sorted out of #527 as Director-resolvable and decided rather than ask
 
 **[DD-TASK-6] Project hard-delete keeps `on delete cascade`.** Answers #527 item 4. Orphan tasks sitting in My Tasks with no project are worse than tasks that are gone; a mis-deleted project is a restore problem, not a task-model problem.
 
-**[DD-TASK-7] A project-less task may not have subtasks.** Answers #527 item 5. Forbid now; the meeting module widens it later. Reversible in the cheap direction.
+⛔ **[DD-TASK-7] RETRACTED same day (2026-08-21), before anything was built on it.** It said a project-less task may not have subtasks, inheriting `docs/specs/first-class-tasks.spec.md`'s stated default. The owner challenged it — *"spec is written by LLM so can be inherent assumption without basis"* — and the challenge was correct. **The shipped behaviour stands: two project-less tasks may be parent and child.**
+
+Checked before retracting, and nothing broke:
+- **The rule is satisfied, not evaded.** Two project-less tasks *are* in the same non-project; `null is distinct from null` → false is the correct reading of "parent must be in the same project", not a gap in it.
+- **No visibility widening.** `0199`'s select policy admits `project_id is null` **or** any project in the caller's org — org-wide either way.
+- **No effect on any computed figure.** Since `0141`, a task with a parent is excluded from milestone counts, `delivery_pct`, S-curve and Gantt.
+- **No dangling rows.** `parent_task_id` is `on delete cascade` (`0140:38`).
+
+⚑ **The lesson worth keeping: a spec default is not evidence.** This one was recorded as a ruling and turned into a build ticket on the strength of the migration header agreeing with the spec — both written by the same kind of author, neither citing a consequence. The question "what actually breaks?" was not asked until the owner asked it.
+
+⚑ **What the check DID surface, unrelated to NULL and pre-existing:** nothing revalidates *children* when a **parent** changes project. `tasks_check_parent_same_project` is `before insert or update` on the row carrying `parent_task_id`, so moving a parent from project A to project B leaves its children in A — the invariant the trigger exists to hold, broken through a path it never fires on. True for ordinary project tasks since `0140`.
 
 **[DD-MTG-6] The `crm_activities` `'Meeting'` kind survives, re-scoped.** Answers #527 item 9. It becomes the **lightweight touchpoint log** — call, email, site visit. The meeting module owns anything with attendees and minutes. The Contacts page stops advertising "log a meeting" and links across instead. Retiring the kind would delete real history for a distinction users do want.
 
