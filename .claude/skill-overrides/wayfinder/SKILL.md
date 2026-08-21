@@ -38,6 +38,11 @@ Every map and ticket is an issue, so it has a **name** — its title. In everyth
 > **Park, don't ask.** An owner-class question surfacing mid-drive becomes a `wayfinder:owner` ticket
 > with enough context to answer cold — it does not stop the session. Keep working everything that does
 > not depend on it; parked tickets become the next grill session's batch.
+>
+> ⚑ **Parking is three fields, not one label:** the `wayfinder:ticket` label *alongside* the resolver
+> one · `Map: #<n>` as the body's first line · the native sub-issue link to that map. A ticket carrying
+> only the resolver label is invisible to the frontier — that is precisely how three owner questions
+> stayed hidden through a whole session on 2026-08-21. Run `scripts/wayfinder-doctor.sh` to find any.
 > Cadence: `docs/factory-workflow.md` § The drive loop.
 
 ## The Map

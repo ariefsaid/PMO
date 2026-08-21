@@ -65,16 +65,35 @@ are **event-driven** instead: unblock a batch, drive until blocked, batch again.
 **Every session is one of two kinds.** Open by asking which:
 
 ```bash
-# the owner frontier — open, unblocked, owner-resolved tickets
-gh issue list --state open --label wayfinder:ticket --label wayfinder:owner \
-  --json number,title,body --jq '.[] | select((.body|test("Blocked-by")|not)) | "#\(.number)  \(.title)"'
+scripts/wayfinder-doctor.sh          # the frontier, plus a check that nothing is hiding from it
 ```
+
+⚑ **Do not hand-roll this query, and never AND the resolver label with `wayfinder:ticket`.** It used to
+read `--label wayfinder:ticket --label wayfinder:owner`, and on 2026-08-21 that returned **empty** while
+#527, #523 and #518 sat open — parked with the resolver label and never wired to a map. The session read
+empty as "no owner questions", declared a DRIVE session, and spent ~150K tokens without asking anything.
+It was executing a wrong answer correctly. **An empty frontier is a claim; `wayfinder-doctor.sh` is what
+checks it**, and it exits non-zero on an orphan rather than reporting nothing and looking calm.
 
 - **Non-empty → GRILL session.** Drain the **whole** owner frontier in one sitting, batched into
   rounds per `/grilling`. Not one ticket — all of them. The owner's attention is the scarce input;
   spending it one question at a time is the waste this loop exists to remove.
 - **Empty → DRIVE session.** Work everything else: Explore/Plan agents, factory ADWs, Director
   dispatches, per § Executor routing. Chain issues without pausing.
+
+**⚑ Parking a question is three fields, not one label.** The 2026-08-21 orphans were created by the
+park-don't-ask rule doing exactly half its job: it says an owner-class question *"becomes a
+`wayfinder:owner` ticket"*, and a ticket with only that label is invisible to every frontier query that
+matters. A parked ticket needs **all** of:
+
+1. labels `wayfinder:ticket` **and** the resolver (`wayfinder:owner` / `:director` / `:factory`), plus a
+   type label where the type is known (`:grilling` / `:research` / `:prototype` / `:task`);
+2. `Map: #<n>` as the body's **first line**;
+3. the native sub-issue link to that map (`gh api repos/<o>/<r>/issues/<map>/sub_issues -F sub_issue_id=<id>`
+   — ⚑ `-F`, not `-f`: `-f` sends the id as a string and the API rejects it).
+
+A ticket missing any of the three is parked into a place nobody looks. `scripts/wayfinder-doctor.sh`
+finds them.
 
 **⚑ The rule that makes it work: park, don't ask.** Hitting an owner-class question mid-drive does
 **not** stop the drive. File it as a `wayfinder:owner` ticket carrying enough context to answer cold,
