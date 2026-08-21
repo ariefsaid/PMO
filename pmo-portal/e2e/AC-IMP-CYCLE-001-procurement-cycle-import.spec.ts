@@ -58,21 +58,29 @@ async function buildCycleXlsx(
     'status',
     'date',
     'amount',
+    // #505 / OD-TAX-1: a VI row must state its tax basis. `tax_treatment` has no default and
+    // `tax_amount` requires an explicit 0 for "no tax" — a stored money figure whose
+    // inclusive/exclusive status is unrecorded cannot be disambiguated afterwards. Non-VI rows
+    // leave both blank; validate.ts only demands them on VI.
+    'tax_treatment',
+    'tax_amount',
   ]);
 
   // ── case-001: partial PR→VI→Payment (no PO/Quotation — still legal under Model-C) ──
   // PR row
-  ws.addRow(['case-001', 'PR', '', fullTitle, 'Draft', '', 'EXT-PR-001', '', '', '']);
-  // VI row (required: status ∈ {Received,Scheduled,Paid}, date YYYY-MM-DD)
-  ws.addRow(['case-001', 'VI', '', '', '', '', 'EXT-VI-001', 'Received', '2024-03-15', '10000']);
+  ws.addRow(['case-001', 'PR', '', fullTitle, 'Draft', '', 'EXT-PR-001', '', '', '', '', '']);
+  // VI row (required: status ∈ {Received,Scheduled,Paid}, date YYYY-MM-DD, plus the #505 tax basis)
+  ws.addRow(['case-001', 'VI', '', '', '', '', 'EXT-VI-001', 'Received', '2024-03-15', '10000', 'exclusive', '1100']);
   // Payment row
-  ws.addRow(['case-001', 'Payment', '', '', '', '', 'EXT-PAY-001', '', '2024-03-20', '10000']);
+  ws.addRow(['case-001', 'Payment', '', '', '', '', 'EXT-PAY-001', '', '2024-03-20', '10000', '', '']);
 
   // ── case-002: PR-less VI→Payment (Model-C: no PR or PO required) ────────────
   // VI row
-  ws.addRow(['case-002', 'VI', '', invoiceTitle, '', '', 'EXT-VI-002', 'Received', '2024-04-01', '5000']);
+  // The second VI states a DIFFERENT basis from the first on purpose: a fixture where every row
+  // shares one treatment cannot tell a per-row read from a hardcoded constant.
+  ws.addRow(['case-002', 'VI', '', invoiceTitle, '', '', 'EXT-VI-002', 'Received', '2024-04-01', '5000', 'inclusive', '0']);
   // Payment row
-  ws.addRow(['case-002', 'Payment', '', '', '', '', 'EXT-PAY-002', '', '2024-04-05', '5000']);
+  ws.addRow(['case-002', 'Payment', '', '', '', '', 'EXT-PAY-002', '', '2024-04-05', '5000', '', '']);
 
   const buf = await wb.xlsx.writeBuffer();
   return Buffer.from(buf as ArrayBuffer);

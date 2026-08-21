@@ -9,6 +9,22 @@ set -euo pipefail
 
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 
+# ⛔ REFUSE A DIRTY TREE — the stamp at the bottom records HEAD, but every gate below runs against
+# the WORKING TREE. Run this with uncommitted changes and it mints a green token for a commit that
+# was never verified: the fixes that made it pass are not in the commit the stamp names. That is
+# exactly backwards for a gate whose whole job is to certify a specific commit.
+#
+# Found 2026-08-21, the honest way: a run passed with the pipeline-currency fix uncommitted and
+# stamped the PREVIOUS commit, which would have failed. Fail fast, before the 30-minute run, not
+# after it.
+if [ "${_VERIFY_MAIN_PR_DB_LOCKED:-}" != "1" ] && [ -n "$(git -C "$REPO" status --porcelain)" ]; then
+  echo "[verify-main-pr] the working tree is dirty; commit or stash before running the promote gate." >&2
+  echo "[verify-main-pr] every gate here tests the WORKING TREE, but the pass is stamped against HEAD —" >&2
+  echo "[verify-main-pr] so a dirty run certifies a commit it never tested. Refusing." >&2
+  git -C "$REPO" status --short >&2
+  exit 1
+fi
+
 # CI pins node-version: 22 (ci.yml) and react-router 8 declares engines >=22.22.0. A shell
 # defaulting to an older node fails inside vitest's bundler with an unrelated-looking `node:util`
 # export error — a false RED that costs more to diagnose than this check costs to run.
