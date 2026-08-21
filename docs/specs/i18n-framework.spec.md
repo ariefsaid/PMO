@@ -312,6 +312,21 @@ lands, and it is the part that can be done by someone who is not an engineer, in
   or `t()`. xlsx writes typed cells; CSV is neutral (`.` decimal, no grouping, ISO dates); API
   payloads, logs and filenames stay ISO 8601 and raw numbers (`DD-I18N-4`).
 
+- **FR-L10N-052** — *Ubiquitous.* Where an export carries a monetary column, it shall carry that
+  row's ISO 4217 currency code in its **own adjacent column**, sourced per record and never
+  converted.
+
+  ⚑ `FR-L10N-050` is why this is a separate column rather than a formatted cell: the number must stay
+  a number so a spreadsheet can sum it, which leaves the currency with nowhere else to go. The two
+  requirements are the same decision seen from either end.
+
+  ⚑ PMO holds no exchange rates. A converted total would be a fabricated figure, so a mixed-currency
+  export is honest per row and silent about the sum — see `OD-CR-5` for where that stops being enough.
+
+  This was invisible while every row silently took the org default. Migration `0201` made
+  `get_sales_pipeline()` project each deal's own currency, so the on-screen list is now legitimately
+  mixed and an export of it without this column is ambiguous.
+
 ---
 
 ## 5. Acceptance criteria
@@ -360,6 +375,13 @@ lands, and it is the part that can be done by someone who is not an engineer, in
   *then* `cell.value` holds a **number** and a **Date**, not a formatted string, in every locale.
 - **AC-L10N-051** — *Given* a CSV export under `id-ID`, *when* parsed, *then* decimals use `.`, no
   grouping is present, and dates are ISO.
+- **AC-L10N-052** — *Given* an export of a list holding **two different currencies**, *when* the file
+  is inspected, *then* each row carries its own ISO code in the currency column and each monetary
+  cell is a bare number — no symbol, no grouping separator.
+
+  ⚑ Two currencies in the *same* list is the load-bearing half. A single-currency fixture cannot tell
+  a record's own currency from a hardcoded one, which is exactly how `#529` shipped: replacing an
+  invoice's currency with a `'USD'` literal left every assertion green.
 - **AC-L10N-060** — *Given* a user switches language in the UI, *when* the page settles, *then* a
   money figure and a date both render in Indonesian convention on the same screen.
 - **AC-L10N-061** — *Given* every unit and e2e test asserting formatted output, *when* the suite runs
@@ -382,6 +404,7 @@ lands, and it is the part that can be done by someone who is not an engineer, in
 | AC-L10N-041/042 | **CI gate** | `i18next-parser` completeness step in `npm run verify` |
 | AC-L10N-043 | Unit (Vitest) | lazy-load backend config assertion |
 | AC-L10N-050/051 | Unit (Vitest) | `toWorkbookBuffer` typed-cell + CSV neutrality guards |
+| AC-L10N-052 | Unit (Vitest) | mixed-currency export: per-row ISO column + bare numeric cells |
 | AC-L10N-060 | **E2E (Playwright)** | `e2e/AC-L10N-060-language-switch.spec.ts` — the one curated cross-stack journey; nothing else here is cross-stack |
 | AC-L10N-061 | **CI gate** | runner locale pinned away from `en-US` in the verify job |
 
