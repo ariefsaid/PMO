@@ -95,6 +95,18 @@ comment on function public.task_domain_externally_owned(uuid) is
 -- another org's project and the EXISTS fails on visibility alone — verified by mutation: removing
 -- the clause does not redden the cross-org oracle. Two layers is the point; do not "simplify" it to
 -- one on the grounds that a test still passes.
+--
+-- ⛔ AND THE EXISTS WAS DOING A **THIRD** JOB THAT NOBODY WROTE DOWN. `projects_select` carries
+-- `is_active_member()`, so an OFFBOARDED member — `auth_role()` reads `profiles.role` with NO status
+-- filter — saw no project, failed the EXISTS, and was refused. The `project_id is null` disjunct
+-- deletes that subquery, and with it the only standing check on the write path: a disabled PM
+-- holding an unexpired token could INSERT project-less tasks. Found by the #525 security audit,
+-- which built the probe; the earlier draft of this comment identified two of the three jobs and
+-- generalised a single-threat mutation to all of them.
+--
+-- So standing is now STATED on all four policies rather than inherited from a subquery that may or
+-- may not run. This is the migration's own thesis applied to itself: an answer that falls out of a
+-- NULL comparison is not a decision.
 -- ════════════════════════════════════════════════════════════════════════════════════════════════
 drop policy tasks_insert on public.tasks;
 drop policy tasks_update on public.tasks;
@@ -102,33 +114,46 @@ drop policy tasks_delete on public.tasks;
 drop policy tasks_update_own_status on public.tasks;
 
 create policy tasks_insert on public.tasks for insert
-  with check (org_id = auth_org_id() and auth_role() in ('Admin','Executive','Project Manager','Finance')
+  with check (org_id = auth_org_id() and public.is_active_member()
+    and auth_role() in ('Admin','Executive','Project Manager','Finance')
     and (project_id is null
          or exists (select 1 from public.projects p where p.id = tasks.project_id and p.org_id = auth_org_id()))
     and not public.task_domain_externally_owned(project_id));
 
 create policy tasks_update on public.tasks for update
-  using (org_id = auth_org_id() and auth_role() in ('Admin','Executive','Project Manager','Finance')
+  using (org_id = auth_org_id() and public.is_active_member()
+    and auth_role() in ('Admin','Executive','Project Manager','Finance')
     and (project_id is null
          or exists (select 1 from public.projects p where p.id = tasks.project_id and p.org_id = auth_org_id())))
-  with check (org_id = auth_org_id() and auth_role() in ('Admin','Executive','Project Manager','Finance')
+  with check (org_id = auth_org_id() and public.is_active_member()
+    and auth_role() in ('Admin','Executive','Project Manager','Finance')
     and (project_id is null
          or exists (select 1 from public.projects p where p.id = tasks.project_id and p.org_id = auth_org_id())));
 
 create policy tasks_delete on public.tasks for delete
-  using (org_id = auth_org_id() and auth_role() in ('Admin','Executive','Project Manager','Finance')
+  using (org_id = auth_org_id() and public.is_active_member()
+    and auth_role() in ('Admin','Executive','Project Manager','Finance')
     and (project_id is null
          or exists (select 1 from public.projects p where p.id = tasks.project_id and p.org_id = auth_org_id()))
     and not public.task_domain_externally_owned(project_id));
 
 create policy tasks_update_own_status on public.tasks for update
-  using (org_id = auth_org_id() and assignee_id = (select auth.uid())
+  using (org_id = auth_org_id() and public.is_active_member() and assignee_id = (select auth.uid())
     and not public.task_domain_externally_owned(project_id))
-  with check (org_id = auth_org_id() and assignee_id = (select auth.uid())
+  with check (org_id = auth_org_id() and public.is_active_member() and assignee_id = (select auth.uid())
     and not public.task_domain_externally_owned(project_id));
 
 
 -- ════════════════════════════════════════════════════════════════════════════════════════════════
+-- ⚑ NOT FIXED HERE, and the attempt is worth recording: the pin is a DENY-LIST, so every column
+-- added to `tasks` since 0016 is assignee-writable by default — `milestone_id`, `tombstoned_at`,
+-- `source_updated_at`. An Engineer assignee can point their task at ANOTHER project's milestone and
+-- move that project's delivery percentage. Adding `milestone_id` to the list was tried and REVERTED:
+-- it breaks `seed.sql`, because the pin's first branch tests `auth_role() in (…)` and a server-side
+-- writer with no JWT answers NULL, so legitimate owner writes fall through to the assignee branch.
+-- The real fix is inverting the deny-list to an allowlist WITH a server-authority exemption — its
+-- own ticket, its own diff, its own mutation battery. Pre-existing and not armed by this change.
+--
 -- §4 — both trigger bodies, 0146 §3's VERBATIM with exactly one substitution: the ownership
 -- predicate. Every column list, every early return, every message is byte-preserved — the messages
 -- in particular are asserted verbatim by existing pgTAP, and this migration is not the place to
@@ -207,3 +232,64 @@ begin
   end if;
   return new;
 end $$;
+
+-- ════════════════════════════════════════════════════════════════════════════════════════════════
+-- §5 — the parenting guard, which THIS MIGRATION made vacuous and must therefore fix in the same
+-- file (FR-FCT-022/023: the reconciliation of the NULL cases is ONE change, not two).
+--
+-- ⛔ `0140:57-59` compares `parent.project_id is distinct from new.project_id`. With BOTH sides NULL
+-- that is FALSE, so the guard does not fire — and `project_id` could not be NULL until §1, which
+-- means §1 is what armed it. The FK alone does not save us: it is an unqualified reference to
+-- `tasks(id)` and does not consult `org_id`.
+--
+-- The rule the guard has always meant is "a subtask belongs with its parent". Stated for both cases:
+--   • both have a project  → the projects must match (0140's rule, unchanged)
+--   • either has none      → they must at least be in the SAME ORG
+-- The org check is not a weaker fallback bolted on; it is the floor that was previously implied by
+-- the project comparison and is now stated, because the project comparison can no longer imply it.
+-- ════════════════════════════════════════════════════════════════════════════════════════════════
+create or replace function public.check_tasks_parent_same_project()
+  returns trigger language plpgsql set search_path = public as $$
+declare
+  v_parent_project uuid;
+  v_parent_org     uuid;
+  v_found          boolean;
+begin
+  if new.parent_task_id is null then
+    return new;
+  end if;
+  -- One read, and it must be the OWNER's read: this trigger is invoker-rights, so a parent the
+  -- caller cannot SEE would otherwise return NULL for both columns and look like a project-less
+  -- same-org parent. `found` distinguishes "no such row" from "a row with NULLs".
+  select t.project_id, t.org_id, true
+    into v_parent_project, v_parent_org, v_found
+    from public.tasks t where t.id = new.parent_task_id;
+
+  if not coalesce(v_found, false) then
+    raise exception 'parent task must be in the same project' using errcode = '42501';
+  end if;
+
+  -- ⚑ THE ORG FLOOR — always checked, whatever the projects say. Before §1 this was implied: a
+  -- non-null project comparison could not pass across orgs because two orgs cannot share a project.
+  -- With NULLs on both sides that implication is gone, so the floor is stated.
+  --
+  -- ⚑ MUTATION-VERIFIED, and stated precisely because the easy claim is wrong: the floor and the
+  -- `not found` branch above are REDUNDANT for the cross-org threat — removing either alone leaves
+  -- AC-FCT-019 green, because an invisible parent yields both "no row" and a NULL org. Removing
+  -- BOTH reddens it. So neither is individually load-bearing and the pair is; do not delete one on
+  -- the evidence that the suite still passes. They fail closed for different reasons — one on
+  -- visibility, one on identity — and a future change that makes the parent visible (a wider SELECT
+  -- policy, a definer reader) would leave only the floor standing.
+  if v_parent_org is distinct from new.org_id then
+    raise exception 'parent task must be in the same project' using errcode = '42501';
+  end if;
+
+  -- 0140's rule, unchanged, for the case it was written for.
+  if v_parent_project is distinct from new.project_id then
+    raise exception 'parent task must be in the same project' using errcode = '42501';
+  end if;
+  return new;
+end; $$;
+-- ⚑ NO TRIGGER IS RE-CREATED. `tasks_check_parent_same_project` (0140:66) binds to this function by
+-- OID and `create or replace` keeps it. A drop-and-recreate would leave a duplicate under a new name
+-- and a changed firing order — 0125's incident, and 0189's standing rule.

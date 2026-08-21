@@ -12,7 +12,7 @@
 -- assignee and by nobody else — every manager locked out, and locked out SILENTLY: a `using` denial
 -- hides the row, so UPDATE/DELETE are 0-row no-ops that the DAL reports as success.
 begin;
-select plan(15);
+select plan(24);
 
 insert into organizations (id, name) values
   ('05250000-0000-0000-0000-000000000001','FCT Org'),
@@ -21,7 +21,12 @@ insert into auth.users (id, email) values
   ('05250000-0000-0000-0000-0000000000a1','fct-pm@example.com'),
   ('05250000-0000-0000-0000-0000000000a2','fct-eng@example.com'),
   ('05250000-0000-0000-0000-0000000000a3','fct-pm2@example.com');
+insert into auth.users (id, email) values
+  ('05250000-0000-0000-0000-0000000000a4','fct-gone@example.com');
 insert into profiles (id, org_id, full_name, email, role, status) values
+  -- ⛔ An OFFBOARDED Project Manager. `auth_role()` reads profiles.role with NO status filter, so
+  -- this row still answers 'Project Manager' to every policy that asks.
+  ('05250000-0000-0000-0000-0000000000a4','05250000-0000-0000-0000-000000000001','FCT Gone','fct-gone@example.com','Project Manager','disabled'),
   ('05250000-0000-0000-0000-0000000000a1','05250000-0000-0000-0000-000000000001','FCT PM','fct-pm@example.com','Project Manager','active'),
   ('05250000-0000-0000-0000-0000000000a2','05250000-0000-0000-0000-000000000001','FCT Eng','fct-eng@example.com','Engineer','active'),
   ('05250000-0000-0000-0000-0000000000a3','05250000-0000-0000-0000-000000000001','FCT PM2','fct-pm2@example.com','Project Manager','active');
@@ -170,5 +175,124 @@ select is(
   'AC-FCT-018 tasks_select is untouched — the read path derives tenancy from the task''s OWN org_id '
   'and never consults project_id (#462''s "read path unaffected" claim, confirmed)');
 
+-- ── §E — the guard §1 made vacuous, and the tenancy floor on the new path. ──────────────────────
+-- Both are about the SAME hole: with `project_id` nullable, comparisons that used to imply tenancy
+-- stop implying it. These prove the implication is now stated rather than inherited.
+reset role;
+insert into tasks (id, org_id, project_id, name, status) values
+  ('05250000-0000-0000-0000-00000000fd01','05250000-0000-0000-0000-000000000002',
+   null,'FCT foreign orphan','To Do');
+set local role authenticated;
+set local request.jwt.claims =
+  '{"sub":"05250000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+
+select throws_ok(
+  $$ insert into tasks (org_id, project_id, parent_task_id, name, status)
+     values ('05250000-0000-0000-0000-000000000001', null,
+             '05250000-0000-0000-0000-00000000fd01','FCT cross-org child','To Do') $$,
+  '42501',
+  'parent task must be in the same project',
+  'AC-FCT-019 a project-less task may NOT parent another org''s project-less task. Both project_ids '
+  'being NULL made 0140''s `is distinct from` comparison FALSE, so the guard did not fire — and only '
+  'this migration could arm that, because project_id could not be NULL before it');
+-- ⚑ MUTATION NOTE: 0199 §5 guards this TWICE — fail-closed on an invisible parent, and an org
+-- floor. They are redundant here, so removing either alone leaves this green; removing BOTH reddens
+-- it. Recorded so nobody deletes one citing a passing suite.
+
+select lives_ok(
+  $$ insert into tasks (id, org_id, project_id, parent_task_id, name, status)
+     values ('05250000-0000-0000-0000-00000000fc04','05250000-0000-0000-0000-000000000001', null,
+             '05250000-0000-0000-0000-00000000fc03','FCT same-org child','To Do') $$,
+  'AC-FCT-020 CONTROL a project-less task MAY parent a project-less task in its own org — the fix is '
+  'an org floor, not a ban on project-less parenting');
+
+-- ⚑ On the project-less path the `exists (… p.org_id = auth_org_id())` clause is bypassed BY DESIGN,
+-- so `org_id = auth_org_id()` is the ONLY tenancy guard left. Nothing pinned it. Asserted as a row
+-- count, not throws_ok, because a `using` denial is silent — the same reason as AC-FCT-012.
+reset role;
+set local request.jwt.claims =
+  '{"sub":"05250000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+set local role authenticated;
+do $$
+declare v_rows int;
+begin
+  update tasks set name = 'FCT cross-org edit'
+   where id = '05250000-0000-0000-0000-00000000fd01';
+  get diagnostics v_rows = row_count;
+  if v_rows <> 0 then raise exception 'cross-org update touched % row(s)', v_rows; end if;
+  delete from tasks where id = '05250000-0000-0000-0000-00000000fd01';
+  get diagnostics v_rows = row_count;
+  if v_rows <> 0 then raise exception 'cross-org delete touched % row(s)', v_rows; end if;
+end $$;
+select pass('AC-FCT-021 another org''s project-less task is untouchable — org_id = auth_org_id() is '
+  'the SOLE remaining tenancy guard once the project clause is bypassed, and it holds');
+
+reset role;
+select is(
+  (select name from tasks where id = '05250000-0000-0000-0000-00000000fd01'),
+  'FCT foreign orphan',
+  'AC-FCT-022 …and it is genuinely unchanged and still present — a rowcount alone would pass against '
+  'a policy that admitted the write and stored the same value');
+
+-- ⚑ AC-FCT-018 counted a policy NAME, which no behavioural break can redden. This reads instead.
+set local role authenticated;
+set local request.jwt.claims =
+  '{"sub":"05250000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select is(
+  (select count(*)::int from tasks where id = '05250000-0000-0000-0000-00000000fd01'),
+  0,
+  'AC-FCT-023 the READ path is org-scoped too — another org''s project-less task is invisible, which '
+  'is the behaviour AC-FCT-018''s policy-name count only asserted the existence of');
+
+-- ── §F — THE THIRD JOB THE EXISTS WAS DOING. ────────────────────────────────────────────────────
+-- `projects_select` carries `is_active_member()`. So before this migration an OFFBOARDED member
+-- failed the mandatory `exists (select 1 from projects …)` on visibility and was refused — standing
+-- was enforced by a subquery nobody had written down as a standing check. The `project_id is null`
+-- disjunct deletes that subquery. Without `is_active_member()` stated on the policies, a disabled PM
+-- holding an unexpired token can INSERT project-less tasks: exactly the bucket the meeting module
+-- will treat as real action items.
+--
+-- ⚑ The CONTROL matters as much as the assertion. It shows the pre-migration shape is still refused,
+-- so a green here cannot come from the policy simply denying everything.
+set local role authenticated;
+set local request.jwt.claims =
+  '{"sub":"05250000-0000-0000-0000-0000000000a4","role":"authenticated"}';
+
+select throws_ok(
+  $$ insert into tasks (org_id, project_id, name, status)
+     values ('05250000-0000-0000-0000-000000000001', null,'FCT offboarded insert','To Do') $$,
+  '42501',
+  null,
+  'AC-FCT-024 an OFFBOARDED member may not create a project-less task — standing is STATED on the '
+  'policy, not inherited from a projects subquery that the null case no longer runs');
+
+select throws_ok(
+  $$ insert into tasks (org_id, project_id, name, status)
+     values ('05250000-0000-0000-0000-000000000001',
+             '05250000-0000-0000-0000-000000000fd1','FCT offboarded project insert','To Do') $$,
+  '42501',
+  null,
+  'AC-FCT-025 CONTROL …and still may not create a project-CARRYING one, which is 0146''s behaviour '
+  'unchanged — so AC-FCT-024 cannot be passing merely because everything is denied');
+
+do $$
+declare v_rows int;
+begin
+  update tasks set name = 'FCT offboarded edit'
+   where id = '05250000-0000-0000-0000-00000000fc03';
+  get diagnostics v_rows = row_count;
+  if v_rows <> 0 then raise exception 'an offboarded member edited % row(s)', v_rows; end if;
+end $$;
+select pass('AC-FCT-026 …and may not EDIT an existing project-less task either — the standing check '
+  'is on all four policies, not only the one the probe happened to use');
+
+reset role;
+select is(
+  (select name from tasks where id = '05250000-0000-0000-0000-00000000fc03'),
+  'FCT assigned orphan',
+  'AC-FCT-027 …and the row is genuinely untouched — a rowcount alone would pass against a policy '
+  'that admitted the write and stored the same value');
+
+reset role;
 select * from finish();
 rollback;
