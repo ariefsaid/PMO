@@ -204,8 +204,9 @@ const SalesPipeline: React.FC = () => {
       header: 'Value',
       align: 'num',
       // Per-ROW here, unlike the stage totals above — each deal renders in its OWN currency
-      // (migration 0201), so a mixed-currency list stays honest row by row. ⚑ `exportValue` still
-      // emits a bare number with no currency column; that is a known CSV gap, not this cell's.
+      // (migration 0201), so a mixed-currency list stays honest row by row. `exportValue` stays a
+      // bare numeric amount so a spreadsheet can sum the column; the per-record ISO code is
+      // carried by the adjacent export-only Currency column (see exportColumns below).
       cell: (r) => formatCurrency(r.contract_value, r.currency),
       exportValue: (r) => r.contract_value,
     },
@@ -298,6 +299,23 @@ const SalesPipeline: React.FC = () => {
       },
     },
   ];
+
+  // ── Export (AC-L10N-052) ────────────────────────────────────────────────────
+  // The XLSX download carries each deal's OWN ISO code in its own column, immediately after the
+  // Value cell (and before Weighted). Per Director decision: carry per-row currency, never convert.
+  // The on-screen table stays unchanged — this column is export-only.
+  const exportColumns: Column<PipelineProject>[] = [];
+  for (const col of tableColumns) {
+    exportColumns.push(col);
+    if (col.key === 'value') {
+      exportColumns.push({
+        key: 'currency',
+        header: 'Currency',
+        cell: (r) => r.currency,
+        exportValue: (r) => r.currency,
+      });
+    }
+  }
 
   // Search-filtered kanban set (open ∪ lost), so the kanban's view-local search spans every
   // column including the terminal Lost column.
@@ -418,7 +436,7 @@ const SalesPipeline: React.FC = () => {
       /* B-5 (AC-W2-IXD-008 / W1-E): Export is a live xlsx download of the current table view. */
       exportAction={
         state !== 'loading' && (
-          <ExportButton rows={filtered} columns={tableColumns} entity="Pipeline" />
+          <ExportButton rows={filtered} columns={exportColumns} entity="Pipeline" />
         )
       }
       view={
