@@ -64,16 +64,17 @@ are **event-driven** instead: unblock a batch, drive until blocked, batch again.
 
 **Every session is one of two kinds.** Open by asking which:
 
-```bash
-scripts/wayfinder-doctor.sh          # the frontier, plus a check that nothing is hiding from it
-```
+**Don't ask it — it is already answered.** `.claude/hooks/session-frontier.sh` runs at SessionStart and
+prints the frontier and the session kind before you type anything. Read that line; don't hand-roll a
+query, because hand-rolling it is what has gone wrong every time.
 
-⚑ **Do not hand-roll this query, and never AND the resolver label with `wayfinder:ticket`.** It used to
-read `--label wayfinder:ticket --label wayfinder:owner`, and on 2026-08-21 that returned **empty** while
-#527, #523 and #518 sat open — parked with the resolver label and never wired to a map. The session read
-empty as "no owner questions", declared a DRIVE session, and spent ~150K tokens without asking anything.
-It was executing a wrong answer correctly. **An empty frontier is a claim; `wayfinder-doctor.sh` is what
-checks it**, and it exits non-zero on an orphan rather than reporting nothing and looking calm.
+⚑ **Never AND the resolver label with `wayfinder:ticket`.** Both the hook and the skill used to, and on
+2026-08-21 that made #527, #523 and #518 — parked with the resolver label alone — count as ordinary
+*build* issues. So the hook opened every session that day with **"wayfinder frontier drained"** while
+four owner questions sat waiting, and a session spent ~150K tokens on director work without asking one.
+It was executing a wrong answer correctly. The resolver label is what the branch turns on; making a
+second label agree only adds a way to be silently wrong. The hook now keys on the resolver and warns
+when a ticket is missing `wayfinder:ticket`.
 
 - **Non-empty → GRILL session.** Drain the **whole** owner frontier in one sitting, batched into
   rounds per `/grilling`. Not one ticket — all of them. The owner's attention is the scarce input;

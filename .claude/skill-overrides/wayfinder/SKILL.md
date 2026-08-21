@@ -42,7 +42,7 @@ Every map and ticket is an issue, so it has a **name** — its title. In everyth
 > ⚑ **Parking is three fields, not one label:** the `wayfinder:ticket` label *alongside* the resolver
 > one · `Map: #<n>` as the body's first line · the native sub-issue link to that map. A ticket carrying
 > only the resolver label is invisible to the frontier — that is precisely how three owner questions
-> stayed hidden through a whole session on 2026-08-21. Run `scripts/wayfinder-doctor.sh` to find any.
+> stayed hidden through a whole session on 2026-08-21. `.claude/hooks/session-frontier.sh` warns about any at SessionStart.
 > Cadence: `docs/factory-workflow.md` § The drive loop.
 
 ## The Map
@@ -204,6 +204,8 @@ answers that. They should never need to say "grill session" or name the sibling 
 
    If that finds tickets the frontier query missed, **fix the tickets** (add `wayfinder:ticket`, the
    `Map: #<n>` first line, and the sub-issue link) and re-run — do not proceed on the empty answer.
+   ⚑ `.claude/hooks/session-frontier.sh` already answers this at SessionStart and warns about
+   resolver-labelled tickets missing `wayfinder:ticket`; prefer reading its line over re-querying.
 
    **Non-empty → GRILL session:** take *all* of them into `/grilling` rounds and drain the batch. Do not
    pick one and stop. **Empty → DRIVE session:** work `director` tickets, chaining as many as context
