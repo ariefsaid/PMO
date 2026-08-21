@@ -7,7 +7,7 @@
 -- columns — a non-service-role user (including a manager role) cannot change them while tasks are
 -- externally-owned, same as name/status.
 begin;
-select plan(17);
+select plan(19);
 
 insert into organizations (id, name) values
   ('00910000-0000-0000-0000-000000000001','AC-CUA Tasks Org A (flipped)'),
@@ -80,6 +80,32 @@ select lives_ok(
   $$ insert into task_dependencies (task_id, depends_on_id, org_id)
      values ('00910000-0000-0000-0000-000000000101','00910000-0000-0000-0000-000000000102','00910000-0000-0000-0000-000000000001') $$,
   'AC-CUA-021 task dependency insert remains writable while tasks externally-owned');
+
+-- ⚑ #532 / 0200: the externally-owned branch is now a whole-row diff over an allowlist
+-- {milestone_id, completed_at, tombstoned_at, source_updated_at} instead of a 13-column deny-list.
+-- Behaviour is unchanged — AC-CUA-020/021/022/023 above are the proof of that — but the POLARITY is
+-- not, and only a column that did not exist when the list was written can show the difference.
+reset role;
+alter table public.tasks add column zz_future_column text;
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"00910000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select throws_ok(
+  $$ update tasks set zz_future_column = 'manager wrote this' where id = '00910000-0000-0000-0000-000000000101' $$,
+  '42501',
+  'task native fields are read-only while tasks are externally-owned',
+  'AC-CUA-024 a column added to `tasks` after the mirror guard was written is ClickUp-owned by '
+  'DEFAULT while the domain is externally-owned — the deny-list made every such column writable');
+reset role;
+alter table public.tasks drop column zz_future_column;
+
+-- CONTROL: the four allowlisted columns stay writable, so AC-CUA-024 cannot be passing because the
+-- guard simply started refusing everything.
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"00910000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select lives_ok(
+  $$ update tasks set tombstoned_at = now(), source_updated_at = now()
+      where id = '00910000-0000-0000-0000-000000000101' $$,
+  'AC-CUA-025 CONTROL the mirror-metadata columns are still writable while externally-owned');
 
 reset role;
 set local request.jwt.claims = '{"role":"service_role"}';

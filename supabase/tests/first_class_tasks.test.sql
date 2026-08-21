@@ -12,7 +12,7 @@
 -- assignee and by nobody else — every manager locked out, and locked out SILENTLY: a `using` denial
 -- hides the row, so UPDATE/DELETE are 0-row no-ops that the DAL reports as success.
 begin;
-select plan(24);
+select plan(40);
 
 insert into organizations (id, name) values
   ('05250000-0000-0000-0000-000000000001','FCT Org'),
@@ -292,6 +292,208 @@ select is(
   'FCT assigned orphan',
   'AC-FCT-027 …and the row is genuinely untouched — a rowcount alone would pass against a policy '
   'that admitted the write and stored the same value');
+
+-- ── §G — #532: THE COLUMN PIN IS AN ALLOWLIST, so a column added tomorrow is refused. ───────────
+-- Migration under test: 0200_assignee_column_allowlist.sql. `grep -r AC-ACA-` finds exactly these.
+--
+-- The pin used to enumerate the columns an assignee may NOT change. `tasks` has 17 columns and the
+-- assignee branch named 12, so `milestone_id`, `tombstoned_at` and `source_updated_at` were writable
+-- by any Engineer assignee — each verified `UPDATE 1` by probe against a `42501` control on `name`.
+-- Every oracle below asserts the MESSAGE, not just `42501`: `tasks` carries several 42501 gates
+-- (three RLS policies and the parent guard), and a bare errcode assertion goes green for the wrong
+-- reason the moment a different one moves in front of this trigger.
+reset role;
+reset request.jwt.claims;
+
+-- A SECOND project in the SAME org, so the milestone oracle proves the column pin and not tenancy.
+insert into projects (id, org_id, name, status) values
+  ('05250000-0000-0000-0000-000000000fd3','05250000-0000-0000-0000-000000000001','FCT Second Project','Ongoing Project');
+insert into project_milestones (id, org_id, project_id, name, target_date, weight) values
+  ('05250000-0000-0000-0000-00000000fb02','05250000-0000-0000-0000-000000000001',
+   '05250000-0000-0000-0000-000000000fd3','FCT Second Milestone','2026-12-31',10);
+-- The second project's own work: one task, not done. Its delivery percentage is therefore 0.
+insert into tasks (id, org_id, project_id, milestone_id, name, status) values
+  ('05250000-0000-0000-0000-00000000fc07','05250000-0000-0000-0000-000000000001',
+   '05250000-0000-0000-0000-000000000fd3','05250000-0000-0000-0000-00000000fb02','FCT second-project work','To Do');
+-- The Engineer's own task: DONE, and inside the FIRST project's milestone. Moving THIS row is what
+-- moves the other project's number — a Done task dragged into a foreign milestone.
+insert into tasks (id, org_id, project_id, milestone_id, name, status, assignee_id) values
+  ('05250000-0000-0000-0000-00000000fc05','05250000-0000-0000-0000-000000000001',
+   '05250000-0000-0000-0000-000000000fd1','05250000-0000-0000-0000-00000000fb01',
+   'FCT engineer done task','Done','05250000-0000-0000-0000-0000000000a2');
+-- A plain To Do task of the Engineer's, for the column oracles that need a live status transition.
+-- ⚑ It CARRIES its project's milestone from the start. AC-ACA-012 then clears it and AC-ACA-014
+-- restores it, so both are real value changes. An earlier draft had AC-ACA-012 set the same value
+-- AC-ACA-014 would set, which made AC-ACA-014 a no-op diff — it stayed GREEN with the server-
+-- authority exemption deleted. Caught by the mutation run, not by reading the assertion.
+insert into tasks (id, org_id, project_id, milestone_id, name, status, assignee_id) values
+  ('05250000-0000-0000-0000-00000000fc06','05250000-0000-0000-0000-000000000001',
+   '05250000-0000-0000-0000-000000000fd1','05250000-0000-0000-0000-00000000fb01',
+   'FCT engineer todo task','To Do','05250000-0000-0000-0000-0000000000a2');
+
+set local role authenticated;
+set local request.jwt.claims =
+  '{"sub":"05250000-0000-0000-0000-0000000000a2","role":"authenticated"}';
+
+-- ⚑ THE HARM, not merely "an update failed". An Engineer assignee pointing their own DONE task at
+-- ANOTHER PROJECT's milestone moves that project's delivery percentage — every server-side rollup
+-- joins tasks through `milestone_id` and never through `project_id`.
+select throws_ok(
+  $$ update tasks set milestone_id = '05250000-0000-0000-0000-00000000fb02'
+      where id = '05250000-0000-0000-0000-00000000fc05' $$,
+  '42501',
+  'only the task status may be changed by its assignee',
+  'AC-ACA-001 an Engineer assignee may not repoint their task at ANOTHER project''s milestone');
+
+reset role;
+select is(
+  (select task_count from get_project_milestones('05250000-0000-0000-0000-000000000fd3')
+    where id = '05250000-0000-0000-0000-00000000fb02'),
+  1,
+  'AC-ACA-002 …and the other project''s milestone still counts only its OWN task. This is the harm '
+  'assertion: a rowcount on `tasks` would pass while the rollup silently moved');
+select is(
+  (select calculated_pct::numeric(10,0) from get_project_milestones('05250000-0000-0000-0000-000000000fd3')
+    where id = '05250000-0000-0000-0000-00000000fb02'),
+  0::numeric,
+  'AC-ACA-003 …and its delivery percentage did not move. Admitting the write would make it 1 of 2 '
+  'done = 50% on a project the Engineer has nothing to do with');
+
+set local role authenticated;
+set local request.jwt.claims =
+  '{"sub":"05250000-0000-0000-0000-0000000000a2","role":"authenticated"}';
+
+select throws_ok(
+  $$ update tasks set tombstoned_at = now()
+      where id = '05250000-0000-0000-0000-00000000fc06' $$,
+  '42501',
+  'only the task status may be changed by its assignee',
+  'AC-ACA-004 an Engineer assignee may not tombstone their task — the DAL and the agent read past '
+  'tombstoned rows, so this is a delete they are not allowed to perform');
+
+select throws_ok(
+  $$ update tasks set source_updated_at = now() + interval '100 years'
+      where id = '05250000-0000-0000-0000-00000000fc06' $$,
+  '42501',
+  'only the task status may be changed by its assignee',
+  'AC-ACA-005 an Engineer assignee may not move source_updated_at — a future watermark freezes every '
+  'later ClickUp mirror update for that task');
+
+reset role;
+select is(
+  (select count(*)::int from tasks
+    where id = '05250000-0000-0000-0000-00000000fc06'
+      and tombstoned_at is null and source_updated_at is null),
+  1,
+  'AC-ACA-006 …and neither landed. throws_ok proves an exception, not that the row is intact');
+
+-- ⚑ THE POLARITY ITSELF. This is the oracle the deny-list could never have: a column that did not
+-- exist when the trigger was written is refused by DEFAULT. It is added and dropped inside this
+-- transaction, so it models the next `alter table tasks add column` exactly.
+alter table public.tasks add column zz_future_column text;
+set local role authenticated;
+set local request.jwt.claims =
+  '{"sub":"05250000-0000-0000-0000-0000000000a2","role":"authenticated"}';
+select throws_ok(
+  $$ update tasks set zz_future_column = 'engineer wrote this'
+      where id = '05250000-0000-0000-0000-00000000fc06' $$,
+  '42501',
+  'only the task status may be changed by its assignee',
+  'AC-ACA-007 a column added to `tasks` AFTER the trigger was written is refused to the assignee by '
+  'default. Under the old deny-list every such column was writable — that is the whole defect, and '
+  'it recurred three times because nothing could fail');
+reset role;
+alter table public.tasks drop column zz_future_column;
+
+-- ── completed_at: allowed at the pin, controlled at the stamp. ──────────────────────────────────
+-- The pin (`tasks_assignee_status_only`) fires BEFORE the stamp (`trg_stamp_task_completed_at`) —
+-- BEFORE ROW triggers fire in trigger-NAME order and 'ta' < 'tr'. So a client that sends
+-- `completed_at` reaches the pin with a genuinely changed value; pinning it would REFUSE the write
+-- rather than ignore it. Allowing it costs nothing because the stamp reassigns it unconditionally.
+set local role authenticated;
+set local request.jwt.claims =
+  '{"sub":"05250000-0000-0000-0000-0000000000a2","role":"authenticated"}';
+
+select lives_ok(
+  $$ update tasks set completed_at = '2020-01-01T00:00:00Z'
+      where id = '05250000-0000-0000-0000-00000000fc06' $$,
+  'AC-ACA-008 an assignee may SEND completed_at — the pin allows it because the stamp, not the pin, '
+  'is what controls the column');
+
+reset role;
+select is(
+  (select completed_at from tasks where id = '05250000-0000-0000-0000-00000000fc06'),
+  null::timestamptz,
+  'AC-ACA-009 …and it did NOT land: the task is not Done, so the stamp reasserted null over the '
+  'value the client sent. THIS is why completed_at is safe to allow at the pin');
+
+set local role authenticated;
+set local request.jwt.claims =
+  '{"sub":"05250000-0000-0000-0000-0000000000a2","role":"authenticated"}';
+select lives_ok(
+  $$ update tasks set status = 'Done', completed_at = '2020-01-01T00:00:00Z'
+      where id = '05250000-0000-0000-0000-00000000fc06' $$,
+  'AC-ACA-010 CONTROL the assignee can still complete their task — the write the whole trigger '
+  'exists to permit, with a forged completion date riding along');
+
+reset role;
+select ok(
+  (select completed_at from tasks where id = '05250000-0000-0000-0000-00000000fc06')
+    >= now() - interval '5 seconds',
+  'AC-ACA-011 …and completed_at is the stamp''s now(), not the 2020 date the client sent — an '
+  'assignee cannot backdate their own completion');
+
+-- ── The write-role path is untouched: managers still own the whole row. ─────────────────────────
+set local role authenticated;
+set local request.jwt.claims =
+  '{"sub":"05250000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select lives_ok(
+  $$ update tasks set name = 'FCT PM full edit', tombstoned_at = now(),
+                      source_updated_at = now(), milestone_id = null
+      where id = '05250000-0000-0000-0000-00000000fc06' $$,
+  'AC-ACA-012 CONTROL a Project Manager still writes every one of the newly-pinned columns — the '
+  'allowlist tightened the ASSIGNEE branch, not the write-role early return');
+
+reset role;
+select is(
+  (select count(*)::int from tasks
+    where id = '05250000-0000-0000-0000-00000000fc06' and name = 'FCT PM full edit'
+      and milestone_id is null and tombstoned_at is not null and source_updated_at is not null),
+  1,
+  'AC-ACA-013 …and every one of them persisted — lives_ok alone would pass against a policy that '
+  'hid the row, and naming only one column would leave the other three unbound');
+
+-- ── §C — the server-authority exemption. ───────────────────────────────────────────────────────
+-- `auth_role()` reads profiles.role for auth.uid(), so a writer with NO request JWT answers NULL,
+-- fails the write-role early return, and lands in the assignee branch. Pinning `milestone_id`
+-- without this exemption is exactly what broke `seed.sql` during #525 and got reverted.
+--
+-- ⚑ It is keyed on `auth.uid()`, the CALLER's identity, not on the executing DB role — probed in
+-- 0200 §C: `request.jwt.claims` is transaction-local and survives into a SECURITY DEFINER function,
+-- so an Engineer calling a definer RPC still answers 'Engineer' here and stays pinned. That is what
+-- makes it different from the exemption DD-WO-8 refused on the work-order freeze.
+reset role;
+reset request.jwt.claims;
+select lives_ok(
+  $$ update tasks set milestone_id = '05250000-0000-0000-0000-00000000fb01'
+      where id = '05250000-0000-0000-0000-00000000fc06' $$,
+  'AC-ACA-014 a server-side writer with no request JWT may still set milestone_id — this is '
+  '`seed.sql`''s own statement shape, verbatim, and without the exemption the pin refuses it');
+
+select is(
+  (select milestone_id::text from tasks where id = '05250000-0000-0000-0000-00000000fc06'),
+  '05250000-0000-0000-0000-00000000fb01',
+  'AC-ACA-015 …and it landed');
+
+-- The exemption''s reachable surface over PostgREST, pinned so a future grant sweep cannot widen it
+-- silently: the anon key is a JWT with a role claim and NO sub, so `auth.uid()` is null for it too.
+-- The only thing standing between anon and the exemption is the absence of an UPDATE grant.
+select ok(
+  not has_table_privilege('anon', 'public.tasks', 'UPDATE'),
+  'AC-ACA-016 `anon` holds no UPDATE grant on tasks — an anon caller has no `sub`, so it would take '
+  'the server-authority exemption if it could ever reach the trigger at all');
+
+reset role;
 
 reset role;
 select * from finish();
