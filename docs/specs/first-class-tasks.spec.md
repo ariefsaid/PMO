@@ -1,8 +1,8 @@
 # First-class tasks — spec
 
 **Issue:** #462 (closed decision ticket) · **Sequence:** step 2 of the RIS go-live map (#450), gates
-#463 (meetings) · **Rulings:** `DD-TASK-1..5`, `DD-MTG-2`, `OD-2` (repealed here), `OD-INT-9`,
-`FR-IEM-010..013`
+#463 (meetings) · **Rulings:** `DD-TASK-1..5`, `DD-TASK-6`, `OD-TASK-1..2`, `DD-MTG-2`, `OD-2` (repealed here),
+`OD-INT-9`, `FR-IEM-010..013` · ⚑ **`DD-TASK-7` was raised and RETRACTED 2026-08-21 — see §8.2**
 
 **Id prefix:** `FCT` — `FR-FCT-###` / `AC-FCT-###`. Unused elsewhere in `docs/specs/` (checked
 against every `FR-`/`AC-` prefix in the tree). ⚑ Not to be confused with the **legacy `AC-TASK-###`**
@@ -424,23 +424,88 @@ never calls the DAL method at all (§6), `OD-2`'s original reason is already moo
 disagree, with three denying and one passing; `stamp_task_completed_at` does silently overwrite a
 mirror-supplied `completed_at`; and `check_tasks_parent_same_project` does go vacuous.
 
-## 8. ⏸ Needs an owner ruling
+## 8. ✅ Resolved (owner grill 2026-08-21, from #527)
 
-1. **When a project is deleted, should its tasks be deleted or become project-less?**
-   Today the FK is `on delete cascade` (`0001_init_schema.sql:209`), so deleting a project deletes its
-   tasks. Once `project_id` is nullable, `on delete set null` becomes possible, and the tasks would
-   survive as project-less work in `My Tasks`. FR-FCT-002 assumes **keep cascade** — a project-less
-   task means "never had a project", not "outlived one". Changing it would mean deleting a project
-   quietly turns its work into unattributed items nobody is watching. *Answerable cold: if a project
-   is deleted by mistake, do you want its tasks back in "My Tasks" as orphans, or gone with it?*
-   (Note: projects are soft-archived in normal use, ADR-0018 — this is about the hard-delete path
-   only.)
+**Both questions below were open when this spec was written. Both are now settled and neither changes
+the shipped migration (`0199`).** Kept in place rather than deleted, because the *reasoning* is what a
+future agent needs — the answers alone would invite re-litigation.
 
-2. **May two project-less tasks be parent and child of each other's subtree?**
-   FR-FCT-022 requires the answer be stated; it does not choose. **Allow** means a meeting action item
-   can have subtasks, which is natural, but the "same project" invariant then guarantees nothing for
-   project-less rows and the real guard arrives only with `meeting_id` (#463). **Forbid** means
-   project-less tasks are always flat until #463 lands, and the invariant stays total. This spec
-   defaults to **forbid** — the narrower rule is the reversible one, and #463 can widen it with the
-   meeting-level invariant `DD-TASK-1` already calls for. *Answerable cold: should a task attached to
-   nothing be allowed to have subtasks before meetings ship?*
+### 8.1 Project hard-delete keeps `on delete cascade` — `DD-TASK-6`
+
+**Ruled: keep cascade.** FR-FCT-002 stands unchanged; `0199` did not touch the FK.
+
+⚑ **State the honest strength of this.** Verified while re-checking the batch: **nothing in the schema
+references `tasks` except `tasks.parent_task_id` itself** (`0140:38`, `on delete cascade`). No
+timesheet, no dependency table, no mirror row FKs a task. So *both* options work cleanly — `on delete
+set null` would not dangle anything either. **This is a preference, not a forced move**, and the
+preference is that a project-less task should mean "never had a project", never "outlived one":
+otherwise deleting a project quietly converts its work into unattributed items in `My Tasks` that
+nobody is watching.
+
+Project hard-delete is reachable but **Admin-only and restrictive** (`0052_project_delete_admin_only.sql:27-30`),
+and projects are soft-archived in normal use (ADR-0018). So the path this rules on is rare by design.
+
+### 8.2 Two project-less tasks MAY be parent and child — `DD-TASK-7` retracted
+
+**Ruled: allow. FR-FCT-022's statement stands and `0199`'s behaviour is correct.**
+
+⛔ **This spec contradicted itself, and the contradiction is why a bad ruling nearly shipped.**
+FR-FCT-022 (§3) states plainly that *"a project-less task may parent any other project-less task in
+the org"*; §8.2 as originally written said the spec *"defaults to **forbid**"*. The migration followed
+FR-FCT-022. A grill session read the §8 default, took it as the spec's position, and recorded
+`DD-TASK-7` ("forbid") — then filed a build ticket against `0199` for not implementing a rule the same
+document had already stated the other way.
+
+**The owner rejected it on the right grounds:** *"spec is written by LLM so can be inherent assumption
+without basis... unless you can specify why its an issue."* Checked, and nothing breaks:
+
+- **The invariant is satisfied, not evaded.** Two project-less tasks *are* in the same non-project;
+  `null is distinct from null` → false is the correct reading of "parent must be in the same project".
+- **No visibility widening.** `tasks_select` (`0199:126-127`) admits `project_id is null` **or** any
+  project in the caller's org — org-wide either way, so nesting changes nothing.
+- **No computed figure moves.** Since `0141:43,77`, any task with a parent is excluded from milestone
+  counts, `delivery_pct`, S-curve and Gantt. A project-less subtask was already invisible to every
+  rollup.
+- **No dangling rows.** `parent_task_id` is `on delete cascade` (`0140:38`).
+
+⚑ **The rule this leaves behind, binding on anyone reading this spec: a spec default is not evidence.**
+Neither the §8 default nor `0199`'s header cited a consequence, and their agreement with each other is
+not a second source. Before turning a stated default into a ruling, answer *what actually breaks*.
+
+### 8.3 Children follow their parent between projects — `OD-TASK-2` (new)
+
+Raised by the owner while resolving §8.2: *"when parent task gets transferred, from a 'default' project
+to 'actual' project, children task should also transfer right?"* **Yes.**
+
+**A subtask has no independent project identity** — it exists only in relation to its parent — and
+blocking the move instead would fail the ordinary "file this `My Tasks` item into a project" workflow
+for a reason the user cannot act on. So the project change **cascades down the subtree**.
+
+⚑ **This is not implemented, and the gap is pre-existing, not introduced by `0199`.**
+`check_tasks_parent_same_project` is `before insert or update ... for each row` bound to the row
+*carrying* `parent_task_id` (`0140:66`, body replaced at `0199:251`) — it fires on the child, never on
+the parent. Moving a parent from project A to project B therefore leaves its children in A, silently,
+and has done since `0140`. Tracked as [#550](https://github.com/ariefsaid/PMO/issues/550).
+
+### 8.4 ⛔ NEW — an Engineer cannot create a task at all
+
+Found while re-checking this batch, and it collides with a ruling made in the same session.
+
+`tasks_insert` (`0199:116-121`) requires `auth_role() in ('Admin','Executive','Project Manager','Finance')`.
+**`Engineer` is not in that list**, and `0199` did not widen it.
+
+`OD-MTG-1` rules that **every role, Engineer included, can create and minute meetings**. If a meeting's
+`/action` creates a task (the premise of #527 item 8 and of `DD-TASK-1`'s `meeting_id` parent), then an
+Engineer minuting a site meeting **cannot create its action items** — the day-1 feature fails for the
+day-1 author. Tracked as [#551](https://github.com/ariefsaid/PMO/issues/551).
+
+### 8.5 Correction to #527 item 8's premise
+
+#527 stated that while ClickUp owns the domain `tasks_insert` *"denies INSERT outright"*, so a
+meeting's `/action` could not create a task at all. **Overstated.**
+`task_domain_externally_owned(NULL)` returns `false` by construction (`0199:77-78`), so a
+**project-less** task is insertable regardless of external ownership. The denial binds only on tasks
+that carry a project.
+
+The outcome is unchanged — `OD-TASK-1` rules that PMO owns tasks at RIS and ClickUp is not in play —
+but the reasoning recorded on the ticket was wrong and should not be reused.

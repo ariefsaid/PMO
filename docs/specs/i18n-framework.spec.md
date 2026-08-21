@@ -1,7 +1,7 @@
 # i18n framework — spec
 
 **Issue:** #468 (CLOSED, rulings binding) · **Sequence:** #450 step 1 · **Rulings:** `OD-CR-3`,
-`OD-CR-5`, `DD-I18N-1..6`, `DD-RIS-2` · **Prefix:** `FR-L10N-###` / `AC-L10N-###` (unused; `FR-I18N`
+`OD-CR-5`, `DD-I18N-1..6`, **`DD-I18N-7..8`, `OD-I18N-1` (owner grill 2026-08-21, §8)**, `DD-RIS-2` · **Prefix:** `FR-L10N-###` / `AC-L10N-###` (unused; `FR-I18N`
 collides with the legacy `NFR-I18N-001` in `docs/specs/target-architecture.spec.md:870`)
 
 ---
@@ -473,28 +473,53 @@ failure mode the TODO was written to prevent, and it will not raise.
 
 ---
 
-## 8. ⏸ Needs an owner ruling
+## 8. ✅ Resolved (owner grill 2026-08-21, from #527)
 
-**8.1 — The dependency.** This adds three npm packages: `i18next` and `react-i18next` (runtime,
-~15kB gzipped combined) and `i18next-parser` (dev-only, for extraction and the CI gate). No other
-i18n plugin, now or later — the money path stays plugin-free by rule. The alternative is a
-hand-rolled `t()` plus a JSON loader (~40 lines, zero dependencies), which at ~1,150 distinct
-strings across 195 files means hand-building key extraction, a missing-key report and a fallback
-policy — the parts the parser gives us as a CI gate. **Approve the three packages?**
+All three questions below are answered. Build ticket: [#547](https://github.com/ariefsaid/PMO/issues/547).
 
-**8.2 — Go-live language scope.** `DD-I18N-2` gives every user a personal override, so English stays
-reachable per-user even in an `id` org. Two things follow that need your call:
- (a) Does the client's org ship with English **available** to their users (a language switcher in
-     settings), or is `id` the only language they can select?
- (b) Does the `id` catalogue have to be **100% complete** to go live, or is silent-English fallback
-     acceptable for rarely-seen surfaces (operator admin screens, error states)? The CI gate
-     (`FR-L10N-042`) enforces whichever answer you give; it currently assumes 100%.
+### 8.1 The dependency — approved (`DD-I18N-7`)
 
-**8.3 — Who translates ~1,150 strings, and when do they start?** Not an engineering question and it
-does not gate the mechanism, but it is the longest pole after this ships. `DD-I18N-5` ruled **no
-TMS** (no Crowdin/Lokalise for two languages), so the mechanism accepts either a direct JSON edit or
-a spreadsheet round-trip and the translator needs no tooling. The sequence (#450) puts the content
-pass at **step 6**, after work orders. My recommendation is to **start it as soon as the `en`
-catalogue is extracted** — it is unblocked from step 2 onward and runs in parallel with steps 2–4,
-whereas leaving it in slot 6 serializes multiple weeks of non-engineering work behind engineering
-work that does not depend on it. **Keep it at step 6, or start it early in parallel?**
+**`i18next` + `react-i18next` (runtime) + `i18next-parser` (dev) go in.** `DD-I18N-1` already ruled the
+library; this only approves the packages. The hand-rolled alternative was rejected for the reason §8.1
+originally gave: at ~1,150 distinct strings across 195 files, the parts you would hand-build are
+exactly the parts that make the CI gate possible.
+
+⚑ **Add them with `scripts/relock.sh`, never `npm install` on macOS.** `npm install` on darwin/arm64
+silently prunes the `wasm32-wasi` optional deps and linux CI then fails `npm ci` on a lock that cannot
+be regenerated from a Mac.
+
+### 8.2 Go-live language scope — `OD-I18N-1`
+
+**(a) English stays selectable** inside the client's org. The switcher ships; the strings are the
+source, so keeping it reachable costs nothing.
+
+**(b) Not 100%. The CI gate (`FR-L10N-042`) covers the launch-scope routes only** — silent English
+fallback is acceptable outside them. ⛔ **Do not gate on the whole app.** A 100%-everywhere gate holds
+go-live hostage to operator admin screens nobody at the client opens, which converts a translation
+backlog into a launch blocker for no user-visible gain.
+
+⚑ **`FR-L10N-042` must therefore take an explicit route list, not "all keys".** That list is the
+launch scope from #450, and it is a file someone can read — not a glob that silently grows every time a
+route is added.
+
+### 8.3 Who translates, and when — `OD-I18N-1` + `DD-I18N-8`
+
+**Who: the agent writes the app terminology. Seed data is not translated.** No external translator sits
+on the critical path, and `DD-I18N-5`'s no-TMS ruling stands.
+
+⚑ **House style, binding on the pass and on every future string added:** prefer the **common borrowed
+English term** over a formal or unusual Indonesian one **where that is what Indonesian software
+actually uses**. The owner's words: *"some indonesian app still use common english word rather than
+using too formal/unusual Indonesian word."* Do not translate for completeness where the loanword is the
+term users recognise — an over-formal catalogue reads as machine output and is worse than the English
+it replaced. Maintain the decided terms as a glossary alongside the catalogue so the choice is made
+once, not per-string.
+
+**When: in parallel from step 2, not at step 6 (`DD-I18N-8`).** The content pass depends on the `en`
+catalogue existing, not on tasks, meetings or work orders shipping. Slot 6 serialised multiple weeks of
+non-engineering work behind engineering work it does not depend on. **The #450 sequence is amended
+accordingly.**
+
+⚑ **Size figures verified 2026-08-21** — §3's method (a throwaway regex scan over 195 non-test `.tsx`
+files, three counted shapes) is stated and reproducible, and an independent narrower recount landed in
+the same order of magnitude. Treat ~1,940 call sites / ~1,170 distinct strings as sound for planning.

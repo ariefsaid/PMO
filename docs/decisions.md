@@ -2346,3 +2346,74 @@ Checked before retracting, and nothing broke:
 **[DD-CUR-7] Demo/staging rows backfill `tax_treatment` as `exclusive`.** Under `OD-TAX-1` the value is required per row with no form pre-selection, but the existing demo rows still need one. `exclusive` is the common Indonesian B2B quoting shape, so screenshots seed a plausible example rather than a claim about a real contract.
 
 **[DD-OPS-9] #499 reduces to its documentation half.** Owner ruling: hosting spend approval and the WIB support-window staffing are **not route decisions and are not planned on this map**. The Director delivers the system requirements, the credential-rotation runbook, the backup/restore procedure and the `docs/environments.md` production section; provisioning and commercials are the owner's and are dropped from the map.
+
+---
+
+## OD-TASK-2 — a subtask follows its parent between projects (owner, 2026-08-21)
+
+Raised by the owner while retracting `DD-TASK-7`: *"when parent task gets transferred, from a 'default'
+project to 'actual' project, children task should also transfer right?"* **Yes.**
+
+**A subtask has no independent project identity** — it exists only in relation to its parent. And
+refusing the move instead would fail the ordinary "file this `My Tasks` item into a project" workflow
+for a reason the user cannot act on. So a `project_id` change **cascades down the subtree**.
+
+⚑ **Not implemented, and pre-existing rather than introduced by `0199`.**
+`check_tasks_parent_same_project` is `before insert or update ... for each row` bound to the row
+*carrying* `parent_task_id` (`0140:66`, body replaced at `0199:251`) — it fires on the child, never on
+the parent. Moving a parent from project A to project B silently leaves its children in A, and has done
+since `0140`. Low severity (org-wide reads either way; `0141` excludes subtasks from every rollup; the
+org floor holds), tracked as [#550](https://github.com/ariefsaid/PMO/issues/550).
+
+---
+
+## Batch re-check — every ruling of 2026-08-21 held to "what actually breaks?" (Director, 2026-08-21)
+
+The owner directed that the `DD-TASK-7` test be applied to the rest of the batch. Each claim was
+checked against code rather than against the document that asserted it. **Two claims were wrong and one
+collision was missed.** The rulings' outcomes all stand; two of their *reasons* do not.
+
+**[VERIFIED] `OD-XING-1`'s falsification of `DD-XING-3` is grounded in code, not in a spec.**
+`erpnext-sweep/index.ts` scopes timesheet candidates to `approved_at >= activated_at` and states in
+comment that *"Hours approved BEFORE the org connected ERPNext are deliberately out of scope"*; the
+budget path confirms *"Nothing writes a `budget_version_erp_mirror` row before the dispatch"*. Both
+claims read as written. This is the one ruling in the batch that cited running code from the start.
+
+**[CORRECTED] `DD-MTG-6`'s stated reason was false.** It was justified on #527 as *"retiring it would
+delete real history"*. There is no real history: the only `'Meeting'`-kind rows in the tree are **8 rows
+in `supabase/seed.sql`**, and no client is live. **The ruling stands on a different reason** — a logged
+touchpoint and a minuted meeting are different records with different lifecycles, and collapsing them
+forces every one-line "called Acme" into a document with an attendee list. Corrected in
+`docs/specs/meeting-module.spec.md` §8.1.
+
+**[DOWNGRADED] `DD-TASK-6` is a preference, not a forced move.** Verified that **nothing in the schema
+references `tasks` except `tasks.parent_task_id` itself** (`0140:38`), so `on delete set null` would not
+dangle anything either — both options work cleanly. Cascade stays because a project-less task should
+mean "never had a project", never "outlived one". Project hard-delete is Admin-only restrictive
+(`0052:27-30`) and soft-archive is the normal path (ADR-0018), so the ruling governs a rare path.
+
+**[CORRECTED] #527 item 8's premise was overstated.** It claimed `tasks_insert` *"denies INSERT
+outright"* while ClickUp owns the domain. `task_domain_externally_owned(NULL)` returns `false` by
+construction (`0199:77-78`), so a **project-less** task is insertable regardless; the denial binds only
+on tasks carrying a project. `OD-TASK-1`'s outcome is unchanged — ClickUp is not used at RIS — but the
+reasoning must not be reused.
+
+**[NEW — a collision the batch created and did not notice] An `Engineer` cannot create a task.**
+`tasks_insert` (`0199:116-121`) lists only `Admin`/`Executive`/`Project Manager`/`Finance`. `OD-MTG-1`
+rules every role including `Engineer` may minute meetings, and a meeting's `/action` creates a task —
+so **an Engineer minuting a site meeting cannot create its action items**, and the day-1 feature fails
+for the day-1 author. #527 item 6 was framed as the *CRM* surface and nobody joined the two policies.
+Tracked as [#551](https://github.com/ariefsaid/PMO/issues/551); the recommendation there is to widen
+only through the meeting path (a task carrying a `meeting_id` the caller attended), not to add
+`Engineer` to the role list wholesale.
+
+**[VERIFIED] `DD-I18N-7`** — `pmo-portal/package.json` has no i18n package of any kind. **`DD-I18N-8`'s
+size figures** rest on a stated, reproducible method (spec §3) and survived an independent narrower
+recount.
+
+⚑ **The class this exercise is guarding against.** Four of the batch's rulings were argued from a
+document — a spec default, a migration header, a ticket's restatement of a spec — and one of those
+documents *contradicted itself* (`first-class-tasks.spec.md` FR-FCT-022 said "allow", its §8 said
+"default to forbid"). **Two documents agreeing is not a second source when the same kind of author wrote
+both.** Before a stated default becomes a ruling: name the consequence, and read the code that produces
+it.

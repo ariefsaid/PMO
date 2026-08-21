@@ -1,7 +1,7 @@
 # Meeting module — spec
 
 **Decision tickets:** #463 (record shape · **closed, decided**) · #467 (BlockNote prototype · **closed**)
-**Rulings:** `DD-MTG-1..5` (`docs/decisions.md:1831`) · `DD-TASK-1..2` (`docs/decisions.md:1650`) ·
+**Rulings:** `DD-MTG-1..5` (`docs/decisions.md:1831`) · **`OD-MTG-1..2`, `DD-MTG-6..7` (owner grill 2026-08-21, §4/§8.1)** · `DD-TASK-1..2` (`docs/decisions.md:1650`) ·
 `OD-CR-3`/`OD-CR-4` (`docs/decisions.md:1106`) · `DD-I18N-1` (`docs/decisions.md:1335`) ·
 `OD-CR-12` (`docs/backlog.md:1038`)
 **Spike:** `docs/spikes/2026-08-19-blocknote-prototype.md` (branch `spike/467-blocknote`, code deliberately unmerged)
@@ -222,6 +222,47 @@ in the policy plus a `BEFORE INSERT` org stamp from the parent, exactly as `crm_
   (`DD-MTG-3`). Whitespace shall not count as set.
 - **FR-MTG-016** — *Ubiquitous.* Meetings shall soft-archive via `archived_at` (ADR-0018); hard delete
   shall be Admin-only and shall FK-block (23503, "in use") while tasks reference the meeting.
+
+#### ⚑ Access model — settled by owner ruling 2026-08-21 (`OD-MTG-1`, `OD-MTG-2`, `DD-MTG-7`)
+
+⛔ **This overrides the org-wide default FR-MTG-014 would otherwise give a meeting body.** FR-MTG-014's
+`org_id = auth_org_id()` remains the tenancy floor; these narrow the *select* on `meetings` above it.
+Widening later is a policy line; narrowing later is a migration over live client notes, so the
+expensive direction is taken now.
+
+- **FR-MTG-030** — *Ubiquitous.* **Writing a meeting is ordinary RBAC.** Every role, **`Engineer`
+  included**, shall be able to create a meeting and write its minutes. The `Engineer` role widens for
+  meetings only; it gains nothing on `contacts` or `crm_activities`.
+- **FR-MTG-031** — *Ubiquitous.* **Reading a meeting body is attendance, not role.** The `meetings`
+  select policy shall admit a caller who is an **attendee** of that meeting (the `meeting_attendees`
+  join on `profile_id`), or its **author**, or holds an explicit **grant** (FR-MTG-032), or is
+  **`Admin`**. ⛔ **The policy keys on the attendee join, never on `auth_role()`** — the owner's rule is
+  that an Engineer must not read a peer's minute from a meeting they were not present at.
+- **FR-MTG-032** — *Event-driven.* **When** a user with read access to a meeting shares it, the system
+  shall insert a grant row (`meeting_id`, `user_id`, `granted_by`, `granted_at`) and that user shall
+  gain read access; **when** the grant is revoked the row shall be deleted and access shall end.
+  Grants shall be **audit-logged** — who opened a minute to whom is precisely what needs a trail.
+- **FR-MTG-033** — *Ubiquitous.* Grants shall be **view-only and to named users**. There shall be **no
+  permission tiers, no share links and no expiry**. (Deliberate floor, not an oversight — add when
+  asked twice.)
+- **FR-MTG-034** — *Ubiquitous.* A Project Manager shall get **no automatic read** across their own
+  project's meetings (`DD-MTG-7`). The share panel shall **pre-suggest the project's PM** as a
+  one-click add. A blanket project-scope grant re-opens exactly what FR-MTG-031 closes, and project
+  scope is a much wider net than it sounds; one-click sharing makes inclusion a decision someone made
+  rather than a default nobody noticed. ⚑ Consequence, stated so it is not a surprise in review: **a PM
+  cannot read minutes from a meeting on their own project unless invited or shared in.** The owner may
+  widen this — it is the one direction that stays cheap.
+
+⚑ **Test note (the oracle here dies quietly).** A fixture in which every user attends every meeting
+**cannot distinguish an attendance check from an unconditional allow**. Every case for FR-MTG-031 must
+include a **non-attendee same-org peer** and assert refusal, then mutation-check by breaking the join
+condition. Same for FR-MTG-034: assert the *project's own PM* is refused when not an attendee.
+
+⛔ **FR-MTG-030 has an unmet dependency: an `Engineer` cannot create a task** — `tasks_insert`
+(`0199:116-121`) lists only `Admin`/`Executive`/`Project Manager`/`Finance`. An Engineer who can minute
+a meeting still cannot create its `/action` items. Tracked as
+[#551](https://github.com/ariefsaid/PMO/issues/551); resolve it before building the `/action` contract
+below.
 
 ### The action item — the `/action` contract
 
@@ -449,6 +490,24 @@ company — but that join does not exist yet, and the *existing* answer to that 
 Acme on Tuesday."** Settle it in the plan: either the meeting module supersedes the `'Meeting'` kind
 (and the contact timeline unions both), or a meeting writes a `crm_activities` row per contact
 attendee. Do not leave it emergent.
+
+#### ✅ Settled 2026-08-21 — `DD-MTG-6`: the `'Meeting'` kind survives, re-scoped
+
+**Ruled: keep the enum value, narrow what it means.** `crm_activities`' `'Meeting'` becomes the
+**lightweight touchpoint log** — a call, an email, a site visit, the one-line "we saw them Tuesday".
+**This module owns anything with attendees and minutes.** The Contacts page copy
+(`pmo-portal/pages/Contacts.tsx:185`, *"log calls, emails and meetings against each contact"*) drops
+"meetings" and links across to the meeting module instead. The contact timeline unions both sources.
+
+⚑ **Correction to the reason first recorded on #527.** The ruling was justified there as *"retiring it
+would delete real history"* — **that is false and should not be reused.** Checked: the only
+`'Meeting'`-kind rows in the tree are **8 rows in `supabase/seed.sql`** (demo data), and no client is
+live. Nothing real would be lost.
+
+**The reason that does hold** is the distinction itself: a logged touchpoint and a minuted meeting are
+different records with different lifecycles, and collapsing them would force every one-line "called
+Acme" into a document with an attendee list and a notes body. The enum stays because the cheap record
+is worth having, not because history depends on it.
 
 ### 8.2 The spike's typed block violates `DD-MTG-2`
 
