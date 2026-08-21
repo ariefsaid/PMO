@@ -180,3 +180,6 @@ comment on function public.enforce_assignee_status_only() is
 -- and move that project's delivery percentage — this migration closes the ASSIGNEE door onto that
 -- harm, not the manager one. Its own ticket; a cross-column FK or a trigger, plus a decision about
 -- what should happen to existing rows.
+-- → CLOSED by 0202_task_milestone_same_project.sql (#538): a composite FK, MATCH SIMPLE, replacing
+--   the single-column one; 0199 §1's CHECK is KEPT because the two cover disjoint halves of the
+--   space. The survey found 0 mismatched rows, so nothing had to be repaired or grandfathered.

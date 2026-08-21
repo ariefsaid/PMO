@@ -4326,10 +4326,10 @@ export type Database = {
           },
           {
             foreignKeyName: "tasks_milestone_id_fkey"
-            columns: ["milestone_id"]
+            columns: ["project_id", "milestone_id"]
             isOneToOne: false
             referencedRelation: "project_milestones"
-            referencedColumns: ["id"]
+            referencedColumns: ["project_id", "id"]
           },
           {
             foreignKeyName: "tasks_org_id_fkey"
