@@ -71,6 +71,11 @@ export function routeDomainWrite(domain: string): WriteRoute {
 
 /** Project-aware tasks route matching `project_domain_externally_owned` (migration 0146).
  * Unknown, cold, or unloaded project state fails closed to PMO. */
-export function routeTaskWrite(projectId?: string): WriteRoute {
-  return boundTaskProjects?.has(projectId ?? '') ? 'external' : 'pmo';
+export function routeTaskWrite(projectId?: string | null): WriteRoute {
+  // #525: `null` is a REAL state now — a task that was never given a project. It cannot be inside a
+  // ClickUp-bound project, so it routes to PMO. Declared here rather than left to fall out of
+  // `?? ''` missing the set, which is the same accident that made the four RLS policies disagree
+  // (0199's header). The DB predicate `task_domain_externally_owned` states the identical rule.
+  if (projectId == null) return 'pmo';
+  return boundTaskProjects?.has(projectId) ? 'external' : 'pmo';
 }

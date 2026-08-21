@@ -46,6 +46,10 @@ function urgencyKey(task: { end_date: string | null; status: string }): number {
 // Must match the `task_status` Postgres enum — see TasksTab.tsx for the same list.
 const TASK_STATUS_OPTIONS: TaskStatus[] = ['To Do', 'In Progress', 'Done', 'Blocked'];
 
+/** Map key for the project-less group. A sentinel, never a value that reaches a URL — the defect
+ *  this replaces was keying on `t.project_id` directly and rendering `/projects/null/tasks`. */
+const NO_PROJECT = '\u0000no-project';
+
 const MyTasks: React.FC = () => {
   const { data: tasks, isPending, isError, refetch } = useMyTasks();
   const { updateStatus } = useMyTaskMutations();
@@ -56,12 +60,20 @@ const MyTasks: React.FC = () => {
   // non-overdue open (key=1), then Done (key=2). Secondary sort: end_date asc (nulls last).
   const grouped = React.useMemo(() => {
     if (!tasks) return [];
-    const map = new Map<string, { projectId: string; projectName: string; items: typeof tasks }>();
+    // #525 FR-FCT-041: a project-less task groups under its own heading. `NO_PROJECT` is a Map key
+    // only — it never reaches a URL, which is the bug it exists to prevent: the old code keyed on
+    // `t.project_id` directly and rendered `/projects/null/tasks` for a NULL one.
+    const map = new Map<string, { projectId: string | null; projectName: string; items: typeof tasks }>();
     for (const t of tasks) {
-      if (!map.has(t.project_id)) {
-        map.set(t.project_id, { projectId: t.project_id, projectName: t.project_name, items: [] });
+      const key = t.project_id ?? NO_PROJECT;
+      if (!map.has(key)) {
+        map.set(key, {
+          projectId: t.project_id,
+          projectName: t.project_name ?? 'No project',
+          items: [],
+        });
       }
-      map.get(t.project_id)!.items.push(t);
+      map.get(key)!.items.push(t);
     }
     const groups = [...map.values()];
     // Sort within each group
@@ -119,12 +131,18 @@ const MyTasks: React.FC = () => {
                 {/* CW-7: the Engineer's task entry point deep-links to the project's Tasks tab
                     explicitly (/projects/:id/tasks) — the project URL default is role-invariant
                     Overview, so this link carries the intent rather than mutating the default. */}
-                <Link
-                  to={`/projects/${group.projectId}/tasks`}
-                  className="rounded hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                >
-                  {group.projectName}
-                </Link>
+                {group.projectId ? (
+                  <Link
+                    to={`/projects/${group.projectId}/tasks`}
+                    className="rounded hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    {group.projectName}
+                  </Link>
+                ) : (
+                  // FR-FCT-041: a heading, NOT a link — there is nothing to navigate to, and a link
+                  // to `/projects/null/tasks` is what this replaces.
+                  <span data-testid="my-tasks-no-project-heading">{group.projectName}</span>
+                )}
               </h2>
               <div className="rounded-lg border border-border bg-card divide-y divide-border">
                 {group.items.map((task) => (
@@ -139,13 +157,22 @@ const MyTasks: React.FC = () => {
                             lower-risk option — the tab is already deep-linkable (App.tsx). */}
                         {/* AC-JR-T25: task name deep-links to the specific task row via
                             #task-<id> anchor — TasksTab scrolls to and highlights it. */}
-                        <Link
-                          to={`/projects/${task.project_id}/tasks#task-${task.id}`}
-                          className="block min-w-0 flex-1 break-words text-[13.5px] font-medium hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded sm:truncate"
-                          title={task.name}
-                        >
-                          {task.name}
-                        </Link>
+                        {task.project_id ? (
+                          <Link
+                            to={`/projects/${task.project_id}/tasks#task-${task.id}`}
+                            className="block min-w-0 flex-1 break-words text-[13.5px] font-medium hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded sm:truncate"
+                            title={task.name}
+                          >
+                            {task.name}
+                          </Link>
+                        ) : (
+                          <span
+                            className="block min-w-0 flex-1 break-words text-[13.5px] font-medium sm:truncate"
+                            title={task.name}
+                          >
+                            {task.name}
+                          </span>
+                        )}
                         {/* AC-IFW-TASKS-01: overdue badge — color+shape, not color-only (WCAG AA). */}
                         {isOverdueTask(task) && (
                           <StatusPill variant="warn">Overdue</StatusPill>
@@ -161,13 +188,19 @@ const MyTasks: React.FC = () => {
                     </div>
                     {/* Action cluster: Log time + status control. */}
                     <div className="flex flex-wrap items-center gap-2 min-[560px]:shrink-0 min-[560px]:justify-end">
-                      {/* AC-IFW-TASKS-02: Log time → Timesheets pre-filled with this task's project. */}
-                      <Link
-                        to={`/timesheets?project=${task.project_id}`}
-                        className="inline-flex h-7 items-center rounded-lg border border-input bg-background px-2.5 text-[12px] font-medium text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                      >
-                        Log time
-                      </Link>
+                      {/* AC-IFW-TASKS-02: Log time → Timesheets pre-filled with this task's project.
+                          ⚑ FR-FCT-042: absent entirely on a project-less task. `timesheet_entries`
+                          keeps `project_id NOT NULL` (FR-FCT-005), so the destination CANNOT accept
+                          this task — offering the control and failing at the far end would be worse
+                          than not offering it. */}
+                      {task.project_id ? (
+                        <Link
+                          to={`/timesheets?project=${task.project_id}`}
+                          className="inline-flex h-7 items-center rounded-lg border border-input bg-background px-2.5 text-[12px] font-medium text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        >
+                          Log time
+                        </Link>
+                      ) : null}
                       {/* Fix #6 (AC-FIX6-NAV-02/03): use SelectField (app's shared status
                           control, matching the TasksTab pattern) instead of a raw OS <select>.
                           Engineer may set own task status per the `taskStatus` policy. */}

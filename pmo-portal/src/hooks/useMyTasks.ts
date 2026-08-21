@@ -19,8 +19,10 @@ export interface MyTask {
   name: string;
   status: TaskStatus;
   assignee_id: string | null;
-  project_id: string;
-  project_name: string;
+  /** #525: NULL for a task that was never given a project — it is a real state, not missing data. */
+  project_id: string | null;
+  /** NULL exactly when `project_id` is; the UI renders a heading, not a project link (FR-FCT-041). */
+  project_name: string | null;
   start_date: string | null;
   end_date: string | null;
 }
@@ -47,7 +49,7 @@ async function listMyTasks(userId: string): Promise<MyTask[]> {
     name: string;
     status: string;
     assignee_id: string | null;
-    project_id: string;
+    project_id: string | null;
     start_date: string | null;
     end_date: string | null;
     project: { name: string } | null;
@@ -57,7 +59,10 @@ async function listMyTasks(userId: string): Promise<MyTask[]> {
     status: t.status as TaskStatus,
     assignee_id: t.assignee_id,
     project_id: t.project_id,
-    project_name: t.project?.name ?? '—',
+    // ⚑ NOT `?? '—'`. A project-less task has no project NAME either, and collapsing that to a dash
+    // would make it indistinguishable from a project whose name failed to load — the UI needs to
+    // tell them apart to decide between a link and a plain heading (FR-FCT-041).
+    project_name: t.project?.name ?? null,
     start_date: t.start_date,
     end_date: t.end_date,
   }));
@@ -95,7 +100,7 @@ export function useMyTaskMutations() {
   const invalidate = () => qc.invalidateQueries({ queryKey: ['my-tasks', orgId, userId] });
 
   const updateStatus = useMutation({
-    mutationFn: async ({ id, status, projectId }: { id: string; status: TaskStatus; projectId?: string }) => {
+    mutationFn: async ({ id, status, projectId }: { id: string; status: TaskStatus; projectId?: string | null }) => {
       try {
         await updateTaskStatus(id, status, projectId);
       } catch (err) {

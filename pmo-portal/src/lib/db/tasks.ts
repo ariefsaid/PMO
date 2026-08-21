@@ -222,7 +222,7 @@ export async function updateTask(id: string, patch: TaskPatch, projectId?: strin
  * ADR-0056 / AC-CUA-001/030: routes through `dispatchTaskCommand('transition', ...)` when the
  * org's `tasks` domain is externally-owned; fail-closed to the direct DAL below otherwise.
  */
-export async function updateTaskStatus(id: string, status: TaskStatus, projectId?: string): Promise<void> {
+export async function updateTaskStatus(id: string, status: TaskStatus, projectId?: string | null): Promise<void> {
   if (routeTaskWrite(projectId) === 'external') {
     await dispatchTaskCommand('transition', { id, status });
     return;

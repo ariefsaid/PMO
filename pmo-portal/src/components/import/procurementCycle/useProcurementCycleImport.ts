@@ -9,7 +9,7 @@
  *
  * Zero writes on upload/mapping/preview. The single explicit write is `commit()`.
  */
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState, useRef, useEffect } from 'react';
 import {
   parseWorkbook,
   ImportParseError,
@@ -266,6 +266,15 @@ export function useProcurementCycleImport(
     [],
   );
 
+  // ⚑ The dry-run report is fetched ASYNCHRONOUSLY and the user can leave the step (or the whole
+  // wizard) before it lands. Without this guard the late `setConflictReport` runs against an
+  // unmounted tree — harmless in a browser, but in jsdom it surfaces as an unhandled
+  // `ReferenceError: window is not defined` that makes the WHOLE vitest run exit non-zero while
+  // every test passes. It only appears under full-suite timing, never in isolation, which is the
+  // worst shape a flake can have: green when you go looking for it.
+  const aliveRef = useRef(true);
+  useEffect(() => () => { aliveRef.current = false; }, []);
+
   const goPreview = useCallback(async () => {
     if (!allRequiredMapped) return;
     setStep('preview');
@@ -273,6 +282,7 @@ export function useProcurementCycleImport(
     const report = await buildDryRunConflictReport(validGroups, {
       importBatchId, skipLookup: supabaseImportSkipLookup, projectLookup, vendorLookup,
     });
+    if (!aliveRef.current) return;
     setConflictReport(report);
   }, [allRequiredMapped, validatedGroups, importBatchId, projectLookup, vendorLookup]);
 
