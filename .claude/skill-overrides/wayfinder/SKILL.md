@@ -177,10 +177,28 @@ answers that. They should never need to say "grill session" or name the sibling 
    usually spread over them:
 
    ```bash
-   gh issue list --state open --label wayfinder:ticket --label wayfinder:owner --limit 60 \
+   gh issue list --state open --label wayfinder:owner --limit 60 \
      --json number,title,body \
      --jq '.[] | select((.body|test("Blocked-by")|not)) | "#\(.number)  \(.title)"'
    ```
+
+   ⚑ **Key on the RESOLVER label alone.** This query used to AND `wayfinder:ticket` with the resolver
+   label, and on 2026-08-21 that returned **empty** while three owner tickets sat open — they carried
+   `wayfinder:owner` but had never been given `wayfinder:ticket` or wired to a map. The session read the
+   empty result as "no owner questions", declared a DRIVE session, and spent ~150K tokens working
+   director tickets **without asking the owner anything**. A frontier query that silently returns nothing
+   does not look like a bug; it looks like an answer.
+
+   **So: an empty result is a CLAIM, not a fact.** Before declaring a DRIVE session on the back of one,
+   spend one call checking it is not a labelling artifact:
+
+   ```bash
+   gh issue list --state open --label wayfinder:owner --limit 60 --json number,title,labels \
+     --jq '.[] | "#\(.number)  \(.title)  [\([.labels[].name]|join(","))]"'
+   ```
+
+   If that finds tickets the frontier query missed, **fix the tickets** (add `wayfinder:ticket`, the
+   `Map: #<n>` first line, and the sub-issue link) and re-run — do not proceed on the empty answer.
 
    **Non-empty → GRILL session:** take *all* of them into `/grilling` rounds and drain the batch. Do not
    pick one and stop. **Empty → DRIVE session:** work `director` tickets, chaining as many as context
