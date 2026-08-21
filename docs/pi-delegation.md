@@ -406,3 +406,36 @@ prefixes — they collide with seed data), **`begin;`/`rollback;` wrappers** (a 
 without one has COMMITTED fixtures poisoning every later run until a reset), and **pgTAP's
 `finish()`** (not `finish_testing()`). An aborted file reports "Bad plan … ran 0" and contributes
 zero tests — a green-looking summary can hide it; grep for `Parse errors` in gate output.
+
+## Workhorses and thinkers (owner, 2026-08-21)
+
+Two tiers, and the split is about what the role DOES, not about which model is better:
+
+| Tier | Models | Roles |
+|---|---|---|
+| **Workhorse** | `bitdeer/deepseek-ai/DeepSeek-V4-Flash`, `openai-codex/gpt-5.6-luna` | builder · fe_builder · mechanical/recon · documenter |
+| **Thinker** | `openai-codex/gpt-5.6-terra`, `zai/glm-5.3` | planner · reviewer · fe_reviewer |
+
+⚑ **`terra` leads the thinker rungs, not GLM.** GLM-5.3 hits its 5-hour cap constantly — three of
+three factory runs on 2026-08-21 opened with `429 Usage limit reached for 5 hour`. A capped first
+rung is not free: every run spends a retry discovering it. GLM stays as the second rung, where it
+costs nothing when it is available and nothing when it is not.
+
+⚑ **deepseek is ~$0.1/M output, so prefer it wherever the work is mechanical.** That is the whole
+reason it leads the builder, recon and documenter rungs. It is genuinely capable of the build — a run
+on 2026-08-21 had it make 84 tool calls and write a correct migration.
+
+### But brief it like a workhorse
+
+deepseek is a weak *reader of intent*, and the failure is always at the seams, never in the middle:
+
+- It read a bare correction turn ("your JSON was invalid, re-emit") as a brand-new request, found no
+  task in it, and reported `status: "fail"` — over work it had already finished. Fixed in the harness
+  (`_CORRECTION_ANCHOR`), but the shape generalises: **anything you leave implicit, it will not infer.**
+- It skipped a numbered task in its own plan (regenerate the types) and reported success. It happened
+  to be a no-op; nothing in its report said so.
+
+So a brief aimed at a workhorse rung: number the steps, name exact file paths, state the decision
+rather than the tradeoff, and put the gate commands in verbatim. Save the open-ended framing for a
+thinker rung — where a planner on `terra` has now caught a wrong premise in a Director brief **three
+times**, including "this export is xlsx, not CSV".

@@ -72,8 +72,9 @@ agents:
   # and fe_builder back to `openai-codex/gpt-5.6-luna`.
 
   - name: planner
-    model: zai/glm-5.3   # owner 2026-08-20: GLM plans, codex is the escalation
-    fallbacks: [openai-codex/gpt-5.6-terra, openai-codex/gpt-5.6-luna]   # owner 2026-08-20: plan on GLM, escalate to codex
+    model: openai-codex/gpt-5.6-terra   # owner 2026-08-21: terra and GLM are the THINKERS; terra leads because
+    # GLM-5.3 hits its 5-hour cap constantly and a capped first rung spends a retry to learn that every run.
+    fallbacks: [zai/glm-5.3, openai-codex/gpt-5.6-luna]   # GLM second, luna as the workhorse floor
     thinking: high
     color: "#a78bfa"                 # optional hex — the agent's lane color in the visualizer
     purpose: Turn a request into a plan the builder can implement without asking questions.
@@ -118,8 +119,9 @@ agents:
       - write
 
   - name: scout
-    model: zai/glm-4.7   # recon is cheap work — 2026-08-20, was inheriting the global default
-    fallbacks: [bitdeer/deepseek-ai/DeepSeek-V4-Flash, zai/glm-5.3]   # any rung that answers is fine
+    model: bitdeer/deepseek-ai/DeepSeek-V4-Flash   # owner 2026-08-21: deepseek is the cheapest workhorse
+    # on the board ($0.1/M out) and recon is exactly the mechanical work it is for.
+    fallbacks: [openai-codex/gpt-5.6-luna, zai/glm-4.7]   # any rung that answers is fine
     color: "#fbbf24"
     purpose: Find and report where things live; change nothing.
     prompt_engineering:
@@ -145,8 +147,9 @@ agents:
   # phase over adw_modules/quality.py. See SKILL.md hard rule 8.
 
   - name: reviewer
-    model: zai/glm-5.3   # owner 2026-08-20: GLM reviews (the builder is deepseek, so this is cross-family)
-    fallbacks: [openai-codex/gpt-5.6-luna, openai-codex/gpt-5.6-terra]   # owner 2026-08-20: GLM reviews the deepseek builder — cross-family again
+    model: openai-codex/gpt-5.6-terra   # owner 2026-08-21: review is THINKING. Still cross-family — the
+    # builder is deepseek — so the property that mattered when GLM led this rung is unchanged.
+    fallbacks: [zai/glm-5.3, openai-codex/gpt-5.6-luna]
     thinking: high
     color: "#fb7185"
     purpose: Confirm that what was built is what was asked for; change nothing.
@@ -205,8 +208,8 @@ agents:
       - write
 
   - name: documenter
-    model: openai-codex/gpt-5.6-luna    # codex OAuth
-    fallbacks: [bitdeer/deepseek-ai/DeepSeek-V4-Flash, zai/glm-5.3]   # prose, not judgement
+    model: bitdeer/deepseek-ai/DeepSeek-V4-Flash    # owner 2026-08-21: prose is workhorse work
+    fallbacks: [openai-codex/gpt-5.6-luna, zai/glm-5.3]   # prose, not judgement
     color: "#e879f9"
     purpose: Write up the change that was just made, from the diff; document only.
     prompt_engineering:
