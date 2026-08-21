@@ -222,7 +222,8 @@ def execute(run, phase: Phase, call: AgentCall) -> EnvelopeBase:
                           f"{len(violations)} gate violation(s)")
         correction = ("Your previous response failed validation:\n- "
                       + "\n- ".join(violations)
-                      + "\n\nFix these problems, then re-emit ONLY your Report JSON.")
+                      + "\n\nFix these problems, then re-emit ONLY your Report JSON.\n\n"
+                      + _CORRECTION_ANCHOR)
         result = send(correction)
         envelope, attempt = _parse_with_retries(run, phase, call, result, send)
 
@@ -266,8 +267,26 @@ def execute(run, phase: Phase, call: AgentCall) -> EnvelopeBase:
                                           "context_window": context.context_window}))
     run.console.agent_finished(agent.name, spent.total_tokens, spent.total_cost)
     if envelope.status != "success":
-        raise RuntimeError(f"{agent.name} reported status={envelope.status!r}: {envelope.summary}")
+        # Name what the TREE shows alongside what the agent claims. A `fail` envelope over a
+        # modified tree is an under-report, not an absence of work, and the two read identically
+        # in a bare status line.
+        raise RuntimeError(f"{agent.name} reported status={envelope.status!r}: {envelope.summary}"
+                           + (f" (but it touched {len(touched)} path(s): "
+                              f"{', '.join(touched[:8])}{' …' if len(touched) > 8 else ''} — the work "
+                              f"is on disk; this envelope under-reports it)" if touched else ""))
     return envelope
+
+
+# A correction is a follow-up turn, not a new task — but a weak substrate reads it as one, answers
+# "no task was provided", and picks `status: "fail"` to say so. That is what ended the 2026-08-21
+# run: the builder had already made 84 tool calls and modified ten files. The work was done and the
+# REPORT was amnesiac. Every correction therefore carries its own frame.
+_CORRECTION_ANCHOR = (
+    "This is a CORRECTION to your own previous response in this same session, not a new task. Your "
+    "work is already on disk. Do NOT start over, and do NOT report failure on the grounds that this "
+    "message contains no task — report on the work you have already done. If you genuinely cannot "
+    "recall it, run `git status` and `git diff --stat` and report what you find there."
+)
 
 
 # ── internals ────────────────────────────────────────────────────────────────
@@ -398,7 +417,8 @@ def _parse_with_retries(run, phase: Phase, call: AgentCall, result, send):
             result = send(
                 f"Your response was not valid JSON for the required structure "
                 f"({error}). Respond again with ONLY a JSON object with these "
-                f"fields: {fields}. No prose, no code fences.")
+                f"fields: {fields}. No prose, no code fences.\n\n"
+                + _CORRECTION_ANCHOR)
 
 
 def _persist_envelope(run, phase: Phase, agent_name: str, call: AgentCall,
