@@ -84,6 +84,7 @@ import {
   getSignedDownloadUrl,
   cleanupStorageObject,
 } from './procurementFiles';
+import type { ProcPhase } from './procurementFiles';
 import { AppError } from '@/src/lib/appError';
 
 beforeEach(() => {
@@ -176,6 +177,7 @@ describe('AC-PF-009 prepareUpload (server-fetches org_id — ADR-0017 seam fix)'
 
 describe('AC-PF-010 archiveProcurementFile', () => {
   it('AC-PF-010: updates archived_at on procurement_invoice_files for the given id', async () => {
+    h.result.value = { data: [{ id: 'inv-file-1' }], error: null };
     await archiveProcurementFile('invoice', 'inv-file-1');
     expect(h.calls.from).toEqual(['procurement_invoice_files']);
     const patch = h.calls.update[0] as { archived_at?: string };
@@ -237,12 +239,14 @@ describe('AC-PF-003 confirmUpload (insert child row, org_id never sent)', () => 
 
 describe('AC-PF-010 archiveProcurementFile (all phases)', () => {
   it('AC-PF-010: quotation archive targets procurement_quotation_files', async () => {
+    h.result.value = { data: [{ id: 'qf1' }], error: null };
     await archiveProcurementFile('quotation', 'qf1');
     expect(h.calls.from).toEqual(['procurement_quotation_files']);
     expect(h.calls.eq).toContainEqual(['id', 'qf1']);
   });
 
   it('AC-PF-010: receipt archive targets procurement_receipt_files', async () => {
+    h.result.value = { data: [{ id: 'rf1' }], error: null };
     await archiveProcurementFile('receipt', 'rf1');
     expect(h.calls.from).toEqual(['procurement_receipt_files']);
   });
@@ -327,6 +331,7 @@ describe('AC-PR-009 archived-file exclusion — new record-type phases', () => {
   });
 
   it('AC-PR-009 archiveProcurementFile uses purchase_order_files for purchase_order phase', async () => {
+    h.result.value = { data: [{ id: 'pof1' }], error: null };
     await archiveProcurementFile('purchase_order', 'pof1');
     expect(h.calls.from).toEqual(['purchase_order_files']);
     const patch = h.calls.update[0] as { archived_at?: string };
@@ -346,5 +351,49 @@ describe('AC-PR-009 archived-file exclusion — new record-type phases', () => {
     expect(insert.file_path).toBe('org/proc/purchase_order/f/po.pdf');
     expect('org_id' in insert).toBe(false);
     expect(row.id).toBe('row1');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// #541 — the silent-no-op class on the procurement FILE tables. An RLS `using` denial HIDES the row,
+// so the patch touches 0 rows and returns `error === null` — the file stays visible and the UI says
+// "Archived". Driven over ALL SEVEN phases from one table, because the fix is one shared patch path
+// (`patchProcurementFile` + `FILE_TABLE_BY_PHASE`): an eighth phase cannot compile without a table
+// entry, and this table is what makes it also un-shippable without a proof.
+// ---------------------------------------------------------------------------
+
+describe('#541 archiveProcurementFile rejects a using-denied 0-row no-op — every phase', () => {
+  const PHASES: Array<[ProcPhase, string]> = [
+    ['quotation', 'procurement_quotation_files'],
+    ['receipt', 'procurement_receipt_files'],
+    ['invoice', 'procurement_invoice_files'],
+    ['purchase_request', 'purchase_request_files'],
+    ['rfq', 'rfq_files'],
+    ['purchase_order', 'purchase_order_files'],
+    ['payment', 'payment_files'],
+  ];
+
+  it.each(PHASES)('#541: %s archive resolves when the row comes back (positive control)', async (phase, table) => {
+    h.result.value = { data: [{ id: 'f1' }], error: null };
+    await expect(archiveProcurementFile(phase, 'f1')).resolves.toBeUndefined();
+    expect(h.calls.from).toEqual([table]);
+    expect(h.calls.eq).toContainEqual(['id', 'f1']);
+  });
+
+  it.each(PHASES)('#541: %s archive rejects 42501 when 0 rows matched and no error was reported', async (phase, table) => {
+    h.result.value = { data: [], error: null };
+    const err = await archiveProcurementFile(phase, 'f1').catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(AppError);
+    expect((err as AppError).code).toBe('42501');
+    // …and the write really was attempted against the right table — "nothing threw" is not
+    // evidence when a `using` denial throws nothing.
+    expect(h.calls.from).toEqual([table]);
+    expect(h.calls.update.length).toBeGreaterThan(0);
+  });
+
+  it('#541: the phase→table map covers every ProcPhase, so a new phase cannot skip the check', () => {
+    expect(PHASES.map(([p]) => p).sort()).toEqual(
+      (['invoice', 'payment', 'purchase_order', 'purchase_request', 'quotation', 'receipt', 'rfq'] as ProcPhase[]).sort(),
+    );
   });
 });

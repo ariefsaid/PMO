@@ -274,7 +274,7 @@ describe('createLineItem and deleteLineItem', () => {
     ).resolves.not.toThrow();
 
     // Reset and test delete
-    makeFromBuilder({ data: null, error: null });
+    makeFromBuilder({ data: [{ id: 'li-new' }], error: null });
     await expect(deleteLineItem('li-new')).resolves.not.toThrow();
   });
 
@@ -293,7 +293,7 @@ describe('createLineItem and deleteLineItem', () => {
   });
 
   it('deleteLineItem calls .delete().eq("id", id)', async () => {
-    makeFromBuilder({ data: null, error: null });
+    makeFromBuilder({ data: [{ id: 'li-abc' }], error: null });
     await deleteLineItem('li-abc');
     expect(mockFrom).toHaveBeenCalledWith('budget_line_items');
     expect(mockDelete).toHaveBeenCalled();
@@ -617,7 +617,7 @@ describe('archiveVersion', () => {
 
 describe('deleteDraftVersion', () => {
   it('deleteDraftVersion deletes the version row (OD-BUDGET-C)', async () => {
-    makeFromBuilder({ data: null, error: null });
+    makeFromBuilder({ data: [{ id: 'v-draft' }], error: null });
     await deleteDraftVersion('v-draft');
     expect(mockFrom).toHaveBeenCalledWith('budget_versions');
     expect(mockDelete).toHaveBeenCalled();
@@ -625,7 +625,7 @@ describe('deleteDraftVersion', () => {
   });
 
   it('sends no org_id (OD-BUDGET-C)', async () => {
-    makeFromBuilder({ data: null, error: null });
+    makeFromBuilder({ data: [{ id: 'v-draft' }], error: null });
     await deleteDraftVersion('v-draft');
     expect(JSON.stringify(mockDelete.mock.calls)).not.toContain('org_id');
   });
@@ -702,5 +702,69 @@ describe('AC-W3-F6: budget DAL throws AppError preserving the Postgres error cod
     const err = await deleteDraftVersion('v-draft').catch((e: unknown) => e);
     expect(err).toBeInstanceOf(AppError);
     expect((err as AppError).code).toBe('P0001');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// #541 — the silent-no-op class on the BUDGET money path. An RLS `using` denial HIDES the row, so
+// the UPDATE/DELETE touches 0 rows and returns `error === null`: the DAL used to resolve and the UI
+// toasted "Saved". Two-sided per call site — a positive control that must resolve, and a denial
+// that must REJECT with 42501 *and* prove the write was actually attempted ("nothing threw" is not
+// evidence when a `using` denial throws nothing).
+// ---------------------------------------------------------------------------
+
+describe('#541 budget writes reject a using-denied 0-row no-op', () => {
+  it('#541: updateLineItem resolves when the row comes back (positive control)', async () => {
+    makeFromBuilder({ data: [{ id: 'li1' }], error: null });
+    await expect(updateLineItem('li1', { budgeted_amount: 500 })).resolves.toBeUndefined();
+  });
+
+  it('#541: updateLineItem rejects 42501 when 0 rows matched and no error was reported', async () => {
+    makeFromBuilder({ data: [], error: null });
+    const err = await updateLineItem('li1', { budgeted_amount: 500 }).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(AppError);
+    expect((err as AppError).code).toBe('42501');
+    expect(mockUpdate).toHaveBeenCalled();
+  });
+
+  it('#541: deleteLineItem resolves when the row comes back (positive control)', async () => {
+    makeFromBuilder({ data: [{ id: 'li1' }], error: null });
+    await expect(deleteLineItem('li1')).resolves.toBeUndefined();
+  });
+
+  it('#541: deleteLineItem rejects 42501 when 0 rows matched and no error was reported', async () => {
+    makeFromBuilder({ data: [], error: null });
+    const err = await deleteLineItem('li1').catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(AppError);
+    expect((err as AppError).code).toBe('42501');
+    expect(mockDelete).toHaveBeenCalled();
+  });
+
+  it('#541: archiveVersion resolves when the row comes back (positive control)', async () => {
+    makeFromBuilder({ data: [{ id: 'v1' }], error: null });
+    await expect(archiveVersion('v1')).resolves.toBeUndefined();
+  });
+
+  it('#541: archiveVersion rejects 42501 when 0 rows matched and no error was reported', async () => {
+    makeFromBuilder({ data: [], error: null });
+    const err = await archiveVersion('v1').catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(AppError);
+    expect((err as AppError).code).toBe('42501');
+    expect(mockUpdate).toHaveBeenCalled();
+  });
+
+  it('#541: deleteDraftVersion resolves when the row comes back (positive control)', async () => {
+    makeFromBuilder({ data: [{ id: 'v-draft' }], error: null });
+    await expect(deleteDraftVersion('v-draft')).resolves.toBeUndefined();
+  });
+
+  it('#541: deleteDraftVersion rejects 42501 when 0 rows matched and no error was reported', async () => {
+    // The 0177 Admin-only trigger RAISES — that is the OTHER layer. This is the RLS layer, which
+    // is silent, and defence in depth needs a check per layer.
+    makeFromBuilder({ data: [], error: null });
+    const err = await deleteDraftVersion('v-draft').catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(AppError);
+    expect((err as AppError).code).toBe('42501');
+    expect(mockDelete).toHaveBeenCalled();
   });
 });

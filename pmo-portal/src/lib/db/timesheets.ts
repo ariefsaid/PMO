@@ -1,4 +1,5 @@
 import { supabase } from '@/src/lib/supabase/client';
+import { AppError, assertWriteLanded } from '@/src/lib/appError';
 import type { Tables } from '@/src/lib/supabase/database.types';
 import type { EntryUpsert } from '@/src/lib/timesheet-edit';
 import { resolveRange, type PageParams } from '@/src/lib/pagination';
@@ -105,10 +106,27 @@ export async function createDraftTimesheet(
  */
 export async function upsertTimesheetEntries(entries: EntryUpsert[]): Promise<void> {
   if (entries.length === 0) return;
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('timesheet_entries')
-    .upsert(entries, { onConflict: 'timesheet_id,project_id,entry_date' });
+    .upsert(entries, { onConflict: 'timesheet_id,project_id,entry_date' })
+    .select('id');
   if (error) throwWrite(error);
+  // ⚑ #541 — this is an UPSERT, so `!data?.length` (the shared `assertWriteLanded` oracle) is the
+  // WRONG question. A batch can land PARTIALLY: rows the writer may touch are written while rows on
+  // a submitted/approved sheet, another user's sheet or another org are hidden by the
+  // `timesheet_entries_write` USING clause and silently skipped — no error, some hours saved, some
+  // not. "Some of it saved" reported as success is the same defect one level up from a total no-op.
+  // The oracle is therefore a COUNT: every submitted row must come back. It cannot false-positive —
+  // `timesheet_entries_select` admits the sheet's own owner, so a row this caller could write is a
+  // row this caller can read back.
+  const landed = data?.length ?? 0;
+  if (landed !== entries.length) {
+    throw new AppError(
+      `Only ${landed} of ${entries.length} timesheet entries were saved; ` +
+        `${entries.length - landed} were refused. Reload before trusting the week's total.`,
+      '42501',
+    );
+  }
 }
 
 /**
@@ -116,8 +134,15 @@ export async function upsertTimesheetEntries(entries: EntryUpsert[]): Promise<vo
  * (timesheet_entries_write USING) scopes the delete to the caller's own Draft sheet (FR-TSE-012/017).
  */
 export async function deleteTimesheetEntry(id: string): Promise<void> {
-  const { error } = await supabase.from('timesheet_entries').delete().eq('id', id);
+  const { data, error } = await supabase
+    .from('timesheet_entries')
+    .delete()
+    .eq('id', id)
+    .select('id');
   if (error) throwWrite(error);
+  // #541: a `using`-denied DELETE (submitted sheet, someone else's sheet) removes 0 rows and
+  // reports no error — the cleared cell reappears on the next refetch, hours intact.
+  assertWriteLanded(data, 'Timesheet entry not found or you do not have permission to delete it.');
 }
 
 /**

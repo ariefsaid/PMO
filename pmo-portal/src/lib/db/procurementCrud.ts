@@ -1,5 +1,6 @@
 import { supabase } from '@/src/lib/supabase/client';
 import type { Tables } from '@/src/lib/supabase/database.types';
+import { assertWriteLanded } from '@/src/lib/appError';
 import { ProcurementError } from './procurementLifecycle';
 
 // ERROR-TYPE NOTE (intentional ProcurementError reuse, not a divergence): the
@@ -14,6 +15,12 @@ import { ProcurementError } from './procurementLifecycle';
 // So the seam-level contract ("callers catch AppError with a preserved code") holds
 // regardless. If procurement is ever migrated fully behind the seam, swap this for
 // `AppError` with no behaviour change.
+//
+// #541 EXCEPTION: the silent-no-op guard uses the SHARED `assertWriteLanded` (appError.ts), so it
+// throws `AppError('…', '42501')` rather than `ProcurementError`. Deliberate — one oracle for the
+// whole codebase beats a per-module copy that can drift, and it is the same behavioural contract
+// (an `Error` carrying a string `.code` that `classifyMutationError` reads). Nothing in the app
+// branches on `err instanceof ProcurementError`; verified by grep.
 
 // ---------------------------------------------------------------------------
 // Procurement CRUD DAL (CRUD+RBAC program, Procurement slice). Sits beside the
@@ -113,15 +120,19 @@ export async function updateProcurementHeader(
   id: string,
   patch: ProcurementHeaderPatch,
 ): Promise<void> {
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('procurements')
     .update({
       title: patch.title,
       project_id: patch.projectId,
       vendor_id: patch.vendorId,
     })
-    .eq('id', id);
+    .eq('id', id)
+    .select('id');
   if (error) throwWrite(error);
+  // #541: an RLS `using` denial hides the PR row, so the UPDATE touches 0 rows and reports no
+  // error — the header edit is discarded while the UI toasts "Saved".
+  assertWriteLanded(data, 'Purchase request not found or you do not have permission to edit it.');
 }
 
 // ---------------------------------------------------------------------------
@@ -178,16 +189,30 @@ export async function updateProcurementItem(
   if (patch.rate !== undefined) set.rate = patch.rate;
   if (patch.description !== undefined) set.description = patch.description;
 
-  const { error } = await supabase.from('procurement_items').update(set).eq('id', id);
+  const { data, error } = await supabase
+    .from('procurement_items')
+    .update(set)
+    .eq('id', id)
+    .select('id');
   if (error) throwWrite(error);
+  // #541: the Draft-only restrictive UPDATE policy (0019) hides the item once the PR leaves Draft.
+  // The UI does not offer the affordance there — but "the UI does not offer it" is not enforcement,
+  // and a quantity/rate edit that vanishes is a line total the requester believes they changed.
+  assertWriteLanded(data, 'Line item not found or you do not have permission to edit it.');
 }
 
 /**
  * Deletes a line item by id (AC-PROC-003). org_id is NEVER sent — RLS scopes it.
  */
 export async function deleteProcurementItem(id: string): Promise<void> {
-  const { error } = await supabase.from('procurement_items').delete().eq('id', id);
+  const { data, error } = await supabase
+    .from('procurement_items')
+    .delete()
+    .eq('id', id)
+    .select('id');
   if (error) throwWrite(error);
+  // #541: same shape on the delete side — a `using`-denied DELETE removes nothing, silently.
+  assertWriteLanded(data, 'Line item not found or you do not have permission to delete it.');
 }
 
 // ---------------------------------------------------------------------------
@@ -262,6 +287,12 @@ export async function createProcurementDocument(
  * Removes a document-metadata row by id (AC-PROC-005). org_id is NEVER sent.
  */
 export async function deleteProcurementDocument(id: string): Promise<void> {
-  const { error } = await supabase.from('procurement_documents').delete().eq('id', id);
+  const { data, error } = await supabase
+    .from('procurement_documents')
+    .delete()
+    .eq('id', id)
+    .select('id');
   if (error) throwWrite(error);
+  // #541: a `using`-denied DELETE leaves the document-register row in place with no error.
+  assertWriteLanded(data, 'Document not found or you do not have permission to delete it.');
 }

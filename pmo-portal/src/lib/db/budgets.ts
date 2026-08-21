@@ -1,6 +1,6 @@
 import { supabase } from '@/src/lib/supabase/client';
 import type { Tables } from '@/src/lib/supabase/database.types';
-import { AppError, toAppError } from '@/src/lib/appError';
+import { AppError, assertWriteLanded, toAppError } from '@/src/lib/appError';
 import { activateAndPush } from '@/src/lib/budget/budgetPushConsequence';
 import { dispatchDomainCommand } from '@/src/lib/adapterSeam/dispatchClient';
 import type { PmoRecord } from '@/src/lib/adapterSeam/contract';
@@ -158,11 +158,17 @@ export async function updateLineItem(
   // is rejected by `enforce_draft_line_item` (0005) — the DB is the authority, this is the seam.
   patch: Partial<Pick<BudgetLineItemRow, 'category' | 'description' | 'budgeted_amount' | 'actual_amount' | 'fiscal_year'>>,
 ): Promise<void> {
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('budget_line_items')
     .update(patch)
-    .eq('id', id);
+    .eq('id', id)
+    .select('id');
   if (error) throw toAppError(error);
+  // #541: an RLS `using` denial HIDES the row rather than erroring, so the statement is a 0-row
+  // no-op with `error === null`. On a money figure that is worse than a lost edit: the version can
+  // then be activated and PUSHED to ERP (`dispatchFactory` reads `budget_line_items` to build the
+  // Budget body) carrying the OLD amount while its author believes the new one landed.
+  assertWriteLanded(data, 'Budget line item not found or you do not have permission to edit it.');
 }
 
 /**
@@ -170,11 +176,15 @@ export async function updateLineItem(
  * (DB trigger; AC-723, FR-BV-011). org_id is NEVER sent.
  */
 export async function deleteLineItem(id: string): Promise<void> {
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('budget_line_items')
     .delete()
-    .eq('id', id);
+    .eq('id', id)
+    .select('id');
   if (error) throw toAppError(error);
+  // #541: a `using`-denied DELETE removes 0 rows and reports no error — the line item, and the
+  // money it carries, is still there. Fail loudly instead of toasting "Deleted".
+  assertWriteLanded(data, 'Budget line item not found or you do not have permission to delete it.');
 }
 
 // ---------------------------------------------------------------------------
@@ -418,11 +428,15 @@ async function pushActivatedBudget(versionId: string): Promise<unknown> {
  * org_id NEVER sent — RLS gates the write.
  */
 export async function archiveVersion(versionId: string): Promise<void> {
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('budget_versions')
     .update({ status: 'Archived' })
-    .eq('id', versionId);
+    .eq('id', versionId)
+    .select('id');
   if (error) throw toAppError(error);
+  // #541: a `using`-denied archive is a 0-row no-op with no error — the version stays Active and
+  // keeps sourcing the project's budget total.
+  assertWriteLanded(data, 'Budget version not found or you do not have permission to archive it.');
 }
 
 /**
@@ -441,9 +455,14 @@ export async function archiveVersion(versionId: string): Promise<void> {
  * `classifyMutationError` toast surfaces it — it is not a silent no-op.
  */
 export async function deleteDraftVersion(versionId: string): Promise<void> {
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('budget_versions')
     .delete()
-    .eq('id', versionId);
+    .eq('id', versionId)
+    .select('id');
   if (error) throw toAppError(error);
+  // #541: the 0177 trigger RAISES for a non-Admin non-Draft delete, but that is only one of the two
+  // layers — an RLS `using` denial (wrong org / non-write role) still hides the row, so the delete
+  // affects 0 rows and reports success. A defence-in-depth guard needs a check per layer.
+  assertWriteLanded(data, 'Budget version not found or you do not have permission to delete it.');
 }

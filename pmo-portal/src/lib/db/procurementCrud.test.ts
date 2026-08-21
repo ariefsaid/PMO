@@ -59,6 +59,7 @@ import {
   deleteProcurementDocument,
 } from './procurementCrud';
 import { ProcurementError } from './procurementLifecycle';
+import { AppError } from '@/src/lib/appError';
 
 beforeEach(() => {
   h.from.mockClear();
@@ -120,7 +121,7 @@ describe('AC-PROC-001 createProcurement (New PR header → Draft, requester stam
 
 describe('AC-PROC-002 updateProcurementHeader (requester edits while Draft, no org_id)', () => {
   it('AC-PROC-002: updates only the editable header fields by id, never org_id', async () => {
-    h.result.value = { data: null, error: null };
+    h.result.value = { data: [{ id: 'pr1' }], error: null };
     await updateProcurementHeader('pr1', { title: 'New title', projectId: 'p2', vendorId: 'v2' });
     expect(h.calls.from).toContain('procurements');
     const patch = h.calls.update[0] as Record<string, unknown>;
@@ -157,7 +158,7 @@ describe('AC-PROC-003 line items CRUD (procurement_items, no org_id, no generate
   });
 
   it('AC-PROC-003: updateProcurementItem patches name/quantity/rate by id, never amount/org_id', async () => {
-    h.result.value = { data: null, error: null };
+    h.result.value = { data: [{ id: 'it1' }], error: null };
     await updateProcurementItem('it1', { name: 'Wire 1.2mm', quantity: 30, rate: 90 });
     const patch = h.calls.update[0] as Record<string, unknown>;
     expect(patch.name).toBe('Wire 1.2mm');
@@ -169,7 +170,7 @@ describe('AC-PROC-003 line items CRUD (procurement_items, no org_id, no generate
   });
 
   it('AC-PROC-003: deleteProcurementItem deletes by id, never org_id', async () => {
-    h.result.value = { data: null, error: null };
+    h.result.value = { data: [{ id: 'it1' }], error: null };
     await deleteProcurementItem('it1');
     expect(h.calls.from).toContain('procurement_items');
     expect(h.calls.delete).toBe(1);
@@ -227,7 +228,7 @@ describe('AC-PROC-005 procurement documents metadata CRUD (procurement_documents
   });
 
   it('AC-PROC-005: deleteProcurementDocument deletes by id', async () => {
-    h.result.value = { data: null, error: null };
+    h.result.value = { data: [{ id: 'd1' }], error: null };
     await deleteProcurementDocument('d1');
     expect(h.calls.from).toContain('procurement_documents');
     expect(h.calls.delete).toBe(1);
@@ -239,5 +240,70 @@ describe('AC-PROC-005 procurement documents metadata CRUD (procurement_documents
     await expect(
       createProcurementDocument('pr1', { type: 'X', referenceNumber: null, status: 'Draft' }),
     ).rejects.toMatchObject({ code: '42501' });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// #541 — the silent-no-op class on the PROCUREMENT money path. An RLS `using` denial (wrong org,
+// non-writer role, or the 0019 Draft-only restrictive UPDATE/DELETE policies) HIDES the row: the
+// statement affects 0 rows and returns `error === null`. Two-sided per call site — a positive
+// control that must resolve, and a denial that must REJECT 42501 *and* prove the write was really
+// attempted. The guard throws the shared `AppError` (see the ERROR-TYPE NOTE in procurementCrud.ts).
+// ---------------------------------------------------------------------------
+
+describe('#541 procurement CRUD writes reject a using-denied 0-row no-op', () => {
+  it('#541: updateProcurementHeader resolves when the row comes back (positive control)', async () => {
+    h.result.value = { data: [{ id: 'pr1' }], error: null };
+    await expect(
+      updateProcurementHeader('pr1', { title: 'x', projectId: null, vendorId: null }),
+    ).resolves.toBeUndefined();
+  });
+
+  it('#541: updateProcurementHeader rejects 42501 when 0 rows matched and no error was reported', async () => {
+    h.result.value = { data: [], error: null };
+    const err = await updateProcurementHeader('pr1', { title: 'x', projectId: null, vendorId: null })
+      .catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(AppError);
+    expect((err as AppError).code).toBe('42501');
+    expect(h.calls.update.length).toBeGreaterThan(0);
+  });
+
+  it('#541: updateProcurementItem resolves when the row comes back (positive control)', async () => {
+    h.result.value = { data: [{ id: 'it1' }], error: null };
+    await expect(updateProcurementItem('it1', { quantity: 30 })).resolves.toBeUndefined();
+  });
+
+  it('#541: updateProcurementItem rejects 42501 when the Draft-only policy hides the row', async () => {
+    h.result.value = { data: [], error: null };
+    const err = await updateProcurementItem('it1', { quantity: 30 }).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(AppError);
+    expect((err as AppError).code).toBe('42501');
+    expect(h.calls.update.length).toBeGreaterThan(0);
+  });
+
+  it('#541: deleteProcurementItem resolves when the row comes back (positive control)', async () => {
+    h.result.value = { data: [{ id: 'it1' }], error: null };
+    await expect(deleteProcurementItem('it1')).resolves.toBeUndefined();
+  });
+
+  it('#541: deleteProcurementItem rejects 42501 when 0 rows matched and no error was reported', async () => {
+    h.result.value = { data: [], error: null };
+    const err = await deleteProcurementItem('it1').catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(AppError);
+    expect((err as AppError).code).toBe('42501');
+    expect(h.calls.delete).toBeGreaterThan(0);
+  });
+
+  it('#541: deleteProcurementDocument resolves when the row comes back (positive control)', async () => {
+    h.result.value = { data: [{ id: 'd1' }], error: null };
+    await expect(deleteProcurementDocument('d1')).resolves.toBeUndefined();
+  });
+
+  it('#541: deleteProcurementDocument rejects 42501 when 0 rows matched and no error was reported', async () => {
+    h.result.value = { data: [], error: null };
+    const err = await deleteProcurementDocument('d1').catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(AppError);
+    expect((err as AppError).code).toBe('42501');
+    expect(h.calls.delete).toBeGreaterThan(0);
   });
 });
