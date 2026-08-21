@@ -20,12 +20,24 @@ Infer the repo from `git remote -v` — `gh` does this automatically inside a cl
 
 ## Wayfinding operations
 
-- **The map** = a GitHub issue labelled `wayfinder:map`; its **decision tickets** = issues labelled
-  `wayfinder:ticket` whose body's first line names the map issue (`Map: #<n>`). Blocking edges are
-  stated in the ticket body (`Blocked-by: #<a> #<b>`).
-- **Frontier query** (tickets ready to work): open `wayfinder:ticket` issues whose `Blocked-by`
-  issues are all closed — list open tickets, resolve their `Blocked-by` refs with
-  `gh issue view <n> --json state`, keep those with none open.
+- **The map** = a GitHub issue labelled `wayfinder:map`; its **decision tickets** = issues carrying a
+  **resolver** label (`wayfinder:owner` / `:director` / `:factory`), the `wayfinder:ticket` label, a
+  body whose first line names the map (`Map: #<n>`), and the native sub-issue link to it. Blocking
+  edges are stated in the ticket body (`Blocked-by: #<a> #<b>`).
+- **Frontier query** (tickets ready to work): **key on the RESOLVER label**, and keep those whose
+  `Blocked-by` ids are all closed.
+
+  ⚑ **This used to say "open `wayfinder:ticket` issues", and that is the 2026-08-21 bug at its source.**
+  Everything downstream inherited it — the SessionStart hook and the wayfinder skill both ANDed
+  `wayfinder:ticket` with the resolver label — so when #527, #523 and #518 were parked with the resolver
+  label alone they vanished from the frontier, were counted as ordinary *build* issues, and the hook
+  announced "wayfinder frontier drained" for a whole day while four owner questions waited. A session
+  then spent ~150K tokens on director work without asking one.
+
+  The resolver is what a session actually branches on. Requiring a second label to agree adds a way to
+  be silently wrong and buys nothing — and an empty frontier is indistinguishable from a correct one,
+  which is what makes this class expensive. **A ticket still wants all four fields above** (the hook
+  warns when `wayfinder:ticket` is missing); the query just must not depend on them to find it.
 - Refer to maps and tickets **by title, never by bare number** — the number rides inside the
   markdown link.
 

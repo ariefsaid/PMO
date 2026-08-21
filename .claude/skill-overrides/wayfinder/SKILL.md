@@ -177,35 +177,26 @@ User invokes with a map (URL or number). A ticket is **optional** — without on
 decision, not the user. **Which *kind* of session it is is also not the user's to state** — the frontier
 answers that. They should never need to say "grill session" or name the sibling maps.
 
-0. **Decide the session kind first, before choosing any ticket.** Query the owner frontier **across every
-   map**, not only the one named — a parent map's children share one frontier, and the owner's tickets are
-   usually spread over them:
+0. **Decide the session kind first, before choosing any ticket — and DO NOT hand-roll the query.**
+   `.claude/hooks/session-frontier.sh` runs at SessionStart and has already printed the answer: the owner
+   frontier **across every map** (a parent map's children share one frontier, and the owner's tickets are
+   usually spread over them), the session kind, and a warning for any resolver-labelled ticket missing
+   `wayfinder:ticket`. Read that line. Re-run the hook by hand if the session has been going a while.
 
-   ```bash
-   gh issue list --state open --label wayfinder:owner --limit 60 \
-     --json number,title,body \
-     --jq '.[] | select((.body|test("Blocked-by")|not)) | "#\(.number)  \(.title)"'
-   ```
+   ⚑ **Every time this was hand-rolled it was wrong, in a different direction each time**, which is why
+   the query lives in one place now:
 
-   ⚑ **Key on the RESOLVER label alone.** This query used to AND `wayfinder:ticket` with the resolver
-   label, and on 2026-08-21 that returned **empty** while three owner tickets sat open — they carried
-   `wayfinder:owner` but had never been given `wayfinder:ticket` or wired to a map. The session read the
-   empty result as "no owner questions", declared a DRIVE session, and spent ~150K tokens working
-   director tickets **without asking the owner anything**. A frontier query that silently returns nothing
-   does not look like a bug; it looks like an answer.
+   - **AND-ing `wayfinder:ticket` with the resolver label** returned *empty* on 2026-08-21 while three
+     owner tickets sat open — parked with the resolver label alone. The session read empty as "no owner
+     questions", declared a DRIVE session, and spent ~150K tokens on director work **without asking the
+     owner anything**. The resolver is what the branch turns on; a second label agreeing buys nothing.
+   - **Dropping any ticket whose body mentions `Blocked-by`** is the opposite error and predates it: a
+     ticket is unblocked when every id it names is **CLOSED**, not when it names none. On 2026-08-19 that
+     filter called three tickets blocked after their blockers had closed. The hook resolves the ids from
+     a single listing; a one-line `jq` cannot.
 
-   **So: an empty result is a CLAIM, not a fact.** Before declaring a DRIVE session on the back of one,
-   spend one call checking it is not a labelling artifact:
-
-   ```bash
-   gh issue list --state open --label wayfinder:owner --limit 60 --json number,title,labels \
-     --jq '.[] | "#\(.number)  \(.title)  [\([.labels[].name]|join(","))]"'
-   ```
-
-   If that finds tickets the frontier query missed, **fix the tickets** (add `wayfinder:ticket`, the
-   `Map: #<n>` first line, and the sub-issue link) and re-run — do not proceed on the empty answer.
-   ⚑ `.claude/hooks/session-frontier.sh` already answers this at SessionStart and warns about
-   resolver-labelled tickets missing `wayfinder:ticket`; prefer reading its line over re-querying.
+   **An empty frontier is a CLAIM, not a fact.** That is what makes this class expensive — a wrong answer
+   here is silent, and looks exactly like a right one.
 
    **Non-empty → GRILL session:** take *all* of them into `/grilling` rounds and drain the batch. Do not
    pick one and stop. **Empty → DRIVE session:** work `director` tickets, chaining as many as context
