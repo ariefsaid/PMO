@@ -1,5 +1,5 @@
 import { supabase } from '@/src/lib/supabase/client';
-import { AppError } from '@/src/lib/appError';
+import { AppError, assertWriteLanded } from '@/src/lib/appError';
 import type { Tables } from '@/src/lib/supabase/database.types';
 import { ON_HAND_STATUSES, INTERNAL_STATUSES } from './projectTransitions';
 import { resolveRange, type PageParams } from '@/src/lib/pagination';
@@ -261,7 +261,7 @@ export async function listProjectsByClient(clientId: string): Promise<ProjectWit
  * Throws an `AppError` (code preserved) on failure.
  */
 export async function updateProjectHeader(id: string, input: ProjectHeaderInput): Promise<void> {
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('projects')
     .update({
       name: input.name,
@@ -271,8 +271,10 @@ export async function updateProjectHeader(id: string, input: ProjectHeaderInput)
       start_date: input.start_date,
       end_date: input.end_date,
     })
-    .eq('id', id);
+    .eq('id', id)
+    .select('id');
   if (error) throwWrite(error);
+  assertWriteLanded(data, 'Project not found or you do not have permission to edit it.');
 }
 
 /**
@@ -281,11 +283,13 @@ export async function updateProjectHeader(id: string, input: ProjectHeaderInput)
  * `archived_at` column UPDATE grant comes from 0012. Throws an `AppError` (code preserved).
  */
 export async function archiveProject(id: string): Promise<void> {
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('projects')
     .update({ archived_at: new Date().toISOString() })
-    .eq('id', id);
+    .eq('id', id)
+    .select('id');
   if (error) throwWrite(error);
+  assertWriteLanded(data, 'Project not found or you do not have permission to archive it.');
 }
 
 /**
@@ -305,8 +309,9 @@ export async function archiveProject(id: string): Promise<void> {
  * this hard delete is the irreversible escape hatch.
  */
 export async function deleteProject(id: string): Promise<void> {
-  const { error } = await supabase.from('projects').delete().eq('id', id);
+  const { data, error } = await supabase.from('projects').delete().eq('id', id).select('id');
   if (error) throwWrite(error);
+  assertWriteLanded(data, 'Project not found or you do not have permission to delete it.');
 }
 
 /**

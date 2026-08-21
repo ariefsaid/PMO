@@ -68,3 +68,16 @@ export function toAppError(err: unknown): AppError {
   }
   return new AppError('An unexpected error occurred');
 }
+
+/**
+ * Guards against the silent-no-op class (#534): a `using`-denied RLS UPDATE/DELETE hides the
+ * target row rather than erroring, so the statement affects 0 rows and `error` stays null — the
+ * DAL would otherwise report success for a write that never happened. The call site appends
+ * `.select('id')` to the mutation so PostgREST returns the rows it actually touched, then passes
+ * that `data` here. An empty/null result throws a `42501` `AppError` (the same code a WITH CHECK
+ * denial already surfaces), so every caller's existing `classifyMutationError` handling covers it
+ * with no extra branching.
+ */
+export function assertWriteLanded(data: unknown[] | null | undefined, message: string): void {
+  if (!data?.length) throw new AppError(message, '42501');
+}

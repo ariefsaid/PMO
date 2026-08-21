@@ -169,7 +169,7 @@ describe('AC-IN-003 createIncident (any member files; reporter + org_id server-s
 
 describe('AC-IN-004 updateIncident (managers edit incident detail)', () => {
   it('AC-IN-004: updates the editable fields by id, NEVER org_id/status', async () => {
-    h.result.value = { data: null, error: null };
+    h.result.value = { data: [{ id: 'i1' }], error: null };
     await updateIncident('i1', {
       incident_date: '2026-06-09',
       type: 'Spill',
@@ -190,6 +190,17 @@ describe('AC-IN-004 updateIncident (managers edit incident detail)', () => {
     await expect(
       updateIncident('i1', { incident_date: '2026-06-09', type: 'Y', severity: 'Low' }),
     ).rejects.toMatchObject({ code: '42501' });
+  });
+
+  it('#534: a using-denied update (0 rows matched, no error) throws 42501 instead of resolving as success', async () => {
+    h.result.value = { data: [], error: null };
+    await expect(
+      updateIncident('i1', { incident_date: '2026-06-09', type: 'Y', severity: 'Low' }),
+    ).rejects.toBeInstanceOf(AppError);
+    await expect(
+      updateIncident('i1', { incident_date: '2026-06-09', type: 'Y', severity: 'Low' }),
+    ).rejects.toMatchObject({ code: '42501' });
+    expect(h.calls.update.length).toBeGreaterThan(0);
   });
 });
 
@@ -216,7 +227,7 @@ describe('AC-IN-PROJ-009 project_id link (create/edit set it; read selects it)',
   });
 
   it('AC-IN-PROJ-009: updateIncident writes project_id (null when cleared, so the link is removable)', async () => {
-    h.result.value = { data: null, error: null };
+    h.result.value = { data: [{ id: 'i1' }], error: null };
     // Linking
     await updateIncident('i1', {
       incident_date: '2026-06-21',
@@ -235,7 +246,7 @@ describe('AC-IN-PROJ-009 project_id link (create/edit set it; read selects it)',
 
 describe('AC-IN-004 transitionIncident (Open→Investigating→Closed status workflow, managers only)', () => {
   it('AC-IN-004: sets ONLY status by id, NEVER org_id', async () => {
-    h.result.value = { data: null, error: null };
+    h.result.value = { data: [{ id: 'i1' }], error: null };
     await transitionIncident('i1', 'Investigating');
     expect(h.calls.from).toEqual(['incident_reports']);
     expect(h.calls.update).toEqual([{ status: 'Investigating' }]);
@@ -247,11 +258,18 @@ describe('AC-IN-004 transitionIncident (Open→Investigating→Closed status wor
     h.result.value = { data: null, error: { message: 'denied', code: '42501' } };
     await expect(transitionIncident('i1', 'Closed')).rejects.toMatchObject({ code: '42501' });
   });
+
+  it('#534: a using-denied transition (0 rows matched, no error) throws 42501 instead of resolving as success', async () => {
+    h.result.value = { data: [], error: null };
+    await expect(transitionIncident('i1', 'Closed')).rejects.toBeInstanceOf(AppError);
+    await expect(transitionIncident('i1', 'Closed')).rejects.toMatchObject({ code: '42501' });
+    expect(h.calls.update.length).toBeGreaterThan(0);
+  });
 });
 
 describe('AC-IN-005 deleteIncident (Admin only)', () => {
   it('AC-IN-005: deletes by id, NEVER org_id', async () => {
-    h.result.value = { data: null, error: null };
+    h.result.value = { data: [{ id: 'i1' }], error: null };
     await deleteIncident('i1');
     expect(h.calls.from).toEqual(['incident_reports']);
     expect(h.calls.delete).toBe(1);
@@ -262,5 +280,12 @@ describe('AC-IN-005 deleteIncident (Admin only)', () => {
   it('AC-IN-005: throws AppError with code 42501 when RLS denies the delete', async () => {
     h.result.value = { data: null, error: { message: 'denied', code: '42501' } };
     await expect(deleteIncident('i1')).rejects.toMatchObject({ code: '42501' });
+  });
+
+  it('#534: a using-denied delete (0 rows matched, no error) throws 42501 instead of resolving as success', async () => {
+    h.result.value = { data: [], error: null };
+    await expect(deleteIncident('i1')).rejects.toBeInstanceOf(AppError);
+    await expect(deleteIncident('i1')).rejects.toMatchObject({ code: '42501' });
+    expect(h.calls.delete).toBeGreaterThan(0);
   });
 });

@@ -52,7 +52,17 @@ const h = vi.hoisted(() => {
     return storageBuilder;
   });
 
-  const result: { value: QueryResult<typeof mockDocRow | null> | QueryResult<null> } = {
+  // #534: a write chain now ends `.select('id')`, so `data` may also resolve as a `{ id }[]` —
+  // empty to simulate a using-denied 0-row no-op, or the doc row itself (widened via
+  // Object.assign in the deleteProjectDocument cleanup test) to double as both the internal
+  // getProjectDocument() read and the delete's own row-landed check.
+  const result: {
+    value:
+      | QueryResult<typeof mockDocRow | null>
+      | QueryResult<null>
+      | QueryResult<{ id: string }[]>
+      | QueryResult<(typeof mockDocRow & { id: string })[]>;
+  } = {
     value: { data: null, error: null },
   };
   const calls = {
@@ -107,6 +117,7 @@ import {
   getSignedDownloadUrl,
   deleteProjectDocument,
 } from './documents';
+import { AppError } from '@/src/lib/appError';
 
 type MockDocRow = {
   id: string;
@@ -201,7 +212,7 @@ describe('documents DAL — storage operations', () => {
   });
 
   it('AC-DOC-021 I4 (DAL): confirmUpload sets the new path and cleanupStorageObject deletes the old object after a successful replace', async () => {
-    h.result.value = { data: null, error: null };
+    h.result.value = { data: [{ id: 'doc-1' }], error: null };
 
     await confirmUpload('doc-1', 'org-1/proj-1/doc-1/new.pdf');
     await cleanupStorageObject('org-1/proj-1/doc-1/old.pdf');
@@ -212,11 +223,18 @@ describe('documents DAL — storage operations', () => {
   });
 
   it('AC-DOC-021 (DAL): confirmUpload updates file_path on the row', async () => {
-    h.result.value = { data: null, error: null };
+    h.result.value = { data: [{ id: 'doc-1' }], error: null };
 
     await confirmUpload('doc-1', 'org-1/proj-1/doc-1/file.pdf');
     expect(h.calls.from).toContain('project_documents');
     expect(h.calls.eq).toContainEqual(['id', 'doc-1']);
+  });
+
+  it('#534: a using-denied confirmUpload (0 rows matched, no error) throws 42501 instead of resolving as success', async () => {
+    h.result.value = { data: [], error: null };
+    await expect(confirmUpload('doc-1', 'org-1/proj-1/doc-1/file.pdf')).rejects.toBeInstanceOf(AppError);
+    await expect(confirmUpload('doc-1', 'org-1/proj-1/doc-1/file.pdf')).rejects.toMatchObject({ code: '42501' });
+    expect(h.calls.update.length).toBeGreaterThan(0);
   });
 
   it('AC-DOC-021 (DAL): cleanupStorageObject removes the old object', async () => {
@@ -228,7 +246,14 @@ describe('documents DAL — storage operations', () => {
   });
 
   it('I6 (DAL): deleteProjectDocument deletes the row first, then best-effort cleans up the storage object', async () => {
-    h.result.value = { data: { ...mockDocRow, file_path: 'org-1/proj-1/doc-1/old.pdf' }, error: null };
+    // This mock resolves ONE shared `result.value` for both the internal getProjectDocument()
+    // read (.maybeSingle(), wants a single doc-shaped object) and the delete's own
+    // `.select('id')` (#534: wants a non-empty array, proving a row actually matched). An array
+    // carrying the doc's own fields satisfies both call sites at once.
+    h.result.value = {
+      data: Object.assign([{ id: 'doc-1' }], { ...mockDocRow, file_path: 'org-1/proj-1/doc-1/old.pdf' }),
+      error: null,
+    };
     await deleteProjectDocument('doc-1');
     expect(h.calls.from).toEqual(['project_documents', 'project_documents']);
     expect(h.calls.delete).toBe(1);

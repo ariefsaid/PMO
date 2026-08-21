@@ -1,5 +1,5 @@
 import { supabase } from '@/src/lib/supabase/client';
-import { AppError } from '@/src/lib/appError';
+import { AppError, assertWriteLanded } from '@/src/lib/appError';
 import type { Tables } from '@/src/lib/supabase/database.types';
 
 /**
@@ -114,7 +114,7 @@ export async function createProjectDocument(
  * Throws an `AppError` (code preserved) on failure.
  */
 export async function updateProjectDocument(id: string, input: ProjectDocumentInput): Promise<void> {
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('project_documents')
     .update({
       code: nullable(input.code),
@@ -123,8 +123,10 @@ export async function updateProjectDocument(id: string, input: ProjectDocumentIn
       revision: nullable(input.revision),
       doc_date: nullable(input.doc_date),
     })
-    .eq('id', id);
+    .eq('id', id)
+    .select('id');
   if (error) throwWrite(error);
+  assertWriteLanded(data, 'Document not found or you do not have permission to edit it.');
 }
 
 /**
@@ -150,8 +152,9 @@ export async function transitionProjectDocument(id: string, status: DocStatus): 
  */
 export async function deleteProjectDocument(id: string): Promise<void> {
   const doc = await getProjectDocument(id);
-  const { error } = await supabase.from('project_documents').delete().eq('id', id);
+  const { data, error } = await supabase.from('project_documents').delete().eq('id', id).select('id');
   if (error) throwWrite(error);
+  assertWriteLanded(data, 'Document not found or you do not have permission to delete it.');
   if (doc?.file_path) {
     await cleanupStorageObject(doc.file_path);
   }
@@ -221,11 +224,13 @@ export async function prepareUpload(
  * Called by the hook after uploadWithProgress succeeds.
  */
 export async function confirmUpload(docId: string, path: string): Promise<void> {
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('project_documents')
     .update({ file_path: path })
-    .eq('id', docId);
+    .eq('id', docId)
+    .select('id');
   if (error) throwWrite(error);
+  assertWriteLanded(data, 'Document not found or you do not have permission to edit it.');
 }
 
 /**

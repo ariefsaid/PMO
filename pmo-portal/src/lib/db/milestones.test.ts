@@ -226,7 +226,7 @@ describe('AC-DEL-008 createMilestone', () => {
 
 describe('AC-DEL-009 updateMilestone', () => {
   it('AC-DEL-009: sends only the keys present in the patch, never org_id/project_id', async () => {
-    h.result.value = { data: null, error: null };
+    h.result.value = { data: [{ id: 'm1' }], error: null };
     await updateMilestone('m1', { name: 'Renamed', weight: 3 });
     expect(h.calls.from).toEqual(['project_milestones']);
     const patch = h.calls.update[0] as Record<string, unknown>;
@@ -237,14 +237,14 @@ describe('AC-DEL-009 updateMilestone', () => {
   });
 
   it('AC-DEL-009: input_pct: null in patch explicitly clears it (FR-DEL-009 clear path)', async () => {
-    h.result.value = { data: null, error: null };
+    h.result.value = { data: [{ id: 'm1' }], error: null };
     await updateMilestone('m1', { input_pct: null });
     const patch = h.calls.update[0] as Record<string, unknown>;
     expect(patch).toHaveProperty('input_pct', null);
   });
 
   it('AC-DEL-009: omitting input_pct from patch does NOT send it (absent key never sent)', async () => {
-    h.result.value = { data: null, error: null };
+    h.result.value = { data: [{ id: 'm1' }], error: null };
     await updateMilestone('m1', { name: 'Only rename' });
     const patch = h.calls.update[0] as Record<string, unknown>;
     expect(patch).not.toHaveProperty('input_pct');
@@ -255,13 +255,20 @@ describe('AC-DEL-009 updateMilestone', () => {
     await expect(updateMilestone('m1', { name: 'X' })).rejects.toBeInstanceOf(AppError);
     await expect(updateMilestone('m1', { name: 'X' })).rejects.toMatchObject({ code: '42501' });
   });
+
+  it('#534: a using-denied update (0 rows matched, no error) throws 42501 instead of resolving as success', async () => {
+    h.result.value = { data: [], error: null };
+    await expect(updateMilestone('m1', { name: 'X' })).rejects.toBeInstanceOf(AppError);
+    await expect(updateMilestone('m1', { name: 'X' })).rejects.toMatchObject({ code: '42501' });
+    expect(h.calls.update.length).toBeGreaterThan(0);
+  });
 });
 
 // ── deleteMilestone ───────────────────────────────────────────────────────────
 
 describe('AC-DEL-021 deleteMilestone', () => {
   it('AC-DEL-021: hard-deletes by id from project_milestones (FK SET NULL un-groups tasks)', async () => {
-    h.result.value = { data: null, error: null };
+    h.result.value = { data: [{ id: 'm1' }], error: null };
     await deleteMilestone('m1');
     expect(h.calls.from).toEqual(['project_milestones']);
     expect(h.calls.delete).toBe(1);
@@ -272,13 +279,20 @@ describe('AC-DEL-021 deleteMilestone', () => {
     h.result.value = { data: null, error: { message: 'denied', code: '42501' } };
     await expect(deleteMilestone('m1')).rejects.toBeInstanceOf(AppError);
   });
+
+  it('#534: a using-denied delete (0 rows matched, no error) throws 42501 instead of resolving as success', async () => {
+    h.result.value = { data: [], error: null };
+    await expect(deleteMilestone('m1')).rejects.toBeInstanceOf(AppError);
+    await expect(deleteMilestone('m1')).rejects.toMatchObject({ code: '42501' });
+    expect(h.calls.delete).toBeGreaterThan(0);
+  });
 });
 
 // ── updateTaskMilestone ───────────────────────────────────────────────────────
 
 describe('AC-DEL-011 updateTaskMilestone', () => {
   it('AC-DEL-011: updates tasks.milestone_id by taskId; null ungroups; NEVER sends org_id', async () => {
-    h.result.value = { data: null, error: null };
+    h.result.value = { data: [{ id: 'm1' }], error: null };
     await updateTaskMilestone('t1', 'm1');
     expect(h.calls.from).toEqual(['tasks']);
     const patch = h.calls.update[0] as Record<string, unknown>;
@@ -288,7 +302,7 @@ describe('AC-DEL-011 updateTaskMilestone', () => {
   });
 
   it('AC-DEL-011: null milestoneId explicitly ungroups the task (clears milestone_id)', async () => {
-    h.result.value = { data: null, error: null };
+    h.result.value = { data: [{ id: 'm1' }], error: null };
     await updateTaskMilestone('t1', null);
     const patch = h.calls.update[0] as Record<string, unknown>;
     expect(patch).toMatchObject({ milestone_id: null });
@@ -297,5 +311,12 @@ describe('AC-DEL-011 updateTaskMilestone', () => {
   it('AC-DEL-011: throws AppError on update error', async () => {
     h.result.value = { data: null, error: { message: 'denied', code: '42501' } };
     await expect(updateTaskMilestone('t1', 'm1')).rejects.toBeInstanceOf(AppError);
+  });
+
+  it('#534: a using-denied update (0 rows matched, no error) throws 42501 instead of resolving as success', async () => {
+    h.result.value = { data: [], error: null };
+    await expect(updateTaskMilestone('t1', 'm1')).rejects.toBeInstanceOf(AppError);
+    await expect(updateTaskMilestone('t1', 'm1')).rejects.toMatchObject({ code: '42501' });
+    expect(h.calls.update.length).toBeGreaterThan(0);
   });
 });

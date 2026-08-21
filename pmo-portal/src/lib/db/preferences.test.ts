@@ -11,7 +11,8 @@ const h = vi.hoisted(() => {
 });
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: h.from } }));
 import { getMyLocalePreferences, setMyLocalePreferences } from './preferences';
-beforeEach(() => { h.from.mockClear(); Object.values(h.calls).forEach(c => c.length = 0); h.result.value = { data: null, error: null }; });
+import { AppError } from '@/src/lib/appError';
+beforeEach(() => { h.from.mockClear(); Object.values(h.calls).forEach(c => c.length = 0); h.result.value = { data: [{ id: 'u1' }], error: null }; });
 describe('FR-L10N-006 own-preference DAL', () => {
   it('reads only own preference columns', async () => {
     h.result.value = { data: { locale: 'id', number_locale: null, timezone: 'Asia/Jakarta' }, error: null };
@@ -30,5 +31,15 @@ describe('FR-L10N-006 own-preference DAL', () => {
     h.result.value = { data: null, error: { message: 'JWT', code: '42501' } };
     await expect(getMyLocalePreferences('u1')).rejects.toThrow('JWT');
     await expect(setMyLocalePreferences('u1', { locale: null, numberLocale: null, timezone: null })).rejects.toThrow('JWT');
+  });
+  it('#534: a using-denied update (0 rows matched, no error) throws 42501 instead of resolving as success', async () => {
+    h.result.value = { data: [], error: null };
+    await expect(
+      setMyLocalePreferences('u1', { locale: 'en', numberLocale: 'en-US', timezone: 'UTC' }),
+    ).rejects.toBeInstanceOf(AppError);
+    await expect(
+      setMyLocalePreferences('u1', { locale: 'en', numberLocale: 'en-US', timezone: 'UTC' }),
+    ).rejects.toMatchObject({ code: '42501' });
+    expect(h.calls.update.length).toBeGreaterThan(0);
   });
 });

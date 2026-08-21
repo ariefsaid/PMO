@@ -95,21 +95,21 @@ describe('AC-CUA-001 empty ownership cache — every task write stays on the dir
   });
 
   it('AC-CUA-001 updateTask never calls functions.invoke', async () => {
-    h.result.value = { data: null, error: null };
+    h.result.value = { data: [{ id: 't1' }], error: null };
     await updateTask('t1', { name: 'Renamed' }, 'p1');
     expect(h.invoke).not.toHaveBeenCalled();
     expect(h.calls.from).toEqual(['tasks']);
   });
 
   it('AC-CUA-001 updateTaskStatus never calls functions.invoke', async () => {
-    h.result.value = { data: null, error: null };
+    h.result.value = { data: [{ id: 't1' }], error: null };
     await updateTaskStatus('t1', 'Done', 'p1');
     expect(h.invoke).not.toHaveBeenCalled();
     expect(h.calls.from).toEqual(['tasks']);
   });
 
   it('AC-CUA-001 deleteTask never calls functions.invoke', async () => {
-    h.result.value = { data: null, error: null };
+    h.result.value = { data: [{ id: 't1' }], error: null };
     await deleteTask('t1', 'p1');
     expect(h.invoke).not.toHaveBeenCalled();
     expect(h.calls.from).toEqual(['tasks']);
@@ -180,7 +180,7 @@ describe('AC-CUA-001 loaded cache asserting tasks→clickup — native writes ro
   });
 
   it('AC-CUA-001 milestone re-assignment (updateTaskMilestone) still takes the direct DAL — FR-CUA-024', async () => {
-    h.result.value = { data: null, error: null };
+    h.result.value = { data: [{ id: 't1' }], error: null };
     await updateTaskMilestone('t1', 'm2');
     expect(h.invoke).not.toHaveBeenCalled();
     expect(h.calls.from).toEqual(['tasks']);

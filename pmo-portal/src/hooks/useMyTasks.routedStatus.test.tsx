@@ -13,8 +13,8 @@ import React from 'react';
  */
 
 const h = vi.hoisted(() => {
-  const result = { value: { data: null as unknown, error: null as unknown } };
-  const calls = { from: [] as unknown[], update: [] as unknown[], eq: [] as unknown[] };
+  const result = { value: { data: [{ id: 't1' }] as unknown, error: null as unknown } };
+  const calls = { from: [] as unknown[], update: [] as unknown[], eq: [] as unknown[], select: [] as unknown[] };
   const builder: Record<string, unknown> = {};
   builder.update = (...args: unknown[]) => {
     calls.update.push(args.length === 1 ? args[0] : args);
@@ -22,6 +22,12 @@ const h = vi.hoisted(() => {
   };
   builder.eq = (...args: unknown[]) => {
     calls.eq.push(args.length === 1 ? args[0] : args);
+    return builder;
+  };
+  // #534: updateTaskStatus now chains .select('id') to prove a using-denied RLS write did not
+  // silently no-op; the mock must expose the method and keep resolving the queued result.
+  builder.select = (...args: unknown[]) => {
+    calls.select.push(args.length === 1 ? args[0] : args);
     return builder;
   };
   builder.then = (resolve: (v: unknown) => unknown) => resolve(result.value);
@@ -59,7 +65,8 @@ beforeEach(() => {
   h.calls.from.length = 0;
   h.calls.update.length = 0;
   h.calls.eq.length = 0;
-  h.result.value = { data: null, error: null };
+  h.calls.select.length = 0;
+  h.result.value = { data: [{ id: 't1' }], error: null };
   clearOwnershipCache();
 });
 

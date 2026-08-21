@@ -160,18 +160,25 @@ describe('AC-CRM-022 createContact', () => {
 
 describe('AC-CRM-022 updateContact', () => {
   it('AC-CRM-022: updates by id, NEVER org_id', async () => {
-    h.result.value = { data: null, error: null };
+    h.result.value = { data: [{ id: 'ct1' }], error: null };
     await updateContact('ct1', input);
     expect(h.calls.from).toEqual(['contacts']);
     expect(h.calls.update).toHaveLength(1);
     expect(JSON.stringify(h.calls.update)).not.toContain('org_id');
     expect(h.calls.eq).toContainEqual(['id', 'ct1']);
   });
+
+  it('#534: a using-denied update (0 rows matched, no error) throws 42501 instead of resolving as success', async () => {
+    h.result.value = { data: [], error: null };
+    await expect(updateContact('ct1', input)).rejects.toBeInstanceOf(AppError);
+    await expect(updateContact('ct1', input)).rejects.toMatchObject({ code: '42501' });
+    expect(h.calls.update.length).toBeGreaterThan(0);
+  });
 });
 
 describe('AC-CRM-022 archiveContact', () => {
   it('AC-CRM-022: sets archived_at via update by id, NEVER org_id', async () => {
-    h.result.value = { data: null, error: null };
+    h.result.value = { data: [{ id: 'ct1' }], error: null };
     await archiveContact('ct1');
     expect(h.calls.from).toEqual(['contacts']);
     expect(h.calls.update).toHaveLength(1);
@@ -181,11 +188,18 @@ describe('AC-CRM-022 archiveContact', () => {
     expect(h.calls.eq).toContainEqual(['id', 'ct1']);
     expect(JSON.stringify(patch)).not.toContain('org_id');
   });
+
+  it('#534: a using-denied archive (0 rows matched, no error) throws 42501 instead of resolving as success', async () => {
+    h.result.value = { data: [], error: null };
+    await expect(archiveContact('ct1')).rejects.toBeInstanceOf(AppError);
+    await expect(archiveContact('ct1')).rejects.toMatchObject({ code: '42501' });
+    expect(h.calls.update.length).toBeGreaterThan(0);
+  });
 });
 
 describe('AC-CRM-022 deleteContact', () => {
   it('AC-CRM-022: deletes by id, NEVER org_id', async () => {
-    h.result.value = { data: null, error: null };
+    h.result.value = { data: [{ id: 'ct1' }], error: null };
     await deleteContact('ct1');
     expect(h.calls.from).toEqual(['contacts']);
     expect(h.calls.delete).toBe(1);
@@ -195,5 +209,12 @@ describe('AC-CRM-022 deleteContact', () => {
   it('AC-CRM-022: throws AppError with code on a denied delete', async () => {
     h.result.value = { data: null, error: { message: 'denied', code: '42501' } };
     await expect(deleteContact('ct1')).rejects.toMatchObject({ code: '42501' });
+  });
+
+  it('#534: a using-denied delete (0 rows matched, no error) throws 42501 instead of resolving as success', async () => {
+    h.result.value = { data: [], error: null };
+    await expect(deleteContact('ct1')).rejects.toBeInstanceOf(AppError);
+    await expect(deleteContact('ct1')).rejects.toMatchObject({ code: '42501' });
+    expect(h.calls.delete).toBeGreaterThan(0);
   });
 });
