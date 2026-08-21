@@ -1,5 +1,5 @@
 import { supabase } from '@/src/lib/supabase/client';
-import { AppError } from '@/src/lib/appError';
+import { AppError, assertWriteLanded } from '@/src/lib/appError';
 import type { Tables } from '@/src/lib/supabase/database.types';
 
 export type AgentEventRow = Tables<'agent_events'>;
@@ -45,9 +45,11 @@ export async function rateAgentEvent(
   rating: 'up' | 'down',
   reason?: DownvoteReason,
 ): Promise<void> {
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('agent_events')
     .update({ rating, downvote_reason: reason ?? null })
-    .eq('id', id);
+    .eq('id', id)
+    .select('id');
   if (error) throwWrite(error);
+  assertWriteLanded(data, 'Event not found or you do not have permission to rate it.');
 }

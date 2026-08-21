@@ -1,5 +1,5 @@
 import { supabase } from '@/src/lib/supabase/client';
-import { toAppError } from '@/src/lib/appError';
+import { toAppError, assertWriteLanded } from '@/src/lib/appError';
 
 /**
  * A user's own locale preferences (FR-L10N-002/004/006, migration `0198`).
@@ -48,13 +48,15 @@ export async function setMyLocalePreferences(
   userId: string,
   prefs: MyLocalePreferences,
 ): Promise<void> {
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('profiles')
     .update({
       locale: prefs.locale,
       number_locale: prefs.numberLocale,
       timezone: prefs.timezone,
     })
-    .eq('id', userId);
+    .eq('id', userId)
+    .select('id');
   if (error) throw toAppError(error);
+  assertWriteLanded(data, 'Profile not found or you do not have permission to update these preferences.');
 }

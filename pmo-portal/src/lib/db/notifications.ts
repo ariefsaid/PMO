@@ -1,5 +1,5 @@
 import { supabase } from '@/src/lib/supabase/client';
-import { AppError } from '@/src/lib/appError';
+import { AppError, assertWriteLanded } from '@/src/lib/appError';
 import type { Tables } from '@/src/lib/supabase/database.types';
 import { resolveRange, type PageParams } from '@/src/lib/pagination';
 
@@ -59,9 +59,11 @@ export async function listUnreadCount(): Promise<number> {
  * (code preserved, e.g. `42501` on a denied non-owner update).
  */
 export async function markNotificationRead(id: string): Promise<void> {
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('notifications')
     .update({ read_at: new Date().toISOString() })
-    .eq('id', id);
+    .eq('id', id)
+    .select('id');
   if (error) throwWrite(error);
+  assertWriteLanded(data, 'Notification not found or you do not have permission to update it.');
 }

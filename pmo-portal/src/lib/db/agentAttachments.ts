@@ -1,5 +1,5 @@
 import { supabase } from '@/src/lib/supabase/client';
-import { AppError } from '@/src/lib/appError';
+import { AppError, assertWriteLanded } from '@/src/lib/appError';
 import {
   AGENT_ATTACHMENT_MAX_BYTES,
   ALLOWED_AGENT_ATTACHMENT_MIME,
@@ -103,11 +103,13 @@ export async function prepareAgentAttachmentFileUpload(
  * succeeds. Text extraction remains pending until the edge resolver processes it.
  */
 export async function confirmAgentAttachmentUpload(attachmentId: string): Promise<void> {
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('agent_attachments')
     .update({ extracted_text_status: 'pending', archived_at: null })
-    .eq('id', attachmentId);
+    .eq('id', attachmentId)
+    .select('id');
   if (error) throwWrite(error);
+  assertWriteLanded(data, 'Attachment not found or you do not have permission to confirm it.');
 }
 
 /**
@@ -118,9 +120,11 @@ export async function confirmAgentAttachmentUpload(attachmentId: string): Promis
 export async function cleanupAgentAttachmentObject(path: string): Promise<void> {
   if (!path) return;
   await supabase.storage.from(BUCKET).remove([path]);
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('agent_attachments')
     .update({ archived_at: new Date().toISOString() })
-    .eq('storage_path', path);
+    .eq('storage_path', path)
+    .select('id');
   if (error) throwWrite(error);
+  assertWriteLanded(data, 'Attachment not found or you do not have permission to archive it.');
 }

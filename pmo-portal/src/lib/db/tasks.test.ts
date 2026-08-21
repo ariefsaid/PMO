@@ -84,7 +84,7 @@ beforeEach(() => {
     if (typeof h.calls[k] === 'number') (h.calls[k] as unknown) = 0;
     else (h.calls[k] as unknown[]).length = 0;
   }
-  h.result.value = { data: null, error: null };
+  h.result.value = { data: [{ id: 't1' }], error: null };
   ext.route = 'pmo';
   ext.dispatch.mockReset();
   ext.dispatch.mockResolvedValue({ externalRecordId: 'cu-1', canonical: { id: 'new', name: 'X', status: 'To Do' } });
@@ -105,6 +105,20 @@ describe('task archive writes', () => {
     await expect(unarchiveTask('t1')).rejects.toMatchObject({ code: 'external-owned' });
     expect(h.from).not.toHaveBeenCalled();
     expect(ext.dispatch).not.toHaveBeenCalled();
+  });
+
+  it('#534: a using-denied archive (0 rows matched, no error) throws 42501 instead of resolving as success', async () => {
+    h.result.value = { data: [], error: null };
+    await expect(archiveTask('t1')).rejects.toBeInstanceOf(AppError);
+    await expect(archiveTask('t1')).rejects.toMatchObject({ code: '42501' });
+    expect(h.calls.update.length).toBeGreaterThan(0);
+  });
+
+  it('#534: a using-denied unarchive (0 rows matched, no error) throws 42501 instead of resolving as success', async () => {
+    h.result.value = { data: [], error: null };
+    await expect(unarchiveTask('t1')).rejects.toBeInstanceOf(AppError);
+    await expect(unarchiveTask('t1')).rejects.toMatchObject({ code: '42501' });
+    expect(h.calls.update.length).toBeGreaterThan(0);
   });
 });
 
@@ -232,7 +246,7 @@ describe('AC-TASK-003 createTask', () => {
 
 describe('AC-TASK-004 updateTask (structure)', () => {
   it('AC-TASK-004: updates name/assignee/dates/status by id, NEVER org_id/project_id', async () => {
-    h.result.value = { data: null, error: null };
+    h.result.value = { data: [{ id: 't1' }], error: null };
     await updateTask('t1', {
       name: 'Renamed',
       assignee_id: 'u2',
@@ -259,8 +273,19 @@ describe('AC-TASK-004 updateTask (structure)', () => {
     await expect(updateTask('t1', { name: 'Y' })).rejects.toMatchObject({ code: '42501' });
   });
 
+  it('#534: a using-denied update (0 rows matched, no error) throws 42501 instead of resolving as success', async () => {
+    // A `using`-denied RLS UPDATE hides the row rather than erroring: PostgREST returns
+    // `{ data: [], error: null }`. Before #534 this resolved silently ("Saved"); the write
+    // was ATTEMPTED (the .update() call below proves that) but never landed — the throw here
+    // is what stops the caller from reporting the row as changed when it was not.
+    h.result.value = { data: [], error: null };
+    await expect(updateTask('t1', { name: 'Y' })).rejects.toBeInstanceOf(AppError);
+    await expect(updateTask('t1', { name: 'Y' })).rejects.toMatchObject({ code: '42501' });
+    expect(h.calls.update.length).toBeGreaterThan(0);
+  });
+
   it('AC-TASK-004: milestone_id present in patch is threaded into the DB update (edit-to-reassign)', async () => {
-    h.result.value = { data: null, error: null };
+    h.result.value = { data: [{ id: 't1' }], error: null };
     await updateTask('t1', { milestone_id: 'm2' });
     const patch = h.calls.update[0] as Record<string, unknown>;
     expect(patch).toHaveProperty('milestone_id', 'm2');
@@ -269,14 +294,14 @@ describe('AC-TASK-004 updateTask (structure)', () => {
   });
 
   it('AC-TASK-004: milestone_id: null in patch explicitly clears the milestone (ungroup)', async () => {
-    h.result.value = { data: null, error: null };
+    h.result.value = { data: [{ id: 't1' }], error: null };
     await updateTask('t1', { milestone_id: null });
     const patch = h.calls.update[0] as Record<string, unknown>;
     expect(patch).toHaveProperty('milestone_id', null);
   });
 
   it('AC-TASK-004: omitting milestone_id from patch leaves milestone_id untouched (absent key not sent)', async () => {
-    h.result.value = { data: null, error: null };
+    h.result.value = { data: [{ id: 't1' }], error: null };
     await updateTask('t1', { name: 'Only rename' });
     const patch = h.calls.update[0] as Record<string, unknown>;
     expect(patch).not.toHaveProperty('milestone_id');
@@ -284,7 +309,7 @@ describe('AC-TASK-004 updateTask (structure)', () => {
 
   // ── OD-INT-9: parent_task_id threading (PMO-direct branch only; ClickUp mapping is a separate issue). ──
   it('AC-TASK-004: parent_task_id present in patch is threaded into the DB update', async () => {
-    h.result.value = { data: null, error: null };
+    h.result.value = { data: [{ id: 't1' }], error: null };
     await updateTask('t1', { parent_task_id: 'parent-t' });
     const patch = h.calls.update[0] as Record<string, unknown>;
     expect(patch).toHaveProperty('parent_task_id', 'parent-t');
@@ -293,14 +318,14 @@ describe('AC-TASK-004 updateTask (structure)', () => {
   });
 
   it('AC-TASK-004: parent_task_id: null in patch explicitly clears the parent (subtask → top-level)', async () => {
-    h.result.value = { data: null, error: null };
+    h.result.value = { data: [{ id: 't1' }], error: null };
     await updateTask('t1', { parent_task_id: null });
     const patch = h.calls.update[0] as Record<string, unknown>;
     expect(patch).toHaveProperty('parent_task_id', null);
   });
 
   it('AC-TASK-004: omitting parent_task_id from patch leaves it untouched (absent key not sent)', async () => {
-    h.result.value = { data: null, error: null };
+    h.result.value = { data: [{ id: 't1' }], error: null };
     await updateTask('t1', { name: 'Only rename' });
     const patch = h.calls.update[0] as Record<string, unknown>;
     expect(patch).not.toHaveProperty('parent_task_id');
@@ -309,7 +334,7 @@ describe('AC-TASK-004 updateTask (structure)', () => {
 
 describe('AC-TASK-005 updateTaskStatus (the column-pinned own-task path)', () => {
   it('AC-TASK-005: updates ONLY the status column by id (never any structure column)', async () => {
-    h.result.value = { data: null, error: null };
+    h.result.value = { data: [{ id: 't1' }], error: null };
     await updateTaskStatus('t1', 'Done');
     expect(h.calls.from).toEqual(['tasks']);
     const patch = h.calls.update[0] as Record<string, unknown>;
@@ -323,11 +348,18 @@ describe('AC-TASK-005 updateTaskStatus (the column-pinned own-task path)', () =>
     h.result.value = { data: null, error: { message: 'denied', code: '42501' } };
     await expect(updateTaskStatus('t1', 'Done')).rejects.toMatchObject({ code: '42501' });
   });
+
+  it('#534: a using-denied status update (0 rows matched, no error) throws 42501 instead of resolving as success', async () => {
+    h.result.value = { data: [], error: null };
+    await expect(updateTaskStatus('t1', 'Done')).rejects.toBeInstanceOf(AppError);
+    await expect(updateTaskStatus('t1', 'Done')).rejects.toMatchObject({ code: '42501' });
+    expect(h.calls.update.length).toBeGreaterThan(0);
+  });
 });
 
 describe('AC-TASK-006 deleteTask', () => {
   it('AC-TASK-006: deletes by id, NEVER org_id', async () => {
-    h.result.value = { data: null, error: null };
+    h.result.value = { data: [{ id: 't1' }], error: null };
     await deleteTask('t1');
     expect(h.calls.from).toEqual(['tasks']);
     expect(h.calls.delete).toBe(1);
@@ -338,6 +370,13 @@ describe('AC-TASK-006 deleteTask', () => {
   it('AC-TASK-006: throws AppError with code 42501 when RLS denies the delete', async () => {
     h.result.value = { data: null, error: { message: 'denied', code: '42501' } };
     await expect(deleteTask('t1')).rejects.toMatchObject({ code: '42501' });
+  });
+
+  it('#534: a using-denied delete (0 rows matched, no error) throws 42501 instead of resolving as success', async () => {
+    h.result.value = { data: [], error: null };
+    await expect(deleteTask('t1')).rejects.toBeInstanceOf(AppError);
+    await expect(deleteTask('t1')).rejects.toMatchObject({ code: '42501' });
+    expect(h.calls.delete).toBeGreaterThan(0);
   });
 });
 
@@ -351,7 +390,7 @@ describe('AC-TASK-007 task dependencies add / remove', () => {
   });
 
   it('AC-TASK-007: removeDependency deletes the matching (task_id, depends_on_id) pair', async () => {
-    h.result.value = { data: null, error: null };
+    h.result.value = { data: [{ id: 't1' }], error: null };
     await removeDependency('t2', 't1');
     expect(h.calls.from).toEqual(['task_dependencies']);
     expect(h.calls.delete).toBe(1);
@@ -361,6 +400,13 @@ describe('AC-TASK-007 task dependencies add / remove', () => {
   it('AC-TASK-007: addDependency surfaces the self/duplicate guard as AppError (code preserved)', async () => {
     h.result.value = { data: null, error: { message: 'duplicate key', code: '23505' } };
     await expect(addDependency('t1', 't1')).rejects.toMatchObject({ code: '23505' });
+  });
+
+  it('#534: a using-denied removeDependency (0 rows matched, no error) throws 42501 instead of resolving as success', async () => {
+    h.result.value = { data: [], error: null };
+    await expect(removeDependency('t2', 't1')).rejects.toBeInstanceOf(AppError);
+    await expect(removeDependency('t2', 't1')).rejects.toMatchObject({ code: '42501' });
+    expect(h.calls.delete).toBeGreaterThan(0);
   });
 });
 
@@ -450,7 +496,7 @@ describe('AC-TASK-003 createTask — description + priority (external dispatch b
 
 describe('AC-TASK-004 updateTask — description + priority (direct branch)', () => {
   it('OD-INT-9: threads description + priority into the DB update when present in patch', async () => {
-    h.result.value = { data: null, error: null };
+    h.result.value = { data: [{ id: 't1' }], error: null };
     await updateTask('t1', { description: 'Revised scope.', priority: 'Urgent' });
     const patch = h.calls.update[0] as Record<string, unknown>;
     expect(patch.description).toBe('Revised scope.');
@@ -460,21 +506,21 @@ describe('AC-TASK-004 updateTask — description + priority (direct branch)', ()
   });
 
   it('OD-INT-9: description: null explicitly clears the description', async () => {
-    h.result.value = { data: null, error: null };
+    h.result.value = { data: [{ id: 't1' }], error: null };
     await updateTask('t1', { description: null });
     const patch = h.calls.update[0] as Record<string, unknown>;
     expect(patch.description).toBeNull();
   });
 
   it('OD-INT-9: priority: null explicitly clears the priority', async () => {
-    h.result.value = { data: null, error: null };
+    h.result.value = { data: [{ id: 't1' }], error: null };
     await updateTask('t1', { priority: null });
     const patch = h.calls.update[0] as Record<string, unknown>;
     expect(patch.priority).toBeNull();
   });
 
   it('OD-INT-9: omitting description/priority from patch leaves them untouched (absent key not sent)', async () => {
-    h.result.value = { data: null, error: null };
+    h.result.value = { data: [{ id: 't1' }], error: null };
     await updateTask('t1', { name: 'Only rename' });
     const patch = h.calls.update[0] as Record<string, unknown>;
     expect(patch).not.toHaveProperty('description');

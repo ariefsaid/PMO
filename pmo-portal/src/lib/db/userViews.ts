@@ -1,5 +1,5 @@
 import { supabase } from '@/src/lib/supabase/client';
-import { AppError } from '@/src/lib/appError';
+import { AppError, assertWriteLanded } from '@/src/lib/appError';
 import type { Tables } from '@/src/lib/supabase/database.types';
 
 export type UserViewRow = Tables<'user_views'>;
@@ -91,7 +91,7 @@ export async function createUserView(input: UserViewInput): Promise<UserViewRow>
  * (code preserved) on failure.
  */
 export async function updateUserView(id: string, input: UserViewInput): Promise<void> {
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('user_views')
     .update({
       name: input.name,
@@ -100,8 +100,10 @@ export async function updateUserView(id: string, input: UserViewInput): Promise<
       scope: input.scope,
       updated_at: new Date().toISOString(),
     })
-    .eq('id', id);
+    .eq('id', id)
+    .select('id');
   if (error) throwWrite(error);
+  assertWriteLanded(data, 'View not found or you do not have permission to edit it.');
 }
 
 /**
@@ -111,11 +113,13 @@ export async function updateUserView(id: string, input: UserViewInput): Promise<
  */
 export async function archiveUserView(id: string): Promise<void> {
   const now = new Date().toISOString();
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('user_views')
     .update({ archived_at: now, updated_at: now })
-    .eq('id', id);
+    .eq('id', id)
+    .select('id');
   if (error) throwWrite(error);
+  assertWriteLanded(data, 'View not found or you do not have permission to archive it.');
 }
 
 /**
@@ -124,6 +128,7 @@ export async function archiveUserView(id: string): Promise<void> {
  * on failure.
  */
 export async function deleteUserView(id: string): Promise<void> {
-  const { error } = await supabase.from('user_views').delete().eq('id', id);
+  const { data, error } = await supabase.from('user_views').delete().eq('id', id).select('id');
   if (error) throwWrite(error);
+  assertWriteLanded(data, 'View not found or you do not have permission to delete it.');
 }

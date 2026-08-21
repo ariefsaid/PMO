@@ -280,7 +280,7 @@ describe('AC-PRJ-003 createProject (create a Leads / Internal opportunity)', () 
 
 describe('AC-PRJ-004 updateProjectHeader (edit name/client/PM/code/dates)', () => {
   it('AC-PRJ-004: updates only header columns (no contract_value, no status), NEVER org_id', async () => {
-    const calls = makeWriteBuilder({ data: null, error: null });
+    const calls = makeWriteBuilder({ data: [{ id: 'p1' }], error: null });
     await updateProjectHeader('p1', {
       name: 'Renamed',
       code: 'OPP-2041',
@@ -317,11 +317,26 @@ describe('AC-PRJ-004 updateProjectHeader (edit name/client/PM/code/dates)', () =
       }),
     ).rejects.toMatchObject({ code: '42501' });
   });
+
+  it('#534: a using-denied update (0 rows matched, no error) throws 42501 instead of resolving as success', async () => {
+    const calls = makeWriteBuilder({ data: [], error: null });
+    const patch = {
+      name: 'Y',
+      code: null,
+      client_id: null,
+      project_manager_id: null,
+      start_date: null,
+      end_date: null,
+    };
+    await expect(updateProjectHeader('p1', patch)).rejects.toBeInstanceOf(AppError);
+    await expect(updateProjectHeader('p1', patch)).rejects.toMatchObject({ code: '42501' });
+    expect(calls.update.length).toBeGreaterThan(0);
+  });
 });
 
 describe('AC-PRJ-005 archiveProject (soft-archive via archived_at)', () => {
   it('AC-PRJ-005: sets archived_at via update by id, NEVER org_id', async () => {
-    const calls = makeWriteBuilder({ data: null, error: null });
+    const calls = makeWriteBuilder({ data: [{ id: 'p1' }], error: null });
     await archiveProject('p1');
     expect(mockFrom).toHaveBeenCalledWith('projects');
     const patch = calls.update[0] as Record<string, unknown>;
@@ -335,11 +350,18 @@ describe('AC-PRJ-005 archiveProject (soft-archive via archived_at)', () => {
     makeWriteBuilder({ data: null, error: { message: 'denied', code: '42501' } });
     await expect(archiveProject('p1')).rejects.toMatchObject({ code: '42501' });
   });
+
+  it('#534: a using-denied archive (0 rows matched, no error) throws 42501 instead of resolving as success', async () => {
+    const calls = makeWriteBuilder({ data: [], error: null });
+    await expect(archiveProject('p1')).rejects.toBeInstanceOf(AppError);
+    await expect(archiveProject('p1')).rejects.toMatchObject({ code: '42501' });
+    expect(calls.update.length).toBeGreaterThan(0);
+  });
 });
 
 describe('AC-PRJ-007 deleteProject (hard delete, Admin-only)', () => {
   it('AC-PRJ-007: deletes by id, NEVER org_id', async () => {
-    const calls = makeWriteBuilder({ data: null, error: null });
+    const calls = makeWriteBuilder({ data: [{ id: 'p1' }], error: null });
     await deleteProject('p1');
     expect(mockFrom).toHaveBeenCalledWith('projects');
     expect(calls.delete).toBe(1);
@@ -352,6 +374,13 @@ describe('AC-PRJ-007 deleteProject (hard delete, Admin-only)', () => {
     await expect(deleteProject('p1')).rejects.toBeInstanceOf(AppError);
     makeWriteBuilder({ data: null, error: { message: 'referenced', code: '23503' } });
     await expect(deleteProject('p1')).rejects.toMatchObject({ code: '23503' });
+  });
+
+  it('#534: a using-denied delete (0 rows matched, no error) throws 42501 instead of resolving as success', async () => {
+    const calls = makeWriteBuilder({ data: [], error: null });
+    await expect(deleteProject('p1')).rejects.toBeInstanceOf(AppError);
+    await expect(deleteProject('p1')).rejects.toMatchObject({ code: '42501' });
+    expect(calls.delete).toBeGreaterThan(0);
   });
 });
 

@@ -1,5 +1,5 @@
 import { supabase } from '@/src/lib/supabase/client';
-import { AppError } from '@/src/lib/appError';
+import { AppError, assertWriteLanded } from '@/src/lib/appError';
 import { invokeWithTimeout } from '@/src/lib/supabase/invokeWithTimeout';
 import type { Tables } from '@/src/lib/supabase/database.types';
 
@@ -48,8 +48,9 @@ export async function listUsers(): Promise<UserRow[]> {
  * preserving the code. Throws an `AppError` (code preserved) on any failure.
  */
 export async function updateUserRole(id: string, role: UserRole): Promise<void> {
-  const { error } = await supabase.from('profiles').update({ role }).eq('id', id);
+  const { data, error } = await supabase.from('profiles').update({ role }).eq('id', id).select('id');
   if (error) throwWrite(error);
+  assertWriteLanded(data, 'User not found or you do not have permission to change their role.');
 }
 
 /**
@@ -58,8 +59,13 @@ export async function updateUserRole(id: string, role: UserRole): Promise<void> 
  * Throws an `AppError` (code preserved) on failure.
  */
 export async function assignUserManager(id: string, managerId: string | null): Promise<void> {
-  const { error } = await supabase.from('profiles').update({ manager_id: managerId }).eq('id', id);
+  const { data, error } = await supabase
+    .from('profiles')
+    .update({ manager_id: managerId })
+    .eq('id', id)
+    .select('id');
   if (error) throwWrite(error);
+  assertWriteLanded(data, 'User not found or you do not have permission to assign their manager.');
 }
 
 export interface InviteUserInput {

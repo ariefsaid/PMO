@@ -1,5 +1,5 @@
 import { supabase } from '@/src/lib/supabase/client';
-import { AppError } from '@/src/lib/appError';
+import { AppError, assertWriteLanded } from '@/src/lib/appError';
 import type { Tables } from '@/src/lib/supabase/database.types';
 import { resolveRange, type PageParams } from '@/src/lib/pagination';
 
@@ -96,11 +96,13 @@ export async function createCompany(input: CompanyInput): Promise<CompanyRow> {
  * scopes the update to the caller's org and gates the role. Throws an `AppError` (code preserved) on failure.
  */
 export async function updateCompany(id: string, input: CompanyInput): Promise<void> {
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('companies')
     .update({ name: input.name, type: input.type })
-    .eq('id', id);
+    .eq('id', id)
+    .select('id');
   if (error) throwWrite(error);
+  assertWriteLanded(data, 'Company not found or you do not have permission to edit it.');
 }
 
 /**
@@ -108,11 +110,13 @@ export async function updateCompany(id: string, input: CompanyInput): Promise<vo
  * org_id is NEVER sent — RLS scopes the update. Throws an `AppError` (code preserved) on failure.
  */
 export async function archiveCompany(id: string): Promise<void> {
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('companies')
     .update({ archived_at: new Date().toISOString() })
-    .eq('id', id);
+    .eq('id', id)
+    .select('id');
   if (error) throwWrite(error);
+  assertWriteLanded(data, 'Company not found or you do not have permission to archive it.');
 }
 
 /**
@@ -122,6 +126,7 @@ export async function archiveCompany(id: string): Promise<void> {
  * can show an "in use, archive instead" message. Throws an `AppError` (code preserved) on any failure.
  */
 export async function deleteCompany(id: string): Promise<void> {
-  const { error } = await supabase.from('companies').delete().eq('id', id);
+  const { data, error } = await supabase.from('companies').delete().eq('id', id).select('id');
   if (error) throwWrite(error);
+  assertWriteLanded(data, 'Company not found or you do not have permission to delete it.');
 }

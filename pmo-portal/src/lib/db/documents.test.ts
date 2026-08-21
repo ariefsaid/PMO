@@ -165,7 +165,7 @@ describe('AC-DOC-003 createProjectDocument', () => {
 
 describe('AC-DOC-004 updateProjectDocument (metadata edit)', () => {
   it('AC-DOC-004: updates the metadata fields by id, NEVER org_id / status / author_id', async () => {
-    h.result.value = { data: null, error: null };
+    h.result.value = { data: [{ id: 'd1' }], error: null };
     await updateProjectDocument('d1', {
       code: 'DOC-001',
       category: 'Spec',
@@ -191,6 +191,17 @@ describe('AC-DOC-004 updateProjectDocument (metadata edit)', () => {
     await expect(
       updateProjectDocument('d1', { code: '', category: 'Spec', title: 'Y', revision: '', doc_date: '' }),
     ).rejects.toMatchObject({ code: '42501' });
+  });
+
+  it('#534: a using-denied update (0 rows matched, no error) throws 42501 instead of resolving as success', async () => {
+    h.result.value = { data: [], error: null };
+    await expect(
+      updateProjectDocument('d1', { code: '', category: 'Spec', title: 'Y', revision: '', doc_date: '' }),
+    ).rejects.toBeInstanceOf(AppError);
+    await expect(
+      updateProjectDocument('d1', { code: '', category: 'Spec', title: 'Y', revision: '', doc_date: '' }),
+    ).rejects.toMatchObject({ code: '42501' });
+    expect(h.calls.update.length).toBeGreaterThan(0);
   });
 });
 
@@ -257,7 +268,7 @@ describe('AC-DOC-052 createDocumentRevision', () => {
 
 describe('AC-DOC-006 deleteProjectDocument (hard-delete; Admin)', () => {
   it('AC-DOC-006: deletes by id, NEVER org_id', async () => {
-    h.result.value = { data: null, error: null };
+    h.result.value = { data: [{ id: 'd1' }], error: null };
     await deleteProjectDocument('d1');
     expect(h.calls.from).toEqual(['project_documents', 'project_documents']);
     expect(h.calls.delete).toBe(1);
@@ -268,5 +279,12 @@ describe('AC-DOC-006 deleteProjectDocument (hard-delete; Admin)', () => {
   it('AC-DOC-006: throws AppError with code 42501 when RLS denies the delete', async () => {
     h.result.value = { data: null, error: { message: 'denied', code: '42501' } };
     await expect(deleteProjectDocument('d1')).rejects.toMatchObject({ code: '42501' });
+  });
+
+  it('#534: a using-denied delete (0 rows matched, no error) throws 42501 instead of resolving as success', async () => {
+    h.result.value = { data: [], error: null };
+    await expect(deleteProjectDocument('d1')).rejects.toBeInstanceOf(AppError);
+    await expect(deleteProjectDocument('d1')).rejects.toMatchObject({ code: '42501' });
+    expect(h.calls.delete).toBeGreaterThan(0);
   });
 });

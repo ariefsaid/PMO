@@ -112,7 +112,7 @@ describe('FR-AAN-034 listUnreadCount', () => {
 
 describe('FR-AAN-036 markNotificationRead', () => {
   it('markNotificationRead sends only read_at, scoped by id', async () => {
-    h.result.value = { data: null, error: null, count: null };
+    h.result.value = { data: [{ id: 'n1' }], error: null, count: null };
     await markNotificationRead('n1');
 
     expect(h.calls.from).toEqual(['notifications']);
@@ -126,5 +126,12 @@ describe('FR-AAN-036 markNotificationRead', () => {
   it('throws AppError preserving the PG code on a denied/non-owner update', async () => {
     h.result.value = { data: null, error: { message: 'denied', code: '42501' }, count: null };
     await expect(markNotificationRead('n1')).rejects.toMatchObject({ code: '42501' });
+  });
+
+  it('#534: a using-denied update (0 rows matched, no error) throws 42501 instead of resolving as success', async () => {
+    h.result.value = { data: [], error: null, count: null };
+    await expect(markNotificationRead('n1')).rejects.toBeInstanceOf(AppError);
+    await expect(markNotificationRead('n1')).rejects.toMatchObject({ code: '42501' });
+    expect(h.calls.update.length).toBeGreaterThan(0);
   });
 });

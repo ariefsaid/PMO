@@ -177,7 +177,7 @@ describe('AC-CO-003 createCompany', () => {
 
 describe('AC-CO-004 updateCompany', () => {
   it('AC-CO-004: updates name + type by id, NEVER org_id', async () => {
-    h.result.value = { data: null, error: null };
+    h.result.value = { data: [{ id: 'c1' }], error: null };
     await updateCompany('c1', { name: 'Renamed', type: 'Internal' });
     expect(h.calls.from).toEqual(['companies']);
     expect(h.calls.update).toEqual([{ name: 'Renamed', type: 'Internal' }]);
@@ -189,11 +189,18 @@ describe('AC-CO-004 updateCompany', () => {
     h.result.value = { data: null, error: { message: 'denied', code: '42501' } };
     await expect(updateCompany('c1', { name: 'Y', type: 'Client' })).rejects.toMatchObject({ code: '42501' });
   });
+
+  it('#534: a using-denied update (0 rows matched, no error) throws 42501 instead of resolving as success', async () => {
+    h.result.value = { data: [], error: null };
+    await expect(updateCompany('c1', { name: 'Y', type: 'Client' })).rejects.toBeInstanceOf(AppError);
+    await expect(updateCompany('c1', { name: 'Y', type: 'Client' })).rejects.toMatchObject({ code: '42501' });
+    expect(h.calls.update.length).toBeGreaterThan(0);
+  });
 });
 
 describe('AC-CO-005 archiveCompany', () => {
   it('AC-CO-005: sets archived_at via update by id, NEVER org_id', async () => {
-    h.result.value = { data: null, error: null };
+    h.result.value = { data: [{ id: 'c1' }], error: null };
     await archiveCompany('c1');
     expect(h.calls.from).toEqual(['companies']);
     // a single update that sets archived_at
@@ -209,11 +216,18 @@ describe('AC-CO-005 archiveCompany', () => {
     h.result.value = { data: null, error: { message: 'denied', code: '42501' } };
     await expect(archiveCompany('c1')).rejects.toMatchObject({ code: '42501' });
   });
+
+  it('#534: a using-denied archive (0 rows matched, no error) throws 42501 instead of resolving as success', async () => {
+    h.result.value = { data: [], error: null };
+    await expect(archiveCompany('c1')).rejects.toBeInstanceOf(AppError);
+    await expect(archiveCompany('c1')).rejects.toMatchObject({ code: '42501' });
+    expect(h.calls.update.length).toBeGreaterThan(0);
+  });
 });
 
 describe('AC-CO-006 deleteCompany (hard-delete; FK RESTRICT surfaces 23503)', () => {
   it('AC-CO-006: deletes by id, NEVER org_id', async () => {
-    h.result.value = { data: null, error: null };
+    h.result.value = { data: [{ id: 'c1' }], error: null };
     await deleteCompany('c1');
     expect(h.calls.from).toEqual(['companies']);
     expect(h.calls.delete).toBe(1);
@@ -234,5 +248,12 @@ describe('AC-CO-006 deleteCompany (hard-delete; FK RESTRICT surfaces 23503)', ()
   it('AC-CO-006: throws AppError with code 42501 when RLS denies the delete', async () => {
     h.result.value = { data: null, error: { message: 'denied', code: '42501' } };
     await expect(deleteCompany('c1')).rejects.toMatchObject({ code: '42501' });
+  });
+
+  it('#534: a using-denied delete (0 rows matched, no error) throws 42501 instead of resolving as success', async () => {
+    h.result.value = { data: [], error: null };
+    await expect(deleteCompany('c1')).rejects.toBeInstanceOf(AppError);
+    await expect(deleteCompany('c1')).rejects.toMatchObject({ code: '42501' });
+    expect(h.calls.delete).toBeGreaterThan(0);
   });
 });

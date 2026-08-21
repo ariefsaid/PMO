@@ -73,7 +73,7 @@ describe('AC-AU-001 listUsers (org-scoped profiles, name + email + role + manage
 
 describe('AC-AU-003 updateUserRole (Admin-only via profiles_admin_write RLS)', () => {
   it('AC-AU-003: updates only the role column by id, NEVER org_id', async () => {
-    h.result.value = { data: null, error: null };
+    h.result.value = { data: [{ id: 'u2' }], error: null };
     await updateUserRole('u2', 'Executive');
     expect(h.calls.from).toEqual(['profiles']);
     expect(h.calls.update).toEqual([{ role: 'Executive' }]);
@@ -85,11 +85,18 @@ describe('AC-AU-003 updateUserRole (Admin-only via profiles_admin_write RLS)', (
     h.result.value = { data: null, error: { message: 'new row violates RLS', code: '42501' } };
     await expect(updateUserRole('u2', 'Admin')).rejects.toMatchObject({ code: '42501' });
   });
+
+  it('#534: a using-denied update (0 rows matched, no error) throws 42501 instead of resolving as success', async () => {
+    h.result.value = { data: [], error: null };
+    await expect(updateUserRole('u2', 'Admin')).rejects.toBeInstanceOf(AppError);
+    await expect(updateUserRole('u2', 'Admin')).rejects.toMatchObject({ code: '42501' });
+    expect(h.calls.update.length).toBeGreaterThan(0);
+  });
 });
 
 describe('AC-AU-004 assignUserManager (manager_id; null clears it)', () => {
   it('AC-AU-004: updates only manager_id by id, NEVER org_id', async () => {
-    h.result.value = { data: null, error: null };
+    h.result.value = { data: [{ id: 'u2' }], error: null };
     await assignUserManager('u3', 'mgr-1');
     expect(h.calls.from).toEqual(['profiles']);
     expect(h.calls.update).toEqual([{ manager_id: 'mgr-1' }]);
@@ -98,7 +105,7 @@ describe('AC-AU-004 assignUserManager (manager_id; null clears it)', () => {
   });
 
   it('AC-AU-004: a null manager clears the reporting line', async () => {
-    h.result.value = { data: null, error: null };
+    h.result.value = { data: [{ id: 'u2' }], error: null };
     await assignUserManager('u3', null);
     expect(h.calls.update).toEqual([{ manager_id: null }]);
   });
@@ -106,5 +113,12 @@ describe('AC-AU-004 assignUserManager (manager_id; null clears it)', () => {
   it('AC-AU-004: throws AppError with code on a denied update', async () => {
     h.result.value = { data: null, error: { message: 'denied', code: '42501' } };
     await expect(assignUserManager('u3', 'mgr-1')).rejects.toMatchObject({ code: '42501' });
+  });
+
+  it('#534: a using-denied update (0 rows matched, no error) throws 42501 instead of resolving as success', async () => {
+    h.result.value = { data: [], error: null };
+    await expect(assignUserManager('u3', 'mgr-1')).rejects.toBeInstanceOf(AppError);
+    await expect(assignUserManager('u3', 'mgr-1')).rejects.toMatchObject({ code: '42501' });
+    expect(h.calls.update.length).toBeGreaterThan(0);
   });
 });
