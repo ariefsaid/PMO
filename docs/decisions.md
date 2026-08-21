@@ -2229,3 +2229,28 @@ mechanism — and conflating them would have produced a "fix" for the wrong shap
 If it is, the map needs an originator column and the key needs to include the mapping's version; if it
 is not, the honest answer is a surfaced warning that the ERP holds a stale mapping, and no automatic
 write. Both are real designs; neither is a detail.
+
+## DD-CUR-6 — a mixed-currency total is a per-currency breakdown, never a converted figure (Director, 2026-08-21)
+
+**Question (#530 item 3).** A procurement board's stage total sums across rows that may carry different
+currencies. Today it labels the sum with the **first row's** currency, which is silently wrong the moment
+a stage holds two. Convert, or break down?
+
+**Ruling: break down, one subtotal per currency. Never convert.** PMO holds no exchange rates and
+acquiring them is a commercial decision with an ongoing cost, a staleness policy, and an "as of when"
+question attached to every rendered figure. A converted total is also *lossier than the inputs* — it
+turns two exact numbers into one approximate one, and the reader cannot recover the parts. A breakdown
+is exact, needs nothing PMO does not already hold, and degrades to today's single line in the
+single-currency case that is every org right now.
+
+⚑ **This was Director-decidable and should not have been parked for the owner.** It is not commercial
+(the commercial question is *buying rate data*, which this ruling declines), not irreversible, and not a
+fact only the owner holds. Parking it would have spent an owner slot to be told the only honest option.
+
+**Consequence for the build.** The affected surface renders `n` subtotal lines where `n` is the number of
+distinct currencies present. Its test must put **two currencies in one stage** — a single-currency
+fixture cannot tell a breakdown from the old first-row behaviour, which is the same blind spot that made
+#529's mutation survive.
+
+**Revisit when** an org genuinely needs a consolidated figure across currencies. At that point the
+question is "which rate source, at what staleness, priced how" — an `OD-`, not this.
