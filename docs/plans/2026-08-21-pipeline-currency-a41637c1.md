@@ -48,7 +48,7 @@ Read the reset output first. The new assertion must fail because `0044` currentl
 ### Task 2 — Recreate the latest RPC with the additive currency payload
 
 **Files:**
-- Create `supabase/migrations/0200_sales_pipeline_currency.sql`
+- Create `supabase/migrations/0201_sales_pipeline_currency.sql`
 
 **Implementation (FR-L10N-020, NFR-SPD-SEC-001):**
 1. Start the migration with a manual reversal note: drop `public.get_sales_pipeline()` and restore the pre-change `0044` body and its three ACL statements; pre-production reversal remains `supabase db reset`.
@@ -165,7 +165,7 @@ scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db'
 cd pmo-portal && npm run verify:locked
 ```
 3. Confirm `git diff --check` exits 0 and review that:
-   - the new migration is `0200_sales_pipeline_currency.sql`, recreates the JSON RPC with the exact three ACL rules, and retains `security invoker`/`search_path`;
+   - the new migration is `0201_sales_pipeline_currency.sql`, recreates the JSON RPC with the exact three ACL rules, and retains `security invoker`/`search_path`;
    - `database.types.ts` was generated, not hand-edited;
    - no `as` cast, optional `PipelineProject.currency`, altered RLS, or org-default fallback remains in a row-backed pipeline card/table;
    - only aggregate pipeline figures retain `orgCurrency`.
@@ -174,7 +174,7 @@ All commands must exit 0 before the build commit.
 
 ## Expected changed files
 
-- `supabase/migrations/0200_sales_pipeline_currency.sql` (new)
+- `supabase/migrations/0201_sales_pipeline_currency.sql` (new)
 - `supabase/tests/0057_sales_pipeline_attention.test.sql`
 - `pmo-portal/src/lib/supabase/database.types.ts` (generator output)
 - `pmo-portal/src/lib/db/dashboard.ts`

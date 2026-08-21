@@ -34,6 +34,7 @@ const emptyProjects: PipelineProject[] = [
     client_name: 'Acme',
     status: 'Quotation Submitted',
     contract_value: 100_000,
+    currency: 'USD',
     win_probability: 0.5,
   },
 ];
