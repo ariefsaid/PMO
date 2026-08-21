@@ -131,6 +131,14 @@ test(
     await sodFin.getByRole('button', { name: /Edit contract value/i }).click();
     const valueInput = page.getByRole('textbox', { name: /Contract value/i });
     await valueInput.fill('5250000');
+    // #513 / OD-TAX-1: the tax basis is REQUIRED alongside the figure and the treatment has NO
+    // pre-selected option — a stored money value whose inclusive/exclusive status is unrecorded
+    // cannot be disambiguated afterwards, and a mismatched basis makes the work-order drawdown
+    // UNDER-detect over-commitment. So the journey now states the basis, exactly as a real user
+    // must. The goal oracle below is unchanged: the new figure is recorded and the PM sees it
+    // read-only. (Deliberate UX change ⇒ steps updated, oracle untouched.)
+    await page.getByTestId('contract-tax-treatment').selectOption('exclusive');
+    await page.getByTestId('contract-tax-amount').fill('577500');
     await page.getByRole('button', { name: /^Save$/i }).click();
 
     // The audit confirm names the SoD; confirm commits via the RPC.

@@ -89,15 +89,31 @@ const ProjectDetail: React.FC = () => {
   const project = useMemo<ProjectWithRefs | undefined>(() => {
     if (cached) return cached;
     if (!opp) return undefined;
-    return {
+    // ⚑ ANNOTATED, NOT CAST. This used to end `as ProjectWithRefs`, and the cast is precisely what
+    // let `currency` go missing: the opportunity query selects an explicit column list, the field
+    // never reached the header, and `formatCurrency` threw for every pipeline record while the
+    // on-hand path (which selects `*`) looked perfect. With an annotation the compiler checks the
+    // shape, so a column added to `projects` later fails HERE — where someone has to decide what a
+    // pre-win record shows — instead of at a browser journey 133 commits downstream.
+    const merged: ProjectWithRefs = {
       ...opp,
+      // Delivery-only fields a pre-win record does not have. The pipeline lens never reads them.
       budget: 0,
       spent: 0,
       archived_at: null,
       created_at: '',
       last_update: '',
       org_id: '',
-    } as ProjectWithRefs;
+      // Provenance + money-witness columns: absent on a pre-win record by construction. The
+      // contract-value witness (0177) is only stamped on the win transition.
+      import_batch_id: null,
+      imported_at: null,
+      import_key: null,
+      contract_value_set_by: null,
+      contract_value_set_at: null,
+      tax_template: null,
+    };
+    return merged;
   }, [cached, opp]);
 
   // FR-AXP-021 (Track C): publish the loaded record to the live agent context so a
