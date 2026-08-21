@@ -19,6 +19,10 @@ const seedStages = [
 const seedProjects = [
   { id: 'p2', name: 'Northwind ERP Rollout', client_name: 'Northwind', status: 'Tender Submitted', contract_value: 1200000, currency: 'USD', win_probability: 0.5 },
   { id: 'p10', name: 'Regional Services', client_name: null, status: 'PQ Submitted', contract_value: 800000, currency: 'USD', win_probability: 0.25 },
+  // #530 / FR-L10N-020: mixed-currency pair for the table regression — each row shows its OWN
+  // currency, not the USD org default (a single-currency fixture set could hide a hardcoded literal).
+  { id: 'idr1', name: 'IDR Deal', client_name: 'Garuda', status: 'Tender Submitted', contract_value: 1234, currency: 'IDR', win_probability: 0.5 },
+  { id: 'usd1', name: 'USD Deal', client_name: 'Acme Corp', status: 'Tender Submitted', contract_value: 9000, currency: 'USD', win_probability: 0.5 },
 ];
 
 const pipelineState: {
@@ -178,6 +182,27 @@ describe('SalesPipeline view toggle (AC-SP-206) + kanban default (AC-SP-204)', (
     renderPage();
     await userEvent.click(screen.getByRole('tab', { name: /Table/i }));
     expect(screen.queryByRole('columnheader', { name: /Decision/i })).toBeNull();
+  });
+
+  it('#530 / AC-L10N-020: table rows render each deal in its own currency, not the USD org default', async () => {
+    renderPage();
+    await userEvent.click(screen.getByRole('tab', { name: /^Table$/i }));
+    // The IDR row renders its own code-style NBSP currency (U+00A0) and NO dollar sign. Assert on
+    // RAW node text for the NBSP — the default normalizer collapses it to a space, which a
+    // plain-space hardcode could otherwise satisfy.
+    const idrRow = screen.getByText('IDR Deal').closest('tr')!;
+    const idr = within(idrRow as HTMLElement);
+    // SOME element inside the row carries the raw NBSP currency. Presence check (cell + ancestors).
+    expect(
+      idr.getAllByText((_, node) => node?.textContent?.includes('IDR\u00A01,234') ?? false)
+        .length,
+    ).toBeGreaterThan(0);
+    expect(idr.queryByText(/\$/)).toBeNull();
+    // The USD row (same table, same stage column) renders its own dollar value and no IDR.
+    const usdRow = screen.getByText('USD Deal').closest('tr')!;
+    const usd = within(usdRow as HTMLElement);
+    expect(usd.getByText('$9,000')).toBeInTheDocument();
+    expect(usd.queryByText(/IDR/)).toBeNull();
   });
 
   it('AC-SP-206: the chosen view persists to sessionStorage', async () => {

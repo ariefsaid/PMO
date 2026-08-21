@@ -31,13 +31,7 @@ const DealCard: React.FC<{
   project: PipelineProject;
   selected: boolean;
   onActivate: () => void;
-  /** ⚑ FR-L10N-020, and an honest limitation rather than a choice: `get_sales_pipeline()` (0020)
-   *  returns no `currency` column, so a pipeline card cannot use the project's OWN currency the way
-   *  `ProjectCard` does — it takes the org default, threaded from the board. Adding `currency` to
-   *  that RPC's projection is what would make this per-record; until then a foreign-currency deal
-   *  renders in the org's denomination on this surface. Recorded rather than hidden. */
-  currency: string;
-}> = ({ project, selected, onActivate, currency }) => {
+}> = ({ project, selected, onActivate }) => {
   const initial = (project.client_name ?? project.name).trim().charAt(0).toUpperCase() || '•';
   return (
     <ProjectCardShell
@@ -53,10 +47,10 @@ const DealCard: React.FC<{
         <div className="flex items-baseline justify-between gap-2">
           <div className="flex items-baseline gap-2">
             <span className="text-[15px] font-bold tabular">
-              {formatCurrency(project.contract_value, currency)}
+              {formatCurrency(project.contract_value, project.currency)}
             </span>
             <span className="text-[11px] text-muted-foreground tabular">
-              {formatCurrency(weightedValue(project), currency)} wtd
+              {formatCurrency(weightedValue(project), project.currency)} wtd
             </span>
           </div>
           <Badge className="min-w-0 px-1.5">{formatPercent(project.win_probability)}</Badge>
@@ -98,8 +92,9 @@ const ColumnTotals: React.FC<{ gross: number; weighted: number; currency: string
  *     which spreads it onto the actual `.kanban-scroll` element (was the Defect-1 bug).
  */
 const SalesKanbanBoard: React.FC<SalesKanbanBoardProps> = ({ projects, onOpen, selectedId }) => {
-  // FR-L10N-020: the per-CARD figures use each project's own currency; the per-COLUMN totals sum
-  // across projects and so have none, and take the org default.
+  // FR-L10N-020: the per-CARD figures use each project's OWN currency (get_sales_pipeline now
+  // projects it, migration 0201); the per-COLUMN totals sum across projects and so have none, and
+  // take the org default.
   const orgCurrency = useOrgCurrency();
   const byColumn = (col: SalesColumn) => projects.filter((p) => col.statuses.includes(p.status));
   const { activeStageIndex, scrollWrapRef, colRefs, onScroll, handleStageClick } =
@@ -150,7 +145,6 @@ const SalesKanbanBoard: React.FC<SalesKanbanBoardProps> = ({ projects, onOpen, s
                     project={p}
                     selected={p.id === selectedId}
                     onActivate={() => onOpen(p)}
-                    currency={orgCurrency}
                   />
                 ))}
               </KanbanColumn>

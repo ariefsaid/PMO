@@ -52,9 +52,10 @@ type DealScope = 'Open' | 'Lost' | 'Needs attention';
 const DEAL_SCOPES: DealScope[] = ['Open', 'Lost', 'Needs attention'];
 
 const SalesPipeline: React.FC = () => {
-  // FR-L10N-020: this page shows STAGE AGGREGATES, which sum across deals and so carry no record
-  // currency of their own. `get_sales_pipeline()` returns no currency column either, so the org
-  // default is the honest denomination here — see DealCard's note in SalesKanbanBoard.
+  // FR-L10N-020: this page's STAGE/FUNNEL AGGREGATES (and total-weighted forecast) sum across
+  // deals and so carry no record currency — the org default is the honest denomination for those.
+  // Per-ROW deal figures (table Value/Weighted cells, kanban cards) render each deal's OWN currency
+  // (get_sales_pipeline now projects it, migration 0201) — never the org default.
   const orgCurrency = useOrgCurrency();
   const may = usePermission();
   // A-4 (rbac-visibility §C): Sales Pipeline view = Admin·Exec·PM·Finance; Engineer = ○ (no
@@ -202,9 +203,10 @@ const SalesPipeline: React.FC = () => {
       key: 'value',
       header: 'Value',
       align: 'num',
-      // Per-ROW here, unlike the stage totals above — but `get_sales_pipeline()` returns no
-      // currency column, so the org default stands in. See DealCard's note in SalesKanbanBoard.
-      cell: (r) => formatCurrency(r.contract_value, orgCurrency),
+      // Per-ROW here, unlike the stage totals above — each deal renders in its OWN currency
+      // (migration 0201), so a mixed-currency list stays honest row by row. ⚑ `exportValue` still
+      // emits a bare number with no currency column; that is a known CSV gap, not this cell's.
+      cell: (r) => formatCurrency(r.contract_value, r.currency),
       exportValue: (r) => r.contract_value,
     },
     {
@@ -212,7 +214,7 @@ const SalesPipeline: React.FC = () => {
       header: 'Weighted',
       align: 'num',
       cell: (r) => (
-        <span className="text-muted-foreground">{formatCurrency(weightedValue(r), orgCurrency)}</span>
+        <span className="text-muted-foreground">{formatCurrency(weightedValue(r), r.currency)}</span>
       ),
       exportValue: (r) => weightedValue(r),
     },
