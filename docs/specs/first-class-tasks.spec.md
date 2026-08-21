@@ -487,17 +487,48 @@ for a reason the user cannot act on. So the project change **cascades down the s
 the parent. Moving a parent from project A to project B therefore leaves its children in A, silently,
 and has done since `0140`. Tracked as [#550](https://github.com/ariefsaid/PMO/issues/550).
 
-### 8.4 ⛔ NEW — an Engineer cannot create a task at all
+### 8.4 An Engineer may create and edit tasks — `DD-TASK-8`
 
-Found while re-checking this batch, and it collides with a ruling made in the same session.
+Surfaced while re-checking this batch: `tasks_insert` (`0199:116-121`) requires
+`auth_role() in ('Admin','Executive','Project Manager','Finance')` and **`Engineer` is not in it**,
+which collides with `OD-MTG-1` (every role, Engineer included, may minute meetings) the moment a
+meeting's `/action` creates a task.
 
-`tasks_insert` (`0199:116-121`) requires `auth_role() in ('Admin','Executive','Project Manager','Finance')`.
-**`Engineer` is not in that list**, and `0199` did not widen it.
+⛔ **The restriction had no decision behind it.** Traced: `0002_rls.sql:93-97` (the original
+bootstrap's `FOR ALL` `tasks_write`) → `0093:69` split it per-command and **carried the list verbatim**
+→ `0146:42` *"re-created, never edited in 0093"* → `0199:116` copied it again. No `OD-`/`DD-` ever
+justified it, and every recorded `Engineer` ruling is about something else — including `OD-W5-C3-A`,
+which sets the **Engineer default tab to Tasks**.
 
-`OD-MTG-1` rules that **every role, Engineer included, can create and minute meetings**. If a meeting's
-`/action` creates a task (the premise of #527 item 8 and of `DD-TASK-1`'s `meeting_id` parent), then an
-Engineer minuting a site meeting **cannot create its action items** — the day-1 feature fails for the
-day-1 author. Tracked as [#551](https://github.com/ariefsaid/PMO/issues/551).
+**Ruled (`DD-TASK-8`): widen it.** The one substantive objection is that a top-level, unarchived task
+carrying a `milestone_id` moves `delivery_pct`, milestone counts, the S-curve and Gantt (`0141:43,77`,
+`0145:43,78`) — the PM's number. It fails: **if the delivery percentage only counts tasks that
+privileged roles typed, it measures administrative attention rather than delivery.** Attribution and
+visibility are the right controls, not a write ban.
+
+**Scope — not a role-list edit:**
+
+- **FR-FCT-040** — *Ubiquitous.* `tasks` shall carry **`created_by uuid references profiles(id)`**,
+  stamped by a `BEFORE INSERT` trigger from `auth.uid()` and **never accepted from the client** (the
+  `org_id` stamp's shape). ⛔ Without it, "a task you created" is inexpressible — the table has only
+  `assignee_id`, so an Engineer creating a task assigned to someone else loses write access on save.
+- **FR-FCT-041** — *Ubiquitous.* `tasks_insert` shall admit `Engineer`; the org, active-member,
+  parent-org and external-ownership guards are unchanged.
+- **FR-FCT-042** — *Ubiquitous.* `tasks_update` shall admit `created_by = auth.uid() or assignee_id =
+  auth.uid()`. Insert and update widen **together** — a user who can create a task but not rename it is
+  incoherent.
+- **FR-FCT-043** — *Ubiquitous.* `policy.ts`'s `task.create` / `task.edit` (`:90,185`) shall widen to
+  match, or the affordance stays invisible to the role the ruling exists for. Delete stays with the
+  existing roles (destructive, ADR-0019).
+
+⚑ **Test note — mutation-check the attribution, not the allow.** A fixture where the Engineer is both
+creator and assignee **cannot distinguish `created_by` from `assignee_id`** and will pass against a
+policy that checks neither correctly. Required: an Engineer-created task assigned to *someone else*
+(writable), an Engineer-assigned task created by *someone else* (writable), and one that is neither
+(refused) — then break each disjunct and confirm the matching case reddens. Also assert a
+client-supplied `created_by` is overwritten by the trigger rather than accepted.
+
+Tracked as [#551](https://github.com/ariefsaid/PMO/issues/551).
 
 ### 8.5 Correction to #527 item 8's premise
 

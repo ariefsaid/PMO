@@ -2417,3 +2417,68 @@ documents *contradicted itself* (`first-class-tasks.spec.md` FR-FCT-022 said "al
 "default to forbid"). **Two documents agreeing is not a second source when the same kind of author wrote
 both.** Before a stated default becomes a ruling: name the consequence, and read the code that produces
 it.
+
+---
+
+## DD-TASK-8 — an Engineer may create and edit tasks; `tasks.created_by` is added to make it coherent (Director, 2026-08-21)
+
+**Question.** Why can an `Engineer` not create a task? Raised by the owner on reading #551: *"they should be able to from RBAC perspective, right?"*
+
+### There is no reason on record. It is inherited boilerplate.
+
+Traced: the role list `('Admin','Executive','Project Manager','Finance')` originates in
+**`0002_rls.sql:93-97`** — the original RLS bootstrap's `tasks_write` policy, `FOR ALL`. `0093:69`
+split it per-command for the ClickUp flip and **carried the list verbatim** (its comment describes the
+split and the external-ownership guard, never the roles); `0146:42` states *"task RLS gates (re-created,
+never edited in 0093)"*; `0199:116` copied it forward again.
+
+**No `OD-` or `DD-` has ever justified it.** Every recorded `Engineer` ruling covers something else —
+procurement scoping (`OD-W2-1/2`), timesheet approval (`OD-W2-2`), the finance-chrome demotion whose
+own text sets the **Engineer default tab to Tasks** (`OD-W5-C3-A`). The FE is narrower still:
+`policy.ts:90,185` allows `task.create` to `Admin`/`Executive`/`Project Manager` only.
+
+⚑ **This is the `DD-TASK-7` class again, one layer down.** There, a spec default was mistaken for a
+ruling. Here, four migrations agreeing with each other was mistaken for a decision — and #551's first
+recommendation ("widen only through the meeting path") was a design built *around* a restriction whose
+provenance had not been checked.
+
+### Ruling: widen it.
+
+**An `Engineer` may create tasks, and may edit tasks they created or are assigned.**
+
+**The one substantive objection, and why it fails.** A **top-level, unarchived task carrying a
+`milestone_id`** moves `delivery_pct`, milestone counts, the S-curve and Gantt (`0141:43,77`,
+`0145:43,78` — subtasks and archived tasks are excluded, and the rollup joins on `milestone_id`, not on
+`project_id`). So Engineer-created tasks can move the PM's number. **But if the delivery percentage only
+counts tasks that privileged roles typed, it measures administrative attention rather than delivery.**
+An engineer recording real work *should* move it. The control that belongs here is attribution and
+visibility, not a write ban.
+
+### Two consequences that make this more than a role-list edit
+
+1. **`tasks_update` must widen with `tasks_insert`.** An `Engineer`'s only update path today is
+   `tasks_update_own_status` (`0199:140-144`) — status, on a task assigned to them. Widening insert
+   alone produces a user who can create a task and then not rename it. Incoherent; they widen together.
+2. ⛔ **`tasks` has no `created_by` column.** Only `assignee_id`. So "a task you created" is not
+   expressible, and an `Engineer` creating a task assigned to someone else would lose write access the
+   instant they saved. **Add `created_by uuid references profiles(id)`, stamped by a `BEFORE INSERT`
+   trigger from `auth.uid()`, never accepted from the client** — the same shape as the `org_id` stamp.
+
+### What stays narrow
+
+- **Delete stays with the existing roles.** Destructive, ADR-0019, and nobody asked for it.
+- **The FE may remain stricter than RLS** where a surface wants it (ADR-0016) — but `policy.ts`'s
+  `task.create`/`task.edit` should widen to match, or the affordance is invisible to the role the
+  ruling exists for.
+- **External ownership still denies.** `not task_domain_externally_owned(project_id)` is unchanged;
+  this ruling does not touch the ClickUp guard.
+
+### Test note
+
+⚑ **Mutation-check the attribution, not just the allow.** A fixture where the Engineer is both creator
+and assignee **cannot tell `created_by` from `assignee_id`**. Every case needs an Engineer-created task
+assigned to *someone else*, and an Engineer-assigned task created by *someone else*, with both asserted
+writable — then break each disjunct and confirm the matching case reddens.
+
+**Supersedes** #551's original narrow recommendation. Related: `OD-MTG-1` (the collision that surfaced
+it), `OD-W5-C3-A`, ADR-0016.

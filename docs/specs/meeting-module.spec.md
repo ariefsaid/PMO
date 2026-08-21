@@ -259,10 +259,12 @@ include a **non-attendee same-org peer** and assert refusal, then mutation-check
 condition. Same for FR-MTG-034: assert the *project's own PM* is refused when not an attendee.
 
 ⛔ **FR-MTG-030 has an unmet dependency: an `Engineer` cannot create a task** — `tasks_insert`
-(`0199:116-121`) lists only `Admin`/`Executive`/`Project Manager`/`Finance`. An Engineer who can minute
-a meeting still cannot create its `/action` items. Tracked as
-[#551](https://github.com/ariefsaid/PMO/issues/551); resolve it before building the `/action` contract
-below.
+(`0199:116-121`) lists only `Admin`/`Executive`/`Project Manager`/`Finance`, so an Engineer who can
+minute a meeting still cannot create its `/action` items. **Settled by `DD-TASK-8`: the Engineer gets
+ordinary task create/edit** (the restriction turned out to be un-ruled boilerplate inherited from
+`0002_rls.sql:93`), which also requires a new `tasks.created_by`. Tracked as
+[#551](https://github.com/ariefsaid/PMO/issues/551) — **land it before the `/action` contract below**,
+and do not design around the restriction as this spec's first draft did.
 
 ### The action item — the `/action` contract
 
