@@ -14,6 +14,7 @@ import json
 import subprocess
 from pathlib import Path
 
+from . import permissions
 from .data_types import EnvelopeBase, GateReport
 
 TAIL_CHARS = 1000        # command output kept as evidence on a failure
@@ -59,12 +60,46 @@ def json_parses(envelope: EnvelopeBase, run) -> GateReport:
 
 
 def diff_matches_claims(envelope: EnvelopeBase, run) -> GateReport:
-    """Every file claimed changed must exist on disk."""
+    """The claimed diff and the real one must be the same set — BOTH directions.
+
+    Claimed-but-absent is a hallucination. Changed-but-unclaimed is an
+    under-report, and until #539 nothing checked for it: a builder on run
+    c0bc91ce modified ten files, named none of them, and passed this gate. That
+    matters beyond a tidy envelope, because `commit_build` commits the TREE —
+    so an unnamed file is committed anyway, under a message written about work
+    the agent did not describe. It is also how a run sweeps unrelated files into
+    one commit.
+
+    A third case — writing outside the agent's `writes` allowlist — belongs to
+    `permissions.enforce`, which rolls the change back rather than merely
+    reporting it. Not duplicated here; a weaker second answer to a question that
+    already has a strong one is worse than no answer.
+    """
     report = GateReport()
     for f in getattr(envelope, "changed_files", []):
         p = Path(f)
         report.check(f, p.exists(),
                      f"exists, {_size(p)}" if p.exists() else "claimed changed file does not exist")
+
+    # Only envelopes that HAVE a `changed_files` field are making a claim about the
+    # diff; a plan or a review says nothing about it and cannot under-report it.
+    if not hasattr(envelope, "changed_files"):
+        return report
+    before = getattr(run, "tree_before", None)
+    if before is None:
+        return report          # no baseline pinned: nothing to compare against
+
+    # Artifacts count as claimed. An agent that writes its plan to a file and names
+    # it under `artifacts` has declared that file, just not in the other list.
+    claimed = {*getattr(envelope, "changed_files", []), *getattr(envelope, "artifacts", [])}
+    touched = permissions.changed_paths(before, permissions.snapshot(run))
+    unclaimed = sorted(set(touched) - claimed)
+    report.check(
+        "every changed file is claimed",
+        not unclaimed,
+        "claimed diff matches the tree" if not unclaimed
+        else (f"{len(unclaimed)} file(s) changed but not named in changed_files: "
+              + ", ".join(unclaimed[:8]) + (" …" if len(unclaimed) > 8 else "")))
     return report
 
 

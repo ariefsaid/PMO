@@ -51,6 +51,9 @@ class Run:
         self.cost = 0.0
         self._seq = tracer.max_phase_seq(adw_id)   # a joined run continues the sequence
         self.repo_root = git_helper.repo_root()    # where every agent is spawned to work
+        # Pinned per agent phase (agents.execute) so `diff_matches_claims` can ask what
+        # changed that the agent did NOT claim. None until the first phase pins it.
+        self.tree_before: dict[str, str] | None = None
         self.session_dir = ensure_dir(Path(cfg.defaults.data_dir) / "sessions" / adw_id)
         self.context_handoff_dir = ensure_dir(self.session_dir / "context_handoff")
         self._agent_map_path = self.session_dir / "agent_map.json"

@@ -194,6 +194,10 @@ def execute(run, phase: Phase, call: AgentCall) -> EnvelopeBase:
     # send in this phase — first prompt, JSON retries, gate corrections — is
     # measured against this one baseline.
     tree_before = permissions.snapshot(run)
+    # Pinned on the run so `diff_matches_claims` can ask the reverse question —
+    # what changed that the agent did NOT claim (#539). The gate signature is
+    # (envelope, run) and this is the only baseline either side can share.
+    run.tree_before = tree_before
 
     result = send(user_text)
     envelope, attempt = _parse_with_retries(run, phase, call, result, send)
