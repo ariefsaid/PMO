@@ -1440,6 +1440,8 @@ never editable in PMO; **from go-live onward**, records are PMO-SoT, Posture B, 
 5 stands unweakened: nothing pre-epoch is *adopted*, it is *read*. One nullable
 `organizations.pmo_epoch_at` carries it — the only genuinely new concept the crossing needs.
 
+⛔ **[DD-XING-3] SUPERSEDED 2026-08-21 by `OD-XING-1`** — falsified by #523; the mechanism it describes does not exist and is deliberately disabled. Read `OD-XING-1` instead.
+
 **[DD-XING-3] The catch-up is the ordinary Posture-B push run over records with no side-mirror row. No
 backfill machinery, no second implementation of the money path.** It is safely re-runnable **by
 construction**: an ADR-0059 §4 key is *derived, not minted* (`'<prefix>:' || <pmo_record_id> || ':' ||
@@ -2254,3 +2256,83 @@ fixture cannot tell a breakdown from the old first-row behaviour, which is the s
 
 **Revisit when** an org genuinely needs a consolidated figure across currencies. At that point the
 question is "which rate source, at what staleness, priced how" — an `OD-`, not this.
+
+---
+
+## OD-XING-1 · OD-TAX-1 · OD-TASK-1 · OD-MTG-1..2 · OD-I18N-1 · OD-SEED-4 — the go-live owner batch (owner grill, 2026-08-21)
+
+Drained from the wayfinder owner frontier on [RIS goes live: first-client delivery route](https://github.com/ariefsaid/PMO/issues/450): #527 (nine rulings), #523 (the crossing), #518 (PPN), #499 (provisioning). Director calls made in the same session are `DD-` entries below.
+
+### OD-XING-1 — the standalone → connected crossing is a connect-time choice, defaulting to "start at connect"; RIS's history is loaded straight into ERPNext
+
+`DD-XING-3` claimed the crossing needed no bespoke backfill. **It is falsified** (#523, evidence in `docs/reviews/2026-08-20-posture-b-state-stamps.md`): `erpnext-sweep/index.ts:1491-1494,1503,1511` refuses pre-binding hours *by design*, and `:1180-1182` writes no budget mirror row before dispatch — so "records whose mirror row is missing" does not select the set `DD-XING-3` means. **`DD-XING-3` is superseded by this entry.**
+
+**The policy (owner):** the crossing is a **per-client choice at connect time**, from four options — (1) replay everything from the beginning · (2) push nothing pre-binding, the ERP starts at connect · (3) a summarised opening entry · (4) ask, i.e. the chooser itself. **Default is (2).** (1) and (3) remain available for a client who asks.
+
+**What is built now: nothing.** (2) is exactly what the tree already does, so the chooser is recorded and deferred. It lands when a client actually refuses (2); RIS is not that client — see `OD-SEED-4`.
+
+⚑ **This unblocks [#481](https://github.com/ariefsaid/PMO/issues/481).** Its dev-bed proof can now be written honestly against real behaviour ("nothing pre-binding is pushed") instead of asserting a mechanism the tree deliberately refuses. That assertion would have gone green against a mock and proved nothing.
+
+### OD-SEED-4 — RIS's 2025 historicals load directly into ERPNext, from spreadsheets, by the Director
+
+RIS needs 2025 history. It **does not travel through PMO**. Extends `OD-SEED-1..3` / `DD-RIS-*`: money history goes to ERPNext, never PMO — and the load is ERPNext's own import path, which takes a historical batch as ordinary data entry.
+
+**Why not through PMO:** PMO's push path is an outbox with SoD gates, single-use derived keys (`0134`) and a pre-binding refusal. Replaying a year through it means building machinery to defeat controls built on purpose. Loading direct gives RIS a complete ERP on day one *and* leaves PMO pushing from connect forward, which is `OD-XING-1`'s default.
+
+**Form:** spreadsheets, like the rest of the seed. A template-mapping job, not a migration with reconciliation. **Director work, not a build ticket.**
+
+### OD-TAX-1 — both tax bases are supported everywhere, with an org-wide default and a visible label on every figure
+
+Answers #518. The owner declined to pick one: **the system caters to either.** There is no single Indonesian convention to encode — commercial contracts, quotations and vendor agreements are normally quoted **exclusive** ("harga belum termasuk PPN"), while government/SOE tender contracts are normally **inclusive**, the contract value being the all-in ceiling with PPN carved out of it. A contractor working both sides needs both.
+
+1. **Org-wide `default_tax_treatment`** (`inclusive` | `exclusive`), seeded `exclusive`. It **pre-selects only.** The stored per-row value is authoritative and is never inferred from the setting at read time — that inference is exactly the ambiguity `#478` established cannot be recovered later.
+2. **Every money figure carrying a treatment renders its label** — "excl. PPN" / "incl. PPN" — on contract value, work order value, budget line and invoice. **No bare number anywhere the treatment exists.**
+3. **Per-record override always available.** The drawdown normalises both sides to one basis before comparing (a tax-exclusive work order measured against a tax-inclusive ceiling under-detects over-commitment — the control `#513` exists to provide).
+
+### OD-TASK-1 — PMO owns tasks at go-live; ClickUp is not used at RIS
+
+Answers #527 item 8. ClickUp is not in play at RIS, so `tasks_insert`'s ClickUp-ownership denial does not bind for their org and a meeting's `/action` can create a task as specced.
+
+### OD-MTG-1 — writing minutes is ordinary RBAC; **reading them is attendance, not role**
+
+Answers #527 items 6–7, corrected by the owner in round 3.
+
+- **Write:** every role, **Engineer included**, can create and minute meetings. Nothing special; the Engineer role widens accordingly.
+- **Read:** you can read a minute if **you were in the meeting or you wrote it.** Admin reads all. ⛔ **The RLS policy keys on the attendee join, not on the role** — the owner's principle is explicit: an Engineer must not read a peer's minute from a meeting they were not present at.
+
+### OD-MTG-2 — minutes are shareable after the fact, to named users
+
+Read set is **attendee ∪ author ∪ explicit grant ∪ Admin**. The grant is a plain join row (`meeting_id`, `user_id`, `granted_by`, `granted_at`), added or removed from a share panel on the minute; anyone who can already read a minute can share it; revoking removes the row. **Grants are audit-logged** — who opened a minute to whom is precisely the thing that needs a trail.
+
+**Deliberately thin:** view-only grants, named users only. **No permission tiers, no share links, no expiry.** Add those when asked twice.
+
+### OD-I18N-1 — English stays selectable; the Bahasa gate covers launch-scope routes; the app terminology is agent-translated, the seeds are not
+
+Answers #527 items 2–3 (and the resourcing question behind item 3).
+
+1. **English remains selectable inside RIS's org.** It is free — the strings are the source.
+2. **The CI completeness gate is scoped to the routes in the launch scope**, not the whole app. Silent English fallback is acceptable outside it. A 100%-everywhere gate holds go-live hostage to admin screens nobody at RIS opens.
+3. **The Director/agent writes the app terminology translations. Seed data is not translated.**
+4. ⚑ **House style, binding on the translation pass:** prefer the **common borrowed English term** over formal or unusual Indonesian where that is what Indonesian apps actually use. Write this into `docs/specs/i18n-framework.spec.md` as a glossary rule. No RIS-side reviewer sits on the critical path.
+
+---
+
+## DD-I18N-7..8 · DD-TASK-6..7 · DD-MTG-6..7 · DD-CUR-7 · DD-OPS-9 — Director calls from the same batch (Director, 2026-08-21)
+
+These were sorted out of #527 as Director-resolvable and decided rather than asked. Revisitable without ceremony.
+
+**[DD-I18N-7] `i18next` + `react-i18next` go in (dev: `i18next-parser`).** `DD-I18N-1` already ruled the library; adding the dependency is mechanical. ⚑ **Via `scripts/relock.sh`, never `npm install` on macOS** — the lock is not reproducible from a Mac (`@emnapi/*` pruning).
+
+**[DD-I18N-8] The translation content pass runs in parallel from step 2, not in slot 6.** Measured at ~1,940 call sites / ~1,170 distinct strings. It depends on strings existing, not on tasks/meetings/work-orders shipping, so slot 6 serialises weeks of work behind things it does not need. **Amends the sequence on #450.**
+
+**[DD-TASK-6] Project hard-delete keeps `on delete cascade`.** Answers #527 item 4. Orphan tasks sitting in My Tasks with no project are worse than tasks that are gone; a mis-deleted project is a restore problem, not a task-model problem.
+
+**[DD-TASK-7] A project-less task may not have subtasks.** Answers #527 item 5. Forbid now; the meeting module widens it later. Reversible in the cheap direction.
+
+**[DD-MTG-6] The `crm_activities` `'Meeting'` kind survives, re-scoped.** Answers #527 item 9. It becomes the **lightweight touchpoint log** — call, email, site visit. The meeting module owns anything with attendees and minutes. The Contacts page stops advertising "log a meeting" and links across instead. Retiring the kind would delete real history for a distinction users do want.
+
+**[DD-MTG-7] A PM gets no automatic read across their project's meetings.** The share panel **pre-suggests the project's PM** as a one-click add. A blanket project-scope grant re-opens exactly what `OD-MTG-1` closes — the peer's minute becomes readable by a PM who was not there — and project scope is a much wider net than it sounds. One-click sharing makes inclusion a decision someone made rather than a default nobody noticed. ⚑ The owner may widen this; it is the one direction that stays cheap.
+
+**[DD-CUR-7] Demo/staging rows backfill `tax_treatment` as `exclusive`.** Under `OD-TAX-1` the value is required per row with no form pre-selection, but the existing demo rows still need one. `exclusive` is the common Indonesian B2B quoting shape, so screenshots seed a plausible example rather than a claim about a real contract.
+
+**[DD-OPS-9] #499 reduces to its documentation half.** Owner ruling: hosting spend approval and the WIB support-window staffing are **not route decisions and are not planned on this map**. The Director delivers the system requirements, the credential-rotation runbook, the backup/restore procedure and the `docs/environments.md` production section; provisioning and commercials are the owner's and are dropped from the map.
