@@ -4272,7 +4272,7 @@ export type Database = {
           org_id: string
           parent_task_id: string | null
           priority: Database["public"]["Enums"]["task_priority"] | null
-          project_id: string
+          project_id: string | null
           source_updated_at: string | null
           start_date: string | null
           status: Database["public"]["Enums"]["task_status"]
@@ -4291,7 +4291,7 @@ export type Database = {
           org_id?: string
           parent_task_id?: string | null
           priority?: Database["public"]["Enums"]["task_priority"] | null
-          project_id: string
+          project_id?: string | null
           source_updated_at?: string | null
           start_date?: string | null
           status?: Database["public"]["Enums"]["task_status"]
@@ -4310,7 +4310,7 @@ export type Database = {
           org_id?: string
           parent_task_id?: string | null
           priority?: Database["public"]["Enums"]["task_priority"] | null
-          project_id?: string
+          project_id?: string | null
           source_updated_at?: string | null
           start_date?: string | null
           status?: Database["public"]["Enums"]["task_status"]
@@ -5806,6 +5806,10 @@ export type Database = {
       task_completion_proxy: {
         Args: { created_at: string; end_date: string }
         Returns: string
+      }
+      task_domain_externally_owned: {
+        Args: { p_project_id: string }
+        Returns: boolean
       }
       telegram_notify_tick: { Args: never; Returns: undefined }
       timesheet_push_key_witness: { Args: { p_key: string }; Returns: string }
