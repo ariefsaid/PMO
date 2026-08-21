@@ -12,7 +12,7 @@
 -- assignee and by nobody else — every manager locked out, and locked out SILENTLY: a `using` denial
 -- hides the row, so UPDATE/DELETE are 0-row no-ops that the DAL reports as success.
 begin;
-select plan(40);
+select plan(53);
 
 insert into organizations (id, name) values
   ('05250000-0000-0000-0000-000000000001','FCT Org'),
@@ -494,6 +494,157 @@ select ok(
   'the server-authority exemption if it could ever reach the trigger at all');
 
 reset role;
+
+-- ── §H — #538: a task's milestone must be a milestone of the task's OWN project. ───────────────
+-- Migration under test: 0202_task_milestone_same_project.sql. `grep -r AC-TMS-` finds exactly these.
+--
+-- §G closed the ASSIGNEE door onto this harm (AC-ACA-001..003). It is the SAME harm through the
+-- MANAGER door, and there it is not an authorization question at all: a PM legitimately holds write
+-- authority over tasks, so no policy, allowlist or trigger exemption is the right shape. It is a
+-- missing integrity constraint, and 0202 adds one — a composite FK, not a trigger, because a trigger
+-- is exemptable (`tasks` already carries a server-authority exemption at 0200 §C) and an FK is not.
+--
+-- Fixtures are §G's, unchanged: project fd1 owns milestone fb01; project fd3 owns milestone fb02 and
+-- one To Do task (fc07), so its delivery percentage is 0. fc05 is a DONE task in fd1/fb01.
+reset role;
+reset request.jwt.claims;
+set local role authenticated;
+set local request.jwt.claims =
+  '{"sub":"05250000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+
+-- ⚑ THE HARM, through the door #532 left open. The message is asserted, not just the errcode:
+-- `tasks` has three FKs that can raise 23503 (project_id, assignee_id, parent_task_id), and a bare
+-- errcode would go green the day one of those fires instead.
+select throws_ok(
+  $$ update tasks set milestone_id = '05250000-0000-0000-0000-00000000fb02'
+      where id = '05250000-0000-0000-0000-00000000fc05' $$,
+  '23503',
+  'insert or update on table "tasks" violates foreign key constraint "tasks_milestone_id_fkey"',
+  'AC-TMS-001 a PROJECT MANAGER — a legitimate write-role holder — may not point a task at ANOTHER '
+  'project''s milestone. #532 closed this door for the assignee; it stayed open for the manager, and '
+  'for the manager it was never an authorization question');
+
+reset role;
+select is(
+  (select task_count from get_project_milestones('05250000-0000-0000-0000-000000000fd3')
+    where id = '05250000-0000-0000-0000-00000000fb02'),
+  1,
+  'AC-TMS-002 …and the other project''s milestone still counts only its OWN task. This is the harm '
+  'assertion — every server-side rollup joins tasks through milestone_id and never project_id');
+select is(
+  (select calculated_pct::numeric(10,0) from get_project_milestones('05250000-0000-0000-0000-000000000fd3')
+    where id = '05250000-0000-0000-0000-00000000fb02'),
+  0::numeric,
+  'AC-TMS-003 …and its delivery percentage did not move. Admitting the write would make it 1 of 2 '
+  'done = 50% on a project this PM was not editing');
+
+set local role authenticated;
+set local request.jwt.claims =
+  '{"sub":"05250000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+
+-- The INSERT path, because 0199's CHECK and 0200's trigger both had update-shaped holes and the
+-- create path is where this repo keeps finding the residual (0167/0169).
+select throws_ok(
+  $$ insert into tasks (org_id, project_id, milestone_id, name, status)
+     values ('05250000-0000-0000-0000-000000000001','05250000-0000-0000-0000-000000000fd1',
+             '05250000-0000-0000-0000-00000000fb02','TMS cross-project create','To Do') $$,
+  '23503',
+  'insert or update on table "tasks" violates foreign key constraint "tasks_milestone_id_fkey"',
+  'AC-TMS-004 …and may not CREATE one that way either — the constraint is on the column pair, so '
+  'the create path cannot be the residual it has been three times before');
+
+select lives_ok(
+  $$ insert into tasks (id, org_id, project_id, milestone_id, name, status)
+     values ('05250000-0000-0000-0000-00000000fc10','05250000-0000-0000-0000-000000000001',
+             '05250000-0000-0000-0000-000000000fd1','05250000-0000-0000-0000-00000000fb01',
+             'TMS same-project create','To Do') $$,
+  'AC-TMS-005 CONTROL the legal case still works — a task pointed at a milestone of its OWN '
+  'project. Without this, AC-TMS-001/004 would pass against a constraint that refused everything');
+
+reset role;
+select is(
+  (select milestone_id::text from tasks where id = '05250000-0000-0000-0000-00000000fc10'),
+  '05250000-0000-0000-0000-00000000fb01',
+  'AC-TMS-006 …and it landed. lives_ok proves no exception, not that the value was stored');
+
+-- ── The three NULL cases. A composite FK with one NULL column is satisfied VACUOUSLY under MATCH
+-- SIMPLE, so each live case was probed rather than assumed — getting this wrong produces a
+-- constraint that looks present and enforces nothing.
+set local role authenticated;
+set local request.jwt.claims =
+  '{"sub":"05250000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+
+select lives_ok(
+  $$ insert into tasks (id, org_id, project_id, milestone_id, name, status)
+     values ('05250000-0000-0000-0000-00000000fc11','05250000-0000-0000-0000-000000000001',
+             null, null,'TMS null null','To Do') $$,
+  'AC-TMS-007 NULL CASE A — project NULL + milestone NULL is still admitted (vacuously). #525 made '
+  'this the legal shape of a task nothing owns yet, and the new FK must not take it away');
+
+select lives_ok(
+  $$ insert into tasks (id, org_id, project_id, milestone_id, name, status)
+     values ('05250000-0000-0000-0000-00000000fc12','05250000-0000-0000-0000-000000000001',
+             '05250000-0000-0000-0000-000000000fd1', null,'TMS project no milestone','To Do') $$,
+  'AC-TMS-008 NULL CASE B — project SET + milestone NULL is still admitted (vacuously). This is the '
+  'ordinary state of a task the moment it is created, and it is exactly what MATCH FULL would have '
+  'refused — the ADD CONSTRAINT itself fails under MATCH FULL against today''s data');
+
+-- ⛔ NULL CASE C is the one the FK does NOT cover. Under MATCH SIMPLE this insert is satisfied
+-- VACUOUSLY by the FK; 0199 §1's CHECK is the only thing refusing it. Probed: with the CHECK
+-- dropped and the FK in place the same insert returns INSERT 0 1. The two constraints cover
+-- disjoint halves — the CHECK owns "no project", the FK owns "wrong project" — so the CHECK must
+-- not be deleted as "now covered by the FK". The constraint NAME is asserted for that reason.
+select throws_ok(
+  $$ insert into tasks (id, org_id, project_id, milestone_id, name, status)
+     values ('05250000-0000-0000-0000-00000000fc13','05250000-0000-0000-0000-000000000001',
+             null,'05250000-0000-0000-0000-00000000fb01','TMS null project with milestone','To Do') $$,
+  '23514',
+  'new row for relation "tasks" violates check constraint "tasks_milestone_needs_project"',
+  'AC-TMS-009 NULL CASE C — project NULL + milestone SET is refused by tasks_milestone_needs_project '
+  'and by NOTHING ELSE. The FK is vacuous here under MATCH SIMPLE, so this names the CHECK: delete '
+  'it as redundant and the hole reopens');
+
+reset role;
+
+-- ── Two catalog facts that decide whether the constraint enforces anything, neither of which has a
+-- reachable behavioural probe: MATCH FULL cannot be installed at all (so "does MATCH FULL refuse
+-- case B" is unaskable of the shipped schema), and the delete-set-null column list only shows
+-- itself on a milestone delete, which AC-TMS-012/013 then prove.
+select is(
+  (select confmatchtype from pg_constraint
+    where conrelid = 'public.tasks'::regclass and conname = 'tasks_milestone_id_fkey'),
+  's'::"char",
+  'AC-TMS-010 the FK is MATCH SIMPLE. Not a concession: MATCH FULL admits only all-NULL or '
+  'all-non-NULL keys, so it refuses AC-TMS-008''s shape and its ADD CONSTRAINT fails outright '
+  'against the existing rows ("MATCH FULL does not allow mixing of null and nonnull key values")');
+
+select is(
+  (select array_agg(a.attname::text)
+     from pg_constraint c
+     join pg_attribute a on a.attrelid = c.conrelid and a.attnum = any (c.confdelsetcols)
+    where c.conrelid = 'public.tasks'::regclass and c.conname = 'tasks_milestone_id_fkey'),
+  array['milestone_id'],
+  'AC-TMS-011 ON DELETE SET NULL names milestone_id ONLY. A composite set-null with no column list '
+  'nulls EVERY key column — it would clear project_id too and silently drop a project''s work into '
+  'the project-less bucket');
+
+-- ── The referential action itself, against 0023's existing contract (AC-DEL-021): deleting a
+-- milestone UN-GROUPS its tasks. 0063 proves the task survives with milestone_id null; it does not
+-- assert project_id, which is precisely what the composite FK put at risk.
+delete from project_milestones where id = '05250000-0000-0000-0000-00000000fb02';
+
+select is(
+  (select milestone_id from tasks where id = '05250000-0000-0000-0000-00000000fc07'),
+  null::uuid,
+  'AC-TMS-012 deleting a milestone still un-groups its tasks rather than deleting them — 0023 §2 / '
+  'AC-DEL-021 behaviour, unchanged by the switch to a composite key');
+
+select is(
+  (select project_id::text from tasks where id = '05250000-0000-0000-0000-00000000fc07'),
+  '05250000-0000-0000-0000-000000000fd3',
+  'AC-TMS-013 …and the task KEPT ITS PROJECT. This is the one the composite FK put at risk and that '
+  '0063 never asserted: a bare `on delete set null` nulls the whole key, converting a deleted '
+  'milestone''s work into #525 "project-less" tasks that fall out of the project entirely');
 
 reset role;
 select * from finish();
