@@ -28,6 +28,7 @@ import {
   deleteTimesheetEntry,
   TimesheetWriteError,
 } from './timesheets';
+import { AppError } from '@/src/lib/appError';
 import type { EntryUpsert } from '@/src/lib/timesheet-edit';
 
 /** Build a chainable builder whose terminal await/.single()/.range() resolves to `resolved`. */
@@ -39,7 +40,9 @@ function builderResolving(resolved: { data: unknown; error: unknown }) {
   mockRange.mockResolvedValue(resolved);
   mockInsert.mockReturnValue(builder);
   mockSingle.mockResolvedValue(resolved);
-  mockUpsert.mockResolvedValue(resolved);
+  // #541: the DAL now chains `.select('id')` onto the upsert, so `.upsert()` must return the
+  // (thenable) builder rather than resolving straight to the result.
+  mockUpsert.mockReturnValue(builder);
   mockDelete.mockReturnValue(builder);
   builder.select = mockSelect;
   builder.eq = mockEq;
@@ -166,7 +169,8 @@ describe('upsertTimesheetEntries', () => {
   ];
 
   it('AC-TSE-019: upsertTimesheetEntries upserts on (timesheet_id,project_id,entry_date), sends NO org_id, throws TimesheetWriteError preserving code', async () => {
-    builderResolving({ data: null, error: null });
+    // Both submitted rows come back ⇒ the whole batch landed (#541 count oracle).
+    builderResolving({ data: [{ id: 'e1' }, { id: 'e2' }], error: null });
 
     await upsertTimesheetEntries(entries);
 
@@ -188,6 +192,38 @@ describe('upsertTimesheetEntries', () => {
       name: 'TimesheetWriteError', code: '42501',
     });
   });
+
+  // -------------------------------------------------------------------------
+  // #541 — the PARTIAL-upsert oracle. This is NOT `assertWriteLanded`'s question: an upsert can
+  // land some rows and have others hidden by the write policy's USING clause, with no error. The
+  // count is the oracle; "some of it saved" reported as success is the same defect one level up.
+  // -------------------------------------------------------------------------
+
+  it('#541: a PARTIAL upsert (2 submitted, 1 landed, no error) rejects and names how many were refused', async () => {
+    builderResolving({ data: [{ id: 'e1' }], error: null });
+    const err = await upsertTimesheetEntries(entries).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(AppError);
+    expect((err as AppError).code).toBe('42501');
+    expect((err as AppError).message).toContain('1 of 2');
+    expect((err as AppError).message).toContain('1 were refused');
+    // and the write really was attempted — "nothing threw" is not evidence, nor is "nothing ran".
+    expect(mockUpsert).toHaveBeenCalledTimes(1);
+  });
+
+  it('#541: a WHOLLY using-denied upsert (0 rows, no error) rejects instead of resolving as success', async () => {
+    builderResolving({ data: [], error: null });
+    const err = await upsertTimesheetEntries(entries).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(AppError);
+    expect((err as AppError).code).toBe('42501');
+    expect((err as AppError).message).toContain('0 of 2');
+    expect(mockUpsert).toHaveBeenCalledTimes(1);
+  });
+
+  it('#541: a null `data` (no representation returned) is treated as nothing landed, not as success', async () => {
+    builderResolving({ data: null, error: null });
+    await expect(upsertTimesheetEntries(entries)).rejects.toBeInstanceOf(AppError);
+    expect(mockUpsert).toHaveBeenCalledTimes(1);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -196,7 +232,7 @@ describe('upsertTimesheetEntries', () => {
 
 describe('deleteTimesheetEntry', () => {
   it('AC-TSE-019: deleteTimesheetEntry deletes by id, sends NO org_id, throws TimesheetWriteError preserving code', async () => {
-    builderResolving({ data: null, error: null });
+    builderResolving({ data: [{ id: 'entry-1' }], error: null });
 
     await deleteTimesheetEntry('entry-1');
 
@@ -211,5 +247,13 @@ describe('deleteTimesheetEntry', () => {
     await expect(deleteTimesheetEntry('entry-1')).rejects.toMatchObject({
       name: 'TimesheetWriteError', code: '42501',
     });
+  });
+
+  it('#541: a using-denied delete (0 rows matched, no error) throws 42501 instead of resolving as success', async () => {
+    builderResolving({ data: [], error: null });
+    const err = await deleteTimesheetEntry('entry-1').catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(AppError);
+    expect((err as AppError).code).toBe('42501');
+    expect(mockDelete).toHaveBeenCalled();
   });
 });

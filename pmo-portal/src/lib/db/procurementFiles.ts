@@ -1,5 +1,5 @@
 import { supabase } from '@/src/lib/supabase/client';
-import { AppError } from '@/src/lib/appError';
+import { AppError, assertWriteLanded } from '@/src/lib/appError';
 import { sanitizeFilename } from '@/src/lib/storageKey';
 import {
   ALLOWED_FILE_TYPES,
@@ -71,6 +71,22 @@ const PARENT_COL_BY_PHASE: Record<
   purchase_order: 'purchase_order_id',
   payment: 'payment_id',
 };
+
+/**
+ * Phase → its child file table. ⚑ #541: the SINGLE place a phase maps to a table on the patch
+ * path. `satisfies Record<ProcPhase, …>` makes it exhaustive, so a new phase added to `ProcPhase`
+ * fails to compile until it is listed here — it cannot silently inherit a missing write-landed
+ * check the way a copied `if (phase === …)` branch would (the deny-list-by-default polarity of #532).
+ */
+const FILE_TABLE_BY_PHASE = {
+  quotation: 'procurement_quotation_files',
+  receipt: 'procurement_receipt_files',
+  invoice: 'procurement_invoice_files',
+  purchase_request: 'purchase_request_files',
+  rfq: 'rfq_files',
+  purchase_order: 'purchase_order_files',
+  payment: 'payment_files',
+} as const satisfies Record<ProcPhase, string>;
 
 const BUCKET = 'procurement-files';
 
@@ -335,39 +351,42 @@ export async function confirmUpload(
  * row drops out of the default list. org_id is NEVER sent — RLS scopes the update.
  */
 export async function archiveProcurementFile(phase: ProcPhase, id: string): Promise<void> {
-  const patch = { archived_at: new Date().toISOString() };
-  if (phase === 'quotation') {
-    const { error } = await supabase.from('procurement_quotation_files').update(patch).eq('id', id);
-    if (error) throwWrite(error);
-    return;
-  }
-  if (phase === 'receipt') {
-    const { error } = await supabase.from('procurement_receipt_files').update(patch).eq('id', id);
-    if (error) throwWrite(error);
-    return;
-  }
-  if (phase === 'purchase_request') {
-    const { error } = await supabase.from('purchase_request_files').update(patch).eq('id', id);
-    if (error) throwWrite(error);
-    return;
-  }
-  if (phase === 'rfq') {
-    const { error } = await supabase.from('rfq_files').update(patch).eq('id', id);
-    if (error) throwWrite(error);
-    return;
-  }
-  if (phase === 'purchase_order') {
-    const { error } = await supabase.from('purchase_order_files').update(patch).eq('id', id);
-    if (error) throwWrite(error);
-    return;
-  }
-  if (phase === 'payment') {
-    const { error } = await supabase.from('payment_files').update(patch).eq('id', id);
-    if (error) throwWrite(error);
-    return;
-  }
-  const { error } = await supabase.from('procurement_invoice_files').update(patch).eq('id', id);
+  await patchProcurementFile(
+    phase,
+    id,
+    { archived_at: new Date().toISOString() },
+    'File not found or you do not have permission to archive it.',
+  );
+}
+
+/** The columns any phase-file patch may set (all seven tables share them). */
+type ProcurementFilePatch = { archived_at?: string | null; title?: string | null };
+
+/**
+ * The ONE patch path for all seven phase file tables (#541). Previously seven near-identical
+ * `if (phase === …)` bodies, each of which had to remember the write-landed check independently —
+ * so the eighth table would have been added without one. Table selection is now data
+ * (`FILE_TABLE_BY_PHASE`) and the RLS guard is structural.
+ *
+ * ⚑ The guard itself: a `using`-denied UPDATE HIDES the row rather than erroring, so the statement
+ * touches 0 rows and returns `error === null`. `.select('id')` makes PostgREST report the rows it
+ * actually touched; an empty result is a refusal, not a success. Every one of these tables has a
+ * permissive org-wide SELECT policy at least as wide as its write policy (0036/0028/0058), so a
+ * landed write always returns its row — the check cannot produce a false denial.
+ */
+async function patchProcurementFile(
+  phase: ProcPhase,
+  id: string,
+  patch: ProcurementFilePatch,
+  deniedMessage: string,
+): Promise<void> {
+  const { data, error } = await supabase
+    .from(FILE_TABLE_BY_PHASE[phase])
+    .update(patch)
+    .eq('id', id)
+    .select('id');
   if (error) throwWrite(error);
+  assertWriteLanded(data, deniedMessage);
 }
 
 /**

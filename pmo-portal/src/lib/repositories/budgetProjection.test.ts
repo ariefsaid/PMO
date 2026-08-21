@@ -597,7 +597,7 @@ describe('createBudgetCategoryAccountMapRow / updateBudgetCategoryAccountMapRow 
   });
 
   it('deletes (unmaps) a category', async () => {
-    makeFromBuilder({ data: null, error: null });
+    makeFromBuilder({ data: [{ category: 'Contingency' }], error: null });
     await deleteBudgetCategoryAccountMapRow('Contingency');
     expect(mockDelete).toHaveBeenCalled();
     expect(mockEq).toHaveBeenCalledWith('category', 'Contingency');
@@ -606,7 +606,7 @@ describe('createBudgetCategoryAccountMapRow / updateBudgetCategoryAccountMapRow 
 
 describe('upsertBudgetProjectionEtc (Finance-authored ETC, OD-BUDGET-3)', () => {
   it('upserts pmo_etc for (project, fiscal_year, category)', async () => {
-    makeFromBuilder({ data: null, error: null });
+    makeFromBuilder({ data: [{ project_id: 'proj-1' }], error: null });
     await upsertBudgetProjectionEtc('proj-1', '2026', 'Labor', 35000);
     expect(mockFrom).toHaveBeenCalledWith('budget_projections');
     expect(mockUpsert).toHaveBeenCalledWith(
@@ -700,5 +700,41 @@ describe('releaseActiveBudgetPushHold (MED-2 — the operator route out of a hel
     heldOutboxBuilder({ id: 'outbox-held' });
     makeRpcBuilder({ data: null, error: { message: 'not authorized', code: '42501' } });
     await expect(releaseActiveBudgetPushHold('proj-1', '2026')).rejects.toMatchObject({ code: '42501' });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// #541 — the same silent-no-op class on the two money-adjacent writes this module owns. Not in the
+// issue's table (that list was drawn against an older tree) but the identical shape: an RLS `using`
+// denial hides the row, the statement affects 0 rows and reports `error === null`.
+// ---------------------------------------------------------------------------
+
+describe('#541 budgetProjection writes reject a using-denied 0-row no-op', () => {
+  it('#541: deleteBudgetCategoryAccountMapRow resolves when the row comes back (positive control)', async () => {
+    makeFromBuilder({ data: [{ category: 'Labor' }], error: null });
+    await expect(deleteBudgetCategoryAccountMapRow('Labor')).resolves.toBeUndefined();
+  });
+
+  it('#541: deleteBudgetCategoryAccountMapRow rejects 42501 when 0 rows matched and no error was reported', async () => {
+    // ⚑ Left silent this INVERTS the fail-closed contract: the Admin believes the category is
+    // unmapped (and will fail closed at the next push) while the stale mapping is still pushing.
+    makeFromBuilder({ data: [], error: null });
+    const err = await deleteBudgetCategoryAccountMapRow('Labor').catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(AppError);
+    expect((err as AppError).code).toBe('42501');
+    expect(mockDelete).toHaveBeenCalled();
+  });
+
+  it('#541: upsertBudgetProjectionEtc resolves when the row comes back (positive control)', async () => {
+    makeFromBuilder({ data: [{ project_id: 'proj-1' }], error: null });
+    await expect(upsertBudgetProjectionEtc('proj-1', '2026', 'Labor', 35000)).resolves.toBeUndefined();
+  });
+
+  it('#541: upsertBudgetProjectionEtc rejects 42501 when 0 rows landed and no error was reported', async () => {
+    makeFromBuilder({ data: [], error: null });
+    const err = await upsertBudgetProjectionEtc('proj-1', '2026', 'Labor', 35000).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(AppError);
+    expect((err as AppError).code).toBe('42501');
+    expect(mockUpsert).toHaveBeenCalled();
   });
 });
