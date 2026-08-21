@@ -364,6 +364,17 @@ _SUBSTRATE_SIGNS = (
     ("ETIMEDOUT", "transport failure reaching the substrate"),
     ("socket hang up", "transport failure reaching the substrate"),
     ("529", "substrate overloaded"),
+    # `Connection error.` is what the LAST rung says when every earlier rung has already
+    # been abandoned — observed on run c0bc91ce, where deepseek failed key resolution,
+    # luna failed `fetch failed`, and GLM connection-errored. Without this needle the run
+    # reports "never produced valid BuildOutput JSON" for a three-substrate outage, which
+    # is precisely the 2026-08-20 misread this table exists to prevent.
+    ("Connection error", "transport failure reaching the substrate"),
+    # Not the provider refusing a key — the HARNESS unable to produce one, because the
+    # key comes from a shell command that returned nothing. It reads like an auth failure
+    # and is actually local configuration, so it gets its own words.
+    ("Failed to resolve API key", "the harness could not resolve an API key for this provider — "
+                                 "local configuration, not the provider"),
     ("Overloaded", "substrate overloaded"),
 )
 
