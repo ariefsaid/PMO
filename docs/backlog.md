@@ -4,7 +4,32 @@
 [`docs/history.md`](history.md) (don't read it for status). Locked owner-decisions are in
 `docs/decisions.md` (OD-* lookup by id). Roadmap framing in `docs/roadmap-spines.md`.
 
-### ⚑⚑⚑ CURRENT FOCUS (2026-08-19) — the wayfinding frontier is DRAINED; a 14-issue build queue is open
+### ⚑⚑⚑ CURRENT FOCUS (2026-08-21) — the build queue is DRAINED to the owner-decision floor
+
+**Everything buildable without an owner ruling is shipped to `dev`.** What is left on the board is
+either a decision (#527, #523, #518, #530 item 3), infrastructure only the owner can provision (#499),
+or work those gate (#526 meetings, the Bahasa content pass, #481). The next move is the Q&A round,
+not another build.
+
+**Shipped 2026-08-20/21 — the hardening wave.** #525 first-class tasks · #529/#530 the currency
+oracles · #533 the shadow-type gate · #532 the assignee column allowlist · #534 + #541 the
+silent-no-op class · #538 the milestone/project constraint · #530 item 2 and the export half of item 3
+· #539 the ADW diff gate.
+
+⚑ **One theme runs through the whole wave: tests that could not fail.** Mutation runs caught a dead
+oracle in nearly every one of those issues — a fixture set that was all-USD and so could not tell a
+record's currency from a literal; an assertion that landed on a post-issue freeze instead of the
+control it named; a `_set_at` comparison that cannot move inside one transaction; a control that had
+already set the value the mutation was supposed to change. **Reading the assertions caught none of
+them.** Only running the code with the rule broken did. Assume a new oracle is dead until a mutation
+says otherwise.
+
+⚑ **And the gate written to stop this could not catch either incident it was written for.** #533's
+first draft required every key of a hand-written row type to be a column of one table — but `MyTask`
+carries a joined `project_name` and `SalesInvoiceRow` carries joined payment terms, and one foreign
+field matches no table at all. Found by REPLAYING both incidents against it, not by reading it.
+
+### The 2026-08-19 frontier drain (still the standing context)
 
 **Read `git log origin/main..origin/dev` for the real state, never a paragraph here.** As of this
 edit `dev` is 52 commits ahead of `main`, and `main`→`production` remains a separate, explicit,
@@ -27,9 +52,10 @@ also gates the budget importer (#495) and work orders (#498).
 **Shipped 2026-08-19:** #477 (locale drift sweep — ~45 hardcoded-locale sites routed through
 `format.ts`, plus an ESLint guard, mutation-verified) and the ADR-0055 crossing addendum (#480).
 
-**Open build queue:** #525 first-class tasks (spec'd, blast radius confirmed) · #526 meeting module
-(spec'd; blocked on #525) · **the i18n framework + Bahasa content pass** (spec'd, needs the dependency
-ruling in #527) · #481 (blocked on #474 + #523).
+**Open build queue (as of 2026-08-21 — every unblocked item on it has shipped):** ~~#525 first-class
+tasks~~ SHIPPED · #526 meeting module — **blocked on #527**, three of its nine rulings shape the RLS ·
+**the i18n framework + Bahasa content pass** — **blocked on #527**'s dependency ruling · #481 —
+**blocked on #523** (a commercial call) · #499 RIS ERPNext provisioning — **owner only**.
 
 **⚑ GO-LIVE STEP 1 IS NOW ACTUALLY DONE** (`0198` + #529). It was not before, and the status board
 said it was: `0187` shipped `organizations.default_currency` and a `currency` column on twelve money
