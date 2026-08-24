@@ -1,1 +1,1543 @@
-{}
+{
+  "approvals": {
+    "accessDenied": {
+      "sub": "Persetujuan ditujukan untuk role yang menyetujui permintaan pembelian atau timesheet. Pekerjaan Anda ada di dashboard, proyek, dan tugas Anda.",
+      "title": "Anda tidak memiliki akses ke persetujuan"
+    },
+    "attest": {
+      "bodyFor": "untuk minggu",
+      "bodyPrefix": "Nyatakan bahwa Anda telah memeriksa ERPNext dan yang tercatat di sana adalah",
+      "bodySuffix": ". Tindakan ini mencatat atestasi yang diaudit dan membuka kembali minggu tersebut untuk koreksi — tanpa menghubungi ERPNext.",
+      "cancelLabel": "Batal",
+      "confirmLabel": "Konfirmasi — tanpa dokumen ERP",
+      "noTimesheet": "tidak ada Timesheet",
+      "reasonLabel": "Apa yang Anda periksa di ERPNext?",
+      "reasonPlaceholder": "mis. Mencari Timesheet untuk karyawan dan minggu ini — tidak ada.",
+      "thisPerson": "orang ini",
+      "title": "Konfirmasi apa yang tercatat di ERPNext"
+    },
+    "caughtUp": {
+      "sub": "Tidak ada yang menunggu persetujuan Anda saat ini. Permintaan pembelian baru dan timesheet yang diajukan akan muncul di sini.",
+      "title": "Semua sudah beres"
+    },
+    "employeeLinks": {
+      "title": "Tautan karyawan menunggu konfirmasi"
+    },
+    "entryOne": "entri",
+    "entryOther": "entri",
+    "group": {
+      "procurement": {
+        "emptySub": "Permintaan pembelian yang perlu persetujuan Anda akan muncul di sini.",
+        "emptyTitle": "Tidak ada permintaan yang menunggu keputusan Anda",
+        "title": "Permintaan pembelian"
+      },
+      "timesheets": {
+        "emptySub": "Timesheet yang diajukan oleh bawahan Anda akan muncul di sini untuk ditinjau.",
+        "emptyTitle": "Tidak ada timesheet yang menunggu keputusan Anda",
+        "title": "Timesheet"
+      }
+    },
+    "mobile": {
+      "procurementLabel": "Permintaan pembelian menunggu Anda",
+      "timesheetsLabel": "Timesheet menunggu Anda"
+    },
+    "noProjectLinked": "Tidak ada proyek tertaut",
+    "previewEmpty": {
+      "sub": "Saat ada permintaan yang menunggu, pratinjau dan tindakannya muncul di sini.",
+      "title": "Pilih item persetujuan"
+    },
+    "previewError": {
+      "sub": "Coba lagi dari panel antrean untuk memuat persetujuan terbaru.",
+      "title": "Gagal memuat antrean yang dipilih"
+    },
+    "previewRegionLabel": "Pratinjau persetujuan",
+    "pushAttention": {
+      "retryFailure": "Timesheet tersebut gagal dikirim",
+      "retrySuccess": "Timesheet dikirim ke ERPNext",
+      "title": "Pengiriman ke ERP yang perlu perhatian"
+    },
+    "queue": {
+      "loadErrorPrefix": "Gagal memuat",
+      "loadErrorSub": "Coba lagi untuk memuat ulang antrean ini."
+    },
+    "queueHeading": "Antrean persetujuan",
+    "queueHint": "Pilih item untuk melihat detail dan kontrol keputusannya.",
+    "queueRegionLabel": "Antrean persetujuan",
+    "reopen": {
+      "action": "Buka kembali untuk koreksi",
+      "alreadyPushed": "Sudah dikirim ke ERP — jalur koreksi menyusul",
+      "attestFailure": "Gagal mengonfirmasi hasil ERP",
+      "attestSuccess": "Terkonfirmasi — minggu ini siap dibuka kembali",
+      "attestSuccessDetail": "Tidak ada dokumen di ERPNext",
+      "confirmErpButton": "Konfirmasi apa yang tercatat di ERPNext",
+      "errorDocumentHeld": "Sudah ada di ERP — minggu ini belum dapat dibuka kembali.",
+      "errorGeneric": "Gagal membuka kembali",
+      "errorOutcomeUnknown": "Hasil ERP minggu ini tidak diketahui — administrator harus mengonfirmasi apa yang tercatat di ERPNext sebelum minggu ini dapat dibuka kembali.",
+      "errorPushInFlight": "Pengiriman untuk minggu ini sedang berlangsung — coba lagi sebentar lagi.",
+      "heading": "Disetujui — buka kembali untuk koreksi",
+      "outcomeUnknown": "Hasil ERP tidak diketahui — administrator harus mengonfirmasi apa yang tercatat di ERPNext",
+      "pushInProgress": "Pengiriman sedang berlangsung",
+      "sectionLabelPrefix": "Timesheet yang disetujui dalam",
+      "sectionLabelSuffix": "hari terakhir yang dapat dibuka kembali untuk koreksi",
+      "success": "Dibuka kembali — minggu ini kembali ke Draf untuk diedit.",
+      "windowPrefix": "dalam",
+      "windowSuffix": "hari terakhir"
+    },
+    "scope": {
+      "all": "Semua",
+      "procurement": "Pengadaan",
+      "timesheets": "Timesheet"
+    },
+    "scopeToggleLabel": "Cakupan persetujuan",
+    "subtitle": "Perlu persetujuan saya — semua yang menunggu keputusan Anda, dari pengadaan hingga timesheet.",
+    "title": "Persetujuan",
+    "unknownOwner": "Tidak diketahui",
+    "unknownRequester": "Peminta tidak diketahui",
+    "weekOf": "Minggu"
+  },
+  "companies": {
+    "accessDenied": {
+      "sub": "Direktori perusahaan adalah master data bersama untuk manajer dan keuangan. Pekerjaan Anda ada di dashboard, proyek, dan tugas Anda.",
+      "title": "Anda tidak memiliki akses ke Perusahaan"
+    },
+    "actions": {
+      "archive": "Arsipkan",
+      "delete": "Hapus",
+      "edit": "Edit",
+      "new": "Perusahaan baru"
+    },
+    "columns": {
+      "name": "Perusahaan",
+      "type": "Tipe"
+    },
+    "confirm": {
+      "archiveConfirm": "Arsipkan perusahaan",
+      "archiveDescription": "Perusahaan ini akan disembunyikan dari daftar default dan tidak dapat dipilih pada data baru. Referensi yang sudah ada tetap utuh. Anda dapat memulihkannya kapan saja.",
+      "archiveTitle": "Arsipkan perusahaan ini?",
+      "deleteConfirm": "Hapus perusahaan",
+      "deleteDescription": "Tindakan ini menghapus perusahaan secara permanen. Perusahaan yang direferensikan oleh proyek atau pengadaan tidak dapat dihapus; arsipkan saja.",
+      "deleteTitle": "Hapus perusahaan ini?"
+    },
+    "deleteGate": {
+      "archiveInstead": "Arsipkan saja",
+      "dismiss": "Tutup"
+    },
+    "description": "Klien dan vendor yang digunakan di seluruh proyek dan pengadaan. Master data yang dipakai bersama oleh seluruh organisasi.",
+    "filters": {
+      "all": "Semua",
+      "ariaLabel": "Filter berdasarkan tipe"
+    },
+    "form": {
+      "editSubmit": "Simpan perusahaan",
+      "editSubtitle": "Perbarui data perusahaan ini",
+      "editTitle": "Edit perusahaan",
+      "errors": {
+        "nameRequired": "Nama perusahaan wajib diisi."
+      },
+      "name": {
+        "label": "Nama perusahaan",
+        "placeholder": "mis. Cascade Port Authority"
+      },
+      "newSubmit": "Buat perusahaan",
+      "newSubtitle": "Tambahkan klien atau vendor ke direktori",
+      "newTitle": "Perusahaan baru",
+      "sections": {
+        "identity": "Identitas"
+      },
+      "type": {
+        "label": "Tipe"
+      }
+    },
+    "search": {
+      "ariaLabel": "Cari perusahaan",
+      "placeholder": "Cari perusahaan…"
+    },
+    "states": {
+      "emptySub": "Tambahkan klien atau vendor pertama Anda untuk mulai menautkan proyek dan permintaan pembelian ke direktori.",
+      "emptyTitle": "Belum ada perusahaan",
+      "errorSub": "Permintaan gagal. Periksa koneksi Anda dan coba lagi.",
+      "errorTitle": "Gagal memuat perusahaan"
+    },
+    "table": {
+      "emptySub": "Coba tipe lain atau hapus pencarian.",
+      "emptyTitle": "Tidak ada perusahaan yang cocok dengan filter"
+    },
+    "title": "Perusahaan",
+    "toast": {
+      "archived": "Perusahaan diarsipkan",
+      "created": "Perusahaan dibuat",
+      "deleted": "Perusahaan dihapus",
+      "updated": "Perusahaan diperbarui"
+    },
+    "type": {
+      "client": "Klien",
+      "internal": "Internal",
+      "vendor": "Vendor"
+    }
+  },
+  "companyDetail": {
+    "accessDenied": {
+      "sub": "Direktori perusahaan adalah master data bersama untuk manajer dan keuangan. Pekerjaan Anda ada di dashboard, proyek, dan tugas Anda.",
+      "title": "Anda tidak memiliki akses ke Perusahaan"
+    },
+    "activity": {
+      "coldStart": "Tambahkan kontak untuk mulai mencatat aktivitas",
+      "contact": "Kontak",
+      "contactPlaceholder": "Pilih kontak…",
+      "deleteAction": "Hapus aktivitas",
+      "deleteConfirm": {
+        "confirmLabel": "Hapus",
+        "description": "Tindakan ini tidak dapat dibatalkan. Entri log aktivitas akan dihapus secara permanen.",
+        "title": "Hapus aktivitas ini?"
+      },
+      "editAction": "Edit aktivitas",
+      "empty": "Belum ada aktivitas yang dicatat.",
+      "error": {
+        "sub": "Permintaan gagal. Coba lagi.",
+        "title": "Gagal memuat aktivitas"
+      },
+      "logAction": "Catat aktivitas",
+      "notes": "Catatan",
+      "notesPlaceholder": "Apa yang dibahas?",
+      "subject": "Subjek",
+      "subjectPlaceholder": "mis. Kickoff call",
+      "title": "Aktivitas",
+      "type": "Tipe aktivitas"
+    },
+    "activityKind": {
+      "call": "Telepon",
+      "email": "Email",
+      "meeting": "Meeting",
+      "note": "Catatan"
+    },
+    "addContact": {
+      "legendContact": "Detail kontak",
+      "legendIdentity": "Identitas",
+      "submitLabel": "Buat kontak",
+      "subtitle": "Tambahkan orang di perusahaan ini",
+      "title": "Kontak baru"
+    },
+    "archive": "Arsipkan",
+    "archiveConfirm": {
+      "confirmLabel": "Arsipkan perusahaan",
+      "description": "Perusahaan ini akan disembunyikan dari daftar default dan tidak dapat dipilih pada data baru. Referensi yang sudah ada tetap utuh. Anda dapat memulihkannya kapan saja.",
+      "titlePrefix": "Arsipkan"
+    },
+    "backToCompanies": "Perusahaan",
+    "contacts": {
+      "addContact": "Tambah kontak",
+      "empty": "Belum ada kontak",
+      "error": {
+        "sub": "Terjadi kesalahan. Coba lagi.",
+        "title": "Gagal memuat kontak"
+      },
+      "listLabel": "Daftar kontak",
+      "loading": "Memuat…",
+      "loadingLabel": "Memuat kontak",
+      "openRow": "Buka",
+      "title": "Kontak"
+    },
+    "edit": "Edit",
+    "editActivity": {
+      "legend": "Detail",
+      "submitLabel": "Simpan",
+      "subtitle": "Perbarui entri log aktivitas ini",
+      "title": "Edit aktivitas"
+    },
+    "editCompany": {
+      "legendIdentity": "Identitas",
+      "submitLabel": "Simpan perusahaan",
+      "subtitle": "Perbarui data perusahaan ini",
+      "title": "Edit perusahaan"
+    },
+    "error": {
+      "sub": "Terjadi kesalahan saat mengambil data perusahaan ini.",
+      "title": "Gagal memuat perusahaan"
+    },
+    "field": {
+      "company": "Perusahaan",
+      "companyName": "Nama perusahaan",
+      "companyNamePlaceholder": "mis. Cascade Port Authority",
+      "email": "Email",
+      "emailPlaceholder": "name@example.com",
+      "fullName": "Nama lengkap",
+      "fullNamePlaceholder": "mis. Jane Doe",
+      "name": "Nama",
+      "notes": "Catatan",
+      "notesPlaceholder": "Hal yang perlu diingat tentang kontak ini",
+      "phone": "Telepon",
+      "phonePlaceholder": "mis. +1 555 010 0000",
+      "primaryContact": "Kontak utama",
+      "title": "Jabatan",
+      "titlePlaceholder": "mis. Procurement Lead",
+      "type": "Tipe"
+    },
+    "form": {
+      "errors": {
+        "companyNameRequired": "Nama perusahaan wajib diisi.",
+        "contactNameRequired": "Nama kontak wajib diisi."
+      }
+    },
+    "notFound": {
+      "sub": "Perusahaan ini tidak ada atau tidak terlihat oleh Anda. Kembali ke direktori untuk mencarinya.",
+      "title": "Perusahaan tidak ditemukan"
+    },
+    "related": {
+      "loadErrorPrefix": "Gagal memuat",
+      "loadErrorSub": "Terjadi kesalahan. Coba lagi."
+    },
+    "relatedProcurement": {
+      "empty": "Belum ada pengadaan",
+      "heading": "Pengadaan",
+      "listLabel": "Daftar pengadaan"
+    },
+    "relatedProjects": {
+      "empty": "Belum ada proyek terkait",
+      "heading": "Proyek terkait"
+    },
+    "sectionTitle": "Detail perusahaan",
+    "toast": {
+      "activityDeleted": "Aktivitas dihapus",
+      "activityLogged": "Aktivitas dicatat",
+      "activityUpdated": "Aktivitas diperbarui",
+      "archived": "Perusahaan diarsipkan",
+      "contactCreated": "Kontak dibuat",
+      "updated": "Perusahaan diperbarui"
+    },
+    "type": {
+      "client": "Klien",
+      "internal": "Internal",
+      "vendor": "Vendor"
+    }
+  },
+  "contactDetail": {
+    "accessDenied": {
+      "sub": "Direktori CRM adalah master data bersama untuk manajer dan keuangan. Pekerjaan Anda ada di dashboard, proyek, dan tugas Anda.",
+      "title": "Anda tidak memiliki akses ke Kontak"
+    },
+    "activity": {
+      "deleteAction": "Hapus aktivitas",
+      "deleteConfirm": {
+        "confirmLabel": "Hapus",
+        "description": "Tindakan ini tidak dapat dibatalkan. Entri log aktivitas akan dihapus secara permanen.",
+        "title": "Hapus aktivitas ini?"
+      },
+      "editAction": "Edit aktivitas",
+      "empty": "Belum ada aktivitas yang dicatat.",
+      "error": {
+        "sub": "Permintaan gagal. Coba lagi.",
+        "title": "Gagal memuat aktivitas"
+      },
+      "logAction": "Catat aktivitas",
+      "notes": "Catatan",
+      "notesPlaceholder": "Apa yang dibahas?",
+      "subject": "Subjek",
+      "subjectPlaceholder": "mis. Kickoff call",
+      "title": "Aktivitas",
+      "type": "Tipe aktivitas"
+    },
+    "activityKind": {
+      "call": "Telepon",
+      "email": "Email",
+      "meeting": "Meeting",
+      "note": "Catatan"
+    },
+    "archive": "Arsipkan",
+    "archiveConfirm": {
+      "confirmLabel": "Arsipkan kontak",
+      "description": "Kontak ini akan disembunyikan dari daftar default. Aktivitas yang sudah ada tetap utuh. Anda dapat memulihkannya kapan saja.",
+      "titlePrefix": "Arsipkan"
+    },
+    "backToContacts": "Kontak",
+    "edit": "Edit",
+    "editActivity": {
+      "legend": "Detail",
+      "submitLabel": "Simpan",
+      "subtitle": "Perbarui entri log aktivitas ini",
+      "title": "Edit aktivitas"
+    },
+    "editContact": {
+      "legendContact": "Detail kontak",
+      "legendIdentity": "Identitas",
+      "submitLabel": "Simpan kontak",
+      "subtitle": "Perbarui data kontak ini",
+      "title": "Edit kontak"
+    },
+    "error": {
+      "sub": "Terjadi kesalahan saat mengambil data kontak ini.",
+      "title": "Gagal memuat kontak"
+    },
+    "field": {
+      "company": "Perusahaan",
+      "companyPlaceholder": "Pilih perusahaan…",
+      "email": "Email",
+      "emailPlaceholder": "name@example.com",
+      "fullName": "Nama lengkap",
+      "fullNamePlaceholder": "mis. Jane Doe",
+      "notes": "Catatan",
+      "notesPlaceholder": "Hal yang perlu diingat tentang kontak ini",
+      "phone": "Telepon",
+      "phonePlaceholder": "mis. +1 555 010 0000",
+      "title": "Jabatan",
+      "titlePlaceholder": "mis. Procurement Lead"
+    },
+    "form": {
+      "errors": {
+        "companyRequired": "Perusahaan wajib diisi.",
+        "nameRequired": "Nama kontak wajib diisi."
+      }
+    },
+    "notFound": {
+      "sub": "Kontak ini tidak ada atau tidak terlihat oleh Anda. Kembali ke direktori untuk mencarinya.",
+      "title": "Kontak tidak ditemukan"
+    },
+    "pill": "Kontak",
+    "sectionTitle": "Detail kontak",
+    "toast": {
+      "activityDeleted": "Aktivitas dihapus",
+      "activityLogged": "Aktivitas dicatat",
+      "activityUpdated": "Aktivitas diperbarui",
+      "archived": "Kontak diarsipkan",
+      "updated": "Kontak diperbarui"
+    }
+  },
+  "contacts": {
+    "accessDenied": {
+      "sub": "Direktori CRM adalah master data bersama untuk manajer dan keuangan. Pekerjaan Anda ada di dashboard, proyek, dan tugas Anda.",
+      "title": "Anda tidak memiliki akses ke Kontak"
+    },
+    "actions": {
+      "archive": "Arsipkan",
+      "delete": "Hapus",
+      "edit": "Edit",
+      "new": "Kontak baru"
+    },
+    "columns": {
+      "company": "Perusahaan",
+      "email": "Email",
+      "name": "Nama"
+    },
+    "confirm": {
+      "archiveConfirm": "Arsipkan kontak",
+      "archiveDescription": "Kontak akan disembunyikan dari daftar default. Aktivitas yang ada tetap utuh. Anda dapat memulihkannya kapan saja.",
+      "archiveTitle": "Arsipkan kontak ini?",
+      "deleteConfirm": "Hapus kontak",
+      "deleteDescription": "Tindakan ini menghapus kontak beserta seluruh aktivitas yang tercatat secara permanen. Tindakan ini tidak dapat dibatalkan — arsipkan saja untuk menyimpan riwayatnya.",
+      "deleteTitle": "Hapus kontak ini?"
+    },
+    "description": "Orang di perusahaan yang bekerja sama dengan Anda. Master data yang dibagikan ke seluruh organisasi — catat telepon, email, dan meeting untuk setiap kontak.",
+    "filters": {
+      "allCompanies": "Semua perusahaan",
+      "companyLabel": "Filter berdasarkan perusahaan"
+    },
+    "form": {
+      "company": {
+        "label": "Perusahaan",
+        "placeholder": "Pilih perusahaan…"
+      },
+      "editSubmit": "Simpan kontak",
+      "editSubtitle": "Perbarui data kontak ini",
+      "editTitle": "Edit kontak",
+      "email": {
+        "label": "Email"
+      },
+      "errors": {
+        "companyRequired": "Perusahaan wajib diisi.",
+        "nameRequired": "Nama kontak wajib diisi."
+      },
+      "fullName": {
+        "label": "Nama lengkap",
+        "placeholder": "mis. Jane Doe"
+      },
+      "jobTitle": {
+        "label": "Jabatan",
+        "placeholder": "mis. Procurement Lead"
+      },
+      "newSubmit": "Buat kontak",
+      "newSubtitle": "Tambahkan orang di salah satu perusahaan Anda",
+      "newTitle": "Kontak baru",
+      "notes": {
+        "label": "Catatan",
+        "placeholder": "Hal yang perlu diingat tentang kontak ini"
+      },
+      "phone": {
+        "label": "Telepon",
+        "placeholder": "mis. +1 555 010 0000"
+      },
+      "sections": {
+        "contactDetails": "Detail kontak",
+        "identity": "Identitas"
+      }
+    },
+    "search": {
+      "ariaLabel": "Cari kontak",
+      "placeholder": "Cari kontak…"
+    },
+    "states": {
+      "emptyAction": "Tambahkan kontak pertama Anda",
+      "emptySub": "Tambahkan kontak pertama Anda untuk mulai mencatat telepon, email, dan meeting dengan orang yang bekerja sama dengan Anda.",
+      "emptyTitle": "Belum ada kontak",
+      "errorSub": "Permintaan gagal. Periksa koneksi Anda dan coba lagi.",
+      "errorTitle": "Gagal memuat kontak"
+    },
+    "table": {
+      "emptySub": "Coba perusahaan lain atau hapus pencarian.",
+      "emptyTitle": "Tidak ada kontak yang cocok dengan filter"
+    },
+    "title": "Kontak",
+    "toast": {
+      "archived": "Kontak diarsipkan",
+      "created": "Kontak dibuat",
+      "deleted": "Kontak dihapus",
+      "updated": "Kontak diperbarui"
+    }
+  },
+  "dashboard": {
+    "approvals": {
+      "label": "Persetujuan"
+    },
+    "atRisk": {
+      "label": "berisiko",
+      "linkPrefix": "Lihat",
+      "linkSuffix": "proyek berisiko"
+    },
+    "boardPack": {
+      "ariaLabel": "Board pack (segera hadir)",
+      "label": "Board pack",
+      "tooltip": "Ekspor board pack hadir bersama Laporan"
+    },
+    "chart": {
+      "bva": {
+        "empty": "Belum ada proyek aktif",
+        "title": "Anggaran vs Realisasi — Proyek aktif"
+      },
+      "pipelineMargin": {
+        "empty": "Tidak ada pipeline aktif",
+        "error": "Gagal memuat pipeline",
+        "title": "Margin proyeksi pipeline"
+      },
+      "procStatus": {
+        "chartLabel": "Pengadaan menurut status",
+        "empty": "Belum ada aktivitas pengadaan",
+        "noun": "permintaan",
+        "title": "Pengadaan menurut status"
+      }
+    },
+    "empty": {
+      "sub": "Buat proyek pertama Anda untuk melihat KPI portofolio di sini.",
+      "title": "Belum ada data"
+    },
+    "error": {
+      "sub": "Kueri dashboard gagal. Coba lagi, atau periksa kembali sebentar lagi.",
+      "title": "Gagal memuat dashboard"
+    },
+    "kpi": {
+      "activeProjects": {
+        "help": "Proyek yang sedang dalam pelaksanaan.",
+        "label": "Proyek aktif",
+        "linkLabel": "Buka daftar proyek aktif",
+        "vs": "berisiko"
+      },
+      "pipelineMargin": {
+        "help": "Proyeksi margin yang disesuaikan dengan peluang menang di seluruh pipeline aktif (Σ(nilai − anggaran) / Σ nilai, tertimbang menurut peluang menang tiap tahap).",
+        "label": "Margin proyeksi pipeline",
+        "vs": "tertimbang peluang"
+      },
+      "pipelineWeighted": {
+        "help": "Jumlah (nilai proyek × peluang menang tahap) di semua tahap aktif.",
+        "label": "Pipeline (tertimbang)",
+        "linkLabel": "Buka pipeline penjualan",
+        "vsPrefix": "dari",
+        "vsSuffix": "bruto"
+      },
+      "revenueOnHand": {
+        "help": "Pendapatan yang sudah terkontrak pada kontrak aktif + selesai. Margin terealisasi hingga kini adalah % yang ditampilkan di bawah.",
+        "label": "Pendapatan saat ini",
+        "vs": "terealisasi"
+      },
+      "totalContractValue": {
+        "help": "Total nilai kontrak di seluruh portofolio aktif.",
+        "label": "Total nilai kontrak",
+        "linkLabel": "Buka proyek aktif untuk melihat total nilai kontrak",
+        "vs": "proyek aktif"
+      },
+      "totalSpend": {
+        "help": "Jumlah realisasi pengeluaran pada proyek teratas portofolio. (Agregat pengeluaran terkomitmen akan menyusul.)",
+        "label": "Total pengeluaran proyek",
+        "linkLabel": "Buka proyek aktif untuk melihat rincian pengeluaran",
+        "vs": "realisasi hingga kini"
+      }
+    },
+    "kpiBand": {
+      "label": "KPI portofolio"
+    },
+    "sr": {
+      "activeProjects": "proyek aktif",
+      "statuses": "status"
+    },
+    "subtitle": {
+      "desktop": "Kesehatan portofolio di seluruh kontrak berjalan — margin saat ini, proyeksi pipeline, dan eksposur pelaksanaan.",
+      "mobile": "Apa yang perlu perhatian Anda di seluruh kontrak berjalan."
+    },
+    "title": "Dashboard Eksekutif"
+  },
+  "myTasks": {
+    "changeStatusOf": "Ubah status",
+    "duePrefix": "Tenggat",
+    "empty": {
+      "sub": "Saat ada tugas yang ditugaskan kepada Anda, tugas itu akan muncul di sini dari semua proyek Anda.",
+      "title": "Belum ada tugas yang ditugaskan kepada Anda"
+    },
+    "error": {
+      "sub": "Terjadi kesalahan saat mengambil tugas Anda.",
+      "title": "Gagal memuat tugas Anda"
+    },
+    "logTime": "Catat jam",
+    "noProjectGroup": "Tanpa proyek",
+    "overdue": "Terlambat",
+    "startPrefix": "Mulai",
+    "subtitle": "Tugas yang ditugaskan kepada Anda di semua proyek.",
+    "title": "Tugas Saya"
+  },
+  "procurement": {
+    "column": {
+      "lifecycle": "Siklus",
+      "project": "Proyek",
+      "request": "Permintaan",
+      "requestedBy": "Diminta oleh",
+      "status": "Status",
+      "value": "Nilai"
+    },
+    "description": {
+      "orgWide": "Permintaan pembelian melalui PR → VQ → PO → GR → VI → Lunas, dengan gerbang pemisahan tugas. Buka permintaan untuk menelusuri halaman siklus lengkapnya.",
+      "ownScoped": "Permintaan pembelian yang Anda ajukan, melalui PR → VQ → PO → GR → VI → Lunas. Buka permintaan untuk melacak siklusnya, atau ajukan yang baru."
+    },
+    "empty": {
+      "orgWide": {
+        "title": "Belum ada permintaan pembelian"
+      },
+      "ownScoped": {
+        "title": "Anda belum mengajukan permintaan"
+      },
+      "sub": "Permintaan yang Anda ajukan akan muncul di sini sepanjang siklus lengkapnya."
+    },
+    "error": {
+      "sub": "Terjadi kesalahan saat mengambil permintaan Anda.",
+      "title": "Gagal memuat pengadaan"
+    },
+    "filter": {
+      "all": "Semua",
+      "needsApproval": "Perlu persetujuan",
+      "open": "Aktif",
+      "ordered": "Dipesan",
+      "paid": "Lunas",
+      "vendorInvoiced": "Invoice diterima"
+    },
+    "importCycleData": "Impor data siklus",
+    "lifecycleLabel": "Siklus",
+    "listLabel": "Permintaan pengadaan",
+    "noMatch": {
+      "sub": "Coba status atau kata kunci lain, atau hapus filter.",
+      "title": "Tidak ada permintaan yang cocok dengan filter"
+    },
+    "raiseRequest": "Ajukan permintaan",
+    "search": {
+      "label": "Filter permintaan",
+      "placeholder": "Filter permintaan…"
+    },
+    "statusFilterLabel": "Filter status",
+    "title": {
+      "orgWide": "Pengadaan",
+      "ownScoped": "Permintaan pembelian Anda"
+    },
+    "toast": {
+      "created": {
+        "detail": "Selanjutnya tambahkan rincian item dan penawaran",
+        "headline": "Permintaan dibuat"
+      }
+    },
+    "unknownRequester": "Tidak diketahui",
+    "view": {
+      "board": "Board",
+      "table": "Tabel"
+    },
+    "viewToggleLabel": "Tampilan pengadaan"
+  },
+  "procurementDetail": {
+    "accessDenied": {
+      "sub": "Permintaan pengadaan ini tidak ada atau tidak terlihat untuk role Anda. Jika Anda yang mengajukannya, buka dari permintaan Anda sendiri.",
+      "title": "Anda tidak memiliki akses ke data ini"
+    },
+    "action": {
+      "approve": "Setujui",
+      "cancelRequest": "Batalkan permintaan",
+      "confirmReceipt": "Konfirmasi penerimaan",
+      "generatePurchaseOrder": "Buat Purchase Order",
+      "markAsPaid": "Tandai Lunas",
+      "markVendorInvoiced": "Tandai invoice diterima",
+      "reject": "Tolak",
+      "requestVendorQuotes": "Minta penawaran vendor",
+      "rework": "Revisi (kembali ke Draf)",
+      "selectQuote": "Pilih penawaran",
+      "submitRequest": "Ajukan permintaan"
+    },
+    "approvalNotes": "Catatan persetujuan",
+    "backToProcurement": "Pengadaan",
+    "confirm": {
+      "approvePrefix": "Setujui",
+      "cancelTitle": "Batalkan permintaan ini?",
+      "grBodyPrefix": "Ini mencatat penerimaan barang senilai",
+      "grBodySuffix": "terhadap",
+      "grTitle": "Catat penerimaan barang ini?",
+      "keepRequest": "Pertahankan permintaan",
+      "markPaidPrefix": "Tandai",
+      "markPaidSuffix": "lunas? Ini melepaskan pembayaran dan tidak dapat dibatalkan.",
+      "onProject": "pada",
+      "requestedBy": ", diminta oleh",
+      "saveGR": "Simpan GR",
+      "saveVI": "Simpan VI",
+      "terminal": "Ini tindakan akhir untuk permintaan ini dan tidak dapat dibatalkan.",
+      "thisRequest": "permintaan ini",
+      "viBodyPrefix": "Ini mencatat invoice vendor terhadap",
+      "viTitle": "Catat invoice vendor ini?"
+    },
+    "detail": {
+      "approvedBy": "Disetujui oleh",
+      "notLinked": "Tidak tertaut",
+      "notYetSelected": "Belum dipilih",
+      "pending": "Menunggu",
+      "project": "Proyek",
+      "requestedBy": "Diminta oleh",
+      "vendor": "Vendor"
+    },
+    "editHeader": "Edit",
+    "error": {
+      "sub": "Terjadi kesalahan saat mengambil detail pengadaan.",
+      "title": "Gagal memuat pengadaan"
+    },
+    "lifecycleLabel": "Siklus pengadaan",
+    "meta": {
+      "requestedBy": "diminta oleh"
+    },
+    "rejectionNotes": "Catatan penolakan",
+    "tabs": {
+      "documents": "Dokumen",
+      "lineItems": "Rincian item",
+      "overview": "Ringkasan",
+      "vendorQuotes": "Penawaran vendor"
+    },
+    "tabsLabel": "Bagian pengadaan",
+    "tile": {
+      "goodsReceived": "Barang diterima",
+      "poCommitted": "Komitmen PO",
+      "prValue": "Nilai PR",
+      "receiptOne": "penerimaan",
+      "receiptOther": "penerimaan",
+      "selectedFallback": "dipilih",
+      "selectedQuote": "Penawaran terpilih"
+    },
+    "toast": {
+      "grRecorded": "Penerimaan barang dicatat",
+      "headerSaved": "Header disimpan",
+      "lineItemAdded": "Rincian item ditambahkan",
+      "lineItemRemoved": "Rincian item dihapus",
+      "lineItemUpdated": "Rincian item diperbarui",
+      "movedTo": "Dipindahkan ke",
+      "quotationAdded": "Penawaran ditambahkan",
+      "quoteSelected": "Penawaran dipilih",
+      "quoteSelectedDetail": "Permintaan maju ke Penawaran Dipilih",
+      "requestUpdated": "Permintaan diperbarui",
+      "viRecorded": "Invoice vendor dicatat"
+    }
+  },
+  "projectDetail": {
+    "backToProjects": "Proyek",
+    "documents": {
+      "action": {
+        "approve": "Setujui",
+        "close": "Tutup",
+        "delete": "Hapus",
+        "edit": "Edit",
+        "issue": "Terbitkan",
+        "reject": "Tolak",
+        "reopen": "Buka kembali untuk revisi",
+        "whyUnavailable": "Mengapa review tidak tersedia?"
+      },
+      "addDocument": "Tambah dokumen",
+      "column": {
+        "category": "Kategori",
+        "code": "Kode",
+        "date": "Tanggal",
+        "document": "Dokumen",
+        "file": "File",
+        "status": "Status"
+      },
+      "deleteConfirm": {
+        "body": "Ini menghapus entri register dokumen secara permanen. Tindakan ini tidak dapat dibatalkan.",
+        "confirm": "Hapus dokumen",
+        "titleFallback": "Hapus dokumen ini?"
+      },
+      "dismiss": "Tutup",
+      "download": "Download",
+      "emptySub": "Tambahkan gambar, spesifikasi, atau transmittal untuk memulai register dokumen proyek ini.",
+      "emptyTitle": "Belum ada dokumen",
+      "errorSub": "Permintaan gagal. Periksa koneksi Anda dan coba lagi.",
+      "errorTitle": "Gagal memuat dokumen",
+      "field": {
+        "category": "Kategori",
+        "code": "Kode",
+        "docDate": "Tanggal dokumen",
+        "file": "File",
+        "lineage": "Riwayat revisi",
+        "revision": "Revisi",
+        "status": "Status",
+        "supersededBy": "Digantikan oleh"
+      },
+      "fileValidationFailed": "Validasi file gagal",
+      "form": {
+        "category": "Kategori",
+        "code": "Kode",
+        "codeHelper": "Nomor dokumen atau kode gambar (opsional).",
+        "codePlaceholder": "mis. DWG-001",
+        "docDate": "Tanggal dokumen",
+        "editSubtitle": "Perbarui entri register ini",
+        "editTitle": "Edit dokumen",
+        "errors": {
+          "categoryRequired": "Kategori wajib diisi.",
+          "titleRequired": "Judul wajib diisi."
+        },
+        "legend": "Dokumen",
+        "newSubtitle": "Catat gambar, spesifikasi, atau transmittal. Upload file setelah baris Draf dibuat.",
+        "revision": "Revisi",
+        "revisionPlaceholder": "mis. A",
+        "save": "Simpan dokumen",
+        "title": "Judul",
+        "titlePlaceholder": "mis. Foundation general arrangement"
+      },
+      "heading": "Register dokumen",
+      "newRevision": "Revisi baru",
+      "newRevisionFor": "Buat revisi baru untuk",
+      "noSearchMatch": "Tidak ada dokumen yang cocok dengan pencarian",
+      "noSearchMatchSub": "Coba judul, kode, atau kategori lain.",
+      "ofWord": "dari",
+      "revLabel": "Rev",
+      "searchAriaLabel": "Cari dokumen",
+      "searchPlaceholder": "Cari dokumen…",
+      "sod": {
+        "drawerNotice": "Anda tidak dapat menyetujui dokumen Anda sendiri. Persetujuan adalah langkah pemisahan tugas, jadi reviewer lain yang harus menyetujui atau menolaknya.",
+        "explanation": "Menyetujui dokumen adalah langkah pemisahan tugas, jadi reviewer lain yang harus menyetujui atau menolaknya.",
+        "ownDocument": "Anda tidak dapat menyetujui dokumen Anda sendiri"
+      },
+      "subheading": "Gambar, spesifikasi, dan transmittal untuk proyek ini. Upload file pada baris Draf.",
+      "supersededNotice": "Hanya lihat — lanjutkan di Rev",
+      "toast": {
+        "added": "Dokumen ditambahkan",
+        "deleted": "Dokumen dihapus",
+        "revisionCreated": "Revisi dibuat",
+        "transitioned": "Dokumen",
+        "updated": "Dokumen diperbarui"
+      },
+      "transitionConfirm": {
+        "approved": "Menyetujui mencatat Anda sebagai reviewer. Ini langkah pemisahan tugas dan tercatat.",
+        "closed": "Menutup membuat dokumen final. Ini status akhir.",
+        "confirmFallback": "Perbarui status",
+        "issued": "Menerbitkan memindahkan dokumen ke tahap review sehingga reviewer dapat menyetujui atau menolaknya.",
+        "rejected": "Menolak mengembalikan dokumen untuk revisi. Tindakan ini tercatat.",
+        "titleFallback": "Perbarui status?"
+      },
+      "updateStatus": "Perbarui status",
+      "uploadAriaLabel": "Upload dokumen",
+      "verb": {
+        "approve": "Setujui dokumen",
+        "close": "Tutup dokumen",
+        "issue": "Terbitkan dokumen",
+        "reject": "Tolak dokumen",
+        "reopen": "Buka kembali untuk revisi"
+      },
+      "viewDocument": "Lihat",
+      "viewRevision": "Lihat revisi"
+    },
+    "gantt": {
+      "boardView": "Tampilan board",
+      "dependsOn": "bergantung pada",
+      "emptySub": "Tambahkan tanggal mulai/tenggat pada tugas atau tanggal target pada milestone untuk melihat timeline.",
+      "emptyTitle": "Belum ada pekerjaan bertanggal",
+      "listView": "Tampilan daftar",
+      "milestoneWord": "milestone",
+      "mobileSub": "Timeline paling baik dilihat di layar yang lebih lebar. Beralih ke tampilan yang sesuai perangkat Anda:",
+      "mobileTitle": "Buka di layar lebih besar",
+      "openTask": "Buka",
+      "scale": {
+        "day": "Hari",
+        "month": "Bulan",
+        "quarter": "Kuartal",
+        "week": "Minggu"
+      },
+      "targetWord": "target",
+      "taskColumn": "Tugas",
+      "taskTableAriaLabel": "Tabel tugas",
+      "today": "Hari ini",
+      "undated": "Tanpa tanggal",
+      "zoomAriaLabel": "Zoom timeline"
+    },
+    "header": {
+      "action": {
+        "archive": "Arsipkan",
+        "cancel": "Batal",
+        "delete": "Hapus",
+        "edit": "Edit",
+        "save": "Simpan"
+      },
+      "archiveConfirm": {
+        "body": "Proyek akan disembunyikan dari daftar proyek default. Referensi yang ada tetap utuh. Anda dapat memulihkannya nanti.",
+        "confirm": "Arsipkan proyek",
+        "title": "Arsipkan"
+      },
+      "contractValue": "Nilai kontrak",
+      "contractValueConfirm": {
+        "confirm": "Ubah dan catat",
+        "notice": "Mengubah nilai kontrak pada proyek yang menang adalah tindakan pemisahan tugas dan tercatat dengan nama Anda, tanggal, dan nilai sebelumnya.",
+        "title": "Ubah nilai kontrak?"
+      },
+      "deleteConfirm": {
+        "body": "Ini menghapus proyek beserta anggaran, tugas, dan dokumennya secara permanen. Tindakan ini tidak dapat dibatalkan, dan proyek dengan pengadaan atau jam tercatat tidak dapat dihapus. Arsipkan saja jika Anda hanya perlu menyembunyikannya.",
+        "confirm": "Hapus proyek",
+        "title": "Hapus"
+      },
+      "editContractValue": "Edit nilai kontrak",
+      "poPrefix": "PO",
+      "readOnly": "Hanya lihat",
+      "sodEditableNote": "Mengubah nilai pada proyek yang menang adalah tindakan pemisahan tugas dan tercatat.",
+      "sodLockedNote": "Setelah proyek menang, nilai kontrak terkunci untuk role Anda. Hanya Eksekutif atau Keuangan yang dapat mengubahnya, dan perubahan itu tercatat.",
+      "taxAmount": "Jumlah pajak",
+      "taxTreatment": "Perlakuan pajak",
+      "tile": {
+        "actual": "Realisasi",
+        "committed": "Komitmen",
+        "contract": "Kontrak",
+        "margin": "Margin saat ini",
+        "spend": "Pengeluaran"
+      },
+      "toast": {
+        "archived": "Proyek diarsipkan",
+        "contractValueUpdated": "Nilai kontrak diperbarui",
+        "deleted": "Proyek dihapus"
+      }
+    },
+    "milestoneForm": {
+      "create": "Buat milestone",
+      "detailsLegend": "Detail",
+      "editSubtitle": "Perbarui milestone ini",
+      "editTitle": "Edit milestone",
+      "errors": {
+        "nameRequired": "Nama milestone wajib diisi",
+        "progressRange": "Progres harus antara 0 dan 100",
+        "weight": "Bobot harus 0 atau lebih"
+      },
+      "inputPct": "% input PM (opsional)",
+      "inputPctPlaceholder": "Kosongkan untuk memakai nilai terhitung",
+      "name": "Nama milestone",
+      "namePlaceholder": "mis. Desain engineering",
+      "newSubtitle": "Tambahkan milestone pelaksanaan ke proyek ini",
+      "newTitle": "Milestone baru",
+      "save": "Simpan milestone",
+      "sortOrder": "Urutan",
+      "targetDate": "Tanggal target",
+      "weight": "Bobot"
+    },
+    "milestones": {
+      "addFirstPhase": "Tambah fase pertama",
+      "addMilestone": "Tambah milestone",
+      "cancel": "Batal",
+      "current": "Saat ini",
+      "deleteConfirm": {
+        "body": "Tugas di bawah milestone ini menjadi tanpa grup; tugas tidak dihapus.",
+        "confirm": "Hapus milestone",
+        "title": "Hapus",
+        "titleFallback": "Hapus milestone ini?"
+      },
+      "deleteMilestone": "Hapus milestone",
+      "edit": "Edit",
+      "editInputPct": "Edit % input PM",
+      "editMilestone": "Edit milestone",
+      "editProgressFor": "Edit progres untuk",
+      "emptyReadOnly": "Belum ada fase pelaksanaan",
+      "emptySub": "Tambahkan fase kunci proyek ini agar progres pelaksanaan dapat dihitung dari milestone tertimbang.",
+      "emptyTitle": "Rencanakan fase pelaksanaan proyek ini",
+      "errorSub": "Permintaan gagal. Periksa koneksi Anda dan coba lagi.",
+      "errorTitle": "Gagal memuat milestone",
+      "fallbackName": "Milestone",
+      "heading": "Fase pelaksanaan",
+      "moreActionsFor": "Tindakan lainnya untuk",
+      "planPhases": "Rencanakan fase pelaksanaan",
+      "prewinPlaceholder": "Perencanaan pelaksanaan dimulai setelah proyek ini menang",
+      "progressRangeError": "Progres harus antara 0 dan 100",
+      "rollupAriaLabel": "Pelaksanaan proyek",
+      "rollupLabel": "Pelaksanaan proyek",
+      "save": "Simpan",
+      "targetDate": "Target",
+      "toast": {
+        "created": "Milestone dibuat",
+        "deleted": "Milestone dihapus",
+        "progressUpdated": "Progres diperbarui",
+        "updated": "Milestone diperbarui"
+      },
+      "viewBlockingTasks": "Lihat tugas penghambat",
+      "weightShare": "dari proyek"
+    },
+    "notFound": {
+      "sub": "Proyek ini tidak ada atau Anda tidak memiliki akses. Gunakan Kembali ke Proyek untuk kembali.",
+      "title": "Proyek tidak ditemukan"
+    },
+    "overview": {
+      "budgetSnapshot": {
+        "activeBudget": "Anggaran aktif",
+        "actualSpent": "Realisasi pengeluaran",
+        "byCategory": "Per kategori",
+        "byCategoryLabel": "Anggaran per kategori",
+        "empty": {
+          "sub": "Aktifkan versi anggaran di tab Anggaran untuk melihat ringkasan di sini.",
+          "title": "Tidak ada anggaran aktif"
+        },
+        "error": "Gagal memuat anggaran",
+        "openBudgetTab": "Buka tab Anggaran",
+        "title": "Ringkasan anggaran",
+        "variance": "Selisih"
+      },
+      "budgetUtil": {
+        "atRisk": "Berisiko",
+        "barLabel": "Anggaran terkomitmen",
+        "budgetCommitted": "anggaran terkomitmen",
+        "error": "Gagal memuat anggaran",
+        "of": "dari",
+        "ofBudget": "dari anggaran",
+        "title": "Pemakaian anggaran"
+      },
+      "finance": {
+        "actual": "Realisasi",
+        "committed": "Komitmen",
+        "contract": "Kontrak",
+        "contractValue": "Nilai kontrak",
+        "lockedNote": "Setelah proyek menang, nilai kontrak terkunci untuk role Anda. Hanya Eksekutif atau Keuangan yang dapat mengubahnya, dan perubahan itu tercatat.",
+        "onHandMargin": "Margin saat ini",
+        "readOnly": "Hanya lihat",
+        "spend": "Pengeluaran",
+        "title": "Ringkasan keuangan"
+      },
+      "procSummary": {
+        "closed": "Ditutup",
+        "committedAcross": "terkomitmen di",
+        "completed": "Selesai",
+        "empty": {
+          "sub": "Permintaan yang diajukan untuk proyek ini akan muncul di sini.",
+          "title": "Belum ada permintaan pembelian untuk proyek ini"
+        },
+        "error": "Gagal memuat pengadaan",
+        "open": "Aktif",
+        "requestOne": "permintaan",
+        "requestOther": "permintaan",
+        "title": "Ringkasan pengadaan",
+        "viewAll": "Lihat semua pengadaan"
+      }
+    },
+    "pipeline": {
+      "advanceTo": "Lanjutkan ke",
+      "backToSalesPipeline": "← Kembali ke Pipeline Penjualan",
+      "cancel": "Batal",
+      "confirmWon": "Konfirmasi menang",
+      "contractDateLabel": "Tanggal kontrak",
+      "contractRefLabel": "Referensi kontrak klien",
+      "contractRefPlaceholder": "mis. CPO-2026-0042",
+      "dateRequired": "Tanggal kontrak wajib diisi",
+      "journeyAriaLabel": "Perjalanan tahap proyek",
+      "journeyHeading": "Perjalanan proyek",
+      "lostConfirm": {
+        "bodyPrefix": "Ini memindahkan",
+        "bodySuffix": "ke tahap kalah yang bersifat akhir. Anda masih dapat meninjaunya, tetapi proyek akan keluar dari pipeline aktif.",
+        "confirm": "Tandai kalah",
+        "title": "Tandai proyek kalah"
+      },
+      "lostNotice": "Proyek ini ditandai kalah. Proyek sudah keluar dari pipeline aktif.",
+      "markLost": "Tandai kalah",
+      "markWon": "Tandai menang",
+      "nextActionsHeading": "Tindakan berikutnya",
+      "notSet": "Belum diisi",
+      "pending": "Menunggu",
+      "readOnlyNotice": "Pipeline dikelola oleh pemilik proyek. Anda dapat meninjau tahap dan perjalanan proyek ini di sini; perubahan siklus dilakukan oleh manajer proyek.",
+      "readyToAdvance": "Siap dilanjutkan.",
+      "recordWonHeading": "Catat proyek yang menang",
+      "refRequired": "Referensi kontrak klien wajib diisi",
+      "stat": {
+        "decision": "Keputusan",
+        "owner": "Pemilik",
+        "value": "Nilai",
+        "weighted": "Tertimbang",
+        "winProbability": "Peluang menang"
+      },
+      "terminalNotice": "Proyek ini sudah mencapai tahap akhir. Tidak ada tindakan pipeline lagi.",
+      "toast": {
+        "movedTo": "Dipindahkan ke",
+        "updated": "Proyek diperbarui"
+      },
+      "transitionFailed": "Transisi gagal"
+    },
+    "procurement": {
+      "column": {
+        "lifecycle": "Siklus",
+        "request": "Permintaan",
+        "status": "Status",
+        "value": "Nilai"
+      },
+      "empty": {
+        "sub": "Permintaan yang diajukan untuk proyek ini akan muncul di sini sepanjang siklusnya.",
+        "title": "Belum ada permintaan pembelian untuk proyek ini"
+      },
+      "error": {
+        "sub": "Terjadi kesalahan saat mengambil permintaan pembelian proyek ini.",
+        "title": "Gagal memuat pengadaan"
+      },
+      "lifecycleLabel": "Siklus",
+      "newRequest": "Permintaan baru",
+      "openRow": "Buka",
+      "subtitle": "Permintaan yang diajukan untuk proyek ini, dilacak sepanjang siklusnya.",
+      "title": "Permintaan pembelian"
+    },
+    "rail": {
+      "actionsAriaLabel": "Tindakan panel proyek",
+      "ariaLabel": "Panel detail proyek",
+      "code": "Kode",
+      "customer": "Klien",
+      "customerPoRef": "Ref PO klien",
+      "detailsHeading": "Detail",
+      "notSet": "Belum diisi",
+      "projectManager": "Manajer proyek",
+      "recordHeading": "Data",
+      "recordHelp": "Pindahkan proyek melalui tahap pelaksanaannya dari sini. Edit tetap di menu header.",
+      "start": "Mulai",
+      "status": "Status",
+      "targetEnd": "Target selesai",
+      "unassigned": "Belum ditugaskan"
+    },
+    "scurve": {
+      "backfillCaveat": "Tanggal penyelesaian sebelum hari ini adalah estimasi; pelacakan langsung dimulai sekarang.",
+      "emptySub": "Tambahkan tanggal target pada fase pelaksanaan untuk melihat kurva rencana vs realisasi.",
+      "emptyTitle": "Belum ada milestone bertanggal",
+      "errorSub": "Permintaan gagal. Periksa koneksi Anda dan coba lagi.",
+      "errorTitle": "Gagal memuat kurva progres",
+      "heading": "Kurva progres",
+      "seriesActual": "Realisasi hingga kini",
+      "seriesPlanned": "Rencana",
+      "summaryByToday": "per hari ini.",
+      "summaryLead": "Kurva S proyek: realisasi hingga kini",
+      "summaryPlanClause": "rencana diperkirakan"
+    },
+    "tabs": {
+      "ariaLabel": "Bagian proyek",
+      "budget": "Anggaran",
+      "documents": "Dokumen",
+      "overview": "Ringkasan",
+      "procurement": "Pengadaan",
+      "tasks": "Tugas"
+    },
+    "tasks": {
+      "action": {
+        "archive": "Arsipkan",
+        "delete": "Hapus",
+        "edit": "Edit",
+        "unarchive": "Pulihkan"
+      },
+      "addTask": "Tambah tugas",
+      "board": {
+        "noTasks": "Tidak ada tugas"
+      },
+      "column": {
+        "assignee": "PIC",
+        "due": "Tenggat",
+        "status": "Status",
+        "task": "Tugas"
+      },
+      "deleteConfirm": {
+        "body": "Ini menghapus tugas dan semua tautan dependensinya secara permanen. Tindakan ini tidak dapat dibatalkan.",
+        "confirm": "Hapus tugas",
+        "titleFallback": "Hapus tugas ini?"
+      },
+      "emptySub": "Pecah proyek menjadi tugas, tugaskan ke tim, dan lacak masing-masing hingga Done.",
+      "emptyTitle": "Belum ada tugas",
+      "errorSub": "Permintaan gagal. Periksa koneksi Anda dan coba lagi.",
+      "errorTitle": "Gagal memuat tugas",
+      "fallbackName": "Tugas",
+      "form": {
+        "addDependency": "Tambah dependensi",
+        "assignee": "PIC",
+        "create": "Buat tugas",
+        "dependsOnLegend": "Bergantung pada",
+        "description": "Deskripsi",
+        "descriptionPlaceholder": "Tambahkan lingkup, catatan, atau kriteria penerimaan…",
+        "detailsLegend": "Detail",
+        "dueDate": "Tenggat",
+        "editSubtitle": "Perbarui tugas ini",
+        "editTitle": "Edit tugas",
+        "errors": {
+          "nameRequired": "Nama tugas wajib diisi."
+        },
+        "loadingPeople": "Memuat daftar orang…",
+        "milestone": "Milestone",
+        "name": "Nama tugas",
+        "namePlaceholder": "mis. Survei lokasi",
+        "newSubtitle": "Tambahkan tugas ke proyek ini",
+        "noDependencies": "Belum ada dependensi. Tambahkan tugas yang harus selesai lebih dulu.",
+        "noParent": "Tanpa induk (level atas)",
+        "parentTask": "Tugas induk",
+        "peopleLoadFailed": "Gagal memuat daftar orang; Anda tetap dapat menyimpan dan menugaskan nanti.",
+        "priority": "Prioritas",
+        "removeDependency": "Hapus dependensi",
+        "save": "Simpan tugas",
+        "searchMilestones": "Cari milestone…",
+        "searchPeople": "Cari orang…",
+        "searchTasks": "Cari tugas…",
+        "selectTask": "Pilih tugas…",
+        "startDate": "Tanggal mulai",
+        "status": "Status"
+      },
+      "heading": "Tugas",
+      "hideArchived": "Sembunyikan arsip",
+      "newTask": "Tugas baru",
+      "noMilestone": "Tanpa milestone",
+      "noPriority": "Tanpa prioritas",
+      "noTasksInGroup": "Tidak ada tugas di grup ini.",
+      "showArchived": "Tampilkan arsip",
+      "statusFor": "Status untuk",
+      "subheading": "Rencanakan, tugaskan, dan lacak pekerjaan proyek ini.",
+      "subtaskLevel": "Subtugas, level",
+      "toast": {
+        "archived": "Tugas diarsipkan",
+        "created": "Tugas dibuat",
+        "deleted": "Tugas dihapus",
+        "isNow": "sekarang",
+        "restored": "Tugas dipulihkan",
+        "statusUpdated": "Status diperbarui",
+        "updated": "Tugas diperbarui"
+      },
+      "unassigned": "Belum ditugaskan",
+      "ungrouped": "Tanpa grup",
+      "view": {
+        "board": "Board",
+        "list": "Daftar",
+        "timeline": "Timeline"
+      },
+      "viewAriaLabel": "Tampilan tugas"
+    },
+    "toast": {
+      "projectUpdated": "Proyek diperbarui"
+    }
+  },
+  "projects": {
+    "actions": {
+      "archive": "Arsipkan",
+      "edit": "Edit",
+      "new": "Proyek baru"
+    },
+    "atRiskPill": "Berisiko",
+    "columns": {
+      "action": "Tindakan",
+      "actual": "Realisasi",
+      "budgetUsed": "Anggaran terpakai",
+      "contract": "Kontrak",
+      "customer": "Klien",
+      "pm": "PM",
+      "progress": "Progres",
+      "project": "Proyek",
+      "status": "Status"
+    },
+    "confirm": {
+      "archiveConfirm": "Arsipkan proyek",
+      "archiveDescription": "Proyek akan disembunyikan dari daftar proyek default. Referensi yang ada tetap utuh. Anda dapat memulihkannya nanti.",
+      "archiveTitle": "Arsipkan proyek ini?"
+    },
+    "description": "Pantau proyek yang berjalan dan yang selesai. Buka satu proyek untuk melihat anggaran, pengadaan, dan detailnya. Proyek yang belum menang ada di Pipeline.",
+    "empty": {
+      "clearFilters": "Hapus filter",
+      "noMatchSub": "Coba status, klien, PM, atau kata kunci lain.",
+      "noMatchTitle": "Tidak ada proyek yang cocok dengan filter",
+      "nothingAtRiskSub": "Semua proyek aktif masih di bawah 90% anggaran — tidak ada yang perlu perhatian saat ini.",
+      "nothingAtRiskTitle": "Tidak ada yang berisiko"
+    },
+    "filters": {
+      "all": "Semua",
+      "allCustomers": "Semua klien",
+      "allManagers": "Semua manajer",
+      "ariaLabel": "Filter status",
+      "atRisk": "Berisiko",
+      "completed": "Selesai",
+      "customerLabel": "Filter berdasarkan klien",
+      "myProjects": "Proyek Saya",
+      "ongoing": "Berjalan",
+      "pmLabel": "Filter berdasarkan manajer proyek"
+    },
+    "importBudgets": "Impor anggaran",
+    "noPhasesYet": "Belum ada fase",
+    "search": {
+      "ariaLabel": "Cari proyek",
+      "placeholder": "Cari proyek…"
+    },
+    "states": {
+      "emptySub": "Proyek yang Anda buat atau menangkan akan muncul di sini.",
+      "emptyTitle": "Belum ada proyek",
+      "errorSub": "Terjadi kesalahan saat mengambil proyek Anda.",
+      "errorTitle": "Gagal memuat proyek"
+    },
+    "title": "Proyek",
+    "toast": {
+      "archived": "Proyek diarsipkan",
+      "created": "Proyek dibuat",
+      "updated": "Proyek diperbarui"
+    },
+    "unassigned": "Belum ditugaskan",
+    "view": {
+      "ariaLabel": "Tampilan proyek",
+      "board": "Board",
+      "calendar": "Kalender",
+      "cards": "Kartu",
+      "table": "Tabel"
+    }
+  },
+  "sales": {
+    "accessDenied": {
+      "sub": "Pipeline Penjualan tersedia untuk manajer dan keuangan. Pekerjaan Anda ada di dashboard, proyek, dan tugas Anda.",
+      "title": "Anda tidak memiliki akses ke Pipeline Penjualan"
+    },
+    "column": {
+      "customer": "Klien",
+      "lastTouch": "Aktivitas terakhir",
+      "owner": "Pemilik",
+      "project": "Proyek",
+      "stage": "Tahap",
+      "value": "Nilai",
+      "weighted": "Tertimbang",
+      "winPct": "% menang"
+    },
+    "description": "Pantau proyek di pipeline penjualan dan proyeksikan pendapatan.",
+    "empty": {
+      "sub": "Tambahkan proyek untuk mulai memantau pipeline.",
+      "title": "Belum ada proyek"
+    },
+    "error": {
+      "sub": "Terjadi kesalahan saat mengambil pipeline Anda.",
+      "title": "Gagal memuat pipeline penjualan"
+    },
+    "funnel": {
+      "weightedSuffix": "tertimbang"
+    },
+    "lastTouch": {
+      "daysAgo": "hari lalu",
+      "oneDayAgo": "1 hari lalu",
+      "stalePrefix": "Tidak tersentuh selama",
+      "staleSuffix": "hari — perlu perhatian",
+      "today": "hari ini"
+    },
+    "lastTouchUnavailable": "Aktivitas terakhir tidak tersedia",
+    "lostError": {
+      "sub": "Terjadi kesalahan saat mengambil proyek yang kalah.",
+      "title": "Gagal memuat proyek yang kalah"
+    },
+    "newProject": "Proyek baru",
+    "openRow": "Buka",
+    "ownerUnavailable": "Pemilik tidak tersedia",
+    "scope": {
+      "lost": "Kalah",
+      "needsAttention": "Perlu perhatian",
+      "open": "Aktif"
+    },
+    "scopeToggleLabel": "Cakupan proyek",
+    "search": {
+      "label": "Cari proyek",
+      "placeholder": "Cari proyek…"
+    },
+    "summaryLabel": "Ringkasan pipeline",
+    "tableEmpty": {
+      "lost": {
+        "sub": "Proyek yang ditandai kalah akan muncul di sini.",
+        "title": "Tidak ada proyek yang kalah"
+      },
+      "needsAttention": {
+        "subPrefix": "Tidak ada proyek yang tak tersentuh selama",
+        "subSuffix": "+ hari — pipeline aktif.",
+        "title": "Tidak ada proyek yang perlu perhatian"
+      },
+      "search": {
+        "sub": "Coba nama atau klien lain.",
+        "title": "Tidak ada proyek yang cocok dengan pencarian"
+      }
+    },
+    "title": "Pipeline",
+    "toast": {
+      "projectCreated": "Proyek dibuat"
+    },
+    "view": {
+      "board": "Board",
+      "table": "Tabel"
+    },
+    "viewToggleLabel": "Tampilan pipeline",
+    "weightedForecast": "Proyeksi pipeline tertimbang",
+    "winProbability": "Peluang menang"
+  },
+  "shell": {
+    "breadcrumb": {
+      "label": "Breadcrumb"
+    },
+    "contextBar": {
+      "accountMenu": "Menu akun",
+      "help": "Bantuan",
+      "helpWhatsApp": "Hubungi dukungan via WhatsApp",
+      "legalAndSupport": "Legal & dukungan",
+      "openCommandPalette": "Buka palet perintah",
+      "openNavigation": "Buka menu navigasi",
+      "privacy": "Privasi",
+      "searchPlaceholder": "Cari atau lompat ke…",
+      "signOut": "Keluar",
+      "terms": "Ketentuan",
+      "viewAsRoleHeading": "Lihat sebagai role",
+      "viewAsRoleInline": "Lihat sebagai role:"
+    },
+    "drawer": {
+      "close": "Tutup menu navigasi",
+      "navigationMenu": "Menu navigasi"
+    },
+    "nav": {
+      "administration": "Administrasi",
+      "approvals": "Persetujuan",
+      "companies": "Perusahaan",
+      "contacts": "Kontak",
+      "dashboard": "Dashboard",
+      "incidents": "Insiden",
+      "incomingPayments": "Pembayaran Masuk",
+      "integrations": "Integrasi",
+      "myTasks": "Tugas Saya",
+      "procurement": "Pengadaan",
+      "projects": "Proyek",
+      "revenueByProject": "Pendapatan per Proyek",
+      "sales": "Pipeline Penjualan",
+      "salesInvoices": "Invoice Penjualan",
+      "timesheets": "Timesheet"
+    },
+    "notifications": {
+      "empty": "Belum ada notifikasi.",
+      "inboxHeading": "Kotak masuk notifikasi",
+      "listLabel": "Notifikasi",
+      "loadError": "Gagal memuat notifikasi. Coba lagi sebentar lagi.",
+      "loading": "Memuat notifikasi…",
+      "noneUnread": "Tidak ada notifikasi yang belum dibaca",
+      "read": "Dibaca",
+      "unread": "Belum dibaca"
+    },
+    "palette": {
+      "askAiSub": "Buka asisten dengan draf ini",
+      "dialogLabel": "Palet perintah",
+      "inputLabel": "Cari proyek, data, atau jalankan perintah",
+      "inputPlaceholder": "Cari proyek, PR, klien, atau jalankan perintah…",
+      "recordsError": "Gagal memuat data.",
+      "recordsGroup": "Data",
+      "resultsLabel": "Hasil perintah",
+      "retry": "Coba lagi"
+    },
+    "rail": {
+      "assistant": "Asisten",
+      "group": {
+        "crm": "CRM",
+        "delivery": "Pelaksanaan",
+        "finance": "Keuangan",
+        "overview": "Ringkasan",
+        "workforce": "SDM"
+      },
+      "myViews": "Tampilan Saya",
+      "primaryNavigation": "Navigasi utama"
+    },
+    "skipLink": {
+      "mainContent": "Langsung ke konten utama"
+    },
+    "themeToggle": {
+      "switchToDark": "Ganti ke tema gelap",
+      "switchToLight": "Ganti ke tema terang"
+    }
+  },
+  "task": {
+    "status": {
+      "blocked": "Blocked",
+      "done": "Done",
+      "inProgress": "In Progress",
+      "toDo": "To Do"
+    }
+  },
+  "timesheets": {
+    "accessDenied": {
+      "sub": "Timesheet dan persetujuan adalah bagian dari area SDM. Pekerjaan keuangan ada di dashboard, proyek, dan pengadaan Anda.",
+      "title": "Anda tidak memiliki akses ke Timesheet"
+    },
+    "addAProject": "Tambahkan proyek",
+    "addProject": "Tambah proyek",
+    "approvalsLink": "Persetujuan",
+    "deleteRow": {
+      "confirmLabel": "Hapus baris",
+      "descriptionPrefix": "Ini akan menghapus",
+      "descriptionSuffix": "beserta semua jamnya dari minggu ini. Anda dapat menambahkannya kembali, tetapi jam yang sudah diisi tidak akan dipulihkan.",
+      "title": "Hapus baris proyek ini?"
+    },
+    "empty": {
+      "sub": "Tambahkan proyek untuk mulai mencatat jam, atau gunakan kontrol minggu untuk mencari minggu lain.",
+      "title": "Belum ada jam tercatat minggu ini"
+    },
+    "emptyEdit": {
+      "sub": "Gunakan “Tambahkan proyek” di atas untuk mulai mencatat jam.",
+      "title": "Belum ada jam tercatat minggu ini"
+    },
+    "enterHoursToSubmit": "Isi jam untuk mengajukan",
+    "error": {
+      "sub": "Terjadi kesalahan saat mengambil jam Anda.",
+      "title": "Gagal memuat timesheet"
+    },
+    "hoursThisWeek": "jam minggu ini",
+    "nextWeek": "Minggu berikutnya",
+    "picker": {
+      "none": "Tidak ada proyek untuk ditambahkan",
+      "select": "Pilih proyek…"
+    },
+    "previousWeek": "Minggu sebelumnya",
+    "returned": {
+      "revise": "Revisi minggu ini",
+      "sub": "Atasan Anda mengembalikannya. Periksa hari yang ditandai, perbaiki, lalu ajukan ulang.",
+      "title": "Minggu ini dikembalikan untuk diperbaiki"
+    },
+    "reviewPrefix": "Tinjau",
+    "reviewSuffix": "yang menunggu",
+    "save": "Simpan",
+    "status": {
+      "draftNotSubmitted": "Draf — belum diajukan"
+    },
+    "submit": "Ajukan timesheet",
+    "submitConfirm": {
+      "confirmLabel": "Ajukan timesheet",
+      "description": "Ini mengirim seluruh minggu ke atasan Anda. Anda tidak dapat mengubahnya lagi sampai dikembalikan.",
+      "title": "Ajukan minggu ini untuk persetujuan?"
+    },
+    "subtitle": ". Isi jam per proyek per hari, lalu ajukan seluruh minggu untuk disetujui atasan Anda.",
+    "title": "Timesheet",
+    "toast": {
+      "deleteFailed": "Gagal menghapus",
+      "reopened": {
+        "detail": "Minggu dikembalikan ke Draf — lakukan perubahan lalu ajukan ulang.",
+        "headline": "Dibuka kembali untuk diedit"
+      },
+      "rowDeleted": {
+        "detail": "Proyek dihapus dari minggu ini",
+        "headline": "Baris dihapus"
+      },
+      "saveFailed": "Gagal menyimpan",
+      "submitted": {
+        "detail": "Dikirim ke atasan Anda untuk disetujui",
+        "headline": "Timesheet diajukan"
+      }
+    },
+    "unknownProject": "Proyek tidak diketahui",
+    "weekOf": "Minggu"
+  }
+}
