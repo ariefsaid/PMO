@@ -4,6 +4,7 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from '@/src/lib/queryClient';
 import { LoadingFallback } from './components/LoadingFallback';
 import { AuthProvider } from '@/src/auth/AuthProvider';
+import { I18nProvider } from '@/src/lib/i18n/I18nProvider';
 import { RequireAuth } from '@/src/auth/RequireAuth';
 import { RequireInviteAccepted } from '@/src/auth/RequireInviteAccepted';
 import { AnalyticsProvider } from '@/src/lib/analytics';
@@ -443,22 +444,26 @@ const App: React.FC = () => (
     <EnvBadge />
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <BrowserRouter>
-          <AnalyticsProvider>
-            <Routes>
-              <Route path="/login" element={<LoginPage />} />
-              <Route path="/terms" element={<TermsPage />} />
-              <Route path="/privacy" element={<PrivacyPage />} />
-              <Route path="/reset-password" element={<ResetPasswordPage />} />
-              <Route path="/update-password" element={<UpdatePasswordPage />} />
-              <Route element={<RequireAuth />}>
-                <Route element={<RequireInviteAccepted />}>
-                  <Route path="/*" element={<Shell />} />
+        {/* Locale resolution + i18next. Below AuthProvider because it needs the profile; above
+            BrowserRouter because every string-rendering subtree sits under it (FR-L10N-003). */}
+        <I18nProvider>
+          <BrowserRouter>
+            <AnalyticsProvider>
+              <Routes>
+                <Route path="/login" element={<LoginPage />} />
+                <Route path="/terms" element={<TermsPage />} />
+                <Route path="/privacy" element={<PrivacyPage />} />
+                <Route path="/reset-password" element={<ResetPasswordPage />} />
+                <Route path="/update-password" element={<UpdatePasswordPage />} />
+                <Route element={<RequireAuth />}>
+                  <Route element={<RequireInviteAccepted />}>
+                    <Route path="/*" element={<Shell />} />
+                  </Route>
                 </Route>
-              </Route>
-            </Routes>
-          </AnalyticsProvider>
-        </BrowserRouter>
+              </Routes>
+            </AnalyticsProvider>
+          </BrowserRouter>
+        </I18nProvider>
       </AuthProvider>
     </QueryClientProvider>
   </>

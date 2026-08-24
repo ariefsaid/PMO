@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { StatusPill } from '@/src/components/ui';
 import { formatDate } from '@/src/lib/format';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
@@ -25,19 +26,24 @@ const DetailRow: React.FC<{ label: string; value: React.ReactNode }> = ({ label,
 );
 
 const ProjectDetailRail: React.FC<ProjectDetailRailProps> = ({ project, showActionSection = true }) => {
+  const { t } = useTranslation();
+  const notSet = t('projectDetail.rail.notSet', 'Not set');
   return (
     <aside
       data-testid="project-detail-rail"
-      aria-label="Project details rail"
+      aria-label={t('projectDetail.rail.ariaLabel', 'Project details rail')}
       className="min-w-0 lg:sticky lg:top-4"
     >
       <div className="space-y-8 border-t border-border/70 pt-4 lg:border-t-0 lg:pt-0">
         {showActionSection && (
-          <section aria-label="Project rail actions">
-            <RailSectionLabel>Record</RailSectionLabel>
+          <section aria-label={t('projectDetail.rail.actionsAriaLabel', 'Project rail actions')}>
+            <RailSectionLabel>{t('projectDetail.rail.recordHeading', 'Record')}</RailSectionLabel>
             <div className="space-y-3">
               <p className="text-sm leading-6 text-muted-foreground">
-                Move the project through its delivery stages from here. Edit stays in the header menu.
+                {t(
+                  'projectDetail.rail.recordHelp',
+                  'Move the project through its delivery stages from here. Edit stays in the header menu.',
+                )}
               </p>
               <ProjectStatusControl
                 project={project}
@@ -50,13 +56,16 @@ const ProjectDetailRail: React.FC<ProjectDetailRailProps> = ({ project, showActi
 
         <section aria-labelledby="project-details-heading">
           <RailSectionLabel>
-            <span id="project-details-heading">Details</span>
+            <span id="project-details-heading">{t('projectDetail.rail.detailsHeading', 'Details')}</span>
           </RailSectionLabel>
           <dl className="divide-y divide-border/70 border-y border-border/70">
-            <DetailRow label="Customer" value={project.client?.name ?? 'Not set'} />
-            <DetailRow label="Project manager" value={project.pm?.full_name ?? 'Unassigned'} />
+            <DetailRow label={t('projectDetail.rail.customer', 'Customer')} value={project.client?.name ?? notSet} />
             <DetailRow
-              label="Status"
+              label={t('projectDetail.rail.projectManager', 'Project manager')}
+              value={project.pm?.full_name ?? t('projectDetail.rail.unassigned', 'Unassigned')}
+            />
+            <DetailRow
+              label={t('projectDetail.rail.status', 'Status')}
               value={
                 <span className="inline-flex justify-end">
                   <StatusPill variant={pillVariantForProjectStatus(project.status as never)}>
@@ -65,19 +74,19 @@ const ProjectDetailRail: React.FC<ProjectDetailRailProps> = ({ project, showActi
                 </span>
               }
             />
-            <DetailRow label="Start" value={formatDate(project.start_date)} />
-            <DetailRow label="Target end" value={formatDate(project.end_date)} />
+            <DetailRow label={t('projectDetail.rail.start', 'Start')} value={formatDate(project.start_date)} />
+            <DetailRow label={t('projectDetail.rail.targetEnd', 'Target end')} value={formatDate(project.end_date)} />
             <DetailRow
-              label="Code"
-              value={project.code ? <span className="font-mono text-[13px]">{project.code}</span> : 'Not set'}
+              label={t('projectDetail.rail.code', 'Code')}
+              value={project.code ? <span className="font-mono text-[13px]">{project.code}</span> : notSet}
             />
             <DetailRow
-              label="Customer PO ref"
+              label={t('projectDetail.rail.customerPoRef', 'Customer PO ref')}
               value={
                 project.customer_contract_ref ? (
                   <span className="font-mono text-[13px]">{project.customer_contract_ref}</span>
                 ) : (
-                  'Not set'
+                  notSet
                 )
               }
             />

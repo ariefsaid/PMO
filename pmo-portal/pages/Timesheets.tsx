@@ -16,6 +16,7 @@ import {
   type TimesheetGridRow,
 } from '@/src/components/ui';
 import { Link, useNavigate, useSearchParams } from 'react-router';
+import { useTranslation } from 'react-i18next';
 import { usePermission } from '@/src/auth/usePermission';
 import { TimesheetStatus } from '../types';
 import { useTimesheets } from '@/src/hooks/useTimesheets';
@@ -61,6 +62,7 @@ const formatDate = (date: Date): string => {
 // Freed-Blue Status Rule), Approved = green `won`, Rejected = red `lost`.
 
 const TimesheetsPage: React.FC = () => {
+  const { t } = useTranslation();
   const { data: sheets, isPending, isError, refetch } = useTimesheets();
   const { submit, reopen } = useTimesheetMutations();
   const { currentUser } = useAuth();
@@ -133,7 +135,7 @@ const TimesheetsPage: React.FC = () => {
         row = {
           id: key,
           projectId: `${e.project_id}`,
-          project: e.project?.name ?? 'Unknown Project',
+          project: e.project?.name ?? t('timesheets.unknownProject', 'Unknown Project'),
           code: e.project?.code ?? null,
           hours: [0, 0, 0, 0, 0, 0, 0],
         };
@@ -143,7 +145,7 @@ const TimesheetsPage: React.FC = () => {
       if (dayIdx >= 0) row.hours[dayIdx] += e.hours;
     }
     return Array.from(map.values()).sort((a, b) => a.project.localeCompare(b.project));
-  }, [currentWeekEntries, weekDates]);
+  }, [currentWeekEntries, weekDates, t]);
 
   const gridDays = useMemo<TimesheetDay[]>(
     () =>
@@ -376,13 +378,17 @@ const TimesheetsPage: React.FC = () => {
     deleteRow.mutate(
       { entryIds: persistedEntryIds },
       {
-        onSuccess: () => toast('Row deleted', 'Removed this project from the week', 'success'),
+        onSuccess: () => toast(
+            t('timesheets.toast.rowDeleted.headline', 'Row deleted'),
+            t('timesheets.toast.rowDeleted.detail', 'Removed this project from the week'),
+            'success',
+          ),
         onError: (err) => {
           // Restore the removed row so the user's data is not silently lost.
           if (removedRow) {
             setEditRows((rows) => [...rows, removedRow]);
           }
-          toast('Delete failed', err.message, 'warning');
+          toast(t('timesheets.toast.deleteFailed', 'Delete failed'), err.message, 'warning');
         },
       }
     );
@@ -408,7 +414,8 @@ const TimesheetsPage: React.FC = () => {
       {
         // Quiet success toast; the user stays on the editable grid (no view/navigation change).
         onSuccess: () => toast(...saveToastForChangeCount(changeCount)),
-        onError: (err: { message: string }) => toast('Save failed', err.message, 'warning'),
+        onError: (err: { message: string }) =>
+          toast(t('timesheets.toast.saveFailed', 'Save failed'), err.message, 'warning'),
       }
     );
   };
@@ -487,7 +494,11 @@ const TimesheetsPage: React.FC = () => {
         // Auto-save failed — don't attempt the submit; surface the error.
         submittingRef.current = false;
         setConfirmSubmit(false);
-        toast('Save failed', err instanceof Error ? err.message : undefined, 'warning');
+        toast(
+          t('timesheets.toast.saveFailed', 'Save failed'),
+          err instanceof Error ? err.message : undefined,
+          'warning',
+        );
         return;
       }
     }
@@ -505,7 +516,11 @@ const TimesheetsPage: React.FC = () => {
         onSuccess: () => {
           submittingRef.current = false;
           setConfirmSubmit(false);
-          toast('Timesheet submitted', 'Sent to your line manager for approval', 'success');
+          toast(
+            t('timesheets.toast.submitted.headline', 'Timesheet submitted'),
+            t('timesheets.toast.submitted.detail', 'Sent to your line manager for approval'),
+            'success',
+          );
         },
         onError: (err: unknown) => {
           submittingRef.current = false;
@@ -524,9 +539,12 @@ const TimesheetsPage: React.FC = () => {
     <ConfirmDialog
       open
       tone="default"
-      title="Submit this week for approval?"
-      description="This sends the whole week to your line manager. You can't edit it again until it's returned."
-      confirmLabel="Submit timesheet"
+      title={t('timesheets.submitConfirm.title', 'Submit this week for approval?')}
+      description={t(
+        'timesheets.submitConfirm.description',
+        "This sends the whole week to your line manager. You can't edit it again until it's returned.",
+      )}
+      confirmLabel={t('timesheets.submitConfirm.confirmLabel', 'Submit timesheet')}
       loading={submit.isPending || saveWeek.isPending}
       onCancel={() => setConfirmSubmit(false)}
       onConfirm={() => void commitSubmit()}
@@ -538,8 +556,11 @@ const TimesheetsPage: React.FC = () => {
   if (!canEnterTimesheet) {
     return (
       <AccessDenied
-        title="You don't have access to Timesheets"
-        sub="Timesheets and approvals are part of the workforce surface. Finance work lives on your dashboard, projects, and procurement."
+        title={t('timesheets.accessDenied.title', "You don't have access to Timesheets")}
+        sub={t(
+          'timesheets.accessDenied.sub',
+          'Timesheets and approvals are part of the workforce surface. Finance work lives on your dashboard, projects, and procurement.',
+        )}
         onBack={() => navigate('/')}
       />
     );
@@ -550,10 +571,15 @@ const TimesheetsPage: React.FC = () => {
     <>
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-[24px] font-bold tracking-[-0.02em]">Timesheets</h1>
+          <h1 className="text-[24px] font-bold tracking-[-0.02em]">
+            {t('timesheets.title', 'Timesheets')}
+          </h1>
           <p className="mt-0.5 max-w-[72ch] text-sm text-muted-foreground">
-            Week of {weekRangeLabel}. Enter hours per project per day, then submit the whole week for
-            your line manager to approve.
+            {t('timesheets.weekOf', 'Week of')} {weekRangeLabel}
+            {t(
+              'timesheets.subtitle',
+              '. Enter hours per project per day, then submit the whole week for your line manager to approve.',
+            )}
           </p>
         </div>
       </div>
@@ -571,7 +597,9 @@ const TimesheetsPage: React.FC = () => {
             className="touch-target inline-flex h-8 items-center gap-1.5 rounded-md border border-input bg-background px-2.5 text-[13px] font-medium text-foreground transition-colors hover:bg-accent"
           >
             <Icon name="check" aria-hidden />
-            {pendingCount > 0 ? `Review ${pendingCount} awaiting` : 'Approvals'}
+            {pendingCount > 0
+              ? `${t('timesheets.reviewPrefix', 'Review')} ${pendingCount} ${t('timesheets.reviewSuffix', 'awaiting')}`
+              : t('timesheets.approvalsLink', 'Approvals')}
             <Icon name="chev" aria-hidden />
           </Link>
         )}
@@ -579,15 +607,15 @@ const TimesheetsPage: React.FC = () => {
           <Button
             variant="outline"
             size="icon"
-            aria-label="Previous week"
+            aria-label={t('timesheets.previousWeek', 'Previous week')}
             onClick={() => stepWeek(-1)}
           >
             <Icon name="back" />
           </Button>
           <span className="px-2 text-[13px] font-medium tabular text-muted-foreground">
-            Week of {formatMonthDay(weekStartDate)}
+            {t('timesheets.weekOf', 'Week of')} {formatMonthDay(weekStartDate)}
           </span>
-          <Button variant="outline" size="icon" aria-label="Next week" onClick={() => stepWeek(1)}>
+          <Button variant="outline" size="icon" aria-label={t('timesheets.nextWeek', 'Next week')} onClick={() => stepWeek(1)}>
             <Icon name="chev" />
           </Button>
         </span>
@@ -613,8 +641,8 @@ const TimesheetsPage: React.FC = () => {
         {head}
         <ListState
           variant="error"
-          title="Couldn't load timesheets"
-          sub="Something went wrong fetching your hours."
+          title={t('timesheets.error.title', "Couldn't load timesheets")}
+          sub={t('timesheets.error.sub', 'Something went wrong fetching your hours.')}
           onRetry={() => refetch()}
         />
       </div>
@@ -632,7 +660,14 @@ const TimesheetsPage: React.FC = () => {
     reopen.mutate(
       { id: currentTimesheet.id },
       {
-        onSuccess: () => toast('Reopened for editing', 'Week moved back to Draft — make your changes and resubmit.', 'success'),
+        onSuccess: () => toast(
+            t('timesheets.toast.reopened.headline', 'Reopened for editing'),
+            t(
+              'timesheets.toast.reopened.detail',
+              'Week moved back to Draft — make your changes and resubmit.',
+            ),
+            'success',
+          ),
         onError: (err: unknown) => {
           const { headline, detail } = classifyMutationError(err);
           toast(headline, detail, 'warning');
@@ -648,16 +683,29 @@ const TimesheetsPage: React.FC = () => {
       {/* Returned-for-changes is an expected, recoverable state (role=status). */}
       {returned && (
         <ErrBanner
-          title="This week was returned for changes"
-          sub="Your line manager sent it back. Review the flagged days, correct them, and resubmit."
-          action={canRevise ? { label: 'Revise this week', onClick: commitReopen, disabled: reopen.isPending } : undefined}
+          title={t('timesheets.returned.title', 'This week was returned for changes')}
+          sub={t(
+            'timesheets.returned.sub',
+            'Your line manager sent it back. Review the flagged days, correct them, and resubmit.',
+          )}
+          action={
+            canRevise
+              ? {
+                  label: t('timesheets.returned.revise', 'Revise this week'),
+                  onClick: commitReopen,
+                  disabled: reopen.isPending,
+                }
+              : undefined
+          }
         />
       )}
 
       <Card clip>
         <div className="flex flex-wrap items-center gap-2 border-b border-border px-3.5 py-2.5">
           <StatusPill variant={status ? workflowVariant(status) : 'neutral'}>
-            {status === TimesheetStatus.Draft || !status ? 'Draft — not submitted' : status}
+            {status === TimesheetStatus.Draft || !status
+              ? t('timesheets.status.draftNotSubmitted', 'Draft — not submitted')
+              : status}
           </StatusPill>
           {/* ⚑ I-16/I-17 (rendered Discover pass, 2026-07-22) — the OWNER'S view of their own ERP
               push. `timesheet_erp_mirror_select` RLS deliberately grants the sheet's owner this read,
@@ -669,7 +717,7 @@ const TimesheetsPage: React.FC = () => {
           {editable && (
             <div className="inline-flex min-w-0 max-w-full items-center gap-1.5 text-[13px] font-medium text-muted-foreground">
               <Icon name="plus" aria-hidden />
-              <span>Add project</span>
+              <span>{t('timesheets.addProject', 'Add project')}</span>
               {/* max-w cap + min-w-0: the closed picker only shows the short placeholder,
                   so capping its width is safe; options still show in full. Use the shared
                   DS SelectField so dark mode keeps the tokened field shell. */}
@@ -677,14 +725,18 @@ const TimesheetsPage: React.FC = () => {
                 <SelectField
                   id="ts-add-project"
                   hideLabel
-                  label="Add a project"
+                  label={t('timesheets.addAProject', 'Add a project')}
                   value=""
                   onChange={(value) => {
                     if (value) addProject(value);
                   }}
                   disabled={pickerOptions.length === 0}
                   options={pickerOptions.map((p) => ({ value: p.id, label: p.name }))}
-                  placeholder={pickerOptions.length === 0 ? 'No projects to add' : 'Select a project…'}
+                  placeholder={
+                    pickerOptions.length === 0
+                      ? t('timesheets.picker.none', 'No projects to add')
+                      : t('timesheets.picker.select', 'Select a project…')
+                  }
                   className="touch-target min-w-0 max-w-[160px] text-[13px]"
                 />
               </div>
@@ -695,16 +747,18 @@ const TimesheetsPage: React.FC = () => {
             className="ml-auto text-[13px] tabular text-muted-foreground"
           >
             {(editable ? editTotals.weekly : weeklyTotal).toFixed(1)}{' '}
-            h this week
+            {t('timesheets.hoursThisWeek', 'h this week')}
           </span>
         </div>
 
         {editable ? (
           editGridRows.length === 0 ? (
             <div data-testid="timesheets-empty" className="px-3.5 py-8 text-center">
-              <p className="text-sm font-medium text-foreground">No hours logged this week</p>
+              <p className="text-sm font-medium text-foreground">
+                {t('timesheets.emptyEdit.title', 'No hours logged this week')}
+              </p>
               <p className="mt-1 text-[13px] text-muted-foreground">
-                Use “Add a project” above to start logging hours.
+                {t('timesheets.emptyEdit.sub', 'Use “Add a project” above to start logging hours.')}
               </p>
             </div>
           ) : (
@@ -725,8 +779,11 @@ const TimesheetsPage: React.FC = () => {
             <ListState
               variant="empty"
               icon="clock"
-              title="No hours logged this week"
-              sub="Add a project to start logging hours, or use the week controls to find another week."
+              title={t('timesheets.empty.title', 'No hours logged this week')}
+              sub={t(
+                'timesheets.empty.sub',
+                'Add a project to start logging hours, or use the week controls to find another week.',
+              )}
             />
           </div>
         ) : (
@@ -742,7 +799,7 @@ const TimesheetsPage: React.FC = () => {
             {/* OD-W3-1: now that Submit auto-saves, the message is "enter hours" not "save first". */}
             {!canSubmit && (
               <span className="mr-auto text-[13px] text-muted-foreground">
-                Enter hours to submit
+                {t('timesheets.enterHoursToSubmit', 'Enter hours to submit')}
               </span>
             )}
             {/* Save = secondary (outline): a routine reversible write, single-click + quiet toast. */}
@@ -753,7 +810,7 @@ const TimesheetsPage: React.FC = () => {
               loading={saveWeek.isPending}
             >
               <Icon name="check" />
-              Save
+              {t('timesheets.save', 'Save')}
             </Button>
             {/* Submit = primary, co-located. Shown from first paint; disabled until a Draft with
                 persisted hours exists (T14). Opens a confirm before the state-lock. */}
@@ -764,7 +821,7 @@ const TimesheetsPage: React.FC = () => {
               loading={submit.isPending}
             >
               <Icon name="check" />
-              Submit timesheet
+              {t('timesheets.submit', 'Submit timesheet')}
             </Button>
           </div>
         )}
@@ -780,14 +837,18 @@ const TimesheetsPage: React.FC = () => {
         <ConfirmDialog
           open
           tone="destructive"
-          title="Delete this project row?"
+          title={t('timesheets.deleteRow.title', 'Delete this project row?')}
           description={
             <>
-              This removes <strong>{rowToDelete.project}</strong> and all its hours from this week.
-              You can add it back, but the entered hours won&rsquo;t be restored.
+              {t('timesheets.deleteRow.descriptionPrefix', 'This removes')}{' '}
+              <strong>{rowToDelete.project}</strong>{' '}
+              {t(
+                'timesheets.deleteRow.descriptionSuffix',
+                'and all its hours from this week. You can add it back, but the entered hours won’t be restored.',
+              )}
             </>
           }
-          confirmLabel="Delete row"
+          confirmLabel={t('timesheets.deleteRow.confirmLabel', 'Delete row')}
           loading={deleteRow.isPending}
           onCancel={() => setConfirmDeleteRowId(null)}
           onConfirm={confirmDeleteRow}

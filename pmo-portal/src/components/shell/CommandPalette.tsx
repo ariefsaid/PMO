@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { cn } from '@/src/components/ui/cn';
 import { Icon, type IconName } from '@/src/components/ui/icons';
 import { filterAndCap } from '@/src/hooks/useRecordSearch';
@@ -60,6 +61,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
   onRetry,
   onAskAi,
 }) => {
+  const { t } = useTranslation();
   const [query, setQuery] = useState('');
   const [debounced, setDebounced] = useState('');
   const [selected, setSelected] = useState(0);
@@ -180,7 +182,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
         ref={panelRef}
         role="dialog"
         aria-modal="true"
-        aria-label="Command palette"
+        aria-label={t('shell.palette.dialogLabel', 'Command palette')}
         className="cmdk-anim relative w-full max-w-[600px] overflow-hidden rounded-[12px] border border-border bg-popover shadow-[0_24px_60px_hsl(var(--scrim)/0.35)]"
       >
         <div className="flex items-center gap-2.5 border-b border-border px-4 py-3.5 [&_svg]:size-[18px] [&_svg]:text-muted-foreground">
@@ -191,8 +193,11 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
             role="combobox"
             aria-expanded="true"
             aria-controls="cmdk-list"
-            aria-label="Search projects, records, or run a command"
-            placeholder="Search projects, PRs, customers, or run a command…"
+            aria-label={t('shell.palette.inputLabel', 'Search projects, records, or run a command')}
+            placeholder={t(
+              'shell.palette.inputPlaceholder',
+              'Search projects, PRs, customers, or run a command…',
+            )}
             autoComplete="off"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -211,20 +216,20 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
         <div
           id="cmdk-list"
           role="listbox"
-          aria-label="Command results"
+          aria-label={t('shell.palette.resultsLabel', 'Command results')}
           className="max-h-[380px] overflow-y-auto p-1.5"
         >
           {/* A record list failed — keep module nav working, offer a retry. */}
           {error && (
             <div className="mx-1 mt-1 flex items-center justify-between gap-2 rounded-[7px] border border-border bg-destructive/10 px-2.5 py-2 text-[12.5px] text-destructive">
-              <span>Couldn’t load records.</span>
+              <span>{t('shell.palette.recordsError', 'Couldn’t load records.')}</span>
               {onRetry && (
                 <button
                   type="button"
                   onClick={onRetry}
                   className="rounded-[5px] border border-border bg-background px-2 py-0.5 text-[12px] font-semibold text-foreground hover:bg-accent"
                 >
-                  Retry
+                  {t('shell.palette.retry', 'Retry')}
                 </button>
               )}
             </div>
@@ -234,7 +239,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
           {loading && (
             <div aria-hidden>
               <div className="px-2.5 pb-[5px] pt-2.5 text-[10.5px] font-bold uppercase tracking-[0.06em] text-muted-foreground">
-                Records
+                {t('shell.palette.recordsGroup', 'Records')}
               </div>
               {Array.from({ length: SKELETON_COUNT }).map((_, i) => (
                 <div
@@ -327,7 +332,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                         Ask AI: &quot;{askAiQuery}&quot;
                       </span>
                       <span className="text-[11.5px] leading-tight text-muted-foreground">
-                        Open the assistant with this draft
+                        {t('shell.palette.askAiSub', 'Open the assistant with this draft')}
                       </span>
                     </span>
                   </div>

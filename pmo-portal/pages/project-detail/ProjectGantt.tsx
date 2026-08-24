@@ -24,6 +24,7 @@
  *   - Respects prefers-reduced-motion (no bar-grow transition when set).
  */
 import React, { useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ListState, StatusPill, Button, Icon, useIsNarrow } from '@/src/components/ui';
 import { ViewToggle } from '@/src/components/ui/ViewToggle';
 import { usePrefersReducedMotion } from '@/src/components/dashboard/usePrefersReducedMotion';
@@ -73,13 +74,6 @@ const LANE_HEADER_H = 36; // px — milestone lane header height
 const AXIS_H = 32; // px — time axis height
 const TABLE_W = 260; // px — left task-table pane width
 
-const SCALE_OPTIONS: { value: GanttScale; label: string }[] = [
-  { value: 'day', label: 'Day' },
-  { value: 'week', label: 'Week' },
-  { value: 'month', label: 'Month' },
-  { value: 'quarter', label: 'Quarter' },
-];
-
 // ── Flattened row model (shared by the table + the timeline so they align) ─────
 
 interface LaneHeaderRow {
@@ -99,11 +93,22 @@ type FlatRow = LaneHeaderRow | TaskRow;
 // ── Main component ────────────────────────────────────────────────────────────
 
 const ProjectGantt: React.FC<ProjectGanttProps> = ({ tasks, milestones, onActivateTask, onSwitchView }) => {
+  const { t } = useTranslation();
   const prefersReducedMotion = usePrefersReducedMotion();
   const isNarrow = useIsNarrow();
   const [scale, setScale] = useState<GanttScale>('month');
 
   const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
+
+  const scaleOptions = useMemo(
+    () => [
+      { value: 'day' as GanttScale, label: t('projectDetail.gantt.scale.day', 'Day') },
+      { value: 'week' as GanttScale, label: t('projectDetail.gantt.scale.week', 'Week') },
+      { value: 'month' as GanttScale, label: t('projectDetail.gantt.scale.month', 'Month') },
+      { value: 'quarter' as GanttScale, label: t('projectDetail.gantt.scale.quarter', 'Quarter') },
+    ],
+    [t],
+  );
 
   const model = useMemo(
     () =>
@@ -171,8 +176,11 @@ const ProjectGantt: React.FC<ProjectGanttProps> = ({ tasks, milestones, onActiva
       <ListState
         variant="empty"
         icon="cal"
-        title="No dated work yet"
-        sub="Add start/due dates to tasks or target dates to milestones to see the timeline."
+        title={t('projectDetail.gantt.emptyTitle', 'No dated work yet')}
+        sub={t(
+          'projectDetail.gantt.emptySub',
+          'Add start/due dates to tasks or target dates to milestones to see the timeline.',
+        )}
       />
     );
   }
@@ -188,6 +196,11 @@ const ProjectGantt: React.FC<ProjectGanttProps> = ({ tasks, milestones, onActiva
   const { geometry, ticks, todayLeft, undated } = model;
   const tasksCount = barBoxById.size;
   const edgeCount = geometry.edges.length;
+  // ⛔ NOT TRANSLATED, deliberately: English plural selection ("task"/"tasks") is welded
+  // into this string. DD-I18N-1 rules that plurals resolve through `Intl.PluralRules`, but
+  // that helper does not exist yet (the only mention of it in the tree is a comment in
+  // src/lib/i18n/index.ts). Translating this without it would bake English plural rules
+  // into the catalogue. Convert together with the other plural sites once the helper lands.
   const summary =
     `Task Gantt timeline: ${tasksCount} task${tasksCount !== 1 ? 's' : ''} across ` +
     `${milestones.length} milestone${milestones.length !== 1 ? 's' : ''}` +
@@ -209,14 +222,15 @@ const ProjectGantt: React.FC<ProjectGanttProps> = ({ tasks, milestones, onActiva
     <div className="rounded-lg border border-border bg-card">
       {/* Toolbar: caption + zoom toggle (D6) */}
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-2">
+        {/* ⛔ NOT TRANSLATED — English plural welded in; see the note on `summary` above. */}
         <span className="text-[12px] text-muted-foreground">
           {tasksCount} task{tasksCount !== 1 ? 's' : ''} on the timeline
         </span>
         <ViewToggle<GanttScale>
-          options={SCALE_OPTIONS}
+          options={scaleOptions}
           value={scale}
           onChange={setScale}
-          ariaLabel="Timeline zoom"
+          ariaLabel={t('projectDetail.gantt.zoomAriaLabel', 'Timeline zoom')}
         />
       </div>
 
@@ -244,7 +258,7 @@ const ProjectGantt: React.FC<ProjectGanttProps> = ({ tasks, milestones, onActiva
               via sticky left-0; its own header cell freezes on vertical scroll. */}
           <div
             role="grid"
-            aria-label="Task table"
+            aria-label={t('projectDetail.gantt.taskTableAriaLabel', 'Task table')}
             aria-rowcount={flatRows.length}
             className="sticky left-0 z-30 shrink-0 border-r border-border bg-card"
             style={{ width: TABLE_W }}
@@ -256,7 +270,9 @@ const ProjectGantt: React.FC<ProjectGanttProps> = ({ tasks, milestones, onActiva
               className="sticky top-0 z-40 flex items-center border-b border-border bg-card px-3 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground"
               style={{ height: AXIS_H }}
             >
-              <span role="columnheader" className="flex-1">Task</span>
+              <span role="columnheader" className="flex-1">
+                {t('projectDetail.gantt.taskColumn', 'Task')}
+              </span>
             </div>
 
             {flatRows.map((row) =>
@@ -396,7 +412,9 @@ interface GanttMobileNoticeProps {
   onSwitchView?: (view: 'list' | 'board') => void;
 }
 
-const GanttMobileNotice: React.FC<GanttMobileNoticeProps> = ({ onSwitchView }) => (
+const GanttMobileNotice: React.FC<GanttMobileNoticeProps> = ({ onSwitchView }) => {
+  const { t } = useTranslation();
+  return (
   <div
     data-testid="gantt-mobile-notice"
     className="flex flex-col items-center justify-center gap-3 rounded-lg border border-border bg-card px-6 py-14 text-center"
@@ -404,20 +422,26 @@ const GanttMobileNotice: React.FC<GanttMobileNoticeProps> = ({ onSwitchView }) =
     <span className="grid size-[52px] place-items-center rounded-[14px] bg-secondary text-muted-foreground">
       <Icon name="cal" className="size-6" strokeWidth={1.75} />
     </span>
-    <h3 className="text-[15px] font-semibold">Open on a larger screen</h3>
+    <h3 className="text-[15px] font-semibold">
+      {t('projectDetail.gantt.mobileTitle', 'Open on a larger screen')}
+    </h3>
     <div className="max-w-[44ch] text-[13px] text-muted-foreground">
-      The timeline is best viewed on a wider screen. Switch to a view that fits your device:
+      {t(
+        'projectDetail.gantt.mobileSub',
+        'The timeline is best viewed on a wider screen. Switch to a view that fits your device:',
+      )}
     </div>
     <div className="mt-1 flex flex-wrap items-center justify-center gap-2">
       <Button variant="outline" size="sm" onClick={() => onSwitchView?.('list')}>
-        List view
+        {t('projectDetail.gantt.listView', 'List view')}
       </Button>
       <Button variant="outline" size="sm" onClick={() => onSwitchView?.('board')}>
-        Board view
+        {t('projectDetail.gantt.boardView', 'Board view')}
       </Button>
     </div>
   </div>
-);
+  );
+};
 
 // ── Helpers to resolve marker name/iso from lanes ─────────────────────────────
 
@@ -439,7 +463,9 @@ interface GanttAxisProps {
   contentWidth: number;
 }
 
-const GanttAxis: React.FC<GanttAxisProps> = ({ ticks, todayLeft, contentWidth }) => (
+const GanttAxis: React.FC<GanttAxisProps> = ({ ticks, todayLeft, contentWidth }) => {
+  const { t } = useTranslation();
+  return (
   <div
     className="relative border-b border-border"
     style={{ height: AXIS_H, width: contentWidth }}
@@ -461,11 +487,12 @@ const GanttAxis: React.FC<GanttAxisProps> = ({ ticks, todayLeft, contentWidth })
         className="absolute bottom-0 text-[10px] font-semibold text-primary"
         style={{ left: todayLeft * contentWidth, transform: 'translateX(-50%)' }}
       >
-        Today
+        {t('projectDetail.gantt.today', 'Today')}
       </span>
     )}
   </div>
-);
+  );
+};
 
 // ── Milestone diamond (on the axis — D4) ──────────────────────────────────────
 
@@ -481,7 +508,9 @@ const MilestoneDiamond: React.FC<MilestoneDiamondProps> = ({
   name,
   targetIso,
   contentHeight,
-}) => (
+}) => {
+  const { t } = useTranslation();
+  return (
   <>
     {/* Vertical dotted guide from the diamond through the lane band */}
     <span
@@ -496,8 +525,11 @@ const MilestoneDiamond: React.FC<MilestoneDiamondProps> = ({
     />
     {/* The diamond glyph (rotated square) — labelled, no role (keeps role="img" singular) */}
     <span
-      aria-label={`${name} milestone — target ${targetIso}`}
-      title={`${name} — target ${targetIso}`}
+      aria-label={`${name} ${t('projectDetail.gantt.milestoneWord', 'milestone')} — ${t(
+        'projectDetail.gantt.targetWord',
+        'target',
+      )} ${targetIso}`}
+      title={`${name} — ${t('projectDetail.gantt.targetWord', 'target')} ${targetIso}`}
       className="absolute"
       style={{
         left: marker.x,
@@ -510,7 +542,8 @@ const MilestoneDiamond: React.FC<MilestoneDiamondProps> = ({
       }}
     />
   </>
-);
+  );
+};
 
 // ── Bar block (absolute-positioned via geometry) ──────────────────────────────
 
@@ -529,9 +562,12 @@ const GanttBarBlock: React.FC<GanttBarBlockProps> = ({
   prefersReducedMotion,
   onActivate,
 }) => {
+  const { t } = useTranslation();
   const isPoint = bar.kind === 'point';
   const depsSuffix =
-    predecessorNames.length > 0 ? `, depends on ${predecessorNames.join(', ')}` : '';
+    predecessorNames.length > 0
+      ? `, ${t('projectDetail.gantt.dependsOn', 'depends on')} ${predecessorNames.join(', ')}`
+      : '';
   const datesPart = `${bar.startIso ?? ''}${bar.startIso && bar.endIso ? '–' : ''}${bar.endIso ?? ''}`;
   // Accessible name: keep the task name FIRST so getByRole('button', {name}) matches it.
   const label = `${bar.name}: ${bar.status}${datesPart ? `, ${datesPart}` : ''}${depsSuffix}`;
@@ -688,10 +724,12 @@ interface UndatedFooterProps {
   onActivateTask?: (id: string) => void;
 }
 
-const UndatedFooter: React.FC<UndatedFooterProps> = ({ undated, onActivateTask }) => (
+const UndatedFooter: React.FC<UndatedFooterProps> = ({ undated, onActivateTask }) => {
+  const { t } = useTranslation();
+  return (
   <div className="border-t border-border px-4 py-3">
     <div className="mb-1.5 text-[12px] font-semibold text-muted-foreground">
-      Undated ({undated.length})
+      {`${t('projectDetail.gantt.undated', 'Undated')} (${undated.length})`}
     </div>
     <ul className="flex flex-wrap gap-2">
       {undated.map((u) => (
@@ -699,7 +737,11 @@ const UndatedFooter: React.FC<UndatedFooterProps> = ({ undated, onActivateTask }
           key={u.id}
           role={onActivateTask ? 'button' : undefined}
           tabIndex={onActivateTask ? 0 : undefined}
-          aria-label={onActivateTask ? `Open ${u.name}` : undefined}
+          aria-label={
+            onActivateTask
+              ? `${t('projectDetail.gantt.openTask', 'Open')} ${u.name}`
+              : undefined
+          }
           onClick={onActivateTask ? () => onActivateTask(u.id) : undefined}
           onKeyDown={
             onActivateTask
@@ -718,6 +760,7 @@ const UndatedFooter: React.FC<UndatedFooterProps> = ({ undated, onActivateTask }
       ))}
     </ul>
   </div>
-);
+  );
+};
 
 export default ProjectGantt;

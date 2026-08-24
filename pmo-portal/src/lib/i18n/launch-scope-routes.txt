@@ -1,0 +1,85 @@
+# Launch-scope routes — the screens the en-side completeness gate checks (FR-L10N-042a)
+#
+# ─────────────────────────────────────────────────────────────────────────────────────────────
+# ⚑ EVERY FUTURE LAUNCH-SCOPE FEATURE MUST ADD ITS OWN LINE HERE AS IT SHIPS.
+#
+#   A launch-scope screen that ships WITHOUT its line has silently shrunk this gate. Nothing
+#   goes red; the screen simply is not checked, and its English text sails past a gate that
+#   still reports green. That is the whole failure mode this file exists to make visible, and
+#   it is why the list is a readable file rather than a glob over `pages/`. The obligation
+#   lands on the feature's own PR — adding the route is part of shipping the screen, not a
+#   follow-up (DD-I18N-9, 2026-08-24).
+#
+#   Launch scope is the feature list on map #450: i18n · tasks · meetings · work orders. The
+#   meetings and work-order screens DO NOT EXIST YET, so their routes cannot be named here.
+#   They get added by the slices that build them. Do not guess their paths now — an invented
+#   path is a contract nobody owns, and a wrong one reads as coverage that never ran.
+# ─────────────────────────────────────────────────────────────────────────────────────────────
+#
+# WHAT THE GATE DOES WITH THIS FILE
+#
+#   For every file named below it checks that no rendered English string is left unextracted:
+#   a JSX text node, a label-bearing prop, or a label-ish object field holding a bare string
+#   literal instead of a `t(key, default)` call. It also checks that every `t()` key these
+#   files reference exists in `public/locales/en/common.json`.
+#
+#   ⚑ AN ENTRY COVERS ONLY THE FILES IT NAMES. A child component rendered BY a launch-scope
+#   screen but not named here is NOT checked. If a screen's strings live in a component
+#   elsewhere in the tree, name that component on the screen's line too, or its text escapes
+#   the gate exactly the way a missing route does.
+#
+#   The orphan half of the gate is deliberately NOT scoped by this file — an orphaned key is
+#   checked against the whole app, because a key pointing at text that no longer exists is
+#   dead wherever it lives.
+#
+#   ⛔ This gate checks the `en` catalogue ONLY. `id` ships EMPTY by design (spec §1), so an
+#   `id`-completeness check here would be red by construction until the Bahasa content lands.
+#   That half is FR-L10N-042b and belongs to the change that POPULATES `id` (DD-I18N-9).
+#
+# FORMAT
+#
+#   <route-path>  <file>[ <file>…]      — paths relative to `pmo-portal/`
+#   A file may be written as `<dir>/*.tsx`, which takes every `.tsx` in that one directory
+#   (not recursive) and skips `*.test.tsx`. `#` starts a comment. Blank lines are ignored.
+
+# ── The screen every session opens on. English here is the first thing a client sees.
+/                              pages/ExecutiveDashboard.tsx
+
+# ── Projects: a project IS the client's commitment, so this is the spine of daily delivery.
+/projects                      pages/Projects.tsx
+
+# ── The daily work surface. Both routes render the same component; the `:tab` route also
+#    carries the launch-scope `tasks` strings, because TasksTab is where tasks live — there is
+#    no standalone tasks route to gate.
+/projects/:projectId           pages/project-detail/ProjectDetail.tsx
+/projects/:projectId/:tab      pages/project-detail/ProjectDetail.tsx pages/project-detail/tabs/*.tsx
+
+# ── The other half of the tasks launch item: the IC's own cross-project list, opened daily.
+/my-tasks                      pages/MyTasks.tsx
+
+# ── Daily IC entry, and the surface with the widest non-manager audience at the client.
+/timesheets                    pages/Timesheets.tsx
+
+# ── Daily manager action. An untranslated approve/reject is the highest-consequence English
+#    left on screen.
+/approvals                     pages/Approvals.tsx
+
+# ── Delivery spend register, worked daily by PM/procurement alongside the project. The record
+#    and its deep-linkable panels are the same component — excluding the `:tab` route would
+#    leave a tab of English inside an otherwise gated screen.
+/procurement                   pages/Procurement.tsx
+/procurement/:procurementId    pages/ProcurementDetails.tsx
+/procurement/:procurementId/:tab  pages/ProcurementDetails.tsx
+
+# ── Pre-win stages of the SAME project record (Model B). A client working a project through to
+#    won passes through here, so leaving it out would split one journey across the gate boundary.
+/sales                         pages/SalesPipeline.tsx
+
+# ── Client/vendor directory, referenced from every project and procurement record. Companies is
+#    also the reference slice, so its patterns propagate to whatever is built next.
+/companies                     pages/Companies.tsx
+/companies/:companyId          pages/CompanyDetail.tsx
+
+# ── Same directory pairing — a project's people, reached daily from the company record.
+/contacts                      pages/Contacts.tsx
+/contacts/:contactId           pages/ContactDetail.tsx

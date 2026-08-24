@@ -10,6 +10,7 @@ import {
   type Column,
 } from '@/src/components/ui';
 import { useNavigate } from 'react-router';
+import { useTranslation } from 'react-i18next';
 import { useProcurements } from '@/src/hooks/useProcurements';
 import { useCreateProcurement } from '@/src/hooks/useProcurementCrud';
 import { usePermission } from '@/src/auth/usePermission';
@@ -39,6 +40,7 @@ export interface ProcurementTabProps {
  * → StatusPill.
  */
 const ProcurementTab: React.FC<ProcurementTabProps> = ({ projectId }) => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const may = usePermission();
   const { data, isPending, isError, refetch } = useProcurements();
@@ -58,7 +60,7 @@ const ProcurementTab: React.FC<ProcurementTabProps> = ({ projectId }) => {
   const columns: Column<ProcurementWithRefs>[] = [
     {
       key: 'request',
-      header: 'Request',
+      header: t('projectDetail.procurement.column.request', 'Request'),
       cell: (r) => (
         <div className="min-w-0">
           <div className="truncate font-semibold" title={r.title}>
@@ -72,24 +74,24 @@ const ProcurementTab: React.FC<ProcurementTabProps> = ({ projectId }) => {
     },
     {
       key: 'value',
-      header: 'Value',
+      header: t('projectDetail.procurement.column.value', 'Value'),
       align: 'num',
       cell: (r) => formatCurrency(r.total_value, r.currency),
     },
     {
       key: 'lifecycle',
-      header: 'Lifecycle',
+      header: t('projectDetail.procurement.column.lifecycle', 'Lifecycle'),
       cell: (r) => (
         <LifecycleStepper
           variant="inline"
           steps={lifecycleSteps(r.status as ProcurementStatus)}
-          aria-label={`Lifecycle: ${stageLabelForStatus(r.status as ProcurementStatus)}`}
+          aria-label={`${t('projectDetail.procurement.lifecycleLabel', 'Lifecycle')}: ${stageLabelForStatus(r.status as ProcurementStatus)}`}
         />
       ),
     },
     {
       key: 'status',
-      header: 'Status',
+      header: t('projectDetail.procurement.column.status', 'Status'),
       cell: (r) => (
         <StatusPill variant={pillVariantForStatus(r.status as ProcurementStatus)}>
           {stageLabelForStatus(r.status as ProcurementStatus)}
@@ -110,8 +112,11 @@ const ProcurementTab: React.FC<ProcurementTabProps> = ({ projectId }) => {
     return (
       <ListState
         variant="error"
-        title="Couldn't load procurement"
-        sub="Something went wrong fetching this project's purchase requests."
+        title={t('projectDetail.procurement.error.title', "Couldn't load procurement")}
+        sub={t(
+          'projectDetail.procurement.error.sub',
+          "Something went wrong fetching this project's purchase requests.",
+        )}
         onRetry={() => refetch()}
       />
     );
@@ -122,15 +127,20 @@ const ProcurementTab: React.FC<ProcurementTabProps> = ({ projectId }) => {
       {/* Header: title + gated "New request" button (T13 — in-context PR creation). */}
       <div className="mb-3.5 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-[16px] font-bold tracking-[-0.01em]">Purchase Requests</h2>
+          <h2 className="text-[16px] font-bold tracking-[-0.01em]">
+            {t('projectDetail.procurement.title', 'Purchase Requests')}
+          </h2>
           <p className="mt-0.5 text-[13px] text-muted-foreground">
-            Requests raised against this project, tracked through their lifecycle.
+            {t(
+              'projectDetail.procurement.subtitle',
+              'Requests raised against this project, tracked through their lifecycle.',
+            )}
           </p>
         </div>
         {canCreate && (
           <Button variant="outline" size="sm" onClick={() => setShowNewModal(true)}>
             <Icon name="plus" />
-            New request
+            {t('projectDetail.procurement.newRequest', 'New request')}
           </Button>
         )}
       </div>
@@ -140,13 +150,22 @@ const ProcurementTab: React.FC<ProcurementTabProps> = ({ projectId }) => {
         columns={columns}
         rowKey={(r) => r.id}
         onActivate={(r) => openPR(navigate, r)}
-        rowLabel={(r) => `Open ${r.title}`}
+        rowLabel={(r) => `${t('projectDetail.procurement.openRow', 'Open')} ${r.title}`}
         state={rows.length === 0 ? 'empty' : undefined}
-        emptyTitle="No purchase requests for this project yet"
-        emptySub="Requests raised against this project will appear here through their lifecycle."
+        emptyTitle={t(
+          'projectDetail.procurement.empty.title',
+          'No purchase requests for this project yet',
+        )}
+        emptySub={t(
+          'projectDetail.procurement.empty.sub',
+          'Requests raised against this project will appear here through their lifecycle.',
+        )}
         emptyAction={
           canCreate
-            ? { label: 'New request', onClick: () => setShowNewModal(true) }
+            ? {
+                label: t('projectDetail.procurement.newRequest', 'New request'),
+                onClick: () => setShowNewModal(true),
+              }
             : undefined
         }
       />

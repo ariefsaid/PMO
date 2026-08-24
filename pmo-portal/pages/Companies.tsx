@@ -26,6 +26,8 @@ import { ExportButton } from '@/src/components/export';
 import { ImportButton } from '@/src/components/import';
 import { companyImportDescriptor } from '@/src/lib/import';
 import { useNavigate } from 'react-router';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useCompanies, useCompanyMutations } from '@/src/hooks/useCompanies';
@@ -46,24 +48,38 @@ const TYPE_FILTERS: TypeFilter[] = ['All', 'Internal', 'Client', 'Vendor'];
 // uses the action-blue (`open`) and never borrows a workflow tint (`won`/`lost`);
 // the distinct LABEL carries identity, so the types read apart by label + dot.
 
-const TYPE_OPTIONS = [
-  { value: 'Client', label: 'Client' },
-  { value: 'Vendor', label: 'Vendor' },
-  { value: 'Internal', label: 'Internal' },
-];
+/**
+ * The display label for each `company_type` value, resolved once per render. The VALUE is the
+ * database enum and is never translated (it is filter state, an export cell, and a policy input);
+ * only the label a person reads is. One map so the filter segment, the form's Type select and the
+ * row pill can never drift into three different words for the same type.
+ */
+const typeLabels = (t: TFunction): Record<CompanyType, string> => ({
+  Client: t('companies.type.client', 'Client'),
+  Vendor: t('companies.type.vendor', 'Vendor'),
+  Internal: t('companies.type.internal', 'Internal'),
+});
 
 interface FormValues {
   name: string;
   type: CompanyType;
 }
 
-const validate = (v: FormValues): Partial<Record<keyof FormValues, string>> => {
-  const errors: Partial<Record<keyof FormValues, string>> = {};
-  if (!v.name.trim()) errors.name = 'Company name is required.';
-  return errors;
-};
+/**
+ * `t` has to be threaded in: the message is user-visible, and a module-level literal cannot reach
+ * the active locale. The validation SHAPE is unchanged — same fields, same trigger, same keys.
+ */
+const makeValidate =
+  (t: TFunction) =>
+  (v: FormValues): Partial<Record<keyof FormValues, string>> => {
+    const errors: Partial<Record<keyof FormValues, string>> = {};
+    if (!v.name.trim())
+      errors.name = t('companies.form.errors.nameRequired', 'Company name is required.');
+    return errors;
+  };
 
 const Companies: React.FC = () => {
+  const { t } = useTranslation();
   const may = usePermission();
   const { realRole } = useEffectiveRole();
   const navigate = useNavigate();
@@ -98,6 +114,9 @@ const Companies: React.FC = () => {
 
   const all = useMemo(() => data ?? [], [data]);
 
+  const typeLabel = typeLabels(t);
+  const filterLabel = (f: TypeFilter) => (f === 'All' ? t('companies.filters.all', 'All') : typeLabel[f]);
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return all
@@ -119,8 +138,11 @@ const Companies: React.FC = () => {
   if (!canView) {
     return (
       <AccessDenied
-        title="You don't have access to Companies"
-        sub="The company directory is shared master data for managers and finance. Your work lives on your dashboard, projects, and tasks."
+        title={t('companies.accessDenied.title', "You don't have access to Companies")}
+        sub={t(
+          'companies.accessDenied.sub',
+          'The company directory is shared master data for managers and finance. Your work lives on your dashboard, projects, and tasks.',
+        )}
         onBack={() => navigate('/')}
       />
     );
@@ -129,7 +151,7 @@ const Companies: React.FC = () => {
   const columns: Column<CompanyRow>[] = [
     {
       key: 'name',
-      header: 'Company',
+      header: t('companies.columns.name', 'Company'),
       cell: (c) => (
         <span className="truncate font-semibold" title={c.name}>
           {c.name}
@@ -139,17 +161,32 @@ const Companies: React.FC = () => {
     },
     {
       key: 'type',
-      header: 'Type',
-      cell: (c) => <StatusPill variant={companyTypeVariant(c.type)}>{c.type}</StatusPill>,
+      // The pill reads the localised LABEL; `exportValue` keeps the raw enum so a spreadsheet
+      // round-trips back into the same filter/import values regardless of the viewer's language.
+      header: t('companies.columns.type', 'Type'),
+      cell: (c) => <StatusPill variant={companyTypeVariant(c.type)}>{typeLabel[c.type]}</StatusPill>,
       exportValue: (c) => c.type,
     },
   ];
 
   const rowMenu = (c: CompanyRow): RowMenuItem[] => {
     const items: RowMenuItem[] = [];
-    if (canEdit) items.push({ label: 'Edit', onClick: () => setFormTarget({ company: c }) });
-    if (canArchive) items.push({ label: 'Archive', onClick: () => setArchiveTarget(c) });
-    if (canDelete) items.push({ label: 'Delete', onClick: () => setDeleteTarget(c), danger: true });
+    if (canEdit)
+      items.push({
+        label: t('companies.actions.edit', 'Edit'),
+        onClick: () => setFormTarget({ company: c }),
+      });
+    if (canArchive)
+      items.push({
+        label: t('companies.actions.archive', 'Archive'),
+        onClick: () => setArchiveTarget(c),
+      });
+    if (canDelete)
+      items.push({
+        label: t('companies.actions.delete', 'Delete'),
+        onClick: () => setDeleteTarget(c),
+        danger: true,
+      });
     return items;
   };
 
@@ -158,7 +195,7 @@ const Companies: React.FC = () => {
     const target = archiveTarget;
     try {
       await archive.mutateAsync(target.id);
-      toast('Company archived', target.name, 'success');
+      toast(t('companies.toast.archived', 'Company archived'), target.name, 'success');
       setArchiveTarget(null);
     } catch (err) {
       const { headline, detail } = classifyMutationError(err);
@@ -171,7 +208,7 @@ const Companies: React.FC = () => {
     const target = deleteTarget;
     try {
       await remove.mutateAsync(target.id);
-      toast('Company deleted', target.name, 'success');
+      toast(t('companies.toast.deleted', 'Company deleted'), target.name, 'success');
       setDeleteTarget(null);
       setBlockedCompany(null);
     } catch (err) {
@@ -182,6 +219,10 @@ const Companies: React.FC = () => {
       const isInUse = (err as { code?: string })?.code === '23503';
       toast(
         headline,
+        // ⚑ NOT EXTRACTED — this sentence embeds a value. `t()` interpolation is unsafe in this
+        // repo today: the unit suite mounts no i18next instance, so react-i18next's notReady `t`
+        // returns the default string and SILENTLY DROPS the options bag — the screen would read
+        // "{{name}} is referenced by…". See the report; the fix belongs in test/setup.ts, not here.
         isInUse
           ? `${target.name} is referenced by other records and can't be deleted. Archive it instead to keep the audit trail.`
           : detail,
@@ -196,13 +237,16 @@ const Companies: React.FC = () => {
 
   return (
     <ListPage
-      title="Companies"
-      description="Clients and vendors used across projects and procurement. Master data shared by the whole organisation."
+      title={t('companies.title', 'Companies')}
+      description={t(
+        'companies.description',
+        'Clients and vendors used across projects and procurement. Master data shared by the whole organisation.',
+      )}
       primaryAction={
         canCreate && (
           <Button variant="primary" onClick={() => setFormTarget({ company: null })}>
             <Icon name="plus" />
-            New company
+            {t('companies.actions.new', 'New company')}
           </Button>
         )
       }
@@ -211,6 +255,9 @@ const Companies: React.FC = () => {
       banner={
         blockedCompany && (
           <GateNotice variant="blocked" className="mb-3.5" data-testid="company-delete-gate">
+            {/* ⚑ The sentence body is NOT extracted: it wraps the company name in <b>, so it needs
+                <Trans> (or interpolation), and both are unsafe here — see the note on the in-use
+                toast above. The two buttons around it ARE extracted. */}
             <div>
               <b className="font-semibold">{blockedCompany.name}</b> is referenced by other
               records and can&rsquo;t be deleted. Archive it instead to remove it from new records
@@ -224,10 +271,10 @@ const Companies: React.FC = () => {
                     setBlockedCompany(null);
                   }}
                 >
-                  Archive instead
+                  {t('companies.deleteGate.archiveInstead', 'Archive instead')}
                 </Button>
                 <Button variant="ghost" size="sm" onClick={() => setBlockedCompany(null)}>
-                  Dismiss
+                  {t('companies.deleteGate.dismiss', 'Dismiss')}
                 </Button>
               </div>
             </div>
@@ -237,21 +284,21 @@ const Companies: React.FC = () => {
       filters={
         state !== 'loading' && (
           <ViewToggle<TypeFilter>
-            options={TYPE_FILTERS.map((f) => ({ value: f, label: f }))}
+            options={TYPE_FILTERS.map((f) => ({ value: f, label: filterLabel(f) }))}
             value={filter}
             onChange={(v) => {
               setFilter(v);
               trackFilterApplied('type', TYPE_FILTERS.length, 'companies');
             }}
-            ariaLabel="Filter by type"
+            ariaLabel={t('companies.filters.ariaLabel', 'Filter by type')}
           />
         )
       }
       search={
         state !== 'loading' && (
           <SearchMini
-            placeholder="Search companies…"
-            aria-label="Search companies"
+            placeholder={t('companies.search.placeholder', 'Search companies…')}
+            aria-label={t('companies.search.ariaLabel', 'Search companies')}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             searchSurface="companies-list"
@@ -293,8 +340,8 @@ const Companies: React.FC = () => {
       {state === 'error' && (
         <ListState
           variant="error"
-          title="Couldn't load companies"
-          sub="The request failed. Check your connection and try again."
+          title={t('companies.states.errorTitle', "Couldn't load companies")}
+          sub={t('companies.states.errorSub', 'The request failed. Check your connection and try again.')}
           onRetry={() => refetch()}
         />
       )}
@@ -303,13 +350,21 @@ const Companies: React.FC = () => {
         <ListState
           variant="empty"
           icon="folder"
-          title="No companies yet"
-          sub="Add your first client or vendor to start linking projects and purchase requests to a directory."
+          title={t('companies.states.emptyTitle', 'No companies yet')}
+          sub={t(
+            'companies.states.emptySub',
+            'Add your first client or vendor to start linking projects and purchase requests to a directory.',
+          )}
           stateId="companies-empty"
           role={realRole ?? undefined}
           module="companies"
           action={
-            canCreate ? { label: 'New company', onClick: () => setFormTarget({ company: null }) } : undefined
+            canCreate
+              ? {
+                  label: t('companies.actions.new', 'New company'),
+                  onClick: () => setFormTarget({ company: null }),
+                }
+              : undefined
           }
         />
       )}
@@ -322,11 +377,12 @@ const Companies: React.FC = () => {
           // CW-4b: rows now NAVIGATE to the routable `/companies/:id` record page (the
           // drawer-as-record is retired). Create/edit-in-modal are unchanged.
           onActivate={(c) => navigate(`/companies/${c.id}`)}
+          // ⚑ Not extracted — embeds a value; see the interpolation note above.
           rowLabel={(c) => `Open ${c.name}`}
           rowMenu={canRowWrite ? rowMenu : undefined}
           state={filtered.length === 0 ? 'empty' : undefined}
-          emptyTitle="No companies match your filters"
-          emptySub="Try a different type or clear the search."
+          emptyTitle={t('companies.table.emptyTitle', 'No companies match your filters')}
+          emptySub={t('companies.table.emptySub', 'Try a different type or clear the search.')}
         />
       )}
 
@@ -338,12 +394,12 @@ const Companies: React.FC = () => {
           onClose={() => setFormTarget(null)}
           onCreate={async (input) => {
             await create.mutateAsync(input);
-            toast('Company created', input.name, 'success');
+            toast(t('companies.toast.created', 'Company created'), input.name, 'success');
             setFormTarget(null);
           }}
           onUpdate={async (id, input) => {
             await update.mutateAsync({ id, input });
-            toast('Company updated', input.name, 'success');
+            toast(t('companies.toast.updated', 'Company updated'), input.name, 'success');
             setFormTarget(null);
           }}
           onError={(err) => {
@@ -357,9 +413,17 @@ const Companies: React.FC = () => {
       <ConfirmDialog
         open={!!archiveTarget}
         tone="default"
-        title={archiveTarget ? `Archive ${archiveTarget.name}?` : 'Archive company?'}
-        description="It will be hidden from the default list and can't be selected on new records. Existing references stay intact. You can restore it any time."
-        confirmLabel="Archive company"
+        /* ⚑ The named branch stays a template literal — see the interpolation note above. */
+        title={
+          archiveTarget
+            ? `Archive ${archiveTarget.name}?`
+            : t('companies.confirm.archiveTitle', 'Archive company?')
+        }
+        description={t(
+          'companies.confirm.archiveDescription',
+          "It will be hidden from the default list and can't be selected on new records. Existing references stay intact. You can restore it any time.",
+        )}
+        confirmLabel={t('companies.confirm.archiveConfirm', 'Archive company')}
         loading={archive.isPending}
         onConfirm={onArchiveConfirm}
         onCancel={() => setArchiveTarget(null)}
@@ -369,9 +433,16 @@ const Companies: React.FC = () => {
       <ConfirmDialog
         open={!!deleteTarget}
         tone="destructive"
-        title={deleteTarget ? `Delete ${deleteTarget.name}?` : 'Delete company?'}
-        description="This permanently removes the company. A company referenced by projects or procurements can't be deleted; archive it instead."
-        confirmLabel="Delete company"
+        title={
+          deleteTarget
+            ? `Delete ${deleteTarget.name}?`
+            : t('companies.confirm.deleteTitle', 'Delete company?')
+        }
+        description={t(
+          'companies.confirm.deleteDescription',
+          "This permanently removes the company. A company referenced by projects or procurements can't be deleted; archive it instead.",
+        )}
+        confirmLabel={t('companies.confirm.deleteConfirm', 'Delete company')}
         loading={remove.isPending}
         onConfirm={onDeleteConfirm}
         onCancel={() => setDeleteTarget(null)}
@@ -400,7 +471,19 @@ const CompanyFormModal: React.FC<CompanyFormModalProps> = ({
   onError,
   pendingPush,
 }) => {
+  const { t } = useTranslation();
   const isEdit = !!company;
+  // Identity changes only when `t` does (i.e. on a language change), so `useEntityForm`'s
+  // `runValidate` memo behaves exactly as it did with the old module-level function.
+  const validate = useMemo(() => makeValidate(t), [t]);
+  const typeOptions = useMemo(() => {
+    const labels = typeLabels(t);
+    return [
+      { value: 'Client', label: labels.Client },
+      { value: 'Vendor', label: labels.Vendor },
+      { value: 'Internal', label: labels.Internal },
+    ];
+  }, [t]);
   const form = useEntityForm<FormValues>({
     initialValues: { name: company?.name ?? '', type: company?.type ?? 'Client' },
     validate,
@@ -445,9 +528,21 @@ const CompanyFormModal: React.FC<CompanyFormModalProps> = ({
   return (
     <EntityFormModal
       open
-      title={isEdit ? 'Edit company' : 'New company'}
-      subtitle={isEdit ? 'Update this company record' : 'Add a client or vendor to the directory'}
-      submitLabel={isEdit ? 'Save company' : 'Create company'}
+      title={
+        isEdit
+          ? t('companies.form.editTitle', 'Edit company')
+          : t('companies.form.newTitle', 'New company')
+      }
+      subtitle={
+        isEdit
+          ? t('companies.form.editSubtitle', 'Update this company record')
+          : t('companies.form.newSubtitle', 'Add a client or vendor to the directory')
+      }
+      submitLabel={
+        isEdit
+          ? t('companies.form.editSubmit', 'Save company')
+          : t('companies.form.newSubmit', 'Create company')
+      }
       onSubmit={handleSubmit}
       onClose={onClose}
       loading={form.isSubmitting}
@@ -461,28 +556,28 @@ const CompanyFormModal: React.FC<CompanyFormModalProps> = ({
           <TaskPushBadge state={pendingPush} />
         </div>
       )}
-      <FormSection legend="Identity">
+      <FormSection legend={t('companies.form.sections.identity', 'Identity')}>
         <FormGrid>
           <TextField
             id={nameField.id}
-            label="Company name"
+            label={t('companies.form.name.label', 'Company name')}
             required
             value={nameField.value}
             onChange={nameField.onChange}
             onBlur={nameField.onBlur}
             error={nameField.error}
-            placeholder="e.g. Cascade Port Authority"
+            placeholder={t('companies.form.name.placeholder', 'e.g. Cascade Port Authority')}
             autoComplete="organization"
             fullWidth
           />
           <SelectField
             id={typeField.id}
-            label="Type"
+            label={t('companies.form.type.label', 'Type')}
             required
             value={typeField.value}
             onChange={(v) => typeField.onChange(v as CompanyType)}
             onBlur={typeField.onBlur}
-            options={TYPE_OPTIONS}
+            options={typeOptions}
           />
         </FormGrid>
       </FormSection>
