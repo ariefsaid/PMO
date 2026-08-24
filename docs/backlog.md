@@ -1164,9 +1164,12 @@ Then, per the standard series loop (grill → spec → …), the candidate queue
 > | **M4** coverage debt + promote | not started |
 >
 > ⚑ **`graph_proxy` has never decrypted a token in anger.** Custody is built and proven; *use* is not.
-> ⛔ **The DEPLOYED function is stale**: `m365-token-custody` v5 @ 2026-07-31 (**pre-#428**), still
-> enforcing the old operator gate, and `0152`/`0186` are not on the cloud DB. **M1's live run needs an
-> owner-gated deploy first** — now compounded by the 17 migrations `main` gained on 2026-08-24.
+> ⚑ **CORRECTED 2026-08-24 (verified via `supabase functions list`):** the deployed
+> `m365-token-custody` is **v9 @ 2026-08-18 — post-#428**, NOT the "v5, pre-#428" this table first
+> claimed. The stale-deploy problem is real but sits elsewhere: **`adapter-dispatch`,
+> `external-connect` and `_shared` last deployed 2026-07-31**, before the currency/tax and Posture-B
+> stamp work — and the cloud DB is 17 migrations behind `main` (`0186` vs `0203`). An owner-gated
+> deploy is still the gate before any live M365 run; the reason just moved.
 > ⚑ **M365 completion is DOWNSTREAM of RIS go-live, not a prerequisite for it.** M1's data-200 closes
 > at the first SPO-licensed tenant, which is RIS.
 >

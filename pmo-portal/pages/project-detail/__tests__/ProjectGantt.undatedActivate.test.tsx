@@ -19,6 +19,7 @@ function makeTask(overrides: Partial<TaskWithRefs> & { id: string; name: string 
     milestone_id: null,
     created_at: '2026-01-01T00:00:00Z',
     completed_at: null,
+    created_by: null,
     tombstoned_at: null,
     source_updated_at: null,
     description: null,

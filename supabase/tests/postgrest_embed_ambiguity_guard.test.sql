@@ -44,6 +44,13 @@ select set_eq(
             ('procurements -> profiles'),
             ('projects -> profiles'),
             ('task_dependencies -> tasks'),
+            -- 0204 (#551, DD-TASK-8): tasks gained `created_by` alongside `assignee_id`, so this
+            -- pair is new. ⚑ CHECKED BEFORE ADDING, as this assertion's own message demands: the
+            -- only embed of profiles from tasks is `src/lib/db/tasks.ts:77`, and it is ALREADY
+            -- qualified — `assignee:profiles!tasks_assignee_id_fkey(id, full_name)`. The other
+            -- tasks selects (`useMyTasks.ts:41`, `milestones.ts:230`, the ClickUp dispatch factory)
+            -- embed no profile at all. So nothing broke; the pair is recorded, not waived.
+            ('tasks -> profiles'),
             ('timesheets -> profiles'),
             -- 0193 (#498): work_orders carries THREE person columns — order_value_set_by (the SoD
             -- witness), issued_by, and over_commit_ack_by. Checked before adding: nothing in the DAL
