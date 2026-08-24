@@ -89,6 +89,16 @@ prioritize simplicity. Deliver technical decisions, tradeoff analysis, recommend
 implementation plan, and a production-ready solution. Build a production-grade MVP — minimal enough
 for one client, architected to scale to millions.
 
+**Before asserting a fact, name the artifact that decides it and read THAT one.** A doc, a memory, a
+test name, a policy body and an exit code are all *claims about* the deciding artifact, and each has
+been wrong here: `role_table_grants` decides reachability (not the policy) · `pg_policies` at head
+decides policy (not the migrations) · `supabase migration list --linked` decides the cloud's level
+(never memory) · the output body decides pass/fail (not `$?` through a pipe) · shipped code decides
+behaviour (not a spec default). **Never assert a negative from a grep without stating its scope** —
+"nothing reads the stamp" was three directories searched out of four. `scripts/prior-art.sh <term>`
+sweeps decisions, ADRs, migrations, hooks and issues in one command: run it before proposing work, so
+you find the ruling that already exists instead of re-deriving it.
+
 ## Quality gates & checkpoints (binding)
 - **Pre-push full verify (binding — run the WHOLE suite, never just touched files):** before opening or
   pushing ANY PR, run **`npm run verify`** — **13 gates** as of 2026-08-20, and the list grows, so
