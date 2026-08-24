@@ -31,10 +31,30 @@ import {
 } from '@/src/components/ui';
 import { RecordCaptureForm, RecordCaptureTrigger, type StagedRecord } from './RecordCaptureForm';
 import { VI_FIELD_TEST_IDS } from './vendorInvoiceTestIds';
-import type { ProcurementStatus, ProcurementDetail } from '@/src/lib/db/procurementLifecycle';
+import {
+  TAX_TREATMENT_OPTIONS,
+  TAX_TREATMENT_PLACEHOLDER,
+  VI_TAX_REQUIRED_HINT,
+  parseVendorInvoiceTax,
+  taxIsPmoAuthored,
+  ERP_AUTHORED_TAX,
+} from './vendorInvoiceTax';
+import type {
+  ProcurementStatus,
+  ProcurementDetail,
+  CaptureVendorInvoiceInput,
+} from '@/src/lib/db/procurementLifecycle';
 import type { useProcurementMutations } from '@/src/hooks/useProcurementDetail';
 import { TaskPushBadge } from '@/src/components/tasks/TaskPushBadge';
 import { IDLE_PENDING_PUSH } from '@/src/lib/adapterSeam/pendingPush';
+
+/**
+ * What the inline VI capture hands up to the page (#505). Derived from the DAL's
+ * `CaptureVendorInvoiceInput` rather than restated, so a NEW required field on the RPC contract
+ * breaks THIS FORM at compile time instead of at the RPC. `procurementId` comes from the route and
+ * `notes` from the decision zone's own notes box, so both are the page's to supply.
+ */
+export type VendorInvoiceCapture = Omit<CaptureVendorInvoiceInput, 'procurementId' | 'notes'>;
 
 type ActionVariant = 'primary' | 'success' | 'destructive' | 'outline';
 
@@ -90,12 +110,7 @@ export interface ProcurementDecisionZoneProps {
   /** O3 inline VI capture toggle. */
   showVICapture: boolean;
   setShowVICapture: (v: boolean) => void;
-  submitVICapture: (
-    status: 'Received' | 'Scheduled',
-    invoiceDate: string,
-    referenceNumber: string | null,
-    amount: number | null,
-  ) => void;
+  submitVICapture: (capture: VendorInvoiceCapture) => void;
   /** GR/VI standalone capture gating + toggles. */
   canShowGRForm: boolean;
   canShowVIForm: boolean;
@@ -225,7 +240,7 @@ export const ProcurementDecisionZone: React.FC<ProcurementDecisionZoneProps> = (
           {showVICapture ? (
             <VIInlineCapture
               busy={mutations.transition.isPending || mutations.createInvoice.isPending}
-              onSubmit={(viStatus, invoiceDate, referenceNumber, amount) => void submitVICapture(viStatus, invoiceDate, referenceNumber, amount)}
+              onSubmit={(capture) => void submitVICapture(capture)}
               onCancel={() => { setShowVICapture(false); setMutationError(null); }}
             />
           ) : actions.length > 0 ? (
@@ -367,12 +382,7 @@ ProcurementDecisionZone.displayName = 'ProcurementDecisionZone';
 // ---------------------------------------------------------------------------
 interface VIInlineCaptureProps {
   busy: boolean;
-  onSubmit: (
-    status: 'Received' | 'Scheduled',
-    invoiceDate: string,
-    referenceNumber: string | null,
-    amount: number | null,
-  ) => void;
+  onSubmit: (capture: VendorInvoiceCapture) => void;
   onCancel: () => void;
 }
 
@@ -381,11 +391,32 @@ const VIInlineCapture: React.FC<VIInlineCaptureProps> = ({ busy, onSubmit, onCan
   const [invoiceDate, setInvoiceDate] = React.useState(new Date().toISOString().slice(0, 10));
   const [refNum, setRefNum] = React.useState('');
   const [amtStr, setAmtStr] = React.useState('');
+  // #505: NO initial treatment — the empty string is "not answered yet", not a value. Submit stays
+  // disabled until the user picks one (see `tax` below), so nothing can be recorded with a marker
+  // the user never chose.
+  const [taxTreatmentStr, setTaxTreatmentStr] = React.useState('');
+  const [taxAmtStr, setTaxAmtStr] = React.useState('');
+
+  // The ONE predicate: null ⇒ the tax facts are incomplete ⇒ submit is disabled AND the handler
+  // refuses. Disabled-button state and submit guard can therefore never disagree.
+  // ⛔ On a FLIPPED org the ERP computes the tax and owns the answer, so PMO does not ask — see
+  // `taxIsPmoAuthored`. Asking and then discarding is worse than not asking, and that is what an
+  // earlier round of #505 did.
+  const pmoAuthorsTax = taxIsPmoAuthored();
+  const tax = pmoAuthorsTax ? parseVendorInvoiceTax(taxTreatmentStr, taxAmtStr) : ERP_AUTHORED_TAX;
 
   const handleSubmit = () => {
+    if (!tax) return;
     const ref = refNum.trim() || null;
     const amt = amtStr.trim() === '' ? null : Number(amtStr.replace(/,/g, ''));
-    onSubmit(viStatus, invoiceDate, ref, amt);
+    onSubmit({
+      status: viStatus,
+      invoiceDate,
+      referenceNumber: ref,
+      amount: amt,
+      taxTreatment: tax.taxTreatment,
+      taxAmount: tax.taxAmount,
+    });
   };
 
   return (
@@ -441,11 +472,44 @@ const VIInlineCapture: React.FC<VIInlineCaptureProps> = ({ busy, onSubmit, onCan
             className="h-8 rounded-md border border-input bg-background px-2 text-[13.5px] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
           />
         </label>
+        {/* #505: the tax treatment — REQUIRED, and deliberately unselected at rest. The recorded
+            `amount` above is ambiguous without it and no later inference recovers the answer.
+            Hidden entirely on a flipped org, where the ERP owns the answer (`taxIsPmoAuthored`). */}
+        {pmoAuthorsTax && (
+        <>
+        <label className="flex flex-col gap-1 text-[12px] font-semibold text-muted-foreground">
+          Tax treatment
+          <select
+            value={taxTreatmentStr}
+            onChange={(e) => setTaxTreatmentStr(e.target.value)}
+            data-testid={VI_FIELD_TEST_IDS.taxTreatment}
+            className="h-8 w-56 rounded-md border border-input bg-background px-2 text-[13.5px] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+          >
+            <option value="">{TAX_TREATMENT_PLACEHOLDER}</option>
+            {TAX_TREATMENT_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </select>
+        </label>
+        <label className="flex flex-col gap-1 text-[12px] font-semibold text-muted-foreground">
+          Tax amount
+          <input
+            type="text"
+            inputMode="decimal"
+            value={taxAmtStr}
+            onChange={(e) => setTaxAmtStr(e.target.value)}
+            placeholder="0.00"
+            data-testid={VI_FIELD_TEST_IDS.taxAmount}
+            className="h-8 w-28 rounded-md border border-input bg-background px-2 text-[13.5px] tabular-nums outline-none placeholder:text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+          />
+        </label>
+        </>
+        )}
         <Button
           variant="success"
           size="sm"
           loading={busy}
-          disabled={!invoiceDate}
+          disabled={!invoiceDate || !tax}
           data-testid="btn-submit-vi-capture"
           onClick={handleSubmit}
         >
@@ -461,6 +525,14 @@ const VIInlineCapture: React.FC<VIInlineCaptureProps> = ({ busy, onSubmit, onCan
           Cancel
         </Button>
       </div>
+      {/* #505: say WHY submit is blocked rather than leaving a dead button. Also the a11y hint —
+          the tax fields carry no `required` attribute (the select's empty option is the unanswered
+          state), so this line is the programmatic explanation. */}
+      {!tax && (
+        <p data-testid={VI_FIELD_TEST_IDS.taxRequiredHint} className="text-[12px] text-muted-foreground">
+          {VI_TAX_REQUIRED_HINT}
+        </p>
+      )}
     </div>
   );
 };

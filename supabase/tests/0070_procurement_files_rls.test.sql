@@ -57,9 +57,9 @@ insert into procurement_quotations (id, org_id, procurement_id, vendor_id, total
 insert into procurement_receipts (id, org_id, procurement_id, status, receipt_date) values
   ('00700000-0000-0000-0000-000000000030','00700000-0000-0000-0000-000000000001',
    '00700000-0000-0000-0000-000000000010','Partial','2026-01-10');
-insert into procurement_invoices (id, org_id, procurement_id, status, invoice_date) values
+insert into procurement_invoices (id, org_id, procurement_id, status, invoice_date, tax_treatment, tax_amount) values
   ('00700000-0000-0000-0000-000000000040','00700000-0000-0000-0000-000000000001',
-   '00700000-0000-0000-0000-000000000010','Received','2026-01-15');
+   '00700000-0000-0000-0000-000000000010','Received','2026-01-15', 'exclusive', 0);
 
 -- ── AC-PF-001: in-org PM can insert a quotation-file row ─────────────────────
 set local role authenticated;

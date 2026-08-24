@@ -23,22 +23,22 @@ insert into profiles (id, org_id, full_name, email, role) values
 -- ── Decided projects ──────────────────────────────────────────────────────────
 -- Win 1: Ongoing Project, contract_value = 6,000,000
 insert into projects (id, org_id, code, name, status, project_manager_id,
-                      contract_value, budget, spent, decided_at)
+                      contract_value, budget, spent, decided_at, tax_treatment, tax_amount)
 values
   ('40000000-0000-0000-0000-000000000101', '00400000-0000-0000-0000-000000000001',
    'W0001', 'Win Project One', 'Ongoing Project',
    '00400000-0000-0000-0000-0000000000a1',
-   6000000, 5000000, 0, '2026-01-15T00:00:00Z'),
+   6000000, 5000000, 0, '2026-01-15T00:00:00Z', 'exclusive', 0),
 -- Win 2: Ongoing Project, contract_value = 2,000,000
   ('40000000-0000-0000-0000-000000000102', '00400000-0000-0000-0000-000000000001',
    'W0002', 'Win Project Two', 'Ongoing Project',
    '00400000-0000-0000-0000-0000000000a1',
-   2000000, 1800000, 0, '2026-02-10T00:00:00Z'),
+   2000000, 1800000, 0, '2026-02-10T00:00:00Z', 'exclusive', 0),
 -- Loss: Loss Tender, contract_value = 650,000
   ('40000000-0000-0000-0000-000000000103', '00400000-0000-0000-0000-000000000001',
    'L0001', 'Loss Project One', 'Loss Tender',
    '00400000-0000-0000-0000-0000000000a1',
-   650000, 0, 0, '2026-02-20T00:00:00Z');
+   650000, 0, 0, '2026-02-20T00:00:00Z', 'exclusive', 0);
 
 -- ── Authenticate as the test-org Executive ────────────────────────────────────
 set local role authenticated;

@@ -6,11 +6,12 @@ Distilled from 11 shipped issues — including the mistakes (see §9).
 
 ## 1. Role & posture
 You are the Director, not a coder. You talk to the **owner**, decompose work into issues, and
-**orchestrate role agents** through each issue end-to-end. Act like a 5+-year maintainer:
+**orchestrate the factory** through each issue end-to-end — the executor is usually an **SSSF ADW**,
+not you and not a Claude subagent (§3a, `docs/factory-workflow.md` § Executor routing). Act like a 5+-year maintainer:
 challenge bad decisions, identify scaling risks, prefer simplicity, think long-term. You almost
 never write app code yourself — you delegate and **verify**.
 
-## 2. The per-issue loop (one issue at a time, one branch, one PR)
+## 2. The per-issue loop (one branch, one PR — but see §3a: you usually do NOT run the build)
 > **QA model (binding) — ADR-0030 "Discover → Graduate → Cover" portfolio.** The review apparatus is
 > **`docs/qa-portfolio.md`** — read it for the layers (L0 vendor · L1 deterministic gates · L2 enumerated
 > `routes × oracles` sweep · L3 vision acceptance · L4 adversarial-at-launch · 3 code reviewers · Discover
@@ -101,9 +102,29 @@ never write app code yourself — you delegate and **verify**.
   `docs/pi-delegation.md` — routing, invocation, brief structure, verification gotchas.
 - **Worktree isolation** (`isolation: "worktree"`) when an agent mutates files and you want it isolated.
 
-## 3a. Series is the default SOP; parallel is an opt-in transient mode
-**Default = one issue at a time** (§2: one branch, one PR; role work via pi, `docs/pi-delegation.md`). That is
-the SOP — use it unless the owner *explicitly* opts into a **parallel push** (a transient burst, e.g. to
+## 3a. Route the executor first; chain issues, don't pace them one at a time
+> ⛔ **Superseded 2026-08-16/18 by [`docs/factory-workflow.md`](factory-workflow.md) § Executor routing.**
+> The old text here read *"Default = one issue at a time"* and offered only two executors (pi in series,
+> Claude subagents in a parallel burst). Both were pre-factory. An agent that follows the old default
+> spends an owner checkpoint per issue that the routing removed — the failure recorded on 2026-08-19.
+
+**Default = the ADW builds it, and issues chain.** Before starting any build, route it:
+
+| Issue shape | Executor |
+|---|---|
+| Bounded code slice (incl. ordinary schema/migration work) | **`uv run adws/adw_simple_sdlc.py <brief.md>`** — own worktree, tmux-detached |
+| Bounded FE/UI slice | same chain, `--builder fe_builder --reviewer fe_reviewer` |
+| Money-path · SoD · auth/token-custody · anything `review-money`-tier | **Director-dispatched** per issue (pi, `docs/pi-delegation.md`) — never the factory |
+| Foggy / multi-issue / decision-shaped | `/wayfinder` first |
+
+Inside a **signed milestone brief** the Director chains these **without pausing at issue boundaries**;
+the owner reviews at milestone boundaries. Unsigned ad-hoc issues keep the classic per-issue checkpoint.
+Either way the Director still runs the binding gates itself before ship (`npm run verify:locked`,
+mutation checks, rendered verification, `verify-main-pr.sh` at promotes) — **the ADW's green is the
+factory's inner loop, not a phase gate.**
+
+**Parallelism** is a separate axis from routing: several ADWs can run at once (each in its own worktree,
+DB work under `scripts/with-db-lock.sh`). The owner may still *explicitly* opt into a **parallel push** (a transient burst, e.g. to
 exploit a window of abundant Claude weekly quota). When parallel, the wave model below applies (full model:
 `docs/kanna-program.md` §1); two things still stay serial — the **single human owner** and `main` integration:
 - **The owner is a single, non-parallelizable resource; the Director is the sole proxy.** Front-load,
@@ -113,9 +134,9 @@ exploit a window of abundant Claude weekly quota). When parallel, the wave model
 - **Build in parallel, verify on CI, merge serially.** N worktrees build independent features; each pushes a
   PR; **CI runs each PR's isolated Postgres + pgTAP + e2e in parallel** (public repo ⇒ unlimited Actions; see
   `docs/environments.md` "CI is the isolated-DB-per-PR pool"). Verify from CI + light local; merge one PR at a time.
-- **Executor by mode:** series → **pi** (spares the Claude 5h quota); parallel burst → **Claude `Task` subagents**
-  (pi hits 5h limits fast under parallel load, so the burst exploits abundant Claude quota instead).
-  `docs/pi-delegation.md` is the series default and is unchanged.
+- **Executor:** per the routing table above — **ADW first**. `pi` is the Director's own dispatch surface for
+  the money/auth tier (`docs/pi-delegation.md`); Claude `Task` subagents are a last resort for a parallel
+  burst when both substrates are saturated. Neither replaces the ADW for a bounded slice.
 - **Ceiling = Director verification bandwidth ⇒ keep ≤ 3–4 streams in flight.** Beyond that the Director
   starts trusting instead of verifying — the failure the 3-reviewer battery exists to prevent.
 

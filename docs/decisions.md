@@ -1,4 +1,18 @@
-# Owner Decisions Log
+# Decisions Log — owner (`OD-`) and Director (`DD-`)
+
+> **Two prefixes, one file (2026-08-18).** `OD-` = **owner-locked**; changing one needs the owner.
+> `DD-` = **Director decision** — binding on agents exactly like an OD until revised, but **the owner
+> may revisit any `DD-` at any time without ceremony.** Decision rights (which questions are the
+> owner's at all) live in [`docs/factory-workflow.md`](factory-workflow.md) § Decision rights.
+>
+> **Historical note — Director calls filed under `OD-`.** The `DD-` prefix did not exist before
+> 2026-08-18, so several Director-made rulings carry `OD-` ids. They are **not renamed** (specs cite
+> those ids), but they are listed here so the owner can find what was decided *for* them:
+> `OD-PROC-7` · `OD-TS-4` · `OD-PR` (all "Director-ratified, mode A", 2026-06-04) ·
+> `OD-W5-C2-*` · `OD-W5-C3-*` · `OD-W4-*` (all "Director-adopted", 2026-06-10) ·
+> `OD-ENA-ITEMS-INSERT` (Director ruling, 2026-07-13) · `OD-CR-4` (Director default, 2026-07-22 —
+> **promoted to owner-settled 2026-08-18 by OD-CR-9**) · the ADR-0033 prefix extension
+> (Director-ratified, 2026-06-19). Treat every one of these as revisitable on request.
 
 Durable record of resolved `[OWNER-DECISION]` (OD) items — the business-rule answers that unblock
 write features. Each entry is locked by the owner in conversation, recorded here, then consumed by the
@@ -1207,3 +1221,1264 @@ Checkbox `labelledBy` note in `DESIGN.md` §Inputs/Fields; Inter is now self-hos
 closing the last uncontrolled third-party contact on the consent page itself (`AC-CON-012`); and
 dark `--input` was raised 30%→42% L to clear WCAG 1.4.11's 3:1 non-text floor as a standalone
 control boundary (`AC-A11Y-CHECKBOX-001`) — see `DESIGN.md`'s Accessibility posture section.
+
+## OD-WO-1..3 · OD-LS-1 · OD-CR-13 — the commitment/work-order model and the RIS day-1 cut (owner grill, 2026-08-19)
+
+Resolved the owner frontier of the route map (#459) and the RIS delivery map (#450): the sub-projects
+ticket (#470), the launch-scope ticket (#453), and a narrowing of the reseller task (#464).
+
+**[OD-WO-1] A project IS the client's commitment; contract is 1:1 with project; there is NO separate
+Contract record.** The project row already carries `contract_value`, `customer_contract_ref` and
+`contract_date` — enrich it rather than building a second entity that shadows it. This supersedes the
+open half of #471 ("is a contract 1:1 with a project, or does one contract carry several projects?"):
+it is 1:1, without exception in this business. The SoD-gated setter on `contract_value` stays where it
+is; no data migration is required, which is the point.
+
+**[OD-WO-2] A Work Order is a REVENUE-side scope grant — the client's PO for a scoped activity within
+the committed project value.** It is not procurement. The commitment is a ceiling and work orders draw
+down against it; **maximising that drawdown is a core part of the PM's job**, so
+`sum(work_orders) / project.contract_value` is a first-class number the app must show, not a report
+someone assembles. Consequences: the existing procurement/cost surface is untouched; billing hangs off
+the work order, not off the project directly; the "drawdown and utilisation" question in #471 resolves
+to work-order totals rather than to an ERP read-back.
+
+**[OD-WO-3] Sub-projects / multi-package project structure is PARKED, not killed — revisit trigger is
+RIS being live.** Flat projects plus the commitment/work-order model above express what a package needs
+without a hierarchy, and a project tree would cost us in every query, RLS policy and rollup permanently.
+Recorded in the route map's *Not yet specified* with the trigger, so it stops resurfacing unresolved as
+it has since June.
+
+**[OD-LS-1] RIS day-1 cut = the locked sequence and nothing added silently.** The quick wins
+(D3 weighted forecast · D4 win/loss · A2 rejection comments · A3 bulk procurement approve) run alongside
+but are **not go-live gates** — they ship if they land before the Bahasa pass and go-live does not wait.
+**No committed go-live date exists**; go-live is gated on the sequence completing, per the owner's
+standing acceptance of a later date for a better product. Beyond meetings and Indonesian, the client
+named nothing else as day-one.
+
+**[OD-CR-13] The sequence is amended to carry Work Order before go-live**, positioned after the meeting
+module:
+
+> i18n + currency seam (#468) → first-class tasks (#462) → meeting module (#463) → **work orders (#471)**
+> → Bahasa translation pass → RIS go-live
+
+Rationale: the PM manages by the drawdown number, so shipping without work orders means RIS tracks their
+core metric in Excel beside the app. Landing it before the translation pass also means it is translated
+once rather than twice. This is the largest slip in the sequence to date and was taken as an explicit
+owner call.
+
+**Reseller arm (#464) narrowed, not resolved.** The partner conversation is scheduled without a date and
+nothing waits on it. Of everything that ticket asks, **only "what do they need in order to demo" can
+create product scope** (a self-driven sandbox org, Indonesian sample data); commission shape, who
+invoices, collateral and what would make them decline are commercial and gate no build. Support already
+sits with us. Pricing (#466) stays blocked on it.
+
+## OD-SEED-1..3 · OD-ERP-1..2 — RIS seeding, and ERPNext as an immediate follow (owner grill, 2026-08-19)
+
+Second half of the same grill. Resolved the RIS data ticket (#455) and surfaced an unclaimed delivery
+dependency plus a gap in the integration architecture.
+
+**[OD-SEED-1] Source is spreadsheets only.** Everything RIS runs on today is Excel. The earlier
+ERPNext-based portal never went live and is not treated as an authoritative source.
+
+**[OD-SEED-2] Path is the shipped import wizard (ADR-0027), self-service — not one-time scripts.** It is
+generic over a per-entity `ImportDescriptor`: xlsx in, columns auto-mapped, every row validated
+client-side with zero writes, one explicit confirm, rows created through the entity's real create
+repository so RLS stamps `org_id` and the role gate holds. Companies, Contacts, Projects and Procurement
+already ship live Import buttons; **budgets are the one day-1 dataset with no descriptor** (#473). Scripts
+only where an entity has no create path. **One named owner at RIS** prepares every sheet — split
+ownership across departments is how a migration stalls.
+
+**[OD-SEED-3] Scope is from January 2025, and money history lands in ERPNext, not PMO.** RIS has been
+active only since 2025 at low transaction volume, so January 2025 captures everything since they
+digitized. Invoices, payments and purchases go into **ERPNext** (the system of record) via its **native
+Data Import**, never through our adapter and never into PMO. PMO surfaces them through the adapter
+read-models that already ship (AR aging, actuals). This reconciles the owner's full-history requirement
+with the rule that nothing writes governed money records around PMO's SoD and outbox path: the history is
+complete, and no record bypasses anything. All transaction types, not a subset — at this volume,
+selecting which kinds to bring costs more deliberation than bringing everything.
+
+**[OD-ERP-1] ERPNext is NOT a go-live gate. RIS goes live on PMO standalone; ERPNext follows
+immediately, with a two-way historical sync.** ADR-0055 already provides that PMO runs fully standalone
+with every domain PMO-owned, so this is a supported topology rather than a compromise. The day-1 sequence
+was already carrying i18n, tasks, meetings, work orders and a translation pass; adding a second system's
+provisioning and a historical load to it would put the go-live out of reach.
+
+**[OD-ERP-2] We self-host ERPNext for RIS, alongside their PMO deployment.** Not the distribution partner
+(despite ERPNext hosting being their business), not RIS. Today no hosted ERPNext exists anywhere — only
+the local Docker dev bed (`docs/environments.md` §ERPNext v15 dev bed). Provisioning, company setup,
+credentials and the historical load are charted in #474.
+
+**⚑ Consequence — an architecture gap, not just plumbing (#475).** Between go-live and ERPNext landing,
+PMO is the only system and writes real projects, budgets, invoices and payments. At connect, the domains
+ERPNext natively owns flip from PMO-owned to externally-owned — but the PMO rows already there are the
+*only* copy, so they cannot simply become a read-model. **ADR-0055 has no account of a client crossing
+between standalone and connected while live**, which is precisely what RIS will do and what any standalone
+client adopting an ERP later would do. The part that binds *before* go-live: if PMO records must
+eventually push into ERPNext, they must already carry whatever ERPNext will require — customer
+references, tax fields, account codes, naming series, currency. Discovering a missing required field
+after months of live client data is expensive and possibly unrecoverable. **The transition is designed
+before go-live and built after.**
+
+## DD-I18N-1..6 — the locale and formatting seam, fully specified (Director, 2026-08-19)
+
+Resolves the wayfinder ticket [Locale and formatting seam](https://github.com/ariefsaid/PMO/issues/468),
+first in milestone 1's build sequence. These are **`DD-`**: library choice, schema shape, migration order
+and test strategy are Director calls inside the owner-settled frame (`OD-CR-3`/`OD-CR-4`/`OD-CR-5` and the
+2026-08-18 ruling that Bahasa is a market precondition). Revisable by the owner at any time.
+
+Every ruling below is grounded in a count taken from the tree — and **two of the counts changed the
+answer**, which is the reason to write them down: `parseMoneyInput` has **6 call sites in 5 files**, while
+**~45 sites in ~28 files** format numbers or dates with a hardcoded locale outside `src/lib/format.ts`,
+and **48 unit test files plus 11 e2e specs** assert `$`-prefixed en-US output today. The display side is
+the big job, not the parser.
+
+**[DD-I18N-1] react-i18next, for message strings ONLY. `Intl` keeps money, dates and numbers.**
+No `i18next-icu`, no formatting plugins — `src/lib/format.ts` stays the single formatting source and **the
+money path acquires no plugin dependency**. Pluralization via `Intl.PluralRules`, and it barely matters:
+Bahasa has no grammatical plural, so the two English forms are the whole requirement.
+*Rejected `Intl` + a hand-rolled catalogue* (~40 lines, and the right call at 100 strings): at ~800–1200
+strings across 197 `.tsx` files handed to an outside translator, key extraction, a missing-key report and a
+fallback policy are the actual work, and `i18next-parser` supplies them as a CI gate. *Rejected Lingui*
+despite a smaller runtime and source-text-as-key macros — it needs a babel/swc macro inside the Vite build,
+a version-coupling risk against Vite 8 / React 19 that buys nothing a convention cannot. **The bundle
+argument does not survive the dependency list:** this PWA already ships recharts and posthog eagerly and
+lazy-loads exceljs, so a ~15kB gz runtime is noise. Bundle was the wrong axis; tooling was the right one.
+
+**[DD-I18N-2] Preferences are columns, and NULL means inherit.** `organizations`:
+`default_locale text not null default 'en'` · `default_number_locale text` (NULL = derive from language) ·
+`default_timezone text not null default 'Asia/Jakarta'`. `profiles`: `locale` · `number_locale` ·
+`timezone`, **all nullable**. A preferences table buys a join, an RLS policy and a row-exists branch for
+three fixed 1:1 values. The nullability answers "reset to org default" vs "happens to match it": reset
+writes NULL, an explicit choice writes the value — so a user who picks English while the org is English
+**stays** English when the org flips to `id`, which is the entire point of an override and which a
+copy-the-default-down-at-insert design silently breaks. **Binding on the build:** resolution lives in one
+`resolveLocale(profile, org)` helper, never as scattered `?? org.x` at call sites.
+
+**[DD-I18N-3] The masked money input replaces every money field in ONE pass**, and `parseMoneyInput`
+becomes locale-aware in the same commit. Six call sites (`ProjectFormModal`, `BudgetProjection`,
+`ProjectBudget`, `VendorQuotesTab`, `LineItemsSection`) — the "large diff" premise was wrong, so the trade
+never arises. **Guard-rail:** a masked field makes it tempting to let the component hold the number and
+drop the parse. Do not. `parseMoneyInput` stays the single parse behind both validation and persistence
+(the Wave 3 invariant documented in the helper); the component owns display grouping, the parse stays the
+boundary. `pages/project-detail/ProjectDetailHeader.tsx:67` already hand-rolls grouping via
+`toLocaleString('en-US')` — extract that, don't rewrite it.
+
+**[DD-I18N-4] Exports need no change, and that is the ruling.** `src/lib/export/toWorkbookBuffer.ts`
+already writes **typed cells** — real numbers with `numFmt '#,##0.##'`, real dates with `'yyyy-mm-dd'`.
+Excel format codes are locale-independent in the file and rendered in the **reader's** locale, so one
+identical file shows `1.234.567` to an Indonesian recipient and `1,234,567` to an American. No punctuation
+is stored, so there is no punctuation decision to get wrong. **CSV is neutral always** (`.` decimal, no
+grouping, ISO dates) — a locale-formatted CSV is exactly the thousandfold corruption this work exists to
+prevent, since Indonesian `1.234` parsed as en-US is `1.234` with no error raised. API payloads, logs and
+filenames stay ISO 8601 and raw numbers; screen and print are the only locale-formatted surfaces.
+**Standing prohibition:** no export value passes through `formatCurrency`, `formatDate` or `t()`.
+
+**[DD-I18N-5] Catalogues are JSON in the repo; a missing key renders English and fails CI.**
+Feature-namespaced keys at `public/locales/{en,id}/<ns>.json`, generated by `i18next-parser`. **No TMS** —
+Crowdin/Lokalise for two languages is a subscription and an integration in place of editing a JSON file;
+revisit at language three. A missing key renders **the English source string** — never the raw key, never
+a visible marker, because a client must not be shown `project.header.title`. And a missing key **fails
+CI** via the parser's completeness check. Those two only work as a pair: the forgiving runtime is
+affordable *because* the gate makes gaps unshippable. Who translates is resourcing, not product, and does
+not gate the seam — it ships with `en` complete and `id` partial.
+
+**[DD-I18N-6] The proof.** (1) Round-trip per locale over a value table, including the named live risk —
+`'1.234'` is **1234** under `id-ID` and **1.234** under `en-US`: one string, two correct answers, a factor
+of a thousand apart. (2) A **mutation check** on the money path (mandatory): break the separator handling
+and the money tests must go red. (3) Catalogue completeness as a CI gate — missing *and* orphaned keys.
+(4) One curated Playwright journey: switch language, assert money and a date in Indonesian convention.
+(5) An export guard asserting a *number* reaches `cell.value`.
+**⚑ The largest risk in the build:** the 48 unit files and 11 e2e specs asserting en-US output must each
+pin an **explicit** locale, not inherit the runner's or the browser's. Left implicit they either go red for
+the wrong reason or — worse — stay green while proving nothing, because the runner happens to default to
+`en-US` here and in CI. That is a suite certifying a locale nobody chose. Not optional cleanup.
+
+**Graduated build work:** the ~45 hardcoded-locale display sites are a separate, mechanical issue
+([#477](https://github.com/ariefsaid/PMO/issues/477)) — folded into the seam's diff they make a change
+that touches the money parser unreviewable. Shape 3 of that sweep (bare `toLocaleDateString()`) is already
+a latent bug independent of i18n: two users in one org see different date formats today.
+
+## DD-XING-1..6 — the standalone → connected crossing is Posture B, not a flip-and-backfill (Director, 2026-08-19)
+
+Resolves the wayfinder ticket [Standalone → connected](https://github.com/ariefsaid/PMO/issues/475).
+RIS goes live on PMO standalone with ERPNext as an immediate follow (`OD-ERP-1`/`OD-ERP-2`), so PMO is
+the only system for a period, writing real projects, budgets, invoices and payments. **`DD-`** —
+revisable by the owner at any time.
+
+**Two premise corrections first.** ADR-0055 is *not* unaware of the crossing: its Consequences say
+*"Flipping a domain to externally-owned for an existing client requires a backfill/promote runbook
+(push existing Supabase rows into the external system, then flip ownership)"* and call the flip *"a
+per-domain, reversible flip."* The gap is **named but undesigned** — and the named answer is *the more
+expensive of the two now available*, because it was written before ADR-0059 existed, when Posture A was
+the only posture. ADR-0059 §7 also already amended ADR-0055 §5's ownership map once (adding a posture
+column), which is why the crossing rule belongs in that same table.
+
+**[DD-XING-1] For a client crossing while live, the process domains do not flip — they take ADR-0059
+Posture B (PMO-SoT + external side-mirror).** ADR-0059 §2's rule sorts them unchanged: Posture B iff PMO
+owns a process whose outcome the external system must record. Procurement chain, sales invoices,
+payments, timesheets and budgets are **B** (PMO ran the SoD, approvals and outbox). Party master
+(Companies/Contacts) is **A with adopt** — ADR-0059 §5 explicitly exempts reference/master data, and the
+party-adopt path ships. Accounting/GL is **A natively**; PMO never held it, so nothing crosses.
+Three properties make this right rather than merely cheap: (a) Posture B leaves PMO tables *"unflipped,
+user-writable, untouched"*, so the opening problem — records that cannot become a read-model because
+they are the only copy — **stops existing** instead of being worked around; (b) invariant 7 makes the
+crossing reversible by `drop table <side_mirror>` with zero PMO data loss, so a disconnecting client
+keeps working; (c) **no new ownership state machine is needed** — `external_domain_ownership` (`0087`)
+is stateless (presence = owned, no "crossing in progress"), and a Posture-B domain gets no row at all
+(`0137`: *"POSTURE B — PMO IS SoT. There is deliberately NO RLS FLIP here."*). Under Posture A that
+stateless switch would have needed an intermediate state to hold a half-finished backfill.
+⚑ **Reversibility is a Posture-B property only.** A Posture-A reversal *"leaves PMO holding stale
+ex-read-model rows"*, so ADR-0055's unqualified "reversible" overstates Posture A and gets corrected.
+
+**[DD-XING-2] The epoch boundary — one date reconciles "never adopt" with showing pre-go-live history.**
+Posture B invariant 5 forbids adopting an inbound external document with no `external_refs` mapping
+(adoption *"would mint a PMO record that never passed PMO's process"*), yet RIS's January-2025 history
+loads natively into ERPNext (`OD-SEED-3`) and must be visible in PMO. A domain therefore holds **two
+record classes**, split by whether PMO's process ever ran: **before the org's PMO go-live**, history is a
+Posture-A **read-only read-model** — surfaced through the shipped snapshot read-models, never adopted,
+never editable in PMO; **from go-live onward**, records are PMO-SoT, Posture B, side-mirrored. Invariant
+5 stands unweakened: nothing pre-epoch is *adopted*, it is *read*. One nullable
+`organizations.pmo_epoch_at` carries it — the only genuinely new concept the crossing needs.
+
+⛔ **[DD-XING-3] SUPERSEDED 2026-08-21 by `OD-XING-1`** — falsified by #523; the mechanism it describes does not exist and is deliberately disabled. Read `OD-XING-1` instead.
+
+**[DD-XING-3] The catch-up is the ordinary Posture-B push run over records with no side-mirror row. No
+backfill machinery, no second implementation of the money path.** It is safely re-runnable **by
+construction**: an ADR-0059 §4 key is *derived, not minted* (`'<prefix>:' || <pmo_record_id> || ':' ||
+<state_stamp>`), so a re-run derives the same key, the outbox single-use constraint (`0134`) rejects the
+duplicate, and no invoice is written twice. `external_refs` needs nothing new —
+`unique (org_id, domain, pmo_record_id)` already carries the linkage, and `0093` added the
+reverse-direction constraint for adopt-mode dedupe.
+⚑ **CORRECTION 2026-08-20 — the headline example below is STALE and was already fixed.**
+`budget_versions.activated_at` **exists**: `0139_budget_version_activated_at.sql:55` adds it and
+`:98` sets it on activation, owner-ratified 2026-07-20. So OQ-BUD-2's specific instance is closed;
+what remains is the *general* audit of every Posture-B kind's stamp, which still stands. Both #479
+and this record asserted the column was missing — found by an investigation agent asked to falsify
+premises rather than implement them. The lesson is the same one that keeps recurring: **a claim about
+the tree, written once, does not stay true.**
+
+**⛔ Prerequisite, not optional: audit every Posture-B kind's state stamp before any crossing**
+([#479](https://github.com/ariefsaid/PMO/issues/479)). `0137` documents a live failure of exactly this
+(OQ-BUD-2): `budget_versions` has no `activated_at`, so re-activating a rolled-back version derives a key
+**identical to the original push** ⇒ 23505 ⇒ *silently suppressed* ⇒ ERP enforces the wrong version. A
+weak stamp inverts the guarantee — instead of preventing a duplicate it **suppresses a needed write with
+no error anywhere** — and a catch-up over months of accumulated records is the workload that turns one
+weak stamp into plural silent data loss.
+
+**[DD-XING-4] What a record must carry is far less than feared — except two things, and both are missing
+today.** Most of the ERPNext requirement list is **org-level config set at connect, not per-record
+data**: account codes are a mapping table (`budget_category_account_map` already ships as an org-scoped
+Admin-only bijection), naming series and tax templates are connect-time settings, company is a constant.
+None needs to exist at go-live. Two are genuinely per-record and absent:
+(1) **currency — ruled but not built.** `OD-CR-5` requires `currency` on every money table; the only
+`currency` columns in the schema are on the two ERP snapshot read-models (`0101`, `0150`). It rides with
+the i18n/currency seam (`DD-I18N-*`) — but a four-week-old ruling is still unimplemented, so the seam's
+plan must be checked to actually land it.
+(2) **⛔ tax — absent entirely, and this is the go-live blocker.** No tax column exists anywhere.
+`sales_invoices` (`0123`) carries `amount numeric(14,2)` — no currency, no rate, no tax amount, no line
+items — and its insert policy (`not domain_externally_owned(org,'revenue')`) means **a standalone org
+authors invoices natively into it**, which is what RIS does from go-live until ERPNext lands. An
+Indonesian invoice carries PPN and an ERPNext Sales Invoice requires a tax treatment; a single
+undifferentiated `amount` **cannot be reconstructed** into one, because whether it is tax-inclusive or
+tax-exclusive is recorded nowhere and no later inference recovers it. Cheap now, unrecoverable after the
+first real invoice — the one item on the crossing with a deadline rather than an ordering
+([#478](https://github.com/ariefsaid/PMO/issues/478)).
+
+**[DD-XING-5] Prove the crossing against the ERPNext dev bed before go-live**
+([#481](https://github.com/ariefsaid/PMO/issues/481)), driven from seed data, over a deliberate *gap*
+(seed, skip the push, then catch up — a dry-run against already-pushed records proves nothing).
+Assertions: every seeded record pushes to a valid ERPNext document; a re-run writes nothing; a pre-epoch
+ERPNext document mints no PMO process record; `drop table` on the side mirror loses no PMO data.
+⚑ **Director-dispatched, never factory** — a backfill that writes invoices is money-shaped.
+
+**[DD-XING-6] An addendum to ADR-0055 §5, no new ADR**
+([#480](https://github.com/ariefsaid/PMO/issues/480)). ADR-0059 holds the mechanism and ADR-0055 §5's map
+is where a reader asks "what happens to domain X"; a third ADR restating both is ceremony. The addendum
+adds the crossing column, the epoch rule, the catch-up rule with its state-stamp precondition, and the
+reversibility correction.
+
+## DD-FMT-1 — negative money renders `-$1,234.50`, not `$-1,234.50` (Director, 2026-08-19)
+
+Surfaced by the #477 review (`docs/reviews/2026-08-19-477-locale-drift-sweep.md`). The swept money
+formatters disagreed with each other: `formatCurrencyCents`/`formatCurrencyFine` used `Intl`
+`style: 'currency'` and rendered `-$1,234.50`, while `formatCurrencyAuto` welded a `$` onto a plain
+number and rendered `$-1,234.5`. `RevenueByProject` renders **both on one screen** — KPI tiles and
+table cells — so a negative open AR (reachable on an overpayment or a credit note) showed the minus
+in two different places.
+
+**Ruling: all money uses `style: 'currency'`; the sign goes before the symbol.** The old welded form
+put the sign inside the symbol, which is non-standard, and consistency between sibling formatters
+matters more than preserving it. `formatCurrencyAuto` keeps `min 0 / max 3` fraction digits so every
+**positive** stays byte-identical to the welded output — verified across the range — and only
+negatives change.
+
+⚑ The lesson generalises past this fix: **each formatter was correct read on its own, and the full
+suite was green with the inconsistency in it.** It was only visible reading the siblings *against each
+other*. When a change introduces a family of near-identical helpers, review the family, not the
+members.
+
+## DD-ORG-1..3 · DD-DEPLOY-1 · DD-RPT-1 — multi-org operations batch (Director, 2026-08-19)
+
+Resolves five wayfinder tickets on the multi-org map (#439): #440, #441, #444, #460, #465. All `DD-`
+— revisitable by the owner at any time.
+
+**[DD-ORG-1] Org creation is a guarded security-definer RPC, Operator-only, invoked by script — no
+UI** (#440 → build #484). The tenancy ruling decides it: unrelated paying clients get their own
+Supabase project, so only RIS + Gordi + Demo share a deployment and org creation happens **~3 times
+in a deployment's life** — less often than a schema migration. A UI for that is a surface to build,
+secure, test and maintain for nothing. Revisit only if shared multi-tenancy arrives (gated on the
+isolation proof, #461). The RPC mirrors the shipped `operator_set_domain_ownership`
+(`0087`) — do not invent a new authz shape. It must create the org **and** its companions atomically:
+the first Admin membership (an org nobody can administer is not created), the locale defaults
+(`DD-I18N-2`), and `pmo_epoch_at` (`DD-XING-2` — free at creation, guesswork to reconstruct after an
+ERP arrives). ⚑ That growing companion list is the actual reason to build it: every hand-written
+`insert` is a chance to miss one. Interim operator SQL stays acceptable but must be written down in
+`docs/environments.md` and set the same rows.
+
+**[DD-ORG-2] A user in the wrong org is handled by offboard + reinvite. Reassignment is ruled out —
+on tenancy-integrity grounds, not UX** (#441 → guard #485). The ticket frames it as a policy choice;
+it is not. `profiles.org_id` is the tenancy anchor, so mutating it retroactively rewrites which org
+every record that user ever authored belongs to. Three things break together: historical rows in org
+A become authored by a profile in org B (a cross-tenancy reference no RLS policy anticipates); it
+lands squarely on the **known-weak SoD surface** — the recorded root cause of the create-path class is
+that SoD asks who set a value and never validates that person's *current* standing, and a cross-org
+move is that defect with a new trigger, introduced deliberately into the money path; and it would
+**silently carry org-scoped integration connections across the boundary**, since offboard
+cascade-deletes them by design and a bare `update` has no such step. That last point inverts the
+ticket's own question: the cascade is not something a move should *mirror*, it is a reason to prefer
+offboard, which already does it right. Offboard + reinvite preserves authorship integrity (the old
+profile stays in org A) and costs only identity continuity across orgs — which is correct, since the
+user **was a different principal in each org**. This decision removes scope; the only build is making
+`profiles.org_id` immutable so nobody later writes the obvious-looking `update`.
+**Enforced by `supabase/migrations/0190_profiles_org_id_immutable.sql`** (trigger
+`profiles_org_id_immutable`, proof `supabase/tests/profiles_org_id_immutable.test.sql`): an `UPDATE`
+that changes `org_id` raises `23514` naming this decision and pointing at offboard + reinvite;
+`INSERT` still sets it freely. ⛔ It binds **every** role including `service_role` and the table
+owner — an integrity invariant, not an authorization rule, so there is deliberately no exemption
+hook. It is `AFTER`, not `BEFORE`, so the RLS `org_id` pin underneath stays independently
+observable.
+
+**[DD-ORG-3] Org lifecycle marker `live`/`demo`/`test`, with a DEFAULT-DENY destructive guard, `live`
+terminal, enforced at two layers** (#460 → build #489). ⛔ The polarity is the decision. Written the
+obvious way ("refuse when state = `live`") it fails open on exactly the rows that matter most:
+**every org that exists today has no marker**, so NULL-is-destroyable would leave the real client
+unprotected on day one — the precise scenario the ticket was raised about — and any state added later
+(`archived`, `suspended`) would silently become destroyable. So: refuse **unless** the state is
+explicitly in a destroyable allowlist (`demo`, `test`); `NULL`, unrecognised, and `live` are all
+protected. This repo has shipped inverted guards twice. **`live` → anything is refused outright** —
+demoting a live org is not maintenance, it is removing protection from real client data, and it is the
+move that would immediately precede a destructive command. Two layers (DB function = authority,
+script check = fail-fast ergonomics) because defence in depth needs a test per layer. Scope is
+org-**wholesale** operations; per-record deletes stay with RLS + soft-archive (ADR-0018).
+
+**[DD-DEPLOY-1] Expand-then-contract is the rule; the observed failure gets a mechanical guard;
+version handshake rejected** (#444 → build #486). The ticket offers deploy-order SOP, version
+handshake, or coupled promote. **No fixed order is safe in both directions** — a function redirecting
+to a new route needs the frontend first, a frontend calling a new function needs the function first —
+which is why "deploy in the documented order" did not save us. So the rule is expand-then-contract:
+every cross-boundary change ships with both sides tolerating old *and* new before a later promote
+removes the old, which makes **order irrelevant** — the only property that survives a deploy done
+wrong under pressure. A version handshake adds a permanent runtime coupling and a new failure mode to
+solve a release-discipline problem: rejected. Discipline that lives only in a doc is what just failed,
+so the observed case gets `scripts/check-redirect-targets.mjs` (edge-function redirect targets must
+resolve to real frontend routes), running in CI on PR→`main` — the gate immediately before the owner
+is asked to authorize a production promote. A coupled promote script adds **no safety** over this and
+should never be mistaken for the safety mechanism.
+
+**[DD-RPT-1] `/reports` leaves the navigation now; the fixed report set is not day-1** (#465 → build
+#488, owner question parked at #487). A nav entry leading to a placeholder advertises an unfinished
+product to exactly the audience a demo is meant to persuade, and it is a one-line fix. The report set
+is deferred on **sequence**, not data: the locked go-live order (i18n → tasks → meetings → work orders
+→ Bahasa → go-live) does not contain reports. ⚑ Worth recording because it cuts the other way — the
+convenient argument that reports are blocked on ERPNext is **false**: in standalone mode PMO owns
+`sales_invoices` and the procurement chain natively, so AR and AP aging are computable at go-live. A
+report *builder* remains out of scope. Whether RIS needs a named report at day-1 is a client fact only
+the owner holds and is parked, blocking nothing.
+
+## DD-TEN-1 · DD-OPS-1 · DD-ORG-4 · DD-ENTRA-1 · DD-TASK-1..5 (Director, 2026-08-19, second batch)
+
+Resolves #461, #442, #443, #452, #462. All `DD-`.
+
+**[DD-TEN-1] The cross-org isolation proof must run against PRODUCTION-PARITY GRANTS, be adversarial,
+enumerate its denominator, and become a standing gate** (#461 → build #490). ⛔ The grant requirement
+is the decision: `0173`'s sweep was green in CI and false in prod because hosted Supabase grants
+`EXECUTE` to `anon`/`authenticated` on every `public` function and local Docker does not (23 definer
+writers unauthenticated-callable; closed by `0185`). This proof is that shape with the blast radius
+multiplied — a grant difference would certify tenant isolation that does not hold, for every tenant at
+once. Pass bar: no cross-org read/write **reachable** by any authenticated principal (not "policies
+present"); **mutation-verified** — delete an `org_id = auth_org_id()` predicate and the tests go red;
+**enumerated** — every org-scoped table, definer, edge function and storage bucket proven or explicitly
+excepted. Surface order by risk, not by ease: **edge functions first** (run as `service_role`, bypass
+RLS, invisible to pgTAP), then definers (must take org from the JWT, never a caller parameter), storage,
+the agent surface (has a natural attacker in prompt injection), the view compiler, and tables **last** —
+the instinct to start where the tests already are is backwards. Standing, not one-time: a guard that
+fails the build when a new org-scoped surface has no proof. **Disqualifying outcome:** if that guard
+cannot be written, shared multi-tenancy is ruled out — the failure mode is silent cross-tenant
+disclosure and "we were careful" is not a control. Fallback ladder: schema-per-tenant (Director), then
+minimum price / thinner margin (owner, parked *then*).
+
+**[DD-OPS-1] No operator console. A boundary rule, a runbook, and a named revisit trigger** (#442 →
+#491). The only routine operator power (feature toggles) **already has a UI**; everything else is rare,
+and one of them was just ruled not to get a UI (`DD-ORG-1`) — building a console now would contradict
+that within the same batch. "Scattered" is a **discoverability** problem: one runbook page solves it at
+~1% of the cost. Boundary: **operator = cross-org, platform-level, rare → guarded RPC + runbook;
+org-admin = within-org, routine → UI.** Revisit when orgs exceed a handful, i.e. when shared
+multi-tenancy lands.
+
+**[DD-ORG-4] Shared deployment: RIS `live`, Gordi `live`, Demo `demo`. No vendor org. The cleanup that
+matters is PII** (#443 → #492, states ride with #489). ⚑ **Gordi is `live`** — the temptation is `test`
+because it is ours and it is the isolation-proof subject, but it holds real data and a guard treating
+it as disposable is wrong in the one direction that cannot be undone. Owner-controlled means a failure
+costs us, not that the data is expendable. The demo org **keeps** staff membership: demo data is
+hand-maintained and impersonation is view-only (ADR-0016), so "reach it only by impersonation" sounds
+cleaner and does not work — bound the membership instead. The real exposure is not layout: the demo org
+is **shown to prospects** and has accumulated whatever was convenient to type, so auditing it for real
+names/emails/phones is the item with a real-world consequence. Also flagged: the shared project is
+described as staging/demo in one place and as production for the first client in another; the lifecycle
+backfill is where that ambiguity stops being harmless.
+
+**[DD-ENTRA-1] RIS gets Option B — the Entra app registered in the client's own tenant** (#452 → #494).
+ADR-0064 defaulted to Option C on the economics of doing publisher verification once; that premise is
+gone (owner, 2026-08-16). Without verification, C and A both show the unverified-publisher warning and
+some tenant policies block unverified apps outright — discovered with the client's admin mid-ceremony,
+the worst possible moment. B needs no verification, shows no warning, cannot be consent-phished
+cross-tenant (automatic tenant lock, matching the deployment's `tid` binding), and their admin is
+already in the room. Cost accepted: registration lives in their tenant, so secret rotation is
+coordinated with their IT. Revisit C **only** if publisher verification ever happens. ⚑ This had sat as
+"owner ruling needed" since 2026-08-18; under the same day's decision-rights directive it is
+architecture and therefore a Director call — converting it rather than letting it block. Whether their
+IT will host the registration is a client-relationship fact, discovered in the ceremony, escalated then.
+
+**[DD-TASK-1..5] First-class tasks** (#462; authorization detail stays private per the public-repo
+rule). **[DD-TASK-1]** v1 references are **project and meeting only**, not mutually exclusive, with an
+invariant that a task and its meeting cannot name different projects (mirror
+`check_tasks_parent_same_project`, `0140`). Every extra nullable parent multiplies the policy-branch
+matrix, which is the delicate part. **[DD-TASK-2]** ⚑ `meeting_id` does **not** land in the same migration:
+nullable `project_id` is the dangerous change and ships **alone**, so it is reviewed on its own diff
+with only pgTAP as its consumer. New oracles are written **first, red**, because their job is to fail
+if the authorization surface is got wrong — written afterwards they get written to match whatever
+shipped. The write surface is reconciled **atomically** (the bug is the disagreement *between* its
+parts, so a partial change is the failure mode, not progress). The trigger failures share **one root
+cause** — external-ownership resolved via the task's project rather than its own org — so fix the root,
+not four symptoms. Mutation-test the **neighbours**, per the July lesson. **[DD-TASK-3]** `OD-2`
+(`requiredFilter: 'project_id'`) is **repealed** and replaced by a **row cap + explicit ordering**, not
+an alternative required filter: `OD-2`'s purpose was boundedness, and RLS already supplies the security
+bound. **[DD-TASK-4]** v1 surfaces are **"My tasks"** (assignee-scoped, reaches project-less tasks free) plus a
+stable `/tasks/:id` deep link; an org-wide task browser is out. **[DD-TASK-5]** `timesheet_entries.project_id`
+**stays `not null`** — a project-less task cannot be timed. Time is costed and pushed to ERPNext where
+project is the accounting dimension; relaxing it would drag this migration into the money path for a
+rare case. Attach the task to a project first: a legible workflow, not a workaround.
+
+## DD-IMP-1 — budget import descriptor (Director, 2026-08-19)
+
+Resolves #473 → build #495. Effort S, and the last day-1 dataset without an importer.
+
+**Fields.** Version header: project (ref), name, fiscal year. Line items: `category`, `description`,
+`budgeted_amount`. `version` and `status` are derived, never supplied.
+
+⛔ **`actual_amount` is NOT importable.** It sits on `budget_line_items` and an importer would
+naturally include it. Actuals come from the ERP read-model; a spreadsheet writing them produces a
+figure **PMO computed rather than read**, breaking the ledger-sourced display rule (ADR-0048/0055) —
+silently, because the number looks correct.
+
+**Shape.** One row = one line item, parent version resolved by reference and **matched-or-created** as
+Draft on `(project, fiscal_year)`; requiring a manual pre-step per project defeats a bulk importer at
+the one moment it runs at volume. A **fiscal-year column per row** is required, not optional: budget
+identity is year-qualified (`0154`), so the year cannot be implicit — and a wizard-level
+"one year at a time" mode could not express the multi-year plan a real budget sheet is.
+Re-run safety uses the **shipped** import provenance (`0072`); a descriptor-local dedupe scheme is how
+two mechanisms end up disagreeing.
+
+**Draft-only is achieved by omission** — `budget_versions.status` defaults to `'Draft'`, so the
+descriptor simply does not expose it. **Activation is reachable only via `activate_budget_version`,
+never an import**; bulk-creating activated budgets routes around the approval path, the class this
+repo has already paid for four times. Precedent one descriptor over: `projectDescriptor` constrains
+status because "a won/on-hand status is reachable only via the transition RPC, never an import." Test
+it and **mutation-check it** — adding `status` to the descriptor must turn a test red.
+
+⚑ **AMENDED 2026-08-20 — the effort estimate was wrong, and so was one of its premises.** `DD-IMP-1`
+said "the work is a descriptor plus wiring an `<ImportButton>`" and called it effort **S**, on the
+assumption that the shipped import provenance (`0072`) was generic. **It is not.** `0072` adds
+`import_batch_id`/`imported_at`/`import_key` **per table** and covers only the procurement chain
+(`procurements`, `purchase_requests`, `rfqs`, `procurement_quotations`, `procurement_receipts`,
+`procurement_invoices`, `purchase_orders`, `payments`) — **no budget coverage at all**. So #495 is
+**migration + descriptor**, not descriptor alone: the budget tables need the same three columns and
+the DB-enforced partial unique index. A dispatched builder found this by refusing a brief that told it
+to use provenance that did not exist while also forbidding a local dedupe scheme — it could satisfy
+neither, and escalating was correct. The general lesson: **"reuse the shipped X" is a claim about the
+tree, and it needs checking before it goes into a brief.**
+
+⚑ **Sequencing correction.** The ticket instructs the descriptor to set `currency` explicitly. **There
+is no `currency` column to set** — the only ones in the schema are on the ERP snapshot read-models
+(`0101`, `0150`); `OD-CR-5` is ruled and unbuilt (also under `DD-XING-4`). So #495 is **blocked on
+#478**. Both are pre-go-live and seeding runs once, so building the importer first means building it
+twice, the second pass touching a money-shaped path for no gain. This does not make the importer less
+day-1 — it orders two day-1 items that were being treated as independent.
+
+## DD-WO-1..6 — the Work Order record (Director, 2026-08-19)
+
+Resolves #471 → build #498 (blocked on #478); owner ground-truth parked at #496. Every precedent cited
+was verified against the tree.
+
+**[DD-WO-1] One table, no children, `project_id NOT NULL`.** A work order with no commitment has no
+ceiling to draw against — deliberately unlike tasks, where nullable was the point. No `client_id`
+(derive from `projects.client_id`), no line items in v1, no `contracts` table (`OD-WO-1`). Mint
+`wo_number` with the **existing** `next_procurement_doc_number(org, prefix)` at prefix `'WO'` —
+already atomic per-(org, prefix, day) and already revoked from `authenticated`; the
+procurement-flavoured name is cosmetic. Do not write a second minter.
+
+**[DD-WO-2] Drawdown is a DERIVED sum (`security invoker`), and over-ceiling is allowed, warned and
+ATTRIBUTED.** Copy `get_project_budget` (`0005:15`), which carries an explicit "do NOT add security
+definer" comment. Not a stored balance: `projects.spent` was added in `0001:79` marked
+`-- DEFERRED: stored vs derived`, is still unmaintained, and the UI derives instead — stored rollups
+rot in this schema. **Not a hard cap**, and the reason is about people: `contract_value` is
+Exec/Finance-gated once a project is won (`0014`), so a cap would stop a PM **recording a real client
+PO** until someone a role away raised the ceiling — a control that blocks recording reality. Instead
+the issue RPC computes the sum under the parent lock and, on exceed, requires an explicit
+`p_over_commit_ack` it **refuses to default** (fail closed), stamping who acknowledged. Without it
+there is no record anywhere of who chose to over-commit. Committed = `Issued + Closed`; **Draft
+excluded** or the PM's headline number is polluted by drafts.
+
+**[DD-WO-3] `Draft → Issued → Closed` + `Cancelled`; SoD on issue.** Deliberately NOT states: worked,
+delivered, invoiced, paid — paid-ness already has an oracle on the invoice
+(`sales_invoices.erp_outstanding_amount`), and a second copy would disagree. SoD copies the shipped
+`projects` pattern: `set_work_order_value` as sole writer, witness ≠ caller, **fail closed on NULL
+witness**, witness must be an **active** member (reuse `0180`/`0183` — witness=winner, offboarded and
+demoted are the three recorded variants), origination guard on INSERT. ⚑ Two mechanical traps:
+**revoke the table UPDATE grant and re-grant the column list minus `order_value`** (a column-level
+REVOKE on top of a table grant is a **silent no-op**), and **add `work_orders` explicitly to
+`0171_sod_class_completeness.test.sql`** — that test names its tables, so a new money table is not
+automatically in the denominator.
+
+**[DD-WO-4] `sales_invoices.work_order_id`, nullable in schema, required by the UI path.** Nullable is
+**forced**: the table doubles as the machine-written mirror when revenue flips externally-owned, so an
+adopted ERP-originated invoice has no PMO work order and `not null` would break adoption; pre-epoch
+history has none either. Constrained by a same-project trigger (precedent
+`check_tasks_parent_same_project`, `0140`). ⚑ **Mandatory paired edit:** add it to
+`sales_invoices_native_mirror_guard` (`0123:117`), which enumerates every native field — omitting it
+leaves the column user-writable while revenue is externally owned, the exact "closed one path, left
+the other open" shape that produced SoD slices 2–6.
+
+**[DD-WO-5] Posture B at the ERPNext crossing, and post-issue value edits are FORBIDDEN.** ADR-0059
+§2's test answers B on all four counts, including "never adopt" — a natively-created ERPNext Sales
+Order never passed the issue gate. ⚑ Two collisions needing an addendum line, not a redesign:
+ADR-0055 §5 lists Sales Order as ERP-owned, so **a builder pattern-matching that row will build
+Posture A** — §5A must state that PMO owns the client's *inbound* PO, for which ERPNext has no native
+record, and the ERPNext Sales Order is its mirror; and **no `salesOrder.ts` body builder exists**
+(verified against `src/lib/adapterSeam/erpnext/bodies/`) — new work, not reuse. **Forbidding
+post-issue value edits** is the ruling that removes the weak-stamp class: otherwise `issued_at` stops
+moving when pushable content moves, a re-push derives an identical key, and the write is **silently
+suppressed** leaving ERPNext holding the wrong value (the OQ-BUD-2 failure, `0137`/#479). An amended
+PO is Cancel + re-issue — which is also how ERPNext amends.
+
+**[DD-WO-6] Out of v1:** the push itself · `tasks.work_order_id` (**must not ride along** — `tasks.
+project_id` is still `not null`, so #462 hasn't landed) · change orders as a distinct record ·
+retention/advances/milestone billing · its own Delivered/Invoiced/Paid status · any procurement link.
+**Reusing `purchase_orders` would be wrong**: it is a child of a procurement case and an *outbound*
+vendor order; authorization routes through the procurement parent, its ERP posture is the opposite
+direction, and the drawdown sum would **silently mix our vendor commitments with the client's grants**
+— the worst defect available here. The similarity is that both are called "PO".
+
+## DD-OPS-2..5 — self-hosting ERPNext for RIS (Director, 2026-08-19)
+
+Resolves #474 → build #499; commercial questions parked at #497.
+
+**[DD-OPS-2] One VPS in Jakarta, `compose.yaml` (not `pwd.yml`), image pinned to `v15.94.3`.**
+⛔ The dev bed **cannot be promoted** — it runs `pwd.yml` (`docs/environments.md:401`), which upstream
+labels a disposable non-production demo. Floor: 4 vCPU / 8 GB / 80 GB for ≤25 users (9 long-running
+containers). ~$55–70/mo all-in. Hetzner at ~$9 is the tempting option to refuse: 180–250 ms to Jakarta
+plus cross-border transfer of a client's financial records to save ~$45. Frappe Cloud is ruled out by
+`OD-ERP-2` and has no Indonesia region. **Pin to the tag the adapter contract was proven against** —
+a minor bump invalidates the version-handshake proof. ⚑ **IP-allowlisting is unavailable**: the sweep
+dials `site_url` outbound from Edge Functions (`erpnext-sweep/index.ts:605-636`), which have no stable
+egress IP, so token + TLS + rate-limiting **are** the whole perimeter.
+
+**[DD-OPS-3] We do everything mechanical; RIS owns accounting judgment.** Us: host, stack, TLS, DNS,
+backups, monitoring, site, API user + token, Connect binding, naming series, account map,
+`pmo_epoch_at`, and **execution** of the import. RIS (same single named owner as `OD-SEED-2`): chart of
+accounts (**their codes win**; ERPNext's bundled Indonesian COA is community-contributed and rough — a
+template at most), fiscal-year convention, **PPN templates**, real historical document numbers, the
+sheets. ⚑ The PPN encoding is an accountant's call: 12% on an 11/12 DPP gives an effective 11%, and
+**two ERPNext encodings of that print different invoices**. The partner has nothing on the critical
+path. ⚑ **Connect waits for the currency seam** — `OD-CR-5` pins org currency to the ERPNext company
+currency at connect and there is no PMO-side currency column to pin against yet.
+
+**[DD-OPS-4] Rehearse the historical load on a clone, then run it ONCE.** After go-live, before
+Connect, with `pmo_epoch_at` set **first** so the load reads as pre-epoch Posture-A history and is
+never adopted (`DD-XING-2`). Prerequisites: company/IDR/abbr frozen · the **final** COA (renumbering
+after GL entries orphans the ledger and the account-map bijection) · **Fiscal Years covering 2025 and
+2026** · cost centers and a `Project` on every document · tax templates · naming series. ⚑ The
+fiscal-year prerequisite fails **silently**: a GL row whose fiscal year ERPNext never stated is stored
+but selectable under no year the UI can offer — money in the database, invisible in PMO, no error
+anywhere. One shot matters because submitted ERPNext documents are **immutable** (reversal is
+Cancel + Amend, leaving cancelled documents in the ledger permanently) and native Data Import is **not
+idempotent** — the derived-key protection covers the *adapter* path only, so a re-run doubles the GL.
+
+**[DD-OPS-5] Nightly logical dump offsite, rehearsed restore, RPO 24h stated not assumed.**
+`bench backup --with-files` to a different provider/region, encrypted, key in 1Password, never on the
+box; provider snapshots as the fast path but **not** a substitute. **Restore rehearsal before go-live,
+then quarterly** — an untested backup is not a backup. Skip PITR at this volume. ⚑ **Do not use
+Frappe's built-in S3 Backup Settings doctype** — present in v15, removed from its usual place in v16;
+cron + `bench backup` + rclone survives the upgrade.
+
+**What self-hosting signs us up for**, recorded because it was chosen over the partner hosting it:
+~2–4 h/month steady state; **one major upgrade inside this client relationship** (v15 EOL end-2027)
+which also invalidates the pinned version-handshake proof, so the adapter battery re-runs with it; and
+the real cost — **someone answers when it is down**, on RIS's books, with ERPNext headless so **RIS
+cannot even log in to look**, and no partner escalation path. That absence is what the ~$50/mo saving
+buys. Commit to an explicit business-hours WIB window. ⚑ Breakeven against managed hosting is ~2–3
+self-hosted instances — revisit `OD-ERP-2` the moment a second appears. ⛔ The demo org does not share
+a MariaDB with a paying client's books.
+
+## DD-MTG-1..5 — the meeting module (Director, 2026-08-19)
+
+Resolves #463, the last decision ticket on the frontier. Depends on #462 shipping first.
+
+**[DD-MTG-1] One typed block in v1: the action item.** Not Decision, not Risk, not Attendee mention.
+Each typed block costs a schema, a renderer, a slash item, a backing table **and a sync contract** —
+and the sync contract is the expensive part. Action item earns it because a task already exists as a
+first-class entity with consumers outside the meeting; Decision and Risk have no backing table, no
+outside consumer, and nobody has asked. **The durable test, so this is not re-argued per block: a
+block earns being *typed* only when something OUTSIDE its meeting must query, assign or filter it —
+otherwise it is formatting.** Attendee mention fails it twice: attendees are already a first-class
+field, so a mention would be a second, drifting copy. Nothing is lost by waiting — notes are JSON, so
+a block can become typed later without a migration penalty.
+
+**[DD-MTG-2] The row is SoT; the block stores the task id and nothing else. There is no sync.**
+The spike was explicit that it proved none of this, and this is the decision it was run to inform.
+Block-authoritative breaks the point (a task edited in the task list would be silently overwritten by
+the document); two-way sync is a distributed-systems problem with paste, undo and offline all
+producing conflicts. Storing only the reference **removes** the problem rather than managing it, and
+every awkward case answers itself: a task edited elsewhere is reflected immediately (it was never a
+copy); **deleting the block removes the reference and never deletes the task** — deleting assigned
+work must not be a side effect of tidying a note; a task deleted elsewhere renders a **tombstone**,
+never a crash or a silent vanish; paste yields two references and **no write** (a paste that silently
+creates a task is worse than one that doesn't); undo after `/action` leaves the task, which is legal
+under `DD-TASK-1` and surfaces in "My tasks" — untidy, never lossy. ⚑ `tasks.meeting_id` is the second
+nullable parent and needs its **own** migration after nullable `project_id` lands alone (`DD-TASK-2`).
+
+**[DD-MTG-3] Attendees are staff, contacts, or a free-typed name** — a `meeting_attendees` join with
+three mutually-exclusive nullable columns, exactly one set (explicit columns, not polymorphic — same
+ruling as `DD-TASK-1`). ⚑ The free-text shape is not a shortcut: notes are taken **live, during a
+meeting**, and forcing every attendee to be an existing row means stopping mid-meeting to create a CRM
+contact for someone who attended once. The reliable outcome of that friction is that attendees stop
+being recorded at all. Promote to a contact later, when someone cares.
+
+**[DD-MTG-4] One optional `project_id`. NO separate contact field** — a deliberate deviation from the
+charter's "project and contact both optional", flagged rather than slipped in. A meeting's contact
+**is** an attendee, so a separate `contact_id` is a second copy of the same fact that drifts the first
+time someone edits one and not the other. CRM filtering survives: "every meeting with Acme" resolves
+through attendees → contacts → company, a join needed anyway. Revisit only if a real case appears
+where the counterparty did not attend.
+
+**[DD-MTG-5] Reverse-chronological list, project filter, and search over notes as the primary find
+mechanism** — people look for "the meeting about X sometime last week". ⚑ Concrete consequence:
+BlockNote notes are JSON and Postgres FTS cannot search that directly, so **maintain a plain-text
+projection alongside the JSON** and index it. Cheap designed in now; a migration over live client
+notes if bolted on later — and this client treats meetings as day-one, so the notes will exist.
+Templates unchanged: a meeting flagged as a template, copied on create. No template engine.
+
+**Carry into the plan** the two spike findings that enlarge the estimate: the scoped-CSS seam must
+override **heading scale** (BlockNote's own scale is not ours), and the surface needs an explicit
+mobile-overflow proof under `AC-MOBILE-OVERFLOW-001`.
+
+## DD-RIS-1..4 · DD-OPS-6..8 — RIS provisioning and the go-live ops contract (Director, 2026-08-19)
+
+Resolves #454 and #457. Both are shaped by #451: RIS runs on the **shared deployment**, so their
+production *is* our shared project and every promote and outage is client-affecting by construction.
+
+**[DD-RIS-1] ⛔ The destructive guard lands BEFORE the RIS org exists.** #451's own resolution says the
+shared project stops being resettable the moment real data lands, and that the rule is "only
+enforceable with a machine-checkable marker". Order: **#489 ships** → existing orgs backfilled (Demo
+`demo`, Gordi `live`) → **then** the RIS org, stamped **`live` at creation**. Stamping at creation
+matters because `DD-ORG-3` made the guard default-deny: an unmarked org is already protected, so
+creating RIS unmarked is *safe* but leaves the real client's protection resting on a default instead of
+a decision — and `live` is terminal, so creation is the only moment it is free.
+
+**[DD-RIS-2] We create the org and exactly one Admin; RIS invites everyone else.** Operator creates the
+org plus its non-optional companions (`DD-ORG-1`): first Admin = the org's own named data owner
+(`OD-SEED-2`, the same person who prepares every import sheet — splitting those two roles is how a
+migration stalls); locale defaults `id` / Indonesian number format / `Asia/Jakarta` (`DD-I18N-2`);
+`pmo_epoch_at` = the go-live date (`DD-XING-2`). **Their Admin invites the rest** — we do not decide who
+at the client gets which role, it is their org chart. It also makes their first interaction *using* the
+product rather than watching us configure it, and exercises the invite path they will use forever on
+day one while we are watching.
+
+**[DD-RIS-3] RIS test accounts in the demo org are OFFBOARDED, not moved** (`DD-ORG-2`). Fresh profiles
+in the RIS org; their demo-org history stays in the demo org, because it was demo activity, not real
+work, and must not follow them into the client's data. ⚑ This is simultaneously a **#492** finding: a
+real RIS person's name and email in a **prospect-facing** demo org is exactly the PII exposure that
+issue exists to remove. Do both together.
+
+**[DD-RIS-4] The runbook lives with the operator runbook (#491), not as a separate artifact** — an
+operator following one procedure should not have to know a second document exists. End-to-end order:
+guard → backfill → create RIS `live` with companions → invite the Admin → Admin invites the team →
+offboard the demo duplicates → verify. ⚑ The verification people skip: **prove the destructive guard
+refuses a wipe of the real RIS org, before the data goes in.** A guard never observed refusing is not a
+guard. *Parked (owner):* who at RIS is the Admin and who else is invited — the runbook is written
+against roles, names filled in at execution.
+
+**[DD-OPS-6] Promote policy: no unannounced promotes once RIS is live.** `main`→`production` stays
+separate, explicit and per-instance owner-gated — unchanged. What changes: promote in a **stated
+window**, announced beforehand (not because deploys are risky, but because a client surprised by a
+change stops trusting the product even when the change is good), and **never during their
+close/billing crunch**, when approvals and invoicing cluster and a regression costs most. `dev`→`main`
+is unchanged and stays the Director's within-scope call. ⚑ A promote now also hits the demo org and
+Gordi — one deployment, three orgs — so **check the demo org after every promote**; it is the surface a
+prospect sees.
+
+**[DD-OPS-7] Monitoring: reuse the floor; treat ANY deployment alert as client-affecting.** BetterStack
++ Telegram + PostHog, not a per-client monitoring story for one client on a shared project.
+⚑ **Deliberately do NOT split "demo down" from "client down"** — they share a deployment, so a per-org
+alerting split is a fiction that delays response while someone works out whose problem it is. One
+deployment, one alarm. The genuinely new item is a **quota alarm on the shared project**: shared limits
+mean demo activity or a runaway job can degrade the client. (Constraint: scheduled workflows fire only
+from the default branch, so it cannot run until the workflow reaches `main`.)
+
+**[DD-OPS-8] Support loop: one named channel, triaged by us, filed WITHOUT their PII.** RIS cannot file
+issues here — public repo, and they are a client. One inbound channel only (two means an issue lands on
+the one nobody watches); we triage into GitHub issues with the existing labels. ⛔ **A client-reported
+issue is filed without their data** — no personal names, emails, invoice or project numbers, no
+screenshots of real records. Describe the *defect*, not the *record it happened to*. This is the
+public-repo rule applied to the one input stream that arrives **pre-loaded with client PII**, which is
+what makes it easy to get wrong. Acknowledge and resolve **into the channel** — a client should not
+have to read a public tracker to learn whether their problem is fixed. The contractual
+availability/support commitment stays pooled at #497.
+
+## DD-CUR-1..5 — implementation rulings from the currency + tax build (Director, 2026-08-19)
+
+Settled while building #478 (`a0f48957`). Recorded because a future agent would otherwise re-derive
+them — or, worse, "fix" them.
+
+**[DD-CUR-1] `currency` goes on money *document* tables only — 12 of them — not on everything with a
+`numeric` column.** Enumerated from the live schema, not from the issue body. Deliberately excluded,
+each with the reason in the migration header:
+
+- **Child line tables** (`procurement_items`, `budget_line_items`) — currency belongs to the header,
+  which is ERPNext's own model. A per-line column that nothing keeps equal to its parent *invents* a
+  "USD line under an IDR document" ambiguity that does not exist today.
+- **Platform AI billing** (`agent_usage.cost`, `credits.amount`, `credit_reservations.amount`) — USD,
+  and never an ERP document. Stamping org currency would **re-denominate a USD credit grant as IDR**.
+- **ERP read-models** (`erp_*_snapshot`, `erp_gl_entry_mirror`, `timesheet_erp_mirror`) — machine-written.
+- Non-money numerics (`timesheet_entries.hours`, milestone weights, win probability).
+
+**[DD-CUR-2] ⚑ The stamping trigger is named `<tbl>_zz_stamp_currency` because BEFORE triggers fire in
+NAME ORDER.** It must run *after* `<tbl>_stamp_org_id`, or a non-seed-org insert resolves its currency
+against the **seed** org. Anyone renaming these triggers alphabetically-tidier will reintroduce that
+silently. The default is `'XXX'` — ISO-4217's own "no currency" — with the trigger overriding
+null-or-`'XXX'` and a CHECK forbidding `'XXX'` from surviving, so an unstamped row cannot persist.
+
+**[DD-CUR-3] `tax_treatment` is TEXT with a CHECK, not a boolean, and has NO DEFAULT.** A boolean lets
+an omitted or falsy value silently become `'exclusive'` — which is exactly the silent-wrong-answer this
+whole issue exists to prevent. Text with no default makes omission a hard `23502`/`23514`. A "plausible"
+default was mutation-tested: adding `default 'exclusive'` turns four assertions red, by design.
+
+**[DD-CUR-4] ⚑ Column-level INSERT grants invert the usual trap.** Several money tables carry
+**column-level** INSERT grants, so a newly added column is **not insertable unless explicitly granted** —
+the opposite of the familiar "a column REVOKE cannot subtract from a table grant" failure. `currency` is
+granted INSERT (never UPDATE) on the five such tables. `DD-IMP-1`'s import descriptor must state it
+explicitly or imports will fail on a column nobody remembers exists.
+**One honest exception, documented in `0187` §4:** `budget_projections` holds *table-level* INSERT/UPDATE,
+so its `currency` **is** client-updatable and a column REVOKE there would be a silent no-op. Fixing it
+means revoking the table grant and re-granting the column list minus `currency` (the `DD-WO-3` mechanic).
+Not done: it is a PMO-authored forward estimate that mints no ERP document. Flagged rather than hidden.
+
+**[DD-CUR-5] Mirror guards are pinned, but NOT by re-creating triggers.** `0189` adds the new columns to
+the **six** `*_native_mirror_guard` functions that enumerate their fields. `purchase_requests`/`rfqs` are
+deliberately untouched — their guards are **blanket denials**, so enumerating fields there would *weaken*
+them. ⚑ And no trigger is dropped-and-recreated: live trigger names are **not uniform**
+(`procurement_quotations_zz_native_mirror_guard` vs `..._trg`), so `0125`'s drop-and-recreate habit would
+leave a **duplicate trigger under a new name**.
+
+**Still owed, both flagged not fixed:** `siToBody` does not yet send `currency` explicitly, which
+`OD-CR-5` requires on the push side (its contract is spike-frozen and unverifiable without a live bench);
+and `database.types.ts` is stale on `dev` by ~215 lines unrelated to this change, so only the
+currency/tax hunks were applied to keep the diff reviewable.
+
+**Vendor invoices need the same treatment** — `procurement_invoices.amount` (added in `0040`) carries the
+identical ambiguity. Scoped out deliberately because it needs a definer-RPC signature change with
+PostgREST overload risk and multiple callers. **#505**, same deadline class as #478.
+
+## DD-VI-1..2 — vendor-invoice tax: the two questions #505 could not settle (Director, 2026-08-20)
+
+Surfaced by the #505 investigation, which correctly refused to guess them.
+
+**[DD-VI-1] A vendor invoice with NO amount carries NO tax marker — enforced by a PAIRED check, not
+by making the marker unconditional.** `procurement_invoices.amount` is nullable (`0040:27`) and the
+shipped importer explicitly allows amount-less VI rows
+(`src/lib/import/procurementCycle/validate.ts:138-143`). A `NOT NULL tax_treatment` would therefore
+demand a tax treatment for a figure that does not exist, and would break a shipped path. The honest
+constraint is `(amount is null) = (tax_amount is null)`: **either you have a figure and its
+treatment, or you have neither.** A marker without an amount is not conservative, it is noise — and
+noise in a money column is how the next person mis-reads it.
+
+**[DD-VI-2] An import row with no tax column is REJECTED, not defaulted.** `0188` forbids a DB
+default; it does not forbid an importer-side ruling, and the investigation was right that this was
+open. Ruling: reject. Applying an org-wide default at import is exactly the silent-wrong-value this
+whole class exists to prevent — and it would be applied to *historical* rows, where nobody is
+watching. The cost of rejecting is low by construction: the wizard validates **client-side with zero
+writes** (`OD-SEED-2`), so a rejected sheet is a message, not a cleanup. RIS adds a tax column before
+import, and the answer gets stated per invoice, which is the point.
+
+⚑ Carried from the investigation: **do not copy `0188`'s last line.** It ends with
+`grant insert (...) on public.sales_invoices to authenticated`; `procurement_invoices` does not have
+the same grant shape, and importing that step unexamined would widen a surface nobody asked to widen.
+
+## DD-BRIEF-1 — cite where a definition LIVES, not where it was introduced (Director, 2026-08-20)
+
+Five briefs on 2026-08-19/20 asserted something about the tree that was false. One class dominates and
+it is mechanical, so it is worth a rule rather than more care.
+
+**The failure.** I briefed #498 to add `work_order_id` to `sales_invoices_native_mirror_guard`
+"(~`0123:117`)". `0123` *introduced* that function. It has since been **replaced twice** — `0125`
+added `author_user_id`, `0189` added `currency` and the four tax columns. With `create or replace`,
+**the last redefinition is the live one**, and `0189`'s body enumerates 22 columns.
+
+Had the agent copied `0123`'s body as instructed, it would have **silently unpinned six columns** —
+leaving them user-writable while revenue is externally owned. That is the exact "closed the path in
+hand, left the other one open" shape behind SoD slices 2–6. The agent checked instead, copied from
+`0189`, and said so.
+
+**The rule.** Before citing a `file:line` for a function, policy, trigger or grant in a brief:
+
+```
+grep -ln '<name>' supabase/migrations/*.sql     # every migration that touches it
+```
+
+and cite the **highest-numbered** one. A first-introduction reference is right about history and
+wrong about the tree — and for anything created with `create or replace`, wrong in the direction that
+silently drops whatever was added since.
+
+⚑ The same rule caught the sibling errors: `budget_versions.activated_at` was reported missing when
+`0139` had added it; `npm run verify` was documented as 8 gates when `package.json` chained 13; the
+retained-definer count was cited as 50 against a list of 51 and as "23 writers" against a record of 18.
+**A claim about the tree, written once, does not stay true — and a brief is exactly where a stale one
+does the most damage**, because the agent has been told not to second-guess it.
+
+## DD-EVID-1 — a task notification's "exit code" is the WRAPPER's, not the command's (Director, 2026-08-20)
+
+Caught by the #498 build agent, and it invalidates a reading I had been relying on all session.
+
+A background shell task reported **"completed (exit code 0)"** for a `verify` run that had actually
+failed with two red tests. The zero was the **wrapper shell's** status, not `npm run verify`'s. Any
+pipeline, any trailing `echo`, any `| tail` — and the wrapper exits 0 regardless of what happened
+inside.
+
+**The rule: never read a completion notification's exit code as the command's verdict.** Append an
+explicit marker and read that:
+
+```bash
+npm run verify:locked > verify.log 2>&1; echo "VERIFY_EXIT=$?"
+```
+
+`VERIFY_EXIT=` is the only trustworthy reading. Same for `supabase test db` — grep `Result: PASS`,
+not the task status.
+
+⚑ **Compounding hazard, same incident.** That failing run's two failures (`AssistantPanel`,
+`Administration.a11y`) were **contention, not regression** — 1994ms/17673ms in files that take
+38–47s, while another worktree ran concurrently; both passed in isolation and the clean re-run was
+6994/6994. So the two failure modes point opposite ways and must not be conflated:
+
+| Signal | Means |
+|---|---|
+| Notification says exit 0 | says **nothing** — check the marker |
+| Red test, duration ≈ the file's normal runtime | likely real |
+| Red test, duration wildly short or long vs normal | likely **contention** — re-run in isolation before believing it |
+
+The recorded rule stands and now has a second leg: **read the failure DURATION**, and read the
+marker, never the wrapper.
+
+## DD-WO-7..10 — implementation rulings from the work_orders build (Director, 2026-08-20)
+
+Argued in `0193`'s header by the build agent; recorded here so they are durable and revisiting one is
+a visible edit rather than a quiet drift.
+
+**[DD-WO-7] Both null-witness shapes fail closed** — a deliberate deviation from `transition_project`,
+which permits a non-NULL `_set_at` beside a NULL `_set_by` (server-side authority, pinned by
+`0170 AC-PMS-019`). `projects` had un-backfillable legacy rows and a live importer; `work_orders` has
+**neither**, so permitting the same shape would be a hole **created** rather than inherited. Pinned by
+`AC-WO-041`, so reverting it turns a test red.
+
+**[DD-WO-8] The post-issue freeze covers the WHOLE body, with no `actor_bypasses_rls()` exemption.**
+Every frozen column is pushable content, so freezing only `order_value` would leave the state stamp
+able to drift under it — the OQ-BUD-2 class. ⚑ And the exemption is refused on purpose: **a definer
+RPC runs as the owner**, so exempting the owner would exempt precisely the writer the freeze exists to
+stop. Pinned by `AC-WO-072/073/074/075`.
+
+**[DD-WO-9] A work order's currency is pinned to its project's.** A drawdown that sums mixed
+currencies against one ceiling is arithmetic nobody can defend, and the failure would be silent —
+the number still renders. Pinned by `AC-WO-005`.
+
+**[DD-WO-10] An over-commit acknowledgement is REFUSED when there is nothing to acknowledge.** Not
+ignored — refused. A client that always sends `ack: true` is then **visibly broken** rather than
+quietly sloppy, and the acknowledgement keeps meaning what `DD-WO-2` says it means: a person decided
+to exceed the ceiling *on this occasion*. Pinned by `AC-WO-051/052/053`.
+
+⚑ Also recorded, because it is the kind of thing a later reader would "tidy": `get_project_drawdown`
+is deliberately **absent** from `0178`'s client-callable list. It is `security invoker`, and listing an
+invoker function there blinds the sweep if someone later flips it to definer.
+
+## DD-BIMP-1..3 — three false premises in the budget-import spec (Director, 2026-08-20)
+
+`docs/specs/budget-import.spec.md` was written to close #495's planning gap and shipped three
+confident claims that the schema on `dev` contradicts. Recorded individually because each would have
+produced a different defect, and because all three are the same failure: **the spec cited the ticket
+and the rulings, never the migration that defines the thing** (`DD-BRIEF-1`).
+
+**[DD-BIMP-1] The match key is the project, not `(project, fiscal_year)`.** `budget_versions` has no
+`fiscal_year` column — `0153` put `fiscal_year` on `budget_line_items`, nullable and deliberately
+un-backfilled, because the value is *ERPNext's* calendar name and PMO may not invent one. Keying
+match-or-create on a column that does not exist would have been caught at compile time; keying it on
+the line-item column would have matched NULL against NULL on every legacy row, which would not.
+
+**[DD-BIMP-2] The import supplies no `currency`.** `DD-IMP-1` §5 and `OD-CR-5` predate `0187`, which
+shipped the currency seam as a BEFORE-INSERT trigger filling `currency` from
+`organizations.default_currency`. `0187`'s own header names a client hand-carrying a currency as the
+thing the trigger exists to prevent — the same argument as `org_id`. A per-row `Currency` column is a
+real multi-currency feature for the day a cross-currency sheet exists, not this ticket.
+
+**[DD-BIMP-3] The idempotency key excludes `import_batch_id`.** This is the one that mattered.
+`0072`'s index and skip query are keyed on `(import_key, import_batch_id)`, and
+`useProcurementCycleImport` mints `crypto.randomUUID()` per mount — so a re-import **in a new
+session** misses the skip and inserts duplicates. The only cross-batch layer that exists today is
+`findCrossBatchCollision`, which produces a dry-run *report*, not a skip. The spec asserted the
+opposite ("the skip query… is what makes a re-run a no-op") and would have yielded an importer that
+passes its own tests and duplicates every budget on the second run — a green suite that cannot fail.
+
+`0195` is amended in place (on `dev` only, never `main`, never prod; `supabase db reset` is this
+phase's rollback per ADR-0006) to key on `import_key` alone: `(org_id, import_key)` on
+`budget_versions`, `(budget_version_id, import_key)` on `budget_line_items`. Still two layers, not
+three — the DB is now the authority for the **re-run** as well as the race.
+
+⚑ **Pinned, and mutation-checked**: `supabase/tests/0195_budget_import_provenance.test.sql` asserts a
+duplicate `import_key` is rejected under a *different* batch id. Restoring `import_batch_id` to the
+index turns exactly that assertion red — verified, not assumed. The old test asserted only
+`has_index` on a name, which would have survived the wrong key silently.
+
+⚑ **The procurement path keeps its batch-scoped key.** It is a shipped importer with live data;
+re-keying it is its own decision with its own backfill question, not a drive-by. That asymmetry is
+deliberate and is why `0195` carries the argument in its header rather than pointing at `0072`.
+
+**[DD-BIMP-4] The budget `<ImportButton>` goes on the Projects list page, not a "budgets page".**
+There is no budgets list route — budget lives at `/projects/:id/budget`, a tab (`appRouteConfig`).
+The sheet is cross-project by construction (its first column is a project ref), so a per-project tab
+is the wrong host, and building a list page to hold a button is building a page to hold a button.
+`ImportButton` gains a `label` prop, because two buttons both reading "Import" is not a toolbar.
+
+**[DD-BIMP-5] Budget versions carry provenance stamps but NO `import_key`.** A version's identity is
+"this project's open `Draft`", not a row in a sheet. Key it and the second legitimate import for a
+project — after the first was activated — is blocked forever by a row that is no longer `Draft`.
+Idempotency lives on the line items, scoped to `budget_version_id`; that scoping is precisely what
+lets a post-activation re-import land its lines in a fresh Draft rather than silently producing an
+empty one. Pinned by `AC-BIMP-007` in the pgTAP file: restore `import_batch_id` to the child index
+and both the re-run oracle and the per-parent oracle go red.
+
+## DD-BIMP-6..8 — the three gaps the planner refused to invent (Director, 2026-08-20)
+
+The #495 planner stopped before writing a plan and named three behaviours the brief left undefined.
+All three were real, and one of them (`OQ-BIMP-2`) is a fact about the schema I asserted wrongly.
+Recorded rather than answered in a brief, because a build agent should be able to read the rule
+without reading the dispatch that produced it.
+
+**[DD-BIMP-6] The descriptor has NO `Version name` field.** A created version is named `Imported`.
+The optional-name shape generated four sub-questions — empty-cell fallback, whitespace-only,
+conflicting names across rows of one project, and whether an incoming name overwrites an existing
+Draft's — for a value whose only job is to be recognisable in a version dropdown, which `Imported`
+does. One fewer column in the operator's sheet is worth more than a label they can edit afterwards.
+⚑ If a sheet-supplied name is ever wanted, it arrives **required, first-row-wins** — optional is what
+produced the four questions.
+
+**[DD-BIMP-7] When a project has several Drafts, the import attaches to the HIGHEST `version` one —
+because that is what the app already does.** The schema permits multiple Drafts (`0001` constrains
+`unique (project_id, version)` and uniqueness only for `status = 'Active'`), which the brief missed.
+`pages/ProjectBudget.tsx`'s selector already resolves `explicit pick → Active → highest Draft →
+highest Archived → first`, so "the highest Draft" is *the version the operator is looking at* when
+they click Import. Inventing a second rule — reject, or lowest — would make the importer disagree
+with the screen it was launched from. Harm if it is ever wrong is bounded and visible: the projection
+reads only the **Active** version (`0149`/`0153`), so a misfiled line changes no money figure until
+somebody activates it, and it is on screen before then.
+
+**[DD-BIMP-8] `ImportResult` gains `skipped`, and the wizard reports it.** The generic contract has
+only `created`/`failed` (`src/lib/import/types.ts`), and `useImportWizard` counts every resolved
+`create()` as created — so a re-run that correctly writes nothing would report "42 created". That is
+the silent-false-signal class this repo has paid for repeatedly, and it defeats the one thing the
+feature exists to demonstrate. A descriptor signals a no-op by resolving to the exported
+`IMPORT_SKIPPED` sentinel; the wizard counts it separately and the result screen says so. Additive:
+no existing descriptor returns it, so every current importer's counts are unchanged.
+
+## DD-PB-1 — the budget account-map gap is recorded, not fixed (Director, 2026-08-20)
+
+Surfaced by #479's Posture-B state-stamp audit (`docs/reviews/2026-08-20-posture-b-state-stamps.md`).
+
+**The gap.** The pushed budget `accounts[]` is built from `budget_category_account_map` (Admin-writable
+`FOR ALL`, `0137:129-133`) and the overspend `action_if_*` fields from binding config
+(`bodies/budget.ts:26-46`). Neither is in the ADR-0059 §4 derived key, and **neither has any
+originator**. An Admin re-mapping a category after a push leaves ERPNext enforcing the old account,
+with nothing to detect it and nothing to re-drive it.
+
+**The ruling: record it, do not build it.** A fix means re-pushing an ERP `Budget` because a
+configuration row changed — a money write, triggered by something that is not a money action, with no
+owner ruling behind it. `0137:129-133` makes that map Admin-only *precisely because* it is accounting
+config: the person who edits it is exercising an accounting judgement, and deciding that their edit
+should silently re-enforce a budget in someone's ERP is not a decision the build has standing to make.
+
+⚑ **And the failure class is not the one #479 was filed about**, which is why it needed separating
+rather than absorbing. #479 is about a needed write being **suppressed** (a weak stamp derives a
+duplicate key ⇒ 23505 ⇒ silence). This is **no write ever being attempted**. Same silence, opposite
+mechanism — and conflating them would have produced a "fix" for the wrong shape.
+
+**What would settle it:** an owner ruling on whether an account-map edit is a re-push trigger at all.
+If it is, the map needs an originator column and the key needs to include the mapping's version; if it
+is not, the honest answer is a surfaced warning that the ERP holds a stale mapping, and no automatic
+write. Both are real designs; neither is a detail.
+
+## DD-CUR-6 — a mixed-currency total is a per-currency breakdown, never a converted figure (Director, 2026-08-21)
+
+**Question (#530 item 3).** A procurement board's stage total sums across rows that may carry different
+currencies. Today it labels the sum with the **first row's** currency, which is silently wrong the moment
+a stage holds two. Convert, or break down?
+
+**Ruling: break down, one subtotal per currency. Never convert.** PMO holds no exchange rates and
+acquiring them is a commercial decision with an ongoing cost, a staleness policy, and an "as of when"
+question attached to every rendered figure. A converted total is also *lossier than the inputs* — it
+turns two exact numbers into one approximate one, and the reader cannot recover the parts. A breakdown
+is exact, needs nothing PMO does not already hold, and degrades to today's single line in the
+single-currency case that is every org right now.
+
+⚑ **This was Director-decidable and should not have been parked for the owner.** It is not commercial
+(the commercial question is *buying rate data*, which this ruling declines), not irreversible, and not a
+fact only the owner holds. Parking it would have spent an owner slot to be told the only honest option.
+
+**Consequence for the build.** The affected surface renders `n` subtotal lines where `n` is the number of
+distinct currencies present. Its test must put **two currencies in one stage** — a single-currency
+fixture cannot tell a breakdown from the old first-row behaviour, which is the same blind spot that made
+#529's mutation survive.
+
+**Revisit when** an org genuinely needs a consolidated figure across currencies. At that point the
+question is "which rate source, at what staleness, priced how" — an `OD-`, not this.
+
+---
+
+## OD-XING-1 · OD-TAX-1 · OD-TASK-1 · OD-MTG-1..2 · OD-I18N-1 · OD-SEED-4 — the go-live owner batch (owner grill, 2026-08-21)
+
+Drained from the wayfinder owner frontier on [RIS goes live: first-client delivery route](https://github.com/ariefsaid/PMO/issues/450): #527 (nine rulings), #523 (the crossing), #518 (PPN), #499 (provisioning). Director calls made in the same session are `DD-` entries below.
+
+### OD-XING-1 — the standalone → connected crossing is a connect-time choice, defaulting to "start at connect"; RIS's history is loaded straight into ERPNext
+
+`DD-XING-3` claimed the crossing needed no bespoke backfill. **It is falsified** (#523, evidence in `docs/reviews/2026-08-20-posture-b-state-stamps.md`): `erpnext-sweep/index.ts:1491-1494,1503,1511` refuses pre-binding hours *by design*, and `:1180-1182` writes no budget mirror row before dispatch — so "records whose mirror row is missing" does not select the set `DD-XING-3` means. **`DD-XING-3` is superseded by this entry.**
+
+**The policy (owner):** the crossing is a **per-client choice at connect time**, from four options — (1) replay everything from the beginning · (2) push nothing pre-binding, the ERP starts at connect · (3) a summarised opening entry · (4) ask, i.e. the chooser itself. **Default is (2).** (1) and (3) remain available for a client who asks.
+
+**What is built now: nothing.** (2) is exactly what the tree already does, so the chooser is recorded and deferred. It lands when a client actually refuses (2); RIS is not that client — see `OD-SEED-4`.
+
+⚑ **This unblocks [#481](https://github.com/ariefsaid/PMO/issues/481).** Its dev-bed proof can now be written honestly against real behaviour ("nothing pre-binding is pushed") instead of asserting a mechanism the tree deliberately refuses. That assertion would have gone green against a mock and proved nothing.
+
+### OD-SEED-4 — RIS's 2025 historicals load directly into ERPNext, from spreadsheets, by the Director
+
+RIS needs 2025 history. It **does not travel through PMO**. Extends `OD-SEED-1..3` / `DD-RIS-*`: money history goes to ERPNext, never PMO — and the load is ERPNext's own import path, which takes a historical batch as ordinary data entry.
+
+**Why not through PMO:** PMO's push path is an outbox with SoD gates, single-use derived keys (`0134`) and a pre-binding refusal. Replaying a year through it means building machinery to defeat controls built on purpose. Loading direct gives RIS a complete ERP on day one *and* leaves PMO pushing from connect forward, which is `OD-XING-1`'s default.
+
+**Form:** spreadsheets, like the rest of the seed. A template-mapping job, not a migration with reconciliation. **Director work, not a build ticket.**
+
+### OD-TAX-1 — both tax bases are supported everywhere, with an org-wide default and a visible label on every figure
+
+Answers #518. The owner declined to pick one: **the system caters to either.** There is no single Indonesian convention to encode — commercial contracts, quotations and vendor agreements are normally quoted **exclusive** ("harga belum termasuk PPN"), while government/SOE tender contracts are normally **inclusive**, the contract value being the all-in ceiling with PPN carved out of it. A contractor working both sides needs both.
+
+1. **Org-wide `default_tax_treatment`** (`inclusive` | `exclusive`), seeded `exclusive`. It **pre-selects only.** The stored per-row value is authoritative and is never inferred from the setting at read time — that inference is exactly the ambiguity `#478` established cannot be recovered later.
+2. **Every money figure carrying a treatment renders its label** — "excl. PPN" / "incl. PPN" — on contract value, work order value, budget line and invoice. **No bare number anywhere the treatment exists.**
+3. **Per-record override always available.** The drawdown normalises both sides to one basis before comparing (a tax-exclusive work order measured against a tax-inclusive ceiling under-detects over-commitment — the control `#513` exists to provide).
+
+### OD-TASK-1 — PMO owns tasks at go-live; ClickUp is not used at RIS
+
+Answers #527 item 8. ClickUp is not in play at RIS, so `tasks_insert`'s ClickUp-ownership denial does not bind for their org and a meeting's `/action` can create a task as specced.
+
+### OD-MTG-1 — writing minutes is ordinary RBAC; **reading them is attendance, not role**
+
+Answers #527 items 6–7, corrected by the owner in round 3.
+
+- **Write:** every role, **Engineer included**, can create and minute meetings. Nothing special; the Engineer role widens accordingly.
+- **Read:** you can read a minute if **you were in the meeting or you wrote it.** Admin reads all. ⛔ **The RLS policy keys on the attendee join, not on the role** — the owner's principle is explicit: an Engineer must not read a peer's minute from a meeting they were not present at.
+
+### OD-MTG-2 — minutes are shareable after the fact, to named users
+
+Read set is **attendee ∪ author ∪ explicit grant ∪ Admin**. The grant is a plain join row (`meeting_id`, `user_id`, `granted_by`, `granted_at`), added or removed from a share panel on the minute; anyone who can already read a minute can share it; revoking removes the row. **Grants are audit-logged** — who opened a minute to whom is precisely the thing that needs a trail.
+
+**Deliberately thin:** view-only grants, named users only. **No permission tiers, no share links, no expiry.** Add those when asked twice.
+
+### OD-I18N-1 — English stays selectable; the Bahasa gate covers launch-scope routes; the app terminology is agent-translated, the seeds are not
+
+Answers #527 items 2–3 (and the resourcing question behind item 3).
+
+1. **English remains selectable inside RIS's org.** It is free — the strings are the source.
+2. **The CI completeness gate is scoped to the routes in the launch scope**, not the whole app. Silent English fallback is acceptable outside it. A 100%-everywhere gate holds go-live hostage to admin screens nobody at RIS opens.
+3. **The Director/agent writes the app terminology translations. Seed data is not translated.**
+4. ⚑ **House style, binding on the translation pass:** prefer the **common borrowed English term** over formal or unusual Indonesian where that is what Indonesian apps actually use. Write this into `docs/specs/i18n-framework.spec.md` as a glossary rule. No RIS-side reviewer sits on the critical path.
+
+---
+
+## DD-I18N-7..8 · DD-TASK-6..7 · DD-MTG-6..7 · DD-CUR-7 · DD-OPS-9 — Director calls from the same batch (Director, 2026-08-21)
+
+These were sorted out of #527 as Director-resolvable and decided rather than asked. Revisitable without ceremony.
+
+**[DD-I18N-7] `i18next` + `react-i18next` go in (dev: `i18next-parser`).** `DD-I18N-1` already ruled the library; adding the dependency is mechanical. ⚑ **Via `scripts/relock.sh`, never `npm install` on macOS** — the lock is not reproducible from a Mac (`@emnapi/*` pruning).
+
+**[DD-I18N-8] The translation content pass runs in parallel from step 2, not in slot 6.** Measured at ~1,940 call sites / ~1,170 distinct strings. It depends on strings existing, not on tasks/meetings/work-orders shipping, so slot 6 serialises weeks of work behind things it does not need. **Amends the sequence on #450.**
+
+**[DD-TASK-6] Project hard-delete keeps `on delete cascade`.** Answers #527 item 4. Orphan tasks sitting in My Tasks with no project are worse than tasks that are gone; a mis-deleted project is a restore problem, not a task-model problem.
+
+⛔ **[DD-TASK-7] RETRACTED same day (2026-08-21), before anything was built on it.** It said a project-less task may not have subtasks, inheriting `docs/specs/first-class-tasks.spec.md`'s stated default. The owner challenged it — *"spec is written by LLM so can be inherent assumption without basis"* — and the challenge was correct. **The shipped behaviour stands: two project-less tasks may be parent and child.**
+
+Checked before retracting, and nothing broke:
+- **The rule is satisfied, not evaded.** Two project-less tasks *are* in the same non-project; `null is distinct from null` → false is the correct reading of "parent must be in the same project", not a gap in it.
+- **No visibility widening.** `0199`'s select policy admits `project_id is null` **or** any project in the caller's org — org-wide either way.
+- **No effect on any computed figure.** Since `0141`, a task with a parent is excluded from milestone counts, `delivery_pct`, S-curve and Gantt.
+- **No dangling rows.** `parent_task_id` is `on delete cascade` (`0140:38`).
+
+⚑ **The lesson worth keeping: a spec default is not evidence.** This one was recorded as a ruling and turned into a build ticket on the strength of the migration header agreeing with the spec — both written by the same kind of author, neither citing a consequence. The question "what actually breaks?" was not asked until the owner asked it.
+
+⚑ **What the check DID surface, unrelated to NULL and pre-existing:** nothing revalidates *children* when a **parent** changes project. `tasks_check_parent_same_project` is `before insert or update` on the row carrying `parent_task_id`, so moving a parent from project A to project B leaves its children in A — the invariant the trigger exists to hold, broken through a path it never fires on. True for ordinary project tasks since `0140`.
+
+**[DD-MTG-6] The `crm_activities` `'Meeting'` kind survives, re-scoped.** Answers #527 item 9. It becomes the **lightweight touchpoint log** — call, email, site visit. The meeting module owns anything with attendees and minutes. The Contacts page stops advertising "log a meeting" and links across instead. Retiring the kind would delete real history for a distinction users do want.
+
+**[DD-MTG-7] A PM gets no automatic read across their project's meetings.** The share panel **pre-suggests the project's PM** as a one-click add. A blanket project-scope grant re-opens exactly what `OD-MTG-1` closes — the peer's minute becomes readable by a PM who was not there — and project scope is a much wider net than it sounds. One-click sharing makes inclusion a decision someone made rather than a default nobody noticed. ⚑ The owner may widen this; it is the one direction that stays cheap.
+
+**[DD-CUR-7] Demo/staging rows backfill `tax_treatment` as `exclusive`.** Under `OD-TAX-1` the value is required per row with no form pre-selection, but the existing demo rows still need one. `exclusive` is the common Indonesian B2B quoting shape, so screenshots seed a plausible example rather than a claim about a real contract.
+
+**[DD-OPS-9] #499 reduces to its documentation half.** Owner ruling: hosting spend approval and the WIB support-window staffing are **not route decisions and are not planned on this map**. The Director delivers the system requirements, the credential-rotation runbook, the backup/restore procedure and the `docs/environments.md` production section; provisioning and commercials are the owner's and are dropped from the map.
+
+---
+
+## OD-TASK-2 — a subtask follows its parent between projects (owner, 2026-08-21)
+
+Raised by the owner while retracting `DD-TASK-7`: *"when parent task gets transferred, from a 'default'
+project to 'actual' project, children task should also transfer right?"* **Yes.**
+
+**A subtask has no independent project identity** — it exists only in relation to its parent. And
+refusing the move instead would fail the ordinary "file this `My Tasks` item into a project" workflow
+for a reason the user cannot act on. So a `project_id` change **cascades down the subtree**.
+
+⚑ **Not implemented, and pre-existing rather than introduced by `0199`.**
+`check_tasks_parent_same_project` is `before insert or update ... for each row` bound to the row
+*carrying* `parent_task_id` (`0140:66`, body replaced at `0199:251`) — it fires on the child, never on
+the parent. Moving a parent from project A to project B silently leaves its children in A, and has done
+since `0140`. Low severity (org-wide reads either way; `0141` excludes subtasks from every rollup; the
+org floor holds), tracked as [#550](https://github.com/ariefsaid/PMO/issues/550).
+
+---
+
+## Batch re-check — every ruling of 2026-08-21 held to "what actually breaks?" (Director, 2026-08-21)
+
+The owner directed that the `DD-TASK-7` test be applied to the rest of the batch. Each claim was
+checked against code rather than against the document that asserted it. **Two claims were wrong and one
+collision was missed.** The rulings' outcomes all stand; two of their *reasons* do not.
+
+**[VERIFIED] `OD-XING-1`'s falsification of `DD-XING-3` is grounded in code, not in a spec.**
+`erpnext-sweep/index.ts` scopes timesheet candidates to `approved_at >= activated_at` and states in
+comment that *"Hours approved BEFORE the org connected ERPNext are deliberately out of scope"*; the
+budget path confirms *"Nothing writes a `budget_version_erp_mirror` row before the dispatch"*. Both
+claims read as written. This is the one ruling in the batch that cited running code from the start.
+
+**[CORRECTED] `DD-MTG-6`'s stated reason was false.** It was justified on #527 as *"retiring it would
+delete real history"*. There is no real history: the only `'Meeting'`-kind rows in the tree are **8 rows
+in `supabase/seed.sql`**, and no client is live. **The ruling stands on a different reason** — a logged
+touchpoint and a minuted meeting are different records with different lifecycles, and collapsing them
+forces every one-line "called Acme" into a document with an attendee list. Corrected in
+`docs/specs/meeting-module.spec.md` §8.1.
+
+**[DOWNGRADED] `DD-TASK-6` is a preference, not a forced move.** Verified that **nothing in the schema
+references `tasks` except `tasks.parent_task_id` itself** (`0140:38`), so `on delete set null` would not
+dangle anything either — both options work cleanly. Cascade stays because a project-less task should
+mean "never had a project", never "outlived one". Project hard-delete is Admin-only restrictive
+(`0052:27-30`) and soft-archive is the normal path (ADR-0018), so the ruling governs a rare path.
+
+**[CORRECTED] #527 item 8's premise was overstated.** It claimed `tasks_insert` *"denies INSERT
+outright"* while ClickUp owns the domain. `task_domain_externally_owned(NULL)` returns `false` by
+construction (`0199:77-78`), so a **project-less** task is insertable regardless; the denial binds only
+on tasks carrying a project. `OD-TASK-1`'s outcome is unchanged — ClickUp is not used at RIS — but the
+reasoning must not be reused.
+
+**[NEW — a collision the batch created and did not notice] An `Engineer` cannot create a task.**
+`tasks_insert` (`0199:116-121`) lists only `Admin`/`Executive`/`Project Manager`/`Finance`. `OD-MTG-1`
+rules every role including `Engineer` may minute meetings, and a meeting's `/action` creates a task —
+so **an Engineer minuting a site meeting cannot create its action items**, and the day-1 feature fails
+for the day-1 author. #527 item 6 was framed as the *CRM* surface and nobody joined the two policies.
+Tracked as [#551](https://github.com/ariefsaid/PMO/issues/551); the recommendation there is to widen
+only through the meeting path (a task carrying a `meeting_id` the caller attended), not to add
+`Engineer` to the role list wholesale.
+
+**[VERIFIED] `DD-I18N-7`** — `pmo-portal/package.json` has no i18n package of any kind. **`DD-I18N-8`'s
+size figures** rest on a stated, reproducible method (spec §3) and survived an independent narrower
+recount.
+
+⚑ **The class this exercise is guarding against.** Four of the batch's rulings were argued from a
+document — a spec default, a migration header, a ticket's restatement of a spec — and one of those
+documents *contradicted itself* (`first-class-tasks.spec.md` FR-FCT-022 said "allow", its §8 said
+"default to forbid"). **Two documents agreeing is not a second source when the same kind of author wrote
+both.** Before a stated default becomes a ruling: name the consequence, and read the code that produces
+it.
+
+---
+
+## DD-TASK-8 — an Engineer may create and edit tasks; `tasks.created_by` is added to make it coherent (Director, 2026-08-21)
+
+**Question.** Why can an `Engineer` not create a task? Raised by the owner on reading #551: *"they should be able to from RBAC perspective, right?"*
+
+### There is no reason on record. It is inherited boilerplate.
+
+Traced: the role list `('Admin','Executive','Project Manager','Finance')` originates in
+**`0002_rls.sql:93-97`** — the original RLS bootstrap's `tasks_write` policy, `FOR ALL`. `0093:69`
+split it per-command for the ClickUp flip and **carried the list verbatim** (its comment describes the
+split and the external-ownership guard, never the roles); `0146:42` states *"task RLS gates (re-created,
+never edited in 0093)"*; `0199:116` copied it forward again.
+
+**No `OD-` or `DD-` has ever justified it.** Every recorded `Engineer` ruling covers something else —
+procurement scoping (`OD-W2-1/2`), timesheet approval (`OD-W2-2`), the finance-chrome demotion whose
+own text sets the **Engineer default tab to Tasks** (`OD-W5-C3-A`). The FE is narrower still:
+`policy.ts:90,185` allows `task.create` to `Admin`/`Executive`/`Project Manager` only.
+
+⚑ **This is the `DD-TASK-7` class again, one layer down.** There, a spec default was mistaken for a
+ruling. Here, four migrations agreeing with each other was mistaken for a decision — and #551's first
+recommendation ("widen only through the meeting path") was a design built *around* a restriction whose
+provenance had not been checked.
+
+### Ruling: widen it.
+
+**An `Engineer` may create tasks, and may edit tasks they created or are assigned.**
+
+**The one substantive objection, and why it fails.** A **top-level, unarchived task carrying a
+`milestone_id`** moves `delivery_pct`, milestone counts, the S-curve and Gantt (`0141:43,77`,
+`0145:43,78` — subtasks and archived tasks are excluded, and the rollup joins on `milestone_id`, not on
+`project_id`). So Engineer-created tasks can move the PM's number. **But if the delivery percentage only
+counts tasks that privileged roles typed, it measures administrative attention rather than delivery.**
+An engineer recording real work *should* move it. The control that belongs here is attribution and
+visibility, not a write ban.
+
+### Two consequences that make this more than a role-list edit
+
+1. **`tasks_update` must widen with `tasks_insert`.** An `Engineer`'s only update path today is
+   `tasks_update_own_status` (`0199:140-144`) — status, on a task assigned to them. Widening insert
+   alone produces a user who can create a task and then not rename it. Incoherent; they widen together.
+2. ⛔ **`tasks` has no `created_by` column.** Only `assignee_id`. So "a task you created" is not
+   expressible, and an `Engineer` creating a task assigned to someone else would lose write access the
+   instant they saved. **Add `created_by uuid references profiles(id)`, stamped by a `BEFORE INSERT`
+   trigger from `auth.uid()`, never accepted from the client** — the same shape as the `org_id` stamp.
+
+### What stays narrow
+
+- **Delete stays with the existing roles.** Destructive, ADR-0019, and nobody asked for it.
+- **The FE may remain stricter than RLS** where a surface wants it (ADR-0016) — but `policy.ts`'s
+  `task.create`/`task.edit` should widen to match, or the affordance is invisible to the role the
+  ruling exists for.
+- **External ownership still denies.** `not task_domain_externally_owned(project_id)` is unchanged;
+  this ruling does not touch the ClickUp guard.
+
+### Test note
+
+⚑ **Mutation-check the attribution, not just the allow.** A fixture where the Engineer is both creator
+and assignee **cannot tell `created_by` from `assignee_id`**. Every case needs an Engineer-created task
+assigned to *someone else*, and an Engineer-assigned task created by *someone else*, with both asserted
+writable — then break each disjunct and confirm the matching case reddens.
+
+**Supersedes** #551's original narrow recommendation. Related: `OD-MTG-1` (the collision that surfaced
+it), `OD-W5-C3-A`, ADR-0016.

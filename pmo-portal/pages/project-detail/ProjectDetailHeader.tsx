@@ -7,6 +7,7 @@ import {
   Button,
   Icon,
   NumberField,
+  SelectField,
   ConfirmDialog,
   GateNotice,
   useToast,
@@ -17,8 +18,14 @@ import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useProjectMutations } from '@/src/hooks/useProjects';
 import { useProjectBudget } from '@/src/hooks/useBudget';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { formatCurrency, formatDate } from '@/src/lib/format';
-import type { ProjectWithRefs } from '@/src/lib/db/projects';
+import { formatCurrency, formatDate, parseMoneyInput } from '@/src/lib/format';
+import {
+  TAX_TREATMENT_OPTIONS,
+  TAX_TREATMENT_PLACEHOLDER,
+  CONTRACT_TAX_REQUIRED_HINT,
+  parseTaxFacts,
+} from '@/src/lib/taxTreatment';
+import type { ProjectWithRefs, TaxTreatment } from '@/src/lib/db/projects';
 import type { Role } from '@/src/auth/AuthContext';
 import { ON_HAND_STATUSES, projectStatusGroup } from '@/src/lib/db/projectTransitions';
 import { pillVariantForProjectStatus, projectIconColor } from '../../components/projects';
@@ -36,6 +43,13 @@ export function hasFinanceView(role: Role | null): boolean {
   return (['Admin', 'Executive', 'Finance', 'Project Manager'] as Role[]).includes(role);
 }
 
+/** The staged contract-value change held by the SoD audit confirm — value AND the basis it is on. */
+interface PendingContractValue {
+  value: number;
+  taxTreatment: TaxTreatment;
+  taxAmount: number;
+}
+
 export interface ProjectDetailHeaderProps {
   project: ProjectWithRefs;
   committedSpend?: number;
@@ -43,15 +57,9 @@ export interface ProjectDetailHeaderProps {
 }
 
 /** Currency with a true minus glyph (U+2212) for negatives (number rigor). */
-function signedCurrency(value: number): string {
-  if (value < 0) return `−${formatCurrency(Math.abs(value))}`;
-  return formatCurrency(value);
-}
-
-/** Parse a formatted money string ("5,140,000") to a number; empty → 0. */
-function parseMoney(raw: string): number {
-  const n = Number(raw.replace(/[^0-9.-]/g, ''));
-  return Number.isFinite(n) ? n : 0;
+function signedCurrency(value: number, currency: string): string {
+  if (value < 0) return `−${formatCurrency(Math.abs(value), currency)}`;
+  return formatCurrency(value, currency);
 }
 
 /**
@@ -64,6 +72,7 @@ function formatThousands(raw: string): string {
   const cleaned = raw.replace(/[^0-9.]/g, '');
   if (cleaned === '') return '';
   const [intPart, ...rest] = cleaned.split('.');
+  // eslint-disable-next-line no-restricted-syntax -- masked money INPUT, not display; owned by the #468 locale seam (excluded from the #477 sweep)
   const grouped = intPart ? Number(intPart).toLocaleString('en-US') : '';
   // Keep at most one decimal portion; "" intPart with a lone "." stays as ".".
   return rest.length ? `${grouped}.${rest.join('')}` : grouped;
@@ -98,8 +107,15 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   // contract_value inline-edit state.
   const [valueEditing, setValueEditing] = useState(false);
   const [valueDraft, setValueDraft] = useState('');
-  // The audit-confirm holds the pending new value until the user confirms the SoD action.
-  const [pendingValue, setPendingValue] = useState<number | null>(null);
+  // #513: the basis the new value is stated on. ⛔ Both start EMPTY on every open and are never
+  // seeded — not from the stored row either. 0197's backfill wrote 'exclusive' onto every existing
+  // project (arithmetically inert, but nobody chose it), so pre-filling from the row would re-assert
+  // a marker no human ever stated — the exact silently-wrong-marker defect this issue removes. The
+  // RPC demands the basis on every set for the same reason: restating the value restates the basis.
+  const [taxTreatmentDraft, setTaxTreatmentDraft] = useState('');
+  const [taxAmountDraft, setTaxAmountDraft] = useState('');
+  // The audit-confirm holds the pending new value + its basis until the user confirms the SoD action.
+  const [pendingValue, setPendingValue] = useState<PendingContractValue | null>(null);
 
   const contract = project.contract_value ?? 0;
   const committed = committedSpend ?? 0;
@@ -144,50 +160,69 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
     .join(' ');
 
   const tiles: StatTile[] = [
-    { label: 'Contract', value: formatCurrency(contract) },
-    { label: 'Committed', value: formatCurrency(committed) },
+    { label: 'Contract', value: formatCurrency(contract, project.currency) },
+    { label: 'Committed', value: formatCurrency(committed, project.currency) },
     // AC-MONEY-01: "Actual" = committed-PO basis (Ordered..Paid), matching Committed.
     // Both tiles intentionally show the same number — they are the same realized-spend
     // basis (OD-BUDGET-2). "Committed" is the canonical label per glossary §Committed;
     // "Actual" is the human label per the original finance-strip design. The dead
     // projects.spent column (always 0) is NOT used here.
-    { label: 'Actual', value: formatCurrency(committed) },
+    { label: 'Actual', value: formatCurrency(committed, project.currency) },
     {
       label: 'On-hand margin',
-      value: signedCurrency(margin),
+      value: signedCurrency(margin, project.currency),
       tone: margin < 0 ? 'neg' : 'pos',
     },
     { label: 'Spend', value: `${spendPct}%` },
   ];
 
   const beginValueEdit = () => {
-    // Seed the editor with the formatted figure ("5,000,000"), not the raw number.
+    // Seed the editor with the formatted figure ("5,000,000"), not the raw number. The tax fields
+    // are deliberately NOT seeded — see the state declaration.
     setValueDraft(formatThousands(String(contract)));
+    setTaxTreatmentDraft('');
+    setTaxAmountDraft('');
     setValueEditing(true);
   };
 
   const cancelValueEdit = () => {
     setValueEditing(false);
     setValueDraft('');
+    setTaxTreatmentDraft('');
+    setTaxAmountDraft('');
   };
+
+  // #513: the ONE predicate. `stagedValue` is null exactly when the editor is not submittable —
+  // no parsable value, or a value with no stated basis — and it drives BOTH the disabled Save and
+  // the guard inside `onValueSave`, so the button state and the write guard cannot disagree.
+  // `parseMoneyInput` is the single money parse (validation AND persistence) for both figures; a
+  // local `Number()` parse here would silently diverge from the #468 locale fix.
+  const parsedValue = parseMoneyInput(valueDraft);
+  const parsedTax = parseTaxFacts(taxTreatmentDraft, taxAmountDraft);
+  const stagedValue: PendingContractValue | null =
+    parsedValue !== null && parsedValue >= 0 && parsedTax !== null
+      ? { value: parsedValue, ...parsedTax }
+      : null;
 
   // Save the value. On a WON/on-hand project this is a segregation-of-duties action →
   // stage it for the audit confirm. Pre-win, commit straight away (no SoD confirm).
   const onValueSave = () => {
-    const next = parseMoney(valueDraft);
+    if (!stagedValue) return;
     if (isOnHand) {
-      setPendingValue(next);
+      setPendingValue(stagedValue);
     } else {
-      void commitValue(next);
+      void commitValue(stagedValue);
     }
   };
 
-  const commitValue = async (next: number) => {
+  const commitValue = async (next: PendingContractValue) => {
     try {
-      await setContractValue.mutateAsync({ id: project.id, value: next });
-      toast('Contract value updated', formatCurrency(next), 'success');
+      await setContractValue.mutateAsync({ id: project.id, ...next });
+      toast('Contract value updated', formatCurrency(next.value, project.currency), 'success');
       setValueEditing(false);
       setValueDraft('');
+      setTaxTreatmentDraft('');
+      setTaxAmountDraft('');
       setPendingValue(null);
     } catch (err) {
       const { headline, detail } = classifyMutationError(err);
@@ -268,18 +303,56 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
               onChange={(v) => setValueDraft(formatThousands(v))}
             />
           </div>
-          <Button variant="primary" size="sm" onClick={onValueSave} loading={setContractValue.isPending}>
+          {/* #513: the contract value's tax basis — BOTH required, and the treatment has no
+              pre-selected option. Without it the work-order drawdown compares this ceiling against
+              order values on an unknown basis and UNDER-detects over-commitment (migration 0197).
+              Options/placeholder/parse are single-sourced in src/lib/taxTreatment.ts so this form
+              and the vendor-invoice forms cannot drift. */}
+          <div className="w-[240px]">
+            <SelectField
+              label="Tax treatment"
+              value={taxTreatmentDraft}
+              onChange={setTaxTreatmentDraft}
+              placeholder={TAX_TREATMENT_PLACEHOLDER}
+              options={TAX_TREATMENT_OPTIONS}
+              data-testid="contract-tax-treatment"
+            />
+          </div>
+          <div className="w-[160px]">
+            <NumberField
+              label="Tax amount"
+              prefix="$"
+              value={taxAmountDraft}
+              onChange={(v) => setTaxAmountDraft(formatThousands(v))}
+              data-testid="contract-tax-amount"
+            />
+          </div>
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={onValueSave}
+            disabled={stagedValue === null}
+            loading={setContractValue.isPending}
+          >
             Save
           </Button>
           <Button variant="ghost" size="sm" onClick={cancelValueEdit}>
             Cancel
           </Button>
+          {stagedValue === null && (
+            <p
+              data-testid="contract-tax-required-hint"
+              className="basis-full text-[12px] text-muted-foreground"
+            >
+              {CONTRACT_TAX_REQUIRED_HINT}
+            </p>
+          )}
         </div>
       ) : (
         <span className="flex items-center gap-2.5">
           <span className="text-[12.5px] font-semibold text-muted-foreground">Contract value</span>
           <span className="text-[15px] font-bold tabular tracking-[-0.01em]">
-            {formatCurrency(contract)}
+            {formatCurrency(contract, project.currency)}
           </span>
           {canEditValue && isFinanceForward ? (
             <Button variant="outline" size="sm" onClick={beginValueEdit} aria-label="Edit contract value">
@@ -369,8 +442,11 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
           pendingValue !== null ? (
             <>
               You are changing the contract value of a won project from{' '}
-              <b className="tabular text-foreground">{formatCurrency(contract)}</b> to{' '}
-              <b className="tabular text-foreground">{formatCurrency(pendingValue)}</b>.
+              <b className="tabular text-foreground">{formatCurrency(contract, project.currency)}</b> to{' '}
+              <b className="tabular text-foreground">{formatCurrency(pendingValue.value, project.currency)}</b>,
+              stated as <b className="text-foreground">{pendingValue.taxTreatment}</b> of{' '}
+              <b className="tabular text-foreground">{formatCurrency(pendingValue.taxAmount, project.currency)}</b>{' '}
+              tax.
               <GateNotice variant="blocked" className="mt-3">
                 Changing the contract value on a won project is a segregation of duties action and
                 is recorded against your name, the date, and the previous value.

@@ -389,6 +389,13 @@ async function upsertInvoiceMirror(ctx: ReadModelWriterCtx, canonical: PmoRecord
     reference_number: (canonical.reference_number as string | null | undefined) ?? null,
     amount: canonical.amount ?? null,
     erp_outstanding_amount: outstanding,
+    // #505 (0196): `tax_treatment` says whether THIS ROW's `amount` includes `tax_amount`. This
+    // writer sets `amount` from ERPNext's `grand_total`, which includes taxes BY DEFINITION — so
+    // 'inclusive' here is a FACT about the figure just written, not a guess about how the ERP doc
+    // was keyed in. It rides with `amount` deliberately: if a natively-authored 'exclusive' row is
+    // ever mirrored, its amount becomes the grand total and the marker must follow it, or the row
+    // starts lying. Clause-for-clause the same as upsertSalesInvoiceMirror's (0188 / #478).
+    tax_treatment: 'inclusive',
     status: derivePiStatus(outstanding),
     erp_docstatus: docstatus ?? null,
     erp_modified: (canonical.erp_modified as string | null | undefined) ?? null,
@@ -397,11 +404,27 @@ async function upsertInvoiceMirror(ctx: ReadModelWriterCtx, canonical: PmoRecord
     // (a fresh create, a draft update, or an amended docstatus-1 new doc are not cancelled).
     erp_cancelled_at: docstatus === 2 ? new Date().toISOString() : null,
   };
+  // #505: `tax_amount` and `tax_template` are OMITTED rather than written as null when the canonical
+  // does not carry them (the same `authorPatch` discipline the SI writer uses). `tax_amount` is a
+  // NOT NULL column — writing null would fail the write outright — and nulling a recorded tax
+  // template on a status-sync tick would silently erase a fact ERP still holds.
+  const piTaxAmount = (canonical.tax_amount as string | null | undefined) ?? null;
+  if (piTaxAmount !== null) patch.tax_amount = piTaxAmount;
+  const piTaxTemplate = (canonical.tax_template as string | null | undefined) ?? null;
+  if (piTaxTemplate !== null) patch.tax_template = piTaxTemplate;
   if (command.operation === 'create') {
     const record = command.record as { procurementId?: string };
     if (!record.procurementId) throw new AppError('procurementId is required to mirror a created purchase invoice', 'BAD_REQUEST');
     await requireOwnOrgLink(ctx, 'procurements', record.procurementId);   // B10
-    const { error } = await ctx.serviceClient.from('procurement_invoices').insert({ id: canonical.id, org_id: ctx.orgId, procurement_id: record.procurementId, ...patch });
+    const { error } = await ctx.serviceClient.from('procurement_invoices').insert({
+      id: canonical.id, org_id: ctx.orgId, procurement_id: record.procurementId,
+      ...patch,
+      // NOT NULL with no DB default (0196), so the create branch must always state it. ERPNext
+      // returns `total_taxes_and_charges` on every Purchase Invoice (0 when the doc carries no
+      // taxes), and PI_FROM_DOC_FIELDS requests it — '0.00' is the untaxed-document case, never
+      // "unknown".
+      tax_amount: piTaxAmount ?? '0.00',
+    });
     if (error) throw new AppError(error.message, error.code);
     return;
   }
@@ -604,6 +627,12 @@ async function upsertSalesInvoiceMirror(ctx: ReadModelWriterCtx, canonical: PmoR
     invoice_date: (canonical.invoice_date as string | null | undefined) ?? null,
     amount: canonical.amount ?? null,
     erp_outstanding_amount: outstanding,
+    // #478 (0188): `tax_treatment` says whether THIS ROW's `amount` includes `tax_amount`. This writer
+    // sets `amount` from ERPNext's `grand_total`, which includes taxes BY DEFINITION — so 'inclusive'
+    // here is a FACT about the figure just written, not a guess about how the ERP doc was keyed in.
+    // It rides with `amount` deliberately: if a natively-authored 'exclusive' row is ever mirrored,
+    // its amount becomes the grand total and the marker must follow it, or the row starts lying.
+    tax_treatment: 'inclusive',
     status: deriveSiStatus(outstanding, docstatus),
     erp_docstatus: docstatus ?? null,
     erp_modified: (canonical.erp_modified as string | null | undefined) ?? null,
@@ -611,6 +640,16 @@ async function upsertSalesInvoiceMirror(ctx: ReadModelWriterCtx, canonical: PmoR
     // stamp erp_cancelled_at on a cancel tombstone (docstatus 2)
     erp_cancelled_at: docstatus === 2 ? new Date().toISOString() : null,
   };
+  // #478: `currency`, `tax_amount` and `tax_template` are OMITTED rather than written as null when the
+  // canonical does not carry them (the `authorPatch` discipline already used below). `currency` and
+  // `tax_amount` are NOT NULL columns — writing null would fail the write outright — and nulling a
+  // recorded tax template on a status-sync tick would silently erase a fact ERP still holds.
+  const siCurrency = (canonical.currency as string | null | undefined) ?? null;
+  if (siCurrency !== null) patch.currency = siCurrency;
+  const siTaxAmount = (canonical.tax_amount as string | null | undefined) ?? null;
+  if (siTaxAmount !== null) patch.tax_amount = siTaxAmount;
+  const siTaxTemplate = (canonical.tax_template as string | null | undefined) ?? null;
+  if (siTaxTemplate !== null) patch.tax_template = siTaxTemplate;
   if (command.operation === 'create') {
     const record = command.record as { projectId?: string; customerId?: string };
     // Luna SF7 + BLOCK #11: cross-org FK guard — verify each non-null link belongs to ctx.orgId BEFORE
@@ -632,6 +671,10 @@ async function upsertSalesInvoiceMirror(ctx: ReadModelWriterCtx, canonical: PmoR
       customer_id: customerId,
       author_user_id: ctx.callerUserId ?? null,
       ...patch,
+      // NOT NULL with no DB default (0188), so the create branch must always state it. ERPNext returns
+      // `total_taxes_and_charges` on every Sales Invoice (0 when the doc carries no taxes), and
+      // SI_FROM_DOC_FIELDS requests it — '0.00' is the untaxed-document case, never "unknown".
+      tax_amount: siTaxAmount ?? '0.00',
     });
     if (error) throw new AppError(error.message, error.code);
     // 0113: the creator joins the append-only authorship SET (the submit SoD's real oracle).
@@ -826,8 +869,12 @@ const revenueWriter: ReadModelWriter = {
  * figure (OD-BUDGET-1), the push is one-way, and this code runs as SERVICE ROLE — RLS would not stop it
  * if it tried. The mirror's whole value is that `drop table` reverses P3c with zero PMO data loss.
  *
- * `activated_at_witness` (ADR-0059 §6) is NOT written here: it must be resolved from DB truth by the
- * push gate, never from a command payload, so it stays null until that gate lands.
+ * `activated_at_witness` (ADR-0059 §6) IS written here (#479). It must be resolved from DB truth by
+ * the push gate, never authored by a caller — and it is: `runBudgetGate` server-reads
+ * `budget_versions.activated_at`, the idempotency key is derived from that same value, and it rides
+ * the command as a NON-body field exactly like the FR-BFY-080 span witness. ⚑ The comment here
+ * previously said it "stays null until that gate lands"; the gate landed with `0139` and this stayed
+ * unwritten for three migrations, which is what issue #479 was filed about.
  */
 const budgetWriter: ReadModelWriter = {
   async upsert(ctx, canonical, command) {
@@ -853,6 +900,20 @@ const budgetWriter: ReadModelWriter = {
       throw new AppError('budget mirror: the pushed budget carries no push-time project span witness', 'commit-rejected');
     }
     const witnessEnd = (command.record as { project_end_date?: unknown }).project_end_date;
+    // ⚑ #479 — THE ADR-0059 §6 STATE-STAMP WITNESS (docs/adr/0059…:192-193 requires "a server-resolved
+    // witness of the state stamp the push was keyed on"). Without it there was no record of WHICH
+    // activation the ERP `Budget` corresponds to: a version rolled back and re-activated pushes under
+    // a new key, but the mirror could not say which of the two the live ERP document came from.
+    //
+    // Same NON-body provenance as the span witness above, and the same failure posture: a `pushed` row
+    // with no witness is a DEFECT, not a backward-compat case, so this fails loudly rather than
+    // writing NULL. `0139`'s H-3 rows (Active before `0139`, `activated_at` NULL forever) never reach
+    // here — `runBudgetGate` refuses them at `budgetGate.ts:290` with `unstamped-activation`, which is
+    // deliberate: `0139` rejects backfilling a fabricated stamp, and forging one would forge the key.
+    const witnessActivatedAt = (command.record as { activated_at?: unknown }).activated_at;
+    if (typeof witnessActivatedAt !== 'string' || witnessActivatedAt === '') {
+      throw new AppError('budget mirror: the pushed budget carries no activation witness', 'commit-rejected');
+    }
     // ⚑ BLOCKER 2 (FU-2) — a REPLAY must never resurrect a Desk-cancelled Budget. A retry of an already-
     // `confirmed` outbox row converges the STORED canonical (no fresh ERP write). If the accountant
     // cancelled the ERP Budget after this push confirmed, the inbound feed tombstoned the mirror
@@ -882,6 +943,18 @@ const budgetWriter: ReadModelWriter = {
         push_error: null,
         pushed_project_start_date: witnessStart,
         pushed_project_end_date: typeof witnessEnd === 'string' && witnessEnd !== '' ? witnessEnd : null,
+        // ⚑ Stamped UNCONDITIONALLY, and the timesheet twin's monotonicity fence
+        // (`0164:231-236`, `excluded.approved_at_pushed >= existing`) is deliberately NOT copied.
+        // That fence exists because `record_timesheet_command_held` is reachable from several
+        // outcome paths that can interleave. This branch is a FRESH push only — `ctx.isReplay` has
+        // already returned above for a stored-canonical replay — and a fresh push carries the
+        // activation the gate read moments earlier under the key it derived from it. The residual
+        // is a genuine one and worth naming: two dispatches for two activations of the same version
+        // could still complete out of order, leaving the older witness last. Closing it needs the
+        // upsert to become a definer RPC with a conditional `where`, which is the twin's shape and
+        // a bigger change than this issue; the span witness beside it has carried the identical
+        // exposure since FR-BFY-080 shipped.
+        activated_at_witness: witnessActivatedAt,
         erp_budget_name: (canonical.erp_budget_name as string | null | undefined) ?? null,
         erp_docstatus: (canonical.erp_docstatus as number | null | undefined) ?? null,
         erp_modified: (canonical.erp_modified as string | null | undefined) ?? null,

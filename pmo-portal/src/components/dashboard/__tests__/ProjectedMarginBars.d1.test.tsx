@@ -24,7 +24,7 @@ describe('AC-JR-W3B-05: ProjectedMarginBars D-1 — stage rows link to /sales?st
   it('AC-JR-W3B-05: each open stage row is a Link to /sales?status=<encoded>', () => {
     render(
       <MemoryRouter>
-        <ProjectedMarginBars projectedMargin={0.141} stages={stages} />
+        <ProjectedMarginBars projectedMargin={0.141} stages={stages} currency="USD" />
       </MemoryRouter>,
     );
     const link1 = screen.getByRole('link', { name: /Tender Submitted/i });
@@ -39,7 +39,7 @@ describe('AC-JR-W3B-05: ProjectedMarginBars D-1 — stage rows link to /sales?st
   it('AC-JR-W3B-05: terminal stages are not rendered as links (excluded from bars)', () => {
     render(
       <MemoryRouter>
-        <ProjectedMarginBars projectedMargin={0.141} stages={stages} />
+        <ProjectedMarginBars projectedMargin={0.141} stages={stages} currency="USD" />
       </MemoryRouter>,
     );
     // Terminal stage should not appear at all
@@ -49,10 +49,10 @@ describe('AC-JR-W3B-05: ProjectedMarginBars D-1 — stage rows link to /sales?st
   it('AC-JR-W3B-05: stage bar content is still accessible inside the link', () => {
     render(
       <MemoryRouter>
-        <ProjectedMarginBars projectedMargin={0.141} stages={stages} />
+        <ProjectedMarginBars projectedMargin={0.141} stages={stages} currency="USD" />
       </MemoryRouter>,
     );
     // The weighted value should still be visible inside the link
-    expect(screen.getByText(formatCurrency(600_000))).toBeInTheDocument();
+    expect(screen.getByText(formatCurrency(600_000, 'USD'))).toBeInTheDocument();
   });
 });

@@ -18,6 +18,10 @@ import type { Role } from '@/src/auth/AuthContext';
  */
 
 const { navigate } = vi.hoisted(() => ({ navigate: vi.fn() }));
+// FR-L10N-020: this tree reads useOrgCurrency (org-denominated aggregates). Pinned here rather
+// than left to a real query. ⚑ At LINE-START — inside a neighbouring vi.mock it parses as a
+// syntax error and hides every real error beneath it.
+vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('react-router', async (orig) => {
   const actual = await (orig() as Promise<Record<string, unknown>>);
   return { ...actual, useNavigate: () => navigate };
@@ -26,8 +30,8 @@ vi.mock('react-router', async (orig) => {
 const { procState } = vi.hoisted(() => ({
   procState: {
     data: [
-      { id: 'pr1', title: 'Pending PR', code: 'PR-001', status: 'Requested', total_value: 5000, created_at: '2026-01-01', project: { name: 'Project A' }, requested_by: { full_name: 'Alice' } },
-      { id: 'pr2', title: 'Draft PR', code: 'PR-002', status: 'Draft', total_value: 1000, created_at: '2026-01-02', project: { name: 'Project B' }, requested_by: { full_name: 'Bob' } },
+      { id: 'pr1', title: 'Pending PR', code: 'PR-001', status: 'Requested', total_value: 5000, currency: 'USD', created_at: '2026-01-01', project: { name: 'Project A' }, requested_by: { full_name: 'Alice' } },
+      { id: 'pr2', title: 'Draft PR', code: 'PR-002', status: 'Draft', total_value: 1000, currency: 'USD', created_at: '2026-01-02', project: { name: 'Project B' }, requested_by: { full_name: 'Bob' } },
     ] as Array<Record<string, unknown>>,
     isPending: false,
     isError: false,

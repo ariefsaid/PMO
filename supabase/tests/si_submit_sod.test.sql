@@ -36,8 +36,8 @@ insert into companies (id, org_id, name, type) values
 
 -- Seed a draft sales_invoices row authored by user A (author_user_id = A)
 -- Use valid UUIDs (hex only: 0-9, a-f)
-insert into sales_invoices (id, org_id, customer_id, si_number, invoice_date, amount, status, author_user_id)
-values (
+insert into sales_invoices (tax_treatment, tax_amount, id, org_id, customer_id, si_number, invoice_date, amount, status, author_user_id)
+values ('exclusive', 0, 
   '11050000-0000-0000-0000-0000000001f1',  -- si_id: valid hex UUID
   '11050000-0000-0000-0000-000000000101',
   '11050000-0000-0000-0000-0000000001f1',  -- customer_id = company id
@@ -123,8 +123,8 @@ insert into external_org_bindings (org_id, external_tier, site_url, secret_ref, 
 insert into companies (id, org_id, name, type) values
   ('11050000-0000-0000-0000-0000000001f2','11050000-0000-0000-0000-000000000102','Test Customer D','Client');
 
-insert into sales_invoices (id, org_id, customer_id, si_number, invoice_date, amount, status, author_user_id)
-values (
+insert into sales_invoices (tax_treatment, tax_amount, id, org_id, customer_id, si_number, invoice_date, amount, status, author_user_id)
+values ('exclusive', 0, 
   '11050000-0000-0000-0000-0000000001f2',
   '11050000-0000-0000-0000-000000000102',
   '11050000-0000-0000-0000-0000000001f2',

@@ -177,8 +177,15 @@ export const ProjectIntegrationsCard: React.FC<{ projectId: string }> = ({ proje
   };
 
   const renderClickUpCard = () => {
-    // Error state for lists query
-    if (isListsError) {
+    // Error state for lists query — ONLY while the org binding is ACTIVE (issue #449). A
+    // not-connected org renders the quiet "Not connected" card below instead: a late/stale
+    // lists failure (the query is disabled when the binding is inactive, but react-query keeps
+    // its last error state) must never hijack an unlinked project's card.
+    if (isListsError && clickupConnected) {
+      // AC-449-3: human copy ONLY. Never render `listsError.message` — supabase-js transport
+      // text ("Failed to send a request to the Edge Function…") is diagnostics, not product
+      // copy. Raw detail goes to the DEV console, same rule as classifyMutationError (AC-ERR-002).
+      if (import.meta.env.DEV) console.debug('[clickup-lists-error]', listsError);
       return (
         <Card key="clickup" className="p-4" data-tier="clickup">
           <div className="flex items-center gap-2">
@@ -189,7 +196,7 @@ export const ProjectIntegrationsCard: React.FC<{ projectId: string }> = ({ proje
             </StatusPill>
           </div>
           <div className="mt-3 flex items-center gap-2">
-            <p className="text-sm text-destructive">{listsError?.message ?? 'Failed to load ClickUp lists'}</p>
+            <p className="text-sm text-destructive">Couldn't reach ClickUp. Check the connection, then retry.</p>
             <Button variant="outline" size="sm" onClick={() => refetchLists()}>
               <Icon name="refresh" className="size-3.55" aria-hidden="true" />
               Retry

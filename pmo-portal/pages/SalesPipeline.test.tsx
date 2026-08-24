@@ -17,8 +17,12 @@ const seedStages = [
   { status: 'Negotiation', count: 0, total_value: 0, win_probability: 0.75, weighted_value: 0 },
 ];
 const seedProjects = [
-  { id: 'p2', name: 'Northwind ERP Rollout', client_name: 'Northwind', status: 'Tender Submitted', contract_value: 1200000, win_probability: 0.5 },
-  { id: 'p10', name: 'Regional Services', client_name: null, status: 'PQ Submitted', contract_value: 800000, win_probability: 0.25 },
+  { id: 'p2', name: 'Northwind ERP Rollout', client_name: 'Northwind', status: 'Tender Submitted', contract_value: 1200000, currency: 'USD', win_probability: 0.5 },
+  { id: 'p10', name: 'Regional Services', client_name: null, status: 'PQ Submitted', contract_value: 800000, currency: 'USD', win_probability: 0.25 },
+  // #530 / FR-L10N-020: mixed-currency pair for the table regression — each row shows its OWN
+  // currency, not the USD org default (a single-currency fixture set could hide a hardcoded literal).
+  { id: 'idr1', name: 'IDR Deal', client_name: 'Garuda', status: 'Tender Submitted', contract_value: 1234, currency: 'IDR', win_probability: 0.5 },
+  { id: 'usd1', name: 'USD Deal', client_name: 'Acme Corp', status: 'Tender Submitted', contract_value: 9000, currency: 'USD', win_probability: 0.5 },
 ];
 
 const pipelineState: {
@@ -35,6 +39,10 @@ const lostState: { data: Array<Record<string, unknown>>; isPending: boolean; isE
   isPending: false,
   isError: false,
 };
+// FR-L10N-020: this component reads useOrgCurrency for its ACROSS-record aggregates. Pinned here
+// rather than left to a real query. ⚑ At LINE-START on purpose — inserted inside a neighbouring
+// vi.mock call it parses as a syntax error and hides every real error beneath it.
+vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/hooks/useDashboard', () => ({
   useSalesPipeline: () => pipelineState,
   useLostDeals: () => lostState,
@@ -116,7 +124,7 @@ describe('SalesPipeline header + funnel (AC-SP-202)', () => {
   it('AC-1117: the weighted total test id is preserved and sums only the open stages', () => {
     renderPage();
     // 200000 + 600000 = 800000
-    expect(screen.getByTestId('pipeline-weighted-total')).toHaveTextContent(formatCurrency(800000));
+    expect(screen.getByTestId('pipeline-weighted-total')).toHaveTextContent(formatCurrency(800000, 'USD'));
   });
 });
 
@@ -151,7 +159,7 @@ describe('SalesPipeline view toggle (AC-SP-206) + kanban default (AC-SP-204)', (
   it('AC-SP-204: defaults to the Kanban view with the Tender stage column + its weighted total', () => {
     renderPage();
     const tender = screen.getByTestId('stage-Tender Submitted');
-    expect(within(tender).getAllByText((t) => t.includes(formatCurrency(600000))).length).toBeGreaterThan(0);
+    expect(within(tender).getAllByText((t) => t.includes(formatCurrency(600000, 'USD'))).length).toBeGreaterThan(0);
   });
 
   it('AC-SP-206: the view toggle is a tablist with Board selected by default', () => {
@@ -174,6 +182,27 @@ describe('SalesPipeline view toggle (AC-SP-206) + kanban default (AC-SP-204)', (
     renderPage();
     await userEvent.click(screen.getByRole('tab', { name: /Table/i }));
     expect(screen.queryByRole('columnheader', { name: /Decision/i })).toBeNull();
+  });
+
+  it('#530 / AC-L10N-020: table rows render each deal in its own currency, not the USD org default', async () => {
+    renderPage();
+    await userEvent.click(screen.getByRole('tab', { name: /^Table$/i }));
+    // The IDR row renders its own code-style NBSP currency (U+00A0) and NO dollar sign. Assert on
+    // RAW node text for the NBSP — the default normalizer collapses it to a space, which a
+    // plain-space hardcode could otherwise satisfy.
+    const idrRow = screen.getByText('IDR Deal').closest('tr')!;
+    const idr = within(idrRow as HTMLElement);
+    // SOME element inside the row carries the raw NBSP currency. Presence check (cell + ancestors).
+    expect(
+      idr.getAllByText((_, node) => node?.textContent?.includes('IDR\u00A01,234') ?? false)
+        .length,
+    ).toBeGreaterThan(0);
+    expect(idr.queryByText(/\$/)).toBeNull();
+    // The USD row (same table, same stage column) renders its own dollar value and no IDR.
+    const usdRow = screen.getByText('USD Deal').closest('tr')!;
+    const usd = within(usdRow as HTMLElement);
+    expect(usd.getByText('$9,000')).toBeInTheDocument();
+    expect(usd.queryByText(/IDR/)).toBeNull();
   });
 
   it('AC-SP-206: the chosen view persists to sessionStorage', async () => {
@@ -202,7 +231,7 @@ describe('SalesPipeline drill-down (Model B canonical route)', () => {
 describe('SalesPipeline — Lost deals in the Pipeline (AC-IXD-PROJ-007)', () => {
   it('AC-IXD-PROJ-007: a lost deal appears in the terminal "Lost" kanban column', () => {
     lostState.data = [
-      { id: 'pl', name: 'Coastal Depot Bid', client_name: 'Coastal', status: 'Loss Tender', contract_value: 950000, win_probability: 0 },
+      { id: 'pl', name: 'Coastal Depot Bid', client_name: 'Coastal', status: 'Loss Tender', contract_value: 950000, currency: 'USD', win_probability: 0 },
     ];
     renderPage();
     const lostColumn = screen.getByTestId('stage-Lost');
@@ -211,7 +240,7 @@ describe('SalesPipeline — Lost deals in the Pipeline (AC-IXD-PROJ-007)', () =>
 
   it('AC-IXD-PROJ-007: the "Lost" table filter scopes the table to lost deals', async () => {
     lostState.data = [
-      { id: 'pl', name: 'Coastal Depot Bid', client_name: 'Coastal', status: 'Loss Tender', contract_value: 950000, win_probability: 0 },
+      { id: 'pl', name: 'Coastal Depot Bid', client_name: 'Coastal', status: 'Loss Tender', contract_value: 950000, currency: 'USD', win_probability: 0 },
     ];
     renderPage();
     await userEvent.click(screen.getByRole('tab', { name: /^Table$/i }));

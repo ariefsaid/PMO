@@ -1,0 +1,235 @@
+# sssf.config.yaml — the factory's agent roster. One agent, one prompt, one purpose.
+# v1 runs the Pi coding agent only; coding_agent: claude_code arrives in v2.
+# PMO substrate ruling (owner 2026-07-30, docs/pi-delegation.md §2): pi runs on z.ai GLM with
+# openai-codex (OAuth) as the cross-family lane — openrouter is banned, fireworks/NIM/requesty are out.
+# `claude -p` stays the last-resort rung of pi-dispatch only: SSSF v1 is pi-only (claude_code is
+# stubbed until v2), so there is no claude fallback rung here — if both substrates are down, wait.
+# ⚑ Owner 2026-08-20: BUILDERS RUN ON BITDEER DeepSeek-V4-Flash (`bitdeer/deepseek-ai/DeepSeek-V4-Flash`,
+# registered in ~/.pi/agent/models.json, docs/pi-delegation.md §2a). Plan on GLM/terra → build on
+# deepseek-flash → review on GLM/luna/terra by availability. Side effect worth having: the build/review
+# boundary is CROSS-FAMILY again (deepseek vs codex), which the all-codex roster had given up.
+defaults:
+  coding_agent: pi
+  model: openai-codex/gpt-5.6-terra # provider/id — a bare pattern is ambiguous across providers
+  # Roster-wide ladder, so an agent added later is never single-substrate by accident. Any agent may
+  # override with its own `fallbacks:`; every one below does.
+  fallbacks: [zai/glm-5.3, bitdeer/deepseek-ai/DeepSeek-V4-Flash]
+  thinking: medium                 # off | minimal | low | medium | high | xhigh | max
+  harness_engineering: []          # pi extensions loaded into the harness (-e)
+  # Roster-wide allowlist; any agent may override with its own list.
+  # NOTE: --tools filters extension and custom tools too, not just builtins. An agent
+  # whose harness_engineering extension registers a tool MUST name that tool in its own
+  # tools list — otherwise the extension loads and its tool is silently filtered out.
+  tools:
+    - read                         # read file contents
+    - bash                         # execute bash commands
+    - edit                         # find/replace edits
+    - write                        # create/overwrite files
+    - grep                         # search file contents  (pi default: OFF)
+    - find                         # find files by glob     (pi default: OFF)
+    - ls                           # list directories       (pi default: OFF)
+  # Off-limits to every agent that does not name them in its own `writes`.
+  # `tools` alone cannot protect these: bash runs `git checkout`, and write
+  # reaches any path. An agent must not be able to edit the machinery that
+  # decides whether its own work passed. Enforced in adw_modules/permissions.py.
+  #
+  # `writes:` per agent says what it may change IN THE REPO. It never restricts
+  # the session runtime under data_dir — context_handoff/, envelopes, prompts,
+  # raw output. Every agent can always write its own report; `writes: []` means
+  # read-only with respect to the repo, not mute.
+  protected_files:
+    - adws/adw_modules/
+    - adws/adw_sssf_config/
+    - adws/adw_*.py
+  data_dir: adws/adw_data          # runtime home: {data_dir}/sessions/{adw_id}/{agent_name}/
+
+observability:
+  db: adws/adw_data/sssf.db        # tracer writes here directly; the UI polls it
+  poll_ms: 500                     # visualizer live-poll cadence
+
+agents:
+  # ⚑ Roster note (owner 2026-08-19, superseding the earlier same-day rosters). ALL-CODEX:
+  #   planner terra · builder + fe_builder luna · reviewer + fe_reviewer terra · documenter luna
+  # Owner ruled same-family acceptable, with the model varied across the build/review boundary
+  # (terra plans and reviews, luna builds). Trigger: the z.ai GLM quota hit its 5-hour cap mid-run and
+  # took BOTH GLM slots — and the planner runs first, so no chain could start at all.
+  # ⚑ What this costs, stated so it is not rediscovered: review is now same-lineage, so the reviewer
+  # shares more of the builder's blind spots than a cross-family pair would. The Director's own gates
+  # (verify:locked, mutation checks, rendered pass) carry that weight — they are the real exit, not
+  # the ADW's green (docs/factory-workflow.md § Executor routing).
+  # ⚑ The GLOBAL default above is codex too: left on zai, any agent without an explicit `model:` would
+  # silently route to the exhausted substrate. builder/fe_builder were exactly that case once already.
+  # Revert lever: set planner/reviewer (and the global default) back to `zai/glm-5.3`.
+  # ⚑ SUPERSEDED FOR BUILDERS (owner 2026-08-20): builder + fe_builder moved off luna to
+  # bitdeer/deepseek-ai/DeepSeek-V4-Flash. Planner/reviewers stay codex. This restores the
+  # cross-family review the 2026-08-19 all-codex roster knowingly gave up, and costs ~1/70th
+  # of luna per build token ($0.042/$0.084 per 1M vs luna's rates).
+  # ⚑ What this bets: DeepSeek-V4-Flash is a 13B-active MoE. Its agentic tool-use is strong on
+  # paper (it beats V4-Pro on agentic coding benchmarks) and it passed a live read/bash/write
+  # loop here, but it has NOT yet run a full ADW chain in this repo. The reviewer + the
+  # Director's own gates (verify:locked, mutation checks, rendered pass) are what catch a weak
+  # builder — do not soften them on the strength of a cheap builder. Revert lever: set builder
+  # and fe_builder back to `openai-codex/gpt-5.6-luna`.
+
+  - name: planner
+    model: openai-codex/gpt-5.6-terra   # owner 2026-08-21: terra and GLM are the THINKERS; terra leads because
+    # GLM-5.3 hits its 5-hour cap constantly and a capped first rung spends a retry to learn that every run.
+    fallbacks: [zai/glm-5.3, openai-codex/gpt-5.6-luna]   # GLM second, luna as the workhorse floor
+    thinking: high
+    color: "#a78bfa"                 # optional hex — the agent's lane color in the visualizer
+    purpose: Turn a request into a plan the builder can implement without asking questions.
+    contract: .claude/agents/eng-planner.md   # appended verbatim to the system prompt (agents.py)
+    prompt_engineering:
+      system: adws/adw_data/prompt_engineering/planner/system.md
+      user: adws/adw_data/prompt_engineering/planner/user.md
+    harness_engineering:
+      - adws/adw_data/harness_engineering/subagents.ts    # registers the four subagent_* tools below
+    writes:                        # the plan is the only thing it may leave in the repo
+      - docs/plans/                # PMO's plan home (CLAUDE.md conventions), not upstream's specs/
+    tools:                         # full recon + write for plan.md; no edit — the planner never touches repo files
+      - read
+      - grep
+      - find
+      - ls
+      - bash
+      - write
+      - subagent_create            # extension tools MUST be named here or they are filtered out
+      - subagent_continue
+      - subagent_list
+      - subagent_remove
+
+  - name: builder
+    model: bitdeer/deepseek-ai/DeepSeek-V4-Flash   # owner 2026-08-20: deepseek-flash builds; GLM reviews
+    fallbacks: [openai-codex/gpt-5.6-luna, zai/glm-5.3]   # owner 2026-08-20: deepseek builds; GLM is LAST so a GLM build rarely meets a GLM review
+    color: "#22d3ee"
+    purpose: Implement the plan exactly; report every changed file in the envelope.
+    contract: .claude/agents/implementer.md
+    prompt_engineering:
+      system: adws/adw_data/prompt_engineering/builder/system.md
+      user: adws/adw_data/prompt_engineering/builder/user.md
+    # No `writes` key: unrestricted, and the only agent that is. It still cannot
+    # touch defaults.protected_files — the builder does not get to edit its own grader.
+    tools:                         # the only agent that mutates the repo — everything on
+      - read
+      - grep
+      - find
+      - ls
+      - bash
+      - edit
+      - write
+
+  - name: scout
+    model: bitdeer/deepseek-ai/DeepSeek-V4-Flash   # owner 2026-08-21: deepseek is the cheapest workhorse
+    # on the board ($0.1/M out) and recon is exactly the mechanical work it is for.
+    fallbacks: [openai-codex/gpt-5.6-luna, zai/glm-4.7]   # any rung that answers is fine
+    color: "#fbbf24"
+    purpose: Find and report where things live; change nothing.
+    prompt_engineering:
+      system: adws/adw_data/prompt_engineering/scout/system.md
+      user: adws/adw_data/prompt_engineering/scout/user.md
+    harness_engineering:
+      - adws/adw_data/harness_engineering/subagents.ts    # registers the four subagent_* tools below
+    writes: []                     # read-only, and now actually read-only: its findings
+                                   # go to context_handoff/, which is runtime, not the repo
+    tools:                         # search-heavy recon; write only so scout_findings.md lands without a bash heredoc
+      - read
+      - grep
+      - find
+      - ls
+      - bash
+      - write
+      - subagent_create            # extension tools MUST be named here or they are filtered out
+      - subagent_continue
+      - subagent_list
+      - subagent_remove
+
+  # No tester agent: running the suite is a known command, so it is a kind="code"
+  # phase over adw_modules/quality.py. See SKILL.md hard rule 8.
+
+  - name: reviewer
+    model: openai-codex/gpt-5.6-terra   # owner 2026-08-21: review is THINKING. Still cross-family — the
+    # builder is deepseek — so the property that mattered when GLM led this rung is unchanged.
+    fallbacks: [zai/glm-5.3, openai-codex/gpt-5.6-luna]
+    thinking: high
+    color: "#fb7185"
+    purpose: Confirm that what was built is what was asked for; change nothing.
+    contract: .claude/agents/spec-reviewer.md
+    prompt_engineering:
+      system: adws/adw_data/prompt_engineering/reviewer/system.md
+      user: adws/adw_data/prompt_engineering/reviewer/user.md
+    writes: []                     # a reviewer that cannot fix cannot quietly fix — the
+                                   # claim the tool list only implied, now enforced
+    tools:                         # full read surface; write only for review.md, no edit
+      - read
+      - grep
+      - find
+      - ls
+      - bash
+      - write
+
+  - name: fe_builder
+    model: bitdeer/deepseek-ai/DeepSeek-V4-Flash   # owner 2026-08-20: deepseek-flash builds. TEXT-ONLY —
+    fallbacks: [openai-codex/gpt-5.6-luna, zai/glm-5.3]   # same ladder as builder; TEXT-ONLY either way — fe_reviewer owns the pixels
+                                                 # its self-check is the a11y tree / DOM via agent-browser
+                                                 # (pi-delegation §3a); pixel judgment stays with fe_reviewer
+    color: "#34d399"
+    purpose: Implement one FE/UI slice strictly to DESIGN.md tokens; self-verify rendered states via agent-browser.
+    contract: .claude/agents/ui-implementer.md
+    prompt_engineering:
+      system: adws/adw_data/prompt_engineering/fe_builder/system.md
+      user: adws/adw_data/prompt_engineering/builder/user.md   # same envelope/report contract as builder
+    # No `writes` key: like builder, unrestricted except protected_files.
+    tools:
+      - read
+      - grep
+      - find
+      - ls
+      - bash
+      - edit
+      - write
+
+  - name: fe_reviewer
+    model: openai-codex/gpt-5.6-terra   # owner 2026-08-19: MUST stay codex — GLM is not multimodal and this reviewer looks at renders
+    fallbacks: [openai-codex/gpt-5.6-luna]   # NO GLM RUNG: this reviewer LOOKS AT RENDERS and GLM is not multimodal — capability, not availability
+    thinking: high
+    color: "#f472b6"
+    purpose: Audit the built UI rendered in a real browser against DESIGN.md + the plan; change nothing.
+    contract: .claude/agents/design-reviewer.md
+    prompt_engineering:
+      system: adws/adw_data/prompt_engineering/fe_reviewer/system.md
+      user: adws/adw_data/prompt_engineering/reviewer/user.md   # same verdict/envelope contract as reviewer
+    writes: []                     # read-only on the repo; findings go back to fe_builder
+    tools:
+      - read
+      - grep
+      - find
+      - ls
+      - bash
+      - write
+
+  - name: documenter
+    model: bitdeer/deepseek-ai/DeepSeek-V4-Flash    # owner 2026-08-21: prose is workhorse work
+    fallbacks: [openai-codex/gpt-5.6-luna, zai/glm-5.3]   # prose, not judgement
+    color: "#e879f9"
+    purpose: Write up the change that was just made, from the diff; document only.
+    prompt_engineering:
+      system: adws/adw_data/prompt_engineering/documenter/system.md
+      user: adws/adw_data/prompt_engineering/documenter/user.md
+    writes:                        # documentation only — "document only" is a rule now,
+      - docs/                      # not a line in a prompt the model may drift from.
+      - "**/*.md"                  # Markdown anywhere, because docs live next to the
+      - "*.md"                     # code they describe as often as in a docs folder.
+    # ⚑ `app_docs/` removed 2026-08-20 (#500). It is not a tracked convention in this
+    # repo, so every successful run left a new top-level directory holding a
+    # hash-prefixed file that had to be relocated by hand — three times in one day.
+    # `docs/reviews/` is the existing ledger for run write-ups; the documenter's
+    # prompt names it. Same fix the planner got in the 2026-08-16 iterate round,
+    # when its `writes:` was re-aimed at `docs/plans/`.
+    tools:                         # reads the diff and the code; writes/edits documentation only
+      - read
+      - grep
+      - find
+      - ls
+      - bash
+      - write
+      - edit

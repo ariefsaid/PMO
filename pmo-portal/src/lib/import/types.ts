@@ -27,6 +27,23 @@ export interface ImportDescriptor<Input> {
   /** Display name + sheet-name match ("Companies"). */
   entity: string;
   fields: ImportField<Input>[];
+  /**
+   * OPTIONAL cross-field row rule, run after every per-cell `validate` (#513).
+   *
+   * Some constraints are not properties of one cell: 0197's
+   * `check (contract_value = 0 or (tax_treatment is not null and tax_amount is not null))` is a
+   * relationship BETWEEN cells, so no `FieldValidate` can see it. Returns a sparse map keyed by
+   * `field.key`, merged into the row's errors — key it to the field the user must fix so the
+   * preview shows the message on that column.
+   *
+   * ⛔ This runs at PREVIEW, where the row is rejected with ZERO writes. The DB would reject it
+   * too, but only after the commit had started writing the rest of the sheet; preview being the
+   * oracle is the importer's whole contract.
+   */
+  //  ⚑ Keyed to `keyof Input`, not `string`. The wizard renders an error only via `errors[field.key]`,
+  //  so a typo'd key would mark the row INVALID with no message on any column — an unfixable row from
+  //  the user's side, and invisible from here.
+  validateRow?: (cells: Record<string, string>) => Partial<Record<keyof Input & string, string>>;
   /** Mapped cells → the entity's create `Input` (trims, casts; emits NO org_id). */
   toInput: (cells: Record<string, string>) => Input;
   /** The entity's existing create repository fn. RLS stamps org_id + gates the role. */
@@ -50,8 +67,22 @@ export interface RowValidation {
 
 export interface ImportResult {
   created: number;
+  /**
+   * Rows a descriptor recognised as ALREADY imported and deliberately wrote nothing for
+   * (`IMPORT_SKIPPED`). Counted apart from `created` because a re-run that reports "42 created"
+   * having written nothing is a false signal about the one thing an idempotent importer exists to
+   * demonstrate (DD-BIMP-8). Descriptors that never return the sentinel always see 0 here.
+   */
+  skipped: number;
   failed: { index: number; reason: string }[];
 }
+
+/**
+ * A descriptor's `create` resolves to THIS when the row was already imported and nothing was
+ * written. A sentinel rather than a `{ skipped: true }` shape: `create` returns `unknown`, and any
+ * object literal could collide with a real created row: a unique symbol cannot.
+ */
+export const IMPORT_SKIPPED: unique symbol = Symbol('import.skipped');
 
 /** Parse-time rejection: bad file, empty sheet, or over the row cap. Carries a typed `code`. */
 export class ImportParseError extends Error {

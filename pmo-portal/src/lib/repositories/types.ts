@@ -16,6 +16,7 @@ import type {
   ProjectWithRefs,
   CreateProjectInput,
   ProjectHeaderInput,
+  SetProjectContractValueInput,
 } from '@/src/lib/db/projects';
 import type { OpportunityRow } from '@/src/lib/db/opportunity';
 import type { TransitionProjectOpts, ProjectStatus } from '@/src/lib/db/projectTransitions';
@@ -35,6 +36,7 @@ import type {
   ProcurementStatus,
   ProcurementReceiptRow,
   ProcurementInvoiceRow,
+  CreateInvoiceInput,
 } from '@/src/lib/db/procurementLifecycle';
 import type {
   PurchaseRequestRow,
@@ -63,6 +65,7 @@ import type {
   BudgetVersionWithItems,
   BudgetLineItemRow,
   NewLineItem,
+  ImportProvenance,
 } from '@/src/lib/db/budgets';
 import type { TaskRow, TaskWithRefs, TaskInput, TaskPatch, TaskStatus } from '@/src/lib/db/tasks';
 import type {
@@ -121,8 +124,15 @@ export interface ProjectRepository {
   archive(id: string): Promise<void>;
   /** Hard-delete a project (Admin-only in the FE gate); rejects 23503 if referenced. */
   delete(id: string): Promise<void>;
-  /** Set contract_value through the SoD-scoped RPC (ADR-0019); rejects 42501 on SoD denial. */
-  setContractValue(id: string, value: number): Promise<void>;
+  /**
+   * Set contract_value through the SoD-scoped RPC (ADR-0019); rejects 42501 on SoD denial.
+   *
+   * #513: ONE object param, and `taxTreatment`/`taxAmount` are REQUIRED members of
+   * `SetProjectContractValueInput` — mirroring 0197's P0001 gate, so a caller that omits either
+   * fails to compile rather than failing at the RPC. Positional was no longer expressible:
+   * TypeScript forbids a required parameter after an optional one.
+   */
+  setContractValue(input: SetProjectContractValueInput): Promise<void>;
 }
 
 export interface CompanyRepository {
@@ -273,14 +283,18 @@ export interface ProcurementRepository {
     /** BLOCK 2: the per-INTENT command identity — pass the SAME value on every retry (see CommandIntent). */
     intent?: CommandIntent,
   ): Promise<ProcurementReceiptRow>;
+  /**
+   * #505: a SINGLE object param, not the old positional list. `taxTreatment`/`taxAmount` are
+   * REQUIRED members of `CreateInvoiceInput`, mirroring the NOT NULL columns 0196 added — a caller
+   * that omits either fails to compile instead of failing at the RPC with P0001. Positional was no
+   * longer expressible: TypeScript forbids a required parameter after an optional one.
+   *
+   * task FIX-1 — `referenceNumber`/`amount` stay optional and are ERP-computed (`grand_total`) when
+   * externally-owned (FR-ENA-115), so they are never sent outbound. The tax fields ARE forwarded on
+   * the external-dispatch record: they are user-stated facts about the invoice, not ERP-derived.
+   */
   createInvoice(
-    procurementId: string,
-    status: 'Received' | 'Scheduled' | 'Paid',
-    invoiceDate: string,
-    // task FIX-1 — same rationale as createReceipt's referenceNumber; `amount` is likewise
-    // ERP-computed (`grand_total`) when externally-owned (FR-ENA-115), so it is never sent outbound.
-    referenceNumber?: string | null,
-    amount?: number | null,
+    input: CreateInvoiceInput,
     /** BLOCK 2: the per-INTENT command identity — pass the SAME value on every retry (see CommandIntent). */
     intent?: CommandIntent,
   ): Promise<ProcurementInvoiceRow>;
@@ -402,13 +416,24 @@ export interface TimesheetRepository {
 export interface BudgetRepository {
   deriveProjectBudget(projectId: string): Promise<number>;
   listVersions(projectId: string): Promise<BudgetVersionWithItems[]>;
-  createLineItem(versionId: string, item: NewLineItem): Promise<BudgetLineItemRow>;
+  createLineItem(
+    versionId: string,
+    item: NewLineItem,
+    provenance?: ImportProvenance,
+  ): Promise<BudgetLineItemRow>;
   updateLineItem(
     id: string,
     patch: Partial<Pick<BudgetLineItemRow, 'category' | 'description' | 'budgeted_amount' | 'actual_amount'>>,
   ): Promise<void>;
   deleteLineItem(id: string): Promise<void>;
-  createVersion(projectId: string, name: string): Promise<BudgetVersionRow>;
+  createVersion(
+    projectId: string,
+    name: string,
+    provenance?: ImportProvenance,
+  ): Promise<BudgetVersionRow>;
+  /** #495 import probes — see `src/lib/db/budgetImportSkip.ts` for why each is scoped as it is. */
+  findImportTargetDraft(projectId: string): Promise<{ id: string } | null>;
+  findImportedLine(versionId: string, importKey: string): Promise<{ id: string } | null>;
   cloneVersion(versionId: string): Promise<string>;
   /** HIGH-C: returns the ERP push CONSEQUENCE (the PMO transition itself either succeeded or threw).
    *  Never `void` — a push that failed (or never reached the edge function) must be surfaced. */

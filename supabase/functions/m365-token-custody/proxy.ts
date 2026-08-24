@@ -145,6 +145,27 @@ export async function handleGraphProxy(
   });
 
   if (!graphRes.ok) {
+    // #445 permanent remedy: Graph's status/code/message/request-id go to the STRUCTURED SERVER
+    // LOG ONLY — the 2026-08-18 live investigation was undiagnosable without them (the code alone
+    // said 'BadRequest'; the message named the real condition, a missing SPO license). The client
+    // envelope stays OPAQUE by design (AC-M365-140 adjacent — no upstream detail to the browser);
+    // the opacity is pinned by the AC-M365-140 test in tokenCustody.proxy.test.ts. Truncated;
+    // contains no token material.
+    let upstreamCode = '';
+    let upstreamMessage = '';
+    try {
+      const errBody = (await graphRes.json()) as { error?: { code?: string; message?: string } };
+      upstreamCode = String(errBody?.error?.code ?? '');
+      upstreamMessage = String(errBody?.error?.message ?? '').slice(0, 200);
+    } catch { /* non-JSON upstream body */ }
+    console.error('[m365-token-custody] graph_proxy upstream failure', {
+      status: graphRes.status,
+      upstreamCode,
+      upstreamMessage,
+      requestId: graphRes.headers.get('request-id') ?? '',
+      connectionId: connection.id,
+      path: normalizedPath,
+    });
     await recordM365Error(serviceClient, { errorCode: 'GRAPH_ERROR', contextId: connection.id, orgId });
     return { status: 502, body: { error: 'GRAPH_ERROR', message: 'Graph API request failed' }, headers };
   }

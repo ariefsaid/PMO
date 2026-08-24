@@ -45,6 +45,7 @@ const renderTab = (props: Partial<React.ComponentProps<typeof ProcurementOvervie
         projectName="Meridian Solar Farm"
         totalValue={486000}
         status="Requested"
+        currency="USD"
         {...props}
       />
     </MemoryRouter>,

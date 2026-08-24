@@ -70,7 +70,7 @@ describe('AC-AGP-021 listRunEvents', () => {
 
 describe('AC-AGP-022 rateAgentEvent', () => {
   it('rateAgentEvent sends only rating/downvote_reason, scoped by id', async () => {
-    h.result.value = { data: null, error: null };
+    h.result.value = { data: [{ id: 'e1' }], error: null };
     await rateAgentEvent('e1', 'down', 'inaccurate');
 
     expect(h.calls.from).toEqual(['agent_events']);
@@ -82,7 +82,7 @@ describe('AC-AGP-022 rateAgentEvent', () => {
   });
 
   it('rateAgentEvent with no reason sends downvote_reason: null (thumbs-up path)', async () => {
-    h.result.value = { data: null, error: null };
+    h.result.value = { data: [{ id: 'e1' }], error: null };
     await rateAgentEvent('e1', 'up');
     expect(h.calls.update).toEqual([{ rating: 'up', downvote_reason: null }]);
   });
@@ -90,5 +90,12 @@ describe('AC-AGP-022 rateAgentEvent', () => {
   it('throws AppError preserving the PG code on a denied/non-owner update', async () => {
     h.result.value = { data: null, error: { message: 'denied', code: '42501' } };
     await expect(rateAgentEvent('e1', 'down', 'too_slow')).rejects.toMatchObject({ code: '42501' });
+  });
+
+  it('#534: a using-denied update (0 rows matched, no error) throws 42501 instead of resolving as success', async () => {
+    h.result.value = { data: [], error: null };
+    await expect(rateAgentEvent('e1', 'down', 'too_slow')).rejects.toBeInstanceOf(AppError);
+    await expect(rateAgentEvent('e1', 'down', 'too_slow')).rejects.toMatchObject({ code: '42501' });
+    expect(h.calls.update.length).toBeGreaterThan(0);
   });
 });

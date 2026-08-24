@@ -40,6 +40,10 @@ const roleState = vi.hoisted(() => ({
   effectiveRole: 'Finance' as string,
 }));
 
+// FR-L10N-020: this tree reads useOrgCurrency (org-denominated aggregates). Pinned here rather
+// than left to a real query. ⚑ At LINE-START — inside a neighbouring vi.mock it parses as a
+// syntax error and hides every real error beneath it.
+vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/hooks/useProcurementRecords', () => ({
   useProcurementRecordMutations: () => ({
     createPurchaseRequest: { mutateAsync: vi.fn(), isPending: false },
@@ -135,7 +139,7 @@ const BASE = {
   id: 'proc-001',
   code: 'PROC-2026-001',
   title: 'Workstations for HQ',
-  total_value: 50000,
+  total_value: 50000, currency: 'USD',
   pr_number: 'PR-2606040001',
   po_number: null,
   vq_number: null,
@@ -375,7 +379,7 @@ describe('AC-PR-S4-003: LedgerCaptureRow pre-selects the correct next type', () 
       ...BASE,
       status: 'Requested',
       purchase_requests: [
-        { id: 'pr-1', procurement_id: 'proc-001', pr_number: 'PR-2606040001', status: 'Submitted', date: '2026-06-04', org_id: 'org-1', created_at: '2026-06-04T00:00:00Z', reference_number: null, amount: 50000 },
+        { id: 'pr-1', procurement_id: 'proc-001', pr_number: 'PR-2606040001', status: 'Submitted', date: '2026-06-04', org_id: 'org-1', created_at: '2026-06-04T00:00:00Z', reference_number: null, amount: 50000, currency: 'USD' },
       ],
     };
     renderPage('proc-001', 'documents');
@@ -541,8 +545,8 @@ describe('AC-PR-S4-005 (edge case): multiple records per phase', () => {
       ...BASE,
       status: 'Vendor Invoiced',
       invoices: [
-        { id: 'vi-1', procurement_id: 'proc-001', vi_number: 'VI-2026-0001', status: 'Received', invoice_date: '2026-06-04', org_id: 'org-1', created_at: '2026-06-04T00:00:00Z', po_id: null, reference_number: 'INV-001', amount: 20000 },
-        { id: 'vi-2', procurement_id: 'proc-001', vi_number: 'VI-2026-0002', status: 'Received', invoice_date: '2026-06-10', org_id: 'org-1', created_at: '2026-06-10T00:00:00Z', po_id: null, reference_number: 'INV-002', amount: 30000 },
+        { id: 'vi-1', procurement_id: 'proc-001', vi_number: 'VI-2026-0001', status: 'Received', invoice_date: '2026-06-04', org_id: 'org-1', created_at: '2026-06-04T00:00:00Z', po_id: null, reference_number: 'INV-001', amount: 20000, currency: 'USD' },
+        { id: 'vi-2', procurement_id: 'proc-001', vi_number: 'VI-2026-0002', status: 'Received', invoice_date: '2026-06-10', org_id: 'org-1', created_at: '2026-06-10T00:00:00Z', po_id: null, reference_number: 'INV-002', amount: 30000, currency: 'USD' },
       ],
     };
     renderPage('proc-001', 'documents');
@@ -696,7 +700,7 @@ describe('AC-PR-S4-008: confirm-before-write on consequential transitions', () =
       ...BASE,
       status: 'Vendor Invoiced',
       approved_by_id: 'u-other', // not the payer — SoD OK
-      total_value: 50000,
+      total_value: 50000, currency: 'USD',
       project: { name: 'HQ Fit-Out', code: 'PRJ-001' },
     };
     renderPage();

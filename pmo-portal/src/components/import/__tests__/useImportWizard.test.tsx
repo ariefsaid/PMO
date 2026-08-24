@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { useImportWizard } from '../useImportWizard';
 import type { ImportDescriptor } from '@/src/lib/import';
+import { IMPORT_SKIPPED } from '@/src/lib/import/types';
 import { AppError } from '@/src/lib/appError';
 
 // SECURITY (2026-07-27 review round 2 #2): the per-row commit loop must NOT fire one
@@ -47,6 +48,39 @@ import { parseWorkbook } from '@/src/lib/import';
 const file = (name = 'x.xlsx') => new File(['x'], name);
 
 describe('useImportWizard', () => {
+  // #513: the wizard must actually RUN the descriptor's cross-field rule. A rule that exists but is
+  // never called is the worst of both worlds — it reads as enforced, and the row reaches the RPC.
+  it('#513: a row rejected by descriptor.validateRow is never sent to create', async () => {
+    (parseWorkbook as ReturnType<typeof vi.fn>).mockResolvedValue({
+      headers: ['Company name', 'Type'],
+      rows: [
+        ['Acme', 'Client'], // valid per-cell AND per-row → created
+        ['Blocked Co', 'Client'], // valid per-cell, rejected by the cross-field rule
+      ],
+    });
+    const create = vi.fn().mockResolvedValue({ id: '1' });
+    const descriptor: ImportDescriptor<Co> = {
+      ...makeDescriptor(create),
+      validateRow: (cells) =>
+        cells.name === 'Blocked Co' ? { type: 'This company may not be a Client.' } : {},
+    };
+
+    const { result } = renderHook(() => useImportWizard(descriptor));
+    await act(async () => {
+      await result.current.selectFile(file());
+    });
+    act(() => result.current.goPreview());
+
+    expect(result.current.counts).toMatchObject({ valid: 1, invalid: 1, total: 2 });
+    expect(result.current.validation[1].errors.type).toBe('This company may not be a Client.');
+
+    await act(async () => {
+      await result.current.commit();
+    });
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(create).toHaveBeenCalledWith({ name: 'Acme', type: 'Client' });
+  });
+
   it('AC-IMP-005a: commit creates one record per VALID row via descriptor.create, skips invalid rows, and reports created/failed counts', async () => {
     (parseWorkbook as ReturnType<typeof vi.fn>).mockResolvedValue({
       headers: ['Company name', 'Type'],
@@ -86,6 +120,33 @@ describe('useImportWizard', () => {
     expect(result.current.result?.created).toBe(1);
     expect(result.current.result?.failed).toHaveLength(1);
     expect(result.current.result?.failed[0].index).toBe(2); // the "Dup Co" row index
+  });
+
+  it('AC-BIMP-011: rows the descriptor SKIPS are counted apart from created, never as created', async () => {
+    (parseWorkbook as ReturnType<typeof vi.fn>).mockResolvedValue({
+      headers: ['Company name', 'Type'],
+      rows: [
+        ['Already', 'Client'], // descriptor recognises it as imported → IMPORT_SKIPPED
+        ['Fresh', 'Vendor'], // genuinely new → created
+      ],
+    });
+    const create = vi
+      .fn()
+      .mockResolvedValueOnce(IMPORT_SKIPPED)
+      .mockResolvedValueOnce({ id: '2' });
+    const { result } = renderHook(() => useImportWizard(makeDescriptor(create)));
+    await act(async () => {
+      await result.current.selectFile(file());
+    });
+    act(() => result.current.goPreview());
+    await act(async () => {
+      await result.current.commit();
+    });
+    await waitFor(() => expect(result.current.step).toBe('result'));
+    // The whole point: a re-run that writes nothing must not report that it wrote something.
+    expect(result.current.result?.created).toBe(1);
+    expect(result.current.result?.skipped).toBe(1);
+    expect(result.current.result?.failed).toHaveLength(0);
   });
 
   it('AC-IMP-005b: a per-row create rejection does not abort the run — later valid rows still create', async () => {

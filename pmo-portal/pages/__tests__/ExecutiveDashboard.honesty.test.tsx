@@ -67,6 +67,8 @@ vi.mock('@/src/hooks/useProcurements', () => ({
 vi.mock('@/src/hooks/useTimesheetApproval', () => ({
   useTimesheetsAwaitingApproval: () => ({ data: [] }),
 }));
+// FR-L10N-020: exec-dashboard KPI aggregates are org-denominated (RPC rows carry no currency).
+vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' }, role: 'Executive' }),
 }));

@@ -1,5 +1,26 @@
 # PMO Portal — project instructions
 
+> ## ⚠️ THIS REPO IS PUBLIC
+>
+> `github.com/ariefsaid/PMO` is **world-readable**. Every commit, issue, PR, and comment is
+> published permanently — indexed by search engines and scrapers; deleting later does not
+> un-publish (history, forks, caches survive).
+>
+> **Never write into any tracked file, issue, PR, or comment:**
+> - **Unpatched security weaknesses** — no "X has no auth check", no missing-control checklists.
+>   The window between writing and fixing is exactly when it is useful to an attacker. A weakness
+>   may be described publicly only **after** its fix has shipped.
+> - **PII** — names, personal emails, phones, account-shape enumeration hints.
+> - **Secrets or their coordinates** — keys, vault/item names, env-var names, internal hostnames,
+>   tenant IDs.
+>
+> **Where open-weakness detail goes instead:** a GitHub **private security advisory**
+> (`Security → Advisories`), or the Director's private memory
+> (`public-repo-hygiene-open-items` holds the current set). In-repo docs carry only a **neutral
+> stub** that names no path and no missing control; restore the detail to the docs when the fix
+> ships. Before filing anything touching security, auth, infra, or people:
+> `gh repo view --json visibility` and act on what it says.
+
 Production SaaS for **contract- & project-based organizations** (NOT industry-specific — the
 prototype's oil & gas framing is being generalized out). Built from an AI-Studio React/Vite
 prototype. Tenancy is **single-tenant with a forward-compatible `org_id` seam** so it can scale to
@@ -13,13 +34,18 @@ B2B multi-tenancy without a rewrite.
 - `docs/specs/` `docs/plans/` `docs/adr/` — specs, implementation plans, architecture decisions.
 - `pmo-portal/e2e/` — Playwright acceptance tests (the BDD layer).
 - `supabase/migrations/` — Postgres schema + RLS policies.
-- `.claude/agents/`, `.claude/skills/` — the role agents and vendored spec skills (skills gitignored, via `scripts/vendor-skills.sh`).
+- `.claude/agents/`, `.claude/skills/` — the role agents and vendored skills (skills gitignored, via `scripts/vendor-skills.sh`). **Edit skills ONLY in `.claude/skill-overrides/<name>/` (tracked)** — the vendor script overlays them; edits in `.claude/skills/` are destroyed on re-vendor. Config the skills read: `docs/agents/{issue-tracker,triage-labels,domain,skills}.md`.
 
 ## Operating model: Owner → Director → role agents
 The **owner** talks to the **Director** (Opus 4.8, the main session). The Director runs an
-**issue-driven loop**, spawns the right role agent per phase, and takes each issue end-to-end.
-Build **one issue at a time**. Keep tool approvals **ON**; pause for owner approval at issue
-boundaries and before any push / merge / deploy.
+**issue-driven loop** and takes each issue end-to-end — but **does not run the build itself by
+default.** ⛔ **Pick the executor before starting any build** (`docs/factory-workflow.md` § Executor
+routing): a bounded code or FE slice → an **SSSF ADW** (`adws/adw_simple_sdlc.py`), chained with **no
+owner pause between issues**; **money-path / SoD / auth / token-custody** → Director-dispatched per
+issue. Reaching for `implementer` on a slice the factory should run is the standing mistake — it
+spends an owner checkpoint that the routing removed. Keep tool approvals **ON**; pause for owner
+approval before any push / merge / deploy, and at **milestone** boundaries — not at issue boundaries
+inside a signed brief. `main` stays the ceiling either way.
 > **⚑ Current executor (trial, 2026-06-12):** role-agent work is dispatched to the **pi CLI**
 > (GLM/codex substrates), not Claude subagents — to spare the Claude quota. The roster + models below are
 > the *contract* (and the Claude fallback); **`docs/pi-delegation.md` is how work is actually dispatched
@@ -36,8 +62,11 @@ stays intact in-repo, flip the mode to revert):
    mode this step is instead the owner-approved static HTML mockup round, `docs/design-workflow.md` §1a.)*
 2. **Spec (SDD)** — `spec-miner` (existing code) / `feature-forge` (new behavior) → `docs/specs/*.spec.md`.
 3. **Design+Plan** — `eng-planner` → `docs/plans/YYYY-MM-DD-<feature>.md` (+ ADRs).
-4. **Build (TDD)** — `implementer` / `ui-implementer` (red-green-refactor; no prod code without a failing
-   test). **Deterministic correctness becomes Layer-1 CI gate-tests** — chart-position, money, dates/TZ,
+4. **Build (TDD)** — **executor per the routing above, decided before you start**: ADW by default
+   (`--builder fe_builder --reviewer fe_reviewer` for UI); Director-dispatched only for the
+   money/SoD/auth tier. `implementer` / `ui-implementer` name the **role contract handed to the
+   executor** — they are not a decision to build it yourself (red-green-refactor; no prod code
+   without a failing test). **Deterministic correctness becomes Layer-1 CI gate-tests** — chart-position, money, dates/TZ,
    derived values, `axe-core` a11y, Playwright visual-regression — not human review (ADR-0030 §C).
 5. **Review — 3 reviewers, always** — `spec-reviewer`, `code-quality-reviewer`, **and** `security-auditor`
    (OWASP/STRIDE on auth + RLS + `org_id` tenancy; right-sized per model-tiering). All three run on every code
@@ -62,9 +91,9 @@ for one client, architected to scale to millions.
 
 ## Quality gates & checkpoints (binding)
 - **Pre-push full verify (binding — run the WHOLE suite, never just touched files):** before opening or
-  pushing ANY PR, run **`npm run verify`** (= `check:migrations && check:e2e-isolation && check:edge-test-binding &&
-  typecheck && typecheck:edge && lint:ci && test && build` — **8 gates, not 4**; mirrors CI's `verify`
-  job) from `pmo-portal/`. Targeted/per-file test runs are for the inner TDD loop only — they MISS
+  pushing ANY PR, run **`npm run verify`** — **13 gates** as of 2026-08-20, and the list grows, so
+  ⚑ **read `pmo-portal/package.json`'s `verify` script rather than trusting a count written here**
+  (this line said "8 gates" long after it was 13). Mirrors CI's `verify` job from `pmo-portal/`. Targeted/per-file test runs are for the inner TDD loop only — they MISS
   cross-component breakage (a change to a shared component silently breaks every *other* test that renders
   it; recurring CI-verify-red, 2026-06). The build/Director MUST run the full verify before the phase
   transition; subagent briefs MUST mandate it as their final gate.
@@ -122,6 +151,7 @@ matching one ONLY when your task touches that surface — that is the whole poin
 
 | Touching… | Read first |
 |---|---|
+| About to start ANY build — or to decide who runs it | [`docs/factory-workflow.md`](docs/factory-workflow.md) § Executor routing — **the ADW is the default and issues chain without owner pauses**; per-issue Director dispatch is the money/auth exception, not the reverse |
 | Any money flow (budget activate · invoice/payment submit · procurement transition · timesheet push) | [`docs/money-path-primer.md`](docs/money-path-primer.md) — a map of the outbox/sweep/SoD architecture so you don't re-derive it from source |
 | The agent / LLM surface (prompts, tools, evals, the assistant panel) | [`docs/adr/0050-layered-agent-prompt-charter-and-skills.md`](docs/adr/0050-layered-agent-prompt-charter-and-skills.md) + [`docs/adr/0052-agent-eval-harness.md`](docs/adr/0052-agent-eval-harness.md) — ⚑ the deployed model (`deepseek-v4-flash`) is a **weak tool-selector**; prompt steering is unit-tested for text presence but NOT verified against the live model. The eval harness is the real gate. |
 | Authoring or editing any e2e spec | [`docs/e2e-parallel-conventions.md`](docs/e2e-parallel-conventions.md) — isolation classes, the `@e2e-isolation` tag, and the guard-polarity rule |
@@ -156,6 +186,10 @@ ui-implementer (sonnet; opus for hard slices) · design-reviewer (opus).
 | UI build (to tokens + design-plan) | ui-implementer (ui-ux-pro-max, taste) |
 | Visual design review (render + screenshot audit) | design-reviewer (design-review, impeccable, taste) |
 | Browser QA · security · ship/deploy/monitor | gstack (`/qa`, `/cso`, `/ship`, `/land-and-deploy`, `/canary`) |
+| Multi-session fuzzy efforts → decision-ticket map | wayfinder (mattpocock set; maps live on GitHub issues, `docs/agents/issue-tracker.md`) |
+| Skill routing ("which skill fits?") | ask-matt (override — main flow = the per-issue loop) |
+| Conversation→spec synthesis (no interview) | to-spec (override; feature-forge keeps the interview workshop) |
+| Ticket decomposition · inbound triage · cross-session handoff · throwaway spikes | to-tickets · triage (`docs/agents/triage-labels.md`) · handoff · prototype (mattpocock set) |
 
 superpowers' planning tier owns planning; do NOT also use gstack's planning tier. spec-miner's
 `Bash` tool was stripped (read-only). gstack telemetry stays `off`.

@@ -68,6 +68,12 @@ export interface PipelineProject {
   client_name: string | null;
   status: ProjectStatus;
   contract_value: number;
+  /**
+   * The deal's OWN ISO-4217 currency (projects.currency, 0187 stamp). Returned per row by
+   * get_sales_pipeline() (migration 0201, FR-L10N-020) or carried from the full lost-project row
+   * (useLostDeals). Row-backed money surfaces render THIS, never the org default.
+   */
+  currency: string;
   win_probability: number;
   /**
    * ISO timestamp of the last update to this project row (projects.last_update).

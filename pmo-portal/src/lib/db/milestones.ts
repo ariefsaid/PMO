@@ -1,5 +1,5 @@
 import { supabase } from '@/src/lib/supabase/client';
-import { AppError } from '@/src/lib/appError';
+import { AppError, assertWriteLanded } from '@/src/lib/appError';
 import type { Tables, TablesUpdate } from '@/src/lib/supabase/database.types';
 
 export type MilestoneRow = Tables<'project_milestones'>;
@@ -195,8 +195,13 @@ export async function updateMilestone(id: string, patch: MilestonePatch): Promis
   if (patch.target_date !== undefined) next.target_date = patch.target_date || null;
   if (patch.weight !== undefined) next.weight = patch.weight;
   if (patch.input_pct !== undefined) next.input_pct = patch.input_pct; // null clears it
-  const { error } = await supabase.from('project_milestones').update(next).eq('id', id);
+  const { data, error } = await supabase
+    .from('project_milestones')
+    .update(next)
+    .eq('id', id)
+    .select('id');
   if (error) throwWrite(error);
+  assertWriteLanded(data, 'Milestone not found or you do not have permission to edit it.');
 }
 
 /**
@@ -205,8 +210,9 @@ export async function updateMilestone(id: string, patch: MilestonePatch): Promis
  * Throws AppError (code preserved) on failure.
  */
 export async function deleteMilestone(id: string): Promise<void> {
-  const { error } = await supabase.from('project_milestones').delete().eq('id', id);
+  const { data, error } = await supabase.from('project_milestones').delete().eq('id', id).select('id');
   if (error) throwWrite(error);
+  assertWriteLanded(data, 'Milestone not found or you do not have permission to delete it.');
 }
 
 /**
@@ -217,9 +223,11 @@ export async function updateTaskMilestone(
   taskId: string,
   milestoneId: string | null,
 ): Promise<void> {
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('tasks')
     .update({ milestone_id: milestoneId })
-    .eq('id', taskId);
+    .eq('id', taskId)
+    .select('id');
   if (error) throwWrite(error);
+  assertWriteLanded(data, 'Task not found or you do not have permission to edit it.');
 }

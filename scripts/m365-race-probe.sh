@@ -131,7 +131,9 @@ lifecycle_sql() {
   if [ "$TARGET" = "user" ]; then echo "UPDATE profiles SET status='disabled' WHERE id='$USR';"
   else echo "UPDATE org_features SET enabled=false WHERE org_id='$ORG' AND feature_key='m365_integration';"; fi
 }
-INSERT_SQL="INSERT INTO ms_graph_connections (org_id, user_id, entra_tenant_id, scopes, refresh_token_ciphertext, access_token_ciphertext, key_id, status) VALUES ('$ORG','$USR','$TENANT', ARRAY['offline_access','Files.Read'], '\x01'::bytea, '\x02'::bytea, 'kek-v1', 'active');"
+INSERT_SQL="INSERT INTO ms_graph_connections (org_id, user_id, entra_tenant_id, scopes, refresh_token_ciphertext, access_token_ciphertext, key_id, status) VALUES ('$ORG','$USR','$TENANT', ARRAY['offline_access','Files.Read'], '\x01010101010101010101010101010101010101010101010101010101'::bytea, '\x02020202020202020202020202020202020202020202020202020202'::bytea, 'kek-v1', 'active');"
+# ^ 28-byte fixture ciphertexts: the 0151 envelope CHECK (octet_length>=28, first byte != '{')
+#   rejects the old 1-byte '\x01' placeholders — fixture must look like a real AES-GCM envelope.
 final_count() { q "SELECT count(*) FROM ms_graph_connections WHERE org_id='$ORG' AND user_id='$USR';"; }
 
 WORK="$(mktemp -d)"; FA="$WORK/a.sql"; FB="$WORK/b.sql"; LA="$WORK/a.log"; LB="$WORK/b.log"

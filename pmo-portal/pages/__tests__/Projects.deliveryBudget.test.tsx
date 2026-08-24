@@ -18,6 +18,10 @@ const deliverySummaryState = {
   isPending: false,
 };
 
+// FR-L10N-020: this tree reads useOrgCurrency (org-denominated aggregates). Pinned here rather
+// than left to a real query. ⚑ At LINE-START — inside a neighbouring vi.mock it parses as a
+// syntax error and hides every real error beneath it.
+vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('../../components/ProjectStatusControl', () => ({
   default: () => null,
 }));
@@ -58,7 +62,7 @@ const fixtures: ProjectWithRefs[] = [
     status: 'Ongoing Project',
     client_id: 'c1',
     project_manager_id: 'pm-1',
-    contract_value: 5_000_000,
+    contract_value: 5_000_000, currency: 'USD',
     budget: 3_800_000,
     spent: 1_200_000,
     end_date: '2026-12-18',
@@ -75,7 +79,7 @@ const fixtures: ProjectWithRefs[] = [
     status: 'On Hold',
     client_id: 'c1',
     project_manager_id: 'pm-1',
-    contract_value: 1_000_000,
+    contract_value: 1_000_000, currency: 'USD',
     budget: 900_000,
     spent: 200_000,
     end_date: '2026-12-18',

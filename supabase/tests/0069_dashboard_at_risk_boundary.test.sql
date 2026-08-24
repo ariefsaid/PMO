@@ -29,13 +29,13 @@ insert into companies (id, org_id, name, type) values
 --   budget=1,000,000; committed POs sum to 899,900 (a Paid PO of 899,900).
 -- Both Ongoing Project with positive budget (the active + budget>0 gate).
 -- AC-MONEY-01: now uses committed_spend (Ordered..Paid) not the dead projects.spent column.
-insert into projects (id, org_id, code, name, status, client_id, project_manager_id, budget, spent, contract_value) values
+insert into projects (id, org_id, code, name, status, client_id, project_manager_id, budget, spent, contract_value, tax_treatment, tax_amount) values
   ('00690000-0000-0000-0000-000000000020','00690000-0000-0000-0000-000000000001',
    'BND-EDGE','At Exactly 90','Ongoing Project',
-   '00690000-0000-0000-0000-000000000010','00690000-0000-0000-0000-0000000000a1',1000000,900000,1500000),
+   '00690000-0000-0000-0000-000000000010','00690000-0000-0000-0000-0000000000a1',1000000,900000,1500000,'exclusive',0),
   ('00690000-0000-0000-0000-000000000021','00690000-0000-0000-0000-000000000001',
    'BND-BELOW','Just Below 90','Ongoing Project',
-   '00690000-0000-0000-0000-000000000010','00690000-0000-0000-0000-0000000000a1',1000000,899900,1500000);
+   '00690000-0000-0000-0000-000000000010','00690000-0000-0000-0000-0000000000a1',1000000,899900,1500000,'exclusive',0);
 
 -- Migration 0033 derives budget from Active budget-version line-items (not stored p.budget).
 -- Add Active versions for edge + below projects (budget=1,000,000 each) so the at-risk guard fires.
@@ -68,10 +68,10 @@ insert into procurements (id, org_id, title, status, total_value, project_id, re
 
 -- (D) Drift-guard project: committed POs (Ordered..Paid) sum to 250000, stored projects.spent
 -- set to the same OD-BUDGET-2 committed basis. A Draft PO is excluded from the committed basis.
-insert into projects (id, org_id, code, name, status, client_id, project_manager_id, budget, spent, contract_value) values
+insert into projects (id, org_id, code, name, status, client_id, project_manager_id, budget, spent, contract_value, tax_treatment, tax_amount) values
   ('00690000-0000-0000-0000-000000000022','00690000-0000-0000-0000-000000000001',
    'BND-DRIFT','Drift Guard','Ongoing Project',
-   '00690000-0000-0000-0000-000000000010','00690000-0000-0000-0000-0000000000a1',1000000,250000,1500000);
+   '00690000-0000-0000-0000-000000000010','00690000-0000-0000-0000-0000000000a1',1000000,250000,1500000,'exclusive',0);
 
 -- Add Active budget version for Drift Guard project (inserted above, now exists for FK).
 insert into budget_versions (id, org_id, project_id, version, name, status) values

@@ -61,8 +61,8 @@ insert into procurements (id, org_id, title, status, vendor_id) values
   ('01680000-0000-0000-0000-0000000000d1','01680000-0000-0000-0000-000000000001','UPS case 1','Vendor Quoted','01680000-0000-0000-0000-0000000000c1'),
   ('01680000-0000-0000-0000-0000000000d2','01680000-0000-0000-0000-000000000001','UPS case 2','Vendor Quoted','01680000-0000-0000-0000-0000000000c1');
 
-insert into procurement_invoices (id, org_id, procurement_id, vi_number, invoice_date, status, amount) values
-  ('01680000-0000-0000-0000-0000000000e1','01680000-0000-0000-0000-000000000001','01680000-0000-0000-0000-0000000000d1','VI-U1','2026-03-02','Received',500);
+insert into procurement_invoices (id, org_id, procurement_id, vi_number, invoice_date, status, amount, tax_treatment, tax_amount) values
+  ('01680000-0000-0000-0000-0000000000e1','01680000-0000-0000-0000-000000000001','01680000-0000-0000-0000-0000000000d1','VI-U1','2026-03-02','Received',500, 'exclusive', 0);
 
 insert into procurement_receipts (id, org_id, procurement_id, gr_number, receipt_date, status) values
   ('01680000-0000-0000-0000-0000000000e2','01680000-0000-0000-0000-000000000001','01680000-0000-0000-0000-0000000000d1','GR-U1','2026-03-02','Partial');
@@ -248,7 +248,8 @@ set local request.jwt.claims =
 
 select lives_ok(
   $$ select create_procurement_invoice('01680000-0000-0000-0000-0000000000d1'::uuid,
-       'Received'::procurement_invoice_status, '2026-03-02'::date, null, 1000::numeric) $$,
+       'Received'::procurement_invoice_status, '2026-03-02'::date, null, 1000::numeric,
+       p_tax_treatment => 'exclusive', p_tax_amount => 0) $$,
   'AC-UPS-031 CONTROL create_procurement_invoice still succeeds end to end');
 
 select lives_ok(
@@ -389,8 +390,8 @@ set local request.jwt.claims =
   '{"sub":"01680000-0000-0000-0000-0000000000a2","role":"authenticated"}';
 
 select throws_ok(
-  $$ insert into public.procurement_invoices (org_id, procurement_id, status, amount)
-       values ('01680000-0000-0000-0000-000000000001','01680000-0000-0000-0000-0000000000d1','Paid',999) $$,
+  $$ insert into public.procurement_invoices (org_id, procurement_id, status, amount, tax_treatment, tax_amount)
+       values ('01680000-0000-0000-0000-000000000001','01680000-0000-0000-0000-0000000000d1','Paid',999, 'exclusive', 0) $$,
   '42501',
   'permission denied for table procurement_invoices',
   'AC-UPS-070 slice 2''s INSERT revoke is still in force (this slice did not re-open it)');

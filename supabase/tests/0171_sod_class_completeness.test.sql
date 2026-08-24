@@ -8,6 +8,12 @@
 -- **per-table × {INSERT, UPDATE, DELETE, RPC-parameter}**, over all fifteen tables, from the LIVE
 -- CATALOG — not per-slice. That matrix is the spec's §10.1; this file is its enforcement.
 --
+-- ⚑ THE DENOMINATOR IS NAMED, NOT DERIVED — so a NEW money table is NOT automatically in it. Adding
+--   one means adding a section here, or the "completeness" in this file's name is a claim about a set
+--   that has quietly stopped matching the schema. `work_orders` (0193, #498) is §J. That is the whole
+--   reason slice 6 exists: the class was declared closed after slices 3, 4 and 5, each time because
+--   the path in hand was closed and the table just added was not looked at.
+--
 -- ⚑ AND A SECOND AXIS: a cell is not closed because an assertion is green. Two defects repaired in
 --   this slice are PROOF defects — an assertion matching a `--` COMMENT (0170 AC-PMS-021: the whole
 --   role gate could be deleted and 62/62 stayed green) and an assertion over a set that is EMPTY BY
@@ -26,7 +32,7 @@
 -- shape, the Draft budget line-item editor, an Admin's project hard-delete, and the whole legitimate
 -- two-person win.
 begin;
-select plan(90);
+select plan(97);
 
 -- ════════════════════════════════════════════════════════════════════════════════════════════════
 -- Fixtures (as postgres — an unattributed BYPASSRLS authority, exempt by design).
@@ -86,8 +92,8 @@ insert into procurements (id, org_id, title, status, requested_by_id, approved_b
   ('01710000-0000-0000-0000-0000000000d8','01710000-0000-0000-0000-000000000001','SCC invoiced case','Vendor Invoiced',
    '01710000-0000-0000-0000-0000000000a1','01710000-0000-0000-0000-0000000000a2','01710000-0000-0000-0000-0000000000c2',1000);
 
-insert into sales_invoices (id, org_id, project_id, customer_id, si_number, invoice_date, amount, status) values
-  ('01710000-0000-0000-0000-0000000000d1','01710000-0000-0000-0000-000000000001','01710000-0000-0000-0000-0000000000b1',
+insert into sales_invoices (tax_treatment, tax_amount, id, org_id, project_id, customer_id, si_number, invoice_date, amount, status) values
+  ('exclusive', 0, '01710000-0000-0000-0000-0000000000d1','01710000-0000-0000-0000-000000000001','01710000-0000-0000-0000-0000000000b1',
    '01710000-0000-0000-0000-0000000000c1','SI-SCC-001','2026-03-02',500.00,'Paid');
 
 insert into incoming_payments (id, org_id, customer_id, sales_invoice_id, ip_number, date, amount, status) values
@@ -292,7 +298,9 @@ select is(
      from information_schema.column_privileges
     where table_schema = 'public' and table_name = 'incoming_payments'
       and grantee in ('authenticated','anon') and privilege_type in ('INSERT','UPDATE')),
-  'INSERT:amount,INSERT:created_at,INSERT:customer_id,INSERT:date,INSERT:id,INSERT:org_id,INSERT:reference_number,INSERT:sales_invoice_id',
+  -- #478 (0187): `currency` joined the BODY set (granted explicitly because this table's INSERT grant
+  -- is column-level). status / ip_number / erp_* stay withheld and UPDATE still gets nothing.
+  'INSERT:amount,INSERT:created_at,INSERT:currency,INSERT:customer_id,INSERT:date,INSERT:id,INSERT:org_id,INSERT:reference_number,INSERT:sales_invoice_id',
   'AC-SCC-030 the re-granted INSERT is the BODY only — no status, no ip_number, no erp_* feed column — and UPDATE gets no re-grant at all (mirrors 0176 §1 on sales_invoices)');
 
 set local role authenticated;
@@ -475,7 +483,7 @@ select is(
   'AC-SCC-050 the offboarded PM really is inactive (asserted, not assumed — the whole section is meaningless if the fixture is wrong)');
 
 select throws_ok(
-  $$ select set_project_contract_value('01710000-0000-0000-0000-0000000000b3'::uuid, 77000000) $$,
+  $$ select set_project_contract_value('01710000-0000-0000-0000-0000000000b3'::uuid, 77000000, p_tax_treatment => 'exclusive', p_tax_amount => 0) $$,
   '42501', 'not authorized',
   'AC-SCC-051 a DISABLED Project Manager can no longer author a contract value (probed at 0177: it succeeded, and became a valid "second person")');
 
@@ -490,7 +498,7 @@ set local role authenticated;
 set local request.jwt.claims =
   '{"sub":"01710000-0000-0000-0000-0000000000a4","role":"authenticated"}';
 select lives_ok(
-  $$ select set_project_contract_value('01710000-0000-0000-0000-0000000000b3'::uuid, 77000000) $$,
+  $$ select set_project_contract_value('01710000-0000-0000-0000-0000000000b3'::uuid, 77000000, p_tax_treatment => 'exclusive', p_tax_amount => 0) $$,
   'AC-SCC-052 CONTROL an ACTIVE Finance user authors the value — and Finance may now do so PRE-WIN (owner ruling 2026-07-29), which is the capability ADR-0070 assumed and the old gate withheld');
 
 set local request.jwt.claims =
@@ -657,8 +665,8 @@ set local request.jwt.claims =
 -- ⚑ Created at 'Leads' and walked up: 0173's origination guard refuses a project created past its
 --   origination status, and a first draft of this fixture tripped it. Walking it is also the truer
 --   reproduction — the exploit IS a PM driving their own deal the length of the pipeline alone.
-insert into public.projects (id, org_id, name, status, contract_value) values
-  ('01710000-0000-0000-0000-0000000000b5','01710000-0000-0000-0000-000000000001','SCC Self-set deal','Leads',99999999);
+insert into public.projects (id, org_id, name, status, contract_value, tax_treatment, tax_amount) values
+  ('01710000-0000-0000-0000-0000000000b5','01710000-0000-0000-0000-000000000001','SCC Self-set deal','Leads',99999999,'exclusive',0);
 select transition_project('01710000-0000-0000-0000-0000000000b5'::uuid,'PQ Submitted'::project_status);
 select transition_project('01710000-0000-0000-0000-0000000000b5'::uuid,'Quotation Submitted'::project_status);
 select throws_ok(
@@ -673,7 +681,7 @@ select throws_ok(
 set local request.jwt.claims =
   '{"sub":"01710000-0000-0000-0000-0000000000a2","role":"authenticated"}';
 select lives_ok(
-  $$ select set_project_contract_value('01710000-0000-0000-0000-0000000000b5'::uuid, 500000) $$,
+  $$ select set_project_contract_value('01710000-0000-0000-0000-0000000000b5'::uuid, 500000, p_tax_treatment => 'exclusive', p_tax_amount => 0) $$,
   'AC-SCC-071 ROW 2 a peer PM CAN still author the value (set_project_contract_value''s pre-win gate admits Project Managers — that gate is unchanged)');
 set local request.jwt.claims =
   '{"sub":"01710000-0000-0000-0000-0000000000a1","role":"authenticated"}';
@@ -708,7 +716,7 @@ set local role authenticated;
 set local request.jwt.claims =
   '{"sub":"01710000-0000-0000-0000-0000000000a7","role":"authenticated"}';
 select lives_ok(
-  $$ select set_project_contract_value('01710000-0000-0000-0000-0000000000b5'::uuid, 500000) $$,
+  $$ select set_project_contract_value('01710000-0000-0000-0000-0000000000b5'::uuid, 500000, p_tax_treatment => 'exclusive', p_tax_amount => 0) $$,
   'AC-SCC-072 ROW 3 the PM''s line manager re-sets the value');
 set local request.jwt.claims =
   '{"sub":"01710000-0000-0000-0000-0000000000a1","role":"authenticated"}';
@@ -722,14 +730,14 @@ reset role;
 set local role authenticated;
 set local request.jwt.claims =
   '{"sub":"01710000-0000-0000-0000-0000000000a1","role":"authenticated"}';
-insert into public.projects (id, org_id, name, status, contract_value) values
-  ('01710000-0000-0000-0000-0000000000b6','01710000-0000-0000-0000-000000000001','SCC Finance-ratified','Leads',250000);
+insert into public.projects (id, org_id, name, status, contract_value, tax_treatment, tax_amount) values
+  ('01710000-0000-0000-0000-0000000000b6','01710000-0000-0000-0000-000000000001','SCC Finance-ratified','Leads',250000,'exclusive',0);
 select transition_project('01710000-0000-0000-0000-0000000000b6'::uuid,'PQ Submitted'::project_status);
 select transition_project('01710000-0000-0000-0000-0000000000b6'::uuid,'Quotation Submitted'::project_status);
 set local request.jwt.claims =
   '{"sub":"01710000-0000-0000-0000-0000000000a4","role":"authenticated"}';
 select lives_ok(
-  $$ select set_project_contract_value('01710000-0000-0000-0000-0000000000b6'::uuid, 250000) $$,
+  $$ select set_project_contract_value('01710000-0000-0000-0000-0000000000b6'::uuid, 250000, p_tax_treatment => 'exclusive', p_tax_amount => 0) $$,
   'AC-SCC-073 ROW 4 a FINANCE user ratifies the PM''s figure — at the SAME number, which is the ratifier''s natural act and which must still re-stamp the witness');
 set local request.jwt.claims =
   '{"sub":"01710000-0000-0000-0000-0000000000a1","role":"authenticated"}';
@@ -745,8 +753,8 @@ reset role;
 set local role authenticated;
 set local request.jwt.claims =
   '{"sub":"01710000-0000-0000-0000-0000000000a4","role":"authenticated"}';
-insert into public.projects (id, org_id, name, status, contract_value) values
-  ('01710000-0000-0000-0000-0000000000b7','01710000-0000-0000-0000-000000000001','SCC Finance own deal','Leads',88888);
+insert into public.projects (id, org_id, name, status, contract_value, tax_treatment, tax_amount) values
+  ('01710000-0000-0000-0000-0000000000b7','01710000-0000-0000-0000-000000000001','SCC Finance own deal','Leads',88888,'exclusive',0);
 select transition_project('01710000-0000-0000-0000-0000000000b7'::uuid,'PQ Submitted'::project_status);
 select transition_project('01710000-0000-0000-0000-0000000000b7'::uuid,'Quotation Submitted'::project_status);
 select lives_ok(
@@ -761,8 +769,8 @@ reset role;
 set local role authenticated;
 set local request.jwt.claims =
   '{"sub":"01710000-0000-0000-0000-0000000000a2","role":"authenticated"}';
-insert into public.projects (id, org_id, name, status, contract_value) values
-  ('01710000-0000-0000-0000-0000000000b8','01710000-0000-0000-0000-000000000001','SCC Null-manager deal','Leads',640000);
+insert into public.projects (id, org_id, name, status, contract_value, tax_treatment, tax_amount) values
+  ('01710000-0000-0000-0000-0000000000b8','01710000-0000-0000-0000-000000000001','SCC Null-manager deal','Leads',640000,'exclusive',0);
 select transition_project('01710000-0000-0000-0000-0000000000b8'::uuid,'PQ Submitted'::project_status);
 select transition_project('01710000-0000-0000-0000-0000000000b8'::uuid,'Quotation Submitted'::project_status);
 reset role;
@@ -774,7 +782,7 @@ set local role authenticated;
 set local request.jwt.claims =
   '{"sub":"01710000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 select lives_ok(
-  $$ select set_project_contract_value('01710000-0000-0000-0000-0000000000b8'::uuid, 640000) $$,
+  $$ select set_project_contract_value('01710000-0000-0000-0000-0000000000b8'::uuid, 640000, p_tax_treatment => 'exclusive', p_tax_amount => 0) $$,
   'AC-SCC-075 ROW 6 a peer PM (who has a manager, but is not THIS author''s) ratifies');
 set local request.jwt.claims =
   '{"sub":"01710000-0000-0000-0000-0000000000a2","role":"authenticated"}';
@@ -791,7 +799,7 @@ set local role authenticated;
 set local request.jwt.claims =
   '{"sub":"01710000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 select throws_ok(
-  $$ select set_project_contract_value('01710000-0000-0000-0000-0000000000b6'::uuid, 99999999) $$,
+  $$ select set_project_contract_value('01710000-0000-0000-0000-0000000000b6'::uuid, 99999999, p_tax_treatment => 'exclusive', p_tax_amount => 0) $$,
   '42501', 'changing the contract value on a won project requires Executive or Finance',
   'AC-SCC-076 a PM still cannot touch an ON-HAND value — so there is no two-step path to a priced won deal either. That gate is now expressed as holds_won_value_authority(), NOT as a role list, and its message is unchanged');
 reset role;
@@ -864,7 +872,8 @@ set local request.jwt.claims =
   '{"sub":"01710000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 select lives_ok(
   $$ select create_procurement_invoice('01710000-0000-0000-0000-0000000000d3'::uuid,
-       'Received'::procurement_invoice_status, '2026-03-02'::date, 'VI-REF', 42) $$,
+       'Received'::procurement_invoice_status, '2026-03-02'::date, 'VI-REF', 42,
+       p_tax_treatment => 'exclusive', p_tax_amount => 0) $$,
   'AC-SCC-084 CONTROL create_procurement_invoice still works end to end (0176 §5''s gate is untouched)');
 
 -- ⚑ FR-RES-060 required every create-path guard to be NULL-TOTAL and this branch was never asserted.
@@ -928,6 +937,69 @@ select is(
   (select status::text from public.projects where id = '01710000-0000-0000-0000-0000000000b8'),
   'Quotation Submitted',
   'AC-CPS-070 transition_project''s money SoD still holds an un-ratified deal out of Won');
+
+-- ════════════════════════════════════════════════════════════════════════════════════════════════
+-- J. work_orders (0193, #498) — the newest money table, added to the DENOMINATOR of this test.
+--    Its own feature proof is supabase/tests/0193_work_orders.test.sql (90 assertions). What belongs
+--    HERE is only the four matrix axes, so a future migration that re-grants or re-opens one of them
+--    fails in the completeness file rather than only in the feature file it may not think to read.
+-- ════════════════════════════════════════════════════════════════════════════════════════════════
+insert into projects (id, org_id, name, status, contract_value, tax_treatment, tax_amount) values
+  ('01710000-0000-0000-0000-0000000000b9','01710000-0000-0000-0000-000000000001','SCC WO Project','Ongoing Project',1000,'exclusive',0);
+
+-- INSERT axis. `status` is withheld from the column grant, so a client cannot originate an already-
+-- Issued work order at the PRIVILEGE layer — before the origination trigger is even reached.
+select is(has_column_privilege('authenticated','public.work_orders','status','INSERT'), false,
+  'AC-SCC-090 work_orders.status is not client-INSERTable — a work order cannot be born Issued, which would mint client revenue past the entire SoD');
+
+-- UPDATE axis. THE 0014 A2 MECHANIC, and the single thing this file exists to catch: a column-level
+-- REVOKE cannot subtract from a table-level GRANT, so the absence of a table grant is load-bearing.
+select is(
+  (select count(*)::int from information_schema.table_privileges
+    where table_schema = 'public' and table_name = 'work_orders'
+      and grantee in ('authenticated','anon') and privilege_type in ('INSERT','UPDATE','DELETE')),
+  0,
+  'AC-SCC-091 no client role holds a TABLE-level INSERT/UPDATE/DELETE on work_orders — without this, every column-level narrowing below is a SILENT NO-OP');
+
+select is(has_column_privilege('authenticated','public.work_orders','order_value','UPDATE'), false,
+  'AC-SCC-092 work_orders.order_value is not client-UPDATEable — set_work_order_value is its sole writer, exactly as set_project_contract_value is for projects.contract_value');
+
+-- DELETE axis. Closed by BOTH layers, not by policy absence alone (the AC-SCC-082 lesson).
+select is(
+  (select has_table_privilege('authenticated','public.work_orders','DELETE')::text || '/' ||
+          (select count(*)::int from pg_policies
+            where schemaname = 'public' and tablename = 'work_orders' and cmd = 'DELETE')::text),
+  'false/0',
+  'AC-SCC-093 work_orders has neither a client DELETE grant nor a DELETE policy — Cancelled is the soft-delete, and the closure rests on two independent layers');
+
+-- RPC-parameter axis. The whole client write surface for `status` is transition_work_order, so its
+-- parameters are the whole attack surface — and its issue gate is the money SoD.
+set local role authenticated;
+set local request.jwt.claims =
+  '{"sub":"01710000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+insert into work_orders (id, project_id, title, order_value, tax_treatment, tax_amount) values
+  ('01710000-0000-0000-0000-0000000000e9','01710000-0000-0000-0000-0000000000b9','SCC self-authored WO',100,'exclusive',0);
+select throws_ok(
+  $$ select transition_work_order('01710000-0000-0000-0000-0000000000e9','Issued') $$,
+  '42501',
+  'you set this work order''s value yourself, so you cannot also issue it: the value must be confirmed by your supervisor or by someone who outranks you, through set_work_order_value (which records who set it) — or ask them to issue it',
+  'AC-SCC-094 THE EXPLOIT on the newest money table: a PM sets a work order''s value and issues it alone. Refused.');
+reset role;
+
+set local role authenticated;
+set local request.jwt.claims =
+  '{"sub":"01710000-0000-0000-0000-0000000000a4","role":"authenticated"}';
+select lives_ok(
+  $$ select set_work_order_value('01710000-0000-0000-0000-0000000000e9', 100, p_tax_treatment => 'exclusive', p_tax_amount => 0) $$,
+  'AC-SCC-095 CONTROL Finance (who outranks a PM) may author the value…');
+reset role;
+set local role authenticated;
+set local request.jwt.claims =
+  '{"sub":"01710000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select lives_ok(
+  $$ select transition_work_order('01710000-0000-0000-0000-0000000000e9','Issued') $$,
+  'AC-SCC-095 …and THEN the PM may issue — the gate closes the forgery, not the workflow');
+reset role;
 
 select * from finish();
 rollback;

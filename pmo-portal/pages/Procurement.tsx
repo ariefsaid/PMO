@@ -232,7 +232,7 @@ const ProcurementPage: React.FC = () => {
       key: 'value',
       header: 'Value',
       align: 'num',
-      cell: (r) => formatCurrency(r.total_value),
+      cell: (r) => formatCurrency(r.total_value, r.currency),
       exportValue: (r) => r.total_value,
     },
     {

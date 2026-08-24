@@ -69,7 +69,7 @@ insert into projects (id, org_id, name, status, contract_value) values
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"01760000-0000-0000-0000-0000000000d1","role":"authenticated"}';
 select lives_ok(
-  $$ select set_project_contract_value('01760000-0000-0000-0000-0000000000b2'::uuid, 5000000) $$,
+  $$ select set_project_contract_value('01760000-0000-0000-0000-0000000000b2'::uuid, 5000000, p_tax_treatment => 'exclusive', p_tax_amount => 0) $$,
   'AC-WMA-010 the active manager (D) sets the value on the report''s deal — witnessed as the manager');
 set local request.jwt.claims = '{"sub":"01760000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 select lives_ok(
@@ -93,10 +93,10 @@ select is(
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"01760000-0000-0000-0000-0000000000d1","role":"authenticated"}';
 select lives_ok(
-  $$ select set_project_contract_value('01760000-0000-0000-0000-0000000000b1'::uuid, 77000000) $$,
+  $$ select set_project_contract_value('01760000-0000-0000-0000-0000000000b1'::uuid, 77000000, p_tax_treatment => 'exclusive', p_tax_amount => 0) $$,
   'AC-WMA-020 the (still-active) manager D sets the value on the exploit deal — the witness trigger stamps v_set_by = D');
 select lives_ok(
-  $$ select set_project_contract_value('01760000-0000-0000-0000-0000000000b4'::uuid, 3000000) $$,
+  $$ select set_project_contract_value('01760000-0000-0000-0000-0000000000b4'::uuid, 3000000, p_tax_treatment => 'exclusive', p_tax_amount => 0) $$,
   'AC-WMA-021 the (still-active) manager D sets the value on the Finance-winner deal — witnessed for §D');
 reset role;
 select is(
@@ -150,7 +150,7 @@ select is(
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"01760000-0000-0000-0000-0000000000e1","role":"authenticated"}';
 select lives_ok(
-  $$ select set_project_contract_value('01760000-0000-0000-0000-0000000000b3'::uuid, 8000000) $$,
+  $$ select set_project_contract_value('01760000-0000-0000-0000-0000000000b3'::uuid, 8000000, p_tax_treatment => 'exclusive', p_tax_amount => 0) $$,
   'AC-WMA-040 the (still-active, not-yet-banned) manager M sets the value on the banned-witness deal');
 reset role;
 -- Ban M at the auth layer (out-of-band, the path admin_set_user_status does not own) while leaving

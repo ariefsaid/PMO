@@ -21,12 +21,12 @@ insert into profiles (id, org_id, full_name, email, role) values
 
 -- Org A: one Ongoing Project win — contract_value = 8,000,000
 insert into projects (id, org_id, code, name, status, project_manager_id,
-                      contract_value, budget, spent, decided_at)
+                      contract_value, budget, spent, decided_at, tax_treatment, tax_amount)
 values
   ('43000000-0000-0000-0000-000000000001', '00430000-0000-0000-0000-000000000001',
    'A-WIN-001', 'Org A Win Project', 'Ongoing Project',
    '00430000-0000-0000-0000-0000000000a1',
-   8000000, 7000000, 0, '2026-01-15T00:00:00Z');
+   8000000, 7000000, 0, '2026-01-15T00:00:00Z', 'exclusive', 0);
 
 -- ── Org B (adversarial — large win that must NOT appear in org A results) ─────
 insert into organizations (id, name) values
@@ -41,12 +41,12 @@ insert into profiles (id, org_id, full_name, email, role) values
 
 -- Org B has a won project with a massive contract value
 insert into projects (id, org_id, code, name, status, project_manager_id,
-                      contract_value, budget, spent, decided_at)
+                      contract_value, budget, spent, decided_at, tax_treatment, tax_amount)
 values
   ('43000000-0000-0000-0000-000000000009', '00430000-0000-0000-0000-000000000002',
    'B-WIN-001', 'Org B Big Win', 'Ongoing Project',
    '00430000-0000-0000-0000-0000000000b1',
-   99000000, 0, 0, '2026-01-15T00:00:00Z');
+   99000000, 0, 0, '2026-01-15T00:00:00Z', 'exclusive', 0);
 
 -- ── Authenticate as Org A Executive ──────────────────────────────────────────
 set local role authenticated;

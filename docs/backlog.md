@@ -4,11 +4,154 @@
 [`docs/history.md`](history.md) (don't read it for status). Locked owner-decisions are in
 `docs/decisions.md` (OD-* lookup by id). Roadmap framing in `docs/roadmap-spines.md`.
 
-### ⚑⚑⚑ CURRENT FOCUS — v0.9.0 IN PRODUCTION (2026-07-31); M365 connection-model rebuild active on `dev`
+### ⚑⚑⚑ CURRENT FOCUS (2026-08-21) — the build queue is DRAINED to the owner-decision floor
 
-**`production` = `cd368302` = tag `v0.9.0` (promoted 2026-07-31). `main` = `3892b05c` = v0.9.0 +
-`0185` (#425). `dev` is 2 ahead of `main`: #427 (contract-value witness seed fixtures) and #428
-(M365 three-step connection model, 2026-08-05) — verified via `git log origin/main..origin/dev`.**
+**Everything buildable without an owner ruling is shipped to `dev`.** What is left on the board is
+either a decision (#527, #523, #518, #530 item 3), infrastructure only the owner can provision (#499),
+or work those gate (#526 meetings, the Bahasa content pass, #481). The next move is the Q&A round,
+not another build.
+
+**Shipped 2026-08-20/21 — the hardening wave.** #525 first-class tasks · #529/#530 the currency
+oracles · #533 the shadow-type gate · #532 the assignee column allowlist · #534 + #541 the
+silent-no-op class · #538 the milestone/project constraint · #530 item 2 and the export half of item 3
+· #539 the ADW diff gate.
+
+⚑ **One theme runs through the whole wave: tests that could not fail.** Mutation runs caught a dead
+oracle in nearly every one of those issues — a fixture set that was all-USD and so could not tell a
+record's currency from a literal; an assertion that landed on a post-issue freeze instead of the
+control it named; a `_set_at` comparison that cannot move inside one transaction; a control that had
+already set the value the mutation was supposed to change. **Reading the assertions caught none of
+them.** Only running the code with the rule broken did. Assume a new oracle is dead until a mutation
+says otherwise.
+
+⚑ **And the gate written to stop this could not catch either incident it was written for.** #533's
+first draft required every key of a hand-written row type to be a column of one table — but `MyTask`
+carries a joined `project_name` and `SalesInvoiceRow` carries joined payment terms, and one foreign
+field matches no table at all. Found by REPLAYING both incidents against it, not by reading it.
+
+### The 2026-08-19 frontier drain (still the standing context)
+
+**Read `git log origin/main..origin/dev` for the real state, never a paragraph here.** As of this
+edit `dev` is 52 commits ahead of `main`, and `main`→`production` remains a separate, explicit,
+per-instance owner-gated action.
+
+**What changed on 2026-08-18/19.** Three wayfinder maps (#439 multi-org, #450 RIS go-live, #459 the
+product route) had their **entire director frontier resolved** — every decision ticket across all
+three is closed. The rulings are in `docs/decisions.md` under `DD-` prefixes: `DD-I18N-1..6`
+(locale seam) · `DD-XING-1..6` (standalone→connected crossing) · `DD-ORG-1..4` · `DD-DEPLOY-1` ·
+`DD-RPT-1` · `DD-TEN-1` · `DD-OPS-1..5` · `DD-ENTRA-1` · `DD-TASK-1..5` · `DD-IMP-1` · `DD-WO-1..6` ·
+`DD-MTG-1..5` · `DD-FMT-1`.
+
+**⛔ The go-live blocker is #478 — currency + tax.** No PMO-owned money table carries a `currency`
+column (`OD-CR-5` was ruled 2026-07-22 and never built), and there is **no tax field anywhere**.
+`sales_invoices` holds a single `amount` scalar, and in standalone mode users author invoices
+straight into it — so an invoice raised before this ships **cannot be reconstructed** into an
+ERPNext one, because whether the figure is tax-inclusive or tax-exclusive is recorded nowhere. It
+also gates the budget importer (#495) and work orders (#498).
+
+**Shipped 2026-08-19:** #477 (locale drift sweep — ~45 hardcoded-locale sites routed through
+`format.ts`, plus an ESLint guard, mutation-verified) and the ADR-0055 crossing addendum (#480).
+
+**Open build queue (as of 2026-08-21 — every unblocked item on it has shipped):** ~~#525 first-class
+tasks~~ SHIPPED · #526 meeting module — **blocked on #527**, three of its nine rulings shape the RLS ·
+**the i18n framework + Bahasa content pass** — **blocked on #527**'s dependency ruling · #481 —
+**blocked on #523** (a commercial call) · #499 RIS ERPNext provisioning — **owner only**.
+
+**⚑ GO-LIVE STEP 1 IS NOW ACTUALLY DONE** (`0198` + #529). It was not before, and the status board
+said it was: `0187` shipped `organizations.default_currency` and a `currency` column on twelve money
+tables, and **not one line of frontend code read any of it** — `formatCurrency(value)` took no
+currency and USD was welded into `format.ts` in four places. A column with no consumer reads as
+"shipped" on a checklist and renders an IDR invoice as dollars. ~111 call sites now take the source
+that is actually right: the record's own, the org default for aggregates, the parent's for leaves,
+and `PLATFORM_CURRENCY` for AI billing.
+
+⛔ **What remains of step 1 is the i18n FRAMEWORK, which does not exist at all** — no `react-i18next`,
+no translation layer. Measured: **~1,940 call sites / ~1,170 distinct strings**, multi-week, and
+non-engineering work that is unblocked from step 2 onward. Leaving it in slot 6 serialises it behind
+work it does not depend on; the recommendation in `docs/specs/i18n-framework.spec.md` is to start it
+in parallel from step 2.
+
+**⚑ Shipped 2026-08-20, the tax-basis trio — and each one's review battery found something the build
+did not.** #495 budget importer · #505 vendor-invoice tax (`0196`) · #513 contract-value tax (`0197`).
+Read `docs/decisions.md` `DD-BIMP-1..8` before touching the import layer.
+
+⛔ **The finding worth carrying forward** (#513's security audit, which BUILT the attack rather than
+describing it): `0197` §4 promoted `work_orders.tax_amount` from an inert descriptive column into a
+live input to the over-commit control — and nothing was protecting it. `authenticated` held UPDATE on
+it, the value witness fired on `order_value` only, and the content freeze applies only after Draft. A
+PM could re-key a Draft order to `inclusive/50,000` after their manager set its 50,000 value, issue it
+with **no acknowledgement**, and the drawdown would report `committed = 0` — the commitment invisible
+on the exact screen meant to reveal it, permanently, because the post-issue freeze then locks it.
+
+**The general rule this produced:** *promoting a descriptive column into a control input changes its
+threat model.* Whatever was protecting it as a description has to be re-examined at the moment of
+promotion. `0197` §1 had already reasoned this out for `projects` and failed to apply its own rule one
+table over. Closed at both layers (grant + witness) because defence in depth needs a test per layer.
+
+⚑ **Mutation checks caught FIVE dead oracles across the three issues** — tests that would have stayed
+green while the feature was broken. Two were mine on #513: a fixture that over-committed under *both*
+the old and new arithmetic, and an attack assertion that was really testing the post-issue freeze
+because its row had already been issued. Reading the assertions would not have caught either. **A
+money-path test without a mutation run behind it is not evidence.**
+
+**⚑ #495 closed 2026-08-20 (`8837f691`, PR #519) — and three of its spec's premises were false
+against `dev`.** Recorded as `DD-BIMP-1..8`; the one that mattered: `0072`'s idempotency key
+includes `import_batch_id` and the wizard mints a fresh uuid per mount, so **a re-import in a new
+session misses the skip entirely** — the only cross-batch layer there is a dry-run *report*. An
+importer built to that shape passes its own tests and duplicates every budget on run two. Budgets
+are re-keyed on `import_key` alone; **the procurement path still carries the batch-scoped key**, and
+re-keying it is its own decision with its own backfill question. Two further finds: `database.types.ts`
+was stale by `0193`/`0195`, and every importer's wizard has been titled *"Import companies"* since
+the first fast-follow — caught by rendering, not by any test.
+
+**⚑ Both pi substrates were rate-capped mid-session (2026-08-20).** codex exhausted, GLM at its
+5-hour cap. The ADW planner produced a correct *refusal* and then could not even emit it — the
+`PlanOutput` schema has no `blocked` status, so a legitimate "I will not invent this" costs three
+retries and dies as a JSON parse error. #495 was finished Director-dispatched instead of waiting.
+
+**Shipped 2026-08-19/20:** #477 · #478 (go-live blocker) · #480 · #482 · #484 · #485 · #486 · #488 ·
+#489 · #491 · #493 · #494 · #498 work_orders · #500 · #501 · #504 · #508 · #510 · #511 · #515–#517.
+Plus the entire wayfinder decision layer across all three maps.
+**Owner-parked (blocking nothing):** #487 (day-1 reports) · #496 (what a real RIS client PO looks
+like) · #497 (ERPNext SLA, partner role, data locality, e-Faktur) · #466 (pricing, behind the
+parked reseller conversation).
+
+**⏸ POOLED OWNER QUESTIONS — parked, blocking nothing.** These are facts only the owner holds
+(commercial terms, client relationships, or a client's own data). They are **closed on the tracker**
+so they stop re-surfacing on the session frontier; the full question and its context live in the
+linked issue and are intact. **Reopen when the answer arrives.**
+
+| Question | Reopen when |
+|---|---|
+| [#496](https://github.com/ariefsaid/PMO/issues/496) — what a real RIS client PO looks like (line items? PPN inclusive or exclusive?) | one real PO is to hand; it settles four design questions at once |
+| [#497](https://github.com/ariefsaid/PMO/issues/497) — ERPNext SLA, partner role, data locality, e-Faktur | before committing anything to RIS in writing |
+| [#487](https://github.com/ariefsaid/PMO/issues/487) — which reports RIS needs, and whether any is day-1 | if a named report turns out to be a day-1 requirement |
+| [#466](https://github.com/ariefsaid/PMO/issues/466) — pricing numbers and what each band buys | after the reseller conversation happens |
+| [#456](https://github.com/ariefsaid/PMO/issues/456) — RIS Microsoft tenant consent ceremony | when their tenant admin is available; steps are pre-written (#494) |
+
+None of these blocks a build. Everything downstream of them is either shipped or has a stated
+default recorded as a `DD-`.
+
+**Executor routing is binding** — `docs/factory-workflow.md` § Executor routing. Bounded slices run
+on the SSSF ADW; money/SoD/auth **and anything under `adws/`** are Director-dispatched.
+
+---
+
+### v0.9.0 IN PRODUCTION (2026-07-31); M365 connection-model rebuild active on `dev`
+
+**`production` = `cd368302` = tag `v0.9.0` (promoted 2026-07-31). `main` = promoted 2026-08-06
+(#431: #427 witness fixtures, #428 M365 three-step model, #430 dep bumps, backlog refresh). `dev`
+ahead of `main` with the 2026-08-06 round: public-repo hygiene docs, #434 (Matt-skills port +
+overlay convention), #435 (SSSF stamp) — verify with `git log origin/main..origin/dev`, never
+this paragraph.**
+
+**Dev-tooling (2026-08-06): SSSF stamped (#435).** `adws/` ADW scripts orchestrate bounded pi
+phases (zai GLM + codex-OAuth roster per `docs/pi-delegation.md`; openrouter/fireworks swapped
+out); demos green. **Trial done (#436) → owner adopted "iterate" 2026-08-16:** iterate items landed
+(planner → `docs/plans/`; default chain = `adw_simple_sdlc.py` with its review+fix loops) and the
+consolidated operating model is **`docs/factory-workflow.md`** (milestone-brief checkpoints — owner
+signs front, reviews at milestone boundaries). Operating skill: `/sssf` (vendored). Follow-up
+candidate: wire `claude -p` as an opt-in `coding_agent` (upstream stubs it until v2) — on hold.
 
 **What v0.9.0 carried to prod** (beyond v0.8.0): the three 07-29 promoted programs — observability +
 analytics (#394, #398–#408; ADRs 0066/0067), skipped-workflow remediation (#409), create-path SoD
@@ -31,15 +174,21 @@ Microsoft 365 and client users make it (see the M365 section below). #428 landed
 model on `dev` — operator entitles → client admin approves → each user connects. Next: promote
 `dev`→`main` when the slice is review-complete; live deploy stays owner-gated.
 
-**⛔ OWNER DECISIONS STILL OPEN**
-1. **Goods-receipt self-attestation** — an Engineer who raised a PR can create their own `Complete`
-   goods receipt. **Not a bug: a ratified contract** (`AC-AUTHZ-007`, widened deliberately in `0015`).
-   Narrowing it is a product decision about whether receipt-of-goods needs a second pair of eyes.
-2. **`incoming_payments` INSERT/UPDATE** — blanket grant, client-writable `erp_*`, inert flip guard.
-   Judged *mirror-integrity*, not SoD (no transition RPC to bypass), so only its DELETE half was
-   closed. Close the rest as its own slice, or accept and file.
-3. **Analytics opt-out fails open** if `localStorage` is evicted (Safari ITP ~7d, "clear site data").
-   A first-party cookie mirror would fix it — a product decision about how durable a consent promise is.
+**⚑ Route map (2026-08-18): the product's destination is now charted.** GitHub #459 — *PMO as a
+product: the route from RIS to a reseller-fed SaaS* — holds the destination, three milestones
+(first client live · standalone SaaS · reseller-fed) and the decisions from a full grill. Child maps:
+#450 (milestone 1) · #439 (milestone 2). It revises the RIS-parity sequence below and adds two slices
+in front of go-live: **first-class tasks** and a **meeting module**. Read the map for *why*; this
+file stays the live status doc.
+
+**⛔ OWNER DECISIONS STILL OPEN** *(per the public-repo rule in CLAUDE.md, open items are neutral
+stubs here; full detail is held privately by the Director and restored to this doc when each ships)*
+1. **Procurement receipt workflow width** — product decision on whether receipt recording needs a
+   second attestation step. A deliberate, test-pinned contract today, not a defect.
+2. **`incoming_payments` mirror-integrity slice** — a follow-up hardening slice with its own caller
+   survey, or accept-and-file. Deliberately excluded from the SoD class (different class).
+3. **Analytics opt-out durability** — product decision on how durable the consent promise must be
+   across browser-storage eviction.
 4. **Agent harness research** (vendor vs build, section below) — owner-requested 2026-07-28, not started.
 
 **⚑ Two operational traps found during the promote, both still live:**
@@ -184,8 +333,8 @@ BEHIND `dev`, content identical).
 - ~~**PostHog consent-gate**~~ ✅ **CLOSED #398** — disclose + in-app opt-out + `respect_dnt`, no banner
   (OD-OBS-2). ⚑ Two non-obvious defects were found and fixed: logging out wiped PostHog's consent key
   and silently resumed capture, and DNT users still hit the remote-config endpoint because only
-  `capture` was gated, not `init`. ⚑ **Open owner question:** the opt-out **fails open** if
-  `localStorage` is evicted (Safari ITP ~7d) — a first-party cookie mirror would fix it.
+  `capture` was gated, not `init`. ⚑ **Open owner question** on opt-out durability across
+  storage eviction — see OWNER DECISIONS at the head (detail held privately).
 - ~~**Two analytics tiles can never render data**~~ ✅ **CLOSED #399** — `save_failed` now fires from
   `classifyMutationError` (~161 call sites, the single point where "the user was shown an error" is
   knowable) rather than the inert `useEntityForm` path; `permission_denied_seen` and its tile removed.
@@ -351,10 +500,10 @@ token lifetime is a separate auth-side decision.
 
 **⛔ FE follow-up owed (found, not fixed — out of this slice's scope):**
 
-1. **`pages/AdminUsers.tsx` self-edit controls still render active.** Post-`0179` an Admin who changes
-   their own role or manager there gets a 42501 toast instead of a disabled control. RLS is the
-   authority and it is correct; the UX is now wrong. Fix = hide/disable those two controls on the
-   caller's own row (`can()` is UX-only, ADR-0016). Owner ruled 2026-07-30: a SEPARATE LATER ISSUE.
+1. ~~**`pages/AdminUsers.tsx` self-edit controls still render active.**~~ **✅ FIXED 2026-08-06 — the
+   SSSF trial issue.** The own-row 'Edit role'/'Change manager' menu items are omitted (`isSelf`
+   guard in `rowMenu`; UX-only per ADR-0016, RLS stays the authority; Disable/Re-enable unaffected).
+   Owned test: `pages/__tests__/AdminUsers.selfedit.test.tsx` (mutation-checked + rendered-verified).
 
 2. **No FE surface for 0179's Executive widening at all.** `pmo-portal/src/auth/policy.ts:235` is still
    `user: { edit: allow(ADMIN) }`, so the DB rule (Executives may edit Finance/PM/Engineer) is live
@@ -418,22 +567,13 @@ inside its own transaction, the same device that file already uses for INSERT, s
 
 **⚑ STILL OPEN, deliberately, and NOT closed by slice 5:**
 
-1. **Goods-receipt self-attestation (MEDIUM, a ratified contract).** `create_procurement_receipt` is
-   role-gated to Admin OR PM OR **the requester**, so the Engineer who raised the request records their
-   own `Complete` delivery — an input to the 3-way match. NOT this class (`Partial`/`Complete` are both
-   origination values) and the carve-out is asserted **on purpose** by
-   `supabase/tests/0055_authz_hardening.test.sql` **AC-AUTHZ-007**. Narrowing it is a product decision.
-   Pinned by `0169` **AC-RES-053**.
-2. **`incoming_payments` INSERT/UPDATE — mirror integrity, not SoD (MEDIUM).** Slice 4 judged this a
-   different class and **slice 5 re-judged it and agrees**: `incoming_payments` has no transition RPC,
-   so there is no SoD rule to bypass — a client-inserted `Paid` receipt is a *false mirror row*, not a
-   defeated approval. Slice 5 closed only its **destructive-delete** half (which IS this slice's
-   subject: erasing a Paid payment with no audit). The remaining blanket `insert`/`update` grant, the
-   `Scheduled|Paid` status set and the client-writable `erp_*` feed columns are `0123`'s flip-design
-   question and need their own slice — the fix is almost certainly the `sales_invoices` treatment from
-   `0176` §1 (narrow the INSERT re-grant to body columns, revoke UPDATE, add an origination guard and a
-   create audit), but that is a mirror-integrity slice with its own caller survey. **Not pinned by a
-   test.**
+1. **Procurement receipt workflow width (a ratified contract).** A deliberate, test-pinned
+   authorization contract whose narrowing is a product decision — see OWNER DECISIONS at the head.
+   Detail held privately per the public-repo rule in CLAUDE.md.
+2. **`incoming_payments` mirror-integrity slice.** Slice 4 judged this a different class and
+   **slice 5 re-judged it and agrees** — it is mirror integrity, not SoD. Slice 5 closed its
+   destructive-delete half (this slice's subject); the remainder needs its own slice with its own
+   caller survey. Detail held privately per the public-repo rule in CLAUDE.md.
 3. **The `is_active_member()` gap.** A different class, tracked separately; out of scope for slices 1–6.
    ⚑ It is **fifteen**, not seventeen — `0178` §5 already closed `transition_project` and
    `set_project_contract_value`. Re-derive from the live catalog, never from this number.
@@ -864,10 +1004,16 @@ headless user *see their own money* — do them as a "P3.5 read-model" pair befo
 complete the cost picture at M effort. G5 stays demand-gated. Sequencing/effort revisited when a real client's
 segment is in front of us.
 
-### ⚑ CANDIDATE PROGRAM (2026-07-22) — RIS-parity + CRM-v2 (analysis done, GRILLED, NOT scheduled)
+### ⚑ RIS-parity + CRM-v2 — NOW SEQUENCED under the route map (2026-08-18)
+> **No longer a candidate.** The wayfinder route map (GitHub #459, charted 2026-08-18) places this
+> program inside milestone 1 (first client live). The batches and the OD-CR-* decisions below stand;
+> the **sequence at the bottom of this section was revised** — read that, not the July one.
 Source: [`docs/reviews/2026-07-22-competitive-refresh-ris-cicle.md`](reviews/2026-07-22-competitive-refresh-ris-cicle.md)
 (four-way comparison: PMO main+dev vs our own RIS-portal-2 vs KANNA-recheck vs Cicle; moat thesis §1).
-**Prereq: land the `dev` integrations program on `main` first** — no new program starts before it ships.
+**Prereq (SATISFIED 2026-08-18):** the integrations program had to land on `main` first. It was
+blocked in a three-way loop — parity waited on integrations, integrations' M365 acceptance was parked
+waiting on the client's tenant licence, and the day-1 feature cut waited on parity. Owner obtained
+client M365 admin access, so the chain runs as designed.
 Then, per the standard series loop (grill → spec → …), the candidate queue:
 - **Batch A — approvals governance (spine 2, RIS parity):** A1 value-threshold **approval limits**
   (high-value → Executive, Admin-config, server-enforced) [M] · A2 **mandatory rejection comment** +
@@ -913,12 +1059,102 @@ Then, per the standard series loop (grill → spec → …), the candidate queue
     rework.
   - **[OD-CR-6] Parked set confirmed parked:** in-house chat/video (Cicle turf — stays Big-track),
     field photos/forms (KANNA turf), offline/native mobile.
-  - **Resulting sequence:** dev-integrations promote → i18n seam (OD-CR-3) → quick wins
-    (D3·D4·A2·A3) → CRM v2 (D1 manual capture → D2 → D6, D5 own spec) → B1–B3 + A1/A4 + C →
-    Bahasa translation pass.
+  - **[OD-CR-7 … OD-CR-12] Amendments (owner grill 2026-08-18, route map #459).** The July
+    decisions stand except where noted:
+    - **[OD-CR-7] Bahasa is a market precondition and the first client goes live in Indonesian.**
+      This is what pulls localization in front of go-live rather than leaving it mid-program.
+    - **[OD-CR-8] The multi-currency seam (OD-CR-5) rides WITH the i18n seam**, before go-live —
+      the last moment the money tables carry no client data.
+    - **[OD-CR-9] OD-CR-4 is promoted from a Director default to a settled decision**, and widened:
+      **language, number format and timezone** are all org-default-with-per-user-override, surfaced
+      on the profile settings page. Number format derives from language with an explicit override.
+    - **[OD-CR-10] No date-format setting.** US `MM/DD/YYYY` is ruled out entirely; `dd/mm/yyyy` for
+      humans, ISO 8601 `yyyy-mm-dd` for machine surfaces (exports, filenames, API, logs).
+    - **[OD-CR-11] Display follows locale; money input is masked, not parsed.** No app-wide
+      punctuation convention — a translated UI with foreign number formatting reads as half-done.
+      Choosing a convention does not fix input ambiguity, it relocates it to whoever types the other
+      one. ⚑ `parseMoneyInput`/`formatCurrency` in `pmo-portal/src/lib/format.ts` assume one locale
+      today and must become locale-aware in the SAME change as the masked input, since that helper is
+      deliberately the single parse behind both validation and persistence. Detail: #468.
+    - **[OD-CR-12] OD-CR-6 amended: PWA un-parks** (installable + offline READS; no offline writes).
+      Native mobile, in-house chat, field photos/forms stay parked.
+  - **[OD-WO-1..3 · OD-LS-1 · OD-CR-13] Owner grill 2026-08-19 (route map #459 + delivery map #450).**
+    - **[OD-WO-1] A project IS the client's commitment; contract is 1:1 with project; NO separate
+      Contract record is built.** The project row already carries `contract_value`,
+      `customer_contract_ref`, `contract_date` — enrich it, don't shadow it. No migration; the
+      SoD-gated `contract_value` setter stays put.
+    - **[OD-WO-2] A Work Order is the client's PO for a scoped activity within that commitment —
+      REVENUE side, not procurement.** The commitment is a ceiling; work orders draw down against
+      it, and **maximising that drawdown is a core part of the PM's job**, so
+      `sum(work_orders) / project.contract_value` is a first-class number the app shows. Billing
+      hangs off the work order. Procurement/cost surface untouched.
+    - **[OD-WO-3] Sub-projects PARKED, not killed** (#470) — revisit trigger: **RIS is live**. Flat
+      projects plus the commitment/work-order model express what a package needs; a project tree
+      would cost every query, RLS policy and rollup permanently.
+    - **[OD-LS-1] RIS day-1 cut** (#453) = the locked sequence, nothing added silently. The quick
+      wins (D3·D4·A2·A3) run **alongside and are NOT go-live gates**. **No committed go-live date** —
+      gated on the sequence completing. Nothing else was named day-one beyond meetings + Indonesian.
+  - **Resulting sequence (REVISED 2026-08-19 — supersedes the 2026-08-18 order):**
+    **i18n + currency seam (#468) → first-class tasks (#462) → meeting module (#463) → work orders
+    (#471) → Bahasa translation pass → RIS go-live**, with the quick wins (D3·D4·A2·A3) running
+    alongside and gating nothing. Then CRM v2 (D1 manual capture → D2 → D6, D5 own spec) →
+    B1–B3 + A1/A4 + C.
+    **[OD-CR-13] Work orders join the day-1 cut, positioned after meetings** — the PM manages by the
+    drawdown number, so shipping without it means RIS tracks their core metric in Excel beside the
+    app; landing it before the translation pass also means it is translated once, not twice. Largest
+    slip in the sequence to date, taken as an explicit owner call. Contract is no longer a slice
+    (OD-WO-1). Rationale for the slices in front of go-live: meetings and work orders are day-1
+    client requirements, first-class tasks are the meeting prerequisite, and the owner accepted a
+    later go-live for a better product.
+  - **[OD-SEED-1..3 · OD-ERP-1..2] RIS seeding + ERPNext timing (owner grill 2026-08-19, #455).**
+    - **[OD-SEED-1/2] Spreadsheets only, through the shipped import wizard (ADR-0027)** — not
+      one-time scripts. Companies/Contacts/Projects/Procurement already have live Import buttons;
+      **budgets are the one missing descriptor (#473)**. One named owner at RIS prepares every sheet.
+    - **[OD-SEED-3] From January 2025 (company active since 2025, low volume). Money history goes
+      into ERPNext, NOT PMO** — loaded via ERPNext's native Data Import, surfaced in PMO through the
+      existing adapter read-models. Full history without anything writing around the SoD/outbox path.
+    - **[OD-ERP-1] ERPNext is an immediate FOLLOW, not a go-live gate** — RIS goes live on PMO
+      standalone (a topology ADR-0055 already supports), then ERPNext lands with a two-way historical
+      sync.
+    - **[OD-ERP-2] We self-host ERPNext for RIS**, beside their PMO deployment — not the distribution
+      partner, not RIS. No hosted ERPNext exists today, only the local dev bed (#474).
+    - **⚑ Architecture gap surfaced (#475):** ADR-0055 models a client as either employing an external
+      system or not — it has **no account of crossing between the two while live**, which is exactly
+      what RIS does. The PMO rows written standalone are the only copy and cannot just become a
+      read-model. **Designed BEFORE go-live** because it constrains what shipped records must carry
+      (customer refs, tax fields, account codes, currency) to be migratable at all; built after.
 
 ### ⚑⚑ ADAPTER PROGRAM — P2 ERPNext money core ✅ MERGED to dev (#315 squash `b549d06`, 2026-07-14)
 ### ⚑⚑ M365 INTEGRATION — RESUME HERE (updated 2026-07-29) — ✅ MERGED to `dev`; **connect leg PROVEN live, `graph_proxy` NEVER proven**
+
+> **✅ M0 baseline verify (2026-08-16, milestone brief `docs/plans/2026-08-16-m365-promote-and-finish-brief.md` — SIGNED):**
+> pgTAP chain PASS (locked, zero parse errors) · full verify 8/8 green · race probe TOCTOU CLOSED in
+> BOTH interleavings · deadlock probe legacy REPRODUCED + fixed RESOLVED on BOTH targets. ⚑ Both
+> probe fixtures were updated for the `0151` envelope CHECK (the old 1-byte `\x01` placeholder
+> ciphertexts are now rejected *by design* — that was fixture rot, not a regression; the failing
+> interleaving died at the CHECK, not the guard). Deployed `m365-token-custody` = **v5 @ 2026-07-31
+> (post-#365, PRE-#428)** — the live fn still enforces the old operator gate and migrations
+> `0152`/`0186` are not on the cloud DB, so **M1's live run requires an owner-gated deploy first**.
+> #428's security-battery record located: PR #428 body (3 lenses; security at max thinking,
+> SHIP-WITH-FIXES → all fixes applied). Note **#428 CLOSED TBD-2 below** (operator/client split,
+> `AC-M365-131` re-specified as `AC-M365SEP-012`) **and TBD-3's scope slice** (`M365_PHASE1_SCOPES`
+> already carries `Files.Read.All` + `Sites.Read.All` — verified by content in `initiate.ts`, landed
+> in #428) — the TBD list predates it. **M1 remaining = live proof only:** owner-gated deploy →
+> RIS admin consent (unverified app, offline-trust model, owner 2026-08-16) → RIS non-Operator user
+> connect → real `graph_proxy` + `…/versions` GETs → spike doc.
+>
+> **✅✅ 2026-08-18 — USE LEG EXERCISED LIVE; M1 PARKED ON TENANT LICENSING (owner: wait for RIS).**
+> Fn #428-state deployed (v6→v9) + `0186` pushed; FE promoted `main→production` (`868ab117` — the
+> #428 `/integrations` route fixed the post-connect 404); a fresh vendor-tenant connect + the
+> **first-ever real `graph_proxy` calls** ran. Verdict (`docs/spikes/2026-08-18-m365-use-leg-live-probe.md`):
+> **custody chain CORRECT end to end — incl. the first live auto-refresh + rotation — and Graph
+> accepts our token; the vendor tenant has no SharePoint Online license**, so every SPO path is
+> `400 "Tenant does not have a SPO license"`. No code defect. #445 closed (#446/#447/#448):
+> structured upstream logging permanent, client envelope opaque again, pinned by a new AC-M365-140
+> opacity test. AC-M1 data-200 closes at the first SPO-licensed tenant. Product finding graduated
+> to the M2 spec: doc-linking needs a legible "no SharePoint on your Microsoft plan" state.
+> ⚑ Release-please note: merging the release PR is part of every promote SOP (v0.10.0 PR #432
+> deliberately HELD for the M4 promote, owner 2026-08-18).
 
 > **📌 RESUME HERE — cold-start block. A new agent needs nothing but this.**
 >
@@ -1371,17 +1607,16 @@ GRANT migration (see the "Deferred follow-up" note above).
   session** (this container has `[edge_runtime] enabled=false` + no `deno.land`/API key). Not automatable here.
 - **`release-please` automation** [Low, ADR-0042 adoption]: GitHub Action on `main` to maintain
   `CHANGELOG.md` + compute the next `vX.Y.Z` from Conventional Commits, so the version is never hand-argued.
-- **`VITE_APP_VERSION` in-app surfacing** [Low, ADR-0042 adoption]: inline the version at build, show it
-  next to `<EnvBadge>` (`vX.Y.Z · <sha>`) so a running instance reports exactly what it is.
+- ~~**`VITE_APP_VERSION` in-app surfacing**~~ — **DONE** (verified 2026-08-06: `__APP_VERSION__` via
+  `vite.config.ts`, `AppVersion.tsx` renders `vX.Y.Z · <sha>`; stale-ledger sweep).
 
 ### Deferred-debt ledger from the 2026-06-14 `dev` burst (fold in before promote where noted)
 - **Procurement attachments — 2 LOW pgTAP regression assertions** [Low, security-acked on #94]: add (a) an explicit
   `org_id=B` override-insert test (caller in org A supplies `org_id=B` → expect `42501` from WITH CHECK) and (b) an
   anon-read=0 assertion on the three `procurement_*_files` metadata tables. Code is provably safe (stamp-trigger guard
   mirrors 0015 + force-RLS); these only pin the regression. **Migration 0028 is unshipped to prod — fold in before promote.**
-- **Projects xlsx Export opt-in** [Low]: the Export button was wired to Companies/Incidents/Procurement/SalesPipeline but
-  **deliberately skipped on `pages/Projects.tsx`** (collision-avoidance with the Calendar/Kanban view-mode stream). Add the
-  one-line `<ExportButton entity=…>` to the Projects toolbar now that those merged.
+- ~~**Projects xlsx Export opt-in**~~ — **DONE** (verified 2026-08-06: `pages/Projects.tsx:560` renders
+  `<ExportButton entity="Projects">`; stale-ledger sweep).
 - ~~**B-MIN-1 noun consistency**~~ — **RESOLVED by CW-1** (one noun "Project" + one create-verb, coherence wave).
 - **Detail-page metric-tile strip clips a tile @390** [Low, pre-existing]: project/procurement detail metric tiles render
   as a horizontal-scroll strip with the right-edge tile cut (no page overflow, no content loss). Pre-existing; surfaced by
@@ -1394,9 +1629,10 @@ GRANT migration (see the "Deferred follow-up" note above).
 - **Kanban status-dot color reuse** [Minor]: Won + Close Out share the green status dot (disambiguated by label) — assign
   distinct DESIGN.md status tokens.
 - **Coherence wave minor follow-up** [Low]: two residuals to land in a follow-up PR — sticky action zone + procurement
-  header Edit button; "No deals in <stage>" → "No projects" copy leak.
-- **Pre-existing TZ flake** [Low, known]: `src/lib/db/procurementLifecycle.test.ts` AC-803 fails under a behind-UTC TZ
-  (e.g. UTC-8 local); passes in CI/UTC. Fix: use UTC-fixed date construction in the test.
+  header Edit button. *(The "No deals in <stage>" copy leak is DONE — `coherence-cw-cleanup.test.tsx` pins it;
+  verified 2026-08-06.)*
+- ~~**Pre-existing TZ flake**~~ — **DONE** (verified 2026-08-06: AC-803 uses `Date.UTC` construction;
+  stale-ledger sweep).
 
 ### ⚑ TEST + BRANCH INFRA UNDER PARALLEL AGENTS (2026-07-22, Director — evidence from the M365 session)
 **Why this is its own track:** the repo went from a handful of worktrees to **~15 concurrent agent worktrees**

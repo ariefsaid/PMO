@@ -8,6 +8,7 @@ import { ChartFrame, type ChartState } from '@/src/components/dashboard/ChartFra
 import { usePrefersReducedMotion } from '@/src/components/dashboard/usePrefersReducedMotion';
 import { tooltipContentStyle, tooltipLabelStyle, axisTickStyle } from '@/src/components/dashboard/chartChrome';
 import { chartTheme } from '@/src/components/ui/chartTheme';
+import { PLATFORM_CURRENCY, formatCurrencyFine, formatUtcMonthYear } from '@/src/lib/format';
 
 /**
  * Agent cost dashboard — presentational panel (ops-admin surface, agent-cost-dashboard
@@ -53,17 +54,6 @@ export interface AgentCostMetricsProps {
 
 const DASH = '—';
 
-/** Fine-grained USD formatter (matches AdministrationUsage's per-run sub-$1 costs). */
-const usdFormatter = new Intl.NumberFormat('en-US', {
-  style: 'currency',
-  currency: 'USD',
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 4,
-});
-function formatUsd(value: number): string {
-  return usdFormatter.format(value);
-}
-
 /** ms → "X.Xs" at/above 1000ms, else "Xms" (rounded). */
 function formatMs(ms: number): string {
   if (ms >= 1000) return `${(ms / 1000).toFixed(1)}s`;
@@ -101,11 +91,11 @@ function deriveKpis(
   const costP50 =
     totalRuns === 0
       ? DASH
-      : formatUsd(runStatsRows.reduce((sum, r) => sum + r.p50_cost * r.runs, 0) / totalRuns);
+      : formatCurrencyFine(runStatsRows.reduce((sum, r) => sum + r.p50_cost * r.runs, 0) / totalRuns, PLATFORM_CURRENCY);
   const costP95 =
     runStatsRows.length === 0
       ? DASH
-      : formatUsd(Math.max(...runStatsRows.map((r) => r.p95_cost)));
+      : formatCurrencyFine(Math.max(...runStatsRows.map((r) => r.p95_cost)), PLATFORM_CURRENCY);
   const latencyP95 =
     runStatsRows.length === 0
       ? DASH
@@ -144,13 +134,8 @@ function deriveMonthlyCacheHit(summaryRows: AgentCostSummaryRow[]): MonthlyCache
     .sort((a, b) => a.ts - b.ts);
 }
 
-const monthAxisFmt = new Intl.DateTimeFormat('en-US', {
-  month: 'short',
-  year: '2-digit',
-  timeZone: 'UTC',
-});
 function formatMonthTick(epochMs: number): string {
-  return monthAxisFmt.format(new Date(epochMs));
+  return formatUtcMonthYear(new Date(epochMs));
 }
 
 export const AgentCostMetrics: React.FC<AgentCostMetricsProps> = ({

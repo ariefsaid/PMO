@@ -11,6 +11,7 @@
  */
 
 import { addMonths as dfAddMonths, format as dfFormat, parseISO as dfParseISO } from 'date-fns';
+import { formatMonthYear } from '../format';
 
 /** A displayed-month pointer. `month` is 0-based (0 = January) to match `Date`. */
 export interface MonthCursor {
@@ -47,9 +48,7 @@ export function toIso(d: Date): string {
 
 /** Human month label, e.g. `June 2026` (en-US, locale-stable for the header). */
 export function monthLabel(year: number, month: number): string {
-  return new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' }).format(
-    new Date(year, month, 1),
-  );
+  return formatMonthYear(new Date(year, month, 1));
 }
 
 /**

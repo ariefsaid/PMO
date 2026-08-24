@@ -22,6 +22,7 @@ const hoisted = vi.hoisted(() => ({
         reference_number: 'PO-12345',
         invoice_date: '2026-07-01',
         amount: 10000,
+        currency: 'USD',
         erp_outstanding_amount: 5000,
         status: 'Submitted',
         erp_docstatus: 1,
@@ -42,6 +43,7 @@ const hoisted = vi.hoisted(() => ({
         reference_number: 'PO-67890',
         invoice_date: '2026-07-15',
         amount: 25000,
+        currency: 'USD',
         erp_outstanding_amount: 0,
         status: 'Paid',
         erp_docstatus: 1,
@@ -97,9 +99,40 @@ const renderAs = (realRole: Role) =>
     </ImpersonationProvider>,
   );
 
+// ⚑ The fixture list is module-level shared state and `beforeEach` did NOT reset it, so any test
+// that replaced `.data` silently poisoned every later test in the file. Snapshotted and restored,
+// which makes the file order-independent and lets a test legitimately swap the rows.
+const SEED_INVOICES = salesInvoicesState.data;
+
 beforeEach(() => {
+  salesInvoicesState.data = SEED_INVOICES;
   salesInvoicesState.isPending = false;
   salesInvoicesState.isError = false;
+});
+
+describe('SalesInvoices — currency (#530 / AC-L10N-020)', () => {
+  // ⚑ THE ORACLE THIS SURFACE DID NOT HAVE. Every other fixture here is USD, so replacing
+  // `inv.currency` with a literal 'USD' at the call site left the whole file GREEN — verified by
+  // mutation during #529. A test that cannot tell the record's own currency from a hardcoded one is
+  // not testing the seam; it is testing that some money renders.
+  it('renders an IDR invoice in IDR, never the org default', () => {
+    salesInvoicesState.data = [{ ...SEED_INVOICES[0], id: 'si-idr', currency: 'IDR' }];
+    renderAs('Project Manager');
+    const table = screen.getByRole('table').textContent ?? '';
+    expect(table).toContain('IDR');
+    expect(table).not.toContain('$');
+  });
+
+  it('renders two currencies side by side — the per-record column is not a per-page setting', () => {
+    salesInvoicesState.data = [
+      { ...SEED_INVOICES[0], id: 'si-usd', currency: 'USD' },
+      { ...SEED_INVOICES[0], id: 'si-idr', currency: 'IDR' },
+    ];
+    renderAs('Project Manager');
+    const table = screen.getByRole('table').textContent ?? '';
+    expect(table).toContain('IDR');
+    expect(table).toContain('$');
+  });
 });
 
 describe('SalesInvoices — due-date column (AC-SAR-051 UI proof)', () => {
@@ -139,6 +172,7 @@ describe('SalesInvoices — due-date column (AC-SAR-051 UI proof)', () => {
         reference_number: 'PO-NEW',
         invoice_date: null,
         amount: 5000,
+        currency: 'USD',
         erp_outstanding_amount: 5000,
         status: 'Draft',
         erp_docstatus: 0,

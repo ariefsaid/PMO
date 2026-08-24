@@ -72,7 +72,7 @@ select lives_ok(
 -- hard-delete C1 and P2 (Admin-only destructive deletes gated by 0013/0052 restrictive policies).
 set local request.jwt.claims = '{"sub":"a133a000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 select lives_ok(
-  $$ select set_project_contract_value('a133a000-0000-0000-0000-0000000000f1', 5000) $$,
+  $$ select set_project_contract_value('a133a000-0000-0000-0000-0000000000f1', 5000, p_tax_treatment => 'exclusive', p_tax_amount => 0) $$,
   'AC-AUDIT-002 set_project_contract_value succeeds (Admin sets pre-win value)');
 select lives_ok(
   $$ select transition_document_status('a133a000-0000-0000-0000-0000000000d1', 'Issued') $$,

@@ -23,10 +23,10 @@ insert into projects (id, org_id, name, status) values
   ('005a0000-0000-0000-0000-0000000000c1','005a0000-0000-0000-0000-000000000001','SI Project','Ongoing Project');
 
 -- A sales_invoices row in Org A (owner/service insert pre-flip, mirrors pre-migration state)
-insert into sales_invoices (id, org_id, project_id, customer_id, si_number, reference_number,
+insert into sales_invoices (tax_treatment, tax_amount, id, org_id, project_id, customer_id, si_number, reference_number,
   invoice_date, amount, erp_outstanding_amount, status, erp_docstatus, erp_modified,
   erp_amended_from, erp_cancelled_at, created_at)
-values ('005a0000-0000-0000-0000-0000000000e1','005a0000-0000-0000-0000-000000000001',
+values ('exclusive', 0, '005a0000-0000-0000-0000-0000000000e1','005a0000-0000-0000-0000-000000000001',
   '005a0000-0000-0000-0000-0000000000c1','005a0000-0000-0000-0000-0000000000f1',
   'SI-001','REF-SI-001','2026-07-14',500.00,500.00,'Unpaid',0,'2026-07-14 09:00:00',
   null,null,'2026-07-14 09:00:00');

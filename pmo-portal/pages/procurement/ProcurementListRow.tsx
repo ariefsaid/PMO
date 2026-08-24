@@ -74,6 +74,7 @@ const ExpandedPanel: React.FC<{ row: ProcurementWithRefs; panelId: string }> = (
             totalValue={detail.data.total_value}
             projectName={detail.data.project?.name}
             status={detail.data.status}
+            currency={detail.data.currency}
           />
 
           {/* Line items */}
@@ -92,9 +93,9 @@ const ExpandedPanel: React.FC<{ row: ProcurementWithRefs; panelId: string }> = (
                     >
                       <span className="truncate">{item.name}</span>
                       <span className="tabular text-muted-foreground shrink-0">
-                        {item.quantity} × {formatCurrency(item.rate)} ={' '}
+                        {item.quantity} × {formatCurrency(item.rate, detail.data.currency)} ={' '}
                         <span className="font-medium text-foreground">
-                          {formatCurrency(lineTotal)}
+                          {formatCurrency(lineTotal, detail.data.currency)}
                         </span>
                       </span>
                     </li>
@@ -189,7 +190,7 @@ export const ProcurementListRow: React.FC<ProcurementListRowProps> = ({ row }) =
           )}
           {row.requested_by?.full_name && <span>{row.requested_by.full_name}</span>}
           <span className="tabular font-medium text-foreground">
-            {formatCurrency(row.total_value)}
+            {formatCurrency(row.total_value, row.currency)}
           </span>
           <span>{daysAgo(row.created_at)}</span>
           <StatusPill variant={pillVariantForStatus(row.status as ProcurementStatus)}>

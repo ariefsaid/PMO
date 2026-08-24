@@ -1,16 +1,20 @@
 import { parseISO, formatDistanceToNow } from 'date-fns';
 
-// Single source of truth for currency formatting (F-6). USD, no fraction digits —
-// preserves the prototype's prior output. Multi-currency deferred (NFR-I18N-001, OD-1).
-const currencyFormatter = new Intl.NumberFormat('en-US', {
-  style: 'currency',
-  currency: 'USD',
-  minimumFractionDigits: 0,
-  maximumFractionDigits: 0,
-});
+// Currency formatters are keyed by record currency; locale remains en-US until the locale slice.
+export const PLATFORM_CURRENCY = 'USD';
+const currencyFormatterCache = new Map<string, Intl.NumberFormat>();
+function currencyFormatterFor(shape: string, currency: string, opts: Intl.NumberFormatOptions) {
+  const key = `${shape}|${currency}`;
+  let formatter = currencyFormatterCache.get(key);
+  if (!formatter) {
+    formatter = new Intl.NumberFormat('en-US', { ...opts, style: 'currency', currency });
+    currencyFormatterCache.set(key, formatter);
+  }
+  return formatter;
+}
 
-export function formatCurrency(value: number): string {
-  return currencyFormatter.format(value);
+export function formatCurrency(value: number, currency: string): string {
+  return currencyFormatterFor('whole', currency, { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(value);
 }
 
 /**
@@ -79,20 +83,156 @@ export function formatRelativeTime(iso: string | null | undefined): string {
   return formatDistanceToNow(parsed, { addSuffix: true });
 }
 
-/** Compact currency: $1.5M / $200.0K / $500 — for space-constrained surfaces.
- *  AC-W2-9-01: compact on magnitude (Math.abs) then re-apply sign so negatives
- *  compact too: -$2.5M not -$2,500,000.
- *  C4 boundary fix: values that would display as "$1000.0K" are rolled to "$1.0M"
- *  so the M tier begins at values that round to ≥ 1000 at 1-decimal-place K display. */
-export function formatCompactCurrency(value: number): string {
-  const abs = Math.abs(value);
-  const sign = value < 0 ? '-' : '';
-  if (abs >= 1_000_000) return `${sign}$${(abs / 1_000_000).toFixed(1)}M`;
-  if (abs >= 1_000) {
-    const kDisplay = (abs / 1_000).toFixed(1);
-    // If the K display would roll to "1000.0" or beyond, use the M tier instead
-    if (parseFloat(kDisplay) >= 1_000) return `${sign}$${(abs / 1_000_000).toFixed(1)}M`;
-    return `${sign}$${kDisplay}K`;
-  }
-  return formatCurrency(value);
+/** Compact currency: "$1.5M" / "$200.0K" / "$500" — space-constrained surfaces (FR-L10N-022:
+ *  no welded $, no hand-coded K/M tiers — Intl supplies the compact unit, so id-ID renders its
+ *  own under the locale slice). Byte-identical to the old hand-tiered output for USD, incl. the
+ *  C4 999_950→$1.0M roll and negative compaction (Intl places the sign: -$2.5M).
+ *  AC-W2-9-01: compact on magnitude (Math.abs) — negatives compact too, and sub-1K values fall
+ *  through to formatCurrency ("$500", not "$500.0"). */
+export function formatCompactCurrency(value: number, currency: string): string {
+  if (Math.abs(value) < 1_000) return formatCurrency(value, currency);
+  return currencyFormatterFor('compact', currency, { notation: 'compact', maximumFractionDigits: 1 }).format(value);
+}
+
+/** The currency's display glyph for input adornments (FR-L10N-020 — a hardcoded `$` prefix is
+ *  the same weld formatCurrency had). Codes without a native symbol (IDR) honestly show the code. */
+export function currencySymbol(currency: string): string {
+  const parts = new Intl.NumberFormat('en-US', { style: 'currency', currency }).formatToParts(1);
+  const literal = parts.find((p) => p.type === 'currency')?.value ?? currency;
+  return literal.trim() || currency;
+}
+
+// ── #477 locale-drift sweep: named formatters for every display shape the app renders ──────
+// Each export reproduces byte-identically what previously lived as a hardcoded/implicit-locale
+// call at a call site. The locale seam (#468) will make these org/user-aware in ONE file.
+
+// Money — cents-exact ERP amounts (numeric(14,2)): "$1,234.50" (FR-L10N-020: record currency).
+export function formatCurrencyCents(value: number, currency: string): string {
+  return currencyFormatterFor('cents', currency, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
+}
+
+// Money — default-fraction values (KPI tiles): "$1,234" / "$1,234.5" / "$1,234.56" (0–3 dp, no padding).
+// Uses `style: 'currency'` rather than welding a `$`, so a negative renders "-$1,234.5" exactly like
+// formatCurrencyCents/Fine. The welded form put the sign INSIDE the symbol ("$-1,234.5"), which left two
+// money values on one screen disagreeing about where the minus goes (#477 review). Positives are
+// byte-identical to the welded form — min 0 / max 3 reproduces the plain NumberFormat default range.
+export function formatCurrencyAuto(value: number, currency: string): string {
+  return currencyFormatterFor('auto', currency, { minimumFractionDigits: 0, maximumFractionDigits: 3 }).format(value);
+}
+
+// Money — fine-grained agent/provider costs (sub-$1): "$0.0123" (2–4 dp, record currency).
+// Was duplicated verbatim in AdministrationUsage + AgentCostMetrics.
+export function formatCurrencyFine(value: number, currency: string): string {
+  return currencyFormatterFor('fine', currency, { minimumFractionDigits: 2, maximumFractionDigits: 4 }).format(value);
+}
+
+// Plain grouped number (counts, tokens): "1,234,567". Replaces bare n.toLocaleString().
+const numberDefaultFormatter = new Intl.NumberFormat('en-US');
+export function formatNumber(value: number): string {
+  return numberDefaultFormatter.format(value);
+}
+
+// Number with at most 2 fraction digits (credits balance): "1,234.57".
+const numberMax2Formatter = new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 });
+export function formatNumberMax2(value: number): string {
+  return numberMax2Formatter.format(value);
+}
+
+// ── Date display variants (all Date-in; construction stays at call sites) ──────────────────
+
+/** "Jun 14" — short month + day. */
+const monthDayFormatter = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' });
+export function formatMonthDay(d: Date): string {
+  return monthDayFormatter.format(d);
+}
+
+/** "Sun" — short weekday (timesheet grid columns). */
+const weekdayFormatter = new Intl.DateTimeFormat('en-US', { weekday: 'short' });
+export function formatWeekday(d: Date): string {
+  return weekdayFormatter.format(d);
+}
+
+/** "Jun 14, 2026" — Date-input twin of formatDate(iso) (same parts, local zone; shares its formatter). */
+export function formatFullDate(d: Date): string {
+  return dateFormatter.format(d);
+}
+
+/** "Jun 14, 2026, 03:45 PM" — last-sync style (hour '2-digit' is zero-padded). */
+const dateTimeFormatter = new Intl.DateTimeFormat('en-US', {
+  month: 'short',
+  day: 'numeric',
+  year: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+});
+export function formatDateTime(d: Date): string {
+  return dateTimeFormatter.format(d);
+}
+
+/** "6/14/2026" — numeric M/D/YYYY; byte-identical to bare toLocaleDateString() in en-US. */
+const dateNumericFormatter = new Intl.DateTimeFormat('en-US', {
+  month: 'numeric',
+  day: 'numeric',
+  year: 'numeric',
+});
+export function formatDateNumeric(d: Date): string {
+  return dateNumericFormatter.format(d);
+}
+
+/** "June 2026" — long month + year (calendar header). */
+const monthYearFormatter = new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' });
+export function formatMonthYear(d: Date): string {
+  return monthYearFormatter.format(d);
+}
+
+/** "Sun, Jun 14" — calendar agenda day heading. */
+const weekdayMonthDayFormatter = new Intl.DateTimeFormat('en-US', {
+  weekday: 'short',
+  month: 'short',
+  day: 'numeric',
+});
+export function formatWeekdayMonthDay(d: Date): string {
+  return weekdayMonthDayFormatter.format(d);
+}
+
+/** UTC "Jun 14, 2026" — zone-stable business dates (a 23:00Z instant must not drift a day). */
+const utcDateFormatter = new Intl.DateTimeFormat('en-US', {
+  year: 'numeric',
+  month: 'short',
+  day: 'numeric',
+  timeZone: 'UTC',
+});
+export function formatDateUtc(d: Date): string {
+  return utcDateFormatter.format(d);
+}
+
+/** en-GB "14 Jun" — milestone target chips. */
+const dayMonthFormatter = new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short' });
+export function formatDayMonth(d: Date): string {
+  return dayMonthFormatter.format(d);
+}
+
+/** UTC "Jun 26" — monthly chart axis ticks. */
+const utcMonthYearFormatter = new Intl.DateTimeFormat('en-US', {
+  month: 'short',
+  year: '2-digit',
+  timeZone: 'UTC',
+});
+export function formatUtcMonthYear(d: Date): string {
+  return utcMonthYearFormatter.format(d);
+}
+
+/** UTC "15 Mar '25" — S-curve axis: en-GB day-month + quoted 2-digit year (AC-SC-AXIS-004/005).
+ *  formatToParts + manual join so the apostrophe is explicit; stays Intl (not date-fns format)
+ *  because date-fns is LOCAL-tz and would drift the day in behind-UTC zones. */
+const utcDayMonthYearFormatter = new Intl.DateTimeFormat('en-GB', {
+  day: '2-digit',
+  month: 'short',
+  year: '2-digit',
+  timeZone: 'UTC',
+});
+export function formatUtcDayMonthYear(d: Date): string {
+  const parts = utcDayMonthYearFormatter.formatToParts(d);
+  const find = (t: string) => parts.find((p) => p.type === t)?.value ?? '';
+  return `${find('day')} ${find('month')} '${find('year')}`;
 }

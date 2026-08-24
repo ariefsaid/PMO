@@ -44,6 +44,7 @@ const makeQuote = (overrides: Partial<QuotationRow> = {}): QuotationRow => ({
   procurement_id: 'proc-1',
   vendor_id: 'v-1',
   total_amount: 148000,
+  currency: 'USD', // #478 (0187): every PMO-owned money row carries an ISO-4217 currency
   vq_number: 'VQ-2026-0001',
   is_selected: false,
   reference: 'APX-Q-101',
@@ -99,6 +100,7 @@ const defaultProps = {
   addBusy: false,
   selectBusy: false,
   procurementId: 'proc-1',
+  currency: 'USD',
   canManageFiles: false,
   currentUserId: 'u-alice',
   vendorMap: testVendorMap,
@@ -329,6 +331,22 @@ describe('AC-VQ-007: VendorQuotesTab — Add quotation affordance', () => {
       />,
     );
     expect(screen.queryByRole('button', { name: /add quotation/i })).not.toBeInTheDocument();
+  });
+});
+
+describe('FR-L10N-020: currency-aware rendering (not a blind $)', () => {
+  it("quote amounts render in the QUOTE's own currency", () => {
+    const eurQuote = makeQuote({ id: 'q-eur', total_amount: 148000, currency: 'EUR' });
+    render(<VendorQuotesTab {...defaultProps} quotations={[eurQuote]} />);
+    expect(screen.getAllByText('€148,000').length).toBeGreaterThanOrEqual(1);
+    expect(screen.queryByText('$148,000')).not.toBeInTheDocument();
+  });
+
+  it("the new-quotation form's amount prefix follows the PROCUREMENT's currency, not a hardcoded $", async () => {
+    render(<VendorQuotesTab {...defaultProps} quotations={[]} canAdd currency="EUR" />);
+    await userEvent.click(screen.getByRole('button', { name: /add quotation/i }));
+    expect(screen.getByText('€')).toBeInTheDocument();
+    expect(screen.queryByText('$')).not.toBeInTheDocument();
   });
 });
 

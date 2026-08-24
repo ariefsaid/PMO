@@ -34,7 +34,10 @@ import { LineItemsSection } from './procurement/LineItemsSection';
 import { VendorQuotesTab } from './procurement/VendorQuotesTab';
 import { ProcurementHeaderEdit } from './procurement/ProcurementHeaderEdit';
 import { ProcurementLedger } from './procurement/ProcurementLedger';
-import { ProcurementDecisionZone } from './procurement/ProcurementDecisionZone';
+import {
+  ProcurementDecisionZone,
+  type VendorInvoiceCapture,
+} from './procurement/ProcurementDecisionZone';
 import { buildLedgerRows } from '@/src/lib/db/procurementLedger';
 import { buildProgressionTimeline } from '@/src/lib/db/procurementHistory';
 import {
@@ -42,6 +45,7 @@ import {
   canCancel,
   type ProcurementStatus,
   type ProcurementDetail,
+  type TaxTreatment,
 } from '@/src/lib/db/procurementLifecycle';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import type { CommandIntent } from '@/src/lib/repositories/types';
@@ -114,6 +118,10 @@ type PendingConfirm =
       invoiceDate: string;
       referenceNumber: string | null;
       amount: number | null;
+      /** #505: REQUIRED — staged from the capture form and carried verbatim through the confirm to
+       *  the RPC, so the confirmed write can never be the one that discovers they are missing. */
+      taxTreatment: TaxTreatment;
+      taxAmount: number;
       /** BLOCK 2 (ADR-0058): see the createGR variant. */
       intent: CommandIntent;
     };
@@ -436,7 +444,7 @@ const ProcurementDetails: React.FC = () => {
   // The shared money/context line the kept financial confirms restate.
   const moneyContext = (
     <>
-      <b>{formatCurrency(Number(p.total_value))}</b>
+      <b>{formatCurrency(Number(p.total_value), p.currency)}</b>
       {p.project?.name ? <> on <ProjectNameLink projectId={p.project_id} name={p.project.name} /></> : null}
       {p.requested_by?.full_name ? <>, requested by <i>{p.requested_by.full_name}</i></> : null}
     </>
@@ -532,6 +540,9 @@ const ProcurementDetails: React.FC = () => {
           invoiceDate: pendingConfirm.invoiceDate,
           referenceNumber: pendingConfirm.referenceNumber,
           amount: pendingConfirm.amount,
+          // #505: forwarded from the staged capture — required by the mutation's type.
+          taxTreatment: pendingConfirm.taxTreatment,
+          taxAmount: pendingConfirm.taxAmount,
           intent: pendingConfirm.intent,
         });
         setShowCreateVI(false);
@@ -554,19 +565,13 @@ const ProcurementDetails: React.FC = () => {
   // no invoice (or vice versa) — it is all-or-nothing. Exactly ONE toast: a combined success, or the
   // classified failure. On FAILURE the inline panel STAYS OPEN so the user can correct + retry
   // without hunting for the recovery after-form; only a success closes it.
-  const submitVICapture = async (
-    viStatus: 'Received' | 'Scheduled',
-    invoiceDate: string,
-    referenceNumber: string | null,
-    amount: number | null,
-  ) => {
+  const submitVICapture = async (capture: VendorInvoiceCapture) => {
     setMutationError(null);
     try {
       await mutations.captureVendorInvoice.mutateAsync({
-        status: viStatus,
-        invoiceDate,
-        referenceNumber,
-        amount,
+        // #505: `capture` is `CaptureVendorInvoiceInput` minus procurementId/notes, so the tax facts
+        // travel through by construction — there is no field list here to forget to update.
+        ...capture,
         notes: notesInput || undefined,
       });
       setNotesInput('');
@@ -599,7 +604,7 @@ const ProcurementDetails: React.FC = () => {
     // PR value — always shown (every procurement has a total_value)
     {
       label: 'PR value',
-      value: formatCurrency(Number(p.total_value)),
+      value: formatCurrency(Number(p.total_value), p.currency),
       sub: p.project?.name ?? undefined,
     },
     // Selected quote — only when a quote is committed (Quote Selected onward).
@@ -608,7 +613,7 @@ const ProcurementDetails: React.FC = () => {
     selectedQuote
       ? {
           label: 'Selected quote',
-          value: formatCurrency(Number(selectedQuote.total_amount)),
+          value: formatCurrency(Number(selectedQuote.total_amount), selectedQuote.currency),
           sub: (
             <CompanyNameLink
               companyId={p.vendor_id}
@@ -624,9 +629,15 @@ const ProcurementDetails: React.FC = () => {
     p.purchase_orders && p.purchase_orders.length > 0
       ? {
           label: 'PO committed',
-          // Use the PO record's amount if available, else fall back to total_value.
+          // Use the PO record's amount if available, else fall back to total_value —
+          // and its currency alongside it (PO ?? parent PR, FR-L10N-020).
           value: formatCurrency(
-            Number((p.purchase_orders[0] as { amount?: number | null }).amount ?? p.total_value),
+            Number(
+              (p.purchase_orders[0] as { amount?: number | null; currency?: string | null }).amount ??
+                p.total_value,
+            ),
+            (p.purchase_orders[0] as { amount?: number | null; currency?: string | null }).currency ??
+              p.currency,
           ),
           sub: p.vendor?.name ? (
             // PRD-1 (AC-JR-W3B-E1)
@@ -855,6 +866,7 @@ const ProcurementDetails: React.FC = () => {
             projectName={p.project?.name ?? null}
             totalValue={Number(p.total_value)}
             status={p.status}
+            currency={p.currency}
           />
         )}
 
@@ -876,6 +888,7 @@ const ProcurementDetails: React.FC = () => {
               await crud.deleteItem.mutateAsync(id);
               toast('Line item removed', undefined, 'success');
             }}
+            currency={p.currency}
           />
         )}
 
@@ -909,6 +922,7 @@ const ProcurementDetails: React.FC = () => {
             addBusy={mutations.createQuotation.isPending}
             selectBusy={crud.selectQuote.isPending}
             procurementId={p.id}
+            currency={p.currency}
             canManageFiles={canManageFiles}
             currentUserId={currentUserId}
             vendorMap={vendorMap}

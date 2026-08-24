@@ -21,7 +21,7 @@ vi.mock('@/src/hooks/useDashboard', () => ({
 
 import { WinRateCard } from '../WinRateCard';
 
-const renderCard = () => render(<WinRateCard />);
+const renderCard = () => render(<WinRateCard currency="USD" />);
 
 describe('WinRateCard — error state (AC-W2-4-02)', () => {
   beforeEach(() => {

@@ -43,6 +43,7 @@ const project: ProjectWithRefs = {
   code: 'A001',
   status: 'Ongoing Project',
   contract_value: 1_000_000,
+  currency: 'USD',
   budget: 0, // dead stored column
   spent: 0,
   start_date: '2026-01-01',

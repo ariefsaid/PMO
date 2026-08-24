@@ -13,6 +13,9 @@ export interface SalesInvoiceRow {
   reference_number: string | null;
   invoice_date: string | null;
   amount: number | null;
+  /** FR-L10N-020: the invoice's OWN denomination (0187). `select('*')` already returned it — the
+   *  hand-written interface simply never declared it, so the column was invisible to every caller. */
+  currency: string;
   erp_outstanding_amount: number | null;
   status: 'Draft' | 'Submitted' | 'Unpaid' | 'Paid' | 'Cancelled';
   erp_docstatus: number | null;
@@ -44,6 +47,8 @@ export interface IncomingPaymentRow {
   reference_number: string | null;
   date: string | null;
   amount: number | null;
+  /** FR-L10N-020: the payment's OWN denomination (0187). See SalesInvoiceRow. */
+  currency: string;
   status: 'Scheduled' | 'Paid';
   erp_docstatus: number | null;
   erp_modified: string | null;

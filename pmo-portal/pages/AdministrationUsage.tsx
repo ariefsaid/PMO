@@ -1,6 +1,7 @@
 import React from 'react';
 import { DataTable, ListState, type Column } from '@/src/components/ui';
 import type { UsageSummaryRow, OperatorUsageSummaryRow } from '@/src/lib/db/usage';
+import { PLATFORM_CURRENCY, formatCurrencyFine, formatNumber } from '@/src/lib/format';
 
 /**
  * Administration › Usage section (ops-admin-surface S5, FR-USE-002/003/004/006). Sourced ONLY
@@ -16,17 +17,6 @@ import type { UsageSummaryRow, OperatorUsageSummaryRow } from '@/src/lib/db/usag
  */
 
 type UsageRow = UsageSummaryRow | OperatorUsageSummaryRow;
-
-/** Fine-grained USD formatter (formatCurrency's 0-decimal rounding is too coarse for sub-$1 costs). */
-const usdFormatter = new Intl.NumberFormat('en-US', {
-  style: 'currency',
-  currency: 'USD',
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 4,
-});
-function formatUsd(value: number): string {
-  return usdFormatter.format(value);
-}
 
 export interface AdministrationUsageProps {
   rows: UsageRow[];
@@ -82,24 +72,30 @@ export const AdministrationUsage: React.FC<AdministrationUsageProps> = ({
   const columns: Column<UsageRow>[] = [
     { key: 'month', header: 'Month', cell: (r) => r.month },
     { key: 'action', header: 'Action', cell: (r) => r.action },
-    { key: 'runs', header: 'Runs', cell: (r) => r.run_count.toLocaleString() },
+    { key: 'runs', header: 'Runs', cell: (r) => formatNumber(r.run_count) },
     {
       key: 'tokens',
       header: 'Tokens',
-      cell: (r) => `${r.prompt_tokens.toLocaleString()} / ${r.completion_tokens.toLocaleString()}`,
+      cell: (r) => `${formatNumber(r.prompt_tokens)} / ${formatNumber(r.completion_tokens)}`,
     },
     ...(hasProviderCost
       ? [
           {
             key: 'providerCost',
             header: 'Provider cost',
-            cell: (r: UsageRow) => ('provider_cost_usd' in r ? formatUsd(r.provider_cost_usd) : '—'),
+            // `in` tests key presence (the org row lacks this column entirely); it does NOT test null.
+            // The RPC returns null when provider pricing is unconfigured, and formatting null
+            // renders $0.00 — a real-looking zero for "unknown". Guard both, as margin does below.
+            cell: (r: UsageRow) =>
+              'provider_cost_usd' in r && r.provider_cost_usd !== null
+                ? formatCurrencyFine(r.provider_cost_usd, PLATFORM_CURRENCY)
+                : '—',
           } as Column<UsageRow>,
         ]
       : []),
-    { key: 'cost', header: 'Credits spent', cell: (r) => formatUsd(r.cost) },
+    { key: 'cost', header: 'Credits spent', cell: (r) => formatCurrencyFine(r.cost, PLATFORM_CURRENCY) },
     ...(hasMargin
-      ? [{ key: 'margin', header: 'Margin', cell: (r: UsageRow) => (r.margin_usd === null ? '—' : formatUsd(r.margin_usd)) } as Column<UsageRow>]
+      ? [{ key: 'margin', header: 'Margin', cell: (r: UsageRow) => (r.margin_usd === null ? '—' : formatCurrencyFine(r.margin_usd, PLATFORM_CURRENCY)) } as Column<UsageRow>]
       : []),
   ];
 

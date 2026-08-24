@@ -1,5 +1,5 @@
 import { supabase } from '@/src/lib/supabase/client';
-import { AppError } from '@/src/lib/appError';
+import { AppError, assertWriteLanded } from '@/src/lib/appError';
 import type { Tables, TablesInsert, TablesUpdate } from '@/src/lib/supabase/database.types';
 
 export type IncidentRow = Tables<'incident_reports'>;
@@ -118,28 +118,42 @@ export async function updateIncident(id: string, input: IncidentInput): Promise<
     // Written explicitly (NULL when cleared) so an edit can both set AND remove the project link.
     project_id: input.project_id ?? null,
   };
-  const { error } = await supabase.from('incident_reports').update(patch).eq('id', id);
+  const { data, error } = await supabase
+    .from('incident_reports')
+    .update(patch)
+    .eq('id', id)
+    .select('id');
   if (error) throwWrite(error);
+  assertWriteLanded(data, 'Incident not found or you do not have permission to edit it.');
 }
 
 /**
  * Advance an incident's workflow status (AC-IN-004): Open → Investigating → Closed. Sets
  * ONLY the `status` column by id; org_id is NEVER sent. The `incident_reports_update` RLS
  * policy (Admin/Exec/PM/Finance) is the enforcement authority — a non-manager attempt is
- * rejected (42501) or hidden (no-op). Throws an `AppError` (code preserved) on failure.
+ * rejected as a `42501` `AppError` (#534: a `using` denial hides the row rather than erroring, so
+ * this asserts `.select('id')` actually returned the row instead of trusting a null `error`).
  */
 export async function transitionIncident(id: string, status: IncidentStatus): Promise<void> {
-  const { error } = await supabase.from('incident_reports').update({ status }).eq('id', id);
+  const { data, error } = await supabase
+    .from('incident_reports')
+    .update({ status })
+    .eq('id', id)
+    .select('id');
   if (error) throwWrite(error);
+  assertWriteLanded(data, 'Incident not found or you do not have permission to change its status.');
 }
 
 /**
  * Hard-delete an incident by id (AC-IN-005) — Admin only. The `incident_reports_delete_admin_only`
  * RLS policy (migration 0017: org_id = auth_org_id() AND auth_role() = 'Admin') is the server
- * authority; the FE gate is the clarity projection. A non-Admin delete is a silent 0-row no-op.
+ * authority; the FE gate is the clarity projection. A non-Admin delete now throws a `42501`
+ * `AppError` (#534) instead of the silent 0-row no-op this docstring used to describe —
+ * `.select('id')` proves the row actually went away.
  * org_id is NEVER sent — RLS scopes the delete. Throws an `AppError` (code preserved) on failure.
  */
 export async function deleteIncident(id: string): Promise<void> {
-  const { error } = await supabase.from('incident_reports').delete().eq('id', id);
+  const { data, error } = await supabase.from('incident_reports').delete().eq('id', id).select('id');
   if (error) throwWrite(error);
+  assertWriteLanded(data, 'Incident not found or you do not have permission to delete it.');
 }

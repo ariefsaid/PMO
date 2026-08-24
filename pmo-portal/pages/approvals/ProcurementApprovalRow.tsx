@@ -138,7 +138,7 @@ export const ProcurementApprovalPreview: React.FC<ProcurementApprovalPreviewProp
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-muted-foreground">
                 <span>{row.requested_by?.full_name ?? 'Unknown requester'}</span>
                 <span className="tabular font-medium text-foreground">
-                  {formatCurrency(row.total_value)}
+                  {formatCurrency(row.total_value, row.currency)}
                 </span>
                 <StatusPill variant={workflowVariant(row.status)}>{row.status}</StatusPill>
               </div>
@@ -181,6 +181,7 @@ export const ProcurementApprovalPreview: React.FC<ProcurementApprovalPreviewProp
                 totalValue={detail.data.total_value}
                 projectName={detail.data.project?.name}
                 status={detail.data.status}
+                currency={detail.data.currency}
               />
 
               {detail.data.items.length > 0 && (
@@ -198,9 +199,9 @@ export const ProcurementApprovalPreview: React.FC<ProcurementApprovalPreviewProp
                         >
                           <span className="min-w-0 truncate">{item.name}</span>
                           <span className="shrink-0 tabular text-muted-foreground">
-                            {item.quantity} × {formatCurrency(item.rate)} ={' '}
+                            {item.quantity} × {formatCurrency(item.rate, row.currency)} ={' '}
                             <span className="font-medium text-foreground">
-                              {formatCurrency(lineTotal)}
+                              {formatCurrency(lineTotal, row.currency)}
                             </span>
                           </span>
                         </li>
@@ -242,7 +243,7 @@ export const ProcurementApprovalPreview: React.FC<ProcurementApprovalPreviewProp
                       Total value
                     </dt>
                     <dd className="mt-1 tabular text-[13px] font-medium">
-                      {formatCurrency(row.total_value)}
+                      {formatCurrency(row.total_value, row.currency)}
                     </dd>
                   </div>
                 </dl>
@@ -272,7 +273,7 @@ export const ProcurementApprovalPreview: React.FC<ProcurementApprovalPreviewProp
           title={pending === 'Approved' ? `Approve ${row.title}?` : `Reject ${row.title}?`}
           description={
             pending === 'Approved'
-              ? `Approve ${row.title} — ${formatCurrency(row.total_value)}? This will advance the request to the ordering stage.`
+              ? `Approve ${row.title} — ${formatCurrency(row.total_value, row.currency)}? This will advance the request to the ordering stage.`
               : `Reject ${row.title}? The requester will be notified and may revise and resubmit.`
           }
           confirmLabel={pending === 'Approved' ? 'Approve' : 'Reject request'}
@@ -298,7 +299,7 @@ export const ProcurementApprovalRow: React.FC<ProcurementApprovalRowProps> = ({ 
         className="text-[12px]"
       />
       {row.requested_by?.full_name && <span>{row.requested_by.full_name}</span>}
-      <span className="tabular font-medium text-foreground">{formatCurrency(row.total_value)}</span>
+      <span className="tabular font-medium text-foreground">{formatCurrency(row.total_value, row.currency)}</span>
       <span>{daysAgo(row.created_at)}</span>
     </span>
   );

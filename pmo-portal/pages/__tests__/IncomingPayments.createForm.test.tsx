@@ -30,6 +30,8 @@ const invoice = (over: Partial<SalesInvoiceRow>): SalesInvoiceRow =>
     reference_number: null,
     invoice_date: '2026-07-01',
     amount: 1000,
+    // FR-L10N-020: SalesInvoiceRow now declares the invoice's own currency (0187).
+    currency: 'USD',
     erp_outstanding_amount: 1000,
     status: 'Unpaid',
     erp_docstatus: 1,
@@ -53,6 +55,10 @@ const hoisted = vi.hoisted(() => ({
   ],
 }));
 
+// FR-L10N-020: this tree reads useOrgCurrency (org-denominated aggregates). Pinned here rather
+// than left to a real query. ⚑ At LINE-START — inside a neighbouring vi.mock it parses as a
+// syntax error and hides every real error beneath it.
+vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/hooks/useRevenue', () => ({
   useIncomingPayments: () => hoisted.paymentsState,
   useSalesInvoices: () => hoisted.invoicesState,

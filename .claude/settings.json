@@ -5,6 +5,17 @@
   "hooks": {
     "PreToolUse": [
       {
+        "matcher": "Agent",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$(git rev-parse --show-toplevel)/.claude/hooks/agent-dispatch-lane.sh\"",
+            "timeout": 5,
+            "statusMessage": "Routing check\u2026"
+          }
+        ]
+      },
+      {
         "matcher": "Bash",
         "hooks": [
           {
@@ -12,14 +23,26 @@
             "if": "Bash(gh pr create *)",
             "command": "bash \"$(git rev-parse --show-toplevel)/.claude/hooks/pre-pr-main-gate.sh\"",
             "timeout": 15,
-            "statusMessage": "Checking the PR-to-main gate…"
+            "statusMessage": "Checking the PR-to-main gate\u2026"
           },
           {
             "type": "command",
             "if": "Bash(git push *)",
             "command": "bash \"$(git rev-parse --show-toplevel)/.claude/hooks/pre-push-collision-gate.sh\"",
             "timeout": 30,
-            "statusMessage": "Checking ADR/migration collisions…"
+            "statusMessage": "Checking ADR/migration collisions\u2026"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$(git rev-parse --show-toplevel)/.claude/hooks/session-frontier.sh\"",
+            "timeout": 15,
+            "statusMessage": "Frontier check\u2026"
           }
         ]
       }

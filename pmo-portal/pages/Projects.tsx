@@ -18,7 +18,7 @@ import {
 } from '@/src/components/ui';
 import { ExportButton } from '@/src/components/export';
 import { ImportButton } from '@/src/components/import';
-import { makeProjectImportDescriptor } from '@/src/lib/import';
+import { makeProjectImportDescriptor, makeBudgetImportDescriptor } from '@/src/lib/import';
 import { useNavigate, useSearchParams } from 'react-router';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { usePermission } from '@/src/auth/usePermission';
@@ -197,6 +197,16 @@ const Projects: React.FC = () => {
       ),
     [clientCompanies, projectManagers],
   );
+  // #495: budget lines are a SECOND importer on this page. There is no budgets route to hang it on
+  // (budget is a project tab, `appRouteConfig`), and the sheet is cross-project by construction —
+  // its first column is a project ref (DD-BIMP-4).
+  // ⚑ The batch id is minted ONCE per mount, exactly as `useProcurementCycleImport` does. It is
+  // provenance, NOT the idempotency key: keying on it is what made 0072's re-run leak (DD-BIMP-3).
+  const budgetImportBatchId = useMemo(() => crypto.randomUUID(), []);
+  const budgetImportDescriptor = useMemo(
+    () => makeBudgetImportDescriptor(all.map((p) => ({ id: p.id, name: p.name })), budgetImportBatchId),
+    [all, budgetImportBatchId],
+  );
   const pmFilterOptions = useMemo(
     () => [
       { value: 'All', label: 'All managers' },
@@ -360,7 +370,9 @@ const Projects: React.FC = () => {
       header: 'Contract',
       align: 'num',
       exportValue: (p) => p.contract_value,
-      cell: (p) => formatCurrency(p.contract_value),
+      // FR-L10N-020: each row is one project, so the currency is that project's own (0187's
+      // per-record column) — an org default would be wrong the moment two currencies coexist.
+      cell: (p) => formatCurrency(p.contract_value, p.currency),
     },
     {
       key: 'actual',
@@ -374,7 +386,7 @@ const Projects: React.FC = () => {
         if (deliveryPending || actualSpend == null) {
           return <span className="text-[12px] text-muted-foreground">…</span>;
         }
-        return <span className="text-muted-foreground">{formatCurrency(actualSpend)}</span>;
+        return <span className="text-muted-foreground">{formatCurrency(actualSpend, p.currency)}</span>;
       },
     },
     {
@@ -417,7 +429,7 @@ const Projects: React.FC = () => {
           <div className="flex flex-col gap-0.5">
             <ProgressBar value={budgetUsedPct} showValue compact aria-label={`Budget used ${budgetUsedPct}%`} />
             <div className="text-[11px] text-muted-foreground">
-              {`${formatCompactCurrency(summary.committedSpend)} of ${formatCompactCurrency(summary.budget)} budget`}
+              {`${formatCompactCurrency(summary.committedSpend, p.currency)} of ${formatCompactCurrency(summary.budget, p.currency)} budget`}
             </div>
           </div>
         );
@@ -585,11 +597,19 @@ const Projects: React.FC = () => {
         />
       }
       importAction={
-        <ImportButton
-          entity="project"
-          descriptor={importDescriptor}
-          onImported={() => void refetch()}
-        />
+        <>
+          <ImportButton
+            entity="project"
+            descriptor={importDescriptor}
+            onImported={() => void refetch()}
+          />
+          <ImportButton
+            entity="budgetLine"
+            label="Import budgets"
+            descriptor={budgetImportDescriptor}
+            onImported={() => void refetch()}
+          />
+        </>
       }
     >
       {/* Body */}

@@ -1,5 +1,5 @@
 import { supabase } from '@/src/lib/supabase/client';
-import { AppError } from '@/src/lib/appError';
+import { AppError, assertWriteLanded } from '@/src/lib/appError';
 import type { Tables } from '@/src/lib/supabase/database.types';
 import { resolveRange, type PageParams } from '@/src/lib/pagination';
 
@@ -103,7 +103,7 @@ export async function createContact(input: ContactInput): Promise<ContactRow> {
  * scopes the update to the caller's org and gates the role. Throws an `AppError` on failure.
  */
 export async function updateContact(id: string, input: ContactInput): Promise<void> {
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('contacts')
     .update({
       company_id: input.company_id,
@@ -113,8 +113,10 @@ export async function updateContact(id: string, input: ContactInput): Promise<vo
       phone: input.phone,
       notes: input.notes,
     })
-    .eq('id', id);
+    .eq('id', id)
+    .select('id');
   if (error) throwWrite(error);
+  assertWriteLanded(data, 'Contact not found or you do not have permission to edit it.');
 }
 
 /**
@@ -122,11 +124,13 @@ export async function updateContact(id: string, input: ContactInput): Promise<vo
  * list. org_id is NEVER sent — RLS scopes the update. Throws an `AppError` on failure.
  */
 export async function archiveContact(id: string): Promise<void> {
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('contacts')
     .update({ archived_at: new Date().toISOString() })
-    .eq('id', id);
+    .eq('id', id)
+    .select('id');
   if (error) throwWrite(error);
+  assertWriteLanded(data, 'Contact not found or you do not have permission to archive it.');
 }
 
 /**
@@ -135,6 +139,7 @@ export async function archiveContact(id: string): Promise<void> {
  * crm_activities. Throws an `AppError` (code preserved) on any failure.
  */
 export async function deleteContact(id: string): Promise<void> {
-  const { error } = await supabase.from('contacts').delete().eq('id', id);
+  const { data, error } = await supabase.from('contacts').delete().eq('id', id).select('id');
   if (error) throwWrite(error);
+  assertWriteLanded(data, 'Contact not found or you do not have permission to delete it.');
 }

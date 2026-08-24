@@ -1,5 +1,5 @@
 import { supabase } from '@/src/lib/supabase/client';
-import { AppError } from '@/src/lib/appError';
+import { AppError, assertWriteLanded } from '@/src/lib/appError';
 import type { Tables } from '@/src/lib/supabase/database.types';
 
 export type CrmActivityRow = Tables<'crm_activities'>;
@@ -102,11 +102,13 @@ export interface CrmActivityPatch {
  * Throws an `AppError` (code preserved, e.g. `42501`) on failure.
  */
 export async function updateActivity(id: string, patch: CrmActivityPatch): Promise<void> {
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('crm_activities')
     .update(patch)
-    .eq('id', id);
+    .eq('id', id)
+    .select('id');
   if (error) throwWrite(error);
+  assertWriteLanded(data, 'Activity not found or you do not have permission to edit it.');
 }
 
 /**
@@ -116,9 +118,11 @@ export async function updateActivity(id: string, patch: CrmActivityPatch): Promi
  * Throws an `AppError` (code preserved) on failure.
  */
 export async function deleteActivity(id: string): Promise<void> {
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('crm_activities')
     .delete()
-    .eq('id', id);
+    .eq('id', id)
+    .select('id');
   if (error) throwWrite(error);
+  assertWriteLanded(data, 'Activity not found or you do not have permission to delete it.');
 }

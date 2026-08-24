@@ -32,6 +32,10 @@ const mockCreateQuotation = vi.fn().mockResolvedValue({ id: 'q-new' });
 
 // The per-phase file sub-section has its own unit test + needs a QueryClient;
 // stub it here so the page tests stay focused on the lifecycle behavior.
+// FR-L10N-020: this tree reads useOrgCurrency (org-denominated aggregates). Pinned here rather
+// than left to a real query. ⚑ At LINE-START — inside a neighbouring vi.mock it parses as a
+// syntax error and hides every real error beneath it.
+vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/hooks/useProcurementRecords', () => ({
   useProcurementRecordMutations: () => ({
     createPurchaseRequest: { mutateAsync: vi.fn(), isPending: false },
@@ -126,7 +130,7 @@ const baseProcurement = {
   code: 'PROC-2026-W3',
   title: 'Network Switches',
   status: 'Draft' as const,
-  total_value: 0,
+  total_value: 0, currency: 'USD',
   pr_number: 'PR-2606090001',
   po_number: null,
   vq_number: null,
@@ -153,7 +157,7 @@ const baseProcurement = {
 const receivedProcurement = {
   ...baseProcurement,
   status: 'Received' as const,
-  total_value: 50000,
+  total_value: 50000, currency: 'USD',
   approved_by_id: 'u-pm',
   approved_by: { full_name: 'PM User' },
   receipts: [
@@ -173,7 +177,7 @@ const receivedProcurement = {
 const vendorInvoicedProcurement = {
   ...baseProcurement,
   status: 'Vendor Invoiced' as const,
-  total_value: 50000,
+  total_value: 50000, currency: 'USD',
   approved_by_id: 'u-pm',
   approved_by: { full_name: 'PM User' },
 };
@@ -241,7 +245,7 @@ describe('AC-W3-D10: Draft PR with zero line items gates Submit Request', () => 
   });
 
   it('AC-W3-D10: a Draft PR with NO line items shows the add-line-items gate message and no enabled Submit Request button', () => {
-    detailState.data = { ...baseProcurement, items: [], total_value: 0 };
+    detailState.data = { ...baseProcurement, items: [], total_value: 0, currency: 'USD' };
     detailState.isPending = false;
     detailState.isError = false;
     renderPage();
@@ -260,7 +264,7 @@ describe('AC-W3-D10: Draft PR with zero line items gates Submit Request', () => 
   it('AC-W3-D10: a Draft PR with ≥1 line item (total > 0) shows an enabled Submit Request', () => {
     detailState.data = {
       ...baseProcurement,
-      total_value: 500,
+      total_value: 500, currency: 'USD',
       items: [
         {
           id: 'it1',
@@ -291,7 +295,7 @@ describe('AC-W3-D10: Draft PR with zero line items gates Submit Request', () => 
     // blocked — the gate is `items.length === 0`, not `total_value > 0`.
     detailState.data = {
       ...baseProcurement,
-      total_value: 0,
+      total_value: 0, currency: 'USD',
       items: [
         { id: 'it0', org_id: 'org-1', procurement_id: 'proc-w3', name: 'No-charge sample',
           description: null, quantity: 1, rate: 0, amount: 0 },
@@ -310,7 +314,7 @@ describe('AC-W3-D10: Draft PR with zero line items gates Submit Request', () => 
       ...baseProcurement,
       status: 'Requested' as const,
       items: [],
-      total_value: 0,
+      total_value: 0, currency: 'USD',
     };
     detailState.isPending = false;
     detailState.isError = false;
@@ -348,6 +352,29 @@ describe('AC-W3-O3: Mark Vendor Invoiced opens inline capture and performs trans
     expect(screen.getByTestId('vi-inline-capture')).toBeInTheDocument();
     expect(screen.getByTestId('vi-status-select')).toBeInTheDocument();
     expect(screen.getByTestId('vi-date-input')).toBeInTheDocument();
+    // #505: and the two tax fields, with NOTHING pre-selected for the treatment.
+    expect((screen.getByTestId('vi-tax-treatment-select') as HTMLSelectElement).value).toBe('');
+    expect(screen.getByTestId('vi-tax-amount-input')).toBeInTheDocument();
+  });
+
+  it('#505: the inline capture cannot be submitted until the tax treatment is chosen', async () => {
+    detailState.data = { ...receivedProcurement };
+    detailState.isPending = false;
+    detailState.isError = false;
+    renderPage();
+
+    await userEvent.click(screen.getByRole('button', { name: /mark vendor invoiced/i }));
+    await userEvent.type(screen.getByTestId('vi-tax-amount-input'), '0');
+    expect(screen.getByTestId('btn-submit-vi-capture')).toBeDisabled();
+    expect(screen.getByTestId('vi-tax-required-hint')).toBeInTheDocument();
+
+    await userEvent.click(screen.getByTestId('btn-submit-vi-capture'));
+    // The case does not advance and no invoice is written on an unanswered treatment.
+    expect(mockCaptureVendorInvoice).not.toHaveBeenCalled();
+    expect(mockTransition).not.toHaveBeenCalled();
+
+    await userEvent.selectOptions(screen.getByTestId('vi-tax-treatment-select'), 'inclusive');
+    expect(screen.getByTestId('btn-submit-vi-capture')).toBeEnabled();
   });
 
   it('AC-W3-O3: submitting the inline capture fires the atomic capture (transition + VI-create) with the captured values', async () => {
@@ -362,6 +389,11 @@ describe('AC-W3-O3: Mark Vendor Invoiced opens inline capture and performs trans
     const statusSelect = screen.getByTestId('vi-status-select');
     await userEvent.selectOptions(statusSelect, 'Scheduled');
 
+    // #505: state the tax facts — a deliberate step added to the journey (the invoice's amount is
+    // ambiguous without them). The goal oracle below is unchanged.
+    await userEvent.selectOptions(screen.getByTestId('vi-tax-treatment-select'), 'exclusive');
+    await userEvent.type(screen.getByTestId('vi-tax-amount-input'), '0');
+
     // Submit the inline capture
     await userEvent.click(screen.getByTestId('btn-submit-vi-capture'));
 
@@ -369,7 +401,8 @@ describe('AC-W3-O3: Mark Vendor Invoiced opens inline capture and performs trans
     // captured status. The two separate FE writes are no longer used.
     await waitFor(() => {
       expect(mockCaptureVendorInvoice).toHaveBeenCalledWith(
-        expect.objectContaining({ status: 'Scheduled' }),
+        // #505: 0 is a real answer ("no tax"), so it arrives as the number 0, never as null.
+        expect.objectContaining({ status: 'Scheduled', taxTreatment: 'exclusive', taxAmount: 0 }),
       );
     });
     expect(mockTransition).not.toHaveBeenCalled();
@@ -425,6 +458,8 @@ describe('AC-W3-O3: Mark Vendor Invoiced opens inline capture and performs trans
     renderPage();
 
     await userEvent.click(screen.getByRole('button', { name: /mark vendor invoiced/i }));
+    await userEvent.selectOptions(screen.getByTestId('vi-tax-treatment-select'), 'inclusive');
+    await userEvent.type(screen.getByTestId('vi-tax-amount-input'), '100');
     await userEvent.click(screen.getByTestId('btn-submit-vi-capture'));
 
     // Exactly one atomic call was made; the two legacy writes are never used.

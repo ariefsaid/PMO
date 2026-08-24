@@ -287,7 +287,10 @@ export const AssistantPanel: React.FC = () => {
 
   const handleRate = useCallback(
     (eventId: string, rating: 'up' | 'down', reason?: Parameters<typeof rateAgentEvent>[2]) => {
-      void rateAgentEvent(eventId, rating, reason);
+      // Fire-and-forget, same as before #534: a denied/not-found rating is not worth a toast
+      // over a thumbs-up/down click, but the rejection must be caught explicitly now that
+      // rateAgentEvent throws on a silent RLS no-op instead of resolving.
+      rateAgentEvent(eventId, rating, reason).catch(() => {});
     },
     [],
   );

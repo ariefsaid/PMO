@@ -56,6 +56,16 @@ describe('ImportWizard', () => {
     expect(within(dialog).getAllByText(/500 rows/i).length).toBeGreaterThan(0);
   });
 
+  it('the upload step is titled from the DESCRIPTOR, not a constant — every importer said "Import companies"', () => {
+    render(<ImportWizard descriptor={descriptor} onClose={vi.fn()} />);
+    expect(within(screen.getByRole('dialog')).getByText('Import companies')).toBeInTheDocument();
+    // The same wizard, a different descriptor: the heading must follow it. Clicking "Import
+    // budgets" and being met with "Import companies" is what this pins against.
+    const budgets: ImportDescriptor<Co> = { ...descriptor, entity: 'Budget lines' };
+    render(<ImportWizard descriptor={budgets} onClose={vi.fn()} />);
+    expect(screen.getAllByText('Import budget lines').length).toBeGreaterThan(0);
+  });
+
   it('AC-IMP-004c: the preview shows "1 valid, 1 invalid, 2 total" and a per-row error chip, and renders no confirm-write side effect (descriptor.create not called on reaching preview)', async () => {
     const user = userEvent.setup();
     render(<ImportWizard descriptor={descriptor} onClose={vi.fn()} />);

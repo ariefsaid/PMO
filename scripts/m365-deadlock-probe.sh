@@ -73,7 +73,8 @@ insert into org_features (org_id, feature_key, enabled, updated_by) values
   ('$ORG','m365_integration',true,null) on conflict (org_id, feature_key) do update set enabled=true;
 delete from ms_graph_connections where org_id='$ORG';
 insert into ms_graph_connections (org_id, user_id, entra_tenant_id, scopes, refresh_token_ciphertext, key_id, status)
-values ('$ORG','$USR','$TENANT',array['offline_access'],'\x01'::bytea,'kek-v1','active');
+values ('$ORG','$USR','$TENANT',array['offline_access'],'\x01010101010101010101010101010101010101010101010101010101'::bytea,'kek-v1','active');
+-- 28-byte fixture ciphertext: 0151's envelope CHECK rejects the old 1-byte placeholder.
 SQL
   CONN="$(psql "$DB_URL" -Atc "select id from ms_graph_connections where org_id='$ORG' and user_id='$USR';")"
 }
@@ -112,7 +113,7 @@ start_a() {  # $1=mode(legacy|fixed) — the connection mutation
   if [ "$1" = "legacy" ]; then
     printf "UPDATE ms_graph_connections SET updated_at=now() WHERE id='%s';\n" "$CONN" >&3
   else
-    printf "SELECT public.m365_refresh_connection('%s','%s','%s','\\x11'::bytea,'\\x12'::bytea,now(),now());\n" "$ORG" "$USR" "$CONN" >&3
+    printf "SELECT public.m365_refresh_connection('%s','%s','%s','\\x11111111111111111111111111111111111111111111111111111111'::bytea,'\\x12121212121212121212121212121212121212121212121212121212'::bytea,now(),now());\n" "$ORG" "$USR" "$CONN" >&3
   fi
   printf '\\q\n' >&3   # explicit psql quit — robust session termination (FIFO EOF alone is unreliable here)
 }

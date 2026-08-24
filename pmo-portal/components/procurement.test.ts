@@ -160,6 +160,7 @@ describe('procurement helper — selectedQuotation (PROC-004 selected-quote bind
     procurement_id: 'proc-1',
     vendor_id: 'v-default',
     total_amount: 0,
+    currency: 'USD', // #478 (0187): every PMO-owned money row carries an ISO-4217 currency
     vq_number: null,
     is_selected: false,
     reference: null,

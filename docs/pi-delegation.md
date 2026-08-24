@@ -14,8 +14,9 @@ and the DoD in `docs/product-expectations.md` are unchanged and binding.
 > Tiers: `build` (sonnet–opus band) · `routine` (haiku–sonnet) · `mechanical` (haiku) · `review`
 > (cross-family) · `review-money` (**Luna-only at max thinking — baked into the
 > ladder; no fallback — failure = escalate, never a weaker reviewer**) · `multimodal` (vision judgment,
-> quality-first: claude-sonnet → Luna:high; Director keeps the final taste lens) · `orchestrate` (GLM-5.2 manager
-> loops, Luna fallback; no claude rung — orchestrate failure escalates to the Director). **Model slugs live ONLY in the wrapper's ladder table** — never pass raw
+> quality-first: claude-sonnet → Luna:high; Director keeps the final taste lens) · `orchestrate` (GLM-5.3 manager
+> loops, Luna fallback; no claude rung — orchestrate failure escalates to the Director).
+> **Model slugs live ONLY in the wrapper's ladder table** — never pass raw
 > provider/model in a dispatch; a wrong slug surfaces as 429-no-body and gets misdiagnosed as a rate
 > limit. Verify new slugs with `pi-dispatch smoke <provider> <model>`. The §2 table below remains the
 > capability rationale; the wrapper's ladders are the executable form. **Every free non-z.ai provider
@@ -55,18 +56,25 @@ Replaces playbook §3's opus/sonnet/haiku mapping when running the trial:
 > **When z.ai caps (5-hour window), the ladder falls to Luna, then `claude -p`. That is the intended
 > behaviour — it is not a reason to re-add a free rung.** Free-but-unusable is not cheaper than paid:
 > the 98-minute run cost nothing in tokens and two hours of the owner's clock.
+>
+> **⚑ NIM model pin (owner 2026-08-15).** NIM stays off every ladder. *If* NIM is ever invoked
+> explicitly, the only sanctioned model is **`deepseek-ai/deepseek-v4-flash-0731`** — note the `v4`;
+> the bare `deepseek-ai/deepseek-v4-flash` slug is **gone from the live NIM catalog** and would have
+> surfaced as 429-no-body (the exact misdiagnosis §2's slug-discipline note warns about). Verified
+> against `GET https://integrate.api.nvidia.com/v1/models` and `pi-dispatch smoke` on 2026-08-15;
+> `~/.pi/agent/models.json` is pinned to that one entry.
 
 | Substrate | Use for | Analog |
 |---|---|---|
-| `zai` / `glm-5.2` | **THE DEFAULT for all build work.** Planning, specs, complex or security-sensitive slices (schema, RLS, RPC), manager-grade judgment, and implementation slices (trialed-good as builder 2026-06-16 — first-pass-correct). First rung of `build`, `routine` (as the step-up from 4.7) and `orchestrate`. | opus |
-| `zai` / `glm-5.1` | Secondary/alternate to 5.2 (rate-limit relief, or as the different-model reviewer in GLM-only degraded mode). Not on any ladder — Director picks it explicitly. | opus fallback |
+| `zai` / `glm-5.3` | **Planning, specs, manager-grade judgment** — first rung of `orchestrate`, the step-up rung of `routine`, and the **escalation** rung of `build`. ⚑ **No longer the default builder** (owner 2026-08-20, §2a): implementation slices start on Bitdeer DeepSeek-V4-Flash and only reach GLM when that rung fails. Still the right rung for a complex or security-sensitive slice (schema, RLS, RPC) the Director pins by hand. | opus |
+| `zai` / `glm-5.2`, `glm-5.1` | Secondary/alternate to 5.3 (rate-limit relief, or as the different-model reviewer in GLM-only degraded mode). Not on any ladder — Director picks one explicitly. | opus fallback |
 | `zai` / `glm-4.7` | Routine implementation, mechanical edits, QA runs, mockup builds. First rung of `routine` and `mechanical`. | sonnet/haiku |
 |  `openai-codex` / `gpt-5.6-luna` (owner-directed 2026-07-11; supersedes `gpt-5.4`) | ALL reviews and audits — spec-review, code-quality, plan review, security. Deliberately **cross-family** vs the GLM builders. **⚑ money/security audits run at `--thinking max` (owner 2026-07-15)**; the `review-money` tier bakes that in and has **no fallback by design**. | opus reviewers |
 | `claude` / `sonnet`·`haiku` | Last-resort rung only (`claude -p`, sanctioned plan entry) when both z.ai and codex are down. Spends the Claude quota the whole trial exists to protect — if the work is high-stakes and both primaries are capped, prefer to **wait for the reset**. | — |
 
 > **⚑ GLM-only degraded mode (gpt-5.4/openai-codex UNAVAILABLE, observed 2026-06-16).** When the
 > cross-family reviewer is down, route reviews to a **different GLM model than the builder** (e.g. build
-> `glm-5.2` → review `glm-5.1`). This gives *some* independence but is **same-family** — weaker than the
+> `glm-5.3` → review `glm-5.1`). This gives *some* independence but is **same-family** — weaker than the
 > intended cross-family check. Acceptable for low-risk/presentational slices; for **security/RLS/RPC or
 > money-path** changes, escalate to the Director's own review or wait for cross-family, don't ship on a
 > same-family-only sign-off.
@@ -83,6 +91,102 @@ finding out there is no host `psql`. Every build brief should state, up front: `
 supabase_db_pmo-portal psql -U postgres -d postgres` is how you reach the DB; there is **no `timeout`**
 on macOS; `supabase` runs from the repo root; wrap DB commands in `scripts/with-db-lock.sh`; pgTAP is
 not resident between `supabase test db` runs. Discovery is the most expensive thing a slow rung does.
+
+### 2a. Bitdeer DeepSeek-V4-Flash — **the builder substrate** (owner ruling 2026-08-20)
+
+> ## ⛔ OWNER RULING 2026-08-20 — **DeepSeek-V4-Flash BUILDS. GLM PLANS OR ESCALATES. CODEX REVIEWS.**
+> Implementation slices run on **`bitdeer` / `deepseek-ai/DeepSeek-V4-Flash`** — rung 1 of `build`, and
+> the `builder` + `fe_builder` models in `adws/adw_sssf_config/sssf.config.yaml`. Planning stays on
+> GLM-5.3 or `gpt-5.6-terra`; review stays on GLM / `gpt-5.6-luna` / `gpt-5.6-terra`, picked by
+> availability and by how much the slice needs. This **supersedes GLM-5.3-as-builder** (owner
+> 2026-08-15) and **luna-as-builder** in the SSSF roster (owner 2026-08-19); it does NOT touch the
+> 2026-07-30 z.ai ruling for `routine`/`mechanical`/`orchestrate`, and it does NOT touch
+> `review-money` (still Luna-only at max thinking, no fallback).
+>
+> **Why it is the right shape, not just the cheap one.** DeepSeek-V4-Flash is a 13B-active MoE tuned
+> for agentic work — it beats the far larger V4-Pro preview on agentic coding benchmarks — with a 1M
+> context and rates about **1/70th of Luna**. And it puts a **third family** on the build side, which
+> restores the cross-family build/review boundary the all-codex roster (2026-08-19) knowingly gave up.
+>
+> **What it bets, stated so it is not rediscovered.** It has passed a live tool loop here but has not
+> yet run a full ADW chain in this repo. A cheap builder is not a reason to soften anything
+> downstream: the reviewer and the Director's own gates (`verify:locked`, mutation checks, the
+> rendered pass) are what catch a weak builder, and they carry more weight now, not less.
+> **⚑ If a `build` dispatch falls through to the GLM rung, say so in the report** — a slice built by
+> GLM must not then be reviewed by GLM.
+>
+> **Revert lever:** `build` ladder back to `zai|glm-5.3` first; roster `builder`/`fe_builder` back to
+> `openai-codex/gpt-5.6-luna`.
+
+| | |
+|---|---|
+| **`build` ladder** | `bitdeer` DeepSeek-V4-Flash → `zai` glm-5.3 → `openai-codex` gpt-5.6-luna:high → `claude` sonnet. The GLM and Luna rungs are **escalation**, not the default |
+| **Do NOT use for** | money-path / SoD / auth / token-custody slices (those stay Director-dispatched per the routing table) and any review that carries a gate |
+| **Verified 2026-08-20** | OpenAI-compatible Chat Completions · strict-schema tool calls · streaming usage (incl. `cacheRead`) · `developer` role · `reasoning_effort` (emits `reasoning_content`; `off` = plain) · agentic read/bash/write loop under `pi -p` at thinking `off` and `high` · a real `pi-dispatch build` slice (wrote a module + its self-check, ran it, reported the true output — 1 rung, 1 attempt, 25s, $0.00028) · every roster model resolving through `agent_pi.resolve_model` |
+| **Context** | declared `1048576` — **empirically probed, not taken on trust**: a 900,007-token prompt returns 200 with `prompt_tokens: 900007`, so Bitdeer really serves the nominal 1M window |
+| **Max output** | declared `65536`. ⚑ Bitdeer accepts any `max_tokens` up to some unpublished bound (262144 returns 200; 9999999 is rejected), so this number is a **choice, not a probed ceiling** — if a builder ever truncates mid-file, this is the knob |
+| **Cost** | Bitdeer's published rates: **$0.042 in / $0.009 cached / $0.084 out** per 1M |
+
+**Auth.** The key never appears in any config file: `~/.pi/agent/models.json` holds
+`"apiKey": "!/Users/<you>/.local/bin/op-get.sh bitdeer-pi-API AS credential"` — pi runs that command
+at request time (same convention as the `requesty` entry). There is no `/login` path for Bitdeer;
+it is not a built-in pi provider, so `models.json` is the only way to register it.
+
+**SSSF wiring.** The factory calls `pi` directly (`adws/adw_modules/agent_pi.py`, `PI_PATH`) — it
+never goes through `pi-dispatch`, so the tier tables above do not reach it. What reaches it is the
+roster: `builder` and `fe_builder` name `model: bitdeer/deepseek-ai/DeepSeek-V4-Flash`, which
+`resolve_model` splits at the FIRST `/` (so the slashed model id survives) and looks up in pi's
+merged catalog. `context_window()` reads the 1M straight out of `models.json`. ⚑ `fe_builder` is
+now **text-only** — its self-check is the a11y tree / DOM through `agent-browser` (§3a), and pixel
+judgment stays with `fe_reviewer`, which MUST remain a vision model.
+
+**⚑ Pre-existing wrapper trap found while testing this (not Bitdeer's fault).** `pi-dispatch`'s
+`classify()` greps the whole log for `429|500|502|503`, so a **working directory whose path contains
+one of those numbers** (e.g. a scratch dir named `claude-502`) classifies every successful run as
+congestion and burns both retries. Dispatch from a path without those digits, or fix the regex.
+
+### 2b. The FACTORY has ladders too now (2026-08-20) — and where they differ from the wrapper's
+
+Until today only `pi-dispatch` laddered. `sssf.config.yaml` gave each agent exactly ONE model, so a
+capped substrate killed the whole chain — and killed it *mutely*: the planner made three zero-token
+calls and the harness reported **"never produced valid PlanOutput JSON"**, which reads as a schema
+bug and cost a session before anyone opened the transcript. Every agent now carries `fallbacks:`
+(`adws/adw_modules/agents.py`), and an all-rungs-failed run raises `SubstrateUnavailable` quoting the
+provider's own words instead.
+
+**The rule for abandoning a rung is narrow on purpose:** a rung is abandoned only when it answers
+with **nothing at all** and names a provider error. A rung that answers OWNS the phase, wrong answers
+included. Hopping on a bad answer would silently re-roll the dice on another substrate and hide the
+real failure — the opposite of what a ladder is for.
+
+| Roster agent | Ladder |
+|---|---|
+| `planner` | GLM-5.3 → terra → luna |
+| `builder`, `fe_builder` | **DeepSeek-V4-Flash** → luna → GLM-5.3 |
+| `reviewer` | GLM-5.3 → luna → terra |
+| `fe_reviewer` | terra → luna — ⚑ **no GLM rung, ever**: it looks at RENDERS and GLM is not multimodal. Capability, not availability |
+| `scout` | GLM-4.7 → DeepSeek → GLM-5.3 |
+| `documenter` | luna → DeepSeek → GLM-5.3 |
+
+⚑ **GLM sits LAST on the build ladder, and that is deliberate** — §2a's rule is that a slice built by
+GLM must not then be reviewed by GLM, and `reviewer` starts on GLM. Putting GLM last makes the
+collision rare; it does not make it impossible, so the §2a reporting rule still stands.
+
+⚑ **The wrapper's `build` ladder is ordered differently** — `deepseek → glm-5.3 → luna:high →
+sonnet`, per §2a. The roster puts luna before GLM. Both are the owner's, stated a few hours apart;
+they are not reconciled here because they answer different questions (the wrapper serves one-off
+Director dispatches, the roster serves chained factory phases where the reviewer's family matters).
+Pick one if it ever matters more than this footnote does.
+
+⚑ **Every rung is resolved at config-validation time**, not just rung 1. A ladder exists for the
+worst day, and discovering a typo in rung 3 at that moment — mid-chain, primary already dead — is
+precisely the failure it was added to prevent.
+
+⚑ **Known fragility, seen live 2026-08-20:** the bitdeer rung failed once mid-run with
+`API key auth failed for provider bitdeer: Failed to resolve API key ... from shell command`, while
+the same key had worked minutes earlier for the builder. The key resolves through a shell command, so
+it can fail transiently under repeat/concurrent calls in a way a static env var would not. If
+DeepSeek rungs start falling through for no visible reason, look there first.
 
 ## 3. Invocation pattern
 
@@ -302,3 +406,36 @@ prefixes — they collide with seed data), **`begin;`/`rollback;` wrappers** (a 
 without one has COMMITTED fixtures poisoning every later run until a reset), and **pgTAP's
 `finish()`** (not `finish_testing()`). An aborted file reports "Bad plan … ran 0" and contributes
 zero tests — a green-looking summary can hide it; grep for `Parse errors` in gate output.
+
+## Workhorses and thinkers (owner, 2026-08-21)
+
+Two tiers, and the split is about what the role DOES, not about which model is better:
+
+| Tier | Models | Roles |
+|---|---|---|
+| **Workhorse** | `bitdeer/deepseek-ai/DeepSeek-V4-Flash`, `openai-codex/gpt-5.6-luna` | builder · fe_builder · mechanical/recon · documenter |
+| **Thinker** | `openai-codex/gpt-5.6-terra`, `zai/glm-5.3` | planner · reviewer · fe_reviewer |
+
+⚑ **`terra` leads the thinker rungs, not GLM.** GLM-5.3 hits its 5-hour cap constantly — three of
+three factory runs on 2026-08-21 opened with `429 Usage limit reached for 5 hour`. A capped first
+rung is not free: every run spends a retry discovering it. GLM stays as the second rung, where it
+costs nothing when it is available and nothing when it is not.
+
+⚑ **deepseek is ~$0.1/M output, so prefer it wherever the work is mechanical.** That is the whole
+reason it leads the builder, recon and documenter rungs. It is genuinely capable of the build — a run
+on 2026-08-21 had it make 84 tool calls and write a correct migration.
+
+### But brief it like a workhorse
+
+deepseek is a weak *reader of intent*, and the failure is always at the seams, never in the middle:
+
+- It read a bare correction turn ("your JSON was invalid, re-emit") as a brand-new request, found no
+  task in it, and reported `status: "fail"` — over work it had already finished. Fixed in the harness
+  (`_CORRECTION_ANCHOR`), but the shape generalises: **anything you leave implicit, it will not infer.**
+- It skipped a numbered task in its own plan (regenerate the types) and reported success. It happened
+  to be a no-op; nothing in its report said so.
+
+So a brief aimed at a workhorse rung: number the steps, name exact file paths, state the decision
+rather than the tradeoff, and put the gate commands in verbatim. Save the open-ended framing for a
+thinker rung — where a planner on `terra` has now caught a wrong premise in a Director brief **three
+times**, including "this export is xlsx, not CSV".

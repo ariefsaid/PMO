@@ -16,11 +16,15 @@ afterEach(() => vi.restoreAllMocks());
 const VALID_ID = 'p1';
 const project = {
   id: VALID_ID, name: 'Innovate Corp HQ Fit-Out', code: 'PRJ-001', status: 'Ongoing Project',
-  client_id: 'c2', project_manager_id: 'u-alice', contract_value: 5000000, budget: 4700000,
+  client_id: 'c2', project_manager_id: 'u-alice', contract_value: 5000000, currency: 'USD', budget: 4700000,
   spent: 2100000, start_date: '2026-01-01', end_date: '2026-12-18', contract_date: null,
   customer_contract_ref: null, client: { name: 'Innovate Corp' }, pm: { full_name: 'Alice Manager' },
 } as unknown as ProjectWithRefs;
 
+// FR-L10N-020: this tree reads useOrgCurrency (org-denominated aggregates). Pinned here rather
+// than left to a real query. ⚑ At LINE-START — inside a neighbouring vi.mock it parses as a
+// syntax error and hides every real error beneath it.
+vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/hooks/useProjects', () => ({
   useProjects: () => ({ data: [project], isPending: false, isError: false, refetch: vi.fn() }),
   // The detail header consumes these (Edit/Archive/contract_value SoD + the FK pickers).

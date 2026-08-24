@@ -30,14 +30,48 @@ test('B1: GR maps date -> receipt_date, NO date/amount columns, status is requir
 });
 
 test('B1: VI maps date -> invoice_date and keeps amount + reference_number', () => {
-  const row = { type: 'VI', externalRef: 'INV-1', status: 'Paid', date: '2025-04-01', amount: '900' };
+  const row = {
+    type: 'VI', externalRef: 'INV-1', status: 'Paid', date: '2025-04-01', amount: '900',
+    // #505 (0196): tax_treatment/tax_amount are NOT NULL with no default — a VI row must state both.
+    taxTreatment: 'inclusive', taxAmount: '89.19',
+  };
   const { table, payload } = buildRecordInsert(row, 'proc-1', {}, prov);
   assert.equal(table, 'procurement_invoices');
   assert.equal(payload.invoice_date, '2025-04-01');
   assert.equal(payload.status, 'Paid');
   assert.equal(payload.amount, 900);
   assert.equal(payload.reference_number, 'INV-1');
+  assert.equal(payload.tax_treatment, 'inclusive');
+  assert.equal(payload.tax_amount, 89.19);
   assert.equal('date' in payload, false, 'invoices have no `date` column');
+});
+
+// ── #505: the direct service-role VI insert bypasses create_procurement_invoice's P0001 gate, so
+// the gate is restated in the builder. It THROWS rather than defaulting: import-historical.mjs
+// catches per row and reports it, whereas a guessed treatment would silently corrupt the figure.
+
+test('#505: a VI row with no tax_treatment is REJECTED — never defaulted', () => {
+  const row = { type: 'VI', externalRef: 'INV-2', status: 'Received', date: '2025-04-01', amount: '900', taxAmount: '0' };
+  assert.throws(() => buildRecordInsert(row, 'proc-1', {}, prov), /tax_treatment/);
+});
+
+test('#505: a VI row with an out-of-domain tax_treatment is REJECTED', () => {
+  const row = { type: 'VI', status: 'Received', date: '2025-04-01', taxTreatment: 'maybe', taxAmount: '0' };
+  assert.throws(() => buildRecordInsert(row, 'proc-1', {}, prov), /tax_treatment/);
+});
+
+test('#505: a VI row with a missing or negative tax_amount is REJECTED (blank never means 0)', () => {
+  const blank = { type: 'VI', status: 'Received', date: '2025-04-01', taxTreatment: 'exclusive' };
+  assert.throws(() => buildRecordInsert(blank, 'proc-1', {}, prov), /tax_amount/);
+  const negative = { ...blank, taxAmount: '-1' };
+  assert.throws(() => buildRecordInsert(negative, 'proc-1', {}, prov), /tax_amount/);
+});
+
+test('#505: tax_amount "0" is accepted — it means "no tax", never "unknown"', () => {
+  const row = { type: 'VI', status: 'Received', date: '2025-04-01', taxTreatment: 'exclusive', taxAmount: '0' };
+  const { payload } = buildRecordInsert(row, 'proc-1', {}, prov);
+  assert.equal(payload.tax_amount, 0);
+  assert.equal(payload.tax_treatment, 'exclusive');
 });
 
 test('B1: Quotation maps to {vendor_id,total_amount,received_date}, NO status/date/amount', () => {

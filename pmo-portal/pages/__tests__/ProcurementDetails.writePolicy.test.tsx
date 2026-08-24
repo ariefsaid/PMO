@@ -34,6 +34,10 @@ const mockCaptureVendorInvoice = vi.fn().mockResolvedValue({ id: 'vi-new' });
 
 // The per-phase file sub-section has its own unit test + needs a QueryClient;
 // stub it here so the page tests stay focused on the lifecycle behavior.
+// FR-L10N-020: this tree reads useOrgCurrency (org-denominated aggregates). Pinned here rather
+// than left to a real query. ⚑ At LINE-START — inside a neighbouring vi.mock it parses as a
+// syntax error and hides every real error beneath it.
+vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/hooks/useProcurementRecords', () => ({
   useProcurementRecordMutations: () => ({
     createPurchaseRequest: { mutateAsync: vi.fn(), isPending: false },
@@ -109,7 +113,7 @@ const baseProcurement = {
   code: 'PROC-2026-001',
   title: 'Workstations for HQ',
   status: 'Requested' as const,
-  total_value: 85000,
+  total_value: 85000, currency: 'USD',
   pr_number: 'PR-2606040001',
   po_number: null,
   vq_number: null,
@@ -162,7 +166,7 @@ describe('AC-IXD-WP-003: routine forward procurement steps are single-click (no 
       ...baseProcurement,
       status: 'Draft',
       requested_by_id: 'u-alice',
-      total_value: 500,
+      total_value: 500, currency: 'USD',
       items: [{ id: 'it1', org_id: 'org-1', procurement_id: 'proc-001', name: 'Widget', description: null, quantity: 1, rate: 500, amount: 500 }],
     };
     renderPage();
@@ -223,8 +227,12 @@ describe('AC-IXD-WP-003: routine forward procurement steps are single-click (no 
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(screen.queryByRole('alertdialog')).toBeNull();
 
-    // The inline capture is now visible — submit it to commit the advance.
+    // The inline capture is now visible — fill it and submit to commit the advance. #505 added the
+    // tax treatment + tax amount as required capture fields (a deliberate UX change); the goal
+    // oracle below is unchanged.
     expect(screen.getByTestId('vi-inline-capture')).toBeInTheDocument();
+    await userEvent.selectOptions(screen.getByTestId('vi-tax-treatment-select'), 'inclusive');
+    await userEvent.type(screen.getByTestId('vi-tax-amount-input'), '0');
     await userEvent.click(screen.getByTestId('btn-submit-vi-capture'));
 
     // Goal oracle unchanged: submitting the inline capture commits the Received→Vendor Invoiced
@@ -297,7 +305,7 @@ describe('AC-IXD-WP-002: kept financial confirms restate the amount + project + 
       ...baseProcurement,
       status: 'Requested',
       requested_by_id: 'u-other',
-      total_value: 85000,
+      total_value: 85000, currency: 'USD',
       project: { name: 'HQ Fit-Out', code: 'PRJ-001' },
       requested_by: { full_name: 'Alice Manager' },
     };
@@ -316,7 +324,7 @@ describe('AC-IXD-WP-002: kept financial confirms restate the amount + project + 
       status: 'Vendor Invoiced',
       requested_by_id: 'u-other',
       approved_by_id: 'u-someone-else',
-      total_value: 85000,
+      total_value: 85000, currency: 'USD',
       project: { name: 'HQ Fit-Out', code: 'PRJ-001' },
       requested_by: { full_name: 'Alice Manager' },
     };

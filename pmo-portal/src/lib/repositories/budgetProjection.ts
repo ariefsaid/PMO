@@ -12,7 +12,7 @@
  * directly by its consumers, the same seam-over-the-DAL shape as `revenueDisplay.ts`).
  */
 import { supabase } from '@/src/lib/supabase/client';
-import { AppError, toAppError } from '@/src/lib/appError';
+import { AppError, assertWriteLanded, toAppError } from '@/src/lib/appError';
 import { fetchAllRowsByKeyset, type PageResult } from '@/src/lib/pagedRead';
 import { retryBudgetPush, type ActivateVersionResult } from '@/src/lib/db/budgets';
 import { encodeFiscalYear } from '@/src/lib/adapterSeam/erpnext/fiscalYearEncoding';
@@ -401,8 +401,16 @@ export async function updateBudgetCategoryAccountMapRow(
 /** Unmaps a category (Admin-only). A category with no map row FAILS CLOSED at the next push
  *  (FR-BUD-113) rather than silently defaulting — deleting the map row is a deliberate Admin act. */
 export async function deleteBudgetCategoryAccountMapRow(category: BudgetCategory): Promise<void> {
-  const { error } = await supabase.from('budget_category_account_map').delete().eq('category', category);
+  const { data, error } = await supabase
+    .from('budget_category_account_map')
+    .delete()
+    .eq('category', category)
+    .select('category');
   if (error) throw toAppError(error);
+  // #541: a `using`-denied DELETE (non-Admin, wrong org) removes 0 rows and reports no error. Here
+  // that inverts the fail-closed contract above: the Admin believes the category is unmapped and
+  // will fail closed at the next push, while the stale mapping is still live and pushing.
+  assertWriteLanded(data, 'Category mapping not found or you do not have permission to remove it.');
 }
 
 /** Authors/updates the PMO estimate-to-complete for (project, fiscal_year, category) — OD-BUDGET-3
@@ -413,11 +421,16 @@ export async function upsertBudgetProjectionEtc(
   category: BudgetCategory,
   pmoEtc: number,
 ): Promise<void> {
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('budget_projections')
     .upsert(
       { project_id: projectId, fiscal_year: fiscalYear, category, pmo_etc: pmoEtc },
       { onConflict: 'org_id,project_id,fiscal_year,category' },
-    );
+    )
+    .select('project_id');
   if (error) throw toAppError(error);
+  // #541: one row in, so the count oracle collapses to "did anything come back?". A `using`-denied
+  // upsert writes nothing and reports no error — the estimate-to-complete on screen would be a
+  // number the author typed and nobody stored.
+  assertWriteLanded(data, 'Estimate could not be saved — you do not have permission to change it.');
 }

@@ -41,7 +41,7 @@ function mkProject(overrides: Partial<ProjectWithRefs> & { id: string; name: str
     code: null,
     client_id: null,
     project_manager_id: null,
-    contract_value: 0,
+    contract_value: 0, currency: 'USD',
     budget: 0,
     spent: 0,
     start_date: null,
@@ -57,11 +57,11 @@ function mkProject(overrides: Partial<ProjectWithRefs> & { id: string; name: str
 }
 
 const projects: ProjectWithRefs[] = [
-  mkProject({ id: 'p1', name: 'Alpha Build', status: 'Won, Pending KoM', client: { name: 'Acme Corp' }, pm: { full_name: 'Alice PM' }, contract_value: 1_000_000 }),
-  mkProject({ id: 'p2', name: 'Beta Deploy', status: 'Ongoing Project', client: { name: 'Beta LLC' }, pm: { full_name: 'Bob PM' }, contract_value: 2_000_000 }),
-  mkProject({ id: 'p3', name: 'Gamma Maintain', status: 'On Hold', client: { name: 'Gamma Inc' }, pm: { full_name: 'Alice PM' }, contract_value: 500_000 }),
-  mkProject({ id: 'p4', name: 'Delta Close', status: 'Close Out', client: { name: 'Delta Co' }, pm: { full_name: 'Bob PM' }, contract_value: 3_000_000 }),
-  mkProject({ id: 'p5', name: 'Internal Labs', status: 'Internal Project', pm: { full_name: 'Alice PM' }, contract_value: 0 }),
+  mkProject({ id: 'p1', name: 'Alpha Build', status: 'Won, Pending KoM', client: { name: 'Acme Corp' }, pm: { full_name: 'Alice PM' }, contract_value: 1_000_000, currency: 'USD' }),
+  mkProject({ id: 'p2', name: 'Beta Deploy', status: 'Ongoing Project', client: { name: 'Beta LLC' }, pm: { full_name: 'Bob PM' }, contract_value: 2_000_000, currency: 'USD' }),
+  mkProject({ id: 'p3', name: 'Gamma Maintain', status: 'On Hold', client: { name: 'Gamma Inc' }, pm: { full_name: 'Alice PM' }, contract_value: 500_000, currency: 'USD' }),
+  mkProject({ id: 'p4', name: 'Delta Close', status: 'Close Out', client: { name: 'Delta Co' }, pm: { full_name: 'Bob PM' }, contract_value: 3_000_000, currency: 'USD' }),
+  mkProject({ id: 'p5', name: 'Internal Labs', status: 'Internal Project', pm: { full_name: 'Alice PM' }, contract_value: 0, currency: 'USD' }),
 ];
 
 /** Lifecycle column order + the project that belongs in each. */

@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 import type { TimesheetAwaitingApproval } from '@/src/lib/db/timesheetTransition';
 import { ToastProvider } from '@/src/components/ui';
@@ -221,6 +222,21 @@ describe('Approvals page data', () => {
     const preview = screen.getByRole('region', { name: /Approval preview/i });
     // 8 hours in entries
     expect(within(preview).getByText(/8\.0/)).toBeInTheDocument();
+  });
+
+  it('FR-L10N-020: a procurement queue row renders its OWN currency, not USD', () => {
+    procState.data = [{ id: 'pr1', title: 'Structural steel', status: 'Requested', requested_by_id: 'someone', total_value: 1000, currency: 'EUR' }];
+    render(
+      <MemoryRouter initialEntries={['/approvals?scope=procurement']}>
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <ToastProvider>
+            <ApprovalsPage />
+          </ToastProvider>
+        </QueryClientProvider>
+      </MemoryRouter>,
+    );
+    expect(screen.getAllByText('€1,000').length).toBeGreaterThan(0);
+    expect(screen.queryByText('$1,000')).not.toBeInTheDocument();
   });
 });
 

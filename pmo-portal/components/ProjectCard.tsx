@@ -31,6 +31,10 @@ export interface ProjectCardProps {
  * RPC), which stops propagation so it never drills.
  */
 const ProjectCard: React.FC<ProjectCardProps> = ({ project, onOpen, deliverySummary, onEdit }) => {
+  // FR-L10N-020: every figure on this card belongs to THIS project, so the currency is the
+  // project's own — not the org default. Two projects in different currencies render correctly
+  // side by side in the same list, which is the whole point of the per-record column (0187).
+  const currency = project.currency;
   const contract = project.contract_value ?? 0;
   const committed = project.budget ?? 0;
   const actual = project.spent ?? 0;
@@ -44,15 +48,15 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, onOpen, deliverySumm
       <dl className="grid grid-cols-3 gap-2 text-[12px]">
         <div>
           <dt className="text-muted-foreground">Contract</dt>
-          <dd className="font-semibold tabular">{formatCurrency(contract)}</dd>
+          <dd className="font-semibold tabular">{formatCurrency(contract, currency)}</dd>
         </div>
         <div>
           <dt className="text-muted-foreground">Committed</dt>
-          <dd className="font-semibold tabular text-muted-foreground">{formatCurrency(committed)}</dd>
+          <dd className="font-semibold tabular text-muted-foreground">{formatCurrency(committed, currency)}</dd>
         </div>
         <div>
           <dt className="text-muted-foreground">Actual</dt>
-          <dd className="font-semibold tabular">{formatCurrency(actual)}</dd>
+          <dd className="font-semibold tabular">{formatCurrency(actual, currency)}</dd>
         </div>
       </dl>
 
@@ -77,7 +81,7 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, onOpen, deliverySumm
               aria-label={`Budget used ${deliverySummary.budget > 0 ? Math.round((deliverySummary.committedSpend / deliverySummary.budget) * 100) : 0}%`}
             />
             <span className="text-[11px] text-muted-foreground">
-              {`${formatCompactCurrency(deliverySummary.committedSpend)} of ${formatCompactCurrency(deliverySummary.budget)} budget`}
+              {`${formatCompactCurrency(deliverySummary.committedSpend, currency)} of ${formatCompactCurrency(deliverySummary.budget, currency)} budget`}
             </span>
           </div>
         </div>

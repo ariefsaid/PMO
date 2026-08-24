@@ -6,6 +6,7 @@
  */
 import React from 'react';
 import type { FlatEntry } from '@/src/lib/timesheet-derive';
+import { formatMonthDay } from '@/src/lib/format';
 
 export interface EntryListProps {
   entries: FlatEntry[];
@@ -13,10 +14,7 @@ export interface EntryListProps {
 
 function formatEntryDate(iso: string): string {
   try {
-    return new Date(`${iso}T00:00:00`).toLocaleDateString(undefined, {
-      month: 'short',
-      day: 'numeric',
-    });
+    return formatMonthDay(new Date(`${iso}T00:00:00`));
   } catch {
     return iso;
   }

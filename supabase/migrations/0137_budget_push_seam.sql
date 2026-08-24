@@ -17,9 +17,13 @@
 --     roll-back re-activation of an Archived version would derive a key identical to that version's original
 --     push ⇒ 23505 ⇒ silently suppressed ⇒ ERP enforces the WRONG version. Adding `budget_versions.activated_at`
 --     (+ one `set` in activate_budget_version) modifies the transition's schema+RPC, which ADR-0059 §3.1
---     forbids and §8 says is "its own issue with its own owner ruling". NOT done. The mirror's
---     `activated_at_witness` column below is inert until that ruling: it is a nullable witness slot, written
---     from DB truth by a later slice, not from any logic added here.
+--     forbids and §8 says is "its own issue with its own owner ruling". NOT done HERE.
+--     ⚑ CLOSED BY `0139_budget_version_activated_at.sql` (the ruling was taken), and proven by
+--     `supabase/tests/0171_sod_class_completeness.test.sql:114, 149-152`. The witness column below is
+--     written by `readModelWriters.ts`'s budgetWriter as of #479.
+--     ⛔ THIS PARAGRAPH SAID "NOT done" AND NOTHING ELSE FOR THREE MIGRATIONS, and a reader who found
+--     0137 without 0139 concluded OQ-BUD-2 was still open — which is exactly what happened, and is why
+--     issue #479 exists at all. A stale comment on a money seam is not a cosmetic defect.
 --   OQ-BUD-3 — multi-fiscal-year fan-out. `fiscal_year` is a plain column on both new tables (forward-compat
 --     for OQ-BUD-3(c)); the fail-closed multi-FY handling is a dispatch concern (later slice), not schema.
 --
@@ -59,7 +63,7 @@ create table public.budget_version_erp_mirror (
                          check (push_state in ('pending','pushing','pushed','failed','held')),
   push_error           text,                              -- classified, client-safe reason (budget-category-unmapped, …)
   unmapped_categories  text[],                            -- FR-BUD-113: NAME the blocking categories (actionable, not just red)
-  activated_at_witness timestamptz,                       -- ADR-0059 §6 witness of the keyed state stamp (OQ-BUD-2, deferred — inert slot)
+  activated_at_witness timestamptz,                       -- ADR-0059 §6 witness of the keyed state stamp; stamped from budget_versions.activated_at (0139) by the budget mirror writer (#479)
   erp_budget_name      text,                              -- ERP Budget `name` (display + the UPSERT target); NOT an anchor (spike §7)
   erp_docstatus        smallint,                          -- feed column, day one
   erp_modified         text,                              -- feed column (per-row source-mod cursor), day one

@@ -1,7 +1,11 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { AccountingSnapshotsSection } from './AccountingSnapshotsSection';
 import type { ErpActualsSnapshotRow, ErpAgingSnapshotRow } from '@/src/lib/db/erpSnapshots';
+
+// FR-L10N-020: aging rows carry the ERP document's own (nullable) currency; actuals fall back
+// to the org currency. Org mocked to USD — assertions stay `$…` for USD-denominated rows.
+vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 
 /**
  * task FIX-2 (Discover CRITICAL 2) — the actuals/AP-AR aging read surface mounted on the Finance

@@ -31,24 +31,24 @@ insert into pipeline_stage_config (org_id, status, win_probability) values
 
 -- ── Pipeline projects ─────────────────────────────────────────────────────────
 insert into projects (id, org_id, code, name, status, project_manager_id,
-                      contract_value, budget, spent)
+                      contract_value, budget, spent, tax_treatment, tax_amount)
 values
   ('36000000-0000-0000-0000-000000000001', '00360000-0000-0000-0000-000000000001',
    'TS001', 'Projected Pipeline Alpha', 'Tender Submitted',
    '00360000-0000-0000-0000-0000000000a1',
-   1200000, 0, 0),
+   1200000, 0, 0, 'exclusive', 0),
   ('36000000-0000-0000-0000-000000000002', '00360000-0000-0000-0000-000000000001',
    'TS002', 'Projected Pipeline Beta', 'Tender Submitted',
    '00360000-0000-0000-0000-0000000000a1',
-   950000, 0, 0),
+   950000, 0, 0, 'exclusive', 0),
   ('36000000-0000-0000-0000-000000000003', '00360000-0000-0000-0000-000000000001',
    'TS003', 'Projected Pipeline Gamma', 'Tender Submitted',
    '00360000-0000-0000-0000-0000000000a1',
-   1000000, 0, 0),
+   1000000, 0, 0, 'exclusive', 0),
   ('36000000-0000-0000-0000-000000000004', '00360000-0000-0000-0000-000000000001',
    'PQ001', 'Projected Pipeline Delta', 'PQ Submitted',
    '00360000-0000-0000-0000-0000000000a1',
-   800000, 0, 0);
+   800000, 0, 0, 'exclusive', 0);
 
 -- ── Budget versions (Draft → line items → Active) ─────────────────────────────
 insert into budget_versions (id, org_id, project_id, version, name, status) values

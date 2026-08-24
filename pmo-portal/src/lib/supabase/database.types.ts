@@ -478,6 +478,24 @@ export type Database = {
           },
         ]
       }
+      alert_send_log: {
+        Row: {
+          delivered_at: string | null
+          error_code: string
+          last_sent_at: string
+        }
+        Insert: {
+          delivered_at?: string | null
+          error_code: string
+          last_sent_at: string
+        }
+        Update: {
+          delivered_at?: string | null
+          error_code?: string
+          last_sent_at?: string
+        }
+        Relationships: []
+      }
       audit_events: {
         Row: {
           action: string
@@ -562,6 +580,9 @@ export type Database = {
           description: string | null
           fiscal_year: string | null
           id: string
+          import_batch_id: string | null
+          import_key: string | null
+          imported_at: string | null
           org_id: string
         }
         Insert: {
@@ -572,6 +593,9 @@ export type Database = {
           description?: string | null
           fiscal_year?: string | null
           id?: string
+          import_batch_id?: string | null
+          import_key?: string | null
+          imported_at?: string | null
           org_id?: string
         }
         Update: {
@@ -582,6 +606,9 @@ export type Database = {
           description?: string | null
           fiscal_year?: string | null
           id?: string
+          import_batch_id?: string | null
+          import_key?: string | null
+          imported_at?: string | null
           org_id?: string
         }
         Relationships: [
@@ -605,6 +632,7 @@ export type Database = {
         Row: {
           category: Database["public"]["Enums"]["budget_category"]
           created_at: string
+          currency: string
           fiscal_year: string
           id: string
           note: string | null
@@ -617,6 +645,7 @@ export type Database = {
         Insert: {
           category: Database["public"]["Enums"]["budget_category"]
           created_at?: string
+          currency?: string
           fiscal_year: string
           id?: string
           note?: string | null
@@ -629,6 +658,7 @@ export type Database = {
         Update: {
           category?: Database["public"]["Enums"]["budget_category"]
           created_at?: string
+          currency?: string
           fiscal_year?: string
           id?: string
           note?: string | null
@@ -738,7 +768,11 @@ export type Database = {
         Row: {
           activated_at: string | null
           created_at: string
+          currency: string
           id: string
+          import_batch_id: string | null
+          import_key: string | null
+          imported_at: string | null
           name: string
           org_id: string
           project_id: string
@@ -748,7 +782,11 @@ export type Database = {
         Insert: {
           activated_at?: string | null
           created_at?: string
+          currency?: string
           id?: string
+          import_batch_id?: string | null
+          import_key?: string | null
+          imported_at?: string | null
           name: string
           org_id?: string
           project_id: string
@@ -758,7 +796,11 @@ export type Database = {
         Update: {
           activated_at?: string | null
           created_at?: string
+          currency?: string
           id?: string
+          import_batch_id?: string | null
+          import_key?: string | null
+          imported_at?: string | null
           name?: string
           org_id?: string
           project_id?: string
@@ -1997,6 +2039,7 @@ export type Database = {
         Row: {
           amount: number | null
           created_at: string
+          currency: string
           customer_id: string | null
           date: string | null
           erp_amended_from: string | null
@@ -2013,6 +2056,7 @@ export type Database = {
         Insert: {
           amount?: number | null
           created_at?: string
+          currency?: string
           customer_id?: string | null
           date?: string | null
           erp_amended_from?: string | null
@@ -2029,6 +2073,7 @@ export type Database = {
         Update: {
           amount?: number | null
           created_at?: string
+          currency?: string
           customer_id?: string | null
           date?: string | null
           erp_amended_from?: string | null
@@ -2227,6 +2272,27 @@ export type Database = {
           },
         ]
       }
+      ops_job_heartbeats: {
+        Row: {
+          job_name: string
+          last_detail: Json | null
+          last_outbound_at: string | null
+          last_run_at: string
+        }
+        Insert: {
+          job_name: string
+          last_detail?: Json | null
+          last_outbound_at?: string | null
+          last_run_at: string
+        }
+        Update: {
+          job_name?: string
+          last_detail?: Json | null
+          last_outbound_at?: string | null
+          last_run_at?: string
+        }
+        Relationships: []
+      }
       org_features: {
         Row: {
           enabled: boolean
@@ -2269,17 +2335,32 @@ export type Database = {
       organizations: {
         Row: {
           created_at: string
+          default_currency: string
+          default_locale: string
+          default_number_locale: string | null
+          default_timezone: string
           id: string
+          lifecycle_state: string | null
           name: string
         }
         Insert: {
           created_at?: string
+          default_currency?: string
+          default_locale?: string
+          default_number_locale?: string | null
+          default_timezone?: string
           id?: string
+          lifecycle_state?: string | null
           name: string
         }
         Update: {
           created_at?: string
+          default_currency?: string
+          default_locale?: string
+          default_number_locale?: string | null
+          default_timezone?: string
           id?: string
+          lifecycle_state?: string | null
           name?: string
         }
         Relationships: []
@@ -2343,6 +2424,7 @@ export type Database = {
         Row: {
           amount: number | null
           created_at: string
+          currency: string
           date: string | null
           erp_amended_from: string | null
           erp_cancelled_at: string | null
@@ -2362,6 +2444,7 @@ export type Database = {
         Insert: {
           amount?: number | null
           created_at?: string
+          currency?: string
           date?: string | null
           erp_amended_from?: string | null
           erp_cancelled_at?: string | null
@@ -2381,6 +2464,7 @@ export type Database = {
         Update: {
           amount?: number | null
           created_at?: string
+          currency?: string
           date?: string | null
           erp_amended_from?: string | null
           erp_cancelled_at?: string | null
@@ -2616,6 +2700,7 @@ export type Database = {
         Row: {
           amount: number | null
           created_at: string
+          currency: string
           erp_amended_from: string | null
           erp_cancelled_at: string | null
           erp_docstatus: number | null
@@ -2631,11 +2716,16 @@ export type Database = {
           procurement_id: string
           reference_number: string | null
           status: Database["public"]["Enums"]["procurement_invoice_status"]
+          tax_amount: number
+          tax_rate: number | null
+          tax_template: string | null
+          tax_treatment: string
           vi_number: string | null
         }
         Insert: {
           amount?: number | null
           created_at?: string
+          currency?: string
           erp_amended_from?: string | null
           erp_cancelled_at?: string | null
           erp_docstatus?: number | null
@@ -2651,11 +2741,16 @@ export type Database = {
           procurement_id: string
           reference_number?: string | null
           status: Database["public"]["Enums"]["procurement_invoice_status"]
+          tax_amount: number
+          tax_rate?: number | null
+          tax_template?: string | null
+          tax_treatment: string
           vi_number?: string | null
         }
         Update: {
           amount?: number | null
           created_at?: string
+          currency?: string
           erp_amended_from?: string | null
           erp_cancelled_at?: string | null
           erp_docstatus?: number | null
@@ -2671,6 +2766,10 @@ export type Database = {
           procurement_id?: string
           reference_number?: string | null
           status?: Database["public"]["Enums"]["procurement_invoice_status"]
+          tax_amount?: number
+          tax_rate?: number | null
+          tax_template?: string | null
+          tax_treatment?: string
           vi_number?: string | null
         }
         Relationships: [
@@ -2811,6 +2910,7 @@ export type Database = {
       }
       procurement_quotations: {
         Row: {
+          currency: string
           erp_amended_from: string | null
           erp_cancelled_at: string | null
           erp_docstatus: number | null
@@ -2832,6 +2932,7 @@ export type Database = {
           vq_number: string | null
         }
         Insert: {
+          currency?: string
           erp_amended_from?: string | null
           erp_cancelled_at?: string | null
           erp_docstatus?: number | null
@@ -2853,6 +2954,7 @@ export type Database = {
           vq_number?: string | null
         }
         Update: {
+          currency?: string
           erp_amended_from?: string | null
           erp_cancelled_at?: string | null
           erp_docstatus?: number | null
@@ -3099,6 +3201,7 @@ export type Database = {
           approved_by_id: string | null
           code: string | null
           created_at: string
+          currency: string
           id: string
           import_batch_id: string | null
           import_key: string | null
@@ -3121,6 +3224,7 @@ export type Database = {
           approved_by_id?: string | null
           code?: string | null
           created_at?: string
+          currency?: string
           id?: string
           import_batch_id?: string | null
           import_key?: string | null
@@ -3143,6 +3247,7 @@ export type Database = {
           approved_by_id?: string | null
           code?: string | null
           created_at?: string
+          currency?: string
           id?: string
           import_batch_id?: string | null
           import_key?: string | null
@@ -3206,12 +3311,15 @@ export type Database = {
           email: string
           full_name: string
           id: string
+          locale: string | null
           location: string | null
           manager_id: string | null
+          number_locale: string | null
           org_id: string
           role: Database["public"]["Enums"]["user_role"]
           skills: string[]
           status: Database["public"]["Enums"]["profile_status"]
+          timezone: string | null
           title: string | null
           updated_at: string
           utilization: number | null
@@ -3223,12 +3331,15 @@ export type Database = {
           email: string
           full_name: string
           id: string
+          locale?: string | null
           location?: string | null
           manager_id?: string | null
+          number_locale?: string | null
           org_id?: string
           role?: Database["public"]["Enums"]["user_role"]
           skills?: string[]
           status?: Database["public"]["Enums"]["profile_status"]
+          timezone?: string | null
           title?: string | null
           updated_at?: string
           utilization?: number | null
@@ -3240,12 +3351,15 @@ export type Database = {
           email?: string
           full_name?: string
           id?: string
+          locale?: string | null
           location?: string | null
           manager_id?: string | null
+          number_locale?: string | null
           org_id?: string
           role?: Database["public"]["Enums"]["user_role"]
           skills?: string[]
           status?: Database["public"]["Enums"]["profile_status"]
+          timezone?: string | null
           title?: string | null
           updated_at?: string
           utilization?: number | null
@@ -3413,6 +3527,7 @@ export type Database = {
           contract_value_set_at: string | null
           contract_value_set_by: string | null
           created_at: string
+          currency: string
           customer_contract_ref: string | null
           decided_at: string | null
           end_date: string | null
@@ -3427,6 +3542,10 @@ export type Database = {
           spent: number
           start_date: string | null
           status: Database["public"]["Enums"]["project_status"]
+          tax_amount: number | null
+          tax_rate: number | null
+          tax_template: string | null
+          tax_treatment: string | null
         }
         Insert: {
           archived_at?: string | null
@@ -3438,6 +3557,7 @@ export type Database = {
           contract_value_set_at?: string | null
           contract_value_set_by?: string | null
           created_at?: string
+          currency?: string
           customer_contract_ref?: string | null
           decided_at?: string | null
           end_date?: string | null
@@ -3452,6 +3572,10 @@ export type Database = {
           spent?: number
           start_date?: string | null
           status?: Database["public"]["Enums"]["project_status"]
+          tax_amount?: number | null
+          tax_rate?: number | null
+          tax_template?: string | null
+          tax_treatment?: string | null
         }
         Update: {
           archived_at?: string | null
@@ -3463,6 +3587,7 @@ export type Database = {
           contract_value_set_at?: string | null
           contract_value_set_by?: string | null
           created_at?: string
+          currency?: string
           customer_contract_ref?: string | null
           decided_at?: string | null
           end_date?: string | null
@@ -3477,6 +3602,10 @@ export type Database = {
           spent?: number
           start_date?: string | null
           status?: Database["public"]["Enums"]["project_status"]
+          tax_amount?: number | null
+          tax_rate?: number | null
+          tax_template?: string | null
+          tax_treatment?: string | null
         }
         Relationships: [
           {
@@ -3568,6 +3697,7 @@ export type Database = {
         Row: {
           amount: number | null
           created_at: string
+          currency: string
           date: string | null
           erp_amended_from: string | null
           erp_cancelled_at: string | null
@@ -3586,6 +3716,7 @@ export type Database = {
         Insert: {
           amount?: number | null
           created_at?: string
+          currency?: string
           date?: string | null
           erp_amended_from?: string | null
           erp_cancelled_at?: string | null
@@ -3604,6 +3735,7 @@ export type Database = {
         Update: {
           amount?: number | null
           created_at?: string
+          currency?: string
           date?: string | null
           erp_amended_from?: string | null
           erp_cancelled_at?: string | null
@@ -3695,6 +3827,7 @@ export type Database = {
         Row: {
           amount: number | null
           created_at: string
+          currency: string
           date: string | null
           erp_amended_from: string | null
           erp_cancelled_at: string | null
@@ -3713,6 +3846,7 @@ export type Database = {
         Insert: {
           amount?: number | null
           created_at?: string
+          currency?: string
           date?: string | null
           erp_amended_from?: string | null
           erp_cancelled_at?: string | null
@@ -3731,6 +3865,7 @@ export type Database = {
         Update: {
           amount?: number | null
           created_at?: string
+          currency?: string
           date?: string | null
           erp_amended_from?: string | null
           erp_cancelled_at?: string | null
@@ -3840,6 +3975,7 @@ export type Database = {
         Row: {
           amount: number | null
           created_at: string
+          currency: string
           date: string | null
           erp_amended_from: string | null
           erp_cancelled_at: string | null
@@ -3858,6 +3994,7 @@ export type Database = {
         Insert: {
           amount?: number | null
           created_at?: string
+          currency?: string
           date?: string | null
           erp_amended_from?: string | null
           erp_cancelled_at?: string | null
@@ -3876,6 +4013,7 @@ export type Database = {
         Update: {
           amount?: number | null
           created_at?: string
+          currency?: string
           date?: string | null
           erp_amended_from?: string | null
           erp_cancelled_at?: string | null
@@ -3988,6 +4126,7 @@ export type Database = {
           amount: number | null
           author_user_id: string | null
           created_at: string
+          currency: string
           customer_id: string | null
           erp_amended_from: string | null
           erp_cancelled_at: string | null
@@ -4001,11 +4140,17 @@ export type Database = {
           reference_number: string | null
           si_number: string | null
           status: string
+          tax_amount: number
+          tax_rate: number | null
+          tax_template: string | null
+          tax_treatment: string
+          work_order_id: string | null
         }
         Insert: {
           amount?: number | null
           author_user_id?: string | null
           created_at?: string
+          currency?: string
           customer_id?: string | null
           erp_amended_from?: string | null
           erp_cancelled_at?: string | null
@@ -4019,11 +4164,17 @@ export type Database = {
           reference_number?: string | null
           si_number?: string | null
           status?: string
+          tax_amount: number
+          tax_rate?: number | null
+          tax_template?: string | null
+          tax_treatment: string
+          work_order_id?: string | null
         }
         Update: {
           amount?: number | null
           author_user_id?: string | null
           created_at?: string
+          currency?: string
           customer_id?: string | null
           erp_amended_from?: string | null
           erp_cancelled_at?: string | null
@@ -4037,6 +4188,11 @@ export type Database = {
           reference_number?: string | null
           si_number?: string | null
           status?: string
+          tax_amount?: number
+          tax_rate?: number | null
+          tax_template?: string | null
+          tax_treatment?: string
+          work_order_id?: string | null
         }
         Relationships: [
           {
@@ -4051,6 +4207,13 @@ export type Database = {
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_invoices_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_orders"
             referencedColumns: ["id"]
           },
         ]
@@ -4109,7 +4272,7 @@ export type Database = {
           org_id: string
           parent_task_id: string | null
           priority: Database["public"]["Enums"]["task_priority"] | null
-          project_id: string
+          project_id: string | null
           source_updated_at: string | null
           start_date: string | null
           status: Database["public"]["Enums"]["task_status"]
@@ -4128,7 +4291,7 @@ export type Database = {
           org_id?: string
           parent_task_id?: string | null
           priority?: Database["public"]["Enums"]["task_priority"] | null
-          project_id: string
+          project_id?: string | null
           source_updated_at?: string | null
           start_date?: string | null
           status?: Database["public"]["Enums"]["task_status"]
@@ -4147,7 +4310,7 @@ export type Database = {
           org_id?: string
           parent_task_id?: string | null
           priority?: Database["public"]["Enums"]["task_priority"] | null
-          project_id?: string
+          project_id?: string | null
           source_updated_at?: string | null
           start_date?: string | null
           status?: Database["public"]["Enums"]["task_status"]
@@ -4163,10 +4326,10 @@ export type Database = {
           },
           {
             foreignKeyName: "tasks_milestone_id_fkey"
-            columns: ["milestone_id"]
+            columns: ["project_id", "milestone_id"]
             isOneToOne: false
             referencedRelation: "project_milestones"
-            referencedColumns: ["id"]
+            referencedColumns: ["project_id", "id"]
           },
           {
             foreignKeyName: "tasks_org_id_fkey"
@@ -4417,6 +4580,129 @@ export type Database = {
           },
         ]
       }
+      work_orders: {
+        Row: {
+          cancelled_at: string | null
+          client_po_number: string | null
+          closed_at: string | null
+          created_at: string
+          currency: string
+          description: string | null
+          end_date: string | null
+          id: string
+          issued_at: string | null
+          issued_by: string | null
+          order_date: string | null
+          order_value: number
+          order_value_set_at: string | null
+          order_value_set_by: string | null
+          org_id: string
+          over_commit_ack_at: string | null
+          over_commit_ack_by: string | null
+          project_id: string
+          start_date: string | null
+          status: Database["public"]["Enums"]["work_order_status"]
+          tax_amount: number
+          tax_rate: number | null
+          tax_template: string | null
+          tax_treatment: string
+          title: string
+          wo_number: string | null
+        }
+        Insert: {
+          cancelled_at?: string | null
+          client_po_number?: string | null
+          closed_at?: string | null
+          created_at?: string
+          currency?: string
+          description?: string | null
+          end_date?: string | null
+          id?: string
+          issued_at?: string | null
+          issued_by?: string | null
+          order_date?: string | null
+          order_value?: number
+          order_value_set_at?: string | null
+          order_value_set_by?: string | null
+          org_id?: string
+          over_commit_ack_at?: string | null
+          over_commit_ack_by?: string | null
+          project_id: string
+          start_date?: string | null
+          status?: Database["public"]["Enums"]["work_order_status"]
+          tax_amount: number
+          tax_rate?: number | null
+          tax_template?: string | null
+          tax_treatment: string
+          title: string
+          wo_number?: string | null
+        }
+        Update: {
+          cancelled_at?: string | null
+          client_po_number?: string | null
+          closed_at?: string | null
+          created_at?: string
+          currency?: string
+          description?: string | null
+          end_date?: string | null
+          id?: string
+          issued_at?: string | null
+          issued_by?: string | null
+          order_date?: string | null
+          order_value?: number
+          order_value_set_at?: string | null
+          order_value_set_by?: string | null
+          org_id?: string
+          over_commit_ack_at?: string | null
+          over_commit_ack_by?: string | null
+          project_id?: string
+          start_date?: string | null
+          status?: Database["public"]["Enums"]["work_order_status"]
+          tax_amount?: number
+          tax_rate?: number | null
+          tax_template?: string | null
+          tax_treatment?: string
+          title?: string
+          wo_number?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "work_orders_issued_by_fkey"
+            columns: ["issued_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_orders_order_value_set_by_fkey"
+            columns: ["order_value_set_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_orders_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_orders_over_commit_ack_by_fkey"
+            columns: ["over_commit_ack_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_orders_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -4439,6 +4725,7 @@ export type Database = {
         Args: { p_org_id: string; p_user_id: string }
         Returns: Json
       }
+      actor_bypasses_rls: { Args: never; Returns: boolean }
       admin_change_domain_ownership: {
         Args: {
           p_action: string
@@ -4458,14 +4745,6 @@ export type Database = {
         Returns: undefined
       }
       agent_dispatch_tick: { Args: never; Returns: undefined }
-      // ⚑ FU-1a round-12 SHOULD-FIX 1/2 (mig 0157 §5 / 0159) — the ONLY human route out of a
-      // post-submit-unknown timesheet push: Admin-only, org-re-asserted, reason-required, audited.
-      // Clears the unknown-outcome witness AND releases a `held` mirror to `failed` so the re-open is
-      // admitted. Never touches the external system.
-      attest_timesheet_no_erp_document: {
-        Args: { p_reason: string; p_timesheet_id: string }
-        Returns: undefined
-      }
       approved_timesheet_for_push: {
         Args: { p_actor?: string; p_timesheet_id: string }
         Returns: {
@@ -4474,6 +4753,15 @@ export type Database = {
           timesheet_id: string
           user_id: string
         }[]
+      }
+      assert_is_active_member: {
+        Args: { p_actor?: string }
+        Returns: undefined
+      }
+      assert_org_destroyable: { Args: { p_org_id: string }; Returns: undefined }
+      attest_timesheet_no_erp_document: {
+        Args: { p_reason: string; p_timesheet_id: string }
+        Returns: undefined
       }
       audit_agent_denial: {
         Args: { p_detail?: Json; p_reason: string }
@@ -4494,9 +4782,6 @@ export type Database = {
         Args: never
         Returns: Database["public"]["Enums"]["user_role"]
       }
-      // 0154 migration helpers (the budget identity re-key + its staged rollback). EXECUTE-revoked
-      // from `authenticated`/`anon`; the re-key is callable by `service_role` only, which is how
-      // AC-BFY-031 drives the migration end-to-end. No app code calls either.
       bfy_migration_0154_rekey: { Args: never; Returns: undefined }
       bfy_migration_0154_revert: { Args: never; Returns: undefined }
       budget_fiscal_year_token: {
@@ -4511,10 +4796,15 @@ export type Database = {
           p_procurement_id: string
           p_reference_number?: string
           p_status: Database["public"]["Enums"]["procurement_invoice_status"]
+          p_tax_amount?: number
+          p_tax_rate?: number
+          p_tax_template?: string
+          p_tax_treatment?: string
         }
         Returns: {
           amount: number | null
           created_at: string
+          currency: string
           erp_amended_from: string | null
           erp_cancelled_at: string | null
           erp_docstatus: number | null
@@ -4530,6 +4820,10 @@ export type Database = {
           procurement_id: string
           reference_number: string | null
           status: Database["public"]["Enums"]["procurement_invoice_status"]
+          tax_amount: number
+          tax_rate: number | null
+          tax_template: string | null
+          tax_treatment: string
           vi_number: string | null
         }
         SetofOptions: {
@@ -4610,6 +4904,7 @@ export type Database = {
         Returns: {
           amount: number | null
           created_at: string
+          currency: string
           date: string | null
           erp_amended_from: string | null
           erp_cancelled_at: string | null
@@ -4643,10 +4938,15 @@ export type Database = {
           p_procurement_id: string
           p_reference_number?: string
           p_status: Database["public"]["Enums"]["procurement_invoice_status"]
+          p_tax_amount?: number
+          p_tax_rate?: number
+          p_tax_template?: string
+          p_tax_treatment?: string
         }
         Returns: {
           amount: number | null
           created_at: string
+          currency: string
           erp_amended_from: string | null
           erp_cancelled_at: string | null
           erp_docstatus: number | null
@@ -4662,6 +4962,10 @@ export type Database = {
           procurement_id: string
           reference_number: string | null
           status: Database["public"]["Enums"]["procurement_invoice_status"]
+          tax_amount: number
+          tax_rate: number | null
+          tax_template: string | null
+          tax_treatment: string
           vi_number: string | null
         }
         SetofOptions: {
@@ -4682,6 +4986,7 @@ export type Database = {
           p_vendor_id: string
         }
         Returns: {
+          currency: string
           erp_amended_from: string | null
           erp_cancelled_at: string | null
           erp_docstatus: number | null
@@ -4758,6 +5063,7 @@ export type Database = {
         Returns: {
           amount: number | null
           created_at: string
+          currency: string
           date: string | null
           erp_amended_from: string | null
           erp_cancelled_at: string | null
@@ -4794,6 +5100,7 @@ export type Database = {
         Returns: {
           amount: number | null
           created_at: string
+          currency: string
           date: string | null
           erp_amended_from: string | null
           erp_cancelled_at: string | null
@@ -4830,6 +5137,7 @@ export type Database = {
         Returns: {
           amount: number | null
           created_at: string
+          currency: string
           date: string | null
           erp_amended_from: string | null
           erp_cancelled_at: string | null
@@ -4889,52 +5197,44 @@ export type Database = {
       get_budget_projection: {
         Args: { p_fiscal_year: string; p_project_id: string }
         Returns: {
-          // NEW-4: WHEN the ERP ledger was last read for this (project, fiscal_year). `null` = never
-          // read, which is why `actuals_to_date` is null on every category of such a year.
-          actuals_as_of: string | null
-          // C-1/C-2/NEW-4: `null` = the figure is UNOBTAINABLE (no ERP account mapped, or no ledger
-          // reading on record for this project-year at all), never a zero.
-          actuals_to_date: number | null
-          // F-D (BFY, mig 0153 §3a): is the budget attribution KNOWN for this category-year? `false`
-          // distinguishes a SUPPRESSED attribution (the category HAS lines PMO cannot place in this
-          // year) from a category that genuinely has no line: the former states NO variance and NO
-          // utilization, the latter states `-EAC`. Non-null by construction (coalesced to `true`).
+          actuals_as_of: string
+          actuals_to_date: number
           attribution_known: boolean
           category: Database["public"]["Enums"]["budget_category"]
-          pmo_budget_amount: number | null
+          pmo_budget_amount: number
           pmo_etc: number
-          projected_final_cost: number | null
-          projected_utilization: number | null
-          projected_variance: number | null
+          projected_final_cost: number
+          projected_utilization: number
+          projected_variance: number
         }[]
       }
       get_budget_push_status: {
         Args: { p_project_id: string }
-        // BFY (mig 0153 §3c): ONE ROW PER EXPECTED FISCAL YEAR (the Active version's phased lines ∪
-        // its mirror years), left-joined to the mirror — so a year whose mirror row was never written
-        // is an explicit `never-pushed` row, never a silent omission. Exactly one all-NULL row when
-        // nothing is on record at all.
         Returns: {
-          erp_budget_name: string | null
-          fiscal_year: string | null
-          // MEDIUM-1 (mig 0141): is there a genuinely `held` outbox command to release? `push_state =
-          // 'held'` alone is NOT that — the sweep also parks mirror rows with no held command behind
-          // them. Non-null by construction (`exists(...)`). Per YEAR since 0153 §3c.
+          erp_budget_name: string
+          fiscal_year: string
           hold_releasable: boolean
-          push_error: string | null
-          push_state: string | null
-          pushed_at: string | null
-          // FR-BFY-056: this year had a SUCCESSFUL push whose recorded project span no longer matches
-          // the project's CURRENT dates, and the version still has un-phased lines — so those lines
-          // now attribute to no year. The actionable fix is "phase these lines", not a retry.
+          push_error: string
+          push_state: string
+          pushed_at: string
           stale_attribution: boolean
-          unmapped_categories: string[] | null
+          unmapped_categories: string[]
         }[]
       }
       get_executive_dashboard: { Args: never; Returns: Json }
       get_finance_budget_review: { Args: never; Returns: Json }
       get_process_gates: { Args: { p_org: string }; Returns: Json }
       get_project_budget: { Args: { p_project_id: string }; Returns: number }
+      get_project_drawdown: {
+        Args: { p_project_id: string }
+        Returns: {
+          basis: string
+          ceiling: number
+          committed: number
+          currency: string
+          draft: number
+        }[]
+      }
       get_project_milestones: {
         Args: { p_project_id: string }
         Returns: {
@@ -4976,6 +5276,7 @@ export type Database = {
           amount: number | null
           author_user_id: string | null
           created_at: string
+          currency: string
           customer_id: string | null
           erp_amended_from: string | null
           erp_cancelled_at: string | null
@@ -4989,6 +5290,11 @@ export type Database = {
           reference_number: string | null
           si_number: string | null
           status: string
+          tax_amount: number
+          tax_rate: number | null
+          tax_template: string | null
+          tax_treatment: string
+          work_order_id: string | null
         }
         SetofOptions: {
           from: "*"
@@ -4997,8 +5303,64 @@ export type Database = {
           isSetofReturn: false
         }
       }
-      is_active_member: { Args: never; Returns: boolean }
+      holds_pipeline_value_authority: {
+        Args: { p_role: Database["public"]["Enums"]["user_role"] }
+        Returns: boolean
+      }
+      holds_profile_admin_authority: {
+        Args: { p_role: Database["public"]["Enums"]["user_role"] }
+        Returns: boolean
+      }
+      holds_won_value_authority: {
+        Args: { p_role: Database["public"]["Enums"]["user_role"] }
+        Returns: boolean
+      }
+      insert_timesheet_outbox_pending: {
+        Args: {
+          p_actor: string
+          p_digest: string
+          p_domain: string
+          p_key: string
+          p_operation: string
+          p_org: string
+          p_payload: Json
+          p_record_id: string
+          p_tier: string
+        }
+        Returns: {
+          actor_user_id: string | null
+          attempt_count: number
+          canonical: Json | null
+          claim_generation: number
+          claimed_at: string | null
+          created_at: string
+          domain: string
+          external_record_id: string | null
+          external_tier: string
+          id: string
+          idempotency_key: string
+          last_error: string | null
+          operation: string
+          org_id: string
+          payload: Json | null
+          payload_digest: string | null
+          pmo_record_id: string
+          reconcile_after: string | null
+          state: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "external_command_outbox"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      is_active_member:
+        | { Args: never; Returns: boolean }
+        | { Args: { p_user_id: string }; Returns: boolean }
       is_operator: { Args: never; Returns: boolean }
+      is_unattributed_authority: { Args: never; Returns: boolean }
       list_budget_fiscal_years: {
         Args: { p_project_id: string }
         Returns: {
@@ -5024,6 +5386,7 @@ export type Database = {
         Args: { p_org_id: string; p_reason: string; p_user_id: string }
         Returns: undefined
       }
+      m365_membership_state: { Args: { p_user_id: string }; Returns: Json }
       m365_pkce_sweep_tick: { Args: never; Returns: undefined }
       m365_refresh_connection: {
         Args: {
@@ -5067,6 +5430,17 @@ export type Database = {
         Args: { p_generation: number; p_id: string; p_reason: string }
         Returns: number
       }
+      may_administer_profile: {
+        Args: {
+          p_actor_role: Database["public"]["Enums"]["user_role"]
+          p_subject_role: Database["public"]["Enums"]["user_role"]
+        }
+        Returns: boolean
+      }
+      may_approve_work_of: {
+        Args: { p_approver_id: string; p_author_id: string }
+        Returns: boolean
+      }
       merge_external_org_binding_config: {
         Args: { p_external_tier: string; p_org_id: string; p_patch: Json }
         Returns: undefined
@@ -5101,6 +5475,18 @@ export type Database = {
           runs: number
         }[]
       }
+      operator_create_org: {
+        Args: {
+          p_admin_full_name: string
+          p_admin_user_id: string
+          p_default_currency: string
+          p_default_locale: string
+          p_default_number_locale: string
+          p_default_timezone: string
+          p_name: string
+        }
+        Returns: string
+      }
       operator_grant_credits: {
         Args: { p_amount: number; p_note: string; p_org_id: string }
         Returns: undefined
@@ -5122,6 +5508,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      operator_set_org_lifecycle_state: {
+        Args: { p_lifecycle_state: string; p_org_id: string }
+        Returns: undefined
+      }
       operator_toggle_feature: {
         Args: { p_enabled: boolean; p_key: string; p_org_id: string }
         Returns: undefined
@@ -5133,7 +5523,7 @@ export type Database = {
           cached_tokens: number
           completion_tokens: number
           cost: number
-          margin_usd: number | null
+          margin_usd: number
           month: string
           org_id: string
           owner_id: string
@@ -5163,6 +5553,10 @@ export type Database = {
         Args: { p_key: string; p_org_id: string }
         Returns: boolean
       }
+      org_has_active_erpnext_binding: {
+        Args: { p_org_id: string }
+        Returns: boolean
+      }
       org_has_feature: {
         Args: { p_key: string; p_org_id: string }
         Returns: boolean
@@ -5178,7 +5572,7 @@ export type Database = {
           cached_tokens: number
           completion_tokens: number
           cost: number
-          margin_usd: number | null
+          margin_usd: number
           month: string
           owner_id: string
           prompt_tokens: number
@@ -5223,6 +5617,10 @@ export type Database = {
       project_domain_externally_owned: {
         Args: { p_domain: string; p_project_id: string }
         Returns: boolean
+      }
+      purge_error_events: {
+        Args: { p_retention_days?: number }
+        Returns: number
       }
       quarantine_committing: {
         Args: { p_id: string; p_lease?: string; p_window?: string }
@@ -5271,6 +5669,17 @@ export type Database = {
         }
         Returns: number
       }
+      record_timesheet_command_held: {
+        Args: {
+          p_approved_at: string
+          p_claim_generation: number
+          p_org: string
+          p_outbox_id: string
+          p_reason: string
+          p_timesheet_id: string
+        }
+        Returns: string
+      }
       recover_external_connect_trap: {
         Args: {
           p_actor_id: string
@@ -5282,11 +5691,12 @@ export type Database = {
         Returns: string
       }
       release_credits: { Args: { p_run_id: string }; Returns: undefined }
-      // HIGH-2 / MED-2 (mig 0137 §4) — the operator's route out of a `held` money command:
-      // Admin-only, org-re-asserted, audited; moves `held` → `failed` so the ordinary bounded
-      // recovery resumes and re-runs every gate. Never touches the external system.
       release_outbox_hold: {
-        Args: { p_outbox_id: string; p_reason: string; p_expected_domain?: string }
+        Args: {
+          p_expected_domain?: string
+          p_outbox_id: string
+          p_reason: string
+        }
         Returns: undefined
       }
       release_sales_invoice_submit_clearance: {
@@ -5300,6 +5710,17 @@ export type Database = {
       reserve_credits: {
         Args: { p_amount: number; p_org_id: string; p_run_id: string }
         Returns: string
+      }
+      role_outranks: {
+        Args: {
+          p_approver: Database["public"]["Enums"]["user_role"]
+          p_author: Database["public"]["Enums"]["user_role"]
+        }
+        Returns: boolean
+      }
+      role_rank: {
+        Args: { p_role: Database["public"]["Enums"]["user_role"] }
+        Returns: number
       }
       save_timesheet_week: {
         Args: {
@@ -5329,7 +5750,23 @@ export type Database = {
         }[]
       }
       set_project_contract_value: {
-        Args: { p_id: string; p_value: number }
+        Args: {
+          p_id: string
+          p_tax_amount?: number
+          p_tax_rate?: number
+          p_tax_template?: string
+          p_tax_treatment?: string
+          p_value: number
+        }
+        Returns: undefined
+      }
+      set_work_order_value: {
+        Args: {
+          p_id: string
+          p_tax_amount?: number
+          p_tax_treatment?: string
+          p_value: number
+        }
         Returns: undefined
       }
       si_submit_clearance_ttl: { Args: never; Returns: string }
@@ -5339,6 +5776,7 @@ export type Database = {
           amount: number | null
           author_user_id: string | null
           created_at: string
+          currency: string
           customer_id: string | null
           erp_amended_from: string | null
           erp_cancelled_at: string | null
@@ -5352,6 +5790,11 @@ export type Database = {
           reference_number: string | null
           si_number: string | null
           status: string
+          tax_amount: number
+          tax_rate: number | null
+          tax_template: string | null
+          tax_treatment: string
+          work_order_id: string | null
         }
         SetofOptions: {
           from: "*"
@@ -5364,7 +5807,12 @@ export type Database = {
         Args: { created_at: string; end_date: string }
         Returns: string
       }
+      task_domain_externally_owned: {
+        Args: { p_project_id: string }
+        Returns: boolean
+      }
       telegram_notify_tick: { Args: never; Returns: undefined }
+      timesheet_push_key_witness: { Args: { p_key: string }; Returns: string }
       transition_document_status: {
         Args: {
           p_doc_id: string
@@ -5394,6 +5842,14 @@ export type Database = {
           p_notes?: string
           p_timesheet_id: string
           p_to: Database["public"]["Enums"]["timesheet_status"]
+        }
+        Returns: undefined
+      }
+      transition_work_order: {
+        Args: {
+          p_id: string
+          p_over_commit_ack?: boolean
+          p_to: Database["public"]["Enums"]["work_order_status"]
         }
         Returns: undefined
       }
@@ -5455,6 +5911,7 @@ export type Database = {
         | "Finance"
         | "Engineer"
         | "Admin"
+      work_order_status: "Draft" | "Issued" | "Closed" | "Cancelled"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -5646,6 +6103,7 @@ export const Constants = {
         "Engineer",
         "Admin",
       ],
+      work_order_status: ["Draft", "Issued", "Closed", "Cancelled"],
     },
   },
 } as const

@@ -13,6 +13,7 @@ import {
 } from '@/src/components/ui';
 import { repositories } from '@/src/lib/repositories';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { formatNumberMax2 } from '@/src/lib/format';
 
 /**
  * Administration › Credits section (ops-admin-surface S6, FR-CRE-002/005, AC-CRE-004 Unit shape).
@@ -50,8 +51,6 @@ const validateGrant = (v: GrantFormValues): Partial<Record<keyof GrantFormValues
   }
   return errors;
 };
-
-const numberFormatter = new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 });
 
 export const AdministrationCredits: React.FC<AdministrationCreditsProps> = ({
   isOperator,
@@ -114,7 +113,7 @@ export const AdministrationCredits: React.FC<AdministrationCreditsProps> = ({
         <div className="flex items-center gap-3 rounded-lg border border-border bg-card px-4 py-3">
           <span className="text-[13px] text-muted-foreground">Org balance</span>
           <span className="text-[20px] font-bold tabular" data-testid="org-credit-balance">
-            {numberFormatter.format(balanceQuery.data)}{' '}
+            {formatNumberMax2(balanceQuery.data)}{' '}
             <span className="text-[13px] font-semibold text-muted-foreground">credits</span>
           </span>
         </div>

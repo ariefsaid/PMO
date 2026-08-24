@@ -42,6 +42,10 @@ describe('useProjectMutations', () => {
     client_id: 'c2',
     project_manager_id: 'a2',
     contract_value: 4820000,
+    // #513: a non-zero contract value must state its basis — `CreateProjectInput` is a union on
+    // exactly that rule, so omitting these two here is a `tsc` failure, not a runtime surprise.
+    tax_treatment: 'exclusive' as const,
+    tax_amount: 530200,
     start_date: null,
     end_date: null,
   };
@@ -112,11 +116,21 @@ describe('useProjectMutations', () => {
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ['projects'] });
   });
 
-  it('AC-PRJ-006: setContractValue invokes the SoD RPC repository with id + value', async () => {
+  it('AC-PRJ-006 (#513): setContractValue passes the value AND its stated tax basis through to the SoD RPC repository', async () => {
     const { result } = renderHook(() => useProjectMutations(), { wrapper: wrap(freshClient()) });
     await act(async () => {
-      await result.current.setContractValue.mutateAsync({ id: 'p1', value: 5140000 });
+      await result.current.setContractValue.mutateAsync({
+        id: 'p1',
+        value: 5140000,
+        taxTreatment: 'exclusive',
+        taxAmount: 565400,
+      });
     });
-    expect(project.setContractValue).toHaveBeenCalledWith('p1', 5140000);
+    expect(project.setContractValue).toHaveBeenCalledWith({
+      id: 'p1',
+      value: 5140000,
+      taxTreatment: 'exclusive',
+      taxAmount: 565400,
+    });
   });
 });

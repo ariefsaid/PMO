@@ -9,7 +9,7 @@
  *
  * Zero writes on upload/mapping/preview. The single explicit write is `commit()`.
  */
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState, useRef, useEffect } from 'react';
 import {
   parseWorkbook,
   ImportParseError,
@@ -30,7 +30,7 @@ import type {
 
 export type CycleWizardStep = 'upload' | 'mapping' | 'preview' | 'committing' | 'result';
 
-/** The fixed 10-column contract for the procurement-cycle sheet. */
+/** The fixed 12-column contract for the procurement-cycle sheet. */
 export interface CycleField {
   key: keyof CycleRow & string;
   label: string;
@@ -48,6 +48,10 @@ export const CYCLE_FIELDS: CycleField[] = [
   { key: 'status', label: 'status', required: false },
   { key: 'date', label: 'date', required: false },
   { key: 'amount', label: 'amount', required: false },
+  // #505: VI-row columns. `required: false` is about the MAPPING step (a sheet with no VI rows
+  // needs neither column); a VI ROW missing either is INVALID at preview — validate.ts owns that.
+  { key: 'taxTreatment', label: 'tax_treatment', required: false },
+  { key: 'taxAmount', label: 'tax_amount', required: false },
 ];
 
 /** field.key → header column index (null = unmapped). */
@@ -143,6 +147,8 @@ function rowToCycleRow(
     status: cell('status'),
     date: cell('date'),
     amount: cell('amount'),
+    taxTreatment: cell('taxTreatment'),
+    taxAmount: cell('taxAmount'),
     rowNumber,
   };
 }
@@ -260,6 +266,21 @@ export function useProcurementCycleImport(
     [],
   );
 
+  // ⚑ The dry-run report is fetched ASYNCHRONOUSLY and the user can leave the step (or the whole
+  // wizard) before it lands. Without this guard the late `setConflictReport` runs against an
+  // unmounted tree — harmless in a browser, but in jsdom it surfaces as an unhandled
+  // `ReferenceError: window is not defined` that makes the WHOLE vitest run exit non-zero while
+  // every test passes. It only appears under full-suite timing, never in isolation, which is the
+  // worst shape a flake can have: green when you go looking for it.
+  // ⚑ The body MUST re-set `true`. StrictMode (index.tsx) runs effect → cleanup → effect, so a
+  // cleanup-only guard leaves the ref FALSE while mounted and silently drops every late result in
+  // dev. That is a worse bug than the one being fixed, and it is invisible in production.
+  const aliveRef = useRef(true);
+  useEffect(() => {
+    aliveRef.current = true;
+    return () => { aliveRef.current = false; };
+  }, []);
+
   const goPreview = useCallback(async () => {
     if (!allRequiredMapped) return;
     setStep('preview');
@@ -267,6 +288,7 @@ export function useProcurementCycleImport(
     const report = await buildDryRunConflictReport(validGroups, {
       importBatchId, skipLookup: supabaseImportSkipLookup, projectLookup, vendorLookup,
     });
+    if (!aliveRef.current) return;
     setConflictReport(report);
   }, [allRequiredMapped, validatedGroups, importBatchId, projectLookup, vendorLookup]);
 

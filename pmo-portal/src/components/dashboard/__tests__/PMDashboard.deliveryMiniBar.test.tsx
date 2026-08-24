@@ -4,13 +4,17 @@ import { MemoryRouter } from 'react-router';
 import React from 'react';
 import { PMDashboard } from '../PMDashboard';
 
+// FR-L10N-020: this tree reads useOrgCurrency (org-denominated aggregates). Pinned here rather
+// than left to a real query. ⚑ At LINE-START — inside a neighbouring vi.mock it parses as a
+// syntax error and hides every real error beneath it.
+vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/hooks/useProjects', () => ({
   useProjects: () => ({
     data: [
       {
         id: 'p1',
         name: 'Meridian Steelworks',
-        contract_value: 4_000_000,
+        contract_value: 4_000_000, currency: 'USD',
         budget: 3_000_000,
         spent: 1_000_000,
         status: 'Ongoing Project',

@@ -225,6 +225,8 @@ describe('AC-PRJ-003 createProject (create a Leads / Internal opportunity)', () 
       client_id: 'c2',
       project_manager_id: 'a2',
       contract_value: 4820000,
+      tax_treatment: 'exclusive',
+      tax_amount: 530200,
       start_date: null,
       end_date: null,
     });
@@ -278,7 +280,7 @@ describe('AC-PRJ-003 createProject (create a Leads / Internal opportunity)', () 
 
 describe('AC-PRJ-004 updateProjectHeader (edit name/client/PM/code/dates)', () => {
   it('AC-PRJ-004: updates only header columns (no contract_value, no status), NEVER org_id', async () => {
-    const calls = makeWriteBuilder({ data: null, error: null });
+    const calls = makeWriteBuilder({ data: [{ id: 'p1' }], error: null });
     await updateProjectHeader('p1', {
       name: 'Renamed',
       code: 'OPP-2041',
@@ -315,11 +317,26 @@ describe('AC-PRJ-004 updateProjectHeader (edit name/client/PM/code/dates)', () =
       }),
     ).rejects.toMatchObject({ code: '42501' });
   });
+
+  it('#534: a using-denied update (0 rows matched, no error) throws 42501 instead of resolving as success', async () => {
+    const calls = makeWriteBuilder({ data: [], error: null });
+    const patch = {
+      name: 'Y',
+      code: null,
+      client_id: null,
+      project_manager_id: null,
+      start_date: null,
+      end_date: null,
+    };
+    await expect(updateProjectHeader('p1', patch)).rejects.toBeInstanceOf(AppError);
+    await expect(updateProjectHeader('p1', patch)).rejects.toMatchObject({ code: '42501' });
+    expect(calls.update.length).toBeGreaterThan(0);
+  });
 });
 
 describe('AC-PRJ-005 archiveProject (soft-archive via archived_at)', () => {
   it('AC-PRJ-005: sets archived_at via update by id, NEVER org_id', async () => {
-    const calls = makeWriteBuilder({ data: null, error: null });
+    const calls = makeWriteBuilder({ data: [{ id: 'p1' }], error: null });
     await archiveProject('p1');
     expect(mockFrom).toHaveBeenCalledWith('projects');
     const patch = calls.update[0] as Record<string, unknown>;
@@ -333,11 +350,18 @@ describe('AC-PRJ-005 archiveProject (soft-archive via archived_at)', () => {
     makeWriteBuilder({ data: null, error: { message: 'denied', code: '42501' } });
     await expect(archiveProject('p1')).rejects.toMatchObject({ code: '42501' });
   });
+
+  it('#534: a using-denied archive (0 rows matched, no error) throws 42501 instead of resolving as success', async () => {
+    const calls = makeWriteBuilder({ data: [], error: null });
+    await expect(archiveProject('p1')).rejects.toBeInstanceOf(AppError);
+    await expect(archiveProject('p1')).rejects.toMatchObject({ code: '42501' });
+    expect(calls.update.length).toBeGreaterThan(0);
+  });
 });
 
 describe('AC-PRJ-007 deleteProject (hard delete, Admin-only)', () => {
   it('AC-PRJ-007: deletes by id, NEVER org_id', async () => {
-    const calls = makeWriteBuilder({ data: null, error: null });
+    const calls = makeWriteBuilder({ data: [{ id: 'p1' }], error: null });
     await deleteProject('p1');
     expect(mockFrom).toHaveBeenCalledWith('projects');
     expect(calls.delete).toBe(1);
@@ -351,23 +375,149 @@ describe('AC-PRJ-007 deleteProject (hard delete, Admin-only)', () => {
     makeWriteBuilder({ data: null, error: { message: 'referenced', code: '23503' } });
     await expect(deleteProject('p1')).rejects.toMatchObject({ code: '23503' });
   });
+
+  it('#534: a using-denied delete (0 rows matched, no error) throws 42501 instead of resolving as success', async () => {
+    const calls = makeWriteBuilder({ data: [], error: null });
+    await expect(deleteProject('p1')).rejects.toBeInstanceOf(AppError);
+    await expect(deleteProject('p1')).rejects.toMatchObject({ code: '42501' });
+    expect(calls.delete).toBeGreaterThan(0);
+  });
 });
 
 describe('AC-PRJ-006 setProjectContractValue (SoD-gated RPC, ADR-0019)', () => {
   it('AC-PRJ-006: calls the set_project_contract_value RPC with p_id + p_value, NEVER org_id', async () => {
     mockRpc.mockResolvedValue({ error: null });
-    await setProjectContractValue('p1', 5140000);
+    await setProjectContractValue({
+      id: 'p1',
+      value: 5140000,
+      taxTreatment: 'exclusive',
+      taxAmount: 565400,
+    });
+    expect(mockRpc).toHaveBeenCalledWith(
+      'set_project_contract_value',
+      expect.objectContaining({ p_id: 'p1', p_value: 5140000 }),
+    );
+    expect(JSON.stringify(mockRpc.mock.calls)).not.toContain('org_id');
+  });
+
+  // #513: the RPC raises P0001 unless the basis travels with the value, so the DAL must send all
+  // four params — not just the two it used to. Every one of them, by name.
+  it('AC-PRJ-006 (#513): sends the tax treatment, amount, rate and template as RPC params', async () => {
+    mockRpc.mockResolvedValue({ error: null });
+    await setProjectContractValue({
+      id: 'p1',
+      value: 5140000,
+      taxTreatment: 'inclusive',
+      taxAmount: 509_000,
+      taxRate: 11,
+      taxTemplate: 'PPN 11% - RIS',
+    });
     expect(mockRpc).toHaveBeenCalledWith('set_project_contract_value', {
       p_id: 'p1',
       p_value: 5140000,
+      p_tax_treatment: 'inclusive',
+      p_tax_amount: 509_000,
+      p_tax_rate: 11,
+      p_tax_template: 'PPN 11% - RIS',
     });
-    expect(JSON.stringify(mockRpc.mock.calls)).not.toContain('org_id');
+  });
+
+  // The two optional params are absent-not-null when unstated: 0197 keeps `tax_rate` NULLABLE
+  // because "not recorded" is not "0%", and sending an explicit null would say the wrong thing.
+  it('AC-PRJ-006 (#513): omits tax_rate/tax_template when the caller did not state them', async () => {
+    mockRpc.mockResolvedValue({ error: null });
+    await setProjectContractValue({
+      id: 'p1',
+      value: 0,
+      taxTreatment: 'exclusive',
+      taxAmount: 0,
+    });
+    expect(mockRpc).toHaveBeenCalledWith('set_project_contract_value', {
+      p_id: 'p1',
+      p_value: 0,
+      p_tax_treatment: 'exclusive',
+      p_tax_amount: 0,
+      p_tax_rate: undefined,
+      p_tax_template: undefined,
+    });
   });
 
   it('AC-PRJ-006: surfaces the RPC SoD rejection as AppError preserving code 42501', async () => {
     mockRpc.mockResolvedValue({ error: { message: 'not authorized', code: '42501' } });
-    const err = await setProjectContractValue('p1', 1).catch((e) => e);
+    const err = await setProjectContractValue({
+      id: 'p1',
+      value: 1,
+      taxTreatment: 'exclusive',
+      taxAmount: 0,
+    }).catch((e) => e);
     expect(err).toBeInstanceOf(AppError);
     expect(err.code).toBe('42501');
+  });
+});
+
+// ── #513: the basis travels with the value on the INSERT path too ────────────
+describe('AC-PRJ-003 createProject — contract-value tax basis (#513, migration 0197)', () => {
+  it('AC-PRJ-003 (#513): inserts the four tax columns alongside a non-zero contract value', async () => {
+    const calls = makeWriteBuilder({ data: { id: 'new' }, error: null });
+    await createProject({
+      name: 'Harborside Terminal',
+      status: 'Leads',
+      client_id: 'c2',
+      project_manager_id: 'a2',
+      contract_value: 4820000,
+      tax_treatment: 'inclusive',
+      tax_amount: 477_000,
+      tax_rate: 11,
+      tax_template: 'PPN 11% - RIS',
+      start_date: null,
+      end_date: null,
+    });
+    expect(calls.insert[0] as Record<string, unknown>).toMatchObject({
+      contract_value: 4820000,
+      tax_treatment: 'inclusive',
+      tax_amount: 477_000,
+      tax_rate: 11,
+      tax_template: 'PPN 11% - RIS',
+    });
+  });
+
+  // 0197 ties the constraint to the VALUE, not to the row: a project at 0 states nothing and must
+  // not be made to. So the insert carries no basis at all — not a null basis, and above all not a
+  // backfilled 'exclusive' nobody chose.
+  it('AC-PRJ-003 (#513): a project created at 0 carries NO tax treatment at all', async () => {
+    const calls = makeWriteBuilder({ data: { id: 'new' }, error: null });
+    await createProject({
+      name: 'Internal R&D',
+      status: 'Internal Project',
+      client_id: null,
+      project_manager_id: null,
+      contract_value: 0,
+      start_date: null,
+      end_date: null,
+    });
+    const insert = calls.insert[0] as Record<string, unknown>;
+    expect(insert.contract_value).toBe(0);
+    expect(insert).not.toHaveProperty('tax_treatment');
+    expect(insert).not.toHaveProperty('tax_amount');
+  });
+
+  // An unstated rate is ABSENT, never 0 — 0197's column comment: "NULL = not recorded, never 0%".
+  it('AC-PRJ-003 (#513): an unstated tax rate/template inserts null, never 0 or a guess', async () => {
+    const calls = makeWriteBuilder({ data: { id: 'new' }, error: null });
+    await createProject({
+      name: 'Harborside Terminal',
+      status: 'Leads',
+      client_id: 'c2',
+      project_manager_id: null,
+      contract_value: 1000,
+      tax_treatment: 'exclusive',
+      tax_amount: 0,
+      start_date: null,
+      end_date: null,
+    });
+    expect(calls.insert[0] as Record<string, unknown>).toMatchObject({
+      tax_rate: null,
+      tax_template: null,
+    });
   });
 });

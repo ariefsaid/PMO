@@ -54,6 +54,7 @@ describe('AC-JR-W1-06: DecisionSupportPanel heading project name links', () => {
         totalValue={25000}
         projectName="Bridge Alpha"
         status="Requested"
+        currency="USD"
       />,
     );
     const link = screen.getByRole('link', { name: /Open Bridge Alpha/i });
@@ -68,6 +69,7 @@ describe('AC-JR-W1-06: DecisionSupportPanel heading project name links', () => {
         totalValue={25000}
         projectName="Bridge Alpha"
         status="Requested"
+        currency="USD"
       />,
     );
     const openBudgetLink = screen.getByRole('link', { name: /open project/i });
@@ -82,6 +84,7 @@ describe('AC-JR-W1-06: DecisionSupportPanel heading project name links', () => {
         totalValue={10000}
         projectName="Solar Farm"
         status="Requested"
+        currency="USD"
       />,
     );
     // Heading link
@@ -99,6 +102,7 @@ describe('AC-JR-W1-06: DecisionSupportPanel heading project name links', () => {
         totalValue={25000}
         projectName="Bridge Alpha"
         status="Requested"
+        currency="USD"
       />,
     );
     expect(container.firstChild).toBeNull();
@@ -112,6 +116,7 @@ describe('AC-JR-W1-06: DecisionSupportPanel heading project name links', () => {
         totalValue={25000}
         projectName="Bridge Alpha"
         status="Requested"
+        currency="USD"
       />,
     );
     // Loading skeleton is rendered; no "Open project budget" link yet
@@ -128,6 +133,7 @@ describe('AC-JR-W1-06: DecisionSupportPanel heading project name links', () => {
         totalValue={25000}
         projectName="Bridge Alpha"
         status="Requested"
+        currency="USD"
       />,
     );
     expect(screen.getByText(/budget unavailable/i)).toBeDefined();
@@ -142,6 +148,7 @@ describe('AC-JR-W1-06: DecisionSupportPanel heading project name links', () => {
         totalValue={25000}
         projectName="Bridge Alpha"
         status="Requested"
+        currency="USD"
       />,
     );
     expect(screen.getByText(/No active budget/i)).toBeDefined();

@@ -10,6 +10,12 @@ enforced summary; this file is the full source of truth.
 ## Part A — Product charter (verbatim)
 
 ### Director / Orchestrator
+> ⚑ **The agent names in this document are ROLE CONTRACTS, not executors.** "Build (TDD) | implementer"
+> means *the implementer contract governs the build* — it does **not** mean spawn an implementer
+> subagent. Who runs it is routed separately, and the default is an SSSF ADW (which injects these same
+> `.claude/agents/*.md` contracts into its agents mechanically): `docs/factory-workflow.md` § Executor
+> routing.
+
 Before delegating, or after receiving work from subagents:
 - Ask clarifying questions
 - Challenge bad decisions

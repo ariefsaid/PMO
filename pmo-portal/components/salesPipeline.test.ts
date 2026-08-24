@@ -15,6 +15,7 @@ const project = (over: Partial<PipelineProject> = {}): PipelineProject => ({
   client_name: 'Northwind',
   status: 'Tender Submitted',
   contract_value: 1_200_000,
+  currency: 'USD',
   win_probability: 0.5,
   ...over,
 });

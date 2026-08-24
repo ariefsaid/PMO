@@ -119,6 +119,11 @@ component gets a Storybook story: per-component **state matrix** (loading / empt
 variants) + a11y checks in isolation. Not before — premature Storybook is overhead.
 
 ## 5. Code-agent → UI/UX-agent analog
+> ⚑ **These are ROLE CONTRACTS, not a decision to spawn subagents.** A bounded UI slice is run by the
+> factory — `adws/adw_simple_sdlc.py --builder fe_builder --reviewer fe_reviewer` — which loads
+> `ui-implementer.md` and `design-reviewer.md` as those agents' contracts. Route before you build:
+> `docs/factory-workflow.md` § Executor routing. The Director's pixel/taste pass on the run's
+> screenshots is still the exit gate; text models judge the a11y tree, not pixels.
 | Code-side agent | UI/UX analog | Role |
 |---|---|---|
 | spec-miner / eng-planner | **design-architect** | reverse-engineer `DESIGN.md`; per-issue design-plan (read-only on code, writes DESIGN.md + docs/) |

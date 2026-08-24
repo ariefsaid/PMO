@@ -8,11 +8,13 @@ const h = vi.hoisted(() => {
     eq: [] as unknown[],
     order: [] as unknown[],
     insert: [] as unknown[],
+    update: [] as unknown[],
+    delete: 0,
     single: 0,
   };
   const builder: Record<string, unknown> = {};
   const chain = (name: keyof typeof calls) => (...args: unknown[]) => {
-    if (name === 'single') {
+    if (name === 'single' || name === 'delete') {
       (calls[name] as number)++;
     } else {
       (calls[name] as unknown[]).push(args.length === 1 ? args[0] : args);
@@ -23,6 +25,8 @@ const h = vi.hoisted(() => {
   builder.eq = chain('eq');
   builder.order = chain('order');
   builder.insert = chain('insert');
+  builder.update = chain('update');
+  builder.delete = chain('delete');
   builder.single = chain('single');
   builder.then = (resolve: (v: unknown) => unknown) => resolve(result.value);
   const from = vi.fn((table: string) => {
@@ -34,7 +38,7 @@ const h = vi.hoisted(() => {
 
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: h.from } }));
 
-import { listActivities, createActivity } from './crmActivities';
+import { listActivities, createActivity, updateActivity, deleteActivity } from './crmActivities';
 import { AppError } from '@/src/lib/appError';
 
 const input = {
@@ -105,5 +109,39 @@ describe('AC-CRM-023 createActivity', () => {
   it('AC-CRM-023: throws AppError preserving code 42501 when RLS denies the insert', async () => {
     h.result.value = { data: null, error: { message: 'denied', code: '42501' } };
     await expect(createActivity(input, 'user-1')).rejects.toMatchObject({ code: '42501' });
+  });
+});
+
+describe('updateActivity', () => {
+  it('updates an activity by id, NEVER org_id', async () => {
+    h.result.value = { data: [{ id: 'a1' }], error: null };
+    await updateActivity('a1', { subject: 'Renamed' });
+    expect(h.calls.from).toEqual(['crm_activities']);
+    expect(h.calls.update).toEqual([{ subject: 'Renamed' }]);
+    expect(h.calls.eq).toContainEqual(['id', 'a1']);
+  });
+
+  it('#534: a using-denied update (0 rows matched, no error) throws 42501 instead of resolving as success', async () => {
+    h.result.value = { data: [], error: null };
+    await expect(updateActivity('a1', { subject: 'X' })).rejects.toBeInstanceOf(AppError);
+    await expect(updateActivity('a1', { subject: 'X' })).rejects.toMatchObject({ code: '42501' });
+    expect(h.calls.update.length).toBeGreaterThan(0);
+  });
+});
+
+describe('deleteActivity', () => {
+  it('deletes an activity by id, NEVER org_id', async () => {
+    h.result.value = { data: [{ id: 'a1' }], error: null };
+    await deleteActivity('a1');
+    expect(h.calls.from).toEqual(['crm_activities']);
+    expect(h.calls.delete).toBe(1);
+    expect(h.calls.eq).toContainEqual(['id', 'a1']);
+  });
+
+  it('#534: a using-denied delete (0 rows matched, no error) throws 42501 instead of resolving as success', async () => {
+    h.result.value = { data: [], error: null };
+    await expect(deleteActivity('a1')).rejects.toBeInstanceOf(AppError);
+    await expect(deleteActivity('a1')).rejects.toMatchObject({ code: '42501' });
+    expect(h.calls.delete).toBeGreaterThan(0);
   });
 });

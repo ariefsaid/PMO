@@ -109,6 +109,10 @@ vi.mock('@/src/lib/db/budgets', () => ({
   archiveVersion: vi.fn(),
   deleteDraftVersion: vi.fn(),
 }));
+vi.mock('@/src/lib/db/budgetImportSkip', () => ({
+  findImportTargetDraft: vi.fn(),
+  findImportedLine: vi.fn(),
+}));
 vi.mock('@/src/lib/db/incidents', () => ({
   listIncidents: vi.fn(),
   getIncident: vi.fn(),
@@ -153,6 +157,7 @@ import * as procRecordsDal from '@/src/lib/db/procurementRecords';
 import * as timesheetsDal from '@/src/lib/db/timesheets';
 import * as tsTransitionDal from '@/src/lib/db/timesheetTransition';
 import * as budgetsDal from '@/src/lib/db/budgets';
+import * as budgetImportSkipDal from '@/src/lib/db/budgetImportSkip';
 import * as tasksDal from '@/src/lib/db/tasks';
 import * as incidentsDal from '@/src/lib/db/incidents';
 import * as milestonesDal from '@/src/lib/db/milestones';
@@ -239,7 +244,7 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
       ['approve', 'createDraft', 'deleteEntry', 'list', 'listAwaitingApproval', 'pushApproved', 'reject', 'submit', 'upsertEntries'].sort(),
     );
     expect(Object.keys(repositories.budget).sort()).toEqual(
-      ['activateVersion', 'archiveVersion', 'cloneVersion', 'createLineItem', 'createVersion', 'deriveProjectBudget', 'deleteDraftVersion', 'deleteLineItem', 'listVersions', 'updateLineItem'].sort(),
+      ['activateVersion', 'archiveVersion', 'cloneVersion', 'createLineItem', 'createVersion', 'deriveProjectBudget', 'deleteDraftVersion', 'deleteLineItem', 'findImportTargetDraft', 'findImportedLine', 'listVersions', 'updateLineItem'].sort(),
     );
     expect(Object.keys(repositories.incident).sort()).toEqual(
       ['create', 'delete', 'get', 'list', 'transition', 'update'].sort(),
@@ -304,8 +309,51 @@ describe('delegation — methods pass args through and return the DAL result', (
 
   it('project.setContractValue delegates to setProjectContractValue (SoD RPC)', async () => {
     vi.mocked(projectsDal.setProjectContractValue).mockResolvedValue(undefined);
-    await repositories.project.setContractValue('p1', 5140000);
-    expect(projectsDal.setProjectContractValue).toHaveBeenCalledWith('p1', 5140000);
+    await repositories.project.setContractValue({
+      id: 'p1',
+      value: 5140000,
+      taxTreatment: 'exclusive',
+      taxAmount: 565400,
+    });
+    expect(projectsDal.setProjectContractValue).toHaveBeenCalledWith({
+      id: 'p1',
+      value: 5140000,
+      taxTreatment: 'exclusive',
+      taxAmount: 565400,
+    });
+  });
+
+  // #513: the seam must carry the basis THROUGH, not just the value — a repository that dropped
+  // `taxTreatment`/`taxAmount` would leave the RPC to reject the write with P0001 in front of a user.
+  it('#513: project.setContractValue threads all four tax params to the DAL unchanged', async () => {
+    vi.mocked(projectsDal.setProjectContractValue).mockResolvedValue(undefined);
+    const input = {
+      id: 'p1',
+      value: 5140000,
+      taxTreatment: 'inclusive' as const,
+      taxAmount: 509_000,
+      taxRate: 11,
+      taxTemplate: 'PPN 11% - RIS',
+    };
+    await repositories.project.setContractValue(input);
+    expect(projectsDal.setProjectContractValue).toHaveBeenCalledWith(input);
+  });
+
+  it('#513: project.create threads the contract-value tax columns to the DAL unchanged', async () => {
+    vi.mocked(projectsDal.createProject).mockResolvedValue({ id: 'new' } as never);
+    const input = {
+      name: 'Harborside Terminal',
+      status: 'Leads' as const,
+      client_id: 'c2',
+      project_manager_id: null,
+      contract_value: 4820000,
+      tax_treatment: 'exclusive' as const,
+      tax_amount: 530200,
+      start_date: null,
+      end_date: null,
+    };
+    await repositories.project.create(input);
+    expect(projectsDal.createProject).toHaveBeenCalledWith(input);
   });
 
   it('company.listClients delegates to listClientCompanies', async () => {
@@ -522,8 +570,15 @@ describe('delegation — methods pass args through and return the DAL result', (
     await repositories.procurement.createReceipt('pr1', 'Complete', '2026-06-07');
     expect(procLifecycleDal.createReceipt).toHaveBeenCalledWith('pr1', 'Complete', '2026-06-07');
 
-    await repositories.procurement.createInvoice('pr1', 'Received', '2026-06-07');
-    expect(procLifecycleDal.createInvoice).toHaveBeenCalledWith('pr1', 'Received', '2026-06-07');
+    // #505: ONE object param, and the DAL receives it verbatim (no arity dance any more).
+    await repositories.procurement.createInvoice({
+      procurementId: 'pr1', status: 'Received', invoiceDate: '2026-06-07',
+      taxTreatment: 'exclusive', taxAmount: 0,
+    });
+    expect(procLifecycleDal.createInvoice).toHaveBeenCalledWith({
+      procurementId: 'pr1', status: 'Received', invoiceDate: '2026-06-07',
+      taxTreatment: 'exclusive', taxAmount: 0,
+    });
   });
 
   // task FIX-1 (Discover CRITICAL 1 follow-up): createReceipt/createInvoice thread an optional
@@ -537,8 +592,17 @@ describe('delegation — methods pass args through and return the DAL result', (
     await repositories.procurement.createReceipt('pr1', 'Complete', '2026-06-07', 'DN-9');
     expect(procLifecycleDal.createReceipt).toHaveBeenCalledWith('pr1', 'Complete', '2026-06-07', 'DN-9');
 
-    await repositories.procurement.createInvoice('pr1', 'Received', '2026-06-07', 'BILL-9', 950);
-    expect(procLifecycleDal.createInvoice).toHaveBeenCalledWith('pr1', 'Received', '2026-06-07', 'BILL-9', 950);
+    await repositories.procurement.createInvoice({
+      procurementId: 'pr1', status: 'Received', invoiceDate: '2026-06-07',
+      referenceNumber: 'BILL-9', amount: 950,
+      // #505: the tax facts thread through the seam to the DAL alongside the optionals.
+      taxTreatment: 'inclusive', taxAmount: 94.14, taxRate: 11,
+    });
+    expect(procLifecycleDal.createInvoice).toHaveBeenCalledWith({
+      procurementId: 'pr1', status: 'Received', invoiceDate: '2026-06-07',
+      referenceNumber: 'BILL-9', amount: 950,
+      taxTreatment: 'inclusive', taxAmount: 94.14, taxRate: 11,
+    });
   });
 
   it('procurement CRUD methods (create/header/items/selectQuote/documents) delegate', async () => {
@@ -678,6 +742,8 @@ describe('delegation — methods pass args through and return the DAL result', (
     vi.mocked(budgetsDal.activateVersion).mockResolvedValue({ pushState: 'pushed' });
     vi.mocked(budgetsDal.archiveVersion).mockResolvedValue(undefined);
     vi.mocked(budgetsDal.deleteDraftVersion).mockResolvedValue(undefined);
+    vi.mocked(budgetImportSkipDal.findImportTargetDraft).mockResolvedValue(null);
+    vi.mocked(budgetImportSkipDal.findImportedLine).mockResolvedValue(null);
 
     await repositories.budget.deriveProjectBudget('p1');
     expect(budgetsDal.deriveProjectBudget).toHaveBeenCalledWith('p1');
@@ -687,7 +753,19 @@ describe('delegation — methods pass args through and return the DAL result', (
 
     const item = { category: 'Labour', description: null, budgeted_amount: 5 } as never;
     await repositories.budget.createLineItem('v1', item);
-    expect(budgetsDal.createLineItem).toHaveBeenCalledWith('v1', item);
+    expect(budgetsDal.createLineItem).toHaveBeenCalledWith('v1', item, undefined);
+
+    // #495 — the import path threads provenance through the same seam; every other caller omits it
+    // and the three columns stay NULL, which is what keeps them out of the partial unique indexes.
+    const prov = { importBatchId: 'b1', importedAt: '2026-08-20T00:00:00.000Z', importKey: 'k1' };
+    await repositories.budget.createLineItem('v1', item, prov);
+    expect(budgetsDal.createLineItem).toHaveBeenLastCalledWith('v1', item, prov);
+
+    await repositories.budget.findImportTargetDraft('p1');
+    expect(budgetImportSkipDal.findImportTargetDraft).toHaveBeenCalledWith('p1');
+
+    await repositories.budget.findImportedLine('v1', 'k1');
+    expect(budgetImportSkipDal.findImportedLine).toHaveBeenCalledWith('v1', 'k1');
 
     await repositories.budget.updateLineItem('li1', { budgeted_amount: 9 } as never);
     expect(budgetsDal.updateLineItem).toHaveBeenCalledWith('li1', { budgeted_amount: 9 });
@@ -696,7 +774,7 @@ describe('delegation — methods pass args through and return the DAL result', (
     expect(budgetsDal.deleteLineItem).toHaveBeenCalledWith('li1');
 
     await repositories.budget.createVersion('p1', 'v2');
-    expect(budgetsDal.createBudgetVersion).toHaveBeenCalledWith('p1', 'v2');
+    expect(budgetsDal.createBudgetVersion).toHaveBeenCalledWith('p1', 'v2', undefined);
 
     await repositories.budget.cloneVersion('v1');
     expect(budgetsDal.cloneVersion).toHaveBeenCalledWith('v1');

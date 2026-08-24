@@ -79,13 +79,13 @@ select col_is_null('public', 'procurement_invoices', 'amount',
 
 -- VI row with reference_number + amount persists
 insert into procurement_invoices
-  (id, org_id, procurement_id, vi_number, status, invoice_date, reference_number, amount)
+  (id, org_id, procurement_id, vi_number, status, invoice_date, reference_number, amount, tax_treatment, tax_amount)
 values
   ('00830000-0000-0000-0000-0000000000c1',
    '00830000-0000-0000-0000-000000000001',
    '00830000-0000-0000-0000-000000000010',
    'VI-TEST-0001', 'Received', current_date,
-   'INV-TEST-2291', 478500.00);
+   'INV-TEST-2291', 478500.00, 'exclusive', 0);
 
 select results_eq(
   $$ select reference_number, amount from procurement_invoices

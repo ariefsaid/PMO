@@ -1,5 +1,5 @@
 import { supabase } from '@/src/lib/supabase/client';
-import { AppError } from '@/src/lib/appError';
+import { AppError, assertWriteLanded } from '@/src/lib/appError';
 import type { Tables, TablesUpdate, Enums } from '@/src/lib/supabase/database.types';
 import { routeTaskWrite } from '@/src/lib/adapterSeam/ownershipCache';
 import { dispatchTaskCommand } from '@/src/lib/adapterSeam/dispatchClient';
@@ -208,8 +208,9 @@ export async function updateTask(id: string, patch: TaskPatch, projectId?: strin
   if (patch.parent_task_id !== undefined) next.parent_task_id = patch.parent_task_id; // null promotes
   if (patch.description !== undefined) next.description = patch.description || null; // OD-INT-9: "" → null
   if (patch.priority !== undefined) next.priority = patch.priority; // null clears
-  const { error } = await supabase.from('tasks').update(next).eq('id', id);
+  const { data, error } = await supabase.from('tasks').update(next).eq('id', id).select('id');
   if (error) throwWrite(error);
+  assertWriteLanded(data, 'Task not found or you do not have permission to edit it.');
 }
 
 /**
@@ -217,18 +218,21 @@ export async function updateTask(id: string, patch: TaskPatch, projectId?: strin
  * status on their OWN task (migration 0016 widens tasks RLS with a column-pinned WITH CHECK that
  * mirrors the timesheets MED-TS-2 pattern). Managers (PM/Exec/Admin) also use this single-column
  * write. NOTHING but `status` is sent, so the column-pinned policy is satisfied. Throws an
- * `AppError` (code preserved — `42501` when an Engineer is not the assignee) on failure.
+ * `AppError` (code preserved — `42501` when an Engineer is not the assignee, #534) on failure: a
+ * `using`-denied RLS update is a silent 0-row no-op, so this asserts the row actually came back
+ * (`.select('id')`) rather than trusting the absence of `error`.
  *
  * ADR-0056 / AC-CUA-001/030: routes through `dispatchTaskCommand('transition', ...)` when the
  * org's `tasks` domain is externally-owned; fail-closed to the direct DAL below otherwise.
  */
-export async function updateTaskStatus(id: string, status: TaskStatus, projectId?: string): Promise<void> {
+export async function updateTaskStatus(id: string, status: TaskStatus, projectId?: string | null): Promise<void> {
   if (routeTaskWrite(projectId) === 'external') {
     await dispatchTaskCommand('transition', { id, status });
     return;
   }
-  const { error } = await supabase.from('tasks').update({ status }).eq('id', id);
+  const { data, error } = await supabase.from('tasks').update({ status }).eq('id', id).select('id');
   if (error) throwWrite(error);
+  assertWriteLanded(data, 'Task not found or you do not have permission to change its status.');
 }
 
 /**
@@ -246,19 +250,22 @@ export async function archiveTask(id: string, projectId?: string): Promise<void>
   if (routeTaskWrite(projectId) === 'external') {
     throw new AppError('Tasks are managed by the connected task system.', 'external-owned');
   }
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('tasks')
     .update({ archived_at: new Date().toISOString() })
-    .eq('id', id);
+    .eq('id', id)
+    .select('id');
   if (error) throwWrite(error);
+  assertWriteLanded(data, 'Task not found or you do not have permission to archive it.');
 }
 
 export async function unarchiveTask(id: string, projectId?: string): Promise<void> {
   if (routeTaskWrite(projectId) === 'external') {
     throw new AppError('Tasks are managed by the connected task system.', 'external-owned');
   }
-  const { error } = await supabase.from('tasks').update({ archived_at: null }).eq('id', id);
+  const { data, error } = await supabase.from('tasks').update({ archived_at: null }).eq('id', id).select('id');
   if (error) throwWrite(error);
+  assertWriteLanded(data, 'Task not found or you do not have permission to restore it.');
 }
 
 export async function deleteTask(id: string, projectId?: string): Promise<void> {
@@ -266,8 +273,9 @@ export async function deleteTask(id: string, projectId?: string): Promise<void> 
     await dispatchTaskCommand('delete', { id });
     return;
   }
-  const { error } = await supabase.from('tasks').delete().eq('id', id);
+  const { data, error } = await supabase.from('tasks').delete().eq('id', id).select('id');
   if (error) throwWrite(error);
+  assertWriteLanded(data, 'Task not found or you do not have permission to delete it.');
 }
 
 /**
@@ -288,9 +296,11 @@ export async function addDependency(taskId: string, dependsOnId: string): Promis
  * `AppError` (code preserved) on failure.
  */
 export async function removeDependency(taskId: string, dependsOnId: string): Promise<void> {
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('task_dependencies')
     .delete()
-    .match({ task_id: taskId, depends_on_id: dependsOnId });
+    .match({ task_id: taskId, depends_on_id: dependsOnId })
+    .select('task_id');
   if (error) throwWrite(error);
+  assertWriteLanded(data, 'Dependency not found or you do not have permission to remove it.');
 }

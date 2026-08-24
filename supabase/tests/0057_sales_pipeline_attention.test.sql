@@ -3,7 +3,7 @@
 -- open-pipeline row, and that the org-scoping / tenancy of the (security invoker) RPC still holds.
 -- DECOUPLED from seed: uses own isolated org A + org B fixtures. UUID prefix 00570000-…
 begin;
-select plan(6);
+select plan(7);
 
 -- ── Org A: the in-org caller with a known open pipeline project ───────────────
 insert into organizations (id, name) values
@@ -21,12 +21,12 @@ insert into profiles (id, org_id, full_name, email, role) values
 
 -- Org A: one Tender Submitted project with a known PM and a stale last_update
 insert into projects (id, org_id, code, name, status, project_manager_id,
-                      contract_value, budget, spent)
+                      contract_value, budget, spent, tax_treatment, tax_amount, currency)
 values
   ('57000000-0000-0000-0000-000000000001', '00570000-0000-0000-0000-000000000001',
    'PA001', 'Test Pipeline Deal', 'Tender Submitted',
    '00570000-0000-0000-0000-0000000000a2',
-   1200000, 0, 0);
+   1200000, 0, 0, 'exclusive', 0, 'IDR');
 
 -- Set a stale last_update so the attention aging logic has a parseable timestamptz
 update projects set last_update = now() - interval '45 days'
@@ -82,6 +82,17 @@ select ok(
      from json_array_elements((get_sales_pipeline()->'projects')) proj
     where proj->>'name' = 'Test Pipeline Deal'),
   'AC-IXD-PIPE-W5-C5: existing projects fields preserved (id/contract_value/win_probability)'
+);
+
+-- FR-L10N-020: the pipeline payload preserves the deal's OWN currency (projects.currency → JSON
+-- projects[].currency), not the org fallback. Org A retains its default USD while the deal is IDR,
+-- so this proves the record currency, not the org default.
+select is(
+  (select proj->>'currency'
+     from json_array_elements((get_sales_pipeline()->'projects')) proj
+    where proj->>'name' = 'Test Pipeline Deal'),
+  'IDR',
+  'FR-L10N-020: pipeline payload carries the deal''s own currency (IDR), not the org default'
 );
 
 -- ── Tenancy: org B caller sees NONE of org A's pipeline rows nor any owner ─────

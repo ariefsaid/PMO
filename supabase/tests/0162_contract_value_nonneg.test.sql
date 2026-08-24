@@ -73,7 +73,7 @@ select throws_ok(
 
 -- 7. No behaviour regression: a valid value still writes.
 select lives_ok(
-  $$ select set_project_contract_value('01620000-0000-0000-0000-0000000000b1'::uuid, 500) $$,
+  $$ select set_project_contract_value('01620000-0000-0000-0000-0000000000b1'::uuid, 500, p_tax_treatment => 'exclusive', p_tax_amount => 0) $$,
   'FR-HRD-040 a non-negative value is still accepted (no regression)');
 
 reset role;

@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useProjectBudget, useBudgetVersions, useBudgetMutations } from '@/src/hooks/useBudget';
 import { usePermission } from '@/src/auth/usePermission';
+import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { formatCurrency, parseMoneyInput } from '@/src/lib/format';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import {
@@ -54,6 +55,8 @@ const TH: React.FC<{ children: React.ReactNode; align?: 'right' }> = ({ children
 // ---------------------------------------------------------------------------
 interface LineItemEditorProps {
   lineItems: BudgetLineItemRow[];
+  /** The parent budget version's currency (the record's own — every line item shares it). */
+  currency: string;
   onCreateLineItem: (item: NewLineItem) => Promise<unknown>;
   /** Stages a destructive confirm at the page level — does not delete on click. */
   onDeleteLineItem: (id: string) => void;
@@ -73,6 +76,7 @@ type EditingId = string | null;
 
 const LineItemEditor: React.FC<LineItemEditorProps> = ({
   lineItems,
+  currency,
   onCreateLineItem,
   onDeleteLineItem,
   onUpdateLineItem,
@@ -275,7 +279,7 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
                   </div>
                 </td>
                 <td className="px-3 py-2 text-right tabular text-muted-foreground">
-                  {formatCurrency(Number(li.actual_amount))}
+                  {formatCurrency(Number(li.actual_amount), currency)}
                 </td>
                 <td className="space-x-1 px-3 py-2 text-right">
                   {/* B-0.7: loading/disabled while updateIsPending — prevents double-submit. */}
@@ -323,10 +327,10 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
                   {li.fiscal_year ?? <span className="italic">Un-phased</span>}
                 </td>
                 <td className="px-3 py-2 text-right font-medium tabular">
-                  {formatCurrency(Number(li.budgeted_amount))}
+                  {formatCurrency(Number(li.budgeted_amount), currency)}
                 </td>
                 <td className="px-3 py-2 text-right tabular text-muted-foreground">
-                  {formatCurrency(Number(li.actual_amount))}
+                  {formatCurrency(Number(li.actual_amount), currency)}
                 </td>
                 <td className="space-x-1 px-3 py-2 text-right">
                   <Button
@@ -438,6 +442,7 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
         <span data-testid="budget-edit-total" className="ml-auto font-bold tabular">
           {formatCurrency(
             lineItems.reduce((sum, li) => sum + Number(li.budgeted_amount), 0),
+            currency,
           )}
         </span>
       </TableFoot>
@@ -495,7 +500,7 @@ const VersionCard: React.FC<VersionCardProps> = ({
           <span className="font-semibold">{version.name}</span>
           <StatusBadge status={version.status} />
         </div>
-        <span className="font-bold tabular">{formatCurrency(version.total)}</span>
+        <span className="font-bold tabular">{formatCurrency(version.total, version.currency)}</span>
       </div>
 
       {/* Actions gated by role (cosmetic — RLS is the real gate). Each action
@@ -555,6 +560,7 @@ const VersionCard: React.FC<VersionCardProps> = ({
       {version.status === 'Draft' && canWrite ? (
         <LineItemEditor
           lineItems={version.line_items}
+          currency={version.currency}
           onCreateLineItem={(item) => onCreateLineItem(version.id, item)}
           onDeleteLineItem={onDeleteLineItem}
           onUpdateLineItem={onUpdateLineItem}
@@ -589,10 +595,10 @@ const VersionCard: React.FC<VersionCardProps> = ({
                       {li.fiscal_year ?? <span className="italic">Un-phased</span>}
                     </td>
                     <td className="px-3 py-2 text-right font-medium tabular">
-                      {formatCurrency(Number(li.budgeted_amount))}
+                      {formatCurrency(Number(li.budgeted_amount), version.currency)}
                     </td>
                     <td className="px-3 py-2 text-right tabular text-muted-foreground">
-                      {formatCurrency(Number(li.actual_amount))}
+                      {formatCurrency(Number(li.actual_amount), version.currency)}
                     </td>
                   </tr>
                 ))}
@@ -600,7 +606,7 @@ const VersionCard: React.FC<VersionCardProps> = ({
             </table>
             <TableFoot className="mt-0 rounded-b-lg">
               <span className="text-muted-foreground">Total</span>
-              <span className="ml-auto font-bold">{formatCurrency(version.total)}</span>
+              <span className="ml-auto font-bold">{formatCurrency(version.total, version.currency)}</span>
             </TableFoot>
           </div>
         )
@@ -632,6 +638,9 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId }) => {
   const can = usePermission();
   const canWrite = can('edit', 'budgetLine');
   const { toast } = useToast();
+  // The derived total (useProjectBudget) has no version of its own to carry a currency —
+  // fall back to the org default until a version is selected (FR-L10N-020).
+  const orgCurrency = useOrgCurrency();
 
   const budgetQuery = useProjectBudget(projectId);
   const versionsQuery = useBudgetVersions(projectId);
@@ -851,7 +860,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId }) => {
         <p className="text-sm text-muted-foreground">
           Active budget:{' '}
           <span data-testid="derived-budget" className="font-semibold tabular text-foreground">
-            {formatCurrency(derivedTotal)}
+            {formatCurrency(derivedTotal, selected?.currency ?? orgCurrency)}
           </span>
         </p>
       </div>
@@ -941,7 +950,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId }) => {
         {/* A6: tabular total in selector bar so it's visible without scrolling */}
         {selected && (
           <span className="ml-auto text-[13px] font-semibold tabular">
-            {formatCurrency(selected.total)}
+            {formatCurrency(selected.total, selected.currency)}
           </span>
         )}
       </Toolbar>

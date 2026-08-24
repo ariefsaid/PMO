@@ -145,7 +145,7 @@ describe('AC-UV-007 createUserView', () => {
 
 describe('AC-UV-007 updateUserView', () => {
   it('AC-UV-007: updates editable fields + bumps updated_at, by id, NEVER org_id/user_id', async () => {
-    h.result.value = { data: null, error: null };
+    h.result.value = { data: [{ id: 'v1' }], error: null };
     await updateUserView('v1', { name: 'Renamed', spec: { k: 1 }, scope: 'shared_org' });
     expect(h.calls.from).toEqual(['user_views']);
     expect(h.calls.update).toHaveLength(1);
@@ -164,11 +164,18 @@ describe('AC-UV-007 updateUserView', () => {
     h.result.value = { data: null, error: { message: 'denied', code: '42501' } };
     await expect(updateUserView('v1', { name: 'Y', spec: {} })).rejects.toMatchObject({ code: '42501' });
   });
+
+  it('#534: a using-denied update (0 rows matched, no error) throws 42501 instead of resolving as success', async () => {
+    h.result.value = { data: [], error: null };
+    await expect(updateUserView('v1', { name: 'Y', spec: {} })).rejects.toBeInstanceOf(AppError);
+    await expect(updateUserView('v1', { name: 'Y', spec: {} })).rejects.toMatchObject({ code: '42501' });
+    expect(h.calls.update.length).toBeGreaterThan(0);
+  });
 });
 
 describe('AC-UV-007 archiveUserView', () => {
   it('AC-UV-007: sets archived_at + updated_at via update by id, NEVER org_id/user_id', async () => {
-    h.result.value = { data: null, error: null };
+    h.result.value = { data: [{ id: 'v1' }], error: null };
     await archiveUserView('v1');
     expect(h.calls.from).toEqual(['user_views']);
     expect(h.calls.update).toHaveLength(1);
@@ -185,11 +192,18 @@ describe('AC-UV-007 archiveUserView', () => {
     h.result.value = { data: null, error: { message: 'denied', code: '42501' } };
     await expect(archiveUserView('v1')).rejects.toMatchObject({ code: '42501' });
   });
+
+  it('#534: a using-denied archive (0 rows matched, no error) throws 42501 instead of resolving as success', async () => {
+    h.result.value = { data: [], error: null };
+    await expect(archiveUserView('v1')).rejects.toBeInstanceOf(AppError);
+    await expect(archiveUserView('v1')).rejects.toMatchObject({ code: '42501' });
+    expect(h.calls.update.length).toBeGreaterThan(0);
+  });
 });
 
 describe('AC-UV-007 deleteUserView', () => {
   it('AC-UV-007: deletes by id, NEVER org_id/user_id', async () => {
-    h.result.value = { data: null, error: null };
+    h.result.value = { data: [{ id: 'v1' }], error: null };
     await deleteUserView('v1');
     expect(h.calls.from).toEqual(['user_views']);
     expect(h.calls.delete).toBe(1);
@@ -201,5 +215,12 @@ describe('AC-UV-007 deleteUserView', () => {
   it('AC-UV-007: throws AppError with code 42501 when RLS denies the delete', async () => {
     h.result.value = { data: null, error: { message: 'denied', code: '42501' } };
     await expect(deleteUserView('v1')).rejects.toMatchObject({ code: '42501' });
+  });
+
+  it('#534: a using-denied delete (0 rows matched, no error) throws 42501 instead of resolving as success', async () => {
+    h.result.value = { data: [], error: null };
+    await expect(deleteUserView('v1')).rejects.toBeInstanceOf(AppError);
+    await expect(deleteUserView('v1')).rejects.toMatchObject({ code: '42501' });
+    expect(h.calls.delete).toBeGreaterThan(0);
   });
 });

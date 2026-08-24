@@ -23,7 +23,7 @@ const row = (over: Partial<ProcurementWithRefs> = {}): ProcurementWithRefs =>
     code: 'PR-2606040001',
     title: 'Structural Steel',
     status: 'Ordered',
-    total_value: 842000,
+    total_value: 842000, currency: 'USD',
     project_id: 'proj-001',
     requested_by_id: 'u1',
     vendor_id: null,

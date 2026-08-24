@@ -72,14 +72,14 @@ insert into projects (id, org_id, name, status) values
   ('01690000-0000-0000-0000-0000000000b1','01690000-0000-0000-0000-000000000001','RES Project','Internal Project');
 
 -- A pipeline deal for the transition-audit assertions (section E).
-insert into projects (id, org_id, name, status, contract_value) values
-  ('01690000-0000-0000-0000-0000000000b2','01690000-0000-0000-0000-000000000001','RES Pipeline Deal','Negotiation',400000);
+insert into projects (id, org_id, name, status, contract_value, tax_treatment, tax_amount) values
+  ('01690000-0000-0000-0000-0000000000b2','01690000-0000-0000-0000-000000000001','RES Pipeline Deal','Negotiation',400000,'exclusive',0);
 
 -- An existing SI mirror row (as the service-role writer would have landed it) — the UPDATE/DELETE
 -- forgery targets in section B.
-insert into sales_invoices (id, org_id, project_id, customer_id, si_number, invoice_date, amount,
+insert into sales_invoices (tax_treatment, tax_amount, id, org_id, project_id, customer_id, si_number, invoice_date, amount,
                             erp_outstanding_amount, status, erp_docstatus, author_user_id) values
-  ('01690000-0000-0000-0000-0000000000e1','01690000-0000-0000-0000-000000000001',
+  ('exclusive', 0, '01690000-0000-0000-0000-0000000000e1','01690000-0000-0000-0000-000000000001',
    '01690000-0000-0000-0000-0000000000b1','01690000-0000-0000-0000-0000000000c1',
    'SI-RES-001','2026-03-02',500.00,500.00,'Unpaid',1,'01690000-0000-0000-0000-0000000000a2');
 
@@ -104,7 +104,16 @@ select is(
   (select array_agg(column_name::text order by column_name) from information_schema.column_privileges
      where table_schema = 'public' and table_name = 'sales_invoices'
        and grantee = 'authenticated' and privilege_type = 'INSERT'),
-  array['amount','created_at','customer_id','id','invoice_date','org_id','project_id','reference_number'],
+  -- #478 (0187/0188): `currency` and the four tax columns joined the BODY set — they are exactly the
+  -- fields a native author must state, and both migrations had to grant them explicitly because this
+  -- table's INSERT grant is column-level (0176). The withheld set is UNCHANGED: status, si_number,
+  -- author_user_id and every erp_* column are still absent.
+  -- #498 (0193): `work_order_id` joined the BODY set — which scope grant this invoice bills against.
+  -- Granted explicitly for the same reason as the five above: this table's INSERT grant is
+  -- column-level (0176), so a new column is not insertable unless named. The withheld set is
+  -- UNCHANGED: status, si_number, author_user_id and every erp_* column are still absent.
+  array['amount','created_at','currency','customer_id','id','invoice_date','org_id','project_id',
+        'reference_number','tax_amount','tax_rate','tax_template','tax_treatment','work_order_id'],
   'AC-RES-010 the INSERT re-grant is exactly the body columns — status / si_number / author_user_id / erp_* are withheld');
 
 select is(
@@ -180,10 +189,11 @@ set local request.jwt.claims =
   '{"sub":"01690000-0000-0000-0000-0000000000a4","role":"authenticated"}';
 
 select lives_ok(
-  $$ insert into public.sales_invoices (id, org_id, project_id, customer_id, reference_number, invoice_date, amount)
+  $$ insert into public.sales_invoices (id, org_id, project_id, customer_id, reference_number, invoice_date, amount,
+                                        tax_treatment, tax_amount)
        values ('01690000-0000-0000-0000-0000000000e2','01690000-0000-0000-0000-000000000001',
                '01690000-0000-0000-0000-0000000000b1','01690000-0000-0000-0000-0000000000c1',
-               'REF-RES-2','2026-03-03', 999999) $$,
+               'REF-RES-2','2026-03-03', 999999, 'exclusive', 0) $$,
   'AC-RES-015 CONTROL a native invoice BODY still inserts (the 0123 forward-compat revenue seam is not taken away)');
 
 select throws_ok(
@@ -217,10 +227,12 @@ select is(
 set local role service_role;
 select lives_ok(
   $$ insert into public.sales_invoices (id, org_id, customer_id, si_number, invoice_date, amount,
-                                        erp_outstanding_amount, status, erp_docstatus, erp_modified, author_user_id)
+                                        erp_outstanding_amount, status, erp_docstatus, erp_modified, author_user_id,
+                                        tax_treatment, tax_amount)
        values ('01690000-0000-0000-0000-0000000000e3','01690000-0000-0000-0000-000000000001',
                '01690000-0000-0000-0000-0000000000c1','SI-MIRROR-1','2026-03-04', 250, 250,
-               'Unpaid', 1, '2026-03-04 09:00:00','01690000-0000-0000-0000-0000000000a1') $$,
+               'Unpaid', 1, '2026-03-04 09:00:00','01690000-0000-0000-0000-0000000000a1',
+               'inclusive', 0) $$,
   'AC-RES-018 CONTROL the service-role mirror writer still lands a full ERP row (status + si_number + erp_* + author)');
 
 select lives_ok(
@@ -398,9 +410,9 @@ set local role authenticated;
 set local request.jwt.claims =
   '{"sub":"01690000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 select lives_ok(
-  $$ insert into public.projects (id, org_id, name, status, contract_value)
+  $$ insert into public.projects (id, org_id, name, status, contract_value, tax_treatment, tax_amount)
        values ('01690000-0000-0000-0000-0000000000b3','01690000-0000-0000-0000-000000000001',
-               'RES Self-won deal','Leads', 99999999) $$,
+               'RES Self-won deal','Leads', 99999999, 'exclusive', 0) $$,
   'AC-RES-032 a PM may still ORIGINATE a Lead at contract_value 99999999 — the opportunity value is theirs to propose');
 select lives_ok(
   $$ select transition_project('01690000-0000-0000-0000-0000000000b3'::uuid,'PQ Submitted'::project_status) $$,
@@ -545,12 +557,14 @@ set local request.jwt.claims =
 
 select lives_ok(
   $$ select create_procurement_invoice('01690000-0000-0000-0000-0000000000d1'::uuid,
-       'Received'::procurement_invoice_status, '2026-03-02'::date, 'BILL-OK', 1000::numeric) $$,
+       'Received'::procurement_invoice_status, '2026-03-02'::date, 'BILL-OK', 1000::numeric,
+       p_tax_treatment => 'exclusive', p_tax_amount => 0) $$,
   'AC-RES-051 CONTROL create_procurement_invoice still records a Received invoice end to end');
 
 select lives_ok(
   $$ select create_procurement_invoice('01690000-0000-0000-0000-0000000000d1'::uuid,
-       'Scheduled'::procurement_invoice_status, '2026-03-02'::date, 'BILL-OK-2', 1000::numeric) $$,
+       'Scheduled'::procurement_invoice_status, '2026-03-02'::date, 'BILL-OK-2', 1000::numeric,
+       p_tax_treatment => 'exclusive', p_tax_amount => 0) $$,
   'AC-RES-051 CONTROL Scheduled is an origination status too (RecordCaptureForm offers exactly these two)');
 
 reset role;
@@ -570,7 +584,8 @@ set local request.jwt.claims =
   '{"sub":"01690000-0000-0000-0000-0000000000a4","role":"authenticated"}';
 select lives_ok(
   $$ select capture_vendor_invoice('01690000-0000-0000-0000-0000000000d2'::uuid,
-       'Received'::procurement_invoice_status, '2026-03-02'::date, 'CAP-OK', 700::numeric, null) $$,
+       'Received'::procurement_invoice_status, '2026-03-02'::date, 'CAP-OK', 700::numeric, null,
+       p_tax_treatment => 'exclusive', p_tax_amount => 0) $$,
   'AC-RES-052 CONTROL capture_vendor_invoice (transition + invoice + event, one txn) still succeeds');
 
 -- ⚑ STILL OPEN — the goods-receipt self-attestation. create_procurement_receipt is role-gated to

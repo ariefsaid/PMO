@@ -101,6 +101,8 @@ jobs:
         run: |
           node --test scripts/ci-integration-order.test.mjs scripts/deno-inventory.test.mjs
           node scripts/check-e2e-skips.mjs --self-test
+          node scripts/check-redirect-targets.mjs --self-test
+          node scripts/check-redirect-targets.mjs
           bash scripts/check-e2e-isolation.sh --self-test
           bash scripts/check-nul-bytes.sh --self-test
       - run: npm ci

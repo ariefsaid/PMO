@@ -35,6 +35,10 @@ const projectsState = {
 // Mutable so each test can set the view.
 const viewBox = { value: 'table' as 'table' | 'cards' | 'calendar' | 'kanban' };
 
+// FR-L10N-020: this tree reads useOrgCurrency (org-denominated aggregates). Pinned here rather
+// than left to a real query. ⚑ At LINE-START — inside a neighbouring vi.mock it parses as a
+// syntax error and hides every real error beneath it.
+vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/hooks/useProjectView', () => ({
   useProjectView: () => [viewBox.value, vi.fn()] as [typeof viewBox.value, () => void],
 }));
@@ -94,7 +98,7 @@ import Projects from '../Projects';
 const seed: ProjectWithRefs[] = [
   {
     id: 'p1', name: 'Test Project', code: 'PRJ-001', status: 'Ongoing Project',
-    client_id: 'c1', project_manager_id: 'u-pm', contract_value: 1_000_000,
+    client_id: 'c1', project_manager_id: 'u-pm', contract_value: 1_000_000, currency: 'USD',
     budget: 800_000, spent: 400_000, end_date: '2026-12-31',
     client: { name: 'Acme Corp' }, pm: { full_name: 'Alice Manager' },
     customer_contract_ref: null, contract_date: null, decided_at: null,

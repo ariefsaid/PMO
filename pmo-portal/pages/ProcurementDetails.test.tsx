@@ -32,6 +32,10 @@ const mockCaptureVendorInvoice = vi.fn().mockResolvedValue({ id: 'vi-new' });
 
 // The per-phase file sub-section has its own unit test + needs a QueryClient;
 // stub it here so the page tests stay focused on the lifecycle behavior.
+// FR-L10N-020: this tree reads useOrgCurrency (org-denominated aggregates). Pinned here rather
+// than left to a real query. ⚑ At LINE-START — inside a neighbouring vi.mock it parses as a
+// syntax error and hides every real error beneath it.
+vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/hooks/useProcurementRecords', () => ({
   useProcurementRecordMutations: () => ({
     createPurchaseRequest: { mutateAsync: vi.fn(), isPending: false },
@@ -156,6 +160,7 @@ const baseProcurement = {
   title: 'Workstations for HQ',
   status: 'Requested' as const,
   total_value: 50000,
+  currency: 'USD',
   pr_number: 'PR-2606040001',
   po_number: null,
   vq_number: null,
@@ -198,6 +203,7 @@ const orderedProcurement = {
       procurement_id: 'proc-001',
       vendor_id: 'v-1',
       total_amount: 48000,
+      currency: 'USD',
       vq_number: 'VQ-2601100001',
       is_selected: true,
       reference: 'VQ-2601100001',
@@ -227,6 +233,7 @@ const orderedProcurement = {
       date: '2026-01-05',
       reference_number: null,
       amount: 50000,
+      currency: 'USD',
       procurement_id: 'proc-001',
       org_id: 'org-1',
       created_at: '2026-01-05T00:00:00Z',
@@ -240,6 +247,7 @@ const orderedProcurement = {
       date: '2026-01-10',
       reference_number: null,
       amount: 48000,
+      currency: 'USD',
       procurement_id: 'proc-001',
       org_id: 'org-1',
       created_at: '2026-01-10T00:00:00Z',
@@ -253,7 +261,7 @@ const orderedProcurement = {
 const quoteSelectedProcurement = {
   ...baseProcurement,
   status: 'Quote Selected' as const,
-  total_value: 148000,
+  total_value: 148000, currency: 'USD',
   po_number: null,
   vendor_id: 'v-syn',
   vendor: { name: 'Synergy Systems' },
@@ -264,6 +272,7 @@ const quoteSelectedProcurement = {
       procurement_id: 'proc-001',
       vendor_id: 'v-syn',
       total_amount: 148000,
+      currency: 'USD',
       vq_number: 'VQ-2602050001',
       is_selected: true,
       reference: 'SYN-Q-220',
@@ -277,6 +286,7 @@ const quoteSelectedProcurement = {
       procurement_id: 'proc-001',
       vendor_id: 'v-apx',
       total_amount: 152000,
+      currency: 'USD',
       vq_number: 'VQ-2602050002',
       is_selected: false,
       reference: 'APX-Q-101',
@@ -591,7 +601,7 @@ describe('AC-805: transition mutations called on action click', () => {
     detailState.data = {
       ...baseProcurement,
       status: 'Draft',
-      total_value: 500,
+      total_value: 500, currency: 'USD',
       items: [{ id: 'it1', org_id: 'org-1', procurement_id: 'proc-001', name: 'Widget', description: null, quantity: 1, rate: 500, amount: 500 }],
     };
     renderPage();
@@ -724,7 +734,7 @@ describe('Document trail renders PR/VQ/PO/GR/VI numbers (AC-816 data)', () => {
   });
 
   it('renders total_value via formatCurrency (money never raw)', () => {
-    detailState.data = { ...baseProcurement, total_value: 50000 };
+    detailState.data = { ...baseProcurement, total_value: 50000, currency: 'USD' };
     renderPage();
     // formatCurrency(50000) = "$50,000"
     // May appear in multiple places (header + DecisionSupportPanel stat tiles) — any occurrence is proof.
@@ -1028,14 +1038,29 @@ describe('VI creation panel (D3, AC-816 UI support)', () => {
     detailState.data = { ...baseProcurement, status: 'Vendor Invoiced', requested_by_id: 'u-other', receipts: [], invoices: [] };
     renderPage();
     await userEvent.click(screen.getByTestId('btn-create-vi'));
+    // #505: stating the tax treatment + amount is now part of recording a vendor invoice.
+    await userEvent.selectOptions(screen.getByTestId('vi-tax-treatment-select'), 'inclusive');
+    await userEvent.type(screen.getByTestId('vi-tax-amount-input'), '450');
     await userEvent.click(screen.getByTestId('btn-save-vi'));
     expect(mockCreateInvoice).not.toHaveBeenCalled();
     await confirmInDialog(/save vi/i);
     await waitFor(() =>
       expect(mockCreateInvoice).toHaveBeenCalledWith(
-        expect.objectContaining({ status: 'Received' })
+        // #505: the staged tax facts survive the confirm hop and reach the mutation.
+        expect.objectContaining({ status: 'Received', taxTreatment: 'inclusive', taxAmount: 450 })
       )
     );
+  });
+
+  it('#505: the VI form cannot be saved until a tax treatment is chosen', async () => {
+    detailState.data = { ...baseProcurement, status: 'Vendor Invoiced', requested_by_id: 'u-other', receipts: [], invoices: [] };
+    renderPage();
+    await userEvent.click(screen.getByTestId('btn-create-vi'));
+    await userEvent.type(screen.getByTestId('vi-tax-amount-input'), '0');
+    expect(screen.getByTestId('btn-save-vi')).toBeDisabled();
+    await userEvent.click(screen.getByTestId('btn-save-vi'));
+    // No confirm dialog, no write: the incomplete invoice never leaves the form.
+    expect(mockCreateInvoice).not.toHaveBeenCalled();
   });
 
   it('cancelling VI form hides the form', async () => {
@@ -1115,7 +1140,7 @@ describe('CRUD slice: line items, quotations, header-edit, documents (AC-PROC-00
       quotations: [
         {
           id: 'q2', org_id: 'org-1', procurement_id: 'proc-001', vendor_id: 'v2',
-          total_amount: 2944, vq_number: 'VQ-2', is_selected: false, reference: null,
+          total_amount: 2944, currency: 'USD', vq_number: 'VQ-2', is_selected: false, reference: null,
           received_date: '2026-06-01', file_url: null,
         },
       ],

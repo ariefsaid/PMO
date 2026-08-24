@@ -47,6 +47,7 @@ function makeProject(overrides: Partial<ProjectWithRefs> = {}): ProjectWithRefs 
     name: 'Test Project',
     status: 'Ongoing Project',
     contract_value: 200000,
+    currency: 'USD',
     budget: 0,        // THE BUG: stored column is 0
     spent: 0,
     code: null,

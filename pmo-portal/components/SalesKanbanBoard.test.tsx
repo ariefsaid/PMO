@@ -5,11 +5,22 @@ import SalesKanbanBoard from './SalesKanbanBoard';
 import type { PipelineProject } from '@/src/lib/db/dashboard';
 import { formatCurrency } from '@/src/lib/format';
 
+// FR-L10N-020: the board reads useOrgCurrency for its per-column totals (and for the deal cards,
+// because get_sales_pipeline() returns no per-row currency). Pinned rather than left to a real
+// query. ⚑ At LINE-START on purpose — inserted inside a neighbouring vi.mock call it parses as a
+// syntax error and hides every real error beneath it.
+vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
+
 const projects: PipelineProject[] = [
-  { id: 'q1', name: 'Quotation Deal Alpha', client_name: 'Acme', status: 'Quotation Submitted', contract_value: 500_000, win_probability: 0.4 },
-  { id: 't1', name: 'Tender Deal Bravo', client_name: null, status: 'Tender Submitted', contract_value: 1_200_000, win_probability: 0.5 },
-  { id: 'w1', name: 'Won Deal Charlie', client_name: 'Globex', status: 'Won, Pending KoM', contract_value: 2_000_000, win_probability: 1 },
-  { id: 'l1', name: 'Lost Deal Delta', client_name: 'Initech', status: 'Loss Tender', contract_value: 700_000, win_probability: 0 },
+  { id: 'q1', name: 'Quotation Deal Alpha', client_name: 'Acme', status: 'Quotation Submitted', contract_value: 500_000, currency: 'USD', win_probability: 0.4 },
+  { id: 't1', name: 'Tender Deal Bravo', client_name: null, status: 'Tender Submitted', contract_value: 1_200_000, currency: 'USD', win_probability: 0.5 },
+  { id: 'w1', name: 'Won Deal Charlie', client_name: 'Globex', status: 'Won, Pending KoM', contract_value: 2_000_000, currency: 'USD', win_probability: 1 },
+  { id: 'l1', name: 'Lost Deal Delta', client_name: 'Initech', status: 'Loss Tender', contract_value: 700_000, currency: 'USD', win_probability: 0 },
+  // #530 / FR-L10N-020: a mixed-currency pair proves a card renders ITS OWN currency, not the
+  // USD org default — a single-currency fixture set cannot tell a record currency from a
+  // hardcoded literal (which is exactly how this issue shipped in 0044).
+  { id: 'idr1', name: 'IDR Deal', client_name: 'Garuda', status: 'Quotation Submitted', contract_value: 1_234, currency: 'IDR', win_probability: 0.4 },
+  { id: 'usd1', name: 'USD Deal', client_name: 'Acme Corp', status: 'Quotation Submitted', contract_value: 9_000, currency: 'USD', win_probability: 0.4 },
 ];
 
 describe('SalesKanbanBoard (AC-SP-204 / AC-IXD-PROJ-007)', () => {
@@ -46,9 +57,9 @@ describe('SalesKanbanBoard (AC-SP-204 / AC-IXD-PROJ-007)', () => {
     const card = screen.getByText('Quotation Deal Alpha').closest('[role="button"]')!;
     const c = within(card as HTMLElement);
     expect(c.getByText('Acme')).toBeInTheDocument();
-    expect(c.getByText(formatCurrency(500_000))).toBeInTheDocument();
+    expect(c.getByText(formatCurrency(500_000, 'USD'))).toBeInTheDocument();
     // weighted = 500000 * 0.4 = 200000 (rendered "$200,000 wtd")
-    expect(c.getByText((t) => t.includes(formatCurrency(200_000)))).toBeInTheDocument();
+    expect(c.getByText((t) => t.includes(formatCurrency(200_000, 'USD')))).toBeInTheDocument();
     // win% from the RPC (40%), not a hard-coded legacy value
     expect(c.getByText('40%')).toBeInTheDocument();
   });
@@ -99,7 +110,29 @@ describe('SalesKanbanBoard (AC-SP-204 / AC-IXD-PROJ-007)', () => {
     // weighted for Tender = 1,200,000 * 0.5 = 600,000 — surfaced both in the
     // column totals AND the single card's weighted chip.
     expect(
-      within(tender).getAllByText((t) => t.includes(formatCurrency(600_000))).length,
+      within(tender).getAllByText((t) => t.includes(formatCurrency(600_000, 'USD'))).length,
     ).toBeGreaterThan(0);
+  });
+
+  it('#530 / AC-L10N-020: cards render each deal in its own currency, not the USD org default', () => {
+    render(<SalesKanbanBoard projects={projects} onOpen={vi.fn()} />);
+    // IDR card: shows the code-style NBSP currency (U+00A0, Intl en-US separates a code-style
+    // currency with a non-breaking space), and NO dollar sign. We assert on the RAW node text
+    // content for the NBSP — getByText's default normalizer collapses NBSP to a space before
+    // comparing, so a plain-space assertion could be satisfied by a hardcoded "IDR 1,234".
+    const idrCard = screen.getByText('IDR Deal').closest('[role="button"]')!;
+    const idr = within(idrCard as HTMLElement);
+    // SOME element inside the card carries the raw NBSP currency (the value span and its
+    // ancestors both contain it in textContent, so this is a presence check, not unique-node).
+    expect(
+      idr.getAllByText((_, node) => node?.textContent?.includes('IDR\u00A01,234') ?? false)
+        .length,
+    ).toBeGreaterThan(0);
+    expect(idr.queryByText(/\$/)).toBeNull();
+    // USD card (same column, same board): renders its own dollar value and NO IDR.
+    const usdCard = screen.getByText('USD Deal').closest('[role="button"]')!;
+    const usd = within(usdCard as HTMLElement);
+    expect(usd.getByText('$9,000')).toBeInTheDocument();
+    expect(usd.queryByText(/IDR/)).toBeNull();
   });
 });

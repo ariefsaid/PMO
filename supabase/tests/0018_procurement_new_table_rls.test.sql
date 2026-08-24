@@ -35,9 +35,9 @@ insert into procurement_receipts (id, org_id, procurement_id, status) values
    '00180000-0000-0000-0000-000000000010','Partial');
 
 -- An invoice in org-A (for the Engineer read test).
-insert into procurement_invoices (id, org_id, procurement_id, status) values
+insert into procurement_invoices (id, org_id, procurement_id, status, tax_treatment, tax_amount) values
   ('00180000-0000-0000-0000-000000000030','00180000-0000-0000-0000-000000000001',
-   '00180000-0000-0000-0000-000000000010','Received');
+   '00180000-0000-0000-0000-000000000010','Received', 'exclusive', 0);
 
 -- ── T1: Engineer SELECT in-org → rows returned (read allowed) ────────────────
 set local role authenticated;

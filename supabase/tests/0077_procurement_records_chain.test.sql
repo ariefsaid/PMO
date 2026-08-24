@@ -35,9 +35,9 @@ insert into purchase_orders (id, org_id, procurement_id, po_number, status) valu
    '00770000-0000-0000-0000-000000000011', 'PO-002', 'Issued');
 
 -- ── AC-PR-029: PO-less — invoice (po_id null) + payment (invoice_id → invoice) ─
-insert into procurement_invoices (id, org_id, procurement_id, status, invoice_date) values
+insert into procurement_invoices (id, org_id, procurement_id, status, invoice_date, tax_treatment, tax_amount) values
   ('00770000-0000-0000-0000-000000000020', '00770000-0000-0000-0000-000000000001',
-   '00770000-0000-0000-0000-000000000010', 'Received', '2026-06-10');
+   '00770000-0000-0000-0000-000000000010', 'Received', '2026-06-10', 'exclusive', 0);
 
 -- po_id on this invoice must be null (PO-less)
 select results_eq(
@@ -64,10 +64,10 @@ select results_eq(
   'AC-PR-029: exactly one payment under the PO-less case');
 
 -- ── AC-PR-030: invoice po_id = PO#2 → joins to PO#2 ─────────────────────────
-insert into procurement_invoices (id, org_id, procurement_id, status, invoice_date, po_id) values
+insert into procurement_invoices (id, org_id, procurement_id, status, invoice_date, po_id, tax_treatment, tax_amount) values
   ('00770000-0000-0000-0000-000000000021', '00770000-0000-0000-0000-000000000001',
    '00770000-0000-0000-0000-000000000011', 'Received', '2026-06-11',
-   '00770000-0000-0000-0000-000000000aa2');  -- points to PO#2
+   '00770000-0000-0000-0000-000000000aa2', 'exclusive', 0);  -- points to PO#2
 
 select results_eq(
   $$ select po_id = '00770000-0000-0000-0000-000000000aa2'::uuid
@@ -78,9 +78,9 @@ select results_eq(
 
 -- ── AC-PR-031: update po_id null → non-null succeeds, row count stays 1 ──────
 -- Insert invoice with po_id null
-insert into procurement_invoices (id, org_id, procurement_id, status, invoice_date) values
+insert into procurement_invoices (id, org_id, procurement_id, status, invoice_date, tax_treatment, tax_amount) values
   ('00770000-0000-0000-0000-000000000022', '00770000-0000-0000-0000-000000000001',
-   '00770000-0000-0000-0000-000000000011', 'Received', '2026-06-12');
+   '00770000-0000-0000-0000-000000000011', 'Received', '2026-06-12', 'exclusive', 0);
 
 -- Update to link to PO#1 (nullable → non-null update)
 update procurement_invoices

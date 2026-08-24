@@ -118,14 +118,14 @@ vi.mock('react-router', async (orig) => {
 
 const onHandRow = {
   id: 'p1', name: 'Innovate Corp HQ Fit-Out', code: 'PRJ-001', status: 'Ongoing Project',
-  client_id: 'c2', project_manager_id: 'u-alice', contract_value: 5000000, budget: 4700000,
+  client_id: 'c2', project_manager_id: 'u-alice', contract_value: 5000000, currency: 'USD', budget: 4700000,
   spent: 2100000, start_date: '2026-01-01', end_date: '2026-12-18', contract_date: '2026-01-10',
   customer_contract_ref: 'CPO-2026-001', client: { name: 'Innovate Corp' }, pm: { full_name: 'Alice Manager' },
 } as unknown as ProjectWithRefs;
 
 const pipelineRow = {
   id: 'd1', name: 'Acme Tender Bid', code: 'OPP-0042', status: 'Tender Submitted',
-  client_id: 'c1', project_manager_id: 'u-alice', contract_value: 1200000, budget: 0,
+  client_id: 'c1', project_manager_id: 'u-alice', contract_value: 1200000, currency: 'USD', budget: 0,
   spent: 0, start_date: null, end_date: null, contract_date: null,
   customer_contract_ref: null, client: { name: 'Acme' }, pm: { full_name: 'Alice Manager' },
 } as unknown as ProjectWithRefs;

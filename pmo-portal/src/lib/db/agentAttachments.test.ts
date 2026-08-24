@@ -74,6 +74,7 @@ import {
   confirmAgentAttachmentUpload,
   cleanupAgentAttachmentObject,
 } from './agentAttachments';
+import { AppError } from '@/src/lib/appError';
 
 beforeEach(() => {
   h.from.mockClear();
@@ -139,7 +140,7 @@ describe('agent attachment DAL', () => {
   });
 
   it('AC-AT2-004 confirmUpload marks the prepared attachment ready for resolver lookup', async () => {
-    h.result.value = { data: null, error: null };
+    h.result.value = { data: [{ id: 'att-1' }], error: null };
     await confirmAgentAttachmentUpload('att-1');
     expect(h.calls.from).toEqual(['agent_attachments']);
     expect(h.calls.update[0]).toEqual({ extracted_text_status: 'pending', archived_at: null });
@@ -147,12 +148,30 @@ describe('agent attachment DAL', () => {
   });
 
   it('AC-AT2-004 cleanup removes storage and soft-archives the prepared row by path', async () => {
-    h.result.value = { data: null, error: null };
+    h.result.value = { data: [{ id: 'att-1' }], error: null };
     await cleanupAgentAttachmentObject('org/org-1/agent-attachments/att-1');
     expect(h.storageCalls.bucket).toEqual(['agent-attachments']);
     expect(h.storageCalls.remove).toEqual([['org/org-1/agent-attachments/att-1']]);
     expect(h.calls.from).toEqual(['agent_attachments']);
     expect(h.calls.update[0]).toMatchObject({ archived_at: expect.any(String) });
     expect(h.calls.eq).toContainEqual(['storage_path', 'org/org-1/agent-attachments/att-1']);
+  });
+
+  it('#534: a using-denied confirmUpload (0 rows matched, no error) throws 42501 instead of resolving as success', async () => {
+    h.result.value = { data: [], error: null };
+    await expect(confirmAgentAttachmentUpload('att-1')).rejects.toBeInstanceOf(AppError);
+    await expect(confirmAgentAttachmentUpload('att-1')).rejects.toMatchObject({ code: '42501' });
+    expect(h.calls.update.length).toBeGreaterThan(0);
+  });
+
+  it('#534: a using-denied cleanup archive (0 rows matched, no error) throws 42501 instead of resolving as success', async () => {
+    h.result.value = { data: [], error: null };
+    await expect(cleanupAgentAttachmentObject('org/org-1/agent-attachments/att-1')).rejects.toBeInstanceOf(
+      AppError,
+    );
+    await expect(
+      cleanupAgentAttachmentObject('org/org-1/agent-attachments/att-1'),
+    ).rejects.toMatchObject({ code: '42501' });
+    expect(h.calls.update.length).toBeGreaterThan(0);
   });
 });

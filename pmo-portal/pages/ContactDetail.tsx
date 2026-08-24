@@ -25,6 +25,7 @@ import { usePermission } from '@/src/auth/usePermission';
 import { useContact, useContactActivities, useContactMutations } from '@/src/hooks/useContacts';
 import { useCompanies } from '@/src/hooks/useCompanies';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { formatDate } from '@/src/lib/format';
 import { useAgentContext } from '@/src/lib/agent/context/useAgentContext';
 import { crmActivityVariant } from '@/src/lib/status/statusVariants';
 import type { ContactInput } from '@/src/lib/db/contacts';
@@ -301,7 +302,7 @@ const Field: React.FC<{ label: string; value: React.ReactNode }> = ({ label, val
 const formatOccurred = (iso: string): string => {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+  return formatDate(iso);
 };
 
 /** Returns the route to the related object for an activity, or null when neither id is set.

@@ -888,6 +888,12 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
             outbox_identity: identity,
             project_start_date: gate.projectStartDate,
             project_end_date: gate.projectEndDate,
+            // ⚑ #479 — the ADR-0059 §6 state-stamp witness, on a NON-body field like the span above.
+            // It is the SAME `gate.activatedAt` the idempotency key two lines up is derived from, so
+            // the mirror records the activation the push was actually keyed on rather than one
+            // inferred later. Server-read by `runBudgetGate` from `budget_versions`, never from the
+            // caller's payload — §3.3's rule, and the reason this rides the command at all.
+            activated_at: gate.activatedAt,
           } as AdapterCommand['record'],
         };
       });
@@ -1108,6 +1114,10 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
       // provenance for the operator surface, never an attribution input.)
       const witnessStart = (command.record as { project_start_date?: unknown }).project_start_date;
       const witnessEnd = (command.record as { project_end_date?: unknown }).project_end_date;
+      // ⚑ #479: the activation witness is stamped on EVERY outcome, failed included — same reasoning
+      // as the span witness above. A failed row that records WHICH activation was attempted is what
+      // lets an operator tell "this push failed" from "a later activation superseded it".
+      const witnessActivatedAt = (command.record as { activated_at?: unknown }).activated_at;
       await serviceClient.from('budget_version_erp_mirror').upsert(
         {
           org_id: orgId,
@@ -1115,6 +1125,9 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
           fiscal_year: fiscalYear,
           push_state: outcome.pushState,
           push_error: pushError,
+          ...(typeof witnessActivatedAt === 'string' && witnessActivatedAt !== ''
+            ? { activated_at_witness: witnessActivatedAt }
+            : {}),
           ...(typeof witnessStart === 'string' && witnessStart !== ''
             ? {
                 pushed_project_start_date: witnessStart,

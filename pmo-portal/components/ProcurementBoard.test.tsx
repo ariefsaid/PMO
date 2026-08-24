@@ -13,6 +13,7 @@ const row = (over: Partial<ProcurementWithRefs>): ProcurementWithRefs =>
     title: 'Structural steel',
     status: 'Ordered',
     total_value: 842000,
+    currency: 'USD',
     project_id: 'pr1',
     requested_by_id: 'u1',
     vendor_id: null,
@@ -96,5 +97,19 @@ describe('ProcurementBoard — by-stage kanban (Issue 3)', () => {
       />,
     );
     expect(screen.queryByText('Rejected req')).not.toBeInTheDocument();
+  });
+
+  it('FR-L10N-020: a card and its column total render in the RECORD currency, not USD', () => {
+    render(
+      <MemoryRouter>
+        <ProcurementBoard
+          procurements={[row({ status: 'Ordered', currency: 'EUR', total_value: 1000 })]}
+          onOpen={vi.fn()}
+        />
+      </MemoryRouter>,
+    );
+    const poCol = screen.getByTestId('prstage-po');
+    expect(poCol).toHaveTextContent('€1,000');
+    expect(poCol).not.toHaveTextContent('$1,000');
   });
 });

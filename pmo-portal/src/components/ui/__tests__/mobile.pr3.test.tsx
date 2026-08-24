@@ -30,6 +30,10 @@ import { KanbanStageIndicator } from '../KanbanStageIndicator';
 import SalesKanbanBoard from '@/components/SalesKanbanBoard';
 import type { PipelineProject } from '@/src/lib/db/dashboard';
 
+// FR-L10N-020: SalesKanbanBoard reads useOrgCurrency for its column totals and deal cards
+// (get_sales_pipeline returns no per-row currency). Pinned here. ⚑ LINE-START on purpose.
+vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
+
 // ─── Tabs ──────────────────────────────────────────────────────────────────
 
 const TAB_ITEMS: TabItem[] = [
@@ -217,8 +221,8 @@ describe('KanbanStageIndicator strip edge-fade (AC-IXD-MOBILE-W4-PR3-C5-fade)', 
 // AC-IXD-MOBILE-W4-PR3-C5-scroll.
 
 const KANBAN_PROJECTS: PipelineProject[] = [
-  { id: 'a1', name: 'Alpha', client_name: 'A', status: 'Leads', contract_value: 100_000, win_probability: 0.1 },
-  { id: 'b1', name: 'Bravo', client_name: 'B', status: 'Tender Submitted', contract_value: 200_000, win_probability: 0.5 },
+  { id: 'a1', name: 'Alpha', client_name: 'A', status: 'Leads', contract_value: 100_000, currency: 'USD', win_probability: 0.1 },
+  { id: 'b1', name: 'Bravo', client_name: 'B', status: 'Tender Submitted', contract_value: 200_000, currency: 'USD', win_probability: 0.5 },
 ];
 
 describe('SalesKanbanBoard swipe→indicator sync (AC-IXD-MOBILE-W4-PR3-C5-scroll)', () => {

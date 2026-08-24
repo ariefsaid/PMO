@@ -1,8 +1,15 @@
 import { supabase } from '@/src/lib/supabase/client';
-import { AppError } from '@/src/lib/appError';
+import { AppError, assertWriteLanded } from '@/src/lib/appError';
 import type { Tables } from '@/src/lib/supabase/database.types';
 import { ON_HAND_STATUSES, INTERNAL_STATUSES } from './projectTransitions';
 import { resolveRange, type PageParams } from '@/src/lib/pagination';
+import type { TaxTreatment } from './procurementLifecycle';
+
+// #513: `TaxTreatment` is the ONE two-value domain shared by every table that carries the four tax
+// columns (`procurement_invoices` 0196, `sales_invoices`/`work_orders` 0187/0188, and now `projects`
+// 0197). Re-exported rather than re-declared — a second copy is a second thing to keep in step with
+// the CHECK constraint.
+export type { TaxTreatment };
 
 /**
  * The active Projects (delivery) list partition (Model B, ADR-0020): on-hand ∪ internal.
@@ -73,17 +80,67 @@ export const PROJECT_ORIGINATION_STATUSES: readonly ProjectStatus[] = [
   'Internal Project',
 ];
 
-/** The fields a create-deal form supplies. org_id is NEVER among them — RLS stamps it. */
-export interface CreateProjectInput {
+/**
+ * The tax facts a STATED contract value must carry (#513, migration 0197).
+ *
+ * Snake_case, unlike the camelCase `SetProjectContractValueInput` below, because these members are
+ * inserted as COLUMNS by `createProject` (like its `client_id`/`contract_value` neighbours), where
+ * the RPC input names PARAMETERS. Same four facts, two writers, each named after what it writes.
+ */
+export interface ProjectContractTaxColumns {
+  /** Does `contract_value` already include `tax_amount`? Not inferable later — state it. */
+  tax_treatment: TaxTreatment;
+  /** Total tax on the contract value, in the project's currency. 0 = no tax; never "unknown". */
+  tax_amount: number;
+  /** Authored tax percentage (e.g. 11 for PPN 11%). null = not recorded — never 0%. */
+  tax_rate?: number | null;
+  /** ERPNext taxes-and-charges template name; absent for a standalone org. */
+  tax_template?: string | null;
+}
+
+/** The create-form fields that have nothing to do with the contract value. */
+interface CreateProjectBase {
   name: string;
   /** Must be an origination status (Leads / Internal Project). */
   status: ProjectStatus;
   client_id: string | null;
   project_manager_id: string | null;
-  contract_value: number;
   start_date: string | null;
   end_date: string | null;
 }
+
+/**
+ * The fields a create-deal form supplies. org_id is NEVER among them — RLS stamps it.
+ *
+ * #513 — WHY THIS IS A UNION rather than four more required members. `createProject` INSERTs
+ * straight into `projects`, so it meets 0197's constraint head-on:
+ *
+ *     check (contract_value = 0 or (tax_treatment is not null and tax_amount is not null))
+ *
+ * "You may not record a contract value without saying what it means." That is a CONDITIONAL rule,
+ * and the type mirrors it exactly: the literal-`0` branch needs no basis (a lead, an internal
+ * project, anything pre-win states nothing and is asked nothing), and every other branch requires
+ * one. Four flat required members would have been the easy shape and the wrong one — it would force
+ * a tax treatment onto a row with no value to describe, which is not a fact, it is ceremony, and it
+ * is what the migration header explicitly refused for the DB.
+ *
+ * The safety property falls out of TypeScript's own rules and is the whole point: a `contract_value`
+ * whose type is plain `number` (a parsed form field, a spreadsheet cell — anything not provably 0 at
+ * compile time) does NOT match the `0` branch, so it MUST supply the basis or fail `tsc`. Only a
+ * literal `0` is exempt. A caller can never send a non-zero value with no basis and have it compile,
+ * which is the P0001/23514 that would otherwise land in front of a user mid-import.
+ *
+ * ⚑ The zero branch carries `Partial<ProjectContractTaxColumns>` rather than nothing, and that is
+ * load-bearing in two ways, neither of them a loosening: stating a basis at 0 is legal (net and
+ * gross are the same number there, so it cannot be wrong), and `keyof` a union is the INTERSECTION
+ * of its members' keys — without the optional members the tax columns would vanish from
+ * `keyof CreateProjectInput` and the import descriptor could not name them as fields.
+ */
+export type CreateProjectInput = CreateProjectBase &
+  (
+    | ({ contract_value: 0 } & Partial<ProjectContractTaxColumns>)
+    | ({ contract_value: number } & ProjectContractTaxColumns)
+  );
 
 /** The editable header fields (name/code/client/PM/dates). NOT contract_value (SoD) / status (RPC). */
 export interface ProjectHeaderInput {
@@ -151,6 +208,18 @@ export async function createProject(input: CreateProjectInput): Promise<ProjectR
       'P0001',
     );
   }
+  // #513: the basis travels WITH the value or not at all. The `in` narrowing is what the union
+  // (see CreateProjectInput) buys us — a non-zero value cannot reach here without one, so there is
+  // no `?? 'exclusive'` to write and no P0001 to hit. 0197 grants INSERT on all four columns.
+  const tax =
+    input.tax_treatment !== undefined && input.tax_amount !== undefined
+      ? {
+          tax_treatment: input.tax_treatment,
+          tax_amount: input.tax_amount,
+          tax_rate: input.tax_rate ?? null,
+          tax_template: input.tax_template ?? null,
+        }
+      : {};
   const { data, error } = await supabase
     .from('projects')
     .insert({
@@ -161,6 +230,7 @@ export async function createProject(input: CreateProjectInput): Promise<ProjectR
       contract_value: input.contract_value,
       start_date: input.start_date,
       end_date: input.end_date,
+      ...tax,
     })
     .select()
     .single();
@@ -191,7 +261,7 @@ export async function listProjectsByClient(clientId: string): Promise<ProjectWit
  * Throws an `AppError` (code preserved) on failure.
  */
 export async function updateProjectHeader(id: string, input: ProjectHeaderInput): Promise<void> {
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('projects')
     .update({
       name: input.name,
@@ -201,8 +271,10 @@ export async function updateProjectHeader(id: string, input: ProjectHeaderInput)
       start_date: input.start_date,
       end_date: input.end_date,
     })
-    .eq('id', id);
+    .eq('id', id)
+    .select('id');
   if (error) throwWrite(error);
+  assertWriteLanded(data, 'Project not found or you do not have permission to edit it.');
 }
 
 /**
@@ -211,11 +283,13 @@ export async function updateProjectHeader(id: string, input: ProjectHeaderInput)
  * `archived_at` column UPDATE grant comes from 0012. Throws an `AppError` (code preserved).
  */
 export async function archiveProject(id: string): Promise<void> {
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('projects')
     .update({ archived_at: new Date().toISOString() })
-    .eq('id', id);
+    .eq('id', id)
+    .select('id');
   if (error) throwWrite(error);
+  assertWriteLanded(data, 'Project not found or you do not have permission to archive it.');
 }
 
 /**
@@ -235,8 +309,9 @@ export async function archiveProject(id: string): Promise<void> {
  * this hard delete is the irreversible escape hatch.
  */
 export async function deleteProject(id: string): Promise<void> {
-  const { error } = await supabase.from('projects').delete().eq('id', id);
+  const { data, error } = await supabase.from('projects').delete().eq('id', id).select('id');
   if (error) throwWrite(error);
+  assertWriteLanded(data, 'Project not found or you do not have permission to delete it.');
 }
 
 /**
@@ -248,10 +323,46 @@ export async function deleteProject(id: string): Promise<void> {
  * A rejection surfaces as an `AppError` preserving the Postgres code (`42501` SoD/role,
  * `P0001` illegal state, `P0002` not found) for `classifyMutationError`.
  */
-export async function setProjectContractValue(id: string, value: number): Promise<void> {
+export interface SetProjectContractValueInput {
+  id: string;
+  value: number;
+  /** Does `value` already include `taxAmount`? Not inferable later — the caller must state it. */
+  taxTreatment: TaxTreatment;
+  /** Total tax on the contract value. 0 means "no tax"; it never means "unknown". */
+  taxAmount: number;
+  /** Authored tax percentage (e.g. 11 for PPN 11%). null/undefined = not recorded — never 0%. */
+  taxRate?: number | null;
+  /** ERPNext taxes-and-charges template name; absent for a standalone org. */
+  taxTemplate?: string | null;
+}
+
+/**
+ * #513 (migration 0197). `taxTreatment` and `taxAmount` are REQUIRED members and the function takes
+ * ONE object, exactly as #505 reshaped `createInvoice`: the RPC raises P0001 when either is missing,
+ * so the type system MIRRORS THAT GATE and a caller that forgets one fails to compile instead of
+ * failing in front of a user. Positional was no longer expressible anyway — TypeScript forbids a
+ * required parameter after an optional one, and appending them as OPTIONAL trailing params would
+ * have re-created exactly the omission this issue exists to make impossible.
+ *
+ * Unlike `createProject` there is no zero-value exemption here: 0197's RPC demands the basis on
+ * EVERY set, including a set back to 0, because it is `contract_value`'s sole writer and a value
+ * that moved while its treatment stayed behind would describe the OLD number.
+ *
+ * ⛔ Never give `taxTreatment` a default, a fallback, or a `?? 'exclusive'` on this path. A
+ * silently-wrong marker is indistinguishable from a deliberate one, which is the defect itself.
+ */
+export async function setProjectContractValue(
+  input: SetProjectContractValueInput,
+): Promise<void> {
   const { error } = await supabase.rpc('set_project_contract_value', {
-    p_id: id,
-    p_value: value,
+    p_id: input.id,
+    p_value: input.value,
+    // Sent unconditionally — required by the type, so there is no `?? undefined` to fall through
+    // to the RPC's P0001 gate.
+    p_tax_treatment: input.taxTreatment,
+    p_tax_amount: input.taxAmount,
+    p_tax_rate: input.taxRate ?? undefined,
+    p_tax_template: input.taxTemplate ?? undefined,
   });
   if (error) throwWrite(error as PostgrestErrorLike);
 }

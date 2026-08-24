@@ -127,8 +127,14 @@ describe('AC-ENA-001 cold ownership map — procurement writes stay on the direc
   it('AC-ENA-001 createInvoice calls the existing RPC and never dispatches', async () => {
     const row = { id: 'inv-1' };
     vi.mocked(createInvoice).mockResolvedValue(row as never);
-    const result = await repositories.procurement.createInvoice('proc-1', 'Received', '2026-07-11');
-    expect(createInvoice).toHaveBeenCalledWith('proc-1', 'Received', '2026-07-11');
+    const result = await repositories.procurement.createInvoice({
+      procurementId: 'proc-1', status: 'Received', invoiceDate: '2026-07-11',
+      taxTreatment: 'inclusive', taxAmount: 1100,
+    });
+    expect(createInvoice).toHaveBeenCalledWith({
+      procurementId: 'proc-1', status: 'Received', invoiceDate: '2026-07-11',
+      taxTreatment: 'inclusive', taxAmount: 1100,
+    });
     expect(result).toBe(row);
     expect(dispatchSpy).not.toHaveBeenCalled();
   });
@@ -236,9 +242,28 @@ describe('task 4.8 — flipped ownership map — procurement/company record crea
 
   it('createInvoice dispatches externally with erp_doc_kind purchase-invoice', async () => {
     dispatchSpy.mockResolvedValue({ externalRecordId: 'ACC-PINV-2026-00002', canonical: { id: 'pmo-1' } });
-    await repositories.procurement.createInvoice('proc-1', 'Received', '2026-07-11');
+    await repositories.procurement.createInvoice({
+      procurementId: 'proc-1', status: 'Received', invoiceDate: '2026-07-11',
+      taxTreatment: 'inclusive', taxAmount: 1100,
+    });
     expect(createInvoice).not.toHaveBeenCalled();
     expect(dispatchSpy).toHaveBeenCalledWith('procurement', 'create', expect.objectContaining({ erp_doc_kind: 'purchase-invoice' }), expect.any(Object));
+    // ⛔ #505 — the outbound command carries NO tax facts, and this assertion is the guard that
+    // keeps it that way. It previously asserted the OPPOSITE, with a comment claiming the facts
+    // "must ride on the outbound command, or the flipped-org path records an amount with no
+    // marker". Nothing consumed them: `piToBody` sends `{supplier, items}` only, so a user stating
+    // *exclusive / 11,000* got back a row saying *inclusive / 0* — internally consistent,
+    // confidently wrong, unrecoverable. On a flipped org the ERP computes the tax and owns the
+    // answer; `upsertInvoiceMirror` writes 'inclusive' as a fact about the grand_total it set.
+    //
+    // This is also what stops `ERP_AUTHORED_TAX` (the placeholder the form sends on this path,
+    // because CreateInvoiceInput makes the fields required) from silently becoming a real value:
+    // wire the forwarding back in and this test goes red.
+    const record = dispatchSpy.mock.calls[0][2] as Record<string, unknown>;
+    expect(record).not.toHaveProperty('taxTreatment');
+    expect(record).not.toHaveProperty('taxAmount');
+    expect(record).not.toHaveProperty('taxRate');
+    expect(record).not.toHaveProperty('taxTemplate');
   });
 
   it('company.create dispatches externally with erp_doc_kind supplier', async () => {

@@ -11,6 +11,7 @@ import { DataTable, type Column } from '@/src/components/ui/DataTable';
 import { ProgressBar } from '@/src/components/ui/ProgressBar';
 import { ListState } from '@/src/components/ui/ListState';
 import { formatCurrency } from '@/src/lib/format';
+import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { StatusBarChart } from './StatusBarChart';
 import { procurementStatusTone } from './procurementStatusTone';
 import { DashPageHead, DashGrid } from './layout';
@@ -94,7 +95,7 @@ export const ReadyToPayTable: React.FC<ReadyToPayTableProps> = ({
       sortKey: 'value',
       cell: (r) => (
         /* tabular class applied automatically by DataTable on align:num cells */
-        <span>{formatCurrency(r.total_value)}</span>
+        <span>{formatCurrency(r.total_value, r.currency)}</span>
       ),
     },
     {
@@ -147,21 +148,21 @@ export const ReadyToPayTable: React.FC<ReadyToPayTableProps> = ({
  * Reads the server-computed `variance` (committed basis, OD-BUDGET-2) — single source of truth.
  * Text + sign — NOT color-only (DESIGN.md a11y posture, plan §6).
  */
-function VarianceCell({ project }: { project: BudgetReviewRow }) {
+function VarianceCell({ project, currency }: { project: BudgetReviewRow; currency: string }) {
   const v = project.variance;
   if (v > 0) {
     // Over budget: destructive text WITH the word "over" so color is reinforcement only.
     // tabular applied automatically by DataTable on align:num <td>s — no redundant inner span class.
     return (
       <span className="text-destructive">
-        {`+${formatCurrency(v)} over`}
+        {`+${formatCurrency(v, currency)} over`}
       </span>
     );
   }
   // Under / on-budget: muted text WITH the word "left"
   return (
     <span className="text-muted-foreground">
-      {`${formatCurrency(Math.abs(v))} left`}
+      {`${formatCurrency(Math.abs(v), currency)} left`}
     </span>
   );
 }
@@ -181,6 +182,8 @@ function VarianceCell({ project }: { project: BudgetReviewRow }) {
  */
 export const FinanceDashboard: React.FC = () => {
   const { data, isPending, isError, refetch } = useDashboard();
+  // Org-denominated figures (RPC aggregates, BudgetReviewRow) — the org currency, not a record's.
+  const orgCurrency = useOrgCurrency();
   const { data: procurements, isPending: procPending, isError: procError, refetch: refetchProc } = useProcurements();
   // N17: portfolio-wide budget review — ALL budget>0 projects ranked by committed-basis variance,
   // computed server-side by get_finance_budget_review (OD-E). Replaces the FE re-sort of top_projects.
@@ -252,21 +255,21 @@ export const FinanceDashboard: React.FC = () => {
       align: 'num',
       sortKey: 'budget',
       // tabular applied automatically by DataTable on align:num <td>s — no redundant inner span
-      cell: (p) => <span>{formatCurrency(p.budget)}</span>,
+      cell: (p) => <span>{formatCurrency(p.budget, orgCurrency)}</span>,
     },
     {
       key: 'spent',
       header: 'Spent',
       align: 'num',
       sortKey: 'spent',
-      cell: (p) => <span>{formatCurrency(p.spent)}</span>,
+      cell: (p) => <span>{formatCurrency(p.spent, orgCurrency)}</span>,
     },
     {
       key: 'variance',
       header: 'Variance',
       align: 'num',
       sortKey: 'variance',
-      cell: (p) => <VarianceCell project={p} />,
+      cell: (p) => <VarianceCell project={p} currency={orgCurrency} />,
     },
     {
       key: 'util',
@@ -301,24 +304,24 @@ export const FinanceDashboard: React.FC = () => {
       <section aria-label="Finance KPIs" className="grid grid-cols-1 gap-3 min-[560px]:grid-cols-2 min-[920px]:grid-cols-3 min-[1180px]:grid-cols-5">
         {/* AC-IXD-DASH-W5-C2A: Contracted revenue → /projects?filter=Ongoing */}
         <KPITile testId="kpi-revenue" tone="green" icon="dollar" label="Contracted revenue"
-          value={formatCurrency(data?.total_contract_value ?? 0)} loading={isPending}
+          value={formatCurrency(data?.total_contract_value ?? 0, orgCurrency)} loading={isPending}
           to="/projects?filter=Ongoing"
           linkLabel="Open active projects to see contracted revenue"
           help="Total contract value across active and closed-out projects." />
         {/* AC-IXD-DASH-W5-C2A: Total project spend → /projects?filter=Ongoing */}
         <KPITile testId="kpi-spend" tone="red" icon="cart" label="Total project spend"
-          value={formatCurrency(totalSpend)} loading={isPending}
+          value={formatCurrency(totalSpend, orgCurrency)} loading={isPending}
           to="/projects?filter=Ongoing"
           linkLabel="Open active projects to see spend breakdown"
           help="Sum of actual spend across the portfolio's top projects." />
         {/* AC-IXD-DASH-W5-C2A: On-hand margin — PLAIN tile (OD-W5-C2-D: no single list view) */}
         <KPITile testId="kpi-margin" tone="blue" icon="up" label="On-hand margin"
           value={`${((data?.on_hand_margin ?? 0) * 100).toFixed(1)}%`} loading={isPending}
-          vs={`${formatCurrency(data?.on_hand_value ?? 0)} on hand`}
+          vs={`${formatCurrency(data?.on_hand_value ?? 0, orgCurrency)} on hand`}
           help="Realized actual margin on active + closed-out contracts." />
         {/* AC-IXD-DASH-W5-C2A: Outstanding invoices → /procurement?status=Vendor+Invoiced (N16) */}
         <KPITile testId="kpi-outstanding" tone="amber" icon="doc" label="Outstanding invoices"
-          value={formatCurrency(outstanding)} loading={procPending}
+          value={formatCurrency(outstanding, orgCurrency)} loading={procPending}
           vs="vendor-invoiced, awaiting payment"
           to="/procurement?status=Vendor+Invoiced"
           linkLabel="Open vendor-invoiced requests awaiting payment"

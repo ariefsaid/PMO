@@ -39,6 +39,7 @@ vi.mock('@/src/hooks/useBudget', () => ({
     deleteLineItem: { mutateAsync: vi.fn().mockResolvedValue(undefined), isPending: false },
   }),
 }));
+vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' }, role: 'Project Manager' }),
 }));
@@ -60,6 +61,7 @@ const draftVersion = {
   version: 1,
   project_id: 'p-1',
   org_id: 'org-1',
+  currency: 'USD',
   created_at: '2026-01-01T00:00:00Z',
   line_items: [],
   total: 0,

@@ -1,6 +1,6 @@
 import { supabase } from '@/src/lib/supabase/client';
 import type { Tables } from '@/src/lib/supabase/database.types';
-import { AppError, toAppError } from '@/src/lib/appError';
+import { AppError, assertWriteLanded, toAppError } from '@/src/lib/appError';
 import { activateAndPush } from '@/src/lib/budget/budgetPushConsequence';
 import { dispatchDomainCommand } from '@/src/lib/adapterSeam/dispatchClient';
 import type { PmoRecord } from '@/src/lib/adapterSeam/contract';
@@ -46,6 +46,22 @@ export interface NewLineItem {
    * doctype — never here, because the write path cannot reach another system's calendar (FR-BFY-022).
    */
   fiscal_year?: string | null;
+}
+
+/**
+ * Import provenance stamps (0195). Supplied ONLY by the bulk-import path; every other caller omits
+ * the argument and the three columns stay NULL, which is what keeps them out of the partial unique
+ * indexes and leaves every existing write path byte-identical.
+ *
+ * ⚑ `importKey` is optional on purpose (DD-BIMP-5): a VERSION carries the batch stamps but no key,
+ * because a version's identity is "this project's open Draft", not a row in a sheet — key it and the
+ * second legitimate import for a project, after the first was activated, is blocked forever by a row
+ * that is no longer Draft. The line items carry the key.
+ */
+export interface ImportProvenance {
+  importBatchId: string;
+  importedAt: string;
+  importKey?: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -103,6 +119,7 @@ export async function listBudgetVersions(projectId: string): Promise<BudgetVersi
 export async function createLineItem(
   versionId: string,
   item: NewLineItem,
+  provenance?: ImportProvenance,
 ): Promise<BudgetLineItemRow> {
   const { data, error } = await supabase
     .from('budget_line_items')
@@ -113,6 +130,16 @@ export async function createLineItem(
       budgeted_amount: item.budgeted_amount,
       // FR-BFY-060: omitted ⇒ the column's own NULL default (un-phased), never a synthesized year.
       fiscal_year: item.fiscal_year ?? null,
+      // ⚑ `actual_amount` is DELIBERATELY absent and must stay absent (FR-BIMP-005): actuals are
+      // READ from the ERP read-model, and a value written here would be a figure PMO computed
+      // rather than read (ADR-0048/0055) — wrong in a way that still renders.
+      ...(provenance
+        ? {
+            import_batch_id: provenance.importBatchId,
+            imported_at: provenance.importedAt,
+            import_key: provenance.importKey ?? null,
+          }
+        : {}),
     })
     .select()
     .single();
@@ -131,11 +158,17 @@ export async function updateLineItem(
   // is rejected by `enforce_draft_line_item` (0005) — the DB is the authority, this is the seam.
   patch: Partial<Pick<BudgetLineItemRow, 'category' | 'description' | 'budgeted_amount' | 'actual_amount' | 'fiscal_year'>>,
 ): Promise<void> {
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('budget_line_items')
     .update(patch)
-    .eq('id', id);
+    .eq('id', id)
+    .select('id');
   if (error) throw toAppError(error);
+  // #541: an RLS `using` denial HIDES the row rather than erroring, so the statement is a 0-row
+  // no-op with `error === null`. On a money figure that is worse than a lost edit: the version can
+  // then be activated and PUSHED to ERP (`dispatchFactory` reads `budget_line_items` to build the
+  // Budget body) carrying the OLD amount while its author believes the new one landed.
+  assertWriteLanded(data, 'Budget line item not found or you do not have permission to edit it.');
 }
 
 /**
@@ -143,11 +176,15 @@ export async function updateLineItem(
  * (DB trigger; AC-723, FR-BV-011). org_id is NEVER sent.
  */
 export async function deleteLineItem(id: string): Promise<void> {
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('budget_line_items')
     .delete()
-    .eq('id', id);
+    .eq('id', id)
+    .select('id');
   if (error) throw toAppError(error);
+  // #541: a `using`-denied DELETE removes 0 rows and reports no error — the line item, and the
+  // money it carries, is still there. Fail loudly instead of toasting "Deleted".
+  assertWriteLanded(data, 'Budget line item not found or you do not have permission to delete it.');
 }
 
 // ---------------------------------------------------------------------------
@@ -161,6 +198,7 @@ export async function deleteLineItem(id: string): Promise<void> {
 export async function createBudgetVersion(
   projectId: string,
   name: string,
+  provenance?: ImportProvenance,
 ): Promise<BudgetVersionRow> {
   // Step 1: read current max version for this project
   const { data: maxData, error: maxError } = await supabase
@@ -182,6 +220,16 @@ export async function createBudgetVersion(
       version: nextVersion,
       name,
       status: 'Draft',
+      // ⚑ `currency` is DELIBERATELY absent (FR-BIMP-006 / DD-BIMP-2): 0187's `stamp_currency`
+      // BEFORE-INSERT trigger resolves it from `organizations.default_currency`. A client
+      // hand-carrying a currency is the thing that seam exists to prevent, exactly as with org_id.
+      ...(provenance
+        ? {
+            import_batch_id: provenance.importBatchId,
+            imported_at: provenance.importedAt,
+            import_key: provenance.importKey ?? null,
+          }
+        : {}),
     })
     .select()
     .single();
@@ -380,11 +428,15 @@ async function pushActivatedBudget(versionId: string): Promise<unknown> {
  * org_id NEVER sent — RLS gates the write.
  */
 export async function archiveVersion(versionId: string): Promise<void> {
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('budget_versions')
     .update({ status: 'Archived' })
-    .eq('id', versionId);
+    .eq('id', versionId)
+    .select('id');
   if (error) throw toAppError(error);
+  // #541: a `using`-denied archive is a 0-row no-op with no error — the version stays Active and
+  // keeps sourcing the project's budget total.
+  assertWriteLanded(data, 'Budget version not found or you do not have permission to archive it.');
 }
 
 /**
@@ -403,9 +455,14 @@ export async function archiveVersion(versionId: string): Promise<void> {
  * `classifyMutationError` toast surfaces it — it is not a silent no-op.
  */
 export async function deleteDraftVersion(versionId: string): Promise<void> {
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('budget_versions')
     .delete()
-    .eq('id', versionId);
+    .eq('id', versionId)
+    .select('id');
   if (error) throw toAppError(error);
+  // #541: the 0177 trigger RAISES for a non-Admin non-Draft delete, but that is only one of the two
+  // layers — an RLS `using` denial (wrong org / non-write role) still hides the row, so the delete
+  // affects 0 rows and reports success. A defence-in-depth guard needs a check per layer.
+  assertWriteLanded(data, 'Budget version not found or you do not have permission to delete it.');
 }

@@ -27,6 +27,7 @@ import { useIncomingPayments, useSalesInvoices, useRevenueMutations } from '@/sr
 import { useClientCompanyOptions } from '@/src/hooks/useFkOptions';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { trackFilterApplied } from '@/src/lib/analytics';
+import { formatCurrencyCents, formatDateNumeric } from '@/src/lib/format';
 import type { IncomingPaymentRow, IncomingPaymentStatus, SalesInvoiceRow } from '@/src/lib/db/revenue';
 import { incomingPaymentStatusVariant } from '@/src/lib/status/statusVariants';
 import { type PendingPushState } from '@/src/lib/adapterSeam/pendingPush';
@@ -78,7 +79,7 @@ function openInvoiceOptions(
       label: inv.si_number ?? inv.id,
       sub:
         inv.erp_outstanding_amount != null
-          ? `$${inv.erp_outstanding_amount.toLocaleString(undefined, { minimumFractionDigits: 2 })} outstanding`
+          ? `${formatCurrencyCents(inv.erp_outstanding_amount, inv.currency)} outstanding`
           : undefined,
     }));
 }
@@ -184,7 +185,7 @@ const IncomingPayments: React.FC = () => {
       align: 'num',
       cell: (p) => (
         <span className="tabular text-right font-mono text-[13px]">
-          {p.amount != null ? `$${p.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}` : '—'}
+          {p.amount != null ? formatCurrencyCents(p.amount, p.currency) : '—'}
         </span>
       ),
       exportValue: (p) => p.amount?.toString() ?? '',
@@ -192,7 +193,7 @@ const IncomingPayments: React.FC = () => {
     {
       key: 'date',
       header: 'Date',
-      cell: (p) => (p.date ? new Date(p.date).toLocaleDateString() : '—'),
+      cell: (p) => (p.date ? formatDateNumeric(new Date(p.date)) : '—'),
       exportValue: (p) => p.date ?? '',
     },
   ];

@@ -26,8 +26,8 @@ insert into profiles (id, org_id, full_name, email, role, status) values
 
 insert into companies (id, org_id, name, type) values
   ('01190000-0000-0000-0000-0000000c0001','01190000-0000-0000-0000-000000000001','B10 Customer','Client');
-insert into sales_invoices (id, org_id, customer_id, si_number, amount, erp_outstanding_amount, status) values
-  ('01190000-0000-0000-0000-0000000e0001','01190000-0000-0000-0000-000000000001','01190000-0000-0000-0000-0000000c0001','ACC-SINV-B10-0001',125000.00,125000.00,'Unpaid');
+insert into sales_invoices (tax_treatment, tax_amount, id, org_id, customer_id, si_number, amount, erp_outstanding_amount, status) values
+  ('exclusive', 0, '01190000-0000-0000-0000-0000000e0001','01190000-0000-0000-0000-000000000001','01190000-0000-0000-0000-0000000c0001','ACC-SINV-B10-0001',125000.00,125000.00,'Unpaid');
 insert into incoming_payments (id, org_id, customer_id, sales_invoice_id, ip_number, amount, status) values
   ('01190000-0000-0000-0000-0000000f0001','01190000-0000-0000-0000-000000000001','01190000-0000-0000-0000-0000000c0001','01190000-0000-0000-0000-0000000e0001','ACC-PE-B10-0001',25000.00,'Paid');
 

@@ -19,28 +19,28 @@ const wrap = (ui: React.ReactElement) => render(<MemoryRouter>{ui}</MemoryRouter
 
 describe('ProjectedMarginBars (Exec — real useSalesPipeline)', () => {
   it('renders the projected-margin headline from the exec payload', () => {
-    wrap(<ProjectedMarginBars projectedMargin={0.141} stages={stages} />);
+    wrap(<ProjectedMarginBars projectedMargin={0.141} stages={stages} currency="USD" />);
     expect(screen.getByText('14.1%')).toBeInTheDocument();
   });
 
   it('renders one bar per OPEN stage (Won/Lost excluded) with its weighted value', () => {
-    wrap(<ProjectedMarginBars projectedMargin={0.141} stages={stages} />);
+    wrap(<ProjectedMarginBars projectedMargin={0.141} stages={stages} currency="USD" />);
     expect(screen.getByText('Tender Submitted')).toBeInTheDocument();
     expect(screen.getByText('Negotiation')).toBeInTheDocument();
-    expect(screen.getByText(formatCurrency(600_000))).toBeInTheDocument();
+    expect(screen.getByText(formatCurrency(600_000, 'USD'))).toBeInTheDocument();
     // terminal stages excluded
     expect(screen.queryByText('Won, Pending KoM')).toBeNull();
     expect(screen.queryByText('Loss Tender')).toBeNull();
   });
 
   it('labels the section and each bar for assistive tech', () => {
-    wrap(<ProjectedMarginBars projectedMargin={0.141} stages={stages} />);
+    wrap(<ProjectedMarginBars projectedMargin={0.141} stages={stages} currency="USD" />);
     expect(screen.getByRole('group', { name: /Pipeline projected margin/i })).toBeInTheDocument();
     expect(screen.getByLabelText(/Tender Submitted:/i)).toBeInTheDocument();
   });
 
   it('batch-3: colors every weighted-value bar with the neutral chart tone (not action-blue)', () => {
-    const { container } = wrap(<ProjectedMarginBars projectedMargin={0.141} stages={stages} />);
+    const { container } = wrap(<ProjectedMarginBars projectedMargin={0.141} stages={stages} currency="USD" />);
     const fills = Array.from(
       container.querySelectorAll<HTMLElement>('[role="progressbar"] > span'),
     );
