@@ -10,6 +10,30 @@ Each released section pins the full deploy manifest (app sha · DB migration hig
 edge-function state) so "what's in production" is unambiguous. The DB schema version (migration
 high-water mark) moves independently of the product tag.
 
+## [0.10.0](https://github.com/ariefsaid/PMO/compare/v0.9.0...v0.10.0) (2026-08-24)
+
+
+### Features
+
+* **ci:** a hand-written row type may not silently shadow the schema ([#533](https://github.com/ariefsaid/PMO/issues/533)) ([#536](https://github.com/ariefsaid/PMO/issues/536)) ([e44a341](https://github.com/ariefsaid/PMO/commit/e44a3411ec1da97847e6f4f3ec455eefe296a6e7))
+* **m365:** three-step connection model — operator entitles, client admin approves, each user connects ([#428](https://github.com/ariefsaid/PMO/issues/428)) ([47bfab7](https://github.com/ariefsaid/PMO/commit/47bfab78b800d5f74b66c956884db78908e5bc46))
+* **money:** currency on every PMO-owned money table + sales-invoice tax treatment ([#478](https://github.com/ariefsaid/PMO/issues/478)) ([#506](https://github.com/ariefsaid/PMO/issues/506)) ([338c521](https://github.com/ariefsaid/PMO/commit/338c521ea156b726b7ab5ee88ecc6b5dd1e4b3e4))
+* **skills:** port the Matt Pocock skill set with the MOS overlay convention ([#433](https://github.com/ariefsaid/PMO/issues/433)) ([df0bdb4](https://github.com/ariefsaid/PMO/commit/df0bdb40b978886152372614c97787f96cbd2984))
+
+
+### Bug Fixes
+
+* **admin:** omit self-edit role/manager affordances on the caller's own row — the SSSF trial issue ([#436](https://github.com/ariefsaid/PMO/issues/436)) ([c7adfae](https://github.com/ariefsaid/PMO/commit/c7adfaee77679f8e08aebd245aca2c82c902dded))
+* **dal:** a using-denied write is a silent no-op, not success ([#534](https://github.com/ariefsaid/PMO/issues/534)) ([#540](https://github.com/ariefsaid/PMO/issues/540)) ([6100805](https://github.com/ariefsaid/PMO/commit/610080561925d435cfffb353e9ed9e8b677d5e0c))
+* **db:** a task's milestone must be a milestone of its own project ([#538](https://github.com/ariefsaid/PMO/issues/538)) ([#545](https://github.com/ariefsaid/PMO/issues/545)) ([0bc058b](https://github.com/ariefsaid/PMO/commit/0bc058b6bcd67499b0017cf9a7e1e7f6a158dc8c))
+* **deps:** bump dompurify 3.4.12 → 3.4.13 (GHSA-55q2-fjhq-7xh7) ([#472](https://github.com/ariefsaid/PMO/issues/472)) ([c0458cb](https://github.com/ariefsaid/PMO/commit/c0458cbc93f0d13bc953447b5cc63d191b91c33b))
+* **fe:** the pipeline lens crashed on every pre-win record; and the promote gate could certify an untested commit ([#554](https://github.com/ariefsaid/PMO/issues/554)) ([270813a](https://github.com/ariefsaid/PMO/commit/270813aefb02d77c8217d7a1994d35a2f76255d5))
+* **format:** route all locale-sensitive display through format.ts + lint guard ([#477](https://github.com/ariefsaid/PMO/issues/477)) ([#483](https://github.com/ariefsaid/PMO/issues/483)) ([09ad04f](https://github.com/ariefsaid/PMO/commit/09ad04fe3fe80ebf486baf99647088e44f4ddeb3))
+* **m365:** restore opaque graph_proxy client envelope; keep structured upstream log ([#445](https://github.com/ariefsaid/PMO/issues/445)) ([#448](https://github.com/ariefsaid/PMO/issues/448)) ([eb4bdc6](https://github.com/ariefsaid/PMO/commit/eb4bdc68db6ac6387ef56169515d93ef13a003fc))
+* **money:** a using-denied money write is a refusal, not a save ([#541](https://github.com/ariefsaid/PMO/issues/541)) ([#544](https://github.com/ariefsaid/PMO/issues/544)) ([f590909](https://github.com/ariefsaid/PMO/commit/f590909dac6189bc61b3456d1abb9acc42385367))
+* **types:** resync database.types.ts, and fix the null-money bug it was hiding ([#508](https://github.com/ariefsaid/PMO/issues/508)) ([b1a9c8d](https://github.com/ariefsaid/PMO/commit/b1a9c8d6e952721a6ed3afc1c07cfee31dd1a93a))
+* **ui:** ClickUp card — no integration errors on unconnected orgs, human-only error copy ([#458](https://github.com/ariefsaid/PMO/issues/458)) ([00bfc0c](https://github.com/ariefsaid/PMO/commit/00bfc0c27256d753e46885cd6dcf5475446b23b2))
+
 ## [0.9.0](https://github.com/ariefsaid/PMO/compare/v0.8.0...v0.9.0) (2026-07-31)
 
 
