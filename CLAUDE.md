@@ -99,6 +99,14 @@ behaviour (not a spec default). **Never assert a negative from a grep without st
 sweeps decisions, ADRs, migrations, hooks and issues in one command: run it before proposing work, so
 you find the ruling that already exists instead of re-deriving it.
 
+**And before calling something a defect — or promoting a stated default into a ruling — name what
+breaks: who, doing what, with what wrong outcome.** If you cannot name one, it is a preference or a
+restatement of a document, not a defect. This is the same rule's other half, and it reaches further
+than it looks: `DD-TASK-7` was filed against shipped code because a spec said "forbid" and nobody
+asked what allowing it would break (nothing did — retracted the same day), and asking "what breaks?"
+of an RLS gap forces "can anyone reach it?", which is the `role_table_grants` join that would have
+stopped two dead layers being ranked above the one live one.
+
 ## Quality gates & checkpoints (binding)
 - **Pre-push full verify (binding — run the WHOLE suite, never just touched files):** before opening or
   pushing ANY PR, run **`npm run verify`** — **13 gates** as of 2026-08-20, and the list grows, so
