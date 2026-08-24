@@ -152,10 +152,16 @@ The richest gating surface. The shipped `allowedActions` matrix is byte-preserve
 | Affordance | Admin | Executive | PM | Finance | Engineer |
 |---|:--:|:--:|:--:|:--:|:--:|
 | View tasks (list / board) | ● | ● | ● | ○ (no nav) | ● |
-| Header **New task** | ● | ● | ● | ○ | ○ |
-| **Edit task structure** (title, assignee, due, deps) | ● | ● | ● | ○ | ○ |
+| Header **New task** | ● | ● | ● | ○ | ● (DD-TASK-8) |
+| **Edit task structure** (title, assignee, due, deps) | ● | ● | ● | ○ | ◆ tasks they CREATED (DD-TASK-8) |
 | **Change task STATUS** | ● (any) | ● (any) | ● (any) | ○ | ◆ own only |
 | Delete task | ● | ● | ● | ○ | ○ |
+
+> **DD-TASK-8 (2026-08-24, migration `0204`):** an Engineer creates tasks and edits the ones they
+> created — `created_by` is trigger-stamped and immutable, and the edit right reads it. ⚑ The
+> **assignee** gets *status only*, never structure: RLS's `tasks_update` carries no assignee
+> disjunct (a review removed it — redundant with `tasks_update_own_status`, and it bypassed the
+> ClickUp guard), so an assignee Edit affordance would promise a write the server refuses.
 | Drag on board to change status | ● | ● | ● | ○ | ◆ own only |
 
 Engineer is the key read-only-vs-editable split: on **their own assigned task**, the **status `SelectField` is the only editable control** (●◆); title/assignee/due/dependencies are ◐ read-only; on tasks assigned to others, the whole row is ◐ read-only (no status control). Requires the RLS widening for Engineer own-task status (plan). Finance has no Tasks nav (delivery, not finance).
@@ -225,7 +231,7 @@ Executive can *open* Administration (existing `Rail` gate) but user-management i
 
 - **`view`** follows nav visibility (§A) + RLS read scope (Engineer often scoped to own/assigned).
 - **`create`** — Project: Admin·Exec·PM. Company: Admin·Exec·PM·Finance. Procurement: ALL (incl. Engineer). Task: Admin·Exec·PM. Incident: ALL. Document/procDoc: Admin·Exec·PM·Finance. User: Admin.
-- **`edit`** mirrors create, but **record-scoped**: PR header / line items / procDoc edit require `ctx.record.requested_by_id === currentUserId` while Draft/Rejected; document edit requires authorship; task structure = Admin·Exec·PM; **`taskStatus`** = managers OR (`ctx.record.assignee_id === currentUserId` for Engineer).
+- **`edit`** mirrors create, but **record-scoped**: PR header / line items / procDoc edit require `ctx.record.requested_by_id === currentUserId` while Draft/Rejected; document edit requires authorship; task structure = Admin·Exec·PM **or the row's creator** (`ctx.record.created_by === currentUserId`, DD-TASK-8); **`taskStatus`** = managers OR (`ctx.record.assignee_id === currentUserId` for Engineer).
 - **`archive`** — Project/Company: Admin·Exec. Task: Admin·Exec·PM. (Procurement has no archive → Cancel.)
 - **`delete`** (hard) — Project/Company/Document/Incident: **Admin only**; Task: Admin·Exec·PM; companies additionally **blocked-if-referenced** server-side. Procurement: never (Cancel only).
 - **`transition`** (lifecycle/approval) — defers to the existing RPCs + the SoD predicates `!isRequester` (approve), `!isApprover` (pay), `approver ≠ author` (document), `!self` (timesheet approval). The FE shows the action only when the predicate holds; the RPC is the authority.

@@ -184,12 +184,15 @@ select throws_ok(
   '42501', null,
   'MEDIUM-1: Engineer cannot INSERT projects in own org (role gate on WITH CHECK)');
 
--- tasks (child): Engineer INSERT into own org, valid org-A parent project, rejected by the role gate.
-select throws_ok(
+-- tasks (child): ⚑ SUPERSEDED BY DD-TASK-8 (0204, #551) — the Engineer role gate on tasks_insert is
+-- GONE, and deliberately: the role list it enforced traced to the 0002 bootstrap and no ruling ever
+-- justified it. This assertion is INVERTED rather than deleted, because the thing it was really
+-- guarding — that a child insert cannot escape its parent's org — is still live and still worth a
+-- test. The cross-org half below is untouched.
+select lives_ok(
   $$ insert into tasks (org_id, project_id, name, status)
      values ('aaaaaaaa-0000-0000-0000-000000000001','a1111111-0000-0000-0000-000000000001','Eng task','To Do') $$,
-  '42501', null,
-  'MEDIUM-1: Engineer cannot INSERT tasks in own org (role gate on WITH CHECK)');
+  'MEDIUM-1 (DD-TASK-8): an Engineer CAN INSERT a task in their own org — the un-ruled role gate is gone');
 
 -- procurement_items (child): Engineer INSERT into own org, valid org-A parent procurement, rejected.
 select throws_ok(

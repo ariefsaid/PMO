@@ -35,8 +35,40 @@ describe('can() — RBAC matrix (ADR-0016, rbac-visibility.md §K)', () => {
     expect(allowedRoles('create', 'incident')).toEqual(ALL_ROLES);
   });
 
-  it('ADR-0016: create task = Admin·Exec·PM', () => {
-    expect(allowedRoles('create', 'task')).toEqual(['Admin', 'Executive', 'Project Manager']);
+  // DD-TASK-8 (#551, migration 0204): Engineer joined this set on 2026-08-24. The exclusion it
+  // replaces had NO ruling behind it — it traced to the 0002 bootstrap role list and was copied
+  // forward by four migrations — while OD-MTG-1 ruled every role may minute a meeting, whose
+  // /action creates a task. Finance is still withheld here on purpose: RLS admits it, the FE does
+  // not, which is the sanctioned "FE stricter than RLS" direction (ADR-0016).
+  it('ADR-0016 + DD-TASK-8: create task = Admin·Exec·PM·Engineer', () => {
+    expect(allowedRoles('create', 'task')).toEqual([
+      'Admin',
+      'Executive',
+      'Project Manager',
+      'Engineer',
+    ]);
+  });
+
+  // ⚑ The edit rule is record-scoped, so a role-list assertion cannot express it: an Engineer may
+  // edit a task they created or are assigned, and no other. Both disjuncts are asserted with a
+  // DIFFERENT user in each role — a fixture where creator and assignee are the same person cannot
+  // tell the two apart, which is exactly how the pgTAP oracle for this first shipped dead.
+  it('DD-TASK-8: an Engineer may edit a task they CREATED — and no other, the assignee included', () => {
+    const me = 'user-1';
+    const other = 'user-2';
+    expect(can('edit', 'task', { realRole: 'Engineer', currentUserId: me,
+      record: { created_by: me, assignee_id: other } })).toBe(true);
+    // ⚑ The ASSIGNEE gets no full-edit affordance: RLS's tasks_update carries no assignee disjunct
+    // (the 3-lens review removed it — redundant with tasks_update_own_status, and it bypassed the
+    // ClickUp guard). Offering Edit here would promise a write the server refuses; the assignee's
+    // affordance is the status control (taskStatus.edit). Looser-than-RLS is never allowed.
+    expect(can('edit', 'task', { realRole: 'Engineer', currentUserId: me,
+      record: { created_by: other, assignee_id: me } })).toBe(false);
+    expect(can('edit', 'task', { realRole: 'Engineer', currentUserId: me,
+      record: { created_by: other, assignee_id: other } })).toBe(false);
+    // No identity in context ⇒ refuse. Fail closed, never "unknown means yes".
+    expect(can('edit', 'task', { realRole: 'Engineer', currentUserId: null,
+      record: { created_by: me, assignee_id: me } })).toBe(false);
   });
 
   it('ADR-0016: create document = Admin·Exec·PM·Finance', () => {

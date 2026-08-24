@@ -152,16 +152,29 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId }) => {
   // Re-run when data loads (in case the element wasn't mounted on initial render).
   }, [location.hash, data]);
 
-  // Structure write (title / assignee / dates / delete) = Admin·Exec·PM.
+  // Structure write = Admin·Exec·PM — plus, per DD-TASK-8 (#551, migration 0204), the row's
+  // CREATOR. `canEdit` stays the ROLE-level answer (managers: any row; used for row-activate and
+  // the Gantt hook); `canEditTask` is the per-row answer the menu uses. ⚑ The first wiring called
+  // `may('edit','task')` with NO ctx — the record-scoped predicate fails closed on missing
+  // identity, so an Engineer could create a task and then not edit it: the exact incoherence the
+  // ruling exists to prevent, invisible to every non-rendered test (3-lens review, C1).
   const canCreate = may('create', 'task');
   const canEdit = may('edit', 'task');
+  const canEditTask = (task: TaskWithRefs): boolean =>
+    may('edit', 'task', {
+      currentUserId,
+      record: { created_by: task.created_by, assignee_id: task.assignee_id },
+    });
   const canDelete = may('delete', 'task');
 
   // ADR-0056: the per-task pending-push badge wires in ONLY when task writes route externally
   // (ClickUp-owned). PMO-owned orgs stay byte-for-byte — no badge chrome at all (AC-CUA-061).
   const externallyOwned = routeTaskWrite(projectId) === 'external';
   const canArchive = may('archive', 'task');
-  const canRowWrite = canEdit || canDelete || (canArchive && !externallyOwned);
+  // Column-level: does ANY visible row get a menu? DataTable hides the per-row button when the
+  // builder returns nothing, so a creator's Edit shows on exactly their rows and nobody else's.
+  const canRowWrite =
+    canEdit || canDelete || (canArchive && !externallyOwned) || (data ?? []).some(canEditTask);
 
   // Review fix #5 — one headline for one event: an externally-routed write fails through the SAME
   // vocabulary the badge renders (classifyExternalError), so the toast and the badge never disagree.
@@ -340,7 +353,9 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId }) => {
 
   const rowMenu = (task: TaskWithRefs): RowMenuItem[] => {
     const items: RowMenuItem[] = [];
-    if (canEdit)
+    // Merge of #568 (per-row creator gate) and #547 (extraction): the gate decides, the label is
+    // translated, and the row param is `task` — `t` belongs to i18next in this scope.
+    if (canEditTask(task))
       items.push({
         label: t('projectDetail.tasks.action.edit', 'Edit'),
         onClick: () => setFormTarget({ task }),

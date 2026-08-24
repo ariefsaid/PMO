@@ -2524,3 +2524,16 @@ adding its route has silently shrunk the gate, so its own PR must add the line.
 **Amends** spec §1 / `FR-L10N-042` / `AC-L10N-041` / §6 traceability / §8.2. Revisit if the Bahasa
 pass finishes before the framework, which would make staging pointless.
 
+
+---
+
+## DD-TASK-9 — Engineer-created tasks moving `delivery_pct` is accepted, on the strength of enforced attribution (Director, 2026-08-24)
+
+The #551 security audit proved an Engineer can move any project's reported completion by creating
+tasks on its milestones and marking them Done — unbounded, not scoped to their own work. **Ruling:
+accepted as the intended consequence of `DD-TASK-8`** ("a percentage that only counts tasks
+privileged roles typed measures administrative attention, not delivery"), **because the compensating
+control the ruling named is now real**: `created_by` is trigger-stamped, immutable on UPDATE for
+every actor including `service_role` (`0204` §1b), so every task that moves the number carries an
+unforgeable author. Revisit if abused in practice — the fix then is visibility (surface author on the
+rollup) or a milestone-membership bound, not a write ban.

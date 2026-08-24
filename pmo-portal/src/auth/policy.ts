@@ -73,6 +73,10 @@ export interface PolicyContext {
     assignee_id?: string | null;
     /** Author id — for the document-edit author rule (A-7). */
     author_id?: string | null;
+    /** Task creator — DD-TASK-8. Trigger-stamped server-side (`0204`), never client-set, so it is
+     *  safe to read as an edit right here. Distinct from `assignee_id`: a task you created and
+     *  assigned to someone else is still yours to edit. */
+    created_by?: string | null;
     /** EVERY user who has built this record's body — the sales-invoice SoD oracle (migration 0113's
      *  append-only `sales_invoice_authors` set). The `author_id` scalar is last-writer-wins and so is
      *  only a legacy member of this set, never the whole truth. */
@@ -182,8 +186,22 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     delete: allow(MASTER_DATA),
   },
   task: {
-    create: allow(DELIVERY),
-    edit: allow(DELIVERY),
+    // DD-TASK-8 (#551, migration 0204): an Engineer may create tasks. The old exclusion had no
+    // ruling behind it — it traced to the 0002 bootstrap role list and was copied forward by four
+    // migrations, while OD-MTG-1 ruled every role may minute a meeting whose /action creates a task.
+    create: allow([...DELIVERY, 'Engineer']),
+    // Record-scoped, mirroring the RLS disjunct in 0204 §3 exactly: a write role, OR the CREATOR.
+    // ⚑ NOT the assignee — the 3-lens review removed the assignee disjunct from `tasks_update` (it
+    // was redundant with `tasks_update_own_status` and its only net effect was bypassing the ClickUp
+    // guard), so offering the assignee a full Edit form here would promise a write the server
+    // refuses. The assignee's real affordance is the status control (`taskStatus.edit`, below).
+    // `can()` is UX only — RLS is the authority (ADR-0016) — and looser-than-RLS is the one
+    // direction that is never allowed.
+    edit: (role, ctx) => {
+      if (has(DELIVERY, role)) return true;
+      if (!ctx.currentUserId) return false;
+      return ctx.record?.created_by === ctx.currentUserId;
+    },
     archive: allow(MASTER_DATA),
     delete: allow(DELIVERY),
   },
