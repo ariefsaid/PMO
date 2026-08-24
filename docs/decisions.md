@@ -2482,3 +2482,45 @@ writable — then break each disjunct and confirm the matching case reddens.
 
 **Supersedes** #551's original narrow recommendation. Related: `OD-MTG-1` (the collision that surfaced
 it), `OD-W5-C3-A`, ADR-0016.
+
+---
+
+## DD-I18N-9 — the completeness gate ships in TWO stages, and the route list is additive (Director, 2026-08-24)
+
+**Owner ruled option 1**, on the SSSF planner's blocker for #547. The planner refused to build and was
+right to: `FR-L10N-042` / `AC-L10N-041` require a key present in `en` and absent from `id` to fail
+`npm run verify`, while spec §1 ships this slice with **`id` empty by design**. Every key is missing
+by construction, so "verify green" and "Bahasa out of scope" cannot both hold. **Both demands were in
+the Director's brief** — the contradiction was authored here, not discovered in the spec.
+
+### The ruling
+
+**Stage 1 — ships with #547.** The gate checks the **`en`** side only: every string the UI renders is
+extracted, and no orphaned key survives pointing at text that no longer exists. Green on day one, and
+a real check — orphan drift is the failure that makes a catalogue quietly lie about its own coverage.
+
+**Stage 2 — ships with the Bahasa content, not before.** The `id`-completeness check becomes
+merge-blocking **in the change that populates `id`**, so it is green the moment it exists. Until then
+`FR-L10N-041`'s English runtime fallback carries a missing key, which `OD-I18N-1` already permits.
+
+⚑ **Why not simply relax the gate:** `FR-L10N-042`'s own text says the forgiving runtime is affordable
+*only because* the gate makes gaps unshippable — "the two rulings work as a pair or not at all." A gate
+switched off indefinitely breaks that pair silently. Staging keeps the pair intact by making each half
+arrive with the thing it guards.
+
+### The route list — the second blocker, settled the same way
+
+`OD-I18N-1` requires the gate to read an **explicit route list**, not a glob. The launch scope on map
+#450 is a list of **features** (i18n · tasks · meetings · work orders), and the meetings and
+work-order screens **do not exist yet**, so their routes cannot be named. Picking a subset of today's
+routes would silently narrow the owner-set scope; inventing future paths would create a contract
+nobody owns.
+
+**Ruling: the list is a file a person can read, it starts as the launch-scope screens that EXIST
+today, and every new launch-scope feature ADDS its own route as it ships.** Additive and owned, never
+guessed. ⚑ The obligation lands on each feature's slice — a launch-scope screen that ships without
+adding its route has silently shrunk the gate, so its own PR must add the line.
+
+**Amends** spec §1 / `FR-L10N-042` / `AC-L10N-041` / §6 traceability / §8.2. Revisit if the Bahasa
+pass finishes before the framework, which would make staging pointless.
+

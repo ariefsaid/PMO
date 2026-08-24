@@ -299,9 +299,18 @@ lands, and it is the part that can be done by someone who is not an engineer, in
   namespaced by feature, generated from source by `i18next-parser` (`DD-I18N-5`). `public/` exists.
 - **FR-L10N-041** — *Ubiquitous.* A missing key shall render the **English source string** — never the
   raw key, never a visible marker. A client must not be shown `project.header.title`.
-- **FR-L10N-042** — *Ubiquitous.* A missing **or orphaned** key shall fail CI, as a step in
-  `npm run verify`. The forgiving runtime of FR-L10N-041 is affordable *only* because this gate
-  makes gaps unshippable; the two rulings work as a pair or not at all.
+- **FR-L10N-042** — *Ubiquitous, IN TWO STAGES (`DD-I18N-9`, 2026-08-24).* A missing **or orphaned**
+  key shall fail CI, as a step in `npm run verify`. The forgiving runtime of FR-L10N-041 is affordable
+  *only* because this gate makes gaps unshippable; the two rulings work as a pair or not at all.
+  - **FR-L10N-042a — ships with the framework (#547).** The gate checks the **`en` catalogue only**:
+    every rendered string is extracted, and no orphaned key survives pointing at text that no longer
+    exists. ⚑ Green on day one — which is the point: §1 ships `id` **empty**, so an `id` check here
+    would be red by construction, permanently, until a multi-week translation finished.
+  - **FR-L10N-042b — ships with the Bahasa content, not before.** The `id`-completeness check becomes
+    merge-blocking **in the change that populates `id`**, so it is green the moment it exists.
+  ⛔ **Do not "temporarily disable" the gate instead.** Switching it off indefinitely breaks the pair
+  this requirement names, silently. Staging keeps the pair intact by making each half arrive with the
+  thing it guards.
 - **FR-L10N-043** — *Ubiquitous.* Locale bundles shall load lazily per locale, so an `en` session
   never downloads the `id` catalogue. (`vite.config.ts:135` already routes vendor chunking through
   the tested `vendorChunkFor`; catalogues are fetched JSON, not bundled.)
@@ -365,7 +374,10 @@ lands, and it is the part that can be done by someone who is not an engineer, in
   `document.documentElement.lang === 'id'`.
 - **AC-L10N-040** — *Given* a key present in `en` and absent from `id`, *when* rendered under `id`,
   *then* the English source string appears — never the key.
-- **AC-L10N-041** — *Given* a key present in `en` and absent from `id`, *when* `npm run verify` runs,
+- **AC-L10N-041** — ⚑ *Owned by **FR-L10N-042b**, i.e. by the Bahasa-content change, NOT by #547
+  (`DD-I18N-9`).* Asserting it in the framework slice makes it red by construction, because `id` ships
+  empty there. #547's own acceptance is FR-L10N-042a (the `en` side). Statement unchanged:
+  *Given* a key present in `en` and absent from `id`, *when* `npm run verify` runs,
   *then* it **fails**.
 - **AC-L10N-042** — *Given* a catalogue key that no source file references, *when* `npm run verify`
   runs, *then* it fails as an orphan.
@@ -401,7 +413,8 @@ lands, and it is the part that can be done by someone who is not an engineer, in
 | AC-L10N-020/021/022 | Unit (Vitest) | `format.test.ts` currency-argument cases |
 | AC-L10N-030/031 | Unit (Vitest / RTL) | `formatRelativeTime` locale option; `lang` attribute effect |
 | AC-L10N-040 | Unit (Vitest) | i18next fallback configuration |
-| AC-L10N-041/042 | **CI gate** | `i18next-parser` completeness step in `npm run verify` |
+| AC-L10N-042 (the `en` side, FR-L10N-042a) | **CI gate** | `i18next-parser` completeness step in `npm run verify` — **owned by #547** |
+| AC-L10N-041 (the `id` side, FR-L10N-042b) | **CI gate** | ⚑ **owned by the Bahasa-content change, NOT #547** (`DD-I18N-9`) — asserting it here is red by construction |
 | AC-L10N-043 | Unit (Vitest) | lazy-load backend config assertion |
 | AC-L10N-050/051 | Unit (Vitest) | `toWorkbookBuffer` typed-cell + CSV neutrality guards |
 | AC-L10N-052 | Unit (Vitest) | mixed-currency export: per-row ISO column + bare numeric cells |
@@ -498,7 +511,12 @@ fallback is acceptable outside them. ⛔ **Do not gate on the whole app.** A 100
 go-live hostage to operator admin screens nobody at the client opens, which converts a translation
 backlog into a launch blocker for no user-visible gain.
 
-⚑ **`FR-L10N-042` must therefore take an explicit route list, not "all keys".** That list is the
+⚑ **`FR-L10N-042` must therefore take an explicit route list, not "all keys".** ⚑ **`DD-I18N-9`
+settles what that list IS, because map #450 enumerates FEATURES and the meetings / work-order screens
+do not exist yet:** the list is a file a person can read, it starts as the launch-scope screens that
+exist **today**, and **every new launch-scope feature adds its own route as it ships** — the
+obligation lands on that feature's PR. A launch-scope screen that ships without adding its line has
+silently shrunk the gate. Original note: that list is the
 launch scope from #450, and it is a file someone can read — not a glob that silently grows every time a
 route is added.
 
