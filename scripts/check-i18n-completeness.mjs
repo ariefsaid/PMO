@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
- * FR-L10N-042a — the en-side i18n completeness gate.
+ * FR-L10N-042a / FR-L10N-042b — the i18n completeness gate (en side + id side).
  *
- * Two failures, both of which make a catalogue quietly lie about its own coverage:
+ * Two en-side failures, both of which make a catalogue quietly lie about its own coverage:
  *
  *   1. UNEXTRACTED — a launch-scope screen renders an English string that never became a key.
  *      The runtime is forgiving by design (FR-L10N-041: a missing key falls back to the English
@@ -14,18 +14,28 @@
  *   FR-L10N-042's own text is why both halves are here: the forgiving runtime is affordable
  *   ONLY because this gate makes gaps unshippable. The two rulings work as a pair or not at all.
  *
- * ⛔ THIS CHECKS THE `en` CATALOGUE ONLY. `id` ships EMPTY by design (spec §1) — every key is
- *    missing from it by construction, so an `id` check here would be red permanently until a
- *    multi-week translation finished. The `id` half is FR-L10N-042b and ships in the change that
- *    POPULATES `id`, so that it is green the moment it exists (DD-I18N-9, 2026-08-24).
- *    ⛔ Do not "temporarily" widen this to `id`, and do not disable this gate instead.
+ * TWO MODES, one per DD-I18N-9 stage (both wired into `check:i18n`):
+ *
+ *   default (en) — FR-L10N-042a, stage 1: the two failures above, over the `en` catalogue only.
+ *   --id         — FR-L10N-042b, stage 2 (shipped WITH the change that populated `id`, so it was
+ *                  green on arrival — DD-I18N-9, 2026-08-24): every en key a launch-scope screen
+ *                  references must exist in `id` with a NON-EMPTY value, and `id` may hold no key
+ *                  `en` does not (the id tree mirrors en's). Empty is a failure because i18next
+ *                  falls back silently: an empty/missing id value renders as English and looks
+ *                  like working software right up to the moment a client reads it.
+ *
+ *   The default mode still never reads `id` — en completeness must not depend on translation
+ *   state, and the self-test asserts that separation structurally.
  *
  * Scope comes from `pmo-portal/src/lib/i18n/launch-scope-routes.txt`, per OD-I18N-1 (the gate
  * covers launch-scope routes, not the whole app) and DD-I18N-9 (the list is a readable file that
  * each feature adds to as it ships). Read that file's header before changing anything here.
+ * En keys OUTSIDE launch scope may stay untranslated in `id` — they fall back to English until
+ * their feature's line lands in the route list, matching the gate's additive staging.
  *
  * Usage:
  *   node scripts/check-i18n-completeness.mjs
+ *   node scripts/check-i18n-completeness.mjs --id
  *   node scripts/check-i18n-completeness.mjs --self-test
  *
  * ⚑ Every gate in this repo is itself gated (`--self-test`), because BOTH of the existing
@@ -43,6 +53,8 @@ const REPO = path.resolve(HERE, '..');
 const APP = path.join(REPO, 'pmo-portal');
 const ROUTE_LIST = path.join(APP, 'src/lib/i18n/launch-scope-routes.txt');
 const EN_CATALOGUE = path.join(APP, 'public/locales/en/common.json');
+/** Read ONLY by --id mode (FR-L10N-042b); the en-side loader must never touch it. */
+const ID_CATALOGUE = path.join(APP, 'public/locales/id/common.json');
 /** Roots scanned for key REFERENCES (the orphan half). Deliberately the whole app, not just
  *  launch scope: a key pointing at text that no longer exists is dead wherever it lives. */
 const REFERENCE_ROOTS = ['pages', 'src', 'App.tsx'];
@@ -292,6 +304,17 @@ export function flattenCatalogue(node, prefix = '', out = []) {
   return out;
 }
 
+/** `{a: {b: 'x'}}` → `Map('a.b' → 'x')` — the value-preserving flatten the id half needs, because
+ *  "present but empty" and "absent" are different defects with the same rendered symptom. */
+export function flattenCatalogueEntries(node, prefix = '', out = new Map()) {
+  for (const [k, v] of Object.entries(node)) {
+    const key = prefix ? `${prefix}.${k}` : k;
+    if (v && typeof v === 'object' && !Array.isArray(v)) flattenCatalogueEntries(v, key, out);
+    else out.set(key, v);
+  }
+  return out;
+}
+
 // ── The analyser ────────────────────────────────────────────────────────────────────────────
 
 /**
@@ -323,6 +346,40 @@ export function analyse({ launchScopeFiles, referenceFiles, catalogue }) {
   const orphans = catalogueKeys.filter((k) => !referenced.has(k));
 
   return { unextracted, missing, orphans, catalogueKeys };
+}
+
+/**
+ * The id half (FR-L10N-042b, DD-I18N-9 stage 2), over in-memory inputs for the same self-test-
+ * binding reason as `analyse`.
+ *
+ * The launch-scope set is every key a launch-scope screen references that the en catalogue holds
+ * — a key en does NOT hold is the en gate's `missing` finding, and double-reporting it here would
+ * blame the translation for an extraction gap. Two id-side defects:
+ *
+ *   UNTRANSLATED — a launch-scope key absent from id, or present with an empty value. Both render
+ *   as the English fallback (FR-L10N-041), so neither is visible at runtime.
+ *   EXTRANEOUS   — an id key en does not hold. The id tree mirrors en's exactly; a key with no en
+ *   counterpart translates text that no longer exists and counts as coverage while doing it.
+ */
+export function analyseId({ launchScopeFiles, catalogue, idCatalogue }) {
+  const enKeys = new Set(flattenCatalogue(catalogue));
+  const idMap = flattenCatalogueEntries(idCatalogue);
+
+  const scopeKeys = new Set();
+  for (const src of Object.values(launchScopeFiles)) {
+    for (const key of collectKeyRefs(src)) if (enKeys.has(key)) scopeKeys.add(key);
+  }
+
+  const untranslated = [];
+  for (const key of [...scopeKeys].sort()) {
+    const v = idMap.get(key);
+    if (v === undefined) untranslated.push({ key, why: 'absent' });
+    else if (typeof v === 'string' && !v.trim()) untranslated.push({ key, why: 'empty' });
+  }
+
+  const extraneous = [...idMap.keys()].filter((k) => !enKeys.has(k)).sort();
+
+  return { untranslated, extraneous, scopeKeyCount: scopeKeys.size, idKeyCount: idMap.size };
 }
 
 // ── Disk plumbing ───────────────────────────────────────────────────────────────────────────
@@ -401,6 +458,12 @@ function readFromDisk() {
   return { entries, launchScopeFiles, referenceFiles, catalogue };
 }
 
+/** --id mode ONLY. Kept out of `readFromDisk` so the en-side gate stays structurally incapable
+ *  of depending on translation state — the self-test asserts this separation. */
+function readIdFromDisk() {
+  return JSON.parse(fs.readFileSync(ID_CATALOGUE, 'utf8'));
+}
+
 // ── Reporting ───────────────────────────────────────────────────────────────────────────────
 
 function report(result, entries, fileCount) {
@@ -452,6 +515,43 @@ function report(result, entries, fileCount) {
   console.log(
     `✓ i18n completeness (en): ${entries.length} launch-scope route(s) / ${fileCount} file(s), ` +
       `${catalogueKeys.length} catalogue key(s) — none unextracted, none missing, none orphaned.`,
+  );
+  return 0;
+}
+
+function reportId(result, entries, fileCount) {
+  const { untranslated, extraneous, scopeKeyCount, idKeyCount } = result;
+  let failed = false;
+
+  if (untranslated.length) {
+    failed = true;
+    console.error(
+      `\n✗ ${untranslated.length} launch-scope key(s) are not translated in the id catalogue.`,
+    );
+    console.error(`  A missing or empty id value renders as its English fallback (FR-L10N-041),`);
+    console.error(`  so nothing looks broken — and a client reads English. Add each key to`);
+    console.error(`  pmo-portal/public/locales/id/common.json with a non-empty translation.\n`);
+    for (const u of untranslated) console.error(`  ${u.key}  (${u.why})`);
+  }
+
+  if (extraneous.length) {
+    failed = true;
+    console.error(`\n✗ ${extraneous.length} id key(s) have no en counterpart. The id tree mirrors`);
+    console.error(`  en's exactly — these translate text that no longer exists, and they count as`);
+    console.error(`  coverage while doing it. Delete them, or restore the en key.\n`);
+    for (const k of extraneous) console.error(`  ${k}`);
+  }
+
+  if (failed) {
+    console.error(`\nFR-L10N-042b — the id-side i18n completeness gate (DD-I18N-9 stage 2). See`);
+    console.error(`pmo-portal/src/lib/i18n/launch-scope-routes.txt for what is in scope and why.`);
+    return 1;
+  }
+
+  console.log(
+    `✓ i18n completeness (id): ${entries.length} launch-scope route(s) / ${fileCount} file(s), ` +
+      `${scopeKeyCount} launch-scope key(s) all translated non-empty; ` +
+      `${idKeyCount} id key(s), none without an en counterpart.`,
   );
   return 0;
 }
@@ -586,12 +686,80 @@ function selfTest() {
     );
   }
 
-  // 7. The gate must never look at `id`. Guard the ruling itself: an empty `id` catalogue is the
-  //    shipped state, and nothing in the analyser may take it as input.
+  // 7. Mode separation — EVOLVED for DD-I18N-9 stage 2. Stage 1's assertion was "the gate never
+  //    reads `id` at all" (`id` shipped empty, so any id check would have been permanently red).
+  //    Stage 2 arrived WITH the populated catalogue, so the ruling is now two-sided: the en-side
+  //    loader still must not read `id` (en completeness must never depend on translation state),
+  //    and the id-side loader must actually read it (a stage-2 gate that silently stopped
+  //    looking at `id` would pass everything while checking nothing).
   {
     const source = fs.readFileSync(fileURLToPath(import.meta.url), 'utf8');
-    const readsId = /locales\/(?:\$\{[^}]*\}|id)\//.test(source);
-    check('the gate reads the en catalogue only (FR-L10N-042a, DD-I18N-9)', !readsId, '');
+    const enStart = source.indexOf('function readFromDisk');
+    const idStart = source.indexOf('function readIdFromDisk');
+    const enLoader = source.slice(enStart, idStart);
+    check(
+      'the en-side loader never reads the id catalogue (FR-L10N-042a)',
+      enStart > 0 && idStart > enStart && !/ID_CATALOGUE|locales\/(?:\$\{[^}]*\}|id)\//.test(enLoader),
+      '',
+    );
+    const idLoaderBody = idStart > 0 ? source.slice(idStart, source.indexOf('}', idStart) + 1) : '';
+    check(
+      'the id-side loader reads the id catalogue (FR-L10N-042b, stage 2)',
+      /ID_CATALOGUE/.test(idLoaderBody) && /locales\/id\//.test(source),
+      '',
+    );
+  }
+
+  // 8. Stage 2 (FR-L10N-042b): the id half, same fixture discipline — a clean control first,
+  //    then each planted defect class must redden the analyser.
+  {
+    const idOf = (v) => ({ [NS]: { greeting: v } });
+    const base = { launchScopeFiles: clean.launchScopeFiles, catalogue: clean.catalogue };
+
+    const rClean = analyseId({ ...base, idCatalogue: idOf('Halo') });
+    check(
+      'a fully translated id catalogue passes',
+      !rClean.untranslated.length && !rClean.extraneous.length,
+      `untranslated=${rClean.untranslated.length} extraneous=${rClean.extraneous.length}`,
+    );
+
+    const rAbsent = analyseId({ ...base, idCatalogue: { [NS]: {} } });
+    check(
+      'a launch-scope key ABSENT from id fails the gate',
+      rAbsent.untranslated.some((u) => u.key === OK_KEY && u.why === 'absent'),
+      `untranslated=${JSON.stringify(rAbsent.untranslated)}`,
+    );
+
+    const rEmpty = analyseId({ ...base, idCatalogue: idOf('   ') });
+    check(
+      'a launch-scope key EMPTY in id fails the gate',
+      rEmpty.untranslated.some((u) => u.key === OK_KEY && u.why === 'empty'),
+      `untranslated=${JSON.stringify(rEmpty.untranslated)}`,
+    );
+
+    const rExtra = analyseId({
+      ...base,
+      idCatalogue: { [NS]: { greeting: 'Halo', deadText: 'Terjemahan tanpa sumber' } },
+    });
+    check(
+      'an id key en does not hold fails the gate',
+      rExtra.extraneous.includes(ORPHAN_KEY),
+      `extraneous=${JSON.stringify(rExtra.extraneous)}`,
+    );
+
+    // Scope control: an en key OUTSIDE launch scope may stay untranslated (DD-I18N-9's additive
+    // staging). Without this, a rule demanding the whole catalogue would pass every red case
+    // above — and gate features that have not shipped their route-list line yet.
+    const rScope = analyseId({
+      launchScopeFiles: clean.launchScopeFiles,
+      catalogue: { [NS]: { greeting: 'Hello there', notYet: 'Ships later' } },
+      idCatalogue: idOf('Halo'),
+    });
+    check(
+      'an en key outside launch scope may stay untranslated',
+      !rScope.untranslated.length,
+      `untranslated=${JSON.stringify(rScope.untranslated)}`,
+    );
   }
 
   const failures = cases.filter((c) => !c.ok);
@@ -613,6 +781,11 @@ const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPat
 if (isMain) {
   if (process.argv.includes('--self-test')) {
     process.exit(selfTest());
+  }
+  if (process.argv.includes('--id')) {
+    const { entries, launchScopeFiles, catalogue } = readFromDisk();
+    const result = analyseId({ launchScopeFiles, catalogue, idCatalogue: readIdFromDisk() });
+    process.exit(reportId(result, entries, Object.keys(launchScopeFiles).length));
   }
   const { entries, launchScopeFiles, referenceFiles, catalogue } = readFromDisk();
   const result = analyse({ launchScopeFiles, referenceFiles, catalogue });
